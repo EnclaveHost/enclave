@@ -1,0 +1,25 @@
+# Synthetic stand-in for the snapshot's persisted profile as root reported it (sender_recovery=full,
+# transaction_lookup=full, four history segments distance 140000, static_files blocks_per_file present).
+[prune]
+block_interval = 5
+
+[prune.segments]
+sender_recovery = "full"
+transaction_lookup = "full"
+
+[prune.segments.receipts]
+distance = 140000
+
+[prune.segments.account_history]
+distance = 140000
+
+[prune.segments.storage_history]
+distance = 140000
+
+[prune.segments.bodies_history]
+distance = 140000
+
+[static_files.blocks_per_file]
+headers = 500000
+transactions = 500000
+receipts = 500000

@@ -1,0 +1,586 @@
+--- a/AUTHOR-NOTES.md
++++ b/AUTHOR-NOTES.md
+@@ -0,0 +1,50 @@
++# Author notes — r2: unavailable manager ≠ dead guest (source only, nothing run)
++
++Nothing was executed: no tests, node, builds or tools beyond Read/Grep/Glob/Edit/Write. **No test outcome is known.** I can't compute hashes here, so the root collector must generate the diff and SHA256 for each file.
++
++## Changed files
++- `supervisor.js` (modified)
++- `test/isolation-instance-liveness.test.mjs` (new)
++- `AUTHOR-NOTES.md` (new)
++
++No helper module was added, and the existing tests were not changed.
++
++## Contract
++`classifyInstanceView(r, vmId, name)` / `observeInstance(rec)` return `running | starting | dead | unknown`:
++- `dead`: a 404 for the requested id, or a 200 for the same id (and, on the guest tier, the same name) whose state is one of `failed|stopped|exited|terminated`. `preempted` is set only for an authenticated `failed`+`preempted:true`.
++- `unknown`: any transport, session, MAC or JSON throw; any non-200/404 status; a non-object body or one without a string `status`; a mismatched id or name; or any other state.
++- `starting` is only recognised on the guest tier. It counts as live but not as serving.
++
++`instanceAlive` and `instancePreempted` were removed. They did duplicate reads and interpreted them differently. Every consumer now reads one observation.
++
++## Call-site map
++| Site | Before | After |
++|---|---|---|
++| auditClaims, running branch | transport error = death → `_deaths++`, DELETE, relaunch | Captures `_vmId` before the await and discards a stale result (record replaced, status/vmId changed, restarting, provisioning, release intent). `unknown` → keep everything and observe again next pass. `dead` → the same preemption/death ladder as before; preemption now uses the same observation. The owner-stop, lease-loss, wallet and placement branches run before this, unchanged. |
++| auditClaims, claimed branch | false → noteProvisionFailure + release | Paced by `_provisionDeferred.retryAt`; a deferred result skips failure/release. |
++| auditClaims, death relaunch | same | Deferred result skips failure/release. |
++| billing, on-chain | `healthy && !alive` → respawn | Respawns only on `dead`, and only if the record is still running the same `_vmId`. |
++| billing, off-chain | `!alive` → pause + respawn | `unknown` → pause (`instance_unknown`), no respawn and no charge. `dead` → same as before, plus the identity check. |
++| tenantServing | isolation: own GET | Only `running` counts as serving. |
++| spawnContainer, POST 409 | a non-200 or malformed follow-up was treated as a mismatch → DELETE + POST | A throw or `unknown` raises `instanceUnknownError` with no DELETE or POST. The adoption checks are unchanged. Only an authenticated `dead`, or a matching live record that fails the existing same-record checks, enters replacement. |
++| performTenantProvision | catch → status failed, release `_gpu` | For an on-chain record still `claimed` and current, an `instanceUnknown` error → `deferProvision`: status stays `claimed`, `_gpu` and lease are kept, `_vmId` is set to the held id if it was empty, and backoff runs 15 s ×2 up to 5 min (`PROVISION_DEFER_MS`). Returns **false**, so the boolean contract is unchanged. Success clears the deferral. |
++| adopt | false → noteProvisionFailure + releaseLease (resume too) | `provisionDeferred(rec)` → log only; the lease, reservation and guest stay. |
++| restart route / version switch / envelope edit | false → note + proveAndRelease | Deferred → no note or release (the restart route answers 503 `restart_deferred`). |
++| onPaid / forceProvision (off-chain) | unchanged | The 409-unknown case no longer DELETEs; the record is marked failed as before. |
++
++While deferred, the record is `claimed`, which is not terminal. So `vouchesForLease` vouches for it, `orphanInstancePlan` keeps the guest, `considerClaim` returns "already serving" (no new claim), and proofs and billing (running-only) attest nothing. The retry is the audit's existing crash-recovery branch, the same path that adopts after reconnect.
++
++## Test seam (inert unless DIRECT_CLAIM_SELFTEST.lifecycle sets these)
++All new keys are opt-in: `vmFaults`, `audit`, `billing`, `rowPatches`, `snapshotAtMs`. The seam wraps `noteProvisionFailure` and `releaseLease` to record calls, then calls through. The output adds `managerCalls`, `provisionFailureNotes`, `releases`, `auditErrors`, `snapshot`, `detail`, `serving`, and the existing fields are unchanged.
++
++## Tests written, not run
++`test/isolation-instance-liveness.test.mjs` covers the 15 ROOT-REGRESSIONS cases through the real audit, sweep, adopt, provision, spawn and reconcile chain, and the billing ticker. Root should also run the compatibility tests (isolation-post-adoption-lease, isolation-resume-shield-model, isolation-guest-pool, tenant-lease) and the baseline via `SUPERVISOR_UNDER_TEST`.
++
++## Unresolved / for root
++1. **Seam fidelity is unverified.** Running `auditClaims` in lifecycle mode relies on `HOST_WALLET_POLICY` being unset, `needsVersionSwitch(g.ref, d.appRef)` being false for the direct-bootstrap fixture, and `claimSigner()` working with the synthetic key. If any of these is false, `auditErrors` or unexpected deletes will show it.
++2. **The eyesoff-shaped case uses `cpuMilli:1000`** to clear `guestMemoryShareRefusal` at 98304 MiB. It uses the fixture's public id and reservation but a synthetic record digest. It is not the live record.
++3. **Scripted transport throws are not the real control-client.** A real authenticated 401/handshake-renewal/MAC failure → reconnect run is still required (ROOT-REGRESSIONS requirement).
++4. **The baseline outcome under the new seam is unknown.** Baseline doesn't understand the new keys (`vmFaults` and the rest), so the "baseline must fail" comparison only holds if root carries the seam into the baseline or uses an equivalent baseline harness.
++5. **Lease renewal while deferred was not changed.** If renewals only cover running records, a long outage lets the held lease lapse. The audit's existing lease-loss path then tears it down, which is bounded but loses the lease. Changing that is lease policy, which is out of scope.
++6. **Unchanged by design:** other awaits in the audit (wallet refusal, version switch, envelope edit), and the success path of `performTenantProvision`, which does no identity re-check.
++7. Cold controller activation and journal continuity remain unqualified.
+--- a/supervisor.js
++++ b/supervisor.js
+@@ -4424,9 +4424,16 @@
+     // derivation record (same catalog version, component, policy and runtime); anything else under this name is
+     // ended and launched again, never adopted.
+     // Adoption is by NAME (this deployment) and record digest, never by the id's spelling: the manager owns its ids.
++    // Only an answer that positively establishes the held guest's state decides between the two: an unverifiable one
++    // (classifyInstanceView "unknown") ends nothing and launches nothing - the caller defers (performTenantProvision).
+     if (r.status === 409 && r.body && /^[A-Za-z0-9-]{1,64}$/.test(String(r.body.id || ""))) {
+-      const cur = await vmReq("GET", `/vms/${encodeURIComponent(r.body.id)}`, null, 10_000);
+-      const v = cur && cur.status === 200 && cur.body;
++      const heldId = String(r.body.id);
++      let cur;
++      try { cur = await vmReq("GET", `/vms/${encodeURIComponent(heldId)}`, null, 10_000); }
++      catch (e) { throw instanceUnknownError(deploymentId, heldId, `manager unreachable (${e.message})`); }
++      const o = classifyInstanceView(cur, heldId, deploymentId);
++      if (o.state === "unknown") throw instanceUnknownError(deploymentId, heldId, o.why);
++      const v = instanceLive(o) && o.view;
+       if (v && v.name === deploymentId && (v.status === "running" || v.status === "starting")
+           && (v.directBootstrap === true) === direct
+           && (!direct || v.appId === bootstrapManifest.appId && v.runtimeId === bootstrapManifest.runtimeId && v.bootstrapSha256 === createHash("sha256").update(Buffer.from(bootstrap,"base64")).digest("hex"))
+@@ -4447,7 +4454,7 @@
+     // without its owner's release), so its ticket is pumped; a legacy guest takes none.
+     if (released || direct) pumpReleaseTicket(deploymentId, r.body.id, direct ? bootstrapManifest : null);
+     // hostPort 0: the guest's forwarder is on the HOST, which this process cannot reach as 127.0.0.1; liveness is
+-    // guestd's "running", which it reports only after verifying the guest (instanceAlive, tenantServing)
++    // guestd's "running", which it reports only after verifying the guest (observeInstance, tenantServing)
+     return { internalPort: 0, vmId: r.body.id, hostPort: 0, appId: r.body.appId };
+   }
+   if (PROVISION_BACKEND === "vm") {
+@@ -7376,10 +7383,34 @@
+   return pending;
+ }
+ 
++// A launch that met a guest under this deployment's name the manager could not verify (POST 409, then an "unknown"
++// observation): nothing was ended or launched, and nothing about that guest is known.
++function instanceUnknownError(name, vmId, why) {
++  return Object.assign(new Error(`guest ${vmId} under ${String(name).slice(0, 10)} could not be verified (${why})`),
++    { instanceUnknown: true, vmId });
++}
++// An on-chain record whose launch met such a guest is DEFERRED, not failed: its lease, reservation (_gpu) and the held
++// guest stay as they are, it stays "claimed" (nonterminal: still vouched, never reaped as an orphan, never "running" -
++// it proves no service), and the audit's claimed branch retries it no sooner than retryAt. provisionTenant still
++// returns false (no service); every caller asks provisionDeferred(rec) before treating that false as a failure.
++const PROVISION_DEFER_MS = parseInt(process.env.PROVISION_DEFER_MS || "15000", 10);
++const PROVISION_DEFER_MAX_MS = 5 * 60_000;
++const provisionDeferred = (rec) => !!rec._provisionDeferred && rec.status === "claimed";
++function deferProvision(rec, e) {
++  const prev = rec._provisionDeferred;
++  const backoffMs = Math.min(prev ? prev.backoffMs * 2 : PROVISION_DEFER_MS, PROVISION_DEFER_MAX_MS);
++  rec._provisionDeferred = { vmId: e.vmId, why: e.message, since: prev?.since || Date.now(), backoffMs, retryAt: Date.now() + backoffMs };
++  if (!rec._vmId) rec._vmId = e.vmId;   // the held guest: a genuine stop/lease loss tears THIS one down (stopContainer)
++  rec.status = "claimed";
++  console.warn(`[provision] ${rec.id} deferred: ${e.message}; lease, reservation and guest kept, retry in ${Math.round(backoffMs / 1000)}s`);
++  saveStateSoon();
++}
++
+ // Spawn the tenant's MPS-capped worker process (called once, on first payment).
+ async function performTenantProvision(rec) {
+   try {
+     const sp = await spawnContainer(await launchSpec(rec));
++    delete rec._provisionDeferred;
+     rec._port = sp.internalPort;
+     if (sp.vmId) { rec._vmId = sp.vmId; rec._vmHostPort = sp.hostPort; rec._vmAppId = sp.appId; }
+     if (sp.portMap) rec.portMap = sp.portMap;   // logical -> actual (public: clients see their mapping)
+@@ -7388,6 +7419,12 @@
+     acmeReconcileSoon();   // public+http deployments earn a browser cert for <label>.APP_CERT_DOMAIN (no-op unless ACME is configured)
+     return true;
+   } catch (e) {
++    // a record owned elsewhere meanwhile (an owner stop, a lease loss) is not deferred back into "claimed"
++    if (e && e.instanceUnknown && rec._onchain && rec.status === "claimed" && deployments.get(rec.id) === rec) {
++      deferProvision(rec, e);
++      return false;
++    }
++    delete rec._provisionDeferred;
+     rec.status = "failed"; rec.error = e.message;
+     if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
+     console.error(`[provision] ${rec.id} failed: ${e.message}`);
+@@ -7519,27 +7556,45 @@
+   try { PROVISION_BACKEND === "vm" ? await vmHealth() : await mgrHealth(); return true; }
+   catch { return false; }
+ }
+-// vm backend: is this deployment's app instance still alive in the manager?
+-// (the wasm-manager runs apps as subprocesses; a manager restart loses them)
+-async function instanceAlive(rec) {
+-  if (isMock() || PROVISION_BACKEND !== "vm") return true;  // worker backend: manager health is the best signal we have
+-  if (!rec._vmId) return false;
+-  const r = await vmReq("GET", `/vms/${encodeURIComponent(rec._vmId)}`, null, 5000).catch(() => null);
+-  if (!r) return false;                        // manager unreachable mid-tick: freeze, don't respawn
+-  // the manager reports crashed processes as status "failed" (with the exit
+-  // signal in .error) - an existing record is NOT the same as a live app.
++// vm backend: what the manager says about this deployment's app instance, as ONE observation every consumer reads
++// (the wasm-manager runs apps as subprocesses; a manager restart loses them):
++//   "running"  serving                         "starting"  a live launch (per-app guest tier), not yet serving
++//   "dead"     the manager answered: no such instance (404) or a terminal state (preempted: guestd's pool.go preemption)
++//   "unknown"  anything else - transport/session/MAC/JSON failure, a refused or 5xx answer, a malformed body, an
++//              unexpected state, or an answer about another instance. Never death, never service.
++// On the guest tier vmReq is guestd-control/1: a status here is a verified answer, a failure is a throw.
++const INSTANCE_TERMINAL = new Set(["failed", "stopped", "exited", "terminated"]);
++function classifyInstanceView(r, vmId, name) {
++  const unknown = (why) => ({ state: "unknown", vmId, why });
++  if (!r || !Number.isInteger(r.status)) return unknown("no answer");
++  if (r.status === 404) return { state: "dead", vmId, why: "the manager has no such instance" };
++  if (r.status !== 200) return unknown(`HTTP ${r.status}`);
++  const v = r.body;
++  if (!v || typeof v !== "object" || Array.isArray(v) || typeof v.status !== "string") return unknown("malformed answer");
++  // guestd always names the instance it answers for; the wasm-manager may not, but must not name another
++  if ((ISOLATION_BACKEND || v.id !== undefined) && String(v.id) !== String(vmId)) return unknown(`answer is for instance ${v.id}`);
++  if (ISOLATION_BACKEND && name != null && v.name !== name) return unknown("answer is for another deployment");
++  if (v.status === "running") return { state: "running", vmId, view: v };
+   // On the per-app guest tier a launch takes tens of seconds (boot, then guestd's own verification) and reads
+   // "starting" meanwhile: that is a live launch, not a missing instance, and respawning it would only collide
+   // with it. It does not count as SERVING (tenantServing).
+-  if (ISOLATION_BACKEND && r.status === 200 && r.body && r.body.status === "starting") return true;
+-  return r.status === 200 && r.body && r.body.status === "running";
+-}
+-// guestd ended this instance to admit another guest (pool.go preemption): it reads "failed" with preempted: true.
+-async function instancePreempted(rec) {
+-  if (isMock() || PROVISION_BACKEND !== "vm" || !ISOLATION_BACKEND || !rec._vmId) return false;
+-  const r = await vmReq("GET", `/vms/${encodeURIComponent(rec._vmId)}`, null, 5000).catch(() => null);
+-  return !!(r && r.status === 200 && r.body && r.body.status === "failed" && r.body.preempted === true);
+-}
++  if (ISOLATION_BACKEND && v.status === "starting") return { state: "starting", vmId, view: v };
++  // the manager reports crashed processes as status "failed" (with the exit
++  // signal in .error) - an existing record is NOT the same as a live app.
++  if (INSTANCE_TERMINAL.has(v.status))
++    return { state: "dead", vmId, view: v, preempted: ISOLATION_BACKEND && v.status === "failed" && v.preempted === true };
++  return unknown(`unexpected state ${JSON.stringify(v.status).slice(0, 40)}`);
++}
++async function observeInstance(rec) {
++  if (isMock() || PROVISION_BACKEND !== "vm") return { state: "running", vmId: rec._vmId ?? null };  // worker backend: manager health is the best signal we have
++  const vmId = rec._vmId;
++  if (!vmId) return { state: "dead", vmId: null, why: "no instance was launched" };
++  let r;
++  try { r = await vmReq("GET", `/vms/${encodeURIComponent(vmId)}`, null, 5000); }
++  catch (e) { return { state: "unknown", vmId, why: `manager unreachable (${e.message})` }; }   // freeze, don't respawn
++  return classifyInstanceView(r, vmId, rec.id);
++}
++const instanceLive = (o) => o.state === "running" || o.state === "starting";
+ function pauseRec(rec, reason) {
+   if (!rec.paused || rec.pauseReason !== reason) {
+     console.warn(`[bill] ${rec.id} clock FROZEN (${reason})`);
+@@ -7602,7 +7657,11 @@
+         // (eyesoff 1.0.84, 2026-10-08: seven minutes down). Leave it gone: the next pass sees a
+         // confirmed stop and launches the new version. Ten minutes on, a switch that never
+         // completes falls back to respawning what this record still runs.
+-        if (healthy && !(await instanceAlive(rec))) {
++        // Only a CONFIRMED death respawns: a healthy /health followed by an unanswerable instance read is a manager
++        // that cannot say, and a respawn there collides with (or, through POST 409, replaces) a live guest.
++        const vmAt = rec._vmId;
++        const o = healthy ? await observeInstance(rec) : null;
++        if (o && o.state === "dead" && rec.status === "running" && rec._vmId === vmAt) {
+           if (rec._switchStopping && now - rec._switchStopping < SWITCH_STOP_WAIT_MS) {
+             if (!rec._switchHeldLogged) {
+               console.log(`[bill] ${rec.id} instance gone during a version switch - not respawning the old version`);
+@@ -7632,9 +7691,12 @@
+       }
+       if (!healthy)   { pauseRec(rec, "backend_down");  continue; }
+       if (!watcherOk) { pauseRec(rec, "watcher_stale"); continue; }
+-      if (!(await instanceAlive(rec))) {
++      const vmAt = rec._vmId;
++      const o = await observeInstance(rec);
++      if (o.state === "unknown") { pauseRec(rec, "instance_unknown"); continue; }   // no charge, no respawn
++      if (!instanceLive(o)) {
+         pauseRec(rec, "instance_missing");
+-        if (await respawnTenant(rec)) resumeRec(rec);
++        if (rec.status === "running" && rec._vmId === vmAt && await respawnTenant(rec)) resumeRec(rec);
+         continue;
+       }
+       resumeRec(rec);
+@@ -8187,6 +8249,8 @@
+     rec._deaths = 0;                 // an owner restart earns a fresh crash budget (the version-switch rule)
+     rec.status = "claimed";          // the provision path's input state
+     if (!(await provisionTenant(rec))) {
++      if (provisionDeferred(rec))   // the guest under its name is unverifiable: kept, as are the lease and reservation
++        return fail(res, 503, "restart_deferred", "The app manager cannot verify the guest right now; the relaunch retries.");
+       // same contract as every failed provision: the record keeps the reason,
+       // the lease goes back refunded so the fleet (this node included) retries
+       noteProvisionFailure(rec.id, rec.image && rec.image.reference);
+@@ -10406,7 +10470,7 @@
+   rec.status = "claimed";          // the provision path's input state
+   if (await provisionTenant(rec)) {
+     console.log(`[claim] ${rec.id} now serving ${g.app.slug}:${g.app.version} (${g.ref})`);
+-  } else {
++  } else if (!provisionDeferred(rec)) {   // deferred: the audit's claimed branch retries it
+     // same contract as every failed provision: keep the failed record as the
+     // owner's evidence, hand the lease back refunded, back off THIS version
+     // here (the backoff clears if the owner switches the version again)
+@@ -10470,7 +10534,7 @@
+   delete rec.configChange;
+   rec._deaths = 0;                 // an owner-initiated relaunch earns a fresh crash budget (the version-switch rule)
+   rec.status = "claimed";          // the provision path's input state
+-  if (!(await provisionTenant(rec))) {
++  if (!(await provisionTenant(rec)) && !provisionDeferred(rec)) {
+     noteProvisionFailure(rec.id, rec.image && rec.image.reference);
+     proveAndRelease(rec, "config change provision failed").catch(() => {});
+   }
+@@ -10663,7 +10727,9 @@
+       saveStateSoon();
+     } else if (rec.status === "claimed") {    // crashed after claim, before provision
+       rec._loseStrikes = 0;
+-      if (!(await provisionTenant(rec))) {
++      // a deferred launch (provisionDeferred) retries at its own bounded pace, not every pass
++      if (rec._provisionDeferred && Date.now() < rec._provisionDeferred.retryAt) continue;
++      if (!(await provisionTenant(rec)) && !provisionDeferred(rec)) {
+         // keep the "failed" record as the owner's evidence (see adopt())
+         noteProvisionFailure(rec.id, rec.image && rec.image.reference);
+         proveAndRelease(rec, "provision failed after crash recovery").catch(() => {});
+@@ -10703,11 +10769,25 @@
+       // lease is ours and paid, the wasm is cached - relaunch. Bounded: an
+       // app that keeps dying (crash-on-first-request) gets handed back after
+       // 3 deaths instead of flapping forever on the owner's dime.
+-      if (rec.status === "running" && !(await instanceAlive(rec))) {
++      if (rec.status !== "running") continue;
++      // Only a CONFIRMED death (observeInstance "dead") is acted on. "unknown" - a manager that cannot say - leaves the
++      // record, its guest, lease, reservation and crash count exactly as they are; the next pass observes again. The
++      // owner-stop/lease-loss/policy branches above ran regardless. An observation of an instance this record no
++      // longer runs (relaunched, stopped or replaced during the read) is stale and decides nothing.
++      const vmAt = rec._vmId;
++      const o = await observeInstance(rec);
++      if (deployments.get(rec.id) !== rec || rec.status !== "running" || rec._vmId !== vmAt
++          || rec._restarting || tenantProvisions.has(rec) || _releaseIntents.has(rec.id)) continue;
++      if (o.state === "unknown") {
++        if (rec._unknownLogged !== o.why) { console.warn(`[claim] ${rec.id} instance ${vmAt} unverifiable (${o.why}); keeping it`); rec._unknownLogged = o.why; }
++        continue;
++      }
++      delete rec._unknownLogged;
++      if (o.state === "dead") {
+         // guestd PREEMPTED it (pool.go: a preemptible Shield guest gives its room to a non-preemptible create, e.g.
+         // eyesoff's 27B relaunch on metal0). That is no death and never a reason to hand the lease back: the billing
+         // ticker's respawn relaunches it, with backoff, once guestd admits it again.
+-        if (rec._preemptedAt || await instancePreempted(rec)) {
++        if (rec._preemptedAt || o.preempted) {
+           if (!rec._preemptedAt) {
+             console.warn(`[claim] ${rec.id} instance preempted by guestd; relaunching when there is room`);
+             rec._preemptedAt = Date.now();
+@@ -10729,7 +10809,7 @@
+         console.warn(`[claim] ${rec.id} app instance died; relaunching (death ${rec._deaths}/3)`);
+         try { if (rec._vmId) await vmReq("DELETE", `/vms/${encodeURIComponent(rec._vmId)}`, null, 15000).catch(() => {}); } catch {}
+         rec.status = "claimed";               // provision path's input state
+-        if (!(await provisionTenant(rec))) {
++        if (!(await provisionTenant(rec)) && !provisionDeferred(rec)) {
+           noteProvisionFailure(rec.id, rec.image && rec.image.reference);
+           proveAndRelease(rec, "relaunch after app death failed").catch(() => {});
+         }
+@@ -11705,6 +11785,10 @@
+     _provisionBackoff.delete(rec.id);
+     console.log(`[claim] ${rec.id} adopted: app=${g.app.slug}:${g.app.version} (${g.ref}) gpuShare=${round3(slice.gpuShare || 0)} cpuShare=${round3(slice.cpuShare)} `
+               + `lease until ${new Date(rec._leaseUntil * 1000).toISOString()}`);
++  } else if (provisionDeferred(rec)) {
++    // the guest under its name could not be verified: nothing failed, so no back-off ladder and no release - the
++    // lease, the reservation and that guest stay this host's, and the audit's claimed branch retries the launch
++    console.warn(`[claim] ${rec.id} ${resume ? "resume" : "launch"} deferred; lease kept until the manager can verify guest ${rec._provisionDeferred.vmId}`);
+   } else {
+     // launch failed (bad wasm, manager 503, spawn timeout, ...): hand the
+     // lease back refunded and back off this id here. KEEP the failed record -
+@@ -11853,13 +11937,60 @@
+       if (m && method === "DELETE") { deleted.push(m[1]); const v = vms.get(m[1]); if (v) await end(v, "deleted"); return { status: 200, body: {} }; }
+       return { status: 404, body: {} };
+     };
++    // Opt-in liveness faults (test/isolation-instance-liveness.test.mjs): L.vmFaults [{id, fromMs, toMs, how}] answers
++    // GET /vms/<id> in that window the way guestd-control/1 can fail (a throw: timeout, reset, a refused session, a MAC
++    // or JSON failure) or answer (a verified 503, malformed, another instance, or a stated state); L.audit runs the
++    // claim loop's audit stage before its sweep, as the loop does; L.billing starts the billing ticker (BILL_TICK_SEC);
++    // L.rowPatches [[fromMs, id, {…}]] changes the ledger's rows over time; L.snapshotAtMs records the records then.
++    const managerCalls = [], notes = [], releases = [], auditErrors = [];
++    const fault = (id) => (L.vmFaults || []).find((f) => f.id === id && at() >= f.fromMs && at() < f.toMs);
++    const transportError = (msg, kind, code) => Object.assign(new Error(msg), { kind, ...(code ? { code } : {}), mayHaveExecuted: false });
++    const scripted = vmReq;
++    vmReq = async (method, path, body, timeoutMs) => {
++      managerCalls.push({ t: at(), method, path });
++      const m = method === "GET" && /^\/vms\/([A-Za-z0-9-]+)$/.exec(path), f = m && fault(m[1]);
++      if (!f) return scripted(method, path, body, timeoutMs);
++      const v = vms.get(m[1]), view = v ? (({ leaseUntil, ending, ...p }) => p)(v) : { id: m[1], name: "" };
++      switch (f.how) {
++        case "timeout": throw transportError("guestd control: request timed out", "timeout");
++        case "econnreset": throw transportError("read ECONNRESET", "transport", "ECONNRESET");
++        case "econnrefused": throw transportError("connect ECONNREFUSED", "transport", "ECONNREFUSED");
++        case "401": throw transportError("guestd refused the session (401) after a fresh handshake", "auth");
++        case "mac": throw transportError("guestd answer failed its MAC check", "protocol");
++        case "json": throw transportError("guestd answer is not JSON", "protocol");
++        case "503": return { status: 503, body: { error: "unavailable" } };
++        case "malformed": return { status: 200, body: "<html>bad gateway</html>" };
++        case "unexpected": return { status: 200, body: { ...view, status: "paused" } };
++        case "mismatch": return { status: 200, body: { ...view, id: "gdother0001" } };
++        case "wrongname": return { status: 200, body: { ...view, name: "0x" + "98".repeat(32) } };
++        case "404": return { status: 404, body: {} };
++        case "slow404": await new Promise((r) => setTimeout(r, f.delayMs || 0)); return { status: 404, body: {} };
++        case "starting": case "failed": case "stopped": return { status: 200, body: { ...view, status: f.how } };
++        case "preempted": return { status: 200, body: { ...view, status: "failed", preempted: true } };
++        case "incompatible": return { status: 200, body: { ...view, recordSha256: "cc".repeat(32) } };
++      }
++      throw new Error("unscripted fault " + f.how);
++    };
++    const noted = noteProvisionFailure; noteProvisionFailure = (id, ...a) => { notes.push({ t: at(), id }); return noted(id, ...a); };
++    const released = releaseLease; releaseLease = (id, why, ...a) => { releases.push({ t: at(), id, why }); return released(id, why, ...a); };
++    const rowsNow = () => c.rows.map((d) => Object.assign({ ...d }, ...(L.rowPatches || []).filter(([from, id]) => at() >= from && id === d.id).map(([, , p]) => p)));
++    const detail = () => Object.fromEntries(c.rows.map((d) => { const r = deployments.get(d.id);
++      return [d.id, r ? { status: r.status, vmId: r._vmId || null, deaths: r._deaths || 0, leaseUntil: r._leaseUntil, gpu: r._gpu ? JSON.stringify(r._gpu) : null,
++        deferred: r._provisionDeferred ? { vmId: r._provisionDeferred.vmId, backoffMs: r._provisionDeferred.backoffMs } : null, preemptedAt: r._preemptedAt || null } : null]; }));
++    let snapshot = null;
+     _firstClaimSweepAt = 0;   // a cold boot of this process
+     const timers = [setInterval(tick, 25), setInterval(() => reconcileInstances().catch(() => {}), L.reconcileMs)];
++    if (L.snapshotAtMs) timers.push(setTimeout(() => { snapshot = detail(); }, L.snapshotAtMs));
++    if (L.billing) startBillingTicker();
+     let busy = false;
+     const claimPass = async () => {   // the claim loop's pass: its ledger read (scripted as failing until ledgerFromMs), then the sweep stage
+       if (busy || at() < (L.ledgerFromMs || 0)) return;
+       busy = true;
+-      try { await claimSweepStage(c.rows); } finally { busy = false; }
++      try {
++        const rows = rowsNow();
++        if (L.audit) await auditClaims(new Map(rows.map((d) => [String(d.id).toLowerCase(), d]))).catch((e) => auditErrors.push(e.message));
++        await claimSweepStage(rows);
++      } finally { busy = false; }
+     };
+     timers.push(setTimeout(() => timers.push(setInterval(claimPass, L.claimMs)), L.claimOffsetMs || 0));
+     for (const [from, state] of L.gate.slice(1)) {
+@@ -11870,7 +12001,10 @@
+     timers.forEach((t) => { clearTimeout(t); clearInterval(t); });
+     await new Promise((r) => setTimeout(r, L.reclaimMs + 50));
+     const records = Object.fromEntries(c.rows.map((d) => { const r = deployments.get(d.id); return [d.id, r ? { status: r.status, vmId: r._vmId || null } : null]; }));
++    const serving = {};
++    for (const d of c.rows) { const r = deployments.get(d.id); if (r) serving[d.id] = await tenantServing(r).catch(() => false); }
+     console.log(JSON.stringify({ events, vms: [...vms.values()].map((v) => ({ id: v.id, name: v.name })), records, txs, deleted, lastVouch: _lastVouch,
++      managerCalls, provisionFailureNotes: notes, releases, auditErrors, snapshot, detail: detail(), serving,
+       declines: Object.fromEntries(c.rows.map((d) => [d.id, _sweepDeclines.get(d.id) || null])) }));
+     process.exit(0);
+   }
+@@ -12003,7 +12137,7 @@
+ 
+ let _proof = { at: 0, proved: 0, rejected: 0, lastError: null };
+ 
+-// Is this deployment's app REALLY serving right now? instanceAlive only asks the
++// Is this deployment's app REALLY serving right now? observeInstance only asks the
+ // manager whether the process exists; this also opens a socket to the port the
+ // tenant's traffic goes to, which is the closest thing this supervisor can
+ // honestly assert about the app on a tenant's behalf. Undetermined (no forwarded
+@@ -12012,11 +12146,11 @@
+ async function tenantServing(rec) {
+   if (ISOLATION_BACKEND) {
+     // the guest serves only once guestd has verified it; its forwarder is on the host, not probeable from here
++    // ("starting" and "unknown" are not service)
+     if (!rec._vmId) return false;
+-    const r = await vmReq("GET", `/vms/${encodeURIComponent(rec._vmId)}`, null, 5000).catch(() => null);
+-    return !!(r && r.status === 200 && r.body && r.body.status === "running");
+-  }
+-  if (!(await instanceAlive(rec))) return false;
++    return (await observeInstance(rec)).state === "running";
++  }
++  if (!instanceLive(await observeInstance(rec))) return false;
+   const port = rec._vmHostPort;
+   if (!port) return true;                                  // nothing to probe yet; the manager's word stands
+   return await new Promise((resolve) => {
+--- a/test/isolation-instance-liveness.test.mjs
++++ b/test/isolation-instance-liveness.test.mjs
+@@ -0,0 +1,176 @@
++// An unavailable guestd is not a dead guest. The REAL supervisor (DIRECT_CLAIM_SELFTEST's lifecycle mode: the claim
++// loop's audit + sweep stages - considerClaim -> tryClaim -> adopt -> provisionTenant -> performTenantProvision ->
++// spawnContainer -, vouchTenants/reconcileInstances and, where named, the billing ticker) against a scripted guestd whose
++// GET /vms/<id> fails or answers unreadably in a window (L.vmFaults). Same fixture and 1:100 scale as
++// isolation-post-adoption-lease.test.mjs. SUPERVISOR_UNDER_TEST names the file, so the same timelines run against the
++// unrepaired one. Credentials are synthetic. Scripted transport throws stand in for guestd-control/1 failures; the real
++// control-client failure/reconnect path is root's separate qualification.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import {execFile} from 'node:child_process';
++import {promisify} from 'node:util';
++import {createHash} from 'node:crypto';
++import {preparePackage} from '../sdk/bootstrap/package.mjs';
++const exec=promisify(execFile),tier='snp-guest-per-app',SUP=process.env.SUPERVISOR_UNDER_TEST||'supervisor.js';
++
++const pins={registry:'0x'+'a1'.repeat(20),deployments:'0x'+'a2'.repeat(20),appCatalog:'0x'+'a3'.repeat(20),proofOfTime:'0x'+'a4'.repeat(20),
++  enclavePay:'0x'+'00'.repeat(20),verificationFees:'0x'+'00'.repeat(20),sessionVaultFactory:'0x'+'00'.repeat(20),secretVaultV2:'0x'+'00'.repeat(20)};
++const app='0x'+'ab'.repeat(32),enclaveId='0x'+'e1'.repeat(32),other='0x'+'e2'.repeat(32),owner='0x'+'33'.repeat(20);
++const catalog={app,publisher:'0x'+'44'.repeat(20),slug:'direct-app',version:'1.0.0',cid:'bafybeigdirectcomponent',memMb:256};
++const manifest={version:1,chainId:8453,ledger:pins.deployments,deployment:'0x'+'11'.repeat(32),owner,appRef:`catalog://${app}/0`,
++  appId:'45'.repeat(32),runtimeId:'55'.repeat(32),configText:'{"endpoint":"https://owner-chosen.example"}',secretsMode:'public'};
++const pkg=preparePackage(manifest);
++const pool=(memMiB,cpuPct)=>({budget:{memMiB,cpuPct},allocated:{memMiB:0,cpuPct:0},free:{memMiB,cpuPct},guests:0,overcommitted:false,
++  perGuest:{floorMiB:1024,runtimeMiB:384,unitOverheadMiB:768},hostAvailableMiB:131072,hostFloorMiB:16384});
++const health={backend:tier,catalog:{runtimeId:manifest.runtimeId,derivations:['enclave-catalog-bundle/1']},supports:{directBootstrap:true,gpu:false,protectedPorts:true},
++  pool:pool(32768,800)};
++const now=Math.floor(Date.now()/1000);
++const row=(o={})=>({id:manifest.deployment,owner,appRef:manifest.appRef,configCid:JSON.stringify({guestBootstrap:pkg.intent}),active:true,isPublic:true,
++  gpuMilli:0,cpuMilli:100,leaseUntil:now+3600,runner:enclaveId,balance6:10_000_000,rate:1,spent6:0,createdAt:now-86400,...o});
++const A='http://192.0.2.10:8189/ipfs';
++const expectedDerive={derivation:'enclave-catalog-bundle/1',catalog:{app,version:0},cid:catalog.cid,policy:{cpuPercent:100,memMiB:256,vcpus:1},runtimeId:manifest.runtimeId};
++const canon=v=>Array.isArray(v)?`[${v.map(canon).join(',')}]`:v&&typeof v==='object'?`{${Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')}}`:JSON.stringify(v);
++const recordSha=createHash('sha256').update(canon(expectedDerive)).digest('hex');
++const OWN=manifest.deployment, ORPHAN='0x'+'99'.repeat(32);
++const guest=(id,name,extra={})=>({id,name,appId:manifest.appId,runtimeId:manifest.runtimeId,recordSha256:recordSha,directBootstrap:true,
++  bootstrapSha256:pkg.sha256,createdAt:now-86400,leaseLeftMs:1840,reserved:{memMiB:1792,cpuPct:100},...extra});
++const own=guest('gdown00001',OWN), orphan=guest('gdorph0001',ORPHAN,{recordSha256:'cc'.repeat(32)});
++const rows=[row(),row({id:ORPHAN,runner:other})];
++const admitted={serving:true,status:'current-admit',reason:'admitted'};
++const scale={ttlMs:3000,silenceMs:1800,reconcileMs:600,claimMs:600,claimOffsetMs:300,reclaimMs:400,lastBeatAgoMs:1160};
++
++function env(t,extra){
++  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'liveness-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
++  const file=path.join(dir,'pins.json');fs.writeFileSync(file,JSON.stringify({version:1,chainId:8453,contracts:pins}));
++  return {PATH:process.env.PATH,SECRET:'direct-test-secret',ENABLE_MPS:'0',STATE_FILE:path.join(dir,'state.json'),
++    ISOLATION_DIRECT_ONLY:'1',ISOLATION_BACKEND:tier,PROVISION_BACKEND:'vm',ENCLAVE_CONTRACT_PINS_FILE:file,ADDRESS_BOOK_ADDRESS:'',
++    SECRETS_API:'',DOMAINS_API:'',CERTS_API:'',DNS_API:'',APP_CERT_DOMAIN:'',
++    GUEST_BOOTSTRAP_GATEWAYS:A,IPFS_GATEWAY:JSON.stringify([new URL(A).origin]),
++    REGISTRY_ENABLED:'1',REGISTRY_PRIVATE_KEY:'0x'+'01'.repeat(32),ENCLAVE_REPO:'independent/host',CLAIM_ENABLED:'1',
++    PROVISION_DEFER_MS:'300',BILL_TICK_SEC:'1',...extra};
++}
++async function run(t,lifecycle,{rowsOf=rows,healthOf=health,extraEnv={}}={}){
++  const config={catalog,health:healthOf,appId:manifest.appId,bytes:pkg.bytes.toString('base64'),enclaveId,endpoint:'https://host.independent.example',
++    leaseUntil:now+3600,rows:rowsOf,replicas:{[A]:'serve'},lifecycle:{...scale,guests:[own,orphan],gate:[[0,admitted]],audit:true,endMs:6500,...lifecycle}};
++  const {stdout}=await exec(process.execPath,[SUP],{cwd:new URL('..',import.meta.url),timeout:60000,
++    env:{...env(t,extraEnv),DIRECT_CLAIM_SELFTEST:JSON.stringify(config)},maxBuffer:8<<20}).catch(e=>{throw Error(e.stderr||e.message);});
++  return JSON.parse(stdout.trim().split('\n').at(-1));
++}
++const show=o=>JSON.stringify({events:o.events,records:o.records,detail:o.detail,snapshot:o.snapshot,deleted:o.deleted,txs:o.txs,
++  notes:o.provisionFailureNotes,releases:o.releases,auditErrors:o.auditErrors,serving:o.serving});
++const launches=o=>o.managerCalls.filter(c=>c.method==='POST'&&c.path==='/vms');
++const created=o=>o.events.filter(e=>e.created);
++const alive=(o,id)=>o.vms.some(v=>v.id===id);
++// nothing destructive or authorization-changing happened to the held guest or its lease
++function untouched(o,vmId=own.id){
++  assert(!o.deleted.includes(vmId),'no DELETE of the held guest: '+show(o));
++  assert.deepEqual(created(o),[],'no new guest: '+show(o));
++  assert.deepEqual(o.txs,[],'no claim/release transaction: '+show(o));
++  assert.deepEqual(o.releases.filter(r=>r.id===OWN),[],'no lease release: '+show(o));
++  assert.deepEqual(o.provisionFailureNotes.filter(n=>n.id===OWN),[],'no provision-failure ladder: '+show(o));
++  assert.equal(o.detail[OWN]?.deaths,0,'no death counted: '+show(o));
++  assert(alive(o,vmId),'the held guest still runs: '+show(o));
++}
++const UNKNOWN=['timeout','econnreset','econnrefused','401','mac','json','503','malformed','unexpected','mismatch','wrongname'];
++
++// held_resume_409_unknown_end_to_end + adoption_409_unknown: a cold boot resumes its own live lease; POST /vms answers 409
++// for the held same-record guest and the follow-up GET is unverifiable until 2.4 s. Deferred (claimed, reserved, vouched,
++// never reaped), then the audit's bounded retry adopts the SAME guest once guestd answers.
++for (const how of ['timeout','401','json','malformed','503','mismatch','wrongname','econnreset','mac'])
++  test(`held resume: POST 409 then an unverifiable GET (${how}) defers without DELETE/release, then adopts the same guest`,async t=>{
++    const o=await run(t,{vmFaults:[{id:own.id,fromMs:0,toMs:2400,how}],snapshotAtMs:1800});
++    untouched(o);
++    const s=o.snapshot[OWN];
++    assert(s&&s.status==='claimed','deferred, nonterminal, not serving while unverifiable: '+show(o));
++    assert.equal(s.vmId,own.id,show(o)); assert.equal(s.deferred?.vmId,own.id,show(o));
++    assert(s.gpu,'the held reservation is kept while deferred: '+show(o));
++    assert(o.events.some(e=>e.beat&&e.t>=900&&e.t<2400&&e.beat.includes(OWN)),'vouched while deferred: '+show(o));
++    assert(!alive(o,orphan.id),'the reconciler still reaps a real orphan: '+show(o));
++    assert.equal(o.records[OWN]?.status,'running',show(o)); assert.equal(o.records[OWN].vmId,own.id,show(o));
++    assert.equal(o.detail[OWN].gpu,s.gpu,'same reservation: '+show(o));
++    assert.equal(o.detail[OWN].leaseUntil,rows[0].leaseUntil,'same lease: '+show(o));
++    assert.equal(o.serving[OWN],true,show(o));
++    assert(launches(o).length<=6,'bounded retry, not every tick: '+show(o));
++  });
++
++// adoption_409_same: no fault - adopted by id, nothing created or ended
++test('held resume: POST 409 then the exact same record adopts the original guest',async t=>{
++  const o=await run(t,{});
++  untouched(o); assert.equal(o.records[OWN]?.vmId,own.id,show(o)); assert.equal(launches(o).length,1,show(o));
++});
++
++// adoption_409_different: a verified answer that the guest under this name is another record keeps deliberate replacement
++test('held resume: POST 409 then an authenticated incompatible record is replaced',async t=>{
++  const o=await run(t,{vmFaults:[{id:own.id,fromMs:0,toMs:1200,how:'incompatible'}]});
++  assert(o.deleted.includes(own.id),show(o)); assert(created(o).length>=1,show(o));
++  assert.equal(o.records[OWN]?.status,'running',show(o));
++});
++
++// audit_timeout / audit_connection_refused / audit_authentication / audit_unreadable / audit_transient_401: a resumed,
++// running guest whose observation is unverifiable for 2.5 s, then running again
++for (const how of UNKNOWN)
++  test(`audit: running guest unverifiable (${how}) keeps guest, lease, reservation and crash count`,async t=>{
++    const o=await run(t,{vmFaults:[{id:own.id,fromMs:1500,toMs:4000,how}],snapshotAtMs:3500});
++    untouched(o);
++    assert.equal(o.snapshot[OWN]?.status,'running',show(o)); assert.equal(o.snapshot[OWN].vmId,own.id,show(o));
++    assert.equal(launches(o).length,1,'only the resume adoption ever POSTed: '+show(o));
++    assert.equal(o.records[OWN].vmId,own.id,show(o)); assert.equal(o.serving[OWN],true,show(o));
++  });
++
++// billing_race: /health answers 200 while the instance read is unverifiable - the billing ticker must not respawn
++for (const how of ['timeout','503','malformed'])
++  test(`billing: healthy manager, unverifiable instance (${how}) - no respawn`,async t=>{
++    const o=await run(t,{billing:true,vmFaults:[{id:own.id,fromMs:1500,toMs:4500,how}]});
++    untouched(o); assert.equal(launches(o).length,1,show(o));
++  });
++
++// confirmed_running_starting: starting is live (no crash handling) but never serving
++test('authenticated starting: live for crash suppression, not a serving proof',async t=>{
++  const o=await run(t,{vmFaults:[{id:own.id,fromMs:1500,toMs:999999,how:'starting'}]});
++  untouched(o); assert.equal(o.records[OWN]?.status,'running',show(o)); assert.equal(o.serving[OWN],false,show(o));
++});
++
++// confirmed_dead: an authenticated terminal state or 404 for the exact instance keeps crash recovery actionable
++for (const how of ['failed','stopped','404'])
++  test(`authenticated ${how}: crash recovery runs (death counted, guest ended and relaunched)`,async t=>{
++    const o=await run(t,{vmFaults:[{id:own.id,fromMs:1500,toMs:2000,how}]});
++    assert((o.detail[OWN]?.deaths||0)>=1,show(o)); assert(o.deleted.includes(own.id),show(o));
++  });
++
++// preempted: the preemption branch (no death, own backoff); a later unavailable window manufactures nothing
++test('authenticated preemption keeps its distinct handling; later unavailability is not a death',async t=>{
++  const o=await run(t,{vmFaults:[{id:own.id,fromMs:1500,toMs:2000,how:'preempted'},{id:own.id,fromMs:2000,toMs:3500,how:'timeout'}]});
++  assert(o.detail[OWN]?.preemptedAt||o.records[OWN]?.status==='running',show(o));
++  assert.equal(o.detail[OWN]?.deaths,0,show(o)); assert.deepEqual(o.provisionFailureNotes,[],show(o));
++});
++
++// authorization_change: owner stop and lease loss stay enforced while the instance is unverifiable, running or deferred
++for (const [what,patch,want] of [['owner stop',{active:false},'terminated'],['lease loss',{runner:other},'expired']])
++  for (const from of [0,1500])
++    test(`${what} while the guest is unverifiable (from ${from} ms) is still enforced`,async t=>{
++      const o=await run(t,{vmFaults:[{id:own.id,fromMs:from,toMs:999999,how:'timeout'}],rowPatches:[[2500,OWN,patch]],endMs:7000});
++      assert.equal(o.records[OWN]?.status,want,show(o));
++      assert.equal(o.detail[OWN]?.deaths||0,0,show(o)); assert.deepEqual(created(o),[],show(o));
++    });
++
++// identity_changed_during_await: the billing ticker's read is slow and answers 404 after the audit retired the record
++// on an owner stop; that stale observation must not relaunch anything
++test('a stale observation of a record stopped meanwhile relaunches nothing',async t=>{
++  const o=await run(t,{billing:true,vmFaults:[{id:own.id,fromMs:1500,toMs:3000,how:'slow404',delayMs:900}],rowPatches:[[1500,OWN,{active:false}]]});
++  assert.equal(o.records[OWN]?.status,'terminated',show(o));
++  assert.equal(launches(o).length,1,show(o)); assert.deepEqual(created(o),[],show(o));
++});
++
++// eyesoff_fixture: the public held-guest identity and reservation (CURRENT-GUEST-FIXTURE.json: 64281 MiB, 1600%) on the
++// original positive 98304 MiB / 24 CPU budget, through a deferred resume and recovery. The record digest is this
++// fixture's synthetic derivation, not the live guest's.
++test('eyesoff-shaped held guest: unknown then running resumes the same guest id and reservation',async t=>{
++  const fx=guest('gd61126785',OWN,{reserved:{memMiB:64281,cpuPct:1600}});
++  const o=await run(t,{guests:[fx],vmFaults:[{id:fx.id,fromMs:0,toMs:2400,how:'timeout'}],snapshotAtMs:1800},
++    {rowsOf:[row({cpuMilli:1000})],healthOf:{...health,pool:pool(98304,2400)}});
++  untouched(o,fx.id); assert.equal(o.snapshot[OWN]?.status,'claimed',show(o));
++  assert.equal(o.records[OWN]?.vmId,fx.id,show(o)); assert.equal(o.records[OWN].status,'running',show(o));
++});

@@ -1,0 +1,35 @@
+{
+  "status": "READ_ONLY_STATIC_AND_TRANSCRIPT_ANALYSIS; no CLI execution",
+  "configuredMaxAgenticTurns": 55,
+  "reportedResultNumTurns": 80,
+  "transcriptUserRows": 80,
+  "transcriptToolUses": 79,
+  "distinctAssistantMessageIds": 42,
+  "assistantChunkRows": 136,
+  "resultSubtype": "success",
+  "transcriptSha256": "bfdfa98e9fa6fa2f3b9d4c7d67419624370a373cecebde2eece3f22db7318869",
+  "resultSha256": "76c59a5d10f0a61e29a96565a7137ac0a322d57c42c050286dc1b2f5952efb35",
+  "runnerSha256": "ad8fed2538e5c42be09ab94df3fb003cfd2c5476e4c9ec0031a710c2139a6766",
+  "installedBinary": "/home/steven/.local/share/claude/versions/2.1.281",
+  "installedBinarySha256": "56fe3da88458465fb27d7e9299dddb3fead55750fb9c2de795f233b5eea6dce1",
+  "staticEvidence": [
+    {
+      "byteOffset": 100566436,
+      "snippet": " the main thread agent. Slash commands are processed. Prepended to any user-provided prompt.A\u0000\u0000\ufffd\ufffd\u0015U\u0000Maximum number of agentic turns (API round-trips) before stopping\u0000\u0000\u0000P\u0000\u0000\ufffd\ufffdQ \u0000Run this agent as a background task (non-blocking, fire-and-forget) when invoked\ufffd\u0000\u0000\ufffd\ufffd/y\u0000Run this agent without the user"
+    },
+    {
+      "byteOffset": 208909000,
+      "snippet": ".options?.maxBudgetUsd,Jr=bee().at(-1),_n;try{let Le=await Pn.next();while(!Le.done){let T=Le.value;if(T.type===\"user\"){if(!Pe.engineDeferredSlash)Go++;Wo.push(T),zo=\"\",Lo=!1,Ro=null,qo=void 0,nn=\"\"}else if(T.type===\"tombstone\"){{let Ce=T.message?.uuid,Qt=Ce!==void 0?Wo.findLastIn"
+    },
+    {
+      "byteOffset": 208917217,
+      "snippet": "age_uuid:void 0}}),...de}:tn===null&&yn===void 0&&An?{...N4({startedAt:oe,common:{...ln,is_error:!0,num_turns:An.turnCount},variant:{subtype:\"error_max_turns\",errors:[`Reached maximum number of turns (${An.maxTurns})`],user_message_uuid:void 0}}),...de"
+    },
+    {
+      "byteOffset": 208917610,
+      "snippet": "d:void 0}}),...de}:{...N4({startedAt:oe,common:{...ln,...yn!==void 0&&{stop_reason:\"tool_deferred\"},is_error:Lo,num_turns:Go},variant:{subtype:\"success\",api_error_status:Ro,...qo!==void 0&&{api_error_code:qo},result:bn,structured_output:sn.at(-1)?.data,t"
+    }
+  ],
+  "conclusion": "Success-result num_turns uses a user-message counter, incremented for emitted user/tool-result rows, while maxTurns refers to agentic/API round-trips and its failure uses separate turnCount. Raw80 is not evidence of80 APIroundtrips or capraise.42distinctassistantIDs are transcript evidence, not exact billing/cap instrumentation. Preserve all metrics; keep max-turns55 unchanged.",
+  "noCapIncrease": true
+}

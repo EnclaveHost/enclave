@@ -1,0 +1,3 @@
+# Explicit Base fork tests
+
+Run separately from offline tests through the shared resource queue. Set BASE_FORK_RPC=https://base-rpc.publicnode.com and use native solc0.8.35 with `forge test --root <this directory> --offline --use /path/to/solc-0.8.35 -vv`. Missing RPC is failure, not a skip. Pins block53199497, chain/timestamp and six runtime hashes. No broadcast; payer USDC is fabricated solely within fork state. Real exchange and reserve behavior at this block does not establish a deployed adapter or session permission. Original four-test pass retained in fork-test-r1.txt; packaged recheck recorded separately.

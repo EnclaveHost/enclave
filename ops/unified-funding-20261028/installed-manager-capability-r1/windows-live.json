@@ -1,0 +1,226 @@
+{
+  "checkedAt": "2026-10-29T11:15:53.4656295Z",
+  "health": [
+    {
+      "port": 8095,
+      "backend": "hyperv-partition-per-app",
+      "supports": {
+        "gpu": true,
+        "secrets": true,
+        "egress": true,
+        "config": true,
+        "ports": true,
+        "configCid": true,
+        "desktop": true,
+        "set": true,
+        "mem64": true
+      },
+      "boundary": {
+        "tier": "T0-hv",
+        "partition": "wmi-openhcl-gen2-igvm-linux",
+        "guestStateIsolationType": 1,
+        "hostExcluded": false,
+        "attested": false,
+        "note": "a Gen2 OpenHCL partition with GuestStateIsolationType 1 (VBS), defined through WMI. The hypervisor is CONFIGURED to keep VTL0 RAM host-private; that is not a measurement. The host is NOT shown to be excluded and no chain is verified: never advertise this as verified or host-excluded capacity."
+      },
+      "canStart": true,
+      "runtime": {
+        "v2SocketServer": false,
+        "configSocketServer": true,
+        "note": "enclave-catalog-bundle/2 is derived byte-for-byte here but not served: serving a command on its own socket needs wasi:sockets inside the partition and an in-guest TLS front"
+      }
+    },
+    {
+      "port": 8097,
+      "backend": "hyperv-partition-per-app",
+      "supports": {
+        "gpu": true,
+        "secrets": true,
+        "egress": true,
+        "config": true,
+        "ports": true,
+        "configCid": true,
+        "desktop": true,
+        "set": true,
+        "mem64": true
+      },
+      "boundary": {
+        "tier": "T0-hv",
+        "partition": "wmi-openhcl-gen2-igvm-linux",
+        "guestStateIsolationType": 1,
+        "hostExcluded": false,
+        "attested": false,
+        "note": "a Gen2 OpenHCL partition with GuestStateIsolationType 1 (VBS), defined through WMI. The hypervisor is CONFIGURED to keep VTL0 RAM host-private; that is not a measurement. The host is NOT shown to be excluded and no chain is verified: never advertise this as verified or host-excluded capacity."
+      },
+      "canStart": true,
+      "runtime": {
+        "v2SocketServer": false,
+        "configSocketServer": true,
+        "note": "enclave-catalog-bundle/2 is derived byte-for-byte here but not served: serving a command on its own socket needs wasi:sockets inside the partition and an in-guest TLS front"
+      }
+    }
+  ],
+  "files": [
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\node\\isolation-client.mjs",
+      "sha256": "0b9808c7ab2d39a6e39df79efb98bb946d41d288d83d06861796c58e1d2c8ff5",
+      "capabilityLines": [
+        {
+          "line": 5,
+          "text": "// any /vms, VMMGR or guestd-control client. supervisor.js - the consumer the manager was written"
+        },
+        {
+          "line": 10,
+          "text": "// and this speaks it unchanged: POST /vms answers 201 with the record, or 409 {error, id} when an"
+        },
+        {
+          "line": 136,
+          "text": "const r = await this.#req(\"POST\", \"/vms\", body);"
+        },
+        {
+          "line": 153,
+          "text": "const r = await this.#req(\"GET\", `/vms/${encodeURIComponent(id)}`);"
+        },
+        {
+          "line": 155,
+          "text": "if (r.status !== 200) throw IsolationManagerClient.#answerError(`GET /vms/${id}`, r);"
+        },
+        {
+          "line": 160,
+          "text": "const r = await this.#req(\"GET\", \"/vms\");"
+        },
+        {
+          "line": 161,
+          "text": "if (r.status !== 200) throw IsolationManagerClient.#answerError(\"GET /vms\", r);"
+        },
+        {
+          "line": 164,
+          "text": "if (!rows) throw new IsolationError(\"protocol\", \"GET /vms: the answer carries no vms list\");"
+        },
+        {
+          "line": 174,
+          "text": "const r = await this.#req(\"DELETE\", `/vms/${encodeURIComponent(id)}`);"
+        },
+        {
+          "line": 176,
+          "text": "if (r.status !== 200) throw IsolationManagerClient.#answerError(`DELETE /vms/${id}`, r);"
+        },
+        {
+          "line": 181,
+          "text": "const r = await this.#req(\"GET\", \"/health\");"
+        },
+        {
+          "line": 182,
+          "text": "if (r.status !== 200) throw IsolationManagerClient.#answerError(\"GET /health\", r);"
+        }
+      ]
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\server.mjs",
+      "sha256": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc",
+      "capabilityLines": [
+        {
+          "line": 2,
+          "text": "The Windows app manager: the supervisor's /vms contract, backed by a Hyper-V partition per app."
+        },
+        {
+          "line": 5,
+          "text": "you (GET /health), run this (POST /vms), and what is running (GET/DELETE /vms). None of that"
+        },
+        {
+          "line": 111,
+          "text": "// bridge and egress endpoint; this states it on /health and fails a domain whose path exits. Only secret (V6)"
+        },
+        {
+          "line": 154,
+          "text": "// THIS PROCESS's epoch (128 bits), stated on /health and every record so a client can tell that the"
+        },
+        {
+          "line": 160,
+          "text": "// /vms answer is 503. A backend with no launcher can run nothing, so there is nothing to recover."
+        },
+        {
+          "line": 178,
+          "text": "* polls GET /vms/:id; blocking the spawn for two minutes would time out the caller and tell it"
+        },
+        {
+          "line": 350,
+          "text": "// DEFECT 4: /health had no boundary at all, so a reader could learn everything about this"
+        },
+        {
+          "line": 378,
+          "text": "/** Ask the host what it has, and remember it. /health reports this rather than guessing. */"
+        },
+        {
+          "line": 823,
+          "text": "* can do, then rebuild the inventory from Hyper-V before any /vms answer means anything."
+        },
+        {
+          "line": 853,
+          "text": "if (req.method === \"GET\" && p === \"/health\") return send(200, manager.health());"
+        },
+        {
+          "line": 854,
+          "text": "// Until the inventory is known every /vms answer is 503: \"not listed\" must never read as \"absent\"."
+        },
+        {
+          "line": 855,
+          "text": "if (p.startsWith(\"/vms\") && !manager.inventoryReady)"
+        },
+        {
+          "line": 857,
+          "text": "if (req.method === \"GET\" && p === \"/vms\") return send(200, { vms: manager.list(), managerEpoch: manager.epoch });"
+        },
+        {
+          "line": 858,
+          "text": "if (req.method === \"POST\" && p === \"/vms\") {"
+        },
+        {
+          "line": 873,
+          "text": "const m = p.match(/^\\/vms\\/([^/]+)$/);"
+        }
+      ]
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\backend.mjs",
+      "sha256": "d90b596a81a4f76752ba87c7905bb521f1f1674a6bbba3d8f3db210d657af9e2",
+      "capabilityLines": [
+        {
+          "line": 4,
+          "text": "Everything above this file - the /vms contract, derivation, AppID, policy, the refusals - is"
+        },
+        {
+          "line": 58,
+          "text": "/** The launcher's boundary word, which server.mjs carries on /health and every record (null with no launcher). */"
+        }
+      ]
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\main.mjs",
+      "sha256": "53a854973c9b2c61e556b317a1dd349135595dee1f07edc8299a43a888eb310b",
+      "capabilityLines": [
+        {
+          "line": 7,
+          "text": "/health, so \"canStart\" is the host's answer rather than a configuration detail. */"
+        },
+        {
+          "line": 51,
+          "text": "// launcher without it still surveys, stops and removes VMs, but refuses to start one, and /health"
+        },
+        {
+          "line": 287,
+          "text": "// Ask the host BEFORE answering anything about what it can do, then THE INVENTORY, before any /vms"
+        },
+        {
+          "line": 289,
+          "text": "// Notes, so \"not in my memory\" is never answered as \"absent\". Until this completes every /vms request"
+        }
+      ]
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\desktop-router.mjs",
+      "sha256": "16b3ad77d10d8e82a5b90bea15ae9185af0ade0f51509156451b3ab8ea62635f",
+      "capabilityLines": []
+    }
+  ]
+}

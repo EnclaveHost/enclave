@@ -1,0 +1,71 @@
+{
+  "readOnly": true,
+  "at": "2026-10-28T21:26:28.507Z",
+  "providers": [
+    "https://base-rpc.publicnode.com",
+    "https://base-mainnet.public.blastapi.io"
+  ],
+  "snapshot": {
+    "number": "53216719",
+    "hash": "0x74c12c9871a5e1f219b7df3c1f0891beff428950061a91e80253459074c4ed2e",
+    "timestamp": "1793222785",
+    "baseFeePerGas": "5000000",
+    "heads": [
+      "53216721",
+      "53216721"
+    ],
+    "minHead": "53216721",
+    "at": {
+      "blockHash": "0x74c12c9871a5e1f219b7df3c1f0891beff428950061a91e80253459074c4ed2e",
+      "requireCanonical": true
+    }
+  },
+  "originalBindingsVerified": true,
+  "exactReviewedDeployedRuntimeVerified": true,
+  "contracts": {
+    "FundingSessionVaultLib": {
+      "address": "0x8229D0bf25328D6317D9B670c982A8ca4Dc537DB",
+      "codehash": "0xbd9ec83e33bc558de4abd0d9539b03fcbc494194d009bb9b20af05bdcb104c79",
+      "bytes": 10686
+    },
+    "FundingGasLib": {
+      "address": "0x24f30A3aB8FACAFAd65E94764715BC04957859AD",
+      "codehash": "0x82371b4bf52dfab34a942593061c8f7b9dd91830f236604505702bc5ad051863",
+      "bytes": 7777
+    },
+    "LeaseGasDexAdapter": {
+      "address": "0xE5198b7BA033612C45c720d204C469D9ECe77D9e",
+      "codehash": "0xe3cb6aeac87a81b82653f71327fb517a30b23285907ea47a4049cec5a432cf10",
+      "bytes": 7614
+    },
+    "FundingSessionVaultFactory": {
+      "address": "0x83616b7fA62F8a43cfc634a25c0aCFb0CCAB76e8",
+      "codehash": "0xcea778eb9622f6423e8a2159c83ae5b696e81e5f22e87e8c285516e663b87e0f",
+      "bytes": 2091
+    },
+    "FundingSessionVault": {
+      "address": "0x9a869B2BA0D6FB4F297Eb140406478f0aed55F96",
+      "codehash": "0x94c41042068ffe6b08f43b6cb9546b4b725c81a60010a201fc0c428382cb3a95",
+      "bytes": 24543
+    }
+  },
+  "getters": [
+    {
+      "to": "0x83616b7fA62F8a43cfc634a25c0aCFb0CCAB76e8",
+      "name": "implementation()",
+      "values": [
+        "0x0000000000000000000000009a869b2ba0d6fb4f297eb140406478f0aed55f96",
+        "0x0000000000000000000000009a869b2ba0d6fb4f297eb140406478f0aed55f96"
+      ]
+    },
+    {
+      "to": "0x9a869B2BA0D6FB4F297Eb140406478f0aed55F96",
+      "name": "factory()",
+      "values": [
+        "0x00000000000000000000000083616b7fa62f8a43cfc634a25c0acfb0ccab76e8",
+        "0x00000000000000000000000083616b7fa62f8a43cfc634a25c0acfb0ccab76e8"
+      ]
+    }
+  ],
+  "ok": true
+}

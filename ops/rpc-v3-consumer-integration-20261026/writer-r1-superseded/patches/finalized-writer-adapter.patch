@@ -1,0 +1,727 @@
+diff --git a/relay/api-relay.js b/relay/api-relay.js
+index c22830f..f556dc0 100644
+--- a/relay/api-relay.js
++++ b/relay/api-relay.js
+@@ -109,6 +109,7 @@ import { createPlacement, pinnedHost } from "./placement.mjs";
+ import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtimeIdOfJson, agreeingRead } from "./measurement-predict.mjs";
+ import { createTunnelHub } from "./tunnel.js";
+ import { createLeaseGenerationReader, memoryStore, fileStore, startTracker, refusingWriterAuthority } from "./lease-generation.mjs";
++import { derivedWriterAuthorityFromEnv } from "./derived-writer-authority.mjs";
+ import { createRegistryLiveness } from "./registry-liveness.mjs";
+ import { createReferrals } from "./referrals.mjs";
+ import { withDetachGrace } from "./route-grace.mjs";
+@@ -2522,10 +2523,18 @@ const leaseGenerationStore = (() => {
+ // ENCLAVE_WRITER_AUTHORITY logs the refusal and goes out with facts.runner only (the existing contract: never a 503 that would
+ // kill the guest), and the guest establishes the authority itself from its own measured chain reads (isolation/m2/front).
+ // This is a NARROWER relay: full parity needs finalized + complete verified receipts (logs/claude-relay-consumer-result.md).
+-if (RELAY_CHAIN) console.log("[lease-generation] REFUSED under the verifier authority (writer_authority_unproven: needs finalized, complete lease logs; the verifier proves neither): releases that refer to ENCLAVE_WRITER_AUTHORITY carry facts.runner only and the guest establishes the authority itself");
++// ...unless the operator selects ENCLAVE_WRITER_AUTHORITY_SOURCE=derived (relay/derived-writer-authority.mjs): the same lease16 fact
++// from this relay's OWN in-process L1-finalized derived reader (its complete lease-log coverage and the row, both at the SAME
++// anchor; the local verifier only ever DENIES for freshness). Unset: exactly the selection below. Invalid, mixed or not composed
++// into this build: the relay stops here.
++const derivedWriterAuthority = await derivedWriterAuthorityFromEnv(process.env, { relayChain: RELAY_CHAIN,
++  loadRuntime: () => import("./network-runtime.bundle.mjs"), readFile: (p, enc) => fs.promises.readFile(p, enc) })
++  .catch((e) => { console.error(`fatal: writer authority: ${e.message}`); process.exit(1); });
++if (derivedWriterAuthority) console.log("[lease-generation] writer authority DERIVED: the relay's in-process L1-finalized derived reader (complete lease-log coverage + the row at one anchor); the local verifier is deny-only; a claim older than the coverage stays refused (claim_not_covered)");
++else if (RELAY_CHAIN) console.log("[lease-generation] REFUSED under the verifier authority (writer_authority_unproven: needs finalized, complete lease logs; the verifier proves neither): releases that refer to ENCLAVE_WRITER_AUTHORITY carry facts.runner only and the guest establishes the authority itself");
+ const leaseGenerationReader = !RELAY_CHAIN && CATALOG_RPCS.length >= 2 && catalogRpcHosts.size >= 2
+   ? createLeaseGenerationReader({ rpcs: CATALOG_RPCS, ledger: () => confirmedLedger(), store: leaseGenerationStore }) : null;
+-const writerAuthoritySource = leaseGenerationReader || (RELAY_CHAIN ? refusingWriterAuthority("writer_authority_unproven",
++const writerAuthoritySource = derivedWriterAuthority || leaseGenerationReader || (RELAY_CHAIN ? refusingWriterAuthority("writer_authority_unproven",
+   "the relay's verifier authority proves neither finality nor log completeness, which the writer authority needs") : null);
+ const leaseGeneration = writerAuthoritySource ? (id, opts) => writerAuthoritySource.writerAuthority(id, opts) : undefined;
+ // the tracker: every lease asked about (from its first release, final or not) is re-proved every 15 min (read-only), so its
+diff --git a/relay/deploy.sh b/relay/deploy.sh
+index 3c7d56d..98714fa 100755
+--- a/relay/deploy.sh
++++ b/relay/deploy.sh
+@@ -194,7 +194,7 @@ scp network-runtime.bundle.mjs network-runtime.bundle.mjs.manifest.json "$API_TA
+   # their deps (@simplewebauthn/server, jose) from the SHIPPED lockfile.
+   # A hand-maintained file list can miss modules while still passing scp
+   # (test/relay-deploy-closure.test.mjs walks the import graph of every line below).
+-scp api-relay.js attestation-paths.mjs lease-generation.mjs registry-liveness.mjs host-liveness.mjs host-capacity-record.mjs canonical.mjs guest-prediction-row.mjs mcp.js auth.js sso.js billing.js indexer.js ofac.js provisioner.js vaultsvc.js secrets.js secrets-release.mjs custody-state.mjs measurement-predict.mjs host-delegation.mjs fleet-auth.js certs.js domains.js store.js fleet.mjs net-guard.mjs tunnel.js pvm-cpu-tier.mjs pvm-market.mjs pvm-secrets.mjs pvm-app-attest.mjs pvm-evidence-core.mjs snp-verify.mjs avf-verify.mjs avf-policy.mjs avf-binding.mjs vbs-verify.mjs vbs-policy.mjs vbs-credential.mjs vbs-tcglog.mjs vbs-tcglog-core.mjs vbs-tpm.mjs hvnode-verify.mjs hvnode-core.mjs vbs-app-verify.mjs vbs-vm-report.mjs vbs-runtime.mjs shield-app-policy.mjs shield-app-verifier.mjs shield-marketplace.mjs shield-market-evidence.mjs shield-app-fresh.mjs snp-app-fresh.mjs pvm-app-fresh.mjs shield-derive.mjs pads.mjs host-sponsor.mjs host-names.mjs referrals.mjs route-grace.mjs pad-grant.mjs pad-state.mjs pad-shipment-store.mjs pad-ack.mjs boxhost.js package.json package-lock.json shield-secrets.mjs placement.mjs cheapest-claim.mjs contract-owner-signature.mjs sessions.mjs sessions-abi.mjs vbs-app-core.mjs vbs-vm-report-core.mjs "$API_TARGET":"$API_STAGE"/
++scp api-relay.js attestation-paths.mjs lease-generation.mjs derived-writer-authority.mjs registry-liveness.mjs host-liveness.mjs host-capacity-record.mjs canonical.mjs guest-prediction-row.mjs mcp.js auth.js sso.js billing.js indexer.js ofac.js provisioner.js vaultsvc.js secrets.js secrets-release.mjs custody-state.mjs measurement-predict.mjs host-delegation.mjs fleet-auth.js certs.js domains.js store.js fleet.mjs net-guard.mjs tunnel.js pvm-cpu-tier.mjs pvm-market.mjs pvm-secrets.mjs pvm-app-attest.mjs pvm-evidence-core.mjs snp-verify.mjs avf-verify.mjs avf-policy.mjs avf-binding.mjs vbs-verify.mjs vbs-policy.mjs vbs-credential.mjs vbs-tcglog.mjs vbs-tcglog-core.mjs vbs-tpm.mjs hvnode-verify.mjs hvnode-core.mjs vbs-app-verify.mjs vbs-vm-report.mjs vbs-runtime.mjs shield-app-policy.mjs shield-app-verifier.mjs shield-marketplace.mjs shield-market-evidence.mjs shield-app-fresh.mjs snp-app-fresh.mjs pvm-app-fresh.mjs shield-derive.mjs pads.mjs host-sponsor.mjs host-names.mjs referrals.mjs route-grace.mjs pad-grant.mjs pad-state.mjs pad-shipment-store.mjs pad-ack.mjs boxhost.js package.json package-lock.json shield-secrets.mjs placement.mjs cheapest-claim.mjs contract-owner-signature.mjs sessions.mjs sessions-abi.mjs vbs-app-core.mjs vbs-vm-report-core.mjs "$API_TARGET":"$API_STAGE"/
+   # hvnode-verify.mjs is the NucBox node's attach (tunnel mode hv-node), built on the vbs-*.mjs TPM
+   # and measured-boot primitives (the VBS-enclave attach itself is retired). api-relay.js reads the
+   # pinned AMD fTPM roots from ./fixtures/tpm-roots.pem (vbs-policy.mjs VBS_DEFAULT_EK_ROOTS) at
+diff --git a/relay/derived-writer-authority.mjs b/relay/derived-writer-authority.mjs
+new file mode 100644
+index 0000000..c1477d3
+--- /dev/null
++++ b/relay/derived-writer-authority.mjs
+@@ -0,0 +1,266 @@
++// The writer-authority fact (lease16, the format relay/lease-generation.mjs produces and isolation/m2/front parses) from the
++// relay's OWN L1-finalized derived Base reader instead of agreeing public RPCs:
++//   {"source":"lease16","chainId","ledger","deployment","claimBlock","claimLogIndex"}
++// ONE snapshot of the derived reader's bridge at its current L1-finalized anchor B (proof-executed state at B's exact hash):
++//   the ledger (DEPLOYMENTS_ADDRESS pinned at startup, else the admin AddressBook's `deployments` entry AT B: a book migration is
++//   followed at the finalized block), its schema (16) and the deployment's row, and - inside the same callback - the derived
++//   reader's complete lease-log coverage for [max(availableFrom, ledger floor), B] requested with anchor {number: B, hash}. The
++//   reader refuses unless that is still its current anchor, so the row and the logs are of the SAME block.
++// What makes it the CURRENT lease's claim is unchanged (lease-generation.mjs header): the last Claimed replays to the row. The
++// reader's coverage is complete from availableFrom (an assertion of the pinned native v3 executable and the reader's runtime-
++// verified segments, NOT of any JSON label here), so the last Claimed in it is the current claim; none in it means the current
++// claim predates the coverage: claim_not_covered, never a fact, never re-claimed or signed.
++// Freshness (deny-only): B lags the head by Base finality. The relay's local verifier (unsafe tier) is then asked about blocks
++// after B and may only REFUSE: a Claimed or Released after B, another runner/operator, a lease no longer current, a moved book
++// entry, or any failure of that check. It never supplies or completes a fact.
++// The capability is the in-process derived reader built by derivedWriterAuthorityFromEnv from the reviewed network runtime
++// module; nothing is taken from configuration as a capability, and no HTTP/JSON endpoint is ever one.
++import { CHAIN_BASE, CLAIMED, RENEWED, RELEASED, LEDGER16D_FROM_BLOCK, LeaseGenerationError } from "./lease-generation.mjs";
++
++export const DERIVED_LOGS_FORMAT = "enclave-derived-logs/v1";
++export const COVERAGE_FORMAT = "enclave-lease16-coverage/v1";
++export const FILTER_ID = "lease16-events/v1";
++export const LEASE_TOPIC0S = Object.freeze([CLAIMED, RENEWED, RELEASED]);
++export const SOURCE_ENV = "ENCLAVE_WRITER_AUTHORITY_SOURCE", CONFIG_ENV = "ENCLAVE_DERIVED_READER_CONFIG",
++  JOURNAL_ENV = "ENCLAVE_DERIVED_ANCHOR_JOURNAL", API_PORT_ENV = "ENCLAVE_DERIVED_READER_API_PORT";
++const BOOK_KEY_DEPLOYMENTS = "0x6465706c6f796d656e7473" + "0".repeat(42);   // "deployments", as relay/api-relay.js
++const DEPLOYMENT16 = [
++  { name: "id", type: "bytes32" }, { name: "owner", type: "address" }, { name: "appRef", type: "string" }, { name: "ports", type: "string" },
++  { name: "configCid", type: "string" }, { name: "gpuMilli", type: "uint16" }, { name: "cpuMilli", type: "uint16" }, { name: "appPort", type: "uint32" },
++  { name: "isPublic", type: "bool" }, { name: "active", type: "bool" }, { name: "createdAt", type: "uint64" }, { name: "rate", type: "uint256" },
++  { name: "balance6", type: "uint256" }, { name: "spent6", type: "uint256" }, { name: "runner", type: "bytes32" },
++  { name: "runnerOperator", type: "address" }, { name: "leaseUntil", type: "uint64" },
++];
++export const LEDGER_ABI = Object.freeze([
++  { type: "function", name: "deploymentsSchema", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint256" }] },
++  { type: "function", name: "get", stateMutability: "view", inputs: [{ name: "id", type: "bytes32" }], outputs: [{ name: "", type: "tuple", components: DEPLOYMENT16 }] },
++]);
++export const BOOK_ABI = Object.freeze([{ type: "function", name: "addr", stateMutability: "view", inputs: [{ name: "key", type: "bytes32" }], outputs: [{ name: "", type: "address" }] }]);
++// per ABI: indexed topics and non-indexed data words (Claimed: id, enclaveId, operator | leaseUntil, burned6; Renewed: id, enclaveId |
++// leaseUntil, burned6; Released: id, enclaveId | refunded6)
++const SHAPE = { [CLAIMED]: { topics: 4, words: 2 }, [RENEWED]: { topics: 3, words: 2 }, [RELEASED]: { topics: 3, words: 1 } };
++
++const HEX = (n) => new RegExp(`^0x[0-9a-f]{${n}}$`);
++const H32 = HEX(64), ADDR = HEX(40), DATA = /^0x(?:[0-9a-f]{2})*$/, ZERO = /^0x0+$/;
++const uint = (n) => Number.isSafeInteger(n) && n >= 0;
++const fail = (code, message, retry = false) => { throw new LeaseGenerationError(code, message, retry); };
++const lc = (s) => String(s ?? "").toLowerCase();
++const aborted = (signal) => new LeaseGenerationError("aborted", `the read was cancelled (${String(signal?.reason?.message || signal?.reason || "aborted").slice(0, 80)})`, true);
++const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
++
++/** The deployment's row as the derived snapshot's pinned client decoded it; null = no such deployment. */
++export function normalizeRow(d, id) {
++  if (!d || typeof d !== "object") fail("bad_answer", "the ledger row is not a tuple", true);
++  const rowId = lc(d.id);
++  if (!H32.test(rowId)) fail("bad_answer", "the ledger row has no bytes32 id", true);
++  if (ZERO.test(rowId)) return null;
++  if (rowId !== id) fail("bad_answer", "the ledger answered for another deployment", true);
++  const leaseUntil = typeof d.leaseUntil === "bigint" ? d.leaseUntil : BigInt(d.leaseUntil ?? -1);
++  if (leaseUntil < 0n || leaseUntil >= 1n << 64n) fail("bad_answer", "leaseUntil is out of range", true);
++  if (typeof d.active !== "boolean" || !H32.test(lc(d.runner)) || !ADDR.test(lc(d.runnerOperator))) fail("bad_answer", "the ledger row is malformed", true);
++  return { id: rowId, active: d.active, runner: lc(d.runner), runnerOperator: lc(d.runnerOperator), leaseUntil: Number(leaseUntil) };
++}
++
++/** Strict check of one readDerivedLogs answer against EXACTLY what was asked. -> the deployment's lease logs, ordered. Only logs of
++ *  the confirmed ledger and this deployment are validated (the native capture records same-topic0 logs of ANY address; those are
++ *  ignored here, never a reason to refuse). */
++export function checkDerivedLogs(res, ask) {
++  if (!res || res.format !== DERIVED_LOGS_FORMAT) fail("derived_logs_invalid", "the derived reader's answer is not enclave-derived-logs/v1", true);
++  const b = res.anchor?.base;
++  if (!b || b.number !== ask.anchor.number || lc(b.hash) !== ask.anchor.hash)
++    fail("anchor_mismatch", "the derived logs are of another anchor than the snapshot's", true);
++  // the filter echo: address/topic0s/topic1 exactly; KVM's store also echoes the range (fromBlock/toBlock), accepted only if equal
++  const f = res.filter && typeof res.filter === "object" ? res.filter : {};
++  if (Object.keys(f).some((k) => !["address", "topic0s", "topic1", "fromBlock", "toBlock"].includes(k)) || lc(f.address) !== ask.address ||
++      !same(f.topic0s, ask.topic0s) || lc(f.topic1) !== ask.topic1 || ("fromBlock" in f && f.fromBlock !== ask.fromBlock) || ("toBlock" in f && f.toBlock !== ask.toBlock))
++    fail("derived_logs_invalid", "the derived reader answered another filter", true);
++  const c = res.coverage;
++  if (!c || c.format !== COVERAGE_FORMAT || c.filterId !== FILTER_ID || c.fromBlock !== ask.fromBlock || c.toBlock !== ask.toBlock || c.complete !== true ||
++      !uint(c.availableFromBlock) || !uint(c.availableToBlock) || c.availableFromBlock > c.fromBlock || c.availableToBlock < c.toBlock)
++    fail("coverage_incomplete", "the derived reader did not answer with complete coverage of exactly the asked range", true);
++  if (!Array.isArray(res.logs)) fail("derived_logs_invalid", "no log list", true);
++  const out = [];
++  let prev = null;
++  for (const l of res.logs) {
++    const topics = Array.isArray(l?.topics) ? l.topics.map(lc) : [];
++    if (lc(l?.address) !== ask.address || topics[1] !== ask.topic1 || !LEASE_TOPIC0S.includes(topics[0])) continue;   // not this lease's
++    const shape = SHAPE[topics[0]], data = lc(l.data);
++    if (topics.length !== shape.topics || !topics.every((t) => H32.test(t)) || !DATA.test(data) || data.length !== 2 + 64 * shape.words ||
++        !uint(l.blockNumber) || l.blockNumber < ask.fromBlock || l.blockNumber > ask.toBlock || !uint(l.logIndex) ||
++        !H32.test(lc(l.blockHash)) || !H32.test(lc(l.txHash)))
++      fail("bad_answer", "a lease log of the derived coverage is malformed or outside the asked range", true);
++    if (prev && (l.blockNumber < prev.blockNumber || l.blockNumber === prev.blockNumber && l.logIndex <= prev.logIndex))
++      fail("bad_answer", "the derived lease logs are not in strict (block, logIndex) order", true);
++    if (prev && l.blockNumber === prev.blockNumber && lc(l.blockHash) !== prev.blockHash)
++      fail("bad_answer", "two blocks of one number in the derived lease logs", true);
++    if (l.blockNumber === ask.anchor.number && lc(l.blockHash) !== ask.anchor.hash)
++      fail("anchor_mismatch", "a lease log of the anchor block names another block hash", true);
++    prev = { blockNumber: l.blockNumber, logIndex: l.logIndex, blockHash: lc(l.blockHash), transactionHash: lc(l.txHash), topics, data };
++    out.push(prev);
++  }
++  return out;
++}
++
++/** The existing replay (lease-generation.mjs step 4/5) over COMPLETE logs: the last Claimed and everything after it must yield the
++ *  row. -> the claim log. */
++export function replayToRow(logs, row) {
++  const ci = logs.map((l) => l.topics[0]).lastIndexOf(CLAIMED);
++  if (ci < 0) fail("claim_not_covered", "the lease's current claim is older than the derived reader's complete coverage; it stays unproven (no re-claim, no signature)");
++  const C = logs[ci];
++  const leaseOf = (l) => { const v = BigInt("0x" + l.data.slice(2, 66)); if (v >= 1n << 64n) fail("bad_answer", "a log's leaseUntil is out of range", true); return Number(v); };
++  if (C.topics[2] !== row.runner || C.topics[3] !== "0x" + "0".repeat(24) + row.runnerOperator.slice(2))
++    fail("inconsistent_logs", "the last claim does not name the lease's runner and operator", true);
++  let until = leaseOf(C);
++  for (const l of logs.slice(ci + 1)) {
++    if (l.topics[0] === RELEASED) fail("inconsistent_logs", "the lease was released after its last claim", true);
++    if (l.topics[2] !== row.runner) fail("inconsistent_logs", "a renewal names another runner", true);
++    until = leaseOf(l);
++  }
++  if (until !== row.leaseUntil) fail("inconsistent_logs", "the claim and its renewals do not replay to the row's leaseUntil", true);
++  if (C.blockNumber < 1 || C.blockNumber >= 2 ** 32 || C.logIndex >= 2 ** 16) fail("out_of_range", "the claim's block or log index exceeds the lease16 fact's range");
++  return C;
++}
++
++/**
++ * createDerivedWriterAuthority({ capability, fresh, ledgerPin, addressBook, chainId, fromBlock, maxAnchorAgeSec, now })
++ *   capability: { snapshot(read) (the derived reader's lifecycle bridge), readDerivedLogs(query) } - in-process only.
++ *   fresh: the relay's local verifier client (RELAY_CHAIN.client; viem-shaped getBlockNumber/request/readContract): DENY-ONLY.
++ *   ledgerPin: DEPLOYMENTS_ADDRESS as configured at startup ('' = follow the book); addressBook: ADDRESS_BOOK_ADDRESS.
++ * -> { writerAuthority(id, { runner, signal }) -> { fact, factJson, block, claim, evidence } } throws LeaseGenerationError
++ */
++export function createDerivedWriterAuthority({ capability, fresh, ledgerPin = "", addressBook = "", chainId = CHAIN_BASE, fromBlock = LEDGER16D_FROM_BLOCK,
++                                                maxAnchorAgeSec = 1800, now = () => Date.now() } = {}) {
++  if (typeof capability?.snapshot !== "function" || typeof capability?.readDerivedLogs !== "function")
++    throw new Error("derived writer authority needs the in-process derived reader capability (snapshot + readDerivedLogs)");
++  if (!fresh || typeof fresh.getBlockNumber !== "function" || typeof fresh.request !== "function" || typeof fresh.readContract !== "function")
++    throw new Error("derived writer authority needs the relay's local verifier for its deny-only freshness check");
++  const pin = lc(ledgerPin), book = lc(addressBook);
++  if (pin && (!ADDR.test(pin) || ZERO.test(pin))) throw new Error("DEPLOYMENTS_ADDRESS is not an address");
++  if (!pin && (!ADDR.test(book) || ZERO.test(book))) throw new Error("derived writer authority needs DEPLOYMENTS_ADDRESS or ADDRESS_BOOK_ADDRESS");
++  if (!Number.isInteger(maxAnchorAgeSec) || maxAnchorAgeSec < 20 || maxAnchorAgeSec > 3600) throw new Error("bad maxAnchorAgeSec");
++  // the bridge and the reader take one operation at a time: callers queue (each still bounded by its own signal)
++  let queue = Promise.resolve();
++  const serial = (fn, signal) => {
++    const run = queue.then(() => { if (signal?.aborted) throw aborted(signal); return fn(); });
++    queue = run.catch(() => {});
++    return signal ? Promise.race([run, new Promise((_, no) => signal.addEventListener("abort", () => no(aborted(signal)), { once: true }))]) : run;
++  };
++
++  async function derivedRead(id, signal) {
++    let snap;
++    try {
++      snap = await capability.snapshot(async (client, number) => {
++        const blk = await client.getBlock();
++        const B = Number(number), hash = lc(blk.hash), time = Number(blk.timestamp);
++        if (!uint(B) || !H32.test(hash) || !uint(time) || Number(blk.number) !== B) fail("bad_answer", "the derived snapshot's block is malformed", true);
++        const ledger = pin || lc(await client.readContract({ address: book, abi: BOOK_ABI, functionName: "addr", args: [BOOK_KEY_DEPLOYMENTS] }));
++        if (!ADDR.test(ledger) || ZERO.test(ledger)) fail("no_ledger", "the address book names no deployments ledger at the derived block", true);
++        const schema = Number(await client.readContract({ address: ledger, abi: LEDGER_ABI, functionName: "deploymentsSchema" }));
++        const row = normalizeRow(await client.readContract({ address: ledger, abi: LEDGER_ABI, functionName: "get", args: [id] }), id);
++        if (schema !== 16 || !row) return { B, hash, time, ledger, schema, row, logs: null };
++        const anchor = { number: B, hash };
++        const base = { address: ledger, topic0s: [...LEASE_TOPIC0S], topic1: id, anchor, signal };
++        // the reader's complete coverage starts at availableFrom: learn it at the anchor block itself, then read everything since
++        const probeAsk = { ...base, fromBlock: B, toBlock: B }, probe = await capability.readDerivedLogs(probeAsk);
++        checkDerivedLogs(probe, probeAsk);
++        const from = Math.max(fromBlock, probe.coverage.availableFromBlock);
++        if (from > B) fail("claim_not_covered", "the derived reader's coverage starts after the anchor");
++        const ask = { ...base, fromBlock: from, toBlock: B };
++        return { B, hash, time, ledger, schema, row, logs: checkDerivedLogs(await capability.readDerivedLogs(ask), ask), from };
++      });
++    } catch (e) {
++      if (signal?.aborted) throw aborted(signal);
++      if (e instanceof LeaseGenerationError) throw e;
++      fail("derived_unavailable", `the derived reader could not answer (${String(e?.message || e).slice(0, 120)})`, true);
++    }
++    const v = snap?.value;
++    if (!v || snap.blockNumber === undefined || Number(snap.blockNumber) !== v.B || lc(snap.blockHash) !== v.hash)
++      fail("anchor_mismatch", "the snapshot's result is not of the block its reads were pinned to", true);
++    return v;
++  }
++
++  async function denyIfStale(id, v, row, signal) {
++    let head, later, headRow, headLedger;
++    try {
++      head = Number(await fresh.getBlockNumber());
++      if (!uint(head) || head < v.B) fail("fresh_head_behind", `the local verifier's head ${head} is below the derived anchor ${v.B}`, true);
++      later = head > v.B ? await fresh.request({ method: "eth_getLogs", params: [{ address: v.ledger, topics: [[CLAIMED, RELEASED], id],
++        fromBlock: "0x" + (v.B + 1).toString(16), toBlock: "0x" + head.toString(16) }] }) : [];
++      headRow = normalizeRow(await fresh.readContract({ address: v.ledger, abi: LEDGER_ABI, functionName: "get", args: [id], blockNumber: BigInt(head) }), id);
++      headLedger = pin || lc(await fresh.readContract({ address: book, abi: BOOK_ABI, functionName: "addr", args: [BOOK_KEY_DEPLOYMENTS], blockNumber: BigInt(head) }));
++    } catch (e) {
++      if (signal?.aborted) throw aborted(signal);
++      if (e instanceof LeaseGenerationError) throw e;
++      fail("fresh_check_unavailable", `the deny-only freshness check could not run (${String(e?.message || e).slice(0, 120)})`, true);
++    }
++    if (!Array.isArray(later)) fail("fresh_check_unavailable", "the local verifier returned no log list", true);
++    if (later.some((l) => lc(l?.topics?.[0]) === CLAIMED)) fail("claim_not_final", "the lease was claimed again after the derived (finalized) anchor; retry once that is final", true);
++    if (later.some((l) => lc(l?.topics?.[0]) === RELEASED)) fail("lease_not_current", "the lease was released after the derived anchor", true);
++    if (headLedger !== v.ledger) fail("ledger_moved", "the address book's deployments ledger changed after the derived anchor", true);
++    const t = Math.floor(now() / 1000);
++    if (!headRow || !headRow.active || headRow.runner !== row.runner || headRow.runnerOperator !== row.runnerOperator || headRow.leaseUntil <= t)
++      fail("lease_not_current", "at the local verifier's head the lease is no longer this runner's current lease", true);
++  }
++
++  async function writerAuthority(id, { runner, signal } = {}) {
++    if (signal?.aborted) throw aborted(signal);
++    id = lc(id);
++    if (!H32.test(id) || ZERO.test(id)) fail("bad_id", "a bytes32 deployment id is required");
++    return serial(async () => {
++      const v = await derivedRead(id, signal);
++      const t = Math.floor(now() / 1000);
++      if (v.time > t + 5 || t - v.time > maxAnchorAgeSec) fail("stale_snapshot", `the derived anchor ${v.B} is ${t - v.time} s old`, true);
++      if (v.schema !== 16) fail("unsupported_schema", `the ledger reports schema ${v.schema}; only the live rev 16d (schema 16) is read here`);
++      const row = v.row;
++      if (!row) fail("no_deployment", "the ledger holds no such deployment");
++      if (!row.active || ZERO.test(row.runner) || ZERO.test(row.runnerOperator) || row.leaseUntil <= v.time || row.leaseUntil <= t)
++        fail("lease_not_current", "the deployment has no current lease at the derived anchor", true);
++      if (runner !== undefined && lc(runner) !== row.runner) fail("runner_mismatch", "the current lease is held by another runner");
++      const C = replayToRow(v.logs, row);
++      await denyIfStale(id, v, row, signal);
++      if (signal?.aborted) throw aborted(signal);
++      const fact = { source: "lease16", chainId, ledger: v.ledger, deployment: id, claimBlock: C.blockNumber, claimLogIndex: C.logIndex };
++      return { fact, factJson: JSON.stringify(fact), block: { number: v.B, hash: v.hash, time: v.time, finalized: v.B },
++               claim: { blockNumber: C.blockNumber, blockHash: C.blockHash, logIndex: C.logIndex, transactionHash: C.transactionHash, runner: row.runner },
++               evidence: { authority: "consumer-domain-derivation", tier: "l1-finalized-derived", coverageFromBlock: v.from } };
++    }, signal);
++  }
++  return { writerAuthority };
++}
++
++/**
++ * The production selector. ENCLAVE_WRITER_AUTHORITY_SOURCE unset: null (the relay keeps its existing selection: the legacy quorum
++ * reader, or under the verifier authority the explicit writer_authority_unproven refusal). "derived": the relay's verifier
++ * authority is required (relayChain); the reader is started IN THIS PROCESS from the reviewed network runtime module with the
++ * operator's private reader config (ENCLAVE_DERIVED_READER_CONFIG, absolute path of a JSON file) and anchor journal
++ * (ENCLAVE_DERIVED_ANCHOR_JOURNAL); ENCLAVE_DERIVED_READER_API_PORT optionally serves KVM's loopback witness API for the untrusted
++ * witness producer (orchestration only, never a capability). Anything else throws: the relay stops at startup.
++ */
++export async function derivedWriterAuthorityFromEnv(env, { relayChain, loadRuntime, readFile, ledgerPin = env.DEPLOYMENTS_ADDRESS || "",
++                                                         addressBook = env.ADDRESS_BOOK_ADDRESS || "", now } = {}) {
++  const sel = String(env[SOURCE_ENV] ?? "").trim();
++  if (!sel) return null;
++  if (sel !== "derived") throw new Error(`${SOURCE_ENV} must be "derived" or unset (got "${sel.slice(0, 40)}")`);
++  if (!relayChain?.client) throw new Error(`${SOURCE_ENV}=derived needs the relay's verifier authority (ENCLAVE_CHAIN_AUTHORITY=verifier): the quorum reader stays the legacy path`);
++  const cfgPath = String(env[CONFIG_ENV] ?? ""), journalPath = String(env[JOURNAL_ENV] ?? "");
++  for (const [k, p] of [[CONFIG_ENV, cfgPath], [JOURNAL_ENV, journalPath]])
++    if (!p.startsWith("/") || /^[a-z][a-z0-9+.-]*:/i.test(p)) throw new Error(`${k} must be an absolute file path (a URL or HTTP endpoint is never a reader capability)`);
++  const verifier = String(env.ENCLAVE_CHAIN_VERIFIER ?? "");
++  const runtime = await loadRuntime();
++  if (typeof runtime?.startDerivedLifecycleReader !== "function" || typeof runtime?.openLifecycleJournal !== "function")
++    throw new Error("this build's network runtime has no derived reader (KVM R2/R3 not composed): the writer authority cannot be derived");
++  const config = JSON.parse(await readFile(cfgPath, "utf8"));
++  const service = await runtime.startDerivedLifecycleReader(config, { verifier, journal: runtime.openLifecycleJournal(journalPath) });
++  if (typeof service?.reader?.readDerivedLogs !== "function" || typeof service?.snapshot !== "function")
++    throw new Error("the derived reader has no readDerivedLogs (R3) capability");
++  let api = null;
++  if (env[API_PORT_ENV]) {
++    const port = Number(env[API_PORT_ENV]);
++    if (!Number.isInteger(port) || port < 1 || port > 65535 || typeof runtime.serveDerivedReader !== "function") throw new Error(`${API_PORT_ENV} is invalid or unsupported`);
++    api = await runtime.serveDerivedReader(service.reader, { port });
++  }
++  const capability = { snapshot: service.snapshot, readDerivedLogs: (q) => service.reader.readDerivedLogs(q) };
++  const authority = createDerivedWriterAuthority({ capability, fresh: relayChain.client, ledgerPin, addressBook, maxAnchorAgeSec: config.maxAnchorAgeSec ?? 1800, ...(now ? { now } : {}) });
++  return { ...authority, describe: () => ({ source: "derived", tier: "l1-finalized-derived", witnessApi: api ? `127.0.0.1:${api.port}` : null }),
++           close: async () => { await api?.close(); await service.close(); } };
++}
+diff --git a/test/derived-writer-authority-abi.test.mjs b/test/derived-writer-authority-abi.test.mjs
+new file mode 100644
+index 0000000..d6dedc9
+--- /dev/null
++++ b/test/derived-writer-authority-abi.test.mjs
+@@ -0,0 +1,26 @@
++// The adapter's ABI fragments are the compiled contracts' own (forge out of the same tree), so the pinned client's readContract
++// decodes exactly the live schema-16 row, the schema getter and the admin AddressBook entry; the event topics are the ones
++// relay/lease-generation.mjs (and the native v3 filter) use.
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import { keccak256, toHex } from "viem";
++import { CLAIMED, RENEWED, RELEASED } from "../relay/lease-generation.mjs";
++import { LEDGER_ABI, BOOK_ABI, LEASE_TOPIC0S } from "../relay/derived-writer-authority.mjs";
++
++const out = (c) => JSON.parse(fs.readFileSync(new URL(`../contracts/foundry/out/${c}.sol/${c}.json`, import.meta.url), "utf8")).abi;
++const shape = (f) => JSON.stringify({ name: f.name, inputs: f.inputs.map((i) => i.type),
++  outputs: f.outputs.map((o) => o.type + (o.components ? "(" + o.components.map((c) => `${c.name}:${c.type}`).join(",") + ")" : "")) });
++
++test("ledger get/deploymentsSchema and book addr fragments equal the compiled ABI", () => {
++  const ledger = out("EnclaveDeployments"), book = out("EnclaveAddressBook");
++  for (const f of LEDGER_ABI) assert.equal(shape(f), shape(ledger.find((x) => x.type === "function" && x.name === f.name)), f.name);
++  assert.equal(shape(BOOK_ABI[0]), shape(book.find((x) => x.type === "function" && x.name === "addr")));
++});
++
++test("the queried topic0s are the ABI's Claimed/Renewed/Released, in the reader's order", () => {
++  const ev = Object.fromEntries(out("EnclaveDeployments").filter((x) => x.type === "event").map((e) => [e.name, e]));
++  const sig = (e) => keccak256(toHex(`${e.name}(${e.inputs.map((i) => i.type).join(",")})`));
++  assert.deepEqual([...LEASE_TOPIC0S], [sig(ev.Claimed), sig(ev.Renewed), sig(ev.Released)]);
++  assert.deepEqual([...LEASE_TOPIC0S], [CLAIMED, RENEWED, RELEASED]);
++});
+diff --git a/test/derived-writer-authority-kvm-store.test.mjs b/test/derived-writer-authority-kvm-store.test.mjs
+new file mode 100644
+index 0000000..eaeeb69
+--- /dev/null
++++ b/test/derived-writer-authority-kvm-store.test.mjs
+@@ -0,0 +1,133 @@
++// relay/derived-writer-authority.mjs over KVM's ACTUAL coverage validator + durable coverage store (network/derived-reader/
++// coverage.mjs + coverage-store.mjs, imported READ-ONLY from KVM's worktree; their in-progress R2/R3, sha256 recorded by the job).
++// What is real here: KVM's v3 coverage validation, its hash-linked manifest/chunk store, its query validation (exact current anchor,
++// lease topics, bounded range), its runtime-verified-segment rule, gap and tamper refusals. What is NOT proven here: completeness of
++// the coverage itself - the native results below are FIXTURES shaped like the pinned v3 binary's output (blocks and logs are
++// invented); completeness is the native executable's property (root's r2 Rust tests) and needs a real witness to be shown.
++// The bridge snapshot (row reads at the anchor) is an in-test stand-in; KVM's provider.readDerivedLogs is mirrored as
++// store.read(query, currentAnchor) (its exclusive lock and freshness recheck are KVM's, integration pending).
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import { pathToFileURL } from "node:url";
++import { keccak256 } from "viem";
++import { CLAIMED, RENEWED, LeaseGenerationError } from "../relay/lease-generation.mjs";
++import { createDerivedWriterAuthority } from "../relay/derived-writer-authority.mjs";
++
++const KVM = process.env.KVM_TREE;
++const skip = !KVM ? "KVM_TREE unset (the job sets it)" : false;
++const kvm = async (f) => import(pathToFileURL(path.join(KVM, "network/derived-reader", f)).href);
++
++const O = 53_000_000, NOW = 1_700_000_000;
++const h = (b) => "0x" + b.repeat(32);
++const ID = h("11"), RUNNER = h("22"), OP = "0x" + "44".repeat(20), LEDGER = "0x" + "66".repeat(20), OTHER = "0x" + "67".repeat(20), BOOK = "0x" + "77".repeat(20);
++const word = (n) => BigInt(n).toString(16).padStart(64, "0");
++const hx = (n, tag) => "0x" + (tag + n.toString(16)).padStart(64, "0");
++const blockOf = (n, t) => {
++  const b = { number: n, hash: hx(n, "b"), stateRoot: hx(n, "5"), messagePasserStorageRoot: hx(n, "9"), receiptsRoot: hx(n, "e"), transactionsRoot: hx(n, "7"), timestamp: t };
++  b.outputRoot = keccak256(`0x${"0".repeat(64)}${b.stateRoot.slice(2)}${b.messagePasserStorageRoot.slice(2)}${b.hash.slice(2)}`);
++  return b;
++};
++const anchorOf = (b) => ({ tier: "l1-finalized-derived", base: { number: b.number, hash: b.hash, stateRoot: b.stateRoot, messagePasserStorageRoot: b.messagePasserStorageRoot,
++  outputRoot: b.outputRoot, timestamp: b.timestamp }, l1: { number: 26_000_000 + b.number - O, hash: hx(b.number, "1"), stateRoot: hx(b.number, "2"), timestamp: b.timestamp + 60 } });
++/** A native v3 result FIXTURE for (agreed, to]: every block, plus `logs` (full native log objects). */
++function segment(agreed, to, logs) {
++  const blocks = []; for (let n = agreed + 1; n <= to; n++) blocks.push(blockOf(n, NOW - 700 + (n - O)));
++  const byNum = new Map(blocks.map((b) => [b.number, b]));
++  const full = logs.map((l) => ({ ...l, blockHash: byNum.get(l.blockNumber).hash }));
++  return { result: { format: "enclave-base-derivation-result/v3", intermediateRoots: "0x" + blocks.map((b) => b.outputRoot.slice(2)).join(""),
++    coverage: { format: "enclave-lease16-coverage/v1", filterId: "lease16-events/v1", fromBlock: agreed + 1, toBlock: to, blocks, logs: full } },
++    input: { trusted: { intermediateBlockInterval: 1 }, bound: { agreedL2BlockNumber: agreed } }, anchor: anchorOf(blocks.at(-1)), agreedBlock: blockOf(agreed, NOW - 700 + (agreed - O)) };
++}
++const claimedLog = (n, i, until, address = LEDGER) => ({ address, blockNumber: n, logIndex: i, topics: [CLAIMED, ID, RUNNER, "0x" + "0".repeat(24) + OP.slice(2)],
++  data: "0x" + word(until) + word(5), txHash: hx(n * 10 + i, "f") });
++const renewedLog = (n, i, until) => ({ address: LEDGER, blockNumber: n, logIndex: i, topics: [RENEWED, ID, RUNNER], data: "0x" + word(until) + word(5), txHash: hx(n * 10 + i, "f") });
++
++async function harness(segments) {
++  const { validateCoverage } = await kvm("coverage.mjs");
++  const { openCoverageStore } = await kvm("coverage-store.mjs");
++  const dir = fs.mkdtempSync(path.join(process.env.TEST_TMP || os.tmpdir(), "kvm-cov-")); fs.chmodSync(dir, 0o700);
++  const store = await openCoverageStore(path.join(dir, "store"), { binding: "a".repeat(64), initialize: true, maximumBytes: 64 << 20 });
++  let current = null;
++  for (const s of segments) {
++    const checked = validateCoverage(s.result, s.input, s.anchor);
++    const publish = store.stage(checked, anchorOf(s.agreedBlock), s.anchor);
++    publish(); current = s.anchor;
++  }
++  const leaseUntil = BigInt(NOW + 1200);
++  const capability = {
++    snapshot: async (read) => {
++      const a = current, client = {
++        getBlock: async () => ({ number: BigInt(a.base.number), hash: a.base.hash, timestamp: BigInt(a.base.timestamp) }),
++        readContract: async ({ functionName }) => functionName === "addr" ? LEDGER : functionName === "deploymentsSchema" ? 16n
++          : { id: ID, active: true, runner: RUNNER, runnerOperator: OP, leaseUntil },
++      };
++      return { blockNumber: BigInt(a.base.number), blockHash: a.base.hash, value: await read(client, BigInt(a.base.number), {}) };
++    },
++    readDerivedLogs: (q) => store.read(q, current, { signal: q.signal }),
++  };
++  const fresh = { getBlockNumber: async () => BigInt(current.base.number + 5), request: async () => [],
++    readContract: async ({ functionName }) => functionName === "addr" ? LEDGER : { id: ID, active: true, runner: RUNNER, runnerOperator: OP, leaseUntil } };
++  const authority = createDerivedWriterAuthority({ capability, fresh, addressBook: BOOK, now: () => NOW * 1000 });
++  return { store, dir, authority, setAnchor: (a) => { current = a; }, current: () => current };
++}
++const code = async (p, c) => assert.rejects(p, (e) => { assert.ok(e instanceof LeaseGenerationError, String(e)); assert.equal(e.code, c, e.message); return true; });
++
++test("actual KVM store: two contiguous runtime-verified segments -> the lease16 fact (claim in the first, renewal in the second)", { skip }, async () => {
++  const s1 = segment(O + 100, O + 150, [claimedLog(O + 120, 2, NOW + 600), claimedLog(O + 121, 0, 1, OTHER)]);   // an innocuous other-address collision
++  const s2 = segment(O + 150, O + 200, [renewedLog(O + 170, 1, NOW + 1200)]);
++  const k = await harness([s1, s2]);
++  const r = await k.authority.writerAuthority(ID, { runner: RUNNER });
++  assert.equal(r.factJson, JSON.stringify({ source: "lease16", chainId: 8453, ledger: LEDGER, deployment: ID, claimBlock: O + 120, claimLogIndex: 2 }));
++  assert.equal(r.block.number, O + 200);
++  assert.equal(r.evidence.coverageFromBlock, O + 101);
++  k.store.close();
++});
++
++test("actual KVM store: the claim before the store's first runtime-verified block (pre-bootstrap) stays claim_not_covered", { skip }, async () => {
++  const s2 = segment(O + 150, O + 200, [renewedLog(O + 170, 1, NOW + 1200)]);         // the claim at O+120 was never covered
++  const k = await harness([s2]);
++  await assert.rejects(k.authority.writerAuthority(ID), (e) => e.code === "claim_not_covered" && e.retry === false);
++  k.store.close();
++});
++
++test("actual KVM store: a chunk altered on disk (a dropped renewal) is refused by the store's hash link, and the store then fails closed", { skip }, async () => {
++  const s1 = segment(O + 100, O + 150, [claimedLog(O + 120, 2, NOW + 600)]);
++  const s2 = segment(O + 150, O + 200, [renewedLog(O + 170, 1, NOW + 1200)]);
++  const k = await harness([s1, s2]);
++  const sdir = path.join(k.dir, "store");
++  const chunk = fs.readdirSync(sdir).map((f) => path.join(sdir, f)).find((f) => /[0-9a-f]{64}\.json$/.test(f) && fs.readFileSync(f, "utf8").includes(RENEWED.slice(2)));
++  const raw = fs.readFileSync(chunk, "utf8");
++  fs.writeFileSync(chunk, raw.replace(RENEWED.slice(2), CLAIMED.slice(2)));          // same size, other content
++  await code(k.authority.writerAuthority(ID), "derived_unavailable");
++  await code(k.authority.writerAuthority(ID), "derived_unavailable");                // failed store: every later read refuses too
++  k.store.close();
++});
++
++test("actual KVM store: a query for any anchor but the store's current one is refused (no stale or foreign anchor)", { skip }, async () => {
++  const s1 = segment(O + 100, O + 150, [claimedLog(O + 120, 2, NOW + 1200)]);
++  const k = await harness([s1]);
++  const real = k.current();
++  // the snapshot is pinned to another block hash than the reader's current anchor
++  k.setAnchor({ ...real, base: { ...real.base, hash: h("ee") } });
++  const readCurrent = (q) => k.store.read(q, real, { signal: q.signal });
++  const auth = createDerivedWriterAuthority({ capability: { snapshot: async (read) => {
++      const client = { getBlock: async () => ({ number: BigInt(real.base.number), hash: h("ee"), timestamp: BigInt(real.base.timestamp) }),
++        readContract: async ({ functionName }) => functionName === "addr" ? LEDGER : functionName === "deploymentsSchema" ? 16n
++          : { id: ID, active: true, runner: RUNNER, runnerOperator: OP, leaseUntil: BigInt(NOW + 1200) } };
++      return { blockNumber: BigInt(real.base.number), blockHash: h("ee"), value: await read(client, BigInt(real.base.number), {}) }; },
++    readDerivedLogs: readCurrent }, fresh: { getBlockNumber: async () => 0n, request: async () => [], readContract: async () => null }, addressBook: BOOK, now: () => NOW * 1000 });
++  await code(auth.writerAuthority(ID), "derived_unavailable");
++  k.store.close();
++});
++
++test("actual KVM store: a gap between segments is refused at staging; nothing beyond the gap ever becomes readable", { skip }, async () => {
++  const s1 = segment(O + 100, O + 150, [claimedLog(O + 120, 2, NOW + 1200)]);
++  const s3 = segment(O + 160, O + 200, []);                                           // O+151..O+160 never derived
++  const { validateCoverage } = await kvm("coverage.mjs");
++  const k = await harness([s1]);
++  assert.throws(() => k.store.stage(validateCoverage(s3.result, s3.input, s3.anchor), anchorOf(s3.agreedBlock), s3.anchor), /gap|predecessor/);
++  k.store.close();
++});
+diff --git a/test/derived-writer-authority.test.mjs b/test/derived-writer-authority.test.mjs
+new file mode 100644
+index 0000000..e696cf3
+--- /dev/null
++++ b/test/derived-writer-authority.test.mjs
+@@ -0,0 +1,232 @@
++// relay/derived-writer-authority.mjs: ADAPTER LOGIC ONLY. The capability below is an in-test fake whose `complete: true` proves
++// nothing: these tests show what the adapter does WITH a complete coverage answer (replay, same-anchor binding, filter/range/order
++// checks, refusals, deny-only freshness, no public fallback). Omission detection itself is the native v3 executable's and the
++// derived reader's property: test/derived-writer-authority-kvm-store.test.mjs drives the ACTUAL (in-progress) KVM coverage store.
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import { CLAIMED, RENEWED, RELEASED, LeaseGenerationError } from "../relay/lease-generation.mjs";
++import { createDerivedWriterAuthority, derivedWriterAuthorityFromEnv, checkDerivedLogs, LEASE_TOPIC0S } from "../relay/derived-writer-authority.mjs";
++
++const h = (b, n = 32) => "0x" + b.repeat(n);
++const ID = h("11"), RUNNER = h("22"), OTHER_RUNNER = h("33"), OP = "0x" + "44".repeat(20), OP2 = "0x" + "55".repeat(20);
++const LEDGER = "0x" + "66".repeat(20), LEDGER2 = "0x" + "67".repeat(20), BOOK = "0x" + "77".repeat(20);
++const O = 53_000_000, B = O + 1_000, HASH = h("ab"), NOW = 1_700_000_000, T = NOW - 600;                       // anchor 10 min old (Base finality lag)
++const word = (n) => BigInt(n).toString(16).padStart(64, "0");
++const pad = (a) => "0x" + "0".repeat(24) + a.slice(2);
++let seq = 0;
++const tx = () => "0x" + (++seq).toString(16).padStart(64, "0");
++const bh = (n) => "0x" + n.toString(16).padStart(64, "c");
++const claimed = (n, i, until, { runner = RUNNER, op = OP, id = ID, address = LEDGER } = {}) =>
++  ({ address, blockNumber: O + n, blockHash: bh(O + n), logIndex: i, topics: [CLAIMED, id, runner, pad(op)], data: "0x" + word(until) + word(5), txHash: tx() });
++const renewed = (n, i, until, { runner = RUNNER, id = ID, address = LEDGER } = {}) =>
++  ({ address, blockNumber: O + n, blockHash: bh(O + n), logIndex: i, topics: [RENEWED, id, runner], data: "0x" + word(until) + word(5), txHash: tx() });
++const released = (n, i, { id = ID, address = LEDGER } = {}) =>
++  ({ address, blockNumber: O + n, blockHash: bh(O + n), logIndex: i, topics: [RELEASED, id, RUNNER], data: "0x" + word(7), txHash: tx() });
++const row = (o = {}) => ({ id: ID, owner: OP, appRef: "", ports: "", configCid: "", gpuMilli: 0, cpuMilli: 1, appPort: 80, isPublic: false, active: true,
++  createdAt: 1n, rate: 1n, balance6: 1n, spent6: 1n, runner: RUNNER, runnerOperator: OP, leaseUntil: BigInt(NOW + 1200), ...o });
++
++/** A fake world. `logs`: the ledger's complete lease logs (any order the test wants to check); `calls` records every read. */
++function world({ logs = [claimed(950, 3, NOW + 1200)], rows = { [LEDGER]: row() }, bookAt = LEDGER, schema = 16, availableFrom = O + 900, time = T,
++                 later = [], headRow, headBook = bookAt, head = B + 300, mutate = (r) => r, freshFails = false } = {}) {
++  const calls = [];
++  const capability = {
++    async snapshot(read) {
++      const client = {
++        getBlock: async () => ({ number: BigInt(B), hash: HASH, timestamp: BigInt(time) }),
++        readContract: async ({ address, functionName, args }) => {
++          calls.push(["snapshot", functionName, address]);
++          if (functionName === "addr") { assert.equal(address, BOOK); return bookAt; }
++          if (functionName === "deploymentsSchema") return BigInt(schema);
++          if (functionName === "get") return rows[address] ?? row({ id: h("00") });
++          throw new Error(functionName);
++        },
++      };
++      const value = await read(client, BigInt(B), {});
++      return { blockNumber: BigInt(B), blockHash: HASH, value };
++    },
++    async readDerivedLogs(q) {
++      calls.push(["logs", q.fromBlock, q.toBlock, q.address]);
++      if (q.anchor.number !== B || q.anchor.hash !== HASH) throw new Error("anchor is not current");
++      if (q.fromBlock < availableFrom) throw new Error("requested history is outside runtime-verified coverage");
++      const sel = logs.filter((l) => l.blockNumber >= q.fromBlock && l.blockNumber <= q.toBlock);
++      return mutate({ format: "enclave-derived-logs/v1", logs: sel, anchor: { tier: "l1-finalized-derived", base: { number: B, hash: HASH } },
++        filter: { address: q.address, topic0s: q.topic0s, topic1: q.topic1 },
++        coverage: { format: "enclave-lease16-coverage/v1", filterId: "lease16-events/v1", fromBlock: q.fromBlock, toBlock: q.toBlock, complete: true,
++                    availableFromBlock: availableFrom, availableToBlock: B } }, q);
++    },
++  };
++  const fresh = {
++    getBlockNumber: async () => { if (freshFails) throw new Error("verifier down"); return BigInt(head); },
++    request: async ({ method, params }) => { calls.push(["fresh", method]); assert.equal(method, "eth_getLogs"); assert.equal(params[0].fromBlock, "0x" + (B + 1).toString(16)); return later; },
++    readContract: async ({ functionName, address }) => functionName === "addr" ? headBook : (headRow ?? rows[address] ?? row({ id: h("00") })),
++  };
++  return { capability, fresh, calls };
++}
++const authority = (w, o = {}) => createDerivedWriterAuthority({ capability: w.capability, fresh: w.fresh, addressBook: BOOK, now: () => NOW * 1000, ...o });
++const refuses = async (p, code) => {
++  await assert.rejects(p, (e) => { assert.ok(e instanceof LeaseGenerationError, String(e)); assert.equal(e.code, code, e.message); return true; });
++};
++
++test("a complete-coverage answer yields exactly the legacy lease16 fact of the last claim, bound to the snapshot's anchor", async () => {
++  const w = world({ logs: [claimed(950, 3, NOW + 600), renewed(980, 0, NOW + 1200)] });
++  const r = await authority(w).writerAuthority(ID, { runner: RUNNER });
++  assert.equal(r.factJson, JSON.stringify({ source: "lease16", chainId: 8453, ledger: LEDGER, deployment: ID, claimBlock: O + 950, claimLogIndex: 3 }));
++  assert.deepEqual(r.block, { number: B, hash: HASH, time: T, finalized: B });
++  assert.equal(r.evidence.tier, "l1-finalized-derived");
++  // the reader was asked at the snapshot's own anchor: a probe at B, then [availableFrom, B]
++  assert.deepEqual(w.calls.filter((c) => c[0] === "logs"), [["logs", B, B, LEDGER], ["logs", O + 900, B, LEDGER]]);
++});
++
++test("the coverage query starts at max(ledger floor, reader's availableFrom); the default floor is the live 16d ledger's first block", async () => {
++  const w = world({ logs: [claimed(950, 3, NOW + 1200)] });
++  await authority(w, { fromBlock: O + 940 }).writerAuthority(ID);
++  assert.deepEqual(w.calls.filter((c) => c[0] === "logs").map((c) => c[1]), [B, O + 940]);
++  const d = world();
++  await authority(d).writerAuthority(ID);                                                     // default floor 52,515,705 < availableFrom
++  assert.deepEqual(d.calls.filter((c) => c[0] === "logs").map((c) => c[1]), [B, O + 900]);
++});
++
++test("same-runner re-claim after expiry: the LATER claim is the fact (complete logs make the older generation unusable)", async () => {
++  const w = world({ logs: [claimed(910, 0, NOW - 4000), renewed(920, 1, NOW - 3000), claimed(960, 2, NOW + 600), renewed(990, 0, NOW + 1200)] });
++  const r = await authority(w).writerAuthority(ID);
++  assert.equal(r.fact.claimBlock, O + 960);
++  assert.equal(r.fact.claimLogIndex, 2);
++});
++
++test("replay refusals: released after the claim, renewals not replaying, another runner/operator, released row", async () => {
++  await refuses(authority(world({ logs: [claimed(950, 0, NOW + 1200), released(960, 0)] })).writerAuthority(ID), "inconsistent_logs");
++  await refuses(authority(world({ logs: [claimed(950, 0, NOW + 600), renewed(960, 0, NOW + 900)] })).writerAuthority(ID), "inconsistent_logs");
++  await refuses(authority(world({ logs: [claimed(950, 0, NOW + 1200, { runner: OTHER_RUNNER })] })).writerAuthority(ID), "inconsistent_logs");
++  await refuses(authority(world({ logs: [claimed(950, 0, NOW + 1200, { op: OP2 })] })).writerAuthority(ID), "inconsistent_logs");
++  await refuses(authority(world({ logs: [claimed(950, 0, NOW + 1200), renewed(960, 0, NOW + 1200, { runner: OTHER_RUNNER })] })).writerAuthority(ID), "inconsistent_logs");
++  await refuses(authority(world({ rows: { [LEDGER]: row({ runner: h("00"), runnerOperator: "0x" + "00".repeat(20) }) } })).writerAuthority(ID), "lease_not_current");
++  await refuses(authority(world()).writerAuthority(ID, { runner: OTHER_RUNNER }), "runner_mismatch");
++});
++
++test("a claim older than the derived coverage (pre-bootstrap) stays REFUSED: no fact, not retried, nothing signed", async () => {
++  const w = world({ logs: [claimed(850, 0, NOW - 100), renewed(950, 0, NOW + 1200)], availableFrom: O + 900 });
++  await assert.rejects(authority(w).writerAuthority(ID), (e) => e.code === "claim_not_covered" && e.retry === false);
++  // the coverage start is the reader's: asking below it is never attempted
++  assert.ok(w.calls.filter((c) => c[0] === "logs").every((c) => c[1] >= O + 900));
++});
++
++test("anchor binding: logs of another anchor, another filter or another range are refused", async () => {
++  const bad = (mutate) => authority(world({ mutate })).writerAuthority(ID);
++  await refuses(bad((r) => ({ ...r, anchor: { ...r.anchor, base: { number: B, hash: h("ac") } } })), "anchor_mismatch");
++  await refuses(bad((r) => ({ ...r, anchor: { ...r.anchor, base: { number: B - 1, hash: HASH } } })), "anchor_mismatch");
++  await refuses(bad((r) => ({ ...r, filter: { ...r.filter, topic1: h("12") } })), "derived_logs_invalid");
++  await refuses(bad((r) => ({ ...r, filter: { ...r.filter, topic0s: [CLAIMED] } })), "derived_logs_invalid");
++  // KVM's store echoes the range too: accepted when it is exactly the asked range, refused otherwise or with any other key
++  assert.equal((await authority(world({ mutate: (r, q) => ({ ...r, filter: { ...r.filter, fromBlock: q.fromBlock, toBlock: q.toBlock } }) })).writerAuthority(ID)).fact.claimBlock, O + 950);
++  await refuses(bad((r) => ({ ...r, filter: { ...r.filter, fromBlock: 0 } })), "derived_logs_invalid");
++  await refuses(bad((r) => ({ ...r, filter: { ...r.filter, complete: true } })), "derived_logs_invalid");
++  await refuses(bad((r) => ({ ...r, coverage: { ...r.coverage, fromBlock: r.coverage.fromBlock + 1 } })), "coverage_incomplete");
++  await refuses(bad((r) => ({ ...r, coverage: { ...r.coverage, complete: false } })), "coverage_incomplete");
++  await refuses(bad((r) => ({ ...r, coverage: { ...r.coverage, availableToBlock: B - 1 } })), "coverage_incomplete");
++  await refuses(bad((r) => ({ ...r, format: "enclave-derived-logs/v0" })), "derived_logs_invalid");
++  // the reader itself refusing (its anchor moved on, a gap, a tampered chunk, cancellation...) is a refusal, never a fallback
++  const w = world(); w.capability.readDerivedLogs = async () => { throw new Error("runtime coverage gap"); };
++  await refuses(authority(w).writerAuthority(ID), "derived_unavailable");
++});
++
++test("validated only after the confirmed-ledger filter: foreign-address / other-deployment logs are ignored, this lease's malformed ones refuse", async () => {
++  const foreign = [claimed(955, 0, 1, { address: LEDGER2 }), { address: LEDGER2, blockNumber: O + 956, blockHash: "junk", logIndex: -1, topics: [CLAIMED], data: "zz", txHash: "" },
++                   claimed(957, 0, 1, { id: h("99") })];
++  const w = world({ logs: [claimed(950, 3, NOW + 1200), ...foreign] });
++  assert.equal((await authority(w).writerAuthority(ID)).fact.claimBlock, O + 950);
++  const shape = (l) => authority(world({ logs: [claimed(950, 3, NOW + 1200), l] })).writerAuthority(ID);
++  await refuses(shape({ ...renewed(960, 0, NOW + 1200), topics: [RENEWED, ID] }), "bad_answer");                 // ABI topic count
++  await refuses(shape({ ...renewed(960, 0, NOW + 1200), data: "0x" + word(1) }), "bad_answer");                 // ABI data words
++  await refuses(authority(world({ mutate: (r) => ({ ...r, logs: [...r.logs, { ...renewed(960, 0, NOW + 1200), blockNumber: B + 1, blockHash: bh(B + 1) }] }) }))
++    .writerAuthority(ID), "bad_answer");                                                                          // outside the asked range
++  await refuses(shape({ ...renewed(950, 3, NOW + 1200) }), "bad_answer");                                         // duplicate (block, logIndex)
++  await refuses(authority(world({ logs: [renewed(990, 0, NOW + 1200), claimed(950, 3, NOW + 1200)] })).writerAuthority(ID), "bad_answer");  // order
++  await refuses(shape({ ...renewed(950, 4, NOW + 1200), blockHash: bh(O + 951) }), "bad_answer");                   // two hashes, one number
++});
++
++test("admin AddressBook migration is followed AT the derived anchor; a pinned DEPLOYMENTS_ADDRESS wins; a book moved after it refuses", async () => {
++  const w = world({ bookAt: LEDGER2, rows: { [LEDGER2]: row() }, logs: [claimed(950, 3, NOW + 1200, { address: LEDGER2 })] });
++  const r = await authority(w).writerAuthority(ID);
++  assert.equal(r.fact.ledger, LEDGER2);
++  assert.ok(w.calls.filter((c) => c[0] === "logs").every((c) => c[3] === LEDGER2), "the coverage filter is the book's ledger at B");
++  const p = world({ bookAt: LEDGER2 });
++  assert.equal((await authority(p, { ledgerPin: LEDGER }).writerAuthority(ID)).fact.ledger, LEDGER);
++  assert.ok(!p.calls.some((c) => c[1] === "addr"), "a pinned ledger never reads the book");
++  await refuses(authority(world({ headBook: LEDGER2 })).writerAuthority(ID), "ledger_moved");
++  await refuses(authority(world({ bookAt: "0x" + "00".repeat(20) })).writerAuthority(ID), "no_ledger");
++});
++
++test("freshness: a stale anchor, an expired lease and an unsupported schema refuse", async () => {
++  await refuses(authority(world({ time: NOW - 1900 })).writerAuthority(ID), "stale_snapshot");
++  await refuses(authority(world({ time: NOW - 100 }), { maxAnchorAgeSec: 60 }).writerAuthority(ID), "stale_snapshot");
++  await refuses(authority(world({ rows: { [LEDGER]: row({ leaseUntil: BigInt(NOW - 1) }) } })).writerAuthority(ID), "lease_not_current");
++  await refuses(authority(world({ schema: 15 })).writerAuthority(ID), "unsupported_schema");
++  await refuses(authority(world({ rows: {} })).writerAuthority(ID), "no_deployment");
++});
++
++test("the unsafe local verifier is DENY-ONLY: later claim/release, runner change or its failure refuse; it never makes a fact", async () => {
++  await refuses(authority(world({ later: [{ topics: [CLAIMED, ID] }] })).writerAuthority(ID), "claim_not_final");
++  await refuses(authority(world({ later: [{ topics: [RELEASED, ID] }] })).writerAuthority(ID), "lease_not_current");
++  await refuses(authority(world({ headRow: row({ runner: OTHER_RUNNER }) })).writerAuthority(ID), "lease_not_current");
++  await refuses(authority(world({ headRow: row({ leaseUntil: BigInt(NOW) }) })).writerAuthority(ID), "lease_not_current");
++  await refuses(authority(world({ freshFails: true })).writerAuthority(ID), "fresh_check_unavailable");
++  await refuses(authority(world({ head: B - 1 })).writerAuthority(ID), "fresh_head_behind");
++  // a fresh head that shows the claim cannot rescue a claim the derived coverage does not have
++  const w = world({ logs: [renewed(950, 0, NOW + 1200)], later: [], headRow: row() });
++  await refuses(authority(w).writerAuthority(ID), "claim_not_covered");
++  assert.ok(!w.calls.some((c) => c[0] === "fresh"), "the deny-only check runs only after the derived proof succeeded");
++});
++
++test("no implicit public fallback: the adapter never fetches, and cancellation refuses", async () => {
++  const realFetch = globalThis.fetch; let fetched = 0;
++  globalThis.fetch = async () => { fetched++; throw new Error("no network"); };
++  try {
++    await authority(world()).writerAuthority(ID);
++    await refuses(authority(world({ logs: [] })).writerAuthority(ID), "claim_not_covered");
++  } finally { globalThis.fetch = realFetch; }
++  assert.equal(fetched, 0);
++  const ac = new AbortController(); ac.abort(new Error("deadline"));
++  await refuses(authority(world()).writerAuthority(ID, { signal: ac.signal }), "aborted");
++  await refuses(authority(world()).writerAuthority("0x12"), "bad_id");
++});
++
++test("concurrent releases are serialized through the one-at-a-time reader (no 'busy' refusals), each with its own result", async () => {
++  const w = world({ rows: { [LEDGER]: row() } });
++  let inFlight = 0, peak = 0; const snap = w.capability.snapshot;
++  w.capability.snapshot = async (read) => { inFlight++; peak = Math.max(peak, inFlight); try { await new Promise((r) => setTimeout(r, 5)); return await snap(read); } finally { inFlight--; } };
++  const a = authority(w);
++  const rs = await Promise.all([a.writerAuthority(ID), a.writerAuthority(ID), a.writerAuthority(ID)]);
++  assert.equal(peak, 1);
++  assert.ok(rs.every((r) => r.fact.claimBlock === O + 950));
++});
++
++test("checkDerivedLogs filters by the confirmed ledger before validating (exported contract)", () => {
++  const ask = { address: LEDGER, topic0s: [...LEASE_TOPIC0S], topic1: ID, fromBlock: O + 900, toBlock: B, anchor: { number: B, hash: HASH } };
++  const res = { format: "enclave-derived-logs/v1", anchor: { base: { number: B, hash: HASH } }, filter: { address: LEDGER, topic0s: [...LEASE_TOPIC0S], topic1: ID },
++    coverage: { format: "enclave-lease16-coverage/v1", filterId: "lease16-events/v1", fromBlock: O + 900, toBlock: B, complete: true, availableFromBlock: O + 900, availableToBlock: B },
++    logs: [{ address: LEDGER2, topics: ["junk"] }, claimed(950, 0, 1)] };
++  assert.equal(checkDerivedLogs(res, ask).length, 1);
++});
++
++test("production selector: unset keeps the existing selection; anything else is explicit, in-process and fail-closed", async () => {
++  const relayChain = { client: world().fresh };
++  const base = { ENCLAVE_DERIVED_READER_CONFIG: "/etc/enclave/reader.json", ENCLAVE_DERIVED_ANCHOR_JOURNAL: "/var/lib/enclave/anchor.json", ADDRESS_BOOK_ADDRESS: BOOK };
++  const never = async () => { throw new Error("must not load"); };
++  assert.equal(await derivedWriterAuthorityFromEnv({}, { relayChain, loadRuntime: never }), null);
++  await assert.rejects(derivedWriterAuthorityFromEnv({ ...base, ENCLAVE_WRITER_AUTHORITY_SOURCE: "quorum" }, { relayChain, loadRuntime: never }), /must be "derived" or unset/);
++  await assert.rejects(derivedWriterAuthorityFromEnv({ ...base, ENCLAVE_WRITER_AUTHORITY_SOURCE: "derived" }, { relayChain: null, loadRuntime: never }), /verifier authority/);
++  for (const u of ["http://127.0.0.1:9000/anchor", "file:///etc/x", "relative.json"])
++    await assert.rejects(derivedWriterAuthorityFromEnv({ ...base, ENCLAVE_WRITER_AUTHORITY_SOURCE: "derived", ENCLAVE_DERIVED_READER_CONFIG: u }, { relayChain, loadRuntime: never }), /absolute file path/);
++  await assert.rejects(derivedWriterAuthorityFromEnv({ ...base, ENCLAVE_WRITER_AUTHORITY_SOURCE: "derived" }, { relayChain, loadRuntime: async () => ({}) }), /not composed/);
++  // the composed runtime: started in-process with the operator's file config and journal, then the adapter runs on it
++  const w = world(); let started;
++  const runtime = { openLifecycleJournal: (p) => ({ p }), startDerivedLifecycleReader: async (config, o) => { started = { config, o };
++    return { reader: { readDerivedLogs: w.capability.readDerivedLogs }, snapshot: w.capability.snapshot, close: async () => {} }; } };
++  const a = await derivedWriterAuthorityFromEnv({ ...base, ENCLAVE_WRITER_AUTHORITY_SOURCE: "derived", ENCLAVE_CHAIN_VERIFIER: "http://127.0.0.1:8545" },
++    { relayChain: { client: w.fresh }, loadRuntime: async () => runtime, readFile: async () => JSON.stringify({ maxAnchorAgeSec: 1800 }), now: () => NOW * 1000 });
++  assert.deepEqual(started.o.journal, { p: "/var/lib/enclave/anchor.json" });
++  assert.equal(started.o.verifier, "http://127.0.0.1:8545");
++  assert.equal((await a.writerAuthority(ID)).fact.claimBlock, O + 950);
++  const noR3 = { ...runtime, startDerivedLifecycleReader: async () => ({ reader: {}, snapshot: w.capability.snapshot }) };
++  await assert.rejects(derivedWriterAuthorityFromEnv({ ...base, ENCLAVE_WRITER_AUTHORITY_SOURCE: "derived" }, { relayChain, loadRuntime: async () => noR3, readFile: async () => "{}" }), /readDerivedLogs/);
++});

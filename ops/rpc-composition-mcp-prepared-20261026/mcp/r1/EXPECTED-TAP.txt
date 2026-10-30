@@ -1,0 +1,8 @@
+test/mcp-independent-verifier.test.mjs candidate 6
+test/mcp-independent-unit.test.mjs candidate 10
+test/mcp-independent.test.mjs candidate 13
+test/cli-combined-independent.test.mjs candidate 4
+test/chain-authority.test.mjs candidate 10
+test/mcp-independent-unit.test.mjs base 10
+test/mcp-independent.test.mjs base 13
+test/cli-combined-independent.test.mjs base 4

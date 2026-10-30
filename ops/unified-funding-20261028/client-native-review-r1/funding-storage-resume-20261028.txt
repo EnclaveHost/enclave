@@ -1,0 +1,8 @@
+- heading "client-native-r1 IndexedDB / CryptoKey / CAS self-test" [level=1]
+- paragraph: TEST ONLY. Uses fresh randomly named test databases; never the site's real stores. No wallet, no network.
+- paragraph:
+  - button "Run"
+  - button "Resume (after reload)"
+  - button "Delete owned test databases"
+- generic: "PASS: resume complete (reload durability + old test DB untouched)"
+- generic: "ok this document was loaded by a reload ok the gas key record survived the reload ok reloaded gas key: is a CryptoKey ok reloaded gas key: private and NON-extractable ok reloaded gas key: usable for sign ok reloaded gas key: pkcs8 export refused ok reloaded gas key: signs; public key verifies ok the durable journal entry survived the reload ok all 25 CAS outcomes survived the reload unchanged ok old test DB: version 1, only its own store ok old test DB: exactly its one record, unchanged ok old test DB key: is a CryptoKey ok old test DB key: private and NON-extractable ok old test DB key: usable for sign ok old test DB key: pkcs8 export refused ok old test DB key: signs; public key verifies"

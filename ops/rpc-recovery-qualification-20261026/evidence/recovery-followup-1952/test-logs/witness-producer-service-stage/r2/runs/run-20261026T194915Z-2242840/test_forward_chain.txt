@@ -1,0 +1,38 @@
+.F./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r2/tests/test_forward_chain.py:120: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r2/systemd/enclave-witness-forward.socket' mode='r' encoding='utf-8'>
+  so = open(f"{STAGE}/systemd/enclave-witness-forward.socket").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r2/tests/test_forward_chain.py:121: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r2/systemd/enclave-witness-forward.service' mode='r' encoding='utf-8'>
+  sv = open(f"{STAGE}/systemd/enclave-witness-forward.service").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+F/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r2/tests/test_forward_chain.py:137: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r2/proposal/witness-route.json' mode='r' encoding='utf-8'>
+  p = json.load(open(f"{STAGE}/proposal/witness-route.json"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r2/tests/test_forward_chain.py:138: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/.local/state/enclave-rpc-production/manifest.json' mode='r' encoding='utf-8'>
+  m = json.load(open("/home/steven/.local/state/enclave-rpc-production/manifest.json"))          # read only
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r2/tests/test_forward_chain.py:133: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r1/systemd/enclave-witness-producer.service.template' mode='r' encoding='utf-8'>
+  u = open(f"{R1}/systemd/enclave-witness-producer.service.template").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.
+======================================================================
+FAIL: test_malformed_requests_through_the_forward_never_reach_the_fetcher (__main__.Chain.test_malformed_requests_through_the_forward_never_reach_the_fetcher)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r2/tests/test_forward_chain.py", line 114, in test_malformed_requests_through_the_forward_never_reach_the_fetcher
+    self.assertIn(b" 400 ", st, d)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+AssertionError: b' 400 ' not found in b'HTTP/1.1 503 Service Unavailable' : b'{}'
+
+======================================================================
+FAIL: test_forward_units_bind_the_private_address_with_the_exact_peer_only (__main__.Units.test_forward_units_bind_the_private_address_with_the_exact_peer_only)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r2/tests/test_forward_chain.py", line 128, in test_forward_units_bind_the_private_address_with_the_exact_peer_only
+    self.assertNotIn("0.0.0.0", t); self.assertNotIn("[::]", t); self.assertNotIn("[Install]", t)
+                                                                 ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: '[Install]' unexpectedly found in '# witness-placement r2 (PREPARED; NOT installed): the RPC VM side of the EXISTING host-link forward pattern\n# (rpc-backend-bootstrap provision_vm.py: host 127.0.0.1:port -> QEMU hostfwd -> guest 10.0.2.15:port -> socket proxy ->\n# guest 127.0.0.1:target), one more entry {name: witness, port: 28747, target: 18747}.\n# Exact peer: every host-forwarded connection arrives from the QEMU user-net gateway 10.0.2.2; nothing else may connect.\n# No [Install]: root enables it explicitly after the measured route test.\n[Unit]\nDescription=Enclave witness producer forward (RPC VM ingress 10.0.2.15:28747 from the host link only)\n\n[Socket]\nListenStream=10.0.2.15:28747\nFreeBind=yes\nIPAddressDeny=any\nIPAddressAllow=10.0.2.2/32\n'
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.373s
+
+FAILED (failures=2)

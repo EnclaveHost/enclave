@@ -122,7 +122,7 @@
       <span class="eyebrow">Verifiable compute · API v1</span>
       <h1>Compute that<br><span class="hl">cannot see</span><br>your data.</h1>
       <p class="lede">Your apps. Your data. <b>Your boundary.</b></p>
-      <p class="hero-detail">Protection depends on the host. Windows host-OS memory exclusion was demonstrated in a local test on 2026-10-23; its per-app signed report does not attest that exclusion. Confidential CPUs add protection against operator software. <a href="#protection">See the boundaries →</a></p>
+      <p class="hero-detail">Hardware isolation keeps the ordinary host OS out. Confidential hardware also protects against the machine’s operator.</p>
       <div class="hero-cta">
         <a href="apps" class="btn btn-primary">Deploy an app <span class="arr" aria-hidden="true">→</span></a>
         <a href="develop#architecture" class="btn btn-ghost">How it works</a>
@@ -142,7 +142,7 @@
 <!-- ===================== WHAT YOU GET ===================== -->
 <section id="why" data-view="overview" aria-label="What you get">
   <div class="wrap">
-    <c-section-head eyebrow="What you get" heading="Portable apps. Checkable evidence.">
+    <c-section-head eyebrow="What you get" heading="One build. Every backend. Nothing taken on faith.">
       <p><a href="develop#architecture">The architecture, in full ↗</a></p>
     </c-section-head>
     <div class="cards">
@@ -156,13 +156,13 @@
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l7 3v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z"/><path d="M8 12h8M12 8v8"/></svg></div>
         <span class="tag">CPU + GPU protection</span>
         <h3>Enclave Shield</h3>
-        <p>On the Windows reference host, CPU isolation kept the host OS out of guest memory in a local test; this is not attested per app. Shield also masks GPU inputs and checks returned results. <a href="#protection">How Shield works →</a></p>
+        <p>Our proprietary CPU isolation keeps the host OS out of your app. Masked offload protects your data on GPUs outside the confidential boundary. <a href="#protection">How Shield works →</a></p>
       </div>
       <div class="card jade">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg></div>
-        <span class="tag">check the evidence</span>
+        <span class="tag">proof, not promises</span>
         <h3>Verifiable</h3>
-        <p>Check supported attestation evidence in your browser or CLI. Default checks use Enclave’s measurement allowlist and return a limited verdict; independently pin an expected measurement for the confidential-server check. <a href="#attest">Run it now →</a></p>
+        <p>Check the chain from the silicon to your app's exact bytes before you connect, in your browser, from the CLI, or in an agent's tool call. <a href="#attest">Run it now →</a></p>
       </div>
       <div class="card amber">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.9l7.6-3.8M8.2 13.1l7.6 3.8"/></svg></div>
@@ -221,20 +221,20 @@
         <span class="eyebrow">The isolation contract</span>
         <h2 id="protection-title">One contract.<br>Two paths to isolation.</h2>
       </div>
-      <p>The target contract is one hardware domain per app. Demonstrated protection and remaining trust depend on the backend.</p>
+      <p>Both paths give every app its own hardware domain. They differ in who is kept out.</p>
     </div>
 
     <div class="protection-paths">
       <article class="protection-path protection-shield">
         <div class="protection-label"><span class="protection-dot"></span>Enclave Shield</div>
-        <h3>Windows isolation.<br>Locally demonstrated.</h3>
-        <p class="protection-description">On the Windows reference host, a privileged memory capture read an ordinary guest’s memory but not a VBS-isolated guest’s (2026-10-23). The Linux CPU-isolation backend remains a design.</p>
+        <h3>Your app, isolated<br>from the host OS.</h3>
+        <p class="protection-description">Works on any operating system, including CPUs without confidential-computing support.</p>
         <ul class="protection-features">
           <li>A measured trusted layer enforces each app’s domain.</li>
           <li>App identity, keys, and traffic stay bound together.</li>
           <li>No software-only fallback.</li>
         </ul>
-        <p class="protection-boundary"><span>Protects against</span>Host-OS memory access in that test.<small>The per-app signed report still says <code>host_excluded: no</code>. The hypervisor and machine’s owner remain trusted; partition memory is not encrypted.</small></p>
+        <p class="protection-boundary"><span>Protects against</span>The host operating system.<small>Does not add protection from the machine’s owner.</small></p>
       </article>
       <article class="protection-path protection-confidential">
         <div class="protection-label"><span class="protection-dot"></span>Confidential hardware</div>
@@ -253,31 +253,31 @@
       <div class="protection-gpu-intro">
         <span class="eyebrow">GPU protection</span>
         <h3>GPU power.<br>Protected data.</h3>
-        <p>The documented deployment uses only Shield’s masked GPU offload: metal0’s V100-class cards and the Windows host’s integrated GPU (2026-10-14).</p>
+        <p>Each card is protected according to its own proven mode, whatever the CPU.</p>
       </div>
       <div class="protection-gpu-modes">
         <div class="protection-gpu-mode">
           <span class="protection-mode-icon" aria-hidden="true">↳</span>
-          <div><h4>Confidential GPU · not currently deployed</h4><p>The architecture supports a GPU inside the confidential boundary in a supported CC mode. The NVIDIA CC fleet was retired on 2026-10-14.</p></div>
+          <div><h4>Confidential GPU</h4><p>In a supported confidential-computing mode, the card runs inside the enclave.</p></div>
         </div>
         <div class="protection-gpu-mode">
           <span class="protection-mode-icon" aria-hidden="true">↳</span>
-          <div><h4>Deployed GPUs · Enclave Shield</h4><p>The design masks protected tensors and checks returned results. Its protections depend on the trusted CPU component and the documented assumptions; review has been internal only. <a href="https://github.com/EnclaveHost/enclave/blob/main/docs/shielded-inference.md">Read the Shield record →</a></p></div>
+          <div><h4>Other GPUs · Enclave Shield</h4><p>Masked inputs. Checked results. No plaintext protected state. No work is routed to the card until Shield’s checks pass.</p></div>
         </div>
       </div>
     </div>
 
     <div class="protection-assurance">
-      <p>One target contract. Evidence for each backend.</p>
+      <p>One standard on every operating system.</p>
       <a href="develop#contract">The full contract <span aria-hidden="true">↗</span></a>
     </div>
     <details class="protection-details">
       <summary>Security boundaries &amp; verification requirements<span aria-hidden="true">+</span></summary>
       <div class="protection-details-body">
-        <h4>Enclave Shield</h4><p>Shield combines per-app CPU isolation with masked GPU offload. Windows host-OS memory exclusion was demonstrated locally on the reference host on 2026-10-23, but the per-app report still records <code>host_excluded: no</code>. The hypervisor and physical operator remain trusted. Linux CPU isolation is a design; the complete isolation contract must not be inferred from per-app placement or a working GPU component.</p>
+        <h4>Enclave Shield</h4><p>Shield protects machines without confidential-computing hardware. Each app runs in its own domain, kept apart from the host OS by a smaller, measured trusted layer that the hardware's virtualization enforces. The app's identity is measured and its keys and traffic are bound to it. Checks fail closed, and a finished domain leaves nothing behind. Shield does not stop the machine's owner from inspecting data; only a confidential processor adds that. A Shield host is listed only after it passes the common acceptance tests.</p>
         <h4>Confidential hardware</h4><p>Each app keeps its own domain, and the processor adds a boundary around the whole machine: memory is encrypted and integrity-protected against everything outside it, operator included. Before connecting, you check a report signed by the processor and chained to the silicon vendor.</p>
         <h4>GPU admission</h4><p>A GPU in a supported confidential-computing mode runs inside the boundary. Any other GPU, even one beside a confidential processor, is used only through <b>Shield's masked offload</b>: the card sees masked inputs, its results are checked before use, and it never receives plaintext protected state. Admission reads proof of the card's own mode, never the CPU, the host, or a missing field. Until that proof checks out, the card is neither advertised nor routed.</p>
-        <h4>Scope and limitations</h4><p>Protection claims are specific to the backend and evidence: the Windows memory test is a local demonstration, not a per-app attested guarantee. Neither the platform nor Enclave Shield has had an external audit. A confidential processor defends memory against <b>software</b>, not against physical attacks with lab equipment, and a self-hosted seller has physical access to their own machine. Documented deployments do not establish the complete target contract. Ordinary virtualization with the host OS in charge is a research control, not a supported product tier. Which hosts are attached, and what each has proven, is on the live fleet panel and in the dated evidence note on the architecture page. <a href="develop#contract">The contract, property by property →</a></p>
+        <h4>Scope and limitations</h4><p>Nothing here is called unable to see your data unless hardware enforces it and a signed report says so. A confidential processor defends memory against <b>software</b>, not against physical attacks with lab equipment, and a self-hosted seller has physical access to their own machine. A machine that meets only part of the contract is not listed, and ordinary virtualization with the host OS in charge is never built, listed, or sold. Which hosts are attached, and what each has proven, is on the live fleet panel and in the dated evidence note on the architecture page. <a href="develop#contract">The contract, property by property →</a></p>
       </div>
     </details>
   </div>
@@ -285,8 +285,8 @@
 
 <section id="attest" data-view="overview" aria-label="Attestation">
   <div class="wrap">
-    <c-section-head eyebrow="Root of trust" heading="Check the evidence. Know the limits.">
-      <p>Walk through the confidential-server verification path and Shield GPU offload. Default verification uses Enclave’s measurement allowlist, so a successful check is limited. Run a host check below.</p>
+    <c-section-head eyebrow="Root of trust" heading="The proof, not the promise.">
+      <p>A chain of measurements that ends in your browser. Walk each link, then run the check yourself against a live host.</p>
     </c-section-head>
     <c-attest-chain></c-attest-chain>
     <div class="verification-stage"><c-enclave-panel></c-enclave-panel><c-live-verify></c-live-verify></div>

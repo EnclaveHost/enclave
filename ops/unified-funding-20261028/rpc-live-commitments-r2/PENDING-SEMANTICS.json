@@ -1,0 +1,11 @@
+{
+  "candidateCommit": "174edbb7dcf872c2d8d12fdd3a94a2f6deeec0eb",
+  "path": "isolation/m4/guestd/pool.go",
+  "sha256": "07f532c09e90a662c81afe3694928c1a0c2b1e833ed91c60bb670026dcbc868c",
+  "sourceLines": [
+    164,
+    195
+  ],
+  "finding": "pendingLocked includes RAM a RUNNING guest may still consume: reservation minus nonreclaimable unit charge. STARTING and unreadable units count their full reservations. The observed5232MiB is not proof of stale queued work and must not be discarded.",
+  "limits": "Source candidate correlation, not reproducible proof for current installed daemon. No guest changed, stopped, preempted or reservation released."
+}

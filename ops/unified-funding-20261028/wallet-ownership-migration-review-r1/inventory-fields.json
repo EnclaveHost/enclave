@@ -1,0 +1,95 @@
+{
+  "status": "PREPARED_FIELDS_NOT_COLLECTED",
+  "scope": "all actual vault-owned deployment rows; separate catalog publisher inventory; no new spending authority",
+  "snapshot": [
+    "chainId",
+    "blockNumber",
+    "blockHash",
+    "RPC agreement/finality qualification",
+    "ledger address/schema/runtimeCodeHash",
+    "reserve/executor address/runtimeCodeHash",
+    "catalog address/runtimeCodeHash",
+    "inventory pagination/count/completeness"
+  ],
+  "deploymentIdentity": [
+    "id",
+    "ownerOfRecord",
+    "vault factory and isVault/vaultFor binding",
+    "vault implementation/codehash",
+    "controlling owner wallet",
+    "vault book and resolved deployments target",
+    "already-wallet-owned or earlier migration receipt"
+  ],
+  "preserve": [
+    "appRef",
+    "configCid/hash",
+    "ports/appPort",
+    "isPublic",
+    "gpu/cpu/resource shares",
+    "active",
+    "balance6/spent6",
+    "feeRecipient/feeRate",
+    "maxRate/currentRate",
+    "runner/operator/leaseUntil",
+    "host runtime/serving identity and readiness without restart"
+  ],
+  "transferGate": [
+    "ownerEscrow6",
+    "earn.escrow6",
+    "refundableOf",
+    "outstanding lease liability",
+    "current caller and destination verification",
+    "exact release or ownerCall simulation",
+    "ownerNonceUsed and opNonce/deadline for signed release"
+  ],
+  "reserveOldAndNew": [
+    "budgetKey(id,vault)",
+    "budgetKey(id,wallet)",
+    "balanceWei",
+    "enabled",
+    "claimPolicy/allowlisted operator entries",
+    "maxPerOp/epochCap/epochSpent/epochIndex/epochClaims",
+    "gas price/max claims/window/min extension/cooldown",
+    "old withdrawal authority and exact amount",
+    "new configuration/deposit authority",
+    "transaction ordering and sponsorship continuity"
+  ],
+  "authorizedFunding": [
+    "session/controller/vault identity",
+    "sessionId/live/expiry/actions/environment/app scopes",
+    "grant adapter/ledger/reserve/owner target bindings",
+    "USDC remaining/locked/spent/period remaining",
+    "gas/USDC single-budget ceilings and outstanding liabilities",
+    "allowance/authorization nonces and already mined receipts",
+    "conversion/refill target eligibility after ownership change",
+    "refund beneficiary before and after",
+    "self-hosted Add runtime USDC availability plus actual authorized automatic gas conversion path"
+  ],
+  "secretsAndAccess": [
+    "beneficial owner before/after",
+    "policy owner/revisions/paused and secret backend identity (no secret payload)",
+    "recognized session factory history",
+    "held env/promoted digest vs actual appRef/configCid",
+    "session API PROD/delegation before/after",
+    "owner-based cache/UI/indexer refresh",
+    "domains/private access bindings if owner-address keyed"
+  ],
+  "catalogSeparate": [
+    "appId",
+    "publisher vault and controlling wallet",
+    "catalog admin authority",
+    "slug destination occupancy/redirect",
+    "version/config/approval/CID invariants",
+    "existing fee snapshots that do not move with publisher",
+    "exact transferApp simulation/receipt"
+  ],
+  "resultClassification": [
+    "already complete with receipt",
+    "transferable with preserved state and reserve continuity",
+    "escrow-blocked (no blind refund)",
+    "authority/version/book mismatch",
+    "reserve/funding continuity blocked",
+    "secrets/access/serving qualification pending",
+    "catalog slug/admin constraint"
+  ]
+}

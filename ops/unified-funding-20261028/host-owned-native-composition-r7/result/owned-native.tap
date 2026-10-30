@@ -1,0 +1,22 @@
+TAP version 13
+# Subtest: NATIVE19 actual owned parent+sidecars start with signed permits; owner stop and pending history survive reopen without replay
+ok 1 - NATIVE19 actual owned parent+sidecars start with signed permits; owner stop and pending history survive reopen without replay
+  ---
+  duration_ms: 5189.270706
+  type: 'test'
+  ...
+# Subtest: NATIVE19 canonical owner Offline removes real-gate TEST compute and survives owned composition restart
+ok 2 - NATIVE19 canonical owner Offline removes real-gate TEST compute and survives owned composition restart
+  ---
+  duration_ms: 3589.310892
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 9137.890516

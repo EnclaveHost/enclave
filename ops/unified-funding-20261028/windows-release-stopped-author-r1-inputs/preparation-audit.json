@@ -1,0 +1,15 @@
+{
+  "seedFiles": 114,
+  "candidateFiles": 114,
+  "productPreEdits": 0,
+  "seedEqualsCandidate": true,
+  "inputPins": 256,
+  "inputDrift": [],
+  "authorLaunched": false,
+  "authInvoked": false,
+  "productExecuted": false,
+  "testsRun": false,
+  "remoteRead": false,
+  "runtimeMutation": false,
+  "financialOperation": false
+}

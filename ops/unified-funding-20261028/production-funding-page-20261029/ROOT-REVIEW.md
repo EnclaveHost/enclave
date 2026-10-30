@@ -1,0 +1,11 @@
+# Production funding page, October29 UTC
+
+After the explicitly authorized relay switch, the qualified funding addon was enabled and deployed on all four existing edges. r1 exposed only the real runtime and finite24/4.8/1.2 proposal; approvals remained null. Actual Chromium4 owner browser prepared its existing30USDC session plan with the same key, original explicit wildcard/API authority, exact finite8+2 app scopes and no extra budget. Public DOM termsHash af133ffff73469d57b6289676dfa2247fa3abb9bddf368dabacde29827b14a02 was reviewed. r2 adds only root artifact approval for that exact hash to enable actual owner wallet prompts; this is NOT a human signature or an assertion that migration executed.
+
+Current composite CID bafybeihlkkgon5gdwozoklu6adjigqiipraghyfthnibfdkleqjltkd664. All1126 prior files remain byte/CIDidentical. Exactly5 new files form the addon; same tested SDKf23ba2d7 and page635cdcc, only configuration substituted. Original and intermediate immutable trees retained. Both actual builds completed under512MiB queue,450MiB RSSguard and27648MiB available floor.
+
+Each edge was checked against its captured live and on-disk configuration. Exactlytwo apex/error roots changed via freshETag conditionalCaddyAPI PATCH, with privatebefore/intent records, exactreadback, expectedoriginaldiskatomicpersistence and realpathadapt/live equality. Existing CSP/API/installer/IPFSroutes unchanged. Old unsafe deployment helpers were not run. NewCID IPFSroute registration is not claimed by this narrow apex operation.
+
+Each of four edges independently passed HTTPS/TLS byte checks for5additions plus unchangedindex/boot/originalSDK (8files/edge/release). Actual browser page rendered, connected existingowner and read originalsession. Ordinary no-cutover-pause mode is used because backend is alreadyactive. All owner signatures remain required. No funds moved and no app recovery is asserted by this frontend operation.
+
+The edge scripts are exact single-use operational evidence, not generic reusable deployment tools. An unknown PATCH outcome must be read back; never blindly rerun. Config/privatebackups remain on their original edges. This package contains public hashes/configuration/qualification only, no private keys/browser records.

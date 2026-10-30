@@ -1,0 +1,19 @@
+{
+ "sourceCommit": "611e2cc1126546081f1d29481f181f5df05b4b89",
+ "sourceTree": "e5260035d70f057fb0237e773f58b70f63210674",
+ "tests": {
+  "driver": {
+   "rc": 0,
+   "tests": 10,
+   "pass": 10,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 10,
+   "ok": true
+  }
+ },
+ "ok": true,
+ "scope": "SOURCE + FIXTURES: the single-native-slot driver against a fake provider, clock and timers. No reader, native executable, witness producer, network or measured duration; NOT a performance, availability or S <= 120 s claim; wired into no startup."
+}

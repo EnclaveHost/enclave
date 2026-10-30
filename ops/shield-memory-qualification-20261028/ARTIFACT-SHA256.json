@@ -1,0 +1,8 @@
+{
+  "packed24.patch": "a155eba9363b7386234bea85ea7dbcd35d0bc0b8c8653174706e554fcd8863ab",
+  "new/pack24-link-selftest.c": "5812639e7277619086bbcba477bf0aa5add3c4e8a47d6fcb57702f2977d44a8c",
+  "new/pack24-selftest.c": "884b901761ba746ba0221f868bc34ef5cff31a2ce1a99cfe49225c0ac2e8d0b8",
+  "new/pack24-bench.c": "f289cb64eb116d1ff24779cb31306c83fa71723a8764d5eceadf59a1636e9cd9",
+  "new/shielded-pack24.h": "acac65de016ab459226e1e422c21222edd7f6a2d4ba2a5d182d7d7166f866f41",
+  "new/qualification.mk": "63269ff7ad5c1519d0b08db2ba3c0d36e5f37297fece45c60f2d3700a6ab4c4d"
+}

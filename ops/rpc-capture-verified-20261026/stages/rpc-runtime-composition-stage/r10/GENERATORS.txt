@@ -1,0 +1,15 @@
+6481ccbe0b634706da5fc1c845096677c4334531 scripts/build-host-admission.mjs
+e41aed46441b2820992eb47f482730003cc889c3 scripts/build-metal-lease-gas.mjs
+8c9add20b6b28b09b7ae670f1208df75859a5b80 scripts/build-host-service-packages.mjs
+7202e2da2068f562a6cd4b671bb12d00f7b9d2ed scripts/build-mcp-guest-bundle.mjs
+9a9e95a42ae96ca8434b441a281e39d65b30fe7c scripts/build-platform-api-guest-bundle.mjs
+669e1177d80c082ef9b22c3440d5d8b44dc9102e scripts/build-attested-guest-verify.mjs
+3719b53ac833ef593aac262a8838b9d6f1ce92e7 scripts/locked-inputs.mjs
+b942e41d292b236569648b833d70ceeba9d600c3 relay/build-network.mjs
+1b434553928e9d6a068eb120aafa72218bb3d1a5 scripts/build-windows-lease-runtime.mjs
+ba9ee33b650a676dd9d30371abae2db41eca14e4 scripts/build-host-policy-vendor.mjs
+019999cf1c547a8fc7fc1f41bea10facec16ca9c scripts/build-management-vendor.mjs
+948fbd110f1776b6fbd217b7b488b60a3c9b8ce3 scripts/build-aa-vendor.mjs
+850b5dffa63fca59ecacf3856877a29452d35594 scripts/build-custody-vendor.mjs
+2eb00663677741ad14dad412dc91a74148a6efd9 scripts/build-credit-vault-vendor.mjs
+beedd7f83cdaa0ce00e9c6ceb498b26736ebe070 scripts/build-host-capacity-vendor.mjs

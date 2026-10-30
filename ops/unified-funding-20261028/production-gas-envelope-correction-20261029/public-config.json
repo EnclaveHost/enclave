@@ -1,0 +1,46 @@
+{
+  "enabled": true,
+  "chainId": 8453,
+  "pinnedBlock": "53226295n",
+  "factory": "0x83616b7fA62F8a43cfc634a25c0aCFb0CCAB76e8",
+  "implementation": "0x9a869B2BA0D6FB4F297Eb140406478f0aed55F96",
+  "adapter": "0xE5198b7BA033612C45c720d204C469D9ECe77D9e",
+  "legacyFactory": "0x1F5c887c0cDF491b16AB6c449abAfDF9B2ec9C9C",
+  "quoter": "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a",
+  "feeTiers": [
+    100,
+    500,
+    3000
+  ],
+  "maxSlippageBps": 100,
+  "adapterMaxEthOut": "1000000000000000n",
+  "relayer": "0xf4B78D91911e1c064A02E4D28C69E2De6056bE57",
+  "notAfter": "1793312474n",
+  "action": 10,
+  "open": {
+    "enabled": true,
+    "why": null
+  },
+  "owner": {
+    "enabled": true,
+    "ops": [
+      "topUp",
+      "topUpWithAuthorization",
+      "extend",
+      "terminate",
+      "revokeAll",
+      "withdraw",
+      "promote",
+      "adopt",
+      "setEnvironment",
+      "release",
+      "close"
+    ],
+    "why": null
+  },
+  "apiScopes": {
+    "enabled": false,
+    "why": "verifyApiRequest does not serve successor sessions"
+  },
+  "note": "additive successor; it does not replace the address book's sessionVaultFactory or any original vault"
+}

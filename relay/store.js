@@ -106,11 +106,25 @@ export const dataFile = (dir, name) => path.join(dir, name);
 // Multi-provider Base RPC pool (supervisor.js RPC_POOL): BASE_RPC first so an
 // explicit key-bearing endpoint wins; public fallbacks behind it. One
 // throttled provider must never blind the payment indexer.
+// Under the operator's explicit local verifier (relay/relay-chain-authority.mjs) the parts are instead the relay's one
+// chain authority: proven reads, and a wallet built on this transport submits ONLY to the own backend once it is bound
+// to the verifier's head (eth_sendRawTransaction is gated there); no pool, no BASE_RPC, no fallback. An invalid or mixed
+// selection throws here too (the relay already stopped at startup), never returning the pool.
+// relayChain(): the same authority for the relay modules that build their own clients (sessions, MCP, custody, catalog).
+export async function relayChain() { return relayAuthority(); }
+async function relayAuthority() {
+  if (!["ENCLAVE_CHAIN_AUTHORITY", "ENCLAVE_CHAIN_VERIFIER", "ENCLAVE_CHAIN_TX_BACKEND"].some((k) => String(process.env[k] ?? "").trim())) return null;
+  const { relayChainAuthority } = await import("./network-runtime.bundle.mjs");
+  if (typeof relayChainAuthority !== "function") throw new Error("this runtime bundle has no relay chain authority: rebuild network-runtime.bundle.mjs");
+  return relayChainAuthority(process.env);
+}
 export async function rpcParts() {
+  const authority = await relayAuthority();
+  if (authority) return { chain: authority.client.chain, transport: authority.transport, authority };
   const { http: viemHttp, fallback } = await import("viem");
   const { base, baseSepolia } = await import("viem/chains");
   const testnet = (process.env.BILLING_NETWORK || "base") === "base-sepolia";
-  const BASE_RPC = process.env.BASE_RPC || (testnet ? "https://sepolia.base.org" : "https://mainnet.base.org");
+  const BASE_RPC = process.env.BASE_RPC || (testnet ? "https://api.enclave.host/rpc/base-sepolia" : "https://api.enclave.host/rpc/base");
   // RPC_FALLBACKS=0 pins the pool to BASE_RPC alone. Tests need this: with a
   // local BASE_RPC (anvil/stub) the mainnet fallbacks are a DIFFERENT CHAIN,
   // and one transient local error silently routes sends/receipt-polls there
@@ -124,7 +138,7 @@ let _pub = null;
 export async function rpcPool() {
   if (_pub) return _pub;
   const { createPublicClient } = await import("viem");
-  const { chain, transport } = await rpcParts();
-  _pub = createPublicClient({ chain, transport });
+  const { chain, transport, authority } = await rpcParts();
+  _pub = authority ? authority.client : createPublicClient({ chain, transport });   // the authority's marked client: one authority
   return _pub;
 }

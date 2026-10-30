@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: expiry revokes streams and writes even without another reconciliation
+ok 1 - expiry revokes streams and writes even without another reconciliation
+  ---
+  duration_ms: 24.041749
+  type: 'test'
+  ...
+# Subtest: monotonic deadline and clock rollback prevent extending a permit
+ok 2 - monotonic deadline and clock rollback prevent extending a permit
+  ---
+  duration_ms: 19.886489
+  type: 'test'
+  ...
+# Subtest: permanent fence survives gate recreation and rejects the same generation
+ok 3 - permanent fence survives gate recreation and rejects the same generation
+  ---
+  duration_ms: 21.11356
+  type: 'test'
+  ...
+# Subtest: a concurrent revocation wins over asynchronous signature verification
+ok 4 - a concurrent revocation wins over asynchronous signature verification
+  ---
+  duration_ms: 9.700261
+  type: 'test'
+  ...
+# Subtest: kernel journal ownership excludes another writer and releases cleanly
+ok 5 - kernel journal ownership excludes another writer and releases cleanly
+  ---
+  duration_ms: 13.563984
+  type: 'test'
+  ...
+# Subtest: real HTTP witness refuses foreign operators and produces a verifiable permit signature
+ok 6 - real HTTP witness refuses foreign operators and produces a verifiable permit signature
+  ---
+  duration_ms: 68.92367
+  type: 'test'
+  ...
+# Subtest: a witness persists before signing and refuses an equivocal or fenced request after restart
+ok 7 - a witness persists before signing and refuses an equivocal or fenced request after restart
+  ---
+  duration_ms: 22.51374
+  type: 'test'
+  ...
+# Subtest: a real open HTTP stream is destroyed by permit expiry
+ok 8 - a real open HTTP stream is destroyed by permit expiry
+  ---
+  duration_ms: 1409.074563
+  type: 'test'
+  ...
+# Subtest: an unresponsive authority adapter times out without signing or writing a permit
+ok 9 - an unresponsive authority adapter times out without signing or writing a permit
+  ---
+  duration_ms: 22.807378
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1863.579068

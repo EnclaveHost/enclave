@@ -1,0 +1,28 @@
+{
+  "exit": 3,
+  "resourceEnvelope": {
+    "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2531154-i44467521.scope",
+    "memoryMax": "536870912",
+    "swapMax": "0"
+  },
+  "stdoutSha256": "298af08dc46b5364c09ea961351ce309ff7d4c994ebebc957c9b59ca871c9572",
+  "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "writerGone": true,
+  "sourceAndBackupWriteAuthorized": false,
+  "published": false,
+  "booted": false,
+  "writerResult": {
+    "error": {
+      "message": "inventory: /etc/systemd/system/multi-user.target.wants/snapd.recovery-chooser-trigger.service: slow or unreadable symlink target",
+      "phase": "inventory"
+    },
+    "receipt": "/vm/enclave-volumes/rpc-production-maint/os-private-20261030T092008Z-1b31c6/RESULT.json",
+    "status": "FAILED"
+  },
+  "receiptPath": "/vm/enclave-volumes/rpc-production-maint/os-private-20261030T092008Z-1b31c6/RESULT.json",
+  "receiptSha256": "474d2f8ce47cde5d6374f0c796c896b095d6b2b820e62c9ae907da6b55f443d3",
+  "receiptStatus": "FAILED",
+  "publishable": false,
+  "derivative": null,
+  "operationsCompleted": 0
+}

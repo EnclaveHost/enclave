@@ -1,0 +1,18 @@
+ok 1 - the verifier serves the deployed wallets' code exactly as the chain
+ok 2 - addressed ERC-1271 through the verifier (secrets owner gate, network owner check): equals the chain for valid and invalid wallets
+# OBSERVED verifyMessage always: oracle {"value":true} verifier {"value":true}
+# OBSERVED verifyMessage never: oracle {"value":false} verifier {"value":false}
+# OBSERVED verifyMessage eth_call shapes: ["deployless","deployless"]
+ok 3 - viem verifyMessage (auth.js smart-wallet sign-in) through the verifier: never accepts what the chain refuses; deployless shape recorded
+# OBSERVED deployless eth_call: oracle {"value":{"data":"0x631626ba7e60e01b60005260206000f3"}} verifier {"value":{"data":"0x631626ba7e60e01b60005260206000f3"}}
+ok 4 - the raw deployless call shape (creation code as a call) through the pinned verifier, against the chain
+# OBSERVED sponsor probe with override: verifier 0x0000000000000000000000004337084d9e255ff0702461cf8895ce9e3b5ff108 oracle 0x0000000000000000000000004337084d9e255ff0702461cf8895ce9e3b5ff108
+# OBSERVED sponsor probe WITHOUT override: 0x
+# OBSERVED sponsor estimate under override: verifier 25392 oracle 25450
+ok 5 - sponsor mechanism on the real verifier: proven AA code; the 7702 designator override runs Simple7702 (and nothing without it); estimate under the override
+# tests 5
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+rc=0

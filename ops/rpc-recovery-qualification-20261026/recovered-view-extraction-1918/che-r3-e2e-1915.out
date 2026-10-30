@@ -1,0 +1,22 @@
+[queue] START available=23587MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+OK: match {"fstype": "ext4", "majmin": "253:1", "source": "/dev/mapper/cryptvm", "uuid": "aaae081c-f829-4484-a50f-a9bbb87d31f9"}
+{"busy": [], "completionFingerprint": "1221fa7d0c2e9829a618fd3c535762952323aaf5cec3b43df75e204a41f141bb", "floorBytes": {"root": 42949672960, "vm": 42949672960}, "freeBytes": {"root": 52560371712, "vm": 84947914752}, "refused": [], "remainingBytes": {"root": 0, "vm": 0}, "rootFreeBytes": 52560371712, "rootNeededBytes": 51539607552, "vmFloorBytes": 42949672960, "vmReserveBytes": 0}
+test_1_clean_extraction (__main__.E.test_1_clean_extraction) ... ok
+test_2_missing_path_refused_nothing_copied (__main__.E.test_2_missing_path_refused_nothing_copied) ... ok
+test_3_metadata_mismatch_refused_before_any_copy (__main__.E.test_3_metadata_mismatch_refused_before_any_copy) ... ok
+test_4_wrong_filesystem_uuid_refused (__main__.E.test_4_wrong_filesystem_uuid_refused) ... ok
+test_5_writable_backup_refused_before_anything (__main__.E.test_5_writable_backup_refused_before_anything) ... ok
+test_6_sigterm_during_session_start_stops_cleanly (__main__.E.test_6_sigterm_during_session_start_stops_cleanly) ... ok
+test_7_production_metadata_exact_through_fakeroot (__main__.E.test_7_production_metadata_exact_through_fakeroot) ... ok
+test_8_metadata_mismatch_refuses_never_hidden (__main__.E.test_8_metadata_mismatch_refuses_never_hidden) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 25.690s
+
+OK
+## PASS (8)
+## workspace /vm/enclave-volumes/tr004-base-recovery-20261026/compact-header-e2e-20261027T133216Z-3242045 (kept for review; owned; remove after review)
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/compact-header-extraction-stage/r3/runs/e2e-20261027T133216Z-3242045
+[memory-guard] exit=0 peakTreeRssMiB=211 minHostAvailableMiB=23432
+[memory-guard] at peak: fuse2fs:68 python3:47 python3:24 python3:24 python3:24 qemu-nbd:10 nbdfuse:8 bash:4
+[queue] EXIT 0

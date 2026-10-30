@@ -1,0 +1,17 @@
+52d3f64c553db71b6f2877fe647032e6b166a17b862686ab73ecaed7026f2220  ./PROVENANCE.md
+a2cb2e6ee01408563e5743628a17088e9adf9ef63279ffc4f80232186e960ce8  ./inputs/claude-history-r4-bounds.md
+171d04a6610bec2ba09af4a94378984b986c211646f3ce69144953b164439f06  ./inputs/claude-integrated-r2-review-1596.md
+d14da1d260733767042c0a3d76451020534a7aa0d9293adfca64fd2d530fcdda  ./inputs/claude-witness-r2-finish-1593.md
+798675e7f16dab5af4737f46ee3ba2217648405c63e110c04fb37f1334c64033  ./inputs/root-integration-native-buffer-1600.md
+45f92f34f359e5932e212084bd4cae3bf3b98806b7c8c371a29c197d51707b47  ./jobs/root-writer-integrated-r3.sh
+c603a252579e7b19d1154e931fbbe97d2f403e336b408555882bbdbff243e0f2  ./patches/writer-integrated-r3-vs-cold-recovery-r4-plus-driver-r1.patch
+74c2a9a0eff5b08d047b8562530c6788241e387a76f42bfc650d47ac5a25cbfa  ./release.git/HEAD
+ef5b4b864a278b703ae9b1f8872d3ba97adaae2f8f015be4e308171d869bb488  ./release.git/config
+85ab6c163d43a17ea9cf7788308bca1466f1b0a8d1cc92e26e9bf63da4062aee  ./release.git/description
+6671fe83b7a07c8932ee89164d1f2793b2318058eb8b98dc5c06ee0a5a3b0ec1  ./release.git/info/exclude
+241ea7f58225d04442d67759835d8a2686a20db1e1d9eaeb01471f67851d457c  ./release.git/objects/pack/pack-73702cf6f1b4dabbd9df4dcce1e72e3cc515bce7.idx
+ec8c386449f4dcb5f95ec04bf7fc64039a484d0cacd5ac21b931e25f8ab695e8  ./release.git/objects/pack/pack-73702cf6f1b4dabbd9df4dcce1e72e3cc515bce7.pack
+025943444a8f90df6e58bc56963d0cf3d5850e63de793bf28685bccaecdf8781  ./release.git/objects/pack/pack-73702cf6f1b4dabbd9df4dcce1e72e3cc515bce7.rev
+73313f99d5e504ed9c6af011627f08ecba04be748aa295e12bf31438c3910579  ./release.git/packed-refs
+ede64d4f2ef74a839920d819369a33353005c8f96bfe2fa77c289ff01e276b4d  ./release.git/refs/tags/base-r4d
+dcc0cb1ee526f8f0d408dd80cb05288f5ebd4fe44dd1a0dbd5a57642dd0ff43c  ./release.git/refs/tags/int-r2-on-r4

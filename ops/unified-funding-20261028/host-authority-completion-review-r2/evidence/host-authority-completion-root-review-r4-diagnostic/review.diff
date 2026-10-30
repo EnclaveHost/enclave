@@ -1,0 +1,40 @@
+--- r3/run-native.sh
++++ r4/run-native.sh
+@@ -12 +12 @@
+-STAGE=/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-authority-completion-r2-20261029; ME2=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r3/candidate
++STAGE=/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-authority-completion-r2-20261029; ME2=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r4-diagnostic/candidate
+@@ -15 +15 @@
+-OUT=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r3/native-r1; PT=""; rc=0
++OUT=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r4-diagnostic/native-r1; PT=""; rc=0
+@@ -74,0 +75 @@
++export LIFECYCLE_REVIEW_R2="$U/lifecycle-host-authority-review-r2"
+@@ -170,6 +171 @@
+-SDIR=$DT; suite denial-boundary 5 60 baseline.test.mjs; SDIR=$T
+-suite root-r2-integration 3 60 test/root-permit-integration.test.mjs
+-suite permit-protocol 7 90 test/host-authority-permit.test.mjs
+-suite completion-protocol 7 90 test/root-completion-protocol.test.mjs
+-suite permit-adapter 7 240 test/root-host-authority-adapter.test.mjs
+-suite host-registry 16 360 test/root-host-registry-profile.test.mjs
++SDIR=$T; suite host-registry 16 360 test/root-host-registry-profile.test.mjs
+@@ -180,11 +175,0 @@
+-SDIR=$BASE; suite isolation-runtime-base any 60 test/deployment-isolation-runtime.test.mjs
+-suite generation-certificate-base any 60 test/deployment-generation-certificate.test.mjs; SDIR=$T
+-suite isolation-runtime @isolation-runtime-base 60 test/deployment-isolation-runtime.test.mjs
+-suite generation-certificate @generation-certificate-base 60 test/deployment-generation-certificate.test.mjs
+-suite schema3-composition 3 90 test/root-schema3-composition.test.mjs
+-suite root-schema3 6 90 test/root-schema3-adapter.test.mjs
+-suite schema3-pure 3 30 test/schema3-pure.test.mjs
+-suite independent-r3 5 60 test/root-independent-adapter.test.mjs
+-suite r5-abi 5 45 test/deployment-chain-adapter-r5-abi.test.mjs
+-suite r5-policy 9 45 test/deployment-chain-adapter-r5-policy.test.mjs
+-suite r5-proof 10 45 test/deployment-chain-adapter-r5-proof.test.mjs
+--- r3/test.mjs
++++ r4/test.mjs
+@@ -14 +14 @@
+-import { toFunctionSelector, getAddress, keccak256, toBytes } from 'viem';
++import { toFunctionSelector, getAddress, keccak256, toBytes, decodeFunctionData } from 'viem';
+@@ -28,0 +29 @@
++import { L3 } from './fixtures/schema3-world.mjs';
+@@ -234 +235 @@
+-  assert.equal(st.floor.generation, '2'); assert.equal(st.bound[w.id].generation, '1'); assert.equal(w.sent.length, sent, 'no Running effect');
++  assert.equal(st.floor.generation, '2'); assert.equal(st.bound[w.id].generation, '1'); console.log('ROOT third-send diagnostic', JSON.stringify(w.sent.slice(sent).map(t => ({ to: t.to, decoded: decodeFunctionData({ abi: L3.LIFECYCLE, data: t.data }) })), (_,v)=>typeof v==='bigint'?v.toString():v)); assert.equal(w.sent.length, sent, 'no Running effect');

@@ -1,0 +1,7 @@
+bffcb1c282705fe24c355a7cd5fa55437c8ce7059f2b4b609fa7dd79aaa36d86  ./KVM-INPUTS.sha256
+2ca58b782a433f45793e90eca21c18cdc93c4f3886a8894b81dcd16c1f7e33be  ./jobs/adapter-tests.sh
+6b5d215ca76f281ae9d248c7012d6766e1d4d3eefb2a7ee8a4f17e1e3e1a09e3  ./patches/finalized-writer-adapter.patch
+01a1f0944baec19abee4681bfc34d87c83b5584c0f06566f461a6ab6edfd6ee5  ./relay/derived-writer-authority.mjs
+ad216c9a0a9fc8bd594b7077a340295869da040978a36dfb67b0917641b7e232  ./test/derived-writer-authority-abi.test.mjs
+208b23cad4ce43510571363a4ba778c3f4a565d63cd8a0a4b3fa0be22a6f4254  ./test/derived-writer-authority-kvm-store.test.mjs
+e81221072b0796b6deef86282cc1eaeae22d80288c2fd5da0a0500e6b806c768  ./test/derived-writer-authority.test.mjs

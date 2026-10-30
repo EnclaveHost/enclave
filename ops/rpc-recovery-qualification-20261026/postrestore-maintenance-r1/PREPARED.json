@@ -1,0 +1,29 @@
+{
+ "backup": {
+  "allocatedBytes": 18244673536,
+  "copiedBytes": 18244665344,
+  "dev": 64769,
+  "ino": 148391948,
+  "mtimeNs": 1793155588927368274,
+  "path": "/vm/enclave-volumes/rpc-production-maint/os-backup-20261028T024604Z-968c09/os.qcow2",
+  "qemuImgCheck": {
+   "check-errors": 0,
+   "corruptions": null,
+   "image-end-offset": 18581159936,
+   "leaks": null
+  },
+  "sha256": "f7e4ebc11362393f9db8e72c5f957cfa543ea4583d6ce5a73d3c59198037ab57",
+  "size": 18581159936,
+  "sourceAllocatedBytes": 18251059200
+ },
+ "format": "enclave-rpc-maint-prepared/r1",
+ "os": {
+  "blocks": 35646600,
+  "ctimeNs": 1793030445722920013,
+  "dev": 64769,
+  "ino": 147981797,
+  "mtimeNs": 1793030445722920013,
+  "size": 18581159936
+ },
+ "planSha256": "353af60250652156b96dbc5070b46809877504fa7351a9ce7981160b76d68472"
+}

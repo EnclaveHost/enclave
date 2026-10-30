@@ -32,6 +32,11 @@ import { judge as judgeHv } from "../vbslike/verify/judge-hv.mjs";
 import { runtimeId } from "../../isolation/contract/runtime.mjs";
 import { appHostFor, requestCert } from "./apptls.mjs";
 
+import { validateDesktopRelease } from "../../relay/shield-desktop-release.mjs";
+import { DESKTOP_DERIVATION } from "../../relay/shield-desktop-derive.mjs";
+import { desktopAdoptionRefusal } from "./desktop-release.mjs";
+import { BOOT_STATEMENTS } from "../vbslike/verify/boot-statements.mjs";
+
 const HEX64 = /^[0-9a-f]{64}$/;
 
 /**
@@ -57,7 +62,7 @@ export function viewTransport(client) {
  * manager's own readiness rule uses (server.mjs #judgeReadiness), taken from `view`. It refuses, before judging, a view
  * without a launcher key or the partition it signs for, and a runtime that is not the pinned one.
  */
-export function hvJudge(view, pinnedRuntimeId) {
+export function hvJudge(view, pinnedRuntimeId, { desktopRecord, desktopRelease } = {}) {
   return async (doc, spki, nonce, want) => {
     const no = (why) => ({ verdict: "reject", reasons: [why] });
     if (!view) return no("no manager view of the partition to judge it against");
@@ -71,7 +76,16 @@ export function hvJudge(view, pinnedRuntimeId) {
     let rid;
     try { rid = Buffer.from(runtimeId(doc && doc.runtime)).toString("hex"); } catch (e) { return no(`the domain states no admissible runtime identity: ${e.message}`); }
     if (rid !== pin) return no(`the domain states runtime ${rid.slice(0, 16)}…, not the pinned ${pin.slice(0, 16)}…`);
-    const gi = view.guestIdentity;
+    const native = desktopRecord != null || view.derivation === DESKTOP_DERIVATION || view.imageRole === "desktop" || view.desktop != null;
+    if (native) {
+      const why = desktopAdoptionRefusal(view, { derivation: DESKTOP_DERIVATION, spawn: { derive: desktopRecord } }, desktopRelease);
+      if (why) return no(why);
+      if (pin !== desktopRelease.runtimeId) return no("native desktop certificate runtime differs from the approved release");
+      const fixed = BOOT_STATEMENTS["linux-direct"];
+      if (view.guestIdentity?.partition !== fixed.partition || view.guestIdentity?.guestImageKind !== fixed.guestImageKind)
+        return no("native desktop launch statement differs from linux-direct");
+    }
+    const gi = native ? BOOT_STATEMENTS["linux-direct"] : view.guestIdentity;
     const statement = gi && gi.partition ? { expectedStatement: { partition: gi.partition, guestImageKind: gi.guestImageKind },
                                             expectedImageSha256: view.image } : {};
     return judgeHv({ doc, spki, nonce, expectedAppSha256: want.appSha, launcherKey: view.launcherKey,
@@ -88,9 +102,11 @@ export function issuer({ endpoint, sign, base, request = requestCert }) {
   return async (name, csrPem, spkiHash) => {
     const r = await request({ name, csrPem, spkiHash, endpoint, sign, ...(base ? { base } : {}) });
     if (r && r.ok && r.certPem) return r.certPem;
-    const e = new Error(r && r.retryAfterSec && !r.error ? `the order for ${name} is in flight (${r.why})`
+    const pending = !!(r && r.retryAfterSec && !r.error);
+    const e = new Error(pending ? `the order for ${name} is in flight (${r.why})`
       : `the certificate service refused ${name}: ${r ? `${r.error || ""} ${r.why || ""}`.trim() : "no answer"}`);
     if (r && r.retryAfterSec) e.retryMs = Math.min(3600_000, Math.max(5_000, Number(r.retryAfterSec) * 1000));
+    if (pending) e.certPending = true;     // the service's 202 (in flight, paced, backing off): a wait, not a refusal
     throw e;
   };
 }
@@ -115,7 +131,8 @@ export function issuer({ endpoint, sign, base, request = requestCert }) {
 export const CERT_RETRY_BASE_MS = 30_000;
 
 export function createHvCertPass({ client, dataAddr, runtimeId: pinned, endpoint, sign, base, zone = "app.enclave.host",
-                                   served = () => false, log = () => {}, now = Date.now, _ensure = ensureGuestCert, _deps } = {}) {
+                                   served = () => false, log = () => {}, now = Date.now, desktopRelease, _ensure = ensureGuestCert, _deps } = {}) {
+  const approvedDesktop = desktopRelease == null ? null : validateDesktopRelease(desktopRelease);
   const st = new Map();       // id -> { instanceId, key, name, serial, notAfter, renewAt, issuer } | { instanceId, backoffUntil, failures, why }
   const transport = viewTransport(client);
   const issue = issuer({ endpoint, sign, base });
@@ -125,9 +142,12 @@ export function createHvCertPass({ client, dataAddr, runtimeId: pinned, endpoint
     if (s && s.instanceId === iso.instance && s.backoffUntil && t < s.backoffUntil) return;
     if (s && s.instanceId === iso.instance && s.renewAt && t < s.renewAt) return;           // installed and fresh
     try {
-      const selectedPin = typeof pinned === "function" ? pinned(rec) : pinned;
+      const native = rec.desktopRecord != null || (approvedDesktop && rec.cid === approvedDesktop.controllerCid);
+      if (native && (!approvedDesktop || rec.desktopRecord?.derivation !== DESKTOP_DERIVATION))
+        throw new Error("native desktop certificate needs an independently pinned planned record");
+      const selectedPin = native ? approvedDesktop.runtimeId : typeof pinned === "function" ? pinned(rec) : pinned;
       const got = await _ensure({ transport, dataAddr, instanceId: iso.instance, expectAppId: iso.appId, deploymentId: id, name,
-        judge: (doc, spki, nonce, want) => hvJudge(transport.seen(iso.instance), selectedPin)(doc, spki, nonce, want),
+        judge: (doc, spki, nonce, want) => hvJudge(transport.seen(iso.instance), selectedPin, native ? { desktopRecord: rec.desktopRecord, desktopRelease: approvedDesktop } : {})(doc, spki, nonce, want),
         judgeOk: ["monitor-signed"], requirePrediction: false, issue, ...(_deps ? { _deps } : {}) });
       st.set(id, { ...got, instanceId: iso.instance });
       log(got.reused
@@ -136,7 +156,9 @@ export function createHvCertPass({ client, dataAddr, runtimeId: pinned, endpoint
         : `${id.slice(0, 10)} certificate: ${name} installed in partition ${iso.instance} (key ${got.key.slice(0, 16)}…, `
           + `${String(got.issuer).slice(0, 60)}, until ${new Date(got.notAfter).toISOString()}; domain ${got.verdict})`);
     } catch (e) {
-      const failures = (s && s.instanceId === iso.instance && s.failures || 0) + 1;
+      // A 202 is waited out at the service's own hint and does not count: counting each in-flight poll made the next
+      // genuine refusal back off as if it were the tenth (2026-10-21, ef514ed3: 3600 s after one refusal, not 30 s).
+      const failures = (s && s.instanceId === iso.instance && s.failures || 0) + (e.certPending ? 0 : 1);
       const wait = e.retryMs || Math.min(3600_000, CERT_RETRY_BASE_MS * 2 ** (failures - 1));
       st.set(id, { instanceId: iso.instance, backoffUntil: t + wait, failures, why: e.message });
       log(`${id.slice(0, 10)} certificate: none for ${name} (${e.message}); retry in ${Math.round(wait / 1000)}s`);

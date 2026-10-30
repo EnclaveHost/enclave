@@ -1,0 +1,10 @@
+{
+  "CLOSURE.json": "19dc1e88114697326b12627ef938f84f6cf8f34dae5b4c7e701acf87ffb987d0",
+  "REPORT.md": "ab99ca4b51e3ea1e008a37d2c007fbd60fd65b7b2acf0ab96301ebfa8582a29a",
+  "SHA256SUMS": "1e4785a3f73eaa04e9bd3fda0121e301ad88256bc0590cc32a90d66ab025c595",
+  "guest_mask.py": "fe744bde89a985906c9db53130f5a856994d8f3542a576451cbae6c8d5b66d7f",
+  "maint_boot.py": "cfd4816b307efb7d64dd6c339ea708eb841880c40539d9df770c62be6fac231b",
+  "test_maintenance_diagnostics.py": "f3f5d07d201388af1ea75b09cae35bd4d73e48c651a0b8c60f8b8a67f80363ec",
+  "test_qmp_transport.py": "542fbca5e016b32bb73041b1a7b24ed6bf628d3b3a289f09240c9f46aa24c78b",
+  "test_root_maintenance.py": "e35025e3c119b449a558fa1965260c2245107a44d8073fb5ac5bb3a434442951"
+}

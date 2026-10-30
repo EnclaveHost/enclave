@@ -1,0 +1,7 @@
+{
+  "control/windows/node/install-operator-effects.mjs": "a77d8b4da5d435d2d72ff2c9798c1b55aa339ca99bc7f72e4aa1ddbe7d72dffb",
+  "control/windows/node/operator-effects-config.mjs": "b910f50c38a5d1a2106bbebdfc21d1ea865b9662cd4288a2c4edb95ed68847f8",
+  "control/windows/vbslike/manager/psrun.mjs": "31e6663c3bd5bb463a4103504fb16973b3a265bd41c60eab4abab7b69b9ee79c",
+  "test/windows-permit/helpers/ow-fixture.mjs": "65bfcf6e2c90acf332d183d26b21594b49bc0a95d1f240ec74f07d13c6695767",
+  "test/windows-permit/ow-r1-operator-windows-wiring.test.mjs": "8721e1efe0ec521365c190dbb745d1fef057a9f910c923e4eda3e2b46d41c7e4"
+}

@@ -1,0 +1,8 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r12-final/CANARY-R3-RECIPE.md	2026-10-26 00:25:59.000000000 -0700
++++ /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/.r13-final.partial-1289574/CANARY-R3-RECIPE.md	2026-10-26 02:04:18.072870780 -0700
+@@ -23,3 +23,5 @@
+    - `finality_state.py runtime-verify /usr/bin/node` reports node `f3f93db3` + libnode `ce7cb9cd`.
+ 
+ **r11:** the capture module, harness, tool, producer, wrapper and every bundle entry are byte-identical to r10 (`capture/a1_capture.py` `47c49b11`), so a canary r3 run on the r10 recipe is valid for r11 (r11 changes only reproof retention, the installer, forward_sync log naming and tests).
++
++**r13 (HISTORICAL above):** canary r3 used r10/r12-final bytes. r13 changes the A1 readers and the bootstrap wiring, hence capture `8da369de00c1` and the pin cascade: the NEW canary must run on these bytes (logs/claude-r13-final-canary-handoff.json) after root's qualification of this stage passes.

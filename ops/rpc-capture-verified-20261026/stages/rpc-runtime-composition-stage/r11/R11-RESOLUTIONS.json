@@ -1,0 +1,10 @@
+{
+ "base": "7371ee06766a4c297d68adbd77a40a7af33f605e",
+ "candidate": "2d56a4b193a8f3e0be1b343a1e06970fc193d9f9",
+ "files": {
+  "test/native-relay-chain-authority.test.mjs": {
+   "source": "composition-baseline-fixes-stage/patches/native-relay-remote-verifier-refusal.patch 654b3f17",
+   "why": "bf77da364 moved the remote-verifier refusal EARLIER (relay/dns-relay.js:88-89, the fleet relay chain authority); the test now asserts that exact message, that no app-zone reader was built, and that no verifier was asked (stricter); product unchanged"
+  }
+ }
+}

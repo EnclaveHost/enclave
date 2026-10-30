@@ -1,0 +1,30 @@
+{
+  "scope": "Local linked-contract adapter qualification; not deployed or live Base authority",
+  "profile": "independent-schema3-r1",
+  "candidateAdapterSha256": "07d02fca0fff2b4b59f7680ac0425c65b779aa61e13ae2b7205b7af4ee4443b2",
+  "bundleSha256": "bed9c19652edce8ca6f337f691a9909c15763e6755ff237139b07f4d84f3260e",
+  "sourceSha256": {
+    "src/network/lifecycle-schema3-profile.mjs": "e10f460866be7c30f71e0bc482929818b3003065f46ef5d53feb73d2f8134083",
+    "src/tools/generate-lifecycle-schema3-adapter-candidate.mjs": "0e8ed11caf453e00813c3af2fbf34f1ac5d242ed9407d70e77614b1dae80df07",
+    "src/tools/insertion-patch.mjs": "53eeef0d475dc9abf2948d5cad4f4e1a067d68a1b1e424e07c40cab90afc372b"
+  },
+  "firstRun": {
+    "pass": 78,
+    "fail": 2,
+    "skip": 0,
+    "failures": "Two test-fixture assertions; preserved full TAP/source"
+  },
+  "affectedRerun": {
+    "pass": 9,
+    "fail": 0,
+    "skip": 0
+  },
+  "unchangedRegressionChecks": 71,
+  "combinedQualifiedChecks": 80,
+  "productionMutations": false,
+  "liveBaseAuthorityQualified": false,
+  "hostRegistryOfflineImplemented": false,
+  "mainLaneReleased": true,
+  "nextTaskPlanSha256": "11ef2fe108791551baf21b9c62c01604446cb183f15d1dbc59033fffa280f633",
+  "nextTaskPeerCommit": "d3795d229cac4c50f48501db66720eacd17a1df1"
+}

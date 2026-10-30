@@ -1,0 +1,316 @@
+[queue] START available=88881MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: provider 0 answering a different block number than requested refused
+ok 1 - provider 0 answering a different block number than requested refused
+  ---
+  duration_ms: 44.300035
+  type: 'test'
+  ...
+# Subtest: provider 1 answering a different block number than requested refused
+ok 2 - provider 1 answering a different block number than requested refused
+  ---
+  duration_ms: 6.846674
+  type: 'test'
+  ...
+# Subtest: header without a number refused
+ok 3 - header without a number refused
+  ---
+  duration_ms: 5.235077
+  type: 'test'
+  ...
+# Subtest: missing header refused
+ok 4 - missing header refused
+  ---
+  duration_ms: 4.184506
+  type: 'test'
+  ...
+# Subtest: providers disagreeing on the block hash refused
+ok 5 - providers disagreeing on the block hash refused
+  ---
+  duration_ms: 4.199576
+  type: 'test'
+  ...
+# Subtest: providers disagreeing on the block timestamp refused
+ok 6 - providers disagreeing on the block timestamp refused
+  ---
+  duration_ms: 4.196126
+  type: 'test'
+  ...
+# Subtest: providers disagreeing on the base fee refused
+ok 7 - providers disagreeing on the base fee refused
+  ---
+  duration_ms: 3.75582
+  type: 'test'
+  ...
+# Subtest: non-strict / non-positive header timestamp "0x06ae2f4ec" refused
+ok 8 - non-strict / non-positive header timestamp "0x06ae2f4ec" refused
+  ---
+  duration_ms: 3.594181
+  type: 'test'
+  ...
+# Subtest: non-strict / non-positive header timestamp "1793300000" refused
+ok 9 - non-strict / non-positive header timestamp "1793300000" refused
+  ---
+  duration_ms: 3.934308
+  type: 'test'
+  ...
+# Subtest: non-strict / non-positive header timestamp "-0x1" refused
+ok 10 - non-strict / non-positive header timestamp "-0x1" refused
+  ---
+  duration_ms: 4.141326
+  type: 'test'
+  ...
+# Subtest: non-strict / non-positive header timestamp "0x" refused
+ok 11 - non-strict / non-positive header timestamp "0x" refused
+  ---
+  duration_ms: 3.427161
+  type: 'test'
+  ...
+# Subtest: non-strict / non-positive header timestamp "0X6AE2F4EC" refused
+ok 12 - non-strict / non-positive header timestamp "0X6AE2F4EC" refused
+  ---
+  duration_ms: 3.454152
+  type: 'test'
+  ...
+# Subtest: non-strict / non-positive header timestamp "0x0" refused
+ok 13 - non-strict / non-positive header timestamp "0x0" refused
+  ---
+  duration_ms: 3.188644
+  type: 'test'
+  ...
+# Subtest: non-strict / non-positive header timestamp 1793300000 refused
+ok 14 - non-strict / non-positive header timestamp 1793300000 refused
+  ---
+  duration_ms: 3.362342
+  type: 'test'
+  ...
+# Subtest: non-strict / non-positive header timestamp null refused
+ok 15 - non-strict / non-positive header timestamp null refused
+  ---
+  duration_ms: 3.064175
+  type: 'test'
+  ...
+# Subtest: uppercase / short block hash refused
+ok 16 - uppercase / short block hash refused
+  ---
+  duration_ms: 3.384622
+  type: 'test'
+  ...
+# Subtest: mismatched response id refused (identity check retained)
+ok 17 - mismatched response id refused (identity check retained)
+  ---
+  duration_ms: 3.100465
+  type: 'test'
+  ...
+# Subtest: both provider walks run (parallel), each fully checked; a binding refusal writes nothing
+ok 18 - both provider walks run (parallel), each fully checked; a binding refusal writes nothing
+  ---
+  duration_ms: 4.516393
+  type: 'test'
+  ...
+# Subtest: per-provider pacing retained: every request after a client's first waits >= ~2500ms on that client
+ok 19 - per-provider pacing retained: every request after a client's first waits >= ~2500ms on that client
+  ---
+  duration_ms: 3.63285
+  type: 'test'
+  ...
+# Subtest: FULL prepare() happy path: actual inputs, actual parsers + loader, TEST observation
+ok 20 - FULL prepare() happy path: actual inputs, actual parsers + loader, TEST observation # SKIP PUBLIC_CODE_BUNDLE is not set: pinned runtime code cannot be synthesized (keccak preimage)
+  ---
+  duration_ms: 23.554756
+  type: 'test'
+  ...
+# Subtest: the generated DRAFT (reviewedBy null) is refused
+ok 21 - the generated DRAFT (reviewedBy null) is refused
+  ---
+  duration_ms: 4.809651
+  type: 'test'
+  ...
+# Subtest: development relayer refused
+ok 22 - development relayer refused
+  ---
+  duration_ms: 3.439612
+  type: 'test'
+  ...
+# Subtest: implementation other than the deployment observation refused
+ok 23 - implementation other than the deployment observation refused
+  ---
+  duration_ms: 3.327502
+  type: 'test'
+  ...
+# Subtest: observation edited after pinning refused
+ok 24 - observation edited after pinning refused
+  ---
+  duration_ms: 3.163734
+  type: 'test'
+  ...
+# Subtest: existing --out refused
+ok 25 - existing --out refused
+  ---
+  duration_ms: 2.205882
+  type: 'test'
+  ...
+# Subtest: stale observation refused (age > 900s)
+ok 26 - stale observation refused (age > 900s)
+  ---
+  duration_ms: 3.213424
+  type: 'test'
+  ...
+# Subtest: pinned block more than 300s older than the capture refused
+ok 27 - pinned block more than 300s older than the capture refused
+  ---
+  duration_ms: 3.182424
+  type: 'test'
+  ...
+# Subtest: single provider refused
+ok 28 - single provider refused
+  ---
+  duration_ms: 3.57984
+  type: 'test'
+  ...
+# Subtest: providers disagreeing on block number refused
+ok 29 - providers disagreeing on block number refused
+  ---
+  duration_ms: 3.306862
+  type: 'test'
+  ...
+# Subtest: providers disagreeing on block hash refused
+ok 30 - providers disagreeing on block hash refused
+  ---
+  duration_ms: 2.850356
+  type: 'test'
+  ...
+# Subtest: providers disagreeing on block timestamp refused
+ok 31 - providers disagreeing on block timestamp refused
+  ---
+  duration_ms: 2.585399
+  type: 'test'
+  ...
+# Subtest: providers disagreeing on block baseFeePerGas refused
+ok 32 - providers disagreeing on block baseFeePerGas refused
+  ---
+  duration_ms: 2.670118
+  type: 'test'
+  ...
+# Subtest: non-strict unsigned block timestamp "0x6ae2f4ec" refused
+ok 33 - non-strict unsigned block timestamp "0x6ae2f4ec" refused
+  ---
+  duration_ms: 2.712067
+  type: 'test'
+  ...
+# Subtest: non-strict unsigned block timestamp "-20" refused
+ok 34 - non-strict unsigned block timestamp "-20" refused
+  ---
+  duration_ms: 2.850087
+  type: 'test'
+  ...
+# Subtest: non-strict unsigned block timestamp "1793299980.0" refused
+ok 35 - non-strict unsigned block timestamp "1793299980.0" refused
+  ---
+  duration_ms: 2.49528
+  type: 'test'
+  ...
+# Subtest: non-strict unsigned block timestamp "1.79e9" refused
+ok 36 - non-strict unsigned block timestamp "1.79e9" refused
+  ---
+  duration_ms: 2.637458
+  type: 'test'
+  ...
+# Subtest: non-strict unsigned block timestamp " 1793299980" refused
+ok 37 - non-strict unsigned block timestamp " 1793299980" refused
+  ---
+  duration_ms: 2.565829
+  type: 'test'
+  ...
+# Subtest: non-strict unsigned block timestamp "" refused
+ok 38 - non-strict unsigned block timestamp "" refused
+  ---
+  duration_ms: 2.613709
+  type: 'test'
+  ...
+# Subtest: providers disagreeing on a read refused
+ok 39 - providers disagreeing on a read refused
+  ---
+  duration_ms: 2.843056
+  type: 'test'
+  ...
+# Subtest: synthetic code at a confirmed receipt address refused
+ok 40 - synthetic code at a confirmed receipt address refused
+  ---
+  duration_ms: 2.959466
+  type: 'test'
+  ...
+# Subtest: relayer balance below 1e14 wei refused
+ok 41 - relayer balance below 1e14 wei refused # SKIP PUBLIC_CODE_BUNDLE is not set: pinned runtime code cannot be synthesized (keccak preimage)
+  ---
+  duration_ms: 1.994943
+  type: 'test'
+  ...
+# Subtest: relayer pending nonce refused
+ok 42 - relayer pending nonce refused # SKIP PUBLIC_CODE_BUNDLE is not set: pinned runtime code cannot be synthesized (keccak preimage)
+  ---
+  duration_ms: 1.953964
+  type: 'test'
+  ...
+# Subtest: relayer with code refused
+ok 43 - relayer with code refused # SKIP PUBLIC_CODE_BUNDLE is not set: pinned runtime code cannot be synthesized (keccak preimage)
+  ---
+  duration_ms: 1.913105
+  type: 'test'
+  ...
+# Subtest: base fee + tip above maxFeePerGas refused
+ok 44 - base fee + tip above maxFeePerGas refused # SKIP PUBLIC_CODE_BUNDLE is not set: pinned runtime code cannot be synthesized (keccak preimage)
+  ---
+  duration_ms: 1.885255
+  type: 'test'
+  ...
+# Subtest: measured execute whose queue gas exceeds the 1M cap refused
+ok 45 - measured execute whose queue gas exceeds the 1M cap refused # SKIP PUBLIC_CODE_BUNDLE is not set: pinned runtime code cannot be synthesized (keccak preimage)
+  ---
+  duration_ms: 1.927904
+  type: 'test'
+  ...
+# Subtest: tx.maxAttempts above the host queue refused
+ok 46 - tx.maxAttempts above the host queue refused # SKIP PUBLIC_CODE_BUNDLE is not set: pinned runtime code cannot be synthesized (keccak preimage)
+  ---
+  duration_ms: 1.890685
+  type: 'test'
+  ...
+# Subtest: unlisted sequencer grace weakening refused
+ok 47 - unlisted sequencer grace weakening refused # SKIP PUBLIC_CODE_BUNDLE is not set: pinned runtime code cannot be synthesized (keccak preimage)
+  ---
+  duration_ms: 1.975923
+  type: 'test'
+  ...
+# Subtest: unlisted maxFee6 raise refused
+ok 48 - unlisted maxFee6 raise refused # SKIP PUBLIC_CODE_BUNDLE is not set: pinned runtime code cannot be synthesized (keccak preimage)
+  ---
+  duration_ms: 2.017884
+  type: 'test'
+  ...
+# Subtest: quoter.factory() not the adapter's DEX factory refused
+ok 49 - quoter.factory() not the adapter's DEX factory refused # SKIP PUBLIC_CODE_BUNDLE is not set: pinned runtime code cannot be synthesized (keccak preimage)
+  ---
+  duration_ms: 2.011584
+  type: 'test'
+  ...
+# Subtest: oracle implementation code drift since the reviewed fee observation refused
+ok 50 - oracle implementation code drift since the reviewed fee observation refused # SKIP PUBLIC_CODE_BUNDLE is not set: pinned runtime code cannot be synthesized (keccak preimage)
+  ---
+  duration_ms: 1.915714
+  type: 'test'
+  ...
+1..50
+# tests 50
+# suites 0
+# pass 39
+# fail 0
+# cancelled 0
+# skipped 11
+# todo 0
+# duration_ms 494.259107
+[memory-guard] exit=0 peakTreeRssMiB=142 minHostAvailableMiB=88753
+[memory-guard] at peak: node:82 node:61
+[memory-guard] exit=0 peakTreeRssMiB=193 minHostAvailableMiB=88754
+[memory-guard] at peak: node:79 node:62 node:52
+[queue] EXIT 0

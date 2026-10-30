@@ -1,0 +1,20 @@
+--- a/tests/test_r3_launcher.py
++++ b/tests/test_r3_launcher.py
+@@ -50,6 +50,7 @@
+         self.rel.write_bytes(FAKE_RELEASE); self.rel.chmod(0o555); self.rel_sha = sha(FAKE_RELEASE)
+         for q in [self.d / 'opt', self.d / 'opt/enclave-rpc', self.d / 'opt/enclave-rpc/releases', self.rel.parent]: q.chmod(0o755)
+         (self.d / 'etc').mkdir(mode=0o755); self.out = self.d / 'etc/base-bootstrap'
++        self.srv = self.d / 'srv'; self.srv.mkdir(mode=0o755); os.symlink('../datadir', self.srv / 'data')   # finality r6 port
+         self.cov = {'evidence': {'receiptSha256': 'aa' * 32, 'verdictSha256': 'bb' * 32, 'originSha256': 'cc' * 32, 'snapshotManifestSha256': A.MANIFEST_SHA}}
+ 
+     def tearDown(self):
+@@ -118,7 +119,8 @@
+                'baseRetention': {'historyFromBlock': T.HISTORY_FROM, 'stateHistoryFromBlock': T.STATE_FROM}}
+ 
+         def mount(role, side):                        # THE one boundary mock of the first gate: records when it ran
+-            self.events.append(('mount', self.states())); return '/srv/enclave-base-holder'
++            # finality r6 port (only change): the wrapper binds the SERVED datadir (mount + /data) to the launch record's
++            self.events.append(('mount', self.states())); return str(self.srv)
+         ps = [patch.object(W, 'mount', side_effect=mount), patch.object(pathlib.Path, 'is_file', return_value=True),
+               patch.object(pathlib.Path, 'read_text', return_value=T.BaseRetentionTests.PROFILE),
+               patch.object(W, 'binary', side_effect=lambda n: '/opt/enclave-rpc/bin/' + n),

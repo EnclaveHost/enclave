@@ -1,0 +1,585 @@
+TAP version 13
+# Subtest: r10 carried ROOT positive control: authenticated queued snapshot reaches the plan with ZERO retired ledger/catalog reads
+ok 1 - r10 carried ROOT positive control: authenticated queued snapshot reaches the plan with ZERO retired ledger/catalog reads
+  ---
+  duration_ms: 7.942235
+  type: 'test'
+  ...
+# Subtest: r10 carried ROOT: publisher yank/delist does not veto unchanged owner-authorized content
+ok 2 - r10 carried ROOT: publisher yank/delist does not veto unchanged owner-authorized content
+  ---
+  duration_ms: 1.848842
+  type: 'test'
+  ...
+# Subtest: r10 carried ROOT: retired book failure and chain-unready do not precede or prevent independent reconciliation
+ok 3 - r10 carried ROOT: retired book failure and chain-unready do not precede or prevent independent reconciliation
+  ---
+  duration_ms: 2.031911
+  type: 'test'
+  ...
+# Subtest: r10 canonical Stop withdraws BEFORE (and without) a new-work plan, despite catalog/book failure
+ok 4 - r10 canonical Stop withdraws BEFORE (and without) a new-work plan, despite catalog/book failure
+  ---
+  duration_ms: 1.289614
+  type: 'test'
+  ...
+# Subtest: r10 canonical Offline (proof-verified, this host) revokes host authority; unknown authority only fences
+ok 5 - r10 canonical Offline (proof-verified, this host) revokes host authority; unknown authority only fences
+  ---
+  duration_ms: 2.801247
+  type: 'test'
+  ...
+# Subtest: r10 carried ROOT: recovered/pending lifecycle commitments count alongside ordinary neighbours
+ok 6 - r10 carried ROOT: recovered/pending lifecycle commitments count alongside ordinary neighbours
+  ---
+  duration_ms: 0.993706
+  type: 'test'
+  ...
+# Subtest: r10 malformed/hash-mismatched enrollment: zero legacy claim/renew/release across tick, keeper and claim; tracking retained
+ok 7 - r10 malformed/hash-mismatched enrollment: zero legacy claim/renew/release across tick, keeper and claim; tracking retained
+  ---
+  duration_ms: 1.884781
+  type: 'test'
+  ...
+# Subtest: r10 REAL dispatch + actual Host: cold unresolved allocation holds legacy AND lifecycle starts; max commitment kept across shrink/unknown; released only on evidence
+ok 8 - r10 REAL dispatch + actual Host: cold unresolved allocation holds legacy AND lifecycle starts; max commitment kept across shrink/unknown; released only on evidence
+  ---
+  duration_ms: 91.181731
+  type: 'test'
+  ...
+# Subtest: r11 (root r10 FAIL carried): a held plan on one route does not delay another route's authenticated Stop; progress resumes after
+ok 9 - r11 (root r10 FAIL carried): a held plan on one route does not delay another route's authenticated Stop; progress resumes after
+  ---
+  duration_ms: 102.782529
+  type: 'test'
+  ...
+# Subtest: r11: a hung authority read on one route is bounded for the pass, joined (never doubled) next pass, other route still withdrawn
+ok 10 - r11: a hung authority read on one route is bounded for the pass, joined (never doubled) next pass, other route still withdrawn
+  ---
+  duration_ms: 15002.276662
+  type: 'test'
+  ...
+# Subtest: r11: an enrollment policy corrupted after establishment still withdraws an enrolled route but starts no new work
+ok 11 - r11: an enrollment policy corrupted after establishment still withdraws an enrolled route but starts no new work
+  ---
+  duration_ms: 4.313611
+  type: 'test'
+  ...
+# Subtest: r11 actual admittedRuntime: stages the admission's FRESH snapshot and discharges the reservation only on terminal evidence
+ok 12 - r11 actual admittedRuntime: stages the admission's FRESH snapshot and discharges the reservation only on terminal evidence
+  ---
+  duration_ms: 0.429838
+  type: 'test'
+  ...
+# Subtest: r11 policy: unchanged valid policy keeps the unenrolled neighbour usable on every call
+ok 13 - r11 policy: unchanged valid policy keeps the unenrolled neighbour usable on every call
+  ---
+  duration_ms: 4.47598
+  type: 'test'
+  ...
+# Subtest: r11 policy (root r10 FAIL carried): corruption after the first successful read is unknown at the final predicate
+ok 14 - r11 policy (root r10 FAIL carried): corruption after the first successful read is unknown at the final predicate
+  ---
+  duration_ms: 2.440399
+  type: 'test'
+  ...
+# Subtest: r11 policy (root r10 FAIL carried): a missing policy after the first read is unknown
+ok 15 - r11 policy (root r10 FAIL carried): a missing policy after the first read is unknown
+  ---
+  duration_ms: 0.554988
+  type: 'test'
+  ...
+# Subtest: r11 policy: a changed configured path/sha after establishment is unknown, even with a valid new file
+ok 16 - r11 policy: a changed configured path/sha after establishment is unknown, even with a valid new file
+  ---
+  duration_ms: 1.367394
+  type: 'test'
+  ...
+# Subtest: r11 policy: previous no-policy state does not authorize legacy once a policy is configured
+ok 17 - r11 policy: previous no-policy state does not authorize legacy once a policy is configured
+  ---
+  duration_ms: 0.903096
+  type: 'test'
+  ...
+# Subtest: r11 policy POSITIVE control: initially corrupt policy refuses (root r10 PASS carried)
+ok 18 - r11 policy POSITIVE control: initially corrupt policy refuses (root r10 PASS carried)
+  ---
+  duration_ms: 0.728127
+  type: 'test'
+  ...
+# Subtest: r11 direct (root r10 FAIL carried): claim and release carry the caller gate into the actual sender
+ok 19 - r11 direct (root r10 FAIL carried): claim and release carry the caller gate into the actual sender
+  ---
+  duration_ms: 0.798987
+  type: 'test'
+  ...
+# Subtest: r11 direct (root r10 FAIL carried): permission ending during simulation sends nothing
+ok 20 - r11 direct (root r10 FAIL carried): permission ending during simulation sends nothing
+  ---
+  duration_ms: 0.251778
+  type: 'test'
+  ...
+# Subtest: r11 direct: permission ending during the nonce read sends nothing and spends no nonce
+ok 21 - r11 direct: permission ending during the nonce read sends nothing and spends no nonce
+  ---
+  duration_ms: 0.374999
+  type: 'test'
+  ...
+# Subtest: r11 direct: a pre-write transient retry is a new decision point (gate re-asked after the backoff)
+ok 22 - r11 direct: a pre-write transient retry is a new decision point (gate re-asked after the backoff)
+  ---
+  duration_ms: 3000.493268
+  type: 'test'
+  ...
+# Subtest: r11 direct: an ambiguous post-write error is never resent, never given a new nonce, and blocks later sends until mined
+ok 23 - r11 direct: an ambiguous post-write error is never resent, never given a new nonce, and blocks later sends until mined
+  ---
+  duration_ms: 0.851476
+  type: 'test'
+  ...
+# Subtest: r11 direct POSITIVE: an unchanged permission sends exactly once
+ok 24 - r11 direct POSITIVE: an unchanged permission sends exactly once
+  ---
+  duration_ms: 0.171819
+  type: 'test'
+  ...
+# Subtest: r11 sponsored: permission ending DURING the lease signature keeps the signature and POSTs to no relay
+ok 25 - r11 sponsored: permission ending DURING the lease signature keeps the signature and POSTs to no relay
+  ---
+  duration_ms: 0.844986
+  type: 'test'
+  ...
+# Subtest: r11 sponsored release: a signature made while permission ended is journaled before the refused POST and stays pending
+ok 26 - r11 sponsored release: a signature made while permission ended is journaled before the refused POST and stays pending
+  ---
+  duration_ms: 0.390658
+  type: 'test'
+  ...
+# Subtest: r11 sponsored: refusal after an earlier relay's POST reports an unknown outcome, not unsent
+ok 27 - r11 sponsored: refusal after an earlier relay's POST reports an unknown outcome, not unsent
+  ---
+  duration_ms: 0.312659
+  type: 'test'
+  ...
+# Subtest: r11 sponsored: queue-entry refusal signs nothing (claim)
+ok 28 - r11 sponsored: queue-entry refusal signs nothing (claim)
+  ---
+  duration_ms: 0.231879
+  type: 'test'
+  ...
+# Subtest: r11 sponsored POSITIVE: unchanged permission signs once, POSTs once and lands
+ok 29 - r11 sponsored POSITIVE: unchanged permission signs once, POSTs once and lands
+  ---
+  duration_ms: 0.255339
+  type: 'test'
+  ...
+# Subtest: R4 DIRECT: host lifecycle -> supervisor -> r18 runtime -> GuestdControl -> manager: stage, readiness, permit, I/O, Stop, removal
+ok 30 - R4 DIRECT: host lifecycle -> supervisor -> r18 runtime -> GuestdControl -> manager: stage, readiness, permit, I/O, Stop, removal
+  ---
+  duration_ms: 660.762843
+  type: 'test'
+  ...
+# Subtest: R4 legacy neighbour: an unenrolled deployment keeps the legacy path (no protected stage)
+ok 31 - R4 legacy neighbour: an unenrolled deployment keeps the legacy path (no protected stage)
+  ---
+  duration_ms: 105.192383
+  type: 'test'
+  ...
+# Subtest: R4 native role keeps its pins on the protected stage; general role never gets them
+ok 32 - R4 native role keeps its pins on the protected stage; general role never gets them
+  ---
+  duration_ms: 97.485957
+  type: 'test'
+  ...
+# Subtest: R4 DELETE through an unreadable journal withdraws first and answers 500 (actual MAC/TCP)
+ok 33 - R4 DELETE through an unreadable journal withdraws first and answers 500 (actual MAC/TCP)
+  ---
+  duration_ms: 123.36379
+  type: 'test'
+  ...
+# Subtest: ROOT-repaired: an invalid MAC is refused BEFORE any latch and nothing is forwarded
+ok 34 - ROOT-repaired: an invalid MAC is refused BEFORE any latch and nothing is forwarded
+  ---
+  duration_ms: 112.37777
+  type: 'test'
+  ...
+# Subtest: ROOT-repaired: held original -> exact authenticated cancellation resolves ONLY its own reservation -> late original refused
+ok 35 - ROOT-repaired: held original -> exact authenticated cancellation resolves ONLY its own reservation -> late original refused
+  ---
+  duration_ms: 146.119047
+  type: 'test'
+  ...
+# Subtest: r6 NEGATIVE: cancel of ANOTHER operation, a replayed cancel, or an in-progress operation never clears the reservation
+ok 36 - r6 NEGATIVE: cancel of ANOTHER operation, a replayed cancel, or an in-progress operation never clears the reservation
+  ---
+  duration_ms: 126.766994
+  type: 'test'
+  ...
+# Subtest: r6 NEGATIVE: no router key -> protected stage refused with nothing latched; a client x-router-mac is stripped
+ok 37 - r6 NEGATIVE: no router key -> protected stage refused with nothing latched; a client x-router-mac is stripped
+  ---
+  duration_ms: 84.538126
+  type: 'test'
+  ...
+# Subtest: r6 POSITIVE: accounted successful stage clears only from the exact confirmed reservation (DIAGNOSTIC snapshot)
+ok 38 - r6 POSITIVE: accounted successful stage clears only from the exact confirmed reservation (DIAGNOSTIC snapshot)
+  ---
+  duration_ms: 120.721802
+  type: 'test'
+  ...
+# Subtest: r6 obligations: cold replay restores the exact unknown operation; concurrent owner refused; missing log never fresh
+ok 39 - r6 obligations: cold replay restores the exact unknown operation; concurrent owner refused; missing log never fresh
+  ---
+  duration_ms: 9.598017
+  type: 'test'
+  ...
+# Subtest: r6 obligations: torn tail and released owner refuse; nothing is sent without a durable obligation
+ok 40 - r6 obligations: torn tail and released owner refuse; nothing is sent without a durable obligation
+  ---
+  duration_ms: 5.696674
+  type: 'test'
+  ...
+# Subtest: r6 obligations: a late ACCEPTED completion binds exactly; a cancelled one discharges only after the durable cancel
+ok 41 - r6 obligations: a late ACCEPTED completion binds exactly; a cancelled one discharges only after the durable cancel
+  ---
+  duration_ms: 8.077293
+  type: 'test'
+  ...
+# Subtest: r6 POSITIVE: repeated queued readiness keeps ONE staged instance (routine fence is nondestructive)
+ok 42 - r6 POSITIVE: repeated queued readiness keeps ONE staged instance (routine fence is nondestructive)
+  ---
+  duration_ms: 294.124344
+  type: 'test'
+  ...
+# Subtest: ROOT (carried, r5 evidence 0/1) explicit authority revocation withdraws an owned ready staged instance promptly
+ok 43 - ROOT (carried, r5 evidence 0/1) explicit authority revocation withdraws an owned ready staged instance promptly
+  ---
+  duration_ms: 150.139788
+  type: 'test'
+  ...
+# Subtest: r6 NEGATIVE: a HUNG boundary acknowledgment never delays staged compute retirement; the revocation still reports it
+ok 44 - r6 NEGATIVE: a HUNG boundary acknowledgment never delays staged compute retirement; the revocation still reports it
+  ---
+  duration_ms: 3130.103288
+  type: 'test'
+  ...
+# Subtest: r6 NEGATIVE: a LATE spawn that completes after revocation is withdrawn before the revocation confirms absence
+ok 45 - r6 NEGATIVE: a LATE spawn that completes after revocation is withdrawn before the revocation confirms absence
+  ---
+  duration_ms: 140.216492
+  type: 'test'
+  ...
+# Subtest: r7 COMPOSITE: both managers + router accounting + supervisor: queued readiness -> Running permit/renewal -> TCP I/O -> Stop -> exact removal
+ok 46 - r7 COMPOSITE: both managers + router accounting + supervisor: queued readiness -> Running permit/renewal -> TCP I/O -> Stop -> exact removal
+  ---
+  duration_ms: 838.286273
+  type: 'test'
+  ...
+# Subtest: ROOT (extended, root r6 0/1): owner released after the actual accepted stage -> no usable success, exact retirement, cold recovery discharges
+ok 47 - ROOT (extended, root r6 0/1): owner released after the actual accepted stage -> no usable success, exact retirement, cold recovery discharges
+  ---
+  duration_ms: 234.032644
+  type: 'test'
+  ...
+# Subtest: r7 owner lost WHILE the raw stage is pending: the late 202 never recreates owner authority
+ok 48 - r7 owner lost WHILE the raw stage is pending: the late 202 never recreates owner authority
+  ---
+  duration_ms: 122.9538
+  type: 'test'
+  ...
+# Subtest: r7 a FAILED owned write after stage latches: no permit is sent, the loss is reported, retirement of the bound instance is the gate's
+ok 49 - r7 a FAILED owned write after stage latches: no permit is sent, the loss is reported, retirement of the bound instance is the gate's
+  ---
+  duration_ms: 115.777063
+  type: 'test'
+  ...
+# Subtest: ROOT (carried, root r6 0/1) supervisor observes a stopped assignment and retires existing staged compute
+ok 50 - ROOT (carried, root r6 0/1) supervisor observes a stopped assignment and retires existing staged compute
+  ---
+  duration_ms: 272.271699
+  type: 'test'
+  ...
+# Subtest: r7 Stop is consumed even when the manager capability (new-work admission) is unavailable
+ok 51 - r7 Stop is consumed even when the manager capability (new-work admission) is unavailable
+  ---
+  duration_ms: 149.569468
+  type: 'test'
+  ...
+# Subtest: r7 canonical Offline (proof-verified, this host) retires staged compute through the actual supervisor
+ok 52 - r7 canonical Offline (proof-verified, this host) retires staged compute through the actual supervisor
+  ---
+  duration_ms: 261.497368
+  type: 'test'
+  ...
+# Subtest: r7 unknown authority FENCES and keeps the staged obligation (no invented Stop); restored authority reuses the SAME instance
+ok 53 - r7 unknown authority FENCES and keeps the staged obligation (no invented Stop); restored authority reuses the SAME instance
+  ---
+  duration_ms: 140.40183
+  type: 'test'
+  ...
+# Subtest: r7 late raw stage: a Stop observed while the owned stage is in flight waits for it, withdraws it, and only then acknowledges
+ok 54 - r7 late raw stage: a Stop observed while the owned stage is in flight waits for it, withdraws it, and only then acknowledges
+  ---
+  duration_ms: 216.739482
+  type: 'test'
+  ...
+# Subtest: ROOT r6 late spawn (carried, root r6 0/1): revokeHostAuthority resolves only after the late instance is withdrawn and the hold acknowledged
+ok 55 - ROOT r6 late spawn (carried, root r6 0/1): revokeHostAuthority resolves only after the late instance is withdrawn and the hold acknowledged
+  ---
+  duration_ms: 132.936144
+  type: 'test'
+  ...
+# Subtest: r8 factory: pinned config refuses unknown fields, forbidden capabilities, wrong host and hash drift
+ok 56 - r8 factory: pinned config refuses unknown fields, forbidden capabilities, wrong host and hash drift
+  ---
+  duration_ms: 5.652294
+  type: 'test'
+  ...
+# Subtest: r8 factory: the supervisor's chain reader is read-only; proof qualification comes only from the adapter's own fields
+ok 57 - r8 factory: the supervisor's chain reader is read-only; proof qualification comes only from the adapter's own fields
+  ---
+  duration_ms: 0.558667
+  type: 'test'
+  ...
+# Subtest: r8 factory: node entry composition -> no signer/relay adapter -> owned lifecycle bound to the client's runtime adapters, dispatch stopped
+ok 58 - r8 factory: node entry composition -> no signer/relay adapter -> owned lifecycle bound to the client's runtime adapters, dispatch stopped
+  ---
+  duration_ms: 7.649425
+  type: 'test'
+  ...
+# Subtest: r8 supervisor over factory snapshots: Online despite Enclave catalog refusal proceeds; Offline revokes; unverified fences; wrong host withdraws
+not ok 59 - r8 supervisor over factory snapshots: Online despite Enclave catalog refusal proceeds; Offline revokes; unverified fences; wrong host withdraws
+  ---
+  duration_ms: 1.683232
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r11/candidate/test/windows-permit/r8-authority-factory.test.mjs:126:1'
+  failureType: 'testCodeFailure'
+  error: 'independent Online reaches the running path'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r11/candidate/test/windows-permit/r8-authority-factory.test.mjs:129:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ROOT physical owner released during processed permit response (delivered) cannot return serving
+ok 60 - ROOT physical owner released during processed permit response (delivered) cannot return serving
+  ---
+  duration_ms: 579.261447
+  type: 'test'
+  ...
+# Subtest: ROOT physical owner released during processed permit response (lost+reconciled) cannot return serving
+ok 61 - ROOT physical owner released during processed permit response (lost+reconciled) cannot return serving
+  ---
+  duration_ms: 459.440533
+  type: 'test'
+  ...
+# Subtest: r8 positive control: owner kept, delivered permit returns serving
+ok 62 - r8 positive control: owner kept, delivered permit returns serving
+  ---
+  duration_ms: 142.186241
+  type: 'test'
+  ...
+# Subtest: r8 positive control: owner kept, lost permit reply reconciled from the MAC'd view returns serving
+ok 63 - r8 positive control: owner kept, lost permit reply reconciled from the MAC'd view returns serving
+  ---
+  duration_ms: 129.864478
+  type: 'test'
+  ...
+# Subtest: ROOT supervisor owns unknown processed stage through owner loss and reconciles exact removal
+ok 64 - ROOT supervisor owns unknown processed stage through owner loss and reconciles exact removal
+  ---
+  duration_ms: 778.664313
+  type: 'test'
+  ...
+# Subtest: r8 supervisor cancels an UNSEEN raw stage after owner loss; the late original is refused
+ok 65 - r8 supervisor cancels an UNSEEN raw stage after owner loss; the late original is refused
+  ---
+  duration_ms: 124.423502
+  type: 'test'
+  ...
+# Subtest: r8 hung boundary hold during owner-loss retirement does not delay exact compute removal
+ok 66 - r8 hung boundary hold during owner-loss retirement does not delay exact compute removal
+  ---
+  duration_ms: 127.243769
+  type: 'test'
+  ...
+# Subtest: r9 ROOT: production factory opens the REAL R18 owned runtime with explicit routes; real dispatch handoff activates only on bound quiescence
+ok 67 - r9 ROOT: production factory opens the REAL R18 owned runtime with explicit routes; real dispatch handoff activates only on bound quiescence
+  ---
+  duration_ms: 55.809665
+  type: 'test'
+  ...
+# Subtest: ROOT positive control: renewal gate refuses before inert queue send
+ok 68 - ROOT positive control: renewal gate refuses before inert queue send
+  ---
+  duration_ms: 2.02368
+  type: 'test'
+  ...
+# Subtest: ROOT claim helper must carry caller gate into actual serialized sender
+ok 69 - ROOT claim helper must carry caller gate into actual serialized sender
+  ---
+  duration_ms: 0.231639
+  type: 'test'
+  ...
+# Subtest: ROOT release helper must carry caller gate into actual serialized sender
+ok 70 - ROOT release helper must carry caller gate into actual serialized sender
+  ---
+  duration_ms: 0.146309
+  type: 'test'
+  ...
+# Subtest: ROOT renewal must recheck permission after awaited simulation before inert wallet write
+ok 71 - ROOT renewal must recheck permission after awaited simulation before inert wallet write
+  ---
+  duration_ms: 0.240349
+  type: 'test'
+  ...
+# Subtest: R5 DIRECT: repeated queued reconcile keeps the SAME staged instance through readiness, then Running permit, I/O, Stop
+ok 72 - R5 DIRECT: repeated queued reconcile keeps the SAME staged instance through readiness, then Running permit, I/O, Stop
+  ---
+  duration_ms: 714.726932
+  type: 'test'
+  ...
+# Subtest: R5 changed client origin: an enrolled deployment never reaches legacy lookup; it reaches the policy's protected owner
+ok 73 - R5 changed client origin: an enrolled deployment never reaches legacy lookup; it reaches the policy's protected owner
+  ---
+  duration_ms: 115.72951
+  type: 'test'
+  ...
+# Subtest: R5 host identity mismatch holds enrolled deployments; unenrolled neighbours stay legacy
+ok 74 - R5 host identity mismatch holds enrolled deployments; unenrolled neighbours stay legacy
+  ---
+  duration_ms: 99.111717
+  type: 'test'
+  ...
+# Subtest: R5 lost stage (actual MAC/TCP, TEST held transport): owned until the exact outcome; cancel refuses the late signed request
+ok 75 - R5 lost stage (actual MAC/TCP, TEST held transport): owned until the exact outcome; cancel refuses the late signed request
+  ---
+  duration_ms: 95.276025
+  type: 'test'
+  ...
+# Subtest: R5 inventory: a terminal row never masks an unmapped live protected VM
+ok 76 - R5 inventory: a terminal row never masks an unmapped live protected VM
+  ---
+  duration_ms: 125.487176
+  type: 'test'
+  ...
+# Subtest: R5 unsigned protected mutation aliases are refused without disturbing state; legacy routes unchanged
+ok 77 - R5 unsigned protected mutation aliases are refused without disturbing state; legacy routes unchanged
+  ---
+  duration_ms: 126.75456
+  type: 'test'
+  ...
+# Subtest: r10 carried ROOT positive control: authenticated queued snapshot reaches the plan with ZERO retired ledger/catalog reads
+ok 78 - r10 carried ROOT positive control: authenticated queued snapshot reaches the plan with ZERO retired ledger/catalog reads
+  ---
+  duration_ms: 7.826924
+  type: 'test'
+  ...
+# Subtest: r10 carried ROOT: publisher yank/delist does not veto unchanged owner-authorized content
+ok 79 - r10 carried ROOT: publisher yank/delist does not veto unchanged owner-authorized content
+  ---
+  duration_ms: 1.312294
+  type: 'test'
+  ...
+# Subtest: r10 carried ROOT: retired book failure and chain-unready do not precede or prevent independent reconciliation
+ok 80 - r10 carried ROOT: retired book failure and chain-unready do not precede or prevent independent reconciliation
+  ---
+  duration_ms: 4.778738
+  type: 'test'
+  ...
+# Subtest: r10 canonical Stop withdraws BEFORE (and without) a new-work plan, despite catalog/book failure
+ok 81 - r10 canonical Stop withdraws BEFORE (and without) a new-work plan, despite catalog/book failure
+  ---
+  duration_ms: 1.313414
+  type: 'test'
+  ...
+# Subtest: r10 canonical Offline (proof-verified, this host) revokes host authority; unknown authority only fences
+ok 82 - r10 canonical Offline (proof-verified, this host) revokes host authority; unknown authority only fences
+  ---
+  duration_ms: 2.064491
+  type: 'test'
+  ...
+# Subtest: r10 carried ROOT: recovered/pending lifecycle commitments count alongside ordinary neighbours
+ok 83 - r10 carried ROOT: recovered/pending lifecycle commitments count alongside ordinary neighbours
+  ---
+  duration_ms: 1.008775
+  type: 'test'
+  ...
+# Subtest: r10 malformed/hash-mismatched enrollment: zero legacy claim/renew/release across tick, keeper and claim; tracking retained
+ok 84 - r10 malformed/hash-mismatched enrollment: zero legacy claim/renew/release across tick, keeper and claim; tracking retained
+  ---
+  duration_ms: 2.669608
+  type: 'test'
+  ...
+# Subtest: r10 REAL dispatch + actual Host: cold unresolved allocation holds legacy AND lifecycle starts; max commitment kept across shrink/unknown; released only on evidence
+ok 85 - r10 REAL dispatch + actual Host: cold unresolved allocation holds legacy AND lifecycle starts; max commitment kept across shrink/unknown; released only on evidence
+  ---
+  duration_ms: 84.410584
+  type: 'test'
+  ...
+# Subtest: ROOT pending plan on one route must not delay a different route's authenticated Stop
+ok 86 - ROOT pending plan on one route must not delay a different route's authenticated Stop
+  ---
+  duration_ms: 102.202472
+  type: 'test'
+  ...
+# Subtest: ROOT positive: initially corrupt pinned policy refuses legacy classification
+ok 87 - ROOT positive: initially corrupt pinned policy refuses legacy classification
+  ---
+  duration_ms: 4.690208
+  type: 'test'
+  ...
+# Subtest: ROOT post-await boundary predicate must notice corruption after first successful policy read
+ok 88 - ROOT post-await boundary predicate must notice corruption after first successful policy read
+  ---
+  duration_ms: 0.791847
+  type: 'test'
+  ...
+# Subtest: ROOT post-await boundary predicate must notice missing policy after first successful read
+ok 89 - ROOT post-await boundary predicate must notice missing policy after first successful read
+  ---
+  duration_ms: 1.267114
+  type: 'test'
+  ...
+# Subtest: ROOT restart reconstruction must retain an unresolved attempted write and refuse another inert broadcast
+not ok 90 - ROOT restart reconstruction must retain an unresolved attempted write and refuse another inert broadcast
+  ---
+  duration_ms: 6.289571
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r11/root-restart-unknown.test.mjs:28:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    fresh sender must recover attempted-write quarantine before allowing any new inert broadcast
+    + actual - expected
+    
+      [
+        'renew',
+    +   'renew'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'renew'
+  actual:
+    0: 'renew'
+    1: 'renew'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r11/root-restart-unknown.test.mjs:41:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..90
+# tests 90
+# suites 0
+# pass 88
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 34373.891542

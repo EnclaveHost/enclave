@@ -1,0 +1,12 @@
+[queue] START available=84689MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+...../home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-bench-prep/client-timeout/test_derive_client.py:181: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmpw3rfaga3/out/derivation-manifest.json' mode='r' encoding='UTF-8'>
+  self.assertEqual(json.load(open(mf))["generated"]["sha256"], D.sha256(gen))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+........
+----------------------------------------------------------------------
+Ran 13 tests in 0.016s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

@@ -1,0 +1,14 @@
+[queue] NOT STARTED: available=17460MiB required=18176MiB cap=1536MiB
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: available=18048MiB required=18176MiB cap=1536MiB
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: available=17861MiB required=18176MiB cap=1536MiB
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] START available=18253MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+## FAIL: reanchor-bounds: rc 1, Ran 1 (expected 1), last FAILED (failures=1) (see /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10-recovery-fixture-fix-r2/logs/run-20261026T072918Z-1140069/reanchor-bounds.txt)
+## r10-recovery-fixture-fix-r2 rc=1
+[memory-guard] exit=1 peakTreeRssMiB=59 minHostAvailableMiB=18081
+[memory-guard] at peak: python3:39 python3:12 bash:4 timeout:2 bash:2
+[queue] EXIT 1

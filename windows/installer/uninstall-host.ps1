@@ -28,6 +28,21 @@ foreach ($vm in Get-VM -ErrorAction SilentlyContinue | Where-Object { $_.Name -l
 Emit "shield" "ok" "Enclave Shield's VMs are removed"
 if (Test-Path (Join-Path $PF "tray\uninstall-tray.cmd")) { & cmd.exe /c (Join-Path $PF "tray\uninstall-tray.cmd") | Out-Null }
 Emit "tray" "ok" "The tray is removed for $env:USERNAME (other accounts: run tray\uninstall-tray.cmd as them)"
+# Windows Update: the restart window setup set (install-host.ps1) goes, and the owner's own values it replaced come back
+$hj = Join-Path $PD "node\host.json"
+$uw = $null; if (Test-Path $hj) { try { $uw = (Get-Content $hj -Raw | ConvertFrom-Json).updateWindow } catch { } }
+if ($uw -and $uw.managed -eq $true) {
+  $wuKeys = [ordered]@{ WindowsUpdate = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate"
+                        AU = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" }
+  $wuNames = @{ WindowsUpdate = @("SetActiveHours", "ActiveHoursStart", "ActiveHoursEnd")
+                AU = @("NoAutoUpdate", "AUOptions", "ScheduledInstallDay", "ScheduledInstallTime", "NoAutoRebootWithLoggedOnUsers") }
+  foreach ($k in $wuKeys.Keys) { foreach ($n in $wuNames[$k]) {
+    $was = if ($uw.replaced -and $uw.replaced.$k) { $uw.replaced.$k.$n } else { $null }
+    if ($null -ne $was) { New-ItemProperty -Path $wuKeys[$k] -Name $n -PropertyType DWord -Value ([int]$was) -Force | Out-Null }
+    else { Remove-ItemProperty -Path $wuKeys[$k] -Name $n -ErrorAction SilentlyContinue }
+  } }
+  Emit "updates" "ok" "Windows Update is back to this PC's own settings"
+}
 Set-Location $env:SystemRoot
 if (Test-Path $PF) { Remove-Item $PF -Recurse -Force }
 Remove-Item "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\EnclaveHost" -Recurse -Force -ErrorAction SilentlyContinue

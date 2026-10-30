@@ -1,0 +1,48 @@
+# Pretty URLs — Netlify-style rewrites the IPFS gateway applies for DNSLink /
+# subdomain hosts (enclave.host serves via DNSLink; docs: specs.ipfs.tech/http-
+# gateways/web-redirects-file). Rules are evaluated ONLY for paths that do not
+# exist in the DAG, so the shipped .html files keep serving at their old URLs
+# (the router's history.replaceState canonicalizes those in the address bar).
+# Ships from the site root via build-site.mjs; nan-deploy.sh pins it with -r.
+/apps       /apps.html       200
+/develop    /develop.html    200
+/dashboard  /dashboard.html  200
+/checkout   /checkout.html   200
+/link       /link.html       200
+/authorize  /authorize.html  200
+# tenant-app sign-in (Sign in with Enclave): a NESTED document so it can
+# coexist with /authorize above (the private-app hand-off) - boot.js pageOf
+# keys it as "sso-authorize" from the parent segment
+/sso/authorize /sso/authorize.html 200
+/host       /host.html       200
+/architecture /develop 301
+/admin      /admin.html      200
+/terms      /terms.html      200
+/privacy    /privacy.html    200
+# wallet sessions (docs/design/sessions.md §9): the grant page is the target of
+# `enclave session new` links (/grant#<request>), the sessions page of the wallet popover
+/sessions   /sessions.html   200
+/grant      /grant.html      200
+# gas funding (owner controls + a reviewed migration; nothing is offered while FUNDING_RUNTIME is null)
+/funding    /funding.html    200
+# the hosting tray's "Payout wallet" link (windows/tray): a box owner declares their own wallet for their box
+/payout     /host     301
+# /apps/publish is a VIEW of the Apps page (a router alias): a hard load
+# serves the nested apps document (a build-time copy carrying <base
+# href="../">) and apps.js picks the view from the pathname. The flat /publish
+# form stays as a rewrite to the ROOT-DEPTH document (no base needed there);
+# the router canonicalizes the bar to the nested form.
+/apps/publish  /apps/publish.html  200
+/publish       /apps.html          200
+# the old deploy console (/apps/deploy, and the older /deploy) is gone: an app
+# deploys from its card in the store, and every setting the console carried
+# is a tab on the deployment's dashboard row. Old links land on the store.
+# deploy.html stays only as the legacy /deploy.html redirect stub.
+/apps/deploy   /apps/   301
+/deploy        /apps/   301
+# Everything else absent from the DAG: the branded 404 page with a real 404
+# status (404.html carries <base href="/"> because it serves AT the missing
+# path). Absent OLD chunk hashes now serve this HTML instead of the gateway
+# error page - module loading fails identically either way (skew-heal covers
+# the mixed-edge window), so the union-archive protection is unaffected.
+/* /404.html 404

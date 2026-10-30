@@ -1,0 +1,6039 @@
+{
+  "inputs": {
+    "source/enclave/site/js/lib/enclave-element.js": {
+      "bytes": 7308,
+      "imports": [],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/util.js": {
+      "bytes": 7210,
+      "imports": [],
+      "format": "esm"
+    },
+    "source/enclave/site/components/code/code.js": {
+      "bytes": 1125,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/lib/enclave-element.js",
+          "kind": "import-statement",
+          "original": "../../js/lib/enclave-element.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../../js/core/util.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/components/cinematic-scene/cinematic-scene.js": {
+      "bytes": 2477,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/lib/enclave-element.js",
+          "kind": "import-statement",
+          "original": "../../js/lib/enclave-element.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/hex-background.js": {
+      "bytes": 3269,
+      "imports": []
+    },
+    "source/enclave/site/js/core/config.js": {
+      "bytes": 12589,
+      "imports": [],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/addressbook.js": {
+      "bytes": 2850,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/config.js",
+          "kind": "import-statement",
+          "original": "./config.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "./util.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/pricing.js": {
+      "bytes": 58608,
+      "imports": [],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/ledger-calls.js": {
+      "bytes": 4620,
+      "imports": [],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/chain.js": {
+      "bytes": 40163,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/config.js",
+          "kind": "import-statement",
+          "original": "./config.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "./api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "./util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/pricing.js",
+          "kind": "import-statement",
+          "original": "./pricing.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/wallet-preflight.js": {
+      "bytes": 500,
+      "imports": [],
+      "format": "esm"
+    },
+    "source/enclave/site/js/lib/qr.js": {
+      "bytes": 57353,
+      "imports": [],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/runlog.js": {
+      "bytes": 8885,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "./util.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/keccak.js": {
+      "bytes": 4620,
+      "imports": [],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/vault.js": {
+      "bytes": 11764,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "./api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/keccak.js",
+          "kind": "import-statement",
+          "original": "./keccak.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "import-statement",
+          "original": "./chain.js"
+        },
+        {
+          "path": "/vendor/webauthn.js",
+          "kind": "dynamic-import",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/wallet.js": {
+      "bytes": 46855,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/config.js",
+          "kind": "import-statement",
+          "original": "./config.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "./api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "import-statement",
+          "original": "./chain.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/wallet-preflight.js",
+          "kind": "import-statement",
+          "original": "./wallet-preflight.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "./util.js"
+        },
+        {
+          "path": "source/enclave/site/js/lib/qr.js",
+          "kind": "import-statement",
+          "original": "../lib/qr.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/runlog.js",
+          "kind": "import-statement",
+          "original": "./runlog.js"
+        },
+        {
+          "path": "/vendor/walletconnect.js",
+          "kind": "dynamic-import",
+          "external": true
+        },
+        {
+          "path": "source/enclave/site/js/core/sessions.js",
+          "kind": "dynamic-import",
+          "original": "./sessions.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/sessions.js",
+          "kind": "dynamic-import",
+          "original": "./sessions.js"
+        },
+        {
+          "path": "source/enclave/site/js/boot.js",
+          "kind": "dynamic-import",
+          "original": "../boot.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/vault.js",
+          "kind": "dynamic-import",
+          "original": "./vault.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/sessions.js",
+          "kind": "dynamic-import",
+          "original": "./sessions.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/account.js": {
+      "bytes": 15859,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/config.js",
+          "kind": "import-statement",
+          "original": "./config.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "./api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/wallet.js",
+          "kind": "import-statement",
+          "original": "./wallet.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "./util.js"
+        },
+        {
+          "path": "source/enclave/site/js/lib/qr.js",
+          "kind": "import-statement",
+          "original": "../lib/qr.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/sessions.js",
+          "kind": "dynamic-import",
+          "original": "./sessions.js"
+        },
+        {
+          "path": "/vendor/webauthn.js",
+          "kind": "dynamic-import",
+          "external": true
+        },
+        {
+          "path": "source/enclave/site/js/core/sessions.js",
+          "kind": "dynamic-import",
+          "original": "./sessions.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/sessions.js": {
+      "bytes": 34852,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "./api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/config.js",
+          "kind": "import-statement",
+          "original": "./config.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "./util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/ledger-calls.js",
+          "kind": "import-statement",
+          "original": "./ledger-calls.js"
+        },
+        {
+          "path": "/vendor/sessions.js",
+          "kind": "dynamic-import",
+          "external": true
+        },
+        {
+          "path": "source/enclave/site/js/core/account.js",
+          "kind": "dynamic-import",
+          "original": "./account.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/wallet.js",
+          "kind": "dynamic-import",
+          "original": "./wallet.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/wallet.js",
+          "kind": "dynamic-import",
+          "original": "./wallet.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "dynamic-import",
+          "original": "./chain.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/api.js": {
+      "bytes": 24689,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/config.js",
+          "kind": "import-statement",
+          "original": "./config.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "./util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/pricing.js",
+          "kind": "import-statement",
+          "original": "./pricing.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/sessions.js",
+          "kind": "dynamic-import",
+          "original": "./sessions.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/components/wallet-button/wallet-button.js": {
+      "bytes": 3939,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/lib/enclave-element.js",
+          "kind": "import-statement",
+          "original": "../../js/lib/enclave-element.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "../../js/core/api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/wallet.js",
+          "kind": "import-statement",
+          "original": "../../js/core/wallet.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/account.js",
+          "kind": "import-statement",
+          "original": "../../js/core/account.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/config.js",
+          "kind": "import-statement",
+          "original": "../../js/core/config.js"
+        },
+        {
+          "path": "source/enclave/site/js/boot.js",
+          "kind": "import-statement",
+          "original": "../../js/boot.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../../js/core/util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/account.js",
+          "kind": "dynamic-import",
+          "original": "../../js/core/account.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/components/header/header.js": {
+      "bytes": 3616,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/lib/enclave-element.js",
+          "kind": "import-statement",
+          "original": "../../js/lib/enclave-element.js"
+        },
+        {
+          "path": "source/enclave/site/components/wallet-button/wallet-button.js",
+          "kind": "import-statement",
+          "original": "../wallet-button/wallet-button.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../../js/core/util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "../../js/core/api.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/spec.js": {
+      "bytes": 4588,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "./util.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/components/footer/footer.js": {
+      "bytes": 5292,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/lib/enclave-element.js",
+          "kind": "import-statement",
+          "original": "../../js/lib/enclave-element.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/spec.js",
+          "kind": "import-statement",
+          "original": "../../js/core/spec.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../../js/core/util.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/components/toast/toast.js": {
+      "bytes": 2270,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/lib/enclave-element.js",
+          "kind": "import-statement",
+          "original": "../../js/lib/enclave-element.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/components/section-head/section-head.js": {
+      "bytes": 771,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/lib/enclave-element.js",
+          "kind": "import-statement",
+          "original": "../../js/lib/enclave-element.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/components/enclave-panel/enclave-panel.js": {
+      "bytes": 7098,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/lib/enclave-element.js",
+          "kind": "import-statement",
+          "original": "../../js/lib/enclave-element.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "../../js/core/api.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/components/ticker/ticker.js": {
+      "bytes": 2536,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/lib/enclave-element.js",
+          "kind": "import-statement",
+          "original": "../../js/lib/enclave-element.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/components/flow/flow.js": {
+      "bytes": 6203,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/lib/enclave-element.js",
+          "kind": "import-statement",
+          "original": "../../js/lib/enclave-element.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../../js/core/util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/spec.js",
+          "kind": "import-statement",
+          "original": "../../js/core/spec.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/components/attest-chain/attest-chain.js": {
+      "bytes": 7125,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/lib/enclave-element.js",
+          "kind": "import-statement",
+          "original": "../../js/lib/enclave-element.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../../js/core/util.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/verify.js": {
+      "bytes": 14873,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "./util.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/components/live-verify/live-verify.js": {
+      "bytes": 5217,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/lib/enclave-element.js",
+          "kind": "import-statement",
+          "original": "../../js/lib/enclave-element.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../../js/core/util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/verify.js",
+          "kind": "import-statement",
+          "original": "../../js/core/verify.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/live-prices.js": {
+      "bytes": 2428,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "import-statement",
+          "original": "./chain.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/live-specs.js": {
+      "bytes": 3307,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "./api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/pricing.js",
+          "kind": "import-statement",
+          "original": "./pricing.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/pages/overview.js": {
+      "bytes": 3780,
+      "imports": [
+        {
+          "path": "source/enclave/site/components/header/header.js",
+          "kind": "import-statement",
+          "original": "../../components/header/header.js"
+        },
+        {
+          "path": "source/enclave/site/components/footer/footer.js",
+          "kind": "import-statement",
+          "original": "../../components/footer/footer.js"
+        },
+        {
+          "path": "source/enclave/site/components/toast/toast.js",
+          "kind": "import-statement",
+          "original": "../../components/toast/toast.js"
+        },
+        {
+          "path": "source/enclave/site/components/section-head/section-head.js",
+          "kind": "import-statement",
+          "original": "../../components/section-head/section-head.js"
+        },
+        {
+          "path": "source/enclave/site/components/enclave-panel/enclave-panel.js",
+          "kind": "import-statement",
+          "original": "../../components/enclave-panel/enclave-panel.js"
+        },
+        {
+          "path": "source/enclave/site/components/ticker/ticker.js",
+          "kind": "import-statement",
+          "original": "../../components/ticker/ticker.js"
+        },
+        {
+          "path": "source/enclave/site/components/flow/flow.js",
+          "kind": "import-statement",
+          "original": "../../components/flow/flow.js"
+        },
+        {
+          "path": "source/enclave/site/components/attest-chain/attest-chain.js",
+          "kind": "import-statement",
+          "original": "../../components/attest-chain/attest-chain.js"
+        },
+        {
+          "path": "source/enclave/site/components/live-verify/live-verify.js",
+          "kind": "import-statement",
+          "original": "../../components/live-verify/live-verify.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../core/util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/config.js",
+          "kind": "import-statement",
+          "original": "../core/config.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "import-statement",
+          "original": "../core/chain.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/live-prices.js",
+          "kind": "import-statement",
+          "original": "../core/live-prices.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/live-specs.js",
+          "kind": "import-statement",
+          "original": "../core/live-specs.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/catalog.js": {
+      "bytes": 35649,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/config.js",
+          "kind": "import-statement",
+          "original": "./config.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "import-statement",
+          "original": "./chain.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "./util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/pricing.js",
+          "kind": "import-statement",
+          "original": "./pricing.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "./api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/wallet.js",
+          "kind": "import-statement",
+          "original": "./wallet.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/reviews.js": {
+      "bytes": 9046,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "import-statement",
+          "original": "./chain.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/catalog.js",
+          "kind": "import-statement",
+          "original": "./catalog.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "./api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "./util.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/components/app-card/app-card.js": {
+      "bytes": 4978,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/lib/enclave-element.js",
+          "kind": "import-statement",
+          "original": "../../js/lib/enclave-element.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../../js/core/util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "../../js/core/api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "import-statement",
+          "original": "../../js/core/chain.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/catalog.js",
+          "kind": "import-statement",
+          "original": "../../js/core/catalog.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/reviews.js",
+          "kind": "import-statement",
+          "original": "../../js/core/reviews.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/app-resources.js": {
+      "bytes": 4122,
+      "imports": [],
+      "format": "esm"
+    },
+    "source/enclave/site/components/app-detail/app-detail.js": {
+      "bytes": 10100,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/lib/enclave-element.js",
+          "kind": "import-statement",
+          "original": "../../js/lib/enclave-element.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../../js/core/util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/config.js",
+          "kind": "import-statement",
+          "original": "../../js/core/config.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "../../js/core/api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "import-statement",
+          "original": "../../js/core/chain.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/catalog.js",
+          "kind": "import-statement",
+          "original": "../../js/core/catalog.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/reviews.js",
+          "kind": "import-statement",
+          "original": "../../js/core/reviews.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/app-resources.js",
+          "kind": "import-statement",
+          "original": "../../js/core/app-resources.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/components/app-reviews/app-reviews.js": {
+      "bytes": 12761,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/lib/enclave-element.js",
+          "kind": "import-statement",
+          "original": "../../js/lib/enclave-element.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../../js/core/util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "../../js/core/api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "import-statement",
+          "original": "../../js/core/chain.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/reviews.js",
+          "kind": "import-statement",
+          "original": "../../js/core/reviews.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/featured.js": {
+      "bytes": 5173,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/config.js",
+          "kind": "import-statement",
+          "original": "./config.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "import-statement",
+          "original": "./chain.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/catalog.js",
+          "kind": "import-statement",
+          "original": "./catalog.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "./util.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/fund.js": {
+      "bytes": 11738,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "./api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/config.js",
+          "kind": "import-statement",
+          "original": "./config.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "import-statement",
+          "original": "./chain.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/wallet.js",
+          "kind": "import-statement",
+          "original": "./wallet.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/runlog.js",
+          "kind": "import-statement",
+          "original": "./runlog.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/protection.js": {
+      "bytes": 1328,
+      "imports": [],
+      "format": "esm"
+    },
+    "source/enclave/site/components/volume-picker/volume-picker.js": {
+      "bytes": 2891,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/lib/enclave-element.js",
+          "kind": "import-statement",
+          "original": "../../js/lib/enclave-element.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../../js/core/util.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/app-tls.js": {
+      "bytes": 1556,
+      "imports": [],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/pool-badges.js": {
+      "bytes": 5858,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "./util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/pricing.js",
+          "kind": "import-statement",
+          "original": "./pricing.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/share-allocation.js": {
+      "bytes": 1533,
+      "imports": [],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/share-editor.js": {
+      "bytes": 8665,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "./util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/app-resources.js",
+          "kind": "import-statement",
+          "original": "./app-resources.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/share-allocation.js",
+          "kind": "import-statement",
+          "original": "./share-allocation.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/isolation-options.js": {
+      "bytes": 3875,
+      "imports": [],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/resource-plan.js": {
+      "bytes": 1912,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/pricing.js",
+          "kind": "import-statement",
+          "original": "./pricing.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/isolation-options.js",
+          "kind": "import-statement",
+          "original": "./isolation-options.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/resource-overview.js": {
+      "bytes": 4389,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "./util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/app-resources.js",
+          "kind": "import-statement",
+          "original": "./app-resources.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/resource-plan.js",
+          "kind": "import-statement",
+          "original": "./resource-plan.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/funding/state.js": {
+      "bytes": 29100,
+      "imports": [],
+      "format": "esm"
+    },
+    "source/enclave/site/js/funding/flows.js": {
+      "bytes": 11185,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/funding/state.js",
+          "kind": "import-statement",
+          "original": "./state.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/components/deployments/selfhost-gas-topup.js": {
+      "bytes": 26657,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/funding/state.js",
+          "kind": "dynamic-import",
+          "original": "../../js/funding/state.js"
+        },
+        {
+          "path": "source/enclave/site/js/funding/flows.js",
+          "kind": "dynamic-import",
+          "original": "../../js/funding/flows.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/session-funding.js": {
+      "bytes": 1916,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "./api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/sessions.js",
+          "kind": "import-statement",
+          "original": "./sessions.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "./util.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/deployment-move.js": {
+      "bytes": 2159,
+      "imports": [],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/placement-options.js": {
+      "bytes": 1486,
+      "imports": [],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/version-allocation.js": {
+      "bytes": 1704,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/pricing.js",
+          "kind": "import-statement",
+          "original": "./pricing.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/share-resize.js": {
+      "bytes": 4576,
+      "imports": [],
+      "format": "esm"
+    },
+    "source/enclave/site/vendor/custody.js": {
+      "bytes": 308748,
+      "imports": [],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/custody.js": {
+      "bytes": 4926,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/config.js",
+          "kind": "import-statement",
+          "original": "./config.js"
+        },
+        {
+          "path": "source/enclave/site/vendor/custody.js",
+          "kind": "dynamic-import",
+          "original": "../../vendor/custody.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/deploy-status.js": {
+      "bytes": 1434,
+      "imports": [],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/list-state.js": {
+      "bytes": 3039,
+      "imports": [],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/eip191.js": {
+      "bytes": 621,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/keccak.js",
+          "kind": "import-statement",
+          "original": "./keccak.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/network/canonical.mjs": {
+      "bytes": 698,
+      "imports": [],
+      "format": "esm"
+    },
+    "source/enclave/network/network-policy-core.mjs": {
+      "bytes": 4284,
+      "imports": [
+        {
+          "path": "source/enclave/network/canonical.mjs",
+          "kind": "import-statement",
+          "original": "./canonical.mjs"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/network/wg-config.mjs": {
+      "bytes": 8982,
+      "imports": [],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/enclave-network.js": {
+      "bytes": 23501,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "./api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/wallet.js",
+          "kind": "import-statement",
+          "original": "./wallet.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "import-statement",
+          "original": "./chain.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/config.js",
+          "kind": "import-statement",
+          "original": "./config.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/eip191.js",
+          "kind": "import-statement",
+          "original": "./eip191.js"
+        },
+        {
+          "path": "source/enclave/network/network-policy-core.mjs",
+          "kind": "import-statement",
+          "original": "../../../network/network-policy-core.mjs"
+        },
+        {
+          "path": "source/enclave/network/wg-config.mjs",
+          "kind": "import-statement",
+          "original": "../../../network/wg-config.mjs"
+        },
+        {
+          "path": "/vendor/webauthn.js",
+          "kind": "dynamic-import",
+          "external": true
+        },
+        {
+          "path": "/vendor/webauthn.js",
+          "kind": "dynamic-import",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/components/deployments/deployments.js": {
+      "bytes": 243139,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/lib/enclave-element.js",
+          "kind": "import-statement",
+          "original": "../../js/lib/enclave-element.js"
+        },
+        {
+          "path": "source/enclave/site/components/volume-picker/volume-picker.js",
+          "kind": "import-statement",
+          "original": "../volume-picker/volume-picker.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../../js/core/util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/config.js",
+          "kind": "import-statement",
+          "original": "../../js/core/config.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "../../js/core/api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/app-tls.js",
+          "kind": "import-statement",
+          "original": "../../js/core/app-tls.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "import-statement",
+          "original": "../../js/core/chain.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/wallet.js",
+          "kind": "import-statement",
+          "original": "../../js/core/wallet.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/catalog.js",
+          "kind": "import-statement",
+          "original": "../../js/core/catalog.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/app-resources.js",
+          "kind": "import-statement",
+          "original": "../../js/core/app-resources.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/pool-badges.js",
+          "kind": "import-statement",
+          "original": "../../js/core/pool-badges.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/share-editor.js",
+          "kind": "import-statement",
+          "original": "../../js/core/share-editor.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/resource-overview.js",
+          "kind": "import-statement",
+          "original": "../../js/core/resource-overview.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/verify.js",
+          "kind": "import-statement",
+          "original": "../../js/core/verify.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/runlog.js",
+          "kind": "import-statement",
+          "original": "../../js/core/runlog.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/fund.js",
+          "kind": "import-statement",
+          "original": "../../js/core/fund.js"
+        },
+        {
+          "path": "source/enclave/site/components/deployments/selfhost-gas-topup.js",
+          "kind": "import-statement",
+          "original": "./selfhost-gas-topup.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/session-funding.js",
+          "kind": "import-statement",
+          "original": "../../js/core/session-funding.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/deployment-move.js",
+          "kind": "import-statement",
+          "original": "../../js/core/deployment-move.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/isolation-options.js",
+          "kind": "import-statement",
+          "original": "../../js/core/isolation-options.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/placement-options.js",
+          "kind": "import-statement",
+          "original": "../../js/core/placement-options.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/version-allocation.js",
+          "kind": "import-statement",
+          "original": "../../js/core/version-allocation.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/share-resize.js",
+          "kind": "import-statement",
+          "original": "../../js/core/share-resize.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "import-statement",
+          "original": "../../js/core/chain.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/custody.js",
+          "kind": "import-statement",
+          "original": "../../js/core/custody.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/deploy-status.js",
+          "kind": "import-statement",
+          "original": "../../js/core/deploy-status.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/list-state.js",
+          "kind": "import-statement",
+          "original": "../../js/core/list-state.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/pricing.js",
+          "kind": "import-statement",
+          "original": "../../js/core/pricing.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/sessions.js",
+          "kind": "dynamic-import",
+          "original": "../../js/core/sessions.js"
+        },
+        {
+          "path": "source/enclave/site/js/pages/deploy.js",
+          "kind": "dynamic-import",
+          "original": "../../js/pages/deploy.js"
+        },
+        {
+          "path": "source/enclave/site/js/pages/deploy.js",
+          "kind": "dynamic-import",
+          "original": "../../js/pages/deploy.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/sessions.js",
+          "kind": "dynamic-import",
+          "original": "../../js/core/sessions.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/vault.js",
+          "kind": "dynamic-import",
+          "original": "../../js/core/vault.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/sessions.js",
+          "kind": "dynamic-import",
+          "original": "../../js/core/sessions.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/vault.js",
+          "kind": "dynamic-import",
+          "original": "../../js/core/vault.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/vault.js",
+          "kind": "dynamic-import",
+          "original": "../../js/core/vault.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/vault.js",
+          "kind": "dynamic-import",
+          "original": "../../js/core/vault.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/vault.js",
+          "kind": "dynamic-import",
+          "original": "../../js/core/vault.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/vault.js",
+          "kind": "dynamic-import",
+          "original": "../../js/core/vault.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/enclave-network.js",
+          "kind": "dynamic-import",
+          "original": "../../js/core/enclave-network.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/vault.js",
+          "kind": "dynamic-import",
+          "original": "../../js/core/vault.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/vault.js",
+          "kind": "dynamic-import",
+          "original": "../../js/core/vault.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/vault.js",
+          "kind": "dynamic-import",
+          "original": "../../js/core/vault.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/vault.js",
+          "kind": "dynamic-import",
+          "original": "../../js/core/vault.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/vault.js",
+          "kind": "dynamic-import",
+          "original": "../../js/core/vault.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/pages/deploy.js": {
+      "bytes": 38295,
+      "imports": [
+        {
+          "path": "source/enclave/site/components/deployments/deployments.js",
+          "kind": "import-statement",
+          "original": "../../components/deployments/deployments.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/runlog.js",
+          "kind": "import-statement",
+          "original": "../core/runlog.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/fund.js",
+          "kind": "import-statement",
+          "original": "../core/fund.js"
+        },
+        {
+          "path": "source/enclave/site/js/boot.js",
+          "kind": "import-statement",
+          "original": "../boot.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../core/util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/config.js",
+          "kind": "import-statement",
+          "original": "../core/config.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "../core/api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/vault.js",
+          "kind": "import-statement",
+          "original": "../core/vault.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/pricing.js",
+          "kind": "import-statement",
+          "original": "../core/pricing.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "import-statement",
+          "original": "../core/chain.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/wallet.js",
+          "kind": "import-statement",
+          "original": "../core/wallet.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/catalog.js",
+          "kind": "import-statement",
+          "original": "../core/catalog.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/pages/apps.js": {
+      "bytes": 114109,
+      "imports": [
+        {
+          "path": "source/enclave/site/components/header/header.js",
+          "kind": "import-statement",
+          "original": "../../components/header/header.js"
+        },
+        {
+          "path": "source/enclave/site/components/footer/footer.js",
+          "kind": "import-statement",
+          "original": "../../components/footer/footer.js"
+        },
+        {
+          "path": "source/enclave/site/components/toast/toast.js",
+          "kind": "import-statement",
+          "original": "../../components/toast/toast.js"
+        },
+        {
+          "path": "source/enclave/site/components/section-head/section-head.js",
+          "kind": "import-statement",
+          "original": "../../components/section-head/section-head.js"
+        },
+        {
+          "path": "source/enclave/site/components/app-card/app-card.js",
+          "kind": "import-statement",
+          "original": "../../components/app-card/app-card.js"
+        },
+        {
+          "path": "source/enclave/site/components/app-detail/app-detail.js",
+          "kind": "import-statement",
+          "original": "../../components/app-detail/app-detail.js"
+        },
+        {
+          "path": "source/enclave/site/components/app-reviews/app-reviews.js",
+          "kind": "import-statement",
+          "original": "../../components/app-reviews/app-reviews.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../core/util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/config.js",
+          "kind": "import-statement",
+          "original": "../core/config.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "../core/api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "import-statement",
+          "original": "../core/chain.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/featured.js",
+          "kind": "import-statement",
+          "original": "../core/featured.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/reviews.js",
+          "kind": "import-statement",
+          "original": "../core/reviews.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/fund.js",
+          "kind": "import-statement",
+          "original": "../core/fund.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/wallet.js",
+          "kind": "import-statement",
+          "original": "../core/wallet.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/catalog.js",
+          "kind": "import-statement",
+          "original": "../core/catalog.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/pricing.js",
+          "kind": "import-statement",
+          "original": "../core/pricing.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/app-resources.js",
+          "kind": "import-statement",
+          "original": "../core/app-resources.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/protection.js",
+          "kind": "import-statement",
+          "original": "../core/protection.js"
+        },
+        {
+          "path": "source/enclave/site/js/boot.js",
+          "kind": "import-statement",
+          "original": "../boot.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/vault.js",
+          "kind": "dynamic-import",
+          "original": "../core/vault.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/sessions.js",
+          "kind": "dynamic-import",
+          "original": "../core/sessions.js"
+        },
+        {
+          "path": "source/enclave/site/js/pages/deploy.js",
+          "kind": "dynamic-import",
+          "original": "./deploy.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/components/code-tabs/code-tabs.js": {
+      "bytes": 3037,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/lib/enclave-element.js",
+          "kind": "import-statement",
+          "original": "../../js/lib/enclave-element.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/components/api-reference/api-reference.js": {
+      "bytes": 16735,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/lib/enclave-element.js",
+          "kind": "import-statement",
+          "original": "../../js/lib/enclave-element.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../../js/core/util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "../../js/core/api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/spec.js",
+          "kind": "import-statement",
+          "original": "../../js/core/spec.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/components/fleet-list/fleet-list.js": {
+      "bytes": 42434,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/lib/enclave-element.js",
+          "kind": "import-statement",
+          "original": "../../js/lib/enclave-element.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../../js/core/util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/list-state.js",
+          "kind": "import-statement",
+          "original": "../../js/core/list-state.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/reviews.js",
+          "kind": "import-statement",
+          "original": "../../js/core/reviews.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "import-statement",
+          "original": "../../js/core/chain.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/config.js",
+          "kind": "import-statement",
+          "original": "../../js/core/config.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "../../js/core/api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/wallet.js",
+          "kind": "import-statement",
+          "original": "../../js/core/wallet.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/pricing.js",
+          "kind": "import-statement",
+          "original": "../../js/core/pricing.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/config.js",
+          "kind": "import-statement",
+          "original": "../../js/core/config.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "import-statement",
+          "original": "../../js/core/chain.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/pool-badges.js",
+          "kind": "import-statement",
+          "original": "../../js/core/pool-badges.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/verify.js",
+          "kind": "import-statement",
+          "original": "../../js/core/verify.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/fleet-read.js": {
+      "bytes": 1938,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/list-state.js",
+          "kind": "import-statement",
+          "original": "./list-state.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/pages/architecture.js": {
+      "bytes": 1675,
+      "imports": [
+        {
+          "path": "source/enclave/site/components/header/header.js",
+          "kind": "import-statement",
+          "original": "../../components/header/header.js"
+        },
+        {
+          "path": "source/enclave/site/components/footer/footer.js",
+          "kind": "import-statement",
+          "original": "../../components/footer/footer.js"
+        },
+        {
+          "path": "source/enclave/site/components/toast/toast.js",
+          "kind": "import-statement",
+          "original": "../../components/toast/toast.js"
+        },
+        {
+          "path": "source/enclave/site/components/section-head/section-head.js",
+          "kind": "import-statement",
+          "original": "../../components/section-head/section-head.js"
+        },
+        {
+          "path": "source/enclave/site/components/fleet-list/fleet-list.js",
+          "kind": "import-statement",
+          "original": "../../components/fleet-list/fleet-list.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "../core/api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/fleet-read.js",
+          "kind": "import-statement",
+          "original": "../core/fleet-read.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/pages/develop.js": {
+      "bytes": 6463,
+      "imports": [
+        {
+          "path": "source/enclave/site/components/header/header.js",
+          "kind": "import-statement",
+          "original": "../../components/header/header.js"
+        },
+        {
+          "path": "source/enclave/site/components/footer/footer.js",
+          "kind": "import-statement",
+          "original": "../../components/footer/footer.js"
+        },
+        {
+          "path": "source/enclave/site/components/toast/toast.js",
+          "kind": "import-statement",
+          "original": "../../components/toast/toast.js"
+        },
+        {
+          "path": "source/enclave/site/components/section-head/section-head.js",
+          "kind": "import-statement",
+          "original": "../../components/section-head/section-head.js"
+        },
+        {
+          "path": "source/enclave/site/components/code/code.js",
+          "kind": "import-statement",
+          "original": "../../components/code/code.js"
+        },
+        {
+          "path": "source/enclave/site/components/code-tabs/code-tabs.js",
+          "kind": "import-statement",
+          "original": "../../components/code-tabs/code-tabs.js"
+        },
+        {
+          "path": "source/enclave/site/components/api-reference/api-reference.js",
+          "kind": "import-statement",
+          "original": "../../components/api-reference/api-reference.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../core/util.js"
+        },
+        {
+          "path": "source/enclave/site/components/footer/footer.js",
+          "kind": "import-statement",
+          "original": "../../components/footer/footer.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/live-prices.js",
+          "kind": "import-statement",
+          "original": "../core/live-prices.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/live-specs.js",
+          "kind": "import-statement",
+          "original": "../core/live-specs.js"
+        },
+        {
+          "path": "source/enclave/site/js/pages/architecture.js",
+          "kind": "import-statement",
+          "original": "./architecture.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/pages/dashboard.js": {
+      "bytes": 3497,
+      "imports": [
+        {
+          "path": "source/enclave/site/components/header/header.js",
+          "kind": "import-statement",
+          "original": "../../components/header/header.js"
+        },
+        {
+          "path": "source/enclave/site/components/footer/footer.js",
+          "kind": "import-statement",
+          "original": "../../components/footer/footer.js"
+        },
+        {
+          "path": "source/enclave/site/components/toast/toast.js",
+          "kind": "import-statement",
+          "original": "../../components/toast/toast.js"
+        },
+        {
+          "path": "source/enclave/site/components/section-head/section-head.js",
+          "kind": "import-statement",
+          "original": "../../components/section-head/section-head.js"
+        },
+        {
+          "path": "source/enclave/site/components/deployments/deployments.js",
+          "kind": "import-statement",
+          "original": "../../components/deployments/deployments.js"
+        },
+        {
+          "path": "source/enclave/site/components/fleet-list/fleet-list.js",
+          "kind": "import-statement",
+          "original": "../../components/fleet-list/fleet-list.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../core/util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/config.js",
+          "kind": "import-statement",
+          "original": "../core/config.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "import-statement",
+          "original": "../core/chain.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "../core/api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/fleet-read.js",
+          "kind": "import-statement",
+          "original": "../core/fleet-read.js"
+        },
+        {
+          "path": "source/enclave/site/js/boot.js",
+          "kind": "import-statement",
+          "original": "../boot.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/lib/contract-linker.js": {
+      "bytes": 1324,
+      "imports": [],
+      "format": "esm"
+    },
+    "source/enclave/site/js/gen/contract-artifacts.js": {
+      "bytes": 326917,
+      "imports": [],
+      "format": "esm"
+    },
+    "source/enclave/site/components/admin-console/migrate.js": {
+      "bytes": 51375,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "import-statement",
+          "original": "../../js/core/chain.js"
+        },
+        {
+          "path": "source/enclave/site/js/gen/contract-artifacts.js",
+          "kind": "import-statement",
+          "original": "../../js/gen/contract-artifacts.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/components/admin-console/vaultmig.js": {
+      "bytes": 10433,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "import-statement",
+          "original": "../../js/core/chain.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/config.js",
+          "kind": "import-statement",
+          "original": "../../js/core/config.js"
+        },
+        {
+          "path": "source/enclave/site/js/gen/contract-artifacts.js",
+          "kind": "import-statement",
+          "original": "../../js/gen/contract-artifacts.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/components/admin-console/provermig.js": {
+      "bytes": 11915,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "import-statement",
+          "original": "../../js/core/chain.js"
+        },
+        {
+          "path": "source/enclave/site/js/gen/contract-artifacts.js",
+          "kind": "import-statement",
+          "original": "../../js/gen/contract-artifacts.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/components/admin-console/escrow.js": {
+      "bytes": 6715,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "import-statement",
+          "original": "../../js/core/chain.js"
+        },
+        {
+          "path": "source/enclave/site/js/gen/contract-artifacts.js",
+          "kind": "import-statement",
+          "original": "../../js/gen/contract-artifacts.js"
+        },
+        {
+          "path": "source/enclave/site/components/admin-console/migrate.js",
+          "kind": "import-statement",
+          "original": "./migrate.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/components/admin-console/metrics.js": {
+      "bytes": 35030,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "import-statement",
+          "original": "../../js/core/chain.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/keccak.js",
+          "kind": "import-statement",
+          "original": "../../js/core/keccak.js"
+        },
+        {
+          "path": "source/enclave/site/js/gen/contract-artifacts.js",
+          "kind": "import-statement",
+          "original": "../../js/gen/contract-artifacts.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../../js/core/util.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "../../../enclave/node_modules/@noble/hashes/esm/crypto.js": {
+      "bytes": 146,
+      "imports": [],
+      "format": "esm"
+    },
+    "../../../enclave/node_modules/@noble/hashes/esm/utils.js": {
+      "bytes": 10538,
+      "imports": [
+        {
+          "path": "../../../enclave/node_modules/@noble/hashes/esm/crypto.js",
+          "kind": "import-statement",
+          "original": "@noble/hashes/crypto"
+        }
+      ],
+      "format": "esm"
+    },
+    "../../../enclave/node_modules/@noble/hashes/esm/_md.js": {
+      "bytes": 6192,
+      "imports": [
+        {
+          "path": "../../../enclave/node_modules/@noble/hashes/esm/utils.js",
+          "kind": "import-statement",
+          "original": "./utils.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "../../../enclave/node_modules/@noble/hashes/esm/_u64.js": {
+      "bytes": 3081,
+      "imports": [],
+      "format": "esm"
+    },
+    "../../../enclave/node_modules/@noble/hashes/esm/sha2.js": {
+      "bytes": 16832,
+      "imports": [
+        {
+          "path": "../../../enclave/node_modules/@noble/hashes/esm/_md.js",
+          "kind": "import-statement",
+          "original": "./_md.js"
+        },
+        {
+          "path": "../../../enclave/node_modules/@noble/hashes/esm/_u64.js",
+          "kind": "import-statement",
+          "original": "./_u64.js"
+        },
+        {
+          "path": "../../../enclave/node_modules/@noble/hashes/esm/utils.js",
+          "kind": "import-statement",
+          "original": "./utils.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "../../../enclave/node_modules/@noble/hashes/esm/hmac.js": {
+      "bytes": 2962,
+      "imports": [
+        {
+          "path": "../../../enclave/node_modules/@noble/hashes/esm/utils.js",
+          "kind": "import-statement",
+          "original": "./utils.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "../../../enclave/node_modules/@noble/curves/esm/abstract/utils.js": {
+      "bytes": 12626,
+      "imports": [],
+      "format": "esm"
+    },
+    "../../../enclave/node_modules/@noble/curves/esm/abstract/modular.js": {
+      "bytes": 18279,
+      "imports": [
+        {
+          "path": "../../../enclave/node_modules/@noble/hashes/esm/utils.js",
+          "kind": "import-statement",
+          "original": "@noble/hashes/utils"
+        },
+        {
+          "path": "../../../enclave/node_modules/@noble/curves/esm/abstract/utils.js",
+          "kind": "import-statement",
+          "original": "./utils.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "../../../enclave/node_modules/@noble/curves/esm/abstract/curve.js": {
+      "bytes": 16444,
+      "imports": [
+        {
+          "path": "../../../enclave/node_modules/@noble/curves/esm/abstract/modular.js",
+          "kind": "import-statement",
+          "original": "./modular.js"
+        },
+        {
+          "path": "../../../enclave/node_modules/@noble/curves/esm/abstract/utils.js",
+          "kind": "import-statement",
+          "original": "./utils.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "../../../enclave/node_modules/@noble/curves/esm/abstract/weierstrass.js": {
+      "bytes": 52500,
+      "imports": [
+        {
+          "path": "../../../enclave/node_modules/@noble/curves/esm/abstract/curve.js",
+          "kind": "import-statement",
+          "original": "./curve.js"
+        },
+        {
+          "path": "../../../enclave/node_modules/@noble/curves/esm/abstract/modular.js",
+          "kind": "import-statement",
+          "original": "./modular.js"
+        },
+        {
+          "path": "../../../enclave/node_modules/@noble/curves/esm/abstract/utils.js",
+          "kind": "import-statement",
+          "original": "./utils.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "../../../enclave/node_modules/@noble/curves/esm/_shortw_utils.js": {
+      "bytes": 742,
+      "imports": [
+        {
+          "path": "../../../enclave/node_modules/@noble/hashes/esm/hmac.js",
+          "kind": "import-statement",
+          "original": "@noble/hashes/hmac"
+        },
+        {
+          "path": "../../../enclave/node_modules/@noble/hashes/esm/utils.js",
+          "kind": "import-statement",
+          "original": "@noble/hashes/utils"
+        },
+        {
+          "path": "../../../enclave/node_modules/@noble/curves/esm/abstract/weierstrass.js",
+          "kind": "import-statement",
+          "original": "./abstract/weierstrass.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "../../../enclave/node_modules/@noble/curves/esm/abstract/hash-to-curve.js": {
+      "bytes": 7543,
+      "imports": [
+        {
+          "path": "../../../enclave/node_modules/@noble/curves/esm/abstract/modular.js",
+          "kind": "import-statement",
+          "original": "./modular.js"
+        },
+        {
+          "path": "../../../enclave/node_modules/@noble/curves/esm/abstract/utils.js",
+          "kind": "import-statement",
+          "original": "./utils.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "../../../enclave/node_modules/@noble/curves/esm/secp256k1.js": {
+      "bytes": 12723,
+      "imports": [
+        {
+          "path": "../../../enclave/node_modules/@noble/hashes/esm/sha2.js",
+          "kind": "import-statement",
+          "original": "@noble/hashes/sha2"
+        },
+        {
+          "path": "../../../enclave/node_modules/@noble/hashes/esm/utils.js",
+          "kind": "import-statement",
+          "original": "@noble/hashes/utils"
+        },
+        {
+          "path": "../../../enclave/node_modules/@noble/curves/esm/_shortw_utils.js",
+          "kind": "import-statement",
+          "original": "./_shortw_utils.js"
+        },
+        {
+          "path": "../../../enclave/node_modules/@noble/curves/esm/abstract/hash-to-curve.js",
+          "kind": "import-statement",
+          "original": "./abstract/hash-to-curve.js"
+        },
+        {
+          "path": "../../../enclave/node_modules/@noble/curves/esm/abstract/modular.js",
+          "kind": "import-statement",
+          "original": "./abstract/modular.js"
+        },
+        {
+          "path": "../../../enclave/node_modules/@noble/curves/esm/abstract/utils.js",
+          "kind": "import-statement",
+          "original": "./abstract/utils.js"
+        },
+        {
+          "path": "../../../enclave/node_modules/@noble/curves/esm/abstract/weierstrass.js",
+          "kind": "import-statement",
+          "original": "./abstract/weierstrass.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "../../../enclave/node_modules/@noble/hashes/esm/sha3.js": {
+      "bytes": 8770,
+      "imports": [
+        {
+          "path": "../../../enclave/node_modules/@noble/hashes/esm/_u64.js",
+          "kind": "import-statement",
+          "original": "./_u64.js"
+        },
+        {
+          "path": "../../../enclave/node_modules/@noble/hashes/esm/utils.js",
+          "kind": "import-statement",
+          "original": "./utils.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/components/admin-console/migrator.js": {
+      "bytes": 9793,
+      "imports": [
+        {
+          "path": "../../../enclave/node_modules/@noble/curves/esm/secp256k1.js",
+          "kind": "import-statement",
+          "original": "@noble/curves/secp256k1"
+        },
+        {
+          "path": "../../../enclave/node_modules/@noble/hashes/esm/sha3.js",
+          "kind": "import-statement",
+          "original": "@noble/hashes/sha3"
+        },
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "import-statement",
+          "original": "../../js/core/chain.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/wallet.js",
+          "kind": "import-statement",
+          "original": "../../js/core/wallet.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/config.js",
+          "kind": "import-statement",
+          "original": "../../js/core/config.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "../../js/core/api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "../../js/core/api.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/components/admin-console/admin-console.js": {
+      "bytes": 146505,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/lib/contract-linker.js",
+          "kind": "import-statement",
+          "original": "../../js/lib/contract-linker.js"
+        },
+        {
+          "path": "source/enclave/site/js/lib/enclave-element.js",
+          "kind": "import-statement",
+          "original": "../../js/lib/enclave-element.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "../../js/core/api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/wallet.js",
+          "kind": "import-statement",
+          "original": "../../js/core/wallet.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/chain.js",
+          "kind": "import-statement",
+          "original": "../../js/core/chain.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/config.js",
+          "kind": "import-statement",
+          "original": "../../js/core/config.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../../js/core/util.js"
+        },
+        {
+          "path": "source/enclave/site/js/gen/contract-artifacts.js",
+          "kind": "import-statement",
+          "original": "../../js/gen/contract-artifacts.js"
+        },
+        {
+          "path": "source/enclave/site/components/admin-console/migrate.js",
+          "kind": "import-statement",
+          "original": "./migrate.js"
+        },
+        {
+          "path": "source/enclave/site/components/admin-console/vaultmig.js",
+          "kind": "import-statement",
+          "original": "./vaultmig.js"
+        },
+        {
+          "path": "source/enclave/site/components/admin-console/provermig.js",
+          "kind": "import-statement",
+          "original": "./provermig.js"
+        },
+        {
+          "path": "source/enclave/site/components/admin-console/escrow.js",
+          "kind": "import-statement",
+          "original": "./escrow.js"
+        },
+        {
+          "path": "source/enclave/site/components/admin-console/metrics.js",
+          "kind": "import-statement",
+          "original": "./metrics.js"
+        },
+        {
+          "path": "source/enclave/site/components/admin-console/migrator.js",
+          "kind": "dynamic-import",
+          "original": "./migrator.js"
+        },
+        {
+          "path": "source/enclave/site/components/admin-console/migrator.js",
+          "kind": "dynamic-import",
+          "original": "./migrator.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/pages/admin.js": {
+      "bytes": 423,
+      "imports": [
+        {
+          "path": "source/enclave/site/components/header/header.js",
+          "kind": "import-statement",
+          "original": "../../components/header/header.js"
+        },
+        {
+          "path": "source/enclave/site/components/footer/footer.js",
+          "kind": "import-statement",
+          "original": "../../components/footer/footer.js"
+        },
+        {
+          "path": "source/enclave/site/components/toast/toast.js",
+          "kind": "import-statement",
+          "original": "../../components/toast/toast.js"
+        },
+        {
+          "path": "source/enclave/site/components/admin-console/admin-console.js",
+          "kind": "import-statement",
+          "original": "../../components/admin-console/admin-console.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/pages/terms.js": {
+      "bytes": 639,
+      "imports": [
+        {
+          "path": "source/enclave/site/components/header/header.js",
+          "kind": "import-statement",
+          "original": "../../components/header/header.js"
+        },
+        {
+          "path": "source/enclave/site/components/footer/footer.js",
+          "kind": "import-statement",
+          "original": "../../components/footer/footer.js"
+        },
+        {
+          "path": "source/enclave/site/components/toast/toast.js",
+          "kind": "import-statement",
+          "original": "../../components/toast/toast.js"
+        },
+        {
+          "path": "source/enclave/site/components/section-head/section-head.js",
+          "kind": "import-statement",
+          "original": "../../components/section-head/section-head.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/pages/privacy.js": {
+      "bytes": 568,
+      "imports": [
+        {
+          "path": "source/enclave/site/components/header/header.js",
+          "kind": "import-statement",
+          "original": "../../components/header/header.js"
+        },
+        {
+          "path": "source/enclave/site/components/footer/footer.js",
+          "kind": "import-statement",
+          "original": "../../components/footer/footer.js"
+        },
+        {
+          "path": "source/enclave/site/components/toast/toast.js",
+          "kind": "import-statement",
+          "original": "../../components/toast/toast.js"
+        },
+        {
+          "path": "source/enclave/site/components/section-head/section-head.js",
+          "kind": "import-statement",
+          "original": "../../components/section-head/section-head.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/components/order-status/order-status.js": {
+      "bytes": 5361,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/lib/enclave-element.js",
+          "kind": "import-statement",
+          "original": "../../js/lib/enclave-element.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "../../js/core/api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../../js/core/util.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/pages/checkout.js": {
+      "bytes": 4796,
+      "imports": [
+        {
+          "path": "source/enclave/site/components/header/header.js",
+          "kind": "import-statement",
+          "original": "../../components/header/header.js"
+        },
+        {
+          "path": "source/enclave/site/components/footer/footer.js",
+          "kind": "import-statement",
+          "original": "../../components/footer/footer.js"
+        },
+        {
+          "path": "source/enclave/site/components/toast/toast.js",
+          "kind": "import-statement",
+          "original": "../../components/toast/toast.js"
+        },
+        {
+          "path": "source/enclave/site/components/section-head/section-head.js",
+          "kind": "import-statement",
+          "original": "../../components/section-head/section-head.js"
+        },
+        {
+          "path": "source/enclave/site/components/order-status/order-status.js",
+          "kind": "import-statement",
+          "original": "../../components/order-status/order-status.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/config.js",
+          "kind": "import-statement",
+          "original": "../core/config.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "../core/api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../core/util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/account.js",
+          "kind": "import-statement",
+          "original": "../core/account.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/vault.js",
+          "kind": "import-statement",
+          "original": "../core/vault.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/pages/link.js": {
+      "bytes": 6356,
+      "imports": [
+        {
+          "path": "source/enclave/site/components/header/header.js",
+          "kind": "import-statement",
+          "original": "../../components/header/header.js"
+        },
+        {
+          "path": "source/enclave/site/components/footer/footer.js",
+          "kind": "import-statement",
+          "original": "../../components/footer/footer.js"
+        },
+        {
+          "path": "source/enclave/site/components/toast/toast.js",
+          "kind": "import-statement",
+          "original": "../../components/toast/toast.js"
+        },
+        {
+          "path": "source/enclave/site/components/section-head/section-head.js",
+          "kind": "import-statement",
+          "original": "../../components/section-head/section-head.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/config.js",
+          "kind": "import-statement",
+          "original": "../core/config.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "../core/api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../core/util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/account.js",
+          "kind": "import-statement",
+          "original": "../core/account.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/pages/authorize.js": {
+      "bytes": 8566,
+      "imports": [
+        {
+          "path": "source/enclave/site/components/header/header.js",
+          "kind": "import-statement",
+          "original": "../../components/header/header.js"
+        },
+        {
+          "path": "source/enclave/site/components/footer/footer.js",
+          "kind": "import-statement",
+          "original": "../../components/footer/footer.js"
+        },
+        {
+          "path": "source/enclave/site/components/toast/toast.js",
+          "kind": "import-statement",
+          "original": "../../components/toast/toast.js"
+        },
+        {
+          "path": "source/enclave/site/components/section-head/section-head.js",
+          "kind": "import-statement",
+          "original": "../../components/section-head/section-head.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "../core/api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../core/util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/wallet.js",
+          "kind": "import-statement",
+          "original": "../core/wallet.js"
+        },
+        {
+          "path": "source/enclave/site/components/deployments/deployments.js",
+          "kind": "import-statement",
+          "original": "../../components/deployments/deployments.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/sessions.js",
+          "kind": "dynamic-import",
+          "original": "../core/sessions.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/pages/host.js": {
+      "bytes": 2180,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "../core/api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/fleet-read.js",
+          "kind": "import-statement",
+          "original": "../core/fleet-read.js"
+        },
+        {
+          "path": "source/enclave/site/components/fleet-list/fleet-list.js",
+          "kind": "import-statement",
+          "original": "../../components/fleet-list/fleet-list.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/pages/sso-authorize.js": {
+      "bytes": 9916,
+      "imports": [
+        {
+          "path": "source/enclave/site/components/header/header.js",
+          "kind": "import-statement",
+          "original": "../../components/header/header.js"
+        },
+        {
+          "path": "source/enclave/site/components/footer/footer.js",
+          "kind": "import-statement",
+          "original": "../../components/footer/footer.js"
+        },
+        {
+          "path": "source/enclave/site/components/toast/toast.js",
+          "kind": "import-statement",
+          "original": "../../components/toast/toast.js"
+        },
+        {
+          "path": "source/enclave/site/components/section-head/section-head.js",
+          "kind": "import-statement",
+          "original": "../../components/section-head/section-head.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "../core/api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/config.js",
+          "kind": "import-statement",
+          "original": "../core/config.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../core/util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/account.js",
+          "kind": "import-statement",
+          "original": "../core/account.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/pages/grant.js": {
+      "bytes": 6675,
+      "imports": [
+        {
+          "path": "source/enclave/site/components/header/header.js",
+          "kind": "import-statement",
+          "original": "../../components/header/header.js"
+        },
+        {
+          "path": "source/enclave/site/components/footer/footer.js",
+          "kind": "import-statement",
+          "original": "../../components/footer/footer.js"
+        },
+        {
+          "path": "source/enclave/site/components/toast/toast.js",
+          "kind": "import-statement",
+          "original": "../../components/toast/toast.js"
+        },
+        {
+          "path": "source/enclave/site/components/section-head/section-head.js",
+          "kind": "import-statement",
+          "original": "../../components/section-head/section-head.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "../core/api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/wallet.js",
+          "kind": "import-statement",
+          "original": "../core/wallet.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../core/util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/sessions.js",
+          "kind": "import-statement",
+          "original": "../core/sessions.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/wallet-release-chain.js": {
+      "bytes": 28324,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/keccak.js",
+          "kind": "import-statement",
+          "original": "./keccak.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/wallet-release-census.js": {
+      "bytes": 38878,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/keccak.js",
+          "kind": "import-statement",
+          "original": "./keccak.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/wallet-release-chain.js",
+          "kind": "import-statement",
+          "original": "./wallet-release-chain.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/wallet-release-store.js": {
+      "bytes": 8276,
+      "imports": [],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/wallet-release-controller.js": {
+      "bytes": 15326,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/wallet-release-chain.js",
+          "kind": "import-statement",
+          "original": "./wallet-release-chain.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/wallet-release-census.js",
+          "kind": "import-statement",
+          "original": "./wallet-release-census.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/wallet-release-store.js",
+          "kind": "import-statement",
+          "original": "./wallet-release-store.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/keccak.js",
+          "kind": "import-statement",
+          "original": "./keccak.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/core/wallet-release-view.js": {
+      "bytes": 12063,
+      "imports": [
+        {
+          "path": "source/enclave/site/js/core/wallet-release-controller.js",
+          "kind": "import-statement",
+          "original": "./wallet-release-controller.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/wallet-release-chain.js",
+          "kind": "import-statement",
+          "original": "./wallet-release-chain.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/wallet-release-store.js",
+          "kind": "import-statement",
+          "original": "./wallet-release-store.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/wallet-release-census.js",
+          "kind": "import-statement",
+          "original": "./wallet-release-census.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/pages/sessions.js": {
+      "bytes": 17901,
+      "imports": [
+        {
+          "path": "source/enclave/site/components/header/header.js",
+          "kind": "import-statement",
+          "original": "../../components/header/header.js"
+        },
+        {
+          "path": "source/enclave/site/components/footer/footer.js",
+          "kind": "import-statement",
+          "original": "../../components/footer/footer.js"
+        },
+        {
+          "path": "source/enclave/site/components/toast/toast.js",
+          "kind": "import-statement",
+          "original": "../../components/toast/toast.js"
+        },
+        {
+          "path": "source/enclave/site/components/section-head/section-head.js",
+          "kind": "import-statement",
+          "original": "../../components/section-head/section-head.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/api.js",
+          "kind": "import-statement",
+          "original": "../core/api.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/wallet.js",
+          "kind": "import-statement",
+          "original": "../core/wallet.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/util.js",
+          "kind": "import-statement",
+          "original": "../core/util.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/sessions.js",
+          "kind": "import-statement",
+          "original": "../core/sessions.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/wallet-release-view.js",
+          "kind": "import-statement",
+          "original": "../core/wallet-release-view.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/sessions.js",
+          "kind": "dynamic-import",
+          "original": "../core/sessions.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "source/enclave/site/js/boot.js": {
+      "bytes": 13389,
+      "imports": [
+        {
+          "path": "source/enclave/site/components/code/code.js",
+          "kind": "import-statement",
+          "original": "../components/code/code.js"
+        },
+        {
+          "path": "source/enclave/site/components/cinematic-scene/cinematic-scene.js",
+          "kind": "import-statement",
+          "original": "../components/cinematic-scene/cinematic-scene.js"
+        },
+        {
+          "path": "source/enclave/site/js/hex-background.js",
+          "kind": "import-statement",
+          "original": "./hex-background.js"
+        },
+        {
+          "path": "source/enclave/site/js/core/addressbook.js",
+          "kind": "import-statement",
+          "original": "./core/addressbook.js"
+        },
+        {
+          "path": "source/enclave/site/js/pages/overview.js",
+          "kind": "dynamic-import",
+          "original": "./pages/overview.js"
+        },
+        {
+          "path": "source/enclave/site/js/pages/apps.js",
+          "kind": "dynamic-import",
+          "original": "./pages/apps.js"
+        },
+        {
+          "path": "source/enclave/site/js/pages/develop.js",
+          "kind": "dynamic-import",
+          "original": "./pages/develop.js"
+        },
+        {
+          "path": "source/enclave/site/js/pages/dashboard.js",
+          "kind": "dynamic-import",
+          "original": "./pages/dashboard.js"
+        },
+        {
+          "path": "source/enclave/site/js/pages/admin.js",
+          "kind": "dynamic-import",
+          "original": "./pages/admin.js"
+        },
+        {
+          "path": "source/enclave/site/js/pages/terms.js",
+          "kind": "dynamic-import",
+          "original": "./pages/terms.js"
+        },
+        {
+          "path": "source/enclave/site/js/pages/privacy.js",
+          "kind": "dynamic-import",
+          "original": "./pages/privacy.js"
+        },
+        {
+          "path": "source/enclave/site/js/pages/checkout.js",
+          "kind": "dynamic-import",
+          "original": "./pages/checkout.js"
+        },
+        {
+          "path": "source/enclave/site/js/pages/link.js",
+          "kind": "dynamic-import",
+          "original": "./pages/link.js"
+        },
+        {
+          "path": "source/enclave/site/js/pages/authorize.js",
+          "kind": "dynamic-import",
+          "original": "./pages/authorize.js"
+        },
+        {
+          "path": "source/enclave/site/js/pages/host.js",
+          "kind": "dynamic-import",
+          "original": "./pages/host.js"
+        },
+        {
+          "path": "source/enclave/site/js/pages/architecture.js",
+          "kind": "dynamic-import",
+          "original": "./pages/architecture.js"
+        },
+        {
+          "path": "source/enclave/site/js/pages/sso-authorize.js",
+          "kind": "dynamic-import",
+          "original": "./pages/sso-authorize.js"
+        },
+        {
+          "path": "source/enclave/site/js/pages/grant.js",
+          "kind": "dynamic-import",
+          "original": "./pages/grant.js"
+        },
+        {
+          "path": "source/enclave/site/js/pages/sessions.js",
+          "kind": "dynamic-import",
+          "original": "./pages/sessions.js"
+        }
+      ],
+      "format": "esm"
+    }
+  },
+  "outputs": {
+    "build/js/chunks/sso-authorize-OTSPRMHG.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 13715
+    },
+    "build/js/chunks/sso-authorize-OTSPRMHG.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-YUH3T3EL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TDHNED77.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-SSBE5LNP.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TUEG6NQU.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-EWXR7LNF.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-MR3EHJCJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [],
+      "entryPoint": "source/enclave/site/js/pages/sso-authorize.js",
+      "inputs": {
+        "source/enclave/site/js/pages/sso-authorize.js": {
+          "bytesInOutput": 3049
+        }
+      },
+      "bytes": 3424
+    },
+    "build/js/chunks/grant-3CVOLMYT.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 10483
+    },
+    "build/js/chunks/grant-3CVOLMYT.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-G5XKDDPE.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-YUH3T3EL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TDHNED77.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-SSBE5LNP.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TUEG6NQU.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-EWXR7LNF.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-MR3EHJCJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "boot"
+      ],
+      "entryPoint": "source/enclave/site/js/pages/grant.js",
+      "inputs": {
+        "source/enclave/site/js/pages/grant.js": {
+          "bytesInOutput": 4398
+        }
+      },
+      "bytes": 4823
+    },
+    "build/js/chunks/sessions-QSQOKPBS.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 206687
+    },
+    "build/js/chunks/sessions-QSQOKPBS.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-BZAYRBXH.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-G5XKDDPE.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-YUH3T3EL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TDHNED77.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-SSBE5LNP.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TUEG6NQU.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-EWXR7LNF.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-MR3EHJCJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/sessions-3YDUWT65.js",
+          "kind": "dynamic-import"
+        }
+      ],
+      "exports": [
+        "boot"
+      ],
+      "entryPoint": "source/enclave/site/js/pages/sessions.js",
+      "inputs": {
+        "source/enclave/site/js/core/wallet-release-chain.js": {
+          "bytesInOutput": 17812
+        },
+        "source/enclave/site/js/core/wallet-release-census.js": {
+          "bytesInOutput": 24260
+        },
+        "source/enclave/site/js/core/wallet-release-store.js": {
+          "bytesInOutput": 3673
+        },
+        "source/enclave/site/js/core/wallet-release-controller.js": {
+          "bytesInOutput": 8080
+        },
+        "source/enclave/site/js/core/wallet-release-view.js": {
+          "bytesInOutput": 7624
+        },
+        "source/enclave/site/js/pages/sessions.js": {
+          "bytesInOutput": 11550
+        }
+      },
+      "bytes": 73564
+    },
+    "build/js/chunks/migrator-PCA2AIC2.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 261605
+    },
+    "build/js/chunks/migrator-PCA2AIC2.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-MR3EHJCJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "DERIVE_MSG",
+        "MAX_TX_GAS",
+        "deriveMigrator",
+        "feeData",
+        "gasFor",
+        "migratorBalance",
+        "migratorNonce",
+        "runCost",
+        "sweepTo",
+        "waitMined"
+      ],
+      "entryPoint": "source/enclave/site/components/admin-console/migrator.js",
+      "inputs": {
+        "../../../enclave/node_modules/@noble/hashes/esm/crypto.js": {
+          "bytesInOutput": 83
+        },
+        "../../../enclave/node_modules/@noble/hashes/esm/utils.js": {
+          "bytesInOutput": 2075
+        },
+        "../../../enclave/node_modules/@noble/hashes/esm/_md.js": {
+          "bytesInOutput": 1815
+        },
+        "../../../enclave/node_modules/@noble/hashes/esm/_u64.js": {
+          "bytesInOutput": 411
+        },
+        "../../../enclave/node_modules/@noble/hashes/esm/sha2.js": {
+          "bytesInOutput": 1700
+        },
+        "../../../enclave/node_modules/@noble/hashes/esm/hmac.js": {
+          "bytesInOutput": 1256
+        },
+        "../../../enclave/node_modules/@noble/curves/esm/abstract/utils.js": {
+          "bytesInOutput": 3812
+        },
+        "../../../enclave/node_modules/@noble/curves/esm/abstract/modular.js": {
+          "bytesInOutput": 3907
+        },
+        "../../../enclave/node_modules/@noble/curves/esm/abstract/curve.js": {
+          "bytesInOutput": 2782
+        },
+        "../../../enclave/node_modules/@noble/curves/esm/abstract/weierstrass.js": {
+          "bytesInOutput": 13607
+        },
+        "../../../enclave/node_modules/@noble/curves/esm/_shortw_utils.js": {
+          "bytesInOutput": 148
+        },
+        "../../../enclave/node_modules/@noble/curves/esm/secp256k1.js": {
+          "bytesInOutput": 1400
+        },
+        "../../../enclave/node_modules/@noble/hashes/esm/sha3.js": {
+          "bytesInOutput": 2788
+        },
+        "source/enclave/site/components/admin-console/migrator.js": {
+          "bytesInOutput": 3088
+        }
+      },
+      "bytes": 39703
+    },
+    "build/js/chunks/admin-ZUHIZNRQ.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 747962
+    },
+    "build/js/chunks/admin-ZUHIZNRQ.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-BZAYRBXH.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TDHNED77.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-SSBE5LNP.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TUEG6NQU.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-EWXR7LNF.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-MR3EHJCJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/migrator-PCA2AIC2.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/migrator-PCA2AIC2.js",
+          "kind": "dynamic-import"
+        }
+      ],
+      "exports": [
+        "boot"
+      ],
+      "entryPoint": "source/enclave/site/js/pages/admin.js",
+      "inputs": {
+        "source/enclave/site/js/lib/contract-linker.js": {
+          "bytesInOutput": 705
+        },
+        "source/enclave/site/js/gen/contract-artifacts.js": {
+          "bytesInOutput": 319268
+        },
+        "source/enclave/site/components/admin-console/migrate.js": {
+          "bytesInOutput": 14393
+        },
+        "source/enclave/site/components/admin-console/vaultmig.js": {
+          "bytesInOutput": 3591
+        },
+        "source/enclave/site/components/admin-console/provermig.js": {
+          "bytesInOutput": 5888
+        },
+        "source/enclave/site/components/admin-console/escrow.js": {
+          "bytesInOutput": 2112
+        },
+        "source/enclave/site/components/admin-console/metrics.js": {
+          "bytesInOutput": 19054
+        },
+        "source/enclave/site/components/admin-console/admin-console.js": {
+          "bytesInOutput": 87565
+        },
+        "source/enclave/site/js/pages/admin.js": {
+          "bytesInOutput": 15
+        }
+      },
+      "bytes": 453172
+    },
+    "build/js/chunks/terms-E64YOZHH.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 832
+    },
+    "build/js/chunks/terms-E64YOZHH.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-YUH3T3EL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TDHNED77.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-SSBE5LNP.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TUEG6NQU.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-EWXR7LNF.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-MR3EHJCJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "boot"
+      ],
+      "entryPoint": "source/enclave/site/js/pages/terms.js",
+      "inputs": {
+        "source/enclave/site/js/pages/terms.js": {
+          "bytesInOutput": 14
+        }
+      },
+      "bytes": 328
+    },
+    "build/js/chunks/privacy-YJI2XY3A.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 760
+    },
+    "build/js/chunks/privacy-YJI2XY3A.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-YUH3T3EL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TDHNED77.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-SSBE5LNP.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TUEG6NQU.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-EWXR7LNF.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-MR3EHJCJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "boot"
+      ],
+      "entryPoint": "source/enclave/site/js/pages/privacy.js",
+      "inputs": {
+        "source/enclave/site/js/pages/privacy.js": {
+          "bytesInOutput": 14
+        }
+      },
+      "bytes": 330
+    },
+    "build/js/chunks/checkout-OPJKMYV6.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 15001
+    },
+    "build/js/chunks/checkout-OPJKMYV6.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-6ESHCLE7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-BZAYRBXH.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-YUH3T3EL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TDHNED77.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-SSBE5LNP.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TUEG6NQU.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-EWXR7LNF.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-MR3EHJCJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "boot"
+      ],
+      "entryPoint": "source/enclave/site/js/pages/checkout.js",
+      "inputs": {
+        "source/enclave/site/components/order-status/order-status.js": {
+          "bytesInOutput": 3305
+        },
+        "source/enclave/site/js/pages/checkout.js": {
+          "bytesInOutput": 2620
+        }
+      },
+      "bytes": 6390
+    },
+    "build/js/chunks/link-QLZZGT5L.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 9492
+    },
+    "build/js/chunks/link-QLZZGT5L.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-YUH3T3EL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TDHNED77.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-SSBE5LNP.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TUEG6NQU.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-EWXR7LNF.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-MR3EHJCJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [],
+      "entryPoint": "source/enclave/site/js/pages/link.js",
+      "inputs": {
+        "source/enclave/site/js/pages/link.js": {
+          "bytesInOutput": 3324
+        }
+      },
+      "bytes": 3692
+    },
+    "build/js/chunks/authorize-7EAJI3AE.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 12320
+    },
+    "build/js/chunks/authorize-7EAJI3AE.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-LRTH7WBA.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-PFHKKVZO.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-RQE3TW6O.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-247VMMU7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-G5XKDDPE.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-OKZ24M4M.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-YUH3T3EL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TDHNED77.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-SSBE5LNP.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TUEG6NQU.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-EWXR7LNF.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-MR3EHJCJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/sessions-3YDUWT65.js",
+          "kind": "dynamic-import"
+        }
+      ],
+      "exports": [],
+      "entryPoint": "source/enclave/site/js/pages/authorize.js",
+      "inputs": {
+        "source/enclave/site/js/pages/authorize.js": {
+          "bytesInOutput": 2985
+        }
+      },
+      "bytes": 3522
+    },
+    "build/js/chunks/host-EUS3BEBM.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 3039
+    },
+    "build/js/chunks/host-EUS3BEBM.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-44A52SCX.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-RQE3TW6O.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-J32KZYVJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-247VMMU7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-OKZ24M4M.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TUEG6NQU.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-MR3EHJCJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "boot"
+      ],
+      "entryPoint": "source/enclave/site/js/pages/host.js",
+      "inputs": {
+        "source/enclave/site/js/pages/host.js": {
+          "bytesInOutput": 686
+        }
+      },
+      "bytes": 1051
+    },
+    "build/js/chunks/flows-4IRJFK2O.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 18890
+    },
+    "build/js/chunks/flows-4IRJFK2O.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-F6E4PSYL.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "CANCELLED",
+        "createGuard",
+        "fundFlow",
+        "guardGasStore",
+        "guardLegacyRelay",
+        "guardProvider",
+        "guardRelayFn",
+        "guardSetActive",
+        "guardedStepCtx",
+        "quoteFlow",
+        "resumeFlow",
+        "runFlow",
+        "signFlow"
+      ],
+      "entryPoint": "source/enclave/site/js/funding/flows.js",
+      "inputs": {
+        "source/enclave/site/js/funding/flows.js": {
+          "bytesInOutput": 5121
+        }
+      },
+      "bytes": 5491
+    },
+    "build/js/chunks/custody-QHS5BQEA.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 699499
+    },
+    "build/js/chunks/custody-QHS5BQEA.js": {
+      "imports": [],
+      "exports": [
+        "DEFAULT_MIN_TCB",
+        "UPDATE_ABI",
+        "buildBundle",
+        "canonicalRules",
+        "checkEnv",
+        "configSha256",
+        "configTextFromEnvelope",
+        "configTextOf",
+        "contentHash",
+        "createChainReader",
+        "encodeFunctionData",
+        "makeUpdate",
+        "parseRules",
+        "rulesFromPrediction",
+        "updateTypedData",
+        "validateRules"
+      ],
+      "entryPoint": "source/enclave/site/vendor/custody.js",
+      "inputs": {
+        "source/enclave/site/vendor/custody.js": {
+          "bytesInOutput": 307579
+        }
+      },
+      "bytes": 308574
+    },
+    "build/js/chunks/enclave-network-AJBZXGOC.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 65784
+    },
+    "build/js/chunks/enclave-network-AJBZXGOC.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-BZAYRBXH.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-MR3EHJCJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "/vendor/webauthn.js",
+          "kind": "dynamic-import",
+          "external": true
+        },
+        {
+          "path": "/vendor/webauthn.js",
+          "kind": "dynamic-import",
+          "external": true
+        }
+      ],
+      "exports": [
+        "authorizeTunaCall",
+        "renderEnclaveNetwork",
+        "renderPaidProviders",
+        "tunaPolicyDigestCall"
+      ],
+      "entryPoint": "source/enclave/site/js/core/enclave-network.js",
+      "inputs": {
+        "source/enclave/site/js/core/eip191.js": {
+          "bytesInOutput": 265
+        },
+        "source/enclave/network/canonical.mjs": {
+          "bytesInOutput": 407
+        },
+        "source/enclave/network/network-policy-core.mjs": {
+          "bytesInOutput": 2468
+        },
+        "source/enclave/network/wg-config.mjs": {
+          "bytesInOutput": 6279
+        },
+        "source/enclave/site/js/core/enclave-network.js": {
+          "bytesInOutput": 18253
+        }
+      },
+      "bytes": 28109
+    },
+    "build/js/chunks/deploy-SU3K3BV2.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 56078
+    },
+    "build/js/chunks/deploy-SU3K3BV2.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-LRTH7WBA.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-PFHKKVZO.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-RQE3TW6O.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-247VMMU7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-6ESHCLE7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-BZAYRBXH.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-G5XKDDPE.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-OKZ24M4M.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-SSBE5LNP.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TUEG6NQU.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-MR3EHJCJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "confirmQueuedDeploy",
+        "deployOnChain",
+        "gpuCapRefusal",
+        "resumeDeployWatch",
+        "retryFunding"
+      ],
+      "entryPoint": "source/enclave/site/js/pages/deploy.js",
+      "inputs": {
+        "source/enclave/site/js/pages/deploy.js": {
+          "bytesInOutput": 16784
+        }
+      },
+      "bytes": 17627
+    },
+    "build/js/chunks/apps-SUPYZUYH.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 225295
+    },
+    "build/js/chunks/apps-SUPYZUYH.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-PFHKKVZO.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-J32KZYVJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-247VMMU7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-YUH3T3EL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TDHNED77.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-SSBE5LNP.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TUEG6NQU.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-EWXR7LNF.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-MR3EHJCJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/vault-6F6OFG72.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/sessions-3YDUWT65.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/deploy-SU3K3BV2.js",
+          "kind": "dynamic-import"
+        }
+      ],
+      "exports": [
+        "boot"
+      ],
+      "entryPoint": "source/enclave/site/js/pages/apps.js",
+      "inputs": {
+        "source/enclave/site/components/app-card/app-card.js": {
+          "bytesInOutput": 2354
+        },
+        "source/enclave/site/components/app-detail/app-detail.js": {
+          "bytesInOutput": 6011
+        },
+        "source/enclave/site/components/app-reviews/app-reviews.js": {
+          "bytesInOutput": 7009
+        },
+        "source/enclave/site/js/core/featured.js": {
+          "bytesInOutput": 1325
+        },
+        "source/enclave/site/js/core/protection.js": {
+          "bytesInOutput": 822
+        },
+        "source/enclave/site/js/pages/apps.js": {
+          "bytesInOutput": 47630
+        }
+      },
+      "bytes": 66373
+    },
+    "build/js/chunks/architecture-I3D4FNYY.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 93
+    },
+    "build/js/chunks/architecture-I3D4FNYY.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-EM3NL2YV.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-44A52SCX.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-RQE3TW6O.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-J32KZYVJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-247VMMU7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-OKZ24M4M.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-YUH3T3EL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TDHNED77.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-SSBE5LNP.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TUEG6NQU.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-EWXR7LNF.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-MR3EHJCJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "boot"
+      ],
+      "entryPoint": "source/enclave/site/js/pages/architecture.js",
+      "inputs": {},
+      "bytes": 496
+    },
+    "build/js/chunks/develop-GHW2JEPO.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 42141
+    },
+    "build/js/chunks/develop-GHW2JEPO.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-EM3NL2YV.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-44A52SCX.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-RQE3TW6O.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-J32KZYVJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-247VMMU7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-JDNBXO3S.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-OKZ24M4M.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-YUH3T3EL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TDHNED77.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-SSBE5LNP.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TUEG6NQU.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-EWXR7LNF.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-MR3EHJCJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "boot"
+      ],
+      "entryPoint": "source/enclave/site/js/pages/develop.js",
+      "inputs": {
+        "source/enclave/site/components/code-tabs/code-tabs.js": {
+          "bytesInOutput": 1466
+        },
+        "source/enclave/site/components/api-reference/api-reference.js": {
+          "bytesInOutput": 9796
+        },
+        "source/enclave/site/js/pages/develop.js": {
+          "bytesInOutput": 2139
+        }
+      },
+      "bytes": 14123
+    },
+    "build/js/chunks/chunk-EM3NL2YV.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 2222
+    },
+    "build/js/chunks/chunk-EM3NL2YV.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-44A52SCX.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "a"
+      ],
+      "inputs": {
+        "source/enclave/site/js/pages/architecture.js": {
+          "bytesInOutput": 281
+        }
+      },
+      "bytes": 420
+    },
+    "build/js/chunks/dashboard-MP6XNS2Q.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 4758
+    },
+    "build/js/chunks/dashboard-MP6XNS2Q.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-LRTH7WBA.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-PFHKKVZO.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-44A52SCX.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-RQE3TW6O.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-J32KZYVJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-247VMMU7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-G5XKDDPE.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-OKZ24M4M.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-YUH3T3EL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TDHNED77.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-SSBE5LNP.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TUEG6NQU.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-EWXR7LNF.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-MR3EHJCJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "boot"
+      ],
+      "entryPoint": "source/enclave/site/js/pages/dashboard.js",
+      "inputs": {
+        "source/enclave/site/js/pages/dashboard.js": {
+          "bytesInOutput": 753
+        }
+      },
+      "bytes": 1376
+    },
+    "build/js/chunks/chunk-LRTH7WBA.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 483817
+    },
+    "build/js/chunks/chunk-LRTH7WBA.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-PFHKKVZO.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-RQE3TW6O.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-247VMMU7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-G5XKDDPE.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-OKZ24M4M.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TUEG6NQU.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-MR3EHJCJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/state-6A7OGUOW.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/flows-4IRJFK2O.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/custody-QHS5BQEA.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/sessions-3YDUWT65.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/deploy-SU3K3BV2.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/deploy-SU3K3BV2.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/sessions-3YDUWT65.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/vault-6F6OFG72.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/sessions-3YDUWT65.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/vault-6F6OFG72.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/vault-6F6OFG72.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/vault-6F6OFG72.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/vault-6F6OFG72.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/vault-6F6OFG72.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/enclave-network-AJBZXGOC.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/vault-6F6OFG72.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/vault-6F6OFG72.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/vault-6F6OFG72.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/vault-6F6OFG72.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/vault-6F6OFG72.js",
+          "kind": "dynamic-import"
+        }
+      ],
+      "exports": [
+        "a",
+        "b"
+      ],
+      "inputs": {
+        "source/enclave/site/components/volume-picker/volume-picker.js": {
+          "bytesInOutput": 1260
+        },
+        "source/enclave/site/js/core/app-tls.js": {
+          "bytesInOutput": 518
+        },
+        "source/enclave/site/js/core/share-allocation.js": {
+          "bytesInOutput": 682
+        },
+        "source/enclave/site/js/core/share-editor.js": {
+          "bytesInOutput": 5421
+        },
+        "source/enclave/site/js/core/isolation-options.js": {
+          "bytesInOutput": 1847
+        },
+        "source/enclave/site/js/core/resource-plan.js": {
+          "bytesInOutput": 920
+        },
+        "source/enclave/site/js/core/resource-overview.js": {
+          "bytesInOutput": 3243
+        },
+        "source/enclave/site/components/deployments/selfhost-gas-topup.js": {
+          "bytesInOutput": 16007
+        },
+        "source/enclave/site/js/core/session-funding.js": {
+          "bytesInOutput": 1009
+        },
+        "source/enclave/site/js/core/deployment-move.js": {
+          "bytesInOutput": 1304
+        },
+        "source/enclave/site/js/core/placement-options.js": {
+          "bytesInOutput": 849
+        },
+        "source/enclave/site/js/core/version-allocation.js": {
+          "bytesInOutput": 912
+        },
+        "source/enclave/site/js/core/share-resize.js": {
+          "bytesInOutput": 2676
+        },
+        "source/enclave/site/js/core/custody.js": {
+          "bytesInOutput": 2335
+        },
+        "source/enclave/site/js/core/deploy-status.js": {
+          "bytesInOutput": 438
+        },
+        "source/enclave/site/components/deployments/deployments.js": {
+          "bytesInOutput": 127146
+        }
+      },
+      "bytes": 167774
+    },
+    "build/js/chunks/chunk-PFHKKVZO.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 24400
+    },
+    "build/js/chunks/chunk-PFHKKVZO.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-MR3EHJCJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f"
+      ],
+      "inputs": {
+        "source/enclave/site/js/core/app-resources.js": {
+          "bytesInOutput": 1880
+        },
+        "source/enclave/site/js/core/fund.js": {
+          "bytesInOutput": 4223
+        }
+      },
+      "bytes": 6397
+    },
+    "build/js/chunks/chunk-44A52SCX.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 66793
+    },
+    "build/js/chunks/chunk-44A52SCX.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-RQE3TW6O.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-J32KZYVJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-OKZ24M4M.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TUEG6NQU.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-MR3EHJCJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "a"
+      ],
+      "inputs": {
+        "source/enclave/site/components/fleet-list/fleet-list.js": {
+          "bytesInOutput": 20534
+        },
+        "source/enclave/site/js/core/fleet-read.js": {
+          "bytesInOutput": 725
+        }
+      },
+      "bytes": 21907
+    },
+    "build/js/chunks/chunk-RQE3TW6O.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 11580
+    },
+    "build/js/chunks/chunk-RQE3TW6O.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f"
+      ],
+      "inputs": {
+        "source/enclave/site/js/core/pool-badges.js": {
+          "bytesInOutput": 3084
+        },
+        "source/enclave/site/js/core/list-state.js": {
+          "bytesInOutput": 843
+        }
+      },
+      "bytes": 4108
+    },
+    "build/js/chunks/chunk-J32KZYVJ.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 14131
+    },
+    "build/js/chunks/chunk-J32KZYVJ.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-247VMMU7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f",
+        "g",
+        "h",
+        "i",
+        "j"
+      ],
+      "inputs": {
+        "source/enclave/site/js/core/reviews.js": {
+          "bytesInOutput": 3091
+        }
+      },
+      "bytes": 3405
+    },
+    "build/js/chunks/chunk-247VMMU7.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 50225
+    },
+    "build/js/chunks/chunk-247VMMU7.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-MR3EHJCJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "A",
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f",
+        "g",
+        "h",
+        "i",
+        "j",
+        "k",
+        "l",
+        "m",
+        "n",
+        "o",
+        "p",
+        "q",
+        "r",
+        "s",
+        "t",
+        "u",
+        "v",
+        "w",
+        "x",
+        "y",
+        "z"
+      ],
+      "inputs": {
+        "source/enclave/site/js/core/catalog.js": {
+          "bytesInOutput": 8639
+        }
+      },
+      "bytes": 9167
+    },
+    "build/js/boot-wallet-release-r2.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 93
+    },
+    "build/js/boot-wallet-release-r2.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-SSBE5LNP.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TUEG6NQU.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "navigate"
+      ],
+      "entryPoint": "source/enclave/site/js/boot.js",
+      "inputs": {},
+      "bytes": 186
+    },
+    "build/js/chunks/chain-W3EWLLUH.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 93
+    },
+    "build/js/chunks/chain-W3EWLLUH.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "APPROVAL",
+        "APP_SCHEMA",
+        "CAMPAIGN_SCHEMA",
+        "CAT_MAX",
+        "CAT_SEL",
+        "DEP_CREATED_TOPIC",
+        "DEP_SCHEMA",
+        "DEP_SCHEMA_V1",
+        "DEP_SEL",
+        "FEAT_SEL",
+        "HREV_SEL",
+        "REVIEW_MAX_BODY",
+        "REVIEW_SCHEMA",
+        "REV_SEL",
+        "ROUTING_KEYS",
+        "VER_SCHEMA",
+        "VER_SCHEMA_V2",
+        "appCount",
+        "baseRpc",
+        "catConfigured",
+        "catExplorer",
+        "catGetAppsPage",
+        "catGetVersion",
+        "catGetVersions",
+        "catMaxFeePerSec6",
+        "catOwner",
+        "catSchemaRev",
+        "catVersionConfigCid",
+        "catVersionFee",
+        "decodeString",
+        "decodeStringArray",
+        "decodeStruct",
+        "decodeStructArray",
+        "decodeTallies",
+        "depCall",
+        "depCapOf",
+        "depFeeOf",
+        "depGet",
+        "depMaxGpuMilli",
+        "depPrices6",
+        "depRate6",
+        "depRefundableOf",
+        "depSchemaRev",
+        "depSnapshot",
+        "encAddr",
+        "encBytes32",
+        "encBytesTail",
+        "encCall",
+        "encStr",
+        "encUint",
+        "ethCall",
+        "featCall",
+        "featConfigured",
+        "featGetCampaigns",
+        "featMaxBid",
+        "hexBig",
+        "hexToUtf8",
+        "hrevCall",
+        "hrevCanReview",
+        "hrevConfigured",
+        "hrevGetReviews",
+        "hrevMine",
+        "hrevTallies",
+        "pad32",
+        "randHex",
+        "rate6Of",
+        "revCall",
+        "revCanReview",
+        "revConfigured",
+        "revGetReviews",
+        "revOwner",
+        "revTallies",
+        "usdc6",
+        "waitReceipt"
+      ],
+      "entryPoint": "source/enclave/site/js/core/chain.js",
+      "inputs": {},
+      "bytes": 1556
+    },
+    "build/js/chunks/vault-6F6OFG72.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 93
+    },
+    "build/js/chunks/vault-6F6OFG72.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-6ESHCLE7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-BZAYRBXH.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "addCredit",
+        "assertIsWhatIAskedFor",
+        "decodeCreateCall",
+        "expectedControlCall",
+        "getVault",
+        "opDigest",
+        "vaultOp",
+        "verifyPrepare"
+      ],
+      "entryPoint": "source/enclave/site/js/core/vault.js",
+      "inputs": {},
+      "bytes": 362
+    },
+    "build/js/chunks/chunk-6ESHCLE7.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 18790
+    },
+    "build/js/chunks/chunk-6ESHCLE7.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-BZAYRBXH.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "/vendor/webauthn.js",
+          "kind": "dynamic-import",
+          "external": true
+        }
+      ],
+      "exports": [
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f",
+        "g",
+        "h"
+      ],
+      "inputs": {
+        "source/enclave/site/js/core/vault.js": {
+          "bytesInOutput": 4755
+        }
+      },
+      "bytes": 5012
+    },
+    "build/js/chunks/chunk-BZAYRBXH.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 7871
+    },
+    "build/js/chunks/chunk-BZAYRBXH.js": {
+      "imports": [],
+      "exports": [
+        "a",
+        "b",
+        "c"
+      ],
+      "inputs": {
+        "source/enclave/site/js/core/keccak.js": {
+          "bytesInOutput": 1845
+        }
+      },
+      "bytes": 1918
+    },
+    "build/js/chunks/wallet-PX6MQA5R.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 93
+    },
+    "build/js/chunks/wallet-PX6MQA5R.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-MR3EHJCJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "WC_RDNS",
+        "Wallet",
+        "asHostOwner",
+        "assertSiweLogin",
+        "authenticate",
+        "buildSiwe",
+        "clearSession",
+        "connectWallet",
+        "disconnectWallet",
+        "ensureBaseChain",
+        "ethBalanceOf",
+        "fundModal",
+        "jwtExp",
+        "modalize",
+        "openDepositModal",
+        "personalSign",
+        "personalSignBytes",
+        "refreshWallet",
+        "renderWalletPop",
+        "restoreSession",
+        "saveSession",
+        "sendTx",
+        "toggleWalletPop",
+        "usdcBalanceOf",
+        "wcNudge"
+      ],
+      "entryPoint": "source/enclave/site/js/core/wallet.js",
+      "inputs": {},
+      "bytes": 785
+    },
+    "build/js/chunks/account-TVXJ7U6S.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 93
+    },
+    "build/js/chunks/account-TVXJ7U6S.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-EWXR7LNF.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-MR3EHJCJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "adoptAccountSession",
+        "openAuthModal",
+        "openSignIn",
+        "passkeySupported",
+        "registerPasskey",
+        "restoreAccountSession",
+        "restoreSessionAccount",
+        "saveAccountSession",
+        "signInWalletAccount",
+        "signInWithPasskey",
+        "signOutAccount"
+      ],
+      "entryPoint": "source/enclave/site/js/core/account.js",
+      "inputs": {},
+      "bytes": 470
+    },
+    "build/js/chunks/sessions-3YDUWT65.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 93
+    },
+    "build/js/chunks/sessions-3YDUWT65.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-G5XKDDPE.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "_useSdkForTests",
+        "accountFromSession",
+        "askWalletDelegation",
+        "currentSession",
+        "endSession",
+        "fmtLeft",
+        "fmtUsd",
+        "hostAuthorization",
+        "ledgerSend",
+        "openExtendModal",
+        "openSessionModal",
+        "openTopUpModal",
+        "ownerOp",
+        "promptTopUp",
+        "relayRoot",
+        "sdk",
+        "sessionCall",
+        "sessionStatus",
+        "sessionStillLive",
+        "sessionsAvailable",
+        "sessionsConfig",
+        "setWalletDelegation",
+        "startSession",
+        "topUpSession",
+        "vaultOf",
+        "vaultRows",
+        "versionLabel",
+        "walletDelegation"
+      ],
+      "entryPoint": "source/enclave/site/js/core/sessions.js",
+      "inputs": {},
+      "bytes": 717
+    },
+    "build/js/chunks/chunk-G5XKDDPE.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 66592
+    },
+    "build/js/chunks/chunk-G5XKDDPE.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "/vendor/sessions.js",
+          "kind": "dynamic-import",
+          "external": true
+        },
+        {
+          "path": "build/js/chunks/account-TVXJ7U6S.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/wallet-PX6MQA5R.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/wallet-PX6MQA5R.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/chain-W3EWLLUH.js",
+          "kind": "dynamic-import"
+        }
+      ],
+      "exports": [
+        "A",
+        "B",
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f",
+        "g",
+        "h",
+        "i",
+        "j",
+        "k",
+        "l",
+        "m",
+        "n",
+        "o",
+        "p",
+        "q",
+        "r",
+        "s",
+        "t",
+        "u",
+        "v",
+        "w",
+        "x",
+        "y",
+        "z"
+      ],
+      "inputs": {
+        "source/enclave/site/js/core/ledger-calls.js": {
+          "bytesInOutput": 2216
+        },
+        "source/enclave/site/js/core/sessions.js": {
+          "bytesInOutput": 19226
+        }
+      },
+      "bytes": 21862
+    },
+    "build/js/chunks/overview-35ZPQRUA.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 47001
+    },
+    "build/js/chunks/overview-35ZPQRUA.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-JDNBXO3S.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-OKZ24M4M.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-YUH3T3EL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TDHNED77.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-SSBE5LNP.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TUEG6NQU.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-EWXR7LNF.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-MR3EHJCJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "boot"
+      ],
+      "entryPoint": "source/enclave/site/js/pages/overview.js",
+      "inputs": {
+        "source/enclave/site/components/enclave-panel/enclave-panel.js": {
+          "bytesInOutput": 3956
+        },
+        "source/enclave/site/components/ticker/ticker.js": {
+          "bytesInOutput": 1873
+        },
+        "source/enclave/site/components/flow/flow.js": {
+          "bytesInOutput": 4436
+        },
+        "source/enclave/site/components/attest-chain/attest-chain.js": {
+          "bytesInOutput": 5766
+        },
+        "source/enclave/site/components/live-verify/live-verify.js": {
+          "bytesInOutput": 3469
+        },
+        "source/enclave/site/js/pages/overview.js": {
+          "bytesInOutput": 944
+        }
+      },
+      "bytes": 21000
+    },
+    "build/js/chunks/chunk-JDNBXO3S.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 8052
+    },
+    "build/js/chunks/chunk-JDNBXO3S.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "a",
+        "b"
+      ],
+      "inputs": {
+        "source/enclave/site/js/core/live-prices.js": {
+          "bytesInOutput": 568
+        },
+        "source/enclave/site/js/core/live-specs.js": {
+          "bytesInOutput": 895
+        }
+      },
+      "bytes": 1623
+    },
+    "build/js/chunks/chunk-OKZ24M4M.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 22903
+    },
+    "build/js/chunks/chunk-OKZ24M4M.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f",
+        "g",
+        "h",
+        "i",
+        "j",
+        "k",
+        "l",
+        "m"
+      ],
+      "inputs": {
+        "source/enclave/site/js/core/verify.js": {
+          "bytesInOutput": 7249
+        }
+      },
+      "bytes": 7427
+    },
+    "build/js/chunks/chunk-YUH3T3EL.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 1173
+    },
+    "build/js/chunks/chunk-YUH3T3EL.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-TUEG6NQU.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [],
+      "inputs": {
+        "source/enclave/site/components/section-head/section-head.js": {
+          "bytesInOutput": 210
+        }
+      },
+      "bytes": 301
+    },
+    "build/js/chunks/chunk-TDHNED77.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 29562
+    },
+    "build/js/chunks/chunk-TDHNED77.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-SSBE5LNP.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-TUEG6NQU.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-EWXR7LNF.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-MR3EHJCJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/account-TVXJ7U6S.js",
+          "kind": "dynamic-import"
+        }
+      ],
+      "exports": [
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f",
+        "g",
+        "h",
+        "i",
+        "j",
+        "k"
+      ],
+      "inputs": {
+        "source/enclave/site/components/wallet-button/wallet-button.js": {
+          "bytesInOutput": 1393
+        },
+        "source/enclave/site/components/header/header.js": {
+          "bytesInOutput": 2163
+        },
+        "source/enclave/site/js/core/spec.js": {
+          "bytesInOutput": 2508
+        },
+        "source/enclave/site/components/footer/footer.js": {
+          "bytesInOutput": 4405
+        },
+        "source/enclave/site/components/toast/toast.js": {
+          "bytesInOutput": 1168
+        }
+      },
+      "bytes": 12075
+    },
+    "build/js/chunks/chunk-SSBE5LNP.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 36081
+    },
+    "build/js/chunks/chunk-SSBE5LNP.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-TUEG6NQU.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/overview-35ZPQRUA.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/apps-SUPYZUYH.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/develop-GHW2JEPO.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/dashboard-MP6XNS2Q.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/admin-ZUHIZNRQ.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/terms-E64YOZHH.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/privacy-YJI2XY3A.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/checkout-OPJKMYV6.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/link-QLZZGT5L.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/authorize-7EAJI3AE.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/host-EUS3BEBM.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/architecture-I3D4FNYY.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/sso-authorize-OTSPRMHG.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/grant-3CVOLMYT.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/sessions-QSQOKPBS.js",
+          "kind": "dynamic-import"
+        }
+      ],
+      "exports": [
+        "a"
+      ],
+      "inputs": {
+        "source/enclave/site/components/code/code.js": {
+          "bytesInOutput": 422
+        },
+        "source/enclave/site/components/cinematic-scene/cinematic-scene.js": {
+          "bytesInOutput": 1505
+        },
+        "source/enclave/site/js/hex-background.js": {
+          "bytesInOutput": 1801
+        },
+        "source/enclave/site/js/core/addressbook.js": {
+          "bytesInOutput": 1205
+        },
+        "source/enclave/site/js/boot.js": {
+          "bytesInOutput": 4474
+        }
+      },
+      "bytes": 9581
+    },
+    "build/js/chunks/chunk-TUEG6NQU.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 10697
+    },
+    "build/js/chunks/chunk-TUEG6NQU.js": {
+      "imports": [],
+      "exports": [
+        "a",
+        "b"
+      ],
+      "inputs": {
+        "source/enclave/site/js/lib/enclave-element.js": {
+          "bytesInOutput": 2583
+        }
+      },
+      "bytes": 2649
+    },
+    "build/js/chunks/chunk-EWXR7LNF.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 23767
+    },
+    "build/js/chunks/chunk-EWXR7LNF.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-MR3EHJCJ.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/sessions-3YDUWT65.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "/vendor/webauthn.js",
+          "kind": "dynamic-import",
+          "external": true
+        },
+        {
+          "path": "build/js/chunks/sessions-3YDUWT65.js",
+          "kind": "dynamic-import"
+        }
+      ],
+      "exports": [
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f",
+        "g",
+        "h",
+        "i",
+        "j",
+        "k"
+      ],
+      "inputs": {
+        "source/enclave/site/js/core/account.js": {
+          "bytesInOutput": 6397
+        }
+      },
+      "bytes": 6748
+    },
+    "build/js/chunks/chunk-MR3EHJCJ.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 185124
+    },
+    "build/js/chunks/chunk-MR3EHJCJ.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-WMFJWVIL.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "/vendor/walletconnect.js",
+          "kind": "dynamic-import",
+          "external": true
+        },
+        {
+          "path": "build/js/chunks/sessions-3YDUWT65.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/sessions-3YDUWT65.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/boot-wallet-release-r2.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/vault-6F6OFG72.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "build/js/chunks/sessions-3YDUWT65.js",
+          "kind": "dynamic-import"
+        }
+      ],
+      "exports": [
+        "A",
+        "B",
+        "C",
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f",
+        "g",
+        "h",
+        "i",
+        "j",
+        "k",
+        "l",
+        "m",
+        "n",
+        "o",
+        "p",
+        "q",
+        "r",
+        "s",
+        "t",
+        "u",
+        "v",
+        "w",
+        "x",
+        "y",
+        "z"
+      ],
+      "inputs": {
+        "source/enclave/site/js/core/wallet-preflight.js": {
+          "bytesInOutput": 234
+        },
+        "source/enclave/site/js/lib/qr.js": {
+          "bytesInOutput": 21504
+        },
+        "source/enclave/site/js/core/runlog.js": {
+          "bytesInOutput": 2652
+        },
+        "source/enclave/site/js/core/wallet.js": {
+          "bytesInOutput": 20601
+        }
+      },
+      "bytes": 45480
+    },
+    "build/js/chunks/chunk-WMFJWVIL.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 62851
+    },
+    "build/js/chunks/chunk-WMFJWVIL.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-I6WWIAX7.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "$",
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "H",
+        "I",
+        "J",
+        "K",
+        "L",
+        "M",
+        "N",
+        "O",
+        "P",
+        "Q",
+        "R",
+        "S",
+        "T",
+        "U",
+        "V",
+        "W",
+        "X",
+        "Y",
+        "Z",
+        "_",
+        "a",
+        "aa",
+        "b",
+        "ba",
+        "c",
+        "ca",
+        "d",
+        "da",
+        "e",
+        "ea",
+        "f",
+        "fa",
+        "g",
+        "ga",
+        "h",
+        "ha",
+        "i",
+        "ia",
+        "j",
+        "ja",
+        "k",
+        "ka",
+        "l",
+        "la",
+        "m",
+        "ma",
+        "n",
+        "na",
+        "o",
+        "oa",
+        "p",
+        "pa",
+        "q",
+        "qa",
+        "r",
+        "ra",
+        "s",
+        "sa",
+        "t",
+        "ta",
+        "u",
+        "v",
+        "w",
+        "x",
+        "y",
+        "z"
+      ],
+      "inputs": {
+        "source/enclave/site/js/core/chain.js": {
+          "bytesInOutput": 13759
+        }
+      },
+      "bytes": 14541
+    },
+    "build/js/chunks/chunk-I6WWIAX7.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 117604
+    },
+    "build/js/chunks/chunk-I6WWIAX7.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-X3FRN2UR.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "build/js/chunks/sessions-3YDUWT65.js",
+          "kind": "dynamic-import"
+        }
+      ],
+      "exports": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "H",
+        "I",
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f",
+        "g",
+        "h",
+        "i",
+        "j",
+        "k",
+        "l",
+        "m",
+        "n",
+        "o",
+        "p",
+        "q",
+        "r",
+        "s",
+        "t",
+        "u",
+        "v",
+        "w",
+        "x",
+        "y",
+        "z"
+      ],
+      "inputs": {
+        "source/enclave/site/js/core/pricing.js": {
+          "bytesInOutput": 13158
+        },
+        "source/enclave/site/js/core/api.js": {
+          "bytesInOutput": 10201
+        }
+      },
+      "bytes": 23742
+    },
+    "build/js/chunks/chunk-X3FRN2UR.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 28491
+    },
+    "build/js/chunks/chunk-X3FRN2UR.js": {
+      "imports": [],
+      "exports": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "H",
+        "I",
+        "J",
+        "K",
+        "L",
+        "M",
+        "N",
+        "O",
+        "P",
+        "Q",
+        "R",
+        "S",
+        "T",
+        "U",
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f",
+        "g",
+        "h",
+        "i",
+        "j",
+        "k",
+        "l",
+        "m",
+        "n",
+        "o",
+        "p",
+        "q",
+        "r",
+        "s",
+        "t",
+        "u",
+        "v",
+        "w",
+        "x",
+        "y",
+        "z"
+      ],
+      "inputs": {
+        "source/enclave/site/js/core/util.js": {
+          "bytesInOutput": 3731
+        },
+        "source/enclave/site/js/core/config.js": {
+          "bytesInOutput": 2237
+        }
+      },
+      "bytes": 6360
+    },
+    "build/js/chunks/state-6A7OGUOW.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 93
+    },
+    "build/js/chunks/state-6A7OGUOW.js": {
+      "imports": [
+        {
+          "path": "build/js/chunks/chunk-F6E4PSYL.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "APPROVAL_SCHEMA",
+        "CUTOVER_CONFIG_SCHEMA",
+        "MAX_TOTAL6",
+        "PROPOSAL_SCHEMA",
+        "QUOTE_MARGIN_S",
+        "StateError",
+        "activePointerDecision",
+        "approvalStatus",
+        "contextOf",
+        "controlsAvailability",
+        "controlsContextOf",
+        "createMemory",
+        "cutoverSignable",
+        "cutoverView",
+        "formatUsd6",
+        "legacyScopeLabel",
+        "lower",
+        "moneyRows",
+        "nextSignable",
+        "planMode",
+        "planPhase",
+        "planScope",
+        "proposalMatchesPlan",
+        "quoteInputsOf",
+        "quoteView",
+        "scopeCoverage",
+        "selectOwnRecords",
+        "selectPlans",
+        "signableOf",
+        "splitOf",
+        "stepLabel",
+        "stepView",
+        "termsView",
+        "validateCutover",
+        "validateProposal"
+      ],
+      "entryPoint": "source/enclave/site/js/funding/state.js",
+      "inputs": {},
+      "bytes": 802
+    },
+    "build/js/chunks/chunk-F6E4PSYL.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 49337
+    },
+    "build/js/chunks/chunk-F6E4PSYL.js": {
+      "imports": [],
+      "exports": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "H",
+        "I",
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f",
+        "g",
+        "h",
+        "i",
+        "j",
+        "k",
+        "l",
+        "m",
+        "n",
+        "o",
+        "p",
+        "q",
+        "r",
+        "s",
+        "t",
+        "u",
+        "v",
+        "w",
+        "x",
+        "y",
+        "z"
+      ],
+      "inputs": {
+        "source/enclave/site/js/funding/state.js": {
+          "bytesInOutput": 15137
+        }
+      },
+      "bytes": 15441
+    }
+  }
+}

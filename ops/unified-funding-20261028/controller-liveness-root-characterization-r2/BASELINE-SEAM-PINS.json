@@ -1,0 +1,198 @@
+[
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/net-guard.mjs",
+    "sha256": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/package.json",
+    "sha256": "176365e77ddfe0cef859d07a2916e702f177854f34b23abfd1b806df9200de93"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/supervisor.js",
+    "sha256": "0d2b0fb0b12da71e047c1f2d0641b228b4d5ce78e00d0cf8846c4e57500c451c"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/addressbook.js",
+    "sha256": "fe3f27e6c64367c9b9f14742315efc9357aaed88e2f831b3754832fd74b1ce92"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/egress.js",
+    "sha256": "99a99f08e08a66472b8921d38d05d9a63d65c76a0eb6ac085d511c447df3dbd8"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/wasm/ipfs_fetch.py",
+    "sha256": "93334ad552a124a05780d7447495f51d7caeb6665511df0beb60aba1b49067af"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/wasm/wasm_manager.py",
+    "sha256": "22a2c626122e23c9739b5315bbf1bc5932a7483b237618c407e36915addac0ba"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/test/isolation-guest-pool.test.mjs",
+    "sha256": "9ceef7b150a23e4e2981fe05b91fdc9320751b0f51e7a3194ba79dadcdbaa427"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/test/claim-sweep.test.mjs",
+    "sha256": "c4be6ac8f91052e89feb20ca36da40b248472661638f1849216999c3697950cc"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/test/tenant-lease.test.mjs",
+    "sha256": "c841b66fc3f6caeb8ec5cc37781c79ff94847728afcebb268f1717e1ad9be296"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/test/isolation-instance-liveness.test.mjs",
+    "sha256": "9fd173c2d81b1a6705afd450d1f5dbe57956823c89ece9be02de3c1f819eb7d9"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/test/isolation-resume-shield-model.test.mjs",
+    "sha256": "7f9154f421269b4ccf4f88fd3657de9e49a16613edeeda409bbc333fb81ac1a5"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/test/isolation-post-adoption-lease.test.mjs",
+    "sha256": "af1a3633692b7c5aa5fd0109adb19e96e088c872ca10ba1027c285ce6355dd13"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/network/registry-reconcile.mjs",
+    "sha256": "ed593417514919904c2906f0a439756ddca87957c37455f5864cca632aa7bc4e"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/network/lease-gas-runtime.mjs",
+    "sha256": "6a72857a37d5ea9d1ac10a9cb70f7bc3cf6b7c987ebe17c43ff97e2c1ef47b75"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/network/host-capacity-record.mjs",
+    "sha256": "62057bca458918e221e2850c850d8e9085c75f5fbc4e7b4b68e281e072781551"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/network/rpc-identity.mjs",
+    "sha256": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/network/canonical.mjs",
+    "sha256": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/network/lease-release-journal.mjs",
+    "sha256": "6411481a118b341e3efcd99bbaad6da644d490fd2815abd40033014f7edf2ff6"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/network/lease-gas-owner.mjs",
+    "sha256": "a3163e386c2718dd31cdbf91ecc0eab3865c2c34d46b33809bbede6ab340cde9"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/network/host-capacity-producer.mjs",
+    "sha256": "d5d371ff6f37cfc5c6aed0dc58f7154b1caeef60254588ca3de64ead8ec896f0"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/network/lease-executor-authority.mjs",
+    "sha256": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/network/lease-executor-client.mjs",
+    "sha256": "c2eb2e6a6246cf8c65bc3410f306acd1b119991464825c7d78e1476dd02bcb1a"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/client/lease-executor-authority.mjs",
+    "sha256": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/client/lease-executor-client.mjs",
+    "sha256": "5193da71542098cbad98a723be575abc575147e0a9649e804d27697c8e3c7dfe"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/relay/snp-verify.mjs",
+    "sha256": "10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/sdk/bootstrap/package.mjs",
+    "sha256": "17cc4cbaad3c8bc7ab9df99ca8b88d00674f7bed6825be33004375cff1b02e2a"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/sdk/bootstrap/storage.mjs",
+    "sha256": "98e22b7b87b6d636cf6001d9ba859f4da3443af42f386deeb74ac622bcefccb3"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/sdk/storage/replicas.mjs",
+    "sha256": "64db5cbf71ca00effe81e6a288c103b08b205daebc9132f2f76fcc7e6e920e25"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/sdk/storage/upload-auth.mjs",
+    "sha256": "9db7b86361b7d5722d0f8de0ed85721f0e7bf40f3477fb1d8bde1ec79017b7b1"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/sdk/storage/gateways.mjs",
+    "sha256": "ea34a5a01e2371aa63be5c62422f19d25c8b62b454eba90a75e7dbb4cbe85119"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/windows/node/host-admission.bundle.mjs",
+    "sha256": "e83515fca7468d5d6636631617d73d9ed9ef12b798439e7aaed347f2f524182c"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/windows/node/session-api-auth.mjs",
+    "sha256": "5920ece87c022f3597c8306614cfb7370c4865b14f48bce48c631bfecd51c9cb"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/windows/node/verification-checkpoints.mjs",
+    "sha256": "aa69b54db648fe9439f9661727b81633dd46a2cb321627e3a78f6bc8b202ff29"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/site/js/core/upload-auth.js",
+    "sha256": "e72157590a00d634f7301e5bba2741901f0ec107235d7298ccccace12a265d23"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/isolation/m2/judge.mjs",
+    "sha256": "650b931d32ef72c84459141f6deeaf0f5a7a4e8c6441ac95f47f4bd8a624f1dd"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/isolation/contract/runtime.mjs",
+    "sha256": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/isolation/m4/guestd/supervisor-guestcert.mjs",
+    "sha256": "136c73ac6612c435f1571cf059d0171f8f93f02a7b93bc25dc55606afef41597"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/isolation/m4/guestd/control-client.mjs",
+    "sha256": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/isolation/m4/guestd/supervisor-splice.mjs",
+    "sha256": "dcfc95b315995750ce1c19caef9d4551fdb6735a35b7bbdbf91a54cd29b2066b"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/isolation/m4/guestd/supervisor-transport.mjs",
+    "sha256": "bd8579ba7daae01f4160c72c6c937dacb151b3e9ffef21d1e9f93706e0fbcb75"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/metal/guest/lease-gas-conduit.bundle.mjs",
+    "sha256": "d0b8ef9c4842030c6bfd1173bdad1dd76e096da998a2046a6d70f0fce8528247"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/metal/guest/shielded-probe.mjs",
+    "sha256": "e3ff32ee3a993f1f94603f0d1dbdcfc0169be1c3da91b575d5613fd5450e831f"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/metal/guest/agent.mjs",
+    "sha256": "4917a30f7cba99c2406d9ea7009a4ce13385f34bb77823d370828f0e7dbb356a"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/metal/guest/host-policy.bundle.mjs",
+    "sha256": "8b2dfbc6b5466d3c4f4559c15d874824f1ddddd3e530667a3848b3141b477af9"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/metal/guest/gsup.mjs",
+    "sha256": "c2896d743e36be8fa1832f1f6f0e41042140b61549fd780f32c1921d5a157e99"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/metal/guest/shielded.mjs",
+    "sha256": "f38f0abcaef8029edfd7144adc3c7ccea87c7291107265863195117bc60bdb7f"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/metal/guest/measured-control.mjs",
+    "sha256": "bf7d4ddf25bc2f173450fd4658ccd5c4e6a913de57b0ae8709d8486779b2f94a"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/metal/guest/shielded-shm.mjs",
+    "sha256": "92d3a36942244658fe6f7e0b1a070611db631076d914efda66935152cbb84731"
+  }
+]

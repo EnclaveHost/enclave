@@ -1,0 +1,62 @@
+{
+  "sourceOnly": true,
+  "liveInstancesNotEnumerated": true,
+  "directoryRequiresIndependentIdentityBinding": "/var/lib/enclave-relay",
+  "otherStores": {
+    "accounts": {
+      "tmp": "/var/lib/enclave-relay/accounts.json.tmp",
+      "journal": "/var/lib/enclave-relay/accounts.json"
+    },
+    "orders": {
+      "tmp": "/var/lib/enclave-relay/orders.json.tmp",
+      "journal": "/var/lib/enclave-relay/orders.json"
+    },
+    "stripe_events": {
+      "tmp": "/var/lib/enclave-relay/stripe-events.json.tmp",
+      "journal": "/var/lib/enclave-relay/stripe-events.json"
+    },
+    "review_queue": {
+      "tmp": "/var/lib/enclave-relay/review-queue.json.tmp",
+      "journal": "/var/lib/enclave-relay/review-queue.json"
+    },
+    "indexer_cursor": {
+      "tmp": "/var/lib/enclave-relay/indexer-cursor.json.tmp",
+      "journal": "/var/lib/enclave-relay/indexer-cursor.json"
+    },
+    "secrets": {
+      "tmp": "/var/lib/enclave-relay/secrets.json.tmp",
+      "journal": "/var/lib/enclave-relay/secrets.json"
+    },
+    "domains": {
+      "tmp": "/var/lib/enclave-relay/domains.json.tmp",
+      "journal": "/var/lib/enclave-relay/domains.json"
+    },
+    "certs": {
+      "tmp": "/var/lib/enclave-relay/certs.json.tmp",
+      "journal": "/var/lib/enclave-relay/certs.json"
+    },
+    "placement": {
+      "tmp": "/var/lib/enclave-relay/placement.json.tmp",
+      "journal": "/var/lib/enclave-relay/placement.json"
+    },
+    "referrals": {
+      "tmp": "/var/lib/enclave-relay/referrals.json.tmp",
+      "journal": "/var/lib/enclave-relay/referrals.json"
+    },
+    "network": {
+      "tmp": "/var/lib/enclave-relay/network.json.tmp",
+      "journal": "/var/lib/enclave-relay/network.json"
+    },
+    "sessions_index": {
+      "tmp": "/var/lib/enclave-relay/sessions-index.json.tmp",
+      "journal": "/var/lib/enclave-relay/sessions-index.json"
+    }
+  },
+  "journalPath": "/var/lib/enclave-relay/sessions-relayer.json",
+  "tmpPath": "/var/lib/enclave-relay/sessions-relayer.json.tmp",
+  "sourceProfile": "exact actual-source-20261029 closure; conditional construction must be verified, no directory contents read",
+  "notes": [
+    "route-grace/ofac use other persistence and are not claimed JsonStore instances",
+    "Only explicit allowlisted paths accepted; unknown path refuses without disclosure"
+  ]
+}

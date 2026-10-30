@@ -1,0 +1,123 @@
+[queue] START available=22662MiB required=19200MiB cap=2560MiB floor=16384MiB concurrentSmall=0MiB
+== A. static precheck (nothing cloned, copied, built or tested)
+[ok] offline namespace (lo only, no route)
+[ok] user namespace root (unshare -r)
+[ok] r9 files == SHA256SUMS
+[ok] r3 frozen inputs == R3-PINS.sha256
+[ok] r4 stage unchanged (frozen)
+[ok] r5 stage unchanged (frozen; its runner is the base of this one)
+[ok] r3 private refs == r3/REFS.txt (frozen)
+[ok] r9 private refs == r9/REFS.txt
+[ok] r6 stage unchanged (frozen)
+[ok] r7 stage unchanged (frozen; its runner is the base of this one)
+[ok] r8 stage unchanged (frozen)
+[ok] candidate is r9 82ec7d455cc6e9957c1500f6e58ffde557093392 (parents: r8 partial 8fdf00d0 + owner CLI b6ac5d657)
+[ok] r9 commit message pins R9-RESOLUTIONS.json
+[ok] both consumer root receipts are the pinned passes
+[ok] every regression test exists in the candidate
+{
+ "ref": "82ec7d455cc6e9957c1500f6e58ffde557093392",
+ "bundleImports": 21,
+ "broken": []
+}
+[ok] static: every bundle importer names only exports of the bundle's SOURCE entry
+[ok] pinned image commit 0235e7d9659f1ccbf9f258bd03593d26f32f3f3a present
+[ok] generator scripts are the pinned blobs
+[ok] build-attested-guest-verify argv contract: <image tree> <image commit> [--check]
+[ok] both guest-verify manifests pin image commit 0235e7d9659f1ccbf9f258bd03593d26f32f3f3a
+[ok] node v22.23.3
+/home/steven/.foundry/bin/anvil
+[ok] anvil present (attested-route-composition needs it; a skip is never clean)
+[ok] esbuild 0.28.1 in the closure
+[ok] dependency closures match every tree's lockfiles: root 4e0328411792 network 2a1d5be8df94 relay f3459e00dbe4
+[ok] closures equal the recorded identities (DEPS.txt)
+[ok] fresh /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z
+[ok] inventory consumers: 10 tests
+[ok] inventory leaseRelay: 4 tests
+[ok] inventory verifier: 2 tests
+[ok] inventory route: 4 tests
+[ok] inventory seam: 6 tests
+[ok] inventory ownercli: 2 tests
+[ok] stack inventory: 9 tests present
+[ok] native chain-verifier inputs: PINS verify and equal the candidate image record (no skipped native test)
+[ok] disk: >= 4 GiB free for 6 trees + closures
+== B. exact checkouts with the dependency closures INSIDE each
+[ok] consumers 81ba668531d1 + closures in-tree
+[ok] leaseRelay 433f04fa1998 + closures in-tree
+[ok] verifier 2b8894a37d01 + closures in-tree
+[ok] route b3fde181257e + closures in-tree
+[ok] seam aebf4c932127 + closures in-tree
+[ok] ownercli b6ac5d657dee + closures in-tree
+[ok] final 82ec7d455cc6 + closures in-tree
+== C. the pinned image tree, twice (independent git-archive exports, outside the checkouts)
+== D. generated bundles in dependency order
+[ok] executed order satisfies all 7 static + 6 manifest edges; no cycle
+[pre] build-host-admission --check rc 1 (stale before regeneration is expected)
+[pre] build-windows-lease-runtime --check rc 1 (stale before regeneration is expected)
+[pre] build-metal-lease-gas --check rc 1 (stale before regeneration is expected)
+[pre] build-host-service-packages --check rc 1 (stale before regeneration is expected)
+[pre] build-mcp-guest-bundle --check rc 1 (stale before regeneration is expected)
+[pre] build-platform-api-guest-bundle --check rc 1 (stale before regeneration is expected)
+The following paths are ignored by one of your .gitignore files:
+network/node_modules
+node_modules
+relay/node_modules
+hint: Use -f if you really want to add them.
+hint: Disable this message with "git config set advice.addIgnoredFile false"
+The following paths are ignored by one of your .gitignore files:
+network/node_modules
+node_modules
+relay/node_modules
+hint: Use -f if you really want to add them.
+hint: Disable this message with "git config set advice.addIgnoredFile false"
+[FAIL] check-only build-custody-vendor is stale in the candidate (its sources are outside the composition: root decision)
+[FAIL] regeneration touched non-generated files: network/host-services/packages/public-rpc.mjs
+network/host-services/packages/public-rpc.package.json
+network/host-services/packages/service-tls.mjs
+network/host-services/packages/service-tls.package.json
+The following paths are ignored by one of your .gitignore files:
+network/node_modules
+node_modules
+relay/node_modules
+hint: Use -f if you really want to add them.
+hint: Disable this message with "git config set advice.addIgnoredFile false"
+[ok] regenerated tree: no import/export link beyond the heads' baseline
+[ok] regenerated candidate ee7922e3e7b062902fdbb054b24c808babd1c0be ( 22 files changed, 212790 insertions(+), 159657 deletions(-))
+[FAIL] manifest still stale after regeneration: ('metal/guest/mcp-server.bundle.mjs.manifest.json', ['relay/net-guard.mjs', 'relay/vbs-runtime.mjs'], ['opt/contracts/deployments/contract-pins-base.json', 'opt/metal/fixtures/tpm-roots.pem'])
+[FAIL] manifest still stale after regeneration: ('metal/guest/platform-api.bundle.mjs.manifest.json', ['relay/net-guard.mjs', 'relay/shield-derive.mjs', 'relay/vbs-runtime.mjs'], ['fixtures/tpm-roots.pem'])
+[FAIL] every committed generated-artifact manifest (20) pins the current tree
+== E. component tests (component tree vs regenerated candidate)
+consumers	test/browser-read-authority.test.mjs	component: 0 pass=12 fail=0 skip=0 todo=0	final: 0 pass=12 fail=0 skip=0 todo=0	ok
+consumers	test/custody-chain-source.test.mjs	component: 0 pass=11 fail=0 skip=0 todo=0	final: 0 pass=11 fail=0 skip=0 todo=0	ok
+consumers	test/directory-reader-authority.test.mjs	component: 0 pass=4 fail=0 skip=0 todo=0	final: 0 pass=4 fail=0 skip=0 todo=0	ok
+consumers	test/dns-relay-chain-authority.smoke.test.mjs	component: 1 pass=0 fail=4 skip=0 todo=0	final: 0 pass=4 fail=0 skip=0 todo=0	BASELINE-NOT-CLEAN
+consumers	test/native-relay-chain-authority.test.mjs	component: 1 pass=7 fail=1 skip=0 todo=0	final: 1 pass=7 fail=1 skip=0 todo=0	BASELINE-NOT-CLEAN
+consumers	test/qualifier-chain-authority.test.mjs	component: 0 pass=5 fail=0 skip=0 todo=0	final: 0 pass=5 fail=0 skip=0 todo=0	ok
+consumers	test/relay-chain-authority.test.mjs	component: 0 pass=11 fail=0 skip=0 todo=0	final: 0 pass=11 fail=0 skip=0 todo=0	ok
+consumers	test/relay-chain-consumers.test.mjs	component: 0 pass=10 fail=0 skip=0 todo=0	final: 0 pass=10 fail=0 skip=0 todo=0	ok
+consumers	test/relay-fleet-chain-authority.test.mjs	component: 0 pass=6 fail=0 skip=0 todo=0	final: 0 pass=6 fail=0 skip=0 todo=0	ok
+consumers	test/storage-front-binding-release.test.mjs	component: 1 pass=0 fail=5 skip=0 todo=0	final: 1 pass=0 fail=5 skip=0 todo=0	BASELINE-NOT-CLEAN
+leaseRelay	test/lease-pinned-relay-config.test.mjs	component: 0 pass=9 fail=0 skip=0 todo=0	final: 0 pass=9 fail=0 skip=0 todo=0	ok
+leaseRelay	test/lease-relay-host-policy.test.mjs	component: 0 pass=6 fail=0 skip=3 todo=0	final: 0 pass=6 fail=0 skip=3 todo=0	BASELINE-NOT-CLEAN
+leaseRelay	test/lease-relay-release.test.mjs	component: 0 pass=9 fail=0 skip=0 todo=0	final: 0 pass=9 fail=0 skip=0 todo=0	ok
+leaseRelay	test/lease-relay-verifier-config.test.mjs	component: 0 pass=5 fail=0 skip=0 todo=0	final: 0 pass=5 fail=0 skip=0 todo=0	ok
+verifier	test/attested-chain-verifier.test.mjs	component: 0 pass=15 fail=0 skip=0 todo=0	final: 0 pass=15 fail=0 skip=0 todo=0	ok
+verifier	test/metal-measured-control.test.mjs	component: 0 pass=15 fail=0 skip=0 todo=0	final: 0 pass=15 fail=0 skip=0 todo=0	ok
+route	test/attested-paid-provider.test.mjs	component: 0 pass=11 fail=0 skip=0 todo=0	final: 0 pass=11 fail=0 skip=0 todo=0	ok
+route	test/attested-provider-collateral.test.mjs	component: 0 pass=8 fail=0 skip=0 todo=0	final: 0 pass=8 fail=0 skip=0 todo=0	ok
+route	test/attested-route-composition.test.mjs	component: 0 pass=7 fail=0 skip=0 todo=0	final: 1 pass=6 fail=1 skip=0 todo=0	REGRESSION
+route	test/host-services-agent-verifier.test.mjs	component: 0 pass=5 fail=0 skip=0 todo=0	final: 0 pass=5 fail=0 skip=0 todo=0	ok
+seam	test/lease-pinned-relay-config.test.mjs	component: 0 pass=9 fail=0 skip=0 todo=0	final: 0 pass=9 fail=0 skip=0 todo=0	ok
+seam	test/lease-seams-conduit.test.mjs	component: 0 pass=10 fail=0 skip=0 todo=0	final: 0 pass=10 fail=0 skip=0 todo=0	ok
+seam	test/lease-seams-windows.test.mjs	component: 0 pass=3 fail=0 skip=0 todo=0	final: 0 pass=3 fail=0 skip=0 todo=0	ok
+seam	test/metal-lease-gas-conduit.test.mjs	component: 0 pass=12 fail=0 skip=0 todo=0	final: 0 pass=12 fail=0 skip=0 todo=0	ok
+seam	test/metal-measured-control.test.mjs	component: 0 pass=15 fail=0 skip=0 todo=0	final: 0 pass=15 fail=0 skip=0 todo=0	ok
+seam	test/move-release-confirm.test.mjs	component: 0 pass=20 fail=0 skip=0 todo=0	final: 0 pass=20 fail=0 skip=0 todo=0	ok
+ownercli	test/windows-chain-authority-runtime.test.mjs	component: 0 pass=12 fail=0 skip=0 todo=0	final: 0 pass=12 fail=0 skip=0 todo=0	ok
+ownercli	test/windows-owner-cli.test.mjs	component: 0 pass=8 fail=0 skip=0 todo=0	final: 0 pass=8 fail=0 skip=0 todo=0	ok
+== E2. regressions (REGRESSIONS.txt: every test touching the changed modules; baseline = the owner-CLI head, else route, else none)
+REGRESS	test/attested-chain-verifier.test.mjs	baseline(none): (no baseline: new in the composition)	final: 0 pass=15 fail=0 skip=0 todo=0	ok
+REGRESS	test/attested-paid-provider.test.mjs	baseline(route): 0 pass=11 fail=0 skip=0 todo=0	final: 0 pass=11 fail=0 skip=0 todo=0	ok
+REGRESS	test/attested-route-composition.test.mjs	baseline(route): 0 pass=7 fail=0 skip=0 todo=0	final: 1 pass=6 fail=1 skip=0 todo=0	REGRESSION
+REGRESS	test/chain-authority.test.mjs	baseline(ownercli): 0 pass=10 fail=0 skip=0 todo=0	final: 0 pass=10 fail=0 skip=0 todo=0	ok
+REGRESS	test/challenge-front-managed.test.mjs	baseline(route): 0 pass=5 fail=0 skip=0 todo=0	final: 1 pass=4 fail=1 skip=0 todo=0	REGRESSION

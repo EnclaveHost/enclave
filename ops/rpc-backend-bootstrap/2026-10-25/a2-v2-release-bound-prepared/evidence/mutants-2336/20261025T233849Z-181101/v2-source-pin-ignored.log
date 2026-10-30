@@ -1,0 +1,29 @@
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": false, "refused": "open_gaps: derivation stays blocked: ['bytecodes-content-unverified'] (a missing client capability, not bypassable by config)"}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+test_the_gap_stays_open_without_a_v2_receipt_of_the_source_pinned_checker (test_a2a4.BytecodeGate.test_the_gap_stays_open_without_a_v2_receipt_of_the_source_pinned_checker) ... FAIL
+
+======================================================================
+FAIL: test_the_gap_stays_open_without_a_v2_receipt_of_the_source_pinned_checker (test_a2a4.BytecodeGate.test_the_gap_stays_open_without_a_v2_receipt_of_the_source_pinned_checker)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.a6IJsCDG0M/test/test_a2a4.py", line 587, in test_the_gap_stays_open_without_a_v2_receipt_of_the_source_pinned_checker
+    self.refused('release', 'open_gaps')                    # the REAL source pin b55e6b78 is not this (fake) checker's sha
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/tmp.a6IJsCDG0M/test/test_a2a4.py", line 131, in refused
+    rc, rec = self.run_step(step); self.assertEqual(rc, 1, rec); self.assertTrue(rec['refused'].startswith(code + ':'), rec['refused']); return rec
+                                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: 0 != 1 : {'step': 'release', 'startedAt': '2026-10-25T23:51:02.728026+00:00', 'result': None, 'ok': True, 'commands': [{'argv': ['/tmp/tmpro4da8s7/bin/base', 'reth', 'stage', 'unwind', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.064, 'stdoutBytes': 60, 'stdoutLog': '/tmp/tmpro4da8s7/work/cmd/20261025T235102795150Z-0001.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpro4da8s7/bin/base', 'reth', 'stage', 'run', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.064, 'stdoutBytes': 58, 'stdoutLog': '/tmp/tmpro4da8s7/work/cmd/20261025T235102859026Z-0002.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpro4da8s7/bin/base', 'reth', 'stage', 'drop', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.064, 'stdoutBytes': 24, 'stdoutLog': '/tmp/tmpro4da8s7/work/cmd/20261025T235102923141Z-0003.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpro4da8s7/bin/base', 'reth', 'db', 'get', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.064, 'stdoutBytes': 25, 'stdoutLog': '/tmp/tmpro4da8s7/work/cmd/20261025T235102986806Z-0004.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpro4da8s7/bin/base', 'reth', 'db', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.064, 'stdoutBytes': 36, 'stdoutLog': '/tmp/tmpro4da8s7/work/cmd/20261025T235103050710Z-0005.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpro4da8s7/bin/base', 'reth', 'db', '--datadir', '/tmp/tmpro4da8s7/datadir', '--config', '/tmp/tmpro4da8s7/reth.toml', 'settings', 'get'], 'class': 'read', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 37, 'stdoutLog': '/tmp/tmpro4da8s7/work/cmd/20261025T235103114577Z-0006.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpro4da8s7/bin/base', 'reth', 'db', '--datadir', '/tmp/tmpro4da8s7/datadir', '--config', '/tmp/tmpro4da8s7/reth.toml', 'stage-checkpoints', 'get'], 'class': 'read', 'rc': 0, 'sec': 0.064, 'stdoutBytes': 417, 'stdoutLog': '/tmp/tmpro4da8s7/work/cmd/20261025T235103178328Z-0007.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpro4da8s7/bin/base', 'reth', 'db', '--datadir', '/tmp/tmpro4da8s7/datadir', '--config', '/tmp/tmpro4da8s7/reth.toml', 'get', 'static-file', 'headers', '52866960'], 'class': 'read', 'rc': 0, 'sec': 0.064, 'stdoutBytes': 1681, 'stdoutLog': '/tmp/tmpro4da8s7/work/cmd/20261025T235103242239Z-0008.out', 'stderrTail': '', 'stopped': None}], 'finishedAt': '2026-10-25T23:51:03.344610+00:00'}
+
+----------------------------------------------------------------------
+Ran 1 test in 9.494s
+
+FAILED (failures=1)
+{"mode": "kill", "verdict": "killed", "testsRun": 1}

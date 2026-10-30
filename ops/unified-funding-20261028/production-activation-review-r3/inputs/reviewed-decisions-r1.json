@@ -1,0 +1,65 @@
+{
+  "schema": "enclave-funding-production-decisions-r1",
+  "chainId": 8453,
+  "reviewedBy": "Codex root source review 2026-10-28",
+  "reviewRef": "production-activation-review-r2 plus activation qualification r2; configuration preparation only, no owner grant approval",
+  "expected": {
+    "implementation": "0x9a869B2BA0D6FB4F297Eb140406478f0aed55F96",
+    "implementationCodehash": "0x94c41042068ffe6b08f43b6cb9546b4b725c81a60010a201fc0c428382cb3a95"
+  },
+  "relayer": "0xf4B78D91911e1c064A02E4D28C69E2De6056bE57",
+  "queue": {
+    "maxTipWei": "10000000",
+    "maxAttempts": 5,
+    "measuredExecuteGasUsed": "631198",
+    "measuredEvidence": "Historical Base fork eth_call (CALL trace) gas of vault.execute: 625399 / 609472 / 631198; the largest, 631198, is used. These are NOT transaction receipts and NOT a production measurement: a CALL trace excludes the 21000 intrinsic and calldata gas and cold-state / access-list differences of a real signed transaction. The relay's actual eth_estimateGas at quote time (queueGasFor(estimate) <= tx.gasLimit 1000000, else gas_above_cap) is mandatory and remains the binding check.",
+    "minRelayerBalanceWei": "100000000000000"
+  },
+  "ownerControls": {
+    "maxBlockAgeSec": 180
+  },
+  "intake": {
+    "notAfter": 1793312474,
+    "maxBlockAgeSec": 180,
+    "feeTiers": [
+      100,
+      500,
+      3000
+    ],
+    "maxSlippageBps": 100,
+    "deadlineSec": 300,
+    "quoter": "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a"
+  },
+  "feePolicy": {
+    "notAfter": 1793312474,
+    "maxBlockAgeSec": 180,
+    "quoteTtlSec": 300,
+    "oracle": "0x420000000000000000000000000000000000000f",
+    "feed": {
+      "address": "0x71041dddad3595f9ced3dccfbe3d1f4b0a16bb70",
+      "decimals": 8,
+      "description": "ETH / USD",
+      "maxAgeSec": 3600,
+      "minAnswer": "10000000000",
+      "maxAnswer": "10000000000000"
+    },
+    "sequencer": {
+      "address": "0xbcf85224fc0756b9fa45aa7892530b47e10b6433",
+      "graceSec": 3600
+    },
+    "sequencerDecision": "checked",
+    "tx": {
+      "gasLimit": 1000000,
+      "maxFeePerGas": "20000000",
+      "maxPriorityFeePerGas": "2000000",
+      "maxSignedBytes": 720,
+      "maxAttempts": 3,
+      "replacementBumpBps": 2500
+    },
+    "pricing": {
+      "marginBps": 2000,
+      "maxFee6": "80000"
+    },
+    "changesFromReviewedObservation": []
+  }
+}

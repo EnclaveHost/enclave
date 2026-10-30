@@ -1,0 +1,5 @@
+# Root source-review note (no runtime tests)
+
+The frozen r10 `src/main.rs` emits `plainVsHashed.status = NOT_APPLICABLE_V2` for `--plain-hashed` on v2. Its `jobs/positive.sh` expectation for v2-not-applicable is `NOT_APPLICABLE`. This mismatch predates the proposed v2 corrections and will fail the compiled positive fixture. New source revision must make the fixture assert the documented exact runtime enum `NOT_APPLICABLE_V2`, retaining exit5 and fullStateIntegrity=false. This is a test expectation typo correction, not relaxing a production acceptance condition.
+
+Current v2-no-rocksdb positive-suite fixture expects refusal. If the reviewed plan permits an explicitly reset history-index snapshot shape, split cases: all three index checkpoints present and zero may run state-only checks and at most exit5; missing/nonzero history checkpoint cases must refuse per conservative plan. Do not infer any actual database outcome from fixtures or source inspection. No real database, original, parts, or compact backup were opened for this note.

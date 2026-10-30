@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: measured guest: the bound relayEnv chain authority is validated at bind time; quorum stays the default
+ok 1 - measured guest: the bound relayEnv chain authority is validated at bind time; quorum stays the default
+  ---
+  duration_ms: 4.412189
+  type: 'test'
+  ...
+# Subtest: relay child: the chain authority is exactly the bound one; a sealed credential can neither set nor change it
+ok 2 - relay child: the chain authority is exactly the bound one; a sealed credential can neither set nor change it
+  ---
+  duration_ms: 0.447536
+  type: 'test'
+  ...
+# Subtest: native issuer: the host decision reads the policy through the bound verifier, never the RPC quorum; quorum default never asks the verifier
+ok 3 - native issuer: the host decision reads the policy through the bound verifier, never the RPC quorum; quorum default never asks the verifier
+  ---
+  duration_ms: 58.541193
+  type: 'test'
+  ...
+# Subtest: api-relay process: the network LeaseReader takes the explicit local verifier with no provider client; misconfiguration stops the relay
+ok 4 - api-relay process: the network LeaseReader takes the explicit local verifier with no provider client; misconfiguration stops the relay
+  ---
+  duration_ms: 2172.159365
+  type: 'test'
+  ...
+# Subtest: challenge replica: explicit verifier config reaches the gate env and the dns-relay child env; ambiguous, remote or unused is refused
+ok 5 - challenge replica: explicit verifier config reaches the gate env and the dns-relay child env; ambiguous, remote or unused is refused
+  ---
+  duration_ms: 3.589528
+  type: 'test'
+  ...
+# Subtest: dns-relay process (challenge replica child): the app-zone reader reads only the verifier; the default never asks it; a remote URL stops it
+ok 6 - dns-relay process (challenge replica child): the app-zone reader reads only the verifier; the default never asks it; a remote URL stops it
+  ---
+  duration_ms: 400.587124
+  type: 'test'
+  ...
+# Subtest: directory replica role: explicit verifier passes the role filter into the directory-server process; rpc optional only then
+ok 7 - directory replica role: explicit verifier passes the role filter into the directory-server process; rpc optional only then
+  ---
+  duration_ms: 441.326472
+  type: 'test'
+  ...
+# Subtest: native-profile: --chain-verifier makes its own lease reads use the verifier (refusal stays a refusal) and is refused if remote or conflicting
+ok 8 - native-profile: --chain-verifier makes its own lease reads use the verifier (refusal stays a refusal) and is refused if remote or conflicting
+  ---
+  duration_ms: 7.582741
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3692.656386

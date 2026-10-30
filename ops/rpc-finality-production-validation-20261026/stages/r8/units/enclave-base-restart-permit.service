@@ -1,0 +1,11 @@
+# base-finality-proof-stage/r6 (SOURCE ONLY): UNATTENDED checked restart permit. Runs before every start of the base unit while that
+# unit is still inactive/failed (gate_static requires it stopped): bootstrapped|restarted -> the harness proves the STOPPED DB at or
+# above the latest recorded finality floor and records restart-permitted; anything else refuses and the base unit does not start.
+[Unit]
+Description=Base restart permit (stopped DB proven at/above the finality floor)
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/python3 -I -B /opt/enclave-rpc/base-launch/base_launch.py permit-restart-auto /etc/enclave-rpc/base-bootstrap /etc/enclave-rpc/base-a2a4-config.json
+NoNewPrivileges=yes
+PrivateTmp=yes

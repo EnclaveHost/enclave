@@ -1,0 +1,40 @@
+{
+  "admission": {
+    "unit": "enclave-windows-manager-integration-r5-20261029",
+    "invocation": "cc26ac415fe14f6b8c674a7e7c86b7e6",
+    "mainPid": 1584269,
+    "runnerPid": 1584290,
+    "claudePid": 1584300,
+    "recordedAt": 1793286198.1542542
+  },
+  "unit": "ActiveState=inactive\nSubState=dead\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "finished": {
+    "rc": 0,
+    "finishedAt": 1793286779.7825603,
+    "inputDrift": []
+  },
+  "currentInputDrift": [],
+  "session": "f85f0b6b-9eae-491e-8797-b6a91f9615a6",
+  "duration_ms": 617301,
+  "num_turns": 80,
+  "is_error": false,
+  "outputParseFailed": false,
+  "files": 160,
+  "changedFiles": 13,
+  "removedFiles": [],
+  "manifestSha256": "c51174cff00212cbe7d3874290036e2f45d2cd1ef45ce6742d1763a1105bae2d",
+  "firstMutations": 13,
+  "firstMutationManifestSha256": "e72f24b1ab6898f13f24995c8b4fd5c1c316760bb43f843d3b2c20445585773c",
+  "currentInvocationTools": {
+    "Read": 24,
+    "Grep": 18,
+    "Edit": 32,
+    "Write": 5
+  },
+  "unexpectedTools": [],
+  "outsideCandidateMutationAttempts": [],
+  "mutationReplayIssues": [],
+  "mutationAuditSha256": "8fc6ed536dd6ce5ad2254d82c943bd5a6715f057febe7ee8ed6f15e53881abac",
+  "innerGuard": "[memory-guard] exit=0 peakTreeRssMiB=293 minHostAvailableMiB=33013\n",
+  "outerGuard": "[memory-guard] exit=0 peakTreeRssMiB=358 minHostAvailableMiB=33007\n"
+}

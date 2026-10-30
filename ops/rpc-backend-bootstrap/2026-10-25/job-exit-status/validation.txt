@@ -1,0 +1,1 @@
+Root validation 2026-10-25: bash -n passed. Isolated fake queue exercised real wrapper control flow, replacing only workstation paths, maximum retries2 and sleep0. Observed wrapper exit AND recorded receipt exactly0,1,99,98 in four cases. No production queue or native process started. Active old wrapper left unchanged.

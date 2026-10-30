@@ -1,0 +1,2 @@
+mutant: NOT KILLED
+   gate_root_counterexample_retained_descendant_refused: ok (not killed)

@@ -1,0 +1,13 @@
+{
+  "keyringSha256": "80a36b0a6de2f69f49d2df75ef473ccde121e9e190b9ea01d20a4f63778d5c31",
+  "primaryFingerprints": [
+    "790BC7277767219C42C86F933B4FE6ACC0B21F32",
+    "843938DF228D22F7B3742BC0D94AA3F0EFE21092",
+    "F6ECB3762474EDA9D21B7022871920D1991BC93C"
+  ],
+  "probeUrl": "https://archive.ubuntu.com/ubuntu/dists/noble/InRelease",
+  "curlReturncode": 0,
+  "httpStatus": "200",
+  "stderr": "",
+  "provenance": "read-only extracted guest keyring; HTTPS reachability only, no package qualification"
+}

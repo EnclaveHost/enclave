@@ -1,0 +1,38 @@
+{
+ "a1Exit": 3,
+ "a1_stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+ "captureId": "94537cf46ee553ac7246603ca98e9fa7",
+ "captureSha256": "a26e96b2683a8f5206f02b0869a0fe59b5d65f3cc36572a2b578719cc4398cb4",
+ "copiesAfterRun": true,
+ "copiesBeforeExec": true,
+ "evidence_jsonSha256": "c0a7d5fb639a5485844dbc463de8141325ca91d2735c96689bb8b43338afc7ad",
+ "finishedAt": "2026-10-26T02:51:04.643747+00:00",
+ "format": "enclave-a1-capture/v2",
+ "heliosStatus": {
+  "authority": "helios-ethereum-light-client",
+  "binarySha256": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+  "checkpoint": {
+   "declaredAgeSec": 26921,
+   "root": "0xb5d8034017f25328b5ae1455d3efe12de0a49d3e759f63129bcb0296e7847094",
+   "slot": 15511008,
+   "sources": 5
+  },
+  "finalized": {
+   "ageSec": 812,
+   "hash": "0xf3c40d96b590dd0b8211ba63cec6f2e2b325352cda6280cbeefe015fcb31633f",
+   "number": 26273917,
+   "timestamp": 1792982231
+  },
+  "finalizedBasis": "sync-committee supermajority (>=2/3) finality update verified inside pinned Helios",
+  "latest": {
+   "hash": "0xf0ab907b101b174430e90ad935a1d56428514e5b96e5d788fa7e494d281399ae",
+   "number": 26273983,
+   "timestamp": 1792983023
+  },
+  "latestBasis": "optimistic header (sync-committee signed, NOT finalized); Helios refuses latest >60 s old",
+  "verdict": "fresh-finalized",
+  "wrapperChecks": "chain id, JSON-RPC envelope, finalized<=latest, finalized age; the wrapper adds no proof"
+ },
+ "helios_outSha256": "d0820801565bb9d8c57dd62eb8f427d73f19c730f0cc60d5cda448bb93d3043c",
+ "processStopped": true
+}

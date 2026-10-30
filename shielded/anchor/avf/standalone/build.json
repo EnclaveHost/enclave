@@ -1,0 +1,45 @@
+{
+ "relayOrigin": "https://api.enclave.host",
+ "chainId": "8453",
+ "addressBook": "0xab214342d5a490150a4a977063a2f88e21f80907",
+ "repo": "EnclaveHost/enclave",
+ "maxFeePerGasWei": "500000000",
+ "defaultPriceCpuPerSec6": "2",
+ "minWithdraw6": "1000000",
+ "authorityHashes": [
+  "98ca749af9a43f6b1e39e043d499e4e451fc6b82e827c28e08f2face62f8f3ac7494527e0e13d75b656508fd26414ab737060cba5c5e737b6cc0fd6b6dc4f00e"
+ ],
+ "runtimeIds": [
+  "d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba"
+ ],
+ "rootPins": [
+  "cedb1cb6dc896ae5ec797348bce9286753c2b38ee71ce0fbe34a9a1248800dfc",
+  "6d9db4ce6c5c0b293166d08986e05774a8776ceb525d9e4329520de12ba4bcc0"
+ ],
+ "rpc": [
+  "https://base-rpc.publicnode.com",
+  "https://mainnet.base.org",
+  "https://base.drpc.org"
+ ],
+ "gateways": [
+  "https://ipfs.enclave.host",
+  "https://ipfs.io",
+  "https://dweb.link"
+ ],
+ "dns": [
+  {
+   "address": "1.1.1.1:443",
+   "serverName": "cloudflare-dns.com",
+   "path": "/dns-query"
+  },
+  {
+   "address": "8.8.8.8:443",
+   "serverName": "dns.google",
+   "path": "/resolve"
+  }
+ ],
+ "checkers": [
+  "0x57144c9008cff0b3ed94f6e40964a321fbee848a",
+  "0x033bc2b92bb1bb97c7dadf2879d3048748e2257b"
+ ]
+}

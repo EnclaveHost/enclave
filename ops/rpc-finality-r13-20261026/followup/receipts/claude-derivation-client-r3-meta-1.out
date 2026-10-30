@@ -1,0 +1,16 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 5 not started; sleep 30
+[queue] START available=18395MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+## derivation-client-r3 metadata key=43698236e9186750 rc=0
+metadata packages 1757 workspace members 152
+[memory-guard] exit=0 peakTreeRssMiB=339 minHostAvailableMiB=17960
+[memory-guard] at peak: cargo:328 bash:6 bash:4 timeout:2
+[queue] EXIT 0

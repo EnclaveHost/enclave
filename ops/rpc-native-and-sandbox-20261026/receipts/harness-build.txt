@@ -1,0 +1,131 @@
+   Compiling base-proof-zk-utils v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/derivation-client-stage/r3/build/deps-43698236e9186750/base/crates/proof/zk/utils)
+warning: missing documentation for a constant
+  --> crates/proof/zk/utils/examples/derivation_harness_combined.rs:47:1
+   |
+47 | pub const RESULT_FORMAT: &str = "enclave-base-derivation-result/v2";   // combined keeps v2; adds interval fields
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: requested on the command line with `-W missing-docs`
+
+warning: missing documentation for a struct
+  --> crates/proof/zk/utils/examples/derivation_harness_combined.rs:53:1
+   |
+53 | pub struct Trusted {
+   | ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_combined.rs:54:5
+   |
+54 |     pub chain_id: u64,
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_combined.rs:55:5
+   |
+55 |     pub l1_head: B256,
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_combined.rs:56:5
+   |
+56 |     pub l1_head_number: u64,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_combined.rs:57:5
+   |
+57 |     pub agreed: B256,
+   |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_combined.rs:58:5
+   |
+58 |     pub claimed: B256,
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_combined.rs:59:5
+   |
+59 |     pub claimed_number: u64,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_combined.rs:60:5
+   |
+60 |     pub interval: u64,
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_combined.rs:61:5
+   |
+61 |     pub rollup_config_json: Vec<u8>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_combined.rs:62:5
+   |
+62 |     pub expected_config_hash: B256,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_combined.rs:63:5
+   |
+63 |     pub expected_schedule_id: B256,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+   --> crates/proof/zk/utils/examples/derivation_harness_combined.rs:120:1
+    |
+120 | pub struct ExecutedHead {
+    | ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/proof/zk/utils/examples/derivation_harness_combined.rs:121:5
+    |
+121 |     pub number: u64,
+    |     ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/proof/zk/utils/examples/derivation_harness_combined.rs:122:5
+    |
+122 |     pub hash: B256,
+    |     ^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/proof/zk/utils/examples/derivation_harness_combined.rs:123:5
+    |
+123 |     pub state_root: B256,
+    |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/proof/zk/utils/examples/derivation_harness_combined.rs:124:5
+    |
+124 |     pub message_passer_root: B256,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+   --> crates/proof/zk/utils/examples/derivation_harness_combined.rs:125:5
+    |
+125 |     pub timestamp: u64,
+    |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a function
+   --> crates/proof/zk/utils/examples/derivation_harness_combined.rs:139:1
+    |
+139 | pub fn load_witness(bytes: &[u8]) -> Result<DefaultWitnessData> {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a function
+   --> crates/proof/zk/utils/examples/derivation_harness_combined.rs:186:1
+    |
+186 | pub fn result_json(b: &BootInfoStruct, t: &Trusted, h: &ExecutedHead) -> serde_json::Value {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a function
+   --> crates/proof/zk/utils/examples/derivation_harness_combined.rs:215:1
+    |
+215 | pub fn verify(trusted: &[u8], witness: &[u8]) -> Result<serde_json::Value> {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `base-proof-zk-utils` (example "derivation_harness_combined") generated 21 warnings
+    Finished `dev` profile [unoptimized] target(s) in 2.76s

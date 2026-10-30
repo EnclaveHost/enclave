@@ -1,0 +1,34 @@
+{
+ "atEpoch": 1793061193.17101,
+ "capacity": {
+  "root": {
+   "externalReservationBytes": 8589934592,
+   "floorBytes": 42949672960,
+   "freeBytes": 534677581824,
+   "marginBytes": 6396604416,
+   "neededBytes": 528280977408,
+   "remainingLogicalBytes": 476741369856
+  },
+  "vm": {
+   "externalReservationBytes": 0,
+   "floorBytes": 42949672960,
+   "freeBytes": 706084458496,
+   "marginBytes": 40364527616,
+   "neededBytes": 665719930880,
+   "remainingLogicalBytes": 622770257920
+  }
+ },
+ "hi": 16,
+ "lo": 9,
+ "manifestSha256": "f94807f71c93b1ef639c224dfefb3b6c0f3e7b9289def91fc52b0e79864821a9",
+ "mode": "copy",
+ "sessionsBefore": {
+  "root": [
+   "20261027T000333Z-2502225",
+   "20261027T000530Z-2504266",
+   "20261027T001025Z-2508809",
+   "20261027T002224Z-2521128"
+  ],
+  "vm": []
+ }
+}

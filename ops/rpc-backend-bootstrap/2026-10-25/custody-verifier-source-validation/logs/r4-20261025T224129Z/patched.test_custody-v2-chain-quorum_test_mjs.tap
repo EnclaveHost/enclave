@@ -1,0 +1,76 @@
+TAP version 13
+# Subtest: each single outlier can refuse, hang, lie about height, or return conflicting state without vetoing 3 of 4
+ok 1 - each single outlier can refuse, hang, lie about height, or return conflicting state without vetoing 3 of 4
+  ---
+  duration_ms: 209.19831
+  type: 'test'
+  ...
+# Subtest: quorum-supported height applies confirmations without falling back to a stale unpaused state
+ok 2 - quorum-supported height applies confirmations without falling back to a stale unpaused state
+  ---
+  duration_ms: 1.932925
+  type: 'test'
+  ...
+# Subtest: rejects stale, future, malformed, moving or wrong-number block headers
+ok 3 - rejects stale, future, malformed, moving or wrong-number block headers
+  ---
+  duration_ms: 1.801026
+  type: 'test'
+  ...
+# Subtest: all chain methods use canonical hash-addressed calls and freshness, including deals and code admission
+ok 4 - all chain methods use canonical hash-addressed calls and freshness, including deals and code admission
+  ---
+  duration_ms: 12.188944
+  type: 'test'
+  ...
+# Subtest: a lost or unsupported canonical-hash call never downgrades to number-only eth_call
+ok 5 - a lost or unsupported canonical-hash call never downgrades to number-only eth_call
+  ---
+  duration_ms: 1.051001
+  type: 'test'
+  ...
+# Subtest: checkpoint survives reader restart and rejects rollback, same-height fork and failed persistence
+ok 6 - checkpoint survives reader restart and rejects rollback, same-height fork and failed persistence
+  ---
+  duration_ms: 1.482609
+  type: 'test'
+  ...
+# Subtest: concurrent reads cannot return an older snapshot after a later one was persisted
+ok 7 - concurrent reads cannot return an older snapshot after a later one was persisted
+  ---
+  duration_ms: 0.524706
+  type: 'test'
+  ...
+# Subtest: configured peers and thresholds cannot silently count one peer twice or accept disjoint quorums
+ok 8 - configured peers and thresholds cannot silently count one peer twice or accept disjoint quorums
+  ---
+  duration_ms: 0.871933
+  type: 'test'
+  ...
+# Subtest: one public RPC host is one vote however it is spelled; loopback test chains count by port
+ok 9 - one public RPC host is one vote however it is spelled; loopback test chains count by port
+  ---
+  duration_ms: 2.310471
+  type: 'test'
+  ...
+# Subtest: invalid reader configuration is refused before any request; custom transports without a URL still work
+ok 10 - invalid reader configuration is refused before any request; custom transports without a URL still work
+  ---
+  duration_ms: 1.436209
+  type: 'test'
+  ...
+# Subtest: a snapshot that goes stale while its checkpoint is being persisted is refused; the mark still advances
+ok 11 - a snapshot that goes stale while its checkpoint is being persisted is refused; the mark still advances
+  ---
+  duration_ms: 0.508986
+  type: 'test'
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 11
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 390.334291

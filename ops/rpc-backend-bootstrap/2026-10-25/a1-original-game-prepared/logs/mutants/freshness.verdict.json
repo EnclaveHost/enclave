@@ -1,0 +1,1 @@
+{"badMarkers": [], "cancelled": 0, "fail": 1, "failing": [{"assertion": true, "failureType": "testCodeFailure", "name": "recheck refuses not_fresh: initial A1 receipt at the SAME, a NEWER, or the same-hash L1 block (Helios and header numbers agree)"}], "genuineAssertionFailures": 1, "pass": 26, "rc": 1, "skipped": 0, "suites": 0, "tests": 27, "todo": 0, "verdict": "killed"}

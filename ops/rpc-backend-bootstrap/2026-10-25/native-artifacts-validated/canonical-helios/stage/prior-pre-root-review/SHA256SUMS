@@ -1,0 +1,7 @@
+38c7d3448e49566c2ce316e280b15f42680e68435987717610743d94ecd0366a  ./README.md
+b626c16141cea3664956b11b367d5846152a227c9d2172a366f423b09185c667  ./integration/OLD-PINS.sha256
+881df98707b9bd28e5e9e126c0bb512792d6de4b0b72a9a87d70ebf989a96ad1  ./integration/make-source-update.py
+8217191cd43fa0ef65f3b96aeeb33dd8faa7d36c58c23e6b56baab98fb0fea67  ./integration/prepare-chain-verifier-inputs.sh
+1b590e5c2deb99ed4c76cea07dcabbf1000f7d67ba850b14c9f03430d9f16e95  ./jobs/PINS.txt
+4f94d4e68e2a45ca0b476881ac7ef6d88188eb2cba532a186ebc47eed8481352  ./jobs/TESTED-EVIDENCE.sha256
+f0d70c47ac4bc249e8d164c90b8d374de8ef290cddd77e8090a5848ccb236196  ./jobs/build-helios.sh

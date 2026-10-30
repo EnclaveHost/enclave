@@ -1,0 +1,48 @@
+[queue] START available=83945MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+Running as unit: enclave-shield-loader-tests-20261028.service
+=== RUN   TestAuthenticatedPrivateCopy
+=== RUN   TestAuthenticatedPrivateCopy/valid
+MODEL verified bytes=20 sha256=4051f350ee628bf37d257ecea8805beffe4e3f1e0f299ffac423b68114d7604c copy_verify_ms=0
+=== RUN   TestAuthenticatedPrivateCopy/short
+=== RUN   TestAuthenticatedPrivateCopy/corrupt
+=== RUN   TestAuthenticatedPrivateCopy/wrong-pin
+--- PASS: TestAuthenticatedPrivateCopy (0.00s)
+    --- PASS: TestAuthenticatedPrivateCopy/valid (0.00s)
+    --- PASS: TestAuthenticatedPrivateCopy/short (0.00s)
+    --- PASS: TestAuthenticatedPrivateCopy/corrupt (0.00s)
+    --- PASS: TestAuthenticatedPrivateCopy/wrong-pin (0.00s)
+=== RUN   TestDropCacheChunksInOrderWithinModel
+--- PASS: TestDropCacheChunksInOrderWithinModel (0.00s)
+=== RUN   TestDropCacheProductionChunking
+MODEL verified bytes=8391584 sha256=c918f98e0e7fc098db9f981e9f33c443bfacfe8b3958a6c5c2b2ed557c968d79 copy_verify_ms=21 source_dontneed_advised_bytes=8391584 source_dontneed_failures=0
+--- PASS: TestDropCacheProductionChunking (0.04s)
+=== RUN   TestDropCacheRejectsWithoutPublishing
+=== RUN   TestDropCacheRejectsWithoutPublishing/short
+=== RUN   TestDropCacheRejectsWithoutPublishing/corrupt
+=== RUN   TestDropCacheRejectsWithoutPublishing/wrong-pin
+--- PASS: TestDropCacheRejectsWithoutPublishing (0.00s)
+    --- PASS: TestDropCacheRejectsWithoutPublishing/short (0.00s)
+    --- PASS: TestDropCacheRejectsWithoutPublishing/corrupt (0.00s)
+    --- PASS: TestDropCacheRejectsWithoutPublishing/wrong-pin (0.00s)
+=== RUN   TestDropCacheTruncatedSource
+--- PASS: TestDropCacheTruncatedSource (0.00s)
+=== RUN   TestDropCacheAdviceFailureIsCountedNotFatal
+MODEL verified bytes=29 sha256=655551b79154aa5ac66aadcc4c2b93f22f318ec08cf4b1d38b3bcf323f66c619 copy_verify_ms=0 source_dontneed_advised_bytes=0 source_dontneed_failures=1
+MODEL source advice failed (non-fatal): invalid argument
+--- PASS: TestDropCacheAdviceFailureIsCountedNotFatal (0.00s)
+=== RUN   TestDropCacheErrorPathsNeverAdvise
+--- PASS: TestDropCacheErrorPathsNeverAdvise (0.00s)
+=== RUN   TestDropCacheMarkerDefaultsOff
+--- PASS: TestDropCacheMarkerDefaultsOff (0.00s)
+=== RUN   TestFadviseDontneedSyscall
+--- PASS: TestFadviseDontneedSyscall (0.00s)
+PASS
+ok  	_/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/loader-candidate	0.045s
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 605ms
+             CPU time consumed: 386ms
+                   Memory peak: 163.4M (swap: 0B)
+[memory-guard] exit=0 peakTreeRssMiB=5 minHostAvailableMiB=83895
+[memory-guard] at peak: systemd-run:5
+[queue] EXIT 0

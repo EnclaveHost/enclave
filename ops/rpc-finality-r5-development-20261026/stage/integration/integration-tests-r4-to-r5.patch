@@ -1,0 +1,145 @@
+--- a/tests/test_finality_integration.py
++++ b/tests/test_finality_integration.py
+@@ -1,10 +1,10 @@
+ #!/usr/bin/env python3
+-"""base-finality-proof-stage/r4 REAL-TOOL integration (PREPARED; NOT run by Claude: jobs/root-finality-r4-tests.sh, exact count 9).
+-Every decision is made by the real code: the r7 recovery harness (capture_binding, pinned A1 gate, gate_a1, the durable admission
++"""base-finality-proof-stage/r5 REAL-TOOL integration (PREPARED; NOT run by Claude: jobs/root-finality-r5-tests.sh, exact count 11).
++Every decision is made by the real code: the r5 recovery harness (r7 + the shared-ledger path) (capture_binding, pinned A1 gate, gate_a1, the durable admission
+ ledger, gate_watermark) executing the REAL capture r4 module (pinned bytes) over that stage's own stub sources and r7's capture
+-stubs (as r7's tests do: test-observed runtime pins, A1_CAPTURE_REVIEWED patched in THIS process only); the r4 finality tool and
+-its pinned JS core over a loopback JSON-RPC chain (r2 helpers); the r4 wrapper (journal, lock, watermark, launch_finality,
+-launch_handshake) and the r4 producer (record_finality). Test seams only: OWNER/TRUSTED_UID = this uid, a fake /proc root, the
++stubs (as r7's tests do: test-observed runtime pins, A1_CAPTURE_REVIEWED patched in THIS process only); the r5 finality tool and
++its pinned JS core over a loopback JSON-RPC chain (r2 helpers); the r5 wrapper (journal, lock, watermark, launch_finality,
++launch_handshake) and the r5 producer (record_finality). Test seams only: OWNER/TRUSTED_UID = this uid, a fake /proc root, the
+ watermark/archive paths, and - in the handshake checks - launch_record (its qualification files are covered by r7's suites).
+ Every reviewed flag is False in the sources; each test patches what it exercises for its own duration."""
+ import contextlib, functools, hashlib, importlib.util, json, os, pathlib, shutil, sys, tempfile, types, unittest
+@@ -16,13 +16,14 @@
+ STAGE = WORK / 'source/ops/rpc-backend-bootstrap/2026-10-25/a2-v2-release-bound-prepared/stage'
+ sys.path.insert(0, str(STAGE / 'test')); sys.path.insert(0, str(HERE))
+ import test_a2a4 as TA                                               # the harness fixture's A1 receipt builder (fresh_a1)
+-import test_finality_state as T2                                    # r4 tool tests: Stub, CHAIN, N, NP, L1 (loads ../src/finality_state)
++import test_finality_state as T2                                    # r5 tool tests: Stub, CHAIN, N, NP, L1 (loads ../src/finality_state)
++import readiness_sampler as RS                                      # the r5 readiness gate (T2 put ../readiness on sys.path)
+ FS = T2.FS
+ def load(name, p):
+     s = importlib.util.spec_from_file_location(name, p); m = importlib.util.module_from_spec(s); s.loader.exec_module(m); return m
+-R = load('a2a4_recovery_r7', R7 / 'harness/a2a4.py'); R.TRUSTED_UID = os.getuid()
+-W = load('chain_service_r4', ROOT / 'wrapper/chain_service.py')
+-P = load('base_launch_r4', ROOT / 'producer/base_launch.py')
++R = load('a2a4_recovery_r5', ROOT / 'harness/a2a4.py'); R.TRUSTED_UID = os.getuid()
++W = load('chain_service_r5', ROOT / 'wrapper/chain_service.py')
++P = load('base_launch_r5', ROOT / 'producer/base_launch.py')
+ NODE, DEPS = os.path.realpath(os.environ['FINALITY_NODE']), os.environ['ANCHOR_DEPS_ROOT']
+ sha = lambda b: hashlib.sha256(b).hexdigest()
+ N, NP, CHAIN = T2.N, T2.NP, T2.CHAIN; NP2 = NP + 20; GAME0 = '0x' + 'cd' * 20
+@@ -37,7 +38,7 @@
+         self.release = b'base-release-binary'; self.store = t / 'etc/wm'; self.ledger = t / 'etc/base-a1-admission.jsonl'; self.fdir = t / 'finality'
+         stack = contextlib.ExitStack(); self.addCleanup(stack.close)
+         for obj, k, v in ((R, 'A1_CAPTURE_REVIEWED', True), (R, 'A1_CAPTURE_SOURCE', CAP_SRC), (R, 'A1_CAPTURE_TEST_PINS', lambda: self.cpins),
+-                          (W, 'A1_ADMISSION_LEDGER', self.ledger), (W, 'BOOTSTRAP_WATERMARK', self.store), (W, 'BOOTSTRAP_ARCHIVE', t / 'etc/archive')):
++                          (W, 'A1_ADMISSION_LEDGER', self.ledger), (R, 'A1_ADMISSION_LEDGER', self.ledger), (W, 'BOOTSTRAP_WATERMARK', self.store), (W, 'BOOTSTRAP_ARCHIVE', t / 'etc/archive')):
+             stack.enter_context(patch.object(obj, k, v))
+         self.cap_setup(stack)
+         self.launch = {'format': W.LAUNCH_FORMAT, 'anchor': f'{N}:{CHAIN["headers"][str(N)]["hash"]}', 'baseReleaseSha256': sha(self.release),
+@@ -143,12 +144,22 @@
+         got = cm.exception.code if mod is FS else str(cm.exception).split(':', 1)[0]
+         self.assertEqual(got, code, str(cm.exception))
+ 
+-    def reanchor_gate(self, cap, n):
++    def permit(self):
++        """TEST stand-in for the producer's permit-restart (its REAL-harness stopped-DB checks run in r7-ported FinalityRestart)"""
++        own = W.launch_finality(self.launch, self.lsha, self.journal(), self.store, self.uid, self.t); st = os.stat(self.t / 'data/db/mdbx.dat')
++        W.journal_append(self.d / 'journal', self.uid, self.lsha, self.journal(), 'restart-permitted',
++                         {'floor': {'entrySha256': own[-1][0], 'number': own[-1][1]['number'], 'blockHash': own[-1][1]['blockHash']},
++                          'mdbx': {'dev': st.st_dev, 'ino': st.st_ino, 'size': st.st_size, 'mtimeNs': st.st_mtime_ns}}, 'at', self.t)
++
++    def status(self):
++        return FS.status(self.d, self.t / 'chain.json', self.fdir, self.url, W=W, top=self.t, proc=self.procdir)
++
++    def reanchor_gate(self, cap, n, ledger=None):
+         """the RE-ANCHOR path's own admission of a capture (harness gate_a1 at A2) into the same shared ledger"""
+         w = self.t / f'ra-{self.ncap}'; w.mkdir(mode=0o700)
+         c = {'workdir': str(w), 'node': NODE, 'a1GateDir': str(ROOT / 'a1gate'), 'a1MaxAgeSec': 600, 'a1Mode': 'capture-recheck', 'N': n,
+              'outputRoot': CHAIN['outputRoots'][str(n)], 'game': json.loads(self.tpl.read_text())['game'],
+-             'reanchor': {'a1Capture': cap, 'admissionLedger': str(W.A1_ADMISSION_LEDGER)}}
++             'reanchor': {'a1Capture': cap, 'admissionLedger': str(ledger or W.A1_ADMISSION_LEDGER)}}
+         return R.gate_a1(c, at_a2=True)
+ 
+     # ==== tests =========================================================================================================
+@@ -162,9 +173,12 @@
+         self.assertTrue(self.record()['appended']); self.assertEqual(self.wm(), [('finality-proof', NP)])       # the FIRST floor
+         self.assertEqual(self.journal()[-1][1]['event'], 'bootstrapped')
+         self.assertFalse(self.record()['appended'])                                                         # idempotent
+-        self.assertEqual(self.handshake(), [], 'an ordinary restart: no --bootstrap.anchor (never replayed)')
+-        self.proc('999')                                                                                    # the node restarted
+-        self.assertEqual(FS.status(self.d, self.t / 'chain.json', self.fdir, self.url, W=W, top=self.t, proc=self.procdir)['state'], 'stale-launch-changed')
++        s = self.status(); self.assertEqual((s['state'], s['recordedAs']), ('qualified', self.journal()[-1][0]))   # r5: current right after record
++        with self.assertRaisesRegex(AssertionError, 'permit-restart'):
++            self.handshake()                                                                                # bootstrapped alone never starts
++        self.permit(); self.assertEqual(self.handshake(), [], 'one ordinary restart: no --bootstrap.anchor (never replayed)')
++        self.assertEqual(self.journal()[-1][1]['event'], 'restarted'); self.proc('999')                    # the node restarted
++        self.assertEqual(self.status()['state'], 'stale-launch-changed')
+         self.refused(P, 'not_qualified', self.record)                                                       # requalification required
+         self.refused(FS, 'not_newer', self.qualify, self.captures(NP, l1_bump=50))
+         r2 = self.qualify(self.captures(NP2, l1_bump=100)); self.assertEqual(r2['priorChecked'], [NP])
+@@ -190,7 +204,8 @@
+         with self.assertRaisesRegex(AssertionError, 'not exactly its recorded finality proofs'):
+             W.launch_finality(self.launch, self.lsha, self.journal(), self.store, self.uid, self.t)
+         self.assertIs(P._append, real); r = self.record(); self.assertTrue(r['adopted'])
+-        self.assertEqual(self.wm(), [('finality-proof', NP)]); self.assertEqual(self.handshake(), [])
++        self.assertEqual(self.wm(), [('finality-proof', NP)]); self.assertEqual(self.status()['state'], 'qualified')
++        self.assertEqual(len(W.launch_finality(self.launch, self.lsha, self.journal(), self.store, self.uid, self.t)), 1)
+ 
+     def test_identity_change_at_append_refuses_and_writes_nothing(self):
+         self.launched(); self.qualify(self.captures(NP)); calls = []
+@@ -206,9 +221,9 @@
+         self.launched()
+         with self.assertRaisesRegex(AssertionError, 'already consumed'):
+             self.handshake()
+-        self.qualify(self.captures(NP)); self.record()
++        self.qualify(self.captures(NP)); self.record(); self.permit()
+         (self.t / 'data/db/other').write_bytes(b'other db'); os.replace(self.t / 'data/db/other', self.t / 'data/db/mdbx.dat')   # another DB file
+-        with self.assertRaisesRegex(AssertionError, 'DB file is not the one'):
++        with self.assertRaisesRegex(AssertionError, 'changed since the restart permit'):
+             self.handshake()
+ 
+     def test_rollback_after_bootstrapped_is_terminal_and_rearm_never_allowed(self):
+@@ -230,7 +245,34 @@
+         es = W.watermark_entries(self.store, self.uid, self.t)
+         W.watermark_append(self.store, self.uid, es, NP + 5, '0x' + '77' * 32, 'launch-anchor', 'ef' * 32, 'at', self.t)
+         with self.assertRaisesRegex(AssertionError, 'not exactly its recorded finality proofs'):
+-            self.handshake()
++            W.launch_finality(self.launch, self.lsha, self.journal(), self.store, self.uid, self.t)
++
++    def test_harness_refuses_another_ledger_path_before_any_admission(self):
++        self.launched(); cap = self.captures(NP); other = self.t / 'etc/other-ledger.jsonl'
++        with self.assertRaisesRegex(R.Refused, '^a1_ledger_path'):
++            self.reanchor_gate(cap, NP, ledger=other)                                                       # the re-anchor path itself
++        self.assertFalse(other.exists() or other.with_name(other.name + '.lock').exists(), 'nothing read-locked or written there')
++        with patch.object(W, 'A1_ADMISSION_LEDGER', other):
++            self.refused(FS, 'a1_ledger_path', self.qualify, cap)                                           # wrapper and harness disagree
++        self.assertFalse(self.ledger.exists())
++
++    def test_readiness_gate_requires_a_post_restart_proof_end_to_end(self):
++        self.launched(); self.qualify(self.captures(NP)); self.record()
++        (self.t / 'run').mkdir(); out = self.t / 'run/base-finality-status.json'
++        a = types.SimpleNamespace(finality_status=str(out), finality_status_uid=self.uid, proc_root=self.procdir)
++        def gate(exc=None):
++            if exc is None:
++                return RS.validate_finality_status(a)
++            with self.assertRaises(exc) as cm:
++                RS.validate_finality_status(a)
++            return cm.exception.code
++        FS.publish_status(self.status(), out, top=self.t); self.assertEqual(gate()['freshN'], NP)       # current right after record
++        self.permit(); self.handshake(); self.proc('777')                                                   # one ordinary restart
++        self.assertEqual(gate(RS.Unavailable), 'finality-stale-after-restart')                              # the old proof's process is gone
++        FS.publish_status(self.status(), out, top=self.t); self.assertEqual(gate(RS.Unavailable), 'finality-not-current')
++        self.qualify(self.captures(NP2, l1_bump=100))                                                       # the post-restart proof
++        FS.publish_status(self.status(), out, top=self.t); self.assertEqual(gate()['freshN'], NP2)
++        self.record(); FS.publish_status(self.status(), out, top=self.t); self.assertEqual(gate()['freshN'], NP2)
+ 
+     def test_dependency_tamper_refuses_core_runs_only_pinned_bytes(self):
+         self.launched(); cap = self.captures(NP)

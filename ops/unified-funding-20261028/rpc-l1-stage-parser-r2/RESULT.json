@@ -1,0 +1,49 @@
+{
+  "status": "HARNESS_EXPECTATION_NOT_SATISFIED",
+  "positiveAcceptedThenDatadirRefused": false,
+  "negativeTypedConfigRejected": false,
+  "results": {
+    "positive": {
+      "rc": 2,
+      "reason": null,
+      "elapsedSeconds": 0.12493662699125707,
+      "stdout": "",
+      "stderr": "error: the argument '--disable-discovery' cannot be used with '--disable-dns-discovery'\n\nUsage: reth node --config <FILE> --chain <CHAIN_OR_PATH> --datadir <DATA_DIR> --log.file.max-files <COUNT> --disable-discovery --disable-auth-server --ipcdisable --nat <NAT>\n\nFor more information, try '--help'.\n",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 300
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "negative": {
+      "rc": 2,
+      "reason": null,
+      "elapsedSeconds": 0.1498682179953903,
+      "stdout": "",
+      "stderr": "error: the argument '--disable-discovery' cannot be used with '--disable-dns-discovery'\n\nUsage: reth node --config <FILE> --chain <CHAIN_OR_PATH> --datadir <DATA_DIR> --log.file.max-files <COUNT> --disable-discovery --disable-auth-server --ipcdisable --nat <NAT>\n\nFor more information, try '--help'.\n",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 300
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    }
+  },
+  "sourceProfileAppliedToProduction": false,
+  "databaseCreated": false
+}

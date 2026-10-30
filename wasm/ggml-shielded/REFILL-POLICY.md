@@ -33,8 +33,7 @@ allocation-failure pairs per entry. The latter cover slab boundaries, output
 stride canaries and extreme residues with K up to 65,536. Tests exercise both the
 optimized O3 code and the sanitizer build. Startup probes check default, empty,
 zero, one, invalid values, generic override and immutable selection after first
-admission. The earlier complete-dealer comparison below additionally
-authenticated and compared every pad value for the original 16-column kernel.
+admission.
 The wider kernel's inference comparison verifies attestation and compares output
 tokens; its arithmetic equality is checked by the independent kernel-level oracle.
 
@@ -45,29 +44,6 @@ node --test test/shielded-refill.test.mjs test/shielded-refill-oom.test.mjs test
 SHIELDED_TEST_SANITIZE=1 node --test test/shielded-refill-oom.test.mjs
 ```
 
-## Earlier complete-dealer result (original 16-column CRT kernel)
-
-On an EPYC 9115 with 16 mint threads, the actual Qwen3.8 27B Q8 model
-(262 groups / 409 members) produced a 64-row, 809,039,872-byte v2 shipment in
-median 3.052280 seconds with the default versus 2.2107065 seconds with the
-opt-in: 27.6% less wall time, or 20.97 versus 28.95 full-model pad rows/s.
-Median process CPU time was 44.3352585 versus 31.807363 seconds (28.3% less).
-These are pad-production rates, not inference token rates or phone performance.
-
-The final-entry benchmark used one checked warm pair followed by six matched
-pairs, three per order. The opt-in won all six. Each pair authenticated and
-compared every one of its 269,582,336 field values. Model registration
-(18.592 seconds), hashing, warm-up and verification were excluded from minting
-times. The host was not affinity-isolated; the measurements cover one balanced
-block and do not guarantee the same speedup on another machine.
-
-Final scratch library SHA-256:
-`f83459d58636fb9d5338a68ab1b01bf5f6784e1d24f6e60520d957633411d53c`.
-Benchmark SHA-256:
-`78af89be1999c9179ad7b239bd3db65c2c4dd35bd9cef7e21b1e79edded175ad`.
-These artifacts include isolated benchmark hooks; they are not deployed
-binaries. No live worker or phone setting was changed for this comparison.
-
 ## Vector mask sampler
 
 `SHIELDED_MASK_CHACHA16=1` opts the local mask bank into a sixteen-block
@@ -75,7 +51,7 @@ AVX-512 implementation of its existing ChaCha20 stream. It uses all twenty
 rounds, the same 256-bit key from OS entropy, the same 64-bit counter, and the
 same 64-bit-draw reduction into the field. The mask bytes are identical for
 identical keys and issuance indices. This is not reduced-strength randomness
-or reuse of a pad. Dealt-pad derivation and ARM builds are unchanged.
+or reuse of a pad. ARM builds are unchanged.
 
 Selection happens at bank creation, requires successful AVX-512 admission and
 an additional scalar/vector stream agreement check, and respects

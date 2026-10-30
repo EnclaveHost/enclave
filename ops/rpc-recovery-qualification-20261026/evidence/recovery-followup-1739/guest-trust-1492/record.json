@@ -1,0 +1,28 @@
+{
+ "readonly": true,
+ "osDisk": "/vm/enclave-volumes/rpc-production/os.qcow2",
+ "files": {
+  "ubuntu-archive-keyring.gpg": {
+   "path": "/usr/share/keyrings/ubuntu-archive-keyring.gpg",
+   "size": 3607,
+   "sha256": "80a36b0a6de2f69f49d2df75ef473ccde121e9e190b9ea01d20a4f63778d5c31"
+  },
+  "ubuntu.sources": {
+   "path": "/etc/apt/sources.list.d/ubuntu.sources",
+   "size": 2988,
+   "sha256": "e93b42f6049cd24174273060f4a33416ad165bf3a3b283626c4e2b93b37700d3"
+  },
+  "os-release": {
+   "path": "/usr/lib/os-release",
+   "size": 400,
+   "sha256": "87458b3b1f1ca0e5c693ade771de7007c3783bdc692fa6b39eb6414bf2af2763"
+  },
+  "fstab": {
+   "path": "/etc/fstab",
+   "size": 420,
+   "sha256": "e3e6ee3e79615eae01232f21b7e2ac9c39851be88186823445241d14d09e3273"
+  }
+ },
+ "unmountRc": 0,
+ "osUnchanged": true
+}

@@ -50,7 +50,7 @@ test("flag UNSET: every other envelope parses exactly as before", async () => {
   const r = await seam({ parse: ['{"waf":{"blockScanners":true}}', '{"nope":{}}', "", '{"gpu":{"optional":false}}'] });
   assert.equal(r.parse[0].ok, true);
   // the unknown-namespace message lists exactly the namespaces it always did
-  assert.equal(r.parse[1].error, 'unknown option namespace "nope" (this runner knows: waf, config, configCid, gpu, network, placement)');
+  assert.equal(r.parse[1].error, 'unknown option namespace "nope" (this runner knows: waf, config, configCid, gpu, network, placement, access)');
   assert.deepEqual(r.parse[2], { ok: true, opts: {} });
   assert.equal(r.parse[3].ok, true);
 });
@@ -92,7 +92,9 @@ test("flag SET: every feature the guest cannot honour is REFUSED", async () => {
     [{ hasSecrets: true }, /staged secrets, and they would cross this host in plaintext/],
     [{ hasSecrets: null }, /cannot verify the deployment has no staged secrets/],
     [{ firewall: ["tcp:5432"] }, /ports \(tcp:5432\)/],
-    [{ volumes: ["gemma"] }, /isolated inference requires/],
+    // a CPU deployment's volumes are model volumes (isolation-modelvol-gate.test.mjs); the GPU path keeps its own refusal
+    [{ volumes: ["gemma"] }, /attaches model volumes/],
+    [{ gpuMilli: 250, volumes: ["gemma"] }, /isolated inference requires|GPU share/],
     // enforced on the plaintext everywhere else; on this backend the plaintext exists only in the guest
     [{ isPublic: false }, /private, and its owner gate needs the request's plaintext/],
     [{ isPublic: undefined }, /private/],

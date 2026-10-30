@@ -1,0 +1,11 @@
+{
+  "exit": 0,
+  "reason": null,
+  "minimumAvailableMiB": 21940,
+  "started": true,
+  "stop": null,
+  "start": "2026-10-25T23:51:42.386892+00:00",
+  "end": "2026-10-26T00:51:11.425383+00:00",
+  "unit": "m7-m10-release-1.service",
+  "manifest": "9c9b2e83e18ba60c296df5549eb4baa85118429eac266dbbe800d51be73a1a75"
+}

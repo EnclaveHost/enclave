@@ -1,0 +1,7 @@
+[queue] START available=30228MiB required=18432MiB cap=1536MiB floor=16384MiB concurrentSmall=256MiB
+{"event": "bundle-ready", "out": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/b3bundle-production-1526", "receiptSha256": "a3602853ca62a256f1a0055d492d5a84be410c54564b5fbc184b989a47930310", "debSha256": "e6e6b98b5e22750160dbb804a2e7d8fb61daa0d6940002c45c222cf676701b7b", "primaryFingerprints": ["F6ECB3762474EDA9D21B7022871920D1991BC93C"], "packageVersion": "1.2.0-1"}
+## receipt.json sha256 a3602853ca62a256f1a0055d492d5a84be410c54564b5fbc184b989a47930310  (root pins this for qualify)
+## fetch rc 0; logs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/offline-b3sum-bundle-stage/r3/logs/fetch-20261026T175900Z-2116260; peakTreeRssMiB/minHostAvailableMiB: logs/root-b3bundle-fetch.guard
+[memory-guard] exit=0 peakTreeRssMiB=121 minHostAvailableMiB=30105
+[memory-guard] at peak: python3:115 bash:4 timeout:2
+[queue] EXIT 0

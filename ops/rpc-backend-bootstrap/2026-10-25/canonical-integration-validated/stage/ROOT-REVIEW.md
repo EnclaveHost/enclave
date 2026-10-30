@@ -1,0 +1,2 @@
+Before first execution, root required both baseline suites to pass, actual phase exit records, zero skips/failures/cancellations/todos, and the exact old-Helios digest mismatch for the negative control. Optional guest E2E must pass if supplied; otherwise NOT RUN and no guest qualification claim. Original runner/manifest retained in prior-root-review. Use 2560 MiB cap for overlay binary buffers.
+Initial root0103 rejected before execution because queue enum does not allow 2048; no test ran. Root0104 uses its existing 2560 choice, with queue policy unchanged.

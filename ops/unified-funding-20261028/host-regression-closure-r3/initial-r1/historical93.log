@@ -1,0 +1,21 @@
+TAP version 13
+# Subtest: zero routes: the candidate host behaves exactly like the baseline host
+not ok 1 - zero routes: the candidate host behaves exactly like the baseline host
+  ---
+  duration_ms: 30000.755701
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-host-authority-review-r2/test/lifecycle-host-candidate.test.mjs:21:1'
+  failureType: 'testTimeoutFailure'
+  error: 'test timed out after 30000ms'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: routed app (configured but not activated) never reaches a legacy claim/renew/release/prove/restart path; the unrelated app does
+not ok 2 - routed app (configured but not activated) never reaches a legacy claim/renew/release/prove/restart path; the unrelated app does
+  ---
+  duration_ms: 29999.748295
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-host-authority-review-r2/test/lifecycle-host-candidate.test.mjs:34:3'
+  failureType: 'testTimeoutFailure'
+  error: 'test timed out after 30000ms'
+  code: 'ERR_TEST_FAILURE'
+  ...

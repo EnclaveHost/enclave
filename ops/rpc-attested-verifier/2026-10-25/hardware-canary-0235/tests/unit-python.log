@@ -1,0 +1,26 @@
+test_all_promised_checks_true_passes_with_registry_pending (__main__.Acceptance.test_all_promised_checks_true_passes_with_registry_pending) ... ok
+test_any_false_check_or_drift_fails (__main__.Acceptance.test_any_false_check_or_drift_fails) ... ok
+test_bounds (__main__.Admission.test_bounds) ... ok
+test_rpc_down_holds_its_reservation (__main__.Admission.test_rpc_down_holds_its_reservation) ... ok
+test_rpc_running (__main__.Admission.test_rpc_running) ... ok
+test_deviations_fail (__main__.ArgvChecks.test_deviations_fail) ... ok
+test_measured_restricted_launch (__main__.ArgvChecks.test_measured_restricted_launch) ... ok
+test_clean_launch_inputs (__main__.NoKeyEvidence.test_clean_launch_inputs) ... ok
+test_each_key_or_relay_input_is_caught (__main__.NoKeyEvidence.test_each_key_or_relay_input_is_caught) ... ok
+test_foreign_group_is_never_signalled (__main__.Ownership.test_foreign_group_is_never_signalled) ... ok
+test_owned_group_is_stopped_and_absence_proven (__main__.Ownership.test_owned_group_is_stopped_and_absence_proven) ... ok
+test_reaped_identity_is_not_alive (__main__.Ownership.test_reaped_identity_is_not_alive) ... ok
+test_stale_identity_is_never_signalled (__main__.Ownership.test_stale_identity_is_never_signalled) ... ok
+test_term_ignoring_group_gets_sigkill_only_while_owned (__main__.Ownership.test_term_ignoring_group_gets_sigkill_only_while_owned) ... ok
+test_unbound_launcher_is_refused (__main__.Ownership.test_unbound_launcher_is_refused) ... ok
+test_pins (__main__.Pins.test_pins) ... ok
+test_real_targets_cover_every_helper (__main__.Pins.test_real_targets_cover_every_helper) ... ok
+test_redaction (__main__.Sanitize.test_redaction) ... ok
+test_interrupted_parent_stops_only_its_scope_proves_absence_and_scrubs (__main__.Supervise.test_interrupted_parent_stops_only_its_scope_proves_absence_and_scrubs) ... ok
+test_normal_exit_keeps_code_and_scrubs_leftover_private (__main__.Supervise.test_normal_exit_keeps_code_and_scrubs_leftover_private) ... ok
+test_unproven_absence_keeps_private_and_fails (__main__.Supervise.test_unproven_absence_keeps_private_and_fails) ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 18.443s
+
+OK

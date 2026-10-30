@@ -1,0 +1,35 @@
+{
+  "capturedAtUtc": "2026-10-29T06:12:26.152072+00:00",
+  "qualification": "partial author delivery: ledger only, no prover/tests",
+  "testsExecuted": false,
+  "sourceHashes": {
+    "candidate/deploy/EnclaveDeployments.sol": "d20da81a244d8326512ec700fb1c121158673d5c874418e360064c9aa6311de5"
+  },
+  "steps": [
+    {
+      "step": "build",
+      "command": [
+        "/home/steven/.foundry/bin/forge",
+        "build",
+        "--sizes",
+        "--skip",
+        "test",
+        "--root",
+        "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-ledger-v3-r1",
+        "--use",
+        "/home/steven/.local/share/svm/0.8.35/solc-0.8.35",
+        "--offline",
+        "--threads",
+        "1"
+      ],
+      "exitCode": 1,
+      "sizes": {
+        "EnclaveDeployments": {
+          "runtimeBytes": 25394,
+          "linked": true,
+          "fitsEIP170": false
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+[queue] START available=90426MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+root lost-reply phase error: relay relay unreachable: fetch failed
+# Subtest: native migration (r4): original 30 [] -> legacy 29 (same key, same [] scope) + gas 0.9 (8 apps) + gas 0.1 (1 app) over real HTTP
+ok 1 - native migration (r4): original 30 [] -> legacy 29 (same key, same [] scope) + gas 0.9 (8 apps) + gas 0.1 (1 app) over real HTTP
+  ---
+  duration_ms: 5504.878939
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5509.34374
+[memory-guard] exit=0 peakTreeRssMiB=158 minHostAvailableMiB=90297
+[memory-guard] at peak: node:121 anvil:38
+[memory-guard] exit=0 peakTreeRssMiB=221 minHostAvailableMiB=90297
+[memory-guard] at peak: node:121 node:62 anvil:38
+[queue] EXIT 0

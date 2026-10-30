@@ -1,0 +1,6 @@
+{
+  "original": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-registry-generation-preflight-r1/author-snapshot/generate-lifecycle-host-registry-host-candidate.mjs",
+  "fix": "one missing b in pinned baseline profile SHA; no hash guard bypass",
+  "old": "98e33cfe1b7612d49e8a30260d8272b8863808f558971f0c68a798c965d9176",
+  "new": "98e33cfeb1b7612d49e8a30260d8272b8863808f558971f0c68a798c965d9176"
+}

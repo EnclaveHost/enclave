@@ -1,0 +1,41 @@
+TAP version 13
+# Subtest: the release pipeline: provider.mjs carries no derived code; derived-runtime.mjs and the pinned schedule_reader.mjs ship beside it
+ok 1 - the release pipeline: provider.mjs carries no derived code; derived-runtime.mjs and the pinned schedule_reader.mjs ship beside it
+  ---
+  duration_ms: 1516.02755
+  type: 'test'
+  ...
+# Subtest: packaged provider WITHOUT the derived files: quorum and local-verifier configurations run; a derived one refuses explicitly
+ok 2 - packaged provider WITHOUT the derived files: quorum and local-verifier configurations run; a derived one refuses explicitly
+  ---
+  duration_ms: 246.95282
+  type: 'test'
+  ...
+# Subtest: packaged release WITH the derived files: --check-config loads the runtime beside it; a missing or altered schedule reader refuses
+ok 3 - packaged release WITH the derived files: --check-config loads the runtime beside it; a missing or altered schedule reader refuses
+  ---
+  duration_ms: 402.289674
+  type: 'test'
+  ...
+# Subtest: source entry: the same configurations, the runtime resolved from the source tree
+ok 4 - source entry: the same configurations, the runtime resolved from the source tree
+  ---
+  duration_ms: 547.588261
+  type: 'test'
+  ...
+# Subtest: the RELEASE derived-runtime.mjs runs the WHOLE adapter suite: exact counts, every test ok, no skipped or recursive run
+ok 5 - the RELEASE derived-runtime.mjs runs the WHOLE adapter suite: exact counts, every test ok, no skipped or recursive run
+  ---
+  duration_ms: 1825.980003
+  type: 'test'
+  ...
+# nested adapter suite: tests 15 pass 15 fail 0 skipped 0 todo 0 cancelled 0 against /tmp/paid-derived-pkg-XYjzUI/release/derived-runtime.mjs
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4592.28029

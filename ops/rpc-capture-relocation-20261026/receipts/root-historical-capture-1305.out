@@ -1,0 +1,42 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] START available=18086MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+stage verified: 29 files, SHA256SUMS 7f3fb478445d57ca4d941d48c8a89b0011fc7ca9771f107b8e6f12144ad6b31b
+ok rebuild == bundle/ and patches/
+ok r4/src/anchored_origin.py + patch == bundle lib
+ok r4/src/segments.py + patch == bundle lib
+ok lib/anchored_acceptance.py == r4 byte
+ok lib/bind_anchor.mjs == r4 byte
+ok relocated verify
+verify: bundleId 020cc8bf8045 files 17 N 52866960
+ok guest-capture.sh parses
+ok no /home path in the bundle
+ok tamper byte refused: bundle: vendor/anchor-bootstrap.mjs differs from MANIFEST.json
+ok tamper extra refused: bundle: unlisted file lib/sitecustomize.py
+ok tamper missing refused: bundle: missing ['vendor/node_modules/@noble/hashes/utils.js']
+ok tamper execbit refused: bundle: lib/segments.py executable bit differs from MANIFEST.json
+ok entrypoint base-sha: rc 2, {"refused": "base binary differs from its pinned sha256"}
+ok entrypoint no-db: rc 2, {"refused": "datadir has no db/ (snapshot not extracted?)"}
+ok entrypoint writable-db: rc 2, {"refused": "datadir is not on a read-only mount; bind-mount it read-only first"}
+ok entrypoint receipt: rc 2, {"refused": "receipt: /tmp/hcap.Wh4L47/receipt-altered.json is not the pinned b9a90847bb3f"}
+ok entrypoint plan-input: rc 3, {"refused": {"code": "anchored-format", "detail": "not an anchor-bound enclave-base-anchored-origin/v1 document"}}
+## FAIL: scratch written by a refusal
+ok private-ns read-only datadir passed every pre-DB gate (pinned receipt + origin_extract + ro mount + scratch), then: {"refused": "reth output contained no JSON value"}
+ok ro bind existed only in the private namespace
+ok datadir unchanged
+## FAIL: r4 suites (rc 1; A.json/A.txt)
+ok runner orchestration tests: {"pass": true, "testsRun": 12, "failures": 0, "errors": 0, "skipped": 0, "expectedFailures": 0, "unexpectedSuccesses": 0}
+ok no post-Node-18 API in shipped JS
+ok noble hex builtins are feature-detected (fallback on Node 18)
+note: HCAP_NODE18 not given; Node 18 execution remains unproven offline
+ok relocated production copy still verifies
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-capture-deployment-stage/logs/run-20261026T124322Z-1731089
+## bundleId 020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e
+## historical-capture-offline rc=1
+[memory-guard] exit=1 peakTreeRssMiB=117 minHostAvailableMiB=16810
+[memory-guard] at peak: node:65 python3:43 bash:4 timeout:2 bash:2
+[queue] EXIT 1

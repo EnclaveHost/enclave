@@ -1,0 +1,39 @@
+warning: unused imports: `BlockResponse` and `primitives::HeaderResponse`
+ --> revm-utils/src/proof_db.rs:5:15
+  |
+5 |     network::{primitives::HeaderResponse, BlockResponse},
+  |               ^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `helios_core::execution::errors::ExecutionError`
+  --> revm-utils/src/proof_db.rs:21:5
+   |
+21 | use helios_core::execution::errors::ExecutionError;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `helios-revm-utils` (lib) generated 2 warnings (run `cargo fix --lib -p helios-revm-utils` to apply 2 suggestions)
+    Finished `test` profile [unoptimized] target(s) in 0.26s
+     Running tests/canonical_block_gate.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/canonical_block_gate-556848c2e31ae5ef)
+
+running 17 tests
+test aba_during_read_answers_a_and_post_check_passes ... ok
+test block_cache_root_counterexample_refused ... ok
+test concurrent_head_advance_keeps_ancestor_and_reorg_refuses ... ok
+test every_block_id_method_is_gated_before_and_after ... ok
+test gate_beyond_window_and_missing_link_refused ... ok
+test gate_false_and_absent_on_known_noncanonical_pass ... ok
+test gate_forged_ancestry_link_refused ... ok
+test gate_never_uses_height_lookup ... ok
+test gate_other_branch_below_head_refused_by_ancestry ... ok
+test gate_root_counterexample_retained_descendant_refused ... ok
+test gate_true_missing_head_refuses ... ok
+test gate_true_on_canonical_block_passes ... ok
+test gate_true_on_known_noncanonical_refuses_not_canonical ... ok
+test gate_true_stale_head_refuses_false_passes ... ok
+test gate_unknown_hash_refused_for_every_flag ... ok
+test gate_wrong_block_for_hash_refused_for_every_flag ... ok
+test reorg_during_read_refuses_at_post_check ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

@@ -1,0 +1,59 @@
+--- r5/harness/a2a4.py
++++ r6/harness/a2a4.py
+@@ -110,14 +110,14 @@
+ #   upper: N <= every stage checkpoint of the STOPPED DB (step_plan) and N == the A1-authenticated anchor (gate_a1 exact match).
+ # gate_download is NOT relaxed: the receipt still proves this datadir's origin (the pinned download at SNAPSHOT_HEAD); its CURRENT
+ # state is proven only by A4 at N.
+-# r3: A1 for a NEWER re-anchor comes ONLY from the reviewed capture module (a1-capture-binding-stage/r2 src/a1_capture.py):
++# r3: A1 for a NEWER re-anchor comes ONLY from the reviewed capture module (a1-capture-binding-stage/r4 src/a1_capture.py):
+ # an `initial` capture plus a `recheck-capture` of exactly that initial. The initial capture's identity is learned by verifying
+ # it at A2 and recorded in a2-authenticated.json (a1Gate.initialCapture); every later step takes the expected initial capture sha
+ # from THAT record, never from config or from the recheck. Every accepted capture is admitted ONCE into a durable ledger
+ # (replay refused across steps and launches). The module is loaded from its exact pinned bytes; using it is HOLD until a reviewed
+ # change sets A1_CAPTURE_REVIEWED (root's run of that stage's 36 tests was queued, not run, when this was written).
+ A1_CAPTURE_SOURCE = pathlib.Path('/opt/enclave-rpc/a1-capture/a1_capture.py')    # HOLD: not installed
+-A1_CAPTURE_SHA256 = '2352df7b27c39299011038bab9aace681756c2eaef5cf216c665d82f9149d277'   # a1-capture-binding-stage/r2/src/a1_capture.py
++A1_CAPTURE_SHA256 = 'db81ea49a2c241ee16ea0018e11dcedccadeb8bb678f51e68394470185639d20'   # a1-capture-binding-stage/r4/src/a1_capture.py
+ A1_CAPTURE_REVIEWED = False
+ A1_CAPTURE_TEST_PINS = None     # TESTS ONLY: a callable -> that module's Pins over pinned stub sources; production: its reviewed Pins()
+ _A1_CAPTURE = None
+@@ -207,7 +207,7 @@
+     """The reviewed capture module, executed from exactly its pinned bytes (HOLD until A1_CAPTURE_REVIEWED)."""
+     global _A1_CAPTURE
+     if not A1_CAPTURE_REVIEWED:
+-        refuse('a1_capture_pending', 'HOLD: the A1 capture module (a1-capture-binding-stage/r2) is not reviewed for use (A1_CAPTURE_REVIEWED)')
++        refuse('a1_capture_pending', 'HOLD: the A1 capture module (a1-capture-binding-stage/r4) is not reviewed for use (A1_CAPTURE_REVIEWED)')
+     if _A1_CAPTURE is None or _A1_CAPTURE[0] != (str(A1_CAPTURE_SOURCE), A1_CAPTURE_SHA256):
+         b = _read_trusted(str(A1_CAPTURE_SOURCE), 'A1 capture module', 4 << 20)
+         if hashlib.sha256(b).hexdigest() != A1_CAPTURE_SHA256:
+--- r5/producer/base_launch.py
++++ r6/producer/base_launch.py
+@@ -27,7 +27,7 @@
+ A2A4_SOURCE = pathlib.Path('/opt/enclave-rpc/a2a4/a2a4.py')      # root installs the reviewed stage there (HOLD: not installed)
+ # Re-anchor recovery (base-reanchor-recovery-stage; PREPARED): configs with `reanchor` run the recovery harness copy (a superset
+ # that leaves the first-bootstrap path unchanged); first-bootstrap configs keep the reviewed harness above.
+-RECOVERY_A2A4_SHA256 = 'c4089a02ba71aa29934827040f335d281b8c7a377e491e3cceed1967076c1511'   # base-reanchor-recovery-stage/harness/a2a4.py
++RECOVERY_A2A4_SHA256 = '5e2658f7ec51dd12fb38a9d5eadcd2015f712182cb98486ac90772ace4e632da'   # base-reanchor-recovery-stage/harness/a2a4.py
+ RECOVERY_A2A4_SOURCE = pathlib.Path('/opt/enclave-rpc/a2a4-recovery/a2a4.py')   # HOLD: not installed
+ HARNESS_BINARY_SHA256 = '9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f'  # selection.BASE_BINARY_SHA256 (A2-A4 runs this)
+ BASE_RELEASE_SHA256 = '4a7c013a510f88166779281ad0108790f25efa07f22f6457d54add709488372f'   # m7-m10-release-completed-0055
+--- r5/tests/test_reanchor_recovery.py
++++ r6/tests/test_reanchor_recovery.py
+@@ -42,7 +42,7 @@
+ assert pathlib.Path(W.__file__).resolve() == (ROOT / 'wrapper/chain_service.py').resolve()
+ assert pathlib.Path(P.__file__).resolve() == (ROOT / 'producer/base_launch.py').resolve()
+ sha = L3.sha
+-CAP_STAGE = L3.WORK / 'a1-capture-binding-stage/r2'
++CAP_STAGE = L3.WORK / 'a1-capture-binding-stage/r4'   # r6: r4 = r3 limits + the verified-bytes l1 loader
+ CAP_SRC = CAP_STAGE / 'src/a1_capture.py'
+ N1 = TA.N                                             # the original launch anchor 52,866,960
+ N2 = TA.N + 3_000                                     # a newer anchor height (the observed latest anchor 52,869,960)
+@@ -256,7 +256,7 @@
+                 A.initial_pin(c)                                                     # never a config-supplied receipt hash
+         self.assertFalse(hasattr(A, 'A1_CAPTURE_VERIFIER'), 'the r2 placeholder boundary is gone')
+         self.assertIs(A.A1_CAPTURE_REVIEWED, False); self.assertIsNone(A.A1_CAPTURE_TEST_PINS)
+-        self.assertEqual(A.A1_CAPTURE_SHA256, sha(CAP_SRC.read_bytes()), 'the pin is the actual capture/r2 module')
++        self.assertEqual(A.A1_CAPTURE_SHA256, sha(CAP_SRC.read_bytes()), 'the pin is the actual capture/r4 module')
+         with self.assertRaisesRegex(A.Refused, '^a1_capture_pending: HOLD'):
+             A.load_capture()
+ 

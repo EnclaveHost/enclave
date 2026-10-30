@@ -1,0 +1,94 @@
+TAP version 13
+# Subtest: the DEFECT, reproduced on the old composition: layered(pre-seed, KDS) serves the expired seed CRL first and KDS is never asked
+ok 1 - the DEFECT, reproduced on the old composition: layered(pre-seed, KDS) serves the expired seed CRL first and KDS is never asked
+  ---
+  duration_ms: 3.040595
+  type: 'test'
+  ...
+# Subtest: stale pre-seed + fresh KDS: the provider fetches the fresh CRL, verifies, and caches only what it authenticated
+not ok 2 - stale pre-seed + fresh KDS: the provider fetches the fresh CRL, verifies, and caches only what it authenticated
+  ---
+  duration_ms: 6.333706
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/collateral-rollout-stage/tmp/mutant-m2-chain-from-kds-first/test/attested-provider-collateral.test.mjs:68:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    the chain came from the reviewed pre-seed
+    + actual - expected
+    
+    + 'kds:chain'
+    - 'file:/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/collateral-rollout-stage/tmp/provider-collateral-pqiFfL/case-2/seed/amd/Genoa-cert_chain.pem'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'file:/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/collateral-rollout-stage/tmp/provider-collateral-pqiFfL/case-2/seed/amd/Genoa-cert_chain.pem'
+  actual: 'kds:chain'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/collateral-rollout-stage/tmp/mutant-m2-chain-from-kds-first/test/attested-provider-collateral.test.mjs:78:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: fresh, warm, offline and restart: a warm cache verifies with KDS down and no network, also from a NEW instance (restart)
+ok 3 - fresh, warm, offline and restart: a warm cache verifies with KDS down and no network, also from a NEW instance (restart)
+  ---
+  duration_ms: 11.165464
+  type: 'test'
+  ...
+# Subtest: stale + KDS outage: rejected (CRL required), never accepted; no CRL anywhere: rejected
+ok 4 - stale + KDS outage: rejected (CRL required), never accepted; no CRL anywhere: rejected
+  ---
+  duration_ms: 5.918802
+  type: 'test'
+  ...
+# Subtest: restoration without restart: KDS back, or (no network) the operator replaces the seed CRL; the same instance verifies again
+ok 5 - restoration without restart: KDS back, or (no network) the operator replaces the seed CRL; the same instance verifies again
+  ---
+  duration_ms: 15.43524
+  type: 'test'
+  ...
+# Subtest: forged and revoked collateral are refused: a CRL under another ARK, a forged pre-seeded chain, another chip's VCEK, an authentic CRL revoking the ASK
+not ok 6 - forged and revoked collateral are refused: a CRL under another ARK, a forged pre-seeded chain, another chip's VCEK, an authentic CRL revoking the ASK
+  ---
+  duration_ms: 7.324631
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/collateral-rollout-stage/tmp/mutant-m2-chain-from-kds-first/test/attested-provider-collateral.test.mjs:120:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'verified'
+    - 'rejected'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'rejected'
+  actual: 'verified'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/collateral-rollout-stage/tmp/mutant-m2-chain-from-kds-first/test/attested-provider-collateral.test.mjs:139:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: defence in depth: the forged CRL delivered with NO cache in between is still rejected by the verifier's own signature check; the genuine fresh CRL in its place verifies
+ok 7 - defence in depth: the forged CRL delivered with NO cache in between is still rejected by the verifier's own signature check; the genuine fresh CRL in its place verifies
+  ---
+  duration_ms: 2.271006
+  type: 'test'
+  ...
+# Subtest: configuration: legacy { dir } unchanged; { dir, kds: true } refused with the migration; cacheDir absolute and separate; nothing names a root
+ok 8 - configuration: legacy { dir } unchanged; { dir, kds: true } refused with the migration; cacheDir absolute and separate; nothing names a root
+  ---
+  duration_ms: 1.283411
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 6
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 76.538812

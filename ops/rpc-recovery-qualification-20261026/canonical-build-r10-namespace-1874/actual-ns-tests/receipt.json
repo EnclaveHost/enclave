@@ -1,0 +1,22 @@
+{
+ "format": "bsro-ns-test-receipt/r10",
+ "pass": true,
+ "stageSums": "0034b392709ec2142ab465b4a50a993e47738a99cecd620d17876560218c36df",
+ "suites": {
+  "test_ns": {
+   "checks": {
+    "lastLineOK": true,
+    "noBadMarkers": true,
+    "ranExactly": true,
+    "rc0": true,
+    "stdoutEmpty": true
+   },
+   "expected": 5,
+   "pass": true,
+   "ran": [
+    "5"
+   ],
+   "rc": 0
+  }
+ }
+}

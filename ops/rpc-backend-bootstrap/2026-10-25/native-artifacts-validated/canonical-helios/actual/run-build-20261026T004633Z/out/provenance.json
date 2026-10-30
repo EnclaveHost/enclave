@@ -1,0 +1,77 @@
+{
+ "format": "canonical-helios-artifact/v1",
+ "artifact": {
+  "file": "helios",
+  "sha256": "8250f08a7b0e1f2432ea6262903ca3203b60bca6a8e17abd6d9bccbe0dbfa378",
+  "bytes": 125121704
+ },
+ "source": {
+  "repo": "/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-patched",
+  "baseCommit": "eeffcc980a4a9aa092e23e07b1077c1f3fdfc95e",
+  "baseTree": "2171ad2bfd3c97f2e0e029e866b1a8535cbbd187",
+  "cargoLockSha256Prefix": "28f4400cef93f04c28c2",
+  "patch": {
+   "file": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/canonical-block.patch",
+   "sha256": "41667ec946d2f591498e4ab9d791914a6d5c886221996c5f0c920a0be39dcc31"
+  },
+  "patchedFiles": {
+   "core/src/client/canonical.rs": "1c1cd484609bdf7c404fbc08733d75afe81be18b8ab2184eb2c29e4162b14e79",
+   "core/src/client/mod.rs": "caa02dcc92e5da25a44246c1fd5ae680a808829aee6a51314ec0de602bb1cb30",
+   "core/src/client/node.rs": "62ce98ff924b8a2b8222361c3fd9b816e4fec16caf7cb3301f0cc6e4e70164c4",
+   "core/src/errors.rs": "553512a66339ca7367a6554414d3b25d6573db1a3870849ce55132b6f61493f4",
+   "core/src/execution/ancestry.rs": "2d4f417b815f86a0444551791489ef6cebb32fd9c9b051fe794016e16743084a",
+   "core/src/execution/mod.rs": "43a4f2c58b18a6e5b86b1e6a232acac38e315160a38d67f3fe6c2da65daf0f19",
+   "core/src/execution/providers/block/block_cache.rs": "a0ecf5dd4751f291008e675c0dee7d1c04b1d257829bef59b7ec831ed6a36ef2",
+   "core/src/execution/providers/rpc.rs": "67abaaf56039687c79315eec5b62585ab8708f4b13962a0f0081008b50853a92",
+   "core/tests/ancestor_block_hash.rs": "7baede4dbe6bd4d7108b8766d031a2d4b5ec6d0d4c2fd7339af20d406d85bc27",
+   "core/tests/block_cache_exact_hash.rs": "d0ebb9096a4fe98fbf020f6d5fc3f8044a6688b3b52ec4bcb982693b381f5cff",
+   "core/tests/canonical_block_gate.rs": "a30f98f03fe211f6abed614e8c73f601cf724d619905e0d22374798c2e659ed3",
+   "core/tests/node_canonical_methods.rs": "8822e5f91c0c85bfff3a5c3a361c3c420f698d21cd8edd01226b6d3b168c7180",
+   "core/tests/rpc_exact_hash_postcondition.rs": "7270d1aadd27871348f519325a7107c64dc4a94b6fedc2aad877b261904edad1",
+   "core/tests/support/canonical_fixture.rs": "d143d80d97ad1ba5cd1f874903ee57c336fc2ee93147969ce5a1d9f6ea9d4c17",
+   "revm-utils/src/proof_db.rs": "5e85dcddfaa220b848eb41da3f24b03ba5e4ce3f3b9ff6289d180fd300714664"
+  },
+  "inputManifest": "df1f198ab0732f41faea8e14c778fa7503113c215b0e3e5ac66d6727f8f8cd69",
+  "vendor": {
+   "tar": "/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-runtime-final-integration/closure/src/base-5476069f.tar.gz",
+   "sha256": "9784e20a3cfeac555d96e8d1f15526d5264f0e6d8885b951c6f1220355038012",
+   "extractionTreehash": "c93014900f2a2bec5b347f6dc8df31368d5f5911f2720274eceff424bbb282ab"
+  }
+ },
+ "dependencies": {
+  "cargoHome": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z",
+  "closure": "cargo metadata/fetch --offline --locked inside the work dir (26 path packages)",
+  "lockUnchanged": true
+ },
+ "build": {
+  "command": "cargo build --offline --locked -p helios-cli --bin helios",
+  "profile": "dev, CARGO_PROFILE_DEV_DEBUG=0 (opt 0, debug assertions on)",
+  "jobs": 1,
+  "incremental": 0,
+  "rustflags": "-C link-arg=-Wl,--threads=1",
+  "sourceDateEpoch": 1792720709,
+  "toolchain": "rustc 1.96.0 (ac68faa20 2026-05-25) binary: rustc commit-hash: ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96 commit-date: 2026-05-25 host: x86_64-unknown-linux-gnu release: 1.96.0 LLVM version: 22.1.2 / cargo 1.96.0 (30a34c682 2026-05-25)",
+  "cc": "cc (GCC) 16.2.1 20260810"
+ },
+ "testedBy": {
+  "logs/root-canonical-native-build-tests-0000.out": "b44637117244e8040428372ca1d718035d545523d40d28b936e9b3f4df48e1fb",
+  "logs/root-canonical-native-build-tests-0000.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+  "logs/root-canonical-r2-reevaluate-0018.out": "39593f2887adbfc1a021efd1229529cf8c30409a948082b3f4b0a436d23590ea",
+  "logs/root-canonical-r2-reevaluate-0018.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+  "verifier-canonical-controls-repair/r2/logs/reevaluation-mutants-20261026T001203Z.json": "93c65ee9e21f2c984bc1c822d182b43a5c0e3efe5fd95c36cfc5219219e1f491",
+  "logs/root-canonical-evm-native-0031.out": "6b98124f8d31ca3b3b64e125a98c5d662908f8fa7809e16d4cbdaedc84732443",
+  "logs/root-canonical-evm-native-0031.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+  "logs/root-canonical-evm-mutants-0032.out": "02a63df13ea0f9ee86f23537916c2cb15f14d9e843d668c2c36a7ad3f09bdfba",
+  "logs/root-canonical-evm-mutants-0032.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+ },
+ "smoke": {
+  "smoke-host-help-ethereum.txt": "164bb94f2c5d90341f32c5aebed7443e16a36ac675ad75ae1f95e1df0c360477",
+  "smoke-host-help-linea.txt": "eb39d657af4cacd78500994ecb21cf73b4d195517ec3243e9805770109f7f532",
+  "smoke-host-help-opstack.txt": "742ae04e2737b61f7e984de1f7341d8708e14f9a3c710ff83c589ab38a353c05",
+  "smoke-host-help.txt": "d4aeda332d6088ee2eaf1542fd7cff58119555c3b3184528557e180213633fda",
+  "smoke-host-version.txt": "9e148bdd79c804d5d483c2f9a5fb099b22acaf901a70a30868a345a692785037",
+  "smoke-pinned-runtime-help.txt": "d4aeda332d6088ee2eaf1542fd7cff58119555c3b3184528557e180213633fda",
+  "smoke-pinned-runtime-version.txt": "9e148bdd79c804d5d483c2f9a5fb099b22acaf901a70a30868a345a692785037"
+ },
+ "claims": "ONE build of the tested candidate source; hash binds to these inputs only; NOT an independent reproduction; not deployed; not SNP-qualified"
+}

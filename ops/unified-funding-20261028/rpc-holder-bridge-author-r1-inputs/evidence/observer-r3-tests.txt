@@ -1,0 +1,17 @@
+test_actual_owned_descriptor_modes_with_explicit_single_pid_scope (__main__.DescriptorObserverTests.test_actual_owned_descriptor_modes_with_explicit_single_pid_scope) ... ok
+test_actual_thread_unshared_fd_table_is_observed (__main__.DescriptorObserverTests.test_actual_thread_unshared_fd_table_is_observed) ... ok
+test_bounded_directory_iterator_does_not_materialize_remainder (__main__.DescriptorObserverTests.test_bounded_directory_iterator_does_not_materialize_remainder) ... ok
+test_cli_rejects_paths_duplicates_and_too_many_targets (__main__.DescriptorObserverTests.test_cli_rejects_paths_duplicates_and_too_many_targets) ... ok
+test_cli_requires_host_root_no_fake_success (__main__.DescriptorObserverTests.test_cli_requires_host_root_no_fake_success) ... ok
+test_deadline_never_reports_complete (__main__.DescriptorObserverTests.test_deadline_never_reports_complete) ... ok
+test_descriptor_enumeration_stops_at_bound (__main__.DescriptorObserverTests.test_descriptor_enumeration_stops_at_bound) ... ok
+test_full_host_unprivileged_visibility_diagnostic (__main__.DescriptorObserverTests.test_full_host_unprivileged_visibility_diagnostic) ... ok
+test_live_thread_after_leader_exit_cannot_be_clean (__main__.DescriptorObserverTests.test_live_thread_after_leader_exit_cannot_be_clean) ... ok
+test_missing_matching_descriptor_flags_is_incomplete (__main__.DescriptorObserverTests.test_missing_matching_descriptor_flags_is_incomplete) ... ok
+test_missing_process_metadata_is_not_exit_proof (__main__.DescriptorObserverTests.test_missing_process_metadata_is_not_exit_proof) ... ok
+test_task_count_limit_refuses (__main__.DescriptorObserverTests.test_task_count_limit_refuses) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 0.229s
+
+OK

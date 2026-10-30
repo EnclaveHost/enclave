@@ -1,0 +1,18 @@
+{
+  "command": [
+    "/usr/bin/gcc",
+    "-specs",
+    "/home/steven/.cache/enclave-isolation/musl-1.2.6/lib/musl-gcc.specs",
+    "-static",
+    "-O2",
+    "-o",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-baseline-build/init",
+    "/home/steven/Projects/enclave/.consolidation/2026-10-24/worktrees/enclave-padgov-init/isolation/m2/dominit.c"
+  ],
+  "sourceSha256": "7427144398f3e0405ba035dad996104bbd582a90099463465b9219162cc86576",
+  "muslSpecsSha256": "4b0202b5fc90f78f227c8937f04afa31378b421036ebe68498513a1cf19895bf",
+  "muslLibcSha256": "4f72e098ed0562e8361f7c1713189c5cd7b3e6672dd8d9311d32c49201260959",
+  "builtSha256": "dffd093b8458e109c64756c26fe5efd8b8226da712fb03a81f28d50aaa27cb0b",
+  "installedSha256": "dffd093b8458e109c64756c26fe5efd8b8226da712fb03a81f28d50aaa27cb0b",
+  "exactMatch": true
+}

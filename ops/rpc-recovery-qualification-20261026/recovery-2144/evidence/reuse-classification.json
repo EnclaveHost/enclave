@@ -1,0 +1,30 @@
+{
+ "historySha256": "cdd290f7808cb558afe712832ff41249841c863acab6d5453e815286fa37ea8d",
+ "planSha256": "c4e38213847793d5c0868825fe454c5702b4499a6b25315078037b073a4f35a9",
+ "journalVerdictUnchanged": "REUSE_OBSERVED",
+ "reusedMetadataBlocks": [
+  {
+   "fsBlock": 499155437,
+   "firstReuseTid": 17171,
+   "class": "extent-tree metadata",
+   "dataExtentOverlap": false,
+   "replacementJournalSequence": 14665,
+   "replacementSha256": "bed024dc59e32c087c828e6c03f42753aaba969204d89039f2c682aa55fc9da7"
+  },
+  {
+   "fsBlock": 499155449,
+   "firstReuseTid": 17171,
+   "class": "extent-tree metadata",
+   "dataExtentOverlap": false,
+   "replacementJournalSequence": 16490,
+   "replacementSha256": "00cc4c27b6252a0294c8a060e6e9b835f5403586a3f75c97d488e286c40f0964"
+  }
+ ],
+ "observedReusedDataBlocks": 0,
+ "recoveryAccepted": false,
+ "limitations": [
+  "No claim about invisible intra-transaction reuse or raw writes",
+  "Metadata replacement does not authenticate data contents",
+  "Full MDBX and chain/state validation incomplete"
+ ]
+}

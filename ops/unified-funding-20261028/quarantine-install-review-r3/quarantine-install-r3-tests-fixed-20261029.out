@@ -1,0 +1,47 @@
+[queue] START available=92392MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+test_adapter_and_cas_on_actual_helper_output (test_quarantine_install_r2.ActualHelperShapes.test_adapter_and_cas_on_actual_helper_output) ... ok
+test_source_matches_production_pin (test_quarantine_install_r2.ActualHelperShapes.test_source_matches_production_pin) ... ok
+test_gate_status_reads_routesSha256_and_keeps_both_reads (test_quarantine_install_r2.AdapterShapes.test_gate_status_reads_routesSha256_and_keeps_both_reads) ... ok
+test_show_parsing_of_assumed_systemd_shapes (test_quarantine_install_r2.AdapterShapes.test_show_parsing_of_assumed_systemd_shapes) ... ok
+test_bound_candidate_replaced_before_cleanup_is_not_stopped (test_quarantine_install_r2.AfterStartFailures.test_bound_candidate_replaced_before_cleanup_is_not_stopped) ... ok
+test_env_drift_stops_only_bound_candidate_original_stays_stopped (test_quarantine_install_r2.AfterStartFailures.test_env_drift_stops_only_bound_candidate_original_stays_stopped) ... ok
+test_journal_written_after_start_is_preserved_not_restored (test_quarantine_install_r2.AfterStartFailures.test_journal_written_after_start_is_preserved_not_restored) ... ok
+test_quarantine_must_be_immutable_on (test_quarantine_install_r2.AfterStartFailures.test_quarantine_must_be_immutable_on) ... ok
+test_start_failed_and_nothing_running (test_quarantine_install_r2.AfterStartFailures.test_start_failed_and_nothing_running) ... ok
+test_start_timeout_is_unknown_and_grants_no_stop_authority (test_quarantine_install_r2.AfterStartFailures.test_start_timeout_is_unknown_and_grants_no_stop_authority) ... ok
+test_unbound_candidate_identity_is_not_stopped (test_quarantine_install_r2.AfterStartFailures.test_unbound_candidate_identity_is_not_stopped) ... ok
+test_crash_after_dropin_then_explicit_rollback (test_quarantine_install_r2.CrashAndRollback.test_crash_after_dropin_then_explicit_rollback) ... ok
+test_crash_mid_sources_then_rollback_by_cas (test_quarantine_install_r2.CrashAndRollback.test_crash_mid_sources_then_rollback_by_cas) ... ok
+test_interrupted_temp_is_retained_and_refuses (test_quarantine_install_r2.CrashAndRollback.test_interrupted_temp_is_retained_and_refuses) ... ok
+test_happy_path_quarantine_running_writes_not_resumed (test_quarantine_install_r2.Forward.test_happy_path_quarantine_running_writes_not_resumed) ... ok
+test_pid_reuse_is_a_different_process (test_quarantine_install_r2.Forward.test_pid_reuse_is_a_different_process) ... ok
+test_later_sorting_dropin_resetting_execstart_refused_before_start (test_quarantine_install_r2.LateDropinOverride.test_later_sorting_dropin_resetting_execstart_refused_before_start) ... ok
+test_environment_file_swapped_after_last_check_cannot_start_writer_with_quarantine_off (test_quarantine_install_r2.PreExecQuarantine.test_environment_file_swapped_after_last_check_cannot_start_writer_with_quarantine_off) ... ok
+test_environment_files_pinned_before_any_start (test_quarantine_install_r2.PreExecQuarantine.test_environment_files_pinned_before_any_start) ... ok
+test_fake_model_environment_file_beats_environment_but_not_the_wrapper (test_quarantine_install_r2.PreExecQuarantine.test_fake_model_environment_file_beats_environment_but_not_the_wrapper)
+Why r2's Environment= drop-in was insufficient, shown in the FAKE systemd model only (not production proof). ... ok
+test_wrapper_and_runtime_are_pinned (test_quarantine_install_r2.PreExecQuarantine.test_wrapper_and_runtime_are_pinned) ... ok
+test_active_old_writer_and_residual_identity_refused (test_quarantine_install_r2.PreflightRefusals.test_active_old_writer_and_residual_identity_refused) ... ok
+test_dropin_drift (test_quarantine_install_r2.PreflightRefusals.test_dropin_drift) ... ok
+test_journal_changed_after_stop_refused (test_quarantine_install_r2.PreflightRefusals.test_journal_changed_after_stop_refused) ... ok
+test_lock_held_elsewhere_and_plan_pin (test_quarantine_install_r2.PreflightRefusals.test_lock_held_elsewhere_and_plan_pin) ... ok
+test_missing_or_stale_gate_via_helper_shapes (test_quarantine_install_r2.PreflightRefusals.test_missing_or_stale_gate_via_helper_shapes) ... ok
+test_missing_or_tampered_marker (test_quarantine_install_r2.PreflightRefusals.test_missing_or_tampered_marker) ... ok
+test_missing_snapshots (test_quarantine_install_r2.PreflightRefusals.test_missing_snapshots) ... ok
+test_plan_schema_is_strict (test_quarantine_install_r2.PreflightRefusals.test_plan_schema_is_strict) ... ok
+test_source_drift (test_quarantine_install_r2.PreflightRefusals.test_source_drift) ... ok
+test_cli_root_policy (test_quarantine_install_r2.Pure.test_cli_root_policy) ... ok
+test_dropin_is_only_an_execstart_wrapper (test_quarantine_install_r2.Pure.test_dropin_is_only_an_execstart_wrapper) ... ok
+test_env_rules_and_intake_off (test_quarantine_install_r2.Pure.test_env_rules_and_intake_off) ... ok
+test_gate_uses_actual_inspect_field (test_root_adapter.AdapterTests.test_gate_uses_actual_inspect_field) ... ok
+test_unknown_start_does_not_own_unrelated_new_invocation (test_root_adapter.AdapterTests.test_unknown_start_does_not_own_unrelated_new_invocation) ... ok
+
+----------------------------------------------------------------------
+Ran 35 tests in 0.454s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=28 minHostAvailableMiB=92356
+[memory-guard] at peak: python3:28
+[memory-guard] exit=0 peakTreeRssMiB=80 minHostAvailableMiB=92356
+[memory-guard] at peak: node:52 python3:28
+[queue] EXIT 0

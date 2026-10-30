@@ -1,0 +1,23 @@
+--- ../r10/tests/test_capture_r10.py	2026-10-25 23:52:33.244704504 -0700
++++ tests/test_capture_r10.py	2026-10-26 00:04:35.699726128 -0700
+@@ -1,5 +1,5 @@
+ #!/usr/bin/env python3
+-"""r10 capture regressions (PREPARED; NOT run by Claude: jobs/root-finality-r10-tests.sh, exact count 3). Subclasses the integration fixture:
++"""r10 capture regressions + r10-capture-fixture-fix (fixture-only: cap() seeds self.tpl like TI.captures; assertions unchanged) (PREPARED; NOT run by Claude: jobs/root-finality-r10-tests.sh, exact count 3). Subclasses the integration fixture:
+ the REAL capture module under test ($CAPTURE_MODULE = r10/capture/a1_capture.py) over the capture stage's stub A1 readers, real
+ capture -> verify -> recheck-capture -> verify (with its initial), and the module's mandatory runtime validation. Guards root's actual
+ failures: the initial A1 config ignored Sources.el_url (workstation 28645 from the template; guest canary r2) and verify() raised
+@@ -16,7 +16,13 @@
+     def src(self, el_url, initial=None):
+         return self.C.Sources(**{**self.csrc.__dict__, 'el_url': el_url, 'initial_capture': pathlib.Path(initial) if initial else None})
+ 
++    def seed(self, n):
++        e = TI.TA.fresh_a1(TI.TA.utcnow() - TI.TA.datetime.timedelta(hours=1), root=TI.CHAIN['outputRoots'][str(n)]); e['N'] = str(n)
++        self.tpl.write_text(json.dumps(e))
++
+     def cap(self, mode, el_url, initial=None):
++        if mode == 'initial':                                                    # fixture fix: seed the stub A1 reader's receipt EXACTLY as TI.captures does
++            self.seed(NP)                                                        # (recheck-capture's stub reads the initial evidence the module hands it)
+         self.ncap += 1; out = self.t / f'r10cap-{self.ncap}'
+         ok, res = self.C.capture(mode, str(out), src=self.src(el_url, initial), pins=self.cpins, hooks={'poll': 0.05}, helios_timeout=20, a1_timeout=60)
+         return ok, res, out

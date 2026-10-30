@@ -1,0 +1,1 @@
+{"result":{"label":"cli-relay-swaps-key","step":"policy","refused":"policy serial 2 is below the 5 this client holds (its install floor or a newer policy it accepted): a rollback, refused","sent":false}}

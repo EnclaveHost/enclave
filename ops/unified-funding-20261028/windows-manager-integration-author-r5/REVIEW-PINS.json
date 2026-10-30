@@ -1,0 +1,18 @@
+{
+  "readonly-progress.py": "7657e3cf867451e36d2651f2f8ff67ca30ce88216f3c75459538ce2172b7bf61",
+  "collect-terminal.py": "044d3db394f79cdcc4bb7b47d8f2c07ea35b64215f226cce87e1beed703941f2",
+  "root-prelaunch-review.json": "4c953726285e33c9d25acf54e7486482b632d420b6c5eedfc09659cd3d68445e",
+  "ROOT-REVIEW.md": "93dacda9d9de78f7d88e5fab91cbd680d63d0e8df9b6eae983a8c26b0e39da91",
+  "TASK.txt": "19e28da7a6211c07a3b2cd0f7caac516a44f5f29557388650969fe1054cb6615",
+  "REVIEW-STATUS.txt": "8cefe8ea9844242d672235a3a787036f8d43d70ac99eab25586a3517ede8765d",
+  "input-pins.json": "e53d9453aa460649620171e46c2b711466c88907260fc1d278f661bedc578d2f",
+  "launch-command.txt": "8587f17251db966477f029197a02d31cab3522c010a2741b06b035a3e86b3788",
+  "seed-pins.json": "b8b4632af629e74f32f97f32fab5033373406b86b9c0e8b2832f1484b34023c6",
+  "seed-provenance.json": "1d7a5cef19df1985f8b2d8ad5911b8158c5badde9f4a04428cc58f1e8ddf8a47",
+  "interface-map.json": "090cbe1c57882f9cdbb497cf9a70f9892dd741d846dea5d65e12659dee280148",
+  "account-verification.json": "8f2349ef4dd4bdced4c14177ee787fb2f6bed2014e08ea0937c064d4e3a9dd00",
+  "PREPARED.json": "d651b0468c948af2d402c301bd0e67d62db7a7b918dfd19d5a6066d6352099db",
+  "evidence-index.json": "7d5526ab07bcdab5a4d4d3a438a3d1ecb3ab7f2e1185b6692ee3329cbea275eb",
+  "run.py": "ad8fed2538e5c42be09ab94df3fb003cfd2c5476e4c9ec0031a710c2139a6766",
+  "admission-record.json": "fc1a03ad26afbefff72947e66beafc43e3d0b5fb40bbddc586cdd0d6cdfcc1b0"
+}

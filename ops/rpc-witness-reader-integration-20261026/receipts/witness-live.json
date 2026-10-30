@@ -1,0 +1,117 @@
+{
+ "checks": {
+  "exactly one guest WBC-VERDICT": true,
+  "guest owned cleanup ok": true,
+  "guest verdict pass": true,
+  "host >= 16384 MiB throughout": true,
+  "host owned cleanup + independent re-check ok": true,
+  "host start+end samples": true,
+  "no host floor breach": true,
+  "run rc 0": true
+ },
+ "guest": {
+  "checks": {
+   "allowlistedRelayExact": true,
+   "groupAccessibleSocketRefused": true,
+   "loopbackOnlyListener": true,
+   "recoversAfterModeRestored": true,
+   "refusedMethodNeverRelayed": true
+  },
+  "cleanup": {
+   "leftPaths": [],
+   "leftUnits": [],
+   "ok": true
+  },
+  "id": "20261026T110414Z-0aef2870",
+  "invariants": {
+   "productionPidsAndStatesUnchanged": true,
+   "publicConfigIdentityUnchanged": true
+  },
+  "note": "DISPOSABLE fixture socket; NOT a node test",
+  "pass": true,
+  "properties": {
+   "CapabilityBoundingSet": {
+    "got": "",
+    "ok": true,
+    "want": ""
+   },
+   "Group": {
+    "got": "rpcbase",
+    "ok": true,
+    "want": "rpcbase"
+   },
+   "IPAddressAllow": {
+    "got": "127.0.0.0/8 ::1/128",
+    "ok": true,
+    "want": "localhost"
+   },
+   "IPAddressDeny": {
+    "got": "0.0.0.0/0 ::/0",
+    "ok": true,
+    "want": "any"
+   },
+   "MemoryMax": {
+    "got": "536870912",
+    "ok": true,
+    "want": "512M"
+   },
+   "MemorySwapMax": {
+    "got": "0",
+    "ok": true,
+    "want": "0"
+   },
+   "NoNewPrivileges": {
+    "got": "yes",
+    "ok": true,
+    "want": "yes"
+   },
+   "PrivateDevices": {
+    "got": "yes",
+    "ok": true,
+    "want": "yes"
+   },
+   "PrivateTmp": {
+    "got": "yes",
+    "ok": true,
+    "want": "yes"
+   },
+   "ProtectHome": {
+    "got": "yes",
+    "ok": true,
+    "want": "yes"
+   },
+   "ProtectSystem": {
+    "got": "strict",
+    "ok": true,
+    "want": "strict"
+   },
+   "RestrictAddressFamilies": {
+    "got": "AF_INET AF_INET6 AF_UNIX",
+    "ok": true,
+    "want": "AF_UNIX AF_INET AF_INET6"
+   },
+   "TasksMax": {
+    "got": "32",
+    "ok": true,
+    "want": "32"
+   },
+   "UMask": {
+    "got": "0077",
+    "ok": true,
+    "want": "0077"
+   },
+   "User": {
+    "got": "rpcbase",
+    "ok": true,
+    "want": "rpcbase"
+   }
+  },
+  "rc": 0,
+  "stage": "done",
+  "why": ""
+ },
+ "hostMinAvailMiB": 18405,
+ "note": "DISPOSABLE fixture socket in the real bridge unit sandbox; NOT a node test",
+ "pass": true,
+ "run": "run-20261026T110414Z-0aef2870"
+}

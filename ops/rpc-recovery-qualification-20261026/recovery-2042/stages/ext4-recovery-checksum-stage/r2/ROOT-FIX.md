@@ -1,0 +1,1 @@
+Root1656 all7tests passed, but buffered CLI stdout followed unittest OK and made wrapper fail. r2 runs fixtures with python -u, retaining exact count, status, final OK and no-skips gates. No verifier/runtime/test assertion changes.

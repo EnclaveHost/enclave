@@ -1,0 +1,10 @@
+{
+  "invocation": "34840e374dad459bb9f160f7a03ee399",
+  "unit": "enclave-rpc-offline-cleanup-native-negative-r1-20261030.service",
+  "status": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+  "pinCount": 9,
+  "drift": [],
+  "tempPath": "/vm/enclave-volumes/rpc-production-maint/synthetic-export-negative-5sxl__yp",
+  "tempExists": true,
+  "syntheticFixturesPreserved": true
+}

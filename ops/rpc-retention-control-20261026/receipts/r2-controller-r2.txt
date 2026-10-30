@@ -1,0 +1,36 @@
+test_existing_active_retention_is_refused_never_adopted_or_stopped (test_controller.Controller.test_existing_active_retention_is_refused_never_adopted_or_stopped) ... FAIL
+test_first_active_no_marker_no_room_refuse_before_install_or_start (test_controller.Controller.test_first_active_no_marker_no_room_refuse_before_install_or_start) ... ok
+test_foreign_invocation_is_never_stopped (test_controller.Controller.test_foreign_invocation_is_never_stopped) ... ok
+test_lost_start_response_never_started_stops_nothing (test_controller.Controller.test_lost_start_response_never_started_stops_nothing) ... ok
+test_lost_start_response_with_unit_started_stops_exactly_our_invocation (test_controller.Controller.test_lost_start_response_with_unit_started_stops_exactly_our_invocation) ... ok
+test_max_hours_timeout_stops_our_invocation (test_controller.Controller.test_max_hours_timeout_stops_our_invocation) ... ok
+test_memory_breach_interrupts_a_blocking_guest_call_and_stops_only_ours (test_controller.Controller.test_memory_breach_interrupts_a_blocking_guest_call_and_stops_only_ours) ... ok
+test_retention_started_by_someone_else_before_our_start_is_refused (test_controller.Controller.test_retention_started_by_someone_else_before_our_start_is_refused) ... ok
+test_same_invocation_id_never_counts_as_completion (test_controller.Controller.test_same_invocation_id_never_counts_as_completion) ... ok
+test_signal_stops_our_invocation_promptly (test_controller.Controller.test_signal_stops_our_invocation_promptly) ... ok
+test_ssh_failure_mid_run_stops_our_invocation (test_controller.Controller.test_ssh_failure_mid_run_stops_our_invocation) ... ok
+test_start_refused_owns_nothing_and_stops_nothing (test_controller.Controller.test_start_refused_owns_nothing_and_stops_nothing) ... ok
+test_status_showing_incomplete_retention_is_not_success (test_controller.Controller.test_status_showing_incomplete_retention_is_not_success) ... ok
+test_success_new_invocation_completes_and_status_schema_validated (test_controller.Controller.test_success_new_invocation_completes_and_status_schema_validated) ... ok
+
+======================================================================
+FAIL: test_existing_active_retention_is_refused_never_adopted_or_stopped (test_controller.Controller.test_existing_active_retention_is_refused_never_adopted_or_stopped)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/retention-live-controller-stage/r2/tests/test_controller.py", line 91, in test_existing_active_retention_is_refused_never_adopted_or_stopped
+    self.assertEqual(r.returncode, 8, r.stdout); self.assertIn('never adopted or stopped', r.stdout)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 != 8 : 2026-10-26T13:47:46Z window=test-window max_hours=1 precheck_only=0 out=/tmp/rlc-r2.nPZ0qj/tmpzp_zaq32/out/root-retention-live-20261026T134746Z-1847101
+2026-10-26T13:47:46Z prechecks passed (no retention run active, first download done, marker root-owned, holder inactive+disabled, no capture unit)
+2026-10-26T13:47:46Z start issued (pre-start InvocationID someone-elses); observing
+2026-10-26T13:47:46Z observing (memory every 1 s by the watchdog, guest every 1 s, limit 1 h)
+2026-10-26T13:47:46Z our invocation: 0b81335b549445249a7785bf2190df07
+status + marker: retention complete (26 archives, pinned manifest)
+2026-10-26T13:47:48Z SUCCESS: our invocation 0b81335b549445249a7785bf2190df07 completed; marker + status validated; holder still disabled; nothing activated
+2026-10-26T13:47:48Z exit rc=0 window=test-window owned=0b81335b549445249a7785bf2190df07 prestart=someone-elses
+
+
+----------------------------------------------------------------------
+Ran 14 tests in 56.671s
+
+FAILED (failures=1)

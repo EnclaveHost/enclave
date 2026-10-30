@@ -1,0 +1,287 @@
+{
+  "events": [
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/network/deployment-permit-gate.mjs",
+      "rel": "control/network/deployment-permit-gate.mjs",
+      "id": "toolu_01HznFj4nQwRUXqa1jbubKh4",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/network/deployment-permit-gate.mjs",
+      "rel": "control/network/deployment-permit-gate.mjs",
+      "id": "toolu_016qdpr9NoE2xMLe1DWh38Sv",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/network/deployment-permit-gate.mjs",
+      "rel": "control/network/deployment-permit-gate.mjs",
+      "id": "toolu_01LtPiqqShydugYEBXWKw1H5",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/network/deployment-isolation-runtime.mjs",
+      "rel": "control/network/deployment-isolation-runtime.mjs",
+      "id": "toolu_01EF6H2z8Rm9My6i96xcBRin",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/network/deployment-isolation-runtime.mjs",
+      "rel": "control/network/deployment-isolation-runtime.mjs",
+      "id": "toolu_01BPyfgGVMETvXmuYyVN39Z3",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/network/deployment-isolation-runtime.mjs",
+      "rel": "control/network/deployment-isolation-runtime.mjs",
+      "id": "toolu_01UB4eBEpcpsCjezv5rF9MHQ",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/network/deployment-isolation-runtime.mjs",
+      "rel": "control/network/deployment-isolation-runtime.mjs",
+      "id": "toolu_01MQSYPP8AHgJEhKJU3yhnqb",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/network/deployment-isolation-runtime.mjs",
+      "rel": "control/network/deployment-isolation-runtime.mjs",
+      "id": "toolu_016eUchUxVpFX8yc43SMzQGa",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/network/deployment-isolation-runtime.mjs",
+      "rel": "control/network/deployment-isolation-runtime.mjs",
+      "id": "toolu_01Qo7xTA8CcGnsb1yvxkWQab",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/windows/vbslike/manager/control.mjs",
+      "rel": "control/windows/vbslike/manager/control.mjs",
+      "id": "toolu_017tSoVEC7MmkQkG8ZR6tvaR",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/windows/vbslike/router/io.mjs",
+      "rel": "control/windows/vbslike/router/io.mjs",
+      "id": "toolu_018Ym2Vdykte7QfDB2nphtCb",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/windows/vbslike/router/io.mjs",
+      "rel": "control/windows/vbslike/router/io.mjs",
+      "id": "toolu_01ALvsYaxeDjrZZyiNJkF4Wb",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/windows/vbslike/router/attest.mjs",
+      "rel": "control/windows/vbslike/router/attest.mjs",
+      "id": "toolu_01GBMhuFPvmyFxYnz2NTjW2p",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/windows/vbslike/manager/protected-manager.mjs",
+      "rel": "control/windows/vbslike/manager/protected-manager.mjs",
+      "id": "toolu_01RNgKUgD4ZnVjbkJG8QrDq4",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/windows/vbslike/manager/protected-manager.mjs",
+      "rel": "control/windows/vbslike/manager/protected-manager.mjs",
+      "id": "toolu_01SwDN1hNSY5h22YHAp2yF9Q",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/windows/vbslike/manager/protected-manager.mjs",
+      "rel": "control/windows/vbslike/manager/protected-manager.mjs",
+      "id": "toolu_01MYVrha9b5tdqQZwUbUf5vS",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/windows/vbslike/manager/compose.mjs",
+      "rel": "control/windows/vbslike/manager/compose.mjs",
+      "id": "toolu_015vacZHoXLvwbwaK84WRrZB",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/windows/vbslike/manager/compose.mjs",
+      "rel": "control/windows/vbslike/manager/compose.mjs",
+      "id": "toolu_01PEZmE7V67XDML8gE2C3tUD",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/windows/vbslike/manager/main.mjs",
+      "rel": "control/windows/vbslike/manager/main.mjs",
+      "id": "toolu_01UPEam8CQroSkRX9yf2LYHk",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/windows/vbslike/manager/main.mjs",
+      "rel": "control/windows/vbslike/manager/main.mjs",
+      "id": "toolu_01GD6nBQRfKakHcYkcPJh4Tb",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/windows/vbslike/router/main.mjs",
+      "rel": "control/windows/vbslike/router/main.mjs",
+      "id": "toolu_01P3i25UqnWeUvNkkW6tX6Yw",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/windows/vbslike/router/main.mjs",
+      "rel": "control/windows/vbslike/router/main.mjs",
+      "id": "toolu_01SkyAgaH6txQjTJqffH2wGq",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/windows/vbslike/router/main.mjs",
+      "rel": "control/windows/vbslike/router/main.mjs",
+      "id": "toolu_01Q81tua73mGtQKQYGJ86SKG",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/windows/vbslike/router/control.mjs",
+      "rel": "control/windows/vbslike/router/control.mjs",
+      "id": "toolu_01KqA6C6GfgMXdsArRcXNXaj",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/windows/vbslike/router/control.mjs",
+      "rel": "control/windows/vbslike/router/control.mjs",
+      "id": "toolu_01BU2s8HdThvfJ342pnmhxV7",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/windows/vbslike/router/control.mjs",
+      "rel": "control/windows/vbslike/router/control.mjs",
+      "id": "toolu_018s3v49WoRACeTx3ayYSFRQ",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/windows/vbslike/router/control.mjs",
+      "rel": "control/windows/vbslike/router/control.mjs",
+      "id": "toolu_01XHHg7m5MwwFDwG3cqPGupQ",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/windows/vbslike/router/control.mjs",
+      "rel": "control/windows/vbslike/router/control.mjs",
+      "id": "toolu_018XX9ubQgUfyLQofAXk5CRU",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/windows/vbslike/router/control.mjs",
+      "rel": "control/windows/vbslike/router/control.mjs",
+      "id": "toolu_01MRCAp7kmkzBfgYgCahNZGD",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/windows/vbslike/router/control.mjs",
+      "rel": "control/windows/vbslike/router/control.mjs",
+      "id": "toolu_01AuMkWuqJdAaaBdFvEsSqRs",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/test/windows-permit/helpers/world.mjs",
+      "rel": "test/windows-permit/helpers/world.mjs",
+      "id": "toolu_015BbLikE664UwJbZRYRi1wH",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/test/windows-permit/helpers/world.mjs",
+      "rel": "test/windows-permit/helpers/world.mjs",
+      "id": "toolu_01JiBV3TA9GXWi4yEM3mU2fF",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/test/windows-permit/helpers/world.mjs",
+      "rel": "test/windows-permit/helpers/world.mjs",
+      "id": "toolu_019fgyB4GQfsYqAVMtQfWetw",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/windows/node/protected-isolation.mjs",
+      "rel": "control/windows/node/protected-isolation.mjs",
+      "id": "toolu_01NYRUphgCPtG7sGDwzZfXzA",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/windows/node/protected-supervisor.mjs",
+      "rel": "control/windows/node/protected-supervisor.mjs",
+      "id": "toolu_01PV6kqoZnKVPKwbihVCKqA9",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/control/windows/node/protected-supervisor.mjs",
+      "rel": "control/windows/node/protected-supervisor.mjs",
+      "id": "toolu_01VuZMBb27pLw3f4kE7Crrjq",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/test/windows-permit/r6-stage-revocation.test.mjs",
+      "rel": "test/windows-permit/r6-stage-revocation.test.mjs",
+      "id": "toolu_01ULRbPaSD7P8Xj2VBavTLZw",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/test/windows-permit/r6-router-ownership.test.mjs",
+      "rel": "test/windows-permit/r6-router-ownership.test.mjs",
+      "id": "toolu_01JKczsky5efySo7b8ANqmug",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/REPORT-WINDOWS-PERMIT-R6.md",
+      "rel": "REPORT-WINDOWS-PERMIT-R6.md",
+      "id": "toolu_01VPDJJRXnjSwbs8Vf7YKHvh",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r6-20261029/candidate/test/windows-permit/r6-stage-revocation.test.mjs",
+      "rel": "test/windows-permit/r6-stage-revocation.test.mjs",
+      "id": "toolu_01BQyE3Ws8vBbsG9suLF8RSa",
+      "outcome": "reported-success"
+    }
+  ],
+  "replayIssues": [],
+  "outsideCandidateAttempts": [],
+  "note": "first successful mutation snapshots reconstructed from immutable seed and successful tool results; any mismatch requires manual audit, never assumed clean"
+}

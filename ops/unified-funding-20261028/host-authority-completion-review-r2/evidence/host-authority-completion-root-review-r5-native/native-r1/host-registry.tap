@@ -1,0 +1,118 @@
+TAP version 13
+# Subtest: artifact: exact reviewed runtime/creation/ABI/settings/source provenance; any byte or source drift refuses
+ok 1 - artifact: exact reviewed runtime/creation/ABI/settings/source provenance; any byte or source drift refuses
+  ---
+  duration_ms: 104.81263
+  type: 'test'
+  ...
+# Subtest: generators: BOTH layers reproduce the final adapter and dispatch byte for byte; inputs pinned, markers present, no double application
+ok 2 - generators: BOTH layers reproduce the final adapter and dispatch byte for byte; inputs pinned, markers present, no double application
+  ---
+  duration_ms: 5.636304
+  type: 'test'
+  ...
+# Subtest: Host profile helper: existing profiles unchanged; exact new profile and exact uint64 host generation
+ok 3 - Host profile helper: existing profiles unchanged; exact new profile and exact uint64 host generation
+  ---
+  duration_ms: 2.172652
+  type: 'test'
+  ...
+# Subtest: actual enrollment at 0 wei for operator and owner; one canonical registry is registry AND hostOwnership at ONE block
+ok 4 - actual enrollment at 0 wei for operator and owner; one canonical registry is registry AND hostOwnership at ONE block
+  ---
+  duration_ms: 586.952496
+  type: 'test'
+  ...
+# Subtest: composer start through the REAL v2 runtime: signed permit grant from the actual adapter snapshot; owner stop persists across reopen
+ok 5 - composer start through the REAL v2 runtime: signed permit grant from the actual adapter snapshot; owner stop persists across reopen
+  ---
+  duration_ms: 3802.656574
+  type: 'test'
+  ...
+# Subtest: mined start with lost reply reconciles after composer restart without resending (host-registry profile, real v2 runtime)
+ok 6 - mined start with lost reply reconciles after composer restart without resending (host-registry profile, real v2 runtime)
+  ---
+  duration_ms: 2345.517755
+  type: 'test'
+  ...
+# Subtest: canonical Offline by the accepted owner: durable same-generation denial in the actual dispatch; a stale Online read never restores
+ok 7 - canonical Offline by the accepted owner: durable same-generation denial in the actual dispatch; a stale Online read never restores
+  ---
+  duration_ms: 3181.438135
+  type: 'test'
+  ...
+# Subtest: reporter quorum Offline despite failed operator; old quorum after policy change and old owner after transfer are rejected
+ok 8 - reporter quorum Offline despite failed operator; old quorum after policy change and old owner after transfer are rejected
+  ---
+  duration_ms: 377.562658
+  type: 'test'
+  ...
+# Subtest: no legacy heartbeat/reactivation: metadata edits keep Offline; only a new qualified generation returns Online
+ok 9 - no legacy heartbeat/reactivation: metadata edits keep Offline; only a new qualified generation returns Online
+  ---
+  duration_ms: 464.501237
+  type: 'test'
+  ...
+# Subtest: pin refusals: separate (even internally consistent) ownership registry, wrong code/artifact, wrong composer profile, no durable section
+ok 10 - pin refusals: separate (even internally consistent) ownership registry, wrong code/artifact, wrong composer profile, no durable section
+  ---
+  duration_ms: 526.026907
+  type: 'test'
+  ...
+# Subtest: same block and authority: no nested verified for rpc-quorum; pre-registry block and stale runtime pin are unknown
+ok 11 - same block and authority: no nested verified for rpc-quorum; pre-registry block and stale runtime pin are unknown
+  ---
+  duration_ms: 330.553138
+  type: 'test'
+  ...
+# Subtest: missed Offline: old context fenced durably; unknown cannot rebind; explicit adoption -> v2 gate handoff -> authorized queued transition -> fresh start serves
+not ok 12 - missed Offline: old context fenced durably; unknown cannot rebind; explicit adoption -> v2 gate handoff -> authorized queued transition -> fresh start serves
+  ---
+  duration_ms: 4500.916775
+  type: 'test'
+  location: '/tmp/hacr2.RTqwHs/r6/test/root-host-registry-profile.test.mjs:228:1'
+  failureType: 'testCodeFailure'
+  error: 'expected running: {"status":"queued","reason":"restart backoff"}'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'fail'
+  stack: |-
+    until (file:///tmp/hacr2.RTqwHs/r6/test/root-host-registry-profile.test.mjs:60:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///tmp/hacr2.RTqwHs/r6/test/root-host-registry-profile.test.mjs:256:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: stale prepared Running refuses at the submit boundary before the sender; the journaled intent is kept, never resent
+ok 13 - stale prepared Running refuses at the submit boundary before the sender; the journaled intent is kept, never resent
+  ---
+  duration_ms: 1527.240228
+  type: 'test'
+  ...
+# Subtest: old-context pending Running transaction resolves canonically without resend after missed Offline, recovery and restart
+ok 14 - old-context pending Running transaction resolves canonically without resend after missed Offline, recovery and restart
+  ---
+  duration_ms: 1643.226629
+  type: 'test'
+  ...
+# Subtest: a current valid Offline needs no fresh qualification; the deployment-owner stop path stays available on an Offline host
+ok 15 - a current valid Offline needs no fresh qualification; the deployment-owner stop path stays available on an Offline host
+  ---
+  duration_ms: 978.54293
+  type: 'test'
+  ...
+# Subtest: durable host incarnation journal: exact uint64, rollback/equivocation refused, binding only to the floor, survives reopen
+ok 16 - durable host incarnation journal: exact uint64, rollback/equivocation refused, binding only to the floor, survives reopen
+  ---
+  duration_ms: 2.332131
+  type: 'test'
+  ...
+1..16
+# tests 16
+# suites 0
+# pass 15
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 20642.086501

@@ -1,0 +1,26 @@
+# witness-rpc-access-stage (SOURCE ONLY; not installed): the PRIVATE loopback witness bridge to the Base EL's private IPC socket.
+# Opt-in: NO [Install] section (never started at boot, never a dependency of a consumer); root starts it for a witness run, then stops it.
+# Never forwarded (no socket-proxyd unit names 18547). Relays only the read-only allowlist in witness_rpc_bridge.py PROFILES['base-el'].
+[Unit]
+Description=Witness acquisition: private loopback bridge to the Base EL IPC (read-only allowlist)
+After=enclave-base-holder.service
+Requisite=enclave-base-holder.service
+[Service]
+Type=exec
+User=rpcbase
+Group=rpcbase
+ExecStart=/usr/bin/python3 -I -B /opt/enclave-rpc/witness/witness_rpc_bridge.py base-el
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+IPAddressDeny=any
+IPAddressAllow=localhost
+MemoryMax=512M
+MemorySwapMax=0
+TasksMax=32
+UMask=0077
+Restart=no

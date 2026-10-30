@@ -1,0 +1,8 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r12/install/MISSING.md	2026-10-26 00:31:32.614562426 -0700
++++ install/MISSING.md	2026-10-26 00:35:19.748417804 -0700
+@@ -1,4 +1,4 @@
+-# r12: what genuinely awaits real artifacts, the guest canary, or root (each fails closed while absent)
++# r12-final: what genuinely awaits real artifacts, the guest canary, or root (each fails closed while absent)
+ 
+ | Item | Needed by | Status |
+ |---|---|---|

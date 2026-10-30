@@ -1,0 +1,35 @@
+{
+  "unit": "enclave-operator-windows-wiring-r2-20261029.service",
+  "ActiveState": "active",
+  "InvocationID": "0ea10fe59de846dc8c4086e9b2aa413c",
+  "MainPID": "1878242",
+  "processes": [
+    {
+      "pid": 1878242,
+      "start": "161126472",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven"
+    },
+    {
+      "pid": 1878258,
+      "start": "161126484",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven"
+    },
+    {
+      "pid": 1878272,
+      "start": "161126559",
+      "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+      "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r2-20261029",
+      "affinity": "pid 1878272's current affinity list: 1"
+    }
+  ],
+  "account": {
+    "loggedIn": true,
+    "email": "steven.r.batchelor@gmail.com",
+    "subscriptionType": "max"
+  },
+  "verifiedAt": 1793306169.6550364,
+  "sourceOnly": true,
+  "remoteOrFinancialActions": false
+}

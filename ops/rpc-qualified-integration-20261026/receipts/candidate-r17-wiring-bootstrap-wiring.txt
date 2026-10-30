@@ -1,0 +1,112 @@
+test_explicit_900s_cold_start_and_240s_run_pass_through (__main__.CaptureHelper.test_explicit_900s_cold_start_and_240s_run_pass_through) ... ok
+test_read_root_is_bounded (__main__.CaptureHelper.test_read_root_is_bounded) ... ok
+test_timeout_is_a_tempfail_with_nothing_verified (__main__.CaptureHelper.test_timeout_is_a_tempfail_with_nothing_verified) ... ok
+test_a3_a4_plan_accepts_the_a2_capture_without_readmitting_but_not_a_foreign_admitted_one (__main__.FirstCapture.test_a3_a4_plan_accepts_the_a2_capture_without_readmitting_but_not_a_foreign_admitted_one) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmpndu0wimp/cap-1/.partial-1715280/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmpndu0wimp/cap-1/.partial-1715280/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmpndu0wimp/cap-1/.partial-1715280/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmpndu0wimp/cap-1/.partial-1715280/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"step": "a2", "ok": true, "refused": null}
+{"step": "plan", "ok": true, "refused": null}
+{"step": "plan", "ok": false, "refused": "a1_replayed: replayed: replayed: this capture (or its evidence) was already admitted"}
+ok
+test_a_legacy_first_launch_is_refused_by_the_producer (__main__.FirstCapture.test_a_legacy_first_launch_is_refused_by_the_producer) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ok
+test_capture_refusals (__main__.FirstCapture.test_capture_refusals) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmpimdwk2ga/cap-1/.partial-1715280/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmpimdwk2ga/cap-1/.partial-1715280/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmpimdwk2ga/cap-1/.partial-1715280/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmpimdwk2ga/cap-1/.partial-1715280/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"step": "plan", "ok": false, "refused": "a1_capture_binding: the A1 capture is not the capture module's original-game recheck (mode recheck)"}
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmpimdwk2ga/cap-2/.partial-1715280/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmpimdwk2ga/cap-2/.partial-1715280/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmpimdwk2ga/cap-2/.partial-1715280/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmpimdwk2ga/cap-2/.partial-1715280/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"step": "plan", "ok": false, "refused": "a1_capture: tampered: tampered: helios.out differs from result.json"}
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmpimdwk2ga/cap-3/.partial-1715280/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmpimdwk2ga/cap-3/.partial-1715280/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmpimdwk2ga/cap-3/.partial-1715280/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmpimdwk2ga/cap-3/.partial-1715280/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmpimdwk2ga/cap-4/.partial-1715280/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmpimdwk2ga/cap-4/.partial-1715280/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmpimdwk2ga/cap-4/.partial-1715280/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmpimdwk2ga/cap-4/.partial-1715280/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"step": "plan", "ok": false, "refused": "a1_initial_pin: the capture rechecked another initial receipt than the source pin 000000000000..."}
+ok
+test_first_bootstrap_runs_only_on_verified_admitted_captures_and_the_producer_reverifies_both (__main__.FirstCapture.test_first_bootstrap_runs_only_on_verified_admitted_captures_and_the_producer_reverifies_both) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmptmzi19_c/cap-1/.partial-1715280/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmptmzi19_c/cap-1/.partial-1715280/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmptmzi19_c/cap-1/.partial-1715280/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmptmzi19_c/cap-1/.partial-1715280/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"step": "plan", "ok": true, "refused": null}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": false, "refused": "a1_replayed: replayed: replayed: this capture (or its evidence) was already admitted"}
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmptmzi19_c/cap-2/.partial-1715280/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmptmzi19_c/cap-2/.partial-1715280/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmptmzi19_c/cap-2/.partial-1715280/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmptmzi19_c/cap-2/.partial-1715280/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"step": "release", "ok": true, "refused": null}
+ok
+test_legacy_receipt_files_are_refused_in_production_b1 (__main__.FirstCapture.test_legacy_receipt_files_are_refused_in_production_b1) ... ok
+test_production_launcher_from_settings_replace_and_recheck (__main__.FirstCapture.test_production_launcher_from_settings_replace_and_recheck) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmp_p0xbw8c/cap-launcher/.partial-1715280/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmp_p0xbw8c/cap-launcher/.partial-1715280/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmp_p0xbw8c/cap-launcher/.partial-1715280/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmp_p0xbw8c/cap-launcher/.partial-1715280/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"step": "plan", "ok": true, "refused": null}
+ok
+test_the_original_pinned_live_receipt_passes_plan (__main__.FirstCapture.test_the_original_pinned_live_receipt_passes_plan) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmp1ms6p5o2/cap-1/.partial-1715280/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmp1ms6p5o2/cap-1/.partial-1715280/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmp1ms6p5o2/cap-1/.partial-1715280/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmp1ms6p5o2/cap-1/.partial-1715280/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"step": "plan", "ok": true, "refused": null}
+ok
+test_datadir_idle (__main__.HolderGate.test_datadir_idle) ... ok
+test_own_datadir_refuses_another_filesystem_before_any_change (__main__.HolderGate.test_own_datadir_refuses_another_filesystem_before_any_change) ... ok
+test_own_datadir_two_passes_no_hardlink_no_symlink_follow (__main__.HolderGate.test_own_datadir_two_passes_no_hardlink_no_symlink_follow) ... ok
+test_wait_l1_is_bounded (__main__.HolderGate.test_wait_l1_is_bounded) ... ok
+test_armed_permit_then_start_consumes_and_a_restart_before_the_first_proof_refuses (__main__.Ordering.test_armed_permit_then_start_consumes_and_a_restart_before_the_first_proof_refuses) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmpw9nex61a/srv/data", "publicExecutionRpc": false}
+ok
+test_produce_creates_a_private_finality_dir_atomically_and_never_overwrites (__main__.Ordering.test_produce_creates_a_private_finality_dir_atomically_and_never_overwrites) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ok
+test_crash_points_recover_to_old_or_new_bytes (__main__.ReleaseInstall.test_crash_points_recover_to_old_or_new_bytes) ... ok
+test_manifest_switch_needs_release_and_quiet_datadir (__main__.ReleaseInstall.test_manifest_switch_needs_release_and_quiet_datadir) ... ok
+test_release_placement_never_overwrites (__main__.ReleaseInstall.test_release_placement_never_overwrites) ... ok
+test_secure_refuses_special_linked_writable_and_symlinked_paths (__main__.ReleaseInstall.test_secure_refuses_special_linked_writable_and_symlinked_paths) ... ok
+test_release_drop_in_changes_identity_and_adds_only_the_journal_paths (__main__.Units.test_release_drop_in_changes_identity_and_adds_only_the_journal_paths) ... ok
+test_reproof_creates_the_status_runtime_dir_exactly_as_the_status_unit (__main__.Units.test_reproof_creates_the_status_runtime_dir_exactly_as_the_status_unit) ... ok
+
+----------------------------------------------------------------------
+Ran 22 tests in 29.955s
+
+OK

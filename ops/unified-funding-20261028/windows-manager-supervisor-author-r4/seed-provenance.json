@@ -1,0 +1,11 @@
+{
+  "frozenRoot": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery",
+  "frozenManifestSha256": "41f0aacd74e7406620b29d29a0541522dabf01c0cb434bf6fdbb8621cb18a02f",
+  "frozenFiles": 152,
+  "seedFiles": 152,
+  "baselineMerges": [],
+  "preAuthorProductEdits": [],
+  "routerSha256": "e2bf6ea711d9894aba92fbfb77048adeac0cbdeba135b72f71c7ebc3796424cf",
+  "routerNote": "Exact frozen r3 narrow health merge plus protected routes retained. No whole-file replacement.",
+  "noCandidateCodeExecuted": true
+}

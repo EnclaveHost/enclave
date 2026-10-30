@@ -1,0 +1,18 @@
+
+running 13 tests
+test tests::client_panics_exactly_where_the_checker_predicts ... ok
+test tests::client_cross_check_independently_refuses_harmful_rows ... ok
+test tests::completeness_counts_missing_code_and_ignores_empty ... ok
+test tests::extra_table_bytes_and_bits_past_bit_len_are_non_canonical_not_failures ... ok
+test tests::forged_jump_bits_are_executed_by_the_client ... ok
+test tests::client_written_rows_are_canonical_and_agree ... ok
+test tests::nonzero_padding_is_executed_by_the_client ... ok
+test tests::padding_shorter_than_revm42_is_refused_and_dupn_is_classified ... ok
+test tests::mdbx_scan_end_to_end_reports_failures_missing_code_and_is_read_only ... ok
+test tests::raw_tag0_rows_follow_new_raw ... ok
+test tests::rows_the_client_misreads_silently_are_refused ... ok
+test tests::size_key_and_length_guards ... ok
+test tests::pseudo_random_client_rows_pass_and_every_read_jump_bit_flip_fails ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.55s
+

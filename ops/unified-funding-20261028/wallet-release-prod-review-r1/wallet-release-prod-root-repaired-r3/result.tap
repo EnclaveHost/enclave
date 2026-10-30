@@ -1,0 +1,370 @@
+TAP version 13
+# Subtest: pins: the reviewed vault runtime is exactly the clone of the pinned implementation; CREATE derivation finds the real ledger
+ok 1 - pins: the reviewed vault runtime is exactly the clone of the pinned implementation; CREATE derivation finds the real ledger
+  ---
+  duration_ms: 1.264409
+  type: 'test'
+  ...
+# Subtest: positive: scanner -> predicate -> controller, inactive STAGING, envs3 session, 9.5 USDC runtime balance, no escrow
+ok 2 - positive: scanner -> predicate -> controller, inactive STAGING, envs3 session, 9.5 USDC runtime balance, no escrow
+  ---
+  duration_ms: 90.765138
+  type: 'test'
+  ...
+# Subtest: staging-only session is narrowed and disclosed; without wallet delegation envs3 is narrowed too
+ok 3 - staging-only session is narrowed and disclosed; without wallet delegation envs3 is narrowed too
+  ---
+  duration_ms: 81.964116
+  type: 'test'
+  ...
+# Subtest: prod-only live session would newly gain access -> blocked; expired/terminated/epoch-revoked prod-only rows are history, not authority
+ok 4 - prod-only live session would newly gain access -> blocked; expired/terminated/epoch-revoked prod-only rows are history, not authority
+  ---
+  duration_ms: 152.938099
+  type: 'test'
+  ...
+# Subtest: other wallet-delegated supported vault: live prod grant gains access -> blocked; its history is discovered by receipt-qualified scan
+ok 5 - other wallet-delegated supported vault: live prod grant gains access -> blocked; its history is discovered by receipt-qualified scan
+  ---
+  duration_ms: 263.89878
+  type: 'test'
+  ...
+# Subtest: unknown delegate blocks; revoked delegate is retained history only; event/mapping mismatch blocks; source-vault delegate blocks
+ok 6 - unknown delegate blocks; revoked delegate is retained history only; event/mapping mismatch blocks; source-vault delegate blocks
+  ---
+  duration_ms: 257.895803
+  type: 'test'
+  ...
+# Subtest: session or delegate added during the wallet prompt: nothing sent, durable cancel
+ok 7 - session or delegate added during the wallet prompt: nothing sent, durable cancel
+  ---
+  duration_ms: 271.068567
+  type: 'test'
+  ...
+# Subtest: incomplete reads are explicit blockers, never absence: rate limit, range cap, truncated page, duplicate log, archive absence, disagreement, one origin
+ok 8 - incomplete reads are explicit blockers, never absence: rate limit, range cap, truncated page, duplicate log, archive absence, disagreement, one origin
+  ---
+  duration_ms: 156.146252
+  type: 'test'
+  ...
+# Subtest: creation-boundary evidence: initcode, constructor args, artifact absence, failed or non-canonical witness
+ok 9 - creation-boundary evidence: initcode, constructor args, artifact absence, failed or non-canonical witness
+  ---
+  duration_ms: 30.197913
+  type: 'test'
+  ...
+# Subtest: reorged cached anchor is discarded and rebuilt; a stale, foreign or caller-built census is rejected
+ok 10 - reorged cached anchor is discarded and rebuilt; a stale, foreign or caller-built census is rejected
+  ---
+  duration_ms: 86.111869
+  type: 'test'
+  ...
+# Subtest: concurrent rows share one history build (cached history is not cached permission)
+ok 11 - concurrent rows share one history build (cached history is not cached permission)
+  ---
+  duration_ms: 47.60167
+  type: 'test'
+  ...
+# Subtest: PROD stays outside this path: unpromoted, drifted and promoted PROD are blocked
+ok 12 - PROD stays outside this path: unpromoted, drifted and promoted PROD are blocked
+  ---
+  duration_ms: 145.259618
+  type: 'test'
+  ...
+# Subtest: invalidation during final persistence: no POST; unknown outcome is never re-signed or re-sent
+ok 13 - invalidation during final persistence: no POST; unknown outcome is never re-signed or re-sent
+  ---
+  duration_ms: 87.662387
+  type: 'test'
+  ...
+# Subtest: ROOT absent delegate storage must refuse: undefined
+ok 14 - ROOT absent delegate storage must refuse: undefined
+  ---
+  duration_ms: 19.925714
+  type: 'test'
+  ...
+# Subtest: ROOT absent delegate storage must refuse: null
+ok 15 - ROOT absent delegate storage must refuse: null
+  ---
+  duration_ms: 20.196232
+  type: 'test'
+  ...
+# Subtest: typed data guard accepts exactly the SDK Release and nothing else
+ok 16 - typed data guard accepts exactly the SDK Release and nothing else
+  ---
+  duration_ms: 1.453628
+  type: 'test'
+  ...
+# Subtest: release calldata: exact selector, canonical round trip only
+ok 17 - release calldata: exact selector, canonical round trip only
+  ---
+  duration_ms: 1.460577
+  type: 'test'
+  ...
+# Subtest: promoted commitment is keccak256(abi.encode(string,string))
+ok 18 - promoted commitment is keccak256(abi.encode(string,string))
+  ---
+  duration_ms: 6.140436
+  type: 'test'
+  ...
+# Subtest: historical KVM 9a28642b and DNS 59f1273d stay blocked (active, lease, escrow, old reserve)
+ok 19 - historical KVM 9a28642b and DNS 59f1273d stay blocked (active, lease, escrow, old reserve)
+  ---
+  duration_ms: 9.07222
+  type: 'test'
+  ...
+# Subtest: cab8fb59: positive runtime balance alone is not a blocker; without a census only the census requirement blocks
+ok 20 - cab8fb59: positive runtime balance alone is not a blocker; without a census only the census requirement blocks
+  ---
+  duration_ms: 1.444837
+  type: 'test'
+  ...
+# Subtest: journal: put-if-absent, CAS, single writer, transitions, bounded shape
+ok 21 - journal: put-if-absent, CAS, single writer, transitions, bounded shape
+  ---
+  duration_ms: 1.1541
+  type: 'test'
+  ...
+# Subtest: default PROD refusal is unchanged: unpromoted, drifted and promoted PROD stay blocked without an owner review
+ok 22 - default PROD refusal is unchanged: unpromoted, drifted and promoted PROD stay blocked without an owner review
+  ---
+  duration_ms: 225.596149
+  type: 'test'
+  ...
+# Subtest: explicit two steps: same-content Promote, confirmed on-chain, then a separately reviewed fresh Release
+ok 23 - explicit two steps: same-content Promote, confirmed on-chain, then a separately reviewed fresh Release
+  ---
+  duration_ms: 106.972025
+  type: 'test'
+  ...
+# Subtest: already promoted: explicit election goes straight to Release; promotion is not offered or redone
+ok 24 - already promoted: explicit election goes straight to Release; promotion is not offered or redone
+  ---
+  duration_ms: 75.279585
+  type: 'test'
+  ...
+# Subtest: STAGING path unchanged; promotion never offered for STAGING
+ok 25 - STAGING path unchanged; promotion never offered for STAGING
+  ---
+  duration_ms: 56.900418
+  type: 'test'
+  ...
+# Subtest: census source env: prod-only grant on source-PROD is not a new privilege; on STAGING it still blocks; other/unknown authority blocks
+ok 26 - census source env: prod-only grant on source-PROD is not a new privilege; on STAGING it still blocks; other/unknown authority blocks
+  ---
+  duration_ms: 233.37597
+  type: 'test'
+  ...
+# Subtest: inactive/unleased/escrow/reserve gates still refuse both steps
+ok 27 - inactive/unleased/escrow/reserve gates still refuse both steps
+  ---
+  duration_ms: 279.552733
+  type: 'test'
+  ...
+# Subtest: review drift: content, catalog label/publisher, public flag, promotion, balance, session or delegate changes need a fresh review
+ok 28 - review drift: content, catalog label/publisher, public flag, promotion, balance, session or delegate changes need a fresh review
+  ---
+  duration_ms: 812.444169
+  type: 'test'
+  ...
+# Subtest: Promote typed data and POST exactness
+ok 29 - Promote typed data and POST exactness
+  ---
+  duration_ms: 56.67571
+  type: 'test'
+  ...
+# Subtest: invalidation during the dispatch CAS, and two tabs: no POST / one signature
+ok 30 - invalidation during the dispatch CAS, and two tabs: no POST / one signature
+  ---
+  duration_ms: 133.548121
+  type: 'test'
+  ...
+# Subtest: uncertain/reload/reorg/foreign/failed promotion: no resend, no early Release
+ok 31 - uncertain/reload/reorg/foreign/failed promotion: no resend, no early Release
+  ---
+  duration_ms: 259.342191
+  type: 'test'
+  ...
+# Subtest: shared owner nonce fence, both directions, other deployment, two tabs, old schema1 Release records
+ok 32 - shared owner nonce fence, both directions, other deployment, two tabs, old schema1 Release records
+  ---
+  duration_ms: 78.328249
+  type: 'test'
+  ...
+# Subtest: EXACT shipped SDK: ownerOperation promote then (separately) release through the guarded seams
+ok 33 - EXACT shipped SDK: ownerOperation promote then (separately) release through the guarded seams
+  ---
+  duration_ms: 120.053661
+  type: 'test'
+  ...
+# Subtest: ROOT old-ledger unresolved release fences the same vault owner
+ok 34 - ROOT old-ledger unresolved release fences the same vault owner
+  ---
+  duration_ms: 37.775577
+  type: 'test'
+  ...
+# Subtest: ROOT old-ledger unresolved promote fences the same vault owner
+ok 35 - ROOT old-ledger unresolved promote fences the same vault owner
+  ---
+  duration_ms: 0.378496
+  type: 'test'
+  ...
+# Subtest: ROOT independent catalog disagreement prevents a promotion signature
+ok 36 - ROOT independent catalog disagreement prevents a promotion signature
+  ---
+  duration_ms: 43.303128
+  type: 'test'
+  ...
+# Subtest: ROOT unreviewed catalog runtime refuses owner content approval
+ok 37 - ROOT unreviewed catalog runtime refuses owner content approval
+  ---
+  duration_ms: 51.412076
+  type: 'test'
+  ...
+# Subtest: ROOT actual viem reader refuses a missing delegation storage word
+ok 38 - ROOT actual viem reader refuses a missing delegation storage word
+  ---
+  duration_ms: 0.397986
+  type: 'test'
+  ...
+# Subtest: ROOT transplanted receipt cannot finalize promotion
+ok 39 - ROOT transplanted receipt cannot finalize promotion
+  ---
+  duration_ms: 63.138403
+  type: 'test'
+  ...
+# Subtest: ROOT late reorg during promotion state verification cannot finalize
+ok 40 - ROOT late reorg during promotion state verification cannot finalize
+  ---
+  duration_ms: 59.762933
+  type: 'test'
+  ...
+# Subtest: ROOT state-changing late reorg remains recoverable pending, never terminal conflict
+ok 41 - ROOT state-changing late reorg remains recoverable pending, never terminal conflict
+  ---
+  duration_ms: 57.375274
+  type: 'test'
+  ...
+# Subtest: checking/blocked: Move to wallet present but disabled, status is announced
+ok 42 - checking/blocked: Move to wallet present but disabled, status is announced
+  ---
+  duration_ms: 1.10019
+  type: 'test'
+  ...
+# Subtest: blocker text and codes are escaped
+ok 43 - blocker text and codes are escaped
+  ---
+  duration_ms: 0.229248
+  type: 'test'
+  ...
+# Subtest: eligible -> enabled; review shows full id, vault, fixed destination, preserved balance, signature, no widening
+ok 44 - eligible -> enabled; review shows full id, vault, fixed destination, preserved balance, signature, no widening
+  ---
+  duration_ms: 0.421627
+  type: 'test'
+  ...
+# Subtest: journal states: pending/uncertain offer only a read-only re-check; finalized offers nothing
+ok 45 - journal states: pending/uncertain offer only a read-only re-check; finalized offers nothing
+  ---
+  duration_ms: 0.431497
+  type: 'test'
+  ...
+# Subtest: the actual /sessions page wires the slot into the held card and keeps every other control
+ok 46 - the actual /sessions page wires the slot into the held card and keeps every other control
+  ---
+  duration_ms: 0.633565
+  type: 'test'
+  ...
+# Subtest: positive: inactive funded runtime, no escrow, STAGING with a complete census -> one sign, one POST, verified
+ok 47 - positive: inactive funded runtime, no escrow, STAGING with a complete census -> one sign, one POST, verified
+  ---
+  duration_ms: 75.217146
+  type: 'test'
+  ...
+# Subtest: environment/content/census gate
+ok 48 - environment/content/census gate
+  ---
+  duration_ms: 198.867435
+  type: 'test'
+  ...
+# Subtest: escrow OR gate exactly as deployed; lease, activity and reserves
+ok 49 - escrow OR gate exactly as deployed; lease, activity and reserves
+  ---
+  duration_ms: 294.032075
+  type: 'test'
+  ...
+# Subtest: identity, code, chain and freshness drift all block (no fallback)
+ok 50 - identity, code, chain and freshness drift all block (no fallback)
+  ---
+  duration_ms: 8.848522
+  type: 'test'
+  ...
+# Subtest: wallet provider on another chain/account blocks without requesting a connection
+ok 51 - wallet provider on another chain/account blocks without requesting a connection
+  ---
+  duration_ms: 120.120809
+  type: 'test'
+  ...
+# Subtest: account change, unmount, state drift or failed simulation after the signature: nothing sent, durable cancel
+ok 52 - account change, unmount, state drift or failed simulation after the signature: nothing sent, durable cancel
+  ---
+  duration_ms: 280.643073
+  type: 'test'
+  ...
+# Subtest: double click and two controllers (two tabs, one journal): one signature, one POST
+ok 53 - double click and two controllers (two tabs, one journal): one signature, one POST
+  ---
+  duration_ms: 57.975799
+  type: 'test'
+  ...
+# Subtest: journal failure at each boundary stops at the last durable point
+ok 54 - journal failure at each boundary stops at the last durable point
+  ---
+  duration_ms: 165.544449
+  type: 'test'
+  ...
+# Subtest: relay accepted then timed out (hash lost): uncertain, reload finds it by exact nonce, never re-signs
+ok 55 - relay accepted then timed out (hash lost): uncertain, reload finds it by exact nonce, never re-signs
+  ---
+  duration_ms: 63.599059
+  type: 'test'
+  ...
+# Subtest: relay rejected (maybe sent): stays unresolved, no resign or repost
+ok 56 - relay rejected (maybe sent): stays unresolved, no resign or repost
+  ---
+  duration_ms: 43.382308
+  type: 'test'
+  ...
+# Subtest: wrong event / failed receipt / changed poststate / foreign nonce / reorg are refused
+ok 57 - wrong event / failed receipt / changed poststate / foreign nonce / reorg are refused
+  ---
+  duration_ms: 216.616728
+  type: 'test'
+  ...
+# Subtest: an interrupted pre-dispatch record resolves only after its deadline passes on-chain
+ok 58 - an interrupted pre-dispatch record resolves only after its deadline passes on-chain
+  ---
+  duration_ms: 38.737948
+  type: 'test'
+  ...
+# Subtest: EXACT vendored ownerOperation: wrapped signer sees generated typed data before signing, POST after
+ok 59 - EXACT vendored ownerOperation: wrapped signer sees generated typed data before signing, POST after
+  ---
+  duration_ms: 83.882069
+  type: 'test'
+  ...
+# Subtest: ROOT dispose during durable dispatching commit must prevent relay POST
+ok 60 - ROOT dispose during durable dispatching commit must prevent relay POST
+  ---
+  duration_ms: 61.868414
+  type: 'test'
+  ...
+1..60
+# tests 60
+# suites 0
+# pass 60
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6633.876873

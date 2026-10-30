@@ -1,0 +1,109 @@
+TAP version 13
+# Subtest: A1: a native run holds no provider lock: B_f, S and logs are served meanwhile; one native slot; tickets one-shot and kept on refusal; merge revalidates
+ok 1 - A1: a native run holds no provider lock: B_f, S and logs are served meanwhile; one native slot; tickets one-shot and kept on refusal; merge revalidates
+  ---
+  duration_ms: 704.579421
+  type: 'test'
+  ...
+# Subtest: A1: close aborts and awaits an in-flight native run; nothing merges afterwards
+ok 2 - A1: close aborts and awaits an in-flight native run; nothing merges afterwards
+  ---
+  duration_ms: 359.776059
+  type: 'test'
+  ...
+# Subtest: A2 journal: the evidence section is optional (default bytes unchanged), grouped by S, deduplicated, validated and never a floor
+ok 3 - A2 journal: the evidence section is optional (default bytes unchanged), grouped by S, deduplicated, validated and never a floor
+  ---
+  duration_ms: 5.601841
+  type: 'test'
+  ...
+# Subtest: A2 journal: finalized coverage confirms (prunes) or contradicts (durable marker) recorded S; an S passed uncovered is unverifiable; markers survive reopening
+ok 4 - A2 journal: finalized coverage confirms (prunes) or contradicts (durable marker) recorded S; an S passed uncovered is unverifiable; markers survive reopening
+  ---
+  duration_ms: 2.535494
+  type: 'test'
+  ...
+# Subtest: A2 journal: bounds are fail-closed (distinct S, total facts, bytes below the KVM enrollment limit); an oversized saved section fences the journal
+not ok 5 - A2 journal: bounds are fail-closed (distinct S, total facts, bytes below the KVM enrollment limit); an oversized saved section fences the journal
+  ---
+  duration_ms: 6.441009
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-two-anchor-stage/r2/runs/20261026T183226Z-slice-2144547/repo/test/derived-reader/two-anchor-r2.test.mjs:142:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /evidence is full/. Input:
+    
+    'Error: lifecycle journal is unreadable: invalid provisional evidence'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'lifecycle journal is unreadable: invalid provisional evidence'
+  stack: |-
+    check (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-two-anchor-stage/r2/runs/20261026T183226Z-slice-2144547/repo/network/deployment-lifecycle-journal.mjs:112:96)
+    Object.recordProvisionalFact (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-two-anchor-stage/r2/runs/20261026T183226Z-slice-2144547/repo/network/deployment-lifecycle-journal.mjs:164:7)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-two-anchor-stage/r2/runs/20261026T183226Z-slice-2144547/repo/test/derived-reader/two-anchor-r2.test.mjs:149:26)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-two-anchor-stage/r2/runs/20261026T183226Z-slice-2144547/repo/test/derived-reader/two-anchor-r2.test.mjs:149:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: A2 clear: ONLY an admin-signed rotation that binds the exact fenced prior bytes clears the marker (KVM plan + role gate); a stale package refuses
+ok 6 - A2 clear: ONLY an admin-signed rotation that binds the exact fenced prior bytes clears the marker (KVM plan + role gate); a stale package refuses
+  ---
+  duration_ms: 4.356648
+  type: 'test'
+  ...
+# Subtest: A2 provider: finalized results confirm recorded facts or durably disable the tier; the marker survives a provider restart and stops the bridge
+ok 7 - A2 provider: finalized results confirm recorded facts or durably disable the tier; the marker survives a provider restart and stops the bridge
+  ---
+  duration_ms: 475.687231
+  type: 'test'
+  ...
+# Subtest: A2 provider: an S recorded but passed by finalized coverage without being covered (bootstrap beyond it) is unverifiable: disabled
+ok 8 - A2 provider: an S recorded but passed by finalized coverage without being covered (bootstrap beyond it) is unverifiable: disabled
+  ---
+  duration_ms: 301.652193
+  type: 'test'
+  ...
+# Subtest: A2 provider: the provisional tier refuses to exist without durable evidence, and evidence never exists without the policy
+ok 9 - A2 provider: the provisional tier refuses to exist without durable evidence, and evidence never exists without the policy
+  ---
+  duration_ms: 239.596581
+  type: 'test'
+  ...
+# Subtest: S2: the bridge pairs S only with the exact B_f it extends; a finalized advance between the two reads refuses, a fresh snapshot then succeeds
+ok 10 - S2: the bridge pairs S only with the exact B_f it extends; a finalized advance between the two reads refuses, a fresh snapshot then succeeds
+  ---
+  duration_ms: 529.364124
+  type: 'test'
+  ...
+# Subtest: S3: the overlay links to the persisted tail by native-bound output root, not only by number
+ok 11 - S3: the overlay links to the persisted tail by native-bound output root, not only by number
+  ---
+  duration_ms: 365.181795
+  type: 'test'
+  ...
+# Subtest: A3 regression (NOT a fix): coverage after ANY start begins at the authenticated bootstrap; a rotation (new binding, new cache) is no worse than a restart; an ASR bootstrap past a claim makes it unservable
+ok 12 - A3 regression (NOT a fix): coverage after ANY start begins at the authenticated bootstrap; a rotation (new binding, new cache) is no worse than a restart; an ASR bootstrap past a claim makes it unservable
+  ---
+  duration_ms: 513.213703
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 11
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3721.653247

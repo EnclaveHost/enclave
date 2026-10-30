@@ -1,0 +1,28 @@
+{
+  "status": "DRAFT_NOT_APPROVED",
+  "generatedAt": 1793226074,
+  "rootMustFill": [
+    "decisions.reviewedBy",
+    "decisions.reviewRef",
+    "pins.inputs.decisions (path + sha256 of the reviewed decisions file)",
+    "pins.inputs.observation (path + sha256 of a LIVE capture-observation.mjs output; never a TEST fixture)"
+  ],
+  "validity": "intake.notAfter and feePolicy.notAfter = generatedAt + 86400s; the preparer needs >= 600s left at prepare time",
+  "hostQueue": {
+    "maxAttempts": 5,
+    "maxTipWei": "10000000",
+    "serviceMaxTipWei": "10000000",
+    "source": "activation-r1/generated/relay/sessions.mjs",
+    "note": "SESSIONS_MAX_TIP_WEI must be unset (or exactly 10000000) on the production relay; this generator cannot read env"
+  },
+  "quoter": "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a: Base Uniswap V3 QuoterV2; collectBindings checks quoter.factory() / WETH9() against the adapter, root verifies the runtime",
+  "measuredEvidence": "Historical Base fork eth_call (CALL trace) gas of vault.execute: 625399 / 609472 / 631198; the largest, 631198, is used. These are NOT transaction receipts and NOT a production measurement: a CALL trace excludes the 21000 intrinsic and calldata gas and cold-state / access-list differences of a real signed transaction. The relay's actual eth_estimateGas at quote time (queueGasFor(estimate) <= tx.gasLimit 1000000, else gas_above_cap) is mandatory and remains the binding check.",
+  "relayerBalance": "minimum 100000000000000 wei is a refusal floor only; no funding action is prepared",
+  "notIncluded": [
+    "owner grant",
+    "budget migration",
+    "relayer funding",
+    "signing / sending",
+    "env or service changes"
+  ]
+}

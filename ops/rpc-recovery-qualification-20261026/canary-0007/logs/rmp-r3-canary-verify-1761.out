@@ -1,0 +1,7 @@
+[queue] START available=24275MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+{"verified": [{"index": 0, "status": "PASS", "reason": null, "freshlyMeasured": true}], "run": "20261027T000530Z-2504266", "session": {"id": "20261027T000530Z-2504266", "status": "CONFIRMED", "reasons": [], "rc": 0}, "statusRecorded": {"parts": 265, "partsCommitted": 1, "partsVerifiedRecorded": 1, "stale": [], "unconfirmed": [], "invalidRecords": [], "failedVerification": [], "copyComplete": false, "verificationCompleteRecorded": false, "freshlyMeasured": false, "note": "RECORDED state checked against the current file identities; not freshly measured (only a verify run measures). Neither flag is a RAID-reset, recovery or production-ready statement"}}
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-multipart-stage/r3/runs/prod-verify-20261027T000529Z-2504219
+## rmp-r3-prod-verify rc=0 (0 done + session CONFIRMED; 3 refused; 4 failed/UNCONFIRMED; 5 stopped)
+[memory-guard] exit=0 peakTreeRssMiB=223 minHostAvailableMiB=23877
+[memory-guard] at peak: fuse2fs:70 python3:53 python3:53 python3:23 qemu-nbd:10 nbdfuse:8 bash:4 timeout:2
+[queue] EXIT 0

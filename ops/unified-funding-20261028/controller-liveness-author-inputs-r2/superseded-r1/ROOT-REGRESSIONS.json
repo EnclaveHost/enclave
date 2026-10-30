@@ -1,0 +1,110 @@
+{
+  "status": "UNEXECUTED-ROOT-REGRESSION-SPEC",
+  "baselineMustFailAtLeast": [
+    "audit_timeout",
+    "billing_race",
+    "adoption_409_unknown"
+  ],
+  "requirements": [
+    "Run actual production consumers, not copied classifiers.",
+    "Use synthetic credentials only; verify at least one real authenticated control-client failure/session-reconnect path.",
+    "Run isolated fixture state; preserve every trace and count mutations before and after.",
+    "Do not execute until root assigns a separate resource envelope; author cannot run these.",
+    "Cold controller activation remains a separate live qualification; passing these tests is not deployment proof."
+  ],
+  "cases": [
+    {
+      "id": "audit_timeout",
+      "trigger": "Signed manager health succeeds; VM GET times out; recovery GET succeeds with same ID.",
+      "requiredOutcome": "No DELETE/POST/claim/release/death increment/terminal flip; same VM and authorization survive recovery."
+    },
+    {
+      "id": "audit_connection_refused",
+      "trigger": "VM GET transport ECONNREFUSED/ECONNRESET.",
+      "requiredOutcome": "Unknown, preserve ownership and reservation; no crash recovery actions."
+    },
+    {
+      "id": "audit_authentication",
+      "trigger": "Permanent401/session-refusal, invalid response MAC, invalid JSON or protocol failure.",
+      "requiredOutcome": "Unknown, never authenticated absence/death; no service proof from unknown."
+    },
+    {
+      "id": "audit_transient_401",
+      "trigger": "Old session401 followed by fresh authenticated handshake and valid running reply.",
+      "requiredOutcome": "Normal reconnect keeps same guest, without a new claim/release or crash count."
+    },
+    {
+      "id": "audit_unreadable",
+      "trigger": "Signed503, malformed200, unexpected state, wrong ID/name.",
+      "requiredOutcome": "Unknown; preserve VM/deaths/claims; not a false healthy verdict."
+    },
+    {
+      "id": "billing_race",
+      "trigger": "Global health200 then per-instance observation unknown.",
+      "requiredOutcome": "No respawn/POST; isolate unavailable from confirmed dead. No proof/billing claim of service from unknown."
+    },
+    {
+      "id": "confirmed_running_starting",
+      "trigger": "Authenticated matching running and starting observations separately.",
+      "requiredOutcome": "Both are live for crash suppression; only running may count as serving."
+    },
+    {
+      "id": "confirmed_dead",
+      "trigger": "Authenticated matching failed/stopped terminal body, and signed404 for exact requested VM.",
+      "requiredOutcome": "Actual bounded crash/recovery path remains actionable; death counter/backoff/release threshold preserved."
+    },
+    {
+      "id": "preempted",
+      "trigger": "Authenticated matching preempted failed guest; then temporarily unavailable.",
+      "requiredOutcome": "Existing preemption-specific recovery/backoff preserved; unknown cannot manufacture preemption/death."
+    },
+    {
+      "id": "authorization_change",
+      "trigger": "Unknown liveness alongside independently confirmed owner stop, expiry or lease loss.",
+      "requiredOutcome": "Genuine authorization revocation remains enforced; uncertainty is not permanent authorization."
+    },
+    {
+      "id": "identity_changed_during_await",
+      "trigger": "Capture old VM probe; record _vmId/epoch changes before delayed result.",
+      "requiredOutcome": "No delete/release/crash counter against new identity based on stale observation."
+    },
+    {
+      "id": "adoption_409_unknown",
+      "trigger": "POST409 by deployment name followed by timeout/401/503/malformed/mismatched response.",
+      "requiredOutcome": "No DELETE or blind replacement; preserve original guest, defer/refuse safely."
+    },
+    {
+      "id": "adoption_409_same",
+      "trigger": "POST409 followed by positively authenticated same name/id/record/bootstrap/runtime.",
+      "requiredOutcome": "Adopt original VM ID; no DELETE/new guest/claim/release/grant reset."
+    },
+    {
+      "id": "adoption_409_different",
+      "trigger": "POST409 followed by authenticated positively established incompatible record.",
+      "requiredOutcome": "Existing deliberate replacement logic remains possible; malformed evidence is not incompatibility."
+    },
+    {
+      "id": "eyesoff_fixture",
+      "trigger": "Use current public held guest fixture and original positive memory98304/CPU24.",
+      "requiredOutcome": "Retain guest64281MiB/CPU1600%, original ID and record, through unknown\u2192running and same-record resume."
+    }
+  ],
+  "compatibilityTests": [
+    "test/isolation-post-adoption-lease.test.mjs",
+    "test/isolation-resume-shield-model.test.mjs",
+    "test/isolation-guest-pool.test.mjs",
+    "test/tenant-lease.test.mjs"
+  ],
+  "requiredTraceFields": [
+    "managerCalls",
+    "deletedVmIds",
+    "createdVmIds",
+    "claimTransactions",
+    "releaseTransactions",
+    "beforeRecord",
+    "afterRecord",
+    "servingVerdict",
+    "observedVmId",
+    "recordVmIdAtConsumption"
+  ]
+}

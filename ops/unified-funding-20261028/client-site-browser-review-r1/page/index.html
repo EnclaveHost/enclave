@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TEST ONLY - client-site-browser-r1 /funding page harness</title>
+</head>
+<body>
+<h1>TEST ONLY: actual /funding page on an owned fixture (client-site-browser-r1)</h1>
+<p><strong>Owned loopback Anvil (chain id 8453, NOT Base). Public Anvil fixture keys, mock USDC, TEST terms only.</strong>
+Owner signatures come from a server-side TEST fixture signer, not a wallet; no wallet or extension is used.
+The page, its flows and state are the client-site-repair-r2 files, unmodified; site modules around them are TEST facades.</p>
+<section id="harness" aria-label="TEST harness">
+  <h2>Harness (click the phases in order)</h2>
+  <div id="hstatus" data-result="LOADING">LOADING</div>
+  <div id="hphase"></div>
+  <div id="hdbs"></div>
+  <div id="hbuttons"></div>
+  <ol id="hstages"></ol>
+  <h3>Page toasts</h3>
+  <pre id="htoasts"></pre>
+  <h3>Log</h3>
+  <pre id="hlog"></pre>
+</section>
+<hr>
+<section id="funding" data-view="funding" aria-label="The actual /funding page">
+  <h2>/funding page (actual)</h2>
+  <div id="fdBody" class="co-body"></div>
+</section>
+<script type="module" src="/dist/harness.js"></script>
+</body>
+</html>

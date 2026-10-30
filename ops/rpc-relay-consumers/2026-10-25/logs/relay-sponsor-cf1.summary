@@ -1,0 +1,15 @@
+ok 1 - the wallets are NOT deployed (counterfactual), on the chain and as the verifier proves it
+# OBSERVED verifySiweMessage counterfactual always: oracle {"value":true} verifier {"value":true}
+# OBSERVED verifySiweMessage counterfactual never: oracle {"value":false} verifier {"value":false}
+ok 2 - auth.js sign-in path (viem verifySiweMessage, ERC-6492) through the verifier: accepts the valid counterfactual wallet, refuses the invalid one, exactly as the chain
+# OBSERVED secrets gate counterfactual always: oracle false verifier false
+# OBSERVED network owner check counterfactual always: oracle false verifier false
+# OBSERVED secrets gate counterfactual never: oracle false verifier false
+# OBSERVED network owner check counterfactual never: oracle false verifier false
+ok 3 - secrets owner gate and network owner check: an undeployed wallet is NOT supported there (false on the chain AND through the verifier), never a false accept
+# tests 3
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+rc=0

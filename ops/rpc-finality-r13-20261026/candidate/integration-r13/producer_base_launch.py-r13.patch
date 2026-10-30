@@ -1,0 +1,29 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/r2/overlay/producer/base_launch.py	2026-10-26 01:35:40.477623668 -0700
++++ /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/.r13-final.partial-1289574/producer/base_launch.py	2026-10-26 02:04:18.043215465 -0700
+@@ -27,11 +27,11 @@
+ """
+ import datetime, hashlib, importlib.util, json, os, pathlib, re, stat, sys
+ 
+-A2A4_SOURCE_SHA256 = 'a2fd563a024f6b90246a815ad62db521f25eb3e54bcef600215a43944d7690e0'   # base-finality-proof-stage/r9/harness-first/a2a4.py (a2-v2 + pinned checkpoint parser)
++A2A4_SOURCE_SHA256 = '5898466c9e0941761053a5003d5adab0c14d00266f97ae9ef0fab776add9a290'   # base-finality-proof-stage/r9/harness-first/a2a4.py (a2-v2 + pinned checkpoint parser)
+ A2A4_SOURCE = pathlib.Path('/opt/enclave-rpc/a2a4/a2a4.py')      # root installs the reviewed stage there (HOLD: not installed)
+ # Re-anchor recovery (base-reanchor-recovery-stage; PREPARED): configs with `reanchor` run the recovery harness copy (a superset
+ # that leaves the first-bootstrap path unchanged); first-bootstrap configs keep the reviewed harness above.
+-RECOVERY_A2A4_SHA256 = '6c1d0b1bf767acebaf0f9c7235dcd46ad1aaab2fa60ca4c3456cb34c56a37805'   # base-finality-proof-stage/r10/harness/a2a4.py
++RECOVERY_A2A4_SHA256 = '27ecfb40044025709ed8f7645724082c1580b36e5fac988826aa826fb2f4814e'   # base-finality-proof-stage/r10/harness/a2a4.py
+ RECOVERY_A2A4_SOURCE = pathlib.Path('/opt/enclave-rpc/a2a4-recovery/a2a4.py')   # HOLD: not installed
+ HARNESS_BINARY_SHA256 = '9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f'  # selection.BASE_BINARY_SHA256 (A2-A4 runs this)
+ BASE_RELEASE_SHA256 = '4a7c013a510f88166779281ad0108790f25efa07f22f6457d54add709488372f'   # m7-m10-release-completed-0055
+@@ -78,10 +78,10 @@
+ 
+ 
+ # r4 (base-finality-proof-stage/r4): the post-anchor finality tool, executed from exactly its pinned bytes (HOLD: not installed).
+-FINALITY_STATE_SHA256 = '218bbfe56caec03e6da0829e442b793b88d4cc148a890a324892f0fafd7c78f4'   # base-finality-proof-stage/r10/src/finality_state.py
++FINALITY_STATE_SHA256 = '5e4e38ca5742fbf91d0dda0f782525d0db0216a17de7a3de43a291a1c302e02e'   # base-finality-proof-stage/r10/src/finality_state.py
+ FINALITY_STATE_SOURCE = pathlib.Path('/opt/enclave-rpc/finality/src/finality_state.py')
+ SELECTION_SHA256 = 'e6c312f4007f6d747197a6569eaeb36c8c949a0819be49738ce6a0723b999532'   # selection.py beside BOTH harnesses (identical)
+-WRAPPER_SHA256 = '4fc3b970e4ec062eeb66ef90c5bd1b14149a9bdcff135e7720708e7c544df8ae'   # base-finality-proof-stage/r6/wrapper/chain_service.py
++WRAPPER_SHA256 = '6a4d7aa5da385bf1d8dea74c37060eb1332d5d468625d54ae02ae878c7135189'   # base-finality-proof-stage/r6/wrapper/chain_service.py
+ WRAPPER_SOURCE = pathlib.Path('/opt/enclave-rpc/chain_service.py')
+ 
+ 

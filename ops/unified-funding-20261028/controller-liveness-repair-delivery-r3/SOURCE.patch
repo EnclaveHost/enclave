@@ -1,0 +1,815 @@
+--- a/AUTHOR-NOTES.md
++++ b/AUTHOR-NOTES.md
+@@ -1,50 +1,122 @@
+-# Author notes — r2: unavailable manager ≠ dead guest (source only, nothing run)
++# Author notes — r3 focused repair: 409 ownership and stale continuations (source only, nothing run)
+ 
+-Nothing was executed: no tests, node, builds or tools beyond Read/Grep/Glob/Edit/Write. **No test outcome is known.** I can't compute hashes here, so the root collector must generate the diff and SHA256 for each file.
++Nothing was executed: no tests, node, builds or shell; only Read/Grep/Glob/Edit/Write. **No test outcome is known.** The seed is the failed r2 author delivery and it is not qualified. Root's three focused diagnostics passing doesn't change that, and neither does this repair. The root collector computes hashes and the diff.
+ 
+ ## Changed files
+ - `supervisor.js` (modified)
+-- `test/isolation-instance-liveness.test.mjs` (new)
+-- `AUTHOR-NOTES.md` (new)
++- `test/isolation-stale-continuation.test.mjs` (new)
++- `test/isolation-instance-liveness.test.mjs` (comment only, no assertion changed)
++- `AUTHOR-NOTES.md`
+ 
+-No helper module was added, and the existing tests were not changed.
++No helper module was added.
+ 
+-## Contract
+-`classifyInstanceView(r, vmId, name)` / `observeInstance(rec)` return `running | starting | dead | unknown`:
+-- `dead`: a 404 for the requested id, or a 200 for the same id (and, on the guest tier, the same name) whose state is one of `failed|stopped|exited|terminated`. `preempted` is set only for an authenticated `failed`+`preempted:true`.
+-- `unknown`: any transport, session, MAC or JSON throw; any non-200/404 status; a non-object body or one without a string `status`; a mismatched id or name; or any other state.
+-- `starting` is only recognised on the guest tier. It counts as live but not as serving.
++The r2 contract is unchanged: `classifyInstanceView`/`observeInstance` still return running, starting, dead or unknown, and unknown still freezes rather than counting as dead or serving.
+ 
+-`instanceAlive` and `instancePreempted` were removed. They did duplicate reads and interpreted them differently. Every consumer now reads one observation.
++## 1. Teardown authority (P1 unverified ownership)
++- `instanceUnknownError(…).vmId` is now **diagnostic only**. `deferProvision` keeps it in `_provisionDeferred.vmId` and never writes it to `_vmId`.
++- `_vmId` on a deferred record comes only from:
++  - an identity the record already established (a guest it launched or adopted), or
++  - `rec._heldVmId`, if `_vmId` is empty.
++- `adopt` (resume, isolation, **CPU and GPU**) now keeps the entry from the authenticated `isolationHeldGuest(d.id)` list, when its name matches exactly, its state is live and its id is well formed, as `_heldVmId`.
++  - This is the same name-scoped authority that the 409 replacement path in `spawnContainer` already uses to DELETE an authenticated same-name guest.
++  - Reservation credit is unchanged: it is GPU only, still needs `isolationHeldSameRecord`, and goes through the same `vmHealth` read.
++  - The CPU slice now also performs the `GET /vms` read. That is one extra authenticated read on resume, with no credit attached.
++- Success or failure clears `_heldVmId`. Deferral keeps it.
++- With no authoritative id, `stopContainer` returns at `!rec._vmId` and ends nothing by id. The owner-stop, lease-loss, abandon, ledger-move and reaper branches still move the record to its terminal state and release (or not) exactly as before.
++- Any guest still running under the name is left to the instance reconciler's own rules: current record, vouch, orphan age.
++- A later verified same guest (409, then a matching GET) adopts in place through the existing spawn path.
+ 
+-## Call-site map
+-| Site | Before | After |
++## 2. Attempt fence (P1 stale completion)
++How the fence works:
++- `beginLaunchAttempt(rec)` stores a token `{status, intent}` per record object in a WeakMap, so it is never persisted.
++- `launchAttemptCurrent(rec, a)` requires all of:
++  - the token is still the latest;
++  - `deployments.get(rec.id) === rec`;
++  - the status is unchanged since entry;
++  - `_releaseIntents.get(id)` is the same as at entry.
++
++Because the fence captures each caller's own entry state, it also covers the off-chain `forceProvision`/`onPaid` paths.
++
++Checkpoints in `performTenantProvision` and `respawnTenant`:
++1. after `launchSpec`, before any spawn;
++2. inside `spawnContainer`, via `stillOwned`: before the first POST, after the 409 GET before the replacement DELETE, and before the re-POST;
++3. after the spawn resolves or rejects.
++
++Outcomes:
++| Outcome | Meaning | Record/handle effects |
+ |---|---|---|
+-| auditClaims, running branch | transport error = death → `_deaths++`, DELETE, relaunch | Captures `_vmId` before the await and discards a stale result (record replaced, status/vmId changed, restarting, provisioning, release intent). `unknown` → keep everything and observe again next pass. `dead` → the same preemption/death ladder as before; preemption now uses the same observation. The owner-stop, lease-loss, wallet and placement branches run before this, unchanged. |
+-| auditClaims, claimed branch | false → noteProvisionFailure + release | Paced by `_provisionDeferred.retryAt`; a deferred result skips failure/release. |
+-| auditClaims, death relaunch | same | Deferred result skips failure/release. |
+-| billing, on-chain | `healthy && !alive` → respawn | Respawns only on `dead`, and only if the record is still running the same `_vmId`. |
+-| billing, off-chain | `!alive` → pause + respawn | `unknown` → pause (`instance_unknown`), no respawn and no charge. `dead` → same as before, plus the identity check. |
+-| tenantServing | isolation: own GET | Only `running` counts as serving. |
+-| spawnContainer, POST 409 | a non-200 or malformed follow-up was treated as a mismatch → DELETE + POST | A throw or `unknown` raises `instanceUnknownError` with no DELETE or POST. The adoption checks are unchanged. Only an authenticated `dead`, or a matching live record that fails the existing same-record checks, enters replacement. |
+-| performTenantProvision | catch → status failed, release `_gpu` | For an on-chain record still `claimed` and current, an `instanceUnknown` error → `deferProvision`: status stays `claimed`, `_gpu` and lease are kept, `_vmId` is set to the held id if it was empty, and backoff runs 15 s ×2 up to 5 min (`PROVISION_DEFER_MS`). Returns **false**, so the boolean contract is unchanged. Success clears the deferral. |
+-| adopt | false → noteProvisionFailure + releaseLease (resume too) | `provisionDeferred(rec)` → log only; the lease, reservation and guest stay. |
+-| restart route / version switch / envelope edit | false → note + proveAndRelease | Deferred → no note or release (the restart route answers 503 `restart_deferred`). |
+-| onPaid / forceProvision (off-chain) | unchanged | The 409-unknown case no longer DELETEs; the record is marked failed as before. |
++| `true` | served | unchanged from before (publishes running) |
++| `false` + `provisionDeferred(rec)` | deferred (on-chain, current, instanceUnknown) | stays claimed, keeps the slice and lease; `_vmId` only from a verified identity |
++| `false` | failed (current) | failed, error, `releaseGpu`; the caller notes it and releases |
++| `PROVISION_SUPERSEDED` (`null`) | the record now belongs to a teardown, a replacement or a newer attempt | **nothing**: no status, error, deferral, `_vmId`, port, slice, note or release |
+ 
+-While deferred, the record is `claimed`, which is not terminal. So `vouchesForLease` vouches for it, `orphanInstancePlan` keeps the guest, `considerClaim` returns "already serving" (no new claim), and proofs and billing (running-only) attest nothing. The retry is the audit's existing crash-recovery branch, the same path that adopts after reconnect.
++A late guest returned by a superseded attempt is **not DELETEd by id**. That id could by now belong to a newer attempt through 409 adoption. Instead, `reconcileInstancesSoon()` hands it to the reconciler.
+ 
+-## Test seam (inert unless DIRECT_CLAIM_SELFTEST.lifecycle sets these)
+-All new keys are opt-in: `vmFaults`, `audit`, `billing`, `rowPatches`, `snapshotAtMs`. The seam wraps `noteProvisionFailure` and `releaseLease` to record calls, then calls through. The output adds `managerCalls`, `provisionFailureNotes`, `releases`, `auditErrors`, `snapshot`, `detail`, `serving`, and the existing fields are unchanged.
++**Unresolved ambiguity:** a late guest under the name of a record that stays nonterminal-but-replaced (the synthetic same-status replacement) is kept by the reconciler. That replacement's own launch will meet it via 409 and adopt or replace it under the normal rules. The ticket pump that `spawnContainer` started for that guest is not cancelled.
+ 
+-## Tests written, not run
+-`test/isolation-instance-liveness.test.mjs` covers the 15 ROOT-REGRESSIONS cases through the real audit, sweep, adopt, provision, spawn and reconcile chain, and the billing ticker. Root should also run the compatibility tests (isolation-post-adoption-lease, isolation-resume-shield-model, isolation-guest-pool, tenant-lease) and the baseline via `SUPERVISOR_UNDER_TEST`.
++### Call-site map
++| Consumer | Handling of the result |
++|---|---|
++| adopt | `SUPERSEDED` → log only (no note, no `releaseLease`, which could hit a newer life's lease); `true`/deferred/false as before |
++| audit claimed branch, death relaunch | note and `proveAndRelease` only on `=== false && !deferred` |
++| `switchTenantVersion`, `applyEnvelopeEdit` | same |
++| restart route | `SUPERSEDED` → 409 `restart_superseded`; otherwise as before |
++| forceProvision, onPaid | `null` is falsy, so unchanged; it never sets `remainingMs` and never reports provisioned |
++| abandonClaims, ledgerMoveSweep, yank, audit stop/lease loss, shutdown | **unchanged**. They stay authoritative, and the fence is what keeps a delayed completion from resurrecting their work |
+ 
+-## Unresolved / for root
+-1. **Seam fidelity is unverified.** Running `auditClaims` in lifecycle mode relies on `HOST_WALLET_POLICY` being unset, `needsVersionSwitch(g.ref, d.appRef)` being false for the direct-bootstrap fixture, and `claimSigner()` working with the synthetic key. If any of these is false, `auditErrors` or unexpected deletes will show it.
+-2. **The eyesoff-shaped case uses `cpuMilli:1000`** to clear `guestMemoryShareRefusal` at 98304 MiB. It uses the fixture's public id and reservation but a synthetic record digest. It is not the live record.
+-3. **Scripted transport throws are not the real control-client.** A real authenticated 401/handshake-renewal/MAC failure → reconnect run is still required (ROOT-REGRESSIONS requirement).
+-4. **The baseline outcome under the new seam is unknown.** Baseline doesn't understand the new keys (`vmFaults` and the rest), so the "baseline must fail" comparison only holds if root carries the seam into the baseline or uses an equivalent baseline harness.
+-5. **Lease renewal while deferred was not changed.** If renewals only cover running records, a long outage lets the held lease lapse. The audit's existing lease-loss path then tears it down, which is bounded but loses the lease. Changing that is lease policy, which is out of scope.
+-6. **Unchanged by design:** other awaits in the audit (wallet refusal, version switch, envelope edit), and the success path of `performTenantProvision`, which does no identity re-check.
+-7. Cold controller activation and journal continuity remain unqualified.
++## 3. Billing and respawn (P1 billing)
++- The billing loop:
++  - skips records with `tenantProvisions` or `_restarting`;
++  - records `intentAt`;
++  - after every await (observe, respawn, `proveFinalPeriod`), requires `billingCurrent(rec, vmAt, intentAt)`: the same object in the map, running, the same `_vmId`, the same intent, and no provision or restart. Otherwise there is no respawn, charge, reaper stop or slice release.
++  - The confirmed-dead respawn and the unknown freeze are otherwise unchanged.
++- `respawnTenant`:
++  - refuses to start while a provision or restart owns the record;
++  - takes an attempt token, so a provision that starts later supersedes it;
++  - when superseded, writes nothing (no backoff, `_vmId`, port or `_preemptedAt`).
++- The audit's running-branch post-observation fence also skips `_respawning`, so a death relaunch is not started beside a billing respawn.
++- The owner-stop and lease-loss branches are not delayed by a respawn. Their terminal flip supersedes it.
++
++## Test seam (inert outside DIRECT_CLAIM_SELFTEST.lifecycle)
++New opt-in keys:
++- `conflictIds`: the 409 names the given guest.
++- `gates [{at: launchSpec|spawn, nth, act, how}]`.
++- a `{how: "gated", act}` vmFault for the billing GET.
++
++The `act` values call the **real** `abandonClaims` and `ledgerMoveSweep`. Two acts are faithful substitutes, not production paths:
++- the ledger move retires `rec._ledger`, because the address-book binding can't be rebound from the seam;
++- `releaseIntent` uses the `releaseHeld` intent shape.
++
++Recorders only observe and then call through: `stopContainer`, `releaseGpu`, and the outcomes of `provisionTenant`/`respawnTenant`. The output adds `posted`, `stops`, `gpuReleases`, `outcomes`, `gates` (before/after views of the exact old and replacement objects) and `intent`.
++
++## Tests written, NOT RUN
++`test/isolation-stale-continuation.test.mjs` covers these ROOT-REGRESSIONS cases:
++- `unverified_conflict_stop` (owner stop and lease loss)
++- `verified_held_conflicting_id` (CPU)
++- `pre_spawn_abandon`
++- `spawn_success_abandon`
++- `spawn_error_abandon` (error, unknown)
++- `spawn_ledger_move` (resolve, error)
++- `replacement_same_id` (resolve, error)
++- `release_intent_during_await`
++- `actual_consumer_propagation`: the audit claimed retry and the death relaunch
++- `billing_replaced_observation`
++- `billing_respawn_invalidated` (abandon before launchSpec, replace during spawn)
++
++These are pointers, not new tests:
++- `unknown_reconnect` and `positive_compatibility` remain the existing liveness and post-adoption tests.
++
++**Assertions deliberately corrected:** none. Test 82–97 keeps `vmId === own.id`, which is now justified by the verified held list rather than the 409. Its comment says so, and the unverified split is new.
++
++## Remaining concerns for root
++1. **GPU slice not exercised.** The fixture has no GPU cards, so the GPU resume (credit plus identity) is only code-reviewed.
++2. **Restart, version switch and envelope edit with a superseded result are code-reviewed only.** The restart route is HTTP, and the switch and edit need more catalog and ledger scripting than the fixture has.
++3. **Seam assumptions.**
++   - A resume with no held guest (unverified case) must still pass `considerClaim`.
++   - The `foreign` guest must stay younger than `INSTANCE_REAP_MIN_AGE_SEC`.
++   - The release journal must not resolve the seam's open intent within 5 s.
++   - Abandon's `releaseLease` must be recorded once.
++   - If any of these is false, the harness, not the invariant, fails.
++4. **Baseline differential needs root to port the r3 seam into the seed.** The seed has no `PROVISION_SUPERSEDED` (the seam's "superseded" label comes from `null`). On the seed the negative cases should fail on the status, outcome, `posts`, release or stop assertions.
++5. **Billing now skips a running record's bookkeeping** for a tick in which `_restarting` is set (restart route before its DELETE). The elapsed time catches up, clamped to 2 ticks.
++6. **Not changed:** deferred claimed records are still not renewed (lease policy), and real authenticated reconnect, cold activation and journal continuity remain root-owned and unqualified.
+--- a/supervisor.js
++++ b/supervisor.js
+@@ -4367,7 +4367,10 @@
+   })));
+   process.exit(0);
+ }
+-async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVramGb, gpuCardsHeld, image, appPort, ports, config, configCid, secrets, secretsStaged, hosts, catalogRef, versionMemMb, bootstrap, bootstrapManifest }) {
++async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVramGb, gpuCardsHeld, image, appPort, ports, config, configCid, secrets, secretsStaged, hosts, catalogRef, versionMemMb, bootstrap, bootstrapManifest, stillOwned }) {
++  // stillOwned (performTenantProvision/respawnTenant): whether the launch still owns its record. Asked after this
++  // function's own awaits and before each POST or destructive DELETE, so a superseded launch starts and ends nothing.
++  const owned = () => { if (stillOwned && !stillOwned()) throw Object.assign(new Error(`launch of ${String(deploymentId).slice(0, 10)} superseded`), { superseded: true }); };
+   // Two backends. "vm": hand the app reference to the app manager on VMMGR_URL
+   // (the wasm-manager runs it as a `wasmtime serve` process; cpuShare is its
+   // admission unit and sets the guest memory cap — cpuShare × node RAM;
+@@ -4418,6 +4421,7 @@
+       ...(hosts && hosts.length ? { hosts: hosts.join(",") } : {}),
+       // sent only when true: a guestd that predates the release refuses unknown fields, and it is never asked for one
+       ...(released ? { release: true } : {}), ...(direct ? {bootstrap} : {}) };
++    owned();
+     let r = await vmReq("POST", "/vms", body, SPAWN_TIMEOUT_MS);
+     // Guests live on the HOST and outlive this node CVM: after a node restart, guestd still runs the guest this
+     // deployment launched before. Adopt it only if it is starting or running AND was launched from exactly this
+@@ -4442,9 +4446,11 @@
+         if (v.status === "starting" && (v.release === true || direct)) pumpReleaseTicket(deploymentId, v.id, direct ? bootstrapManifest : null);
+         return { internalPort: 0, vmId: v.id, hostPort: 0, appId: v.appId };
+       }
++      owned();   // the GET awaited: a launch superseded meanwhile ends nothing (the guest may be a newer attempt's)
+       console.warn(`[isolation] ${deploymentId.slice(0, 10)}: guest ${r.body.id} under this name is not this record's; ending it and launching again`);
+       const d = await vmReq("DELETE", `/vms/${encodeURIComponent(r.body.id)}`, null, 60_000);
+       if (d.status !== 200 && d.status !== 404) throw new Error(`guestd would not end the stale guest ${r.body.id} (HTTP ${d.status})`);
++      owned();
+       r = await vmReq("POST", "/vms", body, SPAWN_TIMEOUT_MS);
+     }
+     if (r.status !== 201) throw new Error(`guestd refused the launch (HTTP ${r.status}): ${(r.body && r.body.error) || JSON.stringify(r.body)}`);
+@@ -7383,8 +7389,36 @@
+   return pending;
+ }
+ 
++// A launch is fenced to the record LIFE that started it. Each attempt (performTenantProvision, respawnTenant) takes a
++// fresh token and remembers the record's entry status and release intent. It still owns its record only while the
++// record is the one deployments maps its id to, holds the same status, has no release intent opened (or closed) since,
++// and no later attempt took over. A teardown during an await (abandonClaims, ledgerMoveSweep, an audit stop, a
++// shutdown), a replacing record or a newer attempt therefore SUPERSEDES it. A superseded attempt publishes nothing,
++// fails nothing and releases nothing: provisionTenant answers PROVISION_SUPERSEDED (null, so never a truthy success),
++// which every consumer tells apart from false (failed or deferred).
++const PROVISION_SUPERSEDED = null;
++const launchAttempts = new WeakMap();   // rec -> its latest attempt token
++function beginLaunchAttempt(rec) {
++  const a = { status: rec.status, intent: _releaseIntents.get(rec.id) };
++  launchAttempts.set(rec, a);
++  return a;
++}
++const launchAttemptCurrent = (rec, a) => launchAttempts.get(rec) === a && deployments.get(rec.id) === rec
++  && rec.status === a.status && _releaseIntents.get(rec.id) === a.intent;
++function supersededError(rec) {
++  return Object.assign(new Error(`launch of ${String(rec.id).slice(0, 10)} superseded`), { superseded: true });
++}
++// A superseded attempt whose launch nonetheless created or adopted a guest: that guest is not ended by id here. Its
++// id may by now be what a newer attempt adopted through POST 409. The instance reconciler decides by its own rules
++// (current record, vouch, orphan age), exactly as for any guest under a name this host no longer serves.
++function supersededLaunch(rec, sp) {
++  console.warn(`[provision] ${rec.id} launch superseded while it ran${sp && sp.vmId ? ` (guest ${sp.vmId} left to the instance reconciler)` : ""}; nothing published`);
++  if (sp && sp.vmId) reconcileInstancesSoon();
++}
++
+ // A launch that met a guest under this deployment's name the manager could not verify (POST 409, then an "unknown"
+-// observation): nothing was ended or launched, and nothing about that guest is known.
++// observation): nothing was ended or launched, and nothing about that guest is known. e.vmId is what the 409 NAMED,
++// diagnostic only: it is never taken as this record's guest (deferProvision).
+ function instanceUnknownError(name, vmId, why) {
+   return Object.assign(new Error(`guest ${vmId} under ${String(name).slice(0, 10)} could not be verified (${why})`),
+     { instanceUnknown: true, vmId });
+@@ -7400,7 +7434,12 @@
+   const prev = rec._provisionDeferred;
+   const backoffMs = Math.min(prev ? prev.backoffMs * 2 : PROVISION_DEFER_MS, PROVISION_DEFER_MAX_MS);
+   rec._provisionDeferred = { vmId: e.vmId, why: e.message, since: prev?.since || Date.now(), backoffMs, retryAt: Date.now() + backoffMs };
+-  if (!rec._vmId) rec._vmId = e.vmId;   // the held guest: a genuine stop/lease loss tears THIS one down (stopContainer)
++  // Teardown authority (what a genuine stop or lease loss DELETEs through stopContainer) stays with an identity this
++  // record established: the guest it launched or adopted (_vmId), or the guest guestd's authenticated list held under
++  // its name when it resumed (_heldVmId, adopt). The 409's id is never promoted: the answer about it was contradictory
++  // or unreadable, so it may be another deployment's. With neither, a stop ends nothing by id and the instance reconciler
++  // keeps its own say over whatever runs under the name.
++  if (!rec._vmId && rec._heldVmId) rec._vmId = rec._heldVmId;
+   rec.status = "claimed";
+   console.warn(`[provision] ${rec.id} deferred: ${e.message}; lease, reservation and guest kept, retry in ${Math.round(backoffMs / 1000)}s`);
+   saveStateSoon();
+@@ -7408,9 +7447,27 @@
+ 
+ // Spawn the tenant's MPS-capped worker process (called once, on first payment).
+ async function performTenantProvision(rec) {
++  const a = beginLaunchAttempt(rec);
++  let sp;
+   try {
+-    const sp = await spawnContainer(await launchSpec(rec));
+-    delete rec._provisionDeferred;
++    const spec = await launchSpec(rec);
++    if (!launchAttemptCurrent(rec, a)) throw supersededError(rec);   // torn down/replaced meanwhile: no POST at all
++    sp = await spawnContainer({ ...spec, stillOwned: () => launchAttemptCurrent(rec, a) });
++  } catch (e) {
++    if ((e && e.superseded) || !launchAttemptCurrent(rec, a)) { supersededLaunch(rec, null); return PROVISION_SUPERSEDED; }
++    if (e && e.instanceUnknown && rec._onchain && rec.status === "claimed") {
++      deferProvision(rec, e);
++      return false;
++    }
++    delete rec._provisionDeferred; delete rec._heldVmId;
++    rec.status = "failed"; rec.error = e.message;
++    if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
++    console.error(`[provision] ${rec.id} failed: ${e.message}`);
++    return false;
++  }
++  if (!launchAttemptCurrent(rec, a)) { supersededLaunch(rec, sp); return PROVISION_SUPERSEDED; }
++  {
++    delete rec._provisionDeferred; delete rec._heldVmId;
+     rec._port = sp.internalPort;
+     if (sp.vmId) { rec._vmId = sp.vmId; rec._vmHostPort = sp.hostPort; rec._vmAppId = sp.appId; }
+     if (sp.portMap) rec.portMap = sp.portMap;   // logical -> actual (public: clients see their mapping)
+@@ -7418,17 +7475,6 @@
+     rec.status = "running"; rec.paused = false; rec.pauseReason = null; rec._lastTickAt = Date.now();
+     acmeReconcileSoon();   // public+http deployments earn a browser cert for <label>.APP_CERT_DOMAIN (no-op unless ACME is configured)
+     return true;
+-  } catch (e) {
+-    // a record owned elsewhere meanwhile (an owner stop, a lease loss) is not deferred back into "claimed"
+-    if (e && e.instanceUnknown && rec._onchain && rec.status === "claimed" && deployments.get(rec.id) === rec) {
+-      deferProvision(rec, e);
+-      return false;
+-    }
+-    delete rec._provisionDeferred;
+-    rec.status = "failed"; rec.error = e.message;
+-    if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
+-    console.error(`[provision] ${rec.id} failed: ${e.message}`);
+-    return false;
+   }
+ }
+ 
+@@ -7620,9 +7666,23 @@
+ const SWITCH_STOP_WAIT_MS = 10 * 60_000;
+ async function respawnTenant(rec) {
+   if (rec._respawning || Date.now() < (rec._respawnAt || 0)) return false;
++  // a provision (audit relaunch, owner restart, version/config switch) owns the launch: never a second one beside it
++  if (tenantProvisions.has(rec) || rec._restarting) return false;
++  // the same attempt fence as performTenantProvision: a provision that starts meanwhile, a teardown, a replacing
++  // record or a release intent supersedes this respawn, which then touches nothing (no backoff, handle or identity)
++  const a = beginLaunchAttempt(rec);
+   rec._respawning = true;
+   try {
+-    const sp = await spawnContainer(await launchSpec(rec));
++    let sp;
++    try {
++      const spec = await launchSpec(rec);
++      if (!launchAttemptCurrent(rec, a)) throw supersededError(rec);
++      sp = await spawnContainer({ ...spec, stillOwned: () => launchAttemptCurrent(rec, a) });
++    } catch (e) {
++      if ((e && e.superseded) || !launchAttemptCurrent(rec, a)) { supersededLaunch(rec, null); return false; }
++      throw e;
++    }
++    if (!launchAttemptCurrent(rec, a)) { supersededLaunch(rec, sp); return false; }
+     rec._port = sp.internalPort;
+     if (sp.vmId) { rec._vmId = sp.vmId; rec._vmHostPort = sp.hostPort; rec._vmAppId = sp.appId; }
+     if (sp.portMap) rec.portMap = sp.portMap;
+@@ -7637,6 +7697,11 @@
+     return false;
+   } finally { rec._respawning = false; }
+ }
++// Whether a billing pass that awaited still speaks for this record LIFE: the map still holds this very object (not a
++// replacement under the same id), it still runs the instance the pass observed, no release intent opened or closed
++// meanwhile, and no provision/restart took the launch over.
++const billingCurrent = (rec, vmAt, intentAt) => deployments.get(rec.id) === rec && rec.status === "running"
++  && rec._vmId === vmAt && _releaseIntents.get(rec.id) === intentAt && !tenantProvisions.has(rec) && !rec._restarting;
+ function startBillingTicker() {
+   const t = setInterval(async () => {
+     const now = Date.now();
+@@ -7644,6 +7709,9 @@
+     const watcherOk = !FORWARDER_ADDRESS || (now - _lastPollOkAt) < WATCHER_STALE_SEC * 1000;
+     for (const rec of deployments.values()) {
+       if (rec.status !== "running") continue;
++      // a provision or owner restart owns this record's launch right now: the billing pass neither observes nor respawns
++      if (tenantProvisions.has(rec) || rec._restarting) continue;
++      const intentAt = _releaseIntents.get(rec.id);
+       // On-chain (claimed) deployments: the lease is prepaid wall-clock and the
+       // chain doesn't stop while we're unhealthy, so freeze/pause semantics
+       // don't apply. remainingMs mirrors the lease; the claim loop extends it
+@@ -7661,13 +7729,19 @@
+         // that cannot say, and a respawn there collides with (or, through POST 409, replaces) a live guest.
+         const vmAt = rec._vmId;
+         const o = healthy ? await observeInstance(rec) : null;
+-        if (o && o.state === "dead" && rec.status === "running" && rec._vmId === vmAt) {
++        // An observation of a record that is no longer this life (replaced under the same id, torn down, given a
++        // release intent, or relaunched by a provision meanwhile) decides nothing for it: no respawn, charge or reaper.
++        if (!billingCurrent(rec, vmAt, intentAt)) continue;
++        if (o && o.state === "dead") {
+           if (rec._switchStopping && now - rec._switchStopping < SWITCH_STOP_WAIT_MS) {
+             if (!rec._switchHeldLogged) {
+               console.log(`[bill] ${rec.id} instance gone during a version switch - not respawning the old version`);
+               rec._switchHeldLogged = true;
+             }
+-          } else await respawnTenant(rec);
++          } else {
++            await respawnTenant(rec);
++            if (!billingCurrent(rec, rec._vmId, intentAt)) continue;   // the respawn's await: the same question again
++          }
+         }
+         const elapsed = Math.min(Math.max(0, now - (rec._lastTickAt || now)), 2 * BILL_TICK_SEC * 1000);
+         rec._lastTickAt = now;
+@@ -7683,6 +7757,7 @@
+           // The checkpoint clamps at leaseUntil, so this can only ever claim
+           // time the tenant actually paid for.
+           await proveFinalPeriod(rec, "lease expired").catch(() => {});
++          if (!billingCurrent(rec, rec._vmId, intentAt)) continue;   // owned elsewhere since: its owner tears down
+           try { await stopContainer(rec); } catch {}
+           if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
+           rec.status = "expired";           // claim sweep may re-adopt it if funded again
+@@ -7693,10 +7768,11 @@
+       if (!watcherOk) { pauseRec(rec, "watcher_stale"); continue; }
+       const vmAt = rec._vmId;
+       const o = await observeInstance(rec);
++      if (!billingCurrent(rec, vmAt, intentAt)) continue;   // stale observation (see the on-chain branch)
+       if (o.state === "unknown") { pauseRec(rec, "instance_unknown"); continue; }   // no charge, no respawn
+       if (!instanceLive(o)) {
+         pauseRec(rec, "instance_missing");
+-        if (rec.status === "running" && rec._vmId === vmAt && await respawnTenant(rec)) resumeRec(rec);
++        if (await respawnTenant(rec) && billingCurrent(rec, rec._vmId, intentAt)) resumeRec(rec);
+         continue;
+       }
+       resumeRec(rec);
+@@ -8248,7 +8324,10 @@
+     try { if (rec._vmId) await vmReq("DELETE", `/vms/${encodeURIComponent(rec._vmId)}`, null, 15000).catch(() => {}); } catch {}
+     rec._deaths = 0;                 // an owner restart earns a fresh crash budget (the version-switch rule)
+     rec.status = "claimed";          // the provision path's input state
+-    if (!(await provisionTenant(rec))) {
++    const ok = await provisionTenant(rec);
++    if (ok === PROVISION_SUPERSEDED)   // torn down or replaced while relaunching: that teardown owns the lease, not this route
++      return fail(res, 409, "restart_superseded", "The deployment was stopped or replaced while it relaunched; nothing more was done.");
++    if (ok !== true) {
+       if (provisionDeferred(rec))   // the guest under its name is unverifiable: kept, as are the lease and reservation
+         return fail(res, 503, "restart_deferred", "The app manager cannot verify the guest right now; the relaunch retries.");
+       // same contract as every failed provision: the record keeps the reason,
+@@ -10468,9 +10547,10 @@
+   rec._deaths = 0;                 // new code earns a fresh crash budget
+   delete rec.versionChange;
+   rec.status = "claimed";          // the provision path's input state
+-  if (await provisionTenant(rec)) {
++  const ok = await provisionTenant(rec);
++  if (ok === true) {
+     console.log(`[claim] ${rec.id} now serving ${g.app.slug}:${g.app.version} (${g.ref})`);
+-  } else if (!provisionDeferred(rec)) {   // deferred: the audit's claimed branch retries it
++  } else if (ok === false && !provisionDeferred(rec)) {   // deferred: the audit's claimed branch retries it; superseded: owned elsewhere
+     // same contract as every failed provision: keep the failed record as the
+     // owner's evidence, hand the lease back refunded, back off THIS version
+     // here (the backoff clears if the owner switches the version again)
+@@ -10534,7 +10614,7 @@
+   delete rec.configChange;
+   rec._deaths = 0;                 // an owner-initiated relaunch earns a fresh crash budget (the version-switch rule)
+   rec.status = "claimed";          // the provision path's input state
+-  if (!(await provisionTenant(rec)) && !provisionDeferred(rec)) {
++  if ((await provisionTenant(rec)) === false && !provisionDeferred(rec)) {   // superseded: owned elsewhere, nothing added
+     noteProvisionFailure(rec.id, rec.image && rec.image.reference);
+     proveAndRelease(rec, "config change provision failed").catch(() => {});
+   }
+@@ -10729,7 +10809,8 @@
+       rec._loseStrikes = 0;
+       // a deferred launch (provisionDeferred) retries at its own bounded pace, not every pass
+       if (rec._provisionDeferred && Date.now() < rec._provisionDeferred.retryAt) continue;
+-      if (!(await provisionTenant(rec)) && !provisionDeferred(rec)) {
++      // false = failed (or deferred); PROVISION_SUPERSEDED = a teardown/replacement owns the record now: nothing to add
++      if ((await provisionTenant(rec)) === false && !provisionDeferred(rec)) {
+         // keep the "failed" record as the owner's evidence (see adopt())
+         noteProvisionFailure(rec.id, rec.image && rec.image.reference);
+         proveAndRelease(rec, "provision failed after crash recovery").catch(() => {});
+@@ -10777,7 +10858,7 @@
+       const vmAt = rec._vmId;
+       const o = await observeInstance(rec);
+       if (deployments.get(rec.id) !== rec || rec.status !== "running" || rec._vmId !== vmAt
+-          || rec._restarting || tenantProvisions.has(rec) || _releaseIntents.has(rec.id)) continue;
++          || rec._restarting || tenantProvisions.has(rec) || rec._respawning || _releaseIntents.has(rec.id)) continue;
+       if (o.state === "unknown") {
+         if (rec._unknownLogged !== o.why) { console.warn(`[claim] ${rec.id} instance ${vmAt} unverifiable (${o.why}); keeping it`); rec._unknownLogged = o.why; }
+         continue;
+@@ -10809,7 +10890,7 @@
+         console.warn(`[claim] ${rec.id} app instance died; relaunching (death ${rec._deaths}/3)`);
+         try { if (rec._vmId) await vmReq("DELETE", `/vms/${encodeURIComponent(rec._vmId)}`, null, 15000).catch(() => {}); } catch {}
+         rec.status = "claimed";               // provision path's input state
+-        if (!(await provisionTenant(rec)) && !provisionDeferred(rec)) {
++        if ((await provisionTenant(rec)) === false && !provisionDeferred(rec)) {   // superseded: see the claimed branch
+           noteProvisionFailure(rec.id, rec.image && rec.image.reference);
+           proveAndRelease(rec, "relaunch after app death failed").catch(() => {});
+         }
+@@ -11693,12 +11774,19 @@
+ // mapping. rec.owner is the on-chain owner address — SIWE tokens already carry
+ // an address, so owner-only routes (status, delete) work unchanged.
+ async function adopt(d, g, firewall, slice, { resume = false } = {}) {
+-  let heldReservation = false;
+-  if (resume && ISOLATION_BACKEND && !slice.cpu) {
++  let heldReservation = false, heldVmId = null;
++  if (resume && ISOLATION_BACKEND) {
++    // guestd's authenticated GET /vms entry under this deployment's name (live, well-formed id) is the guest a
++    // deferred resume may tear down on a genuine stop (deferProvision) - on the CPU and GPU slices alike. It is the
++    // same name-scoped authority spawnContainer's replacement already uses. Reservation credit is unchanged: only the
++    // GPU slice takes it, and only for the exact same record.
+     const held = await isolationHeldGuest(d.id);
+-    const health = held ? await vmHealth().catch(() => null) : null;
+-    heldReservation = isolationHeldSameRecord(held, g, firewall, health?.catalog?.runtimeId,
+-      isolatedInference(d.gpuMilli, neededVolumes(d, g)));
++    if (held && /^[A-Za-z0-9-]{1,64}$/.test(String(held.id || ""))) heldVmId = String(held.id);
++    if (!slice.cpu) {
++      const health = held ? await vmHealth().catch(() => null) : null;
++      heldReservation = isolationHeldSameRecord(held, g, firewall, health?.catalog?.runtimeId,
++        isolatedInference(d.gpuMilli, neededVolumes(d, g)));
++    }
+   }
+   // Check after the await: another sweep/hint may already have adopted it, or a release of it may have opened.
+   if (releaseHold(d.id)) { console.log(`[claim] ${d.id} not adopted: ${releaseHold(d.id)}`); return; }
+@@ -11774,13 +11862,19 @@
+     _onchain: true, _ledger: DEPLOYMENTS_ADDRESS, _leaseUntil: Number(d.leaseUntil), _renewing: false,
+     _gpu: gpu, _gpuSpec: gpu.cpu ? null : { cardId: gpu.cardId, cardUuid: gpuCards[gpu.cardId]?.uuid || null, vramCapGb: gpu.vramGb, computeShare: gpu.computeShare },
+     _port: 0, _payTimer: null,
++    ...(heldVmId ? { _heldVmId: heldVmId } : {}),   // verified evidence only; becomes _vmId only if the launch defers
+   };
+   deployments.set(rec.id, rec); saveStateSoon();
+   // Start the certificate NOW, in parallel with the launch below. On a move the
+   // destination has never served this hostname, so it always needs a fresh one;
+   // doing it here hides the whole issuance behind provisioning.
+   acmeReconcileSoon();
+-  if (await provisionTenant(rec)) {
++  const ok = await provisionTenant(rec);
++  if (ok === PROVISION_SUPERSEDED) {
++    // torn down (abandonClaims, ledgerMoveSweep, a shutdown) or replaced while it launched: that teardown owns the
++    // lease and the slice; a release here could hit a NEWER life's lease under the same id
++    console.warn(`[claim] ${rec.id} ${resume ? "resume" : "launch"} superseded while it ran; nothing released or noted here`);
++  } else if (ok === true) {
+     // a real success retires the ladder: the next unrelated failure starts at 5min
+     _provisionBackoff.delete(rec.id);
+     console.log(`[claim] ${rec.id} adopted: app=${g.app.slug}:${g.app.version} (${g.ref}) gpuShare=${round3(slice.gpuShare || 0)} cpuShare=${round3(slice.cpuShare)} `
+@@ -11923,7 +12017,9 @@
+       }
+       if (method === "POST" && path === "/vms") {
+         posted.push(body);
+-        const held = [...vms.values()].find((v) => v.name === body.name);
++        // L.conflictIds {name: id}: guestd's 409 names THAT guest (r3: a conflict naming another deployment's guest)
++        const cid = L.conflictIds && L.conflictIds[body.name];
++        const held = cid ? vms.get(cid) : [...vms.values()].find((v) => v.name === body.name);
+         if (held) { events.push({ t: at(), conflict: held.id, ending: held.ending }); return { status: 409, body: { id: held.id } }; }
+         const id = "gn" + String(posted.length).padStart(8, "0");
+         vms.set(id, { id, name: body.name, status: "running", appId: c.appId, runtimeId: body.derive.runtimeId, recordSha256: derivationDigest(body.derive),
+@@ -11949,7 +12045,12 @@
+     vmReq = async (method, path, body, timeoutMs) => {
+       managerCalls.push({ t: at(), method, path });
+       const m = method === "GET" && /^\/vms\/([A-Za-z0-9-]+)$/.exec(path), f = m && fault(m[1]);
+-      if (!f) return scripted(method, path, body, timeoutMs);
++      if (!f || (f.how === "gated" && f.done)) return scripted(method, path, body, timeoutMs);
++      if (f.how === "gated") {   // r3: the first read in the window parks while a REAL consumer runs (f.act), then 404s
++        f.done = true;
++        await act(f.act, [...deployments.values()].find((r) => r._vmId === m[1]) || null);
++        return { status: 404, body: {} };
++      }
+       const v = vms.get(m[1]), view = v ? (({ leaseUntil, ending, ...p }) => p)(v) : { id: m[1], name: "" };
+       switch (f.how) {
+         case "timeout": throw transportError("guestd control: request timed out", "timeout");
+@@ -11973,6 +12074,62 @@
+     };
+     const noted = noteProvisionFailure; noteProvisionFailure = (id, ...a) => { notes.push({ t: at(), id }); return noted(id, ...a); };
+     const released = releaseLease; releaseLease = (id, why, ...a) => { releases.push({ t: at(), id, why }); return released(id, why, ...a); };
++    // r3 stale-continuation seam (test/isolation-stale-continuation.test.mjs), inert unless L.gates / a "gated" fault is
++    // set: L.gates [{at: "launchSpec"|"spawn", nth, act, how}] parks the nth call of the REAL launchSpec (after it
++    // resolved) or spawnContainer (after the real spawn resolved; how "error"/"unknown" rejects instead, without a
++    // spawn) while act runs a REAL competing consumer to completion: "abandon" = abandonClaims, "ledgerMove" = the
++    // live records' ledger retired (the address-book repoint, which this seam cannot rebind) then ledgerMoveSweep,
++    // "replace" = a different record object under the same id/status/vmId sharing the slice handle (a takeover),
++    // "releaseIntent" = an unresolved release intent opened (the L.releaseHeld shape). The recorders only observe:
++    // stopContainer (the record-driven DELETE authority), releaseGpu, provisionTenant/respawnTenant outcomes.
++    const view = (r) => r ? { status: r.status, vmId: r._vmId || null, gpu: r._gpu ? JSON.stringify(r._gpu) : null,
++      deferred: !!r._provisionDeferred, error: r.error || null, consumedMs: r.consumedMs || 0, port: r._port ?? null } : null;
++    const gateLog = [], outcomes = [], stops = [], gpuReleases = [], hookCalls = { launchSpec: 0, spawn: 0 };
++    let openedIntent = null;
++    const act = async (what, rec) => {
++      const g = { t: at(), act: what, rec, before: view(rec), postsAt: posted.length };
++      gateLog.push(g);
++      if (what === "abandon") await abandonClaims("scripted: public reachability lost");
++      else if (what === "ledgerMove") {
++        for (const r of deployments.values()) if (r._onchain && ["running", "claimed"].includes(r.status)) r._ledger = "0x" + "a9".repeat(20);
++        await ledgerMoveSweep();
++      } else if (what === "replace" && rec) { g.replacement = { ...rec }; deployments.set(rec.id, g.replacement); g.replacedView = view(g.replacement); }
++      else if (what === "releaseIntent" && rec) {
++        openedIntent = { id: rec.id, why: "test", openedAt: Date.now(), txs: [{ state: "pending", sponsored: true, leaseNonce: 0, deadline: Math.floor(Date.now() / 1000) + 300 }] };
++        _releaseIntents.set(rec.id, openedIntent);
++      }
++      g.postsAfter = posted.length;
++    };
++    const gateOf = (at_) => (L.gates || []).find((x) => x.at === at_ && x.nth === hookCalls[at_]);
++    const realLaunchSpec = launchSpec;
++    launchSpec = async (rec) => {
++      hookCalls.launchSpec++; const g = gateOf("launchSpec");
++      const spec = await realLaunchSpec(rec);
++      if (g) await act(g.act, rec);
++      return spec;
++    };
++    const realSpawn = spawnContainer;
++    spawnContainer = async (spec) => {
++      hookCalls.spawn++; const g = gateOf("spawn");
++      if (!g) return realSpawn(spec);
++      const rec = deployments.get(spec.deploymentId) || null;
++      const r = g.how === "error" || g.how === "unknown" ? null : await realSpawn(spec);
++      await act(g.act, rec);
++      if (g.how === "error") throw new Error("guestd refused the launch (HTTP 503): scripted");
++      if (g.how === "unknown") throw instanceUnknownError(spec.deploymentId, "gdunknown01", "scripted unverifiable answer");
++      return r;
++    };
++    const outcomeOf = (kind, rec, ok) => ({ t: at(), kind, id: rec.id,
++      outcome: ok === true ? "served" : ok === null ? "superseded" : provisionDeferred(rec) ? "deferred" : "false",
++      rec: view(rec), sameObject: deployments.get(rec.id) === rec, current: view(deployments.get(rec.id)), posts: posted.length });
++    const realProvision = provisionTenant;
++    provisionTenant = async (rec) => { const ok = await realProvision(rec); outcomes.push(outcomeOf("provision", rec, ok)); return ok; };
++    const realRespawn = respawnTenant;
++    respawnTenant = async (rec) => { const ok = await realRespawn(rec); if (rec._respawnAt || ok || gateLog.length) outcomes.push(outcomeOf("respawn", rec, ok)); return ok; };
++    const realStop = stopContainer;
++    stopContainer = async (rec) => { stops.push({ t: at(), id: rec.id, vmId: rec._vmId || null }); return realStop(rec); };
++    const realReleaseGpu = releaseGpu;
++    releaseGpu = (h) => { if (h) gpuReleases.push({ t: at(), h: JSON.stringify(h) }); return realReleaseGpu(h); };
+     const rowsNow = () => c.rows.map((d) => Object.assign({ ...d }, ...(L.rowPatches || []).filter(([from, id]) => at() >= from && id === d.id).map(([, , p]) => p)));
+     const detail = () => Object.fromEntries(c.rows.map((d) => { const r = deployments.get(d.id);
+       return [d.id, r ? { status: r.status, vmId: r._vmId || null, deaths: r._deaths || 0, leaseUntil: r._leaseUntil, gpu: r._gpu ? JSON.stringify(r._gpu) : null,
+@@ -12005,6 +12162,10 @@
+     for (const d of c.rows) { const r = deployments.get(d.id); if (r) serving[d.id] = await tenantServing(r).catch(() => false); }
+     console.log(JSON.stringify({ events, vms: [...vms.values()].map((v) => ({ id: v.id, name: v.name })), records, txs, deleted, lastVouch: _lastVouch,
+       managerCalls, provisionFailureNotes: notes, releases, auditErrors, snapshot, detail: detail(), serving,
++      posted: posted.length, stops, gpuReleases, outcomes,
++      gates: gateLog.map(({ rec, replacement, ...g }) => ({ ...g, after: view(rec), replacementAfter: replacement ? view(replacement) : null,
++        replacementCurrent: replacement ? deployments.get(replacement.id) === replacement : null })),
++      intent: openedIntent ? { same: _releaseIntents.get(openedIntent.id) === openedIntent } : null,
+       declines: Object.fromEntries(c.rows.map((d) => [d.id, _sweepDeclines.get(d.id) || null])) }));
+     process.exit(0);
+   }
+--- a/test/isolation-instance-liveness.test.mjs
++++ b/test/isolation-instance-liveness.test.mjs
+@@ -79,6 +79,10 @@
+ // held_resume_409_unknown_end_to_end + adoption_409_unknown: a cold boot resumes its own live lease; POST /vms answers 409
+ // for the held same-record guest and the follow-up GET is unverifiable until 2.4 s. Deferred (claimed, reserved, vouched,
+ // never reaped), then the audit's bounded retry adopts the SAME guest once guestd answers.
++// r3: this is the VERIFIED-held case - guestd's authenticated GET /vms lists own.id under OWN's name at resume, which is
++// why s.vmId may equal own.id (adopt's _heldVmId), not because the 409 named it. 'mismatch'/'wrongname' stay here since
++// the held list still verifies the id; the unverified-conflict split lives in isolation-stale-continuation.test.mjs,
++// where no held entry exists and the 409's id must stay diagnostic (vmId null). Assertions unchanged.
+ for (const how of ['timeout','401','json','malformed','503','mismatch','wrongname','econnreset','mac'])
+   test(`held resume: POST 409 then an unverifiable GET (${how}) defers without DELETE/release, then adopts the same guest`,async t=>{
+     const o=await run(t,{vmFaults:[{id:own.id,fromMs:0,toMs:2400,how}],snapshotAtMs:1800});
+--- a/test/isolation-stale-continuation.test.mjs
++++ b/test/isolation-stale-continuation.test.mjs
+@@ -0,0 +1,206 @@
++// r3: diagnostic POST 409 ids are not teardown authority, and a launch/observation that a REAL competing consumer
++// superseded while it awaited publishes, fails, charges and releases nothing. Same harness, fixture and 1:100 scale as
++// isolation-instance-liveness.test.mjs (DIRECT_CLAIM_SELFTEST lifecycle mode), plus the r3 seam: L.conflictIds (the 409
++// names a given guest), L.gates (the nth REAL launchSpec/spawnContainer parks while abandonClaims / ledgerMoveSweep / a
++// same-id replacement / a release intent runs, then resumes) and the "gated" billing read. SUPERVISOR_UNDER_TEST names
++// the file; the frozen seed carries none of this seam, so the baseline differential needs root's port of it.
++// WRITTEN, NOT RUN. Credentials are synthetic.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import {execFile} from 'node:child_process';
++import {promisify} from 'node:util';
++import {createHash} from 'node:crypto';
++import {preparePackage} from '../sdk/bootstrap/package.mjs';
++const exec=promisify(execFile),tier='snp-guest-per-app',SUP=process.env.SUPERVISOR_UNDER_TEST||'supervisor.js';
++
++const pins={registry:'0x'+'a1'.repeat(20),deployments:'0x'+'a2'.repeat(20),appCatalog:'0x'+'a3'.repeat(20),proofOfTime:'0x'+'a4'.repeat(20),
++  enclavePay:'0x'+'00'.repeat(20),verificationFees:'0x'+'00'.repeat(20),sessionVaultFactory:'0x'+'00'.repeat(20),secretVaultV2:'0x'+'00'.repeat(20)};
++const app='0x'+'ab'.repeat(32),enclaveId='0x'+'e1'.repeat(32),other='0x'+'e2'.repeat(32),owner='0x'+'33'.repeat(20);
++const catalog={app,publisher:'0x'+'44'.repeat(20),slug:'direct-app',version:'1.0.0',cid:'bafybeigdirectcomponent',memMb:256};
++const manifest={version:1,chainId:8453,ledger:pins.deployments,deployment:'0x'+'11'.repeat(32),owner,appRef:`catalog://${app}/0`,
++  appId:'45'.repeat(32),runtimeId:'55'.repeat(32),configText:'{"endpoint":"https://owner-chosen.example"}',secretsMode:'public'};
++const pkg=preparePackage(manifest);
++const pool=(memMiB,cpuPct)=>({budget:{memMiB,cpuPct},allocated:{memMiB:0,cpuPct:0},free:{memMiB,cpuPct},guests:0,overcommitted:false,
++  perGuest:{floorMiB:1024,runtimeMiB:384,unitOverheadMiB:768},hostAvailableMiB:131072,hostFloorMiB:16384});
++const health={backend:tier,catalog:{runtimeId:manifest.runtimeId,derivations:['enclave-catalog-bundle/1']},supports:{directBootstrap:true,gpu:false,protectedPorts:true},
++  pool:pool(32768,800)};
++const now=Math.floor(Date.now()/1000);
++const row=(o={})=>({id:manifest.deployment,owner,appRef:manifest.appRef,configCid:JSON.stringify({guestBootstrap:pkg.intent}),active:true,isPublic:true,
++  gpuMilli:0,cpuMilli:100,leaseUntil:now+3600,runner:enclaveId,balance6:10_000_000,rate:1,spent6:0,createdAt:now-86400,...o});
++const A='http://192.0.2.10:8189/ipfs';
++const expectedDerive={derivation:'enclave-catalog-bundle/1',catalog:{app,version:0},cid:catalog.cid,policy:{cpuPercent:100,memMiB:256,vcpus:1},runtimeId:manifest.runtimeId};
++const canon=v=>Array.isArray(v)?`[${v.map(canon).join(',')}]`:v&&typeof v==='object'?`{${Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')}}`:JSON.stringify(v);
++const recordSha=createHash('sha256').update(canon(expectedDerive)).digest('hex');
++const OWN=manifest.deployment, ORPHAN='0x'+'99'.repeat(32), FOREIGN='0x'+'77'.repeat(32);
++const guest=(id,name,extra={})=>({id,name,appId:manifest.appId,runtimeId:manifest.runtimeId,recordSha256:recordSha,directBootstrap:true,
++  bootstrapSha256:pkg.sha256,createdAt:now-86400,leaseLeftMs:1840,reserved:{memMiB:1792,cpuPct:100},...extra});
++const own=guest('gdown00001',OWN), orphan=guest('gdorph0001',ORPHAN,{recordSha256:'cc'.repeat(32)});
++// another deployment's live guest: the 409 under OWN's name is scripted to name it (L.conflictIds). Fresh (createdAt
++// now) and with a long guestd lease, so neither guestd's lapse nor the reconciler's orphan age ends it inside a run.
++const foreign=guest('gdforeign01',FOREIGN,{createdAt:now,leaseLeftMs:999999});
++const rows=[row(),row({id:ORPHAN,runner:other})];
++const admitted={serving:true,status:'current-admit',reason:'admitted'};
++const scale={ttlMs:3000,silenceMs:1800,reconcileMs:600,claimMs:600,claimOffsetMs:300,reclaimMs:400,lastBeatAgoMs:1160};
++const ABANDON='scripted: public reachability lost';
++
++function env(t){
++  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'stale-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
++  const file=path.join(dir,'pins.json');fs.writeFileSync(file,JSON.stringify({version:1,chainId:8453,contracts:pins}));
++  return {PATH:process.env.PATH,SECRET:'direct-test-secret',ENABLE_MPS:'0',STATE_FILE:path.join(dir,'state.json'),
++    ISOLATION_DIRECT_ONLY:'1',ISOLATION_BACKEND:tier,PROVISION_BACKEND:'vm',ENCLAVE_CONTRACT_PINS_FILE:file,ADDRESS_BOOK_ADDRESS:'',
++    SECRETS_API:'',DOMAINS_API:'',CERTS_API:'',DNS_API:'',APP_CERT_DOMAIN:'',
++    GUEST_BOOTSTRAP_GATEWAYS:A,IPFS_GATEWAY:JSON.stringify([new URL(A).origin]),
++    REGISTRY_ENABLED:'1',REGISTRY_PRIVATE_KEY:'0x'+'01'.repeat(32),ENCLAVE_REPO:'independent/host',CLAIM_ENABLED:'1',
++    PROVISION_DEFER_MS:'300',BILL_TICK_SEC:'1'};
++}
++async function run(t,lifecycle){
++  const config={catalog,health,appId:manifest.appId,bytes:pkg.bytes.toString('base64'),enclaveId,endpoint:'https://host.independent.example',
++    leaseUntil:now+3600,rows,replicas:{[A]:'serve'},lifecycle:{...scale,guests:[own,orphan],gate:[[0,admitted]],audit:true,endMs:5000,...lifecycle}};
++  const {stdout}=await exec(process.execPath,[SUP],{cwd:new URL('..',import.meta.url),timeout:60000,
++    env:{...env(t),DIRECT_CLAIM_SELFTEST:JSON.stringify(config)},maxBuffer:8<<20}).catch(e=>{throw Error(e.stderr||e.message);});
++  return JSON.parse(stdout.trim().split('\n').at(-1));
++}
++const show=o=>JSON.stringify({events:o.events,records:o.records,detail:o.detail,snapshot:o.snapshot,deleted:o.deleted,stops:o.stops,
++  outcomes:o.outcomes,gates:o.gates,releases:o.releases,notes:o.provisionFailureNotes,gpuReleases:o.gpuReleases,intent:o.intent,serving:o.serving});
++const ownStops=o=>o.stops.filter(s=>s.id===OWN);
++// the first attempt outcome after gate g (the parked attempt resumes right after its act)
++const after=(o,g,kind='provision')=>o.outcomes.find(x=>x.kind===kind&&x.t>=g.t);
++// what the superseded continuation must not add on top of the teardown that won
++function stale(o,g,{status,releaseWhy=null,kind='provision'}){
++  const x=after(o,g,kind);
++  assert(x,'the parked attempt completed: '+show(o));
++  assert.notEqual(x.outcome,'served','a superseded attempt is never a successful launch: '+show(o));
++  if(kind==='provision') assert.equal(x.outcome,'superseded','not a generic failure or deferral either: '+show(o));
++  assert.equal(x.posts,g.postsAfter,'no POST /vms after the teardown: '+show(o));
++  assert.equal(g.after.status,status,'the teardown\'s terminal state stands (no resurrection, no failed overwrite): '+show(o));
++  assert.equal(g.after.vmId,g.before.vmId,'identity not rewritten by the stale result: '+show(o));
++  assert.deepEqual(o.provisionFailureNotes.filter(n=>n.id===OWN),[],'no obsolete failure ladder: '+show(o));
++  assert.deepEqual(o.releases.filter(r=>r.id===OWN&&r.why!==releaseWhy),[],'no obsolete/duplicate release: '+show(o));
++  if(g.before.gpu) assert(o.gpuReleases.filter(r=>r.h===g.before.gpu).length<=1,'the slice is released once, by the teardown: '+show(o));
++}
++
++// ---- 1. unverified 409 id is diagnostic only ----------------------------------------------------------------------
++// unverified_conflict_stop: no held guest under OWN's name, so no verified id; the 409 names another deployment's
++// guest, whose authenticated GET says so. Deferred; then the REAL owner-stop / lease-loss branches never stop it.
++for (const [what,patch,want] of [['owner stop',{active:false},'terminated'],['lease loss',{runner:other},'expired']])
++  test(`unverified 409 id: deferred with no teardown identity; ${what} never DELETEs the named guest`,async t=>{
++    const o=await run(t,{guests:[foreign,orphan],conflictIds:{[OWN]:foreign.id},snapshotAtMs:1800,rowPatches:[[2500,OWN,patch]],endMs:7000});
++    const s=o.snapshot[OWN];
++    assert.equal(s?.status,'claimed','deferred, never running while unverifiable: '+show(o));
++    assert.equal(s.vmId,null,'the 409 id is not promoted to the record\'s guest: '+show(o));
++    assert.equal(s.deferred?.vmId,foreign.id,'kept as the diagnostic: '+show(o));
++    assert(!ownStops(o).some(x=>x.vmId===foreign.id),'no record-driven stop of the foreign guest: '+show(o));
++    assert.equal(o.records[OWN]?.status,want,'the revocation itself stays enforced: '+show(o));
++    assert.equal(o.serving[OWN],false,show(o));
++    assert(!o.outcomes.some(x=>x.id===OWN&&x.outcome==='served'),'never a false success: '+show(o));
++  });
++
++// verified_held_conflicting_id: guestd's authenticated list holds OWN's guest A; the 409 names B (another deployment's)
++// and B's GET answers for that deployment. A stays the identity (CPU slice: identity only, no reservation credit - the
++// GPU slice's same-record credit path is unchanged code and is NOT reachable in this CPU-only harness); B never.
++test('verified held id survives a 409 naming another guest: deferral keeps A, a genuine stop ends A only',async t=>{
++  const o=await run(t,{guests:[own,foreign,orphan],conflictIds:{[OWN]:foreign.id},snapshotAtMs:1800,rowPatches:[[2500,OWN,{active:false}]],endMs:7000});
++  const s=o.snapshot[OWN];
++  assert.equal(s?.status,'claimed',show(o)); assert.equal(s.vmId,own.id,'the held list\'s id: '+show(o));
++  assert.equal(s.deferred?.vmId,foreign.id,show(o)); assert(s.gpu,'the CPU slice handle is kept while deferred: '+show(o));
++  assert.equal(o.records[OWN]?.status,'terminated',show(o));
++  assert(ownStops(o).some(x=>x.vmId===own.id),'the genuine stop targets A: '+show(o));
++  assert(!ownStops(o).some(x=>x.vmId===foreign.id),'and never B: '+show(o));
++});
++test('verified held id + conflicting 409, no revocation: deferred, vouched, nothing ended, released or noted',async t=>{
++  const o=await run(t,{guests:[own,foreign,orphan],conflictIds:{[OWN]:foreign.id},endMs:5000});
++  assert.equal(o.records[OWN]?.status,'claimed',show(o)); assert.equal(o.records[OWN].vmId,own.id,show(o));
++  assert.deepEqual(ownStops(o),[],show(o)); assert(!o.deleted.includes(own.id)&&!o.deleted.includes(foreign.id),show(o));
++  assert.deepEqual(o.releases.filter(r=>r.id===OWN),[],show(o)); assert.deepEqual(o.provisionFailureNotes,[],show(o));
++  assert(o.events.some(e=>e.beat&&e.beat.includes(OWN)),'vouched while deferred: '+show(o));
++  assert(o.outcomes.filter(x=>x.id===OWN&&x.outcome==='deferred').length>=2,'bounded retries, each deferred: '+show(o));
++});
++// unknown_reconnect: verified same held guest + timeout/401/malformed then reconnect adopting the SAME guest is the
++// existing held-resume matrix in isolation-instance-liveness.test.mjs (now explicitly the verified-held case).
++
++// ---- 2. provisioning continuations superseded by REAL teardown ----------------------------------------------------
++test('pre_spawn_abandon: abandonClaims while launchSpec awaits - no POST, no resurrection, no obsolete note/release',async t=>{
++  const o=await run(t,{gates:[{at:'launchSpec',nth:1,act:'abandon'}]});
++  const g=o.gates[0]; assert.equal(g?.before?.status,'claimed',show(o));
++  stale(o,g,{status:'expired',releaseWhy:ABANDON});
++});
++test('spawn_success_abandon: abandonClaims while spawn runs, then success - not published running, no duplicate release',async t=>{
++  const o=await run(t,{gates:[{at:'spawn',nth:1,act:'abandon'}]});
++  const g=o.gates[0]; stale(o,g,{status:'expired',releaseWhy:ABANDON});
++  assert.equal(o.releases.filter(r=>r.id===OWN&&r.why===ABANDON).length,1,'exactly the teardown\'s release: '+show(o));
++});
++for (const how of ['error','unknown'])
++  test(`spawn_error_abandon (${how}): abandonClaims then the spawn rejects - teardown state kept, no failure/deferral/release`,async t=>{
++    const o=await run(t,{gates:[{at:'spawn',nth:1,act:'abandon',how}]});
++    const g=o.gates[0]; stale(o,g,{status:'expired',releaseWhy:ABANDON});
++    assert.equal(g.after.error,ABANDON,'the owner\'s evidence is the teardown\'s reason: '+show(o));
++    assert.equal(g.after.deferred,false,'an unverifiable answer does not defer a torn-down record back: '+show(o));
++  });
++for (const how of ['resolve','error'])
++  test(`spawn_ledger_move (${how}): ledgerMoveSweep while spawn runs - old record stays retired, nothing released`,async t=>{
++    const o=await run(t,{gates:[{at:'spawn',nth:1,act:'ledgerMove',how}]});
++    const g=o.gates[0]; stale(o,g,{status:'terminated'});
++    assert.deepEqual(o.releases.filter(r=>r.id===OWN),[],'a retired ledger\'s lease is never released against the new one: '+show(o));
++  });
++for (const how of ['resolve','error'])
++  test(`replacement_same_id (${how}): a different record under the same id/status/vmId - old completion mutates neither`,async t=>{
++    const o=await run(t,{audit:false,gates:[{at:'spawn',nth:1,act:'replace',how}]});
++    const g=o.gates[0], x=after(o,g);
++    assert.equal(x?.outcome,'superseded',show(o)); assert.equal(x.sameObject,false,show(o));
++    assert.deepEqual(x.current,g.replacedView,'the current record is exactly as installed when the old attempt completed: '+show(o));
++    assert.deepEqual(g.after,g.before,'the replaced record object is not mutated either: '+show(o));
++    assert.equal(g.replacementCurrent,true,show(o));
++    assert.deepEqual(o.gpuReleases.filter(r=>r.t>=g.t),[],'the shared slice handle is not released: '+show(o));
++    assert.deepEqual(o.releases.filter(r=>r.id===OWN),[],'the current lease is not released: '+show(o));
++    assert.deepEqual(o.provisionFailureNotes,[],show(o));
++  });
++test('release_intent_during_await: an intent opened while launchSpec awaits - no launch, completion or release; journal identity kept',async t=>{
++  const o=await run(t,{gates:[{at:'launchSpec',nth:1,act:'releaseIntent'}]});
++  const g=o.gates[0]; stale(o,g,{status:'claimed'});
++  assert.equal(o.intent?.same,true,'the open intent is the one the seam opened: '+show(o));
++  assert.deepEqual(o.releases.filter(r=>r.id===OWN),[],show(o));
++});
++
++// actual_consumer_propagation: the audit's claimed-branch retry and its death relaunch receive a superseded result
++test('audit claimed branch: a deferred retry superseded by abandonClaims is neither a failure nor a release',async t=>{
++  const o=await run(t,{guests:[foreign,orphan],conflictIds:{[OWN]:foreign.id},gates:[{at:'spawn',nth:2,act:'abandon',how:'unknown'}]});
++  assert(o.outcomes.some(x=>x.id===OWN&&x.outcome==='deferred'),'the first launch deferred: '+show(o));
++  stale(o,o.gates[0],{status:'expired',releaseWhy:ABANDON});
++});
++test('audit death relaunch: a relaunch superseded by abandonClaims adds no failure note or release',async t=>{
++  const o=await run(t,{vmFaults:[{id:own.id,fromMs:1500,toMs:2000,how:'failed'}],gates:[{at:'launchSpec',nth:2,act:'abandon'}]});
++  const g=o.gates[0]; assert(g,'the death relaunch reached launchSpec: '+show(o));
++  stale(o,g,{status:'expired',releaseWhy:ABANDON});
++});
++// restart route / version switch / envelope edit: same `=== false` / PROVISION_SUPERSEDED handling, code-reviewed only -
++// the restart route is HTTP-only and the switch/edit need catalog and ledger scripting this fixture lacks.
++
++// ---- 3. billing observations and respawns -------------------------------------------------------------------------
++test('billing_replaced_observation: a dead read of a record replaced meanwhile - no respawn, charge, stop or release',async t=>{
++  const o=await run(t,{audit:false,billing:true,vmFaults:[{id:own.id,fromMs:1500,toMs:4000,how:'gated',act:'replace'}]});
++  const g=o.gates[0]; assert(g?.replacedView,'the billing read was gated: '+show(o));
++  assert.equal(o.posted,g.postsAt,'no POST after the stale observation: '+show(o));
++  assert.equal(g.after.consumedMs,g.before.consumedMs,'the replaced life is not charged: '+show(o));
++  assert.deepEqual(g.after,g.before,show(o));
++  assert.deepEqual(o.stops,[],'no reaper/teardown stop: '+show(o)); assert.deepEqual(o.releases.filter(r=>r.id===OWN),[],show(o));
++  assert.equal(g.replacementCurrent,true,show(o)); assert.equal(g.replacementAfter.vmId,own.id,show(o));
++  assert.deepEqual(o.gpuReleases,[],show(o));
++});
++test('billing_respawn_invalidated: confirmed death -> real respawn, abandonClaims during its launchSpec - no POST or rewrite',async t=>{
++  const o=await run(t,{audit:false,billing:true,vmFaults:[{id:own.id,fromMs:1500,toMs:2600,how:'404'}],gates:[{at:'launchSpec',nth:2,act:'abandon'}]});
++  const g=o.gates[0]; assert(g,'the respawn reached launchSpec: '+show(o));
++  stale(o,g,{status:'expired',releaseWhy:ABANDON,kind:'respawn'});
++});
++test('billing_respawn_invalidated: replaced while the real respawn spawns - the stale result writes into neither record',async t=>{
++  const o=await run(t,{audit:false,billing:true,vmFaults:[{id:own.id,fromMs:1500,toMs:2600,how:'404'}],gates:[{at:'spawn',nth:2,act:'replace'}]});
++  const g=o.gates[0], x=after(o,g,'respawn'); assert(x,show(o));
++  assert.notEqual(x.outcome,'served',show(o)); assert.equal(x.sameObject,false,show(o));
++  assert.deepEqual(x.current,g.replacedView,'the current record is untouched by the old respawn: '+show(o));
++  assert.deepEqual(g.after,g.before,'the old record keeps its identity: '+show(o));
++  assert(!o.stops.length,'no record-driven stop of the returned guest: '+show(o));
++});
++// positive_compatibility: matching adoption, starting-not-serving, confirmed dead/404 recovery, incompatible
++// same-name replacement and preemption remain the isolation-instance-liveness.test.mjs / post-adoption-lease cases.

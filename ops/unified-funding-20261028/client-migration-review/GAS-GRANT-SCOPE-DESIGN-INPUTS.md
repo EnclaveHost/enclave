@@ -1,0 +1,7 @@
+# Recovery grant scope: historical evidence and next preparation
+
+The quorum inventory at block53203978 contains nine distinct catalog app IDs, not nine deployments of fewer apps. The contract and codec permit at most eight app IDs per grant. RECOVERY-SCOPE-HISTORICAL-r1.json records identities without app config or secrets. This inventory is historical and must be refreshed before grants or spending.
+
+Do not change the already-reviewed deployment artifact or silently replace a finite app list with wildcard authority. Do not duplicate a $1 budget in two grants. A finite-scope candidate can retain legacy29 and split the gas1 into two grants:0.9USDC for eight NucBox apps and0.1USDC for the single Metal0 image app. Both use exact app-ID scopes, fresh distinct nonextractable keys and existing expiry/caps; all budgets total30USDC. This is preparation only, not a grant approval, and quote sufficiency must be checked at actual prices/fees. If a quote does not fit its budget, refuse; never silently enlarge either part. No additional deposit is implied.
+
+This adds two owner typed-data signatures relative to the single-gas-grant plan. The client must show the exact split and canaries before asking to sign. Its public recovery journal must independently reconcile each grant while retaining the original API replacement. Do not replace active client-repair work: finish its receipt and resumable-state fixes first, then extend the explicit split model and native integration tests. The owner wallet handoff currently open covers four additive deployments only.

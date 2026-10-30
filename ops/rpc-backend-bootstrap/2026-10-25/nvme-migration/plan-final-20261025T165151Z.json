@@ -1,0 +1,173 @@
+{
+ "backings": {
+  "hdd": {
+   "dir": "/mnt/usb/enclave-rpc-production",
+   "discard": "ignore",
+   "fsUuid": "489ED12D9ED11472",
+   "fstype": "ntfs3",
+   "growth": "full",
+   "guestRotationRate": 7200,
+   "kind": "hdd",
+   "leafDisks": [
+    {
+     "model": "TR-004 DISK00",
+     "name": "sda",
+     "rotational": true
+    }
+   ],
+   "mount": "/mnt/usb",
+   "source": "/dev/sda2"
+  },
+  "nvme": {
+   "capacity": {
+    "floorBytes": 300000000000,
+    "pauseMarginBytes": 68719476736,
+    "pollSeconds": 1,
+    "shutdownLeadSeconds": 2400,
+    "shutdownMarginBytes": 100000000000,
+    "startHeadroomBytes": 20000000000
+   },
+   "dir": "/vm/enclave-volumes/rpc-production",
+   "discard": "unmap",
+   "fsUuid": "aaae081c-f829-4484-a50f-a9bbb87d31f9",
+   "fstype": "ext4",
+   "growth": "bounded",
+   "guestRotationRate": 1,
+   "kind": "nvme",
+   "leafDisks": [
+    {
+     "model": "CT4000T710SSD8",
+     "name": "nvme0n1",
+     "rotational": false
+    }
+   ],
+   "mount": "/vm",
+   "source": "/dev/mapper/cryptvm"
+  }
+ },
+ "capacity": {
+  "copyBoundTotal": 504712484618,
+  "freeAfterCopyBound": 521472260342,
+  "freeNow": 1026184744960,
+  "growthRoomBeforePause": 152752783606,
+  "growthRoomBeforeShutdownRequest": 52752783606,
+  "note": "bounded thin provisioning: the 4 TB virtual L1 can NOT grow fully on this NVMe; the guard pauses/powers down only this VM before the floor",
+  "thresholds": {
+   "floor": 300000000000,
+   "pause": 368719476736,
+   "shutdown": 468719476736,
+   "start": 488719476736
+  }
+ },
+ "createdAt": "2026-10-25T16:51:51.821770+00:00",
+ "disks": {
+  "l1": {
+   "boundBytes": 500528076554,
+   "dst": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2",
+   "partial": "/vm/enclave-volumes/rpc-production/.l1-origin.qcow2.partial",
+   "src": {
+    "allocated": 495572353024,
+    "dev": 2050,
+    "ino": 3220,
+    "mtimeNs": 1792946513213591400,
+    "path": "/mnt/usb/enclave-rpc-production/l1-origin.qcow2",
+    "size": 495572353024
+   }
+  },
+  "os": {
+   "boundBytes": 4184408064,
+   "dst": "/vm/enclave-volumes/rpc-production/os.qcow2",
+   "partial": "/vm/enclave-volumes/rpc-production/.os.qcow2.partial",
+   "src": {
+    "allocated": 3110666240,
+    "dev": 2050,
+    "ino": 3219,
+    "mtimeNs": 1792946515647561400,
+    "path": "/mnt/usb/enclave-rpc-production/os.qcow2",
+    "size": 3110666240
+   }
+  }
+ },
+ "format": "enclave-rpc-nvme-migration/v1",
+ "launcher": {
+  "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/provision_vm.py",
+  "sha256": "4f458aa1768209198ce6d882cf6d24f45105d9527bc25e08451bf5b91512aa16"
+ },
+ "manifest": {
+  "path": "/home/steven/.local/state/enclave-rpc-production/manifest.json",
+  "sha256": "ecbe7b65452b592742eb72f622bf9ea0dd52d51c825085e933f32a68d2f5f3ed"
+ },
+ "preview": {
+  "guardUnit": "# rendered by provision_vm.py (enclave-rpc-backend-vm/v2): bounded thin-provisioning guard for enclave-rpc-production-vm.service\n[Unit]\nDescription=Enclave RPC VM capacity guard (pauses or powers down ONLY enclave-rpc-production-vm.service before its NVMe floor)\nPartOf=enclave-rpc-production-vm.service\nStartLimitIntervalSec=3600\nStartLimitBurst=3\n\n[Service]\nType=notify\nNotifyAccess=main\nExecStart=/usr/bin/python3 -I /home/steven/.local/state/enclave-rpc-production/provision_vm.py guard /home/steven/.local/state/enclave-rpc-production/manifest.json <manifest-sha-after-copy>\nWatchdogSec=30\nRestart=no\nTimeoutStartSec=120\nMemoryMax=256M\nNoNewPrivileges=yes\nUMask=0077\n",
+  "qemuArgv": [
+   "/usr/bin/qemu-system-x86_64",
+   "-name",
+   "enclave-rpc-production,debug-threads=on",
+   "-nodefaults",
+   "-no-user-config",
+   "-object",
+   "memory-backend-ram,id=rpcmem,size=68719476736,prealloc=on",
+   "-machine",
+   "q35,accel=kvm,memory-backend=rpcmem",
+   "-cpu",
+   "host",
+   "-smp",
+   "8,sockets=1,cores=8,threads=1",
+   "-m",
+   "65536M",
+   "-overcommit",
+   "mem-lock=off",
+   "-rtc",
+   "base=utc",
+   "-display",
+   "none",
+   "-sandbox",
+   "on,obsolete=deny,elevateprivileges=deny,spawn=deny,resourcecontrol=deny",
+   "-msg",
+   "timestamp=on",
+   "-chardev",
+   "socket,id=con0,path=/run/user/1000/enclave-rpc-production/console.sock,server=on,wait=off,logfile=/home/steven/.local/state/enclave-rpc-production/console.log,logappend=on",
+   "-serial",
+   "chardev:con0",
+   "-qmp",
+   "unix:/run/user/1000/enclave-rpc-production/qmp.sock,server=on,wait=off",
+   "-chardev",
+   "socket,id=qmpg,path=/run/user/1000/enclave-rpc-production/guard-qmp.sock,server=on,wait=off",
+   "-mon",
+   "chardev=qmpg,mode=control",
+   "-object",
+   "rng-random,id=rng0,filename=/dev/urandom",
+   "-device",
+   "virtio-rng-pci,rng=rng0",
+   "-device",
+   "virtio-scsi-pci,id=scsi0",
+   "-blockdev",
+   "{\"cache\":{\"direct\":false,\"no-flush\":false},\"detect-zeroes\":\"off\",\"discard\":\"unmap\",\"driver\":\"qcow2\",\"file\":{\"aio\":\"threads\",\"driver\":\"file\",\"filename\":\"/vm/enclave-volumes/rpc-production/os.qcow2\",\"locking\":\"on\"},\"node-name\":\"os0\",\"read-only\":false}",
+   "-device",
+   "scsi-hd,bus=scsi0.0,drive=os0,serial=ERPC-OS-C0D16DA3,bootindex=0,werror=stop,rerror=stop",
+   "-blockdev",
+   "{\"cache\":{\"direct\":false,\"no-flush\":false},\"detect-zeroes\":\"off\",\"discard\":\"unmap\",\"driver\":\"qcow2\",\"file\":{\"aio\":\"threads\",\"driver\":\"file\",\"filename\":\"/vm/enclave-volumes/rpc-production/l1-origin.qcow2\",\"locking\":\"on\"},\"node-name\":\"l10\",\"read-only\":false}",
+   "-device",
+   "scsi-hd,bus=scsi0.0,drive=l10,serial=ERPC-L1-6DA15A8D,rotation_rate=1,werror=stop,rerror=stop",
+   "-blockdev",
+   "{\"cache\":{\"direct\":false,\"no-flush\":false},\"detect-zeroes\":\"off\",\"discard\":\"ignore\",\"driver\":\"qcow2\",\"file\":{\"aio\":\"threads\",\"driver\":\"file\",\"filename\":\"/mnt/usb/enclave-rpc-production/base-origin.qcow2\",\"locking\":\"on\"},\"node-name\":\"base0\",\"read-only\":false}",
+   "-device",
+   "scsi-hd,bus=scsi0.0,drive=base0,serial=ERPC-BASE-740457FE,rotation_rate=7200,werror=stop,rerror=stop",
+   "-blockdev",
+   "{\"cache\":{\"direct\":false,\"no-flush\":false},\"detect-zeroes\":\"off\",\"discard\":\"ignore\",\"driver\":\"raw\",\"file\":{\"aio\":\"threads\",\"driver\":\"file\",\"filename\":\"/home/steven/.local/state/enclave-rpc-production/seed.iso\",\"locking\":\"on\"},\"node-name\":\"seed0\",\"read-only\":true}",
+   "-device",
+   "scsi-cd,bus=scsi0.0,drive=seed0",
+   "-netdev",
+   "user,id=net0,ipv6=off,net=10.0.2.0/24,host=10.0.2.2,dhcpstart=10.0.2.15,dns=10.0.2.3,hostfwd=tcp:127.0.0.1:22850-10.0.2.15:22,hostfwd=tcp:127.0.0.1:28545-10.0.2.15:28545,hostfwd=tcp:127.0.0.1:28645-10.0.2.15:28645,hostfwd=tcp:127.0.0.1:25052-10.0.2.15:25052",
+   "-device",
+   "virtio-net-pci,netdev=net0,mac=52:54:00:ae:f9:7e"
+  ],
+  "vmUnit": "# rendered by provision_vm.py (enclave-rpc-backend-vm/v2) from a migration-adapter manifest; never enabled or started by a script.\n[Unit]\nDescription=Enclave RPC backend VM (enclave-rpc-production: reth+lighthouse L1, Base holder; per-disk backing policy)\nRequires=enclave-rpc-production-guard.service\nBindsTo=enclave-rpc-production-guard.service\nAfter=enclave-rpc-production-guard.service\nStartLimitIntervalSec=3600\nStartLimitBurst=3\n\n[Service]\nType=simple\nExecStart=/usr/bin/python3 -I /home/steven/.local/state/enclave-rpc-production/provision_vm.py launch /home/steven/.local/state/enclave-rpc-production/manifest.json <manifest-sha-after-copy>\nExecStop=/usr/bin/python3 -I /home/steven/.local/state/enclave-rpc-production/provision_vm.py powerdown /home/steven/.local/state/enclave-rpc-production/manifest.json\nTimeoutStartSec=300\nTimeoutStopSec=2400\nKillMode=mixed\nKillSignal=SIGTERM\nRestart=on-failure\nRestartSec=60\nRuntimeDirectory=enclave-rpc-production\nRuntimeDirectoryMode=0700\nMemoryMax=70866960384\nMemorySwapMax=0\nTasksMax=4096\nLimitNOFILE=65536\nNoNewPrivileges=yes\nUMask=0077\n\n[Install]\nWantedBy=default.target\n"
+ },
+ "roles": [
+  "os",
+  "l1"
+ ],
+ "targetDir": "/vm/enclave-volumes/rpc-production",
+ "targetDirPreExisting": true
+}

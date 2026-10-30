@@ -1,0 +1,19 @@
+TAP version 13
+# Subtest: config: ONE explicit authority; a paid attested provider needs a valid own backend; the quorum is unchanged; the packaged provider reports it
+ok 1 - config: ONE explicit authority; a paid attested provider needs a valid own backend; the quorum is unchanged; the packaged provider reports it
+  ---
+  duration_ms: 1052.785037
+  type: 'test'
+  ...
+# Subtest: R2 backend answers are checked STRICTLY: exactly this id, JSON-RPC 2.0, exactly one of result or a well-formed error; anything else is no answer
+ok 2 - R2 backend answers are checked STRICTLY: exactly this id, JSON-RPC 2.0, exactly one of result or a well-formed error; anything else is no answer
+  ---
+  duration_ms: 42.518239
+  type: 'test'
+  ...
+# Subtest: attested QUALIFICATION + PRICE flow on the real contracts: reads, simulation, nonce and receipts from the attested verifier; the own backend only submits
+ok 3 - attested QUALIFICATION + PRICE flow on the real contracts: reads, simulation, nonce and receipts from the attested verifier; the own backend only submits
+  ---
+  duration_ms: 30213.706921
+  type: 'test'
+  ...

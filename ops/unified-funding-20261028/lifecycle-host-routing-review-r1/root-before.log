@@ -1,0 +1,54 @@
+TAP version 13
+# Subtest: an owner restriction during unsigned prepare prevents journaling and sending a new running intent
+not ok 1 - an owner restriction during unsigned prepare prevents journaling and sending a new running intent
+  ---
+  duration_ms: 6.436623
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-host-routing-review-r1/test/root-dispatch-regressions.test.mjs:15:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    unsigned prepared intent must be rechecked before it enters the journal
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-host-routing-review-r1/test/root-dispatch-regressions.test.mjs:20:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: a routed snapshot for a different local host is never served
+not ok 2 - a routed snapshot for a different local host is never served
+  ---
+  duration_ms: 0.862204
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-host-routing-review-r1/test/root-dispatch-regressions.test.mjs:23:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    ledger/controller/id match is insufficient without attached host identity
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-host-routing-review-r1/test/root-dispatch-regressions.test.mjs:27:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 0
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 221.343011

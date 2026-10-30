@@ -1,0 +1,5 @@
+{
+  "file": "candidate/enclave/site/js/core/wallet-release-promote.js",
+  "old": "  if (lower(tx.hash) !== txHash || lower(rc.transactionHash) !== txHash || tx.blockNumber == null || rc.blockNumber == null || BigInt(tx.blockNumber) !== BigInt(rc.blockNumber) || lower(tx.blockHash) !== lower(rc.blockHash))\n    return { status: \"conflict\", txHash, reasons: [\"transaction and receipt identity do not match the requested promotion\"] };",
+  "new": "  if (lower(tx.hash) !== txHash || lower(rc.transactionHash) !== txHash)\n    return { status: \"conflict\", txHash, reasons: [\"transaction and receipt identity do not match the requested promotion\"] };\n  if (tx.blockNumber == null || rc.blockNumber == null || BigInt(tx.blockNumber) !== BigInt(rc.blockNumber) || lower(tx.blockHash) !== lower(rc.blockHash))\n    return { status: \"pending\", txHash, reasons: [\"transaction and receipt block views are not yet coherent\"] };"
+}

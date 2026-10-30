@@ -1,0 +1,41 @@
+{
+  "unit": "enclave-wallet-owned-session-repair-r2-20261029-author.service",
+  "invocation": "faa8e4e6712e49698f57bebce9de0364",
+  "mainPid": 2246202,
+  "runnerPid": 2246222,
+  "claudePid": 2246232,
+  "identities": {
+    "mainPid": {
+      "pid": 2246202,
+      "startTicks": 163706996,
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "cpu": "0-31",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-wallet-owned-session-repair-r2-20261029-author.service"
+    },
+    "runnerPid": {
+      "pid": 2246222,
+      "startTicks": 163707009,
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "cpu": "1",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2246208-i44152936.scope"
+    },
+    "claudePid": {
+      "pid": 2246232,
+      "startTicks": 163707045,
+      "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+      "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-owned-session-repair-r2-20261029",
+      "cpu": "1",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2246208-i44152936.scope"
+    }
+  },
+  "at": "2026-10-30T03:46:33.949491+00:00",
+  "preparedSha256": "4890dc0b971a3c718934bbdeffbde05493ddd99e15af72bb5015eb633d644b1d",
+  "account": {
+    "loggedIn": true,
+    "email": "steven.r.batchelor@gmail.com",
+    "subscriptionType": "max"
+  },
+  "sourceOnly": true
+}

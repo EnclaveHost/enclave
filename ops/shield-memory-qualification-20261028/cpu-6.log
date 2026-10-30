@@ -1,0 +1,46 @@
+shape m=1 K=1024 u_len=1024 depth=32: ring int32 0.25 MiB, packed 0.19 MiB; scratch 0.01 MiB; 24402 exchanges/trial
+  copy32  best    0.078 ns/value   51.45 GB/s   median    0.078 ns/value   51.32 GB/s
+  pack    best    0.083 ns/value   47.98 GB/s   median    0.083 ns/value   47.95 GB/s
+  unpack  best    0.691 ns/value    5.78 GB/s   median    0.692 ns/value    5.78 GB/s
+  cycle   best    0.732 ns/value    5.46 GB/s   median    0.732 ns/value    5.46 GB/s
+shape m=1 K=2048 u_len=6144 depth=32: ring int32 1.00 MiB, packed 0.75 MiB; scratch 0.03 MiB; 6102 exchanges/trial
+  copy32  best    0.101 ns/value   39.72 GB/s   median    0.101 ns/value   39.66 GB/s
+  pack    best    0.101 ns/value   39.47 GB/s   median    0.101 ns/value   39.41 GB/s
+  unpack  best    0.769 ns/value    5.20 GB/s   median    0.770 ns/value    5.19 GB/s
+  cycle   best    0.806 ns/value    4.96 GB/s   median    0.807 ns/value    4.96 GB/s
+shape m=1 K=5120 u_len=27648 depth=32: ring int32 4.00 MiB, packed 3.00 MiB; scratch 0.12 MiB; 1525 exchanges/trial
+  copy32  best    0.125 ns/value   32.00 GB/s   median    0.128 ns/value   31.22 GB/s
+  pack    best    0.126 ns/value   31.84 GB/s   median    0.126 ns/value   31.77 GB/s
+  unpack  best    0.797 ns/value    5.02 GB/s   median    0.798 ns/value    5.01 GB/s
+  cycle   best    0.824 ns/value    4.86 GB/s   median    0.828 ns/value    4.83 GB/s
+shape m=1 K=17408 u_len=5120 depth=32: ring int32 2.75 MiB, packed 2.06 MiB; scratch 0.09 MiB; 2219 exchanges/trial
+  copy32  best    0.126 ns/value   31.84 GB/s   median    0.127 ns/value   31.57 GB/s
+  pack    best    0.118 ns/value   33.90 GB/s   median    0.118 ns/value   33.89 GB/s
+  unpack  best    0.631 ns/value    6.34 GB/s   median    0.631 ns/value    6.34 GB/s
+  cycle   best    0.668 ns/value    5.98 GB/s   median    0.671 ns/value    5.96 GB/s
+shape m=1 K=5120 u_len=248320 depth=32: ring int32 30.94 MiB, packed 23.20 MiB; scratch 0.97 MiB; 197 exchanges/trial
+  copy32  best    0.169 ns/value   23.61 GB/s   median    0.171 ns/value   23.37 GB/s
+  pack    best    0.150 ns/value   26.67 GB/s   median    0.151 ns/value   26.52 GB/s
+  unpack  best    0.838 ns/value    4.77 GB/s   median    0.840 ns/value    4.76 GB/s
+  cycle   best    0.921 ns/value    4.34 GB/s   median    0.926 ns/value    4.32 GB/s
+shape m=4 K=5120 u_len=27648 depth=32: ring int32 4.00 MiB, packed 3.00 MiB; scratch 0.50 MiB; 381 exchanges/trial
+  copy32  best    0.129 ns/value   31.01 GB/s   median    0.129 ns/value   30.97 GB/s
+  pack    best    0.122 ns/value   32.89 GB/s   median    0.122 ns/value   32.82 GB/s
+  unpack  best    0.803 ns/value    4.98 GB/s   median    0.803 ns/value    4.98 GB/s
+  cycle   best    0.822 ns/value    4.87 GB/s   median    0.830 ns/value    4.82 GB/s
+shape m=4 K=5120 u_len=248320 depth=32: ring int32 30.94 MiB, packed 23.20 MiB; scratch 3.87 MiB; 64 exchanges/trial
+  copy32  best    0.150 ns/value   26.71 GB/s   median    0.154 ns/value   26.02 GB/s
+  pack    best    0.152 ns/value   26.32 GB/s   median    0.154 ns/value   26.02 GB/s
+  unpack  best    0.856 ns/value    4.68 GB/s   median    0.856 ns/value    4.67 GB/s
+  cycle   best    0.907 ns/value    4.41 GB/s   median    0.915 ns/value    4.37 GB/s
+shape m=16 K=5120 u_len=27648 depth=32: ring int32 4.00 MiB, packed 3.00 MiB; scratch 2.00 MiB; 95 exchanges/trial
+  copy32  best    0.140 ns/value   28.53 GB/s   median    0.141 ns/value   28.36 GB/s
+  pack    best    0.137 ns/value   29.29 GB/s   median    0.137 ns/value   29.25 GB/s
+  unpack  best    0.810 ns/value    4.94 GB/s   median    0.811 ns/value    4.93 GB/s
+  cycle   best    0.835 ns/value    4.79 GB/s   median    0.838 ns/value    4.77 GB/s
+shape m=32 K=2048 u_len=6144 depth=32: ring int32 1.00 MiB, packed 0.75 MiB; scratch 1.00 MiB; 190 exchanges/trial
+  copy32  best    0.134 ns/value   29.79 GB/s   median    0.134 ns/value   29.75 GB/s
+  pack    best    0.124 ns/value   32.37 GB/s   median    0.124 ns/value   32.34 GB/s
+  unpack  best    0.783 ns/value    5.11 GB/s   median    0.784 ns/value    5.10 GB/s
+  cycle   best    0.833 ns/value    4.80 GB/s   median    0.834 ns/value    4.80 GB/s
+checksum fe415df6c9c4d9d2

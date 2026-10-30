@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TEST ONLY - client-browser-migration-r1 harness</title>
+</head>
+<body>
+<h1>TEST ONLY: browser migration harness (client-browser-migration-r1)</h1>
+<p><strong>Owned loopback Anvil (chain id 8453, NOT Base). Public Anvil fixture keys and mock USDC only.</strong>
+Owner signatures come from a server-side TEST fixture signer, not from a wallet; no wallet or extension is used.
+Session keys are real non-extractable WebCrypto keys in real IndexedDB under fresh random TEST database names.</p>
+<p>
+  <button id="start" type="button">Start (original session, plan, interrupted migration)</button>
+  <button id="continue" type="button">Continue (after reload)</button>
+  <button id="cleanup" type="button">Delete this run's TEST databases</button>
+</p>
+<div id="status" data-result="LOADING">LOADING</div>
+<div id="dbs"></div>
+<ol id="stages"></ol>
+<pre id="log"></pre>
+<script type="module" src="/dist/harness.js"></script>
+</body>
+</html>

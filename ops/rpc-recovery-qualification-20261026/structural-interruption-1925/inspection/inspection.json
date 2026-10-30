@@ -1,0 +1,27 @@
+{
+  "observedEpoch": 1793109525.5691433,
+  "queueExit": 99,
+  "reason": "host MemAvailable15697MiB below16384MiB floor; shared guard SIGTERM",
+  "runtimePidStillExists": false,
+  "validatorPidStillExists": false,
+  "ownMountsRemaining": [],
+  "sessionReceiptExists": false,
+  "mdbxReportExists": false,
+  "jobReceiptExists": false,
+  "classification": "INTERRUPTED/INCONCLUSIVE; no structural acceptance",
+  "viewRecheck": {
+    "recheck": "ok",
+    "rehashed": false,
+    "parts": 265,
+    "kind": "production"
+  },
+  "requiredSourcePaths": [
+    "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root",
+    "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/multipart-validation-view-stage/r6/runs/view-20261027T133210Z-3241909",
+    "/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/base-multipart-production-20261026/manifest.json",
+    "/home/steven/Documents/Codex/2026-10-26/my/work/tr004/preserved-images/base-origin.compact.qcow2",
+    "/vm/enclave-volumes/tr004-base-recovery-20261026/compact-header-extraction-20261027T133308Z-3243320"
+  ],
+  "originalMount": "The production view recheck uses the bound local manifest/records/part identities, not bind_inputs/check_original. OriginalPath is historical binding metadata. Structural scan reads only local part view. Original mount can be absent for these validation steps after its owner confirms no other consumers. Keep physical media unchanged until recovery decision; no reset authority."
+}

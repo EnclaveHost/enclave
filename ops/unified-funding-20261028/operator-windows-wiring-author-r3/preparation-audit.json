@@ -1,0 +1,21 @@
+{
+  "status": "PREPARATION_FILE_HASH_STATIC_IMPORT_INVENTORY_AND_HELPER_AST_ONLY",
+  "preparedSha256": "183163f51ef3091ac53493653f2f4165e28a64d7c6b3879b36821ec0f8376e8d",
+  "seedFiles": 249,
+  "candidateExactFrozenSeed": true,
+  "preAuthorProductEdits": 0,
+  "rootChainQuarantinePreserved": true,
+  "rootRepairsPreserved": 3,
+  "readonlyPins": 13817,
+  "inputDrift": [],
+  "authorLaunched": false,
+  "candidateExecuted": false,
+  "testsOrBuildsRun": false,
+  "rootTopLevelEvidenceFiles": 53,
+  "operatorLiteralProjectClosureFiles": 14,
+  "missingProjectImports": [],
+  "qualificationAdmissible": false,
+  "accountStatus": "Fresh verification delegated to root prelaunch and enforced by unchanged runner policy",
+  "rootCombinedRepaired": "102PASS0FAIL",
+  "targetIdentity": "Observed SYSTEM scheduled task/process; effective NODE_DIR unknown; not exclusion/qualification"
+}

@@ -1,0 +1,48 @@
+{
+  "status": "PREPARED_NOT_LAUNCHED",
+  "seedEntries": 238,
+  "readonlyInputPins": 9738,
+  "freshSession": true,
+  "sourceTools": [
+    "Read",
+    "Grep",
+    "Write",
+    "Edit"
+  ],
+  "mutationPolicy": "Candidate subtree only; terminal Write/Edit result audit and successful-mutation replay; missing/mismatched/outside outcomes never called clean",
+  "turnLimit": 55,
+  "turnMetric": "CLI max-agentic/API-turns; success result num_turns is separate user-message counter; preserve both",
+  "childTimeoutSec": 1800,
+  "outerTimeoutSec": 2100,
+  "queueMiB": 1536,
+  "hardMemoryMiB": 1536,
+  "rssMiB": 1408,
+  "availableMemoryFloorMiB": 27648,
+  "cpus": 1,
+  "swapMiB": 0,
+  "persistentTmpdir": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r2-20261029/owned-tmp",
+  "claudeExecutable": {
+    "path": "/home/steven/.local/share/claude/versions/2.1.281",
+    "sha256": "56fe3da88458465fb27d7e9299dddb3fead55750fb9c2de795f233b5eea6dce1"
+  },
+  "hashes": {
+    "TASK.txt": "da80f4304d93c5bfb1ea5002296c83e0a134a25194466e7e0db9f45454724df4",
+    "REVIEW-STATUS.txt": "68b503282c1e025af84769819dd81fa66a026235dcb6e904446bcaa974bc6c70",
+    "run.py": "9040025334d1d018a790854bfcf135e1510292dc621106e0f7a0112a1f4b8803",
+    "launch-command.txt": "7267115fbbc5a745fc894062b45f1a86da3424c0fcdb3c6c0704ac35383d3121",
+    "input-pins.json": "d2ad5c150a0a2b0740641b6467c975cf24b1bf28872e8f6a3bf065b8c9219ea5",
+    "seed-pins.json": "2ab1b702572dff77bc96d3ace4982ebced581371b31687022607e9c65196f24c",
+    "seed-provenance.json": "5138e6a9d6144aabbfe0be5165782566e0513f89032f7349abd7d76e3af09680",
+    "evidence-index.json": "6cdb3bac2b54db83ddc9155d94f11bb9b4d8cd9c5585cb1fcce7cf39a98a84b2",
+    "interface-map.json": "ece44b171316be7d4e99b83ea59e9c0093deb7396d727c27bfa02a7d32a9692e",
+    "collect-terminal.py": "c0a16176148b0e3abb0acd6fcb10f3aca56257246298653c53183396ac4504c5",
+    "readonly-progress.py": "7657e3cf867451e36d2651f2f8ff67ca30ce88216f3c75459538ce2172b7bf61",
+    "turn-metric-investigation.json": "9e8987ce7979409ffe37c141e2638409796b08d2f955e1fb8366880b078a3ec8",
+    "materialization.json": "b016c007a1ac312e16b8186d4b6b727facd67576b6951a75478a8accbfcaa259",
+    "readonly-reference/sponsored-runtime/source-manifest.json": "98d4ed77ff83defe2e04d78a32dad77fbbd7c590caccf570077486f14c08e359",
+    "readonly-reference/sponsored-runtime/provenance.json": "e0bd1455457d48af2908375872b47caf6a56f6488503ed8eb36e9f8e180a21f4",
+    "operator-source-closure.json": "2cce51b3d2c68cf413e3be2bd6b3051577043ca3fb228386a91b152891f4d009"
+  },
+  "originalSeedEntries": 238,
+  "addedPinnedDependencies": 0
+}

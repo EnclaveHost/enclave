@@ -1,0 +1,5 @@
+[queue] START available=19622MiB required=18688MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1792MiB
+{"startedAt": "2026-10-25T19:39:42.759829+00:00", "kind": "own-L1-Helios-verified-getter-probe", "A1Accepted": false, "productionActivated": false, "portal": "0x49048044d57e1c92a77f79988d21fa8faf74e97e", "getter": "anchorStateRegistry()", "selector": "0x5c0cba33", "note": "Getter is probed, not assumed implemented. All calls use the same light-client cached block hash; no public RPC fallback.", "block": {"number": "0x190e008", "hash": "0xb3a52f0d6364e8c055e5de56b3397cb5400897a913c9366c1ef12790ba70d563", "stateRoot": "0xd3fdaa93af5aa751f00462d772a243f9d1a1d7a7b8bfa3a51807290575ca23c4", "timestamp": "0x6ade56d7"}, "error": "Refused: eth_call: {'code': 1, 'message': 'evm error: \"server returned an error response: error code -32602: distance to target block exceeds maximum proof window\"'}", "processStopped": true, "finishedAt": "2026-10-25T19:39:45.808448+00:00"}
+[memory-guard] exit=1 peakTreeRssMiB=75 minHostAvailableMiB=19355
+[memory-guard] at peak: 3:52 python3:23
+[queue] EXIT 1

@@ -1,0 +1,24 @@
+{
+  "at": "2026-10-28T03:51:51.985Z",
+  "host": {
+    "name": "metal0",
+    "serving": true,
+    "eligible": true,
+    "claimEnabled": true,
+    "id": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be"
+  },
+  "image": {
+    "url": "https://da09d0f2.app.enclave.host/",
+    "status": 200,
+    "tlsVerified": true,
+    "expectedPage": true,
+    "freshGuest": "gd8b0d8776",
+    "inferenceTested": false
+  },
+  "qwen": {
+    "running": false,
+    "retryAfter": "2026-10-28T04:11:41Z",
+    "constraint": "30 minute on-chain cooldown after first memory admission failure; recheck full memory/pending reservation at retry"
+  },
+  "rpcReplacementComplete": false
+}

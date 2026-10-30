@@ -1,0 +1,241 @@
+diff --git a/network/enclave-network-host.mjs b/network/enclave-network-host.mjs
+index 37556486b..147f9d9a6 100644
+--- a/network/enclave-network-host.mjs
++++ b/network/enclave-network-host.mjs
+@@ -65,7 +65,7 @@ export function ownerSignatureReader({pins,leaseReader}){
+  if(pins)return leaseReader;
+  return leaseReader&&leaseReader.authority==='verifier'&&typeof leaseReader.agreed==='function'?leaseReader:undefined;
+ }
+-export async function createNetworkHost({config:c,account,runner,rpc,addressBook,authorityPins,leaseReader,providerReader=leaseReader,directory,authorize,forward,attestedKey=null,ownerNameRoots,fetch=globalThis.fetch,now=Date.now,log=()=>{}}){
++export async function createNetworkHost({config:c,account,runner,rpc,addressBook,authorityPins,leaseReader,providerReader=leaseReader,directory,authorize,forward,attestedKey=null,ownerNameRoots,fetch=globalThis.fetch,now=Date.now,log=()=>{},challengeOptions={}}){
+  if(!c||typeof c!=='object')throw new Error('Enclave network configuration required');
+  if(c.relay!==undefined){
+   const u=new URL(c.relay);
+diff --git a/network/wg-provider/attested-authority.mjs b/network/wg-provider/attested-authority.mjs
+index 526ebb6a7..faeb7cb2d 100644
+--- a/network/wg-provider/attested-authority.mjs
++++ b/network/wg-provider/attested-authority.mjs
+@@ -87,7 +87,7 @@ export function providerChainAuthority(cfg, { readFile = (p) => fs.readFileSync(
+   if (a !== 'attested-verifier') bad('chainAuthority must be quorum, verifier or attested-verifier');
+   // one explicit authority: nothing that would read or write the chain another way may sit beside it
+   if (cfg.rpc !== undefined) bad('rpc is not used with chainAuthority "attested-verifier" (one explicit authority, no fallback): remove it');
+-  if (cfg.chainVerifier !== undefined) bad('chainVerifier (a local verifier) is not used with chainAuthority "attested-verifier": remove it');
++  if (cfg.chainVerifier !== undefined) bad('chainVerifier is not used with chainAuthority "attested-verifier" (a local verifier is a different authority): remove it');
+   const paid = (cfg.pricePerGiB6 || 0) > 0;
+   if (paid && cfg.txBackend === undefined) bad('a paid provider with chainAuthority "attested-verifier" needs txBackend: the operator\'s own Base node (loopback or private IPv4 literal) for its on-chain sends; nothing is sent through any other server');
+   if (!paid && cfg.txBackend !== undefined) bad('txBackend is set but this provider is not paid (it sends nothing on chain): remove it');
+@@ -123,6 +123,10 @@ export function providerHostPolicyRuntime(hostServices, chainAuth, { stateDir, l
+   if (!hostServices) return null;
+   const env = hostServicesPolicyEnv(hostServices);
+   if (!env) return null;
++  // ONE explicit authority: under the provider's LOCAL verifier the policy branch below would read through the policy's own RPC
++  // quorum (a different authority than the provider's leases and registry). Refused, never mixed; quorum and attested-verifier
++  // keep their own complete policy paths.
++  if (chainAuth.mode === 'verifier') bad('host services with chainAuthority "verifier": the platform host policy would read through a different authority than the provider (its own RPC quorum) - never mixed: use chainAuthority quorum or attested-verifier for a provider with host services');
+   const store = fileStore(path.join(stateDir, 'platform-host-policy.json'));
+   if (chainAuth.mode !== 'attested-verifier') {
+     const rt = createHostPolicyRuntime(resolveHostPolicyConfig({ env, chainId: 8453 }), { log, store, fetch, ...ttl });
+diff --git a/scripts/build-site.mjs b/scripts/build-site.mjs
+index a3964459f..b1834e45a 100644
+--- a/scripts/build-site.mjs
++++ b/scripts/build-site.mjs
+@@ -134,6 +134,8 @@ const creditResult = await build({
+   outfile: path.join(DIST, "credit/credit.js"),
+   external: ["/vendor/*"],
+   metafile: true,
++  // the SAME reviewed release read authority as the main site (its credit page defaults then follow it; see read-authority.js)
++  plugins: [...(READ_AUTH ? [readAuthorityPlugin(READ_AUTH.text, SITE)] : [])],
+ });
+ for (const f of ["index.html", "credit-config.json"])
+   fs.copyFileSync(path.join(SITE, "credit", f), path.join(DIST, "credit", f));
+diff --git a/site/credit/credit.js b/site/credit/credit.js
+index 9e743f6c3..d2bb1d9e5 100644
+--- a/site/credit/credit.js
++++ b/site/credit/credit.js
+@@ -10,6 +10,7 @@
+ import * as CV from "../js/core/credit-vault-independent.js";
+ import { createQuorumReader, jsonRpc } from "../js/core/quorum.js";
+ import * as GR from "../js/core/credit-vault-reserve.js";
++import { resolveReadAuthority, creditEndpoints } from "../js/core/read-authority.js";
+ 
+ const $ = (id) => document.getElementById(id);
+ const note = (t, bad) => { const n = $("note"); n.textContent = t || ""; n.className = bad ? "bad" : t ? "ok" : ""; };
+@@ -30,7 +31,12 @@ try { cfg = readConfig(await (await fetch(new URL("credit-config.json", import.m
+ catch (e){ cfgError = String(e && e.message || e).startsWith("credit-config") ? e.message : "credit-config.json could not be loaded"; }
+ const L = await import("/vendor/credit-vault.js");
+ const pins = cfg && cfg.pins;
+-let endpoints = (() => { try { const s = JSON.parse(localStorage.getItem(RPC_KEY) || "null"); if (s && Array.isArray(s.rpcs)) return s; } catch {} return cfg ? { rpcs: cfg.rpcs, quorum: cfg.quorum } : { rpcs: [], quorum: 2 }; })();
++// the owner's saved endpoints first; else this release's read authority (scripts/build-site.mjs embeds the same reviewed
++// file as the main site): legacy -> credit-config.json; own-rpc -> only its endpoints, same quorum; invalid/too few -> refused
++const savedEndpoints = (() => { try { const s = JSON.parse(localStorage.getItem(RPC_KEY) || "null"); if (s && Array.isArray(s.rpcs)) return s; } catch {} return null; })();
++let endpointsError = null;
++let endpoints = (() => { try { return cfg ? { ...creditEndpoints({ authority: resolveReadAuthority({ legacy: [] }), saved: savedEndpoints, config: cfg }) } : null; }
++  catch (e){ endpointsError = String(e && e.message || e); return cfg ? { rpcs: [], quorum: cfg.quorum } : null; } })();
+ let _reader = null;
+ function reader(){
+   if (!_reader) _reader = CV.withTxReads(createQuorumReader({ rpcs: endpoints.rpcs, quorum: endpoints.quorum, confirmations: cfg.confirmations,
+@@ -45,6 +51,7 @@ const journal = () => CV.storageJournal(localStorage, pins.chainId);
+ const fail = (e) => note(e && e.name === "NotAllowedError" ? "The passkey prompt was cancelled." : String(e && e.message || e), true);
+ const guard = (fn) => async (...a) => { try { note(""); await fn(...a); } catch (e){ fail(e); } };
+ 
++if (cfg && endpointsError) note(endpointsError, true);   // reads refuse (no endpoint); the owner may still save their own
+ if (!cfg){ note(cfgError, true); document.querySelectorAll("button, input, select, textarea").forEach((b) => { b.disabled = true; }); }
+ else {
+   $("origin-pin").textContent = pins.origin;
+diff --git a/site/js/core/read-authority.js b/site/js/core/read-authority.js
+index 06c2b03f5..4f66b44a5 100644
+--- a/site/js/core/read-authority.js
++++ b/site/js/core/read-authority.js
+@@ -91,6 +91,29 @@ export function sessionsRpc(relayRpc, authority, pool){
+   throw new Error("this site release's chain read authority is " + (authority.mode === "invalid" ? "invalid (" + authority.error + ")" : "not usable for sessions") + ": refusing");
+ }
+ 
++/** /credit/ (site/credit/credit.js) chain endpoints. The credit page reads through its OWN quorum reader (quorum.js: at
++ *  least two origins, a quorum of at least two), so a release authority changes WHICH endpoints it asks, never how many
++ *  must agree:
++ *   - the owner's saved endpoints (the page's "save endpoints" form) keep precedence: the owner's explicit choice;
++ *   - legacy (no release authority): credit-config.json's endpoints and quorum, exactly as before;
++ *   - own-rpc: ONLY the release's own endpoints, with credit-config.json's quorum. Fewer own endpoints than that quorum
++ *     is REFUSED (never one own RPC standing in for the quorum, never the public defaults);
++ *   - invalid: refused (no endpoint at all).
++ *  -> {rpcs, quorum, source: "owner" | "config" | "release-own-rpc"}; throws for a refusal. A trusted self-hosted transport,
++ *  not proof verification (see above). */
++export function creditEndpoints({ authority, saved = null, config }){
++  if (saved && Array.isArray(saved.rpcs) && Number.isSafeInteger(saved.quorum)) return Object.freeze({ rpcs: [...saved.rpcs], quorum: saved.quorum, source: "owner" });
++  if (!config || !Array.isArray(config.rpcs) || !Number.isSafeInteger(config.quorum)) throw new Error("credit-config.json names no endpoints");
++  if (!authority || authority.mode === "legacy") return Object.freeze({ rpcs: [...config.rpcs], quorum: config.quorum, source: "config" });
++  if (authority.mode === "own-rpc"){
++    if (authority.rpcs.length < config.quorum)
++      throw new Error("this site release's own read authority names " + authority.rpcs.length + " endpoint(s), but the credit page needs "
++        + config.quorum + " agreeing: refusing (one own RPC never replaces the quorum, and no public endpoint is used)");
++    return Object.freeze({ rpcs: [...authority.rpcs], quorum: config.quorum, source: "release-own-rpc" });
++  }
++  throw new Error("this site release's chain read authority is " + (authority.mode === "invalid" ? "invalid (" + authority.error + ")" : "not usable here") + ": refusing");
++}
++
+ /** wallet.js fallbackRead (a read the WALLET could not answer): the legacy hosted page asks Base's public RPC; under an
+  *  independent profile or a release read authority it must use the read pool (baseRpc) - never a public default. */
+ export const fallbackUsesPool = (independentState, authority) => independentState !== "off" || !authority || authority.mode !== "legacy";
+diff --git a/test/attested-route-composition.test.mjs b/test/attested-route-composition.test.mjs
+index 2ff976710..4434b5ff9 100644
+--- a/test/attested-route-composition.test.mjs
++++ b/test/attested-route-composition.test.mjs
+@@ -89,7 +89,10 @@ test('the provider authority is ONE explicit choice: the quorum is unchanged; mi
+   const q = providerChainAuthority({ rpc: ['https://a.example', 'https://b.example'] });
+   assert.equal(q.mode, 'quorum'); assert.deepEqual(q.leaseReaderOptions, {}); assert.equal(q.rpc.length, 2);
+   assert.throws(() => providerChainAuthority({}), /two or more RPC endpoints required/);
+-  assert.throws(() => providerChainAuthority({ rpc: ['https://a.example', 'https://b.example'], chainAuthority: 'verifier' }), /quorum or attested-verifier/);
++  // INTENTIONAL API CHANGE (r10 composition): the verifier lineage's LOCAL-verifier provider mode (e0dfe98aa;
++  // attested-chain-verifier.test.mjs:366) is kept. Without its verifier it still refuses; a provider with host services may not use it.
++  assert.throws(() => providerChainAuthority({ rpc: ['https://a.example', 'https://b.example'], chainAuthority: 'verifier' }), /needs chainVerifier/);
++  assert.throws(() => providerChainAuthority({ rpc: ['https://a.example', 'https://b.example'], chainAuthority: 'local' }), /quorum, verifier or attested-verifier/);
+   const lv = await startLoopbackVerifier({ upstream: 'http://127.0.0.1:1' }); after(() => lv.close());
+   const g = await guest({ verifierPort: Number(new URL(lv.url).port) });
+   const c = attestedCfg(g);
+@@ -106,6 +109,10 @@ test('the provider authority is ONE explicit choice: the quorum is unchanged; mi
+   assert.equal(auth.mode, 'attested-verifier'); assert.equal(auth.rpc.length, 0, 'no raw RPC client exists');
+   const hs = (extra) => providerHostServices({ zone: 'app.enclave.host', platformHostPolicy: { book: BOOK, hostOwnership: OWNERSHIP, mirrors: ['https://mirror.example/policy'] }, ...extra }, { roles: ['ingress'] });
+   assert.throws(() => providerHostPolicyRuntime(hs({ platformHostPolicyRpcs: ['https://a.example', 'https://b.example'] }), auth, { stateDir: tmp }), /platformHostPolicyRpcs is not used/);
++  const lvAuth = providerChainAuthority({ rpc: ['https://a.example', 'https://b.example'], chainAuthority: 'verifier', chainVerifier: 'http://127.0.0.1:1/' });
++  assert.equal(lvAuth.mode, 'verifier');
++  assert.throws(() => providerHostPolicyRuntime(hs(), lvAuth, { stateDir: tmp }), /never mixed/, 'host services under the local verifier: refused, the policy is never read through another authority');
++  assert.equal(providerHostPolicyRuntime(null, lvAuth, { stateDir: tmp }), null, 'no host services: nothing to refuse');
+   assert.throws(() => providerHostPolicyRuntime(providerHostServices({ zone: 'app.enclave.host', platformHostPolicy: { book: BOOK, hostOwnership: OWNERSHIP, mirrors: [], rpcs: ['https://a.example', 'https://b.example'] } }, { roles: ['ingress'] }), auth, { stateDir: tmp }),
+     /names its own RPCs or chain authority/);
+   assert.throws(() => providerHostPolicyRuntime(providerHostServices({ zone: 'app.enclave.host', platformHostPolicy: { book: BOOK, hostOwnership: OWNERSHIP, mirrors: [], chainAuthority: 'verifier', chainVerifier: 'http://127.0.0.1:1/' } }, { roles: ['ingress'] }), auth, { stateDir: tmp }),
+diff --git a/test/credit-read-authority.test.mjs b/test/credit-read-authority.test.mjs
+new file mode 100644
+index 000000000..2a632e846
+--- /dev/null
++++ b/test/credit-read-authority.test.mjs
+@@ -0,0 +1,71 @@
++// /credit/ chain endpoints under the site release's read authority (site/js/core/read-authority.js creditEndpoints, used by
++// site/credit/credit.js; scripts/build-site.mjs embeds the same reviewed authority into the credit bundle). Offline: the REAL
++// quorum reader (site/js/core/quorum.js) with a fetch stub that records every URL. What this proves: endpoint SELECTION and
++// that the quorum is never reduced. It proves nothing about the answers: "own-rpc" is a trusted self-hosted transport, not
++// proof verification.   run: node --test test/credit-read-authority.test.mjs
++import test from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import path from "node:path";
++import { fileURLToPath } from "node:url";
++import { resolveReadAuthority, creditEndpoints } from "../site/js/core/read-authority.js";
++import { createQuorumReader, jsonRpc } from "../site/js/core/quorum.js";
++import { embedReadAuthority, READ_AUTHORITY_DECLARATION } from "../scripts/site-read-authority.mjs";
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const CONFIG = JSON.parse(fs.readFileSync(path.join(ROOT, "site/credit/credit-config.json"), "utf8"));   // the shipped defaults
++const OWN = ["https://rpc-a.own-node.example/", "https://rpc-b.own-node.example/base"];
++const auth = (rpcs = OWN) => JSON.stringify({ version: 1, mode: "own-rpc", rpcs, trust: "self-hosted-transport" });
++const PUBLIC_HOSTS = CONFIG.rpcs.map((u) => new URL(u).host);
++
++test("legacy (no release authority): credit-config.json's endpoints and quorum, exactly as before", () => {
++  const e = creditEndpoints({ authority: resolveReadAuthority({ legacy: [] }), config: CONFIG });
++  assert.deepEqual(e, { rpcs: CONFIG.rpcs, quorum: CONFIG.quorum, source: "config" });
++  assert.equal(CONFIG.quorum, 2, "the shipped credit quorum is 2");
++});
++
++test("own-rpc release: ONLY the own endpoints, with the SAME quorum; the shipped public defaults are not used", () => {
++  const e = creditEndpoints({ authority: resolveReadAuthority({ text: auth(), legacy: [] }), config: CONFIG });
++  assert.deepEqual(e, { rpcs: OWN, quorum: CONFIG.quorum, source: "release-own-rpc" });
++  assert.ok(e.rpcs.every((u) => !PUBLIC_HOSTS.includes(new URL(u).host)));
++});
++
++test("own-rpc with ONE endpoint is refused: one own RPC never stands in for the quorum, and nothing public is substituted", () => {
++  assert.throws(() => creditEndpoints({ authority: resolveReadAuthority({ text: auth([OWN[0]]), legacy: [] }), config: CONFIG }),
++    /names 1 endpoint\(s\), but the credit page needs 2 agreeing: refusing/);
++});
++
++test("an invalid or mislabelled release authority is refused (no endpoint at all, never the public defaults)", () => {
++  for (const text of ['{"version":1}', auth(["https://mainnet.base.org/"]), auth(["http://own.example/"])])
++    assert.throws(() => creditEndpoints({ authority: resolveReadAuthority({ text, legacy: [] }), config: CONFIG }), /invalid \(.+\): refusing/);
++});
++
++test("the owner's saved endpoints keep precedence over the release (the owner's explicit choice, unchanged)", () => {
++  const saved = { rpcs: ["https://x.example/", "https://y.example/"], quorum: 2 };
++  for (const text of [null, auth()]) assert.deepEqual(creditEndpoints({ authority: resolveReadAuthority({ text, legacy: [] }), saved, config: CONFIG }), { ...saved, source: "owner" });
++  assert.equal(creditEndpoints({ authority: resolveReadAuthority({ legacy: [] }), saved: { rpcs: ["https://x.example/"] }, config: CONFIG }).source, "config",
++    "a malformed saved entry (no quorum) is ignored, not trusted");
++});
++
++test("integration: the REAL quorum reader built from the own-rpc selection contacts ONLY the own endpoints, and fails without a public fallback", async () => {
++  const seen = [];
++  const fetchStub = async (url) => { seen.push(String(url)); throw new Error("own node down"); };
++  const e = creditEndpoints({ authority: resolveReadAuthority({ text: auth(), legacy: [] }), config: CONFIG });
++  const reader = createQuorumReader({ rpcs: e.rpcs, quorum: e.quorum, confirmations: CONFIG.confirmations, maxBlockAgeSeconds: CONFIG.maxBlockAgeSeconds,
++    chainId: CONFIG.chainId, rpc: jsonRpc(fetchStub, 1000) });
++  assert.deepEqual([...reader.rpcs], OWN); assert.equal(reader.quorum, 2);
++  await assert.rejects(Promise.resolve().then(() => reader.snapshot()), "an own-endpoint outage is a refusal");
++  assert.ok(seen.length > 0, "the reader tried to read");
++  assert.ok(seen.every((u) => OWN.some((o) => u.startsWith(new URL(o).origin))), `only own endpoints were contacted: ${seen}`);
++});
++
++test("build seam: the credit bundle embeds the SAME reviewed read authority as the main site (one declaration, one plugin)", () => {
++  const src = fs.readFileSync(path.join(ROOT, "scripts/build-site.mjs"), "utf8");
++  const credit = src.slice(src.indexOf('entryPoints: [path.join(SITE, "credit/credit.js")]'));
++  assert.match(credit.slice(0, 600), /plugins: \[\.\.\.\(READ_AUTH \? \[readAuthorityPlugin\(READ_AUTH\.text, SITE\)\] : \[\]\)\]/,
++    "the credit build applies the reviewed read-authority plugin");
++  const ra = fs.readFileSync(path.join(ROOT, "site/js/core/read-authority.js"), "utf8");
++  assert.equal(ra.split(READ_AUTHORITY_DECLARATION).length - 1, 1, "exactly one replaceable declaration");
++  assert.match(embedReadAuthority(ra, auth()), /export const READ_AUTHORITY_TEXT = "/, "the embedding function used by the plugin replaces it");
++  assert.match(fs.readFileSync(path.join(ROOT, "site/credit/credit.js"), "utf8"), /creditEndpoints\(\{ authority: resolveReadAuthority\(/, "credit.js selects through creditEndpoints");
++});
+diff --git a/test/native-relay-chain-authority.test.mjs b/test/native-relay-chain-authority.test.mjs
+index 745852890..ff0c676e7 100644
+--- a/test/native-relay-chain-authority.test.mjs
++++ b/test/native-relay-chain-authority.test.mjs
+@@ -208,7 +208,13 @@ test('dns-relay process (challenge replica child): the app-zone reader reads onl
+   assert.equal(v.calls.length, asked, 'the default quorum never asks the verifier');
+   const bad = await start({ ...base, chain: pinsOnly, chainAuthority: 'verifier', chainVerifier: v.url }, { ENCLAVE_CHAIN_VERIFIER: 'https://rpc.example.org/' });
+   await waitFor(() => bad.child.exitCode !== null);
+-  assert.equal(bad.child.exitCode, 1, bad.out.slice(-800)); assert.match(bad.out, /fatal: APP_CHALLENGE_AUTH: .*local endpoint/);
++  // bf77da364 (Route DNS fleet reads through the selected relay chain authority) moved this refusal EARLIER: the fleet's
++  // relay chain authority (relay/dns-relay.js:88-89) validates the same ENCLAVE_CHAIN_VERIFIER before the app-zone block,
++  // so the process stops with THAT exact message - before any app-zone reader exists and without asking any verifier
++  assert.equal(bad.child.exitCode, 1, bad.out.slice(-800));
++  assert.match(bad.out, /fatal: chain authority: the verifier must be a local endpoint \(loopback\); a remote server is not a verifier/);
++  assert.doesNotMatch(bad.out, /app-zone chain reads:/, 'stopped before the app-zone reader was built');
++  assert.equal(v.calls.length, asked, 'the refused start asked no verifier');
+ });
+ 
+ // ---- host-services directory replica: role config -> directory-server process --------------------------------------------

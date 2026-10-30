@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: zero routes: the candidate host behaves exactly like the baseline host
+ok 1 - zero routes: the candidate host behaves exactly like the baseline host
+  ---
+  duration_ms: 179.377637
+  type: 'test'
+  ...
+# Subtest: routed app (configured but not activated) never reaches a legacy claim/renew/release/prove/restart path; the unrelated app does
+ok 2 - routed app (configured but not activated) never reaches a legacy claim/renew/release/prove/restart path; the unrelated app does
+  ---
+  duration_ms: 24.104925
+  type: 'test'
+  ...
+# Subtest: routed app (adapters missing (hold mode)) never reaches a legacy claim/renew/release/prove/restart path; the unrelated app does
+ok 3 - routed app (adapters missing (hold mode)) never reaches a legacy claim/renew/release/prove/restart path; the unrelated app does
+  ---
+  duration_ms: 14.532375
+  type: 'test'
+  ...
+# Subtest: activated route: v2 cadence, legacy tick, keeper and hints run concurrently with one runner execution and no transaction
+ok 4 - activated route: v2 cadence, legacy tick, keeper and hints run concurrently with one runner execution and no transaction
+  ---
+  duration_ms: 17.418904
+  type: 'test'
+  ...
+# Subtest: the owner turning hosting off: the real enforceOff -> \#giveUp path stops at once, then the runner records the stop
+ok 5 - the owner turning hosting off: the real enforceOff -> \#giveUp path stops at once, then the runner records the stop
+  ---
+  duration_ms: 2.291064
+  type: 'test'
+  ...
+# Subtest: address-book changes cannot veto exact finalized handoff; wrong source-ledger proof still refuses
+ok 6 - address-book changes cannot veto exact finalized handoff; wrong source-ledger proof still refuses
+  ---
+  duration_ms: 1.305191
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 790.61955

@@ -1,0 +1,6 @@
+[queue] START available=22096MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r2/logs/root-finality-tests-20261026T023106Z-598302
+## finality rc=0
+[memory-guard] exit=0 peakTreeRssMiB=138 minHostAvailableMiB=22048
+[memory-guard] at peak: node:73 node:58 bash:4 bash:2 timeout:2
+[queue] EXIT 0

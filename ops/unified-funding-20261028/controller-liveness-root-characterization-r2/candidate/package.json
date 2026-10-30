@@ -1,0 +1,63 @@
+{
+  "name": "enclave-supervisor",
+  "version": "0.1.0",
+  "private": true,
+  "license": "SEE LICENSE IN LICENSE",
+  "type": "module",
+  "description": "Enclave supervisor — the whole service, running inside the attested guest. Control + data + per-use container launch. Nothing external touches a prompt.",
+  "main": "supervisor.js",
+  "scripts": {
+    "prepare": "node -e \"try{require('child_process').execFileSync('git',['config','core.hooksPath','.githooks'],{stdio:'ignore'})}catch{}\"",
+    "start": "node supervisor.js",
+    "dev": "node --watch supervisor.js",
+    "test": "node --test --test-timeout=120000 test/*.test.mjs",
+    "test:integration": "node verifier/integration/run.mjs",
+    "test:client-persistence": "node verifier/integration/run-client-persistence.mjs",
+    "build:vendor": "node scripts/build-vendor.mjs",
+    "build:site": "node scripts/build-site.mjs",
+    "watch:site": "tailwindcss -i site/css/src/main.css -o site/css/site.css --watch",
+    "test:client-ext": "node --test --test-timeout=180000 test/verifier-pvm-client-ext.test.mjs",
+    "test:client-supersede": "node --test test/verifier-pvm-client-supersede.test.mjs",
+    "test:client-update": "node --test test/verifier-pvm-client-update.test.mjs",
+    "test:client-activation": "node --test test/verifier-pvm-client-activation.test.mjs",
+    "test:client-next": "node --test test/verifier-pvm-client-next.test.mjs",
+    "test:client-device-activation": "node --test test/verifier-pvm-client-device-activation.test.mjs",
+    "test:client-device-2-negative": "node verifier/integration/run-device-2-negative.mjs",
+    "test:client-device-activation-3": "node --test test/verifier-pvm-client-device-activation-3.test.mjs",
+    "test:client-device-activation-2": "node --test test/verifier-pvm-client-device-activation-2.test.mjs",
+    "test:verdict": "node --test test/verifier-integration-verdict.test.mjs",
+    "test:collateral-cache": "node --test test/verifier-collateral-cache.test.mjs",
+    "test:policy-deployments": "node --test test/verifier-pvm-policy-deployments.test.mjs",
+    "test:stability-50": "node --test test/verifier-pvm-stability-50.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@noble/ciphers": "^1.3.0",
+    "@noble/curves": "^1.9.1",
+    "@noble/hashes": "^1.8.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "jose": "^5.9.6",
+    "viem": "^2.53.1",
+    "ws": "^8.21.0"
+  },
+  "//solc": "solc is a devDependency because the Dockerfile installs with --omit=dev and this image is MEASURED: every byte it carries is in the TCB and in the published measurement. Nothing inside the enclave imports solc - the only importers are scripts/deploy-*.mjs and scripts/build-contract-artifacts.mjs, which run on a release machine, and the Dockerfile copies no scripts/ at all. CI installs devDeps (plain `npm ci`) before it deploys contracts, and the relay ships its own manifest, so both keep working. Moving it also drops solc's `tmp` (GHSA-52f5-9888-hmc6) out of the production tree.",
+  "devDependencies": {
+    "@freedomofpress/sigstore-browser": "0.1.14",
+    "@playwright/cli": "^0.1.17",
+    "@tailwindcss/cli": "^4.3.2",
+    "buffer": "6.0.3",
+    "esbuild": "^0.28.1",
+    "solc": "^0.8.35",
+    "tailwindcss": "^4.3.2"
+  },
+  "//overrides": "viem pinned its own ws (8.20.1), which GHSA-96hv-2xvq-fx4p makes a memory-exhaustion DoS: a peer sending many tiny frames grows the reassembly buffer without bound. NOT reachable today - nothing here uses viem's webSocket() transport, only http() - so this collapses a dormant SECOND copy onto the version the tree already ran, rather than fixing a live hole. An override and not a viem bump because the fixed viem is a major range away, and swapping the library every consumer signs and reads chain state through is a far bigger change than deduping a transport viem is not using here. `$ws` means 'whatever the direct dependency says', so the two can never drift apart into the state that made this necessary.",
+  "overrides": {
+    "ws": "$ws"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "ownedTemporaryTree": "/tmp/lca6.dvAccn",
+  "adapterHash": "8e666ed6970b8bfed283acfdd08bde917f7004bbdd4c9ebd51de038892406fb1",
+  "testHash": "8421c6c3ad06acb6fd1ff001afa7e1d7753a8fd9007afee3804f8418c0a1ca5d",
+  "processObservation": "no run-adapter-r1 or prague Anvil processes remained after guard stop",
+  "reason": "guard stopped process group before normal temporary-tree cleanup"
+}

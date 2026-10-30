@@ -1,0 +1,27 @@
+{
+  "schema": "enclave-windows-permit-release-closure/r10",
+  "status": "AUTHORED SOURCE ONLY - NOT RUN, NOT BUILT, NOT HASHED BY THE AUTHOR",
+  "hashing": "The author had Read/Grep/Write/Edit only and computed no digests. Root computes sha256 for every file below after delivery; RELEASE-CLOSURE-R9/R8/R5 hashes for these paths are HISTORICAL and do not describe the r10 bytes.",
+  "seed": { "files": 219, "seedManifestSha256": "ebf5b6a6fe485ab88fe5b92367d96ddfc9a7f5983ade967a367542bd399477f9", "note": "immutable root r9 replay baseline; all 40 materialized dependencies left present and not overwritten" },
+  "changedProductSource": [
+    { "path": "control/windows/node/host.mjs", "role": "actual Host: independent protectedTick/#protectedPass (authority phase for every route before any plan), snapshot-only #protectedLaunch, unknown-enrollment final-send exclusions (claim/renew permit/keeper fence/reconcile/give-up/release), occupies counts lifecycleAllocated, legacy new-work hold on unresolved lifecycle capacity, lifecycleView.bindCapacity" },
+    { "path": "control/windows/node/protected-supervisor.mjs", "role": "authority(id) split from new work (#newWork); resolveUnknown and capacity observation on the authority path; enrollmentState(); protectedConfigOf(snapshot)" },
+    { "path": "control/windows/node/protected-authority-factory.mjs", "role": "admittedRuntime (dispatch admitStart before ensureStaged; confirmRetired/confirmPresent on evidence); handoff.observe; hostView.bindCapacity(dispatch.capacityUnresolved)" },
+    { "path": "control/network/lifecycle-host-dispatch.mjs", "role": "PINNED R18 COPY MODIFIED (provenance change, flagged): observeRoute/admitStart/confirmPresent/confirmRetired expose the existing observe/learnShares/capacityRefusal/reservation/host-registry fresh decision as a local admission path; no prepare/sign/submit added" },
+    { "path": "control/network/deployment-chain-adapter.mjs", "role": "PINNED R18 COPY MODIFIED (provenance change, flagged): independent snapshot carries envelope { configCid, owner } from the same authenticated deployment row" }
+  ],
+  "unchangedButConsumed": [
+    "control/network/lifecycle-host-owned-authority.mjs (r9 test still asserts its pinned sha ee1f93c8...)",
+    "control/network/deployment-isolation-runtime.mjs", "control/network/deployment-permit-gate.mjs", "control/windows/node/protected-isolation.mjs",
+    "control/windows/node/isolation-lifecycle.mjs", "control/windows/node/isolation-client.mjs"
+  ],
+  "changedTests": [
+    { "path": "test/windows-permit/r10-host-independence.test.mjs", "kind": "new", "imports": "relative candidate modules only; no external workspace imports" },
+    { "path": "test/windows-permit/r7-owner-lifetime.test.mjs", "kind": "carried root correction line36 (entry.promise); line62 correction from r9 kept" },
+    { "path": "test/windows-permit/r4-supervisor-chain.test.mjs", "kind": "carried root r9 fixture corrections: owned obligation store + full snapshot mapping" },
+    { "path": "test/windows-permit/r5-ownership-chain.test.mjs", "kind": "carried root r9 fixture correction: full snapshot mapping" },
+    { "path": "test/windows-permit/r6-stage-revocation.test.mjs", "kind": "carried root r9 fixture correction: live() counts every inventory VM" }
+  ],
+  "dependencyLock": "unchanged from r9: ws 8.21.1 override uses the existing recorded integrity; npm acceptance remains UNVALIDATED; nothing downloaded or invented",
+  "qualification": "none claimed: Windows Job/EXLOCK, Base finality, derived-proof quiescence, production and financial qualification remain coordinator-owned"
+}

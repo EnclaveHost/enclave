@@ -1,0 +1,5 @@
+{"op": "funding-activation-r1-20261028", "phase": "gate-verified", "routesSha256": "129d3300d436213ab24185c1a4789022ead0ab7ad42fbcef2c19b0953460eb5f", "backupDirectory": "/var/lib/enclave-maintenance/session-write-gate/funding-activation-r1-20261028"}
+
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html

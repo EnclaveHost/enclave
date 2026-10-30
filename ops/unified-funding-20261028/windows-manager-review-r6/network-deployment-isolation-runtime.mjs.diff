@@ -1,0 +1,90 @@
+--- work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r5/candidate/control/network/deployment-isolation-runtime.mjs	2026-10-29 05:31:54.352222954 -0700
++++ work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/network/deployment-isolation-runtime.mjs	2026-10-29 08:37:15.824066500 -0700
+@@ -11,8 +11,9 @@
+   if (!Number.isInteger(boundaryTimeoutMs) || boundaryTimeoutMs < 1 || boundaryTimeoutMs > 5000)
+     throw Error('boundary timeout must be within 1..5000 ms');
+   const instances = new Map();
+-  const V2 = isHostAuthorityPermit(gate?.pins);   // host-authority permit r1 (the gate carries the reviewed pins)
+-  if (V2 && typeof gate.handoffHostAuthority !== 'function') throw Error('v2 runtime requires the host-authority permit gate');
++  const inflight = new Map();   // permit r6: id -> settled promises of owned operations still running
++  const V2 =isHostAuthorityPermit(gate?.pins);   // host-authority permit r1 (the gate carries the reviewed pins)
++  if (V2 && (typeof gate.handoffHostAuthority !== 'function' || typeof gate.revoke !== 'function')) throw Error('v2 runtime requires the host-authority permit gate (r6: with purpose-specific revoke)');
+   // async r4 (v2 only): remove an instance and CONFIRM absence through an independent manager lookup; any failure/unknown rejects
+   async function removeConfirmed(id, instance) {
+     if (instance) await client.remove(instance);
+@@ -28,6 +29,9 @@
+     let epoch = null, failure = null, finish;
+     const settled = new Promise((resolve, reject) => { finish = () => (failure ? reject(failure) : resolve(true)); });
+     gate.work(settled, id);
++    // permit r6: an authority withdrawal of `id` waits for these (their late effects are withdrawn by op.spawn) before confirming absence
++    const mine = inflight.get(id) ?? new Set(); inflight.set(id, mine); mine.add(settled);
++    settled.catch(() => {}).finally(() => { mine.delete(settled); if (!mine.size && inflight.get(id) === mine) inflight.delete(id); });
+     const live = () => gate.ownerLive() && (epoch === null || gate.epochOf(id) === epoch);
+     const op = {
+       fencing: false,
+@@ -86,13 +90,34 @@
+     const failed = results.find(r => r.status === 'rejected');
+     if (failed) throw failed.reason;
+   }
++  // permit r6: fence() is the ROUTINE purpose: it withdraws serving and restricts I/O, but a staged, still-authorized instance keeps its
++  // compute (repeated queued readiness reuses that one instance under its unchanged absolute deadline). It is never authority withdrawal.
+   async function fence(id) {
+     gate.hold(id, 'runtime withdrawn');
++    await acknowledgeHold(id);
++  }
++  async function acknowledgeHold(id) {
+     const ack = await boundaryCall('hold', id);
+     if (ack?.deployment !== id || ack?.ingress !== true || ack?.storage !== true || ack?.secrets !== true)
+       throw Error('runtime boundary withdrawal not acknowledged');
+     held.add(id);
+   }
++  // permit r6: AUTHORITY withdrawal. `retiring` was started synchronously by gate.revoke (the caller's first statement), so exact compute
++  // retirement never waits behind a slow or hung boundary. Owned in-flight operations finish first (a late spawn is withdrawn by op.spawn),
++  // then absence is CONFIRMED by an exact-name manager lookup. Resolves only on confirmed absence AND an acknowledged hold; rejects
++  // otherwise (compute may already be absent while the boundary is unacknowledged: the owner stays fenced, the failure stays recorded).
++  async function withdrawAuthority(id, retiring) {
++    const late = [...(inflight.get(id) ?? [])];
++    const [ack, removal] = await Promise.allSettled([acknowledgeHold(id),
++      (async () => { await retiring; await Promise.allSettled(late); await removeConfirmed(id, null); })()]);
++    if (removal.status === 'rejected') throw removal.reason;
++    if (ack.status === 'rejected') throw ack.reason;
++    instances.delete(id);
++    const known = journal.read(id).runtime;
++    if (known) journal.retireRuntime(id, known.instance);
++    gate.withdrawalProven(id, { absent: true, held: true });
++    return { absent: true, held: true };
++  }
+   async function stop(id) {
+     // A broken boundary cannot prevent an explicit stop from retiring compute.
+     const withdrawal = fence(id).then(() => null, error => error);
+@@ -156,7 +181,7 @@
+           return { ready: false, ended: false, reason: 'launch outcome unknown' };
+         }
+       }
+-      if (V2 && view?.id) gate.stage(id, () => removeConfirmed(id, view.id)); // own compute before readiness can reject
++      if (V2 && view?.id) gate.stage(id, () => removeConfirmed(id, view.id), { host }); // own compute before readiness can reject (r6: host-bound for Offline)
+       const result = await checked(id, snapshot.assignment.generation + 1, view, plan);
+       if (!op.live()) { await op.withdraw(view?.id); op.check(); }   // async r4: readiness resolved after close: withdraw what this start staged
+       const deadline = plan.startupDeadlineMs ?? 180000;
+@@ -185,14 +210,19 @@
+      */
+     async revokeHostAuthority(id, snapshot) {
+       if (!V2) return false;
++      const retiring = gate.revoke(id, 'host authority revoked');   // permit r6: staged compute retirement starts NOW, not after any ack
+       gate.revokeHandoff(id, host);
+       const e = snapshot?.hostAuthorityEvidence;
+       if (e?.proofVerified === true) {
+         if (e.status === 'offline') gate.observeHostEvidence(e);
+         else try { gate.observeHostAuthority(e.context); } catch { /* an older/equal view adds nothing; the binding is already gone */ }
+       }
+-      await fence(id);
+-      return true;
++      return withdrawAuthority(id, retiring);   // permit r6: stronger than fence(): resolves only on CONFIRMED absence + acknowledged hold
++    },
++    /** permit r6: explicit app authority revocation (Offline denial / revoked assignment) for one app: retire compute, not just fence I/O */
++    async revokeAuthority(id, reason = 'app authority revoked') {
++      if (!V2) return false;
++      return withdrawAuthority(id, gate.revoke(id, reason));
+     },
+     async serve(id, snapshot) {
+       if (!V2 && snapshot?.profile === 'independent-host-registry-r1') throw Error('independent-host-registry-r1 serves only through v2 host-authority permits');   // completion r2

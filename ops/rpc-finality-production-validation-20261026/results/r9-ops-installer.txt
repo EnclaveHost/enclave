@@ -1,0 +1,18 @@
+test_activation_refuses_a_partial_or_altered_set (__main__.Installer.test_activation_refuses_a_partial_or_altered_set) ... ok
+test_activation_refuses_a_tampered_installed_tree_file (__main__.Installer.test_activation_refuses_a_tampered_installed_tree_file) ... ok
+test_activation_refuses_a_writable_or_symlinked_tree_entry (__main__.Installer.test_activation_refuses_a_writable_or_symlinked_tree_entry) ... ok
+test_activation_refuses_an_extra_or_missing_tree_file (__main__.Installer.test_activation_refuses_an_extra_or_missing_tree_file) ... ok
+test_backup_is_a_copy_and_never_changes_the_live_mode (__main__.Installer.test_backup_is_a_copy_and_never_changes_the_live_mode) ... ok
+test_extra_file_in_a_tree_destination_is_refused_before_any_write (__main__.Installer.test_extra_file_in_a_tree_destination_is_refused_before_any_write) ... ok
+test_injected_mid_commit_failure_restores_everything_exactly (__main__.Installer.test_injected_mid_commit_failure_restores_everything_exactly) ... ok
+test_interrupted_commit_blocks_install_and_activation_until_recover_restores_exactly (__main__.Installer.test_interrupted_commit_blocks_install_and_activation_until_recover_restores_exactly) ... ok
+test_late_destination_refusal_changes_nothing (__main__.Installer.test_late_destination_refusal_changes_nothing) ... ok
+test_late_source_refusal_changes_nothing (__main__.Installer.test_late_source_refusal_changes_nothing) ... ok
+test_qualification_needs_the_exact_r6_lines (__main__.Installer.test_qualification_needs_the_exact_r6_lines) ... ok
+test_tree_replacement_lands_exactly_and_a_repeated_preflight_is_clean (__main__.Installer.test_tree_replacement_lands_exactly_and_a_repeated_preflight_is_clean) ... ok
+test_tree_rollback_restores_originals_removes_only_its_files_and_keeps_backups_outside (__main__.Installer.test_tree_rollback_restores_originals_removes_only_its_files_and_keeps_backups_outside) ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 0.464s
+
+OK

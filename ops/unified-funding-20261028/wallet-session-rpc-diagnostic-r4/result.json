@@ -1,0 +1,102 @@
+[
+  {
+    "url": "https://developer-access-mainnet.base.org",
+    "result": [
+      {
+        "name": "chain",
+        "ok": false,
+        "errors": [
+          {
+            "name": "HttpRequestError",
+            "short": "HTTP request failed.",
+            "details": "fetch failed",
+            "message": "HTTP request failed.\n\nURL: https://developer-access-mainnet.base.org/\nRequest body: {\"method\":\"eth_chainId\",\"params\":[]}\n\nDetails: fetch failed\nVersion: viem@2.53.1"
+          },
+          {
+            "name": "TypeError",
+            "message": "fetch failed"
+          },
+          {
+            "name": "Error",
+            "code": "ENOTFOUND",
+            "message": "getaddrinfo ENOTFOUND developer-access-mainnet.base.org"
+          }
+        ]
+      },
+      {
+        "name": "logs",
+        "ok": false,
+        "errors": [
+          {
+            "name": "HttpRequestError",
+            "short": "HTTP request failed.",
+            "details": "fetch failed",
+            "message": "HTTP request failed.\n\nURL: https://developer-access-mainnet.base.org/\nRequest body: {\"method\":\"eth_getLogs\",\"params\":[{\"address\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"topics\":[\"0x23c373344ac1f1f50daef0ec31f6924948297610efa8499362428205bcc86b4f\"],\"fromBlock\":\"0x3262564\",\"toBlock\":\"0x3264c73\"}]}\n\nDetails: fetch failed\nVersion: viem@2.53.1"
+          },
+          {
+            "name": "TypeError",
+            "message": "fetch failed"
+          },
+          {
+            "name": "Error",
+            "code": "ENOTFOUND",
+            "message": "getaddrinfo ENOTFOUND developer-access-mainnet.base.org"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "url": "https://base.gateway.tenderly.co",
+    "result": [
+      {
+        "name": "chain",
+        "ok": false,
+        "errors": [
+          {
+            "name": "LimitExceededRpcError",
+            "code": -32005,
+            "short": "Request exceeds defined limit.",
+            "details": "rate limit exceeded",
+            "message": "Request exceeds defined limit.\n\nURL: https://base.gateway.tenderly.co\nRequest body: {\"method\":\"eth_chainId\",\"params\":[]}\n\nDetails: rate limit exceeded\nVersion: viem@2.53.1"
+          },
+          {
+            "name": "RpcRequestError",
+            "code": -32005,
+            "short": "RPC Request failed.",
+            "details": "rate limit exceeded",
+            "message": "RPC Request failed.\n\nURL: https://base.gateway.tenderly.co\nRequest body: {\"method\":\"eth_chainId\",\"params\":[]}\n\nDetails: rate limit exceeded\nVersion: viem@2.53.1"
+          },
+          {
+            "code": -32005,
+            "message": "rate limit exceeded"
+          }
+        ]
+      },
+      {
+        "name": "logs",
+        "ok": false,
+        "errors": [
+          {
+            "name": "LimitExceededRpcError",
+            "code": -32005,
+            "short": "Request exceeds defined limit.",
+            "details": "rate limit exceeded",
+            "message": "Request exceeds defined limit.\n\nURL: https://base.gateway.tenderly.co\nRequest body: {\"method\":\"eth_getLogs\",\"params\":[{\"address\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"topics\":[\"0x23c373344ac1f1f50daef0ec31f6924948297610efa8499362428205bcc86b4f\"],\"fromBlock\":\"0x3262564\",\"toBlock\":\"0x3264c73\"}]}\n\nDetails: rate limit exceeded\nVersion: viem@2.53.1"
+          },
+          {
+            "name": "RpcRequestError",
+            "code": -32005,
+            "short": "RPC Request failed.",
+            "details": "rate limit exceeded",
+            "message": "RPC Request failed.\n\nURL: https://base.gateway.tenderly.co\nRequest body: {\"method\":\"eth_getLogs\",\"params\":[{\"address\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"topics\":[\"0x23c373344ac1f1f50daef0ec31f6924948297610efa8499362428205bcc86b4f\"],\"fromBlock\":\"0x3262564\",\"toBlock\":\"0x3264c73\"}]}\n\nDetails: rate limit exceeded\nVersion: viem@2.53.1"
+          },
+          {
+            "code": -32005,
+            "message": "rate limit exceeded"
+          }
+        ]
+      }
+    ]
+  }
+]

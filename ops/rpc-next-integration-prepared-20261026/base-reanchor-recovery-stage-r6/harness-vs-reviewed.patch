@@ -1,0 +1,413 @@
+--- orig/a2a4.py
++++ r6/harness/a2a4.py
+@@ -29,7 +29,7 @@
+     (from==0 -> full rebuild; validate_state_root against header N; mismatch -> exit 1)
+   - `db get` exits 0 with EMPTY output on a missing key -> every read here requires non-empty, parsed output.
+ """
+-import base64, datetime, hashlib, json, os, pathlib, re, shutil, signal, stat, subprocess, sys, tempfile, time, types
++import base64, datetime, fcntl, hashlib, json, os, pathlib, re, shutil, signal, stat, subprocess, sys, tempfile, time, types
+ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+ import selection as SEL
+ 
+@@ -61,7 +61,7 @@
+ LOG_CAP, STDERR_CAP, GRACE_SEC = 256 << 20, 16 << 20, 120
+ FORBIDDEN_STAGES_V2 = ('hashing', 'account-hashing', 'storage-hashing', 'execution')
+ # ---- A1 evidence pins (a1-a2-integration) ----
+-A1_MODES = ('fresh-initial', 'original-game-recheck')
++A1_MODES = ('fresh-initial', 'original-game-recheck', 'capture-recheck')   # capture-recheck: re-anchor only (r3)
+ A1_FILE_CAP = 1 << 20
+ A1_MAX_L1_AGE_SEC = 1800                          # recorded finalized-header age (A1 DEFAULT_MAX_FINALIZED_AGE_SEC)
+ A1_RUN_WINDOW_SEC = 300                           # receipt `at` - finalized timestamp - recorded age: the runner's own read time
+@@ -100,7 +100,34 @@
+ # ---- config ---------------------------------------------------------------------------------------------------------------
+ KEYS = {'datadir', 'baseBinary', 'baseBinarySha256', 'rethConfig', 'workdir', 'a1Evidence', 'a1MaxAgeSec', 'N', 'outputRoot', 'game',
+         'downloadReceipt', 'manifestPath', 'snapshotMarker', 'timeouts', 'inPlaceReviewed', 'unwindChunk', 'serviceUnits', 'anchorModule',
+-        'depsRoot', 'node', 'minFreeBytes', 'backup', 'bytecodeChecker', 'bytecodeCheckerSha256', 'a1Mode', 'a1GateDir', *A1_RECHECK_KEYS}
++        'depsRoot', 'node', 'minFreeBytes', 'backup', 'bytecodeChecker', 'bytecodeCheckerSha256', 'a1Mode', 'a1GateDir', *A1_RECHECK_KEYS,
++        'reanchor'}
++# ---- re-anchor recovery (base-reanchor-recovery-stage; PREPARED). Absent `reanchor`, every path below is the first bootstrap,
++# unchanged. Present, it is a NEW launch on the SAME downloaded datadir at an A1-authenticated anchor N >= the predecessor launch's
++# anchor: the full A2 (header N authenticated) -> A3 (offline unwind of everything above N) -> A4 (full merkle rebuild validated
++# against header N) -> bytecodes -> release pipeline, with no static upper bound on N. Its bounds are DERIVED, never widened:
++#   lower: N >= reanchor.predecessorN >= STATE_FLOOR (changesets held from STATE_FLOOR: [prune.segments] before <= floor, gate_static);
++#   upper: N <= every stage checkpoint of the STOPPED DB (step_plan) and N == the A1-authenticated anchor (gate_a1 exact match).
++# gate_download is NOT relaxed: the receipt still proves this datadir's origin (the pinned download at SNAPSHOT_HEAD); its CURRENT
++# state is proven only by A4 at N.
++# r3: A1 for a NEWER re-anchor comes ONLY from the reviewed capture module (a1-capture-binding-stage/r4 src/a1_capture.py):
++# an `initial` capture plus a `recheck-capture` of exactly that initial. The initial capture's identity is learned by verifying
++# it at A2 and recorded in a2-authenticated.json (a1Gate.initialCapture); every later step takes the expected initial capture sha
++# from THAT record, never from config or from the recheck. Every accepted capture is admitted ONCE into a durable ledger
++# (replay refused across steps and launches). The module is loaded from its exact pinned bytes; using it is HOLD until a reviewed
++# change sets A1_CAPTURE_REVIEWED (root's run of that stage's 36 tests was queued, not run, when this was written).
++A1_CAPTURE_SOURCE = pathlib.Path('/opt/enclave-rpc/a1-capture/a1_capture.py')    # HOLD: not installed
++A1_CAPTURE_SHA256 = 'db81ea49a2c241ee16ea0018e11dcedccadeb8bb678f51e68394470185639d20'   # a1-capture-binding-stage/r4/src/a1_capture.py
++A1_CAPTURE_REVIEWED = False
++A1_CAPTURE_TEST_PINS = None     # TESTS ONLY: a callable -> that module's Pins over pinned stub sources; production: its reviewed Pins()
++_A1_CAPTURE = None
++REANCHOR_KEYS = {'predecessorN', 'watermarkStore', 'legacyNoWatermark', 'a1Capture', 'admissionLedger'}
++# r2: the persisted AUTHENTICATED-FINALITY WATERMARK (root-owned, hash-chained entries NNNNNN.json; written only by the reviewed
++# producer `arm` (kind launch-anchor) and, in future, by a reviewed finality-proof acceptance (kind finality-proof; HOLD today)).
++# A re-anchor below it, or at its height with another block, refuses: accepted finalized guarantees are never discarded.
++WATERMARK_FORMAT = 'enclave-base-finality-watermark/v1'
++WATERMARK_KINDS = {'launch-anchor', 'finality-proof'}
++WATERMARK_KEYS = {'format', 'seq', 'prevSha256', 'number', 'blockHash', 'kind', 'ref', 'at'}
+ 
+ 
+ def load_config(path):
+@@ -113,8 +140,23 @@
+             refuse('bad_config', f'{k} must be an absolute path')
+     if not re.fullmatch(r'[0-9a-f]{64}', str(c.get('baseBinarySha256', ''))):
+         refuse('bad_config', 'baseBinarySha256 must be 64 hex')
+-    if not isinstance(c.get('N'), int) or not STATE_FLOOR <= c['N'] < SNAPSHOT_HEAD:
+-        refuse('bad_config', f'N must be an integer in [{STATE_FLOOR}, {SNAPSHOT_HEAD})')
++    ra = c.get('reanchor')
++    if ra is None:
++        if not isinstance(c.get('N'), int) or not STATE_FLOOR <= c['N'] < SNAPSHOT_HEAD:
++            refuse('bad_config', f'N must be an integer in [{STATE_FLOOR}, {SNAPSHOT_HEAD})')
++    else:
++        absp = lambda v: isinstance(v, str) and os.path.isabs(v)
++        if not isinstance(ra, dict) or not set(ra) <= REANCHOR_KEYS or type(ra.get('predecessorN')) is not int or ra['predecessorN'] < STATE_FLOOR:
++            refuse('bad_config', f'reanchor must be {{predecessorN >= {STATE_FLOOR}, watermarkStore[, legacyNoWatermark][, a1Capture, admissionLedger]}}')
++        if not absp(ra.get('watermarkStore')) or type(ra.get('legacyNoWatermark', False)) is not bool:
++            refuse('bad_config', 'reanchor.watermarkStore (absolute) is required; legacyNoWatermark is an explicit boolean')
++        if ('a1Capture' in ra) != ('admissionLedger' in ra) or ('a1Capture' in ra and not (
++                isinstance(ra['a1Capture'], dict) and set(ra['a1Capture']) == {'initialOut', 'recheckOut'}
++                and all(absp(v) for v in ra['a1Capture'].values()) and absp(ra['admissionLedger']))):
++            refuse('bad_config', 'reanchor.a1Capture {initialOut, recheckOut} and reanchor.admissionLedger (absolute) go together')
++        if type(c.get('N')) is not int or c['N'] < ra['predecessorN']:
++            refuse('bad_config', 're-anchor N must be an integer >= reanchor.predecessorN (an anchor never moves backward); its upper '
++                   'bound is the stopped DB (step_plan) and the A1-authenticated anchor (gate_a1)')
+     if not re.fullmatch(r'0x[0-9a-f]{64}', str(c.get('outputRoot', ''))) or not re.fullmatch(r'0x[0-9a-f]{40}', str(c.get('game', ''))):
+         refuse('bad_config', 'outputRoot/game must be lowercase hex')
+     if not isinstance(c.get('a1MaxAgeSec'), int) or not 60 <= c['a1MaxAgeSec'] <= 3600:
+@@ -144,9 +186,251 @@
+                 refuse('bad_config', f'{k} must be 64 lowercase hex in original-game-recheck mode')
+     elif any(k in c for k in A1_RECHECK_KEYS):
+         refuse('bad_config', f'{list(A1_RECHECK_KEYS)} belong to a1Mode original-game-recheck only')
++    if (c['a1Mode'] == 'capture-recheck') != (ra is not None and 'a1Capture' in ra):
++        refuse('bad_config', 'a1Mode capture-recheck is exactly the re-anchor mode with reanchor.a1Capture')
++    if ra is not None and c['a1Mode'] not in ('original-game-recheck', 'capture-recheck'):
++        refuse('bad_config', 'a re-anchor runs original-game-recheck (same anchor, source pin) or capture-recheck (a newer anchor)')
++    if c['a1Mode'] == 'capture-recheck' and c['a1Evidence'] != os.path.join(ra['a1Capture']['recheckOut'], 'capture', 'evidence.json'):
++        refuse('bad_config', 'in capture-recheck a1Evidence is the recheck capture evidence (no other receipt path)')
+     return c
+ 
+ 
++def initial_pin(c):
++    """original-game-recheck (first bootstrap and same-anchor re-anchor): ONLY the source-pinned initial receipt. A newer anchor
++    is never pinned by config: it goes through capture-recheck (capture_a1)."""
++    if c['a1InitialSha256'] != A1_INITIAL_SHA256:
++        refuse('a1_initial_pin', f'a1InitialSha256 is not the pinned initial A1 receipt {A1_INITIAL_SHA256[:12]}... (a source change, never config)')
++    return 'source-pin'
++
++
++def load_capture():
++    """The reviewed capture module, executed from exactly its pinned bytes (HOLD until A1_CAPTURE_REVIEWED)."""
++    global _A1_CAPTURE
++    if not A1_CAPTURE_REVIEWED:
++        refuse('a1_capture_pending', 'HOLD: the A1 capture module (a1-capture-binding-stage/r4) is not reviewed for use (A1_CAPTURE_REVIEWED)')
++    if _A1_CAPTURE is None or _A1_CAPTURE[0] != (str(A1_CAPTURE_SOURCE), A1_CAPTURE_SHA256):
++        b = _read_trusted(str(A1_CAPTURE_SOURCE), 'A1 capture module', 4 << 20)
++        if hashlib.sha256(b).hexdigest() != A1_CAPTURE_SHA256:
++            refuse('a1_capture_pin', f'{A1_CAPTURE_SOURCE} is not the reviewed capture module {A1_CAPTURE_SHA256[:12]}...')
++        m = types.ModuleType('a1_capture_reviewed'); m.__file__ = str(A1_CAPTURE_SOURCE); sys.modules['a1_capture_reviewed'] = m
++        exec(compile(b, str(A1_CAPTURE_SOURCE), 'exec'), m.__dict__)
++        _A1_CAPTURE = ((str(A1_CAPTURE_SOURCE), A1_CAPTURE_SHA256), m)
++    return _A1_CAPTURE[1]
++
++
++def capture_binding(c, initial_summary=None):
++    """-> (initial binding, recheck summary, initial bytes, recheck bytes). The expected initial capture comes from the A2 record
++    (or, at A2 itself, from verifying the named initial capture now); the recheck must be a clean recheck-capture of exactly it."""
++    C = load_capture(); cap = c['reanchor']['a1Capture']; w = pathlib.Path(c['workdir'])
++    kw = {'pins': A1_CAPTURE_TEST_PINS() if A1_CAPTURE_TEST_PINS else None, 'node': c['node'], 'workdir': str(w)}
++    a2 = load(w, 'a2-authenticated.json', need=False)
++    try:
++        if a2 is None:
++            si = initial_summary or C.verify(cap['initialOut'], **kw)
++            if si['mode'] != 'initial':
++                refuse('a1_capture_binding', 'reanchor.a1Capture.initialOut is not an initial capture')
++            bound = {'outPath': cap['initialOut'], 'captureId': si['captureId'], 'captureSha256': si['captureSha256'], 'evidenceSha256': si['evidenceSha256']}
++        else:
++            bound = (a2.get('a1Gate') or {}).get('initialCapture')
++            if not isinstance(bound, dict) or bound.get('outPath') != cap['initialOut']:
++                refuse('a1_capture_binding', 'reanchor.a1Capture.initialOut is not the initial capture A2 recorded')
++        sr = C.verify(cap['recheckOut'], initial_out=bound['outPath'], expected_initial_capture_sha256=bound['captureSha256'], **kw)
++    except C.Refused as e:
++        refuse('a1_capture', f'{e.code}: {e}')
++    if sr.get('mode') != 'recheck-capture' or (sr.get('initialCapture') or {}).get('captureSha256') != bound['captureSha256']:
++        refuse('a1_capture_binding', 'the recheck is not a recheck-capture of the recorded initial capture')
++    age = (now() - _utc(sr['finishedAt'], 'recheck capture finishedAt')).total_seconds()
++    if age < 0 or age > c['a1MaxAgeSec']:
++        refuse('a1_stale', f'the recheck capture finished {int(age)} s ago (max {c["a1MaxAgeSec"]}): capture a new recheck')
++    ini = _read_trusted(os.path.join(bound['outPath'], 'capture', 'evidence.json'), 'initial capture evidence', A1_FILE_CAP)
++    rk = _read_trusted(os.path.join(cap['recheckOut'], 'capture', 'evidence.json'), 'recheck capture evidence', A1_FILE_CAP)
++    if hashlib.sha256(ini).hexdigest() != bound['evidenceSha256'] or hashlib.sha256(rk).hexdigest() != sr['evidenceSha256']:
++        refuse('a1_capture_binding', 'the capture evidence changed after it was verified')
++    return bound, sr, ini, rk
++
++
++# r4: the admission ledger is a strict, hash-chained JSON-lines file, read, checked and appended ONLY while holding an exclusive
++# flock on a stable root-owned sibling `<ledger>.lock`. The lock is keyed by the LEDGER path, not by a workdir (the harness has
++# no per-workdir lock), so steps of different workdirs/launches serialize on it. C.admit() is only the in-memory replay rule;
++# durability is the full-write + fsync append below, re-verified before the step proceeds.
++LEDGER_FORMAT = 'enclave-a1-admission-ledger/v1'
++LEDGER_KEYS = {'format', 'seq', 'prevSha256', 'at', 'keys'}
++LEDGER_KEY = re.compile(r'(capture|evidence|record):[0-9a-f]{32,64}')
++LEDGER_MAX = 16 << 20
++LEDGER_LOCK_TIMEOUT_SEC = 60
++
++
++def ledger_line(rec):
++    """The one canonical encoding of a ledger record (sorted keys, no spaces) + newline."""
++    return json.dumps(rec, sort_keys=True, separators=(',', ':')).encode() + b'\n'
++
++
++def _ledger_paths(c):
++    p = pathlib.Path(c['reanchor']['admissionLedger'])
++    st = os.lstat(p.parent)
++    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode) or st.st_uid != TRUSTED_UID or st.st_mode & 0o022:
++        refuse('untrusted_file', f'{p.parent} (the ledger directory) must be a real directory owned by uid {TRUSTED_UID}, not group/other-writable')
++    return p, p.with_name(p.name + '.lock')
++
++
++def _ledger_lock(lock):
++    """Exclusive flock on the stable sibling lock file (created 0600 if absent; never a symlink; owner TRUSTED_UID; fd == path)."""
++    try:
++        fd = os.open(lock, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
++    except OSError as e:
++        refuse('untrusted_file', f'ledger lock {lock} cannot be opened safely ({type(e).__name__}: a symlink is refused)')
++    try:
++        st, ln = os.fstat(fd), os.lstat(lock)
++        if not stat.S_ISREG(st.st_mode) or st.st_uid != TRUSTED_UID or st.st_mode & 0o077 or (st.st_dev, st.st_ino) != (ln.st_dev, ln.st_ino):
++            refuse('untrusted_file', f'ledger lock {lock} must be a private regular file owned by uid {TRUSTED_UID}')
++        deadline = time.monotonic() + LEDGER_LOCK_TIMEOUT_SEC
++        while True:
++            try:
++                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
++                return fd
++            except BlockingIOError:
++                if time.monotonic() > deadline:
++                    refuse('a1_ledger_busy', f'the admission ledger lock is held for > {LEDGER_LOCK_TIMEOUT_SEC} s: nothing admitted')
++                time.sleep(0.02)
++    except BaseException:
++        os.close(fd)
++        raise
++
++
++def ledger_records(p):
++    """The verified ledger -> ([(sha256 of line, record)], admitted key set, raw bytes). Refuses an incomplete tail (interrupted
++    append), any non-canonical line, schema/seq/chain break, unsorted/empty/malformed keys, or a key admitted twice."""
++    if not os.path.lexists(p):
++        return [], set(), b''
++    b = _read_trusted(str(p), 'A1 admission ledger', LEDGER_MAX)
++    if b and not b.endswith(b'\n'):
++        refuse('a1_ledger', 'the ledger ends in an incomplete record (an interrupted append): ambiguous, so nothing is admitted until root resolves it')
++    out, seen, prev = [], set(), None
++    for i, line in enumerate(b.split(b'\n')[:-1], 1):
++        try:
++            r = json.loads(line)
++        except ValueError:
++            refuse('a1_ledger', f'ledger record {i} is not JSON')
++        if not (isinstance(r, dict) and set(r) == LEDGER_KEYS and r['format'] == LEDGER_FORMAT and r['seq'] == i and r['prevSha256'] == prev
++                and isinstance(r['at'], str) and isinstance(r['keys'], list) and r['keys'] and r['keys'] == sorted(set(r['keys']))
++                and all(isinstance(k, str) and LEDGER_KEY.fullmatch(k) for k in r['keys'])) or ledger_line(r) != line + b'\n':
++            refuse('a1_ledger', f'ledger record {i} breaks the schema, sequence, hash chain or canonical encoding')
++        if seen & set(r['keys']):
++            refuse('a1_ledger', f'ledger record {i} repeats an already admitted key {sorted(seen & set(r["keys"]))[0]}')
++        seen |= set(r['keys']); prev = hashlib.sha256(line + b'\n').hexdigest(); out.append((prev, r))
++    return out, seen, b
++
++
++def admit_captures(c, summaries):
++    """Durable replay refusal: each capture (id, record, evidence) is admitted at most once, across steps, workdirs and launches.
++    Under the ledger lock: read + verify the whole ledger, apply C.admit (in memory), append ONE canonical record with an exact
++    full write + fsync (+ directory fsync when created), re-verify that it landed. Only then does the step proceed. A step that
++    fails later needs a NEW capture (never a replay)."""
++    C = load_capture(); p, lock = _ledger_paths(c)
++    fd = _ledger_lock(lock)
++    try:
++        recs, seen, raw = ledger_records(p)
++        new = set(seen)
++        try:
++            for summary in summaries:
++                C.admit(summary, new)                     # the replay RULE only; nothing here is durable by itself
++        except C.Refused as e:
++            refuse('a1_replayed', f'{e.code}: {e}')
++        rec = {'format': LEDGER_FORMAT, 'seq': len(recs) + 1, 'prevSha256': recs[-1][0] if recs else None, 'at': now().isoformat(),
++               'keys': sorted(new - seen)}
++        line = ledger_line(rec); created = not os.path.lexists(p)
++        wfd = os.open(p, os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW | os.O_CLOEXEC | (os.O_CREAT | os.O_EXCL if created else 0), 0o600)
++        try:
++            if os.fstat(wfd).st_size != len(raw):
++                refuse('a1_ledger', 'the ledger changed while the lock was held')
++            view = memoryview(line)
++            while view:
++                n = os.write(wfd, view)
++                if n <= 0:
++                    refuse('a1_ledger', 'short write to the ledger')
++                view = view[n:]
++            os.fsync(wfd)
++        finally:
++            os.close(wfd)
++        if created:
++            dfd = os.open(p.parent, os.O_RDONLY | os.O_DIRECTORY)
++            try:
++                os.fsync(dfd)
++            finally:
++                os.close(dfd)
++        after, _seen, _raw = ledger_records(p)
++        if len(after) != rec['seq'] or after[-1][1] != rec:
++            refuse('a1_ledger', 'the ledger append did not land')
++    finally:
++        os.close(fd)
++
++
++def watermark_entries(store):
++    """The verified watermark chain -> [(sha256, entry)] oldest first; [] when the store is absent or holds no entry."""
++    p = pathlib.Path(store)
++    if not os.path.lexists(p):
++        return []
++    st = os.lstat(p)
++    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode) or st.st_uid != TRUSTED_UID or st.st_mode & 0o022:
++        refuse('watermark_tamper', f'{p} is not a real directory owned by uid {TRUSTED_UID} and not group/other-writable')
++    out, prev = [], None
++    for name in sorted(os.listdir(p)):
++        if re.fullmatch(r'\.partial-[0-9]+', name):
++            continue
++        if not re.fullmatch(r'[0-9]{6}\.json', name) or int(name[:6]) != len(out) + 1:
++            refuse('watermark_tamper', f'unexpected watermark entry {name}')
++        b = _read_trusted(str(p / name), 'watermark entry', A1_FILE_CAP)
++        try:
++            e = json.loads(b)
++        except ValueError:
++            refuse('watermark_tamper', f'{name} is not JSON')
++        if not (isinstance(e, dict) and set(e) == WATERMARK_KEYS and e['format'] == WATERMARK_FORMAT and e['seq'] == len(out) + 1
++                and e['prevSha256'] == prev and type(e['number']) is int and re.fullmatch(r'0x[0-9a-f]{64}', str(e['blockHash']))
++                and e['kind'] in WATERMARK_KINDS and re.fullmatch(r'[0-9a-f]{64}', str(e['ref']))):
++            refuse('watermark_tamper', f'watermark chain broken at {name}')
++        if out and not (e['number'] > out[-1][1]['number'] or (e['number'] == out[-1][1]['number'] and e['blockHash'] == out[-1][1]['blockHash'])):
++            refuse('watermark_tamper', f'watermark regresses or conflicts at {name}')
++        h = hashlib.sha256(b).hexdigest(); out.append((h, e)); prev = h
++    return out
++
++
++def header_hash(c, header):
++    """keccak block hash of a header JSON, with the same pinned anchor module authenticate() uses."""
++    script = ("const fs=await import('node:fs');const m=await import(process.env.A);const d=await import(process.env.D);"
++              "const i=JSON.parse(fs.readFileSync(0,'utf8'));console.log(JSON.stringify({blockHash:m.headerHash(i,(b)=>d.keccak_256(b))}))")
++    deps = pathlib.Path(c['depsRoot'], 'node_modules/@noble/hashes/sha3.js')
++    env = dict(os.environ, A=pathlib.Path(c['anchorModule']).as_uri(), D=deps.as_uri())
++    p = subprocess.run([c['node'], '--input-type=module', '-e', script], input=json.dumps(header), capture_output=True, text=True, env=env, timeout=60)
++    try:
++        return json.loads(p.stdout.strip().splitlines()[-1])['blockHash']
++    except Exception:
++        refuse('a2_tool', f'header hash produced no result: {p.stderr[-300:]}')
++
++
++def gate_watermark(c, base, anchor_hash=None):
++    """Re-anchor only. The chosen anchor must not lie below the latest accepted authenticated-finality watermark, nor at its
++    height with another block; with `base` (after gate_static) the STOPPED DB's header at the watermark height must be the
++    watermarked block. No watermark -> refuses unless reanchor.legacyNoWatermark is explicitly true (and then only while none
++    exists). -> the binding produce records in the launch."""
++    ra = c['reanchor']; es = watermark_entries(ra['watermarkStore'])
++    if not es:
++        if ra.get('legacyNoWatermark') is not True:
++            refuse('watermark_missing', 'no accepted authenticated-finality watermark is recorded: a re-anchor without one must be declared '
++                   'explicitly (reanchor.legacyNoWatermark = true)')
++        return {'legacy': True}
++    if ra.get('legacyNoWatermark'):
++        refuse('watermark_legacy', 'legacyNoWatermark is only for a store with no entry; an accepted watermark exists')
++    head_sha, head = es[-1]
++    if c['N'] < head['number']:
++        refuse('watermark_below', f'N {c["N"]} is below the accepted authenticated-finality watermark {head["number"]} ({head["kind"]}): '
++               'an accepted finalized guarantee is never discarded')
++    if anchor_hash is not None and c['N'] == head['number'] and anchor_hash != head['blockHash']:
++        refuse('watermark_conflict', f'the anchor block at {c["N"]} is not the watermarked block {head["blockHash"][:14]}...')
++    if base is not None and header_hash(c, read_header(c, base, head['number'])) != head['blockHash']:
++        refuse('watermark_conflict', f'the stopped DB header {head["number"]} is not the watermarked block (another chain)')
++    return {'seq': len(es), 'entrySha256': head_sha, 'number': head['number'], 'blockHash': head['blockHash'], 'kind': head['kind']}
++
++
+ # ---- command runner (every reth call goes through here; tests replace baseBinary with a fake) -----------------------------
+ def exited_unreaped(pid):
+     """True once our child `pid` exited. waitid(WNOWAIT) does NOT reap it: as an unreaped zombie its pid, which is also the
+@@ -362,16 +646,24 @@
+         refuse('a1_provenance', 'the recheck receipt time lies outside its run record window')
+ 
+ 
+-def gate_a1(c):
++def gate_a1(c, at_a2=False):
+     """A1 evidence (module docstring). Both modes: root-owned exact bytes through the pinned JS gate, then here: receipt age <=
+     a1MaxAgeSec, mainnet ASR/type/code-hash pins, exactly the planned N/output root/game, finalized-header age bounded and
+     consistent with the receipt time. original-game-recheck additionally: pinned initial sha, root-reviewed recheck sha, run record."""
+-    ev = _read_trusted(c['a1Evidence'], 'A1 evidence', A1_FILE_CAP)
+-    if c['a1Mode'] == 'fresh-initial':
++    cap = None
++    if c['a1Mode'] == 'capture-recheck':                 # r3: the reviewed capture module, never a config-named receipt hash
++        bound, sr, ini, ev = capture_binding(c)
++        s = a1_node_gate(c, {'mode': 'original-game-recheck', 'initial': base64.b64encode(ini).decode(),
++                             'initialSha256': hashlib.sha256(ini).hexdigest(), 'recheck': base64.b64encode(ev).decode()})
++        cap = (bound, sr)
++    else:
++        ev = _read_trusted(c['a1Evidence'], 'A1 evidence', A1_FILE_CAP)
++    if c['a1Mode'] == 'capture-recheck':
++        pass
++    elif c['a1Mode'] == 'fresh-initial':
+         s = a1_node_gate(c, {'mode': 'fresh-initial', 'initial': base64.b64encode(ev).decode()})
+     else:
+-        if c['a1InitialSha256'] != A1_INITIAL_SHA256:
+-            refuse('a1_initial_pin', f'a1InitialSha256 is not the pinned initial A1 receipt {A1_INITIAL_SHA256[:12]}... (a source change, never config)')
++        initial_pin(c)
+         if hashlib.sha256(ev).hexdigest() != c['a1RecheckSha256']:
+             refuse('a1_recheck_sha', 'the recheck file is not the one root reviewed (a1RecheckSha256)')
+         ini = _read_trusted(c['a1InitialEvidence'], 'initial A1 receipt', A1_FILE_CAP)
+@@ -401,6 +693,13 @@
+          'N': s['N'], 'outputRoot': s['outputRoot'], 'game': s['game'], 'asr': s['asr']}
+     if s['mode'] == 'original-game-recheck':
+         g['initialL1'] = s['initialL1']; g['latestAnchorObservation'] = s['latestAnchorObservation']   # recorded, never used
++    if cap is not None:
++        bound, sr = cap
++        g['initialCapture'] = bound
++        g['recheckCapture'] = {k: sr[k] for k in ('captureId', 'captureSha256', 'evidenceSha256', 'finishedAt')}
++        # admitted only after EVERY check passed: the recheck at every step; the initial once, when A2 records it
++        initial = {'captureId': bound['captureId'], 'captureSha256': bound['captureSha256'], 'evidenceSha256': bound['evidenceSha256']}
++        admit_captures(c, [sr] + ([initial] if at_a2 else []))
+     return g
+ 
+ 
+@@ -612,6 +911,11 @@
+     cps = head_checkpoints(c, base)
+     if cps['execution'] < c['N']:
+         refuse('below_anchor', f'execution checkpoint {cps["execution"]} is below N: sync forward first (not prepared here)')
++    if c.get('reanchor') is not None and min(cps[k] for k in ('headers', 'bodies', 'execution', 'finish')) < c['N']:
++        refuse('below_anchor', f'stage checkpoints {cps}: the stopped DB does not hold N on every stage (re-anchor upper bound)')
++    if c.get('reanchor') is not None:
++        a2 = load(w, 'a2-authenticated.json', need=False)
++        gate_watermark(c, base, (a2 or {}).get('anchor', {}).get('blockHash'))
+     targets = list(range(cps['execution'] - c['unwindChunk'], c['N'], -c['unwindChunk'])) + [c['N']]
+     a4 = [['stage', 'drop', '--datadir', c['datadir'], '--config', c['rethConfig'], 'merkle'],
+           ['stage', 'run', '--datadir', c['datadir'], '--config', c['rethConfig'], '--from', '0', '--to', str(c['N']), '--commit', '--checkpoints', '--skip-unwind', 'merkle']]
+@@ -625,10 +929,12 @@
+ 
+ 
+ def step_a2(c, base, w):
+-    a1 = gate_a1(c)
++    a1 = gate_a1(c, at_a2=True)
+     gate_static(c, base)                              # pins, receipt, stop, layout BEFORE the header read
+     h = read_header(c, base, c['N'])
+     auth = authenticate(c, h)
++    if c.get('reanchor') is not None:
++        gate_watermark(c, base, auth['blockHash'])   # before anything is recorded or unwound
+     save(w, 'a2-authenticated.json', {'at': now().isoformat(), 'anchor': auth, 'header': h, 'a1Gate': a1})
+     return auth
+ 
+@@ -852,6 +1158,8 @@
+     a4 = load(w, 'a4-rebuilt.json')
+     a1 = gate_a1(c)                                   # A1 re-run (or original-game recheck) before derivation is allowed
+     gate_static(c, base)                              # db_identity below reads the DB
++    if c.get('reanchor') is not None:
++        gate_watermark(c, base, a4['blockHash'])      # a watermark accepted during the downtime is honoured here too
+     bind_a1(w, a1)                                    # the SAME initial receipt/N/root/game as A2, not an older L1 block
+     bv = bound_bytecodes(c, base, w)
+     gaps = [g for g in OPEN_GAPS if not (g == 'bytecodes-content-unverified' and bytecode_gap_closed(c, bv))]

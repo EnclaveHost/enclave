@@ -291,6 +291,62 @@ undiverged sequence are protected. Compute/verification failures are never
 retried by this mechanism. A prompt that cannot fit after reclaim still fails
 rather than overwriting another conversation.
 
+KV runs (`llamacpp-kv-runs.patch`, recipe `--kv-runs`, on by default,
+`ENCLAVE_GGML_KV_RUNS=0` disables). Unfused attention costs time per cell of
+`[0, n_kv)`, and the active-extent patch trims only the top: a chat that borrows
+a parked prefix at the bottom of the shared pool and writes its own tokens above
+other parks attends every parked cell in between, masked. Each ubatch now
+collects the cell runs holding its sequences (64-cell bounds, gaps of at most
+128 cells kept, at most 8 runs), computes KQ per run, joins the runs into one
+softmax row, and sums one KQV product per run. Runs are used when they skip at
+least 256 cells and an eighth of `n_kv`.
+
+Numerics: KQ and the softmax are unchanged (skipped cells were exact zeros);
+only the order of the KQV sum changes. `test/fixtures/kv-runs-check.cpp` builds
+the fragmented layout (borrowed prefix, two other conversations, own tail; also
+two sequences in one batch) and dumps every logit row. One run from cell 0 must
+be bit-identical to runs off (`ENCLAVE_KV_RUNS_FORCE=1 ENCLAVE_KV_RUNS_GAP=1000000`),
+and runs that skip cells must drift no more than a split that skips nothing
+(`ENCLAVE_KV_RUNS_SPLIT=1024`): on the 0.8B both give max |dlogit| ~0.3, mean KL
+~8.5e-4. Joining the runs' V into one tensor first keeps the logits bit-identical,
+but on the 27B shapes the copy costs about as much as the attention it saves
+(7.2k of 16.4k cells, 2 tokens, 16 layers, 6 threads: full 56.7 ms, joined copy
+38.6 ms, per-run sums 25.3 ms), so production uses per-run sums. Eyesoff on the
+27B, fresh guest, tools off: 97 -> 72 ms per verify step with the joined copy.
+
+Eyesoff on the 27B (MTP k=1, 64K pool), ms per verify step, 2026-10-06:
+
+| release | tools off | tools on + thinking |
+|---|---|---|
+| c48e71ea (no runs) | 96.5-97.6 | - |
+| 4c719051 (runs, joined V copy) | 72.3-72.9 | 104 (bank nearly empty) |
+| 441c835f (runs, per-run sums) | 69.2-69.9 | 80.1-82.0 |
+| bca1f7bd (+ AVX-512 CPU backend) | 66.9-68.3 | 77.5-78.7, also after parking 6 other chats |
+
+| b20b2826 (+ KV locality, below) | - | 77.0-79.1 over 10 chats in a row (with pads available) |
+
+At 58-68% draft acceptance, 78 ms is 20.2-21.7 tok/s.
+
+KV locality (same patch, `ENCLAVE_GGML_KV_LOCAL=0` disables): a ubatch of one
+sequence grows that sequence right after its last cell when those cells are
+free, else at the start of the first free block of 2048 (then 512) cells, instead
+of filling the lowest holes. With end parks (eyesoff 1.0.75) finished
+conversations stay parked whole and new rows otherwise scattered between them;
+on c48e71ea-era layout the same chat measured 91 ms per step after a few hours of
+use. Placement never changes logits on its own (runs off: bit-identical).
+
+Two things still slow a turn that the engine does not control: a tools-on prompt
+whose MCP tool lists come back different (a server's listing fails) misses the
+parked prefix and prefills ~4k tokens again (50-120 s), and an empty pad bank
+makes decode mint on the spot (~91 ms per step). eyesoff's guestd runs a 512 GiB
+bank (`SHIELDED_PAD_BANK_GIB=512`) so long answers and such misses do not empty it. The AVX-512 backend is
+the production CPU source and flags with `GGML_AVX512{,_BF16,_VNNI,_VBMI}`
+(recipe `--cpu-avx512`; the guest exposes those features; logits drift at the
+same order as KV runs). Do not widen the CPU compute workers: release 50107776
+(10 workers on vCPUs 0,2-10, the link/refill threads on 11-15) decoded at 270
+ms per step, like the 09-28 twelve-worker profile - the masked exchange starves
+when it loses its cores, pad bank or not.
+
 `test/fixtures/wasi-nn-cache-pressure.rs` tests repeated distinct prompts in a
 512-token pool against uncached full-logit results, plus a pinned borrower
 resuming after other requests cause eviction. Run against attention and hybrid

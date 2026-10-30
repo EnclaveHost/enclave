@@ -1,0 +1,33 @@
+{
+  "observedAtUTC": "2026-10-29T10:49:10Z",
+  "unit": "enclave-host-authority-ownership-r3-20261029.service",
+  "invocation": "62430f3a783b435c944fe4d429e67ded",
+  "mainPID": 1349419,
+  "wrapperPID": 1349435,
+  "claudePID": 1349444,
+  "status": "verified-active",
+  "inputCount": 240,
+  "account": {
+    "loggedIn": true,
+    "email": "steven.r.batchelor@gmail.com",
+    "subscriptionType": "max"
+  },
+  "hashes": {
+    "TASK.reviewed.txt": "d6d30b15f46b1272b08e7310f734d40f8c9b54eff52c5d41dfed2770c2646c70",
+    "TASK.txt": "6f2cc33eca2fd5f2c83acf036e5e140c0326f89e77f87b29379e0fb2850c4746",
+    "run.py": "bb3cb8c5c31ba47ffad56e5a1791217425ea4233f3d318764094f7f1af1e36d0",
+    "input-pins.json": "6d20f861cb09ec677f5c947169639f6d6d7b09f7fa3490777b18a25174b3ffcb",
+    "seed-source-map.json": "7ec9325f189fa6b7feb8760094f861c2cb9ceece76adb29c7f26dc412a14c091"
+  },
+  "limits": {
+    "outerMiB": 1536,
+    "innerRssMiB": 1408,
+    "floorAvailableMiB": 27648,
+    "cpus": 1,
+    "swapBytes": 0,
+    "turns": 45,
+    "childSeconds": 1500,
+    "wholeSeconds": 1690
+  },
+  "scope": "source only, no tests or production; terminal collection pending"
+}

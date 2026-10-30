@@ -1,0 +1,290 @@
+[queue] START available=22401MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+3961b319b9dcd5eb5856f7f3ac45bcc4f3d765950ff54e7d31cfdd5bfd80a8dd  network/qualifier-chain.mjs
+ee7b8d829b97dd9892bc7e969d1c8f3648128f1763aa0c5ecfb9742a98828979  network/directory-server.mjs
+342289b8263015bb8940ce8e96bfe0068c532a04a56c1257493012f187b00203  scripts/network/wg-qualify.mjs
+b5ad09445e28335040b4fc017c0ba5ca8364b1029429a7f179ba10cad457dcae  test/qualifier-chain-authority.test.mjs
+bbf084a60f1f02f2bc585e76db3a4c8db662f76418cb108f9ffcdd2e9598b66f  test/directory-reader-authority.test.mjs
+TAP version 13
+# Subtest: the selection: unset or quorum is the legacy path; verifier needs a local URL; anything ambiguous refuses
+ok 1 - the selection: unset or quorum is the legacy path; verifier needs a local URL; anything ambiguous refuses
+  ---
+  duration_ms: 3.133198
+  type: 'test'
+  ...
+# Subtest: the own backend: a loopback or private address literal only, never a name or public address; the guest checker agrees
+ok 2 - the own backend: a loopback or private address literal only, never a name or public address; the guest checker agrees
+  ---
+  duration_ms: 0.681766
+  type: 'test'
+  ...
+# Subtest: routing: state, receipts, logs and nonces go to the verifier only; unlisted methods refuse by name and reach no server
+ok 3 - routing: state, receipts, logs and nonces go to the verifier only; unlisted methods refuse by name and reach no server
+  ---
+  duration_ms: 37.521766
+  type: 'test'
+  ...
+# Subtest: a revert keeps its data through the verifier (simulate/readContract decode it); errors keep their code
+ok 4 - a revert keeps its data through the verifier (simulate/readContract decode it); errors keep their code
+  ---
+  duration_ms: 6.698755
+  type: 'test'
+  ...
+# Subtest: estimateGas answers a gas LIMIT a verified execution succeeded with, never the verifier's gas used after refunds; a revert is the answer
+ok 5 - estimateGas answers a gas LIMIT a verified execution succeeded with, never the verifier's gas used after refunds; a revert is the answer
+  ---
+  duration_ms: 32.938787
+  type: 'test'
+  ...
+# Subtest: submission: only through a backend BOUND to the verifier's chain on a fresh head; otherwise refused before anything is sent
+ok 6 - submission: only through a backend BOUND to the verifier's chain on a fresh head; otherwise refused before anything is sent
+  ---
+  duration_ms: 64.976989
+  type: 'test'
+  ...
+# Subtest: an invalid selection refuses every method and every action: nothing falls back
+ok 7 - an invalid selection refuses every method and every action: nothing falls back
+  ---
+  duration_ms: 0.518626
+  type: 'test'
+  ...
+# Subtest: lease readers: the verifier is ONE authority (required 1), never mixed with RPCs, never repeated; RPC quorums are unchanged
+ok 8 - lease readers: the verifier is ONE authority (required 1), never mixed with RPCs, never repeated; RPC quorums are unchanged
+  ---
+  duration_ms: 9.975532
+  type: 'test'
+  ...
+# Subtest: app-funded lease config under the verifier: reads use it alone, the configured RPCs are never contacted (kept for byte-identical config)
+ok 9 - app-funded lease config under the verifier: reads use it alone, the configured RPCs are never contacted (kept for byte-identical config)
+  ---
+  duration_ms: 2.626653
+  type: 'test'
+  ...
+# Subtest: guest opt-in: txBackend is checked and reaches the supervisor only with a usable verifier, from this channel only
+ok 10 - guest opt-in: txBackend is checked and reaches the supervisor only with a usable verifier, from this channel only
+  ---
+  duration_ms: 1.47331
+  type: 'test'
+  ...
+# Subtest: legacy mode is unchanged: the same LeaseReader options as before, a provider quorum of the configured rpc
+ok 11 - legacy mode is unchanged: the same LeaseReader options as before, a provider quorum of the configured rpc
+  ---
+  duration_ms: 2.901351
+  type: 'test'
+  ...
+# Subtest: explicit verifier mode: a config that still names rpc, a verifier without the mode, or no verifier URL is refused
+ok 12 - explicit verifier mode: a config that still names rpc, a verifier without the mode, or no verifier URL is refused
+  ---
+  duration_ms: 0.842334
+  type: 'test'
+  ...
+# Subtest: verifier mode reads ONLY through the local verifier: pinned registry, proof-backed operator, no provider client
+ok 13 - verifier mode reads ONLY through the local verifier: pinned registry, proof-backed operator, no provider client
+  ---
+  duration_ms: 5.869201
+  type: 'test'
+  ...
+# Subtest: verifier outage, proof failure, another chain or a stale head: the read is refused, nothing else is asked
+ok 14 - verifier outage, proof failure, another chain or a stale head: the read is refused, nothing else is asked
+  ---
+  duration_ms: 2.213305
+  type: 'test'
+  ...
+# Subtest: construction: the verifier is explicit, local, exclusive, and never mixed with provider clients
+ok 15 - construction: the verifier is explicit, local, exclusive, and never mixed with provider clients
+  ---
+  duration_ms: 3.305788
+  type: 'test'
+  ...
+# Subtest: deployment/lease snapshot: one confirmed block, pinned by hash, fresh, with verified evidence
+ok 16 - deployment/lease snapshot: one confirmed block, pinned by hash, fresh, with verified evidence
+  ---
+  duration_ms: 9.098289
+  type: 'test'
+  ...
+# Subtest: admin-directed migration: a repointed AddressBook entry is followed at the next fresh read
+ok 17 - admin-directed migration: a repointed AddressBook entry is followed at the next fresh read
+  ---
+  duration_ms: 3.262658
+  type: 'test'
+  ...
+# Subtest: freshness, monotonicity, chain, reorganization and the single deadline all refuse
+ok 18 - freshness, monotonicity, chain, reorganization and the single deadline all refuse
+  ---
+  duration_ms: 304.95079
+  type: 'test'
+  ...
+# Subtest: inside a read: only proof-backed methods at the pinned block; anything else refuses by name
+ok 19 - inside a read: only proof-backed methods at the pinned block; anything else refuses by name
+  ---
+  duration_ms: 2.585543
+  type: 'test'
+  ...
+# Subtest: proof failure, missing witness or an unreachable verifier: refused, cache untouched, nothing newly admitted
+ok 20 - proof failure, missing witness or an unreachable verifier: refused, cache untouched, nothing newly admitted
+  ---
+  duration_ms: 3.544985
+  type: 'test'
+  ...
+# Subtest: host admission + catalog moderation through the verifier: approve, yank, owner policy, and failures refuse
+ok 21 - host admission + catalog moderation through the verifier: approve, yank, owner policy, and failures refuse
+  ---
+  duration_ms: 9.058729
+  type: 'test'
+  ...
+# Subtest: settlement pinned reads: anchors and metered bytes at the snapshot block, verified or refused
+ok 22 - settlement pinned reads: anchors and metered bytes at the snapshot block, verified or refused
+  ---
+  duration_ms: 3.01435
+  type: 'test'
+  ...
+# Subtest: legacy quorum mode is unchanged by the new primitives (two agreeing clients, never one)
+ok 23 - legacy quorum mode is unchanged by the new primitives (two agreeing clients, never one)
+  ---
+  duration_ms: 0.692565
+  type: 'test'
+  ...
+# Subtest: accepts independent signed providers; rejects forgery and an untrusted checker
+ok 24 - accepts independent signed providers; rejects forgery and an untrusted checker
+  ---
+  duration_ms: 24.321415
+  type: 'test'
+  ...
+# Subtest: policies require owner authorization; higher nonce survives restart and conflicting equal nonce is refused
+ok 25 - policies require owner authorization; higher nonce survives restart and conflicting equal nonce is refused
+  ---
+  duration_ms: 19.522387
+  type: 'test'
+  ...
+# Subtest: routes require qualified providers, current owner policy and current lease; stale route cannot resurrect after restart
+ok 26 - routes require qualified providers, current owner policy and current lease; stale route cannot resurrect after restart
+  ---
+  duration_ms: 54.572069
+  type: 'test'
+  ...
+# Subtest: expired records disappear and negative checker verdict is retained across replicas
+ok 27 - expired records disappear and negative checker verdict is retained across replicas
+  ---
+  duration_ms: 37.273517
+  type: 'test'
+  ...
+# Subtest: directory has no credential/control endpoints; reads survive loss of one origin
+ok 28 - directory has no credential/control endpoints; reads survive loss of one origin
+  ---
+  duration_ms: 38.432509
+  type: 'test'
+  ...
+# Subtest: corrupted persisted state never becomes a fresh empty directory
+ok 29 - corrupted persisted state never becomes a fresh empty directory
+  ---
+  duration_ms: 5.956349
+  type: 'test'
+  ...
+# Subtest: client verifies copies independently and refuses hidden or equivocal owner policies
+ok 30 - client verifies copies independently and refuses hidden or equivocal owner policies
+  ---
+  duration_ms: 27.89018
+  type: 'test'
+  ...
+# Subtest: one unreachable mirror is backed off across apps; total outage still tries every origin
+ok 31 - one unreachable mirror is backed off across apps; total outage still tries every origin
+  ---
+  duration_ms: 1.013293
+  type: 'test'
+  ...
+# Subtest: legacy migration bridge exports only the signed public policy
+ok 32 - legacy migration bridge exports only the signed public policy
+  ---
+  duration_ms: 3.509986
+  type: 'test'
+  ...
+# Subtest: unchanged gossip does not repeat admission RPCs but reads still reject a changed lease
+ok 33 - unchanged gossip does not repeat admission RPCs but reads still reject a changed lease
+  ---
+  duration_ms: 24.396784
+  type: 'test'
+  ...
+# Subtest: a route read racing a newer accepted publication retries the current snapshot instead of dropping the app
+ok 34 - a route read racing a newer accepted publication retries the current snapshot instead of dropping the app
+  ---
+  duration_ms: 32.154091
+  type: 'test'
+  ...
+# Subtest: a concurrent withdrawal cannot resurrect the previous route
+ok 35 - a concurrent withdrawal cannot resurrect the previous route
+  ---
+  duration_ms: 32.034172
+  type: 'test'
+  ...
+# Subtest: a concurrent policy cannot resurrect the previous route
+ok 36 - a concurrent policy cannot resurrect the previous route
+  ---
+  duration_ms: 23.812058
+  type: 'test'
+  ...
+# Subtest: overlapping reads share verification, but the next read checks the lease again
+ok 37 - overlapping reads share verification, but the next read checks the lease again
+  ---
+  duration_ms: 23.47574
+  type: 'test'
+  ...
+# Subtest: expiry while another route is being checked cannot escape the final response
+ok 38 - expiry while another route is being checked cannot escape the final response
+  ---
+  duration_ms: 19.775656
+  type: 'test'
+  ...
+# Subtest: a read rechecks an earlier route after another route admits a withdrawal
+ok 39 - a read rechecks an earlier route after another route admits a withdrawal
+  ---
+  duration_ms: 32.934997
+  type: 'test'
+  ...
+# Subtest: public request saturation leaves bounded capacity for the local DNS reader
+ok 40 - public request saturation leaves bounded capacity for the local DNS reader
+  ---
+  duration_ms: 6.748724
+  type: 'test'
+  ...
+# Subtest: legacy selection is unchanged: no --chain-authority (or quorum) returns null; a verifier without the mode refuses
+ok 41 - legacy selection is unchanged: no --chain-authority (or quorum) returns null; a verifier without the mode refuses
+  ---
+  duration_ms: 0.959514
+  type: 'test'
+  ...
+# Subtest: explicit verifier: mixed selections and non-local verifiers refuse before any request
+ok 42 - explicit verifier: mixed selections and non-local verifiers refuse before any request
+  ---
+  duration_ms: 5.554482
+  type: 'test'
+  ...
+# Subtest: explicit verifier: the registry operator and connectivity address are read through the local verifier only
+ok 43 - explicit verifier: the registry operator and connectivity address are read through the local verifier only
+  ---
+  duration_ms: 45.63398
+  type: 'test'
+  ...
+# Subtest: verifier down, stale, on another chain, or failing a proof: every read throws, no provider is asked
+ok 44 - verifier down, stale, on another chain, or failing a proof: every read throws, no provider is asked
+  ---
+  duration_ms: 29.881067
+  type: 'test'
+  ...
+# Subtest: wg-qualify.mjs: legacy run unchanged; --chain-authority verifier logs the local authority; --rpc with it refuses
+ok 45 - wg-qualify.mjs: legacy run unchanged; --chain-authority verifier logs the local authority; --rpc with it refuses
+  ---
+  duration_ms: 727.140202
+  type: 'test'
+  ...
+1..45
+# tests 45
+# suites 0
+# pass 45
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3115.886409
+job rc=0
+[memory-guard] exit=0 peakTreeRssMiB=243 minHostAvailableMiB=22178
+[memory-guard] at peak: node:95 node:77 node:65 bash:4 timeout:2
+[queue] EXIT 0

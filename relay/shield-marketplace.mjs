@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import {randomBytes} from 'node:crypto';
 import { createShieldAppVerifier } from './shield-app-verifier.mjs';
 import { shieldHostAdmitted } from './shield-app-policy.mjs';
+import { validateDesktopRelease } from './shield-desktop-release.mjs';
+import { pinnedWitness, readinessInput } from './shield-market-evidence.mjs';
 
 const TTL = 300000, REFRESH = 60000;
 // Failures that say nothing about the app: the chain read, this verifier being
@@ -22,15 +24,16 @@ export const fingerprint = d => JSON.stringify([d.id, d.runner, d.appRef, d.conf
 export function createShieldMarketplace({ hub, policyFile = '', policy: supplied, confirmRow,
   hasSecrets, isOwnerDeployment = () => false, readCatalog, readConfig, fetchVerified, now = Date.now, log = console.warn }) {
   const policy = supplied || (policyFile ? JSON.parse(fs.readFileSync(policyFile, 'utf8')) : null);
+  const nativeRelease = policy?.desktop == null ? null : validateDesktopRelease(policy.desktop);
+  // This is only a prefilter. expectedShieldApp and the image verifier still
+  // require the exact release and capabilities for each secret-bearing app.
+  const sealedSecretsEnabled = policy?.cpu?.secretsV1 === true || !!nativeRelease;
   if (policy && (policy.schema !== 'enclave-shield-app-policy/1' ||
       !(policy.hosts === '*' || (Array.isArray(policy.hosts) && policy.hosts.length)) ||
       !policy.ekRoots || !policy.cpu?.runtimeId)) throw new Error('invalid Shield marketplace policy');
   const configured = name => shieldHostAdmitted(policy, name);
   const verify = policy ? createShieldAppVerifier({ hub, policy, readCatalog, readConfig, fetchVerified, hasSecrets }) : null;
-  const witness = policy?.witness;
-  if (witness && (!/^[0-9a-f]{64}$/.test(witness.appSha256 || '') ||
-      !/^[0-9a-f]{64}$/.test(witness.runtimeId || '') || witness.runtimeId !== policy.cpu.runtimeId))
-    throw Error('invalid pinned Shield readiness witness');
+  const witness = pinnedWitness(policy);
   const states = new Map();
   let refreshing = false;
   const session = row => row?.mode === 'hv-node' && configured(row.name) ? hub.shieldSessionId(row.name) : null;
@@ -42,7 +45,7 @@ export function createShieldMarketplace({ hub, policyFile = '', policy: supplied
   function servesUntil(host, d) {
     const state = stateFor(host), app = state?.apps.get(d?.id);
     if (!app || !eligible(host) || app.until <= now() || fingerprint(d) !== app.fingerprint ||
-        d.active !== true || d.isPublic !== true || (hasSecrets(d.id) && !policy?.cpu?.secretsV1) || (app.ownerException && !isOwnerDeployment(host,d)) ||
+        d.active !== true || d.isPublic !== true || (hasSecrets(d.id) && !sealedSecretsEnabled) || (app.ownerException && !isOwnerDeployment(host,d)) ||
         String(d.runner).toLowerCase() !== String(host.id).toLowerCase()) return 0;
     return Math.floor(Math.min(app.until, Number(d.leaseUntil) * 1000) / 1000);
   }
@@ -55,7 +58,7 @@ export function createShieldMarketplace({ hub, policyFile = '', policy: supplied
     try {
       const d = await confirmRow(candidate.id);
       if (d.active !== true || d.isPublic !== true || Number(d.leaseUntil)*1000 <= now() ||
-          String(d.runner).toLowerCase() !== String(host.id).toLowerCase() || (hasSecrets(d.id) && !policy?.cpu?.secretsV1))
+          String(d.runner).toLowerCase() !== String(host.id).toLowerCase() || (hasSecrets(d.id) && !sealedSecretsEnabled))
         throw new Error('deployment must be public, compatible and leased to this host');
       const ownerException = isOwnerDeployment(host,d);
       const proof = await verify(host.name, d, {csrSpkiSha256, allowPendingOwner:ownerException});
@@ -63,7 +66,7 @@ export function createShieldMarketplace({ hub, policyFile = '', policy: supplied
       if (session(host) !== sid) throw new Error('Shield attachment changed during verification');
       // A ledger mutation during the round trip must not acquire the old app's evidence.
       const current = await confirmRow(d.id);
-      if (fingerprint(current) !== fingerprint(d) || Number(current.leaseUntil)*1000 <= now() || (hasSecrets(d.id) && !policy?.cpu?.secretsV1) || (ownerException && !isOwnerDeployment(host,current)))
+      if (fingerprint(current) !== fingerprint(d) || Number(current.leaseUntil)*1000 <= now() || (hasSecrets(d.id) && !sealedSecretsEnabled) || (ownerException && !isOwnerDeployment(host,current)))
         throw new Error('deployment changed during verification');
       state = stateFor(host);
       const until = now() + TTL;
@@ -89,11 +92,7 @@ export function createShieldMarketplace({ hub, policyFile = '', policy: supplied
     try {
       const nonce = randomBytes(32);
       const proof = await hub.fetchJson(`tunnel://${host.name}`, `/v1/shield/readiness?nonce=${nonce.toString('hex')}`);
-      if (!proof || typeof proof.handshakeSpki !== 'string' || proof.handshakeSpki.length > 5500)
-        throw Error('no bounded readiness proof');
-      const verdict = await hub.verifyShieldApp(host.name, {doc:proof.doc,
-        handshakeSpki:Buffer.from(proof.handshakeSpki,'base64'), nonce,
-        expectedAppSha256:witness.appSha256, expectedRuntimeId:witness.runtimeId}, policy);
+      const verdict = await hub.verifyShieldApp(host.name, readinessInput(proof, nonce, witness), policy);
       if (!verdict.ok) throw Error(verdict.reason);
       if (session(host) !== sid) throw Error('Shield attachment changed during readiness verification');
       stateFor(host).until = now()+TTL;

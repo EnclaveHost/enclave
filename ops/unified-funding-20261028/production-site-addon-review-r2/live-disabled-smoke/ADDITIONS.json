@@ -1,0 +1,27 @@
+[
+  {
+    "path": "funding.html",
+    "sha256": "e3fca9e6e408b410b04ed97aa7d0cd1d8896c31bfa811659962f62f575224359",
+    "bytes": 7574
+  },
+  {
+    "path": "js/funding-r2/funding.0e141f78a1d9edd5.js",
+    "sha256": "0e141f78a1d9edd5cc765039f09a3222e50a2f406a5c90e764948e4a732e2dd6",
+    "bytes": 157558
+  },
+  {
+    "path": "vendor/sessions.funding-r2.9dda76f6c22ef102.js",
+    "sha256": "9dda76f6c22ef102e9dce27b7e61731c83a7e41905a611587578e305bc758997",
+    "bytes": 342282
+  },
+  {
+    "path": "vendor/funding.funding-r2.16629d5c8f1b708b.js",
+    "sha256": "16629d5c8f1b708b3c9dd1bd7ece00908ae8f1f1a9f34c0284dcc8ed57fa6368",
+    "bytes": 355128
+  },
+  {
+    "path": "css/site.funding-r2.4b52a34c258c6cf5.css",
+    "sha256": "4b52a34c258c6cf5469e4f531040b57b826fd04ec16089cec8e35a79e4cdf2b3",
+    "bytes": 152540
+  }
+]

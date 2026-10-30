@@ -1,0 +1,103 @@
+{
+  "scope": "Static literal project imports from actual operator/store/initializer and reviewed ownership entries; full243 seed separately pinned. No module execution or source-equivalence/npm/platform claim.",
+  "entries": [
+    "control/windows/node/chain.mjs",
+    "control/windows/node/operator-effects.mjs",
+    "control/windows/node/initialize-operator-effects.mjs",
+    "control/network/owned-durable-state.mjs",
+    "control/windows/vbslike/manager/win-durable.mjs",
+    "control/windows/vbslike/manager/win-exclusion.mjs"
+  ],
+  "projectFiles": {
+    "control/network/owned-durable-state.mjs": "2bfe43b939a979dba3c9bfa42c2157c20968e7c85b191559eb8e8181d65ce1d1",
+    "control/network/runtime-lock.mjs": "256aeca3000aae08dc2cfa5fb45a2a900728a312d2ec415a2620588d1152ac1a",
+    "control/windows/node/chain.mjs": "79771c6c85fb26e1e91cb1f99eaa006586a52082b45f6d5d7b9d7e3376870cfd",
+    "control/windows/node/host-admission.bundle.mjs": "6bef372d00a27567e94a11d00f165312f9d715a795519e7a7ad77b4718623b18",
+    "control/windows/node/initialize-operator-effects.mjs": "e4d0165280581eb24efa72ff05d296b7c898bbda7fd90b45bedb8b5d057519ae",
+    "control/windows/node/lease-gas-runtime.bundle.mjs": "159108d171e49cadf8a75dc8081df9e7213257e6f7930ac8b0f4f6e6e43b829d",
+    "control/windows/node/operator-effects.mjs": "a9579c168278e0e9441cc52a1dce3800fa51b1dee150ab96eb3e42ed38f907d0",
+    "control/windows/node/verification-checkpoints.mjs": "aa69b54db648fe9439f9661727b81633dd46a2cb321627e3a78f6bc8b202ff29",
+    "control/windows/node/waf.mjs": "d44da8feb6b55073e1f18264d028e3f854c85215ae3a97208ef329638c1ee94a",
+    "control/windows/vbslike/manager/psrun.mjs": "39ed693cd9e4258bf6f5b1e2c9b14b90e8314743b95b37e1dc8ec6283b1720b6",
+    "control/windows/vbslike/manager/win-durable.mjs": "cac3cb1e78658ed37d93d1da96a03806ec477c0a327f6d5ad522b843587dd556",
+    "control/windows/vbslike/manager/win-exclusion.mjs": "fd8acdf57c82e1932d457079bf3f2fc709f3746911409c43480135cc9a4aee51"
+  },
+  "edges": [
+    {
+      "from": "control/network/owned-durable-state.mjs",
+      "specifier": "./runtime-lock.mjs",
+      "to": "control/network/runtime-lock.mjs"
+    },
+    {
+      "from": "control/windows/node/initialize-operator-effects.mjs",
+      "specifier": "./operator-effects.mjs",
+      "to": "control/windows/node/operator-effects.mjs"
+    },
+    {
+      "from": "control/windows/node/initialize-operator-effects.mjs",
+      "specifier": "../vbslike/manager/psrun.mjs",
+      "to": "control/windows/vbslike/manager/psrun.mjs"
+    },
+    {
+      "from": "control/windows/node/operator-effects.mjs",
+      "specifier": "../vbslike/manager/win-durable.mjs",
+      "to": "control/windows/vbslike/manager/win-durable.mjs"
+    },
+    {
+      "from": "control/windows/node/operator-effects.mjs",
+      "specifier": "../../network/owned-durable-state.mjs",
+      "to": "control/network/owned-durable-state.mjs"
+    },
+    {
+      "from": "control/windows/node/chain.mjs",
+      "specifier": "./host-admission.bundle.mjs",
+      "to": "control/windows/node/host-admission.bundle.mjs"
+    },
+    {
+      "from": "control/windows/node/chain.mjs",
+      "specifier": "./waf.mjs",
+      "to": "control/windows/node/waf.mjs"
+    },
+    {
+      "from": "control/windows/node/chain.mjs",
+      "specifier": "./verification-checkpoints.mjs",
+      "to": "control/windows/node/verification-checkpoints.mjs"
+    },
+    {
+      "from": "control/windows/node/chain.mjs",
+      "specifier": "./lease-gas-runtime.bundle.mjs",
+      "to": "control/windows/node/lease-gas-runtime.bundle.mjs"
+    },
+    {
+      "from": "control/windows/node/chain.mjs",
+      "specifier": "./operator-effects.mjs",
+      "to": "control/windows/node/operator-effects.mjs"
+    }
+  ],
+  "externalModules": [
+    "node:child_process",
+    "node:crypto",
+    "node:fs",
+    "node:path",
+    "viem",
+    "viem/accounts",
+    "viem/chains"
+  ],
+  "generatedBundleLeaves": [
+    "control/windows/node/host-admission.bundle.mjs",
+    "control/windows/node/lease-gas-runtime.bundle.mjs"
+  ],
+  "missingProjectImports": [],
+  "sponsoredReference": "readonly-reference/sponsored-runtime/provenance.json",
+  "rootRepairsPreserved": {
+    "control/isolation/m4/guestd/control-client.mjs": "df77d6dbbcab2d57729e6cb6b70e5f8fab006c8c1ac5be9eb7baf1440df934b4",
+    "control/windows/node/protected-isolation.mjs": "bfbab051a4784bb45d1510596b7d8a337d80b0bccf45447149c6181ecb65f160",
+    "control/windows/node/protected-supervisor.mjs": "1cd9be0545bd0284ffb26c12131c4233b340d1e6773872fecdff8f8f540e8408"
+  },
+  "shippedSponsoredBundleSha256": "159108d171e49cadf8a75dc8081df9e7213257e6f7930ac8b0f4f6e6e43b829d",
+  "actualClientFixtureRequired": true,
+  "agentConstructionEntryPinnedButNotWholeAgentRuntimeClosure": {
+    "control/windows/node/agent.mjs": "4105b28e33751a1191f936578fdff600b5e124c5dc695b9d5eeb345d8304d0b5"
+  },
+  "rootChainQuarantineSha256": "79771c6c85fb26e1e91cb1f99eaa006586a52082b45f6d5d7b9d7e3376870cfd"
+}

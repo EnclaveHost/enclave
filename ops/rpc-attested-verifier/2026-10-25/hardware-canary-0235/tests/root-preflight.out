@@ -1,0 +1,21 @@
+[queue] START available=87497MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+PASS  SEV-SNP enabled (kvm_amd sev_snp=Y)
+PASS  /dev/sev and /dev/kvm read+write for this user
+PASS  CPU signature = the measurement recipe (family 26 model 2 stepping 1)  [(26, 2, 1)]
+PASS  >= 4 host CPUs  [32]
+PASS  FROZEN-PINS.json present  [bf6252fdcc15c86649f2462257e0675d2503fc1e8c7a8feb0d11900b87a83d5d]
+PASS  every frozen pin holds (canary helpers, stubs, image, OVMF, QEMU, node, receipt, source tree, node_modules)
+PASS  expected measurement: full 96 hex from the receipt == image MEASUREMENT  [4287b65e718ff958027f31beec6a0753d42784086807b950f557a963cd0277f33c9869173420f03f5fb53e4ad2859be9]
+PASS  image cmdline template + metal.mode=snp == the measured cmdline the launcher builds
+PASS  pre-existing QEMU identities recorded (protected: never signalled, must be unchanged after)  [4 QEMU identities, unit names REDACTED; sha256 of original detail 43cf4cf11779e1d4dc906206d0f81ebffef925bec39ff32ea85bfae15e7f2258]
+PASS  production guestd 8095/8096 are never the canary's endpoints (listening there is expected)  [8095 listening=True 8096 listening=True]
+PASS  MemAvailable >= 87040 MiB (RPC failed: reserve 67584 + canary 3072 + floor 16384); run guard floor 83968 MiB  [87519 MiB]
+PASS  user app.slice delegates cpu + memory (CPUQuota/MemoryMax enforceable in the scope)
+PASS  public AMD collateral cache present (copied read-only at run time)  [/home/steven/enclave-prod/capacity-audit/state/amd]
+PASS  runs/ parent has >= 2 GiB free
+PASS  ssh/scp/sftp stubs first in PATH
+PASS  qemu-restrict.sh and the stubs are executable
+PREFLIGHT PASS
+[memory-guard] exit=0 peakTreeRssMiB=39 minHostAvailableMiB=87497
+[memory-guard] at peak: python3:27 sha256sum:6 bash:4 xargs:2
+[queue] EXIT 0

@@ -1,0 +1,11 @@
+# Reviewed cutover addon, not installed
+
+The source-only Claude preparation completed. Root froze the candidate and reviewed all three build modules. Author 13 tests passed. Two independent root checks then failed: the configuration required a prior human approval reference before it could present actual owner wallet prompts, and accepted an incorrect runtime chain in the builder. This did not demonstrate an on-chain debit or a bypass of SDK checks.
+
+Root removed the circular metadata prerequisite. Root-reviewed artifact terms may now present the real required wallet signatures; a metadata reference cannot authorize a grant. Optional humanApproval metadata remains exactly validated when supplied. Runtime chain must equal Base 8453. No product SDK, proof, page, signing, grant or account behavior changed. The final 15 checks passed, no skips. Original author source/tests and both failures remain here.
+
+The actual isolated 33-file overlay built successfully. Independently checked all 36 input hashes, including the previously qualified f23ba2d7 funding SDK, before marking build pins reviewed. Retained disabled artifact contains exactly five additions with all five funding configuration values null. No original site file, global router or vendor changed. The live site has not been modified. Actual old-tree composite and browser smoke qualification are pending at this snapshot; their results must be recorded separately.
+
+The package is a review snapshot using documented staging-relative imports, not a standalone portable production installer. Root report overrides author REPORT mandatory approval-reference claims. Original real $30 remains untouched; deployments are already completed and must never be repeated. New grant terms require the actual human wallet approval, not this build metadata.
+
+Actual Chromium disabled artifact smoke passed: header/footer/funding body render, exactly one Connect wallet button and one module script, no page console errors. No wallet connect or signing clicked. Local CSP limited network to self. Screenshot outputs/rpc-production-final-20261025/funding-cutover-addon-disabled.png and DOM retained. Owned tab723100848 closed and server unit stopped; port43319 gone. This does not exercise real production migration. Composite remains queued behind source preparation.

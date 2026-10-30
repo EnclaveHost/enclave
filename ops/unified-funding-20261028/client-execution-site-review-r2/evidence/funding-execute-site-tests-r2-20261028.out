@@ -1,0 +1,121 @@
+[queue] START available=90009MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: generate_harness: derived server, shell, build driver and page shell
+not ok 1 - generate_harness: derived server, shell, build driver and page shell
+  ---
+  duration_ms: 40.656703
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-execution-site-r2/test/harness-generator.test.mjs:15:1'
+  failureType: 'testCodeFailure'
+  error: |-
+      File "/tmp/execution-site-r2-gen-G7Qa6f/uf/client-execution-site-r2/harness/generate_harness.py", line 81
+        '  }\n'),
+               ^
+    SyntaxError: closing parenthesis ')' does not match opening parenthesis '{' on line 76
+    
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-execution-site-r2/test/harness-generator.test.mjs:20:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: generate_harness refuses drift, a null pin, a removed guard and an existing output directory
+not ok 2 - generate_harness refuses drift, a null pin, a removed guard and an existing output directory
+  ---
+  duration_ms: 35.159888
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-execution-site-r2/test/harness-generator.test.mjs:75:1'
+  failureType: 'testCodeFailure'
+  error: 'drift'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+      File "/tmp/execution-site-r2-gen-e0LX9H/uf/client-execution-site-r2/harness/generate_harness.py", line 81
+        '  }\n'),
+               ^
+    SyntaxError: closing parenthesis ')' does not match opening parenthesis '{' on line 76
+    
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-execution-site-r2/test/harness-generator.test.mjs:89:14)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: generate_page: the recovery page copy, builder, core copy and install/rollback manifest
+not ok 3 - generate_page: the recovery page copy, builder, core copy and install/rollback manifest
+  ---
+  duration_ms: 38.829108
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-execution-site-r2/test/page-generator.test.mjs:15:1'
+  failureType: 'testCodeFailure'
+  error: 'plain wording: Outcome unknown: it may have been processed. It is never resent.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-execution-site-r2/test/page-generator.test.mjs:46:59)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: generate_page refuses drift, a null pin, a non-null FUNDING_* default, a candidate that differs, and a missing anchor
+ok 4 - generate_page refuses drift, a null pin, a non-null FUNDING_* default, a candidate that differs, and a missing anchor
+  ---
+  duration_ms: 169.707769
+  type: 'test'
+  ...
+# Subtest: lost reply: one blocking 'unknown' row with its maximum survives a JSON reload; observed stays blocking; final clears it
+ok 5 - lost reply: one blocking 'unknown' row with its maximum survives a JSON reload; observed stays blocking; final clears it
+  ---
+  duration_ms: 24.156376
+  type: 'test'
+  ...
+# Subtest: normal success returns the shape the page message uses: canonical but NOT final until a check proves it
+ok 6 - normal success returns the shape the page message uses: canonical but NOT final until a check proves it
+  ---
+  duration_ms: 5.499776
+  type: 'test'
+  ...
+# Subtest: rows are scoped to the exact record: another record (same owner) sees none
+ok 7 - rows are scoped to the exact record: another record (same owner) sees none
+  ---
+  duration_ms: 3.344333
+  type: 'test'
+  ...
+# Subtest: unreachable relay: the row stays 'unknown' and blocking after a read-only check that finds nothing
+ok 8 - unreachable relay: the row stays 'unknown' and blocking after a read-only check that finds nothing
+  ---
+  duration_ms: 4.858111
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 5
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 589.932498
+[memory-guard] exit=1 peakTreeRssMiB=134 minHostAvailableMiB=89958
+[memory-guard] at peak: node:72 node:62
+[memory-guard] exit=1 peakTreeRssMiB=185 minHostAvailableMiB=89963
+[memory-guard] at peak: node:62 node:62 node:50 python3:12
+[queue] EXIT 1

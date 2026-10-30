@@ -1,0 +1,179 @@
+make: Entering directory '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/backend-rebuild-r1/src'
+g++ -O2 -std=c++17 -Wall -Wextra -fPIC -fno-math-errno -DGGML_MAX_NAME=128 -DGGML_BACKEND_DL -DGGML_BACKEND_SHARED  -DSHIELDED_COMPACT -I/home/steven/enclave-bench/shield-original-reclaim-20260929/build/engine-src/ggml/include -I/home/steven/enclave-bench/shield-original-reclaim-20260929/build/engine-src/ggml/src -c ggml-shielded.cpp -o ggml-shielded-dl.o
+ggml-shielded.cpp: In function ‘bool sh_site_forced_local(const char*)’:
+ggml-shielded.cpp:860:17: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  860 |                 if (c > at) local.insert(v.substr(at, c - at)); at = c + 1; }
+      |                 ^~
+ggml-shielded.cpp:860:65: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  860 |                 if (c > at) local.insert(v.substr(at, c - at)); at = c + 1; }
+      |                                                                 ^~
+In file included from ggml-shielded.cpp:11:
+/home/steven/enclave-bench/shield-original-reclaim-20260929/build/engine-src/ggml/src/ggml-impl.h: At global scope:
+/home/steven/enclave-bench/shield-original-reclaim-20260929/build/engine-src/ggml/src/ggml-impl.h:300:15: warning: ‘size_t ggml_hash_find_or_insert(ggml_hash_set*, ggml_tensor*)’ defined but not used [-Wunused-function]
+  300 | static size_t ggml_hash_find_or_insert(struct ggml_hash_set * hash_set, struct ggml_tensor * key) {
+      |               ^~~~~~~~~~~~~~~~~~~~~~~~
+/home/steven/enclave-bench/shield-original-reclaim-20260929/build/engine-src/ggml/src/ggml-impl.h:279:15: warning: ‘size_t ggml_hash_insert(ggml_hash_set*, ggml_tensor*)’ defined but not used [-Wunused-function]
+  279 | static size_t ggml_hash_insert(struct ggml_hash_set * hash_set, struct ggml_tensor * key) {
+      |               ^~~~~~~~~~~~~~~~
+/home/steven/enclave-bench/shield-original-reclaim-20260929/build/engine-src/ggml/src/ggml-impl.h:274:13: warning: ‘bool ggml_hash_contains(const ggml_hash_set*, ggml_tensor*)’ defined but not used [-Wunused-function]
+  274 | static bool ggml_hash_contains(const struct ggml_hash_set * hash_set, struct ggml_tensor * key) {
+      |             ^~~~~~~~~~~~~~~~~~
+/home/steven/enclave-bench/shield-original-reclaim-20260929/build/engine-src/ggml/src/ggml-impl.h:205:15: warning: ‘size_t ggml_bitset_size(size_t)’ defined but not used [-Wunused-function]
+  205 | static size_t ggml_bitset_size(size_t n) {
+      |               ^~~~~~~~~~~~~~~~
+/home/steven/enclave-bench/shield-original-reclaim-20260929/build/engine-src/ggml/src/ggml-impl.h:168:13: warning: ‘void ggml_set_op_params_f32(ggml_tensor*, uint32_t, float)’ defined but not used [-Wunused-function]
+  168 | static void ggml_set_op_params_f32(struct ggml_tensor * tensor, uint32_t i, float value) {
+      |             ^~~~~~~~~~~~~~~~~~~~~~
+/home/steven/enclave-bench/shield-original-reclaim-20260929/build/engine-src/ggml/src/ggml-impl.h:163:13: warning: ‘void ggml_set_op_params_i32(ggml_tensor*, uint32_t, int32_t)’ defined but not used [-Wunused-function]
+  163 | static void ggml_set_op_params_i32(struct ggml_tensor * tensor, uint32_t i, int32_t value) {
+      |             ^~~~~~~~~~~~~~~~~~~~~~
+/home/steven/enclave-bench/shield-original-reclaim-20260929/build/engine-src/ggml/src/ggml-impl.h:158:14: warning: ‘float ggml_get_op_params_f32(const ggml_tensor*, uint32_t)’ defined but not used [-Wunused-function]
+  158 | static float ggml_get_op_params_f32(const struct ggml_tensor * tensor, uint32_t i) {
+      |              ^~~~~~~~~~~~~~~~~~~~~~
+/home/steven/enclave-bench/shield-original-reclaim-20260929/build/engine-src/ggml/src/ggml-impl.h:153:16: warning: ‘int32_t ggml_get_op_params_i32(const ggml_tensor*, uint32_t)’ defined but not used [-Wunused-function]
+  153 | static int32_t ggml_get_op_params_i32(const struct ggml_tensor * tensor, uint32_t i) {
+      |                ^~~~~~~~~~~~~~~~~~~~~~
+/home/steven/enclave-bench/shield-original-reclaim-20260929/build/engine-src/ggml/src/ggml-impl.h:147:13: warning: ‘void ggml_set_op_params(ggml_tensor*, const void*, size_t)’ defined but not used [-Wunused-function]
+  147 | static void ggml_set_op_params(struct ggml_tensor * tensor, const void * params, size_t params_size) {
+      |             ^~~~~~~~~~~~~~~~~~
+/home/steven/enclave-bench/shield-original-reclaim-20260929/build/engine-src/ggml/src/ggml-impl.h:90:13: warning: ‘bool ggml_op_is_empty(ggml_op)’ defined but not used [-Wunused-function]
+   90 | static bool ggml_op_is_empty(enum ggml_op op) {
+      |             ^~~~~~~~~~~~~~~~
+/home/steven/enclave-bench/shield-original-reclaim-20260929/build/engine-src/ggml/src/ggml-impl.h:75:13: warning: ‘bool ggml_are_same_layout(const ggml_tensor*, const ggml_tensor*)’ defined but not used [-Wunused-function]
+   75 | static bool ggml_are_same_layout(const struct ggml_tensor * a, const struct ggml_tensor * b) {
+      |             ^~~~~~~~~~~~~~~~~~~~
+cc -O2 -Wall -Wextra -fPIC -fno-math-errno -ffp-contract=off -c shielded-field.c -o shielded-field.o
+cc -O2 -Wall -Wextra -fPIC -fno-math-errno -c shielded-wire.c -o shielded-wire.o
+cc -O2 -Wall -Wextra -fPIC -fno-math-errno -c shielded-tee.c -o shielded-tee.o
+shielded-tee.c: In function ‘dealt_reserve_http.constprop’:
+shielded-tee.c:1840:98: warning: ‘%s’ directive output may be truncated writing up to 1023 bytes into a region of size 211 [-Wformat-truncation=]
+ 1840 |             } else snprintf(l->err, sizeof l->err, "dealt pads: window signature REJECTED (agent %s)", l->win_url);
+      |                                                                                                  ^~
+shielded-tee.c:1840:20: note: ‘snprintf’ output between 47 and 1070 bytes into a destination of size 256
+ 1840 |             } else snprintf(l->err, sizeof l->err, "dealt pads: window signature REJECTED (agent %s)", l->win_url);
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+shielded-tee.c:1841:83: warning: ‘%s’ directive output may be truncated writing up to 1023 bytes into a region of size 222 [-Wformat-truncation=]
+ 1841 |         } else snprintf(l->err, sizeof l->err, "dealt pads: malformed window from %s", l->win_url);
+      |                                                                                   ^~
+shielded-tee.c:1841:16: note: ‘snprintf’ output between 35 and 1058 bytes into a destination of size 256
+ 1841 |         } else snprintf(l->err, sizeof l->err, "dealt pads: malformed window from %s", l->win_url);
+      |                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+shielded-tee.c:1842:70: warning: ‘%s’ directive output may be truncated writing up to 1023 bytes into a region of size 231 [-Wformat-truncation=]
+ 1842 |     } else snprintf(l->err, sizeof l->err, "dealt pads: window agent %s answered http %d", l->win_url, status);
+      |                                                                      ^~
+shielded-tee.c:1842:12: note: ‘snprintf’ output between 42 and 1075 bytes into a destination of size 256
+ 1842 |     } else snprintf(l->err, sizeof l->err, "dealt pads: window agent %s answered http %d", l->win_url, status);
+      |            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+shielded-tee.c:1829:141: warning: ‘%s’ directive output may be truncated writing up to 1023 bytes into a region of size 231 [-Wformat-truncation=]
+ 1829 |     if (sh_http_post_json(l->win_url, body, 30000, &resp, &rlen, &status) != 0) { snprintf(l->err, sizeof l->err, "dealt pads: window agent %s unreachable", l->win_url); return SH_ERR_IO; }
+      |                                                                                                                                             ^~
+shielded-tee.c:1829:83: note: ‘snprintf’ output between 38 and 1061 bytes into a destination of size 256
+ 1829 |     if (sh_http_post_json(l->win_url, body, 30000, &resp, &rlen, &status) != 0) { snprintf(l->err, sizeof l->err, "dealt pads: window agent %s unreachable", l->win_url); return SH_ERR_IO; }
+      |                                                                                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+shielded-tee.c: In function ‘dealt_bind’:
+shielded-tee.c:2063:110: warning: ‘%s’ directive output may be truncated writing up to 1023 bytes into a region of size 211 [-Wformat-truncation=]
+ 2063 |             if (!l->padbank) { snprintf(l->err, sizeof l->err, "dealt pads: cannot start the bank client for %s (cache %s)", l->bank_url, l->pad_dir); return err ? err : SH_ERR_IO; }
+      |                                                                                                              ^~
+In function ‘dealt_bind’,
+    inlined from ‘dealt_bind’ at shielded-tee.c:2054:12:
+shielded-tee.c:2063:32: note: ‘snprintf’ output 55 or more bytes (assuming 1078) into a destination of size 256
+ 2063 |             if (!l->padbank) { snprintf(l->err, sizeof l->err, "dealt pads: cannot start the bank client for %s (cache %s)", l->bank_url, l->pad_dir); return err ? err : SH_ERR_IO; }
+      |                                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+shielded-tee.c: In function ‘dealt_open’:
+shielded-tee.c:2096:115: warning: ‘%s’ directive output may be truncated writing up to 511 bytes into a region of size 198 [-Wformat-truncation=]
+ 2096 |     if (rc != SH_OK) { snprintf(l->err, sizeof l->err, "dealt pads: invalid, replayed or exhausted ledger window (%s)", l->win_fn ? "provider refused" : l->pad_ledger); return rc; }
+      |                                                                                                                   ^~
+In function ‘dealt_open’,
+    inlined from ‘dealt_open’ at shielded-tee.c:2089:12:
+shielded-tee.c:2096:24: note: ‘snprintf’ output between 60 and 571 bytes into a destination of size 256
+ 2096 |     if (rc != SH_OK) { snprintf(l->err, sizeof l->err, "dealt pads: invalid, replayed or exhausted ledger window (%s)", l->win_fn ? "provider refused" : l->pad_ledger); return rc; }
+      |                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+cc -O2 -Wall -Wextra -fPIC -fno-math-errno -c shielded-parwork.c -o shielded-parwork.o
+cc -O2 -Wall -Wextra -fPIC -fno-math-errno -c shielded-pads.c -o shielded-pads.o
+shielded-pads.c: In function ‘box_shared_checked’:
+shielded-pads.c:95:54: warning: initializer-string for array of ‘unsigned char’ truncates NUL terminator but destination lacks ‘nonstring’ attribute (17 chars into 16 available) [-Wunterminated-string-initialization]
+   95 |     static const uint8_t zero[16] = {0}, sigma[16] = "expand 32-byte k";
+      |                                                      ^~~~~~~~~~~~~~~~~~
+shielded-pads.c: In function ‘reader_scan’:
+shielded-pads.c:480:41: warning: ‘%s’ directive output may be truncated writing likely 6 or more bytes into a region of size between 0 and 511 [-Wformat-truncation=]
+  480 |         snprintf(path, sizeof path, "%s/%s", r->dir, e->d_name);
+      |                                         ^~
+shielded-pads.c:480:37: note: assuming directive output of 6 bytes
+  480 |         snprintf(path, sizeof path, "%s/%s", r->dir, e->d_name);
+      |                                     ^~~~~~~
+shielded-pads.c:480:9: note: ‘snprintf’ output 2 or more bytes (assuming 519) into a destination of size 512
+  480 |         snprintf(path, sizeof path, "%s/%s", r->dir, e->d_name);
+      |         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+cc -O2 -Wall -Wextra -fPIC -fno-math-errno -c shielded-bank.c -o shielded-bank.o
+shielded-bank.c: In function ‘sh_bank_open’:
+shielded-bank.c:168:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  168 |         if (err) *err = SH_ERR_IO; return NULL;
+      |         ^~
+shielded-bank.c:168:36: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  168 |         if (err) *err = SH_ERR_IO; return NULL;
+      |                                    ^~~~~~
+shielded-bank.c: In function ‘bank_main’:
+shielded-bank.c:102:60: warning: ‘%s’ directive output may be truncated writing up to 1023 bytes into a region of size 243 [-Wformat-truncation=]
+  102 |         else snprintf(b->err, sizeof b->err, "bank listing %s: %s%d", b->url, status ? "http " : "unreachable ", status);
+      |                                                            ^~
+shielded-bank.c:102:14: note: ‘snprintf’ output between 22 and 1062 bytes into a destination of size 256
+  102 |         else snprintf(b->err, sizeof b->err, "bank listing %s: %s%d", b->url, status ? "http " : "unreachable ", status);
+      |              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+cc -O2 -Wall -Wextra -fPIC -fno-math-errno -c shielded-http.c -o shielded-http.o
+cc -O2 -Wall -Wextra -fPIC -fno-math-errno -c prefix-kv.c -o prefix-kv.o
+cc -O2 -Wall -Wextra -fPIC -fno-math-errno -c tweetnacl.c -o tweetnacl.o
+tweetnacl.c: In function ‘vn’:
+tweetnacl.c:2:31: warning: comparison of integer expressions of different signedness: ‘u32’ {aka ‘long unsigned int’} and ‘int’ [-Wsign-compare]
+    2 | #define FOR(i,n) for (i = 0;i < n;++i)
+      |                               ^
+tweetnacl.c:57:3: note: in expansion of macro ‘FOR’
+   57 |   FOR(i,n) d |= x[i]^y[i];
+      |   ^~~
+tweetnacl.c: At top level:
+tweetnacl.c:123:29: warning: initializer-string for array of ‘unsigned char’ truncates NUL terminator but destination lacks ‘nonstring’ attribute (17 chars into 16 available) [-Wunterminated-string-initialization]
+  123 | static const u8 sigma[16] = "expand 32-byte k";
+      |                             ^~~~~~~~~~~~~~~~~~
+tweetnacl.c: In function ‘crypto_sign_ed25519_tweet’:
+tweetnacl.c:2:31: warning: comparison of integer expressions of different signedness: ‘i64’ {aka ‘long long int’} and ‘u64’ {aka ‘long long unsigned int’} [-Wsign-compare]
+    2 | #define FOR(i,n) for (i = 0;i < n;++i)
+      |                               ^
+tweetnacl.c:723:3: note: in expansion of macro ‘FOR’
+  723 |   FOR(i,n) sm[64 + i] = m[i];
+      |   ^~~
+tweetnacl.c: In function ‘crypto_sign_ed25519_tweet_open’:
+tweetnacl.c:2:31: warning: comparison of integer expressions of different signedness: ‘int’ and ‘u64’ {aka ‘long long unsigned int’} [-Wsign-compare]
+    2 | #define FOR(i,n) for (i = 0;i < n;++i)
+      |                               ^
+tweetnacl.c:790:3: note: in expansion of macro ‘FOR’
+  790 |   FOR(i,n) m[i] = sm[i];
+      |   ^~~
+tweetnacl.c:2:31: warning: comparison of integer expressions of different signedness: ‘int’ and ‘u64’ {aka ‘long long unsigned int’} [-Wsign-compare]
+    2 | #define FOR(i,n) for (i = 0;i < n;++i)
+      |                               ^
+tweetnacl.c:802:5: note: in expansion of macro ‘FOR’
+  802 |     FOR(i,n) m[i] = 0;
+      |     ^~~
+tweetnacl.c:2:31: warning: comparison of integer expressions of different signedness: ‘int’ and ‘u64’ {aka ‘long long unsigned int’} [-Wsign-compare]
+    2 | #define FOR(i,n) for (i = 0;i < n;++i)
+      |                               ^
+tweetnacl.c:806:3: note: in expansion of macro ‘FOR’
+  806 |   FOR(i,n) m[i] = sm[i + 64];
+      |   ^~~
+cc -O2 -Wall -Wextra -fPIC -fno-math-errno -c poly1305-donna.c -o poly1305-donna.o
+poly1305-donna.c:18:6: warning: this use of ‘defined’ may not be portable [-Wexpansion-to-defined]
+   18 | #if (HAS_SIZEOF_INT128_64BIT || HAS_MSVC_64BIT || HAS_GCC_4_4_64BIT)
+      |      ^~~~~~~~~~~~~~~~~~~~~~~
+poly1305-donna.c:18:6: warning: this use of ‘defined’ may not be portable [-Wexpansion-to-defined]
+poly1305-donna.c:18:33: warning: this use of ‘defined’ may not be portable [-Wexpansion-to-defined]
+   18 | #if (HAS_SIZEOF_INT128_64BIT || HAS_MSVC_64BIT || HAS_GCC_4_4_64BIT)
+      |                                 ^~~~~~~~~~~~~~
+poly1305-donna.c:18:33: warning: this use of ‘defined’ may not be portable [-Wexpansion-to-defined]
+poly1305-donna.c:18:51: warning: this use of ‘defined’ may not be portable [-Wexpansion-to-defined]
+   18 | #if (HAS_SIZEOF_INT128_64BIT || HAS_MSVC_64BIT || HAS_GCC_4_4_64BIT)
+      |                                                   ^~~~~~~~~~~~~~~~~
+poly1305-donna.c:18:51: warning: this use of ‘defined’ may not be portable [-Wexpansion-to-defined]
+cc -O2 -Wall -Wextra -fPIC -fno-math-errno -O3 -mavx512f -mavx512bw -mavx512dq -mavx512vl -mavx512vnni -DSH_SIMD_AVX512 -c shielded-simd.c -o shielded-simd-avx512.o
+cc -O2 -Wall -Wextra -fPIC -fno-math-errno -O3 -c shielded-simd.c -o shielded-simd-generic.o
+g++ -O2 -std=c++17 -Wall -Wextra -fPIC -fno-math-errno -DGGML_MAX_NAME=128 -I/home/steven/enclave-bench/shield-compact-production-20260930/onednn-wx/install/usr/include -O3 -mavx512f -mavx512bw -mavx512dq -mavx512vl -mavx512vnni -c shielded-compact.cpp -o shielded-compact.o
+g++ -O2 -std=c++17 -Wall -Wextra -fPIC -fno-math-errno -DGGML_MAX_NAME=128 -shared -o libggml-shielded.so ggml-shielded-dl.o shielded-field.o shielded-wire.o shielded-tee.o shielded-parwork.o shielded-pads.o shielded-bank.o shielded-http.o prefix-kv.o tweetnacl.o poly1305-donna.o shielded-simd-avx512.o shielded-simd-generic.o shielded-compact.o -L/home/steven/enclave-bench/shield-original-reclaim-20260929/build/engine-build/bin -lggml-base -lm -lpthread -L/home/steven/enclave-bench/shield-compact-production-20260930/onednn-wx/install/usr/lib -ldnnl -lgomp -Wl,-rpath,/home/steven/enclave-bench/shield-original-reclaim-20260929/build/engine-build/bin
+make: Leaving directory '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/backend-rebuild-r1/src'

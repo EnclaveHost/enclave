@@ -1,0 +1,86 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] START available=25750MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: only explicit owned private endpoint scopes; no credentials or public fallback
+ok 1 - only explicit owned private endpoint scopes; no credentials or public fallback
+  ---
+  duration_ms: 1.139879
+  type: 'test'
+  ...
+# Subtest: signed advisory parser binds signer and exposes original transactions/metadata
+ok 2 - signed advisory parser binds signer and exposes original transactions/metadata
+  ---
+  duration_ms: 51.212677
+  type: 'test'
+  ...
+# Subtest: preimages must reproduce hashes; local inputs stripped; conflicts never overwrite
+ok 3 - preimages must reproduce hashes; local inputs stripped; conflicts never overwrite
+  ---
+  duration_ms: 1.851772
+  type: 'test'
+  ...
+# Subtest: raw headers bind hash and exact ancestor height
+ok 4 - raw headers bind hash and exact ancestor height
+  ---
+  duration_ms: 5.504417
+  type: 'test'
+  ...
+# Subtest: capture success stays untrusted; exact method/parent binding and absent witness refuse
+ok 5 - capture success stays untrusted; exact method/parent binding and absent witness refuse
+  ---
+  duration_ms: 23.88526
+  type: 'test'
+  ...
+# Subtest: native Snappy/signature interoperability; fabricated header is correctly refused
+ok 6 - native Snappy/signature interoperability; fabricated header is correctly refused
+  ---
+  duration_ms: 59.394648
+  type: 'test'
+  ...
+# Subtest: production capture enforces reviewed signer/config/schedule before network
+ok 7 - production capture enforces reviewed signer/config/schedule before network
+  ---
+  duration_ms: 6.039142
+  type: 'test'
+  ...
+# Subtest: native result must echo reviewed config/schedule and bind canonical supplied config
+ok 8 - native result must echo reviewed config/schedule and bind canonical supplied config
+  ---
+  duration_ms: 0.408696
+  type: 'test'
+  ...
+# Subtest: runtime rejects changed, added, missing or linked dependency files before imports
+ok 9 - runtime rejects changed, added, missing or linked dependency files before imports
+  ---
+  duration_ms: 3.479327
+  type: 'test'
+  ...
+# Subtest: root job executes in an isolated network namespace
+ok 10 - root job executes in an isolated network namespace
+  ---
+  duration_ms: 0.893762
+  type: 'test'
+  ...
+# Subtest: unsupported signed transaction types refuse before witness RPC
+ok 11 - unsupported signed transaction types refuse before witness RPC
+  ---
+  duration_ms: 6.045632
+  type: 'test'
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 11
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1031.871708
+[memory-guard] exit=0 peakTreeRssMiB=156 minHostAvailableMiB=25684
+[memory-guard] at peak: node:92 node:58 bash:4 tee:2
+[queue] EXIT 0

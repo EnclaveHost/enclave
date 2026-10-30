@@ -1,0 +1,2 @@
+test/windows-chain-authority-runtime.test.mjs
+test/windows-owner-cli.test.mjs

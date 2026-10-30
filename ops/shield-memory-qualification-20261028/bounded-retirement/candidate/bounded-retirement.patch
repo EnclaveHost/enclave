@@ -1,0 +1,109 @@
+--- a/wasm/llama-shim/shield-original-source.hpp
++++ b/wasm/llama-shim/shield-original-source.hpp
+@@ -7,6 +7,7 @@
+ #include <cerrno>
+ #include <cstdint>
+ #include <cstring>
++#include <deque>
+ #include <map>
+ #include <mutex>
+ #include <stdexcept>
+@@ -29,6 +30,10 @@
+     uint64_t file_size = 0, released_bytes = 0, reread_bytes = 0;
+     size_t page = 0;
+     bool defer_retirement = false;
++    // Opt-in bound on consumed-but-unretired originals while deferring. Zero
++    // keeps every consumed original until release_consumed(), as before.
++    uint64_t retire_budget = 0, unretired_bytes = 0;
++    std::deque<entry *> unretired;
+     std::map<std::string, entry> entries;
+     std::mutex mu;
+     ~shield_original_source() {
+@@ -79,6 +84,37 @@
+         released_bytes += end-begin;
+         return true;
+     }
++    // Retire the oldest consumed originals until at most retire_budget bytes
++    // remain unretired. Never the one just read: column-split registration
++    // reads it again for the next card, which must not reread host storage.
++    bool retire_over_budget(const entry *keep) {
++        for (auto it = unretired.begin(); unretired_bytes > retire_budget && it != unretired.end();) {
++            entry *e = *it;
++            if (e == keep) { ++it; continue; }
++            if (!e->retired) {
++                if (!retire(e->offset, e->size)) return false;
++                e->retired = true;
++            }
++            unretired_bytes -= e->size;
++            it = unretired.erase(it);
++        }
++        return true;
++    }
++    // ENCLAVE_SHIELD_SOURCE_RETIRE_BUDGET_MIB. Unset or empty keeps the default.
++    // Otherwise plain decimal MiB in [64, 65536]; anything else refuses the load.
++    static bool parse_retire_budget_mib(const char *v, uint64_t &bytes) {
++        bytes = 0;
++        if (!v || !*v) return true;
++        if (*v == '0' || strnlen(v, 6) > 5) return false;
++        uint64_t mib = 0;
++        for (const char *p = v; *p; p++) {
++            if (*p < '0' || *p > '9') return false;
++            mib = mib*10 + uint64_t(*p - '0');
++        }
++        if (mib < 64 || mib > 65536) return false;
++        bytes = mib << 20;
++        return true;
++    }
+     static int release_consumed(void *ctx) {
+         auto &s = *static_cast<shield_original_source *>(ctx);
+         std::lock_guard<std::mutex> lock(s.mu);
+@@ -88,6 +124,7 @@
+             if (!s.retire(e.offset, e.size)) return -1;
+             e.retired = true;
+         }
++        s.unretired.clear(); s.unretired_bytes = 0;
+         return 0;
+     }
+     static int verify(void *ctx, const char *name, uint32_t type, const int64_t ne[4], const void *bytes, size_t n) {
+@@ -108,11 +145,17 @@
+             s.reread_bytes += n;
+             posix_fadvise(fd, e.offset, n, POSIX_FADV_DONTNEED);
+         } else {
++            if (!e.consumed && s.defer_retirement && s.retire_budget) {
++                if (e.size > UINT64_MAX - s.unretired_bytes) return -1;
++                s.unretired_bytes += e.size;
++                s.unretired.push_back(&e);
++            }
+             e.consumed = true;
+             // Preserve the original allocation order while encoded weights
+             // are being built. The planner releases this batch after all its
+             // registrations have authenticated and allocated their weights.
+-            if (s.defer_retirement) return 0;
++            // An opt-in budget retires the oldest earlier in the batch.
++            if (s.defer_retirement) return s.retire_over_budget(&e) ? 0 : -1;
+             // The verifier consumes this private destination, never this file
+             // again. Authentication failure latches the backend closed.
+             if (!s.retire(e.offset, e.size)) return -1;
+--- a/wasm/llama-shim/enclave_shield_loader.cpp
++++ b/wasm/llama-shim/enclave_shield_loader.cpp
+@@ -65,6 +65,9 @@
+     gguf_context *uf = nullptr;
+     ggml_context *metadata = nullptr;
+     try {
++        uint64_t retire_budget = 0;
++        if (!shield_original_source::parse_retire_budget_mib(getenv("ENCLAVE_SHIELD_SOURCE_RETIRE_BUDGET_MIB"), retire_budget))
++            throw std::runtime_error("invalid source retirement budget");
+         // This is the private copy authenticated by /shieldmodel, not /dev/vda.
+         const char *private_source = getenv("ENCLAVE_SHIELD_PRIVATE_SOURCE");
+         s.source.private_fd = source_fd(private_source ? private_source : path, O_RDWR);
+@@ -98,7 +101,10 @@
+         // Bind only after metadata parsing, before any graph or registration.
+         if (bind(shield_original_source::verify, &s.source)) throw std::runtime_error("verifier admission");
+         s.source.defer_retirement = true;
++        s.source.retire_budget = retire_budget;
+         if (release(shield_original_source::release_consumed, &s.source)) throw std::runtime_error("source retirement admission");
++        if (retire_budget)
++            fprintf(stderr, "[shield-source] bounded deferred retirement: budget=%llu bytes plus the tensor being registered\n", (unsigned long long)retire_budget);
+         uint64_t streamed = 0, resident = 0; size_t count = 0;
+         std::set<ggml_tensor *> seen;
+         for (const auto &kv : llama_internal_get_tensor_map(s.model)) {

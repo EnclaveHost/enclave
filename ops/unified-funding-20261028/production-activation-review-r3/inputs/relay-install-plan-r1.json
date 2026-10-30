@@ -1,0 +1,40 @@
+{
+  "status": "PREPARATION_ONLY_NOT_EXECUTED",
+  "service": "enclave-api-relay.service",
+  "baselinePid": 228946,
+  "scope": "Replace only sessions.mjs with tested canonical queue/successor integration, add four funding modules, root-owned public manifests and dedicated environment drop-in. Preserve every other source/config/admin/environment and existing session journal.",
+  "sourceRoot": "/opt/enclave-funding-staged/activation-r1-20261028",
+  "targetRoot": "/opt/nan-relay",
+  "protectedBaselineHashes": {
+    "api-relay.js": "481f00410b87f30ee467183db7121175d37c010be5b2c23891a0a19e63b4579d",
+    "sessions.mjs": "457e86472adce2f1fdd2dfa82759578a56f7d72f0c5e5ee18e53999a26d0682d",
+    "sessions-abi.mjs": "e9c2464c529d0665e4b2e38bdaa0bf8c703346f046b85521aba755bfc1b2a0a6",
+    "snp-verify.mjs": "10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91"
+  },
+  "permissions": {
+    "manifestDirectory": "root:enclave-api-relay 0750",
+    "manifestFiles": "root:enclave-api-relay 0640",
+    "privatePreservation": "root:root 0700; never print credentials"
+  },
+  "gates": [
+    "Actual complete manifest preparation and loader pass, two-provider bindings, measured/current fee and full fixture tests",
+    "Actual Caddy gate/watchdog integration qualification",
+    "Coordinate exact maintenance window; no competing financial submitter",
+    "Independent rollback watchdog before gate; bounded maximum15min review",
+    "Fresh baseline process/source/unit/drop-in identity; public config, all prior admin entries",
+    "Fresh sessions index expiry scan/no keeper eligible; all durable journal entries resolved; two-provider relayer latest/pending plus stable journal and zero Caddy active upstream requests after gate. These observations are supporting evidence, not proof of unknown in-memory/prehash requests. Any concrete unknown aborts before restart",
+    "Coordinator activation lock + durable activation-started marker before mutations; watchdog retains gate for manual recovery after activation starts",
+    "Private root-owned preservation of baseline source/unit/dropins/journals, exact hashes/modes. Do not copy stale journals back over new entries",
+    "Exclusive new config directory, exact readback and service-user loader checks. Atomic per-file rename only validated source; disk free check; no blind overwrite",
+    "One service restart, verify newPID/baseline env+admin preservation/legacy publicconfig plus successor owner/intakeconfig/runtimepins",
+    "Remove exact owned gate by fresh CAS only after health and journal review"
+  ],
+  "rollback": "Before any successor grant is opened, restore exact prior sessions.mjs and remove only owned env drop-in, leave new modules/manifests inert; do not overwrite durable journal. If a successor grant may exist, keep qualified successor owner controls available and disable intake only. Never drop new owner controls through an old-module rollback. Any unknown send remains blocked/reconciled without rebroadcast.",
+  "notAuthorizedByThisFile": [
+    "New owner grants",
+    "Session budget migration",
+    "Financial sends",
+    "Controller restart",
+    "RPC VM boot"
+  ]
+}

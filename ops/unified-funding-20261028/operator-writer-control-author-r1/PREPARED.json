@@ -1,0 +1,45 @@
+{
+  "status": "PREPARED_NOT_LAUNCHED",
+  "seedEntries": 252,
+  "readonlyInputPins": 16293,
+  "freshSession": true,
+  "sourceTools": [
+    "Read",
+    "Grep",
+    "Write",
+    "Edit"
+  ],
+  "mutationPolicy": "Candidate subtree only; terminal Write/Edit result audit and successful-mutation replay; missing/mismatched/outside outcomes never called clean",
+  "turnLimit": 40,
+  "turnMetric": "CLI max-agentic/API-turns; success result num_turns is separate user-message counter; preserve both",
+  "childTimeoutSec": 1200,
+  "outerTimeoutSec": 1400,
+  "queueMiB": 1536,
+  "hardMemoryMiB": 1536,
+  "rssMiB": 1408,
+  "availableMemoryFloorMiB": 27648,
+  "cpus": 1,
+  "swapMiB": 0,
+  "persistentTmpdir": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-writer-control-r1-20261029/owned-tmp",
+  "claudeExecutable": {
+    "path": "/home/steven/.local/share/claude/versions/2.1.281",
+    "sha256": "56fe3da88458465fb27d7e9299dddb3fead55750fb9c2de795f233b5eea6dce1"
+  },
+  "hashes": {
+    "TASK.txt": "162dc8449f7fd213d4426115da201c2040028855b7e0f9ffd0a7a7cefac172ad",
+    "run.py": "c6c2f031cd1fa33082870fc1b9700920090e11f207b9dd4d8b5d843e7f71767e",
+    "collect-terminal.py": "79d1d0c829f7d5da1360d4bbdc3f9564eaa31e5fcb63d67ea95f8bc018adcb1b",
+    "readonly-progress.py": "7657e3cf867451e36d2651f2f8ff67ca30ce88216f3c75459538ce2172b7bf61",
+    "turn-metric-investigation.json": "9e8987ce7979409ffe37c141e2638409796b08d2f955e1fb8366880b078a3ec8",
+    "input-pins.json": "0f0ed15dc7e9945f73673b489ab95a13d520d9538d01ba88b07f82dbe10ab7fd",
+    "seed-pins.json": "28a94534fa697b8e972dbe5881f727df1af111a21b6c6cd7c7f5c1a16d603e12",
+    "seed-provenance.json": "5572151981aa0fc0058c4f8dfb04740bc35ed1b4aacdb3e182be0e7e1d462105",
+    "launch-command.txt": "6d2f0d5a72eed3571f8c37a83af64cf2ddf9aad53f7d3012f489c326e81b8674",
+    "qualification-admission-plan.json": "7538040f2a3e6af511984b17f95684c4e1450034276c5d65647f50beaa990c95",
+    "dependency-map.json": "92a1983971fecba7c192f07328fab951df447d34ccfa07cfdcd90669d7165522",
+    "REVIEW-STATUS.txt": "e2f32162ad83b04eb570cbaecbb3ae25f4e8ff80553ddf6fddcd4beca836a6e6"
+  },
+  "originalSeedEntries": 252,
+  "addedPinnedDependencies": 0,
+  "priority": "DEFERRED_WRITER_CONTROL_NO_LAUNCH"
+}

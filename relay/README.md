@@ -43,8 +43,75 @@ expired allocations produce no address, with no fallback to old relay IPs.
 DNS-01 TXT challenges and box control names remain supported. See the file's
 configuration comments and [TUNA operations](../network/README.md).
 
-`deploy.sh` ships the API to Nan and DNS to `DNS_HOST` (default nan-relay). It
-requires a successful TUNA cutover preflight before updating the service files.
+### Deploying (`deploy.sh`)
+
+`deploy.sh` deploys two separate roles, the control API (`enclave-api-relay`) and the authoritative DNS
+(`enclave-dns`). Each goes to a target the operator names; there is no default host and no built-in alias:
+
+```sh
+RELAY_DEPLOY_ROLES=api,dns \
+RELAY_API_TARGET=api-box RELAY_API_DIR=/opt/nan-relay \
+RELAY_DNS_TARGET=dns-box RELAY_DNS_DIR=/opt/enclave-dns \
+  bash relay/deploy.sh                    # preflight arguments, if any, follow
+bash relay/deploy.sh --check-config      # validate only: no ssh, no build, no preflight
+```
+
+- **Targets.** A target is an alias from your own `~/.ssh/config` or `user@host`. Options, ports, paths and spaces are
+  refused. Every connection uses `BatchMode=yes` and `StrictHostKeyChecking=yes`, so the host keys must already be in
+  `known_hosts`.
+- **Directories.** A directory must be one directory directly under `/opt`. It must also equal the `WorkingDirectory`
+  of the unit **already installed** on that host, running `<dir>/api-relay.js` or `<dir>/dns-relay.js`.
+  - The deployed installs today are the API in `/opt/nan-relay` and the DNS in `/opt/enclave-dns`.
+  - The old script copied DNS into `/opt/nan-relay` on `nan-relay`, which is no longer the DNS install.
+  - A directory that does not agree with the installed unit is refused before anything is copied.
+- **Roles.** API and DNS stay separate even on one host: their own directory, unit, staging and checks.
+  - Name only the roles you mean to deploy. A role you leave out is reported as not deployed.
+  - A selected role that cannot be reached, or whose unit disagrees, fails the whole run before anything is copied.
+
+The order of a run:
+
+1. Configuration is validated. Nothing runs before this.
+2. The TUNA cutover preflight (`network/preflight.mjs`) runs.
+3. Read-only checks, for every selected role: reachability, and unit agreement.
+4. The measurement-prediction gap on the API host, which fails closed. An unreadable predictor (ssh failure, pgrep
+   error) refuses; an active one is waited out for up to `PREDICTION_WAIT_SEC`.
+5. The env-file permission report: modes only, contents are never read.
+6. The local locked build (`npm ci --ignore-scripts`, `build-network.mjs`).
+7. Staging. Each role's payload is copied into `<dir>.deploy-<id>`, checked against its sha256 manifest (exact file
+   set), given its locked dependencies (`npm ci --omit=dev --ignore-scripts`) and bundle-loaded there. A failure stops
+   here, and the running services are untouched.
+8. Apply, one role at a time. Exactly the shipped files and `node_modules` are replaced, after being saved to
+   an exclusively created `<dir>.rollback-<id>`; an existing backup is preserved and refuses the apply.
+   Copy, rename, dependency-move and signal failures trigger rollback. A unit that does not stay up also triggers
+   rollback and a restart of the previous release. Each outcome is reported explicitly; a failed rollback retains
+   the backup, journal and staged release for recovery and is never reported as restored.
+
+A connection lost during apply has an unknown outcome until the host is inspected. If DNS commits successfully
+and API then fails, DNS continues serving its new release: the run fails and reports this mixed state. Inspect
+the reported backup and staging paths before retrying or restoring a role.
+
+Untouched by the deploy:
+- files in the install directory that the deploy does not ship;
+- the state directories;
+- `/etc/nan-relay/*.env`;
+- the installed units, which the script never writes. Install or change a unit by hand (`systemd/*.service` assume
+  `/opt/nan-relay`). The old one-time removal of `nan-api-relay.service` is no longer performed.
+
+**Migrating from the old invocation:**
+- `DNS_HOST` and the hardcoded `nan`/`nan-relay` aliases are gone. Locally, put the hosts in your ssh config (or use
+  `user@host`) and pass the variables above.
+- In CI, the relay job reads the repository variables:
+  - `RELAY_DEPLOY_ROLES`;
+  - `RELAY_API_TARGET` and `RELAY_API_DIR`;
+  - `RELAY_DNS_TARGET` and `RELAY_DNS_DIR`;
+  - `DEPLOY_KNOWN_HOSTS` (those hosts' keys), with the `DEPLOY_SSH_KEY` secret.
+- In CI, `RELAY_SSH_HOST`, `SITE_SSH_HOST` and `EXTRA_RELAY_SSH_HOSTS` are no longer read. An unset variable fails the
+  job, naming the role and variable.
+- To keep today's layout, use `RELAY_API_DIR=/opt/nan-relay` and `RELAY_DNS_DIR=/opt/enclave-dns`, with the targets
+  of the hosts that run them.
+
+This change only edits the tooling; it deployed no services and changed no host.
+
 Host configuration and secret-bearing environment files are not overwritten.
 Deploy host adapters separately, fund their native NKN wallets, verify every
 running app through its provider, then change DNS and retire old data services.

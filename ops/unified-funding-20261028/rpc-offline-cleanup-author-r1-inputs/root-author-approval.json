@@ -1,0 +1,19 @@
+{
+  "preparedSha256": "8c005a8734ddec2ad1e457dfec717d13585576f1f419dcb5883824ddf8ecfa0d",
+  "launchAuthorized": true,
+  "reviewedAt": 1793346050.7620752,
+  "scope": "one source-only focused cleanup repair; no author execution/tests/image/native/runtime/finance",
+  "accountPreflightInvocation": "e26b5d525fb04d38ba155166e2337a9e",
+  "rootReviewedPins": 53,
+  "seedFiles": 7,
+  "protectedMethods": 4,
+  "limits": {
+    "hardMiB": 1536,
+    "rssMiB": 1408,
+    "floorMiB": 27648,
+    "cpu": 1,
+    "swapMiB": 0,
+    "childSeconds": 900,
+    "outerSeconds": 1200
+  }
+}

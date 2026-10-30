@@ -1,0 +1,22 @@
+{
+  "readonly-progress.py": "7657e3cf867451e36d2651f2f8ff67ca30ce88216f3c75459538ce2172b7bf61",
+  "operator-source-closure.json": "5bc7609cafc9f132084b8c1f542ad400f742eed5f160a22707072c67b8f3e13e",
+  "turn-metric-investigation.json": "9e8987ce7979409ffe37c141e2638409796b08d2f955e1fb8366880b078a3ec8",
+  "collect-terminal.py": "c0a16176148b0e3abb0acd6fcb10f3aca56257246298653c53183396ac4504c5",
+  "root-prelaunch-review.json": "cab74a5f9175e1f0db36ac6a773a4f4fd49ac6bf24a937fd2a475f269afdf13c",
+  "preparation-audit.json": "bf71a4bf41094ad7eeae8f119d90c964580f9b2d25f903202a50d0790b1986bc",
+  "TASK.txt": "9eae0b2d2922016ada5ad1077340dc3edade6f26c849d5468e95b9582e7ae354",
+  "REVIEW-STATUS.txt": "17f1a8125199654bc46ad4d8a40b0002fdee4e9ef5957e1731152375cce9759c",
+  "input-pins.json": "a5dfa2929396b399e6ba57b6846e75c142cb30317bf59592f9e6015a34791efd",
+  "launch-command.txt": "e997cafde72740401ca24c9c4b361c9ac4fa20e3905f87f4147c65aa3c5cdf64",
+  "seed-pins.json": "9e379ac483e8cca931b4cc8e8c856ca497ea5c6d470c891cee5d1375d34b6398",
+  "seed-provenance.json": "ba5ef4c8d0f6a633d9c32ebb99d20955496245c1b6a22983825673c26513797d",
+  "interface-map.json": "b6c84b10ccfccf3f605a2435d7027c07c8a374b273285bb771ab7bc5cb4451e9",
+  "README.md": "645dc3994270174a552d202113456b0edf24e7f5da0ad2a6a1099ecf7c43e012",
+  "account-verification.json": "8f2349ef4dd4bdced4c14177ee787fb2f6bed2014e08ea0937c064d4e3a9dd00",
+  "PREPARED.json": "2423b86ebb77d6ae65235d3db57a204d011b51a4b9d03b24635dcbb1da72bf17",
+  "evidence-index.json": "5a0d33d5bf4b0ad92c29ed8aa17614b145f006bc22d943eacb376ac15e2eab79",
+  "materialization.json": "09806d6736ad1d017ea771153d1e6ff0fea24d68fda174ca096b117a03ceaff5",
+  "run.py": "415f2c5c0164029eae4d7f5f3c91abcd35b545f1d15fc9a984c5a1c35907ef1d",
+  "admission-record.json": "b44b60fb486822f1dcdb3cb867e4ecd188ee3fb106411300562e750f85c02166"
+}

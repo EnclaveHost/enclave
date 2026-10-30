@@ -1,0 +1,164 @@
+[queue] START available=22239MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+=== build
+{"outfile":"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/relay-consumer-source/relay/network-runtime.bundle.mjs","sha256":"5432bacf978c5be154afb1ed7c5bf75720a6819539c10005fe9044f2ce4eb0ac"}
+=== test/relay-chain-consumers.test.mjs
+✔ guest relay child: the bound own backend is forwarded; the derived BASE_RPC default is not; provider names are refused BY NAME, never deleted (2.371317ms)
+✔ guest relay child start: the bound backend only with the bound verifier and only as checkOwnBackend accepts it; refused by name, child not started (0.527557ms)
+✔ measured config binds the relay child backend only with the verifier, as a private/loopback literal, and refuses provider names beside it (3.60265ms)
+✔ custody route on the verifier: every vault field at ONE numbered block of its head, its age checked; 200 only on a proven answer; stale/outage 503 (1361.93078ms)
+✔ custody route, legacy: CUSTODY_RPCS (two must agree) exactly as before; the verifier is never asked (389.153262ms)
+✔ sessions on the verifier: the relayer starts from proven reads; the factory comes from the admin book; isVault through the verifier; nothing public (747.165746ms)
+✔ sessions on the verifier, outage: the relayer reports why and every chain-backed answer fails; no public default is tried (394.880679ms)
+✔ sponsor on the verifier: proven nonce, override-only delegation (never vacuous), estimate under it; a type-4 handleOps sent ONLY to the bound backend (59.654768ms)
+✔ sponsor on the verifier refuses honestly and sends nothing: wrong authorization nonce, a verifier that ignores the override (vacuous), a reverting op, a codeless EntryPoint or delegate (64.56399ms)
+✔ MCP: with the relay authority handed in, its reads are that client's and the public list is never contacted; without it, the list as before (4625.978724ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 7931.632203
+=== rc 0 test/relay-chain-consumers.test.mjs
+=== test/relay-chain-authority.test.mjs
+✔ store legacy: no chain authority named -> the BASE_RPC pool exactly as before, without the runtime bundle; the verifier is never asked (241.774693ms)
+✔ store verifier: pool reads are the authority (one marked client), proven by the verifier; no provider, the backend is not asked for state (218.308623ms)
+✔ store verifier: a wallet on rpcParts() submits ONLY to the bound own backend; nonce/fees from it; receipt from the verifier (270.379094ms)
+✔ vaultsvc on the verifier (real relayer path): book + factory reads proven; createVault then deposit sent ONLY to the bound backend with pool nonces 0,1; the hash persisted before the receipt is the one sent (296.038681ms)
+✔ vaultsvc on the verifier, stale head: the deposit path signs nothing that reaches any server (275.609824ms)
+✔ store verifier: unbound backend, stale head, no backend -> the send is refused before reaching any server; nothing public (733.689443ms)
+✔ store verifier outage: reads and sends fail closed; the pool and public defaults are never used instead (452.298641ms)
+✔ store: invalid or mixed selections refuse before any request (BASE_RPC, RPC_FALLBACKS, remote verifier, public backend, testnet, R4-R6 provider lists) (2864.065547ms)
+✔ api-relay process, verifier: the book (admin anchor) and ledger reads of chain() are the verifier; no provider; the backend is not asked for state (353.702ms)
+✔ api-relay process, legacy: chain() reads BASE_RPC exactly as before; the verifier is never asked (353.246493ms)
+✔ api-relay process: a mixed or invalid relay chain selection stops the relay at startup, before any chain request (1013.747564ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 7411.224538
+=== rc 0 test/relay-chain-authority.test.mjs
+=== test/native-relay-chain-authority.test.mjs
+✔ measured guest: the bound relayEnv chain authority is validated at bind time; quorum stays the default (4.173997ms)
+✔ relay child: the chain authority is exactly the bound one; a sealed credential can neither set nor change it (0.432368ms)
+✔ native issuer: the host decision reads the policy through the bound verifier, never the RPC quorum; quorum default never asks the verifier (48.550799ms)
+✔ api-relay process: the network LeaseReader takes the explicit local verifier with no provider client; misconfiguration stops the relay (1872.528902ms)
+✔ challenge replica: explicit verifier config reaches the gate env and the dns-relay child env; ambiguous, remote or unused is refused (3.956218ms)
+✔ dns-relay process (challenge replica child): the app-zone reader reads only the verifier; the default never asks it; a remote URL stops it (3052.818011ms)
+✔ directory replica role: explicit verifier passes the role filter into the directory-server process; rpc optional only then (434.521671ms)
+✔ native-profile: --chain-verifier makes its own lease reads use the verifier (refusal stays a refusal) and is refused if remote or conflicting (7.382159ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5764.825838
+=== rc 0 test/native-relay-chain-authority.test.mjs
+=== test/storage-front-binding-release.test.mjs
+[secrets] enabled (0 deployments with stored secrets)
+[secrets-release] 0xf15c3a1160024205ed29cab4ed255c7c4627eccc4929c3a4c2ca1304e171b0af: released to a verified guest on https://host-a.lease16d.test (runtime 1e45bf006cd4…)
+✔ the production release carries the lease's finalized writer authority, for THIS lease holder (1208.009354ms)
+[secrets-release] 0x166c197c355807b03b402257cd18d8d2a8781c8c3e3bdc84b0885c4aa8731f0b: released without the writer authority; the guest reads it itself (claim_not_final: the lease's claim (block 55) is not finalized yet (finalized 0); Base finality is typically 15-30 minutes)
+[secrets-release] 0x166c197c355807b03b402257cd18d8d2a8781c8c3e3bdc84b0885c4aa8731f0b: released to a verified guest on https://host-a.lease16d.test (runtime 1e45bf006cd4…)
+✔ a claim not final yet: the release still goes out, WITHOUT the fact (never a 503 that would kill the guest) (69.098606ms)
+[secrets-release] 0x5bfd5ad0e9d40344e1d50b0407378d43bf59d41f79bb7f2f35db8069606e31f9: released to a verified guest on https://host-a.lease16d.test (runtime 1e45bf006cd4…)
+✔ the relay's verifier authority REFUSES the writer authority (unproven history): the release goes out with the lease holder only, the refusal logged by code (32.605569ms)
+[secrets-release] 0x05109188b58d2ee99ddfabf833a30f1a630d2d439a33a2ccac3fae565603d44c: released to a verified guest on https://host-a.lease16d.test (runtime 1e45bf006cd4…)
+✔ a config that does not refer to the name: no fact and no lease-generation read (39.395681ms)
+[secrets-release] 0xb93024d88a2f5039e472c037d85819c2ec41abc2ce44beb2823e9637e4370b03: released without the writer authority; the guest reads it itself (deadline: no answer within 500 ms)
+[secrets-release] 0xb93024d88a2f5039e472c037d85819c2ec41abc2ce44beb2823e9637e4370b03: released to a verified guest on https://host-a.lease16d.test (runtime 1e45bf006cd4…)
+✔ the release's writer-authority deadline CANCELS the read: the release goes out on time, the pending requests are closed, nothing is sent after (2348.794745ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4548.00283
+=== rc 0 test/storage-front-binding-release.test.mjs
+=== test/storage-front-binding-shield.test.mjs
+✔ Shield: the sealed delivery carries the lease's finalized writer authority and THIS lease holder (1157.326798ms)
+[shield-secrets] 0x166c197c355807b03b402257cd18d8d2a8781c8c3e3bdc84b0885c4aa8731f0b: delivered without the writer authority; the guest reads it itself (claim_not_final)
+✔ Shield: a claim not final yet is delivered all the same, with the lease holder only (59.474699ms)
+✔ Shield: a config that does not refer to the name gets no facts and no chain read for it (31.103547ms)
+[shield-secrets] 0x05109188b58d2ee99ddfabf833a30f1a630d2d439a33a2ccac3fae565603d44c: delivered without the writer authority; the guest reads it itself (deadline)
+✔ Shield: the delivery's writer-authority deadline CANCELS the read; the delivery goes out, nothing is sent after (2337.645789ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3786.857481
+=== rc 0 test/storage-front-binding-shield.test.mjs
+=== test/storage-front-binding.test.mjs
+✔ the fixture IS the live rev-16d runtime (linked to the live library, live immutables) (1069.400788ms)
+✔ the CURRENT lease's finalized claim: renewals keep it, reclaims move it up, finality is waited for (344.656162ms)
+✔ public-provider behaviour: range limits and 429s absorbed; history refusals, dropped logs, lies and outages refuse (441.229265ms)
+✔ a long-running lease: proven once, its finalized coverage carries it past every provider's history limit; a long search resumes (3770.820797ms)
+✔ a coverage gap longer than one attempt (a relay down for days) closes over attempts, and a reclaim inside it is never missed (1459.45201ms)
+✔ the production lifecycle: asked minutes after the claim (not final), the lease is tracked; days later it is still proven past every provider's horizon (2961.287225ms)
+✔ collusion hiding the newest claim yields no fact (never the older generation); a reorg yields the canonical claim's (438.844959ms)
+✔ the row decoder refuses a malformed or foreign answer (0.661057ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 10649.192163
+=== rc 0 test/storage-front-binding.test.mjs
+=== test/relay-deploy-closure.test.mjs
+✔ relay/deploy.sh ships every module its entrypoints import, transitively (25.673587ms)
+✔ the DNS payload boots in a flat directory without the repository, including its attested judge (146.666764ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 217.891848
+=== rc 0 test/relay-deploy-closure.test.mjs
+=== test/api-relay.test.mjs
+✔ api-relay: zero live enclaves — list returns every on-chain deployment the wallet owns (475.421645ms)
+✔ api-relay: a resourceless box reads as a relay, and never as capacity (414.188506ms)
+✔ api-relay: an enclave that omits its size is a host, not a relay (412.286917ms)
+✔ api-relay: a box without confidential evidence is listed but never serving, whatever it claims (424.496339ms)
+✔ api-relay: live enclave rows merge with ledger-only rows, deduped by id (384.452722ms)
+✔ api-relay: a leased deployment whose runner is live reads as running, even tokenless (466.698064ms)
+✔ api-relay: a free self-hosted row reads queued, never awaiting_payment or unfunded (0.905115ms)
+✔ api-relay: a fleet-wide 401 propagates instead of falling back to ledger rows (362.785032ms)
+✔ api-relay: a leased id missing from its live runner's own list downgrades to claimed+stranded (380.533913ms)
+✔ api-relay: featured-view metering — counts once per client per day, serves lifetime totals (365.533837ms)
+✔ api-relay: only origin-form request targets are served, and a bad one is not fatal (361.681619ms)
+✔ api-relay: an ambiguous id prefix resolves to nobody, not to whoever answers first (377.227602ms)
+✔ api-relay: a client that dies mid-stream takes the enclave leg down with it (431.57532ms)
+✔ api-relay: rate limits key on the PROXY-APPENDED address, not the caller's claim (470.171815ms)
+✔ api-relay: ?enclave= pins /v1/auth/* to that box; sticky otherwise (369.093467ms)
+✔ api-relay: the on-chain runner outranks a cached owner, so a moved deployment routes to its new host (438.7032ms)
+✔ api-relay: a runner's 404/401 on a bare record read falls back to the ledger row (385.314667ms)
+✔ api-relay: two enclaves claiming one deployment yield ONE row, the on-chain runner's (377.491801ms)
+✔ api-relay: a stale row on an ex-runner never shadows the ledger's live one (375.120483ms)
+✔ api-relay: the route map is empty until a host publishes, and TUNA-era publications are refused (391.057695ms)
+ℹ tests 20
+ℹ suites 0
+ℹ pass 20
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 7731.613776
+=== rc 0 test/api-relay.test.mjs
+[memory-guard] exit=0 peakTreeRssMiB=621 minHostAvailableMiB=20900
+[memory-guard] at peak: node:124 node:124 node:112 node:97 node:94 node:58 bash:4 timeout:2
+[queue] EXIT 0

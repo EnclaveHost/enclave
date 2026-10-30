@@ -1,0 +1,40 @@
+[queue] START available=22479MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+baseline OK (python 33 + 2 + 1, node 8)
+mutant merkle-from-n killed (1)
+mutant no-empty-read-check killed (1)
+mutant no-open-gaps killed (1)
+mutant no-a1-age killed (2)
+mutant no-journal-guard killed (1)
+mutant no-blake3-list-check killed (1)
+mutant no-checkpoints-flag killed (1)
+mutant no-final-profile-check killed (1)
+mutant no-exact-selection killed (1)
+mutant db-before-units killed (1)
+mutant no-v2-enforcement killed (1)
+mutant no-orphan-reap killed (1)
+mutant no-post-exit-size killed (1)
+mutant no-recheck-sha killed (1)
+mutant no-initial-pin killed (1)
+mutant no-run-record killed (1)
+mutant no-trusted-owner killed (2)
+mutant follow-symlink killed (2)
+mutant no-release-binding killed (1)
+mutant accept-advanced-fresh killed (2)
+mutant no-run-window killed (1)
+mutant no-l1-consistency killed (2)
+mutant no-gate-pin killed (1)
+mutant exit-bool-accepted killed (1)
+mutant no-same-run-dir killed (1)
+mutant js-no-recheckof-sha killed
+mutant js-accept-latest killed
+mutant js-no-fresh killed
+mutant js-no-codehash-compare killed
+mutant js-loose-read-labels killed
+mutant js-latest-n-as-n killed
+mutant js-no-recheck-verdict killed
+mutant js-no-initial-reads killed
+logs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a1-a2-integration/logs/mutants/20261025T222321Z-4182959
+MUTANTS rc=0
+[memory-guard] exit=0 peakTreeRssMiB=141 minHostAvailableMiB=21578
+[memory-guard] at peak: node:74 node:58 bash:4 timeout:2 bash:2
+[queue] EXIT 0

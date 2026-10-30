@@ -1,0 +1,11 @@
+# Focused offline writer repair — prepared, not launched
+
+Root requested a single source-only repair author seeded with the exact r2 candidate. The r2 lock method passed seven native tests, and the existing writer reached READY in a real small filesystem fixture with explicit VM/holder mocks. The actual backup now has verified hashes and metadata for all eight units and four enablement links. All actual fragments are 0644/root with empty native ea_list; no mixed-mode generalization is necessary.
+
+The author repairs startup/descendant cleanup, continuous bounded stderr, all regular unit content hashes, full RO-to-RW input revalidation, immediate destructive-operation identity checks, and complete link rollback/no-xattrs checks. Only the writer is editable among existing files; at most two new targeted test files plus reports. Preserve the proven lock method byte-for-byte and preserve root's earlier two integration fixes. Existing tests, native results, actual metadata and all reference sources remain immutable.
+
+Holder visibility remains separately unqualified; no successful stub, privileged helper implementation, or redesign requirement is admitted in this task. No author/test/native/runtime/image/financial action occurs during preparation. The user's recovery authorization is already present; root admission coordinates exact inputs, account and current resource capacity.
+
+Proposed envelope reuses the last root-admitted source package: 20 turns, 900-second child, 1200-second outer; 1536 MiB hard, 1408 MiB RSS, 27648 MiB available floor, CPU1, swap0, shared queue and fresh required Max account. Root must review this exact package and current account/capacity before ONE launch. Runner, collector and v2 account preflight are reused byte-identically from the prior20turn package. Source tool limits are not an OS sandbox; semantic review remains required.
+
+No old attempt/admission/account/session evidence is copied. Collector is permitted once only after actual terminal unit and recorded process evidence. Preserve a timeout/partial delivery honestly; do not automatically retry. Root owns future tests, native qualification, derivative creation, publication and RPC/app recovery.

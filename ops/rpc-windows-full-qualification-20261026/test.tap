@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: chain.mjs state reads through the verifier equal the chain: coherent paged enumeration, deployment, registry row, catalog version
+ok 1 - chain.mjs state reads through the verifier equal the chain: coherent paged enumeration, deployment, registry row, catalog version
+  ---
+  duration_ms: 100562.118112
+  type: 'test'
+  ...
+# Subtest: admin AddressBook migration is followed through the verifier; an outsider cannot repoint it
+ok 2 - admin AddressBook migration is followed through the verifier; an outsider cannot repoint it
+  ---
+  duration_ms: 12041.716903
+  type: 'test'
+  ...
+# Subtest: check-endpoint ownership through the shared chain reader: ours, taken and free on the pinned registry
+ok 3 - check-endpoint ownership through the shared chain reader: ours, taken and free on the pinned registry
+  ---
+  duration_ms: 1018.797645
+  type: 'test'
+  ...
+# Subtest: session API: a live session verifies through the verifier at one block; once the owner terminates it, the next request is refused
+ok 4 - session API: a live session verifies through the verifier at one block; once the owner terminates it, the next request is refused
+  ---
+  duration_ms: 11468.731697
+  type: 'test'
+  ...
+# Subtest: tampered or missing witnesses and a stale head refuse every Windows state read; nothing falls back to BASE_RPCS
+ok 5 - tampered or missing witnesses and a stale head refuse every Windows state read; nothing falls back to BASE_RPCS
+  ---
+  duration_ms: 108023.385287
+  type: 'test'
+  ...
+# Subtest: network agent: a contract-wallet (SessionVault) owner policy verifies through the verifier; admin book migration and stale/missing proofs refuse; EOA unchanged
+ok 6 - network agent: a contract-wallet (SessionVault) owner policy verifies through the verifier; admin book migration and stale/missing proofs refuse; EOA unchanged
+  ---
+  duration_ms: 96364.84527
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 329913.868562

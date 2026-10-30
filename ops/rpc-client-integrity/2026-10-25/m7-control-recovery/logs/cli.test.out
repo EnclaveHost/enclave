@@ -1,0 +1,18 @@
+   Compiling base-consensus-providers v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/consensus/providers)
+   Compiling base-consensus-engine v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/consensus/engine)
+   Compiling base-consensus-rpc v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/consensus/rpc)
+   Compiling base-consensus-node v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/consensus/service)
+   Compiling base-jwt v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/utilities/jwt)
+   Compiling base-consensus-cli v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/consensus/cli)
+    Finished `test` profile [unoptimized] target(s) in 20.75s
+     Running unittests src/lib.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/target/debug/deps/base_consensus_cli-a95f9bd3507f7b48)
+
+running 5 tests
+test l1::tests::defaults_l1_rpc_timeout_to_fifteen_seconds ... ok
+test l1::tests::finalized_poll_interval_defaults_to_none ... ok
+test l1::tests::l1_rpc_is_verified_unless_explicitly_trusted ... ok
+test l1::tests::parses_finalized_poll_interval_in_milliseconds ... ok
+test l1::tests::parses_l1_rpc_timeout_in_milliseconds ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 134 filtered out; finished in 0.00s
+

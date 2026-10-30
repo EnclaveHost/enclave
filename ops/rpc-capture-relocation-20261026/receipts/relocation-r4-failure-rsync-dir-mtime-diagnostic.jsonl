@@ -1,0 +1,13 @@
+{"rsync": "/home/steven/.local/bin/rsync", "version": ["rsync  version 3.4.1  protocol version 32"], "euid": 0, "env_rsync_vars": [], "home_set": false}
+{"flags": ["-rt"], "rc": 0, "dir_mtime_preserved": {"t": true, "t/a": true, "t/a/b": true, "t/empty": true}, "stderr": ""}
+{"flags": ["-a"], "rc": 0, "dir_mtime_preserved": {"t": true, "t/a": true, "t/a/b": true, "t/empty": true}, "stderr": ""}
+{"flags": ["-a", "--omit-dir-times"], "rc": 0, "dir_mtime_preserved": {"t": false, "t/a": false, "t/a/b": false, "t/empty": false}, "stderr": ""}
+{"flags": ["-a", "--protect-args"], "rc": 0, "dir_mtime_preserved": {"t": true, "t/a": true, "t/a/b": true, "t/empty": true}, "stderr": ""}
+{"flags": ["-aH"], "rc": 0, "dir_mtime_preserved": {"t": true, "t/a": true, "t/a/b": true, "t/empty": true}, "stderr": ""}
+{"flags": ["-aA"], "rc": 0, "dir_mtime_preserved": {"t": true, "t/a": true, "t/a/b": true, "t/empty": true}, "stderr": ""}
+{"flags": ["-aX"], "rc": 0, "dir_mtime_preserved": {"t": true, "t/a": true, "t/a/b": true, "t/empty": true}, "stderr": ""}
+{"flags": ["-aHAX"], "rc": 0, "dir_mtime_preserved": {"t": true, "t/a": true, "t/a/b": true, "t/empty": true}, "stderr": ""}
+{"flags": ["-a", "--numeric-ids"], "rc": 0, "dir_mtime_preserved": {"t": true, "t/a": true, "t/a/b": true, "t/empty": true}, "stderr": ""}
+{"flags": ["-a", "--one-file-system"], "rc": 0, "dir_mtime_preserved": {"t": true, "t/a": true, "t/a/b": true, "t/empty": true}, "stderr": ""}
+{"flags": ["-a", "--bwlimit=100000"], "rc": 0, "dir_mtime_preserved": {"t": true, "t/a": true, "t/a/b": true, "t/empty": true}, "stderr": ""}
+{"flags": ["-aHAX", "--numeric-ids", "--one-file-system", "--protect-args", "--bwlimit=100000"], "rc": 0, "dir_mtime_preserved": {"t": true, "t/a": true, "t/a/b": true, "t/empty": true}, "stderr": ""}

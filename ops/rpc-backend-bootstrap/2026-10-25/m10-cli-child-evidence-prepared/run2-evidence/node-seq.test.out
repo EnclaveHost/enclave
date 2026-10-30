@@ -1,0 +1,35 @@
+
+running 30 tests
+test actors::sequencer::engine_request_coordinator::tests::active_sequencer_without_conductor_starts_regular ... ok
+test actors::sequencer::engine_request_coordinator::tests::bootstrap_anchor_refusal::sequencer_refuses_a_bootstrap_anchor_before_any_engine_call ... ok
+test actors::sequencer::engine_request_coordinator::tests::conductor_error_falls_back_to_follower ... ok
+test actors::sequencer::engine_request_coordinator::tests::conductor_follower_is_follower ... ok
+test actors::sequencer::engine_request_coordinator::tests::conductor_leader_is_active ... ok
+test actors::sequencer::engine_request_coordinator::tests::isolated_sequencer_bootstraps_as_follower ... ok
+test actors::sequencer::engine_request_coordinator::tests::isolated_start_stops_following_canonical_chain::case_2_gap ... ok
+test actors::sequencer::engine_request_coordinator::tests::isolated_start_stops_following_canonical_chain::case_1_caught_up ... ok
+test actors::sequencer::engine_request_coordinator::tests::prepare_start_preserves_catchup_safety::case_02_caught_up ... ok
+test actors::sequencer::engine_request_coordinator::tests::prepare_start_preserves_catchup_safety::case_01_no_observations ... ok
+test actors::sequencer::engine_request_coordinator::tests::prepare_start_preserves_catchup_safety::case_03_wrong_hash ... ok
+test actors::sequencer::engine_request_coordinator::tests::prepare_start_preserves_catchup_safety::case_04_zero_hash ... ok
+test actors::sequencer::engine_request_coordinator::tests::prepare_start_preserves_catchup_safety::case_05_el_syncing ... ok
+test actors::sequencer::engine_request_coordinator::tests::prepare_start_preserves_catchup_safety::case_06_gap ... ok
+test actors::sequencer::engine_request_coordinator::tests::prepare_start_preserves_catchup_safety::case_07_different_branch ... ok
+test actors::sequencer::engine_request_coordinator::tests::prepare_start_preserves_catchup_safety::case_08_private_tail ... ok
+test actors::sequencer::engine_request_coordinator::tests::prepare_start_preserves_catchup_safety::case_09_faulted ... ok
+test actors::sequencer::engine_request_coordinator::tests::prepare_start_preserves_catchup_safety::case_10_shadow_catchup ... ok
+test actors::sequencer::engine_request_coordinator::tests::prepare_start_preserves_catchup_safety::case_11_shadow_caught_up ... ok
+test actors::sequencer::engine_request_coordinator::tests::prepare_start_preserves_catchup_safety::case_12_shadow_el_syncing ... ok
+test actors::sequencer::engine_request_coordinator::tests::prepare_start_preserves_catchup_safety::case_13_shadow_gap ... ok
+test actors::sequencer::engine_request_coordinator::tests::prepare_start_preserves_catchup_safety::case_14_shadow_faulted ... ok
+test actors::sequencer::engine_request_coordinator::tests::prepare_start_preserves_catchup_safety::case_15_shadow_wrong_hash ... ok
+test actors::sequencer::engine_request_coordinator::tests::prepare_start_preserves_catchup_safety::case_16_shadow_zero_hash ... ok
+test actors::sequencer::engine_request_coordinator::tests::prepare_start_rejects_uninitialized_head::case_1::shadow_1_false ... ok
+test actors::sequencer::engine_request_coordinator::tests::prepare_start_rejects_uninitialized_head::case_1::shadow_2_true ... ok
+test actors::sequencer::engine_request_coordinator::tests::prepare_start_rejects_uninitialized_head::case_2::shadow_1_false ... ok
+test actors::sequencer::engine_request_coordinator::tests::prepare_start_rejects_uninitialized_head::case_2::shadow_2_true ... ok
+test actors::sequencer::engine_request_coordinator::tests::shadow_sequencer_skips_conductor_check ... ok
+test actors::sequencer::engine_request_coordinator::tests::stopped_sequencer_skips_conductor_check ... ok
+
+test result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 346 filtered out; finished in 0.00s
+

@@ -1,0 +1,5 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import * as L from './lib.mjs';
+const h='0x'+'11'.repeat(32),owner='0x'+'22'.repeat(20);
+function cfg(){return {schema:L.CONFIG_SCHEMA,release:'enabled',reviewed:true,overrides:[],acceptLegacy:[],humanApproval:null,funding:{FUNDING_RUNTIME:{schema:'enclave-funding-browser-runtime-r1',chainId:8453},FUNDING_MIGRATION_PROPOSAL:{schema:'enclave-funding-migration-proposal-r1',chainId:8453,owner,oldSid:h,legacy6:'24000000',gas:[],deploymentIds:[]},FUNDING_MIGRATION_APPROVAL:{schema:'enclave-funding-migration-approval-r1',rootReviewed:true,termsHash:h,owner,chainId:8453,oldSid:h},FUNDING_MIGRATION_CUTOVER:null,FUNDING_CUTOVER_ACTIVATION:null}}}
+test('reviewed artifact can present exact wallet prompts without asserting human signatures already exist',()=>{assert.doesNotThrow(()=>L.validateConfig(cfg()));});
+test('runtime chain must match the fixed page chain even without a new proposal',()=>{const c=cfg();c.funding.FUNDING_RUNTIME.chainId=1;c.funding.FUNDING_MIGRATION_APPROVAL=null;c.funding.FUNDING_MIGRATION_PROPOSAL=null;assert.throws(()=>L.validateConfig(c),/chain/i);});

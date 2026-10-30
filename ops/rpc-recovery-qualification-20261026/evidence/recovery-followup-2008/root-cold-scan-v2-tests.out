@@ -1,0 +1,75 @@
+[queue] START available=26293MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+## verified SHA256SUMS 3bcae5559eb865b524b1f49fcbc4e8e9f91414fd6ea43aab467b613a1863c24b
+test_bounded_timeout (__main__.Supervisor.test_bounded_timeout) ... /home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/cold-scan-v2/test_root_scan_supervisor.py:33: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmp.pK7cBNbEWQ/supervisor-88uqu6aa/cpid' mode='r' encoding='utf-8'>
+  return int(open(path).read().strip())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/cold-scan-v2/test_root_scan_supervisor.py:33: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmp.pK7cBNbEWQ/supervisor-88uqu6aa/gpid' mode='r' encoding='utf-8'>
+  return int(open(path).read().strip())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_lost_owner_heartbeat_stops_the_scan (__main__.Supervisor.test_lost_owner_heartbeat_stops_the_scan) ... /home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/cold-scan-v2/test_root_scan_supervisor.py:33: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmp.pK7cBNbEWQ/supervisor-d8q8juk8/cpid' mode='r' encoding='utf-8'>
+  return int(open(path).read().strip())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/cold-scan-v2/test_root_scan_supervisor.py:33: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmp.pK7cBNbEWQ/supervisor-d8q8juk8/gpid' mode='r' encoding='utf-8'>
+  return int(open(path).read().strip())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_memory_floor_stops_the_scan_group_exactly (__main__.Supervisor.test_memory_floor_stops_the_scan_group_exactly) ... /home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/cold-scan-v2/test_root_scan_supervisor.py:33: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmp.pK7cBNbEWQ/supervisor-9i_g33fe/cpid' mode='r' encoding='utf-8'>
+  return int(open(path).read().strip())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/cold-scan-v2/test_root_scan_supervisor.py:33: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmp.pK7cBNbEWQ/supervisor-9i_g33fe/gpid' mode='r' encoding='utf-8'>
+  return int(open(path).read().strip())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_missing_or_symlinked_heartbeat_never_starts_and_is_never_followed (__main__.Supervisor.test_missing_or_symlinked_heartbeat_never_starts_and_is_never_followed) ... ok
+test_normal_exit_returns_the_child_rc_and_leaves_no_member_of_its_group (__main__.Supervisor.test_normal_exit_returns_the_child_rc_and_leaves_no_member_of_its_group) ... /home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/cold-scan-v2/test_root_scan_supervisor.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmp.pK7cBNbEWQ/supervisor-8hauvkgb/out' mode='r' encoding='utf-8'>
+  self.assertEqual(rc, 3); self.assertEqual(open(f"{self.d}/out").read(), "out\n")
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/cold-scan-v2/test_root_scan_supervisor.py:33: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmp.pK7cBNbEWQ/supervisor-8hauvkgb/cpid' mode='r' encoding='utf-8'>
+  return int(open(path).read().strip())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/cold-scan-v2/test_root_scan_supervisor.py:33: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmp.pK7cBNbEWQ/supervisor-8hauvkgb/gpid' mode='r' encoding='utf-8'>
+  return int(open(path).read().strip())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ERROR
+test_root_entry_accepts_only_the_staged_shape_and_starts_nothing_otherwise (__main__.Supervisor.test_root_entry_accepts_only_the_staged_shape_and_starts_nothing_otherwise) ... supervisor: usage: root_scan_supervisor.py /run/nvme-cold-wc10.XXXXXXXX /ABS/CONFIG.json /ABS/HEARTBEAT
+supervisor: usage: root_scan_supervisor.py /run/nvme-cold-wc10.XXXXXXXX /ABS/CONFIG.json /ABS/HEARTBEAT
+supervisor: usage: root_scan_supervisor.py /run/nvme-cold-wc10.XXXXXXXX /ABS/CONFIG.json /ABS/HEARTBEAT
+supervisor: usage: root_scan_supervisor.py /run/nvme-cold-wc10.XXXXXXXX /ABS/CONFIG.json /ABS/HEARTBEAT
+supervisor: usage: root_scan_supervisor.py /run/nvme-cold-wc10.XXXXXXXX /ABS/CONFIG.json /ABS/HEARTBEAT
+ok
+test_signal_to_the_supervisor_and_its_sudden_death_both_end_the_child (__main__.Supervisor.test_signal_to_the_supervisor_and_its_sudden_death_both_end_the_child) ... /home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/cold-scan-v2/test_root_scan_supervisor.py:33: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmp.pK7cBNbEWQ/supervisor-dxu02exe/cpid' mode='r' encoding='utf-8'>
+  return int(open(path).read().strip())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_unreadable_meminfo_fails_closed_and_start_bound_refuses_to_start (__main__.Supervisor.test_unreadable_meminfo_fails_closed_and_start_bound_refuses_to_start) ... /home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/cold-scan-v2/test_root_scan_supervisor.py:33: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmp.pK7cBNbEWQ/supervisor-p2x6yjb1/cpid' mode='r' encoding='utf-8'>
+  return int(open(path).read().strip())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/cold-scan-v2/test_root_scan_supervisor.py:33: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmp.pK7cBNbEWQ/supervisor-p2x6yjb1/gpid' mode='r' encoding='utf-8'>
+  return int(open(path).read().strip())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+
+======================================================================
+ERROR: test_normal_exit_returns_the_child_rc_and_leaves_no_member_of_its_group (__main__.Supervisor.test_normal_exit_returns_the_child_rc_and_leaves_no_member_of_its_group)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/cold-scan-v2/test_root_scan_supervisor.py", line 80, in test_normal_exit_returns_the_child_rc_and_leaves_no_member_of_its_group
+    self.assert_group_gone()
+    ~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/cold-scan-v2/test_root_scan_supervisor.py", line 72, in assert_group_gone
+    self.assertTrue(gone(read_pid(f"{self.d}/gpid")), "a member of its process group still runs")
+                    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/cold-scan-v2/test_root_scan_supervisor.py", line 21, in gone
+    if f.read().rsplit(")", 1)[1].split()[0] == "Z":
+       ~~~~~~^^
+ProcessLookupError: [Errno 3] No such process
+
+----------------------------------------------------------------------
+Ran 8 tests in 3.031s
+
+FAILED (errors=1)
+## cold-scan-v2-tests rc=1
+[memory-guard] exit=1 peakTreeRssMiB=42 minHostAvailableMiB=25713
+[memory-guard] at peak: python3:19 python3:13 bash:4 bash:2 sleep:2 timeout:2
+[queue] EXIT 1

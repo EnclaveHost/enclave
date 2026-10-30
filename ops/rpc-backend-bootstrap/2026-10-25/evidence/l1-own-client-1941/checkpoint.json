@@ -1,0 +1,34 @@
+{
+  "format": "enclave-l1-checkpoint/v1",
+  "network": "mainnet",
+  "root": "0xb5d8034017f25328b5ae1455d3efe12de0a49d3e759f63129bcb0296e7847094",
+  "slot": 15511008,
+  "sources": [
+    {
+      "kind": "own-lighthouse",
+      "ref": "http://127.0.0.1:25052/eth/v1/beacon/states/head/finality_checkpoints",
+      "observedAt": "2026-10-25T19:37:39.537481+00:00"
+    },
+    {
+      "kind": "checkpoint-sync-provider",
+      "ref": "https://mainnet.checkpoint.sigp.io/eth/v1/beacon/states/head/finality_checkpoints",
+      "observedAt": "2026-10-25T19:37:39.537680+00:00"
+    },
+    {
+      "kind": "checkpoint-sync-provider",
+      "ref": "https://sync-mainnet.beaconcha.in/eth/v1/beacon/states/head/finality_checkpoints",
+      "observedAt": "2026-10-25T19:37:39.537268+00:00"
+    },
+    {
+      "kind": "checkpoint-sync-provider",
+      "ref": "https://beaconstate.ethstaker.cc/eth/v1/beacon/states/head/finality_checkpoints",
+      "observedAt": "2026-10-25T19:37:39.536764+00:00"
+    },
+    {
+      "kind": "checkpoint-sync-provider",
+      "ref": "https://beaconstate-mainnet.chainsafe.io/eth/v1/beacon/states/head/finality_checkpoints",
+      "observedAt": "2026-10-25T19:37:39.538191+00:00"
+    }
+  ],
+  "recordedAt": "2026-10-25T19:38:24.779941+00:00"
+}

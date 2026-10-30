@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# TEST STUB: resolves nothing (offline), so the egress observer reports INCONCLUSIVE at once.
+exit 2

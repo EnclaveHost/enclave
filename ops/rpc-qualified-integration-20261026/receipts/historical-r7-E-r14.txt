@@ -1,0 +1,42 @@
+test_activation_section_edits_do_not_change_config_identity (test_coverage_activation.Bridge.test_activation_section_edits_do_not_change_config_identity) ... ok
+test_arbitrary_receipt_cannot_bypass (test_coverage_activation.Bridge.test_arbitrary_receipt_cannot_bypass) ... ok
+test_binding_consistency (test_coverage_activation.Bridge.test_binding_consistency) ... ok
+test_boolean_alone_never_activates (test_coverage_activation.Bridge.test_boolean_alone_never_activates) ... ok
+test_config_cannot_diverge_from_binding (test_coverage_activation.Bridge.test_config_cannot_diverge_from_binding) ... ok
+test_installed_identity_bindings (test_coverage_activation.Bridge.test_installed_identity_bindings) ... ok
+test_malformed_and_oversize (test_coverage_activation.Bridge.test_malformed_and_oversize) ... ok
+test_malformed_pins (test_coverage_activation.Bridge.test_malformed_pins) ... ok
+test_missing_and_unsafe_files (test_coverage_activation.Bridge.test_missing_and_unsafe_files) ... ok
+test_not_approved (test_coverage_activation.Bridge.test_not_approved) ... ok
+test_origin_rules (test_coverage_activation.Bridge.test_origin_rules) ... ok
+test_parity_with_readiness_validator (test_coverage_activation.Bridge.test_parity_with_readiness_validator) ... ok
+test_tampered_evidence_bytes (test_coverage_activation.Bridge.test_tampered_evidence_bytes) ... ok
+test_tool_pins (test_coverage_activation.Bridge.test_tool_pins) ... ok
+test_valid_binding (test_coverage_activation.Bridge.test_valid_binding) ... ok
+test_verdict_rules (test_coverage_activation.Bridge.test_verdict_rules) ... ok
+test_identity_and_check (test_coverage_activation.Cli.test_identity_and_check) ... ok
+test_offline_refusal_precedes_live_calls (test_coverage_activation.LiveBinding.test_offline_refusal_precedes_live_calls) ... ok
+test_origin_not_canonical (test_coverage_activation.LiveBinding.test_origin_not_canonical) ... ok
+test_range_above_our_finality (test_coverage_activation.LiveBinding.test_range_above_our_finality) ... ok
+test_receipts_and_blobs_must_be_served (test_coverage_activation.LiveBinding.test_receipts_and_blobs_must_be_served) ... ok
+test_valid_starts_with_bound_values (test_coverage_activation.LiveBinding.test_valid_starts_with_bound_values) ... ok
+test_real_manifest_accepted (test_coverage_activation.RealManifest.test_real_manifest_accepted) ... ok
+test_real_manifest_adversarial_edits_refused (test_coverage_activation.RealManifest.test_real_manifest_adversarial_edits_refused) ... ok
+test_real_manifest_full_activation (test_coverage_activation.RealManifest.test_real_manifest_full_activation) ... ok
+test_adversarial_locations_and_paths (test_coverage_activation.SnapshotIdentity.test_adversarial_locations_and_paths)
+Inputs that pinned reth would resolve outside the pinned snapshot host/directory, or extract outside the datadir. ... ok
+test_base_url_at_pinned_directory_or_empty_is_accepted (test_coverage_activation.SnapshotIdentity.test_base_url_at_pinned_directory_or_empty_is_accepted) ... ok
+test_base_url_may_be_omitted (test_coverage_activation.SnapshotIdentity.test_base_url_may_be_omitted) ... ok
+test_bootstrap_manifest_presented_as_snapshot_manifest (test_coverage_activation.SnapshotIdentity.test_bootstrap_manifest_presented_as_snapshot_manifest) ... ok
+test_bootstrap_without_snapshot_url (test_coverage_activation.SnapshotIdentity.test_bootstrap_without_snapshot_url) ... ok
+test_old_relabel_of_bootstrap_hash_refused (test_coverage_activation.SnapshotIdentity.test_old_relabel_of_bootstrap_hash_refused) ... ok
+test_receipt_document_fields (test_coverage_activation.SnapshotIdentity.test_receipt_document_fields) ... ok
+test_snapshot_block_binds_origin (test_coverage_activation.SnapshotIdentity.test_snapshot_block_binds_origin) ... ok
+test_snapshot_manifest_missing_tampered_or_unpinned (test_coverage_activation.SnapshotIdentity.test_snapshot_manifest_missing_tampered_or_unpinned) ... ok
+test_snapshot_manifest_schema_and_location (test_coverage_activation.SnapshotIdentity.test_snapshot_manifest_schema_and_location) ... ok
+test_valid_binds_both_documents (test_coverage_activation.SnapshotIdentity.test_valid_binds_both_documents) ... ok
+
+----------------------------------------------------------------------
+Ran 36 tests in 0.288s
+
+OK

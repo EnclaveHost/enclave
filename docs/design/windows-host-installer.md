@@ -103,6 +103,24 @@ the installed release's kept bundle, downloads only the changed ones (falling ba
 `install-host.ps1 -Delta` replaces only those in Program Files. The tray in the owner's profile replaces itself from Program
 Files at its next start when they differ. Publishing a release (`scripts/publish-windows-host.sh`) is all it takes.
 
+**Windows Update restarts.** A restart takes every partition down with the machine. On 2026-10-14 the October
+cumulative update restarted nucbox-k11-4 at 07:32 local. That was outside the 10:00-20:00 active hours Windows had chosen,
+and the node released every app to the fleet. Setup therefore sets a restart window as machine policy, recorded as
+`updateWindow` in `node\host.json` (`windows/node/update-window.mjs` holds the rules and the tests):
+
+- The default window is 01:00-07:00 on the PC's clock.
+- `AUOptions` 4 with `ScheduledInstallDay` 0 and `ScheduledInstallTime` = the window's start: updates install every day at
+  that hour.
+- Active hours are set to the rest of the day. Windows does not restart during active hours, and keeps at most 18 of
+  them, so a window is 6 to 24 hours long.
+- `NoAutoRebootWithLoggedOnUsers` is off by default. On a host whose owner stays signed in (the tray runs in their
+  session), turning it on means installed updates wait for someone to restart the PC by hand.
+- Setup flags: `-UpdateWindowStart`, `-UpdateWindowHours`, `-ManageWindowsUpdate on|off`, `-NoRebootWhileSignedIn on|off`.
+  Values not given are kept from `host.json`, so updates keep the owner's choice.
+- The first time setup sets these values it records the ones they replace. Turning management off, or uninstalling,
+  puts those back.
+- The panel shows the window under the node's state (`GET /v1/local/hosting` → `updateWindow`).
+
 ## Bundle build
 
 `windows/installer/build-bundle.ps1` on a Windows build box: a sources map (bundle path → file + sha256) collects the

@@ -1,0 +1,14 @@
+{
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-permit-generator-preflight-r1/generator.mjs": "cd09161adc3fdb11a8251de9bf3bc4d6bd019a25b5e31322b27b941bb4896afd",
+  "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/network/deployment-serving-permit.mjs": "82494ed819f91f65565391dc3f61a16341fc3465df0bf47a3ec823a8b8de0e61",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-permit-generator-preflight-r1/inputs/deployment-serving-permit.mjs": "82494ed819f91f65565391dc3f61a16341fc3465df0bf47a3ec823a8b8de0e61",
+  "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/network/deployment-permit-gate.mjs": "e198fe2160cf9ab31f1c473856c44d58e51c995ce0fe0f0907c94c2d39c8661b",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-permit-generator-preflight-r1/inputs/deployment-permit-gate.mjs": "e198fe2160cf9ab31f1c473856c44d58e51c995ce0fe0f0907c94c2d39c8661b",
+  "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/network/deployment-lifecycle-witness.mjs": "9859a1307a83ff4f60ae6088c6533b0666ae12497c49794b9ef9ee32569551c0",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-permit-generator-preflight-r1/inputs/deployment-lifecycle-witness.mjs": "9859a1307a83ff4f60ae6088c6533b0666ae12497c49794b9ef9ee32569551c0",
+  "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/network/deployment-isolation-runtime.mjs": "40333d5bc08796f2881650331022746abc0b93051b48351c89f84d62a4462fd9",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-permit-generator-preflight-r1/inputs/deployment-isolation-runtime.mjs": "40333d5bc08796f2881650331022746abc0b93051b48351c89f84d62a4462fd9",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-registry-repair-root-review-r3/adapter-generation-r2/deployment-chain-adapter.mjs": "b648a3edf805252e239f548a4816b90b8281999b848d2ecece453cee7b8c226d",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-permit-generator-preflight-r1/inputs/deployment-chain-adapter.mjs": "b648a3edf805252e239f548a4816b90b8281999b848d2ecece453cee7b8c226d",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-registry-repair-root-review-r3/src/tools/insertion-patch.mjs": "53eeef0d475dc9abf2948d5cad4f4e1a067d68a1b1e424e07c40cab90afc372b"
+}

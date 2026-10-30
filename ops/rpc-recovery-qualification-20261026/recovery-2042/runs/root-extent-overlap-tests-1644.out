@@ -1,0 +1,16 @@
+[queue] START available=24399MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/extent-recovery-stage/r1/src/ext4-extent-overlap.c: In function ‘main’:
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/extent-recovery-stage/r1/src/ext4-extent-overlap.c:120:39: error: format ‘%lu’ expects argument of type ‘long unsigned int’, but argument 5 has type ‘long long unsigned int’ [-Werror=format=]
+  120 |             snprintf(buf, sizeof buf, "overlap %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64 "\n", idx, lg + (set - ph), (uint64_t)set, c, uw);
+      |                                       ^~~~~~~~~~~                                                                   ~~~~~~~~~~~~~~~
+      |                                                                                                                        |
+      |                                                                                                                        long long unsigned int
+In file included from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/extent-recovery-stage/r1/src/ext4-extent-overlap.c:17:
+/usr/include/inttypes.h:110:41: note: format string is defined here
+  110 | # define PRIu64         __PRI64_PREFIX "u"
+cc1: all warnings being treated as errors
+## compile FAIL
+## extent-overlap-r1 rc=1
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 1

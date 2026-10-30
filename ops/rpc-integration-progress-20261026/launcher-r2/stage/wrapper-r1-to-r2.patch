@@ -1,0 +1,301 @@
+--- r1/chain_service.py
++++ r2/wrapper/chain_service.py
+@@ -4,10 +4,13 @@
+ This is the direct virtual-disk deployment adapter. It does not use the older
+ loop-image/NBD storage launchers. No public execution RPC is configured here.
+ """
++import datetime
++import fcntl
+ import hashlib
+ import json
+ import os
+ import pathlib
++import pwd
+ import re
+ import stat
+ import subprocess
+@@ -455,18 +458,35 @@
+ BASE_RELEASE_PATH = ROOT / 'releases' / ('base-m7m10-' + BASE_RELEASE_SHA256[:16]) / 'base'
+ BOOTSTRAP_DIR = pathlib.Path('/etc/enclave-rpc/base-bootstrap')
+ LAUNCH_FORMAT = 'enclave-base-bootstrap-launch/v1'
+-LIFECYCLE_FORMAT = 'enclave-base-bootstrap-lifecycle/v1'
++JOURNAL_FORMAT = 'enclave-base-bootstrap-journal/v1'
+ ANCHOR_RE = re.compile(r'([1-9][0-9]{0,18}):(0x[0-9a-f]{64})')
+ HEX64 = re.compile(r'[0-9a-f]{64}')
+-# UNRESOLVED (fail closed): no reviewed producer of the launch record exists. The A2-A4 harness step_release writes only
+-# m10-launch.json {bootstrapAnchor, at} (and only with OPEN_GAPS empty); binding it, the A2/A4/bytecode receipts and the
+-# release into ONE root-reviewed launch record is a reviewed step that has not happened. Until a reviewed change sets
+-# this, an anchored start is refused. It is a source constant, never a config switch.
++# UNRESOLVED (fail closed): the launch-record producer (base-launch-producer-stage/r2/producer/base_launch.py) is PREPARED,
++# not reviewed. Until a reviewed change sets this, an anchored start is refused BEFORE anything is consumed. It is a source
++# constant, never a config switch.
+ LAUNCH_PRODUCER_REVIEWED = False
++BASE_SERVICE_USER = 'rpcbase'              # == enclave-base-holder.service User=/Group= (stage_node_units.py)
++HANDSHAKE_ENV = 'ENCLAVE_BASE_LAUNCH_HANDSHAKE'   # '1' only from the reviewed release-mode unit drop-in (root start)
+ 
+ TRUSTED_TOP = pathlib.Path('/')            # the walk below starts here (production: the filesystem root)
+ ROOT_UID = 0                               # owner of the release, the bootstrap evidence and every parent directory
+ 
++# The one-shot launch journal (BOOTSTRAP_DIR/journal/NNNNNN.json): immutable root-owned entries, each bound to the pinned
++# launch record and hash-chained to its predecessor. Only these transitions exist; the last event is the state.
++#   armed (root `arm`, stopped DB at N) | rearmed (root `rearm`, stopped DB unchanged at N)  -> pending: one anchored start
++#   consumed (THIS wrapper, under the lock, durably, BEFORE execve)  -> refuse every start until root `rearm`
++#   rolled-back (root)  -> terminal
++# There is no "bootstrapped" event: no reviewed finality proof exists (H-F1), so none is accepted here.
++JOURNAL_NEXT = {None: {'armed'}, 'armed': {'consumed', 'rolled-back'}, 'rearmed': {'consumed', 'rolled-back'},
++                'consumed': {'rearmed', 'rolled-back'}, 'rolled-back': set()}
++PENDING = {'armed', 'rearmed'}
++JOURNAL_ENTRY = re.compile(r'[0-9]{6}\.json')
++JOURNAL_PARTIAL = re.compile(r'\.partial-[0-9]+')
++MAX_JOURNAL = 4096
++
++def _now():
++    return time.time()
++
+ def _secure_path(path, owner, leaf='file', top=None):
+     """`path` and every component from `top` (default TRUSTED_TOP = /) down to it are real (non-symlink) entries owned by
+     `owner` and not group/other writable; the leaf is a regular file (or a directory). Returns the leaf's lstat."""
+@@ -482,6 +502,21 @@
+     assert (stat.S_ISREG if leaf == 'file' else stat.S_ISDIR)(st.st_mode), f'{p} is not a regular {leaf}'
+     return st
+ 
++def _fsync_dir(d):
++    fd = os.open(d, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
++    try:
++        os.fsync(fd)
++    finally:
++        os.close(fd)
++
++def _instant(s, what):
++    try:
++        t = datetime.datetime.fromisoformat(s)
++    except (TypeError, ValueError):
++        raise AssertionError(f'{what} is not an ISO timestamp')
++    assert t.tzinfo is not None, f'{what} has no timezone'
++    return t.timestamp()
++
+ def base_release(manifest, owner=None):
+     """None (legacy bin/base, unchanged) unless manifest.json pins the reviewed release; then its verified path."""
+     owner = ROOT_UID if owner is None else owner
+@@ -499,26 +534,46 @@
+         assert hashlib.file_digest(f, 'sha256').hexdigest() == BASE_RELEASE_SHA256, 'release binary pin mismatch'
+     return rel['path']
+ 
+-def bootstrap_anchor_args(cfg, release_sha, directory=None, owner=None):
+-    """The M10 lifecycle, explicit and root-written: -> ['--bootstrap.anchor', 'N:0x..'] | [] ; refuses otherwise.
+-    anchor-pending: the one-time anchored start (the client itself refuses unless its EL head is exactly N).
+-    bootstrapped:   root recorded finality beyond N; never replay the anchor.
+-    anything else (incl. a crash after the head moved past N but before finality passed N): refuse, root decides."""
++def launch_lock(directory=None, owner=None, top=None):
++    """The ONE launch lock: an exclusive, NON-blocking flock on the root-owned BOOTSTRAP_DIR/journal.lock (created by root
++    `arm`, never here). The wrapper takes it before its first gate and holds it to execve (O_CLOEXEC: the exec, or any
++    death, releases it); root `arm`/`rearm`/`rollback` take the same lock. A concurrent start refuses, consuming nothing."""
++    directory = pathlib.Path(directory or BOOTSTRAP_DIR); owner = ROOT_UID if owner is None else owner
++    _secure_path(directory, owner, leaf='dir', top=top)
++    p = directory / 'journal.lock'
++    try:
++        fd = os.open(p, os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC)
++    except OSError as e:
++        raise AssertionError(f'launch lock {p.name} unavailable ({type(e).__name__}): root `arm` creates it')
++    try:
++        st, ln = os.fstat(fd), os.lstat(p)
++        assert stat.S_ISREG(st.st_mode) and st.st_uid == owner and not st.st_mode & 0o077 \
++            and (st.st_dev, st.st_ino) == (ln.st_dev, ln.st_ino), 'launch lock is not a private regular file of the owner'
++        try:
++            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
++        except BlockingIOError:
++            raise AssertionError('launch lock busy: another start or a root journal operation holds it (refusing; nothing consumed)')
++    except BaseException:
++        os.close(fd)
++        raise
++    return fd
++
++def launch_record(cfg, release_sha, directory=None, owner=None, top=None):
++    """The IMMUTABLE launch record pinned in chain.json baseBootstrap.anchorLaunch {launchSha256} (pinned once per launch
++    record; the journal below is never pinned). -> (launchSha256, launch, N)."""
+     bb = (cfg.get('baseBootstrap') or {}).get('anchorLaunch')
+     directory = pathlib.Path(directory or BOOTSTRAP_DIR); owner = ROOT_UID if owner is None else owner
+     for d in (directory, directory / 'qualification'):
+-        _secure_path(d, owner, leaf='dir')
+-    assert isinstance(bb, dict) and set(bb) == {'launchSha256', 'lifecycleSha256'} and all(
+-        isinstance(bb[k], str) and HEX64.fullmatch(bb[k]) for k in bb), \
+-        'release mode needs baseBootstrap.anchorLaunch {launchSha256, lifecycleSha256}: no implicit bootstrap path'
++        _secure_path(d, owner, leaf='dir', top=top)
++    assert isinstance(bb, dict) and set(bb) == {'launchSha256'} and isinstance(bb['launchSha256'], str) \
++        and HEX64.fullmatch(bb['launchSha256']), \
++        'release mode needs baseBootstrap.anchorLaunch {launchSha256}: no implicit bootstrap path'
+     l_sha, launch = _evidence(directory / 'launch.json', owner)
+-    c_sha, life = _evidence(directory / 'lifecycle.json', owner)
+-    assert (l_sha, c_sha) == (bb['launchSha256'], bb['lifecycleSha256']), 'bootstrap evidence bytes differ from the operator pins'
+-    assert launch.get('format') == LAUNCH_FORMAT and life.get('format') == LIFECYCLE_FORMAT, 'bootstrap evidence format'
++    assert l_sha == bb['launchSha256'], 'launch record bytes differ from the operator pin'
++    assert launch.get('format') == LAUNCH_FORMAT, 'launch record format'
+     assert launch.get('baseReleaseSha256') == release_sha == BASE_RELEASE_SHA256, 'launch record is for another binary'
+     m = ANCHOR_RE.fullmatch(str(launch.get('anchor', '')))
+     assert m, 'launch anchor is not <number>:0x<64 lower-case hex>'
+-    n = int(m.group(1))
+     q = launch.get('qualification')
+     assert isinstance(q, dict) and set(q) == {'m10LaunchSha256', 'a2Sha256', 'a4Sha256', 'bytecodesVerifiedSha256'}, \
+         'launch record lacks the A2-A4 qualification hashes'
+@@ -529,20 +584,125 @@
+         assert sha == q[k], f'qualification {files[k]} bytes differ from the launch record'
+     assert got['m10LaunchSha256'][1].get('bootstrapAnchor') == launch['anchor'], 'launch anchor is not the A2-A4 release anchor'
+     assert got['bytecodesVerifiedSha256'][1].get('a4Sha256') == q['a4Sha256'], 'bytecode verification is for another A4 result'
+-    assert life.get('launchSha256') == l_sha, 'lifecycle belongs to another launch record'
+-    state = life.get('state')
+-    if state == 'anchor-pending':
+-        assert LAUNCH_PRODUCER_REVIEWED, 'HOLD: no reviewed producer of the bootstrap launch record (A1-A4/release binding)'
+-        return ['--bootstrap.anchor', launch['anchor']]
+-    if state == 'bootstrapped':
+-        f = life.get('finalizedPastAnchor')
+-        assert isinstance(f, dict) and set(f) == {'number', 'hash', 'recordedAt'} and isinstance(f['number'], int) \
+-            and not isinstance(f['number'], bool) and f['number'] > n and re.fullmatch(r'0x[0-9a-f]{64}', str(f['hash'])) \
+-            and isinstance(f['recordedAt'], str), 'bootstrapped lifecycle needs root-recorded finality beyond N'
+-        return []
+-    raise AssertionError(f'bootstrap lifecycle state {state!r}: refusing (root must resolve it explicitly)')
++    _instant(launch.get('notAfter'), 'launch notAfter')
++    return l_sha, launch, int(m.group(1))
++
++def journal_entries(jd, owner, launch_sha, top=None):
++    """The verified journal -> [(sha256, entry)], oldest first. Refuses on any symlink, foreign owner, writable mode,
++    unexpected name, gap, broken hash chain, other launch record, or transition outside JOURNAL_NEXT. `.partial-<pid>`
++    files are interrupted appends that were never linked into the journal: not entries."""
++    jd = pathlib.Path(jd)
++    _secure_path(jd, owner, leaf='dir', top=top)
++    out, prev, last = [], None, None
++    for name in sorted(os.listdir(jd)):
++        if JOURNAL_PARTIAL.fullmatch(name):
++            continue
++        assert JOURNAL_ENTRY.fullmatch(name) and int(name[:6]) == len(out) + 1 <= MAX_JOURNAL, f'unexpected journal entry {name}'
++        e_sha, e = _evidence(jd / name, owner)
++        assert e.get('format') == JOURNAL_FORMAT and e.get('launchSha256') == launch_sha and e.get('seq') == len(out) + 1 \
++            and e.get('prevSha256') == prev, f'journal chain broken at {name}'
++        assert e.get('event') in JOURNAL_NEXT[last], f'journal transition {last!r} -> {e.get("event")!r} is not allowed'
++        out.append((e_sha, e)); prev, last = e_sha, e['event']
++    assert out, 'no launch journal: root `arm` starts it'
++    return out
++
++def journal_append(jd, owner, launch_sha, entries, event, evidence, at, top=None):
++    """Durable append; the CALLER HOLDS the launch lock. A fully written, fsynced sibling is hard-linked to the next seq
++    name (link never replaces an entry), then the directory is fsynced and the journal re-verified. Only when this returns
++    is the event on disk. A crash before the link leaves the old state (plus an ignorable .partial-<pid>)."""
++    jd = pathlib.Path(jd)
++    last = entries[-1][1]['event'] if entries else None
++    assert event in JOURNAL_NEXT[last], f'journal transition {last!r} -> {event!r} is not allowed'
++    doc = {'format': JOURNAL_FORMAT, 'launchSha256': launch_sha, 'seq': len(entries) + 1,
++           'prevSha256': entries[-1][0] if entries else None, 'event': event, 'at': at, 'evidence': evidence}
++    b = json.dumps(doc, indent=1, sort_keys=True).encode()
++    for name in os.listdir(jd):
++        if JOURNAL_PARTIAL.fullmatch(name):
++            os.unlink(jd / name)                    # an earlier interrupted append (safe: we hold the lock)
++    tmp = jd / f'.partial-{os.getpid()}'
++    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o644)
++    try:
++        view = memoryview(b)
++        while view:
++            view = view[os.write(fd, view):]
++        os.fsync(fd)
++    finally:
++        os.close(fd)
++    os.link(tmp, jd / f'{doc["seq"]:06d}.json')
++    os.unlink(tmp)
++    _fsync_dir(jd)
++    after = journal_entries(jd, owner, launch_sha, top=top)
++    assert len(after) == doc['seq'] and after[-1][1] == doc, 'journal append did not land'
++    return after
++
++def launch_handshake(lock_fd, cfg, release_sha, directory=None, owner=None, top=None):
++    """Release mode, with the launch lock HELD since before the first gate and every existing gate passed:
++    -> ['--bootstrap.anchor', 'N:0x..'] after DURABLY consuming the pending journal state; the caller execs in this same
++    process with no further decision. Nothing here infers a start or a completion from a PID, a unit state or a log."""
++    assert isinstance(lock_fd, int), 'the launch lock is not held'
++    directory = pathlib.Path(directory or BOOTSTRAP_DIR); owner = ROOT_UID if owner is None else owner
++    l_sha, launch, _n = launch_record(cfg, release_sha, directory, owner, top)
++    entries = journal_entries(directory / 'journal', owner, l_sha, top)
++    state = entries[-1][1]['event']
++    assert state != 'consumed', (f'bootstrap anchor already consumed (journal seq {len(entries)}): refusing; the anchor is '
++                                 'never replayed - only root `rearm` with the stopped DB proven unchanged at N re-opens it')
++    assert state != 'rolled-back', 'bootstrap launch rolled back (terminal): a new launch record and journal are required'
++    assert state in PENDING, f'bootstrap journal state {state!r}: refusing (root must resolve it explicitly)'
++    assert _now() <= _instant(launch['notAfter'], 'launch notAfter'), \
++        'launch record expired (now > notAfter): nothing consumed; a fresh A1 recheck, release and launch record are required'
++    assert LAUNCH_PRODUCER_REVIEWED, 'HOLD: the launch-record producer is not reviewed (nothing consumed)'
++    try:
++        with open('/proc/sys/kernel/random/boot_id') as f:
++            boot = f.read().strip()
++    except OSError:
++        boot = None
++    evidence = {'anchor': launch['anchor'], 'baseReleaseSha256': release_sha, 'pid': os.getpid(), 'bootId': boot,
++                'invocationId': os.environ.get('INVOCATION_ID'), 'note': 'audit only; never used to infer a start or completion'}
++    journal_append(directory / 'journal', owner, l_sha, entries, 'consumed', evidence,
++                   datetime.datetime.fromtimestamp(_now(), datetime.timezone.utc).isoformat(), top)
++    return ['--bootstrap.anchor', launch['anchor']]
++
++def release_launch_lock(manifest):
++    """Legacy mode (no baseRelease): None, and nothing else changes - unless the root release-mode unit drop-in is still
++    installed, which is refused (bin/base must never run from a root start). Release mode: root euid AND the drop-in's
++    marker, then the held launch lock."""
++    if manifest.get('baseRelease') is None:
++        assert os.environ.get(HANDSHAKE_ENV) is None, 'legacy bin/base under the root release-mode unit drop-in: refusing'
++        return None
++    assert os.environ.get(HANDSHAKE_ENV) == '1' and os.geteuid() == ROOT_UID, \
++        'release mode needs the root one-shot launch handshake (reviewed unit drop-in): refusing'
++    return launch_lock()
++
++def service_identity(user=None):
++    """The unit's service account, resolved BEFORE anything is consumed. Never root."""
++    pw = pwd.getpwnam(user or BASE_SERVICE_USER)
++    assert pw.pw_uid != 0 and pw.pw_gid != 0, 'the Base service user must not be root'
++    return pw
++
++def drop_privileges(pw):
++    """root -> the service account in THIS process, right before execve: the identity User=/Group= gave the legacy unit
++    (initgroups), all three ids, verified irreversible."""
++    os.initgroups(pw.pw_name, pw.pw_gid)
++    os.setresgid(pw.pw_gid, pw.pw_gid, pw.pw_gid)
++    os.setresuid(pw.pw_uid, pw.pw_uid, pw.pw_uid)
++    assert os.getresuid() == (pw.pw_uid,) * 3 and os.getresgid() == (pw.pw_gid,) * 3, 'privilege drop incomplete'
++    try:
++        os.setuid(0)
++    except PermissionError:
++        return
++    raise AssertionError('privilege drop is reversible: refusing to exec')
+ 
+ def run(side):
++    # Release mode holds the one-shot launch lock from here, across EVERY gate, until execve (O_CLOEXEC) releases it;
++    # a refusal in this process releases it too. Legacy mode and el/cl: lock is None, nothing changes.
++    lock = release_launch_lock(MANIFEST) if side == 'base' else None
++    try:
++        _start(side, lock)
++    finally:
++        if lock is not None:
++            os.close(lock)
++
++def _start(side, lock):
+     role = 'base' if side == 'base' else 'l1'
+     base = mount(role, side)
+     if side in ('el', 'base'):
+@@ -604,9 +764,8 @@
+         slot = str(origin['blobSlot'])
+         commitments = beacon('/eth/v2/beacon/blocks/' + slot)['message']['body']['blob_kzg_commitments']
+         assert commitments and len(beacon('/eth/v1/beacon/blobs/' + slot)) == len(commitments), 'Base origin blobs absent'
+-        # every gate above is unchanged; the opt-in release adds its own (pinned path + launch lifecycle) and nothing else
++        # every gate above is unchanged (run under the held lock); the opt-in release adds its pinned path + the handshake
+         release = base_release(MANIFEST)
+-        anchor = bootstrap_anchor_args(CONFIG, BASE_RELEASE_SHA256) if release else []
+         env['BASE_NODE_L1_TRUST_RPC'] = 'false'
+         a = [release or binary('base'), '--chain', 'mainnet', 'rpc', '--datadir', datadir,
+              '--http', '--http.addr', '127.0.0.1', '--http.port', '18545', '--http.api', 'eth,net,web3',
+@@ -621,7 +780,11 @@
+              '--l1.rpc-timeout-ms', '10000', '--upgrade-signal.mode', 'metrics-only']
+         a += forwarding_args()
+         # A forwarded hash is not inclusion: consumers must verify the receipt.
+-        a += anchor                               # M10: only in lifecycle state anchor-pending
++        if lock is not None:
++            account = service_identity()
++            # M10: the journal is durably consumed BEFORE the exec below; this process then execs with no other decision
++            a += launch_handshake(lock, CONFIG, BASE_RELEASE_SHA256)
++            drop_privileges(account)
+     else:
+         raise ValueError('unknown side')
+     print(json.dumps({'starting': side, 'datadir': datadir, 'publicExecutionRpc': False}), flush=True)

@@ -1,0 +1,34 @@
+[
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-backup-unit-metadata-r1/read.py",
+    "sha256": "1984d27f0141d4b57bdf8551dc2c5aebff52558f37960951c9d1604d251e4e6f"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-native-locks-r2/candidate/offline_mask.py",
+    "sha256": "5310ec30a9ab75d1f6b09ed6a5e1ce172280f3134cf08d0c9de1aa5be6b4fb2c"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-backup-readonly-layout-r1/RESULT.json",
+    "sha256": "50d5505402799f6259a9bcc55c5b680dd893af6351c7bed36da0b9428aa0fc78"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-backup-readonly-fsck-r1/ATTEMPT.json",
+    "sha256": "6ae17065097d6199e13cd67933da65ec837f6357053c7e9f65a5ad15113d12e8"
+  },
+  {
+    "path": "/usr/bin/nbdfuse",
+    "sha256": "51c1a1fd18785d4fe2240c1710eb4f78590b9d333fcde4cda421871d6f010a01"
+  },
+  {
+    "path": "/usr/bin/qemu-nbd",
+    "sha256": "b0f16ff7225e78469733132fce225b1d0af98f0b681a5092d85618936ff61934"
+  },
+  {
+    "path": "/usr/bin/debugfs",
+    "sha256": "9b27184084383c8607eee03b43c80eca4ef912acf4887b40a7cc420e267ad8a8"
+  },
+  {
+    "path": "/usr/bin/fusermount3",
+    "sha256": "c3d04bdf77c7152eba94ce670338e7089730b8dbfede57762b7b92c893a00f4f"
+  }
+]

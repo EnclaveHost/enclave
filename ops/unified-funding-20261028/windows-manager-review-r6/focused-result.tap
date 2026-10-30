@@ -1,0 +1,203 @@
+TAP version 13
+# Subtest: ROOT-repaired: an invalid MAC is refused BEFORE any latch and nothing is forwarded
+ok 1 - ROOT-repaired: an invalid MAC is refused BEFORE any latch and nothing is forwarded
+  ---
+  duration_ms: 136.678928
+  type: 'test'
+  ...
+# Subtest: ROOT-repaired: held original -> exact authenticated cancellation resolves ONLY its own reservation -> late original refused
+ok 2 - ROOT-repaired: held original -> exact authenticated cancellation resolves ONLY its own reservation -> late original refused
+  ---
+  duration_ms: 137.828128
+  type: 'test'
+  ...
+# Subtest: r6 NEGATIVE: cancel of ANOTHER operation, a replayed cancel, or an in-progress operation never clears the reservation
+ok 3 - r6 NEGATIVE: cancel of ANOTHER operation, a replayed cancel, or an in-progress operation never clears the reservation
+  ---
+  duration_ms: 126.308332
+  type: 'test'
+  ...
+# Subtest: r6 NEGATIVE: no router key -> protected stage refused with nothing latched; a client x-router-mac is stripped
+ok 4 - r6 NEGATIVE: no router key -> protected stage refused with nothing latched; a client x-router-mac is stripped
+  ---
+  duration_ms: 82.813016
+  type: 'test'
+  ...
+# Subtest: r6 POSITIVE: accounted successful stage clears only from the exact confirmed reservation (DIAGNOSTIC snapshot)
+ok 5 - r6 POSITIVE: accounted successful stage clears only from the exact confirmed reservation (DIAGNOSTIC snapshot)
+  ---
+  duration_ms: 126.036074
+  type: 'test'
+  ...
+# Subtest: r6 obligations: cold replay restores the exact unknown operation; concurrent owner refused; missing log never fresh
+ok 6 - r6 obligations: cold replay restores the exact unknown operation; concurrent owner refused; missing log never fresh
+  ---
+  duration_ms: 9.801201
+  type: 'test'
+  ...
+# Subtest: r6 obligations: torn tail and released owner refuse; nothing is sent without a durable obligation
+ok 7 - r6 obligations: torn tail and released owner refuse; nothing is sent without a durable obligation
+  ---
+  duration_ms: 6.503437
+  type: 'test'
+  ...
+# Subtest: r6 obligations: a late ACCEPTED completion binds exactly; a cancelled one discharges only after the durable cancel
+ok 8 - r6 obligations: a late ACCEPTED completion binds exactly; a cancelled one discharges only after the durable cancel
+  ---
+  duration_ms: 7.906116
+  type: 'test'
+  ...
+# Subtest: r6 POSITIVE: repeated queued readiness keeps ONE staged instance (routine fence is nondestructive)
+not ok 9 - r6 POSITIVE: repeated queued readiness keeps ONE staged instance (routine fence is nondestructive)
+  ---
+  duration_ms: 168.975695
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/test/windows-permit/r6-stage-revocation.test.mjs:96:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    no restage churn: exactly the one staged VM
+    
+    0 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 0
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/test/windows-permit/r6-stage-revocation.test.mjs:103:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ROOT (carried, r5 evidence 0/1) explicit authority revocation withdraws an owned ready staged instance promptly
+ok 10 - ROOT (carried, r5 evidence 0/1) explicit authority revocation withdraws an owned ready staged instance promptly
+  ---
+  duration_ms: 142.804368
+  type: 'test'
+  ...
+# Subtest: r6 NEGATIVE: a HUNG boundary acknowledgment never delays staged compute retirement; the revocation still reports it
+ok 11 - r6 NEGATIVE: a HUNG boundary acknowledgment never delays staged compute retirement; the revocation still reports it
+  ---
+  duration_ms: 3130.028655
+  type: 'test'
+  ...
+# Subtest: r6 NEGATIVE: a LATE spawn that completes after revocation is withdrawn before the revocation confirms absence
+not ok 12 - r6 NEGATIVE: a LATE spawn that completes after revocation is withdrawn before the revocation confirms absence
+  ---
+  duration_ms: 165.391614
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/test/windows-permit/r6-stage-revocation.test.mjs:138:1'
+  failureType: 'testCodeFailure'
+  error: 'runtime boundary withdrawal not acknowledged'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    acknowledgeHold (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/network/deployment-isolation-runtime.mjs:102:13)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Promise.allSettled (index 0)
+    async withdrawAuthority (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/network/deployment-isolation-runtime.mjs:111:28)
+  ...
+# Subtest: R4 DIRECT: host lifecycle -> supervisor -> r18 runtime -> GuestdControl -> manager: stage, readiness, permit, I/O, Stop, removal
+not ok 13 - R4 DIRECT: host lifecycle -> supervisor -> r18 runtime -> GuestdControl -> manager: stage, readiness, permit, I/O, Stop, removal
+  ---
+  duration_ms: 83.55394
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/root-fixture-r4-supervisor-chain.test.mjs:108:1'
+  failureType: 'testCodeFailure'
+  error: "ENOENT: no such file or directory, lstat '/home/steven/Documents/Codex/2026-10-18/wo/work/r6-prxrj8c7/permit-r1-Jc08C6/protected-obligations.log'"
+  code: 'ENOENT'
+  stack: |-
+    Object.lstatSync (node:fs:1722:25)
+    checkLocalPath (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/windows/vbslike/manager/win-durable.mjs:93:23)
+    openOwnedLog (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/windows/vbslike/manager/win-durable.mjs:167:15)
+    file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/windows/node/protected-supervisor.mjs:142:35
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/windows/node/protected-supervisor.mjs:140:40
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/root-fixture-r4-supervisor-chain.test.mjs:110:13)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: R4 legacy neighbour: an unenrolled deployment keeps the legacy path (no protected stage)
+ok 14 - R4 legacy neighbour: an unenrolled deployment keeps the legacy path (no protected stage)
+  ---
+  duration_ms: 99.278462
+  type: 'test'
+  ...
+# Subtest: R4 native role keeps its pins on the protected stage; general role never gets them
+ok 15 - R4 native role keeps its pins on the protected stage; general role never gets them
+  ---
+  duration_ms: 92.457328
+  type: 'test'
+  ...
+# Subtest: R4 DELETE through an unreadable journal withdraws first and answers 500 (actual MAC/TCP)
+not ok 16 - R4 DELETE through an unreadable journal withdraws first and answers 500 (actual MAC/TCP)
+  ---
+  duration_ms: 5102.663135
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/root-fixture-r4-supervisor-chain.test.mjs:158:1'
+  failureType: 'testCodeFailure'
+  error: 'waitFor timed out'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    waitFor (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/test/windows-permit/helpers/world.mjs:131:81)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/root-fixture-r4-supervisor-chain.test.mjs:161:14)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: R5 DIRECT: repeated queued reconcile keeps the SAME staged instance through readiness, then Running permit, I/O, Stop
+ok 17 - R5 DIRECT: repeated queued reconcile keeps the SAME staged instance through readiness, then Running permit, I/O, Stop
+  ---
+  duration_ms: 526.777753
+  type: 'test'
+  ...
+# Subtest: R5 changed client origin: an enrolled deployment never reaches legacy lookup; it reaches the policy's protected owner
+ok 18 - R5 changed client origin: an enrolled deployment never reaches legacy lookup; it reaches the policy's protected owner
+  ---
+  duration_ms: 123.966611
+  type: 'test'
+  ...
+# Subtest: R5 host identity mismatch holds enrolled deployments; unenrolled neighbours stay legacy
+ok 19 - R5 host identity mismatch holds enrolled deployments; unenrolled neighbours stay legacy
+  ---
+  duration_ms: 97.232049
+  type: 'test'
+  ...
+# Subtest: R5 lost stage (actual MAC/TCP, TEST held transport): owned until the exact outcome; cancel refuses the late signed request
+ok 20 - R5 lost stage (actual MAC/TCP, TEST held transport): owned until the exact outcome; cancel refuses the late signed request
+  ---
+  duration_ms: 96.678743
+  type: 'test'
+  ...
+# Subtest: R5 inventory: a terminal row never masks an unmapped live protected VM
+ok 21 - R5 inventory: a terminal row never masks an unmapped live protected VM
+  ---
+  duration_ms: 121.773249
+  type: 'test'
+  ...
+# Subtest: R5 unsigned protected mutation aliases are refused without disturbing state; legacy routes unchanged
+ok 22 - R5 unsigned protected mutation aliases are refused without disturbing state; legacy routes unchanged
+  ---
+  duration_ms: 128.430185
+  type: 'test'
+  ...
+# Subtest: ROOT processed permit response loss reconciles exact manager-bound authority without resend
+ok 23 - ROOT processed permit response loss reconciles exact manager-bound authority without resend
+  ---
+  duration_ms: 439.241456
+  type: 'test'
+  ...
+# Subtest: ROOT explicit authority revocation withdraws an owned ready staged instance promptly
+ok 24 - ROOT explicit authority revocation withdraws an owned ready staged instance promptly
+  ---
+  duration_ms: 886.247029
+  type: 'test'
+  ...
+1..24
+# tests 24
+# suites 0
+# pass 20
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 12356.60444

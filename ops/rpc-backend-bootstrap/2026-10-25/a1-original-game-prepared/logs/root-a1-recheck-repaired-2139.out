@@ -1,0 +1,230 @@
+[queue] NOT STARTED: available=20680MiB required=20992MiB cap=256MiB
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 5 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 6 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 7 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 8 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 9 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 10 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 11 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 12 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 13 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 14 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 15 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 16 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 17 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 18 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 19 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 20 not started; sleep 30
+[queue] START available=20836MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: pinned reuse: a1-anchor.mjs / a1-read.mjs / vendor are byte-identical to the read-only published A1 package
+ok 1 - pinned reuse: a1-anchor.mjs / a1-read.mjs / vendor are byte-identical to the read-only published A1 package
+  ---
+  duration_ms: 2.164607
+  type: 'test'
+  ...
+# Subtest: REAL live initial A1 receipt binds: sha, game, N, root, ASR, EIP-1967 pins (production config validates)
+ok 2 - REAL live initial A1 receipt binds: sha, game, N, root, ASR, EIP-1967 pins (production config validates)
+  ---
+  duration_ms: 1.170217
+  type: 'test'
+  ...
+# Subtest: initial receipt refusals: wrong sha, recheck substituted as initial, non-authenticated labels, tampered bytes
+ok 3 - initial receipt refusals: wrong sha, recheck substituted as initial, non-authenticated labels, tampered bytes
+  ---
+  duration_ms: 0.761562
+  type: 'test'
+  ...
+# Subtest: recheck passes: original game still eligible, N/root unchanged, pins unchanged; distinct verdict bound to the initial sha
+ok 4 - recheck passes: original game still eligible, N/root unchanged, pins unchanged; distinct verdict bound to the initial sha
+  ---
+  duration_ms: 4.910968
+  type: 'test'
+  ...
+# Subtest: latest anchor ADVANCED: recorded as observation only; N/root stay the original (never accepted)
+ok 5 - latest anchor ADVANCED: recorded as observation only; N/root stay the original (never accepted)
+  ---
+  duration_ms: 2.372174
+  type: 'test'
+  ...
+# Subtest: recheck refuses: asr_changed
+ok 6 - recheck refuses: asr_changed
+  ---
+  duration_ms: 0.822801
+  type: 'test'
+  ...
+# Subtest: recheck refuses: asr_paused
+ok 7 - recheck refuses: asr_paused
+  ---
+  duration_ms: 0.806021
+  type: 'test'
+  ...
+# Subtest: recheck refuses: respected_type_changed
+ok 8 - recheck refuses: respected_type_changed
+  ---
+  duration_ms: 0.632713
+  type: 'test'
+  ...
+# Subtest: recheck refuses: game_not_respected
+ok 9 - recheck refuses: game_not_respected
+  ---
+  duration_ms: 0.812801
+  type: 'test'
+  ...
+# Subtest: recheck refuses: game_not_finalized
+ok 10 - recheck refuses: game_not_finalized
+  ---
+  duration_ms: 0.99502
+  type: 'test'
+  ...
+# Subtest: recheck refuses: game_blacklisted
+ok 11 - recheck refuses: game_blacklisted
+  ---
+  duration_ms: 0.781402
+  type: 'test'
+  ...
+# Subtest: recheck refuses: game_retired
+ok 12 - recheck refuses: game_retired
+  ---
+  duration_ms: 0.679873
+  type: 'test'
+  ...
+# Subtest: recheck refuses: game_not_defender_wins
+ok 13 - recheck refuses: game_not_defender_wins
+  ---
+  duration_ms: 0.600904
+  type: 'test'
+  ...
+# Subtest: recheck refuses: root_changed
+ok 14 - recheck refuses: root_changed
+  ---
+  duration_ms: 0.678473
+  type: 'test'
+  ...
+# Subtest: recheck refuses: number_changed
+ok 15 - recheck refuses: number_changed
+  ---
+  duration_ms: 0.90758
+  type: 'test'
+  ...
+# Subtest: recheck refuses: game_type_changed
+ok 16 - recheck refuses: game_type_changed
+  ---
+  duration_ms: 0.699123
+  type: 'test'
+  ...
+# Subtest: recheck refuses: anchor_regressed
+ok 17 - recheck refuses: anchor_regressed
+  ---
+  duration_ms: 0.685052
+  type: 'test'
+  ...
+# Subtest: recheck refuses: anchor_inconsistent
+ok 18 - recheck refuses: anchor_inconsistent
+  ---
+  duration_ms: 0.94541
+  type: 'test'
+  ...
+# Subtest: recheck refuses: helios_call_failed
+ok 19 - recheck refuses: helios_call_failed
+  ---
+  duration_ms: 0.598944
+  type: 'test'
+  ...
+# Subtest: recheck refuses: header_mismatch
+ok 20 - recheck refuses: header_mismatch
+  ---
+  duration_ms: 0.373696
+  type: 'test'
+  ...
+# Subtest: recheck refuses: finalized_number_mismatch
+ok 21 - recheck refuses: finalized_number_mismatch
+  ---
+  duration_ms: 0.333997
+  type: 'test'
+  ...
+# Subtest: recheck refuses: proof_hash
+ok 22 - recheck refuses: proof_hash
+  ---
+  duration_ms: 1.225587
+  type: 'test'
+  ...
+# Subtest: recheck refuses: proof_slots
+ok 23 - recheck refuses: proof_slots
+  ---
+  duration_ms: 0.776562
+  type: 'test'
+  ...
+# Subtest: recheck refuses: game names another ASR (portal getter read separately)
+ok 24 - recheck refuses: game names another ASR (portal getter read separately)
+  ---
+  duration_ms: 0.743092
+  type: 'test'
+  ...
+# Subtest: recheck refuses code/proxy pin changes pending operator review (codeHash, slot)
+ok 25 - recheck refuses code/proxy pin changes pending operator review (codeHash, slot)
+  ---
+  duration_ms: 3.570632
+  type: 'test'
+  ...
+# Subtest: freshness and pinning: stale / future header, finalized-tag move, mixed block refused
+ok 26 - freshness and pinning: stale / future header, finalized-tag move, mixed block refused
+  ---
+  duration_ms: 6.262634
+  type: 'test'
+  ...
+# Subtest: recheck refuses not_fresh: initial A1 receipt at the SAME, a NEWER, or the same-hash L1 block (Helios and header numbers agree)
+ok 27 - recheck refuses not_fresh: initial A1 receipt at the SAME, a NEWER, or the same-hash L1 block (Helios and header numbers agree)
+  ---
+  duration_ms: 2.91577
+  type: 'test'
+  ...
+1..27
+# tests 27
+# suites 0
+# pass 27
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 241.247257
+table ok: 10 unique mutants, each anchor matches exactly once
+baseline clean: 27 tests
+killed initial-verdict
+killed initial-sha
+killed freshness
+killed root-unchanged
+killed n-unchanged
+killed respected-type
+killed pin-codehash
+killed anchor-regressed
+killed use-latest-N
+killed binding
+{"killed": 10, "total": 10}
+## mutants rc=0
+[memory-guard] exit=0 peakTreeRssMiB=148 minHostAvailableMiB=20591
+[memory-guard] at peak: node:79 node:58 sh:4 timeout:2 sh:2 sh:2
+[queue] EXIT 0

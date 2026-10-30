@@ -1,0 +1,27 @@
+# The OFFLINE forge subset: the union of every rig's art()/artifact() calls and direct contracts/foundry/out reads in the candidate
+# (cli-independent, mcp-independent, independent-browser, fork-deploy, lease16d (storage-front), sessions-chain rigs; lease-relay-
+# host-policy, cli-independent-login, cli-existing-contract-sessions, sessions-owner-ops, site-independent-*, platform-api-registry,
+# sessions, helios-witness). One source per forge invocation, -j 1, the repo's own foundry.toml (compile settings untouched).
+source contracts/EnclaveAddressBook.sol
+source contracts/EnclaveRegistry.sol
+source contracts/EnclaveAppCatalog.sol
+source contracts/EnclaveDeployments.sol
+source contracts/EnclaveHostOwnership.sol
+source contracts/PaymentRouter.sol
+source contracts/PinnedSessionVaultFactory.sol
+source contracts/SessionVault.sol
+source contracts/foundry/test/mocks/SessionMocks.sol
+artifact EnclaveAddressBook.sol/EnclaveAddressBook.json
+artifact EnclaveRegistry.sol/EnclaveRegistry.json
+artifact EnclaveAppCatalog.sol/EnclaveAppCatalog.json
+artifact EnclaveDeployments.sol/EnclaveDeployments.json
+artifact EnclaveDeployments.sol/EnclaveLedgerBandwidth.json
+artifact EnclaveHostOwnership.sol/EnclaveHostOwnership.json
+artifact PaymentRouter.sol/PaymentRouter.json
+artifact PinnedSessionVaultFactory.sol/PinnedSessionVaultFactory.json
+artifact SessionVault.sol/SessionVault.json
+artifact SessionVault.sol/SessionVaultFactory.json
+artifact SessionVault.sol/SessionVaultLib.json
+artifact SessionMocks.sol/MockUSDC3009.json
+artifact SessionMocks.sol/Mock1271Owner.json
+artifact SessionMocks.sol/SessionRegistryStub.json

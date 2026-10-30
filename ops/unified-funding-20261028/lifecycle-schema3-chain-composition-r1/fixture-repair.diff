@@ -1,0 +1,14 @@
+--- work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-schema3-chain-composition-r1/failure-source-r1/root-schema3-composition.test.mjs	2026-10-29 01:04:17.021197953 -0700
++++ work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-schema3-chain-composition-r1/test/root-schema3-composition.test.mjs	2026-10-29 01:05:46.838669571 -0700
+@@ -40 +40 @@
+- assert.equal((await w.assignment())[0],2);assert.equal(journal.readHostAuthority(HOST).floor.owner,w.operator.address.toLowerCase());
++ assert.equal((await w.assignment())[1],2);assert.equal(journal.readHostAuthority(HOST).floor.owner,w.operator.address.toLowerCase());
+@@ -43 +43 @@
+- assert.equal((await w.assignment())[0],1);assert.equal(f.calls.serve.length,priorServe);assert.ok(f.calls.stop.length>0);
++ assert.equal((await w.assignment())[1],1);assert.equal(f.calls.serve.length,priorServe);assert.ok(f.calls.stop.length>0);
+@@ -53 +53 @@
+- assert.equal((await w.assignment())[0],2);assert.ok(f.calls.serve.length>0);assert.equal(reopened.journal.read(w.id).pending,null);
++ assert.equal((await w.assignment())[1],2);assert.ok(f.calls.serve.length>0);assert.equal(reopened.journal.read(w.id).pending,null);
+@@ -62 +62 @@
+- await c.dispatch.reconcile(w.id);assert.equal(f.calls.serve.length,priorServe);assert.equal((await w.assignment())[0],1);
++ await c.dispatch.reconcile(w.id);assert.equal(f.calls.serve.length,priorServe);assert.equal((await w.assignment())[1],1);

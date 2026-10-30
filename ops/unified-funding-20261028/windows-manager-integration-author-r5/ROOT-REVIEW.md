@@ -1,0 +1,7 @@
+# Reviewed r5 source author admission
+
+This package records reviewed author inputs and one actual invocation, not implementation or deployment results. Root verified all 1609 read-only files, the exact 156-file frozen r4 seed and every PREPARED hash before launch. The required steven.r.batchelor@gmail.com Max account was independently checked and is enforced by the runner. The actual Claude process is active at admission; do not infer completion from a silent final-output file.
+
+The task first fixes demonstrated staged-VM churn and the uncertain-launch, inventory, authentication and enrollment failures. It then requires actual host/general/native/composite consumers, genuine read authority, supported workloads and release closure. The broad decentralization goal is unchanged. Candidate-only Edit is permitted alongside Read/Grep/Write to enable narrow edits of large existing files. No Bash, tests, build, services, network or financial actions are available to this source author. Tool restrictions are not an OS sandbox; immutable input checks and mutation/result replay auditing remain required after terminal state.
+
+One fresh session, 55 turns, 1800-second child timeout/2100 outer lifetime, shared queue and hard1536 MiB cap,1408 MiB RSS guard,27648 MiB available floor, one CPU/no swap. Peer owns collection/freezing/audit of this same invocation only. No additional author, automatic retry, cap increase, production activation or Windows execution is authorized by this record. Existing production apps, payments and private state remain untouched.

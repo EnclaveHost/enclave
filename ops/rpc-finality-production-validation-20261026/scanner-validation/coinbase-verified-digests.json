@@ -1,0 +1,262 @@
+[
+ {
+  "package": "viem",
+  "path": "_cjs/account-abstraction/accounts/implementations/toCoinbaseSmartAccount.js",
+  "sha256": "ccffc5536cd901914eaee2b279f08c983ae7b3ed6ae180ffd309cd9d4011f1b6",
+  "verified": true,
+  "locations": [
+   [
+    "ops/rpc-finality-production-validation-20261026/stages/r9/bundle-origin.json",
+    2596
+   ],
+   [
+    "ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json",
+    2410
+   ],
+   [
+    "ops/rpc-finality-production-validation-20261026/stages/r9/install/MANIFEST.json",
+    2912
+   ]
+  ]
+ },
+ {
+  "package": "viem",
+  "path": "_cjs/account-abstraction/accounts/implementations/toCoinbaseSmartAccount.js.map",
+  "sha256": "db3574564ad9130d19d89277b88b70da8f6ba27c97843ee737a8839e43609450",
+  "verified": true,
+  "locations": [
+   [
+    "ops/rpc-finality-production-validation-20261026/stages/r9/bundle-origin.json",
+    2597
+   ],
+   [
+    "ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json",
+    2411
+   ],
+   [
+    "ops/rpc-finality-production-validation-20261026/stages/r9/install/MANIFEST.json",
+    2913
+   ]
+  ]
+ },
+ {
+  "package": "viem",
+  "path": "_cjs/actions/test/setCoinbase.js",
+  "sha256": "9d77333d14f993f37fa7f101068b6c0399622e932b628597b3ff1a2d1d8125ea",
+  "verified": true,
+  "locations": [
+   [
+    "ops/rpc-finality-production-validation-20261026/stages/r9/bundle-origin.json",
+    2858
+   ],
+   [
+    "ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json",
+    2672
+   ],
+   [
+    "ops/rpc-finality-production-validation-20261026/stages/r9/install/MANIFEST.json",
+    3174
+   ]
+  ]
+ },
+ {
+  "package": "viem",
+  "path": "_cjs/actions/test/setCoinbase.js.map",
+  "sha256": "508bf1493b23e8fe823519de960c8545059870214e86c3d9572c1663b53b81c5",
+  "verified": true,
+  "locations": [
+   [
+    "ops/rpc-finality-production-validation-20261026/stages/r9/bundle-origin.json",
+    2859
+   ],
+   [
+    "ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json",
+    2673
+   ],
+   [
+    "ops/rpc-finality-production-validation-20261026/stages/r9/install/MANIFEST.json",
+    3175
+   ]
+  ]
+ },
+ {
+  "package": "viem",
+  "path": "_esm/account-abstraction/accounts/implementations/toCoinbaseSmartAccount.js",
+  "sha256": "e66a4b64e7684f42f557e9212318e2394508b833d5a6e197eb02b6a5b9c1ca21",
+  "verified": true,
+  "locations": [
+   [
+    "ops/rpc-finality-production-validation-20261026/stages/r9/bundle-origin.json",
+    5341
+   ],
+   [
+    "ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json",
+    5155
+   ],
+   [
+    "ops/rpc-finality-production-validation-20261026/stages/r9/install/MANIFEST.json",
+    5657
+   ]
+  ]
+ },
+ {
+  "package": "viem",
+  "path": "_esm/account-abstraction/accounts/implementations/toCoinbaseSmartAccount.js.map",
+  "sha256": "4c588c7240f580902577a6e21824e9e0ea4517e6a72ec051bfca65227f702cd5",
+  "verified": true,
+  "locations": [
+   [
+    "ops/rpc-finality-production-validation-20261026/stages/r9/bundle-origin.json",
+    5342
+   ],
+   [
+    "ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json",
+    5156
+   ],
+   [
+    "ops/rpc-finality-production-validation-20261026/stages/r9/install/MANIFEST.json",
+    5658
+   ]
+  ]
+ },
+ {
+  "package": "viem",
+  "path": "_esm/actions/test/setCoinbase.js",
+  "sha256": "c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb",
+  "verified": true,
+  "locations": [
+   [
+    "ops/rpc-finality-production-validation-20261026/stages/r9/bundle-origin.json",
+    5603
+   ],
+   [
+    "ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json",
+    5417
+   ],
+   [
+    "ops/rpc-finality-production-validation-20261026/stages/r9/install/MANIFEST.json",
+    5919
+   ]
+  ]
+ },
+ {
+  "package": "viem",
+  "path": "_esm/actions/test/setCoinbase.js.map",
+  "sha256": "05dd8b6ec6a67ea0730c24f4d8b17af83621e82eafe2092b74be0f8841dace02",
+  "verified": true,
+  "locations": [
+   [
+    "ops/rpc-finality-production-validation-20261026/stages/r9/bundle-origin.json",
+    5604
+   ],
+   [
+    "ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json",
+    5418
+   ],
+   [
+    "ops/rpc-finality-production-validation-20261026/stages/r9/install/MANIFEST.json",
+    5920
+   ]
+  ]
+ },
+ {
+  "package": "viem",
+  "path": "_types/account-abstraction/accounts/implementations/toCoinbaseSmartAccount.d.ts",
+  "sha256": "f4b79c91693fbed54cbc52c904ec5ab8fea9a6f6e875fee00f23df7d366d0ae8",
+  "verified": true,
+  "locations": [
+   [
+    "ops/rpc-finality-production-validation-20261026/stages/r9/bundle-origin.json",
+    8088
+   ],
+   [
+    "ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json",
+    7902
+   ],
+   [
+    "ops/rpc-finality-production-validation-20261026/stages/r9/install/MANIFEST.json",
+    8404
+   ]
+  ]
+ },
+ {
+  "package": "viem",
+  "path": "_types/actions/test/setCoinbase.d.ts",
+  "sha256": "91d378f564d91afa23da2a7985d2a721cee70494e02b96a439ae3d156297e8ce",
+  "verified": true,
+  "locations": [
+   [
+    "ops/rpc-finality-production-validation-20261026/stages/r9/bundle-origin.json",
+    8350
+   ],
+   [
+    "ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json",
+    8164
+   ],
+   [
+    "ops/rpc-finality-production-validation-20261026/stages/r9/install/MANIFEST.json",
+    8666
+   ]
+  ]
+ },
+ {
+  "package": "viem",
+  "path": "_types/actions/test/setCoinbase.d.ts.map",
+  "sha256": "989a876500a3fa277df29a5bbea7d106e95f02b734f274978f3ddce21fcee423",
+  "verified": true,
+  "locations": [
+   [
+    "ops/rpc-finality-production-validation-20261026/stages/r9/bundle-origin.json",
+    8351
+   ],
+   [
+    "ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json",
+    8165
+   ],
+   [
+    "ops/rpc-finality-production-validation-20261026/stages/r9/install/MANIFEST.json",
+    8667
+   ]
+  ]
+ },
+ {
+  "package": "viem",
+  "path": "account-abstraction/accounts/implementations/toCoinbaseSmartAccount.ts",
+  "sha256": "e61ddd268dd9c5e588d3cb65599ca9c478743e78596243c027b96bc1350238a6",
+  "verified": true,
+  "locations": [
+   [
+    "ops/rpc-finality-production-validation-20261026/stages/r9/bundle-origin.json",
+    10833
+   ],
+   [
+    "ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json",
+    10647
+   ],
+   [
+    "ops/rpc-finality-production-validation-20261026/stages/r9/install/MANIFEST.json",
+    11149
+   ]
+  ]
+ },
+ {
+  "package": "viem",
+  "path": "actions/test/setCoinbase.ts",
+  "sha256": "52ef6c939763a0597d1241035a9eda94d90fc44e34abe6e9af687a861c3e8072",
+  "verified": true,
+  "locations": [
+   [
+    "ops/rpc-finality-production-validation-20261026/stages/r9/bundle-origin.json",
+    10967
+   ],
+   [
+    "ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json",
+    10781
+   ],
+   [
+    "ops/rpc-finality-production-validation-20261026/stages/r9/install/MANIFEST.json",
+    11283
+   ]
+  ]
+ }
+]

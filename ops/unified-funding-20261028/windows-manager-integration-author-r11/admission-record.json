@@ -1,0 +1,40 @@
+{
+  "unit": "enclave-windows-manager-integration-r11-20261029.service",
+  "mainPid": 1749298,
+  "runnerPid": 1749314,
+  "claudePid": 1749324,
+  "invocation": "dd6abf47a1394ae2a3b8247cb301b17c",
+  "mainStartTicks": "160150741",
+  "runnerStartTicks": "160150752",
+  "claudeStartTicks": "160150813",
+  "processes": [
+    {
+      "pid": 1749298,
+      "ppid": 1899,
+      "start": "160150741",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven"
+    },
+    {
+      "pid": 1749314,
+      "ppid": 1749307,
+      "start": "160150752",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven"
+    },
+    {
+      "pid": 1749324,
+      "ppid": 1749314,
+      "start": "160150813",
+      "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+      "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r11-20261029"
+    }
+  ],
+  "rawUnit": "ActiveState=active\nInvocationID=dd6abf47a1394ae2a3b8247cb301b17c\nMainPID=1749298\n",
+  "account": {
+    "loggedIn": true,
+    "email": "steven.r.batchelor@gmail.com",
+    "subscriptionType": "max"
+  },
+  "rootAuthorizedOneLaunch": true
+}

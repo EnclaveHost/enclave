@@ -1,0 +1,31 @@
+{
+ "transitSha256": "0f423776309bbd9249ac4dc33babdeb38e65d697cf0b4e9c025ca6534dc16798",
+ "legacyEnvSha256": "83ab0ef78b2bf293efe9eff13321c049a57254f5ab9e46af827bafd85f51d113",
+ "directEnvSha256": "1d0acbccf972129e531caa027b1de95aeb5472ba6662b38661701f0f3fb97a3a",
+ "directConfigDigest": "7d6f7c6bcfc055506283d4ab8cec695997727df594a8c76125b2279eba966d46",
+ "withoutLeaseGasDigest": "85f79077faa16be6b8a31987fb00d411a4c779a571f2b0e5a08a381159868a6b",
+ "transit": {
+  "version": 1,
+  "record": "eyJmb3JtYXQiOiJlbmNsYXZlLWxlYXNlLWdhcy1kZXBsb3ltZW50L3YxIiwiY2hhaW5JZCI6ODQ1MywicmVzZXJ2ZSI6IjB4MTJBM2Y4NzMwNDFEZWM0MzZEYUEwMDg1Qjc2NmEzOTlBNmZBMzYzOSIsImV4ZWN1dG9yIjoiMHg4OTAwQkFDQTIxNjc4NzNCQTJGOGE4YkFFOGI0ODc2RTYzOTZkMzQzIiwicmVzZXJ2ZUNvZGVIYXNoIjoiMHhjYzAwZWZlOWM3OWMxN2IzNGVmOWVkYzI3MjA5MzkwMzA4MzRiZjE2OGFiYzUyY2VhMTRkY2IyMjQzMDRhOTc5IiwiZXhlY3V0b3JDb2RlSGFzaCI6IjB4ZGQ4OTNjZDQ4YjdjMTAyZGMyNjY5NDlkMDI3YzMzZDM5NmE3Zjg4ODQ1MzNlZTgxYjNiMjI3NTA0OGVjOWFiMiIsImxlZGdlciI6IjB4QjE3ODNCNjFFMUZEZWU2YTYxNjNEQzNDZGFDMjdiRjMyRTdkMTE3QiIsInJlZ2lzdHJ5IjoiMHg4NjhlQjdmYzVCNUE4NEIyRkYwODJlYWZjOWJmNDBiN0FBYzVDQ0FDIn0=",
+  "digest": "sha256:1665c2186e59bf0178387d43562f4982d6f2748230d4afa627f09705a19e6089",
+  "chainId": 8453,
+  "reserve": "0x12A3f873041Dec436DaA0085B766a399A6fA3639",
+  "rpcs": [
+   "https://base-rpc.publicnode.com",
+   "https://mainnet.base.org"
+  ],
+  "relays": [
+   "https://134.209.248.172"
+  ],
+  "quorum": 2
+ },
+ "legacyEnv": {
+  "ENCLAVE_LEASE_GAS_FILE": "/run/lease-gas/deployment.json",
+  "ENCLAVE_LEASE_GAS_DIGEST": "sha256:1665c2186e59bf0178387d43562f4982d6f2748230d4afa627f09705a19e6089",
+  "ENCLAVE_LEASE_GAS_RPCS": "https://base-rpc.publicnode.com,https://mainnet.base.org",
+  "ENCLAVE_LEASE_GAS_RELAYS": "https://134.209.248.172",
+  "ENCLAVE_LEASE_GAS_RESERVE": "0x12A3f873041Dec436DaA0085B766a399A6fA3639",
+  "ENCLAVE_LEASE_GAS_QUORUM": "2"
+ },
+ "_note": "main's own code (work/enclave e762a9c5 + working tree, before pinnedRelays) on the inputs of golden-compute.mjs: what an ABSENT pinnedRelays must keep byte-identical"
+}

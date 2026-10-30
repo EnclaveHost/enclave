@@ -1,0 +1,11 @@
+{
+  "RELEASE-CLOSURE-WALLET-PROD-R1.json": "ae69dc3b6d3ac2e9aae5e0854e2dc572d8a778dfa117c64272290f076bc5570a",
+  "REPORT-WALLET-PROD-R1.md": "274d867cb243da023a743b358701633192a007074fb1db5ba65bb4d3e57cdc1b",
+  "enclave/site/js/core/wallet-release-census.js": "0c49da8bc5659119066f586f60d35df09c3a1e25f782a4f89b10e4bab4539d81",
+  "enclave/site/js/core/wallet-release-chain.js": "69fb1a7366d3c2e5614e4602afa00cf3162813fb7e482103b718758ba77f92e0",
+  "enclave/site/js/core/wallet-release-controller.js": "6ac00d36d9628d422344350966fb0b2db1856eafa81aea16ac1dc5f590673c2b",
+  "enclave/site/js/core/wallet-release-promote.js": "929bc2169e6217f300992291cbae9756f2c83d19773e0979a2a984b0cfc09e2c",
+  "enclave/site/js/core/wallet-release-store.js": "be04dd8c2306e132c5120a23afa35776f8f484f2199b2c598f5e35cd00fc0cb6",
+  "enclave/site/js/core/wallet-release-view.js": "af8fb93b392f31b404de927a8bbe0940f1e3d60770dbaaafbb6966ab0fa13e7c",
+  "enclave/test/wallet-release/prod-election.test.mjs": "fbb1a4e0199634869d0cba3b97d64013bdb18a43fd947409f9228b8d647e8f27"
+}

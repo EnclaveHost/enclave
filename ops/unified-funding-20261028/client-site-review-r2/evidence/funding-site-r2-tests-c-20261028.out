@@ -1,0 +1,220 @@
+[queue] START available=90081MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: lost prior proof prevents offering any later signature
+ok 1 - lost prior proof prevents offering any later signature
+  ---
+  duration_ms: 0.993074
+  type: 'test'
+  ...
+# Subtest: admitted step cannot reuse held signatures
+ok 2 - admitted step cannot reuse held signatures
+  ---
+  duration_ms: 1.126742
+  type: 'test'
+  ...
+# Subtest: plan missing relay binding is not silently adopted at a different relay
+ok 3 - plan missing relay binding is not silently adopted at a different relay
+  ---
+  duration_ms: 0.370767
+  type: 'test'
+  ...
+# Subtest: sign: approved, scoped plan -> 1 + 2 + 2 + 2 prompts, bundle held for exactly that plan
+ok 4 - sign: approved, scoped plan -> 1 + 2 + 2 + 2 prompts, bundle held for exactly that plan
+  ---
+  duration_ms: 3.367468
+  type: 'test'
+  ...
+# Subtest: sign: no approval, a mismatched proposal, another relay's plan or a changed plan -> no prompt at all
+ok 5 - sign: no approval, a mismatched proposal, another relay's plan or a changed plan -> no prompt at all
+  ---
+  duration_ms: 2.678663
+  type: 'test'
+  ...
+# Subtest: sign: an account switch while the journal read is pending -> no prompt
+ok 6 - sign: an account switch while the journal read is pending -> no prompt
+  ---
+  duration_ms: 0.409197
+  type: 'test'
+  ...
+# Subtest: sign: a chain switch between wallet prompts stops the rest and keeps nothing
+ok 7 - sign: a chain switch between wallet prompts stops the rest and keeps nothing
+  ---
+  duration_ms: 0.418268
+  type: 'test'
+  ...
+# Subtest: send: the held bundle runs once; a second click has nothing to send
+ok 8 - send: the held bundle runs once; a second click has nothing to send
+  ---
+  duration_ms: 2.715303
+  type: 'test'
+  ...
+# Subtest: send: a switch before the click's send -> nothing admitted, nothing posted
+ok 9 - send: a switch before the click's send -> nothing admitted, nothing posted
+  ---
+  duration_ms: 0.730205
+  type: 'test'
+  ...
+# Subtest: send: a switch after a step was SUBMITTED records its outcome, starts nothing new, never moves the active session
+ok 10 - send: a switch after a step was SUBMITTED records its outcome, starts nothing new, never moves the active session
+  ---
+  duration_ms: 1.51141
+  type: 'test'
+  ...
+# Subtest: send: a switch between admission and POST leaves the step admitted with an error note, nothing posted, no resend
+ok 11 - send: a switch between admission and POST leaves the step admitted with an error note, nothing posted, no resend
+  ---
+  duration_ms: 0.927754
+  type: 'test'
+  ...
+# Subtest: guarded store: after a switch, a planned step cannot be admitted or re-armed and a new plan cannot be created
+ok 12 - guarded store: after a switch, a planned step cannot be admitted or re-armed and a new plan cannot be created
+  ---
+  duration_ms: 0.758475
+  type: 'test'
+  ...
+# Subtest: gas: quote -> the re-render shows the same quote -> fund sends exactly that quote, once
+ok 13 - gas: quote -> the re-render shows the same quote -> fund sends exactly that quote, once
+  ---
+  duration_ms: 1.123563
+  type: 'test'
+  ...
+# Subtest: gas: selecting deployment B after quoting A can never fund A's quote; changed inputs, remount and switches refuse
+ok 14 - gas: selecting deployment B after quoting A can never fund A's quote; changed inputs, remount and switches refuse
+  ---
+  duration_ms: 0.586527
+  type: 'test'
+  ...
+# Subtest: generator runs on the real pinned inputs and produces an exact, insert/append-only candidate
+ok 15 - generator runs on the real pinned inputs and produces an exact, insert/append-only candidate
+  ---
+  duration_ms: 62.410487
+  type: 'test'
+  ...
+# Subtest: generator refuses drift, a null pin, a wrong pin set, and overwriting an existing target
+ok 16 - generator refuses drift, a null pin, a wrong pin set, and overwriting an existing target
+  ---
+  duration_ms: 143.021535
+  type: 'test'
+  ...
+# Subtest: the code stripper keeps code and drops comments/strings (so the purity checks below mean something)
+ok 17 - the code stripper keeps code and drops comments/strings (so the purity checks below mean something)
+  ---
+  duration_ms: 1.015413
+  type: 'test'
+  ...
+# Subtest: state.js and flows.js are pure: no DOM, storage, network or globals; flows imports only state.js
+ok 18 - state.js and flows.js are pure: no DOM, storage, network or globals; flows imports only state.js
+  ---
+  duration_ms: 1.279501
+  type: 'test'
+  ...
+# Subtest: page: no wallet discovery, timers, deletion, raw JSON input or hard-coded approval
+ok 19 - page: no wallet discovery, timers, deletion, raw JSON input or hard-coded approval
+  ---
+  duration_ms: 0.853055
+  type: 'test'
+  ...
+# Subtest: page: every click is guarded; effects go through the flows / guarded boundaries, never the raw provider or relay
+ok 20 - page: every click is guarded; effects go through the flows / guarded boundaries, never the raw provider or relay
+  ---
+  duration_ms: 0.387318
+  type: 'test'
+  ...
+# Subtest: page: plans need relay evidence; display is the plan's own terms; sign/send need proposal match + approval
+ok 21 - page: plans need relay evidence; display is the plan's own terms; sign/send need proposal match + approval
+  ---
+  duration_ms: 0.152999
+  type: 'test'
+  ...
+# Subtest: page: the quote survives a re-render, input changes drop it, and fund sends the displayed digest
+ok 22 - page: the quote survives a re-render, input changes drop it, and fund sends the displayed digest
+  ---
+  duration_ms: 0.157529
+  type: 'test'
+  ...
+# Subtest: page: owner controls render first and never wait for intake, catalog, scope or relay config
+ok 23 - page: owner controls render first and never wait for intake, catalog, scope or relay config
+  ---
+  duration_ms: 0.320048
+  type: 'test'
+  ...
+# Subtest: vendor build validates before writing and enforces viem's declared dependency closure
+ok 24 - vendor build validates before writing and enforces viem's declared dependency closure
+  ---
+  duration_ms: 0.143169
+  type: 'test'
+  ...
+# Subtest: formatUsd6 never rounds
+ok 25 - formatUsd6 never rounds
+  ---
+  duration_ms: 0.871364
+  type: 'test'
+  ...
+# Subtest: plans: owner, chain, vaults, session AND relay evidence from the referenced records; other owners' plans only for them
+ok 26 - plans: owner, chain, vaults, session AND relay evidence from the referenced records; other owners' plans only for them
+  ---
+  duration_ms: 1.427721
+  type: 'test'
+  ...
+# Subtest: proposal: finite 8 + 2 split, total <= $30; wildcard, overlap, other owner, malformed refused
+ok 27 - proposal: finite 8 + 2 split, total <= $30; wildcard, overlap, other owner, malformed refused
+  ---
+  duration_ms: 1.268552
+  type: 'test'
+  ...
+# Subtest: an existing plan is shown from its own terms; any proposal difference is reported
+ok 28 - an existing plan is shown from its own terms; any proposal difference is reported
+  ---
+  duration_ms: 1.347161
+  type: 'test'
+  ...
+# Subtest: legacy scope label: [] is 'no apps', only ['*'] is the wildcard, nothing is widened
+ok 29 - legacy scope label: [] is 'no apps', only ['*'] is the wildcard, nothing is widened
+  ---
+  duration_ms: 0.195949
+  type: 'test'
+  ...
+# Subtest: approval: matched field by field; nothing approved by default, by key generation or partially
+ok 30 - approval: matched field by field; nothing approved by default, by key generation or partially
+  ---
+  duration_ms: 0.233229
+  type: 'test'
+  ...
+# Subtest: next signable: a lost earlier proof stops everything; unresolved steps stop later ones
+ok 31 - next signable: a lost earlier proof stops everything; unresolved steps stop later ones
+  ---
+  duration_ms: 0.567406
+  type: 'test'
+  ...
+# Subtest: held signatures: same context/plan/terms/digests, planned only, behind still-proven steps; dropped on change
+ok 32 - held signatures: same context/plan/terms/digests, planned only, behind still-proven steps; dropped on change
+  ---
+  duration_ms: 0.563536
+  type: 'test'
+  ...
+# Subtest: quotes: bound to context, record, deployment, amount, tier and digest; peek survives a render, take is single use
+ok 33 - quotes: bound to context, record, deployment, amount, tier and digest; peek survives a render, take is single use
+  ---
+  duration_ms: 0.645116
+  type: 'test'
+  ...
+# Subtest: active pointer, owner controls and quote view are unchanged
+ok 34 - active pointer, owner controls and quote view are unchanged
+  ---
+  duration_ms: 0.468907
+  type: 'test'
+  ...
+1..34
+# tests 34
+# suites 0
+# pass 34
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 446.592581
+[memory-guard] exit=0 peakTreeRssMiB=125 minHostAvailableMiB=90008
+[memory-guard] at peak: node:63 node:62
+[memory-guard] exit=0 peakTreeRssMiB=186 minHostAvailableMiB=90013
+[memory-guard] at peak: node:63 node:62 node:50 python3:11
+[queue] EXIT 0

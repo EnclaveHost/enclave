@@ -1,0 +1,14 @@
+{
+  "schema": "client-site-browser-r1-harness-inputs/v1",
+  "note": "Read by out/server.mjs as OWN_INPUTS (the derived prior-fixture server). ROOT FILLS every null after building and reviewing; the server refuses to start on any null or drift. vendor maps the two static routes to hash-gated files served byte for byte.",
+  "files": {
+    "client-site-browser-r1/page/index.html": "fdec00bbc51e0c5899874bacedab5828c96713d853831aff2f6df460453602de",
+    "client-site-browser-r1/page/dist/harness.js": "55e4167bf5f1a9e4d6b4ef89def7832aa6b93d71fe6f5237cc45ca97e2abaf7d",
+    "client-site-repair-r2/candidate/site/vendor/funding.js": "4c56d071892815cc1169bf410243b22f6b2730994d4f05283c0cefe348fd613b",
+    "../source/sdk/sessions/dist/browser.mjs": "9dda76f6c22ef102e9dce27b7e61731c83a7e41905a611587578e305bc758997"
+  },
+  "vendor": {
+    "/harness/vendor/funding.js": "client-site-repair-r2/candidate/site/vendor/funding.js",
+    "/harness/vendor/sessions.js": "../source/sdk/sessions/dist/browser.mjs"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "candidatePins": 222,
+  "drift": [],
+  "tests": {
+    "focused": {
+      "unit": "enclave-windows-r10-focused-20261029",
+      "status": "ActiveState=failed\nInvocationID=be299f9aaac7469db930c3200693b9bc\nMainPID=0\nResult=exit-code\n",
+      "tmpRemoved": "/home/steven/Documents/Codex/2026-10-18/wo/work/r10-gdxn06vg"
+    },
+    "root-regressions": {
+      "unit": "enclave-windows-r10-root-regressions-20261029",
+      "status": "ActiveState=failed\nInvocationID=06099f4d86a54de18ca7ce4a292ae4e5\nMainPID=0\nResult=exit-code\n",
+      "tmpRemoved": "/home/steven/Documents/Codex/2026-10-18/wo/work/r10-dxm4hqvx"
+    },
+    "send-boundary": {
+      "unit": "enclave-windows-r10-send-boundary-20261029",
+      "status": "ActiveState=failed\nInvocationID=72c13d87b31d47c294f35d026f311300\nMainPID=0\nResult=exit-code\n",
+      "tmpRemoved": "/home/steven/Documents/Codex/2026-10-18/wo/work/r10-fnl3z5g6"
+    },
+    "route-progress": {
+      "unit": "enclave-windows-r10-route-progress-20261029",
+      "status": "ActiveState=failed\nInvocationID=276a9bf8a8974de69c6ae0333cc11c06\nMainPID=0\nResult=exit-code\n",
+      "tmpRemoved": "/home/steven/Documents/Codex/2026-10-18/wo/work/r10-s4ybl_fi"
+    }
+  }
+}

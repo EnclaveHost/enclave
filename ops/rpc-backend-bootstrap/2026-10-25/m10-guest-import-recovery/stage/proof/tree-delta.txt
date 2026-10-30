@@ -1,0 +1,11 @@
+diff -ru <tmp>/a/crates/consensus/service/src/actors/engine/engine_request_processor.rs <tmp>/b/crates/consensus/service/src/actors/engine/engine_request_processor.rs
+--- <tmp>/a/crates/consensus/service/src/actors/engine/engine_request_processor.rs	2026-10-25 16:13:17.765667335 -0700
++++ <tmp>/b/crates/consensus/service/src/actors/engine/engine_request_processor.rs	2026-10-25 16:13:17.817024827 -0700
+@@ -2413,6 +2413,7 @@
+ 
+     // ---- M10: bootstrap anchor ----------------------------------------------------------------
+     mod bootstrap_anchor {
++        use crate::EngineError;
+         use base_consensus_engine::{
+             BootstrapAnchor, EngineResetError, SyncStartError,
+             test_utils::{anchor_test_block, anchor_test_block_hash, anchor_test_rollup_config},

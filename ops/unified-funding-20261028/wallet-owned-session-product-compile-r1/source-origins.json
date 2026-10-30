@@ -1,0 +1,14 @@
+{
+  "contracts/WalletSessionVault.sol": {
+    "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-owned-session-create-r1-20261029/author-delivery/enclave/contracts/WalletSessionVault.sol",
+    "sha256": "c6dc12779995c54a4f10090e8a59dec9cd70b6c2d9c71ed2b767ff75e774a660"
+  },
+  "contracts/WalletSessionPolicy.sol": {
+    "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-owned-session-create-r1-20261029/author-delivery/enclave/contracts/WalletSessionPolicy.sol",
+    "sha256": "f08888e1fb61e4d530e4c42627f54e2551ebbb35f2136843af2c2c1c9cf0a8ad"
+  },
+  "contracts/SessionVault.sol": {
+    "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-owned-session-create-r1-20261029/author-delivery/enclave/contracts/SessionVault.sol",
+    "sha256": "a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c"
+  }
+}

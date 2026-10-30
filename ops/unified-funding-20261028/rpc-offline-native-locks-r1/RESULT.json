@@ -1,0 +1,123 @@
+{
+  "results": [
+    {
+      "case": "preexisting_writable",
+      "status": "PASS",
+      "unchanged": true
+    },
+    {
+      "case": "future_writable",
+      "status": "PASS",
+      "error": "qemu-nbd: Failed to blk_new_open '/vm/enclave-volumes/rpc-production-maint/lock-matrix-sqzcfcdm/future.qcow2': Failed to get \"write\" lock\nIs another process using the image [/vm/enclave-volumes/rpc-production-maint/lock-matrix-sqzcfcdm/future.qcow2]?\n",
+      "control": true,
+      "unchanged": true
+    },
+    {
+      "case": "resize",
+      "status": "PASS",
+      "unchangedWhileHeld": true
+    },
+    {
+      "case": "read_only",
+      "status": "PASS",
+      "ready": true,
+      "error": "",
+      "unchanged": true
+    },
+    {
+      "case": "deterministic_getlk_setlk_race",
+      "status": "FAIL",
+      "writerAccepted": true,
+      "nativeWriterReady": true,
+      "unchanged": true
+    },
+    {
+      "case": "write_unchanged",
+      "status": "FAIL",
+      "validControl": true,
+      "escaped": true,
+      "control": {
+        "cor": {
+          "return": {},
+          "id": "blockdev-add"
+        },
+        "graph": {
+          "return": {
+            "edges": [
+              {
+                "name": "file",
+                "parent": 2,
+                "shared-perm": [
+                  "resize",
+                  "write-unchanged",
+                  "write",
+                  "consistent-read"
+                ],
+                "perm": [
+                  "write-unchanged"
+                ],
+                "child": 1
+              }
+            ],
+            "nodes": [
+              {
+                "name": "fixture-cor",
+                "type": "block-driver",
+                "id": 2
+              },
+              {
+                "name": "fixture-file",
+                "type": "block-driver",
+                "id": 1
+              }
+            ]
+          },
+          "id": "x-debug-query-block-graph"
+        }
+      },
+      "held": {
+        "cor": {
+          "return": {},
+          "id": "blockdev-add"
+        },
+        "graph": {
+          "return": {
+            "edges": [
+              {
+                "name": "file",
+                "parent": 2,
+                "shared-perm": [
+                  "resize",
+                  "write-unchanged",
+                  "write",
+                  "consistent-read"
+                ],
+                "perm": [
+                  "write-unchanged"
+                ],
+                "child": 1
+              }
+            ],
+            "nodes": [
+              {
+                "name": "fixture-cor",
+                "type": "block-driver",
+                "id": 2
+              },
+              {
+                "name": "fixture-file",
+                "type": "block-driver",
+                "id": 1
+              }
+            ]
+          },
+          "id": "x-debug-query-block-graph"
+        }
+      },
+      "unchanged": true
+    }
+  ],
+  "allProcessesGone": true,
+  "syntheticOnly": true,
+  "productionQualified": false
+}

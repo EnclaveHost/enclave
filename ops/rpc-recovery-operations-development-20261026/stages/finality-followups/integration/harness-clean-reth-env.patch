@@ -1,0 +1,22 @@
+--- a/harness/a2a4.py
++++ b/harness/a2a4.py
+@@ -48,6 +48,7 @@
+     ('db', 'get'): ['static-file', 'mdbx'],
+     ('db', '--help'): ['get', 'settings', 'stage-checkpoints'],
+ }
++RETH_ENV_PASS = ()                               # TESTS ONLY: variable names passed to `base reth` children (production: none)
+ TRUSTED_UID = 0                                  # receipt, manifest and marker must be root-owned (tests override)
+ MANIFEST_SHA = '1f0c4e6c259d4353f598a94ac75a0540321ced2b52b464fb4e11c2ec34c649f2'
+ SNAPSHOT_UNIT = 'enclave-rpc-base-snapshot.service'
+@@ -563,8 +564,10 @@
+         if args and args[0] in ('db', 'stage') and '--help' not in args and not self.db_allowed:
+             refuse('ungated_db_access', f'{" ".join(args[:3])}: DB access before gate_static passed in this process')
+         argv = [self.c['baseBinary'], 'reth', *args]
+-        env = {k: v for k, v in os.environ.items() if k not in ('BASE_CHAIN',)}     # `base reth` refuses with BASE_CHAIN set
+         d = pathlib.Path(self.c['workdir']) / 'cmd'; d.mkdir(mode=0o700, exist_ok=True)
++        # finality r6.2: a CLEAN environment for every `base reth` child (never root's: LD_PRELOAD, RUST_LOG, BASE_CHAIN, ...);
++        # RETH_ENV_PASS is empty in production (a test fixture names its fake binary's variables)
++        env = {'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', 'HOME': str(d), **{k: os.environ[k] for k in RETH_ENV_PASS if k in os.environ}}
+         self.n += 1; tag = f'{now().strftime("%Y%m%dT%H%M%S%fZ")}-{self.n:04d}'
+         out_p, err_p = d / f'{tag}.out', d / f'{tag}.err'
+         if mut:

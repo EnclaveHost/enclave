@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: the mcp member is optional, strict and canonical: without it a config keeps its exact bytes and HOST_DATA
+ok 1 - the mcp member is optional, strict and canonical: without it a config keeps its exact bytes and HOST_DATA
+  ---
+  duration_ms: 1750.770131
+  type: 'test'
+  ...
+# Subtest: planDirectBoot derives the adapter's files, argv and loopback route from the bound config alone; the statement names the bundle
+ok 2 - planDirectBoot derives the adapter's files, argv and loopback route from the bound config alone; the statement names the bundle
+  ---
+  duration_ms: 115.792941
+  type: 'test'
+  ...
+# Subtest: gsup starts the adapter only in the direct branch, from directMcpLaunch; the image carries the reviewed bundle
+ok 3 - gsup starts the adapter only in the direct branch, from directMcpLaunch; the image carries the reviewed bundle
+  ---
+  duration_ms: 43.715115
+  type: 'test'
+  ...
+# Subtest: a client connects only to the verified guest running the reviewed adapter under the expected config
+ok 4 - a client connects only to the verified guest running the reviewed adapter under the expected config
+  ---
+  duration_ms: 50.435582
+  type: 'test'
+  ...
+# Subtest: through the attested front: the hosted tool set, chain reads and an unsigned new-user deployment, with no central endpoint
+ok 5 - through the attested front: the hosted tool set, chain reads and an unsigned new-user deployment, with no central endpoint
+  ---
+  duration_ms: 634.81098
+  type: 'test'
+  ...
+# Subtest: the private client flow: every secrets operation runs in the owner's own local client; the hosted adapter is never asked for secrets or their recipient
+ok 6 - the private client flow: every secrets operation runs in the owner's own local client; the hosted adapter is never asked for secrets or their recipient
+  ---
+  duration_ms: 1763.749656
+  type: 'test'
+  ...
+# Subtest: the remote write path seals only to the owner's own quorum read: substituted key, deployment, chain, vault, committee and revision are refused before any ciphertext is sent
+ok 7 - the remote write path seals only to the owner's own quorum read: substituted key, deployment, chain, vault, committee and revision are refused before any ciphertext is sent
+  ---
+  duration_ms: 4076.522926
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 13727.637669

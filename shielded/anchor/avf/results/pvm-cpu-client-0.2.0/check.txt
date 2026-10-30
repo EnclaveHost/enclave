@@ -1,0 +1,37 @@
+ok   CLI: installed with the lab policy key's fingerprint as its anchor
+ok   CLI: streamed 24 tokens complete under policy 1 (first token 1186 ms, all 3042 ms)
+ok   CLI: a whole-mode answer under the same policy
+ok   CLI attacker-policy: refused at policy, nothing sent (the policy is signed by a key this client's anchor does not name)
+ok   CLI rollback: refused at policy, nothing sent (policy serial 1 is below the 2 this client holds (its install floor or a newer policy it a)
+ok   CLI narrow-roots: refused at verify, nothing sent (attestation: root 6d9db4ce6c5c0b293166d08986e05774a8776ceb525d9e4329520de12ba4bcc0 is not )
+ok   CLI min-version: refused at policy, nothing sent (this client (0.2.0) is below the policy's minimum 9.0.0: disabled until updated)
+ok   CLI other-app: refused at policy, nothing sent (the policy does not admit this app)
+ok   CLI relay-swaps-key: refused at verify, nothing sent (the appKey is not signed by the attested transport key for this nonce and app)
+ok   CLI: followed the newer signed policy (serial 2), complete
+ok   CLI: its state holds serial 6, the newest genuine policy it saw (the rollback memory)
+ok   extension: each of its 6 pages ran exactly once (no restored tab re-ran a page): ['ext-attacker-policy', 'ext-policy-2', 'ext-relay-swaps-key', 'ext-relay-truncates', 'ext-rollback', 'ext-stream']
+ok   extension: anchored from its own options page on the lab policy key
+ok   extension ext-stream: 24 tokens complete under policy 1 in rome/151.0.0.0 Safari/537.36 (first token 2853 ms)
+ok   extension ext-policy-2: 24 tokens complete under policy 2 in rome/151.0.0.0 Safari/537.36 (first token 2904 ms)
+ok   extension ext-attacker-policy: refused at policy, nothing sent (the policy is signed by a key this client's anchor does not name)
+ok   extension ext-rollback: refused at policy, nothing sent (policy serial 1 is below the 2 this client holds (its install floor or a newer policy it a)
+ok   extension ext-relay-swaps-key: refused at verify, nothing sent (the appKey is not signed by the attested transport key for this nonce and app)
+ok   extension ext-stream: policy serial 1 committed (generation 2) before anything was sent
+ok   extension ext-policy-2: policy serial 2 committed (generation 3) before anything was sent
+ok   extension ext-relay-swaps-key: policy serial 2 committed (generation 3) before anything was sent
+ok   extension ext-relay-truncates: policy serial 2 committed (generation 3) before anything was sent
+ok   extension ext-attacker-policy: the refused policy was never committed
+ok   extension ext-rollback: the refused policy was never committed
+ok   extension ext-relay-truncates: incomplete, never called complete (the stream ended after 3 chunks with no FIN: INCOMPLETE; 5 authentic tokens)
+ok   the VM served exactly the released requests: 5 streams (want 5: CLI x2, extension x3 incl. the one the relay cut) + 1 whole (want 1)
+ok   no client ever sealed a request to the relay
+ok   no private key anywhere in the results (lab keys stay outside the repository)
+ok   l1.log: no request or token in the clear
+ok   hub.jsonl: no request or token in the clear
+ok   hub.err: no request or token in the clear
+ok   evil.jsonl: no request or token in the clear
+ok   evil.err: no request or token in the clear
+ok   sink.jsonl: no request or token in the clear
+ok   sink.err: no request or token in the clear
+ok   carrier.log: no request or token in the clear
+PASS the installed client on the device

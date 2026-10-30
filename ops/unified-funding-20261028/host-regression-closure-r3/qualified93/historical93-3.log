@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: attach: every route starts unresolved and new work is held until its allocation is observed
+ok 1 - attach: every route starts unresolved and new work is held until its allocation is observed
+  ---
+  duration_ms: 3.815362
+  type: 'test'
+  ...
+# Subtest: recovered running allocation is retained through unknown chain, unknown admission and unknown inventory
+ok 2 - recovered running allocation is retained through unknown chain, unknown admission and unknown inventory
+  ---
+  duration_ms: 1.916796
+  type: 'test'
+  ...
+# Subtest: failed or timed-out removal keeps the allocation; only a confirmed stop releases it
+ok 3 - failed or timed-out removal keeps the allocation; only a confirmed stop releases it
+  ---
+  duration_ms: 22.627466
+  type: 'test'
+  ...
+# Subtest: a pending running intent and an ambiguous launch are commitments; a fresh process recovers them before new starts
+ok 4 - a pending running intent and an ambiguous launch are commitments; a fresh process recovers them before new starts
+  ---
+  duration_ms: 1.731207
+  type: 'test'
+  ...
+# Subtest: an unresolved route blocks every other route's NEW start; its own serving continues
+ok 5 - an unresolved route blocks every other route's NEW start; its own serving continues
+  ---
+  duration_ms: 2.166754
+  type: 'test'
+  ...
+# Subtest: simultaneous starts in one Promise.all pass see each other's reservations
+ok 6 - simultaneous starts in one Promise.all pass see each other's reservations
+  ---
+  duration_ms: 1.545739
+  type: 'test'
+  ...
+# Subtest: an unobserved runtime of a held (not yet activated) route still counts
+ok 7 - an unobserved runtime of a held (not yet activated) route still counts
+  ---
+  duration_ms: 0.436637
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 215.855083

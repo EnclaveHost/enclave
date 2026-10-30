@@ -1,0 +1,9 @@
+[queue] START available=19861MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+mutant merkle-from-n killed
+mutant no-empty-read-check killed
+mutant no-open-gaps killed
+mutant no-a1-age killed
+MUTANTS rc=0
+[memory-guard] exit=0 peakTreeRssMiB=101 minHostAvailableMiB=19728
+[memory-guard] at peak: node:68 python3:27 bash:4 bash:2
+[queue] EXIT 0

@@ -1,0 +1,156 @@
+{
+ "manifest": "/opt/enclave-rpc/snapshots/base-1792886410-manifest.json",
+ "block": 53048526,
+ "currentProfile": "first-pass-distance-140000",
+ "currentCount": 116,
+ "finalProfile": "final-h48000000-s52500000",
+ "finalCount": 134,
+ "extraCount": 18,
+ "extraCompressedBytes": 221616054366,
+ "extraOutputBytes": 409990674216,
+ "notInFinalCount": 0,
+ "currentCompressedBytes": 827643763752,
+ "finalCompressedBytes": 1049259818118,
+ "currentOutputBytes": 1274286216705,
+ "finalOutputBytes": 1684276890921,
+ "extra": [
+  {
+   "component": "receipts",
+   "chunk": 96,
+   "file": "static_files/receipts-48000000-48499999.tar.zst",
+   "size": 7697031012,
+   "decompressed": 16659866255
+  },
+  {
+   "component": "receipts",
+   "chunk": 97,
+   "file": "static_files/receipts-48500000-48999999.tar.zst",
+   "size": 7601524431,
+   "decompressed": 16447464929
+  },
+  {
+   "component": "receipts",
+   "chunk": 98,
+   "file": "static_files/receipts-49000000-49499999.tar.zst",
+   "size": 6506658240,
+   "decompressed": 14724113168
+  },
+  {
+   "component": "receipts",
+   "chunk": 99,
+   "file": "static_files/receipts-49500000-49999999.tar.zst",
+   "size": 6569590374,
+   "decompressed": 15809589703
+  },
+  {
+   "component": "receipts",
+   "chunk": 100,
+   "file": "static_files/receipts-50000000-50499999.tar.zst",
+   "size": 9498957512,
+   "decompressed": 21764212708
+  },
+  {
+   "component": "receipts",
+   "chunk": 101,
+   "file": "static_files/receipts-50500000-50999999.tar.zst",
+   "size": 8738651527,
+   "decompressed": 20036883057
+  },
+  {
+   "component": "receipts",
+   "chunk": 102,
+   "file": "static_files/receipts-51000000-51499999.tar.zst",
+   "size": 9102215137,
+   "decompressed": 20670436697
+  },
+  {
+   "component": "receipts",
+   "chunk": 103,
+   "file": "static_files/receipts-51500000-51999999.tar.zst",
+   "size": 9545937089,
+   "decompressed": 21280911642
+  },
+  {
+   "component": "receipts",
+   "chunk": 104,
+   "file": "static_files/receipts-52000000-52499999.tar.zst",
+   "size": 9417827041,
+   "decompressed": 21611805623
+  },
+  {
+   "component": "transactions",
+   "chunk": 96,
+   "file": "static_files/transactions-48000000-48499999.tar.zst",
+   "size": 15036696407,
+   "decompressed": 24292320104
+  },
+  {
+   "component": "transactions",
+   "chunk": 97,
+   "file": "static_files/transactions-48500000-48999999.tar.zst",
+   "size": 14495749602,
+   "decompressed": 23334233672
+  },
+  {
+   "component": "transactions",
+   "chunk": 98,
+   "file": "static_files/transactions-49000000-49499999.tar.zst",
+   "size": 12660763394,
+   "decompressed": 21248800679
+  },
+  {
+   "component": "transactions",
+   "chunk": 99,
+   "file": "static_files/transactions-49500000-49999999.tar.zst",
+   "size": 12959210620,
+   "decompressed": 22360781431
+  },
+  {
+   "component": "transactions",
+   "chunk": 100,
+   "file": "static_files/transactions-50000000-50499999.tar.zst",
+   "size": 20179681000,
+   "decompressed": 34322508040
+  },
+  {
+   "component": "transactions",
+   "chunk": 101,
+   "file": "static_files/transactions-50500000-50999999.tar.zst",
+   "size": 18812942144,
+   "decompressed": 30848827185
+  },
+  {
+   "component": "transactions",
+   "chunk": 102,
+   "file": "static_files/transactions-51000000-51499999.tar.zst",
+   "size": 18813008730,
+   "decompressed": 30802055166
+  },
+  {
+   "component": "transactions",
+   "chunk": 103,
+   "file": "static_files/transactions-51500000-51999999.tar.zst",
+   "size": 18004787183,
+   "decompressed": 28664945839
+  },
+  {
+   "component": "transactions",
+   "chunk": 104,
+   "file": "static_files/transactions-52000000-52499999.tar.zst",
+   "size": 15974822923,
+   "decompressed": 25110918318
+  }
+ ],
+ "notInFinal": [],
+ "disk": {
+  "datadir": "/srv/enclave-base-holder/data",
+  "freeBytes": 2414638211072,
+  "totalBytes": 3097855307776,
+  "statePartApparentBytes": 761228785915,
+  "statePartAllocatedBytes": 516080209920
+ },
+ "preflight": {
+  "rc": 0,
+  "stdout": "{\n \"admitted\": true,\n \"command\": [\n  \"/opt/enclave-rpc/bin/base\",\n  \"snapshot\",\n  \"download\",\n  \"--chain\",\n  \"base\",\n  \"--manifest-path\",\n  \"/opt/enclave-rpc/snapshots/base-1792886410-manifest.json\",\n  \"--datadir\",\n  \"/srv/enclave-base-holder/data\",\n  \"--with-txs-since\",\n  \"48000000\",\n  \"--with-receipts-since\",\n  \"48000000\",\n  \"--with-state-history-since\",\n  \"52500000\",\n  \"--download-concurrency\",\n  \"16\",\n  \"--resumable=true\",\n  \"-y\"\n ],\n \"dailyGrowthBytes\": 8350600184,\n \"freeBytes\": 2414637805568,\n \"growthDays\": 30,\n \"growthReserveBytes\": 250518005520,\n \"headroomAfterBytes\": 1371476657458,\n \"indexEstimate\": \"ESTIMATE (not measured)\",\n \"indexEstimateBytes\": 80518207004,\n \"indexReserveBytes\": 161036414008,\n \"missing\": {\n  \"archives\": 18,\n  \"byComponent\": {\n   \"account_changesets\": 0,\n   \"receipts\": 9,\n   \"storage_changesets\": 0,\n   \"transactions\": 9\n  },\n  \"compressedBytes\": 221616054366,\n  \"extractedBytes\": 409990674216\n },\n \"needBytes\": 1043161148110,\n \"selected\": {\n  \"account_changesets\": {\n   \"chunks\": 2,\n   \"firstChunk\": 105,\n   \"since\": 52500000\n  },\n  \"receipts\": {\n   \"chunks\": 11,\n   \"firstChunk\": 96,\n   \"since\": 48000000\n  },\n  \"storage_changesets\": {\n   \"chunks\": 2,\n   \"firstChunk\": 105,\n   \"since\": 52500000\n  },\n  \"transactions\": {\n   \"chunks\": 11,\n   \"firstChunk\": 96,\n   \"since\": 48000000\n  }\n },\n \"snapshotBlock\": 53048526\n}\n"
+ }
+}

@@ -1,0 +1,11 @@
+# Sequential preservation: reviewed runner and actual first-batch copy
+
+The unchanged runner 1773 (SHA256 5c33f6e24d0b880d47521c08a001c6b8d11af18cfcc044c411ef09a889ad410a) has passed independent source review and 14 actual fixtures. Tests include an owned delayed queue receiving a stop signal: it exits without admission or a wrapper. Wrong-target filenames, stale records, missing independent verification and insufficient capacity are rejected. The first test job ran all assertions successfully but its output gate rejected expected negative-case FAILED diagnostics. The corrected test helper captures those expected diagnostics while still asserting the exit code and rejecting ResourceWarning; no runner behavior or gate was relaxed. Both actual runs are retained.
+
+Parts 1..8 copied successfully in a CONFIRMED session, with original metadata unchanged, complete cleanup and no peer changes. Exactly 32 GiB copied in the 691.158-second data-service interval (47.41 MiB/s under current conditions). Together with the canary, 36 GiB is saved. The separate verification of 1..8 is still running at this record: only part 0 is verified so far.
+
+The reviewed continuation watcher waits for the existing copy and verification jobs to finish 0, then execs the pinned driver at part 9. Each batch has at most eight parts, fresh full-remaining capacity admission plus 40 GiB free per NVMe and 8 GiB extra root reservation, a confirmed copy, and a new confirmed independent verification before the next batch. It stops on any failure. No production batch through this new runner has completed yet.
+
+For a graceful stop before activation, SIGTERM the identified watcher. After activation, SIGTERM the identified driver or create its output directory's STOP file; never signal the queue process groups. A stopped partial batch needs explicit inspection/resume through the qualified preserver. A SIGKILL/SIGHUP may let an already queued batch finish; the driver is launched under nohup. Do not override --queue-cmd in production.
+
+Original USB writes, VM boot and downloads remain paused. No destructive RAID operation is authorized. Database structure/canonical state and every RPC readiness/cutover gate remain outstanding. No database content is included in this archive.

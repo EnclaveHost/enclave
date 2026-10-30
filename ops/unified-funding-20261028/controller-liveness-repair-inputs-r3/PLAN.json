@@ -1,0 +1,27 @@
+{
+  "childTimeoutSeconds": 900,
+  "claudeExecutable": "/home/steven/.local/share/claude/versions/2.1.281",
+  "cpu": 1,
+  "floorMiB": 27648,
+  "maxOutputBytes": 16777216,
+  "maxTurns": 30,
+  "maxWorkBytes": 134217728,
+  "memoryMiB": 1536,
+  "outerTimeoutSeconds": 1200,
+  "requiredAccount": {
+    "email": "steven.r.batchelor@gmail.com",
+    "loggedIn": true,
+    "subscriptionType": "max"
+  },
+  "rootAdmissionMaxAgeSeconds": 300,
+  "rssMiB": 1408,
+  "scope": "source-only-controller-liveness-repair-r3",
+  "seedFiles": 17,
+  "sourceFiles": 47,
+  "swapMiB": 0,
+  "tmpDirectory": "controller-liveness-repair-r3-20261030",
+  "tmpParent": "/vm/enclave-volumes/rpc-production-maint",
+  "tmpParentDevice": 64769,
+  "tmpParentInode": 148391933,
+  "unit": "enclave-rpc-controller-liveness-repair-r3-20261030.service"
+}

@@ -1,0 +1,8 @@
+[queue] START available=18777MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+{"candidateSums": "f58b0b4f70cf830e3d5a9a2ec975a932143e79432d36660241b937701f73a347", "canarySums": "a28a08214412905e089b87506185a56dbdf9d3dd9360ce13ed9cdfe72b28845d", "consumer": "base-finality-proof-stage/r13-final:bootstrap/a1_capture_original.py sha256 2f7656b8fc58f4a9d987fe16819a27b83c917e11c9945f88040ff33f149c5420", "boundToActualReceipt": "01c341753573e427b87c372d6049e7b72305f94adca509cb288518a530862b8c"}
+REFUSED: manifest stage is base-finality-proof-stage/r10
+## SETUP: assembly refused (contract/pins pending or composed bytes differ; see assemble.json)
+## guest-canary rc=20
+[memory-guard] exit=20 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 20

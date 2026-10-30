@@ -1,0 +1,126 @@
+{
+  "activation": "OFF: no hunk wires a quote policy or manifest into the host bootstrap",
+  "hunks": {
+    "funding-route.mjs: activation": {
+      "after": "8d486aab1f63b36b3e7acf6c9e94dbcf1af2aee9f4748bb690e5adc050bd189d",
+      "before": "e0e167896d87243f6a8c83dceb2fd3c7742121e1fd74e16d7dc491943eab1414"
+    },
+    "funding-route.mjs: completed": {
+      "after": "b20e217f472000bee94dc273c4bf8b898ac7fd04adc96f62f636716c4c6a4124",
+      "before": "3e48fe11602f67873477fa62372e3cd53c646e7306f761f0f386e927f133f45e"
+    },
+    "funding-route.mjs: end key": {
+      "after": "b43549767949d6d0d64d922c11881b7e84e7e6668a15a781e763c1a260c5510c",
+      "before": "c2f55802240ced9313f7534ff8f07b80366644cb240d206b24d2fc90be431b86"
+    },
+    "funding-route.mjs: end send": {
+      "after": "a6a4358c84bc4acf9546aa0536cf0c6e1c3823945510fecdb265c3cb329afa95",
+      "before": "5bd298a8b32e1ed3500432e3fb3a7899d41bf58c44a3d1cc2cfad38d1822e3e6"
+    },
+    "funding-route.mjs: execute key": {
+      "after": "efbb1f01e31078fb01234af3b962d60e03765a7a3f2168aebfad21b4953b84d3",
+      "before": "44ffec69fd50542272cafb771436beaa9f5339aafb3aeeaf97811fefba382159"
+    },
+    "funding-route.mjs: execute send": {
+      "after": "7cdf4d3393f587b1beac43591084b8c0fd9630bf89c893c409da1015da773ebc",
+      "before": "421770178638223cd9e2e1df8ba30d4a2024f2f853f4a6ce1dbe5278990135a5"
+    },
+    "funding-route.mjs: open": {
+      "after": "2ef0aec461d5e22084c505b95d609295385304905718c26c4e52b0ea364dabb5",
+      "before": "173a5a5e1af3fec776d7b90a4296adaba424a5d58b956c02258fee1ee6e70723"
+    },
+    "funding-route.mjs: owner key": {
+      "after": "1d33938c3f02a7c360ad8f891d2f4215fc0374fe0c54d564d30ec72f066a1d30",
+      "before": "9bc2530cecf0da64dc077296e073db0e192fe7471fb6407e4ade1589194f7043"
+    },
+    "funding-route.mjs: owner send": {
+      "after": "895294e7cc3a0d46ae6b1f90ba8bbc0e52b120868b9f60fbe555f570f63aac42",
+      "before": "62ca89a908f921001cd20b45415aae9105c3cdee89bd7faabfcfa03fc7f2e07b"
+    },
+    "funding-route.mjs: reconcile": {
+      "after": "91f66908b689e22c439f8c28acfdfb0360f96b28e2612e6889b351bc9fd9e010",
+      "before": "4938910a0c9a724902030ec0f673292e72816f7a9853a5df261ea48b973cfcf3"
+    },
+    "funding-route.mjs: recordPending": {
+      "after": "f08f12775e77f37b693102756ee0bd94ae4e2856db25d01d75d004ebd313b2c7",
+      "before": "048634159cdb70d9c32c654f84be6873e6706b9d420ce7c9f93fa383fde465e2"
+    },
+    "funding-route.mjs: signature": {
+      "after": "94222742a5dd8ce6eddada414b02012e7185b01d44398f634bbdb4c678ee2d18",
+      "before": "dc9dd7f949cd2c58038a49292c8d4f99873f00361effdf250fdd643bd39255f5"
+    },
+    "sessions.mjs: _send signature": {
+      "after": "70df79491fcbfc06b69f406d72aa5ff874be4b48070df8083da689281a44b0bd",
+      "before": "36c0224e23c6d3f62f0296577f292b1a145523538547e24c5caf994cc223e3d2"
+    },
+    "sessions.mjs: constants": {
+      "after": "da3448154023ca3bf0bc29f9207bee16258fe63d7420701ed8ace3a2437677d4",
+      "before": "e2219954c54682794f18732b4427a5b631da8e9bdb0e53b04e9477092337b6cf"
+    },
+    "sessions.mjs: constructor": {
+      "after": "1f8c1f13a4bef2c53e9e00d512fe50ff6d8c7e72cf17873a328d0549457a5ebc",
+      "before": "ff183262223488055286fa8f59a2733167d882a08b3180481ece830b02e9c083"
+    },
+    "sessions.mjs: funding wiring": {
+      "after": "085aa6d695bdf22cc52166d660fe4fcebee30bfb3172508babde42431c93f8ff",
+      "before": "683f38c1395b38b1ce0820ff8d63d01a661f9bd40cb713ea9426e00b31dc9d86"
+    },
+    "sessions.mjs: intent methods": {
+      "after": "e20dbe95d3118789ab9a64f48c41f80930d28abd51734e046bce709f3e3cefe1",
+      "before": "34fe969b6fb566d7d21d885e2c43e04dd568a8c048aede850c8b04c0f5a55989"
+    },
+    "sessions.mjs: prune guard": {
+      "after": "2fa99adbce3fe4430f6cd37ad3cde16deeca760a123bc0e2655d24a5072ace24",
+      "before": "8f83d39a872f4aa765199e80617af221abae6e81c12d195dc63e588a80d2e625"
+    },
+    "sessions.mjs: record intent": {
+      "after": "e1f83be6bcf9a4f6577df7caaf672610aa76404e7a1047a60180e1d8d12cd09c",
+      "before": "f6e68ccec76407fc0370c57e9a7aa7a606e18fe18857cc52bece1507b9c59e77"
+    },
+    "sessions.mjs: simulateAndSend revert": {
+      "after": "027293c1c5d7217f13560d155c088f083d4e11ebf35459ead7527d88a8091344",
+      "before": "356ed24c681bd29bdb0f801b906bbbe1ae42f03a19a15f826e91310dd747f91d"
+    },
+    "sessions.mjs: simulateAndSend send": {
+      "after": "c083d91c36cac1cbf0062fc1729abc7ab1653b3858fb704ca370fd721f2d4db6",
+      "before": "c69fd971f40cf1bdf7ed256da87e7a23b38eda963a3a5af7520650641cb07069"
+    },
+    "sessions.mjs: simulateAndSend signature": {
+      "after": "b18c8cfce87297fa151e22a4115562827f308652101054631365c455f674e219",
+      "before": "45220656687c0cbb9162818ee7e14ed90f1661ee6d56442202582f06f89edcad"
+    },
+    "sessions.mjs: unknown busy": {
+      "after": "de239586a07045e0fadaaf5ac1a0d88980b0c08a9adf518415b6f304a1ec0e73",
+      "before": "26fbafa6b7fc31160d7e708f8ae5e5460a0c95d3649f5d13900dbba53365649b"
+    },
+    "sessions.mjs: unknown nonce": {
+      "after": "16f39ee81ead01cfc7e255c0a23dcc31c4577b7d58ae23d21a15342f608c12f1",
+      "before": "5e3a75c476ced86250b896cebd9e61e2246da6ab8420f7d8cb327f1cc7efdacf"
+    }
+  },
+  "inputs": {
+    "fee-policy-r1/generated/PREPARE-MANIFEST.json": "6257d589e99fc50685d2d3354c466c530374a035002a15a125b85e9101a996fb",
+    "fee-policy-r1/generated/relay/fee-policy.mjs": "32bcf03ea52db9be70d86e957dd440c1697daf0eaeab79f732378002d4f2bcfd",
+    "fee-policy-r1/generated/relay/funding-abi.mjs": "93a951752cbcbdbd01537965f3d540a43fc796665f1a77e87791c9b2e555198a",
+    "fee-policy-r1/generated/relay/funding-route.mjs": "ddbd856c9c3a832cd252719df23c13ca08eb4c4ed747585e0daa38abf0c23966",
+    "fee-policy-r1/generated/relay/sessions.mjs": "852ded20b389321f7344ad7dbd436c54242b5ee95e847073bb89406c5719c5d8"
+  },
+  "note": "source-only stage: these hashes are computed when the root runs prepare.py; nothing here was executed by its author",
+  "outputs": {
+    "generated/relay/fee-policy.mjs": "32bcf03ea52db9be70d86e957dd440c1697daf0eaeab79f732378002d4f2bcfd",
+    "generated/relay/funding-abi.mjs": "93a951752cbcbdbd01537965f3d540a43fc796665f1a77e87791c9b2e555198a",
+    "generated/relay/funding-route.mjs": "4fbbf97fb6f0f29c6e5eff7343a96d2ba186e9e8eaf592aea64333d9656eda70",
+    "generated/relay/sessions.mjs": "98c9a914dc02990cf8bc39dc5ea84bb78fd78d40abc767dff528a0e1410583be"
+  },
+  "symlinks": {
+    "generated/node_modules": "../../../../node_modules",
+    "generated/relay/sessions-abi.mjs": "../../../../../relay/sessions-abi.mjs",
+    "generated/relay/snp-verify.mjs": "../../../../../relay/snp-verify.mjs"
+  },
+  "test_inputs_observed_unpinned": {
+    "host-queue-r1/test/fixture-rpc.mjs": "3dfbe94d681091dd162f5ca77ee5ad9da65ef5003d4c5f473cf2828bdb4248fd",
+    "relay-owner-r2/funding-route.mjs": "47b06a2ba24cf1c298fe7e4591a90ec7feb1f234590f6a60c27918e901f62eb4",
+    "relay-owner-r2/generated/funding-abi.mjs": "93a951752cbcbdbd01537965f3d540a43fc796665f1a77e87791c9b2e555198a",
+    "relay-owner-r2/test/fake-chain.mjs": "f2b7f001922ff942da35571e1d81f1821ea84883b555b6133e1c7dc7681123e4"
+  }
+}

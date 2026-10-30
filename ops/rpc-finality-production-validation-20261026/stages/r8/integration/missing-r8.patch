@@ -1,0 +1,16 @@
+--- a/install/MISSING.md
++++ b/install/MISSING.md
+@@ -1,4 +1,4 @@
+-# Missing real artifacts (r7): every one fails closed while absent
++# Missing real artifacts (r8): every one fails closed while absent
+ 
+ The templates in `config-templates/` carry only known facts; each `null` below is refused by its loader.
+ 
+@@ -10,4 +10,6 @@
+ | reviewed consumer unit list | `/etc/enclave-rpc/base-consumer-units` | Root's decision; consumer names not established here |
+ | production capture `Sources` | `a1_capture.py` `Sources()` | Its defaults name WORKSTATION stage paths (`ops/l1-anchor-a1`, `finality-stage/l1-authority`, `l1-authority-live-1941/config.json`, `l1-proof-window/.../portal-result.json`). A guest install needs those reviewed inputs installed and the defaults (or a reviewed Sources file) pointing at them. Until then the re-proof capture refuses. |
+ | `/etc/enclave-rpc/finality-activation.json` | every review flag | Activation only after root qualification (`install_verified.py activate`) |
+-| forward-sync route and its pins | `base-forward-sync-stage/r2` (worker 6d24) | Pending that report; not composed here |
++| forward-sync config values: `recoveryRoot`, `harnessConfig` (the recovery datadir's harness config), `targetMarginBlocks` | `base-forward-sync.json` | Chosen per recovery; not established here |
++| guest-deployable capture runtime/Sources (guest Python 3.12 / node 18 vs the capture module's host-only pins) | `production-capture-closure-stage` (da0) | ACTIVE: no report yet; not composed. The live re-proof capture refuses on the guest until it lands |
++| first-bootstrap harness checkpoint parser (a2-v2 stage `a2a4.py`, `A2A4_SOURCE_SHA256 abe223d6`) | first launch `produce`/`arm` | Still the fake-only `^headers:` parser; a real first bootstrap would refuse `unparsed`. Only the recovery harness got the pinned parser |

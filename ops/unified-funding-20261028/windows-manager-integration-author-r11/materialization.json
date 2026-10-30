@@ -1,0 +1,10 @@
+{
+  "scope": "Exact222 frozen r10 seed, no product pre-edits/additions; sponsored source in separate READONLY namespace",
+  "originalFiles": 222,
+  "addedFiles": 0,
+  "existingFilesOverwritten": [],
+  "productEdits": [],
+  "inheritedMaterialization": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r10-20261029/materialization.json",
+  "inheritedMaterializationSha256": "6b1acb42aa3160a579180db682c3781355d73db77fe39ff12cf6afb9b281efb6",
+  "note": "Prior real dependencies retained; new source reference is not candidate baseline or qualified replacement. No module evaluation/tests/builds/author launch."
+}

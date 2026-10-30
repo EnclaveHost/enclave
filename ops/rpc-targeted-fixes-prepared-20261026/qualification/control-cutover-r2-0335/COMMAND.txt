@@ -1,0 +1,13 @@
+# root-control-cutover-r2-0335: root guarded queue job metadata (recorded by Claude from the receipts; Claude did not run it)
+job name (receipt basename): root-control-cutover-r2-0335
+runner: control-guest-cutover-stage-r2/tests/run-root-tests.sh (stage SHA256SUMS 0bca2cc7245c1ec5995b5d5b5c7812ed06edcaf9594f2887ef750c2d5e343648; the runner is byte-identical in this copy)
+prepared command form (stage README): ./jobs/q-exit-status.sh <name> <MiB> unshare -rn bash control-guest-cutover-stage-r2/tests/run-root-tests.sh
+queue line actually observed (.out line 1): [queue] START available=22594MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+memory guard (.guard): exit=0 peakTreeRssMiB=18 minHostAvailableMiB=21636
+result: "## 106 passed, 0 failed", "## rc=0", [queue] EXIT 0; .rc = 0
+the exact root argv was not stored in a file; the cap (256 MiB) comes from the queue line, not from a recorded command
+SCOPE: offline fixture/stub tests (stub systemctl/journalctl/curl/getent under /tmp, unshare -rn) of the guards, HOLDs and rollback logic.
+NOT a production cutover qualification: nothing ran on enclave-control, and the production gates still HOLD (no accepted release, no verifier/backend receipts, no canary protocol).
+
+Root-recorded exact invocation (from this chat tool call):
+bash jobs/q-exit-status.sh root-control-cutover-r2-0335 256 unshare -rn bash -c 'cd control-guest-cutover-stage-r2 && sha256sum -c --quiet SHA256SUMS && timeout 300 bash tests/run-root-tests.sh'

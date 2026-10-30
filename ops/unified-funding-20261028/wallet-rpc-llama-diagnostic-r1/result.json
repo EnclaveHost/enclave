@@ -1,0 +1,10 @@
+[
+  {
+    "method": "eth_chainId",
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "method": "eth_getLogs",
+    "error": "HTTP Error 403: Forbidden"
+  }
+]

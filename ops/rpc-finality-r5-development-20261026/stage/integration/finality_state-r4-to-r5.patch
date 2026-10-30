@@ -1,0 +1,172 @@
+--- a/src/finality_state.py
++++ b/src/finality_state.py
+@@ -1,5 +1,5 @@
+ #!/usr/bin/env python3
+-"""finality_state.py: ROOT-ONLY qualification of POST-ANCHOR finality of the launched Base chain (base-finality-proof-stage/r4,
++"""finality_state.py: ROOT-ONLY qualification of POST-ANCHOR finality of the launched Base chain (base-finality-proof-stage/r5,
+ PREPARED; NOT run). It never edits the launcher; the launcher's reviewed writer (base_launch.record_finality) consumes `status`.
+ 
+ Inputs, each with its provenance (nothing here is a config-supplied claim):
+@@ -39,7 +39,7 @@
+                 'a1-recheck.mjs': 'f591f3247fe672f6470685f2be36eb529ceb9280044c03c6a2396174bb0ad9d8',
+                 'a1-anchor.mjs': 'ec92b70f105f88cbfc466e57e4673afcb0fbd104403e425e036f1dba78e6528d'}
+ # r4: fresh A1 provenance = the recovery harness (base-reanchor-recovery-stage/r7, root 0345) and its pinned capture module.
+-HARNESS_SHA256 = '5e2658f7ec51dd12fb38a9d5eadcd2015f712182cb98486ac90772ace4e632da'   # r7 harness/a2a4.py (pins capture r4 db81ea49)
++HARNESS_SHA256 = 'a074d732a4c45a0c54135c4e556cdd845d5c77307a8e48f57d579aef494003c7'   # base-finality-proof-stage/r5/harness/a2a4.py (= r7 + shared-ledger path, admit=False check)
+ HARNESS_SOURCE = pathlib.Path('/opt/enclave-rpc/a2a4-recovery/a2a4.py')      # == base_launch.RECOVERY_A2A4_SOURCE (HOLD: not installed)
+ FRESH_A1_MAX_AGE_SEC = 600                    # the recheck capture's age bound (the harness's a1MaxAgeSec for this use)
+ NOBLE_VERSION = '1.8.0'
+@@ -138,16 +138,23 @@
+             'mdbx': {'dev': mdbx['dev'], 'ino': mdbx['ino']}}
+ 
+ 
+-def launch_head(launch, W, top):
+-    """the wrapper's verified journal; qualification needs a STARTED launch (last event consumed)"""
++STARTED = ('consumed', 'bootstrapped', 'restarted')       # r5: a running launch (restart-permitted = stopped, waiting)
++
++
++def launch_journal(launch, W, top):
+     try:
+-        entries = W.journal_entries(launch['dir'] / 'journal', OWNER, launch['launchSha256'], top)
++        return W.journal_entries(launch['dir'] / 'journal', OWNER, launch['launchSha256'], top)
+     except AssertionError as e:
+         refuse('launch_journal', str(e))
++
++
++def launch_head(launch, W, top, entries=None):
++    """the wrapper's verified journal; qualification needs a STARTED launch (consumed | bootstrapped | restarted)"""
++    entries = entries or launch_journal(launch, W, top)
+     e_sha, e = entries[-1]
+     if e['event'] == 'rolled-back':
+         refuse('rolled_back', 'the launch was rolled back: nothing is qualified for it')
+-    if e['event'] not in ('consumed', 'bootstrapped'):
++    if e['event'] not in STARTED:
+         refuse('not_started', f'the launch journal is {e["event"]!r}: no start consumed this launch record')
+     return {'seq': e['seq'], 'entrySha256': e_sha}
+ 
+@@ -168,6 +175,8 @@
+     got = sha(read_trusted(R.__file__, 8 << 20))
+     if got != HARNESS_SHA256 or R.A1_GATE_PINS != A1_GATE_PINS:
+         refuse('harness_pin', 'the harness in use is not the pinned recovery harness (or gates other A1 gate bytes)')
++    if getattr(R, 'A1_ADMISSION_LEDGER', None) is None:
++        refuse('harness_pin', 'the harness enforces no shared A1 admission ledger path')
+     return got
+ 
+ 
+@@ -175,26 +184,17 @@
+     """-> the normalized fresh A1, through the HARNESS's own capture path (no rule re-implemented here):
+     capture_binding (both captures verified by the pinned capture module; the recheck is of exactly the initial) -> the pinned
+     A1 gate -> `rules` (post-anchor + replay, BEFORE anything is admitted) -> gate_a1 over exactly that anchor, which re-checks
+-    everything and admits the recheck AND the initial capture ONCE into the shared ledger. write=False: the same, against a
+-    private copy of the ledger (the replay rule is applied; nothing durable is written)."""
++    everything and admits the recheck AND the initial capture ONCE into the shared ledger (the harness refuses any other ledger
++    path before reading or writing it). write=False (`check`): gate_a1(admit=False) applies the same replay rule in memory."""
+     if not isinstance(capture, dict) or set(capture) != {'initialOut', 'recheckOut'}:
+         refuse('a1_capture', 'the fresh A1 is named only as {initialOut, recheckOut} capture outputs')
++    if pathlib.Path(ledger) != R.A1_ADMISSION_LEDGER:
++        refuse('a1_ledger_path', 'the wrapper and the harness name different shared A1 admission ledgers')
+     w = pathlib.Path(tempfile.mkdtemp(prefix='a1cap-', dir=workdir))
+     try:
+-        led = pathlib.Path(ledger)
+-        if not write:
+-            os.mkdir(w / 'ledger', 0o700); copy = w / 'ledger' / led.name
+-            _recs, _seen, raw = R.ledger_records(led)
+-            if raw:
+-                fd = os.open(copy, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+-                try:
+-                    os.write(fd, raw)
+-                finally:
+-                    os.close(fd)
+-            led = copy
+         c = {'workdir': str(w / 'work'), 'node': node, 'a1GateDir': str(HERE / 'a1gate'), 'a1MaxAgeSec': FRESH_A1_MAX_AGE_SEC,
+              'a1Mode': 'capture-recheck', 'reanchor': {'a1Capture': {'initialOut': str(capture['initialOut']), 'recheckOut': str(capture['recheckOut'])},
+-                                                      'admissionLedger': str(led)}}
++                                                      'admissionLedger': str(ledger)}}
+         os.mkdir(c['workdir'], 0o700)                      # no a2-authenticated.json: the initial capture is verified now
+         try:
+             bound, sr, ini, rk = R.capture_binding(c)
+@@ -202,7 +202,7 @@
+                                    'recheck': base64.b64encode(rk).decode()})
+             rules({'N': int(s['N']), 'game': s['game'], 'l1': {'number': s['l1']['number']},
+                    'captures': sorted([bound['captureSha256'], sr['captureSha256']])})
+-            g = R.gate_a1(dict(c, N=int(s['N']), outputRoot=s['outputRoot'], game=s['game']), at_a2=True)
++            g = R.gate_a1(dict(c, N=int(s['N']), outputRoot=s['outputRoot'], game=s['game']), at_a2=True, admit=write)
+         except R.Refused as e:
+             refuse(str(e).split(':', 1)[0], str(e))
+     finally:
+@@ -210,7 +210,7 @@
+     ic, rc = g['initialCapture'], g['recheckCapture']
+     return {'N': int(g['N']), 'outputRoot': g['outputRoot'], 'game': g['game'], 'l1': {'number': g['l1Finalized'], 'hash': g['l1Hash']},
+             'at': g['a1At'], 'initialCapture': {k: ic[k] for k in ('captureId', 'captureSha256', 'evidenceSha256')}, 'recheckCapture': rc,
+-            'captures': sorted([ic['captureSha256'], rc['captureSha256']]), 'admitted': 'shared-ledger' if write else 'private-copy'}
++            'captures': sorted([ic['captureSha256'], rc['captureSha256']]), 'admitted': 'shared-ledger' if write else 'checked-only'}
+ 
+ 
+ def post_anchor_rules(a1, launch, prior):
+@@ -431,14 +431,44 @@
+     if last['event'] != 'qualified':
+         return {'state': last['event'], 'qualified': False, 'seq': last['seq']}
+     try:
+-        head, p = launch_head(launch, W, top), bind_process(rpc_url, launch, proc)
++        js = launch_journal(launch, W, top); head, p = launch_head(launch, W, top, js), bind_process(rpc_url, launch, proc)
+     except Refused as e:
+         return {'state': 'unbound', 'qualified': False, 'refused': str(e)}
+-    if head != last['evidence']['launchJournal']:
+-        return {'state': 'stale-launch-changed', 'qualified': False}
++    rec, recorded = last['evidence']['launchJournal'], None
++    if head != rec:
++        # r5: the ONLY accepted change since the proof: exactly ONE following journal entry, `bootstrapped`, naming THIS qualified
++        # entry (the launcher recording this very proof). Any other entry (permit, restart, rearm, a second record) is stale.
++        nxt = js[rec['seq']:] if 0 < rec['seq'] <= len(js) and js[rec['seq'] - 1][0] == rec['entrySha256'] else None
++        if not (nxt and len(nxt) == 1 and nxt[0][1]['event'] == 'bootstrapped'
++                and (nxt[0][1].get('evidence') or {}).get('finalityEntrySha256') == last['sha']):
++            return {'state': 'stale-launch-changed', 'qualified': False}
++        recorded = nxt[0][0]
+     if p != last['evidence']['process']:
+         return {'state': 'stale-after-restart', 'qualified': False}
+-    return {'state': 'qualified', 'qualified': True, 'freshN': last['evidence']['fresh']['N'], 'entrySha256': last['sha'], 'at': last['at']}
++    return {'state': 'qualified', 'qualified': True, 'freshN': last['evidence']['fresh']['N'], 'freshBlockHash': last['evidence']['fresh']['blockHash'],
++            'entrySha256': last['sha'], 'at': last['at'], 'launchSha256': launch['launchSha256'], 'process': p, 'recordedAs': recorded}
++
++
++STATUS_FORMAT = 'enclave-base-finality-status/v1'
++
++
++def publish_status(s, out, now=None, top='/'):
++    """r5: the root-published status the readiness sampler's post-anchor-finality gate reads (root-owned 0644, atomic replace)."""
++    now = now or datetime.datetime.now(datetime.timezone.utc); out = pathlib.Path(out)
++    secure_dir(out.parent, top)
++    b = json.dumps({'format': STATUS_FORMAT, 'publishedAt': now.isoformat(), **s}, sort_keys=True, indent=1).encode()
++    tmp = out.with_name(f'.{out.name}.partial-{os.getpid()}')
++    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o644)
++    try:
++        v = memoryview(b)
++        while v:
++            v = v[os.write(fd, v):]
++        os.fsync(fd)
++    finally:
++        os.close(fd)
++    os.replace(tmp, out)
++    dfd = os.open(out.parent, os.O_RDONLY | os.O_DIRECTORY); os.fsync(dfd); os.close(dfd)
++    return {'published': str(out), 'sha256': sha(b), 'state': s.get('state')}
+ 
+ 
+ def revoke(d, chain_json, fdir, reason, *, W, now=None, top='/'):
+@@ -461,7 +491,7 @@
+ def main(argv):
+     if os.geteuid() != 0:
+         print('REFUSED: root only'); return 2
+-    usage = ('check|record <launch-dir> <chain.json> <finality-dir> <initial-capture-out> <recheck-capture-out> <rpc-url>; status <launch-dir> <chain.json> <finality-dir> <rpc-url>; '
++    usage = ('check|record <launch-dir> <chain.json> <finality-dir> <initial-capture-out> <recheck-capture-out> <rpc-url>; status <launch-dir> <chain.json> <finality-dir> <rpc-url>; status-publish <launch-dir> <chain.json> <finality-dir> <rpc-url> <out.json>; '
+              'revoke <launch-dir> <chain.json> <finality-dir> <reason>.  env: FINALITY_NODE, FINALITY_DEPS_ROOT, FINALITY_WORKDIR (root-owned 0700)')
+     try:
+         sys.path.insert(0, '/opt/enclave-rpc'); import chain_service as W            # the INSTALLED wrapper: its lock and journal
+@@ -475,6 +505,8 @@
+                         deps_root=deps, workdir=wd, write=cmd == 'record')
+         elif cmd == 'status' and len(argv) == 6:
+             r = status(argv[2], argv[3], argv[4], argv[5], W=W)
++        elif cmd == 'status-publish' and len(argv) == 7:              # root timer: the readiness gate reads this file
++            r = publish_status(status(argv[2], argv[3], argv[4], argv[5], W=W), argv[6])
+         elif cmd == 'revoke' and len(argv) == 6:
+             r = revoke(argv[2], argv[3], argv[4], argv[5], W=W)
+         else:

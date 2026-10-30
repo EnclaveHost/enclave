@@ -1,0 +1,32 @@
+TAP version 13
+# Subtest: standalone network bundles load outside the repository without npm dependencies
+not ok 1 - standalone network bundles load outside the repository without npm dependencies
+  ---
+  duration_ms: 962.504006
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/network-consumer-bundle.test.mjs:10:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    Error: Command failed: /usr/bin/node /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/tmp/enclave-network-bundles-uF9KYi/dns.mjs
+    identity: commands: check-endpoint --endpoint <url> --operator <0x...> --pins <file> [--rpc <url>]...
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/network-consumer-bundle.test.mjs:22:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1005.979672

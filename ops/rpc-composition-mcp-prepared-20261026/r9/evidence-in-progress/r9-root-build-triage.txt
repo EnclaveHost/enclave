@@ -1,0 +1,8 @@
+Root r9 job remains active; do not edit frozen stage/run. Early D failures observed:
+1 build-custody-vendor --check truly says site/vendor/custody.js DIFFERS. Need regenerate twice with reviewed exact source/dep closure and qualify; no blanket waiver.
+2 build-host-service-packages also generates network/host-services/packages/public-rpc.{mjs,package.json} and service-tls.{mjs,package.json}; exact allowlist lacks these four. Need derive from generator and add exact entries, preserve unrelated-change refusal.
+3 manifest-staleness.py incorrectly hashes git symlink target TEXT rather than resolved in-tree content for relay/net-guard.mjs (git16B vs work9847B), vbs-runtime.mjs(33B vs6224B), shield-derive.mjs(37B vs10120B). Actual manifest input matches actual dereferenced filesystem bytes. Correct auditor with bounded git-object symlink resolution/no escape/cycle, not ignore these paths.
+4 manifests runtimeFiles/sidecars map IMAGE destination to source+sha. Auditor treats image destination as absent source. Validate actual source hash and image-install mapping; do not blanket exclude sidecars.
+5 git add -A exclusions emit ignored dependency warnings; currently commit succeeds but guard should require exact add result and no dependency files staged.
+6 test summary ignores cancelled count; ensure actual Node zero cancelled and full summaries, Python no expected failures/unexpected successes, no missing tests pass.
+Original outputs must remain unchanged. r9 FAIL is expected overall even if other tests pass; still complete full run to discover source failures. No live changes.

@@ -1,0 +1,178 @@
+[queue] START available=82540MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "rc": 5,
+ "blockers": [
+  "7 old data blocks never seen freed in a proven bitmap image at or before completion 14"
+ ],
+ "boundary": {
+  "completionTid": 14,
+  "deletionStartTid": 13,
+  "inodeBitmapRows": [
+   [
+    14,
+    0
+   ],
+   [
+    16,
+    1
+   ]
+  ],
+  "lastLiveTid": 12,
+  "slotReuseTid": 16,
+  "slotRows": [
+   {
+    "allocatedBytes": 663552,
+    "commitSec": 1700000012,
+    "ctime": 0,
+    "dtime": 0,
+    "extentDepth": 0,
+    "extentEntries": 1,
+    "extentMagic": 62218,
+    "extraIsize": 32,
+    "flags": 524288,
+    "generation": 1111,
+    "iBlocks": 1296,
+    "inodeChecksum": "20703ac7",
+    "inodeChecksumValid": true,
+    "links": 1,
+    "mode": 33184,
+    "revokedBy": [],
+    "sequence": 12,
+    "size": 655360
+   },
+   {
+    "allocatedBytes": 663552,
+    "commitSec": 1700000013,
+    "ctime": 0,
+    "dtime": 0,
+    "extentDepth": 0,
+    "extentEntries": 1,
+    "extentMagic": 62218,
+    "extraIsize": 32,
+    "flags": 524288,
+    "generation": 1111,
+    "iBlocks": 1296,
+    "inodeChecksum": "505c9498",
+    "inodeChecksumValid": true,
+    "links": 0,
+    "mode": 33184,
+    "revokedBy": [],
+    "sequence": 13,
+    "size": 655360
+   },
+   {
+    "allocatedBytes": 0,
+    "commitSec": 1700000014,
+    "ctime": 0,
+    "dtime": 1700000500,
+    "extentDepth": 0,
+    "extentEntries": 0,
+    "extentMagic": 62218,
+    "extraIsize": 32,
+    "flags": 524288,
+    "generation": 1111,
+    "iBlocks": 0,
+    "inodeChecksum": "91b836ef",
+    "inodeChecksumValid": true,
+    "links": 0,
+    "mode": 33184,
+    "revokedBy": [],
+    "sequence": 14,
+    "size": 0
+   },
+   {
+    "allocatedBytes": 4096,
+    "commitSec": 1700000016,
+    "ctime": 0,
+    "dtime": 0,
+    "extentDepth": 0,
+    "extentEntries": 1,
+    "extentMagic": 62218,
+    "extraIsize": 32,
+    "flags": 524288,
+    "generation": 2222,
+    "iBlocks": 8,
+    "inodeChecksum": "da1c65d1",
+    "inodeChecksumValid": true,
+    "links": 1,
+    "mode": 33184,
+    "revokedBy": [],
+    "sequence": 16,
+    "size": 4096
+   }
+  ]
+ },
+ "bitmaps": {
+  "dataBlocks": 160,
+  "groups": 2,
+  "notObservedFreedBlocks": 7,
+  "notObservedFreedGroups": [
+   {
+    "bitmapBlock": 12,
+    "blocks": 7,
+    "group": 2,
+    "sample": [
+     65536,
+     65537,
+     65541,
+     65542,
+     65543,
+     65544,
+     65545
+    ]
+   }
+  ],
+  "perGroup": [
+   [
+    1,
+    11,
+    108,
+    4,
+    2,
+    13,
+    null
+   ],
+   [
+    2,
+    12,
+    52,
+    3,
+    1,
+    null,
+    14
+   ]
+  ],
+  "perGroupColumns": [
+   "group",
+   "bitmapBlock",
+   "oldDataBits",
+   "provenImages",
+   "imagesFromDeletionStart",
+   "allFreedAtTid",
+   "firstReuseTid"
+  ],
+  "preDeletionClearBlocks": 0,
+  "preDeletionClearGroups": [],
+  "reusedBlocks": 7,
+  "reusedGroups": [
+   {
+    "bitmapBlock": 12,
+    "blocks": 7,
+    "firstReuseTid": 14,
+    "group": 2,
+    "sample": [
+     65536,
+     65537,
+     65541,
+     65542,
+     65543,
+     65544,
+     65545
+    ]
+   }
+  ]
+ }
+}
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

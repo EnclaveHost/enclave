@@ -1,0 +1,6 @@
+# Intentionally NOT published (listed explicitly; rpc-production-final-20261025 paths)
+browser-authority-stage/r3/work-20261026T001955Z/        private clone(s) of the stopped first attempt (git objects, node_modules link)
+browser-authority-stage/r3/work-20261026T002009Z/        private clones regen/, tree-base/, tree/ of the passing retry (git objects, node_modules link)
+browser-authority-stage/r3/build-work-20261026T002047Z/  private build clones + site/dist of the ACTIVE build job (dist/cache/binaries never published)
+browser-authority-stage/r3/logs/root-r3-build-20261026T002047Z/  ACTIVE build job logs (no ended rc observed at publication time; PENDING)
+logs/root-browser-r3-build-0021.out                       ACTIVE build job queue output (partial; PENDING)

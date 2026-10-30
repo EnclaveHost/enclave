@@ -1,0 +1,45 @@
+# PREPARED (guest-state-install-stage/r2). Root installs and starts it by hand (oneshot). The UNTRUSTED tar is unpacked by the pinned
+# base binary into /srv/enclave-base-holder/tmp/state-gsi/stage ONLY: everything else (the archive, the work-dir records, data/, the holder root) is read-only to this
+# process tree, it has no network and no capabilities, so a tar escape fails with EROFS/EACCES instead of being detected afterwards.
+[Unit]
+Description=Enclave base state install r2 phase 1: CONFINED staged extraction of the kept state archive
+RequiresMountsFor=/srv/enclave-base-holder
+ConditionPathIsMountPoint=/srv/enclave-base-holder
+ConditionPathExists=!/srv/enclave-base-holder/retention-complete
+ConditionPathExists=!/srv/enclave-base-holder/state-installed.json
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -I /opt/enclave-rpc/state-install-r2/guest_state.py extract-stage --manifest /opt/enclave-rpc/snapshots/base-1792886410-manifest.json --manifest-sha256 1f0c4e6c259d4353f598a94ac75a0540321ced2b52b464fb4e11c2ec34c649f2 --work-dir /srv/enclave-base-holder/tmp/state-gsi --base-bin /opt/enclave-rpc/bin/base --base-bin-sha256 9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f
+User=root
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ReadWritePaths=/srv/enclave-base-holder/tmp/state-gsi/stage /srv/enclave-base-holder/tmp/state-gsi/x-home /srv/enclave-base-holder/tmp/state-gsi/extract-state
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateNetwork=yes
+IPAddressDeny=any
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+TimeoutStartSec=infinity
+TimeoutStopSec=120
+KillMode=control-group
+Restart=no
+MemoryMax=4G
+MemorySwapMax=0
+TasksMax=256
+Nice=10
+UMask=0077

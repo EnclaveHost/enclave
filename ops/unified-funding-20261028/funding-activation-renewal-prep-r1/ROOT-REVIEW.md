@@ -1,0 +1,7 @@
+# Root review — renewal preparation only
+
+Independently verified PREPARED33c0737f and all seven package hashes, eighteen external source pins, and exact baseline equality after removing only notAfter. Corrected gas limit1200000 and maxFee80000microUSDC retained. No installable candidate, admitted read runner, fresh relay identity, owned-RPC readiness or replacement boundary exists. The package is retained as preparation, not production qualification. The 24-hour lifetime is a proposal; root may choose it under existing production authorization after fresh technical review, without an additional general human permission request.
+
+No renewal, restart, signing or funds executed. Historical capture hardcoded public providers and old generator1Mgas must not be executed unchanged. Current dedicated RPC64GiB is an allocation, not a measuredminimum; ownRPC remains stopped. User RAM question answered with official Base32GBminimum64recommended and more conservative Reth128GB guidance; lower profile needs exact client/workload qualification. Pruning would destroy historical data needed by recovery and is not authorized here. No new read-only network observer or prior failed remote probe retry.
+
+Peer assigned local captured-source-only reduced-memory feasibility audit. No author, test, build, image mount, live database access, remote calls or runtime change delegated. App restore remains priority; both runtime-funded5USDC, claim RPC/gas blockers persist as last observed.

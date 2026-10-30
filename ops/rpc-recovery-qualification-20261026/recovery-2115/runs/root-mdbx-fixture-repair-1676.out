@@ -1,0 +1,42 @@
+[queue] START available=24816MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r1/src/mdbx_check.py:108: ResourceWarning: unclosed file <_io.BufferedReader name=4>
+  rc_v, vout, _ = bounded_run([o.chk, "-V"], 30)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+REFUSED: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-fixture-repair-stage/r1/run-20261026T210319Z-2346295/tmp/mdbxvl5ht6qma/link: must be a real directory (no symlink)
+REFUSED: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-fixture-repair-stage/r1/run-20261026T210319Z-2346295/tmp/mdbxvl5ht6qma/empty: no regular mdbx.dat
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r1/src/mdbx_check.py:116: ResourceWarning: unclosed file <_io.BufferedReader name=4>
+  t0 = time.monotonic(); rc, text, cut = bounded_run(cmd, o.timeout); sec = round(time.monotonic() - t0, 1)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r1/tests/test_mdbx_validator.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-fixture-repair-stage/r1/run-20261026T210319Z-2346295/tmp/mdbxvl5ht6qma/report-4.json' mode='r' encoding='utf-8'>
+  return rc, (json.load(open(out)) if os.path.exists(out) else None)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.REFUSED: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-fixture-repair-stage/r1/run-20261026T210319Z-2346295/tmp/mdbxvl5ht6qma/src/pristine is not on a READ-ONLY mount (statvfs ST_RDONLY): refusing (no lock/meta mutation is possible only on a read-only view)
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r1/tests/test_mdbx_validator.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-fixture-repair-stage/r1/run-20261026T210319Z-2346295/tmp/mdbxvl5ht6qma/report-5.json' mode='r' encoding='utf-8'>
+  return rc, (json.load(open(out)) if os.path.exists(out) else None)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r1/tests/test_mdbx_validator.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-fixture-repair-stage/r1/run-20261026T210319Z-2346295/tmp/mdbxvl5ht6qma/report-6.json' mode='r' encoding='utf-8'>
+  return rc, (json.load(open(out)) if os.path.exists(out) else None)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r1/tests/test_mdbx_validator.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-fixture-repair-stage/r1/run-20261026T210319Z-2346295/tmp/mdbxvl5ht6qma/report-7.json' mode='r' encoding='utf-8'>
+  return rc, (json.load(open(out)) if os.path.exists(out) else None)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r1/tests/test_mdbx_validator.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-fixture-repair-stage/r1/run-20261026T210319Z-2346295/tmp/mdbxvl5ht6qma/report-8.json' mode='r' encoding='utf-8'>
+  return rc, (json.load(open(out)) if os.path.exists(out) else None)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r1/tests/test_mdbx_validator.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-fixture-repair-stage/r1/run-20261026T210319Z-2346295/tmp/mdbxvl5ht6qma/report-9.json' mode='r' encoding='utf-8'>
+  return rc, (json.load(open(out)) if os.path.exists(out) else None)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.../home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r1/tests/test_mdbx_validator.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-fixture-repair-stage/r1/run-20261026T210319Z-2346295/tmp/mdbxvl5ht6qma/report-10.json' mode='r' encoding='utf-8'>
+  return rc, (json.load(open(out)) if os.path.exists(out) else None)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.REFUSED: mdbx_chk is not the pinned build (sha256)
+REFUSED: --meta must be 0, 1 or 2
+.
+----------------------------------------------------------------------
+Ran 10 tests in 0.145s
+
+OK
+output=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-fixture-repair-stage/r1/run-20261026T210319Z-2346295 rc=0
+[memory-guard] exit=0 peakTreeRssMiB=28 minHostAvailableMiB=24799
+[memory-guard] at peak: python3:22 bash:4 timeout:2
+[queue] EXIT 0

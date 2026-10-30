@@ -1,0 +1,35 @@
+{
+ "format": "mdbx-readonly-check-report/r3",
+ "libmdbx": "v0.13.12-0-gf619d43d",
+ "chk": {
+  "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r4/runs/run-20261026T210943Z-2354169/bin/mdbx_chk",
+  "sha256": "c228b462c3c71c87b0fd2e9cfa6b3e6bccb2d793dd545bc6a18bef7113187981"
+ },
+ "argv": [
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r4/runs/run-20261026T210943Z-2354169/bin/mdbx_chk",
+  "-v",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r9/runs/diag-20261026T214243Z-2386107/work/mnt/data/db"
+ ],
+ "dbDir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r9/runs/diag-20261026T214243Z-2386107/work/mnt/data/db",
+ "preflight": {
+  "mdbxDatBytes": 1138166333440,
+  "databaseVersion": null
+ },
+ "rc": -9,
+ "result": "rc--9",
+ "structurallyClean": false,
+ "seconds": 1800.1,
+ "timedOut": true,
+ "outputTruncated": false,
+ "stdoutHeldAfterExit": false,
+ "escapedHolder": false,
+ "unchangedIdentity": true,
+ "outputTail": "mdbx_chk v0.13.12-0-gf619d43d (2026-04-30T16:36:24+03:00, T-f5574b87cc64fa7a3a6b21ba33809258498d5f17)\nRunning for /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r9/runs/diag-20261026T214243Z-2386107/work/mnt/data/db in 'read-only' mode with verbosity level 1 (of 0..9)...\n   continue /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r9/runs/diag-20261026T214243Z-2386107/work/mnt/data/db/mdbx.dat within without-lck mode, env-flags 0x422000, lck-error 30\n   open-MADV_DONTNEED 276959557..277872640\n   readahead OFF 0..276959557\n - Taking lock... done\n   dxb-id af640e0a4fab7e7c-5997d1c1df4543ca\n - Peek the meta-pages... transactions: recent 51691982, latter reader 51691982, lag 0\n - Traversal B-Trees by txn#51691982...",
+ "notChecked": [
+  "value bytes inside structurally valid pages (MDBX has no per-page checksums)",
+  "reth table semantics",
+  "state/trie roots",
+  "static_files segments",
+  "chain authenticity"
+ ]
+}

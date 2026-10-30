@@ -77,6 +77,17 @@ async function signLeaf(csrDer) {
   return fs.readFileSync(leaf, "utf8") + fs.readFileSync(CA_PEM, "utf8");
 }
 
+// the requester's KEY on a certificate for ANOTHER name (a CA fault the relay must refuse): -force_pubkey
+async function signLeafOtherName(csrDer) {
+  const csr = path.join(DIR, `w${++_n}.csr`), pub = path.join(DIR, `w${_n}.pub`), leaf = path.join(DIR, `w${_n}.pem`), other = path.join(DIR, `w${_n}o.pem`);
+  fs.writeFileSync(csr, csrDer);
+  fs.writeFileSync(pub, (await pexec("openssl", ["req", "-in", csr, "-inform", "DER", "-pubkey", "-noout"])).stdout);
+  fs.writeFileSync(other, await csrFor("ffffffff.app.enclave.host"));
+  await pexec("openssl", ["x509", "-req", "-in", other, "-CA", CA_PEM, "-CAkey", CA_KEY, "-force_pubkey", pub,
+                          "-set_serial", "0x" + randomBytes(16).toString("hex"), "-days", "90", "-copy_extensions", "copy", "-out", leaf]);
+  return fs.readFileSync(leaf, "utf8") + fs.readFileSync(CA_PEM, "utf8");
+}
+
 // ---- mock DNS_API: the challenge-push daemon's /v1/txt, HMAC-checked --------
 const DNS_TXT_KEY = "cd".repeat(32);
 // `cnames`: the customer's delegation records the mock CA follows (a custom
@@ -109,7 +120,10 @@ const DNS_API = `http://127.0.0.1:${dnsServer.address().port}`;
 // `certNotFound` makes that many certificate downloads answer 404 "Certificate
 // not found" first (Let's Encrypt's replication lag).
 function mockCa({ eab = null } = {}) {
-  const ca = { mode: "ok", slowFinalizeMs: 0, slowInvalidMs: 0, certNotFound: 0, calls: {}, accounts: new Map(), orders: new Map(), nonces: new Set(), hung: [], url: "", close: null };
+  const ca = { mode: "ok", slowFinalizeMs: 0, slowInvalidMs: 0, certNotFound: 0,
+               // retention faults (2026-10-21): the next N such requests hang (no answer: the relay's fetch times out),
+               // answer 502, or (finalizeHangAfter) are ACTED ON and then never answered; wrongKey signs another key's CSR
+               orderHang: 0, order502: 0, finalizeHangAfter: 0, finalize502: 0, finalize400: 0, chalNoop: 0, finalizeHtml400: 0, wrongName: 0, cert502: 0, authzHang: 0, wrongKey: 0, calls: {}, accounts: new Map(), orders: new Map(), nonces: new Set(), hung: [], url: "", close: null };
   const count = (k) => { ca.calls[k] = (ca.calls[k] || 0) + 1; };
   const nonce = () => { const n = b64u(createHash("sha256").update(String(Math.random())).digest()).slice(0, 22); ca.nonces.add(n); return n; };
   const server = http.createServer((req, res) => {
@@ -182,11 +196,13 @@ function mockCa({ eab = null } = {}) {
                        ...(o.authz === "invalid" ? { error: { type: "urn:ietf:params:acme:error:unauthorized", detail: "no TXT" } } : {}) }] });
       if (m[1] === "authz") {
         count("authz");
+        if (ca.authzHang > 0 && o.authz === "valid") { ca.authzHang--; ca.hung.push(res); return; }
         if (ca.mode === "authz502Once") { ca.mode = "ok"; count("authz502"); res.writeHead(502, { "content-type": "text/html", "replay-nonce": nonce() }); return res.end("<html>502</html>"); }   // ZeroSSL 2026-10-14
         return send(200, authzBody());
       }
       if (m[1] === "chal") {
         count("challenge");
+        if (ca.chalNoop > 0) { ca.chalNoop--; return send(200, authzBody().challenges[0]); }   // never validates: authz stays pending
         if (ca.slowInvalidMs) { await new Promise((r) => setTimeout(r, ca.slowInvalidMs)); o.authz = "invalid"; return send(200, authzBody().challenges[0]); }
         const want = b64u(createHash("sha256").update(`${o.token}.${o.thumbprint}`).digest());
         const at = `_acme-challenge.${o.name}`;
@@ -196,15 +212,23 @@ function mockCa({ eab = null } = {}) {
       }
       if (m[1] === "finalize") {
         count("finalize");
+        if (ca.finalizeHtml400 > 0) { ca.finalizeHtml400--; res.writeHead(400, { "content-type": "text/html", "replay-nonce": nonce() }); return res.end("<html>400</html>"); }
+        if (ca.finalize400 > 0) { ca.finalize400--; return problem(400, "badCSR", "refused"); }
+        if (ca.finalize502 > 0) { ca.finalize502--; res.writeHead(502, { "content-type": "text/html", "replay-nonce": nonce() }); return res.end("<html>502</html>"); }
         if (o.authz !== "valid") return problem(403, "orderNotReady", "authz not valid");
-        const csrDer = Buffer.from(payload.csr, "base64url");
-        try { o.cert = await signLeaf(csrDer); o.status = "valid"; }
+        if (o.status === "valid" || o.status === "processing") return problem(403, "orderNotReady", `order is ${o.status}`);
+        let csrDer = Buffer.from(payload.csr, "base64url");
+        if (ca.wrongKey > 0) { ca.wrongKey--; csrDer = Buffer.from((await csrFor(o.name)).replace(/-----[^-]+-----/g, "").replace(/\s+/g, ""), "base64"); }
+        try { o.cert = ca.wrongName > 0 ? (ca.wrongName--, await signLeafOtherName(csrDer)) : await signLeaf(csrDer); o.status = "valid"; }
         catch (e) { o.status = "invalid"; o.error = e.message; }
         if (ca.slowFinalizeMs) { o.releaseAt = Date.now() + ca.slowFinalizeMs; o.status = "processing"; }
+        if (ca.finalizeHangAfter > 0) { ca.finalizeHangAfter--; ca.hung.push(res); return; }   // acted on, reply lost
         return send(200, { status: o.status });
       }
       if (m[1] === "order") {
         count("orderPoll");
+        if (ca.orderHang > 0) { ca.orderHang--; ca.hung.push(res); return; }
+        if (ca.order502 > 0) { ca.order502--; res.writeHead(502, { "content-type": "text/html", "replay-nonce": nonce() }); return res.end("<html>502</html>"); }
         if (o.status === "processing" && o.releaseAt) {
           if (Date.now() < o.releaseAt) return send(200, { status: "processing" }, { "retry-after": "1" });
           o.status = "valid"; o.releaseAt = 0;
@@ -213,6 +237,7 @@ function mockCa({ eab = null } = {}) {
       }
       if (m[1] === "cert") {
         count("cert");
+        if (ca.cert502 > 0) { ca.cert502--; res.writeHead(502, { "content-type": "text/html", "replay-nonce": nonce() }); return res.end("<html>502</html>"); }
         if (ca.certNotFound > 0) { ca.certNotFound--; return problem(404, "malformed", "Certificate not found"); }
         res.writeHead(200, { "content-type": "application/pem-certificate-chain", "replay-nonce": nonce() }); return res.end(o.cert); }
     });
@@ -1021,4 +1046,179 @@ test('Shield requires matching per-app key evidence before cached certificates o
     r=await call(await body());assert.equal(r.code,403);
     assert.equal(ca1.calls.newOrder,issued);
   } finally {ctx.hostEligibility=saved;ctx.verifyAppCertificate=savedVerify;}
+});
+
+// ---- RETENTION (2026-10-21): an order the CA may have acted on survives an UNCERTAIN failure -----------------------------
+// A timeout / network error / 5xx after the challenge answer leaves the order's fate unknown at the CA. The order is KEPT
+// (202, retry), the next ask RESUMES it on its own CA, and no fresh order is placed anywhere (a fresh order orphaned a
+// certificate the CA was issuing and spent another CA's quota: 2026-10-21 19:06Z). Terminal outcomes still drop it.
+const rt = { ep: 200 };
+async function retentionCase(setup) {
+  ca1.mode = ca2.mode = "ok"; ca1.slowFinalizeMs = ca2.slowFinalizeMs = 0;
+  for (const c of _internals.CAS) c.downUntil = 0;
+  for (const k of Object.keys(_internals.store().data.orders)) delete _internals.store().data.orders[k];
+  delete _internals.store().data.failures[NAME];
+  for (const k of Object.keys(_internals.store().data.certs)) if (k.startsWith(NAME + "|")) delete _internals.store().data.certs[k];
+  rows = [leaseRow()]; EP = `https://enclave${rt.ep++}.example`;
+  const key = await genKey(), csr = await csrFor(NAME, { key }), h = await spkiHashOf(csr);
+  setup?.();
+  const before = { o1: ca1.calls.newOrder || 0, o2: ca2.calls.newOrder || 0, fin1: ca1.calls.finalize || 0 };
+  const ask = async () => call(await body({ csr }));
+  return { key, csr, h, before, ask, held: () => _internals.store().data.orders[`${NAME}|${h}`] };
+}
+const leafSpki = (pem) => createHash("sha256").update(new X509Certificate(pem).publicKey.export({ type: "spki", format: "der" })).digest("hex");
+
+test("retention: the order poll after finalize TIMES OUT: kept (202), its CA cooled for new orders, resumed on the next ask; no order anywhere else", async () => {
+  const c = await retentionCase(() => { ca1.orderHang = 1; });
+  let r = await c.ask();
+  assert.equal(r.code, 202, JSON.stringify(r.body));
+  assert.ok(c.held()?.ca === "zerossl", "the finalized order is kept");
+  assert.equal(ca2.calls.newOrder || 0, c.before.o2, "no fresh order at the next CA");
+  assert.equal(_internals.store().data.failures[NAME], undefined, "not charged to the name");
+  assert.ok(_internals.CAS[0].downUntil > Date.now(), "the CA is cooled for NEW orders");
+  r = await c.ask();
+  assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(r.body.ca, "zerossl");
+  assert.equal(ca1.calls.newOrder, c.before.o1 + 1, "resumed, not re-ordered"); assert.equal(ca2.calls.newOrder || 0, c.before.o2);
+  assert.equal(leafSpki(r.body.certPem), c.h, "the certificate is for the CSR's key");
+  assert.equal(c.held(), undefined, "dropped once collected");
+});
+
+test("retention: order poll 502s past the read retries: kept and resumed, one order", async () => {
+  const c = await retentionCase(() => { ca1.order502 = 3; });
+  let r = await c.ask();
+  assert.equal(r.code, 202, JSON.stringify(r.body)); assert.ok(c.held());
+  r = await c.ask();
+  assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(r.body.ca, "zerossl");
+  assert.equal(ca1.calls.newOrder, c.before.o1 + 1); assert.equal(ca2.calls.newOrder || 0, c.before.o2);
+});
+
+test("retention: a finalize the CA ACTED ON whose reply was lost: kept; the resume collects the issued certificate (one finalize, one order)", async () => {
+  const c = await retentionCase(() => { ca1.finalizeHangAfter = 1; });
+  let r = await c.ask();
+  assert.equal(r.code, 202, JSON.stringify(r.body)); assert.ok(c.held(), "the maybe-accepted finalize keeps the order");
+  r = await c.ask();
+  assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(r.body.ca, "zerossl");
+  assert.equal(ca1.calls.finalize, c.before.fin1 + 1, "not finalized twice");
+  assert.equal(ca1.calls.newOrder, c.before.o1 + 1); assert.equal(ca2.calls.newOrder || 0, c.before.o2);
+});
+
+test("retention: a finalize answered 502 before the CA acted: kept; the resume sees `ready` and finalizes ONCE more with the stored CSR", async () => {
+  const c = await retentionCase(() => { ca1.finalize502 = 1; });
+  let r = await c.ask();
+  assert.equal(r.code, 202, JSON.stringify(r.body)); assert.ok(c.held());
+  r = await c.ask();
+  assert.equal(r.code, 200, JSON.stringify(r.body));
+  assert.equal(ca1.calls.finalize, c.before.fin1 + 2, "the stored CSR was finalized again");
+  assert.equal(leafSpki(r.body.certPem), c.h);
+  assert.equal(ca1.calls.newOrder, c.before.o1 + 1); assert.equal(ca2.calls.newOrder || 0, c.before.o2);
+});
+
+test("retention: the certificate download 502s past the read retries: kept and resumed", async () => {
+  const c = await retentionCase(() => { ca1.cert502 = 3; });
+  let r = await c.ask();
+  assert.equal(r.code, 202, JSON.stringify(r.body)); assert.ok(c.held());
+  r = await c.ask();
+  assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(ca1.calls.newOrder, c.before.o1 + 1);
+});
+
+test("retention scope: an authz read timeout BEFORE the finalize is unchanged: NOT kept, the CA cooled, falls over (persist is at finalize)", async () => {
+  const c = await retentionCase(() => { ca1.authzHang = 1; });
+  const r = await c.ask();
+  assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(r.body.ca, "letsencrypt");
+  assert.equal(c.held(), undefined, "an order whose authz was never seen valid is not persisted");
+  assert.ok(_internals.CAS[0].downUntil > Date.now(), "the CA is cooled as before");
+  assert.equal(ca1.calls.finalize, c.before.fin1, "nothing was finalized at the first CA");
+});
+
+test("retention, terminal: a kept order the CA then reports INVALID is dropped and the name is ordered afresh (no trap)", async () => {
+  const c = await retentionCase(() => { ca1.orderHang = 1; });
+  let r = await c.ask();
+  assert.equal(r.code, 202, JSON.stringify(r.body));
+  const id = c.held().orderUrl.split("/").pop(); ca1.orders.get(id).status = "invalid"; ca1.orders.get(id).cert = null;
+  for (const x of _internals.CAS) x.downUntil = 0;
+  r = await c.ask();
+  assert.equal(r.code, 200, JSON.stringify(r.body));
+  assert.equal(ca1.calls.newOrder, c.before.o1 + 2, "a fresh order after the terminal verdict");
+  assert.equal(c.held(), undefined);
+});
+
+test("retention, bounded: a kept order older than the order TTL (1 h) is not resumed", async () => {
+  const c = await retentionCase(() => { ca1.orderHang = 1; });
+  let r = await c.ask();
+  assert.equal(r.code, 202, JSON.stringify(r.body));
+  c.held().at = Date.now() - 3600_001;
+  for (const x of _internals.CAS) x.downUntil = 0;
+  r = await c.ask();
+  assert.equal(r.code, 200, JSON.stringify(r.body));
+  assert.equal(ca1.calls.newOrder, c.before.o1 + 2, "past its TTL the order is abandoned and the name ordered afresh");
+});
+
+test("retention, unchanged verdicts: a 4xx at finalize is terminal (dropped, falls over); a failure BEFORE any order still cools and falls over", async () => {
+  // a 4xx after the challenge answer is the CA's verdict, not uncertainty: dropped, and the walk moves on
+  let c = await retentionCase(() => { ca1.finalize400 = 1; });
+  let r = await c.ask();
+  assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(r.body.ca, "letsencrypt");
+  assert.equal(c.held(), undefined, "a refused finalize does not keep the order");
+  assert.equal(_internals.CAS[0].downUntil, 0, "a name-level refusal does not cool the CA");
+  // newOrder 5xx: no order exists yet, so nothing is kept; the CA cools and the next one issues (pre-existing rule)
+  c = await retentionCase(() => { ca1.mode = "5xx"; });
+  r = await c.ask();
+  assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(r.body.ca, "letsencrypt");
+  assert.equal(c.held(), undefined, "nothing kept when no order was placed");
+  assert.ok(_internals.CAS[0].downUntil > Date.now(), "the failing CA is cooled");
+  ca1.mode = "ok";
+});
+
+test("acceptance: a certificate for ANOTHER key than the CSR's is refused, never cached; the next CA's correct one is served", async () => {
+  const c = await retentionCase(() => { ca1.wrongKey = 1; });
+  const r = await c.ask();
+  assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(r.body.ca, "letsencrypt");
+  assert.equal(leafSpki(r.body.certPem), c.h, "only a certificate for the CSR's key is accepted");
+  assert.equal(c.held(), undefined, "the mismatched order is dropped");
+  for (const [k, v] of Object.entries(_internals.store().data.certs)) if (k.startsWith(NAME + "|")) assert.equal(leafSpki(v.certPem), k.split("|")[1]);
+});
+
+test("retention: a RESUME that hits another timeout keeps the order again; the next one collects it (still one order)", async () => {
+  const c = await retentionCase(() => { ca1.orderHang = 2; });     // the first collect AND the first resume read hang
+  let r = await c.ask();
+  assert.equal(r.code, 202, JSON.stringify(r.body)); assert.ok(c.held());
+  r = await c.ask();
+  assert.equal(r.code, 202, JSON.stringify(r.body)); assert.ok(c.held(), "kept across an uncertain resume");
+  assert.equal(ca2.calls.newOrder || 0, c.before.o2, "no fallover while the order is kept");
+  r = await c.ask();
+  assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(r.body.ca, "zerossl");
+  assert.equal(ca1.calls.newOrder, c.before.o1 + 1);
+});
+
+test("retention, unchanged verdict: an authz that never validates by the poll DEADLINE still indicts the CA (dropped, cooled, falls over)", async () => {
+  const c = await retentionCase(() => { ca1.chalNoop = 1; });
+  const r = await c.ask();
+  assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(r.body.ca, "letsencrypt");
+  assert.equal(c.held(), undefined, "a deadline is a verdict: the order is not kept");
+  assert.ok(_internals.CAS[0].downUntil > Date.now());
+});
+
+test("retention, unchanged verdict: a NON-JSON 400 at finalize (an edge page) is a verdict, not uncertainty: dropped, cooled, falls over", async () => {
+  const c = await retentionCase(() => { ca1.finalizeHtml400 = 1; });
+  const r = await c.ask();
+  assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(r.body.ca, "letsencrypt");
+  assert.equal(c.held(), undefined, "a 4xx does not keep the order");
+});
+
+test("acceptance: a certificate for the CSR's KEY but ANOTHER NAME is refused, never cached", async () => {
+  const c = await retentionCase(() => { ca1.wrongName = 1; });
+  const r = await c.ask();
+  assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(r.body.ca, "letsencrypt");
+  assert.ok(new X509Certificate(r.body.certPem).checkHost(NAME), "only a certificate for the requested name is accepted");
+  assert.equal(c.held(), undefined);
+});
+
+test("retention: an order kept after a finalize-side timeout survives a relay restart and is resumed (no fresh order)", async () => {
+  const c = await retentionCase(() => { ca1.orderHang = 1; });
+  let r = await c.ask();
+  assert.equal(r.code, 202, JSON.stringify(r.body)); assert.ok(c.held());
+  _internals.CAS[0].account = null; _internals.CAS[0].dir = null; _internals.CAS[0].downUntil = 0;   // "restart": slot state gone, store kept
+  r = await c.ask();
+  assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(r.body.ca, "zerossl");
+  assert.equal(ca1.calls.newOrder, c.before.o1 + 1, "resumed, not re-ordered"); assert.equal(ca2.calls.newOrder || 0, c.before.o2);
 });

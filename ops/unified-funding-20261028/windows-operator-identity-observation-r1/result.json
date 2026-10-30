@@ -1,0 +1,93 @@
+{
+  "schema": "enclave-operator-identity-observation/1",
+  "readOnly": true,
+  "observedAt": "2026-10-29T21:17:26.1028780Z",
+  "tasks": [
+    {
+      "found": true,
+      "name": "Node",
+      "principal": {
+        "logonType": "5",
+        "runLevel": "1",
+        "userId": "SYSTEM",
+        "groupId": ""
+      },
+      "actions": [
+        {
+          "argumentsWithheld": true,
+          "execute": "cmd.exe",
+          "knownRunNodeAction": true,
+          "workingDirectory": "[unrecognized path withheld]"
+        }
+      ],
+      "path": "\\Enclave\\",
+      "state": "4",
+      "enabled": true
+    },
+    {
+      "found": false,
+      "path": "\\",
+      "name": "EnclaveWindowsNode"
+    }
+  ],
+  "services": [],
+  "config": [
+    {
+      "sha256": "ee4812c6b910b61256ac9037485748834d93356c5e1944eeeeb4623c0f2ed328",
+      "bytes": 1300,
+      "knownCalls": [
+        {
+          "local": false,
+          "knownNodeConfigCall": true
+        }
+      ],
+      "path": "C:\\ProgramData\\Enclave\\run-node.cmd",
+      "rawContentsWithheld": true,
+      "nodeDirAssignments": []
+    },
+    {
+      "sha256": "fc5319a1186d8036b79de31e5ab0b70dff74e24a156f45ef81e2862f9df86715",
+      "bytes": 2141,
+      "knownCalls": [
+        {
+          "local": true,
+          "knownNodeConfigCall": true
+        }
+      ],
+      "path": "C:\\ProgramData\\Enclave\\node-config.cmd",
+      "rawContentsWithheld": true,
+      "nodeDirAssignments": [
+        {
+          "containsExpansion": false,
+          "literalPath": "C:\\ProgramData\\Enclave\\node"
+        }
+      ]
+    },
+    {
+      "sha256": "f10b77466ac47ea62236a2e8cf90281802cbd5f642e6fa1d0581c0f010e13319",
+      "bytes": 1028,
+      "knownCalls": [],
+      "path": "C:\\ProgramData\\Enclave\\node-config.local.cmd",
+      "rawContentsWithheld": true,
+      "nodeDirAssignments": []
+    }
+  ],
+  "listener": {
+    "port": 9600,
+    "ownerSid": "S-1-5-18",
+    "knownAgentEntry": true,
+    "pid": 41272,
+    "commandLineWithheld": true,
+    "created": "2026-10-27T08:24:45.0989590Z",
+    "executable": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+  },
+  "effectiveNodeDir": "unknown",
+  "qualification": false,
+  "stableProcess": true,
+  "limitations": [
+    "Effective NODE_DIR remains unknown unless observed literal assignments and launcher ordering establish it; inherited environment is not dumped.",
+    "Task configuration and matching process owner do not alone prove task-to-process ancestry.",
+    "No exclusion, ACL, EXLOCK, process death, memory admission or Windows runtime qualification is established."
+  ],
+  "sshExit": 0
+}

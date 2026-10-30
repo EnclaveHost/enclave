@@ -1,0 +1,4 @@
+{
+  "deploy/lifecycle/EnclaveDeployments.sol": "9049ea41e5fd8dbff4e0ad70773ea125a747e2dcc404250c245630c849b3febc",
+  "deploy/lifecycle/EnclaveProofOfTime.sol": "57c511e4ff987fa85b3db1f17e9a945a49332d44f253cba89084ebee0de49983"
+}

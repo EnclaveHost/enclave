@@ -1,0 +1,15 @@
+--- a/producer/base_launch.py
++++ b/producer/base_launch.py
+@@ -78,10 +78,10 @@
+ 
+ 
+ # r4 (base-finality-proof-stage/r4): the post-anchor finality tool, executed from exactly its pinned bytes (HOLD: not installed).
+-FINALITY_STATE_SHA256 = '608565123278e1d877abffe02fc762aba3fccee6c89e249f3ee6d808b618704e'   # base-finality-proof-stage/r10/src/finality_state.py
++FINALITY_STATE_SHA256 = '595c77bbdab0b3b8bd3b690fbd94b1cad3438309603608047d6aba0547f8ca11'   # base-finality-proof-stage/r10/src/finality_state.py
+ FINALITY_STATE_SOURCE = pathlib.Path('/opt/enclave-rpc/finality/src/finality_state.py')
+ SELECTION_SHA256 = 'e6c312f4007f6d747197a6569eaeb36c8c949a0819be49738ce6a0723b999532'   # selection.py beside BOTH harnesses (identical)
+-WRAPPER_SHA256 = '9607b831c8941d1108022a500cf1ae328367b84a110e38b00fdd18476ff4656a'   # base-finality-proof-stage/r6/wrapper/chain_service.py
++WRAPPER_SHA256 = '5ebebd701e02c049bbee8caa406d05566e3e3dc31d1142d02cb26fd46bfb2b62'   # base-finality-proof-stage/r6/wrapper/chain_service.py
+ WRAPPER_SOURCE = pathlib.Path('/opt/enclave-rpc/chain_service.py')
+ 
+ 

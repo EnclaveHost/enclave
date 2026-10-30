@@ -1,0 +1,26 @@
+{
+  "us-west": {
+    "activeRoot": "/opt/enclave-site/bafybeidf6n5ipdrfbiru5qr6e6phxdegzcrjeu76ypjbzpyit5fqn2ppxe/site",
+    "files": 1132,
+    "caddyfileSha256": "f92511ca4dd260b1815a9b9237e9997572dab93fd346c19584043a49d7354e4a",
+    "configSha256": "fb9481b24e3c530e277a61852de37148d7baa7a26a0083dd956095d899a89f13"
+  },
+  "ca-east": {
+    "activeRoot": "/opt/enclave-site/bafybeidf6n5ipdrfbiru5qr6e6phxdegzcrjeu76ypjbzpyit5fqn2ppxe/site",
+    "files": 1132,
+    "caddyfileSha256": "163bebc198e39f6d5be3be96c6cde8ad317efe30cb63342bd77a7c4e5bf2463f",
+    "configSha256": "04f4392fe963fe22127eba745820ccd4b201acdadcf8232483dc4e1ccccd1867"
+  },
+  "ap-southeast": {
+    "activeRoot": "/opt/enclave-site/bafybeidf6n5ipdrfbiru5qr6e6phxdegzcrjeu76ypjbzpyit5fqn2ppxe/site",
+    "files": 1132,
+    "caddyfileSha256": "17ea887b6edf259f05cf8aad952a86290eca1f3e2f46e48770f8d07904052d4d",
+    "configSha256": "2ef158632636fa2e1e2767db42eb03080e2c4a15419e6d480c1242dcbeb9c71f"
+  },
+  "eu-central": {
+    "activeRoot": "/opt/enclave-site/bafybeidf6n5ipdrfbiru5qr6e6phxdegzcrjeu76ypjbzpyit5fqn2ppxe/site",
+    "files": 1132,
+    "caddyfileSha256": "e670ad9b85df445febd996adc76330bd22ab813439edf8a177e0f7e65e3a1083",
+    "configSha256": "48455fecd1d962761822bcfc5103ff886b28d403af04fea9ed847a32ebb99b76"
+  }
+}

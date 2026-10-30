@@ -1,0 +1,22 @@
+[
+  {
+    "provider": "https://mainnet.base.org",
+    "block": "53185042",
+    "timestamp": 1793159431,
+    "claimCooldown": 1800,
+    "lastClaimAt": 1793158901,
+    "remainingSec": 1270,
+    "retryAt": "2026-10-28T04:11:41.000Z",
+    "balanceWei": "11492183561632"
+  },
+  {
+    "provider": "https://base-rpc.publicnode.com",
+    "block": "53185042",
+    "timestamp": 1793159431,
+    "claimCooldown": 1800,
+    "lastClaimAt": 1793158901,
+    "remainingSec": 1270,
+    "retryAt": "2026-10-28T04:11:41.000Z",
+    "balanceWei": "11492183561632"
+  }
+]

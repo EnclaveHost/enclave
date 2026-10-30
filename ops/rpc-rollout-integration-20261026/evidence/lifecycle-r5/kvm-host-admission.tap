@@ -1,0 +1,193 @@
+TAP version 13
+# Subtest: old finalized policy plus fresh denial checks supports fenced failover without waiting for a new finalized block
+ok 1 - old finalized policy plus fresh denial checks supports fenced failover without waiting for a new finalized block
+  ---
+  duration_ms: 184.860444
+  type: 'test'
+  ...
+# Subtest: a partitioned old host cannot obtain a quorum after three witnesses fenced it
+ok 2 - a partitioned old host cannot obtain a quorum after three witnesses fenced it
+  ---
+  duration_ms: 26.627978
+  type: 'test'
+  ...
+# Subtest: a restarted witness refuses another successor for the same parent generation
+ok 3 - a restarted witness refuses another successor for the same parent generation
+  ---
+  duration_ms: 8.880526
+  type: 'test'
+  ...
+# Subtest: quorum certificates cannot mint budget, extend runtime or bypass a revocation
+ok 4 - quorum certificates cannot mint budget, extend runtime or bypass a revocation
+  ---
+  duration_ms: 23.714403
+  type: 'test'
+  ...
+# Subtest: freshly observing an over-age anchor, missing current proof, or changing witnesses cannot authorize service
+ok 5 - freshly observing an over-age anchor, missing current proof, or changing witnesses cannot authorize service
+  ---
+  duration_ms: 16.504083
+  type: 'test'
+  ...
+# Subtest: an authenticated unsafe denial persists through restart and a later unsafe allow cannot restore service
+ok 6 - an authenticated unsafe denial persists through restart and a later unsafe allow cannot restore service
+  ---
+  duration_ms: 1.899595
+  type: 'test'
+  ...
+# Subtest: runner serves a quorum-certified mined transition while retaining its intent until real finality
+ok 7 - runner serves a quorum-certified mined transition while retaining its intent until real finality
+  ---
+  duration_ms: 111.239456
+  type: 'test'
+  ...
+# Subtest: operational host refusal queues its running assignment without globally stopping the app
+ok 8 - operational host refusal queues its running assignment without globally stopping the app
+  ---
+  duration_ms: 1.288639
+  type: 'test'
+  ...
+# Subtest: operational host refusal leaves queued work available without starting or charging it
+ok 9 - operational host refusal leaves queued work available without starting or charging it
+  ---
+  duration_ms: 0.943463
+  type: 'test'
+  ...
+# Subtest: missing or differently scoped host admission cannot be repaired by outer snapshot booleans
+ok 10 - missing or differently scoped host admission cannot be repaired by outer snapshot booleans
+  ---
+  duration_ms: 1.27145
+  type: 'test'
+  ...
+# Subtest: global disable and current denial retain precedence over host admission
+ok 11 - global disable and current denial retain precedence over host admission
+  ---
+  duration_ms: 1.316439
+  type: 'test'
+  ...
+# Subtest: witnesses refuse serving on a globally enabled but ineligible or differently scoped host
+ok 12 - witnesses refuse serving on a globally enabled but ineligible or differently scoped host
+  ---
+  duration_ms: 2.918406
+  type: 'test'
+  ...
+# Subtest: generation witnesses refuse a successor lacking matching anchored host admission
+ok 13 - generation witnesses refuse a successor lacking matching anchored host admission
+  ---
+  duration_ms: 95.288988
+  type: 'test'
+  ...
+# Subtest: HTTP generation collection verifies both signatures and returns contract-ordered approvals
+ok 14 - HTTP generation collection verifies both signatures and returns contract-ordered approvals
+  ---
+  duration_ms: 124.452816
+  type: 'test'
+  ...
+# Subtest: generation signing persists denials and requires finalized restoration before a new successor
+ok 15 - generation signing persists denials and requires finalized restoration before a new successor
+  ---
+  duration_ms: 6.957492
+  type: 'test'
+  ...
+# node:internal/modules/esm/resolve:275
+#     throw new ERR_MODULE_NOT_FOUND(
+#           ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/tmp/lca5.mNkXwC/r5/network/runtime-lock.mjs' imported from /tmp/lca5.mNkXwC/r5/network/deployment-journal-owner.mjs
+#     at finalizeResolution (node:internal/modules/esm/resolve:275:11)
+#     at moduleResolve (node:internal/modules/esm/resolve:865:10)
+#     at defaultResolve (node:internal/modules/esm/resolve:989:11)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:182:49) {
+#   code: 'ERR_MODULE_NOT_FOUND',
+#   url: 'file:///tmp/lca5.mNkXwC/r5/network/runtime-lock.mjs'
+# }
+# Node.js v22.23.3
+# Subtest: test/deployment-lifecycle-boundary.test.mjs
+not ok 2 - test/deployment-lifecycle-boundary.test.mjs
+  ---
+  duration_ms: 121.199203
+  type: 'test'
+  location: '/tmp/lca5.mNkXwC/r5/test/deployment-lifecycle-boundary.test.mjs:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: healthy self-hosting produces no recurring state transaction
+ok 17 - healthy self-hosting produces no recurring state transaction
+  ---
+  duration_ms: 9.65574
+  type: 'test'
+  ...
+# Subtest: a crash records queued once and an ambiguous submission never resubmits another intent
+ok 18 - a crash records queued once and an ambiguous submission never resubmits another intent
+  ---
+  duration_ms: 1.697676
+  type: 'test'
+  ...
+# Subtest: readiness failure, stale authority and unconfirmed retirement never start a replacement
+ok 19 - readiness failure, stale authority and unconfirmed retirement never start a replacement
+  ---
+  duration_ms: 0.897933
+  type: 'test'
+  ...
+# Subtest: queued startup failures back off without writing queued again
+ok 20 - queued startup failures back off without writing queued again
+  ---
+  duration_ms: 0.823394
+  type: 'test'
+  ...
+# Subtest: running is submitted only after readiness and is not served until confirmed
+ok 21 - running is submitted only after readiness and is not served until confirmed
+  ---
+  duration_ms: 1.20291
+  type: 'test'
+  ...
+# Subtest: reserve exhaustion fences before a single stopped transition
+ok 22 - reserve exhaustion fences before a single stopped transition
+  ---
+  duration_ms: 1.355199
+  type: 'test'
+  ...
+# Subtest: host-specific rejection queues its own running assignment but never disables it globally
+ok 23 - host-specific rejection queues its own running assignment but never disables it globally
+  ---
+  duration_ms: 0.883203
+  type: 'test'
+  ...
+# Subtest: a host cannot stop a running assignment belonging to another host
+ok 24 - a host cannot stop a running assignment belonging to another host
+  ---
+  duration_ms: 0.534305
+  type: 'test'
+  ...
+# Subtest: a queued deployment remains available for other eligible hosts
+ok 25 - a queued deployment remains available for other eligible hosts
+  ---
+  duration_ms: 0.746674
+  type: 'test'
+  ...
+# Subtest: a fresh proof of an older assignment cannot roll back the durable generation floor
+ok 26 - a fresh proof of an older assignment cannot roll back the durable generation floor
+  ---
+  duration_ms: 0.896003
+  type: 'test'
+  ...
+# Subtest: a merely mined or unproved receipt cannot clear the durable transition outbox
+ok 27 - a merely mined or unproved receipt cannot clear the durable transition outbox
+  ---
+  duration_ms: 1.063631
+  type: 'test'
+  ...
+1..27
+# tests 27
+# suites 0
+# pass 26
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1040.27921

@@ -1,0 +1,3 @@
+test/credit-read-authority.test.mjs candidate 7
+test/browser-read-authority.test.mjs candidate 12
+test/browser-read-authority.test.mjs base 12

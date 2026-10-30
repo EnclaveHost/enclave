@@ -1,0 +1,124 @@
+{
+  "schema": "enclave-windows-qualification-admission-plan/1",
+  "status": "PLAN_ONLY_NOT_ADMITTED_NOT_EXECUTED",
+  "scope": "Existing exact launcher/probe qualification and later EXLOCK; no production mutation, new build, remote observation or execution performed for this plan.",
+  "artifacts": {
+    "launcher": {
+      "sha256": "94a8483ed8eb40734cf578c7b2ffa5c3e6f83357d8268950acff5c47723e8d7c",
+      "bytes": 5632,
+      "qualifiedOnWindows": false
+    },
+    "probe": {
+      "sha256": "6c8d02e90b5596122095021d9a51f6b77d11487f1610e2f32eca84010a0f660b",
+      "bytes": 9216,
+      "qualifiedOnWindows": false
+    },
+    "node": {
+      "version": "v24.16.0",
+      "sha256": "b3094d0b49f9ad602262a9921551737bb97637c05dd357a06ae98188d7290aa3",
+      "numericEXLOCK": 268435456,
+      "qualifiedOnWindows": false
+    }
+  },
+  "existingObservations": [
+    {
+      "file": "evidence/windows-qualification/router-admission/result.json",
+      "observedAtUTC": "2026-10-29T13:49:01.7766952Z",
+      "facts": "Pinned stable full journal chain lastState=observed and pendingPhysicalMiB=0 at that historical read only. Explicit admissible=false; future launches, other commitments and direct/concurrent admissions unknown.",
+      "currentBudgetAuthority": false
+    },
+    {
+      "file": "evidence/windows-qualification/sia-host-result.json",
+      "observedAtUTC": "2026-10-29T19:42:08.661Z",
+      "facts": "Exact Sia guest hve7772b4deaefe02da1766d7cd275a96b running under8091, physicalMemoryMiB8504. This later running VM invalidates reuse of an older capacity snapshot; not a total host inventory or proof of future commitments.",
+      "currentBudgetAuthority": false
+    }
+  ],
+  "currentAdmission": {
+    "hostAvailablePhysicalMiB": null,
+    "hostAvailableCommitMiB": null,
+    "pendingCommitmentsUpperBoundMiB": null,
+    "futureAdmittedNotStartedMiB": null,
+    "otherHostWorkUpperBoundMiB": null,
+    "directLaunchOverlapBounded": false,
+    "admissible": false,
+    "why": "No fresh complete accounting in this lane. Historical journal zero is not current P=0. No live observation authorized by this preparation request.",
+    "earlySetupUpperBoundMiB": null,
+    "higherLiveFloorGuardQualified": false
+  },
+  "accounting": {
+    "P": "Explicit upper bound for all not-yet-reflected commitments: full memory of starting domains, router pending not provably represented, future already-admitted work and other host work. Deduplicate only with exact same-epoch identity evidence; safe double counting allowed. Excludes separately budgeted observer O.",
+    "F": "Fresh OS available physical memory, not nominal pool free. Existing running memory already reduces F; do not subtract a guessed amount or reuse old F.",
+    "O": "Separate independent death observer upper bound. Proposed64MiB reservation only; not measured, implemented or enforced yet. If no reviewed enforcement/accounted upper bound, owner-death phase remains unadmitted.",
+    "initialPhysicalRule": "F >= max(18432, freshly observed live floor) + 256 + P + O + E MiB; no term defaults to zero without evidence.",
+    "initialCommitRule": "Fresh available commit >=256 + O + E MiB plus outstanding not-yet-reflected commit reservations",
+    "routingReserveMiB": 18432,
+    "minimumDesiredResidualMiB": 18432,
+    "ownedTestCommitCapMiB": 256,
+    "notAtomicReservation": true,
+    "overlap": "Coordinator must bound/control concurrent accepted and direct admissions throughout each independently bounded phase, preserving at least the live18432MiB floor. Unknown overlap or bootstrap overhead refuses admission; never stop serving apps to create space.",
+    "E": "Early launcher/observer bootstrap setup before independent guards exist: separately bounded/accounted upper limit required. Not established; unknown is not zero."
+  },
+  "readOnlyPrerequisitePlan": [
+    "Re-observe exact8091 and8095 GET/health + GET/vms with matching managerEpoch per manager, complete ready inventory and source/runtime pins; charge full physicalMemoryMiB for starting rows.",
+    "Read8097 actual listener identity/start/entry/config pins and bounded full launch journal hash-chain through the existing reviewed observation shape. Pending expected.physicalMiB and same-epoch correlation are required. Health503 is only a refusal signal, not a numeric pending upper bound. POST/router/reconcile is a mutation and not used here.",
+    "Obtain coordinator current accepted-but-not-started commitments and known other Windows work, including separate observer, and establish current routing/direct-launch overlap bounds. Unknown stays unknown.",
+    "Read fresh OS physical/commit availability immediately before independently approved execution. Pin one exact private disposable directory and all staged source/binary/config bytes, ACL/no-reparse/hardlink/ownership identity, finite output and disk budgets.",
+    "Confirm current live guestd floor remains18432MiB or use any higher value; separately bound early setup E and observer O. Existing17408MiB pressure cutoff is a gap, not permission to lower the floor."
+  ],
+  "jobLimitsPhase": {
+    "execution": "NOT AUTHORIZED BY THIS PLAN",
+    "launcherDeadlineMs": 30000,
+    "pressurePollMs": 50,
+    "pressureFloorMiB": 17408,
+    "wholeJobCommitMiB": 256,
+    "processLimit": 4,
+    "affinityMask": 1,
+    "probeChildTimeoutMs": 2500,
+    "transportTimeoutSec": 45,
+    "maxOutputBytes": 16384,
+    "maxTestFileBytes": 1048576,
+    "evidence": [
+      "Immediate-job numeric limit flags/cap/processcount/affinity and PID+creation identities",
+      "Child inheritance, slot-four/five and breakaway attempts with immediate raw Win32 error and before/after accounting",
+      "Bounded allocate/touch/free and positive recovery controls; historical peak alone is not causal proof"
+    ],
+    "notProof": [
+      "Exit0 and evidenceCollected do not mean qualification; probe flags intentionally false",
+      "Readback is not enforcement; arbitrary failure is not limit attribution",
+      "Early launcher setup before watchdog is not independently bounded",
+      "Aggregate committed-memory cap is not an RSS guarantee"
+    ],
+    "pressureFloorIsHistoricalArtifactNotPermittedLiveFloor": true,
+    "currentFloorGap": "Existing exact launcher cutoff17408MiB is below live18432MiB floor. It cannot alone establish preservation of the current floor. Root must review separately an existing higher-floor enclosing admission/pressure mechanism or narrowly qualified adjustment before a run; this source task does not alter/build a Job launcher."
+  },
+  "independentDeathObserver": {
+    "status": "REQUIRES_SEPARATE_REVIEW_IMPLEMENTATION_AND_ADMISSION; no observer is currently qualified",
+    "proposedReservedMiB": 64,
+    "proposedOuterLifetimeMs": 45000,
+    "proposedOutputBytes": 16384,
+    "mustRemainOutsideTestJob": true,
+    "requirements": [
+      "Use a separately reviewed bounded observer with explicit enforced/accounted memory/lifetime; proposed numbers are reservations, not existing enforcement facts. Do not silently include it in the256MiB test job.",
+      "Account early setup E separately from steady-state observer O, with independent finite lifetime and containment. An observer not yet under its own guard cannot be assumed inside the proposed64MiB budget.",
+      "Retain the exact created wrapper process handle, PID+creation FILETIME, image hash and unique test receipt nonce. Do not terminate by image name, prefix or recycled PID.",
+      "Confirm exact test descendants and their creation identities/handles after child-ready receipt while wrapper is alive. Never duplicate or inherit the Job handle into the observer, which would keep the Job alive and invalidate kill-on-close evidence.",
+      "Terminate only that exact owned wrapper handle before its normal watchdog deadline; record action/time/error and independently wait for known descendant handles to signal exit. Unexpected owner death must be distinguished from normal parent exit and normal timeout.",
+      "If observer containment, target identity, child receipt, attribution or output/lifetime bound is unproven, do not launch death phase. If observed outcome is ambiguous, retain incomplete evidence and exact owned paths; no automatic retry or broad cleanup."
+    ],
+    "notImplementation": "This describes a required independent observation design; it creates no runnable dispatcher, source binary or qualification record."
+  },
+  "laterEXLOCK": [
+    "Only after independent assessment of appropriate Job evidence and fresh admission select one separate exact existing EXLOCK test. No automatic follow-on.",
+    "Verify exact deployed Node version/executable hash and candidate numeric flag; independently observe second-process open/rename/delete refused while held, holder death releases, and same-process second open refused. Capture raw errors and positive control reopening so generic failures are not called exclusion.",
+    "Record exact observed evidence hash and runtime-qualified configuration only after root review. Existing validateExlockQualification checks do not turn an authored true Boolean into evidence.",
+    "Power-loss/FlushFileBuffers, full Windows guard/reboot/native useful workload and production install/cutover remain separate unsatisfied gates."
+  ],
+  "cleanup": "Exact owned whitelisted disposable files only after all recorded process identities are gone; nonrecursive cleanup. No production journal/config/state changes. Preserve evidence and uncertainty on timeout/pressure/transport loss.",
+  "financialAndProductionFreeze": "No payments, grants, claims, hints, service/app restart or configuration activation. Sia funding transaction9d58496d32380bcefa54082e079ad01c9e342e86b740106d297c95a47a982dfa already succeeded and must not be repeated.",
+  "liveFloorInstruction": {
+    "source": "Coordinator message in this chat, current root repair7d8f6afcd3649da077805c25ad2798a15a5a9de9",
+    "guestdFloorMiB": 18432,
+    "rule": "Use at least18432MiB or a higher freshly observed live floor. The historical17408MiB proposal cannot weaken this."
+  }
+}

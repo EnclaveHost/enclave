@@ -1,0 +1,4 @@
+db0860e9ffb8c2eb11c1fc3916ace348cb2a9a0214f998f5b6c5e7cac1f37e24  ./README.md
+cb0140aaa61496c7bd61a393f5a74b3abcfb8f76808c1aad73b6185f226b1130  ./helios_l1.mjs
+688b7a1f09c898f66cc7b92473a9fbda042402ef833bb983ff794e5f07128fb0  ./schedule_reader.mjs
+eed22cdb0847c908bde9ad579c5dc14ecf6b36de8713f6f23742c1ce0c34edba  ./test/schedule_reader.test.mjs

@@ -1,0 +1,19 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] START available=22650MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "ok": true,
+ "rc": 0,
+ "tests": 3,
+ "pass": 3,
+ "fail": 0,
+ "skipped": 0,
+ "todo": 0,
+ "cancelled": 0,
+ "expected": "3/3, nothing skipped"
+}
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/offchain-registration-fixture-stage/runs/20261026T040819Z-831175
+## offchain-registration rc=0
+[memory-guard] exit=0 peakTreeRssMiB=403 minHostAvailableMiB=21714
+[memory-guard] at peak: node:223 node:90 node:58 anvil:24 bash:4 timeout:2 bash:2
+[queue] EXIT 0

@@ -5,6 +5,8 @@
 import { createHash } from 'node:crypto';
 import { verifyVbsAppEvidence } from './vbs-app-verify.mjs';
 import { platformsValid, platformAdmitted } from './vbs-app-core.mjs';
+import { shieldImageCandidates } from './shield-image-candidates.mjs';
+import { imageIdentityPins } from './vbs-image-identity.mjs';
 
 const HEX = /^[0-9a-f]{64}$/;
 // policy.hosts: the host names admitted to the Shield market, or "*" (the open market, 2026-10-11): any hv-node whose
@@ -13,6 +15,9 @@ export const shieldHostAdmitted = (policy, name) => !!policy && !!name &&
   (policy.hosts === '*' || (Array.isArray(policy.hosts) && policy.hosts.includes(name)));
 // platformsValid / platformAdmitted: relay/vbs-app-core.mjs (shared with the browser verifier), re-exported here unchanged
 export { platformsValid, platformAdmitted } from './vbs-app-core.mjs';
+
+export { shieldImageCandidates } from './shield-image-candidates.mjs';
+
 export function verifyShieldAppPolicy(input, policy = {}) {
   const no = reason => ({ ok: false, reason });
   try {
@@ -25,14 +30,12 @@ export function verifyShieldAppPolicy(input, policy = {}) {
       return no('explicit image/runtime pairs are required');
     // Caller must obtain these expected identities independently from the
     // deployment and its catalog artifact, not from the app's report.
-    const candidates = images.filter(p => p.runtimeId === input?.expectedRuntimeId &&
-      (!input.requiresConfigBundleV5 || p.configBundleV5 === true) &&
-      (!input.requiresSecretsV1 || p.secretsV1 === true) &&
-      (!input.requiresConfigSocketServer || p.configSocketServer === true));
+    const candidates = shieldImageCandidates(policy, { ...input, runtimeId: input?.expectedRuntimeId });
     if (!candidates.length) return no('runtime has no admitted image');
     const v = verifyVbsAppEvidence(input, {
       ekRoots: policy.ekRoots,
       allowedMeasurements: candidates.map(p => p.measurement),
+      imageIdentities: imageIdentityPins(candidates),
       minimumGuestSvn: policy.minimumGuestSvn ?? 0,
     });
     if (!v.ok) return v;

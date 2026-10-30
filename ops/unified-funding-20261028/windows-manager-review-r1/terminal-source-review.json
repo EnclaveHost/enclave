@@ -1,0 +1,99 @@
+{
+  "candidateExecutedHere": false,
+  "findings": [
+    {
+      "id": "scope",
+      "path": "control/windows/vbslike/manager/permit-enforcement.mjs",
+      "observedSha256": "d60b5004b826296a41d0d316e32f5027771beca22ef186781fab9aeb88e186bb",
+      "status": "Confirmed frozen-source implementation gap; no candidate execution",
+      "note": "Protected derivations are /1 and /5 only; desktop/GPU/secrets/ports/volumes/config sockets explicitly excluded. Does not cover KVM desktop migration.",
+      "frozenSha256": "d60b5004b826296a41d0d316e32f5027771beca22ef186781fab9aeb88e186bb",
+      "unchangedSinceObservation": true
+    },
+    {
+      "id": "authority",
+      "path": "control/windows/vbslike/manager/authority-reader.mjs",
+      "observedSha256": "3dff09f723136ddfef938f9379050d2b413ef6473533919e619de74ac6ace240",
+      "status": "Confirmed frozen-source implementation gap; no candidate execution",
+      "note": "Production factory unconditionally throws AUTHORITY_UNAVAILABLE; owner-independent verified positive path absent.",
+      "frozenSha256": "3dff09f723136ddfef938f9379050d2b413ef6473533919e619de74ac6ace240",
+      "unchangedSinceObservation": true
+    },
+    {
+      "id": "guard_entry",
+      "path": "control/windows/vbslike/guard/guard-main.mjs",
+      "observedSha256": "a9a8c71b73e7fb2c25bb3c0e8963b51599c3f2fa4b5c32e0cef7777d94b51132",
+      "status": "Resolved in final authored revision, still unexecuted",
+      "note": "Author replaced pathname with fileURLToPath and imported it; original provisional Windows drive issue no longer present.",
+      "frozenSha256": "91bc2ee77dc0f9e76a2773388d6a2443e4b7b35da9e76f21eda33db7e15a2fce",
+      "unchangedSinceObservation": false
+    },
+    {
+      "id": "windows_exclusion",
+      "path": "control/windows/vbslike/manager/win-durable.mjs",
+      "observedSha256": "cac3cb1e78658ed37d93d1da96a03806ec477c0a327f6d5ad522b843587dd556",
+      "status": "Confirmed deployment blocker from frozen source plus coordinator installed-runtime observation",
+      "note": "Confirmed installed Node v24.16.0 has fs.constants.UV_FS_O_EXLOCK absent in approved coordinator readonly probe. Current implementation therefore refuses Windows ownership. Runtime-specific numeric flag test only prepared, not executed.",
+      "frozenSha256": "cac3cb1e78658ed37d93d1da96a03806ec477c0a327f6d5ad522b843587dd556",
+      "unchangedSinceObservation": true
+    },
+    {
+      "id": "release_race",
+      "path": "control/windows/vbslike/manager/permit-journal.mjs",
+      "observedSha256": "a44baa74a3a434cae1343ddd0f733f46db426ae1e438bf4ac1c18be4b9a6f7aa",
+      "status": "Frozen-source concern requiring isolated qualification; no candidate execution here",
+      "note": "release begins asynchronous listeners but assertLive delegates only log.assertLive until handleclose; retained methods remain usable while release pending. Requires root race qualification.",
+      "frozenSha256": "a44baa74a3a434cae1343ddd0f733f46db426ae1e438bf4ac1c18be4b9a6f7aa",
+      "unchangedSinceObservation": true
+    },
+    {
+      "id": "guard_registration",
+      "path": "control/windows/vbslike/guard/guard-core.mjs",
+      "observedSha256": "f616c24915c755fc1519b80d2bf4103de249c93a1c7151cb66687aec3984e7c3",
+      "status": "Frozen-source concern requiring isolated qualification; no candidate execution here",
+      "note": "register durably records armed before #arm validates wallUntil stillfuture. Failed #arm leaves record without live timer; sessionEnded iterates live only. Requires stale-registration/death qualification.",
+      "frozenSha256": "f616c24915c755fc1519b80d2bf4103de249c93a1c7151cb66687aec3984e7c3",
+      "unchangedSinceObservation": true
+    },
+    {
+      "id": "withdraw_ack",
+      "path": "control/windows/vbslike/manager/permit-enforcement.mjs",
+      "observedSha256": "d60b5004b826296a41d0d316e32f5027771beca22ef186781fab9aeb88e186bb",
+      "status": "Frozen-source concern requiring isolated qualification; no candidate execution here",
+      "note": "withdraw catches closeInstance failure and continues; hold returns ingress=true regardless of close failure. Removal may proceed, but positive ingress acknowledgment lacks observed closure on error.",
+      "frozenSha256": "d60b5004b826296a41d0d316e32f5027771beca22ef186781fab9aeb88e186bb",
+      "unchangedSinceObservation": true
+    },
+    {
+      "id": "independent_removal",
+      "path": "control/windows/vbslike/manager/permit-enforcement.mjs",
+      "observedSha256": "d60b5004b826296a41d0d316e32f5027771beca22ef186781fab9aeb88e186bb",
+      "status": "Frozen-source concern requiring isolated qualification; no candidate execution here",
+      "note": "#remove awaits rawspawn then manager.removeRecord (legacy backendstop); separate guard handles independent removal while alive. Guardloss path still depends on legacy sequentialcleanup; test hungcleanup with guardunavailable.",
+      "frozenSha256": "d60b5004b826296a41d0d316e32f5027771beca22ef186781fab9aeb88e186bb",
+      "unchangedSinceObservation": true
+    },
+    {
+      "id": "journal_replay",
+      "path": "control/windows/vbslike/manager/permit-journal.mjs",
+      "observedSha256": "a44baa74a3a434cae1343ddd0f733f46db426ae1e438bf4ac1c18be4b9a6f7aa",
+      "status": "Frozen-source concern requiring isolated qualification; no candidate execution here",
+      "note": "Replay places lc/ha/inst row bodies directly in maps without schema/transition validation. Hashchain integrity alone is not semantic validation; root corruption tests needed.",
+      "frozenSha256": "a44baa74a3a434cae1343ddd0f733f46db426ae1e438bf4ac1c18be4b9a6f7aa",
+      "unchangedSinceObservation": true
+    }
+  ],
+  "additionalBlockingGaps": [
+    "Production factory unconditionally unavailable; no positive independentauthority path",
+    "KVMdesktop/GPU/secrets not admitted",
+    "Supervisor allow/hold and isolation-client protectedroute/attachment adapter not written (authorreport)",
+    "Positive composite protectedstage path nottested (authorreport)",
+    "Five generated runtime dependencies omitted; viem version/lock unpinned; release manifest unchanged"
+  ],
+  "rootEvidenceReferences": [
+    "post-admission-runtime-observation.json",
+    "post-admission-general-bootstrap-reference.json",
+    "post-admission-vendor-hash-audit.json",
+    "post-admission-baseline-reference.json"
+  ]
+}

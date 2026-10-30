@@ -1,0 +1,37 @@
+
+== .text: 1199 differing runs, 1393 bytes; by crate (bytes):
+        81  base_common_precompiles   e.g. base_common_precompiles::policy::storage::PolicyRegistryStorage::new::h5453864f5d9a59bd
+        30  X509_verify_cert_error_string   e.g. X509_verify_cert_error_string
+        27  ch_on_transport_params   e.g. ch_on_transport_params
+        19  dtls_get_more_records   e.g. dtls_get_more_records
+        19  ec_to_text   e.g. ec_to_text
+        19  rsa_sign_directly   e.g. rsa_sign_directly
+        17  rsa_get_ctx_params   e.g. rsa_get_ctx_params
+        15  ossl_quic_handle_frames   e.g. ossl_quic_handle_frames
+        15  ossl_ml_kem_d2i_PKCS8   e.g. ossl_ml_kem_d2i_PKCS8
+        13  default_fixup_args.part.0   e.g. default_fixup_args.part.0
+        13  ossl_ffc_params_FIPS186_4_gen_verify   e.g. ossl_ffc_params_FIPS186_4_gen_verify
+        13  rsa_set_ctx_params   e.g. rsa_set_ctx_params
+   functions touched: 532; top:
+        81  base_common_precompiles::policy::storage::PolicyRegistryStorage::new::h5453864f5d9a59bd
+        30  X509_verify_cert_error_string
+        27  ch_on_transport_params
+        19  dtls_get_more_records
+        19  ec_to_text
+        19  rsa_sign_directly
+        17  rsa_get_ctx_params
+        15  ossl_quic_handle_frames
+
+== .rodata: 333 differing runs, 29150 bytes; by crate (bytes):
+     29150  (no symbol)   e.g. (no symbol)
+   first differing runs (printable context, 40 bytes each side):
+   +0xbada0 len 181: pin '.c......built on: Fri Oct 23 01:31:58 2026 UTC..' | cand '.c......Specifies an ENGINE id name for loading.'
+   +0xbae58 len 34: pin 'ntext...post handshake auth encoding err........' | cand '........ssl ctx has no default ssl version......'
+   +0xbae80 len 34: pin '........ssl ctx has no default ssl version......' | cand 'on......tlsv1 alert unknown psk identity........'
+   +0xbaea8 len 70: pin 'on......tlsv1 alert unknown psk identity........' | cand '........id-smime-aa-ets-RevocationRefs..id-smime'
+   +0xbaef3 len 81: pin 'efs..id-smime-aa-ets-archiveTimeStamp........id-' | cand '.....id-tc26-signwithdigest-gost3410-2012-512...'
+   +0xbaf48 len 118: pin '........id-tc26-gost-3410-2012-512-constants....' | cand 'ants....Microsoft Application Policies Extension'
+
+== .rela.dyn: 674 differing runs, 840 bytes; by crate (bytes):
+       840  (no symbol)   e.g. (no symbol)
+[memory-guard] exit=0 peakTreeRssMiB=172 minHostAvailableMiB=21328

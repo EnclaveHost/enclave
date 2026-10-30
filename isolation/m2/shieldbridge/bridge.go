@@ -25,11 +25,26 @@ type Bridge struct {
 	// lifetime, rather than evicting it merely because inference is idle.
 	// Peer checks, connection limits, disconnect cleanup and cancellation still apply.
 	KeepIdleConnections bool
+	// RootOwnedSocket is an explicit opt-in for the measured native desktop
+	// masking service. Serve then requires effective uid 0 and UID > 0 before
+	// touching the filesystem, and leaves the socket owned 0:UID with mode 0660
+	// (group UID, i.e. the user's private group). Peers are still authorized
+	// only by SO_PEERCRED uid == UID; root and other group members are refused.
+	// The transport and worker route are unchanged. The flag does not provide
+	// parent directory safety (which also bounds the brief umask-derived mode
+	// between bind and chmod), worker reservation or authentication, or call
+	// timing; those remain the caller's obligations. False keeps the default.
+	RootOwnedSocket bool
 }
 
 func (b Bridge) Serve(ctx context.Context, ready chan<- error) error {
 	if !filepath.IsAbs(b.Path) || b.UID < 0 || b.Dial == nil {
 		err := errors.New("invalid shield broker configuration")
+		ready <- err
+		return err
+	}
+	if b.RootOwnedSocket && (b.UID == 0 || os.Geteuid() != 0) {
+		err := errors.New("root-owned shield broker socket requires euid 0 and a non-root peer UID")
 		ready <- err
 		return err
 	}
@@ -45,7 +60,16 @@ func (b Bridge) Serve(ctx context.Context, ready chan<- error) error {
 		return err
 	}
 	defer ln.Close()
-	if err = os.Chmod(b.Path, 0600); err == nil {
+	if b.RootOwnedSocket {
+		// Keep owner-only permissions while changing the group, then grant
+		// access to that group. Never change the concurrent process umask.
+		if err = os.Chmod(b.Path, 0600); err == nil {
+			err = os.Chown(b.Path, 0, b.UID)
+		}
+		if err == nil {
+			err = os.Chmod(b.Path, 0660)
+		}
+	} else if err = os.Chmod(b.Path, 0600); err == nil {
 		err = os.Chown(b.Path, b.UID, -1)
 	}
 	if err != nil {

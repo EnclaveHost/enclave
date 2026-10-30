@@ -1,0 +1,15 @@
+# Firmware boot experiment — not a production release
+
+October28 2026. The original installed firmware failed loading the unchanged approximately724MiB image with EFI_OUT_OF_RESOURCES in both56GiB and GPU-free4GiB guests. The pinned source defers acceptance of ordinary memory above4GiB; Q35 gives a large guest2GiB low RAM, while firmware retains the initrd blob and Linux requests another copy. The candidate permits at most2GiB ordinary high RAM in [4GiB,6GiB) and leaves the remainder lazily accepted, preserving SNP prevalidation and blob verification.
+
+Claude prepared the source; root corrected a short-duplicate range case and a missing test include.5,282 assertions pass under ASan/UBSan. The model tests are not execution of the complete PEI implementation. Source patch dry-run applied without fuzz. All builds used isolated copies, one build thread, private network, bounded memory/no swap and read-only original/production paths.
+
+Unpatched RELEASE rebuild2bcca0a2 differs from installed142589cc. Candidate RELEASE5c4840cd and DEBUG0598d551 are new firmware builds requiring new measurements; no exact-installed-binary reconstruction claim. Original firmware and production allowlists remain unchanged.
+
+Actual GPU-free boots of the unchanged image reached guest init with both4GiB and8GiB (split path). DEBUG logged successful kernel/initrd/cmdline verification. Missing GPU rings intentionally caused subsequent guest shutdown; these runs do not qualify inference. DEBUG missing-table and initrd-substitution cases explicitly refused before Linux. RELEASE matching control and missing-table cases passed, but its substitution case silently timed out: INCONCLUSIVE, not a verified rejection. Source CpuDeadLoop is consistent with the observation; that does not substitute for positive runtime evidence. The DEBUG build can be used for isolated A/B with both arms identically pinned; no production firmware qualification is claimed.
+
+The historical test-QEMU first failed before guest execution because libnfs16 was absent. A private library extracted from a locally cached, signature-verified Arch package enabled the retry; no system library install occurred. Test-QEMU control then booted and verified hashes before the substitution case. Every owned canary was cleaned; production processes and floors were preserved.
+
+Further limits: no fresh independently verified quote or full inference result from these boot checks. Kernel/cmdline substitution and malformed-table cases are not tested here. Existing verifier behavior for unknown GUIDs remains an existing security limitation. No production admission reductions, rollout, wallet actions or RPC starts occurred. Loader-only16.37GiB savings remain the only measured RAM comparison so far.
+
+Helpers retain installation-specific paths and require new output directories, fresh capacity and shared-lane coordination. Never replay old output directories or substitute candidate firmware into a production release manifest. Build logs summarized here exclude bulky compile output; complete local logs remain in the documented workspace.

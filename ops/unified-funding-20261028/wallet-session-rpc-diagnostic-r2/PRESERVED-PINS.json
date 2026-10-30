@@ -1,0 +1,22 @@
+[
+  {
+    "path": "attempt",
+    "sha256": "6120b64b073c52d7eb79d3a3865939f15bbd0509802f4f5de1ae51f2f66f2b97"
+  },
+  {
+    "path": "inner.guard.log",
+    "sha256": "bcaf20bad6a9b8567a8dcd3d66cf896787a450ba043b4acafcfb98ef3ccca594"
+  },
+  {
+    "path": "outer.guard.log",
+    "sha256": "b5b1a42a289a7900ee2a93b3e4c919839299710674f41d59f8d1dbc94de41afd"
+  },
+  {
+    "path": "read.mjs",
+    "sha256": "19e190732702d9ccce4b95fc8013f4fe142095840c05ade1becff13556d5c459"
+  },
+  {
+    "path": "result.json",
+    "sha256": "aa412a9dd2da3a3052fabc275094e8b95aae36bb5fc3c4e01038146893fd0dfc"
+  }
+]

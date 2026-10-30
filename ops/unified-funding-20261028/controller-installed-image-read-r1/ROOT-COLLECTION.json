@@ -1,0 +1,36 @@
+{
+  "pinsUnchanged": 5,
+  "unit": "LoadState=not-found\nActiveState=inactive\nMainPID=0\n",
+  "terminalResult": {
+    "imageUnchanged": true,
+    "compressedSha256": "c190c040485974a840b40e31a6dd068cc103199cf15315ef9c8c7575781b28e3",
+    "totalUncompressedBytes": 816190492,
+    "entries": 29064,
+    "targets": {
+      "app/supervisor.js": [
+        {
+          "sha256": "01ac9cb17a5a5af6df8992121c75239a580845748ae89f3843e080a617a5f951",
+          "bytes": 811736,
+          "mode": 33188
+        }
+      ],
+      "opt/metal/gsup.mjs": [
+        {
+          "sha256": "c2896d743e36be8fa1832f1f6f0e41042140b61549fd780f32c1921d5a157e99",
+          "bytes": 49848,
+          "mode": 33188
+        }
+      ],
+      "opt/metal/agent.mjs": [
+        {
+          "sha256": "4917a30f7cba99c2406d9ea7009a4ce13385f34bb77823d370828f0e7dbb356a",
+          "bytes": 27135,
+          "mode": 33188
+        }
+      ]
+    },
+    "currentSelectedSourceMatches": true,
+    "clientExecuted": false
+  },
+  "outerGuard": "[memory-guard] exit=0 peakTreeRssMiB=87 minHostAvailableMiB=32718\n"
+}

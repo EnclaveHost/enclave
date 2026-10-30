@@ -1,0 +1,7 @@
+{
+  "schema": "client-site-browser-r1-generator-pins/v1",
+  "note": "ROOT FILLS the sha256 of the root-qualified prior fixture server (as root last ran it, including root's lost-reply fix). generator/generate.py refuses null or drift.",
+  "inputs": {
+    "client-browser-migration-r1/harness/server.mjs": "48246ef1b746ab57705586b894012cc8517d8cfd073fcba928b5f470bf1c53ef"
+  }
+}

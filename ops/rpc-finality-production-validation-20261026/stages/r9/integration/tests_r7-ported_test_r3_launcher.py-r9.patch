@@ -1,0 +1,24 @@
+--- a/tests/r7-ported/test_r3_launcher.py
++++ b/tests/r7-ported/test_r3_launcher.py
+@@ -582,5 +582,21 @@
+             self.assertIs(W.service_identity(), self.pw); g.assert_called_with('rpcbase')
+ 
+ 
++
++class FirstBootstrapStateFrontier(Pipeline):
++    """r9: the FIRST-BOOTSTRAP harness (a2-v2 + the pinned checkpoint parser) over the pinned-format fake: labels at the snapshot head
++    but Finish.partial_state_trie BELOW the anchor N -> A2 refuses state_below_anchor (labels are not state)"""
++    def test_first_bootstrap_refuses_a_state_frontier_below_the_anchor(self):
++        self.state['finishPartial'] = TA.N - 10; self.write()
++        wd = pathlib.Path(self.cfg['workdir']); before = set(wd.glob('run-a2-*.json')) if wd.exists() else set()
++        with self.assertRaises(Exception):
++            self.launched()                                           # the first step (a2) must refuse
++        new = sorted(set(wd.glob('run-a2-*.json')) - before); self.assertTrue(new, 'a2 wrote no run record')
++        rec = json.loads(new[0].read_text()); self.assertTrue(str(rec.get('refused')).startswith('state_below_anchor'), rec)
++
++
++for _n in [n for n in dir(Pipeline) if n.startswith('test_')]:
++    setattr(FirstBootstrapStateFrontier, _n, None)
++
+ if __name__ == '__main__':
+     unittest.main(verbosity=2)

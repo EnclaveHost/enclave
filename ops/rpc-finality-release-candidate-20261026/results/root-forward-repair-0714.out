@@ -1,0 +1,8 @@
+[queue] START available=19810MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+## FAIL: forward-sync: rc 1, Ran 8 (expected 8), last FAILED (errors=1) (see /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10-forward-repair/logs/root-r10-forward-repair-tests-20261026T071336Z-1119615/forward-sync.txt)
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10-forward-repair/logs/root-r10-forward-repair-tests-20261026T071336Z-1119615
+## r10-forward-repair SHA256SUMS e4239ae276db3334a72b2e09bfc052ffc95ff755a90ae0d76ee5f9f260419665
+## r10-forward-repair rc=1
+[memory-guard] exit=1 peakTreeRssMiB=111 minHostAvailableMiB=18679
+[memory-guard] at peak: node:66 python3:36 bash:4 timeout:2 bash:2
+[queue] EXIT 1

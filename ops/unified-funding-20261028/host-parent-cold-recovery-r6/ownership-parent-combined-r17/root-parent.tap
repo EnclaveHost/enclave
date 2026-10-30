@@ -1,0 +1,23 @@
+TAP version 13
+# Subtest: ROOT10 live owner can archive an observed exact pending intent without changing another app
+ok 1 - ROOT10 live owner can archive an observed exact pending intent without changing another app
+  ---
+  duration_ms: 10.166046
+  type: 'test'
+  ...
+ROOT10 parent outcome {"refused":true,"observed":{"digest":"0x7272727272727272727272727272727272727272727272727272727272727272","payload":"PUBLIC_TEST_B"}}
+# Subtest: ROOT10 released sidecar must not use stale parent state to erase the next owner pending intent
+ok 2 - ROOT10 released sidecar must not use stale parent state to erase the next owner pending intent
+  ---
+  duration_ms: 8.331769
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 363.629471

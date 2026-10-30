@@ -1,0 +1,34 @@
+[queue] START available=17453MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+{"format": "enclave-guest-call-diagnostic-status/v3", "kind": "diagnostic observations only; NOT a capture, readiness or finality verdict", "variants": ["100", "400"], "phases": {"A": "complete", "B100": "complete", "B400": "complete"}, "invariants": {"ok": true, "violations": []}, "complete": true}
+## diag rc=0
+{
+ "run": "run-20261026T073520Z-2f5bf737",
+ "verdict": "complete",
+ "kind": "diagnostic observations only; NOT a capture, readiness or finality verdict",
+ "guestRc": "0",
+ "stopCollectRc": 0,
+ "deleteRc": 0,
+ "hostFloorBreach": false,
+ "status": {
+  "format": "enclave-guest-call-diagnostic-status/v3",
+  "kind": "diagnostic observations only; NOT a capture, readiness or finality verdict",
+  "variants": [
+   "100",
+   "400"
+  ],
+  "phases": {
+   "A": "complete",
+   "B100": "complete",
+   "B400": "complete"
+  },
+  "invariants": {
+   "ok": true,
+   "violations": []
+  },
+  "complete": true
+ }
+}
+## guest-diag r3 rc=0 (complete)
+[memory-guard] exit=0 peakTreeRssMiB=53 minHostAvailableMiB=17216
+[memory-guard] at peak: python3:49 bash:4
+[queue] EXIT 0

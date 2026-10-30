@@ -1,0 +1,70 @@
+{
+  "changes": {
+    "RELEASE-CLOSURE-R5.json": {
+      "seedSha256": null,
+      "finalSha256": "74d79168884ed9f0838ae9479648d85d793ab0f29e8ee4706d68c7714cbf370a",
+      "kind": "new"
+    },
+    "REPORT-WINDOWS-PERMIT-R5.md": {
+      "seedSha256": null,
+      "finalSha256": "8323a1f31d54571d2ac89edfa718f2c87d45da5a9fc30d39db1ba8406a00c712",
+      "kind": "new"
+    },
+    "control/windows/node/host.mjs": {
+      "seedSha256": "dde60f6ed2f53121692f94201c98e7819f3a293e5ca606e6a9ec4b39b76fab24",
+      "finalSha256": "963eb018d5d85d26af04a7cf6ef73d600afb8e3135d397176246d9c494f0be60",
+      "kind": "modified"
+    },
+    "control/windows/node/isolation-lifecycle.mjs": {
+      "seedSha256": "b663fa3fd194c80e668a675ae83ebf4120ab232bb775e64c74ecfadf05cd6ddf",
+      "finalSha256": "72c758d087f04e6a1072c7298c5ccac12a17158c7bf0c068e9a7a4e8f3974cdd",
+      "kind": "modified"
+    },
+    "control/windows/node/protected-isolation.mjs": {
+      "seedSha256": "b66a83f90ba975c03c9fce67ebe719ca56c8997fc0b61d69bcc7e573b7cf2a8c",
+      "finalSha256": "0bdff2511a78a9f766b727ea6c629906301ed24505db10224d571638116cfe7c",
+      "kind": "modified"
+    },
+    "control/windows/node/protected-supervisor.mjs": {
+      "seedSha256": "14fa74cdb4d30d55fda4e6a09ee7d11ff98c321f39f36c4769b01babbf57a982",
+      "finalSha256": "85ad3ecc210e3c970c3d3e0d6b65836de2c4df91c94194fbece1d3ddce285d19",
+      "kind": "modified"
+    },
+    "control/windows/vbslike/manager/permit-enforcement.mjs": {
+      "seedSha256": "a0a694619d8074c49da4e69caa1d443a9f332f4eb1ab664b73397221e7a97de6",
+      "finalSha256": "696a3de6210386ee2e58f945cd002f04fa334d8169684bf165bb0b38f8f3dfbd",
+      "kind": "modified"
+    },
+    "control/windows/vbslike/manager/permit-journal.mjs": {
+      "seedSha256": "c71f2efaea724a0fdecee9ace4cf39f4eb226f5ab948aeddbaa955efbb5f96f5",
+      "finalSha256": "fba96d522f1f4972c91f0d1df2aeba1ba8a76961d04d89a283822b093fe2288b",
+      "kind": "modified"
+    },
+    "control/windows/vbslike/manager/protected-manager.mjs": {
+      "seedSha256": "2138b52f660808a7419616c44b83e5aee8bfd112ba6d4155f82f826379506581",
+      "finalSha256": "deea3d61f537f0a7c3d54e70ce4e0c0f4f93d9775b59e05090d0a6e23eb932e5",
+      "kind": "modified"
+    },
+    "control/windows/vbslike/router/control.mjs": {
+      "seedSha256": "e2bf6ea711d9894aba92fbfb77048adeac0cbdeba135b72f71c7ebc3796424cf",
+      "finalSha256": "6e1a760732f3b4e3d9830d7a06bfc190b3324c5e5f109e600a4666ce75c5df48",
+      "kind": "modified"
+    },
+    "package.json": {
+      "seedSha256": null,
+      "finalSha256": "9273907b499a06476d63a82ea84158f912e83503dc1303fa40f01ae4a077b63a",
+      "kind": "new"
+    },
+    "test/windows-permit/r4-supervisor-chain.test.mjs": {
+      "seedSha256": "d40b3aca19de5a448ae894878959d5cadb4d7ba40fafbe0f6b1f667768869742",
+      "finalSha256": "ee25c0c2d6471b9fc7b4e8bd22780118bbb06bf7fa41e1899aea68a671fbc431",
+      "kind": "modified"
+    },
+    "test/windows-permit/r5-ownership-chain.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "81e523dd27d1e31c2e0c801b43ec669e7a497846db9ce7d8850a133b607208d6",
+      "kind": "new"
+    }
+  },
+  "removed": []
+}

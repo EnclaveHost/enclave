@@ -1,0 +1,30 @@
+test_01_production_allowlist_exact (__main__.T.test_01_production_allowlist_exact) ... ok
+test_02_allowlist_refusals (__main__.T.test_02_allowlist_refusals) ... ok
+test_03_copy_exact_and_double_read (__main__.T.test_03_copy_exact_and_double_read) ... ok
+test_04_no_symlink_or_hardlink_or_metadata_drift (__main__.T.test_04_no_symlink_or_hardlink_or_metadata_drift) ... ok
+test_05_stop_leaves_partial_only (__main__.T.test_05_stop_leaves_partial_only) ... ok
+test_06_plan_qemu_info_receipt (__main__.T.test_06_plan_qemu_info_receipt) ... ok
+test_07_view_mount_and_fs_header (__main__.T.test_07_view_mount_and_fs_header) ... ok
+test_08_ready_only_from_our_exec_child (__main__.T.test_08_ready_only_from_our_exec_child) ... ok
+test_09_production_refusals_before_anything (__main__.T.test_09_production_refusals_before_anything) ... REFUSED: production needs --request, --request-sha256, --stage-sums and at least the pinned floors
+REFUSED: production needs --request, --request-sha256, --stage-sums and at least the pinned floors
+REFUSED: production needs --request, --request-sha256, --stage-sums and at least the pinned floors
+REFUSED: fixture mode needs --backup --allowlist --uuid --fs-blocks --fuse2fs(+sha) --view-target
+ok
+test_10_coordination_filter (__main__.T.test_10_coordination_filter) ... ok
+test_11_lane_1024_and_host_floor_headroom (__main__.T.test_11_lane_1024_and_host_floor_headroom) ... ok
+test_12_backup_bound_to_its_fresh_post_chmod_identity (__main__.T.test_12_backup_bound_to_its_fresh_post_chmod_identity) ... ok
+test_13_receipt_write_failure_is_never_rc0 (__main__.T.test_13_receipt_write_failure_is_never_rc0) ... ok
+test_14_state_pins_only_from_a_clean_receipt (__main__.T.test_14_state_pins_only_from_a_clean_receipt) ... REFUSED: --run-dir is not a production extraction run dir
+ok
+test_15_fixture_mode_never_touches_production (__main__.T.test_15_fixture_mode_never_touches_production) ... REFUSED: fixture mode must never name the production backup
+REFUSED: fixture dest must lie in a /vm E2E workspace /vm/enclave-volumes/tr004-base-recovery-20261026/compact-header-e2e-<UTC>-<pid>[/x[/y]]
+REFUSED: fixture mode uses the same pinned floors
+REFUSED: fixture mode uses the same pinned floors
+ok
+test_16_metadata_fixture_mirrors_production (__main__.T.test_16_metadata_fixture_mirrors_production) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 0.708s
+
+OK

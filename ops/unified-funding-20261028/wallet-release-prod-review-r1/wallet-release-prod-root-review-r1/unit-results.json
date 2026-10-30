@@ -1,0 +1,8 @@
+{
+  "enclave-wallet-prod-root-r1-baseline": "ActiveState=inactive\nInvocationID=\nMainPID=0\nResult=success\n",
+  "enclave-wallet-prod-root-r1-regressions": "ActiveState=inactive\nInvocationID=\nMainPID=0\nResult=success\n",
+  "enclave-wallet-prod-root-r1-repaired": "ActiveState=failed\nInvocationID=d500cd3555a64af7b9e46eabd4429f69\nMainPID=0\nResult=exit-code\n",
+  "enclave-wallet-prod-root-r2-repaired": "ActiveState=inactive\nInvocationID=\nMainPID=0\nResult=success\n",
+  "enclave-wallet-prod-root-r3-repaired": "ActiveState=inactive\nInvocationID=\nMainPID=0\nResult=success\n",
+  "enclave-wallet-prod-browser-r1": "ActiveState=failed\nInvocationID=59d9440842d042cda9c2499c13c70921\nMainPID=0\nResult=exit-code\n"
+}

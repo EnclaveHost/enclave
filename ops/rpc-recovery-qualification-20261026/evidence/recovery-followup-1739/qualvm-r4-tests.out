@@ -1,0 +1,211 @@
+test_argv_shape_unchanged_from_r2_and_always_restricted (test_qualvm.Argv.test_argv_shape_unchanged_from_r2_and_always_restricted) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/qualvm.py:82: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/.local/state/enclave-rpc-production/manifest.json' mode='r' encoding='UTF-8'>
+  text = open(f'{PROD}/manifest.json').read(); m = json.loads(text); msha = pv.sha256_text(text)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/qualvm.py:83: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/.config/systemd/user/enclave-rpc-production-vm.service' mode='r' encoding='UTF-8'>
+  if open(f'{PROD_UNITS}/{PROD_UNIT_NAMES[0]}').read() != pv.render_unit(m, msha) or \
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/qualvm.py:84: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/.config/systemd/user/enclave-rpc-production-guard.service' mode='r' encoding='UTF-8'>
+  open(f'{PROD_UNITS}/{PROD_UNIT_NAMES[1]}').read() != pv.render_guard_unit(m, msha):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_admission_refusals_start_nothing (test_qualvm.Controller.test_admission_refusals_start_nothing) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:150: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpovi3rdev/os.qcow2'>
+  self.osd = os.path.join(self.out, 'os.qcow2'); open(self.osd, 'wb').write(b'os')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:151: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpovi3rdev/os-qual.qcow2'>
+  self.ovl = os.path.join(self.out, 'os-qual.qcow2'); open(self.ovl, 'wb').write(b'ov')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:150: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmp03iur432/os.qcow2'>
+  self.osd = os.path.join(self.out, 'os.qcow2'); open(self.osd, 'wb').write(b'os')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:151: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmp03iur432/os-qual.qcow2'>
+  self.ovl = os.path.join(self.out, 'os-qual.qcow2'); open(self.ovl, 'wb').write(b'ov')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:150: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpfp4eqs43/os.qcow2'>
+  self.osd = os.path.join(self.out, 'os.qcow2'); open(self.osd, 'wb').write(b'os')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:151: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpfp4eqs43/os-qual.qcow2'>
+  self.ovl = os.path.join(self.out, 'os-qual.qcow2'); open(self.ovl, 'wb').write(b'ov')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:150: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpk80_jjhm/os.qcow2'>
+  self.osd = os.path.join(self.out, 'os.qcow2'); open(self.osd, 'wb').write(b'os')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:151: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpk80_jjhm/os-qual.qcow2'>
+  self.ovl = os.path.join(self.out, 'os-qual.qcow2'); open(self.ovl, 'wb').write(b'ov')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:150: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmp9cbh4rl2/os.qcow2'>
+  self.osd = os.path.join(self.out, 'os.qcow2'); open(self.osd, 'wb').write(b'os')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:151: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmp9cbh4rl2/os-qual.qcow2'>
+  self.ovl = os.path.join(self.out, 'os-qual.qcow2'); open(self.ovl, 'wb').write(b'ov')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:150: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpy34a_z2f/os.qcow2'>
+  self.osd = os.path.join(self.out, 'os.qcow2'); open(self.osd, 'wb').write(b'os')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:151: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpy34a_z2f/os-qual.qcow2'>
+  self.ovl = os.path.join(self.out, 'os-qual.qcow2'); open(self.ovl, 'wb').write(b'ov')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:150: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpjh56zq5e/os.qcow2'>
+  self.osd = os.path.join(self.out, 'os.qcow2'); open(self.osd, 'wb').write(b'os')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:151: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpjh56zq5e/os-qual.qcow2'>
+  self.ovl = os.path.join(self.out, 'os-qual.qcow2'); open(self.ovl, 'wb').write(b'ov')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:150: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpkbachzwn/os.qcow2'>
+  self.osd = os.path.join(self.out, 'os.qcow2'); open(self.osd, 'wb').write(b'os')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:151: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpkbachzwn/os-qual.qcow2'>
+  self.ovl = os.path.join(self.out, 'os-qual.qcow2'); open(self.ovl, 'wb').write(b'ov')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_lifecycle_floor_first_vm_bound_own_invocations_only (test_qualvm.Controller.test_lifecycle_floor_first_vm_bound_own_invocations_only) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:150: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpkwmi1889/os.qcow2'>
+  self.osd = os.path.join(self.out, 'os.qcow2'); open(self.osd, 'wb').write(b'os')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:151: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpkwmi1889/os-qual.qcow2'>
+  self.ovl = os.path.join(self.out, 'os-qual.qcow2'); open(self.ovl, 'wb').write(b'ov')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/qualvm.py:141: ResourceWarning: unclosed file <_io.TextIOWrapper name='/proc/2096209/stat' mode='r' encoding='UTF-8'>
+  s = open(f'/proc/{pid}/stat').read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/qualvm.py:543: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpkwmi1889/controller.json' mode='w' encoding='UTF-8'>
+  json.dump(rec, open(os.path.join(out, 'controller.json'), 'w'), indent=1, sort_keys=True)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:165: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpkwmi1889/floor-ready.json' mode='w' encoding='UTF-8'>
+  json.dump({'invocation': invocation, 'pid': p, 'startToken': Q.start_token(p), 'firstCheck': []}, open(os.path.join(self.out, 'floor-ready.json'), 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/qualvm.py:478: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpkwmi1889/floor-ready.json' mode='r' encoding='UTF-8'>
+  r = json.load(open(p))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/qualvm.py:557: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpkwmi1889/floor-ready.json' mode='r' encoding='UTF-8'>
+  rec['floorReady'] = json.load(open(os.path.join(out, 'floor-ready.json'))); save()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_no_vm_unless_the_floor_proves_ready_for_its_own_invocation (test_qualvm.Controller.test_no_vm_unless_the_floor_proves_ready_for_its_own_invocation) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:150: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpb8hxkas_/os.qcow2'>
+  self.osd = os.path.join(self.out, 'os.qcow2'); open(self.osd, 'wb').write(b'os')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:151: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpb8hxkas_/os-qual.qcow2'>
+  self.ovl = os.path.join(self.out, 'os-qual.qcow2'); open(self.ovl, 'wb').write(b'ov')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:213: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpb8hxkas_/floor-ready.json' mode='w' encoding='UTF-8'>
+  json.dump({'invocation': 'F1', 'pid': os.getpid(), 'startToken': Q.start_token(os.getpid())}, open(stale, 'w'))  # a previous run's file
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/qualvm.py:543: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpb8hxkas_/controller.json' mode='w' encoding='UTF-8'>
+  json.dump(rec, open(os.path.join(out, 'controller.json'), 'w'), indent=1, sort_keys=True)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:165: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpb8hxkas_/floor-ready.json' mode='w' encoding='UTF-8'>
+  json.dump({'invocation': invocation, 'pid': p, 'startToken': Q.start_token(p), 'firstCheck': []}, open(os.path.join(self.out, 'floor-ready.json'), 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/qualvm.py:478: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpb8hxkas_/floor-ready.json' mode='r' encoding='UTF-8'>
+  r = json.load(open(p))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_stop_request_acpi_then_bounded_force_never_foreign (test_qualvm.Controller.test_stop_request_acpi_then_bounded_force_never_foreign) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:150: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpl2gvh90u/os.qcow2'>
+  self.osd = os.path.join(self.out, 'os.qcow2'); open(self.osd, 'wb').write(b'os')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:151: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpl2gvh90u/os-qual.qcow2'>
+  self.ovl = os.path.join(self.out, 'os-qual.qcow2'); open(self.ovl, 'wb').write(b'ov')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/qualvm.py:543: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpl2gvh90u/controller.json' mode='w' encoding='UTF-8'>
+  json.dump(rec, open(os.path.join(out, 'controller.json'), 'w'), indent=1, sort_keys=True)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:165: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpl2gvh90u/floor-ready.json' mode='w' encoding='UTF-8'>
+  json.dump({'invocation': invocation, 'pid': p, 'startToken': Q.start_token(p), 'firstCheck': []}, open(os.path.join(self.out, 'floor-ready.json'), 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/qualvm.py:478: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpl2gvh90u/floor-ready.json' mode='r' encoding='UTF-8'>
+  r = json.load(open(p))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/qualvm.py:557: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpl2gvh90u/floor-ready.json' mode='r' encoding='UTF-8'>
+  rec['floorReady'] = json.load(open(os.path.join(out, 'floor-ready.json'))); save()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_discard_refuses_while_ours_is_alive (test_qualvm.Discard.test_discard_refuses_while_ours_is_alive) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:327: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmphezsoodl/PREPARED.json' mode='w' encoding='UTF-8'>
+  json.dump({'osDisk': '/nonexistent'}, open(os.path.join(t.name, 'PREPARED.json'), 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:330: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmphezsoodl/controller.json' mode='w' encoding='UTF-8'>
+  json.dump({'pid': os.getpid(), 'startToken': Q.start_token(os.getpid())}, open(os.path.join(t.name, 'controller.json'), 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/qualvm.py:695: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmphezsoodl/controller.json' mode='r' encoding='UTF-8'>
+  ctl = json.load(open(os.path.join(out, 'controller.json'))) if os.path.exists(os.path.join(out, 'controller.json')) else {}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_console_has_its_own_cap_and_counts_with_the_overlay (test_qualvm.Floor.test_console_has_its_own_cap_and_counts_with_the_overlay) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:88: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmp16_ng38t/os-qual.qcow2'>
+  open(os.path.join(self.out, 'os-qual.qcow2'), 'wb').write(b'x' * 4096)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:96: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmp16_ng38t/meminfo' mode='w' encoding='UTF-8'>
+  open(self.mem, 'w').write(f'MemTotal: 130000000 kB\nMemAvailable: {b // 1024} kB\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:134: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmp16_ng38t/console.log'>
+  con = os.path.join(self.out, 'console.log'); open(con, 'wb').write(os.urandom(8192))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/qualvm.py:115: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmp16_ng38t/meminfo' mode='r' encoding='UTF-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_each_trip_condition (test_qualvm.Floor.test_each_trip_condition) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:88: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpcg1d5_5i/os-qual.qcow2'>
+  open(os.path.join(self.out, 'os-qual.qcow2'), 'wb').write(b'x' * 4096)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:96: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpcg1d5_5i/meminfo' mode='w' encoding='UTF-8'>
+  open(self.mem, 'w').write(f'MemTotal: 130000000 kB\nMemAvailable: {b // 1024} kB\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/qualvm.py:115: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpcg1d5_5i/meminfo' mode='r' encoding='UTF-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:102: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpcg1d5_5i/meminfo' mode='w' encoding='UTF-8'>
+  open(self.mem, 'w').write('garbage\n'); self.assertIn('MemAvailable unreadable', Q.floor_reasons(self.out, self.pid, self.tok, 1, self.mem))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/qualvm.py:113: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpcg1d5_5i/meminfo' mode='r' encoding='UTF-8'>
+  for l in open(path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_floor_loop_ready_only_after_a_clean_first_check_and_trip_exits_4 (test_qualvm.Floor.test_floor_loop_ready_only_after_a_clean_first_check_and_trip_exits_4) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:88: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmp16gdg3a6/os-qual.qcow2'>
+  open(os.path.join(self.out, 'os-qual.qcow2'), 'wb').write(b'x' * 4096)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:96: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmp16gdg3a6/meminfo' mode='w' encoding='UTF-8'>
+  open(self.mem, 'w').write(f'MemTotal: 130000000 kB\nMemAvailable: {b // 1024} kB\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/qualvm.py:115: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmp16gdg3a6/meminfo' mode='r' encoding='UTF-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"floorTrip": ["no systemd INVOCATION_ID: not running as the owned floor unit"]}
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/qualvm.py:466: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmp16gdg3a6/floor-ready.json.tmp' mode='w' encoding='UTF-8'>
+  json.dump({'invocation': inv, 'pid': os.getpid(), 'startToken': start_token(os.getpid()), 'firstCheck': [], 'at': time.time()}, open(tmp, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:125: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmp16gdg3a6/floor-ready.json' mode='r' encoding='UTF-8'>
+  r = json.load(open(ready)); self.assertEqual((r['invocation'], r['firstCheck']), ('ab' * 16, []))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/qualvm.py:458: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmp16gdg3a6/floor-trip.json' mode='w' encoding='UTF-8'>
+  json.dump({'at': time.time(), 'reasons': why}, open(os.path.join(out, 'floor-trip.json'), 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"floorTrip": ["MemAvailable 18253611008 < 19327352832 (proactive stop above the 16 GiB floor)"]}
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:129: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmp16gdg3a6/floor-trip.json' mode='r' encoding='UTF-8'>
+  self.assertTrue(json.load(open(os.path.join(self.out, 'floor-trip.json')))['reasons'])
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_accepted_fixture_binds_search_uuid_and_version (test_qualvm.Grub.test_accepted_fixture_binds_search_uuid_and_version) ... ok
+test_adversarial_refused (test_qualvm.Grub.test_adversarial_refused) ... ok
+test_root_binding_regular_files_and_bzimage (test_qualvm.Grub.test_root_binding_regular_files_and_bzimage) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:82: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpf3fmr_am'>
+  open(f.name, 'wb').write(b'\0' * 0x202 + b'HdrS'); Q.check_kernel(f.name); os.unlink(f.name)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_empty_or_unreadable_unit_dir_refuses (test_qualvm.Inventory.test_empty_or_unreadable_unit_dir_refuses) ... ok
+test_files_symlinks_wants_and_dropins_are_found (test_qualvm.Inventory.test_files_symlinks_wants_and_dropins_are_found) ... ok
+test_disk_units_are_masked_on_the_cmdline_and_the_cmdline_is_capped (test_qualvm.Prove.test_disk_units_are_masked_on_the_cmdline_and_the_cmdline_is_capped) ... ok
+test_good_sections_pass_and_each_defect_fails (test_qualvm.Prove.test_good_sections_pass_and_each_defect_fails) ... ok
+test_prove_never_sshes_into_a_guest_that_is_not_ours_and_main_rc_3 (test_qualvm.Prove.test_prove_never_sshes_into_a_guest_that_is_not_ours_and_main_rc_3) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/test/test_qualvm.py:281: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpn9web_cg/controller.json' mode='w' encoding='UTF-8'>
+  json.dump({'pid': os.getpid(), 'startToken': Q.start_token(os.getpid()), 'vmInvocation': 'V1', 'floorInvocation': 'F1'}, open(os.path.join(t.name, 'controller.json'), 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/qualvm.py:651: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201/tmp/tmpn9web_cg/controller.json' mode='r' encoding='UTF-8'>
+  ctl = json.load(open(os.path.join(out, 'controller.json')))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_query_quotes_mount_units_and_has_8_sections (test_qualvm.Prove.test_query_quotes_mount_units_and_has_8_sections) ... ok
+
+----------------------------------------------------------------------
+Ran 18 tests in 0.762s
+
+OK
+{
+ "failures": [
+  "VM unit BindsTo/MemoryMax/MemorySwapMax are /10737418240/0"
+ ],
+ "ok": false
+}

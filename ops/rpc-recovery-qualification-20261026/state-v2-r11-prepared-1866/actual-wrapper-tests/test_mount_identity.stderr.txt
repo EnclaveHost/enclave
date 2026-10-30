@@ -1,0 +1,11 @@
+test_cli_refuses_whitespace_in_pinned_value (__main__.Parser.test_cli_refuses_whitespace_in_pinned_value) ... ok
+test_extra_field_refused (__main__.Parser.test_extra_field_refused) ... ok
+test_missing_field_refused (__main__.Parser.test_missing_field_refused) ... ok
+test_padded_valid_line_as_observed_by_root (__main__.Parser.test_padded_valid_line_as_observed_by_root) ... ok
+test_several_lines_or_no_output_refused (__main__.Parser.test_several_lines_or_no_output_refused) ... ok
+test_wrong_device_each_field_refused (__main__.Parser.test_wrong_device_each_field_refused) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.001s
+
+OK

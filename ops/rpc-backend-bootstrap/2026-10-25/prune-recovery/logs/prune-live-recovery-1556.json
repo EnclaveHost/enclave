@@ -1,0 +1,42 @@
+{
+  "at": "2026-10-25T15:56:49.743951+00:00",
+  "sourceCommit": "f47545b53",
+  "launcherSha256": "a7adf5e6ba228bc7532f6ceb2591b4c28acd92df5bd021a2e510972c71795e40",
+  "beforeSha256": "5a3f11521d6a2727247ff31aa88eae5ad8b1c244770119722993668f96750bb0",
+  "afterSha256": "a93adc65ec30ac1ea6d8f4c59b9ef12e522e07606e038777f93cdbf7e67304c7",
+  "prune": {
+    "block_interval": 5,
+    "minimum_pruning_distance": 10064,
+    "segments": {
+      "sender_recovery": "full",
+      "transaction_lookup": {
+        "distance": 140000
+      },
+      "receipts": {
+        "distance": 140000
+      },
+      "account_history": {
+        "distance": 140000
+      },
+      "storage_history": {
+        "distance": 140000
+      },
+      "bodies_history": {
+        "distance": 140000
+      }
+    }
+  },
+  "runtimeFlags": {
+    "--prune.block-interval": "5",
+    "--prune.minimum-distance": "10064",
+    "--prune.sender-recovery.full": true,
+    "--prune.receipts.distance": "140000",
+    "--prune.account-history.distance": "140000",
+    "--prune.storage-history.distance": "140000",
+    "--prune.bodies.distance": "140000",
+    "--prune.transaction-lookup.distance": "140000"
+  },
+  "modeOwnerPreserved": true,
+  "scope": "first live controlled restart and persisted profile verified; chain still syncing; second restart deferred until catch-up",
+  "state": "NRestarts=0\nExecMainStatus=0\nActiveState=active\n"
+}

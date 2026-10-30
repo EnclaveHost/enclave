@@ -1,0 +1,29 @@
+{
+  "readonly": true,
+  "disk": "/mnt/usb/enclave-rpc-production/base-origin.qcow2",
+  "discard": "ignore",
+  "commands": {
+    "journal-superblock": {
+      "command": "logdump -S",
+      "returncode": 0,
+      "elapsed": 14.233049071859568,
+      "outputBytes": 391
+    },
+    "journal-inode": {
+      "command": "stat <8>",
+      "returncode": 0,
+      "elapsed": 0.1640030751004815,
+      "outputBytes": 848
+    },
+    "deleted-db-entries": {
+      "command": "ls -d -l /data/db",
+      "returncode": 0,
+      "elapsed": 0.16395508497953415,
+      "outputBytes": 128
+    }
+  },
+  "unmountRc": 0,
+  "nbdfuseRc": 0,
+  "diskUnchanged": true,
+  "openAfter": []
+}

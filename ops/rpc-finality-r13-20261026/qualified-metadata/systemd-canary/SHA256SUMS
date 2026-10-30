@@ -1,0 +1,10 @@
+de00bbf0042be4882b8959e8bfdcd6a1d5ee9793e15a0dde8f3ba3ff38a7306e  ./FINAL-PINS.json
+118deefdee6d8b5fefb0e2be4dedb003794b9204b3765941899d19393e9b918f  ./README.md
+0dae909410c4e378ec3cd277a3d737205634e7bf9ccb27980a1cda333fc879d1  ./guest/canary_units.py
+e4656aa2110ede9cce25bdbac999988466da5fafd83ad311773bf59b6598ffca  ./guest/cleanup.sh
+64640a26a34cfc5e3d411a71f6a80d4c8de821186fa10376854b533e9a5e1fd7  ./guest/systemd_canary.sh
+e701238bef31c0131fdad6c6c1dd39a65ae539bd2a04de459b992d12b170a3a2  ./jobs/root-offline-tests.sh
+7b3efbf4424c45cb2a285d8ff2c57a5299508662906c62ac997de5f95e48dbe9  ./jobs/root-systemd-canary.sh
+ff6374c81192b9db76f71703ea2cf90f18c949dcd1955c85094dda9280a2ca87  ./tests/test_systemd_canary.py
+71921800789f35d965ee423ef69929900ec04a09e28cc774de79e6b0adda5805  ./tools/assemble_canary_bundle.py
+1b4dde80d1d06381e136bcc698269306fc33de444100e55837ac6d847c4dc1b9  ./tools/host_verdict.py

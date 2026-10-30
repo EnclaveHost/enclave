@@ -1,0 +1,31 @@
+--- a/src/finality_state.py
++++ b/src/finality_state.py
+@@ -67,7 +67,7 @@
+                 'a1-recheck.mjs': 'f591f3247fe672f6470685f2be36eb529ceb9280044c03c6a2396174bb0ad9d8',
+                 'a1-anchor.mjs': 'ec92b70f105f88cbfc466e57e4673afcb0fbd104403e425e036f1dba78e6528d'}
+ # r4: fresh A1 provenance = the recovery harness (base-reanchor-recovery-stage/r7, root 0345) and its pinned capture module.
+-HARNESS_SHA256 = '710c34830157a8307d20f6b9481c4f5c8aeb6fb59f1db3dccb3e2cec5b024560'   # base-finality-proof-stage/r6/harness/a2a4.py (r7 + shared ledger, scrubbed node env)
++HARNESS_SHA256 = '854c5d38d3afc7f7330d5db4171173ab448aa9d61e7034a4e8d3a7a23abc9f65'   # base-finality-proof-stage/r6-followup-fixes/harness/a2a4.py (r6 + clean reth env)
+ HARNESS_SOURCE = pathlib.Path('/opt/enclave-rpc/a2a4-recovery/a2a4.py')      # == base_launch.RECOVERY_A2A4_SOURCE (HOLD: not installed)
+ FRESH_A1_MAX_AGE_SEC = 600                    # the recheck capture's age bound (the harness's a1MaxAgeSec for this use)
+ NOBLE_VERSION = '1.8.0'
+@@ -237,6 +237,10 @@
+ def node_fd(R, node):
+     """r6: the node binary is a REVIEWED build (the capture module's pins), hashed from an open fd; every finality decision runs it as
+     /proc/self/fd/N passed to the child, so the bytes hashed are the bytes executed (no path swap). -> (fd, sha256)"""
++    try:                                          # r6.2: the reviewed set FIRST (nothing opened yet); a harness refusal keeps its code
++        accepted = R.accepted_nodes()
++    except R.Refused as e:
++        refuse(str(e).split(':', 1)[0], str(e))
+     try:
+         fd = os.open(node, os.O_RDONLY | os.O_CLOEXEC)
+     except OSError as e:
+@@ -244,7 +248,7 @@
+     h = hashlib.sha256()
+     while (c := os.read(fd, 1 << 20)):
+         h.update(c)
+-    if h.hexdigest() not in R.accepted_nodes():
++    if h.hexdigest() not in accepted:
+         os.close(fd); refuse('node_pin', f'{node} is not a reviewed node binary ({h.hexdigest()[:12]}...)')
+     return fd, h.hexdigest()
+ 

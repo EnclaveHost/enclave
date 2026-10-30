@@ -1,0 +1,4 @@
+2026/10/28 02:49:05 Shield profile z-image-turbo-q4km-sd: release 987b1b9f6d526ec88582b986e88a3dfad4de2742b3bbf236e974039585763422, 1 read-only file(s)
+2026/10/28 02:49:05 per-release W^X: this tree's guests are named [16c2999d7715a38f8a29adcff03d9c3c0e071eb1c0afc207c1f335b654dca0aa]; the legacy tree's [5c3561f91bc76a7aab5830071d1093162c5833872884c938574673f491dd87f2 6f14ce7537082bd2a68d96ead6a133af4a5134e97e9b43ebc210a3cb957c1adb]; unrecorded adoptions []
+2026/10/28 02:49:05 preemptible guests [z-image-turbo-q4km-sd]: admitted against a 18432 MiB host floor (others 18432 MiB); ended while MemAvailable < 18432 MiB
+2026/10/28 02:49:05 ADOPT OK gd6d5c8224

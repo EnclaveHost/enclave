@@ -1,0 +1,7 @@
+{
+  "format": "rpc-rollout-integration-status/v1",
+  "imageR3": "Offline packaging and all affected tests passed root1384. Not enrolled, no SNP qualification or activation.",
+  "lifecycleR5": "ABI5 and proof10 and runtime7 passed; policy timeout and missing runtime-lock closure prevented complete qualification.",
+  "lifecycleR6": "Prepared only: unchanged adapter/assertions, local Anvil polling25ms, exact missing closure and owned session cleanup. Not run.",
+  "production": "Initial Base snapshot verified. Historical retention running; no consumer cutover. All admin controls retained."
+}

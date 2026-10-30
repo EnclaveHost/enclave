@@ -1,0 +1,11 @@
+    }
+
+    /// Runs the segmented download to completion or returns the first fatal error.
+    fn run(self) -> Result<DownloadedArchive> {
+        let Self { url, paths, total_size, plan, session } = self;
+        {
+            let file = fs::create_file(paths.part_path())?;
+            file.set_len(total_size)?;
+        }
+
+        let worker_count = plan.worker_count;

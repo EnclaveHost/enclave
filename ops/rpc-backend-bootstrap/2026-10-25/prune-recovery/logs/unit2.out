@@ -1,0 +1,69 @@
+[queue] START available=21460MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+a7adf5e6ba228bc7532f6ceb2591b4c28acd92df5bd021a2e510972c71795e40  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/chain_service.py
+a501f1d0a62c3c64ad48826d568ede77a36f56faa9853e4c2f10ed6dfb8c9691  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/test_chain_service.py
+ceff9584c95f8d0a7e734fa30f3b27c67f4354203cb981bc81767950660004cb  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/prune-recovery-stage/prune_profile_repair.py
+3e66820b458d9ffbd8d11e87aac2bc0aa16e835eddb5b23895c49c88d440619e  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/prune-recovery-stage/test_prune_profile_repair.py
+80c28b89c9859a0621e4249a750dac4b9a7a1c6913d981556c2cbe5ee66258d7  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/prune-recovery-stage/fixtures/base-canonical-reth.toml
+f905165e4bca7e27a5d19459ef65179deeb83df838c4d624176e3e9f045a8f76  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/prune-recovery-stage/fixtures/base-defect-reth.toml
+test_base_requires_explicit_origin_coverage (test_chain_service.GateTests.test_base_requires_explicit_origin_coverage) ... ok
+test_explicit_submission_route (test_chain_service.GateTests.test_explicit_submission_route) ... ok
+test_fresh_start_refuses_old_checkpoint (test_chain_service.GateTests.test_fresh_start_refuses_old_checkpoint) ... ok
+test_healthy_pair_has_blob_evidence (test_chain_service.GateTests.test_healthy_pair_has_blob_evidence) ... ok
+test_minimal_receipt_pruning_is_refused (test_chain_service.GateTests.test_minimal_receipt_pruning_is_refused) ... ok
+test_missing_blob_is_not_readiness (test_chain_service.GateTests.test_missing_blob_is_not_readiness) ... ok
+test_no_implicit_submission_route (test_chain_service.GateTests.test_no_implicit_submission_route) ... ok
+test_optimistic_pair_is_not_readiness (test_chain_service.GateTests.test_optimistic_pair_is_not_readiness) ... ok
+test_readonly_data_refused (test_chain_service.GateTests.test_readonly_data_refused) ... ok
+test_restricted_root_writable_data (test_chain_service.GateTests.test_restricted_root_writable_data) ... ok
+test_resume_survives_old_checkpoint (test_chain_service.GateTests.test_resume_survives_old_checkpoint) ... {"starting": "cl", "datadir": "/srv/enclave-l1-pair/cl", "publicExecutionRpc": false}
+ok
+test_stale_pair_is_not_readiness (test_chain_service.GateTests.test_stale_pair_is_not_readiness) ... ok
+test_unreviewed_submission_route_refused (test_chain_service.GateTests.test_unreviewed_submission_route_refused) ... ok
+test_wrong_volume_refused (test_chain_service.GateTests.test_wrong_volume_refused) ... ok
+test_already_rewritten_profile_is_refused_not_waived (test_chain_service.PruneProfileTests.test_already_rewritten_profile_is_refused_not_waived) ... ok
+test_larger_retention_is_never_reduced (test_chain_service.PruneProfileTests.test_larger_retention_is_never_reduced) ... ok
+test_old_lookup_only_argv_reproduces_the_defect (test_chain_service.PruneProfileTests.test_old_lookup_only_argv_reproduces_the_defect) ... ok
+test_persisted_rewrite_then_second_launch_keeps_every_segment (test_chain_service.PruneProfileTests.test_persisted_rewrite_then_second_launch_keeps_every_segment) ... {"starting": "el", "datadir": "/srv/enclave-l1-pair/data", "publicExecutionRpc": false}
+{"starting": "el", "datadir": "/srv/enclave-l1-pair/data", "publicExecutionRpc": false}
+{"starting": "base", "datadir": "/srv/enclave-base-holder/data", "publicExecutionRpc": false}
+{"starting": "base", "datadir": "/srv/enclave-base-holder/data", "publicExecutionRpc": false}
+ok
+test_settings_the_cli_cannot_reproduce_are_refused (test_chain_service.PruneProfileTests.test_settings_the_cli_cannot_reproduce_are_refused) ... ok
+test_snapshot_profile_maps_to_complete_flags (test_chain_service.PruneProfileTests.test_snapshot_profile_maps_to_complete_flags) ... ok
+
+----------------------------------------------------------------------
+Ran 20 tests in 0.009s
+
+OK
+test_anything_but_the_exact_defect_is_refused (test_prune_profile_repair.Repair.test_anything_but_the_exact_defect_is_refused) ... ok
+test_apply_bound_to_observed_sha_preserves_backup_and_mode (test_prune_profile_repair.Repair.test_apply_bound_to_observed_sha_preserves_backup_and_mode) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/prune-recovery-stage/test_prune_profile_repair.py:61: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/tmp6wpy0e1i/reth.toml'>
+  self.assertEqual(open(p, 'rb').read(), CANONICAL)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/prune-recovery-stage/test_prune_profile_repair.py:62: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/tmp6wpy0e1i/reth.toml.pre-prune-repair'>
+  self.assertEqual(open(p + r.BACKUP_SUFFIX, 'rb').read(), DEFECT)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_apply_requires_expected_sha (test_prune_profile_repair.Repair.test_apply_requires_expected_sha) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/prune-recovery-stage/test_prune_profile_repair.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/tmp647z5cjn/reth.toml'>
+  self.assertEqual(open(p, 'rb').read(), DEFECT)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_dry_run_writes_nothing (test_prune_profile_repair.Repair.test_dry_run_writes_nothing) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/prune-recovery-stage/test_prune_profile_repair.py:53: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/tmpfp6i5q5f/reth.toml'>
+  self.assertEqual(open(p, 'rb').read(), DEFECT)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_plan_reproduces_client_canonical_bytes_exactly (test_prune_profile_repair.Repair.test_plan_reproduces_client_canonical_bytes_exactly) ... ok
+test_real_pinned_base_binary_accepted (test_prune_profile_repair.Repair.test_real_pinned_base_binary_accepted) ... ok
+test_second_repair_refused_when_backup_exists (test_prune_profile_repair.Repair.test_second_repair_refused_when_backup_exists) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/prune-recovery-stage/test_prune_profile_repair.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/tmpppmqh03c/reth.toml'>
+  self.assertEqual(open(p, 'rb').read(), DEFECT)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_symlink_refused (test_prune_profile_repair.Repair.test_symlink_refused) ... ok
+test_unpinned_binary_refused (test_prune_profile_repair.Repair.test_unpinned_binary_refused) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.097s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

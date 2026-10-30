@@ -1,0 +1,26 @@
+{
+  "changed_at_utc": "2026-10-27T10:36:07.171730+00:00",
+  "path": "/home/steven/Documents/Codex/2026-10-26/my/work/tr004/preserved-images/base-origin.compact.qcow2",
+  "operation": "chmod0444 only",
+  "before": {
+    "device": 64768,
+    "inode": 4856848,
+    "size": 120867323904,
+    "mode": "0o644",
+    "mtime_ns": 1793046916167070631,
+    "ctime_ns": 1793051528993087982
+  },
+  "after": {
+    "device": 64768,
+    "inode": 4856848,
+    "size": 120867323904,
+    "mode": "0o444",
+    "mtime_ns": 1793046916167070631,
+    "ctime_ns": 1793097367170099837
+  },
+  "accessible_process_open_descriptors_before": [],
+  "process_inspection_limitation": "569 processes inaccessible or exited; absence of all systemwide writers was not established",
+  "content_hash_not_recomputed": true,
+  "prior_verified_sha256": "a3b00e5f0b4af372bdd479bd5bdaad48ce3a95438aa1879790d637641c95df9e",
+  "original_array_untouched": true
+}

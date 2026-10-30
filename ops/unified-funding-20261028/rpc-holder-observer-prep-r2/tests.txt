@@ -1,0 +1,11 @@
+test_actual_owned_descriptor_modes_with_explicit_single_pid_scope (__main__.DescriptorObserverTests.test_actual_owned_descriptor_modes_with_explicit_single_pid_scope) ... ok
+test_cli_rejects_paths_duplicates_and_too_many_targets (__main__.DescriptorObserverTests.test_cli_rejects_paths_duplicates_and_too_many_targets) ... ok
+test_cli_requires_host_root_no_fake_success (__main__.DescriptorObserverTests.test_cli_requires_host_root_no_fake_success) ... ok
+test_deadline_never_reports_complete (__main__.DescriptorObserverTests.test_deadline_never_reports_complete) ... ok
+test_full_host_unprivileged_visibility_diagnostic (__main__.DescriptorObserverTests.test_full_host_unprivileged_visibility_diagnostic) ... ok
+test_missing_matching_descriptor_flags_is_incomplete (__main__.DescriptorObserverTests.test_missing_matching_descriptor_flags_is_incomplete) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.186s
+
+OK

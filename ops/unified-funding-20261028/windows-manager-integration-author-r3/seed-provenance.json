@@ -1,0 +1,22 @@
+{
+  "frozenRoot": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-repair-r2-20261029/author-delivery",
+  "frozenManifestSha256": "3ef2255486db86f75e610219902b6ae50aa47bef7fa47bfdf56deb8f785b2490",
+  "frozenFiles": 149,
+  "seedFiles": 149,
+  "noCandidateCodeExecuted": true,
+  "baselineMerges": [
+    {
+      "dest": "control/windows/vbslike/router/control.mjs",
+      "baseSource": "/home/steven/Documents/Codex/2026-10-23/it/work/native-manager-sidecar-v12/control/windows/vbslike/router/control.mjs",
+      "baseSha256": "ae43a93780e4f8651af6e365720ed5f0cc91557aef0f062979732eb867bc17c8",
+      "frozenSource": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-repair-r2-20261029/author-delivery/control/windows/vbslike/router/control.mjs",
+      "frozenSha256": "1c535912a3cf57ef7b6a32655c0c4ee566dece881c3ecfd30fb9e46ae57e9048",
+      "liveSource": "/home/steven/Documents/Codex/2026-10-23/it/work/native-router-health-v13/control/windows/vbslike/router/control.mjs",
+      "liveSha256": "966fd3b5480e9859de4f1dc578b25afa1150e97552437e8c183c03bba4606e6a",
+      "mergedSha256": "e2bf6ea711d9894aba92fbfb77048adeac0cbdeba135b72f71c7ebc3796424cf",
+      "scope": "Only two health() hunks; all bytes outside health() preserved from frozen r2, all three #noProtected call sites preserved",
+      "evidence": "evidence/router-three-way",
+      "execution": "No candidate code or tests executed; source merge only"
+    }
+  ]
+}

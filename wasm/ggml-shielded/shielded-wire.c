@@ -172,6 +172,17 @@ sh_pipe *sh_pipe_open(const char *host, int port, int *err) {
         if (connect(fd, (struct sockaddr *)&un, sizeof un) != 0) {
             close(fd); if (err) *err = SH_ERR_IO; return NULL;
         }
+        /* A pathname or socket file owner is not server authentication. The
+         * measured local broker runs as root in the guest's user namespace;
+         * check the connected peer before any protocol bytes can be sent.
+         * This identifies only that broker, not its remote worker or the VM.
+         * There is deliberately no environment override or TCP fallback. */
+        struct ucred peer;
+        socklen_t peer_len = sizeof peer;
+        if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &peer, &peer_len) != 0 ||
+            peer_len != sizeof peer || peer.uid != 0) {
+            close(fd); if (err) *err = SH_ERR_IO; return NULL;
+        }
         sh_pipe *p = (sh_pipe *)calloc(1, sizeof *p);
         if (!p) { close(fd); if (err) *err = SH_ERR_NOMEM; return NULL; }
         p->fd = fd;
@@ -550,7 +561,7 @@ int sh_pipe_exchange_work(sh_pipe *p, const sh_frame *frames, size_t n, sh_reply
         }
         used += (size_t)size;
     }
-    p->last_socket_ms = wire_now_ms();
+    if (p->ring) p->last_socket_ms = wire_now_ms();
     used = 0;
     for (size_t i = 0; i < n; i++) { out[i].data = out[i].len ? p->rbuf + used : NULL; used += out[i].len; }
     if (profile) {
@@ -711,6 +722,7 @@ int sh_pipe_shm_attach(sh_pipe *p, const char *path, int index, size_t bytes) {
     struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts);
     p->seq = (((uint64_t)ts.tv_sec << 24) | ((uint64_t)ts.tv_nsec >> 6)) & 0x3fffffffffffffffULL;
     p->misses = 0;
+    p->last_socket_ms = wire_now_ms();
     p->stream_load = 0;
 #if defined(__x86_64__) || defined(__i386__)
     const char *stream = getenv("SHIELDED_SHM_STREAM_LOAD");
@@ -752,10 +764,13 @@ void sh_pipe_idle(const sh_pipe *p, double *ms, uint64_t *n) {
     if (n)  *n  = p->spin_n;
 }
 
-int sh_pipe_ring_exchange_work(sh_pipe *p, const sh_frame *f, size_t want, sh_reply *out,
-                               sh_pipe_work_fn work, void *ctx) {
+/* The two halves of a ring exchange, for a caller that keeps one request in flight while it
+ * works on the previous reply (the link's pipelined wide matmuls). publish: SH_OK once the
+ * frame is visible to the peer; SH_ERR_IO BEFORE publishing when the ring cannot take it (the
+ * caller then uses the socket). collect: waits for that request's reply and copies it into
+ * the pipe's buffer, exactly as the combined call does. */
+int sh_pipe_ring_publish(sh_pipe *p, const sh_frame *f, size_t want) {
     if (!p || !p->ring) return SH_ERR_IO;
-    memset(out, 0, sizeof *out);
     /* Ring traffic bypasses the guest broker's socket activity deadline.
      * Send one ordinary, masked exchange through that socket every 30 s.
      * Returning before publication makes the existing socket fallback run
@@ -778,16 +793,14 @@ int sh_pipe_ring_exchange_work(sh_pipe *p, const sh_frame *f, size_t want, sh_re
     put_u64(r + SH_RING_OFF_RQH + 1, total);
     const uint64_t seq = ++p->seq;
     st_rel(r + SH_RING_OFF_REQ, seq);
+    return SH_OK;
+}
 
-    /* The request is now visible to the peer, so the spin below is dead time on
-     * the caller's thread -- the one thread a decode round is serialized on.
-     * Trusted local work that depends only on the REQUEST (the Freivalds RHS)
-     * belongs in that window rather than after the reply, which is what the
-     * socket path has always done (sh_pipe_exchange_work). Identical contract:
-     * exactly once, after a successful publish, never touching this pipe or
-     * `out`, and it runs even when the reply never arrives -- the caller then
-     * resends on the socket, where the work must NOT be repeated. */
-    if (work) work(ctx);
+int sh_pipe_ring_collect(sh_pipe *p, size_t want, sh_reply *out) {
+    if (!p || !p->ring) return SH_ERR_IO;
+    memset(out, 0, sizeof *out);
+    uint8_t *r = p->ring;
+    const uint64_t seq = p->seq;
 
     const int budget = ring_spin_us();
     struct timespec t0, t1; clock_gettime(CLOCK_MONOTONIC, &t0);
@@ -835,4 +848,20 @@ int sh_pipe_ring_exchange_work(sh_pipe *p, const sh_frame *f, size_t want, sh_re
     p->misses = 0;
     out->status = 0; out->data = p->rbuf; out->len = want;
     return SH_OK;
+}
+int sh_pipe_ring_exchange_work(sh_pipe *p, const sh_frame *f, size_t want, sh_reply *out,
+                               sh_pipe_work_fn work, void *ctx) {
+    memset(out, 0, sizeof *out);
+    const int rc = sh_pipe_ring_publish(p, f, want);
+    if (rc != SH_OK) return rc;
+    /* The request is now visible to the peer, so the spin below is dead time on
+     * the caller's thread -- the one thread a decode round is serialized on.
+     * Trusted local work that depends only on the REQUEST (the Freivalds RHS)
+     * belongs in that window rather than after the reply, which is what the
+     * socket path has always done (sh_pipe_exchange_work). Identical contract:
+     * exactly once, after a successful publish, never touching this pipe or
+     * `out`, and it runs even when the reply never arrives -- the caller then
+     * resends on the socket, where the work must NOT be repeated. */
+    if (work) work(ctx);
+    return sh_pipe_ring_collect(p, want, out);
 }

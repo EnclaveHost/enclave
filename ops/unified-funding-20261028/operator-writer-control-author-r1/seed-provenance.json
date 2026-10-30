@@ -1,0 +1,18 @@
+{
+  "frozenRoot": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/author-delivery",
+  "sourceManifest": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/author-delivery-manifest.json",
+  "sourceManifestSha256": "28a94534fa697b8e972dbe5881f727df1af111a21b6c6cd7c7f5c1a16d603e12",
+  "seedFiles": 252,
+  "preAuthorProductEdits": [],
+  "rootReview": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-windows-wiring-root-review-r4/ROOT-REVIEW.md",
+  "rootReportedTests": {
+    "passed": 140,
+    "failed": 0,
+    "skipped": 0,
+    "cancelled": 0
+  },
+  "commits": [
+    "6270783f0630",
+    "5c6734a3bb42"
+  ]
+}

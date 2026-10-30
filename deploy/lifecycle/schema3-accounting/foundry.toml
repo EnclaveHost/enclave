@@ -1,0 +1,17 @@
+[profile.default]
+src = "candidate/deploy"
+test = "candidate/test"
+out = "out"
+cache_path = "cache"
+solc = "0.8.35"
+optimizer = true
+optimizer_runs = 1
+via_ir = true
+evm_version = "prague"
+offline = true
+ffi = false
+remappings = [
+  "forge-std/=../../../contracts/foundry/lib/forge-std/src/",
+  "baseline/=../../../contracts/",
+  "emergency/=../emergency-offline/candidate/contracts/",
+]

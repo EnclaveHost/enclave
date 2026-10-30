@@ -1,0 +1,44 @@
+{
+  "startedAt": "2026-10-25T19:53:28.636217+00:00",
+  "kind": "own-L1-Helios-verified-getter-probe",
+  "A1Accepted": false,
+  "productionActivated": false,
+  "portal": "0x49048044d57e1c92a77f79988d21fa8faf74e97e",
+  "getter": "anchorStateRegistry()",
+  "selector": "0x5c0cba33",
+  "note": "Getter is probed, not assumed implemented. All calls use the same light-client cached block hash; no public RPC fallback.",
+  "status": {
+    "verdict": "fresh-finalized",
+    "authority": "helios-ethereum-light-client",
+    "finalizedBasis": "sync-committee supermajority (>=2/3) finality update verified inside pinned Helios",
+    "latestBasis": "optimistic header (sync-committee signed, NOT finalized); Helios refuses latest >60 s old",
+    "wrapperChecks": "chain id, JSON-RPC envelope, finalized<=latest, finalized age; the wrapper adds no proof",
+    "binarySha256": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+    "checkpoint": {
+      "root": "0xb5d8034017f25328b5ae1455d3efe12de0a49d3e759f63129bcb0296e7847094",
+      "slot": 15511008,
+      "declaredAgeSec": 1889,
+      "sources": 5
+    },
+    "finalized": {
+      "number": 26271816,
+      "hash": "0xdbbc052a4bb7bf6ca5f3993fc888bb14a6a82f0851faa8104b274bf56f099185",
+      "timestamp": 1792956887,
+      "ageSec": 1124
+    },
+    "latest": {
+      "number": 26271907,
+      "hash": "0x5501b8657f7754ec5808e1ef20f14258c826172f43a0d4bb3116581c95894c65",
+      "timestamp": 1792957991
+    }
+  },
+  "block": {
+    "number": "0x190e048",
+    "hash": "0xdbbc052a4bb7bf6ca5f3993fc888bb14a6a82f0851faa8104b274bf56f099185",
+    "stateRoot": "0x2b133b1396e46f16a03e4be06d144ccaa3e86d83049c4a7cd34d9da0b9b86732",
+    "timestamp": "0x6ade59d7"
+  },
+  "error": "TimeoutError: timed out",
+  "processStopped": true,
+  "finishedAt": "2026-10-25T19:53:43.679450+00:00"
+}

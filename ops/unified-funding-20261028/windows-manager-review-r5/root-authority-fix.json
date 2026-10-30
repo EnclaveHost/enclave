@@ -1,0 +1,6 @@
+{
+  "file": "work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r5/candidate/control/windows/vbslike/manager/permit-enforcement.mjs",
+  "beforeSha256": "696a3de6210386ee2e58f945cd002f04fa334d8169684bf165bb0b38f8f3dfbd",
+  "afterSha256": "b9736bec104fffbe96a68e826bf2c17495199576b8d6dfa2ba6974fe80d239ff",
+  "reason": "serving entry stores verified authority under binding.hostAuthority; strengthened actual chain assertion exposed null MAC view"
+}

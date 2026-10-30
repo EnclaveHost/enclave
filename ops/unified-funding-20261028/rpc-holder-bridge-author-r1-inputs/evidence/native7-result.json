@@ -1,0 +1,113 @@
+{
+  "results": [
+    {
+      "case": "preexisting_writable",
+      "status": "PASS",
+      "unchanged": true
+    },
+    {
+      "case": "future_writable",
+      "status": "PASS",
+      "error": "qemu-nbd: Failed to blk_new_open '/vm/enclave-volumes/rpc-production-maint/lock-matrix-w19zeysj/future.qcow2': Failed to get \"write\" lock\nIs another process using the image [/vm/enclave-volumes/rpc-production-maint/lock-matrix-w19zeysj/future.qcow2]?\n",
+      "control": true,
+      "unchanged": true
+    },
+    {
+      "case": "resize",
+      "status": "PASS",
+      "unchangedWhileHeld": true
+    },
+    {
+      "case": "read_only",
+      "status": "PASS",
+      "ready": true,
+      "error": "",
+      "unchanged": true
+    },
+    {
+      "case": "deterministic_getlk_setlk_race",
+      "status": "PASS",
+      "writerAccepted": true,
+      "nativeWriterReady": false,
+      "unchanged": true
+    },
+    {
+      "case": "deterministic_pre_setlk_race",
+      "status": "PASS",
+      "writerAccepted": false,
+      "nativeWriterReady": true,
+      "unchanged": true
+    },
+    {
+      "case": "write_unchanged",
+      "status": "PASS",
+      "validControl": true,
+      "escaped": false,
+      "control": {
+        "cor": {
+          "return": {},
+          "id": "blockdev-add"
+        },
+        "graph": {
+          "return": {
+            "edges": [
+              {
+                "name": "file",
+                "parent": 2,
+                "shared-perm": [
+                  "resize",
+                  "write-unchanged",
+                  "write",
+                  "consistent-read"
+                ],
+                "perm": [
+                  "write-unchanged"
+                ],
+                "child": 1
+              }
+            ],
+            "nodes": [
+              {
+                "name": "fixture-cor",
+                "type": "block-driver",
+                "id": 2
+              },
+              {
+                "name": "fixture-file",
+                "type": "block-driver",
+                "id": 1
+              }
+            ]
+          },
+          "id": "x-debug-query-block-graph"
+        }
+      },
+      "held": {
+        "cor": {
+          "id": "blockdev-add",
+          "error": {
+            "class": "GenericError",
+            "desc": "Failed to get \"write unchanged\" lock"
+          }
+        },
+        "graph": {
+          "return": {
+            "edges": [],
+            "nodes": [
+              {
+                "name": "fixture-file",
+                "type": "block-driver",
+                "id": 1
+              }
+            ]
+          },
+          "id": "x-debug-query-block-graph"
+        }
+      },
+      "unchanged": true
+    }
+  ],
+  "allProcessesGone": true,
+  "syntheticOnly": true,
+  "productionQualified": false
+}

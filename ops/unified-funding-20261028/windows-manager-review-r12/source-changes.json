@@ -1,0 +1,105 @@
+{
+  "changes": {
+    "RELEASE-CLOSURE-R12.json": {
+      "seedSha256": null,
+      "finalSha256": "5f90b00463984e8f461d1d5eedf9427c8c1d4aa4489ce63eca12d1de6938f788",
+      "kind": "new"
+    },
+    "REPORT-WINDOWS-PERMIT-R12.md": {
+      "seedSha256": null,
+      "finalSha256": "c5cda5daa87bc810e384b50df9b1dc4099d89e24abc4c7f061920563d386305b",
+      "kind": "new"
+    },
+    "control/network/lifecycle-host-dispatch.mjs": {
+      "seedSha256": "bb291ad6d595537d11efbe4b244702da29a641e19799e9c2f7ae806b3fd5a41e",
+      "finalSha256": "4a6a25feec75551c5939ea00fe0a65ff40f0fce308e44c397604198f4b0a01de",
+      "kind": "modified"
+    },
+    "control/windows/node/chain.mjs": {
+      "seedSha256": "63c80c0173ab8164f12058c80dea534c3be4a549c9a83cc81102c16d6895d559",
+      "finalSha256": "f68f1995129282397c6315f17469aca26c0091a1c450de2b66a81c281230f45f",
+      "kind": "modified"
+    },
+    "control/windows/node/host.mjs": {
+      "seedSha256": "d7b0de584a9aa017b8a67b055c44dad0214376d1d4189eb6b96c9935f20ca94b",
+      "finalSha256": "e5acbe23c0bdaac2d85d5a6081347b52d3c5185d511e89bc99e8a9ad56bd9aa7",
+      "kind": "modified"
+    },
+    "control/windows/node/isolation-lifecycle.mjs": {
+      "seedSha256": "72c758d087f04e6a1072c7298c5ccac12a17158c7bf0c068e9a7a4e8f3974cdd",
+      "finalSha256": "73fc85a6c47c69d62483c6205d558c1c00e688fd53c90339721f091733307cbe",
+      "kind": "modified"
+    },
+    "control/windows/node/operator-obligations.mjs": {
+      "seedSha256": null,
+      "finalSha256": "bd1421aee31ad3085dae19f23d8fe3dbb09f5ada712d46b0ebd814ae65d5d8de",
+      "kind": "new"
+    },
+    "control/windows/node/protected-authority-factory.mjs": {
+      "seedSha256": "3d3aa224b793532d54e3d2ebb23ede3303722fa8481e44e5c9151ae998fbf221",
+      "finalSha256": "1407c7238ce999b6500a42b22f1b345fcde7babebf69f41b167d8fde38e6cab4",
+      "kind": "modified"
+    },
+    "control/windows/node/protected-isolation.mjs": {
+      "seedSha256": "5172d47f8803c4303970a1e350bcbc398213dcdaebd26fd8db2828c58fd5ec41",
+      "finalSha256": "559a77511c8c357995c9009038340716458fade24a964b0877946fca2b92ad55",
+      "kind": "modified"
+    },
+    "control/windows/node/protected-supervisor.mjs": {
+      "seedSha256": "85ebb0f253848d8317df01a882dc49ada122bce6688be564f4b71d77180912b4",
+      "finalSha256": "c9996bb1fe9b09e95b5f65c390140e114d469593195fbbf0cae3cdef65196ee8",
+      "kind": "modified"
+    },
+    "test/windows-permit/helpers/world.mjs": {
+      "seedSha256": "dfca7e6456ac6e5c1af29688d7f6327b93ae409bba0ac86d80da89e7cc4bb531",
+      "finalSha256": "43bfef552410c40629307226b4bdab73f3dd67df03c43c8f392955351848462d",
+      "kind": "modified"
+    },
+    "test/windows-permit/r10-host-independence.test.mjs": {
+      "seedSha256": "feef7113ee3c13dcdba5883639ce73bdb8eb9e55341862f97485af0f08c5f8f1",
+      "finalSha256": "83835e46f6c7ee443017595b93903282f0b62776e8144243cc6bcf0af1b4bd3f",
+      "kind": "modified"
+    },
+    "test/windows-permit/r12-durable-send-restart.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "92493cbcf03742f7a2dc9f83b2bc590eab909b4c09bb03bf119b952f9e3a3977",
+      "kind": "new"
+    },
+    "test/windows-permit/r12-real-consumer.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "215dc21c008af47aa691ee54e8715a42b113bf7c76a3d73e6f614bcfd67737e4",
+      "kind": "new"
+    },
+    "test/windows-permit/r4-supervisor-chain.test.mjs": {
+      "seedSha256": "1f56f972a843833e3ee7b6df4df58035b9e889d7b24a3fdbadaacea25985db95",
+      "finalSha256": "aad66a57821440c986a2aa5c192241ba716e678d1b40981b2cca33a8921f1c95",
+      "kind": "modified"
+    },
+    "test/windows-permit/r5-ownership-chain.test.mjs": {
+      "seedSha256": "3875dc9b9889f8b7547ddfe53dea76ab807d803c9e5df0cf595c3bb8dfa2ebb0",
+      "finalSha256": "f1d8163a63b2d6188e070aa1aee0c631719e097cc18054fe4a3a5a328181ae03",
+      "kind": "modified"
+    },
+    "test/windows-permit/r6-stage-revocation.test.mjs": {
+      "seedSha256": "ce41069fada151aa9b090dc2ed62dfbb7fe198970d30ae3f5b76f19e0261189f",
+      "finalSha256": "92c64c87f508187b6d8edc0dc972c3e45a75edae8c08be4c61f64b3d08cb0c56",
+      "kind": "modified"
+    },
+    "test/windows-permit/r7-composite.test.mjs": {
+      "seedSha256": "571f7e9bd60cede1869b089d937787dea8ca605e734453d19f7ee0d767bf99f5",
+      "finalSha256": "f65c880bfb31aa85216d7f49546b6eb82d0431418a9bfec54e2210d839f05254",
+      "kind": "modified"
+    },
+    "test/windows-permit/r7-supervisor-withdrawal.test.mjs": {
+      "seedSha256": "4a83da353782f003ff649eb376a395975638654ea1692a67aaa546602ad88923",
+      "finalSha256": "1811da9ba9b4153f7eb30732b0c2a0f33580db28b95422de9eb9cc5b16eb18da",
+      "kind": "modified"
+    },
+    "test/windows-permit/r8-unknown-owner-loss.test.mjs": {
+      "seedSha256": "e1ea183c48a6bddc7a7abe2d2a514473250eb0f12cc9de7f088f930d79f50c9d",
+      "finalSha256": "775972b300b42e1a004a4a4d108fcff7ea615444f5d9d3b88447ae5bbf562e04",
+      "kind": "modified"
+    }
+  },
+  "removed": []
+}

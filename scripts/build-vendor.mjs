@@ -117,6 +117,29 @@ await build({
   console.log(`[vendor] sessions.js <- sdk/sessions/dist/browser.mjs (${fs.statSync(src).size} bytes)`);
 }
 
+// site/vendor/management.js <- network/management-browser.mjs: the independent dashboard's host-management transport
+// (records, routes, outcome rules and WebCrypto request checks shared with the native client and the gateway), built from
+// this repository by scripts/build-management-vendor.mjs, with its manifest (sources hashed). Loaded only by
+// site/js/core/independent-management.js, on the first management action.
+{
+  const { buildManagementVendor, OUT: MOUT, MANIFEST: MMAN } = await import("./build-management-vendor.mjs");
+  const { js, manifest } = await buildManagementVendor();
+  fs.writeFileSync(MOUT, js);
+  fs.writeFileSync(MMAN, JSON.stringify(manifest, null, 2) + "\n");
+  console.log(`[vendor] management.js <- network/management-browser.mjs (${js.length} bytes, sha256 ${manifest.sha256.slice(0, 16)}…)`);
+}
+
+// site/vendor/aa.js <- scripts/vendor/aa-entry.mjs: viem's ABI / EIP-712 helpers and ox's WebAuthn P-256 credential helpers
+// for the independent passkey account (site/js/core/passkey-account.js), from this repository's own viem and ox, with a
+// manifest. Loaded only when an owner opens the passkey account panel.
+{
+  const { buildAaVendor, OUT: AOUT, MANIFEST: AMAN } = await import("./build-aa-vendor.mjs");
+  const { js, manifest } = await buildAaVendor();
+  fs.writeFileSync(AOUT, js);
+  fs.writeFileSync(AMAN, JSON.stringify(manifest, null, 2) + "\n");
+  console.log(`[vendor] aa.js <- viem ${manifest.deps.viem} / ox ${manifest.deps.ox} (${js.length} bytes, sha256 ${manifest.sha256.slice(0, 16)}…)`);
+}
+
 // Fail loud if an upgrade ever drops an export the callers destructure, so a
 // broken bundle can never ship silently to the verify/auth paths.
 const must = [
@@ -126,6 +149,9 @@ const must = [
   ["sessions.js", ["newSessionKey", "buildGrant", "openSession", "IndexedDbStore", "RelayClient", "sessionFromRecord",
     "decodeGrantRequest", "describeGrant", "ownerOperation", "topUpFromWallet", "usdcDomain", "chainClient", "readSession",
     "delegationStatus", "setDelegateCall"]],
+  ["aa.js", ["encodeFunctionData", "hashTypedData", "encodeAbiParameters", "WebAuthnP256"]],
+  ["management.js", ["browserManagementEndpoint", "browserManagementRequest", "managementFloorKey", "checkAuthorizationWeb",
+    "ManagementBrowserError", "MANAGEMENT_OPERATIONS"]],
 ];
 for (const [file, names] of must) {
   const src = fs.readFileSync(path.join(OUT, file), "utf8");
@@ -134,3 +160,7 @@ for (const [file, names] of must) {
   if (missing.length) throw new Error(`${file}: bundle is missing expected export(s): ${missing.join(", ")}`);
   console.log(`[vendor] ${file}: ${fs.statSync(path.join(OUT, file)).size} bytes, exports OK ✓`);
 }
+
+// site/vendor/funding.js <- sdk/funding (client-site-repair-r2). This script emptied site/vendor/ above, so the funding
+// bundle is rebuilt here too; build-funding-vendor.mjs validates everything before it writes (and writes nothing on refusal).
+await import("./build-funding-vendor.mjs");

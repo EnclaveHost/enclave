@@ -1,0 +1,53 @@
+{
+  "schema": "enclave-windows-permit-release-closure/r8",
+  "status": "SOURCE MAPPING ONLY. No hashes of r8-changed candidate files are stated: the author executed nothing and computes no digests. Root computes exact sha256 for every file below after materialization. Older release mappings (r5..r7) are STALE and are not current source hashes.",
+  "seed": { "frozenRoot": "windows-manager-root-review-r7/candidate", "seedFiles": 169, "seedManifestSha256": "d11f2f60afbfff9bd7e4154057b86cd0a209c79337093ceb19d67b1e3c0b1c9c" },
+  "changedRuntimeSources": [
+    { "path": "control/windows/node/protected-isolation.mjs", "change": "owner re-proved after every awaited positive boundary (stage 202, permit 200, permit reconciled); generalized exact retirement (bounded hold, removal independent of hold, inventory-confirmed absence); owner-loss cleanup of ALL raw operations via authenticated operation outcome (cancel unseen / retire executed); own retry timer; outstanding() accounting; resolveUnknown delegates to cleanup after owner loss" },
+    { "path": "control/windows/node/protected-supervisor.mjs", "change": "owner-loss branch: cleanup first, bounded gate-withdrawal wait, honest outstanding accounting; header documents production composition" },
+    { "path": "control/windows/node/protected-authority-factory.mjs", "change": "NEW production factory: pinned authority config, read-only derived chain reader, owned r18 lifecycle, permit collector, snapshot normalization" },
+    { "path": "control/windows/node/agent.mjs", "change": "node entry calls composeProtectedAuthority({ hostId: host.enclaveId }) after new Host" }
+  ],
+  "changedNonRuntime": [
+    "REPORT-WINDOWS-PERMIT-R7.md (provenance correction note only)",
+    "REPORT-WINDOWS-PERMIT-R8.md (new)",
+    "RELEASE-CLOSURE-R8.json (new)",
+    "package-lock.json (new; see dependencyLock)"
+  ],
+  "tests": {
+    "new": ["test/windows-permit/r8-permit-owner-loss.test.mjs", "test/windows-permit/r8-unknown-owner-loss.test.mjs", "test/windows-permit/r8-authority-factory.test.mjs"],
+    "replaced": [{ "path": "test/windows-permit/r7-composite.test.mjs", "with": "root-corrected evidence/root-r7/root-composite.test.mjs, portable relative imports, corrected provenance header" }],
+    "imports": "all r8 tests import only ../../control/** and ./helpers/world.mjs inside candidate; world.mjs still reads ENCLAVE_DERIVE_VECTORS (default absolute path to installed-manager-http-baseline-r1/derive_vectors.json) - root must supply that pinned vector file"
+  },
+  "requiredPinnedMaterializations": {
+    "why": "protected-authority-factory.mjs dynamically imports these r18 modules from control/network/. They are NOT in the candidate. Until root copies them at the pinned hashes the import fails and enrolled deployments are held (fail closed). An unresolved entry below MUST fail the closure check.",
+    "doNotOverwrite": ["control/network/deployment-permit-gate.mjs", "control/network/deployment-isolation-runtime.mjs", "control/network/deployment-host-authority.mjs", "control/network/deployment-serving-permit.mjs", "control/network/canonical.mjs", "control/network/deployment-generation-certificate.mjs"],
+    "doNotOverwriteWhy": "candidate copies already present (gate/runtime carry r5-r7 fixes); root confirms the remaining ones are byte-identical to r18 or keeps the candidate copy",
+    "files": [
+      { "path": "control/network/lifecycle-host-owned-authority.mjs", "sha256": "ee1f93c8ab968ab6b26e3f38a18cf66604d476b87acd37acd7e9cb09ea6c302c", "source": "r18 frozen-protocol/network or root-r4 r18-test-deps/network" },
+      { "path": "control/network/deployment-chain-adapter.mjs", "sha256": "805cad12078d9cca7a24ce3a64f2debab4051d156bd59c0849158b00e42ff328", "source": "r18 frozen-protocol/network" },
+      { "path": "control/network/deployment-permit-collector.mjs", "sha256": "2c2f3fc6d444300c5e15da5b54f393a72d8fb86d519c70cd7419c640a3091dba", "source": "r18 frozen-protocol/network" },
+      { "path": "control/network/lifecycle-finality-bridge.mjs", "sha256": "a719bece74e0b7d198bd36b35e361bcb4d9e9e155ce366f15185b4e37f91c197", "source": "r18 frozen-protocol/network" },
+      { "path": "control/network/lifecycle-host-authority.mjs", "sha256": "76f5be11c3e07d17e86842815e567fa327772a5aa2c12407342b3f00056ffce1", "source": "root-r4 r18-test-deps/network" },
+      { "path": "control/network/lifecycle-host-incarnation-journal.mjs", "sha256": "488298539e71fe66b508e5ed52f47ed104b5235fa46deb1d40839acfae93ac25", "source": "root-r4 r18-test-deps/network" },
+      { "path": "control/network/deployment-host-authority-journal.mjs", "sha256": "dba7e3a31abcccf5fbc42526147af8ae822f6c50a2bf50d42bea93661ccc31db", "source": "root-r4 r18-test-deps/network" },
+      { "path": "control/network/deployment-lifecycle-witness.mjs", "sha256": "dce432df758b12b9dd8c83e2627febe88a36444ad74ce5dc1911e26edb7149c6", "source": "root-r4 r18-test-deps/network" },
+      { "path": "control/network/lifecycle-host-dispatch.mjs", "sha256": "ac2cf3016b263406f495b33801e961aeb8ccd4700bfee20eb9381509369927a3", "source": "root-r4 r18-test-deps/network" },
+      { "path": "control/network/lease-release-journal.mjs", "sha256": "6411481a118b341e3efcd99bbaad6da644d490fd2815abd40033014f7edf2ff6", "source": "root-r4 r18-test-deps/network" },
+      { "path": "control/network/deployment-transition-intent.mjs", "sha256": "1932ad2ef522df9260c061a6ce18ca1f2e09ef850c2850b57d46186bbca3f210", "source": "root-r4 r18-test-deps/network" },
+      { "path": "control/network/lifecycle-host-registry-profile.mjs", "sha256": "4816316ef9ced6fca3a4d135c64f7fd41f99b55bb737a7c10f4e6428c113b1b9", "source": "root-r4 r18-test-deps/network" },
+      { "path": "control/network/lifecycle-schema3-profile.mjs", "sha256": "e10f460866be7c30f71e0bc482929818b3003065f46ef5d53feb73d2f8134083", "source": "root-r4 r18-test-deps/network" },
+      { "path": "control/network/lifecycle-host-profile.mjs", "sha256": "ae53da9f520e7f66e5a88c850226f96a7294708e2f5dad27c178138096f4bc94", "source": "root-r4 r18-test-deps/network" },
+      { "path": "control/network/lifecycle-independent-admission.mjs", "sha256": "9ec46b88e4be5550e6072bc9f6bc566c553edf36e6231b9da4f718f2bbb04db9", "source": "root-r4 r18-test-deps/network" },
+      { "path": "control/network/owned-durable-state.mjs", "sha256": "UNRESOLVED", "source": "imported by lifecycle-host-owned-authority; hash not located in the evidence the author read" },
+      { "path": "control/network/deployment-lifecycle-journal.mjs", "sha256": "UNRESOLVED", "source": "imported by lifecycle-host-owned-authority; hash not located in the evidence the author read" },
+      { "path": "control/network/verified-chain.mjs", "sha256": "UNRESOLVED", "source": "imported by lifecycle-finality-bridge; hash not located in the evidence the author read" }
+    ],
+    "transitiveNote": "the full transitive import graph of deployment-chain-adapter.mjs (schema3/host-registry ABI bundles, op-receipts-root, network-policy*) was NOT enumerated by the author; root must resolve it and fail on any unresolved import"
+  },
+  "dependencyLock": {
+    "file": "package-lock.json",
+    "basis": "copied entry-for-entry (version, resolved, integrity) from evidence/dependency-locks/root-test-installed-lock.json; viem/ws entries cross-checked against evidence/dependency-locks/enclave-package-lock.json (identical integrity). No network, no invented hash.",
+    "discrepancy": "viem 2.53.1 declares ws 8.20.1 exactly, but BOTH pinned locks resolve node_modules/ws to 8.21.1 (no nested viem/node_modules/ws). This lock reproduces that evidenced resolution. npm ci may reject it as not satisfying viem's declared ws; root decides between an explicit owner-reviewed override (ws 8.21.1) or obtaining a pinned ws 8.20.1 integrity. Not resolved here."
+  }
+}

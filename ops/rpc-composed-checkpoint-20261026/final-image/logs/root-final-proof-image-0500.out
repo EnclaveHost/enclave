@@ -1,0 +1,127 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 5 not started; sleep 30
+[queue] START available=22816MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+[env] stubs selected; private netns lo only, no route (net:[4026533643])
+== 1 pins (base, OVMF, calibration image, native inputs)
+[pin] OK /home/steven/enclave-prod/dist-sdshield-2857356cd/manifest.json cc2571bb5b0c85b53b6bcf232331562578335bfd315bd0173c52ad6f80f776e0
+[pin] OK /home/steven/enclave-prod/dist-sdshield-2857356cd/initramfs.cpio.gz 516d766d9e31f07c02544d16969c34d3d28c2bca0e4032049225635433f10afc
+[pin] OK /home/steven/enclave-prod/dist-sdshield-2857356cd/vmlinuz 1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7
+[pin] OK /home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd 142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9
+[pin] OK /home/steven/Documents/Codex/2026-10-18/wo/work/linux-post-adoption-release/stage/dist-leasegas-deabf8f90/initramfs.cpio.gz c190c040485974a840b40e31a6dd068cc103199cf15315ef9c8c7575781b28e3
+[ok] chain-verifier-inputs PINS.sha256
+[pin] OK /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-integration-actual/run/regress-20261026T005955Z/chain-verifier-inputs/helios 8250f08a7b0e1f2432ea6262903ca3203b60bca6a8e17abd6d9bccbe0dbfa378
+[pin] OK /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-integration-actual/run/regress-20261026T005955Z/chain-verifier-inputs/enclave-base-head-listener 9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3
+[pin] OK /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-integration-actual/run/regress-20261026T005955Z/chain-verifier-inputs/witness-check 4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411
+[ok] base cmdline = the template
+[tool] sev-snp-measure 0.0.13
+== 2 two INDEPENDENT clean sources at 10cdf913b9b8bb168156e42da2a9a2a26c2526ad (c0-clone.sh rule: A copies packs, B is a --no-local re-pack of A)
+[ok] src-a HEAD 10cdf913b9b8bb168156e42da2a9a2a26c2526ad
+[ok] src-a tree 3b0f8114c07dfb30f15720155659259a018caad7
+[ok] src-a clean
+[ok] src-b HEAD 10cdf913b9b8bb168156e42da2a9a2a26c2526ad
+[ok] src-b tree 3b0f8114c07dfb30f15720155659259a018caad7
+[ok] src-b clean
+[ok] B shares no object store with A
+[ok] MCP bundle at 10cdf913b9b8bb168156e42da2a9a2a26c2526ad = the composed-run checked 280b6d05
+[ok] commit image record pins helios 8250f08a
+[ok] overlay tool blob a7c41de8 (== r12 final)
+[ok] overlay test blob ca7adf93 (== r12 final)
+[ok] supervisor-closure blob 51500846 (== r12 final)
+== 3 measurement-tool calibration
+[cal] production base reproduced b8376e15f7f94f9b40e9891a19be4779b1635b1c6e269e820ee09cf9313c9dfcc810072bd4ab3d1f4b19e1b6794ac35d
+[cal] KEPT reproduced ed918e4b393699b3f6251853d2d34317869d7d9e3150b41ffa917df3d392012c682f376a799494d01e6a6dd5bedd2ac2
+== 4 ONE overlay: --control direct --chain-verifier-dir (from source A; BASE is never modified)
+{"sha256": "35c773e979559d610a8d5e240a01d826556f59ca2b770cf32d22ffd8efa498ba", "bytes": 322876370}
+[ok] source A still clean
+[pin] OK /home/steven/enclave-prod/dist-sdshield-2857356cd/initramfs.cpio.gz 516d766d9e31f07c02544d16969c34d3d28c2bca0e4032049225635433f10afc
+[ok] output cmdline == base cmdline + ' metal.control=direct'
+== 5 measurement A (cmdline from the artifact)
+[append] console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app metal.control=direct
+[measure A] c0ab52344d5a1ebc0ed39e3848dcfe996f20e8a6b67c36318d34fd9fc1d2ce755aa2fc0afbb4913ce877478130d23cb9
+[ok] measurement is not c2442941 (an earlier image)
+[ok] measurement is not fe897820 (an earlier image)
+[ok] measurement is not b8376e15 (an earlier image)
+[ok] measurement is not ed918e4b (an earlier image)
+[ok] measurement is not 4287b65e (an earlier image)
+4ce7cbc86b7475688420f4beef1d6782a9213527c0baeb498e53d73536c6afdd  MEASUREMENT
+fd236eb2762c457bbe20376216e078f3aab3f2f40a3646f9509137b8f67fabb6  cmdline
+35c773e979559d610a8d5e240a01d826556f59ca2b770cf32d22ffd8efa498ba  initramfs.cpio.gz
+adcc1a4cabb7039ac1f148140aee085d2ccb2a0f1ff8346917168beb31d3c595  manifest.json
+1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7  vmlinuz
+97 /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/final-proof-image-stage/out/dist-direct-10cdf913/MEASUREMENT
+126 /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/final-proof-image-stage/out/dist-direct-10cdf913/cmdline
+322876370 /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/final-proof-image-stage/out/dist-direct-10cdf913/initramfs.cpio.gz
+36997 /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/final-proof-image-stage/out/dist-direct-10cdf913/manifest.json
+17232384 /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/final-proof-image-stage/out/dist-direct-10cdf913/vmlinuz
+== 6 INDEPENDENT verification: measurement recomputed + verify-image-direct.py with source B (own newc reader, git blobs)
+[ok] artifacts == build receipt
+[measure B] c0ab52344d5a1ebc0ed39e3848dcfe996f20e8a6b67c36318d34fd9fc1d2ce755aa2fc0afbb4913ce877478130d23cb9
+[ok] measurement B == recorded A
+OK   overlay tool working copy == commit's bytes  10db3d3d43a8319ede07d67b47d7fcd8434e0a94a7e411ff2c2ddc4e18d3c31e
+OK   vmlinuz == production base  1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7
+OK   manifest kernel record + modules unchanged  7.2.3-arch1-2
+OK   base cmdline is the base template and names no control mode
+OK   cmdline file == base cmdline + ' metal.control=direct' (same trailing bytes)  console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=${MODE} metal.isolation=snp-guest-per-app metal.control=direct
+OK   manifest: control direct, cmdlineTemplate = base + token, isolation snp-guest-per-app
+OK   controlOverlay.commit = COMMIT  10cdf913b9b8bb168156e42da2a9a2a26c2526ad
+OK   controlOverlay.builderSha256 = the commit's overlay tool
+OK   controlOverlay.control == direct
+OK   controlOverlay.baseInitramfsSha256 = production base
+OK   manifest controlOverlay.chainVerifier.installed == true  {"pins": "metal/chain-verifier-image.json", "pinsSha256": "c8fde7bb367a134f3c7434d7aa98da73ef3a2079ad4cb6bb9833741224efaee8", "files": [{"path": "/opt/rpc-runtime/enclave-base-head-listener", "sha256": "9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3", "bytes": 76257424, "mode": "0o
+OK   the base's controlOverlay is the last history entry  1 entries
+OK   manifest initramfs record = file
+OK   expectedMeasurement removed (recomputed separately)
+OK   committed bundle manifests match their bundles (sha256 + bytes)  platform-api 0d5b967d8e863dbc mcp 280b6d05ae278570
+OK   platform-API sidecars and MCP runtime files == their manifests' sha256 at COMMIT  1 sidecars, 2 runtime files
+OK   manifest platformApiBundle == recomputed from the committed manifest  {"path": "/opt/metal/platform-api.bundle.mjs", "sha256": "0d5b967d8e863dbc1cba09fc8c7aacb5f27b02e070922efd5c2ba0516547be47", "bytes": 9421348, "inputs": 2225, "sidecars": {"/opt/metal/fixtures/tpm-roo
+OK   manifest mcpBundle == recomputed from the committed manifest  {"path": "/opt/metal/mcp-server.bundle.mjs", "sha256": "280b6d05ae278570bd9c4c494606773daa8f8e18bdbae9215f5bb93afd79a005", "bytes": 4799201, "inputs": 2544, "manifestSha256": "280b6d05ae278570bd9c4c49
+committed install set: 71 inputs (49 app floor+closure, 14 under opt/)
+OK   controlOverlay.files covers every committed input with the git sha256  79 file records
+OK   all 71 committed inputs present, regular, bytes == git blob at COMMIT
+OK   committed inputs not group/other-writable, nlink 1
+committed-input mode/owner distribution: {'0o644 1000:1000': 16, '0o644 0:0': 55}; replaced entries whose mode/uid/gid differ from the base: 0
+OK   each /opt/rpc-runtime native: sha256 + mode as RECIPE table, root:root, regular, == PINS == commit image record  7 files
+OK   /opt/rpc-runtime holds exactly the natives + IMAGE.json + 2 dirs  []
+OK   /opt/rpc-runtime/IMAGE.json == commit's metal/chain-verifier-image.json  c8fde7bb367a134f3c7434d7aa98da73ef3a2079ad4cb6bb9833741224efaee8
+OK   /opt/metal/chain-verifier.mjs == commit's metal/guest/chain-verifier.mjs  8fa1808cef3bca0ff40aec62b651e4ed6217e209e9159ff32160238b068d58bb
+OK   new directories are 0755 root:root  ['app/client', 'app/metal', 'app/metal/guest', 'app/network', 'app/sdk', 'app/sdk/bootstrap', 'app/sdk/storage', 'app/site', 'app/site/js', 'app/site/js/core', 'app/windows', 'app/windows/node', 'opt/contracts', 'opt/contracts/deployments', 'opt/metal/fixtures', 'opt/rpc-runtime', 'opt/rpc-runtime/glibc']
+OK   no production base entry missing  []
+OK   added entries = new inputs + natives + IMAGE.json + parent directories only  80 added (17 dirs)
+OK   every other entry identical to the base (bytes + mode/owner/nlink/mtime/rdev)  29012 entries
+duplicate cpio entries (later wins): image 0 []; base 10 ['app/session-api-auth.mjs', 'app/session-api-auth.mjs', 'app/session-api-auth.mjs', 'app/session-api-auth.mjs', 'app/session-api-auth.mjs', 'app/session-api-auth.mjs', 'app/session-api-auth.mjs', 'app/session-api-auth.mjs']
+OK   the image itself has no duplicated cpio path  []
+dup app/session-api-auth.mjs: 10 base occurrences, 1 distinct contents; image f7bfbc569197657b4f2e55e9c19c632e57100aecbfc3ce6fcc102abf6ea98d29 (base entry: the base's last (kernel-effective) occurrence) ok=True
+dup app/verification-checkpoints.mjs: 2 base occurrences, 1 distinct contents; image aa69b54db648fe9439f9661727b81633dd46a2cb321627e3a78f6bc8b202ff29 (base entry: the base's last (kernel-effective) occurrence) ok=True
+OK   every base-duplicated path is ONE image entry equal to its kernel-effective/installed bytes (extracted bytes re-hashed)  {'app/session-api-auth.mjs': True, 'app/verification-checkpoints.mjs': True}
+OK   in-image opt/metal/manifest.json names COMMIT
+OK   supervisor import closure present in the image  49 files
+OK   supervisor closure files == git blobs at COMMIT  49 files (0 kept from base, equal to git)
+OK   supervisor closure npm packages + subpath exports in the image  cors@2.8.6, express@4.22.2, jose@5.10.0, viem@2.53.1, ws@8.21.1
+OK   chain verifier runtime import closure present in the image  9 files
+OK   chain verifier runtime closure files == git blobs at COMMIT  9 files (0 kept from base, equal to git)
+OK   chain verifier runtime closure npm packages + subpath exports in the image  viem@2.53.1
+OK   guest helpers' relative imports and bundles' beside-itself reads resolve in the image  12 opt/metal modules
+OK   gsup.mjs == commit's metal/guest/gsup.mjs and references chain-verifier.mjs
+OK   gsup.mjs starts /app/supervisor.js in the legacy (non-direct) branch
+OK   direct mode: platform-API and MCP bundles installed (DORMANT unless a bound config names them) == git at COMMIT  platform-api 0d5b967d8e863dbc mcp 280b6d05ae278570
+OK   measured-control.mjs (plan + front) == git at COMMIT, carries the /chain-verifier route and the verifier-only rules
+OK   gsup.mjs has the direct-control branch (startDirectControl) and passes the bound chain-verifier route to the front
+OK   no installed input carries a DigitalOcean /platform-policy mirror literal  []
+installed host-admission bundle dd99e9e2bf61dd38c0631fd32bc7d000e256cd79c78abf92fcf0a8a6804b40ee; host-policy bundle 0571c71293d670741803bdd7d5c2abd6dd0c73932a1e8423cee7b3b8c455628d
+node in image: usr/local/bin/node 6295488653f0d93b0a157841746fef7e72cc4328cfb60c4bbe0ca2668a836ffd; usr/bin/flock 09f189297bce1f713e2ba9a8607a89f17902edadc54d3c3162d43f76e8d3b6f9
+[ok] verifier receipt ok
+[verify] 45 checks, all ok
+[ok] source B still clean
+[ok] no ssh/scp/sftp invocation (0)
+FINAL-IMAGE-BUILT-AND-VERIFIED measurement c0ab52344d5a1ebc0ed39e3848dcfe996f20e8a6b67c36318d34fd9fc1d2ce755aa2fc0afbb4913ce877478130d23cb9  (NOT booted; SNP attestation/canary/trust-list/production proof NOT DONE)
+[memory-guard] exit=0 peakTreeRssMiB=643 minHostAvailableMiB=22065
+[memory-guard] at peak: git:594 git:35 git:5 git-upload-pack:5 bash:4
+[queue] EXIT 0

@@ -1,0 +1,46 @@
+{
+  "status": "PREPARED_NOT_LAUNCHED",
+  "seedEntries": 121,
+  "readonlyInputPins": 312,
+  "freshSession": true,
+  "sourceTools": [
+    "Read",
+    "Grep",
+    "Write",
+    "Edit"
+  ],
+  "mutationPolicy": "Candidate subtree only; terminal Write/Edit result audit and successful-mutation replay; missing/mismatched/outside outcomes never called clean",
+  "turnLimit": 30,
+  "turnMetric": "CLI max-agentic/API-turns; success result num_turns is separate user-message counter; preserve both",
+  "childTimeoutSec": 900,
+  "outerTimeoutSec": 1200,
+  "queueMiB": 1536,
+  "hardMemoryMiB": 1536,
+  "rssMiB": 1408,
+  "availableMemoryFloorMiB": 27648,
+  "cpus": 1,
+  "swapMiB": 0,
+  "persistentTmpdir": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/owned-tmp",
+  "claudeExecutable": {
+    "path": "/home/steven/.local/share/claude/versions/2.1.281",
+    "sha256": "56fe3da88458465fb27d7e9299dddb3fead55750fb9c2de795f233b5eea6dce1"
+  },
+  "hashes": {
+    "TASK.txt": "e8e3cf8583239e00ce3f1f519f0193fd2d2457e85f78d1aaf6954d65fa19f02d",
+    "run.py": "1fd164fa4780719e79ed397a6f33c92eadb8a06c4d0db1f6babb11d55ce70fe1",
+    "collect-terminal.py": "72c8572a7412d4be5b515fa63fc2bbcea9fa381466eabdd5e57eda66dc89c9c6",
+    "readonly-progress.py": "7657e3cf867451e36d2651f2f8ff67ca30ce88216f3c75459538ce2172b7bf61",
+    "turn-metric-investigation.json": "9e8987ce7979409ffe37c141e2638409796b08d2f955e1fb8366880b078a3ec8",
+    "input-pins.json": "53552419b5e69db26c57175ea921f65cd941ff2f71b60f73f8fb650b2481ca7a",
+    "seed-pins.json": "df55321bf1e61836fbea502d8bcf2ffe089932d9bb09c35963189e68cb4414d1",
+    "seed-provenance.json": "94ff962f23098f8c886baa755d66ed3593e59800b9da21b10ed99d46758a80fd",
+    "launch-command.txt": "1b70b6a54a070752557ee4c33e1a7f0ba4ee098456a0402279224f77f91eea43",
+    "REVIEW-STATUS.txt": "9455af82451627ac6415cf46059244a406b695896d980da125e7766a9a55f26e",
+    "preparation-closure.json": "4d3d6535ee8b9c7cbe7a55a6648a86be02418469aaed3377373033d39f5e359c"
+  },
+  "originalSeedEntries": 121,
+  "addedPinnedDependencies": 0,
+  "priority": "ROOT_REVIEW_PENDING_NO_LAUNCH",
+  "cpuIndex": 1,
+  "cpuAffinity": "taskset -c1 and AllowedCPUs=1; runner requires exact{1}"
+}

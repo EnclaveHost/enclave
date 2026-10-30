@@ -1,0 +1,32 @@
+Sun Oct 25 17:55:02 UTC 2026
+ 17:55:02 up 0 min,  1 user,  load average: 2.01, 0.43, 0.14
+               total        used        free      shared  buff/cache   available
+Mem:           64302        3771       56133           1        5048       60531
+Swap:              0           0           0
+NAME    SERIAL              SIZE ROTA DISC-MAX MOUNTPOINTS
+sda     ERPC-OS-C0D16DA3     32G    1       1G 
+├─sda1                       31G    1       1G /
+├─sda14                       4M    1       1G 
+├─sda15                     106M    1       1G /boot/efi
+└─sda16                     913M    1       1G /boot
+sdb     ERPC-L1-6DA15A8D    3.6T    0       1G /srv/enclave-l1-pair
+sdc     ERPC-BASE-740457FE  2.8T    1       1G /srv/enclave-base-holder
+sr0                         382K    1       0B 
+Result=success
+Id=enclave-l1-el.service
+ActiveState=active
+SubState=running
+
+Result=success
+Id=enclave-l1-cl.service
+ActiveState=active
+SubState=running
+
+Result=success
+Id=enclave-rpc-base-snapshot.service
+ActiveState=activating
+SubState=start
+Filesystem         1B-blocks         Used     Available Use% Mounted on
+/dev/sda1        32162967552   2946363392   29199826944  10% /
+/dev/sdb       3997571170304 321041076224 3636513316864   9% /srv/enclave-l1-pair
+/dev/sdc       3097855307776  70205988864 2996632543232   3% /srv/enclave-base-holder

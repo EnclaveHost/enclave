@@ -1,0 +1,13 @@
+--- a/producer/base_launch.py
++++ b/producer/base_launch.py
+@@ -403,8 +403,8 @@
+     if sha(_read_bytes(pathlib.Path(cfg_path))) != (launch.get('bindings') or {}).get('configSha256'):
+         refuse('config', 'the harness config is not the one the launch record bound (configSha256)')
+     c = A.load_config(str(cfg_path))
+-    if c.get('baseBinarySha256') != HARNESS_BINARY_SHA256:
+-        refuse('binary_pin', 'the config names another base binary than the harness pin')
++    if c.get('baseBinarySha256') != (launch.get('bindings') or {}).get('harnessBinarySha256'):     # r6.1: the binding produce recorded
++        refuse('binary_pin', 'the config names another base binary than the launch record bound (harnessBinarySha256)')
+     return c
+ 
+ 

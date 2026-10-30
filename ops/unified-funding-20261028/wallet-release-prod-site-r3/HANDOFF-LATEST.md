@@ -1,0 +1,7 @@
+
+
+## October30 02:15UTC: PROD migration controls LIVE all four edges
+
+Activation504c9c269c344285bcc823690587a9af TERMINAL/Main0. All4edgesCID bafybeidaz3h2x64fipdqrrcsazr6h5y5vghhvat7v5u5yzolfeqaknsy4i/1410files;87normalTLSHTTPScontenthashes each/348totalPASS.1329 priorassetsunchanged/bootonly+80new. No backendrestart or wallettransaction. Neverreruncompletededgehelpers. U/wallet-release-prod-site-r3/ROOT-REVIEW andactivation-status.json authoritative. Productionallows explicitcurrentcontentPromote thenfreshseparateRelease forqualifiedPROD; DNS/KVM economicguards remain.
+
+FreshChrome4tab723101070 at/sessions samewallet loadsnewsite; fullhistorycensusstillChecking aslastobserved, markedHandoff. ExistingChrome4tab723101015 firsta62reviewstillunsigned; not reloaded or signed. Catalog723101065prepareduntouched. No newownershipchange/payment/refund/payout. Rootfinal60PASS and actualIDB/inertbrowserlimits above. Allsource/evidencebuildalreadyb510cb94374092115d0fe1c1e2f3a30f136cf460 pushed; activationdocs nowbeingpreserved. Noactiveauthor/test/build/remotejob. WalletmigrationFIRST; capacity/topupdeferred; fundedpreservingmigration and sessioncreatedwalletownership unfinished.

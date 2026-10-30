@@ -1,0 +1,15 @@
+test_duplicate_libnode_mappings_refuse (__main__.RuntimePin.test_duplicate_libnode_mappings_refuse) ... ok
+test_finality_core_report_must_match (__main__.RuntimePin.test_finality_core_report_must_match) ... ok
+test_host_node_reports_no_libnode_and_is_accepted_self_contained (__main__.RuntimePin.test_host_node_reports_no_libnode_and_is_accepted_self_contained) ... ok
+test_libnode_replaced_during_the_decision_refuses (__main__.RuntimePin.test_libnode_replaced_during_the_decision_refuses) ... ok
+test_missing_mapping_refuses (__main__.RuntimePin.test_missing_mapping_refuses) ... ok
+test_real_accepted_profiles_from_the_capture_module (__main__.RuntimePin.test_real_accepted_profiles_from_the_capture_module) ... ok
+test_split_guest_profile_accepted (__main__.RuntimePin.test_split_guest_profile_accepted) ... ok
+test_unapproved_libnode_and_libnode_on_a_self_contained_profile_refuse (__main__.RuntimePin.test_unapproved_libnode_and_libnode_on_a_self_contained_profile_refuse) ... ok
+test_writable_libnode_refuses (__main__.RuntimePin.test_writable_libnode_refuses) ... ok
+test_wrong_libnode_bytes_refuse (__main__.RuntimePin.test_wrong_libnode_bytes_refuse) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.060s
+
+OK

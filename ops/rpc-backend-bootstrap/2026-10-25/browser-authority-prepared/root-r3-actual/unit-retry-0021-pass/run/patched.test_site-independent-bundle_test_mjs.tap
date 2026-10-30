@@ -1,0 +1,22 @@
+TAP version 13
+# Subtest: the site bundles with independent mode included and no Node built-ins
+ok 1 - the site bundles with independent mode included and no Node built-ins
+  ---
+  duration_ms: 98.336059
+  type: 'test'
+  ...
+# Subtest: the vendored sessions SDK is the current browser build with relay-free preparation
+ok 2 - the vendored sessions SDK is the current browser build with relay-free preparation
+  ---
+  duration_ms: 18.383595
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 171.550574

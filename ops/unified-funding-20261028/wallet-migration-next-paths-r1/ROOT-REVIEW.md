@@ -1,0 +1,9 @@
+# Next wallet migration paths — October 30
+
+The first deployment release remains at its human signing review; no signature or transaction observed. Production source/evidence fc00bc153a31 is pushed and verified. No author, test, build or production mutation in this review.
+
+Root confirmed the peer's immutable ledger and reserve findings against the exact rev16d source: transfer changes only owner but refuses both funded rows; refund zeroes balance and deactivates; runner release does not transfer escrow; old reserve recovery is not counter/policy migration. A frontend cannot add the missing old-contract capabilities. No refund, top-up, payout change or global retirement is authorized by this review.
+
+The inactive cab8 record is different. Its unpromoted PROD restriction is an owner content-policy decision. The existing Promote signature binds exact current content; Release does not. The next narrow UI implementation may permit an explicitly reviewed, current-content-matching promoted PROD record after owner election of wallet-controlled content. This is a disclosed policy change, not a claim that the old vault promotion guard survives. Existing complete census and all economic/lease/reserve/nonce/dispatch guards remain. No promotion is performed now.
+
+A separate existing production admin form was opened in Chrome4 tab723101065. Read-only Load apps confirms catalog rev9 /49 records, exactly one B794 publisher record: kvm-box-native. Fixed catalog18419ca2..., fromB794..., to0b2d...ee61. TRANSFER confirmation remains blank; Transfer all was never clicked. Catalog publisher migration preserves lineage IDs/versions but does not migrate deployment ownership or gas/funding. The UI is prepared for a later human transaction, not submitted. Root's earlier independent catalog read/simulation is historical; fresh validation is required before signing. No private data copied.

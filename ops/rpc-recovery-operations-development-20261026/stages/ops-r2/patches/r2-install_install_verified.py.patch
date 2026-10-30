@@ -1,0 +1,81 @@
+--- a/install/install_verified.py
++++ b/install/install_verified.py
+@@ -11,7 +11,9 @@
+     file outside the qualified tree; the wrapper only with --include-wrapper while no process runs it;
+   - no earlier install journal is left open (run `recover` first).
+ COMMIT is journaled (/var/lib/enclave-rpc/install-journal/<stamp>.json, root 0600, written before the first mutation): each replaced
+-file is first COPIED (a new inode, 0600; the live file's bytes and mode are untouched) to <dest>.pre-<stamp>, then the new bytes
++file is first COPIED (a new inode, 0600; the live file's bytes and mode are untouched) to the transaction's backup directory
++<journal-dir>/<stamp>.backup/<dest path> (root 0700, OUTSIDE every installed module tree, so a tree's exact digest and file set are
++never disturbed; its original mode/uid/gid are in the journal), then the new bytes
+ are written to a sibling temp, fsynced, given owner/mode, renamed into place, the directory fsynced and the result re-verified.
+ Any failure rolls every step back exactly (bytes, mode, owner; created files and directories removed) and the journal records it.
+ An interrupted commit (crash, kill) leaves the journal `open`: `install_verified.py recover` restores the same way; installs and
+@@ -207,7 +209,7 @@
+                         os.chown(R(d), UID, UID)
+             p = R(op['dest'])
+             if op['action'] == 'replace':
+-                keep = p.with_name(f'{p.name}.pre-{stamp}')
++                keep = _backup_path(stamp, op['dest'])                      # r2: never beside the live file (module trees stay exact)
+                 _write_file(keep, p.read_bytes(), 0o600, UID, UID)          # a COPY: the live inode keeps its mode
+                 if sha(keep.read_bytes()) != op['prevSha256']:
+                     refuse(f'{op["dest"]} changed during the install')
+@@ -228,6 +230,21 @@
+         refuse(f'install failed at {e}; every step was rolled back (journal {jpath.name})')
+ 
+ 
++def _backup_path(stamp, dest):
++    """<journal-dir>/<stamp>.backup/<dest without leading />; every directory root 0700, none a symlink"""
++    rel = pathlib.PurePosixPath(dest.lstrip('/'))
++    base = R(JOURNAL_DIR) / f'{stamp}.backup'
++    for d in [base] + [base.joinpath(*rel.parent.parts[:i + 1]) for i in range(len(rel.parent.parts))]:
++        if not os.path.lexists(d):
++            os.mkdir(d, 0o700)
++            if os.geteuid() == 0:
++                os.chown(d, UID, UID)
++        st = os.lstat(d)
++        if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode):
++            refuse(f'{d} is not a real directory')
++    return base.joinpath(*rel.parts)
++
++
+ def rollback(jpath):
+     j = json.loads(jpath.read_bytes())
+     for jo in reversed(j['ops']):
+@@ -264,7 +281,9 @@
+ 
+ 
+ def installed_exactly(m):
+-    """refuses unless no journal is open and every non-unit manifest file is installed byte-exact and root-owned"""
++    """refuses unless no journal is open, every non-unit manifest file is installed byte-exact and root-owned, and (r2) every
++    manifest TREE is installed exactly: the same file set (no extra file, no symlink), each file's sha, root-owned and not
++    group/other writable, and the tree digest finality_state checks"""
+     if open_journals():
+         refuse('an install journal is still open (a partial install): run recover, then install again')
+     for e in m['files']:
+@@ -273,6 +292,25 @@
+         d = R(e['dest'])
+         if not d.is_file() or d.is_symlink() or sha(d.read_bytes()) != e['sha256'] or os.lstat(d).st_uid != UID:
+             refuse(f'{e["dest"]} is not installed as the qualified bytes: install first')
++    for t in m.get('trees', []):
++        d = R(t['dest'])
++        if not d.is_dir() or d.is_symlink():
++            refuse(f'{t["dest"]} is not an installed tree')
++        found = {}
++        for p in d.rglob('*'):
++            st = os.lstat(p)
++            if stat.S_ISLNK(st.st_mode) or not (stat.S_ISDIR(st.st_mode) or stat.S_ISREG(st.st_mode)):
++                refuse(f'{p} in {t["dest"]} is a symlink or not a regular file')
++            if st.st_uid != UID or st.st_mode & 0o022:
++                refuse(f'{p} in {t["dest"]} is not root-owned or is group/other writable')
++            if stat.S_ISREG(st.st_mode):
++                found[p.relative_to(d).as_posix()] = sha(p.read_bytes())
++        if set(found) != set(t['files']):
++            refuse(f'{t["dest"]} holds another file set than the qualified tree (extra {sorted(set(found) - set(t["files"]))[:5]}, '
++                   f'missing {sorted(set(t["files"]) - set(found))[:5]})')
++        bad = sorted(r for r, s in t['files'].items() if found[r] != s)
++        if bad or tree_sha256(d) != t['treeSha256']:
++            refuse(f'{t["dest"]} is not the qualified tree (changed: {bad[:5]})')
+ 
+ 
+ def activate(argv):

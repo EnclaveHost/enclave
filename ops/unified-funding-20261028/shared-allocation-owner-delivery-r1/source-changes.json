@@ -1,0 +1,70 @@
+{
+  "changes": {
+    "RELEASE-CLOSURE-SHARED-ALLOCATION-R1.json": {
+      "seedSha256": null,
+      "finalSha256": "74d5acff8251e09052c8b803c8652464881ba2390eb8fdf2cffe9215bacefba0",
+      "kind": "new"
+    },
+    "REPORT-SHARED-ALLOCATION-R1.md": {
+      "seedSha256": null,
+      "finalSha256": "4ce23d48c2623d6b61050c4814c0ab062e7e64495212b2633e2ab407e9e2e322",
+      "kind": "new"
+    },
+    "control/windows/vbslike/manager/allocation-integration.mjs": {
+      "seedSha256": null,
+      "finalSha256": "a7be141103a84e8f45061d3b6a154931b66a563b1685f3e6d61283791284e106",
+      "kind": "new"
+    },
+    "control/windows/vbslike/manager/allocation-owner-main.mjs": {
+      "seedSha256": null,
+      "finalSha256": "3aa4f706ec44e9f62e35f8435c39c02223780cc325ec10333c346d2c4bdff9a9",
+      "kind": "new"
+    },
+    "control/windows/vbslike/manager/allocation-owner.mjs": {
+      "seedSha256": null,
+      "finalSha256": "9fcc91a642d043236faf47ac7cd4c5fa3b30df4aee290e115e481949ada83e86",
+      "kind": "new"
+    },
+    "control/windows/vbslike/manager/allocation-service.mjs": {
+      "seedSha256": null,
+      "finalSha256": "b8338b9e938e199715dc3be568eefd8879cf29ac4e4187c15e685bab2db27214",
+      "kind": "new"
+    },
+    "control/windows/vbslike/manager/backend.mjs": {
+      "seedSha256": "d90b596a81a4f76752ba87c7905bb521f1f1674a6bbba3d8f3db210d657af9e2",
+      "finalSha256": "cfb07a2e3f80679318e939ef11dc4ca00567151d663278a7832b094a6fac0195",
+      "kind": "modified"
+    },
+    "control/windows/vbslike/manager/compose.mjs": {
+      "seedSha256": "25cf15600e8708543c3284061f0250af7f37514c48f477bf9be7b1248f6c9d77",
+      "finalSha256": "407425fbc6dad860712c0f23f0e4c8fbc34e47fc68b75cb935d92a64606da0e1",
+      "kind": "modified"
+    },
+    "control/windows/vbslike/manager/main.mjs": {
+      "seedSha256": "eacd28d75b6397ca7890f832e654ee476a482b2018660f21473e9d4e5f0d1ea7",
+      "finalSha256": "70054952a7efc80108181bb4961798d1006bfd15a513a4e12749394d5a3e1d10",
+      "kind": "modified"
+    },
+    "control/windows/vbslike/manager/wmi-launcher.mjs": {
+      "seedSha256": "bba4c309f5a837e17bf44be54cd8e4c4432ad74174a7d09eda559f11f5ef250e",
+      "finalSha256": "6addefeff97637edd7cfff7de49974726ee73cf302ee2e7d486a73700f20a222",
+      "kind": "modified"
+    },
+    "test/windows-permit/allocation-integration.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "51d1b501b9aedefef4705ff4567a0a0565a416f370f438808a24789dde35e7ff",
+      "kind": "new"
+    },
+    "test/windows-permit/allocation-owner.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "50ecbae0235eafa0e426f04f878faa7f9e7d85aec2a41d56b9cf32bfa360010a",
+      "kind": "new"
+    },
+    "test/windows-permit/helpers/alloc-fixture.mjs": {
+      "seedSha256": null,
+      "finalSha256": "949c23758a87401f580a23f2cd16b54aebaa5e91362a61213b57a73ab1d9211d",
+      "kind": "new"
+    }
+  },
+  "removed": []
+}

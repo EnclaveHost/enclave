@@ -1,0 +1,677 @@
+[
+ {
+  "importer": "network/attested-verifier-client.mjs",
+  "target": "metal/guest/measured-control.mjs",
+  "missing": [
+   "MAX_VERIFIER_ANSWER_BYTES"
+  ]
+ },
+ {
+  "importer": "network/direct-egress.mjs",
+  "target": "relay/net-guard.mjs",
+  "missing": [
+   "parseIp"
+  ]
+ },
+ {
+  "importer": "network/lease-relay-service.mjs",
+  "target": "network/chain-authority.mjs",
+  "missing": [
+   "VERIFIER_ENV",
+   "TX_BACKEND_ENV"
+  ]
+ },
+ {
+  "importer": "network/management-record.mjs",
+  "target": "relay/net-guard.mjs",
+  "missing": [
+   "isBlockedHost",
+   "parseIp"
+  ]
+ },
+ {
+  "importer": "network/preflight.mjs",
+  "target": "relay/net-guard.mjs",
+  "missing": [
+   "isBlockedHost"
+  ]
+ },
+ {
+  "importer": "network/provider-qualification.mjs",
+  "target": "relay/net-guard.mjs",
+  "missing": [
+   "isBlockedHost"
+  ]
+ },
+ {
+  "importer": "network/route-record.mjs",
+  "target": "relay/net-guard.mjs",
+  "missing": [
+   "isBlockedHost"
+  ]
+ },
+ {
+  "importer": "relay/api-relay.js",
+  "target": "relay/net-guard.mjs",
+  "missing": [
+   "isBlockedHost"
+  ]
+ },
+ {
+  "importer": "relay/api-relay.js",
+  "target": "./network-runtime.bundle.mjs",
+  "missing": [
+   "<unresolved module>"
+  ]
+ },
+ {
+  "importer": "relay/dns-challenge-shield.mjs",
+  "target": "relay/vbs-runtime.mjs",
+  "missing": [
+   "runtimeId",
+   "validateRuntimeIdentity",
+   "bind2"
+  ]
+ },
+ {
+  "importer": "relay/dns-challenge-shield.mjs",
+  "target": "relay/vbs-tpm.mjs",
+  "missing": [
+   "VBS_MAX_CERT_BYTES",
+   "VBS_MAX_CHAIN_CERTS",
+   "VBS_MAX_TPMT_PUBLIC_BYTES"
+  ]
+ },
+ {
+  "importer": "relay/dns-relay.js",
+  "target": "./network-runtime.bundle.mjs",
+  "missing": [
+   "<unresolved module>"
+  ]
+ },
+ {
+  "importer": "relay/dns-relay.js",
+  "target": "./network-runtime.bundle.mjs",
+  "missing": [
+   "<unresolved module>"
+  ]
+ },
+ {
+  "importer": "relay/fleet.mjs",
+  "target": "relay/net-guard.mjs",
+  "missing": [
+   "isBlockedHost"
+  ]
+ },
+ {
+  "importer": "relay/hvnode-core.mjs",
+  "target": "relay/vbs-tpm.mjs",
+  "missing": [
+   "TPMA_DECRYPT",
+   "TPM_ALG_SHA256",
+   "TPM_ALG_RSASSA",
+   "VBS_MAX_LOG_BYTES",
+   "VBS_MAX_CERT_BYTES",
+   "VBS_MAX_CHAIN_CERTS",
+   "VBS_MAX_SIG_BYTES",
+   "VBS_MAX_TPMT_PUBLIC_BYTES"
+  ]
+ },
+ {
+  "importer": "relay/pvm-app-attest.mjs",
+  "target": "relay/pvm-evidence-core.mjs",
+  "missing": [
+   "SEALED_MAX_REQUESTS"
+  ]
+ },
+ {
+  "importer": "relay/relay-chain-authority.mjs",
+  "target": "network/chain-authority.mjs",
+  "missing": [
+   "TX_BACKEND_ENV"
+  ]
+ },
+ {
+  "importer": "relay/shield-app-verifier.mjs",
+  "target": "relay/shield-derive.mjs",
+  "missing": [
+   "derive",
+   "appConfigText",
+   "DERIVATION_V5",
+   "DERIVATION_V6",
+   "DERIVATION_V7"
+  ]
+ },
+ {
+  "importer": "relay/vbs-app-core.mjs",
+  "target": "relay/vbs-runtime.mjs",
+  "missing": [
+   "ABI2"
+  ]
+ },
+ {
+  "importer": "relay/vbs-app-verify.mjs",
+  "target": "relay/vbs-runtime.mjs",
+  "missing": [
+   "bind2",
+   "runtimeId",
+   "validateRuntimeIdentity"
+  ]
+ },
+ {
+  "importer": "relay/vbs-verify.mjs",
+  "target": "relay/vbs-tpm.mjs",
+  "missing": [
+   "TPM_ST_ATTEST_QUOTE",
+   "TPM_ALG_SHA256",
+   "TPM_ALG_NULL",
+   "TPM_ALG_AES",
+   "TPM_ALG_CFB",
+   "TPM_ALG_RSASSA",
+   "TPMA_DECRYPT",
+   "VBS_MAX_LOG_BYTES",
+   "VBS_MAX_CERT_BYTES",
+   "VBS_MAX_CHAIN_CERTS",
+   "VBS_MAX_SIG_BYTES",
+   "VBS_MAX_TPMT_PUBLIC_BYTES",
+   "VBS_MAX_MODULES"
+  ]
+ },
+ {
+  "importer": "scripts/build-host-capacity-vendor.mjs",
+  "target": "./network/host-capacity.mjs",
+  "missing": [
+   "<unresolved module>"
+  ]
+ },
+ {
+  "importer": "scripts/build-host-policy-vendor.mjs",
+  "target": "./network/platform-host-policy.mjs",
+  "missing": [
+   "<unresolved module>"
+  ]
+ },
+ {
+  "importer": "scripts/build-host-policy-vendor.mjs",
+  "target": "./network/host-policy-mirrors.mjs",
+  "missing": [
+   "<unresolved module>"
+  ]
+ },
+ {
+  "importer": "scripts/platform-api-admin.mjs",
+  "target": "metal/guest/platform-api-role.mjs",
+  "missing": [
+   "BOOTSTRAP_PATH",
+   "CREDENTIALS_PATH",
+   "STATUS_PATH"
+  ]
+ },
+ {
+  "importer": "site/js/core/wallet.js",
+  "target": "site/js/core/config.js",
+  "missing": [
+   "BASE_CHAIN_HEX"
+  ]
+ },
+ {
+  "importer": "test/adopt-pending-stop.test.mjs",
+  "target": "test/helpers/supervisor-wallet-fixture.mjs",
+  "missing": [
+   "dep"
+  ]
+ },
+ {
+  "importer": "test/app-zone-sdk.test.mjs",
+  "target": "sdk/bootstrap/package.mjs",
+  "missing": [
+   "MAX_APP_ZONE_CHALLENGES"
+  ]
+ },
+ {
+  "importer": "test/attested-route-composition.test.mjs",
+  "target": "test/helpers/platform-policy-world.mjs",
+  "missing": [
+   "OWNERSHIP"
+  ]
+ },
+ {
+  "importer": "test/avf-der.test.mjs",
+  "target": "test/fixtures/avf-synthetic.mjs",
+  "missing": [
+   "octet",
+   "integer"
+  ]
+ },
+ {
+  "importer": "test/custody-hardware.test.mjs",
+  "target": "test/helpers/genoa-capture.mjs",
+  "missing": [
+   "APP_ID"
+  ]
+ },
+ {
+  "importer": "test/custody-v2-e2e.test.mjs",
+  "target": "custody/v2/member.mjs",
+  "missing": [
+   "BATCH_MS",
+   "SILENT_MS"
+  ]
+ },
+ {
+  "importer": "test/custody-v2-independent-governance.test.mjs",
+  "target": "custody/v2/member.mjs",
+  "missing": [
+   "BATCH_MS"
+  ]
+ },
+ {
+  "importer": "test/custody-v2-independent-identity.test.mjs",
+  "target": "custody/v2/member.mjs",
+  "missing": [
+   "BATCH_MS"
+  ]
+ },
+ {
+  "importer": "test/custody-v2-ingress-ratekey.test.mjs",
+  "target": "test/helpers/shield-custody-rig.mjs",
+  "missing": [
+   "VAULT",
+   "COMMITTEE"
+  ]
+ },
+ {
+  "importer": "test/custody-v2-original-vault-e2e.test.mjs",
+  "target": "custody/v2/member.mjs",
+  "missing": [
+   "BATCH_MS"
+  ]
+ },
+ {
+  "importer": "test/custody-v2-shield-daemon.test.mjs",
+  "target": "test/helpers/shield-custody-rig.mjs",
+  "missing": [
+   "hex",
+   "b64",
+   "VAULT",
+   "COMMITTEE",
+   "NEW_OWNER",
+   "stranger"
+  ]
+ },
+ {
+  "importer": "test/host-services-agent-verifier.test.mjs",
+  "target": "test/helpers/platform-policy-world.mjs",
+  "missing": [
+   "OWNERSHIP"
+  ]
+ },
+ {
+  "importer": "test/host-services-agent-verifier.test.mjs",
+  "target": "test/helpers/privacy-agent-rig.mjs",
+  "missing": [
+   "RUNNER"
+  ]
+ },
+ {
+  "importer": "test/host-services-carriers.test.mjs",
+  "target": "test/helpers/platform-policy-world.mjs",
+  "missing": [
+   "OWNERSHIP"
+  ]
+ },
+ {
+  "importer": "test/host-services-carriers.test.mjs",
+  "target": "test/helpers/privacy-agent-rig.mjs",
+  "missing": [
+   "RUNNER"
+  ]
+ },
+ {
+  "importer": "test/mcp-independent.test.mjs",
+  "target": "test/helpers/platform-policy-world.mjs",
+  "missing": [
+   "OWNERSHIP"
+  ]
+ },
+ {
+  "importer": "test/native-control-attested.test.mjs",
+  "target": "test/helpers/platform-policy-world.mjs",
+  "missing": [
+   "REGISTRY"
+  ]
+ },
+ {
+  "importer": "test/node-policy-carriers.test.mjs",
+  "target": "test/helpers/platform-policy-world.mjs",
+  "missing": [
+   "REGISTRY",
+   "OWNERSHIP"
+  ]
+ },
+ {
+  "importer": "test/platform-api-admin-status.test.mjs",
+  "target": "metal/guest/platform-api-role.mjs",
+  "missing": [
+   "STATUS_PATH"
+  ]
+ },
+ {
+  "importer": "test/platform-api-handoff-production.test.mjs",
+  "target": "test/helpers/platform-policy-world.mjs",
+  "missing": [
+   "REGISTRY"
+  ]
+ },
+ {
+  "importer": "test/platform-api-hosted.test.mjs",
+  "target": "metal/guest/platform-api-role.mjs",
+  "missing": [
+   "BOOTSTRAP_PATH",
+   "CREDENTIALS_PATH",
+   "HANDOFF_PATH"
+  ]
+ },
+ {
+  "importer": "test/platform-api-native-issuer.test.mjs",
+  "target": "test/helpers/platform-policy-world.mjs",
+  "missing": [
+   "REGISTRY"
+  ]
+ },
+ {
+  "importer": "test/platform-api-native-issuer.test.mjs",
+  "target": "metal/guest/platform-api-role.mjs",
+  "missing": [
+   "BOOTSTRAP_PATH",
+   "CREDENTIALS_PATH"
+  ]
+ },
+ {
+  "importer": "test/policy-mirror-sync-race.test.mjs",
+  "target": "test/helpers/platform-policy-world.mjs",
+  "missing": [
+   "OWNERSHIP"
+  ]
+ },
+ {
+  "importer": "test/shield-custody.test.mjs",
+  "target": "test/helpers/shield-custody-rig.mjs",
+  "missing": [
+   "hex",
+   "b64",
+   "APP",
+   "VAULT",
+   "DEP",
+   "COMMITTEE",
+   "OTHER_ENDPOINT",
+   "NEW_OWNER",
+   "stranger"
+  ]
+ },
+ {
+  "importer": "test/shield-host-session.test.mjs",
+  "target": "test/helpers/shield-custody-rig.mjs",
+  "missing": [
+   "hex",
+   "b64",
+   "stranger"
+  ]
+ },
+ {
+  "importer": "test/supervisor-wallet-real-lease-client.test.mjs",
+  "target": "test/helpers/supervisor-wallet-fixture.mjs",
+  "missing": [
+   "ref"
+  ]
+ },
+ {
+  "importer": "test/supervisor-wallet-unknown-hold.test.mjs",
+  "target": "test/helpers/supervisor-wallet-fixture.mjs",
+  "missing": [
+   "dep",
+   "app",
+   "catalog",
+   "ref",
+   "owner"
+  ]
+ },
+ {
+  "importer": "test/verifier-admission.test.mjs",
+  "target": "test/helpers/genoa-capture.mjs",
+  "missing": [
+   "APP_ID"
+  ]
+ },
+ {
+  "importer": "test/verifier-node-bundle.test.mjs",
+  "target": "verifier/node/build.mjs",
+  "missing": [
+   "ARTIFACT",
+   "MANIFEST"
+  ]
+ },
+ {
+  "importer": "test/verifier-pvm-instance-device.test.mjs",
+  "target": "verifier/admission.mjs",
+  "missing": [
+   "HOLD"
+  ]
+ },
+ {
+  "importer": "test/verifier-pvm-v3.test.mjs",
+  "target": "verifier/admission.mjs",
+  "missing": [
+   "HOLD"
+  ]
+ },
+ {
+  "importer": "test/verifier-sealed-stream.test.mjs",
+  "target": "verifier/sealed-stream.mjs",
+  "missing": [
+   "MAX_CHUNK_CT"
+  ]
+ },
+ {
+  "importer": "test/verifier-snp-genoa.test.mjs",
+  "target": "test/helpers/genoa-capture.mjs",
+  "missing": [
+   "APP_ID",
+   "vcekProxy"
+  ]
+ },
+ {
+  "importer": "test/verifier-web-browser.test.mjs",
+  "target": "verifier/web/build.mjs",
+  "missing": [
+   "ARTIFACT",
+   "MANIFEST"
+  ]
+ },
+ {
+  "importer": "test/verifier-web-browser.test.mjs",
+  "target": "test/helpers/genoa-capture.mjs",
+  "missing": [
+   "APP_ID"
+  ]
+ },
+ {
+  "importer": "test/verifier-web-browser.test.mjs",
+  "target": "./bundle.js",
+  "missing": [
+   "<unresolved module>"
+  ]
+ },
+ {
+  "importer": "test/verifier-web-differential.test.mjs",
+  "target": "test/helpers/genoa-capture.mjs",
+  "missing": [
+   "APP_ID",
+   "vcekProxy"
+  ]
+ },
+ {
+  "importer": "test/verifier-web-package.test.mjs",
+  "target": "verifier/web/build.mjs",
+  "missing": [
+   "ARTIFACT",
+   "MANIFEST",
+   "NOTICES"
+  ]
+ },
+ {
+  "importer": "test/verifier-web-pvm-app.test.mjs",
+  "target": "verifier/web/pvm-app.mjs",
+  "missing": [
+   "PROOF_KEY_RELAY_STATED"
+  ]
+ },
+ {
+  "importer": "test/verifier-web-pvm-host.test.mjs",
+  "target": "./bundle.js",
+  "missing": [
+   "<unresolved module>"
+  ]
+ },
+ {
+  "importer": "test/windows-lease-closure.test.mjs",
+  "target": "./runtime.mjs",
+  "missing": [
+   "<unresolved module>"
+  ]
+ },
+ {
+  "importer": "verifier/history-checkpoint.mjs",
+  "target": "verifier/snp.mjs",
+  "missing": [
+   "JUDGED_MAX_REPORT_VERSION"
+  ]
+ },
+ {
+  "importer": "verifier/index.mjs",
+  "target": "verifier/snp.mjs",
+  "missing": [
+   "JUDGED_MAX_REPORT_VERSION"
+  ]
+ },
+ {
+  "importer": "verifier/index.mjs",
+  "target": "verifier/admission.mjs",
+  "missing": [
+   "HOLD"
+  ]
+ },
+ {
+  "importer": "verifier/node/reproduce.mjs",
+  "target": "verifier/node/build.mjs",
+  "missing": [
+   "ARTIFACT",
+   "MANIFEST",
+   "NOTICES",
+   "VENDOR_MANIFEST"
+  ]
+ },
+ {
+  "importer": "verifier/web/index.mjs",
+  "target": "verifier/envelope.mjs",
+  "missing": [
+   "MAX_BODY_BYTES"
+  ]
+ },
+ {
+  "importer": "verifier/web/reproduce.mjs",
+  "target": "verifier/web/build.mjs",
+  "missing": [
+   "ARTIFACT",
+   "MANIFEST",
+   "NOTICES"
+  ]
+ },
+ {
+  "importer": "verifier/web/shield-host.mjs",
+  "target": "relay/vbs-tpm.mjs",
+  "missing": [
+   "TPMA_DECRYPT",
+   "TPM_ALG_SHA256",
+   "TPM_ALG_RSASSA",
+   "VBS_MAX_CERT_BYTES",
+   "VBS_MAX_CHAIN_CERTS",
+   "VBS_MAX_TPMT_PUBLIC_BYTES"
+  ]
+ },
+ {
+  "importer": "windows/node/chain-reader.mjs",
+  "target": "windows/node/host-admission.bundle.mjs",
+  "missing": [
+   "chainVerifierFromEnv",
+   "verifiedStateReader"
+  ]
+ },
+ {
+  "importer": "windows/node/chain.mjs",
+  "target": "windows/node/host-admission.bundle.mjs",
+  "missing": [
+   "chainVerifierFromEnv",
+   "transactionRpcsFromEnv",
+   "verifiedStateReader",
+   "verifiedSnapshot",
+   "verifiedStateClient"
+  ]
+ },
+ {
+  "importer": "windows/node/ops/riscbox-rollout/rbpage.mjs",
+  "target": "./secrets.mjs",
+  "missing": [
+   "<unresolved module>"
+  ]
+ },
+ {
+  "importer": "windows/node/ops/riscbox-rollout/rbpage.mjs",
+  "target": "./chain.mjs",
+  "missing": [
+   "<unresolved module>"
+  ]
+ },
+ {
+  "importer": "windows/node/ops/riscbox-rollout/rbping.mjs",
+  "target": "./secrets.mjs",
+  "missing": [
+   "<unresolved module>"
+  ]
+ },
+ {
+  "importer": "windows/node/ops/riscbox-rollout/rbping.mjs",
+  "target": "./chain.mjs",
+  "missing": [
+   "<unresolved module>"
+  ]
+ },
+ {
+  "importer": "windows/node/ops/riscbox-rollout/rbsample.mjs",
+  "target": "./secrets.mjs",
+  "missing": [
+   "<unresolved module>"
+  ]
+ },
+ {
+  "importer": "windows/node/ops/riscbox-rollout/rbsample.mjs",
+  "target": "./chain.mjs",
+  "missing": [
+   "<unresolved module>"
+  ]
+ },
+ {
+  "importer": "windows/node/ops/riscbox-rollout/rbsnapnow.mjs",
+  "target": "./secrets.mjs",
+  "missing": [
+   "<unresolved module>"
+  ]
+ },
+ {
+  "importer": "windows/node/ops/riscbox-rollout/rbsnapnow.mjs",
+  "target": "./chain.mjs",
+  "missing": [
+   "<unresolved module>"
+  ]
+ }
+]

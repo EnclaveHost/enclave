@@ -1,0 +1,1 @@
+{"outcome": "MEASURED", "rc": 0, "reasons": [], "cleanupComplete": true, "receiptFile": "receipt.json"}

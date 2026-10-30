@@ -1,0 +1,21 @@
+--- a/src/reproof.py
++++ b/src/reproof.py
+@@ -13,7 +13,7 @@
+ import datetime, fcntl, functools, hashlib, json, os, pathlib, shutil, stat, sys, types
+ 
+ FORMAT = 'enclave-base-finality-reproof/v1'
+-CONFIG_KEYS = {'format', 'launchDir', 'chainJson', 'rpcUrl', 'statusOut', 'node', 'depsRoot', 'workdir', 'capturesRoot'}
++CONFIG_KEYS = {'format', 'launchDir', 'chainJson', 'rpcUrl', 'statusOut', 'node', 'depsRoot', 'workdir', 'capturesRoot', 'captureSources'}
+ FINALITY_STATE = (pathlib.Path('/opt/enclave-rpc/finality/src/finality_state.py'), 'b2ed0aaa27786615b66d4c4b644f79e461e87c5de2c4e807eb78323fd9d38327')
+ PRODUCER = (pathlib.Path('/opt/enclave-rpc/base-launch/base_launch.py'), '06b93401a4274ca0bf7c4003834ba533d7b99e5cf9a5933f8d76d68c7097fe4b')
+ KEEP, TEMPFAIL, HOLD = 4, 75, 78
+@@ -71,7 +71,8 @@
+         if s.get('qualified') is True and s.get('recordedAs'):
+             return {'action': 'none', 'state': s['state'], 'published': F.publish_status(s, c['statusOut'], top=top)}
+         C = R.load_capture()                                                       # HOLD until the capture module is reviewed
+-        cap = capture_fn or (lambda mode, out, initial=None: C.capture(mode, str(out), src=C.Sources(initial_capture=pathlib.Path(initial) if initial else None)))
++        # production-capture-closure: the root-reviewed guest Sources (never the module's workstation defaults)
++        cap = capture_fn or (lambda mode, out, initial=None: C.capture(mode, str(out), src=C.Sources.from_settings(c['captureSources'], initial_capture=initial)))
+         d = root / now.strftime('%Y%m%dT%H%M%S%fZ'); os.mkdir(d, 0o700)
+         for mode, out, initial in (('initial', d / 'initial', None), ('recheck-capture', d / 'recheck', d / 'initial')):
+             ok, res = cap(mode, out, initial)

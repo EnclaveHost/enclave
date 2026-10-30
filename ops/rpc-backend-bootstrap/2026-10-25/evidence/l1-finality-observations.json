@@ -1,0 +1,78 @@
+[
+  {
+    "url": "https://mainnet.checkpoint.sigp.io",
+    "finality": {
+      "data": {
+        "finalized": {
+          "epoch": "484635",
+          "root": "0xf87d1dd651c939788e9a0186cbdd15cad7b9ce893a640374725146e15e464cca"
+        },
+        "current_justified": {
+          "epoch": "484636",
+          "root": "0xdbe00509ea27a024f60d8902c7a2c02ebebbc4b481c24dec55a9fc5da50a1894"
+        },
+        "previous_justified": {
+          "epoch": "484635",
+          "root": "0xf87d1dd651c939788e9a0186cbdd15cad7b9ce893a640374725146e15e464cca"
+        }
+      }
+    }
+  },
+  {
+    "url": "https://sync-mainnet.beaconcha.in",
+    "finality": {
+      "data": {
+        "finalized": {
+          "epoch": "484635",
+          "root": "0xf87d1dd651c939788e9a0186cbdd15cad7b9ce893a640374725146e15e464cca"
+        },
+        "current_justified": {
+          "epoch": "484636",
+          "root": "0xdbe00509ea27a024f60d8902c7a2c02ebebbc4b481c24dec55a9fc5da50a1894"
+        },
+        "previous_justified": {
+          "epoch": "484635",
+          "root": "0xf87d1dd651c939788e9a0186cbdd15cad7b9ce893a640374725146e15e464cca"
+        }
+      }
+    }
+  },
+  {
+    "url": "https://beaconstate.ethstaker.cc",
+    "finality": {
+      "data": {
+        "finalized": {
+          "epoch": "484635",
+          "root": "0xf87d1dd651c939788e9a0186cbdd15cad7b9ce893a640374725146e15e464cca"
+        },
+        "current_justified": {
+          "epoch": "484636",
+          "root": "0xdbe00509ea27a024f60d8902c7a2c02ebebbc4b481c24dec55a9fc5da50a1894"
+        },
+        "previous_justified": {
+          "epoch": "484635",
+          "root": "0xf87d1dd651c939788e9a0186cbdd15cad7b9ce893a640374725146e15e464cca"
+        }
+      }
+    }
+  },
+  {
+    "url": "https://beaconstate-mainnet.chainsafe.io",
+    "finality": {
+      "data": {
+        "finalized": {
+          "epoch": "484635",
+          "root": "0xf87d1dd651c939788e9a0186cbdd15cad7b9ce893a640374725146e15e464cca"
+        },
+        "current_justified": {
+          "epoch": "484636",
+          "root": "0xdbe00509ea27a024f60d8902c7a2c02ebebbc4b481c24dec55a9fc5da50a1894"
+        },
+        "previous_justified": {
+          "epoch": "484635",
+          "root": "0xf87d1dd651c939788e9a0186cbdd15cad7b9ce893a640374725146e15e464cca"
+        }
+      }
+    }
+  }
+]

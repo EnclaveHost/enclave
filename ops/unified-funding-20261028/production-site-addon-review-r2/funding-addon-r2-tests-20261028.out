@@ -1,0 +1,147 @@
+[queue] START available=89310MiB required=17664MiB cap=768MiB floor=16384MiB concurrentSmall=256MiB
+TAP version 13
+# Subtest: addon build: additions only, pinned, closed, reversible, null config
+not ok 1 - addon build: additions only, pinned, closed, reversible, null config
+  ---
+  duration_ms: 95.135675
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/production-site-addon-r2/test/integration.test.mjs:20:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The expression evaluated to a falsy value:
+    
+      assert.ok(!bundle.includes("templateUrl"))
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/production-site-addon-r2/test/integration.test.mjs:89:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: applyExact replaces once and reverses to the original bytes
+ok 2 - applyExact replaces once and reverses to the original bytes
+  ---
+  duration_ms: 0.943762
+  type: 'test'
+  ...
+# Subtest: applyExact refuses absent, duplicated or pre-existing targets
+ok 3 - applyExact refuses absent, duplicated or pre-existing targets
+  ---
+  duration_ms: 0.464496
+  type: 'test'
+  ...
+# Subtest: router imports become the addon hard navigation, nothing else
+ok 4 - router imports become the addon hard navigation, nothing else
+  ---
+  duration_ms: 0.656984
+  type: 'test'
+  ...
+# Subtest: disabled config keeps FUNDING_* null and changes nothing
+ok 5 - disabled config keeps FUNDING_* null and changes nothing
+  ---
+  duration_ms: 0.901812
+  type: 'test'
+  ...
+# Subtest: config refusals
+ok 6 - config refusals
+  ---
+  duration_ms: 0.535755
+  type: 'test'
+  ...
+# Subtest: enabled config replaces only the supplied FUNDING_* values, exactly
+ok 7 - enabled config replaces only the supplied FUNDING_* values, exactly
+  ---
+  duration_ms: 0.295787
+  type: 'test'
+  ...
+# Subtest: legacy config literals must be in live evidence, accepted, or overridden
+ok 8 - legacy config literals must be in live evidence, accepted, or overridden
+  ---
+  duration_ms: 0.542665
+  type: 'test'
+  ...
+# Subtest: planAdditions refuses collisions, traversal, duplicates and file/dir clashes
+ok 9 - planAdditions refuses collisions, traversal, duplicates and file/dir clashes
+  ---
+  duration_ms: 0.655414
+  type: 'test'
+  ...
+# Subtest: readRegular refuses symlinks and symlinked directories
+ok 10 - readRegular refuses symlinks and symlinked directories
+  ---
+  duration_ms: 0.800623
+  type: 'test'
+  ...
+# Subtest: closure requires the funding graph and refuses router, other pages, tests
+ok 11 - closure requires the funding graph and refuses router, other pages, tests
+  ---
+  duration_ms: 1.058181
+  type: 'test'
+  ...
+# Subtest: externals: only versioned SDKs or unchanged listed global vendors
+ok 12 - externals: only versioned SDKs or unchanged listed global vendors
+  ---
+  duration_ms: 0.731194
+  type: 'test'
+  ...
+# Subtest: transformHtml: exact head edits, no inline script, components baked + nested
+ok 13 - transformHtml: exact head edits, no inline script, components baked + nested
+  ---
+  duration_ms: 2.175822
+  type: 'test'
+  ...
+# Subtest: existsIn: pretty URLs, .html, directory index; no traversal
+ok 14 - existsIn: pretty URLs, .html, directory index; no traversal
+  ---
+  duration_ms: 0.295857
+  type: 'test'
+  ...
+# Subtest: inlineTemplate inlines the paired template, refuses unexpected shapes
+ok 15 - inlineTemplate inlines the paired template, refuses unexpected shapes
+  ---
+  duration_ms: 0.208698
+  type: 'test'
+  ...
+# Subtest: css references resolve inside the site
+ok 16 - css references resolve inside the site
+  ---
+  duration_ms: 0.395617
+  type: 'test'
+  ...
+# Subtest: entry boots the page once and imports only the two addon sentinels
+ok 17 - entry boots the page once and imports only the two addon sentinels
+  ---
+  duration_ms: 0.208438
+  type: 'test'
+  ...
+# Subtest: hard-nav: full document load of an existing page; unknown views refused
+ok 18 - hard-nav: full document load of an existing page; unknown views refused
+  ---
+  duration_ms: 0.748733
+  type: 'test'
+  ...
+# Subtest: pins: null / unreviewed / non-qualified sessions SDK refused
+ok 19 - pins: null / unreviewed / non-qualified sessions SDK refused
+  ---
+  duration_ms: 0.437126
+  type: 'test'
+  ...
+1..19
+# tests 19
+# suites 0
+# pass 18
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 200.554872
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=89269
+[memory-guard] at peak: 
+[queue] EXIT 1

@@ -1,0 +1,24 @@
+2026-10-26T07:35:58Z
+1.45 1.52 1.22 2/509 97701
+8
+== psi cpu
+some avg10=0.41 avg60=0.57 avg300=0.45 total=1204088440
+full avg10=0.00 avg60=0.00 avg300=0.00 total=0
+== psi io
+some avg10=11.02 avg60=12.05 avg300=9.70 total=5122824135
+full avg10=10.52 avg60=11.42 avg300=9.10 total=4477663790
+== psi memory
+some avg10=0.05 avg60=0.05 avg300=0.03 total=148668261
+full avg10=0.05 avg60=0.05 avg300=0.03 total=139257796
+CPUUsageNSec=3479031300000
+Id=enclave-rpc-base-snapshot.service
+ActiveState=activating
+SubState=start
+
+CPUUsageNSec=3619693799000
+Id=enclave-l1-el.service
+ActiveState=active
+SubState=running
+               total        used        free      shared  buff/cache   available
+Mem:           64302       11316        2477         169       51400       52986
+Swap:              0           0           0

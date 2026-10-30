@@ -1,0 +1,515 @@
+{
+ "base": {
+  "dir": "/home/steven/enclave-prod/dist-sdshield-2857356cd",
+  "initramfsSha256": "516d766d9e31f07c02544d16969c34d3d28c2bca0e4032049225635433f10afc",
+  "pinned": true
+ },
+ "baseTools": {
+  "usr/bin/flock": true,
+  "usr/local/bin/node": true
+ },
+ "binaryStaging": "copy",
+ "chainVerifier": {
+  "files": [
+   {
+    "bytes": 76257424,
+    "mode": "0o555",
+    "path": "/opt/rpc-runtime/enclave-base-head-listener",
+    "sha256": "9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3"
+   },
+   {
+    "bytes": 124722632,
+    "mode": "0o555",
+    "path": "/opt/rpc-runtime/helios",
+    "sha256": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0"
+   },
+   {
+    "bytes": 29829168,
+    "mode": "0o555",
+    "path": "/opt/rpc-runtime/witness-check",
+    "sha256": "4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411"
+   },
+   {
+    "bytes": 263152,
+    "mode": "0o555",
+    "path": "/opt/rpc-runtime/glibc/ld-linux-x86-64.so.2",
+    "sha256": "f5e11cc62f8f2c24dff532982559f4303dba3b17e7450551372a88c8e7ea8757"
+   },
+   {
+    "bytes": 2215072,
+    "mode": "0o444",
+    "path": "/opt/rpc-runtime/glibc/libc.so.6",
+    "sha256": "02c8c3d06180beee9c7d0392aa85736c7d19f274a81e7f8f0b3d9e28e0641524"
+   },
+   {
+    "bytes": 1268336,
+    "mode": "0o444",
+    "path": "/opt/rpc-runtime/glibc/libm.so.6",
+    "sha256": "965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d"
+   },
+   {
+    "bytes": 182512,
+    "mode": "0o444",
+    "path": "/opt/rpc-runtime/glibc/libgcc_s.so.1",
+    "sha256": "e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a"
+   },
+   {
+    "path": "/opt/rpc-runtime/IMAGE.json",
+    "sha256": "23ac96adb0c6728ab48627e45b150845ef93690f73dba70da60ab6cf79dea964",
+    "source": "metal/chain-verifier-image.json"
+   }
+  ],
+  "pins": "metal/chain-verifier-image.json",
+  "pinsSha256": "23ac96adb0c6728ab48627e45b150845ef93690f73dba70da60ab6cf79dea964"
+ },
+ "commit": "ec56a70f143cf1bb6bbdd52228401bcf24eca05b",
+ "count": {
+  "committed": 66,
+  "native": 8
+ },
+ "directories": {
+  ".": {
+   "mode": "0o755",
+   "ok": false,
+   "uid": 1000
+  },
+  "app": {
+   "mode": "0o755",
+   "ok": false,
+   "uid": 1000
+  },
+  "app/network": {
+   "mode": "0o755",
+   "new": true,
+   "ok": true,
+   "uid": 0
+  },
+  "opt": {
+   "mode": "0o755",
+   "ok": false,
+   "uid": 1000
+  },
+  "opt/rpc-runtime": {
+   "mode": "0o755",
+   "new": true,
+   "ok": true,
+   "uid": 0
+  },
+  "opt/rpc-runtime/glibc": {
+   "mode": "0o755",
+   "new": true,
+   "ok": true,
+   "uid": 0
+  }
+ },
+ "doMirrorLiterals": {},
+ "fails": [],
+ "hostAdmissionBundle": "efaf6fdb3f647bde1bcbe3421569c84a3be15cb46ca0e7de6a1f8f30c1c7fd24",
+ "hostPolicyBundle": "9a6aa25a1995384aa8bf6cccacd5fedc0af61d0b641c67819b0c639d0d2b1b59",
+ "inputs": {
+  "app/addressbook.js": {
+   "sha256": "1f46ff9109d9a1409a8357ac1b57635952abb62f1674eb999a07f30593bbbc7d",
+   "source": "addressbook.js"
+  },
+  "app/client/lease-executor-authority.mjs": {
+   "sha256": "0dff0df7d8d8b06fa197cc92e5bec12d83b89a0baaf4fb7af852742ac180b6ca",
+   "source": "client/lease-executor-authority.mjs"
+  },
+  "app/client/lease-executor-client.mjs": {
+   "sha256": "bd082b005f770b36d29495ee1cb3e193efc458ecbe49056997cdfb48876ab2dd",
+   "source": "client/lease-executor-client.mjs"
+  },
+  "app/egress.js": {
+   "sha256": "bd960a2b6ff51e8269dd3979e7d6e1c842796d351fe0e82257e7c84f8f897843",
+   "source": "egress.js"
+  },
+  "app/isolation/contract/runtime.mjs": {
+   "sha256": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69",
+   "source": "isolation/contract/runtime.mjs"
+  },
+  "app/isolation/m2/judge.mjs": {
+   "sha256": "650b931d32ef72c84459141f6deeaf0f5a7a4e8c6441ac95f47f4bd8a624f1dd",
+   "source": "isolation/m2/judge.mjs"
+  },
+  "app/isolation/m4/guestd/control-client.mjs": {
+   "sha256": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6",
+   "source": "isolation/m4/guestd/control-client.mjs"
+  },
+  "app/isolation/m4/guestd/supervisor-guestcert.mjs": {
+   "sha256": "136c73ac6612c435f1571cf059d0171f8f93f02a7b93bc25dc55606afef41597",
+   "source": "isolation/m4/guestd/supervisor-guestcert.mjs"
+  },
+  "app/isolation/m4/guestd/supervisor-splice.mjs": {
+   "sha256": "dcfc95b315995750ce1c19caef9d4551fdb6735a35b7bbdbf91a54cd29b2066b",
+   "source": "isolation/m4/guestd/supervisor-splice.mjs"
+  },
+  "app/isolation/m4/guestd/supervisor-transport.mjs": {
+   "sha256": "bd8579ba7daae01f4160c72c6c937dacb151b3e9ffef21d1e9f93706e0fbcb75",
+   "source": "isolation/m4/guestd/supervisor-transport.mjs"
+  },
+  "app/metal/guest/owner-nomination.mjs": {
+   "sha256": "a2fb3eb63dc88684862bda401b9534a0a19befb4f007a3ad65e640d8325431d0",
+   "source": "metal/guest/owner-nomination.mjs"
+  },
+  "app/net-guard.mjs": {
+   "sha256": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af",
+   "source": "net-guard.mjs"
+  },
+  "app/network/canonical.mjs": {
+   "sha256": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3",
+   "source": "network/canonical.mjs"
+  },
+  "app/network/chain-authority.mjs": {
+   "sha256": "d4a4f14e2799f81839f430e0752687c3aad044af1632babb9f0c60b899094788",
+   "source": "network/chain-authority.mjs"
+  },
+  "app/network/directory-client.mjs": {
+   "sha256": "eb601c1d737f062bb1f7031980846feb93533fc5789512215051b4eacf571a09",
+   "source": "network/directory-client.mjs"
+  },
+  "app/network/gossip-head-source.mjs": {
+   "sha256": "150a06f8b474d74c6542244290f3696d76aab65ac33c70f989a0d0781aa2eb0a",
+   "source": "network/gossip-head-source.mjs"
+  },
+  "app/network/host-capacity-producer.mjs": {
+   "sha256": "d5d371ff6f37cfc5c6aed0dc58f7154b1caeef60254588ca3de64ead8ec896f0",
+   "source": "network/host-capacity-producer.mjs"
+  },
+  "app/network/host-capacity-record.mjs": {
+   "sha256": "62057bca458918e221e2850c850d8e9085c75f5fbc4e7b4b68e281e072781551",
+   "source": "network/host-capacity-record.mjs"
+  },
+  "app/network/host-owner-nomination.mjs": {
+   "sha256": "10ba547e9a1237c0978701d8521055839b8042af9444e3606ed0ebf16c7635f6",
+   "source": "network/host-owner-nomination.mjs"
+  },
+  "app/network/host-policy-adapters.mjs": {
+   "sha256": "6d641432912f26592543a61b202b287298c2eca13dcc9c4f98c3214618395c84",
+   "source": "network/host-policy-adapters.mjs"
+  },
+  "app/network/lease-executor-authority.mjs": {
+   "sha256": "0dff0df7d8d8b06fa197cc92e5bec12d83b89a0baaf4fb7af852742ac180b6ca",
+   "source": "network/lease-executor-authority.mjs"
+  },
+  "app/network/lease-executor-client.mjs": {
+   "sha256": "c2eb2e6a6246cf8c65bc3410f306acd1b119991464825c7d78e1476dd02bcb1a",
+   "source": "network/lease-executor-client.mjs"
+  },
+  "app/network/lease-gas-owner.mjs": {
+   "sha256": "92cc322a0eb201f3561dc0dd1c8a245459d907222c64f9073a112cdfb3d95988",
+   "source": "network/lease-gas-owner.mjs"
+  },
+  "app/network/lease-gas-runtime.mjs": {
+   "sha256": "eb78a2e6838f9b04d79017ea77a7e4e4cbd06c2af21e6aa77a000e2d6229ec77",
+   "source": "network/lease-gas-runtime.mjs"
+  },
+  "app/network/lease-relay-discovery.mjs": {
+   "sha256": "c54749b70ca746bfc33922c1ca59b5860783d3a102443c17a0bfec6470cfbb42",
+   "source": "network/lease-relay-discovery.mjs"
+  },
+  "app/network/lease-release-journal.mjs": {
+   "sha256": "6411481a118b341e3efcd99bbaad6da644d490fd2815abd40033014f7edf2ff6",
+   "source": "network/lease-release-journal.mjs"
+  },
+  "app/network/network-authorities.mjs": {
+   "sha256": "fbe3141976ef22a87173fb56def5d5545520c13667f61355d5a889b82f497448",
+   "source": "network/network-authorities.mjs"
+  },
+  "app/network/network-policy-core.mjs": {
+   "sha256": "6e5049d1476d4f362570c48d61f0abc8ad483ed54ba4b2c22fa07f363d4e3064",
+   "source": "network/network-policy-core.mjs"
+  },
+  "app/network/network-policy.mjs": {
+   "sha256": "b4f5050e2d3841b56facf4050f85c3aba5a6e03649ed80d6833c0675adbbfa2f",
+   "source": "network/network-policy.mjs"
+  },
+  "app/network/op-head-relay.mjs": {
+   "sha256": "ed71c0695230c9400d759e792ae44da3a8fc27cf065abe9dddd9bec09411fe27",
+   "source": "network/op-head-relay.mjs"
+  },
+  "app/network/provider-directory.mjs": {
+   "sha256": "88d3bbf0bcc5ffb922f8a97c858238ef589bb5cff7d3c0c27cbc45e051e6f6db",
+   "source": "network/provider-directory.mjs"
+  },
+  "app/network/provider-qualification.mjs": {
+   "sha256": "a64f838366a83203e4954d0614c92038b835e5e04f019b5bbbec61c67e9eebf9",
+   "source": "network/provider-qualification.mjs"
+  },
+  "app/network/registry-reconcile.mjs": {
+   "sha256": "ed593417514919904c2906f0a439756ddca87957c37455f5864cca632aa7bc4e",
+   "source": "network/registry-reconcile.mjs"
+  },
+  "app/network/route-record.mjs": {
+   "sha256": "9ba9f6d34744f8a715cefd469a7f335d7cf2a154c91b70c5955a0b03afb49bd1",
+   "source": "network/route-record.mjs"
+  },
+  "app/network/rpc-identity.mjs": {
+   "sha256": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
+   "source": "network/rpc-identity.mjs"
+  },
+  "app/network/rpc-runtime-main.mjs": {
+   "sha256": "2ac0134df8a232708ed3c94cc97254af0b10d7ec5da2a887e84ef3af2b9b8337",
+   "source": "network/rpc-runtime-main.mjs"
+  },
+  "app/network/rpc-runtime.mjs": {
+   "sha256": "4f3b4a42b9adcc743cd66bc31e9b9af91493c3eae676833a6481775cfd929312",
+   "source": "network/rpc-runtime.mjs"
+  },
+  "app/network/runtime-lock.mjs": {
+   "sha256": "256aeca3000aae08dc2cfa5fb45a2a900728a312d2ec415a2620588d1152ac1a",
+   "source": "network/runtime-lock.mjs"
+  },
+  "app/network/s3-witness-cache.mjs": {
+   "sha256": "fa87083a2a6bb1bd2458cbb0c37bd8446a6f2c1af5d6531046be0281b048dd40",
+   "source": "network/s3-witness-cache.mjs"
+  },
+  "app/network/service-index.mjs": {
+   "sha256": "0c38f700aed373a037157ab5e0635e19ea15b5b75e493a87e94249f4b0fa0221",
+   "source": "network/service-index.mjs"
+  },
+  "app/network/verified-chain.mjs": {
+   "sha256": "cc1f88706d1e4da9fe9048ba3e4b6dbd755edca0752ef39c8a873aaaf9427df4",
+   "source": "network/verified-chain.mjs"
+  },
+  "app/network/witness-gateway.mjs": {
+   "sha256": "7209ef5beea5cf2f1afa471bf9d7b49babfdbb5877de63d9ee5159420d1389cb",
+   "source": "network/witness-gateway.mjs"
+  },
+  "app/network/witness-verify.mjs": {
+   "sha256": "729496b0e85475b7ca9b2dd6d8a25e365e798230be745e42de14b54edb81fd4b",
+   "source": "network/witness-verify.mjs"
+  },
+  "app/relay/attestation-paths.mjs": {
+   "sha256": "d9d68bd9f4d8d276e15ac49fdcfba156746239fb2838c0c6f987912b07c89b1d",
+   "source": "relay/attestation-paths.mjs"
+  },
+  "app/relay/net-guard.mjs": {
+   "sha256": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af",
+   "source": "relay/net-guard.mjs"
+  },
+  "app/relay/snp-verify.mjs": {
+   "sha256": "93f9e9d22f555571ffaadd233e3c6a06f778788e987da6266e09f134d76c1046",
+   "source": "relay/snp-verify.mjs"
+  },
+  "app/sdk/bootstrap/package.mjs": {
+   "sha256": "17cc4cbaad3c8bc7ab9df99ca8b88d00674f7bed6825be33004375cff1b02e2a",
+   "source": "sdk/bootstrap/package.mjs"
+  },
+  "app/sdk/bootstrap/storage.mjs": {
+   "sha256": "98e22b7b87b6d636cf6001d9ba859f4da3443af42f386deeb74ac622bcefccb3",
+   "source": "sdk/bootstrap/storage.mjs"
+  },
+  "app/sdk/storage/gateways.mjs": {
+   "sha256": "ea34a5a01e2371aa63be5c62422f19d25c8b62b454eba90a75e7dbb4cbe85119",
+   "source": "sdk/storage/gateways.mjs"
+  },
+  "app/sdk/storage/replicas.mjs": {
+   "sha256": "64db5cbf71ca00effe81e6a288c103b08b205daebc9132f2f76fcc7e6e920e25",
+   "source": "sdk/storage/replicas.mjs"
+  },
+  "app/sdk/storage/upload-auth.mjs": {
+   "sha256": "9db7b86361b7d5722d0f8de0ed85721f0e7bf40f3477fb1d8bde1ec79017b7b1",
+   "source": "sdk/storage/upload-auth.mjs"
+  },
+  "app/site/js/core/upload-auth.js": {
+   "sha256": "e72157590a00d634f7301e5bba2741901f0ec107235d7298ccccace12a265d23",
+   "source": "site/js/core/upload-auth.js"
+  },
+  "app/supervisor.js": {
+   "sha256": "9fe1ea994373b57a62be78b4b42ab7514f6c64be0bbaed3e5aab8c4cfb58ac5c",
+   "source": "supervisor.js"
+  },
+  "app/windows/node/host-admission.bundle.mjs": {
+   "sha256": "efaf6fdb3f647bde1bcbe3421569c84a3be15cb46ca0e7de6a1f8f30c1c7fd24",
+   "source": "windows/node/host-admission.bundle.mjs"
+  },
+  "app/windows/node/session-api-auth.mjs": {
+   "sha256": "5920ece87c022f3597c8306614cfb7370c4865b14f48bce48c631bfecd51c9cb",
+   "source": "windows/node/session-api-auth.mjs"
+  },
+  "app/windows/node/verification-checkpoints.mjs": {
+   "sha256": "aa69b54db648fe9439f9661727b81633dd46a2cb321627e3a78f6bc8b202ff29",
+   "source": "windows/node/verification-checkpoints.mjs"
+  },
+  "opt/metal/agent.mjs": {
+   "sha256": "4917a30f7cba99c2406d9ea7009a4ce13385f34bb77823d370828f0e7dbb356a",
+   "source": "metal/guest/agent.mjs"
+  },
+  "opt/metal/chain-verifier.mjs": {
+   "sha256": "868bba6221f0bab59e6cd38740b7bd1101f9ebe162bc3c197c4288e255570a11",
+   "source": "metal/guest/chain-verifier.mjs"
+  },
+  "opt/metal/gsup.mjs": {
+   "sha256": "d71abd221f65fe6644d496c685641ceb8c0a375c3563e93bccf92140705e68ac",
+   "source": "metal/guest/gsup.mjs"
+  },
+  "opt/metal/host-policy.bundle.mjs": {
+   "sha256": "9a6aa25a1995384aa8bf6cccacd5fedc0af61d0b641c67819b0c639d0d2b1b59",
+   "source": "metal/guest/host-policy.bundle.mjs"
+  },
+  "opt/metal/lease-gas-conduit.bundle.mjs": {
+   "sha256": "48bd059a57356fed542c3a6a8c0b4ddd7fdf6bca42ad7729754234445b746fd5",
+   "source": "metal/guest/lease-gas-conduit.bundle.mjs"
+  },
+  "opt/metal/measured-control.mjs": {
+   "sha256": "230a32869ae30b2eb76da67517a16c5e65e2cffd91a76e799559af15160b43d2",
+   "source": "metal/guest/measured-control.mjs"
+  },
+  "opt/metal/owner-nomination.mjs": {
+   "sha256": "a2fb3eb63dc88684862bda401b9534a0a19befb4f007a3ad65e640d8325431d0",
+   "source": "metal/guest/owner-nomination.mjs"
+  },
+  "opt/metal/shielded-probe.mjs": {
+   "sha256": "e3ff32ee3a993f1f94603f0d1dbdcfc0169be1c3da91b575d5613fd5450e831f",
+   "source": "metal/guest/shielded-probe.mjs"
+  },
+  "opt/metal/shielded-shm.mjs": {
+   "sha256": "92d3a36942244658fe6f7e0b1a070611db631076d914efda66935152cbb84731",
+   "source": "metal/guest/shielded-shm.mjs"
+  },
+  "opt/metal/shielded.mjs": {
+   "sha256": "f38f0abcaef8029edfd7144adc3c7ccea87c7291107265863195117bc60bdb7f",
+   "source": "metal/guest/shielded.mjs"
+  }
+ },
+ "mode": "relay (no --control) + --chain-verifier-dir",
+ "nativeCollisions": [],
+ "nativeInputs": {
+  "opt/rpc-runtime/IMAGE.json": {
+   "mode": "0o644",
+   "sha256": "23ac96adb0c6728ab48627e45b150845ef93690f73dba70da60ab6cf79dea964"
+  },
+  "opt/rpc-runtime/enclave-base-head-listener": {
+   "mode": "0o555",
+   "sha256": "9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3"
+  },
+  "opt/rpc-runtime/glibc/ld-linux-x86-64.so.2": {
+   "mode": "0o555",
+   "sha256": "f5e11cc62f8f2c24dff532982559f4303dba3b17e7450551372a88c8e7ea8757"
+  },
+  "opt/rpc-runtime/glibc/libc.so.6": {
+   "mode": "0o444",
+   "sha256": "02c8c3d06180beee9c7d0392aa85736c7d19f274a81e7f8f0b3d9e28e0641524"
+  },
+  "opt/rpc-runtime/glibc/libgcc_s.so.1": {
+   "mode": "0o444",
+   "sha256": "e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a"
+  },
+  "opt/rpc-runtime/glibc/libm.so.6": {
+   "mode": "0o444",
+   "sha256": "965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d"
+  },
+  "opt/rpc-runtime/helios": {
+   "mode": "0o555",
+   "sha256": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0"
+  },
+  "opt/rpc-runtime/witness-check": {
+   "mode": "0o555",
+   "sha256": "4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411"
+  }
+ },
+ "nonRegularTargets": [],
+ "ok": true,
+ "overlayTool": "10db3d3d43a8319ede07d67b47d7fcd8434e0a94a7e411ff2c2ddc4e18d3c31e",
+ "packagesFromBase": [
+  {
+   "name": "cors",
+   "version": "2.8.6"
+  },
+  {
+   "name": "express",
+   "version": "4.22.2"
+  },
+  {
+   "name": "jose",
+   "version": "5.10.0"
+  },
+  {
+   "name": "viem",
+   "version": "2.53.1"
+  },
+  {
+   "name": "ws",
+   "version": "8.21.1"
+  }
+ ],
+ "runtimeClosureAddedBeyondSupervisor": [
+  "app/network/gossip-head-source.mjs",
+  "app/network/op-head-relay.mjs",
+  "app/network/rpc-runtime-main.mjs",
+  "app/network/rpc-runtime.mjs",
+  "app/network/runtime-lock.mjs",
+  "app/network/s3-witness-cache.mjs",
+  "app/network/witness-gateway.mjs",
+  "app/network/witness-verify.mjs"
+ ],
+ "tree": "fd45bf5da82475033f2abcc586b7e21fc36ded04",
+ "vsD_fec43a6a": {
+  "added": [
+   "app/network/chain-authority.mjs",
+   "app/network/gossip-head-source.mjs",
+   "app/network/op-head-relay.mjs",
+   "app/network/rpc-runtime-main.mjs",
+   "app/network/rpc-runtime.mjs",
+   "app/network/runtime-lock.mjs",
+   "app/network/s3-witness-cache.mjs",
+   "app/network/verified-chain.mjs",
+   "app/network/witness-gateway.mjs",
+   "app/network/witness-verify.mjs",
+   "opt/metal/chain-verifier.mjs"
+  ],
+  "changed": {
+   "app/addressbook.js": {
+    "d": "fe3f27e6c64367c9b9f14742315efc9357aaed88e2f831b3754832fd74b1ce92",
+    "here": "1f46ff9109d9a1409a8357ac1b57635952abb62f1674eb999a07f30593bbbc7d"
+   },
+   "app/client/lease-executor-authority.mjs": {
+    "d": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99",
+    "here": "0dff0df7d8d8b06fa197cc92e5bec12d83b89a0baaf4fb7af852742ac180b6ca"
+   },
+   "app/network/lease-executor-authority.mjs": {
+    "d": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99",
+    "here": "0dff0df7d8d8b06fa197cc92e5bec12d83b89a0baaf4fb7af852742ac180b6ca"
+   },
+   "app/network/lease-gas-runtime.mjs": {
+    "d": "91b5e357af8a2f9acbbe5164603e0ac08a358abadc3967c41855a339073f53fc",
+    "here": "eb78a2e6838f9b04d79017ea77a7e4e4cbd06c2af21e6aa77a000e2d6229ec77"
+   },
+   "app/network/service-index.mjs": {
+    "d": "8420b37f8ee8cd4bf8c7cb25450480a1d104a5e2a9d031e84a8f0551accfc76d",
+    "here": "0c38f700aed373a037157ab5e0635e19ea15b5b75e493a87e94249f4b0fa0221"
+   },
+   "app/supervisor.js": {
+    "d": "4939dc688cefeed25a8801ecb4c939d7eff9e8735e9c52a15d30d069666d8d48",
+    "here": "9fe1ea994373b57a62be78b4b42ab7514f6c64be0bbaed3e5aab8c4cfb58ac5c"
+   },
+   "app/windows/node/host-admission.bundle.mjs": {
+    "d": "40e8ba71d83c627e85af21d58b9ab0d8b3052504a0e7d9ee47b429948c40bd25",
+    "here": "efaf6fdb3f647bde1bcbe3421569c84a3be15cb46ca0e7de6a1f8f30c1c7fd24"
+   },
+   "opt/metal/gsup.mjs": {
+    "d": "07e0583974818a5b4be5fe3051844db99794594fb4d8d2dce9217c1706c09ae0",
+    "here": "d71abd221f65fe6644d496c685641ceb8c0a375c3563e93bccf92140705e68ac"
+   },
+   "opt/metal/host-policy.bundle.mjs": {
+    "d": "acfa1b0099530d4c27fe451d7d3f1d124b3f7a213171557c1c2d926976e0dc3c",
+    "here": "9a6aa25a1995384aa8bf6cccacd5fedc0af61d0b641c67819b0c639d0d2b1b59"
+   },
+   "opt/metal/lease-gas-conduit.bundle.mjs": {
+    "d": "421d6584daa3acdfd7b459094576b46d7eafefe15f30c04e1f831ccbd34ba8d6",
+    "here": "48bd059a57356fed542c3a6a8c0b4ddd7fdf6bca42ad7729754234445b746fd5"
+   },
+   "opt/metal/measured-control.mjs": {
+    "d": "26a8982c52497d88d7d0885f63a4b4b8056da3ac1192ab03fdac94426a6185fc",
+    "here": "230a32869ae30b2eb76da67517a16c5e65e2cffd91a76e799559af15160b43d2"
+   }
+  },
+  "reference": {
+   "commit": "fec43a6a08da2ac287fb3a5c42de89f096f4f678",
+   "count": 55,
+   "file": "/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-runtime-release/public/INPUT-MANIFEST.json",
+   "sha256": "a11a33aad6a19af5aa0f3e94742c66b006b894b0ec5d8bef8fb2f839c1c34806"
+  },
+  "removed": []
+ }
+}

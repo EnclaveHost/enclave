@@ -1,0 +1,139 @@
+{
+  "capturedAt": "2026-10-29T19:36:55.314Z",
+  "readOnly": true,
+  "scope": "Original ten only. Canonical quorum observation is not finality or endpoint health, and does not identify payment origin.",
+  "value": {
+    "blockHash": "0x438aab068dab4aa226a8d39194e34454e62d529ea2c036de0e4d5b28d212d5bd",
+    "chainTimestamp": "1793302609",
+    "apps": [
+      {
+        "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+        "active": true,
+        "runner": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
+        "runnerOperator": "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB",
+        "leaseUntil": "1793172209",
+        "leaseLive": false,
+        "reserveWei": "571830149413",
+        "reserveEnabled": true,
+        "rate": "0",
+        "computeBalance6": "301"
+      },
+      {
+        "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+        "active": true,
+        "runner": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
+        "runnerOperator": "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB",
+        "leaseUntil": "1793303429",
+        "leaseLive": true,
+        "reserveWei": "155724183149651",
+        "reserveEnabled": true,
+        "rate": "0",
+        "computeBalance6": "0"
+      },
+      {
+        "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+        "active": true,
+        "runner": "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a",
+        "runnerOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+        "leaseUntil": "1793303929",
+        "leaseLive": true,
+        "reserveWei": "149293925097029",
+        "reserveEnabled": true,
+        "rate": "0",
+        "computeBalance6": "1000004"
+      },
+      {
+        "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+        "active": true,
+        "runner": "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a",
+        "runnerOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+        "leaseUntil": "1793111647",
+        "leaseLive": false,
+        "reserveWei": "997574663487",
+        "reserveEnabled": true,
+        "rate": "0",
+        "computeBalance6": "7"
+      },
+      {
+        "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+        "active": true,
+        "runner": "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a",
+        "runnerOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+        "leaseUntil": "1793122389",
+        "leaseLive": false,
+        "reserveWei": "786527660168",
+        "reserveEnabled": true,
+        "rate": "0",
+        "computeBalance6": "0"
+      },
+      {
+        "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+        "active": true,
+        "runner": "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a",
+        "runnerOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+        "leaseUntil": "1793126775",
+        "leaseLive": false,
+        "reserveWei": "406540528759",
+        "reserveEnabled": true,
+        "rate": "0",
+        "computeBalance6": "0"
+      },
+      {
+        "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+        "active": true,
+        "runner": "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a",
+        "runnerOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+        "leaseUntil": "1793125399",
+        "leaseLive": false,
+        "reserveWei": "768281051084",
+        "reserveEnabled": true,
+        "rate": "0",
+        "computeBalance6": "1000000"
+      },
+      {
+        "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+        "active": true,
+        "runner": "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a",
+        "runnerOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+        "leaseUntil": "1793110175",
+        "leaseLive": false,
+        "reserveWei": "200280705555855",
+        "reserveEnabled": true,
+        "rate": "0",
+        "computeBalance6": "0"
+      },
+      {
+        "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+        "active": true,
+        "runner": "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a",
+        "runnerOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+        "leaseUntil": "1793141661",
+        "leaseLive": false,
+        "reserveWei": "1052268502151",
+        "reserveEnabled": true,
+        "rate": "2",
+        "computeBalance6": "6415930"
+      },
+      {
+        "id": "0x9a28642bed115105c07bea1131c56c83ae2843ce4daf07958ab36437c0528a6b",
+        "active": true,
+        "runner": "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a",
+        "runnerOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+        "leaseUntil": "1793133631",
+        "leaseLive": false,
+        "reserveWei": "959970768583",
+        "reserveEnabled": true,
+        "rate": "18",
+        "computeBalance6": "5190014"
+      }
+    ]
+  },
+  "blockNumber": "53256631",
+  "blockHash": "0x438aab068dab4aa226a8d39194e34454e62d529ea2c036de0e4d5b28d212d5bd",
+  "timestamp": 1793302609000,
+  "agreeing": 2,
+  "peers": 3,
+  "failures": [
+    "mainnet.base.org: HTTP request failed."
+  ]
+}

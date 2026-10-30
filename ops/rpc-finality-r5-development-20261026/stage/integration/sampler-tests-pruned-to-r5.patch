@@ -1,0 +1,63 @@
+--- a/readiness/test_readiness_sampler.py
++++ b/readiness/test_readiness_sampler.py
+@@ -14,6 +14,7 @@
+ import socket
+ import sys
+ import tempfile
++import types
+ import threading
+ import time
+ import unittest
+@@ -296,6 +297,8 @@
+              '--min-window', '0', '--timeout', '2']
+         for role in ROLES:
+             a += [f'--{role}-port', str(self.ports[role])]
++        if '--finality-status' not in extra:                # finality r5: a current post-anchor proof for "the node" (this process)
++            a += ['--finality-status', finality_status_file(self.tmp.name), '--finality-status-uid', str(os.getuid())]
+         return a + list(extra)
+ 
+     def run(self, *extra):
+@@ -1073,5 +1076,43 @@
+                 oe.decode_l1_info(bad)
+ 
+ 
++
++def finality_status_file(d, start=None, state='qualified'):
++    """finality r5 fixture: a root-style published status (format of finality_state.publish_status) for THIS test process"""
++    p = os.path.join(d, f'finality-status-{state}-{start}.json')
++    if not os.path.exists(p):
++        st = start or open('/proc/self/stat').read().rsplit(')', 1)[1].split()[19]
++        with open(p, 'w') as f:
++            json.dump({'format': 'enclave-base-finality-status/v1', 'state': state, 'qualified': state == 'qualified', 'freshN': 1137,
++                       'freshBlockHash': '0x' + '11' * 32, 'entrySha256': 'ab' * 32, 'process': {'pid': os.getpid(), 'startTime': st}}, f)
++        os.chmod(p, 0o644)
++    return p
++
++
++class PostAnchorFinalityGate(unittest.TestCase):
++    """finality r5: gate post-anchor-finality - READY only with a current proof for the RUNNING node's exact process."""
++    def setUp(self):
++        self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
++
++    def check(self, path, exc=None, **k):
++        a = types.SimpleNamespace(finality_status=path, finality_status_uid=k.get('uid', os.getuid()), proc_root='/proc')
++        if exc is None:
++            return rs.validate_finality_status(a)
++        with self.assertRaises(exc) as cm:
++            rs.validate_finality_status(a)
++        return cm.exception.code
++
++    def test_current_proof_passes_and_every_other_state_is_not_ready(self):
++        self.assertEqual(self.check(finality_status_file(self.tmp.name))['freshN'], 1137)
++        self.assertEqual(self.check(None, rs.Unavailable), 'finality-status-absent')
++        self.assertEqual(self.check(finality_status_file(self.tmp.name, start='1'), rs.Unavailable), 'finality-stale-after-restart')
++        self.assertEqual(self.check(finality_status_file(self.tmp.name, state='stale-after-restart'), rs.Unavailable), 'finality-not-current')
++        p = finality_status_file(self.tmp.name); self.assertEqual(self.check(p, rs.Negative, uid=os.getuid() + 1), 'finality-status-untrusted')
++        os.chmod(p, 0o666); self.assertEqual(self.check(p, rs.Negative), 'finality-status-untrusted')
++        q = os.path.join(self.tmp.name, 'bad.json'); open(q, 'w').write('{"format": "x"}'); self.assertEqual(self.check(q, rs.Negative), 'finality-status-malformed')
++
++    def test_post_anchor_finality_is_a_readiness_gate(self):
++        self.assertIn('post-anchor-finality', rs.GATES)
++
+ if __name__ == '__main__':
+     unittest.main(verbosity=2)

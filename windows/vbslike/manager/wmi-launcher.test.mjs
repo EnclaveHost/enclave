@@ -60,6 +60,28 @@ const DEF = (over = {}) => CMD.defineType1({
 const MEDIUM = "C:\\Users\\claude\\vbs-like\\guest-production-uki7af57aab.iso";
 const MED = "ca245eae" + "7b".repeat(28);
 
+test("desktop mappings cannot reach an existing WMI image even through a direct caller", async () => {
+  for (const imageRole of ["legacy", "gpu", "shield-direct"]) {
+    const h = host();
+    const l = mk(h, { imageRole });
+    for (const desktop of [{ profile: "kvm-box-masked-v1" }, false, "", [], 0])
+      await assert.rejects(l.start({ ...mapping, record: { ...mapping.record, desktop } }, ID), /does not support desktop admission/);
+    assert.deepEqual(h.keys(), [], "no preflight, VM or transport side effect");
+  }
+});
+
+test("the worker transport receives the per-spawn mapping before app delivery", async () => {
+  const h = host();const calls=[];
+  const transport={stop:async()=>{calls.push("stopped");}};
+  const l=mk(h,{startTransport:async(vmId, verifiedMapping)=>{
+    assert.equal(vmId, VM_ID);assert.equal(verifiedMapping, mapping);calls.push("transport");return transport;
+  }});
+  const result=await l.start(mapping,ID);
+  assert.equal(result.transport,transport);assert.deepEqual(calls,["transport"]);
+  await result.stop();assert.deepEqual(calls,["transport","stopped"]);
+  assert.throws(()=>mk(host(),{startTransport:{}}),/startTransport must be a function/);
+});
+
 test("a 25% share of 64 GiB defines a 16 GiB app VM with separate platform overhead", async () => {
   const h = host();
   const result = await mk(h).start(mapping, { ...ID, appMemoryMiB: 16384 });
@@ -1046,4 +1068,47 @@ test("egress: preflight READS the hv_sock service registration (vsock 9443), and
 test("egress: the launcher refuses a malformed service id or hook", () => {
   for (const over of [{ egressService: "9443" }, { egressService: "000024e3-facb-11e6-bd58" }, { startEgress: "yes" }])
     assert.throws(() => mk(host(), over), /egressService must be a service GUID|startEgress must be a function/);
+});
+
+
+test("a worker stop failure cannot skip launch-failure VM cleanup or hide the launch error", async () => {
+  const h = host();
+  const l = mk(h, { startTransport: async () => ({ stop: () => { throw new Error("carrier close failed"); } }),
+    startEgress: async () => { throw new Error("egress launch failed"); } });
+  const e = await l.start(mapping, ID).then(() => assert.fail("launch must fail"), e => e);
+  assert.match(e.message, /egress launch failed/);
+  assert.deepEqual(e.transportCleanup, { closed: false, error: "carrier close failed" });
+  assert.equal(e.cleanup.removed, true);
+  assert.ok(h.keys().includes("removeById"));
+  assert.ok(h.keys().includes("retire"));
+});
+
+test("stop removes the VM despite carrier failure but requires retry before reporting success", async () => {
+  const h = host(); const l = mk(h); let fail = true;
+  const handle = { name: NAME, vmId: VM_ID, transport: { stop: async () => { if (fail) throw new Error("carrier still alive"); } } };
+  const e = await l.stop(handle).then(() => assert.fail("must retain reservation"), e => e);
+  assert.equal(e.code, "stop_failed");
+  assert.equal(e.cleanup.removed, true);
+  assert.ok(h.keys().includes("removeById"));
+  assert.ok(h.keys().includes("retire"));
+  fail = false;
+  assert.equal((await l.stop(handle)).stopped, true);
+});
+
+test("ambiguous removal never reports stopped or retires VM storage", async () => {
+  for (const answer of [{}, {found:null,removed:false}, {found:false}, {found:false,removed:true},
+      {found:true,removed:null}, {found:1,removed:true}, {found:true,removed:1}]) {
+    const h = host({ removeById: answer });
+    await assert.rejects(mk(h).stop({name:NAME,vmId:VM_ID}), e => e.code === "stop_failed");
+    assert.equal(h.keys().includes("retire"), false, JSON.stringify(answer));
+  }
+});
+
+
+test("VM removal checks a successful inventory before reporting lookup failure as absence", () => {
+  const script = CMD.removeById({ vmId: VM_ID });
+  assert.match(script, /Get-VM -ErrorAction Stop \| Where-Object/);
+  assert.match(script, /ownership marker changed during removal/);
+  assert.doesNotMatch(script, /Get-VM -Id '[^']+' -ErrorAction SilentlyContinue/);
+  assert.match(script, /if \(FindRemovalVm\)/);
 });

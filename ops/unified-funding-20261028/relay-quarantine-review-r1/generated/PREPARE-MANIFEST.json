@@ -1,0 +1,34 @@
+{
+  "copiedSuite": {
+    "from": "activation-r1/test/activation.test.mjs",
+    "sha256": "0d47d1399a11906f2efa8f7afa5a2f02513fae843a9c591f7b5b4c046816e2dd"
+  },
+  "flag": "SESSIONS_WRITE_QUARANTINE",
+  "hunks": 12,
+  "inputs": {
+    "fee-policy.mjs": "32bcf03ea52db9be70d86e957dd440c1697daf0eaeab79f732378002d4f2bcfd",
+    "funding-abi.mjs": "6bb37e658aca45fd416d5ea17dda3109e1b41791e674976a60425d579f485cd7",
+    "funding-activation.mjs": "7554454dbe091f4bcc7ef8e15ac5dd8082c8be6d94256f52b1c8fadcfc198645",
+    "funding-route.mjs": "1989f3ebf88833ac492e4f121ff33d564b1798eae1e5239b1aae444b63b572cd",
+    "sessions.mjs": "76341ba39b14463495ce5d9736f115e759751a6f9eaae2d77dbb113327c8530c"
+  },
+  "outputs": {
+    "relay/fee-policy.mjs": "32bcf03ea52db9be70d86e957dd440c1697daf0eaeab79f732378002d4f2bcfd",
+    "relay/funding-abi.mjs": "6bb37e658aca45fd416d5ea17dda3109e1b41791e674976a60425d579f485cd7",
+    "relay/funding-activation.mjs": "7554454dbe091f4bcc7ef8e15ac5dd8082c8be6d94256f52b1c8fadcfc198645",
+    "relay/funding-route.mjs": "1989f3ebf88833ac492e4f121ff33d564b1798eae1e5239b1aae444b63b572cd",
+    "relay/sessions.mjs": "483b1c5ef29d83c937a5fd5b15ea3b2e940025d76706a1c5a63867f33c55c4e3"
+  },
+  "schema": "relay-quarantine-r1-prepare",
+  "symlinks": {
+    "node_modules": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules",
+    "relay/sessions-abi.mjs": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/sessions-abi.mjs",
+    "relay/snp-verify.mjs": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/snp-verify.mjs"
+  },
+  "unchangedCopies": [
+    "funding-route.mjs",
+    "funding-activation.mjs",
+    "fee-policy.mjs",
+    "funding-abi.mjs"
+  ]
+}

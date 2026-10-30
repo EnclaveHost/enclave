@@ -50,7 +50,10 @@ export function seatIndicesV2(enclaveFlags) {
   return { t, W: next - 1, indices: idx };
 }
 
-export function custodyConfig(env = process.env) {
+// authority: the relay's verifier chain authority (relay/relay-chain-authority.mjs) or null. With it the vault is read through
+// that ONE proven client (minAgree 1: one authority, not a vote), every field at the same numbered block of its head chain,
+// and the block-age bound applies as before; a provider list (CUSTODY_RPCS, CUSTODY_MIN_AGREE) was refused at startup.
+export function custodyConfig(env = process.env, { authority = null } = {}) {
   const vault2 = String(env.CUSTODY_VAULT_V2 || "").trim().toLowerCase();
   if (vault2 && !/^0x[0-9a-f]{40}$/.test(vault2)) return { on: false, error: "CUSTODY_VAULT_V2 is not an address" };
   const vault = String(env.CUSTODY_VAULT || "").trim().toLowerCase();
@@ -58,6 +61,11 @@ export function custodyConfig(env = process.env) {
   const rpcs = String(env.CUSTODY_RPCS || env.SECRETS_RELEASE_CATALOG_RPCS || "").split(",").map((s) => s.trim()).filter(Boolean);
   if (!vault && !vault2) return { on: false };
   if (vault && !/^0x[0-9a-f]{40}$/.test(vault)) return { on: false, error: "CUSTODY_VAULT is not an address" };
+  if (authority) {
+    if (chainId !== 8453) return { on: false, error: `custody under the verifier authority reads Base mainnet (8453), not CUSTODY_CHAIN_ID ${chainId}` };
+    return { on: true, vault: vault || null, vault2: vault2 || null, chainId, rpcs: [], clients: [authority.client], minAgree: 1,
+             maxAgeSec: parseInt(env.CUSTODY_MAX_AGE_SEC || "120", 10), authority: "local-verifier" };
+  }
   const minAgree = parseInt(env.CUSTODY_MIN_AGREE || "2", 10);
   if (rpcs.length < minAgree || minAgree < 1) return { on: false, error: `custody needs ${minAgree} or more RPCs (CUSTODY_RPCS or SECRETS_RELEASE_CATALOG_RPCS)` };
   const maxAgeSec = parseInt(env.CUSTODY_MAX_AGE_SEC || "120", 10);

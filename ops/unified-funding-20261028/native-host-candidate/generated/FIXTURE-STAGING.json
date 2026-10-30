@@ -1,0 +1,191 @@
+{
+ "artifacts": {
+  "adapter": {
+   "contract": "LeaseGasDexAdapter",
+   "path": "session-candidate/out/LeaseGasDexAdapter.sol/LeaseGasDexAdapter.json",
+   "sha256": "b342f6e982d902df2e12f7593cd8eb13be62099ce30ff2cc72ba388a9f0a7cd4",
+   "sourceKeccak256": "0x96245813daac0a21fb6ddcae12b28685bc16276c4b89a16d4cbc1e9ed543f00a",
+   "target": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/unified-funding-20261028/dex-candidate/src/LeaseGasDexAdapter.sol"
+  },
+  "book": {
+   "contract": "EnclaveAddressBook",
+   "path": "session-candidate/out/EnclaveAddressBook.sol/EnclaveAddressBook.json",
+   "sha256": "1988f68aa2f033fbd0fcc204d21ce36f3a125b69ac57794605c97f78b129d2d5",
+   "sourceKeccak256": "0xe830fd1c38323296c8c252704f010bb1ba2dcc8632fe69a1bf136f3ead1aa3d4",
+   "target": "../../../contracts/EnclaveAddressBook.sol"
+  },
+  "catalog": {
+   "contract": "EnclaveAppCatalog",
+   "path": "session-candidate/out/EnclaveAppCatalog.sol/EnclaveAppCatalog.json",
+   "sha256": "5adfa212b4d2645fd6f0fa9ffa8492e27005937e88a7b77bfc46a98866cda063",
+   "sourceKeccak256": "0xf4d7e6d0e234c5b223593f599ef41abe1b4ac3dc7d64cc7c7c13384a36185976",
+   "target": "../../../contracts/EnclaveAppCatalog.sol"
+  },
+  "dexFactory": {
+   "contract": "MockV3Factory",
+   "path": "session-candidate/out/DexMocks.sol/MockV3Factory.json",
+   "sha256": "2932b1765ccd22d047c6da64316178fb9091f28c5322dbf233ee467cb43869da",
+   "sourceKeccak256": "0xc90d2d3b939bc2e434bca0e555b4724bc41a99e03e4197b5695373e0585c9a1f",
+   "target": "../dex-candidate/test/mocks/DexMocks.sol"
+  },
+  "factory": {
+   "contract": "FundingSessionVaultFactory",
+   "path": "session-candidate/out/FundingSessionVault.sol/FundingSessionVaultFactory.json",
+   "sha256": "149183c050d0a3ea0799b2998cfbcfc3d885d7a85aa80392ca1accdb23fbff55",
+   "sourceKeccak256": "0x356733a81e568663855941fc21a220d66f82b490ed16bc1cd74efd0a2dafc7d6",
+   "target": "src/FundingSessionVault.sol"
+  },
+  "fundingGasLib": {
+   "contract": "FundingGasLib",
+   "path": "session-candidate/out/FundingGasLib.sol/FundingGasLib.json",
+   "sha256": "6acf7a7c7636fa60986d09f6a2c7c70a456aa8f7681898f99885a332b4abc3b4",
+   "sourceKeccak256": "0xe2fcd706382384bc06491eb0de1fc9a307b834667dfd7a9418c817be1ed02b6f",
+   "target": "src/FundingGasLib.sol"
+  },
+  "fundingSessionVaultLib": {
+   "contract": "FundingSessionVaultLib",
+   "path": "session-candidate/out/FundingSessionVault.sol/FundingSessionVaultLib.json",
+   "sha256": "8247c808057b0a22cbc83fd503b96e35eb1f69fa9c54f94aab5fdb0dc700215a",
+   "sourceKeccak256": "0x356733a81e568663855941fc21a220d66f82b490ed16bc1cd74efd0a2dafc7d6",
+   "target": "src/FundingSessionVault.sol"
+  },
+  "implementation": {
+   "contract": "FundingSessionVault",
+   "path": "session-candidate/out/FundingSessionVault.sol/FundingSessionVault.json",
+   "sha256": "2ca3a4bef51d78fa7d6a4f5a7a6909672b4a82abcbfe09fc020a9e73931e9aee",
+   "sourceKeccak256": "0x356733a81e568663855941fc21a220d66f82b490ed16bc1cd74efd0a2dafc7d6",
+   "target": "src/FundingSessionVault.sol"
+  },
+  "keyAttestations": {
+   "contract": "MockKeyAttestations",
+   "path": "session-candidate/out/SessionMocks.sol/MockKeyAttestations.json",
+   "sha256": "c373b9c86b9e5f8e21a8fb918ee4fbebb45646e40694566c92fc7c3d04d4f2f2",
+   "sourceKeccak256": "0xe70f2e7dad318e7529cceebf317b83fcb8e9b291496841cb3b49089d655feaa7",
+   "target": "../../../contracts/foundry/test/mocks/SessionMocks.sol"
+  },
+  "ledger": {
+   "contract": "EnclaveDeployments",
+   "path": "session-candidate/out/EnclaveDeployments.sol/EnclaveDeployments.json",
+   "sha256": "75b5977444af986580116a42e883e437acc81ca43dc8f50bbd9cbde6e8dc9583",
+   "sourceKeccak256": "0x92ae38ee09ee220a6ceef7dd78831ad0f8ed1fbf96cc7e6e83f4e515b6704bf0",
+   "target": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/contracts/EnclaveDeployments.sol"
+  },
+  "legacyFactory": {
+   "contract": "SessionVaultFactory",
+   "path": "session-candidate/out/SessionVault.sol/SessionVaultFactory.json",
+   "sha256": "c30769a9f289b146b6101a4ffb2c33d56f443e14326d01e7c08cd4bc82022c99",
+   "sourceKeccak256": "0xa2a0324aefc95ab08ffd997a06f632018ac794ae350fd3cb5048aa00966b6ec8",
+   "target": "../../../contracts/SessionVault.sol"
+  },
+  "lib:../../../contracts/SessionVault.sol:SessionVaultLib": {
+   "contract": "SessionVaultLib",
+   "path": "session-candidate/out/SessionVault.sol/SessionVaultLib.json",
+   "sha256": "6bcaa8223527a83feacfc9c633c1a03b2dea31f4022a4e730b1b975dab90d346",
+   "sourceKeccak256": "0xa2a0324aefc95ab08ffd997a06f632018ac794ae350fd3cb5048aa00966b6ec8",
+   "target": "../../../contracts/SessionVault.sol"
+  },
+  "lib:/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/contracts/EnclaveDeployments.sol:EnclaveLedgerBandwidth": {
+   "contract": "EnclaveLedgerBandwidth",
+   "path": "session-candidate/out/EnclaveDeployments.sol/EnclaveLedgerBandwidth.json",
+   "sha256": "217adf9e218272f2cbec5809a2275c282f67e4e3b1910608320a2fb175ef5951",
+   "sourceKeccak256": "0x92ae38ee09ee220a6ceef7dd78831ad0f8ed1fbf96cc7e6e83f4e515b6704bf0",
+   "target": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/contracts/EnclaveDeployments.sol"
+  },
+  "lib:src/FundingGasLib.sol:FundingGasLib": {
+   "contract": "FundingGasLib",
+   "path": "session-candidate/out/FundingGasLib.sol/FundingGasLib.json",
+   "sha256": "6acf7a7c7636fa60986d09f6a2c7c70a456aa8f7681898f99885a332b4abc3b4",
+   "sourceKeccak256": "0xe2fcd706382384bc06491eb0de1fc9a307b834667dfd7a9418c817be1ed02b6f",
+   "target": "src/FundingGasLib.sol"
+  },
+  "lib:src/FundingSessionVault.sol:FundingSessionVaultLib": {
+   "contract": "FundingSessionVaultLib",
+   "path": "session-candidate/out/FundingSessionVault.sol/FundingSessionVaultLib.json",
+   "sha256": "8247c808057b0a22cbc83fd503b96e35eb1f69fa9c54f94aab5fdb0dc700215a",
+   "sourceKeccak256": "0x356733a81e568663855941fc21a220d66f82b490ed16bc1cd74efd0a2dafc7d6",
+   "target": "src/FundingSessionVault.sol"
+  },
+  "paymentRouter": {
+   "contract": "PaymentRouter",
+   "path": "session-candidate/out/PaymentRouter.sol/PaymentRouter.json",
+   "sha256": "70d8d1478465f856f0807c3aa6e22dd63fdb669f76196d895614012c6ac72380",
+   "sourceKeccak256": "0xa4930c76f1a60be78be53a14a4001e738b32d52612c5853ea33ad4501b9a9912",
+   "target": "../../../contracts/PaymentRouter.sol"
+  },
+  "quoter": {
+   "contract": "MockQuoterV2",
+   "path": "native-host-candidate/fixture/out/MockQuoterV2.sol/MockQuoterV2.json",
+   "sha256": "d9396968227476cfe4495a55f470281a50ba5877f3eb979abdb5e12cfea53e7b",
+   "sourceKeccak256": "0xec684b60091bb5c229dac61dd37e38656448038c9a93c8fcb0dcac5e8ab719a9",
+   "target": "src/MockQuoterV2.sol"
+  },
+  "registryStub": {
+   "contract": "SessionRegistryStub",
+   "path": "session-candidate/out/SessionMocks.sol/SessionRegistryStub.json",
+   "sha256": "2af9a57d5c94986a5e9549580a1a728e6a843c28ad4e37c2a277d24289d56238",
+   "sourceKeccak256": "0xe70f2e7dad318e7529cceebf317b83fcb8e9b291496841cb3b49089d655feaa7",
+   "target": "../../../contracts/foundry/test/mocks/SessionMocks.sol"
+  },
+  "reserve": {
+   "contract": "EnclaveLeaseGasReserve",
+   "path": "session-candidate/out/EnclaveLeaseGasReserve.sol/EnclaveLeaseGasReserve.json",
+   "sha256": "59b19f15320f1841f64ca79cc4d56df074891373d617d09aabe4366e79cad841",
+   "sourceKeccak256": "0x8687cf30f0f5e990877dbaf745bd758c1c07a01507916267be71858b296bb598",
+   "target": "../rfq-candidate/test/fixtures/EnclaveLeaseGasReserve.sol"
+  },
+  "swapRouter": {
+   "contract": "MockSwapRouter02",
+   "path": "session-candidate/out/DexMocks.sol/MockSwapRouter02.json",
+   "sha256": "f15b85cbbfe3b2e78e35870026050696a33f9d4d7d1db2e2c98875895cc97c55",
+   "sourceKeccak256": "0xc90d2d3b939bc2e434bca0e555b4724bc41a99e03e4197b5695373e0585c9a1f",
+   "target": "../dex-candidate/test/mocks/DexMocks.sol"
+  },
+  "usdc": {
+   "contract": "MockUSDC3009",
+   "path": "session-candidate/out/SessionMocks.sol/MockUSDC3009.json",
+   "sha256": "08bd0bda6cd56046827bcb4743387f2e702fabbc2d055eab4633c1506426d30e",
+   "sourceKeccak256": "0xe70f2e7dad318e7529cceebf317b83fcb8e9b291496841cb3b49089d655feaa7",
+   "target": "../../../contracts/foundry/test/mocks/SessionMocks.sol"
+  },
+  "weth": {
+   "contract": "MockWETH9",
+   "path": "session-candidate/out/DexMocks.sol/MockWETH9.json",
+   "sha256": "d343a618bffa5bfdfc43b4238f95f38dd703945ed1618accc1dbabe40549b721",
+   "sourceKeccak256": "0xc90d2d3b939bc2e434bca0e555b4724bc41a99e03e4197b5695373e0585c9a1f",
+   "target": "../dex-candidate/test/mocks/DexMocks.sol"
+  }
+ },
+ "client": {
+  "client-candidate/funding-codec.mjs": "ceed082639299b35073005d2ffb0ce8e5ceee1a3035804f197cdf53a4f6739d7"
+ },
+ "fixtureSources": {
+  "native-host-candidate/fixture/foundry.toml": "4ed9a8ff93f9d46f0583b0866f017ac1c61057afcc01700cae21763555d4fe13",
+  "native-host-candidate/fixture/src/MockQuoterV2.sol": "6d6755ea3dff58add9f07606d90283e2e8347cae49cf6f930ddcafbc6e86c562",
+  "native-host-candidate/test/native-host.test.mjs": "ce6a0038157cf44a056b3d24ce3c405f6448309df6767a736ac24af298002bb6"
+ },
+ "links": {
+  "../../../contracts/SessionVault.sol:SessionVaultLib": "lib:../../../contracts/SessionVault.sol:SessionVaultLib",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/contracts/EnclaveDeployments.sol:EnclaveLedgerBandwidth": "lib:/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/contracts/EnclaveDeployments.sol:EnclaveLedgerBandwidth",
+  "src/FundingGasLib.sol:FundingGasLib": "lib:src/FundingGasLib.sol:FundingGasLib",
+  "src/FundingSessionVault.sol:FundingSessionVaultLib": "lib:src/FundingSessionVault.sol:FundingSessionVaultLib"
+ },
+ "note": "inputs of test/native-host.test.mjs; written by prepare.py, nothing compiled or run by it; root pins",
+ "relay": {
+  "../../relay/sessions-abi.mjs": "e9c2464c529d0665e4b2e38bdaa0bf8c703346f046b85521aba755bfc1b2a0a6",
+  "../../relay/snp-verify.mjs": "93f9e9d22f555571ffaadd233e3c6a06f778788e987da6266e09f134d76c1046",
+  "successor-host-candidate/generated/relay/fee-policy.mjs": "32bcf03ea52db9be70d86e957dd440c1697daf0eaeab79f732378002d4f2bcfd",
+  "successor-host-candidate/generated/relay/funding-abi.mjs": "93a951752cbcbdbd01537965f3d540a43fc796665f1a77e87791c9b2e555198a",
+  "successor-host-candidate/generated/relay/funding-route.mjs": "4fbbf97fb6f0f29c6e5eff7343a96d2ba186e9e8eaf592aea64333d9656eda70",
+  "successor-host-candidate/generated/relay/sessions-abi.mjs": "e9c2464c529d0665e4b2e38bdaa0bf8c703346f046b85521aba755bfc1b2a0a6",
+  "successor-host-candidate/generated/relay/sessions.mjs": "98c9a914dc02990cf8bc39dc5ea84bb78fd78d40abc767dff528a0e1410583be",
+  "successor-host-candidate/generated/relay/snp-verify.mjs": "93f9e9d22f555571ffaadd233e3c6a06f778788e987da6266e09f134d76c1046"
+ },
+ "schema": "native-host-r1-staging/v1",
+ "viem": {
+  "client": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules",
+  "nodeModulesLink": null,
+  "relay": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules",
+  "test": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules",
+  "version": "2.53.1"
+ }
+}

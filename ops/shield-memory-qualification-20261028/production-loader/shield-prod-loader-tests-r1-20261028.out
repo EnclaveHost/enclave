@@ -1,0 +1,147 @@
+[queue] START available=27260MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+test_cli (test_compose_loader_release.Compose.test_cli) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-37anbpde/base/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-37anbpde/new-release/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_copies_are_new_inodes (test_compose_loader_release.Compose.test_copies_are_new_inodes) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-6w4dlrwv/base/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-6w4dlrwv/new-release/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_copy_pinned_rejects_mismatch (test_compose_loader_release.Compose.test_copy_pinned_rejects_mismatch) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-nvd2pw5x/base/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_deterministic (test_compose_loader_release.Compose.test_deterministic) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-4qvt5ufh/base/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-4qvt5ufh/new-release/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-4qvt5ufh/base/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-4qvt5ufh/again/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_exact_two_file_delta (test_compose_loader_release.Compose.test_exact_two_file_delta) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-ti34b9d9/base/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-ti34b9d9/new-release/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-ti34b9d9/new-release/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-ti34b9d9/base/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_failure_preserves_partial_output (test_compose_loader_release.Compose.test_failure_preserves_partial_output) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-m60h4mp8/base/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-m60h4mp8/base/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_independent_expected_id (test_compose_loader_release.Compose.test_independent_expected_id) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-scxb57bq/base/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-scxb57bq/new-release/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_no_shell_no_links_no_whole_reads (test_compose_loader_release.Compose.test_no_shell_no_links_no_whole_reads) ... ok
+test_receipt (test_compose_loader_release.Compose.test_receipt) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-0cxhxs12/base/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-0cxhxs12/new-release/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_refuses_base_already_with_marker (test_compose_loader_release.Compose.test_refuses_base_already_with_marker) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-_u8wo2j6/base2/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_refuses_dangling_symlink_out (test_compose_loader_release.Compose.test_refuses_dangling_symlink_out) ... ok
+test_refuses_dynamic_loader (test_compose_loader_release.Compose.test_refuses_dynamic_loader) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-ybzds_zb/base/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_refuses_existing_out (test_compose_loader_release.Compose.test_refuses_existing_out) ... ok
+test_refuses_existing_receipt (test_compose_loader_release.Compose.test_refuses_existing_receipt) ... ok
+test_refuses_extra_dir (test_compose_loader_release.Compose.test_refuses_extra_dir) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-fm0ur4vc/base/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_refuses_extra_file (test_compose_loader_release.Compose.test_refuses_extra_file) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-8z7lmz58/base/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_refuses_identical_loader (test_compose_loader_release.Compose.test_refuses_identical_loader) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-yat_2whr/base/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_refuses_non_elf_loader (test_compose_loader_release.Compose.test_refuses_non_elf_loader) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-saxqtnlw/base/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_refuses_out_inside_base (test_compose_loader_release.Compose.test_refuses_out_inside_base) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-d4rn3p3y/base/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_refuses_receipt_inside_out (test_compose_loader_release.Compose.test_refuses_receipt_inside_out) ... ok
+test_refuses_symlink_in_base (test_compose_loader_release.Compose.test_refuses_symlink_in_base) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-rc3ckx3l/base/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_refuses_symlinked_base (test_compose_loader_release.Compose.test_refuses_symlinked_base) ... ok
+test_refuses_symlinked_loader (test_compose_loader_release.Compose.test_refuses_symlinked_loader) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-m_qxo4qz/base/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_refuses_tampered_file (test_compose_loader_release.Compose.test_refuses_tampered_file) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-d5ku355o/base/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_rejects_malformed_pins (test_compose_loader_release.Compose.test_rejects_malformed_pins) ... ok
+test_rejects_wrong_base_pin (test_compose_loader_release.Compose.test_rejects_wrong_base_pin) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-os77e70p/base/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-os77e70p/base/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_rejects_wrong_loader_pin (test_compose_loader_release.Compose.test_rejects_wrong_loader_pin) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-q168jky5/base/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_rejects_wrong_tool_pin (test_compose_loader_release.Compose.test_rejects_wrong_tool_pin) ... ok
+test_source_changed_after_verify_is_refused (test_compose_loader_release.Compose.test_source_changed_after_verify_is_refused) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-1dou79b1/base/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_streaming_reads_are_bounded (test_compose_loader_release.Compose.test_streaming_reads_are_bounded) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-ot0d1mb6/base/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-ot0d1mb6/new-release/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py:78: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/compose-loader-test-ot0d1mb6/new-release/release.json'>
+  b = open(os.path.join(root, "release.json"), "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+
+----------------------------------------------------------------------
+Ran 30 tests in 0.164s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=29 minHostAvailableMiB=27226
+[memory-guard] at peak: python3:29
+[queue] EXIT 0

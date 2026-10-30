@@ -127,9 +127,9 @@ test("the three real CRLs: profile, ARK signature and the revoked serial agree w
 test("a real served TLS certificate: the reader's DNS SANs and host rule agree with node:crypto", async () => {
   const certPem = text(new URL("genoa-2026-09/tls-cert.pem", F));
   const cert = await X.loadCertificate(X.pemToDer(certPem)), sans = X.dnsSans(cert), n = new X509Certificate(certPem);
-  assert.ok(sans.includes("inference.Cloud Provider.sh")); assert.equal(n.checkHost("inference.Cloud Provider.sh"), "inference.Cloud Provider.sh");
-  assert.equal(X.hostMatches(sans, "inference.Cloud Provider.sh"), true); assert.equal(X.hostMatches(sans, "INFERENCE.Cloud Provider.sh"), true);
-  assert.equal(X.hostMatches(sans, "other.Cloud Provider.sh"), false); assert.equal(X.hostMatches(sans, ""), false); assert.equal(X.hostMatches(sans, "inference.Cloud Provider.sh."), false);
+  assert.ok(sans.includes("inference.tinfoil.sh")); assert.equal(n.checkHost("inference.tinfoil.sh"), "inference.tinfoil.sh");
+  assert.equal(X.hostMatches(sans, "inference.tinfoil.sh"), true); assert.equal(X.hostMatches(sans, "INFERENCE.TINFOIL.SH"), true);
+  assert.equal(X.hostMatches(sans, "other.tinfoil.sh"), false); assert.equal(X.hostMatches(sans, ""), false); assert.equal(X.hostMatches(sans, "inference.tinfoil.sh."), false);
   assert.equal(X.hostMatches(["*.example.com"], "a.example.com"), true); assert.equal(X.hostMatches(["*.example.com"], "a.b.example.com"), false);
   assert.equal(X.hostMatches(["*.com"], "example.com"), false); assert.equal(X.hostMatches(["f*o.example.com"], "foo.example.com"), false, "no partial wildcards (stricter than OpenSSL)");
 });

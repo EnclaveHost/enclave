@@ -1,0 +1,50 @@
+{
+ "single": {
+  "http_code": 206,
+  "size_download": 67108864,
+  "speed_download": 13612177,
+  "time_connect": 0.019953,
+  "time_starttransfer": 0.259625,
+  "time_total": 4.930069,
+  "num_connects": 1,
+  "remote_ip": "104.18.40.153",
+  "rc": 0,
+  "start": 0,
+  "expected": 67108864,
+  "ok": true
+ },
+ "parallel": [
+  {
+   "http_code": 206,
+   "size_download": 67108864,
+   "speed_download": 7702325,
+   "time_connect": 0.021852,
+   "time_starttransfer": 0.282357,
+   "time_total": 8.712813,
+   "num_connects": 1,
+   "remote_ip": "104.18.40.153",
+   "rc": 0,
+   "start": 134217728,
+   "expected": 67108864,
+   "ok": true
+  },
+  {
+   "http_code": 206,
+   "size_download": 67108864,
+   "speed_download": 10675806,
+   "time_connect": 0.019244,
+   "time_starttransfer": 0.252432,
+   "time_total": 6.286076,
+   "num_connects": 1,
+   "remote_ip": "104.18.40.153",
+   "rc": 0,
+   "start": 201326592,
+   "expected": 67108864,
+   "ok": true
+  }
+ ],
+ "parallelWallSeconds": 8.731561369029805,
+ "parallelAggregateBytesPerSecond": 15371560.976031188,
+ "scope": "bounded diagnostic to /dev/null; archive fetch paused at durable offset; uncontended network diagnostic, does not prove production filesystem/cgroup throughput",
+ "ok": true
+}

@@ -1,0 +1,24 @@
+[queue] START available=20927MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+REUSED ops-readiness 27 (r9 0648), sampler 93, recovery-existing 34, JS core 20: receipts pinned, bytes identical
+pins + manifest closure OK: 55 files 14 trees
+## FAIL: capture-r10: rc 1, Ran 3 (expected 3), last FAILED (failures=2) (see /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/capture-r10.txt)
+PASS runtime-pin Ran 10 (expected 10)
+PASS tool Ran 34 (expected 34)
+PASS integration Ran 17 (expected 17)
+PASS reproof Ran 9 (expected 9)
+PASS ops-installer Ran 13 (expected 13)
+PASS parser-recovery Ran 8 (expected 8)
+PASS parser-first Ran 8 (expected 8)
+PASS forward-sync-r2 Ran 6 (expected 6)
+closure copy re-pinned to the r10 module (its ONLY change)
+PASS capture-closure Ran 14 (expected 14)
+## FAIL: reanchor-recovery: rc 1, Ran 25 (expected 25), last FAILED (failures=1) (see /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/reanchor-recovery.txt)
+PASS r3-regression Ran 28 (expected 28)
+PASS r62-isolated Ran 2 (expected 2)
+## FAIL: forward-sync: rc 1, Ran 8 (expected 8), last FAILED (failures=5, errors=1) (see /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/forward-sync.txt)
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108
+## r10 SHA256SUMS 1dbb3abb6a8d2e162817d13531b9369b0bceb3eef11d4395f2719b062b4a6dcb
+## finality-r10 rc=1
+[memory-guard] exit=1 peakTreeRssMiB=234 minHostAvailableMiB=18693
+[memory-guard] at peak: python3:40 python3:31 python3:31 python3:31 python3:31 python3:31 python3:31 bash:4
+[queue] EXIT 1

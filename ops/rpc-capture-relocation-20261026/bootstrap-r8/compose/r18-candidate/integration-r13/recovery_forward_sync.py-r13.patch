@@ -1,0 +1,13 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r12-final/recovery/forward_sync.py	2026-10-26 00:25:59.000000000 -0700
++++ /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/.r13-final.partial-1289574/recovery/forward_sync.py	2026-10-26 02:04:18.027540841 -0700
+@@ -439,8 +439,8 @@
+ 
+ 
+ # ---- CLI: pinned closures executed from verified bytes (as the r6 producer) -----------------------------------------------
+-WRAPPER = (pathlib.Path('/opt/enclave-rpc/chain_service.py'), '4fc3b970e4ec062eeb66ef90c5bd1b14149a9bdcff135e7720708e7c544df8ae')
+-HARNESS = (pathlib.Path('/opt/enclave-rpc/a2a4-recovery/a2a4.py'), '6c1d0b1bf767acebaf0f9c7235dcd46ad1aaab2fa60ca4c3456cb34c56a37805')
++WRAPPER = (pathlib.Path('/opt/enclave-rpc/chain_service.py'), '6a4d7aa5da385bf1d8dea74c37060eb1332d5d468625d54ae02ae878c7135189')
++HARNESS = (pathlib.Path('/opt/enclave-rpc/a2a4-recovery/a2a4.py'), '27ecfb40044025709ed8f7645724082c1580b36e5fac988826aa826fb2f4814e')
+ SELECTION_SHA256 = 'e6c312f4007f6d747197a6569eaeb36c8c949a0819be49738ce6a0723b999532'
+ 
+ 

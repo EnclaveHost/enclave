@@ -1,0 +1,22 @@
+TAP version 13
+# Subtest: publisher delisting alone cannot veto an independently owned deployment of the same committed artifact
+ok 1 - publisher delisting alone cannot veto an independently owned deployment of the same committed artifact
+  ---
+  duration_ms: 1.218121
+  type: 'test'
+  ...
+# Subtest: publisher yanking alone cannot veto an independently owned deployment of the same committed artifact
+ok 2 - publisher yanking alone cannot veto an independently owned deployment of the same committed artifact
+  ---
+  duration_ms: 0.233329
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 214.241535

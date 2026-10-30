@@ -1,0 +1,31 @@
+{
+  "checkedAt": "2026-10-29T13:06:27.5377867Z",
+  "executable": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
+  "node": {
+    "version": "v24.16.0",
+    "hasExlock": false,
+    "exlock": null
+  },
+  "listening": true,
+  "created": "2026-10-26T17:17:18.5617520Z",
+  "port": 8091,
+  "executableSha256": "b3094d0b49f9ad602262a9921551737bb97637c05dd357a06ae98188d7290aa3",
+  "pid": 38076,
+  "modules": [
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\main.mjs",
+      "sha256": "53a854973c9b2c61e556b317a1dd349135595dee1f07edc8299a43a888eb310b",
+      "kind": "process-entry"
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\server.mjs",
+      "sha256": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc",
+      "kind": "adjacent-source-not-execution-proof"
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\backend.mjs",
+      "sha256": "d90b596a81a4f76752ba87c7905bb521f1f1674a6bbba3d8f3db210d657af9e2",
+      "kind": "adjacent-source-not-execution-proof"
+    }
+  ]
+}

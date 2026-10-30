@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: on the production origin both overrides are ignored
+ok 1 - on the production origin both overrides are ignored
+  ---
+  duration_ms: 3.69659
+  type: 'test'
+  ...
+# Subtest: on loopback the e2e overrides still work
+ok 2 - on loopback the e2e overrides still work
+  ---
+  duration_ms: 2.958549
+  type: 'test'
+  ...
+# Subtest: hosts that merely look like loopback do NOT pass the gate
+ok 3 - hosts that merely look like loopback do NOT pass the gate
+  ---
+  duration_ms: 6.024486
+  type: 'test'
+  ...
+# Subtest: no location at all (a node import) gets production rules
+ok 4 - no location at all (a node import) gets production rules
+  ---
+  duration_ms: 0.92116
+  type: 'test'
+  ...
+# Subtest: the accounts off switch is deliberately NOT gated
+ok 5 - the accounts off switch is deliberately NOT gated
+  ---
+  duration_ms: 2.111577
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 61.627046

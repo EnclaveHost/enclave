@@ -1,0 +1,25 @@
+Result=success
+ExecMainStatus=0
+ActiveState=activating
+SubState=start
+Oct 25 16:10:15 enclave-rpc base[12198]: 2026-10-25T16:10:15.686657Z  INFO reth::cli: Downloading snapshot archives archives=18/116 progress=5.2% elapsed=48m 27s eta=14h 41m bytes=40.16 GB/770.80 GB
+Oct 25 16:10:18 enclave-rpc base[12198]: 2026-10-25T16:10:18.686382Z  INFO reth::cli: Downloading snapshot archives archives=18/116 progress=5.2% elapsed=48m 30s eta=14h 40m bytes=40.23 GB/770.80 GB
+Oct 25 16:10:21 enclave-rpc base[12198]: 2026-10-25T16:10:21.686469Z  INFO reth::cli: Downloading snapshot archives archives=18/116 progress=5.2% elapsed=48m 33s eta=14h 41m bytes=40.23 GB/770.80 GB
+Oct 25 16:10:24 enclave-rpc base[12198]: 2026-10-25T16:10:24.686495Z  INFO reth::cli: Downloading snapshot archives archives=18/116 progress=5.2% elapsed=48m 36s eta=14h 42m bytes=40.23 GB/770.80 GB
+Oct 25 16:10:27 enclave-rpc base[12198]: 2026-10-25T16:10:27.686551Z  INFO reth::cli: Downloading snapshot archives archives=18/116 progress=5.2% elapsed=48m 39s eta=14h 43m bytes=40.23 GB/770.80 GB
+Oct 25 16:10:30 enclave-rpc base[12198]: 2026-10-25T16:10:30.686661Z  INFO reth::cli: Downloading snapshot archives archives=18/116 progress=5.2% elapsed=48m 42s eta=14h 43m bytes=40.29 GB/770.80 GB
+Oct 25 16:08:24 enclave-rpc python3[13790]: 2026-10-25T16:08:24.340098Z  INFO Status connected_peers=49 stage=Execution checkpoint=26263563 target=26270382
+Oct 25 16:08:49 enclave-rpc python3[13790]: 2026-10-25T16:08:49.340332Z  INFO Status connected_peers=48 stage=Execution checkpoint=26263566 target=26270382 stage_progress=99.93%
+Oct 25 16:09:14 enclave-rpc python3[13790]: 2026-10-25T16:09:14.339748Z  INFO Status connected_peers=52 stage=Execution checkpoint=26263566 target=26270382 stage_progress=99.93%
+Oct 25 16:09:39 enclave-rpc python3[13790]: 2026-10-25T16:09:39.340090Z  INFO Status connected_peers=50 stage=Execution checkpoint=26263566 target=26270382 stage_progress=99.93%
+Oct 25 16:10:04 enclave-rpc python3[13790]: 2026-10-25T16:10:04.339973Z  INFO Status connected_peers=51 stage=Execution checkpoint=26263566 target=26270382 stage_progress=99.93%
+Oct 25 16:10:29 enclave-rpc python3[13790]: 2026-10-25T16:10:29.340364Z  INFO Status connected_peers=50 stage=Execution checkpoint=26263566 target=26270382 stage_progress=99.93%
+rchar: 143510927
+wchar: 157302903
+syscr: 30717
+syscw: 68939
+read_bytes: 120651776
+write_bytes: 145256448
+cancelled_write_bytes: 0
+some avg10=79.85 avg60=77.18 avg300=71.19 total=6866455383
+full avg10=78.48 avg60=75.12 avg300=67.91 total=6702516014

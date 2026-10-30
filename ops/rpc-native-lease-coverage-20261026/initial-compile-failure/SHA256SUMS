@@ -1,0 +1,6 @@
+3b4e85142bd4a0344629bc358f3fd9fbe3bc5a8f261fb3a56fb70ff23bd1053b  ./PROTOCOL.md
+c51ed40b3922d02634ae5e3f3b2afbbc271e157b983590048cc58d87554e62a0  ./jobs/build-test.sh
+6049f8847e73e46c291fdd6e8258a8af99010eb2da1bd2cfc557aa770683237b  ./jobs/check_upstream_copy.py
+9dd7f6f97fc00a0c2fc22e07381455ae7a3d9ae0eeebe37138bd0233a997ca47  ./jobs/test_check_upstream_copy.py
+2208ea1ab599df035f508cd25a1b21a50e0f03385459929158dc9d8287331c7b  ./jobs/test_lease_coverage_contract.mjs
+e3d55264e99c6eb22bb6a301c4d92edc7033749e99a598685125101455d9bd35  ./src/zk-utils/examples/derivation_harness_lease_v3.rs

@@ -1,0 +1,481 @@
+[queue] START available=90401MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: lost prior proof prevents offering any later signature
+not ok 1 - lost prior proof prevents offering any later signature
+  ---
+  duration_ms: 1.753753
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-site-integration-r1/root-review/regressions.mjs:7:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + [
+    +   'legacyOpen'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'legacyOpen'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-site-integration-r1/root-review/regressions.mjs:7:74)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: admitted step cannot reuse held signatures
+not ok 2 - admitted step cannot reuse held signatures
+  ---
+  duration_ms: 1.105579
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-site-integration-r1/root-review/regressions.mjs:8:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + {
+    +   signature: 'test'
+    + }
+    - null
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: ~
+  actual:
+    signature: 'test'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-site-integration-r1/root-review/regressions.mjs:8:277)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: plan missing relay binding is not silently adopted at a different relay
+not ok 3 - plan missing relay binding is not silently adopted at a different relay
+  ---
+  duration_ms: 0.871842
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-site-integration-r1/root-review/regressions.mjs:9:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + [
+    +   {
+    +     id: 'migration:test',
+    +     kind: 'migration',
+    +     steps: {
+    +       legacyOpen: {
+    +         review: {
+    +           digest: 'b',
+    +           grant: {
+    +             signBefore: '9999'
+    +           }
+    +         },
+    +         status: 'planned'
+    +       },
+    +       terminate: {
+    +         recheck: {
+    +           result: 'lost'
+    +         },
+    +         review: {
+    +           digest: 'a',
+    +           message: {
+    +             signBefore: '9999'
+    +           }
+    +         },
+    +         status: 'proven'
+    +       }
+    +     },
+    +     terms: {
+    +       chainId: 8453,
+    +       gas: {
+    +         vault: '0x2222222222222222222222222222222222222222'
+    +       },
+    +       legacy: {
+    +         oldSid: 'sid',
+    +         vault: '0x3333333333333333333333333333333333333333'
+    +       },
+    +       order: [
+    +         'terminate',
+    +         'legacyOpen'
+    +       ],
+    +       owner: '0x1111111111111111111111111111111111111111'
+    +     },
+    +     termsHash: 'hash',
+    +     v: 3
+    +   }
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0:
+      id: 'migration:test'
+      kind: 'migration'
+      v: 3
+      termsHash: 'hash'
+      terms:
+        owner: '0x1111111111111111111111111111111111111111'
+        chainId: 8453
+        legacy:
+          vault: '0x3333333333333333333333333333333333333333'
+          oldSid: 'sid'
+        gas:
+          vault: '0x2222222222222222222222222222222222222222'
+        order:
+          0: 'terminate'
+          1: 'legacyOpen'
+      steps:
+        terminate:
+          status: 'proven'
+          recheck:
+            result: 'lost'
+          review:
+            digest: 'a'
+            message:
+              signBefore: '9999'
+        legacyOpen:
+          status: 'planned'
+          review:
+            digest: 'b'
+            grant:
+              signBefore: '9999'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-site-integration-r1/root-review/regressions.mjs:9:151)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: page: no wallet discovery, no timers, no deletion, no raw JSON input, no hard-coded approval
+ok 4 - page: no wallet discovery, no timers, no deletion, no raw JSON input, no hard-coded approval
+  ---
+  duration_ms: 0.757122
+  type: 'test'
+  ...
+# Subtest: page: remount clears held state; wallet change remounts; every action is epoch + owner bound
+ok 5 - page: remount clears held state; wallet change remounts; every action is epoch + owner bound
+  ---
+  duration_ms: 0.368236
+  type: 'test'
+  ...
+# Subtest: page: plans and records are always scoped; signing needs the exact approval; sends need the bound bundle
+ok 6 - page: plans and records are always scoped; signing needs the exact approval; sends need the bound bundle
+  ---
+  duration_ms: 0.312527
+  type: 'test'
+  ...
+# Subtest: page: owner controls are rendered first and never wait for intake, catalog, scope or relay config
+ok 7 - page: owner controls are rendered first and never wait for intake, catalog, scope or relay config
+  ---
+  duration_ms: 0.142028
+  type: 'test'
+  ...
+# Subtest: state helpers are pure; the build script uses only existing esbuild and refuses drift
+not ok 8 - state helpers are pure; the build script uses only existing esbuild and refuses drift
+  ---
+  duration_ms: 0.805302
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-site-integration-r1/test/page-source.test.mjs:52:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    state.js uses window.
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-site-integration-r1/test/page-source.test.mjs:54:93)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: generator: refuses unpinned input, proves reversible rewrites, writes only under candidate/
+ok 9 - generator: refuses unpinned input, proves reversible rewrites, writes only under candidate/
+  ---
+  duration_ms: 0.280127
+  type: 'test'
+  ...
+# Subtest: generator: /funding ships (boot PAGES, build-site PAGE_HTML + HTML list, _redirects), and config stays null
+ok 10 - generator: /funding ships (boot PAGES, build-site PAGE_HTML + HTML list, _redirects), and config stays null
+  ---
+  duration_ms: 0.221167
+  type: 'test'
+  ...
+# Subtest: formatUsd6 never rounds
+ok 11 - formatUsd6 never rounds
+  ---
+  duration_ms: 0.865702
+  type: 'test'
+  ...
+# Subtest: owner change: held signatures and quotes are bound to the exact context and dropped when it changes
+ok 12 - owner change: held signatures and quotes are bound to the exact context and dropped when it changes
+  ---
+  duration_ms: 1.100529
+  type: 'test'
+  ...
+# Subtest: stale plan: re-armed digest, other terms or another plan never get the held bundle
+ok 13 - stale plan: re-armed digest, other terms or another plan never get the held bundle
+  ---
+  duration_ms: 0.184798
+  type: 'test'
+  ...
+# Subtest: quotes: single use, same record/deployment/context, refused within 15 s of the deadline
+ok 14 - quotes: single use, same record/deployment/context, refused within 15 s of the deadline
+  ---
+  duration_ms: 0.214418
+  type: 'test'
+  ...
+# Subtest: plans and records are scoped to the exact owner, chain, vaults and relay (never 'the last journal')
+not ok 15 - plans and records are scoped to the exact owner, chain, vaults and relay (never 'the last journal')
+  ---
+  duration_ms: 2.015611
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-site-integration-r1/test/state.test.mjs:91:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + [
+    +   {
+    +     at: 5,
+    +     id: 'migration:0x5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a',
+    +     kind: 'migration',
+    +     steps: {
+    +       'gasOpen:metal': {
+    +         attempt: 1,
+    +         history: [],
+    +         review: {
+    +           digest: '0xdplanned15a8f99441654',
+    +           grant: {
+    +             signBefore: '5000'
+    +           }
+    +         },
+    +         status: 'planned'
+    +       },
+    +       'gasOpen:nucbox': {
+    +         attempt: 1,
+    +         history: [],
+    +         review: {
+    +           digest: '0xdplannedbdbe36d11f5ec',
+    +           grant: {
+    +             signBefore: '5000'
+    +           }
+    +         },
+    +         status: 'planned'
+    +       },
+    +       legacyOpen: {
+    +         attempt: 1,
+    +         history: [],
+    +         review: {
+    +           digest: '0xdplanned6236120d2cad8',
+    +           grant: {
+    +             signBefore: '5000'
+    +           }
+    +         },
+    +         status: 'planned'
+    +       },
+    +       terminate: {
+    +         attempt: 1,
+    +         history: [],
+    +         review: {
+    +           digest: '0xdterm',
+    +           message: {
+    +             signBefore: '5000'
+    +           }
+    +         },
+    +         status: 'planned'
+    +       }
+    +     },
+    +     terms: {
+    +       chainId: 8453,
+    +       gas: {
+    +         vault: '0x1111111111111111111111111111111111111111'
+    +       },
+    +       legacy: {
+    +         grantTemplate: {
+    +           apps: [
+    +             '*'
+    +           ]
+    +         },
+    +         oldBalance6: '30000000',
+    +         oldSid: '0x5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a',
+    +         vault: '0x2222222222222222222222222222222222222222'
+    +       },
+    +       order: [
+    +         'terminate',
+    +         'legacyOpen',
+    +         'gasOpen:nucbox',
+    +         'gasOpen:metal'
+    +       ],
+    +       owner: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC'
+    +     },
+    +     termsHash: '0xterms',
+    +     v: 3
+    +   }
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0:
+      id: 'migration:0x5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a'
+      kind: 'migration'
+      v: 3
+      at: 5
+      termsHash: '0xterms'
+      terms:
+        owner: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC'
+        chainId: 8453
+        order:
+          0: 'terminate'
+          1: 'legacyOpen'
+          2: 'gasOpen:nucbox'
+          3: 'gasOpen:metal'
+        legacy:
+          vault: '0x2222222222222222222222222222222222222222'
+          oldSid: '0x5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a'
+          oldBalance6: '30000000'
+          grantTemplate:
+            apps:
+              0: '*'
+        gas:
+          vault: '0x1111111111111111111111111111111111111111'
+      steps:
+        terminate:
+          status: 'planned'
+          attempt: 1
+          history:
+          review:
+            digest: '0xdterm'
+            message:
+              signBefore: '5000'
+        legacyOpen:
+          status: 'planned'
+          attempt: 1
+          history:
+          review:
+            digest: '0xdplanned6236120d2cad8'
+            grant:
+              signBefore: '5000'
+        gasOpen:nucbox:
+          status: 'planned'
+          attempt: 1
+          history:
+          review:
+            digest: '0xdplannedbdbe36d11f5ec'
+            grant:
+              signBefore: '5000'
+        gasOpen:metal:
+          status: 'planned'
+          attempt: 1
+          history:
+          review:
+            digest: '0xdplanned15a8f99441654'
+            grant:
+              signBefore: '5000'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-site-integration-r1/test/state.test.mjs:104:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: proposal: explicit finite 8 + 2 split; wildcard, overlap, other owner, malformed refused
+ok 16 - proposal: explicit finite 8 + 2 split; wildcard, overlap, other owner, malformed refused
+  ---
+  duration_ms: 1.763303
+  type: 'test'
+  ...
+# Subtest: money: original -> legacy + gas parts must add up exactly and stay <= $30
+ok 17 - money: original -> legacy + gas parts must add up exactly and stay <= $30
+  ---
+  duration_ms: 0.349486
+  type: 'test'
+  ...
+# Subtest: legacy scope label: [] is 'no apps', only ['*'] is the wildcard, nothing is widened
+ok 18 - legacy scope label: [] is 'no apps', only ['*'] is the wildcard, nothing is widened
+  ---
+  duration_ms: 0.171078
+  type: 'test'
+  ...
+# Subtest: approval: matched field by field; nothing approved by default, by key generation or partially
+ok 19 - approval: matched field by field; nothing approved by default, by key generation or partially
+  ---
+  duration_ms: 0.458695
+  type: 'test'
+  ...
+# Subtest: steps: friendly states and only explicit actions; unknown outcomes are never 'send again'
+ok 20 - steps: friendly states and only explicit actions; unknown outcomes are never 'send again'
+  ---
+  duration_ms: 0.648263
+  type: 'test'
+  ...
+# Subtest: reload state: the journal alone decides what is offered next (signatures never survive a reload)
+ok 21 - reload state: the journal alone decides what is offered next (signatures never survive a reload)
+  ---
+  duration_ms: 0.508855
+  type: 'test'
+  ...
+# Subtest: active legacy pointer: moves only away from the replaced session or from none
+ok 22 - active legacy pointer: moves only away from the replaced session or from none
+  ---
+  duration_ms: 0.122548
+  type: 'test'
+  ...
+# Subtest: owner controls: available with intake off / no catalog; only need pins, relay base, own store
+ok 23 - owner controls: available with intake off / no catalog; only need pins, relay base, own store
+  ---
+  duration_ms: 0.189278
+  type: 'test'
+  ...
+# Subtest: quote view: fee, maximum, total, balance and time left are all shown before signing
+ok 24 - quote view: fee, maximum, total, balance and time left are all shown before signing
+  ---
+  duration_ms: 0.154379
+  type: 'test'
+  ...
+1..24
+# tests 24
+# suites 0
+# pass 19
+# fail 5
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 140.004768
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 1

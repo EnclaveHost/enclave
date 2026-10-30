@@ -37,10 +37,11 @@ export function verifyVbsAppEvidence({ doc, handshakeSpki, nonce, expectedAppSha
     const result = verifyVbsVmReport({ envelope: report.envelope,
       idksPublicKey: rsaKeyFromModulus(key.modulus, key.exponent),
       expectedUserData: vbsAppUserData(binding, expectedAppSha256),
-      allowedMeasurements: policy.allowedMeasurements, minimumGuestSvn: policy.minimumGuestSvn ?? 0 });
+      allowedMeasurements: policy.allowedMeasurements, minimumGuestSvn: policy.minimumGuestSvn ?? 0,
+      imageIdentities: policy.imageIdentities });
     if (!result.ok) return result;
     return { ok: true, scope: 'hardware-bound app evidence; admission is a separate policy decision',
-      measurement: result.measurement, appSha256: expectedAppSha256, runtimeId: expectedRuntimeId,
+      measurement: result.measurement, identity: result.identity, appSha256: expectedAppSha256, runtimeId: expectedRuntimeId,
       boot: host.boot };
   } catch (e) { return fail(e.message); }
 }

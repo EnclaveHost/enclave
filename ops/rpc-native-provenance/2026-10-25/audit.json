@@ -1,0 +1,101 @@
+{
+ "format": "enclave-native-provenance-audit/v1",
+ "audited": "2026-10-25",
+ "pins": "linux-rpc-runtime-launch/chain-verifier-inputs/PINS.sha256 (== metal/chain-verifier-image.json at 0235e7d96)",
+ "natives": {
+  "ld-linux-x86-64.so.2": {
+   "sha256": "f5e11cc62f8f2c24dff532982559f4303dba3b17e7450551372a88c8e7ea8757",
+   "kind": "upstream-distribution",
+   "package": "glibc 2.44+r50+g1848099f063e-1 (Arch)",
+   "evidence": [
+    "equals file extracted from cached package",
+    "package signature Good",
+    "pacman -Qkk 0 altered"
+   ],
+   "status": "proven-bytes"
+  },
+  "libc.so.6": {
+   "sha256": "02c8c3d06180beee9c7d0392aa85736c7d19f274a81e7f8f0b3d9e28e0641524",
+   "kind": "upstream-distribution",
+   "package": "glibc 2.44+r50+g1848099f063e-1 (Arch)",
+   "status": "proven-bytes"
+  },
+  "libm.so.6": {
+   "sha256": "965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d",
+   "kind": "upstream-distribution",
+   "package": "glibc 2.44+r50+g1848099f063e-1 (Arch)",
+   "status": "proven-bytes"
+  },
+  "libgcc_s.so.1": {
+   "sha256": "e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a",
+   "kind": "upstream-distribution",
+   "package": "libgcc 16.2.1+r23+gd564253eb6c8-1 (Arch; recipe label 'gcc-libs' inaccurate)",
+   "status": "proven-bytes"
+  },
+  "enclave-base-head-listener": {
+   "sha256": "9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3",
+   "kind": "own-build-release",
+   "source": {
+    "repo": "rpc-gossip-bridge/listener",
+    "commit": "5e178676bbe0ce5cda7ea95a3ccfefa8dca8a4b7",
+    "tree": "00e3a61d48c91a6072355bf0ac67564490a6fc8b",
+    "baseTarball": "9784e20a3cfeac555d96e8d1f15526d5264f0e6d8885b951c6f1220355038012",
+    "cargoLock": "5ad182d75859595c7e8f70f03b9ae35da9eeae3f6ef7890b367dca78b349c0eb"
+   },
+   "build": "build-binaries.sh release, rustc 1.96.0 ac68faa20, --locked --offline, remap-path-prefix, single-threaded link",
+   "receipt": "rpc-runtime-composition/closure/build-listener-r2/BUILD.json",
+   "elf": {
+    "buildId": "f524a2cc811c0b25ec31a2ea2d79941f93f721b8",
+    "homePathStrings": 0
+   },
+   "status": "recipe-complete-not-reproduced"
+  },
+  "helios": {
+   "sha256": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+   "kind": "own-build-debug",
+   "source": {
+    "repo": "rpc-priority/helios-patched",
+    "recorded": "eeffcc9 (label)",
+    "actual": "UNRECORDED uncommitted working tree between b93fcfd (18:51:50) and eeffcc9 (18:58:29); binary mtime 18:57:45; last logged build r4 at dirty 3416a24"
+   },
+   "build": "r4 flags: RUSTUP_TOOLCHAIN=1.96.0 dev CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0 JOBS=1 offline -Wl,--threads=1; -p helios-cli --bin helios",
+   "original": "rpc-priority/helios-target-base/debug/helios (== pin)",
+   "elf": {
+    "buildId": "7f15da75b90e57d1be90d0221f86faff47c62db0",
+    "absolutePathStrings": 2634,
+    "remapped": false
+   },
+   "status": "source-unrecorded-not-reproduced"
+  },
+  "witness-check": {
+   "sha256": "4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411",
+   "kind": "own-build-debug",
+   "source": {
+    "repo": "witness-failover/helios",
+    "recorded": "ef320298 (closure.json)",
+    "actual": "dirty aca8176 (2 files modified) at 21:28:11; ef320298 committed 21:43:40 changing exactly those files"
+   },
+   "build": "witness-failover/jobs/helper-build-test-r5.sh; -p helios-opstack --bin witness-check",
+   "receipt": "witness-failover/logs/helper-build-test-r5b.out",
+   "original": "witness-failover/target/debug/witness-check (== pin)",
+   "elf": {
+    "buildId": "921ff5447c81634ba2335fda774feb88db1e735a",
+    "absolutePathStrings": 297,
+    "remapped": false
+   },
+   "status": "source-equal-to-ef320298-unproven-not-reproduced"
+  }
+ },
+ "notInImage": {
+  "reth-v2.8.0": {
+   "sha256": "8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250",
+   "kind": "upstream-release",
+   "commit": "05ba48120a0ce8d6beb65f0b2a7ad4710f4f2915",
+   "evidence": "rpc-l1-source-package/RESULT.md: official tarball 809bfe0f.. == GitHub asset digest"
+  }
+ },
+ "tooling": {
+  "buildBinaries": "rpc-runtime-final-integration/repo/scripts/rpc-runtime/build-binaries.sh d5bb17e8",
+  "closure": "scripts/rpc-runtime/closure.json 92ff59d1 (reproducedTwice false; pins Helios ef320298 which is not expected to reproduce cc962e2b)"
+ }
+}

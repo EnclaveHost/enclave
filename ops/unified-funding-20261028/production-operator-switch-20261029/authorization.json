@@ -1,0 +1,9 @@
+{
+  "request": "I don't care about losing track of pending payments, make the switch now.",
+  "receivedInThisChat": true,
+  "operation": "funding-operator-switch-20261029-r2",
+  "scope": "Switch tested relay modules and activate existing reviewed funding manifests; preserve original session, grants, keys, admin settings and records. Pending-payment tracking completeness waived by user. No observer coverage claim, new grant, financial transaction, or replay authorized by this operation.",
+  "originalFourDeployments": "complete; never repeat",
+  "newGasGrant": "requires actual owner signature",
+  "reviewedAt": "2026-10-29T01:53:56.872145+00:00"
+}

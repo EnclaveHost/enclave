@@ -1,0 +1,5 @@
+{
+  "sourceSha256": "82b9906bbdb1fe12f873813ce56eb6206fe978cc1fffffd5e807a41fe1fe82ce",
+  "encoding": "array of path/sha256 public file digests; restore mapping in listed order with indent=2 plus newline",
+  "roundTrip": true
+}

@@ -1,0 +1,641 @@
+diff --git a/network/derived-reader/backward-history.mjs b/network/derived-reader/backward-history.mjs
+index e2133408af087a4e7a7e79db5002079192ae8c1e..023eefdcada9f7d9764aa7ee3183d40a279fc923 100644
+--- a/network/derived-reader/backward-history.mjs
++++ b/network/derived-reader/backward-history.mjs
+@@ -1,5 +1,5 @@
+-// AUTHENTICATED BACKWARD LEASE HISTORY (writer-cold-recovery r2; root decision 1554/1556, review §Alt).
+-// Every start's runtime-verified native coverage begins at the ASR bootstrap anchor N+1; lease claims older than N would be
++// AUTHENTICATED BACKWARD LEASE HISTORY (writer-cold-recovery r2; root decision 1554/1556, review §Alt; r3 repair of review 1569 +
++// root 1571). Every start's runtime-verified native coverage begins at the ASR bootstrap anchor N+1; lease claims older than N would be
+ // unservable. This module recovers EVERY lease event of the signed ledgers in [floor, N] (floor INCLUSIVE) with no new trust:
+ //   - N's block hash is the one authenticateAnchor bound to the ASR output root (proof.mjs authenticateBootstrap seed);
+ //   - walking DOWN, each header's keccak(RLP) (vendor/anchor-bootstrap.mjs headerHash, Isthmus fields required) must equal
+@@ -10,17 +10,26 @@
+ //     typed and deposit receipts per pinned base v1.5.1 (network/op-receipts-root.mjs verifyBlockReceipts: log positions
+ //     recomputed; an RPC logIndex is only accepted when equal), and every transaction hash is bound by recomputing
+ //     transactionsRoot from the block's RAW transactions (keccak(raw) = the hash; a receipt alone never binds one).
+-// The own node is untrusted transport. Nothing here is persisted as authority: the optional header cache is untrusted bytes,
+-// re-hashed and re-linked from N on every use. Fail closed: missing, malformed, non-canonical, oversized, truncated, gapped,
+-// mismatched-root or unsupported-type input refuses the whole scan.
+-import { headerHash } from './vendor/anchor-bootstrap.mjs';
++// r3: chunks sit at ABSOLUTE boundaries (floor + k*chunk), independent of N, so the untrusted header cache is reusable across
++// restarts; the cache holds only the hashed header fields, is read bounded / regular / O_NOFOLLOW and evicts within its byte and
++// file bounds; the raw-transaction method is signed policy and pre-flighted; receipt blocks run with bounded concurrency and the
++// event loop is yielded between verified blocks; an in-memory progress record (RAM only, per authenticated seed) lets a retry
++// resume at the last fully verified chunk instead of N. The own node is untrusted transport. Nothing here is persisted as
++// authority: cached header bytes are re-hashed and re-linked from N on every use. Fail closed: missing, malformed, non-canonical,
++// oversized, truncated, gapped, mismatched-root or unsupported-type input refuses the whole scan.
++import { headerHash, ISTHMUS_FIELDS } from './vendor/anchor-bootstrap.mjs';
+ import { verifyBlockReceipts, orderedTrieRoot, BASE_MAINNET } from '../op-receipts-root.mjs';
+ import { LEASE_TOPICS } from './coverage.mjs';
+ import fs from 'node:fs';
+ import path from 'node:path';
+ 
+ export const BACKWARD_HISTORY_FORMAT = 'enclave-derived-backward-lease-history/v1';
+-export const BACKWARD_HISTORY_POLICY_FORMAT = 'enclave-lease16-backward-history-policy/v1';
++export const BACKWARD_HISTORY_POLICY_FORMAT = 'enclave-lease16-backward-history-policy/v2';   // r3: + rawTransactions, receiptConcurrency
++export const RAW_TRANSACTION_METHODS = Object.freeze(['debug', 'per-index']);
++export const MAX_RECEIPT_CONCURRENCY = 8;
++/** the fields headerHash RLP-encodes (anchor-bootstrap BASE + the Isthmus fields): all the cache keeps */
++export const HASHED_HEADER_FIELDS = Object.freeze(['parentHash', 'sha3Uncles', 'miner', 'stateRoot', 'transactionsRoot', 'receiptsRoot', 'logsBloom',
++  'difficulty', 'number', 'gasLimit', 'gasUsed', 'timestamp', 'extraData', 'mixHash', 'nonce', ...ISTHMUS_FIELDS]);
+ const HASH = /^0x[0-9a-f]{64}$/, ADDRESS = /^0x[0-9a-f]{40}$/, RAW = /^0x(?:[0-9a-f]{2})+$/;
+ const uint = n => Number.isSafeInteger(n) && n >= 0;
+ const lc = s => String(s).toLowerCase();
+@@ -28,15 +37,20 @@ const hex = n => `0x${n.toString(16)}`;
+ const fail = (code, message) => { throw Object.assign(new Error(`backward history: ${message}`), { code }); };
+ const bytesOf = h => Uint8Array.from(h.slice(2).match(/../g) || [], x => parseInt(x, 16));
+ const toHex = b => '0x' + Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
++const yieldLoop = () => new Promise(resolve => setImmediate(resolve));
++/** only the hashed fields (anything else an RPC adds, e.g. transaction-hash lists, is dropped before caching) */
++export const leanHeader = h => (h && typeof h === 'object' && !Array.isArray(h)
++  ? Object.fromEntries(HASHED_HEADER_FIELDS.filter(k => h[k] !== undefined && h[k] !== null).map(k => [k, h[k]])) : h);
+ 
+ /** The signed policy (in the reader binding only when configured; absent = disabled). */
+ export function backwardHistoryPolicy(p) {
+-  const keys = ['format', 'ledgers', 'floor', 'chunk', 'maxScanBlocks', 'maxLogs'];
++  const keys = ['format', 'ledgers', 'floor', 'chunk', 'maxScanBlocks', 'maxLogs', 'rawTransactions', 'receiptConcurrency'];
+   if (!p || typeof p !== 'object' || Array.isArray(p) || Object.keys(p).length !== keys.length || keys.some(k => !Object.hasOwn(p, k)) ||
+       p.format !== BACKWARD_HISTORY_POLICY_FORMAT || !Array.isArray(p.ledgers) || !p.ledgers.length || p.ledgers.length > 4 ||
+       p.ledgers.some(a => !ADDRESS.test(a)) || new Set(p.ledgers).size !== p.ledgers.length || !uint(p.floor) || p.floor < 1 ||
+       !Number.isInteger(p.chunk) || p.chunk < 1 || p.chunk > 1024 || !Number.isInteger(p.maxScanBlocks) || p.maxScanBlocks < 1 || p.maxScanBlocks > 100_000_000 ||
+-      !Number.isInteger(p.maxLogs) || p.maxLogs < 1 || p.maxLogs > 1_000_000) throw Error('invalid backward history policy');
++      !Number.isInteger(p.maxLogs) || p.maxLogs < 1 || p.maxLogs > 1_000_000 || !RAW_TRANSACTION_METHODS.includes(p.rawTransactions) ||
++      !Number.isInteger(p.receiptConcurrency) || p.receiptConcurrency < 1 || p.receiptConcurrency > MAX_RECEIPT_CONCURRENCY) throw Error('invalid backward history policy');
+   return Object.freeze({ ...p, ledgers: Object.freeze([...p.ledgers].sort()) });
+ }
+ 
+@@ -51,47 +65,122 @@ export const mayHoldLeaseLog = (logsBloom, ledgers, keccak) =>
+   ledgers.some(a => bloomMayContain(logsBloom, a, keccak)) && LEASE_TOPICS.some(t => bloomMayContain(logsBloom, t, keccak));
+ 
+ // ---- untrusted header cache (never authority) --------------------------------------------------------------------------
+-/** A private directory of header chunks keyed by their lowest number. Whatever it returns is re-verified by the scan. */
+-export function fileHeaderCache(directory, { maxBytes = 2 << 30 } = {}) {
++export const DEFAULT_CACHE_MAX_BYTES = 2 * 1024 ** 3;          // r3 (root 1571): 2 << 30 is -2^31 in JS int32 arithmetic
++export const MAX_CACHE_FILE_BYTES = 4 * 1024 ** 2;             // 1024 lean headers are ~1.5 MiB
++const CACHE_NAME = /^headers-([1-9][0-9]{0,3})-(0|[1-9][0-9]{0,15})\.json$/, CACHE_TMP = /^\.tmp-/;
++/**
++ * A private directory of COMPLETE header chunks keyed by (chunk size, absolute lowest number). Whatever it returns is untrusted
++ * bytes, re-verified by the scan. Reads: O_NOFOLLOW|O_NONBLOCK, a regular file of this uid, <= MAX_CACHE_FILE_BYTES, read through
++ * that fd. Writes: lean headers only, O_EXCL temp + rename. Eviction (oldest written first) keeps <= maxBytes and <= maxFiles.
++ */
++export function fileHeaderCache(directory, { maxBytes = DEFAULT_CACHE_MAX_BYTES, maxFiles = 65536 } = {}) {
+   if (!path.isAbsolute(directory)) throw Error('header cache directory must be absolute');
++  if (!Number.isSafeInteger(maxBytes) || maxBytes < (1 << 20) || maxBytes > 64 * 1024 ** 3) throw Error('header cache maxBytes must be 1 MiB..64 GiB');
++  if (!Number.isSafeInteger(maxFiles) || maxFiles < 1 || maxFiles > 1_000_000) throw Error('header cache maxFiles must be 1..1000000');
+   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+   const st = fs.lstatSync(directory);
+   if (!st.isDirectory() || st.isSymbolicLink() || st.uid !== process.getuid() || (st.mode & 0o077)) throw Error('header cache directory must be private');
+-  const file = lo => path.join(directory, `headers-${lo}.json`);
+-  const used = () => fs.readdirSync(directory).reduce((n, f) => n + fs.statSync(path.join(directory, f)).size, 0);
++  const { O_RDONLY, O_NOFOLLOW, O_NONBLOCK, O_WRONLY, O_CREAT, O_EXCL } = fs.constants;
++  const name = (chunk, lo) => `headers-${chunk}-${lo}.json`;
++  const list = () => {                                          // our regular files only; nothing is followed
++    const out = [];
++    for (const f of fs.readdirSync(directory)) {
++      if (!CACHE_NAME.test(f)) continue;
++      let s; try { s = fs.lstatSync(path.join(directory, f)); } catch { continue; }
++      if (s.isFile()) out.push({ f, size: s.size, mtime: s.mtimeMs });
++    }
++    return out;
++  };
++  for (const f of fs.readdirSync(directory)) if (CACHE_TMP.test(f)) fs.rmSync(path.join(directory, f), { force: true });   // interrupted writes
+   return Object.freeze({
+-    get(lo) { try { const v = JSON.parse(fs.readFileSync(file(lo), 'utf8')); return Array.isArray(v) ? v : null; } catch { return null; } },
+-    put(lo, headers) { const bytes = JSON.stringify(headers); if (used() + bytes.length <= maxBytes) { fs.writeFileSync(file(lo) + '.tmp', bytes, { mode: 0o600 }); fs.renameSync(file(lo) + '.tmp', file(lo)); } },
+-    drop(lo) { fs.rmSync(file(lo), { force: true }); },
++    get(chunk, lo) {
++      let fd;
++      try { fd = fs.openSync(path.join(directory, name(chunk, lo)), O_RDONLY | O_NOFOLLOW | O_NONBLOCK); } catch { return null; }
++      try {
++        const s = fs.fstatSync(fd);
++        if (!s.isFile() || s.uid !== process.getuid() || s.size > MAX_CACHE_FILE_BYTES) return null;
++        const buf = Buffer.alloc(s.size + 1);
++        let n = 0;
++        for (let r; n < buf.length && (r = fs.readSync(fd, buf, n, buf.length - n, null)) > 0;) n += r;
++        if (n > s.size) return null;                            // grew while being read
++        const v = JSON.parse(buf.subarray(0, n).toString('utf8'));
++        return Array.isArray(v) && v.length === chunk ? v : null;
++      } catch { return null; } finally { fs.closeSync(fd); }
++    },
++    put(chunk, lo, headers) {
++      const bytes = Buffer.from(JSON.stringify(headers.map(leanHeader)));
++      if (bytes.length > MAX_CACHE_FILE_BYTES || bytes.length > maxBytes) return false;
++      const files = list().filter(e => e.f !== name(chunk, lo)).sort((a, b) => a.mtime - b.mtime);
++      let used = files.reduce((n, e) => n + e.size, 0);
++      while (files.length && (used + bytes.length > maxBytes || files.length + 1 > maxFiles)) {
++        const e = files.shift(); fs.rmSync(path.join(directory, e.f), { force: true }); used -= e.size;
++      }
++      const tmp = path.join(directory, `.tmp-${process.pid}-${chunk}-${lo}`);
++      fs.rmSync(tmp, { force: true });
++      const fd = fs.openSync(tmp, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600);
++      try { fs.writeSync(fd, bytes); } finally { fs.closeSync(fd); }
++      fs.renameSync(tmp, path.join(directory, name(chunk, lo)));
++      return true;
++    },
++    drop(chunk, lo) { fs.rmSync(path.join(directory, name(chunk, lo)), { force: true }); },
++    usage() { const files = list(); return { files: files.length, bytes: files.reduce((n, e) => n + e.size, 0), maxBytes, maxFiles }; },
+   });
+ }
+ 
++/** bounded task concurrency; the first failure aborts the rest (their results are discarded) */
++async function bounded(items, limit, signal, task) {
++  const results = new Array(items.length), local = new AbortController();
++  const sig = signal ? AbortSignal.any([signal, local.signal]) : local.signal;
++  let next = 0, failed = null;
++  const worker = async () => {
++    while (next < items.length && !failed) {
++      const i = next++;
++      try { results[i] = await task(items[i], sig); } catch (e) { if (!failed) { failed = e; local.abort(e); } }
++    }
++  };
++  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
++  if (failed) throw failed;
++  return results;
++}
++
+ /**
+- * scanBackwardLeaseHistory({ request, anchor, ledgers, floor, keccak, signal, chunk, maxScanBlocks, maxLogs, cache, rawTransactions })
++ * scanBackwardLeaseHistory({ request, anchor, ledgers, floor, keccak, signal, chunk, maxScanBlocks, maxLogs, cache, rawTransactions,
++ *   receiptConcurrency, preflight, progress })
+  *   request(method, params, {signal}) the OWN node (untrusted transport, bounded); anchor { number, hash } AUTHENTICATED (ASR seed)
+  *   rawTransactions 'debug' (debug_getRawTransactions(blockHash)) | 'per-index' (eth_getRawTransactionByBlockHashAndIndex)
++ *   preflight: first prove the node serves eth_getBlockReceipts and the signed raw method at N (else 'preflight', permanent)
++ *   progress: a caller-held RAM object; a retry with the SAME anchor/floor/ledgers/chunk resumes after the last fully verified
++ *     chunk (it only ever holds results already verified against N in this process; never persisted)
+  * -> frozen { format, anchor, floor, ledgers, logs (ascending; native coverage log shape), stats }
+  */
+ export async function scanBackwardLeaseHistory({ request, anchor, ledgers, floor, keccak, signal, chunk = 256, maxScanBlocks, maxLogs,
+-  cache = null, rawTransactions = 'debug', chain = BASE_MAINNET }) {
++  cache = null, rawTransactions = 'debug', receiptConcurrency = 1, preflight = false, progress = null, chain = BASE_MAINNET }) {
+   if (typeof request !== 'function' || typeof keccak !== 'function') fail('bad_input', 'request and keccak are required');
+   if (!anchor || !uint(anchor.number) || !HASH.test(lc(anchor.hash))) fail('no_anchor', 'an authenticated anchor {number, hash} is required');
+   if (!Array.isArray(ledgers) || !ledgers.length || ledgers.some(a => !ADDRESS.test(a))) fail('bad_input', 'ledgers must be lowercase addresses');
+-  if (!uint(floor) || !Number.isInteger(chunk) || chunk < 1 || !Number.isInteger(maxScanBlocks) || !Number.isInteger(maxLogs)) fail('bad_input', 'invalid bounds');
+-  if (!['debug', 'per-index'].includes(rawTransactions)) fail('bad_input', 'rawTransactions must be debug or per-index');
+-  const top = anchor.number, collected = [], stats = { headers: 0, bloomHits: 0, receiptBlocks: 0, cacheHits: 0, cacheRejected: 0 };
+-  if (floor > top) return freeze({ logs: [] });
++  if (!uint(floor) || !Number.isInteger(chunk) || chunk < 1 || chunk > 1024 || !Number.isInteger(maxScanBlocks) || !Number.isInteger(maxLogs) ||
++      !Number.isInteger(receiptConcurrency) || receiptConcurrency < 1 || receiptConcurrency > MAX_RECEIPT_CONCURRENCY) fail('bad_input', 'invalid bounds');
++  if (!RAW_TRANSACTION_METHODS.includes(rawTransactions)) fail('bad_input', 'rawTransactions must be debug or per-index');
++  if (progress !== null && (typeof progress !== 'object' || Object.isFrozen(progress))) fail('bad_input', 'progress must be a mutable object');
++  const top = anchor.number, N = lc(anchor.hash);
++  if (floor > top) return freeze([], newStats());
+   if (top - floor + 1 > maxScanBlocks) fail('resource_bound', `scan of ${top - floor + 1} blocks exceeds maxScanBlocks ${maxScanBlocks}`);
+-  let expectHash = lc(anchor.hash), expectNumber = top;
+-  const fetchChunk = (lo, hi) => Promise.all(Array.from({ length: hi - lo + 1 }, (_, i) => request('eth_getBlockByNumber', [hex(lo + i), false], { signal })));
+-  // verify one ascending chunk [lo, hi] DOWNWARD against the authenticated expectation; -> the per-block verified headers
+-  const verifyChunk = (headers, lo, hi) => {
++  // RAM-only progress for THIS authenticated anchor and scope; anything else starts over at N
++  const key = JSON.stringify([top, N, floor, [...ledgers].sort(), chunk]);
++  const p = progress ?? {};
++  if (p.key !== key) Object.assign(p, { key, nextHi: top, expectHash: N, collected: [], stats: newStats() });
++  const stats = p.stats;
++  if (preflight) await preflightNode();
++  const chunkLo = n => floor + Math.floor((n - floor) / chunk) * chunk;           // absolute boundaries: independent of N
++  const fetchRange = (lo, hi) => Promise.all(Array.from({ length: hi - lo + 1 }, (_, i) => request('eth_getBlockByNumber', [hex(lo + i), false], { signal })));
++  // verify one ascending range [lo, hi] DOWNWARD against the authenticated expectation; -> the per-block verified (lean) headers
++  const verifyRange = (headers, lo, hi, expectHash) => {
+     if (!Array.isArray(headers) || headers.length !== hi - lo + 1) fail('truncated', `header chunk ${lo}..${hi} is incomplete`);
+     const out = [];
+     let want = expectHash;
+     for (let n = hi; n >= lo; n--) {
+       const h = headers[n - lo];
+-      if (!h || typeof h !== 'object') fail('missing', `header ${n} is missing`);
++      if (!h || typeof h !== 'object' || Array.isArray(h)) fail('missing', `header ${n} is missing`);
+       let hash;
+       try { hash = headerHash(h, keccak, { requireIsthmus: true }); } catch (e) { fail('malformed', `header ${n}: ${String(e?.message || e).slice(0, 160)}`); }
+       if (h.hash !== undefined && lc(h.hash) !== hash) fail('hash_claim', `header ${n}'s claimed hash is not keccak(RLP(header))`);
+@@ -99,57 +188,68 @@ export async function scanBackwardLeaseHistory({ request, anchor, ledgers, floor
+       if (hash !== want) fail('unlinked', n === top ? 'the anchor header does not hash to the authenticated anchor' : `header ${n} is not the parent of ${n + 1} (non-canonical)`);
+       if (!HASH.test(lc(h.parentHash)) || !HASH.test(lc(h.receiptsRoot)) || !HASH.test(lc(h.transactionsRoot)) || !/^0x[0-9a-f]{512}$/.test(lc(h.logsBloom)))
+         fail('malformed', `header ${n} lacks parentHash, roots or a 256-byte bloom`);
+-      out.push({ n, h, hash });
++      out.push({ n, h: leanHeader(h), hash });
+       want = lc(h.parentHash);
+     }
+     return { out, want };
+   };
+-  for (let hi = top; hi >= floor; hi -= chunk) {
++  while (p.nextHi >= floor) {
+     signal?.throwIfAborted();
+-    const lo = Math.max(floor, hi - chunk + 1);
++    const hi = p.nextHi, lo = chunkLo(hi), complete = lo + chunk - 1 === hi;
+     let verified = null;
+-    const cached = cache?.get(lo);
++    const cached = cache?.get(chunk, lo) ?? null;                   // a complete chunk; only [lo, hi] (<= N) is ever used
+     if (cached) {
+-      try { verified = verifyChunk(cached, lo, hi); stats.cacheHits++; }
+-      catch { stats.cacheRejected++; cache.drop(lo); }           // tampered or stale cache: discarded, fetched again
++      try { verified = verifyRange(cached.slice(0, hi - lo + 1), lo, hi, p.expectHash); stats.cacheHits++; }
++      catch { stats.cacheRejected++; try { cache.drop(chunk, lo); } catch { /* optional */ } }   // tampered or stale: refetched
+     }
+     if (!verified) {
+-      const fetched = await fetchChunk(lo, hi);
+-      verified = verifyChunk(fetched, lo, hi);
+-      if (cache) try { cache.put(lo, fetched); } catch { /* cache is optional */ }
++      verified = verifyRange(await fetchRange(lo, hi), lo, hi, p.expectHash);
++      if (cache && complete) try { cache.put(chunk, lo, [...verified.out].reverse().map(x => x.h)); } catch { /* the cache is optional */ }
+     }
+-    for (const { n, h, hash } of verified.out) {
+-      stats.headers++;
+-      if (!mayHoldLeaseLog(lc(h.logsBloom), ledgers, keccak)) continue;
+-      stats.bloomHits++;
+-      const logs = await verifiedBlockLeaseLogs(h, hash, n);
+-      for (let i = logs.length - 1; i >= 0; i--) collected.push(logs[i]);   // collected descending; reversed at the end
+-      if (collected.length > maxLogs) fail('resource_bound', `more than ${maxLogs} lease logs`);
+-    }
+-    expectHash = verified.want; expectNumber = lo - 1;
++    await yieldLoop();
++    const hits = verified.out.filter(({ h }) => mayHoldLeaseLog(lc(h.logsBloom), ledgers, keccak));   // descending
++    const perBlock = await bounded(hits, receiptConcurrency, signal, ({ h, hash, n }, sig) => verifiedBlockLeaseLogs(h, hash, n, sig));
++    const add = [];
++    for (const logs of perBlock) for (let i = logs.length - 1; i >= 0; i--) add.push(logs[i]);     // descending
++    if (p.collected.length + add.length > maxLogs) fail('resource_bound', `more than ${maxLogs} lease logs`);
++    // the chunk is fully verified: only now does the RAM progress advance
++    p.collected.push(...add); stats.headers += verified.out.length; stats.bloomHits += hits.length; stats.receiptBlocks += hits.length;
++    p.expectHash = verified.want; p.nextHi = lo - 1;
+   }
+-  if (expectNumber !== floor - 1) fail('gap', 'the scan did not reach the floor');
+-  return freeze({ logs: collected.reverse() });
++  if (p.nextHi !== floor - 1) fail('gap', 'the scan did not reach the floor');
++  return freeze([...p.collected].reverse(), stats);
+ 
+-  async function verifiedBlockLeaseLogs(header, blockHash, n) {
+-    stats.receiptBlocks++;
+-    const receipts = await request('eth_getBlockReceipts', [blockHash], { signal });
++  function newStats() { return { headers: 0, bloomHits: 0, receiptBlocks: 0, cacheHits: 0, cacheRejected: 0 }; }
++  async function preflightNode() {
++    const at = (method, call) => call.catch(e => fail('preflight', `the own node does not serve ${method} (${String(e?.message || e).slice(0, 120)})`));
++    const receipts = await at('eth_getBlockReceipts', request('eth_getBlockReceipts', [N], { signal }));
++    if (!Array.isArray(receipts) || !receipts.length) fail('preflight', `the own node returned no eth_getBlockReceipts list for the anchor ${top}`);
++    const raw = rawTransactions === 'debug'
++      ? await at('debug_getRawTransactions', request('debug_getRawTransactions', [N], { signal }))
++      : [await at('eth_getRawTransactionByBlockHashAndIndex', request('eth_getRawTransactionByBlockHashAndIndex', [N, '0x0'], { signal }))];
++    if (!Array.isArray(raw) || !raw.length || raw.some(r => typeof r !== 'string' || !RAW.test(lc(r))))
++      fail('preflight', `the own node does not serve raw transactions by the signed method '${rawTransactions}'`);
++  }
++  async function verifiedBlockLeaseLogs(header, blockHash, n, sig) {
++    const receipts = await request('eth_getBlockReceipts', [blockHash], { signal: sig });
+     if (!Array.isArray(receipts)) fail('missing', `no receipt list for block ${n}`);
+     let raws;
+-    if (rawTransactions === 'debug') raws = await request('debug_getRawTransactions', [blockHash], { signal });
+-    else raws = await Promise.all(receipts.map((_, i) => request('eth_getRawTransactionByBlockHashAndIndex', [blockHash, hex(i)], { signal })));
++    if (rawTransactions === 'debug') raws = await request('debug_getRawTransactions', [blockHash], { signal: sig });
++    else raws = await Promise.all(receipts.map((_, i) => request('eth_getRawTransactionByBlockHashAndIndex', [blockHash, hex(i)], { signal: sig })));
+     if (!Array.isArray(raws) || raws.some(r => typeof r !== 'string' || !RAW.test(lc(r)))) fail('missing', `raw transactions of block ${n} are missing or malformed`);
++    sig.throwIfAborted();
+     const txs = raws.map(r => bytesOf(lc(r)));
+     if (orderedTrieRoot(txs, keccak) !== lc(header.transactionsRoot)) fail('root_mismatch', `raw transactions of block ${n} do not reproduce transactionsRoot`);
+     const txHashes = txs.map(t => toHex(keccak(t)));
+     let v;
+     try { v = verifyBlockReceipts({ header, expectedBlockHash: blockHash, receipts, txHashes, chain }, { keccak, headerHash: (x, k) => headerHash(x, k, { requireIsthmus: true }) }); }
+     catch (e) { fail(e?.code || 'receipts', `block ${n}: ${String(e?.message || e).slice(0, 200)}`); }
++    await yieldLoop();                                             // one block's synchronous verification at a time (F4)
+     return v.logs.filter(l => ledgers.includes(l.address) && LEASE_TOPICS.includes(l.topics[0]))
+       .map(l => ({ address: l.address, blockNumber: l.blockNumber, blockHash: l.blockHash, logIndex: l.logIndex, topics: [...l.topics], data: l.data, txHash: l.transactionHash }));
+   }
+-  function freeze({ logs }) {
++  function freeze(logs, s) {
+     const deep = o => { if (o && typeof o === 'object') { for (const v of Object.values(o)) deep(v); Object.freeze(o); } return o; };
+-    return deep({ format: BACKWARD_HISTORY_FORMAT, anchor: { number: top, hash: lc(anchor.hash) }, floor, ledgers: [...ledgers], logs, stats: { ...stats } });
++    return deep({ format: BACKWARD_HISTORY_FORMAT, anchor: { number: top, hash: N }, floor, ledgers: [...ledgers], logs: structuredClone(logs), stats: { ...s } });
+   }
+ }
+diff --git a/network/derived-reader/provider.mjs b/network/derived-reader/provider.mjs
+index 0b31bcaf0969f5955062700f23bee9b2bee42693..fde145165f1fc12eb86ecc5282bf87e496da57f2 100644
+--- a/network/derived-reader/provider.mjs
++++ b/network/derived-reader/provider.mjs
+@@ -220,13 +220,17 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+   let scan = null;
+   function startHistoryScan(seed) {
+     if (!historyPolicy) return;
+-    const controller = new AbortController(), current = { seed, controller, result: null, error: null, failedAt: 0, startedAt: now() };
++    // r3: a retry for the SAME seed keeps its RAM progress (only chunks already verified against N here) and resumes there
++    const progress = scan?.seed === seed ? scan.progress : {};
++    const controller = new AbortController(), current = { seed, controller, progress, result: null, error: null, failedAt: 0, startedAt: now() };
+     scan?.controller.abort(Error('history scan replaced'));
+     scan = current;
+-    // N's hash is the one authenticateAnchor bound to the ASR output root (the seed); I/O only, off the native slot
++    // N's hash is the one authenticateAnchor bound to the ASR output root (the seed); off the native slot, but receipt verification is
++    // synchronous CPU on this event loop (bounded per block and yielded between blocks; cost unmeasured: review 1569 F4)
+     scanBackwardLeaseHistory({ request: historyRequest, anchor: { number: seed.base.number, hash: seed.base.hash }, ledgers: historyPolicy.ledgers,
+       floor: historyPolicy.floor, keccak, signal: controller.signal, chunk: historyPolicy.chunk, maxScanBlocks: historyPolicy.maxScanBlocks,
+-      maxLogs: historyPolicy.maxLogs, cache: historyCache })
++      maxLogs: historyPolicy.maxLogs, cache: historyCache, rawTransactions: historyPolicy.rawTransactions,
++      receiptConcurrency: historyPolicy.receiptConcurrency, preflight: true, progress })
+       .then(result => { if (scan === current && !closed) current.result = result; })
+       .catch(e => { if (scan === current) { current.error = String(e?.code || e?.message || e).slice(0, 160); current.failedAt = now(); } });
+   }
+@@ -437,7 +441,8 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+         hasPendingWitness: !!provPending && provPending.expiresAt > now(), fenced: provFence } : null,
+       nativeRunning: !!native,
+       history: historyPolicy ? { state: scan?.result ? 'complete' : scan?.error ? 'failed' : scan ? 'scanning' : 'not-started', anchor: scan?.seed.base.number ?? null,
+-        floor: historyPolicy.floor, error: scan?.error ?? null, stats: scan?.result?.stats ?? null } : null }; },
++        floor: historyPolicy.floor, error: scan?.error ?? null, stats: scan?.result?.stats ?? null,
++        remainingThrough: scan && !scan.result ? (scan.progress?.nextHi ?? scan.seed.base.number) : null } : null }; },
+     async close() {
+       closed = true; pending = null; latest = null; dropProvisional(); scan?.controller.abort(Error('derived provider closed'));
+       const run = native; run?.controller.abort(Error('derived provider closed'));
+diff --git a/relay/derived-writer-authority.mjs b/relay/derived-writer-authority.mjs
+index 4e39e3727493dbf02592326d6313b5d0f611de53..ab80884b6440a2337eb4eacc4dbe735476e7b4d6 100644
+--- a/relay/derived-writer-authority.mjs
++++ b/relay/derived-writer-authority.mjs
+@@ -185,9 +185,14 @@ export function checkLeaseHistory(res, ask) {
+   if (!j || !uint(j.number) || j.number < c.fromBlock - 1 || j.number > ask.anchor.number || !H32.test(lc(j.hash)))
+     fail("derived_logs_invalid", "the lease history names no join point inside its range", true);
+   if (!Array.isArray(res.logs)) fail("derived_logs_invalid", "no log list", true);
+-  const out = [];
+-  for (const l of res.logs) if (ofLease(l, ask)) pushLeaseLog(out, l, ask, c.fromBlock, ask.anchor.number);
+-  return { logs: out, from: c.fromBlock, join: { number: j.number, hash: lc(j.hash) } };
++  const out = [], join = { number: j.number, hash: lc(j.hash) };
++  for (const l of res.logs) if (ofLease(l, ask)) {
++    pushLeaseLog(out, l, ask, c.fromBlock, ask.anchor.number);
++    // r3 (review 1569 F6): a log of the join block N must name N's hash (the block the scan was authenticated from)
++    if (out.at(-1).blockNumber === join.number && out.at(-1).blockHash !== join.hash)
++      fail("derived_logs_invalid", "a lease log of the join block names another block hash than the join", true);
++  }
++  return { logs: out, from: c.fromBlock, join };
+ }
+ 
+ /** The existing replay (lease-generation.mjs step 4/5) over COMPLETE logs: the last Claimed and everything after it must yield the
+@@ -245,6 +250,23 @@ export function createDerivedWriterAuthority({ capability, fresh, ledgerPin = ""
+     const res = await capability.readLeaseHistory({ address: base.address, deployment: base.topic1, anchor: base.anchor, signal: base.signal });
+     return checkLeaseHistory(res, { address: base.address, topic1: base.topic1, anchor: base.anchor, ledgerFloor: fromBlock });
+   }
++  // r3 (review 1569 F1): the runtime coverage FIRST, exactly as before cold recovery. If it holds a Claimed (or starts at the ledger
++  // floor), the replay over it is the replay over the complete history (the last Claimed and everything after it are inside it), so
++  // the backward history is not consulted and its scan state never blocks such a fact. Only a lease with NO claim inside coverage
++  // needs the history (an older claim); then history unavailability is history_unavailable. -> { logs, from, join? }
++  async function leaseLogs(base, probe, last, after) {
++    const availableFrom = probe.coverage.availableFromBlock, from = Math.max(fromBlock, availableFrom);
++    let covered = null;
++    if (from <= last) {
++      const ask = { ...base, fromBlock: from, toBlock: base.anchor.number };
++      covered = { logs: checkDerivedLogs(await capability.readDerivedLogs(ask), ask), from };
++      if (from === fromBlock || covered.logs.some((l) => l.topics[0] === CLAIMED)) return covered;
++    }
++    const hist = await historyLogs(base, availableFrom);
++    if (hist) return hist;
++    if (!covered) fail("claim_not_covered", `the derived reader's coverage starts after the ${after}`);
++    return covered;   // no claim in coverage and no history: the unchanged replay refuses claim_not_covered
++  }
+   if (!Number.isInteger(maxFinalizedAgeSec) || maxFinalizedAgeSec < 1 || maxFinalizedAgeSec > MAX_FINALIZED_AGE_SEC)
+     throw new Error(`maxFinalizedAgeSec must be 1..${MAX_FINALIZED_AGE_SEC} s`);
+   if (!fresh || typeof fresh.getBlockNumber !== "function" || typeof fresh.request !== "function" || typeof fresh.readContract !== "function")
+@@ -279,12 +301,7 @@ export function createDerivedWriterAuthority({ capability, fresh, ledgerPin = ""
+         // the reader's complete coverage starts at availableFrom: learn it at the anchor block itself, then read everything since
+         const probeAsk = { ...base, fromBlock: B, toBlock: B }, probe = await capability.readDerivedLogs(probeAsk);
+         checkDerivedLogs(probe, probeAsk);
+-        const hist = await historyLogs(base, probe.coverage.availableFromBlock);
+-        if (hist) return { B, hash, time, ledger, schema, row, logs: hist.logs, from: hist.from, join: hist.join };
+-        const from = Math.max(fromBlock, probe.coverage.availableFromBlock);
+-        if (from > B) fail("claim_not_covered", "the derived reader's coverage starts after the anchor");
+-        const ask = { ...base, fromBlock: from, toBlock: B };
+-        return { B, hash, time, ledger, schema, row, logs: checkDerivedLogs(await capability.readDerivedLogs(ask), ask), from };
++        return { B, hash, time, ledger, schema, row, ...(await leaseLogs(base, probe, B, "anchor")) };
+       });
+     } catch (e) {
+       if (signal?.aborted) throw aborted(signal);
+@@ -322,12 +339,7 @@ export function createDerivedWriterAuthority({ capability, fresh, ledgerPin = ""
+         const base = { address: s.ledger, topic0s: [...LEASE_TOPIC0S], topic1: id, anchor, signal };
+         const probeAsk = { ...base, fromBlock: s.B, toBlock: s.B }, probe = await capability.readDerivedLogs(probeAsk);
+         checkDerivedLogs(probe, probeAsk);
+-        const hist = await historyLogs(base, probe.coverage.availableFromBlock);
+-        if (hist) return { ...s, final, logs: hist.logs, from: hist.from, join: hist.join };
+-        const from = Math.max(fromBlock, probe.coverage.availableFromBlock);
+-        if (from > final.B) fail("claim_not_covered", "the derived reader's coverage starts after the finalized anchor");
+-        const ask = { ...base, fromBlock: from, toBlock: s.B };
+-        return { ...s, final, logs: checkDerivedLogs(await capability.readDerivedLogs(ask), ask), from };
++        return { ...s, final, ...(await leaseLogs(base, probe, final.B, "finalized anchor")) };
+       });
+     } catch (e) {
+       if (signal?.aborted) throw aborted(signal);
+diff --git a/test/derived-reader/backward-history.test.mjs b/test/derived-reader/backward-history.test.mjs
+index d2cab86bed629eacba23994e402d5955a067fe13..84e20475a0133f99a334dc46ebe7c155aba46d7e 100644
+--- a/test/derived-reader/backward-history.test.mjs
++++ b/test/derived-reader/backward-history.test.mjs
+@@ -1,4 +1,4 @@
+-// writer-cold-recovery-stage/r2: the AUTHENTICATED BACKWARD lease history (network/derived-reader/backward-history.mjs) and its
++// writer-cold-recovery-stage/r2 + r3 repair (review 1569, root 1571): the AUTHENTICATED BACKWARD lease history (network/derived-reader/backward-history.mjs) and its
+ // provider join. What is real: 52 REAL Base mainnet headers (test/fixtures/base-headers-52965055-52965106.json: real hashes,
+ // parent links, Isthmus fields and real logsBloom) for the walk and the bloom-skip rule, and the pinned primitives themselves
+ // (anchor-bootstrap headerHash, op-receipts-root verifyBlockReceipts / orderedTrieRoot). Receipts and raw transactions are not
+@@ -9,12 +9,14 @@ import test from 'node:test';
+ import assert from 'node:assert/strict';
+ import fs from 'node:fs';
+ import os from 'node:os';
++import { spawnSync } from 'node:child_process';
+ import path from 'node:path';
+ import { headerHash } from '../../network/derived-reader/vendor/anchor-bootstrap.mjs';
+ import { consensusReceiptsRoot, logsBloom, orderedTrieRoot } from '../../network/op-receipts-root.mjs';
+ import { keccak } from '../../network/derived-reader/proof.mjs';
+ import { LEASE_TOPICS } from '../../network/derived-reader/coverage.mjs';
+-import { scanBackwardLeaseHistory, mayHoldLeaseLog, bloomMayContain, fileHeaderCache, backwardHistoryPolicy, BACKWARD_HISTORY_POLICY_FORMAT } from '../../network/derived-reader/backward-history.mjs';
++import { scanBackwardLeaseHistory, mayHoldLeaseLog, bloomMayContain, fileHeaderCache, backwardHistoryPolicy, BACKWARD_HISTORY_POLICY_FORMAT,
++  DEFAULT_CACHE_MAX_BYTES, MAX_CACHE_FILE_BYTES } from '../../network/derived-reader/backward-history.mjs';
+ import { createDerivedProvider, derivedReaderBinding, startDerivedReader } from '../../network/derived-reader/provider.mjs';
+ import { openDerivedJournal } from '../../network/derived-reader/journal.mjs';
+ import { openCoverageStore } from '../../network/derived-reader/coverage-store.mjs';
+@@ -192,8 +194,9 @@ test('restart cache: untrusted header chunks are re-authenticated from N on ever
+   const a = await scan(c, first, { cache });
+   assert.equal(a.stats.cacheHits, 0);
+   const second = node(c), b = await scan(c, second, { cache: fileHeaderCache(path.join(dir, 'cache')) });
+-  assert.deepEqual(b.logs, a.logs); assert.ok(b.stats.cacheHits > 0);
+-  assert.equal(second.calls.filter(x => x[0] === 'eth_getBlockByNumber').length, 0, 'headers came from the cache, yet every one was re-hashed and re-linked');
++  assert.deepEqual(b.logs, a.logs); assert.equal(b.stats.cacheHits, 4, 'the four COMPLETE absolute chunks below N');
++  assert.deepEqual(second.calls.filter(x => x[0] === 'eth_getBlockByNumber').map(x => Number(BigInt(x[1]))), [1012],
++    'only the partial top chunk is fetched; cached headers were re-hashed and re-linked from N');
+   // tamper one cached chunk (an attacker hides the release block's bloom): rejected, fetched again, same complete history
+   const files = fs.readdirSync(path.join(dir, 'cache')).filter(f => f.endsWith('.json'));
+   const victim = files.find(f => JSON.parse(fs.readFileSync(path.join(dir, 'cache', f))).some(h => Number(BigInt(h.number)) === 1007));
+@@ -209,7 +212,8 @@ test('restart cache: untrusted header chunks are re-authenticated from N on ever
+ });
+ 
+ // ---- provider: the old claim is served ONLY after the scan completed AND joined coverage (N, anchor] exactly ----
+-const POLICY = (floor) => ({ format: BACKWARD_HISTORY_POLICY_FORMAT, ledgers: [LEDGER], floor, chunk: 4, maxScanBlocks: 1000, maxLogs: 100 });
++const POLICY = (floor) => ({ format: BACKWARD_HISTORY_POLICY_FORMAT, ledgers: [LEDGER], floor, chunk: 4, maxScanBlocks: 1000, maxLogs: 100,
++  rawTransactions: 'debug', receiptConcurrency: 2 });
+ async function historyReader(t, { tamper = {} } = {}) {
+   const f = await l1Fixture(t), seconds = Math.floor(f.now / 1000);
+   const c = buildChain({ from: 1000, to: 1013, t0: seconds - 1000, contents: { 1000: [{ type: '0x7e', logs: [] }, { type: '0x2', logs: [claimed(R1, seconds + 86400)] }] } });
+@@ -264,15 +268,22 @@ test('provider: an own-node outage during the scan fails closed (no history serv
+   await f.reader.submit({ ticket: ticket.ticket, witness: Buffer.from(JSON.stringify(result(ticket, [f.chain.headers.get(1013)]))) });
+   const anchor = { number: 1013, hash: f.chain.headers.get(1013).hash };
+   await assert.rejects(f.reader.readLeaseHistory({ address: LEDGER, deployment: ID, anchor }), /backward lease history unavailable: the scan failed/);
++  assert.equal(f.reader.status().history.remainingThrough, 1007, 'chunks [1012] and [1008, 1011] are verified and kept in RAM');
++  const before = f.own.calls.length;
+   down = false; f.now += 61_000;
+   f.candidate = f.chain.headers.get(1013);
+   await f.reader.prepare({ blockNumber: 1014, rollupConfigTemplate: TEMPLATE }).catch(() => {});   // any prepare restarts a failed scan
+   await until(() => f.reader.status().history.state === 'complete');
++  const again = f.own.calls.slice(before).filter(x => x[0] === 'eth_getBlockByNumber').map(x => Number(BigInt(x[1])));
++  assert.ok(again.length && again.every(n => n <= 1007), 'the retry resumed below the verified chunks, never at N');
++  assert.equal(f.reader.status().history.remainingThrough, null);
+ });
+ 
+ test('policy: disabled by default (binding unchanged), exact keys, and never on a self-initialized (unsigned) reader state', async t => {
+   assert.equal(backwardHistoryPolicy(POLICY(52515705)).floor, 52515705);
+-  for (const bad of [{ ...POLICY(1), extra: 1 }, { ...POLICY(1), ledgers: [] }, { ...POLICY(1), chunk: 0 }, { ...POLICY(0) }, { ...POLICY(1), ledgers: ['0xABC'] }])
++  for (const bad of [{ ...POLICY(1), extra: 1 }, { ...POLICY(1), ledgers: [] }, { ...POLICY(1), chunk: 0 }, { ...POLICY(0) }, { ...POLICY(1), ledgers: ['0xABC'] },
++                     { ...POLICY(1), rawTransactions: 'eth' }, { ...POLICY(1), receiptConcurrency: 0 }, { ...POLICY(1), receiptConcurrency: 9 },
++                     { ...POLICY(1), format: 'enclave-lease16-backward-history-policy/v1' }, (({ rawTransactions, ...r }) => r)(POLICY(1))])
+     assert.throws(() => backwardHistoryPolicy(bad), /invalid backward history policy/);
+   const f = await l1Fixture(t); await f.l1.close(); f.l1 = null;
+   const sha256 = await sha256File(f.native);
+@@ -282,3 +293,87 @@ test('policy: disabled by default (binding unchanged), exact keys, and never on
+   await assert.rejects(startDerivedReader({ ...config, initializeState: true, history: POLICY(52515705) }, options), /enrolled, role-committed reader state/);
+   assert.equal(fs.existsSync(path.join(f.directory, 'state')), false);
+ });
++
++// ---- r3 (review 1569, root 1571) ----------------------------------------------------------------------------------------
++test('r3 cache (root 1571): the default bound is a POSITIVE 2 GiB; reads are bounded, regular and no-follow; only hashed fields; eviction bounds files and bytes', async t => {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'history-cache-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true })); fs.chmodSync(dir, 0o700);
++  assert.equal(DEFAULT_CACHE_MAX_BYTES, 2147483648); assert.equal(2 << 30, -2147483648, 'the r2 default was negative');
++  const cache = fileHeaderCache(path.join(dir, 'c'));
++  assert.equal(cache.usage().maxBytes, 2147483648);
++  assert.throws(() => fileHeaderCache(path.join(dir, 'x'), { maxBytes: 2 << 30 }), /maxBytes/);
++  const c = history(), h = [1000, 1001, 1002].map(n => ({ ...structuredClone(c.headers.get(n)), transactions: ['0x' + 'aa'.repeat(32)], size: '0x1' }));
++  assert.equal(cache.put(3, 1000, h), true);
++  const stored = JSON.parse(fs.readFileSync(path.join(dir, 'c', 'headers-3-1000.json')));
++  assert.ok(stored.every(x => !('transactions' in x) && !('size' in x) && !('hash' in x)), 'only the RLP-hashed fields are cached');
++  assert.equal(cache.get(3, 1000).length, 3); assert.equal(cache.get(4, 1000), null, 'keyed by chunk size too');
++  // a symlink to a valid chunk, a FIFO (must not block) and an oversized file under cache names: never read
++  fs.copyFileSync(path.join(dir, 'c', 'headers-3-1000.json'), path.join(dir, 'elsewhere.json'));
++  fs.symlinkSync(path.join(dir, 'elsewhere.json'), path.join(dir, 'c', 'headers-3-1003.json'));
++  assert.equal(cache.get(3, 1003), null);
++  execFifo(path.join(dir, 'c', 'headers-3-1006.json'));
++  assert.equal(cache.get(3, 1006), null);
++  fs.writeFileSync(path.join(dir, 'c', 'headers-3-1009.json'), Buffer.alloc(MAX_CACHE_FILE_BYTES + 1, 0x20));
++  assert.equal(cache.get(3, 1009), null);
++  // eviction: at most maxFiles regular cache files (links / FIFOs are not counted, never followed), oldest written first
++  const small = fileHeaderCache(path.join(dir, 's'), { maxFiles: 2 });
++  for (const lo of [1000, 1003, 1006]) { small.put(3, lo, h); await new Promise(r => setTimeout(r, 15)); }
++  assert.equal(small.usage().files, 2); assert.equal(small.get(3, 1000), null); assert.ok(small.get(3, 1006));
++  const big = h.map(x => ({ ...x, extraData: '0x' + 'ab'.repeat(400_000) }));               // ~2.4 MB per file
++  const bytes = fileHeaderCache(path.join(dir, 'b'), { maxBytes: 1 << 20 });
++  assert.equal(bytes.put(3, 1000, big), false, 'a file larger than the whole bound is not written');
++  const half = h.map(x => ({ ...x, extraData: '0x' + 'ab'.repeat(60_000) }));               // ~360 KB per file
++  for (const lo of [1000, 1003, 1006, 1009]) bytes.put(3, lo, half);
++  assert.ok(bytes.usage().bytes <= 1 << 20 && bytes.usage().files < 4);
++});
++function execFifo(p) { const r = spawnSync('mkfifo', ['-m', '600', p]); assert.equal(r.status, 0, String(r.stderr)); }
++
++test('r3 F3: ABSOLUTE chunks: after a restart with a CHANGED N every complete cached chunk is reused (and a smaller N slices one); full history', async t => {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'history-cache-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true })); fs.chmodSync(dir, 0o700);
++  const c = history(), cdir = path.join(dir, 'cache'), upto = n => c.expected.filter(l => l.blockNumber <= n);
++  const at = (n, own) => scanBackwardLeaseHistory({ request: own.request, anchor: c.anchor(n), ledgers: [LEDGER], floor: c.from, keccak, chunk: 3,
++    maxScanBlocks: 1000, maxLogs: 100, cache: fileHeaderCache(cdir) });
++  const n1 = node(c), a = await at(1009, n1);                                                  // caches [1000-1002] [1003-1005] [1006-1008]
++  assert.deepEqual(a.logs, upto(1009)); assert.equal(a.stats.cacheHits, 0);
++  const n2 = node(c), b = await at(1012, n2);                                                  // N moved: [1012] partial, [1009-1011] new, 3 hits
++  assert.deepEqual(b.logs, c.expected); assert.equal(b.stats.cacheHits, 3);
++  assert.deepEqual(n2.calls.filter(x => x[0] === 'eth_getBlockByNumber').map(x => Number(BigInt(x[1]))).sort((x, y) => x - y), [1009, 1010, 1011, 1012]);
++  const n3 = node(c), d = await at(1010, n3);                                                  // N inside a cached complete chunk: sliced to [1009, 1010]
++  assert.deepEqual(d.logs, upto(1010)); assert.equal(d.stats.cacheHits, 4);
++  assert.equal(n3.calls.filter(x => x[0] === 'eth_getBlockByNumber').length, 0);
++  // the cached chunk above the new N is never trusted for blocks above N: a tampered 1011 changes nothing at N = 1010
++  const f = path.join(cdir, 'headers-3-1009.json'), chunk = JSON.parse(fs.readFileSync(f));
++  chunk[2].logsBloom = `0x${'ff'.repeat(256)}`; fs.writeFileSync(f, JSON.stringify(chunk));
++  assert.deepEqual((await at(1010, node(c))).logs, upto(1010));
++  await refuses(at(1012, node(c, { header: (h, n) => n === 1011 ? rehash({ ...h, logsBloom: `0x${'00'.repeat(256)}` }) : undefined })), 'unlinked');
++});
++
++test('r3 F2/F4/F5: bounded receipt concurrency, RAM-only resume of a failed scan, and the signed raw method pre-flighted at N', async () => {
++  const c = history();
++  for (const limit of [1, 2]) {
++    const own = node(c); let inFlight = 0, max = 0;
++    const request = async (m, p, o) => { if (m !== 'eth_getBlockReceipts') return own.request(m, p, o);
++      inFlight++; max = Math.max(max, inFlight); try { await new Promise(r => setTimeout(r, 5)); return await own.request(m, p, o); } finally { inFlight--; } };
++    const r = await scan(c, { request }, { chunk: 13, receiptConcurrency: limit });
++    assert.deepEqual(r.logs, c.expected); assert.ok(max <= limit, `at most ${limit} receipt blocks at once (saw ${max})`);
++  }
++  await refuses(scan(c, node(c), { receiptConcurrency: 9 }), 'bad_input');
++  // resume: a failure below the first chunks keeps only fully verified chunks; the retry starts there, never at N
++  let down = true; const progress = {};
++  const flaky = node(c, { fail: (m, p) => down && m === 'eth_getBlockByNumber' && Number(BigInt(p[0])) === 1004 });
++  await assert.rejects(scan(c, flaky, { progress }), /own node outage/);
++  assert.equal(progress.nextHi, 1005, 'chunks [1012], [1009-1011], [1006-1008] verified, [1003-1005] not');
++  down = false;
++  const healthy = node(c), r = await scan(c, healthy, { progress });
++  assert.deepEqual(r.logs, c.expected, 'the resumed scan returns the same complete history');
++  assert.ok(healthy.calls.every(x => x[0] !== 'eth_getBlockByNumber' || Number(BigInt(x[1])) <= 1005));
++  assert.deepEqual(healthy.receiptCalls(), [c.headers.get(1003).hash, c.headers.get(1000).hash], 'receipts above the resume point are not refetched');
++  // another anchor never inherits the progress
++  const other = node(c), o = await scan(c, other, { progress, anchor: c.anchor(1011) });
++  assert.deepEqual(o.logs, c.expected.filter(l => l.blockNumber <= 1011)); assert.ok(other.calls.some(x => x[0] === 'eth_getBlockByNumber' && Number(BigInt(x[1])) === 1011));
++  // pre-flight: the signed method must be served at N before any header is fetched; failure is permanent and typed
++  const noDebug = node(c, { fail: m => m === 'debug_getRawTransactions' });
++  await refuses(scan(c, noDebug, { preflight: true }), 'preflight');
++  assert.equal(noDebug.calls.filter(x => x[0] === 'eth_getBlockByNumber').length, 0);
++  assert.deepEqual((await scan(c, node(c, { fail: m => m === 'debug_getRawTransactions' }), { preflight: true, rawTransactions: 'per-index' })).logs, c.expected);
++  await refuses(scan(c, node(c, { receipts: (r, h) => h === c.headers.get(1012).hash ? [] : r }), { preflight: true }), 'preflight');
++});
+diff --git a/test/derived-writer-history.test.mjs b/test/derived-writer-history.test.mjs
+index ecaa1ccab6765ee59280c3aa2abf17f049231464..8fdbac70ed245aa527fbd31ad782ee192ed8fdc6 100644
+--- a/test/derived-writer-history.test.mjs
++++ b/test/derived-writer-history.test.mjs
+@@ -1,4 +1,4 @@
+-// writer-cold-recovery-stage/r2: relay/derived-writer-authority.mjs with the reader's AUTHENTICATED BACKWARD lease history
++// writer-cold-recovery-stage/r2 + r3 (review 1569 F1 coverage first, F6 join hash): relay/derived-writer-authority.mjs with the reader's AUTHENTICATED BACKWARD lease history
+ // (capability.readLeaseHistory). ADAPTER LOGIC ONLY: the capability is an in-test fake whose answers prove nothing; the reader side
+ // (header chain, receipts, join) is test/derived-reader/backward-history.test.mjs. Shown: a claim older than this start's coverage
+ // is served from the complete [ledger floor, anchor] history with the unchanged replay, 120 s ceiling, claim finality and A2
+@@ -63,7 +63,8 @@ test("an existing claim OLDER than this start's coverage is served from the auth
+   const r = await authority(w).writerAuthority(ID, { runner: RUNNER });
+   assert.equal(r.factJson, JSON.stringify({ source: "lease16", chainId: 8453, ledger: LEDGER, deployment: ID, claimBlock: O + 150, claimLogIndex: 3 }));
+   assert.deepEqual(r.evidence, { authority: "consumer-domain-derivation", tier: "l1-finalized-derived", coverageFromBlock: FLOOR, historyJoin: { number: O + 899, hash: h("9a") } });
+-  assert.deepEqual(w.calls, [["logs", B, B], ["history", LEDGER, ID, B]], "the probe, then the history; never a coverage read below availableFrom");
++  assert.deepEqual(w.calls, [["logs", B, B], ["logs", O + 900, B], ["history", LEDGER, ID, B]],
++    "r3: the probe, the coverage (no claim in it), then the history; never a coverage read below availableFrom");
+   // the same-runner release + re-claim inside the history: the LATER claim is the fact (all events preserved, none compacted)
+   const again = await authority(world({ history: [claimed(150, 3, NOW - 10), released(400, 1), claimed(500, 2, NOW + 600), renewed(950, 0, NOW + 1200)] })).writerAuthority(ID);
+   assert.equal(again.fact.claimBlock, O + 500);
+@@ -164,3 +165,47 @@ test("selector: the history only from the ENROLLED state's runtime service; an u
+   assert.equal(r.fact.claimBlock, O + 150); assert.equal(r.evidence.coverageFromBlock, 52_515_705);
+   assert.ok(live.calls.some((c) => c[0] === "history"));
+ });
++
++// ---- r3 (review 1569) --------------------------------------------------------------------------------------------------
++const UNAVAILABLE = ["backward lease history unavailable: the scan has not completed", "backward lease history unavailable: the scan failed (unlinked)",
++  "backward lease history is not joined to this process's coverage at its bootstrap anchor", "the backward lease history is not enabled by the signed reader binding"];
++test("r3 F1: a claim INSIDE coverage is served from coverage while the history is scanning, failed, not joined or disabled (no history call)", async () => {
++  const inCoverage = [claimed(150, 3, NOW - 10), released(400, 1), claimed(920, 1, NOW + 600), renewed(950, 0, NOW + 1200)];
++  for (const why of [...UNAVAILABLE, null]) {
++    const w = world({ history: inCoverage, historyFails: why, withHistory: why !== null });
++    const r = await authority(w).writerAuthority(ID, { runner: RUNNER });
++    assert.equal(r.fact.claimBlock, O + 920, String(why));
++    assert.deepEqual(r.evidence, { authority: "consumer-domain-derivation", tier: "l1-finalized-derived", coverageFromBlock: O + 900 });
++    assert.ok(!w.calls.some((c) => c[0] === "history"), "the history is never consulted when coverage holds the claim");
++  }
++  // the same replay as over the complete history: a release after the in-coverage claim still refuses
++  await refuses(authority(world({ history: [claimed(920, 1, NOW + 1200), released(960, 0)], historyFails: UNAVAILABLE[0] })).writerAuthority(ID), "inconsistent_logs");
++  // a claim only BEFORE coverage still needs the history: unavailable -> history_unavailable (retryable), never a coverage-only fact
++  const e = await authority(world({ historyFails: UNAVAILABLE[1] })).writerAuthority(ID).catch((x) => x);
++  assert.equal(e.code, "history_unavailable"); assert.equal(e.retry, true);
++});
++
++test("r3 F1 two anchors: an in-coverage claim <= B_f is served from coverage with A2 evidence while the history is unavailable; a later claim stays claim_not_final", async () => {
++  const BF = B - 50, HF = h("af"), S = B, SL1 = { number: 26_000_300, hash: h("1e") };
++  const side = (num, hash, time, r) => ({ number: BigInt(num), client: { getBlock: async () => ({ number: BigInt(num), hash, timestamp: BigInt(time) }),
++    readContract: async ({ functionName }) => functionName === "addr" ? LEDGER : functionName === "deploymentsSchema" ? 16n : r } });
++  const two = (history, records) => { const w = world({ history, historyFails: UNAVAILABLE[0] });
++    const cap = { ...w.capability, async snapshot() { throw new Error("legacy snapshot unused"); },
++      async stateSnapshot(read) { const value = await read({ claim: side(BF, HF, NOW - 900, row({ leaseUntil: BigInt(NOW + 600) })), state: side(S, HB, T, row()) });
++        return { blockNumber: BigInt(BF), blockHash: HF, value, state: { blockNumber: BigInt(S), blockHash: HB }, evidence: { tier: STATE_TIER, claimTier: CLAIM_TIER, state: { l1: SL1 } } }; },
++      async recordStateFact(entry) { records.push(entry); return "recorded"; } };
++    return { w, a: createDerivedWriterAuthority({ capability: cap, fresh: w.fresh, addressBook: BOOK, fromBlock: FLOOR, now: () => NOW * 1000 }) };
++  };
++  const records = [], { w, a } = two([claimed(920, 1, NOW + 600), renewed(960, 0, NOW + 1200)], records);
++  const r = await a.writerAuthority(ID);
++  assert.equal(r.fact.claimBlock, O + 920); assert.equal(r.evidence.historyJoin, undefined); assert.equal(records.length, 1);
++  assert.ok(!w.calls.some((c) => c[0] === "history"));
++  await refuses(two([claimed(920, 1, NOW + 600), claimed(970, 0, NOW + 1200)], []).a.writerAuthority(ID), "claim_not_final");
++});
++
++test("r3 F6: a log of the join block must carry the join's hash", async () => {
++  const atJoin = [claimed(899, 0, NOW + 600), renewed(950, 0, NOW + 1200)];        // join = availableFrom - 1 = O + 899
++  await refuses(authority(world({ history: atJoin })).writerAuthority(ID), "derived_logs_invalid");
++  const ok = await authority(world({ history: atJoin, mutate: (r) => ({ ...r, join: { number: O + 899, hash: bh(O + 899) } }) })).writerAuthority(ID);
++  assert.equal(ok.fact.claimBlock, O + 899); assert.deepEqual(ok.evidence.historyJoin, { number: O + 899, hash: bh(O + 899) });
++});

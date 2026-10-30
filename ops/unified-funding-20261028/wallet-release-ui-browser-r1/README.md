@@ -1,0 +1,1 @@
+Root browser fixture: exact repaired product modules, real IndexedDB, shipped b6125577 SDK; chain/provider/relay remain inert mocks. No live wallet or network financial calls. Historical authored SDK stand-in replaced only in this external fixture.

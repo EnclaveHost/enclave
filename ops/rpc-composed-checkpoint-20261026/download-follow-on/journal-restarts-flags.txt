@@ -1,0 +1,42 @@
+2026-10-25T16:38:33+00:00 enclave-rpc base[907]: 2026-10-25T16:38:33.113066Z  INFO reth::cli: Queued component for download component=Receipts archives=2 selection=Last 140000 blocks
+2026-10-25T16:38:33+00:00 enclave-rpc base[907]: 2026-10-25T16:38:33.113075Z  INFO reth::cli: Queued component for download component=Account Changesets archives=2 selection=Last 140000 blocks
+2026-10-25T16:38:33+00:00 enclave-rpc base[907]: 2026-10-25T16:38:33.113080Z  INFO reth::cli: Queued component for download component=Storage Changesets archives=2 selection=Last 140000 blocks
+2026-10-25T16:39:37+00:00 enclave-rpc systemd[1]: Stopped enclave-rpc-base-snapshot.service - Enclave base pinned snapshot bootstrap (not production readiness).
+2026-10-25T17:54:51+00:00 enclave-rpc systemd[1]: Starting enclave-rpc-base-snapshot.service - Enclave base pinned snapshot bootstrap (not production readiness)...
+2026-10-25T17:54:52+00:00 enclave-rpc base[918]: 2026-10-25T17:54:52.593576Z  INFO reth::cli: Queued component for download component=State (mdbx) archives=1 selection=All
+2026-10-25T17:54:52+00:00 enclave-rpc base[918]: 2026-10-25T17:54:52.593722Z  INFO reth::cli: Queued component for download component=Headers archives=107 selection=All
+2026-10-25T17:54:52+00:00 enclave-rpc base[918]: 2026-10-25T17:54:52.593741Z  INFO reth::cli: Queued component for download component=Transactions archives=2 selection=Last 140000 blocks
+2026-10-25T17:54:52+00:00 enclave-rpc base[918]: 2026-10-25T17:54:52.594066Z  INFO reth::cli: Queued component for download component=Receipts archives=2 selection=Last 140000 blocks
+2026-10-25T17:54:52+00:00 enclave-rpc base[918]: 2026-10-25T17:54:52.594073Z  INFO reth::cli: Queued component for download component=Account Changesets archives=2 selection=Last 140000 blocks
+2026-10-25T17:54:52+00:00 enclave-rpc base[918]: 2026-10-25T17:54:52.594080Z  INFO reth::cli: Queued component for download component=Storage Changesets archives=2 selection=Last 140000 blocks
+2026-10-25T17:56:03+00:00 enclave-rpc base[918]: 2026-10-25T17:56:03.562664Z  INFO reth::cli: Startup integrity summary (plain output files) reusable=20 needs_download=96
+2026-10-25T17:56:03+00:00 enclave-rpc base[918]: 2026-10-25T17:56:03.562700Z  INFO reth::cli: Downloading all archives archives=116 download_total=770.80 GB output_total=1186.77 GB
+2026-10-25T17:56:03+00:00 enclave-rpc base[918]: 2026-10-25T17:56:03.933038Z  INFO reth::cli: Starting queued segmented download total_size=708.95 GB piece_size=64.00 MB pieces=11344 workers=8 max_concurrent_requests=8
+2026-10-25T18:17:01+00:00 enclave-rpc systemd[1]: Stopped enclave-rpc-base-snapshot.service - Enclave base pinned snapshot bootstrap (not production readiness).
+2026-10-25T18:17:01+00:00 enclave-rpc systemd[1]: Starting enclave-rpc-base-snapshot.service - Enclave base pinned snapshot bootstrap (not production readiness)...
+2026-10-25T18:17:02+00:00 enclave-rpc base[3211]: 2026-10-25T18:17:02.483530Z  INFO reth::cli: Queued component for download component=State (mdbx) archives=1 selection=All
+2026-10-25T18:17:02+00:00 enclave-rpc base[3211]: 2026-10-25T18:17:02.483605Z  INFO reth::cli: Queued component for download component=Headers archives=107 selection=All
+2026-10-25T18:17:02+00:00 enclave-rpc base[3211]: 2026-10-25T18:17:02.483616Z  INFO reth::cli: Queued component for download component=Transactions archives=2 selection=Last 140000 blocks
+2026-10-25T18:17:02+00:00 enclave-rpc base[3211]: 2026-10-25T18:17:02.483624Z  INFO reth::cli: Queued component for download component=Receipts archives=2 selection=Last 140000 blocks
+2026-10-25T18:17:02+00:00 enclave-rpc base[3211]: 2026-10-25T18:17:02.483629Z  INFO reth::cli: Queued component for download component=Account Changesets archives=2 selection=Last 140000 blocks
+2026-10-25T18:17:02+00:00 enclave-rpc base[3211]: 2026-10-25T18:17:02.483632Z  INFO reth::cli: Queued component for download component=Storage Changesets archives=2 selection=Last 140000 blocks
+2026-10-25T18:19:04+00:00 enclave-rpc base[3211]: 2026-10-25T18:19:04.211586Z  INFO reth::cli: Startup integrity summary (plain output files) reusable=37 needs_download=79
+2026-10-25T18:19:04+00:00 enclave-rpc base[3211]: 2026-10-25T18:19:04.211624Z  INFO reth::cli: Downloading all archives archives=116 download_total=770.80 GB output_total=1186.77 GB
+2026-10-25T18:19:04+00:00 enclave-rpc base[3211]: 2026-10-25T18:19:04.371093Z  INFO reth::cli: Starting queued segmented download total_size=708.95 GB piece_size=64.00 MB pieces=11344 workers=16 max_concurrent_requests=16
+2026-10-25T18:19:06+00:00 enclave-rpc systemd[1]: Stopped enclave-rpc-base-snapshot.service - Enclave base pinned snapshot bootstrap (not production readiness).
+2026-10-25T18:19:06+00:00 enclave-rpc systemd[1]: Starting enclave-rpc-base-snapshot.service - Enclave base pinned snapshot bootstrap (not production readiness)...
+2026-10-25T18:19:06+00:00 enclave-rpc base[4061]: 2026-10-25T18:19:06.510598Z  INFO reth::cli: Queued component for download component=State (mdbx) archives=1 selection=All
+2026-10-25T18:19:06+00:00 enclave-rpc base[4061]: 2026-10-25T18:19:06.510686Z  INFO reth::cli: Queued component for download component=Headers archives=107 selection=All
+2026-10-25T18:19:06+00:00 enclave-rpc base[4061]: 2026-10-25T18:19:06.510714Z  INFO reth::cli: Queued component for download component=Transactions archives=2 selection=Last 140000 blocks
+2026-10-25T18:19:06+00:00 enclave-rpc base[4061]: 2026-10-25T18:19:06.510723Z  INFO reth::cli: Queued component for download component=Receipts archives=2 selection=Last 140000 blocks
+2026-10-25T18:19:06+00:00 enclave-rpc base[4061]: 2026-10-25T18:19:06.510729Z  INFO reth::cli: Queued component for download component=Account Changesets archives=2 selection=Last 140000 blocks
+2026-10-25T18:19:06+00:00 enclave-rpc base[4061]: 2026-10-25T18:19:06.510734Z  INFO reth::cli: Queued component for download component=Storage Changesets archives=2 selection=Last 140000 blocks
+2026-10-25T18:20:32+00:00 enclave-rpc base[4061]: 2026-10-25T18:20:32.404648Z  INFO reth::cli: Startup integrity summary (plain output files) reusable=37 needs_download=79
+2026-10-25T18:20:32+00:00 enclave-rpc base[4061]: 2026-10-25T18:20:32.404690Z  INFO reth::cli: Downloading all archives archives=116 download_total=770.80 GB output_total=1186.77 GB
+2026-10-25T18:20:32+00:00 enclave-rpc base[4061]: 2026-10-25T18:20:32.626987Z  INFO reth::cli: Starting queued segmented download total_size=708.95 GB piece_size=64.00 MB pieces=11344 workers=16 max_concurrent_requests=16
+2026-10-25T20:13:21+00:00 enclave-rpc base[4061]: 2026-10-25T20:13:21.072371Z  INFO reth::cli: Starting queued segmented download total_size=9.75 GB piece_size=64.00 MB pieces=157 workers=16 max_concurrent_requests=16
+2026-10-25T20:51:54+00:00 enclave-rpc base[4061]: 2026-10-25T20:51:54.016208Z  INFO reth::cli: Starting queued segmented download total_size=10.89 GB piece_size=64.00 MB pieces=175 workers=16 max_concurrent_requests=16
+2026-10-25T20:52:10+00:00 enclave-rpc base[4061]: 2026-10-25T20:52:10.410062Z  INFO reth::cli: Starting queued segmented download total_size=1.52 GB piece_size=32.00 MB pieces=49 workers=16 max_concurrent_requests=16
+2026-10-25T20:53:23+00:00 enclave-rpc base[4061]: 2026-10-25T20:53:23.103801Z  INFO reth::cli: Starting queued segmented download total_size=17.45 GB piece_size=64.00 MB pieces=280 workers=16 max_concurrent_requests=16
+--- flags
+--archive --download-concurrency --manifest-path --manifest-url --resumable --static-files --url 

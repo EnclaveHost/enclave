@@ -1,0 +1,16 @@
+{
+  "frozenRoot": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/seed",
+  "productionRoot": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-site-production-r2/source",
+  "root40Candidate": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-repaired-r2/candidate",
+  "seedEntries": 125,
+  "testOnlyOverlay": {
+    "enclave/test/wallet-release/census.test.mjs": {
+      "production": "3fbefcdb5bdcadf044e2d5fc3a3cc28daf16d086da77f43efedb05ab0bd35c7b",
+      "rootTest": "8fbde14c5f700f54930191e2dbea0bab58ba72e7fce03a18ea59d05ae91587a1"
+    }
+  },
+  "productEditsBeforeAuthor": [],
+  "scope": "all125 live files, with exactly one root40 test-only overlay",
+  "root40BoundaryTest": "../root-boundaries.test.mjs copied byte-for-byte outside candidate; readonly",
+  "root40Claim": "observed existing result.tap40PASS0FAIL0skip; not rerun here, not author-result proof"
+}

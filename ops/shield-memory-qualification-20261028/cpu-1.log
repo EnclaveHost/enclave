@@ -1,0 +1,15 @@
+ok   only the masked CPUs, aggregate line skipped
+ok   steal and irq are busy, iowait is not, guest is inside user
+ok   a CPU the file does not list: no reading
+ok   an empty file: no reading
+ok   an old four-field line still reads
+ok   idle: up one a period
+ok   idle: tops out at cpus - headroom
+ok   idle: stays
+ok   never past the thread limit
+ok   a prompt using 6.3 cores: cut at once to what is left
+ok   its own minting is not load (7 other + 1 minting -> 1 still)
+ok   every CPU busy with other work: none
+ok   zero headroom still ramps one at a time
+ok   out-of-range inputs clamp
+ok   no CPUs or no minters: none

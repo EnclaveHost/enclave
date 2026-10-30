@@ -1,0 +1,196 @@
+[queue] START available=30459MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+TAP version 13
+# Subtest: EIP-712 type strings equal FundingSessionVault.sol byte for byte; tables are frozen
+ok 1 - EIP-712 type strings equal FundingSessionVault.sol byte for byte; tables are frozen
+  ---
+  duration_ms: 1.598985
+  type: 'test'
+  ...
+# Subtest: no signing, key, network or submission surface is exported
+ok 2 - no signing, key, network or submission surface is exported
+  ---
+  duration_ms: 0.392596
+  type: 'test'
+  ...
+# Subtest: vault identity is the factory's CREATE2 clone for the owner; config is explicit and strict
+ok 3 - vault identity is the factory's CREATE2 clone for the owner; config is explicit and strict
+  ---
+  duration_ms: 2.235469
+  type: 'test'
+  ...
+# Subtest: grant digest equals an independent EIP-712 encoding; sid is derivable
+ok 4 - grant digest equals an independent EIP-712 encoding; sid is derivable
+  ---
+  duration_ms: 2.373797
+  type: 'test'
+  ...
+# Subtest: grant digest changes with chain, vault, domain version and every gas limit; old v1 digest differs
+ok 5 - grant digest changes with chain, vault, domain version and every gas limit; old v1 digest differs
+  ---
+  duration_ms: 5.693446
+  type: 'test'
+  ...
+# Subtest: grant refusals: v1 shape, missing/implicit version, gas-limit rules, retired action, widening fields
+ok 6 - grant refusals: v1 shape, missing/implicit version, gas-limit rules, retired action, widening fields
+  ---
+  duration_ms: 2.906313
+  type: 'test'
+  ...
+# Subtest: intent encodes to exactly 224 bytes of seven static words and round-trips
+ok 7 - intent encodes to exactly 224 bytes of seven static words and round-trips
+  ---
+  duration_ms: 0.984261
+  type: 'test'
+  ...
+# Subtest: intent decode refuses trailing, short, dirty and non-canonical bytes
+ok 8 - intent decode refuses trailing, short, dirty and non-canonical bytes
+  ---
+  duration_ms: 1.232148
+  type: 'test'
+  ...
+# Subtest: intent field validation: tiers, positive exact output, no extra fields
+ok 9 - intent field validation: tiers, positive exact output, no extra fields
+  ---
+  duration_ms: 0.585424
+  type: 'test'
+  ...
+# Subtest: uint parsing: decimal strings only, no negatives, no hex ambiguity, no unsafe numbers, exact bounds
+ok 10 - uint parsing: decimal strings only, no negatives, no hex ambiguity, no unsafe numbers, exact bounds
+  ---
+  duration_ms: 0.821182
+  type: 'test'
+  ...
+# Subtest: addresses must be lowercase or exact EIP-55; hex32 must be lowercase
+ok 11 - addresses must be lowercase or exact EIP-55; hex32 must be lowercase
+  ---
+  duration_ms: 0.388756
+  type: 'test'
+  ...
+# Subtest: call digest equals an independent encoding and changes with chain/vault/fee/args/nonce/deadline
+ok 12 - call digest equals an independent encoding and changes with chain/vault/fee/args/nonce/deadline
+  ---
+  duration_ms: 3.039191
+  type: 'test'
+  ...
+# Subtest: call refusals: action 9 retired, only action 10, explicit version, no quote-supplied fields
+ok 13 - call refusals: action 9 retired, only action 10, explicit version, no quote-supplied fields
+  ---
+  duration_ms: 0.633314
+  type: 'test'
+  ...
+# Subtest: scoped payer and holder: payer is exactly the vault; expectedOwner one of vault/owner/legacy vault
+ok 14 - scoped payer and holder: payer is exactly the vault; expectedOwner one of vault/owner/legacy vault
+  ---
+  duration_ms: 1.530946
+  type: 'test'
+  ...
+# Subtest: deadlines: call and intent both checked against the supplied now; intent at most 900 s ahead
+ok 15 - deadlines: call and intent both checked against the supplied now; intent at most 900 s ahead
+  ---
+  duration_ms: 0.902821
+  type: 'test'
+  ...
+# Subtest: nonces keep the upper 192-bit lane and lower 64-bit sequence; wrap is refused
+ok 16 - nonces keep the upper 192-bit lane and lower 64-bit sequence; wrap is refused
+  ---
+  duration_ms: 2.626525
+  type: 'test'
+  ...
+# Subtest: preflight reserves maxUsdcIn6 + fee and reports it apart from any actual spend
+ok 17 - preflight reserves maxUsdcIn6 + fee and reports it apart from any actual spend
+  ---
+  duration_ms: 0.486526
+  type: 'test'
+  ...
+# Subtest: price, ETH and per-op USDC caps: exact boundary accepted, one unit over refused (integer math)
+ok 18 - price, ETH and per-op USDC caps: exact boundary accepted, one unit over refused (integer math)
+  ---
+  duration_ms: 2.828123
+  type: 'test'
+  ...
+# Subtest: budget and per-period limits on maximum + fee; equality accepted; zero fee allowed; fee cap
+ok 19 - budget and per-period limits on maximum + fee; equality accepted; zero fee allowed; fee cap
+  ---
+  duration_ms: 2.570136
+  type: 'test'
+  ...
+# Subtest: period reset is distinguished from an exhausted op limit
+ok 20 - period reset is distinguished from an exhausted op limit
+  ---
+  duration_ms: 1.653674
+  type: 'test'
+  ...
+# Subtest: session liveness, key, action bit and attestation come from explicit supplied state
+ok 21 - session liveness, key, action bit and attestation come from explicit supplied state
+  ---
+  duration_ms: 2.971501
+  type: 'test'
+  ...
+# Subtest: record scope: expected owner, held env, wallet-is-prod, legacy vault, env and app grants
+ok 22 - record scope: expected owner, held env, wallet-is-prod, legacy vault, env and app grants
+  ---
+  duration_ms: 2.680055
+  type: 'test'
+  ...
+# Subtest: event topics match the Solidity signatures
+ok 23 - event topics match the Solidity signatures
+  ---
+  duration_ms: 0.096749
+  type: 'test'
+  ...
+# Subtest: settlement separates signed maximum from actual debit; refund + actual == maximum; fee once
+ok 24 - settlement separates signed maximum from actual debit; refund + actual == maximum; fee once
+  ---
+  duration_ms: 2.360528
+  type: 'test'
+  ...
+# Subtest: settlement refusals: actual over max, refund mismatch, fee counted twice or differently, scope, counts
+ok 25 - settlement refusals: actual over max, refund mismatch, fee counted twice or differently, scope, counts
+  ---
+  duration_ms: 5.418439
+  type: 'test'
+  ...
+# Subtest: SessionOp.amount6 accepts actual debit only, never rejected maximum semantics
+ok 26 - SessionOp.amount6 accepts actual debit only, never rejected maximum semantics
+  ---
+  duration_ms: 0.554964
+  type: 'test'
+  ...
+# Subtest: owner ops hash under domain version 2 and equal independent encodings; v1 differs
+ok 27 - owner ops hash under domain version 2 and equal independent encodings; v1 differs
+  ---
+  duration_ms: 1.774583
+  type: 'test'
+  ...
+# Subtest: owner op refusals: explicit version, nonce, windows, release target, strict types
+ok 28 - owner op refusals: explicit version, nonce, windows, release target, strict types
+  ---
+  duration_ms: 0.652264
+  type: 'test'
+  ...
+# Subtest: root: unlimited op policy still rejects uint32 counter exhaustion
+ok 29 - root: unlimited op policy still rejects uint32 counter exhaustion
+  ---
+  duration_ms: 0.732114
+  type: 'test'
+  ...
+# Subtest: root: settlement rejects a foreign payer even with internally consistent supplied logs
+ok 30 - root: settlement rejects a foreign payer even with internally consistent supplied logs
+  ---
+  duration_ms: 0.343307
+  type: 'test'
+  ...
+1..30
+# tests 30
+# suites 0
+# pass 30
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 68.231472
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak:
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak:
+[queue] EXIT 0

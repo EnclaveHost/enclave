@@ -1,0 +1,7 @@
+{
+  "authorized": true,
+  "scope": "disposable-control-vm-nbd-fixture-r1",
+  "pinsSha256": "248390dd31f5416bef16e3c7ff061d2e73ad221ebdd06b398b89f354744c885b",
+  "at": 1793363210.1036701,
+  "review": "Root reviewed complete remote/local capture and orchestration, final nonce/cgroup/inode/symlink pins and10content18external hashes. ONE disposable64MiB storage qualification under512hard450RSSfloor27648CPU1noswap/local128outer; remote256/noSwap/55s+25sstop with rootownedExecStopPost. No chain image, RPCclient, existingservicecap or VMallocation changes. Actual abruptSIGKILL behavior remains unqualified until separately tested. Retain all evidence/no automaticretry."
+}

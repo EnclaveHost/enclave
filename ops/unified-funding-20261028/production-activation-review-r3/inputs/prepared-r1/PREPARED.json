@@ -1,0 +1,224 @@
+{
+  "schema": "production-activation-prep-r1-prepared/v1",
+  "status": "PREPARED_NOT_APPROVED",
+  "note": "Prepared from pinned public inputs and the decisions file named below. This is NOT an approval or an authorization; root reviews it, installs the files root-owned, and sets the env names below itself.",
+  "preparedAt": 1793226523,
+  "reviewedBy": "Codex root source review 2026-10-28",
+  "reviewRef": "production-activation-review-r2 plus activation qualification r2; configuration preparation only, no owner grant approval",
+  "inputs": {
+    "receipts": {
+      "path": "../source/ops/unified-funding-20261028/production-deployment-20261028/receipts.json",
+      "sha256": "f6e7d8a34c5685c97f6f32465009159bc24e178954a538881d8bebbdd7bf3537"
+    },
+    "deploymentObservation": {
+      "path": "production-deployment-observation-r1.json",
+      "sha256": "6c3dc894d266447b90efb6f45e9c18faed2e773f4065b382ddd8421de46389d3"
+    },
+    "sessionConfig": {
+      "path": "production-session-config-2128.json",
+      "sha256": "3824c39570a4e14c7263f406ea5fcebf928934d52b6183d33567d1fe8fd2fc0c"
+    },
+    "proposal": {
+      "path": "deployment-r1/UNSIGNED-PROPOSAL-r1.json",
+      "sha256": "0ab0e9c2afcf5446806895aacf349e346c1cd918a2077a595eb1228435904aed"
+    },
+    "feeObservation": {
+      "path": "production-fee-observation-r6.json",
+      "sha256": "febbd9faf8d5c2a3b55ba4f48f4a4a3212840d28ec5e912ea66d18557ffe0b14"
+    },
+    "decisions": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/activation-inputs-r1/reviewed-decisions-r1.json",
+      "sha256": "e3888d2cd59feb87d8f240b37df48b08ac3b7fb5855b5589564693655876f2cd"
+    },
+    "observation": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/activation-inputs-r1/live-observation-r2.json",
+      "sha256": "d404d833d8b13782ad760835d26ac7adb59b6ed010c204b3e1c654a6583c35d8"
+    }
+  },
+  "modules": {
+    "activation-r1/generated/relay/sessions.mjs": "76341ba39b14463495ce5d9736f115e759751a6f9eaae2d77dbb113327c8530c",
+    "activation-r1/generated/relay/funding-route.mjs": "1989f3ebf88833ac492e4f121ff33d564b1798eae1e5239b1aae444b63b572cd",
+    "activation-r1/generated/relay/funding-abi.mjs": "6bb37e658aca45fd416d5ea17dda3109e1b41791e674976a60425d579f485cd7",
+    "activation-r1/generated/relay/fee-policy.mjs": "32bcf03ea52db9be70d86e957dd440c1697daf0eaeab79f732378002d4f2bcfd",
+    "activation-r1/generated/relay/funding-activation.mjs": "7554454dbe091f4bcc7ef8e15ac5dd8082c8be6d94256f52b1c8fadcfc198645"
+  },
+  "observation": {
+    "capturedAt": 1793226478,
+    "block": {
+      "number": "53218453",
+      "hash": "0x428ba39b2216d57a636b7ed0a1bcab35108aee114fe6425a257f1a1030075e49",
+      "timestamp": "1793226253",
+      "baseFeePerGas": "5000000"
+    },
+    "providers": [
+      "mainnet.base.org",
+      "base-mainnet.public.blastapi.io"
+    ]
+  },
+  "outputs": {
+    "owner-controls.json": "85f760b12491cecffae4a7a9f158d10a590205d05c4039c9d7b7295a5628f3c5",
+    "intake-manifest.json": "2fb3fcced1e297e3efe420a127c65b597924c09ac5aaae8958783988fb0e067c",
+    "fee-policy.json": "efb44bc31c5a30dfa1078cf4b9a4d9af66e8449fc9167943e410766bad8013e3"
+  },
+  "facts": {
+    "successor": {
+      "FundingSessionVaultLib": "0x8229d0bf25328d6317d9b670c982a8ca4dc537db",
+      "FundingGasLib": "0x24f30a3ab8facafad65e94764715bc04957859ad",
+      "LeaseGasDexAdapter": "0xe5198b7ba033612c45c720d204c469d9ece77d9e",
+      "FundingSessionVaultFactory": "0x83616b7fa62f8a43cfc634a25c0acfb0ccab76e8"
+    },
+    "implementation": "0x9a869b2ba0d6fb4f297eb140406478f0aed55f96",
+    "codes": {
+      "0x8229d0bf25328d6317d9b670c982a8ca4dc537db": {
+        "codehash": "0xbd9ec83e33bc558de4abd0d9539b03fcbc494194d009bb9b20af05bdcb104c79",
+        "bytes": 10686
+      },
+      "0x24f30a3ab8facafad65e94764715bc04957859ad": {
+        "codehash": "0x82371b4bf52dfab34a942593061c8f7b9dd91830f236604505702bc5ad051863",
+        "bytes": 7777
+      },
+      "0xe5198b7ba033612c45c720d204c469d9ece77d9e": {
+        "codehash": "0xe3cb6aeac87a81b82653f71327fb517a30b23285907ea47a4049cec5a432cf10",
+        "bytes": 7614
+      },
+      "0x83616b7fa62f8a43cfc634a25c0acfb0ccab76e8": {
+        "codehash": "0xcea778eb9622f6423e8a2159c83ae5b696e81e5f22e87e8c285516e663b87e0f",
+        "bytes": 2091
+      },
+      "0x9a869b2ba0d6fb4f297eb140406478f0aed55f96": {
+        "codehash": "0x94c41042068ffe6b08f43b6cb9546b4b725c81a60010a201fc0c428382cb3a95",
+        "bytes": 24543
+      },
+      "0x1f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c": {
+        "codehash": "0xc9b6214babb0126b26e818de8555c98b7e2a284b08a7cfd42f51b121e93d4f6c",
+        "bytes": 2208
+      },
+      "0x66c76a47209f44612343dbeab98b8ef77ad01f65": {
+        "codehash": "0x3dd35d4c4bdf112e2ded90da36a16510bfe938a0c9b8b9ed4414698323efb76e",
+        "bytes": 23664
+      },
+      "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913": {
+        "codehash": "0xa6705a10bb756b5dea144591118be77d7af0c3eee3bf2dfe2583dcb0364fefab",
+        "bytes": 1852
+      },
+      "0x4200000000000000000000000000000000000006": {
+        "codehash": "0x8a3a1f6a9f9dce633117adee5b458245835a8645a8c8726a26382a4622508b1c",
+        "bytes": 2041
+      },
+      "0xab214342d5a490150a4a977063a2f88e21f80907": {
+        "codehash": "0xe4f570e99f2ac708b35539fe5906889d8cb99189e6c9075f5e46d3b6921ac152",
+        "bytes": 1809
+      },
+      "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b": {
+        "codehash": "0x71d50076336283e774ba2ef8d5cbf7602e9cdc5dd918a7e7390c743367766682",
+        "bytes": 24368
+      },
+      "0x12a3f873041dec436daa0085b766a399a6fa3639": {
+        "codehash": "0xcc00efe9c79c17b34ef9edc2720939030834bf168abc52cea14dcb224304a979",
+        "bytes": 13204
+      },
+      "0x2626664c2603336e57b271c5c0b26f421741e481": {
+        "codehash": "0x38bd640f47df62b2fd5a6755a63f4976ad847dc9b946ae0d145d21d16bb124e4",
+        "bytes": 24497
+      },
+      "0x33128a8fc17869897dce68ed026d694621f6fdfd": {
+        "codehash": "0x95707a4ac71f20181a63ef7d180e3c625be5d20fc8f6f980befa966bad568132",
+        "bytes": 24535
+      },
+      "0x3d4e44eb1374240ce5f1b871ab261cd16335b76a": {
+        "codehash": "0xceb5b8bc35e09fc64b1c48c6b920e0d2e37d5710e4f3ef214e1a81f75acee51e",
+        "bytes": 8273
+      },
+      "0xb4cb800910b228ed3d0834cf79d697127bbb00e5": {
+        "codehash": "0xc4cf5547246c44150ee6b531697f4b80171a18ce116dcffd894d91ad81d7ad1d",
+        "bytes": 22142
+      },
+      "0xd0b53d9277642d899df5c87a3966a349a798f224": {
+        "codehash": "0xcd06f61c6db6a1d8317548aaaa0aa83254624aec741534c51815810e977587ae",
+        "bytes": 22142
+      },
+      "0x6c561b446416e1a00e8e93e221854d6ea4171372": {
+        "codehash": "0x71ff5f428af7891e7cbce51d4dadacef1e8eb0c1e454342413066bbd8a0d344c",
+        "bytes": 22142
+      },
+      "0x420000000000000000000000000000000000000f": {
+        "codehash": "0x1f958654ab06a152993e7a0ae7b6dbb0d4b19265cc9337b8789fe1353bd9dc35",
+        "bytes": 2055
+      },
+      "0x4f1db3c6abd250ba86e0928471a8f7db3afd88f1": {
+        "codehash": "0xe9fc7c96c4db0d6078e3d359d7e8c982c350a513cb2c31121adf5e1e8a446614",
+        "bytes": 7848
+      },
+      "0x71041dddad3595f9ced3dccfbe3d1f4b0a16bb70": {
+        "codehash": "0xbd6f524cdc4268b6bd1bb6f77a8821faeea9c52ee9e0afa0b6d948ce82c966c2",
+        "bytes": 9571
+      },
+      "0x05c84a58fe042275b37db038baacd15f410c7bb0": {
+        "codehash": "0xf6294d36c840bfea38edbdb99f1922a5abe223fa5684b3042a7e5d8885a68189",
+        "bytes": 23186
+      },
+      "0xbcf85224fc0756b9fa45aa7892530b47e10b6433": {
+        "codehash": "0xbd6f524cdc4268b6bd1bb6f77a8821faeea9c52ee9e0afa0b6d948ce82c966c2",
+        "bytes": 9571
+      },
+      "0x606c6ecbd272e2174f6710b5974f23fe9899602e": {
+        "codehash": "0x83bd777b0df4cfc33add17478008b2955d5dea1481e7f8170524c104e77c4a11",
+        "bytes": 7128
+      }
+    },
+    "relayer": {
+      "address": "0xf4b78d91911e1c064a02e4d28c69e2de6056be57",
+      "nonce": "94",
+      "balanceWei": "2357248984479329"
+    },
+    "intake": {
+      "pins": {
+        "factory": "0x83616b7fa62f8a43cfc634a25c0acfb0ccab76e8",
+        "implementation": "0x9a869b2ba0d6fb4f297eb140406478f0aed55f96",
+        "fundingGasLib": "0x24f30a3ab8facafad65e94764715bc04957859ad",
+        "fundingSessionVaultLib": "0x8229d0bf25328d6317d9b670c982a8ca4dc537db",
+        "adapter": "0xe5198b7ba033612c45c720d204c469d9ece77d9e",
+        "legacyFactory": "0x1f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c",
+        "legacyImplementation": "0x66c76a47209f44612343dbeab98b8ef77ad01f65",
+        "usdc": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "weth": "0x4200000000000000000000000000000000000006",
+        "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
+        "ledger": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
+        "reserve": "0x12a3f873041dec436daa0085b766a399a6fa3639",
+        "swapRouter": "0x2626664c2603336e57b271c5c0b26f421741e481",
+        "dexFactory": "0x33128a8fc17869897dce68ed026d694621f6fdfd",
+        "quoter": "0x3d4e44eb1374240ce5f1b871ab261cd16335b76a"
+      },
+      "pools": {
+        "100": "0xb4cb800910b228ed3d0834cf79d697127bbb00e5",
+        "500": "0xd0b53d9277642d899df5c87a3966a349a798f224",
+        "3000": "0x6c561b446416e1a00e8e93e221854d6ea4171372"
+      },
+      "adapterMaxEthOut": "1000000000000000"
+    },
+    "fee": {
+      "oracle": "0x420000000000000000000000000000000000000f",
+      "oracleImplementation": "0x4f1db3c6abd250ba86e0928471a8f7db3afd88f1",
+      "feed": "0x71041dddad3595f9ced3dccfbe3d1f4b0a16bb70",
+      "aggregator": "0x05c84a58fe042275b37db038baacd15f410c7bb0",
+      "sequencer": {
+        "address": "0xbcf85224fc0756b9fa45aa7892530b47e10b6433",
+        "aggregator": "0x606c6ecbd272e2174f6710b5974f23fe9899602e"
+      }
+    },
+    "feeConfigHash": "0x7d5404fd392c73f68fe881e9cb36076b9beede8fbd12dd4b6a5eaa9d87f97ee7"
+  },
+  "feeChangesFromReviewedObservation": [],
+  "env": {
+    "owner": {
+      "SESSIONS_FUNDING_OWNER_CONTROLS": "1",
+      "SESSIONS_FUNDING_OWNER_MANIFEST": "<root path of owner-controls.json>",
+      "SESSIONS_FUNDING_RELAYER": "0xf4B78D91911e1c064A02E4D28C69E2De6056bE57"
+    },
+    "intake": {
+      "SESSIONS_FUNDING_INTAKE": "1",
+      "SESSIONS_FUNDING_MANIFEST": "<root path of intake-manifest.json>",
+      "SESSIONS_FUNDING_FEE_POLICY": "<root path of fee-policy.json>"
+    }
+  }
+}

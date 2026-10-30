@@ -1,0 +1,94 @@
+[queue] START available=32769MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+TAP version 13
+# Subtest: zero-balance candidate preserves economic identity but is never executable
+ok 1 - zero-balance candidate preserves economic identity but is never executable
+  ---
+  duration_ms: 1.534229
+  type: 'test'
+  ...
+# Subtest: expired but attached legacy assignment cannot be imported
+ok 2 - expired but attached legacy assignment cannot be imported
+  ---
+  duration_ms: 0.360977
+  type: 'test'
+  ...
+# Subtest: each nonzero financial component refuses blind accounting import
+ok 3 - each nonzero financial component refuses blind accounting import
+  ---
+  duration_ms: 0.465156
+  type: 'test'
+  ...
+# Subtest: serialized zero amounts work without allowing negative, unsafe numeric or missing amounts
+ok 4 - serialized zero amounts work without allowing negative, unsafe numeric or missing amounts
+  ---
+  duration_ms: 0.674415
+  type: 'test'
+  ...
+# Subtest: disabled source and inactive host cannot be activated as a migration side effect
+ok 5 - disabled source and inactive host cannot be activated as a migration side effect
+  ---
+  duration_ms: 0.913644
+  type: 'test'
+  ...
+# Subtest: missing or malformed intended host operator holds admission
+ok 6 - missing or malformed intended host operator holds admission
+  ---
+  duration_ms: 0.225229
+  type: 'test'
+  ...
+# Subtest: missing, already imported, sealed or wrongly paired destination holds
+ok 7 - missing, already imported, sealed or wrongly paired destination holds
+  ---
+  duration_ms: 0.296518
+  type: 'test'
+  ...
+# Subtest: host payout must resolve to same nonzero principal, not an arbitrary owner getter
+ok 8 - host payout must resolve to same nonzero principal, not an arbitrary owner getter
+  ---
+  duration_ms: 0.144059
+  type: 'test'
+  ...
+# Subtest: collector pins every code and contract read to supplied block and returns no transaction data
+ok 9 - collector pins every code and contract read to supplied block and returns no transaction data
+  ---
+  duration_ms: 8.328032
+  type: 'test'
+  ...
+# Subtest: ordinary RPC labels cannot substitute for authenticated lifecycle snapshot
+ok 10 - ordinary RPC labels cannot substitute for authenticated lifecycle snapshot
+  ---
+  duration_ms: 1.504079
+  type: 'test'
+  ...
+# Subtest: actual deployed code and authority bindings are checked, not template hashes alone
+ok 11 - actual deployed code and authority bindings are checked, not template hashes alone
+  ---
+  duration_ms: 0.827824
+  type: 'test'
+  ...
+# Subtest: read failure propagates with no fallback, output or send
+ok 12 - read failure propagates with no fallback, output or send
+  ---
+  duration_ms: 0.867724
+  type: 'test'
+  ...
+# Subtest: incomplete pins and source equal destination refuse before chain work
+ok 13 - incomplete pins and source equal destination refuse before chain work
+  ---
+  duration_ms: 0.454347
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 222.623603
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=32748
+[memory-guard] at peak: 
+[memory-guard] exit=0 peakTreeRssMiB=180 minHostAvailableMiB=32733
+[memory-guard] at peak: node:76 node:53 node:50
+[queue] EXIT 0

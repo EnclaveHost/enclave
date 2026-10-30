@@ -1,0 +1,133 @@
+--- a/producer/base_launch.py
++++ b/producer/base_launch.py
+@@ -20,6 +20,8 @@
+                                                    the one the launch record bound - before and after the reads)
+   record-finality       consumed|bootstrapped -> bootstrapped: a CURRENT finality_state qualification N' > N appended as a
+                         finality-proof watermark entry (r4; HOLD while FINALITY_PROOF_REVIEWED = False)
++  permit-restart        bootstrapped|restarted -> restart-permitted: the STOPPED DB proven by the harness at/above the latest
++                        recorded floor (r5); the wrapper consumes it as `restarted` (one ordinary start, no anchor)
+   record-bootstrapped   HOLD (superseded by record-finality)
+   rollback              any non-terminal -> rolled-back (terminal)
+ """
+@@ -29,7 +31,7 @@
+ A2A4_SOURCE = pathlib.Path('/opt/enclave-rpc/a2a4/a2a4.py')      # root installs the reviewed stage there (HOLD: not installed)
+ # Re-anchor recovery (base-reanchor-recovery-stage; PREPARED): configs with `reanchor` run the recovery harness copy (a superset
+ # that leaves the first-bootstrap path unchanged); first-bootstrap configs keep the reviewed harness above.
+-RECOVERY_A2A4_SHA256 = '5e2658f7ec51dd12fb38a9d5eadcd2015f712182cb98486ac90772ace4e632da'   # base-reanchor-recovery-stage/harness/a2a4.py
++RECOVERY_A2A4_SHA256 = 'a074d732a4c45a0c54135c4e556cdd845d5c77307a8e48f57d579aef494003c7'   # base-finality-proof-stage/r5/harness/a2a4.py (r7 + shared-ledger path)
+ RECOVERY_A2A4_SOURCE = pathlib.Path('/opt/enclave-rpc/a2a4-recovery/a2a4.py')   # HOLD: not installed
+ HARNESS_BINARY_SHA256 = '9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f'  # selection.BASE_BINARY_SHA256 (A2-A4 runs this)
+ BASE_RELEASE_SHA256 = '4a7c013a510f88166779281ad0108790f25efa07f22f6457d54add709488372f'   # m7-m10-release-completed-0055
+@@ -44,7 +46,7 @@
+ # N' a descendant of the anchor. Until such a validator is reviewed, `record-bootstrapped` refuses. Source constant, not config.
+ FINALITY_PROOF_REVIEWED = False
+ # r4 (base-finality-proof-stage/r4): the post-anchor finality tool, executed from exactly its pinned bytes (HOLD: not installed).
+-FINALITY_STATE_SHA256 = '9436b018515dacf86aa3ea6362955817352b498afbc93881c5044e6714c36239'   # base-finality-proof-stage/r4/src/finality_state.py
++FINALITY_STATE_SHA256 = '546036c1ad8f6b72f46985101d2968d6cfd88ea44efc804de7f4bf0aa1fd1b08'   # base-finality-proof-stage/r5/src/finality_state.py
+ FINALITY_STATE_SOURCE = pathlib.Path('/opt/enclave-rpc/finality/src/finality_state.py')
+ 
+ 
+@@ -429,7 +431,7 @@
+     try:
+         entries = _journal(d, lsha, owner, top, W)
+         last = entries[-1][1]
+-        if last['event'] not in ('consumed', 'bootstrapped'):
++        if last['event'] not in ('consumed', 'bootstrapped', 'restarted'):
+             refuse('transition', f'finality is recorded only for a started launch (journal state {last["event"]!r})')
+ 
+         def current():
+@@ -499,6 +501,59 @@
+         os.close(fd)
+ 
+ 
++def permit_restart(d, cfg_path, *, A, W, owner=0, top='/', now=None, watermark=None):
++    """r5: bootstrapped|restarted -> restart-permitted, ONLY with the STOPPED DB proven at or above its latest recorded finality floor
++    by the REAL harness: the launch's DB file (dev/ino), gate_static (units stopped, pins, layout), EVERY stage checkpoint >= the
++    floor height, the DB header at the floor height hashing to the floor block, the file unchanged during the reads. Inode presence
++    is not enough: a DB rolled back IN PLACE below the floor (same inode, fewer blocks) refuses `below_floor`, another block at the
++    floor refuses `floor_conflict`. The permit records the file's exact identity (dev, ino, size, mtime); the wrapper consumes it
++    only if nothing wrote the DB since. The persistent floor is never lowered here."""
++    now = now or datetime.datetime.now(datetime.timezone.utc); d = pathlib.Path(d)
++    lsha, launch = _launch(d, owner, top)
++    store = pathlib.Path(watermark or W.BOOTSTRAP_WATERMARK)
++    fd = _locked(d, owner, top, W)
++    try:
++        entries = _journal(d, lsha, owner, top, W)
++        if entries[-1][1]['event'] not in ('bootstrapped', 'restarted'):
++            refuse('transition', f'a restart permit is only for a bootstrapped launch (journal state {entries[-1][1]["event"]!r})')
++        try:
++            own = W.launch_finality(launch, lsha, entries, store, owner, top)
++        except AssertionError as e:
++            refuse('watermark', str(e))
++        if not own:
++            refuse('watermark', 'no recorded finality floor for this launch')
++        fsha, fe = own[-1]; fn, fh = fe['number'], fe['blockHash']
++        c = A.load_config(str(cfg_path)); b = launch.get('bindings') or {}
++        if b.get('datadir') != c['datadir']:
++            refuse('db', 'the config is for another datadir than the launch record')
++        want = (b.get('dbIdentity') or {}).get('mdbx') or {}
++
++        def ident():
++            st = os.stat(pathlib.Path(c['datadir'], 'db', 'mdbx.dat'))
++            if (st.st_dev, st.st_ino) != (want.get('dev'), want.get('ino')):
++                refuse('db_changed', 'the DB file is not the one the launch record bound (rollback + re-anchor)')
++            return {'dev': st.st_dev, 'ino': st.st_ino, 'size': st.st_size, 'mtimeNs': st.st_mtime_ns}
++        before = ident()
++        try:
++            base = A.Base(c, [], pathlib.Path(c['workdir']))
++            A.gate_static(c, base)
++            cps = A.head_checkpoints(c, base)
++            if any(type(v) is not int or v < fn for v in cps.values()):
++                refuse('below_floor', f'stage checkpoints {cps} are below the recorded finality floor {fn}: the DB was rolled back (in place '
++                       'or restored); never served - rollback + re-anchor at or above the floor')
++            got = A.header_hash(c, A.read_header(c, base, fn))
++        except A.Refused as e:
++            refuse('stopped_db', str(e))
++        if got != fh:
++            refuse('floor_conflict', f'the DB header at the floor height {fn} is not the recorded finality block: another chain')
++        if ident() != before:
++            refuse('db_changed', 'the DB file changed during the checks (the node is not stopped)')
++        evidence = {'floor': {'entrySha256': fsha, 'number': fn, 'blockHash': fh}, 'checkpoints': cps, 'mdbx': before}
++        return _append(d, lsha, entries, 'restart-permitted', evidence, owner, top, now, W)
++    finally:
++        os.close(fd)
++
++
+ def arm(d, cfg_path, *, A, W, owner=0, top='/', now=None, archive=None, watermark=None):
+     """Genesis: the private root lock file, then the journal with its first entry `armed`. Exactly once per launch directory
+     (an arm interrupted before its first entry landed may be repeated: no entry means nothing was ever armed)."""
+@@ -602,10 +657,15 @@
+     return W
+ 
+ 
++def _r5_wrapper(W):
++    if not all(hasattr(W, k) for k in ('launch_finality', 'A1_ADMISSION_LEDGER')) or 'restart-permitted' not in W.JOURNAL_NEXT:
++        refuse('wrapper', 'the installed chain_service.py is not the finality r5 wrapper')
++
++
+ def main(argv):
+     if os.geteuid() != 0:
+         print('REFUSED: root only'); return 2
+-    cmds = {'produce', 'arm', 'rearm', 'record-bootstrapped', 'rollback', 'retire'}
++    cmds = {'produce', 'arm', 'rearm', 'record-bootstrapped', 'record-finality', 'permit-restart', 'rollback', 'retire'}
+     if len(argv) < 3 or argv[1] not in cmds:
+         print(__doc__); return 2
+     try:
+@@ -625,6 +685,17 @@
+             W = _installed_wrapper(); r = retire(argv[2], W.BOOTSTRAP_ARCHIVE, W=W)
+         elif argv[1] == 'record-bootstrapped':
+             r = record_bootstrapped(argv[2], None)
++        elif argv[1] == 'record-finality':                               # record-finality <launch-dir> <chain.json> <finality-dir> <rpc-url>
++            if len(argv) != 6:
++                print(__doc__); return 2
++            W = _installed_wrapper(); _r5_wrapper(W)
++            r = record_finality(argv[2], argv[3], argv[4], argv[5], W=W, F=load_finality(), watermark=W.BOOTSTRAP_WATERMARK)
++        elif argv[1] == 'permit-restart':                                # permit-restart <launch-dir> <a2a4-config>
++            if len(argv) != 4:
++                print(__doc__); return 2
++            ra = 'reanchor' in json.loads(pathlib.Path(argv[3]).read_bytes())
++            A = load_a2a4(RECOVERY_A2A4_SOURCE, RECOVERY_A2A4_SHA256) if ra else load_a2a4(); W = _installed_wrapper(); _r5_wrapper(W)
++            r = permit_restart(argv[2], argv[3], A=A, W=W, watermark=W.BOOTSTRAP_WATERMARK)
+         else:                                                            # rollback <launch-dir> <reason>
+             r = rollback(argv[2], argv[3], W=_installed_wrapper())
+     except (Refused, OSError, KeyError, IndexError) as e:

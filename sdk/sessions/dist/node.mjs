@@ -44,14 +44,14 @@ var NETWORKS = {
     usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     book: "0xab214342d5A490150A4A977063A2f88E21F80907",
     relay: "https://api.enclave.host",
-    rpc: "https://base-rpc.publicnode.com"
+    rpc: "https://api.enclave.host/rpc/base"
   },
   "base-sepolia": {
     chainId: 84532,
     name: "Base Sepolia",
     usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
     relay: "https://api.enclave.host",
-    rpc: "https://base-sepolia-rpc.publicnode.com"
+    rpc: "https://api.enclave.host/rpc/base-sepolia"
   }
 };
 var BOOK_KEY_FACTORY = "sessionVaultFactory";
@@ -525,6 +525,7 @@ function grantLink(siteOrigin, r) {
 import {
   createPublicClient,
   decodeErrorResult,
+  encodeFunctionData,
   hashTypedData as hashTypedData2,
   http,
   keccak256 as keccak2562
@@ -3284,6 +3285,12 @@ function spendable(s, now = BigInt(Math.floor(Date.now() / 1e3))) {
   const left = fresh ? s.perPeriod6 : s.perPeriod6 > s.periodSpent6 ? s.perPeriod6 - s.periodSpent6 : 0n;
   return s.balance6 < left ? s.balance6 : left;
 }
+async function directDeadline(pc, chainId, seconds = 600) {
+  if (!Number.isSafeInteger(seconds) || seconds < 1 || seconds > 3600)
+    throw new SessionError("config", "deadlineSeconds must be an integer from 1 to 3600");
+  if (await pc.getChainId() !== chainId) throw new SessionError("config", "RPC chain does not match the session");
+  return (await pc.getBlock()).timestamp + BigInt(seconds);
+}
 var Session = class {
   constructor(handle, signer, opts = {}) {
     this.handle = handle;
@@ -3300,6 +3307,57 @@ var Session = class {
   }
   status() {
     return readSession(this.chain(), this.handle.vault, this.handle.sid);
+  }
+  /** Authorize a zero-relay-fee operation using chain reads only. An owner or
+   * independent gas payer can broadcast the returned calldata. The vault remains
+   * authoritative for scope, attestation, budget, revocation and replay checks. */
+  async prepareCall(action, args, opts = {}) {
+    const lane = opts.lane ?? 0n;
+    if (lane < 0n || lane >= 1n << 192n) throw new SessionError("config", "lane must fit uint192");
+    const deadline = await directDeadline(this.chain(), this.handle.chainId, opts.deadlineSeconds);
+    const s = await this.status();
+    if (!s.live) throw new SessionError("not_live", "this session is not live");
+    if ((s.actions >> BigInt(ACTIONS[action]) & 1n) === 0n)
+      throw new SessionError("not_allowed", `this session may not ${action}`);
+    const amount = amountOf(action, args);
+    if (amount > s.balance6) throw new SessionError("budget", `needs ${amount}, session has ${s.balance6}`);
+    const data = encodeArgs(action, args);
+    const nonce = lane << 64n | await this.seq(lane);
+    const digest = digestOf(this.handle.chainId, this.handle.vault, "SessionCall", {
+      sessionId: this.handle.sid,
+      nonce,
+      action: ACTIONS[action],
+      argsHash: keccak2562(data),
+      fee: 0n,
+      deadline
+    });
+    const { r, s: sv } = await this.signer.signDigest(digest);
+    return {
+      chainId: this.handle.chainId,
+      to: this.handle.vault,
+      value: 0n,
+      data: encodeFunctionData({
+        abi: sessionVaultAbi,
+        functionName: "execute",
+        args: [this.handle.sid, nonce, ACTIONS[action], data, 0n, deadline, this.signer.x, this.signer.y, r, sv]
+      })
+    };
+  }
+  /** End and refund a session through any gas payer, without contacting a relay. */
+  async prepareTermination(opts = {}) {
+    const deadline = await directDeadline(this.chain(), this.handle.chainId, opts.deadlineSeconds);
+    const digest = digestOf(this.handle.chainId, this.handle.vault, "SessionEnd", { sessionId: this.handle.sid, deadline });
+    const { r, s } = await this.signer.signDigest(digest);
+    return {
+      chainId: this.handle.chainId,
+      to: this.handle.vault,
+      value: 0n,
+      data: encodeFunctionData({
+        abi: sessionVaultAbi,
+        functionName: "terminateBySession",
+        args: [this.handle.sid, deadline, this.signer.x, this.signer.y, r, s]
+      })
+    };
   }
   /** Check, quote, sign and submit one action. Throws SessionError with a code the
    *  caller can act on (budget -> top-up, expired -> extend, ...). */
@@ -3483,6 +3541,44 @@ async function openSession(p) {
   if (out.sid !== expect) throw new SessionError("relay", `relay reported sid ${out.sid}, expected ${expect}`);
   return out;
 }
+async function prepareSessionOpen(p) {
+  if (await p.publicClient.getChainId() !== p.chainId) throw new SessionError("config", "RPC chain does not match the grant");
+  if (p.grant.budget > 0n && (!p.usdc || p.usdc.chainId !== p.chainId))
+    throw new SessionError("config", "a funded session needs the matching chain's USDC domain");
+  const vault = await vaultAddress(p.publicClient, p.factory, p.owner.address);
+  const ownerSig = await p.owner.signTypedData(typedData(
+    p.chainId,
+    vault,
+    "SessionGrant",
+    p.grant
+  ));
+  let data;
+  if (p.grant.budget > 0n) {
+    const deposit = await signDeposit(
+      p.owner,
+      p.usdc,
+      vault,
+      p.grant.budget,
+      grantDigest(p.chainId, vault, p.grant),
+      p.grant.signBefore
+    );
+    data = encodeFunctionData({
+      abi: sessionVaultFactoryAbi,
+      functionName: "openWithDepositFor",
+      args: [p.owner.address, p.grant, ownerSig, deposit.validAfter, deposit.validBefore, deposit.sig]
+    });
+  } else {
+    data = encodeFunctionData({ abi: sessionVaultFactoryAbi, functionName: "openFor", args: [p.owner.address, p.grant, ownerSig] });
+  }
+  return {
+    chainId: p.chainId,
+    to: p.factory,
+    data,
+    value: 0n,
+    vault,
+    sid: sessionIdOf(vault, p.grant.sessionKey, p.grant.grantNonce)
+  };
+}
 var OP_TYPE = {
   topUp: "TopUp",
   extend: "Extend",
@@ -3506,6 +3602,105 @@ async function ownerOperation(p) {
   const message = { ...fields, opNonce, signBefore };
   const sig = await p.owner.signTypedData(typedData(p.chainId, p.vault, OP_TYPE[op], message));
   return p.relay.request("POST", "/owner", { owner: p.owner.address, vault: p.vault, op, args: message, sig });
+}
+var OWNER_FN = {
+  topUp: "topUp",
+  extend: "extend",
+  terminate: "terminate",
+  revokeAll: "revokeAll",
+  withdraw: "withdraw",
+  promote: "promote",
+  adopt: "adopt",
+  setEnvironment: "setEnvironment",
+  release: "release"
+};
+function ownerCallArgs(op, opNonce, signBefore, sig) {
+  switch (op.op) {
+    case "topUp":
+      return [op.sessionId, op.amount, opNonce, signBefore, sig];
+    case "extend":
+      return [op.sessionId, op.expiresAt, opNonce, signBefore, sig];
+    case "terminate":
+      return [op.sessionId, opNonce, signBefore, sig];
+    case "revokeAll":
+      return [op.withdraw, opNonce, signBefore, sig];
+    case "withdraw":
+      return [op.amount, opNonce, signBefore, sig];
+    case "promote":
+      return [op.deployment, op.app, op.publisher, op.appRef, op.configCid, op.versionLabel, op.isPublic, opNonce, signBefore, sig];
+    case "adopt":
+      return [op.deployment, op.environment, opNonce, signBefore, sig];
+    case "setEnvironment":
+      return [op.deployment, op.environment, opNonce, signBefore, sig];
+    case "release":
+      return [op.deployment, op.to, opNonce, signBefore, sig];
+  }
+}
+async function chainNow(pc, chainId) {
+  if (await pc.getChainId() !== chainId) throw new SessionError("config", "RPC chain does not match the vault");
+  return (await pc.getBlock()).timestamp;
+}
+var validWindow = (s) => {
+  const v = s ?? 600;
+  if (!Number.isSafeInteger(v) || v < 1 || v > 3600) throw new SessionError("config", "validSeconds must be an integer from 1 to 3600");
+  return BigInt(v);
+};
+async function prepareOwnerOperation(p) {
+  const fn = OWNER_FN[p.op?.op];
+  if (!fn) throw new SessionError("config", "unknown owner operation");
+  const now = await chainNow(p.publicClient, p.chainId);
+  const current = await p.publicClient.readContract({ address: p.vault, abi: sessionVaultAbi, functionName: "owner" });
+  const who = p.mode === "signed" ? p.owner?.address : p.expectOwner;
+  if (p.mode === "signed" && !p.owner) throw new SessionError("config", "a signed owner operation needs the owner's signer");
+  if (p.mode !== "signed" && p.mode !== "direct") throw new SessionError("config", "mode must be direct or signed");
+  if (who && who.toLowerCase() !== current.toLowerCase())
+    throw new SessionError("signature", `this vault belongs to ${current}, not ${who}`);
+  const opNonce = randomNonce();
+  const signBefore = now + validWindow(p.validSeconds);
+  let sig = "0x";
+  if (p.mode === "signed") {
+    const { op, ...fields } = p.op;
+    sig = await p.owner.signTypedData(typedData(p.chainId, p.vault, OP_TYPE[op], { ...fields, opNonce, signBefore }));
+  }
+  return {
+    chainId: p.chainId,
+    to: p.vault,
+    value: 0n,
+    fn,
+    opNonce,
+    signBefore,
+    mode: p.mode,
+    data: encodeFunctionData({ abi: sessionVaultAbi, functionName: fn, args: ownerCallArgs(p.op, opNonce, signBefore, sig) })
+  };
+}
+async function prepareTopUpFromWallet(p) {
+  if (p.amount <= 0n) throw new SessionError("config", "top-up amount must be positive");
+  if (p.usdc.chainId !== p.chainId) throw new SessionError("config", "USDC domain is for another chain");
+  const now = await chainNow(p.publicClient, p.chainId);
+  const current = await p.publicClient.readContract({ address: p.vault, abi: sessionVaultAbi, functionName: "owner" });
+  if (current.toLowerCase() !== p.owner.address.toLowerCase())
+    throw new SessionError("signature", `this vault belongs to ${current}, not ${p.owner.address}`);
+  const opNonce = randomNonce();
+  const validBefore = now + validWindow(p.validSeconds);
+  const commitment = hashTypedData2(typedData(
+    p.chainId,
+    p.vault,
+    "TopUp",
+    { sessionId: p.sessionId, amount: p.amount, opNonce, signBefore: validBefore }
+  ));
+  const dep = await signDeposit(p.owner, p.usdc, p.vault, p.amount, commitment, validBefore);
+  return {
+    chainId: p.chainId,
+    to: p.vault,
+    value: 0n,
+    opNonce,
+    validBefore,
+    data: encodeFunctionData({
+      abi: sessionVaultAbi,
+      functionName: "topUpWithAuthorization",
+      args: [p.sessionId, p.amount, opNonce, dep.validAfter, validBefore, dep.sig]
+    })
+  };
 }
 async function topUpFromWallet(p) {
   const opNonce = randomNonce();
@@ -3587,7 +3782,7 @@ async function requestAttestation(relay, p) {
 // src/delegate.ts
 import {
   encodeAbiParameters as encodeAbiParameters3,
-  encodeFunctionData,
+  encodeFunctionData as encodeFunctionData2,
   getAddress,
   keccak256 as keccak2563,
   toFunctionSelector
@@ -3618,7 +3813,7 @@ async function delegationStatus(pc, ledger, owner, vault) {
   return { supported: true, granted: !!word && BigInt(word) === 1n };
 }
 function setDelegateCall(vault, allowed) {
-  return { data: encodeFunctionData({ abi: ledgerDelegateAbi, functionName: "setDelegate", args: [getAddress(vault), allowed] }) };
+  return { data: encodeFunctionData2({ abi: ledgerDelegateAbi, functionName: "setDelegate", args: [getAddress(vault), allowed] }) };
 }
 
 // src/index.ts
@@ -3801,6 +3996,9 @@ export {
   ownerFromProvider,
   ownerOperation,
   pendingId,
+  prepareOwnerOperation,
+  prepareSessionOpen,
+  prepareTopUpFromWallet,
   publicKeyXY,
   readSession,
   requestAttestation,

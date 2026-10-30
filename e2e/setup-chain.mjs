@@ -109,6 +109,16 @@ export async function setupChain(rpc, siteOrigin) {
   // the app catalog: sessions resolve the apps a grant names (slugs under the vault) through it
   const catalog = await deploy([], art("EnclaveAppCatalog").bytecode);
   await setKey("appCatalog", catalog);
+  // A real approved catalog release for the credit-deploy browser flow.
+  // Admission now correctly rejects raw IPFS references before opening a wallet.
+  const catalogAbi = JSON.parse(fs.readFileSync(path.join(REPO, 'contracts/EnclaveAppCatalog.abi.json'), 'utf8'));
+  const publish = await wallet.writeContract({ address: catalog, abi: catalogAbi, functionName: 'publishVersion',
+    args: ['vault-app', 'Vault test app', 'Local credit fixture', '1.0.0', 'bafyvaultapp', [0, 0, 1, 0], '', '', 0n] });
+  await pub.waitForTransactionReceipt({ hash: publish });
+  const vaultAppId = await pub.readContract({ address: catalog, abi: catalogAbi, functionName: 'appIdOf', args: [account.address, 'vault-app'] });
+  const approve = await wallet.writeContract({ address: catalog, abi: catalogAbi, functionName: 'setApproval', args: [vaultAppId, 0n, 1] });
+  await pub.waitForTransactionReceipt({ hash: approve });
+  const vaultAppRef = `catalog://${vaultAppId}/0`;
   if (!siteOrigin) throw new Error("setupChain needs the site origin to pin into the vault factory");
   // Constructor shape comes from the ARTIFACT, and the values are matched BY
   // NAME: a hand-written inputs list silently shifts every argument when the
@@ -153,7 +163,7 @@ export async function setupChain(rpc, siteOrigin) {
   const sessionFactory = getAddress((await pub.waitForTransactionReceipt({ hash: svHash })).contractAddress);
   await setKey("sessionVaultFactory", sessionFactory);
 
-  return { usdc, router, registry, deployments, book, catalog, vaultFactory, sessionFactory, treasury: TREASURY,
+  return { vaultAppRef, usdc, router, registry, deployments, book, catalog, vaultFactory, sessionFactory, treasury: TREASURY,
            payer: account.address, provisioner: privateKeyToAccount(KEYS.provisioner).address,
            sanctioned: privateKeyToAccount(KEYS.sanctioned).address };
 }

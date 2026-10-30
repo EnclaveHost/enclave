@@ -1,0 +1,16 @@
+{
+ "errors": 0,
+ "expectedFailures": 0,
+ "mode": "kill",
+ "outcomes": {
+  "Steps.test_a2_authenticates_the_real_header_and_refuses_forgery_or_missing": "fail"
+ },
+ "ranTwice": [],
+ "requested": [
+  "Steps.test_a2_authenticates_the_real_header_and_refuses_forgery_or_missing"
+ ],
+ "skipped": 0,
+ "testsRun": 1,
+ "unexpectedSuccesses": 0,
+ "verdict": "killed"
+}

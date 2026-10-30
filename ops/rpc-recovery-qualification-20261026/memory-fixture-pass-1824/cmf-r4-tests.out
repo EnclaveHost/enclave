@@ -1,0 +1,31 @@
+[queue] START available=23931MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+Ran 11 tests in 1.096s
+
+OK
+{
+ "badMarkers": [],
+ "checks": {
+  "lastLineOK": true,
+  "noBadMarkers": true,
+  "ranExactly": true,
+  "rc0": true,
+  "stdoutEmpty": true
+ },
+ "expectedTests": 11,
+ "fixtureSha256": "f1e04105027af197e3517d734e031872939f5490e2b9cf3100f0c37d8772c274",
+ "format": "composite-memory-fixture-test-receipt/r2",
+ "pass": true,
+ "ran": [
+  "11"
+ ],
+ "rc": 0,
+ "scope": "unit tests only; no mount, no scope change, no measurement",
+ "stageSums": "25245e21772377bcbacd9e27d8eb9d330e1340a3b2b1de9f98177b3603a17789",
+ "testsSha256": "20975a7425fcd25af3cad038f95a31991b3440b2f2f27f112d0c3563c071969e"
+}
+## PASS (11)
+## receipt /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-memory-fixture-stage/r4/runs/tests-20261027T032614Z-2700983/receipt.json
+## cmf-r4-tests rc=0
+[memory-guard] exit=0 peakTreeRssMiB=62 minHostAvailableMiB=23814
+[memory-guard] at peak: python3:31 python3:26 bash:4 timeout:2
+[queue] EXIT 0

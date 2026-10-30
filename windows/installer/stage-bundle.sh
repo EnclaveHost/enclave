@@ -54,13 +54,17 @@ TOP=$(git rev-parse --show-toplevel)
 ln -s "$(realpath "$TOP/node_modules")" "$W/node_modules"
 (cd "$W/network" && npm ci --ignore-scripts --no-audit --no-fund --silent && node build.mjs "$W/dist" >/dev/null)
 mkdir -p "$T/network"
-for f in privacy-agent.mjs windows-circuit-worker.mjs enclave-wg.exe enclave-circuit-firewall.exe; do
+# host-service-ingress.mjs: a host's own service circuits' worker (network/host-service-transport.mjs; network-enroll names
+# it only for a box whose operator set hostServices) - test/host-service-transport.test.mjs checks this list against enroll
+for f in privacy-agent.mjs windows-circuit-worker.mjs host-service-ingress.mjs enclave-wg.exe enclave-circuit-firewall.exe; do
   cp "$W/dist/$f" "$T/network/$f"
 done
 rm -rf "$W"
 
 mkdir -p "$T/setup"; git archive --format=tar "$NC" windows/tray windows/installer host-ui | tar -x -C "$T/setup"
 
+# Carry the full source identity inside the hashed archive; an eight-character filename is not provenance.
+printf '{"format":"enclave-control-source/1","commit":"%s"}\n' "$NC" > "$T/control-source.json"
 (cd "$T" && find . -type f | sort | sed 's|^\./||' | while read -r f; do printf '%s  %s\n' "$(sha256sum "$f" | cut -c1-64)" "$f"; done) > "$OUT/MANIFEST-control-$N8.txt"
-tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner --format=gnu -C "$T" -cf - control network setup | gzip -n -9 > "$OUT/control-$N8.tar.gz"
+tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner --format=gnu -C "$T" -cf - control network setup control-source.json | gzip -n -9 > "$OUT/control-$N8.tar.gz"
 echo "commit $NC -> $OUT/control-$N8.tar.gz sha256 $(sha256sum "$OUT/control-$N8.tar.gz" | cut -c1-64) ($(wc -l < "$OUT/MANIFEST-control-$N8.txt") files, $(du -h "$OUT/control-$N8.tar.gz" | cut -f1))"

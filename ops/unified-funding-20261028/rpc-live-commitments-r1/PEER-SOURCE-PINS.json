@@ -1,0 +1,67 @@
+{
+  "kind": "source-only-resource-admission-review/1",
+  "liveRead": false,
+  "testsRun": false,
+  "sources": [
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/guestd/pool.go",
+      "bytes": 14605,
+      "sha256": "5ca08ff1ec2c6cf3560e0fc9baf0e29539ee5e0c674479be515bce60336cc165"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/guestd/server.go",
+      "bytes": 35778,
+      "sha256": "7fb122f297a8846a323184b50847fc67d5216077f1b5e4754b5211ff8d15a5ea"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/guestd/main.go",
+      "bytes": 34252,
+      "sha256": "e8c37dab2b54a7bedff77bfbe12becdef619225c3f31379beedb15f2de9cba92"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/guestd/control-client.mjs",
+      "bytes": 11701,
+      "sha256": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/shield-memory-qualification-20261028/full-inference/full-bench-prep/guestd_commitments_probe.mjs",
+      "bytes": 4773,
+      "sha256": "a7f1d3ea1977d446c43f9ac8955560dd27324583d7ec400f793219567ff941f9"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/shield-memory-qualification-20261028/full-inference/full-bench-prep/fullbench.py",
+      "bytes": 87184,
+      "sha256": "d67211a14d9a138dc4d4aa382ebf6fbcdb2351acb6876f9ad25ecec8a86bfc97"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/shield-memory-qualification-20261028/full-inference/full-bench-prep/REVISION.md",
+      "bytes": 16868,
+      "sha256": "421b5f9cbc61103b63f0d6978dda0ac424a89a07ec755c3b4f51c3155831870b"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/shield-memory-qualification-20261028/full-inference/full-bench-prep/FULL.md",
+      "bytes": 23339,
+      "sha256": "9863c0fdb0d1586a7dbe67762477b3c577493159956e593c1e947824ae2a4b13"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/provision_vm.py",
+      "bytes": 68327,
+      "sha256": "38f8dc891bfa9f5f74fcd8eb4ba50ea6f5f70342c49e3c7e2944a10c504436d7"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-maintenance-qmp-author-r1-20261029/author-delivery/maint_boot.py",
+      "bytes": 62029,
+      "sha256": "cfd4816b307efb7d64dd6c339ea708eb841880c40539d9df770c62be6fac231b"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs",
+      "bytes": 4228,
+      "sha256": "cdd00af73bcd59040857f2b48a7170fa2303dfdf401152137cd8c35e7a100ca6"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py",
+      "bytes": 7846,
+      "sha256": "969d9273e53c79abf8604c363daa58b41a462bc4b7f3d03d813980edb771f6f4"
+    }
+  ]
+}

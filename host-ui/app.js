@@ -83,6 +83,8 @@
     el.sw.setAttribute("aria-checked", String(!v.paused));
     var status = T.statusText(v);
     if (update && update.state === "downloading") status += "\n" + T.updateSay(update);
+    var restarts = T.updateWindowText(v);
+    if (restarts) status += "\n" + restarts;
     setText(el.status, status);
     var gas = T.gasText(v);
     setText(el.gas, gas); el.gas.hidden = !gas;

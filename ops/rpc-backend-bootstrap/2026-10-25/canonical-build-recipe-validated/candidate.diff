@@ -1,0 +1,318 @@
+--- a/docs/network/local-chain-verifier.md
++++ b/docs/network/local-chain-verifier.md
+@@ -60,7 +60,7 @@
+   "chain": { "chainId": 8453, "unsafeSigner": "0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a" },
+   "binaries": {
+     "listener":     { "path": "/opt/enclave/rpc-runtime/enclave-base-head-listener", "sha256": "ebd045b4…" },
+-    "helios":       { "path": "/opt/enclave/rpc-runtime/helios",                     "sha256": "cc962e2b…" },
++    "helios":       { "path": "/opt/enclave/rpc-runtime/helios",                     "sha256": "8250f08a…" },
+     "witnessCheck": { "path": "/opt/enclave/rpc-runtime/witness-check",              "sha256": "4fe0cd3b…" }
+   },
+   "proofSources": { "untrusted": ["https://<execution rpc 1>/", "https://<execution rpc 2>/"] },
+@@ -101,13 +101,20 @@
+ Binaries are built from `scripts/rpc-runtime/closure.json`, offline and from exact commits:
+ 
+ ```
+-scripts/rpc-runtime/build-binaries.sh <new-work-dir> <helios repo with ef320298> <listener repo with 5e178676> \
++scripts/rpc-runtime/build-binaries.sh <new-work-dir> <helios repo with ef320298 and eeffcc9> <listener repo with 5e178676> \
+     base-5476069f.tar.gz <CARGO_HOME with the locked crates> release
+ ```
+ 
+ - The script exports each tree with `git archive` and checks the tree hash.
+ - It extracts base/base from the verified tarball into the relative path Helios names
+   (`<work>/vendor-inspect/base-v1.5.1`). No unrecorded local tree is read.
++- The Helios CLI has its own tree: `eeffcc9` plus `scripts/rpc-runtime/canonical-block.patch` (`41667ec9…`, pinned in the
++  script), applied with exact context and checked file by file (`canonical-block.PATCHED.sha256`,
++  `verify-patched-tree.py`: every other file equals `eeffcc9`, nothing missing or extra). witness-check is still built
++  from `ef320298` and the listener from `5e178676`. A wrong commit, tree, patch, manifest or Cargo.lock stops the build.
++- The accepted Helios `8250f08a…` was built from the same source by a separate stage recipe (dev profile, debuginfo off,
++  unremapped absolute build paths). This script remaps paths, so its build is expected to have a different digest; no
++  identical-hash claim is made, and any new digest needs its own `PINNED_BUILDS` entry and tests.
+ - It builds `--locked --offline` with remapped paths and checks that neither Cargo.lock changed.
+ - A new build digest is not accepted by the runtime until it is added to `PINNED_BUILDS` together with its test
+   evidence.
+@@ -117,8 +124,10 @@
+     gateway needs). The earlier release build `a33770482…` was of `aca81764` and is no longer accepted; no release of
+     `ef320298` was built;
+   - the Helios release build (fat LTO) exceeded the 1536 MiB build allocation and was stopped. Until a larger, reviewed
+-    allocation builds it, the tested Helios is the debug build `cc962e2b…`. Debug builds are slower; no optimized or
+-    reproducible-release claim is made.
++    allocation builds it, the tested Helios is the debug build `8250f08a…`: enclave-base-evm `eeffcc9` plus
++    canonical-block.patch `41667ec9` (exact-hash and canonical-ancestry block checks), built once offline with the recorded
++    debug recipe. It replaces `cc962e2b…` (`eeffcc9` without the patch), which the runtime no longer accepts. Debug builds
++    are slower; no optimized, independently reproduced or reproducible-release claim is made.
+ 
+ ```
+ node network/rpc-runtime-main.mjs check /etc/enclave/rpc-runtime.json   # validate + hash every binary, print the plan
+--- a/metal/chain-verifier-image.json
++++ b/metal/chain-verifier-image.json
+@@ -4,7 +4,7 @@
+  "node": "/usr/local/bin/node",
+  "binaries": {
+   "listener": { "path": "/opt/rpc-runtime/enclave-base-head-listener", "sha256": "9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3" },
+-  "helios": { "path": "/opt/rpc-runtime/helios", "sha256": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0" },
++  "helios": { "path": "/opt/rpc-runtime/helios", "sha256": "8250f08a7b0e1f2432ea6262903ca3203b60bca6a8e17abd6d9bccbe0dbfa378" },
+   "witnessCheck": { "path": "/opt/rpc-runtime/witness-check", "sha256": "4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411" }
+  },
+  "glibcRuntime": {
+@@ -23,7 +23,7 @@
+  "configDir": "/mnt/ramdisk/enclave-chain-verifier",
+  "provenance": {
+   "listener": "enclave-base-head-listener 5e178676 (base/base 5476069f), RELEASE profile, scripts/rpc-runtime/build-binaries.sh; needs GLIBC_2.34, runs on the guest's Debian 12 glibc 2.36",
+-  "helios": "Helios enclave-base-evm eeffcc9 (CLI identical in function through ef320298), DEBUG profile (the release build exceeded the 1536 MiB build allocation); needs GLIBC_2.39, so it runs through glibcRuntime",
++  "helios": "Helios enclave-base-evm eeffcc9 + canonical-block.patch 41667ec9, DEBUG profile (the release build exceeded the 1536 MiB build allocation); needs GLIBC_2.39, so it runs through glibcRuntime",
+   "witnessCheck": "witness-check ef320298, DEBUG profile; needs GLIBC_2.38, so it runs through glibcRuntime",
+   "glibcRuntime": "the build host's own runtime files, copied exactly: Arch glibc 2.44+r50+g1848099f063e-1 (ld-linux-x86-64.so.2, libc.so.6, libm.so.6) and gcc-libs 16.2.1+r23+gd564253eb6c8-1 (libgcc_s.so.1); used ONLY by the two binaries above, through their own loader with --library-path",
+   "guestBase": "dist-sdshield-2857356cd: Debian 12 (bookworm), glibc 2.36, node v20.20.2, util-linux flock 2.38.1, no curl",
+--- a/network/rpc-runtime.mjs
++++ b/network/rpc-runtime.mjs
+@@ -67,7 +67,7 @@
+     '9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3': 'enclave-base-head-listener 5e178676, release profile, scripts/rpc-runtime/build-binaries.sh (closure.json), Rust 1.96.0',
+   }),
+   helios: Object.freeze({
+-    cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0: 'helios enclave-base-evm eeffcc9 (CLI source identical in function to ef320298: later commits change only the witness-check helper), base/base v1.5.1 EVM, Rust 1.96.0, debug profile (not an optimized release)',
++    '8250f08a7b0e1f2432ea6262903ca3203b60bca6a8e17abd6d9bccbe0dbfa378': 'helios enclave-base-evm eeffcc9 + canonical-block.patch 41667ec9 (exact-hash canonical block checks), base/base v1.5.1 EVM, Rust 1.96.0, debug profile (not an optimized release); build build-20261026T004633Z',
+   }),
+   witnessCheck: Object.freeze({
+     // the final gateway needs the helper's `block`/`header` ops (Helios ef320298); the older aca81764 builds
+--- a/scripts/rpc-runtime/build-binaries.sh
++++ b/scripts/rpc-runtime/build-binaries.sh
+@@ -4,30 +4,43 @@
+ #
+ #   build-binaries.sh <work-dir> <helios-git-repo> <listener-git-repo> <base-tarball> <cargo-home> [dev|release|check] [helios|witness-check|listener|all]
+ #
+-#   <helios-git-repo>    any git repository holding commit ef320298 (rebuilt from the checkpoint patches, or a clone)
++#   <helios-git-repo>    any git repository holding commits ef320298 (witness-check) and eeffcc9 (the Helios CLI base)
+ #   <listener-git-repo>  any git repository holding commit 5e178676
+ #   <base-tarball>       base/base 5476069f codeload tarball (sha256 9784e20a...)
+ #   <cargo-home>         a CARGO_HOME already holding every crate the Cargo.locks name (nothing is fetched);
+ #                        LISTENER_CARGO_HOME (env) may name a different one for the listener
+ #
+ # The sources are exported from the exact commits (git archive: no worktree, no untracked file) and their trees are
+-# checked; the base tree is extracted from the verified tarball into the relative path Helios names. Paths are remapped
+-# so the outputs do not name the build directory. Prints sha256 per binary and writes <work-dir>/BUILD.json.
+-# Profile `check` compiles nothing: it verifies the whole input closure (toolchain, tarball, trees, generated manifest,
+-# both Cargo.locks) and resolves both workspaces --locked --offline against the given cargo homes (cargo metadata).
++# checked; the base tree is extracted from the verified tarball into the relative path Helios names. The Helios CLI
++# has its OWN tree <work>/helios-cli: eeffcc9 plus canonical-block.patch (next to this script, sha256-pinned below),
++# applied with exact context, then checked file by file (verify-patched-tree.py: the manifest's files have their
++# reviewed sha256, every other file equals eeffcc9, nothing missing or extra). witness-check is built from ef320298
++# (<work>/helios) and the listener from 5e178676, as before. A wrong commit, tree, patch, manifest or Cargo.lock stops
++# the build. Paths are remapped so the outputs do not name the build directory, so a digest from here is a NEW build:
++# the runtime accepts it only once it is in PINNED_BUILDS with its own test evidence. Prints sha256 per binary and
++# writes <work-dir>/BUILD.json.
++# Profile `check` compiles nothing: it verifies the whole input closure (toolchain, tarball, trees, patch, generated
++# manifest, every Cargo.lock) and resolves all three workspaces --locked --offline against the given cargo homes.
+ # Run it under the host's memory guard; it never raises a limit (one job, single-threaded link).
+ set -euo pipefail
+-[ $# -ge 5 ] || { sed -n 2,16p "$0"; exit 2; }
++HERE=$(cd "$(dirname "$0")" && pwd)
++[ $# -ge 5 ] || { sed -n '2,/^# Run it under/p' "$0"; exit 2; }
+ WORK=$1; HREPO=$2; LREPO=$3; TARBALL=$4; PROFILE=${6:-release}; ONLY=${7:-all}
+ export CARGO_HOME=$5
+ HELIOS=ef3202982b475212d9bb6adfdc3eed4ebb0b83c5 HELIOS_TREE=eec339e18296d850a514f72de2efdd8729302efd
++CLI=eeffcc980a4a9aa092e23e07b1077c1f3fdfc95e CLI_TREE=2171ad2bfd3c97f2e0e029e866b1a8535cbbd187 CLI_EPOCH=1792720709
++CLI_LOCK=28f4400cef93f04c28c2a0fe012cef917937c821560387456369ee88241cabc4
++PATCH_SHA=41667ec946d2f591498e4ab9d791914a6d5c886221996c5f0c920a0be39dcc31 PATCHED_SHA=7e87fad838fcccdf801fa3ee732ca878b56799f44b4d64973a2265853769b0f3
+ LISTENER=5e178676bbe0ce5cda7ea95a3ccfefa8dca8a4b7 LISTENER_TREE=00e3a61d48c91a6072355bf0ac67564490a6fc8b
+ BASE_SHA=9784e20a3cfeac555d96e8d1f15526d5264f0e6d8885b951c6f1220355038012 BASE_COMMIT=5476069f1eb74a56bccb56fdefd4b4bb0e3cda42
+ case $PROFILE in dev|release|check) ;; *) echo "profile must be dev, release or check"; exit 2;; esac
++case $ONLY in helios|witness-check|listener|all) ;; *) echo "binary must be helios, witness-check, listener or all"; exit 2;; esac
+ export RUSTUP_TOOLCHAIN=1.96.0 RUSTUP_AUTO_INSTALL=0 CARGO_NET_OFFLINE=true CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 CARGO_TERM_COLOR=never
+ export CARGO_PROFILE_DEV_DEBUG=0
+ rustc --version | grep -q '^rustc 1\.96\.0 ' || { echo "rustc 1.96.0 required (installed toolchains only)"; exit 3; }
+ echo "$BASE_SHA  $TARBALL" | sha256sum -c --quiet - || { echo "base tarball is not $BASE_SHA"; exit 3; }
++echo "$PATCH_SHA  $HERE/canonical-block.patch" | sha256sum -c --quiet - || { echo "canonical-block.patch is not $PATCH_SHA"; exit 3; }
++echo "$PATCHED_SHA  $HERE/canonical-block.PATCHED.sha256" | sha256sum -c --quiet - || { echo "canonical-block.PATCHED.sha256 is not $PATCHED_SHA"; exit 3; }
+ [ -e "$WORK" ] && [ -n "$(ls -A "$WORK" 2>/dev/null)" ] && { echo "work dir $WORK must be new or empty"; exit 2; }
+ mkdir -p "$WORK"; WORK=$(cd "$WORK" && pwd)
+ export_tree() { # <repo> <commit> <tree> <dest>
+@@ -35,19 +48,27 @@
+   mkdir -p "$4"; git -C "$1" archive --format=tar "$2" | tar -x -C "$4"
+ }
+ export_tree "$HREPO" $HELIOS $HELIOS_TREE "$WORK/helios"
++export_tree "$HREPO" $CLI $CLI_TREE "$WORK/helios-cli"
++[ "$(git -C "$HREPO" log -1 --format=%ct $CLI)" = $CLI_EPOCH ] || { echo "$CLI commit time is not $CLI_EPOCH"; exit 3; }
++echo "$CLI_LOCK  $WORK/helios-cli/Cargo.lock" | sha256sum -c --quiet - || { echo "$CLI Cargo.lock is not $CLI_LOCK"; exit 4; }
++(cd "$WORK/helios-cli" && GIT_CEILING_DIRECTORIES="$WORK" git apply --check "$HERE/canonical-block.patch" \
++  && GIT_CEILING_DIRECTORIES="$WORK" git apply "$HERE/canonical-block.patch") || { echo "canonical-block.patch does not apply exactly to $CLI"; exit 4; }
++python3 -I "$HERE/verify-patched-tree.py" "$HREPO" $CLI "$WORK/helios-cli" "$HERE/canonical-block.PATCHED.sha256" || { echo "the patched Helios CLI tree is not the reviewed one"; exit 4; }
+ export_tree "$LREPO" $LISTENER $LISTENER_TREE "$WORK/listener"
+ mkdir -p "$WORK/vendor-inspect/base-v1.5.1"
+ tar -xzf "$TARBALL" -C "$WORK/vendor-inspect/base-v1.5.1" --strip-components=1 "base-$BASE_COMMIT/"
+ (cd "$WORK/listener" && python3 -I tools/prepare-upstream.py "$TARBALL")
+ git -C "$LREPO" show $LISTENER:Cargo.toml | cmp -s - "$WORK/listener/Cargo.toml" || { echo "prepare-upstream changed the listener root Cargo.toml"; exit 4; }
++lock_of() { case $1 in helios) git -C "$HREPO" show $HELIOS:Cargo.lock;; helios-cli) git -C "$HREPO" show $CLI:Cargo.lock;; listener) git -C "$LREPO" show $LISTENER:Cargo.lock;; esac; }
++locks_unchanged() { local d; for d in helios helios-cli listener; do lock_of $d | cmp -s - "$WORK/$d/Cargo.lock" || { echo "$d Cargo.lock changed"; exit 4; }; done; }
+ if [ $PROFILE = check ]; then
+-  for d in helios listener; do
++  for d in helios helios-cli listener; do
+     home=$CARGO_HOME; [ $d = listener ] && home=${LISTENER_CARGO_HOME:-$CARGO_HOME}
+     (cd "$WORK/$d" && CARGO_HOME=$home cargo metadata --locked --offline --format-version 1 > "$WORK/metadata-$d.json") || { echo "$d does not resolve --locked --offline"; exit 5; }
+-    git -C "$([ $d = helios ] && echo "$HREPO" || echo "$LREPO")" show "$([ $d = helios ] && echo $HELIOS || echo $LISTENER)":Cargo.lock | cmp -s - "$WORK/$d/Cargo.lock" || { echo "$d Cargo.lock changed"; exit 4; }
++    lock_of $d | cmp -s - "$WORK/$d/Cargo.lock" || { echo "$d Cargo.lock changed"; exit 4; }
+     echo "$d: resolves --locked --offline; packages $(python3 -I -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["packages"]))' "$WORK/metadata-$d.json"); lock $(sha256sum "$WORK/$d/Cargo.lock" | cut -c1-64)"
+   done
+-  echo "$(rustc --version); base $BASE_SHA; helios $HELIOS tree $HELIOS_TREE; listener $LISTENER tree $LISTENER_TREE"
++  echo "$(rustc --version); base $BASE_SHA; helios $HELIOS tree $HELIOS_TREE; helios-cli $CLI tree $CLI_TREE + patch $PATCH_SHA; listener $LISTENER tree $LISTENER_TREE"
+   echo CLOSURE_CHECK_OK
+   exit 0
+ fi
+@@ -65,10 +86,11 @@
+ }
+ [[ $ONLY == all || $ONLY == listener ]] && build listener enclave-base-head-listener -p enclave-base-head-listener --bin enclave-base-head-listener
+ [[ $ONLY == all || $ONLY == witness-check ]] && build helios witness-check -p helios-opstack --bin witness-check
+-[[ $ONLY == all || $ONLY == helios ]] && build helios helios -p helios-cli --bin helios
+-(cd "$WORK/helios" && git -C "$HREPO" show $HELIOS:Cargo.lock | cmp -s - Cargo.lock) || { echo "Helios Cargo.lock changed"; exit 4; }
+-(cd "$WORK/listener" && git -C "$LREPO" show $LISTENER:Cargo.lock | cmp -s - Cargo.lock) || { echo "listener Cargo.lock changed"; exit 4; }
++# the CLI's own tree; SOURCE_DATE_EPOCH = eeffcc9's commit time (the vendored OpenSSL build stamp), as the tested build
++[[ $ONLY == all || $ONLY == helios ]] && SOURCE_DATE_EPOCH=$CLI_EPOCH build helios-cli helios -p helios-cli --bin helios
++locks_unchanged
+ { echo '{'; echo " \"format\": \"enclave-rpc-runtime-build/v1\", \"profile\": \"$PROFILE\", \"rustc\": \"$(rustc --version)\","
+   echo " \"helios\": \"$HELIOS\", \"listener\": \"$LISTENER\", \"baseTarballSha256\": \"$BASE_SHA\", \"rustflags\": \"remapped work/cargo paths, single-threaded link\","
++  echo " \"heliosCli\": { \"commit\": \"$CLI\", \"tree\": \"$CLI_TREE\", \"patchSha256\": \"$PATCH_SHA\", \"patchedManifestSha256\": \"$PATCHED_SHA\", \"sourceDateEpoch\": $CLI_EPOCH },"
+   echo " \"sha256\": {"; first=1; for k in "${!SHA[@]}"; do [ $first = 1 ] || echo ','; first=0; printf '  "%s": "%s"' "$k" "${SHA[$k]}"; done; echo; echo ' }'; echo '}'; } > "$WORK/BUILD.json"
+ cat "$WORK/BUILD.json"
+--- /dev/null
++++ b/scripts/rpc-runtime/canonical-block.PATCHED.sha256
+@@ -0,0 +1,15 @@
++1c1cd484609bdf7c404fbc08733d75afe81be18b8ab2184eb2c29e4162b14e79  core/src/client/canonical.rs
++caa02dcc92e5da25a44246c1fd5ae680a808829aee6a51314ec0de602bb1cb30  core/src/client/mod.rs
++62ce98ff924b8a2b8222361c3fd9b816e4fec16caf7cb3301f0cc6e4e70164c4  core/src/client/node.rs
++553512a66339ca7367a6554414d3b25d6573db1a3870849ce55132b6f61493f4  core/src/errors.rs
++2d4f417b815f86a0444551791489ef6cebb32fd9c9b051fe794016e16743084a  core/src/execution/ancestry.rs
++43a4f2c58b18a6e5b86b1e6a232acac38e315160a38d67f3fe6c2da65daf0f19  core/src/execution/mod.rs
++a0ecf5dd4751f291008e675c0dee7d1c04b1d257829bef59b7ec831ed6a36ef2  core/src/execution/providers/block/block_cache.rs
++67abaaf56039687c79315eec5b62585ab8708f4b13962a0f0081008b50853a92  core/src/execution/providers/rpc.rs
++7baede4dbe6bd4d7108b8766d031a2d4b5ec6d0d4c2fd7339af20d406d85bc27  core/tests/ancestor_block_hash.rs
++d0ebb9096a4fe98fbf020f6d5fc3f8044a6688b3b52ec4bcb982693b381f5cff  core/tests/block_cache_exact_hash.rs
++a30f98f03fe211f6abed614e8c73f601cf724d619905e0d22374798c2e659ed3  core/tests/canonical_block_gate.rs
++8822e5f91c0c85bfff3a5c3a361c3c420f698d21cd8edd01226b6d3b168c7180  core/tests/node_canonical_methods.rs
++7270d1aadd27871348f519325a7107c64dc4a94b6fedc2aad877b261904edad1  core/tests/rpc_exact_hash_postcondition.rs
++d143d80d97ad1ba5cd1f874903ee57c336fc2ee93147969ce5a1d9f6ea9d4c17  core/tests/support/canonical_fixture.rs
++5e85dcddfaa220b848eb41da3f24b03ba5e4ce3f3b9ff6289d180fd300714664  revm-utils/src/proof_db.rs
+new file scripts/rpc-runtime/canonical-block.patch (byte copy of verifier-canonical-stage/canonical-block.patch, not diffed)
+--- a/scripts/rpc-runtime/closure.json
++++ b/scripts/rpc-runtime/closure.json
+@@ -1,6 +1,6 @@
+ {
+  "format": "enclave-rpc-runtime-closure/v1",
+- "purpose": "Pinned inputs of the three native binaries network/rpc-runtime.mjs runs (build-binaries.sh builds them offline from exactly these).",
++ "purpose": "Pinned inputs of the three native binaries network/rpc-runtime.mjs runs. build-binaries.sh builds them offline from exactly these: the listener from listener 5e178676, witness-check from helios ef320298, and the Helios CLI from its own tree, helios eeffcc9 plus scripts/rpc-runtime/canonical-block.patch (sources.heliosCli). A digest it produces is accepted only once it is in PINNED_BUILDS with its own test evidence: the profile and the (remapped) build paths change the digest.",
+  "toolchain": {
+   "rust": "1.96.0",
+   "host": "x86_64-unknown-linux-gnu",
+@@ -21,10 +21,30 @@
+    "cargoLockSha256": "28f4400cef93f04c28c2a0fe012cef917937c821560387456369ee88241cabc4",
+    "preserved": "checkpoint/decentralization-20261022: rpc-base-evm-export (eeffcc9 patches) + witness-helios 1ec2c1a5 + aca81764 + ef320298 (P witness-failover/helios; D owns publication)",
+    "binaries": {
+-    "helios": "-p helios-cli --bin helios",
+     "witnessCheck": "-p helios-opstack --bin witness-check"
+    },
+-   "note": "ef320298 changes only opstack/bin/witness-check.rs and opstack/src/witness_check.rs relative to aca81764 (Cargo.lock unchanged), so the Helios CLI built from eeffcc9 (cc962e2b) is functionally the CLI of this commit"
++   "note": "ef320298 changes only opstack/bin/witness-check.rs and opstack/src/witness_check.rs relative to aca81764 (Cargo.lock unchanged), so this commit's helper is witness-check 4fe0cd3b; the tested Helios CLI is NOT built from this commit but from eeffcc9 + canonical-block.patch 41667ec9 (8250f08a; tested.heliosNote)"
++  },
++  "heliosCli": {
++   "what": "the Helios CLI: enclave-base-evm eeffcc9 (a16z/helios 2af9b418 + 4 patches) + canonical-block.patch (exact-hash and canonical-ancestry block checks, core and revm-utils only)",
++   "commit": "eeffcc980a4a9aa092e23e07b1077c1f3fdfc95e",
++   "tree": "2171ad2bfd3c97f2e0e029e866b1a8535cbbd187",
++   "cargoLockSha256": "28f4400cef93f04c28c2a0fe012cef917937c821560387456369ee88241cabc4",
++   "sourceDateEpoch": 1792720709,
++   "patch": {
++    "file": "scripts/rpc-runtime/canonical-block.patch",
++    "sha256": "41667ec946d2f591498e4ab9d791914a6d5c886221996c5f0c920a0be39dcc31"
++   },
++   "patchedManifest": {
++    "file": "scripts/rpc-runtime/canonical-block.PATCHED.sha256",
++    "sha256": "7e87fad838fcccdf801fa3ee732ca878b56799f44b4d64973a2265853769b0f3",
++    "check": "scripts/rpc-runtime/verify-patched-tree.py: the 15 listed files have these sha256, every other file equals eeffcc9 (git blob id and mode), nothing missing or extra"
++   },
++   "layout": "<work>/helios-cli next to <work>/helios (ef320298, witness-check only), sharing <work>/vendor-inspect/base-v1.5.1",
++   "binaries": {
++    "helios": "-p helios-cli --bin helios"
++   },
++   "tested": "8250f08a was built from exactly this source by the separate stage recipe canonical-verifier-binary-stage/jobs/build-helios.sh (dev profile, debuginfo off, NO path remap, absolute stage paths, cache reuse; root-canonical-helios-build-0046), not by build-binaries.sh. build-binaries.sh remaps paths, so its build of the same source is expected to have a different digest; no identical-hash claim is made without an independent rebuild."
+   },
+   "listener": {
+    "what": "enclave-base-head-listener (rpc-gossip-bridge/listener branch commitment-mode)",
+@@ -41,10 +61,10 @@
+  "tested": {
+   "profile": "dev (debug, debuginfo off)",
+   "listener": "ebd045b428227530fac1c1b079f47c67ecb874637a1c7dcb4f021dd5929e8d3a",
+-  "helios": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
++  "helios": "8250f08a7b0e1f2432ea6262903ca3203b60bca6a8e17abd6d9bccbe0dbfa378",
+   "witnessCheck": "4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411",
+   "witnessCheckNote": "built by P from ef320298 (debug); the aca81764 helpers fab2f1ce (debug) and a3377048 (release) lack the block op and are no longer accepted",
+-  "heliosNote": "cc962e2b was built from eeffcc9; later commits through ef320298 change only the witness-check helper"
++  "heliosNote": "8250f08a was built from eeffcc9 + canonical-block.patch 41667ec9 (build-20261026T004633Z, provenance.json); it replaces cc962e2b (eeffcc9 without the patch)"
+  },
+  "release": {
+   "builtWith": "scripts/rpc-runtime/build-binaries.sh <work> <helios repo> <listener repo> <base tarball> <cargo home> release <one>, offline (unshare -r -n), CARGO_BUILD_JOBS=1, under the host memory guard at 1536 MiB",
+@@ -59,7 +79,7 @@
+   },
+   "helios": {
+    "sha256": null,
+-   "blocked": "the memory guard stopped the build at 1547 MiB > 1536 MiB while compiling helios-opstack (before the final fat-LTO link), 2026-10-23T06:28-06:38Z, exit 99; not retried and the repo's release profile was not changed. A release Helios needs a larger, reviewed build allocation; until then the tested Helios is the debug build cc962e2b."
++   "blocked": "the memory guard stopped the build at 1547 MiB > 1536 MiB while compiling helios-opstack (before the final fat-LTO link), 2026-10-23T06:28-06:38Z, exit 99; not retried and the repo's release profile was not changed. A release Helios needs a larger, reviewed build allocation; until then the tested Helios is a debug build (now 8250f08a, which replaced cc962e2b; tested.helios)."
+   },
+   "pathsInBinaries": "no build-directory or home path strings in the listener and witness-check release binaries (remapped)",
+   "reproducedTwice": false
+--- /dev/null
++++ b/scripts/rpc-runtime/verify-patched-tree.py
+@@ -0,0 +1,45 @@
++#!/usr/bin/env python3
++"""verify-patched-tree.py <git-repo> <commit> <tree-dir> <PATCHED.sha256>: fail closed unless <tree-dir> is EXACTLY <commit>'s
++tree plus the reviewed patch: every file the manifest names has its sha256, every other file of <commit> is byte-identical
++(git blob id) with the same type, and no file is missing or extra. Reads git objects only (ls-tree); writes nothing."""
++import hashlib, os, subprocess, sys
++def fail(m): print(f"verify-patched-tree: {m}", file=sys.stderr); sys.exit(6)
++def main(repo, commit, root, manifest):
++    patched = {}
++    for l in open(manifest):
++        d, p = l.rstrip("\n").split("  ", 1)
++        if len(d) != 64 or p in patched or p.startswith("/") or ".." in p.split("/"): fail(f"bad manifest line {l!r}")
++        patched[p] = d
++    base = {}
++    out = subprocess.run(["git", "-C", repo, "ls-tree", "-r", "-z", "--full-tree", commit], check=True, capture_output=True).stdout
++    for e in out.split(b"\0"):
++        if not e: continue
++        meta, p = e.split(b"\t", 1); mode, typ, oid = meta.decode().split()
++        if typ != "blob": fail(f"{p.decode()}: {typ} entries are not supported")
++        base[p.decode()] = (mode, oid)
++    have = {}
++    for d, dirs, files in os.walk(root):
++        for n in files + [x for x in dirs if os.path.islink(os.path.join(d, x))]:
++            f = os.path.join(d, n); have[os.path.relpath(f, root)] = f
++    want = set(base) | set(patched)
++    if set(have) != want:
++        fail(f"file set differs: missing {sorted(want - set(have))[:5]}, extra {sorted(set(have) - want)[:5]}")
++    for p, d in patched.items():
++        f = have[p]
++        if os.path.islink(f) or hashlib.sha256(open(f, "rb").read()).hexdigest() != d: fail(f"{p}: not the reviewed patched content")
++    for p, (mode, oid) in base.items():
++        if p in patched: continue
++        f = have[p]
++        if mode == "120000":
++            if not os.path.islink(f): fail(f"{p}: not a symlink")
++            data = os.readlink(f).encode()
++        else:
++            if os.path.islink(f) or not os.path.isfile(f): fail(f"{p}: not a regular file")
++            if (mode == "100755") != bool(os.stat(f).st_mode & 0o100): fail(f"{p}: mode differs")
++            data = open(f, "rb").read()
++        if hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest() != oid: fail(f"{p}: differs from {commit}")
++    new = sorted(set(patched) - set(base))
++    print(f"patched tree OK: {len(base)} files of {commit[:12]}, {len(set(patched) & set(base))} patched, {len(new)} added, nothing else")
++if __name__ == "__main__":
++    if len(sys.argv) != 5: fail(__doc__)
++    main(*sys.argv[1:])
+--- a/test/chain-verifier-guest.e2e.test.mjs
++++ b/test/chain-verifier-guest.e2e.test.mjs
+@@ -1,7 +1,7 @@
+ // END-TO-END: the local chain verifier LAUNCHED THE LINUX GUEST WAY, in the guest's own userland:
+ //   * the production base image's rootfs (Debian 12, glibc 2.36, node v20; extracted read-only as GUEST_ROOTFS), hard-link
+ //     copied, with this commit's image files installed at their image paths: /opt/metal/{gsup,chain-verifier}.mjs, the
+-//     runtime's import closure under /app/network, and /opt/rpc-runtime (the PINNED Helios cc962e2b and helper 4fe0cd3b, run
++//     runtime's import closure under /app/network, and /opt/rpc-runtime (the PINNED Helios 8250f08a and helper 4fe0cd3b, run
+ //     through the pinned glibc runtime, copied and hashed into a 0700 run directory on the guest tmpfs; IMAGE.json);
+ //     NOT modelled: the real base's uid-1000 ownership (in this user namespace every file appears as root), which is why
+ //     the image uses copy staging (tools/image-inputs.py gates verify-in-place on the base's real owners);

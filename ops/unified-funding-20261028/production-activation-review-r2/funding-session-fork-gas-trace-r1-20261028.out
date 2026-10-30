@@ -1,0 +1,344 @@
+[queue] START available=88849MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+No files changed, compilation skipped
+
+Ran 1 test for test/BaseFundingFork.t.sol:BaseFundingForkTest
+[PASS] test_walletHeld_realP256DexAndReserve() (gas: 619903)
+Traces:
+  [707903] BaseFundingForkTest::test_walletHeld_realP256DexAndReserve()
+    ├─ [11385] 0x12A3f873041Dec436DaA0085B766a399A6fA3639::reserveOf(0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c, 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61) [staticcall]
+    │   └─ ← [Return] Reserve({ balanceWei: 17777697856851 [1.777e13], maxPerOpWei: 31092172031561 [3.109e13], epochCapWei: 310921720315610 [3.109e14], enabled: true, claimPolicy: 1, sponsorRelease: true, renewWindow: 300, minExtension: 600, claimCooldown: 1800, epochSec: 3600, maxGasPrice: 50000000 [5e7], maxClaimsPerEpoch: 4, epochIndex: 498107 [4.981e5], epochSpentWei: 2945067175507 [2.945e12], epochClaims: 1, lastClaimAt: 1793186373 [1.793e9], lastClaimOperator: 0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB })
+    ├─ [72] PRECOMPILES::sha256(0x464cb51902e7ac8710500637d57d31a4b062eb4206a35ce14e1c60fd8b05e003) [staticcall]
+    │   └─ ← [Return] 0x9bdd2ccfd262aa81acc8071ed65727d8c36a769ef3e87198e23cd5ff19836b66
+    ├─ [0] VM::signP256("<pk>", 0x9bdd2ccfd262aa81acc8071ed65727d8c36a769ef3e87198e23cd5ff19836b66) [staticcall]
+    │   └─ ← [Return] 0x96ddc68a488a0e7c7cfcd80f3ceee13de7cf4e364e928e282ab469ea9eca978d, 0x36e68788ae80cadf1b8d262b22e9e458d3a1c9c44808ad2370d1e780abf1c5c5
+    ├─ [0] VM::prank(funding fork relayer: [0x636749E1657c5136F594E039329FcE8d9090Afe3])
+    │   └─ ← [Return]
+    ├─ [625399] 0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D::execute(0x1070d60ce575671e41d1e9b0fd1026b4002462a875426d9e8646e69287f7e66d, 0, 10, 0x000000000000000000000000fa0d2e54102849eb5c0d85f342522400bfac5c1d9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c0000000000000000000000000b2d009c0c9af05b12100d77f3c815fea822ee61000000000000000000000000000000000000000000000000000012309ce5400000000000000000000000000000000000000000000000000000000000000186a00000000000000000000000000000000000000000000000000000000000000064000000000000000000000000000000000000000000000000000000006ae1e231, 1000, 1793188401 [1.793e9], 24811993884135540884448067993216443623396640303481007833310557448621214394771 [2.481e76], 114372049862096826783997358721944931165628643496880661156108650325935924575468 [1.143e77], 0x96ddc68a488a0e7c7cfcd80f3ceee13de7cf4e364e928e282ab469ea9eca978d, 0x36e68788ae80cadf1b8d262b22e9e458d3a1c9c44808ad2370d1e780abf1c5c5)
+    │   ├─ [622616] FundingSessionVault::execute(0x1070d60ce575671e41d1e9b0fd1026b4002462a875426d9e8646e69287f7e66d, 0, 10, 0x000000000000000000000000fa0d2e54102849eb5c0d85f342522400bfac5c1d9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c0000000000000000000000000b2d009c0c9af05b12100d77f3c815fea822ee61000000000000000000000000000000000000000000000000000012309ce5400000000000000000000000000000000000000000000000000000000000000186a00000000000000000000000000000000000000000000000000000000000000064000000000000000000000000000000000000000000000000000000006ae1e231, 1000, 1793188401 [1.793e9], 24811993884135540884448067993216443623396640303481007833310557448621214394771 [2.481e76], 114372049862096826783997358721944931165628643496880661156108650325935924575468 [1.143e77], 0x96ddc68a488a0e7c7cfcd80f3ceee13de7cf4e364e928e282ab469ea9eca978d, 0x36e68788ae80cadf1b8d262b22e9e458d3a1c9c44808ad2370d1e780abf1c5c5) [delegatecall]
+    │   │   ├─ [72] PRECOMPILES::sha256(0x464cb51902e7ac8710500637d57d31a4b062eb4206a35ce14e1c60fd8b05e003) [staticcall]
+    │   │   │   └─ ← [Return] 0x9bdd2ccfd262aa81acc8071ed65727d8c36a769ef3e87198e23cd5ff19836b66
+    │   │   ├─ [6900] P256VERIFY::9bdd2ccf(d262aa81acc8071ed65727d8c36a769ef3e87198e23cd5ff19836b6696ddc68a488a0e7c7cfcd80f3ceee13de7cf4e364e928e282ab469ea9eca978d36e68788ae80cadf1b8d262b22e9e458d3a1c9c44808ad2370d1e780abf1c5c536db1743422fd429d2086b444dbbb371590dd82cb739c2a4aafefb6870bbe993fcdc494426f543dc1adf5cd0494621b84be0edfa6aaebe31b9481704bbb1fcec) [staticcall]
+    │   │   │   └─ ← [Return] 0x0000000000000000000000000000000000000000000000000000000000000001
+    │   │   ├─ [522236] FundingGasLib::bbca4a10(1070d60ce575671e41d1e9b0fd1026b4002462a875426d9e8646e69287f7e66d50cc54df09e773fc2ae6b478cbc49f831b0282cf1d8f503b2764c791d5e7db02000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000003e800000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000fa0d2e54102849eb5c0d85f342522400bfac5c1d9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c0000000000000000000000000b2d009c0c9af05b12100d77f3c815fea822ee61000000000000000000000000000000000000000000000000000012309ce5400000000000000000000000000000000000000000000000000000000000000186a00000000000000000000000000000000000000000000000000000000000000064000000000000000000000000000000000000000000000000000000006ae1e231) [delegatecall]
+    │   │   │   ├─ [5603] 0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D::gasPolicyOf(0x1070d60ce575671e41d1e9b0fd1026b4002462a875426d9e8646e69287f7e66d) [staticcall]
+    │   │   │   │   ├─ [5422] FundingSessionVault::gasPolicyOf(0x1070d60ce575671e41d1e9b0fd1026b4002462a875426d9e8646e69287f7e66d) [delegatecall]
+    │   │   │   │   │   └─ ← [Return] 100000 [1e5], 5000000000 [5e9], 20000000000000 [2e13]
+    │   │   │   │   └─ ← [Return] 100000 [1e5], 5000000000 [5e9], 20000000000000 [2e13]
+    │   │   │   ├─ [337] 0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D::book() [staticcall]
+    │   │   │   │   ├─ [171] FundingSessionVault::book() [delegatecall]
+    │   │   │   │   │   └─ ← [Return] 0xab214342d5A490150A4A977063A2f88E21F80907
+    │   │   │   │   └─ ← [Return] 0xab214342d5A490150A4A977063A2f88E21F80907
+    │   │   │   ├─ [2496] 0xab214342d5A490150A4A977063A2f88E21F80907::addr(0x6465706c6f796d656e7473000000000000000000000000000000000000000000) [staticcall]
+    │   │   │   │   └─ ← [Return] 0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B
+    │   │   │   ├─ [876] 0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D::gasAdapter() [staticcall]
+    │   │   │   │   ├─ [710] FundingSessionVault::gasAdapter() [delegatecall]
+    │   │   │   │   │   └─ ← [Return] LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]
+    │   │   │   │   └─ ← [Return] LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]
+    │   │   │   ├─ [267] LeaseGasDexAdapter::ledger() [staticcall]
+    │   │   │   │   └─ ← [Return] 0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B
+    │   │   │   ├─ [50374] 0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B::get(0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c) [staticcall]
+    │   │   │   │   └─ ← [Return] Deployment({ id: 0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c, owner: 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61, appRef: "catalog://0xd8ec1d59a44ff4f76727a41759dab9e243d31675f27b09c3abdd31d416f4a737/85", ports: "", configCid: "{\"network\":{\"relay\":\"us-west\"},\"isolation\":{\"cpuTee\":false,\"gpuTee\":false},\"configCid\":\"bafkreidgohdhxedt5zucn2cp3zdrkjvbxdpsyakmocnlc7jo2pfskk7gp4\",\"config\":{\"volumes\":[\"qwen3.8-27b-mtp-q4-vl-gguf\"]}}", gpuMilli: 800, cpuMilli: 650, appPort: 8080, isPublic: true, active: true, createdAt: 1786186081 [1.786e9], rate: 0, balance6: 0, spent6: 100000000 [1e8], runner: 0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be, runnerOperator: 0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB, leaseUntil: 1793189849 [1.793e9] })
+    │   │   │   ├─ [1243] 0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D::owner() [staticcall]
+    │   │   │   │   ├─ [1077] FundingSessionVault::owner() [delegatecall]
+    │   │   │   │   │   └─ ← [Return] 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61
+    │   │   │   │   └─ ← [Return] 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61
+    │   │   │   ├─ [9119] 0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D::sessionOf(0x1070d60ce575671e41d1e9b0fd1026b4002462a875426d9e8646e69287f7e66d) [staticcall]
+    │   │   │   │   ├─ [8824] FundingSessionVault::sessionOf(0x1070d60ce575671e41d1e9b0fd1026b4002462a875426d9e8646e69287f7e66d) [delegatecall]
+    │   │   │   │   │   └─ ← [Return] Session({ keyHash: 0x75d7c1b947d706371b1d3e95c1d177b3c0472dd3993d1794d86430cc4c517794, measurement: 0x0000000000000000000000000000000000000000000000000000000000000000, actions: 1024, expiresAt: 1793191941 [1.793e9], epoch: 0, envs: 3, state: 1, anyApp: true, balance6: 29899000 [2.989e7], spent6: 101000 [1.01e5], perPeriod6: 30000000 [3e7], maxFee6: 10000 [1e4], maxAppFeeHour6: 0, maxRateHour6: 0, periodStart: 1793188341 [1.793e9], period: 3600, opsPerPeriod: 20, periodSpent6: 101000 [1.01e5], periodOps: 1 }), true, []
+    │   │   │   │   └─ ← [Return] Session({ keyHash: 0x75d7c1b947d706371b1d3e95c1d177b3c0472dd3993d1794d86430cc4c517794, measurement: 0x0000000000000000000000000000000000000000000000000000000000000000, actions: 1024, expiresAt: 1793191941 [1.793e9], epoch: 0, envs: 3, state: 1, anyApp: true, balance6: 29899000 [2.989e7], spent6: 101000 [1.01e5], perPeriod6: 30000000 [3e7], maxFee6: 10000 [1e4], maxAppFeeHour6: 0, maxRateHour6: 0, periodStart: 1793188341 [1.793e9], period: 3600, opsPerPeriod: 20, periodSpent6: 101000 [1.01e5], periodOps: 1 }), true, []
+    │   │   │   ├─ [7236] 0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D::held(0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c) [staticcall]
+    │   │   │   │   ├─ [7055] FundingSessionVault::held(0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c) [delegatecall]
+    │   │   │   │   │   └─ ← [Return] 0, 0x0000000000000000000000000000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000000000000000000000000000
+    │   │   │   │   └─ ← [Return] 0, 0x0000000000000000000000000000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000000000000000000000000000
+    │   │   │   ├─ [4904] FundingSessionVaultLib::feeAndApp() [delegatecall]
+    │   │   │   │   ├─ [496] 0xab214342d5A490150A4A977063A2f88E21F80907::addr(0x6465706c6f796d656e7473000000000000000000000000000000000000000000) [staticcall]
+    │   │   │   │   │   └─ ← [Return] 0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B
+    │   │   │   │   ├─ [2888] 0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B::feeOf(0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c) [staticcall]
+    │   │   │   │   │   └─ ← [Return] 0x0000000000000000000000000000000000000000, 0
+    │   │   │   │   └─ ← [Return] 0, 0x0000000000000000000000000000000000000000000000000000000000000000, true
+    │   │   │   ├─ [744] 0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D::usdc() [staticcall]
+    │   │   │   │   ├─ [578] FundingSessionVault::usdc() [delegatecall]
+    │   │   │   │   │   └─ ← [Return] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
+    │   │   │   │   └─ ← [Return] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
+    │   │   │   ├─ [876] 0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D::gasAdapter() [staticcall]
+    │   │   │   │   ├─ [710] FundingSessionVault::gasAdapter() [delegatecall]
+    │   │   │   │   │   └─ ← [Return] LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]
+    │   │   │   │   └─ ← [Return] LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]
+    │   │   │   ├─ [9750] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::balanceOf(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D) [staticcall]
+    │   │   │   │   ├─ [2553] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::balanceOf(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D) [delegatecall]
+    │   │   │   │   │   └─ ← [Return] 30000000 [3e7]
+    │   │   │   │   └─ ← [Return] 30000000 [3e7]
+    │   │   │   ├─ [27341] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::approve(LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], 100000 [1e5])
+    │   │   │   │   ├─ [26673] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::approve(LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], 100000 [1e5]) [delegatecall]
+    │   │   │   │   │   ├─ emit Approval(owner: 0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D, spender: LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], amount: 100000 [1e5])
+    │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   └─ ← [Return] true
+    │   │   │   ├─ [1359] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::allowance(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D, LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [staticcall]
+    │   │   │   │   ├─ [659] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::allowance(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D, LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [delegatecall]
+    │   │   │   │   │   └─ ← [Return] 100000 [1e5]
+    │   │   │   │   └─ ← [Return] 100000 [1e5]
+    │   │   │   ├─ [297890] LeaseGasDexAdapter::fundGas(DexGasIntent({ payer: 0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D, deployment: 0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c, expectedOwner: 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61, ethOut: 20000000000000 [2e13], maxUsdcIn6: 100000 [1e5], fee: 100, deadline: 1793188401 [1.793e9] }))
+    │   │   │   │   ├─ [2479] 0x33128a8fC17869897dcE68Ed026d694621f6FDfD::feeAmountTickSpacing(100) [staticcall]
+    │   │   │   │   │   └─ ← [Return] 1
+    │   │   │   │   ├─ [2666] 0x33128a8fC17869897dcE68Ed026d694621f6FDfD::getPool(0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913, 0x4200000000000000000000000000000000000006, 100) [staticcall]
+    │   │   │   │   │   └─ ← [Return] 0xb4CB800910B228ED3d0834cF79D697127BBB00e5
+    │   │   │   │   ├─ [264] 0xb4CB800910B228ED3d0834cF79D697127BBB00e5::factory() [staticcall]
+    │   │   │   │   │   └─ ← [Return] 0x33128a8fC17869897dcE68Ed026d694621f6FDfD
+    │   │   │   │   ├─ [266] 0xb4CB800910B228ED3d0834cF79D697127BBB00e5::token0() [staticcall]
+    │   │   │   │   │   └─ ← [Return] 0x4200000000000000000000000000000000000006
+    │   │   │   │   ├─ [308] 0xb4CB800910B228ED3d0834cF79D697127BBB00e5::token1() [staticcall]
+    │   │   │   │   │   └─ ← [Return] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
+    │   │   │   │   ├─ [251] 0xb4CB800910B228ED3d0834cF79D697127BBB00e5::fee() [staticcall]
+    │   │   │   │   │   └─ ← [Return] 100
+    │   │   │   │   ├─ [8374] 0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B::get(0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c) [staticcall]
+    │   │   │   │   │   └─ ← [Return] Deployment({ id: 0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c, owner: 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61, appRef: "catalog://0xd8ec1d59a44ff4f76727a41759dab9e243d31675f27b09c3abdd31d416f4a737/85", ports: "", configCid: "{\"network\":{\"relay\":\"us-west\"},\"isolation\":{\"cpuTee\":false,\"gpuTee\":false},\"configCid\":\"bafkreidgohdhxedt5zucn2cp3zdrkjvbxdpsyakmocnlc7jo2pfskk7gp4\",\"config\":{\"volumes\":[\"qwen3.8-27b-mtp-q4-vl-gguf\"]}}", gpuMilli: 800, cpuMilli: 650, appPort: 8080, isPublic: true, active: true, createdAt: 1786186081 [1.786e9], rate: 0, balance6: 0, spent6: 100000000 [1e8], runner: 0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be, runnerOperator: 0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB, leaseUntil: 1793189849 [1.793e9] })
+    │   │   │   │   ├─ [1250] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::balanceOf(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D) [staticcall]
+    │   │   │   │   │   ├─ [553] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::balanceOf(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D) [delegatecall]
+    │   │   │   │   │   │   └─ ← [Return] 30000000 [3e7]
+    │   │   │   │   │   └─ ← [Return] 30000000 [3e7]
+    │   │   │   │   ├─ [3250] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::balanceOf(LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [staticcall]
+    │   │   │   │   │   ├─ [2553] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::balanceOf(LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [delegatecall]
+    │   │   │   │   │   │   └─ ← [Return] 0
+    │   │   │   │   │   └─ ← [Return] 0
+    │   │   │   │   ├─ [2457] 0x4200000000000000000000000000000000000006::balanceOf(LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [staticcall]
+    │   │   │   │   │   └─ ← [Return] 0
+    │   │   │   │   ├─ [3250] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::balanceOf(0x2626664c2603336E57B271c5C0b26F421741e481) [staticcall]
+    │   │   │   │   │   ├─ [2553] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::balanceOf(0x2626664c2603336E57B271c5C0b26F421741e481) [delegatecall]
+    │   │   │   │   │   │   └─ ← [Return] 0
+    │   │   │   │   │   └─ ← [Return] 0
+    │   │   │   │   ├─ [3250] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::balanceOf(0xb4CB800910B228ED3d0834cF79D697127BBB00e5) [staticcall]
+    │   │   │   │   │   ├─ [2553] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::balanceOf(0xb4CB800910B228ED3d0834cF79D697127BBB00e5) [delegatecall]
+    │   │   │   │   │   │   └─ ← [Return] 136007286522 [1.36e11]
+    │   │   │   │   │   └─ ← [Return] 136007286522 [1.36e11]
+    │   │   │   │   ├─ [2457] 0x4200000000000000000000000000000000000006::balanceOf(0xb4CB800910B228ED3d0834cF79D697127BBB00e5) [staticcall]
+    │   │   │   │   │   └─ ← [Return] 163870818618861482224 [1.638e20]
+    │   │   │   │   ├─ [29128] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::transferFrom(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D, LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], 100000 [1e5])
+    │   │   │   │   │   ├─ [28454] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::transferFrom(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D, LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], 100000 [1e5]) [delegatecall]
+    │   │   │   │   │   │   ├─ emit Transfer(from: 0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D, to: LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], amount: 100000 [1e5])
+    │   │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   ├─ [1250] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::balanceOf(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D) [staticcall]
+    │   │   │   │   │   ├─ [553] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::balanceOf(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D) [delegatecall]
+    │   │   │   │   │   │   └─ ← [Return] 29900000 [2.99e7]
+    │   │   │   │   │   └─ ← [Return] 29900000 [2.99e7]
+    │   │   │   │   ├─ [1250] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::balanceOf(LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [staticcall]
+    │   │   │   │   │   ├─ [553] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::balanceOf(LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [delegatecall]
+    │   │   │   │   │   │   └─ ← [Return] 100000 [1e5]
+    │   │   │   │   │   └─ ← [Return] 100000 [1e5]
+    │   │   │   │   ├─ [25341] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::approve(0x2626664c2603336E57B271c5C0b26F421741e481, 100000 [1e5])
+    │   │   │   │   │   ├─ [24673] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::approve(0x2626664c2603336E57B271c5C0b26F421741e481, 100000 [1e5]) [delegatecall]
+    │   │   │   │   │   │   ├─ emit Approval(owner: LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], spender: 0x2626664c2603336E57B271c5C0b26F421741e481, amount: 100000 [1e5])
+    │   │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   ├─ [1359] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::allowance(LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], 0x2626664c2603336E57B271c5C0b26F421741e481) [staticcall]
+    │   │   │   │   │   ├─ [659] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::allowance(LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], 0x2626664c2603336E57B271c5C0b26F421741e481) [delegatecall]
+    │   │   │   │   │   │   └─ ← [Return] 100000 [1e5]
+    │   │   │   │   │   └─ ← [Return] 100000 [1e5]
+    │   │   │   │   ├─ [89447] 0x2626664c2603336E57B271c5C0b26F421741e481::exactOutputSingle(ExactOutputSingleParams({ tokenIn: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913, tokenOut: 0x4200000000000000000000000000000000000006, fee: 100, recipient: 0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f, amountOut: 20000000000000 [2e13], amountInMaximum: 100000 [1e5], sqrtPriceLimitX96: 0 }))
+    │   │   │   │   │   ├─ [84308] 0xb4CB800910B228ED3d0834cF79D697127BBB00e5::128acb08(0000000000000000000000005615deb798bb3e4dfa0139dfa1b3d433cc23b72f0000000000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffffffffffffffffffffffffedcf631ac000000000000000000000000000fffd8963efd1fc6a506488495d951d5263988d2500000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000400000000000000000000000005615deb798bb3e4dfa0139dfa1b3d433cc23b72f000000000000000000000000000000000000000000000000000000000000002b4200000000000000000000000000000000000006000064833589fcd6edb6e08f4c7c32d4f71b54bda02913000000000000000000000000000000000000000000)
+    │   │   │   │   │   │   ├─ [25701] 0x4200000000000000000000000000000000000006::transfer(LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], 20000000000000 [2e13])
+    │   │   │   │   │   │   │   ├─ emit Transfer(from: 0xb4CB800910B228ED3d0834cF79D697127BBB00e5, to: LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], amount: 20000000000000 [2e13])
+    │   │   │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   │   │   ├─ [1250] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::balanceOf(0xb4CB800910B228ED3d0834cF79D697127BBB00e5) [staticcall]
+    │   │   │   │   │   │   │   ├─ [553] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::balanceOf(0xb4CB800910B228ED3d0834cF79D697127BBB00e5) [delegatecall]
+    │   │   │   │   │   │   │   │   └─ ← [Return] 136007286522 [1.36e11]
+    │   │   │   │   │   │   │   └─ ← [Return] 136007286522 [1.36e11]
+    │   │   │   │   │   │   ├─ [18394] 0x2626664c2603336E57B271c5C0b26F421741e481::fa461e33(ffffffffffffffffffffffffffffffffffffffffffffffffffffedcf631ac000000000000000000000000000000000000000000000000000000000000000b895000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000400000000000000000000000005615deb798bb3e4dfa0139dfa1b3d433cc23b72f000000000000000000000000000000000000000000000000000000000000002b4200000000000000000000000000000000000006000064833589fcd6edb6e08f4c7c32d4f71b54bda02913000000000000000000000000000000000000000000)
+    │   │   │   │   │   │   │   ├─ [9228] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::transferFrom(LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], 0xb4CB800910B228ED3d0834cF79D697127BBB00e5, 47253 [4.725e4])
+    │   │   │   │   │   │   │   │   ├─ [8554] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::transferFrom(LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], 0xb4CB800910B228ED3d0834cF79D697127BBB00e5, 47253 [4.725e4]) [delegatecall]
+    │   │   │   │   │   │   │   │   │   ├─ emit Transfer(from: LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], to: 0xb4CB800910B228ED3d0834cF79D697127BBB00e5, amount: 47253 [4.725e4])
+    │   │   │   │   │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   │   │   │   └─ ← [Stop]
+    │   │   │   │   │   │   ├─ [1250] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::balanceOf(0xb4CB800910B228ED3d0834cF79D697127BBB00e5) [staticcall]
+    │   │   │   │   │   │   │   ├─ [553] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::balanceOf(0xb4CB800910B228ED3d0834cF79D697127BBB00e5) [delegatecall]
+    │   │   │   │   │   │   │   │   └─ ← [Return] 136007333775 [1.36e11]
+    │   │   │   │   │   │   │   └─ ← [Return] 136007333775 [1.36e11]
+    │   │   │   │   │   │   ├─  emit topic 0: 0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67
+    │   │   │   │   │   │   │        topic 1: 0x0000000000000000000000002626664c2603336e57b271c5c0b26f421741e481
+    │   │   │   │   │   │   │        topic 2: 0x0000000000000000000000005615deb798bb3e4dfa0139dfa1b3d433cc23b72f
+    │   │   │   │   │   │   │           data: 0xffffffffffffffffffffffffffffffffffffffffffffffffffffedcf631ac000000000000000000000000000000000000000000000000000000000000000b895000000000000000000000000000000000000000000032f71deede15076eb558800000000000000000000000000000000000000000000000000e7935c5c866ff3fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffcf80a
+    │   │   │   │   │   │   └─ ← [Return] 0xffffffffffffffffffffffffffffffffffffffffffffffffffffedcf631ac000000000000000000000000000000000000000000000000000000000000000b895
+    │   │   │   │   │   └─ ← [Return] 47253 [4.725e4]
+    │   │   │   │   ├─ [1250] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::balanceOf(LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [staticcall]
+    │   │   │   │   │   ├─ [553] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::balanceOf(LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [delegatecall]
+    │   │   │   │   │   │   └─ ← [Return] 52747 [5.274e4]
+    │   │   │   │   │   └─ ← [Return] 52747 [5.274e4]
+    │   │   │   │   ├─ [1250] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::balanceOf(0x2626664c2603336E57B271c5C0b26F421741e481) [staticcall]
+    │   │   │   │   │   ├─ [553] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::balanceOf(0x2626664c2603336E57B271c5C0b26F421741e481) [delegatecall]
+    │   │   │   │   │   │   └─ ← [Return] 0
+    │   │   │   │   │   └─ ← [Return] 0
+    │   │   │   │   ├─ [1250] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::balanceOf(0xb4CB800910B228ED3d0834cF79D697127BBB00e5) [staticcall]
+    │   │   │   │   │   ├─ [553] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::balanceOf(0xb4CB800910B228ED3d0834cF79D697127BBB00e5) [delegatecall]
+    │   │   │   │   │   │   └─ ← [Return] 136007333775 [1.36e11]
+    │   │   │   │   │   └─ ← [Return] 136007333775 [1.36e11]
+    │   │   │   │   ├─ [457] 0x4200000000000000000000000000000000000006::balanceOf(LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [staticcall]
+    │   │   │   │   │   └─ ← [Return] 20000000000000 [2e13]
+    │   │   │   │   ├─ [457] 0x4200000000000000000000000000000000000006::balanceOf(0xb4CB800910B228ED3d0834cF79D697127BBB00e5) [staticcall]
+    │   │   │   │   │   └─ ← [Return] 163870798618861482224 [1.638e20]
+    │   │   │   │   ├─ [3341] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::approve(0x2626664c2603336E57B271c5C0b26F421741e481, 0)
+    │   │   │   │   │   ├─ [2673] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::approve(0x2626664c2603336E57B271c5C0b26F421741e481, 0) [delegatecall]
+    │   │   │   │   │   │   ├─ emit Approval(owner: LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], spender: 0x2626664c2603336E57B271c5C0b26F421741e481, amount: 0)
+    │   │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   ├─ [1359] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::allowance(LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], 0x2626664c2603336E57B271c5C0b26F421741e481) [staticcall]
+    │   │   │   │   │   ├─ [659] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::allowance(LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], 0x2626664c2603336E57B271c5C0b26F421741e481) [delegatecall]
+    │   │   │   │   │   │   └─ ← [Return] 0
+    │   │   │   │   │   └─ ← [Return] 0
+    │   │   │   │   ├─ [9318] 0x4200000000000000000000000000000000000006::withdraw(20000000000000 [2e13])
+    │   │   │   │   │   ├─ [254] LeaseGasDexAdapter::receive{value: 20000000000000}()
+    │   │   │   │   │   │   └─ ← [Stop]
+    │   │   │   │   │   ├─  emit topic 0: 0x7fcf532c15f0a6db0bd6d0e038bea71d30d808c7d98cb3bf7268a95bf5081b65
+    │   │   │   │   │   │        topic 1: 0x0000000000000000000000005615deb798bb3e4dfa0139dfa1b3d433cc23b72f
+    │   │   │   │   │   │           data: 0x000000000000000000000000000000000000000000000000000012309ce54000
+    │   │   │   │   │   └─ ← [Stop]
+    │   │   │   │   ├─ [457] 0x4200000000000000000000000000000000000006::balanceOf(LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [staticcall]
+    │   │   │   │   │   └─ ← [Return] 0
+    │   │   │   │   ├─ [3385] 0x12A3f873041Dec436DaA0085B766a399A6fA3639::reserveOf(0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c, 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61) [staticcall]
+    │   │   │   │   │   └─ ← [Return] Reserve({ balanceWei: 17777697856851 [1.777e13], maxPerOpWei: 31092172031561 [3.109e13], epochCapWei: 310921720315610 [3.109e14], enabled: true, claimPolicy: 1, sponsorRelease: true, renewWindow: 300, minExtension: 600, claimCooldown: 1800, epochSec: 3600, maxGasPrice: 50000000 [5e7], maxClaimsPerEpoch: 4, epochIndex: 498107 [4.981e5], epochSpentWei: 2945067175507 [2.945e12], epochClaims: 1, lastClaimAt: 1793186373 [1.793e9], lastClaimOperator: 0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB })
+    │   │   │   │   ├─ [18268] 0x12A3f873041Dec436DaA0085B766a399A6fA3639::deposit{value: 20000000000000}(0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c)
+    │   │   │   │   │   ├─ [8374] 0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B::get(0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c) [staticcall]
+    │   │   │   │   │   │   └─ ← [Return] Deployment({ id: 0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c, owner: 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61, appRef: "catalog://0xd8ec1d59a44ff4f76727a41759dab9e243d31675f27b09c3abdd31d416f4a737/85", ports: "", configCid: "{\"network\":{\"relay\":\"us-west\"},\"isolation\":{\"cpuTee\":false,\"gpuTee\":false},\"configCid\":\"bafkreidgohdhxedt5zucn2cp3zdrkjvbxdpsyakmocnlc7jo2pfskk7gp4\",\"config\":{\"volumes\":[\"qwen3.8-27b-mtp-q4-vl-gguf\"]}}", gpuMilli: 800, cpuMilli: 650, appPort: 8080, isPublic: true, active: true, createdAt: 1786186081 [1.786e9], rate: 0, balance6: 0, spent6: 100000000 [1e8], runner: 0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be, runnerOperator: 0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB, leaseUntil: 1793189849 [1.793e9] })
+    │   │   │   │   │   ├─ emit Deposited(id: 0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c, owner: 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61, from: LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], amountWei: 20000000000000 [2e13])
+    │   │   │   │   │   └─ ← [Return]
+    │   │   │   │   ├─ [3385] 0x12A3f873041Dec436DaA0085B766a399A6fA3639::reserveOf(0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c, 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61) [staticcall]
+    │   │   │   │   │   └─ ← [Return] Reserve({ balanceWei: 37777697856851 [3.777e13], maxPerOpWei: 31092172031561 [3.109e13], epochCapWei: 310921720315610 [3.109e14], enabled: true, claimPolicy: 1, sponsorRelease: true, renewWindow: 300, minExtension: 600, claimCooldown: 1800, epochSec: 3600, maxGasPrice: 50000000 [5e7], maxClaimsPerEpoch: 4, epochIndex: 498107 [4.981e5], epochSpentWei: 2945067175507 [2.945e12], epochClaims: 1, lastClaimAt: 1793186373 [1.793e9], lastClaimOperator: 0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB })
+    │   │   │   │   ├─ [5363] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::transfer(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D, 52747 [5.274e4])
+    │   │   │   │   │   ├─ [4663] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::transfer(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D, 52747 [5.274e4]) [delegatecall]
+    │   │   │   │   │   │   ├─ emit Transfer(from: LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], to: 0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D, amount: 52747 [5.274e4])
+    │   │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   ├─ [8374] 0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B::get(0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c) [staticcall]
+    │   │   │   │   │   └─ ← [Return] Deployment({ id: 0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c, owner: 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61, appRef: "catalog://0xd8ec1d59a44ff4f76727a41759dab9e243d31675f27b09c3abdd31d416f4a737/85", ports: "", configCid: "{\"network\":{\"relay\":\"us-west\"},\"isolation\":{\"cpuTee\":false,\"gpuTee\":false},\"configCid\":\"bafkreidgohdhxedt5zucn2cp3zdrkjvbxdpsyakmocnlc7jo2pfskk7gp4\",\"config\":{\"volumes\":[\"qwen3.8-27b-mtp-q4-vl-gguf\"]}}", gpuMilli: 800, cpuMilli: 650, appPort: 8080, isPublic: true, active: true, createdAt: 1786186081 [1.786e9], rate: 0, balance6: 0, spent6: 100000000 [1e8], runner: 0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be, runnerOperator: 0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB, leaseUntil: 1793189849 [1.793e9] })
+    │   │   │   │   ├─ [1250] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::balanceOf(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D) [staticcall]
+    │   │   │   │   │   ├─ [553] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::balanceOf(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D) [delegatecall]
+    │   │   │   │   │   │   └─ ← [Return] 29952747 [2.995e7]
+    │   │   │   │   │   └─ ← [Return] 29952747 [2.995e7]
+    │   │   │   │   ├─ [1250] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::balanceOf(LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [staticcall]
+    │   │   │   │   │   ├─ [553] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::balanceOf(LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [delegatecall]
+    │   │   │   │   │   │   └─ ← [Return] 0
+    │   │   │   │   │   └─ ← [Return] 0
+    │   │   │   │   ├─ [457] 0x4200000000000000000000000000000000000006::balanceOf(LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [staticcall]
+    │   │   │   │   │   └─ ← [Return] 0
+    │   │   │   │   ├─ [1359] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::allowance(LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], 0x2626664c2603336E57B271c5C0b26F421741e481) [staticcall]
+    │   │   │   │   │   ├─ [659] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::allowance(LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], 0x2626664c2603336E57B271c5C0b26F421741e481) [delegatecall]
+    │   │   │   │   │   │   └─ ← [Return] 0
+    │   │   │   │   │   └─ ← [Return] 0
+    │   │   │   │   ├─ emit GasFunded(deployment: 0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c, payer: 0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D, owner: 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61, pool: 0xb4CB800910B228ED3d0834cF79D697127BBB00e5, fee: 100, ethOut: 20000000000000 [2e13], usdcSpent6: 47253 [4.725e4], maxUsdcIn6: 100000 [1e5])
+    │   │   │   │   └─ ← [Return] 47253 [4.725e4]
+    │   │   │   ├─ [1359] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::allowance(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D, LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [staticcall]
+    │   │   │   │   ├─ [659] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::allowance(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D, LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [delegatecall]
+    │   │   │   │   │   └─ ← [Return] 0
+    │   │   │   │   └─ ← [Return] 0
+    │   │   │   ├─ [1250] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::balanceOf(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D) [staticcall]
+    │   │   │   │   ├─ [553] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::balanceOf(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D) [delegatecall]
+    │   │   │   │   │   └─ ← [Return] 29952747 [2.995e7]
+    │   │   │   │   └─ ← [Return] 29952747 [2.995e7]
+    │   │   │   ├─ [744] 0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D::usdc() [staticcall]
+    │   │   │   │   ├─ [578] FundingSessionVault::usdc() [delegatecall]
+    │   │   │   │   │   └─ ← [Return] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
+    │   │   │   │   └─ ← [Return] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
+    │   │   │   ├─ [1250] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::balanceOf(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D) [staticcall]
+    │   │   │   │   ├─ [553] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::balanceOf(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D) [delegatecall]
+    │   │   │   │   │   └─ ← [Return] 29952747 [2.995e7]
+    │   │   │   │   └─ ← [Return] 29952747 [2.995e7]
+    │   │   │   ├─ [3250] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::balanceOf(funding fork relayer: [0x636749E1657c5136F594E039329FcE8d9090Afe3]) [staticcall]
+    │   │   │   │   ├─ [2553] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::balanceOf(funding fork relayer: [0x636749E1657c5136F594E039329FcE8d9090Afe3]) [delegatecall]
+    │   │   │   │   │   └─ ← [Return] 0
+    │   │   │   │   └─ ← [Return] 0
+    │   │   │   ├─ [25263] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::transfer(funding fork relayer: [0x636749E1657c5136F594E039329FcE8d9090Afe3], 1000)
+    │   │   │   │   ├─ [24563] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::transfer(funding fork relayer: [0x636749E1657c5136F594E039329FcE8d9090Afe3], 1000) [delegatecall]
+    │   │   │   │   │   ├─ emit Transfer(from: 0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D, to: funding fork relayer: [0x636749E1657c5136F594E039329FcE8d9090Afe3], amount: 1000)
+    │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   └─ ← [Return] true
+    │   │   │   ├─ [1250] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::balanceOf(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D) [staticcall]
+    │   │   │   │   ├─ [553] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::balanceOf(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D) [delegatecall]
+    │   │   │   │   │   └─ ← [Return] 29951747 [2.995e7]
+    │   │   │   │   └─ ← [Return] 29951747 [2.995e7]
+    │   │   │   ├─ [1250] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::balanceOf(funding fork relayer: [0x636749E1657c5136F594E039329FcE8d9090Afe3]) [staticcall]
+    │   │   │   │   ├─ [553] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::balanceOf(funding fork relayer: [0x636749E1657c5136F594E039329FcE8d9090Afe3]) [delegatecall]
+    │   │   │   │   │   └─ ← [Return] 1000
+    │   │   │   │   └─ ← [Return] 1000
+    │   │   │   ├─ [337] 0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D::book() [staticcall]
+    │   │   │   │   ├─ [171] FundingSessionVault::book() [delegatecall]
+    │   │   │   │   │   └─ ← [Return] 0xab214342d5A490150A4A977063A2f88E21F80907
+    │   │   │   │   └─ ← [Return] 0xab214342d5A490150A4A977063A2f88E21F80907
+    │   │   │   ├─ [496] 0xab214342d5A490150A4A977063A2f88E21F80907::addr(0x6465706c6f796d656e7473000000000000000000000000000000000000000000) [staticcall]
+    │   │   │   │   └─ ← [Return] 0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B
+    │   │   │   ├─ [876] 0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D::gasAdapter() [staticcall]
+    │   │   │   │   ├─ [710] FundingSessionVault::gasAdapter() [delegatecall]
+    │   │   │   │   │   └─ ← [Return] LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]
+    │   │   │   │   └─ ← [Return] LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]
+    │   │   │   ├─ [267] LeaseGasDexAdapter::ledger() [staticcall]
+    │   │   │   │   └─ ← [Return] 0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B
+    │   │   │   ├─ [8374] 0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B::get(0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c) [staticcall]
+    │   │   │   │   └─ ← [Return] Deployment({ id: 0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c, owner: 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61, appRef: "catalog://0xd8ec1d59a44ff4f76727a41759dab9e243d31675f27b09c3abdd31d416f4a737/85", ports: "", configCid: "{\"network\":{\"relay\":\"us-west\"},\"isolation\":{\"cpuTee\":false,\"gpuTee\":false},\"configCid\":\"bafkreidgohdhxedt5zucn2cp3zdrkjvbxdpsyakmocnlc7jo2pfskk7gp4\",\"config\":{\"volumes\":[\"qwen3.8-27b-mtp-q4-vl-gguf\"]}}", gpuMilli: 800, cpuMilli: 650, appPort: 8080, isPublic: true, active: true, createdAt: 1786186081 [1.786e9], rate: 0, balance6: 0, spent6: 100000000 [1e8], runner: 0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be, runnerOperator: 0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB, leaseUntil: 1793189849 [1.793e9] })
+    │   │   │   ├─ [1243] 0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D::owner() [staticcall]
+    │   │   │   │   ├─ [1077] FundingSessionVault::owner() [delegatecall]
+    │   │   │   │   │   └─ ← [Return] 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61
+    │   │   │   │   └─ ← [Return] 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61
+    │   │   │   ├─ [5119] 0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D::sessionOf(0x1070d60ce575671e41d1e9b0fd1026b4002462a875426d9e8646e69287f7e66d) [staticcall]
+    │   │   │   │   ├─ [4824] FundingSessionVault::sessionOf(0x1070d60ce575671e41d1e9b0fd1026b4002462a875426d9e8646e69287f7e66d) [delegatecall]
+    │   │   │   │   │   └─ ← [Return] Session({ keyHash: 0x75d7c1b947d706371b1d3e95c1d177b3c0472dd3993d1794d86430cc4c517794, measurement: 0x0000000000000000000000000000000000000000000000000000000000000000, actions: 1024, expiresAt: 1793191941 [1.793e9], epoch: 0, envs: 3, state: 1, anyApp: true, balance6: 29899000 [2.989e7], spent6: 101000 [1.01e5], perPeriod6: 30000000 [3e7], maxFee6: 10000 [1e4], maxAppFeeHour6: 0, maxRateHour6: 0, periodStart: 1793188341 [1.793e9], period: 3600, opsPerPeriod: 20, periodSpent6: 101000 [1.01e5], periodOps: 1 }), true, []
+    │   │   │   │   └─ ← [Return] Session({ keyHash: 0x75d7c1b947d706371b1d3e95c1d177b3c0472dd3993d1794d86430cc4c517794, measurement: 0x0000000000000000000000000000000000000000000000000000000000000000, actions: 1024, expiresAt: 1793191941 [1.793e9], epoch: 0, envs: 3, state: 1, anyApp: true, balance6: 29899000 [2.989e7], spent6: 101000 [1.01e5], perPeriod6: 30000000 [3e7], maxFee6: 10000 [1e4], maxAppFeeHour6: 0, maxRateHour6: 0, periodStart: 1793188341 [1.793e9], period: 3600, opsPerPeriod: 20, periodSpent6: 101000 [1.01e5], periodOps: 1 }), true, []
+    │   │   │   ├─ [1236] 0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D::held(0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c) [staticcall]
+    │   │   │   │   ├─ [1055] FundingSessionVault::held(0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c) [delegatecall]
+    │   │   │   │   │   └─ ← [Return] 0, 0x0000000000000000000000000000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000000000000000000000000000
+    │   │   │   │   └─ ← [Return] 0, 0x0000000000000000000000000000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000000000000000000000000000
+    │   │   │   ├─ [2904] FundingSessionVaultLib::feeAndApp() [delegatecall]
+    │   │   │   │   ├─ [496] 0xab214342d5A490150A4A977063A2f88E21F80907::addr(0x6465706c6f796d656e7473000000000000000000000000000000000000000000) [staticcall]
+    │   │   │   │   │   └─ ← [Return] 0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B
+    │   │   │   │   ├─ [888] 0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B::feeOf(0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c) [staticcall]
+    │   │   │   │   │   └─ ← [Return] 0x0000000000000000000000000000000000000000, 0
+    │   │   │   │   └─ ← [Return] 0, 0x0000000000000000000000000000000000000000000000000000000000000000, true
+    │   │   │   ├─ emit GasFunded(sid: 0x1070d60ce575671e41d1e9b0fd1026b4002462a875426d9e8646e69287f7e66d, deployment: 0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c, holder: 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61, ethOut: 20000000000000 [2e13], usdcSpent6: 47253 [4.725e4], maxUsdcIn6: 100000 [1e5], relayer: funding fork relayer: [0x636749E1657c5136F594E039329FcE8d9090Afe3], fee6: 1000)
+    │   │   │   └─ ← [Return] 0x000000000000000000000000000000000000000000000000000000000000b895000000000000000000000000000000000000000000000000000000000000ce0b
+    │   │   ├─ [1250] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::balanceOf(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D) [staticcall]
+    │   │   │   ├─ [553] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::balanceOf(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D) [delegatecall]
+    │   │   │   │   └─ ← [Return] 29951747 [2.995e7]
+    │   │   │   └─ ← [Return] 29951747 [2.995e7]
+    │   │   ├─ emit SessionOp(sid: 0x1070d60ce575671e41d1e9b0fd1026b4002462a875426d9e8646e69287f7e66d, nonce: 0, action: 10, argsHash: 0xa0f708b7081f1c27c3fb55ed308ade22a5ced687c9e348d1ab7c689c1f5fd219, amount6: 47253 [4.725e4], fee6: 1000, result: 0x000000000000000000000000000000000000000000000000000000000000b895000000000000000000000000000000000000000000000000000000000000ce0b)
+    │   │   └─ ← [Return] 0x000000000000000000000000000000000000000000000000000000000000b895000000000000000000000000000000000000000000000000000000000000ce0b
+    │   └─ ← [Return] 0x000000000000000000000000000000000000000000000000000000000000b895000000000000000000000000000000000000000000000000000000000000ce0b
+    ├─ [5119] 0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D::sessionOf(0x1070d60ce575671e41d1e9b0fd1026b4002462a875426d9e8646e69287f7e66d) [staticcall]
+    │   ├─ [4824] FundingSessionVault::sessionOf(0x1070d60ce575671e41d1e9b0fd1026b4002462a875426d9e8646e69287f7e66d) [delegatecall]
+    │   │   └─ ← [Return] Session({ keyHash: 0x75d7c1b947d706371b1d3e95c1d177b3c0472dd3993d1794d86430cc4c517794, measurement: 0x0000000000000000000000000000000000000000000000000000000000000000, actions: 1024, expiresAt: 1793191941 [1.793e9], epoch: 0, envs: 3, state: 1, anyApp: true, balance6: 29951747 [2.995e7], spent6: 48253 [4.825e4], perPeriod6: 30000000 [3e7], maxFee6: 10000 [1e4], maxAppFeeHour6: 0, maxRateHour6: 0, periodStart: 1793188341 [1.793e9], period: 3600, opsPerPeriod: 20, periodSpent6: 48253 [4.825e4], periodOps: 1 }), true, []
+    │   └─ ← [Return] Session({ keyHash: 0x75d7c1b947d706371b1d3e95c1d177b3c0472dd3993d1794d86430cc4c517794, measurement: 0x0000000000000000000000000000000000000000000000000000000000000000, actions: 1024, expiresAt: 1793191941 [1.793e9], epoch: 0, envs: 3, state: 1, anyApp: true, balance6: 29951747 [2.995e7], spent6: 48253 [4.825e4], perPeriod6: 30000000 [3e7], maxFee6: 10000 [1e4], maxAppFeeHour6: 0, maxRateHour6: 0, periodStart: 1793188341 [1.793e9], period: 3600, opsPerPeriod: 20, periodSpent6: 48253 [4.825e4], periodOps: 1 }), true, []
+    ├─ [1618] 0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D::locked6() [staticcall]
+    │   ├─ [1452] FundingSessionVault::locked6() [delegatecall]
+    │   │   └─ ← [Return] 29951747 [2.995e7]
+    │   └─ ← [Return] 29951747 [2.995e7]
+    ├─ [1250] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::balanceOf(funding fork relayer: [0x636749E1657c5136F594E039329FcE8d9090Afe3]) [staticcall]
+    │   ├─ [553] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::balanceOf(funding fork relayer: [0x636749E1657c5136F594E039329FcE8d9090Afe3]) [delegatecall]
+    │   │   └─ ← [Return] 1000
+    │   └─ ← [Return] 1000
+    ├─ [1250] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::balanceOf(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D) [staticcall]
+    │   ├─ [553] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::balanceOf(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D) [delegatecall]
+    │   │   └─ ← [Return] 29951747 [2.995e7]
+    │   └─ ← [Return] 29951747 [2.995e7]
+    ├─ [3385] 0x12A3f873041Dec436DaA0085B766a399A6fA3639::reserveOf(0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c, 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61) [staticcall]
+    │   └─ ← [Return] Reserve({ balanceWei: 37777697856851 [3.777e13], maxPerOpWei: 31092172031561 [3.109e13], epochCapWei: 310921720315610 [3.109e14], enabled: true, claimPolicy: 1, sponsorRelease: true, renewWindow: 300, minExtension: 600, claimCooldown: 1800, epochSec: 3600, maxGasPrice: 50000000 [5e7], maxClaimsPerEpoch: 4, epochIndex: 498107 [4.981e5], epochSpentWei: 2945067175507 [2.945e12], epochClaims: 1, lastClaimAt: 1793186373 [1.793e9], lastClaimOperator: 0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB })
+    ├─ [8374] 0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B::get(0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c) [staticcall]
+    │   └─ ← [Return] Deployment({ id: 0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c, owner: 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61, appRef: "catalog://0xd8ec1d59a44ff4f76727a41759dab9e243d31675f27b09c3abdd31d416f4a737/85", ports: "", configCid: "{\"network\":{\"relay\":\"us-west\"},\"isolation\":{\"cpuTee\":false,\"gpuTee\":false},\"configCid\":\"bafkreidgohdhxedt5zucn2cp3zdrkjvbxdpsyakmocnlc7jo2pfskk7gp4\",\"config\":{\"volumes\":[\"qwen3.8-27b-mtp-q4-vl-gguf\"]}}", gpuMilli: 800, cpuMilli: 650, appPort: 8080, isPublic: true, active: true, createdAt: 1786186081 [1.786e9], rate: 0, balance6: 0, spent6: 100000000 [1e8], runner: 0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be, runnerOperator: 0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB, leaseUntil: 1793189849 [1.793e9] })
+    ├─ [1359] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::allowance(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D, LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [staticcall]
+    │   ├─ [659] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::allowance(0xfa0d2E54102849EB5C0D85f342522400bfaC5C1D, LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [delegatecall]
+    │   │   └─ ← [Return] 0
+    │   └─ ← [Return] 0
+    ├─ [1359] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::allowance(LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], 0x2626664c2603336E57B271c5C0b26F421741e481) [staticcall]
+    │   ├─ [659] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::allowance(LeaseGasDexAdapter: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], 0x2626664c2603336E57B271c5C0b26F421741e481) [delegatecall]
+    │   │   └─ ← [Return] 0
+    │   └─ ← [Return] 0
+    ├─ [3250] 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913::balanceOf(0xB794C4DD0e1C5E6B72281799F282BfdE7654345D) [staticcall]
+    │   ├─ [2553] 0x2Ce6311ddAE708829bc0784C967b7d77D19FD779::balanceOf(0xB794C4DD0e1C5E6B72281799F282BfdE7654345D) [delegatecall]
+    │   │   └─ ← [Return] 30330286 [3.033e7]
+    │   └─ ← [Return] 30330286 [3.033e7]
+    └─ ← [Return]
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 164.95ms (1.82ms CPU time)
+
+Ran 1 test suite in 169.40ms (164.95ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[memory-guard] exit=0 peakTreeRssMiB=134 minHostAvailableMiB=88774
+[memory-guard] at peak: forge:82 node:50
+[queue] EXIT 0

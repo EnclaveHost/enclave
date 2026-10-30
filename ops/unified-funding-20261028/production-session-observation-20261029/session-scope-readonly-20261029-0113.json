@@ -1,0 +1,22 @@
+{
+  "value": {
+    "live": true,
+    "anyApp": true,
+    "apps": [],
+    "actions": "43215860598959184859848575143834562855167",
+    "envs": 3,
+    "balance6": "30000000",
+    "spent6": "0",
+    "expiresAt": "1793765924",
+    "ownerNonce": 1179,
+    "firstDeploymentHasCode": true
+  },
+  "blockNumber": "53223491",
+  "blockHash": "0xf1ebf54cee29326960ec9c11e4a33ca3fd599687ce5e3dae799a6c5a58bbf639",
+  "timestamp": 1793236329000,
+  "agreeing": 2,
+  "peers": 3,
+  "failures": [
+    "base-rpc.publicnode.com: HTTP request failed."
+  ]
+}

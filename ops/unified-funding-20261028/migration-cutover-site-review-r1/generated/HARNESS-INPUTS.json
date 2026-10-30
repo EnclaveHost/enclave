@@ -1,0 +1,13 @@
+{
+  "schema": "cutover-page-root-harness-r1",
+  "files": {
+    "migration-cutover-site-review-r1/page/index.html": "52d346c01ccf237ce829192d1aaedbad025c4b85466d582c15600680ef95a073",
+    "migration-cutover-site-review-r1/page/dist/harness.js": "9eb48a2ff0e86294f51acdf1309044a34a542d8e21fc2830fbc13583adf34784",
+    "migration-cutover-site-review-r1/candidate/site/vendor/funding.js": "f23ba2d79661ade43ed484e186d0347b95756dbe70a9735c4b3152da653dd957",
+    "../source/sdk/sessions/dist/browser.mjs": "9dda76f6c22ef102e9dce27b7e61731c83a7e41905a611587578e305bc758997"
+  },
+  "vendor": {
+    "/harness/vendor/funding.js": "migration-cutover-site-review-r1/candidate/site/vendor/funding.js",
+    "/harness/vendor/sessions.js": "../source/sdk/sessions/dist/browser.mjs"
+  }
+}

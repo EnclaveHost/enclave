@@ -1,0 +1,744 @@
+diff --git a/metal/guest/derived-state.mjs b/metal/guest/derived-state.mjs
+index f955f4e..639c4a4 100644
+--- a/metal/guest/derived-state.mjs
++++ b/metal/guest/derived-state.mjs
+@@ -35,7 +35,7 @@ const sha = (b) => createHash("sha256").update(b).digest("hex");
+ const refusal = (status, error, message) => ({ status, error, message });
+ function canonicalJson(v) {
+   if (v === null || typeof v === "boolean" || typeof v === "string") return JSON.stringify(v);
+-  if (typeof v === "number") { if (!Number.isFinite(v)) throw new Error("canonical JSON: non-finite number"); return JSON.stringify(v); }
++  if (typeof v === "number") { if (!Number.isSafeInteger(v)) throw new Error("canonical JSON: only safe integers (= KVM's canonicalJson)"); return JSON.stringify(v); }
+   if (Array.isArray(v)) return `[${v.map(canonicalJson).join(",")}]`;
+   if (typeof v === "object") return `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${canonicalJson(v[k])}`).join(",")}}`;
+   throw new Error(`canonical JSON cannot carry ${typeof v}`);
+@@ -50,25 +50,34 @@ function writeAtomic(file, bytes) {
+   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+   fs.writeFileSync(file + ".tmp", bytes, { mode: 0o600 }); fs.renameSync(file + ".tmp", file);
+ }
+-export function validAnchor(a) {
++/** an anchor as KVM's validateAnchor shapes it; `strict` (an admin high-water) also needs Base messagePasserStorageRoot */
++export function validAnchor(a, { strict = false } = {}) {
+   return !!a && typeof a === "object" && ["l1-finalized-derived", "l1-finalized-asr-anchor"].includes(a.tier) &&
+     [a.base, a.l1].every((b) => b && Number.isSafeInteger(b.number) && b.number >= 0 && Number.isSafeInteger(b.timestamp) && HASH.test(b.hash) && HASH.test(b.stateRoot)) &&
+-    HASH.test(a.base.outputRoot);
++    HASH.test(a.base.outputRoot) && (a.base.messagePasserStorageRoot === undefined ? !strict : HASH.test(a.base.messagePasserStorageRoot));
+ }
+ /**
+- * hw >= floor, component-wise PER CHAIN: base.number and l1.number each at least the floor's; where a number is equal the
+- * block must be the SAME (hash, stateRoot, and outputRoot for Base). Never a lexicographic or single-field comparison.
++ * a dominates b (a >= b), PER CHAIN: Base and L1 numbers each at least b's; on an EQUAL number the block is the same - hash,
++ * stateRoot and timestamp, and for Base outputRoot and (where either has it) messagePasserStorageRoot. null is dominated by
++ * everything and dominates only null. Never lexicographic, never a single field (KVM r3 contract "Floor rules").
+  */
+-export function anchorAtLeast(hw, floor) {
+-  if (floor === null) return true;
+-  if (!validAnchor(hw) || !validAnchor(floor)) return false;
+-  for (const k of ["base", "l1"]) {
+-    const a = hw[k], b = floor[k];
+-    if (a.number < b.number) return false;
+-    if (a.number === b.number && (a.hash !== b.hash || a.stateRoot !== b.stateRoot || (k === "base" && a.outputRoot !== b.outputRoot))) return false;
++export function anchorDominates(a, b) {
++  if (b === null || b === undefined) return true;
++  if (a === null || a === undefined || !validAnchor(a) || !validAnchor(b)) return false;
++  for (const [k, fields] of [["base", ["hash", "stateRoot", "timestamp", "outputRoot", "messagePasserStorageRoot"]], ["l1", ["hash", "stateRoot", "timestamp"]]]) {
++    const x = a[k], y = b[k];
++    if (x.number < y.number) return false;
++    if (x.number === y.number && fields.some((f) => (x[f] ?? null) !== (y[f] ?? null))) return false;
+   }
+   return true;
+ }
++/** the ONE existing floor that dominates all others (never synthesized from parts) -> { floor } or { error } */
++export function dominatingFloor(floors) {
++  const present = floors.filter((f) => f !== null && f !== undefined);
++  if (!present.length) return { floor: null };
++  const top = present.find((c) => present.every((o) => anchorDominates(c, o)));
++  return top ? { floor: top } : { error: "the committed floors are incomparable or contradictory" };
++}
+ 
+ /**
+  * The derived-authority state as COMMITTED: `scan` is the replica's committed scan (Map rel -> {sha}) of a fresh majority
+@@ -115,7 +124,9 @@ export function readState(dataDir, scan = null) {
+ export function floorsOf(held) {
+   const parse = (rel, pick) => { if (!held.bytes[rel]) return { floor: null }; try { const f = pick(JSON.parse(held.bytes[rel].toString("utf8"))); return f === null || f === undefined ? { floor: null } : validAnchor(f) ? { floor: f } : { error: `${rel} floor is malformed` }; } catch { return { error: `${rel} is not JSON` }; } };
+   const bridge = parse(BRIDGE_REL, (o) => o.authorityAnchors?.["8453"] ?? null), reader = parse(READER_REL, (o) => o.floor ?? null);
+-  return { bridge: bridge.floor ?? null, reader: reader.floor ?? null, error: bridge.error || reader.error || null };
++  const out = { bridge: bridge.floor ?? null, reader: reader.floor ?? null, error: bridge.error || reader.error || null };
++  const dom = out.error ? { error: out.error } : dominatingFloor([out.reader, out.bridge]);
++  return { ...out, dominating: dom.error ? null : dom.floor, dominatingError: dom.error || null };
+ }
+ 
+ /**
+@@ -149,24 +160,23 @@ export function checkEnrollment(pkg, { held, groupId, statementSha, readerPins,
+     // a rotate never clears a pending restore: only `recover` (with the admin's high-water) does
+     if (held.record.package.markerDigest !== held.markerDigest) return refusal(409, "wrong_marker", "the group was restored from an archive: only a recover enrollment applies");
+     if (pkg.highWater !== null) return refusal(422, "bad_enrollment", "rotate carries the committed floor, not a high-water");
+-    // the floor it carries is the COMMITTED bridge floor, exactly: a rotate signed for an older floor cannot lower it
+-    if (pkg.floorDigest !== floorDigestOf(floors.bridge)) return refusal(409, "wrong_floor", "floorDigest is not the committed bridge floor's");
++    // the floor it carries is EXACTLY the dominating existing floor of BOTH committed journals (the reader's may be ahead of
++    // the bridge's); incomparable or contradictory floors refuse; nothing is synthesized
++    if (floors.dominatingError) return refusal(409, "floor_incomparable", floors.dominatingError);
++    if (pkg.floorDigest !== floorDigestOf(floors.dominating)) return refusal(409, "wrong_floor", "floorDigest is not the dominating committed floor's");
+   }
+   if (pkg.mode === "recover") {
+     if (!held.markerDigest || pkg.markerDigest !== held.markerDigest) return refusal(409, "not_restored", "recover only after an admin state restore, naming its marker");
+-    if (!held.record) {
+-      // a never-enrolled group: valid only if the restored archive carries no derived state at all
+-      if (held.stateDigest !== null) return refusal(409, "wrong_state", "a group with restored derived state needs its enrollment and the admin high-water");
+-      if (pkg.highWater !== null || pkg.floorDigest !== floorDigestOf(null)) return refusal(422, "bad_enrollment", "a never-enrolled recover carries the null floor");
+-    } else {
+-      // an archive alone is not freshness: the admin's retained, reviewed high-water, at least the restored floors per chain
+-      if (!validAnchor(pkg.highWater)) return refusal(422, "high_water", "recover of an enrolled group needs the admin-retained high-water anchor (the archive is not proof of freshness)");
+-      if (!anchorAtLeast(pkg.highWater, floors.bridge) || !anchorAtLeast(pkg.highWater, floors.reader))
+-        return refusal(409, "high_water_below_restored", "the high-water is below (or contradicts) the restored floor on a chain");
+-      if (pkg.floorDigest !== floorDigestOf(pkg.highWater)) return refusal(422, "bad_enrollment", "a recover's floorDigest is its high-water's");
+-    }
++    // an archive alone is not freshness: EVERY recover needs the admin's retained, reviewed, non-null high-water (a full anchor)
++    // dominating every surviving committed floor; it is the target; never genesis, never derived from the archive
++    if (!held.record && held.stateDigest !== null) return refusal(409, "wrong_state", "restored derived state without its enrollment cannot be verified");
++    if (!validAnchor(pkg.highWater, { strict: true })) return refusal(422, "high_water", "recover needs the admin-retained high-water anchor (the archive is not proof of freshness)");
++    if (!anchorDominates(pkg.highWater, floors.bridge) || !anchorDominates(pkg.highWater, floors.reader))
++      return refusal(409, "high_water_below_restored", "the high-water does not dominate a restored floor on some chain (or contradicts it)");
++    if (pkg.floorDigest !== floorDigestOf(pkg.highWater)) return refusal(422, "bad_enrollment", "a recover's floorDigest is its high-water's");
+   }
+-  return { ok: true, record: { format: ENROLLMENT_FORMAT, package: pkg, previousReaderPins: held.record?.package?.readerPins ?? null } };
++  return { ok: true, record: { format: ENROLLMENT_FORMAT, package: pkg, previousReaderPins: held.record?.package?.readerPins ?? null,
++    previousBinding: held.record?.package?.binding ?? null } };
+ }
+ 
+ /** Is the committed enrollment usable for THIS image now? (signature re-checked by the caller) -> { ok, reason } */
+@@ -188,10 +198,15 @@ export function gateEnrollment(held, { groupId, readerPins }) {
+  */
+ export function seedDerivedState({ root, stateDir, anchorJournal, held, boot }) {
+   if (!held.committed || held.error) throw new Error("seeding needs the committed state");
+-  const journalDir = path.join(stateDir, "journal"), coverageDir = path.join(stateDir, "coverage"), runsDir = path.join(stateDir, "runs");
+-  fs.mkdirSync(stateDir, { recursive: true, mode: 0o700 });
+-  fs.rmSync(journalDir, { recursive: true, force: true }); fs.rmSync(anchorJournal, { force: true });
+-  for (const d of [journalDir, coverageDir, runsDir]) fs.mkdirSync(d, { recursive: true, mode: 0o700 });
++  const p0 = held.record.package;
++  if (!HEX64.test(String(p0.binding))) throw new Error("the committed enrollment has no binding");
++  // the cache per VERIFIED binding (an old binding's cache cannot block a rotation; nothing is deleted); runs shared (KVM locks it)
++  const journalDir = path.join(stateDir, "journal"), coverageDir = path.join(stateDir, "coverage", p0.binding), runsDir = path.join(stateDir, "runs");
++  for (const d of [stateDir, journalDir, coverageDir, runsDir]) fs.mkdirSync(d, { recursive: true, mode: 0o700 });
++  // working copies only: a pending, uncommitted or failed local write and KVM's local in-flight marker are discarded; every
++  // *.lock stays (never unlink a runtime lock: replacing its inode would permit two owners)
++  for (const f of ["derived-state.json", "derived-state.json.strict.tmp", ".enrollment-inflight", ".enrollment-inflight.strict.tmp"]) fs.rmSync(path.join(journalDir, f), { force: true });
++  for (const f of [anchorJournal, `${anchorJournal}.strict.tmp`]) fs.rmSync(f, { force: true });
+   const at = { [READER_REL]: path.join(journalDir, "derived-state.json"), [BRIDGE_REL]: anchorJournal };
+   const files = [];
+   for (const rel of STATE_FILES) {
+@@ -234,7 +249,8 @@ export function enrollmentResult(held, { groupId, digest, binding, floorDigest }
+   if (!held.committed || held.error || !p || held.digest !== digest) return { error: "not_enrolled" };
+   if (!HEX64.test(String(binding)) || binding !== p.binding) return { error: "binding" };
+   if (!HEX64.test(String(floorDigest)) || floorDigest !== p.floorDigest) return { error: "floor" };
+-  if (p.mode === "genesis" && Object.keys(held.manifest).length) return { error: "prior_state" };
++  // KVM r2 decides the exact genesis prefix from priorFiles (no "prior_state" refusal here any more); r3 fields from the record
+   return { result: { format: RESULT_FORMAT, groupId, digest, mode: p.mode, at: p.at, readerPins: p.readerPins, binding: p.binding, floorDigest: p.floorDigest,
+-    highWater: p.highWater, previousReaderPins: p.mode === "rotate" ? held.record.previousReaderPins : null, priorFiles: { ...held.manifest } } };
++    highWater: p.highWater, previousReaderPins: p.mode === "rotate" ? held.record.previousReaderPins : null, priorFiles: { ...held.manifest },
++    previousBinding: held.record.previousBinding ?? null, previousEnrollmentDigest: p.previousDigest, stateDigest: p.stateDigest } };
+ }
+diff --git a/metal/guest/platform-api-role.mjs b/metal/guest/platform-api-role.mjs
+index 27944df..ee20f7f 100644
+--- a/metal/guest/platform-api-role.mjs
++++ b/metal/guest/platform-api-role.mjs
+@@ -182,7 +182,7 @@ export function openRecovery(env, { groupId, privateKey }) {
+  */
+ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayArgv = null, log = (m) => console.log(`[platform-api] ${m}`),
+                                   now = Date.now, postImpl = null, archivePut = null, forwardConnectMs = 10000, nativeIssuer = null,
+-                                  derivedImage = DERIVED_READER_IMAGE, derivedStableMs = 60000 }) {
++                                  derivedImage = DERIVED_READER_IMAGE, derivedStableMs = 60000, derivedRetryMs = 60000 }) {
+   const pa = cfg.platformApi, groupId = groupIdOf(pa), self = cfg.self, members = pa.members;
+   const dirs = cfg.dirs, dataDir = dirs.data;
+   for (const d of [dirs.root, dataDir]) fs.mkdirSync(d, { recursive: true, mode: 0o700 });
+@@ -213,7 +213,10 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
+   // Every decision reads the state through the scan of a FRESH majority round, never the local directory alone. The relay
+   // gets derived names ONLY with a verified committed enrollment for this image; ENCLAVE_DERIVED_INTENDED is set whenever
+   // the reader is bound, so the relay refuses writer authority (never a public-RPC fallback) when derived is unavailable.
+-  let derivedDisabled = null, verifiedDigest = null, derivedNow = { configured: false, reason: null }, startQueued = false;
++  // derivedDisabled = { digest, stateDigest, attempts, until }: after an unexpected early exit of a derived child. The SAME
++  // enrollment retries when its committed state changed (progress, e.g. an unknown ACK that did commit: KVM resumes the exact
++  // prefix) or after a backoff (derivedRetryMs doubling, at most 1 h); a new enrollment clears it. Bounded, never a deadlock.
++  let derivedDisabled = null, verifiedDigest = null, derivedNow = { configured: false, reason: null }, startQueued = false, lastExit = Promise.resolve();
+   const derivedStateDir = path.join(dirs.root, "derived-reader-v3"), anchorJournal = path.join(derivedStateDir, "anchor-journal.json");
+   const DEADLINE_MARGIN_MS = 250, INTENDED = pa.derivedReader === undefined ? {} : { ENCLAVE_DERIVED_INTENDED: "1" };
+   let derivedLock = Promise.resolve();
+@@ -240,14 +243,18 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
+     const held = DS.readState(dataDir, fresh.scan), gate = DS.gateEnrollment(held, { groupId, readerPins: DS.readerPinsOf(derivedImage) });
+     if (!gate.ok) return { env: INTENDED, reason: gate.reason };
+     if (!(await verifiedHeld(held))) return { env: INTENDED, reason: "the committed enrollment is not signed by one of platformApi.admins" };
+-    if (derivedDisabled === held.digest) return { env: INTENDED, reason: "disabled: a relay started with this enrollment exited unexpectedly (see the log); a new enrollment is needed" };
++    const dis = derivedDisabled;
++    if (dis && dis.digest === held.digest && dis.stateDigest === held.stateDigest && now() < dis.until)
++      return { env: INTENDED, reason: `disabled: a relay started with this enrollment exited unexpectedly ${dis.attempts}x without progress; retry after ${new Date(dis.until).toISOString()} or a new enrollment` };
+     const base = composeDerivedReader({ cfg, root: dirs.root, image: derivedImage });
+     // right before seeding: same primary, same epoch, and the local bytes are still exactly the committed scan's
+     const again = DS.readState(dataDir, fresh.scan);
+     if (!sameTerm(fresh.epoch) || again.error || again.digest !== held.digest || again.stateDigest !== held.stateDigest)
+       return { env: INTENDED, reason: "the committed view changed while starting" };
+     const boot = randomBytes(16).toString("hex");
+-    return { env: { ...INTENDED, ...base, ...DS.seedDerivedState({ root: dirs.root, stateDir: derivedStateDir, anchorJournal, held, boot }) }, digest: held.digest, boot };
++    // the previous child is gone before its working files are replaced (its kernel locks die with it; lock files are kept)
++    await Promise.race([lastExit, new Promise((r) => setTimeout(r, 10000))]);
++    return { env: { ...INTENDED, ...base, ...DS.seedDerivedState({ root: dirs.root, stateDir: derivedStateDir, anchorJournal, held, boot }) }, digest: held.digest, stateDigest: held.stateDigest, boot };
+   }
+   function startRelay() {
+     if (child || stopped || startQueued) return;
+@@ -281,7 +288,8 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
+     const argv = relayArgv || [process.execPath, fileURLToPath(import.meta.url), "--relay-child"];
+     const c = spawn(argv[0], argv.slice(1), { env, cwd: dataDir, stdio: ["ignore", "inherit", "inherit", "ipc"] });
+     child = c; childPort = 0;
+-    c.derived = plan.digest ? { digest: plan.digest, boot: plan.boot, lastId: 0 } : null; c.listened = false; c.listenedAt = 0;
++    c.derived = plan.digest ? { digest: plan.digest, stateDigest: plan.stateDigest, boot: plan.boot, lastId: 0 } : null; c.listened = false; c.listenedAt = 0;
++    lastExit = new Promise((r) => c.once("exit", r));
+     c.on("message", (m) => {
+       if (m && m.t === "listening" && Number.isInteger(m.port)) { c.listened = true; c.listenedAt = now(); childPort = m.port; childBackoff = 500; log(`relay serving (primary, epoch ${node.promised})`); }
+       if (m && m.t === "derived-commit") derivedCommit(c, m);
+@@ -293,8 +301,9 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
+       if (child === c) { child = null; childPort = 0; }
+       // a derived child that exits unexpectedly before it serves, or within derivedStableMs after, disables derived mode for
+       // that enrollment (the relay restarts without it: writer authority refused, no crash loop); only a new enrollment clears it
+-      if (c.derived && !c.killed && (!c.listened || now() - c.listenedAt < derivedStableMs) && derivedDisabled !== c.derived.digest) {
+-        derivedDisabled = c.derived.digest;
++      if (c.derived && !c.killed && (!c.listened || now() - c.listenedAt < derivedStableMs)) {
++        const attempts = derivedDisabled?.digest === c.derived.digest ? derivedDisabled.attempts + 1 : 1;
++        derivedDisabled = { digest: c.derived.digest, stateDigest: c.derived.stateDigest, attempts, until: now() + Math.min(derivedRetryMs * 2 ** (attempts - 1), 3600000) };
+         log(`derived reader DISABLED for enrollment ${c.derived.digest.slice(0, 16)}: its relay exited unexpectedly (code ${code} sig ${sig}${c.listened ? ", soon after serving" : ", before serving"}); restarting the relay without it (writer authority refused)`);
+       }
+       if (!stopped && node && node.role === "leader") {
+@@ -321,7 +330,6 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
+     return withDerivedLock(async () => {
+       if (Date.now() > deadline) return refuse("deadline");
+       if (child !== c) return refuse("not_current_child");
+-      if (derivedDisabled === d.digest) return refuse("not_enrolled");
+       if (!node || node.role !== "leader" || !node.leaseValid()) return refuse("not_primary");
+       const enr = DS.readState(dataDir);
+       if (enr.error || enr.digest !== d.digest || !node.index.get(DS.ENROLL_FILE)) return refuse("not_enrolled");
+@@ -347,7 +355,6 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
+     return withDerivedLock(async () => {
+       if (Date.now() > deadline) return refuse("deadline");
+       if (child !== c) return refuse("not_current_child");
+-      if (derivedDisabled === d.digest) return refuse("not_enrolled");
+       const fresh = await freshCommittedScan();
+       if (!fresh) return refuse("not_primary");
+       const held = DS.readState(dataDir, fresh.scan);
+@@ -362,6 +369,8 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
+     return { derived: { bound: true, view: held.committed ? "last committed scan" : "local (no replica yet)", error: held.error, enrolled: !!held.record, mode: p?.mode ?? null,
+       digest: held.digest, at: p?.at ?? null, readerPins: DS.readerPinsOf(derivedImage), enrollmentReaderPins: p?.readerPins ?? null, stateDigest: held.stateDigest,
+       stateFiles: Object.keys(held.manifest).length, restoreMarker: held.markerDigest, bridgeFloor: floors.bridge ?? null, readerFloor: floors.reader ?? null,
++      dominatingFloor: floors.dominating ?? null, dominatingFloorDigest: floors.error || floors.dominatingError ? null : DS.floorDigestOf(floors.dominating ?? null),
++      floorError: floors.error || floors.dominatingError || null, binding: p?.binding ?? null,
+       configured: derivedNow.configured, reason: derivedNow.reason, disabled: derivedDisabled, durability: DS.DURABILITY,
+       writerAuthority: "refused unless the relay's derived reader serves; the writer's fixed 120 s freshness ceiling still applies (L1-finalized anchors are older: stale_snapshot)" } };
+   }
+diff --git a/relay/derived-reader-runtime.mjs b/relay/derived-reader-runtime.mjs
+index 3769562..6e4fee1 100644
+--- a/relay/derived-reader-runtime.mjs
++++ b/relay/derived-reader-runtime.mjs
+@@ -11,3 +11,7 @@ export { serveDerivedReader } from '../network/derived-reader/api.mjs';
+ export { openLifecycleJournal } from '../network/deployment-lifecycle-journal.mjs';
+ /** The file this runtime was loaded from (for startup logs). */
+ export const DERIVED_READER_RUNTIME_URL = import.meta.url;
++// The durable-state API, re-exported from KVM's own provider (journal-durability r2 API.md): the declaration is KVM's
++// DERIVED_STATE_API, never a constant defined here. relay/derived-writer-authority.mjs hands the role's state over only when
++// it AND every function are present.
++export { DERIVED_STATE_API, enrollDerivedState, derivedReaderBinding, derivedEnrollmentFloorDigest } from '../network/derived-reader/provider.mjs';
+diff --git a/relay/derived-writer-authority.mjs b/relay/derived-writer-authority.mjs
+index 44245e3..4e19e52 100644
+--- a/relay/derived-writer-authority.mjs
++++ b/relay/derived-writer-authority.mjs
+@@ -39,7 +39,9 @@ export const DERIVED_STATE_API = "enclave-derived-state/v1";
+ /** the bounded wait for one role-confirmed durable commit (the role's own replica asks time out at leaseMs/3) */
+ export const COMMIT_TIMEOUT_MS = 10000;
+ /** the exact runtime declaration (logs/derived-state-ipc-contract-r2.md §6): the constant AND every frozen function */
+-export const DERIVED_STATE_RUNTIME_FUNCTIONS = Object.freeze(["enrollDerivedState", "derivedReaderBinding", "openLifecycleJournal", "startDerivedLifecycleReader"]);
++// KVM r2 API.md: DERIVED_STATE_API, enrollDerivedState, derivedReaderBinding, derivedEnrollmentFloorDigest (provider.mjs, re-exported
++// by relay/derived-reader-runtime.mjs - never a local constant) + the existing journal and lifecycle-reader entry points
++export const DERIVED_STATE_RUNTIME_FUNCTIONS = Object.freeze(["enrollDerivedState", "derivedReaderBinding", "derivedEnrollmentFloorDigest", "openLifecycleJournal", "startDerivedLifecycleReader"]);
+ export const declaresDerivedStateApi = (runtime) => !!runtime && runtime.DERIVED_STATE_API === DERIVED_STATE_API &&
+   DERIVED_STATE_RUNTIME_FUNCTIONS.every((f) => typeof runtime[f] === "function");
+ /**
+@@ -47,6 +49,13 @@ export const declaresDerivedStateApi = (runtime) => !!runtime && runtime.DERIVED
+  * -> (file) => name, throwing (before any IPC) on anything but the two exact canonical paths: no relative path, no traversal,
+  * no other file, no symlink (file or parent). `paths` = { "reader/derived-state.json": abs, "bridge/anchor-journal.json": abs }.
+  */
++/** does this start need KVM's enrollDerivedState? (the descriptor's committed files and the seeded reader record's bytes) */
++export function needsEnrollment(descriptor, readerText) {
++  const has = (rel) => descriptor.files.some((f) => f.rel === rel);
++  if (!has("reader/derived-state.json") || !has("bridge/anchor-journal.json") || typeof readerText !== "string") return true;
++  let r; try { r = JSON.parse(readerText); } catch { return false; }        // unreadable: KVM's normal open refuses it (no reset)
++  return r?.enrollment?.phase === "pending" || r?.binding !== descriptor.enrollment.binding || r?.enrollment?.digest !== descriptor.enrollment.digest;
++}
+ export function journalNameMapper(paths, { lstat = fs.lstatSync, realpath = fs.realpathSync } = {}) {
+   const exact = new Map();
+   for (const [name, p] of Object.entries(paths)) {
+@@ -316,21 +325,24 @@ export async function derivedWriterAuthorityFromEnv(env, { relayChain, loadRunti
+     const want = { "reader/derived-state.json": path.join(descriptor.journalDir, "derived-state.json"), "bridge/anchor-journal.json": journalPath };
+     if (!descriptor.paths || Object.keys(want).some((k) => descriptor.paths[k] !== want[k]) || descriptor.files.some((f) => want[f.rel] !== f.path))
+       throw new Error(`${STATE_ENV} journal paths are not the canonical ones`);
+-    state = { descriptor, nameOf: journalNameMapper(want), committer: createCommitter({ boot: String(env[COMMIT_BOOT_ENV] ?? ""), timeoutMs: COMMIT_TIMEOUT_MS }) };
++    state = { descriptor, want, nameOf: journalNameMapper(want), committer: createCommitter({ boot: String(env[COMMIT_BOOT_ENV] ?? ""), timeoutMs: COMMIT_TIMEOUT_MS }) };
+   }
+   let service;
+   if (state) {
+-    const { descriptor: d, committer, nameOf } = state;
++    const { descriptor: d, committer, nameOf, want } = state;
+     // explicit split directories; the legacy stateDir is DELETED (KVM rejects mixed legacy/split configs)
+     const { stateDir: _legacy, ...rest } = config;
++    if (typeof d.enrollment.binding !== "string" || d.coverageDir !== path.join(path.dirname(d.journalDir), "coverage", d.enrollment.binding))
++      throw new Error(`${STATE_ENV} coverage directory is not the one of the signed binding`);
+     const cfg = { ...rest, journalDir: d.journalDir, coverageDir: d.coverageDir, runsDir: d.runsDir };
+     // KVM passes the absolute canonical RAM path; only the two exact paths map to the role's two names (a throw fences KVM)
+     const commit = ({ file, bytes, sha256, signal } = {}) => { let name; try { name = nameOf(file); } catch (e) { return Promise.reject(e); } return committer.commit({ file: name, bytes, sha256, signal }); };
+-    // first start of an enrollment (no committed journal yet): KVM verifies the ROLE's answer for its computed binding and the
+-    // signed floor digest, and seeds both small journals through the same durable commit; it refuses any existing file
+-    // (a PARTIAL committed genesis is B2: KVM-owned, pending - see the contract §7)
+-    if (!d.files.some((f) => f.rel === "reader/derived-state.json") || !d.files.some((f) => f.rel === "bridge/anchor-journal.json"))
+-      await runtime.enrollDerivedState(cfg, { anchorJournal: journalPath, verifyEnrollment: (q) => committer.verifyEnrollment(q), commit, commitTimeoutMs: COMMIT_TIMEOUT_MS });
++    // enrollment (KVM decides genesis prefix resume / rotate / recover from the ROLE's verified answer and the committed files):
++    // a file missing, OR the reader record pending, OR its binding or enrollment digest not the signed ones. A complete matching
++    // enrollment (including advanced floors and entries) opens normally: never re-enrolled, never reset (logs/derived-state-ipc-contract-r3.md §2)
++    if (needsEnrollment(d, await readFile(want["reader/derived-state.json"], "utf8").catch(() => null)))
++      await runtime.enrollDerivedState(cfg, { anchorJournal: journalPath, verifyEnrollment: (q) => committer.verifyEnrollment(q), commit, commitTimeoutMs: COMMIT_TIMEOUT_MS,
++        ...(d.enrollment.mode === "recover" ? { enrollmentFloor: d.enrollment.highWater } : {}) });
+     const journal = runtime.openLifecycleJournal(journalPath, { requireExisting: true, commit, requireCommit: true, commitTimeoutMs: COMMIT_TIMEOUT_MS });
+     service = await runtime.startDerivedLifecycleReader(cfg, { verifier, journal, journalCommit: commit, requireJournalCommit: true, commitTimeoutMs: COMMIT_TIMEOUT_MS });
+   } else {
+diff --git a/relay/state-replica.mjs b/relay/state-replica.mjs
+index 8cdee74..3b9f846 100644
+--- a/relay/state-replica.mjs
++++ b/relay/state-replica.mjs
+@@ -81,6 +81,16 @@ export function diffDir(dir, before, after) {
+   for (const rel of before.keys()) if (!after.has(rel)) removed.push(rel);
+   return { changed, removed };
+ }
++/** the files of `scan` with EXACTLY the scanned bytes: throws (code "changed") if any file changed or vanished since the scan */
++export function readAllExact(dir, scan) {
++  const files = {};
++  for (const [rel, f] of scan) {
++    let b; try { b = fs.readFileSync(path.join(dir, rel)); } catch { throw new ReplicaError(`${rel} vanished after the scan`, "changed"); }
++    if (sha256Hex(b) !== f.sha) throw new ReplicaError(`${rel} changed after the scan`, "changed");
++    files[rel] = b.toString("base64");
++  }
++  return files;
++}
+ export function readAll(dir, scan = scanDir(dir)) {
+   const files = {};
+   for (const rel of scan.keys()) files[rel] = fs.readFileSync(path.join(dir, rel)).toString("base64");
+@@ -343,7 +353,12 @@ export class ReplicaNode {
+     const msg = { t: "append", epoch: this.promised, base, head, ...delta, info: this.info };
+     const acks = await Promise.all(this._others().map(async (i) => {
+       let r = await this._ask(i, msg);
+-      if (r.needSnapshot) r = await this._ask(i, { t: "snapshot", epoch: this.promised, head, files: readAll(this.dir, scan), info: this.info });
++      // the catch-up snapshot runs AFTER an await: it is sent only with exactly the scanned bytes (a file written since then
++      // would otherwise travel under this older head); a changed directory means this member's answer does not count
++      if (r.needSnapshot) {
++        let files; try { files = readAllExact(this.dir, scan); } catch (e) { return { error: e.code || "changed" }; }
++        r = await this._ask(i, { t: "snapshot", epoch: this.promised, head, files, info: this.info });
++      }
+       return r;
+     }));
+     const stale = acks.filter((a) => a.stale || a.behind);
+diff --git a/test/derived-state-enrollment.test.mjs b/test/derived-state-enrollment.test.mjs
+index d4c6ef1..f32b001 100644
+--- a/test/derived-state-enrollment.test.mjs
++++ b/test/derived-state-enrollment.test.mjs
+@@ -26,7 +26,7 @@ import * as DS from "../metal/guest/derived-state.mjs";
+ import { startRole, packageMessage, PACKAGE_FORMAT, DERIVED_READER_ROLE_ENV } from "../metal/guest/platform-api-role.mjs";
+ import { createDerivedCommitter } from "../relay/derived-state-commit.mjs";
+ import { derivedWriterAuthorityFromEnv, DERIVED_STATE_API, journalNameMapper, declaresDerivedStateApi } from "../relay/derived-writer-authority.mjs";
+-import { scanDir } from "../relay/state-replica.mjs";
++import { scanDir, readAllExact } from "../relay/state-replica.mjs";
+ 
+ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "derived-enroll-"));
+@@ -155,7 +155,7 @@ const restartChild = async (m) => { await sleep(1200); const old = childPid(m);
+ const committedSha = (m, rel) => DS.stateFileSha(m.roleCfg.dirs.data, rel);
+ 
+ const H = (n) => "0x" + n.toString(16).padStart(64, "0");
+-const anchor = (b, l, salt = 0) => ({ tier: "l1-finalized-derived", base: { number: b, timestamp: 1, hash: H(1000 + b + salt), stateRoot: H(2000 + b + salt), outputRoot: H(3000 + b + salt) },
++const anchor = (b, l, salt = 0) => ({ tier: "l1-finalized-derived", base: { number: b, timestamp: 1, hash: H(1000 + b + salt), stateRoot: H(2000 + b + salt), outputRoot: H(3000 + b + salt), messagePasserStorageRoot: H(6000 + b + salt) },
+   l1: { number: l, timestamp: 1, hash: H(4000 + l + salt), stateRoot: H(5000 + l + salt) } });
+ const HW = anchor(100, 50);
+ const bridgeWith = (floor) => JSON.stringify({ version: 1, deployments: [], authorityAnchors: { 8453: floor } });
+@@ -216,6 +216,7 @@ test("IPC commit: only the exact committed bytes are acknowledged; refusals say
+   const v = await relay(l, "POST", "/verify", { binding: BINDING, floorDigest: NULL_FLOOR });
+   assert.equal(v.ok, true, JSON.stringify(v)); assert.equal(v.result.format, DS.RESULT_FORMAT); assert.equal(v.result.mode, "genesis");
+   assert.equal(v.result.digest, genesisDigest); assert.deepEqual(v.result.priorFiles, {}); assert.equal(v.result.committed, true);
++  assert.deepEqual([v.result.previousBinding, v.result.previousEnrollmentDigest, v.result.stateDigest], [null, null, null], "r3 fields from the signed genesis");
+   assert.deepEqual(await relay(l, "POST", "/commit", { file: BR, text: A }), { ok: true });
+   const holders = M.filter((m) => committedSha(m, BR) === sha(A));
+   assert.ok(holders.length >= 2 && holders.includes(l), "a majority (including the primary) holds the exact bytes");
+@@ -237,7 +238,8 @@ test("IPC commit: only the exact committed bytes are acknowledged; refusals say
+   const vq = { t: "derived-enroll-verify", v: 1, boot, binding: BINDING, floorDigest: NULL_FLOOR, timeoutMs: 4000 };
+   assert.equal((await relay(l, "POST", "/raw", { msg: { ...vq, id: 111, binding: "cc".repeat(32) } })).reply.error, "binding");
+   assert.equal((await relay(l, "POST", "/raw", { msg: { ...vq, id: 112, floorDigest: "dd".repeat(32) } })).reply.error, "floor");
+-  assert.equal((await relay(l, "POST", "/raw", { msg: { ...vq, id: 113 } })).reply.error, "prior_state", "a genesis is answered only while no durable file is committed");
++  const v2 = (await relay(l, "POST", "/raw", { msg: { ...vq, id: 113 } })).reply;   // KVM decides the exact prefix from priorFiles
++  assert.equal(v2.ok, true); assert.deepEqual(v2.result.priorFiles, { [BR]: sha(B) });
+   assert.equal((await relay(l, "POST", "/raw", { msg: { ...vq, id: 114, boot: "ab".repeat(16) } })).reply.error, "bad_request");
+ });
+ 
+@@ -307,7 +309,7 @@ test("failover: a stopped primary's successor seeds the same committed copy", {
+   assert.deepEqual(await relay(n, "POST", "/commit", { file: BR, text: A }), { ok: true });
+ });
+ 
+-const rotateNow = async (l, extra = {}) => { const st = statusOf(l); return enroll(l, await pkgFor(l, { mode: "rotate", previousDigest: st.digest, stateDigest: st.stateDigest, floorDigest: DS.floorDigestOf(st.bridgeFloor), ...extra })); };
++const rotateNow = async (l, extra = {}) => { const st = statusOf(l); return enroll(l, await pkgFor(l, { mode: "rotate", previousDigest: st.digest, stateDigest: st.stateDigest, floorDigest: st.dominatingFloorDigest, ...extra })); };
+ test("crash guard: a derived child dying before serving, or soon after, disables derived (relay serving, no loop); a rotate re-enables it", { timeout: 120000 }, async () => {
+   for (const flag of ["crash", "crash-after"]) {
+     let l = leader();
+@@ -335,7 +337,7 @@ test("rotation binds the COMMITTED floor: another reader image is unenrolled unt
+   await restartChild(l); l = leader();
+   assert.equal((await relay(l, "GET", "/env")).descriptor, null);
+   assert.match(statusOf(l).reason, /another reader image/);
+-  assert.deepEqual(statusOf(l).bridgeFloor, HW);
++  assert.deepEqual(statusOf(l).bridgeFloor, HW); assert.deepEqual(statusOf(l).dominatingFloor, HW);
+   assert.equal((await rotateNow(leader(), { floorDigest: NULL_FLOOR })).json.error, "wrong_floor", "a rotate cannot carry an older (null) floor");
+   assert.equal((await rotateNow(leader(), { floorDigest: DS.floorDigestOf(anchor(99, 50)) })).json.error, "wrong_floor");
+   const ok = await rotateNow(leader()); assert.equal(ok.status, 200, JSON.stringify(ok.json));
+@@ -346,7 +348,7 @@ test("rotation binds the COMMITTED floor: another reader image is unenrolled unt
+ 
+ test("enrollment quiesces the writer: a racing derived commit either lands before (the enrollment is then refused as stale) or is refused - never both", { timeout: 90000 }, async () => {
+   const l = leader(), st = statusOf(l), F = bridgeWith(anchor(101, 51));
+-  const pkg = await pkgFor(l, { mode: "rotate", previousDigest: st.digest, stateDigest: st.stateDigest, floorDigest: DS.floorDigestOf(st.bridgeFloor) });
++  const pkg = await pkgFor(l, { mode: "rotate", previousDigest: st.digest, stateDigest: st.stateDigest, floorDigest: st.dominatingFloorDigest });
+   NET.delayMs = 40;
+   const [c, en] = await Promise.all([relay(l, "POST", "/commit", { file: BR, text: F }).catch(() => null), enroll(l, pkg)]);
+   NET.delayMs = 0;
+@@ -376,6 +378,19 @@ test("restore/recover: the archive is not freshness - high-water at least the re
+   const prev = held.digest, sd = held.stateDigest;
+   assert.equal(DS.checkEnrollment(P({ at: 2, mode: "rotate", previousDigest: prev, stateDigest: sd, floorDigest: NULL_FLOOR }), ctxOf(d)).error, "wrong_floor");
+   assert.equal(DS.checkEnrollment(P({ at: 2, mode: "rotate", previousDigest: prev, stateDigest: sd, floorDigest: DS.floorDigestOf(FLOOR) }), ctxOf(d)).ok, true);
++  // the reader floor may be AHEAD of the bridge's: the rotate carries the dominating one of BOTH; incomparable refuses
++  const dr = fs.mkdtempSync(path.join(tmp, "rotate-"));
++  DS.writeEnrollment(dr, g.record);
++  const rot = (readerFloor, bridgeFloor) => { DS.writeStateFile(dr, BR, Buffer.from(bridgeWith(bridgeFloor))); DS.writeStateFile(dr, "reader/derived-state.json", Buffer.from(JSON.stringify({ floor: readerFloor })));
++    const h = committed(dr); return (fd) => DS.checkEnrollment(P({ at: 2, mode: "rotate", previousDigest: h.digest, stateDigest: h.stateDigest, floorDigest: fd }), ctxOf(dr)); };
++  let tryFd = rot(anchor(110, 55), FLOOR);
++  assert.equal(tryFd(DS.floorDigestOf(FLOOR)).error, "wrong_floor", "not the bridge's when the reader is ahead");
++  assert.equal(tryFd(DS.floorDigestOf(anchor(110, 55))).ok, true);
++  assert.equal(rot(anchor(110, 40), FLOOR)(DS.floorDigestOf(anchor(110, 40))).error, "floor_incomparable");
++  assert.equal(rot({ ...FLOOR, l1: { ...FLOOR.l1, timestamp: 2 } }, FLOOR)(DS.floorDigestOf(FLOOR)).error, "floor_incomparable", "same height, other timestamp");
++  assert.equal(rot({ ...FLOOR, base: { ...FLOOR.base, messagePasserStorageRoot: H(77) } }, FLOOR)(DS.floorDigestOf(FLOOR)).error, "floor_incomparable");
++  assert.equal(rot(FLOOR, FLOOR)(DS.floorDigestOf(FLOOR)).ok, true, "identical floors");
++  assert.deepEqual(DS.dominatingFloor([null, null]), { floor: null });
+   DS.writeMarker(d, DS.restoreMarker({ head: { epoch: 3, seq: 9 }, archivedAt: 5, at: 6 }));
+   held = committed(d);
+   assert.equal(DS.gateEnrollment(held, { groupId, readerPins: rp }).ok, false, "a restored group is unenrolled");
+@@ -388,11 +403,10 @@ test("restore/recover: the archive is not freshness - high-water at least the re
+   assert.equal(R(anchor(100, 60, 7)).error, "high_water_below_restored", "same base number, other block");
+   assert.equal(R({ ...FLOOR, base: { ...FLOOR.base, outputRoot: H(9) } }).error, "high_water_below_restored", "same base block, other output root");
+   assert.equal(R(FLOOR, { floorDigest: NULL_FLOOR }).error, "bad_enrollment");
++  assert.equal(R({ ...FLOOR, l1: { ...FLOOR.l1, timestamp: 2 } }).error, "high_water_below_restored", "same L1 height, other timestamp");
++  assert.equal(R((({ messagePasserStorageRoot, ...b }) => ({ ...FLOOR, base: b }))(FLOOR.base)).error, "high_water", "a high-water is a full anchor");
+   assert.equal(R(FLOOR, { markerDigest: null }).error, "not_restored");
+-  for (const hw of [FLOOR, anchor(150, 50, 0), anchor(150, 70)]) {
+-    const r = hw === FLOOR || hw.l1.number !== 50 ? R(hw) : R({ ...hw, l1: FLOOR.l1 });
+-    assert.equal(r.ok, true, JSON.stringify(r));
+-  }
++  for (const hw of [FLOOR, anchor(150, 50), anchor(150, 70)]) assert.equal(R(hw).ok, true, JSON.stringify(R(hw)));
+   const r = R(anchor(150, 70)); DS.writeEnrollment(d, r.record); held = committed(d);
+   assert.equal(DS.gateEnrollment(held, { groupId, readerPins: rp }).ok, true);
+   const desc = JSON.parse(fs.readFileSync(DS.seedDerivedState({ root: d, stateDir: path.join(d, "rs"), anchorJournal: path.join(d, "rs", "anchor-journal.json"), held, boot: "cd".repeat(16) }).ENCLAVE_DERIVED_STATE, "utf8"));
+@@ -405,6 +419,12 @@ test("restore/recover: the archive is not freshness - high-water at least the re
+   DS.writeMarker(d2, DS.restoreMarker({ head: { epoch: 1, seq: 1 }, archivedAt: 1, at: 2 })); DS.writeStateFile(d2, BR, Buffer.from(A));
+   const h2 = committed(d2);
+   assert.equal(DS.checkEnrollment(P({ mode: "recover", stateDigest: h2.stateDigest, markerDigest: h2.markerDigest }), ctxOf(d2)).error, "wrong_state");
++  // never auto-genesis: a restored group with no derived state still needs a non-null admin high-water (root decision pending: contract-r3 §5.1)
++  const d4 = fs.mkdtempSync(path.join(tmp, "restore4-")); DS.writeMarker(d4, DS.restoreMarker({ head: { epoch: 1, seq: 1 }, archivedAt: 1, at: 2 }));
++  const h4 = committed(d4);
++  assert.equal(DS.checkEnrollment(P({ mode: "recover", markerDigest: h4.markerDigest }), ctxOf(d4)).error, "high_water");
++  assert.equal(DS.checkEnrollment(P({ markerDigest: h4.markerDigest }), ctxOf(d4)).error, "not_genesis");
++  assert.equal(DS.checkEnrollment(P({ mode: "recover", markerDigest: h4.markerDigest, highWater: HW, floorDigest: DS.floorDigestOf(HW) }), ctxOf(d4)).ok, true);
+   // the committed view: a local file outside the scan, or other local bytes, refuses; nothing is repaired
+   const d3 = fs.mkdtempSync(path.join(tmp, "scan-"));
+   DS.writeEnrollment(d3, g.record); const scan = scanDir(d3);
+@@ -414,7 +434,7 @@ test("restore/recover: the archive is not freshness - high-water at least the re
+   fs.rmSync(path.join(d3, DS.STATE_DIR), { recursive: true }); fs.writeFileSync(path.join(d3, DS.ENROLL_FILE), "{}");
+   assert.match(DS.readState(d3, scan).error, /differs from the committed scan/);
+   assert.throws(() => DS.seedDerivedState({ root: d3, stateDir: path.join(d3, "rs"), anchorJournal: path.join(d3, "rs", "a.json"), held: DS.readState(d3), boot: "cd".repeat(16) }), /committed state/);
+-  assert.equal(DS.anchorAtLeast(anchor(5, 5), null), true);
++  assert.equal(DS.anchorDominates(anchor(5, 5), null), true); assert.equal(DS.anchorDominates(null, anchor(5, 5)), false);
+ });
+ 
+ // ---- the committer and the writer adapter, alone ----
+@@ -468,23 +488,24 @@ test("committer: exact echo only; refused vs OUTCOME UNKNOWN; every failure fenc
+   assert.throws(() => createDerivedCommitter({ boot: "short", proc: fakeProc() }), { code: "derived_commit_config" });
+ });
+ 
+-test("writer adapter: an EXACT runtime declaration or nothing; split dirs with stateDir deleted; only the two canonical absolute paths map to IPC names", async () => {
++test("writer adapter: KVM's exact declaration or nothing; enroll on missing/pending/changed binding or digest only; stateDir deleted; canonical paths only", async () => {
+   const d = fs.realpathSync(fs.mkdtempSync(path.join(tmp, "adapter-")));
+-  const cfgFile = path.join(d, "reader.json"), stateFile = path.join(d, "state.json"), J = path.join(d, "j.json"), R = path.join(d, "derived-state.json");
++  const JD = path.join(d, "journal"); fs.mkdirSync(JD);
++  const cfgFile = path.join(d, "reader.json"), stateFile = path.join(d, "state.json"), J = path.join(d, "j.json"), R = path.join(JD, "derived-state.json"), DG = "d".repeat(64);
+   fs.writeFileSync(cfgFile, JSON.stringify({ maxAnchorAgeSec: 1800, stateDir: "/legacy" }));
+-  const desc = (mode, files) => ({ format: DS.STATE_FORMAT, enrollment: { mode, digest: "d".repeat(64) }, files, journalDir: d, coverageDir: path.join(d, "c"), runsDir: path.join(d, "r"),
+-    paths: { "reader/derived-state.json": R, [BR]: J }, commit: { protocol: DS.COMMIT_PROTOCOL, boot: BOOT } });
++  const desc = (mode, files, extra = {}) => ({ format: DS.STATE_FORMAT, enrollment: { mode, digest: DG, binding: BINDING, highWater: mode === "recover" ? HW : null, ...extra }, files,
++    journalDir: JD, coverageDir: path.join(d, "coverage", BINDING), runsDir: path.join(d, "runs"), paths: { "reader/derived-state.json": R, [BR]: J }, commit: { protocol: DS.COMMIT_PROTOCOL, boot: BOOT } });
+   const env = { ENCLAVE_WRITER_AUTHORITY_SOURCE: "derived", ENCLAVE_DERIVED_READER_CONFIG: cfgFile, ENCLAVE_DERIVED_ANCHOR_JOURNAL: J, ENCLAVE_DERIVED_STATE: stateFile, ENCLAVE_DERIVED_COMMIT_BOOT: BOOT };
+   const relayChain = { client: {} }, readFile = (f, enc) => fs.promises.readFile(f, enc);
+   fs.writeFileSync(stateFile, JSON.stringify(desc("genesis", [])));
+   const calls = [];
+   const fakeCommitter = ({ boot }) => { assert.equal(boot, BOOT); return { commit: async (q) => { calls.push(["commit", q.file]); return true; }, verifyEnrollment: async (q) => { calls.push(["verify", q.binding]); return {}; }, status: () => ({}) }; };
+   let seen, started = false;
+-  const full = { DERIVED_STATE_API, derivedReaderBinding: () => "bb".repeat(32), openLifecycleJournal: (f, o) => { seen.bridge = { f, o }; return { journal: true }; },
+-    enrollDerivedState: async (c, o) => { seen.enroll = { c, o }; await o.verifyEnrollment({ binding: "bb".repeat(32), floorDigest: "f".repeat(64) }); await o.commit({ file: R }); await o.commit({ file: J }); },
++  const full = { DERIVED_STATE_API, derivedReaderBinding: () => BINDING, derivedEnrollmentFloorDigest: DS.floorDigestOf, openLifecycleJournal: (f, o) => { seen.bridge = { f, o }; return { journal: true }; },
++    enrollDerivedState: async (c, o) => { seen.enroll = { c, o }; await o.verifyEnrollment({ binding: BINDING, floorDigest: "f".repeat(64) }); await o.commit({ file: R }); await o.commit({ file: J }); },
+     startDerivedLifecycleReader: async (c, o) => { seen.reader = { c, o }; started = true; throw new Error("fixture stop"); } };
+-  // undeclared or partially declared runtimes get NOTHING (null: the relay refuses writer authority) and start nothing
+-  for (const rt of [{ ...full, DERIVED_STATE_API: undefined }, { ...full, DERIVED_STATE_API: "enclave-derived-state/v0" }, (({ derivedReaderBinding, ...r }) => r)(full), (({ enrollDerivedState, ...r }) => r)(full)]) {
++  for (const rt of [{ ...full, DERIVED_STATE_API: undefined }, { ...full, DERIVED_STATE_API: "enclave-derived-state/v0" }, (({ derivedReaderBinding, ...r }) => r)(full),
++                    (({ derivedEnrollmentFloorDigest, ...r }) => r)(full), (({ enrollDerivedState, ...r }) => r)(full)]) {
+     seen = {}; const logs = [];
+     assert.equal(declaresDerivedStateApi(rt), false);
+     assert.equal(await derivedWriterAuthorityFromEnv(env, { relayChain, readFile, loadRuntime: async () => rt, log: (m) => logs.push(m), createCommitter: fakeCommitter }), null);
+@@ -492,32 +513,52 @@ test("writer adapter: an EXACT runtime declaration or nothing; split dirs with s
+   }
+   assert.equal(declaresDerivedStateApi(full), true);
+   const both = [{ rel: "reader/derived-state.json", path: R }, { rel: BR, path: J }];
+-  for (const [mode, files, enrolls] of [["genesis", [], true], ["genesis", [both[1]], true], ["rotate", both, false], ["recover", both, false]]) {
++  const rec = (o) => JSON.stringify({ format: "enclave-derived-root-journal/v1", binding: BINDING, floor: null, entries: [], enrollment: { digest: DG, phase: "committed" }, ...o });
++  for (const [name, mode, files, readerText, enrolls] of [
++    ["genesis, nothing committed", "genesis", [], null, true], ["genesis, bridge only", "genesis", [both[1]], null, true],
++    ["pending reader + bridge (crash after ACK2)", "genesis", both, rec({ enrollment: { digest: DG, phase: "pending" } }), true],
++    ["complete matching", "genesis", both, rec({}), false], ["complete, ADVANCED floor and entries: normal open", "rotate", both, rec({ floor: HW, entries: [{ x: 1 }] }), false],
++    ["binding changed (rotate)", "rotate", both, rec({ binding: "aa".repeat(32) }), true], ["enrollment digest changed (recover)", "recover", both, rec({ enrollment: { digest: "e".repeat(64), phase: "committed" } }), true]]) {
+     seen = {}; calls.length = 0;
++    if (readerText === null) fs.rmSync(R, { force: true }); else fs.writeFileSync(R, readerText);
+     fs.writeFileSync(stateFile, JSON.stringify(desc(mode, files)));
+-    await assert.rejects(derivedWriterAuthorityFromEnv(env, { relayChain, readFile, loadRuntime: async () => full, createCommitter: fakeCommitter }), /fixture stop/);
+-    assert.equal(!!seen.enroll, enrolls, mode);
+-    if (enrolls) { assert.deepEqual(calls.slice(0, 3), [["verify", "bb".repeat(32)], ["commit", "reader/derived-state.json"], ["commit", BR]]); assert.equal(seen.enroll.o.anchorJournal, J); assert.equal("stateDir" in seen.enroll.c, false); }
+-    assert.equal(seen.bridge.f, J);
+-    assert.equal(seen.bridge.o.requireExisting, true); assert.equal(seen.bridge.o.requireCommit, true); assert.equal(typeof seen.bridge.o.commit, "function");
+-    assert.equal(seen.reader.o.requireJournalCommit, true); assert.equal(typeof seen.reader.o.journalCommit, "function"); assert.ok(seen.reader.o.commitTimeoutMs > 0);
++    await assert.rejects(derivedWriterAuthorityFromEnv(env, { relayChain, readFile, loadRuntime: async () => full, createCommitter: fakeCommitter }), /fixture stop/, name);
++    assert.equal(!!seen.enroll, enrolls, name);
++    if (enrolls) {
++      assert.deepEqual(calls.slice(0, 3), [["verify", BINDING], ["commit", "reader/derived-state.json"], ["commit", BR]]);
++      assert.equal(seen.enroll.o.anchorJournal, J); assert.equal("stateDir" in seen.enroll.c, false);
++      assert.deepEqual(seen.enroll.o.enrollmentFloor, mode === "recover" ? HW : undefined, "enrollmentFloor only as the recover proposal");
++    }
++    assert.equal(seen.bridge.f, J); assert.equal(seen.bridge.o.requireExisting, true); assert.equal(seen.bridge.o.requireCommit, true);
++    assert.equal(seen.reader.o.requireJournalCommit, true); assert.ok(seen.reader.o.commitTimeoutMs > 0);
+     assert.equal("stateDir" in seen.reader.c, false, "the legacy stateDir is deleted with the split fields");
+-    assert.deepEqual([seen.reader.c.journalDir, seen.reader.c.coverageDir, seen.reader.c.runsDir], [d, path.join(d, "c"), path.join(d, "r")]);
++    assert.deepEqual([seen.reader.c.journalDir, seen.reader.c.coverageDir, seen.reader.c.runsDir], [JD, path.join(d, "coverage", BINDING), path.join(d, "runs")]);
+     await seen.reader.o.journalCommit({ file: R }); assert.deepEqual(calls.at(-1), ["commit", "reader/derived-state.json"]);
+-    for (const file of ["reader/derived-state.json", d + "/x/../derived-state.json", path.join(d, "other.json"), "/etc/passwd", 7])
++    for (const file of ["reader/derived-state.json", JD + "/x/../derived-state.json", path.join(d, "other.json"), "/etc/passwd", 7])
+       await assert.rejects(seen.reader.o.journalCommit({ file }), { code: "derived_journal_path" }, String(file));
+   }
+-  // descriptor paths that are not the canonical ones refuse (before any runtime call)
++  fs.writeFileSync(stateFile, JSON.stringify({ ...desc("rotate", both), coverageDir: path.join(d, "coverage") }));
++  await assert.rejects(derivedWriterAuthorityFromEnv(env, { relayChain, readFile, loadRuntime: async () => full, createCommitter: fakeCommitter }), /coverage directory is not the one of the signed binding/);
+   fs.writeFileSync(stateFile, JSON.stringify({ ...desc("rotate", both), paths: { "reader/derived-state.json": path.join(d, "elsewhere.json"), [BR]: J } }));
+   await assert.rejects(derivedWriterAuthorityFromEnv(env, { relayChain, readFile, loadRuntime: async () => full, createCommitter: fakeCommitter }), /not the canonical ones/);
+   fs.writeFileSync(stateFile, JSON.stringify({ format: "other" }));
+   await assert.rejects(derivedWriterAuthorityFromEnv(env, { relayChain, readFile, loadRuntime: async () => full }), /not an enclave-derived-state\/v1 descriptor/);
+-  // symlinks: neither the journal file nor its directory may be one
+   const real = fs.mkdtempSync(path.join(d, "real-")), link = path.join(d, "link");
+   fs.symlinkSync(real, link);
+-  const viaLink = journalNameMapper({ "reader/derived-state.json": path.join(link, "derived-state.json"), [BR]: J });
+-  assert.throws(() => viaLink(path.join(link, "derived-state.json")), { code: "derived_journal_path" });
+-  fs.writeFileSync(path.join(real, "target.json"), "{}"); fs.symlinkSync(path.join(real, "target.json"), R);
++  assert.throws(() => journalNameMapper({ "reader/derived-state.json": path.join(link, "derived-state.json"), [BR]: J })(path.join(link, "derived-state.json")), { code: "derived_journal_path" });
++  fs.rmSync(R, { force: true }); fs.writeFileSync(path.join(real, "target.json"), "{}"); fs.symlinkSync(path.join(real, "target.json"), R);
+   assert.throws(() => journalNameMapper({ "reader/derived-state.json": R, [BR]: J })(R), { code: "derived_journal_path" });
+   assert.throws(() => journalNameMapper({ "reader/derived-state.json": "rel/x.json", [BR]: J }), /invalid canonical journal path/);
+ });
++
++// ---- the replica's catch-up snapshot ships only the scanned bytes (relay/state-replica.mjs readAllExact) ----
++test("replica: a catch-up snapshot is never sent with bytes other than the scanned ones", () => {
++  const d = fs.mkdtempSync(path.join(tmp, "replica-"));
++  fs.writeFileSync(path.join(d, "a.json"), "one");
++  const scan = scanDir(d);
++  assert.deepEqual(readAllExact(d, scan), { "a.json": Buffer.from("one").toString("base64") });
++  fs.writeFileSync(path.join(d, "a.json"), "two");
++  assert.throws(() => readAllExact(d, scan), { code: "changed" });
++  fs.rmSync(path.join(d, "a.json"));
++  assert.throws(() => readAllExact(d, scan), { code: "changed" });
++});
+diff --git a/test/derived-state-kvm-composition.test.mjs b/test/derived-state-kvm-composition.test.mjs
+new file mode 100644
+index 0000000..35d1e76
+--- /dev/null
++++ b/test/derived-state-kvm-composition.test.mjs
+@@ -0,0 +1,174 @@
++// accepted-image-enrollment r3: the role + private IPC + ReplicaNode composed with the ACTUAL KVM modules (journal-durability r2:
++// network/derived-reader/provider.mjs enrollDerivedState/derivedReaderBinding, network/deployment-lifecycle-journal.mjs
++// openLifecycleJournal), through the REAL writer adapter (relay/derived-writer-authority.mjs) and the REAL runtime module
++// (relay/derived-reader-runtime.mjs). What is NOT real: the reader START (startDerivedLifecycleReader needs live L1/Helios), which
++// the relay stand-in replaces AFTER every durable step; and the members are co-located in this process (NOT a quorum).
++// Needs DERIVED_READER_INPUTS (the qualified pinned inputs: the real checkpoint is what derivedReaderBinding reads; it is refused
++// after 2026-11-01T19:21:59Z). No chain, SNP or quorum claim.
++import test, { after } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import net from "node:net";
++import http from "node:http";
++import path from "node:path";
++import { createHash, randomBytes } from "node:crypto";
++import { fileURLToPath, pathToFileURL } from "node:url";
++import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
++import { recoverMessageAddress } from "viem";
++import * as MC from "../metal/guest/measured-control.mjs";
++import * as DS from "../metal/guest/derived-state.mjs";
++import { startRole, packageMessage, PACKAGE_FORMAT } from "../metal/guest/platform-api-role.mjs";
++import { derivedReaderBinding, DERIVED_STATE_API } from "../network/derived-reader/provider.mjs";
++import * as RUNTIME from "../relay/derived-reader-runtime.mjs";
++import { declaresDerivedStateApi } from "../relay/derived-writer-authority.mjs";
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const IN = process.env.DERIVED_READER_INPUTS || "";
++const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "derived-kvm-")));
++const M = [];
++after(async () => { for (const m of M) { try { await m.role.stop(); } catch {} } fs.rmSync(tmp, { recursive: true, force: true }); });
++const sha = (b) => createHash("sha256").update(b).digest("hex");
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const freePort = () => new Promise((ok) => { const s = net.createServer(); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => ok(p)); }); });
++const waitFor = async (what, fn, ms = 60000) => { const until = Date.now() + ms; let last; while (Date.now() < until) { try { last = await fn(); if (last) return last; } catch (e) { last = e.message; } await sleep(150); } throw new Error(`timed out waiting for ${what} (${String(last).slice(0, 300)})`); };
++const a = (n) => "0x" + n.toString(16).padStart(40, "0");
++const N = 3, K = randomBytes(32).toString("hex"), HOSTNAME = "api.kvm.test", BR = "bridge/anchor-journal.json", RD = "reader/derived-state.json";
++const ADMIN = privateKeyToAccount(generatePrivateKey());
++const OPS = [...Array(N)].map(() => privateKeyToAccount(generatePrivateKey()).address.toLowerCase());
++const CTL = path.join(tmp, "ctl"); fs.mkdirSync(CTL);
++
++// the measured image record with a template whose pinned inputs are the REAL ones (same sha256s; only the paths differ)
++const record = JSON.parse(fs.readFileSync(path.join(REPO, "metal/derived-reader-image.json"), "utf8"));
++const template = JSON.parse(fs.readFileSync(path.join(REPO, record.config.source), "utf8"));
++template.native.path = path.join(IN, "derivation_harness_lease_v3"); template.native.runtime.dir = IN;
++template.l1.binary.path = path.join(IN, "helios"); template.l1.runtime.dir = IN; template.l1.checkpointFile = path.join(IN, "checkpoint.json");
++const TPL = path.join(tmp, "template.json"), IMAGE = path.join(tmp, "DERIVED-READER-IMAGE.json");
++fs.writeFileSync(TPL, JSON.stringify(template, null, 2) + "\n");
++fs.writeFileSync(IMAGE, JSON.stringify({ ...record, config: { ...record.config, path: TPL, sha256: sha(fs.readFileSync(TPL)) } }));
++const PINS = sha(fs.readFileSync(IMAGE));
++
++// the relay stand-in: the REAL adapter over the REAL runtime module; only the reader start is replaced (after every durable step)
++const STUB = path.join(tmp, "kvm-relay.mjs");
++const href = (p) => JSON.stringify(pathToFileURL(path.join(REPO, p)).href);
++fs.writeFileSync(STUB, `import http from "node:http"; import fs from "node:fs"; import path from "node:path"; import { createHash } from "node:crypto";
++import { derivedWriterAuthorityFromEnv } from ${href("relay/derived-writer-authority.mjs")};
++import * as REAL from ${href("relay/derived-reader-runtime.mjs")};
++import { createDerivedCommitter } from ${href("relay/derived-state-commit.mjs")};
++const CTL = process.env.STUB_CTL, events = [];
++const once = (n) => { const f = path.join(CTL, n); if (!fs.existsSync(f)) return 0; const v = Number(fs.readFileSync(f, "utf8")); fs.unlinkSync(f); return v; };
++const dieAfterAck = process.env.ENCLAVE_DERIVED_STATE ? once("die-after-ack") : 0;   // a crash right after the Nth confirmed ACK
++let acks = 0;
++const createCommitter = (o) => { const c = createDerivedCommitter(o); return { ...c,
++  commit: async (q) => { const r = await c.commit(q); acks++; events.push(["ack", q.file]); if (dieAfterAck && acks === dieAfterAck) process.exit(1); return r; },
++  verifyEnrollment: async (q) => { events.push(["verify", q.binding]); return c.verifyEnrollment(q); } }; };
++const runtime = { ...REAL,
++  enrollDerivedState: async (config, options) => { events.push(["enroll", { hasStateDir: "stateDir" in config, coverageDir: config.coverageDir }]); return REAL.enrollDerivedState(config, options); },
++  startDerivedLifecycleReader: async (config, options) => { events.push(["start", { hasStateDir: "stateDir" in config, journalDir: config.journalDir, requireJournalCommit: options.requireJournalCommit }]);
++    const none = async () => { throw new Error("no live reader in this test"); }; return { reader: { readDerivedLogs: none }, snapshot: none, close: async () => {} }; } };
++let authority = null;
++if (process.env.ENCLAVE_WRITER_AUTHORITY_SOURCE) {
++  try { authority = await derivedWriterAuthorityFromEnv(process.env, { relayChain: { client: {} }, loadRuntime: async () => runtime, readFile: (p, e) => fs.promises.readFile(p, e),
++    createCommitter, log: (m) => events.push(["log", m]) }); }
++  catch (e) { fs.appendFileSync(path.join(CTL, "fatal.log"), e.message + "\\n"); process.exit(1); }     // as relay/api-relay.js
++}
++const ram = (p) => { try { const b = fs.readFileSync(p); return { sha256: createHash("sha256").update(b).digest("hex"), text: b.toString() }; } catch { return null; } };
++const s = http.createServer((req, res) => {
++  let d = null; try { d = process.env.ENCLAVE_DERIVED_STATE ? JSON.parse(fs.readFileSync(process.env.ENCLAVE_DERIVED_STATE, "utf8")) : null; } catch {}
++  res.writeHead(200, { "content-type": "application/json" });
++  res.end(JSON.stringify({ authority: !!authority, events, intended: process.env.ENCLAVE_DERIVED_INTENDED === "1", descriptor: d,
++    reader: d ? ram(d.paths["${RD}"]) : null, bridge: d ? ram(d.paths["${BR}"]) : null, marker: d ? fs.existsSync(path.join(d.journalDir, ".enrollment-inflight")) : null }));
++});
++s.listen(0, "127.0.0.1", () => process.send({ t: "listening", port: s.address().port }));
++`);
++
++const postFor = (from) => async (url, buf) => {
++  const to = M.findIndex((m) => url.startsWith(m.controlUrl + "/"));
++  if (to < 0 || M[to].stopped) throw new Error("partitioned");
++  const n = M[to].role.node(); if (!n) throw new Error("no key");
++  return n.handle(buf);
++};
++const PA = () => ({ apiPort: 8098, peerPort: 8099, hostname: HOSTNAME,
++  members: OPS.map((op, i) => ({ operator: op, publicUrl: `https://host-${i}.example.org`, controlUrl: `https://198.51.100.${10 + i}:8444` })),
++  measurements: ["77".repeat(48)], minTcb: null, admins: [ADMIN.address.toLowerCase()], recovery: ["11".repeat(32)], archives: [], archiveMs: 30000,
++  relayEnv: { STUB_CTL: CTL, ADDRESS_BOOK_ADDRESS: "0x7777777777777777777777777777777777777777", ENCLAVE_CHAIN_AUTHORITY: "verifier", ENCLAVE_CHAIN_VERIFIER: "http://127.0.0.1:9" }, leaseMs: 2000,
++  derivedReader: { format: MC.DERIVED_READER_ENDPOINTS_FORMAT, l1ConsensusUrl: "http://10.0.2.2:25052", l1ExecutionUrl: "http://10.0.2.2:28645", baseUrl: "http://10.0.2.2:28545" } });
++async function bootMember(i) {
++  const d = fs.mkdtempSync(path.join(tmp, `m${i}-`));
++  const P = { ...MC.GUEST_PATHS, runDir: d, sessionDir: path.join(d, "session"), statement: path.join(d, "statement.json"), tlsKey: path.join(d, "tls-key.pem"),
++              tlsCert: path.join(d, "tls-cert.pem"), platformApiConfig: path.join(d, "platform-api.json"), platformApiHandoffKey: path.join(d, "handoff.key"), platformApiDir: path.join(d, "pa") };
++  const config = MC.canonicalDirectConfig({ format: MC.CONFIG_FORMAT, chainId: 8453,
++    contracts: { registry: a(0x11), deployments: a(0x12), appCatalog: a(0x13), proofOfTime: a(0x14), enclavePay: a(0), verificationFees: a(0), sessionVaultFactory: a(0), secretVaultV2: a(0) },
++    profileDigest: null, rpcs: ["https://rpc-a.example/v1", "https://rpc-b.example"], quorum: 2, releaseId: "ab".repeat(32), replicas: { gateways: ["https://replica.example"], storagePlan: null },
++    identity: { publicUrl: `https://host-${i}.example.org`, repo: "owner/enclave", operator: OPS[i] }, selling: { cpuPrice6: null, payout: null },
++    isolation: { managerUrl: "http://10.0.2.2:8095", dataAddr: "10.0.2.2:8096" }, hostAdmissionSha256: null, controlPort: 8444, platformApi: PA() });
++  const digest = MC.configDigest(config), hostData = MC.hostDataHex(digest);
++  const keys = MC.mintControlKeys({ paths: P }); keys.platformApi = { publicKey: MC.mintPlatformApiKey({ paths: P }) };
++  fs.writeFileSync(P.statement, MC.controlStatement({ config, digest, hostData, mode: "dev", keys }).text);
++  const launch = MC.directPlatformApiLaunch(config, { paths: P }), ports = { api: await freePort(), peer: await freePort() };
++  const roleCfg = { ...JSON.parse(launch.files[P.platformApiConfig]), listen: ports, askMs: 300 };
++  fs.mkdirSync(roleCfg.dirs.root, { recursive: true, mode: 0o700 }); fs.writeFileSync(path.join(roleCfg.dirs.root, "k"), K, { mode: 0o600 });
++  const m = { i, roleCfg, ports, controlUrl: config.platformApi.members[i].controlUrl };
++  m.role = await startRole({ cfg: roleCfg, recoverMessageAddress, verifyPeer: async () => ({ ok: false, reason: "not in this test" }), log: () => {},
++    relayArgv: [process.execPath, STUB], postImpl: postFor(i), derivedImage: IMAGE, derivedStableMs: 1000, derivedRetryMs: 1500 });
++  return m;
++}
++const leader = () => M.find((m) => !m.stopped && m.role.status().role === "leader" && m.role.status().relay);
++const get = (m) => new Promise((ok, no) => { const r = http.request({ host: "127.0.0.1", port: m.ports.api, path: "/state", agent: false, headers: { host: HOSTNAME, "x-enclave-client-ip": "127.0.0.1" } }, (res) => {
++  const c = []; res.on("data", (x) => c.push(x)); res.on("end", () => { try { ok(JSON.parse(Buffer.concat(c).toString())); } catch (e) { no(e); } }); }); r.on("error", no); r.end(); });
++const enroll = (m, pkg) => new Promise((ok, no) => { const b = Buffer.from(JSON.stringify(pkg));
++  const r = http.request({ host: "127.0.0.1", port: m.ports.peer, method: "POST", path: DS.ENROLL_PATH, agent: false, headers: { "content-type": "application/json", "content-length": b.length } }, (res) => {
++    const c = []; res.on("data", (x) => c.push(x)); res.on("end", () => ok({ status: res.statusCode, json: JSON.parse(Buffer.concat(c).toString() || "{}") })); }); r.on("error", no); r.end(b); });
++async function pkgFor(m, fields) {
++  const body = { format: PACKAGE_FORMAT, kind: DS.ENROLL_KIND, groupId: m.role.groupId, targetStatementSha256: m.role.statementSha, at: Date.now(), mode: "genesis", readerPins: PINS,
++    binding: BINDING, floorDigest: DS.floorDigestOf(null), previousDigest: null, stateDigest: null, markerDigest: null, highWater: null, ...fields };
++  return { ...body, signature: await ADMIN.signMessage({ message: packageMessage(body) }) };
++}
++const committed = (m, rel) => DS.stateFileSha(m.roleCfg.dirs.data, rel);
++let BINDING = null, DIGEST = null;
++const finalReader = () => JSON.stringify({ format: "enclave-derived-root-journal/v1", binding: BINDING, floor: null, entries: [], enrollment: { digest: DIGEST, phase: "committed" } });
++const emptyBridge = JSON.stringify({ version: 1, deployments: [], authorityAnchors: {} });
++
++test("the composed runtime declares KVM's own API, and the signed binding is KVM's derivedReaderBinding of the image template", { timeout: 30000 }, () => {
++  assert.ok(IN && fs.existsSync(path.join(IN, "checkpoint.json")), "DERIVED_READER_INPUTS must name the qualified pinned inputs (never skipped)");
++  assert.equal(DERIVED_STATE_API, "enclave-derived-state/v1"); assert.equal(RUNTIME.DERIVED_STATE_API, DERIVED_STATE_API);
++  assert.equal(declaresDerivedStateApi(RUNTIME), true);
++  BINDING = derivedReaderBinding({ ...template, stateDir: undefined, journalDir: "/x/journal", coverageDir: "/x/coverage", runsDir: "/x/runs" });
++  assert.match(BINDING, /^[0-9a-f]{64}$/);
++  assert.equal(derivedReaderBinding({ ...template, stateDir: undefined, journalDir: "/y/j", coverageDir: "/y/c", runsDir: "/y/r" }), BINDING, "the binding does not depend on cache/journal paths");
++});
++
++test("genesis through REAL KVM + role IPC + ReplicaNode: a crash after ACK 1 resumes the exact committed prefix (2 more ACKs), never a reset or a deadlock", { timeout: 180000 }, async () => {
++  for (let i = 0; i < N; i++) M.push(await bootMember(i));
++  const l = await waitFor("a primary with its relay", () => leader());
++  assert.equal((await get(l)).intended, true);
++  fs.writeFileSync(path.join(CTL, "die-after-ack"), "1");
++  const r = await enroll(l, await pkgFor(l, {})); assert.equal(r.status, 200, JSON.stringify(r.json)); DIGEST = r.json.digest;
++  const s = await waitFor("derived authority after the resumed genesis", async () => { const x = await get(leader()); return x.authority ? x : null; });
++  assert.equal(fs.existsSync(path.join(CTL, "die-after-ack")), false, "the first child crashed after ACK 1");
++  assert.deepEqual(s.events.filter((e) => e[0] === "ack").map((e) => e[1]), [s.descriptor.paths[BR], s.descriptor.paths[RD]].map((p) => p), "the resumed child sent ONLY the remaining two writes");
++  assert.deepEqual(s.events.find((e) => e[0] === "enroll")[1], { hasStateDir: false, coverageDir: path.join(path.dirname(s.descriptor.journalDir), "coverage", BINDING) });
++  assert.deepEqual(s.events.find((e) => e[0] === "start")[1].hasStateDir, false);
++  assert.deepEqual(s.descriptor.files.map((f) => f.rel), [RD], "the resumed child was seeded with exactly the committed pending reader");
++  assert.equal(s.marker, false, "KVM removed its in-flight marker after every ACK");
++  assert.equal(s.reader.text, finalReader()); assert.equal(s.bridge.text, emptyBridge);
++  for (const m of M) await waitFor(`member ${m.i} to hold the exact genesis pair`, () => committed(m, RD) === sha(finalReader()) && committed(m, BR) === sha(emptyBridge));
++});
++
++test("a complete matching enrollment opens normally (no enrollment call) after a restart", { timeout: 120000 }, async () => {
++  const l = leader(); await sleep(1200); const old = l.role.status().childPid; process.kill(old, "SIGKILL");
++  const s = await waitFor("a new child with derived authority", async () => { const x = leader(); if (!x || x.role.status().childPid === old) return null; const y = await get(x); return y.authority ? y : null; });
++  assert.equal(s.events.some((e) => e[0] === "enroll"), false); assert.equal(s.events.some((e) => e[0] === "ack"), false);
++  assert.deepEqual(s.descriptor.files.map((f) => f.rel).sort(), [BR, RD]);
++  assert.equal(s.reader.text, finalReader());
++});
++
++test("rotate under KVM r2 is REFUSED by the runtime: derived disabled, the relay serves with the INTENDED marker (r3 carry-floor pending)", { timeout: 120000 }, async () => {
++  const l = leader(), st = l.role.status().derived;
++  const r = await enroll(l, await pkgFor(l, { mode: "rotate", previousDigest: st.digest, stateDigest: st.stateDigest, floorDigest: st.dominatingFloorDigest }));
++  assert.equal(r.status, 200, JSON.stringify(r.json));
++  const s = await waitFor("derived disabled after the refused rotation", async () => { const x = leader(); if (!x || !x.role.status().derived.disabled) return null; const y = await get(x); return !y.authority && y.intended ? y : null; });
++  assert.equal(s.descriptor, null);
++  assert.match(fs.readFileSync(path.join(CTL, "fatal.log"), "utf8"), /rotation\/recovery unsupported/);
++  for (const m of M) assert.equal(committed(m, RD), sha(finalReader()), "the refused rotation changed no committed floor or journal");
++});

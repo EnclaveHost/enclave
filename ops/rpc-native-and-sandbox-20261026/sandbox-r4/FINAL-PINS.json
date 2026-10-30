@@ -1,0 +1,12 @@
+{
+ "stage": "base-finality-proof-stage/r13-manifest-final",
+ "stageSha256sums": "80cea88861f069540bd6d4214cdcd9e2020c897558f7dd4badcf572edecccd60",
+ "files": {
+  "bootstrap/holder_gate.py": "dd68006175135c3a72b668dbc483492980612f5c2ad075ffd481396234892c07",
+  "wrapper/chain_service.py": "6a4d7aa5da385bf1d8dea74c37060eb1332d5d468625d54ae02ae878c7135189",
+  "src/finality_state.py": "5e4e38ca5742fbf91d0dda0f782525d0db0216a17de7a3de43a291a1c302e02e",
+  "units/enclave-base-holder.service.d/60-release-mode.conf": "2df07889f713d43a9d352ed954fa8f57489a9867ffcf879bb3e268acdaf6e6be",
+  "units/enclave-base-finality-reproof.service": "b36ee8d8e700b9aabf302d9ee237c7131bb4ae8adedeecf0628854acf603e945"
+ },
+ "canaryUnits": "0dae909410c4e378ec3cd277a3d737205634e7bf9ccb27980a1cda333fc879d1"
+}

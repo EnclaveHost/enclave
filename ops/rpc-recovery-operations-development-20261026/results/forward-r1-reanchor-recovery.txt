@@ -1,0 +1,247 @@
+test_another_block_at_the_floor_refuses (__main__.FinalityRestart.test_another_block_at_the_floor_refuses) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmpneexyugl/srv/data", "publicExecutionRpc": false}
+ok
+test_db_written_after_the_permit_refuses_the_start (__main__.FinalityRestart.test_db_written_after_the_permit_refuses_the_start) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmpkzpbmumw/srv/data", "publicExecutionRpc": false}
+ok
+test_in_place_rollback_below_the_floor_refuses_same_inode (__main__.FinalityRestart.test_in_place_rollback_below_the_floor_refuses_same_inode) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp3otvvz7q/srv/data", "publicExecutionRpc": false}
+ok
+test_permit_only_for_a_bootstrapped_launch_and_rollback_stays_terminal (__main__.FinalityRestart.test_permit_only_for_a_bootstrapped_launch_and_rollback_stays_terminal) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmpr6iex46q/srv/data", "publicExecutionRpc": false}
+ok
+test_permit_then_one_ordinary_restart_without_the_anchor (__main__.FinalityRestart.test_permit_then_one_ordinary_restart_without_the_anchor) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmpfwruando/srv/data", "publicExecutionRpc": false}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmpfwruando/srv/data", "publicExecutionRpc": false}
+ok
+test_a_held_lock_refuses_busy_without_writing (__main__.Ledger.test_a_held_lock_refuses_busy_without_writing) ... ok
+test_interrupted_appends_fail_closed_and_never_duplicate (__main__.Ledger.test_interrupted_appends_fail_closed_and_never_duplicate) ... ok
+test_once_only_strict_canonical_chain (__main__.Ledger.test_once_only_strict_canonical_chain) ... ok
+test_same_capture_race_from_different_workdirs_admits_exactly_once (__main__.Ledger.test_same_capture_race_from_different_workdirs_admits_exactly_once)
+There is NO per-workdir lock in the harness: different workdirs serialize only on the ledger lock. Six processes ... ok
+test_tampered_or_unsafe_ledger_refuses_without_writing (__main__.Ledger.test_tampered_or_unsafe_ledger_refuses_without_writing) ... ok
+test_anchor_below_or_conflicting_with_the_watermark_refuses_before_any_mutation (__main__.Recovery.test_anchor_below_or_conflicting_with_the_watermark_refuses_before_any_mutation) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmpwv8ccg5y/srv/data", "publicExecutionRpc": false}
+{"step": "a2", "ok": false, "refused": "watermark_below: N 52866960 is below the accepted authenticated-finality watermark 52867060 (finality-proof): an accepted finalized guarantee is never discarded"}
+{"step": "a2", "ok": false, "refused": "watermark_conflict: the anchor block at 52866960 is not the watermarked block 0xeeeeeeeeeeee..."}
+{"step": "a2", "ok": false, "refused": "watermark_conflict: the stopped DB header 52866953 is not the watermarked block (another chain)"}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+ok
+test_bounds_are_derived_never_widened (__main__.Recovery.test_bounds_are_derived_never_widened) ... ok
+test_capture_mode_config_rules (__main__.Recovery.test_capture_mode_config_rules) ... ok
+test_capture_refusals_hold_replay_wrong_initial_tamper_pin_stale_ledger (__main__.Recovery.test_capture_refusals_hold_replay_wrong_initial_tamper_pin_stale_ledger) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp8sfvqibb/srv/data", "publicExecutionRpc": false}
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp8sfvqibb/cap-1/.partial-990285/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp8sfvqibb/cap-1/.partial-990285/inputs/l1-authority-config.derived.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp8sfvqibb/cap-1/.partial-990285/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp8sfvqibb/cap-1/.partial-990285/inputs/l1-checkpoint.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp8sfvqibb/cap-2/.partial-990285/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp8sfvqibb/cap-2/.partial-990285/inputs/l1-authority-config.derived.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp8sfvqibb/cap-2/.partial-990285/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp8sfvqibb/cap-2/.partial-990285/inputs/l1-checkpoint.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"step": "a2", "ok": false, "refused": "a1_capture_pending: HOLD: the A1 capture module (a1-capture-binding-stage/r4) is not reviewed for use (A1_CAPTURE_REVIEWED)"}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": false, "refused": "a1_replayed: replayed: replayed: this capture (or its evidence) was already admitted"}
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp8sfvqibb/cap-3/.partial-990285/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp8sfvqibb/cap-3/.partial-990285/inputs/l1-authority-config.derived.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp8sfvqibb/cap-3/.partial-990285/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp8sfvqibb/cap-3/.partial-990285/inputs/l1-checkpoint.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp8sfvqibb/cap-4/.partial-990285/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp8sfvqibb/cap-4/.partial-990285/inputs/l1-authority-config.derived.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp8sfvqibb/cap-4/.partial-990285/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp8sfvqibb/cap-4/.partial-990285/inputs/l1-checkpoint.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"step": "a3", "ok": false, "refused": "a1_capture_binding: reanchor.a1Capture.initialOut is not the initial capture A2 recorded"}
+{"step": "a3", "ok": false, "refused": "a1_capture: initial_binding: initial_binding: the recheck was bound to another initial capture directory"}
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp8sfvqibb/cap-5/.partial-990285/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp8sfvqibb/cap-5/.partial-990285/inputs/l1-authority-config.derived.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp8sfvqibb/cap-5/.partial-990285/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp8sfvqibb/cap-5/.partial-990285/inputs/l1-checkpoint.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"step": "a3", "ok": false, "refused": "a1_capture_pin: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r4/src/a1_capture.py is not the reviewed capture module 000000000000..."}
+{"step": "a3", "ok": false, "refused": "a1_stale: the recheck capture finished 661 s ago (max 600): capture a new recheck"}
+{"step": "a3", "ok": false, "refused": "untrusted_file: A1 admission ledger /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp8sfvqibb/etc/base-a1-admission.jsonl must be a regular file owned by uid 0 and not group/other-writable"}
+{"step": "a3", "ok": false, "refused": "a1_capture: tampered: tampered: evidence.json differs from result.json"}
+{"step": "a3", "ok": true, "refused": null}
+ok
+test_crash_points_retire_produce_arm_fail_closed_and_rearm_is_idempotent (__main__.Recovery.test_crash_points_retire_produce_arm_fail_closed_and_rearm_is_idempotent) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmpd9v0xi5w/srv/data", "publicExecutionRpc": false}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmpd9v0xi5w/srv/data", "publicExecutionRpc": false}
+ok
+test_crash_then_same_anchor_reanchor_recovers_exactly_once_twice (__main__.Recovery.test_crash_then_same_anchor_reanchor_recovers_exactly_once_twice) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp5yxcolpl/srv/data", "publicExecutionRpc": false}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp5yxcolpl/srv/data", "publicExecutionRpc": false}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp5yxcolpl/srv/data", "publicExecutionRpc": false}
+ok
+test_gate_download_on_the_reused_db (__main__.Recovery.test_gate_download_on_the_reused_db)
+The ORIGINAL receipt still qualifies the reused datadir's ORIGIN (A2 passes); a replaced datadir or a non-empty marker refuses. ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp2t73znfv/srv/data", "publicExecutionRpc": false}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": false, "refused": "receipt_datadir: the receipt names another datadir (dev/ino)"}
+{"step": "a3", "ok": false, "refused": "marker: the snapshot-complete marker is expected EMPTY (stage_backend.py ExecStartPost touch)"}
+ok
+test_initial_pin_is_the_source_pin_only_and_the_capture_module_is_pinned (__main__.Recovery.test_initial_pin_is_the_source_pin_only_and_the_capture_module_is_pinned) ... ok
+test_lineage_rules_unit (__main__.Recovery.test_lineage_rules_unit)
+Synthetic archived launches (real launch.json bytes + real journal appends): backward, same-height-other-hash, first ... ok
+test_lineage_tamper_fork_and_orphans_refuse_before_consuming (__main__.Recovery.test_lineage_tamper_fork_and_orphans_refuse_before_consuming) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp0n8ioe05/srv/data", "publicExecutionRpc": false}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp0n8ioe05/srv/data", "publicExecutionRpc": false}
+ok
+test_missing_watermark_needs_explicit_legacy_and_legacy_only_without_one (__main__.Recovery.test_missing_watermark_needs_explicit_legacy_and_legacy_only_without_one) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmps13j0fv4/srv/data", "publicExecutionRpc": false}
+{"step": "a2", "ok": false, "refused": "watermark_missing: no accepted authenticated-finality watermark is recorded: a re-anchor without one must be declared explicitly (reanchor.legacyNoWatermark = true)"}
+{"step": "a2", "ok": false, "refused": "watermark_legacy: legacyNoWatermark is only for a store with no entry; an accepted watermark exists"}
+{"step": "a2", "ok": true, "refused": null}
+ok
+test_newer_anchor_recovers_through_real_initial_and_recheck_captures (__main__.Recovery.test_newer_anchor_recovers_through_real_initial_and_recheck_captures) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp547jbzfn/srv/data", "publicExecutionRpc": false}
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp547jbzfn/cap-1/.partial-990285/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp547jbzfn/cap-1/.partial-990285/inputs/l1-authority-config.derived.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp547jbzfn/cap-1/.partial-990285/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp547jbzfn/cap-1/.partial-990285/inputs/l1-checkpoint.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp547jbzfn/cap-2/.partial-990285/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp547jbzfn/cap-2/.partial-990285/inputs/l1-authority-config.derived.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp547jbzfn/cap-2/.partial-990285/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp547jbzfn/cap-2/.partial-990285/inputs/l1-checkpoint.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"step": "a2", "ok": true, "refused": null}
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp547jbzfn/cap-3/.partial-990285/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp547jbzfn/cap-3/.partial-990285/inputs/l1-authority-config.derived.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp547jbzfn/cap-3/.partial-990285/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp547jbzfn/cap-3/.partial-990285/inputs/l1-checkpoint.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"step": "a3", "ok": true, "refused": null}
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp547jbzfn/cap-4/.partial-990285/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp547jbzfn/cap-4/.partial-990285/inputs/l1-authority-config.derived.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp547jbzfn/cap-4/.partial-990285/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp547jbzfn/cap-4/.partial-990285/inputs/l1-checkpoint.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp547jbzfn/cap-5/.partial-990285/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp547jbzfn/cap-5/.partial-990285/inputs/l1-authority-config.derived.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp547jbzfn/cap-5/.partial-990285/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp547jbzfn/cap-5/.partial-990285/inputs/l1-checkpoint.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp547jbzfn/srv/data", "publicExecutionRpc": false}
+ok
+test_watermark_accepted_during_downtime_refuses_release_arm_and_start (__main__.Recovery.test_watermark_accepted_during_downtime_refuses_release_arm_and_start) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp7ngeiedv/srv/data", "publicExecutionRpc": false}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": false, "refused": "watermark_below: N 52866960 is below the accepted authenticated-finality watermark 52867010 (finality-proof): an accepted finalized guarantee is never discarded"}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmp7ngeiedv/srv/data", "publicExecutionRpc": false}
+ok
+test_watermark_tamper_refuses_in_harness_and_wrapper_before_consuming (__main__.Recovery.test_watermark_tamper_refuses_in_harness_and_wrapper_before_consuming) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmppe717tdb/srv/data", "publicExecutionRpc": false}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/tmp/tmppe717tdb/srv/data", "publicExecutionRpc": false}
+ok
+
+----------------------------------------------------------------------
+Ran 24 tests in 151.822s
+
+OK

@@ -1,0 +1,9 @@
+test_published_status_is_what_the_readiness_gate_requires (__main__.Gates.test_published_status_is_what_the_readiness_gate_requires) ... ok
+test_no_proof_status_is_none_and_a_missing_a1_dir_refuses (__main__.Gates.test_no_proof_status_is_none_and_a_missing_a1_dir_refuses) ... ok
+test_revoked_then_truncated_stays_terminal (__main__.Gates.test_revoked_then_truncated_stays_terminal) ... ok
+test_status_survives_only_the_bootstrapped_event_naming_this_entry (__main__.Gates.test_status_survives_only_the_bootstrapped_event_naming_this_entry) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.400s
+
+OK

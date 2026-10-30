@@ -1,0 +1,104 @@
+{
+  "base": {
+    "files": 47,
+    "path": "/home/steven/enclave-prod/release-af50d526",
+    "release_id": "af50d526be6deefcdd815968ff1dd2c04327f6c3b3f981c0aa90cc585b0effae",
+    "reverified_after_compose": true
+  },
+  "delta": {
+    "added": {
+      "template/rt/shield-source-retire-budget-1024.enabled": {
+        "content_hex": "310a",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "size": 2
+      }
+    },
+    "removed": {},
+    "replaced": {
+      "template/init": {
+        "new": {
+          "sha256": "3fbb21ef6b8a2d816e1a61e22b6d6979627bdf01c3736c7d79874b94a3175dde",
+          "size": 116960
+        },
+        "old": {
+          "sha256": "dffd093b8458e109c64756c26fe5efd8b8226da712fb03a81f28d50aaa27cb0b",
+          "size": 116880
+        },
+        "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-candidate-build/candidate/init"
+      },
+      "template/rt/libenclave_llama.so": {
+        "new": {
+          "sha256": "dd7ad838ec6b1054f8b7f3e90a91d2b35fbcc68878b101e648aea4542001e136",
+          "size": 82592
+        },
+        "old": {
+          "sha256": "5fce1b9e76824424e9d549bc2b784d946007067856d7530edb5ba958ead81b5c",
+          "size": 73344
+        },
+        "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/candidate-build/libenclave_llama.so"
+      }
+    }
+  },
+  "kind": "shield-init-retire-budget-release-receipt/1",
+  "manifest_tool": {
+    "format": "enclave-m4a-domain-release/1",
+    "is_prod_pinned": true,
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py",
+    "sha256": "6facdb9a77da31e6ddaf5a544f58a4966ea8dfdede87ad36e50818e22adbfd6b"
+  },
+  "new": {
+    "files": 48,
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/release-candidate",
+    "release_id": "1da344346ffe01df7695059bf4c27a5ef48ea6dc5cad11f6893683c71e5933f7"
+  },
+  "not_done": [
+    "measurement not predicted",
+    "release not installed or admitted",
+    "no guest restarted",
+    "not GPU, memory or throughput qualified"
+  ],
+  "production_pins": {
+    "base_is_prod": true,
+    "shim_is_reviewed": true
+  },
+  "rollback": {
+    "how": "relaunch on the base release id; the base was only read and re-verified after compose",
+    "path": "/home/steven/enclave-prod/release-af50d526",
+    "release_id": "af50d526be6deefcdd815968ff1dd2c04327f6c3b3f981c0aa90cc585b0effae"
+  },
+  "unchanged": {
+    "cmdline": "console=ttyS0 rdinit=/init loglevel=3",
+    "dirs": [
+      "template",
+      "template/dev",
+      "template/models",
+      "template/models/qwen3.8-27b-mtp-q4-vl-gguf",
+      "template/proc",
+      "template/rt",
+      "template/rt/backends",
+      "template/rt/calib",
+      "template/run",
+      "template/sys",
+      "template/tmp"
+    ],
+    "files": 45,
+    "files_canonical_sha256": "b7e0ab30c896bf0449fbc12f4d16cab187f5b1b292cf416147d1a5f391ffdac5",
+    "measure": {
+      "mode": "snp",
+      "vcpuFamily": 26,
+      "vcpuModel": 2,
+      "vcpuStepping": 1,
+      "vmmType": "QEMU"
+    },
+    "retained_markers": {
+      "template/rt/shield-model-drop-cache.enabled": {
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "size": 2
+      },
+      "template/rt/shield-original-source-reclaim.enabled": {
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "size": 2
+      }
+    }
+  }
+}

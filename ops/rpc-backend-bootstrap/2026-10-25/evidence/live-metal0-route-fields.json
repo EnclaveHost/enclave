@@ -1,0 +1,15 @@
+{
+  "endpoint": "https://api.enclave.host/t/metal0",
+  "hostServicesPresent": false,
+  "operatorConfigFile": "/home/steven/Projects/enclave/metal/config.json",
+  "runner": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
+  "rpcHostnames": [
+    "base-rpc.publicnode.com",
+    "base.drpc.org",
+    "mainnet.base.org"
+  ],
+  "networkAgentRelease": "release-808f691d0",
+  "chainVerifierPresent": false,
+  "derivedHostId": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
+  "derivedHostIdMatchesRunner": true
+}

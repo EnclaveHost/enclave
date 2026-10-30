@@ -1,0 +1,5 @@
+test/attested-paid-provider-helios.e2e.test.mjs
+test/attested-paid-provider.test.mjs
+test/attested-provider-collateral.test.mjs
+test/attested-route-composition.test.mjs
+test/host-services-agent-verifier.test.mjs

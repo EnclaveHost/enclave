@@ -1,0 +1,11 @@
+# Relay files staged on control VM
+
+At 2026-10-28 17:16 UTC, the five qualified activation modules were copied to /opt/enclave-funding-staged/activation-r1-20261028 on control VM172.17.28.159. Readback SHA256 values match the tested activation manifest. No file under /opt/nan-relay was replaced, no module imported, no configuration changed, and service PID228946 remained active. All four measured baseline files retained their exact hashes. This is preparation, not activation or completed funding.
+
+stage-public-artifacts.py is the staging operation with its embedded public payload factored into JSON stdin for readable review. Payload keys are path, baseline (absolute source paths and expected hashes), and files (five fixed names with base64 data and sha256). The recorded invocation embedded that same JSON literally and ran sudo python on the remote host. It creates a new root-owned stage and refuses an existing destination; do not rerun against the existing stage. It does not install or restart anything. No secrets or durable journals were copied.
+
+The production layout is flat: /opt/nan-relay/sessions.mjs, not /opt/nan-relay/relay/sessions.mjs. Production api-relay.js and snp-verify.mjs differ from checkout and must remain unchanged. Configuration and journals still need preserved backups at actual installation; configuration should use a root-controlled directory rather than relying on the existing world-writable state directory for manifest integrity. Keep owner controls available independently of funding intake.
+
+Installation still requires deployed runtime verification, reviewed fee/owner-control manifests, shared queue reconciliation, exact production dependency and environment preservation, an adoption/rollback procedure and post-restart legacy health checks. Human signatures for the four additive deployments are pending; the browser migration client is still under repair. Do not install merely because upload/readback succeeded.
+
+Production Node v22.23.1 accepted all five modules with node --check; static resolution found viem, viem/accounts and viem/chains in the existing production node_modules. This does not import the candidate, exercise runtime exports or activate a service. PID228946 remained unchanged. SYNTAX-RESOLUTION-r1.json records the result.

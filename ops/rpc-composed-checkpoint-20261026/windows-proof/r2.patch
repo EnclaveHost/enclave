@@ -1,0 +1,50 @@
+--- a/test/windows-verifier.e2e.test.mjs
++++ b/test/windows-verifier.e2e.test.mjs
+@@ -137,8 +137,12 @@
+   const v = ok(r, 'resolveAppRef');
+   const direct = await rig.pc.readContract({ address: rig.addresses.catalog, abi: rig.A.catalog.abi, functionName: 'getVersion', args: [rig.appRef.split('/')[2], BigInt(rig.appRef.split('/')[3])] });
+   assert.ok(v.cid, 'the version names its artifact'); assert.equal(v.cid, direct.cid); assert.equal(v.version, direct.version);
+-  assert.match(r.stateTx.error, /not a verified state read/);
+-  assert.match(r.txNonce.error, /no transaction\/history transport/);
++  // a nonce at a block is ACCOUNT STATE: an account proof against that block's state root through the verifier
++  // (network/chain-authority.mjs: eth_getTransactionCount [V]; windows/node/chain.mjs transactionClient() is publicClient()),
++  // so both reads must equal the chain's own nonce exactly - and still nothing reaches BASE_RPCS (asserted below)
++  const nonce = BigInt(await rig.pc.getTransactionCount({ address: rig.operator }));
++  assert.equal(BigInt(ok(r, 'stateTx')), nonce, 'the verified account nonce equals the chain');
++  assert.equal(BigInt(ok(r, 'txNonce')), nonce, 'the transaction client reads the same verified nonce');
+   assert.equal(providers.st.calls, 0, 'BASE_RPCS was never contacted');
+ });
+ 
+@@ -187,15 +191,20 @@
+     proxyMode.value = mode;
+     try {
+       await untilHelios(BigInt(await rpc(heliosUrl, 'eth_blockNumber')) + 2n);
+-      const r = await drive([{ op: 'readEnclave', id }, { op: 'allDeployments' }, { op: 'checkEndpoint', endpoint: rig.endpoint, operator: rig.operator, registry: rig.addresses.registry }]);
++      // the explicit contract pins are loaded first (chain.mjs resolveAddresses: local, no chain read), so every refusal
++      // below is the witness/head failure itself, never an unset contract address
++      const r = await drive([{ op: 'resolveAddresses' }, { op: 'readEnclave', id }, { op: 'allDeployments' }, { op: 'checkEndpoint', endpoint: rig.endpoint, operator: rig.operator, registry: rig.addresses.registry }]);
++      assert.equal(String(ok(r, 'resolveAddresses').registry).toLowerCase(), rig.addresses.registry.toLowerCase(), `${mode} pins`);
+       for (const op of ['readEnclave', 'allDeployments', 'checkEndpoint']) assert.equal(r[op].ok, false, `${mode} ${op}`);
+     } finally { proxyMode.value = 'ok'; }
+   }
+   feed.freeze(true);
+   try {
+     await sleep(100000);                                              // past the readers' 90 s block-age bound
+-    const r = await drive([{ op: 'readEnclave', id }]);
++    const r = await drive([{ op: 'resolveAddresses' }, { op: 'readEnclave', id }]);      // pins first, as above
++    assert.equal(String(ok(r, 'resolveAddresses').registry).toLowerCase(), rig.addresses.registry.toLowerCase(), 'stale pins');
+     assert.equal(r.readEnclave.ok, false); assert.match(r.readEnclave.error, /stale|behind|older/i);
++    assert.doesNotMatch(r.readEnclave.error, /Invalid parameters/, 'a stale-head refusal, not an unset address');
+   } finally { feed.freeze(false); }
+   assert.equal(providers.st.calls, 0);
+ });
+@@ -220,7 +229,8 @@
+   const envelope = await signNetworkPolicy(owner, policy);                     // signed by the vault's owner wallet
+   const cfg = baseConfig({ agentDir: dir, binDir: dir, nodeBinary: process.execPath, operatorKeyFile: path.join(dir, 'k'), runner: rig.runner, endpoint: rig.endpoint,
+     relayBase: 'http://127.0.0.1:9', policyFile: path.join(dir, 'p.json'), tpmBinary: 't', tpmSha256: 'aa'.repeat(32), addressBook: book, chainRpc: [],
+-    chainAuthority: { authority: 'local-verifier', verifier: heliosUrl, tier: 'unsafe' }, enclaveNetwork: { checkers: [rig.operator.toLowerCase()] } });
++    // the node's own selection shape (windows/node/chain.mjs chainAuthoritySelection(): { authority: 'verifier', verifier })
++    chainAuthority: { authority: 'verifier', verifier: heliosUrl }, enclaveNetwork: { checkers: [rig.operator.toLowerCase()] } });
+   assert.deepEqual(Object.keys(cfg.chain).sort(), ['addressBook', 'authority', 'verifier']);
+   // the privacy agent's own construction (network/privacy-agent.mjs: LeaseReader({...cfg.chain}), createNetworkHost(...))
+   const host = async () => createNetworkHost({ config: cfg.enclaveNetwork, rpc: cfg.chain?.rpc, addressBook: cfg.chain?.addressBook, authorityPins: cfg.chain?.authorityPins,

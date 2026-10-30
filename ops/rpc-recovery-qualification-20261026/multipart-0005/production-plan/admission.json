@@ -1,0 +1,29 @@
+{
+  "atEpoch": 1793059192.6753678,
+  "manifestSha256": "f94807f71c93b1ef639c224dfefb3b6c0f3e7b9289def91fc52b0e79864821a9",
+  "stageSums": "fcd8e0973597eebb7a003becca05f8695e770dd797a974f2bf7ce1beb041fe20",
+  "admission": {
+    "root": {
+      "freeBytes": 573312249856,
+      "logicalReservationBytes": 515396075520,
+      "floorBytes": 42949672960,
+      "externalReservationBytes": 8589934592,
+      "marginBytes": 6376566784
+    },
+    "vm": {
+      "freeBytes": 706084466688,
+      "logicalReservationBytes": 622770257920,
+      "floorBytes": 42949672960,
+      "externalReservationBytes": 0,
+      "marginBytes": 40364535808
+    }
+  },
+  "targets": {
+    "root": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root",
+    "vm": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm"
+  },
+  "plannedFirstParts": "0-0",
+  "copyStarted": false,
+  "originalReadOnly": true,
+  "note": "Admission snapshot only. Recheck at execution; bulk pending coordinated review. No database-content acceptance or RAID reset."
+}

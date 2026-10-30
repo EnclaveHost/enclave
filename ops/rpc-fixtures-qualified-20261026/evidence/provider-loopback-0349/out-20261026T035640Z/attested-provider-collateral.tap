@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: the DEFECT, reproduced on the old composition: layered(pre-seed, KDS) serves the expired seed CRL first and KDS is never asked
+ok 1 - the DEFECT, reproduced on the old composition: layered(pre-seed, KDS) serves the expired seed CRL first and KDS is never asked
+  ---
+  duration_ms: 2.739616
+  type: 'test'
+  ...
+# Subtest: stale pre-seed + fresh KDS: the provider fetches the fresh CRL, verifies, and caches only what it authenticated
+ok 2 - stale pre-seed + fresh KDS: the provider fetches the fresh CRL, verifies, and caches only what it authenticated
+  ---
+  duration_ms: 6.025825
+  type: 'test'
+  ...
+# Subtest: fresh, warm, offline and restart: a warm cache verifies with KDS down and no network, also from a NEW instance (restart)
+ok 3 - fresh, warm, offline and restart: a warm cache verifies with KDS down and no network, also from a NEW instance (restart)
+  ---
+  duration_ms: 10.963594
+  type: 'test'
+  ...
+# Subtest: stale + KDS outage: rejected (CRL required), never accepted; no CRL anywhere: rejected
+ok 4 - stale + KDS outage: rejected (CRL required), never accepted; no CRL anywhere: rejected
+  ---
+  duration_ms: 5.187586
+  type: 'test'
+  ...
+# Subtest: restoration without restart: KDS back, or (no network) the operator replaces the seed CRL; the same instance verifies again
+ok 5 - restoration without restart: KDS back, or (no network) the operator replaces the seed CRL; the same instance verifies again
+  ---
+  duration_ms: 14.272673
+  type: 'test'
+  ...
+# Subtest: forged and revoked collateral are refused: a CRL under another ARK, a forged pre-seeded chain, another chip's VCEK, an authentic CRL revoking the ASK
+ok 6 - forged and revoked collateral are refused: a CRL under another ARK, a forged pre-seeded chain, another chip's VCEK, an authentic CRL revoking the ASK
+  ---
+  duration_ms: 11.035293
+  type: 'test'
+  ...
+# Subtest: defence in depth: the forged CRL delivered with NO cache in between is still rejected by the verifier's own signature check; the genuine fresh CRL in its place verifies
+ok 7 - defence in depth: the forged CRL delivered with NO cache in between is still rejected by the verifier's own signature check; the genuine fresh CRL in its place verifies
+  ---
+  duration_ms: 2.355121
+  type: 'test'
+  ...
+# Subtest: configuration: legacy { dir } unchanged; { dir, kds: true } refused with the migration; cacheDir absolute and separate; nothing names a root
+ok 8 - configuration: legacy { dir } unchanged; { dir, kds: true } refused with the migration; cacheDir absolute and separate; nothing names a root
+  ---
+  duration_ms: 1.289334
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1739.417423

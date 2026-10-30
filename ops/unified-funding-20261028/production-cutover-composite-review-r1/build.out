@@ -1,0 +1,49 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 5 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 6 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 7 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 8 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 9 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 10 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 11 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 12 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 13 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 14 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 15 not started; sleep 30
+[queue] START available=92419MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+{
+  "out": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/production-cutover-addon-root-review-r1/composite-disabled-r1",
+  "baseCid": "bafybeifidlcmnobifev33hflaicusmzjpcqgwutobbzilaoc6tgylwlzcm",
+  "newCid": "bafybeicdkkwq436xroobid24gdij7upjr6njnyoambblp43c7nkwxfqiyq",
+  "files": 1131,
+  "bytes": 75432795,
+  "car": {
+    "sha256": "fdc0d2aad8566427c769c21ca3f3e0701fef233301759ef33c4a8acf2f5c25ff",
+    "bytes": 51772176
+  },
+  "provenance": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/production-cutover-addon-root-review-r1/composite-disabled-r1/composite-provenance.json",
+  "provenanceSha256": "51f8ddfcb899bc2bb6e619cc2b95e206b56a52dcc599d3c5130c97b523ff9e39"
+}
+[memory-guard] exit=0 peakTreeRssMiB=196 minHostAvailableMiB=92244
+[memory-guard] at peak: node:184 python3:12
+[memory-guard] exit=0 peakTreeRssMiB=256 minHostAvailableMiB=92244
+[memory-guard] at peak: node:184 node:60 python3:12
+[queue] EXIT 0

@@ -1,0 +1,232 @@
+{
+ "mode": "check",
+ "harness": "r4 strict layout: read-only bind-mounted node_modules, private user/net/mount namespace, sequential files",
+ "tests": {
+  "endpoints": {
+   "rc": 0,
+   "tests": 6,
+   "pass": 6,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 6,
+   "ok": true
+  },
+  "overlay": {
+   "rc": 0,
+   "tests": 25,
+   "derivedReader": 6,
+   "notOk": [],
+   "summaryOK": true,
+   "ok": true
+  },
+  "platform-api-config": {
+   "rc": 0,
+   "tests": 5,
+   "pass": 5,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": null,
+   "ok": true
+  },
+  "writer": {
+   "rc": 0,
+   "tests": 23,
+   "pass": 23,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 23,
+   "ok": true
+  },
+  "relay-derived-reader-runtime": {
+   "rc": 0,
+   "tests": 4,
+   "pass": 4,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 4,
+   "ok": true
+  },
+  "kvm": {
+   "rc": 0,
+   "tests": 33,
+   "pass": 33,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 33,
+   "ok": true
+  },
+  "native-relay-chain-authority": {
+   "rc": 0,
+   "tests": 8,
+   "pass": 8,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 8,
+   "ok": true
+  },
+  "platform-api-admin-cli": {
+   "rc": 0,
+   "tests": 9,
+   "pass": 9,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": null,
+   "ok": true
+  },
+  "platform-api-admin-status": {
+   "rc": 0,
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": null,
+   "ok": true
+  },
+  "platform-api-forward": {
+   "rc": 0,
+   "tests": 6,
+   "pass": 6,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": null,
+   "ok": true
+  },
+  "platform-api-handoff-production": {
+   "rc": 0,
+   "tests": 9,
+   "pass": 9,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": null,
+   "ok": true
+  },
+  "platform-api-hosted": {
+   "rc": 0,
+   "tests": 6,
+   "pass": 6,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": null,
+   "ok": true
+  },
+  "platform-api-native-issuer": {
+   "rc": 0,
+   "tests": 11,
+   "pass": 11,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": null,
+   "ok": true
+  },
+  "relay-chain-consumers": {
+   "rc": 0,
+   "tests": 10,
+   "pass": 10,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 10,
+   "ok": true
+  },
+  "platform-api-registry": {
+   "rc": 0,
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": null,
+   "ok": true
+  },
+  "platform-api-replica": {
+   "rc": 0,
+   "tests": 12,
+   "pass": 12,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": null,
+   "ok": true
+  }
+ },
+ "writerStartup": {
+  "ok": 4,
+  "fail": 0,
+  "unenrolledCreatedNoState": true,
+  "unenrolledTree": [
+   "-rw------- ./derived-reader-v3/derived-state.lock",
+   "-rw------- ./derived-reader/derived-reader-v3.json",
+   "-rw-r--r-- ./DERIVED-READER-IMAGE.json",
+   "drwx------ .",
+   "drwx------ ./derived-reader",
+   "drwx------ ./derived-reader-v3"
+  ]
+ },
+ "sharedRelayRuntime": {
+  "sha256": "e12c5bafb8b17abb891fb26fe1cdc054159d7bd2de5486d2c1a2480430671ed6",
+  "equalsPin": true
+ },
+ "platformApiGuestBundle": {
+  "committedStaleBefore": true,
+  "checkAfterRegeneration": 0,
+  "ok": true,
+  "sha256": "35d4770a5062ee5bf399801fc1d40b8bd2cf33ae142ad71d9fec309d6d9f9300",
+  "bytes": 9447094,
+  "inputs": 2226,
+  "role": "58460e9287ccbfe6fa1fbf1179556133e10b7e0b093494648dad163059cafb2a",
+  "sidecars": {
+   "fixtures/tpm-roots.pem": "f72ea29aefa0d778856e105f725d3c9c66a45cfc8cb35c170782bceee8d8ba5b",
+   "derived-reader-runtime.bundle.mjs": "cb4afd9867c5e92f59f6edae16f3ca97a3d5ae04c24c5c9e1bb7763bee147597",
+   "schedule_reader.mjs": "688b7a1f09c898f66cc7b92473a9fbda042402ef833bb983ff794e5f07128fb0"
+  }
+ },
+ "release": {
+  "sourceCommit": "06de30ec41d2a2e5529c60e352b9043d60f409d1",
+  "commit": "1910fe120d152865ff0fd36de03944c97ea48aa3",
+  "tree": "3bb4a24ffa30951b661904980483f096eb925f1d",
+  "platformApiBundle": "35d4770a5062ee5bf399801fc1d40b8bd2cf33ae142ad71d9fec309d6d9f9300",
+  "files": {
+   "metal/guest/platform-api.bundle.mjs": "35d4770a5062ee5bf399801fc1d40b8bd2cf33ae142ad71d9fec309d6d9f9300",
+   "metal/guest/platform-api.bundle.mjs.manifest.json": "29d7cec929fc493f45e2cac9879b7b51fde0d92ea0ec36449910fb74c1871af0",
+   "relay/derived-reader-runtime.bundle.mjs": "cb4afd9867c5e92f59f6edae16f3ca97a3d5ae04c24c5c9e1bb7763bee147597",
+   "relay/derived-reader-runtime.bundle.mjs.manifest.json": "2d4cd1387601ac922981ac9ca76d02e901a1c9334eb14bff312973ec56158899",
+   "relay/schedule_reader.mjs": "688b7a1f09c898f66cc7b92473a9fbda042402ef833bb983ff794e5f07128fb0",
+   "relay/network-runtime.bundle.mjs": "e12c5bafb8b17abb891fb26fe1cdc054159d7bd2de5486d2c1a2480430671ed6",
+   "relay/network-runtime.bundle.mjs.manifest.json": "87b41a065659f421a419921d37080697decc3a8e7042182e66ca14aebefe297f"
+  }
+ },
+ "checkpoint": {
+  "checkpoint": "2e8502e68864abb49a230a69612bd7c98c94775d8dd81f956a0185d53652ac33",
+  "slot": 15511008,
+  "expiresUtc": "2026-11-01T19:21:59.000Z"
+ },
+ "ok": true,
+ "scope": "offline: source/packaging/refusal evidence only. NO chain is read (no network), NO SNP measurement/qualification, NOT activated; the unenrolled reader REFUSES (no cold boot from RAM state)"
+}

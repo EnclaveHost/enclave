@@ -1,0 +1,9 @@
+{
+  "suite": "ops-readiness",
+  "executed": 25,
+  "actualExit": 0,
+  "unittestResult": "OK",
+  "rawSha256": "1b81a9eb0a8852a3c5184e85001646095afbe12c8639de1d5cfa916926d7aa10",
+  "runnerFalseNegative": "final stdout JSON follows unittest OK; no test assertion changed",
+  "productionQualified": false
+}

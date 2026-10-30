@@ -1,0 +1,5 @@
+utc=2026-10-26T02:49:05Z host=ap-southeast
+tunnel_sshd pid=367823 session=2181 Name=enclave-control-tunnel Timestamp=Fri 2026-10-23 09:09:35 UTC RemoteHost=4.15.13.178 Service=sshd 
+tunnel_forwarded_port 127.0.0.1:30080
+tunnel_forwarded_port 127.0.0.1:30443
+tunnel_forwarded_port 127.0.0.1:31053

@@ -1,0 +1,88 @@
+TAP version 13
+# Subtest: tools/list: the hosted tool set, name for name and argument for argument; independent additions are optional
+ok 1 - tools/list: the hosted tool set, name for name and argument for argument; independent additions are optional
+  ---
+  duration_ms: 1637.27125
+  type: 'test'
+  ...
+# Subtest: catalog reads and platform moderation: delisting, rejection and pending-public refusals hold without the gateway
+ok 2 - catalog reads and platform moderation: delisting, rejection and pending-public refusals hold without the gateway
+  ---
+  duration_ms: 400.806133
+  type: 'test'
+  ...
+# Subtest: a NEW user deploys with no gateway: plan, sign, create, fund, then the host claims it - each step from the quorum
+ok 3 - a NEW user deploys with no gateway: plan, sign, create, fund, then the host claims it - each step from the quorum
+  ---
+  duration_ms: 663.275118
+  type: 'test'
+  ...
+# Subtest: an EXISTING session on the production factory: found on chain, host reached by client-signed requests, session-signed stop sent by any gas payer
+ok 4 - an EXISTING session on the production factory: found on chain, host reached by client-signed requests, session-signed stop sent by any gas payer
+  ---
+  duration_ms: 1088.378682
+  type: 'test'
+  ...
+# Subtest: a new session: the owner signs the grant, any gas payer opens it, and the server never sees a private key
+ok 5 - a new session: the owner signs the grant, any gas payer opens it, and the server never sees a private key
+  ---
+  duration_ms: 173.2814
+  type: 'test'
+  ...
+# Subtest: uploads: per-adapter messages signed by the wallet; the bytes go from the client to each adapter and read back
+ok 6 - uploads: per-adapter messages signed by the wallet; the bytes go from the client to each adapter and read back
+  ---
+  duration_ms: 32.078778
+  type: 'test'
+  ...
+# Subtest: every other tool answers from independent sources: reads, host requests, builders decoded and sent, the session ended
+ok 7 - every other tool answers from independent sources: reads, host requests, builders decoded and sent, the session ended
+  ---
+  duration_ms: 1753.904235
+  type: 'test'
+  ...
+# Subtest: secrets through custody v2: the owner's own client reads, merges, removes, replaces and clears; opt-in, pause, revision and transfer guards hold; a remote adapter never sees plaintext
+ok 8 - secrets through custody v2: the owner's own client reads, merges, removes, replaces and clears; opt-in, pause, revision and transfer guards hold; a remote adapter never sees plaintext
+  ---
+  duration_ms: 2561.439133
+  type: 'test'
+  ...
+# Subtest: RPC faults: one lying, dead or wrong-chain RPC is outvoted; too few honest peers refuse and never answer empty
+ok 9 - RPC faults: one lying, dead or wrong-chain RPC is outvoted; too few honest peers refuse and never answer empty
+  ---
+  duration_ms: 125.64071
+  type: 'test'
+  ...
+# Subtest: an administrator's AddressBook change refuses stale pins before anything is built, and the restored binding answers again
+ok 10 - an administrator's AddressBook change refuses stale pins before anything is built, and the restored binding answers again
+  ---
+  duration_ms: 142.959557
+  type: 'test'
+  ...
+# Subtest: the remote adapter serves each reviewed profile at its own path with no state shared between concurrent requests
+ok 11 - the remote adapter serves each reviewed profile at its own path with no state shared between concurrent requests
+  ---
+  duration_ms: 548.984545
+  type: 'test'
+  ...
+# Subtest: an admin host ban (an anchored platform host policy) removes the host from listings and prices and blocks contacting it
+ok 12 - an admin host ban (an anchored platform host policy) removes the host from listings and prices and blocks contacting it
+  ---
+  duration_ms: 956.818687
+  type: 'test'
+  ...
+# Subtest: CONTROL: the same tools over the hosted backend reach the Enclave gateway and public RPCs (which the guard blocks)
+ok 13 - CONTROL: the same tools over the hosted backend reach the Enclave gateway and public RPCs (which the guard blocks)
+  ---
+  duration_ms: 5510.885093
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 30261.992768

@@ -1,0 +1,5 @@
+docs/network/local-chain-verifier.md
+metal/chain-verifier-image.json
+network/rpc-runtime.mjs
+scripts/rpc-runtime/closure.json
+test/chain-verifier-guest.e2e.test.mjs

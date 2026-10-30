@@ -1,0 +1,7 @@
+[queue] START available=18082MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+## FAIL: rc 1 Ran 10 last FAILED (failures=1, errors=6) (see /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-rpc-access-stage/logs/run-20261026T102536Z-1476215/tests.txt)
+## witness-rpc-access SHA256SUMS ce0753019e46653bd3bd9ed8307970ea429b90ec60560f6b79d062ccea1ac264
+## witness-rpc-access rc=1
+[memory-guard] exit=1 peakTreeRssMiB=38 minHostAvailableMiB=18100
+[memory-guard] at peak: python3:30 bash:4 bash:2 timeout:2
+[queue] EXIT 1

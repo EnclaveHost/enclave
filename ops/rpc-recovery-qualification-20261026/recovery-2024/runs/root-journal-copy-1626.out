@@ -1,0 +1,9 @@
+[queue] START available=24549MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/jobs/root-journal-copy-1626.py", line 17, in <module>
+    assert pathlib.Path(f'/proc/{pid}/cwd').resolve() == B
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 1

@@ -1,0 +1,11 @@
+{
+  "enclave/site/js/core/wallet-release-chain.js": "66dc0b48314635b258b0e66a1e81823e2b051ae24a7f731cb531a5e143dbd6f6",
+  "enclave/site/js/core/wallet-release-controller.js": "43d5a22a9f69f46d39bf43f1ae88c93905d47cd12af66a0e8b3b9d0418a2cc1f",
+  "enclave/site/js/core/wallet-release-store.js": "1379de9e182bb08a9e17d8e0bdb5e457f2ad4dcd606bfe935ff83ef3d0f77029",
+  "enclave/site/js/core/wallet-release-view.js": "22cf7a3b2fdd6e2b6a7ff2f893da72dca31624cf954d609f760a84225848e7f7",
+  "enclave/site/js/pages/sessions.js": "b5f594e9d4b5d1c67444207f2a8e2044d8c99e9bc9c5a2ffe3f258f559a4cfb5",
+  "enclave/test/wallet-release/chain-store.test.mjs": "f7ab21208a1eed760e1594b6f9c2aa11e9cdc9be52ebc824a5c24908486a29fa",
+  "enclave/test/wallet-release/controller.test.mjs": "f08df09215809c3569f6f5c371020bad3ea6f7e89dd73879144503e500bfb3b3",
+  "enclave/test/wallet-release/held-card.fixture.html": "a8c60a69548601050e9acfb34dacd9c041782710e0e493fffcae85b56cc72053",
+  "enclave/test/wallet-release/view.test.mjs": "c6be301d50ebb98b794a134c916d5ad0cd935a98c86e03d9a20fb755706e8a89"
+}

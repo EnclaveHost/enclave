@@ -1,0 +1,26 @@
+[
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/chain_service.py",
+    "sha256": "75c879ec9c5728688beac8cc98ecf1410c38f29c144b27fabd8b42ea60cfbc92"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/test_chain_service.py",
+    "sha256": "541342a40999cbfb4f186487540b716357423398e45e976e81a336e6c3a63330"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/test_coverage_activation.py",
+    "sha256": "24c37c51d20f164434739093dd513d9206968e0ac60aec1ba59271b1116fa6f7"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-client-help-memory-r1/CANDIDATE-PROFILE.json",
+    "sha256": "40d5044a267bfd352e8f7681dffbad840d43604e14849804e59570df4d664d72"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/node-payload-v4/chain.json",
+    "sha256": "369f2a620391fda7914b8ef6f050a1edd4a62de3d9b2d5cee1ba14e4791c7ee0"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-prepared-os-payload-read-r1/RESULT.json",
+    "sha256": "52d3c85e2db610ce8d99fac4b96bb692c2c73f9325ddbed293b445f92624ec98"
+  }
+]

@@ -1,0 +1,75 @@
+test_chain_uuid_or_second_disk_refuses_before_changes (test_root_maintenance.Guest.test_chain_uuid_or_second_disk_refuses_before_changes) ... ok
+test_fragment_drift_refuses_without_moving_files (test_root_maintenance.Guest.test_fragment_drift_refuses_without_moving_files) ... ok
+test_full_mask_preserves_originals_and_removes_enablement (test_root_maintenance.Guest.test_full_mask_preserves_originals_and_removes_enablement) ... ok
+test_active_production_refused (test_root_maintenance.Host.test_active_production_refused) ... ok
+test_backup_failure_never_writes_prepared_or_launches (test_root_maintenance.Host.test_backup_failure_never_writes_prepared_or_launches) ... ok
+test_cleanup_cannot_stop_foreign_invocation (test_root_maintenance.Host.test_cleanup_cannot_stop_foreign_invocation) ... ok
+test_launcher_pin_drift_refused (test_root_maintenance.Host.test_launcher_pin_drift_refused) ... ok
+test_no_guest_shutdown_event_is_not_success (test_root_maintenance.Host.test_no_guest_shutdown_event_is_not_success) ... ok
+test_os_inode_drift_and_symlink_refused (test_root_maintenance.Host.test_os_inode_drift_and_symlink_refused) ... ok
+test_powerdown_requires_event_exit_and_inactive_unit (test_root_maintenance.Host.test_powerdown_requires_event_exit_and_inactive_unit) ... ok
+test_real_pinned_render_has_only_os_and_readonly_seed (test_root_maintenance.Host.test_real_pinned_render_has_only_os_and_readonly_seed) ... ok
+test_rejects_chain_disk_public_forward_extra_device_and_ram_drift (test_root_maintenance.Host.test_rejects_chain_disk_public_forward_extra_device_and_ram_drift) ... ok
+test_sparse_copy_hash_readback_and_timeout (test_root_maintenance.Host.test_sparse_copy_hash_readback_and_timeout) ... ok
+test_connect_eagain_closes_failed_constructor (test_root_transport_regressions.RootTransport.test_connect_eagain_closes_failed_constructor) ... ok
+test_malformed_greeting_closes_failed_constructor (test_root_transport_regressions.RootTransport.test_malformed_greeting_closes_failed_constructor) ... ok
+test_partial_greeting_eof_closes_failed_constructor (test_root_transport_regressions.RootTransport.test_partial_greeting_eof_closes_failed_constructor) ... ok
+test_peer_error_description_is_not_copied_to_public_error (test_root_transport_regressions.RootTransport.test_peer_error_description_is_not_copied_to_public_error) ... ok
+test_wrong_command_reply_never_satisfies_request_or_resends (test_root_transport_regressions.RootTransport.test_wrong_command_reply_never_satisfies_request_or_resends) ... ok
+test_connect_eagain_retried_in_one_end_then_identity_failure_never_conts (test_maintenance_diagnostics.LaunchFailures.test_connect_eagain_retried_in_one_end_then_identity_failure_never_conts) ... ok
+test_cont_without_reply_is_unknown_and_never_resent (test_maintenance_diagnostics.LaunchFailures.test_cont_without_reply_is_unknown_and_never_resent) ... ok
+test_foreign_invocation_never_stopped (test_maintenance_diagnostics.LaunchFailures.test_foreign_invocation_never_stopped) ... ok
+test_greeting_eagain_before_pid_records_phase_and_runs_owned_cleanup (test_maintenance_diagnostics.LaunchFailures.test_greeting_eagain_before_pid_records_phase_and_runs_owned_cleanup) ... ok
+test_powerdown_without_reply_not_resent_by_cleanup (test_maintenance_diagnostics.LaunchFailures.test_powerdown_without_reply_not_resent_by_cleanup) ... ok
+test_pre_launch_refusal_is_labelled_pre_launch (test_maintenance_diagnostics.LaunchFailures.test_pre_launch_refusal_is_labelled_pre_launch) ... ok
+test_running_before_cont_is_refused_and_never_continued (test_maintenance_diagnostics.LaunchFailures.test_running_before_cont_is_refused_and_never_continued) ... ok
+test_cleanup_does_not_resend_quit_of_unknown_outcome (test_maintenance_diagnostics.PhaseBounds.test_cleanup_does_not_resend_quit_of_unknown_outcome) ... ok
+test_cleanup_graceful_part_bounded_under_endless_events (test_maintenance_diagnostics.PhaseBounds.test_cleanup_graceful_part_bounded_under_endless_events) ... ok
+test_cleanup_qmp_failure_still_reaches_owned_stop (test_maintenance_diagnostics.PhaseBounds.test_cleanup_qmp_failure_still_reaches_owned_stop) ... ok
+test_wait_ssh_pump_never_extends_the_ssh_phase (test_maintenance_diagnostics.PhaseBounds.test_wait_ssh_pump_never_extends_the_ssh_phase) ... ok
+test_successful_path_unaffected_and_no_resource_changes (test_maintenance_diagnostics.SuccessPath.test_successful_path_unaffected_and_no_resource_changes) ... ok
+test_eagain_classified_by_actual_phase (test_qmp_transport.Classification.test_eagain_classified_by_actual_phase) ... ok
+test_eintr_retries_are_capped_against_the_same_end (test_qmp_transport.Classification.test_eintr_retries_are_capped_against_the_same_end) ... ok
+test_close_error_never_raises (test_qmp_transport.Constructor.test_close_error_never_raises) ... ok
+test_new_socket_closed_on_every_failing_path (test_qmp_transport.Constructor.test_new_socket_closed_on_every_failing_path) ... ok
+test_socket_creation_failure_and_later_non_oserror_exception (test_qmp_transport.Constructor.test_socket_creation_failure_and_later_non_oserror_exception) ... ok
+test_success_assigns_ids_and_close_is_idempotent (test_qmp_transport.Constructor.test_success_assigns_ids_and_close_is_idempotent) ... ok
+test_abandoned_ids_are_bounded (test_qmp_transport.Correlation.test_abandoned_ids_are_bounded) ... ok
+test_correlated_error_is_rejected_bounded_and_keeps_the_connection (test_qmp_transport.Correlation.test_correlated_error_is_rejected_bounded_and_keeps_the_connection) ... ok
+test_duplicate_reply_cannot_satisfy_a_later_command (test_qmp_transport.Correlation.test_duplicate_reply_cannot_satisfy_a_later_command) ... ok
+test_interleaved_events_then_matching_reply (test_qmp_transport.Correlation.test_interleaved_events_then_matching_reply) ... ok
+test_late_reply_to_abandoned_id_absorbed_once (test_qmp_transport.Correlation.test_late_reply_to_abandoned_id_absorbed_once) ... ok
+test_mismatched_id_never_satisfies_the_request (test_qmp_transport.Correlation.test_mismatched_id_never_satisfies_the_request) ... ok
+test_unsolicited_reply_during_pump_fails_closed (test_qmp_transport.Correlation.test_unsolicited_reply_during_pump_fails_closed) ... ok
+test_buffered_event_flood_cannot_extend_the_command_end (test_qmp_transport.Deadlines.test_buffered_event_flood_cannot_extend_the_command_end) ... ok
+test_command_end_is_constrained_by_the_caller_end (test_qmp_transport.Deadlines.test_command_end_is_constrained_by_the_caller_end) ... ok
+test_dribbling_greeting_cannot_reset_the_readiness_end (test_qmp_transport.Deadlines.test_dribbling_greeting_cannot_reset_the_readiness_end) ... ok
+test_greeting_and_capabilities_share_one_end (test_qmp_transport.Deadlines.test_greeting_and_capabilities_share_one_end) ... ok
+test_pump_window_never_passes_the_outer_end (test_qmp_transport.Deadlines.test_pump_window_never_passes_the_outer_end) ... ok
+test_clean_eof_before_reply (test_qmp_transport.Framing.test_clean_eof_before_reply) ... ok
+test_eof_inside_a_frame (test_qmp_transport.Framing.test_eof_inside_a_frame) ... ok
+test_malformed_frames_fail_closed (test_qmp_transport.Framing.test_malformed_frames_fail_closed) ... ok
+test_overlong_frame_with_newline_refused (test_qmp_transport.Framing.test_overlong_frame_with_newline_refused) ... ok
+test_overlong_frame_without_newline_bounded (test_qmp_transport.Framing.test_overlong_frame_without_newline_bounded) ... ok
+test_absolute_end_across_attempts (test_qmp_transport.Readiness.test_absolute_end_across_attempts) ... ok
+test_connect_not_ready_retried_within_one_end (test_qmp_transport.Readiness.test_connect_not_ready_retried_within_one_end) ... ok
+test_inactive_owned_unit_stops_retrying (test_qmp_transport.Readiness.test_inactive_owned_unit_stops_retrying) ... ok
+test_legacy_factory_seam (test_qmp_transport.Readiness.test_legacy_factory_seam) ... ok
+test_no_retry_outside_connect (test_qmp_transport.Readiness.test_no_retry_outside_connect) ... ok
+test_constructor_failures_leave_no_descriptor (test_qmp_transport.RealUnixSocket.test_constructor_failures_leave_no_descriptor) ... ok
+test_dribbling_real_peer_bounded_by_one_end (test_qmp_transport.RealUnixSocket.test_dribbling_real_peer_bounded_by_one_end) ... ok
+test_framing_events_correlation_and_eof (test_qmp_transport.RealUnixSocket.test_framing_events_correlation_and_eof) ... ok
+test_repeated_connect_failure_no_descriptor_growth (test_qmp_transport.RealUnixSocket.test_repeated_connect_failure_no_descriptor_growth) ... ok
+test_blocked_send_with_nothing_written_is_not_sent (test_qmp_transport.SendOutcome.test_blocked_send_with_nothing_written_is_not_sent) ... ok
+test_full_send_without_reply_is_unknown_and_sent_once (test_qmp_transport.SendOutcome.test_full_send_without_reply_is_unknown_and_sent_once) ... ok
+test_partial_send_then_block_is_unknown_and_never_replayed (test_qmp_transport.SendOutcome.test_partial_send_then_block_is_unknown_and_never_replayed) ... ok
+test_guest_false_or_non_boolean_is_insufficient (test_qmp_transport.ShutdownEvidence.test_guest_false_or_non_boolean_is_insufficient) ... ok
+test_guest_true_evidence_survives_retention_cap (test_qmp_transport.ShutdownEvidence.test_guest_true_evidence_survives_retention_cap) ... ok
+test_late_guest_true_kept_once_and_payload_not_retained (test_qmp_transport.ShutdownEvidence.test_late_guest_true_kept_once_and_payload_not_retained) ... ok
+
+----------------------------------------------------------------------
+Ran 68 tests in 0.513s
+
+OK
+{"error": "Die: enclave-rpc-base-snapshot.service sha256 8be77b518cf3368d07bc98182a564c62ee86a35ae31423ba6bf9727a85562417 is not the inventoried f7a193f1f50ab147aa15d33cb7de9fbddc1ad0c01c244ffef852b417551950f4 (identity drift); nothing changed", "moved": [], "ok": false}
+{"keptIn": "/var/lib/enclave-rpc-maint/20261028T020000Z-abcdef", "moved": ["enclave-rpc-base-snapshot.service", "enclave-rpc-l1-snapshot.service", "enclave-base-retention.service", "enclave-base-holder.path", "enclave-base-holder.service", "enclave-l1-el.path", "enclave-l1-el.service", "enclave-l1-cl.service"], "ok": true, "plan": {"enclave-base-holder.path": "move", "enclave-base-holder.service": "move", "enclave-base-retention.service": "move", "enclave-l1-cl.service": "move", "enclave-l1-el.path": "move", "enclave-l1-el.service": "move", "enclave-rpc-base-snapshot.service": "move", "enclave-rpc-l1-snapshot.service": "move"}, "stoppedWatchers": [], "verified": {"enclave-base-holder.path": true, "enclave-base-holder.service": true, "enclave-base-retention.service": true, "enclave-l1-cl.service": true, "enclave-l1-el.path": true, "enclave-l1-el.service": true, "enclave-rpc-base-snapshot.service": true, "enclave-rpc-l1-snapshot.service": true}}

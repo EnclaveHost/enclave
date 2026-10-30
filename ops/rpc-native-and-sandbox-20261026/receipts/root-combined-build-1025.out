@@ -1,0 +1,10 @@
+[queue] START available=18737MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+## combined-native mode=all harness-test=0 harness-build=0 fetch-build=0
+test tests::trusted_input_is_strict ... ok
+test tests::untrusted_witness_locals_are_stripped_and_other_unhashable_keys_refuse ... ok
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+ROOT checked native test count, unchanged lock and both binary receipts
+Config hash/serde tests from r4 still require separate native validation; real witness/SNP/provider not yet qualified
+[memory-guard] exit=0 peakTreeRssMiB=858 minHostAvailableMiB=17333
+[memory-guard] at peak: rustc:619 cargo:229 bash:4 bash:4 timeout:2
+[queue] EXIT 0

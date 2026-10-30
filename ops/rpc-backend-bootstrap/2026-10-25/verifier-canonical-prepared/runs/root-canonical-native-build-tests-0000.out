@@ -1,0 +1,1000 @@
+[queue] START available=23250MiB required=19456MiB cap=2560MiB floor=16384MiB concurrentSmall=256MiB
+[ok] offline: interfaces = lo only (lo )
+[ok] offline: no IPv4 route
+[tool] rustc 1.96.0 (ac68faa20 2026-05-25) binary: rustc commit-hash: ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96 commit-date: 2026-05-25 host: x86_64-unknown-linux-gnu release: 1.96.0 LLVM version: 22.1.2 
+[tool] cargo 1.96.0 (30a34c682 2026-05-25)
+[tool] rustc ba4b837efb6612df cargo f30f9fd1b1d0b8fd cc cc (GCC) 16.2.1 20260810
+[ok] fresh /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z
+[ok] source repo HEAD eeffcc9
+[ok] source repo clean
+[ok] clone tree == R3x tree
+[ok] clone Cargo.lock == R3x
+[ok] base files == INPUT-MANIFEST
+[ok] patched files == PATCHED.sha256
+[ok] base archive pin 9784e20a
+[ok] vendor-inspect/base-v1.5.1 == pinned extraction c9301490
+[ok] vendor-inspect holds only base-v1.5.1
+[ok] cache-reuse: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z ended per /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/logs/root-canonical-native-types-2345.out (rc 20)
+
+[ok] cache-reuse: exclusive lock held for this job
+[ok] cache-reuse: cargo-home/registry/cache == CH0
+[ok] cache-reuse: cargo-home/registry/src == CH0
+[ok] cache-reuse: cargo-home/git == CH0
+[ok] cache-reuse: CARGO_HOME=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/cargo-home CARGO_TARGET_DIR=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target (mutable; fresh source, patch, closure and logs in /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z)
+rustc 1.96.0 (ac68faa20 2026-05-25)
+cargo 1.96.0 (30a34c682 2026-05-25)
+== A0: locked closure (cargo metadata --offline --locked)
+[closure] 26 path packages; outside the work dir: 0
+== A0: dependency cache (cargo fetch --offline --locked, this target)
+[ok] Cargo.lock unchanged
+== A: compile preflight (a failure here is a COMPILE/FETCH failure, never a test result)
+   Compiling helios-common v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/helios/common)
+   Compiling helios-verifiable-api-types v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/helios/verifiable-api/types)
+   Compiling helios-verifiable-api-client v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/helios/verifiable-api/client)
+   Compiling helios-core v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/helios/core)
+   Compiling helios-consensus-core v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/helios/ethereum/consensus-core)
+   Compiling helios-revm-utils v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/helios/revm-utils)
+warning: unused imports: `BlockResponse` and `primitives::HeaderResponse`
+ --> revm-utils/src/proof_db.rs:5:15
+  |
+5 |     network::{primitives::HeaderResponse, BlockResponse},
+  |               ^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `helios_core::execution::errors::ExecutionError`
+  --> revm-utils/src/proof_db.rs:21:5
+   |
+21 | use helios_core::execution::errors::ExecutionError;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `helios-revm-utils` (lib) generated 2 warnings (run `cargo fix --lib -p helios-revm-utils` to apply 2 suggestions)
+   Compiling helios-ethereum v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/helios/ethereum)
+   Compiling helios-test-utils v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/helios/tests/test-utils)
+warning: function `envelopes` is never used
+  --> core/tests/support/metadata.rs:23:15
+   |
+23 | pub(crate) fn envelopes(create: bool) -> Vec<TxEnvelope> {
+   |               ^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `fixture` is never used
+  --> core/tests/support/metadata.rs:84:15
+   |
+84 | pub(crate) fn fixture(
+   |               ^^^^^^^
+
+warning: `helios-core` (test "rpc_exact_hash_postcondition") generated 2 warnings
+warning: `helios-core` (test "node_canonical_methods") generated 2 warnings (2 duplicates)
+    Finished `dev` profile [unoptimized] target(s) in 10.26s
+== B: the 35 named tests in exactly 5 binaries, all ok, 0 ignored/filtered (no --include-ignored)
+warning: unused imports: `BlockResponse` and `primitives::HeaderResponse`
+ --> revm-utils/src/proof_db.rs:5:15
+  |
+5 |     network::{primitives::HeaderResponse, BlockResponse},
+  |               ^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `helios_core::execution::errors::ExecutionError`
+  --> revm-utils/src/proof_db.rs:21:5
+   |
+21 | use helios_core::execution::errors::ExecutionError;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `helios-revm-utils` (lib) generated 2 warnings (run `cargo fix --lib -p helios-revm-utils` to apply 2 suggestions)
+warning: function `envelopes` is never used
+  --> core/tests/support/metadata.rs:23:15
+   |
+23 | pub(crate) fn envelopes(create: bool) -> Vec<TxEnvelope> {
+   |               ^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `fixture` is never used
+  --> core/tests/support/metadata.rs:84:15
+   |
+84 | pub(crate) fn fixture(
+   |               ^^^^^^^
+
+warning: `helios-core` (test "rpc_exact_hash_postcondition") generated 2 warnings
+warning: `helios-core` (test "node_canonical_methods") generated 2 warnings (2 duplicates)
+    Finished `test` profile [unoptimized] target(s) in 0.25s
+     Running tests/ancestor_block_hash.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/ancestor_block_hash-8ea0a35e3be143a2)
+
+running 4 tests
+test ancestor_follows_pinned_chain_not_canonical_by_number ... ok
+test ancestor_refuses_broken_link_and_wrong_pinned_answer ... ok
+test ancestor_refuses_unknown_pinned_and_outside_window ... ok
+test ancestor_through_block_cache_after_aba ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/block_cache_exact_hash.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/block_cache_exact_hash-9e4af358f095d119)
+
+running 4 tests
+test aba_resolves_only_the_current_block ... ok
+test finalized_conflict_drops_unsafe_branch_and_clears_latest ... ok
+test multi_height_reorg_drops_stale_descendants ... ok
+test reorg_a_to_b_unindexes_a ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/canonical_block_gate.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/canonical_block_gate-556848c2e31ae5ef)
+
+running 17 tests
+test aba_during_read_answers_a_and_post_check_passes ... ok
+test block_cache_root_counterexample_refused ... ok
+test concurrent_head_advance_keeps_ancestor_and_reorg_refuses ... ok
+test every_block_id_method_is_gated_before_and_after ... ok
+test gate_beyond_window_and_missing_link_refused ... ok
+test gate_false_and_absent_on_known_noncanonical_pass ... ok
+test gate_forged_ancestry_link_refused ... ok
+test gate_never_uses_height_lookup ... ok
+test gate_other_branch_below_head_refused_by_ancestry ... ok
+test gate_root_counterexample_retained_descendant_refused ... ok
+test gate_true_missing_head_refuses ... ok
+test gate_true_on_canonical_block_passes ... ok
+test gate_true_on_known_noncanonical_refuses_not_canonical ... ok
+test gate_true_stale_head_refuses_false_passes ... ok
+test gate_unknown_hash_refused_for_every_flag ... ok
+test gate_wrong_block_for_hash_refused_for_every_flag ... ok
+test reorg_during_read_refuses_at_post_check ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/node_canonical_methods.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/node_canonical_methods-89e1577db508d61a)
+
+running 8 tests
+test node_aba_during_read_answers_a ... ok
+test node_hash_reads_bind_the_exact_block_for_every_flag ... ok
+test node_head_advance_during_read_still_answers ... ok
+test node_reorg_during_read_refuses_every_method ... ok
+test node_reorg_during_read_without_require_canonical_answers_exact_a ... ok
+test node_root_counterexample_retained_descendant_refused ... ok
+test node_stale_head_refuses_true_only ... ok
+test node_unknown_hash_refused_for_every_method ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/rpc_exact_hash_postcondition.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/rpc_exact_hash_postcondition-d8cdde9a01b67333)
+
+running 2 tests
+test provider_refuses_a_different_block_for_a_hash ... ok
+test provider_still_answers_the_exact_block ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+named: 35 expected tests in 5 binaries; PASS
+== C: regression: every helios-core test (lib, integration incl. rpc_request_budget, doc); 0 failed AND 0 ignored
+warning: unused imports: `BlockResponse` and `primitives::HeaderResponse`
+ --> revm-utils/src/proof_db.rs:5:15
+  |
+5 |     network::{primitives::HeaderResponse, BlockResponse},
+  |               ^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `helios_core::execution::errors::ExecutionError`
+  --> revm-utils/src/proof_db.rs:21:5
+   |
+21 | use helios_core::execution::errors::ExecutionError;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `helios-revm-utils` (lib) generated 2 warnings (run `cargo fix --lib -p helios-revm-utils` to apply 2 suggestions)
+   Compiling helios-core v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/helios/core)
+warning: function `envelopes` is never used
+  --> core/tests/support/metadata.rs:23:15
+   |
+23 | pub(crate) fn envelopes(create: bool) -> Vec<TxEnvelope> {
+   |               ^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `fixture` is never used
+  --> core/tests/support/metadata.rs:84:15
+   |
+84 | pub(crate) fn fixture(
+   |               ^^^^^^^
+
+warning: `helios-core` (test "node_canonical_methods") generated 2 warnings
+warning: `helios-core` (test "rpc_exact_hash_postcondition") generated 2 warnings (2 duplicates)
+    Finished `test` profile [unoptimized] target(s) in 19.52s
+     Running unittests src/lib.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/helios_core-a57aff7ace29f8c1)
+
+running 18 tests
+test client::node::tests::hash_handoff_authenticates_and_normalizes_rpc_block ... ok
+test client::node::tests::hash_handoff_rejects_forged_header_body_and_transaction_metadata ... ok
+test execution::cache::state::tests::test_code_caching ... ok
+test execution::cache::state::tests::test_content_addressed_storage_sharing ... ok
+test execution::cache::state::tests::test_get_account_proof_with_missing_slots ... ok
+test execution::cache::state::tests::test_get_code_optimistically ... ok
+test execution::cache::state::tests::test_insert_and_get_storage ... ok
+test execution::proof::tests::test_create_receipt_proof ... ok
+test execution::proof::tests::test_ordered_trie_root_noop_encoder ... ok
+test execution::proof::tests::test_verify_account_proof ... ok
+test execution::proof::tests::test_verify_block_receipts ... ok
+test execution::proof::tests::test_verify_code_hash_proof ... ok
+test execution::proof::tests::test_verify_code_hash_proof_empty_hash ... ok
+test execution::proof::tests::test_verify_code_hash_proof_empty_keccak ... ok
+test execution::proof::tests::test_verify_receipt_proof ... ok
+test execution::proof::tests::test_verify_receipt_proof_without_transaction_index ... ok
+test execution::proof::tests::test_verify_storage_proof ... ok
+test execution::proof::tests::test_verify_transaction_proof_without_transaction_index ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.04s
+
+     Running tests/ancestor_block_hash.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/ancestor_block_hash-8ea0a35e3be143a2)
+
+running 4 tests
+test ancestor_follows_pinned_chain_not_canonical_by_number ... ok
+test ancestor_refuses_broken_link_and_wrong_pinned_answer ... ok
+test ancestor_refuses_unknown_pinned_and_outside_window ... ok
+test ancestor_through_block_cache_after_aba ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/block_body.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/block_body-0f3f7cfae277f2bf)
+
+running 2 tests
+test rejects_missing_withdrawals ... ok
+test rejects_unproven_transaction_hashes ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/block_cache_exact_hash.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/block_cache_exact_hash-9e4af358f095d119)
+
+running 4 tests
+test aba_resolves_only_the_current_block ... ok
+test finalized_conflict_drops_unsafe_branch_and_clears_latest ... ok
+test multi_height_reorg_drops_stale_descendants ... ok
+test reorg_a_to_b_unindexes_a ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/canonical_block_gate.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/canonical_block_gate-556848c2e31ae5ef)
+
+running 17 tests
+test aba_during_read_answers_a_and_post_check_passes ... ok
+test block_cache_root_counterexample_refused ... ok
+test concurrent_head_advance_keeps_ancestor_and_reorg_refuses ... ok
+test every_block_id_method_is_gated_before_and_after ... ok
+test gate_beyond_window_and_missing_link_refused ... ok
+test gate_false_and_absent_on_known_noncanonical_pass ... ok
+test gate_forged_ancestry_link_refused ... ok
+test gate_never_uses_height_lookup ... ok
+test gate_other_branch_below_head_refused_by_ancestry ... ok
+test gate_root_counterexample_retained_descendant_refused ... ok
+test gate_true_missing_head_refuses ... ok
+test gate_true_on_canonical_block_passes ... ok
+test gate_true_on_known_noncanonical_refuses_not_canonical ... ok
+test gate_true_stale_head_refuses_false_passes ... ok
+test gate_unknown_hash_refused_for_every_flag ... ok
+test gate_wrong_block_for_hash_refused_for_every_flag ... ok
+test reorg_during_read_refuses_at_post_check ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/execution.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/execution-159b26f5a0dfd82a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/historical_request.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/historical_request-9cc5e59386a67330)
+
+running 1 test
+test historical_blocks_must_match_the_requested_hash_or_height ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/log_metadata.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/log_metadata-f1c9432df81145e0)
+
+running 9 tests
+test accepts_valid_logs_with_optional_timestamps ... ok
+test empty_results_do_not_fetch_receipts ... ok
+test rejects_forged_block_number_alongside_genuine_logs ... ok
+test rejects_forged_log_metadata_with_genuine_receipts ... ok
+test rejects_forged_timestamp_when_receipt_omits_it ... ok
+test rejects_missing_log_metadata_without_panicking ... ok
+test rejects_payload_from_a_different_log_index ... ok
+test rejects_unverified_block_numbers ... ok
+test verifies_logs_from_multiple_blocks_with_one_receipt_request_each ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.70s
+
+     Running tests/node_canonical_methods.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/node_canonical_methods-89e1577db508d61a)
+
+running 8 tests
+test node_aba_during_read_answers_a ... ok
+test node_hash_reads_bind_the_exact_block_for_every_flag ... ok
+test node_head_advance_during_read_still_answers ... ok
+test node_reorg_during_read_refuses_every_method ... ok
+test node_reorg_during_read_without_require_canonical_answers_exact_a ... ok
+test node_root_counterexample_retained_descendant_refused ... ok
+test node_stale_head_refuses_true_only ... ok
+test node_unknown_hash_refused_for_every_method ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/receipt_forks.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/receipt_forks-3cc0fff0b34c4749)
+
+running 6 tests
+test active_ethereum_networks_use_their_own_bpo_activation_times ... ok
+test all_types_creation_failure_forks_and_global_log_indices ... ok
+test bpo1_correct_blob_fee_must_be_accepted ... ok
+test bpo2_correct_blob_fee_must_be_accepted ... ok
+test bpo2_forged_prague_blob_fee_must_be_rejected ... ok
+test real_mainnet_bpo2_block_receipts_must_be_accepted ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.23s
+
+     Running tests/receipt_metadata.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/receipt_metadata-819c1175f63cd126)
+
+running 2 tests
+test rejects_forged_log_locations_even_with_valid_receipts_root ... ok
+test rejects_forged_receipt_metadata_even_with_valid_receipts_root ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/rpc_account_proof.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/rpc_account_proof-b469431243f149d5)
+
+running 1 test
+test rejects_account_proof_for_different_address ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/rpc_exact_hash_postcondition.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/rpc_exact_hash_postcondition-d8cdde9a01b67333)
+
+running 2 tests
+test provider_refuses_a_different_block_for_a_hash ... ok
+test provider_still_answers_the_exact_block ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/rpc_request_budget.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/rpc_request_budget-881e2d92fe3c0f34)
+
+running 4 tests
+test cached_blocks_accounts_and_receipts_keep_their_request_budgets ... ok
+test empty_log_results_only_make_the_original_log_request ... ok
+test historical_reads_keep_the_same_full_body_payload_and_request_budgets ... ok
+test multiblock_log_queries_preserve_parallel_rpc_stages ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+
+     Running tests/rpc_storage_proof.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/rpc_storage_proof-ffe6a83d5356feb8)
+
+running 1 test
+test rejects_missing_requested_storage_proof ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/submitted_hash.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/submitted_hash-cf218d45c4ae888c)
+
+running 1 test
+test rejects_wrong_submitted_transaction_hash ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/sync_readiness.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/sync_readiness-0b0952a524bbf0de)
+
+running 5 tests
+test consensus_failure_is_propagated_without_waiting_for_blocks ... ok
+test full_latest_block_without_finalized_head_needs_no_rpc_requests ... ok
+test invalid_initial_heads_return_errors_without_reporting_ready_or_retrying ... ok
+test stopped_consensus_unblocks_pending_readiness ... ok
+test waits_for_both_validated_heads_with_two_concurrent_requests ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.36s
+
+     Running tests/transaction_lookup.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/transaction_lookup-9cfc518783989e23)
+
+running 1 test
+test rpc_cannot_substitute_another_transaction ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/transaction_metadata.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/transaction_metadata-840966dd40632a87)
+
+running 5 tests
+test does_not_expose_unproven_optional_block_metadata ... ok
+test hash_only_responses_derive_hashes_and_discard_unproven_transaction_fields ... ok
+test hash_only_responses_still_authenticate_the_full_body ... ok
+test rejects_forged_cached_transaction_hash_and_location ... ok
+test rejects_forged_transaction_sender ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+   Doc-tests helios_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+regression: 20 summaries, 91 passed, 0 failed, 0 ignored, 0 filtered out
+regression: PASS
+   Compiling ff v0.13.1
+   Compiling group v0.13.0
+   Compiling elliptic-curve v0.13.8
+   Compiling ecdsa v0.16.9
+   Compiling sha2 v0.10.9
+   Compiling k256 v0.13.4
+   Compiling alloy-primitives v1.6.1
+   Compiling alloy-eip7928 v0.4.11
+   Compiling alloy-eip7702 v0.6.3
+   Compiling alloy-eip2930 v0.2.3
+   Compiling alloy-json-abi v1.6.1
+   Compiling alloy-sol-types v1.6.1
+   Compiling ethereum_serde_utils v0.8.0
+   Compiling ethereum_ssz v0.10.4
+   Compiling alloy-eip2124 v0.2.0
+   Compiling alloy-serde v2.5.0
+   Compiling alloy-eip8141 v0.1.1
+   Compiling alloy-trie v0.9.8
+   Compiling alloy-eips v2.5.0
+   Compiling revm-primitives v43.0.0
+   Compiling revm-bytecode v43.0.0
+   Compiling alloy-consensus v2.5.0
+   Compiling revm-state v43.0.1
+   Compiling revm-database-interface v43.0.1
+   Compiling alloy-consensus-any v2.5.0
+   Compiling alloy-network-primitives v2.5.0
+   Compiling alloy-json-rpc v2.5.0
+   Compiling alloy-rpc-types-eth v2.5.0
+   Compiling revm-context-interface v43.0.2
+   Compiling alloy-rpc-types-any v2.5.0
+   Compiling alloy-transport v2.5.0
+   Compiling alloy-signer v2.5.0
+   Compiling primeorder v0.13.6
+   Compiling p256 v0.13.2
+   Compiling alloy-network v2.5.0
+   Compiling alloy-transport-http v2.5.0
+   Compiling revm-precompile v43.0.3
+   Compiling revm-context v43.0.3
+   Compiling alloy-chains v0.2.39
+   Compiling alloy-rpc-client v2.5.0
+   Compiling revm-interpreter v43.0.2
+   Compiling alloy-dyn-abi v1.6.0
+   Compiling alloy-provider v2.5.0
+   Compiling revm-handler v43.0.3
+   Compiling digest v0.9.0
+   Compiling sha-1 v0.9.8
+   Compiling revm-inspector v43.0.3
+   Compiling alloy-contract v2.5.0
+   Compiling alloy-core v1.6.0
+   Compiling alloy-signer-local v2.5.0
+   Compiling alloy-rpc-types v2.5.0
+   Compiling revm-database v43.0.1
+   Compiling syn v1.0.109
+   Compiling soketto v0.7.1
+   Compiling revm v43.0.3
+   Compiling alloy v2.5.0
+   Compiling jsonrpsee-core v0.19.0
+   Compiling helios-common v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/helios/common)
+   Compiling jsonrpsee-proc-macros v0.19.0
+   Compiling jsonrpsee-server v0.19.0
+   Compiling helios-verifiable-api-types v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/helios/verifiable-api/types)
+   Compiling helios-verifiable-api-client v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/helios/verifiable-api/client)
+   Compiling jsonrpsee v0.19.0
+   Compiling helios-core v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/helios/core)
+   Compiling helios-revm-utils v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/helios/revm-utils)
+warning: unused imports: `BlockResponse` and `primitives::HeaderResponse`
+ --> revm-utils/src/proof_db.rs:5:15
+  |
+5 |     network::{primitives::HeaderResponse, BlockResponse},
+  |               ^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `helios_core::execution::errors::ExecutionError`
+  --> revm-utils/src/proof_db.rs:21:5
+   |
+21 | use helios_core::execution::errors::ExecutionError;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `helios-revm-utils` (lib) generated 2 warnings (run `cargo fix --lib -p helios-revm-utils` to apply 2 suggestions)
+    Finished `dev` profile [unoptimized] target(s) in 27.20s
+== D: the Helios CLI still builds with the patch (debug, as the pinned binary)
+   Compiling proc-macro2 v1.0.95
+   Compiling quote v1.0.40
+   Compiling syn v2.0.104
+   Compiling libc v0.2.174
+   Compiling serde_derive v1.0.228
+   Compiling serde v1.0.228
+   Compiling zeroize_derive v1.4.2
+   Compiling zeroize v1.8.1
+   Compiling getrandom v0.2.16
+   Compiling rand_core v0.6.4
+   Compiling generic-array v0.14.7
+   Compiling subtle v2.6.1
+   Compiling bytes v1.12.0
+   Compiling crypto-common v0.1.6
+   Compiling block-buffer v0.10.4
+   Compiling digest v0.10.7
+   Compiling foldhash v0.1.5
+   Compiling hashbrown v0.15.4
+   Compiling getrandom v0.3.3
+   Compiling indexmap v2.10.0
+   Compiling signature v2.2.0
+   Compiling sha2 v0.10.9
+   Compiling base64ct v1.8.0
+   Compiling pem-rfc7468 v0.7.0
+   Compiling bitvec v1.0.1
+   Compiling arrayvec v0.7.6
+   Compiling ff v0.13.1
+   Compiling der v0.7.10
+   Compiling spki v0.7.3
+   Compiling group v0.13.0
+   Compiling serdect v0.2.0
+   Compiling derive_more-impl v2.1.1
+   Compiling pkcs8 v0.10.2
+   Compiling sec1 v0.7.3
+   Compiling hmac v0.12.1
+   Compiling crypto-bigint v0.5.5
+   Compiling elliptic-curve v0.13.8
+   Compiling rfc6979 v0.4.0
+   Compiling rand_core v0.9.3
+   Compiling alloy-rlp-derive v0.3.16
+   Compiling alloy-rlp v0.3.16
+   Compiling rand_chacha v0.9.0
+   Compiling ecdsa v0.16.9
+   Compiling rand v0.9.2
+   Compiling k256 v0.13.4
+   Compiling ruint v1.18.0
+   Compiling getrandom v0.4.3
+   Compiling derive_more v2.1.1
+   Compiling const-hex v1.14.1
+   Compiling alloy-primitives v1.6.1
+   Compiling either v1.15.0
+   Compiling log v0.4.27
+   Compiling smallvec v1.15.1
+   Compiling thiserror v2.0.18
+   Compiling thiserror-impl v2.0.18
+   Compiling rand_chacha v0.3.1
+   Compiling rand v0.8.5
+   Compiling auto_impl v1.3.0
+   Compiling tracing-core v0.1.36
+   Compiling tracing-attributes v0.1.31
+   Compiling tracing v0.1.44
+   Compiling futures-macro v0.3.31
+   Compiling futures-util v0.3.31
+   Compiling alloy-eip7702 v0.6.3
+   Compiling alloy-eip2930 v0.2.3
+   Compiling num_cpus v1.17.0
+   Compiling alloy-eip7928 v0.4.11
+   Compiling mio v1.0.4
+   Compiling socket2 v0.6.0
+   Compiling tokio-macros v2.5.0
+   Compiling tokio v1.47.0
+   Compiling synstructure v0.13.2
+   Compiling itertools v0.14.0
+   Compiling zerofrom-derive v0.1.6
+   Compiling zerofrom v0.1.6
+   Compiling yoke-derive v0.8.0
+   Compiling yoke v0.8.0
+   Compiling ahash v0.8.12
+   Compiling zerovec-derive v0.11.1
+   Compiling zerovec v0.11.2
+   Compiling displaydoc v0.2.5
+   Compiling darling_core v0.23.0
+   Compiling alloy-sol-type-parser v1.7.3
+   Compiling darling_macro v0.23.0
+   Compiling tinystr v0.8.1
+   Compiling thiserror-impl v1.0.69
+   Compiling toml_datetime v0.6.11
+   Compiling icu_locale_core v2.0.0
+   Compiling toml_edit v0.22.27
+   Compiling thiserror v1.0.69
+   Compiling darling v0.23.0
+   Compiling alloy-json-abi v1.6.1
+   Compiling zerotrie v0.2.2
+   Compiling potential_utf v0.1.2
+   Compiling futures-executor v0.3.31
+   Compiling syn-solidity v1.7.3
+   Compiling enum-ordinalize-derive v4.3.1
+   Compiling macro-string v0.2.0
+   Compiling proc-macro-error-attr3 v3.0.1
+   Compiling proc-macro-error3 v3.0.1
+   Compiling alloy-sol-macro-input v1.6.1
+   Compiling enum-ordinalize v4.3.0
+   Compiling futures v0.3.31
+   Compiling icu_collections v2.0.0
+   Compiling icu_provider v2.0.0
+   Compiling proc-macro-crate v3.3.0
+   Compiling ethereum_serde_utils v0.8.0
+   Compiling num_enum_derive v0.7.4
+   Compiling educe v0.6.0
+   Compiling alloy-sol-macro-expander v1.6.1
+   Compiling icu_properties v2.0.1
+   Compiling icu_normalizer v2.0.0
+   Compiling alloy-sol-macro v1.6.1
+   Compiling num_enum v0.7.4
+   Compiling parking_lot_core v0.9.11
+   Compiling serde_with_macros v3.21.0
+   Compiling serde_with v3.21.0
+   Compiling alloy-sol-types v1.6.1
+   Compiling idna_adapter v1.2.1
+   Compiling alloy-eip2124 v0.2.0
+   Compiling idna v1.0.3
+   Compiling parking_lot v0.12.4
+   Compiling ethereum_ssz v0.10.4
+   Compiling ethereum_ssz_derive v0.10.4
+   Compiling alloy-serde v2.5.0
+   Compiling alloy-eip8141 v0.1.1
+   Compiling nybbles v0.4.1
+   Compiling nonmax v0.5.5
+   Compiling alloy-trie v0.9.8
+   Compiling alloy-eips v2.5.0
+   Compiling syn v1.0.109
+   Compiling url v2.5.4
+   Compiling http v1.3.1
+   Compiling alloy-tx-macros v2.5.0
+   Compiling alloy-consensus v2.5.0
+   Compiling tokio-util v0.7.15
+   Compiling ark-std v0.6.0
+   Compiling primeorder v0.13.6
+   Compiling digest v0.9.0
+   Compiling ark-serialize-derive v0.6.0
+   Compiling ark-serialize v0.6.0
+   Compiling p256 v0.13.2
+   Compiling ark-ff-macros v0.6.0
+   Compiling derive-where v1.6.1
+   Compiling ark-ff-asm v0.6.0
+   Compiling ark-ff v0.6.0
+   Compiling async-trait v0.1.88
+   Compiling ark-poly v0.6.0
+   Compiling http-body v1.0.1
+   Compiling pin-project-internal v1.1.10
+   Compiling pin-project v1.1.10
+   Compiling ark-ec v0.6.0
+   Compiling rustls-pki-types v1.12.0
+   Compiling byteorder v1.5.0
+   Compiling h2 v0.4.11
+   Compiling alloy-chains v0.2.39
+   Compiling ark-bls12-381 v0.6.0
+   Compiling ark-bn254 v0.6.0
+   Compiling block-buffer v0.9.0
+   Compiling semver v1.0.26
+   Compiling hyper v1.6.0
+   Compiling crunchy v0.2.4
+   Compiling hyper-util v0.1.16
+   Compiling tower v0.5.2
+   Compiling http-body-util v0.1.3
+   Compiling toml v0.5.11
+   Compiling proc-macro-crate v1.1.3
+   Compiling aws-lc-rs v1.17.0
+   Compiling rustc_version v0.4.1
+   Compiling alloy-consensus-any v2.5.0
+   Compiling alloy-network-primitives v2.5.0
+   Compiling alloy-rpc-types-eth v2.5.0
+   Compiling rustls-webpki v0.103.4
+   Compiling alloy-json-rpc v2.5.0
+   Compiling revm-primitives v42.0.0
+   Compiling revm-bytecode v42.0.0
+   Compiling rustls v0.23.29
+   Compiling tower-http v0.6.11
+   Compiling itertools v0.13.0
+   Compiling revm-primitives v43.0.0
+   Compiling revm-bytecode v43.0.0
+   Compiling revm-state v42.0.0
+   Compiling proc-macro-error-attr v1.0.4
+   Compiling static_assertions v1.1.0
+   Compiling libsecp256k1-core v0.3.0
+   Compiling rustls-native-certs v0.8.4
+   Compiling revm-database-interface v42.0.0
+   Compiling revm-state v43.0.1
+   Compiling tokio-rustls v0.26.2
+   Compiling alloy-rpc-types-any v2.5.0
+   Compiling curve25519-dalek v4.1.3
+   Compiling alloy-signer v2.5.0
+   Compiling asynchronous-codec v0.6.2
+   Compiling blst v0.3.16
+   Compiling proc-macro-error v1.0.4
+   Compiling unsigned-varint v0.7.2
+   Compiling alloy-network v2.5.0
+   Compiling hyper-rustls v0.27.7
+   Compiling revm-database-interface v43.0.1
+   Compiling rustls-platform-verifier v0.7.0
+   Compiling sha2 v0.9.9
+   Compiling tokio-stream v0.1.17
+   Compiling hashbrown v0.14.5
+   Compiling secp256k1-sys v0.11.0
+   Compiling curve25519-dalek-derive v0.1.1
+   Compiling data-encoding v2.9.0
+   Compiling data-encoding-macro-internal v0.1.16
+   Compiling reqwest v0.13.4
+   Compiling revm-context-interface v42.0.0
+   Compiling libsecp256k1-gen-ecmult v0.3.0
+   Compiling libsecp256k1-gen-genmult v0.3.0
+   Compiling alloy-transport v2.5.0
+   Compiling synstructure v0.12.6
+   Compiling threadpool v1.8.1
+   Compiling c-kzg v2.1.8
+   Compiling ed25519 v2.2.3
+   Compiling crypto-mac v0.8.0
+   Compiling instant v0.1.13
+   Compiling hmac v0.8.1
+   Compiling ed25519-dalek v2.2.0
+   Compiling multihash-derive v0.8.1
+   Compiling alloy-transport-http v2.5.0
+   Compiling libsecp256k1 v0.7.2
+   Compiling data-encoding-macro v0.1.18
+   Compiling revm-context-interface v43.0.2
+   Compiling core2 v0.4.0
+   Compiling async-stream-impl v0.3.6
+   Compiling base-x v0.2.11
+   Compiling regex-syntax v0.8.5
+   Compiling regex-automata v0.4.9
+   Compiling multibase v0.9.1
+   Compiling async-stream v0.3.6
+   Compiling multihash v0.17.0
+   Compiling dashmap v6.1.0
+   Compiling secp256k1 v0.31.1
+   Compiling alloy-rpc-client v2.5.0
+   Compiling hmac-drbg v0.3.0
+   Compiling openssl-sys v0.9.109
+   Compiling alloy-rpc-types-trace v2.5.0
+   Compiling quick-protobuf v0.8.1
+   Compiling alloy-rpc-types-debug v2.5.0
+   Compiling revm-primitives v23.0.0
+   Compiling openssl-macros v0.1.1
+   Compiling openssl v0.10.73
+   Compiling alloy-provider v2.5.0
+   Compiling revm-bytecode v10.0.0
+   Compiling revm-precompile v42.0.1
+   Compiling multiaddr v0.17.1
+   Compiling revm-context v42.0.0
+   Compiling revm-interpreter v42.0.0
+   Compiling alloy-dyn-abi v1.6.0
+   Compiling ark-std v0.5.0
+   Compiling http v0.2.12
+   Compiling alloy-eip7928 v0.3.7
+   Compiling ark-serialize-derive v0.5.0
+   Compiling dyn-clone v1.0.20
+   Compiling asn1_der v0.7.6
+   Compiling bs58 v0.4.0
+   Compiling libp2p-identity v0.1.3
+   Compiling native-tls v0.2.14
+   Compiling alloy-hardforks v0.4.10
+   Compiling ark-serialize v0.5.0
+   Compiling revm-state v11.0.1
+   Compiling revm-handler v42.0.1
+   Compiling revm-precompile v43.0.3
+   Compiling revm-interpreter v43.0.2
+   Compiling revm-context v43.0.3
+   Compiling multistream-select v0.12.1
+   Compiling rw-stream-sink v0.3.0
+   Compiling ark-ff-macros v0.5.0
+   Compiling enum-as-inner v0.6.1
+   Compiling ark-ff-asm v0.5.0
+   Compiling futures-timer v3.0.3
+   Compiling void v1.0.2
+   Compiling libp2p-core v0.39.2
+   Compiling ark-ff v0.5.0
+   Compiling hickory-proto v0.24.4
+   Compiling revm-handler v43.0.3
+   Compiling revm-inspector v42.0.1
+   Compiling revm-database-interface v11.0.1
+   Compiling tokio-native-tls v0.3.1
+   Compiling alloy-core v1.6.0
+   Compiling alloy-contract v2.5.0
+   Compiling serde_urlencoded v0.7.1
+   Compiling alloy-signer-local v2.5.0
+   Compiling revm-database v42.0.0
+   Compiling alloy-rpc-types v2.5.0
+   Compiling hickory-resolver v0.24.4
+   Compiling alloy v2.5.0
+   Compiling revm v42.0.1
+   Compiling hyper-tls v0.6.0
+   Compiling async-compression v0.4.27
+   Compiling revm-inspector v43.0.3
+   Compiling ark-poly v0.5.0
+   Compiling h2 v0.3.27
+   Compiling http-body v0.4.6
+   Compiling revm-database v43.0.1
+   Compiling sha-1 v0.9.8
+   Compiling spin v0.10.1
+   Compiling beef v0.5.2
+   Compiling soketto v0.7.1
+   Compiling reqwest v0.12.22
+   Compiling jsonrpsee-types v0.19.0
+   Compiling globset v0.4.16
+   Compiling base-common-genesis v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/vendor-inspect/base-v1.5.1/crates/common/genesis)
+   Compiling revm v43.0.3
+   Compiling hyper v0.14.32
+   Compiling ark-ec v0.5.0
+   Compiling revm-context-interface v17.0.1
+   Compiling netlink-packet-utils v0.5.2
+   Compiling darling_core v0.20.11
+   Compiling parking_lot_core v0.8.6
+   Compiling getrandom v0.1.16
+   Compiling jsonrpsee-core v0.19.0
+   Compiling darling_core v0.13.4
+   Compiling darling_macro v0.20.11
+   Compiling netlink-packet-core v0.7.0
+   Compiling helios-common v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/helios/common)
+   Compiling reqwest-middleware v0.4.2
+   Compiling alloy-evm v0.38.0
+   Compiling libp2p-swarm-derive v0.32.0
+   Compiling tower v0.4.13
+   Compiling alloy-genesis v2.5.0
+   Compiling retry-policies v0.4.0
+   Compiling ring v0.17.14
+   Compiling bitflags v1.3.2
+   Compiling proc-macro2-diagnostics v0.10.1
+   Compiling reqwest-retry v0.7.0
+   Compiling jsonrpsee-server v0.19.0
+   Compiling libp2p-swarm v0.42.2
+   Compiling helios-verifiable-api-types v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/helios/verifiable-api/types)
+   Compiling darling v0.20.11
+   Compiling darling_macro v0.13.4
+   Compiling ark-bls12-381 v0.5.0
+   Compiling ark-bn254 v0.5.0
+   Compiling ambassador v0.4.2
+   Compiling jsonrpsee-proc-macros v0.19.0
+   Compiling ethereum_ssz v0.9.0
+   Compiling netlink-sys v0.8.7
+   Compiling ethereum_hashing v0.7.0 (https://github.com/ncitron/ethereum_hashing?rev=7ee70944ed4fabe301551da8c447e4f4ae5e6c35#7ee70944)
+   Compiling ripemd v0.1.3
+   Compiling inout v0.1.4
+   Compiling serde_spanned v0.6.9
+   Compiling schnellru v0.2.4
+   Compiling cipher v0.4.4
+   Compiling revm-precompile v34.0.0
+   Compiling tree_hash v0.10.0
+   Compiling netlink-proto v0.11.5
+   Compiling jsonrpsee v0.19.0
+   Compiling base-common-consensus v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/vendor-inspect/base-v1.5.1/crates/common/consensus)
+   Compiling rand_core v0.5.1
+   Compiling parking_lot v0.11.2
+   Compiling darling v0.13.4
+   Compiling helios-verifiable-api-client v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/helios/verifiable-api/client)
+   Compiling pear_codegen v0.2.9
+   Compiling nix v0.26.4
+   Compiling netlink-packet-route v0.17.1
+   Compiling revm-context v16.0.1
+   Compiling revm-interpreter v35.0.1
+   Compiling snow v0.9.6
+   Compiling base-precompile-macros v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/vendor-inspect/base-v1.5.1/crates/common/precompile-macros)
+   Compiling strum_macros v0.26.4
+   Compiling pairing v0.23.0
+   Compiling universal-hash v0.5.1
+   Compiling signal-hook v0.3.18
+   Compiling prometheus-client v0.19.0
+   Compiling base64 v0.21.7
+   Compiling utf8parse v0.2.2
+   Compiling dirs-sys v0.4.1
+   Compiling superstruct v0.7.0
+   Compiling pear v0.2.9
+   Compiling anstyle-parse v0.2.7
+   Compiling polyval v0.6.2
+   Compiling bls12_381 v0.8.0
+   Compiling strum v0.26.3
+   Compiling base-precompile-storage v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/vendor-inspect/base-v1.5.1/crates/common/precompile-storage)
+   Compiling revm-handler v18.1.0
+   Compiling rtnetlink v0.13.1
+   Compiling helios-core v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/helios/core)
+   Compiling curve25519-dalek v3.2.0
+   Compiling base-common-eip8130 v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/vendor-inspect/base-v1.5.1/crates/common/eip8130)
+   Compiling ssz_types v0.11.0
+   Compiling toml v0.8.23
+   Compiling tree_hash_derive v0.10.0
+   Compiling ethereum_ssz_derive v0.9.0
+   Compiling base-common-chains v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/vendor-inspect/base-v1.5.1/crates/common/chains)
+   Compiling regex v1.11.1
+   Compiling signal-hook-registry v1.4.5
+   Compiling socket2 v0.4.10
+   Compiling prometheus-client-derive-encode v0.4.2
+   Compiling colorchoice v1.0.4
+   Compiling cfg_aliases v0.2.1
+   Compiling keccak v0.1.5
+   Compiling anstyle-query v1.1.3
+   Compiling lazy_static v1.5.0
+   Compiling regex-syntax v0.6.29
+   Compiling is_terminal_polyfill v1.70.1
+   Compiling anstyle v1.0.11
+   Compiling dtoa v1.0.10
+   Compiling anstream v0.6.19
+   Compiling serde_yaml v0.9.34+deprecated
+   Compiling regex-automata v0.1.10
+   Compiling sha3 v0.10.8
+   Compiling nix v0.30.1
+   Compiling base-common-precompiles v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/vendor-inspect/base-v1.5.1/crates/common/precompiles)
+   Compiling helios-consensus-core v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/helios/ethereum/consensus-core)
+   Compiling figment v0.10.19
+   Compiling x25519-dalek v1.1.1
+   Compiling helios-revm-utils v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/helios/revm-utils)
+warning: unused imports: `BlockResponse` and `primitives::HeaderResponse`
+ --> revm-utils/src/proof_db.rs:5:15
+  |
+5 |     network::{primitives::HeaderResponse, BlockResponse},
+  |               ^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `helios_core::execution::errors::ExecutionError`
+  --> revm-utils/src/proof_db.rs:21:5
+   |
+21 | use helios_core::execution::errors::ExecutionError;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `helios-revm-utils` (lib) generated 2 warnings (run `cargo fix --lib -p helios-revm-utils` to apply 2 suggestions)
+   Compiling if-watch v3.2.1
+   Compiling revm-inspector v19.0.0
+   Compiling ghash v0.5.1
+   Compiling dirs v5.0.1
+   Compiling wasm-timer v0.2.5
+   Compiling ctr v0.9.2
+   Compiling aes v0.8.4
+   Compiling revm-database v13.0.1
+   Compiling quick-protobuf-codec v0.1.0
+   Compiling op-alloy-consensus v2.0.0
+   Compiling retri v0.1.1
+   Compiling mio v0.8.11
+   Compiling lru v0.12.5
+   Compiling aead v0.5.2
+   Compiling clap_lex v0.7.5
+   Compiling overload v0.1.1
+   Compiling snap v1.1.1
+   Compiling hex_fmt v0.3.0
+   Compiling nohash-hasher v0.2.0
+   Compiling base-common-flz v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/vendor-inspect/base-v1.5.1/crates/common/flz)
+   Compiling base-common-l1-fees v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/vendor-inspect/base-v1.5.1/crates/common/l1-fees)
+   Compiling libp2p-mplex v0.39.0
+   Compiling libp2p-gossipsub v0.44.4
+   Compiling nu-ansi-term v0.46.0
+   Compiling clap_builder v4.5.41
+   Compiling aes-gcm v0.10.3
+   Compiling signal-hook-mio v0.2.4
+   Compiling helios-ethereum v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/helios/ethereum)
+   Compiling op-alloy-rpc-types v2.0.0
+   Compiling revm v38.0.0
+   Compiling libp2p-tcp v0.39.0
+   Compiling libp2p-noise v0.42.2
+   Compiling base-execution-eip8130 v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/vendor-inspect/base-v1.5.1/crates/execution/eip8130)
+   Compiling enr v0.12.1
+   Compiling matchers v0.1.0
+   Compiling sharded-slab v0.1.7
+   Compiling libp2p-ping v0.42.0
+   Compiling libp2p-connection-limits v0.1.0
+   Compiling libp2p-allow-block-list v0.1.1
+   Compiling axum-core v0.4.5
+   Compiling hashlink v0.8.4
+   Compiling uint v0.9.5
+   Compiling delay_map v0.3.0
+   Compiling castaway v0.2.4
+   Compiling clap_derive v4.5.41
+   Compiling tracing-log v0.2.0
+   Compiling hkdf v0.12.4
+   Compiling serde_path_to_error v0.1.17
+   Compiling thread_local v1.1.9
+   Compiling unicode-width v0.1.14
+   Compiling matchit v0.7.3
+   Compiling more-asserts v0.3.1
+   Compiling discv5 v0.7.0
+   Compiling axum v0.7.9
+   Compiling unicode-truncate v1.1.0
+   Compiling tracing-subscriber v0.3.19
+   Compiling clap v4.5.41
+   Compiling compact_str v0.7.1
+   Compiling libp2p v0.51.4
+   Compiling base-common-evm v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/vendor-inspect/base-v1.5.1/crates/common/evm)
+   Compiling op-revm v20.0.0
+   Compiling op-alloy-network v2.0.0
+   Compiling crossterm v0.27.0
+   Compiling itertools v0.12.1
+   Compiling stability v0.2.1
+   Compiling cassowary v0.3.0
+   Compiling ratatui v0.26.3
+   Compiling helios-opstack v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/helios/opstack)
+   Compiling ctrlc v3.4.7
+   Compiling helios-linea v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/helios/linea)
+   Compiling helios-cli v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/helios/cli)
+    Finished `dev` profile [unoptimized] target(s) in 3m 35s
+[ok] Cargo.lock unchanged
+RESULT: B cargo=0 named=0 | C cargo=0 regression=0 (3=INCOMPLETE) | revm=0 | cli=0
+RESULT: PASS
+[memory-guard] exit=0 peakTreeRssMiB=1206 minHostAvailableMiB=22331
+[memory-guard] at peak: rust-lld:730 rustc:263 cargo:200 bash:5 cc:3 collect2:3 timeout:2
+[queue] EXIT 0

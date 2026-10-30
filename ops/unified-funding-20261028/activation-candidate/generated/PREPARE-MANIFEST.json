@@ -1,0 +1,94 @@
+{
+  "activation": "OFF by default: SESSIONS_FUNDING_OWNER_CONTROLS and SESSIONS_FUNDING_INTAKE unset enable nothing",
+  "hunks": {
+    "funding-route.mjs: activation split": {
+      "after": "111c04bbd6219352ecc96307d7ac7719be9751be01e39a576ad0aae4547f2977",
+      "before": "8d03ff9bd4ada6876f4a04aebebd05ff70a5b01e95988e314b345fee12c7062f"
+    },
+    "funding-route.mjs: end pins": {
+      "after": "585534588a1e38213ccf2a5beff91c0556f7073584f9d65cc89c10678dce4ae5",
+      "before": "bb78d291ad41fcf853fc57c049b620cb54685a26d530a22fbeec54609c202355"
+    },
+    "funding-route.mjs: execute settlement guard": {
+      "after": "7f964973630b94b4b94b3d9bd9694987e1dd8f00eea5869b7ee9c4b69232f0c3",
+      "before": "887d69debb426a1e9c4bc4524c86a7a88ae8d314a9317e0973e29fa6605f0684"
+    },
+    "funding-route.mjs: log": {
+      "after": "a92a99415b34ddbfaef0b5071e59be00f64da942d8d3f39f34783938f5f03eab",
+      "before": "ab2ebc050b47e078d48bf69efca2ab63418fe1b494262e059bc75f52ff1e4854"
+    },
+    "funding-route.mjs: owner manifest": {
+      "after": "984e27fcf5d6d69dbbdf601d30b27eadf5ae636e4fa711d3293240db56b9b5d1",
+      "before": "014015e3632ea8224f198686d1576c4c5bb5b7dd4762640a7f07d87ac51e406b"
+    },
+    "funding-route.mjs: owner op pins": {
+      "after": "a8157b6beb0fa859eea24b9db187fb90dbeb72f579de6e87c5629c1e192a4f58",
+      "before": "db9c90b16814bb06c69af6965fc0ebfaa3ce4fa0d4b7d0453ed701fcb3d6b9c5"
+    },
+    "funding-route.mjs: owner pins": {
+      "after": "9fcc9f4558c10f836afb381d2cfbc885c6a2eefb26add9bc3a15bd337923353c",
+      "before": "db77c7562b2ff2bf781f11f692705d19c9c46d85ca4b22bf2d60f42edf42c5c5"
+    },
+    "funding-route.mjs: return": {
+      "after": "52611b29807fc2600c85e719d84e8a170211c94a69f1c91f0f9b46e4974b7270",
+      "before": "9236c6b0eb8c6066870365d97819cfcaf6ff814d0f01f33944d29559dfc864f7"
+    },
+    "funding-route.mjs: route gate": {
+      "after": "dd0bc7e1a98ec80fee2936ab4d57a957306e3ce4d41116e8c74912b7a3ea763f",
+      "before": "4fc41ea4ff71535bdb9c9b03bad8cde170bbcde526a1b850777245e0bf8ba275"
+    },
+    "funding-route.mjs: session view pins": {
+      "after": "9e6382f273aca35e48613f77f91da84f803946f03eafc05322fa16e0d6270c1f",
+      "before": "bfc7526bbdca68f1cc9516998deef22417a20a03c8e47c83008346aa0d8e7895"
+    },
+    "funding-route.mjs: signature": {
+      "after": "cf8a74801046be91255272f84bc3d7bd5a9b54ea8479e8904a50bc5794f31285",
+      "before": "ae2165347fd1a9a8e3edd39325ac47e4c0c8268e7a8660581feff289461f22c8"
+    },
+    "funding-route.mjs: store init": {
+      "after": "ce7951b0bd1b2195c6d35c7e32992abda34f45a1849a1f1a78a713d01a422524",
+      "before": "afa1da97ceb2719fa68256824943b7531f020ba6c1d2bcc9ccd1e46865369322"
+    },
+    "sessions.mjs: initSessions activation": {
+      "after": "2299d6a7227f2357e61a83349b643e81baad79b84dcba63ad83488554ec67114",
+      "before": "ef54db45aaf4ed20f6c3802dcb3cbd9db45ac3cf515921563e30ffc1b363e694"
+    },
+    "sessions.mjs: loader import": {
+      "after": "6b235655e28b5675d0a8d72a0aa156afebf2d79663bdff11bca97aa3f886f096",
+      "before": "6406136fcdbcba946ad473d4a50a6b33496147fa2d8fe02ffef8f1ecf7f3a36e"
+    },
+    "sessions.mjs: route ownerControls": {
+      "after": "1609a7f5c8e96b63429a1ef7ba92a7f58cf9de188b0b3c6678b501049fe6f284",
+      "before": "3cf6324f07cd5e54443832c3cc8facb53043cfef1638aac457655601120f16ec"
+    }
+  },
+  "inputs": {
+    "successor-host-r1/generated/PREPARE-MANIFEST.json": "6ad1e3809d129535edc436b0d4582c8865f05ca007cb3441b9dcbc958379c57f",
+    "successor-host-r1/generated/relay/fee-policy.mjs": "32bcf03ea52db9be70d86e957dd440c1697daf0eaeab79f732378002d4f2bcfd",
+    "successor-host-r1/generated/relay/funding-abi.mjs": "6bb37e658aca45fd416d5ea17dda3109e1b41791e674976a60425d579f485cd7",
+    "successor-host-r1/generated/relay/funding-route.mjs": "4fbbf97fb6f0f29c6e5eff7343a96d2ba186e9e8eaf592aea64333d9656eda70",
+    "successor-host-r1/generated/relay/sessions.mjs": "98c9a914dc02990cf8bc39dc5ea84bb78fd78d40abc767dff528a0e1410583be"
+  },
+  "note": "source-only stage: these hashes are computed when the root runs prepare.py; nothing here was executed by its author",
+  "outputs": {
+    "generated/relay/fee-policy.mjs": "32bcf03ea52db9be70d86e957dd440c1697daf0eaeab79f732378002d4f2bcfd",
+    "generated/relay/funding-abi.mjs": "6bb37e658aca45fd416d5ea17dda3109e1b41791e674976a60425d579f485cd7",
+    "generated/relay/funding-activation.mjs": "7554454dbe091f4bcc7ef8e15ac5dd8082c8be6d94256f52b1c8fadcfc198645",
+    "generated/relay/funding-route.mjs": "1989f3ebf88833ac492e4f121ff33d564b1798eae1e5239b1aae444b63b572cd",
+    "generated/relay/sessions.mjs": "76341ba39b14463495ce5d9736f115e759751a6f9eaae2d77dbb113327c8530c"
+  },
+  "stage_source": {
+    "funding-activation.mjs": "7554454dbe091f4bcc7ef8e15ac5dd8082c8be6d94256f52b1c8fadcfc198645",
+    "pinned": true
+  },
+  "symlinks": {
+    "generated/node_modules": "../../../source/node_modules",
+    "generated/relay/sessions-abi.mjs": "../../../../source/relay/sessions-abi.mjs",
+    "generated/relay/snp-verify.mjs": "../../../../source/relay/snp-verify.mjs"
+  },
+  "test_inputs_observed_unpinned": {
+    "fee-policy-r1/fee-policy.mjs": "6d65e994f037a4be264deb03c4127503fec86b9215e1be519de7ccffe1eb71c5",
+    "fee-policy-r1/test/fixture.mjs": "d2d8828efbd0602741e70bbc7d0eeb254e6a51e4fa26063a1f0508e675a3b7ae",
+    "relay-owner-r2/test/fake-chain.mjs": "6e0f6f4004ab64ff9936264e7e0eaf022bbda4c7822f1e1dc1492d8816e20d3a"
+  }
+}

@@ -1,0 +1,17 @@
+--- r6/tests/test_finality_integration.py
++++ r6-test-fixes/tests/test_finality_integration.py
+@@ -23,11 +23,13 @@
+     s = importlib.util.spec_from_file_location(name, p); m = importlib.util.module_from_spec(s); s.loader.exec_module(m); return m
+ R = load('a2a4_recovery_r5', ROOT / 'harness/a2a4.py'); R.TRUSTED_UID = os.getuid()
+ _rt = pathlib.Path.read_text
+-def _boot_files(self, *a, **k):                                     # the wrapper reads these two files at import (as r7's wrapper suite stubs)
++def _boot_files(self, *a, **k):                                     # the wrapper reads these THREE files at import (as r7's wrapper suite stubs)
+     if str(self) == '/opt/enclave-rpc/manifest.json':
+         return json.dumps({'mounts': {'l1': '/srv/enclave-l1-pair', 'base': '/srv/enclave-base-holder'}, 'binaries': {}})
+     if str(self) == '/etc/enclave-rpc/chain.json':
+         return '{}'
++    if str(self) == '/etc/enclave-rpc-vm/disks.json':                # r6-test-fixes: the r6 wrapper's third import-time read (chain_service.py:26),
++        return json.dumps({'disks': [{'role': r, 'mount': m, 'uuid': 'expected'} for r, m in (('l1', '/srv/enclave-l1-pair'), ('base', '/srv/enclave-base-holder'))]})   # = r7 wrapper suite stub
+     return _rt(self, *a, **k)
+ with patch.object(pathlib.Path, 'read_text', _boot_files):
+     W = load('chain_service_r6', ROOT / 'wrapper/chain_service.py')

@@ -1,0 +1,76 @@
+## toolchain rustc 1.96.0 (ac68faa20 2026-05-25) | cargo 1.96.0 (30a34c682 2026-05-25)
+## GUEST run 2 /srv/m10-guest-validation/runs/run-2: repair stage /srv/m10-guest-validation/stage-import-recovery, OLD stage /srv/m10-guest-validation/stage, REUSED run-1 caches /srv/m10-guest-validation/runs/run-1/build/{cargo-home,target} (mutable), CC=/usr/bin/cc cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+## GUEST: reused cargo home satisfies every locked dependency offline: 1535 registry + 110 git; fsck True
+## [1] engine lib (all tests: default paths unchanged + M10)
+## engine: REBUILT base_consensus_engine-22bbca68e14337e9 sha256 8fd6a7ccefc36151dfef0b1c5c3060bf261c0348366b1e7ebf2a0f2bee661bee
+test sync::anchor::tests::anchored_forkchoice_is_head_over_n_and_requires_n_canonical ... ok
+test sync::anchor::tests::parse_accepts_only_number_colon_hash ... ok
+test sync::anchor::tests::precondition_accepts_head_exactly_n_with_labels_at_or_below_n ... ok
+test sync::anchor::tests::precondition_propagates_execution_layer_errors ... ok
+test sync::anchor::tests::precondition_refuses_replayed_snapshot_labels_above_n ... ok
+test sync::anchor::tests::precondition_refuses_wrong_number_wrong_hash_and_rpc_claimed_hash ... ok
+test task_queue::core::tests::bootstrap_anchor::anchor_not_canonical_refuses_before_any_fcu ... ok
+test task_queue::core::tests::bootstrap_anchor::fcu_rpc_error_refuses_without_retry ... ok
+test task_queue::core::tests::bootstrap_anchor::valid_fcu_starts_from_head_over_anchor_with_safe_finalized_at_anchor ... ok
+test task_queue::core::tests::bootstrap_anchor::invalid_or_syncing_fcu_refuses_without_retry ... ok
+test result: ok. 152 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.10s
+## engine OK
+## [2] node lib (actors::engine:: incl. processor + validator anchor tests)
+## node: REBUILT base_consensus_node-ce641415868cf45a sha256 a2f9cd84028531d5d0c044bd5b631a02a24094da9d1bedda46a07cc8ecee62d2
+test actors::engine::engine_request_processor::tests::bootstrap_anchor::first_reset_starts_at_the_anchor_ignoring_a_replayed_label_then_clears_it ... ok
+test actors::engine::engine_request_processor::tests::bootstrap_anchor::precondition_refuses_an_execution_head_that_was_not_unwound_to_the_anchor ... ok
+test actors::engine::engine_request_processor::tests::bootstrap_anchor::without_anchor_the_precondition_is_a_no_op ... ok
+test actors::engine::engine_request_processor::tests::bootstrap_at_genesis_validator_seeds_without_probing_el_sync ... ok
+test actors::engine::engine_request_processor::tests::bootstrap_beyond_genesis_conductor_follower_probes_and_sets_el_sync_finished ... ok
+test actors::engine::engine_request_processor::tests::bootstrap_beyond_genesis_syncing_fcu_defers_reset ... ok
+test actors::engine::engine_request_processor::tests::bootstrap_beyond_genesis_valid_fcu_sets_el_sync_finished ... ok
+test actors::engine::engine_request_processor::tests::bootstrap_beyond_genesis_validator_seeds_without_probing_el_sync ... ok
+test actors::engine::engine_request_processor::tests::bootstrap_beyond_genesis_validator_sends_zeroed_safe_finalized ... ok
+test actors::engine::engine_request_processor::tests::shadow_cycle_advances_safe_and_finalized_heads_through_canonical_anchor ... ok
+test actors::engine::validator_engine_request_handler::tests::anchor_precondition_failure_ends_the_actor_without_seed_state_or_fcu ... ok
+test result: ok. 35 passed; 0 failed; 0 ignored; 0 measured; 341 filtered out; finished in 0.01s
+## node OK
+## [2b] node: sequencer refusal
+test actors::sequencer::engine_request_coordinator::tests::bootstrap_anchor_refusal::sequencer_refuses_a_bootstrap_anchor_before_any_engine_call ... ok
+test actors::sequencer::engine_request_coordinator::tests::isolated_sequencer_bootstraps_as_follower ... ok
+test result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 346 filtered out; finished in 0.00s
+## node-seq OK
+## [2c] node: anchored SafeDB wipe (real redb)
+test service::anchor_safedb::tests::a_failing_reset_is_fatal ... ok
+test service::anchor_safedb::tests::a_surviving_entry_is_refused_and_disabled_is_accepted ... ok
+test service::anchor_safedb::tests::real_redb_wipe_removes_snapshot_entries_persistently ... ok
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 373 filtered out; finished in 0.20s
+## node-safedb OK
+## [2d] node: derivation actor regression (unchanged SafeDB reset on pipeline reset)
+test result: ok. 58 passed; 0 failed; 0 ignored; 0 measured; 318 filtered out; finished in 0.00s
+## node-derivation OK
+## [3] cli lib node::
+## cli: REBUILT base_consensus_cli-d6ae36328af6d7bb sha256 5575a2c2e3735cd6251583259256db305cbefa56c30c1c2047810b9b5d74fa4a
+test node::tests::bootstrap_anchor_flag::parses_and_is_absent_without_the_flag ... ok
+test node::tests::bootstrap_anchor_flag::refuses_malformed_values_and_has_no_env_binding ... ok
+test node::tests::bootstrap_anchor_flag::the_embedded_sequencer_args_have_no_bootstrap_anchor_flag ... ok
+test result: ok. 45 passed; 0 failed; 1 ignored; 0 measured; 96 filtered out; finished in 0.03s
+## cli OK
+## [4] CONTROL engine (precondition checks disabled)
+## control-engine: REBUILT base_consensus_engine-22bbca68e14337e9 sha256 6712cac769b675b8cafe9342779d470761f241a1d7840c055e58a5181abe3140
+test sync::anchor::tests::parse_accepts_only_number_colon_hash ... ok
+test sync::anchor::tests::precondition_accepts_head_exactly_n_with_labels_at_or_below_n ... ok
+test sync::anchor::tests::precondition_propagates_execution_layer_errors ... ok
+test sync::anchor::tests::anchored_forkchoice_is_head_over_n_and_requires_n_canonical ... ok
+test sync::anchor::tests::precondition_refuses_replayed_snapshot_labels_above_n ... FAILED
+test sync::anchor::tests::precondition_refuses_wrong_number_wrong_hash_and_rpc_claimed_hash ... FAILED
+test result: FAILED. 4 passed; 2 failed; 0 ignored; 0 measured; 146 filtered out; finished in 0.00s
+## control-engine rc=101 failing: precondition_refuses_replayed_snapshot_labels_above_n precondition_refuses_wrong_number_wrong_hash_and_rpc_claimed_hash 
+## control-engine failed exactly as expected
+## [5] CONTROL node (SafeDB wipe reset disabled)
+## control-node: REBUILT base_consensus_node-ce641415868cf45a sha256 6bd4fac1315f4965e32aac7ed1750080bc3263af1e79571080957ddd25a8c796
+test service::anchor_safedb::tests::a_surviving_entry_is_refused_and_disabled_is_accepted ... ok
+test service::anchor_safedb::tests::a_failing_reset_is_fatal ... FAILED
+test service::anchor_safedb::tests::real_redb_wipe_removes_snapshot_entries_persistently ... FAILED
+test result: FAILED. 1 passed; 2 failed; 0 ignored; 0 measured; 373 filtered out; finished in 0.08s
+## control-node rc=101 failing: a_failing_reset_is_fatal real_redb_wipe_removes_snapshot_entries_persistently 
+## control-node failed exactly as expected
+## aggregate rc=0
+[disk-guard] exit=0 childExit=0 minFreeMiB=17561
+[memory-guard] exit=0 peakTreeRssMiB=4230 minHostAvailableMiB=50763
+[memory-guard] at peak: rust-lld:2761 rustc:1185 cargo:264 python3:12 bash:4 cc:3 collect2:2

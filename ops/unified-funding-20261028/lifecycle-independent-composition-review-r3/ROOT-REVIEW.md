@@ -1,0 +1,34 @@
+# Independent lifecycle host composition r3: root review
+
+2026-10-29. This is the highest-priority feature within the censorship-resistant Enclave goal. **Staged only; not deployable or installed.**
+
+Claude delivered concrete host, journal and r6 adapter generators plus admission/dispatch sources and four test modules, then exited with `error_max_turns` (60-turn bound, rc1). The actual unit ended and its process was gone before root froze this snapshot. Missing author report and unfinished integration are not silently considered complete.
+
+## Changes and evidence
+
+- Recovered lifecycle assignments now occupy the actual host's resource accounting. Manager inventory, authenticated CPU/GPU shares, runtime state and pending running intents participate. Unknown or failed removal retains reservations; concurrent starts see synchronous reservations. This does not yet qualify measured physical capacity or production manager recovery.
+- The owned journal persists accepted host-owner revision/policy floors and local holds. Lower or contradictory ownership evidence remains refused after reopening the actual journal. A forced relay claim hint cannot clear a hold; a saved local owner-control change can. The earlier monotonic denial and cold old-ledger handoff fixes remain.
+- Publisher delist/yank and catalog moderation no longer supply mandatory vetoes on an independent host when its owner has not elected moderation. Immutable content commitments and actual deployment/host-owner controls remain.
+- The actual r6 adapter has an explicit independent pin profile. Mutable address-book contents and its administrators are discovery metadata in this profile. Default legacy behavior, recursive code/binding checks, exact schemas and receipt proofs remain. Existing on-chain global retirement and other financial/custody administrators are explicitly disclosed blockers, not ignored or claimed fixed.
+
+The first 24 author checks produced 23 passes and one real host-accounting failure: confirmed retirement still fell through to legacy `provisioning + isolationRequired`, so `Host.occupies` stayed true. Root fixed only the lifecycle branch to use the dispatch's allocation evidence (`!== false` retains unknown); legacy behavior is unchanged. The full combined suite then produced 82/83: its old insertion-count expectation was 18 instead of the new 23. Updating that expectation exposed duplicated explanatory comments in the CPU/GPU insertion strings. Root made those comments distinct without changing code. All initial logs remain.
+
+Final host suite: **85 passed, zero failed/skipped**, including unchanged independent capacity, monotonic denial, publisher-veto and cold-handoff assertions; the two restart regressions use the new generated journal and otherwise retain their assertions. Real Host/runner/journal code is exercised, with mock lifecycle authority/runtime and loopback fake RPC. This is not live Base, production capacity or crash-recovery proof.
+
+The final test child returned rc0. Its surrounding guard later exited1 because root mistyped the guard-log directory. The guard did monitor the run and reported inner176MiB/outer233MiB peaks, minimum available34313MiB; the complete test log and child rc0 remain. This was a logging-path failure after tests, not another product failure or an unguarded run. Prior correctly logged runs also remain. No cap was raised, no test skipped and no failed evidence replaced.
+
+The two additional adapter-generator checks exercise exact frozen r6 input, source restoration and syntax; they do not prove runtime authority. The separate `root-independent-adapter.test.mjs` runs only through the owned offline adapter harness, not the mock host-suite runner.
+
+## Actual adapter qualification
+
+The new independent-profile suite (5 cases) and original ABI suite (5 cases) passed with zero skips in `adapter-run-r1`. The remaining61 policy/proof/host-boundary/runtime checks now pass in `adapter-run-r4`, zero failures/skips, for71 total local-chain checks across these runs. Three attempts stopped during policy tests at the outer resource guard (515MiB,519MiB and just over512MiB versus512MiB). Reducing the V8 heap did not eliminate compiler/native/process overhead. These are incomplete runs, not failed assertions or proof of the remaining cases. These earlier incomplete attempts do not override the final r4 result. No resource cap was raised. Exact owned processes were gone and each orphaned generated temporary tree was removed only after verifying its adapter/test pins; cleanup records are retained.
+
+The third runner removed the redundant Node test-parent isolation process and ran one unchanged test file per process, but retained solc WASM plus growing Anvil state still reached the guard. A fourth runner prepares the exact original TEST-double compiler input in a child that exits, then verifies and loads that unchanged output in the fixture. It preserves all assertions, compiler settings, namespace, session cleanup, timeouts and512/450MiB limits. That fourth run passed all61 remaining checks, with inner320MiB/outer380MiB peaks and minimum available34124MiB. The same512/450MiB bounds were retained; exact compiler input/output hashes and fixture-only diff are saved. No assertions, compiler settings or contract bytecode were changed. Owned Anvil/test processes and temporary tree were cleaned on normal completion. The host runner now explicitly excludes this separate Anvil test file from its fixture-test glob.
+
+The harness reconstructs and hash-verifies the original r6 closure and overlays only the new generated adapter and independent admission module in its owned temporary tree. It uses owned loopback Anvil8453, actual schema2 candidate ledger/controller/identity and labelled registry/catalog/authority/test-fund doubles. No production keys, routes, RPC or sends. All original sources remain unchanged.
+
+## Still required
+
+The schema3 emergency-offline ledger/prover and immutable accounting library are being reviewed separately. This candidate still pins schema2 and explicitly refuses claiming schema3 integration. No production admission bootstrap, qualified capacity evidence, protected independent host-offline sponsorship, automatic authorized refill, full independent recursive contract governance, cold production recovery or remaining app restoration follows from these tests. The actual library must be linked, independently code-pinned and tested before adapter integration. Existing gas grants remain bound to their original adapter; no new-contract authority is inferred.
+
+Generators and tests depend on preserved staging inputs and baseline dependencies, with pinned source checks. This snapshot is not a portable release and must not be copied wholesale over a live host or website. All current production apps, payments, grants, administrator controls and security remain unchanged.

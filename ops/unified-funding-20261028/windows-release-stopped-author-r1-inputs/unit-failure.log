@@ -1,0 +1,5 @@
+Oct 29 21:54:45 warden-host systemd[1899]: Started [systemd-run] /usr/bin/python3 /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib 1536 --log /home/steven/Documents/Codex/2026-10-23/it/work/windows-release-stopped-author-r1-20261029/outer.guard.log -- taskset -c 1 node /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs --max-rss-mib 1408 --floor-available-mib 27648 --log /home/steven/Documents/Codex/2026-10-23/it/work/windows-release-stopped-author-r1-20261029/inner.guard.log -- python3 /home/steven/Documents/Codex/2026-10-23/it/work/windows-release-stopped-author-r1-20261029/run.py.
+Oct 29 21:54:45 warden-host python3[2315675]: [queue] START available=34337MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+Oct 29 21:54:54 warden-host python3[2315675]: [queue] EXIT 1
+Oct 29 21:54:54 warden-host systemd[1899]: enclave-windows-release-stopped-r1-20261029-author.service: Main process exited, code=exited, status=1/FAILURE
+Oct 29 21:54:54 warden-host systemd[1899]: enclave-windows-release-stopped-r1-20261029-author.service: Failed with result 'exit-code'.

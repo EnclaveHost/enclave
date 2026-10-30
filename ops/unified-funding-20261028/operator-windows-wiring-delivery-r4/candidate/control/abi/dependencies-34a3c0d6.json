@@ -1,0 +1,439 @@
+{
+ "commit": "34a3c0d6d4c5aebffffb2492437487c9de74fb66",
+ "contracts": {
+  "addressBook": {
+   "abi": [
+    {
+     "inputs": [
+      {
+       "internalType": "bytes32",
+       "name": "",
+       "type": "bytes32"
+      }
+     ],
+     "name": "addr",
+     "outputs": [
+      {
+       "internalType": "address",
+       "name": "",
+       "type": "address"
+      }
+     ],
+     "stateMutability": "view",
+     "type": "function"
+    },
+    {
+     "inputs": [],
+     "name": "all",
+     "outputs": [
+      {
+       "internalType": "bytes32[]",
+       "name": "keys_",
+       "type": "bytes32[]"
+      },
+      {
+       "internalType": "address[]",
+       "name": "values",
+       "type": "address[]"
+      }
+     ],
+     "stateMutability": "view",
+     "type": "function"
+    },
+    {
+     "inputs": [],
+     "name": "owner",
+     "outputs": [
+      {
+       "internalType": "address",
+       "name": "",
+       "type": "address"
+      }
+     ],
+     "stateMutability": "view",
+     "type": "function"
+    },
+    {
+     "inputs": [],
+     "name": "pendingOwner",
+     "outputs": [
+      {
+       "internalType": "address",
+       "name": "",
+       "type": "address"
+      }
+     ],
+     "stateMutability": "view",
+     "type": "function"
+    }
+   ],
+   "gitBlob": "bad5611238c8d1f20f229b8f1bc479c24f82e683",
+   "source": "contracts/EnclaveAddressBook.abi.json"
+  },
+  "catalog": {
+   "abi": [
+    {
+     "inputs": [
+      {
+       "internalType": "bytes32",
+       "name": "appId",
+       "type": "bytes32"
+      }
+     ],
+     "name": "getApp",
+     "outputs": [
+      {
+       "components": [
+        {
+         "internalType": "bytes32",
+         "name": "appId",
+         "type": "bytes32"
+        },
+        {
+         "internalType": "address",
+         "name": "publisher",
+         "type": "address"
+        },
+        {
+         "internalType": "string",
+         "name": "slug",
+         "type": "string"
+        },
+        {
+         "internalType": "string",
+         "name": "name",
+         "type": "string"
+        },
+        {
+         "internalType": "string",
+         "name": "description",
+         "type": "string"
+        },
+        {
+         "internalType": "uint32",
+         "name": "versionCount",
+         "type": "uint32"
+        },
+        {
+         "internalType": "uint64",
+         "name": "createdAt",
+         "type": "uint64"
+        },
+        {
+         "internalType": "uint64",
+         "name": "updatedAt",
+         "type": "uint64"
+        },
+        {
+         "internalType": "bool",
+         "name": "active",
+         "type": "bool"
+        }
+       ],
+       "internalType": "struct EnclaveAppCatalog.App",
+       "name": "",
+       "type": "tuple"
+      }
+     ],
+     "stateMutability": "view",
+     "type": "function"
+    },
+    {
+     "inputs": [
+      {
+       "internalType": "bytes32",
+       "name": "appId",
+       "type": "bytes32"
+      },
+      {
+       "internalType": "uint256",
+       "name": "index",
+       "type": "uint256"
+      }
+     ],
+     "name": "getVersion",
+     "outputs": [
+      {
+       "components": [
+        {
+         "internalType": "string",
+         "name": "cid",
+         "type": "string"
+        },
+        {
+         "internalType": "string",
+         "name": "version",
+         "type": "string"
+        },
+        {
+         "internalType": "uint32",
+         "name": "vramMb",
+         "type": "uint32"
+        },
+        {
+         "internalType": "uint32",
+         "name": "gpuGflops",
+         "type": "uint32"
+        },
+        {
+         "internalType": "uint32",
+         "name": "memMb",
+         "type": "uint32"
+        },
+        {
+         "internalType": "uint32",
+         "name": "cpuGflops",
+         "type": "uint32"
+        },
+        {
+         "internalType": "uint64",
+         "name": "createdAt",
+         "type": "uint64"
+        },
+        {
+         "internalType": "bool",
+         "name": "verified",
+         "type": "bool"
+        },
+        {
+         "internalType": "bool",
+         "name": "yanked",
+         "type": "bool"
+        },
+        {
+         "internalType": "string",
+         "name": "ports",
+         "type": "string"
+        },
+        {
+         "internalType": "uint8",
+         "name": "approval",
+         "type": "uint8"
+        },
+        {
+         "internalType": "string",
+         "name": "config",
+         "type": "string"
+        }
+       ],
+       "internalType": "struct EnclaveAppCatalog.Version",
+       "name": "",
+       "type": "tuple"
+      }
+     ],
+     "stateMutability": "view",
+     "type": "function"
+    }
+   ],
+   "gitBlob": "7bbc9bebf6223daa08430fc58f822f42dc65cede",
+   "source": "contracts/EnclaveAppCatalog.abi.json"
+  },
+  "connectivity": {
+   "abi": [
+    {
+     "inputs": [],
+     "name": "ledger",
+     "outputs": [
+      {
+       "internalType": "contract EnclaveDeployments",
+       "name": "",
+       "type": "address"
+      }
+     ],
+     "stateMutability": "view",
+     "type": "function"
+    }
+   ],
+   "binding": "ledger",
+   "gitBlob": "153e4e239ee3c2b870405569cd9df29f40fcd401",
+   "source": "contracts/EnclaveConnectivity.abi.json"
+  },
+  "pinnedSessionAuthority": {
+   "abi": [
+    {
+     "inputs": [],
+     "name": "deployments",
+     "outputs": [
+      {
+       "internalType": "address",
+       "name": "",
+       "type": "address"
+      }
+     ],
+     "stateMutability": "view",
+     "type": "function"
+    }
+   ],
+   "binding": "deployments",
+   "gitBlob": "2fb64a39b0f6626a57be139193c4c0ed4faad99c",
+   "source": "contracts/PinnedSessionVaultFactory.sol"
+  },
+  "proofOfTime": {
+   "abi": [
+    {
+     "inputs": [],
+     "name": "deployments",
+     "outputs": [
+      {
+       "internalType": "contract IEnclaveDeployments",
+       "name": "",
+       "type": "address"
+      }
+     ],
+     "stateMutability": "view",
+     "type": "function"
+    }
+   ],
+   "binding": "deployments",
+   "gitBlob": "deb09f9af131db03200a1b405537389f1bb035f6",
+   "source": "contracts/EnclaveProofOfTime.abi.json"
+  },
+  "registry": {
+   "abi": [
+    {
+     "inputs": [
+      {
+       "internalType": "bytes32",
+       "name": "id",
+       "type": "bytes32"
+      }
+     ],
+     "name": "get",
+     "outputs": [
+      {
+       "components": [
+        {
+         "internalType": "string",
+         "name": "endpoint",
+         "type": "string"
+        },
+        {
+         "internalType": "string",
+         "name": "repo",
+         "type": "string"
+        },
+        {
+         "internalType": "bytes32",
+         "name": "measurement",
+         "type": "bytes32"
+        },
+        {
+         "internalType": "address",
+         "name": "operator",
+         "type": "address"
+        },
+        {
+         "internalType": "uint64",
+         "name": "registeredAt",
+         "type": "uint64"
+        },
+        {
+         "internalType": "uint64",
+         "name": "lastSeen",
+         "type": "uint64"
+        },
+        {
+         "internalType": "bool",
+         "name": "active",
+         "type": "bool"
+        },
+        {
+         "internalType": "uint64",
+         "name": "cpuPricePerSec6",
+         "type": "uint64"
+        },
+        {
+         "internalType": "uint64",
+         "name": "gpuPricePerSec6",
+         "type": "uint64"
+        },
+        {
+         "internalType": "address",
+         "name": "proofKey",
+         "type": "address"
+        },
+        {
+         "internalType": "address",
+         "name": "payoutWallet",
+         "type": "address"
+        },
+        {
+         "internalType": "uint64",
+         "name": "caps",
+         "type": "uint64"
+        },
+        {
+         "internalType": "string",
+         "name": "region",
+         "type": "string"
+        }
+       ],
+       "internalType": "struct EnclaveRegistry.Enclave",
+       "name": "",
+       "type": "tuple"
+      }
+     ],
+     "stateMutability": "view",
+     "type": "function"
+    },
+    {
+     "inputs": [],
+     "name": "registrySchema",
+     "outputs": [
+      {
+       "internalType": "uint256",
+       "name": "",
+       "type": "uint256"
+      }
+     ],
+     "stateMutability": "view",
+     "type": "function"
+    }
+   ],
+   "gitBlob": "eefa1974c75f95710abfc680f7587f3676c15be3",
+   "source": "contracts/EnclaveRegistry.abi.json"
+  },
+  "secretVaultV2": {
+   "abi": [
+    {
+     "inputs": [],
+     "name": "deploymentLedger",
+     "outputs": [
+      {
+       "internalType": "address",
+       "name": "",
+       "type": "address"
+      }
+     ],
+     "stateMutability": "view",
+     "type": "function"
+    }
+   ],
+   "binding": "deploymentLedger",
+   "gitBlob": "2806854b404190eccfbeb6a658ca3e113096d195",
+   "source": "contracts/variants/EnclaveSecretVaultV2PinnedAuthorities.sol"
+  },
+  "verificationFees": {
+   "abi": [
+    {
+     "inputs": [],
+     "name": "ledger",
+     "outputs": [
+      {
+       "internalType": "contract IVFLedger",
+       "name": "",
+       "type": "address"
+      }
+     ],
+     "stateMutability": "view",
+     "type": "function"
+    }
+   ],
+   "binding": "ledger",
+   "gitBlob": "b1476bd9c70f2f3c4871c11fb6f52fff63e4cf95",
+   "source": "contracts/EnclaveVerificationFees.abi.json"
+  }
+ },
+ "format": "lifecycle-chain-adapter-abi/v1",
+ "note": "subset of the clean 34a3c0d6 artifacts; the two getter-only entries are the Solidity auto-getters of the cited public immutables (no artifact exists at 34a3)"
+}

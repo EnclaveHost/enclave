@@ -1,0 +1,468 @@
+Compiling 30 files with Solc 0.8.35
+Solc 0.8.35 finished in 18.06s
+Compiler run successful with warnings:
+Warning (6335): "at" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+   --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/EnclaveRegistry.sol:153:41:
+    |
+153 |     event Heartbeat(bytes32 indexed id, uint64 at);
+    |                                         ^^^^^^^^^
+
+Warning (6335): "at" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+   --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/SessionVault.sol:351:41:
+    |
+351 |     function parseHex32(bytes memory b, uint256 at) public pure returns (bytes32 v, bool ok) {
+    |                                         ^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1296:9:
+     |
+1296 |         string calldata error
+     |         ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1310:9:
+     |
+1310 |         string calldata error
+     |         ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1318:79:
+     |
+1318 |     function assertApproxEqAbs(uint256 left, uint256 right, uint256 maxDelta, string calldata error) external pure;
+     |                                                                               ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1325:77:
+     |
+1325 |     function assertApproxEqAbs(int256 left, int256 right, uint256 maxDelta, string calldata error) external pure;
+     |                                                                             ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1342:9:
+     |
+1342 |         string calldata error
+     |         ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1360:9:
+     |
+1360 |         string calldata error
+     |         ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1370:86:
+     |
+1370 |     function assertApproxEqRel(uint256 left, uint256 right, uint256 maxPercentDelta, string calldata error)
+     |                                                                                      ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1381:84:
+     |
+1381 |     function assertApproxEqRel(int256 left, int256 right, uint256 maxPercentDelta, string calldata error)
+     |                                                                                    ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1390:77:
+     |
+1390 |     function assertEqDecimal(uint256 left, uint256 right, uint256 decimals, string calldata error) external pure;
+     |                                                                             ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1397:75:
+     |
+1397 |     function assertEqDecimal(int256 left, int256 right, uint256 decimals, string calldata error) external pure;
+     |                                                                           ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1403:46:
+     |
+1403 |     function assertEq(bool left, bool right, string calldata error) external pure;
+     |                                              ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1409:68:
+     |
+1409 |     function assertEq(string calldata left, string calldata right, string calldata error) external pure;
+     |                                                                    ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1415:66:
+     |
+1415 |     function assertEq(bytes calldata left, bytes calldata right, string calldata error) external pure;
+     |                                                                  ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1421:68:
+     |
+1421 |     function assertEq(bool[] calldata left, bool[] calldata right, string calldata error) external pure;
+     |                                                                    ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1427:74:
+     |
+1427 |     function assertEq(uint256[] calldata left, uint256[] calldata right, string calldata error) external pure;
+     |                                                                          ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1433:72:
+     |
+1433 |     function assertEq(int256[] calldata left, int256[] calldata right, string calldata error) external pure;
+     |                                                                        ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1442:74:
+     |
+1442 |     function assertEq(address[] calldata left, address[] calldata right, string calldata error) external pure;
+     |                                                                          ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1448:74:
+     |
+1448 |     function assertEq(bytes32[] calldata left, bytes32[] calldata right, string calldata error) external pure;
+     |                                                                          ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1454:72:
+     |
+1454 |     function assertEq(string[] calldata left, string[] calldata right, string calldata error) external pure;
+     |                                                                        ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1460:70:
+     |
+1460 |     function assertEq(bytes[] calldata left, bytes[] calldata right, string calldata error) external pure;
+     |                                                                      ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1463:52:
+     |
+1463 |     function assertEq(uint256 left, uint256 right, string calldata error) external pure;
+     |                                                    ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1469:50:
+     |
+1469 |     function assertEq(int256 left, int256 right, string calldata error) external pure;
+     |                                                  ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1475:52:
+     |
+1475 |     function assertEq(address left, address right, string calldata error) external pure;
+     |                                                    ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1481:52:
+     |
+1481 |     function assertEq(bytes32 left, bytes32 right, string calldata error) external pure;
+     |                                                    ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1487:42:
+     |
+1487 |     function assertFalse(bool condition, string calldata error) external pure;
+     |                                          ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1495:77:
+     |
+1495 |     function assertGeDecimal(uint256 left, uint256 right, uint256 decimals, string calldata error) external pure;
+     |                                                                             ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1503:75:
+     |
+1503 |     function assertGeDecimal(int256 left, int256 right, uint256 decimals, string calldata error) external pure;
+     |                                                                           ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1510:52:
+     |
+1510 |     function assertGe(uint256 left, uint256 right, string calldata error) external pure;
+     |                                                    ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1517:50:
+     |
+1517 |     function assertGe(int256 left, int256 right, string calldata error) external pure;
+     |                                                  ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1525:77:
+     |
+1525 |     function assertGtDecimal(uint256 left, uint256 right, uint256 decimals, string calldata error) external pure;
+     |                                                                             ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1533:75:
+     |
+1533 |     function assertGtDecimal(int256 left, int256 right, uint256 decimals, string calldata error) external pure;
+     |                                                                           ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1540:52:
+     |
+1540 |     function assertGt(uint256 left, uint256 right, string calldata error) external pure;
+     |                                                    ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1547:50:
+     |
+1547 |     function assertGt(int256 left, int256 right, string calldata error) external pure;
+     |                                                  ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1555:77:
+     |
+1555 |     function assertLeDecimal(uint256 left, uint256 right, uint256 decimals, string calldata error) external pure;
+     |                                                                             ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1563:75:
+     |
+1563 |     function assertLeDecimal(int256 left, int256 right, uint256 decimals, string calldata error) external pure;
+     |                                                                           ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1570:52:
+     |
+1570 |     function assertLe(uint256 left, uint256 right, string calldata error) external pure;
+     |                                                    ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1577:50:
+     |
+1577 |     function assertLe(int256 left, int256 right, string calldata error) external pure;
+     |                                                  ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1585:77:
+     |
+1585 |     function assertLtDecimal(uint256 left, uint256 right, uint256 decimals, string calldata error) external pure;
+     |                                                                             ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1593:75:
+     |
+1593 |     function assertLtDecimal(int256 left, int256 right, uint256 decimals, string calldata error) external pure;
+     |                                                                           ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1600:52:
+     |
+1600 |     function assertLt(uint256 left, uint256 right, string calldata error) external pure;
+     |                                                    ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1607:50:
+     |
+1607 |     function assertLt(int256 left, int256 right, string calldata error) external pure;
+     |                                                  ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1614:80:
+     |
+1614 |     function assertNotEqDecimal(uint256 left, uint256 right, uint256 decimals, string calldata error) external pure;
+     |                                                                                ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1621:78:
+     |
+1621 |     function assertNotEqDecimal(int256 left, int256 right, uint256 decimals, string calldata error) external pure;
+     |                                                                              ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1627:49:
+     |
+1627 |     function assertNotEq(bool left, bool right, string calldata error) external pure;
+     |                                                 ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1633:71:
+     |
+1633 |     function assertNotEq(string calldata left, string calldata right, string calldata error) external pure;
+     |                                                                       ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1639:69:
+     |
+1639 |     function assertNotEq(bytes calldata left, bytes calldata right, string calldata error) external pure;
+     |                                                                     ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1645:71:
+     |
+1645 |     function assertNotEq(bool[] calldata left, bool[] calldata right, string calldata error) external pure;
+     |                                                                       ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1651:77:
+     |
+1651 |     function assertNotEq(uint256[] calldata left, uint256[] calldata right, string calldata error) external pure;
+     |                                                                             ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1657:75:
+     |
+1657 |     function assertNotEq(int256[] calldata left, int256[] calldata right, string calldata error) external pure;
+     |                                                                           ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1666:77:
+     |
+1666 |     function assertNotEq(address[] calldata left, address[] calldata right, string calldata error) external pure;
+     |                                                                             ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1672:77:
+     |
+1672 |     function assertNotEq(bytes32[] calldata left, bytes32[] calldata right, string calldata error) external pure;
+     |                                                                             ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1678:75:
+     |
+1678 |     function assertNotEq(string[] calldata left, string[] calldata right, string calldata error) external pure;
+     |                                                                           ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1684:73:
+     |
+1684 |     function assertNotEq(bytes[] calldata left, bytes[] calldata right, string calldata error) external pure;
+     |                                                                         ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1687:55:
+     |
+1687 |     function assertNotEq(uint256 left, uint256 right, string calldata error) external pure;
+     |                                                       ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1693:53:
+     |
+1693 |     function assertNotEq(int256 left, int256 right, string calldata error) external pure;
+     |                                                     ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1699:55:
+     |
+1699 |     function assertNotEq(address left, address right, string calldata error) external pure;
+     |                                                       ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1705:55:
+     |
+1705 |     function assertNotEq(bytes32 left, bytes32 right, string calldata error) external pure;
+     |                                                       ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "error" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> /home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/Vm.sol:1711:41:
+     |
+1711 |     function assertTrue(bool condition, string calldata error) external pure;
+     |                                         ^^^^^^^^^^^^^^^^^^^^^
+
+Warning (6335): "at" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+   --> candidate/deploy/EnclaveDeployments.sol:315:19:
+    |
+315 |         uint64 g; uint64 at; bytes32 h; address o;
+    |                   ^^^^^^^^^
+
+Warning (6335): "at" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+   --> candidate/deploy/EnclaveDeployments.sol:639:32:
+    |
+639 |     event ProofRequiredFromSet(uint64 at);
+    |                                ^^^^^^^^^
+
+Warning (6335): "at" will be promoted to keyword in the future and will not be allowed as an identifier anymore.
+    --> candidate/deploy/EnclaveDeployments.sol:1763:35:
+     |
+1763 |     function setProofRequiredFrom(uint64 at) external {
+     |                                   ^^^^^^^^^
+
+Warning (2519): This declaration shadows an existing declaration.
+    --> candidate/deploy/EnclaveDeployments.sol:2005:9:
+     |
+2005 |         uint256 credit = uint256(secs) * e.rate6;
+     |         ^^^^^^^^^^^^^^
+Note: The shadowed declaration is here:
+    --> candidate/deploy/EnclaveDeployments.sol:1996:5:
+     |
+1996 |     function credit(EnclaveDeployments.Deployment storage d, EnclaveDeployments.Earn storage e,
+     |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Ran 25 tests for candidate/test/AccountingConservation.t.sol:AccountingConservationTest
+[PASS] test_actualLinkedAccountingLibraryHasCodeAndSelfBinding() (gas: 8764)
+Logs:
+  actual linked accounting library: 0x5F65cD7D792E9746EF82929D60de9a1C526f93A5
+  actual local library code hash: 0x70e24eae530125beb4702ac1ebd8f67a16ea0f1db8b0920df2b46c6b47b5d482
+
+[PASS] test_contractsFitProductionCodeSize() (gas: 9881)
+[PASS] test_crashLoopHoldsAfterFiveAcrossGenerationsAndRequiresOwnerResume() (gas: 1654039)
+[PASS] test_delegateRefundPaysOwnerAndNeverDelegate() (gas: 943013)
+[PASS] test_duplicateWitnessCannotAuthorizeFailover() (gas: 501605)
+[PASS] test_failureQueuesAndFencesBeforeReplacementStarts() (gas: 728969)
+[PASS] test_finalStopBudgetCannotBeSpentOnAnotherStart() (gas: 288143)
+[PASS] test_idempotentRetryDoesNotChargeTwiceAndStaleIntentCannotReplaceGeneration() (gas: 223109)
+[PASS] test_importDuplicateRollsBackEntireBatch() (gas: 383730)
+[PASS] test_importRefusesAssignedRunnerOrFundedTail() (gas: 250081)
+[PASS] test_importRequiresAdminAndOpenWindow() (gas: 116572)
+[PASS] test_importRetainsRecordAndDoesNotFabricateTokenEscrow() (gas: 375319)
+[PASS] test_loweredRateCapPreventsTopupExtendingOldExpensiveAssignment() (gas: 689730)
+[PASS] test_metadataRetirementPreservesServiceAndOwnerStop() (gas: 535855)
+[PASS] test_offchainAuthorityIsOwnerOptInAndCannotChangeWhileRunning() (gas: 605410)
+[PASS] test_oldOwnerCannotWithdrawAndRunningReserveCannotBeDrained() (gas: 464846)
+[PASS] test_paidRunExpiresAtFundedHorizonAndTopupExtendsInSameTransaction() (gas: 697777)
+[PASS] test_queuedStopAlsoDisablesLedgerAndAllowsCleanOwnershipTransfer() (gas: 403566)
+[PASS] test_realSessionVaultCloneIdentityMatchesPinnedFactoryOnly() (gas: 5784003)
+[PASS] test_selfHostedRunsForMonthsWithoutRenewalsOrReserveCharges() (gas: 485614)
+[PASS] test_splitPublisherRunnerPlatformAndRefundConserveActualToken() (gas: 1388383)
+[PASS] test_splitRoundingEscrowsCeilAndFeeFloors() (gas: 1297717)
+[PASS] test_splitTokenTransferFailureRollsBackFundingAndAttribution() (gas: 200681)
+[PASS] test_verifiedVaultIsSelfHostedButArbitraryOwnerGetterIsNot() (gas: 838965)
+[PASS] test_verifiedVaultOwnerControlsReserveWithoutImpersonatingVault() (gas: 995396)
+Suite result: ok. 25 passed; 0 failed; 0 skipped; finished in 32.10ms (29.56ms CPU time)
+
+Ran 38 tests for candidate/test/LifecycleCutoff.t.sol:LifecycleCutoffTest
+[PASS] test_contractsFitProductionCodeSize() (gas: 9998)
+[PASS] test_crashLoopHoldsAfterFiveAcrossGenerationsAndRequiresOwnerResume() (gas: 1640256)
+[PASS] test_cutoffAcknowledgementIsExactIdempotentAndStaleSafe() (gas: 1007718)
+[PASS] test_cutoffBlocksRefundSweepTransferAndReplacementUntilReconciled() (gas: 1050307)
+[PASS] test_cutoffDelayedSettlementConservesBudgetAndEscrow() (gas: 850590)
+[PASS] test_cutoffEarnedWithdrawalRemainsAvailableAndRefundIsConserved() (gas: 842236)
+[PASS] test_cutoffExpiredRunRateCannotBeRebasedBeforeSettlement() (gas: 842427)
+[PASS] test_cutoffFailedLedgerSettlementPreservesPendingAndLaterUsesRealLedger() (gas: 864745)
+[PASS] test_cutoffPastFundedHorizonNeverReturnsUnpurchasedTail() (gas: 817842)
+[PASS] test_cutoffProofAndCoverageStopAtRecordedInstant() (gas: 2501776)
+[PASS] test_cutoffRecordsDespiteAdmissionDependencyFailure() (gas: 833176)
+[PASS] test_cutoffRejectsWrongHostGenerationFlagAndUnboundCaller() (gas: 855402)
+[PASS] test_cutoffTopupDoesNotReburnRevokedRun() (gas: 842348)
+[PASS] test_cutoffZeroRateUnlimitedHorizonDoesNotOverflowOrCreateCredits() (gas: 597151)
+[PASS] test_duplicateWitnessCannotAuthorizeFailover() (gas: 498033)
+[PASS] test_failureQueuesAndFencesBeforeReplacementStarts() (gas: 722330)
+[PASS] test_finalStopBudgetCannotBeSpentOnAnotherStart() (gas: 285230)
+[PASS] test_idempotentRetryDoesNotChargeTwiceAndStaleIntentCannotReplaceGeneration() (gas: 219892)
+[PASS] test_loweredRateCapPreventsTopupExtendingOldExpensiveAssignment() (gas: 685009)
+[PASS] test_metadataRetirementPreservesServiceAndOwnerStop() (gas: 532702)
+[PASS] test_offchainAuthorityIsOwnerOptInAndCannotChangeWhileRunning() (gas: 601767)
+[PASS] test_oldOwnerCannotWithdrawAndRunningReserveCannotBeDrained() (gas: 461777)
+[PASS] test_paidRunExpiresAtFundedHorizonAndTopupExtendsInSameTransaction() (gas: 693005)
+[PASS] test_proofLifecycleCannotRatchetTwoWindowsInOneBlock() (gas: 2359502)
+[PASS] test_proofLifecycleClampsToPaidHorizon() (gas: 2886533)
+[PASS] test_proofLifecycleCodeSizeFits() (gas: 1583579)
+[PASS] test_proofLifecycleConstructorRequiresExplicitBoundsAndPair() (gas: 1841594)
+[PASS] test_proofLifecycleEndedAssignmentCannotReceiveAnotherCheckpoint() (gas: 2393182)
+[PASS] test_proofLifecyclePaysOnlyProvenElapsedService() (gas: 2331730)
+[PASS] test_proofLifecyclePreservesTwoStepAdministratorHandoff() (gas: 1602242)
+[PASS] test_proofLifecycleWindowWorksWithoutLeaseSelector() (gas: 1599094)
+[PASS] test_proofLifecycleZeroRateNeedsNoRecurringCheckpoint() (gas: 2031399)
+[PASS] test_queuedStopAlsoDisablesLedgerAndAllowsCleanOwnershipTransfer() (gas: 400056)
+[PASS] test_realSessionVaultCloneIdentityMatchesPinnedFactoryOnly() (gas: 5783528)
+[PASS] test_retirementCannotCancelOtherOwnersOrPreventFundingAndStarts() (gas: 1060000)
+[PASS] test_selfHostedRunsForMonthsWithoutRenewalsOrReserveCharges() (gas: 482474)
+[PASS] test_verifiedVaultIsSelfHostedButArbitraryOwnerGetterIsNot() (gas: 837773)
+[PASS] test_verifiedVaultOwnerControlsReserveWithoutImpersonatingVault() (gas: 991662)
+Suite result: ok. 38 passed; 0 failed; 0 skipped; finished in 64.99ms (62.42ms CPU time)
+
+Ran 2 test suites in 100.12ms (97.10ms CPU time): 63 tests passed, 0 failed, 0 skipped (63 total tests)

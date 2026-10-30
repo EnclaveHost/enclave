@@ -1,0 +1,36 @@
+{
+  "at": "2026-10-28T04:12:52.288844+00:00",
+  "image": {
+    "freshGuest": "gd8b0d8776",
+    "httpsStatus": 200,
+    "tlsVerified": true,
+    "inferenceTested": false,
+    "renewalTx": "0xba9ab1c1a53a87ef2905339c873025edb67207bb1154524775ea9abd81a9f1f1",
+    "leaseUntil": "2026-10-28T04:39:27Z",
+    "leaseReadProviders": [
+      "https://mainnet.base.org",
+      "https://base-mainnet.public.blastapi.io"
+    ]
+  },
+  "qwen": {
+    "running": false,
+    "cooldownExpiredAt": "2026-10-28T04:11:41Z",
+    "memory": {
+      "availableMiB": 84025,
+      "imageHeldMiB": 5361,
+      "imagePendingMiB": 1551,
+      "requestMiB": 65049,
+      "projectedMiB": 17425,
+      "floorMiB": 18432,
+      "shortfallMiB": 1007
+    },
+    "action": "Normal controller retry only when admission fits; user asked to free unused desktop RAM. No floor reduction or force loop."
+  },
+  "rpc": {
+    "normalVMRunning": false,
+    "replacementComplete": false,
+    "publicnode": "Observed 1200 requests/60s rate-limit response",
+    "mainnetAndBlast": "Matching EIP-1898 C9 delegation read; matching live image lease reads"
+  },
+  "followup": "Investigate stale or concurrent image renew nonce 205 rejection at 04:10:06; successful lease independently verified. No new manual signing or rebroadcast."
+}

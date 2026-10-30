@@ -1,0 +1,122 @@
+{
+  "schema": "enclave-resident-admission-functional-slice/1",
+  "status": "PREPARE_ONLY_NO_IMPLEMENTATION_OR_EXECUTION",
+  "at": "2026-10-29T22:43:00.211107+00:00",
+  "recommendation": "Implement an in-place admission extension around the EXISTING resident backend launch function, plus one real shared allocation owner. Keep manager/domain/relay/readiness/journal objects in place. Do not start with manager replacement or transport handover. This is a practical source integration seam, not evidence of an already installed activation endpoint.",
+  "existingInterfaceAudit": [
+    {
+      "file": "control/windows/node/host.mjs",
+      "lines": [
+        3318,
+        3326,
+        3350,
+        3356
+      ],
+      "finding": "hosting.paused=true is destructive to hosting: plans every occupied unit and enforceOff stops/gives up leftovers. Not admission-only pause."
+    },
+    {
+      "file": "control/windows/vbslike/manager/server.mjs",
+      "lines": [
+        853,
+        858,
+        874,
+        882
+      ],
+      "finding": "Ordinary manager HTTP routes are health/list/get/spawn/delete; no pause/reservation/hot-load/state-export route in this inspected implementation."
+    },
+    {
+      "file": "control/windows/vbslike/manager/compose.mjs",
+      "lines": [
+        57,
+        63,
+        68
+      ],
+      "finding": "applyNativeRole is an existing source pattern that wraps methods on the same Manager. Called during main startup; no live invocation facility shown."
+    },
+    {
+      "file": "control/windows/vbslike/manager/backend.mjs",
+      "lines": [
+        50,
+        52,
+        64,
+        75
+      ],
+      "finding": "Backend.start dispatches through this.launch; constructor closure captures original launcher. Replacing backend.launcher alone does NOT replace launch. The functional seam is this.launch / explicit backend start hook, preserving original stop/survey/teardown and existing handles."
+    },
+    {
+      "file": "control/windows/vbslike/manager/wmiserve-run.mjs",
+      "lines": [
+        17,
+        20
+      ],
+      "finding": "Relay serves while manager stdin pipe stays open; manager death closes pipe and relay exits. No reattach/pipe ownership transfer interface found."
+    },
+    {
+      "file": "control/windows/vbslike/manager/server.mjs",
+      "lines": [
+        258,
+        293
+      ],
+      "finding": "recover keeps identity but clears relay/readiness and refuses serving. It is not non-disruptive ownership handover."
+    },
+    {
+      "file": "control/windows/vbslike/manager/protected-manager.mjs",
+      "lines": [
+        8,
+        47
+      ],
+      "finding": "Protected recovery also is not serving adoption. protected raw spawn reaches super.spawn and backend, so backend integration must cover this path too."
+    }
+  ],
+  "smallestFunctionalSlice": {
+    "proposedFiles": [
+      "allocation-owner.mjs (real reservation state/operations using existing owned/durable primitives)",
+      "allocation-extension.mjs (idempotent resident Manager/backend integration)",
+      "backend.mjs and WMI launcher narrow hook wiring",
+      "main/compose caller wiring and focused actual-consumer tests; no lifecycle/relay redesign"
+    ],
+    "operations": [
+      "Owner performs real serialized acquire/validate/observe/release for exact process-incarnation/request identity with full physical/commit upper bounds, live floor and durable unresolved intents. Both role clients share this one owner. Include qualification reservations as real budget consumers. No success-shaped fake capacity adapter.",
+      "In-place install first fences ONLY NEW launches at actual backend.launch indirection. Preserve Manager identity, epoch, domains Map and every existing record/handle, judging promise, relay stdin/stdout, data-plane sessions, stop/survey methods and journal owners. Pending already-entered starts stay accounted, never killed for installation.",
+      "Bind existing starting/uncertain records and router pending head to baseline reservation coverage. A bound on already-entered allocation effects is required before arming; merely observing launching=false is not proof of OS reflection or unknown cleanup. No global VM drain.",
+      "For each new launch acquire cross-manager reservation before underlying allocation. Revalidate local limits after any new await, preserve synchronous local reservation insertion, and forward token only to exact mapping/manager/instance. Invoke actual original launch on positive admission, not a permanent refusal.",
+      "At WMI defineType1/New-CustomVM and Start-VM transitions validate same live reservation; retain it across long PowerShell calls and uncertain outcomes. Router/public direct APIs/protected stage all reach this hook. Do not rely on router17GiB check for current>=18GiB floor.",
+      "On successful exact observed allocation mark reflected conservatively; on error/timeout/owner death retain unresolved budget until independently confirmed absence or reflection. Losing allocation owner closes only new admission; existing serving domains and explicit Stop remain available.",
+      "Two manager clients must acknowledge the same active owner incarnation/sequence and baseline coverage before granting a qualification hold. Waiting router pre-admission closures are not P. Creator footprint E, observer O and uncovered P remain unknown until actual accounting proves them."
+    ],
+    "actualSourceTestsToWriteNotRun": [
+      "Use the real Manager/HTTP handlers for both direct /vms APIs and real backend integration with inert external VM boundary: positive admission forwards one actual backend launch and returns normal response. Concurrent cross-role requests cannot oversubscribe.",
+      "Install on already-serving real Manager instances; assert SAME record/handle/manager epoch/readiness/relay stdin/data sessions remain, no stop/teardown/recover/reclaim invoked, and subsequent allowed launches use owner. Include existing in-flight starts.",
+      "Exercise original constructor launcher capture to ensure replacing wrong property cannot bypass guard; cover ProtectedManager.spawnProtectedInternal and native wrapper.",
+      "Hold grant shrinks real available capacity; failed/timeout launch keeps unresolved reservation; confirmed stop/reflection settles exact identity only. Restart owner recovery retains unknown intents.",
+      "Stale incarnation/sequence, lost owner, malformed bounds, unexpected direct boundary access and concurrent token revocation fail new allocation without killing serving VMs. Preserve current140 tests."
+    ],
+    "boundedScope": "No new native envelope creator in this slice, no arbitrary extension loader/eval, no exported secret/relay key snapshot, no manager process replacement, no on-chain transition or writer migration."
+  },
+  "activationAndHandover": {
+    "currentlyProvedActivation": "NONE. main startup calls composition and bootstrap imports modules once. No supported resident admin extension call was found. Do not imply source wrapper is already invocable in old processes.",
+    "preferredPath": "A proven owner-authenticated resident extension hook could invoke this installer on each current Manager without replacing them. Must establish that hook actually exists/executes reviewed code in those exact resident processes; no debugger/code injection is proposed. If absent, this source slice is installable for future instances, not safely hot-activatable on existing ones.",
+    "alternativeHandover": "Keep old managers/relays as serving owners; do not transfer readiness by JSON or restart/recover. A true future control-owner handover would require cooperative old-manager admission fencing and trusted epoch-bound serving delegation plus preserved relay pipes/sessions. Neither export/fence/delegation nor pipe handover exists in reviewed APIs. A proxy alone leaves direct old POST /vms as bypass, so is not a completed common boundary.",
+    "explicitGap": "There is no source-proven, currently usable non-disruptive activation or serving handover path in the inspected old build. Installed-process evidence might reveal a separate existing capability; until then no honest immediate installation claim is possible."
+  },
+  "installedEvidenceNeeded": [
+    "Exact resident8091/8095/8097 PID/start/exe/entry/module/config/role binding, before-after stable and measured at load or immutable release continuity; do not equate disk hashes to loaded modules.",
+    "Any real supported live extension/admin hook or other parent capability must be identified by exact source and resident binding; presence of SYSTEM privilege or Node is insufficient.",
+    "Actual backend instance composition/constructor closure and final Hyper-V module paths/pins, plus all direct API allocation routes. Historical server and WMI match R4, but main differs.",
+    "Fresh exact inventory/journal allocation accounting and actual parent E/O envelope/capacity mechanism; no live reads or proof gathered in this preparation."
+  ],
+  "noSourceEdits": true,
+  "noAuthorLaunch": true,
+  "noTestsBuildsRemoteNativeFinance": true,
+  "inputPins": {
+    "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/author-delivery/control/windows/node/host.mjs": "1b8f94139be7117090105aa1662b188d9fa18abd03c9d6927031d2ac96c2a48a",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/author-delivery/control/windows/node/hosting.mjs": "f2f3f46cd2fcc5433d988379546cd8c142ec878907457ffe1a01d4a1c89f17b7",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/author-delivery/control/windows/vbslike/manager/server.mjs": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/author-delivery/control/windows/vbslike/manager/backend.mjs": "d90b596a81a4f76752ba87c7905bb521f1f1674a6bbba3d8f3db210d657af9e2",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/author-delivery/control/windows/vbslike/manager/compose.mjs": "25cf15600e8708543c3284061f0250af7f37514c48f477bf9be7b1248f6c9d77",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/author-delivery/control/windows/vbslike/manager/main.mjs": "eacd28d75b6397ca7890f832e654ee476a482b2018660f21473e9d4e5f0d1ea7",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/author-delivery/control/windows/vbslike/manager/wmiserve-run.mjs": "9f6ea7ecf1f3bf28337f808c0f3bd49fe255a82199d4f8e14730904f500aaf14",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/author-delivery/control/windows/vbslike/manager/protected-manager.mjs": "3a8c5ed8361668f9f9e8f23e96462a1136cdf13a07595fe667e7d67fa107434a",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/author-delivery/control/windows/vbslike/manager/wmi-launcher.mjs": "bba4c309f5a837e17bf44be54cd8e4c4432ad74174a7d09eda559f11f5ef250e"
+  }
+}

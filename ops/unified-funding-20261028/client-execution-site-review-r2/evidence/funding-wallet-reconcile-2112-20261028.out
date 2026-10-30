@@ -1,0 +1,7 @@
+[queue] START available=90141MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+{"ok":true,"state":"confirmed","index":0,"hash":"0x91da584b22366f81b1174d8b73571bd6a34ba54f721b8476b2e25fcf420ce6b6","receipt":{"hash":"0x91da584b22366f81b1174d8b73571bd6a34ba54f721b8476b2e25fcf420ce6b6","blockNumber":"53216036","blockHash":"0xc156f523cee9845f3a33aa56f4c9c5fad2fce741a33c157eb405d08db9356c82","status":"1","contractAddress":"0x8229d0bf25328d6317d9b670c982a8ca4dc537db","gas":"2974920","maxFeePerGas":"20000000","maxPriorityFeePerGas":"2000000","gasUsed":"2363936","effectiveGasPrice":"7000000","l1Fee":"71071245207"},"next":1}
+[memory-guard] exit=0 peakTreeRssMiB=86 minHostAvailableMiB=89865
+[memory-guard] at peak: node:86
+[memory-guard] exit=0 peakTreeRssMiB=146 minHostAvailableMiB=89865
+[memory-guard] at peak: node:86 node:60
+[queue] EXIT 0

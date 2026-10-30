@@ -1,0 +1,23 @@
+{
+ "ok": false,
+ "fails": [
+  "listing: unexpected: metal/__pycache__/overlay-control-image.cpython-314.pyc (not an exact recorded file with recorded bytes)"
+ ],
+ "identity": {
+  "head": "debbfb377d90f4193ea9182f5cb67d714ffaa322",
+  "changed": 24
+ },
+ "closure": {
+  "builtBy": "consumers",
+  "artifacts": 33,
+  "buildInfoFiles": 8
+ },
+ "deps": {
+  ".": "4e0328411792",
+  "network": "2a1d5be8df94",
+  "relay": "f3459e00dbe4"
+ },
+ "dTime": {
+  "dLine": "exactly the 33 bound artifacts"
+ }
+}

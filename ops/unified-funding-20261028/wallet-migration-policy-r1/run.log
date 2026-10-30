@@ -1,0 +1,7 @@
+[queue] START available=29797MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+{"knownSession":{"live":true,"actions":"43215860598959184859848575143834562855167","envs":3,"anyApp":true,"apps":[],"expiresAt":"1793765924"},"policyRows":5}
+[memory-guard] exit=0 peakTreeRssMiB=99 minHostAvailableMiB=29680
+[memory-guard] at peak: node:96 timeout:2
+[memory-guard] exit=0 peakTreeRssMiB=160 minHostAvailableMiB=29684
+[memory-guard] at peak: node:96 node:61 timeout:2
+[queue] EXIT 0

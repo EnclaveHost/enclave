@@ -158,3 +158,16 @@ test("a shielded card does not charge per-tenant CUDA context overhead", async (
   assert.equal(passthrough.maxFreeGpuShare, 0,
     "a real card must still reserve a context for the next worker");
 });
+
+test("a terminal record whose instance is NOT confirmed stopped (_stopPending) still holds its slice: not drift, never reclaimed", async () => {
+  // the guest behind a failed stop may still run on that hardware (settleStop / settlePendingStops free it on confirmation)
+  const r = await reconcile({
+    cardVramGb: 140.4, cards: [{ vramFree: 140.4 - 13.5, computeFree: 0.91 }], cpuShareFree: 0.97,
+    records: [{ id: "pending", status: "terminated", _stopPending: { since: "t0" }, _gpu: hold9() },
+              { id: "settled", status: "terminated", _gpu: hold9() }],   // a confirmed teardown's stale handle IS drift
+  });
+  assert.deepEqual(r.dropped, ["settled"], "only the settled record's handle is dropped");
+  assert.equal(r.cards[0].vramFree, 126.9, "the pending slice stays counted on the card");
+  assert.equal(r.cpuShareFree, 0.97);
+  assert.deepEqual(r.fixedAgain, []);
+});

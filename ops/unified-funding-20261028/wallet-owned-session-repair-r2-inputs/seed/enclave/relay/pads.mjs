@@ -1,0 +1,522 @@
+// relay/pads.mjs — the platform half of dealt pads (shielded/dealer/PLAN.md):
+// per-pVM seeds, the consumption LEDGER, and signed reserve-before-use windows.
+//
+// A phone-anchored trusted half (an attested pVM on the fleet tunnel) never
+// mints its own masks: a dealer mints u = r.W for it and the pVM derives r from
+// a seed only it and the platform know. Two things must live with the platform
+// for that to be safe across reboots, and both are here:
+//
+//   the SEED for a pVM      derived, not stored: HKDF(master, keyFp, epoch). The
+//                            dealer derives the same seed to mint; the pVM gets
+//                            it once per boot, boxed to its X25519 pad key.
+//   the LEDGER              the high-water mark of pad indices handed to each
+//                            seed. A pVM asks for a window [mark, mark+W) and
+//                            the mark advances BEFORE the answer leaves, so a
+//                            pVM that reboots resumes past everything it could
+//                            have used. The operator cannot roll it back: it is
+//                            not on his box.
+//
+// Requests are authenticated by the pVM's attested Ed25519 transport key (the
+// SPKI the tunnel bound at attach); windows are signed by the relay's Ed25519
+// ledger key (GET /v1/pads/key) so the pVM refuses a window from anyone else.
+//
+// Endpoints (wired in api-relay.js):
+//   GET  /v1/pads/key                       { key: <hex 32-byte Ed25519 public key> }
+//   POST /v1/pads/seed     { name, nonce, sig }
+//                          -> { seed_id, epoch, epk, nonce, box }  the pVM's seed,
+//                             X25519(epk, padKey) -> HKDF-SHA512 -> ChaCha20-Poly1305
+//     With model_digest + calib_digest, sign the seed-v2 request and receive
+//     grant_version:1 + grant_sig over pad-grant.mjs's canonical transcript.
+//     Protected consumers require that grant under a measured ledger-key pin;
+//     encryption alone and the untrusted GET /key response provide no such pin.
+//   POST /v1/pads/reserve  { name, seed_id, want, nonce, sig }
+//   POST /v1/pads/receipt  { name, seed_id, pads, tokens, nonce, sig }
+//     the pVM's signed usage at the end of a run (pads = cells consumed,
+//     tokens = prompt + generated); the platform bills and pays on these
+//   GET  /v1/pads/receipts?seed_id=  { seed_id, pads, tokens, runs, last[] }
+//   GET  /v1/pads/consumers          { consumers: [{ name, keyFp, padKey, seed_id, epoch, mark, issued }] }
+//     every attached tunnel that offered a pad key: what a dealer daemon
+//     serves (public keys and marks only; the seed is derived from keyFp by
+//     whoever holds the master)
+//                          -> { seed_id, lo, hi, iat, sig }
+//   sig (requests) = Ed25519 over the canonical line set in signedMessage();
+//   sig (windows)  = Ed25519 over windowMessage().
+//
+// State: <dir>/pads-ledger.json, written tmp-then-rename like every other relay
+// store; the master seed and the ledger key are minted once and kept there.
+import { createHash, createPrivateKey, createPublicKey, createCipheriv, diffieHellman, generateKeyPairSync,
+         hkdfSync, randomBytes, sign as edSign, verify as edVerify } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { padGrantDigestsValid, padGrantNonceValid, seedGrantMessage, windowMessageV2 } from "./pad-grant.mjs";
+import { loadPadState, savePadState } from "./pad-state.mjs";
+export { createShipmentStore } from "./pad-shipment-store.mjs";
+import { ackProgress, ackCovers, mergeAck } from "./pad-ack.mjs";
+
+/* ---- the HTTP surface, shared by api-relay.js and the local hub ----------
+ * Returns true when the request was one of ours (answered), false otherwise.
+ * `json(res, status, body)` and `readBody(req, max) -> Buffer` are the host's. */
+export function padsRouter({ ledger, store, prefixStore, dealerToken, json, readBody }) {
+  /* One artifact store's PUT/DELETE/GET: the shipment store (seed-keyed) and
+   * the prefix-KV store (model-digest-keyed) share it. Uploads carry their
+   * sha256 and land tmp-then-rename; PUT/DELETE need the dealer's bearer. */
+  function serveArtifact(st, key, name, req, res, url) {
+    if (req.method === "GET") {
+      const f = st.file(key, name);
+      if (!f) { json(res, 404, { error: "no_such_artifact" }); return true; }
+      const stat = fs.statSync(f);
+      res.writeHead(200, { "content-type": "application/octet-stream", "content-length": stat.size, "cache-control": "private, max-age=3600" });
+      fs.createReadStream(f).pipe(res); return true;
+    }
+    const auth = String(req.headers.authorization || "");
+    if (!dealerToken || auth !== "Bearer " + dealerToken) { json(res, 403, { error: "dealer_only", message: "PUT/DELETE need the dealer's bearer" }); return true; }
+    const plan = st.plan(key, name);
+    if (!plan) { json(res, 400, { error: "bad_name", message: st.nameHint }); return true; }
+    if (req.method === "DELETE") {
+      // Enforce this at the store as well as the dealer: an older dealer that
+      // still mistakes reservation for delivery cannot discard pending pads.
+      if (st === store) {
+        const progress = ledger.mark(key);
+        if (!progress || plan.index0 + plan.count > progress.ack_floor) {
+          json(res, 409, { error: "shipment_not_acknowledged" }); return true;
+        }
+      }
+      json(res, st.remove(key, name) ? 200 : 404, { removed: name }); return true;
+    }
+    if (req.method === "PUT") {
+      const want = String(url.searchParams.get("sha256") || "").toLowerCase();
+      if (!/^[0-9a-f]{64}$/.test(want)) { json(res, 400, { error: "need_sha256" }); return true; }
+      const hash = createHash("sha256");
+      const out = fs.createWriteStream(plan.tmp, { flags: "wx", mode: 0o600 });
+      let bytes = 0;
+      req.on("data", (ch) => { hash.update(ch); bytes += ch.length; });
+      req.pipe(out);
+      out.on("finish", async () => {
+        const got = hash.digest("hex");
+        if (got !== want) { try { fs.unlinkSync(plan.tmp); } catch {} return json(res, 409, { error: "sha256_mismatch", got, want }); }
+        try {
+          if (st.commit) await st.commit(plan, got, bytes);
+          else fs.renameSync(plan.tmp, plan.final);
+        } catch (e) { return json(res, e.status || 500, { error: "store", message: e.message }); }
+        finally { try { fs.unlinkSync(plan.tmp); } catch {} }
+        json(res, 200, { stored: name, bytes, sha256: got });
+      });
+      out.on("error", (e) => { try { fs.unlinkSync(plan.tmp); } catch {} if (!res.headersSent) json(res, 500, { error: "store", message: e.message }); });
+      req.on("aborted", () => out.destroy(new Error("upload aborted")));
+      return true;
+    }
+    json(res, 405, { error: "method" }); return true;
+  }
+  return async function handle(req, res, url) {
+    const p = url.pathname;
+    /* The shared-prefix service's artifacts (prefix-kv.h): <name>.kv, <name>.kv.sig
+     * and <name>.txt per model digest. Public bytes (derived from public text and
+     * public weights, signed by the platform's prefix key); PUT/DELETE by the dealer. */
+    if (p.startsWith("/v1/prefix-kv/")) {
+      if (!prefixStore) { json(res, 503, { error: "prefix_kv_disabled" }); return true; }
+      const m = /^\/v1\/prefix-kv\/([0-9a-f]{64})(?:\/([^/]+))?$/.exec(p);
+      if (!m) { json(res, 404, { error: "not_found" }); return true; }
+      if (!m[2]) { if (req.method !== "GET") { json(res, 405, { error: "method" }); return true; } json(res, 200, { model: m[1], artifacts: prefixStore.list(m[1]) }); return true; }
+      return serveArtifact(prefixStore, m[1], m[2], req, res, url);
+    }
+    if (!p.startsWith("/v1/pads/")) return false;
+    if (!ledger || !store) { json(res, 503, { error: "pads_disabled", message: "no data dir for the pads ledger" }); return true; }
+    if (p === "/v1/pads/key" && req.method === "GET") { json(res, 200, { key: ledger.key(), epoch: PADS_EPOCH }); return true; }
+    if (p === "/v1/pads/pvm" && req.method === "GET") {
+      const r = ledger.pvm(url.searchParams.get("name") || "");
+      json(res, r ? 200 : 404, r || { error: "unknown_tunnel" }); return true;
+    }
+    if (p === "/v1/pads/ledger" && req.method === "GET") {
+      const m = ledger.mark(url.searchParams.get("seed_id") || "");
+      json(res, m ? 200 : 404, m || { error: "unknown_seed" }); return true;
+    }
+    if (p === "/v1/pads/consumers" && req.method === "GET") { json(res, 200, { consumers: ledger.consumers() }); return true; }
+    if (p === "/v1/pads/receipts" && req.method === "GET") {
+      const r = ledger.receipts(url.searchParams.get("seed_id") || "");
+      json(res, r ? 200 : 404, r || { error: "unknown_seed" }); return true;
+    }
+    if ((p === "/v1/pads/seed" || p === "/v1/pads/reserve" || p === "/v1/pads/receipt" || p === "/v1/pads/ack") && req.method === "POST") {
+      let body;
+      try { body = JSON.parse((await readBody(req, 8192)).toString("utf8") || "{}"); }
+      catch (e) { json(res, e.message === "body too large" ? 413 : 400, { error: "bad_json", message: e.message }); return true; }
+      const r = p === "/v1/pads/seed" ? ledger.seed(body || {}) : p === "/v1/pads/reserve" ? ledger.reserve(body || {}) :
+        p === "/v1/pads/ack" ? await ledger.ack(body || {}, store) : ledger.receipt(body || {});
+      json(res, r.status, r.body); return true;
+    }
+    if (p === "/v1/pads/shipments" && req.method === "GET") {
+      const seed_id = url.searchParams.get("seed_id") || "";
+      json(res, 200, { seed_id, shipments: store.list(seed_id) }); return true;
+    }
+    const ship = p.match(/^\/v1\/pads\/shipments\/([0-9a-f]{32})\/([A-Za-z0-9._-]{1,120})$/);
+    if (ship) return serveArtifact(store, ship[1], ship[2], req, res, url);
+    json(res, 404, { error: "not_found" }); return true;
+  };
+}
+
+/* ---- the shipment store --------------------------------------------------
+ * The dealer PUTs finished shipments here and the phone prefetches them into
+ * its own storage (the platform is the bank; an operator NVMe cache can front
+ * it later). Files are ciphertext to a pad key, so GET is public; PUT/DELETE
+ * take the dealer's bearer. Names are `<seed_id>-<index0>-<count>.pads`. */
+export const PADS_EPOCH = Number(process.env.PADS_EPOCH || 1);   // bump (env) to re-key every pVM's seed; old shipments become foreign
+export const MAX_WINDOW = 4096;
+export const PAD_INDEX_LIMIT = 2 ** 24;          // sh_pad_r's index field; a fresh seed is required at exhaustion
+const RECEIPT_MEMORY = 64;     // per seed, the most recent receipts kept verbatim (totals are cumulative)
+const NONCE_MEMORY = 256;                        // recent request nonces kept per seed (replay guard)
+export const MAX_RECEIPT_HISTORY = 4096;          // exact lifetime receipt replay guard; fresh seed at capacity
+
+function receiptNonceHash(nonce) {
+  return createHash("sha256").update("enclave-pads-receipt-nonce-v1\n").update(nonce).digest("hex");
+}
+
+// Usage deltas cannot safely share an evicting reserve-request replay cache.
+// Keep every accepted receipt's nonce fingerprint for the seed's lifetime.
+// Old state can migrate only if its retained receipts cover ALL previous runs;
+// missing history cannot be reconstructed from totals or recent reserve nonces.
+function receiptHistory(rec, usage) {
+  let hashes = rec.receiptNonceHashes;
+  if (hashes === undefined) {
+    if (usage.runs !== usage.last.length)
+      return { status: 409, body: { error: "receipt_history_incomplete", reseed_required: true,
+        message: "legacy receipt history is incomplete; future work needs a fresh attested transport/seed; do not relabel old receipts" } };
+    if (usage.last.length > MAX_RECEIPT_HISTORY)
+      return { status: 503, body: { error: "receipt_history_state", message: "stored receipt history exceeds its resource limit" } };
+    hashes = [];
+    for (const row of usage.last) {
+      if (!row || typeof row.nonce !== "string" || !/^[0-9a-f]{32,128}$/.test(row.nonce) || row.nonce.length % 2)
+        return { status: 503, body: { error: "receipt_history_state", message: "stored receipt history is invalid" } };
+      hashes.push(receiptNonceHash(row.nonce));
+    }
+  }
+  if (!Array.isArray(hashes) || hashes.length !== usage.runs || hashes.length > MAX_RECEIPT_HISTORY ||
+      hashes.some(h => typeof h !== "string" || !/^[0-9a-f]{64}$/.test(h)) || new Set(hashes).size !== hashes.length)
+    return { status: 503, body: { error: "receipt_history_state", message: "stored receipt history is invalid" } };
+  return { hashes };
+}
+
+function receiptHistoryFull() {
+  return { status: 409, body: { error: "receipt_history_full", reseed_required: true,
+    message: "receipt history capacity reached; future work needs a fresh attested transport/seed" } };
+}
+
+export function signedMessage(kind, fields) {
+  return ["enclave-pads-" + kind, ...fields.map(String)].join("\n");
+}
+export function windowMessage(seed_id, lo, hi, iat) {
+  return signedMessage("window", [seed_id, lo, hi, iat]);
+}
+
+/* The seed a (keyFp, epoch) gets, and its public name. Both sides of the deal
+ * derive these: the relay to answer /v1/pads/seed, the dealer to mint. */
+export function deriveSeed(master, keyFp, epoch = PADS_EPOCH) {
+  const seed = Buffer.from(hkdfSync("sha512", master, Buffer.from(keyFp, "hex"), `enclave-pads-seed:${epoch}`, 32));
+  const seed_id = Buffer.from(hkdfSync("sha512", master, Buffer.from(keyFp, "hex"), `enclave-pads-seed-id:${epoch}`, 16)).toString("hex");
+  return { seed, seed_id };
+}
+
+/* Box 32 bytes to an X25519 public key: ephemeral X25519, HKDF-SHA512 over the
+ * shared secret with both public keys as salt, ChaCha20-Poly1305. The C side
+ * (the pVM) opens it with TweetNaCl's scalarmult + its own ChaCha20 + Poly1305. */
+export function boxToPadKey(padKeyHex, plain) {
+  const padKey = Buffer.from(padKeyHex, "hex");
+  if (padKey.length !== 32) throw new Error("pad key must be 32 bytes");
+  const eph = generateKeyPairSync("x25519");
+  const epk = Buffer.from(eph.publicKey.export({ type: "spki", format: "der" })).subarray(-32);
+  const peer = createPublicKey({ key: Buffer.concat([Buffer.from("302a300506032b656e032100", "hex"), padKey]), format: "der", type: "spki" });
+  const shared = diffieHellman({ privateKey: eph.privateKey, publicKey: peer });
+  const key = Buffer.from(hkdfSync("sha512", shared, Buffer.concat([epk, padKey]), "enclave-pads-seed-box", 32));
+  const nonce = randomBytes(12);
+  const c = createCipheriv("chacha20-poly1305", key, nonce, { authTagLength: 16 });
+  const ct = Buffer.concat([c.update(plain), c.final(), c.getAuthTag()]);
+  return { epk: epk.toString("hex"), nonce: nonce.toString("hex"), box: ct.toString("hex") };
+}
+
+function rawEd25519Public(keyObject) {
+  return Buffer.from(keyObject.export({ type: "spki", format: "der" })).subarray(-32);
+}
+
+export function createPadsLedger({ dir, hub, log = console.log, masterSeed = null }) {
+  const file = path.join(dir, "pads-ledger.json");
+  const existing = loadPadState(file);
+  const state = existing || { master: null, ledgerKey: null, seeds: {} };
+  for (const rec of Object.values(state.seeds)) ackProgress(rec);
+  if (masterSeed !== null) {
+    if (typeof masterSeed !== "string" || masterSeed.length !== 64 || /[^0-9a-f]/i.test(masterSeed))
+      throw new Error("pad master seed must be exactly 32 bytes of hex");
+    const configured = masterSeed.toLowerCase();
+    if (existing && state.master !== configured)
+      throw new Error("pad master seed differs from the existing ledger; refusing implicit rotation");
+    state.master = configured;
+  }
+  if (!state.master) state.master = randomBytes(32).toString("hex");
+  if (!state.ledgerKey) {
+    const kp = generateKeyPairSync("ed25519");
+    state.ledgerKey = kp.privateKey.export({ type: "pkcs8", format: "pem" });
+  }
+  const priv = createPrivateKey(state.ledgerKey);
+  if (priv.asymmetricKeyType !== "ed25519") throw new Error("pad ledger signing key must be Ed25519");
+  const pub = createPublicKey(priv);
+  const master = Buffer.from(state.master, "hex");
+  const save = () => savePadState(file, state);
+  save();
+  log(`[pads] ledger ${file}: ${Object.keys(state.seeds).length} seed(s), key ${rawEd25519Public(pub).toString("hex").slice(0, 16)}…`);
+
+  /* The attested caller: the tunnel record for `name` must be a bound
+   * attestation with a transport SPKI, and `sig` must be that key's
+   * signature over the canonical message. */
+  function callerOf(name, kind, fields, nonce, sig) {
+    const t = hub && hub.info ? hub.info(name) : null;
+    if (!t || !t.spki) return { error: "unknown_tunnel", message: "no attested tunnel by that name" };
+    if (typeof nonce !== "string" || nonce.length < 32 || nonce.length > 128 || nonce.length % 2 || /[^0-9a-f]/.test(nonce))
+      return { error: "bad_nonce", message: "nonce must be 16..64 bytes lowercase hex" };
+    let key;
+    try { key = createPublicKey({ key: Buffer.from(t.spki, "base64"), format: "der", type: "spki" }); }
+    catch { return { error: "bad_key", message: "the tunnel's transport key is not a public key" }; }
+    let ok = false;
+    // a pVM signs with Ed25519 (TweetNaCl in the payload); a metal box's agent
+    // with its P-256 transport key (ECDSA over sha256) - the key on record decides
+    const alg = key.asymmetricKeyType === "ed25519" ? null : "sha256";
+    try { ok = edVerify(alg, Buffer.from(signedMessage(kind, [name, ...fields, nonce])), key, Buffer.from(String(sig || ""), "hex")); } catch {}
+    if (!ok) return { error: "bad_signature", message: "the request is not signed by this tunnel's attested key" };
+    return { tunnel: t };
+  }
+
+  function seedRecord(seed_id) {
+    return state.seeds[seed_id] || null;
+  }
+  function assetIdentities(rec) {
+    return rec && (rec.model_digest !== undefined || rec.calib_digest !== undefined)
+      ? { model_digest: rec.model_digest, calib_digest: rec.calib_digest } : {};
+  }
+
+  return {
+    key: () => rawEd25519Public(pub).toString("hex"),
+    /* The dealer's view, for minting: the seed and its id for an attested pVM. */
+    seedFor: (keyFp, epoch = PADS_EPOCH) => deriveSeed(master, keyFp, epoch),
+
+    /* POST /v1/pads/seed */
+    seed({ name, nonce, sig, model_digest, calib_digest }) {
+      // V2 consumers sign both asset identities and require a platform grant.
+      // A partially supplied/malformed identity cannot downgrade to legacy.
+      const grant = model_digest !== undefined || calib_digest !== undefined;
+      if (grant && (!padGrantDigestsValid(model_digest, calib_digest) || !padGrantNonceValid(nonce)))
+        return { status: 400, body: { error: "bad_grant_request", message: "model/calibration digests and nonce must each be 32 bytes lowercase hex" } };
+      const c = callerOf(name, grant ? "seed-v2" : "seed", grant ? [model_digest, calib_digest] : [], nonce, sig);
+      if (c.error) return { status: 403, body: c };
+      const t = c.tunnel;
+      if (!t.padKey) return { status: 409, body: { error: "no_pad_key", message: "the tunnel attached without a pad key" } };
+      const transport_key = Buffer.from(t.spki, "base64").toString("hex");
+      if (grant && (transport_key.length !== 88 || !transport_key.startsWith("302a300506032b6570032100")))
+        return { status: 409, body: { error: "grant_transport", message: "v2 seed grants require the pVM Ed25519 transport key" } };
+      if (grant && (!Number.isSafeInteger(PADS_EPOCH) || PADS_EPOCH < 1))
+        return { status: 503, body: { error: "grant_epoch", message: "pad epoch must be a positive safe integer" } };
+      const { seed, seed_id } = deriveSeed(master, t.keyFp, PADS_EPOCH);
+      const existing = state.seeds[seed_id];
+      // A bank's immutable shipments belong to one asset pair. A later grant
+      // cannot relabel existing pads, including an old unbound seed record.
+      if (grant && existing && (existing.model_digest !== model_digest || existing.calib_digest !== calib_digest))
+        return { status: 409, body: { error: "seed_asset_mismatch", message: "this seed already belongs to other or unbound assets; obtain a fresh per-boot seed" } };
+      const rec = state.seeds[seed_id] || (state.seeds[seed_id] = { name, keyFp: t.keyFp, epoch: PADS_EPOCH, mark: 0, updated: 0, nonces: [] });
+      rec.name = name;
+      // A v2 phone grant is one boot/engine run, followed by one final usage
+      // receipt. Keep this policy sticky even if a legacy request is replayed.
+      if (grant) { rec.finalReceiptOnly = true; rec.model_digest = model_digest; rec.calib_digest = calib_digest; }
+      save();
+      const boxed = boxToPadKey(t.padKey, seed);
+      if (grant) {
+        const body = { grant_version: 1, name, transport_key, pad_key: t.padKey,
+          model_digest, calib_digest, request_nonce: nonce, seed_id, epoch: PADS_EPOCH, ...boxed };
+        body.grant_sig = edSign(null, Buffer.from(seedGrantMessage(body)), priv).toString("hex");
+        return { status: 200, body };
+      }
+      return { status: 200, body: { seed_id, epoch: PADS_EPOCH, ...boxed } };
+    },
+
+    /* POST /v1/pads/reserve: advance the mark FIRST, then sign the window. */
+    reserve({ name, seed_id, want, nonce, sig }) {
+      want = Number(want);
+      if (!Number.isInteger(want) || want < 1 || want > MAX_WINDOW) return { status: 400, body: { error: "bad_window", message: `want must be 1..${MAX_WINDOW}` } };
+      if (!/^[0-9a-f]{32}$/.test(String(seed_id || ""))) return { status: 400, body: { error: "bad_seed_id" } };
+      const c = callerOf(name, "reserve", [seed_id, want], nonce, sig);
+      if (c.error) return { status: 403, body: c };
+      const rec = seedRecord(seed_id);
+      if (!rec || rec.keyFp !== c.tunnel.keyFp) return { status: 403, body: { error: "not_your_seed", message: "this seed was not issued to this tunnel's key" } };
+      const usage = rec.usage || { pads: 0, tokens: 0, runs: 0, last: [] };
+      if (![usage.pads, usage.tokens, usage.runs].every(n => Number.isSafeInteger(n) && n >= 0) || !Array.isArray(usage.last))
+        return { status: 503, body: { error: "receipt_state", message: "stored usage totals are invalid" } };
+      // A final receipt closes NEW work as well as accounting. Dealer minting
+      // already stops for this seed; signing more windows would authorize work
+      // whose usage can no longer be recorded. Issued windows stay burned.
+      if (rec.finalReceiptOnly && usage.runs > 0)
+        return { status: 409, body: { error: "seed_finalized", reseed_required: true,
+          message: "this pVM seed has its final receipt; future work needs a fresh attested transport/seed" } };
+      // Stop authorizing new legacy work once its accounting history can no
+      // longer admit a safe receipt. Already-issued windows are not revoked;
+      // upgrading an old long-lived consumer still requires a planned rekey.
+      if (!rec.finalReceiptOnly) {
+        const history = receiptHistory(rec, usage);
+        if (!history.hashes) return history;
+        if (history.hashes.length >= MAX_RECEIPT_HISTORY) return receiptHistoryFull();
+      }
+      if (!Number.isSafeInteger(rec.mark) || rec.mark < 0 || rec.mark > PAD_INDEX_LIMIT - want)
+        return { status: 409, body: { error: "seed_exhausted", message: "pad counter domain exhausted; obtain a fresh per-boot seed" } };
+      if (rec.nonces.includes(nonce)) return { status: 409, body: { error: "replay", message: "nonce already used" } };
+      rec.nonces.push(nonce); if (rec.nonces.length > NONCE_MEMORY) rec.nonces.splice(0, rec.nonces.length - NONCE_MEMORY);
+      const lo = rec.mark, hi = rec.mark + want, iat = Math.floor(Date.now() / 1000);
+      rec.mark = hi; rec.updated = iat;
+      save();                                                  // durable BEFORE the window is handed out
+      const wsig = edSign(null, Buffer.from(windowMessage(seed_id, lo, hi, iat)), priv).toString("hex");
+      const sig_v2 = edSign(null, Buffer.from(windowMessageV2(seed_id, lo, hi, iat, nonce)), priv).toString("hex");
+      return { status: 200, body: { seed_id, lo, hi, iat, sig: wsig, window_version: 2, request_nonce: nonce, sig_v2 } };
+    },
+
+    /* Acknowledgments are monotonic set union, so retries remain harmless
+     * across nonce eviction and restarts. They never advance reservation mark.
+     * Authenticate BEFORE hashing, and reload state AFTER that async boundary. */
+    async ack({ name, seed_id, index0, count, sha256, nonce, sig }, store) {
+      if (!/^[0-9a-f]{32}$/.test(String(seed_id || "")) || !/^[0-9a-f]{64}$/.test(String(sha256 || "")) ||
+          !Number.isSafeInteger(index0) || index0 < 0 || !Number.isSafeInteger(count) || count <= 0 || index0 >= PAD_INDEX_LIMIT || count > PAD_INDEX_LIMIT - index0)
+        return { status: 400, body: { error: "bad_ack" } };
+      const c = callerOf(name, "ack", [seed_id, index0, count, sha256], nonce, sig);
+      if (c.error) return { status: 403, body: c };
+      const rec = seedRecord(seed_id);
+      if (!rec || rec.keyFp !== c.tunnel.keyFp) return { status: 403, body: { error: "not_your_seed" } };
+      const reply = (r) => ({ status: 200, body: { seed_id, mark: r.mark, ...ackProgress(r) } });
+      if (ackCovers(ackProgress(rec), index0, index0 + count)) return reply(rec);
+      if (!store?.digest) return { status: 503, body: { error: "ack_store_unavailable" } };
+      const got = await store.digest(seed_id, `${seed_id}-${index0}-${count}.pads`);
+      if (!got) return { status: 409, body: { error: "ack_shipment_missing" } };
+      if (got !== sha256) return { status: 409, body: { error: "digest_mismatch" } };
+      const current = seedRecord(seed_id), progress = ackProgress(current);
+      const next = mergeAck(progress, index0, index0 + count);
+      if (!next) return { status: 409, body: { error: "ack_ranges_full" } };
+      state.seeds[seed_id] = { ...current, ...next };
+      try { save(); } catch (e) { state.seeds[seed_id] = current; throw e; }
+      return reply(state.seeds[seed_id]);
+    },
+
+    /* POST /v1/pads/receipt: the pVM's word on what a run consumed. Signed by
+     * the same transport key as the windows, so neither the owner app nor an
+     * operator can inflate it; totals are what billing and the operator payout
+     * read. Receipt nonce fingerprints persist for the seed's lifetime; reserve
+     * traffic or truncated display history must never make a delta replayable. */
+    receipt({ name, seed_id, pads, tokens, nonce, sig }) {
+      pads = Number(pads); tokens = Number(tokens);
+      if (!/^[0-9a-f]{32}$/.test(String(seed_id || ""))) return { status: 400, body: { error: "bad_seed_id" } };
+      if (!Number.isSafeInteger(pads) || pads < 0 || !Number.isSafeInteger(tokens) || tokens < 0) return { status: 400, body: { error: "bad_receipt", message: "pads and tokens must be non-negative integers" } };
+      const c = callerOf(name, "receipt", [seed_id, pads, tokens], nonce, sig);
+      if (c.error) return { status: 403, body: c };
+      const rec = seedRecord(seed_id);
+      if (!rec || rec.keyFp !== c.tunnel.keyFp) return { status: 403, body: { error: "not_your_seed", message: "this seed was not issued to this tunnel's key" } };
+      if (rec.finalReceiptOnly && rec.usage && rec.usage.runs > 0)
+        return { status: 409, body: { error: "receipt_finalized", message: "this pVM seed already has its final usage receipt" } };
+      if (rec.nonces.includes(nonce)) return { status: 409, body: { error: "replay", message: "nonce already used" } };
+      const previous = rec.usage || { pads: 0, tokens: 0, runs: 0, last: [] };
+      const validCount = n => Number.isSafeInteger(n) && n >= 0;
+      if (![previous.pads, previous.tokens, previous.runs].every(validCount) || !Array.isArray(previous.last))
+        return { status: 503, body: { error: "receipt_state", message: "stored usage totals are invalid" } };
+      const u = { pads: previous.pads + pads, tokens: previous.tokens + tokens, runs: previous.runs + 1, last: previous.last.slice() };
+      if (![u.pads, u.tokens, u.runs].every(validCount))
+        return { status: 409, body: { error: "receipt_overflow", message: "cumulative usage exceeds the exact counter range" } };
+      let receiptHashes;
+      if (!rec.finalReceiptOnly) {
+        const history = receiptHistory(rec, previous);
+        if (!history.hashes) return history;
+        const receiptHash = receiptNonceHash(nonce);
+        if (history.hashes.includes(receiptHash))
+          return { status: 409, body: { error: "replay", message: "receipt nonce already used" } };
+        if (history.hashes.length >= MAX_RECEIPT_HISTORY) return receiptHistoryFull();
+        receiptHashes = [...history.hashes, receiptHash];
+      }
+      const iat = Math.floor(Date.now() / 1000);
+      u.last.push({ pads, tokens, iat, nonce }); if (u.last.length > RECEIPT_MEMORY) u.last.splice(0, u.last.length - RECEIPT_MEMORY);
+      // Keep the old record intact until persistence succeeds. A failed save
+      // must not expose unacknowledged usage or consume the retry's nonce in
+      // this process. After an uncertain rename/directory-sync failure, a
+      // restart may recover either version; its replay/finalization policy
+      // then applies to retries.
+      state.seeds[seed_id] = { ...rec, usage: u, ...(receiptHashes ? {receiptNonceHashes: receiptHashes} : {}),
+        nonces: [...rec.nonces, nonce].slice(-NONCE_MEMORY) };
+      try { save(); } catch (e) { state.seeds[seed_id] = rec; throw e; }
+      return { status: 200, body: { seed_id, pads: u.pads, tokens: u.tokens, runs: u.runs, iat } };
+    },
+
+    /* GET /v1/pads/receipts?seed_id= (billing and the operator payout read the totals). */
+    receipts(seed_id) {
+      const rec = seedRecord(seed_id);
+      if (!rec) return null;
+      const u = rec.usage || { pads: 0, tokens: 0, runs: 0, last: [] };
+      return { seed_id, name: rec.name, pads: u.pads, tokens: u.tokens, runs: u.runs, last: u.last };
+    },
+
+    /* GET /v1/pads/pvm?name=: what a dealer needs to mint for an attached pVM -
+     * public keys only (the seed itself is derived from keyFp by whoever holds
+     * the master), plus the seed id and the mark so a bank can be planned. */
+    pvm(name) {
+      const t = hub && hub.info ? hub.info(name) : null;
+      if (!t || !t.keyFp) return null;
+      const { seed_id } = deriveSeed(master, t.keyFp, PADS_EPOCH);
+      const rec = seedRecord(seed_id);
+      return { name, keyFp: t.keyFp, padKey: t.padKey || "", seed_id, epoch: PADS_EPOCH, mark: rec ? rec.mark : 0, issued: !!rec,
+        ...assetIdentities(rec), ...ackProgress(rec) };
+    },
+
+    /* GET /v1/pads/consumers: every attached tunnel with a pad key, for the
+     * dealer daemon that keeps all of them ahead of their marks. */
+    consumers() {
+      const names = hub && hub.origins ? hub.origins().map((o) => o.name) : [];
+      const out = [];
+      for (const name of names) {
+        const t = hub.info(name);
+        if (!t || !t.keyFp || !t.padKey) continue;
+        const { seed_id } = deriveSeed(master, t.keyFp, PADS_EPOCH);
+        const rec = seedRecord(seed_id);
+        out.push({ name, keyFp: t.keyFp, padKey: t.padKey, seed_id, epoch: PADS_EPOCH, mark: rec ? rec.mark : 0, issued: !!rec,
+          ...assetIdentities(rec), ...ackProgress(rec) });
+      }
+      return out;
+    },
+
+    /* GET /v1/pads/ledger?seed_id= (operators and the dealer read the mark). */
+    mark(seed_id) {
+      const rec = seedRecord(seed_id);
+      return rec ? { seed_id, mark: rec.mark, updated: rec.updated, name: rec.name, ...ackProgress(rec) } : null;
+    },
+  };
+}
+
+/* ---- the shared-prefix store ---------------------------------------------
+ * prefix-kv-mint's output per model digest: <name>.kv (llama's sequence state),
+ * <name>.kv.sig (the signed sidecar) and <name>.txt (the prefix text). Public
+ * bytes; the consumer trusts the sidecar's signature, not this store. */
+const PREFIX_NAME = /^([a-z0-9][a-z0-9._-]{0,63})\.(kv|kv\.sig|txt)$/;
+export function createPrefixStore({ dir }) {
+  const root = path.join(dir, "prefix-kv");
+  const modelDir = (digest) => path.join(root, digest);
+  const okDigest = (d) => /^[0-9a-f]{64}$/.test(String(d || ""));
+  return {
+    root,
+    nameHint: "<name>.kv | <name>.kv.sig | <name>.txt (lowercase name, 64 chars max)",
+    plan(digest, name) {
+      const m = PREFIX_NAME.exec(String(name || ""));
+      if (!okDigest(digest) || !m) return null;
+      fs.mkdirSync(modelDir(digest), { recursive: true });
+      return { tmp: path.join(modelDir(digest), "." + name + ".part"), final: path.join(modelDir(digest), name), base: m[1], kind: m[2] };
+    },
+    list(digest) {
+      if (!okDigest(digest)) return [];
+      let names = [];
+      try { names = fs.readdirSync(modelDir(digest)); } catch { return []; }
+      return names.filter((n) => PREFIX_NAME.test(n)).sort().map((n) => ({ name: n, bytes: fs.statSync(path.join(modelDir(digest), n)).size }));
+    },
+    file(digest, name) {
+      const p = this.plan(digest, name);
+      return p && fs.existsSync(p.final) ? p.final : null;
+    },
+    remove(digest, name) {
+      const p = this.plan(digest, name);
+      if (!p) return false;
+      try { fs.unlinkSync(p.final); return true; } catch { return false; }
+    },
+  };
+}

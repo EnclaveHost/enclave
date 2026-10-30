@@ -110,5 +110,6 @@ export async function fakeBaseRpc() {
   });
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   process.env.BASE_RPCS = `http://127.0.0.1:${server.address().port}`;
+  process.env.BASE_RPC = process.env.BASE_RPCS;           // the cached client RPC too: no read reaches api.enclave.host
   return { row, rows, chainTx, catalog, calls, close: () => server.close() };
 }

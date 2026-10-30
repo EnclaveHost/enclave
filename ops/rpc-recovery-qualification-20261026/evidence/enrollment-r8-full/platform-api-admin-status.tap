@@ -1,0 +1,16 @@
+TAP version 13
+# Subtest: status: one body-less GET of the status path; the answer is printed as is (in process and through the real entry)
+ok 1 - status: one body-less GET of the status path; the answer is printed as is (in process and through the real entry)
+  ---
+  duration_ms: 278.158185
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 542.265158

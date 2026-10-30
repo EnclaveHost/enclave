@@ -1,0 +1,343 @@
+--- a/crates/consensus/providers/src/chain_provider.rs
++++ b/crates/consensus/providers/src/chain_provider.rs
+@@ -2,7 +2,10 @@
+ 
+ use std::{boxed::Box, num::NonZeroUsize, vec::Vec};
+ 
+-use alloy_consensus::{Header, Receipt, TxEnvelope};
++use alloy_consensus::{
++    Header, Receipt, ReceiptEnvelope, TxEnvelope,
++    proofs::{calculate_receipt_root, calculate_transaction_root},
++};
+ use alloy_eips::BlockId;
+ use alloy_primitives::B256;
+ use alloy_provider::{Provider, RootProvider};
+@@ -20,7 +23,9 @@
+ pub struct AlloyChainProvider {
+     /// The inner Ethereum JSON-RPC provider.
+     pub inner: RootProvider,
+-    /// Whether to trust the RPC without verification.
++    /// Whether to trust the RPC without verification. When false, every header is hash-checked against the hash it
++    /// was requested by, and receipt and transaction lists are checked against that header's roots before use or
++    /// caching (an omitted, reordered or altered receipt or transaction is refused, never derived from).
+     pub trust_rpc: bool,
+     /// `header_by_hash` LRU cache.
+     header_by_hash_cache: LruCache<B256, Header>,
+@@ -121,6 +126,26 @@
+     /// Failed to convert RPC receipts into consensus receipts.
+     #[error("Failed to convert RPC receipts into consensus receipts: {0}")]
+     ReceiptsConversion(B256),
++    /// The receipts served for a block do not hash to its verified header's receipts root.
++    #[error("Receipts root mismatch for L1 block {block}: header {expected}, served receipts {computed}")]
++    ReceiptsRootMismatch {
++        /// The block hash.
++        block: B256,
++        /// The receipts root in the hash-verified header.
++        expected: B256,
++        /// The root of the receipts the RPC served.
++        computed: B256,
++    },
++    /// The transactions served for a block do not hash to its verified header's transactions root.
++    #[error("Transactions root mismatch for L1 block {block}: header {expected}, served transactions {computed}")]
++    TransactionsRootMismatch {
++        /// The block hash.
++        block: B256,
++        /// The transactions root in the hash-verified header.
++        expected: B256,
++        /// The root of the transactions the RPC served.
++        computed: B256,
++    },
+ }
+ 
+ impl From<AlloyChainProviderError> for PipelineErrorKind {
+@@ -146,6 +171,12 @@
+                     "Failed to convert RPC receipts into consensus receipts".to_string(),
+                 ))
+             }
++            // The served data is wrong for a block whose hash is verified: nothing is derived from it, and the
++            // pipeline retries (stalls) rather than resetting onto data the RPC chose.
++            e @ (AlloyChainProviderError::ReceiptsRootMismatch { .. } |
++            AlloyChainProviderError::TransactionsRootMismatch { .. }) => {
++                Self::Temporary(PipelineError::Provider(e.to_string()))
++            }
+         }
+     }
+ }
+@@ -221,9 +252,20 @@
+             Metrics::chain_rpc_errors("receipts_by_hash").increment(1);
+         })?
+         .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?;
+-        let consensus_receipts = receipts
+-            .into_iter()
+-            .map(|r| r.inner.into_primitives_receipt().as_receipt().cloned())
++        // The typed envelopes (type, status, cumulative gas, bloom, logs) are exactly what the receipts trie commits to.
++        let envelopes: Vec<ReceiptEnvelope> =
++            receipts.into_iter().map(|r| r.inner.into_primitives_receipt()).collect();
++        if !self.trust_rpc {
++            // the header is fetched by (and checked against) the same hash, so its receipts root is authentic
++            let expected = self.header_by_hash(hash).await?.receipts_root;
++            let computed = calculate_receipt_root(&envelopes);
++            if computed != expected {
++                return Err(AlloyChainProviderError::ReceiptsRootMismatch { block: hash, expected, computed });
++            }
++        }
++        let consensus_receipts = envelopes
++            .iter()
++            .map(|r| r.as_receipt().cloned())
+             .collect::<Option<Vec<_>>>()
+             .ok_or(AlloyChainProviderError::ReceiptsConversion(hash))?;
+ 
+@@ -260,6 +302,17 @@
+ 
+         // Verify the block hash matches what we requested
+         self.verify_header_hash(&block.header, hash)?;
++        if !self.trust_rpc {
++            // batcher transactions (and their blob versioned hashes) must be the ones the verified header commits to
++            let computed = calculate_transaction_root(&block.body.transactions);
++            if computed != block.header.transactions_root {
++                return Err(AlloyChainProviderError::TransactionsRootMismatch {
++                    block: hash,
++                    expected: block.header.transactions_root,
++                    computed,
++                });
++            }
++        }
+ 
+         let block_info = BlockInfo {
+             hash, // Use the already verified hash instead of recomputing
+@@ -279,10 +332,192 @@
+ 
+ #[cfg(test)]
+ mod tests {
+-    use alloy_primitives::B256;
++    use alloy_primitives::{Address, B256, Bytes};
++    use httpmock::{HttpMockRequest, HttpMockResponse, Method::POST, MockServer};
++    use serde_json::{Value, json};
+ 
+     use super::*;
+ 
++    // ---- L1 data verification (Enclave fork): fixtures are internally consistent L1 blocks; the server then omits,
++    // alters or reorders data under a header whose hash still verifies.
++    const LEDGER: Address = Address::repeat_byte(0x42);
++
++    fn receipt(i: u64, data: u8) -> ReceiptEnvelope {
++        let log = alloy_primitives::Log::new_unchecked(LEDGER, vec![B256::repeat_byte(0x07)], Bytes::from(vec![data]));
++        ReceiptEnvelope::Eip1559(
++            Receipt { status: true.into(), cumulative_gas_used: 21_000 * (i + 1), logs: vec![log] }.with_bloom(),
++        )
++    }
++
++    fn receipt_json(block: B256, i: u64, r: &ReceiptEnvelope) -> Value {
++        let rwb = r.as_receipt_with_bloom().unwrap();
++        let tx = B256::repeat_byte(i as u8 + 1);
++        let logs: Vec<Value> = rwb
++            .receipt
++            .logs
++            .iter()
++            .enumerate()
++            .map(|(j, l)| {
++                json!({ "address": l.address, "topics": l.data.topics(), "data": l.data.data, "blockHash": block,
++                        "blockNumber": "0x64", "transactionHash": tx, "transactionIndex": format!("0x{i:x}"),
++                        "logIndex": format!("0x{j:x}"), "removed": false })
++            })
++            .collect();
++        json!({ "type": "0x2", "status": "0x1",
++                "cumulativeGasUsed": format!("0x{:x}", rwb.receipt.cumulative_gas_used),
++                "logs": logs, "logsBloom": rwb.logs_bloom, "transactionHash": tx,
++                "transactionIndex": format!("0x{i:x}"), "blockHash": block, "blockNumber": "0x64",
++                "gasUsed": "0x5208", "effectiveGasPrice": "0x1", "from": Address::repeat_byte(0x11), "to": LEDGER,
++                "contractAddress": null })
++    }
++
++    /// An L1 header committing to `receipts` and to `transactions_root`; returns (header, its hash).
++    fn header_for(receipts: &[ReceiptEnvelope], transactions_root: B256) -> (Header, B256) {
++        let header = Header {
++            number: 100,
++            timestamp: 1_700_000_000,
++            gas_limit: 30_000_000,
++            gas_used: 21_000 * receipts.len() as u64,
++            base_fee_per_gas: Some(1),
++            receipts_root: calculate_receipt_root(receipts),
++            transactions_root,
++            ..Default::default()
++        };
++        let hash = header.hash_slow();
++        (header, hash)
++    }
++
++    fn block_json(header: &Header) -> Value {
++        let mut v = serde_json::to_value(alloy_rpc_types_eth::Header::new(header.clone())).unwrap();
++        v["transactions"] = json!([]);
++        v["uncles"] = json!([]);
++        v
++    }
++
++    fn rpc_reply(req: &HttpMockRequest, result: Value) -> HttpMockResponse {
++        let id = serde_json::from_slice::<Value>(&req.body_vec())
++            .ok()
++            .and_then(|b| b.get("id").cloned())
++            .unwrap_or(Value::Null);
++        HttpMockResponse::builder()
++            .status(200)
++            .header("content-type", "application/json")
++            .body(json!({ "jsonrpc": "2.0", "id": id, "result": result }).to_string())
++            .build()
++    }
++
++    /// Serves `block` for eth_getBlockByHash and `receipts` for eth_getBlockReceipts.
++    async fn serve(block: Value, receipts: Value) -> MockServer {
++        let server = MockServer::start_async().await;
++        server
++            .mock_async(move |when, then| {
++                when.method(POST).path("/").json_body_includes(r#"{"method":"eth_getBlockByHash"}"#);
++                then.respond_with(move |req| rpc_reply(req, block.clone()));
++            })
++            .await;
++        server
++            .mock_async(move |when, then| {
++                when.method(POST).path("/").json_body_includes(r#"{"method":"eth_getBlockReceipts"}"#);
++                then.respond_with(move |req| rpc_reply(req, receipts.clone()));
++            })
++            .await;
++        server
++    }
++
++    fn provider(server: &MockServer, trust_rpc: bool) -> AlloyChainProvider {
++        AlloyChainProvider::new_with_trust(RootProvider::new_http(server.url("/").parse().unwrap()), 16, trust_rpc)
++    }
++
++    fn empty_tx_root() -> B256 {
++        calculate_transaction_root::<TxEnvelope>(&[])
++    }
++
++    #[tokio::test]
++    async fn verified_receipts_are_returned_and_cached() {
++        let rs = vec![receipt(0, 1), receipt(1, 2)];
++        let (header, hash) = header_for(&rs, empty_tx_root());
++        let served = json!(rs.iter().enumerate().map(|(i, r)| receipt_json(hash, i as u64, r)).collect::<Vec<_>>());
++        let server = serve(block_json(&header), served).await;
++        let mut p = provider(&server, false);
++        let got = p.receipts_by_hash(hash).await.expect("consistent receipts verify");
++        assert_eq!(got.len(), 2);
++        assert_eq!(got[1].logs[0].data.data, Bytes::from(vec![2]));
++        assert_eq!(p.receipts_by_hash_cache.len(), 1);
++    }
++
++    #[tokio::test]
++    async fn omitted_receipt_is_refused_and_not_cached() {
++        let rs = vec![receipt(0, 1), receipt(1, 2)];
++        let (header, hash) = header_for(&rs, empty_tx_root());
++        // the RPC drops the second receipt (e.g. a deposit or SystemConfig log) under the authentic header
++        let served = json!([receipt_json(hash, 0, &rs[0])]);
++        let server = serve(block_json(&header), served).await;
++        let mut p = provider(&server, false);
++        let err = p.receipts_by_hash(hash).await.unwrap_err();
++        assert!(matches!(err, AlloyChainProviderError::ReceiptsRootMismatch { block, .. } if block == hash), "{err}");
++        assert_eq!(p.receipts_by_hash_cache.len(), 0, "a refused receipt list must never be cached");
++        assert!(matches!(PipelineErrorKind::from(err), PipelineErrorKind::Temporary(_)));
++    }
++
++    #[tokio::test]
++    async fn altered_log_is_refused() {
++        let rs = vec![receipt(0, 1), receipt(1, 2)];
++        let (header, hash) = header_for(&rs, empty_tx_root());
++        let forged = vec![receipt(0, 1), receipt(1, 3)]; // same shape, one log byte changed (bloom recomputed)
++        let served = json!(forged.iter().enumerate().map(|(i, r)| receipt_json(hash, i as u64, r)).collect::<Vec<_>>());
++        let server = serve(block_json(&header), served).await;
++        let err = provider(&server, false).receipts_by_hash(hash).await.unwrap_err();
++        assert!(matches!(err, AlloyChainProviderError::ReceiptsRootMismatch { .. }), "{err}");
++    }
++
++    #[tokio::test]
++    async fn reordered_receipts_are_refused() {
++        let rs = vec![receipt(0, 1), receipt(1, 2)];
++        let (header, hash) = header_for(&rs, empty_tx_root());
++        let served = json!([receipt_json(hash, 0, &rs[1]), receipt_json(hash, 1, &rs[0])]);
++        let server = serve(block_json(&header), served).await;
++        let err = provider(&server, false).receipts_by_hash(hash).await.unwrap_err();
++        assert!(matches!(err, AlloyChainProviderError::ReceiptsRootMismatch { .. }), "{err}");
++    }
++
++    #[tokio::test]
++    async fn forged_header_cannot_vouch_for_forged_receipts() {
++        // the RPC serves receipts AND a header recomputed for them, under the requested (authentic) hash
++        let rs = vec![receipt(0, 1), receipt(1, 2)];
++        let (_, hash) = header_for(&rs, empty_tx_root());
++        let forged = vec![receipt(0, 1)];
++        let (forged_header, _) = header_for(&forged, empty_tx_root());
++        let server = serve(block_json(&forged_header), json!([receipt_json(hash, 0, &forged[0])])).await;
++        let err = provider(&server, false).receipts_by_hash(hash).await.unwrap_err();
++        assert!(matches!(err, AlloyChainProviderError::Transport(_)), "header hash check must refuse first: {err}");
++    }
++
++    #[tokio::test]
++    async fn trusted_rpc_keeps_upstream_behaviour() {
++        // documents the explicit opt-out (`--l1.trust-rpc`): nothing is verified
++        let rs = vec![receipt(0, 1), receipt(1, 2)];
++        let (header, hash) = header_for(&rs, empty_tx_root());
++        let server = serve(block_json(&header), json!([receipt_json(hash, 0, &rs[0])])).await;
++        assert_eq!(provider(&server, true).receipts_by_hash(hash).await.unwrap().len(), 1);
++    }
++
++    #[tokio::test]
++    async fn transactions_must_match_the_verified_transactions_root() {
++        let rs: Vec<ReceiptEnvelope> = vec![];
++        // honest: no transactions, empty root
++        let (header, hash) = header_for(&rs, empty_tx_root());
++        let server = serve(block_json(&header), json!([])).await;
++        let (info, txs) = provider(&server, false).block_info_and_transactions_by_hash(hash).await.unwrap();
++        assert_eq!((info.hash, txs.len()), (hash, 0));
++        // omitted: the header commits to a non-empty transaction list but the RPC serves none
++        let (header, hash) = header_for(&rs, B256::repeat_byte(0x99));
++        let server = serve(block_json(&header), json!([])).await;
++        let mut p = provider(&server, false);
++        let err = p.block_info_and_transactions_by_hash(hash).await.unwrap_err();
++        assert!(matches!(err, AlloyChainProviderError::TransactionsRootMismatch { block, .. } if block == hash), "{err}");
++        assert_eq!(p.block_info_and_transactions_by_hash_cache.len(), 0);
++    }
++
+     #[test]
+     fn test_from_alloy_chain_provider_error() {
+         // Transport errors are transient — retry makes sense.
+--- a/crates/consensus/cli/src/l1.rs
++++ b/crates/consensus/cli/src/l1.rs
+@@ -8,7 +8,9 @@
+ use tracing::warn;
+ use url::Url;
+ 
+-const DEFAULT_L1_TRUST_RPC: bool = true;
++// Enclave fork: verification is the default. Untrusted (or replayable) L1 data must not reach derivation: with
++// `trust_rpc` false the provider checks header hashes, receipts roots and transactions roots. `--l1.trust-rpc` opts out.
++const DEFAULT_L1_TRUST_RPC: bool = false;
+ 
+ /// L1 client arguments.
+ #[derive(Clone, Debug, clap::Args)]
+@@ -26,8 +28,9 @@
+         }
+     )]
+     pub l1_rpc_timeout: Duration,
+-    /// Whether to trust the L1 RPC.
+-    /// If false, block hash verification is performed for all retrieved blocks.
++    /// Whether to trust the L1 RPC (default: false).
++    /// If false, every retrieved L1 header is hash-checked and every receipt list and transaction list is checked
++    /// against that header's receipts root and transactions root.
+     #[arg(
+         long,
+         visible_alias = "l1.trust-rpc",
+@@ -151,6 +154,16 @@
+     }
+ 
+     #[test]
++    fn l1_rpc_is_verified_unless_explicitly_trusted() {
++        assert!(!L1ClientArgs::default().l1_trust_rpc);
++        let base = ["base-consensus", "--l1-eth-rpc", "http://localhost:8545", "--l1-beacon", "http://localhost:5052"];
++        assert!(!Command::parse_from(base).args.l1_trust_rpc);
++        let mut trusted = base.to_vec();
++        trusted.push("--l1.trust-rpc");
++        assert!(Command::parse_from(trusted).args.l1_trust_rpc);
++    }
++
++    #[test]
+     fn finalized_poll_interval_defaults_to_none() {
+         let args = Command::parse_from([
+             "base-consensus",

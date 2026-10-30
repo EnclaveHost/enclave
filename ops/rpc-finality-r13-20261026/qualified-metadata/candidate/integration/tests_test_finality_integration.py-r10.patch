@@ -1,0 +1,11 @@
+--- a/tests/test_finality_integration.py
++++ b/tests/test_finality_integration.py
+@@ -12,7 +12,7 @@
+ 
+ HERE = pathlib.Path(__file__).resolve().parent; ROOT = HERE.parent
+ WORK = pathlib.Path(os.environ.get('PRODUCER_WORK', '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025'))
+-R7 = WORK / 'base-reanchor-recovery-stage/r7'; CAP_STAGE = WORK / 'a1-capture-binding-stage/r4'; CAP_SRC = WORK / 'production-capture-closure-stage/src/a1_capture.py'   # r9: the closure module (harness pin fc16b26c); stubs still from capture r4
++R7 = WORK / 'base-reanchor-recovery-stage/r7'; CAP_STAGE = WORK / 'a1-capture-binding-stage/r4'; CAP_SRC = pathlib.Path(os.environ['CAPTURE_MODULE'])   # r10: the EXACT capture bytes under test (the job names r10/capture/a1_capture.py)
+ STAGE = WORK / 'source/ops/rpc-backend-bootstrap/2026-10-25/a2-v2-release-bound-prepared/stage'
+ sys.path.insert(0, str(STAGE / 'test')); sys.path.insert(0, str(HERE))
+ import test_a2a4 as TA                                               # the harness fixture's A1 receipt builder (fresh_a1)

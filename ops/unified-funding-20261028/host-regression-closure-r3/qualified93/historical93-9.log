@@ -1,0 +1,166 @@
+TAP version 13
+# Subtest: every missing safety adapter is an explicit blocker, never a no-op default
+ok 1 - every missing safety adapter is an explicit blocker, never a no-op default
+  ---
+  duration_ms: 3.631564
+  type: 'test'
+  ...
+# Subtest: hold mode: a configured route with a missing adapter is owned and HELD; no runner, no evidence, no fallback
+ok 2 - hold mode: a configured route with a missing adapter is owned and HELD; no runner, no evidence, no fallback
+  ---
+  duration_ms: 1.815467
+  type: 'test'
+  ...
+# Subtest: invalid, duplicate and wrong-ledger routes are refused at construction
+ok 3 - invalid, duplicate and wrong-ledger routes are refused at construction
+  ---
+  duration_ms: 2.470702
+  type: 'test'
+  ...
+# Subtest: routes are immutable after construction and the dispatch attaches once
+ok 4 - routes are immutable after construction and the dispatch attaches once
+  ---
+  duration_ms: 0.376177
+  type: 'test'
+  ...
+# Subtest: an unactivated route is held: fenced, no chain read, no transaction
+ok 5 - an unactivated route is held: fenced, no chain read, no transaction
+  ---
+  duration_ms: 0.354377
+  type: 'test'
+  ...
+# Subtest: activation requires proof-qualified evidence binding exactly this route
+ok 6 - activation requires proof-qualified evidence binding exactly this route
+  ---
+  duration_ms: 1.688348
+  type: 'test'
+  ...
+# Subtest: handoff binds the old-ledger proof and retained local intents, not the mutable legacy address book
+ok 7 - handoff binds the old-ledger proof and retained local intents, not the mutable legacy address book
+  ---
+  duration_ms: 5.41681
+  type: 'test'
+  ...
+# Subtest: an idle healthy v2 app is served on cadence with no transaction at all
+ok 8 - an idle healthy v2 app is served on cadence with no transaction at all
+  ---
+  duration_ms: 9.121354
+  type: 'test'
+  ...
+# Subtest: a real transition is submitted once; an unresolved intent is never resubmitted
+ok 9 - a real transition is submitted once; an unresolved intent is never resubmitted
+  ---
+  duration_ms: 1.236611
+  type: 'test'
+  ...
+# Subtest: a snapshot from another ledger or controller is refused and never served
+ok 10 - a snapshot from another ledger or controller is refused and never served
+  ---
+  duration_ms: 0.722675
+  type: 'test'
+  ...
+# Subtest: AFTER handoff: old address-book ledger changes do not disable the pinned new ledger
+ok 11 - AFTER handoff: old address-book ledger changes do not disable the pinned new ledger
+  ---
+  duration_ms: 0.498027
+  type: 'test'
+  ...
+# Subtest: AFTER handoff: a legacy release hold refuses new starts only; a running app keeps serving
+ok 12 - AFTER handoff: a legacy release hold refuses new starts only; a running app keeps serving
+  ---
+  duration_ms: 0.837274
+  type: 'test'
+  ...
+# Subtest: a local restriction across the runner await prevents serving and records a revocation
+ok 13 - a local restriction across the runner await prevents serving and records a revocation
+  ---
+  duration_ms: 0.604266
+  type: 'test'
+  ...
+# Subtest: a restriction arriving mid-reconcile stops at once; the runner records the stop; a forced hint clears only the local hold
+ok 14 - a restriction arriving mid-reconcile stops at once; the runner records the stop; a forced hint clears only the local hold
+  ---
+  duration_ms: 10.262825
+  type: 'test'
+  ...
+# Subtest: concurrent reconciles and passes join: one runner execution per deployment
+ok 15 - concurrent reconciles and passes join: one runner execution per deployment
+  ---
+  duration_ms: 2.418142
+  type: 'test'
+  ...
+# Subtest: host admission: unknown fences without stopping, a refusal stops and queues, a malformed answer is unknown
+ok 16 - host admission: unknown fences without stopping, a refusal stops and queues, a malformed answer is unknown
+  ---
+  duration_ms: 0.517926
+  type: 'test'
+  ...
+# Subtest: independent host: a platform ban or outage is not a veto; platform-owned host: it is the owner's legitimate stop
+ok 17 - independent host: a platform ban or outage is not a veto; platform-owned host: it is the owner's legitimate stop
+  ---
+  duration_ms: 3.676993
+  type: 'test'
+  ...
+# Subtest: new-work refusal on a platform-owned host blocks a start, never a running app; an independent host starts
+ok 18 - new-work refusal on a platform-owned host blocks a start, never a running app; an independent host starts
+  ---
+  duration_ms: 0.585446
+  type: 'test'
+  ...
+# Subtest: a pending intent is reconciled read-only under new-work denial, platform refusal or unknown admission; never resent
+ok 19 - a pending intent is reconciled read-only under new-work denial, platform refusal or unknown admission; never resent
+  ---
+  duration_ms: 0.459586
+  type: 'test'
+  ...
+# Subtest: restart: a fresh dispatch (no in-memory status) serves an authenticated running app despite new-work refusal
+ok 20 - restart: a fresh dispatch (no in-memory status) serves an authenticated running app despite new-work refusal
+  ---
+  duration_ms: 5.235192
+  type: 'test'
+  ...
+# Subtest: a local owner stop is never blocked by online denial; a chain outage defers only the ledger record
+ok 21 - a local owner stop is never blocked by online denial; a chain outage defers only the ledger record
+  ---
+  duration_ms: 1.150501
+  type: 'test'
+  ...
+# Subtest: host authority replay, equivocation and foreign bindings are unknown, never allow
+ok 22 - host authority replay, equivocation and foreign bindings are unknown, never allow
+  ---
+  duration_ms: 1.026443
+  type: 'test'
+  ...
+# Subtest: ownership transfer: to a platform wallet the platform policy applies; away from it, it stops applying
+ok 23 - ownership transfer: to a platform wallet the platform policy applies; away from it, it stops applying
+  ---
+  duration_ms: 2.833139
+  type: 'test'
+  ...
+# Subtest: capacity: unknown shares, a full box, the headroom or hosting off refuse a start; allocations count
+ok 24 - capacity: unknown shares, a full box, the headroom or hosting off refuse a start; allocations count
+  ---
+  duration_ms: 1.001382
+  type: 'test'
+  ...
+# Subtest: a claim hint never reconciles or claims a routed id
+ok 25 - a claim hint never reconciles or claims a routed id
+  ---
+  duration_ms: 0.171729
+  type: 'test'
+  ...
+# Subtest: start runs its own off-chain cadence on an injected timer
+ok 26 - start runs its own off-chain cadence on an injected timer
+  ---
+  duration_ms: 2.393253
+  type: 'test'
+  ...
+1..26
+# tests 26
+# suites 0
+# pass 26
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 235.637129

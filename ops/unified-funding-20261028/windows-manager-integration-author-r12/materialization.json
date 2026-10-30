@@ -1,0 +1,10 @@
+{
+  "scope": "Exact225 frozen r11 seed, no product edits/additions; inherited sponsored source remains separate readonly reference",
+  "originalFiles": 225,
+  "addedFiles": 0,
+  "existingFilesOverwritten": [],
+  "productEdits": [],
+  "inheritedMaterialization": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r11-20261029/materialization.json",
+  "inheritedMaterializationSha256": "8fb76ba1b8d4cc3c9f14ba1dcf8c83f651a76fe6bea342ce8f9b352f94467084",
+  "note": "Root411 npm input match is readonly evidence, not build/full lock qualification. No module execution/tests/builds/author launch."
+}

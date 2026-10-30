@@ -1,0 +1,92 @@
+[queue] START available=20573MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+test_choices_accept_1792_reject_other (test_queue_1792.Candidate1792.test_choices_accept_1792_reject_other) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py:32: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/claude-test-queue.py' mode='r' encoding='UTF-8'>
+  src = open(script).read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py:38: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q1792-1tt1yflx/claude-test-queue.py' mode='w' encoding='UTF-8'>
+  open(self.path, 'w').write(src)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q1792-1tt1yflx/bin/systemd-run' mode='w' encoding='UTF-8'>
+  open(fake, 'w').write(FAKE_SYSTEMD_RUN)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py:59: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q1792-1tt1yflx/argv.json' mode='r' encoding='UTF-8'>
+  argv = json.load(open(argv_out)) if os.path.exists(argv_out) else None
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_large_1536_with_running_small_now_yields_by_the_1792_reserve (test_queue_1792.Candidate1792.test_large_1536_with_running_small_now_yields_by_the_1792_reserve) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py:38: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q1792-hqro3qm2/claude-test-queue.py' mode='w' encoding='UTF-8'>
+  open(self.path, 'w').write(src)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q1792-hqro3qm2/bin/systemd-run' mode='w' encoding='UTF-8'>
+  open(fake, 'w').write(FAKE_SYSTEMD_RUN)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py:59: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q1792-hqro3qm2/argv.json' mode='r' encoding='UTF-8'>
+  argv = json.load(open(argv_out)) if os.path.exists(argv_out) else None
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_large_1792_alone_boundary_and_unchanged_child_limits (test_queue_1792.Candidate1792.test_large_1792_alone_boundary_and_unchanged_child_limits) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py:38: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q1792-ryw15o_o/claude-test-queue.py' mode='w' encoding='UTF-8'>
+  open(self.path, 'w').write(src)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q1792-ryw15o_o/bin/systemd-run' mode='w' encoding='UTF-8'>
+  open(fake, 'w').write(FAKE_SYSTEMD_RUN)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py:59: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q1792-ryw15o_o/argv.json' mode='r' encoding='UTF-8'>
+  argv = json.load(open(argv_out)) if os.path.exists(argv_out) else None
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_large_1792_with_running_small_keeps_existing_rules (test_queue_1792.Candidate1792.test_large_1792_with_running_small_keeps_existing_rules) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py:38: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q1792-1c5sewi4/claude-test-queue.py' mode='w' encoding='UTF-8'>
+  open(self.path, 'w').write(src)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q1792-1c5sewi4/bin/systemd-run' mode='w' encoding='UTF-8'>
+  open(fake, 'w').write(FAKE_SYSTEMD_RUN)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py:59: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q1792-1c5sewi4/argv.json' mode='r' encoding='UTF-8'>
+  argv = json.load(open(argv_out)) if os.path.exists(argv_out) else None
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_small_alone_unchanged (test_queue_1792.Candidate1792.test_small_alone_unchanged) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py:38: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q1792-kk423j7r/claude-test-queue.py' mode='w' encoding='UTF-8'>
+  open(self.path, 'w').write(src)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q1792-kk423j7r/bin/systemd-run' mode='w' encoding='UTF-8'>
+  open(fake, 'w').write(FAKE_SYSTEMD_RUN)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py:59: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q1792-kk423j7r/argv.json' mode='r' encoding='UTF-8'>
+  argv = json.load(open(argv_out)) if os.path.exists(argv_out) else None
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_small_joining_occupied_large_lane_reserves_1792 (test_queue_1792.Candidate1792.test_small_joining_occupied_large_lane_reserves_1792) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py:38: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q1792-n4z86jc_/claude-test-queue.py' mode='w' encoding='UTF-8'>
+  open(self.path, 'w').write(src)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q1792-n4z86jc_/bin/systemd-run' mode='w' encoding='UTF-8'>
+  open(fake, 'w').write(FAKE_SYSTEMD_RUN)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py:59: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q1792-n4z86jc_/argv.json' mode='r' encoding='UTF-8'>
+  argv = json.load(open(argv_out)) if os.path.exists(argv_out) else None
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_original_refuses_1792 (test_queue_1792.OriginalBaseline.test_original_refuses_1792) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py:32: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/original-claude-test-queue.py' mode='r' encoding='UTF-8'>
+  src = open(script).read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py:38: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q1792-09318_pc/claude-test-queue.py' mode='w' encoding='UTF-8'>
+  open(self.path, 'w').write(src)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q1792-09318_pc/bin/systemd-run' mode='w' encoding='UTF-8'>
+  open(fake, 'w').write(FAKE_SYSTEMD_RUN)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_original_small_joining_large_reserves_only_1536 (test_queue_1792.OriginalBaseline.test_original_small_joining_large_reserves_only_1536) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py:38: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q1792-q0fuacxc/claude-test-queue.py' mode='w' encoding='UTF-8'>
+  open(self.path, 'w').write(src)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q1792-q0fuacxc/bin/systemd-run' mode='w' encoding='UTF-8'>
+  open(fake, 'w').write(FAKE_SYSTEMD_RUN)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py:59: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q1792-q0fuacxc/argv.json' mode='r' encoding='UTF-8'>
+  argv = json.load(open(argv_out)) if os.path.exists(argv_out) else None
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 15.789s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=35 minHostAvailableMiB=20151
+[memory-guard] at peak: python3:18 python3:16
+[queue] EXIT 0

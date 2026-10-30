@@ -1,0 +1,167 @@
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/tmp/tmpv493c5cc/srv/data", "publicExecutionRpc": false}
+F{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/tmp/tmpfe3wt2cq/srv/data", "publicExecutionRpc": false}
+.{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/tmp/tmpuh7tsbx5/srv/data", "publicExecutionRpc": false}
+E{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/tmp/tmpp60cs7pt/srv/data", "publicExecutionRpc": false}
+F{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/tmp/tmpqpqv60ke/srv/data", "publicExecutionRpc": false}
+F{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/tmp/tmp5ny0kmdj/srv/data", "publicExecutionRpc": false}
+F{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/tmp/tmpmkmtjc5x/srv/data", "publicExecutionRpc": false}
+.{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/tmp/tmp_5gotq8i/srv/data", "publicExecutionRpc": false}
+F
+======================================================================
+ERROR: test_authenticate_refuses_live_production_moved_db_floor_not_above_and_missing_blobs (__main__.ForwardSync.test_authenticate_refuses_live_production_moved_db_floor_not_above_and_missing_blobs)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/recovery/tests/test_forward_sync.py", line 123, in test_authenticate_refuses_live_production_moved_db_floor_not_above_and_missing_blobs
+    self.assertEqual(self.events(), [])
+                     ~~~~~~~~~~~^^
+TypeError: 'list' object is not callable
+
+======================================================================
+FAIL: test_a_flag_absent_from_the_pinned_binary_help_never_runs (__main__.ForwardSync.test_a_flag_absent_from_the_pinned_binary_help_never_runs)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/recovery/tests/test_forward_sync.py", line 131, in test_a_flag_absent_from_the_pinned_binary_help_never_runs
+    self.fsrefused('capability', 'run', user=False, poll=0.2); self.assertEqual(self.events(), ['authenticated'])
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/recovery/tests/test_forward_sync.py", line 92, in fsrefused
+    self.op(name, **kw)
+    ~~~~~~~^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/recovery/tests/test_forward_sync.py", line 88, in op
+    return getattr(FS, name)(str(self.cfgf), A=A, W=W, top=self.top, **kw)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/recovery/forward_sync.py", line 345, in run
+    prune = W.prune_args(tomllib.loads(pathlib.Path(dd, 'reth.toml').read_text()), W.history_from_block(W.CONFIG), W.state_history_from_block(W.CONFIG))
+                                                                                   ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/recovery/wrapper/chain_service.py", line 373, in history_from_block
+    assert isinstance(r, dict) and _uint(r.get('historyFromBlock')) and r['historyFromBlock'] > 0, \
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Base history retention start (baseRetention.historyFromBlock) not configured
+
+======================================================================
+FAIL: test_authenticated_isolated_run_stops_at_target (__main__.ForwardSync.test_authenticated_isolated_run_stops_at_target)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/recovery/tests/test_forward_sync.py", line 107, in test_authenticated_isolated_run_stops_at_target
+    self.assertEqual(self.runs(), 0); self.assertEqual(self.events(), ['authenticated', 'started', 'stopped'])
+                     ~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/recovery/tests/test_forward_sync.py", line 103, in runs
+    (self.dd / 'fake-finalized').write_text(str(FL + 10)); return self.op('run', user=False, poll=0.2)
+                                                                  ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/recovery/tests/test_forward_sync.py", line 88, in op
+    return getattr(FS, name)(str(self.cfgf), A=A, W=W, top=self.top, **kw)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/recovery/forward_sync.py", line 345, in run
+    prune = W.prune_args(tomllib.loads(pathlib.Path(dd, 'reth.toml').read_text()), W.history_from_block(W.CONFIG), W.state_history_from_block(W.CONFIG))
+                                                                                   ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/recovery/wrapper/chain_service.py", line 373, in history_from_block
+    assert isinstance(r, dict) and _uint(r.get('historyFromBlock')) and r['historyFromBlock'] > 0, \
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Base history retention start (baseRetention.historyFromBlock) not configured
+
+======================================================================
+FAIL: test_crash_is_recorded_and_the_retry_resumes (__main__.ForwardSync.test_crash_is_recorded_and_the_retry_resumes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/recovery/tests/test_forward_sync.py", line 135, in test_crash_is_recorded_and_the_retry_resumes
+    self.assertEqual(self.runs(), 1); self.assertEqual(FS.journal(self.root)[-1]['evidence']['reason'], 'exited')
+                     ~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/recovery/tests/test_forward_sync.py", line 103, in runs
+    (self.dd / 'fake-finalized').write_text(str(FL + 10)); return self.op('run', user=False, poll=0.2)
+                                                                  ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/recovery/tests/test_forward_sync.py", line 88, in op
+    return getattr(FS, name)(str(self.cfgf), A=A, W=W, top=self.top, **kw)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/recovery/forward_sync.py", line 345, in run
+    prune = W.prune_args(tomllib.loads(pathlib.Path(dd, 'reth.toml').read_text()), W.history_from_block(W.CONFIG), W.state_history_from_block(W.CONFIG))
+                                                                                   ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/recovery/wrapper/chain_service.py", line 373, in history_from_block
+    assert isinstance(r, dict) and _uint(r.get('historyFromBlock')) and r['historyFromBlock'] > 0, \
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Base history retention start (baseRetention.historyFromBlock) not configured
+
+======================================================================
+FAIL: test_db_changed_after_verify_refuses_the_handoff (__main__.ForwardSync.test_db_changed_after_verify_refuses_the_handoff)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/recovery/tests/test_forward_sync.py", line 148, in test_db_changed_after_verify_refuses_the_handoff
+    self.scenario(); self.op('authenticate'); self.runs(); self.synced_db(); self.op('verify')
+                                              ~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/recovery/tests/test_forward_sync.py", line 103, in runs
+    (self.dd / 'fake-finalized').write_text(str(FL + 10)); return self.op('run', user=False, poll=0.2)
+                                                                  ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/recovery/tests/test_forward_sync.py", line 88, in op
+    return getattr(FS, name)(str(self.cfgf), A=A, W=W, top=self.top, **kw)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/recovery/forward_sync.py", line 345, in run
+    prune = W.prune_args(tomllib.loads(pathlib.Path(dd, 'reth.toml').read_text()), W.history_from_block(W.CONFIG), W.state_history_from_block(W.CONFIG))
+                                                                                   ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/recovery/wrapper/chain_service.py", line 373, in history_from_block
+    assert isinstance(r, dict) and _uint(r.get('historyFromBlock')) and r['historyFromBlock'] > 0, \
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Base history retention start (baseRetention.historyFromBlock) not configured
+
+======================================================================
+FAIL: test_verify_proves_the_floor_block_then_handoff_and_the_floor_stays (__main__.ForwardSync.test_verify_proves_the_floor_block_then_handoff_and_the_floor_stays)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/recovery/tests/test_forward_sync.py", line 140, in test_verify_proves_the_floor_block_then_handoff_and_the_floor_stays
+    self.scenario(); self.op('authenticate'); self.runs()
+                                              ~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/recovery/tests/test_forward_sync.py", line 103, in runs
+    (self.dd / 'fake-finalized').write_text(str(FL + 10)); return self.op('run', user=False, poll=0.2)
+                                                                  ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/recovery/tests/test_forward_sync.py", line 88, in op
+    return getattr(FS, name)(str(self.cfgf), A=A, W=W, top=self.top, **kw)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/recovery/forward_sync.py", line 345, in run
+    prune = W.prune_args(tomllib.loads(pathlib.Path(dd, 'reth.toml').read_text()), W.history_from_block(W.CONFIG), W.state_history_from_block(W.CONFIG))
+                                                                                   ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/logs/root-finality-r10-tests-20261026T070123Z-1091108/recovery/wrapper/chain_service.py", line 373, in history_from_block
+    assert isinstance(r, dict) and _uint(r.get('historyFromBlock')) and r['historyFromBlock'] > 0, \
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Base history retention start (baseRetention.historyFromBlock) not configured
+
+----------------------------------------------------------------------
+Ran 8 tests in 49.410s
+
+FAILED (failures=5, errors=1)

@@ -1,0 +1,15 @@
+[queue] START available=84710MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+Running as unit: enclave-shield-fw-prepare-r1-20261028.service
+checking file OvmfPkg/PlatformPei/AmdSev.c
+checking file OvmfPkg/PlatformPei/PlatformPei.inf
+patching file OvmfPkg/PlatformPei/AmdSev.c
+patching file OvmfPkg/PlatformPei/PlatformPei.inf
+ALL PASS (5282 checks)
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 420ms
+             CPU time consumed: 399ms
+                   Memory peak: 36.8M (swap: 0B)
+[memory-guard] exit=0 peakTreeRssMiB=5 minHostAvailableMiB=84652
+[memory-guard] at peak: systemd-run:5
+[queue] EXIT 0

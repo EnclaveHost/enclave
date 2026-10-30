@@ -1,0 +1,19 @@
+{
+  "helperChecks": 12,
+  "productionPayments": 0,
+  "hostCopies": [
+    false,
+    true,
+    true,
+    true
+  ],
+  "unauthenticatedDashboardRedirect": "overview",
+  "console": [
+    {
+      "level": "error",
+      "message": "InvalidStateError: Transition was aborted because of invalid state. ViewTransition opt-in disabled",
+      "timestamp": "2026-10-29T19:08:06.621Z",
+      "url": "http://127.0.0.1:36755/dashboard.html"
+    }
+  ]
+}

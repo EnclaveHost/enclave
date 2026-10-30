@@ -1,0 +1,11 @@
+--- a/tests/test_finality_state.py
++++ b/tests/test_finality_state.py
+@@ -67,6 +67,8 @@
+     def __init__(self, t):
+         self.__file__, self.A1_GATE_PINS, self.t = str(HARNESS), dict(FS.A1_GATE_PINS), t
+         self.SEL = types.SimpleNamespace(__file__=str(HARNESS.parent / 'selection.py')); self.nodes = {sha(pathlib.Path(NODE).read_bytes())}
++        # runtime-pin: the capture-pin accessors finality_state.node_profile reads (the test node is a self-contained profile)
++        self.load_capture = lambda: None; self.A1_CAPTURE_TEST_PINS = lambda: types.SimpleNamespace(node_accepted={n: {} for n in self.nodes})
+         self.caps, self.admitted, self.calls, self.fail, self.A1_ADMISSION_LEDGER = {}, set(), [], None, None
+ 
+     def ledger_records(self, p):

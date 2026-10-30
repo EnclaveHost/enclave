@@ -1,0 +1,30 @@
+[package]
+name = "cpu-probe"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The pVM CPU tier's conformance app (PVM-CPU.md): CPU-only work streamed as padded NDJSON lines; no wasi:nn, no model."
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen-rt = { version = "0.39.0", features = ["bitflags"] }
+
+[profile.release]
+codegen-units = 1
+opt-level = "s"
+strip = true
+lto = true
+
+[package.metadata.component]
+package = "enclave:cpu-probe"
+
+[package.metadata.component.target]
+path = "wit"
+world = "cpu-probe"
+
+[package.metadata.component.target.dependencies]
+"wasi:http" = { path = "wit/deps/http" }
+"wasi:io" = { path = "wit/deps/io" }
+"wasi:clocks" = { path = "wit/deps/clocks" }

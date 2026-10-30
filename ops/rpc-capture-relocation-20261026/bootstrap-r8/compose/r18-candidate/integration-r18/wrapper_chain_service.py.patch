@@ -1,0 +1,186 @@
+--- a/wrapper/chain_service.py
++++ b/wrapper/chain_service.py
+@@ -323,10 +323,116 @@
+     return {'block': doc['block'], 'timestamp': doc['timestamp'], 'url': snapshot_url, 'effectiveBaseUrl': effective,
+             'components': len(comps), 'scope': 'manifest identity and location only; not authenticated snapshot state'}
+ 
++# ---- N-anchored segmented coverage (historical-origin-segments-stage/r4) -------------------------------------------------
++# Explicit opt-in only: baseBootstrap.mode == 'anchored-segments' selects the anchored verification; no `mode` keeps the legacy
++# safe-label path unchanged; any other mode refuses. The verification code is root-installed under ANCHORED_COVERAGE_LIB, root-owned,
++# and executed only from bytes equal to these pins (the same three files readiness_sampler pins).
++# r8: the lib of the immutable historical-capture bundle (historical-capture-deployment-stage, bundle MANIFEST.json sha = the directory
++# name), installed verbatim by install/MANIFEST.json; its relocatable anchored_origin/segments resolve every PINS/GATE path inside it.
++ANCHORED_COVERAGE_BUNDLE = '020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e'
++ANCHORED_COVERAGE_LIB = ROOT / 'historical-capture' / ANCHORED_COVERAGE_BUNDLE / 'lib'
++ANCHORED_COVERAGE_PINS = {
++    'anchored_origin.py': 'd088592d0398d017ce5101f0f9bf09849735be2fe0fb1c63ef710623be08d199',
++    'segments.py': '5a88a2e2894b5abb398e614db0251b313e5a6e15bbafc9d1055ec9707f602b56',
++    'anchored_acceptance.py': 'cb68413866d0534822bdfc37702e253acfe04abad30d98e34b2231595518138d'}
++ANCHORED_A1_SHA256 = 'b9a90847bb3f779262681cabc35af64d7c3b785c9ad5cd2b99e9700b9725256c'   # the source-pinned original A1 receipt (N 52866960)
++
++def _anchored_overlay(owner):
++    lib = pathlib.Path(ANCHORED_COVERAGE_LIB)
++    _secure_path(lib, owner, leaf='dir')
++    mods = {}
++    for name in ('anchored_origin.py', 'segments.py', 'anchored_acceptance.py'):   # dependency order
++        p = lib / name
++        _secure_path(p, owner)
++        fd = os.open(p, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
++        with os.fdopen(fd, 'rb') as f:
++            raw = f.read(1 << 22)
++        assert hashlib.sha256(raw).hexdigest() == ANCHORED_COVERAGE_PINS[name], f'anchored coverage {name} is not the pinned bytes'
++        mod = type(sys)(name[:-3]); mod.__file__ = str(p)
++        sys.modules[name[:-3]] = mod                       # segments imports anchored_origin; anchored_acceptance imports both
++        exec(compile(raw, str(p), 'exec'), mod.__dict__)
++        mods[name] = mod
++    return mods['anchored_acceptance.py']
++
++def base_coverage(cfg, manifest_path, base_binary_sha256):
++    """-> (binding, bound L1 origin). No mode: the legacy snapshot-safe-label activation, unchanged. 'anchored-segments': header N
++    authenticated by the original A1 output root, its L1 origin bound by the parent-beacon-root/mixHash linkage, and complete segmented
++    coverage, all re-verified from root-owned evidence. Any other mode refuses (no implicit activation)."""
++    mode = (cfg.get('baseBootstrap') or {}).get('mode') if isinstance(cfg.get('baseBootstrap'), dict) else None
++    if mode is None:
++        o = coverage_activation(cfg, manifest_path, base_binary_sha256)
++        return o, o['safeL1Origin']
++    assert mode == 'anchored-segments', f'unknown baseBootstrap.mode {mode!r}: no implicit activation'
++    aa = _anchored_overlay(ROOT_UID)
++    view = type(sys)(__name__); view.__dict__.update(globals())     # this module's helpers/pins, however it was loaded
++    o = aa.anchored_coverage_activation(view, cfg, manifest_path, base_binary_sha256, COVERAGE_DIR, ROOT_UID,
++                                        ANCHORED_A1_SHA256, time.time())
++    return o, o['l1Origin']
++
++CONTINUATION_MAX_AGE = 7 * 86400   # r5 (root decision): OPERATIONAL availability bound for an ordinary restart of a bootstrapped
++                                   # DB (the floor block's age must leave the restart's L1 re-derivation window inside the CL blob
++                                   # retention, ~4096 epochs = 18.2 d). Not consumer freshness, not a cryptographic proof.
++
++def _anchored_mode(cfg):
++    bb = cfg.get('baseBootstrap')
++    return isinstance(bb, dict) and bb.get('mode') == 'anchored-segments'
++
++def launch_phase(lock):
++    """historical-origin-segments-stage/r5, anchored mode only, under the HELD launch lock, before any coverage gate. Read-only.
++    -> ('initial', None) for armed|rearmed (the anchored first start / rearm: the r4 current-time whole coverage is required);
++       ('continuation', facts) for restart-permitted (an ordinary restart of the bootstrapped DB: the existing STOPPED-DB permit
++       proof, bound to the latest recorded finality floor, replaces the historical coverage);
++    any other journal state refuses here with nothing consumed (bootstrapped/restarted need the unattended permit; consumed needs
++    rearm at N or re-anchor; terminal states only rollback / quarantine / re-anchor)."""
++    assert lock is not None, 'anchored coverage requires the release launch (manifest baseRelease + launch lock)'
++    l_sha, launch, n = launch_record(CONFIG, BASE_RELEASE_SHA256)
++    entries = journal_entries(BOOTSTRAP_DIR / 'journal', ROOT_UID, l_sha)
++    state = entries[-1][1]['event']
++    if state in PENDING:
++        return 'initial', None
++    if state == 'restart-permitted':
++        return 'continuation', continuation_gate(launch, l_sha, entries, n)
++    raise AssertionError(f'anchored launch journal state {state!r}: no start (bootstrapped/restarted: the restart-permit service must '
++                         'prove the STOPPED DB first; consumed: root rearm at N or re-anchor; terminal: rollback/quarantine/re-anchor); '
++                         'nothing consumed')
++
++def continuation_gate(launch, l_sha, entries, n):
++    """The ordinary-restart eligibility of a bootstrapped DB, from records the existing proofs wrote (never from a marker, a saved
++    clock, HTTP or a unit state): the restart permit must name the LATEST recorded finality floor (launch_finality: this launch's own
++    finality-proof watermark entries), carry the floor block's timestamp taken from the hash-verified floor header, and the exact A1
++    L1 block of the floor's qualified finality entry. launch_handshake re-checks the floor and the DB identity when it consumes."""
++    own = launch_finality(launch, l_sha, entries)
++    assert own, 'no recorded finality floor for this launch: no ordinary restart'
++    permit = entries[-1][1].get('evidence') or {}
++    assert permit.get('floor') == {'entrySha256': own[-1][0], 'number': own[-1][1]['number'], 'blockHash': own[-1][1]['blockHash']}, \
++        'restart permit is not for the latest recorded finality floor: refusing'
++    ts = permit.get('floorTimestamp')
++    assert type(ts) is int and ts >= 0, \
++        f"restart permit carries no authenticated floor timestamp ({permit.get('floorTimestampUnavailable', 'absent')}): re-run permit-restart"
++    now = _now()
++    assert ts <= now + 60, 'floor block timestamp is in the future: refusing'
++    assert now - ts <= CONTINUATION_MAX_AGE, (f'floor block is {int(now - ts)} s old, beyond the {CONTINUATION_MAX_AGE} s operational '
++                                              'continuation bound: rollback / quarantine / re-anchor with fresh coverage')
++    l1 = permit.get('floorA1L1')
++    assert isinstance(l1, dict) and set(l1) == {'number', 'hash'} and type(l1['number']) is int and l1['number'] >= 0 \
++        and re.fullmatch(r'0x[0-9a-f]{64}', str(l1['hash'])), \
++        f"restart permit binds no exact A1 L1 block ({permit.get('floorA1L1Unavailable', 'absent')}): re-run permit-restart"
++    assert own[-1][1]['number'] > n, 'the recorded floor is not above the launch anchor'
++    return {'floor': permit['floor'], 'floorTimestamp': ts, 'floorA1L1': l1, 'anchorN': n}
++
++def anchored_launch_binding(origin, lock):
++    """Anchored coverage exists only for the release anchor launch: before anything is consumed, the immutable launch record must
++    name exactly the anchored-coverage header N (number and block hash)."""
++    assert lock is not None, 'anchored coverage requires the release launch (manifest baseRelease + launch lock)'
++    _l_sha, launch, n = launch_record(CONFIG, BASE_RELEASE_SHA256)
++    a = origin['anchor']
++    assert n == a['N'] and launch.get('anchor') == f"{a['N']}:{a['headerHash']}", 'launch anchor is not the anchored-coverage header N'
++
+ def coverage_activation(cfg, manifest_path, base_binary_sha256, directory=COVERAGE_DIR, owner=0):
+     """Offline, fail-closed validation of the activation evidence. Returns the bound bootstrap or raises AssertionError."""
+     bb = cfg.get('baseBootstrap')
+     assert isinstance(bb, dict) and bb.get('coverageVerified') is True, 'Base snapshot blob coverage not approved'
++    assert 'mode' not in bb, 'legacy coverage activation refuses any baseBootstrap.mode'
+     acc = bb.get('coverageAcceptance')
+     assert isinstance(acc, dict) and all(isinstance(acc.get(k), str) and SHA_RE.fullmatch(acc[k])
+                                          for k in ('receiptSha256', 'verdictSha256', 'originSha256', 'snapshotManifestSha256')), \
+@@ -1040,23 +1146,40 @@
+             a += ['--checkpoint-state', base + '/anchor/state.ssz', '--checkpoint-block', base + '/anchor/block.ssz',
+                   '--wss-checkpoint', ck['root'] + ':' + str(ck['epoch'])]
+     elif side == 'base':
+-        origin = coverage_activation(CONFIG, ROOT / 'manifest.json', (MANIFEST.get('binaries') or {}).get('base'))
+-        history_from = history_from_block(CONFIG)
+-        state_from = state_history_from_block(CONFIG)
+-        snap = (origin.get('snapshot') or {}).get('block')
+-        assert _uint(snap) and history_from <= snap and state_from <= snap, \
+-            'Base retention start is above the verified snapshot block'
+-        history_files_present(datadir, profile, history_from)
+-        segment_files_present(datadir, profile, state_from, STATE_FILES)
+-        ready = l1_ready()
+-        so = origin['safeL1Origin']
+-        assert ready['l1Finalized'] >= max(so['number'], origin['toBlock']), 'reviewed coverage range above our L1 finalized'
+-        canon = rpc(18645, 'eth_getBlockByNumber', [hex(so['number']), False])
+-        assert canon and str(canon.get('hash', '')).lower() == so['hash'], 'snapshot safe L1 origin not canonical on this L1'
+-        assert rpc(18645, 'eth_getBlockReceipts', [hex(origin['l1Block'])]) is not None, 'Base origin receipts absent'
+-        slot = str(origin['blobSlot'])
+-        commitments = beacon('/eth/v2/beacon/blocks/' + slot)['message']['body']['blob_kzg_commitments']
+-        assert commitments and len(beacon('/eth/v1/beacon/blobs/' + slot)) == len(commitments), 'Base origin blobs absent'
++        phase, cont = launch_phase(lock) if _anchored_mode(CONFIG) else ('legacy', None)
++        if phase == 'continuation':
++            # r5: ordinary restart of a bootstrapped DB (restart-permitted). No historical N coverage, no N/first-blob probes: the DB's
++            # correctness rests on the recorded post-anchor finality floor and the permit's STOPPED-DB proof. Retention, L1 readiness and
++            # the floor's exact A1 L1 block on OUR L1 are still required; launch_handshake consumes the permit (DB identity re-checked).
++            history_from = history_from_block(CONFIG)
++            state_from = state_history_from_block(CONFIG)
++            assert history_from <= cont['anchorN'] and state_from <= cont['anchorN'], 'Base retention start is above the launch anchor'
++            history_files_present(datadir, profile, history_from)
++            segment_files_present(datadir, profile, state_from, STATE_FILES)
++            ready = l1_ready()
++            l1 = cont['floorA1L1']
++            assert ready['l1Finalized'] >= l1['number'], "the floor's A1 L1 block is above our L1 finalized"
++            canon = rpc(18645, 'eth_getBlockByNumber', [hex(l1['number']), False])
++            assert canon and str(canon.get('hash', '')).lower() == l1['hash'], "the floor's A1 L1 block is not canonical on this L1"
++        else:                                             # legacy and the anchored initial start: r4 unchanged
++            origin, so = base_coverage(CONFIG, ROOT / 'manifest.json', (MANIFEST.get('binaries') or {}).get('base'))
++            if origin.get('mode') == 'anchored-segments':
++                anchored_launch_binding(origin, lock)
++            history_from = history_from_block(CONFIG)
++            state_from = state_history_from_block(CONFIG)
++            snap = (origin.get('snapshot') or {}).get('block')
++            assert _uint(snap) and history_from <= snap and state_from <= snap, \
++                'Base retention start is above the verified snapshot block'
++            history_files_present(datadir, profile, history_from)
++            segment_files_present(datadir, profile, state_from, STATE_FILES)
++            ready = l1_ready()
++            assert ready['l1Finalized'] >= max(so['number'], origin['toBlock']), 'reviewed coverage range above our L1 finalized'
++            canon = rpc(18645, 'eth_getBlockByNumber', [hex(so['number']), False])
++            assert canon and str(canon.get('hash', '')).lower() == so['hash'], 'snapshot safe L1 origin not canonical on this L1'
++            assert rpc(18645, 'eth_getBlockReceipts', [hex(origin['l1Block'])]) is not None, 'Base origin receipts absent'
++            slot = str(origin['blobSlot'])
++            commitments = beacon('/eth/v2/beacon/blocks/' + slot)['message']['body']['blob_kzg_commitments']
++            assert commitments and len(beacon('/eth/v1/beacon/blobs/' + slot)) == len(commitments), 'Base origin blobs absent'
+         # every gate above is unchanged (run under the held lock); the opt-in release adds its pinned path + the handshake
+         release = base_release(MANIFEST)
+         env['BASE_NODE_L1_TRUST_RPC'] = 'false'
+@@ -1104,7 +1227,7 @@
+                           'kzgcheckSha256': KZGCHECK_SHA256, 'evidenceDir': str(COVERAGE_DIR)}, sort_keys=True))
+     elif argv == ['coverage-check']:
+         # Read-only offline validation of the installed activation evidence; no L1 call, never starts a client.
+-        print(json.dumps(coverage_activation(CONFIG, ROOT / 'manifest.json', (MANIFEST.get('binaries') or {}).get('base')),
++        print(json.dumps(base_coverage(CONFIG, ROOT / 'manifest.json', (MANIFEST.get('binaries') or {}).get('base'))[0],
+                          sort_keys=True))
+     elif len(argv) == 1 and argv[0] in ('el', 'cl', 'base'):
+         run(argv[0])

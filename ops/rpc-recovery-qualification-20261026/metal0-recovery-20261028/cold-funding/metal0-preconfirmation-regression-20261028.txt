@@ -1,0 +1,68 @@
+[queue] START available=89607MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: happy path verifies both transactions, exact delegation, funded balance, and unchanged lease state
+ok 1 - happy path verifies both transactions, exact delegation, funded balance, and unchanged lease state
+  ---
+  duration_ms: 524.885772
+  type: 'test'
+  ...
+# Subtest: first transaction mined, second unavailable: resume sends identical bytes without signing
+ok 2 - first transaction mined, second unavailable: resume sends identical bytes without signing
+  ---
+  duration_ms: 1559.427694
+  type: 'test'
+  ...
+# Subtest: missing approval and executable observation refuse before signing or broadcasting
+ok 3 - missing approval and executable observation refuse before signing or broadcasting
+  ---
+  duration_ms: 105.501762
+  type: 'test'
+  ...
+# Subtest: stale operator nonce refuses without signing
+ok 4 - stale operator nonce refuses without signing
+  ---
+  duration_ms: 109.162754
+  type: 'test'
+  ...
+# Subtest: changed fee quote refuses without signing
+ok 5 - changed fee quote refuses without signing
+  ---
+  duration_ms: 95.5046
+  type: 'test'
+  ...
+# Subtest: provider receipt status disagreement cannot produce success
+ok 6 - provider receipt status disagreement cannot produce success
+  ---
+  duration_ms: 290.173552
+  type: 'test'
+  ...
+# Subtest: no broadcast can occur before a durable journal exists
+ok 7 - no broadcast can occur before a durable journal exists
+  ---
+  duration_ms: 110.512634
+  type: 'test'
+  ...
+# Subtest: expired plan refuses without signing
+ok 8 - expired plan refuses without signing
+  ---
+  duration_ms: 46.768917
+  type: 'test'
+  ...
+# Subtest: zero-hash Base preconfirmation receipts cannot verify or be classified as stale restoration
+ok 9 - zero-hash Base preconfirmation receipts cannot verify or be classified as stale restoration
+  ---
+  duration_ms: 953.674459
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3971.748079
+[memory-guard] exit=0 peakTreeRssMiB=195 minHostAvailableMiB=89514
+[memory-guard] at peak: node:103 node:60 anvil:32
+[queue] EXIT 0

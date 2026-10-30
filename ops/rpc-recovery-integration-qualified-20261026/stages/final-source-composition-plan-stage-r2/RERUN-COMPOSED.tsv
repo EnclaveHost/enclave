@@ -1,0 +1,44 @@
+# test	why	(deduped; composed tree = debbfb37 + P1..P4 + regenerated MCP bundle)
+test/attested-chain-verifier.test.mjs	closure P2,P4
+test/caller-verifier-wiring.test.mjs	closure P4
+test/chain-authority.test.mjs	closure P4(MCP-73)
+test/chain-consumer-closure.e2e.test.mjs	closure P4
+test/cli-combined-independent.test.mjs	closure P4(MCP-73)
+test/cli-existing-contract-sessions.test.mjs	closure P4
+test/cli-host-independent-lifecycle.test.mjs	closure P4
+test/cli-independent-login.test.mjs	closure P4
+test/cli-independent-signer.test.mjs	closure P4
+test/cli-independent.test.mjs	closure P4
+test/cli-signed-liveness.test.mjs	closure P4
+test/control-front-abort.test.mjs	closure P4
+test/custody-cli-independent.test.mjs	closure P4
+test/custody-owner-read.test.mjs	closure P4
+test/custody-secrets-cli-independent.test.mjs	closure P4
+test/host-liveness.test.mjs	closure P4
+test/lease-pinned-relay-config.test.mjs	closure P4
+test/mcp-guest-bundle.test.mjs	closure P4
+test/mcp-hosted-control.test.mjs	closure P4
+test/mcp-independent-unit.test.mjs	closure P4(MCP-73)
+test/mcp-independent-verifier.test.mjs	closure P4(MCP-73)
+test/mcp-independent.test.mjs	closure P4(MCP-73)
+test/metal-lease-gas-conduit.test.mjs	closure P4
+test/metal-measured-control.test.mjs	closure P4
+test/native-certificate-leaf.test.mjs	closure P4
+test/native-certificate-request-abort.test.mjs	closure P4
+test/native-control-attested.test.mjs	closure P4
+test/native-discovery.test.mjs	closure P4
+test/native-relay-chain-authority.test.mjs	closure P4
+test/owner-nomination-config.test.mjs	closure P4
+test/platform-api-admin-cli.test.mjs	closure P4
+test/platform-api-admin-status.test.mjs	closure P4
+test/platform-api-config.test.mjs	closure P4
+test/platform-api-forward.test.mjs	closure P4
+test/platform-api-handoff-production.test.mjs	closure P4
+test/platform-api-hosted.test.mjs	closure P4
+test/platform-api-native-issuer.test.mjs	closure P4
+test/platform-api-registry.test.mjs	closure P4
+test/policy-verifier.e2e.test.mjs	closure P4
+test/relay-chain-consumers.test.mjs	closure P4
+test/relay-policy-carriers.test.mjs	closure P4
+test/stack-admin-controls.test.mjs	closure P4 (r12 stack harness file, run from r12/stack-tests)
+test/windows-node-lease-renewal-keeper.test.mjs	r12 REGRESSION (stale scripted-adapter exports); HOLD until its own test-only fix exists

@@ -1,0 +1,46 @@
+diff --git a/metal/guest/measured-control.mjs b/metal/guest/measured-control.mjs
+index 8977a414ce97681f1f4a65face29c1184316c7b7..8816b773e8bea3788b64718f7d1a15914e604460 100644
+--- a/metal/guest/measured-control.mjs
++++ b/metal/guest/measured-control.mjs
+@@ -399,7 +399,11 @@ export const DERIVED_READER_ENDPOINTS_FORMAT = 'enclave-derived-reader-endpoints
+ const DERIVED_READER_ENDPOINTS = ['l1ConsensusUrl', 'l1ExecutionUrl', 'baseUrl'];
+ export function derivedReaderEndpoints(raw, { verifierBound }) {
+   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) bad('platformApi.derivedReader must be an object');
+-  only(raw, ['format', ...DERIVED_READER_ENDPOINTS, 'witnessUrl'], 'platformApi.derivedReader');
++  // integrated r4 (root 1612): only() requires EVERY allowed key, so the OPTIONAL witnessUrl is allowed only when the key is present.
++  // Absent: exactly the previous required set and output bytes. Unknown keys still refused; a present witnessUrl (even
++  // undefined or null) is always validated below. only() itself is unchanged.
++  const witnessPresent = Object.hasOwn(raw, 'witnessUrl');
++  only(raw, ['format', ...DERIVED_READER_ENDPOINTS, ...(witnessPresent ? ['witnessUrl'] : [])], 'platformApi.derivedReader');
+   if (raw.format !== DERIVED_READER_ENDPOINTS_FORMAT) bad(`platformApi.derivedReader.format must be ${DERIVED_READER_ENDPOINTS_FORMAT}`);
+   if (!verifierBound) bad('platformApi.derivedReader needs ENCLAVE_CHAIN_AUTHORITY=verifier (the derived writer authority is only bound with the local verifier)');
+   const out = { format: raw.format };
+@@ -412,7 +416,7 @@ export function derivedReaderEndpoints(raw, { verifierBound }) {
+   }
+   // witness-placement r2 (OPTIONAL; absent = the exact previous bytes): the RPC VM's witness producer forward, a full URL
+   // http://<private, not loopback, IPv4 literal>:<port>/<path>; untrusted bytes the native verifies, never authority
+-  if (raw.witnessUrl !== undefined) {
++  if (witnessPresent) {
+     if (!witnessForwardUrl(raw.witnessUrl, ownBackendLiteral))
+       bad('platformApi.derivedReader.witnessUrl must be http://<private (not loopback) IPv4 literal>:<port>/<path> without credentials, query or fragment');
+     out.witnessUrl = raw.witnessUrl;
+diff --git a/test/witness-placement.test.mjs b/test/witness-placement.test.mjs
+index 08215e04b6e5a83406f8ede653d8f5a96eb1848a..c50e2e1a0240bd04f5efb00b95ae2cb3d81c2e05 100644
+--- a/test/witness-placement.test.mjs
++++ b/test/witness-placement.test.mjs
+@@ -54,7 +54,14 @@ test('HOST_DATA canonicaliser: optional witnessUrl, exact previous bytes when ab
+   assert.deepEqual(derivedReaderEndpoints({ ...EP, witnessUrl: FWD }, { verifierBound: true }), { ...EP, witnessUrl: FWD });
+   for (const bad of [...PUBLICISH, 'http://127.0.0.1:28747/witness', 'http://[::1]:28747/witness', 'http://localhost:28747/witness', 28747, null])
+     assert.throws(() => derivedReaderEndpoints({ ...EP, witnessUrl: bad }, { verifierBound: true }), /witnessUrl/, String(bad));
+-  assert.throws(() => derivedReaderEndpoints({ ...EP, witness: FWD }, { verifierBound: true }));
++  // integrated r4 (root 1612): absent is NOT missing (above); a PRESENT key is validated even when undefined; unknown and missing
++  // required keys are refused exactly as before, with or without witnessUrl
++  assert.throws(() => derivedReaderEndpoints({ ...EP, witnessUrl: undefined }, { verifierBound: true }), /witnessUrl must be/);
++  assert.throws(() => derivedReaderEndpoints({ ...EP, witness: FWD }, { verifierBound: true }), /unknown field\(s\): witness$/);
++  assert.throws(() => derivedReaderEndpoints({ ...EP, witnessUrl: FWD, extra: 1 }, { verifierBound: true }), /unknown field\(s\): extra/);
++  for (const ep of [EP, { ...EP, witnessUrl: FWD }])
++    assert.throws(() => derivedReaderEndpoints((({ baseUrl, ...r }) => r)(ep), { verifierBound: true }), /is missing: baseUrl$/);
++  assert.equal(JSON.stringify(derivedReaderEndpoints(EP, { verifierBound: true })), JSON.stringify(EP), 'absent: the exact previous bytes (key order too)');
+   assert.equal(witnessForwardUrl(FWD, ownBackendLiteral), true);
+ });
+ 

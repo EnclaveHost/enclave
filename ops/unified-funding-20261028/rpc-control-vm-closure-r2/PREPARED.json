@@ -1,0 +1,27 @@
+{
+  "astParsed": [
+    "run.py",
+    "observe-linux.py"
+  ],
+  "cpu": 1,
+  "effectiveSshdPolicyVerified": false,
+  "externalPins": 17,
+  "floorMiB": 27648,
+  "guardRSSMiB": 220,
+  "missingExternalMetadataPins": [],
+  "originalRemoteProgramBytes": 7676,
+  "originalStallReproduced": false,
+  "priorPinsSha256": "d933a65cef74c29dfff6b5aab9bd50a11167cbfe57fc25203db06aeb9a565a09",
+  "productChanged": false,
+  "readRun": false,
+  "remoteContacted": false,
+  "resourceMiB": 256,
+  "revision": "r2-nonblocking-stdin-finally-cleanup",
+  "scope": "readonly-control-vm-closure-r2",
+  "sourceOnly": true,
+  "status": "PREPARED_NOT_EXECUTED",
+  "stdinProgramBytes": 11861,
+  "streamLocalPreferred": true,
+  "swapMiB": 0,
+  "testsRun": false
+}

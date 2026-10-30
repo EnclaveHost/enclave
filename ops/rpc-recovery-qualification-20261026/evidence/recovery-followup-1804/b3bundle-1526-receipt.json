@@ -1,0 +1,73 @@
+{
+ "allowedPrimaryFingerprints": [
+  "790BC7277767219C42C86F933B4FE6ACC0B21F32",
+  "843938DF228D22F7B3742BC0D94AA3F0EFE21092",
+  "F6ECB3762474EDA9D21B7022871920D1991BC93C"
+ ],
+ "arch": "amd64",
+ "at": "2026-10-26T17:59:09Z",
+ "component": "universe",
+ "curl": [
+  "curl 8.23.0 (x86_64-pc-linux-gnu) libcurl/8.23.0 OpenSSL/3.6.5 zlib/1.3.2 brotli/1.2.0 zstd/1.5.7 libidn2/2.3.8 libpsl/0.21.5 libssh2/1.11.1 nghttp2/1.70.0 ngtcp2/1.25.0 nghttp3/1.18.0 mit-krb5/1.22.2"
+ ],
+ "evidence": {
+  "debSha256": "e6e6b98b5e22750160dbb804a2e7d8fb61daa0d6940002c45c222cf676701b7b",
+  "debSize": 387898,
+  "gpgvStatus": [
+   "[GNUPG:] PLAINTEXT 74 0 ",
+   "[GNUPG:] NEWSIG",
+   "[GNUPG:] KEY_CONSIDERED F6ECB3762474EDA9D21B7022871920D1991BC93C 0",
+   "[GNUPG:] SIG_ID GVnDvebl2qOVy2n1fx2yPFLiSUA 2024-04-25 1714057881",
+   "[GNUPG:] GOODSIG 871920D1991BC93C Ubuntu Archive Automatic Signing Key (2018) <ftpmaster@ubuntu.com>",
+   "[GNUPG:] VALIDSIG F6ECB3762474EDA9D21B7022871920D1991BC93C 2024-04-25 1714057881 0 4 0 1 10 01 F6ECB3762474EDA9D21B7022871920D1991BC93C"
+  ],
+  "packagesSha256": "687ffc969e7700137677b9cfe2f614ee2d638052a91a7c9bf31f3f6a3040a99a",
+  "packagesSize": 73379142,
+  "primaryFingerprints": [
+   "F6ECB3762474EDA9D21B7022871920D1991BC93C"
+  ],
+  "release": {
+   "codename": "noble",
+   "date": "Thu, 25 Apr 2024 15:10:33 UTC",
+   "plain": [
+    "687ffc969e7700137677b9cfe2f614ee2d638052a91a7c9bf31f3f6a3040a99a",
+    73379142
+   ],
+   "suite": "noble",
+   "xz": [
+    "ba9057fa1b91438cc8a1d26808d00c85389fe101d0c1496254df97236405599a",
+    15037908
+   ]
+  },
+  "releaseSignedSha256": "58716ccd6ce78bf798b0f643bb4d0ebc71b5688cc8871aff81c2363ba9fa5755",
+  "stanza": {
+   "Architecture": "amd64",
+   "Depends": "libc6 (>= 2.34), libgcc-s1 (>= 4.2)",
+   "Filename": "pool/universe/r/rust-b3sum/b3sum_1.2.0-1_amd64.deb",
+   "Package": "b3sum",
+   "SHA256": "e6e6b98b5e22750160dbb804a2e7d8fb61daa0d6940002c45c222cf676701b7b",
+   "Size": "387898",
+   "Source": "rust-b3sum",
+   "Version": "1.2.0-1"
+  }
+ },
+ "files": {
+  "InRelease": "cdb2f31d809f589719a53c6ad15f255b27569c4059542ada282aaa21b8e164b0",
+  "Packages.xz": "ba9057fa1b91438cc8a1d26808d00c85389fe101d0c1496254df97236405599a",
+  "Release.signed": "58716ccd6ce78bf798b0f643bb4d0ebc71b5688cc8871aff81c2363ba9fa5755",
+  "b3sum_1.2.0-1_amd64.deb": "e6e6b98b5e22750160dbb804a2e7d8fb61daa0d6940002c45c222cf676701b7b"
+ },
+ "format": "enclave-offline-b3sum-bundle/r3",
+ "keyringSha256": "80a36b0a6de2f69f49d2df75ef473ccde121e9e190b9ea01d20a4f63778d5c31",
+ "note": "host-verified chain; the .deb was never extracted or executed on the host",
+ "origin": "https://archive.ubuntu.com/ubuntu",
+ "package": "b3sum",
+ "packageVersion": "1.2.0-1",
+ "suite": "noble",
+ "transport": "https",
+ "urls": {
+  "InRelease": "https://archive.ubuntu.com/ubuntu/dists/noble/InRelease",
+  "Packages.xz": "https://archive.ubuntu.com/ubuntu/dists/noble/universe/binary-amd64/Packages.xz",
+  "deb": "https://archive.ubuntu.com/ubuntu/pool/universe/r/rust-b3sum/b3sum_1.2.0-1_amd64.deb"
+ }
+}

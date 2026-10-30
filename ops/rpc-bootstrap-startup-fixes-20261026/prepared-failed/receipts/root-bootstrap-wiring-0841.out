@@ -1,0 +1,17 @@
+[queue] START available=18703MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+pin cascade OK
+PASS ops-installer Ran 18 (expected 18)
+PASS integration Ran 17 (expected 17)
+PASS reproof Ran 17 (expected 17)
+PASS forward-sync-r2 Ran 6 (expected 6)
+## FAIL: bootstrap-wiring: rc 1, Ran 16 (expected 16), last FAILED (failures=4, errors=1) (see /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/bootstrap-wiring.txt)
+PASS r3-regression Ran 28 (expected 28)
+PASS reanchor-recovery Ran 25 (expected 25)
+PASS r62-isolated Ran 2 (expected 2)
+PASS forward-sync Ran 8 (expected 8)
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390
+## bootstrap-wiring SHA256SUMS ee7a155926e1bfa37328fb8b30e4ec75565dea9b8463ddb0815eac8177a2fb4a
+## bootstrap-wiring rc=1
+[memory-guard] exit=1 peakTreeRssMiB=235 minHostAvailableMiB=17555
+[memory-guard] at peak: python3:40 python3:31 python3:31 python3:31 python3:31 python3:31 python3:31 bash:4
+[queue] EXIT 1

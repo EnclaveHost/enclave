@@ -1,0 +1,78 @@
+{
+  "schema": "funding-renewal-readonly-admission/v1",
+  "status": "NOT_ADMITTED",
+  "rootApprovalRequired": true,
+  "networkExecutionAuthorized": false,
+  "signerAvailable": false,
+  "expectedChainId": 8453,
+  "ownedRpc": {
+    "exactEndpoints": null,
+    "backendIdentityEvidence": null,
+    "syncReadinessEvidence": null,
+    "safeFinalizedLatestEvidence": null,
+    "existingAssuranceProfile": null,
+    "allowAliasesAsIndependentProviders": false,
+    "allowPublicFallback": false,
+    "allowQuorumReduction": false
+  },
+  "relay": {
+    "unit": "enclave-api-relay.service",
+    "currentPid": null,
+    "currentStartIdentity": null,
+    "currentSourceHashes": null,
+    "actualConfigPaths": null,
+    "publicAccount": "0xf4B78D91911e1c064A02E4D28C69E2De6056bE57",
+    "expectedConfigDirectory": "/etc/enclave-funding/activation-20261028-r1",
+    "publicFundingConfigEvidence": null,
+    "privateJournalInspection": "root-only; save sanitized outcome/count/hash/queue state, never contents",
+    "sameNonceIsQuiescenceProof": false
+  },
+  "readOnlyMethods": [
+    "eth_chainId",
+    "eth_syncing",
+    "eth_getBlockByNumber",
+    "eth_getCode",
+    "eth_call",
+    "eth_getStorageAt",
+    "eth_getTransactionCount",
+    "eth_getBalance"
+  ],
+  "requestBounds": {
+    "timeoutMs": 15000,
+    "maxResponseBytes": 2000000,
+    "redirects": "error",
+    "automaticRetries": 0,
+    "mutatingMethods": false
+  },
+  "captureRequirements": [
+    "canonical block-hash-pinned reads requireCanonical where supported and retained exact late anchor",
+    "same requested chain/header/height/hash validation",
+    "fresh latest/safe/finalized with independently qualified owned topology",
+    "runtime code and contract bindings matching baseline; mismatch requires new review",
+    "oracle/feed/sequencer identity and current validity",
+    "actual latest and pending operator nonces without treating equality as queue idle",
+    "fresh current grant and reserve scope evaluated separately before any funds"
+  ],
+  "resourceAdmission": {
+    "rootMustBindActualRunnerAndDependencies": true,
+    "sharedQueue": "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py",
+    "proposedHardMemoryMiB": 256,
+    "proposedRssMiB": 220,
+    "availableMemoryFloorMiB": 27648,
+    "cpuIndex": 1,
+    "swapMiB": 0,
+    "wallTimeSec": null,
+    "note": "Proposal only; no runner exists or has been admitted. Root may qualify different closure/resources explicitly."
+  },
+  "blockingInputs": [
+    "owned RPC stopped/unqualified per root report",
+    "actual provider topology and assurance unqualified",
+    "historical captures allow only public providers",
+    "fresh relay process/config/queue evidence missing",
+    "fresh chain/fee observation and reviewed expiry missing"
+  ],
+  "launcher": null,
+  "newAuthorAuthorized": false,
+  "restartAuthorized": false,
+  "financialOperationAuthorized": false
+}

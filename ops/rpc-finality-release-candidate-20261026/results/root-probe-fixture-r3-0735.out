@@ -1,0 +1,6 @@
+[queue] START available=17490MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+PASS probe-fixture Ran 7 r3-sums 7e451d7eed2c94a75e1ea1641adc499189842852b6dbc44ed88bcf40168d19a9
+## probe-fixture rc=0
+[memory-guard] exit=0 peakTreeRssMiB=117 minHostAvailableMiB=17107
+[memory-guard] at peak: node:82 python3:27 bash:4 bash:2 timeout:2
+[queue] EXIT 0

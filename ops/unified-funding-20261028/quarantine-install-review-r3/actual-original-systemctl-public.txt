@@ -1,0 +1,17 @@
+MainPID=228946
+Result=success
+ExecStart={ path=/usr/bin/node ; argv[]=/usr/bin/node /opt/nan-relay/api-relay.js ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }
+ControlGroup=/system.slice/enclave-api-relay.service
+EnvironmentFiles=/etc/nan-relay/api-relay.env (ignore_errors=no)
+EnvironmentFiles=/etc/nan-relay/host-sponsor.env (ignore_errors=yes)
+EnvironmentFiles=/etc/enclave-rpc/clients.env (ignore_errors=no)
+EnvironmentFiles=/etc/nan-relay/predictor-replicas.env (ignore_errors=no)
+EnvironmentFiles=/etc/nan-relay/eyesoff-release-recovery.env (ignore_errors=no)
+EnvironmentFiles=/etc/nan-relay/release-signing-credential.env (ignore_errors=no)
+EnvironmentFiles=/etc/nan-relay/linux-leasegas-measurements.env (ignore_errors=no)
+EnvironmentFiles=/etc/nan-relay/queued-release-recovery-20261022.env (ignore_errors=no)
+EnvironmentFiles=/etc/nan-relay/loader-cache-release-20261028.env (ignore_errors=no)
+ActiveState=active
+SubState=running
+DropInPaths=/etc/systemd/system/enclave-api-relay.service.d/99-control-migration.conf /etc/systemd/system/enclave-api-relay.service.d/host-sponsor.conf /etc/systemd/system/enclave-api-relay.service.d/predict.conf /etc/systemd/system/enclave-api-relay.service.d/zz-alchemy-rpc.conf /etc/systemd/system/enclave-api-relay.service.d/zz-predictor-replicas.conf /etc/systemd/system/enclave-api-relay.service.d/zzz-eyesoff-release-recovery.conf /etc/systemd/system/enclave-api-relay.service.d/zzzz-release-signing-credential.conf /etc/systemd/system/enclave-api-relay.service.d/zzzzz-linux-leasegas-measurement.conf /etc/systemd/system/enclave-api-relay.service.d/zzzzzz-queued-release-recovery.conf /etc/systemd/system/enclave-api-relay.service.d/zzzzzzz-loader-cache-20261028.conf
+InvocationID=9b758b07bfa84eb5bf7fab20eecdfa2b

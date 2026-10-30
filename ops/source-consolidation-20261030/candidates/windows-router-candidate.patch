@@ -1,0 +1,727 @@
+--- /dev/null
++++ b/windows/vbslike/router/control.mjs
+@@ -0,0 +1,262 @@
++// A loopback-only composite manager for a separately scoped desktop manager.
++// This does not grant secret release, verify attestation, or terminate app TLS.
++// Existing partitions and their original manager retain transport custody.
++import {createHash, randomBytes} from 'node:crypto';
++import fs from 'node:fs';
++import path from 'node:path';
++import {cpuForShare,CPU_UNITS_PER_VCPU,validCpuPool} from './cpu-share.mjs';
++import {appMemoryForShare} from '../manager/memory-share.mjs';
++import {desktopVmMemMiB} from '../manager/desktop-memory.mjs';
++import {derive,COMPONENT_PREAMBLE} from '../manager/derive.mjs';
++import {refuseUnsupported} from '../manager/server.mjs';
++import {inferenceRefusal} from '../manager/shield-profile.mjs';
++import {validateDesktopRecord} from '../manager/desktop-derive.mjs';
++import {desktopSpawnRefusal} from '../manager/desktop-admission.mjs';
++import {type1VmMemMiB} from '../manager/wmi-launcher.mjs';
++
++export const NATIVE_ID = /^nd[0-9a-f]{32}$/;
++const ID = /^[A-Za-z0-9-]{1,64}$/;
++const V8 = 'enclave-catalog-bundle/8';
++const LIVE = new Set(['starting', 'running']);
++const hash = x => createHash('sha256').update(JSON.stringify(x)).digest('hex');
++const error = (message, status=503) => Object.assign(new Error(message), {status});
++const natural = (x, label) => {if (!Number.isSafeInteger(x) || x < 0) throw error(`unknown ${label}`); return x;};
++export function routePath(raw) {
++  if(typeof raw!=='string'||!raw.startsWith('/')||raw.startsWith('//')||raw.length>2048)throw error('unknown manager route',404);
++  const p=new URL(raw,'http://127.0.0.1').pathname.replace(/\/+$/,'')||'/';
++  if(p==='/health'||p==='/vms'||p==='/router/reconcile')return {path:p};
++  const m=/^\/vms\/([^/]+)(\/custody-auth)?$/.exec(p);
++  if(!m)throw error('unknown manager route',404);
++  let id;try{id=decodeURIComponent(m[1]);}catch{throw error('invalid instance encoding',400);}
++  return {path:p,id,role:routeFor(id),custody:!!m[2]};
++}
++export const routeFor = id => {
++  if (typeof id !== 'string' || !ID.test(id)) throw error('invalid instance id',400);
++  if (id.startsWith('nd') && !NATIVE_ID.test(id)) throw error('invalid native namespace',400);
++  return NATIVE_ID.test(id) ? 'native' : 'legacy';
++};
++
++// The latch survives process death and an ambiguous POST outcome. A restart is
++// NOT reconciliation: operators must reconcile the backend before clearing it.
++export class LaunchJournal {
++  static initialize(file) {
++    const initial={seq:0,previous:null,state:'observed',record:{schema:'enclave-router-journal/1'}};
++    const fd=fs.openSync(file,'wx',0o600);
++    try {fs.writeFileSync(fd,JSON.stringify({...initial,digest:hash(initial)})+'\n');fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
++    // Lost initialization is fail-closed: production startup NEVER creates a
++    // missing journal. Existing entries are appended and flushed, never unlinked.
++    if(process.platform!=='win32'){const d=fs.openSync(path.dirname(file),'r');try{fs.fsyncSync(d);}finally{fs.closeSync(d);}}
++  }
++  constructor(file) {this.file=file;this.read();}
++  read() {
++    let st,raw;
++    try {
++      st=fs.lstatSync(this.file);
++      const parent=fs.lstatSync(path.dirname(this.file));
++      if(!parent.isDirectory() || parent.isSymbolicLink() || (process.platform!=='win32' && (parent.uid!==process.getuid() || (parent.mode & 0o077)!==0)))throw Error('journal directory permissions');
++      if(!st.isFile() || st.isSymbolicLink() || st.nlink!==1 || st.size<1 || st.size>1048576)throw Error('invalid journal file');
++      if(process.platform!=='win32' && (st.uid!==process.getuid() || (st.mode & 0o077)!==0))throw Error('journal permissions');
++      const kind=Number(fs.statfsSync(this.file).type);
++      if([0x01021994,0x858458f6,0x9fa0,0x62656572].includes(kind))throw Error('journal must use persistent storage');
++      raw=fs.readFileSync(this.file,'utf8');
++    }catch{throw error('launch journal unavailable; reconciliation required');}
++    if(!raw.endsWith('\n'))throw error('incomplete launch journal');
++    let previous=null,last=null,seq=0;
++    try {for(const line of raw.trimEnd().split('\n')){
++      const row=JSON.parse(line),{digest,...data}=row;
++      if(row.seq!==seq++ || row.previous!==previous || digest!==hash(data) || !['pending','observed'].includes(row.state))throw Error('journal chain');
++      previous=digest;last=row;
++    }}catch{throw error('invalid launch journal; reconciliation required');}
++    if(!last)throw error('empty launch journal');return last;
++  }
++  pending() {return this.read().state==='pending';}
++  append(state,record) {
++    const before=this.read(),data={seq:before.seq+1,previous:before.digest,state,record};
++    const fd=fs.openSync(this.file,'a');
++    try{fs.writeFileSync(fd,JSON.stringify({...data,digest:hash(data)})+'\n');fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
++  }
++  hasCapacity() {this.read();return fs.statSync(this.file).size<900000;}
++  begin(record) {if(this.pending())throw error('unreconciled launch');if(!this.hasCapacity())throw error('journal maintenance required before admission');this.append('pending',record);}
++  clear(observation) {if(!this.pending())throw error('no pending launch to observe');this.append('observed',observation);}
++}
++
++export class CompositeManager {
++  constructor({request, journal, nativePins, nativeScope='enclave-native-', availableMemoryMiB, mint=()=> 'nd'+randomBytes(16).toString('hex')}) {
++    if (typeof request!=='function' || !journal || !nativePins || typeof availableMemoryMiB!=='function') throw error('router configuration absent');
++    for (const name of ['deployment','catalogApp']) if (!/^0x[0-9a-f]{64}$/.test(nativePins[name]||'')) throw error('invalid native deployment/catalog pin');
++    for (const name of ['runtimeId','profileSha256','igvmSha256','controllerSha256']) if (!/^[0-9a-f]{64}$/.test(nativePins[name]||'')) throw error('invalid native image pin');
++    if (!Number.isSafeInteger(nativePins.catalogVersion) || nativePins.catalogVersion<0 || typeof nativePins.cid!=='string' || !nativePins.cid) throw error('invalid native version pin');
++    this.availableMemoryMiB=availableMemoryMiB;this.request=request;this.journal=journal;this.pins=Object.freeze({...nativePins});this.nativeScope=nativeScope;this.mint=mint;this.tail=Promise.resolve();
++  }
++  async serial(fn) {const previous=this.tail;let done;this.tail=new Promise(r=>{done=r;});await previous;try{return await fn();}finally{done();}}
++  async snapshot() {
++    const all=await Promise.all(['legacy','native'].map(async role=> {
++      const [health,list]=await Promise.all([this.request(role,'GET','/health'),this.request(role,'GET','/vms')]);
++      if (health.status!==200 || list.status!==200 || !health.body?.managerEpoch || health.body.managerEpoch!==list.body?.managerEpoch || !Array.isArray(list.body.vms)) throw error(`${role} inventory unavailable or epoch changed`);
++      if (health.body.inventory?.state!=='ready') throw error(`${role} inventory unknown`);
++      return {role,health:health.body,rows:list.body.vms};
++    }));
++    const [legacy,native]=all, lh=legacy.health, nh=native.health;
++    if (lh.backend!=='hyperv-partition-per-app' || nh.backend!==lh.backend || JSON.stringify(lh.boundary)!==JSON.stringify(nh.boundary)) throw error('manager boundaries differ');
++    if (nh.vmScope?.prefix!==this.nativeScope || lh.vmScope?.prefix===this.nativeScope) throw error('manager scopes differ from routing contract');
++    const appPool=natural(lh.memory?.poolMiB,'app pool'),physicalPool=natural(lh.physicalMemory?.poolMiB,'physical pool');
++    if (!appPool || !physicalPool || nh.memory?.poolMiB!==appPool || nh.physicalMemory?.poolMiB!==physicalPool) throw error('manager shared pool definitions differ');
++    const cpuPool=lh.cpu?.poolVcpus;
++    if(!validCpuPool(cpuPool)||nh.cpu?.poolVcpus!==cpuPool||lh.cpu?.unitsPerVcpu!==CPU_UNITS_PER_VCPU||nh.cpu?.unitsPerVcpu!==CPU_UNITS_PER_VCPU||!Number.isSafeInteger(lh.cpu?.hostLogicalProcessors)||!Number.isSafeInteger(nh.cpu?.hostLogicalProcessors)||lh.cpu.hostLogicalProcessors<cpuPool||nh.cpu.hostLogicalProcessors<cpuPool)throw error('CPU pools unknown or inconsistent');
++    const desktop=nh.desktop,p=this.pins;
++    for (const key of ['runtimeId','igvmSha256','profileSha256','controllerSha256']) if (desktop?.[key]!==p[key]) throw error('native manager image differs from configured pin');
++    const ids=new Set(),names=new Set();let app=0,physical=0,gpu=0,cpu=0;
++    for (const {role,rows} of all) for (const r of rows) {
++      let actualRole;try{actualRole=routeFor(r?.id);}catch{throw error('invalid backend instance identity');}
++      if (!r || actualRole!==role || ids.has(r.id) || r.recovered || r.unattributed || typeof r.name!=='string' || !r.name) throw error('ambiguous manager inventory');
++      ids.add(r.id);
++      if (!['starting','running','failed','stopped'].includes(r.status)) throw error('unknown domain state');
++      if (LIVE.has(r.status)) {if(names.has(r.name))throw error('duplicate active deployment');names.add(r.name);}
++      if (role==='native' && (r.imageRole!=='desktop' || r.name!==p.deployment || r.runtimeId!==p.runtimeId || r.desktop?.profileSha256!==p.profileSha256)) throw error('unexpected native domain');
++      if (role==='legacy' && (r.imageRole==='desktop' || r.name===p.deployment)) throw error('native domain remains in legacy manager');
++      app+=natural(r.memory?.appMiB ?? r.policy?.memMiB,'domain app memory');
++      physical+=natural(r.physicalMemoryMiB,'domain physical memory');
++      gpu+=natural(r.gpuMilli,'domain GPU allocation');
++      cpu+=natural(r.cpu?.grantedUnits,'domain CPU allocation');
++    }
++    if (![app,physical,gpu,cpu].every(Number.isSafeInteger) || app>appPool || physical>physicalPool || gpu>1000 || cpu>cpuPool*CPU_UNITS_PER_VCPU) throw error('shared capacity exceeded');
++    return {legacy:lh,native:nh,rows:all.flatMap(x=>x.rows),appPool,physicalPool,app,physical,gpu,cpuPool,cpu,epoch:hash(all.map(x=>[x.role,x.health.managerEpoch]))};
++  }
++  async health() {
++    let s;
++    try{s=await this.snapshot();}catch{
++      // A partial inventory is never a list of all domains. Keep the known
++      // legacy capability visible for existing routes, with ALL admission off.
++      const legacy=await this.request('legacy','GET','/health');
++      if(legacy.status!==200||!legacy.body?.managerEpoch||legacy.body.inventory?.state!=='ready')throw error('manager health unavailable');
++      const h=structuredClone(legacy.body);
++      h.canStart=false;h.cannotStart=['composite inventory unavailable'];
++      h.inventory={state:'pending',reason:'composite inventory unavailable'};
++      h.physicalMemory={poolMiB:h.physicalMemory?.poolMiB,allocatedMiB:null,freeMiB:0};
++      h.memory={...h.memory,allocatedMiB:null,freeMiB:0};
++      h.cpu={...h.cpu,allocatedUnits:null,freeUnits:0};
++      // Existing nodes treat a 200 capability change as permanent incompatibility
++      // and retire running domains. An incomplete inventory is transient: 503
++      // becomes unknown/held in those clients; signed per-domain/data routes stay live.
++      h.admission={ready:false,reason:'composite inventory unavailable'};
++      return {status:503,body:h};
++    }
++    const h=structuredClone(s.legacy), d=structuredClone(s.native.desktop);
++    h.managerEpoch=s.epoch;h.vmScopes=[s.legacy.vmScope,s.native.vmScope];
++    h.physicalMemory={poolMiB:s.physicalPool,allocatedMiB:s.physical,freeMiB:s.physicalPool-s.physical};
++    h.memory={...h.memory,allocatedMiB:s.app,freeMiB:s.appPool-s.app};
++    h.cpu={...h.cpu,allocatedUnits:s.cpu,freeUnits:s.cpuPool*CPU_UNITS_PER_VCPU-s.cpu};
++    d.allocatedGpuMilli=s.gpu;d.freeGpuMilli=d.ready?1000-s.gpu:0;h.desktop=d;
++    if(h.inference){h.inference.allocatedGpuMilli=s.gpu;h.inference.freeGpuMilli=h.inference.ready?1000-s.gpu:0;}
++    h.supports.desktop=d.ready===true;h.supports.gpu=Boolean(h.inference?.ready || d.ready);
++    h.catalog.derivations=h.catalog.derivations.filter(x=>x!==V8);
++    if(d.ready && s.native.catalog?.derivations?.includes(V8))h.catalog.derivations.push(V8);
++    h.catalog.derives=[...new Set([...h.catalog.derives,V8])];
++    if(h.preflight?.roles)h.preflight.roles.desktop=s.native.preflight?.roles?.desktop ?? {ok:false};
++    try{if(this.journal.pending()||!this.journal.hasCapacity()){h.canStart=false;h.cannotStart=['router journal requires reconciliation or maintenance'];}}catch{h.canStart=false;h.cannotStart=['router journal unavailable'];}
++    if(h.canStart===false){h.admission={ready:false,reason:h.cannotStart?.join('; ')||'manager unavailable'};return {status:503,body:h};}
++    return {status:200,body:h};
++  }
++  checkNative(body) {
++    const p=this.pins,d=body.derive;
++    if (body.name!==p.deployment || body.id || d?.catalog?.app!==p.catalogApp || d?.catalog?.version!==p.catalogVersion || d?.cid!==p.cid || d?.runtimeId!==p.runtimeId || d?.desktop?.profileSha256!==p.profileSha256 || d?.secretDeployment!==p.deployment) throw error('native request differs from configured deployment',400);
++    if (body.cpuShare!==0.25 || body.gpuShare!==0.5 || d.desktop.gpuMilli!==500) throw error('native resource allocation differs from configured deployment',400);
++  }
++  precheck(body,h,native) {
++    const d=body.derive;
++    try {
++      if(native){validateDesktopRecord(d);const why=desktopSpawnRefusal(d,body);if(why)throw Error(why);}
++      else {
++        // Reuse the installed backend's deterministic record validation. These
++        // placeholder component bytes validate structure only; the backend must
++        // still fetch and verify the real CID before it creates any partition.
++        derive({record:d,component:COMPONENT_PREAMBLE});
++        if(!h.catalog?.derivations?.includes(d.derivation))throw Error('derivation is not served');
++        if(d.inference){const why=inferenceRefusal(d,body,h.inference);if(why)throw Error(why);}
++        else if(d.runtimeId!==h.catalog?.runtimeId)throw Error('runtime differs from installed backend');
++        const secret=['enclave-catalog-bundle/6','enclave-catalog-bundle/7'].includes(d.derivation);
++        if(secret&&(body.hasSecrets!==true||body.name!==d.secretDeployment))throw Error('secret deployment differs');
++        if([5,6,7].some(n=>d.derivation==='enclave-catalog-bundle/'+n)&&(body.config||body.configCid||body.appConfigCid))throw Error('configuration must be in measured record');
++        const why=refuseUnsupported(body,{...h.supports,ports:false,gpu:!!h.inference?.ready,secrets:secret&&h.supports?.secrets===true});if(why)throw Error(why);
++        if(body.name==='shield-readiness-v1') {
++          if(d.cid!=='bafkreibjbefi32gvjrd54lhdizq6zlywym6urcuztzvi455xfv23tyjnza'||d.derivation!=='enclave-catalog-bundle/1'||d.policy.memMiB!==256||d.policy.cpuPercent!==100||d.policy.vcpus!==1||d.http||body.cpuShare!==0||body.gpuShare!==0)
++            throw Error('readiness request differs from qualified component and policy');
++        }else if(!/^0x[0-9a-f]{64}$/.test(body.name||''))throw Error('invalid deployment name');
++      }
++    }catch(e){throw error('request refused before launch: '+e.message,400);}
++  }
++  async spawn(body) {return this.serial(async()=>{
++    if(this.journal.pending())throw error('unreconciled router launch');
++    if(!body || typeof body!=='object' || Array.isArray(body))throw error('invalid spawn body',400);
++    body=structuredClone(body);
++    if(['secrets','env','secretValues','bootstrap'].some(k=>k in body))throw error('unsupported startup inputs',400);
++    if(Object.keys(body.derive?.catalog??{}).sort().join(',')!=='app,version')throw error('invalid catalog fields',400);
++    const native=body.derive?.derivation===V8,role=native?'native':'legacy';
++    if(native)this.checkNative(body);
++    else if(body.name===this.pins.deployment || body.derive?.desktop || (body.id && routeFor(body.id)!=='legacy'))throw error('legacy request crosses native namespace',400);
++    if(!native){
++      const declared=body.derive?.inference?.gpuMilli;
++      if(typeof body.gpuShare!=='number' || !Number.isFinite(body.gpuShare) || body.gpuShare<0 || body.gpuShare>1 ||
++        (body.gpuShare>0 ? !Number.isSafeInteger(declared) || declared!==Math.round(body.gpuShare*1000) || body.derive.derivation!=='enclave-catalog-bundle/4' : declared!==undefined || body.derive?.inference!=null))
++        throw error('GPU allocation is unknown or inconsistent',400);
++      // derive.mjs copies these exact policy values and exact V4 gpuMilli into
++      // mapping.record; it does not obtain another allocation from component bytes.
++      if(!Number.isSafeInteger(body.derive?.policy?.memMiB) || body.derive.policy.memMiB<64 || body.derive.policy.memMiB>65536)throw error('memory policy unknown',400);
++    }
++    const s=await this.snapshot();
++    this.precheck(body,s[role],native);
++    const existing=s.rows.find(r=>r.name===body.name && LIVE.has(r.status));
++    if(existing)return {status:409,body:{error:'deployment already exists',id:existing.id}};
++    if(!s[role].canStart || (native && !s.native.desktop.ready))throw error('target manager unavailable');
++    const memory=body.name==='shield-readiness-v1' && body.derive?.policy?.memMiB===256
++      ? {appMiB:256} : appMemoryForShare(s.appPool,body.cpuShare,body.derive?.policy?.memMiB);
++    let cpu;try{cpu=body.name==='shield-readiness-v1'?natural(body.derive.policy.vcpus,'witness CPUs')*CPU_UNITS_PER_VCPU:cpuForShare(s.cpuPool,body.cpuShare,body.derive.policy).grantedUnits;}catch{throw error('CPU allocation unknown',400);}
++    const physical=native?desktopVmMemMiB(memory.appMiB):type1VmMemMiB(memory.appMiB,{name:body.name});
++    const gpu=natural(native?body.derive.desktop.gpuMilli:(body.derive?.inference?.gpuMilli ?? 0),'requested GPU');
++    if(memory.appMiB>s.appPool-s.app || physical>s.physicalPool-s.physical || gpu>1000-s.gpu || cpu>s.cpuPool*CPU_UNITS_PER_VCPU-s.cpu)throw error('shared capacity cannot fit requested domain',507);
++    const hostFree=natural(await this.availableMemoryMiB(),'host physical headroom');
++    if(hostFree<physical+17*1024)throw error('host physical headroom cannot preserve 17 GiB startup reserve',507);
++    const forwarded=structuredClone(body);if(native){forwarded.id=this.mint();if(!NATIVE_ID.test(forwarded.id))throw error('native id generator invalid');}
++    else forwarded.id=body.id||'hv'+randomBytes(16).toString('hex');
++    if(s.rows.some(r=>r.id===forwarded.id))throw error('instance id already reserved',409);
++    this.journal.begin({schema:'enclave-router-pending/1',role,name:body.name,id:forwarded.id??null,requestSha256:hash(forwarded),epoch:s.epoch,expected:{cpuUnits:cpu,appMiB:memory.appMiB,physicalMiB:body.name==='shield-readiness-v1'?512:physical,gpuMilli:gpu,runtimeId:body.derive.runtimeId,cid:body.derive.cid,catalog:body.derive.catalog},startedAt:new Date().toISOString()});
++    // The intent remains on any thrown error, 5xx, malformed success or transport
++    // failure. No automatic retry can create an overlapping reservation.
++    let result;try{
++    result=await this.request(role,'POST','/vms',forwarded);
++    if([200,201].includes(result.status)) {
++      const r=result.body;
++      if(!r || r.name!==body.name || routeFor(r.id)!==role || (native && r.id!==forwarded.id))throw error('unverifiable launch response');
++      await this.observePending();
++    }
++    // Even a 4xx retains the latch: no HTTP status alone proves that a backend
++    // did not create a partition before answering. Reconciliation is explicit.
++    if(![200,201].includes(result.status))throw error('backend launch outcome requires reconciliation');
++    return result;
++    }catch(e){throw error('launch outcome unknown; reconciliation required');}
++  });}
++  async observePending() {
++    const pending=this.journal.read();if(pending.state!=='pending')throw error('no pending launch');
++    const r=pending.record,s=await this.snapshot(),v=s.rows.find(x=>x.id===r.id),e=r.expected;
++    if(!e||s.epoch!==r.epoch||!v||v.name!==r.name||routeFor(v.id)!==r.role||
++       (v.memory?.appMiB??v.policy?.memMiB)!==e.appMiB||v.physicalMemoryMiB<e.physicalMiB||
++       v.gpuMilli!==e.gpuMilli||v.cpu?.grantedUnits!==e.cpuUnits||v.runtimeId!==e.runtimeId||v.cid!==e.cid||
++       v.catalog?.app!==e.catalog?.app||v.catalog?.version!==e.catalog?.version)throw error('pending launch has no correlated same-epoch reservation');
++    this.journal.clear({observation:'same-epoch backend reservation confirmed',id:r.id,epoch:s.epoch,requestSha256:r.requestSha256});
++    return {status:200,body:{observed:true,id:r.id}};
++  }
++  // Explicit operator reconciliation only. Absence, backend 4xx, restart or
++  // elapsed time NEVER clears a pending launch: it may still be in flight.
++  async reconcile() {return this.serial(()=>this.observePending());}
++  async handle(method,path,body,headers={}) {
++    const r=routePath(path);
++    if(method==='POST'&&r.path==='/router/reconcile')return this.reconcile();
++    if(method==='GET' && r.path==='/health')return this.health();
++    if(method==='GET' && r.path==='/vms'){const s=await this.snapshot();return {status:200,body:{vms:s.rows,managerEpoch:s.epoch}};}
++    if(method==='POST' && r.path==='/vms')return this.spawn(body);
++    if(!r.id || !(r.custody?method==='POST':['GET','DELETE'].includes(method)))throw error('unknown manager route',404);
++    // Routing uses a decoded id but the authenticated path and body are never
++    // rewritten. The original manager remains the authorization authority.
++    return this.request(r.role,method,path,body,headers);
++  }
++}
+--- /dev/null
++++ b/windows/vbslike/router/control.test.mjs
+@@ -0,0 +1,161 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
++import {CompositeManager,LaunchJournal} from './control.mjs';
++const pins={deployment:'0x'+'1'.repeat(64),catalogApp:'0x'+'2'.repeat(64),catalogVersion:0,cid:'b'+'a'.repeat(58),runtimeId:'3'.repeat(64),profileSha256:'4'.repeat(64),igvmSha256:'5'.repeat(64),controllerSha256:'6'.repeat(64)};
++const nd='nd'+'7'.repeat(32);
++function fixture(t){
++ const dir=fs.mkdtempSync(path.join(process.cwd(),'.enclave-router-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
++ LaunchJournal.initialize(path.join(dir,'pending.json'));const journal=new LaunchJournal(path.join(dir,'pending.json'));
++ const base={backend:'hyperv-partition-per-app',boundary:{tier:'t0-hv',hostExcluded:false},inventory:{state:'ready'},cpu:{poolVcpus:16,unitsPerVcpu:100000,hostLogicalProcessors:16},memory:{poolMiB:98304},physicalMemory:{poolMiB:84992},supports:{desktop:true,gpu:true},desktop:{ready:true,...Object.fromEntries(['runtimeId','profileSha256','igvmSha256','controllerSha256'].map(k=>[k,pins[k]]))},catalog:{derivations:['enclave-catalog-bundle/7','enclave-catalog-bundle/8'],derives:['enclave-catalog-bundle/7','enclave-catalog-bundle/8']},canStart:true,preflight:{roles:{desktop:{ok:true}}}};
++ const health={legacy:{...structuredClone(base),managerEpoch:'old',vmScope:{prefix:'enclave-app-'}},native:{...structuredClone(base),managerEpoch:'new',vmScope:{prefix:'enclave-native-'}}};
++ const rows={legacy:[{id:'hv1234',name:'0x'+'8'.repeat(64),status:'running',imageRole:'legacy',cpu:{grantedUnits:400000},memory:{appMiB:24576},physicalMemoryMiB:25216,gpuMilli:0}],native:[]};
++ const calls=[];let action=null;
++ const request=async(role,method,p,body,headers)=>{
++  calls.push({role,method,path:p,body,headers});
++  if(method==='GET'&&p==='/health')return {status:200,body:structuredClone(health[role])};
++  if(method==='GET'&&p==='/vms')return {status:200,body:{managerEpoch:health[role].managerEpoch,vms:structuredClone(rows[role])}};
++  if(action)return action(role,method,p,body,headers);
++  if(method==='POST'&&p==='/vms'){
++   const r={id:body.id||'hv5678',name:body.name,status:'starting',runtimeId:pins.runtimeId,cid:body.derive.cid,catalog:body.derive.catalog,desktop:body.derive.desktop,imageRole:role==='native'?'desktop':'legacy',cpu:{grantedUnits:400000},memory:{appMiB:24576},physicalMemoryMiB:role==='native'?36864:25216,gpuMilli:role==='native'?500:0};
++   rows[role].push(r);return {status:201,body:structuredClone(r)};
++  }
++  return {status:404,body:{error:'not_found'}};
++ };
++ const manager=new CompositeManager({availableMemoryMiB:async()=>100000,request,journal,nativePins:pins,mint:()=>nd});
++ const body={name:pins.deployment,cpuShare:.25,gpuShare:.5,hasSecrets:true,isPublic:true,derive:{derivation:'enclave-catalog-bundle/8',catalog:{app:pins.catalogApp,version:0},cid:pins.cid,runtimeId:pins.runtimeId,secretDeployment:pins.deployment,http:8000,ports:['tcp:47984','tcp:47989','tcp:48010','udp:47998','udp:47999','udp:48000'],configBase64:'e30=',desktop:{profile:'kvm-box-masked-v1',profileSha256:pins.profileSha256,gpuMilli:500},policy:{memMiB:8192,cpuPercent:400,vcpus:4}}};
++ return {manager,journal,health,rows,calls,body,request,setAction:f=>action=f};
++}
++test('shared pools are not doubled; native image substitutes only desktop capability',async t=>{
++ const f=fixture(t),h=(await f.manager.health()).body;
++ assert.equal(h.memory.poolMiB,98304);assert.equal(h.physicalMemory.poolMiB,84992);assert.equal(h.physicalMemory.allocatedMiB,25216);assert.equal(h.boundary.hostExcluded,false);
++ assert.equal(h.desktop.igvmSha256,pins.igvmSha256);assert.equal(h.vmScopes.length,2);
++});
++test('native launch is observed in same backend epoch before journal clears',async t=>{
++ const f=fixture(t),r=await f.manager.spawn(f.body);assert.equal(r.body.id,nd);assert.equal(f.journal.pending(),false);
++ assert.equal(f.rows.native.length,1);assert.equal(f.calls.filter(x=>x.method==='POST')[0].role,'native');
++});
++for(const [name,mutate] of [
++ ['unknown inventory',f=>f.health.native.inventory.state='pending'],
++ ['recovered legacy partition',f=>f.rows.legacy[0].recovered=true],
++ ['missing physical reservation',f=>delete f.rows.legacy[0].physicalMemoryMiB],
++ ['foreign native scope',f=>f.health.native.vmScope.prefix='enclave-app-'],
++ ['mismatched memory pools',f=>f.health.native.memory.poolMiB=24576],
++ ['unexpected image',f=>f.health.native.desktop.igvmSha256='9'.repeat(64)],
++ ['native id in original manager',f=>f.rows.legacy[0].id=nd],
++ ['native deployment remains in original manager',f=>f.rows.legacy[0].name=pins.deployment],
++ ['oversold shared physical pool',f=>f.rows.legacy[0].physicalMemoryMiB=90000],
++])test(name+' refuses before mutation',async t=>{const f=fixture(t);mutate(f);await assert.rejects(f.manager.spawn(f.body));assert.equal(f.calls.some(x=>x.method==='POST'),false);});
++test('combined allocation refuses a native launch even when each manager has room',async t=>{
++ const f=fixture(t);f.rows.legacy[0].physicalMemoryMiB=60000;await assert.rejects(f.manager.spawn(f.body),/shared capacity/);assert.equal(f.journal.pending(),false);
++});
++test('aggregate GPU limit is enforced',async t=>{const f=fixture(t);f.rows.legacy[0].gpuMilli=600;await assert.rejects(f.manager.spawn(f.body),/shared capacity/);});
++test('concurrent native submissions create once and adopt existing domain',async t=>{
++ const f=fixture(t);const r=await Promise.all([f.manager.spawn(f.body),f.manager.spawn(f.body)]);assert.deepEqual(r.map(x=>x.status),[201,409]);assert.equal(f.rows.native.length,1);
++});
++for(const code of [400,409,500])test('create then HTTP '+code+' keeps durable uncertainty latch',async t=>{
++ const f=fixture(t);f.setAction(async()=>{f.rows.native.push({id:nd,name:pins.deployment});return {status:code,body:{error:'ambiguous backend'}};});
++ await assert.rejects(f.manager.spawn(f.body),e=>e.status===503);assert.equal(f.journal.pending(),true);
++ const restarted=new CompositeManager({availableMemoryMiB:async()=>100000,request:f.request,journal:new LaunchJournal(f.journal.file),nativePins:pins});
++ await assert.rejects(restarted.spawn(f.body),/unreconciled/);assert.equal(f.calls.filter(x=>x.method==='POST').length,1);
++});
++for(const mode of ['timeout','unobserved success','epoch changed'])test(mode+' never releases uncertain reservation',async t=>{
++ const f=fixture(t);f.setAction(async()=>{if(mode==='timeout')throw Error('deadline');if(mode==='epoch changed')f.health.native.managerEpoch='changed';return {status:201,body:{id:nd,name:pins.deployment}};});
++ await assert.rejects(f.manager.spawn(f.body));assert.equal(f.journal.pending(),true);await assert.rejects(f.manager.spawn(f.body),/unreconciled/);
++});
++test('journal write failure prevents backend mutation',async t=>{
++ const f=fixture(t);f.journal.begin=()=>{throw Error('disk full');};await assert.rejects(f.manager.spawn(f.body),/disk full/);assert.equal(f.calls.some(x=>x.method==='POST'),false);
++});
++test('legacy GET/custody remains on original manager with exact bytes even if native unhealthy',async t=>{
++ const f=fixture(t);f.health.native.inventory.state='pending';const bytes=Buffer.from('{ "signed": true }\n'),headers={'x-enclave-custody-callback':'signed-header'};
++ await f.manager.handle('POST','/vms/hv1234/custody-auth',bytes,headers);const call=f.calls.at(-1);assert.equal(call.role,'legacy');assert.equal(call.body,bytes);assert.equal(call.headers,headers);
++});
++test('forged native namespace and deployment cannot be sent to legacy backend',async t=>{
++ const f=fixture(t);for(const patch of [{id:nd,derive:{derivation:'enclave-catalog-bundle/7'}},{name:'0x'+'9'.repeat(64)},{cpuShare:.5},{gpuShare:1}])await assert.rejects(f.manager.spawn({...f.body,...patch}));assert.equal(f.calls.some(x=>x.method==='POST'),false);
++});
++for(const mode of ['missing','truncated','bad digest','group-readable','symlink','missing parent'])test('journal '+mode+' refuses reads and launches',async t=>{
++ const f=fixture(t),file=f.journal.file;
++ if(mode==='missing')fs.unlinkSync(file);
++ if(mode==='truncated')fs.appendFileSync(file,'{"partial":');
++ if(mode==='bad digest')fs.writeFileSync(file,fs.readFileSync(file,'utf8').replace('observed','pending'));
++ if(mode==='group-readable')fs.chmodSync(file,0o640);
++ if(mode==='symlink'){fs.renameSync(file,file+'.target');fs.symlinkSync(file+'.target',file);}
++ if(mode==='missing parent')fs.rmSync(path.dirname(file),{recursive:true});
++ assert.throws(()=>new LaunchJournal(file));await assert.rejects(f.manager.spawn(f.body));assert.equal(f.calls.some(c=>c.method==='POST'),false);
++});
++for(const id of ['nd-invalid','bad/id'])test('backend success with invalid id '+id+' is ambiguous 503',async t=>{
++ const f=fixture(t);f.setAction(async()=>({status:201,body:{id,name:pins.deployment}}));
++ await assert.rejects(f.manager.spawn(f.body),e=>e.status===503);assert.equal(f.journal.pending(),true);
++});
++test('unknown backend GPU reservation refuses before POST',async t=>{
++ const f=fixture(t);delete f.rows.legacy[0].gpuMilli;await assert.rejects(f.manager.spawn(f.body),e=>e.status===503);assert.equal(f.calls.some(c=>c.method==='POST'),false);
++});
++for(const [share,inference] of [[undefined,undefined],[0,{gpuMilli:500}],[.5,undefined],[.5,{gpuMilli:250}]])test('legacy GPU declaration mismatch '+share+'/'+JSON.stringify(inference)+' refuses before POST',async t=>{
++ const f=fixture(t),body={name:'0x'+'9'.repeat(64),cpuShare:.25,gpuShare:share,derive:{derivation:'enclave-catalog-bundle/4',policy:{memMiB:8192,cpuPercent:400,vcpus:4},inference}};
++ await assert.rejects(f.manager.spawn(body),e=>e.status===400);assert.equal(f.calls.some(c=>c.method==='POST'),false);
++});
++test('invalid inventory id is unavailable, never caller refusal',async t=>{
++ const f=fixture(t);f.rows.legacy[0].id='nd-invalid';await assert.rejects(f.manager.spawn(f.body),e=>e.status===503);
++});
++test('unavailable native inventory disables all admission while keeping legacy reads available',async t=>{
++ const f=fixture(t);f.health.native.inventory.state='pending';const h=await f.manager.health();
++ assert.equal(h.status,200);assert.equal(h.body.canStart,false);assert.equal(h.body.inventory.state,'pending');assert.deepEqual(h.body.catalog.derivations,[]);assert.equal(h.body.physicalMemory.freeMiB,0);
++ await assert.rejects(f.manager.handle('GET','/vms'),e=>e.status===503);
++ await f.manager.handle('GET','/vms/hv1234/');assert.equal(f.calls.at(-1).path,'/vms/hv1234/');
++});
++test('explicit reconciliation requires positive correlated reservation in original epoch',async t=>{
++ const f=fixture(t);f.setAction(async(role,method,p,body)=>{
++  f.rows.native.push({id:body.id,name:body.name,status:'starting',imageRole:'desktop',runtimeId:body.derive.runtimeId,cid:body.derive.cid,catalog:body.derive.catalog,desktop:body.derive.desktop,cpu:{grantedUnits:400000},memory:{appMiB:24576},physicalMemoryMiB:36864,gpuMilli:500});throw Error('response lost');
++ });
++ await assert.rejects(f.manager.spawn(f.body));assert.equal(f.journal.pending(),true);
++ const result=await f.manager.reconcile();assert.equal(result.body.observed,true);assert.equal(f.journal.pending(),false);
++});
++for(const mode of ['absent','new epoch','wrong runtime','wrong memory','wrong catalog'])test('reconciliation '+mode+' leaves durable latch',async t=>{
++ const f=fixture(t);f.setAction(async(role,method,p,body)=>{
++  if(mode!=='absent')f.rows.native.push({id:body.id,name:body.name,status:'starting',imageRole:'desktop',runtimeId:body.derive.runtimeId,cid:body.derive.cid,catalog:body.derive.catalog,desktop:body.derive.desktop,cpu:{grantedUnits:400000},memory:{appMiB:24576},physicalMemoryMiB:36864,gpuMilli:500});throw Error('response lost');
++ });
++ await assert.rejects(f.manager.spawn(f.body));
++ if(mode==='new epoch')f.health.native.managerEpoch='restarted';
++ if(mode==='wrong runtime')f.rows.native[0].runtimeId='0'.repeat(64);
++ if(mode==='wrong memory')f.rows.native[0].memory.appMiB=8192;
++ if(mode==='wrong catalog')f.rows.native[0].catalog={app:pins.catalogApp,version:1};
++ await assert.rejects(f.manager.reconcile());assert.equal(f.journal.pending(),true);
++});
++test('decoded routing preserves original authenticated path',async t=>{
++ const f=fixture(t),bytes=Buffer.from('signed'),p='/vms/%68v1234/custody-auth/?probe=1';
++ await f.manager.handle('POST',p,bytes,{});assert.equal(f.calls.at(-1).path,p);assert.equal(f.calls.at(-1).body,bytes);assert.equal(f.calls.at(-1).role,'legacy');
++});
++test('shared CPU reservations are aggregated across managers',async t=>{
++ const f=fixture(t);f.rows.legacy[0].cpu.grantedUnits=1400000;
++ await assert.rejects(f.manager.spawn(f.body),e=>e.status===507);assert.equal(f.calls.some(x=>x.method==='POST'),false);
++ const h=(await f.manager.health()).body;assert.equal(h.cpu.allocatedUnits,1400000);assert.equal(h.cpu.freeUnits,200000);
++});
++test('unknown CPU allocation and different CPU pools fail closed',async t=>{
++ const f=fixture(t);delete f.rows.legacy[0].cpu;await assert.rejects(f.manager.spawn(f.body),e=>e.status===503);
++ f.rows.legacy[0].cpu={grantedUnits:100000};f.health.native.cpu.poolVcpus=32;await assert.rejects(f.manager.spawn(f.body),e=>e.status===503);
++});
++function legacyBody(){return {name:'0x'+'9'.repeat(64),cpuShare:.25,gpuShare:0,hasSecrets:false,isPublic:true,derive:{derivation:'enclave-catalog-bundle/1',catalog:{version:0,app:'0x'+'a'.repeat(64)},cid:'b'+'a'.repeat(58),runtimeId:pins.runtimeId,policy:{cpuPercent:100,memMiB:128,vcpus:1}}};}
++for(const [name,change] of [
++ ['non-deployment name',b=>b.name='invalid'],['bad catalog',b=>b.derive.catalog.app='invalid'],['bad CID',b=>b.derive.cid='not-a-cid'],['wrong witness',b=>{b.name='shield-readiness-v1';b.cpuShare=0;b.derive.policy={cpuPercent:100,memMiB:256,vcpus:1};}],
++])test('deterministic legacy '+name+' refuses without persistent latch',async t=>{
++ const f=fixture(t),b=legacyBody();f.health.legacy.catalog.runtimeId=pins.runtimeId;f.health.legacy.catalog.derivations.push('enclave-catalog-bundle/1');change(b);
++ await assert.rejects(f.manager.spawn(b),e=>e.status===400);assert.equal(f.journal.pending(),false);assert.equal(f.calls.some(c=>c.method==='POST'),false);
++});
++test('successful legacy request correlates catalog fields independent of key order',async t=>{
++ const f=fixture(t),b=legacyBody();f.health.legacy.catalog.runtimeId=pins.runtimeId;f.health.legacy.catalog.derivations.push('enclave-catalog-bundle/1');
++ const r=await f.manager.spawn(b);assert.equal(r.status,201);assert.equal(f.journal.pending(),false);
++});
++test('physical host floor is checked before durable intent and POST',async t=>{
++ const f=fixture(t);f.manager.availableMemoryMiB=async()=>40000;
++ await assert.rejects(f.manager.spawn(f.body),e=>e.status===507);assert.equal(f.journal.pending(),false);assert.equal(f.calls.some(c=>c.method==='POST'),false);
++});
++test('journal maintenance threshold disables admission but preserves existing reads',async t=>{
++ const f=fixture(t);for(let i=0;i<10;i++)f.journal.append('observed',{maintenanceFixture:'x'.repeat(91000)});
++ assert.equal(f.journal.hasCapacity(),false);assert.equal((await f.manager.health()).body.canStart,false);
++ await assert.rejects(f.manager.spawn(f.body),/maintenance/);assert.equal(f.calls.some(c=>c.method==='POST'),false);
++ await f.manager.handle('GET','/vms/hv1234');assert.equal(f.calls.at(-1).role,'legacy');
++});
++test('unreadable journal disables admission while health and existing reads survive',async t=>{
++ const f=fixture(t);fs.appendFileSync(f.journal.file,'partial');assert.equal((await f.manager.health()).body.canStart,false);
++ await f.manager.handle('GET','/vms/hv1234');assert.equal(f.calls.at(-1).role,'legacy');
++});
+--- /dev/null
++++ b/windows/vbslike/router/cpu-share.mjs
+@@ -0,0 +1,45 @@
++// CPU allocation, like RAM (memory-share.mjs), is separate from the immutable catalog/attestation policy.
++// Units are Hyper-V's own: Msvm_ProcessorSettingData Limit/Reservation in percent/1000 of ONE virtual processor,
++// so 100000 is a whole VP. The share buys poolVcpus*share VPs' worth; the VP count only shapes it.
++export const CPU_UNITS_PER_VCPU = 100000;
++export const CPU_MIN_LIMIT = 1000;          // 1% of one VP: below this the cap is not a meaningful allocation
++export const CPU_MAX_POOL_VCPUS = 1024;
++export const CPU_WMI_UNITS = "percent / 1000";
++
++export function validCpuPool(poolVcpus) {
++  return Number.isSafeInteger(poolVcpus) && poolVcpus > 0 && poolVcpus <= CPU_MAX_POOL_VCPUS;
++}
++
++export function cpuForShare(poolVcpus, cpuShare, policy) {
++  if (!validCpuPool(poolVcpus)) throw new Error("the manager has no valid CPU pool (NODE_VCPUS)");
++  if (!Number.isFinite(cpuShare) || cpuShare <= 0 || cpuShare > 1)
++    throw new Error("cpuShare must be greater than zero and at most one");
++  const minVcpus = policy?.vcpus, cpuPercent = policy?.cpuPercent;
++  if (!Number.isSafeInteger(minVcpus) || minVcpus <= 0 || !Number.isSafeInteger(cpuPercent) || cpuPercent <= 0)
++    throw new Error("the app has no valid catalog CPU policy");
++  const entitlementUnits = Math.floor(poolVcpus * cpuShare * CPU_UNITS_PER_VCPU + 1e-6);
++  const vcpus = Math.max(minVcpus, Math.ceil(entitlementUnits / CPU_UNITS_PER_VCPU));
++  if (vcpus > poolVcpus)
++    throw new Error(`the app needs ${vcpus} virtual processors, but the CPU pool has ${poolVcpus}`);
++  const limit = Math.floor(entitlementUnits / vcpus);
++  if (limit < CPU_MIN_LIMIT)
++    throw new Error(`CPU share allows ${entitlementUnits} units over ${vcpus} VP(s), below ${CPU_MIN_LIMIT} per VP`);
++  const grantedUnits = vcpus * limit;
++  // THE CAP THAT BINDS. Hyper-V's root scheduler (Windows client hosts, scheduler type 0x4) does not enforce a VM's
++  // processor Limit/Reservation (Microsoft's "VM CPU resource controls and the root scheduler"; on the NucBox a sustained
++  // burn ran as fast at 16% as at 100% of its VP), so the VP count and those settings only SHAPE the VM. What confines the
++  // app is its guest cgroup quota, cpu.max in percent of one processor: the purchased entitlement exactly, rounded DOWN
++  // (never past what was bought; exact for whole-percent shares of a whole pool: 1% of 16 = 16, 21% = 336), applied
++  // below the catalog's default cpuPercent too. The guest monitor states what it applied, and the launcher serves
++  // nothing else (ENCLAVE_GUEST_CPU_ALLOWANCE=1). It is at least 1 (CPU_MIN_LIMIT) and at most vcpus * 100.
++  const appCpuPercent = Math.floor(entitlementUnits / 1000);
++  return { rule: "cpu-share", poolVcpus, cpuShare, entitlementUnits, vcpus, limit, reservation: limit, grantedUnits,
++           policy: { vcpus: minVcpus, cpuPercent }, appCpuPercent };
++}
++
++/** The fixed legacy policy, for the synthetic readiness witness and for managers with no pools (labs). */
++export function cpuFixedPolicy(policy, rule) {
++  const vcpus = policy?.vcpus;
++  if (!Number.isSafeInteger(vcpus) || vcpus <= 0) throw new Error("the app has no valid catalog CPU policy");
++  return { rule, vcpus, limit: CPU_UNITS_PER_VCPU, reservation: 0, grantedUnits: vcpus * CPU_UNITS_PER_VCPU };
++}
+--- /dev/null
++++ b/windows/vbslike/router/io.mjs
+@@ -0,0 +1,82 @@
++import http from 'node:http';
++import net from 'node:net';
++import {parsePreamble,MAX_PREAMBLE} from '../datapath/datapath.mjs';
++import {routeFor,routePath} from './control.mjs';
++
++// Fixed numeric loopback endpoints only. No URL or destination from a request
++// can select an upstream; the original managers remain authorization owners.
++export function makeRequest({legacyPort,nativePort,timeoutMs=null,maxBytes=2*1024*1024}) {
++  for(const port of [legacyPort,nativePort])if(!Number.isInteger(port)||port<1||port>65535)throw Error('invalid manager port');
++  return (role,method,path,body,headers={})=>new Promise((resolve,reject)=>{
++    if(!['legacy','native'].includes(role))return reject(Error('invalid manager role'));
++    const raw=body===undefined?null:Buffer.isBuffer(body)?body:Buffer.from(JSON.stringify(body));
++    if(raw && raw.length>maxBytes)return reject(Error('manager request too large'));
++    const pass={};for(const key of ['content-type','x-enclave-custody-callback'])if(headers[key]!==undefined)pass[key]=headers[key];
++    if(raw){pass['content-length']=raw.length;pass['content-type']??='application/json';}
++    const req=http.request({hostname:'127.0.0.1',port:role==='native'?nativePort:legacyPort,method,path,headers:pass},res=>{
++      const chunks=[];let count=0;
++      res.on('data',chunk=>{count+=chunk.length;if(count>maxBytes)req.destroy(Error('manager response too large'));else chunks.push(chunk);});
++      res.on('error',reject);
++      res.on('end',()=>{clearTimeout(timer);try{resolve({status:res.statusCode,raw:Buffer.concat(chunks),body:JSON.parse(Buffer.concat(chunks).toString('utf8')||'{}')});}catch{reject(Error('manager response is not JSON'));}});
++    });
++    const timer=setTimeout(()=>req.destroy(Error('manager exchange deadline')),timeoutMs??(method==='GET'?10000:125000));
++    req.on('error',e=>{clearTimeout(timer);reject(e);});
++    req.end(raw);
++  });
++}
++
++export function controlServer(manager,{maxBytes=2*1024*1024,timeoutMs=150000,maxRequests=32}={}) {
++  let active=0;
++  const server=http.createServer(async(req,res)=>{
++    const send=(status,body,raw)=>{if(res.destroyed)return;const bytes=raw??Buffer.from(JSON.stringify(body));res.writeHead(status,{'content-type':'application/json','content-length':bytes.length});res.end(bytes);};
++    if(active>=maxRequests){send(503,{error:'router busy'});req.resume();return;}
++    active++;
++    try{
++      const route=routePath(req.url);
++      if(route.custody && (req.headers['transfer-encoding'] || !Number.isSafeInteger(Number(req.headers['content-length'])) || Number(req.headers['content-length'])<0))return send(413,{error:'custody callback requires explicit length'});
++      const chunks=[];let n=0;
++      for await(const c of req){n+=c.length;if(n>maxBytes){send(413,{error:'manager request too large'});req.destroy();return;}chunks.push(c);}
++      let body;const raw=Buffer.concat(chunks);
++      if(route.custody)body=raw;
++      else if(raw.length){try{body=JSON.parse(raw.toString('utf8'));}catch{return send(400,{error:'invalid JSON'});}}
++      const reply=await manager.handle(req.method,req.url,body,req.headers);send(reply.status,reply.body,reply.raw);
++    }catch(e){send(e.status||503,{error:e.message});}
++    finally{active--;}
++  });
++  server.requestTimeout=timeoutMs;server.headersTimeout=Math.min(timeoutMs,10000);server.setTimeout(timeoutMs,s=>s.destroy());
++  return server;
++}
++
++export function dataServer({legacyPort,nativePort,preambleMs=5000,dialMs=5000,idleMs=180000,maxConnections=1024}) {
++  for(const port of [legacyPort,nativePort])if(!Number.isInteger(port)||port<1||port>65535)throw Error('invalid data port');
++  const connections=new Set();
++  const server=net.createServer(client=>{
++    if(connections.size>=maxConnections){client.destroy();return;}
++    connections.add(client);let upstream=null,head=Buffer.alloc(0),settled=false;
++    const close=()=>{client.destroy();upstream?.destroy();connections.delete(client);clearTimeout(timer);};
++    const timer=setTimeout(close,preambleMs);
++    client.on('error',close);client.once('close',close);client.setNoDelay(true);
++    const onData=chunk=>{
++      if(settled)return;
++      if(head.length+chunk.length>65536+MAX_PREAMBLE){close();return;}
++      head=Buffer.concat([head,chunk]);const nl=head.indexOf(10);
++      if(nl<0){if(head.length>MAX_PREAMBLE)close();return;}
++      settled=true;clearTimeout(timer);client.off('data',onData);client.pause();
++      if(nl>MAX_PREAMBLE){close();return;}
++      let role;try{role=routeFor(parsePreamble(head.subarray(0,nl).toString('latin1')).id);}catch{close();return;}
++      upstream=net.connect({host:'127.0.0.1',port:role==='native'?nativePort:legacyPort});
++      const dial=setTimeout(close,dialMs);
++      upstream.on('error',close);upstream.once('close',()=>{clearTimeout(dial);close();});
++      upstream.once('connect',()=>{
++        clearTimeout(dial);if(client.destroyed){close();return;}
++        // Send the unchanged preamble. The destination manager checks all five
++        // identity fields and returns its own OK/NO; this router never invents OK.
++        upstream.write(head);head=null;upstream.setNoDelay(true);
++        client.setTimeout(idleMs,close);upstream.setTimeout(idleMs,close);
++        client.pipe(upstream);upstream.pipe(client);client.resume();
++      });
++    };
++    client.on('data',onData);
++  });
++  return {server,close:()=>{for(const client of connections)client.destroy();server.close();},size:()=>connections.size};
++}
+--- /dev/null
++++ b/windows/vbslike/router/io.test.mjs
+@@ -0,0 +1,61 @@
++import test from 'node:test';import assert from 'node:assert/strict';
++import net from 'node:net';import http from 'node:http';import {once} from 'node:events';
++import {controlServer,dataServer,makeRequest} from './io.mjs';
++async function listen(server){server.listen(0,'127.0.0.1');await once(server,'listening');return server.address().port;}
++async function tcpFixture(t,reply='OK\n'){
++ const seen=[],sockets=new Set();
++ const server=net.createServer(s=>{sockets.add(s);s.on('error',()=>{});s.once('close',()=>sockets.delete(s));let data=Buffer.alloc(0);s.on('data',b=>{data=Buffer.concat([data,b]);if(data.includes(Buffer.from('PAYLOAD'))){seen.push(data);s.end(reply);}});});
++ const port=await listen(server);t.after(()=>{for(const s of sockets)s.destroy();server.close();});return {port,seen};
++}
++async function exchange(port,data,{chunks=false}={}){
++ const s=net.connect(port,'127.0.0.1');s.on('error',()=>{});s.setTimeout(2000,()=>s.destroy(Error('deadline')));await once(s,'connect');
++ let out=Buffer.alloc(0);s.on('data',b=>{out=Buffer.concat([out,b]);});const finished=new Promise(resolve=>s.once('close',()=>resolve(out)));
++ if(chunks){for(const b of data){s.write(Buffer.from([b]));await new Promise(r=>setImmediate(r));}}else s.write(data);
++ return finished;
++}
++const preamble=id=>`ENCLAVE-SPLICE/1 id=${id} app=${'1'.repeat(64)} image=${'2'.repeat(64)} runtime=${'3'.repeat(64)} key=${'4'.repeat(64)}\nPAYLOAD`;
++for(const native of [false,true])test((native?'native':'legacy')+' ciphertext is forwarded unchanged to correct data plane',async t=>{
++ const old=await tcpFixture(t),next=await tcpFixture(t),router=dataServer({legacyPort:old.port,nativePort:next.port}),port=await listen(router.server);t.after(router.close);
++ const raw=Buffer.from(preamble(native?'nd'+'a'.repeat(32):'hv-existing'));
++ assert.equal((await exchange(port,raw,{chunks:true})).toString(),'OK\n');
++ assert.deepEqual((native?next:old).seen,[raw]);assert.equal((native?old:next).seen.length,0);
++});
++test('backend rejection is relayed; router never replaces NO with OK',async t=>{
++ const old=await tcpFixture(t,'NO wrong key\n'),next=await tcpFixture(t),router=dataServer({legacyPort:old.port,nativePort:next.port}),port=await listen(router.server);t.after(router.close);
++ assert.equal((await exchange(port,Buffer.from(preamble('hv-existing')))).toString(),'NO wrong key\n');
++});
++for(const [label,raw] of [['malformed protocol','BAD\nPAYLOAD'],['oversized preamble','x'.repeat(513)],['invalid namespace',preamble('nd-invalid')],['extra identity field',preamble('hv-id').replace('\n',' other=foo\n')]])test(label+' never reaches either backend',async t=>{
++ const old=await tcpFixture(t),next=await tcpFixture(t),router=dataServer({legacyPort:old.port,nativePort:next.port,preambleMs:50}),port=await listen(router.server);t.after(router.close);
++ assert.equal((await exchange(port,Buffer.from(raw))).length,0);assert.equal(old.seen.length+next.seen.length,0);
++});
++test('preamble deadline closes idle connection',async t=>{
++ const old=await tcpFixture(t),router=dataServer({legacyPort:old.port,nativePort:old.port,preambleMs:40}),port=await listen(router.server);t.after(router.close);
++ assert.equal((await exchange(port,Buffer.from('ENCLAVE'))).length,0);
++});
++test('HTTP adapter preserves callback body and authentication header byte-for-byte',async t=>{
++ let received;const backend=http.createServer(async(req,res)=>{const chunks=[];for await(const b of req)chunks.push(b);received={body:Buffer.concat(chunks),header:req.headers['x-enclave-custody-callback'],path:req.url};res.end('{"ok":true}');});
++ const bp=await listen(backend);t.after(()=>{backend.closeAllConnections();backend.close();});
++ const request=makeRequest({legacyPort:bp,nativePort:bp});
++ const server=controlServer({handle:(method,path,body,headers)=>request('legacy',method,path,body,headers)}),port=await listen(server);t.after(()=>{server.closeAllConnections();server.close();});
++ const raw=Buffer.from('{ "signature" : "fixture" }\n');
++ const response=await fetch(`http://127.0.0.1:${port}/vms/hv1/custody-auth`,{method:'POST',body:raw,headers:{'x-enclave-custody-callback':'v1 fixture','content-type':'application/json'}});
++ assert.equal(response.status,200);assert.deepEqual(received.body,raw);assert.equal(received.header,'v1 fixture');assert.equal(received.path,'/vms/hv1/custody-auth');
++});
++test('HTTP request bound rejects body without manager mutation',async t=>{
++ let calls=0;const server=controlServer({handle:()=>{calls++;return {status:200,body:{}};}},{maxBytes:16});const port=await listen(server);t.after(()=>{server.closeAllConnections();server.close();});
++ try{const r=await fetch(`http://127.0.0.1:${port}/vms`,{method:'POST',body:'x'.repeat(100)});assert.equal(r.status,413);}catch(e){assert.equal(e.message,'fetch failed');}
++ assert.equal(calls,0);
++});
++test('upstream deadline covers response body, not only headers',async t=>{
++ const server=http.createServer((req,res)=>{res.writeHead(200);res.write('{');});const port=await listen(server);t.after(()=>{server.closeAllConnections();server.close();});
++ const request=makeRequest({legacyPort:port,nativePort:port,timeoutMs:40});await assert.rejects(request('legacy','GET','/health'),/deadline/);
++});
++test('HTTP adapter keeps encoded callback path, query, trailing slash and raw response bytes',async t=>{
++ const rawResponse=Buffer.from('{ "counter":9007199254740993, "ok": true }\n');let received;
++ const backend=http.createServer(async(req,res)=>{const chunks=[];for await(const b of req)chunks.push(b);received={path:req.url,body:Buffer.concat(chunks)};res.end(rawResponse);});
++ const bp=await listen(backend);t.after(()=>{backend.closeAllConnections();backend.close();});
++ const request=makeRequest({legacyPort:bp,nativePort:bp}),server=controlServer({handle:(m,p,b,h)=>request('legacy',m,p,b,h)}),port=await listen(server);t.after(()=>{server.closeAllConnections();server.close();});
++ const p='/vms/%68v1/custody-auth/?test=1',body=Buffer.from(' { "signed":true }\n');
++ const r=await fetch(`http://127.0.0.1:${port}${p}`,{method:'POST',body});
++ assert.equal(received.path,p);assert.deepEqual(received.body,body);assert.deepEqual(Buffer.from(await r.arrayBuffer()),rawResponse);
++});
+--- /dev/null
++++ b/windows/vbslike/router/main.mjs
+@@ -0,0 +1,26 @@
++// Dedicated host-local routing service. Never expose these management sockets
++// outside loopback. Public config is selected by both absolute path and hash.
++import fs from 'node:fs';import path from 'node:path';import {createHash} from 'node:crypto';
++import {CompositeManager,LaunchJournal} from './control.mjs';
++import {checkJournalStorage,availableMemoryMiB,lockJournal} from './platform.mjs';
++import {makeRequest,controlServer,dataServer} from './io.mjs';
++const [file,pin,mode]=process.argv.slice(2);
++if(!file||!path.isAbsolute(file)||!/^[0-9a-f]{64}$/.test(pin||''))throw Error('absolute config path and SHA256 required');
++const stat=fs.lstatSync(file);if(!stat.isFile()||stat.size>65536)throw Error('config must be a bounded regular file');
++const bytes=fs.readFileSync(file);if(bytes.length>65536||createHash('sha256').update(bytes).digest('hex')!==pin)throw Error('config hash differs');
++const config=JSON.parse(bytes);
++if(Object.keys(config).sort().join(',')!=='journal,nativePins,schema'||config.schema!=='enclave-native-router/1'||typeof config.journal!=='string'||!path.isAbsolute(config.journal))throw Error('invalid router config');
++if(mode==='--reconcile'){
++ const r=await fetch('http://127.0.0.1:8097/router/reconcile',{method:'POST',signal:AbortSignal.timeout(30000)});
++ console.log(await r.text());process.exit(r.ok?0:1);
++}
++if(mode!==undefined)throw Error('unknown router operation');
++await checkJournalStorage(config.journal);
++const unlock=lockJournal(config.journal);process.once('exit',unlock);
++const manager=new CompositeManager({request:makeRequest({legacyPort:8091,nativePort:8095}),journal:new LaunchJournal(config.journal),nativePins:config.nativePins,availableMemoryMiB});
++const control=controlServer(manager),data=dataServer({legacyPort:8092,nativePort:8096});
++const stop=()=>{control.close();control.closeIdleConnections();data.close();};
++for(const server of [control,data.server])server.on('error',e=>{stop();console.error('router listener failed:',e.code||'unknown');process.exitCode=1;});
++control.listen(8097,'127.0.0.1');data.server.listen(8098,'127.0.0.1');
++process.on('SIGTERM',stop);process.on('SIGINT',stop);
++console.log('Native manager router listens only on 127.0.0.1:8097/8098; existing managers retain TLS and authorization.');
+--- /dev/null
++++ b/windows/vbslike/router/platform.mjs
+@@ -0,0 +1,45 @@
++// Windows startup storage checks and physical headroom. No changes to host
++// security settings or volumes; journal directory ACL is installed explicitly.
++import {execFile} from 'node:child_process';
++import fs from 'node:fs';
++import os from 'node:os';
++import {randomBytes} from 'node:crypto';
++const quote=s=>"'"+String(s).replaceAll("'","''")+"'";
++function powershell(script){return new Promise((resolve,reject)=>execFile('powershell.exe',['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from("$ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue';"+script,'utf16le').toString('base64')],{windowsHide:true,timeout:10000,maxBuffer:65536},(e,stdout)=>{if(e)return reject(Error('host storage or memory check failed'));try{resolve(JSON.parse(stdout));}catch{reject(Error('invalid host check result'));}}));}
++// On Windows libuv queries GlobalMemoryStatusEx (ullAvailPhys) in-process.
++// Spawning PowerShell here consumes memory during the admission measurement.
++export async function availableMemoryMiB({platform=process.platform,freeMemory=os.freemem}={}){
++ if(platform!=='win32')throw Error('physical headroom requires the Windows host');
++ const bytes=freeMemory();
++ if(!Number.isSafeInteger(bytes)||bytes<=0)throw Error('physical memory unknown');
++ return Math.floor(bytes/(1024*1024));
++}
++export async function checkJournalStorage(file){
++ if(process.platform!=='win32')return;
++ const r=await powershell(`
++ $f=Get-Item -LiteralPath ${quote(file)} -Force;
++ $d=$f.Directory;
++ $v=Get-Volume -DriveLetter $f.PSDrive.Name;
++ if([string]$v.FileSystem -ne 'NTFS' -or [string]$v.DriveType -ne 'Fixed'){throw 'journal volume must be fixed local NTFS'};
++ foreach($p in @($f,$d)){
++  $acl=Get-Acl -LiteralPath $p.FullName;
++  if(-not $acl.AreAccessRulesProtected){throw 'journal ACL inheritance enabled'};
++  if($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne 'S-1-5-18'){throw 'journal owner must be SYSTEM'};
++  $rules=@($acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]));
++  if($rules.Count -lt 2){throw 'journal ACL incomplete'};
++  foreach($a in $rules){
++   if($a.IsInherited -or $a.AccessControlType -ne 'Allow' -or $a.IdentityReference.Value -notin @('S-1-5-18','S-1-5-32-544')){throw 'journal ACL grants another identity'};
++  }
++ }
++ $p=$f;while($p){if(($p.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0){throw 'journal ancestry is a reparse point'};$p=if($p -is [IO.FileInfo]){$p.Directory}else{$p.Parent}};
++ @{ok=$true}|ConvertTo-Json -Compress`);
++ if(r.ok!==true)throw Error('journal storage not verified');
++}
++// Only the running service owns the journal. An unclean exit leaves a stale
++// lock for the documented offline procedure; PID absence never clears it here.
++export function lockJournal(file){
++ const lock=file+'.lock',token=randomBytes(32).toString('hex');
++ const fd=fs.openSync(lock,'wx',0o600);
++ try{fs.writeFileSync(fd,JSON.stringify({pid:process.pid,token,createdAt:new Date().toISOString()}));fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
++ return ()=>{try{const row=JSON.parse(fs.readFileSync(lock));if(row.pid===process.pid&&row.token===token)fs.unlinkSync(lock);}catch{}};
++}
+--- /dev/null
++++ b/windows/vbslike/router/platform.test.mjs
+@@ -0,0 +1,21 @@
++import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';
++import {lockJournal,availableMemoryMiB} from './platform.mjs';
++test('only one service owns the journal; stale lock never clears automatically',t=>{
++ const d=fs.mkdtempSync(path.join(process.cwd(),'.enclave-router-lock-'));t.after(()=>fs.rmSync(d,{recursive:true,force:true}));const file=path.join(d,'journal');
++ const release=lockJournal(file);assert.throws(()=>lockJournal(file),e=>e.code==='EEXIST');
++ release();const again=lockJournal(file);assert.throws(()=>lockJournal(file),e=>e.code==='EEXIST');again();
++ fs.writeFileSync(file+'.lock',JSON.stringify({pid:999999999,token:'stale'}));assert.throws(()=>lockJournal(file),e=>e.code==='EEXIST');assert.equal(fs.existsSync(file+'.lock'),true);
++});
++
++test('Windows available RAM is measured once in bytes and rounded down',async()=>{
++ let calls=0;
++ assert.equal(await availableMemoryMiB({platform:'win32',freeMemory:()=>{calls++;return 49*1024**3+1024**2-1;}}),49*1024);
++ assert.equal(calls,1);
++ assert.equal(await availableMemoryMiB({platform:'win32',freeMemory:()=>49*1024**3-1}),49*1024-1);
++});
++test('unknown memory and unsupported platforms fail closed',async()=>{
++ for(const value of [0,-1,NaN,Infinity,1.5,Number.MAX_SAFE_INTEGER+1,'1024',undefined])
++  await assert.rejects(availableMemoryMiB({platform:'win32',freeMemory:()=>value}),/physical memory unknown/);
++ await assert.rejects(availableMemoryMiB({platform:'linux',freeMemory:()=>{throw Error('must not query');}}),/Windows host/);
++ await assert.rejects(availableMemoryMiB({platform:'win32',freeMemory:()=>{throw Error('query failed');}}),/query failed/);
++});

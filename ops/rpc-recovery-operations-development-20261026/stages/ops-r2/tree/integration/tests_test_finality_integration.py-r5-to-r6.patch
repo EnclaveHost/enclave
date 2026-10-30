@@ -1,0 +1,116 @@
+--- a/tests/test_finality_integration.py
++++ b/tests/test_finality_integration.py
+@@ -1,5 +1,5 @@
+ #!/usr/bin/env python3
+-"""base-finality-proof-stage/r5 REAL-TOOL integration (PREPARED; NOT run by Claude: jobs/root-finality-r5-tests.sh, exact count 11).
++"""base-finality-proof-stage/r6 REAL-TOOL integration (PREPARED; NOT run by Claude: jobs/root-finality-r6-tests.sh, exact count 16).
+ Every decision is made by the real code: the r5 recovery harness (r7 + the shared-ledger path) (capture_binding, pinned A1 gate, gate_a1, the durable admission
+ ledger, gate_watermark) executing the REAL capture r4 module (pinned bytes) over that stage's own stub sources and r7's capture
+ stubs (as r7's tests do: test-observed runtime pins, A1_CAPTURE_REVIEWED patched in THIS process only); the r5 finality tool and
+@@ -7,7 +7,7 @@
+ launch_handshake) and the r5 producer (record_finality). Test seams only: OWNER/TRUSTED_UID = this uid, a fake /proc root, the
+ watermark/archive paths, and - in the handshake checks - launch_record (its qualification files are covered by r7's suites).
+ Every reviewed flag is False in the sources; each test patches what it exercises for its own duration."""
+-import contextlib, functools, hashlib, importlib.util, json, os, pathlib, shutil, sys, tempfile, types, unittest
++import contextlib, datetime, functools, urllib.request, hashlib, importlib.util, json, os, pathlib, shutil, sys, tempfile, types, unittest
+ from unittest.mock import patch
+ 
+ HERE = pathlib.Path(__file__).resolve().parent; ROOT = HERE.parent
+@@ -22,8 +22,16 @@
+ def load(name, p):
+     s = importlib.util.spec_from_file_location(name, p); m = importlib.util.module_from_spec(s); s.loader.exec_module(m); return m
+ R = load('a2a4_recovery_r5', ROOT / 'harness/a2a4.py'); R.TRUSTED_UID = os.getuid()
+-W = load('chain_service_r5', ROOT / 'wrapper/chain_service.py')
+-P = load('base_launch_r5', ROOT / 'producer/base_launch.py')
++_rt = pathlib.Path.read_text
++def _boot_files(self, *a, **k):                                     # the wrapper reads these two files at import (as r7's wrapper suite stubs)
++    if str(self) == '/opt/enclave-rpc/manifest.json':
++        return json.dumps({'mounts': {'l1': '/srv/enclave-l1-pair', 'base': '/srv/enclave-base-holder'}, 'binaries': {}})
++    if str(self) == '/etc/enclave-rpc/chain.json':
++        return '{}'
++    return _rt(self, *a, **k)
++with patch.object(pathlib.Path, 'read_text', _boot_files):
++    W = load('chain_service_r6', ROOT / 'wrapper/chain_service.py')
++P = load('base_launch_r6', ROOT / 'producer/base_launch.py')
+ NODE, DEPS = os.path.realpath(os.environ['FINALITY_NODE']), os.environ['ANCHOR_DEPS_ROOT']
+ sha = lambda b: hashlib.sha256(b).hexdigest()
+ N, NP, CHAIN = T2.N, T2.NP, T2.CHAIN; NP2 = NP + 20; GAME0 = '0x' + 'cd' * 20
+@@ -77,9 +85,9 @@
+                             libpython_accepted={(sha(pathlib.Path(libs[0]).read_bytes()) if len(libs) == 1 else None): {'provenance': 'test-observed'}})
+         self.ncap = 0
+ 
+-    def captures(self, n, l1_bump=0):
++    def captures(self, n, l1_bump=0, root=None):
+         """A REAL initial capture naming game/N/root of block n, plus a REAL recheck-capture of exactly it."""
+-        e = TA.fresh_a1(TA.utcnow() - TA.datetime.timedelta(hours=1), root=CHAIN['outputRoots'][str(n)]); e['N'] = str(n)
++        e = TA.fresh_a1(TA.utcnow() - TA.datetime.timedelta(hours=1), root=root or CHAIN['outputRoots'][str(n)]); e['N'] = str(n)
+         e['l1'] = {**e['l1'], 'number': e['l1']['number'] + l1_bump}; self.tpl.write_text(json.dumps(e))
+         outs = []
+         for mode in ('initial', 'recheck-capture'):
+@@ -94,6 +102,7 @@
+         if watermark_binding:
+             self.launch['watermark'] = {'entrySha256': None}
+         self.d = self.t / 'launch'; (self.d / 'journal').mkdir(parents=True)
++        self.fdir = self.d / 'finality'; self.fdir.mkdir()            # r6: the ONLY finality directory of this launch
+         lb = json.dumps(self.launch, sort_keys=True).encode(); (self.d / 'launch.json').write_bytes(lb); self.lsha = sha(lb)
+         (self.t / 'chain.json').write_text(json.dumps({'baseBootstrap': {'anchorLaunch': {'launchSha256': self.lsha}}}))
+         os.close(os.open(self.d / 'journal.lock', os.O_CREAT | os.O_RDWR, 0o600))
+@@ -259,7 +268,7 @@
+     def test_readiness_gate_requires_a_post_restart_proof_end_to_end(self):
+         self.launched(); self.qualify(self.captures(NP)); self.record()
+         (self.t / 'run').mkdir(); out = self.t / 'run/base-finality-status.json'
+-        a = types.SimpleNamespace(finality_status=str(out), finality_status_uid=self.uid, proc_root=self.procdir)
++        a = types.SimpleNamespace(finality_status=str(out), finality_status_uid=self.uid, proc_root=self.procdir, max_finality_status_age=900)
+         def gate(exc=None):
+             if exc is None:
+                 return RS.validate_finality_status(a)
+@@ -274,6 +283,49 @@
+         FS.publish_status(self.status(), out, top=self.t); self.assertEqual(gate()['freshN'], NP2)
+         self.record(); FS.publish_status(self.status(), out, top=self.t); self.assertEqual(gate()['freshN'], NP2)
+ 
++    def rpc(self, name, method, params):
++        q = urllib.request.Request(self.url, data=json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': method, 'params': params}).encode(),
++                                   headers={'content-type': 'application/json'})
++        with urllib.request.urlopen(q, timeout=10) as r:
++            return json.loads(r.read())['result']
++
++    def test_contradiction_stays_terminal_across_an_emptied_finality_directory(self):
++        self.launched(); db = T2.chain(fork_at=N, salt='other-db'); self.stub.c = db         # the bound node serves ANOTHER chain below N'
++        self.refused(FS, 'original_anchor:output_root', self.qualify, self.captures(NP, root=db['outputRoots'][str(NP)]))
++        self.assertEqual(self.journal()[-1][1]['event'], 'finality-terminal')                # anchored in the launch journal
++        shutil.rmtree(self.fdir); self.fdir.mkdir(); self.stub.c = CHAIN                     # emptied (or swapped) finality directory
++        self.refused(FS, 'finality_journal_rolled_back', self.qualify, self.captures(NP2, l1_bump=100))
++        self.refused(P, 'transition', self.record)
++        with self.assertRaisesRegex(AssertionError, 'contradicted or revoked'):
++            self.handshake()
++
++    def test_real_a1_rule_stale_recheck_capture_through_the_harness(self):
++        self.launched(); cap = self.captures(NP)
++        with patch.object(R, 'now', lambda: datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=700)):
++            self.refused(FS, 'a1_stale', self.qualify, cap, False)                            # the harness's own a1MaxAgeSec rule
++        self.assertFalse(self.ledger.exists())
++
++    def test_freshness_is_rechecked_at_append_after_the_proof(self):
++        self.launched(); late = lambda: datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=FS.A1_APPEND_MAX_AGE_SEC + 5)
++        with patch.object(FS, '_clock', late):
++            self.refused(FS, 'a1_stale_at_append', self.qualify, self.captures(NP))
++        self.assertEqual(os.listdir(self.fdir), []); self.assertEqual(len(R.ledger_records(self.ledger)[0]), 1, 'admitted (burned), never recorded')
++
++    def test_first_bootstrap_never_starts_once_a_floor_exists(self):
++        self.launched(); self.qualify(self.captures(NP)); self.record()
++        other = {k: v for k, v in self.launch.items() if k not in ('predecessor', 'watermark')}
++        with self.assertRaisesRegex(AssertionError, 'first-bootstrap launch never starts'):
++            W.launch_watermark(other, 'ef' * 32, self.store, self.uid, self.t)
++
++    def test_served_chain_check_against_the_bound_node(self):
++        self.launched(); self.qualify(self.captures(NP)); self.record(); s = self.status()
++        info = {'freshN': s['freshN'], 'freshBlockHash': s['freshBlockHash']}
++        self.assertTrue(RS.served_chain_check(info, self.rpc))
++        self.stub.c = T2.chain(fork_at=NP - 5, salt='fork')                                   # the node now serves another chain at N'
++        with self.assertRaises(RS.Negative) as cm:
++            RS.served_chain_check(info, self.rpc)
++        self.assertEqual(cm.exception.code, 'finality-served-chain-mismatch')
++
+     def test_dependency_tamper_refuses_core_runs_only_pinned_bytes(self):
+         self.launched(); cap = self.captures(NP)
+         bad = self.t / 'deps'; shutil.copytree(pathlib.Path(DEPS, 'node_modules/@noble/hashes'), bad / 'node_modules/@noble/hashes')

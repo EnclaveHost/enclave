@@ -1,0 +1,26 @@
+[ok] release MANIFEST.sha256 == 9c9b2e83e18ba60c296df5549eb4baa85118429eac266dbbe800d51be73a1a75
+[ok] release stage == MANIFEST, nothing unlisted
+[ok] OLD stage == dd9df0ab
+[ok] run-2, cli-child and release units not active
+[ok] compound gate ACCEPTS (run 2 pass:false kept; pinned checker re-run)
+[ok] run-2 tested tree present (read-only binding)
+[ok] run-1 cargo home present (owner m10build)
+[ok] release/run-1 is new
+[ok] cc: /usr/bin/cc
+[ok] c++: /usr/bin/c++
+[ok] gcc: /usr/bin/gcc
+[ok] g++: /usr/bin/g++
+[ok] clang: /usr/bin/clang
+[ok] make: /usr/bin/make
+[ok] cmake: /usr/bin/cmake
+[ok] pkg-config: /usr/bin/pkg-config
+[ok] git: /usr/bin/git
+[ok] python3: /usr/bin/python3
+[ok] node: /usr/bin/node
+[ok] tar: /usr/bin/tar
+[ok] readelf: /usr/bin/readelf
+[ok] openssl pkg-config + libclang
+[ok] m10build exists; stages not writable by it
+[ok] disk: 17508 MiB free >= 8192 floor + 9216 release estimate
+[ok] memory: 53506 MiB >= 16384 floor + 12288 cap
+## preflight-release rc=0

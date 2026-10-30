@@ -1,0 +1,4 @@
+# libpvm_rt.so ships in the Enclave APK: 16 KB-aligned LOAD segments, as Android 15+ checks every library in an APK
+# (build.sh PAGE16); the runtime identity (lib.rs identity()) does not depend on it
+[target.aarch64-linux-android]
+rustflags = ["-C", "link-arg=-Wl,-z,max-page-size=16384"]

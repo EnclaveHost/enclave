@@ -1,0 +1,6 @@
+utc=2026-10-26T03:02:40Z host=enclave-control
+gateway pid=101767 env_var_names=CREDENTIALS_DIRECTORY,
+gateway_source_origins=https://base-rpc.publicnode.com,https://base-sepolia-rpc.publicnode.com,https://base.drpc.org,https://eth.drpc.org,https://ethereum-rpc.publicnode.com,https://mainnet.base.org,https://sepolia.base.org,
+gateway_source_env_refs=
+gateway_methods_hint=eth_blockNumber,eth_call,eth_chainId,eth_estimateGas,eth_feeHistory,eth_gasPrice,eth_getBalance,eth_getBlockByHash,eth_getBlockByNumber,eth_getBlockTransactionCountByHash,eth_getBlockTransactionCountByNumber,eth_getCode,eth_getLogs,eth_getProof,eth_getStorageAt,eth_getTransactionByHash,eth_getTransactionCount,eth_getTransactionReceipt,eth_maxPriorityFeePerGas,eth_sendRawTransaction,
+gateway_unit_paths_and_credential_names SetCredential=[unprintable] LoadCredential=[unprintable] /etc/systemd/system/enclave-rpc-gateway.service  

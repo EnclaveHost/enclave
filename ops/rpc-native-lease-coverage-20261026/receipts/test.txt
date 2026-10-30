@@ -1,0 +1,159 @@
+   Compiling base-proof-zk-utils v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/derivation-client-stage/r3/build/deps-43698236e9186750/base/crates/proof/zk/utils)
+warning: struct `combined::Trusted` is reachable but cannot be named
+  --> crates/proof/zk/utils/examples/derivation_harness_combined.rs:53:1
+   |
+53 | pub struct Trusted {
+   | ^^^^^^^^^^^^^^^^^^ reachable at visibility `pub`, but can only be named at visibility `pub(crate)`
+   |
+   = note: requested on the command line with `-W unnameable-types`
+
+warning: struct `combined::ExecutedHead` is reachable but cannot be named
+   --> crates/proof/zk/utils/examples/derivation_harness_combined.rs:120:1
+    |
+120 | pub struct ExecutedHead {
+    | ^^^^^^^^^^^^^^^^^^^^^^^ reachable at visibility `pub`, but can only be named at visibility `pub(crate)`
+
+warning: missing documentation for a constant
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:48:1
+   |
+48 | pub const RESULT_FORMAT_V3: &str = "enclave-base-derivation-result/v3";
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: requested on the command line with `-W missing-docs`
+
+warning: missing documentation for a constant
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:49:1
+   |
+49 | pub const COVERAGE_FORMAT: &str = "enclave-lease16-coverage/v1";
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a constant
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:50:1
+   |
+50 | pub const FILTER_ID: &str = "lease16-events/v1";
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a constant
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:55:1
+   |
+55 | pub const MAX_RANGE_BLOCKS: u64 = 1800;
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a constant
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:56:1
+   |
+56 | pub const MAX_COVERAGE_BYTES: usize = 16 << 20;
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a constant
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:57:1
+   |
+57 | pub const MAX_RESULT_BYTES: usize = 16 << 20;
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a function
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:59:1
+   |
+59 | pub fn lease16_topics() -> [B256; 3] {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:70:5
+   |
+70 |     pub address: Address,
+   |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:71:5
+   |
+71 |     pub log_index: u64,
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:72:5
+   |
+72 |     pub topics: Vec<B256>,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:73:5
+   |
+73 |     pub data: Bytes,
+   |     ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:74:5
+   |
+74 |     pub tx_hash: B256,
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:82:5
+   |
+82 |     pub header: Sealed<Header>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:83:5
+   |
+83 |     pub output_root: B256,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:84:5
+   |
+84 |     pub logs: Vec<CoveredLog>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:85:5
+   |
+85 |     pub error: Option<String>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for an associated function
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:89:5
+   |
+89 |     pub fn compact(cfg: &RollupConfig, header: &Sealed<Header>, receipts: &[BaseReceiptEnvelope], transactions: &[Bytes], output_root: B256) -> Self {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a function
+   --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:193:1
+    |
+193 | / pub async fn advance_to_target<E, DP, P>(
+194 | |     driver: &mut Driver<E, DP, P>,
+195 | |     cfg: &RollupConfig,
+196 | |     mut target: Option<u64>,
+...   |
+202 | |     DP: DriverPipeline<P> + Send + Sync + Debug,
+203 | |     P: Pipeline + SignalReceiver + Send + Sync + Debug,
+    | |_______________________________________________________^
+
+warning: missing documentation for a function
+   --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:452:1
+    |
+452 | pub fn verify_v3(trusted: &[u8], witness: &[u8]) -> Result<String> {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `base-proof-zk-utils` (example "derivation_harness_lease_v3" test) generated 21 warnings
+    Finished `test` profile [unoptimized] target(s) in 3.19s
+     Running unittests examples/derivation_harness_lease_v3.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/derivation-client-stage/r3/build/deps-43698236e9186750/target/debug/examples/derivation_harness_lease_v3-980be0e1815dc740)
+
+running 14 tests
+test combined::tests::corrupt_keccak_preimage_is_refused_by_the_reused_check ... ok
+test combined::tests::empty_witness_refuses_but_proves_nothing_about_execution ... ok
+test combined::tests::executed_head_must_reproduce_the_verified_output_root_and_number ... ok
+test combined::tests::injected_local_keys_cannot_be_overwritten_with_other_values ... ok
+test combined::tests::json_witness_shape_is_strict ... ok
+test combined::tests::result_must_bind_every_trusted_input ... ok
+test combined::tests::truncated_or_garbage_witness_is_refused ... ok
+test combined::tests::trusted_input_is_strict ... ok
+test combined::tests::untrusted_witness_locals_are_stripped_and_other_unhashable_keys_refuse ... ok
+test tests::every_block_and_every_matching_log_from_any_address_with_block_log_index_and_executed_tx_hash ... ok
+test tests::gaps_forks_and_unbound_metadata_refuse ... ok
+test tests::interval_range_and_size_caps_refuse_never_truncate ... ok
+test tests::topics_are_the_lease16_abi_event_hashes ... ok
+test tests::v3_result_keeps_every_v2_binding_and_ends_at_the_verified_head ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

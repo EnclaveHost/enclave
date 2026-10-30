@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-28T16:03:46.332Z",
+  "readOnly": true,
+  "signable": false,
+  "nonceReserved": false,
+  "production": false,
+  "providers": [
+    "https://base-rpc.publicnode.com",
+    "https://base-mainnet.public.blastapi.io"
+  ],
+  "error": "HTTP429"
+}

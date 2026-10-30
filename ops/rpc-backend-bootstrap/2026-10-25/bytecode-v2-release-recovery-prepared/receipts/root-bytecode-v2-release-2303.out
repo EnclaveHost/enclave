@@ -1,0 +1,127 @@
+[queue] START available=23206MiB required=19456MiB cap=2560MiB floor=16384MiB concurrentSmall=256MiB
+test_a_full_pass_is_accepted_and_reports_the_test_binary (__main__.Receipt.test_a_full_pass_is_accepted_and_reports_the_test_binary) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:35: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/tmpyhjh89t3/o'>
+  raw = open(out_p, 'rb').read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:42: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-recovery/jobs/root-build-test-recovery.sh' mode='r' encoding='UTF-8'>
+  job = open(f'{stage}/{JOB}').read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:78: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmpyhjh89t3/r' mode='r' encoding='UTF-8'>
+  if open(rc_p).read().strip() != '0':
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:80: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmpyhjh89t3/g' mode='r' encoding='utf-8'>
+  guard = [l for l in open(guard_p, encoding='utf-8', errors='replace').read().splitlines() if l.strip()]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_aggregate_and_bad_markers (__main__.Receipt.test_aggregate_and_bad_markers) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:35: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/tmp968xj6cy/o'>
+  raw = open(out_p, 'rb').read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:78: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmp968xj6cy/r' mode='r' encoding='UTF-8'>
+  if open(rc_p).read().strip() != '0':
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:80: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmp968xj6cy/g' mode='r' encoding='utf-8'>
+  guard = [l for l in open(guard_p, encoding='utf-8', errors='replace').read().splitlines() if l.strip()]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_every_control_must_fail_exactly_its_pinned_set (__main__.Receipt.test_every_control_must_fail_exactly_its_pinned_set) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:35: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/tmpbpo0zkmi/o'>
+  raw = open(out_p, 'rb').read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:78: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmpbpo0zkmi/r' mode='r' encoding='UTF-8'>
+  if open(rc_p).read().strip() != '0':
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:80: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmpbpo0zkmi/g' mode='r' encoding='utf-8'>
+  guard = [l for l in open(guard_p, encoding='utf-8', errors='replace').read().splitlines() if l.strip()]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_every_test_name_and_the_summary (__main__.Receipt.test_every_test_name_and_the_summary) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:35: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/tmpyo2ms2zu/o'>
+  raw = open(out_p, 'rb').read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:78: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmpyo2ms2zu/r' mode='r' encoding='UTF-8'>
+  if open(rc_p).read().strip() != '0':
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:80: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmpyo2ms2zu/g' mode='r' encoding='utf-8'>
+  guard = [l for l in open(guard_p, encoding='utf-8', errors='replace').read().splitlines() if l.strip()]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_lock_closure_and_binary_lines (__main__.Receipt.test_lock_closure_and_binary_lines) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:35: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/tmp9u6cq2i4/o'>
+  raw = open(out_p, 'rb').read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:78: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmp9u6cq2i4/r' mode='r' encoding='UTF-8'>
+  if open(rc_p).read().strip() != '0':
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:80: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmp9u6cq2i4/g' mode='r' encoding='utf-8'>
+  guard = [l for l in open(guard_p, encoding='utf-8', errors='replace').read().splitlines() if l.strip()]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_outer_rc_guard_and_queue_records (__main__.Receipt.test_outer_rc_guard_and_queue_records) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:35: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/tmpktjek7wp/o'>
+  raw = open(out_p, 'rb').read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:78: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmpktjek7wp/r' mode='r' encoding='UTF-8'>
+  if open(rc_p).read().strip() != '0':
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:80: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmpktjek7wp/g' mode='r' encoding='utf-8'>
+  guard = [l for l in open(guard_p, encoding='utf-8', errors='replace').read().splitlines() if l.strip()]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_precheck_and_recovery_identity (__main__.Receipt.test_precheck_and_recovery_identity) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:35: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/tmpqmaz89s9/o'>
+  raw = open(out_p, 'rb').read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:78: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmpqmaz89s9/r' mode='r' encoding='UTF-8'>
+  if open(rc_p).read().strip() != '0':
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:80: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmpqmaz89s9/g' mode='r' encoding='utf-8'>
+  guard = [l for l in open(guard_p, encoding='utf-8', errors='replace').read().splitlines() if l.strip()]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_the_pinned_lists_must_equal_the_stage_job_and_control_file (__main__.Receipt.test_the_pinned_lists_must_equal_the_stage_job_and_control_file) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:35: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/tmp6gqx9raf/o'>
+  raw = open(out_p, 'rb').read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:42: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmp6gqx9raf/stage/jobs/root-build-test-recovery.sh' mode='r' encoding='UTF-8'>
+  job = open(f'{stage}/{JOB}').read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:78: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmp6gqx9raf/r' mode='r' encoding='UTF-8'>
+  if open(rc_p).read().strip() != '0':
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:80: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmp6gqx9raf/g' mode='r' encoding='utf-8'>
+  guard = [l for l in open(guard_p, encoding='utf-8', errors='replace').read().splitlines() if l.strip()]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_the_real_original_oom_attempt_is_never_substituted (__main__.Receipt.test_the_real_original_oom_attempt_is_never_substituted) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:35: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-recovery/evidence/root-bytecode-v2-native-2249.out'>
+  raw = open(out_p, 'rb').read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:78: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-recovery/evidence/root-bytecode-v2-native-2249.rc' mode='r' encoding='UTF-8'>
+  if open(rc_p).read().strip() != '0':
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:80: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-recovery/evidence/root-oom-scope-lines.txt' mode='r' encoding='utf-8'>
+  guard = [l for l in open(guard_p, encoding='utf-8', errors='replace').read().splitlines() if l.strip()]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:35: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/tmplilvi54o/o'>
+  raw = open(out_p, 'rb').read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:78: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmplilvi54o/r' mode='r' encoding='UTF-8'>
+  if open(rc_p).read().strip() != '0':
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-release-recovery/check_test_receipt.py:80: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmplilvi54o/g' mode='r' encoding='utf-8'>
+  guard = [l for l in open(guard_p, encoding='utf-8', errors='replace').read().splitlines() if l.strip()]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_release_stage_pins_cover_runner_checker_and_tests (__main__.RunnerPins.test_release_stage_pins_cover_runner_checker_and_tests) ... ok
+test_runner_constants_equal_the_recovery_stage_files (__main__.RunnerPins.test_runner_constants_equal_the_recovery_stage_files) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.070s
+
+OK
+{"ok": true, "failures": [], "patchedTestBinarySha256": "dae90e387d925e40f15befe2bf1ea599b6221f6fdbb28b4cb2f664d950ee4a07", "outSha256": "aae989a6af69d174a09b6daa436dd275474e3a60e5a96bfc4839b4c6e4e8a6e8", "tests": 23, "controls": 17}
+## [0] pins
+## pins ok: stage 4a58ecfdd7d622217d1176234345fdbc7a7e4bb2a0459b8a099774fd13622918 lib ed9870e7c89b5b8f8ecc9d38ddbc36614dfdcde6fb13e91f1150612feb5312df lock 91a9e7626b5f361faed8f5226268ffae177970575e8ecd243d09cb077bd23bab closure e901720ad6902c7ee60a4f6830b0052b638b707a9d2fef06d644a053c76e5aac tree==archive(+lock) test receipt {"ok": true, "failures": [], "patchedTestBinarySha256": "dae90e387d925e40f15befe2bf1ea599b6221f6fdbb28b4cb2f664d950ee4a07", "outSha256": "aae989a6af69d174a09b6daa436dd275474e3a60e5a96bfc4839b4c6e4e8a6e8", "tests": 23, "controls": 17}
+## [1] release graph inside the verified closure (resolution only)
+## [2] cargo build --release (jobs=1, RUSTFLAGS=-C link-arg=-Wl,--threads=1)
+## [3] usage smoke (no datadir access): no argument must be refused
+## release binary /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-recovery/build/target/release/base-bytecode-check sha256 b55e6b78c6ac8e0a672f69e238135eca7466d1081479cd0868204cee9a1654d7 size 1276048 fresh=false opt=3
+## comment: rustc version 1.96.0 (ac68faa20 2026-05-25)
+## comment: Linker: LLD 22.1.2 (/checkout/src/llvm-project/llvm 1cb4e3833c1919c2e6fb579a23ac0e2b22587b7e)
+## comment: GCC: (GNU) 16.2.1 20260810
+## release rc=0
+[memory-guard] exit=0 peakTreeRssMiB=714 minHostAvailableMiB=21769
+[memory-guard] at peak: rustc:487 cargo:222 bash:4 tee:2
+[queue] EXIT 0

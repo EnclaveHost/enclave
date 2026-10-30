@@ -1,0 +1,67 @@
+TAP version 13
+# \# lease relay artifact 348894 bytes sha256:10b949db06f18146d2a27de4bf47b9081f741a40075feb475aeb0ab353226c3d (450 inputs); check e45e433cadf21291c0c36263e1dfaf341ab9b72ad34c401e60a77a7c6028098a
+# Subtest: the release directory holds exactly the manifest's files and the manifest's inputs are this tree's files
+ok 1 - the release directory holds exactly the manifest's files and the manifest's inputs are this tree's files
+  ---
+  duration_ms: 356.361272
+  type: 'test'
+  ...
+# Subtest: the configuration check passes only with every setting explicit and valid, and reads no key
+ok 2 - the configuration check passes only with every setting explicit and valid, and reads no key
+  ---
+  duration_ms: 708.517893
+  type: 'test'
+  ...
+# Subtest: the configuration check reads the send record: exactly {} or one {nonce, raw, hash}; anything else fails clearly
+ok 3 - the configuration check reads the send record: exactly {} or one {nonce, raw, hash}; anything else fails clearly
+  ---
+  duration_ms: 429.010787
+  type: 'test'
+  ...
+# Subtest: the unit copies a 0440 credential 0600 into its private runtime directory, before the check, and the check accepts only the copy
+ok 4 - the unit copies a 0440 credential 0600 into its private runtime directory, before the check, and the check accepts only the copy
+  ---
+  duration_ms: 66.17199
+  type: 'test'
+  ...
+# Subtest: through the symlinked release the artifact starts only with --preserve-symlinks-main (the unit's ExecStart)
+ok 5 - through the symlinked release the artifact starts only with --preserve-symlinks-main (the unit's ExecStart)
+  ---
+  duration_ms: 60.828707
+  type: 'test'
+  ...
+# \# bad-request answers: 400,413 (413 oversize, 400 malformed, 422 refused, 503 over the concurrency bound)
+# \# lease relay memory (node --preserve-symlinks-main): peak RSS 104.8 MiB, RSS after the run 104.8 MiB (claim + release + 48 refused requests)
+# Subtest: the installed artifact relays a zero-ETH host's claim and release; bounded under bad requests; measured memory
+ok 6 - the installed artifact relays a zero-ETH host's claim and release; bounded under bad requests; measured memory
+  ---
+  duration_ms: 484.568919
+  type: 'test'
+  ...
+# Subtest: the artifact's own CLI refuses a key above its float cap before relaying anything
+ok 7 - the artifact's own CLI refuses a key above its float cap before relaying anything
+  ---
+  duration_ms: 143.554572
+  type: 'test'
+  ...
+# Subtest: the artifact's own CLI refuses to start without the durable send record (LEASE_RELAY_STATE)
+ok 8 - the artifact's own CLI refuses to start without the durable send record (LEASE_RELAY_STATE)
+  ---
+  duration_ms: 60.540629
+  type: 'test'
+  ...
+# Subtest: the artifact refuses to relay against a chain head ahead of its own clock
+ok 9 - the artifact refuses to relay against a chain head ahead of its own clock
+  ---
+  duration_ms: 279.102829
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2987.918533

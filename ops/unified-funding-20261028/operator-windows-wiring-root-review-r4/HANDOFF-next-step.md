@@ -1,0 +1,7 @@
+
+
+## 2026-10-29 22:04UTC: next step narrowed to isolated native qualification admission
+
+Peer source-grounded dependency map reviewed and saved as operator-windows-wiring-root-review-r4/NEXT-CUTOVER.md. PRIORITY next PREPAREONLY concrete native-admission closure: freshboundedreadonlyphysical/commit/pending P observation and enforceablehigherfloor/earlysetupE/independentobserverO mechanism. No remote execution/newauthor/native test authorized byprep. Reuseexactexistingartifactswherecompatible;17408cutoffinsufficientagainstlive18432floor. UnknownP/O/E neverzero. If managercannotexposecompletependingbound, identifypreciseinterfacegap. DistinctdisposablepublicTESTdomain/no productionaccount/config/journal/funds/appassignment; zero-balancecanarywitholdoperatoraccount isNOTisolated. Preserveallservingapps, noglobaldrain/restart.
+
+Earlier authenticatedidentity/writer-onlyquiesce+durablejournalstartupfence author is PREPAREONLY/secondary; preserve anypreparedinputs, no duplicate/discard/launch. Existingdomaintransfer needs actualeffectiveDIR/incarnation/challenge/auth/status, truthfulfence/unknownqueue state andcontinuouslaunch/updateexclusion. Candidatecallbacksnotinstalledoldprocessproof. CurrentlegacyHandoffexpiresandstopsVM; notzerodowntimeadoption. Allroot140passes/committedsource remain; noactiveauthor/test/build or production/financialmutation. Rootmustreviewconcretescripts/runner/pinsbeforeONE boundednextstep.

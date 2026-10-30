@@ -1,0 +1,13 @@
+[queue] START available=87353MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+{
+    "image-end-offset": 495572353024,
+    "total-clusters": 61035157,
+    "check-errors": 0,
+    "allocated-clusters": 7558992,
+    "filename": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2",
+    "format": "qcow2",
+    "fragmented-clusters": 306951
+}
+[memory-guard] exit=0 peakTreeRssMiB=23 minHostAvailableMiB=87264
+[memory-guard] at peak: qemu-img:23
+[queue] EXIT 0

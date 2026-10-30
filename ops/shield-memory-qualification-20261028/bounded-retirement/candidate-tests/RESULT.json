@@ -1,0 +1,28 @@
+{
+  "sourcePins": {
+    "shield-original-source.hpp": "d6dee052f3674fd856d6eb9eaf980c1b82322744d97cdd6751c6c4a602edcbff",
+    "enclave_shield_loader.cpp": "7fc1dd14c0086f02d6edafa063c438da4925278c601461a071d4810c68a63151",
+    "test_bounded_retirement.cpp": "158610dafad469dacf93c1c3ffb0de4acf9469ac564d5c6a0f0f42cc6b017207"
+  },
+  "command": [
+    "c++",
+    "-std=c++17",
+    "-O1",
+    "-g",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "-Wno-deprecated-declarations",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/candidate/test_bounded_retirement.cpp",
+    "-lcrypto",
+    "-pthread",
+    "-o",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/candidate-tests/test"
+  ],
+  "result": "passed",
+  "sanitizers": [
+    "address",
+    "undefined"
+  ],
+  "productionEnabled": false,
+  "fullGpuQualified": false
+}

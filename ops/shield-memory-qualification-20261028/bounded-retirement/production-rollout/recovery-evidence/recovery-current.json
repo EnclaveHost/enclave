@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-28T10:15:23.747667+00:00",
+  "guest": "gdf387ea45",
+  "unit": "m2-gdf387ea45-203706.service",
+  "release": [
+    "af50d526be6deefcdd815968ff1dd2c04327f6c3b3f981c0aa90cc585b0effae"
+  ],
+  "measurement": "66ba9f551f25158faf428b82a93dc073751b194c7b76b1e83ffad1ce9c0eae8d521b080d3a39603b1ab2272c67a69217",
+  "memory": {
+    "memory.current": "62922186752",
+    "memory.peak": "62926364672",
+    "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0"
+  }
+}

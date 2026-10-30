@@ -1,0 +1,216 @@
+[queue] START available=26244MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+{
+ "mode": "slice",
+ "sourceCommit": "422c3f5b919305224692598e7adde7d7c6dc4ea6",
+ "sourceTree": "8a616194b085df620bc882eed87d682dad4e6b9f",
+ "scheduleReaderPin": {
+  "old": "688b7a1f09c898f66cc7b92473a9fbda042402ef833bb983ff794e5f07128fb0",
+  "new": "694f1297286ff2ecf6d1b0e6b37153203963f7893eb2607f7d53c2f03f2eea0c"
+ },
+ "tests": {
+  "two-anchor-reader": {
+   "rc": 0,
+   "tests": 13,
+   "pass": 13,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 13,
+   "ok": true
+  },
+  "two-anchor-reader-r2": {
+   "rc": 0,
+   "tests": 12,
+   "pass": 12,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 12,
+   "ok": true
+  },
+  "two-anchor-writer": {
+   "rc": 0,
+   "tests": 12,
+   "pass": 12,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 12,
+   "ok": true
+  },
+  "backward-history": {
+   "rc": 0,
+   "tests": 16,
+   "pass": 16,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 16,
+   "ok": true
+  },
+  "writer-history": {
+   "rc": 0,
+   "tests": 9,
+   "pass": 9,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 9,
+   "ok": true
+  },
+  "driver": {
+   "rc": 0,
+   "tests": 10,
+   "pass": 10,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 10,
+   "ok": true
+  },
+  "driver-integration": {
+   "rc": 0,
+   "tests": 10,
+   "pass": 10,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 10,
+   "ok": true
+  },
+  "witness-placement": {
+   "rc": 1,
+   "tests": 5,
+   "pass": 4,
+   "fail": 1,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 5,
+   "ok": false
+  },
+  "kvm--test_journal-durability.test.mjs": {
+   "rc": 0,
+   "tests": 22,
+   "pass": 22,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 22,
+   "ok": true
+  },
+  "kvm--test_lifecycle-finality-bridge.test.mjs": {
+   "rc": 0,
+   "tests": 6,
+   "pass": 6,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 6,
+   "ok": true
+  },
+  "kvm--test_deployment-lifecycle-journal.test.mjs": {
+   "rc": 0,
+   "tests": 5,
+   "pass": 5,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 5,
+   "ok": true
+  },
+  "kvm--test_derived-reader_provider.test.mjs": {
+   "rc": 0,
+   "tests": 10,
+   "pass": 10,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 10,
+   "ok": true
+  },
+  "kvm--test_derived-reader_boundaries.test.mjs": {
+   "rc": 0,
+   "tests": 8,
+   "pass": 8,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 8,
+   "ok": true
+  },
+  "kvm--test_derived-reader_coverage.test.mjs": {
+   "rc": 0,
+   "tests": 14,
+   "pass": 14,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 14,
+   "ok": true
+  },
+  "writer": {
+   "rc": 0,
+   "tests": 23,
+   "pass": 23,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 23,
+   "ok": true
+  },
+  "composition": {
+   "rc": 1,
+   "tests": 6,
+   "pass": 1,
+   "fail": 5,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 6,
+   "ok": false
+  },
+  "replica-exact": {
+   "rc": 0,
+   "tests": 8,
+   "pass": 8,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 8,
+   "ok": true
+  },
+  "enrollment": {
+   "rc": 1,
+   "expected": 19,
+   "ok": false
+  }
+ },
+ "checkpoint": {
+  "checkpoint": "2e8502e68864abb49a230a69612bd7c98c94775d8dd81f956a0185d53652ac33",
+  "slot": 15511008,
+  "expiresUtc": "2026-11-01T19:21:59.000Z"
+ },
+ "ok": false,
+ "scope": "SOURCE + FIXTURES: integrated r3 = integrated r2 + witness placement r2 on history r4 + driver r1; root 1600 Buffer/test fixes; review 1596 L1/L2. Witness URL = own backend, HOST_DATA-bound AND signed (both must agree). Fake L1, echo native, fixture producer. NOT measured: native/witness/scan time, S age (M1-M6), the QEMU guest->host->RPC VM path. No template/record enables history/driver; not activated."
+}
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r3/runs/20261026T195450Z-slice-2250833
+## writer-integrated-r3 slice rc=1
+[memory-guard] exit=1 peakTreeRssMiB=245 minHostAvailableMiB=24870
+[memory-guard] at peak: node:122 node:59 executable:56 bash:4 bash:2 timeout:2
+[queue] EXIT 1

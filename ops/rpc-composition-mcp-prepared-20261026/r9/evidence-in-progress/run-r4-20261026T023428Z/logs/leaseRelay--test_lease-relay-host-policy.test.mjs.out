@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: a start error with no exit event is finalized once and restarted after its backoff (the old supervisor kept the dead child forever)
+ok 1 - a start error with no exit event is finalized once and restarted after its backoff (the old supervisor kept the dead child forever)
+  ---
+  duration_ms: 45.979582
+  type: 'test'
+  ...
+# Subtest: 'error' and 'exit' for the same child end it exactly once; 'error' on a running child only logs; a throwing spawn is handled
+ok 2 - 'error' and 'exit' for the same child end it exactly once; 'error' on a running child only logs; a throwing spawn is handled
+  ---
+  duration_ms: 364.835436
+  type: 'test'
+  ...
+# Subtest: stop() while a gate check is pending starts nothing afterwards and clears the pending restart
+ok 3 - stop() while a gate check is pending starts nothing afterwards and clears the pending restart
+  ---
+  duration_ms: 542.937594
+  type: 'test'
+  ...
+# Subtest: the restart backoff doubles up to its cap, and gate checks every 5 ms never bypass it
+ok 4 - the restart backoff doubles up to its cap, and gate checks every 5 ms never bypass it
+  ---
+  duration_ms: 902.678534
+  type: 'test'
+  ...
+# Subtest: relay.heapMiB is the V8 heap cap (--max-old-space-size); relay.memoryMiB is the same cap under its earlier name
+ok 5 - relay.heapMiB is the V8 heap cap (--max-old-space-size); relay.memoryMiB is the same cap under its earlier name
+  ---
+  duration_ms: 6.374756
+  type: 'test'
+  ...
+# Subtest: host.endpoint is the EXACT registered endpoint (the runner's rule): a path such as /t/metal0 is accepted; http, credentials, query, fragment and whitespace are refused
+ok 6 - host.endpoint is the EXACT registered endpoint (the runner's rule): a path such as /t/metal0 is accepted; http, credentials, query, fragment and whitespace are refused
+  ---
+  duration_ms: 0.860594
+  type: 'test'
+  ...
+# Subtest: REAL gate: a relay host cold-starts from an imported signed policy with every fleet mirror refused; a fleet-only host never starts
+ok 7 - REAL gate: a relay host cold-starts from an imported signed policy with every fleet mirror refused; a fleet-only host never starts # SKIP needs the Foundry build (forge build)
+  ---
+  duration_ms: 0.124219
+  type: 'test'
+  ...
+# Subtest: REAL gate: the admin's anchored ban stops the relay (sticky); the next anchored policy restarts it; stop() ends it for good
+ok 8 - REAL gate: the admin's anchored ban stops the relay (sticky); the next anchored policy restarts it; stop() ends it for good # SKIP needs the Foundry build (forge build)
+  ---
+  duration_ms: 0.178189
+  type: 'test'
+  ...
+# Subtest: REAL gate, ACTUAL `run` CLI process at a registered PATH endpoint: it stays up while the admin's ban refuses the relay, the admin's unban starts it, SIGTERM exits 0
+ok 9 - REAL gate, ACTUAL `run` CLI process at a registered PATH endpoint: it stays up while the admin's ban refuses the relay, the admin's unban starts it, SIGTERM exits 0 # SKIP needs the Foundry build (forge build)
+  ---
+  duration_ms: 0.246418
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 3
+# todo 0
+# duration_ms 2068.365208

@@ -1,0 +1,6 @@
+[queue] START available=22137MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+824239ea0567537760530d479d5a8c67c09cc8c489b6753cdadf7e2e5b100feb  work/rpc-production-final-20261025/readiness-root-probe.py
+{"rc": 3, "overall": "FAIL", "baseElLabels": {"code": "base-el-label-noncanonical", "count": 1, "detail": "Base EL 'safe' block 49981 differs from the canonical block at that height", "samples": [0], "status": "fail"}, "probe": "safe/finalized tags contradict numbered canonical blocks"}
+[memory-guard] exit=0 peakTreeRssMiB=37 minHostAvailableMiB=21946
+[memory-guard] at peak: python3:31 bash:4 timeout:2
+[queue] EXIT 0

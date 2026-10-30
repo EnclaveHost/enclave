@@ -1,0 +1,23 @@
+{
+  "qualifiedDistinctFixtureTests": 93,
+  "combined": {
+    "pass": 92,
+    "fail": 0,
+    "skip": 0
+  },
+  "finalFocused": {
+    "pass": 8,
+    "fail": 0,
+    "skip": 0,
+    "overlapsCombined": 7
+  },
+  "before": {
+    "pass": 0,
+    "fail": 2,
+    "skip": 0
+  },
+  "actualSchema3ChainHostComposition": false,
+  "productionActivated": false,
+  "schema3Profile": "independent-schema3-r1",
+  "compilerBundleSha256": "bed9c19652edce8ca6f337f691a9909c15763e6755ff237139b07f4d84f3260e"
+}

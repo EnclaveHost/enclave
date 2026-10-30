@@ -1,0 +1,23 @@
+{
+  "status": "PREPARATION_FILE_HASH_AND_HELPER_AST_ONLY",
+  "preparedSha256": "628d33e906cbb129eb8b82f83503d9a32b32716a2e00547947fa603eefd233be",
+  "seedFiles": 225,
+  "candidateExactSeed": true,
+  "preAuthorProductEdits": 0,
+  "readonlyPins": 7285,
+  "inputDrift": [],
+  "authorLaunched": false,
+  "candidateExecuted": false,
+  "testsOrBuildsRun": false,
+  "helperASTParsedNotExecuted": [
+    "run.py",
+    "collect-terminal.py",
+    "readonly-progress.py"
+  ],
+  "sponsoredReferenceFiles": 42,
+  "inheritedReferenceComparisonsStillMatch": true,
+  "note": "Coordinator alone reviews and launches; unchanged collector uses frozen root225 immutable seed.",
+  "authorDeliveryManifestEqualsCandidateSeed": true,
+  "rootSourcePinsEntries": 230,
+  "rootExternalHarnessEntriesExcludedFromSeed": 5
+}

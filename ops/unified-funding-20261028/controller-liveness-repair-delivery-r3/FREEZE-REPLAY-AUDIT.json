@@ -1,0 +1,26 @@
+{
+  "at": 1793360193.7520278,
+  "buildRun": false,
+  "candidateReplayFrozenByteIdentical": true,
+  "changedFiles": [
+    "AUTHOR-NOTES.md",
+    "supervisor.js",
+    "test/isolation-instance-liveness.test.mjs",
+    "test/isolation-stale-continuation.test.mjs"
+  ],
+  "coldControllerActivationQualified": false,
+  "collectorInvocations": 1,
+  "executedCollector": "collect-gc.pre-review.py",
+  "executedCollectorSha256": "0db10eb8f8e9a306171c9e05eeb50315b897e0408cdd086f62c6d8d41eef8920",
+  "files": 18,
+  "frozenPinsSha256": "d14e65215a33c5b28cb627249b8186409ea524ded3f880eda3800006c8545b92",
+  "immutableInputsUnchanged": true,
+  "newerCollectorExecuted": false,
+  "patchSha256": "c4e39bcba9e28e33632d1b03fa723566250571bd87fe894795969f4e29520792",
+  "productionReady": false,
+  "replayExit": 0,
+  "replayInvocations": 1,
+  "seedFiles": 17,
+  "status": "FROZEN_REPLAY_IDENTICAL_SOURCE_UNQUALIFIED",
+  "testsRun": false
+}

@@ -1,0 +1,5 @@
+PREPARED ONLY, NOT LAUNCHED. Root must review exact task, runner, seed and readonly pins.
+Previous run hit1800s timeout rc124; frozen source is partial. Three independent production-code tests fail;33 authored tests:29PASS4FAIL. These are Linux TEST execution, not Windows/Base proof.
+Writable seed is exactly frozen140files+5verified generatedr18modules. No modules from old r14/r5 replace finalr18 primitives.
+No actual independent authority composition or full desktop/GPU boundaries yet. Missing EXLOCK Nodeexport is observed on realNode24.16.0. NumericOSflag test has notrun. Full scope remains required.
+Root router requalification: exact3router tests PASS with owned0700 persistent workspace TMPDIR; /tmp tmpfs refusal is correct.31distinct author checks pass,2helper defects remain.

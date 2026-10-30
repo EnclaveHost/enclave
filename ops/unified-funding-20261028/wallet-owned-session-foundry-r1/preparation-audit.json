@@ -1,0 +1,11 @@
+{
+  "sourceFiles": 35,
+  "inputPins": 86,
+  "missingImports": [],
+  "inputDrift": [],
+  "executed": false,
+  "preparedSha256": "0b2f1fe90bf30ada28a925429a69a3d5fb1338c1eaecae84940e550a8373b030",
+  "runnerSha256": "f195fee839616a29ed32c207db3e35ef6a9f6e488d300ed08736f23f16cacf12",
+  "fixtureDiffSha256": "d5379821c11b57d6f0270515701ec36888362c2698eed3eab207ddc6ec0552a2",
+  "networkNamespaceGate": "Compared to recorded host namespace, not unreadable /proc/1. No unshare or product execution in preparation."
+}

@@ -1,0 +1,172 @@
+[queue] START available=89972MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+TAP version 13
+# Subtest: an existing reservation for different terms remains unresolved after intent_conflict
+not ok 1 - an existing reservation for different terms remains unresolved after intent_conflict
+  ---
+  duration_ms: 12.144151
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-execution-recovery-root-r1/root-review/reservation-regressions.test.mjs:8:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'refused'
+    - 'unknown'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'unknown'
+  actual: 'refused'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-execution-recovery-root-r1/root-review/reservation-regressions.test.mjs:22:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: another local id for the same session cannot evade its unresolved spend
+not ok 2 - another local id for the same session cannot evade its unresolved spend
+  ---
+  duration_ms: 5.167872
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-execution-recovery-root-r1/root-review/reservation-regressions.test.mjs:26:1'
+  failureType: 'testCodeFailure'
+  error: 'record_id: record id is not derived from its key hash'
+  code: 'record_id'
+  name: 'MigrationError'
+  stack: |-
+    fail (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-repair-r4/lib/util.mjs:14:56)
+    validateGasRecord (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-repair-r4/lib/v2-store.mjs:81:44)
+    MemoryV2Store.saveKey (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-repair-r4/lib/v2-store.mjs:156:5)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-execution-recovery-root-r1/root-review/reservation-regressions.test.mjs:33:17)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: body lost after HTTP 200 headers: UNKNOWN, exact public call journaled, then proven read-only from the chain
+ok 3 - body lost after HTTP 200 headers: UNKNOWN, exact public call journaled, then proven read-only from the chain
+  ---
+  duration_ms: 22.827752
+  type: 'test'
+  ...
+# Subtest: gateway 502 after dispatch: UNKNOWN (never refused), recovered from the chain
+ok 4 - gateway 502 after dispatch: UNKNOWN (never refused), recovered from the chain
+  ---
+  duration_ms: 4.953704
+  type: 'test'
+  ...
+# Subtest: connection lost / unreachable: UNKNOWN; nothing on chain stays UNRESOLVED and keeps the reservation forever
+ok 5 - connection lost / unreachable: UNKNOWN; nothing on chain stays UNRESOLVED and keeps the reservation forever
+  ---
+  duration_ms: 4.394508
+  type: 'test'
+  ...
+# Subtest: malformed or hashless success bodies are UNKNOWN and never unlock a fresh spend
+ok 6 - malformed or hashless success bodies are UNKNOWN and never unlock a fresh spend
+  ---
+  duration_ms: 4.854085
+  type: 'test'
+  ...
+# Subtest: only explicit, well-formed pre-admission refusals are 'refused'; look-alikes stay unknown
+ok 7 - only explicit, well-formed pre-admission refusals are 'refused'; look-alikes stay unknown
+  ---
+  duration_ms: 4.236939
+  type: 'test'
+  ...
+# Subtest: 202 with a known hash is PENDING; later canonical -> observed -> final -> settled; nothing resent
+ok 8 - 202 with a known hash is PENDING; later canonical -> observed -> final -> settled; nothing resent
+  ---
+  duration_ms: 6.912419
+  type: 'test'
+  ...
+# Subtest: normal success: canonical but NOT final blocks the next quote until a reconcile proves finality
+ok 9 - normal success: canonical but NOT final blocks the next quote until a reconcile proves finality
+  ---
+  duration_ms: 5.339821
+  type: 'test'
+  ...
+# Subtest: durable serialization: the journal is plain JSON; a fresh store + fresh clients after 'reload' recover it
+ok 10 - durable serialization: the journal is plain JSON; a fresh store + fresh clients after 'reload' recover it
+  ---
+  duration_ms: 4.408437
+  type: 'test'
+  ...
+# Subtest: concurrent confirmations: the same review sends once; two nonces of one session never both send
+ok 11 - concurrent confirmations: the same review sends once; two nonces of one session never both send
+  ---
+  duration_ms: 5.203131
+  type: 'test'
+  ...
+# Subtest: tampered stored call / runtime / record are refused before any hint is trusted; entry unchanged
+ok 12 - tampered stored call / runtime / record are refused before any hint is trusted; entry unchanged
+  ---
+  duration_ms: 4.789294
+  type: 'test'
+  ...
+# Subtest: foreign hash hint, reorg, moved header, wrong log metadata, removed log, unbound transaction
+ok 13 - foreign hash hint, reorg, moved header, wrong log metadata, removed log, unbound transaction
+  ---
+  duration_ms: 18.205686
+  type: 'test'
+  ...
+# Subtest: nonce consumed by ANOTHER canonical operation: superseded only when proven and final
+ok 14 - nonce consumed by ANOTHER canonical operation: superseded only when proven and final
+  ---
+  duration_ms: 4.395537
+  type: 'test'
+  ...
+# Subtest: an exact call reverted on chain stays reserved (the signature may still be usable)
+ok 15 - an exact call reverted on chain stays reserved (the signature may still be usable)
+  ---
+  duration_ms: 2.976448
+  type: 'test'
+  ...
+# Subtest: binding before signing: a tampered review, another relay or another owner sends and signs nothing
+ok 16 - binding before signing: a tampered review, another relay or another owner sends and signs nothing
+  ---
+  duration_ms: 1.802766
+  type: 'test'
+  ...
+# Subtest: a crash before the dispatching marker is provably unsent: reconcile marks it never_dispatched
+ok 17 - a crash before the dispatching marker is provably unsent: reconcile marks it never_dispatched
+  ---
+  duration_ms: 2.167004
+  type: 'test'
+  ...
+# Subtest: the successor entry overrides only the execution names; migration and every other r4 export are the same objects
+ok 18 - the successor entry overrides only the execution names; migration and every other r4 export are the same objects
+  ---
+  duration_ms: 0.252058
+  type: 'test'
+  ...
+# Subtest: body loss after HTTP headers is UNKNOWN, never a proven refusal
+ok 19 - body loss after HTTP headers is UNKNOWN, never a proven refusal
+  ---
+  duration_ms: 10.667541
+  type: 'test'
+  ...
+# Subtest: gateway 502 after dispatch is UNKNOWN, never proof that execute was not admitted
+ok 20 - gateway 502 after dispatch is UNKNOWN, never proof that execute was not admitted
+  ---
+  duration_ms: 3.210756
+  type: 'test'
+  ...
+# Subtest: unknown execution retains exact call for independent settlement checks after reload
+ok 21 - unknown execution retains exact call for independent settlement checks after reload
+  ---
+  duration_ms: 2.66514
+  type: 'test'
+  ...
+1..21
+# tests 21
+# suites 0
+# pass 19
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 657.009069
+[memory-guard] exit=1 peakTreeRssMiB=123 minHostAvailableMiB=89901
+[memory-guard] at peak: node:62 node:62
+[memory-guard] exit=1 peakTreeRssMiB=192 minHostAvailableMiB=89881
+[memory-guard] at peak: node:78 node:62 node:52
+[queue] EXIT 1

@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: a schema-1 registry entry decodes to its operator and active flag
+ok 1 - a schema-1 registry entry decodes to its operator and active flag
+  ---
+  duration_ms: 4.482065
+  type: 'test'
+  ...
+# Subtest: a schema-2 registry entry decodes to its operator and active flag
+ok 2 - a schema-2 registry entry decodes to its operator and active flag
+  ---
+  duration_ms: 0.634585
+  type: 'test'
+  ...
+# Subtest: a schema-3 registry entry decodes to its operator and active flag
+ok 3 - a schema-3 registry entry decodes to its operator and active flag
+  ---
+  duration_ms: 1.557418
+  type: 'test'
+  ...
+# Subtest: a schema-4 registry entry decodes to its operator and active flag
+ok 4 - a schema-4 registry entry decodes to its operator and active flag
+  ---
+  duration_ms: 0.441506
+  type: 'test'
+  ...
+# Subtest: a schema-5 registry entry decodes to its operator and active flag
+ok 5 - a schema-5 registry entry decodes to its operator and active flag
+  ---
+  duration_ms: 0.412737
+  type: 'test'
+  ...
+# Subtest: the full schema-5 tuple does NOT decode a schema-4 entry (why the reader takes the prefix)
+ok 6 - the full schema-5 tuple does NOT decode a schema-4 entry (why the reader takes the prefix)
+  ---
+  duration_ms: 1.20235
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 136.723649

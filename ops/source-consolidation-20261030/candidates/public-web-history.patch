@@ -1,0 +1,1236 @@
+From aca209a083cb3c26799122a476b28646c036f569 Mon Sep 17 00:00:00 2001
+From: Steven Batchelor <srbatchelor@ovgl.org>
+Date: Sat, 24 Oct 2026 20:27:22 -0700
+Subject: [PATCH] Preserve unfinished Codex source before disk consolidation
+
+Source: /home/steven/Documents/Codex/2026-10-01/co/work/enclave-public-web
+Local recovery checkpoint only; not validated for main. Original checkout and index remain unchanged.
+---
+ isolation/m2/dominit.c               |  11 +-
+ isolation/m2/egress/README.md        |  13 ++
+ isolation/m2/egress/dialer.go        |  34 ++-
+ isolation/m2/egress/forward.go       |  15 ++
+ isolation/m2/egress/policy.go        |   8 +-
+ isolation/m2/egress/public.go        |  37 +--
+ isolation/m2/egress/socks.go         | 105 +++++++++
+ isolation/m2/egress/socks_test.go    | 134 +++++++++++
+ isolation/m2/egress/web.go           | 331 +++++++++++++++++++++++++++
+ isolation/m2/egress/web_test.go      | 178 ++++++++++++++
+ isolation/m2/front/main.go           |   4 +-
+ isolation/m2/front/oracle_test.go    |   1 +
+ isolation/m2/front/provision.go      |  19 +-
+ isolation/m2/test-dominit-handoff.sh |   4 +-
+ isolation/m4/guestd/main.go          |   8 +-
+ 15 files changed, 856 insertions(+), 46 deletions(-)
+ create mode 100644 isolation/m2/egress/socks.go
+ create mode 100644 isolation/m2/egress/socks_test.go
+ create mode 100644 isolation/m2/egress/web.go
+ create mode 100644 isolation/m2/egress/web_test.go
+
+diff --git a/isolation/m2/dominit.c b/isolation/m2/dominit.c
+index f796232ca..2eef01d19 100644
+--- a/isolation/m2/dominit.c
++++ b/isolation/m2/dominit.c
+@@ -385,6 +385,7 @@ static void seccomp_statement_from(int fd, pid_t child) {
+         printf("DOM ERROR could not record the app's seccomp statement for the front: %s\n", strerror(errno));
+ }
+ 
++static int public_web_egress;
+ static int public_https_egress; /* only the authenticated front handoff can enable it */
+ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags);
+ /* The app, through the seccomp statement channel: a close-on-exec pipe made here (the front, already running, never
+@@ -458,6 +459,7 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
+         /* Protocol credential, not a security boundary: one app owns this guest.
+          * Policy is enforced by the measured front, CID admission and host IP checks. */
+         if (public_https_egress && drop) envp[ei++] = "ENCLAVE_EGRESS_CRED=guest:public-https";
++        if (public_web_egress && drop) envp[ei++] = "ENCLAVE_EGRESS=socks5://guest:public-https@127.0.0.2:1080";
+         if (shield_on && drop) {
+             /* This runtime belongs to one isolated app. Reuse only transport
+              * connections; every tool request still carries fresh credentials. */
+@@ -558,9 +560,10 @@ static const char *read_front_msg(int fd, char **env, size_t *len) {
+     *env = NULL;
+     *len = 0;
+     public_https_egress = 0;
++    public_web_egress = 0;
+     if (n == 0) why = "ended before it handed over the app's config";
+     else if (n == 1 && msg[0] == 'N') why = NULL;
+-    else if ((msg[0] != 'C' && msg[0] != 'P') || n < 2) why = "sent no valid config message";
++    else if ((msg[0] != 'C' && msg[0] != 'P' && msg[0] != 'W') || n < 2) why = "sent no valid config message";
+     else if (n == sizeof msg) why = "sent a config over the 64 KiB ENCLAVE_CONFIG ceiling";
+     else if (memchr(msg + 1, 0, n - 1)) why = "sent a config with a NUL byte";
+     else {
+@@ -571,7 +574,8 @@ static const char *read_front_msg(int fd, char **env, size_t *len) {
+             memcpy(*env, pre, sizeof pre - 1);
+             memcpy(*env + sizeof pre - 1, msg + 1, *len);
+             (*env)[sizeof pre - 1 + *len] = 0;
+-            public_https_egress = msg[0] == 'P';
++            public_https_egress = msg[0] == 'P' || msg[0] == 'W';
++            public_web_egress = msg[0] == 'W';
+         }
+     }
+     explicit_bzero(msg, n);
+@@ -781,6 +785,9 @@ int main(void) {
+         if (public_https_egress && strcmp(base[i], "/app.wasm") == 0) {
+             app[k++] = "-S"; app[k++] = "egress=127.0.0.2:1080";
+         }
++        if (public_web_egress && strcmp(base[i], "/app.wasm") == 0) {
++            app[k++] = "--env"; app[k++] = "ENCLAVE_EGRESS";
++        }
+         if (cfg_env && strcmp(base[i], "/app.wasm") == 0) {
+             app[k++] = "--env";
+             app[k++] = "ENCLAVE_CONFIG";
+diff --git a/isolation/m2/egress/README.md b/isolation/m2/egress/README.md
+index 35bd94cfd..fd6905025 100644
+--- a/isolation/m2/egress/README.md
++++ b/isolation/m2/egress/README.md
+@@ -47,3 +47,16 @@ Tests: `go test -race ./egress ./front` from `isolation/m2`, plus
+ `EGRESS_EYESOFF_WASM` pointing to the actual runtime and eyesoff-ai component.
+ It reads public pages with HTTP pooling enabled and confirms HTTP port 80 is
+ refused; it performs no inference and uses no production credentials.
++
++## Browser networking
++
++`"egress":"public-web"` opts into DNS plus HTTP (80) and HTTPS (443) for
++socket-based browsers. A measured TCP DNS stub on loopback answers only public
++A/AAAA records, and init provides `ENCLAVE_EGRESS` for the app's SOCKS client.
++The standard libc resolver uses TCP as configured in `/etc/resolv.conf`.
++SOCKS accepts public IP literals as well as names in this mode. The host
++rechecks all answers and its own addresses before connecting to a judged IP;
++private destinations, other ports, BIND, and UDP remain unavailable.
++HTTP is unencrypted by definition; HTTPS remains end-to-end. TUNA transport
++retains its existing route and never falls back to direct host traffic.
++The existing `public-https` mode retains its narrower behavior.
+diff --git a/isolation/m2/egress/dialer.go b/isolation/m2/egress/dialer.go
+index 45c35c196..930ef4e33 100644
+--- a/isolation/m2/egress/dialer.go
++++ b/isolation/m2/egress/dialer.go
+@@ -78,8 +78,9 @@ type Dialer struct {
+ 	Resolver      Resolver
+ 	Own           func() []netip.Addr // this host's addresses, read at dial time
+ 	DialTimeout   time.Duration
+-	MaxConcurrent int // per guest
+-	MaxPerMinute  int // per guest, dials started
++	MaxConcurrent int    // per guest
++	MaxPerMinute  int    // per guest, dials started
++	SOCKSProxy    string // optional trusted loopback TUNA entry; failure never falls back to direct
+ 	dial          func(ctx context.Context, addr string) (net.Conn, error)
+ 	mu            sync.Mutex
+ 	active        map[uint32]int
+@@ -152,6 +153,10 @@ func (d *Dialer) Dial(ctx context.Context, cid uint32, host string, port int) (n
+ 	if _, err := ParseOrigin("https://" + host + "/"); err != nil {
+ 		return nil, nil, refused(ReasonName) // an IP literal, a single label, …: never by name here
+ 	}
++	return d.dialPublic(ctx, cid, host, port, false)
++}
++
++func (d *Dialer) dialPublic(ctx context.Context, cid uint32, host string, port int, allowIP bool) (net.Conn, func(), error) {
+ 	release, err := d.take(cid)
+ 	if err != nil {
+ 		return nil, nil, err
+@@ -162,8 +167,11 @@ func (d *Dialer) Dial(ctx context.Context, cid uint32, host string, port int) (n
+ 			release()
+ 		}
+ 	}()
+-	addrs, err := d.Resolver.LookupNetIP(ctx, "ip", host)
+-	if err != nil || len(addrs) == 0 {
++	addrs, err := d.publicAddresses(ctx, host, allowIP)
++	if err != nil {
++		return nil, nil, err
++	}
++	if len(addrs) == 0 {
+ 		return nil, nil, refused(ReasonResolve)
+ 	}
+ 	var own []netip.Addr
+@@ -178,6 +186,12 @@ func (d *Dialer) Dial(ctx context.Context, cid uint32, host string, port int) (n
+ 		}
+ 	}
+ 	dial := d.dial
++	proxied := d.SOCKSProxy != ""
++	if proxied {
++		dial = func(ctx context.Context, addr string) (net.Conn, error) {
++			return dialSOCKS(ctx, d.SOCKSProxy, addr, d.timeout())
++		}
++	}
+ 	if dial == nil {
+ 		nd := &net.Dialer{Timeout: d.timeout()}
+ 		dial = func(ctx context.Context, addr string) (net.Conn, error) { return nd.DialContext(ctx, "tcp", addr) }
+@@ -188,10 +202,14 @@ func (d *Dialer) Dial(ctx context.Context, cid uint32, host string, port int) (n
+ 		if err != nil {
+ 			continue // the raw error names the address; it is dropped, not logged (DialError)
+ 		}
+-		// and the address the socket actually reached is judged once more
+-		if ra, err := netip.ParseAddrPort(c.RemoteAddr().String()); err != nil || RefuseAddr(ra.Addr(), own) != "" {
+-			c.Close()
+-			return nil, nil, refused(ReasonNonPublicPeer)
++		// Direct sockets expose the destination peer. For SOCKS the peer is the
++		// explicitly configured loopback entry; dialSOCKS sends only the already
++		// judged IP literal, never a hostname that a provider could resolve again.
++		if !proxied {
++			if ra, err := netip.ParseAddrPort(c.RemoteAddr().String()); err != nil || RefuseAddr(ra.Addr(), own) != "" {
++				c.Close()
++				return nil, nil, refused(ReasonNonPublicPeer)
++			}
+ 		}
+ 		ok = true
+ 		return c, release, nil
+diff --git a/isolation/m2/egress/forward.go b/isolation/m2/egress/forward.go
+index ca302303a..58eeff234 100644
+--- a/isolation/m2/egress/forward.go
++++ b/isolation/m2/egress/forward.go
+@@ -32,6 +32,8 @@ const (
+ 
+ // Forwarder runs one loopback listener per allowed origin.
+ type Forwarder struct {
++	DNSListen    string // test override; empty uses PublicDNSAddress
++	dnsAddr      netip.AddrPort
+ 	PublicListen string // test override; empty uses PublicSOCKSAddress
+ 	publicAddr   netip.AddrPort
+ 	publicSlots  chan struct{}
+@@ -55,6 +57,9 @@ func loopbackFor(i int) netip.Addr {
+ func (f *Forwarder) HostsFile() string {
+ 	var b strings.Builder
+ 	b.WriteString("127.0.0.1 localhost\n")
++	if f.Policy.PublicWeb {
++		return b.String()
++	}
+ 	for i, o := range f.Policy.Origins {
+ 		fmt.Fprintf(&b, "%s %s\n", loopbackFor(i), o.Host)
+ 	}
+@@ -84,6 +89,12 @@ func (f *Forwarder) Start(ctx context.Context) error {
+ 			return err
+ 		}
+ 	}
++	if f.Policy.PublicWeb {
++		if err := f.startDNS(ctx); err != nil {
++			f.Close()
++			return err
++		}
++	}
+ 	go func() { <-ctx.Done(); f.Close() }()
+ 	return nil
+ }
+@@ -269,6 +280,10 @@ func (s *Server) handle(ctx context.Context, g net.Conn) {
+ 	}
+ 	g.SetReadDeadline(time.Time{})
+ 	f := strings.Fields(line)
++	if len(f) == 3 && (f[0] == "egress-web-v1" || f[0] == "egress-dns-v1") {
++		s.handleWeb(ctx, cid, g, br, f)
++		return
++	}
+ 	if len(f) != 3 || f[0] != protoVersion || f[2] != "443" {
+ 		s.outcome(cid, "refused:"+string(ReasonHeader))
+ 		io.WriteString(g, "refused\n")
+diff --git a/isolation/m2/egress/policy.go b/isolation/m2/egress/policy.go
+index 5a90a7220..ee4ccef12 100644
+--- a/isolation/m2/egress/policy.go
++++ b/isolation/m2/egress/policy.go
+@@ -130,6 +130,7 @@ func ParseOrigin(raw string) (Origin, error) {
+ 
+ // Policy is the guest's allowlist.
+ type Policy struct {
++	PublicWeb   bool     // owner opted into DNS plus public HTTP/HTTPS for socket-based browsers
+ 	PublicHTTPS bool     // owner explicitly opted into arbitrary public DNS origins on 443
+ 	Origins     []Origin // sorted, unique
+ 	Refused     []string // the reasons config URLs were NOT allowed, for the guest's own log (no URL text: it may be secret)
+@@ -173,17 +174,18 @@ func derive(resolvedConfig string, relay Origin) (*Policy, error) {
+ 		var candidates []string
+ 		if obj, ok := doc.(map[string]any); ok && obj["egress"] != nil {
+ 			list, ok := obj["egress"].([]any)
+-			if obj["egress"] == "public-https" {
++			if obj["egress"] == "public-https" || obj["egress"] == "public-web" {
++				p.PublicWeb = obj["egress"] == "public-web"
+ 				p.PublicHTTPS = true
+ 				ok = true
+ 			}
+ 			if !ok {
+-				return nil, errors.New(`"egress" must be a list of https origins or "public-https"`)
++				return nil, errors.New(`"egress" must be a list of https origins or "public-https" or "public-web"`)
+ 			}
+ 			for _, e := range list {
+ 				s, ok := e.(string)
+ 				if !ok {
+-					return nil, errors.New(`"egress" must be a list of https origins or "public-https"`)
++					return nil, errors.New(`"egress" must be a list of https origins or "public-https" or "public-web"`)
+ 				}
+ 				candidates = append(candidates, s)
+ 			}
+diff --git a/isolation/m2/egress/public.go b/isolation/m2/egress/public.go
+index b77499b13..87627cfb4 100644
+--- a/isolation/m2/egress/public.go
++++ b/isolation/m2/egress/public.go
+@@ -6,7 +6,6 @@ package egress
+ // or terminates TLS. The existing host dialer judges DNS answers and the peer.
+ import (
+ 	"context"
+-	"encoding/binary"
+ 	"errors"
+ 	"io"
+ 	"net"
+@@ -105,39 +104,19 @@ func (f *Forwarder) publicConnect(c net.Conn) {
+ 		return
+ 	}
+ 	reply := func(code byte) { c.Write([]byte{5, code, 0, 1, 0, 0, 0, 0, 0, 0}) }
+-	var req [4]byte
+-	if _, err := io.ReadFull(c, req[:]); err != nil {
+-		return
+-	}
+-	if req != [4]byte{5, 1, 0, 3} {
+-		reply(2)
+-		return
+-	}
+-	if _, err := io.ReadFull(c, n[:]); err != nil || n[0] == 0 {
+-		reply(2)
+-		return
+-	}
+-	host := make([]byte, int(n[0]))
+-	if _, err := io.ReadFull(c, host); err != nil {
+-		return
+-	}
+-	if _, err := io.ReadFull(c, h[:]); err != nil {
+-		return
+-	}
+-	if binary.BigEndian.Uint16(h[:]) != 443 {
++	host, port, err := readSOCKSTarget(c, f.Policy.PublicWeb)
++	if err != nil || !f.Policy.PublicHTTPS {
+ 		reply(2)
+ 		return
+ 	}
+-	// ParseOrigin also refuses IP-like spellings and control characters.
+-	// Require the whole SOCKS string to be the host (no injected path/userinfo).
+-	o, err := ParseOrigin("https://" + string(host))
+-	if err != nil || !equalHost(o.Host, string(host)) || !f.Policy.PublicHTTPS {
+-		reply(2)
+-		return
++	var up net.Conn
++	if f.Policy.PublicWeb {
++		up, err = dialPublicWeb(f.Upstream, host, port)
++	} else {
++		up, err = DialOrigin(f.Upstream, Origin{Host: host})
+ 	}
+-	up, err := DialOrigin(f.Upstream, o)
+ 	if err != nil {
+-		f.logf("public HTTPS: %s", dialClass(err))
++		f.logf("public web: %s", dialClass(err))
+ 		reply(2)
+ 		return
+ 	}
+diff --git a/isolation/m2/egress/socks.go b/isolation/m2/egress/socks.go
+new file mode 100644
+index 000000000..8dc277d97
+--- /dev/null
++++ b/isolation/m2/egress/socks.go
+@@ -0,0 +1,105 @@
++package egress
++
++import (
++	"context"
++	"encoding/binary"
++	"errors"
++	"io"
++	"net"
++	"net/netip"
++	"time"
++)
++
++// ValidateSOCKSProxy permits only an explicit local entry, with no DNS or userinfo.
++func ValidateSOCKSProxy(address string) error {
++	a, err := netip.ParseAddrPort(address)
++	if err != nil || !a.Addr().IsLoopback() || a.Port() == 0 {
++		return errors.New("SOCKS entry must be a loopback IP and nonzero port")
++	}
++	return nil
++}
++
++func dialSOCKS(ctx context.Context, proxy, destination string, timeout time.Duration) (net.Conn, error) {
++	if err := ValidateSOCKSProxy(proxy); err != nil {
++		return nil, err
++	}
++	target, err := netip.ParseAddrPort(destination)
++	if err != nil || (target.Port() != 443 && target.Port() != 80) || RefuseAddr(target.Addr(), nil) != "" {
++		return nil, errors.New("SOCKS destination must be a judged public IP on port 80 or 443")
++	}
++	ctx, cancel := context.WithTimeout(ctx, timeout)
++	defer cancel()
++	c, err := (&net.Dialer{}).DialContext(ctx, "tcp", proxy)
++	if err != nil {
++		return nil, err
++	}
++	success := false
++	defer func() {
++		if !success {
++			c.Close()
++		}
++	}()
++	stop := context.AfterFunc(ctx, func() { c.Close() })
++	defer stop()
++	deadline, _ := ctx.Deadline()
++	if err = c.SetDeadline(deadline); err != nil {
++		return nil, err
++	}
++	if _, err = c.Write([]byte{5, 1, 0}); err != nil {
++		return nil, err
++	}
++	var answer [4]byte
++	if _, err = io.ReadFull(c, answer[:2]); err != nil {
++		return nil, err
++	}
++	if answer[0] != 5 || answer[1] != 0 {
++		return nil, errors.New("SOCKS entry rejected authentication method")
++	}
++	request := []byte{5, 1, 0}
++	ip := target.Addr().Unmap()
++	if ip.Is4() {
++		request = append(request, 1)
++	} else {
++		request = append(request, 4)
++	}
++	request = append(request, ip.AsSlice()...)
++	request = binary.BigEndian.AppendUint16(request, target.Port())
++	if _, err = c.Write(request); err != nil {
++		return nil, err
++	}
++	if _, err = io.ReadFull(c, answer[:]); err != nil {
++		return nil, err
++	}
++	if answer[0] != 5 || answer[1] != 0 || answer[2] != 0 {
++		return nil, errors.New("SOCKS entry refused connection")
++	}
++	size := 0
++	switch answer[3] {
++	case 1:
++		size = 4
++	case 4:
++		size = 16
++	case 3:
++		var n [1]byte
++		if _, err = io.ReadFull(c, n[:]); err != nil {
++			return nil, err
++		}
++		size = int(n[0])
++	default:
++		return nil, errors.New("invalid SOCKS response address")
++	}
++	if _, err = io.CopyN(io.Discard, c, int64(size+2)); err != nil {
++		return nil, err
++	}
++	if !stop() {
++		return nil, ctx.Err()
++	}
++	if err = ctx.Err(); err != nil {
++		return nil, err
++	}
++	if err = c.SetDeadline(time.Time{}); err != nil {
++		return nil, err
++	}
++	success = true
++	return c, nil
++}
+diff --git a/isolation/m2/egress/socks_test.go b/isolation/m2/egress/socks_test.go
+new file mode 100644
+index 000000000..327bd0e8a
+--- /dev/null
++++ b/isolation/m2/egress/socks_test.go
+@@ -0,0 +1,134 @@
++package egress
++
++import (
++	"bytes"
++	"context"
++	"io"
++	"net"
++	"net/netip"
++	"testing"
++	"time"
++)
++
++func TestSOCKSDialsJudgedLiteralAndCarriesBytes(t *testing.T) {
++	for _, ip := range []string{"93.184.216.34", "2606:4700:4700::1111"} {
++		t.Run(ip, func(t *testing.T) {
++			ln, err := net.Listen("tcp", "127.0.0.1:0")
++			if err != nil {
++				t.Fatal(err)
++			}
++			defer ln.Close()
++			request := make(chan []byte, 1)
++			go func() {
++				c, e := ln.Accept()
++				if e != nil {
++					return
++				}
++				defer c.Close()
++				c.SetDeadline(time.Now().Add(2 * time.Second))
++				b := make([]byte, 3)
++				if _, e = io.ReadFull(c, b); e != nil {
++					return
++				}
++				if !bytes.Equal(b, []byte{5, 1, 0}) {
++					return
++				}
++				c.Write([]byte{5, 0})
++				n := 10
++				if netip.MustParseAddr(ip).Is6() {
++					n = 22
++				}
++				b = make([]byte, n)
++				if _, e = io.ReadFull(c, b); e != nil {
++					return
++				}
++				request <- b
++				c.Write([]byte{5, 0, 0, 1, 0, 0, 0, 0, 0, 0})
++				io.Copy(c, c)
++			}()
++			d := &Dialer{Resolver: fakeResolver{"service.example": {ip}}, SOCKSProxy: ln.Addr().String()}
++			c, release, err := d.Dial(context.Background(), 7, "service.example", 443)
++			if err != nil {
++				t.Fatal(err)
++			}
++			defer c.Close()
++			defer release()
++			want := []byte{5, 1, 0, 1}
++			if netip.MustParseAddr(ip).Is6() {
++				want[3] = 4
++			}
++			want = append(want, netip.MustParseAddr(ip).AsSlice()...)
++			want = append(want, 1, 187)
++			if got := <-request; !bytes.Equal(got, want) {
++				t.Fatalf("proxy request %x, want literal %x", got, want)
++			}
++			c.SetDeadline(time.Now().Add(time.Second))
++			c.Write([]byte("guest TLS bytes"))
++			got := make([]byte, 15)
++			if _, err = io.ReadFull(c, got); err != nil {
++				t.Fatal(err)
++			}
++			if string(got) != "guest TLS bytes" {
++				t.Fatal(string(got))
++			}
++		})
++	}
++}
++
++func TestSOCKSDoesNotFallBackAndPreservesDestinationPolicy(t *testing.T) {
++	d, dialed := testDialer(fakeResolver{"service.example": {"93.184.216.34"}, "private.example": {"127.0.0.1"}}, nil)
++	d.SOCKSProxy = "127.0.0.1:1"
++	if _, _, err := d.Dial(context.Background(), 7, "service.example", 443); ReasonOf(err) != ReasonConnect {
++		t.Fatal(err)
++	}
++	if len(*dialed) != 0 {
++		t.Fatal("fell back to direct dial")
++	}
++	if _, _, err := d.Dial(context.Background(), 7, "private.example", 443); ReasonOf(err) != ReasonNonPublicAnswer {
++		t.Fatal(err)
++	}
++	if d.active[7] != 0 {
++		t.Fatal("failed connection leaked a concurrency slot")
++	}
++	for _, address := range []string{"example.org:1234", "10.0.0.1:1234", "127.0.0.1:0", "socks5://127.0.0.1:1234"} {
++		if ValidateSOCKSProxy(address) == nil {
++			t.Fatal(address)
++		}
++	}
++}
++
++func TestSOCKSCancellationInterruptsHandshake(t *testing.T) {
++	ln, err := net.Listen("tcp", "127.0.0.1:0")
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer ln.Close()
++	accepted := make(chan net.Conn, 1)
++	go func() {
++		c, e := ln.Accept()
++		if e == nil {
++			accepted <- c
++		}
++	}()
++	ctx, cancel := context.WithCancel(context.Background())
++	defer cancel()
++	done := make(chan error, 1)
++	go func() {
++		c, e := dialSOCKS(ctx, ln.Addr().String(), "93.184.216.34:443", time.Minute)
++		if c != nil {
++			c.Close()
++		}
++		done <- e
++	}()
++	c := <-accepted
++	defer c.Close()
++	cancel()
++	select {
++	case err := <-done:
++		if err == nil {
++			t.Fatal("cancelled handshake succeeded")
++		}
++	case <-time.After(time.Second):
++		t.Fatal("cancellation did not interrupt handshake")
++	}
++}
+diff --git a/isolation/m2/egress/web.go b/isolation/m2/egress/web.go
+new file mode 100644
+index 000000000..44ffffb7d
+--- /dev/null
++++ b/isolation/m2/egress/web.go
+@@ -0,0 +1,331 @@
++package egress
++
++// PublicWeb is an owner-selected extension of the HTTPS-only capability. The
++// guest still has no NIC. A TCP DNS listener supplies only public addresses,
++// and its SOCKS listener permits only HTTP and HTTPS. The host checks names,
++// every DNS answer, and the final destination; it never receives TLS keys.
++import (
++	"bufio"
++	"context"
++	"encoding/binary"
++	"errors"
++	"fmt"
++	"io"
++	"net"
++	"net/netip"
++	"strconv"
++	"strings"
++	"time"
++)
++
++const PublicDNSAddress = "127.0.0.2:53"
++
++func validWebHost(host string, allowIP bool) bool {
++	if a, err := netip.ParseAddr(host); err == nil {
++		return allowIP && RefuseAddr(a, nil) == ""
++	}
++	o, err := ParseOrigin("https://" + host)
++	return err == nil && equalHost(o.Host, host)
++}
++
++func (d *Dialer) publicAddresses(ctx context.Context, host string, allowIP bool) ([]netip.Addr, error) {
++	if !validWebHost(host, allowIP) {
++		return nil, refused(ReasonName)
++	}
++	var addresses []netip.Addr
++	if a, err := netip.ParseAddr(host); err == nil {
++		addresses = []netip.Addr{a}
++	} else {
++		var err error
++		addresses, err = d.Resolver.LookupNetIP(ctx, "ip", host)
++		if err != nil || len(addresses) == 0 {
++			return nil, refused(ReasonResolve)
++		}
++	}
++	var own []netip.Addr
++	if d.Own != nil {
++		own = d.Own()
++	}
++	for _, a := range addresses {
++		if RefuseAddr(a, own) != "" {
++			return nil, refused(ReasonNonPublicAnswer)
++		}
++	}
++	return addresses, nil
++}
++
++func (d *Dialer) ResolvePublic(ctx context.Context, cid uint32, host string) ([]netip.Addr, error) {
++	release, err := d.take(cid)
++	if err != nil {
++		return nil, err
++	}
++	defer release()
++	addresses, err := d.publicAddresses(ctx, host, false)
++	if len(addresses) > 16 {
++		addresses = addresses[:16]
++	}
++	return addresses, err
++}
++
++func (d *Dialer) DialWeb(ctx context.Context, cid uint32, host string, port int) (net.Conn, func(), error) {
++	if port != 80 && port != 443 {
++		return nil, nil, refused(ReasonPort)
++	}
++	if !validWebHost(host, true) {
++		return nil, nil, refused(ReasonName)
++	}
++	return d.dialPublic(ctx, cid, host, port, true)
++}
++
++func (s *Server) handleWeb(ctx context.Context, cid uint32, g net.Conn, br *bufio.Reader, fields []string) {
++	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
++	defer cancel()
++	if fields[0] == "egress-dns-v1" && fields[2] == "0" {
++		addresses, err := s.Dialer.ResolvePublic(ctx, cid, fields[1])
++		if err != nil {
++			s.outcome(cid, "refused:"+string(ReasonOf(err)))
++			io.WriteString(g, "refused\n")
++			return
++		}
++		var names []string
++		for _, a := range addresses {
++			names = append(names, a.Unmap().String())
++		}
++		s.outcome(cid, "resolved")
++		fmt.Fprintf(g, "ok %s\n", strings.Join(names, " "))
++		return
++	}
++	port, err := strconv.Atoi(fields[2])
++	if fields[0] != "egress-web-v1" || err != nil || (port != 80 && port != 443) {
++		s.outcome(cid, "refused:"+string(ReasonHeader))
++		io.WriteString(g, "refused\n")
++		return
++	}
++	up, release, err := s.Dialer.DialWeb(ctx, cid, fields[1], port)
++	if err != nil {
++		s.outcome(cid, "refused:"+string(ReasonOf(err)))
++		io.WriteString(g, "refused\n")
++		return
++	}
++	defer release()
++	defer up.Close()
++	s.outcome(cid, "open")
++	if _, err := io.WriteString(g, "ok\n"); err != nil {
++		return
++	}
++	splice(g, br, up, up)
++}
++
++func dialPublicWeb(upstream func() (net.Conn, error), host string, port uint16) (net.Conn, error) {
++	if (port != 80 && port != 443) || !validWebHost(host, true) {
++		return nil, errRefused
++	}
++	up, err := upstream()
++	if err != nil {
++		return nil, errNoPath
++	}
++	up.SetDeadline(time.Now().Add(15 * time.Second))
++	if _, err := fmt.Fprintf(up, "egress-web-v1 %s %d\n", host, port); err != nil {
++		up.Close()
++		return nil, errPathFailed
++	}
++	br := bufio.NewReaderSize(up, 64)
++	line, err := readLine(br, 64)
++	if err != nil || line != "ok" {
++		up.Close()
++		return nil, errRefused
++	}
++	up.SetDeadline(time.Time{})
++	return &bufConn{Conn: up, r: br}, nil
++}
++
++func readSOCKSTarget(c net.Conn, web bool) (string, uint16, error) {
++	var h [4]byte
++	if _, err := io.ReadFull(c, h[:]); err != nil || h[0] != 5 || h[1] != 1 || h[2] != 0 {
++		return "", 0, errRefused
++	}
++	var host string
++	switch h[3] {
++	case 3:
++		var n [1]byte
++		if _, err := io.ReadFull(c, n[:]); err != nil || n[0] == 0 {
++			return "", 0, errRefused
++		}
++		b := make([]byte, int(n[0]))
++		if _, err := io.ReadFull(c, b); err != nil {
++			return "", 0, errRefused
++		}
++		host = string(b)
++	case 1, 4:
++		if !web {
++			return "", 0, errRefused
++		}
++		size := 4
++		if h[3] == 4 {
++			size = 16
++		}
++		b := make([]byte, size)
++		if _, err := io.ReadFull(c, b); err != nil {
++			return "", 0, errRefused
++		}
++		a, _ := netip.AddrFromSlice(b)
++		host = a.Unmap().String()
++	default:
++		return "", 0, errRefused
++	}
++	if _, err := io.ReadFull(c, h[:2]); err != nil {
++		return "", 0, errRefused
++	}
++	port := binary.BigEndian.Uint16(h[:2])
++	if (port != 443 && (!web || port != 80)) || !validWebHost(host, web) {
++		return "", 0, errRefused
++	}
++	return strings.ToLower(host), port, nil
++}
++
++func (f *Forwarder) DNSAddr() (netip.AddrPort, bool) { return f.dnsAddr, f.dnsAddr.IsValid() }
++func (f *Forwarder) startDNS(ctx context.Context) error {
++	addr := f.DNSListen
++	if addr == "" {
++		addr = PublicDNSAddress
++	}
++	l, err := net.Listen("tcp", addr)
++	if err != nil {
++		return errors.New("public DNS listener unavailable")
++	}
++	f.dnsAddr = l.Addr().(*net.TCPAddr).AddrPort()
++	f.ls = append(f.ls, l)
++	slots := make(chan struct{}, 16)
++	go func() {
++		for {
++			c, err := l.Accept()
++			if err != nil {
++				return
++			}
++			select {
++			case slots <- struct{}{}:
++				go func() {
++					defer func() { <-slots }()
++					defer c.Close()
++					stop := context.AfterFunc(ctx, func() { c.Close() })
++					defer stop()
++					// getaddrinfo uses TCP via resolv.conf's use-vc option. Limit each connection
++					// and request so tenant input cannot occupy the front without bound.
++					for i := 0; i < 16; i++ {
++						c.SetDeadline(time.Now().Add(20 * time.Second))
++						var n [2]byte
++						if _, err := io.ReadFull(c, n[:]); err != nil {
++							return
++						}
++						length := int(binary.BigEndian.Uint16(n[:]))
++						if length < 12 || length > 4096 {
++							return
++						}
++						q := make([]byte, length)
++						if _, err := io.ReadFull(c, q); err != nil {
++							return
++						}
++						answer := f.answerPublicDNS(q)
++						if answer == nil {
++							return
++						}
++						binary.BigEndian.PutUint16(n[:], uint16(len(answer)))
++						if _, err := c.Write(append(n[:], answer...)); err != nil {
++							return
++						}
++					}
++				}()
++			default:
++				c.Close()
++			}
++		}
++	}()
++	return nil
++}
++
++func (f *Forwarder) answerPublicDNS(q []byte) []byte {
++	if len(q) < 12 || q[2]&0xf8 != 0 || binary.BigEndian.Uint16(q[4:6]) != 1 {
++		return nil
++	}
++	i := 12
++	var labels []string
++	for {
++		if i >= len(q) {
++			return nil
++		}
++		n := int(q[i])
++		i++
++		if n == 0 {
++			break
++		}
++		if n > 63 || i+n > len(q) {
++			return nil
++		}
++		labels = append(labels, string(q[i:i+n]))
++		i += n
++		if i > 267 {
++			return nil
++		}
++	}
++	if i+4 > len(q) {
++		return nil
++	}
++	kind := binary.BigEndian.Uint16(q[i : i+2])
++	class := binary.BigEndian.Uint16(q[i+2 : i+4])
++	i += 4
++	resp := append([]byte(nil), q[:i]...)
++	resp[2] = 0x80 | (q[2] & 1)
++	resp[3] = 0x80
++	for j := 6; j < 12; j++ {
++		resp[j] = 0
++	}
++	name := strings.Join(labels, ".")
++	if class != 1 || !validWebHost(name, false) {
++		resp[3] |= 3
++		return resp
++	}
++	if kind != 1 && kind != 28 {
++		return resp
++	}
++	up, err := f.Upstream()
++	if err != nil {
++		resp[3] |= 2
++		return resp
++	}
++	defer up.Close()
++	up.SetDeadline(time.Now().Add(15 * time.Second))
++	if _, err := fmt.Fprintf(up, "egress-dns-v1 %s 0\n", name); err != nil {
++		resp[3] |= 2
++		return resp
++	}
++	line, err := readLine(bufio.NewReader(up), 2048)
++	fields := strings.Fields(line)
++	if err != nil || len(fields) < 2 || fields[0] != "ok" || len(fields) > 17 {
++		resp[3] |= 2
++		return resp
++	}
++	var addresses []netip.Addr
++	for _, s := range fields[1:] {
++		a, err := netip.ParseAddr(s)
++		if err != nil || RefuseAddr(a, nil) != "" {
++			resp[3] |= 2
++			return resp
++		}
++		addresses = append(addresses, a.Unmap())
++	}
++	var count uint16
++	for _, a := range addresses {
++		if (kind == 1 && !a.Is4()) || (kind == 28 && !a.Is6()) {
++			continue
++		}
++		count++
++		resp = append(resp, 0xc0, 0x0c)
++		resp = binary.BigEndian.AppendUint16(resp, kind)
++		resp = append(resp, 0, 1, 0, 0, 0, 30)
++		b := a.AsSlice()
++		resp = binary.BigEndian.AppendUint16(resp, uint16(len(b)))
++		resp = append(resp, b...)
++	}
++	binary.BigEndian.PutUint16(resp[6:8], count)
++	return resp
++}
+diff --git a/isolation/m2/egress/web_test.go b/isolation/m2/egress/web_test.go
+new file mode 100644
+index 000000000..b9a3cf195
+--- /dev/null
++++ b/isolation/m2/egress/web_test.go
+@@ -0,0 +1,178 @@
++package egress
++
++import (
++	"context"
++	"encoding/binary"
++	"io"
++	"net"
++	"net/netip"
++	"os"
++	"os/exec"
++	"path/filepath"
++	"strings"
++	"syscall"
++	"testing"
++	"time"
++)
++
++func webForwarder(t *testing.T, r *rig) *Forwarder {
++	t.Helper()
++	ctx, cancel := context.WithCancel(context.Background())
++	t.Cleanup(cancel)
++	f := &Forwarder{Policy: &Policy{PublicHTTPS: true, PublicWeb: true}, PublicListen: "127.0.0.1:0", DNSListen: "127.0.0.1:0", Upstream: func() (net.Conn, error) { return net.Dial("tcp", r.hostAddr) }}
++	if err := f.Start(ctx); err != nil {
++		t.Fatal(err)
++	}
++	return f
++}
++func dnsQuestion(name string, kind uint16) []byte {
++	q := []byte{0x12, 0x34, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0}
++	for _, s := range strings.Split(name, ".") {
++		q = append(q, byte(len(s)))
++		q = append(q, s...)
++	}
++	q = append(q, 0)
++	q = binary.BigEndian.AppendUint16(q, kind)
++	return append(q, 0, 1)
++}
++func TestPublicWebDNSAndHTTP(t *testing.T) {
++	l, err := net.Listen("tcp", "127.0.0.1:0")
++	if err != nil {
++		t.Fatal(err)
++	}
++	t.Cleanup(func() { l.Close() })
++	go func() {
++		for {
++			c, err := l.Accept()
++			if err != nil {
++				return
++			}
++			go func() { defer c.Close(); io.WriteString(c, "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello") }()
++		}
++	}()
++	r := newRig(t, nil, map[string]net.Listener{"93.184.216.34:80": l}, fakeResolver{"web.example": {"93.184.216.34", "2606:4700:4700::1111"}, "mixed.example": {"93.184.216.34", "10.0.0.1"}})
++	f := webForwarder(t, r)
++	if f.HostsFile() != "127.0.0.1 localhost\n" {
++		t.Fatal("public names shadowed by loopback")
++	}
++	a, _ := f.DNSAddr()
++	c, err := net.Dial("tcp", a.String())
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer c.Close()
++	c.SetDeadline(time.Now().Add(3 * time.Second))
++	for _, kind := range []uint16{1, 28} {
++		q := dnsQuestion("web.example", kind)
++		packet := binary.BigEndian.AppendUint16(nil, uint16(len(q)))
++		c.Write(append(packet, q...))
++		var n [2]byte
++		if _, err := io.ReadFull(c, n[:]); err != nil {
++			t.Fatal(err)
++		}
++		answer := make([]byte, binary.BigEndian.Uint16(n[:]))
++		if _, err := io.ReadFull(c, answer); err != nil {
++			t.Fatal(err)
++		}
++		if answer[3]&15 != 0 || binary.BigEndian.Uint16(answer[6:8]) != 1 {
++			t.Fatalf("DNS response %x", answer)
++		}
++	}
++	answer := f.answerPublicDNS(dnsQuestion("mixed.example", 1))
++	if answer[3]&15 == 0 || binary.BigEndian.Uint16(answer[6:8]) != 0 {
++		t.Fatal("mixed public/private DNS escaped")
++	}
++	for _, request := range [][]byte{connectName("web.example", 80), {5, 1, 0, 1, 93, 184, 216, 34, 0, 80}} {
++		conn, code := socksRequest(t, f, request)
++		if code != 0 {
++			t.Fatalf("public HTTP refused: %d", code)
++		}
++		body, err := io.ReadAll(conn)
++		if err != nil || !strings.HasSuffix(string(body), "hello") {
++			t.Fatalf("HTTP bytes %q %v", body, err)
++		}
++	}
++	for _, request := range [][]byte{connectName("mixed.example", 443), connectName("web.example", 22), {5, 1, 0, 1, 127, 0, 0, 1, 1, 187}, {5, 1, 0, 1, 169, 254, 169, 254, 0, 80}, {5, 1, 0, 1, 10, 0, 0, 1, 1, 187}} {
++		_, code := socksRequest(t, f, request)
++		if code == 0 {
++			t.Fatalf("private/other-port request accepted: %x", request)
++		}
++	}
++	if strings.Contains(r.logs(), "web.example") || strings.Contains(r.logs(), "93.184") {
++		t.Fatal("destination leaked into host log")
++	}
++}
++func TestPublicWebPolicyAndPrivateDial(t *testing.T) {
++	for _, cfg := range []string{`{}`, `{"egress":"public-https"}`, `{"egress":["https://web.example"]}`} {
++		p, err := derive(cfg, Origin{Host: "api.enclave.host"})
++		if err != nil || p.PublicWeb {
++			t.Fatalf("implicit web mode: %+v %v", p, err)
++		}
++	}
++	p, err := derive(`{"egress":"public-web"}`, Origin{Host: "api.enclave.host"})
++	if err != nil || !p.PublicWeb || !p.PublicHTTPS {
++		t.Fatalf("opt-in %+v %v", p, err)
++	}
++	own := netip.MustParseAddr("93.184.216.34")
++	d, dialed := testDialer(fakeResolver{"own.example": {"93.184.216.34"}}, nil)
++	d.Own = func() []netip.Addr { return []netip.Addr{own} }
++	for _, host := range []string{"own.example", "93.184.216.34", "127.0.0.1", "::ffff:127.0.0.1", "169.254.169.254", "10.0.0.1", "100.64.0.1", "[::1]", "x.example/path", "x.example\n"} {
++		if c, rel, err := d.DialWeb(context.Background(), 7, host, 80); err == nil {
++			c.Close()
++			rel()
++			t.Fatalf("accepted %q", host)
++		}
++	}
++	if len(*dialed) != 0 {
++		t.Fatal("dialed a refused destination")
++	}
++}
++func TestPublicDNSMalformedAndNonAddressQuestions(t *testing.T) {
++	f := &Forwarder{Upstream: func() (net.Conn, error) { t.Fatal("invalid DNS reached upstream"); return nil, nil }}
++	for _, q := range [][]byte{nil, {0}, append(dnsQuestion("web.example", 1)[:12], 0xc0, 0x0c, 0, 1, 0, 1)} {
++		if f.answerPublicDNS(q) != nil {
++			t.Fatal("accepted malformed DNS")
++		}
++	}
++	for _, name := range []string{"127.0.0.1", "localhost", "web.example/path"} {
++		a := f.answerPublicDNS(dnsQuestion(name, 1))
++		if a == nil || a[3]&15 == 0 {
++			t.Fatal("accepted invalid DNS host")
++		}
++	}
++	a := f.answerPublicDNS(dnsQuestion("web.example", 16))
++	if a == nil || binary.BigEndian.Uint16(a[6:8]) != 0 {
++		t.Fatal("non-address query")
++	}
++}
++
++// Run in an isolated user/mount/network namespace; never edits the host resolver.
++func TestPublicWebLibcResolver(t *testing.T) {
++	if os.Getenv("EGRESS_TEST_ISOLATED_RESOLVER") != "1" {
++		t.Skip("requires isolated mount/network namespace")
++	}
++	r := newRig(t, nil, nil, fakeResolver{"browser.example": {"93.184.216.34"}, "private.example": {"10.0.0.1"}})
++	ctx, cancel := context.WithCancel(context.Background())
++	defer cancel()
++	f := &Forwarder{Policy: &Policy{PublicWeb: true, PublicHTTPS: true}, PublicListen: "127.0.0.2:1080", DNSListen: PublicDNSAddress, Upstream: func() (net.Conn, error) { return net.Dial("tcp", r.hostAddr) }}
++	if err := f.Start(ctx); err != nil {
++		t.Fatal(err)
++	}
++	dir := t.TempDir()
++	for name, data := range map[string]string{"resolv.conf": "nameserver 127.0.0.2\noptions use-vc timeout:2 attempts:1\n", "nsswitch.conf": "hosts: dns\n"} {
++		p := filepath.Join(dir, name)
++		if err := os.WriteFile(p, []byte(data), 0600); err != nil {
++			t.Fatal(err)
++		}
++		if err := syscall.Mount(p, "/etc/"+name, "", syscall.MS_BIND, ""); err != nil {
++			t.Fatal(err)
++		}
++	}
++	out, err := exec.Command("python3", "-c", "import socket; print(socket.getaddrinfo('browser.example',443,socket.AF_INET,socket.SOCK_STREAM))").CombinedOutput()
++	if err != nil || !strings.Contains(string(out), "93.184.216.34") {
++		t.Fatalf("glibc resolver: %q %v", out, err)
++	}
++	if out, err := exec.Command("python3", "-c", "import socket; print(socket.getaddrinfo('private.example',443,socket.AF_INET,socket.SOCK_STREAM))").CombinedOutput(); err == nil {
++		t.Fatalf("private resolver succeeded: %q", out)
++	}
++}
+diff --git a/isolation/m2/front/main.go b/isolation/m2/front/main.go
+index 955809e2f..caf27a03a 100644
+--- a/isolation/m2/front/main.go
++++ b/isolation/m2/front/main.go
+@@ -92,6 +92,7 @@ type doc struct {
+ }
+ 
+ type front struct {
++	publicWeb    bool
+ 	publicHTTPS  bool // set only by successful attested provisioning
+ 	spki, appSha []byte
+ 	rt           *runtimeState // ABI/2 when non-nil, ABI/1 when the image carries no runtime identity
+@@ -270,6 +271,7 @@ func main() {
+ 				return "", err
+ 			}
+ 			f.publicHTTPS = prov.fwd.Policy.PublicHTTPS
++			f.publicWeb = prov.fwd.Policy.PublicWeb
+ 			warmupPath = configuredWarmup(prov.config)
+ 			return prov.config, nil
+ 		})
+@@ -585,7 +587,7 @@ func (f *front) releaseForInit(initPipe *os.File, hd []byte, hdErr error, provis
+ 		initPipe.Close()
+ 		return err
+ 	}
+-	return handToInitMode(initPipe, config, f.publicHTTPS)
++	return handToInitNetwork(initPipe, config, f.publicHTTPS, f.publicWeb)
+ }
+ 
+ func must(err error) {
+diff --git a/isolation/m2/front/oracle_test.go b/isolation/m2/front/oracle_test.go
+index a65a0c3c3..c7f340339 100644
+--- a/isolation/m2/front/oracle_test.go
++++ b/isolation/m2/front/oracle_test.go
+@@ -149,6 +149,7 @@ func TestEveryListenerIsAKnownOne(t *testing.T) {
+ 	want := strings.Join([]string{
+ 		"egress/forward.go Forwarder.Start: net.Listen",      // one loopback listener per allowed origin: the tenant's egress
+ 		"egress/public.go Forwarder.startPublic: net.Listen", // owner-opted public HTTPS; SOCKS CONNECT only, host IP checks unchanged
++		"egress/web.go Forwarder.startDNS: net.Listen",       // reviewed: owner-opted TCP DNS; bounded requests; audited loopback :53; public addresses only
+ 		"front/main.go main: net.Listen",                     // M3: the unix socket the monitor relays (-listen-unix)
+ 		"front/main.go main: vsock.Listen",                   // M2: the front's one port
+ 		"vsock/vsock.go Listen: syscall.Listen",              // the vsock binding itself
+diff --git a/isolation/m2/front/provision.go b/isolation/m2/front/provision.go
+index b9dcbf940..df9510e4f 100644
+--- a/isolation/m2/front/provision.go
++++ b/isolation/m2/front/provision.go
+@@ -171,6 +171,9 @@ func (p *provisioner) run(ctx context.Context, hostData, spki []byte, rt *runtim
+ 		return nil, err
+ 	}
+ 	var want []netip.AddrPort
++	if a, ok := out.fwd.DNSAddr(); ok {
++		want = append(want, a)
++	}
+ 	if a, ok := out.fwd.PublicAddr(); ok {
+ 		want = append(want, a)
+ 	}
+@@ -218,7 +221,14 @@ func (p *provisioner) writeResolver(f *egress.Forwarder) error {
+ 	if err := os.MkdirAll(p.etc, 0o755); err != nil {
+ 		return err
+ 	}
+-	if err := os.WriteFile(filepath.Join(p.etc, "nsswitch.conf"), []byte("hosts: files\n"), 0o644); err != nil {
++	nss := "hosts: files\n"
++	if f.Policy.PublicWeb {
++		nss = "hosts: files dns\n"
++		if err := os.WriteFile(filepath.Join(p.etc, "resolv.conf"), []byte("nameserver 127.0.0.2\noptions use-vc timeout:5 attempts:1\n"), 0o644); err != nil {
++			return err
++		}
++	}
++	if err := os.WriteFile(filepath.Join(p.etc, "nsswitch.conf"), []byte(nss), 0o644); err != nil {
+ 		return err
+ 	}
+ 	return os.WriteFile(filepath.Join(p.etc, "hosts"), []byte(f.HostsFile()), 0o644)
+@@ -328,6 +338,10 @@ func handToInit(w *os.File, config string) error {
+ 
+ // P is emitted only after the authenticated owner policy enabled the public HTTPS listener and its audit passed.
+ func handToInitMode(w *os.File, config string, publicHTTPS bool) error {
++	return handToInitNetwork(w, config, publicHTTPS, false)
++}
++
++func handToInitNetwork(w *os.File, config string, publicHTTPS, publicWeb bool) error {
+ 	defer w.Close()
+ 	msg := make([]byte, 0, len(config)+1)
+ 	if config == "" {
+@@ -337,6 +351,9 @@ func handToInitMode(w *os.File, config string, publicHTTPS bool) error {
+ 		if publicHTTPS {
+ 			tag = 'P'
+ 		}
++		if publicWeb {
++			tag = 'W'
++		}
+ 		msg = append(msg, tag)
+ 		msg = append(msg, config...)
+ 	}
+diff --git a/isolation/m2/test-dominit-handoff.sh b/isolation/m2/test-dominit-handoff.sh
+index 48a279ece..a92a30cd5 100755
+--- a/isolation/m2/test-dominit-handoff.sh
++++ b/isolation/m2/test-dominit-handoff.sh
+@@ -33,7 +33,7 @@ static void check(const char *name, const char *msg, size_t n, int want_ok, cons
+     waitpid(w, NULL, 0);
+     int ok = why == NULL;
+     int env_ok = want_env ? (env && strcmp(env, want_env) == 0 && len == strlen(want_env) - 15) : env == NULL;
+-    if (ok != want_ok || (ok && !env_ok) || public_https_egress != (ok && n > 1 && msg[0] == 'P')) {
++    if (ok != want_ok || (ok && !env_ok) || public_https_egress != (ok && n > 1 && (msg[0] == 'P' || msg[0] == 'W')) || public_web_egress != (ok && n > 1 && msg[0] == 'W')) {
+         printf("FAIL %s: why=%s env=%.40s\n", name, why ? why : "(none)", env ? env : "(null)");
+         fails++;
+     } else {
+@@ -47,6 +47,8 @@ int main(void) {
+     check("N: no config", "N", 1, 1, NULL);
+     check("C: a config", "C{\"a\":\"k\"}", 10, 1, "ENCLAVE_CONFIG={\"a\":\"k\"}");
+     check("P: public HTTPS config", "P{}", 3, 1, "ENCLAVE_CONFIG={}");
++    check("W: public web config", "W{}", 3, 1, "ENCLAVE_CONFIG={}");
++    check("W without a config", "W", 1, 0, NULL);
+     check("P without a config", "P", 1, 0, NULL);
+     check("C after P does not retain public mode", "C{}", 3, 1, "ENCLAVE_CONFIG={}");
+     check("C with nothing after it", "C", 1, 0, NULL);
+diff --git a/isolation/m4/guestd/main.go b/isolation/m4/guestd/main.go
+index 26b7f9ac8..62a4f6ff2 100644
+--- a/isolation/m4/guestd/main.go
++++ b/isolation/m4/guestd/main.go
+@@ -324,6 +324,7 @@ func main() {
+ 	idPrefix := flag.String("instance-prefix", "gd", "two lowercase letters for this guestd's instance ids and guest units (m2-<prefix>…); a SECOND guestd on a host needs its own, or its boot sweep stops the first one's guests")
+ 	ticketPort := flag.Uint("ticket-port", release.TicketPort, "vsock host port of the ticket service (-release); a LAB guestd uses its lab image's (19444) so it never holds production's")
+ 	egressPortFlag := flag.Uint("egress-port", egressPort, "vsock host port of the egress server (-release); a LAB guestd moves it off production's too")
++	egressSOCKS := flag.String("egress-socks", "", "optional loopback TUNA SOCKS entry IP:port for guest outbound traffic; no direct fallback")
+ 	isoRelease := flag.String("isolation-release", "", "the domain release(s) the -isolation tree was installed from, comma-separated: a 64-hex id, or @<release.json> (its sha256 IS the id). Named to the judge for every guest this tree builds and recorded with it; the judge's table (m2/judge.mjs LEGACY_WX_RELEASES) decides what that release may state. REQUIRED when the tree predates per-release W^X")
+ 	legacyIsoRelease := flag.String("legacy-isolation-release", "", "the same, for the -legacy-isolation tree (REQUIRED with it when that tree predates per-release W^X)")
+ 	unrecordedRel := flag.String("unrecorded-releases", "", "the release(s) named when ADOPTING an instance whose record names none (written by a guestd before per-release records): the pre-chain releases this host ran; empty = none named, and such a pre-chain guest is not adopted")
+@@ -602,12 +603,17 @@ func main() {
+ 		go func() {
+ 			log.Fatal(s.serveTickets(context.Background(), tl, vsockCID, log.New(os.Stderr, "release: ", log.LstdFlags)))
+ 		}()
++		if *egressSOCKS != "" {
++			if err := egress.ValidateSOCKSProxy(*egressSOCKS); err != nil {
++				log.Fatal(err)
++			}
++		}
+ 		el, err := vsock.Listen(uint32(*egressPortFlag))
+ 		if err != nil {
+ 			log.Fatalf("egress: %v", err)
+ 		}
+ 		es := &egress.Server{
+-			Dialer: &egress.Dialer{Resolver: net.DefaultResolver, Own: hostAddrs, MaxConcurrent: 32, MaxPerMinute: 600},
++			Dialer: &egress.Dialer{Resolver: net.DefaultResolver, Own: hostAddrs, MaxConcurrent: 32, MaxPerMinute: 600, SOCKSProxy: *egressSOCKS},
+ 			CIDOf:  vsockCID, Admit: s.admitCID, Log: log.New(os.Stderr, "egress: ", log.LstdFlags),
+ 		}
+ 		go func() { log.Fatal(es.Serve(context.Background(), el)) }()
+-- 
+2.56.0
+

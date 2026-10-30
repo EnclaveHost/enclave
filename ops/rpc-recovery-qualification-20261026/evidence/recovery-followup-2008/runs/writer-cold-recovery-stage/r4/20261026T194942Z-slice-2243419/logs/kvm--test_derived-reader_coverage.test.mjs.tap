@@ -1,0 +1,94 @@
+TAP version 13
+# Subtest: v3 complete coverage includes empty blocks and filters all-address, one-topic logs without dropping coverage
+ok 1 - v3 complete coverage includes empty blocks and filters all-address, one-topic logs without dropping coverage
+  ---
+  duration_ms: 422.181951
+  type: 'test'
+  ...
+# Subtest: logs require exact snapshot identity and covered range; no old bootstrap, unknown filter or cancellation grants
+ok 2 - logs require exact snapshot identity and covered range; no old bootstrap, unknown filter or cancellation grants
+  ---
+  duration_ms: 378.234701
+  type: 'test'
+  ...
+# Subtest: v3 validation refuses incomplete blocks, wrong roots, duplicated logs, wrong filter and downgraded output
+ok 3 - v3 validation refuses incomplete blocks, wrong roots, duplicated logs, wrong filter and downgraded output
+  ---
+  duration_ms: 294.227253
+  type: 'test'
+  ...
+# Subtest: restarted coverage JSON grants nothing; re-derive contiguous segments through the saved floor
+ok 4 - restarted coverage JSON grants nothing; re-derive contiguous segments through the saved floor
+  ---
+  duration_ms: 460.525681
+  type: 'test'
+  ...
+# Subtest: changed saved chunks fence both log reads and the prior in-memory anchor
+ok 5 - changed saved chunks fence both log reads and the prior in-memory anchor
+  ---
+  duration_ms: 339.083951
+  type: 'test'
+  ...
+# Subtest: partial durable publication fences the process and coverage cannot be seeded with plain JSON
+ok 6 - partial durable publication fences the process and coverage cannot be seeded with plain JSON
+  ---
+  duration_ms: 427.522738
+  type: 'test'
+  ...
+# Subtest: coverage manifest write failure refuses publication and fences the previous anchor
+ok 7 - coverage manifest write failure refuses publication and fences the previous anchor
+  ---
+  duration_ms: 359.162688
+  type: 'test'
+  ...
+# Subtest: coverage manifests have exclusive ownership and reject persisted hash-chain corruption
+ok 8 - coverage manifests have exclusive ownership and reject persisted hash-chain corruption
+  ---
+  duration_ms: 316.211667
+  type: 'test'
+  ...
+# Subtest: quota accounts for orphan chunks, refuses overflow and never evicts history
+ok 9 - quota accounts for orphan chunks, refuses overflow and never evicts history
+  ---
+  duration_ms: 253.085848
+  type: 'test'
+  ...
+# Subtest: v3 stdout supports a complete result beyond v2 size without truncating logs or query results
+ok 10 - v3 stdout supports a complete result beyond v2 size without truncating logs or query results
+  ---
+  duration_ms: 377.85033
+  type: 'test'
+  ...
+# Subtest: v3 startup requires the explicit format/pin and interval; v2 cannot silently enable history
+ok 11 - v3 startup requires the explicit format/pin and interval; v2 cannot silently enable history
+  ---
+  duration_ms: 0.851729
+  type: 'test'
+  ...
+# Subtest: full v3 runtime opens private coverage under its ownership and refuses missing history on restart
+ok 12 - full v3 runtime opens private coverage under its ownership and refuses missing history on restart
+  ---
+  duration_ms: 473.186832
+  type: 'test'
+  ...
+# Subtest: a real bridge callback can make both coverage queries without a reentrant reader lock
+ok 13 - a real bridge callback can make both coverage queries without a reentrant reader lock
+  ---
+  duration_ms: 361.883791
+  type: 'test'
+  ...
+# Subtest: split v3 runtime rebuilds a missing disposable cache and owns its shared run directory exclusively
+ok 14 - split v3 runtime rebuilds a missing disposable cache and owns its shared run directory exclusively
+  ---
+  duration_ms: 655.114904
+  type: 'test'
+  ...
+1..14
+# tests 14
+# suites 0
+# pass 14
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5331.702166

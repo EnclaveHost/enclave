@@ -1,0 +1,12 @@
+[queue] START available=18778MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+mutant merkle-from-n killed
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+AssertionError
+MUTANT no-empty-read-check anchor not found
+mutant no-open-gaps killed
+mutant no-a1-age killed
+MUTANTS rc=1
+[memory-guard] exit=1 peakTreeRssMiB=95 minHostAvailableMiB=18492
+[memory-guard] at peak: node:63 python3:27 bash:4 bash:2
+[queue] EXIT 1

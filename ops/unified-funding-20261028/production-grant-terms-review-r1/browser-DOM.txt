@@ -1,0 +1,49 @@
+- 'heading "TEST ONLY: generated /funding recovery page copy on an owned fixture (production-grant-terms-r1, gas candidate gas-recovery-6usdc-r1)" [level=1]'
+- paragraph:
+  - strong: "Owned loopback Anvil (chain id 8453, NOT Base). Public Anvil fixture keys, mock USDC, TEST terms only (NEW gas candidate gas-recovery-6usdc-r1: 24 legacy / 4.8 nucbox / 1.2 metal)."
+  - text: Owner signatures come from a server-side TEST fixture signer, not a wallet; no wallet or extension is used. The page is the client-execution-site-r2 generated copy of the r2 page (recovery section added); its flows and state are the client-site-repair-r2 files, unmodified; site modules around them are TEST facades.
+- region "TEST harness":
+  - heading "Harness (click the phases in order)" [level=2]
+  - generic: "PASS: ALL PHASES PASS (TEST fixture only)"
+  - generic: "phase: done"
+  - generic: "TEST databases: client-site-browser-r1-TEST-legacy-2838820f2def26bb, client-site-browser-r1-TEST-v2-cd69acbc7fb8c26a"
+  - 'button "TEST Start: random TEST DBs + ORIGINAL 30 USDC session (SDK, 2 fixture prompts)" [disabled]'
+  - 'button "1. Page button: Check original & prepare plan (no wallet)" [disabled]'
+  - 'button "2. Harness: TEST-approve exactly the displayed TEST plan (reloads)" [disabled]'
+  - button "3. Page Sign with an ACCOUNT switch while the 2nd prompt is open (expect stop, nothing kept)" [disabled]
+  - 'button "4. Page buttons: Sign next (7 prompts), then Send (first gas reply is LOST)" [disabled]'
+  - button "Reload page (F5 equivalent)"
+  - 'button "5. After reload: page button Check status on chain (no resend, no signature)" [disabled]'
+  - button "6. Page Sign metal (2 prompts), then Send with a CHAIN switch at its first chain read (expect no send)" [disabled]
+  - 'button "7. Page buttons: Sign metal again + Send -> complete; conservation, same-key API, finite grants" [disabled]'
+  - button "8. Quote stays visible after render; changing deployment / amount / tier clears it; stale fund refused" [disabled]
+  - 'button "9. Page buttons: quote the selected inputs and Fund; canonical settlement and fixture balances" [disabled]'
+  - 'button "12. After the normal Fund: on-chain-not-final is shown and blocks a quote; page Check status until final" [disabled]'
+  - 'button "13. Page Fund with the reply body LOST after headers: persisted UNKNOWN with the exact intent (then Reload)" [disabled]'
+  - 'button "14. After reload: the UNKNOWN row is still there; page Check status proves it once, read-only" [disabled]'
+  - 'button "15. Page Fund answered by a gateway 502 AFTER real processing: UNKNOWN, then page Check status proves it once" [disabled]'
+  - 'button "16. Page Fund with an ACCOUNT switch, then a CHAIN switch, at the payment''s first chain read: nothing admitted or sent" [disabled]'
+  - 'button "10. Intake OFF, then config/catalog unavailable: owner controls still render; page Terminate works" [disabled]'
+  - 'button "11. Null runtime (reloads): zero signing offered" [disabled]'
+  - 'button "11b. Check the null-runtime page: nothing to sign or send" [disabled]'
+  - button "Delete this run's TEST databases"
+  - list
+  - heading "Page toasts" [level=3]
+  - heading "Log" [level=3]
+  - generic: "ok page: not set up / not available ok no enabled button anywhere on the page ok no prompt, no POST"
+- separator
+- region "The actual /funding page":
+  - heading "/funding page (actual)" [level=2]
+  - heading "Your controls (work even when new funding is paused)" [level=3]
+  - paragraph: "Gas funding is not set up on this site (funding_runtime_unconfigured: funding_runtime_unconfigured: no DEPLOYED successor runtime is configured for this site (FUNDING_RUNTIME is null); nothing is offered)."
+  - paragraph:
+    - text: Original sessions (the API session) are managed on the
+    - link "Sessions":
+      - /url: sessions
+    - text: page.
+  - heading "Gas payments" [level=3]
+  - paragraph: "Not available (funding_runtime_unconfigured: funding_runtime_unconfigured: no DEPLOYED successor runtime is configured for this site (FUNDING_RUNTIME is null); nothing is offered)."
+  - heading "Funding migration" [level=3]
+  - paragraph: "Not available: no deployed successor is configured for this site."
+  - heading "Gas for your apps" [level=3]
+  - paragraph: Not available here.

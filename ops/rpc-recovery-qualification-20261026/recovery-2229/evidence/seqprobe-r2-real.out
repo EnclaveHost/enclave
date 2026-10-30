@@ -1,0 +1,54 @@
+[queue] START available=24407MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "summary": {
+  "requested": 4,
+  "completeCount": 4,
+  "requestedBytes": 268435456,
+  "measuredBytes": 268435456,
+  "status": "complete"
+ },
+ "ranges": [
+  {
+   "index": 0,
+   "seconds": 0.78,
+   "MiBps": 82.03,
+   "complete": true,
+   "timedOut": false,
+   "skipped": null
+  },
+  {
+   "index": 1,
+   "seconds": 0.635,
+   "MiBps": 100.82,
+   "complete": true,
+   "timedOut": false,
+   "skipped": null
+  },
+  {
+   "index": 2,
+   "seconds": 0.732,
+   "MiBps": 87.38,
+   "complete": true,
+   "timedOut": false,
+   "skipped": null
+  },
+  {
+   "index": 3,
+   "seconds": 0.668,
+   "MiBps": 95.81,
+   "complete": true,
+   "timedOut": false,
+   "skipped": null
+  }
+ ],
+ "imageUnchanged": true,
+ "namersAfter": [],
+ "cancelledBySignal": null,
+ "pageCacheControlled": false,
+ "concurrentLoad": "rates are measured under whatever else reads the same USB array (root 1740: the peer L1 comparison was reading it); NOT isolated disk throughput, NOT a copy or validation ETA"
+}
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-sequential-probe-stage/r2/runs/real-20261026T222743Z-2422259
+## seqprobe-r2-real rc=0 (0 all 4 samples complete; 5 INCONCLUSIVE: some sample incomplete (counts in result); 3 refused, nothing read; 4 identity/escape/failure after reads began: STOP; 143/129/130 cancelled by signal after the owned read was killed and reaped)
+[memory-guard] exit=0 peakTreeRssMiB=108 minHostAvailableMiB=24243
+[memory-guard] at peak: qemu-io:73 python3:29 bash:4 timeout:2
+[queue] EXIT 0

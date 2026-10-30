@@ -1,0 +1,33 @@
+{
+  "at": "2026-10-25T10:43:20.612Z",
+  "r": [
+    {
+      "host": "base-rpc.publicnode.com",
+      "block": "0x329c030",
+      "hash": "0x8c3a35de089d8f05f6f39fc32c762e239549f8a55b95cf1d32468266ef201642",
+      "callMatches": true
+    },
+    {
+      "host": "mainnet.base.org",
+      "block": "0x329c030",
+      "hash": "0x8c3a35de089d8f05f6f39fc32c762e239549f8a55b95cf1d32468266ef201642",
+      "callMatches": true
+    },
+    {
+      "host": "base-mainnet.public.blastapi.io",
+      "block": "0x329c030",
+      "hash": "0x8c3a35de089d8f05f6f39fc32c762e239549f8a55b95cf1d32468266ef201642",
+      "callMatches": true
+    },
+    {
+      "host": "base.gateway.tenderly.co",
+      "block": "0x329c030",
+      "hash": "0x8c3a35de089d8f05f6f39fc32c762e239549f8a55b95cf1d32468266ef201642",
+      "callMatches": true
+    },
+    {
+      "host": "base-public.nodies.app",
+      "error": "429: -32005"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+[queue] START available=23192MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+Ran 12 tests in 0.453s
+
+FAILED (failures=1)
+{
+ "checks": {
+  "lastLineOK": false,
+  "noBadMarkers": false,
+  "ranExactly": true,
+  "rc0": false,
+  "stdoutEmpty": true
+ },
+ "format": "namespace-launch-guard-test-receipt/r2",
+ "pass": false,
+ "ran": [
+  "12"
+ ],
+ "rc": 1,
+ "scope": "mocked dispatch only",
+ "stageSums": "53aa2ac9c0e55d6fe884c617744c6e99d4d24d9f933500c2cedf307b599244ee"
+}
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/namespace-launch-guard-stage/r2/runs/tests-20261027T113055Z-3145816
+## nlg-r2-unit rc=1
+[memory-guard] exit=1 peakTreeRssMiB=35 minHostAvailableMiB=23076
+[memory-guard] at peak: python3:29 bash:4 timeout:2
+[queue] EXIT 1

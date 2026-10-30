@@ -1,0 +1,17 @@
+0ece12212dc3282d495f2ddcff46b6644314995e3f856fb066461ad0a64033d0  ./README.md
+58306613bfbc42c99d3a25beb5175ab5509f9ee978f6fb297b0c6a84ccd65bdc  ./INTEGRATION-MANIFEST.md
+794809457cdf69d1185ccfe8a1e47106ea494734856b96a6e9c94a43a39082b4  ./PENDING-platform-api-bundle.md
+548e44811237e2d1d02812b819c9262b4ac4b045a571430d92f468855339ce9f  ./candidate-tests.patch
+cd498eef7e726628e5524683d9623c26f920afc24a962bed64cbcb7a99c18f0e  ./fixtures.patch
+8a63c1ae16280e02c8a77ff0661ab07980911a6409efdab5736270be9b47553d  ./jobs/root-seams-test-r4.sh
+b9f76ec285733c1ee3e3d20514f231a8dab398c191c705441a043158ca689e86  ./test/lease-seams-windows.test.mjs
+91a49d94eefa4003e50a350ad86d4b50dc059894d9ad1096c65437952fd65d9f  ./work/a/test/lease-pinned-relay-config.test.mjs
+d07acce3f46830c35d89252727bcbc4049bc7912d560db659e0ce2cac58ae12a  ./work/a/test/metal-lease-gas-conduit.test.mjs
+0704204925c83be450980850fb6b0c1789cbf461401f3547ae60fac4cf2b0d5d  ./work/a/test/metal-measured-control.test.mjs
+bce0d69cbda546a8eabc6f48d4bb732194093bf50bd594fd7a3ac138ae55f2ab  ./work/b/test/lease-pinned-relay-config.test.mjs
+d07acce3f46830c35d89252727bcbc4049bc7912d560db659e0ce2cac58ae12a  ./work/b/test/metal-lease-gas-conduit.test.mjs
+681d5c4bd287680c3215249c54ef35db2898263e3760f404b9d81fe6ef7b7453  ./work/b/test/metal-measured-control.test.mjs
+7819ebe1778167a4d2a10201dd1af3e95fb4e143b213b2b5972bbb35176cdef0  ./work/c/test/metal-lease-gas-conduit.test.mjs
+55ca568a6570b4d7491d648f6a4db456470b2f28e6c5fedcabca1c547ad7c9d2  ./integration/r3-build-bundles.reference.sha256
+36fc8cbcfddf84266260920bfbcd74842d06a87c94487c3820f0e3f1a140b7a7  ./integration/rev-before.sha256
+559af4c3392806a106f387313c908f46b3b6c0884b6316a991232ec6ee2148a5  ./integration/source-and-tests.sha256

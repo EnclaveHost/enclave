@@ -1,0 +1,24 @@
+{
+  "copy": "done",
+  "dest_top": [
+    64768,
+    188131076
+  ],
+  "source_inventory": {
+    "bytes": 125195719424,
+    "counts": {
+      "hashed": 0,
+      "reused1381": 6
+    },
+    "entries": 8,
+    "hashes": "1381",
+    "identity": "42a3cc900eb133982b90191f86788abb1e912f17498a9cc4f7bd6c2318d4a77d",
+    "logical": "566784a08712e71eae9f6484e08f1a0f5392ba0f3355abdb651b23c19e4b76d2"
+  },
+  "verified": {
+    "dest_identity": "a6a564402d9cd6f8a3cc1ed1ca92442b69b21ccdcf1c2b693cf6532dc1662e1d",
+    "logical": "566784a08712e71eae9f6484e08f1a0f5392ba0f3355abdb651b23c19e4b76d2",
+    "source_identity": "42a3cc900eb133982b90191f86788abb1e912f17498a9cc4f7bd6c2318d4a77d",
+    "t": 1793040790.7963436
+  }
+}

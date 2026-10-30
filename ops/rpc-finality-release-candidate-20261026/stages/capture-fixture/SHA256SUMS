@@ -1,0 +1,4 @@
+35d2a6cc53b265ddfc7e48bd51b6d741c37e3f9d8568c8a8f9cc1c175b639d64  ./README.md
+8d73f6295520f3c223631f41f33a1b60b35456a7414c8908520152697f8114a6  ./integration/test_capture_r10.patch
+b2a0e9dd238c4cfd46c4ad02528f93a9631a4601f4b60f63acefaf09cd961dd6  ./jobs/root-r10-capture-fixture-fix.sh
+06efbbc19e26b84a7f6790b3de7abd5132df43b644386c36c5a10ad594eacae8  ./tests/test_capture_r10.py

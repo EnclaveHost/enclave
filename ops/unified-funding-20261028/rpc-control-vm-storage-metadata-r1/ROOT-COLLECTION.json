@@ -1,0 +1,10 @@
+{
+  "invocation": "816bb4d31caa4d298d6d6acec603ca00",
+  "scopeProcesses": [],
+  "pinsUnchanged": true,
+  "unit": "inactive/Main0/garbage-collected",
+  "status": "READ_COMPLETED_NOT_ADMITTED",
+  "innerPeakMiB": 40,
+  "outerPeakMiB": 110,
+  "minHostAvailableMiB": 30006
+}

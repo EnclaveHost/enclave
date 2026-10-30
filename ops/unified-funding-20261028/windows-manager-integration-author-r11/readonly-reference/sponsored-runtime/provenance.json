@@ -1,0 +1,107 @@
+{
+  "gitRepository": "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle",
+  "gitRevision": "debbfb377d90f4193ea9182f5cb67d714ffaa322",
+  "manifestedProjectInputCount": 22,
+  "projectInputsVerified": true,
+  "npmManifestInputCount": 411,
+  "npmInputsInstalledOrValidated": false,
+  "referenceFiles": 42,
+  "bundleSha256": "21fece1ffd9d3500763dad7b5aa8f1dd61babd987612f93d720b887664276252",
+  "bundleBytes": 361956,
+  "sourceManifestSha256": "98d4ed77ff83defe2e04d78a32dad77fbbd7c590caccf570077486f14c08e359",
+  "generator": "source/scripts/build-windows-lease-runtime.mjs",
+  "portableAlias": "network/lease-executor-client.mjs is an exact portable re-export; generator explicitly resolves canonical client path",
+  "candidateComparisons": [
+    {
+      "sourcePath": "network/attested-verifier-brand.mjs",
+      "candidatePath": "control/network/attested-verifier-brand.mjs",
+      "referenceSha256": "5229c8ec4a67632a3c323307e4cf89a657c0799d6589448dac9c77caa9501191",
+      "candidateSha256": "5229c8ec4a67632a3c323307e4cf89a657c0799d6589448dac9c77caa9501191",
+      "identical": true
+    },
+    {
+      "sourcePath": "network/canonical.mjs",
+      "candidatePath": "control/network/canonical.mjs",
+      "referenceSha256": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3",
+      "candidateSha256": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3",
+      "identical": true
+    },
+    {
+      "sourcePath": "network/lease-release-journal.mjs",
+      "candidatePath": "control/network/lease-release-journal.mjs",
+      "referenceSha256": "6411481a118b341e3efcd99bbaad6da644d490fd2815abd40033014f7edf2ff6",
+      "candidateSha256": "6411481a118b341e3efcd99bbaad6da644d490fd2815abd40033014f7edf2ff6",
+      "identical": true
+    },
+    {
+      "sourcePath": "network/network-policy-core.mjs",
+      "candidatePath": "control/network/network-policy-core.mjs",
+      "referenceSha256": "6e5049d1476d4f362570c48d61f0abc8ad483ed54ba4b2c22fa07f363d4e3064",
+      "candidateSha256": "6e5049d1476d4f362570c48d61f0abc8ad483ed54ba4b2c22fa07f363d4e3064",
+      "identical": true
+    },
+    {
+      "sourcePath": "network/network-policy.mjs",
+      "candidatePath": "control/network/network-policy.mjs",
+      "referenceSha256": "b4f5050e2d3841b56facf4050f85c3aba5a6e03649ed80d6833c0675adbbfa2f",
+      "candidateSha256": "b4f5050e2d3841b56facf4050f85c3aba5a6e03649ed80d6833c0675adbbfa2f",
+      "identical": true
+    },
+    {
+      "sourcePath": "network/provider-qualification.mjs",
+      "candidatePath": "control/network/provider-qualification.mjs",
+      "referenceSha256": "a64f838366a83203e4954d0614c92038b835e5e04f019b5bbbec61c67e9eebf9",
+      "candidateSha256": "a64f838366a83203e4954d0614c92038b835e5e04f019b5bbbec61c67e9eebf9",
+      "identical": true
+    },
+    {
+      "sourcePath": "network/route-record.mjs",
+      "candidatePath": "control/network/route-record.mjs",
+      "referenceSha256": "9ba9f6d34744f8a715cefd469a7f335d7cf2a154c91b70c5955a0b03afb49bd1",
+      "candidateSha256": "9ba9f6d34744f8a715cefd469a7f335d7cf2a154c91b70c5955a0b03afb49bd1",
+      "identical": true
+    },
+    {
+      "sourcePath": "network/rpc-identity.mjs",
+      "candidatePath": "control/network/rpc-identity.mjs",
+      "referenceSha256": "5c5a43355b5bde1542432e26fc71190a04a0ad68a22d43979f83054a292c73b1",
+      "candidateSha256": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
+      "identical": false
+    },
+    {
+      "sourcePath": "network/verified-chain.mjs",
+      "candidatePath": "control/network/verified-chain.mjs",
+      "referenceSha256": "010a4e9e3b5e06baff0daed49dc39680f3bba56a992596c79559bcdffb23b94c",
+      "candidateSha256": "010a4e9e3b5e06baff0daed49dc39680f3bba56a992596c79559bcdffb23b94c",
+      "identical": true
+    },
+    {
+      "sourcePath": "package-lock.json",
+      "candidatePath": "package-lock.json",
+      "referenceSha256": "9ada1611f431d9cc804af46bea54a5aca9e92b44bee40000ee7e995e25d69f20",
+      "candidateSha256": "b398b25c6ff5cca69bca25990bcb2f89ce12de3499b9f2c3aef7cc5216d65cd8",
+      "identical": false
+    },
+    {
+      "sourcePath": "package.json",
+      "candidatePath": "package.json",
+      "referenceSha256": "176365e77ddfe0cef859d07a2916e702f177854f34b23abfd1b806df9200de93",
+      "candidateSha256": "9efab9a3e7860e086bd015a6ee231e180cf0703e118b326822919111e45fd737",
+      "identical": false
+    },
+    {
+      "sourcePath": "windows/node/lease-gas-runtime.bundle.mjs",
+      "candidatePath": "control/windows/node/lease-gas-runtime.bundle.mjs",
+      "referenceSha256": "21fece1ffd9d3500763dad7b5aa8f1dd61babd987612f93d720b887664276252",
+      "candidateSha256": "159108d171e49cadf8a75dc8081df9e7213257e6f7930ac8b0f4f6e6e43b829d",
+      "identical": false
+    }
+  ],
+  "conflictingCandidatePaths": [
+    "control/network/rpc-identity.mjs",
+    "package-lock.json",
+    "package.json",
+    "control/windows/node/lease-gas-runtime.bundle.mjs"
+  ],
+  "boundary": "Readonly separate source namespace, not the222 seed. No equivalence with old minified bundle. No overwrites or manual minified editing. Author isolated additive source/generator; root regenerates/compares/tests before replacement. Matching tests are source references, not executed qualification; newer verified-chain/RPC authority must not be downgraded."
+}

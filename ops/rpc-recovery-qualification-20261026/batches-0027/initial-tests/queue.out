@@ -1,0 +1,9 @@
+[queue] START available=21579MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+Ran 14 tests in 5.038s
+
+OK
+## FAIL (rc 0)
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/logs/rmp-batches-1773-tests-20261027T002425Z-2523980
+[memory-guard] exit=1 peakTreeRssMiB=66 minHostAvailableMiB=21058
+[memory-guard] at peak: python3:29 python3:26 bash:4 bash:4 sleep:2 timeout:2
+[queue] EXIT 1

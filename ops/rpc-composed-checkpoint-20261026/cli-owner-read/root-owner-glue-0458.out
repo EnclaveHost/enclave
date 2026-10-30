@@ -1,0 +1,12 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] START available=22748MiB required=18048MiB cap=1408MiB floor=16384MiB concurrentSmall=0MiB
+{"file": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-final-candidate-20261026/owner-glue-20261026T045225Z/cli-combined-independent.tap", "ok": true, "rc": "0", "counts": {"tests": 4, "pass": 4, "fail": 0, "cancelled": 0, "skipped": 0, "todo": 0}}
+{"file": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-final-candidate-20261026/owner-glue-20261026T045225Z/custody-cli-independent.tap", "ok": true, "rc": "0", "counts": {"tests": 12, "pass": 12, "fail": 0, "cancelled": 0, "skipped": 0, "todo": 0}}
+{"file": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-final-candidate-20261026/owner-glue-20261026T045225Z/custody-secrets-cli-independent.tap", "ok": true, "rc": "0", "counts": {"tests": 4, "pass": 4, "fail": 0, "cancelled": 0, "skipped": 0, "todo": 0}}
+Outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-final-candidate-20261026/owner-glue-20261026T045225Z; overall rc=1 (historical fixture remains unresolved)
+[memory-guard] exit=1 peakTreeRssMiB=416 minHostAvailableMiB=20997
+[memory-guard] at peak: node:307 node:57 anvil:45 bash:4 timeout:2
+[queue] EXIT 1

@@ -1,0 +1,15 @@
+test_binary_does_not_hash_to_provenance (__main__.Updater.test_binary_does_not_hash_to_provenance) ... ok
+test_existing_output_dir (__main__.Updater.test_existing_output_dir) ... ok
+test_malformed_provenance (__main__.Updater.test_malformed_provenance) ... ok
+test_missing_artifact_field (__main__.Updater.test_missing_artifact_field) ... ok
+test_non_hex_digest (__main__.Updater.test_non_hex_digest) ... ok
+test_old_digest_is_not_a_new_build (__main__.Updater.test_old_digest_is_not_a_new_build) ... ok
+test_real_artifact_regenerates_the_candidate_exactly_and_doc_edits_refuse_a_second_pass (__main__.Updater.test_real_artifact_regenerates_the_candidate_exactly_and_doc_edits_refuse_a_second_pass) ... ok
+test_sums_do_not_list_it (__main__.Updater.test_sums_do_not_list_it) ... ok
+test_wrong_base_commit (__main__.Updater.test_wrong_base_commit) ... ok
+test_wrong_patch (__main__.Updater.test_wrong_patch) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 1.018s
+
+OK

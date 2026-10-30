@@ -1,0 +1,52 @@
+diff --git a/test/derived-state-enrollment.test.mjs b/test/derived-state-enrollment.test.mjs
+index 0646c847486961f156450ca2689aeb550a68e272..0b26aff7d203e283d89508b742cafac6cd738550 100644
+--- a/test/derived-state-enrollment.test.mjs
++++ b/test/derived-state-enrollment.test.mjs
+@@ -169,6 +169,26 @@ async function pkgFor(m, fields, signer = ADMIN) {
+     mode: "genesis", readerPins: pins(), binding: BINDING, floorDigest: NULL_FLOOR, previousDigest: null, stateDigest: null, markerDigest: null, highWater: null, ...fields };
+   return { ...body, signature: await signer.signMessage({ message: packageMessage(body) }) };
+ }
++// integrated r6 fixture (root 1619/1621): ONE primary term per positive admin request. A primary WITH its relay (past any quiesce or
++// restart), a fresh majority round on that member (its lease renewed now), the package bound to its boot statement, and the request
++// sent only while the SAME member still leads the SAME epoch with a valid lease. A retry happens ONLY on a PROVEN loss of that term:
++// before sending (nothing was sent), or that member's own 409 not_primary (returned before any signature check, lock or write).
++// Bounded to `tries`; every other answer (403/409/422, 503 not_committed / outcome_unknown) is returned unchanged for the assertion.
++const termOf = (m) => ({ i: m.i, statementSha: m.role.statementSha, epoch: m.role.status().epoch });
++const holds = (m, t) => { const s = m.role.status(); return !m.stopped && s.role === "leader" && s.leaseValid === true && s.epoch === t.epoch && m.role.statementSha === t.statementSha; };
++async function onPrimary(make, { tries = 3 } = {}) {
++  const lost = [];
++  for (let k = 0; k < tries; k++) {
++    const m = await live(), t = termOf(m);
++    if ((await m.role.node().commit()) !== true || !holds(m, t)) { lost.push(`m${m.i} e${t.epoch}: no fresh majority round`); continue; }
++    const pkg = await make(m);
++    if (!holds(m, t)) { lost.push(`m${m.i} e${t.epoch}: term lost before sending`); continue; }
++    const r = await enroll(m, pkg);
++    if (r.status === 409 && r.json?.error === "not_primary" && !holds(m, t)) { lost.push(`m${m.i} e${t.epoch}: ${JSON.stringify(r.json)}`); continue; }
++    return { r, pkg, m };
++  }
++  throw new Error(`no primary held its term for one admin request in ${tries} attempts: ${lost.join("; ")}`);
++}
+ const childPid = (m) => m.role.status().childPid;
+ // (the crash guard disables derived for an unexpected exit within derivedStableMs = 1 s of serving: a planned restart waits it out)
+ const restartChild = async (m) => { await sleep(1200); const old = childPid(m); process.kill(old, "SIGKILL"); await waitFor("a new relay child", () => leader() === m && childPid(m) && childPid(m) !== old && m.role.status().relay); };
+@@ -217,11 +237,15 @@ test("enrollment refusals, then an admin genesis bound to the primary's boot; a
+   assert.equal((await enroll(l, tampered)).status, 403);
+   assert.equal((await enroll(s, await pkgFor(s, {}))).json.error, "not_primary");
+   await waitFor("the relay back after the refusals", () => leader());
+-  assert.equal(statusOf(primary()).enrolled, false, "no refusal wrote anything");
+-  const g = await pkgFor(await prim(), {});
+-  const ok = await enroll(await prim(), g); assert.equal(ok.status, 200, JSON.stringify(ok.json)); genesisDigest = ok.json.digest;
+-  assert.equal((await enroll(await prim(), g)).json.error, "not_newer");
+-  assert.equal((await enroll(await prim(), await pkgFor(await prim(), {}))).json.error, "wrong_previous", "a second genesis is refused");
++  assert.equal(statusOf(await prim()).enrolled, false, "no refusal wrote anything");
++  // r6 (root 1619): the genesis, its replay and a second genesis each bound to ONE primary term (onPrimary); the expected answers are unchanged
++  const ok = await onPrimary((m) => pkgFor(m, {}));
++  assert.equal(ok.r.status, 200, JSON.stringify(ok.r.json)); genesisDigest = ok.r.json.digest;
++  // the replay: the exact package to the same member; to a successor, the SAME signed statement (same `at`) bound to its boot
++  const replay = await onPrimary((m) => (m === ok.m && m.role.statementSha === ok.pkg.targetStatementSha256 ? ok.pkg : pkgFor(m, { at: ok.pkg.at })));
++  assert.equal(replay.r.status, 409, JSON.stringify(replay.r.json)); assert.equal(replay.r.json.error, "not_newer");
++  const second = await onPrimary((m) => pkgFor(m, {}));
++  assert.equal(second.r.status, 409, JSON.stringify(second.r.json)); assert.equal(second.r.json.error, "wrong_previous", "a second genesis is refused");
+   const e = await waitFor("the relay restarted with the enrollment", async () => { const x = await relay(await live(), "GET", "/env"); return x?.descriptor ? x : null; });
+   assert.equal(e.env.ENCLAVE_WRITER_AUTHORITY_SOURCE, "derived"); assert.match(e.env.ENCLAVE_DERIVED_COMMIT_BOOT, /^[0-9a-f]{32}$/);
+   assert.equal(e.descriptor.enrollment.mode, "genesis"); assert.equal(e.descriptor.enrollment.digest, genesisDigest);

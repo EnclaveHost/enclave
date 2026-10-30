@@ -1,0 +1,14 @@
+[
+  {
+    "path": "README.md",
+    "sha256": "2ccb991698a5db91167edeb0a16c0ebb2377de2ea3825e35d196d74e21ee33d1"
+  },
+  {
+    "path": "base-files.json",
+    "sha256": "15277974cc536b90f3c79deeb35fb576a0b2af3e142c0fdb87bf689b1b331369"
+  },
+  {
+    "path": "build.mjs",
+    "sha256": "cd6a7a09c35f65742ab9b5e802e48801dfe8e272f2fd6bddc81ef60a9c4ba818"
+  }
+]

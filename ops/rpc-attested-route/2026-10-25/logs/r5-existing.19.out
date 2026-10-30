@@ -1,0 +1,13 @@
+$ node --test --test-timeout=300000 --test-concurrency=1 --test-reporter=spec test/rpc-identity-common.test.mjs
+✔ all reader boundaries refuse two votes for one IPv4 host, including translated address spellings (4.309847ms)
+✔ loopback aliases preserve local fixtures while Windows production never counts local ports as separate hosts (0.544296ms)
+✔ malformed and credential-bearing transports are refused without echoing their secrets (0.818574ms)
+✔ provider and checker configuration cannot bypass the shared vote identity rule (1.089101ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 291.772342

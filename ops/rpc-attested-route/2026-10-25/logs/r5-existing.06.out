@@ -1,0 +1,13 @@
+$ node --test --test-timeout=300000 --test-concurrency=1 --test-reporter=spec test/lease-pinned-relay.test.mjs
+✔ the relay is the packaged host role serving the MOVED key's payee, with its signed statement (937.041146ms)
+✔ Linux and Windows factories: claim, renew and release through ONLY the pinned relay, app-paid, zero host ETH, DigitalOcean unreachable (66010.660222ms)
+✔ refused BEFORE ANY SIGNATURE: another payee, forged/stale/other-chain/other-executor statements, a fresh ban, an unreadable or missing policy, policy off, a redirect (964.052591ms)
+✔ after signing: an unverifiable relay receipt is not success and its durable journal entry is held; a lost answer is settled from the chain (4374.199931ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 72470.343295

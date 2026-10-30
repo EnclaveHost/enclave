@@ -1,0 +1,41 @@
+{
+  "unit": "enclave-operator-windows-wiring-r1-20261029.service",
+  "mainPid": 1863718,
+  "runnerPid": 1863734,
+  "claudePid": 1863744,
+  "invocation": "bae7715b7cc4405fb9adad4aea36d4e5",
+  "mainStartTicks": "160960464",
+  "runnerStartTicks": "160960475",
+  "claudeStartTicks": "160960545",
+  "processes": [
+    {
+      "pid": 1863718,
+      "ppid": 1899,
+      "start": "160960464",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven"
+    },
+    {
+      "pid": 1863734,
+      "ppid": 1863727,
+      "start": "160960475",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven"
+    },
+    {
+      "pid": 1863744,
+      "ppid": 1863734,
+      "start": "160960545",
+      "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+      "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r1-20261029"
+    }
+  ],
+  "rawUnit": "ActiveState=active\nInvocationID=bae7715b7cc4405fb9adad4aea36d4e5\nMainPID=1863718\n",
+  "account": {
+    "loggedIn": true,
+    "email": "steven.r.batchelor@gmail.com",
+    "subscriptionType": "max"
+  },
+  "rootAuthorizedOneLaunch": true,
+  "recordedAt": 1793304512.5675428
+}

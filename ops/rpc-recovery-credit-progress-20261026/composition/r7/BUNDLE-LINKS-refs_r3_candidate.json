@@ -1,0 +1,29 @@
+{
+ "ref": "refs/r3/candidate",
+ "bundleImports": 20,
+ "broken": [
+  {
+   "importer": "windows/node/chain-reader.mjs",
+   "bundle": "windows/node/host-admission.bundle.mjs",
+   "sourceEntry": "network/host-admission-node.mjs",
+   "missing": [
+    "chainVerifierFromEnv",
+    "verifiedStateReader"
+   ],
+   "opaqueReexport": false
+  },
+  {
+   "importer": "windows/node/chain.mjs",
+   "bundle": "windows/node/host-admission.bundle.mjs",
+   "sourceEntry": "network/host-admission-node.mjs",
+   "missing": [
+    "chainVerifierFromEnv",
+    "transactionRpcsFromEnv",
+    "verifiedStateReader",
+    "verifiedSnapshot",
+    "verifiedStateClient"
+   ],
+   "opaqueReexport": false
+  }
+ ]
+}

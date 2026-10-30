@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: shared helper: one carrier origin and base rule (policy-carriers re-exports them); the block is explicit and validated
+ok 1 - shared helper: one carrier origin and base rule (policy-carriers re-exports them); the block is explicit and validated
+  ---
+  duration_ms: 3.388891
+  type: 'test'
+  ...
+# Subtest: empty state, every fleet front refused: the first authenticated admit comes from an imported carrier
+ok 2 - empty state, every fleet front refused: the first authenticated admit comes from an imported carrier
+  ---
+  duration_ms: 597.213812
+  type: 'test'
+  ...
+# Subtest: missing, unanchored, substituted and wrongly signed carrier data never admit; the anchored document then does, without a restart
+ok 3 - missing, unanchored, substituted and wrongly signed carrier data never admit; the anchored document then does, without a restart
+  ---
+  duration_ms: 20455.740843
+  type: 'test'
+  ...
+# Subtest: admin ban and allow arrive through the carrier; a missing updated document and an anchored rollback fail closed
+ok 4 - admin ban and allow arrive through the carrier; a missing updated document and an anchored rollback fail closed
+  ---
+  duration_ms: 21465.966356
+  type: 'test'
+  ...
+# Subtest: first app added and last app removed never touch host services; a restart needs a FRESH authenticated admit
+ok 5 - first app added and last app removed never touch host services; a restart needs a FRESH authenticated admit
+  ---
+  duration_ms: 9653.114008
+  type: 'test'
+  ...
+# Subtest: this host's policy-mirror store (read from disk, the role need not run) and an independent peer's mirror carry the document
+ok 6 - this host's policy-mirror store (read from disk, the role need not run) and an independent peer's mirror carry the document
+  ---
+  duration_ms: 1051.529956
+  type: 'test'
+  ...
+# Subtest: a malformed policy block refuses an app-less agent before anything binds; with apps, it refuses host services only
+ok 7 - a malformed policy block refuses an app-less agent before anything binds; with apps, it refuses host services only
+  ---
+  duration_ms: 3374.285835
+  type: 'test'
+  ...
+# Subtest: verifier seam: with one injected chain authority, neither the gate nor a carrier opens a raw RPC quorum of its own
+ok 8 - verifier seam: with one injected chain authority, neither the gate nor a carrier opens a raw RPC quorum of its own
+  ---
+  duration_ms: 206.229877
+  type: 'test'
+  ...
+# Subtest: enrollment: the opt-in file carries hostServicesPolicy (a non-production book becomes eligible only through it); an invalid one writes nothing
+ok 9 - enrollment: the opt-in file carries hostServicesPolicy (a non-production book becomes eligible only through it); an invalid one writes nothing
+  ---
+  duration_ms: 11.105596
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 76785.447892

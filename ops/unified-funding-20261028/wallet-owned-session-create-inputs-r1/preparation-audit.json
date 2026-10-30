@@ -1,0 +1,27 @@
+{
+  "candidateSeedEqual": true,
+  "seedEntries": 194,
+  "readonlyPins": 699,
+  "readonlyDrift": [],
+  "preAuthorProductEdits": 0,
+  "authorLaunched": false,
+  "authChecked": false,
+  "testsBuildsLive": false,
+  "initialPreparationFailure": "Resolved symlink source copied as regular bytes after verifying target under reviewed source roots; no seed existed before retry.",
+  "preparedSha256": "0fe297a61c75a10ff6b8dcf5b430ac0cd2b405f4ab1c17dce5d2cb1a8c851990",
+  "taskSha256": "5da3c1481461770272253db732e6adcbf3e7252f48632f1265667b134a3b76c0",
+  "runnerSha256": "eb894da24ff0253e60c2aef5f7db80bb8df6aa7dc39b076793b86e81fb9d540e",
+  "lexicalAliasAdditions": [
+    "enclave/relay/net-guard.mjs",
+    "enclave/relay/shield-derive.mjs",
+    "enclave/relay/shield-desktop-derive.mjs",
+    "enclave/relay/vbs-runtime.mjs"
+  ],
+  "staticMissing": [
+    {
+      "source": "enclave/relay/api-relay.js",
+      "import": "./network-runtime.bundle.mjs",
+      "reason": "missing source/generated runtime dependency"
+    }
+  ]
+}

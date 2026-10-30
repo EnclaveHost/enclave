@@ -10,12 +10,6 @@ for production under the unchanged-performance requirement.
 
 ## Conclusion
 
-The roughly 24.3 GiB encoded int8 allocation is active masking state, not an
-unused upload buffer. There is an existing route to removing it from the
-inference process: consume precomputed masks and retain only compact checks,
-outlier weights, and authenticated readers. That does not by itself remove the
-allocation from the host: today's CPU dealer still keeps its own encoded weights.
-
 The strongest candidate for reducing **total host RAM without changing the
 cryptographic construction** is a bounded, authenticated, NVMe-backed CPU mask
 generator inside the existing trusted boundary. It should compute many fresh
@@ -31,12 +25,6 @@ performance for that design.
   preserves outlier columns separately.
 * `wasm/ggml-shielded/shielded-tee.c`, `generate()`, reads `nd->w` to compute
   fresh `u = r W` in local refill threads. Removing that pointer breaks masking.
-* `sh_link_set_weight_reader()` already replaces that pointer, but requires a
-  dealt link, result verification, prepared pad checks, no pipeline, and no
-  running refill threads. Local minting explicitly rejects a missing pointer.
-* Registration already frees `entry::w` after successfully installing an
-  authenticated reader. In dealt mode, reads support GPU reupload/reconnect and
-  exact CPU fallback, rather than ordinary pad generation.
 * `shielded-weight-cache.h` authenticates 1 MiB blocks in private read buffers
   before use. At 24.3 GiB, its 64-byte-per-block hash storage is approximately
   1.52 MiB (plus per-tensor rounding), not another model-sized allocation.
@@ -53,7 +41,6 @@ weights intact; see [the deployment record](shield-original-weight-reclamation.m
 
 | Approach | RAM result | Assessment |
 | --- | --- | --- |
-| Existing dealt consumer plus resident CPU dealer | Removes consumer copy; retains dealer copy | Useful sharing across multiple consumers, not a full host-memory solution for one consumer |
 | Trusted CPU generator with authenticated streamed weight blocks | Removes full resident encoding; keeps bounded blocks and pad buffers | Best first prototype under the current trust assumptions; I/O and latency remain unqualified |
 | Generate a finite bank, then release all weights | Lower inference RAM until bank runs out | Cannot support indefinite warm service without a refill plan |
 | Ordinary GPU generates the same request's masks | Could remove CPU weight copy | Reject: the GPU/host can combine the mask with the masked input |
@@ -82,16 +69,8 @@ Illustrative arithmetic, not measurements of this deployment:
 | 20 | 7.59 GiB/s | 1.90 GiB/s | 0.95 GiB/s |
 | 40 | 15.19 GiB/s | 3.80 GiB/s | 1.90 GiB/s |
 
-The existing local refill batch is capped at 64; the shipment CPU mint worker
-uses batches of 16. Raising a setting alone therefore does not implement this
-design. Larger batches also increase buffering and replenishment latency.
-
-Historical 27B Q8 dealer evidence reports approximately 12.64 MB of encrypted
-shipment data per full-model row (809,039,872 bytes per 64-row shipment).
-At 20 rows/s, that is about 253 MB/s and 911 GB per hour if all shipments are
-retained. This is a sizing reference from a different run, not a measurement of
-the deployed Q4/MTP/split layout. Prune consumed pads and size from its actual
-authenticated manifest. Do not build an unbounded disk or RAM cache.
+The existing local refill batch is capped at 64. Raising a setting alone does
+not implement this design. Larger batches also increase buffering and replenishment latency.
 
 ## Prototype shape and invariants
 
@@ -117,10 +96,6 @@ authenticated manifest. Do not build an unbounded disk or RAM cache.
    Account for guest RAM, host page cache, producer buffers, and encrypted spool
    together. Reducing guest RSS alone is not proof of host-memory savings.
 
-The existing persistent dealer's metadata checks assume trusted immutable
-storage. They do not make that dealer safe against hostile storage; a streamed
-implementation must add the authenticated reader to the actual mint path.
-
 ## Evidence collected and remaining qualification
 
 Ran the existing cache tests locally on this checkout:
@@ -133,14 +108,12 @@ Ran the existing cache tests locally on this checkout:
   This is a test-maintenance defect, not a demonstrated runtime exploit. It
   remains unresolved; the full combined test command exited unsuccessfully.
 
-These tests exercise existing dealt/cache machinery, not a streamed local
-generator. Before production, compare exact pad outputs against the resident
-baseline, then test tampered blocks, wrong model/split identity, partial writes,
-replay, exhaustion, reconnect, and crash recovery. Benchmark the actual deployed
-model on the actual storage, preserving MTP and all checks. Measure cold startup,
-warm time-to-first-token, prefill, sustained decode, p95 stalls, eight-session
-load, and total host memory under storage contention. A short prefilled-bank run
-does not demonstrate sustainable throughput.
+Before production, compare exact local pad outputs against the resident baseline,
+then test tampered blocks, wrong model/split identity, partial writes, replay,
+exhaustion, reconnect and crash recovery. Benchmark the actual model on the actual
+storage, preserving MTP and all checks. Measure cold startup, warm time-to-first-token,
+prefill, sustained decode, p95 stalls, eight-session load and total host memory under
+storage contention. A short prefilled-bank run does not demonstrate sustainable throughput.
 
 ## External research
 

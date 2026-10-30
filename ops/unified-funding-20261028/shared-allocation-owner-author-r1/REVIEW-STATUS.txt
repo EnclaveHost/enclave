@@ -1,0 +1,1 @@
+PREPARED ONLY, no launch. Root independently verifies exact inputs/Claude Max account/queue and reviews before one run. Runner repeats account/hash checks. No author/tests/build/native/live/finance authority from preparation.

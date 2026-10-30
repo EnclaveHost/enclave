@@ -1,0 +1,41 @@
+{
+  "seedEntries": 121,
+  "rootRepairHashes": {
+    "enclave/site/js/core/wallet-release-controller.js": "d9c501d31e3d5843c1a794b777c96cbe5fe72bde5a81880bc82f96698ac79bab",
+    "enclave/site/js/core/wallet-release-view.js": "b6dee9719edc2145d40410183e9ca37932c2048edfcbea5cb4abdc8882892bc9"
+  },
+  "scope": "generic actual chain grant/delegate census for staging owner migration; no platform per-app allowlist",
+  "preserve": [
+    "SDK ownerOperation",
+    "root25 behavioral assertions",
+    "identity fix",
+    "postpersist assertLive",
+    "truthful dispatching",
+    "escrow/reserve/lease/code gates",
+    "unpromoted PROD blocked"
+  ],
+  "newModulesMax": 1,
+  "readOnlyAuthorTools": [
+    "Read",
+    "Grep",
+    "Write",
+    "Edit"
+  ],
+  "testsRun": false,
+  "launched": false,
+  "simplerInterface": "none in deployed ABI; events plus private mapping/current sessionOf required",
+  "originalFixtureAdaptation": "old test approval arrays may require replacement with census facts without deleting/weaking assertions",
+  "productionOverlay": "root must preserve newer search-clear boot/css/additive module independently",
+  "rpcConstraint": "Two-provider creation/archive stage api+blast linked by exact canonical birth block/receipt to two-provider complete logs/current-state api+publicnode; no single-provider fallback or all-method intersection.",
+  "receiptWitnessAlternative": {
+    "source": "root r3 provenance",
+    "agreeingProviders": 3,
+    "snapshot": "53265590",
+    "ledgerBirth": 52515705,
+    "sourceVaultBirth": 52286637,
+    "historyComplete": false,
+    "requiresFreshCanonicalReceiptAndCodeBinding": true,
+    "initcodeComparisonObserved": false,
+    "noRepeatedArchiveSearch": true
+  }
+}

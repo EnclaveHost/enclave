@@ -1,0 +1,14 @@
+[queue] START available=21608MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+## FAIL: tool: rc 1, Ran 30 (expected 30), last FAILED (failures=2) (see /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r5/logs/root-finality-r5-tests-20261026T053244Z-933337/tool.txt)
+## FAIL: integration: rc 1, Ran ? (expected 11), last none (see /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r5/logs/root-finality-r5-tests-20261026T053244Z-933337/integration.txt)
+## FAIL: sampler: rc 1, Ran 91 (expected 91), last FAILED (errors=1) (see /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r5/logs/root-finality-r5-tests-20261026T053244Z-933337/sampler.txt)
+## FAIL: reanchor-recovery: rc 0, Ran 38 (expected 24), last OK (see /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r5/logs/root-finality-r5-tests-20261026T053244Z-933337/reanchor-recovery.txt)
+PASS r3-regression Ran 27 (expected 27)
+PASS recovery-existing Ran 34 (expected 34)
+REUSED: JS core 20 (r2 0234, byte-identical); baseline-existing 34 (production wrapper unchanged; r6 0336 via r7 0345)
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r5/logs/root-finality-r5-tests-20261026T053244Z-933337
+## r5 SHA256SUMS 81e3050bc00176d8ebeda682e2532cd7300e4038768fe9f142b65ede101a6b3b
+## finality-r5 rc=1
+[memory-guard] exit=1 peakTreeRssMiB=280 minHostAvailableMiB=20638
+[memory-guard] at peak: python3:47 python3:37 python3:37 python3:37 python3:37 python3:37 python3:37 bash:4
+[queue] EXIT 1

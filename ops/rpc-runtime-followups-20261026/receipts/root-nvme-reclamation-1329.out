@@ -1,0 +1,17 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] START available=25744MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+----------------------------------------------------------------------
+Ran 13 tests in 3.076s
+
+OK
+## nvme-reclamation tests: PASS (13/13)
+[memory-guard] exit=0 peakTreeRssMiB=55 minHostAvailableMiB=25722
+[memory-guard] at peak: python3:46 bash:4 rsync:3 timeout:2
+[queue] EXIT 0

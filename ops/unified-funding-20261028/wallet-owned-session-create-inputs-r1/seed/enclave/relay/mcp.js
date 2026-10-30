@@ -1,0 +1,2097 @@
+// Enclave MCP server — the coding-agent front door. Serves the Model Context
+// Protocol (Streamable HTTP transport: JSON-RPC 2.0 over POST, stateless JSON
+// responses) at https://mcp.enclave.host/ (any path) and at /mcp on the API
+// host, dispatched from api-relay.js by Host header / path.
+//
+// SECURITY INVARIANT — this box never holds keys, and the MCP surface keeps
+// it that way. No tool accepts a private key, no tool signs anything, and no
+// tool submits transactions. The split is:
+//   * read tools        -> the relay's own public gateway (loopback self-call:
+//                          the same fleet-routed /v1 surface external clients
+//                          hit) and public on-chain state via BASE_RPC
+//   * write operations  -> "build_*" tools that VALIDATE the request against
+//                          live chain state (approval gates, share minimums,
+//                          fee snapshots, caps — the same checks the CLI runs)
+//                          and return UNSIGNED Base transactions {chainId, to,
+//                          data, value} for the agent to sign with the USER'S
+//                          wallet, plus signature-flow helpers (SIWE login,
+//                          upload tokens) where the client signs a message
+//                          locally and trades the signature here
+//   * wallet sessions   -> with session:{vault, sid} the same builders return
+//                          session CALLS (validated, quoted, EIP-712 digested)
+//                          for the client to sign with ITS P-256 session key;
+//                          session_execute forwards the signed calls to the
+//                          relay's public /v1/sessions/execute - the request any
+//                          client can make. No session key ever reaches this box.
+//   * secrets           -> session tokens ride per-call `token` params or the
+//                          Authorization header; they are enclave-verified
+//                          upstream, never minted or trusted here (same
+//                          stance as api-relay's tokenAddress note)
+// Encrypted-volume key derivation is CLIENT-SIDE ONLY and deliberately absent:
+// a wallet signature that derives an encryption key must never transit a
+// relay. The `guide` tool says so instead of doing it.
+//
+// Config (env, all optional):
+//   MCP_DOMAIN         comma list of Host values served (default mcp.enclave.host)
+//   API_RELAY_PORT     the local gateway port for self-calls (default 8100 —
+//                      same var api-relay.js listens on)
+//   BASE_RPC           preferred Base RPC; always backed by a public fallback
+//                      pool (a single throttled RPC once killed the claim path)
+//   ADDRESS_BOOK_ADDRESS / DEPLOYMENTS_ADDRESS / APP_CATALOG_ADDRESS
+//                      contract roots; the book (default baked) overrides the
+//                      baked defaults at runtime, same one-tx-repoint model as
+//                      addressbook.js / the CLI
+//
+// Protocol notes: stateless (no Mcp-Session-Id minted, DELETE is 405), POST
+// answers application/json (the spec allows JSON-only servers), GET is 405 for
+// stream clients (no server-initiated messages) and an informational JSON for
+// humans. tools/call errors are in-band (isError), not JSON-RPC errors.
+
+import { createHash, randomBytes } from "node:crypto";
+import { createPublicClient, http as viemHttp, fallback, encodeFunctionData, decodeFunctionData, encodeAbiParameters,
+  getAddress, hashTypedData, keccak256 } from "viem";
+import { base } from "viem/chains";
+
+const PORT = parseInt(process.env.API_RELAY_PORT || "8100", 10);
+const SELF = `http://127.0.0.1:${PORT}`;
+const MCP_DOMAINS = (process.env.MCP_DOMAIN || "mcp.enclave.host").toLowerCase()
+  .split(",").map((s) => s.trim()).filter(Boolean);
+
+// Baked Base-mainnet roots — kept in lockstep with cli/enclave.mjs DEFAULTS /
+// scripts/sync-contract-addresses.sh; the address book re-points them live.
+const CHAIN_ID = 8453;
+const BOOK_ADDRESS = (process.env.ADDRESS_BOOK_ADDRESS || "0xab214342d5A490150A4A977063A2f88E21F80907").trim();
+const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+const ADDR = {
+  deployments: (process.env.DEPLOYMENTS_ADDRESS || "0x0A7dE5D205c10B812AbaF0b89f3A243466bCEe01").trim(),
+  appCatalog: (process.env.APP_CATALOG_ADDRESS || "0xaB0462E55c18E295A221e4Eaa8738F25eB0696D7").trim(),
+  reviews: (process.env.REVIEWS_ADDRESS || "").trim(),     // "" until EnclaveReviews is in the address book
+};
+const API_BASE = "https://api.enclave.host";
+const APP_DOMAIN = "app.enclave.host";
+const IPFS_UPLOAD = "https://ipfs.enclave.host";
+const EXPECTED_REPO = "EnclaveHost/enclave";
+
+// ---- chain plumbing -----------------------------------------------------------
+const RPCS = [...new Set([...(process.env.BASE_RPC ? [process.env.BASE_RPC] : []),
+  "https://base-rpc.publicnode.com", "https://base.drpc.org",
+  "https://1rpc.io/base", "https://mainnet.base.org"])];
+let _pub = null;
+const pub = () => _pub ||
+  (_pub = createPublicClient({ chain: base, transport: fallback(RPCS.map((u) => viemHttp(u))) }));
+const read = (address, abi, functionName, args = []) =>
+  pub().readContract({ address, abi, functionName, args });
+
+// address book: ascii key right-padded to bytes32 (same derivation everywhere)
+const bookKey = (name) => "0x" + Buffer.from(name, "ascii").toString("hex").padEnd(64, "0");
+const BOOK_ABI = [{ type: "function", name: "addr", stateMutability: "view",
+  inputs: [{ type: "bytes32" }], outputs: [{ type: "address" }] }];
+let _bookAt = 0;
+async function addresses() {
+  if (!BOOK_ADDRESS || Date.now() - _bookAt < 600_000) return ADDR;
+  for (const [key, field] of [["deployments", "deployments"], ["appCatalog", "appCatalog"], ["reviews", "reviews"]]) {
+    try {
+      const a = await read(BOOK_ADDRESS, BOOK_ABI, "addr", [bookKey(key)]);
+      if (a && !/^0x0{40}$/i.test(a)) ADDR[field] = a;
+    } catch { /* keep current; next call retries */ }
+  }
+  _bookAt = Date.now();
+  return ADDR;
+}
+
+// ---- contract shapes (mirror cli/enclave.mjs; sniffed like depAbi/catRev) ------
+const DEPLOYMENT_TUPLE = [
+  { name: "id", type: "bytes32" }, { name: "owner", type: "address" },
+  { name: "appRef", type: "string" }, { name: "ports", type: "string" },
+  { name: "configCid", type: "string" },
+  { name: "gpuMilli", type: "uint16" }, { name: "cpuMilli", type: "uint16" },
+  { name: "appPort", type: "uint32" }, { name: "isPublic", type: "bool" },
+  { name: "active", type: "bool" }, { name: "createdAt", type: "uint64" },
+  { name: "rate", type: "uint256" }, { name: "balance6", type: "uint256" },
+  { name: "spent6", type: "uint256" }, { name: "runner", type: "bytes32" },
+  { name: "runnerOperator", type: "address" }, { name: "leaseUntil", type: "uint64" },
+];
+const DEPLOYMENT_TUPLE_V1 = [
+  ...DEPLOYMENT_TUPLE.slice(0, 4), { name: "sshPubKey", type: "string" }, ...DEPLOYMENT_TUPLE.slice(4),
+];
+const createInputsFor = (rev) => [
+  { name: "appRef", type: "string" }, { name: "gpuMilli", type: "uint16" },
+  { name: "cpuMilli", type: "uint16" }, { name: "appPort", type: "uint32" },
+  { name: "ports", type: "string" }, { name: "isPublic", type: "bool" },
+  ...(rev >= 2 ? [] : [{ name: "sshPubKey", type: "string" }]),
+  { name: "configCid", type: "string" },
+  ...(rev >= 4 ? [{ name: "feeRecipient", type: "address" }, { name: "feePerSec6", type: "uint256" }] : []),
+  ...(rev >= 8 ? [{ name: "maxRate6", type: "uint256" }] : []),
+];
+const depsAbiFor = (rev) => [
+  { type: "function", name: "create", stateMutability: "nonpayable", inputs: createInputsFor(rev), outputs: [{ type: "bytes32" }] },
+  { type: "function", name: "fund", stateMutability: "nonpayable",
+    inputs: [{ name: "id", type: "bytes32" }, { name: "value", type: "uint256" }], outputs: [] },
+  { type: "function", name: "fundEth", stateMutability: "payable", inputs: [{ name: "id", type: "bytes32" }], outputs: [] },
+  { type: "function", name: "setActive", stateMutability: "nonpayable",
+    inputs: [{ name: "id", type: "bytes32" }, { name: "active", type: "bool" }], outputs: [] },
+  { type: "function", name: "setAppRef", stateMutability: "nonpayable",
+    inputs: [{ name: "id", type: "bytes32" }, { name: "appRef", type: "string" }], outputs: [] },
+  // rev >= 10: cancellation — the owner takes back the unused runtime the
+  // ledger still holds, and refundableOf quotes exactly what that is
+  { type: "function", name: "refund", stateMutability: "nonpayable",
+    inputs: [{ name: "id", type: "bytes32" }], outputs: [] },
+  { type: "function", name: "refundableOf", stateMutability: "view",
+    inputs: [{ name: "id", type: "bytes32" }], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "ownerEscrow6", stateMutability: "view",
+    inputs: [{ name: "id", type: "bytes32" }], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "earnOf", stateMutability: "view",
+    inputs: [{ name: "id", type: "bytes32" }],
+    outputs: [{ name: "runnerRate6", type: "uint256" }, { name: "escrow6", type: "uint256" }, { name: "creditedUntil", type: "uint64" }] },
+  // rev >= 11: hand the record — control, never money — to another wallet;
+  // reverts "refund first" while the owner's own backing is still held
+  { type: "function", name: "transferDeployment", stateMutability: "nonpayable",
+    inputs: [{ name: "id", type: "bytes32" }, { name: "to", type: "address" }], outputs: [] },
+  // rev >= 6: the owner's share resize (rate recalculated at current list
+  // prices) and the batcher that lets it ride one tx with setAppRef
+  { type: "function", name: "setShares", stateMutability: "nonpayable",
+    inputs: [{ name: "id", type: "bytes32" }, { name: "gpuMilli", type: "uint16" },
+             { name: "cpuMilli", type: "uint16" }], outputs: [] },
+  { type: "function", name: "multicall", stateMutability: "nonpayable",
+    inputs: [{ name: "calls", type: "bytes[]" }], outputs: [{ type: "bytes[]" }] },
+  { type: "function", name: "setConfig", stateMutability: "nonpayable",
+    inputs: [{ name: "id", type: "bytes32" }, { name: "configCid", type: "string" }], outputs: [] },
+  // rev >= 8: the owner's spend ceiling — which enclaves may run this, and at
+  // what price, including when its current host dies
+  { type: "function", name: "setMaxRate", stateMutability: "nonpayable",
+    inputs: [{ name: "id", type: "bytes32" }, { name: "maxRate6", type: "uint256" }], outputs: [] },
+  { type: "function", name: "capOf", stateMutability: "view", inputs: [{ name: "id", type: "bytes32" }],
+    outputs: [{ name: "maxRate6", type: "uint256" }] },
+  { type: "function", name: "feeOf", stateMutability: "view", inputs: [{ name: "id", type: "bytes32" }],
+    outputs: [{ name: "recipient", type: "address" }, { name: "feePerSec6", type: "uint256" }] },
+  { type: "function", name: "get", stateMutability: "view", inputs: [{ name: "id", type: "bytes32" }],
+    outputs: [{ type: "tuple", components: rev >= 2 ? DEPLOYMENT_TUPLE : DEPLOYMENT_TUPLE_V1 }] },
+  { type: "function", name: "secondsFundable", stateMutability: "view",
+    inputs: [{ name: "id", type: "bytes32" }], outputs: [{ type: "uint256" }] },
+];
+const U256_VIEW = (name) => [{ type: "function", name, stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }];
+let _depRev = { at: 0, rev: 2 };
+async function depRev() {
+  if (Date.now() - _depRev.at < 600_000) return _depRev.rev;
+  const { deployments } = await addresses();
+  let rev = 2;
+  try { rev = Number(await read(deployments, U256_VIEW("deploymentsSchema"), "deploymentsSchema")) || 2; }
+  catch (e) { if (/revert/i.test(e?.shortMessage || e?.message || "")) rev = 1; else throw e; }
+  _depRev = { at: Date.now(), rev };
+  return rev;
+}
+// keccak256("Created(bytes32,address,string,uint16,uint16,uint256)") — the
+// minted deployment id is topics[1] of this event in the create receipt.
+const DEP_CREATED_TOPIC = "0x3b201eb11e77934b296f908775fc0a82679683fd83a1232579f1014bcf7d3239";
+
+const APP_TUPLE = [
+  { name: "appId", type: "bytes32" }, { name: "publisher", type: "address" },
+  { name: "slug", type: "string" }, { name: "name", type: "string" },
+  { name: "description", type: "string" }, { name: "versionCount", type: "uint32" },
+  { name: "createdAt", type: "uint64" }, { name: "updatedAt", type: "uint64" },
+  { name: "active", type: "bool" },
+];
+const VERSION_TUPLE = [
+  { name: "cid", type: "string" }, { name: "version", type: "string" },
+  { name: "vramMb", type: "uint32" }, { name: "gpuGflops", type: "uint32" },
+  { name: "memMb", type: "uint32" }, { name: "cpuGflops", type: "uint32" },
+  { name: "createdAt", type: "uint64" }, { name: "verified", type: "bool" },
+  { name: "yanked", type: "bool" }, { name: "ports", type: "string" },
+  { name: "approval", type: "uint8" },
+];
+const VERSION_TUPLE_V3 = [...VERSION_TUPLE, { name: "config", type: "string" }];
+// The only keys the on-chain manifest may carry when a version's real config
+// lives at a CID: what a runner reads off the record to PLACE the deployment,
+// plus the catalog grid's tile art. Mirrors ROUTING_KEYS in
+// site/js/core/chain.js and cli/enclave.mjs — keep the three in lockstep.
+const ROUTING_KEYS = ["wasi", "threads", "set", "mem64", "gpuOptional", "cpuFallback", "volumes", "_media"];
+const publishInputsFor = (rev) => [
+  { name: "slug", type: "string" }, { name: "name", type: "string" },
+  { name: "description", type: "string" }, { name: "version", type: "string" },
+  { name: "cid", type: "string" }, { name: "res", type: "uint32[4]" },
+  { name: "ports", type: "string" },
+  ...(rev >= 3 ? [{ name: "config", type: "string" }] : []),
+  ...(rev >= 5 ? [{ name: "feePerSec6", type: "uint256" }] : []),
+];
+const catAbiFor = (rev) => [
+  { type: "function", name: "getAppsPage", stateMutability: "view",
+    inputs: [{ type: "uint256" }, { type: "uint256" }], outputs: [{ type: "tuple[]", components: APP_TUPLE }] },
+  { type: "function", name: "getVersionsPage", stateMutability: "view",
+    inputs: [{ type: "bytes32" }, { type: "uint256" }, { type: "uint256" }],
+    outputs: [{ type: "tuple[]", components: rev >= 4 ? VERSION_TUPLE_V3 : VERSION_TUPLE }] },
+  { type: "function", name: "numVersions", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "appIdOf", stateMutability: "pure",
+    inputs: [{ type: "address" }, { type: "string" }], outputs: [{ type: "bytes32" }] },
+  { type: "function", name: "versionFee", stateMutability: "view",
+    inputs: [{ type: "bytes32" }, { type: "uint256" }], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "publishVersion", stateMutability: "nonpayable", inputs: publishInputsFor(rev), outputs: [{ type: "bytes32" }, { type: "uint256" }] },
+  // rev-7 large-config publish: publishInputsFor with configCid spliced in
+  // before the fee. Only encodable when the caller supplied one, so its
+  // presence in the ABI on older revs is harmless.
+  { type: "function", name: "publishVersionCfg", stateMutability: "nonpayable",
+    inputs: [...publishInputsFor(rev).filter((i) => i.name !== "feePerSec6"),
+             { name: "configCid", type: "string" },
+             ...(rev >= 5 ? [{ name: "feePerSec6", type: "uint256" }] : [])],
+    outputs: [{ type: "bytes32" }, { type: "uint256" }] },
+  { type: "function", name: "versionConfigCid", stateMutability: "view",
+    inputs: [{ type: "bytes32" }, { type: "uint256" }], outputs: [{ type: "string" }] },
+];
+let _catRev = { at: 0, rev: 2 };
+async function catRev() {
+  if (Date.now() - _catRev.at < 600_000) return _catRev.rev;
+  const { appCatalog } = await addresses();
+  let rev = 2;
+  try { rev = Number(await read(appCatalog, U256_VIEW("catalogSchema"), "catalogSchema")) || 2; } catch { rev = 2; }
+  _catRev = { at: Date.now(), rev };
+  return rev;
+}
+const APPROVAL_WORD = ["pending", "approved", "rejected"];
+
+let _apps = { at: 0, rows: null };
+async function catalogApps() {
+  if (_apps.rows && Date.now() - _apps.at < 30_000) return _apps.rows;
+  const { appCatalog } = await addresses();
+  const abi = catAbiFor(await catRev());
+  const rows = [];
+  for (let start = 0; ; start += 50) {
+    const page = await read(appCatalog, abi, "getAppsPage", [BigInt(start), 50n]);
+    rows.push(...page);
+    if (page.length < 50) break;
+  }
+  _apps = { at: Date.now(), rows };
+  return rows;
+}
+async function readVersions(appId, count) {
+  const { appCatalog } = await addresses();
+  const rev = await catRev();
+  const abi = catAbiFor(rev);
+  const versions = await read(appCatalog, abi, "getVersionsPage", [appId, 0n, BigInt(Math.max(1, Number(count)))]);
+  const out = versions.map((v) => ({ config: "", ...v, configCid: "" }));
+  // rev 7: on a large-config version the tuple's `config` is only the routing
+  // manifest. Stamp the CID here — this is the one read path every catalog
+  // tool shares, and a caller told "config: {…}" without being told it is a
+  // manifest will round-trip it into a setConfig override and REPLACE the
+  // app's real config with it.
+  if (rev >= 7 && out.length) {
+    try {
+      const cids = await read(appCatalog, abi, "versionConfigCids", [appId]);
+      out.forEach((v, i) => { v.configCid = cids[i] || ""; });
+    } catch { /* leave empty: readers fall back to the inline field */ }
+  }
+  return out;
+}
+// ---- EnclaveReviews (1-5 stars + comments, gated on a funded deployment) ------
+const REVIEW_TUPLE = [
+  { name: "reviewer", type: "address" }, { name: "stars", type: "uint8" }, { name: "hidden", type: "bool" },
+  { name: "createdAt", type: "uint64" }, { name: "updatedAt", type: "uint64" },
+  { name: "deployment", type: "bytes32" }, { name: "body", type: "string" },
+];
+const REVIEWS_ABI = [
+  { type: "function", name: "reviewCount", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "getReviewsPage", stateMutability: "view",
+    inputs: [{ type: "bytes32" }, { type: "uint256" }, { type: "uint256" }],
+    outputs: [{ type: "tuple[]", components: REVIEW_TUPLE }] },
+  { type: "function", name: "tallyOf", stateMutability: "view", inputs: [{ type: "bytes32" }],
+    outputs: [{ type: "uint32" }, { type: "uint32" }] },
+  { type: "function", name: "canReview", stateMutability: "view",
+    inputs: [{ type: "bytes32" }, { type: "bytes32" }, { type: "address" }], outputs: [{ type: "bool" }] },
+  { type: "function", name: "post", stateMutability: "nonpayable",
+    inputs: [{ type: "bytes32" }, { type: "bytes32" }, { type: "uint8" }, { type: "string" }], outputs: [] },
+];
+async function reviewsAddress() {
+  const { reviews } = await addresses();
+  if (!reviews || /^0x0{40}$/i.test(reviews))
+    throw new Error("reviews aren't live on this deployment yet (no EnclaveReviews in the address book)");
+  return reviews;
+}
+async function versionFee6(appId, index) {
+  if ((await catRev()) < 5) return 0n;
+  const { appCatalog } = await addresses();
+  return await read(appCatalog, catAbiFor(5), "versionFee", [appId, BigInt(index)]);
+}
+// Publisher fee (6dp USDC/sec) for a DEPLOYABLE appRef. Only pinned catalog
+// version refs (catalog://<appId>/<index>, what create() records) can carry a
+// fee; ipfs:// and anything else has none. billing.js refuses fee-bearing
+// orders: the provisioner's company wallet must never forward a fee cut to a
+// third-party publisher without an explicit business decision.
+export async function publisherFee6(appRef) {
+  const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d+)$/.exec(String(appRef || ""));
+  if (!m) return 0n;
+  return await versionFee6(m[1], Number(m[2]));
+}
+
+// [publisher/]slug[:version] -> the on-chain version RECORD (same resolution +
+// approval gate as the CLI: runners re-check on their side, this fails fast
+// with a readable reason; CIDs are refused — a CID names bytes, not a version)
+// [publisher/]slug -> the app RECORD (no version, no approval gate): what
+// get_app and the review tools need, where resolveAppRef's version resolution
+// would be wrong (a review is about the app, not one release).
+async function resolveApp(input) {
+  const m = String(input).match(/^(?:([0-9a-zA-Z.]+|0x[0-9a-fA-F]{40})\/)?([a-z0-9][a-z0-9-]*)$/);
+  if (!m) throw new Error(`"${input}" is not [publisher/]slug`);
+  let apps = (await catalogApps()).filter((a) => a.slug === m[2]);
+  if (m[1]) apps = apps.filter((a) => a.publisher.toLowerCase() === m[1].toLowerCase());
+  if (!apps.length) throw new Error(`no catalog app with slug "${m[2]}"`);
+  if (apps.length > 1) throw new Error(`slug "${m[2]}" has ${apps.length} publishers; use <publisher>/${m[2]}`);
+  return apps[0];
+}
+// opts.allowPending: admit a version still AWAITING approval — the publisher
+// dev-mode path (PRIVATE deployments on a fleet advertising devDeploy). Only
+// an EXPLICIT :version label can name a pending version (the no-label default
+// stays latest-APPROVED — nobody dev-deploys by accident); rejected and
+// yanked stay refused regardless.
+async function resolveAppRef(input, opts = {}) {
+  if (/^ipfs:\/\//i.test(input) || /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-z0-9]{20,})$/.test(String(input)))
+    throw new Error("CIDs can't deploy: a CID names bytes, not a version. Use [publisher/]slug[:version] from the catalog (list_apps).");
+  const m = String(input).match(/^(?:([0-9a-zA-Z.]+|0x[0-9a-fA-F]{40})\/)?([a-z0-9][a-z0-9-]*)(?::(.+))?$/);
+  if (!m) throw new Error(`"${input}" is not an app reference ([publisher/]slug[:version])`);
+  const [, pubFilter, slug, verLabel] = m;
+  let apps = (await catalogApps()).filter((a) => a.slug === slug && a.active);
+  if (pubFilter) apps = apps.filter((a) => a.publisher.toLowerCase() === pubFilter.toLowerCase());
+  if (!apps.length) throw new Error(`no active catalog app with slug "${slug}"${pubFilter ? ` by ${pubFilter}` : ""}`);
+  if (apps.length > 1 && !pubFilter)
+    throw new Error(`slug "${slug}" is published by ${apps.length} publishers; disambiguate as <publisher>/${slug}`);
+  const app = apps[0];
+  const versions = await readVersions(app.appId, app.versionCount);
+  let vi;
+  if (verLabel !== undefined) {
+    vi = versions.findIndex((v) => v.version === verLabel && !v.yanked);
+    if (vi < 0) throw new Error(`app "${slug}" has no (un-yanked) version labeled "${verLabel}"`);
+  } else {
+    vi = versions.findLastIndex((v) => !v.yanked && Number(v.approval) === 1);
+    if (vi < 0) throw new Error(`app "${slug}" has no approved version yet`);
+  }
+  const ver = versions[vi];
+  if (Number(ver.approval) === 2)
+    throw new Error(`${slug}:${ver.version} was rejected by the catalog owner; runners never serve it`);
+  if (Number(ver.approval) !== 1 && !opts.allowPending)
+    throw new Error(`${slug}:${ver.version} is ${APPROVAL_WORD[Number(ver.approval)]}; runners only claim approved versions`
+      + ` (a PRIVATE deployment can run it for testing: pass public:false on a fleet advertising devDeploy)`);
+  return { ref: `catalog://${app.appId}/${vi}`, index: vi, ver, app, pending: Number(ver.approval) !== 1 };
+}
+
+// minimum shares for an app's specs on the fleet's hardware — the runner's own
+// formula (spec / server spec, larger of the memory and compute axes, ceil to
+// the percent grain), computed against /v1/pricing's node + card numbers
+function minShares(ver, pricing) {
+  const node = pricing?.node || {}, card = pricing?.card || {};
+  const axis = (need, have) => need > 0 && have > 0 ? need / have : 0;
+  const cpu = Math.max(axis(Number(ver.memMb), (node.ramGb || 0) * 1024),
+                       axis(Number(ver.cpuGflops), node.gflops || 0));
+  const gpu = Math.max(axis(Number(ver.vramMb), (card.vramGb || 0) * 1024),
+                       axis(Number(ver.gpuGflops), (card.tflops || 0) * 1000));
+  const grain = (x) => Math.min(1000, Math.ceil(x * 100) * 10);
+  return { gpuMilli: grain(gpu), cpuMilli: Math.max(10, grain(cpu)) };
+}
+// What a whole node / whole card costs per second right now. On rev-8 ledgers
+// there is no platform price: every enclave posts its own and the CHEAPEST
+// currently-connected one is what a new deployment will actually pay (any box
+// dearer than the cap it gets can't claim it). `at` pins the numbers to one
+// specific enclave instead — used when the record already has a lease holder,
+// since that box is the one selling it capacity.
+async function livePrices(at) {
+  const rev = await depRev();
+  if (rev < 8) {
+    const { deployments } = await addresses();
+    const [p, c] = await Promise.all([
+      read(deployments, U256_VIEW("pricePerSec6"), "pricePerSec6"),
+      read(deployments, U256_VIEW("cpuPricePerSec6"), "cpuPricePerSec6"),
+    ]);
+    return { pricePerSec6: p, cpuPricePerSec6: c, source: "the platform list price" };
+  }
+  if (at) {
+    const cpu = Number(at.askCpuPricePerSec6), gpu = Number(at.askGpuPricePerSec6);
+    if (cpu > 0) return { pricePerSec6: BigInt(gpu > 0 ? gpu : 0), cpuPricePerSec6: BigInt(cpu),
+                          source: at.name ? `${at.name}'s posted price` : "the serving enclave's posted price" };
+  }
+  const av = await self("GET", "/availability").catch(() => null);
+  const cpu = Number(av?.cheapestCpuPricePerSec6), gpu = Number(av?.cheapestGpuPricePerSec6);
+  if (!(cpu > 0)) throw new Error("no live enclave is posting a price right now, so this can't be priced");
+  return { pricePerSec6: BigInt(gpu > 0 ? gpu : 0), cpuPricePerSec6: BigInt(cpu),
+           source: "the cheapest live enclave" };
+}
+
+// Changing the version or shares of a LEASED deployment is judged by ONE box:
+// the enclave holding the lease restarts the app in place and checks the new
+// version against its own card and node (supervisor minSharesOf). /v1/pricing
+// describes the fleet's best box, which on a mixed fleet is a different
+// machine - so size against the lease holder's own numbers, per axis it
+// reports (a CPU-only box reports no card; those axes keep the pricing
+// values). No live lease / unknown runner: pricing stands, since any box could
+// claim the record next. Mirrors cli/enclave.mjs hostPricing.
+async function hostPricing(d, pricing) {
+  const runner = String(d?.runner || "").toLowerCase();
+  const none = { pricing, host: null, hostAsk: null, hostFree: false };
+  if (!/^0x[0-9a-f]{64}$/.test(runner) || /^0x0+$/.test(runner)) return none;
+  if (!(Number(d.leaseUntil) * 1000 > Date.now())) return none;
+  const rows = await self("GET", "/enclaves").then((j) => j?.enclaves || []).catch(() => []);
+  const row = rows.find((e) => String(e?.id || "").toLowerCase() === runner);
+  const av = row?.availability;
+  if (!av) return none;
+  const pick = (v, fallback) => (Number(v) > 0 ? Number(v) : fallback);
+  const owner = String(d?.owner || "").toLowerCase();
+  return {
+    host: row.name || "the enclave holding the lease",
+    // FREE SELF-HOSTING (ledger rev 12): the box waives its whole charge when
+    // its declared payout wallet owns the deployment (EnclaveDeployments
+    // ._hostRate, which _resizeRate also goes through), so the re-buy is free.
+    // Gated on the ledger rev by the caller. Top-level field only - that one is
+    // the relay's projection of the on-chain registry entry; /availability's
+    // copy is the box talking, and a box must not quote itself free.
+    hostFree: /^0x[0-9a-f]{40}$/.test(owner) && !/^0x0+$/.test(owner)
+              && String(row.payoutWallet || "").toLowerCase() === owner,
+    // its POSTED price (rev 8): a resize is re-bought from this box, not from
+    // the fleet's cheapest
+    hostAsk: { name: row.name, askCpuPricePerSec6: av.askCpuPricePerSec6, askGpuPricePerSec6: av.askGpuPricePerSec6 },
+    pricing: { ...pricing,
+      node: { ...(pricing?.node || {}), ramGb: pick(av.nodeRamGb, pricing?.node?.ramGb),
+              gflops: pick(av.nodeGflops, pricing?.node?.gflops), vcpus: pick(av.nodeVcpus, pricing?.node?.vcpus) },
+      card: { ...(pricing?.card || {}), vramGb: pick(av.cardVramGb, pricing?.card?.vramGb),
+              tflops: pick(av.cardTflops, pricing?.card?.tflops) } },
+  };
+}
+
+// ---- unsigned-transaction encoders (pure; pinned by test/mcp.test.mjs) --------
+const tx = (to, data, value = 0n, describe = "") =>
+  ({ chainId: CHAIN_ID, to, data, value: "0x" + value.toString(16), function: describe });
+export function encodeCreateTx({ rev, deployments, appRef, gpuMilli, cpuMilli, appPort, ports, isPublic, envelope, feeRecipient, feePerSec6, maxRate6 }) {
+  if (rev >= 8 && !(BigInt(maxRate6 || 0) > 0n)) throw new Error("this ledger requires a rate cap (maxRate6) on create");
+  const args = [appRef, gpuMilli, cpuMilli, appPort, ports, isPublic,
+                ...(rev >= 2 ? [] : [""]), envelope || "",
+                ...(rev >= 4 ? [feeRecipient, feePerSec6] : []),
+                ...(rev >= 8 ? [BigInt(maxRate6)] : [])];
+  return tx(deployments, encodeFunctionData({ abi: depsAbiFor(rev), functionName: "create", args }), 0n,
+    `EnclaveDeployments.create(${appRef}${rev >= 8 ? `, cap ${usdHr(maxRate6)}` : ""})`);
+}
+export function encodeSetMaxRateTx({ deployments, id, maxRate6 }) {
+  if (!(BigInt(maxRate6 || 0) > 0n)) throw new Error("maxRate6 must be positive");
+  return tx(deployments, encodeFunctionData({ abi: depsAbiFor(8), functionName: "setMaxRate", args: [id, BigInt(maxRate6)] }), 0n,
+    `EnclaveDeployments.setMaxRate(${id.slice(0, 10)}…, ${usdHr(maxRate6)})`);
+}
+export function encodeFundTxs({ deployments, id, usd, ethWei }) {
+  if (ethWei != null)
+    return [tx(deployments, encodeFunctionData({ abi: depsAbiFor(2), functionName: "fundEth", args: [id] }), BigInt(ethWei),
+      "EnclaveDeployments.fundEth (credited as USDC at the live Chainlink ETH/USD rate)")];
+  // USDC is billed in whole cents (contract balances are 6dp)
+  const cents = usd * 100;
+  if (usd < 0.01) throw new Error(`minimum USDC funding is $0.01 (got $${usd}); amounts are billed in whole cents`);
+  if (Math.abs(cents - Math.round(cents)) > 1e-9)
+    throw new Error(`USDC funding is billed in whole cents: $${usd} isn't a whole number of cents`);
+  const value = BigInt(Math.round(cents)) * 10000n;
+  const ERC20 = [{ type: "function", name: "approve", stateMutability: "nonpayable",
+    inputs: [{ type: "address" }, { type: "uint256" }], outputs: [{ type: "bool" }] }];
+  return [
+    tx(USDC_ADDRESS, encodeFunctionData({ abi: ERC20, functionName: "approve", args: [deployments, value] }), 0n,
+      `USDC.approve(EnclaveDeployments, ${(Number(value) / 1e6).toFixed(2)})`),
+    tx(deployments, encodeFunctionData({ abi: depsAbiFor(2), functionName: "fund", args: [id, value] }), 0n,
+      `EnclaveDeployments.fund(${id.slice(0, 10)}…, $${(Number(value) / 1e6).toFixed(2)})`),
+  ];
+}
+// rev >= 10: cancel and return the unused runtime the ledger still HOLDS to the
+// owner's wallet. Deliberately no amount argument — the contract pays exactly
+// refundableOf(id), so a caller cannot ask for a number the escrow can't back.
+export function encodeRefundTx({ deployments, id, refundable6 }) {
+  return tx(deployments, encodeFunctionData({ abi: depsAbiFor(10), functionName: "refund", args: [id] }), 0n,
+    `EnclaveDeployments.refund(${id.slice(0, 10)}…)`
+    + (refundable6 != null ? ` -> $${(Number(refundable6) / 1e6).toFixed(2)} to the owner` : ""));
+}
+// rev >= 11: one-shot ownership handoff — no accept step exists on-chain, so
+// the caller's confirmation IS the safety net; the description restates both
+// wallets so signers see exactly what they are about to give away, and to
+// whom. Money never rides along: the contract reverts "refund first" while it
+// still holds the owner's refundable backing (build_transfer chains the refund).
+export function encodeTransferTx({ deployments, id, to }) {
+  return tx(deployments, encodeFunctionData({ abi: depsAbiFor(11), functionName: "transferDeployment", args: [id, to] }), 0n,
+    `EnclaveDeployments.transferDeployment(${id.slice(0, 10)}…, ${to}) — control moves, money does not`);
+}
+export function encodeSetActiveTx({ deployments, id, active }) {
+  return tx(deployments, encodeFunctionData({ abi: depsAbiFor(2), functionName: "setActive", args: [id, active] }), 0n,
+    `EnclaveDeployments.setActive(${id.slice(0, 10)}…, ${active})`);
+}
+export function encodeSetAppRefTx({ deployments, id, appRef }) {
+  return tx(deployments, encodeFunctionData({ abi: depsAbiFor(3), functionName: "setAppRef", args: [id, appRef] }), 0n,
+    `EnclaveDeployments.setAppRef(${id.slice(0, 10)}…, ${appRef})`);
+}
+export function encodeSetSharesTx({ deployments, id, gpuMilli, cpuMilli }) {
+  return tx(deployments, encodeFunctionData({ abi: depsAbiFor(6), functionName: "setShares", args: [id, gpuMilli, cpuMilli] }), 0n,
+    `EnclaveDeployments.setShares(${id.slice(0, 10)}…, gpu ${gpuMilli / 10}% / cpu ${cpuMilli / 10}%)`);
+}
+// version change + share resize in ONE transaction (the ledger's multicall):
+// appRef optional - without it this is a pure resize and setShares goes alone
+export function encodeResizeTx({ deployments, id, appRef, gpuMilli, cpuMilli }) {
+  if (!appRef) return encodeSetSharesTx({ deployments, id, gpuMilli, cpuMilli });
+  const abi = depsAbiFor(6);
+  const calls = [
+    encodeFunctionData({ abi, functionName: "setAppRef", args: [id, appRef] }),
+    encodeFunctionData({ abi, functionName: "setShares", args: [id, gpuMilli, cpuMilli] }),
+  ];
+  return tx(deployments, encodeFunctionData({ abi, functionName: "multicall", args: [calls] }), 0n,
+    `EnclaveDeployments.multicall(setAppRef(${appRef}) + setShares(gpu ${gpuMilli / 10}% / cpu ${cpuMilli / 10}%))`);
+}
+export function encodeSetConfigTx({ deployments, id, envelope }) {
+  return tx(deployments, encodeFunctionData({ abi: depsAbiFor(2), functionName: "setConfig", args: [id, envelope] }), 0n,
+    `EnclaveDeployments.setConfig(${id.slice(0, 10)}…, ${envelope ? envelope.length + "-byte envelope" : "empty envelope"})`);
+}
+export function encodePublishTx({ rev, appCatalog, slug, name, description, version, cid, res, ports, config, configCid, feePerSec6 }) {
+  // rev-7 large config: publishVersionCfg takes the same arguments with the
+  // config's CID inserted before the fee, and `config` demoted to the routing
+  // manifest the runner reads before it can fetch anything.
+  const fn = configCid ? "publishVersionCfg" : "publishVersion";
+  const args = [slug, name, description, version, cid, res, ports,
+                ...(rev >= 3 ? [config || ""] : []), ...(configCid ? [configCid] : []),
+                ...(rev >= 5 ? [feePerSec6] : [])];
+  return tx(appCatalog, encodeFunctionData({ abi: catAbiFor(rev), functionName: fn, args }), 0n,
+    `EnclaveAppCatalog.${fn}(${slug}:${version})`);
+}
+
+// ---- self-calls (the relay's own public gateway, loopback) ---------------------
+const bearerize = (t) => !t ? null : /^bearer /i.test(t) ? t : `Bearer ${t}`;
+async function self(method, path, { token, body, raw } = {}) {
+  const headers = { accept: "application/json" };
+  const auth = bearerize(token);
+  if (auth) headers.authorization = auth;
+  if (body !== undefined) headers["content-type"] = "application/json";
+  const r = await fetch(SELF + path, { method, headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(25_000) });
+  const text = await r.text();
+  if (raw) { if (!r.ok) throw new Error(`${path} -> ${r.status}: ${text.slice(0, 300)}`); return text; }
+  let data; try { data = JSON.parse(text); } catch { data = { raw: text.slice(0, 4000) }; }
+  if (!r.ok) throw new Error(`${path} -> ${r.status}: ${data.message || data.error || text.slice(0, 300)}`);
+  return data;
+}
+
+const isB32 = (s) => /^0x[0-9a-fA-F]{64}$/.test(String(s || ""));
+const isAddr = (s) => /^0x[0-9a-fA-F]{40}$/.test(String(s || ""));
+const usdHr = (perSec6) => "$" + (Number(perSec6) * 3600 / 1e6).toFixed(4) + "/h";
+const appLabel = (id) => isB32(id) ? id.slice(2, 10).toLowerCase() : String(id).replace(/^dep_/, "");
+const appUrl = (id) => `https://${appLabel(id)}.${APP_DOMAIN}`;
+async function depGet(id) {
+  const { deployments } = await addresses();
+  const d = await read(deployments, depsAbiFor(await depRev()), "get", [id]);
+  if (!d || /^0x0{40}$/i.test(d.owner)) throw new Error(`no deployment ${id} on the ledger`);
+  return d;
+}
+// full-id resolution for tx builders (accepts a unique 0x-hex prefix like the CLI)
+async function resolveFullId(input) {
+  if (isB32(input)) return input.toLowerCase();
+  const hex = String(input).replace(/^0x/i, "").toLowerCase();
+  if (!/^[0-9a-f]{8,63}$/.test(hex)) throw new Error(`"${input}" is not a deployment id (bytes32 or a 0x-hex prefix of one)`);
+  const v = await self("GET", `/v1/deployments/0x${hex}`);   // the gateway resolves prefixes against the ledger
+  if (!isB32(v.id)) throw new Error(`could not resolve "${input}" to an on-chain id`);
+  return String(v.id).toLowerCase();
+}
+
+// ---- upgrade / resize (build_upgrade + build_resize share one flow) -----------
+// Mirrors cli/enclave.mjs cmdUpgrade: catalog approval, minimum-share fit
+// against the shares the record WILL carry, the platform GPU cap, the
+// immutable publisher-fee snapshot, the can-it-fund-one-second settle check,
+// and the fleet-AND shareResize capability - all validated before any
+// transaction is handed back.
+async function upgradeOrResize(a, resizeOnly) {
+  const rev = await depRev();
+  if (rev < 3) throw new Error("the live EnclaveDeployments contract predates version changes (deploymentsSchema < 3)");
+  const wantShares = a.gpuShare !== undefined || a.cpuShare !== undefined;
+  if (resizeOnly && !wantShares) throw new Error("pass gpuShare and/or cpuShare (fractions of one card/node, 0..1)");
+  if (wantShares && rev < 6)
+    throw new Error("the live EnclaveDeployments contract predates share resizes (deploymentsSchema < 6); until the ledger upgrade, deploy at the new dials fresh and stop this one");
+  const full = await resolveFullId(a.id);
+  const d = await depGet(full);
+  const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d{1,9})$/.exec(d.appRef || "");
+  if (!m) throw new Error(`${full.slice(0, 10)}… references "${d.appRef}"; only catalog-versioned deployments can switch versions or shares`);
+  const app = (await catalogApps()).find((x) => x.appId.toLowerCase() === m[1].toLowerCase());
+  if (!app) throw new Error(`the catalog has no app ${m[1]} (delisted?)`);
+  const versions = await readVersions(app.appId, app.versionCount);
+  const curIdx = Number(m[2]);
+  let vi;
+  if (a.version !== undefined) {
+    vi = versions.findIndex((v) => v.version === a.version && !v.yanked);
+    if (vi < 0) throw new Error(`app "${app.slug}" has no (un-yanked) version labeled "${a.version}"`);
+  } else if (resizeOnly) {
+    vi = curIdx;   // a pure resize stays on the version the record already runs
+    if (!versions[vi]) throw new Error(`${full.slice(0, 10)}… references version index ${vi}, which the catalog doesn't list`);
+  } else {
+    vi = versions.findLastIndex((v) => !v.yanked && Number(v.approval) === 1);
+    if (vi < 0) throw new Error(`app "${app.slug}" has no approved version`);
+  }
+  const ver = versions[vi];
+  if (vi === curIdx && !wantShares)
+    return { id: full, note: `already runs ${app.slug}:${ver.version} (index ${vi}); nothing to do`, transactions: [] };
+  if (Number(ver.approval) === 2)
+    throw new Error(`${app.slug}:${ver.version} was rejected by the catalog owner; runners never serve it`);
+  if (Number(ver.approval) !== 1) {
+    // pending target: only a PRIVATE deployment may switch to it (dev mode),
+    // and only an explicit version label may name it — same rules as create
+    if (d.isPublic)
+      throw new Error(`${app.slug}:${ver.version} is awaiting approval; a PUBLIC deployment can't switch to it (dev-mode testing is private-only)`);
+    if (a.version === undefined && vi !== curIdx)   // staying on the version it already runs (pure resize) is fine
+      throw new Error(`refusing to pick the pending ${app.slug}:${ver.version} implicitly; name it explicitly via version`);
+    const av = await self("GET", "/availability").catch(() => null);
+    if (!(av && av.aggregate && av.devDeploy === true))
+      throw new Error(`${app.slug}:${ver.version} is awaiting approval, and the live fleet doesn't advertise devDeploy (pending-version private deploys) yet - retry after the fleet updates, or wait for approval`);
+  }
+  // sized on the box that will APPLY the change (its lease holder), not the
+  // fleet's best box - see hostPricing
+  const { pricing, host, hostAsk, hostFree } = await hostPricing(d, await self("GET", "/v1/pricing").catch(() => null));
+  const where = host ? `on ${host}` : "on the fleet's hardware";
+  const mins = minShares(ver, pricing);
+  let gpuMilli = a.gpuShare !== undefined ? Math.round(Number(a.gpuShare) * 1000) : Number(d.gpuMilli);
+  let cpuMilli = a.cpuShare !== undefined ? Math.round(Number(a.cpuShare) * 1000) : Number(d.cpuMilli);
+  if (!(gpuMilli >= 0 && gpuMilli <= 1000) || !(cpuMilli >= 1 && cpuMilli <= 1000))
+    throw new Error("gpuShare/cpuShare are fractions of one card/node (0..1)");
+  // pre-13 setShares reverts on a GPU share under the CPU one; rev 13+ takes
+  // the dials exactly as asked (see the create path for the same lift)
+  if (rev < 13 && gpuMilli > 0 && gpuMilli < cpuMilli) gpuMilli = cpuMilli;
+  if (gpuMilli < mins.gpuMilli || cpuMilli < mins.cpuMilli) {
+    const dial = `gpuShare ${mins.gpuMilli / 1000} / cpuShare ${mins.cpuMilli / 1000}`;
+    if (wantShares)
+      throw new Error(`those dials are below ${app.slug}:${ver.version}'s minimums ${where} (needs at least ${dial})`);
+    throw new Error(`${app.slug}:${ver.version} needs gpu ${mins.gpuMilli / 10}% / cpu ${mins.cpuMilli / 10}% ${where} but this deployment bought `
+      + `gpu ${Number(d.gpuMilli) / 10}% / cpu ${Number(d.cpuMilli) / 10}%; `
+      + (rev >= 6 ? `pass ${dial} to resize it in place (the rate is recalculated at the current list prices)`
+                  : "shares are immutable on this ledger; deploy it fresh instead"));
+  }
+  const resized = wantShares && (gpuMilli !== Number(d.gpuMilli) || cpuMilli !== Number(d.cpuMilli));
+  const { deployments } = await addresses();
+  // the publisher-fee snapshot IS still immutable, resize or not
+  const newFee = await versionFee6(app.appId, vi);
+  const snap = rev >= 4 ? await read(deployments, depsAbiFor(rev), "feeOf", [full])
+                        : ["0x0000000000000000000000000000000000000000", 0n];
+  if (newFee > 0n && (snap[1] < newFee || String(snap[0]).toLowerCase() !== app.publisher.toLowerCase()))
+    throw new Error(`${app.slug}:${ver.version} charges ${usdHr(newFee)} publisher fee, above this deployment's immutable create-time snapshot (${usdHr(snap[1])}); deploy it fresh instead`);
+  let rateInfo = {};
+  if (resized) {
+    // rev 8: the bigger slice is bought from the box that will serve it (its
+    // lease holder), at that box's posted price — not a platform list price
+    const [{ pricePerSec6: p6, cpuPricePerSec6: c6 }, maxGpu] = await Promise.all([
+      livePrices(hostAsk),
+      read(deployments, [{ type: "function", name: "maxGpuMilli", stateMutability: "view", inputs: [], outputs: [{ type: "uint16" }] }],
+        "maxGpuMilli").then(Number).catch(() => 1000),
+    ]);
+    if (gpuMilli > maxGpu)
+      throw new Error(`gpuShare ${gpuMilli / 1000} is over the platform's per-deployment GPU cap of ${maxGpu / 1000} of a card`);
+    // free self-hosting (rev 12): the serving box charges its own payout wallet
+    // nothing, so only the publisher fee (never waived) survives the re-buy
+    const freeHere = rev >= 12 && hostFree;
+    const newRate = (freeHere ? 0n : (BigInt(p6) * BigInt(gpuMilli) + BigInt(c6) * BigInt(cpuMilli) + 999n) / 1000n)
+                  + BigInt(snap[1]);
+    if (rev >= 8) {
+      // the resize is a purchase, so it is capped like a claim: the contract
+      // reverts "over rate cap" above the owner's ceiling
+      const cap6 = await read(deployments, depsAbiFor(8), "capOf", [full]).catch(() => 0n);
+      if (BigInt(cap6) > 0n && newRate > BigInt(cap6))
+        throw new Error(`that size costs ${usdHr(newRate)} on this enclave, above the deployment's rate cap of ${usdHr(cap6)}; `
+          + `raise the cap first (build_set_max_rate { id, maxRatePerHour }) or pick smaller dials`);
+    }
+    // a resize mid-lease settles the tail at the old rate and re-burns it at
+    // the new one; the contract refuses if that can't buy one second
+    const now = Math.floor(Date.now() / 1000);
+    if (Number(d.leaseUntil) > now
+        && BigInt(d.balance6) + BigInt(Number(d.leaseUntil) - now) * BigInt(d.rate) < newRate)
+      throw new Error(`the remaining balance can't fund even one second at the new rate (${usdHr(newRate)}); top it up first (build_fund), then resize`);
+    // fail closed on a fleet that doesn't re-slice live deployments: the
+    // billing would change while the served slice silently didn't
+    const av = await self("GET", "/availability").catch(() => null);
+    if (av && av.aggregate && av.shareResize !== true)
+      throw new Error("the live fleet doesn't apply share resizes to running deployments yet (availability.shareResize is not true) - retry after the fleet updates");
+    rateInfo = { oldRatePerHour: usdHr(d.rate), newRatePerHour: usdHr(newRate),
+      ...(freeHere ? { hostedFree: true,
+        note: `${host} pays out to this deployment's owner, so the bigger slice is re-bought at no host charge (the publisher fee, if any, still applies)` } : {}),
+      ...(av && av.aggregate ? {} : { warning: "couldn't read fleet availability to confirm resize support; if a runner predates it, the new rate applies but the slice only changes at the next re-claim" }) };
+  }
+  const appRef = `catalog://${app.appId}/${vi}`;
+  const txs = vi !== curIdx && resized ? [encodeResizeTx({ deployments, id: full, appRef, gpuMilli, cpuMilli })]
+            : resized                  ? [encodeSetSharesTx({ deployments, id: full, gpuMilli, cpuMilli })]
+                                       : [encodeSetAppRefTx({ deployments, id: full, appRef })];
+  return { id: full, owner: d.owner, from: d.appRef, to: appRef, version: ver.version,
+    ...(resized ? { gpuMilli, cpuMilli } : {}), ...rateInfo, transactions: txs,
+    next: `sign+send with the owner wallet (${d.owner}), then claim_hint { id: "${full}" }` };
+}
+
+// ---- guides -------------------------------------------------------------------
+const SIGNING_NOTE = `Signing and sending transactions: every build_* tool returns unsigned Base (chainId ${CHAIN_ID}) transactions {chainId, to, data, value}. Sign and send them IN ORDER with the wallet that owns (or should own) the deployment. Keys never leave your machine. Examples:
+  cast send <to> --value <value> <data-as-calldata> --private-key $KEY --rpc-url https://mainnet.base.org   (foundry: cast send <to> <data> ...)
+  viem: walletClient.sendTransaction({ to, data, value: BigInt(value) })
+  or use the enclave CLI, which wraps these flows end to end: curl -fsSL https://get.enclave.host | sh`;
+
+const GUIDES = {
+  "getting-started": `Enclave (enclave.host) runs apps inside hardware TEEs (confidential VMs) on flagship NVIDIA GPUs and CPU nodes; neither the platform nor the host can see tenant data. The only identity is a wallet on Base (chainId ${CHAIN_ID}); there are no accounts.
+
+What you need:
+1. A wallet on Base with a little ETH for gas.
+2. USDC on Base to fund runtime (or fund with ETH, converted at the live Chainlink rate).
+
+The flow (each step has a tool):
+1. list_apps / get_app: browse the on-chain app catalog.
+2. plan_deploy: validate + price a deployment, get the unsigned create transaction.
+3. Sign and send it; the new deployment id is topics[1] of the Created event (topic ${DEP_CREATED_TOPIC}) in the receipt.
+4. build_fund: unsigned funding transactions (USDC approve+fund, or fundEth). Sign and send.
+5. claim_hint: nudge the fleet to claim it now (otherwise the ~60s sweep finds it).
+6. get_deployment until status is "running"; the app serves at https://<first-8-hex-of-id>.${APP_DOMAIN}.
+7. Verify the enclave before sending secrets: see guide topic "attestation".
+
+Reads (pricing, availability, catalog, deployment status) need no auth. Owner-only reads (logs, account) need a session token: auth_nonce -> sign the message with personal_sign -> auth_login. ${SIGNING_NOTE}`,
+
+  deploy: `Deploying an app, step by step:
+1. Pick a catalog app: list_apps, then get_app for versions. Only APPROVED versions are claimable.
+2. plan_deploy { app: "[publisher/]slug[:version]", fundUsd: 5 } with optional gpuShare/cpuShare (fractions 0..1 of one card / one node; defaults are the app's minimums on the fleet hardware), appPort, ports (CSV like "http:8080,tcp:7777,udp:53"), public (default true), waf (per-IP rate-limit/filter object, e.g. {"rps":10,"blockScanners":true}).
+3. It returns the unsigned create tx plus the priced rate per hour (the cheapest live enclave's price for those shares + any publisher fee) and the rate cap it will carry — the most it may ever pay, which also decides which enclaves can pick it up if its host dies. Pass maxRatePerHour to set a roomier one. Sign and send.
+4. The receipt's Created event (topic ${DEP_CREATED_TOPIC}) carries the id in topics[1].
+5. build_fund { id, usd: 5 } (whole cents) or { id, eth: 0.002 }; sign and send. Runners skip unfunded work.
+6. claim_hint { id }, then poll get_deployment { id }: awaiting_payment -> queued -> claimed -> running. Queued-over-capacity work starts by itself when capacity frees.
+7. The app URL is https://<first-8-hex-of-id>.${APP_DOMAIN} (its own origin). Websockets work. Declared tcp:/udp: ports get a dedicated public IPv6 (in the deployment record's network field).
+Notes: a deployment that under-provisions its app's minimums is never claimed. On rev-6 ledgers the shares can be re-bought later (build_resize, or build_upgrade with gpuShare/cpuShare) with the rate recalculated at the serving enclave's posted price; on older ledgers they are immutable after create. Stop/resume/upgrade are build_stop / build_resume / build_upgrade, and build_set_max_rate moves the hourly spend ceiling.
+After it runs, the mutable knobs are: get_config/build_set_config (the app-config override + waf envelope, one owner tx; the runner re-applies it in place) and get_secrets/set_secrets (private env vars on the relay; restart_deployment applies them now). ${SIGNING_NOTE}`,
+
+  publish: `Publishing an app to the catalog (wasm component -> IPFS -> on-chain version, then an approval gate):
+1. Build a wasm32-wasip2 COMPONENT (wasi:http), or a wasm32-wasip3 one (wasi:http@0.3 async; see the develop guide's WASIp3 chapter for the pinned toolchain). Core modules are refused.
+2. sha256 the bytes, pick expiry = now + up to 600 seconds (unix), and personal_sign EXACTLY the string:
+   enclave-upload:<sha256hex>:<expiry>
+3. upload_token { hash, expiry, signature } returns { token, address, expiry }.
+4. POST the raw bytes to ${IPFS_UPLOAD}/add-wasm with headers content-type: application/wasm, x-upload-address, x-upload-expiry, x-upload-token. The response carries { cid, wasi, world } — wasi is the detected world contract ("0.2" or "0.3"); put it in the version config as {"wasi":"0.3"} for a WASIp3 app so runners route its claims to p3-capable boxes (the CLI and the site do this automatically).
+   curl -sX POST ${IPFS_UPLOAD}/add-wasm -H 'content-type: application/wasm' -H "x-upload-address: <address>" -H "x-upload-expiry: <expiry>" -H "x-upload-token: <token>" --data-binary @app.wasm
+5. build_publish { publisher, slug, cid, ... } returns the unsigned publishVersion tx. Optional: version label (default: next integer), name, description, resource specs (vramMb, gpuGflops, memMb, cpuGflops; deploy dials size shares from these), ports CSV, config (the version's default ENCLAVE_CONFIG JSON, immutable), feeUsdPerHour (YOUR per-deployment publisher fee, paid straight to your wallet out of each funding, capped by the platform).
+6. Sign and send. The version starts PENDING (unless the publisher IS the catalog owner - those auto-approve at publish, rev 9); runners only claim approved versions on the PUBLIC path. To test it before approval, deploy it PRIVATE by explicit label (plan_deploy { app: "slug:version", public: false } on a fleet advertising devDeploy): owner-only data path, unlisted in the store. Images for the app page go to /add-image with the same signed-upload flow (PNG/JPEG/WebP/GIF, or SVG through a strict validator - no scripts/event handlers/external refs). The answer's "svg": true must be stored alongside the CID in the version config's _media block ({thumbnail, banner, thumbnailSvg?, bannerSvg?}) so pages render it with the right content type.
+${SIGNING_NOTE}`,
+
+  funding: `Money model: rates are on-chain per-second USDC (6 decimals), and the PRICE IS THE ENCLAVE'S, not the platform's. Every enclave publishes what its whole machine costs (node vCPU+RAM, and one card) in its registry entry; a deployment pays that fraction of it — (hostGpuPrice * gpuMilli + hostCpuPrice * cpuMilli, ceil-divided by 1000) + the version's publisher fee — snapshotted from whichever enclave CLAIMS it. Move to another enclave (a host dying, a re-claim) and the price is that box's. The pricing tool shows the live numbers and plan_deploy prices the exact deployment at the cheapest live enclave.
+- Rate cap: every deployment carries maxRate6, the most it will pay per second (plan_deploy sets it to the quoted price by default; maxRatePerHour overrides). Enclaves dearer than the cap cannot claim it, so the cap is what bounds automatic failover; build_set_max_rate moves it while the app runs. Lowering it under the running rate lets the paid lease finish, then stops the app.
+Funding is prepaid and burns per second while leased.
+- USDC: build_fund { id, usd } returns approve + fund transactions (whole cents only). The CLI's gasless-style EIP-3009 path (fundWithAuthorization) exists too; the approve+fund pair is equivalent and simpler.
+- ETH: build_fund { id, eth } returns one fundEth transaction; credited as USDC at the live Chainlink ETH/USD rate.
+- Top up any time with build_fund. timeRemainingSec in get_deployment = prepaid lease tail + what the balance still buys.
+- Stopping (build_stop) keeps the balance on the record; build_resume continues it. Funds on a record are spent only while it runs.
+- Cancelling for a refund (build_refund, ledger rev 10) sends unused runtime back to the owner's wallet and deactivates the record. It returns what the contract still HOLDS - the host escrow, ~80% of unspent time - never the sticker price: the publisher fee and the platform share were forwarded to their wallets at funding time. Quote the exact number from build_refund before the user signs, and do not describe the balance as what they will receive. Mid-lease refunds pay only what the lease cannot still claim; the rest is collectable after the runner releases.
+- Transferring a deployment (build_transfer, ledger rev 11) hands the record to another wallet. Control moves, money never does: the ledger refuses the transfer while it holds the owner's refundable escrow, so build_transfer chains a refund in front when needed - the owner's money returns to the owner, and the record hands over with zero balance for the new owner to fund. Staged secrets and custom domains stay with the record. One-shot - no accept step - so always restate the destination address to the user before they sign.`,
+
+  attestation: `Never trust the gateway: verify the enclave BEFORE sending it secrets.
+- attestation returns the fleet attestation document; deployment_attestation { id } returns the hosting enclave's (public; an owner token adds a fresh GPU nonce challenge).
+- REAL verification runs client-side with this repository's own verifier (verifier/ in ${EXPECTED_REPO}): the box is challenged with YOUR fresh nonce, the AMD SEV-SNP report must chain to AMD's pinned root, meet the TCB floor and bind the box's transport key with that nonce, and the launch measurement must be one you expect (pin it with --expect; otherwise the relay operator's allowlist is used and the verdict says LIMITED).
+- Easiest: the enclave CLI does it in one command: enclave attest [<id>]  (no id: every attached SEV-SNP box; curl -fsSL https://get.enclave.host | sh). Exit 0 verified, 3 limited, 1 not verified.
+- Session tokens are minted in-enclave (ES256); the JWKS is at ${API_BASE}/v1/session-jwks and inside the attestation document, so a verified enclave transitively authenticates the API.`,
+
+  volumes: `Two kinds of volumes:
+1. Model volumes (read-only weights, e.g. GGUF): availability lists them under "volumes" with the enclaves that carry them. Apps mount them at /models/<name>. Deploy on an enclave that carries the volume (placement follows your claim).
+2. S3 volumes (tenant data over S3-compatible storage, an "encVolumes" entry in the app config), encrypted by default:
+   - Encrypted (rclone crypt): the encryption key derives from a wallet signature CLIENT-SIDE ONLY. Use the enclave CLI: "enclave encvol message <keyId>" prints the message to sign; "enclave encvol derive/seal-creds" derive the password/salt and seal S3 credentials. NEVER send that signature to any server or tool, including this one; anyone holding it can derive the volume key. The sealed envelope and derived password go in your app's config; decryption happens inside the enclave.
+   - Plain ("encrypted": false in the entry): the bucket is mounted verbatim - for public datasets, model weights, non-secret assets. Unlock takes S3 credentials only (nothing at all for a public-read bucket) and refuses a password. The bucket host sees every byte; never put secrets in a plain volume.`,
+
+  networking: `Ports and reachability:
+- ports CSV on a version/deployment: "http:8080,tcp:25565,udp:53". The http entry (or appPort) serves at the deployment's own origin https://<first-8-hex-of-id>.${APP_DOMAIN} (TLS terminates inside enclaves for app traffic; websockets pass through).
+- Declared tcp:/udp: ports are served on a dedicated per-deployment public IPv6 (get_deployment's network field once running). IPv4-only clients can bridge with websocat via the app origin.
+- public: true (default) lists the deployment and serves it to anyone; private deployments still get their origin but are for the owner's use.
+- waf option at create: {"rps":N,"burst":N,"maxConcurrent":N,"maxBodyMb":N,"blockScanners":true} enforced per requester IP by the enclave's own proxy (availability shows whether the live fleet supports it: "waf": true). maxConcurrent caps requests one IP may hold OPEN at once - the one that bites a streaming app, where a single answer occupies its connection for as long as it takes to write, so a per-second rate barely constrains it.
+- config option at create: a JSON object replacing the version's config as THAT deployment's ENCLAVE_CONFIG (volumes key included) - the catalog default is untouched and other deployments are unaffected. Two gates, both required: availability "configOverride": true (every live runner honors it; without it the claim is refused) and deploymentsSchema() >= 5 (earlier ledgers cap create()'s options field at 100 bytes and revert on a real override).
+- Outbound: deployments can get dedicated-IP egress (per-deployment IPv6) on supported fleets.`,
+
+  sessions: `Wallet sessions: act without a wallet prompt per transaction.
+1. The client (agent, app, CLI) generates a P-256 key pair and KEEPS the private key (WebCrypto, node:crypto, a TEE).
+2. session_request { publicKey: {x, y}, label, preset: "agent", budgetUsd, owner } returns a link. The owner opens it at enclave.host, checks the code, and approves ONCE with the wallet (plus the USDC deposit for the budget).
+3. session_status { publicKey } (or { owner }) shows the session id (sid) and vault once it is open.
+4. Call any builder (plan_deploy, build_fund, build_stop, build_resume, build_resize, build_set_max_rate, build_refund, build_upgrade, build_set_config, build_publish) with session: { vault, sid }. Instead of wallet transactions it returns calls[], each with a digest.
+5. Sign each digest: ECDSA P-256 with SHA-256 over the 32 digest bytes (WebCrypto sign({name: "ECDSA", hash: "SHA-256"}, key, bytes) -> 64 bytes r||s).
+6. session_execute { vault, sid, publicKey, calls: [{...call, signature}] }. The relay pays the gas; fees and fundings come out of the session budget.
+Reach: deployments the session's vault holds (created through a session), and - after the owner's one-time build_delegate (or enclave.host -> Sessions -> Grant) - the apps the WALLET owns, which a session treats as PRODUCTION: stop/resume, resize, fund, lower the cap, refund; never change what they run, never transfer. Owner-only, always the wallet: vault top-up/withdraw, promotion to production, other sessions, secrets, transfers. Ending a session never stops running apps.`,
+  fees: `Publisher fees: a catalog version may carry feePerSec6 (set via build_publish's feeUsdPerHour, capped by the platform's maxFeePerSec6). Deploying such a version snapshots {publisher, fee} immutably into the deployment record; every funding pays the publisher pro-rata, straight to their wallet, no platform custody. get_app shows each version's fee. An upgrade (build_upgrade) can only move to a version whose fee fits the deployment's original snapshot; otherwise deploy fresh.`,
+
+  cli: `The enclave CLI wraps every flow here with local key management:
+  curl -fsSL https://get.enclave.host | sh
+  enclave key new / import      wallet (or set ENCLAVE_KEY)
+  enclave apps                  catalog
+  enclave deploy <app> --fund 5 create + fund + wait, one command
+  enclave status/logs/attest    watch and verify
+  enclave fund/stop/resume/upgrade
+  enclave publish app.wasm --slug my-app [--fee 0.10]
+  enclave encvol ...            encrypted-volume key derivation (client-side)
+MCP and the CLI are equivalent surfaces; MCP returns unsigned transactions instead of signing locally.`,
+};
+
+// ---- tools --------------------------------------------------------------------
+const S = (props, required = []) => ({ type: "object", properties: props, required, additionalProperties: false });
+const P = {
+  id: { type: "string", description: "Deployment id: bytes32 0x… (or a unique 0x-hex prefix, 8+ chars)" },
+  token: { type: "string", description: "Session token from auth_login (falls back to this request's Authorization header)" },
+  app: { type: "string", description: "Catalog app reference: [publisher/]slug[:version]" },
+};
+
+const TOOLS = [
+  {
+    name: "guide",
+    description: "How-to guides for the Enclave platform (confidential compute for wasm apps, paid in USDC on Base). Topics: getting-started, deploy, publish, funding, sessions, attestation, volumes, networking, fees, cli. Start with getting-started.",
+    inputSchema: S({ topic: { type: "string", enum: Object.keys(GUIDES), description: "Which guide to read" } }, ["topic"]),
+    handler: async ({ topic }) => GUIDES[topic] || `Unknown topic. Topics: ${Object.keys(GUIDES).join(", ")}`,
+  },
+  {
+    name: "platform_status",
+    description: "Gateway health: live enclave count, fleet build metadata.",
+    inputSchema: S({}),
+    handler: async () => {
+      const health = await self("GET", "/health");
+      const version = await self("GET", "/v1/version").catch(() => null);
+      return { gateway: "api-relay", ...health, fleetVersion: version };
+    },
+  },
+  {
+    name: "pricing",
+    description: "Live platform rates and billing model (per-second USDC on Base; share prices for one GPU card / one CPU node, hardware sizing numbers used for share minimums).",
+    inputSchema: S({}),
+    handler: async () => self("GET", "/v1/pricing"),
+  },
+  {
+    name: "availability",
+    description: "Live fleet capacity: free GPU/CPU shares, hardware sizing minima (spec*), attached model volumes, and whether the fleet enforces the per-deployment WAF envelope.",
+    inputSchema: S({}),
+    handler: async () => self("GET", "/availability"),
+  },
+  {
+    name: "gpu_capacity",
+    description: "Live GPU partitioning detail (per-tenant SM grants / MPS view).",
+    inputSchema: S({}),
+    handler: async () => self("GET", "/v1/gpu"),
+  },
+  {
+    name: "list_apps",
+    description: "List the on-chain app catalog (public). Optional substring query over slug/name/description.",
+    inputSchema: S({ query: { type: "string", description: "Case-insensitive substring filter" } }),
+    handler: async ({ query }) => {
+      const q = (query || "").toLowerCase();
+      const rows = (await catalogApps())
+        .filter((a) => !q || (a.slug + " " + a.name + " " + a.description).toLowerCase().includes(q))
+        .map((a) => ({ publisher: a.publisher, slug: a.slug, name: a.name, description: a.description,
+                       versions: Number(a.versionCount), active: a.active }));
+      return { apps: rows, hint: "get_app for versions/fees; plan_deploy to deploy" };
+    },
+  },
+  {
+    name: "get_app",
+    description: "One catalog app with all its versions: approval status, resource specs, ports, per-version config, publisher fee.",
+    inputSchema: S({ app: { type: "string", description: "[publisher/]slug (no version)" } }, ["app"]),
+    handler: async ({ app }) => {
+      const a = await resolveApp(app);
+      const versions = await readVersions(a.appId, a.versionCount);
+      const fees = await Promise.all(versions.map((_, i) => versionFee6(a.appId, i).catch(() => 0n)));
+      return {
+        publisher: a.publisher, slug: a.slug, name: a.name, description: a.description,
+        appId: a.appId, active: a.active,
+        versions: versions.map((v, i) => ({
+          index: i, version: v.version, cid: v.cid, approval: APPROVAL_WORD[Number(v.approval)] || String(v.approval),
+          yanked: v.yanked, ports: v.ports,
+          // with configCid set, `config` is the on-chain routing manifest and
+          // NOT what the app receives — name the two things separately so a
+          // caller cannot mistake one for the other
+          ...(v.configCid ? { configCid: v.configCid, routingManifest: v.config || "" }
+                          : { config: v.config || "" }),
+          specs: { vramMb: Number(v.vramMb), gpuGflops: Number(v.gpuGflops), memMb: Number(v.memMb), cpuGflops: Number(v.cpuGflops) },
+          publisherFeePerHour: fees[i] > 0n ? usdHr(fees[i]) : null,
+        })),
+      };
+    },
+  },
+  {
+    name: "app_reviews",
+    description: "An app's on-chain ratings: the average, the star distribution, and the reviews themselves (1-5 stars with comments). Reviews come only from wallets that funded a deployment of the app, so the sample is people who ran it. Hidden (moderated) reviews are excluded from both the list and the average.",
+    inputSchema: S({ app: { type: "string", description: "[publisher/]slug (no version)" },
+                     limit: { type: "number", description: "Max reviews to return, newest first (default 20)" } }, ["app"]),
+    handler: async ({ app, limit }) => {
+      const a = await resolveApp(app);
+      const reviews = await reviewsAddress();
+      const n = Number(await read(reviews, REVIEWS_ABI, "reviewCount", [a.appId]));
+      const all = [];
+      for (let s = 0; s < n; s += 50)
+        all.push(...await read(reviews, REVIEWS_ABI, "getReviewsPage", [a.appId, BigInt(s), 50n]));
+      const visible = all.filter((r) => !r.hidden).sort((x, y) => Number(y.updatedAt) - Number(x.updatedAt));
+      const count = visible.length, sum = visible.reduce((t, r) => t + Number(r.stars), 0);
+      return {
+        app: `${a.slug}`, appId: a.appId,
+        average: count ? Number((sum / count).toFixed(2)) : null,
+        count,
+        distribution: Object.fromEntries([5, 4, 3, 2, 1].map((s) => [s, visible.filter((r) => Number(r.stars) === s).length])),
+        reviews: visible.slice(0, Math.max(1, Math.min(Number(limit) || 20, 100))).map((r) => ({
+          reviewer: r.reviewer, stars: Number(r.stars), body: r.body,
+          postedAt: new Date(Number(r.createdAt) * 1000).toISOString(),
+          edited: Number(r.updatedAt) > Number(r.createdAt),
+        })),
+      };
+    },
+  },
+  {
+    name: "list_deployments",
+    description: "List a wallet's deployments: live fleet view (with a session token) merged with the on-chain ledger, so queued/stopped/unfunded work appears too. Ledger rows are public; pass owner to scope without a token.",
+    inputSchema: S({ owner: { type: "string", description: "Wallet address 0x… (required without a token)" }, token: P.token }),
+    handler: async ({ owner }, ctx) => {
+      if (owner && !isAddr(owner)) throw new Error("owner must be a 0x… address");
+      return self("GET", `/v1/deployments${owner ? `?owner=${owner}` : ""}`, { token: ctx.token });
+    },
+  },
+  {
+    name: "get_deployment",
+    description: "One deployment's record: status (awaiting_payment | queued | claimed | running | stopped | unfunded), rate, balance, time remaining, network addresses. Public ledger data; a session token adds the hosting enclave's live view.",
+    inputSchema: S({ id: P.id, token: P.token }, ["id"]),
+    handler: async ({ id }, ctx) => {
+      const d = await self("GET", `/v1/deployments/${encodeURIComponent(id)}`, { token: ctx.token });
+      return { ...d, url: d.id ? appUrl(d.id) : undefined };
+    },
+  },
+  {
+    name: "deployment_logs",
+    description: "Worker logs for a deployment (owner only; needs a session token from auth_login).",
+    inputSchema: S({ id: P.id, tail: { type: "number", description: "Lines from the end (default 100)" }, token: P.token }, ["id"]),
+    handler: async ({ id, tail }, ctx) => {
+      if (!ctx.token) throw new Error("logs are owner-only: pass token (see auth_nonce/auth_login)");
+      return self("GET", `/v1/deployments/${encodeURIComponent(id)}/logs?tail=${Math.max(1, Math.min(10000, Number(tail) || 100))}`,
+        { token: ctx.token, raw: true });
+    },
+  },
+  {
+    name: "fleet_attestation",
+    description: "The fleet's enclave attestation document (public). Verify CLIENT-SIDE with `enclave attest` (this repository's own verifier); never trust this gateway's copy blindly.",
+    inputSchema: S({}),
+    handler: async () => ({ attestation: await self("GET", "/v1/attestation"),
+      verify: `Client-side only: enclave attest, the verifier in ${EXPECTED_REPO} (see guide topic "attestation")` }),
+  },
+  {
+    name: "deployment_attestation",
+    description: "The attestation of the enclave hosting one deployment (public — no token needed; an owner token adds a fresh GPU report over a caller nonce). Verify client-side; see guide topic \"attestation\".",
+    inputSchema: S({ id: P.id, token: P.token }, ["id"]),
+    handler: async ({ id }, ctx) => {
+      if (!ctx.token) return self("GET", `/v1/deployments/${encodeURIComponent(id)}/attestation`);
+      // the freshness nonce a GPU attestation report is signed over: predictable
+      // is the one thing it must not be, so draw it from the CSPRNG
+      const nonce = randomBytes(32).toString("hex");
+      return self("GET", `/v1/deployments/${encodeURIComponent(id)}/attestation?nonce=${nonce}`, { token: ctx.token });
+    },
+  },
+  {
+    name: "account",
+    description: "Account summary for the signed-in wallet: payment addresses (forwarder, USDC), deployment counts. Needs a session token.",
+    inputSchema: S({ token: P.token }),
+    handler: async (_a, ctx) => {
+      if (!ctx.token) throw new Error("pass token (see auth_nonce/auth_login)");
+      return self("GET", "/v1/account", { token: ctx.token });
+    },
+  },
+  {
+    name: "auth_nonce",
+    description: "Step 1 of sign-in: fetch the SIWE message for a wallet. Sign it locally with personal_sign, then call auth_login. Only needed for owner-scoped reads (logs, account, live status detail); all transactions work without a session.",
+    inputSchema: S({ address: { type: "string", description: "Wallet address 0x…" } }, ["address"]),
+    handler: async ({ address }) => {
+      if (!isAddr(address)) throw new Error("address must be a 0x… wallet address");
+      const n = await self("GET", `/v1/auth/nonce?address=${address}`);
+      return { ...n, next: "personal_sign the `message` with this wallet, then auth_login { message, signature }" };
+    },
+  },
+  {
+    name: "auth_login",
+    description: "Step 2 of sign-in: exchange the signed SIWE message for a session token (ES256, minted inside the enclave). Pass the token to owner-scoped tools, or set it as this MCP server's Authorization header.",
+    inputSchema: S({ message: { type: "string", description: "The exact message from auth_nonce" },
+                     signature: { type: "string", description: "personal_sign signature 0x…" } }, ["message", "signature"]),
+    handler: async ({ message, signature }) => self("POST", "/v1/auth/login", { body: { message, signature } }),
+  },
+  {
+    name: "claim_hint",
+    description: "Nudge the fleet to claim a funded on-chain deployment right now (otherwise the ~60s sweep finds it). Advisory and unauthenticated. Optional enclave pins the hint to one named box (see /enclaves) — the WASIp3-canary and placement path; the ledger stays an open queue either way.",
+    inputSchema: S({ id: P.id,
+      enclave: { type: "string", description: "Send the hint only to this enclave (a name from /enclaves), e.g. a p3-capable canary box" },
+      force: { type: "boolean", description: "Override the ex-runner's provision-failure cooldown (the resume control's flag). Set it only when the owner asked to retry a failed deployment NOW, after fixing the cause - a plain hint respects the cooldown so a crash-looping app can rest in failed" } }, ["id"]),
+    handler: async ({ id, enclave, force }) => self("POST", "/v1/claim-hint", { body: { id, ...(enclave ? { enclave } : {}), ...(force === true ? { force: true } : {}) } }),
+  },
+  {
+    name: "restart_deployment",
+    description: "Restart a running deployment in place (owner only; needs a session token).",
+    inputSchema: S({ id: P.id, token: P.token }, ["id"]),
+    handler: async ({ id }, ctx) => {
+      if (!ctx.token) throw new Error("pass token (see auth_nonce/auth_login)");
+      return self("POST", `/v1/deployments/${encodeURIComponent(id)}/restart`, { token: ctx.token, body: {} });
+    },
+  },
+  {
+    name: "terminate_hosted",
+    description: "Tear down the hosted instance promptly after an on-chain stop (owner only; needs a session token). On-chain stop itself is build_stop; without this the runner tears it down on its next ledger pass anyway.",
+    inputSchema: S({ id: P.id, token: P.token }, ["id"]),
+    handler: async ({ id }, ctx) => {
+      if (!ctx.token) throw new Error("pass token (see auth_nonce/auth_login)");
+      return self("DELETE", `/v1/deployments/${encodeURIComponent(id)}`, { token: ctx.token });
+    },
+  },
+  {
+    name: "upload_token",
+    description: "Trade a wallet signature for a one-time IPFS upload token (publishing step). Sign EXACTLY `enclave-upload:<sha256hex>:<expiry>` (personal_sign; expiry = unix seconds within +600s), then POST the bytes to " + IPFS_UPLOAD + "/add-wasm (or /add-image) with headers x-upload-address/-expiry/-token. See guide topic \"publish\".",
+    inputSchema: S({
+      hash: { type: "string", description: "sha256 hex of the exact bytes to upload" },
+      expiry: { type: "number", description: "Unix seconds; must match the signed string, within the next 600s" },
+      signature: { type: "string", description: "personal_sign of enclave-upload:<hash>:<expiry>" },
+    }, ["hash", "expiry", "signature"]),
+    handler: async ({ hash, expiry, signature }) => {
+      const t = await self("POST", "/v1/apps/upload-token", { body: { hash, expiry, signature } });
+      return { ...t, upload: `curl -sX POST ${IPFS_UPLOAD}/add-wasm -H 'content-type: application/wasm' -H 'x-upload-address: ${t.address}' -H 'x-upload-expiry: ${expiry}' -H 'x-upload-token: ${t.token}' --data-binary @app.wasm` };
+    },
+  },
+  {
+    name: "set_secrets",
+    description: "Store/update a deployment's PRIVATE env vars (S3 keys, API tokens) on the relay — never on the public chain; the enclave holding the lease injects them into the app at every start (restart_deployment applies changes now), and $NAME/${NAME} placeholders inside the deployment's App config STRING values resolve from them at launch (so a public config can reference private values). payload is a JSON STRING like '{\"set\":{\"NAME\":\"value\"},\"del\":[\"NAME\"],\"clear\":false}' — sign EXACTLY `enclave-secrets:put:<id>:<expiry>:<sha256hex(payload)>` (personal_sign, the deployment's OWNER wallet, expiry = unix seconds within +600s; single-use). Names are env-var-shaped, ENCLAVE_* reserved, ≤64 keys / 4KB per value / 16KB total.",
+    inputSchema: S({
+      id: P.id,
+      payload: { type: "string", description: "The EXACT JSON string that was hashed into the signed message: {set?, del?, clear?}" },
+      expiry: { type: "number", description: "Unix seconds; must match the signed string, within the next 600s" },
+      signature: { type: "string", description: "personal_sign of enclave-secrets:put:<id>:<expiry>:<sha256hex(payload)>" },
+    }, ["id", "payload", "expiry", "signature"]),
+    handler: async ({ id, payload, expiry, signature }) =>
+      self("POST", `/v1/secrets/${encodeURIComponent(id)}`, { body: { payload, expiry, signature } }),
+  },
+  {
+    name: "get_secrets",
+    description: "Read back a deployment's relay-stored secrets (names AND values — owner only). Sign EXACTLY `enclave-secrets:get:<id>:<expiry>` (personal_sign, the owner wallet, expiry = unix seconds within +600s; single-use).",
+    inputSchema: S({
+      id: P.id,
+      expiry: { type: "number", description: "Unix seconds; must match the signed string, within the next 600s" },
+      signature: { type: "string", description: "personal_sign of enclave-secrets:get:<id>:<expiry>" },
+    }, ["id", "expiry", "signature"]),
+    handler: async ({ id, expiry, signature }) =>
+      self("POST", `/v1/secrets/${encodeURIComponent(id)}/get`, { body: { expiry, signature } }),
+  },
+  {
+    name: "plan_deploy",
+    description: "Validate and price a deployment of a catalog app, returning the unsigned create transaction. Runs the same gates the CLI does: approval, share minimums on the fleet's hardware, the platform GPU cap, and the publisher-fee snapshot. After the create tx mines, the id is topics[1] of the Created event; then build_fund and claim_hint.",
+    inputSchema: S({
+      app: P.app,
+      gpuShare: { type: "number", description: "Fraction of one GPU card, 0..1 (default: the app's minimum)" },
+      cpuShare: { type: "number", description: "Fraction of one CPU node, 0..1 (default: the app's minimum)" },
+      appPort: { type: "number", description: "The app's HTTP port (default: the version's http: port, else 8080)" },
+      ports: { type: "string", description: "CSV overriding the version's ports, e.g. \"http:8080,tcp:7777\"" },
+      public: { type: "boolean", description: "Listed and open to anyone (default true). public:false = owner-only data path - also the dev-mode path: on a fleet advertising devDeploy, a PRIVATE deployment may run a version still awaiting catalog approval (name it explicitly as slug:version)" },
+      waf: { type: "object", description: "Per-IP protection envelope, e.g. {\"rps\":10,\"burst\":40,\"blockScanners\":true}", additionalProperties: true },
+      config: { type: "object", description: "Per-deployment app-config override: replaces the picked version's config as this deployment's ENCLAVE_CONFIG ({} = explicitly empty; the catalog default and other deployments are untouched). Needs a fleet whose availability advertises configOverride:true (old runners refuse the claim) AND a deploymentsSchema() >= 5 ledger (earlier ones cap the field at 100 bytes and revert).", additionalProperties: true },
+      fundUsd: { type: "number", description: "Planned USDC funding (used to estimate runtime; funding itself is build_fund after create)" },
+      maxRatePerHour: { type: "number", description: "Spend ceiling in USDC/hour (rev-8 ledgers; default: exactly what the cheapest live enclave charges for these shares). Enclaves dearer than this can never claim the deployment - including when its host dies and the work is re-claimed - so raise it to keep failover options open on a mixed-price fleet. Editable later with build_set_max_rate." },
+    }, ["app"]),
+    handler: async (a) => {
+      const isPublic = a.public !== false;
+      const { ref, index, ver, app, pending } = await resolveAppRef(a.app, { allowPending: !isPublic });
+      if (pending) {
+        // dev-mode deploy (pending version, private): fail closed unless EVERY
+        // live runner admits it — otherwise the create would sit Queued forever
+        const av = await self("GET", "/availability").catch(() => null);
+        if (!(av && av.aggregate && av.devDeploy === true))
+          throw new Error(`${app.slug}:${ver.version} is awaiting approval, and the live fleet doesn't advertise devDeploy (pending-version private deploys) yet - retry after the fleet updates, or wait for approval`);
+      }
+      // WASIp3 apps (the version config's `wasi: "0.3"`): only p3-capable
+      // runners claim them. Same shape as the CLI's gate — fleet-AND true
+      // deploys normally; at least one capable box is the canary path (note
+      // in the plan, claim_hint {enclave} pins it); none = Queued forever,
+      // refuse before any signature.
+      let p3Note = null;
+      {
+        let verWasi3 = false;
+        try { verWasi3 = JSON.parse(ver.config || "{}").wasi === "0.3"; } catch {}
+        if (verWasi3) {
+          const av = await self("GET", "/availability").catch(() => null);
+          if (!(av && av.aggregate && av.p3 === true)) {
+            const rows = await self("GET", "/enclaves").then((j) => j?.enclaves || []).catch(() => []);
+            const capable = rows.filter((e) => e?.availability?.p3 === true).map((e) => e.name).filter(Boolean);
+            if (!capable.length)
+              throw new Error(`${app.slug}:${ver.version} is a WASIp3 app and no live enclave serves p3 yet - it would sit Queued forever; retry after the fleet updates`);
+            p3Note = `WASIp3 canary: only ${capable.join(", ")} will claim this deployment; pass claim_hint {id, enclave: "${capable[0]}"} to route it there`;
+          }
+        }
+      }
+      const pricing = await self("GET", "/v1/pricing").catch(() => null);
+      const mins = minShares(ver, pricing);
+      let gpuMilli = a.gpuShare !== undefined ? Math.round(Number(a.gpuShare) * 1000) : mins.gpuMilli;
+      let cpuMilli = a.cpuShare !== undefined ? Math.round(Number(a.cpuShare) * 1000) : Math.max(mins.cpuMilli, 10);
+      if (!(gpuMilli >= 0 && gpuMilli <= 1000) || !(cpuMilli >= 0 && cpuMilli <= 1000))
+        throw new Error("gpuShare/cpuShare are fractions of one card/node (0..1)");
+      if (cpuMilli < 1) cpuMilli = 10;
+      // The two shares are independent from rev 13 on, so a CPU-heavy app gets
+      // exactly the card slice it asked for. Pre-13 create() reverts on a GPU
+      // share under the CPU one, so round it up there rather than plan a tx
+      // that cannot mine - the only reason this lift still exists.
+      if ((await depRev()) < 13 && gpuMilli > 0 && gpuMilli < cpuMilli) gpuMilli = cpuMilli;
+      const portsCsv = a.ports !== undefined ? String(a.ports) : (ver.ports || "");
+      const httpEntry = portsCsv.split(",").map((s) => s.trim()).find((s) => /^http:/i.test(s));
+      const appPort = a.appPort !== undefined ? Math.round(Number(a.appPort))
+        : httpEntry ? parseInt(httpEntry.split(":")[1], 10) : 8080;
+      let envelope = "";
+      {
+        const parts = {};
+        if (a.waf !== undefined) {
+          if (!a.waf || Array.isArray(a.waf) || typeof a.waf !== "object" || !Object.keys(a.waf).length)
+            throw new Error("waf must be a non-empty object, e.g. {\"rps\":10}");
+          parts.waf = a.waf;
+        }
+        // {} is legal here: an explicitly empty override (the app runs with no config)
+        if (a.config !== undefined) {
+          if (!a.config || Array.isArray(a.config) || typeof a.config !== "object")
+            throw new Error("config must be a JSON object — it replaces the version's config as this deployment's ENCLAVE_CONFIG ({} = explicitly empty)");
+          parts.config = a.config;
+        }
+        if (Object.keys(parts).length) envelope = JSON.stringify(parts);
+        if (envelope.length > 4096) throw new Error("the options envelope (waf + config) exceeds 4096 bytes — runners refuse it; trim the config override");
+      }
+      const { deployments } = await addresses();
+      const [{ pricePerSec6, cpuPricePerSec6, source: priceSource }, maxGpuMilli] = await Promise.all([
+        livePrices(),
+        read(deployments, [{ type: "function", name: "maxGpuMilli", stateMutability: "view", inputs: [], outputs: [{ type: "uint16" }] }],
+          "maxGpuMilli").then(Number).catch(() => 1000),
+      ]);
+      if (gpuMilli > maxGpuMilli)
+        throw new Error(mins.gpuMilli > maxGpuMilli
+          ? `${a.app} needs at least a ${mins.gpuMilli / 10}% GPU share but the platform caps deployments at ${maxGpuMilli / 10}% of a card right now`
+          : `gpuShare ${gpuMilli / 10}% is over the platform's per-deployment cap of ${maxGpuMilli / 10}%`);
+      const fee6 = await versionFee6(app.appId, index);
+      const rev = await depRev();
+      if (fee6 > 0n && rev < 4)
+        throw new Error(`${a.app} charges a publisher fee, which the live ledger contract predates; it can't be deployed until the ledger upgrade`);
+      // the ledger's bound on create()'s options field: rev <= 4 caps it at
+      // 100 bytes (CID-sized) and reverts "configCid length" on more - the tx
+      // would never mine, so refuse in the plan instead
+      if (a.config !== undefined && rev < 5)
+        throw new Error("the live EnclaveDeployments contract predates per-deployment config overrides (deploymentsSchema < 5): its create() caps the options field at 100 bytes - drop config until the rev-5 ledger upgrade");
+      const envCap = rev >= 5 ? 4096 : 100;
+      if (envelope.length > envCap)
+        throw new Error(`the options envelope is ${envelope.length} bytes but this ledger caps the field at ${envCap} bytes (create() reverts "configCid length")`);
+      const rate = (pricePerSec6 * BigInt(gpuMilli) + cpuPricePerSec6 * BigInt(cpuMilli) + 999n) / 1000n + fee6;
+      // The spend ceiling (rev 8). Default: exactly the price quoted here — the
+      // cheapest live enclave — so the deployment can never be silently picked
+      // up by a dearer box. maxRatePerHour raises it, which is what a caller
+      // does to keep failover options open across a mixed-price fleet.
+      let maxRate6 = rate;
+      if (a.maxRatePerHour !== undefined) {
+        maxRate6 = BigInt(Math.round(Number(a.maxRatePerHour) * 1e6 / 3600));
+        if (!(maxRate6 > fee6))
+          throw new Error(`maxRatePerHour must exceed the publisher fee (${usdHr(fee6)})`);
+        if (maxRate6 < rate)
+          throw new Error(`maxRatePerHour ${usdHr(maxRate6)} is below what the cheapest live enclave charges for these shares (${usdHr(rate)}); no enclave could claim it`);
+      }
+      const create = encodeCreateTx({ rev, deployments, appRef: ref, gpuMilli, cpuMilli, appPort,
+        ports: portsCsv, isPublic, envelope, maxRate6,
+        feeRecipient: fee6 > 0n ? app.publisher : "0x0000000000000000000000000000000000000000", feePerSec6: fee6 });
+      return {
+        app: `${app.slug}:${ver.version}`, appRef: ref,
+        ...(pending ? { pending: `${ver.version} is awaiting catalog approval: this PRIVATE deployment is the dev-mode test path (owner-only data path, unlisted). If the owner later REJECTS the version, runners drop it at the next re-check.` } : {}),
+        ...(p3Note ? { p3: p3Note } : {}),
+        shares: { gpuMilli, cpuMilli, note: "immutable after create; minimums for this version: " + JSON.stringify(mins) },
+        ratePerHour: usdHr(rate), publisherFeePerHour: fee6 > 0n ? usdHr(fee6) : null,
+        ...(rev >= 8 ? { pricedBy: priceSource,
+          rateCapPerHour: usdHr(maxRate6),
+          rateCapNote: "the most this deployment will ever pay per hour. Enclaves charging more can't claim it — including when its host dies and the work is re-claimed elsewhere. Change it any time with build_set_max_rate." } : {}),
+        estimatedRuntime: a.fundUsd ? `${Math.floor(a.fundUsd * 1e6 / Number(rate) / 3600)}h ${Math.floor(a.fundUsd * 1e6 / Number(rate) % 3600 / 60)}m for $${a.fundUsd}` : undefined,
+        transactions: [create],
+        next: `1) sign+send the create tx  2) id = topics[1] of the Created event (topic ${DEP_CREATED_TOPIC})  3) build_fund { id, usd | eth }  4) claim_hint { id }  5) get_deployment until running; app URL https://<first-8-hex-of-id>.${APP_DOMAIN}`,
+      };
+    },
+  },
+  {
+    name: "build_fund",
+    description: "Unsigned funding transactions for a deployment: { usd } returns USDC approve + fund (whole cents; billed per second), { eth } returns one payable fundEth (credited at the live Chainlink rate). Anyone can fund any deployment.",
+    inputSchema: S({ id: P.id,
+      usd: { type: "number", description: "USDC amount in dollars (whole cents)" },
+      eth: { type: "number", description: "ETH amount (alternative to usd)" } }, ["id"]),
+    handler: async ({ id, usd, eth }) => {
+      if ((usd == null) === (eth == null)) throw new Error("pass exactly one of usd or eth");
+      const full = await resolveFullId(id);
+      const { deployments } = await addresses();
+      const txs = usd != null
+        ? encodeFundTxs({ deployments, id: full, usd: Number(usd) })
+        : encodeFundTxs({ deployments, id: full, ethWei: BigInt(Math.round(Number(eth) * 1e18)) });
+      return { id: full, transactions: txs, next: `sign+send in order, then claim_hint { id: "${full}" }` };
+    },
+  },
+  {
+    name: "build_host_fund",
+    description: "Unsigned plain ETH transfer that GASES a self-hosted (metal) enclave's operator EOA — the in-config key that signs the box's register/heartbeat/claim transactions (metal/PROTOCOL.md; `enclave host init` prints the address). Not a payment to anyone: the ETH is consumed as Base network fees over months, and earnings never touch this key (they sweep to the box's payoutAddress). Once funded, the box registers itself and appears as serving.",
+    inputSchema: S({ address: { type: "string", description: "the operator EOA (0x + 40 hex; from `enclave host init` / metal/config.json)" },
+                     eth: { type: "number", description: "ETH amount (default 0.002 — covers a long time at Base fees)" } }, ["address"]),
+    handler: async ({ address, eth }) => {
+      if (!/^0x[0-9a-fA-F]{40}$/.test(String(address || ""))) throw new Error("address must be a 0x…40-hex EOA");
+      const wei = BigInt(Math.round(Number(eth ?? 0.002) * 1e18));
+      if (!(wei > 0n) || wei > 10n ** 18n) throw new Error("eth must be positive (and sanity-capped at 1 ETH — this is a gas tank)");
+      return { transactions: [tx(address, "0x", wei, `gas top-up: ${Number(eth ?? 0.002)} ETH -> operator ${address.slice(0, 10)}…`)],
+               note: "sign+send with the connected wallet; the box registers on its next attempt and then shows serving:true in /enclaves" };
+    },
+  },
+  {
+    name: "build_stop",
+    description: "Unsigned setActive(false) transaction: stops billing-eligible work on-chain (owner-only on-chain; the tx reverts for non-owners). The runner tears the instance down on its next ledger pass, or immediately via terminate_hosted. Remaining balance stays on the record for build_resume.",
+    inputSchema: S({ id: P.id }, ["id"]),
+    handler: async ({ id }) => {
+      const full = await resolveFullId(id);
+      const { deployments } = await addresses();
+      return { id: full, transactions: [encodeSetActiveTx({ deployments, id: full, active: false })],
+               next: "optionally terminate_hosted { id, token } for immediate teardown" };
+    },
+  },
+  {
+    name: "build_resume",
+    description: "Unsigned setActive(true) transaction to resume a stopped deployment (owner only on-chain). Follow with claim_hint.",
+    inputSchema: S({ id: P.id }, ["id"]),
+    handler: async ({ id }) => {
+      const full = await resolveFullId(id);
+      const { deployments } = await addresses();
+      return { id: full, transactions: [encodeSetActiveTx({ deployments, id: full, active: true })],
+               next: `claim_hint { id: "${full}" } so the fleet picks it up now` };
+    },
+  },
+  {
+    name: "build_upgrade",
+    description: "Unsigned transaction(s) switching a deployment to another version of its app (paid time and the endpoint carry over; the runner restarts it in place). Optional gpuShare/cpuShare RE-BUY the deployment's shares in the same transaction (rev-6 ledgers: the rate is recalculated at the current list prices, and a live lease settles at the old rate before re-burning at the new one) - version change + resize ride ONE multicall. Validates approval, share fit, the platform GPU cap, and the publisher-fee snapshot, like the CLI. Default: the app's latest approved version.",
+    inputSchema: S({ id: P.id, version: { type: "string", description: "Target version label (default: latest approved)" },
+      gpuShare: { type: "number", description: "New GPU share, fraction of one card 0..1 (omit to keep the bought share)" },
+      cpuShare: { type: "number", description: "New CPU share, fraction of one node 0..1 (omit to keep the bought share)" } }, ["id"]),
+    handler: (a) => upgradeOrResize(a, false),
+  },
+  {
+    name: "build_resize",
+    description: "Unsigned setShares transaction re-buying a deployment's gpu/cpu shares WITHOUT changing versions (rev-6 ledgers): the rate is recalculated at the current list prices; a live lease's unserved tail settles at the old rate before re-burning at the new one, and the holding runner re-slices the app in place within ~a minute (or releases the lease, tail refunded, so an enclave that fits the new size claims it). Refuses dials below the running version's minimums, and fleets that don't re-slice live deployments.",
+    inputSchema: S({ id: P.id,
+      gpuShare: { type: "number", description: "New GPU share, fraction of one card 0..1" },
+      cpuShare: { type: "number", description: "New CPU share, fraction of one node 0..1" } }, ["id"]),
+    handler: (a) => upgradeOrResize(a, true),
+  },
+  {
+    name: "build_set_max_rate",
+    description: "Unsigned setMaxRate transaction moving a deployment's hourly spend ceiling (ledger rev 8), settable while the app runs. The cap is checked on every purchase of time: an enclave whose price for these shares exceeds it cannot claim the work — which is exactly what decides where the deployment fails over to when its host goes dark — and neither renewals nor resizes may cross it. RAISING it opens up pricier hardware; LOWERING it below the running rate lets the paid lease finish and then stops the app until a cheap enough enclave exists.",
+    inputSchema: S({ id: P.id,
+      maxRatePerHour: { type: "number", description: "The new ceiling in USDC per hour, e.g. 4.50" } }, ["id", "maxRatePerHour"]),
+    handler: async (a) => {
+      const rev = await depRev();
+      if (rev < 8) throw new Error("the live ledger predates rate caps (deploymentsSchema < 8)");
+      const full = await resolveFullId(a.id);
+      const d = await depGet(full);
+      const { deployments } = await addresses();
+      const maxRate6 = BigInt(Math.round(Number(a.maxRatePerHour) * 1e6 / 3600));
+      if (!(maxRate6 > 0n)) throw new Error("maxRatePerHour must be positive");
+      const [, fee6] = await read(deployments, depsAbiFor(rev), "feeOf", [full]).catch(() => ["0x", 0n]);
+      if (maxRate6 <= BigInt(fee6))
+        throw new Error(`the ceiling must exceed this app's publisher fee (${usdHr(fee6)})`);
+      const leased = Number(d.leaseUntil) * 1000 > Date.now();
+      const running = BigInt(d.rate);
+      return { id: full, owner: d.owner,
+        capPerHour: usdHr(maxRate6), currentRatePerHour: usdHr(running),
+        ...(leased && maxRate6 < running ? { warning:
+          `${usdHr(maxRate6)} is BELOW what this deployment currently pays (${usdHr(running)}). The lease already paid for runs to `
+          + `${new Date(Number(d.leaseUntil) * 1000).toISOString()}, then the app stops: no renewal and no re-claim is possible until a `
+          + `cheaper enclave exists or the cap goes back up.` } : {}),
+        transactions: [encodeSetMaxRateTx({ deployments, id: full, maxRate6 })],
+        next: `sign+send with the owner wallet (${d.owner})` };
+    },
+  },
+  {
+    name: "build_refund",
+    description: "Unsigned refund transaction (ledger rev 10): CANCELS a deployment and sends its unused runtime back to the owner's wallet, zeroing the balance and deactivating the record. IMPORTANT, and worth telling the user before they sign: what comes back is what the contract still HOLDS for the record - the host escrow, roughly 80% of unspent time - not the sticker price. The publisher fee and the platform share were forwarded to their wallets at funding time and no contract can claw them back. The exact payout is quoted in `refundable` here and is what the transaction pays. Refunding during a live lease is allowed and pays only what that lease cannot still claim; the reserved remainder becomes refundable once the runner releases, so a second call collects it. Capped at the escrow the OWNER's own fundings contributed, so a third party's top-up is not withdrawable.",
+    inputSchema: S({ id: P.id }, ["id"]),
+    handler: async ({ id }) => {
+      const rev = await depRev();
+      if (rev < 10) throw new Error("the live ledger predates refunds (deploymentsSchema < 10)");
+      const full = await resolveFullId(id);
+      const d = await depGet(full);
+      const { deployments } = await addresses();
+      const refundable6 = await read(deployments, depsAbiFor(rev), "refundableOf", [full]);
+      const leased = Number(d.leaseUntil) * 1000 > Date.now();
+      if (!(BigInt(refundable6) > 0n))
+        throw new Error(leased
+          ? `nothing refundable yet: everything this record still holds is reserved for the lease running to ${new Date(Number(d.leaseUntil) * 1000).toISOString()}. Retry after it ends.`
+          : "nothing to refund: this deployment has already spent or refunded everything the ledger held for it");
+      const balance6 = BigInt(d.balance6), amount6 = BigInt(refundable6);
+      return { id: full, owner: d.owner,
+        refundable: `$${(Number(amount6) / 1e6).toFixed(2)}`,
+        balance: `$${(Number(balance6) / 1e6).toFixed(2)}`,
+        ...(balance6 > amount6 ? { notRefundable:
+          `$${(Number(balance6 - amount6) / 1e6).toFixed(2)} of the balance cannot be returned - the publisher fee and the `
+          + `platform share left for their wallets when this deployment was funded.` } : {}),
+        ...(leased ? { warning:
+          `A lease runs to ${new Date(Number(d.leaseUntil) * 1000).toISOString()}. Its unearned seconds stay reserved for the host and `
+          + `become refundable after it releases - call build_refund again then to collect the remainder.` } : {}),
+        transactions: [encodeRefundTx({ deployments, id: full, refundable6: amount6 })],
+        next: `sign+send with the owner wallet (${d.owner}), then terminate_hosted { id, token } for immediate teardown` };
+    },
+  },
+  {
+    name: "build_transfer",
+    description: "Unsigned transferDeployment transaction(s) (ledger rev 11): hands a deployment to another wallet. Control moves, MONEY NEVER DOES: the ledger reverts \"refund first\" while it still holds any of the owner's refundable escrow, so when there is money to return this tool puts a refund transaction IN FRONT of the transfer - the current owner's funds come back to the current owner's wallet, then the record (with zero balance; the new owner funds it) changes hands. The handoff is ONE-SHOT - there is no accept step, and only the new owner could ever transfer it back - so confirm the destination address with the user before they sign. Relay-staged secrets and custom domains stay with the record (they are the record's, not the wallet's) - suggest rotating any credentials the new owner must not hold. The old owner's future top-ups become third-party sponsorship; the new owner's top-ups are theirs to refund.",
+    inputSchema: S({ id: P.id,
+      to: { type: "string", description: "Destination wallet address (0x…) - the new owner" } }, ["id", "to"]),
+    handler: async ({ id, to }) => {
+      const rev = await depRev();
+      if (rev < 11) throw new Error("the live ledger predates deployment transfers (deploymentsSchema < 11)");
+      let dest; try { dest = getAddress(String(to || "").trim()); } catch { throw new Error(`"${to}" is not an Ethereum address`); }
+      const full = await resolveFullId(id);
+      const d = await depGet(full);
+      if (dest.toLowerCase() === String(d.owner).toLowerCase()) throw new Error(`${dest} already owns this deployment`);
+      const { deployments } = await addresses();
+      const abi = depsAbiFor(rev);
+      // the ledger's own gate: any owner-refundable backing still held = no transfer
+      const [ownerEsc6, earn] = await Promise.all([
+        read(deployments, abi, "ownerEscrow6", [full]),
+        read(deployments, abi, "earnOf", [full]),
+      ]);
+      const blocked = BigInt(ownerEsc6) > 0n && BigInt(earn[1]) > 0n;
+      const secretsNote = "relay-staged secrets and custom domains stay with the deployment; rotate any credentials the new owner must not hold";
+      if (!blocked)
+        return { id: full, from: d.owner, to: dest, secretsNote,
+          transactions: [encodeTransferTx({ deployments, id: full, to: dest })],
+          next: `sign+send with the CURRENT owner wallet (${d.owner}); one-shot, so verify ${dest} with the user first` };
+      const refundable6 = BigInt(await read(deployments, abi, "refundableOf", [full]));
+      const leased = Number(d.leaseUntil) * 1000 > Date.now();
+      if (!(refundable6 > 0n))
+        // the mid-lease window: the free part refunded already, the host's
+        // reserve is still escrowed - nothing can be chained, wind down first
+        throw new Error(`the owner's remaining escrow is reserved for the lease running to ${new Date(Number(d.leaseUntil) * 1000).toISOString()}. `
+          + `build_stop first (the host releases within ~a minute), build_refund to collect it, then transfer.`);
+      return { id: full, from: d.owner, to: dest,
+        refundsFirst: `$${(Number(refundable6) / 1e6).toFixed(2)} returns to the CURRENT owner's wallet (${d.owner}) before the record changes hands - `
+          + `the ledger refuses to transfer owner money, so the transfer transaction alone would revert "refund first".`,
+        ...(leased ? { warning:
+          `A lease runs to ${new Date(Number(d.leaseUntil) * 1000).toISOString()}. If part of the escrow stays reserved for the host, `
+          + `the transfer transaction reverts "refund first" - retry after the host releases (build_refund then collects the tail too).` } : {}),
+        secretsNote,
+        transactions: [encodeRefundTx({ deployments, id: full, refundable6 }),
+                       encodeTransferTx({ deployments, id: full, to: dest })],
+        next: `sign+send BOTH in order with the CURRENT owner wallet (${d.owner}); one-shot, so verify ${dest} with the user first` };
+    },
+  },
+  {
+    name: "get_config",
+    description: "A deployment's options envelope (public ledger data): its per-deployment app-config override and WAF settings, plus the version's default config for context. The app's effective ENCLAVE_CONFIG is the override when present, else the version's approved config. $NAME/${NAME} placeholders inside config STRING values resolve from the deployment's relay-stored secrets at launch.",
+    inputSchema: S({ id: P.id }, ["id"]),
+    handler: async ({ id }) => {
+      const full = await resolveFullId(id);
+      const d = await depGet(full);
+      const raw = String(d.configCid || "").trim();
+      let cur = {};
+      if (raw.startsWith("{")) { try { cur = JSON.parse(raw); } catch {} }
+      if (!cur || Array.isArray(cur) || typeof cur !== "object") cur = {};
+      let versionConfig = null, versionConfigCid = "";
+      const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d{1,9})$/.exec(d.appRef || "");
+      if (m) {
+        try {
+          const v = (await readVersions(m[1], Number(m[2]) + 1))[Number(m[2])] || {};
+          versionConfigCid = v.configCid || "";
+          // On a rev-7 version the inline field is the routing manifest, not
+          // the config. Reporting it as `versionConfig` would be a trap: the
+          // obvious next move is to edit it and pass it to build_set_config,
+          // which would REPLACE the app's real config with its manifest. Say
+          // where the config lives instead of pretending it is here.
+          versionConfig = versionConfigCid ? null : (v.config || "");
+        } catch {}
+      }
+      const effective = "config" in cur ? JSON.stringify(cur.config)
+                      : versionConfigCid ? null : (versionConfig || "");
+      return { id: full, envelope: raw, waf: cur.waf ?? null,
+        configOverride: "config" in cur ? cur.config : null, versionConfig,
+        ...(versionConfigCid ? { versionConfigCid,
+          note: `this version keeps its config at ipfs://${versionConfigCid} (too large for the record); fetch that CID to read it. `
+              + `The version's inline field is only the routing manifest and must NOT be used as a config override.` } : {}),
+        effectiveConfig: effective,
+        hint: "build_set_config edits the envelope; set_secrets stores the private values $NAME placeholders resolve from" };
+    },
+  },
+  {
+    name: "build_set_config",
+    description: "Unsigned setConfig transaction rewriting a deployment's options envelope: `config` (the per-deployment app-config override that becomes its ENCLAVE_CONFIG) and/or `waf` (per-IP protection). A namespace you don't pass is PRESERVED — editing the config never wipes the waf and vice versa; clearConfig falls the app back to the version's approved config. On a fleet advertising configEdit the holding runner re-applies the envelope to the LIVE app within ~a minute (waf swaps live; a config change restarts the app in place — same lease, balance and endpoint; app state is ephemeral).",
+    inputSchema: S({
+      id: P.id,
+      config: { type: "object", description: "New app-config override ({} = explicitly empty config). Omit to leave the current override untouched. With configCid set this is instead the small ROUTING MANIFEST kept on-chain (volumes), not the app's config.", additionalProperties: true },
+      configCid: { type: "string", description: "The IPFS CID of an override too large for the ledger's 4096-byte options field (up to 1 MB) — the same split catalog rev 7 uses for a version's config, deployment side. Pin it yourself first (POST /add-json, wallet-signed): this server holds no keys and cannot pin for you. Enclaves re-fetch and hash-verify it, so the pin is availability, never trust. Needs a fleet advertising configCidOverride." },
+      waf: { type: "object", description: "New waf namespace, e.g. {\"rps\":10,\"blockScanners\":true}. Omit to leave the current waf untouched.", additionalProperties: true },
+      clearConfig: { type: "boolean", description: "Remove the config override (inline or pinned) — the version's approved config applies again" },
+      clearWaf: { type: "boolean", description: "Remove the waf namespace" },
+    }, ["id"]),
+    handler: async (a) => {
+      const full = await resolveFullId(a.id);
+      const [d, rev] = await Promise.all([depGet(full), depRev()]);
+      const raw = String(d.configCid || "").trim();
+      let cur = {};
+      if (raw.startsWith("{")) { try { cur = JSON.parse(raw); } catch {} }
+      if (!cur || Array.isArray(cur) || typeof cur !== "object") cur = {};
+      if (a.config === undefined && a.configCid === undefined && a.waf === undefined && !a.clearConfig && !a.clearWaf)
+        throw new Error("nothing to change: pass config, configCid and/or waf (or clearConfig/clearWaf)");
+      if ((a.config !== undefined || a.configCid !== undefined) && a.clearConfig)
+        throw new Error("config/configCid and clearConfig are mutually exclusive");
+      if (a.waf !== undefined && a.clearWaf) throw new Error("waf and clearWaf are mutually exclusive");
+      const next = { ...cur };
+      if (a.configCid !== undefined) {
+        if (typeof a.configCid !== "string" || !/^[A-Za-z0-9]{10,100}$/.test(a.configCid))
+          throw new Error("configCid must be a bare IPFS CID (10-100 alphanumeric characters, no ipfs:// prefix)");
+        next.configCid = a.configCid;
+      }
+      if (a.config !== undefined) {
+        if (!a.config || Array.isArray(a.config) || typeof a.config !== "object")
+          throw new Error("config must be a JSON object ({} = explicitly empty)");
+        if ("_media" in a.config) throw new Error("config._media is reserved for the catalog's store media and never reaches an app — remove it");
+        next.config = a.config;
+      }
+      // mirrors the supervisor's DEP_MANIFEST_KEYS: with the body at a CID the
+      // inline field is only what a runner reads to PLACE the deployment, and a
+      // key left here is one the owner believes their app receives and never does
+      if (next.configCid && next.config) {
+        const extra = Object.keys(next.config).filter((k) => k !== "volumes");
+        if (extra.length) throw new Error(
+          `with configCid set, config is the routing manifest and may only carry volumes — `
+          + `move ${extra.join(", ")} into the pinned config (the guest receives that document, not this one)`);
+      }
+      if (a.clearConfig) { delete next.config; delete next.configCid; }
+      if (a.waf !== undefined) {
+        if (!a.waf || Array.isArray(a.waf) || typeof a.waf !== "object" || !Object.keys(a.waf).length)
+          throw new Error("waf must be a non-empty object, e.g. {\"rps\":10} (use clearWaf to remove it)");
+        next.waf = a.waf;
+      }
+      if (a.clearWaf) delete next.waf;
+      const envelope = Object.keys(next).length ? JSON.stringify(next) : "";
+      if (envelope === raw) return { id: full, note: "the envelope already reads exactly that; nothing to do", transactions: [] };
+      const cap = rev >= 5 ? 4096 : 100;
+      if (envelope.length > cap)
+        throw new Error(rev >= 5
+          ? `the options envelope (waf + config) is ${envelope.length} bytes; the ledger caps it at 4096 — `
+            + `pin the config (POST /add-json) and pass it as configCid instead, which keeps only the reference and the routing manifest on-chain`
+          : `this ledger (deploymentsSchema ${rev}) caps the envelope at 100 bytes — config overrides need the rev-5 ledger`);
+      // the plan_deploy fail-closed rule: a config namespace no runner accepts
+      // makes the deployment unclaimable at its NEXT claim; configEdit only
+      // decides whether a LIVE app applies the edit in place or later
+      const av = await self("GET", "/availability").catch(() => null);
+      if ("config" in next && !("config" in cur) && av && av.aggregate && av.configOverride !== true)
+        throw new Error("the live fleet doesn't support per-deployment config overrides (availability.configOverride is not true) — the deployment would be unclaimable at its next relaunch");
+      if ("configCid" in next && !("configCid" in cur) && av && av.aggregate && av.configCidOverride !== true)
+        throw new Error("the live fleet doesn't support pinned config overrides (availability.configCidOverride is not true) — the envelope's configCid namespace would be refused outright at the next claim, leaving the deployment unclaimable");
+      const leased = Number(d.leaseUntil) * 1000 > Date.now();
+      const liveEdit = !!(av && av.aggregate && av.configEdit === true);
+      const { deployments } = await addresses();
+      return { id: full, owner: d.owner, envelope,
+        applies: leased
+          ? (liveEdit ? "in place within ~a minute (waf live; a config change restarts the app — same lease, balance and endpoint)"
+                      : "at the app's next relaunch or claim (the live fleet predates in-place envelope edits)")
+          : "when the deployment is next claimed",
+        transactions: [encodeSetConfigTx({ deployments, id: full, envelope })],
+        next: `sign+send with the owner wallet (${d.owner}); get_deployment shows configChange if a runner can't apply it` };
+    },
+  },
+  {
+    name: "build_publish",
+    description: "Unsigned publishVersion transaction cutting a new catalog version from an already-pinned wasm CID (see upload_token / guide topic \"publish\" for the pin step). The version starts pending approval (catalog-owner publishes auto-approve on-chain since rev 9). feeUsdPerHour sets YOUR publisher fee, paid to the publishing wallet.",
+    inputSchema: S({
+      publisher: { type: "string", description: "The wallet that will sign (appId = keccak(publisher, slug))" },
+      slug: { type: "string", description: "lowercase letters/digits/hyphens, max 40" },
+      cid: { type: "string", description: "IPFS CID of the pinned wasm component" },
+      version: { type: "string", description: "Free-form label (default: next integer for this app)" },
+      name: { type: "string" }, description: { type: "string" },
+      vramMb: { type: "number" }, gpuGflops: { type: "number" },
+      memMb: { type: "number", description: "default 256" }, cpuGflops: { type: "number", description: "default 10" },
+      ports: { type: "string", description: "CSV, e.g. \"http:8080,tcp:25565\"" },
+      config: { type: "string", description: "Default/template ENCLAVE_CONFIG JSON (≤4096 bytes, immutable per version). With configCid set this is instead the small ROUTING MANIFEST kept on-chain (wasi/threads/set/gpuOptional/cpuFallback), not the app's config. Two keys here change how the app is PLACED AND SIZED: gpuOptional:true says the declared card is preferred rather than required, and cpuFallback:{memMb,cpuGflops} says what the app needs from a node when it runs without one (the four on-chain axes describe it beside the card - an LLM holding its weights in a VRAM slice needs far more node RAM once they move into it)." },
+      configCid: { type: "string", description: "Catalog rev 7: the IPFS CID of a config too large to store inline (up to 1 MB). Pin it yourself first (POST /add-json, wallet-signed) — this server holds no keys and cannot pin for you. The CID becomes part of the immutable, approval-covered version record, and enclaves re-fetch and hash-verify it." },
+      feeUsdPerHour: { type: "number", description: "Publisher fee in USD per hour (0 = free; platform-capped)" },
+    }, ["publisher", "slug", "cid"]),
+    handler: async (a) => {
+      if (!isAddr(a.publisher)) throw new Error("publisher must be a 0x… wallet address");
+      if (!/^[a-z0-9][a-z0-9-]{0,39}$/.test(a.slug)) throw new Error("slug: lowercase letters, digits, hyphens (max 40)");
+      if (a.config) {
+        if (Buffer.byteLength(a.config) > 4096) throw new Error("config too long (max 4096 bytes)");
+        let o; try { o = JSON.parse(a.config); } catch (e) { throw new Error("config isn't valid JSON: " + e.message); }
+        if (!o || Array.isArray(o) || typeof o !== "object") throw new Error("config must be a JSON object");
+      }
+      if (a.configCid && !/^[A-Za-z0-9]{10,100}$/.test(a.configCid))
+        throw new Error("configCid must be a bare IPFS CID (10-100 alphanumeric characters, no ipfs:// prefix)");
+      const rev = await catRev();
+      if (a.config && rev < 4) throw new Error("config needs the rev-4 catalog");
+      if (a.configCid && rev < 7) throw new Error("configCid needs the rev-7 catalog; inline configs cap at 4096 bytes");
+      // With the config behind a CID, `config` is the on-chain routing manifest
+      // and it is NOT optional bookkeeping: runners place a deployment on
+      // wasi/threads/set/volumes/gpuOptional before they fetch anything, and
+      // SIZE it on cpuFallback in the same pass. This
+      // server signs nothing and never sees the wasm, so it cannot derive the
+      // manifest the way `enclave publish` does — say so rather than encode a
+      // tx that strands a p3/threaded/volume-mounting app on the wrong box.
+      if (a.configCid) {
+        let m; try { m = JSON.parse(a.config || "{}"); } catch { m = null; }
+        const carried = m && typeof m === "object" && !Array.isArray(m)
+          ? Object.keys(m).filter((k) => ROUTING_KEYS.includes(k)) : [];
+        const extra = m && typeof m === "object" && !Array.isArray(m)
+          ? Object.keys(m).filter((k) => !ROUTING_KEYS.includes(k)) : [];
+        if (extra.length) throw new Error(
+          `with configCid set, config is the on-chain routing manifest and may only carry ${ROUTING_KEYS.join("/")} — `
+          + `move ${extra.join(", ")} into the pinned config (the guest receives that, not this)`);
+        if (!carried.length) throw new Error(
+          "config is empty of routing keys; if the app targets wasip3, uses threads/set, mounts volumes, is gpuOptional, or declares a cpuFallback, "
+          + "those keys must ride the record or runners will place it on a box that cannot run it");
+      }
+      const feeUsdHr = Number(a.feeUsdPerHour) || 0;
+      if (feeUsdHr < 0) throw new Error("feeUsdPerHour can't be negative");
+      const feePerSec6 = BigInt(Math.round(feeUsdHr * 1e6 / 3600));
+      const { appCatalog } = await addresses();
+      if (feePerSec6 > 0n) {
+        if (rev < 5) throw new Error("publisher fees need the rev-5 catalog; publish free or wait for the catalog upgrade");
+        const max = await read(appCatalog, U256_VIEW("maxFeePerSec6"), "maxFeePerSec6");
+        if (feePerSec6 > max) throw new Error(`feeUsdPerHour ${feeUsdHr} is over the platform cap of ${usdHr(max)}`);
+      }
+      const appId = await read(appCatalog, catAbiFor(rev), "appIdOf", [a.publisher, a.slug]);
+      const existing = Number(await read(appCatalog, catAbiFor(rev), "numVersions", [appId]).catch(() => 0n));
+      const version = a.version || String(existing + 1);
+      const res = [Math.round(Number(a.vramMb) || 0), Math.round(Number(a.gpuGflops) || 0),
+                   Math.round(Number(a.memMb) || 256), Math.round(Number(a.cpuGflops) || 10)];
+      return {
+        slug: a.slug, version, appId, cid: a.cid,
+        publisherFeePerHour: feePerSec6 > 0n ? usdHr(feePerSec6) : null,
+        transactions: [encodePublishTx({ rev, appCatalog, slug: a.slug, name: a.name || a.slug,
+          description: a.description || "", version, cid: a.cid, res, ports: a.ports || "",
+          config: a.config || "", configCid: a.configCid || "", feePerSec6 })],
+        next: `sign+send with ${a.publisher} (the publisher identity). Approval starts pending; deploy once approved: plan_deploy { app: "${a.slug}:${version}" }`,
+      };
+    },
+  },
+  {
+    name: "build_review",
+    description: "Unsigned transaction posting a 1-5 star review (with an optional comment) for a catalog app. Only a wallet that FUNDED a deployment of that app may review it: the tx names one of the reviewer's deployments as the receipt and the contract verifies it. This tool finds that deployment from the reviewer's ledger rows, or takes an explicit one. Posting again from the same wallet replaces that wallet's review.",
+    inputSchema: S({
+      app: { type: "string", description: "[publisher/]slug (no version) - a review is about the app, not one release" },
+      reviewer: { type: "string", description: "The wallet that will sign (must have a funded deployment of the app)" },
+      stars: { type: "number", description: "1..5" },
+      comment: { type: "string", description: "Optional review text (max 2000 bytes)" },
+      deployment: { type: "string", description: "Receipt override: a specific deployment id of yours (default: your highest-funded one for this app)" },
+    }, ["app", "reviewer", "stars"]),
+    handler: async ({ app, reviewer, stars, comment, deployment }) => {
+      if (!isAddr(reviewer)) throw new Error("reviewer must be a 0x… wallet address");
+      const n = Math.round(Number(stars));
+      if (!(n >= 1 && n <= 5)) throw new Error("stars must be 1..5");
+      if (comment && Buffer.byteLength(comment) > 2000) throw new Error("comment too long (max 2000 bytes)");
+      const a = await resolveApp(app);
+      const reviews = await reviewsAddress();
+
+      let receipt = deployment ? await resolveFullId(deployment) : null;
+      if (!receipt) {
+        // the receipt hunt, same rule the site applies: my deployments of THIS
+        // app that money actually went into (paidUsdc = balance + spent)
+        const rows = await self("GET", `/v1/deployments?owner=${reviewer}`).catch(() => []);
+        const list = (Array.isArray(rows) ? rows : rows.deployments || [])
+          .filter((d) => String(d?.image?.reference || "").toLowerCase().startsWith(`catalog://${a.appId.toLowerCase()}/`))
+          .filter((d) => parseFloat(d.paidUsdc || "0") > 0)
+          .sort((x, y) => parseFloat(y.paidUsdc || "0") - parseFloat(x.paidUsdc || "0"));
+        if (!list.length)
+          throw new Error(`${reviewer} has no funded deployment of ${a.slug}; only wallets that ran the app can review it (plan_deploy -> build_fund)`);
+        receipt = list[0].id;
+      }
+      // ask the contract, not our own reasoning - it is the gate that matters
+      if (!await read(reviews, REVIEWS_ABI, "canReview", [a.appId, receipt, reviewer]))
+        throw new Error(`the contract refuses ${receipt} as proof that ${reviewer} ran ${a.slug} (wrong owner, wrong app, or never funded)`);
+      return {
+        app: a.slug, appId: a.appId, stars: n, receipt,
+        transactions: [tx(reviews, encodeFunctionData({ abi: REVIEWS_ABI, functionName: "post",
+          args: [a.appId, receipt, n, comment || ""] }), 0n, `EnclaveReviews.post(${a.slug}, ${n}★)`)],
+        next: `sign+send with ${reviewer}; read it back with app_reviews { app: "${a.slug}" }`,
+      };
+    },
+  },
+];
+
+// ---- wallet sessions (P-256 session keys; docs/design/sessions.md) -------------
+// A session is a P-256 key + a policy + an optional USDC budget, approved ONCE by
+// the owner's wallet at enclave.host/grant. It acts through the owner's SessionVault:
+// on the records the vault holds, and - once the owner has delegated the vault on the
+// ledger (rev 15d setDelegate) - on the records the WALLET holds, which a session
+// always treats as production (stop/resume, resize, fund, lower the cap, refund;
+// never what they run). The CLIENT holds the key and signs; this server only
+// prepares calls (validated, quoted, digested) and forwards signed ones to the
+// relay's public /v1/sessions/execute - the same request any client can make.
+const SESSION_ACTIONS = { "deploy.create": 0, "deploy.fund": 1, "deploy.setAppRef": 2, "deploy.setConfig": 3,
+  "deploy.setShares": 4, "deploy.setMaxRate": 5, "deploy.setActive": 6, "deploy.refund": 7, "app.publish": 8,
+  "api.status": 128, "api.logs": 129, "api.restart": 130, "api.upload": 131, "api.appAccess": 132,
+  "api.placement": 133, "api.account": 134 };
+const ACTION_NAME = Object.fromEntries(Object.entries(SESSION_ACTIONS).map(([k, v]) => [v, k]));
+const ENVS = { staging: 1, prod: 2 };
+const USD6 = 1_000_000n;
+const num = (v) => BigInt(String(v ?? 0).replace(/n$/, ""));     // the relay writes bigints as "123n"
+// grant templates - the same presets the SDK/CLI/site use (sdk/sessions/src/grant.ts),
+// plus "agent", the browser preset's full reach with a budget and a week (an AI agent the
+// owner hands money to: it spends only the budget, every op is rate-limited and capped)
+const PRESETS = {
+  browser: { actions: ["deploy.create", "deploy.fund", "deploy.setAppRef", "deploy.setConfig", "deploy.setShares",
+      "deploy.setMaxRate", "deploy.setActive", "deploy.refund", "api.status", "api.logs", "api.restart", "api.upload",
+      "api.appAccess", "api.placement", "api.account"],
+    apps: ["*"], environments: ["staging", "prod"], budget: 0n, spendPerPeriod: 100n * USD6, periodSeconds: 86400,
+    opsPerPeriod: 0, maxFeePerOp: USD6 / 4n, maxAppFeePerHour: USD6, maxRatePerHour: 10n * USD6,
+    expiresIn: 12 * 3600, maxExpiresIn: 30 * 86400 },
+  "staging-publish": { actions: ["app.publish", "deploy.create", "deploy.fund", "deploy.setAppRef", "deploy.setConfig",
+      "deploy.setActive", "api.status", "api.logs", "api.restart", "api.upload"],
+    apps: [], environments: ["staging"], budget: 10n * USD6, spendPerPeriod: 5n * USD6, periodSeconds: 86400,
+    opsPerPeriod: 120, maxFeePerOp: USD6 / 10n, maxAppFeePerHour: 0n, maxRatePerHour: 5n * USD6,
+    expiresIn: 7 * 86400, maxExpiresIn: 28 * 86400 },
+  "auth-only": { actions: ["api.status"], apps: [], environments: [], budget: 0n, spendPerPeriod: 0n, periodSeconds: 86400,
+    opsPerPeriod: 0, maxFeePerOp: 0n, maxAppFeePerHour: 0n, maxRatePerHour: 0n, expiresIn: 12 * 3600, maxExpiresIn: 7 * 86400 },
+};
+// never api.account / api.appAccess: a leaked agent key must not sign in as the owner or open
+// their private apps - neither is bounded by a budget
+PRESETS.agent = { ...PRESETS.browser, actions: PRESETS.browser.actions.filter((a) => a !== "api.account" && a !== "api.appAccess"),
+  budget: 20n * USD6, spendPerPeriod: 50n * USD6, opsPerPeriod: 500, expiresIn: 7 * 86400, maxExpiresIn: 30 * 86400 };
+const SESSION_CALL_TYPES = { SessionCall: [
+  { name: "sessionId", type: "bytes32" }, { name: "nonce", type: "uint256" }, { name: "action", type: "uint8" },
+  { name: "argsHash", type: "bytes32" }, { name: "fee", type: "uint256" }, { name: "deadline", type: "uint64" }] };
+const VAULT_ABI = [{ type: "function", name: "owner", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] }];
+const FACTORY_ABI = [{ type: "function", name: "vaultFor", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "address" }] }];
+const LEDGER_DELEGATE_ABI = [{ type: "function", name: "setDelegate", stateMutability: "nonpayable",
+  inputs: [{ type: "address" }, { type: "bool" }], outputs: [] }];
+const B32 = { type: "bytes32" };
+const CREATE_TUPLE = [{ type: "tuple", components: [
+  { name: "appRef", type: "string" }, { name: "gpuMilli", type: "uint16" }, { name: "cpuMilli", type: "uint16" },
+  { name: "appPort", type: "uint32" }, { name: "ports", type: "string" }, { name: "isPublic", type: "bool" },
+  { name: "configCid", type: "string" }, { name: "maxRate6", type: "uint256" }, { name: "env", type: "uint8" },
+  { name: "fund6", type: "uint256" }] }];
+const PUBLISH_TUPLE = [{ type: "tuple", components: [
+  { name: "slug", type: "string" }, { name: "name", type: "string" }, { name: "description", type: "string" },
+  { name: "version", type: "string" }, { name: "cid", type: "string" }, { name: "res", type: "uint32[4]" },
+  { name: "ports", type: "string" }, { name: "config", type: "string" }, { name: "configCid", type: "string" }] }];
+
+const sessionsConfig = (() => { let c = null, at = 0;
+  return async () => { if (!c || Date.now() - at > 600_000) { c = await self("GET", "/v1/sessions/config"); at = Date.now(); } return c; }; })();
+
+// a P-256 coordinate / scalar as 0x + 64 hex: accepts 0x-hex, bare hex, decimal or base64url (32 bytes)
+function word32(v, name) {
+  const s = String(v ?? "").trim();
+  let n;
+  if (/^0x[0-9a-fA-F]{1,64}$/.test(s)) n = BigInt(s);
+  else if (/^[0-9a-fA-F]{64}$/.test(s)) n = BigInt("0x" + s);
+  else if (/^\d{1,78}$/.test(s)) n = BigInt(s);
+  else if (/^[A-Za-z0-9_-]{43}=?$/.test(s)) n = BigInt("0x" + Buffer.from(s, "base64url").toString("hex"));
+  else throw new Error(`${name} must be a 32-byte value (0x-hex, decimal or base64url)`);
+  if (n <= 0n || n >= 1n << 256n) throw new Error(`${name} is out of range`);
+  return "0x" + n.toString(16).padStart(64, "0");
+}
+// {x, y} | {publicKey: "04…"} uncompressed point | a JWK {kty:"EC", crv:"P-256", x, y}
+export function sessionPublicKey(pk) {
+  if (typeof pk === "string") {
+    const h = pk.replace(/^0x/, "");
+    if (!/^04[0-9a-fA-F]{128}$/.test(h)) throw new Error("publicKey: pass {x, y} or the 65-byte uncompressed point 04…");
+    return { x: "0x" + h.slice(2, 66), y: "0x" + h.slice(66) };
+  }
+  if (!pk || typeof pk !== "object") throw new Error("publicKey: pass {x, y}");
+  return { x: word32(pk.x, "publicKey.x"), y: word32(pk.y, "publicKey.y") };
+}
+// {r, s} | a 64-byte raw r||s (WebCrypto's ECDSA output) as hex or base64url | DER (0x30…)
+export function sessionSignature(sig) {
+  if (sig && typeof sig === "object") return { r: word32(sig.r, "signature.r"), s: word32(sig.s, "signature.s") };
+  const s = String(sig ?? "").trim();
+  let b;
+  if (/^(0x)?[0-9a-fA-F]+$/.test(s)) b = Buffer.from(s.replace(/^0x/, ""), "hex");
+  else if (/^[A-Za-z0-9_-]+=*$/.test(s)) b = Buffer.from(s, "base64url");
+  else throw new Error("signature: pass {r, s}, 64 raw bytes (hex/base64url) or DER");
+  if (b.length === 64) return { r: "0x" + b.subarray(0, 32).toString("hex"), s: "0x" + b.subarray(32).toString("hex") };
+  if (b[0] === 0x30) {           // DER: 30 len 02 lr r 02 ls s
+    let i = 2; const int = () => { if (b[i] !== 0x02) throw new Error("signature: bad DER"); const n = b[i + 1]; const v = b.subarray(i + 2, i + 2 + n); i += 2 + n; return v; };
+    const r = int(), s2 = int();
+    const w = (x) => "0x" + BigInt("0x" + (x.toString("hex") || "0")).toString(16).padStart(64, "0");
+    return { r: w(r), s: w(s2) };
+  }
+  throw new Error(`signature: expected 64 bytes (r||s) or DER, got ${b.length} bytes`);
+}
+const keyHashOf = ({ x, y }) => keccak256(encodeAbiParameters([{ type: "uint256" }, { type: "uint256" }], [BigInt(x), BigInt(y)]));
+export function sessionCallDigest({ vault, sid, nonce, action, args, fee, deadline }) {
+  return hashTypedData({ domain: { name: "Enclave Sessions", version: "1", chainId: CHAIN_ID, verifyingContract: getAddress(vault) },
+    types: SESSION_CALL_TYPES, primaryType: "SessionCall",
+    message: { sessionId: sid, nonce: BigInt(nonce), action: Number(action), argsHash: keccak256(args), fee: BigInt(fee), deadline: BigInt(deadline) } });
+}
+async function vaultOwnerOf(vault) { return getAddress(await read(getAddress(vault), VAULT_ABI, "owner")); }
+async function sessionState(vault, sid) {
+  const v = await self("GET", `/v1/sessions/session/${getAddress(vault)}/${sid}`);
+  return v.state || {};
+}
+function decodeSessionState(st) {
+  const mask = num(st.actions);
+  const actions = Object.entries(SESSION_ACTIONS).filter(([, b]) => ((mask >> BigInt(b)) & 1n) === 1n).map(([n]) => n);
+  const envs = Object.entries(ENVS).filter(([, b]) => (Number(st.envs ?? 0) & b) !== 0).map(([n]) => n);
+  return { actions, environments: envs };
+}
+
+// Translate the unsigned wallet transactions a builder returned into session steps
+// {action, args, id?, describe}. Anything a session can never do is refused here, with why.
+export function stepsFromTxs(txs, { deployments, appCatalog, rev, catRevision, env, fund6 }) {
+  const steps = [];
+  const depAbi = depsAbiFor(rev);
+  const one = (data, describe) => {
+    const { functionName: fn, args } = decodeFunctionData({ abi: depAbi, data });
+    const d = (action, encoded, id) => steps.push({ action, args: encoded, id, describe: describe || `${fn}(${id ? id.slice(0, 10) + "…" : ""})` });
+    switch (fn) {
+      case "multicall": for (const c of args[0]) one(c, null); return;
+      case "setActive": return d(6, encodeAbiParameters([B32, { type: "bool" }], [args[0], args[1]]), args[0]);
+      case "setShares": return d(4, encodeAbiParameters([B32, { type: "uint16" }, { type: "uint16" }], [args[0], args[1], args[2]]), args[0]);
+      case "setMaxRate": return d(5, encodeAbiParameters([B32, { type: "uint256" }], [args[0], args[1]]), args[0]);
+      case "refund": return d(7, encodeAbiParameters([B32], [args[0]]), args[0]);
+      case "setAppRef": return d(2, encodeAbiParameters([B32, { type: "string" }], [args[0], args[1]]), args[0]);
+      case "setConfig": return d(3, encodeAbiParameters([B32, { type: "string" }], [args[0], args[1]]), args[0]);
+      case "fund": return d(1, encodeAbiParameters([B32, { type: "uint256" }], [args[0], args[1]]), args[0]);
+      case "fundEth": throw new Error("a session funds in USDC from its budget: pass usd, not eth");
+      case "transferDeployment": throw new Error("transfers are the owner's alone: a session can never hand a deployment away (sign build_transfer's transactions with the wallet)");
+      case "create": {
+        // rev >= 8 create(appRef, gpu, cpu, appPort, ports, isPublic, envelope, feeRecipient, feePerSec6, maxRate6):
+        // the vault re-derives the publisher fee from the catalog itself
+        if (rev < 8) throw new Error("the live ledger predates session deploys");
+        const [appRef, gpuMilli, cpuMilli, appPort, ports, isPublic, envelope] = args;
+        const maxRate6 = args[args.length - 1];
+        return d(0, encodeAbiParameters(CREATE_TUPLE, [{ appRef, gpuMilli, cpuMilli, appPort, ports, isPublic,
+          configCid: envelope, maxRate6, env, fund6 }]), null);
+      }
+      default: throw new Error(`${fn} has no session action`);
+    }
+  };
+  for (const t of txs) {
+    const to = String(t.to).toLowerCase();
+    if (to === USDC_ADDRESS.toLowerCase()) continue;      // approve: the vault pays from the session budget
+    if (to === String(deployments).toLowerCase()) { one(t.data, t.function); continue; }
+    if (to === String(appCatalog).toLowerCase()) {
+      const { functionName: fn, args } = decodeFunctionData({ abi: catAbiFor(catRevision), data: t.data });
+      if (fn !== "publishVersion" && fn !== "publishVersionCfg") throw new Error(`${fn} has no session action`);
+      const hasCfg = fn === "publishVersionCfg";
+      const [slug, name, description, version, cid, res, ports] = args;
+      const config = catRevision >= 3 ? args[7] : "";
+      const configCid = hasCfg ? args[8] : "";
+      const fee = catRevision >= 5 ? BigInt(args[args.length - 1]) : 0n;
+      if (fee > 0n) throw new Error("a session publishes without a publisher fee (fees are paid to a WALLET publisher): drop feeUsdPerHour, or sign with the wallet");
+      steps.push({ action: 8, args: encodeAbiParameters(PUBLISH_TUPLE, [{ slug, name, description, version, cid,
+        res: res.map(Number), ports, config, configCid }]), id: null, describe: t.function });
+      continue;
+    }
+    throw new Error(`${t.function || t.to} is a wallet transaction a session can't make`);
+  }
+  return steps;
+}
+
+// Validate each step against what the session may reach, then quote and digest it.
+async function prepareSessionCalls(session, steps) {
+  if (!steps.length) throw new Error("nothing for the session to do");
+  const vault = getAddress(String(session.vault || "").trim());
+  const sid = String(session.sid || "").toLowerCase();
+  if (!isB32(sid)) throw new Error("session.sid must be the bytes32 session id");
+  const st = await sessionState(vault, sid);
+  if (!st.live) throw new Error("this session is not live (ended, revoked or expired): open a new one with session_request");
+  const mask = num(st.actions);
+  const walletOwner = await vaultOwnerOf(vault);
+  let delegation = null;
+  for (const s of steps) {
+    if (((mask >> BigInt(s.action)) & 1n) === 0n)
+      throw new Error(`this session's grant does not include ${ACTION_NAME[s.action]}: ask the owner for a session that does (session_request)`);
+    if (!s.id) continue;
+    const d = await depGet(s.id);
+    const holder = getAddress(d.owner);
+    if (holder === vault) continue;                       // the vault's own record: its custody env decides, on-chain
+    if (holder !== walletOwner)
+      throw new Error(`${s.id.slice(0, 10)}… belongs to ${holder}; this session acts for ${walletOwner} (its vault ${vault})`);
+    if (s.action === 2 || s.action === 3)
+      throw new Error(`${s.id.slice(0, 10)}… is held by the owner's wallet, which a session treats as PRODUCTION: it can stop/resume, resize, fund, lower the cap and refund it, but never change what it runs - the owner signs that with the wallet`);
+    if ((Number(st.envs ?? 0) & ENVS.prod) === 0)
+      throw new Error(`${s.id.slice(0, 10)}… is held by the owner's wallet (production) and this session is staging-only`);
+    delegation ??= (await self("GET", `/v1/sessions/owner/${walletOwner}`)).delegation || {};
+    if (!delegation.supported) throw new Error("the live ledger does not support delegation: the owner signs this with the wallet");
+    if (!delegation.granted)
+      throw new Error(`the owner hasn't let sessions act on the apps the wallet holds yet: one wallet transaction - build_delegate { owner: "${walletOwner}" }, or enclave.host -> Sessions -> Apps your wallet owns -> Grant`);
+  }
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);   // the relay accepts up to 15 min out
+  const calls = [];
+  let nonce = null;
+  for (const s of steps) {
+    const q = await self("POST", "/v1/sessions/quote", { body: { vault, sid, action: s.action } });
+    nonce = nonce === null ? num(q.nonce) : nonce + 1n;
+    const fee = num(q.fee) * 5n / 4n;                  // 25% headroom over the quote; charged to the budget
+    const digest = sessionCallDigest({ vault, sid, nonce, action: s.action, args: s.args, fee, deadline });
+    calls.push({ action: s.action, actionName: ACTION_NAME[s.action], describe: s.describe, nonce: nonce.toString(),
+      fee: fee.toString(), deadline: deadline.toString(), args: s.args, digest,
+      digestSha256: "0x" + createHash("sha256").update(Buffer.from(digest.slice(2), "hex")).digest("hex") });
+  }
+  return { via: "session", vault, sid, owner: walletOwner, calls,
+    sign: "For each call: ECDSA P-256 over SHA-256 of the 32 digest bytes (WebCrypto: sign({name:'ECDSA', hash:'SHA-256'}, sessionKey, digestBytes) -> 64 bytes r||s), i.e. a P-256 signature of digestSha256. Sign within 10 minutes (deadline).",
+    next: "session_execute { vault, sid, publicKey: {x, y}, calls: [ {…each call, signature} ] } - executed in order; the relay pays gas, the fee comes out of the session budget" };
+}
+
+const SESSION_CAPABLE = new Set(["plan_deploy", "build_fund", "build_stop", "build_resume", "build_upgrade", "build_resize",
+  "build_set_max_rate", "build_refund", "build_set_config", "build_publish"]);
+const SESSION_PARAM = { type: "object", additionalProperties: false, required: ["vault", "sid"],
+  description: "Act through a wallet session instead of returning wallet transactions: {vault, sid} of a live session (session_status lists them). The result is `calls` to sign with the session's P-256 key and send with session_execute - no wallet prompt. environment (plan_deploy only): staging|prod, default prod when the grant allows it.",
+  properties: { vault: { type: "string" }, sid: { type: "string" }, environment: { type: "string", enum: ["staging", "prod"] } } };
+for (const t of TOOLS) if (SESSION_CAPABLE.has(t.name)) {
+  t.inputSchema.properties.session = SESSION_PARAM;
+  t.description += " With session:{vault, sid} it returns session calls to sign with the session key (then session_execute) instead of wallet transactions.";
+  const run = t.handler;
+  t.handler = async (a, ctx) => {
+    if (!a.session) return run(a, ctx);
+    const { session, ...rest } = a;
+    const st = await sessionState(session.vault, String(session.sid || "").toLowerCase()).catch(() => ({}));
+    const env = session.environment ? ENVS[session.environment] : ((Number(st.envs ?? 0) & ENVS.prod) ? ENVS.prod : ENVS.staging);
+    // a session funds a new deployment in the same call as the create (fund6 comes out of the budget)
+    const fund6 = t.name === "plan_deploy" && rest.fundUsd ? BigInt(Math.round(Number(rest.fundUsd) * 100)) * 10000n : 0n;
+    // the build_fund handler wants exactly one of usd/eth; a session pays USDC
+    const out = await run(rest, ctx);
+    const { deployments, appCatalog } = await addresses();
+    const steps = stepsFromTxs(out.transactions || [], { deployments, appCatalog, rev: await depRev(),
+      catRevision: await catRev(), env, fund6 });
+    const { transactions, next, ...info } = out;
+    if (!steps.length) return { ...info, via: "session", calls: [], note: "nothing to sign: the builder had no transaction to make" };
+    return { ...info, ...(await prepareSessionCalls(session, steps)) };
+  };
+}
+
+TOOLS.push(
+  {
+    name: "session_status",
+    description: "A wallet's sessions: its SessionVault, every session (live or not; label, expiry, budget, the actions and environments it may use) and whether the owner has delegated the vault on the ledger (then sessions also act on the apps the WALLET holds, as production). Pass owner (wallet), or publicKey to find the sessions a key belongs to.",
+    inputSchema: S({ owner: { type: "string", description: "Owner wallet address" },
+      publicKey: { type: "object", description: "{x, y} of a session key (find its sessions)", additionalProperties: true } }),
+    handler: async ({ owner, publicKey }) => {
+      if (publicKey) {
+        const kh = keyHashOf(sessionPublicKey(publicKey));
+        const r = await self("GET", `/v1/sessions/by-key/${kh}`);
+        return { keyHash: kh, sessions: r.sessions || [] };
+      }
+      if (!isAddr(owner)) throw new Error("pass owner (0x… wallet) or publicKey");
+      const r = await self("GET", `/v1/sessions/owner/${getAddress(owner)}`);
+      const sessions = [];
+      for (const s of r.sessions || []) {
+        let live = null, decoded = {};
+        try { const st = await sessionState(r.vault, s.sid); live = Boolean(st.live); decoded = decodeSessionState(st);
+          Object.assign(decoded, { balance: `$${(Number(num(st.balance6)) / 1e6).toFixed(2)}`, spent: `$${(Number(num(st.spent6)) / 1e6).toFixed(2)}`,
+            expiresAt: new Date(Number(num(st.expiresAt)) * 1000).toISOString() }); } catch {}
+        sessions.push({ sid: s.sid, label: s.label, live, ...decoded, revoked: s.revoked });
+      }
+      return { owner: r.owner, vault: r.vault, vaultDeployed: r.deployed, delegation: r.delegation, sessions, held: r.held };
+    },
+  },
+  {
+    name: "session_request",
+    description: "Start a wallet session for a P-256 key the CLIENT generated and keeps (never send the private key anywhere): returns a link the owner opens at enclave.host to review and approve it with ONE wallet signature (plus a USDC deposit when budgetUsd > 0). Once approved, session_status { publicKey } shows the session id; the session then acts without wallet prompts, within its policy: preset \"agent\" (default: everything a browser session can do, with a USDC budget, 7 days), \"browser\", \"staging-publish\" (staging only, named apps) or \"auth-only\". To reach the apps the wallet already owns the owner also delegates once (build_delegate).",
+    inputSchema: S({
+      publicKey: { type: "object", description: "{x, y}: the session key's public point (hex/decimal/base64url coordinates)", additionalProperties: true },
+      label: { type: "string", description: "Shown to the owner, e.g. \"eyesoff chat: deploy my blog\"" },
+      preset: { type: "string", enum: Object.keys(PRESETS) },
+      budgetUsd: { type: "number", description: "USDC the owner deposits for this session to spend (default: the preset's)" },
+      spendPerDayUsd: { type: "number", description: "Daily spend ceiling (default: the preset's)" },
+      expiresInHours: { type: "number", description: "Lifetime (default: the preset's; capped per preset)" },
+      apps: { type: "array", items: { type: "string" }, description: "App ids/slugs the session may deploy (default: the preset's; [\"*\"] = any free app; paid apps must be named)" },
+      environments: { type: "array", items: { type: "string", enum: ["staging", "prod"] } },
+      owner: { type: "string", description: "Only this wallet may approve (recommended)" },
+    }, ["publicKey", "label"]),
+    handler: async (a) => {
+      const pk = sessionPublicKey(a.publicKey);
+      const name = a.preset || "agent";
+      const p = { ...PRESETS[name] };
+      if (!p.actions) throw new Error(`unknown preset ${name}`);
+      if (a.budgetUsd !== undefined) p.budget = BigInt(Math.round(Number(a.budgetUsd) * 100)) * 10000n;
+      if (a.spendPerDayUsd !== undefined) p.spendPerPeriod = BigInt(Math.round(Number(a.spendPerDayUsd) * 100)) * 10000n;
+      if (a.expiresInHours !== undefined) p.expiresIn = Math.round(Number(a.expiresInHours) * 3600);
+      if (!(p.expiresIn > 0) || p.expiresIn > p.maxExpiresIn) throw new Error(`"${name}" sessions last at most ${p.maxExpiresIn / 86400} days`);
+      if (a.apps) p.apps = a.apps.map(String);
+      if (a.environments) p.environments = a.environments.map(String);
+      if (p.budget < 0n || p.budget > 250n * USD6) throw new Error("budgetUsd must be 0..250 (the beta vault cap)");
+      const now = Math.floor(Date.now() / 1000);
+      const sessionKey = keyHashOf(pk);
+      const grant = { label: String(a.label).slice(0, 80), preset: name, sessionKey,
+        actions: p.actions, apps: p.apps, environments: p.environments, budget: p.budget, spendPerPeriod: p.spendPerPeriod,
+        periodSeconds: p.periodSeconds, opsPerPeriod: p.opsPerPeriod, maxFeePerOp: p.maxFeePerOp,
+        maxAppFeePerHour: p.maxAppFeePerHour, maxRatePerHour: p.maxRatePerHour, expiresAt: BigInt(now + p.expiresIn),
+        measurement: "0x" + "0".repeat(64), grantNonce: "0x" + randomBytes(32).toString("hex"), signBefore: BigInt(now + 86400) };
+      const cfg = await sessionsConfig();
+      const req = { v: 1, chainId: CHAIN_ID, relay: API_BASE, x: pk.x, y: pk.y, grant,
+        ...(isAddr(a.owner) ? { owner: getAddress(a.owner) } : {}) };
+      const ser = JSON.stringify(req, (_k, v) => (typeof v === "bigint" ? `${v}n` : v));
+      const link = `${(cfg.site || "https://enclave.host").replace(/\/$/, "")}/grant#${Buffer.from(ser).toString("base64url")}`;
+      let sid = null, vault = null;
+      if (isAddr(a.owner)) {
+        vault = await read(cfg.factory, FACTORY_ABI, "vaultFor", [getAddress(a.owner)]);
+        sid = keccak256(encodeAbiParameters([{ type: "address" }, B32, B32], [vault, sessionKey, grant.grantNonce]));
+      }
+      return { link, keyHash: sessionKey, checkCode: sessionKey.slice(2, 10).toUpperCase(), vault, sid,
+        policy: { preset: name, actions: p.actions, apps: p.apps, environments: p.environments,
+          budget: `$${(Number(p.budget) / 1e6).toFixed(2)}`, spendPerDay: `$${(Number(p.spendPerPeriod) / 1e6).toFixed(2)}`,
+          expiresAt: new Date((now + p.expiresIn) * 1000).toISOString() },
+        next: `the owner opens the link (the page shows check code ${sessionKey.slice(2, 10).toUpperCase()} - it must match), signs once${p.budget > 0n ? " and approves the deposit" : ""}; then session_status { publicKey } (or { owner }) shows the live session id` };
+    },
+  },
+  {
+    name: "session_execute",
+    description: "Send session calls (from any builder called with session:{vault, sid}) that the client signed with its session key. Executed in order through the relay, which pays the gas; each call's fee and any funding come out of the session budget. Stops at the first failure and says which call failed and why.",
+    inputSchema: S({ vault: { type: "string" }, sid: { type: "string" },
+      publicKey: { type: "object", description: "{x, y} of the session key", additionalProperties: true },
+      calls: { type: "array", items: { type: "object", additionalProperties: true },
+        description: "The prepared calls, each with its signature: {r, s} or 64 bytes r||s (hex/base64url) or DER" } },
+      ["vault", "sid", "publicKey", "calls"]),
+    handler: async (a) => {
+      const vault = getAddress(String(a.vault));
+      const sid = String(a.sid).toLowerCase();
+      if (!isB32(sid)) throw new Error("sid must be bytes32");
+      const pk = sessionPublicKey(a.publicKey);
+      const done = [];
+      for (const [i, c] of a.calls.entries()) {
+        const sig = sessionSignature(c.signature);
+        try {
+          const r = await self("POST", "/v1/sessions/execute", { body: { vault, sid, action: Number(c.action),
+            args: c.args, fee: String(c.fee), deadline: String(c.deadline), nonce: String(c.nonce),
+            x: BigInt(pk.x).toString(), y: BigInt(pk.y).toString(), r: sig.r, s: sig.s } });
+          done.push({ call: i, action: ACTION_NAME[c.action] ?? c.action, txHash: r.txHash, block: r.block, result: r.result });
+        } catch (e) {
+          throw new Error(`call ${i} (${ACTION_NAME[c.action] ?? c.action}) failed: ${e.message}${done.length ? ` - ${done.length} earlier call(s) went through: ${done.map((d) => d.txHash).join(", ")}` : ""}`);
+        }
+      }
+      const created = done.find((d) => d.action === "deploy.create");
+      return { executed: done, ...(created ? { createdId: "0x" + String(created.result).replace(/^0x/, "").slice(0, 64),
+        next: "claim_hint { id: createdId }, then get_deployment until running" } : {}) };
+    },
+  },
+  {
+    name: "session_end",
+    description: "Sign a session out (the session key ends itself; the unspent budget goes back to the owner's vault; running apps are untouched). Two steps: call with {vault, sid} for the digest, sign it like a session call, then call again with publicKey, deadline and signature.",
+    inputSchema: S({ vault: { type: "string" }, sid: { type: "string" },
+      publicKey: { type: "object", additionalProperties: true }, deadline: { type: "string" },
+      signature: { description: "{r, s}, 64 bytes r||s (hex/base64url) or DER" } }, ["vault", "sid"]),
+    handler: async (a) => {
+      const vault = getAddress(String(a.vault));
+      const sid = String(a.sid).toLowerCase();
+      if (!isB32(sid)) throw new Error("sid must be bytes32");
+      if (!a.signature) {
+        const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);
+        const digest = hashTypedData({ domain: { name: "Enclave Sessions", version: "1", chainId: CHAIN_ID, verifyingContract: vault },
+          types: { SessionEnd: [{ name: "sessionId", type: "bytes32" }, { name: "deadline", type: "uint64" }] },
+          primaryType: "SessionEnd", message: { sessionId: sid, deadline } });
+        return { vault, sid, deadline: deadline.toString(), digest,
+          next: "sign the digest (ECDSA P-256, SHA-256 over the 32 bytes) and call session_end again with publicKey, deadline and signature" };
+      }
+      const pk = sessionPublicKey(a.publicKey);
+      const sig = sessionSignature(a.signature);
+      const r = await self("POST", "/v1/sessions/end", { body: { vault, sid, deadline: String(a.deadline),
+        x: BigInt(pk.x).toString(), y: BigInt(pk.y).toString(), r: sig.r, s: sig.s } });
+      return { ended: true, txHash: r.txHash, refunded: `$${(Number(num(r.refund6)) / 1e6).toFixed(2)} to the owner's vault` };
+    },
+  },
+  {
+    name: "build_delegate",
+    description: "Unsigned wallet transaction that lets the owner's sessions act on the apps the WALLET owns (ledger setDelegate(vault, true)), or takes that away (grant:false: every session loses them at once). One-time, owner-only. A session treats wallet-owned apps as production: stop/resume, resize, fund, lower the cap, refund - never what they run, never a transfer.",
+    inputSchema: S({ owner: { type: "string", description: "The owner wallet" }, grant: { type: "boolean", description: "true to grant (default), false to revoke" } }, ["owner"]),
+    handler: async ({ owner, grant }) => {
+      if (!isAddr(owner)) throw new Error("owner must be a 0x… wallet address");
+      const o = getAddress(owner);
+      const cfg = await sessionsConfig();
+      const r = await self("GET", `/v1/sessions/owner/${o}`);
+      if (!r.delegation?.supported) throw new Error("the live ledger does not support delegation");
+      const allow = grant !== false;
+      return { owner: o, vault: r.vault, ledger: r.delegation.ledger, currently: r.delegation.granted ? "granted" : "not granted",
+        transactions: [tx(r.delegation.ledger, encodeFunctionData({ abi: LEDGER_DELEGATE_ABI, functionName: "setDelegate", args: [r.vault, allow] }), 0n,
+          `EnclaveDeployments.setDelegate(your session vault ${r.vault.slice(0, 10)}…, ${allow})`)],
+        next: `sign+send with ${o}${cfg ? "" : ""}; session_status { owner } then shows delegation.granted = ${allow}` };
+    },
+  },
+);
+
+// ---- MCP protocol (Streamable HTTP, stateless JSON mode) ----------------------
+const PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"];
+const SERVER_INFO = { name: "enclave", title: "Enclave (enclave.host)", version: "1.0.0" };
+const INSTRUCTIONS = `Enclave runs apps inside hardware TEE enclaves, paid per second in USDC on Base. This server exposes the FULL platform surface for coding agents. Trust model: no tool ever sees a private key. Reads are direct; every state change returns UNSIGNED Base (chainId ${CHAIN_ID}) transactions to sign with the user's own wallet - or, with session:{vault, sid}, session calls the client signs with its own P-256 session key and sends with session_execute (no wallet prompt; guide topic "sessions") - and signature flows (sign-in, uploads) take locally produced signatures. Start with the guide tool (topic "getting-started"). Typical deploy: list_apps -> plan_deploy -> sign+send create -> build_fund -> sign+send -> claim_hint -> get_deployment until running.`;
+
+const MCP_CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, Mcp-Session-Id, Mcp-Protocol-Version, Last-Event-ID",
+  "Access-Control-Expose-Headers": "Mcp-Session-Id",
+  "Access-Control-Max-Age": "600",
+};
+const send = (res, code, body) => {
+  res.writeHead(code, { "Content-Type": "application/json", "Cache-Control": "no-store", ...MCP_CORS });
+  res.end(JSON.stringify(body));
+};
+// JSON must never carry a BigInt to the wire
+const clean = (o) => JSON.parse(JSON.stringify(o, (_k, v) => typeof v === "bigint" ? v.toString() : v));
+
+// modest per-IP shaping: chain-backed tools are cached, but tools/call still
+// fans into RPCs — same token-bucket shape as api-relay's limiters
+const buckets = new Map();
+function allow(key, capacity = 120, refillPerSec = 10) {
+  const now = Date.now();
+  let b = buckets.get(key);
+  if (!b) { b = { tokens: capacity, at: now }; buckets.set(key, b); }
+  if (buckets.size > 10000) for (const [k, v] of buckets) { if (now - v.at > 300_000) buckets.delete(k); }
+  b.tokens = Math.min(capacity, b.tokens + ((now - b.at) / 1000) * refillPerSec);
+  b.at = now;
+  if (b.tokens < 1) return false;
+  b.tokens -= 1; return true;
+}
+
+const rpcError = (id, code, message) => ({ jsonrpc: "2.0", id: id ?? null, error: { code, message } });
+const rpcResult = (id, result) => ({ jsonrpc: "2.0", id, result });
+
+async function callTool(name, args, ctx) {
+  const tool = TOOLS.find((t) => t.name === name);
+  if (!tool) return { content: [{ type: "text", text: `Unknown tool "${name}". tools/list has the catalog.` }], isError: true };
+  for (const req of tool.inputSchema.required || [])
+    if (args?.[req] === undefined)
+      return { content: [{ type: "text", text: `Missing required argument "${req}" for ${name}.` }], isError: true };
+  try {
+    const out = await tool.handler(args || {}, ctx);
+    if (typeof out === "string") return { content: [{ type: "text", text: out }] };
+    const o = clean(out);
+    return { content: [{ type: "text", text: JSON.stringify(o, null, 2) }], structuredContent: o };
+  } catch (e) {
+    return { content: [{ type: "text", text: `Error: ${e?.shortMessage || e?.message || String(e)}` }], isError: true };
+  }
+}
+
+async function dispatch(msg, ctx) {
+  if (!msg || typeof msg !== "object" || Array.isArray(msg) || msg.jsonrpc !== "2.0")
+    return rpcError(msg?.id, -32600, "Invalid Request: expected a JSON-RPC 2.0 message");
+  const { id, method, params } = msg;
+  if (method === undefined) return null;                       // a client response; nothing to do
+  if (id === undefined || id === null) return null;            // notification (initialized, cancelled, ...)
+  switch (method) {
+    case "initialize": {
+      const want = params?.protocolVersion;
+      return rpcResult(id, {
+        protocolVersion: PROTOCOL_VERSIONS.includes(want) ? want : PROTOCOL_VERSIONS[0],
+        capabilities: { tools: { listChanged: false } },
+        serverInfo: SERVER_INFO,
+        instructions: INSTRUCTIONS,
+      });
+    }
+    case "ping": return rpcResult(id, {});
+    case "tools/list":
+      return rpcResult(id, { tools: TOOLS.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })) });
+    case "tools/call": {
+      if (typeof params?.name !== "string") return rpcError(id, -32602, "params.name is required");
+      return rpcResult(id, await callTool(params.name, params.arguments, ctx));
+    }
+    default: return rpcError(id, -32601, `Method not found: ${method}`);
+  }
+}
+
+function readBody(req, max = 1_048_576) {
+  return new Promise((resolve, reject) => {
+    const chunks = []; let n = 0;
+    req.on("data", (ch) => { n += ch.length; if (n > max) { req.destroy(); reject(new Error("body too large")); } else chunks.push(ch); });
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
+}
+
+export function isMcpHost(host) {
+  return MCP_DOMAINS.includes(String(host || "").toLowerCase().split(":")[0]);
+}
+
+export async function handleMcp(req, res, _u) {
+  if (req.method === "OPTIONS") { res.writeHead(204, MCP_CORS); return res.end(); }
+  if (req.method === "GET") {
+    // no server-initiated stream: SSE clients get the spec's 405; humans get directions
+    if (/text\/event-stream/.test(req.headers.accept || ""))
+      { res.writeHead(405, { Allow: "POST", ...MCP_CORS }); return res.end(); }
+    return send(res, 200, { name: SERVER_INFO.name, protocol: "Model Context Protocol (Streamable HTTP)",
+      endpoint: "POST JSON-RPC here", tools: TOOLS.length,
+      connect: { "claude code": "claude mcp add --transport http enclave https://mcp.enclave.host",
+                 generic: "POST initialize/tools/list/tools/call as JSON-RPC 2.0" },
+      docs: "https://enclave.host/develop" });
+  }
+  if (req.method !== "POST") { res.writeHead(405, { Allow: "POST, OPTIONS", ...MCP_CORS }); return res.end(); }
+  // last X-Forwarded-For entry, not the first: the proxy APPENDS its peer to
+  // whatever the client sent, so [0] is caller-controlled and every request
+  // could claim a fresh bucket. See clientIp in api-relay.js.
+  const xff = String(req.headers["x-forwarded-for"] || "").split(",").map((x) => x.trim()).filter(Boolean);
+  const ipKey = (req.socket?.remoteAddress || "") + "|" + (xff.length ? xff[xff.length - 1] : "");
+  if (!allow(ipKey)) return send(res, 429, rpcError(null, -32000, "rate limited; retry shortly"));
+  let body;
+  try { body = JSON.parse((await readBody(req)).toString() || ""); }
+  catch (e) { return send(res, 400, rpcError(null, -32700, "Parse error: " + e.message)); }
+  const ctx = { token: req.headers.authorization || null };
+  const wrap = (msg) => dispatch(msg, { ...ctx, token: msg?.params?.arguments?.token ?? ctx.token });
+  if (Array.isArray(body)) {                                   // 2025-03-26 batching compat
+    const out = (await Promise.all(body.map(wrap))).filter(Boolean);
+    return out.length ? send(res, 200, out) : (res.writeHead(202, MCP_CORS), res.end());
+  }
+  const out = await wrap(body);
+  return out ? send(res, 200, out) : (res.writeHead(202, MCP_CORS), res.end());
+}

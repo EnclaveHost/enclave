@@ -1,0 +1,35 @@
+[queue] START available=84592MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+Running as unit: enclave-shield-full-fw-plan-r1-20261028.service
+{
+  "plan": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-smoke-fw-r1/plan.json",
+  "plan_sha256": "13d34fc4c3c192f3d3c49a60f835604502164c3440632697ff720b7a1a3ded08",
+  "memory_mode": "snapshot",
+  "gpu_mode": "shared",
+  "required_available_bytes": 94773444608,
+  "experimental_firmware": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/fwbuild-candidate-r1/OVMF.candidate-debug.fd",
+    "sha256": "0598d551eea4e8becd54cb80aa5c7964ee46f21e50936fc06809ed171672594c",
+    "original_release_sha256": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9",
+    "scope": "experimental benchmark firmware: a NEW build, not the installed original release firmware and not production-qualified; arm --measurement predictions must be root-computed for this exact binary and every arm still needs a fresh client.mjs VERDICT attested"
+  },
+  "plan_time_problems": []
+}
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/root-plan-full-smoke-fw.py", line 43, in <module>
+    p.write_text(json.dumps(plan,indent=2,sort_keys=True)+'\n')
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/pathlib/__init__.py", line 809, in write_text
+    with self.open(mode='w', encoding=encoding, errors=errors, newline=newline) as f:
+         ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/pathlib/__init__.py", line 771, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-smoke-fw-r1/plan.json'
+          Finished with result: exit-code
+Main processes terminated with: code=exited, status=1/FAILURE
+               Service runtime: 2.048s
+             CPU time consumed: 1.975s
+                   Memory peak: 109.2M (swap: 0B)
+[memory-guard] exit=1 peakTreeRssMiB=5 minHostAvailableMiB=84637
+[memory-guard] at peak: systemd-run:5
+[queue] EXIT 1

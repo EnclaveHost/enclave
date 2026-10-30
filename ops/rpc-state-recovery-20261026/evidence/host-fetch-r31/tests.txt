@@ -1,0 +1,60 @@
+test_200_first (__main__.Fetch.test_200_first) ... ok
+test_200_on_resume (__main__.Fetch.test_200_on_resume) ... ok
+test_body_larger_than_range (__main__.Fetch.test_body_larger_than_range) ... ok
+test_capacity_refused_before_any_request (__main__.Fetch.test_capacity_refused_before_any_request) ... ok
+test_changed_pins_between_runs_never_splice (__main__.Fetch.test_changed_pins_between_runs_never_splice) ... ok
+test_content_encoding (__main__.Fetch.test_content_encoding) ... ok
+test_curlrc_and_proxy_environment_ignored (__main__.Fetch.test_curlrc_and_proxy_environment_ignored) ... ok
+test_duplicated_content_range (__main__.Fetch.test_duplicated_content_range) ... ok
+test_etag_change_if_range_200 (__main__.Fetch.test_etag_change_if_range_200) ... ok
+test_etag_change_on_206 (__main__.Fetch.test_etag_change_on_206) ... ok
+test_external_process_group_sigkill (__main__.Fetch.test_external_process_group_sigkill) ... ok
+test_filesystem_semantics_of_the_target (__main__.Fetch.test_filesystem_semantics_of_the_target) ... ok
+test_inconsistent_local_state (__main__.Fetch.test_inconsistent_local_state) ... ok
+test_last_modified_change (__main__.Fetch.test_last_modified_change) ... ok
+test_lock_busy_archive_and_cwd (__main__.Fetch.test_lock_busy_archive_and_cwd) ... ok
+test_lone_temporary_progress_record_is_preserved (__main__.Fetch.test_lone_temporary_progress_record_is_preserved) ... ok
+test_loopback_switch_refuses_https_before_network (__main__.Fetch.test_loopback_switch_refuses_https_before_network) ... ok
+test_malformed_content_length (__main__.Fetch.test_malformed_content_length) ... ok
+test_multi_chunk_fetch_is_byte_identical_under_reviewed_pins (__main__.Fetch.test_multi_chunk_fetch_is_byte_identical_under_reviewed_pins) ... ok
+test_ownership_refusals (__main__.Fetch.test_ownership_refusals) ... ok
+test_pins_are_mandatory_and_must_match_the_server (__main__.Fetch.test_pins_are_mandatory_and_must_match_the_server) ... ok
+test_probe_records_identity_for_review_and_commits_nothing (__main__.Fetch.test_probe_records_identity_for_review_and_commits_nothing) ... ok
+test_provenance_and_bounds (__main__.Fetch.test_provenance_and_bounds) ... ok
+test_redirect (__main__.Fetch.test_redirect) ... ok
+test_retries_truncated_stalled_503 (__main__.Fetch.test_retries_truncated_stalled_503) ... ok
+test_sigkill_after_pwrite_before_commit_truncates_own_tail (__main__.Fetch.test_sigkill_after_pwrite_before_commit_truncates_own_tail) ... ok
+test_sigkill_before_first_pwrite (__main__.Fetch.test_sigkill_before_first_pwrite) ... ok
+test_sigkill_mid_chunk (__main__.Fetch.test_sigkill_mid_chunk) ... ----------------------------------------
+Exception occurred during processing of request from ('127.0.0.1', 37186)
+Traceback (most recent call last):
+  File "/usr/lib/python3.14/socketserver.py", line 697, in process_request_thread
+    self.finish_request(request, client_address)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/socketserver.py", line 362, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/socketserver.py", line 766, in __init__
+    self.handle()
+    ~~~~~~~~~~~^^
+  File "/usr/lib/python3.14/http/server.py", line 502, in handle
+    self.handle_one_request()
+    ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/usr/lib/python3.14/http/server.py", line 468, in handle_one_request
+    self.raw_requestline = self.rfile.readline(65537)
+                           ~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "/usr/lib/python3.14/socket.py", line 729, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+ConnectionResetError: [Errno 104] Connection reset by peer
+----------------------------------------
+ok
+test_sigterm_keeps_committed_progress (__main__.Fetch.test_sigterm_keeps_committed_progress) ... ok
+test_weak_etag (__main__.Fetch.test_weak_etag) ... ok
+test_wrong_range_start (__main__.Fetch.test_wrong_range_start) ... ok
+test_wrong_total (__main__.Fetch.test_wrong_total) ... ok
+
+----------------------------------------------------------------------
+Ran 32 tests in 60.093s
+
+OK

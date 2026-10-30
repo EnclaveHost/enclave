@@ -1,0 +1,4 @@
+utc=2026-10-26T02:46:56Z host=us-west
+route_map_url=http://127.0.0.1:8188/v1/network/routes
+route_map_top_keys ['transport', 'updatedAt', 'relays', 'labels', 'deployments', 'pending']
+caddy_site /etc/caddy/Caddyfile:7:custody-us-west.app.enclave.host 

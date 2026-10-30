@@ -1,0 +1,9 @@
+MODEL verified bytes=17559178144 sha256=3f227079003add2511437e5b1e94812e363385225bf6a9b47b0054a72bc8b01e copy_verify_ms=20874 source_dontneed_advised_bytes=17559178144 source_dontneed_failures=0
+DOM runtime wasmtime/49.0.0 execution=jit target=x86_64 host=x86_64 features=host-detected wx=enforced cache=none id=297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8
+DOM runtime selftest exec_pages=allowed wx=at-each-attestation
+DOM seccomp: app filter installed (sha256 d4d17c9f53832439c92a3232fd09feed8b28f0e3c7dd357d26468a9566f62b66, 71 rules)
+DOM started app=220 front=212 at_ms=44105
+DOM serving vsock=443 spki_sha256=8fc42128bc01892922104957f804f8798fdfbac91a0ce07466355d4800547f91 ready_ms=44570
+DOM warmup: started
+DOM certificate installed for eyesoff.ai: issuer "ZeroSSL ECC DV SSL CA 2", valid until 2027-01-26T23:59:59Z
+DOM certificate installed for 9eb4e600.app.enclave.host: issuer "YE1", valid until 2027-01-26T07:40:47Z

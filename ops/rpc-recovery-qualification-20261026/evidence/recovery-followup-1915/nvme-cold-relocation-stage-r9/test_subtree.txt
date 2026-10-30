@@ -1,0 +1,59 @@
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/tests/test_subtree.py:245: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/runs/run-20261026T190126Z-2177429/tmp/subxm4878if/root/home/steven/.local/state/nvme-cold-subtree-r7/state.json' mode='r' encoding='utf-8'>
+  self.assertEqual(v["source_identity"], json.load(open(f"{self.jd}/state.json"))["trees"][SUBS[0]]["source_inventory"]["identity"])
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+......./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/tests/test_subtree.py:205: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/runs/run-20261026T190126Z-2177429/tmp/subxpn3qyd1/j1381/source-codex-archive.logical.json' mode='r' encoding='utf-8'>
+  log = json.load(open(p)); log[-1]["m"] = 0o777; json.dump(log, open(p, "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/tests/test_subtree.py:205: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/runs/run-20261026T190126Z-2177429/tmp/subxpn3qyd1/j1381/source-codex-archive.logical.json' mode='w' encoding='utf-8'>
+  log = json.load(open(p)); log[-1]["m"] = 0o777; json.dump(log, open(p, "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+........./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/tests/test_subtree.py:361: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/runs/run-20261026T190126Z-2177429/tmp/subfcuec57i/root/home/steven/.local/state/nvme-cold-subtree-r7/state.json' mode='r' encoding='utf-8'>
+  return json.load(open(f"{self.jd}/state.json"))["trees"]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/tests/test_subtree.py:381: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/runs/run-20261026T190126Z-2177429/tmp/subfcuec57i/root/home/steven/.local/state/nvme-cold-subtree-r7/events.jsonl' mode='r' encoding='utf-8'>
+  ev = [json.loads(l) for l in open(f"{self.jd}/events.jsonl")]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/tests/test_subtree.py:361: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/runs/run-20261026T190126Z-2177429/tmp/subxu147bp9/root/home/steven/.local/state/nvme-cold-subtree-r7/state.json' mode='r' encoding='utf-8'>
+  return json.load(open(f"{self.jd}/state.json"))["trees"]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/tests/test_subtree.py:398: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/runs/run-20261026T190126Z-2177429/tmp/subxu147bp9/root/home/steven/.cold-archive/codex-archive/2026-10-24/home/hf-convert/README'>
+  self.assertEqual(open(f"{self.dest_root}/{SUBS[0]}/README", "rb").read(), open(f"{self.arch}/{SUBS[0]}/README", "rb").read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/tests/test_subtree.py:398: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/runs/run-20261026T190126Z-2177429/tmp/subxu147bp9/vm/enclave-volumes/codex-archive/2026-10-24/home/hf-convert/README'>
+  self.assertEqual(open(f"{self.dest_root}/{SUBS[0]}/README", "rb").read(), open(f"{self.arch}/{SUBS[0]}/README", "rb").read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/tests/test_subtree.py:361: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/runs/run-20261026T190126Z-2177429/tmp/sub7f2pnfbw/root/home/steven/.local/state/nvme-cold-subtree-r7/state.json' mode='r' encoding='utf-8'>
+  return json.load(open(f"{self.jd}/state.json"))["trees"]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/tests/test_subtree.py:485: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/README.md' mode='r' encoding='utf-8'>
+  block = open(f"{stage}/README.md").read().split("<!-- r9-root-wrapper -->")[1].split("```")[1]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/tests/test_subtree.py:491: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/jobs/root-writer-check.sh' mode='r' encoding='utf-8'>
+  job = open(f"{stage}/{S.JOB}").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/tests/test_subtree.py:421: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/runs/run-20261026T190126Z-2177429/tmp/subtlg180vw/root/home/steven/.local/state/nvme-cold-subtree-r7/state.json' mode='r' encoding='utf-8'>
+  p = f"{self.jd}/state.json"; stt = json.load(open(p)); stt["trees"][SUBS[0]].pop("dest_top")
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/tests/test_subtree.py:361: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/runs/run-20261026T190126Z-2177429/tmp/subtlg180vw/root/home/steven/.local/state/nvme-cold-subtree-r7/state.json' mode='r' encoding='utf-8'>
+  return json.load(open(f"{self.jd}/state.json"))["trees"]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+../home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/tests/test_subtree.py:435: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/runs/run-20261026T190126Z-2177429/tmp/subuqh81_3l/victim' mode='w' encoding='utf-8'>
+  target = f"{self.tmp}/victim"; open(target, "w").write("v"); os.chmod(target, 0o600)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/tests/test_subtree.py:444: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/runs/run-20261026T190126Z-2177429/tmp/subuqh81_3l/victim' mode='r' encoding='utf-8'>
+  self.assertEqual(calls, []); self.assertEqual(open(target).read(), "v")
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/runs/run-20261026T190126Z-2177429/tmp/sub26gfe9t0/toolcopy/relocate.py:1: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r9/runs/run-20261026T190126Z-2177429/tmp/sub26gfe9t0/PWNED' mode='w' encoding='utf-8'>
+  #!/usr/bin/env python3
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.../usr/lib/python3.14/unittest/case.py:704: ResourceWarning: unclosed file <_io.TextIOWrapper name=5 encoding='utf-8'>
+  function, args, kwargs = self._cleanups.pop()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/case.py:704: ResourceWarning: unclosed file <_io.TextIOWrapper name=3 encoding='utf-8'>
+  function, args, kwargs = self._cleanups.pop()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+........
+----------------------------------------------------------------------
+Ran 34 tests in 3.310s
+
+OK

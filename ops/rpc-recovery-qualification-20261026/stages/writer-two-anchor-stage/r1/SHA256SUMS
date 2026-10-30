@@ -1,0 +1,4 @@
+adae2e880fb7b429203a39aba69f10db14b7ea083afba40a5e78eb6bc7268a56  ./PROVENANCE.md
+5e0dcbd3b98abb0563737d3bb9dfcb55c8093cba9aa140cd15fa5e4fadcdd58c  ./inputs/claude-writer-freshness-path.md
+1500559233cc8f7442d5105157dad2da1b72d9ea980a270ad650858fe314e4d3  ./jobs/root-writer-two-anchor-r1.sh
+3e399062fe2cbb91821f3f67a8f505f6570f54f24f82669de32e6e02c8a995b3  ./patches/writer-two-anchor-r1-vs-r9-release.patch

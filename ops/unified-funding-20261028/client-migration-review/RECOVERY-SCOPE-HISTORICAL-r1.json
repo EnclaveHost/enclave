@@ -1,0 +1,73 @@
+{
+  "status": "HISTORICAL_SCOPE_ONLY_NOT_CURRENT_AUTHORITY",
+  "sourceBlock": "53203978",
+  "sourceSha256": "c6c805a8549ec63426ae70195649b12585a718a07801bc7b39f807963d79884f",
+  "deploymentCount": 9,
+  "distinctAppCount": 9,
+  "contractMaxAppsPerGrant": 8,
+  "rows": [
+    {
+      "deployment": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+      "appId": "0xefc67700f25204b843dadb224520bbc73ac9755d3b9c2aed9183443bccf5c8e6",
+      "version": "44",
+      "holder": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "previousHost": "metal0"
+    },
+    {
+      "deployment": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+      "appId": "0x9afdfb401d6f2cfea70c446f9f5874bbca8ce7dd116e2b15715312d8d32a65ef",
+      "version": "5",
+      "holder": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "previousHost": "nucbox-k11-4"
+    },
+    {
+      "deployment": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+      "appId": "0x550d4da98ad8ece07c0def18c095c7f01bc695727a35d953a2096c49713eaef7",
+      "version": "4",
+      "holder": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "previousHost": "nucbox-k11-4"
+    },
+    {
+      "deployment": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "appId": "0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc",
+      "version": "0",
+      "holder": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "previousHost": "nucbox-k11-4"
+    },
+    {
+      "deployment": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+      "appId": "0xf1897f065ed94bc096d351b831514311e08b30702148c639cbaf8d0deb74d03a",
+      "version": "3",
+      "holder": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "previousHost": "nucbox-k11-4"
+    },
+    {
+      "deployment": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+      "appId": "0xfd420627abb04e52e7d12e3a535e2df94a048ba51c0b0fec173e9e7de2e24b28",
+      "version": "5",
+      "holder": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "previousHost": "nucbox-k11-4"
+    },
+    {
+      "deployment": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+      "appId": "0x093fa91736c2639e93867b76074c6c4dbc5e49150faf4e8618bdf45e30d275c6",
+      "version": "8",
+      "holder": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "previousHost": "nucbox-k11-4"
+    },
+    {
+      "deployment": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+      "appId": "0x85f28c21b1545a05aee6661faf4b149b5dd18377fce59ad290e9f19857baab06",
+      "version": "5",
+      "holder": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+      "previousHost": "nucbox-k11-4"
+    },
+    {
+      "deployment": "0x9a28642bed115105c07bea1131c56c83ae2843ce4daf07958ab36437c0528a6b",
+      "appId": "0xcdc1fa941d248411e49f922e0bc7adfe8cc343712ca4fe4dfb24fab3ef6c70ce",
+      "version": "0",
+      "holder": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+      "previousHost": "nucbox-k11-4"
+    }
+  ]
+}

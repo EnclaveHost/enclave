@@ -1,0 +1,17 @@
+[queue] START available=26185MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+overlays = r14 + patch; verifier pins = the bundle lib: {'anchored_origin.py': 'd088592d0398', 'segments.py': '5a88a2e2894b', 'anchored_acceptance.py': 'cb68413866d0'}
+PASS A-r5-suite testsRun 58 failures 0 errors 0 skipped 0
+PASS B-wrapper-pruned (existing 34 + pruned 15 = 49, baseline blocker, all mutants killed) on the r3 wrapper
+PASS C-sampler-r8 testsRun 93 failures 0 errors 0 skipped 0
+PASS D-ops-readiness-r8 testsRun 27 failures 0 errors 0 skipped 0
+REUSED C-sampler-r14 93/0 and D-ops-readiness-r14 27/0 (root 1287; r14 bytes pinned by 1ba2d51a)
+E legacy activation baseline(r14): testsRun 36 notPassed 0; patched(r5): testsRun 36 notPassed 0
+PASS E-legacy-activation (r14 and r6 wrapper both testsRun 36, 0 failures/errors/skips; RealManifest on 1f0c4e6c)
+PASS F-r18-candidate-reproducible 1f4c5543f029d19a1849959d5d41f5e90c1c65280a16f193e670583ceb54c230
+PASS historical-origin-r8 A 58 + B 49/34/mutants + C 93 (r8) + D 27 (r8) + E full pass + F r18 reproducible; r14 C/D baselines reused (1287)
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r8/logs/run-20261026T125632Z-1751788
+## r8 SHA256SUMS 3c137da1967fdef67ff74a21992679705d26a89f905700c5808ac47b36fc683b
+## historical-origin-r8 rc=0
+[memory-guard] exit=0 peakTreeRssMiB=123 minHostAvailableMiB=24858
+[memory-guard] at peak: node:69 python3:46 bash:4 timeout:2 bash:2
+[queue] EXIT 0

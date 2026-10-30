@@ -1,0 +1,17 @@
+- 'heading "TEST ONLY: browser migration harness (client-browser-migration-r1)" [level=1]'
+- paragraph:
+  - strong: Owned loopback Anvil (chain id 8453, NOT Base). Public Anvil fixture keys and mock USDC only.
+  - text: Owner signatures come from a server-side TEST fixture signer, not from a wallet; no wallet or extension is used. Session keys are real non-extractable WebCrypto keys in real IndexedDB under fresh random TEST database names.
+- paragraph:
+  - button "Start (original session, plan, interrupted migration)"
+  - button "Continue (after reload)"
+  - button "Delete this run's TEST databases"
+- generic: "FAIL: assertion failed: the first gas open reply was lost (no error)"
+- generic: "TEST databases (this run): client-browser-migration-r1-TEST-legacy-15298c116f27dab6, client-browser-migration-r1-TEST-v2-f1507d3bb0e223f0"
+- list:
+  - listitem: "1. owned fixture reachable; runtime verified against deployed code and /funding/config: PASS"
+  - listitem: "2. ORIGINAL 30 USDC session opened like the site (SDK, real IndexedDB, explicit wildcard): PASS"
+  - listitem: "3. evidence + TEST 8+2 finite partition plan (29 legacy / 0.8 / 0.2), journal in real IndexedDB: PASS"
+  - listitem: "4. TEST fixture signer: terminate + replacement grant/deposit + first gas grant/deposit (5 prompts): PASS"
+  - listitem: "5. run: terminate + replacement proven and adopted; first gas reply LOST -> intent persisted, then stop: FAIL (assertion failed: the first gas open reply was lost (no error))"
+- generic: "> 1. owned fixture reachable; runtime verified against deployed code and /funding/config ok successor intake open ok runtime legacy vault = fixture legacy vault > 2. ORIGINAL 30 USDC session opened like the site (SDK, real IndexedDB, explicit wildcard) ok fresh legacy key is non-extractable ok original record: CryptoKey loaded from IndexedDB ok original record: private and NON-extractable ok original record: pkcs8 export refused ok chain: live, explicit wildcard, 30 USDC ok owner wallet down exactly 30 (mock USDC) > 3. evidence + TEST 8+2 finite partition plan (29 legacy / 0.8 / 0.2), journal in real IndexedDB ok fresh scope: 10 distinct apps, partition required ok persisted grant + chain agree: explicit wildcard ok order terminate -> legacyOpen -> gasOpen:nucbox -> gasOpen:metal ok replacement keeps the explicit wildcard ok legacy key + two fresh gas keys, all distinct ok replacement uses the SAME legacy key ok gas key gas-4e1d65a7: CryptoKey loaded from IndexedDB ok gas key gas-4e1d65a7: private and NON-extractable ok gas key gas-4e1d65a7: pkcs8 export refused ok gas key gas-8c80ad37: CryptoKey loaded from IndexedDB ok gas key gas-8c80ad37: private and NON-extractable ok gas key gas-8c80ad37: pkcs8 export refused > 4. TEST fixture signer: terminate + replacement grant/deposit + first gas grant/deposit (5 prompts) ok exactly 5 new fixture-signer prompts > 5. run: terminate + replacement proven and adopted; first gas reply LOST -> intent persisted, then stop active pointer -> 0xff73e458e8d5765ad68c53a07efd3cf49f7ae7a79855cc158d4969154efc8370 FAIL assertion failed: the first gas open reply was lost (no error)"

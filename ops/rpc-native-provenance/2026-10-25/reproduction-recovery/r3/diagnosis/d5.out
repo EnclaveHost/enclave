@@ -1,0 +1,2 @@
+.text differing bytes 1393; explained as RIP-relative displacements into the reordered string window: 1393; unexplained: 0
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a

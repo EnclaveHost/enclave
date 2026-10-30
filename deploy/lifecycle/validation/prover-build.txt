@@ -1,0 +1,4 @@
+EnclaveDeployments: 24469 runtime bytes; 107 bytes free
+EnclaveDeploymentLifecycle: 12325 runtime bytes; 12251 bytes free
+EnclaveSelfHostingIdentity: 942 runtime bytes; 23634 bytes free
+EnclaveProofOfTime: 6467 runtime bytes; 18109 bytes free

@@ -1,0 +1,62 @@
+{
+  "cases": [
+    {
+      "id": "unverified_conflict_stop",
+      "required": "No prior verified ID; POST409 B then authenticated GET B names other deployment; defer then real owner-stop and lease-loss consumers never DELETE B; no false running/serving."
+    },
+    {
+      "id": "verified_held_conflicting_id",
+      "required": "Authenticated held list owns A; POST409 B + wrong name/id; preserve A, B diagnostic only. Genuine stop targets A only. Exercise CPU and GPU paths without broadening credit."
+    },
+    {
+      "id": "unknown_reconnect",
+      "required": "Verified same held guest + timeout/401/malformed; preserve reservation/vouch/lease, bounded retry, reconnect adopts same guest; no deletion/new claim/release."
+    },
+    {
+      "id": "pre_spawn_abandon",
+      "required": "Gate launchSpec, invoke actual abandonClaims, release gate; no POST, resurrection, obsolete failure note/release or resource mutation."
+    },
+    {
+      "id": "spawn_success_abandon",
+      "required": "Gate actual spawn, invoke abandonClaims, then resolve success; do not publish running or duplicate release. Safely reconcile any independently verified late-owned guest."
+    },
+    {
+      "id": "spawn_error_abandon",
+      "required": "Gate actual spawn, invoke abandonClaims, then reject ordinary error and unknown error separately; terminal state and teardown effects preserved, no new failure/release."
+    },
+    {
+      "id": "spawn_ledger_move",
+      "required": "Gate spawn success and failure around actual ledgerMoveSweep; old record stays retired; never release against new ledger or modify replacement."
+    },
+    {
+      "id": "replacement_same_id",
+      "required": "Install different record object with same deployment ID/status/VMID while old attempt awaits; old completion does not mutate either current handle/record or release current lease."
+    },
+    {
+      "id": "release_intent_during_await",
+      "required": "Open actual or faithful inert test-seam release intent during await; no obsolete launch/completion/release duplicates; journal identity unchanged."
+    },
+    {
+      "id": "actual_consumer_propagation",
+      "required": "Exercise adopt and claimed audit plus restart/version/envelope consuming branches with superseded result; not interpreted as truthy service or false generic failure. Off-chain force/onPaid retain behavior."
+    },
+    {
+      "id": "billing_replaced_observation",
+      "required": "Gate billing GET then replace record with same status/id; no stale respawn, charge, reaper stop or release on either life."
+    },
+    {
+      "id": "billing_respawn_invalidated",
+      "required": "Confirmed-dead leads actual respawn then abandon/replace before launchSpec/spawn completion; no obsolete handle/identity mutation or unowned deletion; no duplicate audit/provision launch."
+    },
+    {
+      "id": "positive_compatibility",
+      "required": "Authenticated matching running adopts; starting remains live not serving; confirmed dead/404 recovery + incompatible same-name record replacement and preemption behavior remain intact."
+    },
+    {
+      "id": "baseline_differential",
+      "required": "Provide identical seam/equivalent harness for frozen unsafe seed and repaired source; required negative cases fail on seed for intended invariant, not unsupported seam/import failures."
+    }
+  ],
+  "executionAuthorized": false,
+  "revision": "r3-ownership-stale-continuations"
+}

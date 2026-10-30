@@ -9,8 +9,9 @@
    Self-contained eth_call + ABI decode (config.js can't lean on
    chain.js - chain.js imports config.js).
    ============================================================ */
-import { ADDRESS_BOOK_ADDRESS, APP_CATALOG_RPCS, __applyAddresses } from "./config.js";
+import { ADDRESS_BOOK_ADDRESS, APP_CATALOG_RPCS, INDEPENDENT, __applyAddresses } from "./config.js";
 import { emit } from "./util.js";
+import { platformBookEnabled, resolvePlatformAddresses } from "./platform-addresses.js";
 
 const SEL_ALL = "0x10c4e8b0";          // all() -> (bytes32[], address[]); verified vs viem
 const POLL_MS = 300000;
@@ -59,7 +60,12 @@ async function resolve(){
   return book;
 }
 
-if (ADDRESS_BOOK_ADDRESS){
+// Fixed profiles retain their bindings. Platform profiles explicitly trust the
+// book administrator and resolve through quorum reads without a hosted API.
+if (platformBookEnabled){
+  resolvePlatformAddresses().catch(e => console.warn("[addressbook] quorum resolution failed:", e.message || e));
+  setInterval(() => resolvePlatformAddresses().catch(() => {}), POLL_MS);
+} else if (ADDRESS_BOOK_ADDRESS && INDEPENDENT.state === "off"){
   resolve().catch((e) => console.warn("[addressbook] resolve failed (using baked addresses):", e.message || e));
   setInterval(() => resolve().catch(() => {}), POLL_MS);
 }

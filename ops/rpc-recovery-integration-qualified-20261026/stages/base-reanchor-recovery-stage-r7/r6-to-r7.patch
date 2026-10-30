@@ -1,0 +1,38 @@
+--- r6/tests/test_reanchor_recovery.py
++++ r7/tests/test_reanchor_recovery.py
+@@ -4,6 +4,7 @@
+ capture from DIFFERENT workdirs, real interrupted appends (SIGKILL mid-write / after fsync / before write), busy lock, strict
+ schema/chain/duplicate/tail and file-safety refusals.
+ 
++r7: run_step reads the record its own invocation wrote; the stale probe asserts the clock restore.
+ r3: a NEWER anchor goes through the REAL capture module (a1-capture-binding-stage/r2 src/a1_capture.py, loaded by the harness
+ from its pinned bytes) over pinned STUB A1 sources: real capture/verify/runtime/binding checks and the REAL pinned A1 gate, with
+ no substitute verifier or gate. The r2 placeholder verifier and its tests are removed; the bounds fixture is fixed (write()
+@@ -63,8 +64,14 @@
+ 
+     # ---- the fixture runs in the CONFIGURED workdir (each launch gets a fresh harness workdir) -------------------------
+     def run_step(self, step):
++        # r7: read the run record THIS invocation wrote (exactly one new file), never "the newest name": a step run under a
++        # patched clock names its record in that clock's time, so a later real-time record can sort BEFORE it (r6's actual
++        # failure re-read the earlier a1_stale record instead of the untrusted_file refusal the harness had just printed)
++        wd = pathlib.Path(self.cfg['workdir']); before = set(wd.glob(f'run-{step}-*.json')) if wd.exists() else set()
+         self.write(); code = A.main(['a2a4.py', step, str(self.d / 'cfg.json')]); self.state = self.st()
+-        recs = sorted(pathlib.Path(self.cfg['workdir']).glob(f'run-{step}-*.json')); return code, json.loads(recs[-1].read_text())
++        new = sorted(set(wd.glob(f'run-{step}-*.json')) - before)
++        self.assertEqual(len(new), 1, f'exactly one new run record for {step}: {[n.name for n in new]}')
++        return code, json.loads(new[0].read_text())
+ 
+     def start(self, executor=None, **kw):
+         with patch.object(W, 'BOOTSTRAP_ARCHIVE', self.archive), patch.object(W, 'BOOTSTRAP_WATERMARK', self.store):
+@@ -359,8 +366,11 @@
+         self.new_recheck()
+         with patch.object(R, 'A1_CAPTURE_SHA256', '00' * 32):
+             self.step_refused('a3', 'a1_capture_pin')                                # module bytes are not the pin
++        real_now = R.now
+         with patch.object(R, 'now', lambda: TA.utcnow() + TA.datetime.timedelta(seconds=self.cfg['a1MaxAgeSec'] + 60)):
+             self.step_refused('a3', 'a1_stale')
++        self.assertIs(R.now, real_now, 'r7: the harness clock is restored after the stale probe')
++        self.assertLess(abs((R.now() - TA.utcnow()).total_seconds()), 5, 'r7: and reads real time again')
+         self.ledger.chmod(0o666); self.step_refused('a3', 'untrusted_file'); self.ledger.chmod(0o600)
+         ev = iout / 'capture/evidence.json'; b = ev.read_bytes(); ev.chmod(0o600); ev.write_bytes(b[:-1] + b' '); ev.chmod(0o400)
+         self.step_refused('a3', 'a1_capture')                                        # the initial tampered after A2

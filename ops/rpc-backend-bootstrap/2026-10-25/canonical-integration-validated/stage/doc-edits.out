@@ -1,0 +1,5 @@
+{
+ "docs/network/local-chain-verifier.md": "f074f344bee5a23b699cd4ed8e2599699b1cd7bb24de8046382b290fa89f59d2",
+ "test/chain-verifier-guest.e2e.test.mjs": "154d7618737338ed1f99a880caae99ca839a54fa85d2aeb6b162c23a61dd2e5d",
+ "scripts/rpc-runtime/closure.json": "6f4f33b331bdc59afd8dc6c900724da4aebd87dbbd146695dab2dc02607f4e19"
+}

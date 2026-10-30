@@ -1,0 +1,26 @@
+--- a/tests/r7-ported/test_r3_launcher.py
++++ b/tests/r7-ported/test_r3_launcher.py
+@@ -584,15 +584,18 @@
+ 
+ 
+ class FirstBootstrapStateFrontier(Pipeline):
+-    """r9: the FIRST-BOOTSTRAP harness (a2-v2 + the pinned checkpoint parser) over the pinned-format fake: labels at the snapshot head
+-    but Finish.partial_state_trie BELOW the anchor N -> A2 refuses state_below_anchor (labels are not state)"""
++    """r9/r10: the FIRST-BOOTSTRAP harness (a2-v2 + the pinned checkpoint parser) over the pinned-format fake: labels at the snapshot
++    head but Finish.partial_state_trie BELOW the anchor N. A2 only authenticates header N (passes); step_plan, which A3 runs FIRST,
++    refuses state_below_anchor before any unwind (labels are not state). r9 wrongly expected the refusal at A2 (root run 0648)."""
+     def test_first_bootstrap_refuses_a_state_frontier_below_the_anchor(self):
+         self.state['finishPartial'] = TA.N - 10; self.write()
+-        wd = pathlib.Path(self.cfg['workdir']); before = set(wd.glob('run-a2-*.json')) if wd.exists() else set()
++        wd = pathlib.Path(self.cfg['workdir']); before = set(wd.glob('run-a3-*.json')) if wd.exists() else set()
+         with self.assertRaises(Exception):
+-            self.launched()                                           # the first step (a2) must refuse
+-        new = sorted(set(wd.glob('run-a2-*.json')) - before); self.assertTrue(new, 'a2 wrote no run record')
++            self.launched()                                           # a3 (step_plan) must refuse; nothing unwound
++        new = sorted(set(wd.glob('run-a3-*.json')) - before); self.assertTrue(new, 'a3 wrote no run record')
+         rec = json.loads(new[0].read_text()); self.assertTrue(str(rec.get('refused')).startswith('state_below_anchor'), rec)
++        self.assertFalse(any('unwind' in ' '.join(map(str, c.get('argv', []))) and '--help' not in c.get('argv', []) for c in rec.get('commands', [])),
++                         'no unwind ran')
+ 
+ 
+ for _n in [n for n in dir(Pipeline) if n.startswith('test_')]:

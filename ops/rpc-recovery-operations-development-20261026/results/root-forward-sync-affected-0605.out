@@ -1,0 +1,10 @@
+[queue] START available=20612MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+PASS reanchor-recovery Ran 24 (expected 24)
+PASS r3-regression Ran 27 (expected 27)
+## FAIL: forward-sync: rc 1, Ran 8 (expected 8), last FAILED (errors=8) (see /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236/forward-sync.txt)
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-forward-sync-stage/logs/root-forward-sync-affected-20261026T060029Z-990236
+## forward-sync SHA256SUMS 287a52f9b25e41dfc7e985041d2f4dcad4f2299ddd4c7d39a082910311c26072
+## forward-sync rc=1
+[memory-guard] exit=1 peakTreeRssMiB=226 minHostAvailableMiB=17366
+[memory-guard] at peak: python3:39 python3:30 python3:30 python3:30 python3:30 python3:30 python3:30 bash:4
+[queue] EXIT 1

@@ -1,0 +1,11 @@
+{
+  "commit": "e0bb205598f6230c7544dec4fff3a8a4bee73101",
+  "baseCandidate": {
+    "commit": "04bfc56803e25ec32b45e3ecfe1b381fd403d76b",
+    "path": "ops/unified-funding-20261028/host-ownership-completion-review-r5/candidate"
+  },
+  "productOverlay": "ops/unified-funding-20261028/host-parent-cold-recovery-r6/overlay",
+  "testHelperOverlay": "test/helpers/real-v2-host.mjs",
+  "sourceCandidate": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate",
+  "qualification": "local EVM/real owned factory and signed permits; TEST manager, finality, readiness, boundary acknowledgments and witness transport; not Windows or production"
+}

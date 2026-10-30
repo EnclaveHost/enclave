@@ -1,0 +1,83 @@
+{
+  "unit": "enclave-rpc-offline-cleanup-r1-20261030-author.service",
+  "invocationId": "c5618549078f48688eddb21bf7df70b3",
+  "mainPid": 2449465,
+  "runnerPid": 2449482,
+  "claudePid": 2449522,
+  "capturedAt": 1793346137.388344,
+  "identities": [
+    {
+      "pid": 2449465,
+      "startTicks": "165119537",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ],
+      "ppid": 1899
+    },
+    {
+      "pid": 2449482,
+      "startTicks": "165119548",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ],
+      "ppid": 2449475
+    },
+    {
+      "pid": 2449522,
+      "startTicks": "165119581",
+      "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+      "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-offline-cleanup-author-r1-20261030",
+      "affinity": [
+        1
+      ],
+      "ppid": 2449482
+    }
+  ],
+  "preparedSha256": "8c005a8734ddec2ad1e457dfec717d13585576f1f419dcb5883824ddf8ecfa0d",
+  "initialCaptureFailure": "Initial all-three affinity assertion rejected queue wrapper affinity0..31; author and runner alreadyCPU1. No relaunch. Exact current queue PID/start/exe/argv verified, then narrowed its own affinity toCPU1.",
+  "queueAffinityBefore": {
+    "pid": 2449465,
+    "startTicks": "165119537",
+    "exe": "/usr/bin/python3.14",
+    "cwd": "/home/steven",
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31
+    ],
+    "ppid": 1899
+  }
+}

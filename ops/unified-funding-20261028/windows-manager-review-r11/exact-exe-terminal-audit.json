@@ -1,0 +1,14 @@
+{
+  "at": 1793297290.6702416,
+  "unit": "enclave-windows-manager-integration-r11-20261029.service",
+  "admittedInvocation": "dd6abf47a1394ae2a3b8247cb301b17c",
+  "unitStatus": "ActiveState=inactive\nSubState=dead\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "knownPidExists": {
+    "mainPid": false,
+    "runnerPid": false,
+    "claudePid": false
+  },
+  "reviewedExecutable": "/home/steven/.local/share/claude/versions/2.1.281",
+  "matchingAuthorProcesses": [],
+  "unreadableCwdForReviewedExecutable": []
+}

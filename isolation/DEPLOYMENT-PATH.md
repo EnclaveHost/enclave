@@ -72,8 +72,9 @@ make the tier proven secure; security testing and fixes follow it:
    since F7 the guests OUTLIVE guestd (a restart adopts them), so they are ended explicitly.
 2. On nan, restore the newest `/etc/nan-relay/api-relay.env.bak-iso-*` taken before the first change (or delete
    the two `metal-iso0` lines), then `systemctl restart enclave-api-relay.service`.
-3. The on-chain registration goes stale on its own when heartbeats stop. The owner can `setActive(false)` the
-   deployment.
+3. The on-chain registration stays active (hosts send no heartbeat), but readers stop listing the box once it no
+   longer serves a fresh signed capacity record (docs/network/host-liveness.md); its operator can `deregister`. The
+   owner can `setActive(false)` the deployment.
 
 **One step back** (the 2026-09-24 21:17-21:33Z round, F10 + TCB floor + certificate reuse), keeping the guests:
 - node: point `metal/config.iso.json` `dist` at `metal/dist-iso-99b0e3c0` (backup `config.iso.json.bak-99b0e3c0`),

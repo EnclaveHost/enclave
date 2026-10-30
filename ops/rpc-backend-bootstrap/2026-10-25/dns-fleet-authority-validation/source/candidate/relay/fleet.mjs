@@ -1,0 +1,662 @@
+// Enclave relay fleet discovery — shared by the DATA-PLANE relays (tcp6-relay,
+// udp-relay, egress-relay) so they follow an arbitrary, CHANGING set of
+// enclaves instead of being pinned to one by env. The fleet can grow and
+// shrink at any time; nobody should be hand-editing relay env files when it
+// does.
+//
+// Two sources, same precedence as api-relay.js:
+//   ENCLAVES           static comma list of enclave origins (wins if set)
+//   ENCLAVE_URL        legacy single-enclave pin — folded into the list, so
+//                      existing env files keep working unchanged
+//   REGISTRY_ADDRESS   EnclaveRegistry on Base (chain 8453): the on-chain truth of
+//                      the live fleet, re-read every REGISTRY_POLL_SEC and
+//                      filtered to active + recently-seen entries. This is the
+//                      set-and-forget mode: a new enclave registers itself and
+//                      every relay picks it up within one poll.
+//
+// The registry read mirrors api-relay.js / scripts/enclave-discover.mjs (count +
+// getPage paging). This module holds NO trust: it only tells the relays which
+// origins to serve; every origin still authenticates the relay (egress) or
+// scopes it to public deployments (tcp6/udp) exactly as before.
+
+import { isBlockedHost } from "./net-guard.mjs";
+
+// Process-level safety net for the long-lived relay daemons. Node's default is
+// --unhandled-rejections=throw, so a single stray rejection from any poller or a
+// detached async in a request handler would otherwise crash the daemon and dark
+// the relay. Log-and-continue on rejections (every request/poll is already
+// independently try/caught); log-and-exit(1) on a genuine uncaughtException so
+// systemd (Restart=always on the relay units) restarts from a clean state.
+export function installProcessGuards(name, log = console.error) {
+  if (installProcessGuards._done) return;   // idempotent per process
+  installProcessGuards._done = true;
+  process.on("unhandledRejection", (r) => log(`[${name}] unhandledRejection:`, r instanceof Error ? (r.stack || r.message) : r));
+  process.on("uncaughtException", (e) => { log(`[${name}] uncaughtException:`, (e && e.stack) || e); process.exit(1); });
+}
+
+const DEFAULTS = {
+  baseRpc: "https://mainnet.base.org",
+  registryPollSec: 300,
+  staleAfterSec: 3600,
+};
+
+// Parse the fleet-related env once. Returns { staticList, registryAddress,
+// baseRpc, registryPollSec, staleAfterSec }; the caller decides what "neither
+// source set" means (the daemons treat it as fatal).
+export function fleetConfig(env = process.env) {
+  const staticList = [...new Set([env.ENCLAVES, env.ENCLAVE_URL]
+    .filter(Boolean).join(",")
+    .split(",").map((s) => s.trim().replace(/\/+$/, "")).filter(Boolean))];
+  return {
+    staticList,
+    registryAddress: (env.REGISTRY_ADDRESS || "").trim(),
+    addressBook: (env.ADDRESS_BOOK_ADDRESS || "").trim(),
+    // EnclaveDeployments ledger (env fallback; the address book overrides). Only
+    // read on demand by the runner resolver (relay.js's app-subdomain fallback);
+    // the origin-following daemons never touch it.
+    deploymentsAddress: (env.DEPLOYMENTS_ADDRESS || "").trim(),
+    baseRpc: env.BASE_RPC || DEFAULTS.baseRpc,
+    // U7: the api-relay whose /enclaves verdicts say which hosts are ELIGIBLE to serve tenant apps. A tenant-routing daemon
+    // (relay.js, udp-relay, tcp6-relay, dns-relay) dials only an eligible host; unset, it dials none (fail closed).
+    // DOMAINS_API (the SNI relay's custom-domain map source, the same api-relay) serves as the default.
+    eligibilityApi: (env.ELIGIBILITY_API || env.DOMAINS_API || "").trim().replace(/\/+$/, ""),
+    eligibilityPollSec: parseInt(env.ELIGIBILITY_POLL_SEC || "", 10) || 15,
+    eligibilityMaxAgeSec: parseInt(env.ELIGIBILITY_MAX_AGE_SEC || "", 10) || 60,
+    registryPollSec: parseInt(env.REGISTRY_POLL_SEC || "", 10) || DEFAULTS.registryPollSec,
+    // Parsed for compatibility only: registry rows are ADMITTED by their active flag. Liveness for routing is the
+    // api-relay's evidence-based /enclaves verdict (eligibility above), never the row's lastSeen, which hosts no longer
+    // refresh on a timer (network/host-liveness.mjs).
+    staleAfterSec: parseInt(env.STALE_AFTER_SEC || "", 10) || DEFAULTS.staleAfterSec,
+    // Operator allowlist. Comma-separated, lowercased EnclaveRegistry operator
+    // addresses. On-chain discovery is filtered to endpoints whose registry
+    // `operator` is in the list, so tokens / the egress token / data-path traffic
+    // only ever reach vetted operators (closes the permissionless-registry trust
+    // gap). FAIL CLOSED: unset/empty falls back to the BAKED canonical operator
+    // set (never "follow everyone"), so a rebuilt egress/dns relay can't silently
+    // reopen the boundary. Explicit unrestricted mode is opt-in: set it to *.
+    trustedOperators: parseTrustedOperators(env.TRUSTED_OPERATORS),
+    operatorsUnrestricted: /^(\*|any|all)$/i.test((env.TRUSTED_OPERATORS ?? "").trim()),
+  };
+}
+
+const DEFAULT_TRUSTED_OPERATORS = ["0x390e2e0e0bc34b7f428f1e31c9b6770d5028ecc1"]; // canonical Enclave fleet operator
+function parseTrustedOperators(raw) {
+  const s = (raw ?? "").trim();
+  if (/^(\*|any|all)$/i.test(s)) return [];              // explicit unrestricted opt-in
+  const list = s.toLowerCase().split(",").map((x) => x.trim()).filter(Boolean);
+  return list.length ? list : DEFAULT_TRUSTED_OPERATORS.slice();
+}
+
+const BOOK_ABI = [
+  { type: "function", name: "addr", stateMutability: "view",
+    inputs: [{ type: "bytes32" }], outputs: [{ type: "address" }] },
+];
+// "registry" as ascii-right-padded bytes32 (the EnclaveAddressBook key)
+const BOOK_KEY_REGISTRY = "0x7265676973747279000000000000000000000000000000000000000000000000";
+
+const ENCLAVE_TUPLE_V1 = [
+  { name: "endpoint", type: "string" }, { name: "repo", type: "string" },
+  { name: "measurement", type: "bytes32" }, { name: "operator", type: "address" },
+  { name: "registeredAt", type: "uint64" }, { name: "lastSeen", type: "uint64" },
+  { name: "active", type: "bool" }];
+const ABI = [
+  { type: "function", name: "count", stateMutability: "view", inputs: [],
+    outputs: [{ type: "uint256" }] },
+  { type: "function", name: "getPage", stateMutability: "view",
+    inputs: [{ name: "start", type: "uint256" }, { name: "n", type: "uint256" }],
+    outputs: [{ type: "tuple[]", components: ENCLAVE_TUPLE_V1 }] },
+];
+// Registry schema 2 APPENDED the operator's per-machine prices to the entry.
+// Schema 3 appended the PROOF KEY, schema 4 the seller's declared PAYOUT WALLET
+// (the wallet whose own deployments a rev-12 ledger hosts here for free — set
+// only by that wallet, so a 0x0 here is a box that charges everyone).
+// Appended fields keep every earlier field's
+// offset, so a short decode drops the tail rather than misreading it — but the
+// shape is still sniffed per address (cached; the address book can repoint us
+// mid-flight) so callers SEE the newer fields. Schema-1 registries have no
+// getter at all: it reverts. THIS BLOCK IS PINNED IDENTICAL across
+// scripts/enclave-discover.mjs, relay/fleet.mjs and relay/api-relay.js by
+// test/registry-schema.test.mjs — a drift is a cutover outage in whichever
+// service lagged.
+const ENCLAVE_TUPLE = [...ENCLAVE_TUPLE_V1,
+  { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" },
+  { name: "proofKey", type: "address" }, { name: "payoutWallet", type: "address" },
+  { name: "caps", type: "uint64" }, { name: "region", type: "string" }];
+const ENCLAVE_TUPLE_V4 = ENCLAVE_TUPLE.slice(0, 11);  // schema 4: payout wallet, no caps
+const ENCLAVE_TUPLE_V3 = ENCLAVE_TUPLE.slice(0, 10);  // schema 3: proof key, no payout wallet
+const ENCLAVE_TUPLE_V2 = ENCLAVE_TUPLE.slice(0, 9);   // schema 2: priced, no proof key
+const abiForRev = (rev) => [ABI[0], { ...ABI[1],
+  outputs: [{ type: "tuple[]", components:
+    rev >= 5 ? ENCLAVE_TUPLE : rev >= 4 ? ENCLAVE_TUPLE_V4 : rev >= 3 ? ENCLAVE_TUPLE_V3
+             : rev >= 2 ? ENCLAVE_TUPLE_V2 : ENCLAVE_TUPLE_V1 }] }];
+// Schema 5 capability bits (EnclaveRegistry CAP_*): what a registered box DOES,
+// now that being listed no longer implies running code. caps === 0 is every row
+// written before schema 5 and every one of them IS an enclave, so 0 MUST read as
+// CAP_HOST — a reader that takes it for "no capabilities" empties the fleet the
+// day the new registry deploys.
+const CAP_HOST = 1n, CAP_APP_SNI = 2n, CAP_TCP_PORTS = 4n, CAP_UDP = 8n, CAP_TUNNEL_HUB = 16n;
+const CAP_RELAY_ANY = CAP_APP_SNI | CAP_TCP_PORTS | CAP_UDP | CAP_TUNNEL_HUB;
+const capsOf = (e) => { try { return BigInt(e.caps ?? 0); } catch { return 0n; } };
+const isHostRow = (e) => { const c = capsOf(e); return c === 0n || (c & CAP_HOST) !== 0n; };
+const isRelayRow = (e) => (capsOf(e) & CAP_RELAY_ANY) !== 0n;
+const SCHEMA_ABI = [{ type: "function", name: "registrySchema", stateMutability: "view",
+  inputs: [], outputs: [{ type: "uint256" }] }];
+
+// Which entry shape the registry at `addr` speaks: 2 = priced entries (the
+// getter exists), 1 = the original seven fields (it reverts there). Cached per
+// address, because the address book can repoint us at a new registry mid-run.
+const _regRev = new Map();
+async function registryAbi(client, addr) {
+  const key = String(addr).toLowerCase();
+  if (!_regRev.has(key)) {
+    const rev = await client.readContract({ address: addr, abi: SCHEMA_ABI, functionName: "registrySchema" })
+      .then(Number).catch(() => 1);
+    _regRev.set(key, rev);
+  }
+  return abiForRev(_regRev.get(key));
+}
+
+// EnclaveDeployments — only the fields the runner resolver needs; the full tuple
+// shape is required so viem can decode getPage()'s ABI-packed pages.
+const DEP_TUPLE = [   // Deployment struct, schema rev 2
+  { name: "id", type: "bytes32" }, { name: "owner", type: "address" },
+  { name: "appRef", type: "string" }, { name: "ports", type: "string" },
+  { name: "configCid", type: "string" },
+  { name: "gpuMilli", type: "uint16" }, { name: "cpuMilli", type: "uint16" },
+  { name: "appPort", type: "uint32" }, { name: "isPublic", type: "bool" },
+  { name: "active", type: "bool" }, { name: "createdAt", type: "uint64" },
+  { name: "rate", type: "uint256" }, { name: "balance6", type: "uint256" },
+  { name: "spent6", type: "uint256" }, { name: "runner", type: "bytes32" },
+  { name: "runnerOperator", type: "address" }, { name: "leaseUntil", type: "uint64" },
+];
+// rev-1 ledgers carry a removed sshPubKey string after ports (decoded, unused)
+const DEP_TUPLE_V1 = [...DEP_TUPLE.slice(0, 4), { name: "sshPubKey", type: "string" }, ...DEP_TUPLE.slice(4)];
+const depAbiFor = (components) => [
+  { type: "function", name: "count", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "getPage", stateMutability: "view",
+    inputs: [{ name: "start", type: "uint256" }, { name: "n", type: "uint256" }],
+    outputs: [{ type: "tuple[]", components }] },
+];
+const BOOK_KEY_DEPLOYMENTS = "0x6465706c6f796d656e7473" + "0".repeat(42); // "deployments" ascii, right-padded
+const ZERO32 = /^0x0+$/;
+
+// SECURITY (B1/B2/B3): anyone can register an endpoint on the permissionless
+// registry, so the relay must not blindly follow every row. `endpoint` must be
+// https: (enclaves are https — a non-https discovered endpoint is a downgrade/
+// impersonation attempt, never a real enclave) and, when TRUSTED_OPERATORS is
+// set, its `operator` must be allowlisted.
+const isHttpsEndpoint = (ep) => { try { return new URL(ep).protocol === "https:"; } catch { return false; } };
+let _warnedUnauth = false;
+function warnIfUnauthenticated(cfg, log) {
+  if (!cfg.operatorsUnrestricted || _warnedUnauth) return;
+  _warnedUnauth = true;
+  log("WARNING: TRUSTED_OPERATORS=* — this relay follows EVERY endpoint in the permissionless " +
+      "EnclaveRegistry with no operator allowlist, by explicit configuration. Session tokens / the egress " +
+      "token / data-path traffic may be routed to attacker-registered endpoints. Unset TRUSTED_OPERATORS " +
+      "to restrict the fleet to the vetted operator set.");
+}
+
+// createFleet(cfg, log) -> { origins(), start() }
+//   origins()  the current enclave https origins (static list, or the last
+//              successful registry read — kept on read failure, never cleared)
+//   start()    resolves after the first registry read in registry mode (so a
+//              daemon's first reconcile already sees the fleet); schedules the
+//              re-reads. No-op in static mode.
+export function createFleet(cfg, log = () => {}) {
+  let origins = cfg.staticList;
+  // THE CHAIN CLIENT for registry, book and ledger reads: cfg.chainClient when the daemon injected its ONE chain authority
+  // (relay/relay-chain-authority.mjs, e.g. the local proof-backed verifier; cfg.baseRpc is then never used and nothing
+  // falls back to it), else the legacy BASE_RPC provider client, exactly as before.
+  async function chainClient() {
+    if (cfg.chainClient) return cfg.chainClient;
+    const { createPublicClient, http } = await import("viem");
+    const { base } = await import("viem/chains");
+    return createPublicClient({ chain: base, transport: http(cfg.baseRpc) });
+  }
+
+  // Shared on-chain runner resolver (used by relay.js's app-subdomain fallback,
+  // fix 1c). Reads EnclaveDeployments lazily + cached; maps a deployment id (full
+  // bytes32 or a unique hex prefix) to the endpoint whose keccak256(endpoint)
+  // equals its on-chain `runner`, but ONLY if that endpoint is in the current
+  // (already https-/operator-filtered) fleet. Returns null on any uncertainty so
+  // the caller safely falls back to probing — a valid deployment never 404s from
+  // this alone.
+  let _runnerClient = null, _deploymentsAddress = cfg.deploymentsAddress;
+  let _anyEndpoints = [];        // admitted (active) registry endpoints, operator-allowlist aside (leaseEndpointFor)
+  let _endpointOperators = new Map();   // endpoint -> the operator that registered it
+  let _hashEndpoint = null;
+  const _endpointIdCache = new Map();
+  let _ledger = { rows: [], at: 0 };
+  async function runnerClient() {
+    if (!_runnerClient) _runnerClient = await chainClient();
+    return _runnerClient;
+  }
+  async function loadHash() {
+    if (!_hashEndpoint) {
+      const { keccak256, stringToBytes } = await import("viem");
+      _hashEndpoint = (s) => keccak256(stringToBytes(s));
+    }
+  }
+  async function endpointId(ep) {
+    if (_endpointIdCache.has(ep)) return _endpointIdCache.get(ep);
+    await loadHash();
+    const id = _hashEndpoint(ep).toLowerCase();
+    _endpointIdCache.set(ep, id);
+    return id;
+  }
+  async function deploymentsAddress(c) {
+    if (cfg.addressBook) {
+      try {
+        const a = await c.readContract({ address: cfg.addressBook, abi: BOOK_ABI,
+          functionName: "addr", args: [BOOK_KEY_DEPLOYMENTS] });
+        if (a && !/^0x0{40}$/i.test(a)) _deploymentsAddress = a;
+      } catch { /* keep last known */ }
+    }
+    return _deploymentsAddress;
+  }
+  // ledger struct shape, sniffed per address (rev-1 contracts revert the call)
+  let _depShape = { addr: null, abi: depAbiFor(DEP_TUPLE_V1) };
+  async function depAbi(c, addr) {
+    if (_depShape.addr === addr) return _depShape.abi;
+    try {
+      const rev = Number(await c.readContract({ address: addr,
+        abi: [{ type: "function", name: "deploymentsSchema", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }],
+        functionName: "deploymentsSchema" }));
+      _depShape = { addr, abi: depAbiFor(rev >= 2 ? DEP_TUPLE : DEP_TUPLE_V1) };
+    } catch (e) {
+      // revert = a real rev-1 contract; "returned no data"/anything else may
+      // be a lagging or throttled provider — never cache rev 1 on those
+      // (message-based on purpose: viem's ContractFunction* wrapper names
+      // cover reverts AND zero-data alike; see supervisor.js sniffCachePolicy)
+      if (/revert/i.test(e?.shortMessage || e?.message || "")) _depShape = { addr, abi: depAbiFor(DEP_TUPLE_V1) };
+      else return depAbiFor(DEP_TUPLE_V1);   // transport error: don't cache, retry next call
+    }
+    return _depShape.abi;
+  }
+  async function ledgerRows() {
+    if (Date.now() - _ledger.at < 10_000) return _ledger.rows;
+    const c = await runnerClient();
+    const addr = await deploymentsAddress(c);
+    if (!addr) return [];
+    const abi = await depAbi(c, addr);
+    try {
+      const total = Number(await c.readContract({ address: addr, abi, functionName: "count" }));
+      const rows = [];
+      for (let start = 0; start < total; start += 50)
+        rows.push(...await c.readContract({ address: addr, abi,
+          functionName: "getPage", args: [BigInt(start), 50n] }));
+      _ledger = { rows, at: Date.now() };
+      return rows;
+    } catch (e) {
+      // a misaligned decode means the cached shape is wrong for this ledger:
+      // drop the sniff cache so the next tick re-sniffs instead of wedging
+      if (/safe integer range|out[- ]of[- ]bounds|data size|not a valid boolean/i.test(e?.shortMessage || e?.message || ""))
+        _depShape = { addr: null, abi: _depShape.abi };
+      throw e;
+    }
+  }
+  async function runnerEndpointFor(id) {
+    const h = String(id).toLowerCase();
+    if (!/^0x[0-9a-f]{8,64}$/.test(h)) return null;   // dep_ / non-onchain ids: probe path
+    if (!cfg.addressBook && !cfg.deploymentsAddress) return null;
+    let rows;
+    try { rows = await ledgerRows(); } catch { return null; }
+    const hits = rows.filter((d) => String(d.id).toLowerCase().startsWith(h));
+    if (hits.length !== 1) return null;               // unknown/ambiguous -> fall back
+    const d = hits[0];
+    if (ZERO32.test(String(d.runner)) || Number(d.leaseUntil) * 1000 <= Date.now()) return null;
+    const runner = String(d.runner).toLowerCase();
+    for (const ep of origins) if ((await endpointId(ep)) === runner) return ep;   // known + in-fleet
+    return null;
+  }
+  // The endpoint that PROVABLY holds a deployment's live lease, whether or not
+  // its operator is on the routing allowlist. For app data-plane traffic the
+  // lease IS the authority: whoever holds it already runs the app and already
+  // terminates its TLS (the cert is minted in THAT enclave), so splicing a
+  // client's ciphertext to it grants nothing the lease didn't. This is what
+  // lets an unvetted seller box serve its apps publicly. Deliberately NOT used
+  // for control-plane trust: session/egress tokens still go only to
+  // allowlisted operators (that is what TRUSTED_OPERATORS protects).
+  async function leaseEndpointFor(id) {
+    const strict = await runnerEndpointFor(id);        // in-fleet box: unchanged path
+    if (strict) return strict;
+    const h = String(id).toLowerCase();
+    if (!/^0x[0-9a-f]{8,64}$/.test(h)) return null;
+    let rows;
+    try { rows = await ledgerRows(); } catch { return null; }
+    const hits = rows.filter((d) => String(d.id).toLowerCase().startsWith(h));
+    if (hits.length !== 1) return null;
+    const d = hits[0];
+    if (ZERO32.test(String(d.runner)) || Number(d.leaseUntil) * 1000 <= Date.now()) return null;
+    const runner = String(d.runner).toLowerCase();
+    for (const ep of _anyEndpoints) if ((await endpointId(ep)) === runner) return ep;
+    return null;
+  }
+  // Does this id PREFIX name more than one ledger deployment? An app subdomain
+  // is a prefix — canonically 8 hex chars, 32 bits — and ids are
+  // keccak256(creator, nonce), so a twin can be ground offline and created for
+  // the price of one transaction. Callers that would otherwise fall back to
+  // "whichever enclave answers the probe first" must refuse instead: on the SNI
+  // path that race decides who receives a client's ClientHello for the victim's
+  // hostname, and the twin can hold a real CA cert for it (same label). Only
+  // ever answers true on certainty; an unreadable ledger is `false`, leaving
+  // the caller's existing behavior untouched.
+  async function prefixAmbiguous(idPrefix) {
+    const h = String(idPrefix).toLowerCase().replace(/^(?!0x)/, "0x");
+    if (!/^0x[0-9a-f]{8,63}$/.test(h)) return false;   // full id or non-ledger shape
+    if (!cfg.addressBook && !cfg.deploymentsAddress) return false;
+    let rows;
+    try { rows = await ledgerRows(); } catch { return false; }
+    return rows.filter((d) => String(d.id).toLowerCase().startsWith(h)).length > 1;
+  }
+
+  // Lease lookup for permissionless verifiers (dns-relay's operator-signed TXT
+  // push): the UNIQUE ledger row for an id prefix, reduced to what an auth
+  // check needs. null on unknown AND on ambiguous — a prefix that names two
+  // deployments authorizes neither. { fresh: true } busts the 10s row cache
+  // once: a just-claimed lease (claim tx seconds old) must not be denied by a
+  // stale read — callers use it only after a cached read fails, behind their
+  // own rate limiter.
+  async function leaseFor(idPrefix, { fresh = false } = {}) {
+    const h = String(idPrefix).toLowerCase();
+    if (!/^0x[0-9a-f]{8,64}$/.test(h)) return null;
+    if (!cfg.addressBook && !cfg.deploymentsAddress) return null;
+    if (fresh) _ledger.at = 0;
+    let rows;
+    try { rows = await ledgerRows(); } catch { return null; }
+    const hits = rows.filter((d) => String(d.id).toLowerCase().startsWith(h));
+    if (hits.length !== 1) return null;
+    const d = hits[0];
+    return { id: String(d.id).toLowerCase(),
+             runner: String(d.runner || "").toLowerCase(),
+             runnerOperator: String(d.runnerOperator || "").toLowerCase(),
+             leaseLive: !ZERO32.test(String(d.runner)) && Number(d.leaseUntil) * 1000 > Date.now() };
+  }
+
+  // ---- U7: ELIGIBILITY, as the api-relay decides it -------------------------------------------------------------------
+  // The api-relay computes eligibility from verified evidence (computeEligible, the rule placement and its own routing
+  // use) and publishes it per row in /enclaves: `id` = keccak256(the registered endpoint), `eligible`. A tenant-routing
+  // daemon dials a host only while that verdict is FRESH and says eligible. A failed poll keeps the last verdict until it
+  // is older than eligibilityMaxAgeSec, and then nothing is eligible. Unconfigured, nothing is. Unknown is not permission.
+  // Every verdict is judged against the CURRENT id set: an origin's id (keccak256 of the endpoint string) is computed
+  // synchronously once viem is loaded, and cached, so no separately rebuilt origin set can lag the feed (enclave-5d's
+  // round-5 race: an older rebuild finishing after a newer one wrote back a set built from the previous ids).
+  // An ESTABLISHED session is held only while its host stays eligible: a daemon registers each live splice or flow with
+  // holdWhileEligible(origin, close), and every eligibility poll, a failed one included, closes those whose host no
+  // longer is (enclave-5d and enclave-d1, round 5: a check only at open let a host that lost eligibility keep them).
+  let _elig = { ids: new Set(), at: 0 }, _eligTimer = null;
+  const _held = new Map();   // origin -> Set of close functions of its live sessions
+  const normOrigin = (o) => String(o || "").replace(/\/+$/, "");
+  const eligibilityFresh = () => !!cfg.eligibilityApi && Date.now() - _elig.at <= cfg.eligibilityMaxAgeSec * 1000;
+  function endpointIdSync(ep) {
+    if (_endpointIdCache.has(ep)) return _endpointIdCache.get(ep);
+    if (!_hashEndpoint) return null;   // not loaded yet: unknown, so not eligible
+    const id = _hashEndpoint(ep).toLowerCase();
+    _endpointIdCache.set(ep, id);
+    return id;
+  }
+  function originEligibleNow(origin) {
+    if (!eligibilityFresh()) return false;
+    const id = endpointIdSync(normOrigin(origin));
+    return !!id && _elig.ids.has(id);
+  }
+  // (B) does this owner-only origin carry this deployment NOW (a full id, or an id prefix naming exactly ONE it carries)? Each
+  // entry's `until` (the lease end or the delegation's expiry, whichever is first) is checked at decision time, so a lapse
+  // between two /enclaves reads still refuses (enclave-bf E2).
+  const liveUntil = (u) => Number(u) > Date.now() / 1000;
+  function servedMapOf(id) { return id && _elig.served ? _elig.served.get(id) || null : null; }
+  function servedNow(origin, dep) {
+    if (!eligibilityFresh()) return false;
+    const m = servedMapOf(endpointIdSync(normOrigin(origin)));
+    if (!m) return false;
+    const d = String(dep || "").toLowerCase();
+    if (m.has(d)) return liveUntil(m.get(d));
+    if (!/^0x[0-9a-f]{8,63}$/.test(d)) return false;
+    const hits = [...m].filter(([x]) => x.startsWith(d));
+    return hits.length === 1 && liveUntil(hits[0][1]);
+  }
+  const _heldServed = new Map();   // origin + "\n" + dep -> Set of close functions
+  function sweepServed() {
+    let closed = 0;
+    for (const [key, set] of [..._heldServed]) {
+      const i = key.indexOf("\n"), o = key.slice(0, i), dep = key.slice(i + 1);
+      if (originEligibleNow(o) || servedNow(o, dep)) continue;
+      _heldServed.delete(key);
+      for (const close of set) { closed++; try { close(); } catch {} }
+    }
+    if (closed) log(`owner-only: closed ${closed} live session(s) to a deployment its hv-node host no longer serves`);
+    return closed;
+  }
+  function sweepIneligible() {
+    sweepServed();
+    let closed = 0;
+    for (const [o, set] of [..._held]) {
+      if (originEligibleNow(o)) continue;
+      _held.delete(o);   // each close runs once; its later release finds nothing
+      for (const close of set) { closed++; try { close(); } catch {} }
+    }
+    if (closed) log(`eligibility: closed ${closed} live session(s) to hosts no longer eligible (U7)`);
+    return closed;
+  }
+  async function refreshEligibility() {
+    try {
+      if (!cfg.eligibilityApi) return;
+      const j = await fetchJson(cfg.eligibilityApi + "/enclaves", 5000).catch(() => null);
+      if (!j || !Array.isArray(j.enclaves)) { log(`eligibility poll failed (${cfg.eligibilityApi}/enclaves): keeping the last verdict until it ages out`); return; }
+      const ids = new Set(j.enclaves.filter((e) => e && e.eligible === true && e.appEvidenceRequired !== true && /^0x[0-9a-f]{64}$/i.test(String(e.id || "")))
+                                     .map((e) => String(e.id).toLowerCase()));
+      // (B) an OWNER-ONLY hv-node row (never eligible): the deployments the api relay says it carries now. The daemon takes
+      // that verdict as given and never re-derives the rule from row fields (enclave-bf); anything else about the row is ignored.
+      const served = new Map();   // endpoint id -> Map(deployment id -> until, unix seconds)
+      for (const e of j.enclaves) {
+        // ...and a market host whose apps each need their own evidence (appEvidenceRequired: a Shield hv-node, or a pVM host,
+        // mode avf, relay/pvm-market.mjs): only the deployments the api relay verified for it, each until its `until`
+        if (!e || (e.eligible === true && e.appEvidenceRequired !== true) || (e.ownerOnly !== true && e.appEvidenceRequired !== true)
+            || !(String(e.mode || "") === "hv-node" || (String(e.mode || "") === "avf" && e.appEvidenceRequired === true)) || !/^0x[0-9a-f]{64}$/i.test(String(e.id || ""))) continue;
+        const deps = new Map((Array.isArray(e.servesDeployments) ? e.servesDeployments : [])
+          .filter((x) => x && /^0x[0-9a-f]{64}$/.test(String(x.id || "")) && Number.isFinite(Number(x.until)))
+          .map((x) => [String(x.id), Number(x.until)]));
+        if (deps.size) served.set(String(e.id).toLowerCase(), deps);
+      }
+      _elig = { ids, served, at: Date.now() };
+    } finally { sweepIneligible(); }   // after a failed poll too: a verdict that has aged out closes what it held open
+  }
+  const eligibility = {
+    // is this registered endpoint (an origin this daemon would dial) an eligible host right now? Synchronous: a daemon
+    // asks it at the moment it dials.
+    eligibleOriginSync: (origin) => originEligibleNow(origin),
+    // the same, for a caller that may run before the hash is loaded
+    async eligibleOrigin(origin) { await loadHash(); return originEligibleNow(origin); },
+    // is this endpoint id (keccak256 of a registered endpoint, e.g. a ledger row's runner) an eligible host right now?
+    eligibleId: (id) => eligibilityFresh() && _elig.ids.has(String(id || "").toLowerCase()),
+    // (B) does the owner-only hv-node row with endpoint id `runnerId` carry deployment `depId` (the api relay's list, fresh)?
+    servesDeploymentId: (runnerId, depId) => {
+      if (!eligibilityFresh()) return false;
+      const m = servedMapOf(String(runnerId || "").toLowerCase()), d = String(depId || "").toLowerCase();
+      return !!(m && m.has(d) && liveUntil(m.get(d)));
+    },
+    // hold a live session to `origin` only while it stays eligible: `close` is called when a poll finds it is not (and at
+    // once, if it already is not). Returns the release to call when the session ends on its own.
+    // (B) may this daemon splice deployment `dep` to `origin`? An ELIGIBLE host: any of its deployments, as before. An
+    // owner-only hv-node: only a deployment the api relay lists as one it carries. Unknown or stale = no.
+    async servesDeployment(origin, dep) { await loadHash(); return originEligibleNow(origin) || servedNow(origin, dep); },
+    // hold such a session only while that stays true (a transfer, a lease move or an ended delegation closes it at the next poll)
+    holdWhileServes(origin, dep, close) {
+      const o = normOrigin(origin), d = String(dep || "").toLowerCase();
+      if (!originEligibleNow(o) && !servedNow(o, d)) { try { close(); } catch {} return () => {}; }
+      const key = o + "\n" + d;
+      let set = _heldServed.get(key);
+      if (!set) _heldServed.set(key, (set = new Set()));
+      set.add(close);
+      return () => { set.delete(close); if (!set.size && _heldServed.get(key) === set) _heldServed.delete(key); };
+    },
+    holdWhileEligible(origin, close) {
+      const o = normOrigin(origin);
+      if (!originEligibleNow(o)) { try { close(); } catch {} return () => {}; }
+      let set = _held.get(o);
+      if (!set) _held.set(o, (set = new Set()));
+      set.add(close);
+      return () => { set.delete(close); if (!set.size && _held.get(o) === set) _held.delete(o); };
+    },
+    heldSessions: () => [..._held.values()].reduce((n, s) => n + s.size, 0),
+    async startEligibility() {
+      if (!cfg.eligibilityApi) { log("ELIGIBILITY_API (or DOMAINS_API) unset: NO host is eligible, so tenant traffic is REFUSED (U7)"); return; }
+      log(`eligibility: ${cfg.eligibilityApi}/enclaves every ${cfg.eligibilityPollSec}s (stale after ${cfg.eligibilityMaxAgeSec}s = nothing eligible, and live sessions to it are closed)`);
+      await loadHash();
+      await refreshEligibility();
+      _eligTimer = setInterval(refreshEligibility, cfg.eligibilityPollSec * 1000);
+      _eligTimer.unref?.();
+    },
+    stopEligibility() { if (_eligTimer) { clearInterval(_eligTimer); _eligTimer = null; } },
+  };
+
+  if (cfg.staticList.length) {
+    // Static mode has no registry to read, so nobody is provably the operator
+    // of anything. null (not "unknown, allow") keeps every operator-authorized
+    // path fail-closed here rather than silently open.
+    return { origins: () => origins, runnerEndpointFor, leaseEndpointFor, leaseFor, prefixAmbiguous, ...eligibility,
+             operatorForEndpoint: () => null,
+             async start() { log(`static fleet: ${origins.join(", ")}`); } };
+  }
+
+  let client = null;
+  let registryAddress = cfg.registryAddress;   // env fallback; the book (below) overrides
+  async function readRegistry() {
+    if (!client) client = await chainClient();
+    // ADDRESS_BOOK_ADDRESS set: resolve the registry from the on-chain book
+    // each cycle, so a registry redeploy reaches the relay boxes with one
+    // owner tx instead of hand-editing /etc/nan-relay/*.env (the drift that
+    // broke egress on 2026-07-07). Failure falls back to the last known.
+    if (cfg.addressBook) {
+      try {
+        const a = await client.readContract({ address: cfg.addressBook, abi: BOOK_ABI,
+          functionName: "addr", args: [BOOK_KEY_REGISTRY] });
+        if (a && !/^0x0{40}$/i.test(a) && a.toLowerCase() !== registryAddress.toLowerCase()) {
+          log(`address book: registry ${registryAddress || "(unset)"} -> ${a}`);
+          registryAddress = a;
+        }
+      } catch (e) { /* keep the current registry address; next cycle retries */ }
+    }
+    if (!registryAddress) throw new Error("no registry address (book unresolved and REGISTRY_ADDRESS unset)");
+    const abi = await registryAbi(client, registryAddress);
+    const total = Number(await client.readContract({
+      address: registryAddress, abi, functionName: "count" }));
+    const rows = [];
+    for (let start = 0; start < total; start += 50)
+      rows.push(...await client.readContract({ address: registryAddress, abi,
+        functionName: "getPage", args: [BigInt(start), 50n] }));
+    warnIfUnauthenticated(cfg, log);
+    const ops = cfg.trustedOperators;
+    // ADMITTED rows: active in the registry. These maps are AUTHORITY (who
+    // registered a name, which endpoints may be lease-routed), never liveness:
+    // a healthy host sends no periodic transaction, so its lastSeen grows old,
+    // and dropping it here would cost it dns-01 for its own name an hour after
+    // its last registry write. Liveness for routing is eligibility (/enclaves).
+    // platform host policy (cfg.hostAdmission, injected by the DNS relay from relay/network-runtime.bundle.mjs): a host the
+    // policy does not explicitly admit gets neither data-plane traffic nor dns-01 for its own name. A failed policy read
+    // throws, so refresh() keeps the last known fleet (a flaky RPC never unbinds or admits anyone).
+    const active = rows.filter((e) => e.active === true);
+    const policy = cfg.hostAdmission ? await cfg.hostAdmission(active.map((e) => String(e.endpoint || ""))) : null;
+    const admitted = policy ? active.filter((e) => policy[String(e.endpoint || "").replace(/\/+$/, "")]?.admit === true) : active;
+    // Endpoint set for LEASE-authorized routing (leaseEndpointFor): every admitted
+    // registry row, WITHOUT the operator allowlist but WITH the https + SSRF
+    // filters. Not a fleet-membership grant — the caller must independently
+    // prove this endpoint holds the deployment's on-chain lease.
+    // WHO REGISTERED an endpoint. Self-scoped authority: it lets a box prove it
+    // may answer dns-01 for its OWN name and nothing else, so it deliberately
+    // skips the trusted-operator allowlist (a permissionless seller still owns
+    // its own hostname) while keeping the active filter.
+    _endpointOperators = new Map(admitted
+      .map((e) => [String(e.endpoint || "").replace(/\/+$/, "").toLowerCase(), String(e.operator || "").toLowerCase()])
+      .filter(([ep, op]) => ep && /^0x[0-9a-f]{40}$/.test(op)));
+    _anyEndpoints = admitted.map((e) => String(e.endpoint || "").replace(/\/+$/, ""))
+      .filter((ep) => isHttpsEndpoint(ep))
+      .filter((ep) => { let h; try { h = new URL(ep).hostname; } catch { return false; } return !isBlockedHost(h); });
+    return admitted
+      // This list is the DATA-PLANE fleet: the origins a relay polls /v1/net-map
+      // on and splices tenant traffic to. A relay row is not one of those — it
+      // runs no tenants, answers no net-map, and holds no lease. Following one
+      // here would point the data path at a box that has nothing to serve.
+      .filter((e) => isHostRow(e))
+      // B2: only vetted operators (baked default, or the env allowlist). Pass-all
+      // ONLY under the explicit TRUSTED_OPERATORS=* opt-in — never by omission.
+      .filter((e) => cfg.operatorsUnrestricted || ops.includes(String(e.operator || "").toLowerCase()))
+      .map((e) => e.endpoint.replace(/\/+$/, ""))
+      // B1/B3: never dial a non-https discovered endpoint (enclaves are https)
+      .filter((ep) => { const ok = isHttpsEndpoint(ep); if (!ok) log(`skipping non-https registry endpoint: ${ep}`); return ok; })
+      // SSRF: drop endpoints whose host is a literal private/loopback/link-local
+      // IP (or localhost) so a permissionless-registry row can't make the data-
+      // plane relays dial the relay box's own localhost / cloud metadata.
+      .filter((ep) => { let h; try { h = new URL(ep).hostname; } catch { return false; } const ok = !isBlockedHost(h); if (!ok) log(`skipping non-global registry endpoint: ${ep}`); return ok; });
+  }
+
+  let pollTimer = null;
+
+  async function refresh() {
+    try {
+      const next = [...new Set(await readRegistry())];
+      if (next.join(",") !== origins.join(","))
+        log(`fleet: ${next.length ? next.join(", ") : "(empty)"}`);
+      origins = next;
+    } catch (e) {
+      // keep the last known fleet — a flaky RPC must not unbind live relays
+      log(`registry read failed (keeping ${origins.length} known): ${e.message}`);
+    }
+  }
+
+  return {
+    origins: () => origins,
+    runnerEndpointFor,
+    leaseEndpointFor,
+    leaseFor,
+    prefixAmbiguous,
+    ...eligibility,
+    operatorForEndpoint: (ep) => _endpointOperators.get(String(ep || "").replace(/\/+$/, "").toLowerCase()) || null,
+    async start() {
+      log(`on-chain fleet: ${cfg.addressBook ? "EnclaveAddressBook " + cfg.addressBook + " -> registry" : "EnclaveRegistry " + cfg.registryAddress}`
+          + (cfg.operatorsUnrestricted ? " · UNAUTHENTICATED (TRUSTED_OPERATORS=*)" : ` · trusted operators: ${cfg.trustedOperators.length}`));
+      await refresh();
+      // NOT unref'd, deliberately. egress-relay has no listener of its own — it
+      // only dials out — so when the fleet is momentarily empty this interval is
+      // the only thing holding its event loop open. Unref it and that daemon
+      // exits silently instead of retrying, which looks exactly like a crash
+      // that never logged. Callers that want the process to end call stop().
+      pollTimer = setInterval(refresh, cfg.registryPollSec * 1000);
+    },
+    /// Stop polling and let the process end. No daemon calls this — see the note
+    /// in start(); it exists for tests and one-shot tooling that want a single
+    /// registry read without hanging on the interval afterwards.
+    stop() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } },
+  };
+}
+
+// Read a fetch Response body as text but abort past `max` bytes — discovered
+// endpoints are untrusted, so an unbounded /availability or /net-map must not
+// be able to OOM a relay (fix 8). Default 8 MiB covers the largest legitimate
+// fleet map with wide margin.
+export const MAX_BODY_BYTES = 8 * 1024 * 1024;
+export async function readCappedText(r, max = MAX_BODY_BYTES) {
+  if (!r.body) return await r.text();
+  const reader = r.body.getReader();
+  const chunks = []; let n = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    n += value.length;
+    if (n > max) { try { await reader.cancel(); } catch {} throw new Error("response body too large"); }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+// Small shared helper: GET url, JSON on 2xx, null on anything else (timeout,
+// refused, non-2xx, oversize) — per-origin poll failures are data, not exceptions.
+export async function fetchJson(url, timeoutMs = 4000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const r = await fetch(url, { signal: ctrl.signal });
+    return r.ok ? JSON.parse(await readCappedText(r)) : null;
+  } catch { return null; }
+  finally { clearTimeout(t); }
+}

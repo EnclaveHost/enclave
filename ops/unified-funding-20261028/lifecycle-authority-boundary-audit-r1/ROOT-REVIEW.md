@@ -1,0 +1,16 @@
+# Remaining global contract authority
+
+Source inspection of the pinned candidate files, 2026-10-29. Not a deployed-contract finding, completed replacement or test result. The peer's schema-3 settlement work is separate from this pinned baseline.
+
+| Surface | Actual scope in inspected source | Independent-profile requirement |
+|---|---|---|
+| `retire`, `refund`, `_requireActive`, `lifecycleOperator/Funded` | Global flag blocks operation and permits foreign callers to deactivate/refund records. | Remove global operational veto in the new independent contract; preserve actual owner/delegate cancellation and earned backing. Peer owns this source change. |
+| `setClaimBond`, `slashBond` | Owner changes claim eligibility and can transfer an operator's bond to payout. Running `lifecycleFunded` does not recheck the bond; this is admission/failover and bond-custody authority, not proof of immediate shutdown of every running app. | Platform administrators must not unilaterally censor independently owned hosts or confiscate their bond. Pin/freeze agreed admission economics, or require explicitly accepted evidence-based owner-scoped terms. Do not merely ignore the contract checks in the host. |
+| `setMaxGpuMilli`, `setMaxFee`, `setRunnerBps` | Alters future create/resize rules or economics; snapshots protect existing terms. GPU cap zero prevents new GPU creates. | Qualify new-user deployment under platform refusal, not just continued old hosting. New independent bindings need stable consented economics without a mandatory mutable Enclave gate. |
+| `setProofRequiredFrom`, prover `setProofWindow` | Changes paid-service accounting/proof requirements and checkpoint cost. The window is bounded, but still centrally mutable. | Preserve valid service-proof and conservation rules; bind accepted accounting terms without unilateral platform changes. Removing proof checks is not a fix. |
+| `setEthUsdFeed`, `setPayout` | Mutable feed can disable ETH funding; ETH funding synchronously calls payout, which may refuse. | ETH-backed service must have qualified oracle/funding liveness and backing; a working USDC path alone does not qualify this requirement. |
+| Import methods, `sealImports`, `bindLifecycle`, `setProver` | Migration authority is deliberately privileged until sealed; controller and nonzero prover bindings are one-shot. | Verify imports sealed and exact controller/prover/code dependencies before independent admission. A one-shot valid binding is distinct from a continuing mutable veto. |
+
+The prover documents repeated block-anchored paid-service checkpoints. They are not lifecycle renewals and self-host zero-rate runs do not require them, but they still impose paid settlement transactions. Do not claim that removing renewals eliminates all recurring chain costs. Efficient independently verifiable paid settlement remains an explicit integration requirement; do not relabel heartbeat traffic as settlement or remove anti-fraud proofs to achieve fewer transactions.
+
+This audit does not authorize altering deployed legacy contracts, refunding another owner's deployment, spending funds or bypassing a real contract gate. Source changes belong in the new independent version and require actual tests and explicit migration bindings. No production mutation occurred.

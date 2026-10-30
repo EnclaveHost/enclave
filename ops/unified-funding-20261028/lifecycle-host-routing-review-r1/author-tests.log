@@ -1,0 +1,184 @@
+TAP version 13
+# Subtest: the generator input is the pinned baseline
+ok 1 - the generator input is the pinned baseline
+  ---
+  duration_ms: 1.46271
+  type: 'test'
+  ...
+# Subtest: insertions only: removing them restores every baseline byte; each guard sits before its legacy effect
+ok 2 - insertions only: removing them restores every baseline byte; each guard sits before its legacy effect
+  ---
+  duration_ms: 10.110245
+  type: 'test'
+  ...
+# Subtest: refuses a changed baseline hash
+ok 3 - refuses a changed baseline hash
+  ---
+  duration_ms: 1.836576
+  type: 'test'
+  ...
+# Subtest: refuses missing, duplicate and overlapping anchors, duplicate edit names and double application
+ok 4 - refuses missing, duplicate and overlapping anchors, duplicate edit names and double application
+  ---
+  duration_ms: 9.57089
+  type: 'test'
+  ...
+# Subtest: writes a separate candidate: never into the baseline directory, never over an existing file
+ok 5 - writes a separate candidate: never into the baseline directory, never over an existing file
+  ---
+  duration_ms: 15.249738
+  type: 'test'
+  ...
+# Subtest: zero routes: the candidate host behaves exactly like the baseline host
+ok 6 - zero routes: the candidate host behaves exactly like the baseline host
+  ---
+  duration_ms: 162.505729
+  type: 'test'
+  ...
+# Subtest: routed app (configured but not activated) never reaches a legacy claim/renew/release/prove/restart path; the unrelated app does
+ok 7 - routed app (configured but not activated) never reaches a legacy claim/renew/release/prove/restart path; the unrelated app does
+  ---
+  duration_ms: 46.737775
+  type: 'test'
+  ...
+# Subtest: routed app (adapters missing (hold mode)) never reaches a legacy claim/renew/release/prove/restart path; the unrelated app does
+ok 8 - routed app (adapters missing (hold mode)) never reaches a legacy claim/renew/release/prove/restart path; the unrelated app does
+  ---
+  duration_ms: 29.019835
+  type: 'test'
+  ...
+# Subtest: activated route: v2 cadence, legacy tick, keeper and hints run concurrently with one runner execution and no transaction
+ok 9 - activated route: v2 cadence, legacy tick, keeper and hints run concurrently with one runner execution and no transaction
+  ---
+  duration_ms: 13.340432
+  type: 'test'
+  ...
+# Subtest: the owner turning hosting off stops the routed app through the host's own restriction, without a transaction
+ok 10 - the owner turning hosting off stops the routed app through the host's own restriction, without a transaction
+  ---
+  duration_ms: 1.076272
+  type: 'test'
+  ...
+# Subtest: a legacy ledger moved by the address book holds the route; nothing switches to the new ledger
+ok 11 - a legacy ledger moved by the address book holds the route; nothing switches to the new ledger
+  ---
+  duration_ms: 1.216201
+  type: 'test'
+  ...
+# Subtest: every missing safety adapter is an explicit blocker, never a no-op default
+ok 12 - every missing safety adapter is an explicit blocker, never a no-op default
+  ---
+  duration_ms: 4.219509
+  type: 'test'
+  ...
+# Subtest: hold mode: a configured route with a missing adapter is owned and HELD; no runner, no evidence, no fallback
+ok 13 - hold mode: a configured route with a missing adapter is owned and HELD; no runner, no evidence, no fallback
+  ---
+  duration_ms: 1.506139
+  type: 'test'
+  ...
+# Subtest: invalid, duplicate and wrong-ledger routes are refused at construction
+ok 14 - invalid, duplicate and wrong-ledger routes are refused at construction
+  ---
+  duration_ms: 0.899813
+  type: 'test'
+  ...
+# Subtest: routes are immutable after construction and the dispatch attaches once
+ok 15 - routes are immutable after construction and the dispatch attaches once
+  ---
+  duration_ms: 0.380407
+  type: 'test'
+  ...
+# Subtest: an unactivated route is held: fenced, no chain read, no transaction
+ok 16 - an unactivated route is held: fenced, no chain read, no transaction
+  ---
+  duration_ms: 0.271638
+  type: 'test'
+  ...
+# Subtest: activation requires proof-qualified evidence binding exactly this route
+ok 17 - activation requires proof-qualified evidence binding exactly this route
+  ---
+  duration_ms: 1.210041
+  type: 'test'
+  ...
+# Subtest: a legacy release intent, legacy activity or another legacy ledger keeps the route held; the intent is retained
+ok 18 - a legacy release intent, legacy activity or another legacy ledger keeps the route held; the intent is retained
+  ---
+  duration_ms: 0.469317
+  type: 'test'
+  ...
+# Subtest: an idle healthy v2 app is served on cadence with no transaction at all
+ok 19 - an idle healthy v2 app is served on cadence with no transaction at all
+  ---
+  duration_ms: 2.463711
+  type: 'test'
+  ...
+# Subtest: a real transition is submitted once; an unresolved intent is never resubmitted
+ok 20 - a real transition is submitted once; an unresolved intent is never resubmitted
+  ---
+  duration_ms: 0.858064
+  type: 'test'
+  ...
+# Subtest: a snapshot from another ledger or controller is refused and never served
+ok 21 - a snapshot from another ledger or controller is refused and never served
+  ---
+  duration_ms: 0.799144
+  type: 'test'
+  ...
+# Subtest: a moved legacy ledger holds an activated route without entering the runner
+ok 22 - a moved legacy ledger holds an activated route without entering the runner
+  ---
+  duration_ms: 0.324948
+  type: 'test'
+  ...
+# Subtest: a context change across the runner await prevents serving and fences
+ok 23 - a context change across the runner await prevents serving and fences
+  ---
+  duration_ms: 0.336327
+  type: 'test'
+  ...
+# Subtest: a restriction arriving mid-reconcile stops locally; only a forced hint clears it
+ok 24 - a restriction arriving mid-reconcile stops locally; only a forced hint clears it
+  ---
+  duration_ms: 6.408023
+  type: 'test'
+  ...
+# Subtest: concurrent reconciles and passes join: one runner execution per deployment
+ok 25 - concurrent reconciles and passes join: one runner execution per deployment
+  ---
+  duration_ms: 0.659115
+  type: 'test'
+  ...
+# Subtest: v2 policy: unknown holds without stopping, a refusal stops, a malformed answer holds
+ok 26 - v2 policy: unknown holds without stopping, a refusal stops, a malformed answer holds
+  ---
+  duration_ms: 0.477827
+  type: 'test'
+  ...
+# Subtest: platform service refusal stops; a new-work refusal blocks a start but not a running app
+ok 27 - platform service refusal stops; a new-work refusal blocks a start but not a running app
+  ---
+  duration_ms: 0.740435
+  type: 'test'
+  ...
+# Subtest: a claim hint never reconciles or claims a routed id
+ok 28 - a claim hint never reconciles or claims a routed id
+  ---
+  duration_ms: 0.201118
+  type: 'test'
+  ...
+# Subtest: start runs its own off-chain cadence on an injected timer
+ok 29 - start runs its own off-chain cadence on an injected timer
+  ---
+  duration_ms: 1.149671
+  type: 'test'
+  ...
+1..29
+# tests 29
+# suites 0
+# pass 29
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1099.804871

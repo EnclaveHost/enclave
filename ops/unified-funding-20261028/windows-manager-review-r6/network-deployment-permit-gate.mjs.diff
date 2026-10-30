@@ -1,0 +1,59 @@
+--- work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r5/candidate/control/network/deployment-permit-gate.mjs	2026-10-29 05:31:54.349303296 -0700
++++ work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/network/deployment-permit-gate.mjs	2026-10-29 08:36:15.816570688 -0700
+@@ -115,10 +115,13 @@
+     let how;
+     try { how = this.hostAuthority.observe(hostId, e); }
+     catch (err) {
+-      if (this.hostAuthority.failed?.() || this.hostAuthority.released?.()) for (const id of new Set([...this.entries.keys(), ...this.resources.keys()])) this.hold(id, 'host authority journal unknown');
++      if (this.hostAuthority.failed?.() || this.hostAuthority.released?.()) for (const id of new Set([...this.entries.keys(), ...this.resources.keys(), ...(this.staged?.keys() ?? [])])) this.revoke(id, 'host authority journal unknown');
+       throw err;
+     }
+-    if (how === 'recorded' || how === 'already') for (const [id, x] of [...this.entries]) if (x.host === hostId) this.hold(id, 'canonical host Offline');
++    if (how === 'recorded' || how === 'already') {
++      for (const [id, x] of [...this.entries]) if (x.host === hostId) this.hold(id, 'canonical host Offline');
++      for (const id of this.stagedOn(hostId)) this.revoke(id, 'canonical host Offline');   // permit r6: Offline denial retires staged compute
++    }
+     return how;
+   }
+   /** Explicit safe handoff of ONE app context to the exact CURRENT Online host authority, only while nothing of it is installed or tracked. */
+@@ -150,12 +153,29 @@
+     return this.#withdrawal(id, settled);
+   }
+   /** completion r5: STAGED compute (spawned/ready, never served yet) is owned: close() withdraws it via `withdraw` and awaits it */
+-  stage(id, withdraw) {
++  stage(id, withdraw, { host = null } = {}) {
+     if (typeof withdraw !== 'function') throw Error('staged compute requires a withdrawal');
+     if (!this.ownerLive()) throw Error('permit gate closed: no staged compute under a released or lost owner');
+-    (this.staged ??= new Map()).set(id, withdraw);
++    (this.staged ??= new Map()).set(id, { withdraw, host });
+   }
+   unstage(id) { this.staged?.delete(id); }
++  /**
++   * permit r6: PURPOSE-SPECIFIC withdrawal. hold() stays the routine nondestructive fence (a staged, still-authorized instance keeps its
++   * compute across queued readiness passes). revoke() is AUTHORITY withdrawal (explicit revocation, Offline denial, unknown authority
++   * journal): hold PLUS exact retirement of this app's staged compute, started synchronously here, never behind a boundary acknowledgment.
++   * -> the owned retirement promise (null when nothing is staged). A failed retirement is recorded AND re-staged so it stays retryable.
++   */
++  revoke(id, reason = 'authority revoked') {
++    this.hold(id, reason);
++    return this.#retireStaged(id, reason);
++  }
++  /** permit r6: the staged instances of host H (an Offline denial of H retires exactly these, never another host's) */
++  stagedOn(hostId) { return [...(this.staged ?? [])].filter(([, s]) => s.host === hostId).map(([id]) => id); }
++  #retireStaged(id, reason) {
++    const s = this.staged?.get(id); if (!s) return null;
++    this.staged.delete(id);
++    return this.#withdrawal(id, (async () => s.withdraw(reason))().catch(e => { if (!this.staged.has(id)) this.staged.set(id, s); throw e; }));
++  }
+   /** completion r5: recorded (settled) withdrawal failures; they survive their Promise and keep every later close() rejecting */
+   withdrawalFailures() { return [...(this.failedWithdrawals ?? new Map())].map(([id, error]) => ({ id, error })); }
+   /** completion r5: ONLY with explicit proof (confirmed manager absence AND acknowledged boundary hold) is a recorded failure cleared */
+@@ -213,7 +233,7 @@
+     this.closed = true;
+     const closing = (this.closing ??= this.#settleWithdrawals());   // completion r5: ONE completion published BEFORE any callback (re-entrant close returns it)
+     const staged = [...(this.staged ?? [])]; this.staged?.clear();
+-    for (const [sid, withdraw] of staged) this.#withdrawal(sid, (async () => withdraw(reason))());   // completion r5: staged compute is an owned resource
++    for (const [sid, s] of staged) this.#withdrawal(sid, (async () => s.withdraw(reason))());   // completion r5: staged compute is an owned resource
+     for (const id of new Set([...this.entries.keys(), ...this.resources.keys()])) this.hold(id, reason);
+     return closing;   // async r4 + completion r5: the memoized completion
+   }

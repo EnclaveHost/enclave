@@ -1,0 +1,137 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10-ops-followup/src/reproof.py	2026-10-26 00:06:55.951855849 -0700
++++ src/reproof.py	2026-10-26 00:16:50.747517841 -0700
+@@ -13,7 +13,10 @@
+   5. finality_state status-publish
+ One run at a time (flock); capture pairs under a root 0700 directory, the newest KEEP kept. r10-ops-followup: every attempt ends with a
+ receipt (attempt.json + one fsynced line of the never-pruned attempts.jsonl history); a failed or interrupted attempt is renamed
+-failed-<stamp> and only the newest FAILED_KEEP keep their bytes; an attempt is never touched while active (marker + lock). Exit: 0 done/nothing to do, 75 retry
++failed-<stamp> and only the newest FAILED_KEEP keep their bytes; an attempt is never touched while active (marker + lock).
++r2 (journal-aware): only KNOWN-failed attempts are retired - those that never passed their qualify barrier, or whose durable records
++(_durable) are byte-identical to the barrier digest. Any other attempt is AMBIGUOUS: preserved in place, never renamed, pruned or deleted
++by reproof (recovery policy: logs/claude-r10-ops-followup-r2.md). Exit: 0 done/nothing to do, 75 retry
+ later (no newer anchor game yet, a capture failed, the node is behind or restarting), 78 HOLD (a review flag is False), 1 refused."""
+ import datetime, fcntl, functools, hashlib, json, os, pathlib, shutil, stat, sys, types
+ 
+@@ -23,6 +26,7 @@
+ PRODUCER = (pathlib.Path('/opt/enclave-rpc/base-launch/base_launch.py'), '2f9450cd5c73de3cf693dd7f7d52b2f4f3a8fe0b66a5a76b1d068dda919ac4e2')
+ KEEP, TEMPFAIL, HOLD = 4, 75, 78
+ FAILED_KEEP, HISTORY, IN_PROGRESS = 2, 'attempts.jsonl', '.in-progress'      # r10-ops-followup: bounded failed-attempt retention
++QUALIFY_BARRIER, PRESERVED = '.qualify-barrier', ('ambiguous', 'qualified-unrecorded')   # r2: never removed by reproof
+ HOLD_CODES = {'hold_prototype', 'a1_capture_pending', 'hold_finality'}
+ RETRY_CODES = {'not_newer', 'same_game', 'stale_l1', 'not_post_anchor', 'capture', 'a1_stale', 'a1_stale_at_append', 'not_synced',
+                'process_changed', 'process_binding', 'launch_changed', 'not_started', 'not_qualified'}
+@@ -58,7 +62,7 @@
+ 
+ 
+ def _prune(root, keep=KEEP):
+-    pairs = sorted(p for p in pathlib.Path(root).iterdir() if p.is_dir() and not p.is_symlink() and p.name[:1].isdigit())
++    pairs = sorted(p for p in pathlib.Path(root).iterdir() if p.is_dir() and not p.is_symlink() and p.name[:1].isdigit() and not _held(p))
+     for p in pairs[:-keep] if len(pairs) > keep else []:
+         shutil.rmtree(p)
+ 
+@@ -95,12 +99,63 @@
+         shutil.rmtree(p)
+ 
+ 
+-def _sweep(root, now):
+-    """under the lock (so no attempt is active): an attempt still marked in progress was cut off by a crash or kill. Directories
+-    without the marker (a recorded pair, or one written before this change) are never swept"""
++def _held(p):
++    """r2: an attempt reproof must never remove: still in progress, or preserved (ambiguous / qualified-unrecorded)"""
++    if os.path.lexists(p / IN_PROGRESS):
++        return True
++    try:
++        return json.loads((p / 'attempt.json').read_bytes()).get('outcome') in PRESERVED
++    except FileNotFoundError:
++        return False                                                       # a recorded pair written before this change
++    except (OSError, ValueError):
++        return True                                                        # unreadable receipt: keep
++
++
++def _durable(c, W, root):
++    """r2: a digest of EVERY durable record a qualification or a record can write - the launch directory (finality journal, launch
++    journal, launch record), the shared A1 admission ledger and the watermark store (finality_state.qualify/append, gate_a1 admission,
++    base_launch.record_finality/adopt_pending read and write only these). Empty files (locks) carry no record and are skipped; the
++    capture root, workdir and status file are not records. Taken at the qualify barrier and compared after a failure or a kill."""
++    skip = [pathlib.Path(root), pathlib.Path(c['workdir']), pathlib.Path(c['statusOut'])]
++    h = hashlib.sha256()
++    for base in (c['launchDir'], getattr(W, 'A1_ADMISSION_LEDGER', None), getattr(W, 'BOOTSTRAP_WATERMARK', None)):
++        p = pathlib.Path(str(base)) if base is not None else None
++        files = [] if p is None else [p] if p.is_file() else sorted(x for x in p.rglob('*') if x.is_file()) if p.is_dir() else []
++        h.update(f'{base}\0{len(files)}\0'.encode())
++        for f in files:
++            if any(f == s or s in f.parents for s in skip) or f.stat().st_size == 0:
++                continue
++            h.update(f'{f}\0'.encode() + hashlib.sha256(f.read_bytes()).digest())
++    return h.hexdigest()
++
++
++def _sweep(root, now, c, W):
++    """under the lock (no attempt is active): an attempt still marked in progress was cut off by a crash or kill (no receipt).
++    Before its qualify barrier nothing durable can name it: retired. After the barrier it is retired ONLY if every durable record is
++    byte-identical to the barrier digest; any difference (a qualification, an admission, a record - or any other writer since) makes
++    it AMBIGUOUS: its receipt is written and its bytes stay in place, never renamed or deleted (recovery policy: the report)"""
++    cur = None
+     for p in sorted(root.iterdir()):
+-        if p.is_dir() and not p.is_symlink() and p.name[:1].isdigit() and os.path.lexists(p / IN_PROGRESS):
+-            _retire(root, p, {'outcome': 'interrupted', 'attempt': p.name, 'at': now.isoformat()})
++        if not (p.is_dir() and not p.is_symlink() and p.name[:1].isdigit() and os.path.lexists(p / IN_PROGRESS)):
++            continue
++        rec = {'outcome': 'interrupted', 'attempt': p.name, 'at': now.isoformat(), 'phase': 'before-qualify-barrier'}
++        if os.path.lexists(p / QUALIFY_BARRIER):
++            cur = cur or _durable(c, W, root)
++            if (p / QUALIFY_BARRIER).read_text().strip() != cur:
++                _receipt(root, p, {**rec, 'outcome': 'ambiguous', 'phase': 'after-qualify-barrier, durable records changed'}); continue
++            rec['phase'] = 'after-qualify-barrier, durable records unchanged'
++        _retire(root, p, rec)
++
++
++def _settle(root, d, rec, q, before, c, W):
++    """r2: an attempt that raised in THIS process. Qualified (q), or ANY durable change since its barrier (qualify may append and then
++    raise before q is bound) -> preserved with its receipt; otherwise known failed -> retired. A SIGKILL skips this: _sweep decides."""
++    if q:
++        _receipt(root, d, {**rec, 'outcome': 'qualified-unrecorded', 'seq': q.get('seq')})
++    elif before is not None and _durable(c, W, root) != before:
++        _receipt(root, d, {**rec, 'outcome': 'ambiguous', 'phase': 'after-qualify-barrier, durable records changed'})
++    else:
++        _retire(root, d, rec)
+ 
+ 
+ def run(c, *, F, W, R, P, capture_fn=None, top='/', proc='/proc', now=None):
+@@ -113,7 +168,7 @@
+             fcntl.flock(lk, fcntl.LOCK_EX | fcntl.LOCK_NB)
+         except BlockingIOError:
+             raise Refused('busy', 'another re-proof is running')
+-        _sweep(root, now)
++        _sweep(root, now, c, W)
+         s = _status(F, W, c, top, proc)
+         if s.get('qualified') is True and s.get('recordedAs'):
+             return {'action': 'none', 'state': s['state'], 'published': F.publish_status(s, c['statusOut'], top=top)}
+@@ -132,22 +187,21 @@
+         cap = capture_fn or (lambda mode, out, initial=None: C.capture(mode, str(out), src=C.Sources.from_settings(c['captureSources'], initial_capture=initial)))
+         d = root / now.strftime('%Y%m%dT%H%M%S%fZ'); os.mkdir(d, 0o700)
+         _write_new(d / IN_PROGRESS, b'')                                             # active until its receipt; a kill leaves it for _sweep
+-        q = None
++        q = before = None
+         try:
+             for mode, out, initial in (('initial', d / 'initial', None), ('recheck-capture', d / 'recheck', d / 'initial')):
+                 ok, res = cap(mode, out, initial)
+                 if not ok:
+                     raise Refused('capture', f'{mode} capture failed: {str((res or {}).get("error") or res)[:200]}')
++            before = _durable(c, W, root); _write_new(d / QUALIFY_BARRIER, before.encode())   # r2: the barrier; a proof may land after it
++            dfd = os.open(d, os.O_RDONLY | os.O_DIRECTORY); os.fsync(dfd); os.close(dfd)
+             q = F.qualify(c['launchDir'], c['chainJson'], fdir, {'initialOut': str(d / 'initial'), 'recheckOut': str(d / 'recheck')}, c['rpcUrl'],
+                           W=W, R=R, node=c['node'], deps_root=c['depsRoot'], workdir=c['workdir'], write=True, top=top, proc=proc)
+             r = P.record_finality(c['launchDir'], c['chainJson'], fdir, c['rpcUrl'], W=W, F=Fp, owner=F.OWNER, top=top, watermark=W.BOOTSTRAP_WATERMARK)
+         except BaseException as e:
+-            rec = {'outcome': 'qualified-unrecorded' if q else 'failed', 'attempt': d.name, 'code': code_of(e), 'error': str(e)[:500], 'at': now.isoformat()}
++            rec = {'outcome': 'failed', 'attempt': d.name, 'code': code_of(e), 'error': str(e)[:500], 'at': now.isoformat()}
+             try:
+-                if q:                                    # a qualified proof whose record was cut off may still be ADOPTED: kept with the pairs
+-                    _receipt(root, d, {**rec, 'seq': q.get('seq')})
+-                else:
+-                    _retire(root, d, rec)
++                _settle(root, d, rec, q, before, c, W)
+             except OSError:
+                 pass                                     # the marker stays: the next run retires it under the lock; the refusal stands
+             raise

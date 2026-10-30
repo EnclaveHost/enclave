@@ -1,0 +1,105 @@
+diff --git a/network/onchain-qualification.mjs b/network/onchain-qualification.mjs
+index 8ff7b9e5c645992585547fa956d8b188d430096d..d0523f0dd5a0412b638d7e622fccf7546be4dbac 100644
+--- a/network/onchain-qualification.mjs
++++ b/network/onchain-qualification.mjs
+@@ -45,10 +45,9 @@ export async function signOnchainQualification({account,client,connectivity,reco
+ }
+ 
+ // The provider: submit every current attestation for its own host and address that the chain does not already hold.
+-// -> the number submitted. pipeline (a submitter that keeps several sends pending, wg-provider/derived-submission.mjs): every
+-// attestation is submitted first, then each receipt is awaited (in the same order; the first that is not confirmed throws).
+-export async function submitAttestations({wallet,client,connectivity,hostId,address,attestations,minRemainingS=60,now=Date.now(),pipeline=false}){
+- let sent=0;const t=Math.floor(now/1000),hash=addressHash(address),later=[];
++// -> the number submitted.
++export async function submitAttestations({wallet,client,connectivity,hostId,address,attestations,minRemainingS=60,now=Date.now()}){
++ let sent=0;const t=Math.floor(now/1000),hash=addressHash(address);
+  for(const raw of attestations){
+   let o;try{o=validateOnchain(raw);}catch{continue;}
+   if(o.hostId!==hostId||o.addressHash!==hash||o.expires<=t+minRemainingS||o.issuedAt>t+60)continue;
+@@ -59,10 +58,8 @@ export async function submitAttestations({wallet,client,connectivity,hostId,addr
+   if(Number(held)>=o.expires)continue;
+   const tx=await wallet.writeContract({address:connectivity,abi:connectivityQualificationABI,functionName:'qualify',
+    args:[o.hostId,o.addressHash,BigInt(o.issuedAt),BigInt(o.expires),o.checks,o.signature]});
+-  if(pipeline){later.push(tx);continue;}
+   if((await client.waitForTransactionReceipt({hash:tx,timeout:60000})).status!=='success')throw new Error('qualify reverted (tx '+tx+')');sent++;
+  }
+- for(const tx of later){if((await client.waitForTransactionReceipt({hash:tx,timeout:60000})).status!=='success')throw new Error('qualify reverted (tx '+tx+')');sent++;}
+  return sent;
+ }
+ 
+diff --git a/network/wg-provider/derived-runtime.mjs b/network/wg-provider/derived-runtime.mjs
+index c890ad2da7226735b5cf2e8e23d9ab47cb70639c..f80f4bfb4387755781dbcee1b087816117005a4c 100644
+--- a/network/wg-provider/derived-runtime.mjs
++++ b/network/wg-provider/derived-runtime.mjs
+@@ -15,6 +15,30 @@ import { startDerivedReader } from '../derived-reader/provider.mjs';
+ import { serveDerivedReader } from '../derived-reader/api.mjs';
+ export { createDerivedSubmitter } from './derived-submission.mjs';
+ export { openDerivedAnchorFloor } from './derived-anchor-floor.mjs';
++import { recoverMessageAddress } from 'viem';
++import { connectivityQualificationABI, validateOnchain, addressHash } from '../onchain-qualification.mjs';
++
++/**
++ * network/onchain-qualification.mjs submitAttestations (UNCHANGED, shared with the relay runtime and its pinned bundles) with
++ * one difference for a submitter that keeps several sends pending (derived-submission.mjs): every current attestation is
++ * SUBMITTED first, then each receipt is awaited in the same order (the first that is not confirmed throws; the rest stay
++ * pending in the nonce journal, never re-signed). The same selection rules and the same contract reads. -> the number confirmed.
++ */
++export async function submitAttestationsPipelined({ wallet, client, connectivity, hostId, address, attestations, minRemainingS = 60, now = Date.now() }) {
++  let sent = 0; const t = Math.floor(now / 1000), hash = addressHash(address), later = [];
++  for (const raw of attestations) {
++    let o; try { o = validateOnchain(raw); } catch { continue; }
++    if (o.hostId !== hostId || o.addressHash !== hash || o.expires <= t + minRemainingS || o.issuedAt > t + 60) continue;
++    const digest = await client.readContract({ address: connectivity, abi: connectivityQualificationABI, functionName: 'qualificationDigest', args: [o.hostId, o.addressHash, BigInt(o.issuedAt), BigInt(o.expires), o.checks] });
++    const signer = await recoverMessageAddress({ message: { raw: digest }, signature: o.signature });
++    const [, , held] = await client.readContract({ address: connectivity, abi: connectivityQualificationABI, functionName: 'attestations', args: [hostId, signer] });
++    if (Number(held) >= o.expires) continue;
++    later.push(await wallet.writeContract({ address: connectivity, abi: connectivityQualificationABI, functionName: 'qualify',
++      args: [o.hostId, o.addressHash, BigInt(o.issuedAt), BigInt(o.expires), o.checks, o.signature] }));
++  }
++  for (const tx of later) { if ((await client.waitForTransactionReceipt({ hash: tx, timeout: 60000 })).status !== 'success') throw new Error('qualify reverted (tx ' + tx + ')'); sent++; }
++  return sent;
++}
+ 
+ /** -> { reader, port, close } : the in-process derived reader and its loopback witness API (local orchestration, never authority). */
+ export async function runDerivedReader(config, options = {}) {
+diff --git a/network/wg-provider/main.mjs b/network/wg-provider/main.mjs
+index e6b1a0eca3fdad8a6e73afaed57831b583b259ce..a81563abf010b3b95b8084bf409cd94e7e99cbe3 100644
+--- a/network/wg-provider/main.mjs
++++ b/network/wg-provider/main.mjs
+@@ -195,7 +195,8 @@ if(paid){
+   try{if(await ensureHost({wallet,client,connectivity,hostId:cfg.hostId,pricePerGiB6:cfg.pricePerGiB6}))log(`on chain: offering network service at ${cfg.pricePerGiB6} per GiB`);}
+   catch(e){if(sendPath!=='derived'||e?.code!=='tx_unconfirmed')throw e;log('on chain: setHost '+e.message);}
+   const d=await directories.providers({hostOperator:async id=>{const h=await hosts(id);return h?.active?h.operator:null;}});const mine=d?.providers?.find(e=>e.record?.record?.providerId===providerId);
+-  const sent=await submitAttestations({wallet,client,connectivity,hostId:cfg.hostId,address:cfg.publicAddress,attestations:(mine?.qualifications||[]).map(x=>x.onchain).filter(Boolean),pipeline:sendPath==='derived'});
++  // derived: submitted together, then each proof awaited (derived-runtime.mjs); otherwise the shared submitAttestations, unchanged
++  const sent=await (sendPath==='derived'?derivedRt.submitAttestationsPipelined:submitAttestations)({wallet,client,connectivity,hostId:cfg.hostId,address:cfg.publicAddress,attestations:(mine?.qualifications||[]).map(x=>x.onchain).filter(Boolean)});
+   if(sent)log(`on chain: ${sent} checker attestation(s) submitted`);
+  };
+  setInterval(()=>void onchain().catch(e=>log('on-chain qualification: '+e.message)),30000).unref?.();void onchain().catch(e=>log('on-chain qualification: '+e.message));
+diff --git a/test/paid-derived-adapter.test.mjs b/test/paid-derived-adapter.test.mjs
+index b9a92b8e38471ce74b9fc36885434ebc0df2942b..1aed946b00d3bf3ee00eaa169584bcf3941f4cfc 100644
+--- a/test/paid-derived-adapter.test.mjs
++++ b/test/paid-derived-adapter.test.mjs
+@@ -40,11 +40,13 @@ import { pathToFileURL } from 'node:url';
+ const PACKAGED = process.env.PAID_DERIVED_RUNTIME ? await import(pathToFileURL(process.env.PAID_DERIVED_RUNTIME).href) : null;
+ const createDerivedSubmitter = PACKAGED ? PACKAGED.createDerivedSubmitter : sourceSubmitter;
+ const openDerivedAnchorFloor = PACKAGED ? PACKAGED.openDerivedAnchorFloor : sourceFloor;
++const submitAttestationsPipelined = PACKAGED ? PACKAGED.submitAttestationsPipelined : sourcePipelined;
+ if (PACKAGED) console.log(`# runtime: packaged ${process.env.PAID_DERIVED_RUNTIME}`);
+ import { providerTxBackend, parseSendRecord } from '../network/wg-provider/attested-submission.mjs';
+ import { providerChainAuthority, providerPaidFinality, paidSendPath } from '../network/wg-provider/attested-authority.mjs';
+ import { checkOwnBackend } from '../network/chain-authority.mjs';
+ import { connectivityQualificationABI, ensureHost, submitAttestations, addressHash, ALL_CHECKS } from '../network/onchain-qualification.mjs';
++import { submitAttestationsPipelined as sourcePipelined } from '../network/wg-provider/derived-runtime.mjs';
+ 
+ const tmp = fs.mkdtempSync(path.join(process.env.TMPDIR || os.tmpdir(), 'paid-derived-'));
+ const servers = [], open = new Set();
+@@ -543,7 +545,7 @@ test('pipelined qualification: both attestations are submitted before the first
+     return CHECKERS.find((ck) => attestations.some((a) => a.issuedAt === o.issuedAt && a.signature === call.args[5]))?.address; };
+   let n = 0;
+   be.onSend = () => { if (++n === 2) setTimeout(async () => { const M = await w.mine(); w.anchorAt = M.number; }, 30); };
+-  const sent = await submitAttestations({ wallet: sub.wallet, client: sub.client, connectivity: CONN, hostId: HOST_ID, address: PUBLIC_ADDRESS, attestations, now, pipeline: true });
++  const sent = await submitAttestationsPipelined({ wallet: sub.wallet, client: sub.client, connectivity: CONN, hostId: HOST_ID, address: PUBLIC_ADDRESS, attestations, now });
+   assert.equal(sent, 2); assert.deepEqual(r.signed.map((t) => t.nonce), [0, 1]);
+   assert.equal(w.head().txHashes.length, 4, 'both qualify transactions landed in ONE block: neither waited for the other\'s proof');
+   // sequential (the default) with this submitter: the second is signed only after the first is proven

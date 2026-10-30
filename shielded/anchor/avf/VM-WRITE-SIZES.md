@@ -1,11 +1,5 @@
 # Experimental VM write sizes
 
-The Android app accepts `--ei padwrite 8192` and, with `nativebridge=true`,
-`--ei bridgewrite 8192`. Both default to `0`; the existing `4096` option is
-preserved. These options only bound VM-bound body writes. They do not change
-cached HTTP downloads, authentication, framing, buffer capacity in the native
-bridge, or host-bound requests. Test the two options independently first.
-
 The Pixel 8 Pro reports a 4096-byte page size and kernel common commit
 `fa1d6308d1fe`. That source's `virtio_transport_alloc_pkt()` allocates the packet
 body with `kmalloc(len, GFP_KERNEL)`; the default packet limit is 64 KiB.

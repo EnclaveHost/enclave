@@ -1,0 +1,267 @@
+TAP version 13
+# Subtest: G2: the guest checker and the runtime accept http at a PRIVATE IPv4 literal as an untrusted witness source, nothing wider
+ok 1 - G2: the guest checker and the runtime accept http at a PRIVATE IPv4 literal as an untrusted witness source, nothing wider
+  ---
+  duration_ms: 3.040354
+  type: 'test'
+  ...
+# Subtest: G1: expose "attested" exists only in the HOST_DATA-bound direct config; absent keeps every earlier digest; it makes a verifier-only guest
+ok 2 - G1: expose "attested" exists only in the HOST_DATA-bound direct config; absent keeps every earlier digest; it makes a verifier-only guest
+  ---
+  duration_ms: 2.723987
+  type: 'test'
+  ...
+# Subtest: G1: planDirectBoot of a verifier-only guest: the verifier is the only chain authority, every RPC name refuses, nothing is sold, one filtered route
+ok 3 - G1: planDirectBoot of a verifier-only guest: the verifier is the only chain authority, every RPC name refuses, nothing is sold, one filtered route
+  ---
+  duration_ms: 26.328358
+  type: 'test'
+  ...
+# Subtest: the front exposes ONLY filtered reads of the bound verifier; refusals never reach it; the route shape is fixed
+not ok 4 - the front exposes ONLY filtered reads of the bound verifier; refusals never reach it; the route shape is fixed
+  ---
+  duration_ms: 16.844338
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/test/attested-chain-verifier.test.mjs:152:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    undefined !== 200
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 200
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/test/attested-chain-verifier.test.mjs:157:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a verifier answer above the bound is cut off, never served as complete
+not ok 5 - a verifier answer above the bound is cut off, never served as complete
+  ---
+  duration_ms: 43.533543
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/test/attested-chain-verifier.test.mjs:183:1'
+  failureType: 'testCodeFailure'
+  error: 'connect ENETUNREACH 127.0.0.1:43963 - Local (0.0.0.0:0)'
+  code: 'ENETUNREACH'
+  stack: |-
+    internalConnect (node:net:1111:16)
+    defaultTriggerAsyncIdScope (node:internal/async_hooks:472:18)
+    node:net:1357:9
+    process.processTicksAndRejections (node:internal/process/task_queues:84:11)
+  ...
+# Subtest: G3: a replica is used only after attestation through the UNCHANGED verifier; the outcome is "attested", never "verified"
+not ok 6 - G3: a replica is used only after attestation through the UNCHANGED verifier; the outcome is "attested", never "verified"
+  ---
+  duration_ms: 13.536655
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/test/attested-chain-verifier.test.mjs:191:1'
+  failureType: 'testCodeFailure'
+  error: 'attested verifier: no attested replica answered (https://127.0.0.1:43213: unavailable)'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Object.request (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/network/attested-verifier-client.mjs:216:13)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/test/attested-chain-verifier.test.mjs:196:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: G3: wrong measurement, another config, a HOST_DATA that binds nothing, an unattested front, and a key change all refuse; failover is availability only
+not ok 7 - G3: wrong measurement, another config, a HOST_DATA that binds nothing, an unattested front, and a key change all refuse; failover is availability only
+  ---
+  duration_ms: 5.578453
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/test/attested-chain-verifier.test.mjs:206:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'unavailable'
+    - 'rejected'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'rejected'
+  actual: 'unavailable'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/test/attested-chain-verifier.test.mjs:210:137)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: G4: a plain object is never "attested", whatever it claims (the brand marks only client-built objects; not a boundary against same-process code)
+ok 8 - G4: a plain object is never "attested", whatever it claims (the brand marks only client-built objects; not a boundary against same-process code)
+  ---
+  duration_ms: 0.448886
+  type: 'test'
+  ...
+# Subtest: ERC-1271 and SessionVault owner signatures through the ATTESTED verifier on a real chain: the exact call shapes, no public RPC
+not ok 9 - ERC-1271 and SessionVault owner signatures through the ATTESTED verifier on a real chain: the exact call shapes, no public RPC
+  ---
+  duration_ms: 117697.906866
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/test/attested-chain-verifier.test.mjs:257:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    HTTP request failed.
+    
+    URL: http://127.0.0.1:41149/
+    Request body: {"method":"eth_getTransactionCount","params":["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266","pending"]}
+     
+    Request Arguments:
+      from:  0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+      data:  0x61004980600c6000396000f36004357ff38f4307fe90abad92caf535968e75e849475c5613ff7767168543faf0eb051a1460385763ffffffff60e01b60005260206000f35b631626ba7e60e01b60005260206000f3
+    
+    Details: fetch failed
+    Version: viem@2.53.1
+  code: 'ERR_TEST_FAILURE'
+  name: 'TransactionExecutionError'
+  stack: |-
+    getTransactionError (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/node_modules/viem/_esm/utils/errors/getTransactionError.js:11:12)
+    sendTransaction (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/node_modules/viem/_esm/actions/wallet/sendTransaction.js:224:15)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async deploy (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/test/attested-chain-verifier.test.mjs:264:81)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/test/attested-chain-verifier.test.mjs:266:19)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: config: minTcb is validated as the verifier does (supported product line, exactly its fields, integers 0-255); roots only with the programmatic flag
+ok 10 - config: minTcb is validated as the verifier does (supported product line, exactly its fields, integers 0-255); roots only with the programmatic flag
+  ---
+  duration_ms: 7.969174
+  type: 'test'
+  ...
+# Subtest: ONE deadline across attestation and every replica: 8 hanging replicas settle at the caller's deadline, not 8 x timeout; 8 dead ones fail fast
+not ok 11 - ONE deadline across attestation and every replica: 8 hanging replicas settle at the caller's deadline, not 8 x timeout; 8 dead ones fail fast
+  ---
+  duration_ms: 13.595947
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/test/attested-chain-verifier.test.mjs:310:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    attested verifier: no attested replica answered (https://127.0.0.1:38633: unavailable; https://127.0.0.1:40513: unavailable; https://127.0.0.1:35845: unavailable; https://127.0.0.1:42705: unavailable; https://127.0.0.1:44169: unavailable; https://127.0.0.1:42103: unavailable; https://127.0.0.1:35517: unavailable; https://127.0.0.1:42617: unavailable)
+    + actual - expected
+    
+    + undefined
+    - 'ABORT_ERR'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'ABORT_ERR'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/test/attested-chain-verifier.test.mjs:317:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: aborts settle promptly while an attestation is pending; repeated aborts share one attestation; close() leaves no socket open
+not ok 12 - aborts settle promptly while an attestation is pending; repeated aborts share one attestation; close() leaves no socket open
+  ---
+  duration_ms: 6.144759
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/test/attested-chain-verifier.test.mjs:335:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - 'ABORT_ERR'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'ABORT_ERR'
+  operator: 'strictEqual'
+  stack: |-
+    file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/test/attested-chain-verifier.test.mjs:343:12
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Promise.all (index 0)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/test/attested-chain-verifier.test.mjs:340:17)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: G5: the provider authority is ONE explicit choice; legacy modes unchanged; mixed, paid and root-naming configs refuse
+not ok 13 - G5: the provider authority is ONE explicit choice; legacy modes unchanged; mixed, paid and root-naming configs refuse
+  ---
+  duration_ms: 4.088986
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/test/attested-chain-verifier.test.mjs:363:1'
+  failureType: 'testCodeFailure'
+  error: '{"chainVerifier":"http://127.0.0.1:1/"}'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'provider chain authority: chainVerifier is not used with chainAuthority "attested-verifier" (a local verifier is a different authority): remove it'
+  stack: |-
+    bad (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/network/wg-provider/attested-authority.mjs:36:28)
+    providerChainAuthority (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/network/wg-provider/attested-authority.mjs:90:40)
+    att (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/test/attested-chain-verifier.test.mjs:374:35)
+    file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/test/attested-chain-verifier.test.mjs:381:25
+    getActual (node:assert:609:5)
+    Function.throws (node:assert:757:24)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/test/attested-chain-verifier.test.mjs:381:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/test/attested-chain-verifier.test.mjs:381:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: packaging: separately bundled reader and client share ONE brand (no duplicate-module mislabel); the provider bundle resolves its closure
+ok 14 - packaging: separately bundled reader and client share ONE brand (no duplicate-module mislabel); the provider bundle resolves its closure
+  ---
+  duration_ms: 278.461054
+  type: 'test'
+  ...
+# Subtest: the REAL supervisor starts in a verifier-only boot (refusing RPC names) and, behind the real front, passes attestation step 6
+not ok 15 - the REAL supervisor starts in a verifier-only boot (refusing RPC names) and, behind the real front, passes attestation step 6
+  ---
+  duration_ms: 20211.638057
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/test/attested-chain-verifier.test.mjs:421:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    the real supervisor answers:
+    [addressbook] immutable host contract pins active; book polling disabled
+    [chain] authority: local verifier verifier http://127.0.0.1:50546 (unsafe tier, no L1 finality); no own transaction backend: nothing is submitted; logs prove inclusion only; no provider RPC is used
+    [host-policy] WARNING: no policy mirror configured - an anchored policy cannot be loaded and will refuse every host
+    [direct] direct-only host control: owner-committed startup deployments only; relay, domain, certificate and DNS services off
+    [proof] proof-of-time signer 0x14313FD20509560bea7dA5A05Ed483Eab3fBC9F0
+    [pay] watching 0x0000000000000000000000000000000000000000 for Paid + PaidEth events every 12s (ETH priced via 0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70)
+    enclave supervisor on :43509 · CPU-only enclave (1 vCPU / 1GB, node-share split)
+    [pay] poll error: An unknown RPC error occurred.
+    [host-policy] this host is not serving: policy unreadable: no verified chain state: fetch failed
+    [pay] ETH/USD feed: An unknown RPC error occurred.
+    [pay] USDC domain read: An unknown RPC error occurred.
+    [pay] poll error: An unknown RPC error occurred.
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T034552Z/test/attested-chain-verifier.test.mjs:448:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..15
+# tests 15
+# suites 0
+# pass 6
+# fail 9
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 139568.465137

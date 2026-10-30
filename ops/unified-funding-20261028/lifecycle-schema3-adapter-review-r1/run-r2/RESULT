@@ -1,0 +1,1 @@
+PASS schema3-adapter-r1 pure 3 + schema3 6 = 9; prior71 regressions passed unchanged

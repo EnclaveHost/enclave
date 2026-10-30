@@ -1,0 +1,35 @@
+{
+  "sourceSha256": "5310ec30a9ab75d1f6b09ed6a5e1ce172280f3134cf08d0c9de1aa5be6b4fb2c",
+  "methodComparison": "exact ast.get_source_segment text, including comments/body, no execution",
+  "immutableMethods": {
+    "OsEffects.sparse_copy": {
+      "sha256": "ccb489b509515a2cdecb2c39d6ab13e4fc4554bf966cb8c16bd5b3a42126778e",
+      "startLine": 840,
+      "endLine": 880,
+      "source": "def sparse_copy(self, src, ident, dst, deadline):\n        \"\"\"streamed byte-preserving copy; holes stay holes where SEEK_DATA works; returns sha256 of the source stream\"\"\"\n        sfd = os.open(src, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)\n        dfd = None\n        try:\n            if {k: v for k, v in self._ident(os.fstat(sfd)).items() if k != 'ctimeNs'} != \\\n                    {'dev': ident['device'], 'ino': ident['inode'], 'size': ident['size'], 'mtimeNs': ident['mtimeNs']}:\n                refuse('copy', 'backup identity changed before copy')\n            dfd = os.open(dst, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)\n            size, pos, h, zeros = ident['size'], 0, hashlib.sha256(), bytes(CHUNK)\n            while pos < size:\n                deadline.left('copy', 1)\n                try:\n                    data = os.lseek(sfd, pos, os.SEEK_DATA)\n                    hole = os.lseek(sfd, data, os.SEEK_HOLE)\n                except OSError as e:\n                    if e.errno == errno.ENXIO:\n                        data = hole = size\n                    elif e.errno == errno.EINVAL:\n                        data, hole = pos, size\n                    else:\n                        raise\n                while pos < data:\n                    n = min(CHUNK, data - pos); h.update(zeros[:n]); pos += n\n                while pos < min(hole, size):\n                    deadline.left('copy', 1)\n                    b = os.pread(sfd, min(CHUNK, hole - pos), pos)\n                    if not b:\n                        refuse('copy', 'short read from backup')\n                    h.update(b)\n                    view, off = memoryview(b), pos\n                    while view:\n                        n = os.pwrite(dfd, view, off); view, off = view[n:], off + n\n                    pos += len(b)\n            os.ftruncate(dfd, size)\n            os.fsync(dfd)\n            return h.hexdigest()\n        finally:\n            os.close(sfd)\n            if dfd is not None:\n                os.close(dfd)"
+    },
+    "OsEffects.hold_qemu_locks": {
+      "sha256": "ca62713373179369e8293e745a2b4b5e54ba2b8e296d978fbe0bea98dea3db20",
+      "startLine": 901,
+      "endLine": 921,
+      "source": "def hold_qemu_locks(self, path, ident):\n        if os.uname().machine != 'x86_64':\n            refuse('locks', 'struct flock layout only qualified for x86_64')\n        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)\n        try:\n            st = os.fstat(fd)\n            if (st.st_dev, st.st_ino) != (ident['device'], ident['inode']):\n                refuse('locks', f'{path} identity changed')\n            # Deny WRITE, WRITE_UNCHANGED and RESIZE before checking granted\n            # permissions. Keep these OFD locks through the final conflict scan:\n            # a check-before-lock sequence permits a native writer to enter.\n            # WRITE_UNCHANGED may modify image metadata despite stable guest bytes.\n            for byte in (201, 202, 203):\n                fcntl.fcntl(fd, fcntl.F_OFD_SETLK, struct.pack(FLOCK_FMT, fcntl.F_RDLCK, os.SEEK_SET, byte, 1, 0))\n            r = fcntl.fcntl(fd, fcntl.F_OFD_GETLK, struct.pack(FLOCK_FMT, fcntl.F_WRLCK, os.SEEK_SET, 100, 200, 0))\n            if struct.unpack(FLOCK_FMT, r)[0] != fcntl.F_UNLCK:\n                refuse('locks', f'{path} has a QEMU image lock held by another process')\n            return fd\n        except BaseException:\n            os.close(fd)\n            raise"
+    },
+    "OsEffects.scan_holders": {
+      "sha256": "cf5fd3f74738c0bafe18c6384ea07d819a3890c92f04e3731d3b421fb326ced7",
+      "startLine": 926,
+      "endLine": 946,
+      "source": "def scan_holders(self, idents):\n        holders, unreadable, me = [], [], os.getpid()\n        for name in os.listdir('/proc'):\n            if not name.isdigit() or int(name) == me:\n                continue\n            try:\n                fds = os.listdir(f'/proc/{name}/fd')\n            except FileNotFoundError:\n                continue\n            except PermissionError:\n                unreadable.append(int(name)); continue\n            for fd in fds:\n                try:\n                    st = os.stat(f'/proc/{name}/fd/{fd}')\n                except FileNotFoundError:\n                    continue\n                except PermissionError:\n                    unreadable.append(int(name)); break\n                if (st.st_dev, st.st_ino) in idents:\n                    holders.append(int(name))\n        return sorted(set(holders)), sorted(set(unreadable))"
+    },
+    "Writer.holders": {
+      "sha256": "347b92f1f0ef7d75157ba75293f16be6155ef00f96063eb24db3defea2939f84",
+      "startLine": 1168,
+      "endLine": 1172,
+      "source": "def holders(self, idents):\n        h, unreadable = self.fx.scan_holders(idents)\n        if h or unreadable:\n            refuse('holders', f'image holders {h} or unreadable processes {unreadable[:20]}: holder scope incomplete')\n        return {'holders': [], 'unreadable': [], 'note': 'process scan is supplementary to QEMU and workflow locks'}"
+    }
+  },
+  "semanticPreserve": [
+    "systemctl user-bus environment propagation",
+    "no native execution in author",
+    "all existing tests unchanged"
+  ]
+}

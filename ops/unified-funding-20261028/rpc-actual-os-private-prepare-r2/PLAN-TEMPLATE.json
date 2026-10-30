@@ -1,0 +1,183 @@
+{
+  "acceptUnqualified": [
+    "debugfs-mkdir-sif",
+    "debugfs-stat-parse",
+    "ext4-sb-crc32c",
+    "full-image-export",
+    "qemu-img-info",
+    "qemu-lock-bytes",
+    "readonly-export",
+    "systemctl-user-show"
+  ],
+  "backup": {
+    "path": "/vm/enclave-volumes/rpc-production-maint/os-backup-20261030T061922Z-1a31c4/os.qcow2",
+    "sha256": "f7e4ebc11362393f9db8e72c5f957cfa543ea4583d6ce5a73d3c59198037ab57",
+    "device": 64769,
+    "inode": 148392253,
+    "size": 18581159936,
+    "mtimeNs": 1793341199383108546,
+    "receiptPath": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-maintenance-os-prepare-r2/evidence/PREPARED.json",
+    "receiptSha256": "8e9d30ea104ea99c9c8328b9a936f23c59550d4d1413b14fad8cac9c02e878da"
+  },
+  "bounds": {
+    "commandSeconds": 60,
+    "exportStartSeconds": 15,
+    "exportStopSeconds": 15,
+    "fsckSeconds": 120,
+    "maxInventoryEntries": 20000,
+    "maxLogBytes": 33554432,
+    "maxOutputBytes": 4194304,
+    "totalSeconds": 1500
+  },
+  "destination": {
+    "device": 64769,
+    "evidenceMarginBytes": 67108864,
+    "floorBytes": 322122547200,
+    "forbiddenDevices": [
+      64768,
+      43
+    ],
+    "parentDir": "/vm/enclave-volumes/rpc-production-maint",
+    "qcowMetadataAllowanceBytes": 1073741824,
+    "workDirName": "os-private-20261030T093130Z-133828",
+    "workingMarginBytes": 1073741824
+  },
+  "filesystem": {
+    "uuid": "59134bd0-a76f-4ea0-8e4a-770b2e1eafc2",
+    "label": "cloudimg-rootfs",
+    "blockSize": 4096,
+    "blocksCount": 8126203,
+    "inodesCount": 4063232,
+    "featureCompat": 60,
+    "featureIncompat": 706,
+    "featureRoCompat": 1131
+  },
+  "format": "enclave-rpc-offline-mask-plan/1",
+  "fragments": {
+    "mode": 420,
+    "uid": 0,
+    "gid": 0,
+    "xattrNames": [],
+    "inodes": {
+      "enclave-rpc-base-snapshot.service": 84497,
+      "enclave-rpc-l1-snapshot.service": 84498,
+      "enclave-base-retention.service": 2365,
+      "enclave-base-holder.path": 84494,
+      "enclave-base-holder.service": 84495,
+      "enclave-l1-el.path": 84500,
+      "enclave-l1-el.service": 84501,
+      "enclave-l1-cl.service": 84499
+    }
+  },
+  "image": {
+    "virtualSize": 34359738368,
+    "sectorSize": 512,
+    "diskGuid": "e14d0243-d31d-4718-846e-d99094e48a2a",
+    "rootIndex": 1,
+    "rootTypeGuid": "0fc63daf-8483-4772-8e79-3d69d8477de4",
+    "rootUniqueGuid": "17b4d016-4dff-469b-bb05-776ecd0a63d4",
+    "rootFirstLba": 2099200,
+    "rootLastLba": 67108830
+  },
+  "operationId": "rpc-os-private-20261030t093130z-133828",
+  "resourceEnvelope": {
+    "cgroup": "BIND-TO-ADMITTED-512-MIB-SCOPE-AT-START",
+    "memoryMax": "536870912",
+    "swapMax": "0"
+  },
+  "source": {
+    "path": "/vm/enclave-volumes/rpc-production/os.qcow2",
+    "sha256": "f7e4ebc11362393f9db8e72c5f957cfa543ea4583d6ce5a73d3c59198037ab57",
+    "device": 64769,
+    "inode": 147981797,
+    "size": 18581159936,
+    "mtimeNs": 1793030445722920013
+  },
+  "stamp": "20261030T093130Z-133828",
+  "tools": {
+    "debugfs": {
+      "path": "/usr/bin/debugfs",
+      "sha256": "9b27184084383c8607eee03b43c80eca4ef912acf4887b40a7cc420e267ad8a8"
+    },
+    "e2fsck": {
+      "path": "/usr/bin/e2fsck",
+      "sha256": "a9ea133a844edd695b5172abadc8bbbbb03aaedad80fc24d039bdbf4563a125c"
+    },
+    "fusermount3": {
+      "path": "/usr/bin/fusermount3",
+      "sha256": "c3d04bdf77c7152eba94ce670338e7089730b8dbfede57762b7b92c893a00f4f"
+    },
+    "nbdfuse": {
+      "path": "/usr/bin/nbdfuse",
+      "sha256": "51c1a1fd18785d4fe2240c1710eb4f78590b9d333fcde4cda421871d6f010a01"
+    },
+    "qemu-img": {
+      "path": "/usr/bin/qemu-img",
+      "sha256": "3a57bce6765bfb73a75591dba2ac40d985cccde97d371e95537ecbf16d949d30"
+    },
+    "qemu-nbd": {
+      "path": "/usr/bin/qemu-nbd",
+      "sha256": "b0f16ff7225e78469733132fce225b1d0af98f0b681a5092d85618936ff61934"
+    },
+    "systemctl": {
+      "path": "/usr/bin/systemctl",
+      "sha256": "6e727451366c75070ab02f02d945e3c83f8774ddf7e1661c5d71cbbf0d59b3cc"
+    }
+  },
+  "unitPins": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-slow-link-root-repaired-r1/candidate/UNIT-PINS.json",
+    "sha256": "17ae0820e6d33ffbc9d5e424ccfde38f10f1037b8f4a1abe465219cbd2a2bc38"
+  },
+  "usrMerge": true,
+  "vmUnits": [
+    "enclave-rpc-production-vm.service",
+    "enclave-rpc-production-guard.service"
+  ],
+  "workflowLocks": [
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-actual-os-private-prepare-r1/workflow.lock",
+      "device": 64768,
+      "inode": 6179623
+    }
+  ],
+  "writerSource": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-slow-link-root-repaired-r1/candidate/offline_mask.py",
+    "sha256": "37c8f244602496a894620d743721c1ed2ee92a8b9afda1ae93a356024d0870cb"
+  },
+  "holderPolicy": {
+    "kind": "private-derivative-v1",
+    "intent": "private-preparation-only",
+    "maintenanceUid": 1000,
+    "trust": {
+      "localHostRootTrusted": true,
+      "maintenanceUidTrusted": true,
+      "untrustedSameUidCommandsExcluded": true,
+      "untrustedSameUidPluginsExcluded": true,
+      "noCompetingWriterOrPublicationDuringPreparation": true
+    },
+    "authority": {
+      "boot": false,
+      "publication": false,
+      "replaceExistingBacking": false,
+      "sourceWrite": false,
+      "destructiveRepair": false,
+      "custody": false
+    },
+    "hostHolderVisibility": "incomplete-not-asserted",
+    "unreadableProcesses": "retain-as-incomplete-visibility",
+    "inputModes": {
+      "source": 384,
+      "backup": 256
+    },
+    "evidence": {
+      "pathAccess": {
+        "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-actual-os-private-prepare-r2/pathAccess.json",
+        "sha256": "c4c6c91f7905ad7e35801f5a7d3d0c3a16153f96d7a33e303e34aef254cf3f83"
+      },
+      "coordination": {
+        "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-actual-os-private-prepare-r2/coordination.json",
+        "sha256": "5d71ee9770787373fc98db1425490669d0709de67a3849a07f63840cbe592cc1"
+      }
+    }
+  }
+}

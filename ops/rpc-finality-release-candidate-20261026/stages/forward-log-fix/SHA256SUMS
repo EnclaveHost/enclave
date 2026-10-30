@@ -1,0 +1,6 @@
+0ed0ce3a3227410f4169fac326610ad136ed7f4178ffe0e6f79763969c80370b  ./STATUS.md
+95fb3c98f0db0a553f6c2cad1945c0d171d1057abe4fe09e1557e81d6137d5dc  ./jobs/root-forward-log-fix.sh
+c16e5018592b3ea69b64a2aa8e053f353441c5012e9616561c151013b2d17043  ./patches/forward-sync-log-uniqueness.patch
+31ca9c76e13675ed146d6a44d2260092ceb07010f668a72df0fdb6de9afbcda6  ./patches/tests_forward-sync_test_forward_sync.py.patch
+b41e71a30140bf2b3dbe1e5a0c11a45ec6cdb15e0d4eff6c8aebe6a18cf623fc  ./src/forward_sync.py
+681c2da723ed24e124a11f63d819ab3c4aada8d264fa2f3f2e98623cbd7a5689  ./tests/forward-sync/test_forward_sync.py

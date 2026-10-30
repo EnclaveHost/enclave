@@ -1,0 +1,8 @@
+{
+  "format": "PE AMD64",
+  "bytes": 5120,
+  "onlyImportedDll": "kernel32.dll",
+  "executed": false,
+  "jobLimitQualified": false,
+  "transitiveHeaderClosureCaptured": false
+}

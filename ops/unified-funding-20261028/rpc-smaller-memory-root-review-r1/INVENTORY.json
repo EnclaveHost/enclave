@@ -1,0 +1,142 @@
+{
+  "status": "READONLY_CAPTURED_EVIDENCE_REVIEW_NO_LAUNCH",
+  "installedUnitFragmentMatches": {
+    "enclave-l1-el.service": {
+      "capturedSha256": "be00a7d9542f79515658f09d49bc3ad546d3d80de3f30a531a4ee5d1fd72086d",
+      "payloadSha256": "be00a7d9542f79515658f09d49bc3ad546d3d80de3f30a531a4ee5d1fd72086d",
+      "match": true
+    },
+    "enclave-l1-cl.service": {
+      "capturedSha256": "54791e1a9ac7e27d4e12ce7630d903363ba1069f9fb3529acade709a4a8bb547",
+      "payloadSha256": "54791e1a9ac7e27d4e12ce7630d903363ba1069f9fb3529acade709a4a8bb547",
+      "match": true
+    },
+    "enclave-base-holder.service": {
+      "capturedSha256": "3d305f2ef091af5ee7edec61bcd47607c7e969e64873dec66d021db34f5955ef",
+      "payloadSha256": "3d305f2ef091af5ee7edec61bcd47607c7e969e64873dec66d021db34f5955ef",
+      "match": true
+    }
+  },
+  "vm": {
+    "guestGiB": 64,
+    "hardEnvelopeGiB": 66,
+    "hostFloorGiB": 16,
+    "preallocation": true,
+    "vcpus": 8
+  },
+  "serviceCapsGiB": {
+    "l1Execution": {
+      "high": 14,
+      "max": 16
+    },
+    "l1Consensus": {
+      "high": 9,
+      "max": 10
+    },
+    "baseIntegrated": {
+      "high": 25,
+      "max": 28
+    }
+  },
+  "currentMinimumMeasured": false,
+  "combinedSmallerSizeQualified": false,
+  "swapAllowed": false,
+  "capturedBootInventory": {
+    "bootSnapshotSafe": false,
+    "units": {
+      "enclave-base-holder.path": {
+        "bootLinked": "not-linked",
+        "masked": false,
+        "triggers": "enclave-base-holder.service"
+      },
+      "enclave-base-holder.service": {
+        "bootLinked": "not-linked",
+        "masked": false,
+        "triggers": null
+      },
+      "enclave-base-retention.service": {
+        "bootLinked": "not-linked",
+        "masked": false,
+        "triggers": null
+      },
+      "enclave-l1-cl.service": {
+        "bootLinked": "linked",
+        "masked": false,
+        "triggers": null
+      },
+      "enclave-l1-el.path": {
+        "bootLinked": "linked",
+        "masked": false,
+        "triggers": "enclave-l1-el.service"
+      },
+      "enclave-l1-el.service": {
+        "bootLinked": "linked",
+        "masked": false,
+        "triggers": null
+      },
+      "enclave-rpc-base-snapshot.service": {
+        "bootLinked": "linked",
+        "masked": false,
+        "triggers": null
+      },
+      "enclave-rpc-fwd-base-rpc.service": {
+        "bootLinked": "linked",
+        "masked": false,
+        "triggers": null
+      },
+      "enclave-rpc-fwd-base-rpc.socket": {
+        "bootLinked": "linked",
+        "masked": false,
+        "triggers": "enclave-rpc-fwd-base-rpc.service"
+      },
+      "enclave-rpc-fwd-l1-cl.service": {
+        "bootLinked": "linked",
+        "masked": false,
+        "triggers": null
+      },
+      "enclave-rpc-fwd-l1-cl.socket": {
+        "bootLinked": "linked",
+        "masked": false,
+        "triggers": "enclave-rpc-fwd-l1-cl.service"
+      },
+      "enclave-rpc-fwd-l1-el.service": {
+        "bootLinked": "linked",
+        "masked": false,
+        "triggers": null
+      },
+      "enclave-rpc-fwd-l1-el.socket": {
+        "bootLinked": "linked",
+        "masked": false,
+        "triggers": "enclave-rpc-fwd-l1-el.service"
+      },
+      "enclave-rpc-l1-snapshot.service": {
+        "bootLinked": "linked",
+        "masked": false,
+        "triggers": null
+      }
+    },
+    "readErrors": [],
+    "limits": [
+      "/run/systemd/system, generators, kernel-cmdline masks and non-enclave units pulling enclave units are not evaluated",
+      "bootLinked=linked means a link/trigger/pull exists, not that the start would succeed"
+    ]
+  },
+  "history": {
+    "configuredMinimumBlocks": 140000,
+    "configuredProofWindowBlocks": 1800,
+    "rootProvidedLedgerBirth": 52515705,
+    "capturedRestoreHead": 53273964,
+    "spanBlocks": 758259,
+    "completeHistoryProven": false
+  },
+  "actions": {
+    "imageMount": false,
+    "databaseRead": false,
+    "remoteRequest": false,
+    "author": false,
+    "testOrBuild": false,
+    "runtimeChange": false,
+    "pruning": false,
+    "swapChange": false
+  }
+}

@@ -1,0 +1,16 @@
+TAP version 13
+# Subtest: O2 witness owner release while signing awaits readiness: the in-flight request is cancelled, no signature released
+ok 1 - O2 witness owner release while signing awaits readiness: the in-flight request is cancelled, no signature released
+  ---
+  duration_ms: 78.616367
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 366.574678

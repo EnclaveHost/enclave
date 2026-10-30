@@ -1,0 +1,43 @@
+warning: unused imports: `BlockResponse` and `primitives::HeaderResponse`
+ --> revm-utils/src/proof_db.rs:5:15
+  |
+5 |     network::{primitives::HeaderResponse, BlockResponse},
+  |               ^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `helios_core::execution::errors::ExecutionError`
+  --> revm-utils/src/proof_db.rs:21:5
+   |
+21 | use helios_core::execution::errors::ExecutionError;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `helios-revm-utils` (lib) generated 2 warnings (run `cargo fix --lib -p helios-revm-utils` to apply 2 suggestions)
+    Finished `test` profile [unoptimized] target(s) in 0.26s
+     Running tests/ancestor_block_hash.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/ancestor_block_hash-8ea0a35e3be143a2)
+
+running 4 tests
+test ancestor_follows_pinned_chain_not_canonical_by_number ... FAILED
+test ancestor_refuses_broken_link_and_wrong_pinned_answer ... ok
+test ancestor_refuses_unknown_pinned_and_outside_window ... ok
+test ancestor_through_block_cache_after_aba ... ok
+
+failures:
+
+---- ancestor_follows_pinned_chain_not_canonical_by_number stdout ----
+
+thread 'ancestor_follows_pinned_chain_not_canonical_by_number' (268630) panicked at core/tests/ancestor_block_hash.rs:24:5:
+assertion `left == right` failed: A's own ancestor, never B2
+  left: 0xf85a5f01e289e8a2c24bddb66e9e7c9d481af23e2331ff79299d96bf55266515
+ right: 0x4683acebad7430bc31d385d7e5c190318aff048437a6e63a9f32cdfedb72d142
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    ancestor_follows_pinned_chain_not_canonical_by_number
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p helios-core --test ancestor_block_hash`
+error: 1 target failed:
+    `-p helios-core --test ancestor_block_hash`

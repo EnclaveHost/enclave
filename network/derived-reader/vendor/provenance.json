@@ -1,0 +1,20 @@
+{
+  "schedule_reader.mjs": {
+    "sha256": "688b7a1f09c898f66cc7b92473a9fbda042402ef833bb983ff794e5f07128fb0",
+    "source": "derivation-schedule-auth-stage/reader/schedule_reader.mjs"
+  },
+  "anchor-bootstrap.mjs": {
+    "sha256": "90a8afba31e7c7029a0fa860f97153cd40665f1d1b2ae87bb0a56fd98c25e8f8",
+    "source": "base-finality-proof-stage/r12-final/vendor/anchor-bootstrap.mjs"
+  },
+  "a1-anchor.mjs": {
+    "sha256": "ec92b70f105f88cbfc466e57e4673afcb0fbd104403e425e036f1dba78e6528d",
+    "source": "source/ops/rpc-backend-bootstrap/2026-10-25/l1-anchor-a1/a1-anchor.mjs"
+  },
+  "schedule-input-r2.mjs": {
+    "source": "derivation-schedule-auth-stage/integration-r2/bridge.mjs",
+    "sourceSha256": "d2837885697456a6610f3a3b276fe070a0ddf4623d4c649c18ac0b3096a27edc",
+    "sha256": "b3b814d0816685bb1ad8e4aadad73028d48648cc119a2f7b9aba3750749c04c0",
+    "adaptation": "Only reader import location changed; native v1 result validator is not used for combined v2."
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "kind": "wallet-session-delegate-census/1",
+  "readOnly": true,
+  "preparedInputHash": "9aecf41c0bb328babf56492bc26c91f512d7f20ef3bb1d5a4dc1cf325f649a84",
+  "scope": "Complete provider-agreed DelegateSet census for owner wallet and B794, plus SessionOpened/current sessionOf for B794 and all source-qualified wallet-delegated v2 vaults. Unknown delegates explicit; no migration authorization.",
+  "assurance": "Provider-agreed log history and state at a coherent block; not cryptographic log-completeness proof, finality, installed-consumer evidence or migration authorization.",
+  "bounds": {
+    "wallSeconds": 300,
+    "rpcCallsPerPeerPhase": 800,
+    "blocksPerRange": 10000,
+    "rangesPerStream": 256,
+    "logsPerResponse": 2048,
+    "eventsPerStream": 2048,
+    "birthSearchSteps": 32,
+    "transactionsAtBirth": 4096,
+    "creationReceipts": 32,
+    "delegates": 64,
+    "vaults": 8,
+    "sessionsPerVault": 256
+  },
+  "provenance": {
+    "value": {
+      "ledger": {
+        "block": "52515705",
+        "txHash": "0xddc85def2d8bc739831b931a60ae2d0597e7e922812c3c582e9dbd5984609a89",
+        "blockHash": "0x583fbb7a7ea5ce7a05aae1e88c7b8c38c502ce687ed11b9b3e38eb361842b9ce",
+        "method": "verified runtime bracket + adjacent getCode + exact successful direct-creation receipt",
+        "assumption": "canonical creation receipt and RPC history; not receipt-trie proof"
+      },
+      "sourceVault": {
+        "block": "52286637",
+        "event": {
+          "address": "0x1f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c",
+          "topics": [
+            "0x5d9c31ffa0fecffd7cf379989a3c7af252f0335e0d2a1320b55245912c781f53",
+            "0x0000000000000000000000000b2d009c0c9af05b12100d77f3c815fea822ee61"
+          ],
+          "data": "0x000000000000000000000000b794c4dd0e1c5e6b72281799f282bfde7654345d",
+          "blockNumber": "52286637",
+          "blockHash": "0xcc27ceab340fd86ca60f7f16d5fbdae051ed1968427a2db0a8cc5e8a6de14162",
+          "transactionHash": "0x82eadf6bcf3253c6094d27df0af0e0dad3f34756ede0aa79197bf66071b846f3",
+          "transactionIndex": "107",
+          "logIndex": "344"
+        },
+        "factoryCreationBlock": "52286277",
+        "method": "two-provider runtime boundary + exact one-block VaultCreated event and successful receipt"
+      }
+    },
+    "blockNumber": "53265675",
+    "blockHash": "0x4cb4169ff4cbd2ed5d8e55843ff726f38f6ef3a2556b21db9d85fcf28d155355",
+    "timestamp": 1793320697000,
+    "agreeing": 2,
+    "peers": 3,
+    "failures": [
+      "base.drpc.org: getCode: You reached Public endpoint rate limit, please upgrade to paid plan"
+    ]
+  },
+  "completed": false,
+  "qualifiedForMigration": false,
+  "error": {
+    "message": "no 2 RPCs agreed at block 53265678 (base.drpc.org: RPC Request failed.; base-rpc.publicnode.com: request: \"Rate limit (1200rqs/60s) reached. To remove restrictions, order a paid plan here: [RPC])"
+  },
+  "finishedAt": "2026-10-30T00:39:52.236Z",
+  "callCounts": [
+    5,
+    34,
+    193
+  ]
+}

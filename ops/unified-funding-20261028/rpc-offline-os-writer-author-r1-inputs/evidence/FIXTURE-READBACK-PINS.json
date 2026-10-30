@@ -1,0 +1,13 @@
+{
+  "scope": "readback-only",
+  "sources": [
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-mask-fixture-r1/run.py",
+      "sha256": "aa94fc722edade15522ba077a8a284f7687856e69e2f3e687ca45064c1a6c51a"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-mask-fixture-r1/RESULT.json",
+      "sha256": "05a3ddacefd0c8e62ad697c3f8e407762ab43a58e8daa1166db6828d3d112901"
+    }
+  ]
+}

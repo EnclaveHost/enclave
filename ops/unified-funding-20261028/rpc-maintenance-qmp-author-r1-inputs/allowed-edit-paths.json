@@ -1,0 +1,29 @@
+{
+  "existing": [
+    "maint_boot.py"
+  ],
+  "optionalNewHelper": [
+    "qmp_transport.py"
+  ],
+  "newTests": [
+    "test_qmp_transport.py",
+    "test_maintenance_diagnostics.py"
+  ],
+  "reports": [
+    "REPORT.md",
+    "CLOSURE.json"
+  ],
+  "immutable": [
+    "guest_mask.py",
+    "test_root_maintenance.py",
+    "SHA256SUMS",
+    "all seed/evidence/preparation outside candidate"
+  ],
+  "semanticBoundaries": [
+    "QMP socket/deadline/framing/correlation/event buffers",
+    "safe bounded phase/errno diagnostics",
+    "actual existing call-site wiring and connection closure",
+    "no alteration of ownership/prelaunch/resource/storage/backup/security guards or budget constants"
+  ],
+  "note": "Manual semantic scope review remains required; source-tool limit is not an OS sandbox."
+}

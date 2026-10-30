@@ -1,0 +1,17 @@
+- heading "INERT TEST — no wallet connection or network transactions" [level=1]
+- paragraph: Actual shipped SDK, real IndexedDB, actual view/controllers; all chain/relay/signatures are local test doubles.
+- 'button "TEST: include and finalize promotion"'
+- generic: "{ \"signatures\": 0, \"posts\": 0, \"operations\": [], \"journal\": \"REAL IndexedDB (test domain)\" }"
+- main:
+  - heading "Move to wallet" [level=4]
+  - paragraph: "Destination: 0x0b2d009c0c9af05b12100d77f3c815fea822ee61 (the wallet that controls this vault; it cannot be changed)"
+  - status: Submitted; waiting for the transaction to be included. no receipt yet (or reorged out).
+  - term: state
+  - definition: submitted
+  - term: nonce
+  - definition: "0xd81fcb5ad9aeef231627defb4e76f943ba584132be32080ad7e177ca65c05079"
+  - term: deadline
+  - definition: "1793326613"
+  - term: tx
+  - definition: "0xccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc2"
+  - button "Check the chain again"

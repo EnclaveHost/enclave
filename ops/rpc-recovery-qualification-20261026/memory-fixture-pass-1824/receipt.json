@@ -1,0 +1,21 @@
+{
+ "badMarkers": [],
+ "checks": {
+  "lastLineOK": true,
+  "noBadMarkers": true,
+  "ranExactly": true,
+  "rc0": true,
+  "stdoutEmpty": true
+ },
+ "expectedTests": 11,
+ "fixtureSha256": "f1e04105027af197e3517d734e031872939f5490e2b9cf3100f0c37d8772c274",
+ "format": "composite-memory-fixture-test-receipt/r2",
+ "pass": true,
+ "ran": [
+  "11"
+ ],
+ "rc": 0,
+ "scope": "unit tests only; no mount, no scope change, no measurement",
+ "stageSums": "25245e21772377bcbacd9e27d8eb9d330e1340a3b2b1de9f98177b3603a17789",
+ "testsSha256": "20975a7425fcd25af3cad038f95a31991b3440b2f2f27f112d0c3563c071969e"
+}

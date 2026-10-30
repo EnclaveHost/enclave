@@ -1,0 +1,69 @@
+# DIRECT read-only metadata (not queued; executes nothing from the artifact): 2026-10-25T21:06:33Z
+# LD_* in env: 0; /etc/ld.so.preload: absent
+closure rc=0
+{
+ "binaryNeedsGlibc": "GLIBC_2.39",
+ "exceedsTargetGlibc": false,
+ "binaryNeedsOpenssl": "OPENSSL_3.0.0",
+ "exceedsTargetOpenssl": false,
+ "binaryNeedsGlibcxx": "GLIBCXX_3.4.30",
+ "needed": [
+  "libstdc++.so.6",
+  "libc.so.6",
+  "ld-linux-x86-64.so.2",
+  "libssl.so.3",
+  "libcrypto.so.3",
+  "libgcc_s.so.1",
+  "libm.so.6"
+ ],
+ "advice": "a private bundle is required if any 'exceeds' is true; otherwise the system libraries MAY suffice, but only a smoke on the target decides"
+}
+missing [] | runpath [] | interpreter /lib64/ld-linux-x86-64.so.2 f5e11cc62f8f2c24dff532982559f4303dba3b17e7450551372a88c8e7ea8757 glibc 2.44+r50+g1848099f063e-1
+binaryHighest {'CXXABI': 'CXXABI_1.3.15', 'GCC': 'GCC_4.2.0', 'GLIBC': 'GLIBC_2.39', 'GLIBCXX': 'GLIBCXX_3.4.30', 'OPENSSL': 'OPENSSL_3.0.0'}
+closureHighest {'CXXABI': 'CXXABI_1.3.17', 'GCC': 'GCC_14.0.0', 'GLIBC': 'GLIBC_2.44', 'GLIBCXX': 'GLIBCXX_3.4.36', 'OPENSSL': 'OPENSSL_3.6.0'}
+ld-linux-x86-64.so.2     f5e11cc62f8f2c24dff532982559f4303dba3b17e7450551372a88c8e7ea8757 glibc 2.44+r50+g1848099f063e-1
+libbrotlicommon.so.1     4f895094b7b6ff9c82909e6516bc9cf212e2ec5af451d39bf1bcbc5e5fa225b2 brotli 1.2.0-1
+libbrotlidec.so.1        0883fb05fa42aa6a883722098530ab08551ed317e38a2311f5c96e94dd460979 brotli 1.2.0-1
+libbrotlienc.so.1        8dbc539197d276310ce2750dcb73de5465a1259d46a5d1894e6138fd354bf5c7 brotli 1.2.0-1
+libc.so.6                02c8c3d06180beee9c7d0392aa85736c7d19f274a81e7f8f0b3d9e28e0641524 glibc 2.44+r50+g1848099f063e-1
+libcrypto.so.3           a75a864dcda6ef9e4dc29fad4b7988ca832b904c3915a63c920062c40763dae1 openssl 3.6.5-1
+libgcc_s.so.1            e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a libgcc 16.2.1+r23+gd564253eb6c8-1
+libm.so.6                965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d glibc 2.44+r50+g1848099f063e-1
+libssl.so.3              f6409e9f083faae79a622c9534be6ed2456d0102cd8ea2b52eb18c9d72f1f41e openssl 3.6.5-1
+libstdc++.so.6           f5fc7380f2ae46fa4053a64be04e7b98109f1066a4bbfff3c37042488aa0be0e libstdc++ 16.2.1+r23+gd564253eb6c8-1
+libz.so.1                6c78c5e58c3bb49a1cd151a95cdf1a17fe07a91a57a59e0279b984c533075ca9 zlib 1:1.3.2-4
+libzstd.so.1             f023d49e85fb22057bfdd21857263d2638b73356c06f3b342f678a75212379f8 zstd 1.5.7-3
+bundle rc=0
+7c11d6a0433c37228c5894e36eb804b5090d8bd4b46d80facf39481efb0bab75  bundle-5aa7b2919870/SHA256SUMS
+044b602b194a2871c6756a1237129b71ec24cbf4ebbce840bee575aceca07b84  MANIFEST.json
+5aa7b2919870950f1dd90249d3900730184e3ce6b5a54048b3dbca2a72ef430c  bin/base
+f5e11cc62f8f2c24dff532982559f4303dba3b17e7450551372a88c8e7ea8757  lib/ld-linux-x86-64.so.2
+4f895094b7b6ff9c82909e6516bc9cf212e2ec5af451d39bf1bcbc5e5fa225b2  lib/libbrotlicommon.so.1
+0883fb05fa42aa6a883722098530ab08551ed317e38a2311f5c96e94dd460979  lib/libbrotlidec.so.1
+8dbc539197d276310ce2750dcb73de5465a1259d46a5d1894e6138fd354bf5c7  lib/libbrotlienc.so.1
+02c8c3d06180beee9c7d0392aa85736c7d19f274a81e7f8f0b3d9e28e0641524  lib/libc.so.6
+a75a864dcda6ef9e4dc29fad4b7988ca832b904c3915a63c920062c40763dae1  lib/libcrypto.so.3
+e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a  lib/libgcc_s.so.1
+965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d  lib/libm.so.6
+f6409e9f083faae79a622c9534be6ed2456d0102cd8ea2b52eb18c9d72f1f41e  lib/libssl.so.3
+f5fc7380f2ae46fa4053a64be04e7b98109f1066a4bbfff3c37042488aa0be0e  lib/libstdc++.so.6
+6c78c5e58c3bb49a1cd151a95cdf1a17fe07a91a57a59e0279b984c533075ca9  lib/libz.so.1
+f023d49e85fb22057bfdd21857263d2638b73356c06f3b342f678a75212379f8  lib/libzstd.so.1
+bb99ad5abd9518986a23f3c53f00ca90b0ca2ce07aabbb09a4355184f628fab8  openssl.cnf
+567a8551b4092679eba1c38b42230ef374d118aea191438e998814e52b95cada  run
+sums-ok
+total 15492
+drwxr-xr-x 2 steven steven    4096 Oct 25 14:06 .
+drwxr-xr-x 4 steven steven    4096 Oct 25 14:06 ..
+-r-xr-xr-x 1 steven steven  263152 Oct 25 14:06 ld-linux-x86-64.so.2
+-r--r--r-- 1 steven steven  141264 Oct 25 14:06 libbrotlicommon.so.1
+-r--r--r-- 1 steven steven   55168 Oct 25 14:06 libbrotlidec.so.1
+-r--r--r-- 1 steven steven  780768 Oct 25 14:06 libbrotlienc.so.1
+-r--r--r-- 1 steven steven 2215072 Oct 25 14:06 libc.so.6
+-r--r--r-- 1 steven steven 5926392 Oct 25 14:06 libcrypto.so.3
+-r--r--r-- 1 steven steven  182512 Oct 25 14:06 libgcc_s.so.1
+-r--r--r-- 1 steven steven 1268336 Oct 25 14:06 libm.so.6
+-r--r--r-- 1 steven steven 1015768 Oct 25 14:06 libssl.so.3
+-r--r--r-- 1 steven steven 2939928 Oct 25 14:06 libstdc++.so.6
+-r--r--r-- 1 steven steven  108560 Oct 25 14:06 libz.so.1
+-r--r--r-- 1 steven steven  939976 Oct 25 14:06 libzstd.so.1

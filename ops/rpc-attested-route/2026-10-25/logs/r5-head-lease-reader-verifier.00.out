@@ -1,0 +1,28 @@
+$ node --test --test-timeout=300000 --test-concurrency=1 --test-reporter=spec test/lease-reader-verifier.test.mjs
+✔ construction: the verifier is explicit, local, exclusive, and never mixed with provider clients (3.475934ms)
+✔ deployment/lease snapshot: one confirmed block, pinned by hash, fresh, with verified evidence (8.578706ms)
+✔ admin-directed migration: a repointed AddressBook entry is followed at the next fresh read (4.362228ms)
+✔ freshness, monotonicity, chain, reorganization and the single deadline all refuse (304.96991ms)
+✔ inside a read: only proof-backed methods at the pinned block; anything else refuses by name (3.138997ms)
+✔ proof failure, missing witness or an unreachable verifier: refused, cache untouched, nothing newly admitted (3.594013ms)
+✔ host admission + catalog moderation through the verifier: approve, yank, owner policy, and failures refuse (8.712264ms)
+✖ settlement pinned reads: anchors and metered bytes at the snapshot block, verified or refused (3.210446ms)
+✔ legacy quorum mode is unchanged by the new primitives (two agreeing clients, never one) (0.786034ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 8
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 619.569948
+
+✖ failing tests:
+
+test at test/lease-reader-verifier.test.mjs:207:1
+✖ settlement pinned reads: anchors and metered bytes at the snapshot block, verified or refused (3.210446ms)
+  Error: bandwidth payment quorum unavailable
+      at Object.chainBytes (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-stage/tmp/base-head/network/usdc-bandwidth.mjs:47:9)
+      at async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-stage/tmp/base-head/test/lease-reader-verifier.test.mjs:219:16)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)

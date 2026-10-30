@@ -1,0 +1,17 @@
+tp-off-1 rc=0 wall=90s foreign=0.42 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=21.62 workload=(1, 17, 64, 64, 43118)
+  plain 19.63 | spec k=1 21.62 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+tp-on-1 rc=0 wall=86s foreign=0.30 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=21.00 workload=(1, 17, 64, 64, 43118)
+  plain 18.92 | spec k=1 21.00 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+tp-on-2 rc=0 wall=85s foreign=0.19 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=21.81 workload=(1, 17, 64, 64, 43118)
+  plain 18.25 | spec k=1 21.81 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+tp-off-2 rc=0 wall=87s foreign=0.14 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=20.23 workload=(1, 17, 64, 64, 43118)
+  plain 19.95 | spec k=1 20.23 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+QUEUE-DONE

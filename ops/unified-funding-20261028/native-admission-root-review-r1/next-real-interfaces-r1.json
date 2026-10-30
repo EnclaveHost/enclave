@@ -1,0 +1,78 @@
+{
+  "schema": "enclave-native-admission-next-interfaces/1",
+  "status": "PREPARE_ONLY_SOURCE_DEPENDENCIES_NOT_IMPLEMENTED_OR_INSTALLED",
+  "reviewedAt": "2026-10-29T22:35:05.815756+00:00",
+  "coreConclusion": "Two real capabilities are missing: a host-local common reservation/launch owner honoured at BOTH actual allocation paths, and a real already-accounted parent able to create/assign/observe children before resume. No evidence proves either installed. Do not substitute more refusal stubs or a global VM drain.",
+  "allocationInterface": {
+    "smallestUnit": "One host-local allocation owner with reserve/start/observe/release operations shared by both manager roles and qualification, using existing ownership/durable primitives where applicable; not a router-only side flag. Implementation name is proposed, not existing.",
+    "joinPoint": {
+      "manager": "server.mjs:488-542: final synchronous pool checks + domains.set starting before backend.start; preserve this atomic local segment and feed its full exact reservation into shared owner. Awaiting cross-process acquisition requires repeating local checks afterward.",
+      "physicalEffects": "wmi-launcher.mjs:1122 defineType1/New-CustomVM at414 and :1145 startAndRead/Start-VM: hold must remain valid through both allocation effects and asynchronous outcomes. Both 8091 and8095, and their direct POST /vms paths, must reach the same owner. A gateway-only token misses direct calls.",
+      "router": "control.mjs:188-247 waiting closures are not admitted. Existing pending-head journal correctly precedes forwarding and stays until correlated backend reservation. Reuse identity correlation; do not count queue length as P or clear old pending records."
+    },
+    "actualOperations": [
+      "Acquire a bounded reservation atomically against fresh physical+commit availability, validated live floor >=18432, outstanding not-yet-reflected reservations and test budget. Bind owner incarnation/sequence, request/domain, physical+commit upper bounds and deadline. A manager then registers its full VM intent before actual create/start.",
+      "Every manager/direct launch must honour the held qualification budget; serialize or otherwise account the actual check-to-allocation interval across both processes. Keep outstanding start reservations even if RPC returns/timeout or owning manager dies. Unknown remains charged until independent exact VM/process correlation resolves it.",
+      "Existing running allocation stays represented by OS available memory; do not double-subtract guessed running totals. Starting/uncertain memory is charged fully; router head may be conservatively double-counted until exact epoch/id correlation. Other concurrent host work needs an explicit bound, not P=0.",
+      "A trusted creator queries/holds the actual live reservation object; envelope consumes this one-shot binding, not raw caller values. Either guarantee immutable upper bounds for the whole hold interval or revalidate incarnation/sequence/revocation at actual resume and through observation.",
+      "Expiry closes new launches and stops only the owned qualification tree; do not free the test reservation until its processes/unknown effects are settled. Never stop existing VMs merely to acquire capacity."
+    ],
+    "scopeBoundary": "Can cover the two managed APIs and all their WMI effects only once wired there. Arbitrary independent Hyper-V/admin consumers require an explicit controlled/covered interval or additional enforceable boundary; no source API can silently claim to constrain unrelated administrator actions.",
+    "notYetProven": "No installed shared owner/reservation hook, live account of all P/commit commitments, or enforceable coverage of direct/other allocations."
+  },
+  "creatorInterface": {
+    "existingCandidateParent": "The already-running local manager is a possible long-lived parent, but present psrun.mjs:131 only uses node child_process.spawn(exe,... windowsHide,shell:false); :149-158 uses timeout/kill-request with unresolved status. It neither creates a suspended child nor assigns a preconfigured Job. No native Job creator API was found in the reviewed source. SSH/task configuration is not evidence of that capability.",
+    "smallestRealAddition": "A narrowly scoped native createQualificationChild operation in an already-accounted trusted parent, providing real CreateProcess suspended, Job configuration/assignment and retained process/Job handles. This must be an actual installed native binding/service capability, not Node spawn of another unbounded helper. Parent implementation/placement remains a choice requiring evidence; there is no demonstrated existing compatible parent to simply call.",
+    "functionalContract": [
+      "Only exact pinned test executable/directory/phase and fresh nonce; real shared reservation acquired and linked to the invocation. Fixed-size parsing/output/handle lists and accounted incremental parent/kernel footprint; no arbitrary command executor.",
+      "Configure outer Job before creating/assigning/resuming the child; parent owns its non-inherited Job handle, wall deadline and bounded output pipes. Exact child handle/PID/creation recorded. Prove parent own lifetime/accounting separately; do not claim child self-check proves pre-entry timing.",
+      "Maintain a one-shot invocation record binding legitimate observer, exact wrapper and distinct descendant identities/provenance; observer mode cannot independently authorize a target from argv. Never pass test Job T to observer.",
+      "At timeout/error terminate only the owned job/tree; exact-process death/drain confirms release. Preserve uncertainty and reservation on unresolved outcomes. The requested action is test execution only, no running app manager shutdown."
+    ],
+    "notSufficient": [
+      "Old launcher17408 cutoff",
+      "New standalone creator with unbounded startup renamed bootstrap",
+      "PowerShell timeout or SSH disconnect as death proof",
+      "Observed aggregate384 Job cap described as independently enforced wrapper64",
+      "Caller handle identity or directory-name nonce alone as target authorization"
+    ]
+  },
+  "currentInstalledProofRequired": [
+    "For listeners8091/8095/8097: exact PID+creation, executable hash, startup entry/role, manifest/config pins and effective role/ports; before/after identity stability. Read only selected public fields and hashes, never raw env/credentials.",
+    "Bind each running process to its actual bootstrap/imported module closure: main.mjs, server.mjs, backend, wmi-launcher.mjs, psrun.mjs and router control/io/platform. On-disk matches alone do not prove a previously loaded Node module; require startup measurement/immutable release continuity or equivalent process-bound evidence.",
+    "Pin actual Hyper-V module/helpers containing New-CustomVM and Start-VM, effective manager memory pools/live floor and known direct launch entrypoints. Identify parent creator process executable/creation and actual Job constraints/capabilities; no service-name or task-SYSTEM inference.",
+    "Refresh authoritative same-epoch manager inventory and durable router head, physical+commit counters and actual reservation coverage. Independent creator incremental E/O/non-job overhead must be bounded, not defaulted to zero."
+  ],
+  "knownSourceProof": {
+    "routerControlSha256": "966fd3b5480e9859de4f1dc578b25afa1150e97552437e8c183c03bba4606e6a",
+    "serverSha256": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc",
+    "wmiSha256": "bba4c309f5a837e17bf44be54cd8e4c4432ad74174a7d09eda559f11f5ef250e",
+    "managerServerAndWmiMatchHistoricalInstalledBaseline": true,
+    "managerMainMatchesHistoricalInstalledBaseline": false,
+    "historicalMainSha256": "e7d05dc1d552c97e556591901d40913ab3521628f9111a012f7b77467f74b10b",
+    "r4MainSha256": "eacd28d75b6397ca7890f832e654ee476a482b2018660f21473e9d4e5f0d1ea7",
+    "freshInstalledProof": false,
+    "historicalProvenance": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/installed-manager-http-baseline-r1/PROVENANCE.json"
+  },
+  "deploymentBoundary": {
+    "sourceImplementation": "Implement the functional shared allocation owner + actual native parent creator, with real consumer tests. Separate from current refusal-only envelope. No further broad author is prepared here.",
+    "installation": "Current bootstrap imports modules once, and no existing live replacement hook was found. Writing new files does not change resident manager functions. Need a proven in-process extension/upgrade facility or separately engineered serving-manager ownership handover before claiming installation without downtime. Do not restart serving managers by assumption: existing recovery can lose relay/readiness.",
+    "nativeQualification": "Only after actual integrated parent/reservation implementation, installed source binding and fresh bounded admission are proven may one isolated disposable TEST run qualify actual Job/EXLOCK behavior. Build/import inspection is not that proof.",
+    "existingVMs": "Keep running VMs/relays/readers, ownership and journals untouched. No global drain needed for pre-admission queues. If no non-disruptive installation path exists, report that gap instead of silently stopping apps."
+  },
+  "noExecution": true,
+  "noSourceOrInputEdits": true,
+  "noNewAuthor": true,
+  "noRemoteOrFinancialActions": true,
+  "reviewedInputPins": {
+    "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/evidence/installed-router-v13/control.mjs": "966fd3b5480e9859de4f1dc578b25afa1150e97552437e8c183c03bba4606e6a",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/evidence/installed-router-v13/io.mjs": "3a81d403c8f9a4d20d2f7651b31ca5d5a8eb8acae9c2b817082ec1bae74083e2",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/evidence/installed-router-v13/platform.mjs": "cc0d52c6ebec92b27e0eebc772c970975d0c51ae5275782bd6641be385da7807",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/evidence/r4-manager/server.mjs": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/evidence/r4-manager/wmi-launcher.mjs": "bba4c309f5a837e17bf44be54cd8e4c4432ad74174a7d09eda559f11f5ef250e",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/evidence/r4-manager/main.mjs": "eacd28d75b6397ca7890f832e654ee476a482b2018660f21473e9d4e5f0d1ea7",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/evidence/r4-manager/psrun.mjs": "41142d0dc36ccad20941c74aa89c5189bdb9dcc904e267bbc5f79726111732ab",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/installed-manager-http-baseline-r1/bootstrap.mjs": "8b749fa787ce991577ae9007b0c4cf2a884e5d3d362e8444b9fbc15736de3b25",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/installed-manager-http-baseline-r1/PROVENANCE.json": "dc83085c865374dccdad36814751b1e66c078378c2a8dd0df33b5485fa25c624"
+  }
+}

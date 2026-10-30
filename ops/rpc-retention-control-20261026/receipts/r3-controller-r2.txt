@@ -1,0 +1,19 @@
+test_existing_active_retention_is_refused_never_adopted_or_stopped (test_controller.Controller.test_existing_active_retention_is_refused_never_adopted_or_stopped) ... ok
+test_first_active_no_marker_no_room_refuse_before_install_or_start (test_controller.Controller.test_first_active_no_marker_no_room_refuse_before_install_or_start) ... ok
+test_foreign_invocation_is_never_stopped (test_controller.Controller.test_foreign_invocation_is_never_stopped) ... ok
+test_lost_start_response_never_started_stops_nothing (test_controller.Controller.test_lost_start_response_never_started_stops_nothing) ... ok
+test_lost_start_response_with_unit_started_stops_exactly_our_invocation (test_controller.Controller.test_lost_start_response_with_unit_started_stops_exactly_our_invocation) ... ok
+test_max_hours_timeout_stops_our_invocation (test_controller.Controller.test_max_hours_timeout_stops_our_invocation) ... ok
+test_memory_breach_interrupts_a_blocking_guest_call_and_stops_only_ours (test_controller.Controller.test_memory_breach_interrupts_a_blocking_guest_call_and_stops_only_ours) ... ok
+test_retention_started_by_someone_else_before_our_start_is_refused (test_controller.Controller.test_retention_started_by_someone_else_before_our_start_is_refused) ... ok
+test_same_invocation_id_never_counts_as_completion (test_controller.Controller.test_same_invocation_id_never_counts_as_completion) ... ok
+test_signal_stops_our_invocation_promptly (test_controller.Controller.test_signal_stops_our_invocation_promptly) ... ok
+test_ssh_failure_mid_run_stops_our_invocation (test_controller.Controller.test_ssh_failure_mid_run_stops_our_invocation) ... ok
+test_start_refused_owns_nothing_and_stops_nothing (test_controller.Controller.test_start_refused_owns_nothing_and_stops_nothing) ... ok
+test_status_showing_incomplete_retention_is_not_success (test_controller.Controller.test_status_showing_incomplete_retention_is_not_success) ... ok
+test_success_new_invocation_completes_and_status_schema_validated (test_controller.Controller.test_success_new_invocation_completes_and_status_schema_validated) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 53.564s
+
+OK

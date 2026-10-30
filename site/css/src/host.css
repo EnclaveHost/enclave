@@ -18,11 +18,8 @@
 /* in-prose links carry the underline, never color alone (WCAG 1.4.1) */
 .hostdoc-list a{color:var(--jade);text-decoration:underline;text-underline-offset:3px;}
 .hostdoc-list a:hover,.hostdoc-list a:focus-visible{color:var(--jade-2);}
-/* command blocks are code wells: sunk below the page, comment ink dimmed */
-.hostdoc-code{margin:14px 0 16px;padding:14px 16px;overflow-x:auto;
-  background:var(--well);border:1px solid var(--line-soft);border-radius:var(--radius-sm);}
-.hostdoc-code code{display:block;font-family:var(--font-mono);font-size:.82rem;line-height:1.65;white-space:pre;color:var(--code-ink);}
-.hostdoc-code .c{color:var(--code-comment);font-style:italic;}
+/* shared Develop code blocks, with the host documentation spacing */
+.hostdoc .code{margin:14px 0 16px;}
 /* the shared .doc-note callout, restored against .hostdoc's own p rhythm */
 .hostdoc .doc-note p{margin:.2em 0;font-size:.9rem;}
 .host-fleet{margin-bottom:6px;}

@@ -1,0 +1,17 @@
+Oct 25 17:55:09 enclave-rpc python3[847]: 2026-10-25T17:55:09.596467Z  INFO Executed block range start=26263579 end=26263600 throughput="61.49Mgas/second"
+Oct 25 17:55:15 enclave-rpc python3[847]: 2026-10-25T17:55:15.597215Z  INFO Received forkchoice updated message when syncing head_block_hash=0xced0b41038bd7f161dc10c0e48d58288b7fc65a1c51f00c4789f68accbc22ba9 safe_block_hash=0x4154aba02ab618195c6933f294d68080fe78aa1fa5477accfc14b2ebe6ad08f2 finalized_block_hash=0x884f45a2360290c7c5695a08cb91b7da05fec3570db04e3f850c742cb927435a
+Oct 25 17:55:19 enclave-rpc python3[847]: 2026-10-25T17:55:19.907970Z  INFO Executed block range start=26263601 end=26263645 throughput="133.68Mgas/second"
+Oct 25 17:55:28 enclave-rpc python3[847]: 2026-10-25T17:55:28.314544Z  INFO Status connected_peers=1 stage=Execution checkpoint=26263578 target=26270382
+Oct 25 17:55:30 enclave-rpc python3[847]: 2026-10-25T17:55:30.978207Z  INFO Executed block range start=26263646 end=26263709 throughput="181.11Mgas/second"
+Oct 25 17:55:41 enclave-rpc python3[847]: 2026-10-25T17:55:41.503924Z  INFO Executed block range start=26263710 end=26263737 throughput="76.10Mgas/second"
+Oct 25 17:55:52 enclave-rpc python3[847]: 2026-10-25T17:55:52.491995Z  INFO Executed block range start=26263738 end=26263743 throughput="16.90Mgas/second"
+Oct 25 17:55:53 enclave-rpc python3[847]: 2026-10-25T17:55:53.314551Z  INFO Status connected_peers=2 stage=Execution checkpoint=26263578 target=26270382
+Oct 25 17:54:51 enclave-rpc base[918]: 2026-10-25T17:54:51.648618Z  INFO reth::cli: Fetching snapshot manifest source=https://mainnet-v2-snapshots.base.org/1792886410/manifest.json
+Oct 25 17:54:52 enclave-rpc base[918]: 2026-10-25T17:54:52.593247Z  INFO reth::cli: Loaded snapshot manifest block=53048526 chain_id=8453 storage_version=2 components=9
+Oct 25 17:54:52 enclave-rpc base[918]: 2026-10-25T17:54:52.593576Z  INFO reth::cli: Queued component for download component=State (mdbx) archives=1 selection=All
+Oct 25 17:54:52 enclave-rpc base[918]: 2026-10-25T17:54:52.593722Z  INFO reth::cli: Queued component for download component=Headers archives=107 selection=All
+Oct 25 17:54:52 enclave-rpc base[918]: 2026-10-25T17:54:52.593741Z  INFO reth::cli: Queued component for download component=Transactions archives=2 selection=Last 140000 blocks
+Oct 25 17:54:52 enclave-rpc base[918]: 2026-10-25T17:54:52.594066Z  INFO reth::cli: Queued component for download component=Receipts archives=2 selection=Last 140000 blocks
+Oct 25 17:54:52 enclave-rpc base[918]: 2026-10-25T17:54:52.594073Z  INFO reth::cli: Queued component for download component=Account Changesets archives=2 selection=Last 140000 blocks
+Oct 25 17:54:52 enclave-rpc base[918]: 2026-10-25T17:54:52.594080Z  INFO reth::cli: Queued component for download component=Storage Changesets archives=2 selection=Last 140000 blocks
+{"data":{"is_syncing":true,"is_optimistic":true,"el_offline":false,"head_slot":"15510144","sync_distance":"433"}}

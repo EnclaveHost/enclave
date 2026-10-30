@@ -1,0 +1,10 @@
+[
+  "REPORT-WINDOWS-PERMIT-R4.md",
+  "control/windows/node/isolation-lifecycle.mjs",
+  "control/windows/node/protected-isolation.mjs",
+  "control/windows/node/protected-supervisor.mjs",
+  "control/windows/vbslike/manager/compose.mjs",
+  "control/windows/vbslike/manager/main.mjs",
+  "control/windows/vbslike/manager/protected-manager.mjs",
+  "test/windows-permit/r4-supervisor-chain.test.mjs"
+]

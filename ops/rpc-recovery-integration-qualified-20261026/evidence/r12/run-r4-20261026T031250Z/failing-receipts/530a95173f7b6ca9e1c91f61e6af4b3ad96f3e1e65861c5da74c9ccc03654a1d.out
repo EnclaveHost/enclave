@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: the REAL supervisor sends no periodic registry transaction; real drift is corrected once; a deregistration is not undone
+not ok 1 - the REAL supervisor sends no periodic registry transaction; real drift is corrected once; a deregistration is not undone
+  ---
+  duration_ms: 1018.280884
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/offchain-heartbeat-writers.test.mjs:42:1'
+  failureType: 'testCodeFailure'
+  error: "ENOENT: no such file or directory, open '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/contracts/foundry/out/EnclaveDeployments.multicallValue.t.sol/MockFeed.json'"
+  code: 'ENOENT'
+  stack: |-
+    Object.readFileSync (node:fs:440:20)
+    art (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/helpers/cli-independent-rig.mjs:35:55)
+    startRig (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/helpers/cli-independent-rig.mjs:129:31)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/offchain-heartbeat-writers.test.mjs:44:13)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: negative control: the base supervisor DOES heartbeat on the same rig (the counter sees it)
+ok 2 - negative control: the base supervisor DOES heartbeat on the same rig (the counter sees it) # SKIP set OFFCHAIN_HEARTBEAT_BASE_SUPERVISOR to the base supervisor.js (a file in the repository root)
+  ---
+  duration_ms: 0.803601
+  type: 'test'
+  ...
+# Subtest: the REAL Windows node sends no transaction from its timers, dialed or tunnelled; its tick does not undo a deregistration; deliberate status and price writes still go out
+not ok 3 - the REAL Windows node sends no transaction from its timers, dialed or tunnelled; its tick does not undo a deregistration; deliberate status and price writes still go out
+  ---
+  duration_ms: 207.22229
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/offchain-heartbeat-writers.test.mjs:97:1'
+  failureType: 'testCodeFailure'
+  error: "ENOENT: no such file or directory, open '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/contracts/foundry/out/EnclaveDeployments.multicallValue.t.sol/MockFeed.json'"
+  code: 'ENOENT'
+  stack: |-
+    Object.readFileSync (node:fs:440:20)
+    art (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/helpers/cli-independent-rig.mjs:35:55)
+    startRig (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/helpers/cli-independent-rig.mjs:129:31)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/offchain-heartbeat-writers.test.mjs:99:13)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 0
+# fail 2
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 1392.871057

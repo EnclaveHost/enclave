@@ -1,5 +1,7 @@
+import "../components/code/code.js"; // Preserve the live Host code-copy release.
 import "../components/cinematic-scene/cinematic-scene.js";
 import "./hex-background.js";
+import "./core/deployment-search-clear.js";
 /* ============================================================
    Soft-navigation router. Full-document navigations can't be
    made seamless when an extension injects content scripts
@@ -37,6 +39,7 @@ const PAGES = {
   "sso-authorize": () => import("./pages/sso-authorize.js"), // Sign in with Enclave for TENANT apps - EST1 hand-off (relay/sso.js)
   grant:     () => import("./pages/grant.js"),     // approve a session an agent/device asked for (enclave session new)
   sessions:  () => import("./pages/sessions.js"),  // every session that can act for the wallet; owner controls
+  funding:   () => import("./pages/funding.js"),   // gas funding: owner controls + reviewed migration; offers nothing while FUNDING_RUNTIME is null
 };
 // URL aliases: pathnames that render ANOTHER page's document. /apps/publish
 // is the canonical publish-form URL, but it stays a view of the Apps page -

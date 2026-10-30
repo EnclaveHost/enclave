@@ -1,0 +1,246 @@
+{
+  "manifest": "c7cb436db609f361a07d5f32a8a0d71f4fc399f329d244ff2512da8ca34dfca4",
+  "files": [
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/supervisor.js",
+      "relative": "supervisor.js",
+      "sha256": "01ac9cb17a5a5af6df8992121c75239a580845748ae89f3843e080a617a5f951",
+      "bytes": 811736
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/addressbook.js",
+      "relative": "addressbook.js",
+      "sha256": "fe3f27e6c64367c9b9f14742315efc9357aaed88e2f831b3754832fd74b1ce92",
+      "bytes": 5066
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/egress.js",
+      "relative": "egress.js",
+      "sha256": "99a99f08e08a66472b8921d38d05d9a63d65c76a0eb6ac085d511c447df3dbd8",
+      "bytes": 5911
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/net-guard.mjs",
+      "relative": "net-guard.mjs",
+      "sha256": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af",
+      "bytes": 9847
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/windows/node/session-api-auth.mjs",
+      "relative": "windows/node/session-api-auth.mjs",
+      "sha256": "5920ece87c022f3597c8306614cfb7370c4865b14f48bce48c631bfecd51c9cb",
+      "bytes": 23907
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/windows/node/verification-checkpoints.mjs",
+      "relative": "windows/node/verification-checkpoints.mjs",
+      "sha256": "aa69b54db648fe9439f9661727b81633dd46a2cb321627e3a78f6bc8b202ff29",
+      "bytes": 2642
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/windows/node/host-admission.bundle.mjs",
+      "relative": "windows/node/host-admission.bundle.mjs",
+      "sha256": "e83515fca7468d5d6636631617d73d9ed9ef12b798439e7aaed347f2f524182c",
+      "bytes": 347207
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/sdk/bootstrap/package.mjs",
+      "relative": "sdk/bootstrap/package.mjs",
+      "sha256": "17cc4cbaad3c8bc7ab9df99ca8b88d00674f7bed6825be33004375cff1b02e2a",
+      "bytes": 17866
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/sdk/bootstrap/storage.mjs",
+      "relative": "sdk/bootstrap/storage.mjs",
+      "sha256": "98e22b7b87b6d636cf6001d9ba859f4da3443af42f386deeb74ac622bcefccb3",
+      "bytes": 2504
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/sdk/storage/gateways.mjs",
+      "relative": "sdk/storage/gateways.mjs",
+      "sha256": "ea34a5a01e2371aa63be5c62422f19d25c8b62b454eba90a75e7dbb4cbe85119",
+      "bytes": 1825
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/sdk/storage/upload-auth.mjs",
+      "relative": "sdk/storage/upload-auth.mjs",
+      "sha256": "9db7b86361b7d5722d0f8de0ed85721f0e7bf40f3477fb1d8bde1ec79017b7b1",
+      "bytes": 239
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/sdk/storage/replicas.mjs",
+      "relative": "sdk/storage/replicas.mjs",
+      "sha256": "64db5cbf71ca00effe81e6a288c103b08b205daebc9132f2f76fcc7e6e920e25",
+      "bytes": 2853
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/site/js/core/upload-auth.js",
+      "relative": "site/js/core/upload-auth.js",
+      "sha256": "e72157590a00d634f7301e5bba2741901f0ec107235d7298ccccace12a265d23",
+      "bytes": 4070
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/isolation/m4/guestd/supervisor-transport.mjs",
+      "relative": "isolation/m4/guestd/supervisor-transport.mjs",
+      "sha256": "bd8579ba7daae01f4160c72c6c937dacb151b3e9ffef21d1e9f93706e0fbcb75",
+      "bytes": 4013
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/isolation/m4/guestd/control-client.mjs",
+      "relative": "isolation/m4/guestd/control-client.mjs",
+      "sha256": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6",
+      "bytes": 11701
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/isolation/m4/guestd/supervisor-splice.mjs",
+      "relative": "isolation/m4/guestd/supervisor-splice.mjs",
+      "sha256": "dcfc95b315995750ce1c19caef9d4551fdb6735a35b7bbdbf91a54cd29b2066b",
+      "bytes": 17220
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/isolation/m4/guestd/supervisor-guestcert.mjs",
+      "relative": "isolation/m4/guestd/supervisor-guestcert.mjs",
+      "sha256": "136c73ac6612c435f1571cf059d0171f8f93f02a7b93bc25dc55606afef41597",
+      "bytes": 18619
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/isolation/m2/judge.mjs",
+      "relative": "isolation/m2/judge.mjs",
+      "sha256": "650b931d32ef72c84459141f6deeaf0f5a7a4e8c6441ac95f47f4bd8a624f1dd",
+      "bytes": 39168
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/isolation/contract/runtime.mjs",
+      "relative": "isolation/contract/runtime.mjs",
+      "sha256": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69",
+      "bytes": 6224
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/relay/snp-verify.mjs",
+      "relative": "relay/snp-verify.mjs",
+      "sha256": "10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91",
+      "bytes": 25976
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/client/lease-executor-authority.mjs",
+      "relative": "client/lease-executor-authority.mjs",
+      "sha256": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99",
+      "bytes": 9263
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/client/lease-executor-client.mjs",
+      "relative": "client/lease-executor-client.mjs",
+      "sha256": "5193da71542098cbad98a723be575abc575147e0a9649e804d27697c8e3c7dfe",
+      "bytes": 57836
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/network/canonical.mjs",
+      "relative": "network/canonical.mjs",
+      "sha256": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3",
+      "bytes": 698
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/network/host-capacity-producer.mjs",
+      "relative": "network/host-capacity-producer.mjs",
+      "sha256": "d5d371ff6f37cfc5c6aed0dc58f7154b1caeef60254588ca3de64ead8ec896f0",
+      "bytes": 7579
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/network/host-capacity-record.mjs",
+      "relative": "network/host-capacity-record.mjs",
+      "sha256": "62057bca458918e221e2850c850d8e9085c75f5fbc4e7b4b68e281e072781551",
+      "bytes": 9093
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/network/lease-executor-authority.mjs",
+      "relative": "network/lease-executor-authority.mjs",
+      "sha256": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99",
+      "bytes": 9263
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/network/lease-executor-client.mjs",
+      "relative": "network/lease-executor-client.mjs",
+      "sha256": "c2eb2e6a6246cf8c65bc3410f306acd1b119991464825c7d78e1476dd02bcb1a",
+      "bytes": 150
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/network/lease-gas-owner.mjs",
+      "relative": "network/lease-gas-owner.mjs",
+      "sha256": "a3163e386c2718dd31cdbf91ecc0eab3865c2c34d46b33809bbede6ab340cde9",
+      "bytes": 45664
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/network/lease-gas-runtime.mjs",
+      "relative": "network/lease-gas-runtime.mjs",
+      "sha256": "6a72857a37d5ea9d1ac10a9cb70f7bc3cf6b7c987ebe17c43ff97e2c1ef47b75",
+      "bytes": 5497
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/network/lease-release-journal.mjs",
+      "relative": "network/lease-release-journal.mjs",
+      "sha256": "6411481a118b341e3efcd99bbaad6da644d490fd2815abd40033014f7edf2ff6",
+      "bytes": 6674
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/network/registry-reconcile.mjs",
+      "relative": "network/registry-reconcile.mjs",
+      "sha256": "ed593417514919904c2906f0a439756ddca87957c37455f5864cca632aa7bc4e",
+      "bytes": 2865
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/network/rpc-identity.mjs",
+      "relative": "network/rpc-identity.mjs",
+      "sha256": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
+      "bytes": 5636
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/metal/guest/gsup.mjs",
+      "relative": "metal/guest/gsup.mjs",
+      "sha256": "c2896d743e36be8fa1832f1f6f0e41042140b61549fd780f32c1921d5a157e99",
+      "bytes": 49848
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/metal/guest/agent.mjs",
+      "relative": "metal/guest/agent.mjs",
+      "sha256": "4917a30f7cba99c2406d9ea7009a4ce13385f34bb77823d370828f0e7dbb356a",
+      "bytes": 27135
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/metal/guest/host-policy.bundle.mjs",
+      "relative": "metal/guest/host-policy.bundle.mjs",
+      "sha256": "8b2dfbc6b5466d3c4f4559c15d874824f1ddddd3e530667a3848b3141b477af9",
+      "bytes": 35371
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/metal/guest/shielded.mjs",
+      "relative": "metal/guest/shielded.mjs",
+      "sha256": "f38f0abcaef8029edfd7144adc3c7ccea87c7291107265863195117bc60bdb7f",
+      "bytes": 14118
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/metal/guest/shielded-probe.mjs",
+      "relative": "metal/guest/shielded-probe.mjs",
+      "sha256": "e3ff32ee3a993f1f94603f0d1dbdcfc0169be1c3da91b575d5613fd5450e831f",
+      "bytes": 12779
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/metal/guest/shielded-shm.mjs",
+      "relative": "metal/guest/shielded-shm.mjs",
+      "sha256": "92d3a36942244658fe6f7e0b1a070611db631076d914efda66935152cbb84731",
+      "bytes": 2972
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/metal/guest/measured-control.mjs",
+      "relative": "metal/guest/measured-control.mjs",
+      "sha256": "bf7d4ddf25bc2f173450fd4658ccd5c4e6a913de57b0ae8709d8486779b2f94a",
+      "bytes": 39482
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/metal/guest/lease-gas-conduit.bundle.mjs",
+      "relative": "metal/guest/lease-gas-conduit.bundle.mjs",
+      "sha256": "d0b8ef9c4842030c6bfd1173bdad1dd76e096da998a2046a6d70f0fce8528247",
+      "bytes": 38165
+    }
+  ],
+  "mismatches": []
+}

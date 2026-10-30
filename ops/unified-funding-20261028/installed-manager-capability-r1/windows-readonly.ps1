@@ -1,0 +1,5 @@
+$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'
+$files=@('windows/node/isolation-client.mjs','windows/vbslike/manager/server.mjs','windows/vbslike/manager/backend.mjs','windows/vbslike/manager/main.mjs','windows/vbslike/manager/desktop-router.mjs')
+$rows=@(); foreach($rel in $files){$f=Join-Path 'C:\Program Files\Enclave\control' $rel; if(Test-Path -LiteralPath $f){$rows+=@{path=$f;sha256=(Get-FileHash -LiteralPath $f -Algorithm SHA256).Hash.ToLowerInvariant();capabilityLines=@(Select-String -LiteralPath $f -Pattern 'leaseExpired|leaseUntil|lease_until|validUntil|servingPermit|hostAuthorityPermit|heartbeat|keepalive|/health|/vms' | ForEach-Object { @{line=$_.LineNumber;text=$_.Line.Trim()} })}}}
+$health=@();foreach($port in @(8095,8097)){try{$h=Invoke-RestMethod -Uri ('http://127.0.0.1:'+ $port +'/health') -TimeoutSec 5;$health+=@{port=$port;backend=$h.backend;supports=$h.supports;runtime=$h.runtime;boundary=$h.boundary;canStart=$h.canStart}}catch{$health+=@{port=$port;error='health request unavailable'}}}
+@{checkedAt=[DateTime]::UtcNow.ToString('o');files=$rows;health=$health}|ConvertTo-Json -Depth 9 -Compress

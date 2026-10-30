@@ -1,0 +1,37 @@
+{
+  "status": "SOURCE_TASK_PREPARATION_NOT_IMPLEMENTATION",
+  "seedFiles": 252,
+  "productEditsBeforeAuthor": [],
+  "requiresPositiveDelivery": true,
+  "ownerOperations": [
+    "acquire",
+    "validate",
+    "observe",
+    "release"
+  ],
+  "actualConsumers": [
+    "two configured manager clients sharing one owner",
+    "direct manager HTTP",
+    "protected internal spawn",
+    "backend captured-launch closure",
+    "WMI define and start seams"
+  ],
+  "preserve": [
+    "root140 existing tests",
+    "chain79771 quarantine",
+    "three r12 repairs",
+    "shipped bundles",
+    "all original VM/authority/journal/legacy serving obligations"
+  ],
+  "nonGoals": [
+    "live activation",
+    "native creator",
+    "hot-loader/debugger injection",
+    "serving VM pause/recovery/restart",
+    "Windows qualification"
+  ],
+  "resourceGap": "Pre-admission/fetch/helper/kernel/other allocations and E/P/O remain explicit unknown unless independently covered; VM cap alone is incomplete.",
+  "rootReviewBeforeLaunch": true,
+  "testsBuildsRun": false,
+  "authorLaunched": false
+}

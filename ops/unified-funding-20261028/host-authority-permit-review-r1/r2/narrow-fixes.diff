@@ -1,0 +1,21 @@
+--- terminal/src/tools/generate-host-authority-permit-candidates.mjs
++++ root-r2/src/tools/generate-host-authority-permit-candidates.mjs
+@@ -77,7 +77,7 @@
+       if (this.hostAuthority.failed?.()) for (const id of new Set([...this.entries.keys(), ...this.resources.keys()])) this.hold(id, 'host authority journal unknown');
+       throw e;
+     }
+-    if (how === 'advance') for (const [id, e] of [...this.entries]) if (e.hostAuthority !== c.digest) this.hold(id, 'host authority advanced');
++    if (how === 'advance') for (const [id, e] of [...this.entries]) if (e.host === c.hostId && e.hostAuthority !== c.digest) this.hold(id, 'host authority advanced');
+     return how;
+   }
+   /** Explicit safe handoff of ONE app context to the exact CURRENT host authority, only while nothing of it is installed or tracked. */
+--- terminal/src/network/deployment-host-authority.mjs
++++ root-r2/src/network/deployment-host-authority.mjs
+@@ -175,6 +175,6 @@
+   if (!a || !Number.isSafeInteger(blockSec)) throw Error('snapshot lacks an authenticated assignment for the serving context');
+   return { ...base, policy: snapshot.policy, assignment: { deployment: snapshot.id, host: a.host, state: a.state, operator: a.operator,
+     generation: a.generation, policyRevision: a.revision, admitted: snapshot.admitted === true, funded: snapshot.funded === true,
+-    authorityTier: snapshot.authorityTier, proofVerified: snapshot.proofVerified === true, observedAt: blockSec, blockTimestamp: blockSec,
++    authorityTier: snapshot.authorityTier, proofVerified: snapshot.verified === true, observedAt: blockSec, blockTimestamp: blockSec,
+     blockHash: String(snapshot.blockHash || '').toLowerCase() } };
+ }

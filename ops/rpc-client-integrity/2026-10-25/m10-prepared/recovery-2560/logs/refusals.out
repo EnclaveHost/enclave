@@ -1,0 +1,12 @@
+[queue] START available=20200MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+[ok] 1 generator refuses a job that is not 51ffbda2
+[ok] 2 --check refuses a body with a changed test option
+[ok] 3 missing RUSTFLAGS refused before step 0
+[ok] 4 two compiler jobs refused
+[ok] 5 DRY cannot consume a real attempt number
+[ok] 6 a real run outside a 2560 MiB cgroup is refused before the body (memory.max 268435456)
+[ok] 7 refusals created no attempt logs or regeneration dirs
+## refusals rc=0
+[memory-guard] exit=0 peakTreeRssMiB=10 minHostAvailableMiB=20167
+[memory-guard] at peak: bash:4 bash:4 bash:2
+[queue] EXIT 0

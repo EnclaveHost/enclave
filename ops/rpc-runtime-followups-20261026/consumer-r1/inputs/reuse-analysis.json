@@ -1,0 +1,98 @@
+{
+ "paid-v3 (receipt root-paid-v3-full-1297)": {
+  "test/paid-derived-adapter.test.mjs": {
+   "closureFiles": 44,
+   "touchedByOtherComponent": [],
+   "reuse": true
+  },
+  "test/paid-derived-packaging.test.mjs": {
+   "closureFiles": 189,
+   "touchedByOtherComponent": [],
+   "reuse": true
+  },
+  "test/stack-provider-authority.test.mjs": {
+   "closureFiles": 37,
+   "touchedByOtherComponent": [],
+   "reuse": true
+  },
+  "test/attested-provider-collateral.test.mjs": {
+   "closureFiles": 63,
+   "touchedByOtherComponent": [],
+   "reuse": true
+  },
+  "test/wg-provider.test.mjs": {
+   "closureFiles": 13,
+   "touchedByOtherComponent": [],
+   "reuse": true
+  },
+  "test/paid-network.test.mjs": {
+   "closureFiles": 27,
+   "touchedByOtherComponent": [],
+   "reuse": true
+  },
+  "test/verified-chain.test.mjs": {
+   "closureFiles": 30,
+   "touchedByOtherComponent": [],
+   "reuse": true
+  },
+  "test/service-index.test.mjs": {
+   "closureFiles": 24,
+   "touchedByOtherComponent": [],
+   "reuse": true
+  },
+  "test/attested-paid-provider.test.mjs": {
+   "closureFiles": 85,
+   "touchedByOtherComponent": [],
+   "reuse": true
+  },
+  "test/attested-route-composition.test.mjs": {
+   "closureFiles": 84,
+   "touchedByOtherComponent": [],
+   "reuse": true
+  },
+  "test/attested-chain-verifier.test.mjs": {
+   "closureFiles": 133,
+   "touchedByOtherComponent": [],
+   "reuse": true
+  },
+  "test/derived-reader.test.mjs": {
+   "closureFiles": 34,
+   "touchedByOtherComponent": [],
+   "reuse": true
+  },
+  "test/lifecycle-finality-bridge.test.mjs": {
+   "closureFiles": 8,
+   "touchedByOtherComponent": [],
+   "reuse": true
+  }
+ },
+ "writer r3 (receipt root-writer-v3-1273)": {
+  "test/derived-writer-authority.test.mjs": {
+   "closureFiles": 3,
+   "touchedByOtherComponent": [],
+   "reuse": true
+  },
+  "test/derived-writer-authority-abi.test.mjs": {
+   "closureFiles": 3,
+   "touchedByOtherComponent": [],
+   "reuse": true
+  },
+  "test/derived-writer-authority-kvm-store.test.mjs": {
+   "closureFiles": 3,
+   "touchedByOtherComponent": [],
+   "reuse": true
+  },
+  "writer startup (relay/api-relay.js + generated runtime bundle)": {
+   "closureFiles": 127,
+   "touchedByOtherComponent": [
+    "network/onchain-qualification.mjs"
+   ],
+   "reuse": false
+  },
+  "writer api-composition check": {
+   "closureFiles": 29,
+   "touchedByOtherComponent": [],
+   "reuse": true
+  }
+ }
+}

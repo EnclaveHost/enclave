@@ -1,0 +1,20 @@
+[queue] START available=19821MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+baseline passes
+killed regolith-strip
+killed header-hash
+killed root-compare
+killed drop-deposit-nonce
+killed inline-threshold
+killed tx-index-order
+killed receipt-bloom
+killed deposit-version
+killed gas-total
+killed status-encoding
+killed brand-check
+killed tx-unbound
+killed safe-integer
+killed resource-bound
+## mutants rc=0
+[memory-guard] exit=0 peakTreeRssMiB=180 minHostAvailableMiB=19502
+[memory-guard] at peak: node:117 node:58 sh:4 sh:2
+[queue] EXIT 0

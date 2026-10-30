@@ -1,0 +1,196 @@
+[queue] START available=30710MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: complete price includes bounded L2/L1/operator and one ceiling
+ok 1 - complete price includes bounded L2/L1/operator and one ceiling
+  ---
+  duration_ms: 17.495163
+  type: 'test'
+  ...
+# Subtest: chain mismatch refuses quote without fallback
+ok 2 - chain mismatch refuses quote without fallback
+  ---
+  duration_ms: 0.898142
+  type: 'test'
+  ...
+# Subtest: stale block refuses quote without fallback
+ok 3 - stale block refuses quote without fallback
+  ---
+  duration_ms: 0.442456
+  type: 'test'
+  ...
+# Subtest: zero header refuses quote without fallback
+ok 4 - zero header refuses quote without fallback
+  ---
+  duration_ms: 0.397406
+  type: 'test'
+  ...
+# Subtest: missing basefee refuses quote without fallback
+ok 5 - missing basefee refuses quote without fallback
+  ---
+  duration_ms: 0.511815
+  type: 'test'
+  ...
+# Subtest: missing code refuses quote without fallback
+ok 6 - missing code refuses quote without fallback
+  ---
+  duration_ms: 0.425156
+  type: 'test'
+  ...
+# Subtest: altered code refuses quote without fallback
+ok 7 - altered code refuses quote without fallback
+  ---
+  duration_ms: 0.794453
+  type: 'test'
+  ...
+# Subtest: changed implementation refuses quote without fallback
+ok 8 - changed implementation refuses quote without fallback
+  ---
+  duration_ms: 1.1084
+  type: 'test'
+  ...
+# Subtest: changed aggregator refuses quote without fallback
+ok 9 - changed aggregator refuses quote without fallback
+  ---
+  duration_ms: 1.09426
+  type: 'test'
+  ...
+# Subtest: stale price refuses quote without fallback
+ok 10 - stale price refuses quote without fallback
+  ---
+  duration_ms: 1.405147
+  type: 'test'
+  ...
+# Subtest: future price refuses quote without fallback
+ok 11 - future price refuses quote without fallback
+  ---
+  duration_ms: 1.030441
+  type: 'test'
+  ...
+# Subtest: negative price refuses quote without fallback
+ok 12 - negative price refuses quote without fallback
+  ---
+  duration_ms: 1.647916
+  type: 'test'
+  ...
+# Subtest: incomplete round refuses quote without fallback
+ok 13 - incomplete round refuses quote without fallback
+  ---
+  duration_ms: 1.073401
+  type: 'test'
+  ...
+# Subtest: wrong decimals refuses quote without fallback
+ok 14 - wrong decimals refuses quote without fallback
+  ---
+  duration_ms: 0.756414
+  type: 'test'
+  ...
+# Subtest: wrong description refuses quote without fallback
+ok 15 - wrong description refuses quote without fallback
+  ---
+  duration_ms: 0.766063
+  type: 'test'
+  ...
+# Subtest: no Fjord refuses quote without fallback
+ok 16 - no Fjord refuses quote without fallback
+  ---
+  duration_ms: 0.435896
+  type: 'test'
+  ...
+# Subtest: no Isthmus refuses quote without fallback
+ok 17 - no Isthmus refuses quote without fallback
+  ---
+  duration_ms: 0.866032
+  type: 'test'
+  ...
+# Subtest: no L1 answer refuses quote without fallback
+ok 18 - no L1 answer refuses quote without fallback
+  ---
+  duration_ms: 1.15086
+  type: 'test'
+  ...
+# Subtest: zero L1 answer refuses quote without fallback
+ok 19 - zero L1 answer refuses quote without fallback
+  ---
+  duration_ms: 1.090461
+  type: 'test'
+  ...
+# Subtest: no operator answer refuses quote without fallback
+ok 20 - no operator answer refuses quote without fallback
+  ---
+  duration_ms: 1.689435
+  type: 'test'
+  ...
+# Subtest: sequencer down refuses quote without fallback
+ok 21 - sequencer down refuses quote without fallback
+  ---
+  duration_ms: 0.992521
+  type: 'test'
+  ...
+# Subtest: sequencer grace refuses quote without fallback
+ok 22 - sequencer grace refuses quote without fallback
+  ---
+  duration_ms: 1.384157
+  type: 'test'
+  ...
+# Subtest: no envelope guard refuses price
+ok 23 - no envelope guard refuses price
+  ---
+  duration_ms: 0.364786
+  type: 'test'
+  ...
+# Subtest: fee cannot exceed grant cap
+ok 24 - fee cannot exceed grant cap
+  ---
+  duration_ms: 1.08977
+  type: 'test'
+  ...
+# Subtest: configuration requires size/gas and rejects insufficient size
+ok 25 - configuration requires size/gas and rejects insufficient size
+  ---
+  duration_ms: 0.343927
+  type: 'test'
+  ...
+# Subtest: changed accepted intent and excessive post-signature gas refuse envelope
+ok 26 - changed accepted intent and excessive post-signature gas refuse envelope
+  ---
+  duration_ms: 2.849384
+  type: 'test'
+  ...
+# Subtest: current cost increase refuses previously quoted fee
+ok 27 - current cost increase refuses previously quoted fee
+  ---
+  duration_ms: 2.342169
+  type: 'test'
+  ...
+# Subtest: every envelope dimension enforced; replacements stop at cap
+ok 28 - every envelope dimension enforced; replacements stop at cap
+  ---
+  duration_ms: 4.316942
+  type: 'test'
+  ...
+# Subtest: independent viem RLP serialization matches exact signed maximum at integer boundaries
+ok 29 - independent viem RLP serialization matches exact signed maximum at integer boundaries
+  ---
+  duration_ms: 2.599077
+  type: 'test'
+  ...
+# Subtest: L1 argument covers conservative compression length for every allowed size
+ok 30 - L1 argument covers conservative compression length for every allowed size
+  ---
+  duration_ms: 2.090562
+  type: 'test'
+  ...
+1..30
+# tests 30
+# suites 0
+# pass 30
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 191.021586
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

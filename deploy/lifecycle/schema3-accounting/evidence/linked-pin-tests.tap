@@ -1,0 +1,100 @@
+TAP version 13
+# Subtest: known link slots resolve; missing/extra bindings and unresolved slots refuse
+ok 1 - known link slots resolve; missing/extra bindings and unresolved slots refuse
+  ---
+  duration_ms: 2.266404
+  type: 'test'
+  ...
+# Subtest: overlapping/out-of-range/wrong-width and already-linked ranges refuse
+ok 2 - overlapping/out-of-range/wrong-width and already-linked ranges refuse
+  ---
+  duration_ms: 0.404397
+  type: 'test'
+  ...
+# Subtest: library self address is resolved independently from template
+ok 3 - library self address is resolved independently from template
+  ---
+  duration_ms: 19.74764
+  type: 'test'
+  ...
+# Subtest: all immutable slots bind exact reviewed values with overlap protection
+ok 4 - all immutable slots bind exact reviewed values with overlap protection
+  ---
+  duration_ms: 0.337098
+  type: 'test'
+  ...
+# Subtest: positive mock snapshot checks independent library code and exact same block
+ok 5 - positive mock snapshot checks independent library code and exact same block
+  ---
+  duration_ms: 4.397659
+  type: 'test'
+  ...
+# Subtest: unchanged ledger code does not hide library code replacement
+ok 6 - unchanged ledger code does not hide library code replacement
+  ---
+  duration_ms: 0.718645
+  type: 'test'
+  ...
+# Subtest: missing library code refuses
+ok 7 - missing library code refuses
+  ---
+  duration_ms: 0.457406
+  type: 'test'
+  ...
+# Subtest: template hash is not accepted as actual deployed library pin
+ok 8 - template hash is not accepted as actual deployed library pin
+  ---
+  duration_ms: 0.420977
+  type: 'test'
+  ...
+# Subtest: wrong library address cannot match existing linked ledger
+ok 9 - wrong library address cannot match existing linked ledger
+  ---
+  duration_ms: 0.966613
+  type: 'test'
+  ...
+# Subtest: duplicate address and missing/extra profile dependencies refuse
+ok 10 - duplicate address and missing/extra profile dependencies refuse
+  ---
+  duration_ms: 1.124592
+  type: 'test'
+  ...
+# Subtest: unknown library artifact cannot be supplied by profile alone
+ok 11 - unknown library artifact cannot be supplied by profile alone
+  ---
+  duration_ms: 0.479557
+  type: 'test'
+  ...
+# Subtest: wrong controller pair refuses despite all matching code pins
+ok 12 - wrong controller pair refuses despite all matching code pins
+  ---
+  duration_ms: 0.670415
+  type: 'test'
+  ...
+# Subtest: registry code is independently checked
+ok 13 - registry code is independently checked
+  ---
+  duration_ms: 0.488237
+  type: 'test'
+  ...
+# Subtest: RPC labels and failed reads cannot become authenticated authority
+ok 14 - RPC labels and failed reads cannot become authenticated authority
+  ---
+  duration_ms: 1.097143
+  type: 'test'
+  ...
+# Subtest: schema2 profile is not silently treated as schema3
+ok 15 - schema2 profile is not silently treated as schema3
+  ---
+  duration_ms: 0.312018
+  type: 'test'
+  ...
+1..15
+# tests 15
+# suites 0
+# pass 15
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 213.927722

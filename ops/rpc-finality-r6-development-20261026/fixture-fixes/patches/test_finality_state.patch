@@ -1,0 +1,50 @@
+--- r6/tests/test_finality_state.py
++++ r6-test-fixes/tests/test_finality_state.py
+@@ -230,7 +230,9 @@
+         self.assertEqual(FS.status(self.d, self.t / 'chain.json', self.fdir, 'http://127.0.0.1:1/', W=self.W, top=self.t, proc=self.proc)['state'], 'none')
+         self.refused('a1_capture', self.q, a1={'initialOut': 'x', 'recheckOut': str(self.t / 'absent')})
+         self.refused('a1_capture', self.q, a1=str(self.t / 'a1'))
+-        self.refused('path', FS.status, self.d, self.t / 'chain.json', self.t / 'no-finality-dir', 'http://127.0.0.1:1/', W=self.W, top=self.t, proc=self.proc)
++        # r6-test-fixes: r6 binds a launch's finality journal to <launch-dir>/finality (finality_dir_of), so any other directory, a
++        # missing one included, refuses with finality_dir BEFORE any path check (src/finality_state.py:454-457)
++        self.refused('finality_dir', FS.status, self.d, self.t / 'chain.json', self.t / 'no-finality-dir', 'http://127.0.0.1:1/', W=self.W, top=self.t, proc=self.proc)
+ 
+     def test_launch_pin_absent_or_different_refuses(self):
+         self.write_launch(pin='0' * 64); self.refused('launch_pin', self.q)
+@@ -390,7 +392,10 @@
+         boot = lambda ref: ('c' * 64, {'event': 'bootstrapped', 'seq': 3, 'evidence': {'finalityEntrySha256': ref, 'finalitySeq': 1}})
+         self.W.events = base + [boot(e)]
+         s = st(); self.assertEqual((s['state'], s['recordedAs'], s['process']['startTime'], s['freshN']), ('qualified', 'c' * 64, '111', NP))
+-        self.W.events = base + [boot('0' * 64)]; self.assertEqual(st()['state'], 'stale-launch-changed')          # names another entry
++        # r6-test-fixes: a bootstrapped event naming ANOTHER entry is now caught by anchored() (src/finality_state.py:463-472) before the
++        # staleness check: status reports refused with exactly finality_journal_rolled_back (never merely 'any refusal')
++        self.W.events = base + [boot('0' * 64)]; s = st()                                                         # names another entry
++        self.assertEqual((s['state'], s['qualified']), ('refused', False)); self.assertTrue(s['refused'].startswith('finality_journal_rolled_back: '), s['refused'])
+         self.W.events = base + [boot(e), ('d' * 64, {'event': 'restarted', 'seq': 4})]; self.assertEqual(st()['state'], 'stale-launch-changed')
+         self.W.events = [base[0], ('z' * 64, {'event': 'consumed', 'seq': 2}), boot(e)]; self.assertEqual(st()['state'], 'stale-launch-changed')
+         self.W.events = base + [boot(e)]; self.make_proc(port=1, start='999'); self.assertEqual(st()['state'], 'stale-after-restart')
+@@ -399,7 +404,9 @@
+         self.fake_core(); FS.FINALITY_PROTOTYPE_REVIEWED = True
+         self.q(write=True); (self.t / 'run').mkdir(); out = self.t / 'run/base-finality-status.json'
+         st = lambda: FS.status(self.d, self.t / 'chain.json', self.fdir, 'http://127.0.0.1:1/', W=self.W, top=self.t, proc=self.proc)
+-        a = types.SimpleNamespace(finality_status=None, finality_status_uid=os.getuid(), proc_root=self.proc)
++        # r6-test-fixes: the r6 gate also bounds the published file's age (readiness_sampler.py:330); the fixture now carries the CLI's
++        # own default (--max-finality-status-age 900, readiness_sampler.py:989) instead of omitting the attribute
++        a = types.SimpleNamespace(finality_status=None, finality_status_uid=os.getuid(), proc_root=self.proc, max_finality_status_age=900)
+         def code(exc):
+             with self.assertRaises(exc) as cm:
+                 RS.validate_finality_status(a)
+@@ -427,9 +434,11 @@
+         self.q(write=True); FS.revoke(self.d, self.t / 'chain.json', self.fdir, 'operator', W=self.W, now=NOW, top=self.t)
+         self.assertEqual(self.W.events[-1][1]['event'], 'finality-terminal')
+         (self.fdir / '000002.json').unlink()                                          # the revoked tail deleted / older copy restored
+-        self.refused('terminal', self.q, a1=self.make_a1('t3', n=NP + 3, l1=L1 + 400), write=True)
++        # r6-test-fixes: the launch journal still names the deleted entry 2, so anchored() refuses the truncated journal outright
++        # (finality_journal_rolled_back, src/finality_state.py:471) before the terminal check: still never revived, now exactly coded
++        self.refused('finality_journal_rolled_back', self.q, a1=self.make_a1('t3', n=NP + 3, l1=L1 + 400), write=True)
+         st = FS.status(self.d, self.t / 'chain.json', self.fdir, 'http://127.0.0.1:1/', W=self.W, top=self.t, proc=self.proc)
+-        self.assertFalse(st['qualified'])
++        self.assertFalse(st['qualified']); self.assertEqual(st['state'], 'refused'); self.assertTrue(st['refused'].startswith('finality_journal_rolled_back: '), st['refused'])
+ 
+     def test_freshness_is_checked_at_append_after_the_proof(self):
+         self.fake_core(); FS.FINALITY_PROTOTYPE_REVIEWED = True

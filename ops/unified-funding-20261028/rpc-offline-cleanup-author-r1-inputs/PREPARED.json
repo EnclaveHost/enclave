@@ -1,0 +1,60 @@
+{
+  "status": "PREPARED_NOT_LAUNCHED",
+  "priority": "ROOT_REVIEW_PENDING_NO_LAUNCH",
+  "seedEntries": 7,
+  "readonlyInputPins": 53,
+  "freshSession": true,
+  "sourceTools": [
+    "Read",
+    "Grep",
+    "Write",
+    "Edit"
+  ],
+  "turnLimit": 20,
+  "childTimeoutSec": 900,
+  "outerTimeoutSec": 1200,
+  "queueMiB": 1536,
+  "hardMemoryMiB": 1536,
+  "rssMiB": 1408,
+  "availableMemoryFloorMiB": 27648,
+  "cpuIndex": 1,
+  "cpus": 1,
+  "swapMiB": 0,
+  "persistentTmpdir": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-offline-cleanup-author-r1-20261030/owned-tmp",
+  "claudeExecutable": {
+    "path": "/home/steven/.local/share/claude/versions/2.1.281",
+    "sha256": "56fe3da88458465fb27d7e9299dddb3fead55750fb9c2de795f233b5eea6dce1"
+  },
+  "accountCheckedNow": false,
+  "productPreEdits": 0,
+  "scope": "Focused r2 offline writer cleanup/logging/inventory/revalidation/rollback source repair; qualified locks and tests preserved",
+  "rootAdmissionGate": "root-author-approval.json must bind this PREPARED sha256 with launchAuthorized true; root independently checks Max first",
+  "sourceClosureLimitations": [
+    "Holder visibility remains separately unqualified; unchanged.",
+    "No current Max check or author launch in preparation.",
+    "Targeted tests authored only, future root qualification required.",
+    "No actual image mutation/publication or runtime/financial authority in this package."
+  ],
+  "hashes": {
+    "ACCOUNT-PREFLIGHT.md": "ea744144afe802746f415f0c342412acbf03794429fbe350cad2eedc7a66e54d",
+    "PLAN.md": "a7aaaaf3e3d778dda0f9ae0bd2e020c787fde0064d1a1e7638c0422a3327d92b",
+    "PROTECTED-SOURCE.json": "359880c8dd7c4b4ea1c97658dfc69d0dbc153d73dfc07d2238563326d87dd799",
+    "REVIEW-STATUS.txt": "a2630c4a65cff5beeece5fcb296c9eec537d3fb1f2f9ebbdc3bd0723548b61e7",
+    "TASK.txt": "8ffefb9baebbe60cb4e18750262f213f874ac27dd471c05ad38f40c26e8f1c65",
+    "account-requirements.json": "f7f904f166ddbb3f4c8a0c039b4a520d42823408422fbc2bc8f2861553466d34",
+    "allowed-edit-paths.json": "6a96981a3d82a0cde3e7126f3d7401162f8652b52dbf0b0e632454a352b238a6",
+    "collect-terminal.py": "c3d8db039235e04263f6fca42ba979358cbe2bf8cf7d8e640b353ff48f1951c2",
+    "dependency-closure.json": "5d07f22eaa68a671f2cd29e57f45856b9bc6fe699494f855a5612cd123f52604",
+    "input-pins.json": "edaa1fa2b2cd86d06a3e5bb27ac9e6bb7686129d71e838a46da5285718f48edf",
+    "launch-command.txt": "d993c1e8ebbd6dc98f6794df9b07e182e57c99e4f5a3bf822fb599ea2bbea735",
+    "native-tool-pins.json": "b74bae381439481edf3d883bc06847b9b92b7af2983986779a2cf83e714323b4",
+    "preparation-audit.json": "7c9b3f58642f6aea340ce1adc57b272224a583e7e352a9b4ff716d1687a24c0d",
+    "prepare.py": "3cc63d5d69cf1d33449f52b5472b4610f5571bb078d5df6fb75ff687b3603180",
+    "readonly-progress.py": "7657e3cf867451e36d2651f2f8ff67ca30ce88216f3c75459538ce2172b7bf61",
+    "root-preflight.py": "f2b64c984bac20feb6cbc31c6df55131ef834f0c4939a8f82f47593fae43658b",
+    "run.py": "97af48598c5774de393cc6474aca796680acb74646e421621df0d8cdac3c7090",
+    "seed-pins.json": "f31842209831da065bfa79c14e080ccc4f8a65f9332bcb88688328558c40cbba",
+    "seed-provenance.json": "cf9d79e7ec2bf77383e2cde5cf9f042dfff4a50af046eafd6337b00106553a03",
+    "turn-metric-investigation.json": "9e8987ce7979409ffe37c141e2638409796b08d2f955e1fb8366880b078a3ec8"
+  }
+}

@@ -1,0 +1,169 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 5 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 6 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 7 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 8 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 9 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 10 not started; sleep 30
+[queue] START available=17793MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+final tree 5037054a3dc70ed860eb6e7599ae617727af4d33 reproduced (r2 + r7 patch; base + final-vs-64156.patch)
+{
+ "new": {
+  "test/paid-derived-adapter.test.mjs": {
+   "rc": 0,
+   "tests": 15,
+   "pass": 15,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  },
+  "expected": "15/15, nothing skipped"
+ },
+ "regression": {},
+ "mutants": {
+  "ancestry-hash-ignored": {
+   "rc": 1,
+   "tests": 15,
+   "pass": 14,
+   "fail": 1,
+   "killed": true,
+   "failed": [
+    "forged or tampered history never resolves a consumed nonce: off-chain, above-anchor or wrong-block hints, flipped status, altered body/list/header"
+   ]
+  },
+  "backend-binding-hash-ignored": {
+   "rc": 1,
+   "tests": 15,
+   "pass": 13,
+   "fail": 2,
+   "killed": true,
+   "failed": [
+    "stale head, forged tier, wrong chain, foreign pending: refused BEFORE anything is signed, recorded or sent",
+    "reorg: a receipt on a non-canonical fork is not a receipt; the same bytes land on the derived chain and resolve there"
+   ]
+  },
+  "consumed-offchain-hint-accepted-as-none": {
+   "rc": 1,
+   "tests": 15,
+   "pass": 14,
+   "fail": 1,
+   "killed": true,
+   "failed": [
+    "forged or tampered history never resolves a consumed nonce: off-chain, above-anchor or wrong-block hints, flipped status, altered body/list/header"
+   ]
+  },
+  "duplicate-call-signed-again": {
+   "rc": 1,
+   "tests": 15,
+   "pass": 14,
+   "fail": 1,
+   "killed": true,
+   "failed": [
+    "two back-to-back submissions: nonces P and P+1 from the proven nonce plus the own journal; an identical call is not signed twice"
+   ]
+  },
+  "foreign-pending-gate-removed": {
+   "rc": 1,
+   "tests": 15,
+   "pass": 13,
+   "fail": 2,
+   "killed": true,
+   "failed": [
+    "stale head, forged tier, wrong chain, foreign pending: refused BEFORE anything is signed, recorded or sent",
+    "gap and conflict: a non-contiguous journal, a journal above the proven nonce, and an external use of a journal nonce all fail closed"
+   ]
+  },
+  "journal-gap-at-proven-nonce-ignored": {
+   "rc": 1,
+   "tests": 15,
+   "pass": 14,
+   "fail": 1,
+   "killed": true,
+   "failed": [
+    "gap and conflict: a non-contiguous journal, a journal above the proven nonce, and an external use of a journal nonce all fail closed"
+   ]
+  },
+  "journal-load-gap-accepted": {
+   "rc": 1,
+   "tests": 15,
+   "pass": 14,
+   "fail": 1,
+   "killed": true,
+   "failed": [
+    "gap and conflict: a non-contiguous journal, a journal above the proven nonce, and an external use of a journal nonce all fail closed"
+   ]
+  },
+  "lost-bytes-not-rebroadcast": {
+   "rc": 1,
+   "tests": 15,
+   "pass": 13,
+   "fail": 2,
+   "killed": true,
+   "failed": [
+    "timeout, restart and re-broadcast: the journal survives; lost bytes are re-broadcast unchanged; the next nonce follows them",
+    "reorg: a receipt on a non-canonical fork is not a receipt; the same bytes land on the derived chain and resolve there"
+   ]
+  },
+  "nonce-consumed-reported-as-success": {
+   "rc": 1,
+   "tests": 15,
+   "pass": 13,
+   "fail": 2,
+   "killed": true,
+   "failed": [
+    "gap and conflict: a non-contiguous journal, a journal above the proven nonce, and an external use of a journal nonce all fail closed",
+    "forged or tampered history never resolves a consumed nonce: off-chain, above-anchor or wrong-block hints, flipped status, altered body/list/header"
+   ]
+  },
+  "pending-costs-not-committed": {
+   "rc": 1,
+   "tests": 15,
+   "pass": 14,
+   "fail": 1,
+   "killed": true,
+   "failed": [
+    "two back-to-back submissions: nonces P and P+1 from the proven nonce plus the own journal; an identical call is not signed twice"
+   ]
+  },
+  "receipts-root-unverified": {
+   "rc": 1,
+   "tests": 15,
+   "pass": 14,
+   "fail": 1,
+   "killed": true,
+   "failed": [
+    "forged or tampered history never resolves a consumed nonce: off-chain, above-anchor or wrong-block hints, flipped status, altered body/list/header"
+   ]
+  },
+  "tx-root-check-removed": {
+   "rc": 1,
+   "tests": 15,
+   "pass": 14,
+   "fail": 1,
+   "killed": true,
+   "failed": [
+    "gap and conflict: a non-contiguous journal, a journal above the proven nonce, and an external use of a journal nonce all fail closed"
+   ]
+  }
+ },
+ "ok": true
+}
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-v3-composition-stage/runs/20261026T124458Z-mutants-1735945
+## paid-v3-composition mutants rc=0
+[memory-guard] exit=0 peakTreeRssMiB=185 minHostAvailableMiB=17284
+[memory-guard] at peak: node:113 node:64 bash:4 timeout:2 bash:2
+[queue] EXIT 0

@@ -1,0 +1,17 @@
+{
+  "status": "PREPARATION_ONLY",
+  "seedEntries": 227,
+  "originalFrozenEntries": 202,
+  "originalFrozenPreserved": true,
+  "additionalEntries": 25,
+  "readonlyInputPins": 772,
+  "inputDrift": [],
+  "candidateEqualsSeed": true,
+  "productPreEdits": 0,
+  "authorLaunched": false,
+  "accountCheckedNow": false,
+  "testsRun": false,
+  "buildsRun": false,
+  "approvalPresent": false,
+  "note": "Static source/hash audit, not product validation. Separate thin harness proposal is not executable closure."
+}

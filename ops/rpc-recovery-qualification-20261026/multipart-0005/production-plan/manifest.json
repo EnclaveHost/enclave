@@ -1,0 +1,2922 @@
+{
+ "checkpointBytes": 268435456,
+ "chunkBytes": 8388608,
+ "format": "recovery-multipart-manifest/v1",
+ "hostMemFloorBytes": 17179869184,
+ "kind": "production",
+ "partSize": 4294967296,
+ "parts": [
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0000.bin",
+   "holes": [],
+   "index": 0,
+   "length": 4294967296,
+   "offset": 0,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0001.bin",
+   "holes": [],
+   "index": 1,
+   "length": 4294967296,
+   "offset": 4294967296,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0002.bin",
+   "holes": [],
+   "index": 2,
+   "length": 4294967296,
+   "offset": 8589934592,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0003.bin",
+   "holes": [],
+   "index": 3,
+   "length": 4294967296,
+   "offset": 12884901888,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0004.bin",
+   "holes": [],
+   "index": 4,
+   "length": 4294967296,
+   "offset": 17179869184,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0005.bin",
+   "holes": [],
+   "index": 5,
+   "length": 4294967296,
+   "offset": 21474836480,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0006.bin",
+   "holes": [],
+   "index": 6,
+   "length": 4294967296,
+   "offset": 25769803776,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0007.bin",
+   "holes": [],
+   "index": 7,
+   "length": 4294967296,
+   "offset": 30064771072,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0008.bin",
+   "holes": [],
+   "index": 8,
+   "length": 4294967296,
+   "offset": 34359738368,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0009.bin",
+   "holes": [],
+   "index": 9,
+   "length": 4294967296,
+   "offset": 38654705664,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0010.bin",
+   "holes": [],
+   "index": 10,
+   "length": 4294967296,
+   "offset": 42949672960,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0011.bin",
+   "holes": [],
+   "index": 11,
+   "length": 4294967296,
+   "offset": 47244640256,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0012.bin",
+   "holes": [],
+   "index": 12,
+   "length": 4294967296,
+   "offset": 51539607552,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0013.bin",
+   "holes": [],
+   "index": 13,
+   "length": 4294967296,
+   "offset": 55834574848,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0014.bin",
+   "holes": [],
+   "index": 14,
+   "length": 4294967296,
+   "offset": 60129542144,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0015.bin",
+   "holes": [],
+   "index": 15,
+   "length": 4294967296,
+   "offset": 64424509440,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0016.bin",
+   "holes": [],
+   "index": 16,
+   "length": 4294967296,
+   "offset": 68719476736,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0017.bin",
+   "holes": [],
+   "index": 17,
+   "length": 4294967296,
+   "offset": 73014444032,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0018.bin",
+   "holes": [],
+   "index": 18,
+   "length": 4294967296,
+   "offset": 77309411328,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0019.bin",
+   "holes": [],
+   "index": 19,
+   "length": 4294967296,
+   "offset": 81604378624,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0020.bin",
+   "holes": [],
+   "index": 20,
+   "length": 4294967296,
+   "offset": 85899345920,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0021.bin",
+   "holes": [],
+   "index": 21,
+   "length": 4294967296,
+   "offset": 90194313216,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0022.bin",
+   "holes": [],
+   "index": 22,
+   "length": 4294967296,
+   "offset": 94489280512,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0023.bin",
+   "holes": [],
+   "index": 23,
+   "length": 4294967296,
+   "offset": 98784247808,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0024.bin",
+   "holes": [],
+   "index": 24,
+   "length": 4294967296,
+   "offset": 103079215104,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0025.bin",
+   "holes": [],
+   "index": 25,
+   "length": 4294967296,
+   "offset": 107374182400,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0026.bin",
+   "holes": [],
+   "index": 26,
+   "length": 4294967296,
+   "offset": 111669149696,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0027.bin",
+   "holes": [],
+   "index": 27,
+   "length": 4294967296,
+   "offset": 115964116992,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0028.bin",
+   "holes": [],
+   "index": 28,
+   "length": 4294967296,
+   "offset": 120259084288,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0029.bin",
+   "holes": [],
+   "index": 29,
+   "length": 4294967296,
+   "offset": 124554051584,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0030.bin",
+   "holes": [],
+   "index": 30,
+   "length": 4294967296,
+   "offset": 128849018880,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0031.bin",
+   "holes": [],
+   "index": 31,
+   "length": 4294967296,
+   "offset": 133143986176,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0032.bin",
+   "holes": [],
+   "index": 32,
+   "length": 4294967296,
+   "offset": 137438953472,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0033.bin",
+   "holes": [],
+   "index": 33,
+   "length": 4294967296,
+   "offset": 141733920768,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0034.bin",
+   "holes": [],
+   "index": 34,
+   "length": 4294967296,
+   "offset": 146028888064,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0035.bin",
+   "holes": [],
+   "index": 35,
+   "length": 4294967296,
+   "offset": 150323855360,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0036.bin",
+   "holes": [],
+   "index": 36,
+   "length": 4294967296,
+   "offset": 154618822656,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0037.bin",
+   "holes": [],
+   "index": 37,
+   "length": 4294967296,
+   "offset": 158913789952,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0038.bin",
+   "holes": [],
+   "index": 38,
+   "length": 4294967296,
+   "offset": 163208757248,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0039.bin",
+   "holes": [],
+   "index": 39,
+   "length": 4294967296,
+   "offset": 167503724544,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0040.bin",
+   "holes": [],
+   "index": 40,
+   "length": 4294967296,
+   "offset": 171798691840,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0041.bin",
+   "holes": [],
+   "index": 41,
+   "length": 4294967296,
+   "offset": 176093659136,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0042.bin",
+   "holes": [],
+   "index": 42,
+   "length": 4294967296,
+   "offset": 180388626432,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0043.bin",
+   "holes": [],
+   "index": 43,
+   "length": 4294967296,
+   "offset": 184683593728,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0044.bin",
+   "holes": [],
+   "index": 44,
+   "length": 4294967296,
+   "offset": 188978561024,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0045.bin",
+   "holes": [],
+   "index": 45,
+   "length": 4294967296,
+   "offset": 193273528320,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0046.bin",
+   "holes": [],
+   "index": 46,
+   "length": 4294967296,
+   "offset": 197568495616,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0047.bin",
+   "holes": [],
+   "index": 47,
+   "length": 4294967296,
+   "offset": 201863462912,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0048.bin",
+   "holes": [],
+   "index": 48,
+   "length": 4294967296,
+   "offset": 206158430208,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0049.bin",
+   "holes": [],
+   "index": 49,
+   "length": 4294967296,
+   "offset": 210453397504,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0050.bin",
+   "holes": [],
+   "index": 50,
+   "length": 4294967296,
+   "offset": 214748364800,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0051.bin",
+   "holes": [],
+   "index": 51,
+   "length": 4294967296,
+   "offset": 219043332096,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0052.bin",
+   "holes": [],
+   "index": 52,
+   "length": 4294967296,
+   "offset": 223338299392,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0053.bin",
+   "holes": [],
+   "index": 53,
+   "length": 4294967296,
+   "offset": 227633266688,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0054.bin",
+   "holes": [],
+   "index": 54,
+   "length": 4294967296,
+   "offset": 231928233984,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0055.bin",
+   "holes": [],
+   "index": 55,
+   "length": 4294967296,
+   "offset": 236223201280,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0056.bin",
+   "holes": [],
+   "index": 56,
+   "length": 4294967296,
+   "offset": 240518168576,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0057.bin",
+   "holes": [],
+   "index": 57,
+   "length": 4294967296,
+   "offset": 244813135872,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0058.bin",
+   "holes": [],
+   "index": 58,
+   "length": 4294967296,
+   "offset": 249108103168,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0059.bin",
+   "holes": [],
+   "index": 59,
+   "length": 4294967296,
+   "offset": 253403070464,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0060.bin",
+   "holes": [],
+   "index": 60,
+   "length": 4294967296,
+   "offset": 257698037760,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0061.bin",
+   "holes": [],
+   "index": 61,
+   "length": 4294967296,
+   "offset": 261993005056,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0062.bin",
+   "holes": [],
+   "index": 62,
+   "length": 4294967296,
+   "offset": 266287972352,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0063.bin",
+   "holes": [],
+   "index": 63,
+   "length": 4294967296,
+   "offset": 270582939648,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0064.bin",
+   "holes": [],
+   "index": 64,
+   "length": 4294967296,
+   "offset": 274877906944,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0065.bin",
+   "holes": [],
+   "index": 65,
+   "length": 4294967296,
+   "offset": 279172874240,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0066.bin",
+   "holes": [],
+   "index": 66,
+   "length": 4294967296,
+   "offset": 283467841536,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0067.bin",
+   "holes": [],
+   "index": 67,
+   "length": 4294967296,
+   "offset": 287762808832,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0068.bin",
+   "holes": [],
+   "index": 68,
+   "length": 4294967296,
+   "offset": 292057776128,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0069.bin",
+   "holes": [],
+   "index": 69,
+   "length": 4294967296,
+   "offset": 296352743424,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0070.bin",
+   "holes": [],
+   "index": 70,
+   "length": 4294967296,
+   "offset": 300647710720,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0071.bin",
+   "holes": [],
+   "index": 71,
+   "length": 4294967296,
+   "offset": 304942678016,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0072.bin",
+   "holes": [],
+   "index": 72,
+   "length": 4294967296,
+   "offset": 309237645312,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0073.bin",
+   "holes": [],
+   "index": 73,
+   "length": 4294967296,
+   "offset": 313532612608,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0074.bin",
+   "holes": [],
+   "index": 74,
+   "length": 4294967296,
+   "offset": 317827579904,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0075.bin",
+   "holes": [],
+   "index": 75,
+   "length": 4294967296,
+   "offset": 322122547200,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0076.bin",
+   "holes": [],
+   "index": 76,
+   "length": 4294967296,
+   "offset": 326417514496,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0077.bin",
+   "holes": [],
+   "index": 77,
+   "length": 4294967296,
+   "offset": 330712481792,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0078.bin",
+   "holes": [],
+   "index": 78,
+   "length": 4294967296,
+   "offset": 335007449088,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0079.bin",
+   "holes": [],
+   "index": 79,
+   "length": 4294967296,
+   "offset": 339302416384,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0080.bin",
+   "holes": [],
+   "index": 80,
+   "length": 4294967296,
+   "offset": 343597383680,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0081.bin",
+   "holes": [],
+   "index": 81,
+   "length": 4294967296,
+   "offset": 347892350976,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0082.bin",
+   "holes": [],
+   "index": 82,
+   "length": 4294967296,
+   "offset": 352187318272,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0083.bin",
+   "holes": [],
+   "index": 83,
+   "length": 4294967296,
+   "offset": 356482285568,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0084.bin",
+   "holes": [],
+   "index": 84,
+   "length": 4294967296,
+   "offset": 360777252864,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0085.bin",
+   "holes": [],
+   "index": 85,
+   "length": 4294967296,
+   "offset": 365072220160,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0086.bin",
+   "holes": [],
+   "index": 86,
+   "length": 4294967296,
+   "offset": 369367187456,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0087.bin",
+   "holes": [],
+   "index": 87,
+   "length": 4294967296,
+   "offset": 373662154752,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0088.bin",
+   "holes": [],
+   "index": 88,
+   "length": 4294967296,
+   "offset": 377957122048,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0089.bin",
+   "holes": [],
+   "index": 89,
+   "length": 4294967296,
+   "offset": 382252089344,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0090.bin",
+   "holes": [],
+   "index": 90,
+   "length": 4294967296,
+   "offset": 386547056640,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0091.bin",
+   "holes": [],
+   "index": 91,
+   "length": 4294967296,
+   "offset": 390842023936,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0092.bin",
+   "holes": [],
+   "index": 92,
+   "length": 4294967296,
+   "offset": 395136991232,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0093.bin",
+   "holes": [],
+   "index": 93,
+   "length": 4294967296,
+   "offset": 399431958528,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0094.bin",
+   "holes": [],
+   "index": 94,
+   "length": 4294967296,
+   "offset": 403726925824,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0095.bin",
+   "holes": [],
+   "index": 95,
+   "length": 4294967296,
+   "offset": 408021893120,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0096.bin",
+   "holes": [],
+   "index": 96,
+   "length": 4294967296,
+   "offset": 412316860416,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0097.bin",
+   "holes": [],
+   "index": 97,
+   "length": 4294967296,
+   "offset": 416611827712,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0098.bin",
+   "holes": [],
+   "index": 98,
+   "length": 4294967296,
+   "offset": 420906795008,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0099.bin",
+   "holes": [],
+   "index": 99,
+   "length": 4294967296,
+   "offset": 425201762304,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0100.bin",
+   "holes": [],
+   "index": 100,
+   "length": 4294967296,
+   "offset": 429496729600,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0101.bin",
+   "holes": [],
+   "index": 101,
+   "length": 4294967296,
+   "offset": 433791696896,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0102.bin",
+   "holes": [],
+   "index": 102,
+   "length": 4294967296,
+   "offset": 438086664192,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0103.bin",
+   "holes": [],
+   "index": 103,
+   "length": 4294967296,
+   "offset": 442381631488,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0104.bin",
+   "holes": [],
+   "index": 104,
+   "length": 4294967296,
+   "offset": 446676598784,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0105.bin",
+   "holes": [],
+   "index": 105,
+   "length": 4294967296,
+   "offset": 450971566080,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0106.bin",
+   "holes": [],
+   "index": 106,
+   "length": 4294967296,
+   "offset": 455266533376,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0107.bin",
+   "holes": [],
+   "index": 107,
+   "length": 4294967296,
+   "offset": 459561500672,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0108.bin",
+   "holes": [],
+   "index": 108,
+   "length": 4294967296,
+   "offset": 463856467968,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0109.bin",
+   "holes": [],
+   "index": 109,
+   "length": 4294967296,
+   "offset": 468151435264,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0110.bin",
+   "holes": [],
+   "index": 110,
+   "length": 4294967296,
+   "offset": 472446402560,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0111.bin",
+   "holes": [],
+   "index": 111,
+   "length": 4294967296,
+   "offset": 476741369856,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0112.bin",
+   "holes": [],
+   "index": 112,
+   "length": 4294967296,
+   "offset": 481036337152,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0113.bin",
+   "holes": [],
+   "index": 113,
+   "length": 4294967296,
+   "offset": 485331304448,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0114.bin",
+   "holes": [],
+   "index": 114,
+   "length": 4294967296,
+   "offset": 489626271744,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0115.bin",
+   "holes": [],
+   "index": 115,
+   "length": 4294967296,
+   "offset": 493921239040,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0116.bin",
+   "holes": [],
+   "index": 116,
+   "length": 4294967296,
+   "offset": 498216206336,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0117.bin",
+   "holes": [],
+   "index": 117,
+   "length": 4294967296,
+   "offset": 502511173632,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0118.bin",
+   "holes": [],
+   "index": 118,
+   "length": 4294967296,
+   "offset": 506806140928,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0119.bin",
+   "holes": [],
+   "index": 119,
+   "length": 4294967296,
+   "offset": 511101108224,
+   "target": "root"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0120.bin",
+   "holes": [],
+   "index": 120,
+   "length": 4294967296,
+   "offset": 515396075520,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0121.bin",
+   "holes": [],
+   "index": 121,
+   "length": 4294967296,
+   "offset": 519691042816,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0122.bin",
+   "holes": [],
+   "index": 122,
+   "length": 4294967296,
+   "offset": 523986010112,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0123.bin",
+   "holes": [],
+   "index": 123,
+   "length": 4294967296,
+   "offset": 528280977408,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0124.bin",
+   "holes": [],
+   "index": 124,
+   "length": 4294967296,
+   "offset": 532575944704,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0125.bin",
+   "holes": [],
+   "index": 125,
+   "length": 4294967296,
+   "offset": 536870912000,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0126.bin",
+   "holes": [],
+   "index": 126,
+   "length": 4294967296,
+   "offset": 541165879296,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0127.bin",
+   "holes": [],
+   "index": 127,
+   "length": 4294967296,
+   "offset": 545460846592,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0128.bin",
+   "holes": [],
+   "index": 128,
+   "length": 4294967296,
+   "offset": 549755813888,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0129.bin",
+   "holes": [],
+   "index": 129,
+   "length": 4294967296,
+   "offset": 554050781184,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0130.bin",
+   "holes": [],
+   "index": 130,
+   "length": 4294967296,
+   "offset": 558345748480,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0131.bin",
+   "holes": [],
+   "index": 131,
+   "length": 4294967296,
+   "offset": 562640715776,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0132.bin",
+   "holes": [],
+   "index": 132,
+   "length": 4294967296,
+   "offset": 566935683072,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0133.bin",
+   "holes": [],
+   "index": 133,
+   "length": 4294967296,
+   "offset": 571230650368,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0134.bin",
+   "holes": [],
+   "index": 134,
+   "length": 4294967296,
+   "offset": 575525617664,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0135.bin",
+   "holes": [],
+   "index": 135,
+   "length": 4294967296,
+   "offset": 579820584960,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0136.bin",
+   "holes": [],
+   "index": 136,
+   "length": 4294967296,
+   "offset": 584115552256,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0137.bin",
+   "holes": [],
+   "index": 137,
+   "length": 4294967296,
+   "offset": 588410519552,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0138.bin",
+   "holes": [],
+   "index": 138,
+   "length": 4294967296,
+   "offset": 592705486848,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0139.bin",
+   "holes": [],
+   "index": 139,
+   "length": 4294967296,
+   "offset": 597000454144,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0140.bin",
+   "holes": [],
+   "index": 140,
+   "length": 4294967296,
+   "offset": 601295421440,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0141.bin",
+   "holes": [],
+   "index": 141,
+   "length": 4294967296,
+   "offset": 605590388736,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0142.bin",
+   "holes": [],
+   "index": 142,
+   "length": 4294967296,
+   "offset": 609885356032,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0143.bin",
+   "holes": [],
+   "index": 143,
+   "length": 4294967296,
+   "offset": 614180323328,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0144.bin",
+   "holes": [],
+   "index": 144,
+   "length": 4294967296,
+   "offset": 618475290624,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0145.bin",
+   "holes": [],
+   "index": 145,
+   "length": 4294967296,
+   "offset": 622770257920,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0146.bin",
+   "holes": [],
+   "index": 146,
+   "length": 4294967296,
+   "offset": 627065225216,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0147.bin",
+   "holes": [],
+   "index": 147,
+   "length": 4294967296,
+   "offset": 631360192512,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0148.bin",
+   "holes": [],
+   "index": 148,
+   "length": 4294967296,
+   "offset": 635655159808,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0149.bin",
+   "holes": [],
+   "index": 149,
+   "length": 4294967296,
+   "offset": 639950127104,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0150.bin",
+   "holes": [],
+   "index": 150,
+   "length": 4294967296,
+   "offset": 644245094400,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0151.bin",
+   "holes": [],
+   "index": 151,
+   "length": 4294967296,
+   "offset": 648540061696,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0152.bin",
+   "holes": [],
+   "index": 152,
+   "length": 4294967296,
+   "offset": 652835028992,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0153.bin",
+   "holes": [],
+   "index": 153,
+   "length": 4294967296,
+   "offset": 657129996288,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0154.bin",
+   "holes": [],
+   "index": 154,
+   "length": 4294967296,
+   "offset": 661424963584,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0155.bin",
+   "holes": [],
+   "index": 155,
+   "length": 4294967296,
+   "offset": 665719930880,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0156.bin",
+   "holes": [],
+   "index": 156,
+   "length": 4294967296,
+   "offset": 670014898176,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0157.bin",
+   "holes": [],
+   "index": 157,
+   "length": 4294967296,
+   "offset": 674309865472,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0158.bin",
+   "holes": [],
+   "index": 158,
+   "length": 4294967296,
+   "offset": 678604832768,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0159.bin",
+   "holes": [],
+   "index": 159,
+   "length": 4294967296,
+   "offset": 682899800064,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0160.bin",
+   "holes": [],
+   "index": 160,
+   "length": 4294967296,
+   "offset": 687194767360,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0161.bin",
+   "holes": [],
+   "index": 161,
+   "length": 4294967296,
+   "offset": 691489734656,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0162.bin",
+   "holes": [],
+   "index": 162,
+   "length": 4294967296,
+   "offset": 695784701952,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0163.bin",
+   "holes": [],
+   "index": 163,
+   "length": 4294967296,
+   "offset": 700079669248,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0164.bin",
+   "holes": [],
+   "index": 164,
+   "length": 4294967296,
+   "offset": 704374636544,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0165.bin",
+   "holes": [],
+   "index": 165,
+   "length": 4294967296,
+   "offset": 708669603840,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0166.bin",
+   "holes": [],
+   "index": 166,
+   "length": 4294967296,
+   "offset": 712964571136,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0167.bin",
+   "holes": [],
+   "index": 167,
+   "length": 4294967296,
+   "offset": 717259538432,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0168.bin",
+   "holes": [],
+   "index": 168,
+   "length": 4294967296,
+   "offset": 721554505728,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0169.bin",
+   "holes": [],
+   "index": 169,
+   "length": 4294967296,
+   "offset": 725849473024,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0170.bin",
+   "holes": [],
+   "index": 170,
+   "length": 4294967296,
+   "offset": 730144440320,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0171.bin",
+   "holes": [],
+   "index": 171,
+   "length": 4294967296,
+   "offset": 734439407616,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0172.bin",
+   "holes": [],
+   "index": 172,
+   "length": 4294967296,
+   "offset": 738734374912,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0173.bin",
+   "holes": [],
+   "index": 173,
+   "length": 4294967296,
+   "offset": 743029342208,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0174.bin",
+   "holes": [],
+   "index": 174,
+   "length": 4294967296,
+   "offset": 747324309504,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0175.bin",
+   "holes": [],
+   "index": 175,
+   "length": 4294967296,
+   "offset": 751619276800,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0176.bin",
+   "holes": [],
+   "index": 176,
+   "length": 4294967296,
+   "offset": 755914244096,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0177.bin",
+   "holes": [],
+   "index": 177,
+   "length": 4294967296,
+   "offset": 760209211392,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0178.bin",
+   "holes": [],
+   "index": 178,
+   "length": 4294967296,
+   "offset": 764504178688,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0179.bin",
+   "holes": [],
+   "index": 179,
+   "length": 4294967296,
+   "offset": 768799145984,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0180.bin",
+   "holes": [],
+   "index": 180,
+   "length": 4294967296,
+   "offset": 773094113280,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0181.bin",
+   "holes": [],
+   "index": 181,
+   "length": 4294967296,
+   "offset": 777389080576,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0182.bin",
+   "holes": [],
+   "index": 182,
+   "length": 4294967296,
+   "offset": 781684047872,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0183.bin",
+   "holes": [],
+   "index": 183,
+   "length": 4294967296,
+   "offset": 785979015168,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0184.bin",
+   "holes": [],
+   "index": 184,
+   "length": 4294967296,
+   "offset": 790273982464,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0185.bin",
+   "holes": [],
+   "index": 185,
+   "length": 4294967296,
+   "offset": 794568949760,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0186.bin",
+   "holes": [],
+   "index": 186,
+   "length": 4294967296,
+   "offset": 798863917056,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0187.bin",
+   "holes": [],
+   "index": 187,
+   "length": 4294967296,
+   "offset": 803158884352,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0188.bin",
+   "holes": [],
+   "index": 188,
+   "length": 4294967296,
+   "offset": 807453851648,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0189.bin",
+   "holes": [],
+   "index": 189,
+   "length": 4294967296,
+   "offset": 811748818944,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0190.bin",
+   "holes": [],
+   "index": 190,
+   "length": 4294967296,
+   "offset": 816043786240,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0191.bin",
+   "holes": [],
+   "index": 191,
+   "length": 4294967296,
+   "offset": 820338753536,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0192.bin",
+   "holes": [],
+   "index": 192,
+   "length": 4294967296,
+   "offset": 824633720832,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0193.bin",
+   "holes": [],
+   "index": 193,
+   "length": 4294967296,
+   "offset": 828928688128,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0194.bin",
+   "holes": [],
+   "index": 194,
+   "length": 4294967296,
+   "offset": 833223655424,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0195.bin",
+   "holes": [],
+   "index": 195,
+   "length": 4294967296,
+   "offset": 837518622720,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0196.bin",
+   "holes": [],
+   "index": 196,
+   "length": 4294967296,
+   "offset": 841813590016,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0197.bin",
+   "holes": [],
+   "index": 197,
+   "length": 4294967296,
+   "offset": 846108557312,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0198.bin",
+   "holes": [],
+   "index": 198,
+   "length": 4294967296,
+   "offset": 850403524608,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0199.bin",
+   "holes": [],
+   "index": 199,
+   "length": 4294967296,
+   "offset": 854698491904,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0200.bin",
+   "holes": [],
+   "index": 200,
+   "length": 4294967296,
+   "offset": 858993459200,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0201.bin",
+   "holes": [],
+   "index": 201,
+   "length": 4294967296,
+   "offset": 863288426496,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0202.bin",
+   "holes": [],
+   "index": 202,
+   "length": 4294967296,
+   "offset": 867583393792,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0203.bin",
+   "holes": [],
+   "index": 203,
+   "length": 4294967296,
+   "offset": 871878361088,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0204.bin",
+   "holes": [],
+   "index": 204,
+   "length": 4294967296,
+   "offset": 876173328384,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0205.bin",
+   "holes": [],
+   "index": 205,
+   "length": 4294967296,
+   "offset": 880468295680,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0206.bin",
+   "holes": [],
+   "index": 206,
+   "length": 4294967296,
+   "offset": 884763262976,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0207.bin",
+   "holes": [],
+   "index": 207,
+   "length": 4294967296,
+   "offset": 889058230272,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0208.bin",
+   "holes": [],
+   "index": 208,
+   "length": 4294967296,
+   "offset": 893353197568,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0209.bin",
+   "holes": [],
+   "index": 209,
+   "length": 4294967296,
+   "offset": 897648164864,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0210.bin",
+   "holes": [],
+   "index": 210,
+   "length": 4294967296,
+   "offset": 901943132160,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0211.bin",
+   "holes": [],
+   "index": 211,
+   "length": 4294967296,
+   "offset": 906238099456,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0212.bin",
+   "holes": [],
+   "index": 212,
+   "length": 4294967296,
+   "offset": 910533066752,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0213.bin",
+   "holes": [],
+   "index": 213,
+   "length": 4294967296,
+   "offset": 914828034048,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0214.bin",
+   "holes": [],
+   "index": 214,
+   "length": 4294967296,
+   "offset": 919123001344,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0215.bin",
+   "holes": [],
+   "index": 215,
+   "length": 4294967296,
+   "offset": 923417968640,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0216.bin",
+   "holes": [],
+   "index": 216,
+   "length": 4294967296,
+   "offset": 927712935936,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0217.bin",
+   "holes": [],
+   "index": 217,
+   "length": 4294967296,
+   "offset": 932007903232,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0218.bin",
+   "holes": [],
+   "index": 218,
+   "length": 4294967296,
+   "offset": 936302870528,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0219.bin",
+   "holes": [],
+   "index": 219,
+   "length": 4294967296,
+   "offset": 940597837824,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0220.bin",
+   "holes": [],
+   "index": 220,
+   "length": 4294967296,
+   "offset": 944892805120,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0221.bin",
+   "holes": [],
+   "index": 221,
+   "length": 4294967296,
+   "offset": 949187772416,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0222.bin",
+   "holes": [],
+   "index": 222,
+   "length": 4294967296,
+   "offset": 953482739712,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0223.bin",
+   "holes": [],
+   "index": 223,
+   "length": 4294967296,
+   "offset": 957777707008,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0224.bin",
+   "holes": [],
+   "index": 224,
+   "length": 4294967296,
+   "offset": 962072674304,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0225.bin",
+   "holes": [],
+   "index": 225,
+   "length": 4294967296,
+   "offset": 966367641600,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0226.bin",
+   "holes": [],
+   "index": 226,
+   "length": 4294967296,
+   "offset": 970662608896,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0227.bin",
+   "holes": [],
+   "index": 227,
+   "length": 4294967296,
+   "offset": 974957576192,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0228.bin",
+   "holes": [],
+   "index": 228,
+   "length": 4294967296,
+   "offset": 979252543488,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0229.bin",
+   "holes": [],
+   "index": 229,
+   "length": 4294967296,
+   "offset": 983547510784,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0230.bin",
+   "holes": [],
+   "index": 230,
+   "length": 4294967296,
+   "offset": 987842478080,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0231.bin",
+   "holes": [],
+   "index": 231,
+   "length": 4294967296,
+   "offset": 992137445376,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0232.bin",
+   "holes": [],
+   "index": 232,
+   "length": 4294967296,
+   "offset": 996432412672,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0233.bin",
+   "holes": [],
+   "index": 233,
+   "length": 4294967296,
+   "offset": 1000727379968,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0234.bin",
+   "holes": [],
+   "index": 234,
+   "length": 4294967296,
+   "offset": 1005022347264,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0235.bin",
+   "holes": [],
+   "index": 235,
+   "length": 4294967296,
+   "offset": 1009317314560,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0236.bin",
+   "holes": [],
+   "index": 236,
+   "length": 4294967296,
+   "offset": 1013612281856,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0237.bin",
+   "holes": [],
+   "index": 237,
+   "length": 4294967296,
+   "offset": 1017907249152,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0238.bin",
+   "holes": [],
+   "index": 238,
+   "length": 4294967296,
+   "offset": 1022202216448,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0239.bin",
+   "holes": [],
+   "index": 239,
+   "length": 4294967296,
+   "offset": 1026497183744,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0240.bin",
+   "holes": [],
+   "index": 240,
+   "length": 4294967296,
+   "offset": 1030792151040,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0241.bin",
+   "holes": [],
+   "index": 241,
+   "length": 4294967296,
+   "offset": 1035087118336,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0242.bin",
+   "holes": [],
+   "index": 242,
+   "length": 4294967296,
+   "offset": 1039382085632,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0243.bin",
+   "holes": [],
+   "index": 243,
+   "length": 4294967296,
+   "offset": 1043677052928,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0244.bin",
+   "holes": [],
+   "index": 244,
+   "length": 4294967296,
+   "offset": 1047972020224,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0245.bin",
+   "holes": [],
+   "index": 245,
+   "length": 4294967296,
+   "offset": 1052266987520,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0246.bin",
+   "holes": [],
+   "index": 246,
+   "length": 4294967296,
+   "offset": 1056561954816,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0247.bin",
+   "holes": [],
+   "index": 247,
+   "length": 4294967296,
+   "offset": 1060856922112,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0248.bin",
+   "holes": [],
+   "index": 248,
+   "length": 4294967296,
+   "offset": 1065151889408,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0249.bin",
+   "holes": [],
+   "index": 249,
+   "length": 4294967296,
+   "offset": 1069446856704,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0250.bin",
+   "holes": [],
+   "index": 250,
+   "length": 4294967296,
+   "offset": 1073741824000,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0251.bin",
+   "holes": [],
+   "index": 251,
+   "length": 4294967296,
+   "offset": 1078036791296,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0252.bin",
+   "holes": [],
+   "index": 252,
+   "length": 4294967296,
+   "offset": 1082331758592,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0253.bin",
+   "holes": [],
+   "index": 253,
+   "length": 4294967296,
+   "offset": 1086626725888,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0254.bin",
+   "holes": [],
+   "index": 254,
+   "length": 4294967296,
+   "offset": 1090921693184,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0255.bin",
+   "holes": [],
+   "index": 255,
+   "length": 4294967296,
+   "offset": 1095216660480,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0256.bin",
+   "holes": [],
+   "index": 256,
+   "length": 4294967296,
+   "offset": 1099511627776,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0257.bin",
+   "holes": [],
+   "index": 257,
+   "length": 4294967296,
+   "offset": 1103806595072,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0258.bin",
+   "holes": [],
+   "index": 258,
+   "length": 4294967296,
+   "offset": 1108101562368,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0259.bin",
+   "holes": [],
+   "index": 259,
+   "length": 4294967296,
+   "offset": 1112396529664,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0260.bin",
+   "holes": [],
+   "index": 260,
+   "length": 4294967296,
+   "offset": 1116691496960,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0261.bin",
+   "holes": [],
+   "index": 261,
+   "length": 4294967296,
+   "offset": 1120986464256,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0262.bin",
+   "holes": [],
+   "index": 262,
+   "length": 4294967296,
+   "offset": 1125281431552,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 4294967296,
+   "file": "part-0263.bin",
+   "holes": [],
+   "index": 263,
+   "length": 4294967296,
+   "offset": 1129576398848,
+   "target": "vm"
+  },
+  {
+   "dataBytes": 554979328,
+   "file": "part-0264.bin",
+   "holes": [
+    [
+     554979328,
+     3739987968
+    ]
+   ],
+   "index": 264,
+   "length": 4294967296,
+   "offset": 1133871366144,
+   "target": "vm"
+  }
+ ],
+ "source": {
+  "blockSize": 4096,
+  "extents": 9001,
+  "holeMapSha256": "4770eacfff9cebc6b3db73788c11ee052f5de12963687da9457ba43a88a32737",
+  "holes": [
+   [
+    1134426345472,
+    3739987968
+   ]
+  ],
+  "journalPath": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/logs/base-journal-copy-1626/journal-8.bin",
+  "journalSha256": "d95d81fcaf1fdecb305f5645bc5bf2d6093d0a7fc40affbfc769894798cbc073",
+  "logicalSize": 1138166333440,
+  "mapPath": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/ext4-recovery-checksum-stage/r2/runs/real-20261026T203730Z-2323458/ext4-candidate-checksums.json",
+  "mapSha256": "70180b22ac5a905eb415caec8c8c7014cbaa8c3f6201cd577ee2d02979de9200",
+  "mappedBytes": 1134426345472,
+  "originalIdentity": {
+   "ctimeNs": 1793030438418984700,
+   "dev": 2050,
+   "ino": 3221,
+   "mtimeNs": 1793030438418984700,
+   "size": 2073934036992
+  },
+  "originalPath": "/home/steven/Documents/Codex/2026-10-26/my/work/tr004-readonly/enclave-rpc-production/base-origin.qcow2",
+  "patchBytes": 119040,
+  "patches": [
+   {
+    "byteOffset": 2044404655104,
+    "fsBlock": 499122230,
+    "kind": "inode",
+    "length": 256,
+    "provenance": {
+     "journalBlock": 118422,
+     "sequence": 17169,
+     "tableBlockSha256": "a5e2f92137cea33b9138d9e5eccc104ee94284315c0eb6e8df18f555b83e27d4"
+    },
+    "sha256": "e6e6eafdd7fe03dda52e52f96c8e9fab99539037ae316bf22e86bbee49c5fc53",
+    "source": "000-inode-499122230.bin"
+   },
+   {
+    "byteOffset": 140031037440,
+    "fsBlock": 34187265,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "47867a1e9ada188381fdaf2b2f78d56bba7e4f44e18e2eb108b88325e6c4f21e",
+     "journalBlock": 99069,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 15546
+    },
+    "sha256": "47867a1e9ada188381fdaf2b2f78d56bba7e4f44e18e2eb108b88325e6c4f21e",
+    "source": "001-tree-34187265.bin"
+   },
+   {
+    "byteOffset": 215201349632,
+    "fsBlock": 52539392,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "c34a3b2fd980ce7a3507c5235e37a202b5c68ac22fd04087b410416e167c93bb",
+     "journalBlock": 98515,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 15509
+    },
+    "sha256": "c34a3b2fd980ce7a3507c5235e37a202b5c68ac22fd04087b410416e167c93bb",
+    "source": "002-tree-52539392.bin"
+   },
+   {
+    "byteOffset": 1065328050176,
+    "fsBlock": 260089856,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "41a01638dce9801bf8b5057fb7d78f0471ac09b7e01e879e260250671be31e14",
+     "journalBlock": 90030,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 14760
+    },
+    "sha256": "41a01638dce9801bf8b5057fb7d78f0471ac09b7e01e879e260250671be31e14",
+    "source": "003-tree-260089856.bin"
+   },
+   {
+    "byteOffset": 1113227001856,
+    "fsBlock": 271783936,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "f7e922c0bf52e5de397f8f3fc53a90e97920e5e39076763e62306ceac32b7820",
+     "journalBlock": 90918,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 14845
+    },
+    "sha256": "f7e922c0bf52e5de397f8f3fc53a90e97920e5e39076763e62306ceac32b7820",
+    "source": "004-tree-271783936.bin"
+   },
+   {
+    "byteOffset": 1160748466176,
+    "fsBlock": 283385856,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "f68028272cc994d54c5ce69f1a1909a29b17322ea2578d93e9860fe05c4f7fdf",
+     "journalBlock": 91812,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 14931
+    },
+    "sha256": "f68028272cc994d54c5ce69f1a1909a29b17322ea2578d93e9860fe05c4f7fdf",
+    "source": "005-tree-283385856.bin"
+   },
+   {
+    "byteOffset": 1208647417856,
+    "fsBlock": 295079936,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "c7e4a58de770f592176669cb9bc1854f65c1999eabde15fbe260e2ff068c830c",
+     "journalBlock": 92644,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 15006
+    },
+    "sha256": "c7e4a58de770f592176669cb9bc1854f65c1999eabde15fbe260e2ff068c830c",
+    "source": "006-tree-295079936.bin"
+   },
+   {
+    "byteOffset": 1256462483456,
+    "fsBlock": 306753536,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "929ee1939c2d2a8b3f92cdeef324901ca0c549e8f3bfd092bcb6fa89e6eb3ff8",
+     "journalBlock": 93477,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 15083
+    },
+    "sha256": "929ee1939c2d2a8b3f92cdeef324901ca0c549e8f3bfd092bcb6fa89e6eb3ff8",
+    "source": "007-tree-306753536.bin"
+   },
+   {
+    "byteOffset": 1303983947776,
+    "fsBlock": 318355456,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "f2c59410190f27a9a2ba4b588a3d89e4ade198941d14700770597d229b90e275",
+     "journalBlock": 94315,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 15160
+    },
+    "sha256": "f2c59410190f27a9a2ba4b588a3d89e4ade198941d14700770597d229b90e275",
+    "source": "008-tree-318355456.bin"
+   },
+   {
+    "byteOffset": 1351455080448,
+    "fsBlock": 329945088,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "0a3e2410b24e4f0263bff41dda31a7dd1ce8248dc7e9d57d21036af46a2ecbe5",
+     "journalBlock": 95165,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 15239
+    },
+    "sha256": "0a3e2410b24e4f0263bff41dda31a7dd1ce8248dc7e9d57d21036af46a2ecbe5",
+    "source": "009-tree-329945088.bin"
+   },
+   {
+    "byteOffset": 1398984933376,
+    "fsBlock": 341549056,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "eccea71387c38697cad11ad3cb58fa72f33cdaf30c5e14b8b0098fe33b56fd0c",
+     "journalBlock": 96008,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 15317
+    },
+    "sha256": "eccea71387c38697cad11ad3cb58fa72f33cdaf30c5e14b8b0098fe33b56fd0c",
+    "source": "010-tree-341549056.bin"
+   },
+   {
+    "byteOffset": 1445734645760,
+    "fsBlock": 352962560,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "1722dab9d6f43fa459072a9f8728655c79bc9896cab1f88d5c243f2407ea1e5f",
+     "journalBlock": 96883,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 15399
+    },
+    "sha256": "1722dab9d6f43fa459072a9f8728655c79bc9896cab1f88d5c243f2407ea1e5f",
+    "source": "011-tree-352962560.bin"
+   },
+   {
+    "byteOffset": 1493759426560,
+    "fsBlock": 364687360,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "f6cfa538479a7e6719736084d4a95cc023e61f5fbecf8f163b71580d93b81418",
+     "journalBlock": 97724,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 15477
+    },
+    "sha256": "f6cfa538479a7e6719736084d4a95cc023e61f5fbecf8f163b71580d93b81418",
+    "source": "012-tree-364687360.bin"
+   },
+   {
+    "byteOffset": 1541641601024,
+    "fsBlock": 376377344,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "0fffd91454e2828f1dfa7059340f121779c00c9ab744014e0131782819ffa99c",
+     "journalBlock": 98357,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 15503
+    },
+    "sha256": "0fffd91454e2828f1dfa7059340f121779c00c9ab744014e0131782819ffa99c",
+    "source": "013-tree-376377344.bin"
+   },
+   {
+    "byteOffset": 1562738950144,
+    "fsBlock": 381528064,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "06d7eb1f37fe0edef415ede445f0e352605a75d7dd6bc233e405e4b0c6aafced",
+     "journalBlock": 99919,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 15625
+    },
+    "sha256": "06d7eb1f37fe0edef415ede445f0e352605a75d7dd6bc233e405e4b0c6aafced",
+    "source": "014-tree-381528064.bin"
+   },
+   {
+    "byteOffset": 1610772119552,
+    "fsBlock": 393254912,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "c9c6ab052d745de831fd83b12732e834775738f15abc0cd429d9ba51b2405775",
+     "journalBlock": 100783,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 15705
+    },
+    "sha256": "c9c6ab052d745de831fd83b12732e834775738f15abc0cd429d9ba51b2405775",
+    "source": "015-tree-393254912.bin"
+   },
+   {
+    "byteOffset": 1658788511744,
+    "fsBlock": 404977664,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "9f1e382db21c2c40be40a6f032ae92e35add84dad8d1bd57280ffa58f409017b",
+     "journalBlock": 101613,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 15781
+    },
+    "sha256": "9f1e382db21c2c40be40a6f032ae92e35add84dad8d1bd57280ffa58f409017b",
+    "source": "016-tree-404977664.bin"
+   },
+   {
+    "byteOffset": 1706117038080,
+    "fsBlock": 416532480,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "2d2096b654b57b145549819c826b1b157686cf3c728d2926450af606744cb36c",
+     "journalBlock": 102441,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 15855
+    },
+    "sha256": "2d2096b654b57b145549819c826b1b157686cf3c728d2926450af606744cb36c",
+    "source": "017-tree-416532480.bin"
+   },
+   {
+    "byteOffset": 1753755942912,
+    "fsBlock": 428163072,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "4a65db0c6b0485fb574b29dbd4663f30cf2bc934202528ea7db11e9413a511ff",
+     "journalBlock": 103249,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 15927
+    },
+    "sha256": "4a65db0c6b0485fb574b29dbd4663f30cf2bc934202528ea7db11e9413a511ff",
+    "source": "018-tree-428163072.bin"
+   },
+   {
+    "byteOffset": 1801604562944,
+    "fsBlock": 439844864,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "cd6b17ea716375881c3575b42089f3adf026979d359dd5f661d7321aaf8606b3",
+     "journalBlock": 104111,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 16009
+    },
+    "sha256": "cd6b17ea716375881c3575b42089f3adf026979d359dd5f661d7321aaf8606b3",
+    "source": "019-tree-439844864.bin"
+   },
+   {
+    "byteOffset": 1849671286784,
+    "fsBlock": 451579904,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "18468ecafff24766b00f44b7f00db800a25cb35a34a517f495e78429ff2ec13e",
+     "journalBlock": 104988,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 16092
+    },
+    "sha256": "18468ecafff24766b00f44b7f00db800a25cb35a34a517f495e78429ff2ec13e",
+    "source": "020-tree-451579904.bin"
+   },
+   {
+    "byteOffset": 1897687678976,
+    "fsBlock": 463302656,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "ebe5815c650e160cc9faa760ec04a548a35f76d3be5f07c0e47b08b95a6234e9",
+     "journalBlock": 105857,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 16174
+    },
+    "sha256": "ebe5815c650e160cc9faa760ec04a548a35f76d3be5f07c0e47b08b95a6234e9",
+    "source": "021-tree-463302656.bin"
+   },
+   {
+    "byteOffset": 1945100091392,
+    "fsBlock": 474877952,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "c9fef4a7dd445f1b1f0ec41774954649c81cfed6916df623029083fd817dc368",
+     "journalBlock": 106716,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 16253
+    },
+    "sha256": "c9fef4a7dd445f1b1f0ec41774954649c81cfed6916df623029083fd817dc368",
+    "source": "022-tree-474877952.bin"
+   },
+   {
+    "byteOffset": 1993301032960,
+    "fsBlock": 486645760,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "75c798040e336b24fb0bc1b9a5904f7fc70736eac44ee91f24b464cb5f0b2ceb",
+     "journalBlock": 107570,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 16331
+    },
+    "sha256": "75c798040e336b24fb0bc1b9a5904f7fc70736eac44ee91f24b464cb5f0b2ceb",
+    "source": "023-tree-486645760.bin"
+   },
+   {
+    "byteOffset": 2041476808704,
+    "fsBlock": 498407424,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "8bfa3588132ab21f2a15d9c59190958b2af56e7ccc3aaa56898b72f77b38f6a2",
+     "journalBlock": 108423,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 16408
+    },
+    "sha256": "8bfa3588132ab21f2a15d9c59190958b2af56e7ccc3aaa56898b72f77b38f6a2",
+    "source": "024-tree-498407424.bin"
+   },
+   {
+    "byteOffset": 2044540669952,
+    "fsBlock": 499155437,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "bed024dc59e32c087c828e6c03f42753aaba969204d89039f2c682aa55fc9da7",
+     "journalBlock": 89078,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 14665
+    },
+    "sha256": "bed024dc59e32c087c828e6c03f42753aaba969204d89039f2c682aa55fc9da7",
+    "source": "025-tree-499155437.bin"
+   },
+   {
+    "byteOffset": 2044540719104,
+    "fsBlock": 499155449,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "00cc4c27b6252a0294c8a060e6e9b835f5403586a3f75c97d488e286c40f0964",
+     "journalBlock": 109295,
+     "revokedByProvenSequence": [
+      17170,
+      17179,
+      17193,
+      17197
+     ],
+     "sequence": 16490
+    },
+    "sha256": "00cc4c27b6252a0294c8a060e6e9b835f5403586a3f75c97d488e286c40f0964",
+    "source": "026-tree-499155449.bin"
+   },
+   {
+    "byteOffset": 2089384148992,
+    "fsBlock": 510103552,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "a2e046ff8ed2a089555f64e35aa8104d6cea379681f244964f090873ab0a3926",
+     "journalBlock": 109290,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 16490
+    },
+    "sha256": "a2e046ff8ed2a089555f64e35aa8104d6cea379681f244964f090873ab0a3926",
+    "source": "027-tree-510103552.bin"
+   },
+   {
+    "byteOffset": 2137568313344,
+    "fsBlock": 521867264,
+    "kind": "tree",
+    "length": 4096,
+    "provenance": {
+     "contentSha256": "329cb98998d5f06c06eaacb7fd8a441509b0c448fd37dcf261e0367fb759b24e",
+     "journalBlock": 117943,
+     "revokedByProvenSequence": [
+      17170
+     ],
+     "sequence": 17027
+    },
+    "sha256": "329cb98998d5f06c06eaacb7fd8a441509b0c448fd37dcf261e0367fb759b24e",
+    "source": "028-tree-521867264.bin"
+   },
+   {
+    "byteOffset": 2044405129216,
+    "fsBlock": 499122346,
+    "kind": "dir",
+    "length": 4096,
+    "provenance": {
+     "considered": 4,
+     "contentSha256": "f5f5c662655b3a5c6ff05a96f3669c7aa90a4cff594e6087d9056d94a93f302b",
+     "journalBlock": 118419,
+     "sequence": 17169
+    },
+    "sha256": "f5f5c662655b3a5c6ff05a96f3669c7aa90a4cff594e6087d9056d94a93f302b",
+    "source": "029-dir-499122346.bin"
+   }
+  ],
+  "planPath": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r7/runs/plan-real-20261026T212534Z-2371806/plan.json",
+  "planSha256": "c4e38213847793d5c0868825fe454c5702b4499a6b25315078037b073a4f35a9"
+ },
+ "targets": {
+  "root": {
+   "dir": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root",
+   "floorBytes": 42949672960,
+   "majmin": "253:0",
+   "uuid": "1c7c5336-9d52-4858-828a-823c31189c59"
+  },
+  "vm": {
+   "dir": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm",
+   "floorBytes": 42949672960,
+   "majmin": "253:1",
+   "uuid": "aaae081c-f829-4484-a50f-a9bbb87d31f9"
+  }
+ }
+}

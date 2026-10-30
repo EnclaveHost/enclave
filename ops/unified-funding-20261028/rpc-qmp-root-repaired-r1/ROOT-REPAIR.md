@@ -1,0 +1,1 @@
+Exactly one product line changed from frozen delivery: correlated peer rejection keeps request identity/sent/rejected semantics, but reports a fixed message rather than arbitrary peer class/description. No assertion weakened; same68 test closure. No VM or runtime authorization.

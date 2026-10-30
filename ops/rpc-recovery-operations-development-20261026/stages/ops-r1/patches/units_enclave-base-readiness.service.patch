@@ -1,0 +1,19 @@
+--- a/units/enclave-base-readiness.service
++++ b/units/enclave-base-readiness.service
+@@ -1,4 +1,6 @@
+-# base-finality-proof-stage/r6 (SOURCE ONLY): the unprivileged readiness sampler, published as /run/enclave-rpc-readiness/latest.json
++# base-finality-proof-stage/r6-ops-fixes (SOURCE ONLY): the unprivileged readiness sampler, published as /run/enclave-rpc-readiness/latest.json.
++# Every sampler input (coverage receipt/verdict/origin, expected snapshot-manifest and chain-config pins, the finality status file) comes
++# from ONE root-reviewed settings file; a missing, malformed or non-root-owned settings file publishes a NOT-READY report (fail closed).
+ [Unit]
+ Description=Base RPC readiness sample (post-anchor-finality gate included)
+ After=enclave-base-finality-status.service
+@@ -9,7 +11,7 @@
+ RuntimeDirectory=enclave-rpc-readiness
+ RuntimeDirectoryMode=0755
+ RuntimeDirectoryPreserve=yes
+-ExecStart=/usr/bin/python3 -I -B /opt/enclave-rpc/readiness/publish_readiness.py /run/enclave-rpc-readiness --finality-status /run/enclave-rpc/base-finality-status.json
++ExecStart=/usr/bin/python3 -I -B /opt/enclave-rpc/readiness/publish_readiness.py /run/enclave-rpc-readiness --settings /etc/enclave-rpc/readiness-settings.json
+ SuccessExitStatus=3 4
+ NoNewPrivileges=yes
+ PrivateTmp=yes

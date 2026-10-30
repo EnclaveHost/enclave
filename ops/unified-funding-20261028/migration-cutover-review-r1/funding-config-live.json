@@ -1,0 +1,12 @@
+{
+  "capturedAt": "2026-10-28T23:15:41.558004+00:00",
+  "method": "GET",
+  "url": "https://api.enclave.host/v1/sessions/funding/config",
+  "status": 404,
+  "contentType": "application/json",
+  "body": "{\"error\":\"no such sessions endpoint\",\"code\":\"not_found\"}",
+  "parsedBody": {
+    "error": "no such sessions endpoint",
+    "code": "not_found"
+  }
+}

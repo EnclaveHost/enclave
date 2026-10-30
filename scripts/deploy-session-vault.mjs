@@ -37,9 +37,9 @@ const SOURCE = path.join(REPO, "contracts", "SessionVault.sol");
 const OUT_DIR = path.join(REPO, "contracts", "deployments");
 
 export const NETWORKS = {
-  "base-sepolia": { chain: baseSepolia, rpc: "https://sepolia.base.org",
+  "base-sepolia": { chain: baseSepolia, rpc: "https://api.enclave.host/rpc/base-sepolia",
     usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", explorer: "https://sepolia.basescan.org" },
-  base: { chain: base, rpc: "https://mainnet.base.org",
+  base: { chain: base, rpc: "https://api.enclave.host/rpc/base",
     usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     book: "0xab214342d5A490150A4A977063A2f88E21F80907",
     router: "0xf17157b42ebbd65E33dD592878A8f1769C69d56A", explorer: "https://basescan.org" },

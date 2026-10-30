@@ -1,0 +1,296 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/native-final-canary/canary/run-canary.py	2026-10-22 15:52:05.225377463 -0700
++++ canary/run-canary.py	2026-10-25 10:33:44.925361692 -0700
+@@ -1,20 +1,25 @@
+ #!/usr/bin/env python3
+-"""ROOT-EXECUTED, bounded hardware canary of the measured DIRECT-control image (never a production activation).
++"""ROOT-EXECUTED, bounded hardware canary of the VERIFIER-ONLY direct-control image (never a production activation).
+ 
+-One disposable SNP guest, booted by the launcher of the image's commit (tree/metal/enclave-metal.mjs, git archive of 493ee9ee) from
+-the exact built image native-final-image/image/dist-direct-493ee9ee0, with a BARE owner config (canary/owner-config.mjs):
++One disposable SNP guest, booted by the launcher of the image's commit (tree/metal/enclave-metal.mjs, git archive of 0235e7d96) from
++the exact built image attested-image-stage/out/dist-direct-0235e7d96-a, with a VERIFIER-ONLY owner config (canary/owner-config.mjs:
++the bare config + chainVerifier expose "attested" whose only proof source is a refused loopback stand-in, so Base is UNREADY):
+ no registry key, no fleet secret, no relay/tunnel/certificate/ACME input, no apps, no MCP/Platform API/nativeControl member, guestd
+ endpoints on loopback ports proven to have NO listener (never production guestd 8095/8096), slirp with restrict=on
+ (canary/qemu-restrict.sh), and ONE loopback port forward to the guest's attested control front (8444), never the plain
+-supervisor port. The host-side verifier (canary/verify-canary.mjs) uses the published verifyMeasuredControl with real AMD
+-collateral (a COPY of the existing public cache) and, optionally, a read-only registry read. Scope: BARE direct control.
++supervisor port. The host-side verifier (canary/verify-canary.mjs) uses the published verifyMeasuredControl, verifySnp and the
++production verifier-only client with real AMD collateral (a COPY of the existing public cache) and NO registry read. Scope:
++hardware attestation + config binding + tamper/wrong-config/wrong-measurement rejection + route fail-closed (Base unready).
+ 
+   python3 canary/run-canary.py --preflight     read-only gates (no run directory, no lock, no launch)
+-  python3 canary/run-canary.py --run [--kds on|off] [--registry on|off]
++  python3 canary/run-canary.py --run [--kds on|off]
+       ROOT ONLY, after root accepted this exact source (FROZEN-PINS.json), in a quiet window. Takes BOTH shared queue lanes
+-      (non-blocking: exit 98 if busy), needs MemAvailable >= 16384 + CAP + 1024 MiB, re-verifies every frozen pin, creates
+-      runs/<UTC stamp> (0700, never reused), then supervise(): systemd-run --user --scope (MemoryMax=CAP, MemorySwapMax=0)
+-      memory-guard (CAP, floor 16384) timeout -> --child. The child re-verifies the pins right before the launcher starts.
++      (non-blocking: exit 98 if busy). Memory admission (root rule 2026-10-25): RPC VM active -> MemAvailable >= 16384 floor +
++      3072 canary; RPC VM NOT active -> its 66 GiB restart reservation is held too: >= 67584 + 3072 + 16384 = 87040 MiB, and
++      the memory-guard floor during the run is 16384 + 67584 (the canary yields to an RPC restart: abort, never a pass).
++      Re-verifies every frozen pin, creates runs/<UTC stamp> (0700, never reused), then supervise(): systemd-run --user --scope
++      (MemoryMax=3072M, MemorySwapMax=0, CPUQuota=200%) memory-guard (3072, floor) timeout -> --child. The child re-verifies the
++      pins right before the launcher starts.
+ 
+ Ownership rules (root review 2026-10-22 20:31-20:32Z):
+   - a process is OURS only by (pid, /proc starttime) recorded when we started or observed it as the launcher's child;
+@@ -24,9 +29,11 @@
+     (normal, exception, SIGTERM/SIGINT/SIGHUP), proves its cgroup empty and no process naming this run survives, and only
+     then scrubs this run's private/ directory (fw_cfg, test pairing key); logs and results are kept.
+ Acceptance (accept()) requires every promised check; the registry stays a separate diagnostic (expected "pending").
+-Adapted 2026-10-22 from the root-reviewed direct-hardware-canary/canary/run-canary.py (a82b6eaf; its run 20261022T205536Z
+-passed on the 6f2c7da4 image): ONLY the image/receipt/inputs paths, these docstrings and the result scope sentence changed; every gate, bound, ownership
+-and cleanup rule is unchanged.
++Adapted 2026-10-25 from the root-reviewed native-final-canary/canary/run-canary.py (bc3397ef; run 20261022T225651Z PASSED):
++image/receipt/runtime paths, 2048 MiB guest / 3072 MiB scope / CPUQuota 200%, the RPC-reservation admission and floor, the
++protected QEMU set taken as a run-time snapshot (every pre-existing QEMU identity must be unchanged; the 10-22 pids are gone),
++the verifier-only no-key checks (no host-level chainVerifier/platformPolicyCarriers; fw direct = the verifier-only config),
++the wrong-config variant, no registry option, and the scope memory peak record. Ownership and cleanup rules are unchanged.
+ """
+ import datetime, fcntl, hashlib, json, os, pathlib, re, secrets, shutil, signal, socket, subprocess, sys, threading, time
+ 
+@@ -34,23 +41,25 @@
+ WORK = D.parents[1]                                   # .../wo/work
+ TREE = D / 'tree'
+ FROZEN = D / 'FROZEN-PINS.json'
+-BUILD = D.parent / 'native-final-image'
+-IMAGE = BUILD / 'image/dist-direct-493ee9ee0'
+-RECEIPT = BUILD / 'public/BUILD-RECEIPT.json'
+-INPUTS = BUILD / 'public/inputs-precheck.json'
++BUILD = D.parent / 'attested-image-stage'
++IMAGE = BUILD / 'out/dist-direct-0235e7d96-a'
++RECEIPT = BUILD / 'receipts/image-verify-direct.json'       # the independent 45/45 image verification (ok: true)
++INPUTS = BUILD / 'receipts/measurement-B.txt'               # the independent measurement recomputation
++EXPECTED_MEASUREMENT = '4287b65e718ff958027f31beec6a0753d42784086807b950f557a963cd0277f33c9869173420f03f5fb53e4ad2859be9'
++RPC_UNIT, RPC_RESERVE_MIB = 'enclave-rpc-production-vm.service', 67584   # 66 GiB restart reservation held while it is down
+ OVMF = pathlib.Path('/home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd')
+ QEMU = pathlib.Path('/usr/bin/qemu-system-x86_64')
+ NODE = pathlib.Path('/usr/bin/node')
+ COLLATERAL_SRC = pathlib.Path('/home/steven/enclave-prod/capacity-audit/state/amd')   # public AMD collateral: COPIED, never written
+ MEASURED_CMDLINE = 'console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app metal.control=direct'
+-PROTECTED = {3483499: 87503396, 3817658: 32598976}    # pid -> /proc starttime (enclave-metal.service, enclave-custodian-v2.service)
+ PRODUCTION_GUESTD = (8095, 8096)
+-CPUS, MEM_MIB, CONTROL_PORT = 4, 4096, 8444
+-CAP_MIB, FLOOR_MIB, MARGIN_MIB = 6144, 16384, 1024    # scope MemoryMax = guest 4096 + 2048 QEMU/launcher/verifier overhead
+-CHILD_TIMEOUT_S, KILL_AFTER_S, VERIFY_DEADLINE_S = 330, 40, 210   # cleanup_group is bounded at ~22 s < KILL_AFTER_S
++CPUS, MEM_MIB, CONTROL_PORT = 4, 2048, 8444           # 4 vCPU: the measurement recipe; guest RAM is not measured
++CAP_MIB, FLOOR_MIB, CPU_QUOTA = 3072, 16384, '200%'   # scope MemoryMax = guest 2048 + 1024 QEMU/launcher/verifier overhead
++CHILD_TIMEOUT_S, KILL_AFTER_S, VERIFY_DEADLINE_S = 420, 40, 300   # verifier: boot + A..D probes; cleanup_group ~22 s < KILL_AFTER_S
+ STUB_BIN = D / 'bin'
+ FORBIDDEN_HOST_KEYS = ('registryKey', 'registryKeyFile', 'fleetSecret', 'relayUrl', 'tunnelToken', 'certsApi', 'acmeEabKid', 'acmeEabHmac',
+-                       'acmeBringYourOwn', 'egressHelper', 'publicUrl', 'referral', 'volumes', 'leaseGas', 'ownerNomination', 'hostAdmission', 'vcekFile')
++                       'acmeBringYourOwn', 'egressHelper', 'publicUrl', 'referral', 'volumes', 'leaseGas', 'ownerNomination', 'hostAdmission', 'vcekFile',
++                       'chainVerifier', 'platformPolicyCarriers')
+ 
+ def now(): return datetime.datetime.now(datetime.timezone.utc).isoformat()
+ def sha256_file(p):
+@@ -106,14 +115,32 @@
+         out.append(p)
+     return out
+ def expected_measurement():
+-    m = json.loads(RECEIPT.read_text())['measurement']['value']
+-    if not re.fullmatch(r'[0-9a-f]{96}', m): raise RuntimeError('receipt measurement is not 96 hex')
+-    if (IMAGE / 'MEASUREMENT').read_text().strip() != m: raise RuntimeError('image MEASUREMENT differs from the receipt')
++    m = EXPECTED_MEASUREMENT
++    if json.loads(RECEIPT.read_text()).get('ok') is not True: raise RuntimeError('the image verification receipt is not ok')
++    if INPUTS.read_text().strip() != m: raise RuntimeError('the independent measurement recomputation differs')
++    if (IMAGE / 'MEASUREMENT').read_text().strip() != m: raise RuntimeError('image MEASUREMENT differs from the pinned value')
+     return m
+ def expected_runtime():
+-    i = json.loads(INPUTS.read_text())['inputs']
+-    return {'gsupSha256': i['opt/metal/gsup.mjs']['sha256'], 'helperSha256': i['opt/metal/measured-control.mjs']['sha256'],
+-            'supervisorSha256': i['app/supervisor.js']['sha256']}
++    f = {r['path']: r['sha256'] for r in json.loads((IMAGE / 'manifest.json').read_text())['controlOverlay']['files']}
++    return {'gsupSha256': f['/opt/metal/gsup.mjs'], 'helperSha256': f['/opt/metal/measured-control.mjs'], 'supervisorSha256': f['/app/supervisor.js']}
++def rpc_state():
++    """the RPC VM user unit: (active?, reserve MiB held for its restart while it is not active)."""
++    r = subprocess.run(['systemctl', '--user', 'show', RPC_UNIT, '-p', 'ActiveState', '-p', 'MemoryMax'], capture_output=True, text=True, timeout=20).stdout
++    kv = dict(l.split('=', 1) for l in r.splitlines() if '=' in l)
++    mm = kv.get('MemoryMax', '')
++    reserve = max(RPC_RESERVE_MIB, int(mm) // (1 << 20)) if mm.isdigit() else RPC_RESERVE_MIB
++    return kv.get('ActiveState') == 'active', reserve, kv.get('ActiveState', 'unknown')
++def admission():
++    """-> (need MiB at start, guard floor MiB during the run, detail). Root rule 2026-10-25."""
++    active, reserve, state = rpc_state()
++    if active: return FLOOR_MIB + CAP_MIB, FLOOR_MIB, f'RPC {state}: floor {FLOOR_MIB} + canary {CAP_MIB}'
++    return reserve + CAP_MIB + FLOOR_MIB, FLOOR_MIB + reserve, f'RPC {state}: reserve {reserve} + canary {CAP_MIB} + floor {FLOOR_MIB}'
++def qemu_units():
++    out = {}
++    for pid in qemus():
++        try: out[pid] = pathlib.Path(f'/proc/{pid}/cgroup').read_text().strip().rsplit('/', 1)[-1]
++        except OSError: out[pid] = None
++    return out
+ SECRETISH = re.compile(r'(SECRET|PRIVATE_KEY|ADMIN_TOKEN|MNEMONIC|PASSWORD|pairingKey)\s*["=:]', re.I)
+ def sanitize(text, secrets_):
+     for s in secrets_:
+@@ -137,6 +164,7 @@
+     files.update({f'bin/{c}': D / 'bin' / c for c in ('ssh', 'scp', 'sftp')})
+     files.update({f'image/{f}': IMAGE / f for f in ('vmlinuz', 'initramfs.cpio.gz', 'cmdline', 'manifest.json', 'MEASUREMENT')})
+     files.update({'ovmf': OVMF, 'qemu': QEMU, 'node': NODE, 'receipt': RECEIPT, 'inputs': INPUTS, 'tree.sha256': D / 'tree.sha256'})
++    files.update({f'tools/{f}': D / 'tools' / f for f in ('env.sh',)})
+     t = {k: (lambda p=p: sha256_file(p)) for k, p in files.items()}
+     t['tree/source-files'] = lambda: file_list_sha(TREE, True)
+     t['tree/node_modules'] = lambda: file_list_sha(TREE / 'node_modules', False)
+@@ -177,6 +205,10 @@
+         'fwNoCertificateOrAcmeInput': not (fw or {}).get('certsApi') and not (fw or {}).get('acmeEabKid') and not (fw or {}).get('acmeEabHmac'),
+         'fwNoVolumes': (fw or {}).get('volumes') == [], 'fwNoLeaseGasOrNomination': 'leaseGas' not in (fw or {}) and 'ownerNomination' not in (fw or {}),
+         'fwDirectIsTheOwnerConfig': fw is not None and fw.get('direct') == owner_cfg,
++        'fwDirectIsVerifierOnly': fw is not None and ((fw.get('direct') or {}).get('chainVerifier') or {}).get('expose') == 'attested'
++            and 'txBackend' not in (fw.get('direct') or {}).get('chainVerifier', {}) and not any(k in (fw.get('direct') or {}) for k in ('mcp', 'platformApi', 'leaseGas', 'ownerNomination', 'nativeControl')),
++        'fwNoHostLevelChainVerifier': fw is not None and 'chainVerifier' not in fw and 'platformPolicyCarriers' not in fw,
++        'proofSourceIsTheRefusedStandIn': ((owner_cfg or {}).get('chainVerifier') or {}).get('proofSources') == [f"http://10.0.2.2:{ports['proofStandIn']}/"],
+         'fwIsolationIsTheRefusedStandIns': iso.get('managerUrl') == f"http://10.0.2.2:{ports['guestdStandInManager']}" and iso.get('dataAddr') == f"10.0.2.2:{ports['guestdStandInData']}"
+             and 'release' not in iso and not any(f':{p}' in str(iso.get('managerUrl', '')) + str(iso.get('dataAddr', '')) for p in PRODUCTION_GUESTD),
+         'ownerConfigNotSelling': (owner_cfg or {}).get('selling') == {'cpuPrice6': None, 'payout': None},
+@@ -188,13 +220,14 @@
+         'no error': not result.get('error'),
+         'frozen pins hold at the launch boundary': result.get('pinsAtLaunch') == [],
+         'verifier exit 0': result.get('verifierExit') == 0,
+-        'verifier acceptance (hardware + exact runtime + bare roles)': (result.get('acceptance') or {}).get('pass') is True,
++        'verifier acceptance (A hardware + binding, B tamper/replay, C wrong measurement/config, D route fail-closed)': (result.get('acceptance') or {}).get('pass') is True,
+         'exactly one QEMU started (no relaunch)': result.get('qemuStarts') == 1,
+         'QEMU argv = the measured, restricted launch': bool(result.get('qemuArgvChecks')) and all(all(c.values()) for c in result['qemuArgvChecks']),
+         'no key / no relay evidence from the launcher\'s own inputs and fw_cfg': bool(result.get('noKeyEvidence')) and all(result['noKeyEvidence'].values()),
+         'fw_cfg file mode 0600 in a 0700 directory': result.get('fwCfgModes') == ['0o600', '0o700'],
+         'every owned process absent, no foreign group signalled': (result.get('cleanup') or {}).get('allOwnedAbsent') is True and not (result.get('cleanup') or {}).get('refused'),
+-        'protected QEMU identities unchanged': result.get('protectedQemuIdentitiesUnchanged') is True,
++        'every pre-existing QEMU identity unchanged (run-time snapshot)': result.get('protectedQemuIdentitiesUnchanged') is True,
++        'RPC VM unit state unchanged during the run': result.get('rpcStateUnchanged') is True,
+         'running user services unchanged': result.get('userServicesUnchanged') is True,
+         'collateral source unchanged': result.get('collateralSourceUnchanged') is True,
+         'private directory removed': result.get('privateRemoved') is True,
+@@ -256,12 +289,13 @@
+     except Exception as e: gate('expected measurement from the receipt', False, str(e))
+     gate('image cmdline template + metal.mode=snp == the measured cmdline the launcher builds',
+          (IMAGE / 'cmdline').read_text().strip().replace('${MODE}', 'snp') == MEASURED_CMDLINE)
+-    for p, st in PROTECTED.items():
+-        gate(f'protected QEMU {p} present with its recorded identity', starttime(p) == st and (comm(p) or '').startswith('qemu'), f'starttime {starttime(p)}')
++    gate('pre-existing QEMU identities recorded (protected: never signalled, must be unchanged after)', True, json.dumps({k: [qemus()[k], u] for k, u in qemu_units().items()}))
+     gate('production guestd 8095/8096 are never the canary\'s endpoints (listening there is expected)', True,
+          f'8095 listening={listening(8095)} 8096 listening={listening(8096)}')
+-    need = FLOOR_MIB + CAP_MIB + MARGIN_MIB; a = available_mib()
+-    gate(f'MemAvailable >= {FLOOR_MIB} floor + {CAP_MIB} cap + {MARGIN_MIB} margin = {need} MiB', a >= need, f'{a} MiB')
++    need, floor, why = admission(); a = available_mib()
++    gate(f'MemAvailable >= {need} MiB ({why}); run guard floor {floor} MiB', a >= need, f'{a} MiB')
++    cg = pathlib.Path('/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/cgroup.subtree_control')
++    gate('user app.slice delegates cpu + memory (CPUQuota/MemoryMax enforceable in the scope)', cg.is_file() and {'cpu', 'memory'} <= set(cg.read_text().split()))
+     gate('public AMD collateral cache present (copied read-only at run time)', (COLLATERAL_SRC / 'Turin/chain.pem').is_file(), str(COLLATERAL_SRC))
+     gate('runs/ parent has >= 2 GiB free', shutil.disk_usage(D).free >= 2 << 30)
+     gate('ssh/scp/sftp stubs first in PATH', all(shutil.which(c) == str(STUB_BIN / c) for c in ('ssh', 'scp', 'sftp')))
+@@ -274,23 +308,26 @@
+     run = pathlib.Path(run)
+     def interrupted(signum, frame): raise KeyboardInterrupt(f'canary interrupted by signal {signum}')
+     for s_ in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP): signal.signal(s_, interrupted)
+-    before_q, before_s = qemus(), user_services()
++    before_q, before_s, rpc_before = qemus(), user_services(), rpc_state()[2]
+     save(run, 'protected-before.json', {'qemus': before_q, 'services': before_s})
+     private = run / 'private'; private.mkdir(mode=0o700); (private / 'tmp').mkdir(mode=0o700)
+-    result = dict(startedAt=now(), scope='BARE direct control: hardware quote + bound config + attested TLS key + running supervisor keys + exact runtime. '
+-                  'No MCP, no Platform API, no native control names, no apps, no registration (registry expected pending): NOT service readiness.', productionActivated=False)
++    result = dict(startedAt=now(), scope='VERIFIER-ONLY direct control: hardware quote + bound config + attested TLS key + running supervisor keys + exact runtime; '
++                  'tamper/replay/wrong-measurement/wrong-config rejection; /chain-verifier fails closed while Base is unready. '
++                  'NOT Base chain readiness, native provenance or finality; no registration, no MCP/Platform API/native names, no apps.', productionActivated=False)
+     launcher, owned, stop_poll, pairing = None, {}, threading.Event(), secrets.token_hex(32)
+     collateral_before = tree_fingerprint(COLLATERAL_SRC)
+     host, owner_cfg = None, None
+     try:
+         M = expected_measurement()
+-        ctl, mgr, data = pick_ports(3)
+-        result['ports'] = {'controlHostLoopback': ctl, 'guestdStandInManager': mgr, 'guestdStandInData': data, 'productionGuestdAvoided': list(PRODUCTION_GUESTD)}
++        ctl, mgr, data, proof = pick_ports(4)
++        result['ports'] = {'controlHostLoopback': ctl, 'guestdStandInManager': mgr, 'guestdStandInData': data, 'proofStandIn': proof, 'productionGuestdAvoided': list(PRODUCTION_GUESTD)}
+         (private / 'pairing.key').write_text(pairing + '\n'); os.chmod(private / 'pairing.key', 0o600)
+         env = dict(PATH=f'{STUB_BIN}:/usr/bin:/usr/sbin:/bin', HOME=os.environ['HOME'], LANG='C.UTF-8', TMPDIR=str(private / 'tmp'))
+-        oc = subprocess.run([str(NODE), str(D / 'canary/owner-config.mjs'), '--manager-port', str(mgr), '--data-port', str(data),
+-                             '--out', str(private / 'owner-config.json')], env=env, capture_output=True, text=True, timeout=30, check=True)
++        ocargs = [str(NODE), str(D / 'canary/owner-config.mjs'), '--manager-port', str(mgr), '--data-port', str(data), '--proof-port', str(proof)]
++        oc = subprocess.run(ocargs + ['--out', str(private / 'owner-config.json')], env=env, capture_output=True, text=True, timeout=30, check=True)
+         result['ownerConfig'] = json.loads(oc.stdout)
++        wc = subprocess.run(ocargs + ['--variant', 'wrong-config', '--out', str(private / 'wrong-config.json')], env=env, capture_output=True, text=True, timeout=30, check=True)
++        result['wrongConfig'] = {k: v for k, v in json.loads(wc.stdout).items() if k in ('digest', 'hostData')}
+         owner_cfg = json.loads((private / 'owner-config.json').read_text())
+         shutil.copyfile(private / 'owner-config.json', run / 'owner-config.json')          # public: the bound config
+         host = dict(mode='snp', name='direct-control-canary', cpus=CPUS, memMiB=MEM_MIB, dist=str(IMAGE), ovmf=str(OVMF),
+@@ -302,7 +339,7 @@
+         save(run, 'host-config.public.json', {**host, 'isolation': {**host['isolation'], 'pairingKeyFile': '<private, 0600, removed at the end>'}})
+         shutil.copytree(COLLATERAL_SRC, private / 'collateral')                             # the verifier writes only to this COPY
+         (private / 'runtime.json').write_text(json.dumps(expected_runtime()))
+-        for p in (ctl, mgr, data):
++        for p in (ctl, mgr, data, proof):
+             if listening(p): raise RuntimeError(f'port {p} has a listener')
+         result['pinsAtLaunch'] = verify_pins()                                              # the launch boundary
+         if result['pinsAtLaunch']: raise RuntimeError(f"frozen pins changed: {result['pinsAtLaunch']}")
+@@ -329,13 +366,14 @@
+         threading.Thread(target=poll, daemon=True).start()
+         with (run / 'verify.log').open('x') as vlog:
+             v = subprocess.run([str(NODE), str(D / 'canary/verify-canary.mjs'), '--url', f'https://127.0.0.1:{ctl}', '--config', str(private / 'owner-config.json'),
++                                '--wrong-config', str(private / 'wrong-config.json'),
+                                 '--measurement', M, '--expect-runtime', str(private / 'runtime.json'), '--collateral-dir', str(private / 'collateral'),
+-                                '--kds', ARGS.get('kds', 'on'), '--registry', ARGS.get('registry', 'on'), '--deadline-sec', str(VERIFY_DEADLINE_S),
++                                '--kds', ARGS.get('kds', 'on'), '--deadline-sec', str(VERIFY_DEADLINE_S - 30),
+                                 '--out', str(run / 'verify-result.json')], env=env, stdout=vlog, stderr=subprocess.STDOUT, timeout=VERIFY_DEADLINE_S + 20)
+         result['verifierExit'] = v.returncode
+         if (run / 'verify-result.json').exists():
+             vr = json.loads((run / 'verify-result.json').read_text())
+-            result.update(acceptance=vr.get('acceptance'), verdict=vr.get('verdict'), statementChecks=vr.get('statementChecks'))
++            result.update(acceptance=vr.get('acceptance'), verdict=vr.get('verdict'), statementChecks=vr.get('statementChecks'), route=vr.get('route'))
+         result['launcherAliveAtVerifyEnd'] = alive(tuple(owned['launcher']))
+     except BaseException as e:                          # KeyboardInterrupt (timeout/TERM) included: cleanup below always runs
+         result['error'] = f'{type(e).__name__}: {e}'[:500]
+@@ -345,8 +383,12 @@
+         after_q, after_s = qemus(), user_services()
+         save(run, 'protected-after.json', {'qemus': after_q, 'services': after_s})
+         mine = {str(i[0]) for i in (owned.get('children') or {}).values()}
+-        result['protectedQemuIdentitiesUnchanged'] = all(after_q.get(str(p)) == before_q.get(str(p)) == st for p, st in PROTECTED.items()) and \
+-            {k: v for k, v in after_q.items() if k not in mine} == before_q
++        result['protectedQemuIdentitiesUnchanged'] = bool(before_q) and {k: v for k, v in after_q.items() if k not in mine} == before_q
++        result['rpcStateUnchanged'] = rpc_state()[2] == rpc_before
++        try:                                            # this scope's own memory peak (cgroup v2), the <= 3 GiB evidence
++            cgp = pathlib.Path('/proc/self/cgroup').read_text().strip().split('::', 1)[-1]
++            result['scopeMemoryPeakMiB'] = int(pathlib.Path(f'/sys/fs/cgroup{cgp}/memory.peak').read_text()) // (1 << 20)
++        except Exception as e: result['scopeMemoryPeakMiB'] = f'unavailable: {e}'[:120]
+         result['userServicesUnchanged'] = after_s == before_s
+         if not result['userServicesUnchanged']: result['userServicesDrift'] = {'before': before_s, 'after': after_s}
+         try:                                            # evidence from the launcher's own output, then sanitized copies
+@@ -434,7 +476,7 @@
+         if priv.exists() and absent:
+             shutil.rmtree(priv, ignore_errors=True)
+         rec['privateAbsent'] = not priv.exists()
+-        rec['protectedNow'] = {str(pid): starttime(pid) for pid in PROTECTED}
++        rec['qemusNow'] = qemus()
+         rec['finishedAt'] = now()
+         code = rec['exitCode'] if isinstance(rec['exitCode'], int) else 1
+         if rec['interrupted'] or not absent or not rec['privateAbsent'] or rec.get('scopeStop') not in (0, 5):
+@@ -446,7 +488,7 @@
+ 
+ def main():
+     a = sys.argv[1:]
+-    for k in ('kds', 'registry'):
++    for k in ('kds',):
+         if f'--{k}' in a:
+             v = a[a.index(f'--{k}') + 1]
+             if v not in ('on', 'off'): raise SystemExit(f'--{k} on|off')
+@@ -473,15 +515,17 @@
+     (D / 'runs').mkdir(mode=0o700, exist_ok=True)
+     run = D / 'runs' / stamp; run.mkdir(mode=0o700)                       # never reused
+     (run / 'preflight.txt').write_text('\n'.join(f"{'PASS' if ok else 'FAIL'}  {n}  [{d}]" for n, ok, d in g) + '\n')
+-    save(run, 'attempt.json', dict(at=now(), measurement=expected_measurement(), frozenPinsSha256=sha256_file(FROZEN), capMiB=CAP_MIB, floorMiB=FLOOR_MIB,
+-         guestMemMiB=MEM_MIB, cpus=CPUS, childTimeoutS=CHILD_TIMEOUT_S, killAfterS=KILL_AFTER_S, kds=ARGS.get('kds', 'on'), registry=ARGS.get('registry', 'on'),
+-         exclusiveBothQueueLanes=True))
+-    unit = f'enclave-direct-control-canary-{stamp.lower()}-{secrets.token_hex(4)}'
++    need, floor, why = admission()
++    save(run, 'attempt.json', dict(at=now(), measurement=expected_measurement(), frozenPinsSha256=sha256_file(FROZEN), capMiB=CAP_MIB, cpuQuota=CPU_QUOTA,
++         admissionMiB=need, guardFloorMiB=floor, admissionBasis=why, guestMemMiB=MEM_MIB, cpus=CPUS, childTimeoutS=CHILD_TIMEOUT_S, killAfterS=KILL_AFTER_S,
++         kds=ARGS.get('kds', 'on'), registry='none (verifier-only rule)', exclusiveBothQueueLanes=True, qemusAtAdmission=qemu_units()))
++    unit = f'enclave-snp-verifier-canary-{stamp.lower()}-{secrets.token_hex(4)}'
+     env = dict(PATH=f'{STUB_BIN}:/usr/bin:/usr/sbin:/bin', HOME=os.environ['HOME'], LANG='C.UTF-8',
+                XDG_RUNTIME_DIR=os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}'),
+                DBUS_SESSION_BUS_ADDRESS=os.environ.get('DBUS_SESSION_BUS_ADDRESS', f'unix:path=/run/user/{os.getuid()}/bus'))
+     cmd = ['systemd-run', '--user', '--scope', '--quiet', '--expand-environment=no', f'--unit={unit}', '-p', f'MemoryMax={CAP_MIB}M', '-p', 'MemorySwapMax=0',
+-           str(NODE), str(TREE / 'test/helpers/memory-guard.mjs'), '--max-rss-mib', str(CAP_MIB), '--floor-available-mib', str(FLOOR_MIB),
++           '-p', f'CPUQuota={CPU_QUOTA}',
++           str(NODE), str(TREE / 'test/helpers/memory-guard.mjs'), '--max-rss-mib', str(CAP_MIB), '--floor-available-mib', str(floor),
+            '--log', str(run / 'memory.log'), '--', 'timeout', '--signal=TERM', f'--kill-after={KILL_AFTER_S}s', f'{CHILD_TIMEOUT_S}s',
+            sys.executable, str(pathlib.Path(__file__).resolve()), '--child', str(run)] + sum(([f'--{k}', v] for k, v in ARGS.items()), [])
+     (run / 'command.json').write_text(json.dumps(cmd, indent=1))

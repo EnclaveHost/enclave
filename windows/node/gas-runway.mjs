@@ -3,7 +3,7 @@
 
 /**
  * gasRunway(samples, wei, now) -> { renews, burnPerHour, hoursLeft, low }: how long the operator key's gas lasts.
- * Renewals are not the whole bill: proof-of-time checkpoints (every app, every few minutes), heartbeats and claims spend
+ * Renewals are not the whole bill: proof-of-time checkpoints (every app, every few minutes), registry updates and claims spend
  * from the same key, so the runway is MEASURED - the balance's fall over the last ~6 hours, restarted by a top-up - and
  * the renewal count is only the fallback before half an hour of samples exists (2026-10-13: "about 200 renewals" was
  * ~7 hours with 7 apps proving, and the NucBox ran dry behind nothing but a log line). `samples` is the caller's array,

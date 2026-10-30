@@ -1,0 +1,9 @@
+{
+    "image-end-offset": 495572353024,
+    "total-clusters": 61035157,
+    "check-errors": 0,
+    "allocated-clusters": 7558992,
+    "filename": "/mnt/usb/enclave-rpc-production/l1-origin.qcow2",
+    "format": "qcow2",
+    "fragmented-clusters": 306951
+}

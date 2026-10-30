@@ -1,0 +1,53 @@
+[queue] START available=24637MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+{
+  "totalNameMatches": 4,
+  "matches": [
+    {
+      "journalBlock": 88134,
+      "nameOffset": 68,
+      "authenticated": false,
+      "inodeCandidate": 1950053,
+      "recordLength": 4024,
+      "nameLength": 8,
+      "fileType": 1,
+      "plausibleDirectoryEntry": true
+    },
+    {
+      "journalBlock": 109966,
+      "nameOffset": 68,
+      "authenticated": false,
+      "inodeCandidate": 1950053,
+      "recordLength": 16,
+      "nameLength": 8,
+      "fileType": 1,
+      "plausibleDirectoryEntry": true
+    },
+    {
+      "journalBlock": 117979,
+      "nameOffset": 68,
+      "authenticated": false,
+      "inodeCandidate": 1950053,
+      "recordLength": 16,
+      "nameLength": 8,
+      "fileType": 1,
+      "plausibleDirectoryEntry": true
+    },
+    {
+      "journalBlock": 118419,
+      "nameOffset": 68,
+      "authenticated": false,
+      "inodeCandidate": 1950053,
+      "recordLength": 16,
+      "nameLength": 8,
+      "fileType": 1,
+      "plausibleDirectoryEntry": true
+    }
+  ],
+  "truncated": false,
+  "authenticated": false,
+  "recoveryProven": false,
+  "sha256": "d95d81fcaf1fdecb305f5645bc5bf2d6093d0a7fc40affbfc769894798cbc073"
+}
+[memory-guard] exit=0 peakTreeRssMiB=17 minHostAvailableMiB=24511
+[memory-guard] at peak: python3:17
+[queue] EXIT 0

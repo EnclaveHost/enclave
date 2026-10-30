@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/recovery/tests/test_reanchor_recovery.py", line 48, in <module>
+    CAP_SRC = WORK / 'production-capture-closure-stage/src/a1_capture.py'   # r9: the closure module (harness pin fc16b26c); stubs still from capture r4
+              ^^^^
+NameError: name 'WORK' is not defined

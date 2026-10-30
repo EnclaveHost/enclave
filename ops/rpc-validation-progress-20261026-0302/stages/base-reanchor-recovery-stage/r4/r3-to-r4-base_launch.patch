@@ -1,0 +1,11 @@
+--- r3/producer/base_launch.py
++++ r4/producer/base_launch.py
+@@ -27,7 +27,7 @@
+ A2A4_SOURCE = pathlib.Path('/opt/enclave-rpc/a2a4/a2a4.py')      # root installs the reviewed stage there (HOLD: not installed)
+ # Re-anchor recovery (base-reanchor-recovery-stage; PREPARED): configs with `reanchor` run the recovery harness copy (a superset
+ # that leaves the first-bootstrap path unchanged); first-bootstrap configs keep the reviewed harness above.
+-RECOVERY_A2A4_SHA256 = 'c15f142c6fd271fc3bbcf6df4e1b492397eac62d46602221d729ad8829d303dd'   # base-reanchor-recovery-stage/harness/a2a4.py
++RECOVERY_A2A4_SHA256 = 'c4089a02ba71aa29934827040f335d281b8c7a377e491e3cceed1967076c1511'   # base-reanchor-recovery-stage/harness/a2a4.py
+ RECOVERY_A2A4_SOURCE = pathlib.Path('/opt/enclave-rpc/a2a4-recovery/a2a4.py')   # HOLD: not installed
+ HARNESS_BINARY_SHA256 = '9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f'  # selection.BASE_BINARY_SHA256 (A2-A4 runs this)
+ BASE_RELEASE_SHA256 = '4a7c013a510f88166779281ad0108790f25efa07f22f6457d54add709488372f'   # m7-m10-release-completed-0055

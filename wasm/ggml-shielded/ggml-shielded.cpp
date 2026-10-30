@@ -1,8 +1,10 @@
 #include "ggml-shielded.h"
 #ifdef SHIELDED_COMPACT
 #include "shielded-compact.h"
+#include "shielded-source-store.h"
 #endif
 #include "shielded-latency.h"
+#include "shielded-group-key.h"
 #include "shielded-fusion.h"
 #include "shielded-weight-cache.h"
 #include "shielded-encoded-source.h"
@@ -12,6 +14,7 @@
 extern "C" {
 #include "shielded-field.h"
 #include "shielded-tee.h"
+#include "shielded-spill.h"
 #include "shielded-overlap.h"
 #include "shielded-parwork.h"
 #include "shielded-wide.h"
@@ -127,6 +130,7 @@ static int sh_encoded_reader(void *ctx, uint64_t offset, uint8_t *out, size_t by
  * ----------------------------------------------------------------------- */
 static int64_t sh_min_macs() { static int64_t v = -1; if (v < 0) v = sh_env_int("SHIELDED_MIN_MACS", 2000000); return v; }
 static int     sh_max_m()    { static int v = -1;     if (v < 0) v = sh_env_int("SHIELDED_MAX_M", 8); return v; }
+static bool    sh_env_wide() { static int v = -1;     if (v < 0) v = sh_env_int("SHIELDED_WIDE", 0) == 1; return v == 1; }
 
 /* --------------------------------------------------------------------------
  * Calibration.
@@ -144,36 +148,6 @@ struct sh_calib_site {
     std::vector<int64_t> outliers;
 };
 
-/* q/k/v come from one attn_norm and gate/up from one ffn_norm, so they share an
- * activation -- and therefore share one exponent, one outlier set and, at run
- * time, ONE PAD and ONE EXCHANGE. That is not a bandwidth optimisation: masking
- * the same x three times under three pads would hand the adversary three
- * encryptions of one value for no benefit.
- *
- * qwen35's gated-deltanet layers feed FOUR linears from one norm output:
- * attn_qkv, attn_gate, ssm_alpha and ssm_beta all read the same tensor
- * (shielded-calib reports it from the graph). Without the last three rows the
- * backend exchanged attn_qkv and attn_gate as two groups, i.e. one plaintext
- * under two pads and one exchange per layer more than needed. A name that
- * matches here but whose model has no attn_qkv simply finds no calibration and
- * stays in the enclave. */
-static std::string sh_group_key(const std::string &name) {
-    static const std::pair<const char *, const char *> members[] = {
-        { "attn_k",    "attn_q" },   { "attn_v",    "attn_q" },
-        { "ffn_up",    "ffn_gate" },
-        { "attn_gate", "attn_qkv" }, { "ssm_alpha", "attn_qkv" }, { "ssm_beta", "attn_qkv" },
-        { "ssm_ba",    "attn_qkv" },   /* qwen3next: the same norm output */
-    };
-    for (const auto &m : members) {
-        const size_t p = name.find(m.first);
-        if (p != std::string::npos) {
-            std::string out = name;
-            out.replace(p, strlen(m.first), m.second);
-            return out;
-        }
-    }
-    return name;
-}
 
 struct sh_state {
     std::mutex mu;
@@ -241,6 +215,7 @@ struct sh_state {
         std::vector<int8_t> w;          /* (N,K): THE encoding, borrowed by the link */
 #ifdef SHIELDED_COMPACT
         std::unique_ptr<sh_compact_store, decltype(&sh_compact_free)> compact{nullptr, sh_compact_free};
+        std::unique_ptr<sh_source_store, decltype(&sh_source_store_free)> src_store{nullptr, sh_source_store_free};
 #endif
         std::unique_ptr<sh_weight_cache> w_cache; /* opt-in, authenticated public blocks on disk */
         bool source_verified = false;
@@ -249,8 +224,17 @@ struct sh_state {
         std::vector<int8_t> out_cols;   /* nout x N: the outlier channels' weights, for the TEE-side term */
         std::vector<float> inv;         /* per-column descale 2^-(af + f_w[j]) */
         float act_scale = 0, encode_limit = 0;
+        /* The same four for the caption rows ("lead:" sites, SHIELDED_LEAD_EXCHANGE=1):
+         * exchanged under their own public exponent and outlier channels instead of
+         * computed here, where they read every weight of the layer from the source. */
+        const sh_calib_site *lead_site = nullptr;
+        std::vector<int8_t> out_cols_lead;
+        std::vector<float> inv_lead;
+        float act_scale_lead = 0, encode_limit_lead = 0;
     };
-    std::map<std::string, entry> weights;
+    // Borrow ggml's tensor names for lookup; the map still owns every key.
+    // Long tensor names otherwise allocate a temporary string on each find.
+    std::map<std::string, entry, std::less<>> weights;
     std::map<std::string, int> group_first;   /* group key -> first node in it */
     /* Every registered weight of each group, in registration order.
      *
@@ -281,6 +265,7 @@ struct sh_state {
     bool dirty = false;                       /* new weights since the last start() */
 
     uint64_t offloaded_nodes = 0, local_nodes = 0, macs = 0, verify_fail = 0, exchanges = 0;
+    int64_t lead_rows_local = 0;   /* caption rows computed here (g_lead_rows) */
     /* Width diagnostics for the profile line: how many exchanges carried m
      * rows (m_hist[m], 9+ folded into [9]) and how many graphs reached this
      * backend whose widest claimed matmul had 1, 2-4, 5-8 or 9+ rows. The
@@ -552,6 +537,26 @@ int ggml_backend_shielded_profile_snapshot(uint64_t *out, size_t count) {
     // mask, wire, refill-on-path, unmask-lhs, rhs, check, pads, idle, pad-wait;
     // then pads used, missed, waited. Card times overlap; do not sum as wall time.
     if (!out || count < 24) return -1;
+    // SHIELDED_PROFILE_LAYOUT=pads, which the guest init sets beside the pad
+    // spill: the pad bank and nothing else, for the app's page to show. v[0]
+    // stays 1, the only version the runtime's header passes on; v[1] is
+    // 0x50414442 ("PADB") where v1 has the card count. It comes from the
+    // links' own counters (sh_spill_gauge_read), so a running graph neither
+    // delays nor refuses it.
+    //   2 layout (1), 3 links, 4 links with a spill, 5 pads it has room for,
+    //   6 pads ready, 7 prompt tokens it has room for, 8 prompt tokens ready,
+    //   9 pads written, 10 imported by refills, 11 imported on the request
+    //   path, 12 failures, 13 threads minting into it now, 14 ms since a
+    //   request took pads, 15 the idle threshold in ms, 16 bytes one prompt
+    //   token's pads take, 17 bank bytes.
+    if (const char *layout = getenv("SHIELDED_PROFILE_LAYOUT"); layout && !strcmp(layout, "pads")) {
+        sh_spill_gauge g; sh_spill_gauge_read(&g);
+        const uint64_t v[24] = {1, 0x50414442, 1, g.links, g.attached, g.capacity, g.ready,
+            g.rows_cap, g.rows, g.written, g.imported, g.onpath, g.failed, g.minters,
+            g.quiet_ms, g.idle_ms, g.row_bytes, g.bytes};
+        std::copy(v, v + 24, out);
+        return 1;
+    }
     sh_pool &p = sh_pool_get();
     std::unique_lock<std::mutex> lock(p.mu, std::try_to_lock);
     if (!lock.owns_lock()) return 0;
@@ -875,6 +880,15 @@ static const sh_calib_site *sh_site_for(sh_state &s, const char *name) {
     auto it = s.calib.find(sh_group_key(name));
     return it == s.calib.end() ? nullptr : &it->second;
 }
+/* The caption-row calibration of a joint-layer site ("site lead:<group> ..."), if the
+ * file has one and SHIELDED_LEAD_EXCHANGE=1. Image rows keep their own site. */
+static bool sh_lead_exchange() { static const int v = sh_env_int("SHIELDED_LEAD_EXCHANGE", 0); return v == 1; }
+static const sh_calib_site *sh_lead_site_for(sh_state &s, const char *name) {
+    if (!sh_lead_exchange()) return nullptr;
+    sh_load_calib(s);
+    auto it = s.calib.find("lead:" + sh_group_key(name));
+    return it == s.calib.end() ? nullptr : &it->second;
+}
 
 bool ggml_backend_shielded_source_candidate(const ggml_tensor *w) {
     if (!w || w->view_src || !ggml_is_contiguous(w) || w->ne[2] != 1 || w->ne[3] != 1 ||
@@ -1136,7 +1150,7 @@ static bool sh_register(sh_state &s, const ggml_tensor *w, sh_source_prefetch *p
     e.act_scale = ldexpf(1.0f, (int)af);
     // A public power-of-two bound keeps every local outlier sum inside int64,
     // including its already-unmasked field term. The normal, non-outlier
-    // lanes get the stricter Freivalds bound at the link boundary.
+    // lanes get the stricter Freivalds bound after the outliers are removed.
     uint64_t limit = (uint64_t)SH_FV_X_LIMIT;
     if (nout) {
         const uint64_t safe = ((uint64_t)INT64_MAX - SH_HALF_M) / SH_WEIGHT_BYTE_LIMIT / nout;
@@ -1155,6 +1169,38 @@ static bool sh_register(sh_state &s, const ggml_tensor *w, sh_source_prefetch *p
             s.refused.insert(name); return false;
         }
         e.inv[j] = inv;
+    }
+    /* The caption rows' variant, by the same rules; any failure only keeps them local. */
+    if (const sh_calib_site *ls = sh_lead_site_for(s, name.c_str())) {
+        bool ok = true;
+        const size_t lnout = ls->outliers.size();
+        std::vector<int8_t> lcols(split_primary ? lnout * (size_t)N : 0);
+        for (size_t c = 0; c < lnout && ok; c++) {
+            const int64_t k = ls->outliers[c];
+            if (k < 0 || k >= K) { ok = false; break; }
+            for (int64_t j = 0; split_primary && j < N; j++) lcols[c * (size_t)N + j] = e.w[(size_t)j * K + k];
+        }
+        const int64_t laf = (int64_t)ls->act_frac + sh_af_delta(s);
+        ok = ok && laf >= -149 && laf <= 127;
+        uint64_t llimit = (uint64_t)SH_FV_X_LIMIT;
+        if (ok && lnout) {
+            const uint64_t safe = ((uint64_t)INT64_MAX - SH_HALF_M) / SH_WEIGHT_BYTE_LIMIT / lnout;
+            llimit = UINT64_C(1) << 62;
+            while (llimit > safe) llimit >>= 1;
+        }
+        ok = ok && llimit >= (uint64_t)SH_FV_X_LIMIT;
+        std::vector<float> linv(split_primary ? (size_t)N : 0);
+        const double lworst = (double)SH_HALF_M + (double)lnout * SH_WEIGHT_BYTE_LIMIT * (double)llimit;
+        for (int64_t j = 0; ok && split_primary && j < N; j++) {
+            const int64_t exponent = -(laf + (int64_t)e.f_w[j]);
+            const float inv = exponent < -149 || exponent > 127 ? 0 : ldexpf(1.0f, (int)exponent);
+            if (!(inv > 0) || !std::isfinite(inv) || (double)inv * lworst > (double)FLT_MAX / 2) ok = false;
+            else linv[j] = inv;
+        }
+        if (ok) {
+            e.lead_site = ls; e.out_cols_lead = std::move(lcols); e.inv_lead = std::move(linv);
+            e.act_scale_lead = ldexpf(1.0f, (int)laf); e.encode_limit_lead = (float)llimit;
+        } else SH_LOG("%s: caption-row calibration unusable; its caption rows stay in the enclave\n", name.c_str());
     }
 
     if (!s.link) {
@@ -1255,6 +1301,25 @@ static bool sh_register(sh_state &s, const ggml_tensor *w, sh_source_prefetch *p
         }
     }
 #if defined(SHIELDED_COMPACT) && !defined(SHIELDED_DEALER_MODE)
+    /* SHIELDED_SOURCE_WEIGHTS=1: hold no encoded copy at all; reads and refills
+     * re-encode from the weight's own mapped source (shielded-source-store.cpp).
+     * Only for an unverified-mapping build path whose source is the guest's private
+     * verified model copy (no weight verifier: that path copies and hashes instead). */
+    if (sh_env_int("SHIELDED_SOURCE_WEIGHTS", 0) && !g_weight_verifier && !sh_link_is_dealt(s.link) &&
+        !stored.w.empty() && w->data && ggml_is_contiguous(w)) {
+        stored.src_store.reset(sh_source_store_create(w->data, (int)w->type, K, split_col0,
+                                                      split_ncols > 0 ? split_ncols : N, stored.w.data()));
+        if (!stored.src_store || sh_link_set_local_weight_source(s.link, node,
+                sh_source_store_read, sh_source_store_refill, stored.src_store.get()) != SH_OK) {
+            s.weight_cache_failed = true;
+            fprintf(stderr, "[shielded] %s: source-backed weight storage admission failed\n", name.c_str());
+            return false;
+        }
+        const size_t original_bytes = stored.w.size();
+        std::vector<int8_t>().swap(stored.w);
+        static bool told = false;
+        if (!told) { told = true; fprintf(stderr, "[shielded] source-backed weights: no encoded copies held (%s: %zu bytes released)\n", name.c_str(), original_bytes); }
+    }
     if (sh_env_int("SHIELDED_COMPACT_WEIGHTS", 0) && !sh_link_is_dealt(s.link) && !stored.w.empty()) {
         stored.compact.reset(sh_compact_create(stored.w.data(), K, link_N));
         if (!stored.compact || sh_link_set_local_weight_source(s.link, node,
@@ -1495,7 +1560,9 @@ static bool sh_claimable(const ggml_tensor *op, bool batch_ok) {
         p.pending[nm] = *src0;
     else if (src0->data && owner >= 0 && !p.cards[owner]->weights.count(nm) && !p.cards[owner]->refused.count(nm))
         p.pending[nm] = *src0;
-    if (batch_ok && src1->ne[1] > sh_max_m() && !g_weight_verifier) return false;
+    /* Wider than one exchange: stays in the enclave unless SHIELDED_WIDE=1, in
+     * which case the link exchanges it in max_m-row chunks (shielded-tee.c). */
+    if (batch_ok && src1->ne[1] > sh_max_m() && !g_weight_verifier && !sh_env_wide()) return false;
     if (!g_weight_verifier && p.owners.count(sh_group_key(nm)) && owner < 0) return false;
     if (!g_weight_verifier && owner >= 0 && p.cards[owner]->contention.contended && sh_group_key(nm) != p.cards[owner]->probe_group) return false;
     return true;
@@ -1780,28 +1847,7 @@ static bool sh_local_islands_enabled() {
  * adjacent sites calibrated. The ordinary matmuls and pad groups are unchanged.
  * This pure matcher can also run while the pool lock is already held. */
 static bool sh_local_island_pattern(const ggml_tensor *op, sh_fusion_pattern &out) {
-    if (!sh_local_islands_enabled() || !op) return false;
-    const ggml_tensor *add = op;
-    if (op->op == GGML_OP_RMS_NORM) add = op->src[0];
-    else if (op->op == GGML_OP_MUL) {
-        const ggml_tensor *norm = op->src[0] && op->src[0]->op == GGML_OP_RMS_NORM ? op->src[0] : op->src[1];
-        if (!norm || norm->op != GGML_OP_RMS_NORM) return false;
-        add = norm->src[0];
-    } else if (op->op != GGML_OP_ADD) return false;
-    if (!add || add->op != GGML_OP_ADD) return false;
-    for (int side = 0; side < 2; side++) {
-        const auto *first = sh_fusion_unwrap(add->src[side]);
-        if (!first || first->op != GGML_OP_MUL_MAT || !first->src[0]) continue;
-        const auto *weight = first->src[0];
-        const std::string name = ggml_get_name(weight), layer = sh_layer_key(name);
-        if (layer.compare(0, 4, "blk.") ||
-            (name != layer + ".attn_output.weight" && name != layer + ".ssm_out.weight")) continue;
-        sh_fusion_spec spec;
-        spec.first_weight = name; spec.norm_weight = layer + ".post_attention_norm.weight";
-        spec.inputs = weight->ne[0]; spec.hidden = weight->ne[1];
-        if (sh_fusion_match(op, spec, out)) return true;
-    }
-    return false;
+    return sh_local_islands_enabled() && sh_fusion_match_local(op, out);
 }
 
 static bool sh_local_island_claimable(const ggml_tensor *op) {
@@ -1983,6 +2029,60 @@ static bool sh_cpu_compute(ggml_tensor *node) {
     return st == GGML_STATUS_SUCCESS;
 }
 static bool sh_local_exact() { static int v = -1; if (v < 0) v = sh_env_int("SHIELDED_LOCAL_EXACT", 0); return v != 0; }
+
+/* Leading rows that stay in the enclave (ggml_backend_shielded_set_lead_rows).
+ * A diffusion transformer runs one joint [caption, image] sequence through every
+ * linear; the caption rows' activations are 10-200x the image rows' (Z-Image), and
+ * a site's public exponent has to cover its peak, so offloading both rounds every
+ * image row coarsely. With the caption rows computed here (on the CPU backend, in
+ * floating point, as the model would) the calibration fits the image rows. The
+ * count is the model's own public structure, and the worker already sees the batch
+ * height, so nothing new is revealed. 0 = off: no other workload sees a change.
+ * Applies only to weights under SH_LEAD_PREFIX (the joint transformer layers). */
+static std::atomic<int> g_lead_rows{0};
+static const char *SH_LEAD_PREFIX = "model.diffusion_model.layers.";
+extern "C" void ggml_backend_shielded_set_lead_rows(int n) {
+    const int v = n > 0 ? n : 0;
+    if (g_lead_rows.exchange(v) != v) fprintf(stderr, "[shielded] lead rows: %d (kept in the enclave for %s*)\n", v, SH_LEAD_PREFIX);
+}
+
+/* For the caption-row exchange: every entry of the group trades its image-row site,
+ * exponent, limit, descale and outlier tables for the caption-row ones, and trades
+ * them back when the guard leaves scope, whatever path leaves it. */
+struct sh_lead_swap {
+    std::vector<sh_state::entry *> es;
+    void swap_all() {
+        for (auto *e : es) {
+            std::swap(e->site, e->lead_site); std::swap(e->out_cols, e->out_cols_lead); std::swap(e->inv, e->inv_lead);
+            std::swap(e->act_scale, e->act_scale_lead); std::swap(e->encode_limit, e->encode_limit_lead);
+        }
+    }
+    explicit sh_lead_swap(std::vector<sh_state::entry *> v) : es(std::move(v)) { swap_all(); }
+    sh_lead_swap(const sh_lead_swap &) = delete;
+    ~sh_lead_swap() { swap_all(); }
+};
+
+/* dst rows [0, rows) = w x a rows [0, rows), on the CPU backend, written in place. */
+static bool sh_cpu_lead_rows(const ggml_tensor *w, const ggml_tensor *a, ggml_tensor *dst, int64_t rows) {
+    ggml_backend_t be = sh_cpu_backend();
+    if (!be) return false;
+    ggml_init_params ip = { ggml_tensor_overhead() * 4 + ggml_graph_overhead_custom(8, false) + 1024, nullptr, true };
+    ggml_context *ctx = ggml_init(ip);
+    if (!ctx) return false;
+    ggml_tensor *av = ggml_view_2d(ctx, const_cast<ggml_tensor *>(a), a->ne[0], rows, a->nb[1], 0);
+    ggml_tensor *out = ggml_mul_mat(ctx, const_cast<ggml_tensor *>(w), av);
+    out->data = dst->data;                      /* rows [0, rows) of dst: contiguous, same row stride */
+    out->buffer = dst->buffer;
+    av->buffer = a->buffer;
+    /* Only the product: the view already points at computed rows, and expanding
+     * from it would walk the whole model graph behind the activation. */
+    ggml_cgraph *gf = ggml_new_graph_custom(ctx, 8, false);
+    ggml_graph_add_node(gf, out);
+    out->flags |= GGML_TENSOR_FLAG_COMPUTE;    /* the CPU backend skips a node without it (no build_forward_expand here) */
+    const bool ok = av->data != nullptr && out->nb[1] == dst->nb[1] && ggml_backend_graph_compute(be, gf) == GGML_STATUS_SUCCESS;
+    ggml_free(ctx);
+    return ok;
+}
 
 /* The escape hatch: q8_0 x f32 in the clear, in the enclave.
  *
@@ -2376,7 +2476,7 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
         }
         if (widest > 0) s.graph_w[widest <= 1 ? 0 : widest <= 4 ? 1 : widest <= 8 ? 2 : 3]++;
     }
-    std::unordered_map<const ggml_tensor *, int> idx_of;   /* built lazily; only the overlap pilot uses it */
+    std::unordered_map<const ggml_tensor *, int> idx_of;   /* only the overlap pilot uses it */
     /* `done` means SCHEDULED, not produced: the gathering loop marks the whole
      * activation group done BEFORE the exchange is issued, so a node marked
      * done may still be in flight. The overlap pilot's first version read
@@ -2385,10 +2485,11 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
      * prefill actually was. `produced` is set only after an output has been
      * written and, for offloaded nodes, only after the exchange returned
      * SH_OK and the post step reconstructed the result. */
-    std::vector<char> produced(n, 0);
+    std::vector<char> produced;
     if (sh_overlap_cpu_enabled()) {          /* eagerly: a lazily built map would
                                               * miss everything produced before the
                                               * first eligible exchange */
+        produced.assign((size_t)n, 0);       /* unused when overlap is disabled */
         idx_of.reserve((size_t)n * 2);
         for (int q = 0; q < n; q++) idx_of[ggml_graph_node(cgraph, q)] = q;
     }
@@ -2425,7 +2526,10 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
             if (told.insert(nm).second)
                 fprintf(stderr, "[shielded] %s: claimed but not registered; computing it "
                                 "in the enclave (nothing offloaded for this site)\n", nm.c_str());
-            sh_plain_mul_mat(node->src[0], a, node);
+            /* On the CPU backend's own kernels (threaded, vectorized), not the scalar hatch: a
+             * calibrated site the card budget could not place (Z-Image's bf16 noise refiner
+             * at 100 milli) took ~70 s of every step through sh_plain_mul_mat. */
+            if (!sh_cpu_compute(node)) sh_plain_mul_mat(node->src[0], a, node);
             s.local_nodes++; done[i] = 1; if (!idx_of.empty()) produced[i] = 1;
             continue;
         }
@@ -2446,6 +2550,75 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
             members.push_back(o); ents.push_back(&jt->second); done[j] = 1;
         }
         done[i] = 1;
+
+        /* Caption rows stay here (g_lead_rows): compute them now, then exchange
+         * only the rows after them, through shifted copies of the tensors. */
+        const int lead = g_lead_rows.load();
+        ggml_tensor a_tail, m_tail[SH_GROUP_MAX], a_lead, m_lead[SH_GROUP_MAX];
+        std::vector<sh_state::entry *> lead_group;     /* non-empty: the caption rows are exchanged too */
+        if (lead > 0 && lead < a->ne[1] && a->ne[2] == 1 && a->ne[3] == 1 &&
+            strncmp(ggml_get_name(node->src[0]), SH_LEAD_PREFIX, strlen(SH_LEAD_PREFIX)) == 0) {
+            /* SHIELDED_LEAD_EXCHANGE=1 and every entry of the group has a caption-row
+             * calibration: exchange them under it, as a first part, instead of reading
+             * the layer's weights here. Otherwise they are computed here as before. */
+            if (sh_lead_exchange()) {
+                for (const std::string &gn : s.group_members[ents[0]->group]) {
+                    auto ge = s.weights.find(gn);
+                    if (ge == s.weights.end() || !ge->second.lead_site) { lead_group.clear(); break; }
+                    lead_group.push_back(&ge->second);
+                }
+                for (auto *e : ents) if (!e->lead_site) lead_group.clear();
+            }
+            if (!lead_group.empty()) {
+                a_lead = *a;
+                a_lead.ne[1] = lead;
+                for (size_t t = 0; t < members.size(); t++) {
+                    m_lead[t] = *members[t];
+                    m_lead[t].ne[1] = lead;
+                    m_lead[t].src[1] = &a_lead;
+                }
+            }
+            for (ggml_tensor *mt : members)
+                if (lead_group.empty() && !sh_cpu_lead_rows(mt->src[0], a, mt, lead)) {
+                    fprintf(stderr, "[shielded] %s: leading rows could not be computed in the enclave; failing the graph\n", ggml_get_name(mt->src[0]));
+                    return GGML_STATUS_FAILED;
+                }
+            a_tail = *a;
+            a_tail.ne[1] = a->ne[1] - lead;
+            a_tail.data = (char *)a->data + (size_t)lead * a->nb[1];
+            for (size_t t = 0; t < members.size(); t++) {
+                m_tail[t] = *members[t];
+                m_tail[t].ne[1] = members[t]->ne[1] - lead;
+                m_tail[t].data = (char *)members[t]->data + (size_t)lead * members[t]->nb[1];
+                m_tail[t].src[1] = &a_tail;
+                members[t] = &m_tail[t];
+            }
+            a = &a_tail;
+            if (lead_group.empty()) s.lead_rows_local += (int64_t)lead * (int64_t)members.size();
+            static bool told = false;
+            if (!told) { told = true; fprintf(stderr, "[shielded] %s: %d leading rows %s, %lld exchanged\n",
+                                              ggml_get_name(node->src[0]), lead, lead_group.empty() ? "computed here" : "exchanged on their own calibration", (long long)a->ne[1]); }
+        }
+        const size_t n_members = members.size();
+        ggml_tensor *tail_members[SH_GROUP_MAX];
+        for (size_t t = 0; t < n_members; t++) tail_members[t] = members[t];
+        const ggml_tensor *const a_rest = a;
+
+        /* Part 0: the caption rows under their own calibration (only with lead_group);
+         * part 1: everything else, exactly as it always was. A `continue` below ends a part. */
+        for (int part = lead_group.empty() ? 1 : 0; part < 2; part++) {
+        std::unique_ptr<sh_lead_swap> lead_swap;
+        if (!lead_group.empty()) {
+            members.resize(n_members);
+            if (part == 0) {
+                for (size_t t = 0; t < n_members; t++) members[t] = &m_lead[t];
+                a = &a_lead;
+                lead_swap.reset(new sh_lead_swap(lead_group));
+            } else {
+                for (size_t t = 0; t < n_members; t++) members[t] = tail_members[t];
+                a = a_rest;
+            }
+        }
 
         const sh_state::entry &e0 = *ents[0];
         const int64_t K = e0.K;
@@ -2468,12 +2641,22 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
          * mask; SHIELDED_FIELD_THREADS spreads it (width 1 = one call). */
         struct sh_enc_range {
             const sh_simd *simd; const float *src; float scale, limit; int64_t *dst;
-            std::atomic<int> bad;
-        } er = { simd, (const float *)a->data, e0.act_scale, e0.encode_limit, x_gpu.data(), {0} };
+            std::atomic<int> bad, wide;
+        } er = { simd, (const float *)a->data, e0.act_scale, e0.encode_limit, x_gpu.data(), {0}, {0} };
         sh_par_for((int64_t)m * K, 1024, [](void *ctx, int64_t lo, int64_t hi) {
             auto *e = (sh_enc_range *)ctx;
-            if (!e->simd->encode_checked(e->src + lo, (size_t)(hi - lo), e->scale, e->limit, e->dst + lo))
-                e->bad.store(1, std::memory_order_relaxed);
+            /* Use the encoder's existing comparisons to prove the link's
+             * individual-value bound, avoiding another full scan when every
+             * activation fits that bound. A chunk that needs
+             * the wider local range is re-encoded in full, then checked below
+             * after the local outlier channels have been removed. */
+            if (!e->simd->encode_checked(e->src + lo, (size_t)(hi - lo), e->scale,
+                                        (float)SH_FV_X_LIMIT, e->dst + lo)) {
+                if (e->limit <= (float)SH_FV_X_LIMIT ||
+                    !e->simd->encode_checked(e->src + lo, (size_t)(hi - lo), e->scale, e->limit, e->dst + lo))
+                    e->bad.store(1, std::memory_order_relaxed);
+                else e->wide.store(1, std::memory_order_relaxed);
+            }
         }, &er);
         if (er.bad.load(std::memory_order_relaxed)) {
             fprintf(stderr, "[shielded] %s: nonfinite or unsupported activation range; aborting the graph\n", ggml_get_name(node->src[0]));
@@ -2488,6 +2671,16 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
                     x_tee[(size_t)r * nout + c] = x_gpu[(size_t)r * K + k];
                     x_gpu[(size_t)r * K + k] = 0;
                 }
+            /* Encoding allowed the wider local-outlier range. Reject an
+             * oversized ordinary lane before consuming pads or exchanging.
+             * The link's defensive range refusal is SH_ERR_VERIFY, which
+             * the backend must otherwise treat as a permanent integrity
+             * failure. Invalid caller input must not retire trusted state. */
+            if (er.wide.load(std::memory_order_relaxed) &&
+                !simd->values_within(x_gpu.data(), (size_t)m * K, SH_FV_X_LIMIT)) {
+                fprintf(stderr, "[shielded] %s: unsupported non-outlier activation range; aborting the graph\n", ggml_get_name(node->src[0]));
+                return GGML_STATUS_FAILED;
+            }
         }
         s.t_encode += sh_now_ms() - te0;
 
@@ -2901,6 +3094,7 @@ static enum ggml_status sh_card_compute(sh_state &s, ggml_cgraph *cgraph) {
          * anything the pilot may schedule. */
         if (!idx_of.empty())
             for (size_t t = 0; t < members.size(); t++) mark_produced(members[t]);
+        }   /* part */
     }
     s.t_graph += sh_now_ms() - tg0;
     /* SHIELDED_PHASE_TRACE=1: one CUMULATIVE record per graph_compute call.
@@ -2956,10 +3150,10 @@ static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml
         const auto *node = graph->nodes[i];
         if (node->op != GGML_OP_MUL_MAT || !node->src[0] || !node->src[0]->data) continue;
         const auto *w = node->src[0];
-        const std::string name = ggml_get_name(w);
+        const char *name = ggml_get_name(w);
         int owner = sh_owner(p, w);
         if (!p.invalid && sh_source_type_ok(w->type) && sh_source_geometry_ok(w->type, w->ne[0]) &&
-            sh_site_for(*p.cards[0], name.c_str()) &&
+            sh_site_for(*p.cards[0], name) &&
             !p.owners.count(sh_group_key(name))) p.pending[name] = *w;
         else if (!p.invalid && owner >= 0 && !p.cards[owner]->weights.count(name) && !p.cards[owner]->refused.count(name))
             p.pending[name] = *w;
@@ -3000,6 +3194,36 @@ static enum ggml_status ggml_backend_shielded_graph_compute(ggml_backend_t, ggml
         auto rc = sh_card_compute(*p.cards[owner], &view);
         if (rc != GGML_STATUS_SUCCESS) return rc;
         i = end;
+    }
+    /* TEST-ONLY (SHIELDED_DEBUG_COMPARE=1): recompute every offloaded matmul of this
+     * graph on the CPU backend in floating point and print its relative error,
+     * once per weight. Plaintext comparison: a host diagnostic, never in production. */
+    if (sh_env_int("SHIELDED_DEBUG_COMPARE", 0) == 1) {
+        static std::set<std::string> told;
+        for (int i = 0; i < graph->n_nodes; i++) {
+            ggml_tensor *node = graph->nodes[i];
+            if (node->op != GGML_OP_MUL_MAT || !node->src[0] || !node->src[1]) continue;
+            const std::string nm = ggml_get_name(node->src[0]);
+            if (told.count(nm)) continue;
+            told.insert(nm);
+            const int64_t N = node->ne[0], m = node->ne[1];
+            std::vector<float> ref((size_t)N * m);
+            ggml_tensor scratch = *node;
+            scratch.data = ref.data();
+            scratch.buffer = nullptr;
+            if (!sh_cpu_lead_rows(node->src[0], node->src[1], &scratch, m)) { fprintf(stderr, "[compare] %s: reference failed\n", nm.c_str()); continue; }
+            const float *got = (const float *)node->data;
+            double se = 0, sr = 0, se_tail = 0, sr_tail = 0;
+            const int lead = g_lead_rows.load();
+            for (int64_t r = 0; r < m; r++)
+                for (int64_t j = 0; j < N; j++) {
+                    const double d = (double)got[r * N + j] - ref[r * N + j], v = ref[r * N + j];
+                    se += d * d; sr += v * v;
+                    if (r >= lead) { se_tail += d * d; sr_tail += v * v; }
+                }
+            fprintf(stderr, "[compare] %-60s m=%lld SNR all %.1f dB, offloaded rows %.1f dB\n", nm.c_str(), (long long)m,
+                    10 * log10(sr / std::max(se, 1e-30)), 10 * log10(sr_tail / std::max(se_tail, 1e-30)));
+        }
     }
     if (getenv("SHIELDED_PROFILE")) {
         static uint64_t last = 0;
@@ -3133,6 +3357,7 @@ static const struct ggml_backend_reg_i ggml_backend_shielded_reg_i = {
     /* .get_device       = */ sh_reg_get_device,
     /* .get_proc_address = */ [](ggml_backend_reg_t, const char *name) -> void * {
         if (!strcmp(name, "ggml_backend_shielded_set_weight_verifier")) return (void *)ggml_backend_shielded_set_weight_verifier;
+        if (!strcmp(name, "ggml_backend_shielded_set_lead_rows")) return (void *)ggml_backend_shielded_set_lead_rows;
         if (!strcmp(name, "ggml_backend_shielded_set_source_release")) return (void *)ggml_backend_shielded_set_source_release;
         if (!strcmp(name, "ggml_backend_shielded_weight_source")) return (void *)ggml_backend_shielded_weight_source;
         if (!strcmp(name, "ggml_backend_shielded_source_candidate")) return (void *)ggml_backend_shielded_source_candidate;

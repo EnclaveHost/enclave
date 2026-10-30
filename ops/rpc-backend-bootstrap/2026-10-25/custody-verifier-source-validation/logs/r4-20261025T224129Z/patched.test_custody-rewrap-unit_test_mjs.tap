@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: the authorization: strict shape, and the digest binds every field, the chain and the vault
+ok 1 - the authorization: strict shape, and the digest binds every field, the chain and the vault
+  ---
+  duration_ms: 43.034062
+  type: 'test'
+  ...
+# Subtest: the guest's judgement: admitted only on the exact authenticated state; every substitution has its own refusal
+ok 2 - the guest's judgement: admitted only on the exact authenticated state; every substitution has its own refusal
+  ---
+  duration_ms: 53.889907
+  type: 'test'
+  ...
+# Subtest: the destination seal: the same payload, openable ONLY by the destination committee for the destination label; the source ciphertext is not
+ok 3 - the destination seal: the same payload, openable ONLY by the destination committee for the destination label; the source ciphertext is not
+  ---
+  duration_ms: 31.426293
+  type: 'test'
+  ...
+# Subtest: the result carries only ciphertext, public facts and its SNP evidence document; nothing builds a switch without verifying it
+ok 4 - the result carries only ciphertext, public facts and its SNP evidence document; nothing builds a switch without verifying it
+  ---
+  duration_ms: 15.150721
+  type: 'test'
+  ...
+# Subtest: the owner's plan: admit adds exactly the rewrap image; rollback restores the original bytes; unsafe rules are refused
+ok 5 - the owner's plan: admit adds exactly the rewrap image; rollback restores the original bytes; unsafe rules are refused
+  ---
+  duration_ms: 5.644006
+  type: 'test'
+  ...
+# Subtest: the host signs ONLY this deployment's release message with a short expiry; results are shape-checked; QEMU binds HOST_DATA
+ok 6 - the host signs ONLY this deployment's release message with a short expiry; results are shape-checked; QEMU binds HOST_DATA
+  ---
+  duration_ms: 42.937153
+  type: 'test'
+  ...
+# Subtest: an unbuilt guest (no measured rewrap configuration) refuses and tells the host only a code
+ok 7 - an unbuilt guest (no measured rewrap configuration) refuses and tells the host only a code
+  ---
+  duration_ms: 0.686255
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 396.067195

@@ -1,0 +1,5 @@
+[queue] START available=20716MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+{"startedAt": "2026-10-25T21:50:50.776271+00:00", "productionActivated": false, "inputPins": {"a1-recheck.mjs": "f591f3247fe672f6470685f2be36eb529ceb9280044c03c6a2396174bb0ad9d8", "a1-recheck-read.mjs": "41b83975e96fc816bd5743e56626dd309aa7f0ee03c6efb9912788eb184a7715", "a1-anchor.mjs": "ec92b70f105f88cbfc466e57e4673afcb0fbd104403e425e036f1dba78e6528d", "a1-read.mjs": "a501a3ec56ebd56e6bf1fc43c0c3725da57d013addac5f1efb13a99e598e0ab8", "vendor/anchor-bootstrap.mjs": "90a8afba31e7c7029a0fa860f97153cd40665f1d1b2ae87bb0a56fd98c25e8f8"}, "initialSha256": "b9a90847bb3f779262681cabc35af64d7c3b785c9ad5cd2b99e9700b9725256c", "recheckExit": 3, "processStopped": true, "finishedAt": "2026-10-25T21:51:13.998889+00:00"}
+[memory-guard] exit=1 peakTreeRssMiB=163 minHostAvailableMiB=20549
+[memory-guard] at peak: node:77 3:58 python3:27
+[queue] EXIT 1

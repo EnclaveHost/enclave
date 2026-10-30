@@ -1,0 +1,7 @@
+[queue] START available=32136MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+{"mode":"quorum","error":{"message":"no 2 RPCs agreed at block 53263863 (base-rpc.publicnode.com: HTTP request failed.; api.enclave.host: The contract function \"deployments\" reverted.; base-mainnet.public.blastapi.io: The contract function \"deployments\" reverted.)","failures":["base-rpc.publicnode.com: HTTP request failed.","api.enclave.host: The contract function \"deployments\" reverted.","base-mainnet.public.blastapi.io: The contract function \"deployments\" reverted."]}}
+[memory-guard] exit=1 peakTreeRssMiB=101 minHostAvailableMiB=31959
+[memory-guard] at peak: node:99 timeout:2
+[memory-guard] exit=1 peakTreeRssMiB=164 minHostAvailableMiB=31959
+[memory-guard] at peak: node:100 node:61 timeout:2
+[queue] EXIT 1

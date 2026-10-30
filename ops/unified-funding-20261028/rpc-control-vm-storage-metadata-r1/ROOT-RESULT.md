@@ -1,0 +1,5 @@
+# Actual package metadata — no installation
+
+One readonly observation816bb4d31caa4d298d6d6acec603ca00 completed0/Main0, original8contentpins unchanged, no scope processes. Ubuntu24.04 noble amd64; complete metadata/no errors. Actual candidate nbd-client1:3.26.1-1ubuntu0.1 archive43644bytes SHA256b34104e8e3b57e09b5368581d26cfb32b8b0acb8cc5b5c08dc81d075288e521c. Simulation selects onlynbd-client;0upgrades/removals. Required native libc/gnutls/libnl libraries are already installed. Dependency recursion also included alternative debconf providers; missing alternative packages do not mean required runtime dependencies are absent.
+
+Metadata uses configured Ubuntu archive signing keyring and apt indexes report trusted=yes. Explicit Release signature-to-Packages-to-archive authentication and ELF runtime resolution still precede private extraction/use. No apt update/download/install, module load, disk attach, mount, RPCclient, VMallocation or servicecaps change occurred. Next step is one reviewed private tool extraction, no maintainer scripts or system package registration.

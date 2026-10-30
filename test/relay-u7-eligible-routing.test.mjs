@@ -23,6 +23,8 @@ import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
 import { bootDaemon, listenOnFreePort } from "./helpers/daemon.mjs";
+// the raw attestation document's paths: the canonical one and the wire-compatibility alias deployed clients request
+import { CANONICAL_RAD_PATH, LEGACY_RAD_PATH } from "../relay/attestation-paths.mjs";
 
 const RELAY_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "relay");
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -313,10 +315,10 @@ test("U7: an explicitly addressed INELIGIBLE tunnel box is default-deny: only it
   // its own read-only surfaces stay reachable, by path and by box hostname
   // ("/v1/./health" is resolved to "/v1/health" by the client and the relay's own URL parse BEFORE the gate, so the box
   //  receives exactly its own surface: that is the same request, not an encoding of another)
-  for (const p of ["/availability", "/Availability", "/availability/", "/v1/health", "/v1/./health", "/v1/attestation", "/.well-known/Cloud Provider-attestation"])
+  for (const p of ["/availability", "/Availability", "/availability/", "/v1/health", "/v1/./health", "/v1/attestation", CANONICAL_RAD_PATH, LEGACY_RAD_PATH])
     assert.equal((await getJ(origin, `/t/${NAME}${p}`)).status, 200, p);
   assert.equal((await getJ(origin, "/availability", boxHost)).status, 200);
-  assert.equal((await getJ(origin, "/.well-known/Cloud Provider-attestation", boxHost)).status, 200);
+  for (const p of [CANONICAL_RAD_PATH, LEGACY_RAD_PATH]) assert.equal((await getJ(origin, p, boxHost)).status, 200, p);
   // everything else is refused: the tenant paths, enclave-5d's five, the encodings, the collection, and any other path
   const before = seen.length;
   const refused = async (p, h = {}, init = {}) => {
@@ -331,9 +333,9 @@ test("U7: an explicitly addressed INELIGIBLE tunnel box is default-deny: only it
                    `/X/${D_E}/`, `/V1/Deployments/${D_E}/logs`,                                            // enclave-5d's case variants
                    `//x/${D_E}/`, `/%78/${D_E}/`, `/v1//deployments/${D_E}`, `/v1/%64eployments/${D_E}`, `/%2578/${D_E}/`,
                    "/v1/tls-bridge", "/hello", "/v1/secrets", "/%E0%A4%A",                                 // anything else
-                   "/v1/attestation/verify", "/.well-known/other",                                          // exact entries, no prefixes
+                   "/v1/attestation/verify", "/.well-known/other", `${CANONICAL_RAD_PATH}/x`, `${LEGACY_RAD_PATH}x`, // exact entries, no prefixes
                    // enclave-5d's round-2 finding: a raw tenant path that CANONICALIZES to an own surface
-                   `/x/${D_E}/..%2F..%2Favailability`, `/x/${D_E}/..%2f..%2f.well-known/Cloud Provider-attestation`,
+                   `/x/${D_E}/..%2F..%2Favailability`, `/x/${D_E}/..%2f..%2f${CANONICAL_RAD_PATH.slice(1)}`, `/x/${D_E}/..%2f..%2f${LEGACY_RAD_PATH.slice(1)}`,
                    `/x/${D_E}/..%252F..%252Favailability`, `/v1/deployments/${D_E}/..%2F..%2F..%2Fv1%2Fhealth`,
                    "//availability", "/%61vailability"])
     await refused(`/t/${NAME}${p}`);
@@ -351,7 +353,7 @@ test("U7: an explicitly addressed INELIGIBLE tunnel box is default-deny: only it
   const SENT = "sentinel-" + randomBytes(8).toString("hex");
   const cred = { authorization: `Bearer ${SENT}`, cookie: `session=${SENT}`, "proxy-authorization": `Basic ${SENT}` };
   for (const [p, h] of [[`/t/${NAME}/availability`, cred], ["/availability", { ...cred, ...boxHost }],
-                        [`/t/${NAME}/v1/attestation`, cred], ["/.well-known/Cloud Provider-attestation", { ...cred, ...boxHost }]]) {
+                        [`/t/${NAME}/v1/attestation`, cred], [CANONICAL_RAD_PATH, { ...cred, ...boxHost }], [LEGACY_RAD_PATH, { ...cred, ...boxHost }]]) {
     const n = headersSeen.length;
     const r = await fetch(origin + p, { headers: h });
     assert.equal(r.status, 200, p);

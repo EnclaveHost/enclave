@@ -1,0 +1,42 @@
+..## REFUSED (nothing dispatched): Refused: clone hazards at/under the roots (wait for the coordinated cleanup; nothing is detached here): ['FUSE view fuseblk at /home/steven/Documents/Codex/2026-10-26/my/work/tr004-readonly']
+## REFUSED (nothing dispatched): Refused: clone hazards at/under the roots (wait for the coordinated cleanup; nothing is detached here): ['stage mount /home/steven/x/recovery-multipart-stage/r3/runs/s/view']
+## REFUSED (nothing dispatched): Refused: clone hazards at/under the roots (wait for the coordinated cleanup; nothing is detached here): ['FUSE view fuse.nbdfuse at /home/steven/a/nbd']
+## REFUSED (nothing dispatched): Refused: clone hazards at/under the roots (wait for the coordinated cleanup; nothing is detached here): ['FUSE view fuse.fuse2fs at /tmp/v']
+F## REFUSED (nothing dispatched): Refused: root /tmp is missing, not a directory or a symlink
+## REFUSED (nothing dispatched): Refused: root /home/steven is missing, not a directory or a symlink
+## REFUSED (nothing dispatched): Refused: /dev/shm is a symlink (cannot be bound read-only by path)
+.## REFUSED (nothing dispatched): Refused: PENDING: no passing ACTUAL cnq r1 namespace-qualification receipt (none exists)
+## REFUSED (nothing dispatched): Refused: PENDING: no passing ACTUAL cnq r1 namespace-qualification receipt (none exists)
+.## REFUSED (nothing dispatched): Refused: clone hazards at/under the roots (wait for the coordinated cleanup; nothing is detached here): ['FUSE view fuseblk at /home/steven/Documents/Codex/2026-10-26/my/work/tr004-readonly']
+## REFUSED (nothing dispatched): Refused: clone hazards at/under the roots (wait for the coordinated cleanup; nothing is detached here): ['stage mount /home/steven/x/recovery-multipart-stage/r3/runs/s/view']
+## REFUSED (nothing dispatched): Refused: clone hazards at/under the roots (wait for the coordinated cleanup; nothing is detached here): ['FUSE view fuse.nbdfuse at /home/steven/a/nbd']
+## REFUSED (nothing dispatched): Refused: clone hazards at/under the roots (wait for the coordinated cleanup; nothing is detached here): ['FUSE view fuse.fuse2fs at /tmp/v']
+## REFUSED (nothing dispatched): Refused: clone hazards at/under the roots (wait for the coordinated cleanup; nothing is detached here): ['FUSE view fuseblk at /var/tmp/q']
+..## REFUSED (nothing dispatched): Refused: route must be one of ['build', 'build-preflight', 'capture-fixtures', 'capture-positive']
+## REFUSED (nothing dispatched): Refused: build routes take no further argument
+## REFUSED (nothing dispatched): Refused: capture routes take exactly one /vm/enclave-volumes/rpc-recovery-validation-build/run-<UTC>-<pid>/out
+## REFUSED (nothing dispatched): Refused: capture routes take exactly one /vm/enclave-volumes/rpc-recovery-validation-build/run-<UTC>-<pid>/out
+## REFUSED (nothing dispatched): Refused: capture routes take exactly one /vm/enclave-volumes/rpc-recovery-validation-build/run-<UTC>-<pid>/out
+## REFUSED (nothing dispatched): Refused: capture routes take exactly one /vm/enclave-volumes/rpc-recovery-validation-build/run-<UTC>-<pid>/out
+## REFUSED (nothing dispatched): Refused: capture routes take exactly one /vm/enclave-volumes/rpc-recovery-validation-build/run-<UTC>-<pid>/out
+## REFUSED (nothing dispatched): Refused: route must be one of ['build', 'build-preflight', 'capture-fixtures', 'capture-positive']
+## REFUSED (nothing dispatched): Refused: route must be one of ['build', 'build-preflight', 'capture-fixtures', 'capture-positive']
+## REFUSED (nothing dispatched): Refused: route must be one of ['build', 'build-preflight', 'capture-fixtures', 'capture-positive']
+## REFUSED (nothing dispatched): Refused: capture routes take exactly one /vm/enclave-volumes/rpc-recovery-validation-build/run-<UTC>-<pid>/out
+..
+======================================================================
+FAIL: test_3_hazardous_mounts_refuse_before_any_process (__main__.T.test_3_hazardous_mounts_refuse_before_any_process)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/namespace-launch-guard-stage/r1/tests/test_guard.py", line 75, in test_3_hazardous_mounts_refuse_before_any_process
+    self.refused(["build"], mountinfo=SAFE + mi(row))
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/namespace-launch-guard-stage/r1/tests/test_guard.py", line 53, in refused
+    self.assertEqual(self.go(argv, **k), 3, argv)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 != 3 : ['build']
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.216s
+
+FAILED (failures=1)

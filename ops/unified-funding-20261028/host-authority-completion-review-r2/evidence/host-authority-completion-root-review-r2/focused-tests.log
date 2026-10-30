@@ -1,0 +1,172 @@
+TAP version 13
+# Subtest: positive: final read returns unchanged authority and a valid real signature
+ok 1 - positive: final read returns unchanged authority and a valid real signature
+  ---
+  duration_ms: 38.642726
+  type: 'test'
+  ...
+# Subtest: final awaited read: closed must prevent signature release
+ok 2 - final awaited read: closed must prevent signature release
+  ---
+  duration_ms: 23.650177
+  type: 'test'
+  ...
+# Subtest: final awaited read: fenced must prevent signature release
+ok 3 - final awaited read: fenced must prevent signature release
+  ---
+  duration_ms: 16.529194
+  type: 'test'
+  ...
+# Subtest: final awaited read: expired must prevent signature release
+ok 4 - final awaited read: expired must prevent signature release
+  ---
+  duration_ms: 16.829132
+  type: 'test'
+  ...
+# Subtest: final awaited read: app-denied must prevent signature release
+ok 5 - final awaited read: app-denied must prevent signature release
+  ---
+  duration_ms: 15.042858
+  type: 'test'
+  ...
+# Subtest: final awaited read: readiness-extension must prevent signature release
+not ok 6 - final awaited read: readiness-extension must prevent signature release
+  ---
+  duration_ms: 45.463742
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r2/protocol-tree/final-await.test.mjs:73:3'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection: readiness-extension: signed response must not leave the witness'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r2/protocol-tree/final-await.test.mjs:79:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: 1 real v2 permit end to end: collector -> witness quorum -> gate -> runtime producer; positive fresh queued start
+ok 7 - 1 real v2 permit end to end: collector -> witness quorum -> gate -> runtime producer; positive fresh queued start
+  ---
+  duration_ms: 65.608941
+  type: 'test'
+  ...
+# Subtest: 2 same app generation: host gen1 -> Offline -> recovered gen2 (missed) drops tracked resources; old signatures refused; restart keeps the floor
+ok 8 - 2 same app generation: host gen1 -> Offline -> recovered gen2 (missed) drops tracked resources; old signatures refused; restart keeps the floor
+  ---
+  duration_ms: 131.271712
+  type: 'test'
+  ...
+# Subtest: 3 same host generation, legitimate owner revision increase: old grant withdrawn, explicit handoff then serve; lower/conflicting refuse
+ok 9 - 3 same host generation, legitimate owner revision increase: old grant withdrawn, explicit handoff then serve; lower/conflicting refuse
+  ---
+  duration_ms: 96.013575
+  type: 'test'
+  ...
+# Subtest: 4 tampering, omission, downgrade, unsafe uint64 and unqualified/nested-verified evidence never sign or grant
+ok 10 - 4 tampering, omission, downgrade, unsafe uint64 and unqualified/nested-verified evidence never sign or grant
+  ---
+  duration_ms: 9.602149
+  type: 'test'
+  ...
+# Subtest: 7a owner change DURING witness readiness/signing: no signature released, no grant
+ok 11 - 7a owner change DURING witness readiness/signing: no signature released, no grant
+  ---
+  duration_ms: 13.279015
+  type: 'test'
+  ...
+# Subtest: 7b host-wide advance, rollback handoff, latched persistence, malformed/lost sidecar: no grant or binding resurrection
+ok 12 - 7b host-wide advance, rollback handoff, latched persistence, malformed/lost sidecar: no grant or binding resurrection
+  ---
+  duration_ms: 45.432511
+  type: 'test'
+  ...
+# Subtest: 8 v1 default unchanged: no servingPermit pins -> v1 typed data, no host authority, servingContextOf undefined
+ok 13 - 8 v1 default unchanged: no servingPermit pins -> v1 typed data, no host authority, servingContextOf undefined
+  ---
+  duration_ms: 0.665273
+  type: 'test'
+  ...
+# Subtest: C1 same-generation Offline (real signed envelope) cannot be undone by an older Online context, survives reopen; qualified gen2 restores
+not ok 14 - C1 same-generation Offline (real signed envelope) cannot be undone by an older Online context, survives reopen; qualified gen2 restores
+  ---
+  duration_ms: 86.217357
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r2/protocol-tree/test/root-completion-protocol.test.mjs:74:1'
+  failureType: 'testCodeFailure'
+  error: 'conflicting runtime instance'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r2/protocol-tree/network/deployment-lifecycle-journal.mjs:152:17
+    update (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r2/protocol-tree/network/deployment-lifecycle-journal.mjs:67:77)
+    Object.rememberRuntime (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r2/protocol-tree/network/deployment-lifecycle-journal.mjs:150:14)
+    checked (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r2/protocol-tree/network/deployment-isolation-runtime.mjs:59:32)
+    Object.ensureStaged (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r2/protocol-tree/network/deployment-isolation-runtime.mjs:99:28)
+    async start (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r2/protocol-tree/test/root-completion-protocol.test.mjs:70:39)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r2/protocol-tree/test/root-completion-protocol.test.mjs:85:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: C2 two simultaneous app grants: another host's authority/Offline preserves both; THIS host's Offline withdraws both
+ok 15 - C2 two simultaneous app grants: another host's authority/Offline preserves both; THIS host's Offline withdraws both
+  ---
+  duration_ms: 96.751198
+  type: 'test'
+  ...
+# Subtest: C3 witness FINAL asynchronous read: Offline or close during it wins (no obsolete signature, durable Offline); unchanged state still signs
+ok 16 - C3 witness FINAL asynchronous read: Offline or close during it wins (no obsolete signature, durable Offline); unchanged state still signs
+  ---
+  duration_ms: 85.954379
+  type: 'test'
+  ...
+# Subtest: C4 a hold while gate.install awaits verification supersedes it; no grant
+ok 17 - C4 a hold while gate.install awaits verification supersedes it; no grant
+  ---
+  duration_ms: 64.68702
+  type: 'test'
+  ...
+# Subtest: C5 v2 is mandatory for the new profile at direct protocol entry points; v1 runtime refuses new-profile snapshots
+ok 18 - C5 v2 is mandatory for the new profile at direct protocol entry points; v1 runtime refuses new-profile snapshots
+  ---
+  duration_ms: 0.725093
+  type: 'test'
+  ...
+# Subtest: C6 repaired dispatch incarnation sidecar: same-gen Offline persists, lost/malformed refuse, post-rename dir fsync latches, explicit recover, owned coupling
+ok 19 - C6 repaired dispatch incarnation sidecar: same-gen Offline persists, lost/malformed refuse, post-rename dir fsync latches, explicit recover, owned coupling
+  ---
+  duration_ms: 5.928754
+  type: 'test'
+  ...
+# Subtest: C7 gate/witness sidecar: Offline floor survives reopen, marker loss refuses, owned coupling refuses, and the runtime flock excludes a second writer
+ok 20 - C7 gate/witness sidecar: Offline floor survives reopen, marker loss refuses, owned coupling refuses, and the runtime flock excludes a second writer
+  ---
+  duration_ms: 12.574232
+  type: 'test'
+  ...
+# Subtest: ROOT: accepted authority for another host cannot revoke this host grants
+ok 21 - ROOT: accepted authority for another host cannot revoke this host grants
+  ---
+  duration_ms: 40.194551
+  type: 'test'
+  ...
+# Subtest: ROOT: actual adapter verified field must reach the real permit context conversion
+ok 22 - ROOT: actual adapter verified field must reach the real permit context conversion
+  ---
+  duration_ms: 31.819219
+  type: 'test'
+  ...
+# Subtest: ROOT: same-generation Offline denial cannot be undone by an older Online context
+ok 23 - ROOT: same-generation Offline denial cannot be undone by an older Online context
+  ---
+  duration_ms: 73.18645
+  type: 'test'
+  ...
+1..23
+# tests 23
+# suites 0
+# pass 21
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1266.445107

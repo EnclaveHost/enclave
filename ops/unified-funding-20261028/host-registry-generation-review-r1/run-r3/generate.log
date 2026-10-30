@@ -1,0 +1,104 @@
+{
+ "lifecycle-host-profile.mjs": {
+  "sha256": "47993642d463276a3f483dcc185164d23075a15a6fe7ecd7c27c95df7a3c911a",
+  "baselineSha256": "98e33cfeb1b7612d49e8a30260d8272b8863808f558971f0c68a798c965d9176",
+  "manifest": [
+   {
+    "name": "constants",
+    "baselineLine": 5,
+    "candidateOffset": 342,
+    "length": 1891
+   },
+   {
+    "name": "host-profile",
+    "baselineLine": 8,
+    "candidateOffset": 2508,
+    "length": 212
+   },
+   {
+    "name": "binding",
+    "baselineLine": 16,
+    "candidateOffset": 3061,
+    "length": 360
+   }
+  ]
+ },
+ "lifecycle-host-authority.mjs": {
+  "sha256": "383d2bb59f531b24277d891b06d6ee6ea5b7435b107f97461c6c158a672b83c1",
+  "baselineSha256": "6baf5b55210c5e4273dc0e797fcadb3f691d6eafae201dd46b4ab59a1919ea92",
+  "manifest": [
+   {
+    "name": "import",
+    "baselineLine": 17,
+    "candidateOffset": 1539,
+    "length": 48
+   },
+   {
+    "name": "admission",
+    "baselineLine": 122,
+    "candidateOffset": 9155,
+    "length": 725
+   },
+   {
+    "name": "hr-pins",
+    "baselineLine": 147,
+    "candidateOffset": 11801,
+    "length": 184
+   },
+   {
+    "name": "s3",
+    "baselineLine": 150,
+    "candidateOffset": 12198,
+    "length": 47
+   },
+   {
+    "name": "adapter-identity",
+    "baselineLine": 157,
+    "candidateOffset": 12839,
+    "length": 314
+   },
+   {
+    "name": "binding",
+    "baselineLine": 160,
+    "candidateOffset": 13568,
+    "length": 161
+   },
+   {
+    "name": "read",
+    "baselineLine": 169,
+    "candidateOffset": 14223,
+    "length": 236
+   }
+  ]
+ },
+ "lifecycle-host-dispatch.mjs": {
+  "sha256": "0fa661f8c266c6f1165830cb0385b861166e7b5f1ca719586482226303da04c1",
+  "baselineSha256": "3e826b743e3a0a6db91908a8db54159764902746b6133fd1987357bd73d8b57b",
+  "manifest": [
+   {
+    "name": "import",
+    "baselineLine": 38,
+    "candidateOffset": 3261,
+    "length": 18
+   },
+   {
+    "name": "binding-keys",
+    "baselineLine": 87,
+    "candidateOffset": 7099,
+    "length": 24
+   },
+   {
+    "name": "route-keys",
+    "baselineLine": 112,
+    "candidateOffset": 8797,
+    "length": 30
+   },
+   {
+    "name": "route-identity",
+    "baselineLine": 115,
+    "candidateOffset": 9026,
+    "length": 173
+   }
+  ]
+ }
+}

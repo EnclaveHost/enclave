@@ -1,0 +1,20 @@
+[package]
+name = "kzgcheck"
+version = "0.2.0"
+edition = "2021"
+publish = false
+description = "L1 commitment recomputation (KZG blobs, header hash, tx/receipt roots) with crates pinned by base v1.5.1"
+
+[dependencies]
+# Exact versions/checksums are enforced against base-v1.5.1/Cargo.lock by lockcheck.py.
+c-kzg = { version = "=2.1.8", default-features = false, features = ["std", "portable", "ethereum_kzg_settings"] }
+hex = { version = "=0.4.3", default-features = false, features = ["std"] }
+alloy-consensus = { version = "=2.4.1" }
+alloy-rpc-types-eth = { version = "=2.4.1" }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = { version = "=1.0.151" }
+
+[profile.release]
+opt-level = 2
+codegen-units = 1
+debug = false

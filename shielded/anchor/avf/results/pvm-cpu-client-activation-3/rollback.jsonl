@@ -1,0 +1,1 @@
+{"result":{"label":"cli","step":"policy","refused":"policy serial 3 is below the 4 this client holds (its install floor or a newer policy it accepted): a rollback, refused","sent":false,"clientVersion":"0.3.1"}}

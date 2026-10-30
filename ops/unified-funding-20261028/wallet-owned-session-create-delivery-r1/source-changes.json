@@ -1,0 +1,75 @@
+{
+  "changes": {
+    "CLOSURE.json": {
+      "seedSha256": null,
+      "finalSha256": "996f3697efcb359455c40e20513d4ecfe44dcfae435f8631b0b03d06d81e03d9",
+      "kind": "new"
+    },
+    "REPORT.md": {
+      "seedSha256": null,
+      "finalSha256": "741c5524d6a2567f005008f49a8e752859d6067730cb3743b32a66e07574b53a",
+      "kind": "new"
+    },
+    "enclave/cli/enclave.mjs": {
+      "seedSha256": "ead393a232126aecc07cbf97e6b8e1b059b90b2423d1a5232dee70f0220247fb",
+      "finalSha256": "264593e038538b9545bace86291e30c0f02a25c480e3cbb7acaa394741220de9",
+      "kind": "modified"
+    },
+    "enclave/contracts/WalletSessionPolicy.sol": {
+      "seedSha256": null,
+      "finalSha256": "f08888e1fb61e4d530e4c42627f54e2551ebbb35f2136843af2c2c1c9cf0a8ad",
+      "kind": "new"
+    },
+    "enclave/contracts/WalletSessionVault.sol": {
+      "seedSha256": null,
+      "finalSha256": "c6dc12779995c54a4f10090e8a59dec9cd70b6c2d9c71ed2b767ff75e774a660",
+      "kind": "new"
+    },
+    "enclave/contracts/foundry/test/WalletSessionVault.t.sol": {
+      "seedSha256": null,
+      "finalSha256": "8e2fb9fbf89ac2bfb94c6a3453904d198ef09ebd5f2f0e9526af84ed32661f97",
+      "kind": "new"
+    },
+    "enclave/relay/api-relay.js": {
+      "seedSha256": "250afeacb7bd20106abd6f9b988c5c110915067f31d37b62bc68aeb919486f87",
+      "finalSha256": "3559b1505d20c2a44e359726de08861699f97a821d3587307aad57d23a2e214e",
+      "kind": "modified"
+    },
+    "enclave/relay/sessions.mjs": {
+      "seedSha256": "483b1c5ef29d83c937a5fd5b15ea3b2e940025d76706a1c5a63867f33c55c4e3",
+      "finalSha256": "04e2007817a6f41af05232faaf7625184d713a0eb7f934703f4da5edcfb6fe53",
+      "kind": "modified"
+    },
+    "enclave/relay/shield-secrets.mjs": {
+      "seedSha256": "744e687237a28b23b1e0954b5b408eeb904cb8882b16c8df39fd8e8aeba144e5",
+      "finalSha256": "12d305cfc59b7f47daf9ee51c245e07f3b63d9a6435bcb5255f67f85a13b6d42",
+      "kind": "modified"
+    },
+    "enclave/relay/wallet-session-policy.mjs": {
+      "seedSha256": null,
+      "finalSha256": "d1d6f1cc1ea396b213ec620f93dc91170d4e698679bf467c11d9afe70f98c0c2",
+      "kind": "new"
+    },
+    "enclave/sdk/sessions/src/wallet.ts": {
+      "seedSha256": null,
+      "finalSha256": "f9b64f5945e305831505e8ec8f5f56e829614014533b59bacb0f86b5aec1de40",
+      "kind": "new"
+    },
+    "enclave/test/wallet-session/consumers.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "892e276da2ebe72827406c5e9c00d5321a9109dea349dd9ed1782aec46a9d495",
+      "kind": "new"
+    },
+    "enclave/windows/node/host.mjs": {
+      "seedSha256": "84b6a1f474f9b816a98c2f17bee03f88bdc2201a17041fbbbabba910e27ce2d3",
+      "finalSha256": "99c49ddfaf4ce1c89162f8ddfb50f74e21a300b68a932444ba9d067131e23b23",
+      "kind": "modified"
+    },
+    "enclave/windows/node/session-api-auth.mjs": {
+      "seedSha256": "f7bfbc569197657b4f2e55e9c19c632e57100aecbfc3ce6fcc102abf6ea98d29",
+      "finalSha256": "9faa7e7634703df23eb29be3e6c5aa45ce7b4cadc403ab5d5ee3133a1df3556b",
+      "kind": "modified"
+    }
+  },
+  "removed": []
+}

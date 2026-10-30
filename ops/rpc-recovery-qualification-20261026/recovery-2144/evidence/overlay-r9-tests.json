@@ -1,0 +1,21 @@
+{
+ "test_recovery_overlay": {
+  "rc": 0,
+  "ran20": true,
+  "lastOK": true,
+  "stdoutEmpty": true,
+  "clean": true,
+  "pass": true
+ },
+ "test_diagnostic": {
+  "rc": 0,
+  "ran15": true,
+  "lastOK": true,
+  "stdoutEmpty": true,
+  "clean": true,
+  "pass": true
+ },
+ "noMountsLeft": true,
+ "peersUnchanged": true,
+ "pass": true
+}

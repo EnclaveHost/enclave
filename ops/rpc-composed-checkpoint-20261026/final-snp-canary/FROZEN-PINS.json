@@ -1,0 +1,31 @@
+{
+ "format": "snp-verifier-canary-frozen-pins/1",
+ "writtenAt": "2026-10-26T05:14:30.308256+00:00",
+ "sourceCommit": "10cdf913b9b8bb168156e42da2a9a2a26c2526ad",
+ "sourceTree": "3b0f8114c07dfb30f15720155659259a018caad7",
+ "expectedMeasurement": "c0ab52344d5a1ebc0ed39e3848dcfe996f20e8a6b67c36318d34fd9fc1d2ce755aa2fc0afbb4913ce877478130d23cb9",
+ "pins": {
+  "bin/scp": "4912dfeb9a833e781b451729f61bd099cf6f2bc659dc27df085930acbd94f9ef",
+  "bin/sftp": "d4a61073a6672dfb518f089147f531f5b5c76641f9994d4b763be3277d63124c",
+  "bin/ssh": "8947dcff0cdc2716a0d1be7ff6438cd33b2b64e4f7556b0733e8015e0d9e3f9a",
+  "canary/owner-config.mjs": "27c73807cfb7a135e70cdf2ca3615180eff7f3afe8d7bf5830420e82e66eba1d",
+  "canary/qemu-restrict.sh": "3fd3a1dc0d6bce94217fd06c3cddde57697e3a9da4a8adea303c7f991bf9d75f",
+  "canary/run-canary.py": "f4158df71a462e41849ff1cff7a3e688697f044955bc9bd9a10d72625a133fdb",
+  "canary/verify-canary.mjs": "00798b1954fb30047707157887f0f28a5ce39b9dcbc634f292314153d325ce5c",
+  "expected-measurement": "4ce7cbc86b7475688420f4beef1d6782a9213527c0baeb498e53d73536c6afdd",
+  "image/MEASUREMENT": "4ce7cbc86b7475688420f4beef1d6782a9213527c0baeb498e53d73536c6afdd",
+  "image/cmdline": "fd236eb2762c457bbe20376216e078f3aab3f2f40a3646f9509137b8f67fabb6",
+  "image/initramfs.cpio.gz": "35c773e979559d610a8d5e240a01d826556f59ca2b770cf32d22ffd8efa498ba",
+  "image/manifest.json": "adcc1a4cabb7039ac1f148140aee085d2ccb2a0f1ff8346917168beb31d3c595",
+  "image/vmlinuz": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7",
+  "inputs": "4ce7cbc86b7475688420f4beef1d6782a9213527c0baeb498e53d73536c6afdd",
+  "node": "7af789e55afc0975d66bb19ccbc5a3b60c4b838f61d1ec10a117832ba70baaf9",
+  "ovmf": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9",
+  "qemu": "a2250f5e2b3b07c754473c0817df1cccf6c3c2443fc616dc474c4c311fa6ef1c",
+  "receipt": "263d290ca559963d368779735e8eed345304f79e91a50e79950f9fac9b84a8d1",
+  "tools/env.sh": "61fc455c2c4fe1ce39d4327f0b789ecf3ffcf85bc8e280fc8c169bd9d0fc2c49",
+  "tree.sha256": "6980c1a3756b89a622e7e906bf42d23d5d7d97cfdbeb0772819e0c6ee247b80a",
+  "tree/node_modules": "4e08fbc6ca7e1c652de132553f9890f71ede01662bc49b1225b1eb1c667934f5",
+  "tree/source-files": "6980c1a3756b89a622e7e906bf42d23d5d7d97cfdbeb0772819e0c6ee247b80a"
+ }
+}

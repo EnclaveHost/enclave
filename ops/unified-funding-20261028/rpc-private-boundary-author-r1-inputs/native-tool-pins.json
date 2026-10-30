@@ -1,0 +1,29 @@
+{
+  "scope": "metadata hashing only; no CLI executed",
+  "tools": {
+    "nbdfuse": {
+      "path": "/usr/bin/nbdfuse",
+      "sha256": "51c1a1fd18785d4fe2240c1710eb4f78590b9d333fcde4cda421871d6f010a01"
+    },
+    "qemu-nbd": {
+      "path": "/usr/bin/qemu-nbd",
+      "sha256": "b0f16ff7225e78469733132fce225b1d0af98f0b681a5092d85618936ff61934"
+    },
+    "qemu-img": {
+      "path": "/usr/bin/qemu-img",
+      "sha256": "3a57bce6765bfb73a75591dba2ac40d985cccde97d371e95537ecbf16d949d30"
+    },
+    "debugfs": {
+      "path": "/usr/bin/debugfs",
+      "sha256": "9b27184084383c8607eee03b43c80eca4ef912acf4887b40a7cc420e267ad8a8"
+    },
+    "e2fsck": {
+      "path": "/usr/bin/e2fsck",
+      "sha256": "a9ea133a844edd695b5172abadc8bbbbb03aaedad80fc24d039bdbf4563a125c"
+    },
+    "fusermount3": {
+      "path": "/usr/bin/fusermount3",
+      "sha256": "c3d04bdf77c7152eba94ce670338e7089730b8dbfede57762b7b92c893a00f4f"
+    }
+  }
+}

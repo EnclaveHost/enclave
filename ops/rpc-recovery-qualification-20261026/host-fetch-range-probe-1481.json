@@ -1,0 +1,50 @@
+{
+ "single": {
+  "http_code": 206,
+  "size_download": 33554432,
+  "speed_download": 10719967,
+  "time_connect": 0.033814,
+  "time_starttransfer": 0.595563,
+  "time_total": 3.130095,
+  "num_connects": 1,
+  "remote_ip": "104.18.40.153",
+  "rc": 0,
+  "start": 0,
+  "expected": 33554432,
+  "ok": true
+ },
+ "parallel": [
+  {
+   "http_code": 206,
+   "size_download": 33554432,
+   "speed_download": 9370422,
+   "time_connect": 0.019268,
+   "time_starttransfer": 0.268557,
+   "time_total": 3.580896,
+   "num_connects": 1,
+   "remote_ip": "104.18.40.153",
+   "rc": 0,
+   "start": 67108864,
+   "expected": 33554432,
+   "ok": true
+  },
+  {
+   "http_code": 206,
+   "size_download": 33554432,
+   "speed_download": 6353441,
+   "time_connect": 0.019434,
+   "time_starttransfer": 0.389695,
+   "time_total": 5.281307,
+   "num_connects": 1,
+   "remote_ip": "104.18.40.153",
+   "rc": 0,
+   "start": 100663296,
+   "expected": 33554432,
+   "ok": true
+  }
+ ],
+ "parallelWallSeconds": 5.300710056908429,
+ "parallelAggregateBytesPerSecond": 12660353.66573896,
+ "scope": "bounded diagnostic to /dev/null; active archive fetch unchanged; does not prove speed under filesystem/cgroup contention",
+ "ok": true
+}

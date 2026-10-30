@@ -1,0 +1,5 @@
+# Windows wiring repair r2 source author
+
+One source-only Claude invocation active; exact admission-record identifies it. Root reviewed final task/runner/closure and independently verified12295 read-only hashes and exact248 seed. Both fresh preflight and runner verified required Max account. Root owns later review/tests/activation; peer owns this same terminal collection once. No automatic native qualification, production mutation, payment or new author. Source input closure is not OS sandboxing. Migration is authorized; actual qualification remains necessary.
+
+The full previous248 delivery and all92 baseline passes plus seven root failures are already committed. Prior handoff push initially included all historic HANDOFF text and the pre-push scanner flagged concatenated task-hash/commit-like strings. The unpublished handoff-only commit was amended to include only the current entry; the original local historical handoff is retained. Normal scanner then passed without bypass or changed configuration.

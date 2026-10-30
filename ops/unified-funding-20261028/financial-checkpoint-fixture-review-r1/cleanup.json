@@ -1,0 +1,29 @@
+{
+  "atUtc": "2026-10-29T00:55:43.119267+00:00",
+  "units": {
+    "enclave-financial-fixture-20261029-r1.service": {
+      "MainPID": "0",
+      "LoadState": "not-found",
+      "ActiveState": "inactive",
+      "SubState": "dead"
+    },
+    "enclave-financial-fixture-guard-20261029-r1.service": {
+      "MainPID": "0",
+      "LoadState": "not-found",
+      "ActiveState": "inactive",
+      "SubState": "dead"
+    }
+  },
+  "residualOwnedPids": {
+    "enclave-financial-fixture-20261029-r1.service": [],
+    "enclave-financial-fixture-guard-20261029-r1.service": []
+  },
+  "productionRelayPid": 228946,
+  "productionStartTicks": "43738495",
+  "productionSourcePins": {
+    "api-relay.js": "481f00410b87f30ee467183db7121175d37c010be5b2c23891a0a19e63b4579d",
+    "sessions.mjs": "457e86472adce2f1fdd2dfa82759578a56f7d72f0c5e5ee18e53999a26d0682d",
+    "store.js": "12157d8ccf8b1ec4ffd4d0af9b5b846650ec20aac748bcc51ad087e119922dcd"
+  },
+  "productionAcceptance": false
+}

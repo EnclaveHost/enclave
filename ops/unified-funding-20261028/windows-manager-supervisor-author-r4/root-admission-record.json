@@ -1,0 +1,19 @@
+{
+  "unit": "enclave-windows-manager-supervisor-r4-20261029",
+  "invocation": "78433b1b642b4a40868c992281ba3413",
+  "runnerPid": 1557062,
+  "runnerStartedAt": 1793284497.8153687,
+  "children": [
+    {
+      "pid": 1557072,
+      "comm": "claude",
+      "startTicks": "158961153"
+    }
+  ],
+  "scope": "ONE source-only author, no production/financial changes",
+  "requiredAccount": {
+    "loggedIn": true,
+    "email": "steven.r.batchelor@gmail.com",
+    "subscriptionType": "max"
+  }
+}

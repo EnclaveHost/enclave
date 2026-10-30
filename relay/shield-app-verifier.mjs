@@ -3,6 +3,7 @@
 import { randomBytes } from 'node:crypto';
 import { CATALOG_REF_RE, derivationRecord, versionRefusal } from './measurement-predict.mjs';
 import { derive, appConfigText, DERIVATION_V5, DERIVATION_V6, DERIVATION_V7 } from './shield-derive.mjs';
+import { validateDesktopRelease, desktopRecordFor, deriveApprovedDesktop } from './shield-desktop-release.mjs';
 
 export async function expectedShieldApp(row, { policy, readCatalog, readConfig, fetchVerified, allowPendingOwner = false, secretsRequired = false }) {
   if (!row || row.isPublic !== true) throw new Error('only public apps are supported');
@@ -48,15 +49,18 @@ export async function expectedShieldApp(row, { policy, readCatalog, readConfig, 
   const gpu = Number(row.gpuMilli), cpu = Number(row.cpuMilli);
   if (!Number.isInteger(gpu) || gpu < 0 || gpu > 1000 || !Number.isInteger(cpu) || cpu < 1 || cpu > 1000)
     throw new Error('invalid resource shares');
-  const profile = gpu > 0 ? policy?.gpu : policy?.cpu;
+  const approvedDesktop = policy?.desktop == null ? null : validateDesktopRelease(policy.desktop);
+  const desktop = approvedDesktop?.controllerCid === version.cid ? approvedDesktop : null;
+  const profile = desktop || (gpu > 0 ? policy?.gpu : policy?.cpu);
   if (!profile?.runtimeId) throw new Error('no admitted runtime for this workload');
-  if (secretsRequired && (gpu || profile.secretsV1 !== true)) throw new Error("sealed secrets are not supported by this image");
+  if (desktop && secretsRequired !== true) throw new Error('native desktop requires staged sealed owner secrets');
+  if (!desktop && secretsRequired && (gpu || profile.secretsV1 !== true)) throw new Error("sealed secrets are not supported by this image");
   const c = await readConfig(ref[1].toLowerCase(), Number(ref[2]));
   if (!c) throw new Error('catalog configuration is unavailable');
   const configCid = envelope.configCid || (envelope.config !== undefined ? "" : c.configCid || "");
   let config = envelope.config !== undefined ? envelope.config : c.config || {};
   if (configCid) {
-    if (profile.configBundleV5 !== true || gpu) throw new Error('configuration CID is not supported by the admitted image');
+    if (!desktop && (profile.configBundleV5 !== true || gpu)) throw new Error('configuration CID is not supported by the admitted image');
     if (typeof configCid !== "string" || !/^(Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{50,120}|z[1-9A-HJ-NP-Za-km-z]{40,120})$/.test(configCid))
       throw new Error('invalid configuration CID');
     const got = await fetchVerified(configCid, 1 << 20);
@@ -66,6 +70,17 @@ export async function expectedShieldApp(row, { policy, readCatalog, readConfig, 
   if (typeof config === 'string') config = JSON.parse(config || '{}');
   if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('configuration is not an object');
   const { _media, ...appConfig } = config;
+  if (desktop) {
+    const record = desktopRecordFor({ release: desktop, app: ref[1].toLowerCase(), version: Number(ref[2]),
+      cid: version.cid, memMiB: version.memMb, ports: version.ports, deploymentId: row.id,
+      cpuMilli: cpu, gpuMilli: gpu, config: appConfig });
+    const component = await fetchVerified(version.cid, 256 << 20);
+    if (!component?.ok || !Buffer.isBuffer(component.bytes) || component.bytes.length > (256 << 20))
+      throw new Error('catalog component could not be CID-verified');
+    return { appSha256: deriveApprovedDesktop({ release: desktop, record, component: component.bytes }).appId,
+      runtimeId: desktop.runtimeId, requiresDesktop: true, requiresConfigBundleV5: true,
+      requiresSecretsV1: true, requiresConfigSocketServer: true };
+  }
   const listed = String(version.ports || "").split(",").map(x=>x.trim().toLowerCase()).filter(Boolean);
   const http = listed.filter(x=>x.startsWith("http:"));
   const ports = listed.filter(x=>!x.startsWith("http:")).sort();
@@ -91,7 +106,7 @@ export async function expectedShieldApp(row, { policy, readCatalog, readConfig, 
   }
   const component = await fetchVerified(version.cid, 256 << 20);
   if (!component?.ok || !Buffer.isBuffer(component.bytes)) throw new Error('catalog component could not be CID-verified');
-  return { appSha256: derive({ record, component: component.bytes }).appId, runtimeId: profile.runtimeId, requiresConfigBundleV5: [DERIVATION_V5,DERIVATION_V6,DERIVATION_V7].includes(record.derivation), requiresSecretsV1: secretsRequired,
+  return { appSha256: derive({ record, component: component.bytes }).appId, runtimeId: profile.runtimeId, configText: record.config ?? null, requiresConfigBundleV5: [DERIVATION_V5,DERIVATION_V6,DERIVATION_V7].includes(record.derivation), requiresSecretsV1: secretsRequired,
     requiresConfigSocketServer: !!record.http && [DERIVATION_V5,DERIVATION_V6,DERIVATION_V7].includes(record.derivation) };
 }
 
@@ -119,6 +134,7 @@ export function createShieldAppVerifier({ hub, policy, readCatalog, readConfig, 
         throw new Error('no bounded app proof from the live node');
       return hub.verifyShieldApp(name, { doc: proof.doc, handshakeSpki: Buffer.from(proof.handshakeSpki, 'base64'),
         nonce, expectedAppSha256: expected.appSha256, expectedRuntimeId: expected.runtimeId, requiresConfigBundleV5: expected.requiresConfigBundleV5, requiresSecretsV1: expected.requiresSecretsV1, requiresConfigSocketServer: expected.requiresConfigSocketServer,
+        ...(expected.requiresDesktop === true ? { requiresDesktop: true } : {}),
         ...(csrSpkiSha256 !== undefined ? { expectedCsrSpkiSha256: csrSpkiSha256 } : {}) }, policy);
     } catch (e) { return { ok: false, reason: e.message }; }
     finally { active--; }

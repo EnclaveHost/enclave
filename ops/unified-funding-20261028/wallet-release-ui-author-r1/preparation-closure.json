@@ -1,0 +1,58 @@
+{
+  "status": "PREPARED_NOT_LAUNCHED",
+  "sourceSeedFiles": 112,
+  "sourceOrigin": "Exact current selfhost-topup-production-r1/source graph; Host Copy and existing selfhost gas UI preserved",
+  "productEdits": [],
+  "intendedScope": [
+    "Sessions held release controls",
+    "narrow SDK signer/relay guarded adapter",
+    "fresh chain eligibility and policy continuity",
+    "durable CAS release journal and read-only receipt recovery",
+    "focused authored-not-run controller and DOM tests"
+  ],
+  "strictBlockers": [
+    "active or attached lease even expired",
+    "old-owner gas reserve funds/liabilities",
+    "both escrow sides nonzero",
+    "factory/book/ledger/vault/reserve code or identity mismatch",
+    "staging->wallet PROD or unpromoted content without proven equivalent restrictions",
+    "unknown previous release outcome"
+  ],
+  "notAuthorizedByThisPackage": [
+    "launch",
+    "test/build execution",
+    "production mutation",
+    "signature/funds",
+    "catalog migration",
+    "refund-first",
+    "blocked-app transfer",
+    "session API widening"
+  ],
+  "sdkBoundary": "Use actual exact shipped ownerOperation with wrapped signer and relay.request; no SDK replacement",
+  "unresolvedContractBoundary": "Deployed release has no expected prestate/reserve arguments; preflight is not atomic state preservation, requires coordinated writer exclusion/final production review",
+  "rootTestPlan": {
+    "sourceReview": [
+      "exact seed diff and module scope",
+      "source-compatible deployed ABI and code pins",
+      "actual SDK injectable signer and relay boundary",
+      "no network effect in render/recovery",
+      "storage CAS/late result behavior",
+      "retained environment/content/session policy"
+    ],
+    "lightweightTests": "One root-reviewed node --test invocation over authored wallet-release tests under standard 512MiB hard/450MiB RSS/floor27648/CPU1/noSwap/shared queue; pin minimal closure before execution. No broad suite or build until source review passes.",
+    "staticDOM": "One mocked-provider browser fixture exercises actual held-card wiring, fixed destination, disabled/blocked/pending/recovered controls and retained promote controls. Separate from actual IndexedDB durability/browser integration.",
+    "vendorIntegration": "Import exact sessions.live.js via inert test fixture path; verify real ownerOperation generates typed nonce/deadline and traverses wrapped signer then guarded POST, without modifying vendor.",
+    "noPassClaim": true
+  },
+  "launchBounds": {
+    "turns": 30,
+    "childSec": 900,
+    "outerSec": 1200,
+    "hardMiB": 1536,
+    "rssMiB": 1408,
+    "floorMiB": 27648,
+    "CPU": 1,
+    "swap": 0
+  },
+  "collector": "Once after exact executable/CWD and actual admitted PIDs confirmed terminal; replay Write/Edit against frozen seed; report any drift/outside writes"
+}

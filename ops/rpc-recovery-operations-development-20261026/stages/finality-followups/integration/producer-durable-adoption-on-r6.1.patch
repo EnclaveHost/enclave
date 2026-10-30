@@ -1,0 +1,76 @@
+--- a/producer/base_launch.py
++++ b/producer/base_launch.py
+@@ -31,7 +31,7 @@
+ A2A4_SOURCE = pathlib.Path('/opt/enclave-rpc/a2a4/a2a4.py')      # root installs the reviewed stage there (HOLD: not installed)
+ # Re-anchor recovery (base-reanchor-recovery-stage; PREPARED): configs with `reanchor` run the recovery harness copy (a superset
+ # that leaves the first-bootstrap path unchanged); first-bootstrap configs keep the reviewed harness above.
+-RECOVERY_A2A4_SHA256 = '710c34830157a8307d20f6b9481c4f5c8aeb6fb59f1db3dccb3e2cec5b024560'   # base-finality-proof-stage/r6/harness/a2a4.py
++RECOVERY_A2A4_SHA256 = '854c5d38d3afc7f7330d5db4171173ab448aa9d61e7034a4e8d3a7a23abc9f65'   # r6-followup-fixes/harness/a2a4.py
+ RECOVERY_A2A4_SOURCE = pathlib.Path('/opt/enclave-rpc/a2a4-recovery/a2a4.py')   # HOLD: not installed
+ HARNESS_BINARY_SHA256 = '9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f'  # selection.BASE_BINARY_SHA256 (A2-A4 runs this)
+ BASE_RELEASE_SHA256 = '4a7c013a510f88166779281ad0108790f25efa07f22f6457d54add709488372f'   # m7-m10-release-completed-0055
+@@ -74,7 +74,7 @@
+ 
+ 
+ # r4 (base-finality-proof-stage/r4): the post-anchor finality tool, executed from exactly its pinned bytes (HOLD: not installed).
+-FINALITY_STATE_SHA256 = 'ed31bf92d686ab328d683ea99dab3876d9c96301d3ef4605a99cb1f3a8f8d75c'   # base-finality-proof-stage/r6/src/finality_state.py
++FINALITY_STATE_SHA256 = 'b2ed0aaa27786615b66d4c4b644f79e461e87c5de2c4e807eb78323fd9d38327'   # r6-followup-fixes/src/finality_state.py
+ FINALITY_STATE_SOURCE = pathlib.Path('/opt/enclave-rpc/finality/src/finality_state.py')
+ SELECTION_SHA256 = 'e6c312f4007f6d747197a6569eaeb36c8c949a0819be49738ce6a0723b999532'   # selection.py beside BOTH harnesses (identical)
+ WRAPPER_SHA256 = '4fc3b970e4ec062eeb66ef90c5bd1b14149a9bdcff135e7720708e7c544df8ae'   # base-finality-proof-stage/r6/wrapper/chain_service.py
+@@ -475,6 +475,40 @@
+     return _record_finality(*a, **k)
+ 
+ 
++def _dangling_proof(F, launch, lsha, entries, store, finality_dir, owner, top, W):
++    """r6.2 -> (finalitySeq, ref, number, blockHash, watermarkEntrySha256) of the ONE adoptable interrupted record, or None. Adoptable
++    only if: the store's LAST entry is a finality-proof not yet named by this launch's journal; everything before it is exactly this
++    launch's recorded proofs (launch_finality with it appended passes); and the finality journal holds exactly one `qualified` entry
++    with that sha, the same N and block, and no terminal entry. Anything else dangling refuses (root resolves it)."""
++    if not os.path.lexists(store):
++        return None
++    try:
++        es = W.watermark_entries(store, owner, top)
++    except AssertionError as e:
++        refuse('watermark', str(e))
++    try:
++        W.launch_finality(launch, lsha, entries, store, owner, top)
++        return None                                   # consistent: nothing dangling
++    except AssertionError:
++        pass
++    if not es or es[-1][1]['kind'] != 'finality-proof':
++        return None
++    t_sha, t = es[-1]
++    try:
++        W.launch_finality(launch, lsha, entries + [(None, {'event': 'bootstrapped', 'evidence': {'watermarkEntrySha256': t_sha}})], store, owner, top)
++    except AssertionError:
++        return None
++    try:
++        q = F.entries(finality_dir, lsha, top)
++    except F.Refused as e:
++        refuse('finality', str(e))
++    hit = [e for e in q if e.get('sha') == t['ref']]
++    if len(hit) != 1 or hit[0].get('event') != 'qualified' or any(e.get('event') in ('contradicted', 'revoked') for e in q) \
++            or ((hit[0].get('evidence') or {}).get('fresh', {}).get('N'), (hit[0].get('evidence') or {}).get('fresh', {}).get('blockHash')) != (t['number'], t['blockHash']):
++        refuse('watermark', 'a dangling finality-proof watermark entry names no qualified finality entry of this launch: root resolves it')
++    return hit[0]['seq'], t['ref'], t['number'], t['blockHash'], t_sha
++
++
+ def _record_finality(d, chain_json, finality_dir, rpc_url, *, W, F, owner=0, top='/', now=None, watermark=None):
+     """r4. Under the launch lock, a STARTED launch (consumed|bootstrapped) whose finality_state status is CURRENT - the last finality
+     entry `qualified` for THIS journal head and THIS bound process (release sha, mdbx dev/ino, pid/starttime) - gets that entry's
+@@ -512,6 +546,14 @@
+                     or not re.fullmatch(r'[0-9a-f]{64}', str(s['entrySha256'])):
+                 refuse('not_qualified', 'the qualified point is not a well-formed block above the launch anchor')
+             return n, h, s['entrySha256'], q[-1]['seq']
++        dangling = _dangling_proof(F, launch, lsha, entries, store, finality_dir, owner, top, W)
++        if dangling is not None:
++            # r6.2: an interrupted record (the watermark entry landed, the journal event did not) is adopted from DURABLE state: no
++            # live process needed (the entry was written right after a CURRENT qualification was re-verified), so no stranding
++            fseq, ref, n, h, wsha = dangling
++            j = _append(d, lsha, entries, 'bootstrapped', {'watermarkEntrySha256': wsha, 'finalityEntrySha256': ref, 'finalitySeq': fseq, 'number': n,
++                        'blockHash': h}, owner, top, now, W)
++            return {'watermarkEntrySha256': wsha, 'number': n, 'journal': j, 'appended': False, 'adopted': True}
+         if last['event'] == 'bootstrapped':
+             try:
+                 q = F.entries(finality_dir, lsha, top)

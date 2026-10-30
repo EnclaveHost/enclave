@@ -1,0 +1,42 @@
+{
+  "kind": "SYNTAX_AND_STATIC_PACKAGE_RESOLUTION_ONLY",
+  "node": "v22.23.1",
+  "syntax": {
+    "sessions.mjs": {
+      "exitCode": 0,
+      "stderr": ""
+    },
+    "funding-route.mjs": {
+      "exitCode": 0,
+      "stderr": ""
+    },
+    "funding-abi.mjs": {
+      "exitCode": 0,
+      "stderr": ""
+    },
+    "fee-policy.mjs": {
+      "exitCode": 0,
+      "stderr": ""
+    },
+    "funding-activation.mjs": {
+      "exitCode": 0,
+      "stderr": ""
+    }
+  },
+  "resolutionExitCode": 0,
+  "resolution": [
+    {
+      "name": "viem",
+      "resolved": "file:///opt/nan-relay/node_modules/viem/_esm/index.js"
+    },
+    {
+      "name": "viem/accounts",
+      "resolved": "file:///opt/nan-relay/node_modules/viem/_esm/accounts/index.js"
+    },
+    {
+      "name": "viem/chains",
+      "resolved": "file:///opt/nan-relay/node_modules/viem/_esm/chains/index.js"
+    }
+  ],
+  "service": "MainPID=228946\nActiveState=active"
+}

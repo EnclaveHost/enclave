@@ -1,0 +1,7 @@
+[queue] START available=89883MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+[vendor] funding.js: 356341 bytes, sha256 3493bb17439d2febeab3d7fea0548261c115845349b85b3312d7cdd5fac0ef88; packages @noble/curves, @noble/hashes, abitype, isows, ox, viem
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak:
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak:
+[queue] EXIT 0

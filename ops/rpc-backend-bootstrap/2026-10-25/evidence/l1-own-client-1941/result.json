@@ -1,0 +1,100 @@
+{
+  "startedAt": "2026-10-25T19:38:24.878237+00:00",
+  "kind": "bounded-own-L1-real-Helios-smoke",
+  "binarySha256": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+  "checkpointRoot": "0xb5d8034017f25328b5ae1455d3efe12de0a49d3e759f63129bcb0296e7847094",
+  "checkpointSlot": 15511008,
+  "productionActivated": false,
+  "statuses": [
+    {
+      "at": 1792957109.9018025,
+      "status": {
+        "verdict": "fresh-finalized",
+        "authority": "helios-ethereum-light-client",
+        "finalizedBasis": "sync-committee supermajority (>=2/3) finality update verified inside pinned Helios",
+        "latestBasis": "optimistic header (sync-committee signed, NOT finalized); Helios refuses latest >60 s old",
+        "wrapperChecks": "chain id, JSON-RPC envelope, finalized<=latest, finalized age; the wrapper adds no proof",
+        "binarySha256": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+        "checkpoint": {
+          "root": "0xb5d8034017f25328b5ae1455d3efe12de0a49d3e759f63129bcb0296e7847094",
+          "slot": 15511008,
+          "declaredAgeSec": 985,
+          "sources": 5
+        },
+        "finalized": {
+          "number": 26271752,
+          "hash": "0xb3a52f0d6364e8c055e5de56b3397cb5400897a913c9366c1ef12790ba70d563",
+          "timestamp": 1792956119,
+          "ageSec": 990
+        },
+        "latest": {
+          "number": 26271832,
+          "hash": "0x0b2edebc0c52aa219d0f55cd7f25ebf5289477d1c3b8db760660f11cdd79dfa7",
+          "timestamp": 1792957079
+        }
+      },
+      "localELMatches": true
+    },
+    {
+      "at": 1792957114.9211888,
+      "status": {
+        "verdict": "fresh-finalized",
+        "authority": "helios-ethereum-light-client",
+        "finalizedBasis": "sync-committee supermajority (>=2/3) finality update verified inside pinned Helios",
+        "latestBasis": "optimistic header (sync-committee signed, NOT finalized); Helios refuses latest >60 s old",
+        "wrapperChecks": "chain id, JSON-RPC envelope, finalized<=latest, finalized age; the wrapper adds no proof",
+        "binarySha256": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+        "checkpoint": {
+          "root": "0xb5d8034017f25328b5ae1455d3efe12de0a49d3e759f63129bcb0296e7847094",
+          "slot": 15511008,
+          "declaredAgeSec": 985,
+          "sources": 5
+        },
+        "finalized": {
+          "number": 26271752,
+          "hash": "0xb3a52f0d6364e8c055e5de56b3397cb5400897a913c9366c1ef12790ba70d563",
+          "timestamp": 1792956119,
+          "ageSec": 995
+        },
+        "latest": {
+          "number": 26271832,
+          "hash": "0x0b2edebc0c52aa219d0f55cd7f25ebf5289477d1c3b8db760660f11cdd79dfa7",
+          "timestamp": 1792957079
+        }
+      },
+      "localELMatches": true
+    },
+    {
+      "at": 1792957119.9426725,
+      "status": {
+        "verdict": "fresh-finalized",
+        "authority": "helios-ethereum-light-client",
+        "finalizedBasis": "sync-committee supermajority (>=2/3) finality update verified inside pinned Helios",
+        "latestBasis": "optimistic header (sync-committee signed, NOT finalized); Helios refuses latest >60 s old",
+        "wrapperChecks": "chain id, JSON-RPC envelope, finalized<=latest, finalized age; the wrapper adds no proof",
+        "binarySha256": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+        "checkpoint": {
+          "root": "0xb5d8034017f25328b5ae1455d3efe12de0a49d3e759f63129bcb0296e7847094",
+          "slot": 15511008,
+          "declaredAgeSec": 985,
+          "sources": 5
+        },
+        "finalized": {
+          "number": 26271752,
+          "hash": "0xb3a52f0d6364e8c055e5de56b3397cb5400897a913c9366c1ef12790ba70d563",
+          "timestamp": 1792956119,
+          "ageSec": 1000
+        },
+        "latest": {
+          "number": 26271834,
+          "hash": "0x0fbebe7221065fc0404e09b6196e6015772e16cc3a0b0b4fc356c8ac4a3da7f2",
+          "timestamp": 1792957103
+        }
+      },
+      "localELMatches": true
+    }
+  ],
+  "success": true,
+  "processStopped": true,
+  "finishedAt": "2026-10-25T19:38:39.945952+00:00"
+}

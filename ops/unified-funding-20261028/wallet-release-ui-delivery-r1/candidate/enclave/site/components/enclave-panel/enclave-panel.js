@@ -1,0 +1,119 @@
+/* ============================================================
+   <c-enclave-panel> - the hero's sealed-enclave visual: a
+   particle canvas inside a dashed boundary, periodically swept
+   by a "measurement". The hash shown is the REAL launch
+   measurement fetched from the live fleet's /attestation (a page
+   about published measurements must not display an invented one);
+   the sweep re-affirms it, because re-measuring a sealed enclave
+   yields the same digest.
+   ============================================================ */
+import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
+import { Enclave } from "../../js/core/api.js";
+
+const shortHash = (h) => {
+  h = String(h || "").replace(/^0x/, "");
+  return /^[0-9a-f]{16,}$/i.test(h) ? h.slice(0, 6) + "…" + h.slice(-6) : null;
+};
+
+class EnclavePanel extends EnclaveElement {
+  static _tpl = "<div class=\"enclave\" id=\"enclave\">\n  <span class=\"corner tl\"></span><span class=\"corner tr\"></span>\n  <span class=\"corner bl\"></span><span class=\"corner br\"></span>\n  <div class=\"enclave-bar\">\n    <span class=\"lbl\"><span class=\"seal\" aria-hidden=\"true\">◆</span> enclave · confidential vm · one per app</span>\n    <span class=\"bar-right\"><span id=\"enclaveState\" aria-hidden=\"true\">sealed</span><button class=\"ep-pause\" type=\"button\" aria-pressed=\"false\" aria-label=\"Pause the enclave animation\">⏸︎</button></span>\n  </div>\n  <canvas class=\"enclave-canvas\" id=\"enclaveCanvas\" role=\"img\" aria-label=\"Animated diagram of data sealed inside a measured enclave\"></canvas>\n  <div class=\"enclave-foot\">\n    <span class=\"k\">launch measurement · live</span>\n    <span id=\"measureHash\" role=\"status\">fetching …</span>\n  </div>\n</div>\n";
+
+  renderedCallback() {
+    if (this._wired) return;
+    this._wired = true;
+    const $ = (s) => this.querySelector(s);
+    const cv = $("#enclaveCanvas"); if (!cv) return;
+    const ctx = cv.getContext("2d");
+    const reduce = (typeof matchMedia === "function") && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const PAD = 14;
+    let W = 0, H = 0, DPR = 1, parts = [], sweep = -1, seedW = -1, seedH = -1;
+
+    function size() {
+      const r = cv.getBoundingClientRect();
+      if (r.width < 40) return false;   // section hidden / not laid out - keep the last good bitmap
+      DPR = Math.min(window.devicePixelRatio || 1, 2);
+      W = r.width; H = r.height || 280;
+      cv.width = W * DPR; cv.height = H * DPR;
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      return true;
+    }
+    function seed() {
+      seedW = W; seedH = H; parts = [];
+      const n = Math.max(10, Math.min(26, Math.floor(W / 16)));
+      for (let i = 0; i < n; i++)
+        parts.push({ x: PAD + Math.random() * (W - 2 * PAD), y: PAD + Math.random() * (H - 2 * PAD),
+          vx: (Math.random() - .5) * .5, vy: (Math.random() - .5) * .5, r: 1 + Math.random() * 1.6 });
+    }
+    function frame() {
+      ctx.clearRect(0, 0, W, H);
+      ctx.strokeStyle = "rgba(47,230,168,.26)"; ctx.lineWidth = 1; ctx.setLineDash([4, 5]);
+      ctx.strokeRect(PAD, PAD, W - 2 * PAD, H - 2 * PAD); ctx.setLineDash([]);
+      for (let i = 0; i < parts.length; i++)
+        for (let j = i + 1; j < parts.length; j++) {
+          const a = parts[i], b = parts[j], d = Math.hypot(a.x - b.x, a.y - b.y);
+          if (d < 58) { ctx.strokeStyle = "rgba(47,230,168," + (0.1 * (1 - d / 58)) + ")";
+            ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+        }
+      parts.forEach(p => {
+        if (!reduce && !paused) {
+          p.x += p.vx; p.y += p.vy;
+          if (p.x < PAD || p.x > W - PAD) p.vx *= -1;
+          if (p.y < PAD || p.y > H - PAD) p.vy *= -1;
+          p.x = Math.max(PAD, Math.min(W - PAD, p.x)); p.y = Math.max(PAD, Math.min(H - PAD, p.y));
+        }
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 3, 0, 7); ctx.fillStyle = "rgba(47,230,168,.06)"; ctx.fill();
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fillStyle = "rgba(130,247,205,.95)"; ctx.fill();
+      });
+      if (sweep >= 0 && !paused) {
+        const y = PAD + sweep * (H - 2 * PAD);
+        const g = ctx.createLinearGradient(0, y - 16, 0, y + 16);
+        g.addColorStop(0, "rgba(143,162,255,0)"); g.addColorStop(.5, "rgba(143,162,255,.45)"); g.addColorStop(1, "rgba(143,162,255,0)");
+        ctx.fillStyle = g; ctx.fillRect(PAD, y - 16, W - 2 * PAD, 32);
+        ctx.strokeStyle = "rgba(143,162,255,.85)"; ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(W - PAD, y); ctx.stroke();
+        sweep += 0.02;
+        if (sweep > 1) { sweep = -1; if (liveHash) $("#measureHash").textContent = liveHash;
+          const st = $("#enclaveState"); if (st) st.textContent = "sealed"; }
+      }
+      if (!reduce && !paused) requestAnimationFrame(frame);
+    }
+    function tick() {
+      if (!paused) { sweep = 0; const st = $("#enclaveState"); if (st) st.textContent = "measuring"; }
+      setTimeout(tick, 3800 + Math.random() * 2800);
+    }
+    // WCAG 2.2.2: the auto-running animation gets a real pause control
+    // (under prefers-reduced-motion it's static already and the button hides)
+    let paused = false;
+    const pb = $(".ep-pause");
+    if (pb) pb.addEventListener("click", () => {
+      paused = !paused;
+      pb.setAttribute("aria-pressed", String(paused));
+      pb.setAttribute("aria-label", (paused ? "Play" : "Pause") + " the enclave animation");
+      pb.textContent = paused ? "▶︎" : "⏸︎";
+      if (!paused && !reduce) requestAnimationFrame(frame);
+    });
+    function revive() {                 // re-sync after anything that can invalidate the bitmap, the
+      if (!size()) return;              // DPR transform, or a seed made while the section was hidden
+      if (seedW !== W || seedH !== H) seed();
+      if (reduce || paused) frame();   // static: paint one frame, schedule nothing
+    }
+    // the real fleet measurement (SEV-SNP launch digest; rtmr3/mrTd on a TDX
+    // host). No invented fallback: if the API is unreachable we say so.
+    let liveHash = null;
+    Enclave._req("GET", "/attestation").then((att) => {
+      const m = (att && att.vm && att.vm.measurements) || {};
+      liveHash = shortHash(m.measurement || m.rtmr3 || m.mrTd);
+      const el = $("#measureHash");
+      if (!el) return;
+      if (liveHash) { el.textContent = liveHash; el.title = "live from " + Enclave.base + "/attestation - run the full check in the Root of trust section"; }
+      else el.textContent = "unavailable";
+    }).catch(() => { const el = $("#measureHash"); if (el) el.textContent = "api unreachable"; });
+
+    size(); seed();
+    if (reduce) { frame(); }
+    else { requestAnimationFrame(frame); setTimeout(tick, 1600); }
+    let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(revive, 150); });
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) revive(); });
+    cv.addEventListener("contextrestored", revive);   // browser reclaimed the canvas backing store
+  }
+}
+register("c-enclave-panel", EnclavePanel);

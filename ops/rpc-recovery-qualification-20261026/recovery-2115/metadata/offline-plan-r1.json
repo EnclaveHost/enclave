@@ -1,0 +1,779 @@
+{
+ "acceptance": "DIAGNOSTIC RECOVERY VIEW ONLY: patched metadata is authentic journal content; the DATA blocks are not authenticated",
+ "dir": {
+  "block": 499122346,
+  "checksum": "d0bdfbda",
+  "entryOffset": 60,
+  "generation": 1611750745,
+  "ino": 1949710
+ },
+ "format": "recovery-overlay-plan/v1",
+ "fs": {
+  "blockSize": 4096,
+  "fsBlocks": 976562500,
+  "fsOffset": 0,
+  "uuid": "11c6bbacf8234052a87a066eed6ad590"
+ },
+ "inputs": {
+  "candidatesSha256": "70180b22ac5a905eb415caec8c8c7014cbaa8c3f6201cd577ee2d02979de9200",
+  "checkerSha256": "662291e5784a37c820f69902ef7b3c2fd6cf96d34822f60ce1df6f96db7da097",
+  "journalSha256": "d95d81fcaf1fdecb305f5645bc5bf2d6093d0a7fc40affbfc769894798cbc073",
+  "resultSha256": "f2ea7adcf3e696989e970759ee37e95989fea4f66670c2d277389201f184e8bf"
+ },
+ "map": {
+  "dataBlocks": 276959557,
+  "digest": "8502fc82630565c27c5f2ae7032b1b6eb0776d24ce5a524ec6a1a6c946ce3de8",
+  "extents": 9001
+ },
+ "mode": "real",
+ "patchBytes": 119040,
+ "patches": [
+  {
+   "byteOffset": 2044404655104,
+   "fsBlock": 499122230,
+   "kind": "inode",
+   "length": 256,
+   "provenance": {
+    "journalBlock": 118422,
+    "sequence": 17169,
+    "tableBlockSha256": "a5e2f92137cea33b9138d9e5eccc104ee94284315c0eb6e8df18f555b83e27d4"
+   },
+   "sha256": "e6e6eafdd7fe03dda52e52f96c8e9fab99539037ae316bf22e86bbee49c5fc53",
+   "source": "000-inode-499122230.bin"
+  },
+  {
+   "byteOffset": 140031037440,
+   "fsBlock": 34187265,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "47867a1e9ada188381fdaf2b2f78d56bba7e4f44e18e2eb108b88325e6c4f21e",
+    "journalBlock": 99069,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 15546
+   },
+   "sha256": "47867a1e9ada188381fdaf2b2f78d56bba7e4f44e18e2eb108b88325e6c4f21e",
+   "source": "001-tree-34187265.bin"
+  },
+  {
+   "byteOffset": 215201349632,
+   "fsBlock": 52539392,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "c34a3b2fd980ce7a3507c5235e37a202b5c68ac22fd04087b410416e167c93bb",
+    "journalBlock": 98515,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 15509
+   },
+   "sha256": "c34a3b2fd980ce7a3507c5235e37a202b5c68ac22fd04087b410416e167c93bb",
+   "source": "002-tree-52539392.bin"
+  },
+  {
+   "byteOffset": 1065328050176,
+   "fsBlock": 260089856,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "41a01638dce9801bf8b5057fb7d78f0471ac09b7e01e879e260250671be31e14",
+    "journalBlock": 90030,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 14760
+   },
+   "sha256": "41a01638dce9801bf8b5057fb7d78f0471ac09b7e01e879e260250671be31e14",
+   "source": "003-tree-260089856.bin"
+  },
+  {
+   "byteOffset": 1113227001856,
+   "fsBlock": 271783936,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "f7e922c0bf52e5de397f8f3fc53a90e97920e5e39076763e62306ceac32b7820",
+    "journalBlock": 90918,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 14845
+   },
+   "sha256": "f7e922c0bf52e5de397f8f3fc53a90e97920e5e39076763e62306ceac32b7820",
+   "source": "004-tree-271783936.bin"
+  },
+  {
+   "byteOffset": 1160748466176,
+   "fsBlock": 283385856,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "f68028272cc994d54c5ce69f1a1909a29b17322ea2578d93e9860fe05c4f7fdf",
+    "journalBlock": 91812,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 14931
+   },
+   "sha256": "f68028272cc994d54c5ce69f1a1909a29b17322ea2578d93e9860fe05c4f7fdf",
+   "source": "005-tree-283385856.bin"
+  },
+  {
+   "byteOffset": 1208647417856,
+   "fsBlock": 295079936,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "c7e4a58de770f592176669cb9bc1854f65c1999eabde15fbe260e2ff068c830c",
+    "journalBlock": 92644,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 15006
+   },
+   "sha256": "c7e4a58de770f592176669cb9bc1854f65c1999eabde15fbe260e2ff068c830c",
+   "source": "006-tree-295079936.bin"
+  },
+  {
+   "byteOffset": 1256462483456,
+   "fsBlock": 306753536,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "929ee1939c2d2a8b3f92cdeef324901ca0c549e8f3bfd092bcb6fa89e6eb3ff8",
+    "journalBlock": 93477,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 15083
+   },
+   "sha256": "929ee1939c2d2a8b3f92cdeef324901ca0c549e8f3bfd092bcb6fa89e6eb3ff8",
+   "source": "007-tree-306753536.bin"
+  },
+  {
+   "byteOffset": 1303983947776,
+   "fsBlock": 318355456,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "f2c59410190f27a9a2ba4b588a3d89e4ade198941d14700770597d229b90e275",
+    "journalBlock": 94315,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 15160
+   },
+   "sha256": "f2c59410190f27a9a2ba4b588a3d89e4ade198941d14700770597d229b90e275",
+   "source": "008-tree-318355456.bin"
+  },
+  {
+   "byteOffset": 1351455080448,
+   "fsBlock": 329945088,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "0a3e2410b24e4f0263bff41dda31a7dd1ce8248dc7e9d57d21036af46a2ecbe5",
+    "journalBlock": 95165,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 15239
+   },
+   "sha256": "0a3e2410b24e4f0263bff41dda31a7dd1ce8248dc7e9d57d21036af46a2ecbe5",
+   "source": "009-tree-329945088.bin"
+  },
+  {
+   "byteOffset": 1398984933376,
+   "fsBlock": 341549056,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "eccea71387c38697cad11ad3cb58fa72f33cdaf30c5e14b8b0098fe33b56fd0c",
+    "journalBlock": 96008,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 15317
+   },
+   "sha256": "eccea71387c38697cad11ad3cb58fa72f33cdaf30c5e14b8b0098fe33b56fd0c",
+   "source": "010-tree-341549056.bin"
+  },
+  {
+   "byteOffset": 1445734645760,
+   "fsBlock": 352962560,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "1722dab9d6f43fa459072a9f8728655c79bc9896cab1f88d5c243f2407ea1e5f",
+    "journalBlock": 96883,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 15399
+   },
+   "sha256": "1722dab9d6f43fa459072a9f8728655c79bc9896cab1f88d5c243f2407ea1e5f",
+   "source": "011-tree-352962560.bin"
+  },
+  {
+   "byteOffset": 1493759426560,
+   "fsBlock": 364687360,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "f6cfa538479a7e6719736084d4a95cc023e61f5fbecf8f163b71580d93b81418",
+    "journalBlock": 97724,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 15477
+   },
+   "sha256": "f6cfa538479a7e6719736084d4a95cc023e61f5fbecf8f163b71580d93b81418",
+   "source": "012-tree-364687360.bin"
+  },
+  {
+   "byteOffset": 1541641601024,
+   "fsBlock": 376377344,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "0fffd91454e2828f1dfa7059340f121779c00c9ab744014e0131782819ffa99c",
+    "journalBlock": 98357,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 15503
+   },
+   "sha256": "0fffd91454e2828f1dfa7059340f121779c00c9ab744014e0131782819ffa99c",
+   "source": "013-tree-376377344.bin"
+  },
+  {
+   "byteOffset": 1562738950144,
+   "fsBlock": 381528064,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "06d7eb1f37fe0edef415ede445f0e352605a75d7dd6bc233e405e4b0c6aafced",
+    "journalBlock": 99919,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 15625
+   },
+   "sha256": "06d7eb1f37fe0edef415ede445f0e352605a75d7dd6bc233e405e4b0c6aafced",
+   "source": "014-tree-381528064.bin"
+  },
+  {
+   "byteOffset": 1610772119552,
+   "fsBlock": 393254912,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "c9c6ab052d745de831fd83b12732e834775738f15abc0cd429d9ba51b2405775",
+    "journalBlock": 100783,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 15705
+   },
+   "sha256": "c9c6ab052d745de831fd83b12732e834775738f15abc0cd429d9ba51b2405775",
+   "source": "015-tree-393254912.bin"
+  },
+  {
+   "byteOffset": 1658788511744,
+   "fsBlock": 404977664,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "9f1e382db21c2c40be40a6f032ae92e35add84dad8d1bd57280ffa58f409017b",
+    "journalBlock": 101613,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 15781
+   },
+   "sha256": "9f1e382db21c2c40be40a6f032ae92e35add84dad8d1bd57280ffa58f409017b",
+   "source": "016-tree-404977664.bin"
+  },
+  {
+   "byteOffset": 1706117038080,
+   "fsBlock": 416532480,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "2d2096b654b57b145549819c826b1b157686cf3c728d2926450af606744cb36c",
+    "journalBlock": 102441,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 15855
+   },
+   "sha256": "2d2096b654b57b145549819c826b1b157686cf3c728d2926450af606744cb36c",
+   "source": "017-tree-416532480.bin"
+  },
+  {
+   "byteOffset": 1753755942912,
+   "fsBlock": 428163072,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "4a65db0c6b0485fb574b29dbd4663f30cf2bc934202528ea7db11e9413a511ff",
+    "journalBlock": 103249,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 15927
+   },
+   "sha256": "4a65db0c6b0485fb574b29dbd4663f30cf2bc934202528ea7db11e9413a511ff",
+   "source": "018-tree-428163072.bin"
+  },
+  {
+   "byteOffset": 1801604562944,
+   "fsBlock": 439844864,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "cd6b17ea716375881c3575b42089f3adf026979d359dd5f661d7321aaf8606b3",
+    "journalBlock": 104111,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 16009
+   },
+   "sha256": "cd6b17ea716375881c3575b42089f3adf026979d359dd5f661d7321aaf8606b3",
+   "source": "019-tree-439844864.bin"
+  },
+  {
+   "byteOffset": 1849671286784,
+   "fsBlock": 451579904,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "18468ecafff24766b00f44b7f00db800a25cb35a34a517f495e78429ff2ec13e",
+    "journalBlock": 104988,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 16092
+   },
+   "sha256": "18468ecafff24766b00f44b7f00db800a25cb35a34a517f495e78429ff2ec13e",
+   "source": "020-tree-451579904.bin"
+  },
+  {
+   "byteOffset": 1897687678976,
+   "fsBlock": 463302656,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "ebe5815c650e160cc9faa760ec04a548a35f76d3be5f07c0e47b08b95a6234e9",
+    "journalBlock": 105857,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 16174
+   },
+   "sha256": "ebe5815c650e160cc9faa760ec04a548a35f76d3be5f07c0e47b08b95a6234e9",
+   "source": "021-tree-463302656.bin"
+  },
+  {
+   "byteOffset": 1945100091392,
+   "fsBlock": 474877952,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "c9fef4a7dd445f1b1f0ec41774954649c81cfed6916df623029083fd817dc368",
+    "journalBlock": 106716,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 16253
+   },
+   "sha256": "c9fef4a7dd445f1b1f0ec41774954649c81cfed6916df623029083fd817dc368",
+   "source": "022-tree-474877952.bin"
+  },
+  {
+   "byteOffset": 1993301032960,
+   "fsBlock": 486645760,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "75c798040e336b24fb0bc1b9a5904f7fc70736eac44ee91f24b464cb5f0b2ceb",
+    "journalBlock": 107570,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 16331
+   },
+   "sha256": "75c798040e336b24fb0bc1b9a5904f7fc70736eac44ee91f24b464cb5f0b2ceb",
+   "source": "023-tree-486645760.bin"
+  },
+  {
+   "byteOffset": 2041476808704,
+   "fsBlock": 498407424,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "8bfa3588132ab21f2a15d9c59190958b2af56e7ccc3aaa56898b72f77b38f6a2",
+    "journalBlock": 108423,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 16408
+   },
+   "sha256": "8bfa3588132ab21f2a15d9c59190958b2af56e7ccc3aaa56898b72f77b38f6a2",
+   "source": "024-tree-498407424.bin"
+  },
+  {
+   "byteOffset": 2044540669952,
+   "fsBlock": 499155437,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "bed024dc59e32c087c828e6c03f42753aaba969204d89039f2c682aa55fc9da7",
+    "journalBlock": 89078,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 14665
+   },
+   "sha256": "bed024dc59e32c087c828e6c03f42753aaba969204d89039f2c682aa55fc9da7",
+   "source": "025-tree-499155437.bin"
+  },
+  {
+   "byteOffset": 2044540719104,
+   "fsBlock": 499155449,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "00cc4c27b6252a0294c8a060e6e9b835f5403586a3f75c97d488e286c40f0964",
+    "journalBlock": 109295,
+    "revokedByProvenSequence": [
+     17170,
+     17179,
+     17193,
+     17197
+    ],
+    "sequence": 16490
+   },
+   "sha256": "00cc4c27b6252a0294c8a060e6e9b835f5403586a3f75c97d488e286c40f0964",
+   "source": "026-tree-499155449.bin"
+  },
+  {
+   "byteOffset": 2089384148992,
+   "fsBlock": 510103552,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "a2e046ff8ed2a089555f64e35aa8104d6cea379681f244964f090873ab0a3926",
+    "journalBlock": 109290,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 16490
+   },
+   "sha256": "a2e046ff8ed2a089555f64e35aa8104d6cea379681f244964f090873ab0a3926",
+   "source": "027-tree-510103552.bin"
+  },
+  {
+   "byteOffset": 2137568313344,
+   "fsBlock": 521867264,
+   "kind": "tree",
+   "length": 4096,
+   "provenance": {
+    "contentSha256": "329cb98998d5f06c06eaacb7fd8a441509b0c448fd37dcf261e0367fb759b24e",
+    "journalBlock": 117943,
+    "revokedByProvenSequence": [
+     17170
+    ],
+    "sequence": 17027
+   },
+   "sha256": "329cb98998d5f06c06eaacb7fd8a441509b0c448fd37dcf261e0367fb759b24e",
+   "source": "028-tree-521867264.bin"
+  },
+  {
+   "byteOffset": 2044405129216,
+   "fsBlock": 499122346,
+   "kind": "dir",
+   "length": 4096,
+   "provenance": {
+    "considered": 4,
+    "contentSha256": "f5f5c662655b3a5c6ff05a96f3669c7aa90a4cff594e6087d9056d94a93f302b",
+    "journalBlock": 118419,
+    "sequence": 17169
+   },
+   "sha256": "f5f5c662655b3a5c6ff05a96f3669c7aa90a4cff594e6087d9056d94a93f302b",
+   "source": "029-dir-499122346.bin"
+  }
+ ],
+ "samples": [
+  [
+   0,
+   248373248
+  ],
+  [
+   4691968,
+   253394944
+  ],
+  [
+   9443328,
+   258441216
+  ],
+  [
+   14061568,
+   263389184
+  ],
+  [
+   18812928,
+   268468224
+  ],
+  [
+   23496704,
+   273448960
+  ],
+  [
+   28215296,
+   278495232
+  ],
+  [
+   32909312,
+   283486208
+  ],
+  [
+   37617664,
+   288522240
+  ],
+  [
+   42369024,
+   293568512
+  ],
+  [
+   47052800,
+   298582016
+  ],
+  [
+   51771392,
+   303628288
+  ],
+  [
+   56367104,
+   308520960
+  ],
+  [
+   61108224,
+   313589760
+  ],
+  [
+   65775616,
+   318554112
+  ],
+  [
+   70430009,
+   323536185
+  ],
+  [
+   75098112,
+   328499200
+  ],
+  [
+   79749120,
+   333479936
+  ],
+  [
+   84500480,
+   338526208
+  ],
+  [
+   89184256,
+   343539712
+  ],
+  [
+   93935616,
+   348585984
+  ],
+  [
+   98619392,
+   353599488
+  ],
+  [
+   103370752,
+   358678528
+  ],
+  [
+   108122112,
+   363724800
+  ],
+  [
+   112805888,
+   368738304
+  ],
+  [
+   117557248,
+   373784576
+  ],
+  [
+   121696256,
+   41627648
+  ],
+  [
+   123510784,
+   48377856
+  ],
+  [
+   126257152,
+   53145600
+  ],
+  [
+   128172032,
+   35971072
+  ],
+  [
+   130060288,
+   39923712
+  ],
+  [
+   131764224,
+   43139072
+  ],
+  [
+   135198720,
+   378929152
+  ],
+  [
+   139882496,
+   383942656
+  ],
+  [
+   144633856,
+   388988928
+  ],
+  [
+   149317632,
+   394002432
+  ],
+  [
+   154068992,
+   399081472
+  ],
+  [
+   158820352,
+   404127744
+  ],
+  [
+   163536896,
+   409174016
+  ],
+  [
+   168288256,
+   414253056
+  ],
+  [
+   172916736,
+   419178496
+  ],
+  [
+   177625088,
+   424214528
+  ],
+  [
+   182276096,
+   429162496
+  ],
+  [
+   186994688,
+   434208768
+  ],
+  [
+   191746048,
+   439255040
+  ],
+  [
+   196397056,
+   444235776
+  ],
+  [
+   201148416,
+   449282048
+  ],
+  [
+   205799424,
+   454262784
+  ],
+  [
+   210550784,
+   459341824
+  ],
+  [
+   215234560,
+   464322560
+  ],
+  [
+   219985920,
+   469401600
+  ],
+  [
+   224737280,
+   474447872
+  ],
+  [
+   229421056,
+   479461376
+  ],
+  [
+   234172416,
+   484540416
+  ],
+  [
+   238856192,
+   489521152
+  ],
+  [
+   243607552,
+   494600192
+  ],
+  [
+   248291328,
+   499591168
+  ],
+  [
+   253032448,
+   504659968
+  ],
+  [
+   257783808,
+   509739008
+  ],
+  [
+   262465536,
+   514719744
+  ],
+  [
+   267216896,
+   519798784
+  ],
+  [
+   271900672,
+   524779520
+  ],
+  [
+   276652032,
+   529858560
+  ],
+  [
+   276959556,
+   530198852
+  ]
+ ],
+ "target": {
+  "generation": 3326586236,
+  "ino": 1950053,
+  "inodeChecksum": "72b56bba",
+  "inodeOffset": 1024,
+  "inodeTableBlock": 499122230,
+  "path": "/data/db/mdbx.dat",
+  "size": 1138166333440,
+  "treeBlocks": 28,
+  "treeDepth": 2
+ }
+}

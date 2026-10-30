@@ -1,0 +1,12 @@
+{
+  "preparedSha256": "1ab62463c254205171341cb348c99099263e87b216bb059902109a017e7c86de",
+  "seedFiles": 4,
+  "inputPins": 15319,
+  "inputDrift": [],
+  "preAuthorProductEdits": 0,
+  "extraFiles": 0,
+  "authorLaunched": false,
+  "testsBuildsRun": false,
+  "helperASTOnly": true,
+  "independentAccountCheck": "Root prelaunch required; runner repeats; not observed during preparation"
+}

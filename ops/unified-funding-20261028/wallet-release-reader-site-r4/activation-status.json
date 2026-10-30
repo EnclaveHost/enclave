@@ -1,0 +1,26 @@
+{
+  "invocation": "350a05fde057405f8f267669423700d0",
+  "status": "ActiveState=inactive\nMainPID=0\nResult=success\n",
+  "cid": "bafybeigpmrrdbibmlqiljg5v6a5bnstuv36ovixm7vbuxsala2hhhu2mea",
+  "edges": [
+    {
+      "host": "us-west",
+      "httpsVerifiedFiles": 87
+    },
+    {
+      "host": "ca-east",
+      "httpsVerifiedFiles": 87
+    },
+    {
+      "host": "ap-southeast",
+      "httpsVerifiedFiles": 87
+    },
+    {
+      "host": "eu-central",
+      "httpsVerifiedFiles": 87
+    }
+  ],
+  "httpsChecks": 348,
+  "financialActions": 0,
+  "backendRestarts": 0
+}

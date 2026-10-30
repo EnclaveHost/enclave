@@ -1,0 +1,1 @@
+Invocation87f2bc3e942b4d69bbdbe02bb5d375eb terminal1/Main0 before ATTEMPT or Reth execution. Root harness incorrectly tried reading /proc/1/ns/net without permission. Preserved; no parser result or client/DB effects. Separate r2 captures parent network namespace identity before unshare and compares that public pin instead.

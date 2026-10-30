@@ -1,0 +1,807 @@
+--- a2-a4-execution/a2a4.py	2026-10-25 14:38:09.345336965 -0700
++++ a1-a2-integration/a2a4.py	2026-10-25 14:55:50.590705176 -0700
+@@ -12,6 +12,15 @@
+   a2a4.py a4        CONFIG   merkle drop + full rebuild at N (MUTATES; checks state root == authenticated N)
+   a2a4.py release   CONFIG   final gates + fresh A1 re-check -> writes the M10 launch record (or refuses)
+ 
++A1 evidence (gate_a1; a1-a2-integration PREPARED copy, see README.md there). This harness has no light client: it CANNOT re-verify
++Helios. Every A1 file is therefore a TRUSTED ROOT-PRODUCED record: read once from an open root-owned, not group/other-writable
++regular file (no symlink), sha-pinned or provenance-bound, and checked by the pinned JS gate (a1gate/, reusing the reviewed
++loadInitialReceipt). The labels helios-call / mpt-proof are the root runner's record of how a value was obtained, not a proof.
++  a1Mode fresh-initial          (default) a fresh INITIAL `A1-authenticated` receipt naming exactly the planned N/root/game
++  a1Mode original-game-recheck  the PINNED initial receipt (A1_INITIAL_SHA256 == a1InitialSha256) + the root-reviewed recheck
++                                receipt of THAT receipt (sha == a1RecheckSha256) + its run-recheck.py run record; N/root/game
++                                stay the INITIAL values: the latest anchor (and any descendant) is an observation only
++
+ Pinned-source semantics (base v1.5.1 -> base-reth 2.5.2 7134be3; see PROCEDURE.md for file:line):
+   - `base reth stage unwind --datadir D --config F to-block T`  (non-offline: truncates headers/bodies/static files and lowers
+     ChainState finalized/safe; Distance guard only; commits per stage step: NO rollback)
+@@ -20,7 +29,7 @@
+     (from==0 -> full rebuild; validate_state_root against header N; mismatch -> exit 1)
+   - `db get` exits 0 with EMPTY output on a missing key -> every read here requires non-empty, parsed output.
+ """
+-import datetime, hashlib, json, os, pathlib, re, shutil, signal, subprocess, sys, time, types
++import base64, datetime, hashlib, json, os, pathlib, re, shutil, signal, stat, subprocess, sys, tempfile, time, types
+ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+ import selection as SEL
+ 
+@@ -51,6 +60,21 @@
+ MUTATING = {'unwind': 'unwindChunkSec', 'merkle-drop': None, 'merkle-run': 'merkleSec'}
+ LOG_CAP, STDERR_CAP, GRACE_SEC = 256 << 20, 16 << 20, 120
+ FORBIDDEN_STAGES_V2 = ('hashing', 'account-hashing', 'storage-hashing', 'execution')
++# ---- A1 evidence pins (a1-a2-integration) ----
++A1_MODES = ('fresh-initial', 'original-game-recheck')
++A1_FILE_CAP = 1 << 20
++A1_MAX_L1_AGE_SEC = 1800                          # recorded finalized-header age (A1 DEFAULT_MAX_FINALIZED_AGE_SEC)
++A1_RUN_WINDOW_SEC = 300                           # receipt `at` - finalized timestamp - recorded age: the runner's own read time
++A1_INITIAL_SHA256 = 'b9a90847bb3f779262681cabc35af64d7c3b785c9ad5cd2b99e9700b9725256c'   # live-1958/a1-evidence.json (tests override)
++A1_GATE_PINS = {'a1-gate.mjs': '06cc29612d1d380e91c932dc13ed676e153c8aab368103eac673c4004409414c',      # a1-a2-integration (new)
++                'a1-recheck.mjs': 'f591f3247fe672f6470685f2be36eb529ceb9280044c03c6a2396174bb0ad9d8',   # a1-original-game, unmodified
++                'a1-anchor.mjs': 'ec92b70f105f88cbfc466e57e4673afcb0fbd104403e425e036f1dba78e6528d'}    # l1-anchor-a1, unmodified
++RECHECK_INPUT_PINS = {'a1-recheck.mjs': 'f591f3247fe672f6470685f2be36eb529ceb9280044c03c6a2396174bb0ad9d8',  # run-recheck.py inputPins
++                      'a1-recheck-read.mjs': '41b83975e96fc816bd5743e56626dd309aa7f0ee03c6efb9912788eb184a7715',
++                      'a1-anchor.mjs': 'ec92b70f105f88cbfc466e57e4673afcb0fbd104403e425e036f1dba78e6528d',
++                      'a1-read.mjs': 'a501a3ec56ebd56e6bf1fc43c0c3725da57d013addac5f1efb13a99e598e0ab8',
++                      'vendor/anchor-bootstrap.mjs': '90a8afba31e7c7029a0fa860f97153cd40665f1d1b2ae87bb0a56fd98c25e8f8'}
++A1_RECHECK_KEYS = ('a1InitialEvidence', 'a1InitialSha256', 'a1RecheckSha256', 'a1RunResult')
+ 
+ 
+ class Refused(Exception):
+@@ -76,7 +100,7 @@
+ # ---- config ---------------------------------------------------------------------------------------------------------------
+ KEYS = {'datadir', 'baseBinary', 'baseBinarySha256', 'rethConfig', 'workdir', 'a1Evidence', 'a1MaxAgeSec', 'N', 'outputRoot', 'game',
+         'downloadReceipt', 'manifestPath', 'snapshotMarker', 'timeouts', 'inPlaceReviewed', 'unwindChunk', 'serviceUnits', 'anchorModule',
+-        'depsRoot', 'node', 'minFreeBytes', 'backup', 'bytecodeChecker', 'bytecodeCheckerSha256'}
++        'depsRoot', 'node', 'minFreeBytes', 'backup', 'bytecodeChecker', 'bytecodeCheckerSha256', 'a1Mode', 'a1GateDir', *A1_RECHECK_KEYS}
+ 
+ 
+ def load_config(path):
+@@ -106,6 +130,20 @@
+             or not (isinstance(t['merkleSec'], int) and 3600 <= t['merkleSec'] <= 604_800) or not (isinstance(t['bytecodeSec'], int) and 600 <= t['bytecodeSec'] <= 172_800):
+         refuse('bad_config', 'timeouts {unwindChunkSec 600..86400, merkleSec 3600..604800, bytecodeSec 600..172800} must be declared (real operations take hours)')
+     c.setdefault('inPlaceReviewed', False); c.setdefault('backup', None); c.setdefault('minFreeBytes', 50 * 10**9)
++    c.setdefault('a1Mode', 'fresh-initial')
++    if c['a1Mode'] not in A1_MODES:
++        refuse('bad_config', f'a1Mode must be one of {A1_MODES}')
++    if not isinstance(c.get('a1GateDir'), str) or not os.path.isabs(c['a1GateDir']):
++        refuse('bad_config', 'a1GateDir must be an absolute path (the pinned a1gate/ modules)')
++    if c['a1Mode'] == 'original-game-recheck':
++        for k in ('a1InitialEvidence', 'a1RunResult'):
++            if not isinstance(c.get(k), str) or not os.path.isabs(c[k]):
++                refuse('bad_config', f'{k} must be an absolute path in original-game-recheck mode')
++        for k in ('a1InitialSha256', 'a1RecheckSha256'):
++            if not re.fullmatch(r'[0-9a-f]{64}', str(c.get(k, ''))):
++                refuse('bad_config', f'{k} must be 64 lowercase hex in original-game-recheck mode')
++    elif any(k in c for k in A1_RECHECK_KEYS):
++        refuse('bad_config', f'{list(A1_RECHECK_KEYS)} belong to a1Mode original-game-recheck only')
+     return c
+ 
+ 
+@@ -250,32 +288,133 @@
+ 
+ 
+ # ---- gates ----------------------------------------------------------------------------------------------------------------
++def _read_trusted(path, what, cap):
++    """A root-produced evidence file, read ONCE: open without following a final symlink, check the OPEN file (regular, owner uid
++    TRUSTED_UID, not group/other-writable, <= cap bytes) and return exactly those bytes (no stat/read race, no re-resolution)."""
++    try:
++        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
++    except FileNotFoundError:
++        refuse('no_evidence', f'{what} {path} does not exist')
++    except OSError as e:
++        refuse('untrusted_file', f'{what} {path} cannot be opened as a regular non-symlink file: {e.strerror}')
++    with os.fdopen(fd, 'rb') as f:
++        st = os.fstat(f.fileno())
++        if not stat.S_ISREG(st.st_mode) or st.st_uid != TRUSTED_UID or st.st_mode & 0o022:
++            refuse('untrusted_file', f'{what} {path} must be a regular file owned by uid {TRUSTED_UID} and not group/other-writable')
++        b = f.read(cap + 1)
++    if len(b) > cap:
++        refuse('untrusted_file', f'{what} {path} exceeds {cap} bytes')
++    return b
++
++
++def _utc(s, what):
++    try:
++        t = datetime.datetime.fromisoformat(str(s).replace('Z', '+00:00'))
++    except ValueError:
++        t = None
++    if t is None or t.tzinfo is None:
++        refuse('a1_receipt', f'{what} {s!r} is not an ISO UTC time')
++    return t
++
++
++def a1_node_gate(c, inp):
++    """The pinned JS gate over the exact bytes. The module files are read once, compared with A1_GATE_PINS and imported from a
++    private copy in the 0700 workdir. -> the gate's normalized summary (every receipt-derived value below comes from here)."""
++    d = pathlib.Path(tempfile.mkdtemp(prefix='a1gate-', dir=workdir(c)))
++    try:
++        for name, want in A1_GATE_PINS.items():
++            b = pathlib.Path(c['a1GateDir'], name).read_bytes()
++            if hashlib.sha256(b).hexdigest() != want:
++                refuse('a1_gate_pin', f'{name} in a1GateDir differs from its pin')
++            (d / name).write_bytes(b)
++        script = ("const g=await import(process.env.G);const fs=await import('node:fs');const i=JSON.parse(fs.readFileSync(0,'utf8'));"
++                  "try{console.log(JSON.stringify({ok:true,summary:g.gate(i)}))}catch(e){console.log(JSON.stringify({ok:false,code:e.code||'error',"
++                  "error:String(e.message||e).slice(0,300)}));process.exit(3)}")
++        p = subprocess.run([c['node'], '--input-type=module', '-e', script], input=json.dumps(inp), capture_output=True, text=True,
++                           env=dict(os.environ, G=(d / 'a1-gate.mjs').as_uri()), timeout=60)
++    finally:
++        shutil.rmtree(d, ignore_errors=True)
++    try:
++        r = json.loads(p.stdout.strip().splitlines()[-1])
++    except Exception:
++        refuse('a1_tool', f'A1 gate produced no verdict: {p.stderr[-300:]}')
++    if p.returncode != 0 or r.get('ok') is not True:
++        refuse('a1_receipt', f'{r.get("code")}: {r.get("error")}')
++    return r['summary']
++
++
++def gate_recheck_run(c, s):
++    """Provenance of the recheck receipt: recheck.json + run-result.json of ONE run-recheck.py output dir, both root-owned; the run
++    used the pinned recheck modules on the pinned initial receipt, exited 0, stopped Helios, and wrote the receipt inside its window."""
++    ev, rp = pathlib.Path(c['a1Evidence']), pathlib.Path(c['a1RunResult'])
++    if ev.name != 'recheck.json' or rp.name != 'run-result.json' or os.path.realpath(ev.parent) != os.path.realpath(rp.parent):
++        refuse('a1_provenance', 'a1Evidence/a1RunResult must be recheck.json and run-result.json of ONE run-recheck.py output directory')
++    try:
++        r = json.loads(_read_trusted(rp, 'recheck run record', A1_FILE_CAP))
++    except ValueError:
++        refuse('a1_provenance', 'run-result.json is not JSON')
++    if not isinstance(r, dict) or r.get('inputPins') != RECHECK_INPUT_PINS:
++        refuse('a1_provenance', 'the recheck run did not use the pinned recheck modules (inputPins)')
++    if r.get('initialSha256') != c['a1InitialSha256'] or type(r.get('recheckExit')) is not int or r['recheckExit'] != 0 \
++            or r.get('processStopped') is not True or r.get('productionActivated') is not False or 'error' in r:
++        refuse('a1_provenance', 'the recheck run record is not a clean exit-0 run over the pinned initial receipt with Helios stopped')
++    if not _utc(r.get('startedAt'), 'run startedAt') <= _utc(s['at'], 'recheck at') <= _utc(r.get('finishedAt'), 'run finishedAt'):
++        refuse('a1_provenance', 'the recheck receipt time lies outside its run record window')
++
++
+ def gate_a1(c):
+-    """A fresh A1 run (file written <= a1MaxAgeSec ago), the mainnet pins, and the planned N/output root/game."""
+-    e = json.loads(pathlib.Path(c['a1Evidence']).read_text())
+-    at = datetime.datetime.fromisoformat(e['at'].replace('Z', '+00:00'))
++    """A1 evidence (module docstring). Both modes: root-owned exact bytes through the pinned JS gate, then here: receipt age <=
++    a1MaxAgeSec, mainnet ASR/type/code-hash pins, exactly the planned N/output root/game, finalized-header age bounded and
++    consistent with the receipt time. original-game-recheck additionally: pinned initial sha, root-reviewed recheck sha, run record."""
++    ev = _read_trusted(c['a1Evidence'], 'A1 evidence', A1_FILE_CAP)
++    if c['a1Mode'] == 'fresh-initial':
++        s = a1_node_gate(c, {'mode': 'fresh-initial', 'initial': base64.b64encode(ev).decode()})
++    else:
++        if c['a1InitialSha256'] != A1_INITIAL_SHA256:
++            refuse('a1_initial_pin', f'a1InitialSha256 is not the pinned initial A1 receipt {A1_INITIAL_SHA256[:12]}... (a source change, never config)')
++        if hashlib.sha256(ev).hexdigest() != c['a1RecheckSha256']:
++            refuse('a1_recheck_sha', 'the recheck file is not the one root reviewed (a1RecheckSha256)')
++        ini = _read_trusted(c['a1InitialEvidence'], 'initial A1 receipt', A1_FILE_CAP)
++        s = a1_node_gate(c, {'mode': 'original-game-recheck', 'initial': base64.b64encode(ini).decode(), 'initialSha256': c['a1InitialSha256'],
++                             'recheck': base64.b64encode(ev).decode()})
++        gate_recheck_run(c, s)
++    at = _utc(s['at'], 'A1 at')
+     age = (now() - at).total_seconds()
+     if age < 0 or age > c['a1MaxAgeSec']:
+         refuse('a1_stale', f'A1 evidence is {int(age)} s old (max {c["a1MaxAgeSec"]}): re-run A1 now; an existing file is not accepted')
+-    if e.get('verdict') != 'A1-authenticated':
+-        refuse('a1_verdict', f'A1 verdict {e.get("verdict")}')
+-    if e.get('asr', '').lower() != MAINNET['asr'] or e.get('respectedGameType') != MAINNET['respectedGameType']:
++    if s['asr'] != MAINNET['asr'] or s['respectedGameType'] != MAINNET['respectedGameType']:
+         refuse('a1_pins', 'ASR or respected game type is not the pinned mainnet value')
+     for addr, ch in MAINNET['codeHashes'].items():
+-        if (e.get('pins', {}).get(addr, {}).get('codeHash', '').lower()) != ch:
++        if s['pins'].get(addr, {}).get('codeHash') != ch:
+             refuse('a1_pins', f'code hash of {addr} differs from the pin')
+-    if str(e.get('N')).isdigit() and int(e['N']) > c['N']:
+-        refuse('a1_anchor_advanced', f'the ASR anchor advanced to {e["N"]} (> N): the current A1 tool re-checks only the LATEST anchor, so it cannot '
+-               f're-confirm game {c["game"]} now; needs the game-specific re-check (G-h) - never re-anchor or accept descendants silently')
+-    if str(e.get('N')) != str(c['N']) or e.get('outputRoot', '').lower() != c['outputRoot'] or e.get('game', '').lower() != c['game']:
++    if s['mode'] == 'fresh-initial' and int(s['N']) > c['N']:
++        refuse('a1_anchor_advanced', f'the ASR anchor advanced to {s["N"]} (> N): a fresh initial A1 names only the LATEST anchor; re-confirm game '
++               f'{c["game"]} with a1Mode original-game-recheck - never re-anchor or accept descendants silently')
++    if s['N'] != str(c['N']) or s['outputRoot'] != c['outputRoot'] or s['game'] != c['game']:
+         refuse('a1_anchor', 'A1 anchor (N/outputRoot/game) differs from the planned one')
+-    reads = e.get('reads', {})
+-    for k in ('anchorRoot', 'anchorGame', 'isGameFinalized', 'isGameBlacklisted', 'isGameRetired', 'gameStatus', 'gameRootClaim'):
+-        if reads.get(k) not in ('helios-call', 'mpt-proof'):
+-            refuse('a1_unproven', f'A1 read {k} is not proof-verified')
+-    if int(e.get('l1', {}).get('ageSec', 10**9)) > 1800:
+-        refuse('a1_l1_stale', 'A1 L1 finalized header was older than 1800 s')
+-    return {'a1At': e['at'], 'a1AgeSec': int(age), 'l1Finalized': e['l1']['number']}
++    l1 = s['l1']
++    if l1['ageSec'] > A1_MAX_L1_AGE_SEC:
++        refuse('a1_l1_stale', f'A1 L1 finalized header was older than {A1_MAX_L1_AGE_SEC} s')
++    if not l1['ageSec'] <= at.timestamp() - l1['timestamp'] <= l1['ageSec'] + A1_RUN_WINDOW_SEC:
++        refuse('a1_l1_stale', 'the recorded finalized-header age is inconsistent with the receipt time and header timestamp')
++    g = {'mode': s['mode'], 'a1At': s['at'], 'a1AgeSec': int(age), 'l1Finalized': l1['number'], 'l1Hash': l1['hash'], 'initialSha256': s['initialSha256'],
++         'N': s['N'], 'outputRoot': s['outputRoot'], 'game': s['game'], 'asr': s['asr']}
++    if s['mode'] == 'original-game-recheck':
++        g['initialL1'] = s['initialL1']; g['latestAnchorObservation'] = s['latestAnchorObservation']   # recorded, never used
++    return g
++
++
++def bind_a1(w, g):
++    """release: the A1 result names the SAME initial receipt, N, root, game and ASR the A2 authentication used, at an L1 block
++    not older than A2's. A bootstrap can never switch to another receipt (or a descendant anchor) between A2 and release."""
++    b = load(w, 'a2-authenticated.json').get('a1Gate')
++    if not isinstance(b, dict):
++        refuse('a1_binding', 'a2-authenticated.json records no A1 gate result: re-run a2')
++    for k in ('initialSha256', 'N', 'outputRoot', 'game', 'asr'):
++        if g[k] != b.get(k):
++            refuse('a1_binding', f'release A1 {k} differs from the A1 used by A2')
++    if not isinstance(b.get('l1Finalized'), int) or g['l1Finalized'] < b['l1Finalized']:
++        refuse('a1_binding', 'release A1 is at an older L1 block than the A1 used by A2')
+ 
+ 
+ def _root_owned(path, what):
+@@ -292,16 +431,16 @@
+     rp = c['downloadReceipt']
+     if not os.path.isfile(rp):
+         refuse('no_receipt', 'no root completed-download receipt: the snapshot is not proven complete (an empty marker alone is not accepted)')
+-    _root_owned(rp, 'receipt'); r = json.loads(pathlib.Path(rp).read_text())
++    r = json.loads(_read_trusted(rp, 'receipt', 1 << 20))
+     want = {'format': 'base-snapshot-completion-receipt/v1', 'manifestSha256': MANIFEST_SHA, 'block': SNAPSHOT_HEAD, 'chainId': 8453,
+             'storageVersion': 2, 'unit': SNAPSHOT_UNIT, 'unitResult': 'success', 'execMainStatus': 0, 'datadir': c['datadir']}
+     for k, v in want.items():
+         if r.get(k) != v:
+             refuse('receipt_fields', f'receipt {k}={r.get(k)!r}, expected {v!r}')
+-    _root_owned(c['manifestPath'], 'manifest')
+-    if sha256(c['manifestPath']) != MANIFEST_SHA:
++    mb = _read_trusted(c['manifestPath'], 'manifest', 64 << 20)
++    if hashlib.sha256(mb).hexdigest() != MANIFEST_SHA:
+         refuse('manifest_pin', 'the pinned manifest bytes differ')
+-    m = json.loads(pathlib.Path(c['manifestPath']).read_text())
++    m = json.loads(mb)
+     if (m.get('block'), m.get('chain_id'), m.get('storage_version')) != (SNAPSHOT_HEAD, 8453, 2):
+         refuse('manifest_pin', 'manifest block/chain/storage version differ')
+     if r.get('baseBinarySha256') != SEL.BASE_BINARY_SHA256:
+@@ -486,11 +625,11 @@
+ 
+ 
+ def step_a2(c, base, w):
+-    gate_a1(c)
++    a1 = gate_a1(c)
+     gate_static(c, base)                              # pins, receipt, stop, layout BEFORE the header read
+     h = read_header(c, base, c['N'])
+     auth = authenticate(c, h)
+-    save(w, 'a2-authenticated.json', {'at': now().isoformat(), 'anchor': auth, 'header': h})
++    save(w, 'a2-authenticated.json', {'at': now().isoformat(), 'anchor': auth, 'header': h, 'a1Gate': a1})
+     return auth
+ 
+ 
+@@ -599,8 +738,9 @@
+ 
+ def step_release(c, base, w):
+     a4 = load(w, 'a4-rebuilt.json')
+-    gate_a1(c)                                        # A1 re-run before derivation is allowed
++    a1 = gate_a1(c)                                   # A1 re-run (or original-game recheck) before derivation is allowed
+     gate_static(c, base)                              # db_identity below reads the DB
++    bind_a1(w, a1)                                    # the SAME initial receipt/N/root/game as A2, not an older L1 block
+     bv = load(w, 'bytecodes-verified.json', need=False)
+     if bv is None:
+         refuse('bytecode_receipt', 'no bound bytecode verification (step bytecodes) for this DB')
+--- a2-a4-execution/mutants.sh	2026-10-25 14:10:43.619197918 -0700
++++ a1-a2-integration/mutants.sh	2026-10-25 15:21:31.441961899 -0700
+@@ -1,41 +1,140 @@
+ #!/bin/bash
+-# Mutation check (queue 256). Baseline (unmutated copy) MUST pass. Each mutant removes ONE safety rule from a COPY; it is
+-# "killed" only if the suite reports genuine assertion FAILURES with zero ERRORS (an ImportError/crash is NOT a kill).
+-# Every run's full output is preserved under logs/mutants/<UTC stamp>/<name>.log. The executed names must equal EXPECTED.
++# Mutation check (queue 256), a1-a2-integration. PREPARED; root runs it (foreground) after run-tests.sh passed.
++#  1. Inputs: SHA256SUMS must verify (the baseline and every mutant run on exactly these bytes; the sha of SHA256SUMS is logged).
++#  2. Preflight (no test runs): exactly the 33 EXPECTED names, unique; every anchor matches its pristine file exactly once and
++#     differs from its replacement; every Python mutant names >= 1 test.
++#  3. Baseline ONCE, unmutated copy: test_a2a4 through mutrun.py all-pass (every test passes; count == 33, 0 errors/skips),
++#     test_receipt_writer + test_pinned_manifest (rc 0, bare "OK"), node a1-gate suite clean per taplog.py. Every mapped test id
++#     must be among the baseline's passing tests.
++#  4. 25 Python mutants: run ONLY the mapped test(s) exercising that guard (mutrun.py kill): killed only if every mapped test ran
++#     once and FAILED through assertions, with zero errors (fixture/import), skips, xfail or timeouts.
++#  5. 8 JS mutants (a1gate/a1-gate.mjs copy): the full node suite (8 tests), killed only per taplog.py (same test count, every
++#     failure ERR_ASSERTION). The Python suite is not used for JS mutants (it pins the module bytes: a trivial "kill").
++# Every log is kept under a NEW logs/mutants/<UTC stamp>-<pid>/ (refuses to reuse). Exit 0 only if all 33 are killed.
+ set -u; H=$(cd "$(dirname "$0")" && pwd); T=$(mktemp -d); trap 'rm -rf "$T"' EXIT; rc=0
+-L=$H/logs/mutants/$(date -u +%Y%m%dT%H%M%SZ); mkdir -p "$L"
+-EXPECTED="merkle-from-n no-empty-read-check no-open-gaps no-a1-age no-journal-guard no-blake3-list-check no-checkpoints-flag no-final-profile-check no-exact-selection db-before-units no-v2-enforcement no-orphan-reap no-post-exit-size"
++export ANCHOR_DEPS_ROOT="${ANCHOR_DEPS_ROOT:-/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/relay-consumer-source}"
++ip link set lo up 2>/dev/null || true
++mkdir -p "$H/logs/mutants"; L=$H/logs/mutants/$(date -u +%Y%m%dT%H%M%SZ)-$$
++mkdir "$L" || { echo "REFUSED: cannot create a new log dir $L"; exit 1; }
++(cd "$H" && sha256sum -c SHA256SUMS && sha256sum SHA256SUMS) > "$L/inputs.check" 2>&1 || { echo "INPUTS DIFFER from SHA256SUMS (see $L/inputs.check)"; echo "MUTANTS rc=1"; exit 1; }
++EXPECTED="merkle-from-n no-empty-read-check no-open-gaps no-a1-age no-journal-guard no-blake3-list-check no-checkpoints-flag no-final-profile-check no-exact-selection db-before-units no-v2-enforcement no-orphan-reap no-post-exit-size \
++  no-recheck-sha no-initial-pin no-run-record no-trusted-owner follow-symlink no-release-binding accept-advanced-fresh no-run-window \
++  no-l1-consistency no-gate-pin exit-bool-accepted no-same-run-dir \
++  js-no-recheckof-sha js-accept-latest js-no-fresh js-no-codehash-compare js-loose-read-labels js-latest-n-as-n js-no-recheck-verdict js-no-initial-reads"
+ RAN=""
+-copy() { rm -rf "$T"/*; cp -r "$H/a2a4.py" "$H/selection.py" "$H/write_download_receipt.py" "$H/test" "$T/"; }
+-suite() { (cd "$T" && python3 -u test/test_a2a4.py && python3 -u test/test_receipt_writer.py && python3 -u test/test_pinned_manifest.py) > "$1" 2>&1; }
+-verdict() { # <log> -> killed | survived | invalid
+-  if grep -qE '^FAILED \(.*errors=' "$1" || grep -qE '^(ImportError|ModuleNotFoundError|SyntaxError|NameError)' "$1"; then echo invalid
+-  elif grep -qE '^FAILED \(failures=[0-9]+\)$' "$1"; then echo killed
+-  else echo survived; fi; }
+-copy; suite "$L/baseline.log"; b=$?
+-if [ $b -ne 0 ] || grep -qE '^FAILED' "$L/baseline.log" || [ "$(grep -cE '^OK$' "$L/baseline.log")" != 3 ]; then
+-  echo "BASELINE FAILED (see $L/baseline.log)"; echo "MUTANTS rc=1"; exit 1; fi
+-echo "baseline OK"
+-mut() { # <name> <from> <to>
+-  RAN="$RAN $1"; copy
+-  python3 - "$T/a2a4.py" "$2" "$3" <<'PY' || { echo "MUTANT $1 anchor not found"; rc=1; return; }
+-import sys; p,a,b=sys.argv[1:]; s=open(p).read(); assert s.count(a)==1; open(p,'w').write(s.replace(a,b))
++copy() { rm -rf "$T"/*; cp -r "$H/a2a4.py" "$H/selection.py" "$H/write_download_receipt.py" "$H/test" "$H/a1gate" "$T/"; }
++nodesuite() { (cd "$T" && timeout 120 node --test --test-reporter=tap test/a1-gate.test.mjs </dev/null) > "$1" 2>&1; echo $? > "$1.rc"; }
++okpy() { # <log> <rc>: rc 0 and the final unittest status line is a bare OK (no skips/xfail)
++  [ "$2" = 0 ] && [ "$(grep -E '^(OK|FAILED)' "$1" | tail -n 1)" = OK ] && ! grep -qE '^(OK|FAILED) \(' "$1"; }
++abort() { echo "$1"; echo "MUTANTS rc=1"; exit 1; }
++# ---- preflight: names, anchors, mapping (parses the mut/jsmut lines of THIS script; runs no test) ----
++python3 - "$H/$(basename "$0")" "$H" "$EXPECTED" > "$L/preflight.json" 2>&1 <<'PY' || abort "PREFLIGHT FAILED (see $L/preflight.json)"
++import json, re, shlex, sys
++script, h, expected = sys.argv[1], sys.argv[2], sys.argv[3].split()
++text = open(script).read().replace('\\\n', ' ')
++rows = [shlex.split(l) for l in text.splitlines() if re.match(r'^(mut|jsmut) ', l)]
++src = {'mut': open(f'{h}/a2a4.py').read(), 'jsmut': open(f'{h}/a1gate/a1-gate.mjs').read()}
++names = [r[1] for r in rows]
++bad = [r[1] for r in rows if src[r[0]].count(r[2]) != 1 or r[2] == r[3]]
++bad += [r[1] for r in rows if r[0] == 'mut' and len(r) < 5] + [r[1] for r in rows if r[0] == 'jsmut' and len(r) != 4]
++ok = not bad and len(names) == 33 == len(set(names)) and sorted(names) == sorted(expected) and len(set(expected)) == 33
++print(json.dumps({'ok': ok, 'bad': bad, 'count': len(names), 'mapping': {r[1]: r[4:] for r in rows if r[0] == 'mut'}}, indent=1))
++sys.exit(0 if ok else 1)
++PY
++# ---- baseline ONCE ----
++copy
++(cd "$T" && timeout 1800 python3 -u "$H/mutrun.py" "$T" all-pass "$L/baseline-py.verdict.json" </dev/null) > "$L/baseline-py.log" 2>&1 \
++  || abort "PYTHON BASELINE NOT CLEAN (see $L/baseline-py.log)"
++python3 - "$L/baseline-py.verdict.json" "$L/preflight.json" <<'PY' || abort "BASELINE COUNT/MAPPING MISMATCH (expected 33 passing tests incl. every mapped id)"
++import json, sys
++v, m = json.load(open(sys.argv[1])), json.load(open(sys.argv[2]))
++ids = {i for t in m['mapping'].values() for i in t}
++sys.exit(0 if v['verdict'] == 'baseline-clean' and v['testsRun'] == 33 and ids <= set(v['ran']) else 1)
+ PY
+-  suite "$L/$1.log"; v=$(verdict "$L/$1.log")
+-  if [ "$v" = killed ]; then echo "mutant $1 killed"; else echo "MUTANT $1 $v"; rc=1; fi; }
+-mut merkle-from-n "'--from', '0', '--to', str(c['N'])" "'--from', str(c['N']), '--to', str(c['N'])"
+-mut no-empty-read-check "        if not p.stdout.strip():" "        if False:"
+-mut no-open-gaps "OPEN_GAPS = ['bytecodes-content-unverified']" "OPEN_GAPS = []"
+-mut no-a1-age "    if age < 0 or age > c['a1MaxAgeSec']:" "    if False:"
+-mut no-journal-guard "    if j and (j[-1]['state'] != 'finished' or j[-1].get('rc') != 0):" "    if False:"
+-mut no-blake3-list-check "        if not files or not all(" "        if False and not all("
+-mut no-checkpoints-flag "'--commit', '--checkpoints', '--skip-unwind'" "'--commit', '--skip-unwind'"
+-mut no-final-profile-check "    if not SEL.PROFILES[r['profile']]['final']:" "    if False:"
+-mut no-exact-selection "    if got != want:" "    if False:"
+-mut db-before-units "    g = {'stopped': gate_stopped(c)}" "    g = {}"
+-mut no-v2-enforcement "    if not g['storageV2']:" "    if False:"
+-mut no-orphan-reap "    stray = group_members(pg, exclude=(pg,))" "    stray = []"
+-mut no-post-exit-size "        if not why and (out_p.stat().st_size > cap or err_p.stat().st_size > STDERR_CAP):" "        if False:"
+-[ "$(echo $RAN | tr ' ' '\n' | sort -u | tr '\n' ' ')" = "$(echo $EXPECTED | tr ' ' '\n' | sort -u | tr '\n' ' ')" ] && [ "$(echo $RAN | wc -w)" = 13 ] \
++for s in test_receipt_writer test_pinned_manifest; do
++  (cd "$T" && timeout 600 python3 -u "test/$s.py" </dev/null) > "$L/baseline-$s.log" 2>&1; r=$?
++  okpy "$L/baseline-$s.log" $r || abort "BASELINE $s NOT CLEAN (rc=$r, see $L/baseline-$s.log)"
++done
++nodesuite "$L/baseline-node.tap"
++python3 "$H/taplog.py" baseline "$L/baseline-node.tap" "$(cat "$L/baseline-node.tap.rc")" > "$L/baseline-node.verdict.json" \
++  || abort "NODE BASELINE NOT CLEAN (see $L/baseline-node.tap)"
++NT=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tests"])' "$L/baseline-node.verdict.json")
++[ "$NT" = 8 ] || abort "NODE BASELINE ran $NT tests, expected 8"
++echo "baseline OK (python 33 + 2 + 1, node $NT)"
++apply() { # <file> <from> <to>
++  python3 - "$1" "$2" "$3" <<'PY'
++import sys; p,a,b=sys.argv[1:]; s=open(p).read(); assert s.count(a)==1 and a!=b; open(p,'w').write(s.replace(a,b))
++PY
++}
++mut() { # <name> <from> <to> <test id>...: mutate the COPY of a2a4.py, run ONLY the mapped tests
++  local n=$1 a=$2 b=$3; shift 3; RAN="$RAN $n"; copy
++  apply "$T/a2a4.py" "$a" "$b" || { echo "MUTANT $n anchor not found"; rc=1; return; }
++  (cd "$T" && timeout 900 python3 -u "$H/mutrun.py" "$T" kill "$L/$n.verdict.json" "$@" </dev/null) > "$L/$n.log" 2>&1; local r=$?
++  if [ $r = 0 ] && python3 -c 'import json,sys; sys.exit(json.load(open(sys.argv[1]))["verdict"] != "killed")' "$L/$n.verdict.json"; then echo "mutant $n killed ($#)"
++  else echo "MUTANT $n NOT killed (rc=$r; see $L/$n.verdict.json)"; rc=1; fi; }
++jsmut() { # <name> <from> <to>: mutate the COPY of a1gate/a1-gate.mjs, run the full node suite only
++  RAN="$RAN $1"; copy
++  apply "$T/a1gate/a1-gate.mjs" "$2" "$3" || { echo "MUTANT $1 anchor not found"; rc=1; return; }
++  nodesuite "$L/$1.tap"
++  if python3 "$H/taplog.py" killed "$L/$1.tap" "$(cat "$L/$1.tap.rc")" "$NT" > "$L/$1.verdict.json"; then echo "mutant $1 killed"; else echo "MUTANT $1 $(cat "$L/$1.verdict.json")"; rc=1; fi; }
++mut merkle-from-n "'--from', '0', '--to', str(c['N'])" "'--from', str(c['N']), '--to', str(c['N'])" \
++  Gates.test_plan_ok_lists_chunked_unwind_to_exactly_n_and_full_merkle_from_zero
++mut no-empty-read-check "        if not p.stdout.strip():" "        if False:" \
++  Steps.test_a2_authenticates_the_real_header_and_refuses_forgery_or_missing
++mut no-open-gaps "OPEN_GAPS = ['bytecodes-content-unverified']" "OPEN_GAPS = []" \
++  Steps.test_bytecode_step_binds_this_db_and_release_still_refuses_while_the_gap_is_open
++mut no-a1-age "    if age < 0 or age > c['a1MaxAgeSec']:" "    if False:" \
++  Gates.test_stale_or_foreign_a1_is_refused FreshInitialTrust.test_the_real_live_initial_receipt_passes_only_while_fresh
++mut no-journal-guard "    if j and (j[-1]['state'] != 'finished' or j[-1].get('rc') != 0):" "    if False:" \
++  Gates.test_an_interrupted_mutation_blocks_every_later_step
++mut no-blake3-list-check "        if not files or not all(" "        if False and not all(" \
++  Gates.test_download_receipt_binds_manifest_unit_marker_and_datadir
++mut no-checkpoints-flag "'--commit', '--checkpoints', '--skip-unwind'" "'--commit', '--skip-unwind'" \
++  Steps.test_a4_full_rebuild_matches_and_a_mismatch_refuses
++mut no-final-profile-check "    if not SEL.PROFILES[r['profile']]['final']:" "    if False:" \
++  Gates.test_selection_is_exactly_the_pinned_manifest_and_final_profile
++mut no-exact-selection "    if got != want:" "    if False:" \
++  Gates.test_selection_is_exactly_the_pinned_manifest_and_final_profile
++mut db-before-units "    g = {'stopped': gate_stopped(c)}" "    g = {}" \
++  Gates.test_units_and_openers_are_checked_before_any_db_access
++mut no-v2-enforcement "    if not g['storageV2']:" "    if False:" \
++  Gates.test_units_and_openers_are_checked_before_any_db_access
++mut no-orphan-reap "    stray = group_members(pg, exclude=(pg,))" "    stray = []" \
++  Gates.test_post_exit_size_orphans_and_mutation_stdout
++mut no-post-exit-size "        if not why and (out_p.stat().st_size > cap or err_p.stat().st_size > STDERR_CAP):" "        if False:" \
++  Gates.test_post_exit_size_orphans_and_mutation_stdout
++mut no-recheck-sha "    if hashlib.sha256(ev).hexdigest() != c['a1RecheckSha256']:" "    if False:" \
++  Recheck.test_initial_receipt_pin_and_file_trust
++mut no-initial-pin "        if c['a1InitialSha256'] != A1_INITIAL_SHA256:" "        if False:" \
++  Recheck.test_initial_receipt_pin_and_file_trust
++mut no-run-record "        gate_recheck_run(c, s)" "        pass" \
++  Recheck.test_run_record_provenance
++mut no-trusted-owner "        if not stat.S_ISREG(st.st_mode) or st.st_uid != TRUSTED_UID or st.st_mode & 0o022:" "        if False:" \
++  FreshInitialTrust.test_a1_file_trust Recheck.test_initial_receipt_pin_and_file_trust
++mut follow-symlink "os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC" "os.O_RDONLY | os.O_CLOEXEC" \
++  FreshInitialTrust.test_a1_file_trust Recheck.test_initial_receipt_pin_and_file_trust
++mut no-release-binding "    bind_a1(w, a1)  " "    pass  #" \
++  Recheck.test_full_flow_binds_release_to_the_a2_receipt
++mut accept-advanced-fresh "    if s['mode'] == 'fresh-initial' and int(s['N']) > c['N']:" "    if False:" \
++  Gates.test_an_advanced_anchor_refuses_release_with_the_documented_code Recheck.test_the_original_game_passes_after_the_latest_anchor_advanced_and_n_never_moves
++mut no-run-window "    if not _utc(r.get('startedAt'), 'run startedAt') <= _utc(s['at'], 'recheck at') <= _utc(r.get('finishedAt'), 'run finishedAt'):" "    if False:" \
++  Recheck.test_run_record_provenance
++mut no-l1-consistency "    if not l1['ageSec'] <= at.timestamp() - l1['timestamp'] <= l1['ageSec'] + A1_RUN_WINDOW_SEC:" "    if False:" \
++  FreshInitialTrust.test_l1_timing_is_bounded_and_consistent Recheck.test_freshness_planned_anchor_and_mainnet_pins
++mut no-gate-pin "            if hashlib.sha256(b).hexdigest() != want:" "            if False:" \
++  FreshInitialTrust.test_gate_and_recheck_pins_match_the_files
++mut exit-bool-accepted "type(r.get('recheckExit')) is not int or " "" \
++  Recheck.test_run_record_provenance
++mut no-same-run-dir " or os.path.realpath(ev.parent) != os.path.realpath(rp.parent)" "" \
++  Recheck.test_run_record_provenance
++jsmut js-no-recheckof-sha "if (ro.sha256 !== init.sha256 || " "if ("
++jsmut js-accept-latest "if (la.accepted !== false) fail(" "if (false) fail("
++jsmut js-no-fresh "if (r.l1.number <= init.l1.number || r.l1.hash === init.l1.hash) fail(" "if (false) fail("
++jsmut js-no-codehash-compare "if (p.codeHash !== String(was.codeHash).toLowerCase() || " "if ("
++jsmut js-loose-read-labels "if (r.reads[k] !== v) fail(" "if (false) fail("
++jsmut js-latest-n-as-n "r.N !== init.N.toString() || r.outputRoot" "false || r.outputRoot"
++jsmut js-no-recheck-verdict "r.verdict !== RECHECK_VERDICT)" "false)"
++jsmut js-no-initial-reads 'if (e.reads[k] !== "helios-call") fail(' 'if (false) fail('
++[ "$(echo $RAN | tr ' ' '\n' | sort -u | tr '\n' ' ')" = "$(echo $EXPECTED | tr ' ' '\n' | sort -u | tr '\n' ' ')" ] && [ "$(echo $RAN | wc -w)" = 33 ] \
+   || { echo "MUTANT SET differs from EXPECTED"; rc=1; }
+ echo "logs: $L"; echo "MUTANTS rc=$rc"; exit $rc
+--- a2-a4-execution/a2a4-config.example.json	2026-10-25 13:43:44.635279342 -0700
++++ a1-a2-integration/a2a4-config.example.json	2026-10-25 15:01:41.900848697 -0700
+@@ -6,6 +6,8 @@
+   "workdir": "/ABS/a2a4/work",
+   "a1Evidence": "/ABS/fresh-a1-run/a1-evidence.json",
+   "a1MaxAgeSec": 900,
++  "a1Mode": "fresh-initial",
++  "a1GateDir": "/ABS/finality-stage/a1-a2-integration/a1gate",
+   "N": 52866960,
+   "outputRoot": "0xa996c517b0e797b56426059d57c93ac8352b21b61e04b2fc66866dd61d056700",
+   "game": "0x343b3a99527af07d2cfb2652747b9e37715e21ac",
+@@ -26,4 +28,4 @@
+   },
+   "bytecodeChecker": "",
+   "bytecodeCheckerSha256": ""
+-}
+\ No newline at end of file
++}
+--- a2-a4-execution/test/test_a2a4.py	2026-10-25 14:38:09.346077140 -0700
++++ a1-a2-integration/test/test_a2a4.py	2026-10-25 15:10:22.159717277 -0700
+@@ -1,5 +1,8 @@
+ """Mocked-fixture tests of a2a4.py (queue 256; no reth, no datadir, no network). The fake `base` implements the audited
+-command surface (test/fake_base.py); header hashing and the output-root check use the REAL published anchor module."""
++command surface (test/fake_base.py); header hashing and the output-root check use the REAL published anchor module.
++a1-a2-integration copy: the A1 fixture is the REAL live initial receipt (live-1958, sha b9a90847...) with only its output root
++(-> the synthetic header-N fixture), `at` and L1 timestamp moved; recheck receipts mirror runRecheck's output (cross-checked
++against the REAL runRecheck producer in test/a1-gate.test.mjs)."""
+ import datetime, importlib.util, json, os, pathlib, shutil, subprocess, sys, tempfile, time, unittest
+ H = pathlib.Path(__file__).resolve().parents[1]; P = pathlib.Path(os.environ.get('A2A4_PROJECT', '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025'))
+ spec = importlib.util.spec_from_file_location('a2a4', H / 'a2a4.py'); A = importlib.util.module_from_spec(spec); spec.loader.exec_module(A)
+@@ -22,12 +25,56 @@
+ def argv_for(prof, datadir, manifest):
+     return [S.BASE_BINARY, 'snapshot', 'download', '--chain', 'base', '--manifest-path', manifest, '--datadir', datadir] + \
+         [x for k, v in S.PROFILES[prof]['flags'].items() for x in (k, str(v))] + ['--download-concurrency', '16', '--resumable=true', '-y']
++LIVE_BYTES = (H / 'test/fixtures/initial-a1-evidence-1958.json').read_bytes()
++REAL_ROOT = '0xa996c517b0e797b56426059d57c93ac8352b21b61e04b2fc66866dd61d056700'
++GAME = '0x343b3a99527af07d2cfb2652747b9e37715e21ac'
++RECHECK_LABEL = ('A1 original-game recheck: Helios-light-client-relative; pins compared to initial OBSERVATIONS (not approved versions); '
++                 'not SNP/attested')
++RECHECK_READS = ('portalAsr', 'paused', 'respectedGameType', 'isGameFinalized', 'isGameRespected', 'isGameBlacklisted', 'isGameRetired', 'gameStatus',
++                 'gameRootClaim', 'gameL2SequenceNumber', 'gameType', 'gameAnchorStateRegistry', 'latestAnchorRoot', 'latestAnchorGame')
++UTC = datetime.timezone.utc
++REAL_INITIAL_SHA = A.A1_INITIAL_SHA256             # the production pin (setUp restores it after tests override it)
++utcnow = lambda: datetime.datetime.now(UTC)
++iso = lambda t: t.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'          # Date.prototype.toISOString shape
++sha = lambda b: __import__('hashlib').sha256(b).hexdigest()
++
++
++def fresh_a1(at=None, root=None):
++    """The live initial receipt as if A1 had just run: same reads/pins/candidates; at=now, finalized header 1000 s before."""
++    at = at or utcnow(); e = json.loads(LIVE_BYTES)
++    e.update(outputRoot=root or FX['outputRoot'], at=iso(at)); e['l1'] = dict(e['l1'], timestamp=int(at.timestamp()) - 1000, ageSec=952)
++    return e
++
++
++def make_recheck(ini, ini_sha, at=None, advanced=True):
++    """runRecheck's output shape (+ the CLI's `at`) for initial receipt `ini`, at a finalized block 1000 blocks newer."""
++    at = at or utcnow(); addrs = list(ini['pins'])
++    la = {'game': '0x' + '99' * 20, 'N': str(int(ini['N']) + 9000), 'outputRoot': '0x' + 'bb' * 32, 'advanced': True} if advanced else \
++         {'game': ini['game'], 'N': ini['N'], 'outputRoot': ini['outputRoot'], 'advanced': False}
++    return {'verdict': 'A1-original-game-recheck-passed',
++            'recheckOf': {'sha256': ini_sha, 'verdict': 'A1-authenticated', 'game': ini['game'], 'N': ini['N'], 'outputRoot': ini['outputRoot'],
++                          'asr': ini['asr'], 'l1': {'number': ini['l1']['number'], 'hash': ini['l1']['hash']}},
++            'game': ini['game'], 'N': ini['N'], 'outputRoot': ini['outputRoot'], 'asr': ini['asr'], 'respectedGameType': ini['respectedGameType'],
++            'l1': {'number': ini['l1']['number'] + 1000, 'hash': '0x' + '5a' * 32, 'stateRoot': '0x' + '5b' * 32, 'timestamp': int(at.timestamp()) - 1000, 'ageSec': 952},
++            'latestAnchorObservation': {**la, 'accepted': False, 'note': 'observation only: the bootstrap stays bound to the original game/N; descendants are never accepted here'},
++            'pins': {a: {'codeHash': ini['pins'][a]['codeHash'], 'slots': dict(ini['pins'][a]['slots']), 'comparison': 'unchanged-from-initial-observation'} for a in addrs},
++            'reads': {**{k: 'helios-call' for k in RECHECK_READS}, **{f'account:{a}': 'mpt-proof' for a in addrs}},
++            'label': RECHECK_LABEL, 'at': iso(at)}
++
++
++def run_record(at, ini_sha):
++    return {'startedAt': (at - datetime.timedelta(seconds=40)).isoformat(), 'productionActivated': False, 'inputPins': dict(A.RECHECK_INPUT_PINS),
++            'initialSha256': ini_sha, 'heliosStatus': {'status': 'fresh-finalized'}, 'recheckExit': 0, 'processStopped': True,
++            'finishedAt': (at + datetime.timedelta(seconds=5)).isoformat()}
++
++
+ PRUNE_OK = '[prune.segments]\naccount_history = { before = 52500000 }\nstorage_history = { before = 52500000 }\n'
+ 
+ 
+ class Case(unittest.TestCase):
+     def setUp(self):
+-        self.receipt = None
++        self.__dict__.pop('write', None)              # a test's instance-level write() override never survives into a re-setUp
++        self.receipt = None; self.rk = None; self.keep_rk_sha = False; A.A1_INITIAL_SHA256 = REAL_INITIAL_SHA
+         self.t = tempfile.TemporaryDirectory(); d = pathlib.Path(self.t.name); self.d = d
+         (d / 'datadir').mkdir(); (d / 'bin').mkdir()
+         fake = d / 'bin/base'; fake.write_text(f'#!/bin/sh\nexec {sys.executable} {H / "test/fake_base.py"} "$@"\n'); fake.chmod(0o755)
+@@ -48,21 +95,22 @@
+                         'storageVersion': 2, 'unit': A.SNAPSHOT_UNIT, 'unitResult': 'success', 'execMainStatus': 0, 'datadir': str(d / 'datadir'),
+                         'profile': S.FINAL_PROFILE, 'baseBinarySha256': S.BASE_BINARY_SHA256, 'downloadArgv': argv_for(S.FINAL_PROFILE, str(d / 'datadir'), str(d / 'manifest.json')),
+                         'selectedArchives': entries(S.FINAL_PROFILE), 'datadirIdentity': {'dev': dd.st_dev, 'ino': dd.st_ino}}
+-        self.a1 = {'verdict': 'A1-authenticated', 'N': str(N), 'outputRoot': FX['outputRoot'], 'game': '0x343b3a99527af07d2cfb2652747b9e37715e21ac',
+-                   'asr': A.MAINNET['asr'], 'respectedGameType': 621, 'pins': {a: {'codeHash': h} for a, h in A.MAINNET['codeHashes'].items()},
+-                   'reads': {k: 'helios-call' for k in ('anchorRoot', 'anchorGame', 'isGameFinalized', 'isGameBlacklisted', 'isGameRetired', 'gameStatus', 'gameRootClaim')},
+-                   'l1': {'number': 26271848, 'ageSec': 952}, 'at': datetime.datetime.now(datetime.timezone.utc).isoformat()}
++        self.a1 = fresh_a1()
+         self.cfg = {'datadir': str(d / 'datadir'), 'baseBinary': str(fake), 'baseBinarySha256': A.sha256(fake), 'rethConfig': str(d / 'reth.toml'),
+                     'workdir': str(d / 'work'), 'a1Evidence': str(d / 'a1.json'), 'a1MaxAgeSec': 600, 'N': N, 'outputRoot': FX['outputRoot'],
+                     'game': '0x343b3a99527af07d2cfb2652747b9e37715e21ac', 'downloadReceipt': str(d / 'receipt.json'), 'manifestPath': str(d / 'manifest.json'),
+                     'snapshotMarker': str(d / 'snapshot-complete'), 'timeouts': {'unwindChunkSec': 600, 'merkleSec': 3600, 'bytecodeSec': 600}, 'inPlaceReviewed': True,
+-                    'unwindChunk': 50_000, 'anchorModule': str(ANCHOR), 'depsRoot': str(DEPS), 'node': shutil.which('node')}
++                    'unwindChunk': 50_000, 'anchorModule': str(ANCHOR), 'depsRoot': str(DEPS), 'node': shutil.which('node'), 'a1GateDir': str(H / 'a1gate')}
+         self.write()
+ 
+     def tearDown(self): self.t.cleanup()
+ 
+     def write(self):
+         (self.d / 'state.json').write_text(json.dumps(self.state)); (self.d / 'a1.json').write_text(json.dumps(self.a1))
++        if self.rk is not None:                       # original-game-recheck mode: initial bytes + recheck.json + run-result.json
++            (self.d / 'rk').mkdir(exist_ok=True); (self.d / 'initial.json').write_bytes(self.initial)
++            b = json.dumps(self.rk).encode(); (self.d / 'rk/recheck.json').write_bytes(b); (self.d / 'rk/run-result.json').write_text(json.dumps(self.run))
++            if not self.keep_rk_sha: self.cfg['a1RecheckSha256'] = sha(b)
+         if self.receipt is not None: (self.d / 'receipt.json').write_text(json.dumps(self.receipt))
+         elif (self.d / 'receipt.json').exists(): (self.d / 'receipt.json').unlink()
+         (self.d / 'cfg.json').write_text(json.dumps(self.cfg))
+@@ -95,14 +143,17 @@
+         self.assertFalse(any(m for m in self.argv() if m[1:3] in (['stage', 'unwind'], ['stage', 'run'], ['stage', 'drop'])), 'plan never mutates')
+ 
+     def test_stale_or_foreign_a1_is_refused(self):
+-        self.a1['at'] = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=601)).isoformat(); self.refused('plan', 'a1_stale')
+-        self.setUp(); self.a1['asr'] = '0xdb9091e48b1c42992a1213e6916184f9ebdbfedf'; self.refused('plan', 'a1_pins')
++        self.a1['at'] = iso(utcnow() - datetime.timedelta(seconds=601)); self.refused('plan', 'a1_stale')
++        self.setUp(); f = '0xdb9091e48b1c42992a1213e6916184f9ebdbfedf'       # even a receipt that RECORDS the foreign ASR as authenticated
++        self.a1.update(asr=f, asrCandidates=[{'address': f, 'authenticatedMatch': True}]); self.a1['pins'][f] = self.a1['pins'][A.MAINNET['asr']]
++        self.a1['reads'][f'account:{f}'] = 'mpt-proof'; self.refused('plan', 'a1_pins')
+         self.setUp(); self.a1['N'] = str(N + 1); rec = self.refused('plan', 'a1_anchor_advanced')   # N+1 is the specific 'advanced' refusal
+         self.assertIn(self.a1['game'], rec['refused'], 'the message names the game (f-string, not a literal placeholder)')
+         self.setUp(); self.a1['N'] = str(N - 1); self.refused('plan', 'a1_anchor')            # a wrong LOWER N is foreign, not advanced
+         self.setUp(); self.a1['outputRoot'] = '0x' + '33' * 32; self.refused('plan', 'a1_anchor')
+-        self.setUp(); self.a1['game'] = '0x' + '44' * 20; self.refused('plan', 'a1_anchor')
+-        self.setUp(); self.a1['reads']['isGameBlacklisted'] = 'rpc'; self.refused('plan', 'a1_unproven')
++        self.setUp(); self.cfg['game'] = '0x' + '44' * 20; self.refused('plan', 'a1_anchor')       # receipt game != planned game
++        self.setUp(); self.a1['reads']['isGameBlacklisted'] = 'rpc'; rec = self.refused('plan', 'a1_receipt'); self.assertIn('bad_initial', rec['refused'])
++        self.setUp(); del self.a1['reads']['isGameRespected']; rec = self.refused('plan', 'a1_receipt'); self.assertIn('unproven_read', rec['refused'])
+ 
+     def test_prerequisites_fail_closed(self):
+         (self.d / 'reth.toml').write_text('[prune.segments]\naccount_history = { distance = 140000 }\nstorage_history = { before = 52500000 }\n'); self.refused('plan', 'prune_config')
+@@ -125,7 +176,8 @@
+         self.refused('plan', 'unverified_archive')
+         self.setUp(); os.environ['FAKE_RESULT'] = 'exit-code'; self.refused('plan', 'download_unit')
+         self.setUp(); self.receipt['datadirIdentity'] = {'dev': 1, 'ino': 2}; self.refused('plan', 'receipt_datadir')
+-        self.setUp(); A.TRUSTED_UID = 0; self.refused('plan', 'untrusted_file'); A.TRUSTED_UID = os.getuid()
++        self.setUp(); self.write(); os.chmod(self.d / 'receipt.json', 0o664); rec = self.refused('plan', 'untrusted_file'); self.assertIn('receipt', rec['refused'])
++        self.setUp(); self.write(); os.chmod(self.d / 'manifest.json', 0o666); rec = self.refused('plan', 'untrusted_file'); self.assertIn('manifest', rec['refused'])
+ 
+     def test_selection_is_exactly_the_pinned_manifest_and_final_profile(self):
+         self.assertEqual(len(entries('first-pass-distance-140000')), 116, 'reproduces root measurement of the first pass')
+@@ -302,11 +354,202 @@
+     def test_release_stays_blocked_on_the_open_bytecode_gap_and_needs_fresh_a1(self):
+         self.run_step('a2'); self.run_step('a3'); self.run_step('a4')
+         self.refused('release', 'bytecode_receipt'); self.assertFalse((self.d / 'work/m10-launch.json').exists())
+-        self.a1['at'] = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=900)).isoformat(); self.refused('release', 'a1_stale')
++        self.a1['at'] = iso(utcnow() - datetime.timedelta(seconds=900)); self.refused('release', 'a1_stale')
+ 
+     def test_steps_refuse_out_of_order(self):
+         self.refused('a3', 'order'); self.refused('a4', 'order')
+ 
+ 
++class FreshInitialTrust(Case):
++    """a1Mode fresh-initial (the frozen path), tightened: the receipt is a root-owned file read once, through the reviewed
++    loadInitialReceipt, never a recheck, with consistent L1 timing."""
++    def test_the_real_live_initial_receipt_passes_only_while_fresh(self):
++        self.a1 = json.loads(LIVE_BYTES); self.cfg['outputRoot'] = REAL_ROOT
++        self.write(); (self.d / 'a1.json').write_bytes(LIVE_BYTES)                 # the EXACT live bytes
++        orig = A.now
++        try:
++            A.now = lambda: datetime.datetime.fromisoformat('2026-10-25T19:59:00+00:00')
++            self.write = lambda: (self.d / 'cfg.json').write_text(json.dumps(self.cfg))   # keep the exact bytes on disk
++            rc, rec = self.run_step('plan'); self.assertEqual(rc, 0, rec)
++            g = rec['result']['gates']['a1']; self.assertEqual((g['mode'], g['N'], g['initialSha256']), ('fresh-initial', str(N), REAL_INITIAL_SHA))
++            A.now = lambda: datetime.datetime.fromisoformat('2026-10-25T20:30:00+00:00'); self.refused('plan', 'a1_stale')
++        finally:
++            A.now = orig
++
++    def test_a1_file_trust(self):
++        A.TRUSTED_UID = os.getuid() + 1              # a uid that does NOT own the files (under `unshare -r` the test uid IS 0)
++        try:
++            rec = self.refused('plan', 'untrusted_file'); self.assertIn('A1 evidence', rec['refused'])
++        finally:
++            A.TRUSTED_UID = os.getuid()
++        self.setUp(); self.write(); os.chmod(self.d / 'a1.json', 0o620); self.refused('plan', 'untrusted_file')
++        self.setUp(); self.write(); (self.d / 'real.json').write_text(json.dumps(self.a1)); self.cfg['a1Evidence'] = str(self.d / 'link.json')
++        (self.d / 'link.json').symlink_to(self.d / 'real.json'); self.refused('plan', 'untrusted_file')
++        self.setUp(); self.cfg['a1Evidence'] = str(self.d / 'none.json'); self.refused('plan', 'no_evidence')
++        self.setUp(); self.a1['pad'] = 'x' * (1 << 20); self.refused('plan', 'untrusted_file')
++
++    def test_a_recheck_or_rebound_receipt_is_never_initial_evidence(self):
++        rk = make_recheck(self.a1, sha(json.dumps(self.a1).encode()))
++        self.a1 = rk; rec = self.refused('plan', 'a1_receipt'); self.assertIn('not_initial_a1', rec['refused'])
++        self.setUp(); self.a1['recheckOf'] = {'sha256': REAL_INITIAL_SHA}; rec = self.refused('plan', 'a1_receipt'); self.assertIn('not_initial_a1', rec['refused'])
++        self.setUp(); self.a1['asrCandidates'] = [dict(c, authenticatedMatch=False) for c in self.a1['asrCandidates']]
++        rec = self.refused('plan', 'a1_receipt'); self.assertIn('bad_initial', rec['refused'])
++
++    def test_l1_timing_is_bounded_and_consistent(self):
++        self.a1['l1']['ageSec'] = 1801; self.a1['l1']['timestamp'] = int(utcnow().timestamp()) - 1850; self.refused('plan', 'a1_l1_stale')
++        self.setUp(); self.a1['l1']['timestamp'] -= 5000; self.refused('plan', 'a1_l1_stale')        # recorded age 952 s, header far older
++        self.setUp(); self.a1['l1']['timestamp'] += 900; self.refused('plan', 'a1_l1_stale')         # header "newer" than its recorded age
++        self.setUp(); self.a1['at'] = iso(utcnow() + datetime.timedelta(seconds=30)); self.refused('plan', 'a1_stale')   # future receipt
++
++    def test_config_keys(self):
++        for bad in ({'a1Mode': 'latest'}, {'a1GateDir': 'a1gate'}, {'a1RecheckSha256': '0' * 64}, {'a1Mode': 'original-game-recheck'},
++                    {'a1Mode': 'original-game-recheck', 'a1InitialEvidence': '/x', 'a1RunResult': '/y', 'a1InitialSha256': 'A' * 64, 'a1RecheckSha256': '0' * 64}):
++            self.setUp(); self.cfg.update(bad); self.write()
++            with self.assertRaises(A.Refused) as e: A.load_config(str(self.d / 'cfg.json'))
++            self.assertTrue(str(e.exception).startswith('bad_config'), (bad, e.exception))
++
++    def test_gate_and_recheck_pins_match_the_files(self):
++        for name, want in A.A1_GATE_PINS.items():
++            self.assertEqual(A.sha256(H / 'a1gate' / name), want, name)
++        self.assertEqual(sha(LIVE_BYTES), A.A1_INITIAL_SHA256)
++        src = P / 'finality-stage/a1-original-game'
++        if src.exists():                               # the frozen producer: what run-recheck.py records as inputPins
++            for name, want in A.RECHECK_INPUT_PINS.items():
++                self.assertEqual(A.sha256(src / name), want, name)
++            self.assertEqual(A.RECHECK_INPUT_PINS['a1-recheck.mjs'], A.A1_GATE_PINS['a1-recheck.mjs'])
++            self.assertEqual(A.RECHECK_INPUT_PINS['a1-anchor.mjs'], A.A1_GATE_PINS['a1-anchor.mjs'])
++        d = self.d / 'gate'; shutil.copytree(H / 'a1gate', d); (d / 'a1-recheck.mjs').write_bytes((d / 'a1-recheck.mjs').read_bytes() + b'\n')
++        self.cfg['a1GateDir'] = str(d); self.refused('plan', 'a1_gate_pin')
++
++
++class Recheck(Case):
++    """a1Mode original-game-recheck: the pinned INITIAL receipt + a root-reviewed recheck of it + its run record."""
++    def use_recheck(self, initial=None, advanced=True):
++        ini = fresh_a1(utcnow() - datetime.timedelta(hours=6)) if initial is None else initial
++        self.initial = json.dumps(ini).encode() if isinstance(ini, dict) else ini
++        ini = json.loads(self.initial); A.A1_INITIAL_SHA256 = sha(self.initial); at = utcnow()
++        self.ini, self.rk, self.run = ini, make_recheck(ini, A.A1_INITIAL_SHA256, at, advanced), run_record(at, A.A1_INITIAL_SHA256)
++        self.cfg.update(a1Mode='original-game-recheck', a1Evidence=str(self.d / 'rk/recheck.json'), a1RunResult=str(self.d / 'rk/run-result.json'),
++                        a1InitialEvidence=str(self.d / 'initial.json'), a1InitialSha256=A.A1_INITIAL_SHA256)
++
++    def test_the_original_game_passes_after_the_latest_anchor_advanced_and_n_never_moves(self):
++        self.a1['N'] = str(N + 9000); self.refused('plan', 'a1_anchor_advanced')       # frozen behaviour (fresh-initial) kept
++        self.setUp(); self.use_recheck(); rc, rec = self.run_step('plan'); self.assertEqual(rc, 0, rec)
++        g = rec['result']['gates']['a1']
++        self.assertEqual((g['mode'], g['N'], g['outputRoot'], g['game'], g['initialSha256']), ('original-game-recheck', str(N), FX['outputRoot'], GAME, A.A1_INITIAL_SHA256))
++        self.assertEqual(g['latestAnchorObservation'], {'game': '0x' + '99' * 20, 'N': str(N + 9000), 'outputRoot': '0x' + 'bb' * 32, 'advanced': True, 'accepted': False})
++        self.assertEqual(g['l1Finalized'], self.ini['l1']['number'] + 1000)
++        self.setUp(); self.use_recheck(advanced=False); rc, rec = self.run_step('plan'); self.assertEqual(rc, 0, rec)
++        self.assertEqual(list((self.d / 'work').glob('a1gate-*')), [], 'the private module copy is removed after use')
++
++    def test_production_pins_with_the_real_live_initial_receipt(self):
++        self.use_recheck(initial=LIVE_BYTES); self.cfg['outputRoot'] = REAL_ROOT
++        self.assertEqual(A.A1_INITIAL_SHA256, REAL_INITIAL_SHA)
++        rc, rec = self.run_step('plan'); self.assertEqual(rc, 0, rec); self.assertEqual(rec['result']['gates']['a1']['N'], '52866960')
++
++    def test_full_flow_binds_release_to_the_a2_receipt(self):
++        self.use_recheck()
++        for st in ('a2', 'a3', 'a4'): rc, rec = self.run_step(st); self.assertEqual(rc, 0, (st, rec))
++        a2 = json.loads((self.d / 'work/a2-authenticated.json').read_text())['a1Gate']
++        self.assertEqual((a2['mode'], a2['initialSha256'], a2['N']), ('original-game-recheck', A.A1_INITIAL_SHA256, str(N)))
++        self.refused('release', 'bytecode_receipt')                                 # the A1 gate and binding passed
++        self.rk['l1'].update(number=a2['l1Finalized'] - 1); self.refused('release', 'a1_binding')   # older than A2's block
++        at = utcnow(); other = fresh_a1(at)                                           # a DIFFERENT (fresh) initial receipt, same N/root/game
++        self.rk = None; self.a1 = other
++        for k in A.A1_RECHECK_KEYS: self.cfg.pop(k)
++        self.cfg.update(a1Mode='fresh-initial', a1Evidence=str(self.d / 'a1.json')); rec = self.refused('release', 'a1_binding')
++        self.assertIn('initialSha256', rec['refused'])
++
++    def rk_refused(self, mutate, sub, code='a1_receipt'):
++        self.setUp(); self.use_recheck(); mutate(self); rec = self.refused('plan', code); self.assertIn(sub, rec['refused']); return rec
++
++    def test_recheck_receipt_binding_and_content(self):
++        nx = '0x' + '99' * 20
++        cases = [
++            (lambda t: t.rk['recheckOf'].update(sha256='0' * 64), 'recheck_binding'),
++            (lambda t: (t.rk.update(N=str(N + 9000)), t.rk['recheckOf'].update(N=str(N + 9000))), 'recheck_binding'),   # latest N as N
++            (lambda t: t.rk.update(N=str(N + 9000)), 'recheck_binding'),
++            (lambda t: t.rk.update(game=nx), 'recheck_binding'),                                                      # a descendant game
++            (lambda t: t.rk.update(outputRoot='0x' + 'bb' * 32), 'recheck_binding'),
++            (lambda t: t.rk.update(asr='0x' + '12' * 20), 'recheck_binding'),
++            (lambda t: t.rk.update(respectedGameType=622), 'recheck_binding'),
++            (lambda t: t.rk['recheckOf']['l1'].update(number=1), 'recheck_binding'),
++            (lambda t: t.rk['recheckOf'].update(verdict='A1-original-game-recheck-passed'), 'recheck_binding'),
++            (lambda t: t.rk['recheckOf'].update(extra=1), 'recheck_binding'),
++            (lambda t: t.rk.update(verdict='A1-authenticated'), 'not_recheck'),
++            (lambda t: setattr(t, 'rk', {'verdict': 'refused', 'code': 'game_blacklisted', 'message': 'x'}), 'not_recheck'),   # a CLI refusal
++            (lambda t: setattr(t, 'rk', json.loads(t.initial)), 'not_recheck'),                                     # the initial as recheck
++            (lambda t: t.rk.update(accepted=True), 'bad_recheck'),
++            (lambda t: t.rk.update(label='A1 read: Helios-light-client-relative; not SNP/attested'), 'bad_recheck'),
++            (lambda t: t.rk.pop('at'), 'bad_recheck'),
++            (lambda t: t.rk['latestAnchorObservation'].update(accepted=True), 'recheck_latest'),
++            (lambda t: t.rk['latestAnchorObservation'].update(accepted='false'), 'recheck_latest'),
++            (lambda t: t.rk['latestAnchorObservation'].update(N=str(N - 1)), 'recheck_latest'),
++            (lambda t: t.rk['latestAnchorObservation'].update(game=GAME, advanced=False, N=str(N), outputRoot='0x' + 'cd' * 32), 'recheck_latest'),
++            (lambda t: t.rk['latestAnchorObservation'].update(advanced=False), 'recheck_latest'),
++            (lambda t: t.rk['l1'].update(number=t.ini['l1']['number']), 'not_fresh'),
++            (lambda t: t.rk['l1'].update(hash=t.ini['l1']['hash']), 'not_fresh'),
++            (lambda t: t.rk['l1'].update(ageSec=1801, timestamp=t.rk['l1']['timestamp'] - 849), 'finalized_stale'),
++            (lambda t: t.rk['l1'].update(number=str(t.rk['l1']['number'])), 'bad_recheck'),
++        ]
++        A_ = A.MAINNET['asr']; impl = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc'
++        cases += [
++            (lambda t: t.rk['pins'][A_].update(codeHash='0x' + '00' * 32), 'recheck_pins'),
++            (lambda t: t.rk['pins'][A_]['slots'].update({impl: '0x' + '00' * 31 + '01'}), 'recheck_pins'),
++            (lambda t: t.rk['pins'][A_]['slots'].pop(impl), 'recheck_pins'),
++            (lambda t: t.rk['pins'][A_]['slots'].update({'0x' + '00' * 32: '0x' + '00' * 32}), 'recheck_pins'),
++            (lambda t: t.rk['pins'].pop(GAME), 'recheck_pins'),
++            (lambda t: t.rk['pins'].update({nx: t.rk['pins'][GAME]}), 'recheck_pins'),
++            (lambda t: t.rk['pins'][GAME].update(comparison='changed'), 'recheck_pins'),
++            (lambda t: t.rk['reads'].pop('gameRootClaim'), 'unproven_read'),
++            (lambda t: t.rk['reads'].update(extra='helios-call'), 'unproven_read'),
++            (lambda t: t.rk['reads'].update(isGameBlacklisted='plain-rpc'), 'unproven_read'),
++            (lambda t: t.rk['reads'].update(gameStatus='mpt-proof'), 'unproven_read'),
++            (lambda t: t.rk['reads'].update({f'account:{GAME}': 'helios-call'}), 'unproven_read'),
++        ]
++        for mutate, sub in cases:
++            with self.subTest(sub=sub):
++                self.rk_refused(mutate, sub)
++
++    def test_initial_receipt_pin_and_file_trust(self):
++        self.rk_refused(lambda t: t.cfg.update(a1InitialSha256='1' * 64), 'pinned initial', 'a1_initial_pin')
++        self.rk_refused(lambda t: setattr(A, 'A1_INITIAL_SHA256', '2' * 64), 'pinned initial', 'a1_initial_pin')
++        self.rk_refused(lambda t: setattr(t, 'initial', t.initial.replace(b'"N": "52866960"', b'"N": "52866961"')), 'initial_sha')
++        self.rk_refused(lambda t: setattr(t, 'keep_rk_sha', True) or t.cfg.update(a1RecheckSha256='3' * 64), 'root reviewed', 'a1_recheck_sha')
++        for f in ('rk/recheck.json', 'initial.json', 'rk/run-result.json'):
++            self.setUp(); self.use_recheck(); self.write(); os.chmod(self.d / f, 0o660); self.refused('plan', 'untrusted_file')
++        self.setUp(); self.use_recheck(); self.write(); (self.d / 'initial.json').rename(self.d / 'initial-real.json')
++        (self.d / 'initial.json').symlink_to(self.d / 'initial-real.json'); self.write = lambda: None; self.refused('plan', 'untrusted_file')
++        self.setUp(); self.use_recheck(); A.TRUSTED_UID = os.getuid() + 1   # not the files' owner (see test_a1_file_trust)
++        try:
++            self.refused('plan', 'untrusted_file')
++        finally:
++            A.TRUSTED_UID = os.getuid()
++
++    def test_run_record_provenance(self):
++        for mutate in (lambda t: t.run['inputPins'].update({'a1-recheck.mjs': '0' * 64}), lambda t: t.run['inputPins'].pop('a1-read.mjs'),
++                       lambda t: t.run.update(recheckExit=3), lambda t: t.run.update(recheckExit=False), lambda t: t.run.update(recheckExit='0'),
++                       lambda t: t.run.update(processStopped=False), lambda t: t.run.update(productionActivated=True), lambda t: t.run.update(error='x'),
++                       lambda t: t.run.update(initialSha256='4' * 64), lambda t: t.run.update(startedAt=t.run['finishedAt']),
++                       lambda t: t.run.update(finishedAt=t.run['startedAt'])):
++            with self.subTest():
++                self.rk_refused(mutate, '', 'a1_provenance')
++        self.setUp(); self.use_recheck(); self.write(); (self.d / 'other').mkdir(); shutil.copy(self.d / 'rk/run-result.json', self.d / 'other/run-result.json')
++        self.cfg['a1RunResult'] = str(self.d / 'other/run-result.json'); self.refused('plan', 'a1_provenance')
++        self.setUp(); self.use_recheck(); self.write(); shutil.copy(self.d / 'rk/recheck.json', self.d / 'rk/r2.json')
++        self.cfg['a1Evidence'] = str(self.d / 'rk/r2.json'); self.keep_rk_sha = True; self.refused('plan', 'a1_provenance')
++
++    def test_freshness_planned_anchor_and_mainnet_pins(self):
++        def old(t):
++            at = utcnow() - datetime.timedelta(seconds=700); t.rk = make_recheck(t.ini, A.A1_INITIAL_SHA256, at); t.run = run_record(at, A.A1_INITIAL_SHA256)
++        self.rk_refused(old, 'old', 'a1_stale')
++        self.rk_refused(lambda t: t.rk['l1'].update(timestamp=t.rk['l1']['timestamp'] - 5000), 'inconsistent', 'a1_l1_stale')
++        self.rk_refused(lambda t: t.cfg.update(N=N + 1), 'differs from the planned', 'a1_anchor')   # never a1_anchor_advanced
++        self.rk_refused(lambda t: t.cfg.update(game='0x' + '44' * 20), 'differs from the planned', 'a1_anchor')
++        self.rk_refused(lambda t: t.cfg.update(outputRoot='0x' + '33' * 32), 'differs from the planned', 'a1_anchor')
++        ini = fresh_a1(utcnow() - datetime.timedelta(hours=6)); ini['pins'][A.MAINNET['asr']]['codeHash'] = '0x' + '77' * 32
++        self.setUp(); self.use_recheck(initial=ini); rec = self.refused('plan', 'a1_pins'); self.assertIn(A.MAINNET['asr'], rec['refused'])
++
++
+ if __name__ == '__main__':
+     unittest.main(verbosity=2)

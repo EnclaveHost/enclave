@@ -1,0 +1,189 @@
+{
+ "acceptance": "DIAGNOSTIC RECOVERY VIEW ONLY: not a recovery, restore or production acceptance; the data blocks are not authenticated",
+ "adoptedKilled": [],
+ "checks": {
+  "mountRefusesMkdir": {
+   "detail": 30,
+   "ok": true
+  },
+  "nbdRefusesWrite": {
+   "ok": true
+  },
+  "newFileRefused": {
+   "ok": true
+  },
+  "overlayQcowCheck": {
+   "detail": "{\n    \"image-end-offset\": 3997696,\n    \"total-clusters\": 61035157,\n    \"check-errors\": 0,\n    \"allocated-clusters\": 30,\n    \"filename\": \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r9/runs/diag-20261026T214243Z-2386107/work/overlay.qcow2\",\n   ",
+   "ok": true
+  },
+  "overlayWithinCap": {
+   "detail": 3997696,
+   "ok": true
+  },
+  "patchesReadBack": {
+   "ok": true
+  },
+  "samplesFollowRestoredMap": {
+   "detail": 64,
+   "ok": true
+  },
+  "targetRefusesWrite": {
+   "ok": true
+  },
+  "targetRegularAndSized": {
+   "detail": {
+    "size": 1138166333440
+   },
+   "ok": true
+  }
+ },
+ "children": {
+  "exec": {
+   "cmd": [
+    "/usr/bin/python3",
+    "-I",
+    "-B",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r9/diag/run_validator.py",
+    "--check-py",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r4/src/mdbx_check.py",
+    "--check-py-sha256",
+    "f0d27e40c29271b94d2b48b9d4ab70a84de1f946709db4e9361cdfba00bac131",
+    "--chk",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r4/runs/run-20261026T210943Z-2354169/bin/mdbx_chk",
+    "--chk-sha256",
+    "c228b462c3c71c87b0fd2e9cfa6b3e6bccb2d793dd545bc6a18bef7113187981",
+    "--timeout",
+    "1800",
+    "--out",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r9/runs/diag-20261026T214243Z-2386107/mdbx-report.json"
+   ],
+   "pid": 2386560,
+   "returncode": 2
+  },
+  "fuse2fs": {
+   "cmd": [
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r9/runs/diag-20261026T214243Z-2386107/work/fuse2fs",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r9/runs/diag-20261026T214243Z-2386107/work/view/nbd",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r9/runs/diag-20261026T214243Z-2386107/work/mnt",
+    "-f",
+    "-o",
+    "ro,norecovery,fakeroot,cache_size=64M"
+   ],
+   "cwd": null,
+   "pid": 2386477,
+   "returncode": 0
+  },
+  "nbdfuse": {
+   "cmd": [
+    "nbdfuse",
+    "-r",
+    "-C",
+    "1",
+    "-P",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r9/runs/diag-20261026T214243Z-2386107/work/nbdfuse.pid",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r9/runs/diag-20261026T214243Z-2386107/work/view",
+    "--unix",
+    "/proc/self/cwd/nbd.sock"
+   ],
+   "cwd": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r9/runs/diag-20261026T214243Z-2386107/work",
+   "pid": 2386470,
+   "returncode": 0
+  },
+  "qemu-nbd": {
+   "cmd": [
+    "qemu-nbd",
+    "--read-only",
+    "--shared=1",
+    "--socket=/proc/self/cwd/nbd.sock",
+    "--image-opts",
+    "driver=qcow2,file.driver=file,file.filename=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r9/runs/diag-20261026T214243Z-2386107/work/overlay.qcow2,backing.driver=qcow2,backing.read-only=on,backing.file.driver=file,backing.file.filename=/home/steven/Documents/Codex/2026-10-26/my/work/tr004-readonly/enclave-rpc-production/base-origin.qcow2,backing.file.locking=off,read-only=on"
+   ],
+   "cwd": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r9/runs/diag-20261026T214243Z-2386107/work",
+   "pid": 2386461,
+   "returncode": 0
+  }
+ },
+ "cleanupComplete": true,
+ "exec": {
+  "cmd": [
+   "/usr/bin/python3",
+   "-I",
+   "-B",
+   "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r9/diag/run_validator.py",
+   "--check-py",
+   "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r4/src/mdbx_check.py",
+   "--check-py-sha256",
+   "f0d27e40c29271b94d2b48b9d4ab70a84de1f946709db4e9361cdfba00bac131",
+   "--chk",
+   "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r4/runs/run-20261026T210943Z-2354169/bin/mdbx_chk",
+   "--chk-sha256",
+   "c228b462c3c71c87b0fd2e9cfa6b3e6bccb2d793dd545bc6a18bef7113187981",
+   "--timeout",
+   "1800",
+   "--out",
+   "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r9/runs/diag-20261026T214243Z-2386107/mdbx-report.json"
+  ],
+  "escapedKilled": 0,
+  "groupEmpty": true,
+  "groupLeftovers": [],
+  "orphansGone": true,
+  "rc": 2,
+  "timedOut": false,
+  "timeout": 86400
+ },
+ "leftoverProcesses": [],
+ "overlayBytes": 3997696,
+ "overlayDeleted": true,
+ "overlayEstimate": 5046272,
+ "parentPost": {
+  "ctimeNs": 1793030438418984700,
+  "dev": 2050,
+  "ino": 3221,
+  "mtimeNs": 1793030438418984700,
+  "size": 2073934036992
+ },
+ "parentPre": {
+  "ctimeNs": 1793030438418984700,
+  "dev": 2050,
+  "ino": 3221,
+  "mtimeNs": 1793030438418984700,
+  "size": 2073934036992
+ },
+ "parentUnchanged": true,
+ "planSha256": "c4e38213847793d5c0868825fe454c5702b4499a6b25315078037b073a4f35a9",
+ "rc": 6,
+ "steps": [
+  [
+   1793050963.479,
+   "overlay create"
+  ],
+  [
+   1793050963.503,
+   "overlay patch"
+  ],
+  [
+   1793050979.124,
+   "qemu-nbd"
+  ],
+  [
+   1793050979.328,
+   "nbdfuse"
+  ],
+  [
+   1793050979.534,
+   "fuse2fs"
+  ],
+  [
+   1793050988.833,
+   "exec"
+  ],
+  [
+   1793052789.903,
+   "cleanup"
+  ]
+ ],
+ "unmount": {
+  "fuse2fs": 0,
+  "nbdfuse": 0
+ }
+}

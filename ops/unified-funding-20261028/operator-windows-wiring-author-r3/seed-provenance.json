@@ -1,0 +1,19 @@
+{
+  "frozenRoot": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-windows-wiring-root-review-r2/repaired",
+  "sourceManifest": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-windows-wiring-root-review-r2/repaired-pins.json",
+  "sourceManifestSha256": "cfdac701d96d07a46771765fbe418d2b39a4b1d0f67b50b2b3594b2fe399c8f2",
+  "originalFrozenManifestSha256": "eb447c0b83c66a5aed2f082ebe063cc86bf3f4708fbf3080a62272695af263a9",
+  "seedFiles": 249,
+  "seedManifestSha256": "fe17e86506a13a2ae396a2dac9d90021dff0651f45ca2ba958de582924421551",
+  "preAuthorProductEdits": [],
+  "rootChainQuarantineSha256": "79771c6c85fb26e1e91cb1f99eaa006586a52082b45f6d5d7b9d7e3376870cfd",
+  "rootRepairsPreserved": {
+    "control/isolation/m4/guestd/control-client.mjs": "df77d6dbbcab2d57729e6cb6b70e5f8fab006c8c1ac5be9eb7baf1440df934b4",
+    "control/windows/node/protected-isolation.mjs": "bfbab051a4784bb45d1510596b7d8a337d80b0bccf45447149c6181ecb65f160",
+    "control/windows/node/protected-supervisor.mjs": "1cd9be0545bd0284ffb26c12131c4233b340d1e6773872fecdff8f8f540e8408"
+  },
+  "preservationCommit": "540dc9672855073d87be3afa499919b74ceec64c",
+  "rootEvidence": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-windows-wiring-root-review-r2",
+  "candidateExactFrozenSeed": true,
+  "noCandidateCodeExecuted": true
+}

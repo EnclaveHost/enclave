@@ -1,0 +1,59 @@
+{
+  "at": 1793359204.0380564,
+  "invocation": "a1aa5398821646f98c964e94bb753d5d",
+  "unit": "enclave-rpc-controller-liveness-repair-r3-20261030.service",
+  "processes": [
+    {
+      "pid": 2684335,
+      "startTime": 166429043,
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-controller-liveness-repair-r3-20261030.service"
+    },
+    {
+      "pid": 2684336,
+      "startTime": 166429049,
+      "exe": "/usr/bin/node",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2684336-i44612789.scope"
+    },
+    {
+      "pid": 2684343,
+      "startTime": 166429053,
+      "exe": "/usr/bin/node",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2684336-i44612789.scope"
+    },
+    {
+      "pid": 2684350,
+      "startTime": 166429055,
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2684336-i44612789.scope"
+    },
+    {
+      "pid": 2684368,
+      "startTime": 166429150,
+      "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+      "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-controller-liveness-prep-20261030/author-repair-r3",
+      "affinity": [
+        1
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2684336-i44612789.scope"
+    }
+  ],
+  "claudeSha256": "56fe3da88458465fb27d7e9299dddb3fead55750fb9c2de795f233b5eea6dce1",
+  "accountRootAndRunnerVerified": true
+}

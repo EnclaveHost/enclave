@@ -1,0 +1,9 @@
+{
+  "reason": "Normal precommit crypto detector matched public SHA256 values under private-named file-path keys. All69 values recomputed from public source/tool files. No hook bypass. Original consumed author input unchanged; public array encodes same mapping in original insertion order.",
+  "restoreFile": "input-pins.json",
+  "restoreEncoding": "json.dumps({row.path:row.sha256 for row in input-pins.public.json}, indent=2) plus newline",
+  "restoredSha256": "f8011489b8b605e6d1dbc0945a515008f682eaabda4374dd781901e6aa3704fe",
+  "exactReconstructionVerified": true,
+  "originalFrozenInputUnchanged": true,
+  "entries": 69
+}

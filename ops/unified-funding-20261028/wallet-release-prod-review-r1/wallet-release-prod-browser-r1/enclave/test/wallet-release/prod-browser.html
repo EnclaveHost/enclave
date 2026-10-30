@@ -1,0 +1,19 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Wallet migration INERT browser qualification</title></head><body>
+<h1>INERT TEST — no wallet connection or network transactions</h1><p>Actual shipped SDK, real IndexedDB, actual view/controllers; all chain/relay/signatures are local test doubles.</p>
+<button id="land">TEST: include and finalize promotion</button><pre id="counts">Starting</pre><main id="body"></main>
+<script type="module">
+import * as sdk from '../../shipped-sessions.mjs';
+import {setup} from './prod-browser-world.mjs';
+import {IdbJournal} from '../../site/js/core/wallet-release-store.js';
+import {releaseSlot,startWalletRelease} from '../../site/js/core/wallet-release-view.js';
+import {W,V} from './census-world.fixture.mjs';
+const journal=new IdbJournal(indexedDB,'enclave-wallet-prod-root-test-r1');journal.log=[];
+const h=setup({journal,sdk});
+const counts=document.getElementById('counts');
+const report=()=>{counts.textContent=JSON.stringify({signatures:h.provider.signs,posts:h.relay.posts.length,operations:h.relay.posts.map(x=>x.op),journal:'REAL IndexedDB (test domain)'},null,2)};
+const req=h.provider.request.bind(h.provider);h.provider.request=async(...a)=>{try{return await req(...a)}finally{report()}};
+const post=h.relay.request.bind(h.relay);h.relay.request=async(...a)=>{try{return await post(...a)}finally{report()}};
+const body=document.getElementById('body');body.innerHTML=releaseSlot({id:h.st.row.id});
+startWalletRelease({body,sdk,cfg:{chainId:8453},provider:h.provider,address:W,vault:V,relayRoot:'',deps:{reader:h.reader,journal,relay:h.relay,census:h.census}});
+document.getElementById('land').onclick=()=>{h.land();report();document.getElementById('land').disabled=true};report();
+</script></body></html>

@@ -1,0 +1,26 @@
+{
+ "kind": "DIAGNOSTIC",
+ "recoveryAccepted": false,
+ "productionUse": false,
+ "historyVerdict": "BLOCKED",
+ "label": "DIAGNOSTIC READ-ONLY EXPOSURE: recoveryAccepted=false; post-deletion history BLOCKED; no data-integrity, recovery or production claim; only the pinned read-only validator reads the view",
+ "sessionRc": 6,
+ "cleanupComplete": true,
+ "parentUnchanged": true,
+ "mdbx": {
+  "rc": -9,
+  "result": "rc--9",
+  "structurallyClean": false,
+  "seconds": 1800.1,
+  "timedOut": true,
+  "unchangedIdentity": true,
+  "notChecked": [
+   "value bytes inside structurally valid pages (MDBX has no per-page checksums)",
+   "reth table semantics",
+   "state/trie roots",
+   "static_files segments",
+   "chain authenticity"
+  ]
+ },
+ "meaning": "structurallyClean=true means only that the pinned mdbx_chk found no structural problem in the read-only view; the history stays BLOCKED, value bytes, chain state and recovery are NOT established"
+}

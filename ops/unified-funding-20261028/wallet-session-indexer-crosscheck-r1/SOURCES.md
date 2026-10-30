@@ -1,0 +1,1 @@
+Independent explorer Base instance listed https://raw.githubusercontent.com/ethereum-lists/chains/master/_data/chains/eip155-8453.json; logs API described https://docs.blockscout.com/devs/apis/rpc/logs, maximum1000logs, require strictly belowcap and exact matching RPC events. Public event data only. Not cryptographic completeness proof or finality.

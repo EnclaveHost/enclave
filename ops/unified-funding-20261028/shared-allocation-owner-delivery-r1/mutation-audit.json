@@ -1,0 +1,224 @@
+{
+  "events": [
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/control/windows/vbslike/manager/allocation-owner.mjs",
+      "rel": "control/windows/vbslike/manager/allocation-owner.mjs",
+      "id": "toolu_016Te18Gt4vD73WcVBe8eqgE",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/control/windows/vbslike/manager/allocation-owner.mjs",
+      "rel": "control/windows/vbslike/manager/allocation-owner.mjs",
+      "id": "toolu_0116ptE3Nz5ikwHuKkjW6DX8",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/control/windows/vbslike/manager/allocation-service.mjs",
+      "rel": "control/windows/vbslike/manager/allocation-service.mjs",
+      "id": "toolu_019CcQoGyHUD8A3vsMvMB9Xn",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/control/windows/vbslike/manager/backend.mjs",
+      "rel": "control/windows/vbslike/manager/backend.mjs",
+      "id": "toolu_01T9XstkvnDFkKmGxZ29yReB",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/control/windows/vbslike/manager/wmi-launcher.mjs",
+      "rel": "control/windows/vbslike/manager/wmi-launcher.mjs",
+      "id": "toolu_01PNU8CNJYefJ7shy3kzKrrG",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/control/windows/vbslike/manager/wmi-launcher.mjs",
+      "rel": "control/windows/vbslike/manager/wmi-launcher.mjs",
+      "id": "toolu_01TioC87nG9PF6A83k52dh9x",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/control/windows/vbslike/manager/wmi-launcher.mjs",
+      "rel": "control/windows/vbslike/manager/wmi-launcher.mjs",
+      "id": "toolu_01E4AgXvvVnVPHkFLM7Fkn3A",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/control/windows/vbslike/manager/wmi-launcher.mjs",
+      "rel": "control/windows/vbslike/manager/wmi-launcher.mjs",
+      "id": "toolu_01XAqPkPCVtkshLtc1hZF8F7",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/control/windows/vbslike/manager/allocation-integration.mjs",
+      "rel": "control/windows/vbslike/manager/allocation-integration.mjs",
+      "id": "toolu_01NwVyWtaJCVyeaT56QExd7B",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/control/windows/vbslike/manager/compose.mjs",
+      "rel": "control/windows/vbslike/manager/compose.mjs",
+      "id": "toolu_018XpcSVgD9i6UDdscyPQ713",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/control/windows/vbslike/manager/main.mjs",
+      "rel": "control/windows/vbslike/manager/main.mjs",
+      "id": "toolu_013hvUJJHGtD54WmKPiUihZd",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/control/windows/vbslike/manager/main.mjs",
+      "rel": "control/windows/vbslike/manager/main.mjs",
+      "id": "toolu_01Sd3hXLsBCsCd6aSLvGtysL",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/control/windows/vbslike/manager/main.mjs",
+      "rel": "control/windows/vbslike/manager/main.mjs",
+      "id": "toolu_01FNaLzD2Y7AwFhuetCiyhsy",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/control/windows/vbslike/manager/main.mjs",
+      "rel": "control/windows/vbslike/manager/main.mjs",
+      "id": "toolu_013giQZidM7hxN3ka4h2uiCQ",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/control/windows/vbslike/manager/main.mjs",
+      "rel": "control/windows/vbslike/manager/main.mjs",
+      "id": "toolu_01Actns2RPLyK6LoUqfCdiRo",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/control/windows/vbslike/manager/main.mjs",
+      "rel": "control/windows/vbslike/manager/main.mjs",
+      "id": "toolu_011nJParm64rTocoqwdiBb33",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/control/windows/vbslike/manager/allocation-owner-main.mjs",
+      "rel": "control/windows/vbslike/manager/allocation-owner-main.mjs",
+      "id": "toolu_01MKrVRXm9v1v1dkbcnCEhWP",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/test/windows-permit/helpers/alloc-fixture.mjs",
+      "rel": "test/windows-permit/helpers/alloc-fixture.mjs",
+      "id": "toolu_01GePamVHam4PNsDi7NbkUqU",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/test/windows-permit/allocation-owner.test.mjs",
+      "rel": "test/windows-permit/allocation-owner.test.mjs",
+      "id": "toolu_016LcgPqvYXfxrikZnrsakvB",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/control/windows/vbslike/manager/allocation-service.mjs",
+      "rel": "control/windows/vbslike/manager/allocation-service.mjs",
+      "id": "toolu_013KpBYtpCtTQWyn53dJTHGv",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/test/windows-permit/allocation-owner.test.mjs",
+      "rel": "test/windows-permit/allocation-owner.test.mjs",
+      "id": "toolu_01MrL9DGykcv18uSHnp1AQeN",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/test/windows-permit/allocation-owner.test.mjs",
+      "rel": "test/windows-permit/allocation-owner.test.mjs",
+      "id": "toolu_0118FAswK5J1gWCQSx2Ur5SQ",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/test/windows-permit/helpers/alloc-fixture.mjs",
+      "rel": "test/windows-permit/helpers/alloc-fixture.mjs",
+      "id": "toolu_01FoMCe5j53YZ2M94CgNu95o",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/test/windows-permit/helpers/alloc-fixture.mjs",
+      "rel": "test/windows-permit/helpers/alloc-fixture.mjs",
+      "id": "toolu_01E3CsuEdWk5MQRTGo2VqJ1d",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/test/windows-permit/helpers/alloc-fixture.mjs",
+      "rel": "test/windows-permit/helpers/alloc-fixture.mjs",
+      "id": "toolu_01WWj6Xv35ZnF9cnJKL3A92R",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/test/windows-permit/allocation-integration.test.mjs",
+      "rel": "test/windows-permit/allocation-integration.test.mjs",
+      "id": "toolu_01P91PCFdwD8qprqPy2k8RJ1",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/test/windows-permit/allocation-integration.test.mjs",
+      "rel": "test/windows-permit/allocation-integration.test.mjs",
+      "id": "toolu_012aGrMguSLeENyDdp9Dtek8",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/test/windows-permit/allocation-integration.test.mjs",
+      "rel": "test/windows-permit/allocation-integration.test.mjs",
+      "id": "toolu_01CS1KCZeCQTxZBaXC93A9A8",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/test/windows-permit/allocation-owner.test.mjs",
+      "rel": "test/windows-permit/allocation-owner.test.mjs",
+      "id": "toolu_01ArbiVc4v6sVfoBDyPHos1V",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/REPORT-SHARED-ALLOCATION-R1.md",
+      "rel": "REPORT-SHARED-ALLOCATION-R1.md",
+      "id": "toolu_018caxR8LbZCgTWthNshwi5K",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/candidate/RELEASE-CLOSURE-SHARED-ALLOCATION-R1.json",
+      "rel": "RELEASE-CLOSURE-SHARED-ALLOCATION-R1.json",
+      "id": "toolu_01P9VBJKy1bqabUj1NhKEuXT",
+      "outcome": "reported-success"
+    }
+  ],
+  "replayIssues": [],
+  "outsideCandidateAttempts": [],
+  "note": "first successful mutation snapshots reconstructed from immutable seed and successful tool results; any mismatch requires manual audit, never assumed clean"
+}

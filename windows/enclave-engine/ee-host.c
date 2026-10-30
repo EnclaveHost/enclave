@@ -9,6 +9,7 @@
  *   session <blob hex>       -> ok <blob hex> <tokens> ... (a boxed request, see ee-rt.h; the host never sees the text)
  *   ping                     -> ok
  * It never sees an activation, a pad or a private key: those live in VTL1. */
+#define _CRT_RAND_S   /* rand_s (RtlGenRandom) for the per-boot app epoch, ee-epoch.h; must precede <stdlib.h> */
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
@@ -20,6 +21,7 @@
 #include <stdint.h>
 #include <psapi.h>
 #include "ee-rt.h"
+#include "ee-epoch.h"
 #pragma comment(lib, "ws2_32.lib")
 
 static LPVOID g_base; static FARPROC g_EeInit, g_EeThread, g_EeLoad, g_EeGenerate, g_EeAttest, g_EeSession, g_EeThreadTest;
@@ -49,6 +51,13 @@ static HANDLE park_sem(uint32_t token) {
     return mine;
 }
 static int g_quiet;
+
+/* This process's app epoch (ee-epoch.h): 128 bits from the OS CSPRNG, minted when serve() starts.
+ * Every app is opened under it and every id-scoped command must carry it, so a command minted by a
+ * previous ee-host process - including one already queued in the node's funnel when this process
+ * started - is refused before any do_app_* side effect. "" = the RNG failed: then there is no
+ * epoch and every app command, appopen included, is refused (no weaker fallback). */
+static char g_app_epoch[EE_EPOCH_HEX + 1];
 
 static void say(const char *fmt, ...) { va_list ap; va_start(ap, fmt); vfprintf(stderr, fmt, ap); va_end(ap); fflush(stderr); }
 static int64_t now_us(void) { static LARGE_INTEGER f; LARGE_INTEGER c; if (!f.QuadPart) QueryPerformanceFrequency(&f); QueryPerformanceCounter(&c); return (int64_t)(c.QuadPart * 1000000.0 / f.QuadPart); }
@@ -172,7 +181,14 @@ static void *WINAPI host_callout(void *param) {
         if (ls == INVALID_SOCKET) { c->ret = -wsa_errno(); break; }
         struct sockaddr_in a; memset(&a, 0, sizeof a);
         a.sin_family = AF_INET; a.sin_addr.s_addr = htonl(INADDR_LOOPBACK); a.sin_port = htons((u_short)c->arg);
-        BOOL one = TRUE; setsockopt(ls, SOL_SOCKET, SO_REUSEADDR, (const char *)&one, sizeof one);
+        /* A tenant's port is EXCLUSIVE, not shared. SO_REUSEADDR on Windows lets a socket bind a
+         * port ANOTHER socket is already actively bound to, so two apps that ask for the same port
+         * (e.g. two risc-boxes both defaulting to tcp:2222) both "succeeded" and split the
+         * connections between them. SO_EXCLUSIVEADDRUSE makes the second bind fail with
+         * EADDRINUSE instead, which is the honest answer -- one port, one app. A listener that is
+         * closed (see the store-teardown cleanup in enclave-rt) frees its port at once, so a
+         * relaunch on the same port still binds; only a LIVE double-bind is refused. */
+        BOOL one = TRUE; setsockopt(ls, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (const char *)&one, sizeof one);
         if (bind(ls, (struct sockaddr *)&a, sizeof a) || listen(ls, 64)) { int e = wsa_errno(); closesocket(ls); c->ret = -e; break; }
         int alen = sizeof a;
         if (getsockname(ls, (struct sockaddr *)&a, &alen) == 0) c->arg = ntohs(a.sin_port);   /* the port it actually got */
@@ -373,11 +389,16 @@ static uint32_t app_abi(uint32_t *worlds, uint32_t *features) {
 }
 
 /* ---- the loopback server for the agent ---------------------------------------------------- */
+/* An id-scoped command's refusal, by ee_app_ref_parse's verdict; nothing has been done yet. */
+#define APP_REF_ERR(ref, malformed) ((ref) == EE_REF_STALE ? "err stale epoch\n" : \
+                                     (ref) == EE_REF_NO_EPOCH ? "err app epoch unavailable\n" : (malformed))
 static void serve(int port) {
     SOCKET ls = socket(AF_INET, SOCK_STREAM, 0); struct sockaddr_in a; memset(&a, 0, sizeof a); a.sin_family = AF_INET; a.sin_addr.s_addr = htonl(INADDR_LOOPBACK); a.sin_port = htons((u_short)port);
     BOOL one = TRUE; setsockopt(ls, SOL_SOCKET, SO_REUSEADDR, (const char *)&one, sizeof one);
     if (bind(ls, (struct sockaddr *)&a, sizeof a) || listen(ls, 4)) { say("[host] cannot listen on 127.0.0.1:%d\n", port); return; }
-    say("[host] serving on 127.0.0.1:%d\n", port);
+    if (ee_epoch_mint(g_app_epoch, ee_epoch_rng_os))
+        say("[host] serving on 127.0.0.1:%d; NO app epoch (the OS RNG failed): every app command is refused\n", port);
+    else say("[host] serving on 127.0.0.1:%d (app epoch %s)\n", port, g_app_epoch);
     static char line[4u << 20]; static uint8_t bin[2u << 20]; static char outtext[1u << 20]; static char reply[8u << 20]; static uint8_t report[16384];
     for (;;) {
         SOCKET c = accept(ls, NULL, NULL); if (c == INVALID_SOCKET) continue;
@@ -426,6 +447,8 @@ static void serve(int port) {
                     uint32_t worlds = 0, features = 0;
                     const uint32_t abi = app_abi(&worlds, &features);
                     snprintf(reply, sizeof reply, "ok %u %u %u\n", abi, worlds, features);
+                } else if (!strncmp(line, "appopen ", 8) && !g_app_epoch[0]) {
+                    strcpy(reply, "err app epoch unavailable\n");     /* nothing is opened without one */
                 } else if (!strncmp(line, "appopen ", 8)) {
                     /* appopen <world> <path to bytecode> [hex environment]
                      * By PATH, not by hex, for the bytecode: it is a hundred kilobytes and up and
@@ -463,16 +486,20 @@ static void serve(int port) {
                             int st = do_app_open(bytes, (size_t)n, world, env_len ? envbuf : NULL, env_len, &id, &load_us, err);
                             free(bytes);                       /* the enclave has its own copy */
                             if (st) snprintf(reply, sizeof reply, "err %s\n", err);
-                            else snprintf(reply, sizeof reply, "ok %u %lld\n", id, load_us);
+                            /* "ok <id> <load_us> <epoch>": the node stores the epoch and must echo it on
+                             * every app-scoped command for this id, so a command from a dead ee-host
+                             * generation (carrying that boot's epoch) is refused by the next boot. */
+                            else snprintf(reply, sizeof reply, "ok %u %lld %s\n", id, load_us, g_app_epoch);
                         }
                     }
                     app_open_done: ;
                 } else if (!strncmp(line, "apphandle ", 10)) {
-                    unsigned int id = 0; size_t rl = 0, ol = 0; long long us = 0;
-                    const char *sp = strchr(line + 10, ' ');
+                    /* apphandle <epoch> <id> <request hex> */
+                    unsigned int id = 0; size_t rl = 0, ol = 0; long long us = 0; const char *hexreq = NULL;
                     static uint8_t aout[4u << 20];
-                    if (!sp || sscanf(line + 10, "%u", &id) != 1) strcpy(reply, "err bad request\n");
-                    else if (unhex(bin, sizeof bin, sp + 1, &rl)) strcpy(reply, "err bad hex\n");
+                    const int ref = ee_app_ref_parse(line + 10, g_app_epoch, 1, &id, &hexreq);
+                    if (ref) strcpy(reply, APP_REF_ERR(ref, "err bad request\n"));
+                    else if (unhex(bin, sizeof bin, hexreq, &rl)) strcpy(reply, "err bad hex\n");
                     else {
                         int st = do_app_handle(id, bin, rl, aout, sizeof aout, &ol, &us, err);
                         if (st == -5) snprintf(reply, sizeof reply, "err the response is %llu bytes, larger than this host carries\n", (unsigned long long)ol);
@@ -483,18 +510,24 @@ static void serve(int port) {
                 } else if (!strncmp(line, "apprun ", 7)) {
                     /* Returns as soon as the thread is started: the app itself runs for as long as
                      * it holds its lease, and its port is the one it binds through the broker. */
+                    /* apprun <epoch> <id> */
                     unsigned int id = 0;
-                    if (sscanf(line + 7, "%u", &id) != 1) strcpy(reply, "err bad id\n");
+                    const int ref = ee_app_ref_parse(line + 7, g_app_epoch, 0, &id, NULL);
+                    if (ref) strcpy(reply, APP_REF_ERR(ref, "err bad id\n"));
                     else if (do_app_run(id, err)) snprintf(reply, sizeof reply, "err %s\n", err);
                     else strcpy(reply, "ok\n");
                 } else if (!strncmp(line, "appstop ", 8)) {
+                    /* appstop <epoch> <id>: refused before any side effect if the epoch is stale */
                     unsigned int id = 0;
-                    if (sscanf(line + 8, "%u", &id) != 1) strcpy(reply, "err bad id\n");
+                    const int ref = ee_app_ref_parse(line + 8, g_app_epoch, 0, &id, NULL);
+                    if (ref) strcpy(reply, APP_REF_ERR(ref, "err bad id\n"));
                     else if (do_app_stop(id, err)) snprintf(reply, sizeof reply, "err %s\n", err);
                     else strcpy(reply, "ok\n");
                 } else if (!strncmp(line, "appclose ", 9)) {
+                    /* appclose <epoch> <id>: refused before any side effect if the epoch is stale */
                     unsigned int id = 0;
-                    if (sscanf(line + 9, "%u", &id) != 1) strcpy(reply, "err bad id\n");
+                    const int ref = ee_app_ref_parse(line + 9, g_app_epoch, 0, &id, NULL);
+                    if (ref) strcpy(reply, APP_REF_ERR(ref, "err bad id\n"));
                     else if (do_app_close(id, err)) snprintf(reply, sizeof reply, "err %s\n", err);
                     else strcpy(reply, "ok\n");
                 } else if (!strcmp(line, "quit")) { closesocket(c); closesocket(ls); return; }

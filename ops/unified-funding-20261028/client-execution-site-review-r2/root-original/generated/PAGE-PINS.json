@@ -1,0 +1,26 @@
+{
+  "schema": "client-execution-site-r2-page-pins/v1",
+  "note": "ROOT FILLS / CONFIRMS every sha256 (hex). Paths relative to unified-funding-20261028/. generator/generate_page.py refuses any null or drift. Prefilled values are copied from root's own records (client-site-repair-r2 SOURCE-PINS, the r2 candidate sdk MANIFEST, root's reported prepared core manifest 6316bb23...); root must confirm them. The prepared gas-execution.mjs / browser-entry.mjs and the r2 candidate page / builder / config / flows / state are null.",
+  "inputs": {
+    "client-site-repair-r2/authored/site/js/pages/funding.js": "6123b6e202641f3d04f41d9481c3d6a63918013703fafc40bf4de502314c27e3",
+    "client-site-repair-r2/authored/scripts/build-funding-vendor.mjs": "70c432052505c6ad2ad02179a1a6576233135743b098fe332eb152df7208c570",
+    "client-site-repair-r2/authored/site/js/funding/flows.js": "137b4a1babb7ccb5d6f913488c519660c99d5b934c79a433a0255b35e8fa48d1",
+    "client-site-repair-r2/authored/site/js/funding/state.js": "361bae2bc531a640cfb58d389e026d5677eb5da70063f2bdda07070b09397f54",
+    "client-site-repair-r2/candidate/site/js/pages/funding.js": null,
+    "client-site-repair-r2/candidate/scripts/build-funding-vendor.mjs": null,
+    "client-site-repair-r2/candidate/site/js/core/config.js": null,
+    "client-site-repair-r2/candidate/site/js/funding/flows.js": null,
+    "client-site-repair-r2/candidate/site/js/funding/state.js": null,
+    "client-site-repair-r2/candidate/sdk/funding/browser-entry.mjs": "29ad990d3397addf1a5891faeabf15ac4fab7b367c9180fc26132f68d440dd1e",
+    "client-site-repair-r2/candidate/sdk/funding/MANIFEST.json": "ac8972fa2598da46f63e45a402da25b7a8457681c7b34dca9495d442ebf4d50d",
+    "client-execution-recovery-r1/prepared/sdk/funding/util.mjs": "38b678a68ecf7fd897fb1ae905d27471a17d10f8061fa29d81f5870549e12e66",
+    "client-execution-recovery-r1/prepared/sdk/funding/v2-store.mjs": "b00d0742ee3d2b211b4cf811c48c8e7004dbf7e8a4cf30517db5ec199181733c",
+    "client-execution-recovery-r1/prepared/sdk/funding/chain-proof.mjs": "ca799d8f86db1dd3a7113703cba5fd929e770f02f5c63fa3f5589b05f5e074b3",
+    "client-execution-recovery-r1/prepared/sdk/funding/funding-client.mjs": "8d79be4d818556545c98a85025bc3d6bac2e508b2a06ef32ff22a3860f2c0ce0",
+    "client-execution-recovery-r1/prepared/sdk/funding/migration.mjs": "b168fcc1038c9c5c19c685cd9b336fa7ecbd3fb89d91d8cec92bdbea8d4dccf4",
+    "client-execution-recovery-r1/prepared/sdk/funding/funding-codec.mjs": "ceed082639299b35073005d2ffb0ce8e5ceee1a3035804f197cdf53a4f6739d7",
+    "client-execution-recovery-r1/prepared/sdk/funding/gas-execution.mjs": null,
+    "client-execution-recovery-r1/prepared/sdk/funding/browser-entry.mjs": null,
+    "client-execution-recovery-r1/prepared/sdk/funding/MANIFEST.json": "6316bb23f0a1255a2151107ccf75f36c3c8b4945cc79d8c716793d6f9d2d31ac"
+  }
+}

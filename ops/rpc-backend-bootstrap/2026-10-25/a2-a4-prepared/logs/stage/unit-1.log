@@ -1,0 +1,199 @@
+[queue] START available=18028MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+test_bad_config (__main__.Gates.test_bad_config) ... ok
+test_plan_ok_lists_chunked_unwind_to_exactly_n_and_full_merkle_from_zero (__main__.Gates.test_plan_ok_lists_chunked_unwind_to_exactly_n_and_full_merkle_from_zero) ... ERROR
+test_prerequisites_fail_closed (__main__.Gates.test_prerequisites_fail_closed) ... ERROR
+test_stale_or_foreign_a1_is_refused (__main__.Gates.test_stale_or_foreign_a1_is_refused) ... ERROR
+test_a2_authenticates_the_real_header_and_refuses_forgery_or_missing (__main__.Steps.test_a2_authenticates_the_real_header_and_refuses_forgery_or_missing) ... ERROR
+test_a3_refuses_a_short_unwind_and_surviving_headers (__main__.Steps.test_a3_refuses_a_short_unwind_and_surviving_headers) ... ERROR
+test_a3_requires_review_unwinds_in_chunks_to_exactly_n_and_lowers_labels (__main__.Steps.test_a3_requires_review_unwinds_in_chunks_to_exactly_n_and_lowers_labels) ... ERROR
+test_a4_full_rebuild_matches_and_a_mismatch_refuses (__main__.Steps.test_a4_full_rebuild_matches_and_a_mismatch_refuses) ... ERROR
+test_release_stays_blocked_on_the_open_bytecode_gap_and_needs_fresh_a1 (__main__.Steps.test_release_stays_blocked_on_the_open_bytecode_gap_and_needs_fresh_a1) ... ERROR
+test_steps_refuse_out_of_order (__main__.Steps.test_steps_refuse_out_of_order) ... ERROR
+
+======================================================================
+ERROR: test_plan_ok_lists_chunked_unwind_to_exactly_n_and_full_merkle_from_zero (__main__.Gates.test_plan_ok_lists_chunked_unwind_to_exactly_n_and_full_merkle_from_zero)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/test/test_a2a4.py", line 59, in test_plan_ok_lists_chunked_unwind_to_exactly_n_and_full_merkle_from_zero
+    rc, rec = self.run_step('plan'); self.assertEqual(rc, 0, rec); p = rec['result']
+              ~~~~~~~~~~~~~^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/test/test_a2a4.py", line 46, in run_step
+    self.write(); code = A.main(['a2a4.py', step, str(self.d / 'cfg.json')])
+                         ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 343, in main
+    c = load_config(argv[2]); w = workdir(c); log = []
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 71, in load_config
+    refuse('bad_config', f'{k} must be an absolute path')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 45, in refuse
+    raise Refused(f'{code}: {why}')
+a2a4.Refused: bad_config: node must be an absolute path
+
+======================================================================
+ERROR: test_prerequisites_fail_closed (__main__.Gates.test_prerequisites_fail_closed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/test/test_a2a4.py", line 73, in test_prerequisites_fail_closed
+    (self.d / 'reth.toml').write_text('[prune.segments]\naccount_history = { distance = 140000 }\nstorage_history = { before = 52500000 }\n'); self.refused('plan', 'prune_config')
+                                                                                                                                               ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/test/test_a2a4.py", line 50, in refused
+    rc, rec = self.run_step(step); self.assertEqual(rc, 1, rec); self.assertTrue(rec['refused'].startswith(code + ':'), rec['refused']); return rec
+              ~~~~~~~~~~~~~^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/test/test_a2a4.py", line 46, in run_step
+    self.write(); code = A.main(['a2a4.py', step, str(self.d / 'cfg.json')])
+                         ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 343, in main
+    c = load_config(argv[2]); w = workdir(c); log = []
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 71, in load_config
+    refuse('bad_config', f'{k} must be an absolute path')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 45, in refuse
+    raise Refused(f'{code}: {why}')
+a2a4.Refused: bad_config: node must be an absolute path
+
+======================================================================
+ERROR: test_stale_or_foreign_a1_is_refused (__main__.Gates.test_stale_or_foreign_a1_is_refused)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/test/test_a2a4.py", line 67, in test_stale_or_foreign_a1_is_refused
+    self.a1['at'] = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=601)).isoformat(); self.refused('plan', 'a1_stale')
+                                                                                                                  ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/test/test_a2a4.py", line 50, in refused
+    rc, rec = self.run_step(step); self.assertEqual(rc, 1, rec); self.assertTrue(rec['refused'].startswith(code + ':'), rec['refused']); return rec
+              ~~~~~~~~~~~~~^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/test/test_a2a4.py", line 46, in run_step
+    self.write(); code = A.main(['a2a4.py', step, str(self.d / 'cfg.json')])
+                         ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 343, in main
+    c = load_config(argv[2]); w = workdir(c); log = []
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 71, in load_config
+    refuse('bad_config', f'{k} must be an absolute path')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 45, in refuse
+    raise Refused(f'{code}: {why}')
+a2a4.Refused: bad_config: node must be an absolute path
+
+======================================================================
+ERROR: test_a2_authenticates_the_real_header_and_refuses_forgery_or_missing (__main__.Steps.test_a2_authenticates_the_real_header_and_refuses_forgery_or_missing)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/test/test_a2a4.py", line 90, in test_a2_authenticates_the_real_header_and_refuses_forgery_or_missing
+    rc, rec = self.run_step('a2'); self.assertEqual(rc, 0, rec); self.assertEqual(rec['result']['blockHash'], FX['blockHash'])
+              ~~~~~~~~~~~~~^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/test/test_a2a4.py", line 46, in run_step
+    self.write(); code = A.main(['a2a4.py', step, str(self.d / 'cfg.json')])
+                         ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 343, in main
+    c = load_config(argv[2]); w = workdir(c); log = []
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 71, in load_config
+    refuse('bad_config', f'{k} must be an absolute path')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 45, in refuse
+    raise Refused(f'{code}: {why}')
+a2a4.Refused: bad_config: node must be an absolute path
+
+======================================================================
+ERROR: test_a3_refuses_a_short_unwind_and_surviving_headers (__main__.Steps.test_a3_refuses_a_short_unwind_and_surviving_headers)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/test/test_a2a4.py", line 103, in test_a3_refuses_a_short_unwind_and_surviving_headers
+    self.run_step('a2'); self.state['unwindStopsAt'] = N + 10; self.refused('a3', 'unwind_short')
+    ~~~~~~~~~~~~~^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/test/test_a2a4.py", line 46, in run_step
+    self.write(); code = A.main(['a2a4.py', step, str(self.d / 'cfg.json')])
+                         ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 343, in main
+    c = load_config(argv[2]); w = workdir(c); log = []
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 71, in load_config
+    refuse('bad_config', f'{k} must be an absolute path')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 45, in refuse
+    raise Refused(f'{code}: {why}')
+a2a4.Refused: bad_config: node must be an absolute path
+
+======================================================================
+ERROR: test_a3_requires_review_unwinds_in_chunks_to_exactly_n_and_lowers_labels (__main__.Steps.test_a3_requires_review_unwinds_in_chunks_to_exactly_n_and_lowers_labels)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/test/test_a2a4.py", line 96, in test_a3_requires_review_unwinds_in_chunks_to_exactly_n_and_lowers_labels
+    self.run_step('a2'); self.cfg['inPlaceReviewed'] = False; self.refused('a3', 'not_reviewed')
+    ~~~~~~~~~~~~~^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/test/test_a2a4.py", line 46, in run_step
+    self.write(); code = A.main(['a2a4.py', step, str(self.d / 'cfg.json')])
+                         ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 343, in main
+    c = load_config(argv[2]); w = workdir(c); log = []
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 71, in load_config
+    refuse('bad_config', f'{k} must be an absolute path')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 45, in refuse
+    raise Refused(f'{code}: {why}')
+a2a4.Refused: bad_config: node must be an absolute path
+
+======================================================================
+ERROR: test_a4_full_rebuild_matches_and_a_mismatch_refuses (__main__.Steps.test_a4_full_rebuild_matches_and_a_mismatch_refuses)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/test/test_a2a4.py", line 108, in test_a4_full_rebuild_matches_and_a_mismatch_refuses
+    self.run_step('a2'); self.run_step('a3'); rc, rec = self.run_step('a4'); self.assertEqual(rc, 0, rec)
+    ~~~~~~~~~~~~~^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/test/test_a2a4.py", line 46, in run_step
+    self.write(); code = A.main(['a2a4.py', step, str(self.d / 'cfg.json')])
+                         ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 343, in main
+    c = load_config(argv[2]); w = workdir(c); log = []
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 71, in load_config
+    refuse('bad_config', f'{k} must be an absolute path')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 45, in refuse
+    raise Refused(f'{code}: {why}')
+a2a4.Refused: bad_config: node must be an absolute path
+
+======================================================================
+ERROR: test_release_stays_blocked_on_the_open_bytecode_gap_and_needs_fresh_a1 (__main__.Steps.test_release_stays_blocked_on_the_open_bytecode_gap_and_needs_fresh_a1)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/test/test_a2a4.py", line 116, in test_release_stays_blocked_on_the_open_bytecode_gap_and_needs_fresh_a1
+    self.run_step('a2'); self.run_step('a3'); self.run_step('a4')
+    ~~~~~~~~~~~~~^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/test/test_a2a4.py", line 46, in run_step
+    self.write(); code = A.main(['a2a4.py', step, str(self.d / 'cfg.json')])
+                         ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 343, in main
+    c = load_config(argv[2]); w = workdir(c); log = []
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 71, in load_config
+    refuse('bad_config', f'{k} must be an absolute path')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 45, in refuse
+    raise Refused(f'{code}: {why}')
+a2a4.Refused: bad_config: node must be an absolute path
+
+======================================================================
+ERROR: test_steps_refuse_out_of_order (__main__.Steps.test_steps_refuse_out_of_order)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/test/test_a2a4.py", line 121, in test_steps_refuse_out_of_order
+    self.refused('a3', 'order'); self.refused('a4', 'order')
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/test/test_a2a4.py", line 50, in refused
+    rc, rec = self.run_step(step); self.assertEqual(rc, 1, rec); self.assertTrue(rec['refused'].startswith(code + ':'), rec['refused']); return rec
+              ~~~~~~~~~~~~~^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/test/test_a2a4.py", line 46, in run_step
+    self.write(); code = A.main(['a2a4.py', step, str(self.d / 'cfg.json')])
+                         ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 343, in main
+    c = load_config(argv[2]); w = workdir(c); log = []
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 71, in load_config
+    refuse('bad_config', f'{k} must be an absolute path')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/a2a4.py", line 45, in refuse
+    raise Refused(f'{code}: {why}')
+a2a4.Refused: bad_config: node must be an absolute path
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.011s
+
+FAILED (errors=9)
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 1

@@ -1,0 +1,43 @@
+{
+  "task": "wallet-owned-session-create-r1",
+  "status": "SOURCE_AUTHORED_UNVERIFIED",
+  "executed": { "tests": false, "build": false, "compile": false, "rpc": false, "signatures": false, "transactions": false, "deployment": false },
+  "sizingGate": { "eip170": "unmeasured", "eip3860": "unmeasured", "gas": "unmeasured" },
+  "added": [
+    "enclave/contracts/WalletSessionVault.sol",
+    "enclave/contracts/WalletSessionPolicy.sol",
+    "enclave/relay/wallet-session-policy.mjs",
+    "enclave/sdk/sessions/src/wallet.ts",
+    "enclave/contracts/foundry/test/WalletSessionVault.t.sol",
+    "enclave/test/wallet-session/consumers.test.mjs"
+  ],
+  "changed": [
+    "enclave/relay/sessions.mjs",
+    "enclave/relay/api-relay.js",
+    "enclave/relay/shield-secrets.mjs",
+    "enclave/windows/node/session-api-auth.mjs",
+    "enclave/windows/node/host.mjs",
+    "enclave/cli/enclave.mjs"
+  ],
+  "unchangedReadonly": [
+    "enclave/contracts/SessionVault.sol", "enclave/contracts/EnclaveDeployments.sol", "enclave/deploy/ledger/EnclaveDeployments.sol",
+    "enclave/contracts/EnclaveAppCatalog.sol", "enclave/relay/secrets.js", "enclave/relay/secrets-release.mjs",
+    "enclave/relay/fee-policy.mjs", "enclave/relay/funding-*.mjs", "enclave/sdk/sessions/dist/node.mjs", "all pre-existing tests"
+  ],
+  "newDependencies": [],
+  "completedPositivePaths": [
+    "grant(WalletSessionGrant, new domain, pinned ledger) -> SessionCall deploy.create -> empty ledger.create -> transferDeployment(same id, wallet) -> owner asserted -> bind -> fundFor(id, fund6, wallet)",
+    "scoped fund/setAppRef/setConfig/setShares/setMaxRate/setActive/refund on bound wallet-held records only",
+    "owner approveContent/setEnvironment/detach with revision binding",
+    "shared resolver wired into relay custody gate (secrets.js, secrets-release.mjs, shield-secrets.mjs), relay row rule, relay submission isVault, host verify/refusal"
+  ],
+  "remainingSeams": [
+    "sdk client.ts Session.call/open not wired to wallet.ts; relay /open builds legacy Grant only",
+    "CLI session record must carry version/owner (unverified)",
+    "host-side createSessionApiAuth construction (supervisor.js) must pass walletPolicy; node package must ship relay/wallet-session-policy.mjs",
+    "every consumer must carry WALLET_SESSIONS_PINS before any wallet-v1 vault is used (unpinned consumer answers 'inactive')",
+    "secrets-release.mjs post-attestation ordering needs root review",
+    "legacy vault with a wallet setDelegate can still act on new records on-chain (immutable legacy bytecode)",
+    "app.publish unsupported; onboarding UI, gas funding, migration, defaults, deployment out of scope"
+  ]
+}

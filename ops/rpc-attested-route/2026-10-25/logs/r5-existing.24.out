@@ -1,0 +1,19 @@
+$ node --test --test-timeout=300000 --test-concurrency=1 --test-reporter=spec test/windows-host-identity.test.mjs
+✔ relay mode (every installed host) resolves exactly what it always did (1.641878ms)
+✔ independent mode requires the operator's endpoint, pins and gateways, and defaults nothing to Enclave (1.30485ms)
+✔ the agreeing-RPC reader: two fresh RPCs agreeing at one confirmed block decide; one RPC never does (155.95365ms)
+✔ the Shield market is named off only when neither a relay nor operator-selected verifiers can open it (0.476946ms)
+✔ the relay-free name check reads the pinned registry: free, ours, or taken by another operator (3.734252ms)
+✔ ownership is prepared against the VERIFIED 0xF5E9… record only, and nothing is signed (49.863353ms)
+✔ ownership status says ready only once the owner accepted and the committed policy is on the host (1.742307ms)
+✔ keys.mjs makes and prints the keys offline, with no hard-coded host (582.361876ms)
+✔ the agent refuses to start independent without its pins, and never falls back to the relay identity (278.393345ms)
+✔ the agent in independent mode serves locally with no tunnel, and names what is off (423.528858ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1651.097025

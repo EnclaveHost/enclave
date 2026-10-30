@@ -1,0 +1,24 @@
+{
+  "cleanupComplete": true,
+  "exit": 0,
+  "failure": null,
+  "minHostAvailableBytes": 32943640576,
+  "noOom": true,
+  "originalInputsError": null,
+  "originalInputsUnchanged": true,
+  "peakScopeRssBytes": 482275328,
+  "peakWorkBytesObserved": 153985024,
+  "privateEvidence": "/vm/enclave-volumes/rpc-production-maint/guestd-adopt-check-20261030-r1",
+  "privateOutputSha256": {
+    "stderr": "05791cf2d6ec803bee6393053aec9fa520c11d5c104268a69f920cc66bdd7c40",
+    "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "productionProcessesUnchanged": true,
+  "published": false,
+  "restartPerformed": false,
+  "rootMustCollectSameScopeTerminal": true,
+  "rpcStarted": false,
+  "seconds": 21.522564774844795,
+  "status": "ADOPTION-PREFLIGHT-PASSED",
+  "toolsUnchanged": true
+}

@@ -1,0 +1,85 @@
+{
+  "status": "FAILED",
+  "phase": "inventory",
+  "error": {
+    "message": "debugfs: request contains unsafe characters",
+    "phase": "debugfs"
+  },
+  "mutationStarted": false,
+  "operationsCompleted": [],
+  "exporters": [
+    {
+      "drainerJoined": true,
+      "exit": 0,
+      "fault": null,
+      "fusermountRc": 0,
+      "mountPresent": false,
+      "normal": true,
+      "owned": [
+        [
+          2542193,
+          165786924
+        ]
+      ],
+      "pid": 2542191,
+      "result": "complete",
+      "signals": [],
+      "stderrBytes": 0,
+      "stderrHead": "",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "survivors": [],
+      "unmount": []
+    },
+    {
+      "drainerJoined": true,
+      "exit": 1,
+      "fault": null,
+      "mountPresent": false,
+      "owned": [
+        [
+          2542218,
+          165787063
+        ]
+      ],
+      "pid": 2542216,
+      "result": "complete",
+      "signals": [
+        [
+          15,
+          "group",
+          2542216
+        ],
+        [
+          15,
+          "pidfd",
+          2542218
+        ]
+      ],
+      "stderrBytes": 63,
+      "stderrHead": "/usr/bin/nbdfuse: fuse_loop: fuse loop terminated by signal 15\n",
+      "stderrSha256": "dec5d561342e287060817997b964d82caf2bc9969b232945b103344babf7da8a",
+      "survivors": [],
+      "unmount": []
+    }
+  ],
+  "sourceBefore": {
+    "ctimeNs": 1793030445722920013,
+    "device": 64769,
+    "inode": 147981797,
+    "mtimeNs": 1793030445722920013,
+    "path": "/vm/enclave-volumes/rpc-production/os.qcow2",
+    "sha256": "f7e4ebc11362393f9db8e72c5f957cfa543ea4583d6ce5a73d3c59198037ab57",
+    "size": 18581159936
+  },
+  "backupBefore": {
+    "ctimeNs": 1793341199383108546,
+    "device": 64769,
+    "inode": 148392253,
+    "mtimeNs": 1793341199383108546,
+    "path": "/vm/enclave-volumes/rpc-production-maint/os-backup-20261030T061922Z-1a31c4/os.qcow2",
+    "sha256": "f7e4ebc11362393f9db8e72c5f957cfa543ea4583d6ce5a73d3c59198037ab57",
+    "size": 18581159936
+  },
+  "receiptSha256": "64c91c1ad6565d671d8e16c0e2cc04a5877074a2baf212c0973015e163ffbb4d",
+  "claim": "Writer opened source/backup read-only. No claim of continuous exclusion of other actors; no final source hash on this refusal."
+}

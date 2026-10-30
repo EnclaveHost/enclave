@@ -1,0 +1,18 @@
+[queue] START available=22825MiB required=19200MiB cap=2560MiB floor=16384MiB concurrentSmall=0MiB
+[ok] offline (no IPv4 route)
+[ok] r3 stage == SHA256SUMS
+[ok] r2 inputs unchanged (frozen; pinned)
+[ok] base commit present
+[ok] base files == BASE-b6ac5d657.sha256
+[ok] candidate files == CANDIDATE.sha256
+[ok] base clone clean
+[ok] node_modules linked (package-lock identical)
+[ok] forge 1.7.1 (4072e487) pinned
+[ok] solc 0.8.35+commit.47b9dedd pinned
+[ok] anvil Version:, OpenSSL 3.6.5
+[ok] contract input closure identical in both trees (d8b3d3125991c5596b42fdc2561c26dd5d40cd1f7978260456a7ccdd92969b89; the candidate patch touches no contract)
+[FAIL] the two artifact builds differ (non-deterministic or different inputs)
+RESULT: SETUP-FAILURE (not a test verdict)
+[memory-guard] exit=20 peakTreeRssMiB=916 minHostAvailableMiB=22089
+[memory-guard] at peak: git:866 git:35 git-upload-pack:6 git:5 bash:4
+[queue] EXIT 20

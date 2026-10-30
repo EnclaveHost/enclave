@@ -1,0 +1,29 @@
+[queue] START available=24255MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "test_recovery_overlay": {
+  "rc": 0,
+  "ran20": true,
+  "lastOK": true,
+  "stdoutEmpty": true,
+  "clean": true,
+  "pass": true
+ },
+ "test_diagnostic": {
+  "rc": 0,
+  "ran13": true,
+  "lastOK": true,
+  "stdoutEmpty": true,
+  "clean": true,
+  "pass": true
+ },
+ "noMountsLeft": true,
+ "peersUnchanged": true,
+ "pass": true
+}
+tail: option used in invalid context -- 3
+## PASS (20 + 13)
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r8/runs/tests-20261026T213607Z-2379777
+## rov-r8-tests rc=0
+[memory-guard] exit=0 peakTreeRssMiB=168 minHostAvailableMiB=23883
+[memory-guard] at peak: fuse2fs:68 python3:51 python3:25 qemu-nbd:10 nbdfuse:8 bash:4 timeout:2
+[queue] EXIT 0

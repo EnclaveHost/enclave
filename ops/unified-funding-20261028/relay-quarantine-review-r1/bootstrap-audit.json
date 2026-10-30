@@ -1,0 +1,62 @@
+{
+  "schema": "relay-bootstrap-audit/1",
+  "status": "read-only-investigation-no-production-action",
+  "runningIdentity": {
+    "pid": 228946,
+    "apiSha256": "481f00410b87f30ee467183db7121175d37c010be5b2c23891a0a19e63b4579d",
+    "sessionsSha256": "457e86472adce2f1fdd2dfa82759578a56f7d72f0c5e5ee18e53999a26d0682d",
+    "viem": "2.54.3",
+    "storeSha256": "12157d8ccf8b1ec4ffd4d0af9b5b846650ec20aac748bcc51ad087e119922dcd"
+  },
+  "shutdown": {
+    "directRelayModules": "CORRECTED: store.js53-54 registers process.on(sig) for SIGTERM/SIGINT via a variable. Earlier literal-signal regex missed it. It synchronously flushes each registered JsonStore then exits0; each flush error is swallowed. No graceful queue-await/server.close protocol.",
+    "systemd": {
+      "ExecStop": "none",
+      "ExecStopPost": "none",
+      "KillSignal": 15,
+      "KillMode": "control-group",
+      "TimeoutStop": "3min",
+      "Restart": "always"
+    },
+    "consequence": "Successful signal checkpoint can persist in-memory sending/nohash records before process death; it does not drain queue or cancel RPC-held sends. Exit0 alone is not successful-flush evidence. atomicWriteJson uses writeFileSync+renameSync with no fsync.",
+    "existingRuntimeExtension": "None found: no drain/admin IPC endpoint, hot module reload or external queue-tail endpoint. sessionsService() exports an in-process object with queue.chain; a separate Node invocation imports its own module and cannot await the running process queue. No debugger activated.",
+    "loadedLinkage": "api-relay.js121 imports JsonStore from store.js;3088 passes it to initSessions; sessions.mjs1250-1251 creates index/journal with it.",
+    "metadataObserver": "Proposal only: bounded directory MOVED_TO observation plus poststop identity/readback/fsync helps establish checkpoint. Plain inotify gives no writer PID or handler context, and racing timer flush can look identical; do not treat one rename as proof. No observer installed or run."
+  },
+  "existingSessionRoutes": {
+    "POST /v1/sessions/quote": "Quote legacy actions0..8; no send.",
+    "POST /v1/sessions/execute": "Legacy vault execute actions0..8: create,fund app ledger,setAppRef,setConfig,setShares,setMaxRate,setActive,refund,publish. Not arbitrary transaction forwarding, ETH reserve funding, or successor migration.",
+    "POST /v1/sessions/open": "Calls configured factory openFor/openWithDepositFor. Positive grant budget requires owner USDC deposit authorization. Does not consume old live grant balance into another factory.",
+    "POST /v1/sessions/owner": "Exact allowlist: topUp,topUpWithAuthorization,extend,terminate,revokeAll,withdraw,promote,adopt,setEnvironment,release. No migration or successor funding operation.",
+    "POST /v1/sessions/end": "Session-signed terminateBySession; legacy contract source refunds owner. Ends original grant and requires a deliberate signature; not automatic authority to redirect it.",
+    "POST /v1/sessions/attest": "Key attestation only.",
+    "GET routes": "config,by-key,owner,session; read only.",
+    "directSuccessorFunding": "NONE in installed route allowlist. Do not assume a new sidecar can spend or migrate original $30. Refund-to-owner plus owner-authorized redeposit would be a separate workflow, and current open route targets its configured factory. No fresh funds or signatures inferred."
+  },
+  "retryBounds": {
+    "transport": "fallback(http(... retryCount2,retryDelay400)); HTTP nominal timeout10000ms; fallback default retryCount3/retryDelay150. Each configured inner HTTP retryCount2 overrides fallback retryCount0.",
+    "headerTimeoutOnly": "utils/rpc/http.js19-49 wraps fetch to Response in withTimeout. readResponseBody is awaited at53 after withTimeout finally clears timer; maxResponseBodySize bounds bytes, not duration. Slow/trickling response body has no whole-response timer here.",
+    "retryAfter": "utils/buildRequest.js131-139 accepts Retry-After integer seconds with no application cap. Finite retry count does not create a useful short elapsed-time bound; Node timer maximum/coercion is not a safe task deadline.",
+    "queue": "TxQueue receiptTimeoutMs25000,maxAttempts5 gives375000ms aggregate requested receipt-wait windows only. Gas estimation, fee discovery, nonce, broadcast, receipt lookups, transport delays/body waits, prior queued tasks and prequeue simulations are additional. No demonstrable finite elapsed upper bound per task or queue."
+  },
+  "actionableBootstrapOption": [
+    "If the coordinator elects a controlled interruption, explicitly replace pre-stop drain proof with a stop-and-reconcile procedure. Do not label it graceful drain or zero downtime.",
+    "Prepare the new code with a startup write fence: HTTP session mutations and background keeper/send admission remain disabled until an explicit root-owned reconciliation acknowledgment. Preserve signer identity, files, journals and old image; do not start a second writer with the same key.",
+    "Under fresh exact session write gate and independent maintenance handling, record baseline canonical block/nonces, journal hashes and known receipts. Stop the old service separately (not systemctl restart); confirm process and cgroup writers are gone. That establishes no further sends from the old process; in-memory unbroadcast jobs are abandoned, not falsely claimed drained.",
+    "Reconcile every sender nonce from baseline through post-stop canonical/pending views across providers. Inspect canonical blocks/receipts by sender and nonce, not only journal hashes. Journal may miss the last broadcast. A nonce without a known receipt remains ambiguous even when public pending equals latest.",
+    "Do not allow new business writes to reuse an unresolved nonce. For an ambiguous next nonce, the coordinator must either identify and confirm the old transaction or explicitly approve a bounded same-nonce neutral replacement/cancellation from that SAME existing relayer account, with gas authority and fee cap checked. This can consume real gas and cancel an old request; it is not authorized by this audit. A fresh signer is not needed for this option, but existing gas balance/authority must be verified.",
+    "If cancellation races inclusion, resolve which same-nonce transaction became canonical and reconcile its effects before proceeding. Do not replay the old business action. If outcome/fees cannot be resolved within the maintenance bound, retain the new process write fence and report manual recovery; reopening the gateway alone must not enable sends.",
+    "Start the new relay with writes fenced to restore fleet connectivity/read surfaces, if that startup mode has actually been implemented and tested. Release writes only after durable receipt/state reconciliation and a new queue admission/drain control are verified. Original session funds stay put unless a separately authorized confirmed transaction moves them."
+  ],
+  "nonDisruptionConstraint": "Strictly uninterrupted old-process fleet tunnels plus a new in-process barrier is unavailable through existing read-only interfaces. Additive sidecar needs independently funded/authorized gas and explicit original-fund migration; it is not a free solution.",
+  "productionActions": [],
+  "nodeReference": "https://nodejs.org/docs/latest-v22.x/api/process.html#signal-events",
+  "legitimateTerminationBarrier": {
+    "sourceProof": "Installed sessions.mjs829-835/857-858 owner terminate and871-873 session terminate both call simulateAndSend, which enqueues at543. Only one production queue is constructed408; attestorEnv1281-1291 supplies no injected alternate queue.",
+    "positiveConclusion": "A canonically confirmed successful actual migration termination at nonce N, with ended session and exact owner refund verified, is a real budget barrier and completed queue-prefix marker. It establishes canonical consumption through nonce N; no dummy send or new signer is needed to establish this prefix.",
+    "notFullDrain": "Previously admitted preflights may enqueue later: open, owner operations, attestation, execute, already-active keeper. Gateway gate prevents new requests, not previously disconnected work. SID termination does not revoke owner-operation or other grant signatures. Future keeper scans skip ended rows, but existing calls are not cancelled.",
+    "queueErrors": "Promise tail catches prior rejection, so barrier completion does not imply every prior operation succeeded. Canonical termination and lower-nonce receipt/state reconciliation still required.",
+    "bootstrap": "After legitimate signed termination and verified refund, maintain gate, stop old writer explicitly, and reconcile all postbarrier nonces>N before enabling new writes or grants. This reduces the unknown window while preserving funds; it is a controlled stop-and-reconcile, not graceful drain. Do not silently omit any unknown outcome.",
+    "authorization": "No new signature requested or transaction sent. Coordinator must present exact migration/refund/new grant terms and obtain required actual signatures; existing original30 not assumed independently spendable."
+  }
+}

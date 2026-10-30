@@ -1,0 +1,30 @@
+{
+ "bundleChanged": false,
+ "changed": {
+  "jobs/root-historical-capture-offline.sh": {
+   "from": "3e2950ef91c12f0a7151d613654a83039edd3a21c0810ffb9d63a7490015fd04",
+   "to": "8c3bd523dd6a06358cbd27ada1259d6cb9a2bb66c9f47dcb2bd56b3968617789"
+  }
+ },
+ "copiedVerbatim": {
+  "ACCEPTANCE-INTEGRATION.md": "2eb7acb3c428e441434d8ddfc8ca8f16ca50f5407f10299a5a85db00b3cecfb5",
+  "jobs/root-guest-capture-runner.sh": "7d09b18281957cdf86dfeba880bf32af363fbcba9baeda53e538a3eeeed76aa1",
+  "tests/test_capture_runners.py": "5ffd67d8cc4c42b6ff68652601c77e10a9f6a73511e03d20297b683e8e8bffc0",
+  "tools/freeze.sh": "4e0e51f072d5de199701f307b06b51439aeb3fe6ae97d7992ad12a6f54ceb895"
+ },
+ "failingRun": {
+  "failures": [
+   "scratch check: ls -A of two dirs prints headings (harness)",
+   "test_segments OPS/chain_service.py missing in TEST copy (harness)"
+  ],
+  "outputs": "historical-capture-deployment-stage/logs/run-20261026T124322Z-1731089",
+  "receipt": "logs/root-historical-capture-1305.out"
+ },
+ "format": "enclave-stage-provenance/v1",
+ "parent": {
+  "bundleId": "020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e",
+  "path": "historical-capture-deployment-stage",
+  "sha256sums": "7f3fb478445d57ca4d941d48c8a89b0011fc7ca9771f107b8e6f12144ad6b31b"
+ },
+ "stage": "historical-capture-deployment-stage/r2"
+}

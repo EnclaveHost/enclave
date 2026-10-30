@@ -1,0 +1,25 @@
+--- author/src/tools/generate-host-authority-permit-candidates.mjs
++++ root/src/tools/generate-host-authority-permit-candidates.mjs
+@@ -137,8 +137,11 @@
+     after: '      return { witness: this.account.address, signature };',
+     text: `      if (V2) {   // completion r2: FINAL asynchronous authority read; every guard is re-checked AFTER it, before the signature leaves
+         const fresh = await this.#sameHostAuthority(id, record, signal, this.journal.read(id).denial);
+-        validateServingPermitContext(record, { ...fresh, pins: this.pins, nowSec: Math.floor(this.now() / 1000),
++        const finalNow = Math.floor(this.now() / 1000);
++        const finalChecked = validateServingPermitContext(record, { ...fresh, pins: this.pins, nowSec: finalNow,
+           hostAuthorityFloor: this.hostAuthorityJournal.read(record.host)?.floor ?? null });
++        if (health.validUntil <= finalNow || health.validUntil < finalChecked.serveUntil)
++          throw Error('authenticated readiness does not cover the final authority window: no signature released');
+         signal.throwIfAborted();
+         const after = this.journal.read(id);
+         if (this.closed || after.fenced || after.denial || after.digest !== checked.digest)
+--- author/test/root-completion-protocol.test.mjs
++++ root/test/root-completion-protocol.test.mjs
+@@ -81,6 +81,7 @@
+   await assert.rejects(w.gate.install(old, priorOnline), /recorded Offline/, 'stale Online evidence cannot restore after authenticated Offline at same generation');
+   await assert.rejects(w.reopenGate().install(old, priorOnline), /recorded Offline/);
+   assert.equal(w.gate.hostAuthority.read(HOST).floor.offline.hostGeneration, '1');
++  assert.equal(await w.runtime.stop(ID), true, 'explicitly confirm manager absence and retire the old runtime before this TEST queued origin');
+   w.S.ctx = ctxOf({ generation: '2', qualificationDigest: H('c3') }); w.S.status = 'online'; w.S.block = H('e3');
+   await start(w);                                                                        // fresh queued handoff to the NEW qualified generation
+   assert.equal(w.S.allows.at(-1).hostAuthority, w.S.ctx.digest); assert.equal(w.gate.hostAuthority.read(HOST).floor.offline, null);

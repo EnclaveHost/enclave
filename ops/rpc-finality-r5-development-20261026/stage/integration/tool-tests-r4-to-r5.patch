@@ -1,0 +1,93 @@
+--- a/tests/test_finality_state.py
++++ b/tests/test_finality_state.py
+@@ -1,18 +1,20 @@
+ #!/usr/bin/env python3
+-"""finality_state.py adversarial tests, r4 port of r2's 27 (PREPARED; NOT run by Claude: r4/jobs/root-finality-r4-tests.sh, exact 28).
++"""finality_state.py adversarial tests, r5 (PREPARED; NOT run by Claude: r5/jobs/root-finality-r5-tests.sh, exact 30).
+ Real files in a private temp tree (OWNER = this uid), a fake /proc tree, a fake wrapper (lock + journal + shared-ledger name), a
+ STAND-IN for the harness capture path (FakeR: per-capture summaries + the replay rule; the REAL harness, capture module and
+ shared ledger run in test_finality_integration.py), and - for the e2e cases - the REAL pinned JS core over a loopback JSON-RPC
+ stub serving a synthetic chain built with the reviewed vendor hashing (tests/helpers/chain.mjs). r2's five run.py-provenance
+ tests are replaced: that path is removed (fresh A1 = harness gate_a1 over captures)."""
+-import datetime, fcntl, hashlib, http.server, json, os, pathlib, shutil, subprocess, sys, tempfile, threading, unittest
++import datetime, fcntl, hashlib, http.server, json, os, pathlib, shutil, subprocess, sys, tempfile, threading, types, unittest
+ 
+ HERE = pathlib.Path(__file__).resolve().parent
+ sys.path.insert(0, str(HERE.parent / 'src'))
+ import finality_state as FS                                                        # noqa: E402
++sys.path.insert(0, str(HERE.parent / 'readiness'))
++import readiness_sampler as RS                                                     # noqa: E402  (the r5 readiness gate)
+ 
+ NODE, DEPS = os.environ['FINALITY_NODE'], os.environ['ANCHOR_DEPS_ROOT']
+-HARNESS = pathlib.Path(os.environ['FINALITY_HARNESS'])                            # recovery r7 harness/a2a4.py (pinned bytes)
++HARNESS = pathlib.Path(os.environ['FINALITY_HARNESS'])                            # r5 harness/a2a4.py (pinned bytes)
+ FS.OWNER = os.getuid()
+ sha = lambda b: hashlib.sha256(b).hexdigest()
+ N, NP, L1 = 1000, 1137, 26_271_848
+@@ -64,7 +66,7 @@
+ 
+     def __init__(self, t):
+         self.__file__, self.A1_GATE_PINS, self.t = str(HARNESS), dict(FS.A1_GATE_PINS), t
+-        self.caps, self.admitted, self.calls, self.fail = {}, set(), [], None
++        self.caps, self.admitted, self.calls, self.fail, self.A1_ADMISSION_LEDGER = {}, set(), [], None, None
+ 
+     def ledger_records(self, p):
+         return [], set(), b''
+@@ -81,10 +83,10 @@
+     def a1_node_gate(self, c, inp):
+         return dict(self.caps[c['reanchor']['a1Capture']['recheckOut']])
+ 
+-    def gate_a1(self, c, at_a2=False):
++    def gate_a1(self, c, at_a2=False, admit=True):
+         s = self.caps[c['reanchor']['a1Capture']['recheckOut']]; bound, sr, _i, _r = self.capture_binding(c)
+         assert at_a2 and (str(c['N']), c['outputRoot'], c['game']) == (s['N'], s['outputRoot'], s['game'])
+-        durable = c['reanchor']['admissionLedger'] == str(self.t.W.A1_ADMISSION_LEDGER); keys = {bound['captureSha256'], sr['captureSha256']}
++        durable = admit and c['reanchor']['admissionLedger'] == str(self.t.W.A1_ADMISSION_LEDGER); keys = {bound['captureSha256'], sr['captureSha256']}
+         if keys & self.admitted:
+             raise self.Refused('a1_replayed: a capture was already admitted')
+         if durable:
+@@ -124,7 +126,7 @@
+         os.close(os.open(self.d / 'journal.lock', os.O_CREAT | os.O_RDWR, 0o600))
+         self.write_launch()
+         self.fdir = t / 'finality'; self.fdir.mkdir(); self.work = t / 'work'; self.work.mkdir()
+-        self.W = FakeW(); self.stub = None; (t / 'etc').mkdir(); self.W.A1_ADMISSION_LEDGER = t / 'etc/ledger.jsonl'; self.R = FakeR(self)
++        self.W = FakeW(); self.stub = None; (t / 'etc').mkdir(); self.W.A1_ADMISSION_LEDGER = t / 'etc/ledger.jsonl'; self.R = FakeR(self); self.R.A1_ADMISSION_LEDGER = self.W.A1_ADMISSION_LEDGER
+         self.a1 = self.make_a1('a1')
+         self.make_proc(port=1, start='111')
+ 
+@@ -371,6 +373,35 @@
+         o = FS.run_core; FS.run_core = rearmed; self.addCleanup(setattr, FS, 'run_core', o)
+         self.refused('rolled_back', self.q, write=True); self.assertEqual(os.listdir(self.fdir), [])
+ 
++    def test_status_survives_only_the_bootstrapped_event_naming_this_entry(self):
++        self.fake_core(); FS.FINALITY_PROTOTYPE_REVIEWED = True
++        e = self.q(write=True)['entrySha256']; base = list(self.W.events)
++        st = lambda: FS.status(self.d, self.t / 'chain.json', self.fdir, 'http://127.0.0.1:1/', W=self.W, top=self.t, proc=self.proc)
++        boot = lambda ref: ('c' * 64, {'event': 'bootstrapped', 'seq': 3, 'evidence': {'finalityEntrySha256': ref}})
++        self.W.events = base + [boot(e)]
++        s = st(); self.assertEqual((s['state'], s['recordedAs'], s['process']['startTime'], s['freshN']), ('qualified', 'c' * 64, '111', NP))
++        self.W.events = base + [boot('0' * 64)]; self.assertEqual(st()['state'], 'stale-launch-changed')          # names another entry
++        self.W.events = base + [boot(e), ('d' * 64, {'event': 'restarted', 'seq': 4})]; self.assertEqual(st()['state'], 'stale-launch-changed')
++        self.W.events = [base[0], ('z' * 64, {'event': 'consumed', 'seq': 2}), boot(e)]; self.assertEqual(st()['state'], 'stale-launch-changed')
++        self.W.events = base + [boot(e)]; self.make_proc(port=1, start='999'); self.assertEqual(st()['state'], 'stale-after-restart')
++
++    def test_published_status_is_what_the_readiness_gate_requires(self):
++        self.fake_core(); FS.FINALITY_PROTOTYPE_REVIEWED = True
++        self.q(write=True); (self.t / 'run').mkdir(); out = self.t / 'run/base-finality-status.json'
++        st = lambda: FS.status(self.d, self.t / 'chain.json', self.fdir, 'http://127.0.0.1:1/', W=self.W, top=self.t, proc=self.proc)
++        a = types.SimpleNamespace(finality_status=None, finality_status_uid=os.getuid(), proc_root=self.proc)
++        def code(exc):
++            with self.assertRaises(exc) as cm:
++                RS.validate_finality_status(a)
++            return cm.exception.code
++        self.assertEqual(code(RS.Unavailable), 'finality-status-absent')
++        FS.publish_status(st(), out, top=self.t); a.finality_status = str(out)
++        self.assertEqual(RS.validate_finality_status(a)['freshN'], NP)
++        self.make_proc(port=1, start='999')                                          # the node restarted: the old file names a gone process
++        self.assertEqual(code(RS.Unavailable), 'finality-stale-after-restart')
++        FS.publish_status(st(), out, top=self.t); self.assertEqual(code(RS.Unavailable), 'finality-not-current')
++        os.chmod(out, 0o666); self.assertEqual(code(RS.Negative), 'finality-status-untrusted')
++
+     def test_wrong_chain_id_from_the_bound_node_refuses(self):
+         self.refused('wrong_chain', self.q, url=self.serve(chain_id='0x1'))
+         self.assertEqual(os.listdir(self.fdir), [])

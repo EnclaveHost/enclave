@@ -1,0 +1,88 @@
+TAP version 13
+# Subtest: schedule reader: the default finalized mode is unchanged; the explicit provisional mode pins finalized <= anchor <= attested
+ok 1 - schedule reader: the default finalized mode is unchanged; the explicit provisional mode pins finalized <= anchor <= attested
+  ---
+  duration_ms: 10.470838
+  type: 'test'
+  ...
+# Subtest: disabled by default: no policy, no provisional calls; the policy is exact, bounded, v3-only and only then part of the signed binding
+ok 2 - disabled by default: no policy, no provisional calls; the policy is exact, bounded, v3-only and only then part of the signed binding
+  ---
+  duration_ms: 374.446268
+  type: 'test'
+  ...
+# Subtest: provisional track: S natively derived at the owned attested L1 head beyond the served B_f; RAM-only overlay logs; persisted state untouched
+ok 3 - provisional track: S natively derived at the owned attested L1 head beyond the served B_f; RAM-only overlay logs; persisted state untouched
+  ---
+  duration_ms: 467.206899
+  type: 'test'
+  ...
+# Subtest: S is never persisted: both journals and the coverage stage refuse the attested tier; a restart has no provisional state
+ok 4 - S is never persisted: both journals and the coverage stage refuse the attested tier; a restart has no provisional state
+  ---
+  duration_ms: 438.305392
+  type: 'test'
+  ...
+# Subtest: L1 canonicality is rechecked on every use: a changed attested L1 block discards S; an attested head regression refuses and discards
+ok 5 - L1 canonicality is rechecked on every use: a changed attested L1 block discards S; an attested head regression refuses and discards
+  ---
+  duration_ms: 426.362724
+  type: 'test'
+  ...
+# Subtest: attested L1 bounds (age <= 60 s, not future, mainnet) and the S age: S older than 120 s is never served
+ok 6 - attested L1 bounds (age <= 60 s, not future, mainnet) and the S age: S older than 120 s is never served
+  ---
+  duration_ms: 448.264447
+  type: 'test'
+  ...
+# Subtest: finalized progress supersedes S: identical blocks drop silently; an exact-boundary suffix survives and stays readable
+ok 7 - finalized progress supersedes S: identical blocks drop silently; an exact-boundary suffix survives and stays readable
+  ---
+  duration_ms: 556.916188
+  type: 'test'
+  ...
+# Subtest: a finalized result contradicting S fences the provisional track and keeps the evidence; the finalized track keeps serving
+ok 8 - a finalized result contradicting S fences the provisional track and keeps the evidence; the finalized track keeps serving
+  ---
+  duration_ms: 420.440438
+  type: 'test'
+  ...
+# Subtest: tier provenance and the read-only overlay: only an owned attested head binds the attested tier; the store serves only an exact overlay
+ok 9 - tier provenance and the read-only overlay: only an owned attested head binds the attested tier; the store serves only an exact overlay
+  ---
+  duration_ms: 365.268894
+  type: 'test'
+  ...
+# Subtest: bridge twoAnchor: claim read pinned at B_f and state at S, both verifier-matched; only B_f is journaled; S <= 120 s and extends B_f
+ok 10 - bridge twoAnchor: claim read pinned at B_f and state at S, both verifier-matched; only B_f is journaled; S <= 120 s and extends B_f
+  ---
+  duration_ms: 4.119888
+  type: 'test'
+  ...
+# Subtest: end to end (fixtures): the provider B_f and S through the bridge twoAnchor, complete logs through S in one callback; a reorg refuses
+ok 11 - end to end (fixtures): the provider B_f and S through the bridge twoAnchor, complete logs through S in one callback; a reorg refuses
+  ---
+  duration_ms: 425.716591
+  type: 'test'
+  ...
+# Subtest: lifecycle wiring: stateSnapshot (and fact evidence) only for the ENROLLED, role-committed config carrying the policy; never a self-initialized one
+ok 12 - lifecycle wiring: stateSnapshot (and fact evidence) only for the ENROLLED, role-committed config carrying the policy; never a self-initialized one
+  ---
+  duration_ms: 636.994028
+  type: 'test'
+  ...
+# Subtest: loopback orchestration: /provisional/prepare and /provisional/witness reach only the provisional track; no provisional anchor route
+ok 13 - loopback orchestration: /provisional/prepare and /provisional/witness reach only the provisional track; no provisional anchor route
+  ---
+  duration_ms: 13.985563
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4801.030487

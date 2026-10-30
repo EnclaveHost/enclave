@@ -1,0 +1,46 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] START available=23193MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+## tree pre: 8483 tracked (9 symlinks) verified by content/target; overlaid 5, added 4, links 1, generated 0; execBitMismatch 0; failures 0
+## tree pre: 8483 tracked (9 symlinks) verified by content/target; overlaid 0, added 0, links 1, generated 0; execBitMismatch 0; failures 0
+## node v22.23.3
+## [1] new suite (patched)
+PASS	patched	test/browser-read-authority.test.mjs	rc=0	pass=12	fail=0	skipped=0	todo=0	cancelled=0
+## [2] regression, pristine baseline (tree-base)
+PASS	baseline	test/config-dev-overrides.test.mjs	rc=0	pass=5	fail=0	skipped=0	todo=0	cancelled=0
+PASS	baseline	test/site-built-in-profile.test.mjs	rc=0	pass=4	fail=0	skipped=0	todo=0	cancelled=0
+PASS	baseline	test/site-independent-bundle.test.mjs	rc=0	pass=2	fail=0	skipped=0	todo=0	cancelled=0
+PASS	baseline	test/site-independent-profile.test.mjs	rc=0	pass=7	fail=0	skipped=0	todo=0	cancelled=0
+PASS	baseline	test/site-independent-identity.test.mjs	rc=0	pass=8	fail=0	skipped=0	todo=0	cancelled=0
+FAIL	baseline	test/site-independent-management-unit.test.mjs	rc=1	pass=27	fail=1	skipped=0	todo=0	cancelled=0
+PASS	baseline	test/admin-console.test.mjs	rc=0	pass=43	fail=0	skipped=0	todo=0	cancelled=0
+PASS	baseline	test/admin-metrics.test.mjs	rc=0	pass=15	fail=0	skipped=0	todo=0	cancelled=0
+PASS	baseline	test/api-base-binding.test.mjs	rc=0	pass=11	fail=0	skipped=0	todo=0	cancelled=0
+PASS	baseline	test/catalog-version.test.mjs	rc=0	pass=1	fail=0	skipped=0	todo=0	cancelled=0
+PASS	baseline	test/featured.test.mjs	rc=0	pass=4	fail=0	skipped=0	todo=0	cancelled=0
+PASS	baseline	test/pay.test.mjs	rc=0	pass=3	fail=0	skipped=0	todo=0	cancelled=0
+PASS	baseline	test/reviews.test.mjs	rc=0	pass=10	fail=0	skipped=0	todo=0	cancelled=0
+PASS	baseline	test/publish-cid-verify.test.mjs	rc=0	pass=7	fail=0	skipped=0	todo=0	cancelled=0
+## [3] regression, patched (tree)
+PASS	patched	test/config-dev-overrides.test.mjs	rc=0	pass=5	fail=0	skipped=0	todo=0	cancelled=0
+PASS	patched	test/site-built-in-profile.test.mjs	rc=0	pass=4	fail=0	skipped=0	todo=0	cancelled=0
+PASS	patched	test/site-independent-bundle.test.mjs	rc=0	pass=2	fail=0	skipped=0	todo=0	cancelled=0
+PASS	patched	test/site-independent-profile.test.mjs	rc=0	pass=7	fail=0	skipped=0	todo=0	cancelled=0
+PASS	patched	test/site-independent-identity.test.mjs	rc=0	pass=8	fail=0	skipped=0	todo=0	cancelled=0
+FAIL	patched	test/site-independent-management-unit.test.mjs	rc=1	pass=27	fail=1	skipped=0	todo=0	cancelled=0
+PASS	patched	test/admin-console.test.mjs	rc=0	pass=43	fail=0	skipped=0	todo=0	cancelled=0
+PASS	patched	test/admin-metrics.test.mjs	rc=0	pass=15	fail=0	skipped=0	todo=0	cancelled=0
+PASS	patched	test/api-base-binding.test.mjs	rc=0	pass=11	fail=0	skipped=0	todo=0	cancelled=0
+PASS	patched	test/catalog-version.test.mjs	rc=0	pass=1	fail=0	skipped=0	todo=0	cancelled=0
+PASS	patched	test/featured.test.mjs	rc=0	pass=4	fail=0	skipped=0	todo=0	cancelled=0
+PASS	patched	test/pay.test.mjs	rc=0	pass=3	fail=0	skipped=0	todo=0	cancelled=0
+PASS	patched	test/reviews.test.mjs	rc=0	pass=10	fail=0	skipped=0	todo=0	cancelled=0
+PASS	patched	test/publish-cid-verify.test.mjs	rc=0	pass=7	fail=0	skipped=0	todo=0	cancelled=0
+INCOMPLETE	both	test/site-independent-live-reads.test.mjs	not run: needs ENCLAVE_LIVE_READS=1 + public Base RPC (reads deployed contracts); no offline fixture exists
+## tree post: 8483 tracked (9 symlinks) verified by content/target; overlaid 5, added 4, links 1, generated 0; execBitMismatch 0; failures 0
+## tree post: 8483 tracked (9 symlinks) verified by content/target; overlaid 0, added 0, links 1, generated 0; execBitMismatch 0; failures 0
+## logs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/browser-authority-stage/r2/logs/root-browser-tests-r2-20261026T001351Z
+## aggregate rc=1 (offline suites; INCOMPLETE: 1 live-only suite, not counted as a pass)
+[memory-guard] exit=1 peakTreeRssMiB=259 minHostAvailableMiB=22363
+[memory-guard] at peak: python3:144 git:111 bash:4
+[queue] EXIT 1

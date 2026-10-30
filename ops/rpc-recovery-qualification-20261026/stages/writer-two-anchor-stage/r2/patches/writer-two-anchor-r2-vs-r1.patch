@@ -1,0 +1,1431 @@
+diff --git a/network/deployment-lifecycle-journal.mjs b/network/deployment-lifecycle-journal.mjs
+index 0f2fd89..daab232 100644
+--- a/network/deployment-lifecycle-journal.mjs
++++ b/network/deployment-lifecycle-journal.mjs
+@@ -19,6 +19,7 @@ function validate(j) {
+   for (const [chain, anchor] of Object.entries(j.authorityAnchors)) {
+     if (!/^[1-9][0-9]{0,14}$/.test(chain) || !validAnchor(anchor)) throw Error('invalid durable authority anchor');
+   }
++  if (j.provisional !== undefined && !validProvisional(j.provisional)) throw Error('invalid provisional evidence');
+   const seen = new Set();
+   for (const row of j.deployments) {
+     if (!row || !ID.test(row.id) || seen.has(row.id)) throw new Error('invalid or duplicate deployment');
+@@ -51,6 +52,50 @@ function validAnchor(a) {
+   return a?.tier === 'l1-finalized-derived' && [a.base, a.l1].every(b => b && int(b.number) && int(b.timestamp) && ID.test(b.hash)) &&
+     ID.test(a.base.stateRoot) && ID.test(a.base.outputRoot);
+ }
++// PROVISIONAL EVIDENCE (writer-two-anchor r2), an optional top-level section of the
++// role-committed anchor journal; absent by default (the bytes are then unchanged).
++// It is audit and a disable marker, NEVER a floor: no floor, enrollment or anchor
++// rule reads it. `states`: each S (number, hash, attested L1) that issued two-anchor
++// writer facts and that finalized derivation has not confirmed yet, with the DISTINCT
++// facts issued from it (the same fact from the same S again is not a new entry and
++// writes nothing). `fence`: set on a contradiction (or an S that can no longer be
++// verified); it disables the provisional tier and survives restarts. An admin-signed
++// enrollment rotation rewrites this journal without it: the only clear.
++// Capacity is fail-closed: past any bound no fact is issued until finality confirms.
++// The byte bound keeps the journal below KVM's 256 KiB enrollment limit, so the
++// clearing rotation itself stays possible.
++export const MAX_PROVISIONAL_STATES = 128, MAX_PROVISIONAL_FACTS = 512, MAX_EVIDENCE_JOURNAL_BYTES = 196608;
++const FENCE_REASONS = ['contradiction', 'unverifiable'];
++const blockRef = b => !!b && Object.keys(b).length === 2 && int(b.number) && ID.test(b.hash);
++const sameKeys = (o, keys) => !!o && typeof o === 'object' && !Array.isArray(o) && Object.keys(o).length === keys.length && keys.every(k => Object.hasOwn(o, k));
++const factKey = f => `${f.ledger}:${f.deployment}:${f.claimBlock}:${f.claimLogIndex}`;
++const stateKey = s => `${s.number}:${s.hash}:${s.l1.hash}`;
++function validStateRef(s) {
++  return sameKeys(s, ['number', 'hash', 'l1']) && int(s.number) && ID.test(s.hash) && blockRef(s.l1);
++}
++function validIssued(f, s) {   // one issued fact under its S
++  return sameKeys(f, ['at', 'fact', 'finalized']) && int(f.at) && sameKeys(f.fact, ['ledger', 'deployment', 'claimBlock', 'claimLogIndex']) &&
++    /^0x[0-9a-f]{40}$/.test(f.fact.ledger) && ID.test(f.fact.deployment) && int(f.fact.claimBlock) && int(f.fact.claimLogIndex) &&
++    blockRef(f.finalized) && f.fact.claimBlock <= f.finalized.number && f.finalized.number < s.number;
++}
++function validStates(states) {
++  if (!Array.isArray(states) || states.length > MAX_PROVISIONAL_STATES) return false;
++  const seen = new Set(); let facts = 0;
++  for (const e of states) {
++    if (!sameKeys(e, ['state', 'facts']) || !validStateRef(e.state) || seen.has(stateKey(e.state)) || !Array.isArray(e.facts) || !e.facts.length) return false;
++    seen.add(stateKey(e.state)); facts += e.facts.length;
++    const keys = new Set(e.facts.map(f => f?.fact && factKey(f.fact)));
++    if (keys.size !== e.facts.length || !e.facts.every(f => validIssued(f, e.state))) return false;
++  }
++  return facts <= MAX_PROVISIONAL_FACTS;
++}
++function validFence(f) {
++  return sameKeys(f, ['reason', 'at', 'block', 'provisionalHash', 'finalizedHash', 'states']) && FENCE_REASONS.includes(f.reason) && int(f.at) && int(f.block) &&
++    ID.test(f.provisionalHash) && (f.finalizedHash === null || ID.test(f.finalizedHash)) && validStates(f.states);
++}
++function validProvisional(p) {
++  return sameKeys(p, ['fence', 'states']) && (p.fence === null || validFence(p.fence)) && validStates(p.states) && (p.fence === null || !p.states.length);
++}
+ const fresh = id => ({ id, restart: initialRestartState(), generation: 0, revision: 0,
+   sequence: 0, digest: null, bindingDigest: null, successorVote: null, denial: null,
+   attemptSequence: 0, runtime: null, minedTransitions: [], fenced: false, pending: null });
+@@ -67,6 +112,23 @@ export function openLifecycleJournal(file, { fsImpl = fs, platform = process.pla
+   const check = () => { if (closed) throw Error('lifecycle journal closed'); if (failed) throw new Error(failed); if (pending) throw Error('lifecycle journal commit pending'); };
+   const idOf = id => { if (!ID.test(id)) throw new Error('invalid deployment id'); return id; };
+   function read(id) { check(); return structuredClone(state.deployments.find(x => x.id === idOf(id)) || fresh(id)); }
++  // Exact bytes written locally, then committed (when configured) before they become state.
++  async function commitState(next, signal, what) {
++    const bytes = JSON.stringify(next);
++    if (next.provisional !== undefined && Buffer.byteLength(bytes) > MAX_EVIDENCE_JOURNAL_BYTES)
++      throw Error('provisional evidence would exceed the anchor journal byte bound');
++    pending = true; commitController = new AbortController();
++    const combined = signal ? AbortSignal.any([signal, commitController.signal]) : commitController.signal;
++    let finish; pendingDone = new Promise(resolve => { finish = resolve; });
++    try {
++      strictWriteFile(file, bytes, { fsImpl, platform });
++      await commitJournalBytes(commit, { file, bytes, signal: combined }, commitTimeoutMs);
++      combined.throwIfAborted();
++      if (closed) throw Error('lifecycle journal closed');
++      state = next;
++    } catch (e) { failed = `${what}: ${e.message}`; throw e; }
++    finally { pending = false; commitController = null; finish(); pendingDone = null; }
++  }
+   function update(id, change) {
+     check();
+     if (requireCommit) throw Error('replicated anchor journal cannot mutate lifecycle rows');
+@@ -92,17 +154,62 @@ export function openLifecycleJournal(file, { fsImpl = fs, platform = process.pla
+           (anchor.base.stateRoot !== old.base.stateRoot || anchor.base.outputRoot !== old.base.outputRoot || anchor.base.timestamp !== old.base.timestamp))
+         throw Error('durable authority anchor contradiction');
+       const next = structuredClone(state); next.authorityAnchors[String(chainId)] = structuredClone(anchor); validate(next);
+-      const bytes = JSON.stringify(next); pending = true; commitController = new AbortController();
+-      const combined = signal ? AbortSignal.any([signal, commitController.signal]) : commitController.signal;
+-      let finish; pendingDone = new Promise(resolve => { finish = resolve; });
+-      try {
+-        strictWriteFile(file, bytes, { fsImpl, platform });
+-        await commitJournalBytes(commit, { file, bytes, signal: combined }, commitTimeoutMs);
+-        combined.throwIfAborted();
+-        if (closed) throw Error('lifecycle journal closed');
+-        state = next;
+-      } catch (e) { failed = `lifecycle anchor commit failed: ${e.message}`; throw e; }
+-      finally { pending = false; commitController = null; finish(); pendingDone = null; }
++      await commitState(next, signal, 'lifecycle anchor commit failed');
++    },
++    // ---- provisional evidence (see MAX_PROVISIONAL_STATES); same exact-bytes commit path ----
++    readProvisional() { check(); return structuredClone(state.provisional ?? { fence: null, states: [] }); },
++    // BEFORE a two-anchor fact is returned: refused while a marker exists or past a bound.
++    // entry { at, fact, finalized, state }. -> 'recorded' | 'duplicate' (same fact, same S: no write)
++    async recordProvisionalFact(entry, { signal } = {}) {
++      check(); signal?.throwIfAborted();
++      const p = state.provisional ?? { fence: null, states: [] };
++      if (p.fence) throw Error(`provisional track disabled by a durable marker (${p.fence.reason})`);
++      if (!sameKeys(entry, ['at', 'fact', 'finalized', 'state']) || !validStateRef(entry.state)) throw Error('invalid provisional fact evidence');
++      const issued = structuredClone({ at: entry.at, fact: entry.fact, finalized: entry.finalized }), s = structuredClone(entry.state);
++      if (!validIssued(issued, s)) throw Error('invalid provisional fact evidence');
++      const at = p.states.findIndex(e => stateKey(e.state) === stateKey(s));
++      if (at >= 0 && p.states[at].facts.some(f => factKey(f.fact) === factKey(issued.fact))) return 'duplicate';
++      const states = structuredClone(p.states);
++      if (at >= 0) states[at].facts.push(issued); else states.push({ state: s, facts: [issued] });
++      if (!validStates(states)) throw Error('provisional evidence is full until finalized derivation confirms it');
++      const next = structuredClone(state); next.provisional = { fence: null, states };
++      await commitState(validate(next), signal, 'provisional evidence commit failed');
++      return 'recorded';
++    },
++    // a contradiction seen in RAM: the first marker is kept; every unconfirmed S moves into it
++    async recordProvisionalFence({ reason, block, provisionalHash, finalizedHash = null, at }, { signal } = {}) {
++      check(); signal?.throwIfAborted();
++      const p = state.provisional ?? { fence: null, states: [] };
++      if (p.fence) return false;
++      const fence = { reason, at, block, provisionalHash, finalizedHash, states: p.states };
++      if (!validFence(fence)) throw Error('invalid provisional disable marker');
++      const next = structuredClone(state); next.provisional = { fence, states: [] };
++      await commitState(validate(next), signal, 'provisional marker commit failed');
++      return true;
++    },
++    // every finalized result: each recorded S it covers is confirmed (pruned with its facts)
++    // or contradicted (marker); an S that finalized coverage passed without covering is
++    // 'unverifiable' (marker). Never time-based.
++    async reconcileProvisional({ fromBlock, blocks, at }, { signal } = {}) {
++      check(); signal?.throwIfAborted();
++      const p = state.provisional;
++      if (!p || p.fence || !p.states.length) return null;
++      if (!int(fromBlock) || !Array.isArray(blocks) || !blocks.length || blocks.some((b, i) => !blockRef(b) || b.number !== fromBlock + i))
++        throw Error('invalid finalized coverage for reconciliation');
++      const toBlock = fromBlock + blocks.length - 1, keep = [];
++      let fence = null;
++      for (const e of p.states) {
++        const s = e.state;
++        if (s.number > toBlock) { keep.push(e); continue; }
++        if (s.number < fromBlock) { fence ??= { reason: 'unverifiable', block: s.number, provisionalHash: s.hash, finalizedHash: null }; continue; }
++        const finalizedHash = blocks[s.number - fromBlock].hash;
++        if (finalizedHash !== s.hash) fence ??= { reason: 'contradiction', block: s.number, provisionalHash: s.hash, finalizedHash };
++      }
++      if (!fence && keep.length === p.states.length) return null;
++      const next = structuredClone(state);
++      next.provisional = fence ? { fence: { ...fence, at, states: p.states }, states: [] } : { fence: null, states: keep };
++      await commitState(validate(next), signal, 'provisional evidence commit failed');
++      return fence ? 'fenced' : 'confirmed';
+     },
+     failure(id, args) { return update(id, row => ({ ...row, restart: restartFailure(row.restart, args) })); },
+     healthy(id, args) { return update(id, row => ({ ...row, restart: restartHealthy(row.restart, args) })); },
+diff --git a/network/derived-reader/coverage-store.mjs b/network/derived-reader/coverage-store.mjs
+index f560420..7f912a9 100644
+--- a/network/derived-reader/coverage-store.mjs
++++ b/network/derived-reader/coverage-store.mjs
+@@ -8,7 +8,7 @@ import { setImmediate as yieldIO } from 'node:timers/promises';
+ import { strictWriteFile } from '../lease-release-journal.mjs';
+ import { takeRuntimeLock } from '../runtime-lock.mjs';
+ import { validateAnchor } from './journal.mjs';
+-import { assertCheckedCoverage, validateLogQuery, COVERAGE_FORMAT, FILTER_ID, MAX_COVERAGE_BYTES } from './coverage.mjs';
++import { assertCheckedCoverage, checkedCoverageLink, validateLogQuery, COVERAGE_FORMAT, FILTER_ID, MAX_COVERAGE_BYTES } from './coverage.mjs';
+ 
+ export const MAX_HISTORY_BYTES = 4 * 1024 ** 3;
+ export const MAX_OVERLAY_SEGMENTS = 64;
+@@ -38,14 +38,17 @@ function checkedFloor(old, anchor) {
+ // The provider's RAM-only provisional coverage (B_f, S] for an ATTESTED anchor S:
+ // this process's validated native segments, contiguous from exactly after the last
+ // persisted segment and ending at S. Read-only: never written, staged or verified.
++// Linked by HASH, not only by number: each segment's native-bound agreed output root
++// is the previous segment's last output root (the persisted tail's anchor first).
+ function checkedOverlay(overlay, last, anchor) {
+   if (anchor.tier !== 'l1-attested-derived' || !last || !Array.isArray(overlay) || !overlay.length || overlay.length > MAX_OVERLAY_SEGMENTS)
+     throw Error('provisional coverage needs persisted coverage and an attested anchor');
+-  let next = last.toBlock + 1;
++  let next = last.toBlock + 1, root = last.anchor.base.outputRoot;
+   for (const c of overlay) {
+-    assertCheckedCoverage(c);
++    const link = checkedCoverageLink(c);
+     if (c.fromBlock !== next) throw Error('provisional coverage gap or overlap');
+-    next = c.toBlock + 1;
++    if (link !== root) throw Error('provisional coverage does not link to its predecessor output root');
++    next = c.toBlock + 1; root = c.blocks.at(-1).outputRoot;
+   }
+   const tail = overlay.at(-1).blocks.at(-1);
+   if (tail.number !== anchor.base.number || tail.hash !== anchor.base.hash) throw Error('provisional coverage does not end at the attested anchor');
+diff --git a/network/derived-reader/coverage.mjs b/network/derived-reader/coverage.mjs
+index 434366e..4ed5367 100644
+--- a/network/derived-reader/coverage.mjs
++++ b/network/derived-reader/coverage.mjs
+@@ -14,9 +14,17 @@ export const LEASE_TOPICS = Object.freeze([
+ export const MAX_COVERAGE_BYTES = 16 << 20;
+ const uint = n => Number.isSafeInteger(n) && n >= 0;
+ const CHECKED = new WeakSet();
++// The agreed output root each checked segment was derived from (bound by the native
++// result, input.trusted.agreedL2OutputRoot). Kept beside, never inside, the coverage
++// bytes, so persisted chunks are unchanged; read-only overlays link by it.
++const LINK = new WeakMap();
+ export function assertCheckedCoverage(value) {
+   if (!CHECKED.has(value)) throw Error('coverage must come from this process native result validation');
+ }
++export function checkedCoverageLink(value) {
++  assertCheckedCoverage(value);
++  return LINK.get(value);
++}
+ 
+ export function validateCoverage(result, input, anchor) {
+   const c = result?.coverage, t = input?.trusted, from = input?.bound?.agreedL2BlockNumber + 1;
+@@ -53,7 +61,7 @@ export function validateCoverage(result, input, anchor) {
+   // pinned v3 executable. Hashing host-selected logs would not establish either.
+   const copy = structuredClone(c);
+   const freeze = o => { for (const v of Object.values(o)) if (v && typeof v === 'object') freeze(v); return Object.freeze(o); };
+-  freeze(copy); CHECKED.add(copy); return copy;
++  freeze(copy); CHECKED.add(copy); LINK.set(copy, t.agreedL2OutputRoot); return copy;
+ }
+ 
+ export function validateLogQuery(query, anchor) {
+diff --git a/network/derived-reader/lifecycle.mjs b/network/derived-reader/lifecycle.mjs
+index 2802fb1..4ffaf43 100644
+--- a/network/derived-reader/lifecycle.mjs
++++ b/network/derived-reader/lifecycle.mjs
+@@ -3,15 +3,30 @@
+ // existing local Base verifier at the exact derived block hash.
+ import { startDerivedReader } from './provider.mjs';
+ import { createLifecycleFinalitySnapshot } from '../lifecycle-finality-bridge.mjs';
++// The provisional tier's DURABLE evidence lives in the same role-committed anchor
++// journal as the bridge floor (no new replicated file or API): its disable marker and
++// the facts issued from an unconfirmed S. Never a floor.
++export function provisionalEvidence(journal) {
++  if (!['readProvisional', 'recordProvisionalFact', 'recordProvisionalFence', 'reconcileProvisional'].every(f => typeof journal?.[f] === 'function'))
++    throw Error('the provisional tier needs the evidence-capable anchor journal');
++  return Object.freeze({
++    disabled: () => journal.readProvisional().fence?.reason ?? null,
++    fence: (fence, options) => journal.recordProvisionalFence(fence, options),
++    reconcile: (range, options) => journal.reconcileProvisional(range, options),
++    record: (entry, options) => journal.recordProvisionalFact(entry, options),
++  });
++}
+ export async function startDerivedLifecycleReader(config, { verifier, journal, ...options }) {
+-  const reader = await startDerivedReader(config, options);
++  // The provisional state anchor only when the reader's SIGNED binding carries its
++  // policy (startDerivedReader validated it into that binding and refuses it on any
++  // unenrolled state); never otherwise.
++  const provisional = config.provisional !== undefined;
++  const evidence = provisional ? provisionalEvidence(journal) : null;
++  const reader = await startDerivedReader(config, { ...options, ...(evidence ? { provisionalEvidence: evidence } : {}) });
+   try {
+-    // The provisional state anchor only when the reader's SIGNED binding carries its
+-    // policy (startDerivedReader validated it into that binding); never otherwise.
+-    const provisional = config.provisional !== undefined;
+     const snapshot = createLifecycleFinalitySnapshot({ readAnchor: reader.readAnchor, verifier, journal,
+       maxAnchorAgeSec: config.maxAnchorAgeSec ?? 1800, now: options.now || Date.now,
+       ...(provisional ? { readStateAnchor: reader.readStateAnchor, maxStateAgeSec: config.provisional.maxStateAgeSec } : {}) });
+-    return { reader, snapshot, ...(provisional ? { stateSnapshot: snapshot.twoAnchor } : {}), close: reader.close };
++    return { reader, snapshot, ...(provisional ? { stateSnapshot: snapshot.twoAnchor, recordStateFact: evidence.record } : {}), close: reader.close };
+   } catch (e) { await reader.close(); throw e; }
+ }
+diff --git a/network/derived-reader/provider.mjs b/network/derived-reader/provider.mjs
+index a71d5dc..979cd0e 100644
+--- a/network/derived-reader/provider.mjs
++++ b/network/derived-reader/provider.mjs
+@@ -41,8 +41,11 @@ export function provisionalPolicy(p) {
+   return Object.freeze(Object.fromEntries(keys.map(k => [k, p[k]])));
+ }
+ 
++/** A waiter for the provider's one-operation lock gives up after this ('derived provider busy'). */
++export const LOCK_WAIT_MS = 30000;
++const EVIDENCE_FUNCTIONS = ['disabled', 'fence', 'reconcile'];
+ export async function createDerivedProvider({ l1, journal, executable, runtime = null, workDir, bootstrap, base,
+-  resultVersion = 2, coverageStore = null, provisional = null,
++  resultVersion = 2, coverageStore = null, provisional = null, provisionalEvidence = null,
+   maxBlocks = 1800, intermediateBlockInterval = 1, maxAnchorAgeSec = 1800, nativeTimeoutMs = 180000,
+   maxWitnessBytes = 64 << 20, maxMemoryMiB = 1536, now = Date.now }) {
+   assertL1Runtime(l1);
+@@ -50,6 +53,11 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+       resultVersion === 2 && coverageStore) throw Error('v3 coverage needs explicit version, store, and interval one');
+   const policy = provisional === null ? null : provisionalPolicy(provisional);
+   if (policy && resultVersion !== 3) throw Error('the provisional tier needs the v3 coverage reader');
++  // The provisional tier only with its DURABLE evidence (the role-committed anchor journal:
++  // disable marker + issued-fact reconciliation); never RAM-only.
++  const evidence = provisionalEvidence;
++  if (policy && !EVIDENCE_FUNCTIONS.every(f => typeof evidence?.[f] === 'function')) throw Error('the provisional tier needs its durable evidence journal');
++  if (!policy && evidence !== null) throw Error('provisional evidence without the provisional policy');
+   if (!Number.isInteger(maxBlocks) || maxBlocks < 1 || maxBlocks > 1800 ||
+       !Number.isInteger(intermediateBlockInterval) || intermediateBlockInterval < 1 || intermediateBlockInterval > maxBlocks ||
+       !Number.isInteger(maxAnchorAgeSec) || maxAnchorAgeSec < 20 || maxAnchorAgeSec > 3600 ||
+@@ -73,14 +81,46 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+     const checked = finalizedHeader(raw, Math.floor(now() / 1000), 3600);
+     if (checked.hash !== head.hash || checked.stateRoot !== head.stateRoot || checked.timestamp !== head.timestamp) throw Error('L1 derivation input no longer matches the local light client');
+   };
++  // One operation at a time, in arrival order. A waiter refuses after LOCK_WAIT_MS or
++  // its own signal. Native derivations never hold this lock (see claimNative), so
++  // reads are not starved by a run; a pending durable write still refuses at once.
++  let lock = Promise.resolve();
+   async function exclusive(signal, run) {
+     alive(); signal?.throwIfAborted();
+-    if (busy) throw Error('derived provider busy');
+-    busy = true; const controller = new AbortController(); active = controller;
+-    let finished; activeDone = new Promise(resolve => { finished = resolve; });
+-    const abort = () => controller.abort(signal.reason); signal?.addEventListener('abort', abort, { once: true });
+-    try { return await run(controller.signal); }
+-    finally { signal?.removeEventListener('abort', abort); busy = false; active = null; finished(); }
++    let release; const mine = new Promise(resolve => { release = resolve; });
++    const previous = lock; lock = previous.then(() => mine);
++    let timer, onAbort;
++    try {
++      await new Promise((resolve, reject) => {
++        timer = setTimeout(() => reject(Error('derived provider busy')), LOCK_WAIT_MS);
++        onAbort = () => reject(signal.reason); signal?.addEventListener('abort', onAbort, { once: true });
++        previous.then(resolve);
++      });
++    } catch (e) { release(); throw e; }
++    finally { clearTimeout(timer); signal?.removeEventListener('abort', onAbort); }
++    try {
++      alive(); signal?.throwIfAborted();
++      busy = true; const controller = new AbortController(); active = controller;
++      let finished; activeDone = new Promise(resolve => { finished = resolve; });
++      const abort = () => controller.abort(signal.reason); signal?.addEventListener('abort', abort, { once: true });
++      try { return await run(controller.signal); }
++      finally { signal?.removeEventListener('abort', abort); busy = false; active = null; finished(); }
++    } finally { release(); }
++  }
++  // ONE native derivation at a time (either track; bounded memory), claimed while the
++  // ticket is consumed under the lock and run OUTSIDE it. Bind/merge re-take the lock
++  // and revalidate against whatever changed meanwhile.
++  let native = null;
++  function claimNative() {
++    if (native) throw Error('a native derivation is already running');
++    let finished; const done = new Promise(resolve => { finished = resolve; });
++    native = { controller: new AbortController(), done, finished };
++    return native;
++  }
++  async function runNative(claim, signal, options) {
++    const abort = () => claim.controller.abort(signal.reason); signal?.addEventListener('abort', abort, { once: true });
++    try { signal?.throwIfAborted(); return await invokeDerivation({ ...options, executable, runtime, workDir, signal: claim.controller.signal }); }
++    finally { signal?.removeEventListener('abort', abort); if (native === claim) native = null; claim.finished(); }
+   }
+   async function currentAnchor(signal) {
+     if (!latest) throw Error('no locally derived anchor; bootstrap/catch-up is required');
+@@ -91,12 +131,43 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+     return structuredClone(value);
+   }
+   // ---- provisional track (RAM only; see PROVISIONAL_POLICY_FORMAT) ----
+-  let prov = null, provPending = null, attestedHigh = null, provFence = null;
++  let prov = null, provPending = null, attestedHigh = null, provFence = null, provFenceRecorded = false, recentFinal = [];
+   const dropProvisional = () => { prov = null; provPending = null; };
+   const provisionalEnabled = () => {
+     if (!policy) throw Error('the provisional tier is not enabled by the signed reader binding');
+     if (provFence) throw Error('provisional track fenced: finalized derivation contradicted it; restart and investigate');
++    // the DURABLE marker (role-committed): survives restarts; only an admin-signed enrollment clears it
++    const marker = evidence.disabled();
++    if (marker) throw Error(`provisional track disabled by a durable marker (${marker}); an admin-signed enrollment rotation is required`);
+   };
++  // Every finalized result (serving or catch-up): a RAM contradiction becomes the
++  // durable marker, and recorded issued facts whose S lies in the recent finalized
++  // coverage are confirmed (pruned) or contradicted (marker). Never throws: an evidence
++  // failure disables the provisional track in this process (the finalized track serves).
++  async function settleEvidence(coverage, signal) {
++    if (!policy || !coverage) return;
++    // the last few CONTIGUOUS finalized segments: a fact recorded while a finalized merge
++    // passed its S is still found on the next result (no false 'unverifiable')
++    const last = recentFinal.at(-1);
++    recentFinal = last && last.toBlock + 1 === coverage.fromBlock ? [...recentFinal, coverage].slice(-4) : [coverage];
++    const blocks = recentFinal.flatMap(c => c.blocks.map(b => ({ number: b.number, hash: b.hash })));
++    // the shared anchor journal may be committing a bridge floor right now: wait for it
++    // (bounded beyond its commit deadline) instead of disabling the tier on contention
++    for (let attempt = 0; ; attempt++) {
++      try {
++        if (provFence && !provFenceRecorded) { await evidence.fence({ ...provFence, at: now() }, { signal }); provFenceRecorded = true; }
++        await evidence.reconcile({ fromBlock: recentFinal[0].fromBlock, blocks, at: now() }, { signal });
++        return;
++      } catch (e) {
++        if (/commit pending/.test(String(e?.message)) && attempt < 60 && !signal?.aborted) { await new Promise(resolve => setTimeout(resolve, 250)); continue; }
++        if (!provFence) { // in-process only (never a durable marker): the journal itself is failed or unreachable
++          provFence = Object.freeze({ reason: 'evidence-journal-failure', block: null, provisionalHash: null, finalizedHash: null, error: String(e?.message || e).slice(0, 200) });
++          provFenceRecorded = true;
++        }
++        dropProvisional(); return;
++      }
++    }
++  }
+   // Finalized progress supersedes provisional segments: blocks the finalized result
+   // also derived must be identical (else the provisional track is fenced and the
+   // contradiction kept for the operator); only an exact-boundary suffix survives.
+@@ -107,7 +178,7 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+     for (const s of prov.segments) for (const b of s.coverage.blocks) {
+       const f = known.get(b.number);
+       if (f && (f.hash !== b.hash || f.outputRoot !== b.outputRoot)) {
+-        provFence = Object.freeze({ block: b.number, provisionalHash: b.hash, finalizedHash: f.hash,
++        provFence = Object.freeze({ reason: 'contradiction', block: b.number, provisionalHash: b.hash, finalizedHash: f.hash,
+           provisionalThrough: prov.segments.at(-1).anchor.base.number, provisionalL1: { ...s.anchor.l1 } });
+         dropProvisional(); return;
+       }
+@@ -140,6 +211,8 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+     if (Math.floor(now() / 1000) - state.base.timestamp > policy.maxStateAgeSec) throw Error('provisional state anchor aged out while reading');
+     return { root, state, segments: prov.segments.map(s => s.coverage) };
+   }
++  // S with the exact finalized root it extends (the bridge pairs it only with that B_f)
++  const stateWithRoot = ({ root, state }) => ({ ...structuredClone(state), finalizedRoot: { number: root.base.number, hash: root.base.hash } });
+   return Object.freeze({
+     // Public fields are proposed inputs for the untrusted witness builder.
+     // The ticket's authoritative copy remains private to this process.
+@@ -169,12 +242,18 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+       });
+     },
+     async submit({ ticket, witness, signal } = {}) {
+-      return exclusive(signal, async proofSignal => {
++      const { proof, claim } = await exclusive(signal, async () => {
+         if (!pending || ticket !== pending.token || pending.expiresAt <= now()) throw Error('unknown or expired native proof ticket');
++        const claim = claimNative(); // refuses (ticket kept) while any native run is in flight
+         const proof = pending; pending = null; // one-shot; no concurrent replay
+-        const result = await invokeDerivation({ executable, runtime, trusted: proof.input.trusted, witness, workDir, signal: proofSignal,
+-          timeoutMs: Math.min(nativeTimeoutMs, proof.expiresAt - now()), maxWitnessBytes, maxMemoryMiB,
+-          outputBytes: resultVersion === 3 ? MAX_COVERAGE_BYTES : 65536 + Math.ceil((proof.input.trusted.claimedL2BlockNumber - proof.agreed.base.number) / intermediateBlockInterval) * 192 });
++        return { proof, claim };
++      });
++      const result = await runNative(claim, signal, { trusted: proof.input.trusted, witness,
++        timeoutMs: Math.min(nativeTimeoutMs, proof.expiresAt - now()), maxWitnessBytes, maxMemoryMiB,
++        outputBytes: resultVersion === 3 ? MAX_COVERAGE_BYTES : 65536 + Math.ceil((proof.input.trusted.claimedL2BlockNumber - proof.agreed.base.number) / intermediateBlockInterval) * 192 });
++      return exclusive(signal, async proofSignal => {
++        // bind/merge revalidation: the ticket's agreed root must still be this provider's
++        if (agreed !== proof.agreed) throw Error('the agreed root changed while deriving; ticket void');
+         const bound = resultVersion === 3 ? bindNativeV3(result, proof.input, proof.header, proof.head) : null;
+         const accepted = bound?.anchor || bindNativeV2(result, proof.input, proof.header, proof.head);
+         if (accepted.base.timestamp < proof.agreed.base.timestamp || accepted.base.timestamp > Math.floor(now() / 1000) + 2) throw Error('derived block timestamp regressed or is from the future');
+@@ -185,6 +264,7 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+           if (floor && accepted.base.number < floor.base.number) {
+             publishCoverage?.();
+             agreed = accepted; dropProvisional();
++            await settleEvidence(bound?.coverage, proofSignal); // catch-up still confirms or contradicts recorded facts
+             return { status: 'recovering', verifiedThrough: accepted.base.number, requiredFloor: floor.base.number };
+           }
+           // Both durable writes precede publication. A partially committed pair
+@@ -198,6 +278,7 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+         } catch (e) { closed = true; latest = null; dropProvisional(); throw e; }
+         agreed = accepted;
+         rebaseProvisional(accepted, bound?.coverage);
++        await settleEvidence(bound?.coverage, proofSignal);
+         // Catch-up can advance durable progress without publishing a serving
+         // anchor. Replication latency must not turn an aged result into fresh authority.
+         const age = Math.floor(now() / 1000) - accepted.base.timestamp;
+@@ -243,13 +324,18 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+       });
+     },
+     async submitProvisional({ ticket, witness, signal } = {}) {
+-      return exclusive(signal, async proofSignal => {
++      const { proof, claim } = await exclusive(signal, async () => {
+         provisionalEnabled();
+         if (!provPending || ticket !== provPending.token || provPending.expiresAt <= now()) throw Error('unknown or expired provisional proof ticket');
++        const claim = claimNative(); // refuses (ticket kept) while any native run is in flight
+         const proof = provPending; provPending = null; // one-shot; no concurrent replay
+-        const result = await invokeDerivation({ executable, runtime, trusted: proof.input.trusted, witness, workDir, signal: proofSignal,
+-          timeoutMs: Math.min(policy.nativeTimeoutMs, proof.expiresAt - now()), maxWitnessBytes: policy.maxWitnessBytes,
+-          maxMemoryMiB: policy.maxMemoryMiB, outputBytes: MAX_COVERAGE_BYTES });
++        return { proof, claim };
++      });
++      const result = await runNative(claim, signal, { trusted: proof.input.trusted, witness,
++        timeoutMs: Math.min(policy.nativeTimeoutMs, proof.expiresAt - now()), maxWitnessBytes: policy.maxWitnessBytes,
++        maxMemoryMiB: policy.maxMemoryMiB, outputBytes: MAX_COVERAGE_BYTES });
++      return exclusive(signal, async proofSignal => {
++        provisionalEnabled();
+         const bound = bindNativeV3(result, proof.input, proof.header, proof.head, DERIVED_TIERS.attested), accepted = bound.anchor;
+         if (accepted.base.timestamp < proof.agreed.base.timestamp || accepted.base.timestamp > Math.floor(now() / 1000) + 2) throw Error('derived block timestamp regressed or is from the future');
+         await consistentL1(proof.head, proofSignal); proofSignal.throwIfAborted(); alive(); provisionalEnabled();
+@@ -269,7 +355,7 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+     },
+     // The provisional state anchor S (tier l1-attested-derived): never the default.
+     async readStateAnchor({ signal } = {}) {
+-      return exclusive(signal, async s => structuredClone((await currentProvisional(s)).state));
++      return exclusive(signal, async s => stateWithRoot(await currentProvisional(s)));
+     },
+     async readDerivedLogs(query = {}) {
+       return exclusive(query.signal, async proofSignal => {
+@@ -297,8 +383,13 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+       hasPendingWitness: !!pending && pending.expiresAt > now(), savedFloor: savedFloor()?.base.number ?? null,
+       resultVersion, coverage: coverageStore?.status() ?? null,
+       provisional: policy ? { segments: prov?.segments.length ?? 0, stateThrough: prov?.segments.at(-1)?.anchor.base.number ?? null,
+-        hasPendingWitness: !!provPending && provPending.expiresAt > now(), fenced: provFence } : null }; },
+-    async close() { closed = true; pending = null; latest = null; dropProvisional(); active?.abort(Error('derived provider closed')); await activeDone; },
++        hasPendingWitness: !!provPending && provPending.expiresAt > now(), fenced: provFence } : null,
++      nativeRunning: !!native }; },
++    async close() {
++      closed = true; pending = null; latest = null; dropProvisional();
++      const run = native; run?.controller.abort(Error('derived provider closed'));
++      active?.abort(Error('derived provider closed')); await activeDone; await run?.done;
++    },
+   });
+ }
+ 
+@@ -427,6 +518,11 @@ export async function enrollDerivedState(config, { anchorJournal, verifyEnrollme
+ export async function startDerivedReader(config, options = {}) {
+   const { journalDir, coverageDir, runsDir: runs, split, native, l1Config, a1Config, baseUrl, resultVersion, builds, binding, provisional } = readerConfiguration(config, options);
+   const initializeState = config.initializeState ?? false;
++  // S1: the provisional tier only on the ENROLLED reader state (split layout, never
++  // self-initialized, every journal write role-committed): a private config file alone
++  // never enables it; the signed enrollment binding carries the policy.
++  if (provisional && (!split || initializeState !== false || options.requireJournalCommit !== true || typeof options.journalCommit !== 'function'))
++    throw Error('the provisional tier needs the enrolled, role-committed reader state (an admin-signed binding); a private config alone never enables it');
+   for (const dir of [journalDir, runs]) { fs.mkdirSync(dir, { recursive: true, mode: 0o700 }); privateDirectory(dir); }
+   const journal = await openDerivedJournal(journalDir, { binding, initialize: initializeState,
+     commit: options.journalCommit, requireCommit: options.requireJournalCommit, commitTimeoutMs: options.commitTimeoutMs });
+@@ -466,6 +562,7 @@ export async function startDerivedReader(config, options = {}) {
+     const base = boundedRpc(baseUrl);
+     const execution = boundedRpc(l1Config.executionUrl);
+     provider = await createDerivedProvider({ l1, journal, executable, runtime, workDir: nativeDir, base, resultVersion, coverageStore, provisional,
++      provisionalEvidence: provisional ? options.provisionalEvidence ?? null : null,
+       bootstrap: params => authenticateBootstrap({ l1, execution, base, a1Config, ...params, now: options.now || Date.now }),
+       maxBlocks: config.maxBlocks, intermediateBlockInterval: config.intermediateBlockInterval, maxAnchorAgeSec: config.maxAnchorAgeSec,
+       nativeTimeoutMs: config.nativeTimeoutMs, maxWitnessBytes: config.maxWitnessBytes, maxMemoryMiB: config.maxMemoryMiB, now: options.now || Date.now });
+diff --git a/network/lifecycle-finality-bridge.mjs b/network/lifecycle-finality-bridge.mjs
+index f89930f..3d95f96 100644
+--- a/network/lifecycle-finality-bridge.mjs
++++ b/network/lifecycle-finality-bridge.mjs
+@@ -27,6 +27,12 @@ export function createLifecycleFinalitySnapshot({ readAnchor, verifier, chainId
+       !Number.isInteger(deadlineMs) || deadlineMs < 1 || deadlineMs > 200000) throw Error('invalid finality bridge bounds');
+   if (readStateAnchor !== null && (typeof readStateAnchor !== 'function' || !Number.isInteger(maxStateAgeSec) ||
+       maxStateAgeSec < 1 || maxStateAgeSec > MAX_STATE_ANCHOR_AGE_SEC)) throw Error('invalid provisional state anchor bounds');
++  // the provisional tier's durable disable marker lives in this same journal
++  if (readStateAnchor !== null && typeof journal.readProvisional !== 'function') throw Error('the provisional state anchor needs the evidence-capable anchor journal');
++  const markerFree = () => {
++    const fence = journal.readProvisional().fence;
++    if (fence) throw Error(`provisional track disabled by a durable marker (${fence.reason}); an admin-signed enrollment rotation is required`);
++  };
+   const endpoint = verifierEndpoint(verifier);
+   let busy = false;
+   // One bounded operation: the finalized anchor B (claim side; floor-checked and
+@@ -58,8 +64,13 @@ export function createLifecycleFinalitySnapshot({ readAnchor, verifier, chainId
+         throw Error('derived anchor rollback or contradiction');
+       let state = null;
+       if (two) {
++        markerFree();
+         state = await readStateAnchor({ signal: ac.signal }); alive();
+         if (!shaped(state, 'l1-attested-derived')) throw Error('provisional state anchor required; finalized, ASR and RPC labels are not one');
++        // S2: S must extend exactly THIS B_f (the reader names its finalized root); a
++        // finalized advance between the two reads refuses (retry), never mixes roots
++        if (state.finalizedRoot?.number !== b.number || state.finalizedRoot?.hash !== b.hash)
++          throw Error('provisional state anchor is not rooted at this finalized anchor (finalized advanced; retry)');
+         if (state.base.number <= b.number || state.base.timestamp < b.timestamp || state.l1.number < l1.number)
+           throw Error('provisional state anchor does not extend the finalized anchor');
+       }
+@@ -92,6 +103,7 @@ export function createLifecycleFinalitySnapshot({ readAnchor, verifier, chainId
+       // Commit the exact journal bytes, with rollback checking, before publishing.
+       // Only the FINALIZED anchor is ever journaled; S is never a floor.
+       await journal.acceptAnchor(chainId, { base: b, l1, tier: anchor.tier }, { signal: ac.signal }); alive(); fresh(); stateFresh();
++      if (state) markerFree();
+       const evidence = { authority: 'consumer-domain-derivation', tier: anchor.tier, proofVerified: true,
+         base: { ...b }, l1: { ...l1 }, verifier: endpoint.label };
+       return { blockNumber: claim.number, blockHash: b.hash, stateRoot: b.stateRoot,
+diff --git a/relay/derived-writer-authority.mjs b/relay/derived-writer-authority.mjs
+index cea92cf..eb4d63c 100644
+--- a/relay/derived-writer-authority.mjs
++++ b/relay/derived-writer-authority.mjs
+@@ -193,11 +193,21 @@ export function replayToRow(logs, row) {
+  * -> { writerAuthority(id, { runner, signal }) -> { fact, factJson, block, claim, evidence } } throws LeaseGenerationError
+  */
+ export function createDerivedWriterAuthority({ capability, fresh, ledgerPin = "", addressBook = "", chainId = CHAIN_BASE, fromBlock = LEDGER16D_FROM_BLOCK,
+-                                                maxAnchorAgeSec = MAX_ANCHOR_AGE_SEC, maxFinalizedAgeSec = 1800, now = () => Date.now() } = {}) {
++                                                maxAnchorAgeSec = MAX_ANCHOR_AGE_SEC, maxFinalizedAgeSec = 1800, now = () => Date.now(),
++                                                log = (m) => console.error(`[lease-generation] ${m}`) } = {}) {
+   if (typeof capability?.snapshot !== "function" || typeof capability?.readDerivedLogs !== "function")
+     throw new Error("derived writer authority needs the in-process derived reader capability (snapshot + readDerivedLogs)");
+   const twoAnchors = capability.stateSnapshot !== undefined;
+   if (twoAnchors && typeof capability.stateSnapshot !== "function") throw new Error("the derived reader's state snapshot is not a capability");
++  // A2: every two-anchor fact is committed as evidence (role-replicated anchor journal) BEFORE it is returned
++  if (twoAnchors && typeof capability.recordStateFact !== "function") throw new Error("two-anchor facts need the reader's durable fact evidence (recordStateFact)");
++  // the durable disable marker is reported ONCE per process at error level (every refusal still names it)
++  let markerLogged = false;
++  const disabled = (m) => {
++    if (!markerLogged) { markerLogged = true; log(`ERROR provisional writer authority DISABLED by a durable marker: ${m.slice(0, 200)} - an admin-signed enrollment rotation clears it`); }
++    fail("provisional_disabled", `the provisional state anchor is disabled by a durable marker (${m.slice(0, 120)})`, true);
++  };
++  const MARKER = /disabled by a durable marker|provisional track fenced/;
+   if (!Number.isInteger(maxFinalizedAgeSec) || maxFinalizedAgeSec < 1 || maxFinalizedAgeSec > MAX_FINALIZED_AGE_SEC)
+     throw new Error(`maxFinalizedAgeSec must be 1..${MAX_FINALIZED_AGE_SEC} s`);
+   if (!fresh || typeof fresh.getBlockNumber !== "function" || typeof fresh.request !== "function" || typeof fresh.readContract !== "function")
+@@ -281,6 +291,7 @@ export function createDerivedWriterAuthority({ capability, fresh, ledgerPin = ""
+       if (signal?.aborted) throw aborted(signal);
+       if (e instanceof LeaseGenerationError) throw e;
+       const m = String(e?.message || e);
++      if (MARKER.test(m)) disabled(m);
+       if (/provisional coverage|coverage gap|outside runtime-verified coverage|coverage incomplete/.test(m))
+         fail("coverage_incomplete", `the derived reader has no complete coverage through the state anchor (${m.slice(0, 120)})`, true);
+       fail("derived_unavailable", `the derived reader could not answer (${m.slice(0, 120)})`, true);
+@@ -289,7 +300,9 @@ export function createDerivedWriterAuthority({ capability, fresh, ledgerPin = ""
+     if (!v || snap.blockNumber === undefined || Number(snap.blockNumber) !== v.final.B || lc(snap.blockHash) !== v.final.hash ||
+         !st || Number(st.blockNumber) !== v.B || lc(st.blockHash) !== v.hash || snap.evidence?.tier !== STATE_TIER || snap.evidence?.claimTier !== CLAIM_TIER)
+       fail("anchor_mismatch", "the snapshot's result is not of the blocks its reads were pinned to", true);
+-    return v;
++    const l1 = snap.evidence?.state?.l1;
++    if (!l1 || !uint(l1.number) || !H32.test(lc(l1.hash))) fail("anchor_mismatch", "the state anchor's L1 head is missing from the snapshot evidence", true);
++    return { ...v, stateL1: { number: l1.number, hash: lc(l1.hash) } };
+   }
+ 
+   async function denyIfStale(id, v, row, signal) {
+@@ -351,6 +364,19 @@ export function createDerivedWriterAuthority({ capability, fresh, ledgerPin = ""
+       await denyIfStale(id, v, row, signal);
+       if (signal?.aborted) throw aborted(signal);
+       const fact = { source: "lease16", chainId, ledger: v.ledger, deployment: id, claimBlock: C.blockNumber, claimLogIndex: C.logIndex };
++      if (v.final) {
++        // A2 audit: which S this fact rests on, durable before it exists; finalized derivation later confirms the S or
++        // durably disables the tier. Not recorded (outcome unknown, full, disabled) = no fact.
++        try {
++          await capability.recordStateFact({ at: Math.floor(now()), fact: { ledger: v.ledger, deployment: id, claimBlock: C.blockNumber, claimLogIndex: C.logIndex },
++            finalized: { number: v.final.B, hash: v.final.hash }, state: { number: v.B, hash: v.hash, l1: v.stateL1 } }, { signal });
++        } catch (e) {
++          if (signal?.aborted) throw aborted(signal);
++          const m = String(e?.message || e);
++          if (MARKER.test(m)) disabled(m);
++          fail("evidence_unrecorded", `the fact's provisional evidence was not committed (${m.slice(0, 120)}); no fact`, true);
++        }
++      }
+       return { fact, factJson: JSON.stringify(fact), block: { number: v.B, hash: v.hash, time: v.time, finalized: v.final ? v.final.B : v.B },
+                claim: { blockNumber: C.blockNumber, blockHash: C.blockHash, logIndex: C.logIndex, transactionHash: C.transactionHash, runner: row.runner },
+                evidence: v.final
+@@ -425,10 +451,17 @@ export async function derivedWriterAuthorityFromEnv(env, { relayChain, loadRunti
+     const journal = runtime.openLifecycleJournal(journalPath, { requireExisting: true, commit, requireCommit: true, commitTimeoutMs: COMMIT_TIMEOUT_MS });
+     service = await runtime.startDerivedLifecycleReader(cfg, { verifier, journal, journalCommit: commit, requireJournalCommit: true, commitTimeoutMs: COMMIT_TIMEOUT_MS });
+   } else {
++    // S1: without the role's enrolled state nothing is signed: a private config carrying the provisional policy refuses here
++    // (KVM's startDerivedReader refuses it on any unenrolled state as well)
++    if (config.provisional !== undefined) throw new Error(`the provisional writer tier needs the role's enrolled, admin-signed state (${STATE_ENV}); a private reader config never enables it`);
+     service = await runtime.startDerivedLifecycleReader(config, { verifier, journal: runtime.openLifecycleJournal(journalPath) });
+   }
+   if (typeof service?.reader?.readDerivedLogs !== "function" || typeof service?.snapshot !== "function")
+     throw new Error("the derived reader has no readDerivedLogs (R3) capability");
++  if (!state && typeof service.stateSnapshot === "function") {
++    await service.close?.();
++    throw new Error(`a reader without the role's enrolled state offered a provisional state anchor: refused (${STATE_ENV} is required)`);
++  }
+   let api = null;
+   if (env[API_PORT_ENV]) {
+     const port = Number(env[API_PORT_ENV]);
+@@ -438,9 +471,10 @@ export async function derivedWriterAuthorityFromEnv(env, { relayChain, loadRunti
+   // the two-anchor state snapshot exists only when the reader's signed binding carries the provisional policy (the runtime
+   // decides from the enrolled config; no env, flag or caller here can add it)
+   const twoAnchors = typeof service.stateSnapshot === "function";
+-  const capability = { snapshot: service.snapshot, readDerivedLogs: (q) => service.reader.readDerivedLogs(q), ...(twoAnchors ? { stateSnapshot: service.stateSnapshot } : {}) };
++  const capability = { snapshot: service.snapshot, readDerivedLogs: (q) => service.reader.readDerivedLogs(q),
++    ...(twoAnchors ? { stateSnapshot: service.stateSnapshot, recordStateFact: service.recordStateFact } : {}) };
+   // the reader config's own maxAnchorAgeSec bounds KVM's reader only; the writer authority keeps its fixed 120 s ceiling
+-  const authority = createDerivedWriterAuthority({ capability, fresh: relayChain.client, ledgerPin, addressBook, ...(now ? { now } : {}),
++  const authority = createDerivedWriterAuthority({ capability, fresh: relayChain.client, ledgerPin, addressBook, log, ...(now ? { now } : {}),
+     ...(twoAnchors && Number.isInteger(config.maxAnchorAgeSec) ? { maxFinalizedAgeSec: Math.min(config.maxAnchorAgeSec, MAX_FINALIZED_AGE_SEC) } : {}) });
+   return { ...authority, describe: () => ({ source: "derived", tier: twoAnchors ? STATE_TIER : "l1-finalized-derived", ...(twoAnchors ? { claimTier: CLAIM_TIER } : {}),
+                                             witnessApi: api ? `127.0.0.1:${api.port}` : null }),
+diff --git a/test/derived-reader/two-anchor-fixtures.mjs b/test/derived-reader/two-anchor-fixtures.mjs
+new file mode 100644
+index 0000000..ab3d87c
+--- /dev/null
++++ b/test/derived-reader/two-anchor-fixtures.mjs
+@@ -0,0 +1,105 @@
++// Shared FIXTURES for the two-anchor reader suites (writer-two-anchor-stage r1/r2). Transport/composition only, exactly as
++// helpers.mjs: the fake L1 process (it serves distinct `finalized` and `latest` headers) and the echo native executable are NEVER
++// evidence of consensus verification, of the real Helios attested-head lag, of native derivation or of its timing (M1-M6 unmeasured).
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import net from 'node:net';
++import { once } from 'node:events';
++import { createHash } from 'node:crypto';
++import { keccak256, toBytes } from 'viem';
++import { startL1Runtime } from '../../network/derived-reader/l1-runtime.mjs';
++import { createDerivedProvider } from '../../network/derived-reader/provider.mjs';
++import { openDerivedJournal } from '../../network/derived-reader/journal.mjs';
++import { openCoverageStore } from '../../network/derived-reader/coverage-store.mjs';
++import { LEASE_TOPICS, COVERAGE_FORMAT, FILTER_ID } from '../../network/derived-reader/coverage.mjs';
++import { sha256File } from '../../network/derived-reader/process.mjs';
++import { provisionalEvidence } from '../../network/derived-reader/lifecycle.mjs';
++import { openLifecycleJournal } from '../../network/deployment-lifecycle-journal.mjs';
++import { header, anchorOf, nativeResult } from './helpers.mjs';
++
++export const hash = s => keccak256(toBytes(s));
++export const word = n => BigInt(n).toString(16).padStart(64, '0');
++export const hex = n => `0x${n.toString(16)}`;
++export const SCHEDULE = `0x${word(32)}${word(15)}${Array.from({ length: 15 }, (_, i) => word(i < 13 ? 1686789347 : 0)).join('')}`;
++export const VERSION = `0x${word((1n << 96n) | (5n << 64n) | (1n << 32n))}`;
++export const SELECTOR = keccak256(toBytes('getSchedule()')).slice(0, 10);
++export const A = `0x${'aa'.repeat(20)}`, ID = `0x${'cc'.repeat(32)}`, binding = 'e'.repeat(64);
++export const POLICY = Object.freeze({ format: 'enclave-derived-provisional/v1', l1Head: 'helios-attested-latest', l1MaxAgeSec: 60, maxStateAgeSec: 120,
++  maxBlocks: 1800, maxSpanBlocks: 3600, maxSegments: 64, maxOverlayBytes: 64 << 20, maxWitnessBytes: 64 << 20, nativeTimeoutMs: 120000, maxMemoryMiB: 1536 });
++export const TEMPLATE = { l2_chain_id: 8453 };
++export const l1Header = (number, timestamp) => ({ number: hex(number), hash: hash(`l1-${number}`), stateRoot: hash(`l1state-${number}`), timestamp: hex(timestamp) });
++export const log = (h, index = 0) => ({ address: A, blockNumber: Number(BigInt(h.number)), blockHash: h.hash, logIndex: index, topics: [LEASE_TOPICS[0], ID], data: '0x',
++  txHash: `0x${'dd'.repeat(32)}` });
++export function result(ticket, headers, logs = []) {
++  const blocks = headers.map(h => ({ ...anchorOf(h, {}).base, receiptsRoot: h.receiptsRoot, transactionsRoot: h.transactionsRoot }));
++  return { ...nativeResult(ticket, headers.at(-1)), format: 'enclave-base-derivation-result/v3',
++    intermediateRoots: '0x' + blocks.map(b => b.outputRoot.slice(2)).join(''),
++    coverage: { format: COVERAGE_FORMAT, filterId: FILTER_ID, fromBlock: blocks[0].number, toBlock: blocks.at(-1).number, blocks, logs } };
++}
++
++/** The owned L1 runtime over a fixture process that serves `finalized` (900 s old) and `latest` (attested, 20 s old) separately.
++ *  gated: the echo native waits until f.openGate() (a native run that stays in flight for as long as a test needs). */
++export async function l1Fixture(t, { gated = false } = {}) {
++  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'two-anchor-test-'));
++  const f = { directory, now: Date.now(), l1: null };
++  t.after(async () => { await f.l1?.close(); fs.rmSync(directory, { recursive: true, force: true }); });
++  const server = net.createServer(); server.listen(0, '127.0.0.1'); await once(server, 'listening');
++  const port = server.address().port; await new Promise(resolve => server.close(resolve));
++  const seconds = Math.floor(f.now / 1000);
++  f.finalizedL1 = l1Header(10000, seconds - 900); f.attestedL1 = l1Header(10070, seconds - 20); f.chainId = '0x1';
++  const values = path.join(directory, 'l1-fixture.json');
++  f.save = () => fs.writeFileSync(values, JSON.stringify({ chainId: f.chainId, tags: { finalized: f.finalizedL1, latest: f.attestedL1 },
++    numbers: Object.fromEntries([f.finalizedL1, f.attestedL1].map(h => [h.number, h])), schedule: SCHEDULE, version: VERSION }));
++  f.save();
++  const script = path.join(directory, 'l1-fixture.mjs');
++  fs.writeFileSync(script, `import http from 'node:http'; import fs from 'node:fs';
++const [file,port]=process.argv.slice(2); http.createServer(async(q,s)=>{const a=[];for await(const c of q)a.push(c);
++const b=JSON.parse(Buffer.concat(a)),v=JSON.parse(fs.readFileSync(file));
++const result=b.method==='eth_chainId'?v.chainId:b.method==='eth_getBlockByNumber'?(v.tags[b.params[0]]??v.numbers[b.params[0]]??null):b.method==='eth_call'?(b.params[0].data==='${SELECTOR}'?v.schedule:v.version):null;
++s.writeHead(200,{'content-type':'application/json'});s.end(JSON.stringify({jsonrpc:'2.0',id:b.id,result}));}).listen(Number(port),'127.0.0.1');`);
++  const checkpointFile = path.join(directory, 'checkpoint.json');
++  const record = JSON.stringify({ format: 'enclave-l1-checkpoint/v1', network: 'mainnet', slot: Math.floor((seconds - 1606824023) / 12) - 64, root: hash('fixture checkpoint') });
++  fs.writeFileSync(checkpointFile, record);
++  const cp = createHash('sha256').update(record).digest('hex'), binaryHash = await sha256File(process.execPath);
++  const runDir = path.join(directory, 'l1'); fs.mkdirSync(runDir);
++  f.l1Config = { port, binary: { path: process.execPath, sha256: binaryHash }, checkpointFile,
++    consensusUrl: 'http://127.0.0.1:1', executionUrl: 'http://127.0.0.1:2', readyTimeoutMs: 3000 };
++  f.l1Options = { runDir, now: () => f.now, acceptedBuilds: { [binaryHash]: 'transport fixture' }, acceptedCheckpoints: { [cp]: 'fixture' },
++    buildArgs: ({ port }) => ['--max-old-space-size=64', script, values, String(port)] };
++  f.l1 = await startL1Runtime(f.l1Config, f.l1Options);
++  f.native = path.join(directory, 'echo-native');
++  f.gate = path.join(directory, 'native-gate');
++  f.openGate = () => fs.writeFileSync(f.gate, '');
++  f.closeGate = () => fs.rmSync(f.gate, { force: true });
++  fs.writeFileSync(f.native, gated ? `#!/bin/sh\nwhile [ ! -e '${f.gate}' ]; do sleep 0.02; done\nexec /bin/cat "$2"\n` : '#!/bin/sh\nexec /bin/cat "$2"\n', { mode: 0o700 });
++  if (gated) f.openGate();   // open by default; a test closes it to hold a run in flight
++  return f;
++}
++/** A v3 provider (journal + coverage store) with the provisional policy unless policy: null, and its DURABLE evidence in the
++ *  anchor journal f.lifecycle (a local lifecycle journal here; the role-committed one in production). B_f = 101 (950 s old). */
++export async function readerFixture(t, { policy = POLICY, gated = false } = {}) {
++  const f = await l1Fixture(t, { gated }), seconds = Math.floor(f.now / 1000);
++  f.agreed = anchorOf(header(100, seconds - 960), { number: 9990, hash: hash('l1-9990'), stateRoot: hash('l1state-9990'), timestamp: seconds - 1000 });
++  f.h101 = header(101, seconds - 950); f.h102 = header(102, seconds - 20); f.h103 = header(103, seconds - 10); f.h104 = header(104, seconds - 5);
++  f.journal = await openDerivedJournal(f.directory, { binding, initialize: true });
++  f.store = await openCoverageStore(path.join(f.directory, 'coverage'), { binding, initialize: true });
++  f.lifecycleFile = path.join(f.directory, 'anchor-journal.json');
++  f.lifecycle = openLifecycleJournal(f.lifecycleFile);
++  f.evidence = provisionalEvidence(f.lifecycle);
++  f.options = { l1: f.l1, journal: f.journal, executable: f.native, workDir: f.directory, now: () => f.now, resultVersion: 3, coverageStore: f.store,
++    bootstrap: async () => f.agreed, base: async () => f.candidate, ...(policy ? { provisional: policy, provisionalEvidence: f.evidence } : {}) };
++  f.reader = await createDerivedProvider(f.options);
++  t.after(async () => { await f.reader.close(); f.store.close(); f.journal.close(); });
++  const run = async (prepare, submit, headers, logs) => {
++    f.candidate = headers.at(-1);
++    const ticket = await prepare({ blockNumber: Number(BigInt(f.candidate.number)), rollupConfigTemplate: TEMPLATE });
++    return submit({ ticket: ticket.ticket, witness: Buffer.from(JSON.stringify(result(ticket, headers, logs))) });
++  };
++  f.final = (headers, logs) => run(f.reader.prepare, f.reader.submit, headers, logs);
++  f.provisional = (headers, logs) => run(f.reader.prepareProvisional, f.reader.submitProvisional, headers, logs);
++  f.query = (anchor, extras = {}) => ({ address: A, topic0s: [...LEASE_TOPICS], topic1: ID, fromBlock: 101, toBlock: anchor.base.number,
++    anchor: { number: anchor.base.number, hash: anchor.base.hash }, ...extras });
++  f.chunks = () => fs.readdirSync(path.join(f.directory, 'coverage')).filter(n => /^[a-f0-9]{64}\.json$/.test(n)).length;
++  return f;
++}
+diff --git a/test/derived-reader/two-anchor-r2.test.mjs b/test/derived-reader/two-anchor-r2.test.mjs
+new file mode 100644
+index 0000000..2cbd929
+--- /dev/null
++++ b/test/derived-reader/two-anchor-r2.test.mjs
+@@ -0,0 +1,298 @@
++// writer-two-anchor-stage/r2: the reviewed activation blockers on the READER side (logs/claude-writer-two-anchor-review-r1.md).
++// FIXTURES only (two-anchor-fixtures.mjs: fake L1 process, echo native): nothing here measures S age, native time or Helios lag
++// (M1-M5), and nothing shows production availability. What is shown:
++//   A1 native runs hold no provider lock (reads proceed), one native slot, ticket exclusivity, revalidated merge, close aborts;
++//   A2 the durable disable marker + issued-fact evidence in the EXISTING role-committed anchor journal (grouped by S, deduplicated,
++//      fail-closed bounds), reconciliation by finalized coverage, no auto-clear on restart, and the ONLY clear: the existing
++//      admin-signed rotation, which must bind the exact fenced prior bytes (KVM planEnrollment + the role's checkEnrollment);
++//   S2 the bridge pairs S only with the exact B_f it extends;  S3 the overlay links to persisted coverage by output root;
++//   A3 (regression, NOT a fix) coverage after ANY start begins at the authenticated bootstrap; a binding rotation adds nothing worse.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import { createHash } from 'node:crypto';
++import { createDerivedProvider } from '../../network/derived-reader/provider.mjs';
++import { openDerivedJournal } from '../../network/derived-reader/journal.mjs';
++import { openCoverageStore } from '../../network/derived-reader/coverage-store.mjs';
++import { bindNativeV3, DERIVED_TIERS } from '../../network/derived-reader/proof.mjs';
++import { READER_FILE, BRIDGE_FILE, planEnrollment, enrollmentManifest, enrollmentManifestDigest, derivedEnrollmentFloorDigest,
++  parseEnrollmentJournals } from '../../network/derived-reader/enrollment.mjs';
++import { openLifecycleJournal, MAX_PROVISIONAL_STATES, MAX_PROVISIONAL_FACTS, MAX_EVIDENCE_JOURNAL_BYTES } from '../../network/deployment-lifecycle-journal.mjs';
++import { createLifecycleFinalitySnapshot } from '../../network/lifecycle-finality-bridge.mjs';
++import * as DS from '../../metal/guest/derived-state.mjs';
++import { header, anchorOf } from './helpers.mjs';
++import { hash, A, ID, TEMPLATE, log, result, readerFixture } from './two-anchor-fixtures.mjs';
++
++const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
++const until = async (cond, ms = 10000) => { const end = Date.now() + ms; while (!cond()) { if (Date.now() > end) throw Error('condition not reached'); await sleep(10); } };
++const tmpdir = t => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'two-anchor-r2-')); t.after(() => fs.rmSync(d, { recursive: true, force: true })); return d; };
++const sha = b => createHash('sha256').update(b).digest('hex');
++const L1 = { number: 10070, hash: hash('l1-10070') };
++// a full finalized anchor (KVM validateAnchor / role validAnchor strict)
++const FLOOR = anchorOf(header(100, 1_700_000_000), { number: 10000, hash: hash('l1-10000'), stateRoot: hash('l1state-10000'), timestamp: 1_700_000_100 }, 'l1-finalized-derived');
++const issued = (state, i = 0, { claimBlock = 90, finalized = { number: 100, hash: hash('bf-100') }, at = 1 } = {}) =>
++  ({ at, fact: { ledger: A, deployment: ID, claimBlock, claimLogIndex: i }, finalized, state });
++const S = (number, tag = '') => ({ number, hash: hash(`s-${number}${tag}`), l1: L1 });
++
++test('A1: a native run holds no provider lock: B_f, S and logs are served meanwhile; one native slot; tickets one-shot and kept on refusal; merge revalidates', async t => {
++  const f = await readerFixture(t, { gated: true });
++  await f.final([f.h101], [log(f.h101)]); await f.provisional([f.h102], [log(f.h102)]);
++  f.closeGate(); f.candidate = f.h103;
++  const ticket = await f.reader.prepareProvisional({ blockNumber: 103, rollupConfigTemplate: TEMPLATE });
++  const inflight = f.reader.submitProvisional({ ticket: ticket.ticket, witness: Buffer.from(JSON.stringify(result(ticket, [f.h103]))) });
++  await until(() => f.reader.status().nativeRunning);
++  // reads during the run (r1: 'derived provider busy' for the whole run)
++  assert.equal((await f.reader.readAnchor()).base.number, 101);
++  const S102 = await f.reader.readStateAnchor();
++  assert.equal(S102.base.number, 102); assert.deepEqual(S102.finalizedRoot, { number: 101, hash: f.h101.hash });
++  assert.deepEqual((await f.reader.readDerivedLogs(f.query(S102))).logs.map(l => l.blockNumber), [101, 102]);
++  // the consumed ticket cannot be replayed; another ticket waits for the one native slot and is NOT consumed by the refusal
++  await assert.rejects(f.reader.submitProvisional({ ticket: ticket.ticket, witness: Buffer.from('{}') }), /unknown or expired provisional/);
++  f.candidate = f.h102;
++  const final = await f.reader.prepare({ blockNumber: 102, rollupConfigTemplate: TEMPLATE });
++  const witness = Buffer.from(JSON.stringify(result(final, [f.h102], [log(f.h102)])));
++  await assert.rejects(f.reader.submit({ ticket: final.ticket, witness }), /a native derivation is already running/);
++  f.openGate();
++  assert.equal((await inflight).status, 'provisional');
++  assert.equal((await f.reader.submit({ ticket: final.ticket, witness })).status, 'verified', 'the refused ticket stayed valid');
++  assert.deepEqual(f.reader.status().provisional, { segments: 1, stateThrough: 103, hasPendingWitness: false, fenced: null });
++  // a reorg discard while a run is in flight: its merge revalidates and appends nothing
++  f.closeGate(); f.candidate = f.h104;
++  const next = await f.reader.prepareProvisional({ blockNumber: 104, rollupConfigTemplate: TEMPLATE });
++  const voided = f.reader.submitProvisional({ ticket: next.ticket, witness: Buffer.from(JSON.stringify(result(next, [f.h104]))) });
++  await until(() => f.reader.status().nativeRunning);
++  f.attestedL1 = { ...f.attestedL1, hash: hash('reorged during the run') }; f.save();
++  await assert.rejects(f.reader.readStateAnchor(), /no longer canonical/);
++  f.openGate();
++  await assert.rejects(voided, /no longer matches|changed while deriving/);
++  assert.equal(f.reader.status().provisional.segments, 0); assert.equal(f.reader.status().nativeRunning, false);
++});
++
++test('A1: close aborts and awaits an in-flight native run; nothing merges afterwards', async t => {
++  const f = await readerFixture(t, { gated: true });
++  await f.final([f.h101]);
++  f.closeGate(); f.candidate = f.h102;
++  const ticket = await f.reader.prepareProvisional({ blockNumber: 102, rollupConfigTemplate: TEMPLATE });
++  const inflight = f.reader.submitProvisional({ ticket: ticket.ticket, witness: Buffer.from(JSON.stringify(result(ticket, [f.h102]))) });
++  await until(() => f.reader.status().nativeRunning);
++  await f.reader.close();
++  await assert.rejects(inflight, /closed/);
++  await assert.rejects(f.reader.readAnchor(), /closed/);
++});
++
++test('A2 journal: the evidence section is optional (default bytes unchanged), grouped by S, deduplicated, validated and never a floor', async t => {
++  const dir = tmpdir(t), file = path.join(dir, 'anchor-journal.json');
++  const j = openLifecycleJournal(file);
++  await j.acceptAnchor(8453, FLOOR);
++  const plain = fs.readFileSync(file, 'utf8');
++  assert.equal('provisional' in JSON.parse(plain), false, 'no section unless evidence is recorded');
++  assert.deepEqual(j.readProvisional(), { fence: null, states: [] });
++  assert.equal(await j.recordProvisionalFact(issued(S(103))), 'recorded');
++  const once = fs.readFileSync(file);
++  assert.equal(await j.recordProvisionalFact(issued(S(103), 0, { at: 999 })), 'duplicate', 'the same fact from the same S');
++  assert.ok(fs.readFileSync(file).equals(once), 'a duplicate writes nothing');
++  assert.equal(await j.recordProvisionalFact(issued(S(103), 1)), 'recorded');          // another fact, same S
++  assert.equal(await j.recordProvisionalFact(issued(S(104))), 'recorded');             // the same fact, another S
++  assert.equal(await j.recordProvisionalFact(issued(S(104, 'x'))), 'recorded', 'another hash at the same height is another S');
++  const p = j.readProvisional();
++  assert.deepEqual(p.states.map(e => [e.state.number, e.facts.length]), [[103, 2], [104, 1], [104, 1]]);
++  for (const bad of [issued(S(103), 9, { claimBlock: 101 }), issued(S(100), 9), { ...issued(S(103), 9), extra: 1 }, issued({ ...S(103), l1: { number: 1 } }, 9)])
++    await assert.rejects(j.recordProvisionalFact(bad), /invalid provisional fact evidence/);
++  // never a floor: the anchor floor is unchanged, and the role and KVM floor readers see only authorityAnchors
++  assert.deepEqual(j.readAnchor(8453), FLOOR);
++  const bytes = fs.readFileSync(file);
++  assert.deepEqual(DS.floorsOf({ bytes: { [DS.BRIDGE_REL]: bytes } }).bridge, FLOOR);
++  assert.deepEqual(parseEnrollmentJournals({ [BRIDGE_FILE]: bytes.toString('utf8') }).bridge.authorityAnchors['8453'], FLOOR);
++  // anchors keep the section (a later floor commit never drops evidence)
++  const later = anchorOf(header(105, 1_700_000_010), { number: 10010, hash: hash('l1-10010'), stateRoot: hash('l1state-10010'), timestamp: 1_700_000_200 }, 'l1-finalized-derived');
++  await j.acceptAnchor(8453, later);
++  assert.equal(j.readProvisional().states.length, 3);
++});
++
++test('A2 journal: finalized coverage confirms (prunes) or contradicts (durable marker) recorded S; an S passed uncovered is unverifiable; markers survive reopening', async t => {
++  const dir = tmpdir(t), file = path.join(dir, 'anchor-journal.json');
++  let j = openLifecycleJournal(file);
++  await j.recordProvisionalFact(issued(S(103))); await j.recordProvisionalFact(issued(S(106)));
++  const blocks = (from, to, override = {}) => Array.from({ length: to - from + 1 }, (_, i) => ({ number: from + i, hash: override[from + i] ?? hash(`s-${from + i}`) }));
++  assert.equal(await j.reconcileProvisional({ fromBlock: 101, blocks: blocks(101, 102), at: 5 }), null, 'nothing covered yet: no write');
++  assert.equal(await j.reconcileProvisional({ fromBlock: 101, blocks: blocks(101, 104), at: 5 }), 'confirmed');
++  assert.deepEqual(j.readProvisional().states.map(e => e.state.number), [106]);
++  assert.equal(await j.reconcileProvisional({ fromBlock: 105, blocks: blocks(105, 107, { 106: hash('finalized-106') }), at: 6 }), 'fenced');
++  const fence = j.readProvisional().fence;
++  assert.deepEqual([fence.reason, fence.block, fence.provisionalHash, fence.finalizedHash, fence.at], ['contradiction', 106, hash('s-106'), hash('finalized-106'), 6]);
++  assert.deepEqual(fence.states.map(e => e.state.number), [106], 'the contradicted S and its facts are kept in the marker');
++  await assert.rejects(j.recordProvisionalFact(issued(S(110))), /disabled by a durable marker \(contradiction\)/);
++  assert.equal(await j.recordProvisionalFence({ reason: 'contradiction', block: 1, provisionalHash: hash('x'), finalizedHash: null, at: 7 }), false, 'the first marker is kept');
++  // no auto-clear: a reopened journal (a relay restart re-seeds the committed bytes) still carries it
++  j = openLifecycleJournal(file);
++  assert.equal(j.readProvisional().fence.reason, 'contradiction');
++  // unverifiable: finalized coverage that starts beyond a recorded S (e.g. a bootstrap after a long outage)
++  const k = openLifecycleJournal(path.join(dir, 'other.json'));
++  await k.recordProvisionalFact(issued(S(103)));
++  assert.equal(await k.reconcileProvisional({ fromBlock: 200, blocks: blocks(200, 201), at: 8 }), 'fenced');
++  assert.deepEqual([k.readProvisional().fence.reason, k.readProvisional().fence.block, k.readProvisional().fence.finalizedHash], ['unverifiable', 103, null]);
++  assert.equal(await k.reconcileProvisional({ fromBlock: 300, blocks: blocks(300, 300), at: 9 }), null, 'a marked journal is not reconciled further');
++  const m = openLifecycleJournal(path.join(dir, 'third.json'));
++  await m.recordProvisionalFact(issued(S(103)));
++  await assert.rejects(m.reconcileProvisional({ fromBlock: 1, blocks: [{ number: 2, hash: hash('gap') }], at: 9 }), /invalid finalized coverage/);
++});
++
++test('A2 journal: bounds are fail-closed (distinct S, total facts, bytes below the KVM enrollment limit); an oversized saved section fences the journal', async t => {
++  assert.equal(MAX_PROVISIONAL_STATES, 128); assert.equal(MAX_PROVISIONAL_FACTS, 512);
++  assert.ok(MAX_EVIDENCE_JOURNAL_BYTES < 262144, 'the clearing rotation (KVM enrollDerivedState) must still be able to read the journal');
++  const dir = tmpdir(t), write = (name, states) => { const file = path.join(dir, name);
++    fs.writeFileSync(file, JSON.stringify({ version: 1, deployments: [], authorityAnchors: {}, provisional: { fence: null, states } })); return file; };
++  const full = Array.from({ length: MAX_PROVISIONAL_STATES }, (_, i) => ({ state: S(1000 + i), facts: [issued(S(1000 + i))] }));
++  const j = openLifecycleJournal(write('states.json', full));
++  await assert.rejects(j.recordProvisionalFact(issued(S(5000))), /evidence is full/);
++  assert.equal(await j.recordProvisionalFact(issued(S(1000))), 'duplicate', 'a known fact from a known S needs no capacity');
++  assert.equal(await j.recordProvisionalFact(issued(S(1000), 7)), 'recorded', 'another fact under a known S fits while total facts allow');
++  const many = [{ state: S(2000), facts: Array.from({ length: MAX_PROVISIONAL_FACTS }, (_, i) => issued(S(2000), i)) }];
++  const m = openLifecycleJournal(write('facts.json', many));
++  await assert.rejects(m.recordProvisionalFact(issued(S(2000), MAX_PROVISIONAL_FACTS)), /evidence is full/);
++  assert.ok(fs.statSync(path.join(dir, 'facts.json')).size < MAX_EVIDENCE_JOURNAL_BYTES, 'the fact bound is reached before the byte bound');
++  const over = openLifecycleJournal(write('over.json', [...full, { state: S(9999), facts: [issued(S(9999))] }]));
++  assert.throws(() => over.readProvisional(), /invalid provisional evidence/);
++});
++
++test('A2 clear: ONLY an admin-signed rotation that binds the exact fenced prior bytes clears the marker (KVM plan + role gate); a stale package refuses', async t => {
++  const dir = tmpdir(t), file = path.join(dir, 'anchor-journal.json'), B0 = 'b'.repeat(64), D0 = '0'.repeat(63) + '1', D1 = '0'.repeat(63) + '2';
++  const j = openLifecycleJournal(file);
++  await j.acceptAnchor(8453, FLOOR); await j.recordProvisionalFact(issued(S(103)));
++  const before = fs.readFileSync(file, 'utf8');
++  await j.recordProvisionalFence({ reason: 'contradiction', block: 103, provisionalHash: hash('s-103'), finalizedHash: hash('f-103'), at: 10 });
++  const fenced = fs.readFileSync(file, 'utf8');
++  const reader = JSON.stringify({ format: 'enclave-derived-root-journal/v1', binding: B0, floor: FLOOR, entries: [], enrollment: { digest: D0, phase: 'committed' } });
++  const local = { [READER_FILE]: reader, [BRIDGE_FILE]: fenced };
++  const verified = (prior) => ({ format: 'enclave-derived-enrollment-result/v1', binding: B0, digest: D1, mode: 'rotate', priorFiles: enrollmentManifest(prior),
++    floorDigest: derivedEnrollmentFloorDigest(FLOOR), highWater: null, previousBinding: B0, previousEnrollmentDigest: D0,
++    stateDigest: enrollmentManifestDigest(enrollmentManifest(prior)) });
++  // KVM: the rotation rewrites the anchor journal WITHOUT the section; the new reader record keeps the fenced bytes' digest
++  const plan = planEnrollment({ local, binding: B0, verified: verified(local) });
++  assert.deepEqual(JSON.parse(plan.anchorBytes), { version: 1, deployments: [], authorityAnchors: { 8453: FLOOR } });
++  assert.equal(JSON.parse(plan.finalBytes).enrollment.previousManifest[BRIDGE_FILE], sha(fenced), 'the cleared bytes stay authenticated by digest');
++  fs.writeFileSync(file, plan.anchorBytes);
++  assert.deepEqual(openLifecycleJournal(file).readProvisional(), { fence: null, states: [] }, 'cleared');
++  assert.deepEqual(openLifecycleJournal(file).readAnchor(8453), FLOOR, 'the floor is carried, never reset');
++  // a package prepared over the PRE-fence bytes cannot clear: KVM refuses the scan/state mismatch
++  const stale = { [READER_FILE]: reader, [BRIDGE_FILE]: before };
++  assert.throws(() => planEnrollment({ local, binding: B0, verified: verified(stale) }), /differs from committed scan/);
++  assert.throws(() => planEnrollment({ local, binding: B0, verified: { ...verified(local), stateDigest: verified(stale).stateDigest } }), /signed prior state manifest differs/);
++  // the role's admin gate: the signed stateDigest must be the committed (fenced) state's; a stale one is refused before anything changes
++  const data = path.join(dir, 'data');
++  const put = (rel, bytes) => { fs.mkdirSync(path.dirname(path.join(data, rel)), { recursive: true }); fs.writeFileSync(path.join(data, rel), bytes); };
++  const genesis = { format: 'pkg', kind: DS.ENROLL_KIND, groupId: 'g', targetStatementSha256: 't', at: 1, mode: 'genesis', readerPins: 'p', binding: B0,
++    floorDigest: DS.floorDigestOf(null), previousDigest: null, stateDigest: null, markerDigest: null, highWater: null, signature: '0x' };
++  put(DS.ENROLL_FILE, JSON.stringify({ format: DS.ENROLLMENT_FORMAT, package: genesis }));
++  put(`${DS.STATE_DIR}/${DS.READER_REL}`, reader); put(`${DS.STATE_DIR}/${DS.BRIDGE_REL}`, fenced);
++  const scan = new Map([DS.ENROLL_FILE, `${DS.STATE_DIR}/${DS.READER_REL}`, `${DS.STATE_DIR}/${DS.BRIDGE_REL}`].map(rel => [rel, { sha: sha(fs.readFileSync(path.join(data, rel))) }]));
++  const held = DS.readState(data, scan);
++  assert.equal(held.error, null);
++  const rotate = (stateDigest) => ({ ...genesis, at: 2, mode: 'rotate', floorDigest: DS.floorDigestOf(FLOOR), previousDigest: held.digest, stateDigest });
++  const ctx = { held, groupId: 'g', statementSha: 't', readerPins: 'p', now: 3 };
++  assert.equal(held.stateDigest, verified(local).stateDigest, 'the role and KVM compute the same state digest');
++  assert.equal(DS.checkEnrollment(rotate(held.stateDigest), ctx).ok, true);
++  assert.equal(DS.checkEnrollment(rotate(verified(stale).stateDigest), ctx).error, 'wrong_state');
++});
++
++test('A2 provider: finalized results confirm recorded facts or durably disable the tier; the marker survives a provider restart and stops the bridge', async t => {
++  const f = await readerFixture(t);
++  await f.final([f.h101]); await f.provisional([f.h102, f.h103]);
++  const S103 = { number: 103, hash: f.h103.hash, l1: { number: 10070, hash: f.attestedL1.hash } };
++  assert.equal(await f.evidence.record(issued(S103, 0, { finalized: { number: 101, hash: f.h101.hash } })), 'recorded');
++  await f.final([f.h102, f.h103]);
++  assert.deepEqual(f.lifecycle.readProvisional(), { fence: null, states: [] }, 'confirmed by the finalized result and pruned');
++  // a recorded S that finalized derivation contradicts (e.g. issued before a restart lost the RAM segments)
++  await f.evidence.record(issued({ number: 104, hash: hash('a lost provisional 104'), l1: S103.l1 }, 0, { finalized: { number: 103, hash: f.h103.hash } }));
++  await f.final([f.h104]);
++  assert.equal(f.lifecycle.readProvisional().fence.reason, 'contradiction');
++  f.candidate = f.h104;
++  await assert.rejects(f.reader.prepareProvisional({ blockNumber: 105, rollupConfigTemplate: TEMPLATE }), /durable marker \(contradiction\)/);
++  assert.equal((await f.reader.readAnchor()).base.number, 104, 'the finalized track keeps serving');
++  // restart: a new provider over the re-opened (re-seeded) anchor journal stays disabled
++  await f.reader.close();
++  const lifecycle = openLifecycleJournal(f.lifecycleFile), { provisionalEvidence } = await import('../../network/derived-reader/lifecycle.mjs');
++  const again = await createDerivedProvider({ ...f.options, provisionalEvidence: provisionalEvidence(lifecycle) }); t.after(() => again.close());
++  await assert.rejects(again.readStateAnchor(), /durable marker|no locally derived/);
++  const snap = createLifecycleFinalitySnapshot({ readAnchor: async () => ({ tier: 'l1-finalized-derived', base: { number: 1, hash: hash('b'), stateRoot: hash('r'), outputRoot: hash('o'), timestamp: Math.floor(f.now / 1000) },
++    l1: { number: 1, hash: hash('l'), timestamp: Math.floor(f.now / 1000) } }), readStateAnchor: async () => { throw Error('S must not be read under a marker'); },
++    verifier: { request: async () => '0x2105' }, journal: lifecycle, now: () => f.now });
++  await assert.rejects(snap.twoAnchor(() => 1), /durable marker \(contradiction\)/);
++});
++
++test('A2 provider: an S recorded but passed by finalized coverage without being covered (bootstrap beyond it) is unverifiable: disabled', async t => {
++  const f = await readerFixture(t);
++  await f.evidence.record(issued({ number: 50, hash: hash('s-50'), l1: L1 }, 0, { claimBlock: 40, finalized: { number: 45, hash: hash('f-45') } }));
++  await f.final([f.h101]);
++  assert.equal(f.lifecycle.readProvisional().fence.reason, 'unverifiable');
++  f.candidate = f.h102;
++  await assert.rejects(f.reader.prepareProvisional({ blockNumber: 102, rollupConfigTemplate: TEMPLATE }), /durable marker \(unverifiable\)/);
++  assert.equal((await f.reader.readAnchor()).base.number, 101);
++});
++
++test('A2 provider: the provisional tier refuses to exist without durable evidence, and evidence never exists without the policy', async t => {
++  const f = await readerFixture(t, { policy: null });
++  const { POLICY } = await import('./two-anchor-fixtures.mjs');
++  await assert.rejects(createDerivedProvider({ ...f.options, provisional: POLICY }), /durable evidence journal/);
++  await assert.rejects(createDerivedProvider({ ...f.options, provisional: POLICY, provisionalEvidence: { disabled: () => null } }), /durable evidence journal/);
++  await assert.rejects(createDerivedProvider({ ...f.options, provisionalEvidence: f.evidence }), /without the provisional policy/);
++});
++
++test('S2: the bridge pairs S only with the exact B_f it extends; a finalized advance between the two reads refuses, a fresh snapshot then succeeds', async t => {
++  const f = await readerFixture(t);
++  await f.final([f.h101], [log(f.h101)]); await f.provisional([f.h102]); await f.provisional([f.h103]);
++  const byNumber = { 101: f.h101, 102: f.h102, 103: f.h103 };
++  const verifier = { request: async (method, params) => method === 'eth_chainId' ? '0x2105' : method === 'eth_getBlockByNumber' ? byNumber[Number(BigInt(params[0]))] : '0x1' };
++  let race = true;
++  const snap = createLifecycleFinalitySnapshot({ verifier, journal: f.lifecycle, now: () => f.now, maxAnchorAgeSec: 1800, readStateAnchor: f.reader.readStateAnchor,
++    readAnchor: async o => { const a = await f.reader.readAnchor(o); if (race) { race = false; await f.final([f.h102]); } return a; } });
++  await assert.rejects(snap.twoAnchor(() => 1), /not rooted at this finalized anchor/);
++  const r = await snap.twoAnchor(async ({ claim, state }) => [Number(claim.number), Number(state.number)]);
++  assert.deepEqual(r.value, [102, 103]);
++  assert.equal(f.lifecycle.readAnchor(8453).base.number, 102, 'only B_f is journaled');
++});
++
++test('S3: the overlay links to the persisted tail by native-bound output root, not only by number', async t => {
++  const f = await readerFixture(t);
++  await f.final([f.h101], [log(f.h101)]);
++  f.candidate = f.h103;
++  const ticket = await f.reader.prepareProvisional({ blockNumber: 103, rollupConfigTemplate: TEMPLATE });
++  const head = await f.l1.attested(), input = trusted => ({ trusted, bound: { agreedL2BlockNumber: 101 } });
++  const good = bindNativeV3(result(ticket, [f.h102, f.h103], [log(f.h102)]), input(ticket.trusted), f.h103, head, DERIVED_TIERS.attested);
++  const forgedRoot = hash('another chain at 101');
++  const r = { ...result(ticket, [f.h102, f.h103]), agreedL2OutputRoot: forgedRoot };
++  const forged = bindNativeV3(r, input({ ...ticket.trusted, agreedL2OutputRoot: forgedRoot }), f.h103, head, DERIVED_TIERS.attested);
++  await assert.rejects(f.store.read(f.query(forged.anchor), forged.anchor, { overlay: [forged.coverage] }), /does not link to its predecessor output root/);
++  assert.deepEqual((await f.store.read(f.query(good.anchor), good.anchor, { overlay: [good.coverage] })).logs.map(l => l.blockNumber), [101, 102]);
++});
++
++test('A3 regression (NOT a fix): coverage after ANY start begins at the authenticated bootstrap; a rotation (new binding, new cache) is no worse than a restart; an ASR bootstrap past a claim makes it unservable', async t => {
++  const f = await readerFixture(t, { policy: null });
++  await f.final([f.h101], [log(f.h101)]);
++  const Bf = await f.reader.readAnchor();
++  await assert.rejects(f.reader.readDerivedLogs(f.query(Bf, { fromBlock: 100 })), /outside runtime-verified coverage/, 'nothing at or before the bootstrap');
++  assert.equal((await f.reader.readDerivedLogs(f.query(Bf))).coverage.availableFromBlock, 101);
++  const restart = async (binding, agreed) => {
++    await f.reader.close(); f.store.close(); f.journal.close();
++    const dir = path.join(f.directory, `state-${binding.slice(0, 4)}-${agreed.base.number}`); fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
++    f.journal = await openDerivedJournal(dir, { binding, initialize: true });
++    f.store = await openCoverageStore(path.join(dir, 'coverage'), { binding, initialize: true });
++    f.agreed = agreed;
++    f.reader = await createDerivedProvider({ ...f.options, journal: f.journal, coverageStore: f.store, bootstrap: async () => f.agreed });
++  };
++  // a rotation (other binding: new cache directory, empty) re-derives from the same authenticated bootstrap: same availability as before
++  await restart('f'.repeat(64), f.agreed);
++  await f.final([f.h101], [log(f.h101)]);
++  assert.equal((await f.reader.readDerivedLogs(f.query(await f.reader.readAnchor()))).coverage.availableFromBlock, 101);
++  // a later ASR bootstrap (the anchor registry advanced while the reader was down): the claim at 101 can never be served again
++  const seconds = Math.floor(f.now / 1000);
++  await restart('d'.repeat(64), anchorOf(f.h102, { number: 9995, hash: hash('l1-9995'), stateRoot: hash('l1state-9995'), timestamp: seconds - 990 }));
++  f.h103b = header(103, seconds - 10);
++  await f.final([f.h103b]);
++  const later = await f.reader.readAnchor();
++  assert.equal((await f.reader.readDerivedLogs(f.query(later, { fromBlock: 103 }))).coverage.availableFromBlock, 103);
++  await assert.rejects(f.reader.readDerivedLogs(f.query(later, { fromBlock: 101 })), /outside runtime-verified coverage/,
++    'a lease claimed at 101 is claim_not_covered at the writer until a historical bootstrap or committed coverage exists (activation requirement)');
++});
+diff --git a/test/derived-reader/two-anchor.test.mjs b/test/derived-reader/two-anchor.test.mjs
+index c42fada..5ba7e09 100644
+--- a/test/derived-reader/two-anchor.test.mjs
++++ b/test/derived-reader/two-anchor.test.mjs
+@@ -1,4 +1,4 @@
+-// writer-two-anchor-stage/r1: the READER side of Option B (attested-L1 provisional state anchor S beside the finalized B_f).
++// writer-two-anchor-stage/r1 (r2-adapted: shared fixtures, durable evidence, S1/S2): the READER side of Option B (attested-L1 provisional state anchor S beside the finalized B_f).
+ // Transport/composition FIXTURES only, exactly as helpers.mjs: the fake L1 process (it serves distinct `finalized` and `latest`
+ // headers) and the echo native executable are NEVER evidence of consensus verification, of the real Helios attested-head lag, of
+ // native derivation or of its timing (M1-M6 stay unmeasured). What is shown: who may produce the attested tier, that S stays in
+@@ -9,14 +9,10 @@ import assert from 'node:assert/strict';
+ import fs from 'node:fs';
+ import os from 'node:os';
+ import path from 'node:path';
+-import net from 'node:net';
+-import { once } from 'node:events';
+ import { createHash } from 'node:crypto';
+-import { keccak256, toBytes } from 'viem';
+-import { startL1Runtime, readCheckpoint, l1HeadTier, L1_HEAD_TIERS } from '../../network/derived-reader/l1-runtime.mjs';
+-import { createDerivedProvider, derivedReaderBinding, provisionalPolicy, BOOTSTRAP_POLICY } from '../../network/derived-reader/provider.mjs';
+-import { openDerivedJournal } from '../../network/derived-reader/journal.mjs';
+-import { openCoverageStore, MAX_HISTORY_BYTES } from '../../network/derived-reader/coverage-store.mjs';
++import { readCheckpoint, l1HeadTier, L1_HEAD_TIERS } from '../../network/derived-reader/l1-runtime.mjs';
++import { createDerivedProvider, derivedReaderBinding, provisionalPolicy, enrollDerivedState, BOOTSTRAP_POLICY } from '../../network/derived-reader/provider.mjs';
++import { MAX_HISTORY_BYTES } from '../../network/derived-reader/coverage-store.mjs';
+ import { LEASE_TOPICS, COVERAGE_FORMAT, FILTER_ID } from '../../network/derived-reader/coverage.mjs';
+ import { bindNativeV3, prepareProof, keccak, DERIVED_TIERS } from '../../network/derived-reader/proof.mjs';
+ import { readSchedule } from '../../network/derived-reader/vendor/schedule_reader.mjs';
+@@ -25,83 +21,8 @@ import { serveDerivedReader } from '../../network/derived-reader/api.mjs';
+ import { startDerivedLifecycleReader } from '../../network/derived-reader/lifecycle.mjs';
+ import { createLifecycleFinalitySnapshot } from '../../network/lifecycle-finality-bridge.mjs';
+ import { openLifecycleJournal } from '../../network/deployment-lifecycle-journal.mjs';
+-import { header, anchorOf, nativeResult } from './helpers.mjs';
+-
+-const hash = s => keccak256(toBytes(s));
+-const word = n => BigInt(n).toString(16).padStart(64, '0');
+-const hex = n => `0x${n.toString(16)}`;
+-const SCHEDULE = `0x${word(32)}${word(15)}${Array.from({ length: 15 }, (_, i) => word(i < 13 ? 1686789347 : 0)).join('')}`;
+-const VERSION = `0x${word((1n << 96n) | (5n << 64n) | (1n << 32n))}`;
+-const SELECTOR = keccak256(toBytes('getSchedule()')).slice(0, 10);
+-const A = `0x${'aa'.repeat(20)}`, ID = `0x${'cc'.repeat(32)}`, binding = 'e'.repeat(64);
+-const POLICY = Object.freeze({ format: 'enclave-derived-provisional/v1', l1Head: 'helios-attested-latest', l1MaxAgeSec: 60, maxStateAgeSec: 120,
+-  maxBlocks: 1800, maxSpanBlocks: 3600, maxSegments: 64, maxOverlayBytes: 64 << 20, maxWitnessBytes: 64 << 20, nativeTimeoutMs: 120000, maxMemoryMiB: 1536 });
+-const TEMPLATE = { l2_chain_id: 8453 };
+-const l1Header = (number, timestamp) => ({ number: hex(number), hash: hash(`l1-${number}`), stateRoot: hash(`l1state-${number}`), timestamp: hex(timestamp) });
+-const log = (h, index = 0) => ({ address: A, blockNumber: Number(BigInt(h.number)), blockHash: h.hash, logIndex: index, topics: [LEASE_TOPICS[0], ID], data: '0x',
+-  txHash: `0x${'dd'.repeat(32)}` });
+-function result(ticket, headers, logs = []) {
+-  const blocks = headers.map(h => ({ ...anchorOf(h, {}).base, receiptsRoot: h.receiptsRoot, transactionsRoot: h.transactionsRoot }));
+-  return { ...nativeResult(ticket, headers.at(-1)), format: 'enclave-base-derivation-result/v3',
+-    intermediateRoots: '0x' + blocks.map(b => b.outputRoot.slice(2)).join(''),
+-    coverage: { format: COVERAGE_FORMAT, filterId: FILTER_ID, fromBlock: blocks[0].number, toBlock: blocks.at(-1).number, blocks, logs } };
+-}
+-
+-/** The owned L1 runtime over a fixture process that serves `finalized` (900 s old) and `latest` (attested, 20 s old) separately. */
+-async function l1Fixture(t) {
+-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'two-anchor-test-'));
+-  const f = { directory, now: Date.now(), l1: null };
+-  t.after(async () => { await f.l1?.close(); fs.rmSync(directory, { recursive: true, force: true }); });
+-  const server = net.createServer(); server.listen(0, '127.0.0.1'); await once(server, 'listening');
+-  const port = server.address().port; await new Promise(resolve => server.close(resolve));
+-  const seconds = Math.floor(f.now / 1000);
+-  f.finalizedL1 = l1Header(10000, seconds - 900); f.attestedL1 = l1Header(10070, seconds - 20); f.chainId = '0x1';
+-  const values = path.join(directory, 'l1-fixture.json');
+-  f.save = () => fs.writeFileSync(values, JSON.stringify({ chainId: f.chainId, tags: { finalized: f.finalizedL1, latest: f.attestedL1 },
+-    numbers: Object.fromEntries([f.finalizedL1, f.attestedL1].map(h => [h.number, h])), schedule: SCHEDULE, version: VERSION }));
+-  f.save();
+-  const script = path.join(directory, 'l1-fixture.mjs');
+-  fs.writeFileSync(script, `import http from 'node:http'; import fs from 'node:fs';
+-const [file,port]=process.argv.slice(2); http.createServer(async(q,s)=>{const a=[];for await(const c of q)a.push(c);
+-const b=JSON.parse(Buffer.concat(a)),v=JSON.parse(fs.readFileSync(file));
+-const result=b.method==='eth_chainId'?v.chainId:b.method==='eth_getBlockByNumber'?(v.tags[b.params[0]]??v.numbers[b.params[0]]??null):b.method==='eth_call'?(b.params[0].data==='${SELECTOR}'?v.schedule:v.version):null;
+-s.writeHead(200,{'content-type':'application/json'});s.end(JSON.stringify({jsonrpc:'2.0',id:b.id,result}));}).listen(Number(port),'127.0.0.1');`);
+-  const checkpointFile = path.join(directory, 'checkpoint.json');
+-  const record = JSON.stringify({ format: 'enclave-l1-checkpoint/v1', network: 'mainnet', slot: Math.floor((seconds - 1606824023) / 12) - 64, root: hash('fixture checkpoint') });
+-  fs.writeFileSync(checkpointFile, record);
+-  const cp = createHash('sha256').update(record).digest('hex'), binaryHash = await sha256File(process.execPath);
+-  const runDir = path.join(directory, 'l1'); fs.mkdirSync(runDir);
+-  f.l1Config = { port, binary: { path: process.execPath, sha256: binaryHash }, checkpointFile,
+-    consensusUrl: 'http://127.0.0.1:1', executionUrl: 'http://127.0.0.1:2', readyTimeoutMs: 3000 };
+-  f.l1Options = { runDir, now: () => f.now, acceptedBuilds: { [binaryHash]: 'transport fixture' }, acceptedCheckpoints: { [cp]: 'fixture' },
+-    buildArgs: ({ port }) => ['--max-old-space-size=64', script, values, String(port)] };
+-  f.l1 = await startL1Runtime(f.l1Config, f.l1Options);
+-  f.native = path.join(directory, 'echo-native'); fs.writeFileSync(f.native, '#!/bin/sh\nexec /bin/cat "$2"\n', { mode: 0o700 });
+-  return f;
+-}
+-/** A v3 provider (journal + coverage store) with the provisional policy unless policy: null. B_f = 101 (950 s old), S up to 103/104. */
+-async function readerFixture(t, { policy = POLICY } = {}) {
+-  const f = await l1Fixture(t), seconds = Math.floor(f.now / 1000);
+-  f.agreed = anchorOf(header(100, seconds - 960), { number: 9990, hash: hash('l1-9990'), stateRoot: hash('l1state-9990'), timestamp: seconds - 1000 });
+-  f.h101 = header(101, seconds - 950); f.h102 = header(102, seconds - 20); f.h103 = header(103, seconds - 10); f.h104 = header(104, seconds - 5);
+-  f.journal = await openDerivedJournal(f.directory, { binding, initialize: true });
+-  f.store = await openCoverageStore(path.join(f.directory, 'coverage'), { binding, initialize: true });
+-  f.options = { l1: f.l1, journal: f.journal, executable: f.native, workDir: f.directory, now: () => f.now, resultVersion: 3, coverageStore: f.store,
+-    bootstrap: async () => f.agreed, base: async () => f.candidate, ...(policy ? { provisional: policy } : {}) };
+-  f.reader = await createDerivedProvider(f.options);
+-  t.after(async () => { await f.reader.close(); f.store.close(); f.journal.close(); });
+-  const run = async (prepare, submit, headers, logs) => {
+-    f.candidate = headers.at(-1);
+-    const ticket = await prepare({ blockNumber: Number(BigInt(f.candidate.number)), rollupConfigTemplate: TEMPLATE });
+-    return submit({ ticket: ticket.ticket, witness: Buffer.from(JSON.stringify(result(ticket, headers, logs))) });
+-  };
+-  f.final = (headers, logs) => run(f.reader.prepare, f.reader.submit, headers, logs);
+-  f.provisional = (headers, logs) => run(f.reader.prepareProvisional, f.reader.submitProvisional, headers, logs);
+-  f.query = (anchor, extras = {}) => ({ address: A, topic0s: [...LEASE_TOPICS], topic1: ID, fromBlock: 101, toBlock: anchor.base.number,
+-    anchor: { number: anchor.base.number, hash: anchor.base.hash }, ...extras });
+-  f.chunks = () => fs.readdirSync(path.join(f.directory, 'coverage')).filter(n => /^[a-f0-9]{64}\.json$/.test(n)).length;
+-  return f;
+-}
++import { header } from './helpers.mjs';
++import { hash, hex, SCHEDULE, VERSION, SELECTOR, A, ID, POLICY, TEMPLATE, l1Header, log, result, l1Fixture, readerFixture } from './two-anchor-fixtures.mjs';
+ 
+ test('schedule reader: the default finalized mode is unchanged; the explicit provisional mode pins finalized <= anchor <= attested', async () => {
+   const H = n => hash(`anchor-${n}`);
+@@ -266,6 +187,9 @@ test('a finalized result contradicting S fences the provisional track and keeps
+   const fence = f.reader.status().provisional.fenced;
+   assert.equal(fence.block, 102); assert.equal(fence.provisionalHash, f.h102.hash); assert.equal(fence.finalizedHash, other.hash);
+   assert.equal(fence.provisionalThrough, 102); assert.equal(fence.provisionalL1.hash, f.attestedL1.hash);
++  // r2 (A2): the contradiction is also the DURABLE marker in the anchor journal
++  const marker = f.lifecycle.readProvisional().fence;
++  assert.deepEqual([marker.reason, marker.block, marker.provisionalHash, marker.finalizedHash], ['contradiction', 102, f.h102.hash, other.hash]);
+   await assert.rejects(f.reader.readStateAnchor(), /fenced/);
+   f.candidate = f.h103;
+   await assert.rejects(f.reader.prepareProvisional({ blockNumber: 103, rollupConfigTemplate: TEMPLATE }), /fenced/);
+@@ -303,7 +227,7 @@ test('bridge twoAnchor: claim read pinned at B_f and state at S, both verifier-m
+   const F = { tier: 'l1-finalized-derived', base: { number: 100, hash: hash('bf'), stateRoot: hash('bf-state'), outputRoot: hash('bf-out'), timestamp: sec - 900 },
+     l1: { number: 30, hash: hash('l1-f'), timestamp: sec - 800 } };
+   const S0 = { tier: 'l1-attested-derived', base: { number: 130, hash: hash('s'), stateRoot: hash('s-state'), outputRoot: hash('s-out'), timestamp: sec - 30 },
+-    l1: { number: 40, hash: hash('l1-s'), timestamp: sec - 20 } };
++    l1: { number: 40, hash: hash('l1-s'), timestamp: sec - 20 }, finalizedRoot: { number: 100, hash: hash('bf') } };
+   f.S = S0;
+   const verifier = { request: async (method, params) => {
+     f.calls.push({ method, params });
+@@ -348,8 +272,9 @@ test('end to end (fixtures): the provider B_f and S through the bridge twoAnchor
+   const byNumber = { 101: f.h101, 103: f.h103 };
+   const verifier = { request: async (method, params) => method === 'eth_chainId' ? '0x2105' : method === 'eth_getBlockByNumber' ? byNumber[Number(BigInt(params[0]))]
+     : method === 'eth_getBalance' ? '0x1' : null };
++  // the bridge journal IS the evidence journal (one role-committed anchor journal, as in production)
+   const snap = createLifecycleFinalitySnapshot({ readAnchor: f.reader.readAnchor, readStateAnchor: f.reader.readStateAnchor, verifier, now: () => f.now,
+-    journal: openLifecycleJournal(path.join(f.directory, 'lifecycle.json')), maxAnchorAgeSec: 1800 });
++    journal: f.lifecycle, maxAnchorAgeSec: 1800 });
+   const r = await snap.twoAnchor(async ({ claim, state }) => {
+     assert.equal(f.reader.status().busy, false, 'both anchors were read before the callback');
+     const q = { address: A, topic0s: [...LEASE_TOPICS], topic1: ID, fromBlock: 101, toBlock: Number(state.number), anchor: { number: Number(state.number), hash: state.header.hash } };
+@@ -361,21 +286,36 @@ test('end to end (fixtures): the provider B_f and S through the bridge twoAnchor
+   await assert.rejects(snap.twoAnchor(() => 1), /no longer canonical/);
+ });
+ 
+-test('lifecycle wiring: stateSnapshot exists only when the signed reader config carries the provisional policy', async t => {
++test('lifecycle wiring: stateSnapshot (and fact evidence) only for the ENROLLED, role-committed config carrying the policy; never a self-initialized one', async t => {
+   const f = await l1Fixture(t); await f.l1.close(); f.l1 = null;
+   const sha256 = await sha256File(f.native);
+   const options = { now: () => f.now, l1Options: f.l1Options, acceptedDerivationBuilds: { [sha256]: 'wiring fixture' } };
+   const verifier = { request: async () => { throw Error('fixture: no proof transport'); } };
+-  for (const [name, extra, want] of [['plain', {}, false], ['provisional', { provisional: POLICY }, true]]) {
+-    const config = { stateDir: path.join(f.directory, name), initializeState: true, native: { path: f.native, sha256, resultVersion: 3 },
+-      l1: f.l1Config, baseUrl: 'http://127.0.0.1:1', ...extra };
+-    const service = await startDerivedLifecycleReader(config, { verifier, journal: openLifecycleJournal(path.join(f.directory, `${name}-lifecycle.json`)), ...options });
+-    try {
+-      assert.equal(typeof service.stateSnapshot === 'function', want, name);
+-      assert.equal(service.reader.status().provisional === null, !want, name);
+-      if (want) await assert.rejects(service.stateSnapshot(() => 1), /no locally derived/);
+-    } finally { await service.close(); }
+-  }
++  const native = { path: f.native, sha256, resultVersion: 3 }, base = { native, l1: f.l1Config, baseUrl: 'http://127.0.0.1:1' };
++  // plain, self-initialized: legacy single anchor only
++  const plain = await startDerivedLifecycleReader({ ...base, stateDir: path.join(f.directory, 'plain'), initializeState: true },
++    { verifier, journal: openLifecycleJournal(path.join(f.directory, 'plain-lifecycle.json')), ...options });
++  try { assert.equal(plain.stateSnapshot, undefined); assert.equal(plain.recordStateFact, undefined); assert.equal(plain.reader.status().provisional, null); }
++  finally { await plain.close(); }
++  // S1: the policy on a self-initialized (unsigned) state refuses before anything is opened
++  await assert.rejects(startDerivedLifecycleReader({ ...base, stateDir: path.join(f.directory, 'unsigned'), initializeState: true, provisional: POLICY },
++    { verifier, journal: openLifecycleJournal(path.join(f.directory, 'unsigned-lifecycle.json')), ...options }), /enrolled, role-committed reader state/);
++  assert.equal(fs.existsSync(path.join(f.directory, 'unsigned')), false);
++  // enrolled split state with role-committed journals (the commit is a transport stand-in): the policy is in the signed binding
++  const root = path.join(f.directory, 'enrolled'), anchorJournal = path.join(root, 'anchor', 'anchor-journal.json');
++  const config = { ...base, journalDir: path.join(root, 'journal'), coverageDir: path.join(root, 'cache'), runsDir: path.join(root, 'runs'), provisional: POLICY };
++  const commit = async () => true;
++  await enrollDerivedState(config, { ...options, commit, anchorJournal, verifyEnrollment: async ({ binding, floorDigest }) => ({ format: 'enclave-derived-enrollment-result/v1',
++    binding, digest: '1'.repeat(64), mode: 'genesis', floorDigest, highWater: null, priorFiles: {} }) });
++  await assert.rejects(startDerivedLifecycleReader(config, { verifier, journal: openLifecycleJournal(anchorJournal), ...options }), /enrolled, role-committed reader state/,
++    'enrolled files without required commits still refuse');
++  const service = await startDerivedLifecycleReader(config, { verifier, journal: openLifecycleJournal(anchorJournal, { requireExisting: true, commit, requireCommit: true }),
++    journalCommit: commit, requireJournalCommit: true, ...options });
++  try {
++    assert.equal(typeof service.stateSnapshot, 'function'); assert.equal(typeof service.recordStateFact, 'function');
++    assert.deepEqual(service.reader.status().provisional, { segments: 0, stateThrough: null, hasPendingWitness: false, fenced: null });
++    await assert.rejects(service.stateSnapshot(() => 1), /no locally derived/);
++  } finally { await service.close(); }
+ });
+ 
+ test('loopback orchestration: /provisional/prepare and /provisional/witness reach only the provisional track; no provisional anchor route', async t => {
+diff --git a/test/derived-writer-two-anchor.test.mjs b/test/derived-writer-two-anchor.test.mjs
+index fafe564..b3c5eb4 100644
+--- a/test/derived-writer-two-anchor.test.mjs
++++ b/test/derived-writer-two-anchor.test.mjs
+@@ -1,17 +1,22 @@
+ // writer-two-anchor-stage/r1: relay/derived-writer-authority.mjs in TWO-ANCHOR mode (capability.stateSnapshot), ADAPTER LOGIC ONLY.
+ // The capability is an in-test fake: its `complete: true` and its anchors prove nothing; these tests show what the adapter does WITH
+ // a finalized claim anchor B_f and a provisional state anchor S (claim finality, 120 s on S, B_f liveness, complete coverage through
+-// S, deny-only verifier, selector). The reader side (attested L1, RAM-only overlay, reorg discard) is test/derived-reader/two-anchor.test.mjs.
++// S, deny-only verifier, selector; r2: durable fact evidence before every fact, the durable disable marker, S1). The reader side (attested L1, RAM-only overlay, reorg discard) is test/derived-reader/two-anchor.test.mjs.
+ import { test } from "node:test";
+ import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import * as DS from "../metal/guest/derived-state.mjs";
+ import { CLAIMED, RENEWED, RELEASED, LeaseGenerationError } from "../relay/lease-generation.mjs";
+-import { createDerivedWriterAuthority, derivedWriterAuthorityFromEnv, MAX_ANCHOR_AGE_SEC, MAX_FINALIZED_AGE_SEC, STATE_TIER, CLAIM_TIER } from "../relay/derived-writer-authority.mjs";
++import { createDerivedWriterAuthority, derivedWriterAuthorityFromEnv, MAX_ANCHOR_AGE_SEC, MAX_FINALIZED_AGE_SEC, STATE_TIER, CLAIM_TIER, DERIVED_STATE_API } from "../relay/derived-writer-authority.mjs";
+ 
+ const h = (b, n = 32) => "0x" + b.repeat(n);
+ const ID = h("11"), RUNNER = h("22"), OTHER_RUNNER = h("33"), OP = "0x" + "44".repeat(20), OP2 = "0x" + "55".repeat(20);
+ const LEDGER = "0x" + "66".repeat(20), LEDGER2 = "0x" + "67".repeat(20), BOOK = "0x" + "77".repeat(20);
+ const O = 53_000_000, BF = O + 1_000, S = O + 1_300, HF = h("af"), HS = h("a5"), NOW = 1_700_000_000;
+ const TF = NOW - 900, TS = NOW - 30;                     // a typical finalized lag, a provisional state anchor 30 s old
++const SL1 = { number: 26_000_300, hash: h("1e") };                 // the attested L1 head S was derived at
+ const word = (n) => BigInt(n).toString(16).padStart(64, "0");
+ const pad = (a) => "0x" + "0".repeat(24) + a.slice(2);
+ let seq = 0;
+@@ -28,9 +33,9 @@ const NONE = row({ id: h("00") });
+ 
+ /** A fake two-anchor world: rows/book at B_f and at S, the complete lease logs through S, the deny-only verifier after S. */
+ function world({ logs = [claimed(950, 3, NOW + 1200)], rowF = row(), rowS = row(), bookF = LEDGER, bookS = bookF, schema = 16, availableFrom = O + 900,
+-                 availableTo = S, tf = TF, ts = TS, sNumber = S, snapState = {}, evidence = { tier: STATE_TIER, claimTier: CLAIM_TIER },
+-                 later = [], headRow, headBook = bookS, head = S + 50, mutate = (r) => r, readerFails = null } = {}) {
+-  const calls = [];
++                 availableTo = S, tf = TF, ts = TS, sNumber = S, snapState = {}, evidence = { tier: STATE_TIER, claimTier: CLAIM_TIER, state: { l1: SL1 } },
++                 later = [], headRow, headBook = bookS, head = S + 50, mutate = (r) => r, readerFails = null, recordFails = null } = {}) {
++  const calls = [], records = [];
+   const side = (name, B, hash, time, book, r) => ({
+     number: BigInt(B),
+     client: {
+@@ -51,6 +56,12 @@ function world({ logs = [claimed(950, 3, NOW + 1200)], rowF = row(), rowS = row(
+       const value = await read({ claim: side("claim", BF, HF, tf, bookF, rowF), state: side("state", sNumber, HS, ts, bookS, rowS) });
+       return { blockNumber: BigInt(BF), blockHash: HF, value, state: { blockNumber: BigInt(sNumber), blockHash: HS, ...snapState }, evidence };
+     },
++    // r2 (A2): the durable fact evidence (the role-committed anchor journal in production)
++    async recordStateFact(entry) {
++      calls.push(["record"]);
++      if (recordFails) throw new Error(recordFails);
++      records.push(structuredClone(entry)); return "recorded";
++    },
+     async readDerivedLogs(q) {
+       calls.push(["logs", q.fromBlock, q.toBlock, q.anchor.number]);
+       if (readerFails) throw new Error(readerFails);
+@@ -68,7 +79,7 @@ function world({ logs = [claimed(950, 3, NOW + 1200)], rowF = row(), rowS = row(
+     request: async ({ method, params }) => { calls.push(["fresh", method, params[0].fromBlock]); assert.equal(method, "eth_getLogs"); return later; },
+     readContract: async ({ functionName }) => functionName === "addr" ? headBook : (headRow ?? rowS),
+   };
+-  return { capability, fresh, calls };
++  return { capability, fresh, calls, records };
+ }
+ const authority = (w, o = {}) => createDerivedWriterAuthority({ capability: w.capability, fresh: w.fresh, addressBook: BOOK, now: () => NOW * 1000, ...o });
+ const refuses = async (p, code) => {
+@@ -166,23 +177,96 @@ test("the unsafe verifier stays deny-only after S: later claim/release refuse, s
+   assert.ok(!w.calls.some((c) => c[0] === "fresh"));
+ });
+ 
+-test("selector: two anchors only when the runtime's service carries stateSnapshot (signed binding); no env enables it; legacy default unchanged", async () => {
+-  const base = { ENCLAVE_WRITER_AUTHORITY_SOURCE: "derived", ENCLAVE_DERIVED_READER_CONFIG: "/etc/r.json", ENCLAVE_DERIVED_ANCHOR_JOURNAL: "/var/j", ADDRESS_BOOK_ADDRESS: BOOK };
++/** The relay's ENROLLED-state branch (ENCLAVE_DERIVED_STATE): a complete matching enrollment (no re-enrollment), a fake committer,
++ *  and a runtime declaring the durable-state API whose reader start returns `service`. */
++function enrolledEnv(t, configJson) {
++  const d = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "w2a-relay-"))); t.after(() => fs.rmSync(d, { recursive: true, force: true }));
++  const JD = path.join(d, "journal"); fs.mkdirSync(JD);
++  const BINDING = "bb".repeat(32), DG = "d".repeat(64), BR = "bridge/anchor-journal.json";
++  const cfgFile = path.join(d, "reader.json"), stateFile = path.join(d, "state.json"), J = path.join(d, "j.json"), R = path.join(JD, "derived-state.json");
++  fs.writeFileSync(cfgFile, configJson);
++  fs.writeFileSync(R, JSON.stringify({ format: "enclave-derived-root-journal/v1", binding: BINDING, floor: null, entries: [], enrollment: { digest: DG, phase: "committed" } }));
++  fs.writeFileSync(stateFile, JSON.stringify({ format: DS.STATE_FORMAT, enrollment: { mode: "genesis", digest: DG, binding: BINDING, highWater: null },
++    files: [{ rel: "reader/derived-state.json", path: R }, { rel: BR, path: J }], journalDir: JD, coverageDir: path.join(d, "coverage", BINDING),
++    runsDir: path.join(d, "runs"), paths: { "reader/derived-state.json": R, [BR]: J }, commit: { protocol: DS.COMMIT_PROTOCOL, boot: "a".repeat(32) } }));
++  const env = { ENCLAVE_WRITER_AUTHORITY_SOURCE: "derived", ENCLAVE_DERIVED_READER_CONFIG: cfgFile, ENCLAVE_DERIVED_ANCHOR_JOURNAL: J,
++    ENCLAVE_DERIVED_STATE: stateFile, ENCLAVE_DERIVED_COMMIT_BOOT: "a".repeat(32), ADDRESS_BOOK_ADDRESS: BOOK };
++  const createCommitter = () => ({ commit: async () => true, verifyEnrollment: async () => { throw new Error("no enrollment expected"); }, status: () => ({}) });
++  const runtime = (service) => ({ DERIVED_STATE_API, derivedReaderBinding: () => BINDING, derivedEnrollmentFloorDigest: DS.floorDigestOf,
++    enrollDerivedState: async () => { throw new Error("no enrollment expected"); }, openLifecycleJournal: () => ({}),
++    startDerivedLifecycleReader: async () => ({ close: async () => {}, ...service }) });
++  return { env, createCommitter, runtime, readFile: (f, enc) => fs.promises.readFile(f, enc) };
++}
++
++test("selector: two anchors only on the ENROLLED state with the runtime's stateSnapshot + fact evidence; no env, config or unsigned path enables it", async (t) => {
+   const w = world();
+-  const start = (service) => ({ openLifecycleJournal: () => ({}), startDerivedLifecycleReader: async () => ({ close: async () => {}, ...service }) });
+-  const two = await derivedWriterAuthorityFromEnv(base, { relayChain: { client: w.fresh }, readFile: async () => JSON.stringify({ maxAnchorAgeSec: 600 }),
+-    loadRuntime: async () => start({ reader: { readDerivedLogs: w.capability.readDerivedLogs }, snapshot: w.capability.snapshot, stateSnapshot: w.capability.stateSnapshot }),
+-    now: () => NOW * 1000 });
++  const service = { reader: { readDerivedLogs: w.capability.readDerivedLogs }, snapshot: w.capability.snapshot, stateSnapshot: w.capability.stateSnapshot,
++    recordStateFact: w.capability.recordStateFact };
++  const e = enrolledEnv(t, JSON.stringify({ maxAnchorAgeSec: 600 }));
++  const two = await derivedWriterAuthorityFromEnv(e.env, { relayChain: { client: w.fresh }, readFile: e.readFile, loadRuntime: async () => e.runtime(service),
++    createCommitter: e.createCommitter, now: () => NOW * 1000 });
+   assert.deepEqual(two.describe(), { source: "derived", tier: STATE_TIER, claimTier: CLAIM_TIER, witnessApi: null });
+   await refuses(two.writerAuthority(ID), "stale_finalized");                     // the reader config's 600 s bounds B_f (900 s old)
+-  // the same world without the runtime's stateSnapshot, plus any env knob: the legacy single finalized anchor, which stays refused
++  // a state snapshot without durable fact evidence never becomes an authority
++  const { recordStateFact: _r, ...noEvidence } = service;
++  await assert.rejects(derivedWriterAuthorityFromEnv(e.env, { relayChain: { client: w.fresh }, readFile: e.readFile, loadRuntime: async () => e.runtime(noEvidence),
++    createCommitter: e.createCommitter, now: () => NOW * 1000 }), /recordStateFact/);
++  // S1: WITHOUT the enrolled state, a config carrying the policy refuses, and a runtime offering a state anchor is closed and refused
++  const base = { ENCLAVE_WRITER_AUTHORITY_SOURCE: "derived", ENCLAVE_DERIVED_READER_CONFIG: "/etc/r.json", ENCLAVE_DERIVED_ANCHOR_JOURNAL: "/var/j", ADDRESS_BOOK_ADDRESS: BOOK };
++  const plainRuntime = (svc) => ({ openLifecycleJournal: () => ({}), startDerivedLifecycleReader: async () => ({ close: async () => { svc.closed = true; }, ...svc }) });
++  await assert.rejects(derivedWriterAuthorityFromEnv(base, { relayChain: { client: w.fresh }, now: () => NOW * 1000,
++    readFile: async () => JSON.stringify({ provisional: { format: "enclave-derived-provisional/v1" } }), loadRuntime: async () => plainRuntime({ ...service }) }),
++    /enrolled, admin-signed state/);
++  const offered = { ...service };
++  await assert.rejects(derivedWriterAuthorityFromEnv(base, { relayChain: { client: w.fresh }, now: () => NOW * 1000, readFile: async () => "{}",
++    loadRuntime: async () => ({ openLifecycleJournal: () => ({}), startDerivedLifecycleReader: async () => ({ ...offered, close: async () => { offered.closed = true; } }) }) }),
++    /offered a provisional state anchor/);
++  assert.equal(offered.closed, true);
++  // env knobs on the unsigned path: the legacy single finalized anchor, which stays refused
+   const legacy = world({ sNumber: BF });                                        // its logs answer at the single anchor (BF, hash HS)
+   const one = await derivedWriterAuthorityFromEnv({ ...base, ENCLAVE_DERIVED_PROVISIONAL: "1", ENCLAVE_WRITER_AUTHORITY_TIER: "l1-attested-derived" },
+-    { relayChain: { client: legacy.fresh }, readFile: async () => JSON.stringify({ maxAnchorAgeSec: 1800, provisional: { format: "enclave-derived-provisional/v1" } }),
+-      loadRuntime: async () => start({ reader: { readDerivedLogs: legacy.capability.readDerivedLogs }, snapshot: async (read) => {
++    { relayChain: { client: legacy.fresh }, readFile: async () => JSON.stringify({ maxAnchorAgeSec: 1800 }),
++      loadRuntime: async () => plainRuntime({ reader: { readDerivedLogs: legacy.capability.readDerivedLogs }, snapshot: async (read) => {
+         const value = await read({ getBlock: async () => ({ number: BigInt(BF), hash: HS, timestamp: BigInt(NOW - 780) }),
+           readContract: async ({ functionName }) => functionName === "addr" ? LEDGER : functionName === "deploymentsSchema" ? 16n : row() }, BigInt(BF), {});
+         return { blockNumber: BigInt(BF), blockHash: HS, value }; } }), now: () => NOW * 1000 });
+   assert.equal(one.describe().tier, "l1-finalized-derived");
+   await refuses(one.writerAuthority(ID), "stale_snapshot");                      // a 13-min finalized anchor: still refused
+ });
++
++test("A2: every two-anchor fact's S is durably recorded BEFORE the fact is returned, after every check; not recorded = no fact", async () => {
++  const w = world({ logs: [claimed(950, 3, NOW + 600), renewed(1200, 0, NOW + 1200)], rowF: row({ leaseUntil: BigInt(NOW + 600) }) });
++  const r = await authority(w).writerAuthority(ID, { runner: RUNNER });
++  assert.deepEqual(w.records, [{ at: NOW * 1000, fact: { ledger: LEDGER, deployment: ID, claimBlock: O + 950, claimLogIndex: 3 },
++    finalized: { number: BF, hash: HF }, state: { number: S, hash: HS, l1: SL1 } }]);
++  assert.equal(r.fact.claimBlock, O + 950);
++  const order = w.calls.map((c) => c[0]).filter((c) => ["fresh", "record"].includes(c));
++  assert.deepEqual(order, ["fresh", "record"], "recorded only after the deny-only check passed");
++  // refusals record nothing
++  const refused = world({ ts: NOW - 121 });
++  await refuses(authority(refused).writerAuthority(ID), "stale_snapshot"); assert.deepEqual(refused.records, []);
++  const notFinal = world({ logs: [claimed(1100, 0, NOW + 1200)] });
++  await refuses(authority(notFinal).writerAuthority(ID), "claim_not_final"); assert.deepEqual(notFinal.records, []);
++  // an unrecorded fact is no fact (commit outcome unknown, contention, full evidence)
++  for (const why of ["derived_commit_outcome_unknown: deadline", "lifecycle journal commit pending", "provisional evidence is full until finalized derivation confirms it"])
++    await refuses(authority(world({ recordFails: why })).writerAuthority(ID), "evidence_unrecorded");
++  // the snapshot must name S's attested L1 head (the audit entry's l1)
++  await refuses(authority(world({ evidence: { tier: STATE_TIER, claimTier: CLAIM_TIER } })).writerAuthority(ID), "anchor_mismatch");
++  // no two-anchor capability without the evidence function
++  const { recordStateFact: _r, ...bare } = world().capability;
++  assert.throws(() => createDerivedWriterAuthority({ capability: bare, fresh: world().fresh, addressBook: BOOK }), /recordStateFact/);
++});
++
++test("A2: the durable disable marker refuses (provisional_disabled), from the reader or the evidence journal, and is logged ONCE at error level", async () => {
++  const logs = [], log = (m) => logs.push(m);
++  const marked = "provisional track disabled by a durable marker (contradiction); an admin-signed enrollment rotation is required";
++  const a = authority(world({ readerFails: marked }), { log });
++  await refuses(a.writerAuthority(ID), "provisional_disabled");
++  await refuses(a.writerAuthority(ID), "provisional_disabled");
++  assert.equal(logs.length, 1); assert.match(logs[0], /^ERROR provisional writer authority DISABLED by a durable marker/);
++  const b = world({ recordFails: "provisional track disabled by a durable marker (unverifiable)" }), blogs = [];
++  await refuses(authority(b, { log: (m) => blogs.push(m) }).writerAuthority(ID), "provisional_disabled");
++  assert.equal(blogs.length, 1); assert.match(blogs[0], /unverifiable/);
++  // a RAM fence (this process) is the same refusal
++  await refuses(authority(world({ readerFails: "provisional track fenced: finalized derivation contradicted it; restart and investigate" }), { log }).writerAuthority(ID), "provisional_disabled");
++});

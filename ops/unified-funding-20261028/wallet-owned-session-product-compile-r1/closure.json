@@ -1,0 +1,119 @@
+{
+  "status": "PREPARED_ONLY_NOT_EXECUTED",
+  "sources": [
+    "contracts/WalletSessionVault.sol",
+    "contracts/WalletSessionPolicy.sol",
+    "contracts/SessionVault.sol"
+  ],
+  "sourceBytes": 104410,
+  "outputSelection": {
+    "contracts/WalletSessionVault.sol": {
+      "WalletSessionVault": [
+        "abi",
+        "metadata",
+        "evm.bytecode.object",
+        "evm.bytecode.linkReferences",
+        "evm.deployedBytecode.object",
+        "evm.deployedBytecode.linkReferences",
+        "evm.deployedBytecode.immutableReferences"
+      ],
+      "WalletSessionVaultFactory": [
+        "abi",
+        "metadata",
+        "evm.bytecode.object",
+        "evm.bytecode.linkReferences",
+        "evm.deployedBytecode.object",
+        "evm.deployedBytecode.linkReferences",
+        "evm.deployedBytecode.immutableReferences"
+      ]
+    },
+    "contracts/SessionVault.sol": {
+      "SessionVaultLib": [
+        "abi",
+        "metadata",
+        "evm.bytecode.object",
+        "evm.bytecode.linkReferences",
+        "evm.deployedBytecode.object",
+        "evm.deployedBytecode.linkReferences",
+        "evm.deployedBytecode.immutableReferences"
+      ]
+    },
+    "contracts/WalletSessionPolicy.sol": {
+      "WalletSessionPolicy": [
+        "abi"
+      ]
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": true,
+      "runs": 1
+    },
+    "viaIR": true,
+    "evmVersion": "osaka",
+    "metadata": {
+      "bytecodeHash": "ipfs"
+    },
+    "outputSelection": {
+      "contracts/WalletSessionVault.sol": {
+        "WalletSessionVault": [
+          "abi",
+          "metadata",
+          "evm.bytecode.object",
+          "evm.bytecode.linkReferences",
+          "evm.deployedBytecode.object",
+          "evm.deployedBytecode.linkReferences",
+          "evm.deployedBytecode.immutableReferences"
+        ],
+        "WalletSessionVaultFactory": [
+          "abi",
+          "metadata",
+          "evm.bytecode.object",
+          "evm.bytecode.linkReferences",
+          "evm.deployedBytecode.object",
+          "evm.deployedBytecode.linkReferences",
+          "evm.deployedBytecode.immutableReferences"
+        ]
+      },
+      "contracts/SessionVault.sol": {
+        "SessionVaultLib": [
+          "abi",
+          "metadata",
+          "evm.bytecode.object",
+          "evm.bytecode.linkReferences",
+          "evm.deployedBytecode.object",
+          "evm.deployedBytecode.linkReferences",
+          "evm.deployedBytecode.immutableReferences"
+        ]
+      },
+      "contracts/WalletSessionPolicy.sol": {
+        "WalletSessionPolicy": [
+          "abi"
+        ]
+      }
+    }
+  },
+  "sourceTransformation": "NONE: full byte-identical original files. No interfaces/library extraction or product rewrite.",
+  "omittedCodegen": "Legacy SessionVault/SessionVaultFactory, all old ledgers, all test rigs/fixtures/forge-std. Whole SessionVault.sol still parsed/typechecked; only SessionVaultLib output requested. New factory naturally embeds new executor initcode.",
+  "requiredImports": "WalletSessionVault imports ./SessionVault.sol and ./WalletSessionPolicy.sol, both included at original unit paths. Other two files contain no Solidity imports.",
+  "sourceVerifiedLegacyHash": "a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c",
+  "deployedSettings": {
+    "optimizer": {
+      "enabled": true,
+      "runs": 1
+    },
+    "viaIR": true
+  },
+  "deployedCompiler": {
+    "version": "0.8.35+commit.47b9dedd.Emscripten.clang",
+    "package": "solc@0.8.35",
+    "soljsonSha256": "fa4345d648d9a09c6601ffc978e78e9f5267b54e6d91e8f8c473f44c0c16323b"
+  },
+  "toolchainLimit": "Pinned native solc0.8.35 vs verification Emscripten soljson; explicitOsaka and IPFS metadata retain harness choices. No runtime or CBOR equivalence claim. Local source unit names and unresolved library links differ from deployed bytecode.",
+  "previousFailure": {
+    "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-owned-session-foundry-r1-20261029",
+    "invocation": "c8ae998b3b28482aa5cfcbc0196cb241",
+    "summary": "Outer STOP99/SIGTERM at526MiB treeRSS>512cap; Compiling33files only; no RESULT/size/tests. Preserved untouched. No unchanged retry or cap raise."
+  },
+  "hostNetworkNamespace": "net:[4026531833]"
+}

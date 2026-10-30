@@ -1,0 +1,23 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 5 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 6 not started; sleep 30
+[queue] START available=22995MiB required=19200MiB cap=2560MiB floor=16384MiB concurrentSmall=0MiB
+test/fixtures/reth-dev-8453-genesis-2935.json: OK
+99138899e98faa27cdd28c21423d3ae55c36c36b50eb1334c102a1ab937ee319
+helios-eeffcc9: OK
+witness-check: OK
+enclave-base-head-listener: OK
+{"ok": true, "rc": 0, "counts": {"tests": 7, "pass": 7, "fail": 0, "cancelled": 0, "skipped": 0, "todo": 0}}
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/logs/root-consumer-genesis-20261026T050042Z
+[memory-guard] exit=0 peakTreeRssMiB=1204 minHostAvailableMiB=21598
+[memory-guard] at peak: reth-v2.8.0:392 node:143 node:137 node:134 node:132 enclave-base-he:94 helios:61 node:57
+[queue] EXIT 0

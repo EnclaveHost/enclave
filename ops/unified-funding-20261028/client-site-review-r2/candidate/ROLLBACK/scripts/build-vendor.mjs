@@ -1,0 +1,136 @@
+#!/usr/bin/env node
+/* ============================================================
+   Same-origin vendor bundles — vendors the third-party ESM deps
+   that the site would otherwise hot-load from a CDN at RUNTIME
+   into self-hosted, integrity-controlled bundles under
+   site/vendor/. No CDN at runtime.
+
+   Why this matters (trust product): the attestation verifier is
+   the "✓ verify it yourself in your browser" claim — the whole
+   product rests on it. Loaded from esm.sh with no SRI, a
+   compromised (or coerced) CDN could return code that reports
+   verified:true for anything. Same policy for the WebAuthn
+   client: a passkey ceremony must never execute unpinned
+   third-party bytes. Bundling them same-origin removes the
+   un-SRI'd CDN from the TCB; the bytes are covered by the
+   site's own IPFS pin + Caddy TLS, and pinned by version here.
+
+     • site/vendor/enclave-verifier.js -> this repository's own
+       verifier (verifier/web), COPIED from its reproducible build
+       in verifier/web/dist and checked against its manifest (used
+       by site/js/core/verify.js).
+     • site/vendor/webauthn.js -> @simplewebauthn/browser (used
+       by site/js/core/account.js for passkey sign-in/creation;
+       lazy-imported, so no WebAuthn bytes load until a user
+       actually picks the passkey option).
+     • site/vendor/walletconnect.js -> @walletconnect/ethereum-provider
+       (used by site/js/core/wallet.js for the WalletConnect
+       transport - the only way to reach a wallet that is not a
+       browser extension, e.g. a Trezor Safe 7 held over Bluetooth
+       by Trezor Suite). By far the largest bundle here (~1.3MB),
+       so it is lazy-imported too: a user who signs in with an
+       injected wallet never downloads a byte of it.
+
+   Deps install into scripts/.vendor-build/ (gitignored), pinned
+   below; bump the pins and re-run to upgrade. The output
+   site/vendor/ IS committed.
+
+     node scripts/build-vendor.mjs
+   ============================================================ */
+import { build } from "esbuild";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+
+const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const WORK = path.join(ROOT, "scripts", ".vendor-build");
+const OUT = path.join(ROOT, "site", "vendor");
+
+// Pinned.
+const DEPS = {
+  "@simplewebauthn/browser": "13.1.0",   // MIT; passkey client (startRegistration/startAuthentication)
+  // Apache-2.0, and its @walletconnect/* tree is MIT - NOT the Reown "community"
+  // license that build-notices.mjs has to inline verbatim. That holds only while
+  // we bundle the bare EIP-1193 provider; pulling @reown/appkit (the modal UI)
+  // would change the license story AND the CSP, and we render the pairing QR
+  // ourselves with site/js/lib/qr.js instead. Keep it that way.
+  "@walletconnect/ethereum-provider": "2.21.1",
+};
+
+fs.mkdirSync(WORK, { recursive: true });
+fs.writeFileSync(path.join(WORK, "package.json"), JSON.stringify({
+  name: "vendor-bundle-build", private: true, dependencies: DEPS,
+}, null, 2));
+console.log("[vendor] npm install (pinned deps)");
+execFileSync("npm", ["install", "--no-audit", "--no-fund", "--loglevel=error"],
+  { cwd: WORK, stdio: ["ignore", "inherit", "inherit"] });
+
+fs.rmSync(OUT, { recursive: true, force: true });
+fs.mkdirSync(OUT, { recursive: true });
+
+const nm = (p) => path.join(WORK, "node_modules", p);
+const shared = {
+  bundle: true,
+  format: "esm",
+  target: ["es2022"],
+  minify: true,
+  platform: "browser",
+  define: { "process.env.NODE_ENV": '"production"', "global": "globalThis" },
+  logLevel: "warning",
+};
+
+console.log("[vendor] esbuild @simplewebauthn/browser -> site/vendor/webauthn.js");
+await build({
+  ...shared,
+  entryPoints: [nm("@simplewebauthn/browser")],
+  outfile: path.join(OUT, "webauthn.js"),
+});
+
+console.log("[vendor] esbuild @walletconnect/ethereum-provider -> site/vendor/walletconnect.js");
+await build({
+  ...shared,
+  entryPoints: [nm("@walletconnect/ethereum-provider")],
+  outfile: path.join(OUT, "walletconnect.js"),
+});
+
+// site/vendor/enclave-verifier.js <- verifier/web/dist/enclave-verifier-web.js: the Enclave-owned browser verifier
+// (verifier/web/README.md), a REPRODUCIBLE artifact whose manifest names every input with its hash (verifier/web/reproduce.mjs
+// under the strict integration command). It is COPIED, never rebuilt here, and refused unless its bytes are the manifest's.
+// Loaded by site/js/core/verify.js: the site's live verification runs on it (verifyMetalBoxWeb).
+{
+  const dist = path.join(ROOT, "verifier", "web", "dist");
+  const manifest = JSON.parse(fs.readFileSync(path.join(dist, "MANIFEST.json"), "utf8"));
+  const bytes = fs.readFileSync(path.join(dist, manifest.artifact.file));
+  const sha = createHash("sha256").update(bytes).digest("hex");
+  if (sha !== manifest.artifact.sha256) throw new Error(`verifier/web/dist/${manifest.artifact.file}: sha256 ${sha} is not the manifest's ${manifest.artifact.sha256}; run node verifier/web/build.mjs and verifier/web/reproduce.mjs`);
+  fs.writeFileSync(path.join(OUT, "enclave-verifier.js"), bytes);
+  console.log(`[vendor] enclave-verifier.js: ${bytes.length} bytes, sha256 ${sha.slice(0, 16)}… == verifier/web/dist/MANIFEST.json ✓`);
+}
+
+// site/vendor/sessions.js <- sdk/sessions/dist/browser.mjs: the sessions SDK (docs/design/sessions.md), built by
+// `cd sdk/sessions && npm run build` from its own lockfile. Copied, never rebuilt here; site/js/core/sessions.js loads it on
+// first use (sign-in, /grant, /sessions), so no page pays for it before then.
+{
+  const src = path.join(ROOT, "sdk", "sessions", "dist", "browser.mjs");
+  fs.copyFileSync(src, path.join(OUT, "sessions.js"));
+  console.log(`[vendor] sessions.js <- sdk/sessions/dist/browser.mjs (${fs.statSync(src).size} bytes)`);
+}
+
+// Fail loud if an upgrade ever drops an export the callers destructure, so a
+// broken bundle can never ship silently to the verify/auth paths.
+const must = [
+  ["webauthn.js", ["startRegistration", "startAuthentication"]],
+  ["walletconnect.js", ["EthereumProvider"]],
+  ["enclave-verifier.js", ["verifyMetalBoxWeb", "verifyEvidenceWeb", "verifyPvmHostWeb", "verifyShieldHostWeb", "verifyShieldAppWeb", "verifySnpAppWeb", "verifyPvmAppWeb"]],
+  ["sessions.js", ["newSessionKey", "buildGrant", "openSession", "IndexedDbStore", "RelayClient", "sessionFromRecord",
+    "decodeGrantRequest", "describeGrant", "ownerOperation", "topUpFromWallet", "usdcDomain", "chainClient", "readSession",
+    "delegationStatus", "setDelegateCall"]],
+];
+for (const [file, names] of must) {
+  const src = fs.readFileSync(path.join(OUT, file), "utf8");
+  const exp = (src.match(/export\{[^}]*\}/g) || []).join(",");
+  const missing = names.filter((n) => !new RegExp(`as ${n}\\b`).test(exp) && !new RegExp(`\\b${n} as`).test(exp));
+  if (missing.length) throw new Error(`${file}: bundle is missing expected export(s): ${missing.join(", ")}`);
+  console.log(`[vendor] ${file}: ${fs.statSync(path.join(OUT, file)).size} bytes, exports OK ✓`);
+}

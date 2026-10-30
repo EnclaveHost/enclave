@@ -1,0 +1,579 @@
+--- a/CAPTURE-REVIEW-R2.md
++++ b/CAPTURE-REVIEW-R2.md
+@@ -0,0 +1,9 @@
++# Capture correction r2: prepared only
++
++Original stage and PINS are unchanged. baseline/ preserves every original pinned file; PRIOR-PINS.json preserves its manifest. Actual original remote program was7676bytes, below the common8192byte pipe capacity. No stall was reproduced. The defects are synchronous stdin write before entering the deadline loop (allowed input up to32768bytes), and missing finally cleanup if stdin/selector operations fail.
++
++The corrected common routine uses unbuffered pipes and nonblocking stdin registered for selector WRITE alongside stdout/stderr READ. Partial os.write advances an offset; EAGAIN/EINTR retry within the unchanged deadline; stdin closes when all bytes are sent. BrokenPipe records the error but continues draining diagnostic streams within that deadline. Other exceptions retain captured bounded prefixes and enter finally. Output caps apply in normal and fallback drains. Original metadata queries, caps and command deadlines are unchanged.
++
++No poll()/wait() reaps the child before cleanup. waitid(WNOWAIT) checks state while keeping its PID reserved. This capture routine is the sole reaper of its Popen child. Finally confirms that relationship before signaling only the new session/process group it created; if ownership was lost it sends no group signal and reports an error. It drains immediately available diagnostics without blocking, closes streams/selector, then waits up to2seconds for its child. Cleanup errors remain in the result. Neither child reaping nor local group signaling proves remote death or complete group disappearance: both proof fields stay false and root independently collects the same scope. Outer runtime/resource guard remains the bound if process creation/kernel operations stall or external termination prevents Python finally.
++
++No source module imported or executed, no functional test, subprocess fixture, SSH contact or live action performed. Python syntax checked by AST only. This is a reviewable source correction, not a tested runtime claim. Root must inspect CAPTURE-R2.patch and the updated pins before one read admission. No ROOT-ADMISSION/ATTEMPT/RESULT exists in this revision.
+--- a/LAUNCH.json
++++ b/LAUNCH.json
+@@ -2,7 +2,7 @@
+   "argv": [
+     "/usr/bin/systemd-run",
+     "--user",
+-    "--unit=enclave-rpc-control-vm-closure-r1-20261030",
++    "--unit=enclave-rpc-control-vm-closure-r2-20261030",
+     "--property=RuntimeMaxSec=120",
+     "--property=TimeoutStopSec=10",
+     "--property=MemoryMax=128M",
+@@ -20,7 +20,7 @@
+     "--mib",
+     "256",
+     "--log",
+-    "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-closure-prep-20261030/outer.log",
++    "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-closure-prep-20261030-r2/outer.log",
+     "--",
+     "/usr/bin/taskset",
+     "-c",
+@@ -32,11 +32,11 @@
+     "--floor-available-mib",
+     "27648",
+     "--log",
+-    "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-closure-prep-20261030/inner.log",
++    "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-closure-prep-20261030-r2/inner.log",
+     "--",
+     "/usr/bin/python3",
+     "-B",
+-    "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-closure-prep-20261030/run.py"
++    "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-closure-prep-20261030-r2/run.py"
+   ],
+   "noRetry": true,
+   "preparedOnly": true
+--- a/PREPARED.json
++++ b/PREPARED.json
+@@ -9,14 +9,18 @@
+   "floorMiB": 27648,
+   "guardRSSMiB": 220,
+   "missingExternalMetadataPins": [],
++  "originalRemoteProgramBytes": 7676,
++  "originalStallReproduced": false,
++  "priorPinsSha256": "d933a65cef74c29dfff6b5aab9bd50a11167cbfe57fc25203db06aeb9a565a09",
+   "productChanged": false,
+   "readRun": false,
+   "remoteContacted": false,
+   "resourceMiB": 256,
+-  "scope": "readonly-control-vm-closure-r1",
++  "revision": "r2-nonblocking-stdin-finally-cleanup",
++  "scope": "readonly-control-vm-closure-r2",
+   "sourceOnly": true,
+   "status": "PREPARED_NOT_EXECUTED",
+-  "stdinProgramBytes": 7676,
++  "stdinProgramBytes": 11861,
+   "streamLocalPreferred": true,
+   "swapMiB": 0,
+   "testsRun": false
+--- a/ROOT-REVIEW.md
++++ b/ROOT-REVIEW.md
+@@ -1,3 +1,3 @@
+-PREPARE ONLY. Root reviews this exact package, then may write ROOT-ADMISSION.json {authorized:true, scope:"readonly-control-vm-closure-r1", pinsSha256:<current PINS digest>, at:<unix time>} within300seconds of one execution. No admission/attempt/result exists in preparation. One256MiB shared-small lane,220RSS guard,27648MiB host floor,CPU1,noSwap; outer128MiB controller accounted separately. Sequential Windows20s/Linux38s reads, remote Linux timeout32s, own enumeration27s, outer120s; bounded stdout/stderr even nonzero. Observer tool capability is paths/stat, kernel NBD metadata, ssh -V, nbd-client -h and qemu-nbd --help only: never DB client execution, NBD attach/export or module load. These version/help commands cannot prove effective SSH server/per-key StreamLocal policy; no sshd config or process environment is read. Linux commands are systemctl/df/lsblk metadata only; no env/ExecStart/key/config dump. Windows is only Get-VM/Get-VMMemory/Get-CimInstance selectors for existing named VM. Existing strict SSH identity and known-host routing retained, not TOFU.
++PREPARE ONLY. Root reviews this exact package, then may write ROOT-ADMISSION.json {authorized:true, scope:"readonly-control-vm-closure-r2", pinsSha256:<current PINS digest>, at:<unix time>} within300seconds of one execution. No admission/attempt/result exists in preparation. One256MiB shared-small lane,220RSS guard,27648MiB host floor,CPU1,noSwap; outer128MiB controller accounted separately. Sequential Windows20s/Linux38s reads, remote Linux timeout32s, own enumeration27s, outer120s; bounded stdout/stderr even nonzero. Observer tool capability is paths/stat, kernel NBD metadata, ssh -V, nbd-client -h and qemu-nbd --help only: never DB client execution, NBD attach/export or module load. These version/help commands cannot prove effective SSH server/per-key StreamLocal policy; no sshd config or process environment is read. Linux commands are systemctl/df/lsblk metadata only; no env/ExecStart/key/config dump. Windows is only Get-VM/Get-VMMemory/Get-CimInstance selectors for existing named VM. Existing strict SSH identity and known-host routing retained, not TOFU.
+ 
+ Root must collect exact outer invocation, recorded scope and owned SSH process termination on this same read. Timeout is NOT proof of remote death; do not auto retry. Observer captures preserved partial output on error. Remote snapshots may race service changes: incomplete census or unsupported units fails observation completeness, and even success never admits capacity. No monitoring daemon, autorun, service/package/VM/cap/image mutation, NBD export/client/mount, native trial, test/build or finance. Private key is consumed only by existing SSH authentication if root launches; no key contents read or copied. SSH configuration/known-host hashes are identity pins only. Source assertions/imports not executed in prep; Python AST parsing only.
+--- a/launch-command.txt
++++ b/launch-command.txt
+@@ -1,2 +1,2 @@
+ # PREPARED ONLY; requires root review and matching fresh admission.
+-/usr/bin/systemd-run --user --unit=enclave-rpc-control-vm-closure-r1-20261030 --property=RuntimeMaxSec=120 --property=TimeoutStopSec=10 --property=MemoryMax=128M --property=MemorySwapMax=0 --property=CPUQuota=100% --property=AllowedCPUs=1 --property=UMask=0077 --setenv=PATH=/usr/bin:/bin /usr/bin/taskset -c 1 /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib 256 --log /home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-closure-prep-20261030/outer.log -- /usr/bin/taskset -c 1 /usr/bin/node /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs --max-rss-mib 220 --floor-available-mib 27648 --log /home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-closure-prep-20261030/inner.log -- /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-closure-prep-20261030/run.py
++/usr/bin/systemd-run --user --unit=enclave-rpc-control-vm-closure-r2-20261030 --property=RuntimeMaxSec=120 --property=TimeoutStopSec=10 --property=MemoryMax=128M --property=MemorySwapMax=0 --property=CPUQuota=100% --property=AllowedCPUs=1 --property=UMask=0077 --setenv=PATH=/usr/bin:/bin /usr/bin/taskset -c 1 /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib 256 --log /home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-closure-prep-20261030-r2/outer.log -- /usr/bin/taskset -c 1 /usr/bin/node /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs --max-rss-mib 220 --floor-available-mib 27648 --log /home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-closure-prep-20261030-r2/inner.log -- /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-closure-prep-20261030-r2/run.py
+--- a/observe-common.py
++++ b/observe-common.py
+@@ -3,43 +3,120 @@
+ 
+ def capture(argv, seconds, stdin=None, limit=1048576):
+     started = time.monotonic()
+-    child = subprocess.Popen(argv, stdin=subprocess.PIPE if stdin is not None else subprocess.DEVNULL,
+-                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+-    # All stdin programs in this package are small fixed reviewed source, not user input.
+-    if stdin is not None:
+-        child.stdin.write(stdin); child.stdin.close()
+-    sel = selectors.DefaultSelector()
++    deadline = started + seconds
++    child = None; sel = None; rc = None; reason = None; sent = 0; deadline_exceeded = False
++    cleanup_errors = []; group_signal = False; child_reaped = False
+     buffers = {'stdout': bytearray(), 'stderr': bytearray()}
+     totals = {'stdout': 0, 'stderr': 0}
+-    for name in buffers:
+-        stream = getattr(child, name); os.set_blocking(stream.fileno(), False)
+-        sel.register(stream, selectors.EVENT_READ, name)
+-    reason = None
+-    while sel.get_map():
+-        if time.monotonic() - started > seconds:
+-            reason = 'timeout'; break
+-        for key, _ in sel.select(0.1):
+-            data = os.read(key.fileobj.fileno(), 65536)
+-            if not data:
+-                sel.unregister(key.fileobj); key.fileobj.close(); continue
+-            name = key.data; totals[name] += len(data)
+-            buffers[name].extend(data[:max(0, limit - len(buffers[name]))])
+-            if totals[name] > limit: reason = 'output-limit'
+-        if reason: break
+-    # Only kill our own still-unreaped process group, never a production service.
+-    if reason and child.poll() is None:
+-        try: os.killpg(child.pid, signal.SIGKILL)
+-        except ProcessLookupError: pass
+-    for key in list(sel.get_map().values()): key.fileobj.close()
+-    sel.close()
+-    try: rc = child.wait(timeout=2)
+-    except subprocess.TimeoutExpired:
+-        if child.poll() is None:
+-            try: os.killpg(child.pid, signal.SIGKILL)
+-            except ProcessLookupError: pass
+-        rc = child.wait(timeout=2); reason = reason or 'exit-timeout'
++    payload = memoryview(stdin) if stdin is not None else None
++
++    def retain(name, data):
++        nonlocal reason
++        totals[name] += len(data)
++        buffers[name].extend(data[:max(0, limit - len(buffers[name]))])
++        if totals[name] > limit: reason = reason or 'output-limit'
++
++    def exited_unreaped():
++        # WNOWAIT keeps the child PID reserved. No poll()/wait() precedes group cleanup.
++        info = os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
++        return info is not None and info.si_pid == child.pid
++
++    def close_registered(stream):
++        sel.unregister(stream)
++        stream.close()  # unbuffered pipe: close cannot flush unsent stdin
++
++    try:
++        child = subprocess.Popen(argv, stdin=subprocess.PIPE if payload is not None else subprocess.DEVNULL,
++                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
++                                 start_new_session=True, bufsize=0)
++        sel = selectors.DefaultSelector()
++        for name in buffers:
++            stream = getattr(child, name)
++            os.set_blocking(stream.fileno(), False)
++            sel.register(stream, selectors.EVENT_READ, name)
++        if payload is not None:
++            os.set_blocking(child.stdin.fileno(), False)
++            if len(payload): sel.register(child.stdin, selectors.EVENT_WRITE, 'stdin')
++            else: child.stdin.close()
++        while True:
++            remaining = deadline - time.monotonic()
++            if remaining <= 0:
++                deadline_exceeded = True; reason = reason or 'timeout'; break
++            if exited_unreaped() and not sel.get_map(): break
++            for key, _ in sel.select(min(0.1, remaining)):
++                if key.data == 'stdin':
++                    try:
++                        count = os.write(key.fileobj.fileno(), payload[sent:sent+65536])
++                    except (BlockingIOError, InterruptedError):
++                        continue
++                    except BrokenPipeError:
++                        # Remote/authentication rejection may close stdin first: still drain its diagnostics.
++                        reason = reason or 'stdin-broken-pipe'
++                        close_registered(key.fileobj)
++                        continue
++                    if count <= 0: raise OSError('stdin-write-made-no-progress')
++                    sent += count
++                    if sent == len(payload): close_registered(key.fileobj)
++                else:
++                    try: data = os.read(key.fileobj.fileno(), 65536)
++                    except (BlockingIOError, InterruptedError): continue
++                    if not data:
++                        close_registered(key.fileobj); continue
++                    retain(key.data, data)
++                if any(totals[n] > limit for n in totals): break
++            if any(totals[n] > limit for n in totals): break
++    except Exception as e:
++        reason = reason or ('capture-error:' + type(e).__name__)
++    finally:
++        if child is not None:
++            # Includes stdin/setup/selector failures and normal exit with leftover pipe holders.
++            # This routine is the sole reaper; WNOWAIT confirms child ownership before killpg.
++            try:
++                exited_unreaped()
++                try:
++                    os.killpg(child.pid, signal.SIGKILL); group_signal = True
++                except ProcessLookupError:
++                    pass
++            except ChildProcessError:
++                cleanup_errors.append('child-already-reaped-no-group-signal')
++            except Exception as e:
++                cleanup_errors.append('group-cleanup:' + type(e).__name__)
++            # Drain available public diagnostics even if selector setup failed. Never wait here.
++            for name in buffers:
++                stream = getattr(child, name, None)
++                if stream is None or stream.closed: continue
++                try:
++                    os.set_blocking(stream.fileno(), False)
++                    while totals[name] <= limit:
++                        try: data = os.read(stream.fileno(), min(65536, limit+1-totals[name]))
++                        except (BlockingIOError, InterruptedError): break
++                        if not data: break
++                        retain(name, data)
++                except Exception as e:
++                    cleanup_errors.append('drain-' + name + ':' + type(e).__name__)
++            if sel is not None:
++                try: sel.close()
++                except Exception as e: cleanup_errors.append('selector-close:' + type(e).__name__)
++            for name in ('stdin', 'stdout', 'stderr'):
++                stream = getattr(child, name, None)
++                if stream is not None and not stream.closed:
++                    try: stream.close()
++                    except Exception as e: cleanup_errors.append('pipe-close:' + type(e).__name__)
++            try:
++                rc = child.wait(timeout=2); child_reaped = True
++            except Exception as e:
++                cleanup_errors.append('child-wait:' + type(e).__name__)
++        elif sel is not None:
++            try: sel.close()
++            except Exception as e: cleanup_errors.append('selector-close:' + type(e).__name__)
++    if cleanup_errors: reason = reason or 'local-cleanup-incomplete'
+     return {'rc': rc, 'reason': reason, 'elapsedSeconds': time.monotonic() - started,
+             'stdout': buffers['stdout'].decode('utf-8', 'replace'),
+             'stderr': buffers['stderr'].decode('utf-8', 'replace'), 'bytesObserved': totals,
++            'stdinBytesWritten': sent, 'stdinBytesRequested': len(payload) if payload is not None else 0,
+             'truncated': any(totals[n] > limit for n in totals),
+-            'remoteDeathProven': False if reason else None}
++            'localChildReaped': child_reaped, 'ownedGroupKillAttempted': group_signal,
++            'cleanupErrors': cleanup_errors, 'deadlineExceeded': deadline_exceeded,
++            'localProcessGroupDeathProven': False,
++            # Local SSH exit/kill never establishes the lifetime of a remote command.
++            'remoteDeathProven': False}
+--- a/observe-linux.py
++++ b/observe-linux.py
+@@ -3,46 +3,123 @@
+ 
+ def capture(argv, seconds, stdin=None, limit=1048576):
+     started = time.monotonic()
+-    child = subprocess.Popen(argv, stdin=subprocess.PIPE if stdin is not None else subprocess.DEVNULL,
+-                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+-    # All stdin programs in this package are small fixed reviewed source, not user input.
+-    if stdin is not None:
+-        child.stdin.write(stdin); child.stdin.close()
+-    sel = selectors.DefaultSelector()
++    deadline = started + seconds
++    child = None; sel = None; rc = None; reason = None; sent = 0; deadline_exceeded = False
++    cleanup_errors = []; group_signal = False; child_reaped = False
+     buffers = {'stdout': bytearray(), 'stderr': bytearray()}
+     totals = {'stdout': 0, 'stderr': 0}
+-    for name in buffers:
+-        stream = getattr(child, name); os.set_blocking(stream.fileno(), False)
+-        sel.register(stream, selectors.EVENT_READ, name)
+-    reason = None
+-    while sel.get_map():
+-        if time.monotonic() - started > seconds:
+-            reason = 'timeout'; break
+-        for key, _ in sel.select(0.1):
+-            data = os.read(key.fileobj.fileno(), 65536)
+-            if not data:
+-                sel.unregister(key.fileobj); key.fileobj.close(); continue
+-            name = key.data; totals[name] += len(data)
+-            buffers[name].extend(data[:max(0, limit - len(buffers[name]))])
+-            if totals[name] > limit: reason = 'output-limit'
+-        if reason: break
+-    # Only kill our own still-unreaped process group, never a production service.
+-    if reason and child.poll() is None:
+-        try: os.killpg(child.pid, signal.SIGKILL)
+-        except ProcessLookupError: pass
+-    for key in list(sel.get_map().values()): key.fileobj.close()
+-    sel.close()
+-    try: rc = child.wait(timeout=2)
+-    except subprocess.TimeoutExpired:
+-        if child.poll() is None:
+-            try: os.killpg(child.pid, signal.SIGKILL)
+-            except ProcessLookupError: pass
+-        rc = child.wait(timeout=2); reason = reason or 'exit-timeout'
++    payload = memoryview(stdin) if stdin is not None else None
++
++    def retain(name, data):
++        nonlocal reason
++        totals[name] += len(data)
++        buffers[name].extend(data[:max(0, limit - len(buffers[name]))])
++        if totals[name] > limit: reason = reason or 'output-limit'
++
++    def exited_unreaped():
++        # WNOWAIT keeps the child PID reserved. No poll()/wait() precedes group cleanup.
++        info = os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
++        return info is not None and info.si_pid == child.pid
++
++    def close_registered(stream):
++        sel.unregister(stream)
++        stream.close()  # unbuffered pipe: close cannot flush unsent stdin
++
++    try:
++        child = subprocess.Popen(argv, stdin=subprocess.PIPE if payload is not None else subprocess.DEVNULL,
++                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
++                                 start_new_session=True, bufsize=0)
++        sel = selectors.DefaultSelector()
++        for name in buffers:
++            stream = getattr(child, name)
++            os.set_blocking(stream.fileno(), False)
++            sel.register(stream, selectors.EVENT_READ, name)
++        if payload is not None:
++            os.set_blocking(child.stdin.fileno(), False)
++            if len(payload): sel.register(child.stdin, selectors.EVENT_WRITE, 'stdin')
++            else: child.stdin.close()
++        while True:
++            remaining = deadline - time.monotonic()
++            if remaining <= 0:
++                deadline_exceeded = True; reason = reason or 'timeout'; break
++            if exited_unreaped() and not sel.get_map(): break
++            for key, _ in sel.select(min(0.1, remaining)):
++                if key.data == 'stdin':
++                    try:
++                        count = os.write(key.fileobj.fileno(), payload[sent:sent+65536])
++                    except (BlockingIOError, InterruptedError):
++                        continue
++                    except BrokenPipeError:
++                        # Remote/authentication rejection may close stdin first: still drain its diagnostics.
++                        reason = reason or 'stdin-broken-pipe'
++                        close_registered(key.fileobj)
++                        continue
++                    if count <= 0: raise OSError('stdin-write-made-no-progress')
++                    sent += count
++                    if sent == len(payload): close_registered(key.fileobj)
++                else:
++                    try: data = os.read(key.fileobj.fileno(), 65536)
++                    except (BlockingIOError, InterruptedError): continue
++                    if not data:
++                        close_registered(key.fileobj); continue
++                    retain(key.data, data)
++                if any(totals[n] > limit for n in totals): break
++            if any(totals[n] > limit for n in totals): break
++    except Exception as e:
++        reason = reason or ('capture-error:' + type(e).__name__)
++    finally:
++        if child is not None:
++            # Includes stdin/setup/selector failures and normal exit with leftover pipe holders.
++            # This routine is the sole reaper; WNOWAIT confirms child ownership before killpg.
++            try:
++                exited_unreaped()
++                try:
++                    os.killpg(child.pid, signal.SIGKILL); group_signal = True
++                except ProcessLookupError:
++                    pass
++            except ChildProcessError:
++                cleanup_errors.append('child-already-reaped-no-group-signal')
++            except Exception as e:
++                cleanup_errors.append('group-cleanup:' + type(e).__name__)
++            # Drain available public diagnostics even if selector setup failed. Never wait here.
++            for name in buffers:
++                stream = getattr(child, name, None)
++                if stream is None or stream.closed: continue
++                try:
++                    os.set_blocking(stream.fileno(), False)
++                    while totals[name] <= limit:
++                        try: data = os.read(stream.fileno(), min(65536, limit+1-totals[name]))
++                        except (BlockingIOError, InterruptedError): break
++                        if not data: break
++                        retain(name, data)
++                except Exception as e:
++                    cleanup_errors.append('drain-' + name + ':' + type(e).__name__)
++            if sel is not None:
++                try: sel.close()
++                except Exception as e: cleanup_errors.append('selector-close:' + type(e).__name__)
++            for name in ('stdin', 'stdout', 'stderr'):
++                stream = getattr(child, name, None)
++                if stream is not None and not stream.closed:
++                    try: stream.close()
++                    except Exception as e: cleanup_errors.append('pipe-close:' + type(e).__name__)
++            try:
++                rc = child.wait(timeout=2); child_reaped = True
++            except Exception as e:
++                cleanup_errors.append('child-wait:' + type(e).__name__)
++        elif sel is not None:
++            try: sel.close()
++            except Exception as e: cleanup_errors.append('selector-close:' + type(e).__name__)
++    if cleanup_errors: reason = reason or 'local-cleanup-incomplete'
+     return {'rc': rc, 'reason': reason, 'elapsedSeconds': time.monotonic() - started,
+             'stdout': buffers['stdout'].decode('utf-8', 'replace'),
+             'stderr': buffers['stderr'].decode('utf-8', 'replace'), 'bytesObserved': totals,
++            'stdinBytesWritten': sent, 'stdinBytesRequested': len(payload) if payload is not None else 0,
+             'truncated': any(totals[n] > limit for n in totals),
+-            'remoteDeathProven': False if reason else None}
++            'localChildReaped': child_reaped, 'ownedGroupKillAttempted': group_signal,
++            'cleanupErrors': cleanup_errors, 'deadlineExceeded': deadline_exceeded,
++            'localProcessGroupDeathProven': False,
++            # Local SSH exit/kill never establishes the lifetime of a remote command.
++            'remoteDeathProven': False}
+ 
+ # Sent to python3 -B - through existing strict SSH, never installed remotely.
+ import json, pathlib, re, shutil, sys, platform
+--- a/run-body.py
++++ b/run-body.py
+@@ -16,7 +16,7 @@
+     assert os.sched_getaffinity(0)=={1}
+     verify()
+     admit=json.loads((P/'ROOT-ADMISSION.json').read_text())
+-    assert admit['authorized'] is True and admit['scope']=='readonly-control-vm-closure-r1' and admit['pinsSha256']==sha(P/'PINS.json')
++    assert admit['authorized'] is True and admit['scope']=='readonly-control-vm-closure-r2' and admit['pinsSha256']==sha(P/'PINS.json')
+     assert 0<=time.time()-admit['at']<=300
+     cg=Path('/proc/self/cgroup').read_text().strip();assert cg.startswith('0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-') and cg.endswith('.scope')
+     c=Path('/sys/fs/cgroup'+cg[3:]);assert (c/'memory.max').read_text().strip()==str(256<<20) and (c/'memory.swap.max').read_text().strip()=='0'
+--- a/run.py
++++ b/run.py
+@@ -3,46 +3,123 @@
+ 
+ def capture(argv, seconds, stdin=None, limit=1048576):
+     started = time.monotonic()
+-    child = subprocess.Popen(argv, stdin=subprocess.PIPE if stdin is not None else subprocess.DEVNULL,
+-                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+-    # All stdin programs in this package are small fixed reviewed source, not user input.
+-    if stdin is not None:
+-        child.stdin.write(stdin); child.stdin.close()
+-    sel = selectors.DefaultSelector()
++    deadline = started + seconds
++    child = None; sel = None; rc = None; reason = None; sent = 0; deadline_exceeded = False
++    cleanup_errors = []; group_signal = False; child_reaped = False
+     buffers = {'stdout': bytearray(), 'stderr': bytearray()}
+     totals = {'stdout': 0, 'stderr': 0}
+-    for name in buffers:
+-        stream = getattr(child, name); os.set_blocking(stream.fileno(), False)
+-        sel.register(stream, selectors.EVENT_READ, name)
+-    reason = None
+-    while sel.get_map():
+-        if time.monotonic() - started > seconds:
+-            reason = 'timeout'; break
+-        for key, _ in sel.select(0.1):
+-            data = os.read(key.fileobj.fileno(), 65536)
+-            if not data:
+-                sel.unregister(key.fileobj); key.fileobj.close(); continue
+-            name = key.data; totals[name] += len(data)
+-            buffers[name].extend(data[:max(0, limit - len(buffers[name]))])
+-            if totals[name] > limit: reason = 'output-limit'
+-        if reason: break
+-    # Only kill our own still-unreaped process group, never a production service.
+-    if reason and child.poll() is None:
+-        try: os.killpg(child.pid, signal.SIGKILL)
+-        except ProcessLookupError: pass
+-    for key in list(sel.get_map().values()): key.fileobj.close()
+-    sel.close()
+-    try: rc = child.wait(timeout=2)
+-    except subprocess.TimeoutExpired:
+-        if child.poll() is None:
+-            try: os.killpg(child.pid, signal.SIGKILL)
+-            except ProcessLookupError: pass
+-        rc = child.wait(timeout=2); reason = reason or 'exit-timeout'
++    payload = memoryview(stdin) if stdin is not None else None
++
++    def retain(name, data):
++        nonlocal reason
++        totals[name] += len(data)
++        buffers[name].extend(data[:max(0, limit - len(buffers[name]))])
++        if totals[name] > limit: reason = reason or 'output-limit'
++
++    def exited_unreaped():
++        # WNOWAIT keeps the child PID reserved. No poll()/wait() precedes group cleanup.
++        info = os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
++        return info is not None and info.si_pid == child.pid
++
++    def close_registered(stream):
++        sel.unregister(stream)
++        stream.close()  # unbuffered pipe: close cannot flush unsent stdin
++
++    try:
++        child = subprocess.Popen(argv, stdin=subprocess.PIPE if payload is not None else subprocess.DEVNULL,
++                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
++                                 start_new_session=True, bufsize=0)
++        sel = selectors.DefaultSelector()
++        for name in buffers:
++            stream = getattr(child, name)
++            os.set_blocking(stream.fileno(), False)
++            sel.register(stream, selectors.EVENT_READ, name)
++        if payload is not None:
++            os.set_blocking(child.stdin.fileno(), False)
++            if len(payload): sel.register(child.stdin, selectors.EVENT_WRITE, 'stdin')
++            else: child.stdin.close()
++        while True:
++            remaining = deadline - time.monotonic()
++            if remaining <= 0:
++                deadline_exceeded = True; reason = reason or 'timeout'; break
++            if exited_unreaped() and not sel.get_map(): break
++            for key, _ in sel.select(min(0.1, remaining)):
++                if key.data == 'stdin':
++                    try:
++                        count = os.write(key.fileobj.fileno(), payload[sent:sent+65536])
++                    except (BlockingIOError, InterruptedError):
++                        continue
++                    except BrokenPipeError:
++                        # Remote/authentication rejection may close stdin first: still drain its diagnostics.
++                        reason = reason or 'stdin-broken-pipe'
++                        close_registered(key.fileobj)
++                        continue
++                    if count <= 0: raise OSError('stdin-write-made-no-progress')
++                    sent += count
++                    if sent == len(payload): close_registered(key.fileobj)
++                else:
++                    try: data = os.read(key.fileobj.fileno(), 65536)
++                    except (BlockingIOError, InterruptedError): continue
++                    if not data:
++                        close_registered(key.fileobj); continue
++                    retain(key.data, data)
++                if any(totals[n] > limit for n in totals): break
++            if any(totals[n] > limit for n in totals): break
++    except Exception as e:
++        reason = reason or ('capture-error:' + type(e).__name__)
++    finally:
++        if child is not None:
++            # Includes stdin/setup/selector failures and normal exit with leftover pipe holders.
++            # This routine is the sole reaper; WNOWAIT confirms child ownership before killpg.
++            try:
++                exited_unreaped()
++                try:
++                    os.killpg(child.pid, signal.SIGKILL); group_signal = True
++                except ProcessLookupError:
++                    pass
++            except ChildProcessError:
++                cleanup_errors.append('child-already-reaped-no-group-signal')
++            except Exception as e:
++                cleanup_errors.append('group-cleanup:' + type(e).__name__)
++            # Drain available public diagnostics even if selector setup failed. Never wait here.
++            for name in buffers:
++                stream = getattr(child, name, None)
++                if stream is None or stream.closed: continue
++                try:
++                    os.set_blocking(stream.fileno(), False)
++                    while totals[name] <= limit:
++                        try: data = os.read(stream.fileno(), min(65536, limit+1-totals[name]))
++                        except (BlockingIOError, InterruptedError): break
++                        if not data: break
++                        retain(name, data)
++                except Exception as e:
++                    cleanup_errors.append('drain-' + name + ':' + type(e).__name__)
++            if sel is not None:
++                try: sel.close()
++                except Exception as e: cleanup_errors.append('selector-close:' + type(e).__name__)
++            for name in ('stdin', 'stdout', 'stderr'):
++                stream = getattr(child, name, None)
++                if stream is not None and not stream.closed:
++                    try: stream.close()
++                    except Exception as e: cleanup_errors.append('pipe-close:' + type(e).__name__)
++            try:
++                rc = child.wait(timeout=2); child_reaped = True
++            except Exception as e:
++                cleanup_errors.append('child-wait:' + type(e).__name__)
++        elif sel is not None:
++            try: sel.close()
++            except Exception as e: cleanup_errors.append('selector-close:' + type(e).__name__)
++    if cleanup_errors: reason = reason or 'local-cleanup-incomplete'
+     return {'rc': rc, 'reason': reason, 'elapsedSeconds': time.monotonic() - started,
+             'stdout': buffers['stdout'].decode('utf-8', 'replace'),
+             'stderr': buffers['stderr'].decode('utf-8', 'replace'), 'bytesObserved': totals,
++            'stdinBytesWritten': sent, 'stdinBytesRequested': len(payload) if payload is not None else 0,
+             'truncated': any(totals[n] > limit for n in totals),
+-            'remoteDeathProven': False if reason else None}
++            'localChildReaped': child_reaped, 'ownedGroupKillAttempted': group_signal,
++            'cleanupErrors': cleanup_errors, 'deadlineExceeded': deadline_exceeded,
++            'localProcessGroupDeathProven': False,
++            # Local SSH exit/kill never establishes the lifetime of a remote command.
++            'remoteDeathProven': False}
+ 
+ from pathlib import Path
+ import json, hashlib, base64, sys
+@@ -62,7 +139,7 @@
+     assert os.sched_getaffinity(0)=={1}
+     verify()
+     admit=json.loads((P/'ROOT-ADMISSION.json').read_text())
+-    assert admit['authorized'] is True and admit['scope']=='readonly-control-vm-closure-r1' and admit['pinsSha256']==sha(P/'PINS.json')
++    assert admit['authorized'] is True and admit['scope']=='readonly-control-vm-closure-r2' and admit['pinsSha256']==sha(P/'PINS.json')
+     assert 0<=time.time()-admit['at']<=300
+     cg=Path('/proc/self/cgroup').read_text().strip();assert cg.startswith('0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-') and cg.endswith('.scope')
+     c=Path('/sys/fs/cgroup'+cg[3:]);assert (c/'memory.max').read_text().strip()==str(256<<20) and (c/'memory.swap.max').read_text().strip()=='0'

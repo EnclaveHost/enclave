@@ -74,16 +74,42 @@ export class PaidNetwork {
 // this host's receipts), gasKeyFile (pays settlement gas), rpc (https), maxPending6 (unsettled provider credit allowed,
 // in USDC micro-units)}: one settlement per paid provider, sharing one gas-wallet journal; the provider's co-signature
 // is requested from its control API through fetchFn (the host's control circuits).
-export async function createPaidNetwork({config,directory,leaseReader,providers,fetchFn,log=()=>{}}){
+// The settlement chain (client + wallet) for paid-provider settlement. Under the agent's explicit LOCAL VERIFIER authority
+// (leaseReader.authority 'verifier', network/chain-authority.mjs exactly as supervisor.js uses it): every read - the nonce
+// ('latest' account proof), the anchor block, receipts (checked against the receipts root) - goes to the verifier; the
+// submission and the pending/fee hints go to the operator's OWN transaction backend only, and each submission is preceded
+// by the authority's actionGate (fresh verifier head, backend bound to the verifier's chain). A settlement is confirmed
+// ONLY by a receipt the verifier returns (USDCBandwidthSettlement waits for it, 2 confirmations, status success); the
+// backend accepting a transaction is never success. No settlement RPC and no public default is used in that mode, and a
+// settlement RPC or a missing backend there is refused. Legacy (quorum authority): the configured HTTPS RPC + the two
+// public defaults, unchanged; a txBackend there is refused (never mixed).
+export async function settlementChain({config,leaseReader,chainVerifier}){
+ const {base}=await import('viem/chains');
+ if(leaseReader?.authority==='verifier'){
+  if(config.rpc!==undefined)throw new Error('paid settlement under the local verifier takes no settlement RPC (it would be a provider beside the verifier)');
+  if(!config.txBackend)throw new Error("paid settlement under the local verifier needs the operator's own transaction backend (enclaveNetwork.paid.txBackend)");
+  if(!chainVerifier)throw new Error("paid settlement under the local verifier needs the agent's verifier (cfg.chain.verifier)");
+  const {createChainAuthority}=await import('./chain-authority.mjs');
+  const authority=createChainAuthority({verifier:chainVerifier,backend:config.txBackend,chain:base});
+  const client=createPublicClient({chain:base,transport:authority.transport});
+  const submit=client.sendRawTransaction.bind(client);
+  client.sendRawTransaction=async args=>{await authority.actionGate({what:'paid bandwidth settlement',submit:true});return submit(args);};
+  return {client,wallet:account=>createWalletClient({account,chain:base,transport:authority.transport}),authority};
+ }
+ if(config.txBackend!==undefined)throw new Error('a settlement txBackend is set but the agent is not under the local verifier authority');
+ if(!String(config.rpc||'').startsWith('https://'))throw new Error('an HTTPS settlement RPC is required');
+ // receipts and nonces must be readable: some public RPCs refuse receipt lookups, so others follow the configured one
+ const transport=fallback([...new Set([config.rpc,'https://base.drpc.org','https://mainnet.base.org'])].map(u=>http(u,{timeout:15000})));
+ return {client:createPublicClient({chain:base,transport}),wallet:account=>createWalletClient({account,chain:base,transport}),authority:null};
+}
+export async function createPaidNetwork({config,directory,leaseReader,providers,fetchFn,chainVerifier,log=()=>{}}){
  if(!config?.proofKeyFile||!config.gasKeyFile||!/^(0|[1-9]\d{0,11})$/.test(config.maxPending6||''))throw new Error('enclaveNetwork.paid needs proofKeyFile, gasKeyFile and maxPending6');
  const {base}=await import('viem/chains');
  if(leaseReader.chainId!==base.id)throw new Error('paid providers settle on Base');
- if(!String(config.rpc||'').startsWith('https://'))throw new Error('an HTTPS settlement RPC is required');
+ const chain=await settlementChain({config,leaseReader,chainVerifier});
  const [proof,gas]=await Promise.all([fs.readFile(config.proofKeyFile,'utf8'),fs.readFile(config.gasKeyFile,'utf8')]);
  const proofAccount=privateKeyToAccount(proof.trim()),account=privateKeyToAccount(gas.trim());
- // receipts and nonces must be readable: some public RPCs refuse receipt lookups, so others follow the configured one
- const transport=fallback([...new Set([config.rpc,'https://base.drpc.org','https://mainnet.base.org'])].map(u=>http(u,{timeout:15000})));
- const client=createPublicClient({chain:base,transport}),wallet=createWalletClient({account,chain:base,transport});
+ const client=chain.client,wallet=chain.wallet(account);
  const settlements=new Map();
  const cosign=hostId=>async({receipt,runnerSignature,anchorHash})=>{
   const p=(await providers()).find(x=>x.hostId===hostId);if(!p)throw new Error('the paid provider is not in the directory');

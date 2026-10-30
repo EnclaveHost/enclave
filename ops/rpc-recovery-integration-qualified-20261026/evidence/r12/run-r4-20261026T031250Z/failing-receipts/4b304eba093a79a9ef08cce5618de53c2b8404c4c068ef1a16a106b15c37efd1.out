@@ -1,0 +1,102 @@
+TAP version 13
+# Subtest: zero apps: host services only after the platform admits; an admin ban stops them (grants withdrawn), the unban restarts them
+ok 1 - zero apps: host services only after the platform admits; an admin ban stops them (grants withdrawn), the unban restarts them
+  ---
+  duration_ms: 10518.893883
+  type: 'test'
+  ...
+# Subtest: zero apps, unknown chain policy: the production policy with no network holds them (the agent runs); a fresh host never serves on an unread policy
+ok 2 - zero apps, unknown chain policy: the production policy with no network holds them (the agent runs); a fresh host never serves on an unread policy
+  ---
+  duration_ms: 6432.594362
+  type: 'test'
+  ...
+# Subtest: zero apps, the local policy down from the start: held; once it answers and admits, started
+ok 3 - zero apps, the local policy down from the start: held; once it answers and admits, started
+  ---
+  duration_ms: 6466.291771
+  type: 'test'
+  ...
+# Subtest: first app added and last app removed (live reload) never touch host services; a restart with no app starts them again
+ok 4 - first app added and last app removed (live reload) never touch host services; a restart with no app starts them again
+  ---
+  duration_ms: 3770.450523
+  type: 'test'
+  ...
+# Subtest: zero apps: refused before anything binds without a usable host-services block or with the policy off
+ok 5 - zero apps: refused before anything binds without a usable host-services block or with the policy off
+  ---
+  duration_ms: 2643.888695
+  type: 'test'
+  ...
+# Subtest: with an app, an "off" policy keeps the earlier behavior (host services start at once); on, they wait for the admit
+ok 6 - with an app, an "off" policy keeps the earlier behavior (host services start at once); on, they wait for the admit
+  ---
+  duration_ms: 2577.328445
+  type: 'test'
+  ...
+# Subtest: bundled library command lines: without the guard, the runner.mjs a carrier-configured challenge replica loads EXITS the bundle; with it, nothing runs
+ok 7 - bundled library command lines: without the guard, the runner.mjs a carrier-configured challenge replica loads EXITS the bundle; with it, nothing runs
+  ---
+  duration_ms: 906.061961
+  type: 'test'
+  ...
+# Subtest: the shipped bundle runs the app-less daemon: admitted -> host services
+ok 8 - the shipped bundle runs the app-less daemon: admitted -> host services
+  ---
+  duration_ms: 507.659053
+  type: 'test'
+  ...
+# Subtest: enrollment, fresh box: no opt-in -> nothing written (as before); a valid opt-in -> an app-less config for host services; the first app joins it without a restart
+not ok 9 - enrollment, fresh box: no opt-in -> nothing written (as before); a valid opt-in -> an app-less config for host services; the first app joins it without a restart
+  ---
+  duration_ms: 7.580261
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/host-services-cold-start.test.mjs:254:1'
+  failureType: 'testCodeFailure'
+  error: 'rpcs is not defined'
+  code: 'ERR_TEST_FAILURE'
+  name: 'ReferenceError'
+  stack: |-
+    Object.pass (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/windows/node/network-enroll.mjs:238:26)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/host-services-cold-start.test.mjs:267:45)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: enrollment, fresh box: a refused host, an invalid block or an unusable opt-in file writes no app-less config
+ok 10 - enrollment, fresh box: a refused host, an invalid block or an unusable opt-in file writes no app-less config
+  ---
+  duration_ms: 12.507833
+  type: 'test'
+  ...
+# Subtest: enrollment, existing box: the opt-in file is the source while configured (a change restarts once); an unusable file keeps the config's blocks
+not ok 11 - enrollment, existing box: the opt-in file is the source while configured (a change restarts once); an unusable file keeps the config's blocks
+  ---
+  duration_ms: 3.246402
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/host-services-cold-start.test.mjs:300:1'
+  failureType: 'testCodeFailure'
+  error: 'rpcs is not defined'
+  code: 'ERR_TEST_FAILURE'
+  name: 'ReferenceError'
+  stack: |-
+    Object.pass (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/windows/node/network-enroll.mjs:238:26)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/host-services-cold-start.test.mjs:307:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: locked inputs: the governing lockfile per node_modules tree; a version drift, an extraneous package or an outside input is refused
+ok 12 - locked inputs: the governing lockfile per node_modules tree; a version drift, an extraneous package or an outside input is refused
+  ---
+  duration_ms: 3.227522
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 10
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 53978.569228

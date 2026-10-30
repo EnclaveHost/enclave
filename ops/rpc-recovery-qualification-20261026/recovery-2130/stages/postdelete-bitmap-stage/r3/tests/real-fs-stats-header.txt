@@ -1,0 +1,48 @@
+Filesystem volume name:   enc-base-origin
+Last mounted on:          /srv/enclave-base-holder/data
+Filesystem UUID:          11c6bbac-f823-4052-a87a-066eed6ad590
+Filesystem magic number:  0xEF53
+Filesystem revision #:    1 (dynamic)
+Filesystem features:      has_journal ext_attr resize_inode dir_index filetype extent 64bit flex_bg sparse_super large_file huge_file dir_nlink extra_isize metadata_csum
+Filesystem flags:         signed_directory_hash 
+Default mount options:    user_xattr acl
+Filesystem state:         clean
+Errors behavior:          Continue
+Filesystem OS type:       Linux
+Inode count:              3814784
+Block count:              976562500
+Reserved block count:     7568359
+Overhead clusters:        590666
+Free blocks:              933762848
+Free inodes:              3814398
+First block:              0
+Block size:               4096
+Fragment size:            4096
+Group descriptor size:    64
+Reserved GDT blocks:      919
+Blocks per group:         32768
+Fragments per group:      32768
+Inodes per group:         128
+Inode blocks per group:   8
+Flex block group size:    16
+Filesystem created:       Sun Oct 25 04:05:01 2026
+Last mount time:          Sun Oct 25 10:54:48 2026
+Last write time:          Mon Oct 26 09:00:38 2026
+Mount count:              3
+Maximum mount count:      -1
+Last checked:             Sun Oct 25 04:05:01 2026
+Check interval:           0 (<none>)
+Lifetime writes:          2044 GB
+Reserved blocks uid:      0 (user root)
+Reserved blocks gid:      0 (group root)
+First inode:              11
+Inode size:               256
+Required extra isize:     32
+Desired extra isize:      32
+Journal inode:            8
+Default directory hash:   half_md4
+Directory Hash Seed:      c3120b63-c948-4f10-bc09-ee9e992e9282
+Journal backup:           inode blocks
+Checksum type:            crc32c
+Checksum:                 0x1dc5e535
+Directories:              8

@@ -1,0 +1,45 @@
+TAP version 13
+# Subtest: discovery: two designated relays verified; the fleet's ad excluded, the impostor rejected, an administrator's ban honoured
+ok 1 - discovery: two designated relays verified; the fleet's ad excluded, the impostor rejected, an administrator's ban honoured
+  ---
+  duration_ms: 22012.817228
+  type: 'test'
+  ...
+# \# claim 0xba0cf5c6d821686156e82b00134c0da4a63eb841b40cf1575cc87e4ff569909f block 25 paid 490140203937 wei to 0x6d0da2684FEf0EE536143d209A53dB006e241458
+# \# renew 0x58d9881cb74339b35590786a0899c38836fe6a75aba9d79b16e7ccc4b52edc95 block 27 paid 208862403601 wei to 0xB716fA39ABf2C9524C747396Bf1E00106439BCC7
+# \# release 0x364a43622a876a860f629d3ada7ef78d7ff08a8b34ef71d8825d578ddf5804e8 block 28 paid 173207705664 wei to 0xB716fA39ABf2C9524C747396Bf1E00106439BCC7
+# \# relay floats a 10000000000000000 -> 10000025157888457, b 10000000000000000 -> 10000003663012299 (reimbursed in each transaction)
+# Subtest: a ZERO-ETH host with no relay of its own: cold claim, relay A LOST, renew and release through relay B - each paid by the app's reserve
+ok 2 - a ZERO-ETH host with no relay of its own: cold claim, relay A LOST, renew and release through relay B - each paid by the app's reserve
+  ---
+  duration_ms: 65603.117238
+  type: 'test'
+  ...
+# Subtest: operator authority is judged at EVERY signature: the cached relay list never carries it; a fresh ban, an unusable or undecided policy refuse at once
+ok 3 - operator authority is judged at EVERY signature: the cached relay list never carries it; a fresh ban, an unusable or undecided policy refuse at once
+  ---
+  duration_ms: 1662.365101
+  type: 'test'
+  ...
+# \# with every designated relay down the claim failed in 42 ms
+# Subtest: both designated relays lost: the operation fails NotRelayed within a bound, nothing is sent, the host still holds no ETH
+ok 4 - both designated relays lost: the operation fails NotRelayed within a bound, nothing is sent, the host still holds no ETH
+  ---
+  duration_ms: 75.082428
+  type: 'test'
+  ...
+# Subtest: the packaged role: only the pinned bytes run, no key in configuration, the key is created once and never replaced
+ok 5 - the packaged role: only the pinned bytes run, no key in configuration, the key is created once and never replaced
+  ---
+  duration_ms: 2.393062
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 93658.550285

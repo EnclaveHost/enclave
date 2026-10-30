@@ -1,0 +1,19 @@
+Runtime code of canonical third-party contracts deployed on Base, for etching onto a LOCAL anvil (anvil_setCode) in the
+app-funded lease tests. These are not builds of this repository and are not deployed by it.
+  aa-code-base.json    ERC-4337 v0.8 EntryPoint 0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108, its SenderCreator, and
+                       Simple7702Account 0xe6Cae83BdE06E4c305530e199D7217f42808555B - the addresses relay/host-sponsor.mjs
+                       and windows/node/sponsor.mjs pin (ENTRYPOINT_08, SIMPLE_7702)
+  safe-code-base.json  Safe v1.4.1 SafeL2 0x29fcB43b46531BcA003ddC8FCB67FFE91900C762 and SafeProxyFactory
+                       0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67, plus the factory's proxy creation code
+  safe-passkey-code-base.json  every contract site/js/core/account-providers.js pins for the "safe-passkey" provider (Safe
+                       v1.4.1, Safe passkey signer v0.2.1 factory/shared signer, Daimo P-256 verifier, Safe4337Module,
+                       module setup, EntryPoint v0.7, MultiSend/MultiSendCallOnly), each stored code hashing to its reviewed
+                       codeHash pin, plus the passkey signer singleton the pinned factory names (no pin of its own: its
+                       address is embedded in the factory's pinned code, its bytes are two-RPC agreed). Read by
+                       test/helpers/safe-passkey-code.mjs for the site Safe/passkey tests, which no longer read Base.
+Each entry records the address, the Base block it was read at, both public RPCs (which had to return identical bytes),
+the byte length, and keccak256 (= the chain's EXTCODEHASH) and sha256 of the code. Anyone can re-check an entry with
+eth_getCode at that block, or re-take the snapshot: scripts/test-fixtures/snapshot-aa-code.mjs, snapshot-safe-code.mjs,
+snapshot-safe-passkey-code.mjs
+(read-only: eth_blockNumber/eth_getCode/eth_call only, no key, no transaction). test/lease-gas-fixtures.test.mjs checks
+the recorded hashes against the stored code.

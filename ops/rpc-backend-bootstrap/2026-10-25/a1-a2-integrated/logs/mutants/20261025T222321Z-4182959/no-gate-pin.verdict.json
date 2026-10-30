@@ -1,0 +1,16 @@
+{
+ "errors": 0,
+ "expectedFailures": 0,
+ "mode": "kill",
+ "outcomes": {
+  "FreshInitialTrust.test_gate_and_recheck_pins_match_the_files": "fail"
+ },
+ "ranTwice": [],
+ "requested": [
+  "FreshInitialTrust.test_gate_and_recheck_pins_match_the_files"
+ ],
+ "skipped": 0,
+ "testsRun": 1,
+ "unexpectedSuccesses": 0,
+ "verdict": "killed"
+}

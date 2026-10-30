@@ -1,0 +1,10 @@
+{
+  "scope": "Inherited byte-exact root r9 release; no added source dependencies during r10 preparation",
+  "originalFiles": 219,
+  "addedFiles": 0,
+  "existingFilesOverwritten": [],
+  "productEdits": [],
+  "inheritedMaterialization": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/materialization.json",
+  "inheritedMaterializationSha256": "fb931980d8414bf0b541a03a3342e53a4cacec7b3cc03da455a36adbb979231e",
+  "note": "The40 real dependency files materialized before r9 remain in this exact219 seed. This does not qualify dynamic host imports, native workloads or the npm override. No module evaluation/tests/builds/author launch."
+}

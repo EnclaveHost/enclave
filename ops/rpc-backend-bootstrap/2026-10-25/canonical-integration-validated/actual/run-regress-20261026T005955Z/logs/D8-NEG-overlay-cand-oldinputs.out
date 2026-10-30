@@ -1,0 +1,20 @@
+test_with_inputs_every_pinned_file_is_installed_with_its_mode_and_digest (__main__.ChainVerifierOverlay.test_with_inputs_every_pinned_file_is_installed_with_its_mode_and_digest) ... ERROR
+
+======================================================================
+ERROR: test_with_inputs_every_pinned_file_is_installed_with_its_mode_and_digest (__main__.ChainVerifierOverlay.test_with_inputs_every_pinned_file_is_installed_with_its_mode_and_digest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-integration-actual/run/regress-20261026T005955Z/cand/test/metal-control-overlay.test.py", line 282, in test_with_inputs_every_pinned_file_is_installed_with_its_mode_and_digest
+    self.base_image();out=self.root/'out';m=mod.overlay(self.base,out,COMMIT,REPO,chain_verifier_dir=VERIFIER_INPUTS);after=self.read(out)
+                                            ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-integration-actual/run/regress-20261026T005955Z/cand/metal/overlay-control-image.py", line 337, in overlay
+    native, modes, verifier_record = chain_verifier_files(commit, repo, chain_verifier_dir)
+                                     ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-integration-actual/run/regress-20261026T005955Z/cand/metal/overlay-control-image.py", line 299, in chain_verifier_files
+    raise ValueError('chain verifier input '+str(source)+' has sha256 '+sha(data)+', not the pinned '+digest)
+ValueError: chain verifier input /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-rpc-runtime-launch/chain-verifier-inputs/helios has sha256 cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0, not the pinned 8250f08a7b0e1f2432ea6262903ca3203b60bca6a8e17abd6d9bccbe0dbfa378
+
+----------------------------------------------------------------------
+Ran 1 test in 0.396s
+
+FAILED (errors=1)

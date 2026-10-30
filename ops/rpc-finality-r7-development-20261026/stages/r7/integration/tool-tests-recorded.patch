@@ -1,0 +1,15 @@
+--- a/tests/test_finality_state.py
++++ b/tests/test_finality_state.py
+@@ -413,7 +413,11 @@
+             return cm.exception.code
+         self.assertEqual(code(RS.Unavailable), 'finality-status-absent')
+         FS.publish_status(st(), out, top=self.t); a.finality_status = str(out)
+-        self.assertEqual(RS.validate_finality_status(a)['freshN'], NP)
++        self.assertEqual(code(RS.Unavailable), 'finality-not-recorded')             # r7: proven, NOT yet durably recorded: refused
++        e = FS.entries(self.fdir, FS.load_launch(self.d, self.t / 'chain.json', self.t)['launchSha256'], self.t)[-1]
++        self.W.events = self.W.events + [('e' * 64, {'event': 'bootstrapped', 'seq': 3, 'evidence': {'finalityEntrySha256': e['sha'], 'finalitySeq': e['seq']}})]
++        FS.publish_status(st(), out, top=self.t); info = RS.validate_finality_status(a)
++        self.assertEqual((info['freshN'], info['recordedAs']), (NP, 'e' * 64))      # recorded: admitted, the acceptance bound into the report
+         self.make_proc(port=1, start='999')                                          # the node restarted: the old file names a gone process
+         self.assertEqual(code(RS.Unavailable), 'finality-stale-after-restart')
+         FS.publish_status(st(), out, top=self.t); self.assertEqual(code(RS.Unavailable), 'finality-not-current')

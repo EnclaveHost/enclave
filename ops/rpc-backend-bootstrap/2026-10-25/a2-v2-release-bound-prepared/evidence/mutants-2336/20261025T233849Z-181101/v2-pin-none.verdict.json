@@ -1,0 +1,16 @@
+{
+ "errors": 0,
+ "expectedFailures": 0,
+ "mode": "kill",
+ "outcomes": {
+  "ReleaseEvidence.test_source_pin_is_the_actually_released_and_abi_smoked_binary": "fail"
+ },
+ "ranTwice": [],
+ "requested": [
+  "ReleaseEvidence.test_source_pin_is_the_actually_released_and_abi_smoked_binary"
+ ],
+ "skipped": 0,
+ "testsRun": 1,
+ "unexpectedSuccesses": 0,
+ "verdict": "killed"
+}

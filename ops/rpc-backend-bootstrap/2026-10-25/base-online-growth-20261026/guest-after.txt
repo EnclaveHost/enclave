@@ -1,0 +1,8 @@
+/dev/sdc ext4
+ERPC-BASE-740457FE
+4000000000000
+MainPID=4061
+NRestarts=0
+Filesystem         1B-blocks         Used     Available Use% Mounted on
+/dev/sdc       3997580632064 656657096704 3309906759680  17% /srv/enclave-base-holder
+Oct 26 05:36:17 enclave-rpc base[4061]: 2026-10-26T05:36:17.411006Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=70.8% elapsed=11h 15m eta=4h 38m bytes=546.10 GB/770.80 GB

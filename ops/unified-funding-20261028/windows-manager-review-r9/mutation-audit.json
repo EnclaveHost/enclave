@@ -1,0 +1,294 @@
+{
+  "events": [
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/control/windows/node/protected-authority-factory.mjs",
+      "rel": "control/windows/node/protected-authority-factory.mjs",
+      "id": "toolu_01H2vjWWj9KuyXkvM3oR1y3u",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/control/windows/node/protected-authority-factory.mjs",
+      "rel": "control/windows/node/protected-authority-factory.mjs",
+      "id": "toolu_017tuG83YnP1SBEh6kyEjDiM",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/control/windows/node/protected-authority-factory.mjs",
+      "rel": "control/windows/node/protected-authority-factory.mjs",
+      "id": "toolu_014jnoTbb9o4zuR6gpcQ2U4h",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/control/windows/node/protected-authority-factory.mjs",
+      "rel": "control/windows/node/protected-authority-factory.mjs",
+      "id": "toolu_0196ewkHvfNRVxtRfJhqngoH",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/control/windows/node/protected-authority-factory.mjs",
+      "rel": "control/windows/node/protected-authority-factory.mjs",
+      "id": "toolu_01HuJ4M69VQWzefpcJEbvF3J",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/control/windows/node/protected-authority-factory.mjs",
+      "rel": "control/windows/node/protected-authority-factory.mjs",
+      "id": "toolu_01GZDfc5fNUXr9GHuSZ5oRf2",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/control/windows/node/protected-supervisor.mjs",
+      "rel": "control/windows/node/protected-supervisor.mjs",
+      "id": "toolu_01HDwB7tQnxkckuRuZawGTv5",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/control/windows/node/protected-supervisor.mjs",
+      "rel": "control/windows/node/protected-supervisor.mjs",
+      "id": "toolu_01PY9JqTyAnnVVJCZamxykg5",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/control/windows/node/protected-supervisor.mjs",
+      "rel": "control/windows/node/protected-supervisor.mjs",
+      "id": "toolu_016GPJD8PPy43WSaqcebYb9b",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/control/windows/node/host.mjs",
+      "rel": "control/windows/node/host.mjs",
+      "id": "toolu_012Rx8QMDTMkUxeoJbRXjaJE",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/control/windows/node/host.mjs",
+      "rel": "control/windows/node/host.mjs",
+      "id": "toolu_01HEwF1Pmnn3d6Zr5xBzJdyW",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/control/windows/node/host.mjs",
+      "rel": "control/windows/node/host.mjs",
+      "id": "toolu_01SVT1HqmAWsKVucRPK1A5s1",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/control/windows/node/host.mjs",
+      "rel": "control/windows/node/host.mjs",
+      "id": "toolu_0114BM8NwYxFVPYqQL5DSh41",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/control/windows/node/host.mjs",
+      "rel": "control/windows/node/host.mjs",
+      "id": "toolu_01L4PP2UGRqE6STaRHUQgDcn",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/control/windows/node/host.mjs",
+      "rel": "control/windows/node/host.mjs",
+      "id": "toolu_01QdRe1fhrUQCbfvgsaJAjZm",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/control/windows/node/host.mjs",
+      "rel": "control/windows/node/host.mjs",
+      "id": "toolu_01R8ZbBztzGueLod51JmLUjM",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/control/windows/node/host.mjs",
+      "rel": "control/windows/node/host.mjs",
+      "id": "toolu_018SbksLSsjR3SLtqUtXdh2h",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/control/windows/node/agent.mjs",
+      "rel": "control/windows/node/agent.mjs",
+      "id": "toolu_016DapAjtbmPmUWH9SXB1dp2",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/control/windows/node/agent.mjs",
+      "rel": "control/windows/node/agent.mjs",
+      "id": "toolu_01YWCKjC4Jxk7aMUvtogZUqS",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/test/windows-permit/r4-supervisor-chain.test.mjs",
+      "rel": "test/windows-permit/r4-supervisor-chain.test.mjs",
+      "id": "toolu_01Qn79uzTW9B2c9wJLcVMQ8R",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/test/windows-permit/r5-ownership-chain.test.mjs",
+      "rel": "test/windows-permit/r5-ownership-chain.test.mjs",
+      "id": "toolu_01VUYg2TrPx4nKprMra9Vh1E",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/test/windows-permit/r7-supervisor-withdrawal.test.mjs",
+      "rel": "test/windows-permit/r7-supervisor-withdrawal.test.mjs",
+      "id": "toolu_01RcgTDT7QcTUCcTcwxcM7sz",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/test/windows-permit/r7-composite.test.mjs",
+      "rel": "test/windows-permit/r7-composite.test.mjs",
+      "id": "toolu_019j4xyd991Yce6WBWi9xhBt",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/test/windows-permit/r8-unknown-owner-loss.test.mjs",
+      "rel": "test/windows-permit/r8-unknown-owner-loss.test.mjs",
+      "id": "toolu_01873GHNEfhnMwaGXfERoTy6",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/test/windows-permit/r6-stage-revocation.test.mjs",
+      "rel": "test/windows-permit/r6-stage-revocation.test.mjs",
+      "id": "toolu_01PXPpqRBdVWBBhtwuAw4kud",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/test/windows-permit/r8-authority-factory.test.mjs",
+      "rel": "test/windows-permit/r8-authority-factory.test.mjs",
+      "id": "toolu_01ExQScsVoBwPbjjmhbMuQmK",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/test/windows-permit/r8-authority-factory.test.mjs",
+      "rel": "test/windows-permit/r8-authority-factory.test.mjs",
+      "id": "toolu_01WKAzdkYZZrAYQexdJQwBFE",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/test/windows-permit/r8-authority-factory.test.mjs",
+      "rel": "test/windows-permit/r8-authority-factory.test.mjs",
+      "id": "toolu_01C7qCPnevjrwUxt6eeWYYby",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/test/windows-permit/r8-authority-factory.test.mjs",
+      "rel": "test/windows-permit/r8-authority-factory.test.mjs",
+      "id": "toolu_01LZq74HCPDaGnbLxJ64s5fU",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/test/windows-permit/r8-authority-factory.test.mjs",
+      "rel": "test/windows-permit/r8-authority-factory.test.mjs",
+      "id": "toolu_01JcRJxvyGKovpv5Bkfh9WWp",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/test/windows-permit/r8-authority-factory.test.mjs",
+      "rel": "test/windows-permit/r8-authority-factory.test.mjs",
+      "id": "toolu_01TrfaA4uDS8mfqiy5eGXNAo",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/test/windows-permit/r8-authority-factory.test.mjs",
+      "rel": "test/windows-permit/r8-authority-factory.test.mjs",
+      "id": "toolu_01SB7FaJ1Bcp9Ahyndeku8sp",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/test/windows-permit/r9-real-owned-factory.test.mjs",
+      "rel": "test/windows-permit/r9-real-owned-factory.test.mjs",
+      "id": "toolu_013AaMMiGThUj3JkwNX381tv",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/test/windows-permit/r9-real-owned-factory.test.mjs",
+      "rel": "test/windows-permit/r9-real-owned-factory.test.mjs",
+      "id": "toolu_01TMi3MSdyxfUBYjeAjMK6CZ",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/test/windows-permit/r7-owner-lifetime.test.mjs",
+      "rel": "test/windows-permit/r7-owner-lifetime.test.mjs",
+      "id": "toolu_01PXFBrnyBD5gB5j11GxwGwY",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/test/windows-permit/r8-permit-owner-loss.test.mjs",
+      "rel": "test/windows-permit/r8-permit-owner-loss.test.mjs",
+      "id": "toolu_01Tg5dipzTJARim4CHvSexkf",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/test/windows-permit/r8-permit-owner-loss.test.mjs",
+      "rel": "test/windows-permit/r8-permit-owner-loss.test.mjs",
+      "id": "toolu_01BGWvLrVGRNptFUWFXGWVBW",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/package.json",
+      "rel": "package.json",
+      "id": "toolu_01W7Pr7bY5isPxpsNYpp2yqB",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/package-lock.json",
+      "rel": "package-lock.json",
+      "id": "toolu_01YVi5FmYs9AjsrnhmaZ4X4w",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/REPORT-WINDOWS-PERMIT-R9.md",
+      "rel": "REPORT-WINDOWS-PERMIT-R9.md",
+      "id": "toolu_01BHk4a2uF16N9vtm6hUucDK",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/candidate/RELEASE-CLOSURE-R9.json",
+      "rel": "RELEASE-CLOSURE-R9.json",
+      "id": "toolu_01RRLeYTSG8ri6Tf8Dfs3bjC",
+      "outcome": "reported-success"
+    }
+  ],
+  "replayIssues": [],
+  "outsideCandidateAttempts": [],
+  "note": "first successful mutation snapshots reconstructed from immutable seed and successful tool results; any mismatch requires manual audit, never assumed clean"
+}

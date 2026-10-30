@@ -1,0 +1,7 @@
+[queue] START available=30231MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+TAP version 13
+
+[memory-guard] STOPPING own job: process tree RSS 265 MiB > 256 MiB
+[memory-guard] exit=SIGTERM peakTreeRssMiB=265 minHostAvailableMiB=30136 STOPPED: process tree RSS 265 MiB > 256 MiB
+[memory-guard] at peak: node:108 node:61 node:60 anvil:35
+[queue] EXIT 99

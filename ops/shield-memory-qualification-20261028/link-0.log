@@ -1,0 +1,3 @@
+[shielded] SHIELDED_POOL_PACK24=2 is not 0 or 1; keeping the int32 pad ring
+[shielded] pad ring packed24: 0.0 MiB over 2 groups (int32 ring: 0.0 MiB); request-path unpack scratch up to 0.0 MiB more
+{"pack24_link_selftest":true,"failures":0,"pads_used":768,"ring_missed":288}

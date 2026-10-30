@@ -1,0 +1,1339 @@
+diff --git a/crates/consensus/cli/src/node.rs b/crates/consensus/cli/src/node.rs
+index 07a1d4f..ef341de 100644
+--- a/crates/consensus/cli/src/node.rs
++++ b/crates/consensus/cli/src/node.rs
+@@ -8,7 +8,7 @@ use base_cli_utils::{LogConfig, RuntimeManager};
+ use base_common_chains::ChainConfig;
+ use base_common_genesis::RollupConfig;
+ use base_consensus_node::{
+-    EngineConfig, L1ConfigBuilder, NodeMode, NodeOperatingMode, RollupNode, RollupNodeBuilder,
++    BootstrapAnchor, EngineConfig, L1ConfigBuilder, NodeMode, NodeOperatingMode, RollupNode, RollupNodeBuilder,
+     UpgradeSignalBuilderConfig,
+ };
+ use base_upgrade_signal::{
+@@ -230,6 +230,12 @@ pub struct ConsensusNodeConfigArgs {
+     /// Path to the checkpoint database. If not set, a default path under `~/.base` is used.
+     #[arg(long = "checkpoint.path", env = "BASE_NODE_CHECKPOINT_PATH")]
+     pub checkpoint_path: Option<PathBuf>,
++    /// M10: start derivation from a VERIFIED bootstrap anchor `<number>:0x<hash>` (validator mode
++    /// only). Not a proof: set only by a launcher that verified the L1-finalized anchor output root,
++    /// header N, an offline unwind of the execution database to exactly N and a full state rebuild
++    /// at N. The node refuses to start unless the execution head is exactly this block.
++    #[arg(long = "bootstrap.anchor", value_name = "NUMBER:HASH")]
++    pub bootstrap_anchor: Option<BootstrapAnchor>,
+ 
+     /// L1 upgrade signal schedule arguments.
+     #[command(flatten)]
+@@ -270,6 +276,12 @@ pub struct EmbeddedConsensusNodeConfigArgs {
+     /// Path to the checkpoint database. If not set, a default path under `~/.base` is used.
+     #[arg(long = "checkpoint.path", env = "BASE_NODE_CHECKPOINT_PATH")]
+     pub checkpoint_path: Option<PathBuf>,
++    /// M10: start derivation from a VERIFIED bootstrap anchor `<number>:0x<hash>` (validator mode
++    /// only). Not a proof: set only by a launcher that verified the L1-finalized anchor output root,
++    /// header N, an offline unwind of the execution database to exactly N and a full state rebuild
++    /// at N. The node refuses to start unless the execution head is exactly this block.
++    #[arg(long = "bootstrap.anchor", value_name = "NUMBER:HASH")]
++    pub bootstrap_anchor: Option<BootstrapAnchor>,
+ }
+ 
+ /// Consensus node configuration arguments for embedded sequencer callers.
+@@ -325,6 +337,7 @@ impl From<EmbeddedConsensusNodeConfigArgs> for ConsensusNodeConfigArgs {
+             sequencer_flags: SequencerArgs::default(),
+             safedb_path: args.safedb_path,
+             checkpoint_path: args.checkpoint_path,
++            bootstrap_anchor: args.bootstrap_anchor,
+             upgrade_signal: UpgradeSignalArgs::default(),
+         }
+     }
+@@ -343,6 +356,7 @@ impl From<EmbeddedSequencerConsensusNodeConfigArgs> for ConsensusNodeConfigArgs
+             sequencer_flags: args.sequencer_flags,
+             safedb_path: args.safedb_path,
+             checkpoint_path: args.checkpoint_path,
++            bootstrap_anchor: None,
+             upgrade_signal: UpgradeSignalArgs::default(),
+         }
+     }
+@@ -569,6 +583,9 @@ impl ConsensusNodeArgs {
+         if let Some(path) = self.config.safedb_path.clone() {
+             builder = builder.with_safedb_path(path);
+         }
++        if let Some(anchor) = self.config.bootstrap_anchor {
++            builder = builder.with_bootstrap_anchor(anchor);
++        }
+ 
+         builder.build().await.wrap_err("Failed to build rollup node")
+     }
+@@ -718,6 +735,7 @@ mod tests {
+             sequencer_flags: SequencerArgs::default(),
+             safedb_path: None,
+             checkpoint_path: None,
++            bootstrap_anchor: None,
+             upgrade_signal: UpgradeSignalArgs::default(),
+         }
+     }
+@@ -1207,4 +1225,54 @@ mod tests {
+         assert!(config.sequencer_flags.stopped);
+         assert_eq!(config.sequencer_flags.conductor_rpc, Some(conductor_rpc));
+     }
++
++    mod bootstrap_anchor_flag {
++        use clap::CommandFactory;
++
++        use super::*;
++
++        const ANCHOR: &str = "52746000:0xabababababababababababababababababababababababababababababababab";
++        const BASE: [&str; 7] = [
++            "base-consensus",
++            "--l1-eth-rpc",
++            "http://localhost:8545",
++            "--l1-beacon",
++            "http://localhost:5052",
++            "--l2-engine-rpc",
++            "http://localhost:8551",
++        ];
++
++        #[test]
++        fn parses_and_is_absent_without_the_flag() {
++            assert_eq!(CommandParser::<ConsensusNodeConfigArgs>::parse_from(BASE).args.bootstrap_anchor, None);
++            let with: Vec<&str> = BASE.iter().copied().chain(["--bootstrap.anchor", ANCHOR]).collect();
++            let anchor = CommandParser::<ConsensusNodeConfigArgs>::parse_from(with).args.bootstrap_anchor.expect("anchor parsed");
++            assert_eq!(anchor.to_string(), ANCHOR);
++            // the embedded validator args (used by `base rpc`) carry it into the node config
++            let embedded = CommandParser::<EmbeddedConsensusNodeConfigArgs>::parse_from([
++                "base", "--l1-eth-rpc", "http://localhost:8545", "--l1-beacon", "http://localhost:5052", "--bootstrap.anchor", ANCHOR,
++            ])
++            .args;
++            assert_eq!(ConsensusNodeConfigArgs::from(embedded).bootstrap_anchor, Some(anchor));
++        }
++
++        #[test]
++        fn refuses_malformed_values_and_has_no_env_binding() {
++            let zero = format!("52746000:0x{}", "00".repeat(32));
++            let genesis = format!("0:0x{}", "ab".repeat(32));
++            for bad in ["52746000", "52746000:0x12", "x:0xab", zero.as_str(), genesis.as_str()] {
++                let with: Vec<&str> = BASE.iter().copied().chain(["--bootstrap.anchor", bad]).collect();
++                assert!(CommandParser::<ConsensusNodeConfigArgs>::try_parse_from(with).is_err(), "{bad}");
++            }
++            let cmd = CommandParser::<ConsensusNodeConfigArgs>::command();
++            let arg = cmd.get_arguments().find(|a| a.get_long() == Some("bootstrap.anchor")).expect("flag exists");
++            assert!(arg.get_env().is_none(), "set only by the launcher's explicit argv, never by environment");
++        }
++
++        #[test]
++        fn the_embedded_sequencer_args_have_no_bootstrap_anchor_flag() {
++            let cmd = CommandParser::<EmbeddedSequencerConsensusNodeConfigArgs>::command();
++            assert!(cmd.get_arguments().all(|a| a.get_long() != Some("bootstrap.anchor")));
++        }
++    }
+ }
+diff --git a/crates/consensus/engine/src/lib.rs b/crates/consensus/engine/src/lib.rs
+index 9170dec..4abf978 100644
+--- a/crates/consensus/engine/src/lib.rs
++++ b/crates/consensus/engine/src/lib.rs
+@@ -51,6 +51,7 @@ pub use sync::{
+     L2ForkchoiceState, NoopForkchoiceCheckpointReader, SyncStartError, find_starting_forkchoice,
+     find_starting_forkchoice_with_checkpoint_reader,
+ };
++pub use sync::{BootstrapAnchor, BootstrapAnchorParseError};
+ 
+ #[cfg(any(test, feature = "test-utils"))]
+ /// Utilities that are useful when creating unit tests using structs within this library.
+diff --git a/crates/consensus/engine/src/sync/anchor.rs b/crates/consensus/engine/src/sync/anchor.rs
+new file mode 100644
+index 0000000..ccdd986
+--- /dev/null
++++ b/crates/consensus/engine/src/sync/anchor.rs
+@@ -0,0 +1,298 @@
++//! M10: an explicit, opt-in bootstrap anchor for the sync start.
++//!
++//! A [`BootstrapAnchor`] is a block (number, hash) that an EXTERNAL, config-bound launcher has
++//! already authenticated before starting this node: an L1-finalized anchor output root read with
++//! proofs, header N reproducing that output root, the execution database unwound OFFLINE to
++//! exactly N, and a full state rebuild verified at N. **The anchor value itself is not a proof**:
++//! this module only refuses to start unless the execution layer agrees with it exactly, and then
++//! starts derivation with safe = finalized = N instead of the execution layer's persisted labels.
++//!
++//! Without an anchor nothing here runs, and the default sync start is unchanged.
++
++use core::{fmt, str::FromStr};
++
++use alloy_eips::{BlockNumHash, BlockNumberOrTag};
++use alloy_primitives::B256;
++use base_common_genesis::RollupConfig;
++use base_protocol::L2BlockInfo;
++
++use super::{L2ForkchoiceState, SyncStartError, forkchoice::get_block_compat};
++use crate::EngineClient;
++
++/// An L2 block the operator's verified bootstrap pinned: `<number>:0x<32-byte hash>`.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub struct BootstrapAnchor {
++    /// The anchor block number.
++    pub number: u64,
++    /// The anchor block hash.
++    pub hash: B256,
++}
++
++impl BootstrapAnchor {
++    /// The anchor as a [`BlockNumHash`].
++    pub const fn num_hash(&self) -> BlockNumHash {
++        BlockNumHash { number: self.number, hash: self.hash }
++    }
++}
++
++impl fmt::Display for BootstrapAnchor {
++    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++        write!(f, "{}:{}", self.number, self.hash)
++    }
++}
++
++/// Why a `--bootstrap.anchor` value was refused.
++#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
++pub enum BootstrapAnchorParseError {
++    /// The value is not `<number>:0x<64 hex>`.
++    #[error("bootstrap anchor must be <number>:0x<64 hex chars>")]
++    Format,
++    /// The genesis block cannot be a bootstrap anchor.
++    #[error("bootstrap anchor number must be above genesis (0)")]
++    Genesis,
++    /// The zero hash is never a block hash.
++    #[error("bootstrap anchor hash must not be zero")]
++    ZeroHash,
++}
++
++impl FromStr for BootstrapAnchor {
++    type Err = BootstrapAnchorParseError;
++
++    fn from_str(s: &str) -> Result<Self, Self::Err> {
++        let (n, h) = s.split_once(':').ok_or(BootstrapAnchorParseError::Format)?;
++        if n.is_empty() || !n.bytes().all(|b| b.is_ascii_digit()) || (n.len() > 1 && n.starts_with('0')) {
++            return Err(BootstrapAnchorParseError::Format);
++        }
++        let number = n.parse::<u64>().map_err(|_| BootstrapAnchorParseError::Format)?;
++        let hex = h.strip_prefix("0x").ok_or(BootstrapAnchorParseError::Format)?;
++        if hex.len() != 64 || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
++            return Err(BootstrapAnchorParseError::Format);
++        }
++        let hash = B256::from_str(hex).map_err(|_| BootstrapAnchorParseError::Format)?;
++        if number == 0 {
++            return Err(BootstrapAnchorParseError::Genesis);
++        }
++        if hash.is_zero() {
++            return Err(BootstrapAnchorParseError::ZeroHash);
++        }
++        Ok(Self { number, hash })
++    }
++}
++
++impl BootstrapAnchor {
++    /// Converts the execution layer's block at `tag` to an [`L2BlockInfo`]. The hash is RECOMPUTED
++    /// from the header (`from_block_and_genesis` seals it), never taken from the RPC `hash` field.
++    async fn execution_block_info<EngineClient_: EngineClient>(
++        cfg: &RollupConfig,
++        engine_client: &EngineClient_,
++        tag: BlockNumberOrTag,
++    ) -> Result<Option<L2BlockInfo>, SyncStartError> {
++        let Some(rpc_block) = get_block_compat(engine_client, tag.into()).await? else {
++            return Ok(None);
++        };
++        Ok(Some(L2BlockInfo::from_block_and_genesis(
++            &rpc_block
++                .map_header(|header| header.into_inner())
++                .into_consensus()
++                .map_transactions(|tx| tx.inner.inner.into_inner()),
++            &cfg.genesis,
++        )?))
++    }
++
++    /// The OFFLINE precondition, checked once at startup BEFORE anything is sent to the execution
++    /// layer: its head is exactly the anchor (number and recomputed hash), and its persisted finalized
++    /// and safe labels are not above the anchor (an offline `reth stage unwind --to-block N` lowers
++    /// them; a value above N means the database was not unwound, and the node refuses to start).
++    pub async fn verify_execution_head<EngineClient_: EngineClient>(
++        self,
++        cfg: &RollupConfig,
++        engine_client: &EngineClient_,
++    ) -> Result<L2BlockInfo, SyncStartError> {
++        let head = Self::execution_block_info(cfg, engine_client, BlockNumberOrTag::Latest)
++            .await?
++            .ok_or(SyncStartError::BlockNotFound(BlockNumberOrTag::Latest.into()))?;
++        if head.block_info.id() != self.num_hash() {
++            return Err(SyncStartError::BootstrapAnchorHeadMismatch {
++                anchor: self.num_hash(),
++                head: head.block_info.id(),
++            });
++        }
++        for (label, tag) in [("finalized", BlockNumberOrTag::Finalized), ("safe", BlockNumberOrTag::Safe)] {
++            // Only the NUMBER of a persisted label is judged: an absent label is fine, a label above N
++            // refuses. Labels at or below N are ignored by the anchored start (it never reads them).
++            if let Some(block) = get_block_compat(engine_client, tag.into()).await? &&
++                block.header.number > self.number
++            {
++                return Err(SyncStartError::BootstrapAnchorLabelAhead {
++                    label,
++                    number: block.header.number,
++                    anchor: self.number,
++                });
++            }
++        }
++        Ok(head)
++    }
++
++    /// The anchored starting forkchoice, used by the FIRST reset only: block N must still be canonical
++    /// with the anchor hash (the execution layer may have executed descendants since startup), and the
++    /// result is unsafe = the current head (at or above N), safe = finalized = N.
++    pub async fn starting_forkchoice<EngineClient_: EngineClient>(
++        self,
++        cfg: &RollupConfig,
++        engine_client: &EngineClient_,
++    ) -> Result<L2ForkchoiceState, SyncStartError> {
++        let at_n = Self::execution_block_info(cfg, engine_client, BlockNumberOrTag::Number(self.number)).await?;
++        let Some(at_n) = at_n.filter(|info| info.block_info.id() == self.num_hash()) else {
++            return Err(SyncStartError::BootstrapAnchorNotCanonical { anchor: self.num_hash() });
++        };
++        let head = Self::execution_block_info(cfg, engine_client, BlockNumberOrTag::Latest)
++            .await?
++            .ok_or(SyncStartError::BlockNotFound(BlockNumberOrTag::Latest.into()))?;
++        if head.block_info.number < self.number {
++            return Err(SyncStartError::BootstrapAnchorHeadMismatch {
++                anchor: self.num_hash(),
++                head: head.block_info.id(),
++            });
++        }
++        Ok(L2ForkchoiceState { un_safe: head, safe: at_n, finalized: at_n })
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use alloy_eips::{BlockId, BlockNumberOrTag};
++    use alloy_primitives::B256;
++
++    use super::*;
++    use crate::test_utils::{
++        ANCHOR_TEST_L1_ORIGIN, MockL2BlockError, anchor_test_block as block,
++        anchor_test_block_hash as hash_of, anchor_test_rollup_config as cfg,
++        test_engine_client_builder,
++    };
++
++    const N: u64 = 52_746_000;
++
++    #[test]
++    fn parse_accepts_only_number_colon_hash() {
++        let h = "0x".to_string() + &"ab".repeat(32);
++        let a: BootstrapAnchor = format!("{N}:{h}").parse().unwrap();
++        assert_eq!(a.number, N);
++        assert_eq!(a.to_string(), format!("{N}:{h}"));
++        for bad in ["", "52746000", ":0xab", "52746000:ab", "52746000:0x12", "-1:0x00", "052746000:0xab", "5e7:0xab", " 1:0xab"] {
++            assert_eq!(bad.parse::<BootstrapAnchor>(), Err(BootstrapAnchorParseError::Format), "{bad}");
++        }
++        assert_eq!(format!("{N}:0x{}", "zz".repeat(32)).parse::<BootstrapAnchor>(), Err(BootstrapAnchorParseError::Format));
++        assert_eq!(format!("0:{h}").parse::<BootstrapAnchor>(), Err(BootstrapAnchorParseError::Genesis));
++        assert_eq!(format!("{N}:0x{}", "00".repeat(32)).parse::<BootstrapAnchor>(), Err(BootstrapAnchorParseError::ZeroHash));
++    }
++
++    #[tokio::test]
++    async fn precondition_accepts_head_exactly_n_with_labels_at_or_below_n() {
++        let head = block(N, B256::repeat_byte(1));
++        let anchor = BootstrapAnchor { number: N, hash: hash_of(&head) };
++        let client = test_engine_client_builder()
++            .with_l2_block(BlockId::Number(BlockNumberOrTag::Latest), head)
++            .with_l2_block(BlockId::Number(BlockNumberOrTag::Finalized), block(N - 10, B256::repeat_byte(2)))
++            .build();
++        let info = anchor.verify_execution_head(&cfg(), &client).await.unwrap();
++        assert_eq!(info.block_info.id(), anchor.num_hash());
++        assert_eq!(info.l1_origin, ANCHOR_TEST_L1_ORIGIN);
++        // no persisted labels at all is also accepted (nothing above N)
++        let client = test_engine_client_builder()
++            .with_l2_block(BlockId::Number(BlockNumberOrTag::Latest), block(N, B256::repeat_byte(1)))
++            .build();
++        anchor.verify_execution_head(&cfg(), &client).await.unwrap();
++    }
++
++    #[tokio::test]
++    async fn precondition_refuses_wrong_number_wrong_hash_and_rpc_claimed_hash() {
++        let head = block(N, B256::repeat_byte(1));
++        let good = hash_of(&head);
++        // wrong number: the EL head is N+1 (not unwound to N)
++        let client = test_engine_client_builder()
++            .with_l2_block(BlockId::Number(BlockNumberOrTag::Latest), block(N + 1, good))
++            .build();
++        let e = BootstrapAnchor { number: N, hash: good }.verify_execution_head(&cfg(), &client).await.unwrap_err();
++        assert!(matches!(e, SyncStartError::BootstrapAnchorHeadMismatch { .. }), "{e}");
++        // wrong hash at the right height
++        let client = test_engine_client_builder()
++            .with_l2_block(BlockId::Number(BlockNumberOrTag::Latest), head.clone())
++            .build();
++        let e = BootstrapAnchor { number: N, hash: B256::repeat_byte(9) }.verify_execution_head(&cfg(), &client).await.unwrap_err();
++        assert!(matches!(e, SyncStartError::BootstrapAnchorHeadMismatch { .. }), "{e}");
++        // the RPC `hash` field is a claim: a block whose claimed hash is the anchor but whose header differs refuses
++        let mut lying = block(N, B256::repeat_byte(7));
++        lying.header.hash = good;
++        let client = test_engine_client_builder()
++            .with_l2_block(BlockId::Number(BlockNumberOrTag::Latest), lying)
++            .build();
++        let e = BootstrapAnchor { number: N, hash: good }.verify_execution_head(&cfg(), &client).await.unwrap_err();
++        assert!(matches!(e, SyncStartError::BootstrapAnchorHeadMismatch { .. }), "{e}");
++    }
++
++    #[tokio::test]
++    async fn precondition_refuses_replayed_snapshot_labels_above_n() {
++        let head = block(N, B256::repeat_byte(1));
++        let anchor = BootstrapAnchor { number: N, hash: hash_of(&head) };
++        for tag in [BlockNumberOrTag::Finalized, BlockNumberOrTag::Safe] {
++            let client = test_engine_client_builder()
++                .with_l2_block(BlockId::Number(BlockNumberOrTag::Latest), head.clone())
++                .with_l2_block(BlockId::Number(tag), block(N + 302_526, B256::repeat_byte(3)))
++                .build();
++            let e = anchor.verify_execution_head(&cfg(), &client).await.unwrap_err();
++            assert!(matches!(e, SyncStartError::BootstrapAnchorLabelAhead { number, anchor: a, .. } if number == N + 302_526 && a == N), "{tag:?}: {e}");
++        }
++    }
++
++    #[tokio::test]
++    async fn precondition_propagates_execution_layer_errors() {
++        let client = test_engine_client_builder()
++            .with_l2_block_error(
++                BlockId::Number(BlockNumberOrTag::Latest),
++                MockL2BlockError::Custom("connection refused".to_string()),
++            )
++            .build();
++        let e = BootstrapAnchor { number: N, hash: B256::repeat_byte(1) }.verify_execution_head(&cfg(), &client)
++            .await
++            .unwrap_err();
++        assert!(matches!(e, SyncStartError::RpcError(_)), "{e}");
++        // no head at all
++        let client = test_engine_client_builder().build();
++        let e = BootstrapAnchor { number: N, hash: B256::repeat_byte(1) }.verify_execution_head(&cfg(), &client)
++            .await
++            .unwrap_err();
++        assert!(matches!(e, SyncStartError::BlockNotFound(_)), "{e}");
++    }
++
++    #[tokio::test]
++    async fn anchored_forkchoice_is_head_over_n_and_requires_n_canonical() {
++        let at_n = block(N, B256::repeat_byte(1));
++        let anchor = BootstrapAnchor { number: N, hash: hash_of(&at_n) };
++        let head = block(N + 40, B256::repeat_byte(4));
++        let client = test_engine_client_builder()
++            .with_l2_block(BlockId::Number(BlockNumberOrTag::Number(N)), at_n.clone())
++            .with_l2_block(BlockId::Number(BlockNumberOrTag::Latest), head.clone())
++            // a replayed finalized label is never read by the anchored start
++            .with_l2_block(BlockId::Number(BlockNumberOrTag::Finalized), block(N + 39, B256::repeat_byte(5)))
++            .build();
++        let fc = anchor.starting_forkchoice(&cfg(), &client).await.unwrap();
++        assert_eq!(fc.safe.block_info.id(), anchor.num_hash());
++        assert_eq!(fc.finalized, fc.safe);
++        assert_eq!(fc.un_safe.block_info.number, N + 40);
++        assert_eq!(fc.un_safe.block_info.hash, hash_of(&head));
++        // N reorged away (another block at N) or missing: refuse
++        let client = test_engine_client_builder()
++            .with_l2_block(BlockId::Number(BlockNumberOrTag::Number(N)), block(N, B256::repeat_byte(8)))
++            .with_l2_block(BlockId::Number(BlockNumberOrTag::Latest), head.clone())
++            .build();
++        assert!(matches!(anchor.starting_forkchoice(&cfg(), &client).await, Err(SyncStartError::BootstrapAnchorNotCanonical { .. })));
++        let client = test_engine_client_builder().with_l2_block(BlockId::Number(BlockNumberOrTag::Latest), head).build();
++        assert!(matches!(anchor.starting_forkchoice(&cfg(), &client).await, Err(SyncStartError::BootstrapAnchorNotCanonical { .. })));
++        // a head below N refuses
++        let client = test_engine_client_builder()
++            .with_l2_block(BlockId::Number(BlockNumberOrTag::Number(N)), at_n)
++            .with_l2_block(BlockId::Number(BlockNumberOrTag::Latest), block(N - 1, B256::repeat_byte(6)))
++            .build();
++        assert!(matches!(anchor.starting_forkchoice(&cfg(), &client).await, Err(SyncStartError::BootstrapAnchorHeadMismatch { .. })));
++    }
++}
+diff --git a/crates/consensus/engine/src/sync/error.rs b/crates/consensus/engine/src/sync/error.rs
+index 949a96a..ff3f49b 100644
+--- a/crates/consensus/engine/src/sync/error.rs
++++ b/crates/consensus/engine/src/sync/error.rs
+@@ -1,6 +1,6 @@
+ //! Contains the error types used for finding the starting forkchoice state.
+ 
+-use alloy_eips::BlockId;
++use alloy_eips::{BlockId, BlockNumHash};
+ use alloy_primitives::B256;
+ use alloy_transport::{RpcError, TransportErrorKind};
+ use base_protocol::FromBlockError;
+@@ -19,6 +19,30 @@ pub enum SyncStartError {
+     /// [`L2BlockInfo`]: base_protocol::L2BlockInfo
+     #[error(transparent)]
+     FromBlock(#[from] FromBlockError),
++    /// M10: the execution head is not exactly the bootstrap anchor (number and recomputed hash).
++    #[error("bootstrap anchor {anchor:?} does not match the execution head {head:?}: unwind the execution database OFFLINE to exactly the anchor")]
++    BootstrapAnchorHeadMismatch {
++        /// The configured anchor.
++        anchor: BlockNumHash,
++        /// The execution layer's head.
++        head: BlockNumHash,
++    },
++    /// M10: a persisted execution-layer label is above the bootstrap anchor (not unwound).
++    #[error("persisted {label} label {number} is above the bootstrap anchor {anchor}: the execution database was not unwound to the anchor")]
++    BootstrapAnchorLabelAhead {
++        /// `finalized` or `safe`.
++        label: &'static str,
++        /// The persisted label's block number.
++        number: u64,
++        /// The anchor block number.
++        anchor: u64,
++    },
++    /// M10: the anchor block is not canonical in the execution layer with the anchor hash.
++    #[error("bootstrap anchor {anchor:?} is not the canonical execution block at its height")]
++    BootstrapAnchorNotCanonical {
++        /// The configured anchor.
++        anchor: BlockNumHash,
++    },
+     /// A block could not be found.
+     #[error("Block not found: {0}")]
+     BlockNotFound(BlockId),
+diff --git a/crates/consensus/engine/src/sync/forkchoice.rs b/crates/consensus/engine/src/sync/forkchoice.rs
+index 796d51d..cf404f2 100644
+--- a/crates/consensus/engine/src/sync/forkchoice.rs
++++ b/crates/consensus/engine/src/sync/forkchoice.rs
+@@ -306,7 +306,7 @@ async fn find_earliest_unpruned_block<EngineClient_: EngineClient>(
+ /// Wrapper function around [`EngineClient::get_l2_block`] to handle compatibility issues with clients.
+ /// When serving a block-by-number request, these clients will return non-standard errors for the safe
+ /// and finalized heads when the chain has just started and nothing is marked as safe or finalized yet.
+-async fn get_block_compat<EngineClient_: EngineClient>(
++pub(super) async fn get_block_compat<EngineClient_: EngineClient>(
+     engine_client: &EngineClient_,
+     block_id: BlockId,
+ ) -> TransportResult<Option<<Base as Network>::BlockResponse>> {
+diff --git a/crates/consensus/engine/src/sync/mod.rs b/crates/consensus/engine/src/sync/mod.rs
+index 12f85cb..caa3c1a 100644
+--- a/crates/consensus/engine/src/sync/mod.rs
++++ b/crates/consensus/engine/src/sync/mod.rs
+@@ -13,6 +13,9 @@ mod error;
+ pub use error::SyncStartError;
+ use tracing::info;
+ 
++mod anchor;
++pub use anchor::{BootstrapAnchor, BootstrapAnchorParseError};
++
+ mod checkpoint;
+ pub use checkpoint::{
+     ForkchoiceCheckpointError, ForkchoiceCheckpointLabel, ForkchoiceCheckpointReader,
+diff --git a/crates/consensus/engine/src/task_queue/core.rs b/crates/consensus/engine/src/task_queue/core.rs
+index 5405113..3007c7f 100644
+--- a/crates/consensus/engine/src/task_queue/core.rs
++++ b/crates/consensus/engine/src/task_queue/core.rs
+@@ -511,6 +511,43 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
+         Ok(start.safe)
+     }
+ 
++    /// M10: the FIRST reset of a node started with a verified bootstrap anchor. Instead of the
++    /// execution layer's persisted labels it uses [`crate::BootstrapAnchor::starting_forkchoice`] (unsafe = head,
++    /// safe = finalized = anchor). Unlike [`Self::reset_with_checkpoint_reader`] there is NO retry
++    /// loop and no fallback: any forkchoice error, and an update the engine did not apply (e.g. the
++    /// execution layer answered `SYNCING`), is returned as an error.
++    pub async fn reset_to_bootstrap_anchor(
++        &mut self,
++        client: Arc<EngineClient_>,
++        config: Arc<RollupConfig>,
++        anchor: crate::BootstrapAnchor,
++    ) -> Result<L2BlockInfo, EngineResetError> {
++        self.clear();
++        let start = anchor.starting_forkchoice(&config, client.as_ref()).await?;
++        SynchronizeTask::new(
++            Arc::clone(&client),
++            Arc::clone(&config),
++            EngineSyncStateUpdate {
++                unsafe_head: Some(start.un_safe),
++                local_safe_head: Some(start.safe),
++                safe_head: Some(start.safe),
++                finalized_head: Some(start.finalized),
++            },
++        )
++        .execute(&mut self.state)
++        .await?;
++        let applied = self.state.sync_state;
++        if applied.unsafe_head() != start.un_safe ||
++            applied.safe_head() != start.safe ||
++            applied.finalized_head() != start.finalized
++        {
++            return Err(EngineResetError::BootstrapAnchorNotApplied);
++        }
++        self.state_sender.send_replace(self.state);
++        Metrics::engine_reset_count().increment(1);
++        Ok(start.safe)
++    }
++
+     /// Seeds the engine sync state from an external source without sending a forkchoice update.
+     ///
+     /// Pre-populates the [`EngineState`] watch channel so that callers such as sync-status RPC
+@@ -606,6 +643,9 @@ pub enum EngineResetError {
+     /// An error occurred while constructing the `SystemConfig` for the new safe head.
+     #[error(transparent)]
+     SystemConfigConversion(#[from] BaseBlockConversionError),
++    /// M10: the execution layer did not apply the anchored forkchoice (e.g. it answered SYNCING).
++    #[error("the anchored forkchoice was not applied by the execution layer; refusing to start derivation")]
++    BootstrapAnchorNotApplied,
+ }
+ 
+ #[cfg(test)]
+@@ -929,4 +969,96 @@ mod tests {
+         assert_eq!(engine.tasks.len(), 0, "direct build must not enqueue poisoned work");
+         assert_eq!(*queue_rx.borrow(), 0, "queue length watch must remain unchanged");
+     }
++
++    // ---- M10: reset_to_bootstrap_anchor ---------------------------------------------------------
++    mod bootstrap_anchor {
++        use alloy_eips::{BlockId, BlockNumberOrTag};
++        use alloy_primitives::B256;
++        use alloy_rpc_types_engine::ForkchoiceUpdated;
++
++        use super::{invalid_fcu, syncing_fcu, test_engine, valid_fcu};
++        use crate::{
++            BootstrapAnchor, EngineResetError, SyncStartError,
++            test_utils::{
++                MockEngineClient, anchor_test_block as block, anchor_test_block_hash as hash_of,
++                anchor_test_rollup_config as cfg, test_engine_client_builder,
++            },
++        };
++        use std::sync::Arc;
++
++        const N: u64 = 52_746_000;
++
++        fn client(fcu: Option<ForkchoiceUpdated>, n_parent: u8) -> (Arc<MockEngineClient>, BootstrapAnchor, B256) {
++            let at_n = block(N, B256::repeat_byte(1));
++            let anchor = BootstrapAnchor { number: N, hash: hash_of(&at_n) };
++            let head = block(N + 5, B256::repeat_byte(4));
++            let head_hash = hash_of(&head);
++            let mut b = test_engine_client_builder()
++                .with_l2_block(BlockId::Number(BlockNumberOrTag::Number(N)), block(N, B256::repeat_byte(n_parent)))
++                .with_l2_block(BlockId::Number(BlockNumberOrTag::Latest), head)
++                // a replayed snapshot label far above N: the anchored reset must never read or use it
++                .with_l2_block(BlockId::Number(BlockNumberOrTag::Finalized), block(N + 302_526, B256::repeat_byte(3)));
++            if let Some(f) = fcu { b = b.with_fork_choice_updated_v3_response(f); }
++            (Arc::new(b.build()), anchor, head_hash)
++        }
++
++        #[tokio::test]
++        async fn valid_fcu_starts_from_head_over_anchor_with_safe_finalized_at_anchor() {
++            let (client, anchor, head_hash) = client(Some(valid_fcu()), 1);
++            let mut engine = test_engine();
++            let safe = engine.reset_to_bootstrap_anchor(Arc::clone(&client), Arc::new(cfg()), anchor).await.unwrap();
++            assert_eq!(safe.block_info.id(), anchor.num_hash());
++            let st = engine.state().sync_state;
++            assert_eq!(st.finalized_head().block_info.id(), anchor.num_hash());
++            assert_eq!(st.safe_head().block_info.id(), anchor.num_hash());
++            assert_eq!(st.unsafe_head().block_info.hash, head_hash);
++            let storage = client.storage();
++            let guard = storage.read().await;
++            let reqs = &guard.fork_choice_updated_v3_requests;
++            assert_eq!(reqs.len(), 1, "exactly one forkchoice update");
++            let (fcs, with_attrs) = reqs[0].clone();
++            assert!(!with_attrs);
++            assert_eq!(fcs.head_block_hash, head_hash);
++            assert_eq!(fcs.safe_block_hash, anchor.hash);
++            assert_eq!(fcs.finalized_block_hash, anchor.hash, "the replayed finalized label is never sent back");
++        }
++
++        #[tokio::test]
++        async fn invalid_or_syncing_fcu_refuses_without_retry() {
++            for (name, fcu) in [("invalid", invalid_fcu()), ("syncing", syncing_fcu())] {
++                let (client, anchor, _) = client(Some(fcu), 1);
++                let mut engine = test_engine();
++                let r = engine.reset_to_bootstrap_anchor(Arc::clone(&client), Arc::new(cfg()), anchor).await;
++                assert!(r.is_err(), "{name}: must refuse, got {r:?}");
++                assert_eq!(client.storage().read().await.fork_choice_updated_v3_requests.len(), 1, "{name}: no retry loop");
++                assert_ne!(engine.state().sync_state.finalized_head().block_info.number, N + 302_526, "{name}: replayed label never adopted");
++            }
++        }
++
++        #[tokio::test]
++        async fn fcu_rpc_error_refuses_without_retry() {
++            let at_n = block(N, B256::repeat_byte(1));
++            let anchor = BootstrapAnchor { number: N, hash: hash_of(&at_n) };
++            let client = Arc::new(
++                test_engine_client_builder()
++                    .with_l2_block(BlockId::Number(BlockNumberOrTag::Number(N)), at_n)
++                    .with_l2_block(BlockId::Number(BlockNumberOrTag::Latest), block(N + 1, B256::repeat_byte(4)))
++                    .with_fork_choice_updated_v3_error(alloy_json_rpc::ErrorPayload { code: -32000, message: "el down".into(), data: None })
++                    .build(),
++            );
++            let mut engine = test_engine();
++            let r = engine.reset_to_bootstrap_anchor(Arc::clone(&client), Arc::new(cfg()), anchor).await;
++            assert!(matches!(r, Err(EngineResetError::Forkchoice(_))), "{r:?}");
++            assert_eq!(client.storage().read().await.fork_choice_updated_v3_requests.len(), 1, "no retry loop");
++        }
++
++        #[tokio::test]
++        async fn anchor_not_canonical_refuses_before_any_fcu() {
++            let (client, anchor, _) = client(Some(valid_fcu()), 8);   // the block at N has another parent -> another hash
++            let mut engine = test_engine();
++            let r = engine.reset_to_bootstrap_anchor(Arc::clone(&client), Arc::new(cfg()), anchor).await;
++            assert!(matches!(r, Err(EngineResetError::SyncStart(SyncStartError::BootstrapAnchorNotCanonical { .. }))), "{r:?}");
++            assert!(client.storage().read().await.fork_choice_updated_v3_requests.is_empty(), "nothing sent to the EL");
++        }
++    }
+ }
+diff --git a/crates/consensus/engine/src/test_utils/anchor_blocks.rs b/crates/consensus/engine/src/test_utils/anchor_blocks.rs
+new file mode 100644
+index 0000000..8a1bd34
+--- /dev/null
++++ b/crates/consensus/engine/src/test_utils/anchor_blocks.rs
+@@ -0,0 +1,70 @@
++//! L2 RPC blocks carrying an L1-info deposit, for bootstrap-anchor tests.
++
++use alloy_consensus::transaction::Recovered;
++use alloy_eips::BlockNumHash;
++use alloy_primitives::{Address, B256, Sealed, b256};
++use alloy_rpc_types_eth::{Block as RpcBlock, BlockTransactions};
++use base_common_consensus::{BaseTxEnvelope, TxDeposit};
++use base_common_genesis::{ChainGenesis, RollupConfig};
++use base_common_rpc_types::Transaction as BaseTransaction;
++use base_protocol::L1BlockInfoBedrock;
++
++/// The L1 origin every [`anchor_test_block`] names in its L1-info deposit.
++pub const ANCHOR_TEST_L1_ORIGIN: BlockNumHash = BlockNumHash {
++    number: 21_000_500,
++    hash: b256!("3db6be2b3db6be2b3db6be2b3db6be2b3db6be2b3db6be2b3db6be2b3db6be2b"),
++};
++
++/// A rollup config whose L2 genesis is distinct from every test block.
++pub fn anchor_test_rollup_config() -> RollupConfig {
++    RollupConfig {
++        genesis: ChainGenesis {
++            l2: BlockNumHash {
++                number: 0,
++                hash: b256!("2222222222222222222222222222222222222222222222222222222222222222"),
++            },
++            ..Default::default()
++        },
++        ..Default::default()
++    }
++}
++
++/// An L2 RPC block at `number` with `parent_hash` whose first transaction is a Bedrock L1-info
++/// deposit naming [`ANCHOR_TEST_L1_ORIGIN`]. Different parents give different block hashes.
++pub fn anchor_test_block(number: u64, parent_hash: B256) -> RpcBlock<BaseTransaction> {
++    let envelope = BaseTxEnvelope::Deposit(Sealed::new_unchecked(
++        TxDeposit {
++            input: L1BlockInfoBedrock::new_from_number_and_block_hash(
++                ANCHOR_TEST_L1_ORIGIN.number,
++                ANCHOR_TEST_L1_ORIGIN.hash,
++            )
++            .encode_calldata(),
++            ..Default::default()
++        },
++        B256::ZERO,
++    ));
++    let deposit = BaseTransaction {
++        inner: alloy_rpc_types_eth::Transaction {
++            inner: Recovered::new_unchecked(envelope, Address::ZERO),
++            block_hash: None,
++            block_number: Some(number),
++            block_timestamp: None,
++            effective_gas_price: Some(0),
++            transaction_index: Some(0),
++        },
++        block_timestamp_ms: None,
++        deposit_nonce: None,
++        deposit_receipt_version: None,
++    };
++    let mut block = RpcBlock::<BaseTransaction>::default();
++    block.header.inner.number = number;
++    block.header.inner.parent_hash = parent_hash;
++    block.header.inner.timestamp = number;
++    block.transactions = BlockTransactions::Full(vec![deposit]);
++    block
++}
++
++/// The block hash RECOMPUTED from the header (what the anchor checks compare), not the RPC field.
++pub fn anchor_test_block_hash(block: &RpcBlock<BaseTransaction>) -> B256 {
++    block.clone().into_consensus().hash_slow()
++}
+diff --git a/crates/consensus/engine/src/test_utils/mod.rs b/crates/consensus/engine/src/test_utils/mod.rs
+index aa12ead..d7a942d 100644
+--- a/crates/consensus/engine/src/test_utils/mod.rs
++++ b/crates/consensus/engine/src/test_utils/mod.rs
+@@ -9,6 +9,11 @@ pub use engine_client::{
+     test_engine_client_builder,
+ };
+ 
++mod anchor_blocks;
++pub use anchor_blocks::{
++    ANCHOR_TEST_L1_ORIGIN, anchor_test_block, anchor_test_block_hash, anchor_test_rollup_config,
++};
++
+ mod engine_state;
+ pub use engine_state::TestEngineStateBuilder;
+ 
+diff --git a/crates/consensus/service/src/actors/engine/engine_request_processor.rs b/crates/consensus/service/src/actors/engine/engine_request_processor.rs
+index 3bf1244..f076d81 100644
+--- a/crates/consensus/service/src/actors/engine/engine_request_processor.rs
++++ b/crates/consensus/service/src/actors/engine/engine_request_processor.rs
+@@ -6,7 +6,7 @@ use base_common_genesis::RollupConfig;
+ use base_common_rpc_types_engine::BaseExecutionPayloadEnvelope;
+ use base_consensus_derive::{ResetSignal, Signal};
+ use base_consensus_engine::{
+-    ConsolidateTask, Engine, EngineClient, EngineSyncStateUpdate, EngineTask, EngineTaskError,
++    BootstrapAnchor, ConsolidateTask, Engine, EngineClient, EngineSyncStateUpdate, EngineTask, EngineTaskError,
+     EngineTaskErrorSeverity, EngineTaskErrors, FinalizeTask, ForkchoiceCheckpointLabel,
+     ForkchoiceCheckpointReader, InsertTask, InsertTaskResult, NoopForkchoiceCheckpointReader,
+ };
+@@ -75,6 +75,9 @@ where
+     /// When set, engine resets are skipped and the bootstrapped L2 unsafe head is retained
+     /// instead of consulting L1 (there is no L1-info deposit to reconstruct the safe head from).
+     skip_reset: bool,
++    /// M10: a verified bootstrap anchor. Used by the FIRST reset only, then cleared. `None`
++    /// (the default) leaves every startup and reset path unchanged.
++    bootstrap_anchor: Option<BootstrapAnchor>,
+ }
+ 
+ impl<EngineClient_, DerivationClient> EngineProcessor<EngineClient_, DerivationClient>
+@@ -154,6 +157,7 @@ where
+             el_sync_complete: false,
+             engine,
+             skip_reset: false,
++            bootstrap_anchor: None,
+             last_finalized_head_checkpointed: L2BlockInfo::default(),
+             last_safe_head_checkpointed: L2BlockInfo::default(),
+             last_safe_head_sent: L2BlockInfo::default(),
+@@ -161,8 +165,49 @@ where
+         }
+     }
+ 
++    /// M10: sets the bootstrap anchor (see [`BootstrapAnchor`]). The anchor is NOT proof: only a
++    /// launcher that verified it externally (L1-finalized anchor output root, header N, offline
++    /// unwind to exactly N, full state rebuild at N) may set it.
++    pub fn with_bootstrap_anchor(mut self, anchor: Option<BootstrapAnchor>) -> Self {
++        self.bootstrap_anchor = anchor;
++        self
++    }
++
++    /// The bootstrap anchor still pending its first reset, if any.
++    pub const fn bootstrap_anchor(&self) -> Option<BootstrapAnchor> {
++        self.bootstrap_anchor
++    }
++
++    /// M10 startup precondition: with an anchor, the execution head must be exactly the anchor and
++    /// no persisted label may be above it ([`BootstrapAnchor::verify_execution_head`]). Without an
++    /// anchor this does nothing.
++    pub async fn verify_bootstrap_anchor(&self) -> Result<(), EngineError> {
++        let Some(anchor) = self.bootstrap_anchor else { return Ok(()) };
++        let head = anchor
++            .verify_execution_head(&self.rollup, self.client.as_ref())
++            .await
++            .map_err(base_consensus_engine::EngineResetError::from)?;
++        info!(
++            target: "engine",
++            anchor = %anchor,
++            l1_origin = head.l1_origin.number,
++            "Bootstrap anchor: execution head matches the verified anchor"
++        );
++        Ok(())
++    }
++
+     /// Resets the inner [`Engine`] without notifying derivation.
+     pub async fn reset_engine_state(&mut self) -> Result<L2BlockInfo, EngineError> {
++        if let Some(anchor) = self.bootstrap_anchor {
++            let l2_safe_head = self
++                .engine
++                .reset_to_bootstrap_anchor(Arc::clone(&self.client), Arc::clone(&self.rollup), anchor)
++                .await?;
++            self.bootstrap_anchor = None;
++            self.checkpoint_forkchoice_state_if_updated().await;
++            return Ok(l2_safe_head);
++        }
++
+         if self.skip_reset {
+             let head = self.engine.state().sync_state.unsafe_head();
+             if head != L2BlockInfo::default() {
+@@ -2364,4 +2409,80 @@ mod tests {
+             "expected ChannelClosed on clean shutdown, got {result:?}"
+         );
+     }
++
++
++    // ---- M10: bootstrap anchor ----------------------------------------------------------------
++    mod bootstrap_anchor {
++        use crate::EngineError;
++        use base_consensus_engine::{
++            BootstrapAnchor, EngineResetError, SyncStartError,
++            test_utils::{anchor_test_block, anchor_test_block_hash, anchor_test_rollup_config},
++        };
++
++        use super::*;
++
++        const N: u64 = 52_746_000;
++
++        fn processor(
++            client: Arc<base_consensus_engine::test_utils::MockEngineClient>,
++            anchor: Option<BootstrapAnchor>,
++        ) -> EngineProcessor<base_consensus_engine::test_utils::MockEngineClient, MockEngineDerivationClient> {
++            let (state_tx, _state_rx) = watch::channel(EngineState::default());
++            let (queue_tx, _queue_rx) = watch::channel(0usize);
++            let engine = Engine::new(EngineState::default(), state_tx, queue_tx);
++            EngineProcessor::new(client, Arc::new(anchor_test_rollup_config()), MockEngineDerivationClient::new(), engine)
++                .with_bootstrap_anchor(anchor)
++        }
++
++        #[tokio::test]
++        async fn precondition_refuses_an_execution_head_that_was_not_unwound_to_the_anchor() {
++            let at_n = anchor_test_block(N, B256::repeat_byte(1));
++            let anchor = BootstrapAnchor { number: N, hash: anchor_test_block_hash(&at_n) };
++            let client = Arc::new(
++                test_engine_client_builder()
++                    .with_l2_block(BlockId::Number(BlockNumberOrTag::Latest), anchor_test_block(N + 302_526, B256::repeat_byte(3)))
++                    .with_fork_choice_updated_v3_response(valid_fcu())
++                    .build(),
++            );
++            let p = processor(Arc::clone(&client), Some(anchor));
++            let err = p.verify_bootstrap_anchor().await.unwrap_err();
++            assert!(
++                matches!(err, EngineError::EngineReset(EngineResetError::SyncStart(SyncStartError::BootstrapAnchorHeadMismatch { .. }))),
++                "{err}"
++            );
++            assert!(client.storage().read().await.fork_choice_updated_v3_requests.is_empty(), "nothing sent to the EL");
++        }
++
++        #[tokio::test]
++        async fn without_anchor_the_precondition_is_a_no_op() {
++            let client = Arc::new(test_engine_client_builder().build());
++            let p = processor(Arc::clone(&client), None);
++            p.verify_bootstrap_anchor().await.unwrap();
++            assert_eq!(p.bootstrap_anchor(), None);
++        }
++
++        #[tokio::test]
++        async fn first_reset_starts_at_the_anchor_ignoring_a_replayed_label_then_clears_it() {
++            let at_n = anchor_test_block(N, B256::repeat_byte(1));
++            let anchor = BootstrapAnchor { number: N, hash: anchor_test_block_hash(&at_n) };
++            let head = anchor_test_block(N + 5, B256::repeat_byte(4));
++            let client = Arc::new(
++                test_engine_client_builder()
++                    .with_l2_block(BlockId::Number(BlockNumberOrTag::Number(N)), at_n)
++                    .with_l2_block(BlockId::Number(BlockNumberOrTag::Latest), head)
++                    .with_l2_block(BlockId::Number(BlockNumberOrTag::Finalized), anchor_test_block(N + 302_526, B256::repeat_byte(3)))
++                    .with_fork_choice_updated_v3_response(valid_fcu())
++                    .build(),
++            );
++            let mut p = processor(Arc::clone(&client), Some(anchor));
++            let safe = p.reset_engine_state().await.unwrap();
++            assert_eq!(safe.block_info.id(), anchor.num_hash());
++            assert_eq!(p.engine_state().sync_state.finalized_head().block_info.id(), anchor.num_hash());
++            assert_eq!(p.bootstrap_anchor(), None, "the anchor is used by the first reset only");
++            let storage = client.storage();
++            let guard = storage.read().await;
++            assert_eq!(guard.fork_choice_updated_v3_requests.len(), 1);
++            assert_eq!(guard.fork_choice_updated_v3_requests[0].0.finalized_block_hash, anchor.hash);
++        }
++    }
+ }
+diff --git a/crates/consensus/service/src/actors/engine/error.rs b/crates/consensus/service/src/actors/engine/error.rs
+index 1cccdca..a8a31a5 100644
+--- a/crates/consensus/service/src/actors/engine/error.rs
++++ b/crates/consensus/service/src/actors/engine/error.rs
+@@ -12,6 +12,9 @@ pub enum EngineError {
+     /// Closed channel error.
+     #[error("a channel has been closed unexpectedly")]
+     ChannelClosed,
++    /// M10: a bootstrap anchor is only supported for validator nodes.
++    #[error("a bootstrap anchor is supported only in validator mode")]
++    BootstrapAnchorValidatorOnly,
+     /// The execution head could not be loaded during engine bootstrap.
+     #[error("failed to query execution head during bootstrap: {0}")]
+     BootstrapHeadQuery(String),
+diff --git a/crates/consensus/service/src/actors/engine/validator_engine_request_handler.rs b/crates/consensus/service/src/actors/engine/validator_engine_request_handler.rs
+index d775238..f4444f7 100644
+--- a/crates/consensus/service/src/actors/engine/validator_engine_request_handler.rs
++++ b/crates/consensus/service/src/actors/engine/validator_engine_request_handler.rs
+@@ -49,6 +49,9 @@ where
+         mut request_channel: mpsc::Receiver<EngineActorRequest>,
+     ) -> JoinHandle<Result<(), EngineError>> {
+         tokio::spawn(async move {
++            // M10: with a bootstrap anchor, refuse to run unless the execution head is exactly it.
++            self.processor.verify_bootstrap_anchor().await?;
++
+             let reth_head =
+                 self.processor.client().l2_block_info_by_label(BlockNumberOrTag::Latest).await;
+             if let Err(error) = &reth_head {
+@@ -244,3 +247,55 @@ where
+         })
+     }
+ }
++
++#[cfg(test)]
++mod tests {
++    use std::sync::Arc;
++
++    use alloy_eips::{BlockId, BlockNumberOrTag};
++    use alloy_primitives::B256;
++    use base_consensus_engine::{
++        BootstrapAnchor, Engine, EngineResetError, EngineState, SyncStartError,
++        test_utils::{
++            anchor_test_block, anchor_test_block_hash, anchor_test_rollup_config,
++            test_engine_client_builder,
++        },
++    };
++    use base_protocol::L2BlockInfo;
++    use tokio::sync::{mpsc, watch};
++
++    use super::ValidatorEngineRequestHandler;
++    use crate::{EngineError, EngineProcessor, EngineRequestReceiver, MockEngineDerivationClient};
++
++    const N: u64 = 52_746_000;
++
++    #[tokio::test]
++    async fn anchor_precondition_failure_ends_the_actor_without_seed_state_or_fcu() {
++        let at_n = anchor_test_block(N, B256::repeat_byte(1));
++        let anchor = BootstrapAnchor { number: N, hash: anchor_test_block_hash(&at_n) };
++        // the EL was NOT unwound: its head is the snapshot head far above N
++        let client = Arc::new(
++            test_engine_client_builder()
++                .with_l2_block(BlockId::Number(BlockNumberOrTag::Latest), anchor_test_block(N + 302_526, B256::repeat_byte(3)))
++                .build(),
++        );
++        let (state_tx, state_rx) = watch::channel(EngineState::default());
++        let (queue_tx, _queue_rx) = watch::channel(0usize);
++        let engine = Engine::new(EngineState::default(), state_tx, queue_tx);
++        let processor = EngineProcessor::new(
++            Arc::clone(&client),
++            Arc::new(anchor_test_rollup_config()),
++            MockEngineDerivationClient::new(),
++            engine,
++        )
++        .with_bootstrap_anchor(Some(anchor));
++        let (_request_tx, request_rx) = mpsc::channel(1);
++        let result = ValidatorEngineRequestHandler::new(processor).start(request_rx).await.expect("no panic");
++        assert!(
++            matches!(result, Err(EngineError::EngineReset(EngineResetError::SyncStart(SyncStartError::BootstrapAnchorHeadMismatch { .. })))),
++            "{result:?}"
++        );
++        assert_eq!(state_rx.borrow().sync_state.unsafe_head(), L2BlockInfo::default(), "no seed_state downgrade");
++        assert!(client.storage().read().await.fork_choice_updated_v3_requests.is_empty(), "nothing sent to the EL");
++    }
++}
+diff --git a/crates/consensus/service/src/actors/sequencer/engine_request_coordinator.rs b/crates/consensus/service/src/actors/sequencer/engine_request_coordinator.rs
+index 0bc7efa..9521d49 100644
+--- a/crates/consensus/service/src/actors/sequencer/engine_request_coordinator.rs
++++ b/crates/consensus/service/src/actors/sequencer/engine_request_coordinator.rs
+@@ -441,6 +441,9 @@ where
+         mut request_channel: mpsc::Receiver<EngineActorRequest>,
+     ) -> JoinHandle<Result<(), EngineError>> {
+         tokio::spawn(async move {
++            if self.processor.bootstrap_anchor().is_some() {
++                return Err(EngineError::BootstrapAnchorValidatorOnly);
++            }
+             // Bootstrap: pre-populate the unsafe_head_tx watch channel so that external callers
+             // (admin_startSequencer, sync-status RPC) never observe a zero hash.
+             //
+@@ -1108,4 +1111,33 @@ mod tests {
+             Err(crate::EngineClientError::RequestError(message)) if message.contains("no prestate")
+         ));
+     }
++
++    mod bootstrap_anchor_refusal {
++        use base_consensus_engine::BootstrapAnchor;
++        use tokio::sync::mpsc;
++
++        use super::*;
++        use crate::{EngineError, EngineRequestReceiver};
++
++        #[tokio::test]
++        async fn sequencer_refuses_a_bootstrap_anchor_before_any_engine_call() {
++            let client = Arc::new(test_engine_client_builder().build());
++            let (state_tx, _) = watch::channel(EngineState::default());
++            let (queue_tx, _) = watch::channel(0usize);
++            let engine = Engine::new(EngineState::default(), state_tx, queue_tx);
++            let processor = EngineProcessor::new(
++                Arc::clone(&client),
++                Arc::new(RollupConfig::default()),
++                MockEngineDerivationClient::new(),
++                engine,
++            )
++            .with_bootstrap_anchor(Some(BootstrapAnchor { number: 1, hash: B256::repeat_byte(1) }));
++            let (unsafe_head_tx, _) = watch::channel(L2BlockInfo::default());
++            let coordinator = SequencerEngineRequestCoordinator::new(processor, NodeOperatingMode::Sequencer, None, false, unsafe_head_tx);
++            let (_request_tx, request_rx) = mpsc::channel(1);
++            let result = coordinator.start(request_rx).await.expect("no panic");
++            assert!(matches!(result, Err(EngineError::BootstrapAnchorValidatorOnly)), "{result:?}");
++            assert!(client.storage().read().await.fork_choice_updated_v3_requests.is_empty(), "nothing sent to the EL");
++        }
++    }
+ }
+diff --git a/crates/consensus/service/src/lib.rs b/crates/consensus/service/src/lib.rs
+index bde4191..211f63e 100644
+--- a/crates/consensus/service/src/lib.rs
++++ b/crates/consensus/service/src/lib.rs
+@@ -9,9 +9,11 @@
+ #[macro_use]
+ extern crate tracing;
+ 
++pub use base_consensus_engine::{BootstrapAnchor, BootstrapAnchorParseError};
++
+ mod service;
+ pub use service::{
+-    DerivationDelegateConfig, FollowNode, FollowNodeConfig, HEAD_STREAM_POLL_INTERVAL, L1Config,
++    BootstrapSafeDbWipe, BootstrapSafeDbWipeError, DerivationDelegateConfig, FollowNode, FollowNodeConfig, HEAD_STREAM_POLL_INTERVAL, L1Config,
+     L1ConfigBuilder, NodeMode, NodeOperatingMode, RollupNode, RollupNodeBuilder, ShutdownSignal,
+     UpgradeSignalBuilderConfig,
+ };
+diff --git a/crates/consensus/service/src/service/anchor_safedb.rs b/crates/consensus/service/src/service/anchor_safedb.rs
+new file mode 100644
+index 0000000..04f80b1
+--- /dev/null
++++ b/crates/consensus/service/src/service/anchor_safedb.rs
+@@ -0,0 +1,140 @@
++//! M10: an anchored start never keeps the snapshot's safe-head database.
++//!
++//! The derivation actor's first pipeline reset already calls `safe_head_reset(default)`, but it only
++//! LOGS a failure and continues (`actors/derivation/actor.rs`). For a bootstrap anchor that is not
++//! enough: the node wipes the database itself before any actor starts and refuses to start if the
++//! reset fails or the database still holds an entry afterwards.
++
++use alloy_eips::BlockNumHash;
++use base_consensus_safedb::{SafeDBError, SafeDBReader, SafeHeadListener, SafeHeadResponse};
++use base_protocol::L2BlockInfo;
++
++/// Why the anchored start refused to wipe the safe-head database.
++#[derive(Debug, thiserror::Error)]
++pub enum BootstrapSafeDbWipeError {
++    /// The reset itself failed.
++    #[error("safe-head database reset failed: {0}")]
++    Reset(SafeDBError),
++    /// The database could not be read back after the reset.
++    #[error("safe-head database could not be read back after the reset: {0}")]
++    Verify(SafeDBError),
++    /// An entry other than the genesis re-anchor survived the reset.
++    #[error("safe-head database still holds {0:?} after the reset")]
++    NotWiped(SafeHeadResponse),
++}
++
++/// Wipes the safe-head database for an anchored start.
++#[derive(Debug, Clone, Copy, Default)]
++pub struct BootstrapSafeDbWipe;
++
++impl BootstrapSafeDbWipe {
++    /// Resets to the all-zero safe head (deletes every entry; a real database re-anchors at L1 0),
++    /// then reads back the newest entry: it must be that re-anchor, or the database must be
++    /// disabled or empty.
++    pub async fn wipe(
++        listener: &dyn SafeHeadListener,
++        reader: &dyn SafeDBReader,
++    ) -> Result<(), BootstrapSafeDbWipeError> {
++        listener
++            .safe_head_reset(L2BlockInfo::default())
++            .await
++            .map_err(BootstrapSafeDbWipeError::Reset)?;
++        match reader.safe_head_at_l1(u64::MAX).await {
++            Err(SafeDBError::Disabled | SafeDBError::NotFound) => Ok(()),
++            Err(err) => Err(BootstrapSafeDbWipeError::Verify(err)),
++            Ok(entry)
++                if entry.l1_block == BlockNumHash::default() &&
++                    entry.safe_head == BlockNumHash::default() =>
++            {
++                Ok(())
++            }
++            Ok(entry) => Err(BootstrapSafeDbWipeError::NotWiped(entry)),
++        }
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use alloy_primitives::B256;
++    use async_trait::async_trait;
++    use base_consensus_safedb::{DisabledSafeDB, SafeDB};
++    use base_protocol::BlockInfo;
++
++    use super::*;
++
++    /// Hand-rolled: a listener whose reset FAILS and a reader that still returns a snapshot entry.
++    /// The safedb traits are foreign `async_trait`s without an automock, and these two behaviours
++    /// (a failing write, a stale read) are exactly what the wipe must refuse.
++    #[derive(Debug)]
++    struct FailingReset;
++
++    #[async_trait]
++    impl SafeHeadListener for FailingReset {
++        async fn safe_head_updated(&self, _: L2BlockInfo, _: BlockInfo) -> Result<(), SafeDBError> {
++            Ok(())
++        }
++        async fn safe_head_reset(&self, _: L2BlockInfo) -> Result<(), SafeDBError> {
++            Err(SafeDBError::Database("disk full".to_string()))
++        }
++    }
++
++    #[derive(Debug)]
++    struct StaleReader;
++
++    #[async_trait]
++    impl SafeDBReader for StaleReader {
++        async fn safe_head_at_l1(&self, _: u64) -> Result<SafeHeadResponse, SafeDBError> {
++            Ok(snapshot_entry())
++        }
++    }
++
++    const L1: u64 = 21_000_600;
++    const L2: u64 = 53_048_526;
++
++    fn snapshot_entry() -> SafeHeadResponse {
++        SafeHeadResponse {
++            l1_block: BlockNumHash { number: L1, hash: B256::repeat_byte(0x11) },
++            safe_head: BlockNumHash { number: L2, hash: B256::repeat_byte(0x22) },
++        }
++    }
++
++    fn snapshot_safe_head() -> (L2BlockInfo, BlockInfo) {
++        let safe = L2BlockInfo {
++            block_info: BlockInfo { hash: B256::repeat_byte(0x22), number: L2, parent_hash: B256::repeat_byte(0x21), timestamp: L2 },
++            l1_origin: BlockNumHash { number: L1 - 100, hash: B256::repeat_byte(0x10) },
++            seq_num: 0,
++        };
++        let l1 = BlockInfo { hash: B256::repeat_byte(0x11), number: L1, parent_hash: B256::repeat_byte(0x12), timestamp: L1 };
++        (safe, l1)
++    }
++
++    #[tokio::test]
++    async fn real_redb_wipe_removes_snapshot_entries_persistently() {
++        let dir = tempfile::tempdir().unwrap();
++        let path = dir.path().join("safedb.redb");
++        let db = SafeDB::open(&path).unwrap();
++        let (safe, l1) = snapshot_safe_head();
++        db.safe_head_updated(safe, l1).await.unwrap();
++        assert_eq!(db.safe_head_at_l1(u64::MAX).await.unwrap(), snapshot_entry(), "fixture is in the real database");
++
++        BootstrapSafeDbWipe::wipe(&db, &db).await.unwrap();
++        let after = db.safe_head_at_l1(u64::MAX).await.unwrap();
++        assert_eq!((after.l1_block, after.safe_head), (BlockNumHash::default(), BlockNumHash::default()));
++        drop(db);
++        let reopened = SafeDB::open(&path).unwrap();
++        assert_eq!(reopened.safe_head_at_l1(L1).await.unwrap().safe_head, BlockNumHash::default(), "the wipe is on disk");
++    }
++
++    #[tokio::test]
++    async fn a_failing_reset_is_fatal() {
++        let err = BootstrapSafeDbWipe::wipe(&FailingReset, &DisabledSafeDB).await.unwrap_err();
++        assert!(matches!(err, BootstrapSafeDbWipeError::Reset(SafeDBError::Database(_))), "{err}");
++    }
++
++    #[tokio::test]
++    async fn a_surviving_entry_is_refused_and_disabled_is_accepted() {
++        let err = BootstrapSafeDbWipe::wipe(&DisabledSafeDB, &StaleReader).await.unwrap_err();
++        assert!(matches!(err, BootstrapSafeDbWipeError::NotWiped(e) if e == snapshot_entry()), "{err}");
++        BootstrapSafeDbWipe::wipe(&DisabledSafeDB, &DisabledSafeDB).await.unwrap();
++    }
++}
+diff --git a/crates/consensus/service/src/service/builder.rs b/crates/consensus/service/src/service/builder.rs
+index ab2b357..432a662 100644
+--- a/crates/consensus/service/src/service/builder.rs
++++ b/crates/consensus/service/src/service/builder.rs
+@@ -8,7 +8,7 @@ use alloy_provider::RootProvider;
+ use alloy_transport::{TransportErrorKind, TransportResult};
+ use base_common_genesis::RollupConfig;
+ use base_common_network::Base;
+-use base_consensus_engine::BaseEngineClient;
++use base_consensus_engine::{BaseEngineClient, BootstrapAnchor};
+ use base_consensus_providers::{L1RpcProvider, OnlineBeaconClient};
+ use base_consensus_rpc::RpcBuilder;
+ use base_upgrade_signal::UpgradeSignalConfig;
+@@ -98,6 +98,8 @@ pub struct RollupNodeBuilder {
+     /// When set, enables persistent safe head tracking via redb and serves
+     /// `optimism_safeHeadAtL1Block` RPC requests from the database.
+     pub safedb_path: Option<PathBuf>,
++    /// M10: a verified bootstrap anchor (see [`BootstrapAnchor`]); `None` by default.
++    pub bootstrap_anchor: Option<BootstrapAnchor>,
+     /// Upgrade signal configuration.
+     pub upgrade_signal_config: UpgradeSignalBuilderConfig,
+ }
+@@ -138,6 +140,7 @@ impl RollupNodeBuilder {
+             finalized_poll_interval: None,
+             checkpoint_path: None,
+             safedb_path: None,
++            bootstrap_anchor: None,
+             upgrade_signal_config: UpgradeSignalBuilderConfig {
+                 metrics_config: None,
+                 l1_rpc: None,
+@@ -183,6 +186,11 @@ impl RollupNodeBuilder {
+         Self { safedb_path: Some(path), ..self }
+     }
+ 
++    /// M10: starts the engine from a verified bootstrap anchor (validator mode only).
++    pub fn with_bootstrap_anchor(self, anchor: BootstrapAnchor) -> Self {
++        Self { bootstrap_anchor: Some(anchor), ..self }
++    }
++
+     /// Sets the checkpoint database path.
+     pub fn with_checkpoint_path(self, path: PathBuf) -> Self {
+         Self { checkpoint_path: Some(path), ..self }
+@@ -279,6 +287,7 @@ impl RollupNodeBuilder {
+             derivation_delegate_provider,
+             checkpoint_path,
+             safedb_path: self.safedb_path,
++            bootstrap_anchor: self.bootstrap_anchor,
+             upgrade_signal_config,
+         })
+     }
+diff --git a/crates/consensus/service/src/service/mod.rs b/crates/consensus/service/src/service/mod.rs
+index af753b1..2838ad4 100644
+--- a/crates/consensus/service/src/service/mod.rs
++++ b/crates/consensus/service/src/service/mod.rs
+@@ -3,6 +3,9 @@
+ //!
+ //! [`NodeActor`]: crate::NodeActor
+ 
++mod anchor_safedb;
++pub use anchor_safedb::{BootstrapSafeDbWipe, BootstrapSafeDbWipeError};
++
+ mod builder;
+ pub use builder::{
+     DerivationDelegateConfig, L1ConfigBuilder, RollupNodeBuilder, UpgradeSignalBuilderConfig,
+diff --git a/crates/consensus/service/src/service/node.rs b/crates/consensus/service/src/service/node.rs
+index 8b39dce..d406dfc 100644
+--- a/crates/consensus/service/src/service/node.rs
++++ b/crates/consensus/service/src/service/node.rs
+@@ -14,7 +14,9 @@ use base_common_chains::ChainConfig;
+ use base_common_genesis::RollupConfig;
+ use base_common_network::Base;
+ use base_consensus_derive::{Pipeline, SignalReceiver, StatefulAttributesBuilder};
+-use base_consensus_engine::{Engine, EngineClient, EngineState, ForkchoiceCheckpointReader};
++use base_consensus_engine::{
++    BootstrapAnchor, Engine, EngineClient, EngineState, ForkchoiceCheckpointReader,
++};
+ use base_consensus_providers::{
+     AlloyChainProvider, AlloyL2ChainProvider, OnlineBeaconClient, OnlineBlobProvider,
+     OnlinePipeline,
+@@ -26,6 +28,7 @@ use base_upgrade_signal::{UpgradeSignalMetricLayer, UpgradeSignalMetrics};
+ use tokio::sync::{mpsc, watch};
+ use tokio_util::sync::CancellationToken;
+ 
++use super::BootstrapSafeDbWipe;
+ use crate::{
+     AlloyL1BlockFetcher, CheckpointActor, CheckpointClient, CheckpointDB, CheckpointWriter,
+     Conductor, ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor,
+@@ -144,6 +147,8 @@ pub struct RollupNode {
+     /// If the path is set but the database cannot be opened (e.g., bad permissions, disk
+     /// error, or corrupted file), the node **fails to start** with an error.
+     pub safedb_path: Option<PathBuf>,
++    /// M10: a verified bootstrap anchor for the first engine reset (validator mode only).
++    pub bootstrap_anchor: Option<BootstrapAnchor>,
+     /// Optional upgrade signal configuration for the consensus node.
+     pub upgrade_signal_config: Option<UpgradeSignalNodeConfig>,
+ }
+@@ -292,7 +297,8 @@ impl RollupNode {
+             engine,
+             checkpoint_reader,
+             checkpoint_writer,
+-        );
++        )
++        .with_bootstrap_anchor(self.bootstrap_anchor);
+ 
+         let engine_rpc_processor = EngineRpcProcessor::new(
+             Arc::clone(&engine_client),
+@@ -436,6 +442,14 @@ impl RollupNode {
+             (Arc::clone(&db) as Arc<dyn SafeHeadListener>, db as Arc<dyn SafeDBReader>)
+         };
+ 
++        // M10: an anchored start never keeps the snapshot's safe-head database (the derivation
++        // actor's own first-reset wipe only logs a failure): wipe it now or refuse to start.
++        if let Some(anchor) = self.bootstrap_anchor {
++            BootstrapSafeDbWipe::wipe(safe_head_listener.as_ref(), safe_db_reader.as_ref())
++                .await
++                .map_err(|e| format!("bootstrap anchor {anchor}: {e}"))?;
++        }
++
+         let (derivation_actor_request_tx, derivation_actor_request_rx) = mpsc::channel(1024);
+ 
+         let (engine_actor_request_tx, engine_actor_request_rx) = mpsc::channel(1024);

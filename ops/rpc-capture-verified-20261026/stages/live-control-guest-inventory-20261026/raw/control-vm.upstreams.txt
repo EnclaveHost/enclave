@@ -1,0 +1,19 @@
+utc=2026-10-26T03:01:59Z host=enclave-control
+caddy_route server=control hosts=api.enclave.host paths=/rpc/base,/rpc/base-sepolia,/rpc/ethereum upstream=127.0.0.1:8190
+caddy_route server=control hosts=* paths=/native/* upstream=127.0.0.1:8187
+caddy_route server=control hosts=api.enclave.host paths=* upstream=127.0.0.1:8100
+caddy_route server=control hosts=mcp.enclave.host paths=* upstream=127.0.0.1:8100
+caddy_route server=control hosts=api.enclavehost.eth,mcp.enclavehost.eth paths=* upstream=127.0.0.1:8100
+caddy_route server=control hosts=62.238.4.214 paths=/native/* upstream=127.0.0.1:8187
+caddy_route server=control hosts=62.238.4.214 paths=/v1/*,/health,/enclaves,/availability,/route,/t/*,/mcp upstream=127.0.0.1:8100
+caddy_route server=control hosts=*.app.enclave.host paths=* upstream=127.0.0.1:8100
+upstream 127.0.0.1:8190 pid=101767 unit=enclave-rpc-gateway.service exe=/usr/bin/node exe_sha16=93956de2e5948047 script=/opt/enclave-rpc/gateway.mjs sha16=3b23200d8e77565d cwd=/ started=2026-10-25T19:12:38Z
+  unit_state=active since=Sun 2026-10-25 19:12:37 UTC user=enclave-rpc-gateway envfiles=
+  whitelisted_keys_found=0 chain_related_var_names=-
+upstream 127.0.0.1:8187 pid=828 unit=enclave-native-discovery.service exe=/usr/bin/node exe_sha16=93956de2e5948047 script=/opt/enclave-recovery/discovery.mjs sha16=67c7b39a9e79374a cwd=/ started=2026-10-23T08:31:20Z
+  unit_state=active since=Fri 2026-10-23 08:31:17 UTC user=enclave-native-discovery envfiles=
+  whitelisted_keys_found=0 chain_related_var_names=-
+upstream 127.0.0.1:8100 pid=102144 unit=enclave-api-relay.service exe=/usr/bin/node exe_sha16=93956de2e5948047 script=/opt/nan-relay/api-relay.js sha16=481f00410b87f30e cwd=/opt/nan-relay started=2026-10-25T19:13:26Z
+  pkg /opt/nan-relay/package.json name=nan-relay version=0.1.0
+  unit_state=active since=Sun 2026-10-25 19:13:25 UTC user=enclave-api-relay envfiles=/etc/nan-relay/api-relay.env,/etc/nan-relay/host-sponsor.env,/etc/enclave-rpc/clients.env,/etc/nan-relay/predictor-replicas.env,/etc/nan-relay/eyesoff-release-recovery.env,/etc/nan-relay/release-signing-credential.env,/etc/nan-relay/linux-leasegas-measurements.env,/etc/nan-relay/queued-release-recovery-20261022.env,
+  whitelisted_keys_found=0 chain_related_var_names=BASE_RPC,CUSTODY_CHAIN_ID,HOST_SPONSOR_VERIFIER_KEY,SECRETS_RELEASE_CATALOG_RPCS,SESSIONS_PUBLIC_RPC,SESSIONS_RPC

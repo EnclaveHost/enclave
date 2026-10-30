@@ -1,0 +1,11 @@
+{
+  "account": {
+    "email": "steven.r.batchelor@gmail.com",
+    "loggedIn": true,
+    "subscriptionType": "max"
+  },
+  "at": 1793357591.70454,
+  "authorStarted": false,
+  "deliverySha256": "e211f8dae4e558115ed320ca869727d3eb50bf1b9c4724d4a658780f6717fc72",
+  "status": "PREFLIGHT-ONLY"
+}

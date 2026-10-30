@@ -1,0 +1,32 @@
+{
+  "kind": "fullbench-existing-trust-policy/1",
+  "observed_utc": "2026-10-28T05:44:32.928401+00:00",
+  "source": "active enclave-network-agent configuration, public trust fields only",
+  "files": {
+    "minTcbFile": {
+      "path": "/home/steven/.cache/enclave-isolation/m3-clean/min-tcb.json",
+      "sha256": "fe90824f469db17cad41a895f45803d66bef5058ff829e36302fe35328179d9c",
+      "size": 66
+    },
+    "vcekFile": {
+      "path": "/home/steven/.cache/enclave-isolation/m3-clean/vcek.der",
+      "sha256": "7370435c9f70be9fff3991b7a6dfff31d0a5f7f982eb74c89a90af1963a77835",
+      "size": 1289
+    },
+    "certChainFile": {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/test/fixtures/amd/Turin-cert_chain.pem",
+      "sha256": "cc9a52fbed3fbc6e4a0a50149a541a75938f975658909c2a6084767829b36e85",
+      "size": 4676
+    }
+  },
+  "min_tcb": {
+    "Turin": {
+      "fmc": 1,
+      "bootloader": 3,
+      "tee": 2,
+      "snp": 5,
+      "microcode": 117
+    }
+  },
+  "scope": "Reuse existing active local verifier minimum TCB without relaxation; fresh quote and AMD-chain verification still required. This is not an independent audit of firmware adequacy."
+}

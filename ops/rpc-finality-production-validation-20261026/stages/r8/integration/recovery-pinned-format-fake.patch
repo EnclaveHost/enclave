@@ -1,0 +1,14 @@
+--- a/tests/test_reanchor_recovery.py
++++ b/tests/test_reanchor_recovery.py
+@@ -62,6 +62,11 @@
+         # finality r4 port (only change): `arm` requires the harness ledger to be the wrapper's SHARED A1_ADMISSION_LEDGER
+         p = patch.object(W, 'A1_ADMISSION_LEDGER', self.d / 'etc/base-a1-admission.jsonl'); p.start(); self.addCleanup(p.stop)
+         q = patch.object(R, 'A1_ADMISSION_LEDGER', self.d / 'etc/base-a1-admission.jsonl'); q.start(); self.addCleanup(q.stop)   # r5 harness
++        # r8: the recovery harness parses ONLY the pinned reth checkpoint format, so this suite's fixture fake is the pinned-format emitter
++        # (pinned-checkpoint-parser fixtures/fake_base.py; its sha is verified by the job). The shim and the fixture-scoped binary pin follow.
++        shim = self.d / 'bin/base'; shim.write_text(f'#!/bin/sh\nexec {sys.executable} {os.environ["PINNED_FAKE_BASE"]} "$@"\n'); shim.chmod(0o755)
++        self.cfg['baseBinarySha256'] = sha(shim.read_bytes())
++        pb = patch.object(P, 'HARNESS_BINARY_SHA256', self.cfg['baseBinarySha256']); pb.start(); self.addCleanup(pb.stop)
+ 
+     def tearDown(self):
+         super().tearDown()

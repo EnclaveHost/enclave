@@ -1,0 +1,8 @@
+[queue] START available=22432MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+PASS activation-r2-guard: {'testsRun': 15, 'failures': 0, 'errors': 0, 'skipped': 0, 'expectedFailures': 0, 'unexpectedSuccesses': 0}
+PASS controller-r2: {'testsRun': 14, 'failures': 0, 'errors': 0, 'skipped': 0, 'expectedFailures': 0, 'unexpectedSuccesses': 0}
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/retention-live-controller-stage/r3/runs/run-20261026T135004Z-1851219
+## retention-controller-r2-offline rc=0
+[memory-guard] exit=0 peakTreeRssMiB=49 minHostAvailableMiB=21271
+[memory-guard] at peak: python3:18 ssh:12 bash:4 bash:4 bash:2 timeout:2 bash:2 sleep:2
+[queue] EXIT 0

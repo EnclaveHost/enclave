@@ -1,0 +1,11 @@
+{
+ "source": "https://mainnet.base.org (public, one-off, UNVERIFIED external)",
+ "fetchedAt": "2026-10-25T19:11:04Z",
+ "address": "0xab214342d5A490150A4A977063A2f88E21F80907",
+ "method": "eth_getCode bisection over [0,50000000] then eth_getBlockReceipts",
+ "firstCodeBlock": 48322938,
+ "lastNoCodeBlock": 48322937,
+ "creationTx": "0xb29e0b8b13ab0098330e8e20cbba3b985cf8b84c817bb890266817f1585dcc19",
+ "creator": "0x271a59b4b1ee756e0e46d84aa4c9c26a8d48f44d",
+ "note": "block-hash call hit HTTP 429; stopped. Explorer (Blockscout) returned a Cloudflare challenge, no data."
+}

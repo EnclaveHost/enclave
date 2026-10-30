@@ -1,0 +1,16 @@
+{
+  "mode": "candidate-debug",
+  "firmware": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/fwbuild-candidate-r1/OVMF.candidate-debug.fd",
+  "sha256": "0598d551eea4e8becd54cb80aa5c7964ee46f21e50936fc06809ed171672594c",
+  "bytes": 4194304,
+  "elapsed_sec": 176.65871691703796,
+  "command": ". ./edksetup.sh BaseTools && build -p OvmfPkg/AmdSev/AmdSevX64.dsc -a X64 -t GCC -b DEBUG -n 1",
+  "source_copy": {
+    "head": "2970e5699ba6267f3384ffab20f96647578aebc8",
+    "dirty": " M OvmfPkg/AmdSev/Grub/grub.sh\n",
+    "grub_patch_sha256": "8be684fe5e00f3fde0cea4dea7ab5065ba0e846206129b4167aca59811dc1079",
+    "source": "/home/steven/.cache/enclave-isolation/fwbuild/src/edk2",
+    "copy": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/fwbuild-candidate-r1/src"
+  },
+  "production_unchanged": true
+}

@@ -1,0 +1,9 @@
+# Host-owner authority must survive restart
+
+2026-10-29: **two failures reproduced, not repaired in this package**. Tests use the real staged dispatch/runner and the real baseline durable lifecycle journal reopened from disk. Chain/runtime/owner evidence are controlled mocks. No production authority, signatures, payments or live host behavior are qualified.
+
+Both positive controls serve at owner revision 3. In the same process the exact stale evidence is refused: a lower revision, or a different owner at the same revision. Restoring the original evidence serves again. After reopening the journal in a new dispatch, the same stale evidence incorrectly returns Running instead of Held. Both tests fail at that final intended assertion, not at setup or an unrelated validation. `before.log` preserves the output: 0 pass/2 fail/0 skip, exit1. No production replay or unauthorized financial effect was demonstrated.
+
+Accepted owner/revision/policy floors must be persisted before serving/signing effects and bound to the authenticated host and ownership contract. Fail closed on failed durable writes or contradictory state; never erase journals to recover. Retain independent read/reconciliation and authenticated offline paths. Active Claude composition-r3 already contains the durable-floor requirement; these new tests were added outside its input while it runs and are not claimed to have been read by it. Root must run them against the delivered actual composition, preserving the old failure evidence.
+
+Shared small256MiB/inner220/floor27648/oneCPU/noSwap. Peakouter190MiB/minavailable34158MiB; owned test process terminal, private temporary test journal deleted by fixture cleanup. Author main lane remained active; no production change. Source hashes are in source-pins.json. This package imports the separately preserved lifecycle-host-authority-review-r2 snapshot via a relative test path; it does not modify the active author or original runtime files.

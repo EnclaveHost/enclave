@@ -1,0 +1,28 @@
+[queue] START available=83727MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+Running as unit: enclave-shield-bench-init-check2-20261028.service
+=== RUN   TestEmitRecordFormat
+--- PASS: TestEmitRecordFormat (0.00s)
+=== RUN   TestKVLinesMeminfoAndStat
+--- PASS: TestKVLinesMeminfoAndStat (0.00s)
+=== RUN   TestParseModelLine
+--- PASS: TestParseModelLine (0.00s)
+=== RUN   TestClassify
+--- PASS: TestClassify (0.00s)
+=== RUN   TestConfigureChild
+    main_test.go:130: swap accounting: "" /tmp/TestConfigureChild2386616001/001/memory.swap.max reads "0ax", want "0"
+--- FAIL: TestConfigureChild (0.00s)
+=== RUN   TestSetupChildCgroupFailsClosed
+--- PASS: TestSetupChildCgroupFailsClosed (0.00s)
+=== RUN   TestRelayBoundsAndDrains
+--- PASS: TestRelayBoundsAndDrains (0.00s)
+FAIL
+FAIL	_/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-harness/init	0.002s
+FAIL
+          Finished with result: exit-code
+Main processes terminated with: code=exited, status=1/FAILURE
+               Service runtime: 333ms
+             CPU time consumed: 321ms
+                   Memory peak: 48.4M (swap: 0B)
+[memory-guard] exit=1 peakTreeRssMiB=5 minHostAvailableMiB=83671
+[memory-guard] at peak: systemd-run:5
+[queue] EXIT 1

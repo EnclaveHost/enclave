@@ -1,0 +1,5 @@
+2c0da529ce6a8563fb20fe0fa0058f2267ed7e3aadec83246a6f84f9b4eea308  ./jobs/build-test.sh
+fc3ee2dead6800068a67d5468587fe0465bf746405a1732d48049ca5cbc0dfbc  ./runner/runner.py
+0aa325c9dd2828223f9d70c7365fb2f6c058fcbc860e36ec3e30beb7116b4309  ./runner/test_runner.py
+faa1427108d6b44ab1d4da4d79ca168b39da35d39306dc13e92889dce17353a5  ./src/zk-utils/examples/derivation_harness_combined.rs
+698125070eaf9c41ca88cf77924ac98e54f06d393d2b084617a080a8d5c3b008  ./src/zk-witness/examples/witness_fetch.rs

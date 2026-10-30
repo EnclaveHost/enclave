@@ -1,0 +1,14 @@
+utc=2026-10-26T02:53:48Z host=warden-host
+alias eu-central hostname=134.209.248.172 port=22 user=root remoteforward=none
+alias us-west hostname=134.199.235.187 port=22 user=root remoteforward=none
+alias ca-east hostname=146.190.246.39 port=22 user=root remoteforward=none
+alias ap-southeast hostname=165.245.191.129 port=22 user=root remoteforward=none
+alias nan hostname=62.238.4.214 port=22 user=root remoteforward=none
+alias minipc hostname=192.168.8.238 port=22 user=claude remoteforward=none
+alias minipc-zt hostname=10.241.220.13 port=22 user=claude remoteforward=none
+alias warden hostname=10.0.100.9 port=22 user=warden remoteforward=none
+alias storage hostname=10.241.113.248 port=22 user=user remoteforward=none
+front_ip eu-central 134.209.248.172
+front_ip us-west 134.199.235.187
+front_ip ca-east 146.190.246.39
+front_ip ap-southeast 165.245.191.129

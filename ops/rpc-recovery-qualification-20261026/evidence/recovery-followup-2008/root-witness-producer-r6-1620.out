@@ -1,0 +1,19 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] START available=24731MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+Ran 14 tests in 23.395s
+
+FAILED (failures=1)
+## test_witness_producer_r6 FAIL (rc 1)
+Ran 7 tests in 0.642s
+
+OK
+## test_forward_chain_r6 PASS (7)
+## witness-producer-r6 rc=1
+[memory-guard] exit=1 peakTreeRssMiB=47 minHostAvailableMiB=24617
+[memory-guard] at peak: python3:29 witness_fetch:12 bash:4 timeout:2
+[queue] EXIT 1

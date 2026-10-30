@@ -1,0 +1,12 @@
+{
+  "src/network/deployment-host-authority-journal.mjs": "79fee8a38ff48dde3bfdcff80a5958cc8b19edb4d784acba0d4c12ea58f72939",
+  "src/network/lifecycle-host-incarnation-journal.mjs": "c2d73e0b42084f090735bd350e4d3a2181aa42e08363891aa7d1e9e4020ec2cd",
+  "src/network/lifecycle-host-owned-authority.mjs": "ae2f1c9e2d312b3b0b1f25c56649d42788fdbb45274b98d87bf46cbbf5788889",
+  "src/network/owned-durable-state.mjs": "ede14a84a6ab21a76a4ed0c9088b20333ef20021860650e22ec30315dcbd4c76",
+  "src/tools/generate-host-authority-dispatch-candidate.mjs": "6094cccc711ae75acfd5d75d7f6b2cb73ceb71f2815b74ac9f92223dc1100b21",
+  "src/tools/generate-host-authority-permit-candidates.mjs": "315a423efae7d5aa91f8fdcc2ea9d448f114fc02f1367021191fddd9c24c5416",
+  "test/host-authority-permit.test.mjs": "bfe0bb67bdc7bf2610ef2175d54d98f784123c3ec121e97bf110cec5718bd8be",
+  "test/root-completion-protocol.test.mjs": "a174b8dafeaeb81bf8960110afcb6856253583931501b16acf75be7d2ac321e8",
+  "test/root-handoff-races.test.mjs": "e1106b8994a37f1bf65e8c4058712e208362846c0eaef64c6fd3d4f9bcee1a04",
+  "test/root-ownership-lifecycle.test.mjs": "9530d3b2f1192b224e49f6b6f3b1b4d18daba095c82e5e9906fe0da3a843795f"
+}

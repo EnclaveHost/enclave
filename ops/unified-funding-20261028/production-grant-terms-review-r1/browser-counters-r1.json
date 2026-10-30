@@ -1,0 +1,94 @@
+{
+  "prompts": [
+    {
+      "primaryType": "SessionGrant",
+      "verifyingContract": "0xfB9F0ee8fA682D8638b4F3F3Fd167f7CEC582aE5"
+    },
+    {
+      "primaryType": "ReceiveWithAuthorization",
+      "verifyingContract": "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+    },
+    {
+      "primaryType": "Terminate",
+      "verifyingContract": "0xfB9F0ee8fA682D8638b4F3F3Fd167f7CEC582aE5"
+    },
+    {
+      "primaryType": "SessionGrant",
+      "verifyingContract": "0xfB9F0ee8fA682D8638b4F3F3Fd167f7CEC582aE5"
+    },
+    {
+      "primaryType": "Terminate",
+      "verifyingContract": "0xfB9F0ee8fA682D8638b4F3F3Fd167f7CEC582aE5"
+    },
+    {
+      "primaryType": "SessionGrant",
+      "verifyingContract": "0xfB9F0ee8fA682D8638b4F3F3Fd167f7CEC582aE5"
+    },
+    {
+      "primaryType": "ReceiveWithAuthorization",
+      "verifyingContract": "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+    },
+    {
+      "primaryType": "SessionGrant",
+      "verifyingContract": "0xff9af2029778Bcf4F7513419F88E0c95CEef5510"
+    },
+    {
+      "primaryType": "ReceiveWithAuthorization",
+      "verifyingContract": "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+    },
+    {
+      "primaryType": "SessionGrant",
+      "verifyingContract": "0xff9af2029778Bcf4F7513419F88E0c95CEef5510"
+    },
+    {
+      "primaryType": "ReceiveWithAuthorization",
+      "verifyingContract": "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+    },
+    {
+      "primaryType": "SessionGrant",
+      "verifyingContract": "0xff9af2029778Bcf4F7513419F88E0c95CEef5510"
+    },
+    {
+      "primaryType": "ReceiveWithAuthorization",
+      "verifyingContract": "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+    },
+    {
+      "primaryType": "SessionGrant",
+      "verifyingContract": "0xff9af2029778Bcf4F7513419F88E0c95CEef5510"
+    },
+    {
+      "primaryType": "ReceiveWithAuthorization",
+      "verifyingContract": "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+    },
+    {
+      "primaryType": "Terminate",
+      "verifyingContract": "0xff9af2029778Bcf4F7513419F88E0c95CEef5510"
+    }
+  ],
+  "hits": {
+    "POST /v1/sessions/open": 2,
+    "GET /v1/sessions/config": 54,
+    "GET /v1/sessions/funding/config": 57,
+    "POST /v1/sessions/owner": 1,
+    "POST /v1/sessions/funding/open": 2,
+    "GET /v1/sessions/funding/session/0xff9af2029778Bcf4F7513419F88E0c95CEef5510/0x40b43b776360a453737d811ad87531eb224f50525e799a7d468a0a2e6317aa6a": 8,
+    "POST /v1/sessions/funding/quote": 8,
+    "POST /v1/sessions/funding/execute": 3,
+    "GET /v1/sessions/funding/session/0xff9af2029778bcf4f7513419f88e0c95ceef5510/0x40b43b776360a453737d811ad87531eb224f50525e799a7d468a0a2e6317aa6a": 2,
+    "POST /v1/sessions/funding/owner": 1
+  },
+  "dropped": [
+    "POST /v1/sessions/funding/open"
+  ],
+  "ticks": 35,
+  "dbs": [
+    "client-site-browser-r1-TEST-legacy-2838820f2def26bb",
+    "client-site-browser-r1-TEST-v2-cd69acbc7fb8c26a"
+  ],
+  "intakeOff": false,
+  "intakeOffReplies": 1,
+  "executeFaults": [
+    "body",
+    "gateway502"
+  ]
+}

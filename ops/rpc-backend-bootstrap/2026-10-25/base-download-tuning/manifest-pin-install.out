@@ -1,0 +1,16 @@
+{
+  "time": "2026-10-25T18:19:06.429744+00:00",
+  "snapshotManifestSha256": "1f0c4e6c259d4353f598a94ac75a0540321ced2b52b464fb4e11c2ec34c649f2",
+  "snapshotManifestBytes": 4089437,
+  "snapshotManifestPath": "/opt/enclave-rpc/snapshots/base-1792886410-manifest.json",
+  "newDropInSha256": "db6895e969dbf320fa20dfdf14a28930e5d4bb027092debd71ad67947aae29ba",
+  "protectedPidsUnchanged": {
+    "enclave-l1-el.service": "847",
+    "enclave-l1-cl.service": "898"
+  },
+  "note": "Client now consumes these exact root-owned manifest bytes and re-verifies reusable outputs. This is metadata identity, not chain authentication or snapshot completion."
+}
+ExecStart={ path=/opt/enclave-rpc/bin/base ; argv[]=/opt/enclave-rpc/bin/base snapshot download --chain base --with-txs-distance 140000 --with-receipts-distance 140000 --with-state-history-distance 140000 --manifest-path /opt/enclave-rpc/snapshots/base-1792886410-manifest.json --datadir /srv/enclave-base-holder/data --download-concurrency 16 --resumable=true -y ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }
+MemoryMax=4294967296
+MemorySwapMax=0
+

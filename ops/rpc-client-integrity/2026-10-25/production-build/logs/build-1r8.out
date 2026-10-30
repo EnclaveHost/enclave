@@ -1,0 +1,313 @@
+[queue] START available=20744MiB required=20736MiB cap=4096MiB floor=16384MiB concurrentSmall=0MiB
+== stage pins (originals unchanged)
+[ok] /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/production-build/build.sh == 2ee8b8de
+[ok] /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/production-build/dry-check.sh == 7a373ccb
+[ok] /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/production-build/../jobs/env.sh == cd1c6b56
+[ok] /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/production-build/recovery/make-resume-body.py == f452b521
+[ok] /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/production-build/recovery/resume-body.sh == d350fe78
+[ok] /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/production-build/recovery/resume.sh == 6c9c5e52
+[ok] /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/production-build/recovery-4096/make-resume-body-4096.py == 3b760157
+[ok] /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/production-build/recovery-4096/resume-body-4096.sh == 09fda204
+[ok] resume-body-4096.sh == make-resume-body-4096.py(build.sh)
+[ok] resume-body-4096.sh differs from the reviewed d350fe78 body ONLY in the derivation dir (2 lines)
+== original RUN 1 failure (kernel OOM under 1792)
+[ok] build-1.rc == 143
+[ok] /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/production-build/logs/build-1.out == 88a266b7
+[ok] no RUN 1 guard receipt
+[ok] /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/production-build/recovery/logs/root-oom-journal.txt == 57da8c0b
+[ok] root journal: oom-kill of run-p3891230-i37474689.scope
+== first resume failure (memory guard under 2560)
+[ok] build-1r1.rc == 99
+[ok] /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/production-build/recovery/logs/build-1r1.out == b3a2ba27
+[ok] /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/production-build/recovery/logs/build-1r1.guard == 202e157b
+[ok] build-1r1: started under cap 2560
+[ok] build-1r1: guard stop 2565 > 2560, no cargo result
+[ok] no other attempt in recovery/ (only build-1r1)
+== retained state
+[ok] target-1 retained (1303 fingerprints)
+[ok] out-1 retained and EMPTY (no artifact)
+[ok] no linked binary (target-1/m7-release-nolto/base absent)
+[ok] this attempt's logs are new (recovery-4096/logs/build-1r8.rc absent)
+[ok] no collision with recovery/ (build-1r8.* absent there)
+[ok] previous attempt build-1r7 ended non-zero
+[ok] running under the reviewed 4096 MiB allocation (memory.max 4294967296)
+== resume body (build.sh 2ee8b8de + reviewed substitutions; derivation in recovery-4096)
+[ok] RESUME: RUN 1 target retained (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/production-build/target-1/m7-release-nolto)
+[ok] RESUME: no RUN 1 artifact yet (out-1/base absent)
+[ok] RESUME: no linked binary yet (m7-release-nolto/base absent)
+[ok] RESUME: derivation dir new
+[ok] offline: interfaces lo only (lo )
+== pins and provenance (before compiling)
+[ok] rustc 1.96.0
+[ok] base repo HEAD 5476069f1eb74a56bccb56fdefd4b4bb0e3cda42
+[ok] base commit time == SOURCE_DATE_EPOCH 1792689943
+[ok] patch e9dfb8c6
+[ok] provider == validated 201d9b8c16b080a4f7111ca29ec5ece8f02a2b9be807bb06e24e7eb1248bb3b2
+[ok] Cargo.lock f122da76
+[ok] CLI default l1 trust-rpc = false
+[ok] build/src == git archive 5476069f1eb74a56bccb56fdefd4b4bb0e3cda42 + patch (no other difference)
+[pin] source tree manifest d8078bdf5dbab667478329f8e31dac7cac4c780404982cf535d93dd109ca6efb
+[ok] source manifest d8078bdf (dry check)
+[ok] reth checkout present
+[ok] reth checkout HEAD 7134be3b51cf9d9504f988bff3266a23085f0bd9 (embedded by vergen)
+[ok] reth checkout: tracked files clean
+[ok] reth checkout: only cargo's .cargo-ok untracked (vergen may still report dirty => '-dev' version suffix; deterministic)
+[cache] CARGO_HOME files before: 168667
+== build: RESUME of RUN 1 in the retained target (cargo rebuilds only unfinished units) (2026-10-25T20:25:45Z)
+[env] RUSTUP_TOOLCHAIN=1.96.0 CARGO_BUILD_JOBS=1 SOURCE_DATE_EPOCH=1792689943 RUSTFLAGS='-C link-arg=-Wl,--threads=1 --remap-path-prefix=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src=/build/base --remap-path-prefix=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/cargo-home=/cargo --remap-path-prefix=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/production-build/target-1=/target' CFLAGS='-ffile-prefix-map=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src=/build/base -ffile-prefix-map=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/cargo-home=/cargo -ffile-prefix-map=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/production-build/target-1=/target'
+   Compiling base-node-core v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/execution/node)
+   Compiling openssl-sys v0.9.117
+   Compiling icu_properties_data v2.0.1
+   Compiling icu_normalizer_data v2.0.0
+   Compiling asynchronous-codec v0.7.0
+   Compiling netlink-packet-core v0.8.1
+   Compiling crossbeam-utils v0.8.22
+   Compiling portable-atomic v1.14.0
+   Compiling signal-hook v0.3.18
+   Compiling pin-project-lite v0.2.17
+   Compiling base-node-runner v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/execution/runner)
+   Compiling nix v0.30.1
+   Compiling netlink-sys v0.8.8
+   Compiling futures-core v0.3.33
+   Compiling unicode-width v0.2.2
+   Compiling unicode-segmentation v1.13.3
+   Compiling netlink-proto v0.12.0
+   Compiling icu_properties v2.0.2
+   Compiling icu_normalizer v2.0.1
+   Compiling netlink-packet-route v0.28.0
+   Compiling quick-protobuf-codec v0.3.1
+   Compiling event-listener-strategy v0.5.4
+   Compiling snow v0.9.6
+   Compiling enum-as-inner v0.6.1
+   Compiling strum_macros v0.28.0
+   Compiling parking_lot_core v0.9.12
+   Compiling castaway v0.2.4
+   Compiling zerocopy v0.8.55
+   Compiling prometheus-client v0.23.1
+   Compiling critical-section v1.2.0
+   Compiling foreign-types-shared v0.1.1
+   Compiling nohash-hasher v0.2.0
+   Compiling litrs v1.0.0
+   Compiling scopeguard v1.2.0
+   Compiling instability v0.3.12
+   Compiling utf-8 v0.7.6
+   Compiling tungstenite v0.28.0
+   Compiling lock_api v0.4.14
+   Compiling document-features v0.2.12
+   Compiling foreign-types v0.3.2
+   Compiling once_cell v1.21.4
+   Compiling compact_str v0.9.1
+   Compiling strum v0.28.0
+   Compiling hickory-proto v0.25.2
+   Compiling async-channel v2.5.0
+   Compiling rtnetlink v0.20.0
+   Compiling signal-hook-mio v0.2.5
+   Compiling idna_adapter v1.2.1
+   Compiling unicode-truncate v2.0.1
+   Compiling openssl v0.10.81
+   Compiling kasuari v0.4.12
+   Compiling futures-bounded v0.2.4
+   Compiling regex v1.13.1
+   Compiling hashlink v0.9.1
+   Compiling mio v1.2.2
+   Compiling socket2 v0.6.5
+   Compiling prometheus-client-derive-encode v0.4.2
+   Compiling futures-sink v0.3.33
+   Compiling hex_fmt v0.3.0
+   Compiling percent-encoding v2.3.2
+   Compiling foldhash v0.1.5
+   Compiling dtoa v1.0.11
+   Compiling indoc v2.0.7
+   Compiling utf8_iter v1.0.4
+   Compiling tinyvec_macros v0.1.1
+   Compiling tinyvec v1.12.0
+   Compiling idna v1.1.0
+   Compiling hashbrown v0.15.5
+   Compiling form_urlencoded v1.2.2
+   Compiling libp2p-gossipsub v0.49.5
+   Compiling tokio v1.53.1
+   Compiling libp2p-identify v0.47.0
+   Compiling ratatui-core v0.1.2
+   Compiling crossterm v0.29.0
+   Compiling if-watch v3.2.2
+   Compiling hickory-resolver v0.25.2
+   Compiling parking_lot v0.12.5
+   Compiling ppv-lite86 v0.2.21
+   Compiling tracing-core v0.1.36
+   Compiling tokio-tungstenite v0.28.0
+   Compiling yamux v0.12.1
+   Compiling yamux v0.13.10
+   Compiling concurrent-queue v2.5.0
+   Compiling native-tls v0.2.18
+   Compiling libp2p-ping v0.47.0
+   Compiling x25519-dalek v2.0.1
+   Compiling thiserror v2.0.19
+   Compiling iana-time-zone v0.1.65
+   Compiling slab v0.4.12
+   Compiling option-ext v0.2.0
+   Compiling futures-task v0.3.33
+   Compiling parking v2.2.1
+   Compiling crc-catalog v2.5.0
+   Compiling openssl-probe v0.2.1
+   Compiling futures-io v0.3.33
+   Compiling futures-util v0.3.33
+   Compiling crc v3.4.0
+   Compiling event-listener v5.4.1
+   Compiling dirs-sys v0.5.0
+   Compiling chrono v0.4.45
+   Compiling libp2p-noise v0.46.1
+   Compiling libp2p-metrics v0.17.0
+   Compiling libp2p-yamux v0.47.0
+   Compiling tracing v0.1.44
+   Compiling rand_chacha v0.3.1
+   Compiling futures-intrusive v0.5.0
+   Compiling libp2p-dns v0.44.0
+   Compiling libp2p-tcp v0.44.1
+   Compiling tokio-stream v0.1.18
+   Compiling url v2.5.8
+   Compiling hashlink v0.10.0
+   Compiling unicode-normalization v0.1.25
+   Compiling crossbeam-queue v0.3.13
+   Compiling libp2p-connection-limits v0.6.0
+   Compiling libp2p-allow-block-list v0.6.0
+   Compiling base-consensus-upgrades v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/consensus/upgrades)
+   Compiling base-common-flashblocks v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/common/flashblocks)
+   Compiling line-clipping v0.3.7
+   Compiling blake3 v1.8.5
+   Compiling unicode-bidi v0.3.18
+   Compiling unicode-properties v0.1.4
+   Compiling base64 v0.22.1
+   Compiling sqlx-core v0.8.6
+   Compiling stringprep v0.1.5
+   Compiling ratatui-widgets v0.3.2
+   Compiling base-consensus-derive v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/consensus/derive)
+   Compiling libp2p v0.56.0
+   Compiling rand v0.8.7
+   Compiling dirs v6.0.0
+   Compiling ratatui-crossterm v0.1.2
+   Compiling futures-channel v0.3.33
+   Compiling xattr v1.6.1
+   Compiling discv5 v0.10.4
+   Compiling reth-cli-runner v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling atoi v2.0.0
+   Compiling hkdf v0.12.4
+   Compiling md-5 v0.10.6
+   Compiling filetime v0.2.29
+   Compiling dotenvy v0.15.7
+   Compiling hex v0.4.3
+   Compiling whoami v1.6.1
+   Compiling byteorder v1.5.0
+   Compiling redb v2.6.3
+   Compiling constant_time_eq v0.4.2
+   Compiling home v0.5.12
+   Compiling sqlx-postgres v0.8.6
+   Compiling tar v0.4.46
+   Compiling reth-cli v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling base-consensus-peers v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/consensus/peers)
+   Compiling ratatui v0.30.2
+   Compiling base-consensus-providers v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/consensus/providers)
+   Compiling comfy-table v7.2.2
+   Compiling base-execution-eip8130-rpc v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/execution/eip8130-rpc)
+   Compiling lz4 v1.28.1
+   Compiling human_bytes v0.4.3
+   Compiling object v0.37.3
+   Compiling reth-cli-commands v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling base-consensus-engine v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/consensus/engine)
+   Compiling base-consensus-disc v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/consensus/disc)
+   Compiling sqlx-macros-core v0.8.6
+   Compiling reth-ethereum-payload-builder v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-ethereum-consensus v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling base-runtime v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/utilities/runtime)
+   Compiling arc-swap v1.9.2
+   Compiling serde_repr v0.1.21
+   Compiling base-ring-buffer v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/utilities/ring-buffer)
+   Compiling gimli v0.32.3
+   Compiling addr2line v0.25.1
+   Compiling base-builder-publish v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/builder/publish)
+   Compiling base-consensus-gossip v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/consensus/gossip)
+   Compiling base-flashblocks v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/execution/flashblocks)
+   Compiling reth-node-ethereum v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling sqlx-macros v0.8.6
+   Compiling base-consensus-safedb v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/consensus/safedb)
+   Compiling alloy-contract v2.4.1
+   Compiling base-common-signer v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/common/signer)
+   Compiling base-comp v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/batcher/comp)
+   Compiling proc-macro2-diagnostics v0.10.1
+   Compiling rustc-demangle v0.1.28
+   Compiling backtrace v0.3.76
+   Compiling base-batcher-encoder v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/batcher/encoder)
+   Compiling base-tx-manager v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/utilities/tx-manager)
+   Compiling base-builder-core v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/builder/core)
+   Compiling base-consensus-rpc v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/consensus/rpc)
+   Compiling sqlx v0.8.6
+   Compiling base-batcher-source v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/batcher/source)
+   Compiling base-blobs v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/batcher/blobs)
+   Compiling yansi v1.0.1
+   Compiling base-batcher-core v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/batcher/core)
+   Compiling base-shadow-indexer-db v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/execution/shadow-indexer-db)
+   Compiling base-cli-utils v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/utilities/cli)
+   Compiling uncased v0.9.10
+   Compiling toml_datetime v0.6.11
+   Compiling serde_spanned v0.6.9
+   Compiling toml_write v0.1.2
+   Compiling toml_edit v0.22.27
+   Compiling base-shadow-indexer v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/execution/shadow-indexer)
+   Compiling base-batcher-admin v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/batcher/admin)
+   Compiling pear_codegen v0.2.9
+   Compiling base-builder-metering v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/builder/metering)
+   Compiling base-flashblocks-node v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/execution/flashblocks-node)
+   Compiling base-metering v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/execution/metering)
+   Compiling base-txpool-tracing v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/execution/txpool-tracing)
+   Compiling base-reth-cli v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/utilities/reth-cli)
+   Compiling base-execution-eip8130-rpc-node v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/execution/eip8130-rpc-node)
+   Compiling base-tx-forwarding v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/execution/tx-forwarding)
+   Compiling base-proofs-extension v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/execution/proofs)
+   Compiling base-txpool-rpc v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/execution/txpool-rpc)
+   Compiling base-consensus-sources v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/consensus/sources)
+   Compiling base-balance-monitor v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/utilities/balance-monitor)
+   Compiling base-health v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/utilities/health)
+   Compiling figment v0.10.19
+   Compiling inlinable_string v0.1.15
+   Compiling pear v0.2.9
+   Compiling base-consensus-node v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/consensus/service)
+   Compiling base-batcher-service v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/batcher/service)
+   Compiling base-execution-cli v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/execution/cli)
+   Compiling toml v0.8.23
+   Compiling base-jwt v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/utilities/jwt)
+   Compiling base-consensus-cli v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/consensus/cli)
+   Compiling base-builder-cli v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/builder/cli)
+   Compiling base-batcher-cli v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/batcher/cli)
+   Compiling base-builder-multiplex v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/builder/multiplex)
+   Compiling base v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/bin/base)
+    Finished `m7-release-nolto` profile [optimized] target(s) in 28m 31s
+## cargo build rc=0 (2026-10-25T20:54:16Z)
+[ok] binary exists
+== artifact
+[artifact] 5aa7b2919870950f1dd90249d3900730184e3ce6b5a54048b3dbca2a72ef430c  base  (290309776 bytes)
+  GNU                  0x00000014	NT_GNU_BUILD_ID (unique build ID bitstring)
+    Build ID: 5e1a4a3293c3961b1ce7ae63bdf890d869384f90
+  [     0]  rustc version 1.96.0 (ac68faa20 2026-05-25)
+  [    2c]  Linker: LLD 22.1.2 (/checkout/src/llvm-project/llvm 1cb4e3833c1919c2e6fb579a23ac0e2b22587b7e)
+  [    8b]  GCC: (GNU) 16.2.1 20260810
+  [    a6]  clang version 22.1.0-rc2
+[artifact] dynamic deps: libstdc++.so.6 libc.so.6 ld-linux-x86-64.so.2 libssl.so.3 libcrypto.so.3 libgcc_s.so.1 libm.so.6 
+[artifact] build-path strings (should be 0): 0
+[cache] CARGO_HOME files after: 168667
+== smoke (bounded, no network, no data dir)
+base 1.5.1
+[ok] base --version rc 0
+[ok] base --help rc 0
+[smoke] subcommands exposing the M7 flag (env BASE_NODE_L1_TRUST_RPC):  rpc follow sequencer
+[ok] M7 flag present in the CLI
+      --l1-trust-rpc
+          Whether to trust the L1 RPC (default: false). If false, every retrieved L1 header is hash-checked and every receipt list and transaction list is checked against that header's receipts root and transactions root
+          
+          [env: BASE_NODE_L1_TRUST_RPC=]
+          [alias: --l1.trust-rpc]
+
+      --l1-beacon <L1_BEACON>
+          URL of the L1 beacon API
+## rc=0 (RESUMED RUN 1 after a kernel OOM; ONE build: NOT a fresh independent build, NOT a reproducibility claim)
+[memory-guard] exit=0 peakTreeRssMiB=4072 minHostAvailableMiB=17541
+[memory-guard] at peak: rustc:3760 cargo:306 bash:4 timeout:2
+[queue] EXIT 0

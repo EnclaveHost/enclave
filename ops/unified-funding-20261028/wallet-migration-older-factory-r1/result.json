@@ -1,0 +1,69 @@
+{
+  "capturedAt": "2026-10-29T23:53:46.863Z",
+  "readOnly": true,
+  "scope": "Classify previously unclassified public owner/publisher addresses against historical factory v1 from committed sessions-base.json. Newly observed runtime is not independently source-verified here; this does not authorize any mutation.",
+  "factory": "0x00bB59c40768aA56E292b4E789f9f3B5826E3a8d",
+  "addresses": [
+    "0x271a59b4b1ee756e0e46d84aa4c9c26a8d48f44d",
+    "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
+    "0x081c60c7c1c72d469ee27ca5142c26a2ad57ff3c",
+    "0x3e98aac06a5f43d91b81e579ccc205f82ba80b5a",
+    "0x14b37ee3c06b047bb3a3f7fe54d29a8e67091428",
+    "0x6e15d644e0f5abaec8786c9dafa8af750cec9cbc"
+  ],
+  "snapshot": {
+    "value": {
+      "factoryCodeHash": "0x48a32c988ae4c7f17683853a15c212daeb1548fddcfec8bbd85bd33254501146",
+      "owners": [
+        {
+          "address": "0x271a59b4b1ee756e0e46d84aa4c9c26a8d48f44d",
+          "codeHash": "0xb09ef517c48d2bf6eed05457ff56871b2596e3fc904fc6e9795882a870c2e993",
+          "codeBytes": 23,
+          "codePrefix": "0xef010063c0c19a282a1b52b07dd5a65b58948a07dae32b",
+          "factoryV1Recognizes": false
+        },
+        {
+          "address": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
+          "codeHash": "0x13ece2fba1a144cc1bbb6eede1e1240982213b6c7968bffdbb894fdc3846bd4e",
+          "codeBytes": 23,
+          "codePrefix": "0xef01007179b77479c797bcf93361f0c3fab663d37f28d1",
+          "factoryV1Recognizes": false
+        },
+        {
+          "address": "0x081c60c7c1c72d469ee27ca5142c26a2ad57ff3c",
+          "codeHash": "0x73dd9759464afc282121d6d0e482eeeca44907f7429331ccfcae2070dd31d4c9",
+          "codeBytes": 45,
+          "codePrefix": "0x363d3d373d3d3d363d73eca6644333d3a069001203ce5416914a4d830beb5af43d82803e903d91602b57fd5bf3",
+          "factoryV1Recognizes": false
+        },
+        {
+          "address": "0x3e98aac06a5f43d91b81e579ccc205f82ba80b5a",
+          "codeHash": "0xcc11c56ef77bef5a5e7d3190f95fd5fdd4d9c49102bedc78fbb104b3761a7d37",
+          "codeBytes": 4793,
+          "codePrefix": "0x60806040526004361015610011575f80fd5b5f3560e01c8063123119cd146100b45780631626ba7e146100af57806343f13be4146100aa57806356397c35146100a557806363c4f031146100a057806367e828bf1461009b578063a6ac15fc1461009657",
+          "factoryV1Recognizes": false
+        },
+        {
+          "address": "0x14b37ee3c06b047bb3a3f7fe54d29a8e67091428",
+          "codeHash": "0x5bab2758c5349fec2d678244c98d9b42f9dba794c1f7337ac00dfbfb2974ec87",
+          "codeBytes": 4793,
+          "codePrefix": "0x60806040526004361015610011575f80fd5b5f3560e01c8063123119cd146100b45780631626ba7e146100af57806343f13be4146100aa57806356397c35146100a557806363c4f031146100a057806367e828bf1461009b578063a6ac15fc1461009657",
+          "factoryV1Recognizes": false
+        },
+        {
+          "address": "0x6e15d644e0f5abaec8786c9dafa8af750cec9cbc",
+          "codeHash": "0x4542cbf1da24ba964614e4f5585736e22884e23e97c0f0915de4f602585d2dd4",
+          "codeBytes": 23,
+          "codePrefix": "0xef0100d6cedde84be40893d153be9d467cd6ad37875b28",
+          "factoryV1Recognizes": false
+        }
+      ]
+    },
+    "blockNumber": "53264337",
+    "blockHash": "0x65117e164f8d74f63eb94563432b79463159259c55d35990df4dcf9ee377e251",
+    "timestamp": 1793318021000,
+    "agreeing": 3,
+    "peers": 3,
+    "failures": []
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "unit-result.txt": "1172e25de7589c63197c140dfa13d7bb00885df255a6e69f478092a1acc27c5c",
+  "inner.guard.log": "88876b8923c09951ad9029d996421da87651d5418395df62f9ac4eb12e212844",
+  "terminal-summary.json": "91528d7b1bea0f72914d8bff7dae0cecba1a487a55fb4a264ac004603d622d63",
+  "finished.json": "8d45a6d6c2f21fc489b9487c906cbf1a77900e89f156fb6f856c17f0f37eb803",
+  "source-changes.json": "2d385231911d5fabb6792d999995416c17fd05fd75bfba186fc26a834abfaad9",
+  "mutation-audit.json": "ef23cdc8082f6957036c16c045ee3edb1f6ffaa8001ed3fd1170ea03e221f774",
+  "claude.out": "fdd144712d4790bb07bac4db5fff2399c5dec9d5fee207d49529b6645c188d41",
+  "exact-exe-terminal-audit.json": "54e41b861bd0dc9829acb84280e290e333aeccb6370096f3f59edd2d0c7eec71",
+  "ROOT-REVIEW.md": "84243bf66e09b25dee9fb37bbfc0307d1239299629c1598d9b15be72549cdf0b",
+  "author-first-mutation-manifest.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+  "claude.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+  "author-delivery-manifest.json": "3e0823a827382b2a33de3489a4c35a83f9d60f1265c32959327145267e5423af",
+  "outer.guard.log": "613c5ac675d7a2be1ef96d29b5cd7e989fafdd120cc9d5500b6f6f2de9037339",
+  "HANDOFF-21-39.md": "5d045a79abf5c3bae12b9993e4effd81fbe4eff050ed252cccb5197289851e5d"
+}

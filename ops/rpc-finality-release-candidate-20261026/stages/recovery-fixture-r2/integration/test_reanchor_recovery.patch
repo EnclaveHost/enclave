@@ -1,0 +1,24 @@
+--- ../r10/tests/r7-ported/test_reanchor_recovery.py	2026-10-25 23:51:57.242978306 -0700
++++ tests/r7-ported/test_reanchor_recovery.py	2026-10-26 00:17:36.197082251 -0700
+@@ -255,8 +255,19 @@
+             with self.assertRaisesRegex(A.Refused, '^below_anchor: execution checkpoint'):
+                 A.step_plan(c, A.Base(c, [], w), w)
+             self.state['cp'].update(execution=R.SNAPSHOT_HEAD + 20, headers=R.SNAPSHOT_HEAD + 5); self.write()
+-            with self.assertRaisesRegex(A.Refused, '^below_anchor: stage checkpoints'):
+-                A.step_plan(c, A.Base(c, [], w), w)
++            # r10 fixture fix: execution now holds N but Finish.partial_state_trie (the persisted state frontier) does not, so the
++            # harness's state guard refuses FIRST (step_plan order: execution, state frontier, stage checkpoints): the exact refusal,
++            # with the frontier the harness itself reads, and no mutating command (unwind) was invoked
++            b0 = A.Base(c, [], w); A.gate_static(c, b0)                                # r2: the frontier is read only through the normal gate
++            _, st = A.head_state(c, b0); self.assertLess(st, c['N'])                   # (an ungated read refuses ungated_db_access: run 1119222)
++            calls, run = [], A.Base.run
++            def spy(b, *a, **k):
++                calls.append((a, k.get('cls', 'read'))); return run(b, *a, **k)
++            with patch.object(A.Base, 'run', spy):
++                with self.assertRaisesRegex(A.Refused, '^' + __import__('re').escape(
++                        f'state_below_anchor: the persisted state/trie frontier {st} (Finish.partial_state_trie) is below N: labels are not state') + '$'):
++                    A.step_plan(c, A.Base(c, [], w), w)
++            self.assertEqual([x for x in calls if x[1] in A.MUTATING or 'unwind' in x[0]], [], calls)
+             self.state['cp'].update(headers=R.SNAPSHOT_HEAD + 20, bodies=R.SNAPSHOT_HEAD + 20, finish=R.SNAPSHOT_HEAD + 20); self.write()
+             plan = A.step_plan(c, A.Base(c, [], w), w)                                  # the target bound reached: N is plannable
+             self.assertEqual(plan['a3'][-1][-1], str(R.SNAPSHOT_HEAD + 10))

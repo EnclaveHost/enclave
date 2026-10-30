@@ -1,0 +1,18 @@
+--- ../r9/tests/test_ops_installer.py	2026-10-25 23:37:05.382414004 -0700
++++ tests/test_ops_installer.py	2026-10-25 23:56:12.844146091 -0700
+@@ -187,10 +187,11 @@
+ 
+     def test_qualification_needs_the_exact_r6_lines(self):
+         q, rc = self.t / 'q.out', self.t / 'q.rc'; rc.write_text('0\n')
+-        q.write_text('## finality-r9 rc=0\n## r9 SHA256SUMS abc\n'); IV.qualified(q, rc, 'abc')
+-        q.write_text('## finality-r5 rc=0\n## r9 SHA256SUMS abc\n')
+-        with self.assertRaises(IV.Refused):
+-            IV.qualified(q, rc, 'abc')
++        q.write_text('## finality-r10 rc=0\n## r10 SHA256SUMS abc\n'); IV.qualified(q, rc, 'abc')
++        for bad in ('## finality-r5 rc=0\n## r10 SHA256SUMS abc\n', '## finality-r9 rc=0\n## r9 SHA256SUMS abc\n'):   # r10: an r9 run never qualifies r10
++            q.write_text(bad)
++            with self.assertRaises(IV.Refused):
++                IV.qualified(q, rc, 'abc')
+ 
+ 
+ if __name__ == '__main__':

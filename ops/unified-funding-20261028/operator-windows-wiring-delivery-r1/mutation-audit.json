@@ -1,0 +1,140 @@
+{
+  "events": [
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r1-20261029/candidate/control/windows/node/operator-effects-config.mjs",
+      "rel": "control/windows/node/operator-effects-config.mjs",
+      "id": "toolu_015HdcBFoBaAPATjNwJeovim",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r1-20261029/candidate/control/windows/node/host.mjs",
+      "rel": "control/windows/node/host.mjs",
+      "id": "toolu_01PyacMhMhd1zSEZE7nD78V2",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r1-20261029/candidate/control/windows/node/host.mjs",
+      "rel": "control/windows/node/host.mjs",
+      "id": "toolu_01RXFqFPtd5mpq9BjyvixWi2",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r1-20261029/candidate/control/windows/node/host.mjs",
+      "rel": "control/windows/node/host.mjs",
+      "id": "toolu_015rQju5doU8zaADA5gr3Kcc",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r1-20261029/candidate/control/windows/node/host.mjs",
+      "rel": "control/windows/node/host.mjs",
+      "id": "toolu_01KXSei8AWoHv3Vjjb85k7jD",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r1-20261029/candidate/control/windows/node/agent.mjs",
+      "rel": "control/windows/node/agent.mjs",
+      "id": "toolu_01HvmS6dh3Nh6h3EuBZWsbwU",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r1-20261029/candidate/control/windows/node/agent.mjs",
+      "rel": "control/windows/node/agent.mjs",
+      "id": "toolu_016ewV8yjPAWDdgazChaMDJa",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r1-20261029/candidate/control/windows/node/agent.mjs",
+      "rel": "control/windows/node/agent.mjs",
+      "id": "toolu_017sWMvN26VutY8eDnpNaJ9U",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r1-20261029/candidate/control/windows/node/initialize-operator-effects.mjs",
+      "rel": "control/windows/node/initialize-operator-effects.mjs",
+      "id": "toolu_01JyzREUqFKT8WU2HKEGsPAH",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r1-20261029/candidate/control/windows/node/install-operator-effects.mjs",
+      "rel": "control/windows/node/install-operator-effects.mjs",
+      "id": "toolu_01DasXp8XQHZ196df6jXrHFF",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r1-20261029/candidate/control/windows/node/install-operator-effects.mjs",
+      "rel": "control/windows/node/install-operator-effects.mjs",
+      "id": "toolu_01KR6gtkAmsHxdpQma96pRqW",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r1-20261029/candidate/control/windows/node/install-operator-effects.mjs",
+      "rel": "control/windows/node/install-operator-effects.mjs",
+      "id": "toolu_01FDdhJ14WJjC7efgj7eLCy5",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r1-20261029/candidate/test/windows-permit/ow-r1-operator-windows-wiring.test.mjs",
+      "rel": "test/windows-permit/ow-r1-operator-windows-wiring.test.mjs",
+      "id": "toolu_01XUySpdc1sgguToXLEpMWH4",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r1-20261029/candidate/test/windows-permit/ow-r1-operator-windows-wiring.test.mjs",
+      "rel": "test/windows-permit/ow-r1-operator-windows-wiring.test.mjs",
+      "id": "toolu_016VU1S43hR31ZryTGSZBaEn",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r1-20261029/candidate/test/windows-permit/ow-r1-operator-windows-wiring.test.mjs",
+      "rel": "test/windows-permit/ow-r1-operator-windows-wiring.test.mjs",
+      "id": "toolu_01K68Ubza7sjrdZTc7vua5JQ",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r1-20261029/candidate/test/windows-permit/ow-r1-operator-windows-wiring.test.mjs",
+      "rel": "test/windows-permit/ow-r1-operator-windows-wiring.test.mjs",
+      "id": "toolu_016AebDhL9xouU75qMzghWu5",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r1-20261029/candidate/test/windows-permit/ow-r1-operator-windows-wiring.test.mjs",
+      "rel": "test/windows-permit/ow-r1-operator-windows-wiring.test.mjs",
+      "id": "toolu_017fpWLYA8MXCFGouo4pwJvF",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r1-20261029/candidate/REPORT-OPERATOR-WINDOWS-WIRING-R1.md",
+      "rel": "REPORT-OPERATOR-WINDOWS-WIRING-R1.md",
+      "id": "toolu_013CJwXWsGgND2vsasT1hg6s",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r1-20261029/candidate/RELEASE-CLOSURE-OPERATOR-WINDOWS-WIRING-R1.json",
+      "rel": "RELEASE-CLOSURE-OPERATOR-WINDOWS-WIRING-R1.json",
+      "id": "toolu_013PsijGBZMbsfvwpLT6WMvk",
+      "outcome": "reported-success"
+    }
+  ],
+  "replayIssues": [],
+  "outsideCandidateAttempts": [],
+  "note": "first successful mutation snapshots reconstructed from immutable seed and successful tool results; any mismatch requires manual audit, never assumed clean"
+}

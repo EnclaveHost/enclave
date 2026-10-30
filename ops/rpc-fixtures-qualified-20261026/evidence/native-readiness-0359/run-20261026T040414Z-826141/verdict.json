@@ -1,0 +1,11 @@
+{
+ "ok": true,
+ "rc": 0,
+ "tests": 9,
+ "pass": 9,
+ "fail": 0,
+ "skipped": 0,
+ "todo": 0,
+ "cancelled": 0,
+ "nativeGateRan": true
+}

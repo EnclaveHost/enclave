@@ -1,0 +1,181 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 5 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 6 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 7 not started; sleep 30
+[queue] START available=29402MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+{
+ "mode": "slice",
+ "sourceCommit": "3a7dd3bcb6b4bd725fb083399e32c1102246db66",
+ "sourceTree": "5f141c3fa476b904d6a0107a75c31c9113726591",
+ "scheduleReaderPin": {
+  "old": "688b7a1f09c898f66cc7b92473a9fbda042402ef833bb983ff794e5f07128fb0",
+  "new": "694f1297286ff2ecf6d1b0e6b37153203963f7893eb2607f7d53c2f03f2eea0c"
+ },
+ "tests": {
+  "two-anchor-reader": {
+   "rc": 0,
+   "tests": 13,
+   "pass": 13,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 13,
+   "ok": true
+  },
+  "two-anchor-reader-r2": {
+   "rc": 0,
+   "tests": 12,
+   "pass": 12,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 12,
+   "ok": true
+  },
+  "two-anchor-writer": {
+   "rc": 0,
+   "tests": 12,
+   "pass": 12,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 12,
+   "ok": true
+  },
+  "kvm--test_journal-durability.test.mjs": {
+   "rc": 0,
+   "tests": 22,
+   "pass": 22,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 22,
+   "ok": true
+  },
+  "kvm--test_lifecycle-finality-bridge.test.mjs": {
+   "rc": 0,
+   "tests": 6,
+   "pass": 6,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 6,
+   "ok": true
+  },
+  "kvm--test_deployment-lifecycle-journal.test.mjs": {
+   "rc": 0,
+   "tests": 5,
+   "pass": 5,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 5,
+   "ok": true
+  },
+  "kvm--test_derived-reader_provider.test.mjs": {
+   "rc": 0,
+   "tests": 10,
+   "pass": 10,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 10,
+   "ok": true
+  },
+  "kvm--test_derived-reader_boundaries.test.mjs": {
+   "rc": 0,
+   "tests": 8,
+   "pass": 8,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 8,
+   "ok": true
+  },
+  "kvm--test_derived-reader_coverage.test.mjs": {
+   "rc": 0,
+   "tests": 14,
+   "pass": 14,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 14,
+   "ok": true
+  },
+  "writer": {
+   "rc": 0,
+   "tests": 23,
+   "pass": 23,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 23,
+   "ok": true
+  },
+  "composition": {
+   "rc": 0,
+   "tests": 6,
+   "pass": 6,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 6,
+   "ok": true
+  },
+  "replica-exact": {
+   "rc": 0,
+   "tests": 8,
+   "pass": 8,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 8,
+   "ok": true
+  },
+  "enrollment": {
+   "rc": 0,
+   "tests": 19,
+   "pass": 19,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 19,
+   "ok": true
+  }
+ },
+ "checkpoint": {
+  "checkpoint": "2e8502e68864abb49a230a69612bd7c98c94775d8dd81f956a0185d53652ac33",
+  "slot": 15511008,
+  "expiresUtc": "2026-11-01T19:21:59.000Z"
+ },
+ "ok": true,
+ "scope": "SOURCE + FIXTURES: r3 = r2 + the two-anchor-reader-r2 test-5 fixture fix (persisted journal shape; no module change). The Option B two-anchor path with the r2 activation-blocker fixes (A1 native outside the lock, A2 durable marker + issued-fact evidence in the role-committed anchor journal with the admin-signed rotation as the only clear, S1-S3), transport fixtures and an echo native executable. NOT measured: Helios attested-head lag, native/witness time, end-to-end S age, evidence capacity in use (M1-M6). NOT fixed: A3 (claims older than the start-time ASR bootstrap stay claim_not_covered). No driver loop, no image template enabling the policy, no SNP, not activated; production writer authority stays refused."
+}
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-two-anchor-stage/r3/runs/20261026T185316Z-slice-2167355
+## writer-two-anchor-r3 slice rc=0
+[memory-guard] exit=0 peakTreeRssMiB=243 minHostAvailableMiB=28837
+[memory-guard] at peak: node:120 node:59 executable:56 bash:4 bash:2 timeout:2
+[queue] EXIT 0

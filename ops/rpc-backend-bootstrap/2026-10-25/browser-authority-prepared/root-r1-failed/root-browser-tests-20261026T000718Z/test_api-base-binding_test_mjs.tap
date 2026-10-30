@@ -1,0 +1,76 @@
+TAP version 13
+# Subtest: a session minted at the default base is sent there
+ok 1 - a session minted at the default base is sent there
+  ---
+  duration_ms: 1.052759
+  type: 'test'
+  ...
+# Subtest: repointing the base does NOT carry the token to the new endpoint
+ok 2 - repointing the base does NOT carry the token to the new endpoint
+  ---
+  duration_ms: 1.424014
+  type: 'test'
+  ...
+# Subtest: an OPTIONAL account auth is simply omitted, not an error
+ok 3 - an OPTIONAL account auth is simply omitted, not an error
+  ---
+  duration_ms: 0.750742
+  type: 'test'
+  ...
+# Subtest: signing in against the new endpoint binds to it, and the old one is refused
+ok 4 - signing in against the new endpoint binds to it, and the old one is refused
+  ---
+  duration_ms: 0.244607
+  type: 'test'
+  ...
+# Subtest: a session stored before this binding existed is honored only at the default
+ok 5 - a session stored before this binding existed is honored only at the default
+  ---
+  duration_ms: 0.400815
+  type: 'test'
+  ...
+# Subtest: clearing a session clears its binding too
+ok 6 - clearing a session clears its binding too
+  ---
+  duration_ms: 0.152288
+  type: 'test'
+  ...
+# Subtest: siwe gate: the genuine challenge passes, in both spellings
+ok 7 - siwe gate: the genuine challenge passes, in both spellings
+  ---
+  duration_ms: 0.864871
+  type: 'test'
+  ...
+# Subtest: siwe gate: anything that is not a SIWE login for this wallet is refused
+ok 8 - siwe gate: anything that is not a SIWE login for this wallet is refused
+  ---
+  duration_ms: 0.441496
+  type: 'test'
+  ...
+# Subtest: another wallet's per-enclave session reads as signed-out, never as that wallet
+ok 9 - another wallet's per-enclave session reads as signed-out, never as that wallet
+  ---
+  duration_ms: 0.624074
+  type: 'test'
+  ...
+# Subtest: a sticky session for another wallet falls back to the public ?owner= read
+ok 10 - a sticky session for another wallet falls back to the public ?owner= read
+  ---
+  duration_ms: 0.92951
+  type: 'test'
+  ...
+# Subtest: an opaque (non-JWT) token stays wallet-agnostic, exactly as before
+ok 11 - an opaque (non-JWT) token stays wallet-agnostic, exactly as before
+  ---
+  duration_ms: 0.282447
+  type: 'test'
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 11
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 61.712841

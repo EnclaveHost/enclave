@@ -1,0 +1,18 @@
+{
+ "format": "base-bytecode-check-release/v1",
+ "artifact": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-native-validation/build/target/release/base-bytecode-check",
+ "sha256": "42d692d432fb7a1303d47a592f5439c8a9439fd84e8622277be646779c03ba6d",
+ "size": 1227952,
+ "fresh": false,
+ "profile": "release (workspace 5476069f: opt-level 3, lto thin, codegen-units 16, panic unwind, strip symbols; unchanged)",
+ "rustflags": "-C link-arg=-Wl,--threads=1",
+ "jobs": "1",
+ "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
+ "cargo": "cargo 1.96.0 (30a34c682 2026-05-25)",
+ "baseRev": "5476069f1eb74a56bccb56fdefd4b4bb0e3cda42",
+ "cargoLockSha256": "91a9e7626b5f361faed8f5226268ffae177970575e8ecd243d09cb077bd23bab",
+ "libRsSha256": "739c3245b51f4a465a34bd95276b711a39131d3e11588d99d062fef932ab43a1",
+ "stageSumsSha256": "9effed77cfdc2b3dd68dd4c645fab1e96bd302bcd41a17c9927e8c274ac4699d",
+ "testedBy": "logs/root-bytecode-native-2202 (13/13 + 5 exact controls; debug test profile, NOT this binary)",
+ "notTested": "this release binary on any datadir; live run under root review still required; OPEN_GAPS unchanged"
+}

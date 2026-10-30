@@ -1,0 +1,12 @@
+{
+ "at": "2026-10-25T17:58:08.590728+00:00",
+ "vmAndGuard": "Id=enclave-rpc-production-vm.service\nActiveState=active\nMainPID=3695222\nNRestarts=0\nMemoryMax=70866960384\n\nId=enclave-rpc-production-guard.service\nActiveState=active\nMainPID=3695221\nNRestarts=0\nMemoryMax=268435456\n",
+ "nvmeAvailableBytes": 700057649152,
+ "l1AllocatedBytes": 323011706880,
+ "l1VirtualFileBytes": 495738945536,
+ "userManagerTimeout": "TimeoutStopUSec=2min",
+ "sourceHddCopiesUnchanged": {
+  "os": true,
+  "l1": true
+ }
+}

@@ -1,0 +1,51 @@
+✔ legacy default and explicit quorum are unchanged; verifier settings are refused there (1.52472ms)
+✔ verifier mode refuses mixed or public-fallback configuration (0.959573ms)
+✔ a verifier is never one vote in a quorum (v1 and v2 readers) (1.485369ms)
+✔ v1 reads go through the verifier at head - confirmations and see a revoked (paused) policy at once (31.024087ms)
+✔ a stale verifier head and a rolled-back checkpoint fail closed (6.308185ms)
+✔ verifier outage fails closed and never falls back to another server (1.36634ms)
+✔ no finality is invented: safe/finalized are refused, a wrong chain pin is refused (1.251501ms)
+✖ v2 block-hash reads: only blocks canonical on the verifier's chain, re-checked after the read (4.849616ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 7
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 273.377707
+
+✖ failing tests:
+
+test at test/custody-chain-source.test.mjs:122:1
+✖ v2 block-hash reads: only blocks canonical on the verifier's chain, re-checked after the read (4.849616ms)
+  AssertionError [ERR_ASSERTION]: The validation function is expected to return "true". Received false
+  
+  Caught error:
+  
+  UnknownRpcError: An unknown RPC error occurred.
+  
+  Details: the verifier does not know that block
+  Version: viem@2.53.1
+      at async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/test/custody-chain-source.test.mjs:129:3)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: UnknownRpcError: An unknown RPC error occurred.
+    
+    Details: the verifier does not know that block
+    Version: viem@2.53.1
+        at withRetry.delay.count.count (file:///home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/viem/_esm/utils/buildRequest.js:127:31)
+        at async attemptRetry (file:///home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/viem/_esm/utils/promise/withRetry.js:24:30) {
+      [cause]: Error: the verifier does not know that block
+          at fail (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/custody/chain-source.mjs:27:41)
+          at canonicalNumber (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/custody/chain-source.mjs:55:50)
+          at async Object.request (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/custody/chain-source.mjs:66:17)
+          at async withRetry.delay.count.count (file:///home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/viem/_esm/utils/buildRequest.js:30:24)
+          at async attemptRetry (file:///home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/viem/_esm/utils/promise/withRetry.js:24:30)
+    },
+    operator: 'rejects',
+    diff: 'simple'
+  }
+new-rc=1

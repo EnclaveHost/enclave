@@ -1,0 +1,72 @@
+TAP version 13
+# Subtest: O1 owner release withdraws the installed grant AND the tracked resources; retained gate/runtime/journal refuse start/serve/adopt; next owner acquires
+ok 1 - O1 owner release withdraws the installed grant AND the tracked resources; retained gate/runtime/journal refuse start/serve/adopt; next owner acquires
+  ---
+  duration_ms: 185.013319
+  type: 'test'
+  ...
+# Subtest: O2 witness owner release while signing awaits readiness: the in-flight request is cancelled, no signature released
+not ok 2 - O2 witness owner release while signing awaits readiness: the in-flight request is cancelled, no signature released
+  ---
+  duration_ms: 10021.51616
+  type: 'test'
+  location: '/tmp/hacr2.n0QUg9/r6/test/root-ownership-lifecycle.test.mjs:104:1'
+  failureType: 'unhandledRejection'
+  error: 'witness verification deadline'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Timeout.<anonymous> (file:///tmp/hacr2.n0QUg9/r6/network/deployment-lifecycle-witness.mjs:28:21)
+    listOnTimeout (node:internal/timers:585:17)
+    process.processTimers (node:internal/timers:521:7)
+  ...
+# Subtest: O3 failure to withdraw stays FENCED: the flock is kept, a second owner cannot acquire, the old handle refuses
+ok 3 - O3 failure to withdraw stays FENCED: the flock is kept, a second owner cannot acquire, the old handle refuses
+  ---
+  duration_ms: 6.292714
+  type: 'test'
+  ...
+# Subtest: O4 lock loss (lock file removed) is detected: authority withdrawn, every operation refuses
+ok 4 - O4 lock loss (lock file removed) is detected: authority withdrawn, every operation refuses
+  ---
+  duration_ms: 4.311319
+  type: 'test'
+  ...
+# Subtest: O5 permit: post-rename directory fsync failure survives a NEW owner; explicit verified recovery keeps history; owned pending untouched
+ok 5 - O5 permit: post-rename directory fsync failure survives a NEW owner; explicit verified recovery keeps history; owned pending untouched
+  ---
+  duration_ms: 10.487373
+  type: 'test'
+  ...
+# Subtest: O5 incarnation: post-rename directory fsync failure survives a NEW owner; explicit verified recovery keeps history; owned pending untouched
+ok 6 - O5 incarnation: post-rename directory fsync failure survives a NEW owner; explicit verified recovery keeps history; owned pending untouched
+  ---
+  duration_ms: 4.934644
+  type: 'test'
+  ...
+# Subtest: O6 established sidecar + marker loss refuses in the actual coupling (owned journal floor), never repopulated; a fresh host is established at open
+ok 7 - O6 established sidecar + marker loss refuses in the actual coupling (owned journal floor), never repopulated; a fresh host is established at open
+  ---
+  duration_ms: 6.243344
+  type: 'test'
+  ...
+# Subtest: O7 clean restart positive: released owner, new owner reads the same floor and writes forward
+ok 8 - O7 clean restart positive: released owner, new owner reads the same floor and writes forward
+  ---
+  duration_ms: 3.646063
+  type: 'test'
+  ...
+# Subtest: O8 proposed owned composition: v2 + owned handles required; single owner; release closes the gate, stops the dispatch, retained references refuse
+ok 9 - O8 proposed owned composition: v2 + owned handles required; single owner; release closes the gate, stops the dispatch, retained references refuse
+  ---
+  duration_ms: 57.96464
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 8
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10618.195982

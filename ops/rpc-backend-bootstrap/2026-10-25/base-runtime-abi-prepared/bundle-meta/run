@@ -1,0 +1,15 @@
+#!/bin/sh
+# Pinned private runtime for base (abi.py): the bundled loader + libraries, never the target's system copies.
+# Refuses unless every library resolves inside this bundle (`--list` guard); scrubs LD_*; pins OpenSSL config/CA lookup.
+# `base update` (self-update via current_exe) is NOT supported through this wrapper: under an explicit loader
+# current_exe() names the loader, and a pinned deployment must not self-update.
+set -eu
+unset LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT LD_BIND_NOW LD_DEBUG LD_PROFILE 2>/dev/null || true   # before any helper runs
+D=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+L="$D/lib/ld-linux-x86-64.so.2"
+case "${1:-}" in update) echo "base update is not supported in the pinned runtime bundle" >&2; exit 64;; esac
+out=$("$L" --inhibit-cache --library-path "$D/lib" --list "$D/bin/base" 2>&1) || { echo "runtime guard: loader cannot resolve the closure" >&2; echo "$out" >&2; exit 65; }
+echo "$out" | awk -v d="$D/lib/" '/=>/ { if (index($3, d) != 1) bad = bad " " $1 "=>" $3 } /not found/ { bad = bad " " $1 } END { if (bad != "") { print "runtime guard: outside the bundle:" bad > "/dev/stderr"; exit 1 } }' || exit 65
+export OPENSSL_CONF="$D/openssl.cnf"
+export SSL_CERT_FILE="${SSL_CERT_FILE:-/etc/ssl/certs/ca-certificates.crt}" SSL_CERT_DIR="${SSL_CERT_DIR:-/etc/ssl/certs}"
+exec "$L" --inhibit-cache --library-path "$D/lib" "$D/bin/base" "$@"

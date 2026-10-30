@@ -1,0 +1,18 @@
+utc=2026-10-26T02:48:42Z host=ca-east
+upstream_listen 127.0.0.1:30443 name="sshd" pid=351852 unit=session-2097.scope exe=/usr/sbin/sshd script= sha16=
+upstream_listen 127.0.0.1:30080 name="sshd" pid=351852 unit=session-2097.scope exe=/usr/sbin/sshd script= sha16=
+updatedAt 2026-10-26T02:48:42.537Z transport enclave-network
+ route deployments/0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238/httpsRoutes[0]/port = 443
+ route deployments/0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238/httpsRoutes[1]/port = 443
+ route deployments/0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238/version = 2
+ route pending[0]/id = 0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c
+ route pending[1]/id = 0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9
+ route pending[2]/id = 0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b
+ route pending[3]/id = 0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33
+ route pending[4]/id = 0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c
+ route pending[5]/id = 0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681
+ route pending[6]/id = 0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a
+ route pending[7]/id = 0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371
+ route pending[8]/id = 0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77
+ route pending[9]/id = 0x0f19412d70d19e50c054f72d8cc2d4c9a8d9da41d45a056e6b436040450e0bc1
+ route pending[10]/id = 0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c

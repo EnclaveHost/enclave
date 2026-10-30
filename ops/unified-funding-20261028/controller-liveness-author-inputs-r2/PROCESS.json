@@ -1,0 +1,9 @@
+{
+  "at": 1793357609.2130458,
+  "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2655690-i44610005.scope",
+  "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+  "pid": 2655713,
+  "scope": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2655690-i44610005.scope",
+  "sourceOnly": true,
+  "startTime": 166272292
+}

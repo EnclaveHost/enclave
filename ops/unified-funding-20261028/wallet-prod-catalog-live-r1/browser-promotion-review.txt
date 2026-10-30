@@ -1,0 +1,33 @@
+Move to wallet
+
+Destination: 0x0b2d009c0c9af05b12100d77f3c815fea822ee61 (the wallet that controls this vault; it cannot be changed)
+
+Step 1 of 2 - review this promotion. It does not move the app.
+
+APP ID
+0xcab8fb59882d976bf4005448701149d734b0dab536d9bf46f2b5159b0b0819e9
+APPREF (UNCHANGED)
+catalog://0x85f28c21b1545a05aee6661faf4b149b5dd18377fce59ad290e9f19857baab06/0
+CONFIGCID (UNCHANGED)
+(none)
+CONTENT COMMITMENT
+0x1bf0b397e03c75659372d6058cf88faf10156f85b1f301c7788970bbdf9f0c34
+CATALOG APP
+enclavedns (EnclaveDNS)
+PUBLISHER
+0x0b2d009c0c9af05b12100d77f3c815fea822ee61
+VERSION LABEL
+0.1.0
+CATALOG
+0x18419ca2b502d423a8de6269aeee171a378626e3 at block 53268897
+ACCESS
+PUBLIC
+DESTINATION (FIXED)
+0x0b2d009c0c9af05b12100d77f3c815fea822ee61
+BALANCE KEPT
+9.500000 USDC
+
+Promote is signed over exactly this deployment, catalog app, publisher, version label, appRef, configCid and public flag; the vault re-checks them against the catalog on-chain and leaves the unchanged version/config as they are. It does not move the app. When it is final on-chain, a separate release review is offered; nothing is signed for you automatically.
+
+Sign Promote with wallet
+Cancel

@@ -1,0 +1,11 @@
+{
+  "normalization": "Trailing whitespace stripped in packaged text logs only; original raw logs retained in work/logs.",
+  "rawSha256": {
+    "cutover-addon-author-tests-r1-20261029.out": "67e819c4381f31bdb838461aa28716876c341eac85abe421163bcdb6e25f02ce",
+    "cutover-addon-root-config-r1-20261029.out": "3967f2a1523c062e2401081abe493da9a16fc2a27713507b9593ba5d61d96d8d",
+    "cutover-addon-propose-r1-20261029.out": "4aea46b228819761d2cfb95bb83d8762c87025052c2407e94f7e9286e4086f66",
+    "cutover-addon-overlay-r1-20261029.out": "9dd6003cf2fce9b3d2cae7a8625321c22c2dc8c4efd269671ffcee8a998b636d",
+    "cutover-addon-reviewed-tests-r2-20261029.out": "5128e8d2d55c65975d0053dbbf83f09f953de290f79f01fc1d2df3bc63367e6a",
+    "cutover-addon-build-r1-20261029.out": "c36cbe83146e0d0a0f70eb0871652fe1a68800a15ed95ebeda10ddd289655464"
+  }
+}

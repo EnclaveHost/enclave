@@ -1,0 +1,94 @@
+[queue] START available=92815MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+TAP version 13
+# Subtest: disabled cutover addon: additive, pinned, exact candidate SDK, r2 document preserved, nothing old mutated
+ok 1 - disabled cutover addon: additive, pinned, exact candidate SDK, r2 document preserved, nothing old mutated
+  ---
+  duration_ms: 214.400061
+  type: 'test'
+  ...
+# Subtest: version, five explicit keys, unchanged r2 artifact format
+ok 2 - version, five explicit keys, unchanged r2 artifact format
+  ---
+  duration_ms: 1.122086
+  type: 'test'
+  ...
+# Subtest: exact versioned new SDK: tested candidate vendor/core/page pins
+ok 3 - exact versioned new SDK: tested candidate vendor/core/page pins
+  ---
+  duration_ms: 0.263149
+  type: 'test'
+  ...
+# Subtest: disabled null: shipped config accepted, nothing replaced; any non-null refused
+ok 4 - disabled null: shipped config accepted, nothing replaced; any non-null refused
+  ---
+  duration_ms: 1.401655
+  type: 'test'
+  ...
+# Subtest: old/absent keys and old schema refused (no absent-means-null at the config input)
+ok 5 - old/absent keys and old schema refused (no absent-means-null at the config input)
+  ---
+  duration_ms: 0.314698
+  type: 'test'
+  ...
+# Subtest: template refused until actual reviewed terms
+ok 6 - template refused until actual reviewed terms
+  ---
+  duration_ms: 0.416889
+  type: 'test'
+  ...
+# Subtest: cutover preparation: concrete reviewed terms accepted, activation still null
+ok 7 - cutover preparation: concrete reviewed terms accepted, activation still null
+  ---
+  duration_ms: 0.819357
+  type: 'test'
+  ...
+# Subtest: forbidden activation: before the operation, or without cutover
+ok 8 - forbidden activation: before the operation, or without cutover
+  ---
+  duration_ms: 0.583058
+  type: 'test'
+  ...
+# Subtest: owner / chain / sid / termsHash / plan mismatches refused
+ok 9 - owner / chain / sid / termsHash / plan mismatches refused
+  ---
+  duration_ms: 1.102756
+  type: 'test'
+  ...
+# Subtest: rootReviewed is not human approval: an approval needs the separate human reference
+ok 10 - rootReviewed is not human approval: an approval needs the separate human reference
+  ---
+  duration_ms: 0.499708
+  type: 'test'
+  ...
+# Subtest: config.js null exports: overlay patch exact, reversible, and required by the builder
+ok 11 - config.js null exports: overlay patch exact, reversible, and required by the builder
+  ---
+  duration_ms: 0.858297
+  type: 'test'
+  ...
+# Subtest: pins: version, qualified inputs and reused r2 lib required
+ok 12 - pins: version, qualified inputs and reused r2 lib required
+  ---
+  duration_ms: 0.647967
+  type: 'test'
+  ...
+# Subtest: overlay: exactly the pinned files, originals untouched, one reversible config patch
+ok 13 - overlay: exactly the pinned files, originals untouched, one reversible config patch
+  ---
+  duration_ms: 25.118986
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 396.887852
+[memory-guard] exit=0 peakTreeRssMiB=183 minHostAvailableMiB=92712
+[memory-guard] at peak: node:72 node:61 esbuild:50
+[memory-guard] exit=0 peakTreeRssMiB=231 minHostAvailableMiB=92716
+[memory-guard] at peak: node:71 node:61 node:50 esbuild:49
+[queue] EXIT 0

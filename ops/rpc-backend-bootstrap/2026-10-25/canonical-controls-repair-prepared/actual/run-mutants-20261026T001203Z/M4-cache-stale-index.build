@@ -1,0 +1,30 @@
+   Compiling helios-core v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-controls-repair/run/mutants-20261026T001203Z/helios/core)
+warning: unused variable: `stale`
+   --> core/src/execution/providers/block/block_cache.rs:159:17
+    |
+159 |             let stale: Vec<u64> = blocks.range(block_number + 1..).map(|(n, _)| *n).collect();
+    |                 ^^^^^ help: if this is intentional, prefix it with an underscore: `_stale`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `helios-core` (lib) generated 1 warning (run `cargo fix --lib -p helios-core` to apply 1 suggestion)
+   Compiling helios-revm-utils v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-controls-repair/run/mutants-20261026T001203Z/helios/revm-utils)
+warning: unused imports: `BlockResponse` and `primitives::HeaderResponse`
+ --> revm-utils/src/proof_db.rs:5:15
+  |
+5 |     network::{primitives::HeaderResponse, BlockResponse},
+  |               ^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `helios_core::execution::errors::ExecutionError`
+  --> revm-utils/src/proof_db.rs:21:5
+   |
+21 | use helios_core::execution::errors::ExecutionError;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `helios-revm-utils` (lib) generated 2 warnings (run `cargo fix --lib -p helios-revm-utils` to apply 2 suggestions)
+   Compiling helios-ethereum v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-controls-repair/run/mutants-20261026T001203Z/helios/ethereum)
+   Compiling helios-test-utils v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-controls-repair/run/mutants-20261026T001203Z/helios/tests/test-utils)
+    Finished `test` profile [unoptimized] target(s) in 5.18s
+  Executable tests/block_cache_exact_hash.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/block_cache_exact_hash-9e4af358f095d119)

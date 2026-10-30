@@ -18,8 +18,9 @@
 
    Every PowerShell fragment is produced by a pure function so it can be read and tested without a
    host. `run` is injected: production passes a real PowerShell runner, tests pass recorded answers.
-   Nothing in this file executes anything by itself, and NONE OF IT HAS RUN ON HYPER-V: the recipe
-   ran on the box; this port of it has only run against the fakes in the tests.
+   Nothing in this file executes anything by itself. The dedicated desktop path has run on NucBox
+   through definition, pinned media, monitor readiness and failure cleanup. That qualification
+   stops before worker admission and app delivery; mocked tests do not prove owner release or GPU work.
 
    THREE RULES IT KEEPS.
 
@@ -42,9 +43,17 @@ import { BOOT_STATEMENTS, bootFormOfStatement } from "../verify/boot-statements.
 import fs from "node:fs";
 import { runWmiserve, writeBundle, freePort, CERT_NAME } from "./wmiserve-run.mjs";
 import { GCS_KEY, EGRESS_VSOCK_PORT } from "./egress.mjs";
+import { validateDesktopPlatform, validateDesktopMapping } from "./desktop-platform.mjs";
+import { desktopMediaScript, checkDesktopMedia } from "./desktop-media.mjs";
+import { desktopVmMemMiB, DESKTOP_MEMORY_RULE } from "./desktop-memory.mjs";
+import { DESKTOP_WORKER_SERVICE_GUID } from "./desktop-worker-transport.mjs";
 
 /** The preflight check egress adds (egress.mjs): its hv_sock service is registered, read and never written. */
 export const EGRESS_CHECK = "hv_sock egress service (vsock 9443) registered";
+/** ...and the startup-package service (package-transport.mjs), read the same way when owner-committed startup is on. */
+export const PACKAGE_CHECK = "hv_sock startup-package service (vsock 9446) registered";
+/** ...and the custody-authorization service (custody-transport.mjs), read the same way when direct custody is on. */
+export const CUSTODY_CHECK = "hv_sock custody-authorization service (vsock 9445) registered";
 /** The name a deployment's domain may be certified for (M4): the first 8 hex of its id in the app zone, or null for a
  *  name that is not a deployment id (a lab label): such a domain gets no certificate endpoints at all. */
 export function certNameFor(name) {
@@ -217,6 +226,10 @@ export const FIRMWARE_OPT_IN = Object.freeze({
 });
 
 export const OWNER_MARKER = "enclave-vbslike-app-domain";
+/** The production instance's VM name prefix; any other (ENCLAVE_VM_PREFIX) is a separately scoped second instance. */
+export const DEFAULT_VM_PREFIX = "enclave-app-";
+/** A second instance's prefix: "enclave-" + 1-16 lowercase letters/digits + "-", never the default. */
+export const VM_PREFIX_RE = /^enclave-[a-z0-9]{1,16}-$/;
 /*
  * THE VM CARRIES ITS OWN IDENTITY (63's P1). The manager used to hold every record in memory only,
  * so a restarted manager answered "absent" for a VM that was still running: the node then released
@@ -234,13 +247,33 @@ export const OWNER_MARKER = "enclave-vbslike-app-domain";
  * spawn while one exists rather than guess which deployment it belonged to.
  */
 export const MANAGER_NOTES_PREFIX = OWNER_MARKER + "/manager|";
-export function notesFor({ id, name, instanceId, appId }) {
+/**
+ * THE OWNERSHIP MARKER OF AN INSTANCE, from its VM name prefix. The production (default) prefix keeps OWNER_MARKER, byte for
+ * byte. Any other prefix (ENCLAVE_VM_PREFIX: a second, separately scoped instance such as a hardware canary) gets
+ * "<prefix>vbslike-domain", which neither equals OWNER_MARKER nor starts with MANAGER_NOTES_PREFIX - so the production
+ * manager, the installed one included (its survey, ownership check and parseNotes key on exactly those), never surveys,
+ * adopts, starts or removes such a VM, and this instance never does any of that to production's.
+ */
+export function markerFor(prefix = DEFAULT_VM_PREFIX) {
+  // only a valid SCOPED prefix (the only kind main.mjs starts with, besides the default) gets its own marker; any other
+  // constructor prefix (test fixtures) keeps the production marker, exactly as before
+  return prefix !== DEFAULT_VM_PREFIX && VM_PREFIX_RE.test(String(prefix)) ? `${prefix}vbslike-domain` : OWNER_MARKER;
+}
+export const notesPrefixFor = (marker = OWNER_MARKER) => marker + "/manager|";
+export function notesFor({ id, name, instanceId, appId, imageRole = "legacy" }, { marker = OWNER_MARKER } = {}) {
   for (const [k, val] of Object.entries({ id, name, instanceId }))
     if (typeof val !== "string" || !val) throw new Error(`notesFor: ${k} must be a non-empty string`);
-  return MANAGER_NOTES_PREFIX + Buffer.from(JSON.stringify({ v: 1, id, name, instanceId, appId: appId ?? null })).toString("base64url");
+  if (!IMAGE_ROLES.includes(imageRole)) throw new Error(`notesFor: imageRole must be one of ${IMAGE_ROLES.join(", ")}`);
+  // the image a VM was started from (F3): written for a non-legacy image only, so a legacy VM's Notes stay exactly as
+  // before, and Notes without it mean "legacy" (every VM from before this change)
+  return notesPrefixFor(marker) + Buffer.from(JSON.stringify({ v: 1, id, name, instanceId, appId: appId ?? null,
+    ...(imageRole !== "legacy" ? { imageRole } : {}) })).toString("base64url");
 }
+/** The pinned images a partition may start from (F3, shield-profile.mjs ImageLauncher). */
+export const IMAGE_ROLES = Object.freeze(["legacy", "shield-direct", "gpu", "desktop"]);
 /** -> { owned, identity }: owned means the ownership marker is present; identity only when it parses completely. */
-export function parseNotes(notes) {
+export function parseNotes(notes, { marker = OWNER_MARKER } = {}) {
+  const MANAGER_NOTES_PREFIX = notesPrefixFor(marker), OWNER_MARKER_ = marker;
   const t = String(notes ?? "");
   if (t.startsWith(MANAGER_NOTES_PREFIX)) {
     try {
@@ -250,14 +283,14 @@ export function parseNotes(notes) {
     } catch { /* owned, but the identity is unreadable: unattributed */ }
     return { owned: true, identity: null };
   }
-  return { owned: t === OWNER_MARKER, identity: null };
+  return { owned: t === OWNER_MARKER_, identity: null };
 }
 const GUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 
 const ps = (s) => s.replace(/\r?\n\s*/g, " ").trim();
 /** PowerShell: is VM expression `v` ours? The bare marker OR the manager's identity notes. */
-const OWNED = (v) => `(${v}.Notes -eq ${q(OWNER_MARKER)} -or ([string]${v}.Notes).StartsWith(${q(MANAGER_NOTES_PREFIX)}))`;
+const OWNED = (v, marker = OWNER_MARKER) => `(${v}.Notes -eq ${q(marker)} -or ([string]${v}.Notes).StartsWith(${q(notesPrefixFor(marker))}))`;
 /**
  * Enumeration is only meaningful where `Get-VM` EXISTS. `Get-VM -ErrorAction SilentlyContinue` on a
  * host without the Hyper-V module yields nothing, which is indistinguishable from a host that owns
@@ -303,7 +336,7 @@ export const CMD = {
    * answer is a fact, not an inference. The firmware opt-in is READ with .NET's RegistryKey getters
    * and nothing else: this script never writes the registry.
    */
-  preflight: ({ hypervModule = null, guestStateMaster = null, egressService = null } = {}) => ps(`
+  preflight: ({ hypervModule = null, guestStateMaster = null, egressService = null, packageService = null, custodyService = null } = {}) => ps(`
     $r = [ordered]@{};
     $r.vmms = [bool](Get-Service vmms -ErrorAction SilentlyContinue);
     $r.namespace = [bool](Get-CimClass -Namespace 'root\\virtualization\\v2' -ClassName Msvm_VirtualSystemManagementService -ErrorAction SilentlyContinue);
@@ -323,6 +356,8 @@ export const CMD = {
     if ($gm.present) { $gm.bytes = (Get-Item -LiteralPath ${q(guestStateMaster)}).Length };
     $r.guestStateMaster = $gm;` : ""}
     ${egressService ? `$r.egressService = [bool](Test-Path -LiteralPath ${q(`${GCS_KEY}\\${egressService}`)});` : ""}
+    ${packageService ? `$r.packageService = [bool](Test-Path -LiteralPath ${q(`${GCS_KEY}\\${packageService}`)});` : ""}
+    ${custodyService ? `$r.custodyService = [bool](Test-Path -LiteralPath ${q(`${GCS_KEY}\\${custodyService}`)});` : ""}
     $r | ConvertTo-Json -Compress -Depth 4`),
 
   /** The image, by hash, on the host that will load it. */
@@ -365,7 +400,7 @@ export const CMD = {
    *  - the vTPM Windows makes for a VBS VM is READ and REPORTED, never refused and never called
    *    attestation: nothing on this path reads its PCRs.
    */
-  defineType1: ({ name, memMiB, vcpus, notes, firmware, firmwareSha256, hypervModule, hypervModuleSha256,
+  defineType1: ({ name, memMiB, vcpus, notes, firmware, firmwareSha256, hypervModule, hypervModuleSha256, marker = OWNER_MARKER,
                   hypervUtilitiesSha256 = null, guestStateMaster, guestStateMasterSha256 = null, guestStateRun,
                   archiveDir, pipe, boot, medium = null, mediumSha256 = null }) => {
     if (!BOOT_FORMS.includes(boot)) throw new Error(`defineType1: boot must be one of ${BOOT_FORMS.join(", ")}, stated rather than inferred`);
@@ -474,7 +509,7 @@ export const CMD = {
     } catch {
       $err = $_;
       $victims = @();
-      if ($vm) { $victims = @($vm) } else { $victims = @(Get-VM -Name $name -EA SilentlyContinue | Where-Object { [string]::IsNullOrWhiteSpace([string]$_.Notes) -or ${OWNED("$_")} }) };
+      if ($vm) { $victims = @($vm) } else { $victims = @(Get-VM -Name $name -EA SilentlyContinue | Where-Object { [string]::IsNullOrWhiteSpace([string]$_.Notes) -or ${OWNED("$_", marker)} }) };
       foreach ($v in $victims) { try { Stop-VM -VM $v -TurnOff -Force -EA SilentlyContinue; Remove-VM -VM $v -Force -EA Stop } catch {} };
       if ($copied -and (@(Get-VM -Name $name -EA SilentlyContinue).Count -eq 0) -and (Test-Path -LiteralPath $gsf)) { try { ${RETIRE(archiveDir)} } catch {} };
       throw $err
@@ -486,12 +521,12 @@ export const CMD = {
    * from the moment it was asked, because on this host that is where the reason is (5142 for a missing
    * firmware opt-in, 12030 for a definition the worker will not start): the recipe's FIRST OBSERVABLE.
    */
-  start: ({ vmId }) => {
+  start: ({ vmId, marker = OWNER_MARKER }) => {
     if (!GUID.test(String(vmId))) throw new Error(`start: not a VM Id: ${vmId}`);
     return ps(`
     $ErrorActionPreference = 'Stop';
     $v = Get-VM -Id ${q(vmId)};
-    if (-not ${OWNED("$v")}) { throw 'not ours: the ownership marker is absent, so this VM is not started' };
+    if (-not ${OWNED("$v", marker)}) { throw 'not ours: the ownership marker is absent, so this VM is not started' };
     $t0 = Get-Date;
     try { Start-VM -VM $v -ErrorAction Stop } catch {
       $msg = 'Start-VM refused: ' + [string]$_.Exception.Message;
@@ -529,12 +564,12 @@ export const CMD = {
    * early attach is not possible, it retries in this same process straight after Start-VM (uefi-dev-boot.ps1's
    * order). Everything after that is readConsole's loop: one pending read, bounded, stopping at `until`.
    */
-  startAndRead: ({ vmId, pipe, seconds = 25, connectMs = 15000, until = null }) => {
+  startAndRead: ({ vmId, pipe, seconds = 25, connectMs = 15000, until = null, marker = OWNER_MARKER }) => {
     if (!GUID.test(String(vmId))) throw new Error(`startAndRead: not a VM Id: ${vmId}`);
     return ps(`
     $ErrorActionPreference = 'Stop';
     $v = Get-VM -Id ${q(vmId)};
-    if (-not ${OWNED("$v")}) { throw 'not ours: the ownership marker is absent, so this VM is not started' };
+    if (-not ${OWNED("$v", marker)}) { throw 'not ours: the ownership marker is absent, so this VM is not started' };
     $until = ${until ? q(until) : "$null"}; $tail = ''; $sawUntil = $false;
     $name = ${q(pipe)} -replace '^\\\\\\\\\.\\\\pipe\\\\', '';
     $total = 0; $head = ''; $connected = $false; $why = ''; $early = $false; $earlyNote = ''; $attachMs = -1;
@@ -629,8 +664,8 @@ export const CMD = {
     }`),
 
   /** Remove ONE VM by EXACT name. The failure path must never match by prefix. */
-  removeExact: ({ name, requireMarker = true }) => ps(`
-    $v = Get-VM -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq ${q(name)}${requireMarker ? ` -and ${OWNED("$_")}` : ""} };
+  removeExact: ({ name, requireMarker = true, marker = OWNER_MARKER }) => ps(`
+    $v = Get-VM -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq ${q(name)}${requireMarker ? ` -and ${OWNED("$_", marker)}` : ""} };
     if (-not $v) { @{found=$false; removed=$false} | ConvertTo-Json -Compress; exit 0 };
     try {
       Stop-VM -VM $v -TurnOff -Force -ErrorAction SilentlyContinue;
@@ -644,9 +679,9 @@ export const CMD = {
    * because the marker is missing is how an orphan becomes permanent. Failures are REPORTED, not
    * swallowed: a teardown that could not remove something must not read as a clean one.
    */
-  teardown: ({ prefix, requireMarker = false }) => ps(`
+  teardown: ({ prefix, requireMarker = false, marker = OWNER_MARKER }) => ps(`
     ${ENUMERABLE}
-    $vms = @(Get-VM | Where-Object { $_.Name.StartsWith(${q(prefix)})${requireMarker ? ` -and ${OWNED("$_")}` : ""} });
+    $vms = @(Get-VM | Where-Object { $_.Name.StartsWith(${q(prefix)})${requireMarker ? ` -and ${OWNED("$_", marker)}` : ""} });
     $removed = @(); $failed = @();
     foreach ($v in $vms) {
       try {
@@ -657,10 +692,15 @@ export const CMD = {
     };
     @{found=$vms.Count; removed=@($removed); failed=@($failed)} | ConvertTo-Json -Compress -Depth 4`),
 
-  /** Everything this prefix owns, whether or not we think we started it: the reconciliation read. */
-  survey: ({ prefix }) => ps(`
+  /**
+   * Everything this instance owns, whether or not we think we started it: the reconciliation read. Its own name prefix,
+   * or its own manager Notes (a VM renamed by hand). Both are the instance's: the default (production) instance's script is
+   * byte for byte what it always was, and a scoped instance (ENCLAVE_VM_PREFIX, its own marker: markerFor) never matches
+   * production's names or Notes - nor production its.
+   */
+  survey: ({ prefix, marker = OWNER_MARKER }) => ps(`
     ${ENUMERABLE}
-    $vms = @(Get-VM | Where-Object { $_.Name.StartsWith(${q(prefix)}) -or ([string]$_.Notes).StartsWith(${q(MANAGER_NOTES_PREFIX)}) });
+    $vms = @(Get-VM | Where-Object { $_.Name.StartsWith(${q(prefix)}) -or ([string]$_.Notes).StartsWith(${q(notesPrefixFor(marker))}) });
     @{vms=@($vms | ForEach-Object { @{vmId=$_.Id.Guid; name=$_.Name; state=[string]$_.State; notes=[string]$_.Notes} })} | ConvertTo-Json -Compress -Depth 4`),
 
   /**
@@ -669,22 +709,31 @@ export const CMD = {
    * resolves to before anything is done to it. Waits for Off before Remove-VM, because removing a VM
    * that is still stopping throws InvalidState (measured on nucbox-k11 in uefi-dev-boot.ps1).
    */
-  removeById: ({ vmId }) => ps(`
+  removeById: ({ vmId, marker = OWNER_MARKER }) => ps(`
     ${ENUMERABLE}
-    $v = $null; try { $v = Get-VM -Id ${q(vmId)} -ErrorAction Stop } catch { $v = $null };
+    function FindRemovalVm {
+      try { $v = Get-VM -Id ${q(vmId)} -ErrorAction Stop; if ($v) { return $v } } catch {};
+      <# A failed lookup is not absence. Enumeration must succeed before saying gone. #>
+      $matches = @(Get-VM -ErrorAction Stop | Where-Object { [string]$_.Id -eq ${q(vmId)} });
+      if ($matches.Count -gt 1) { throw 'duplicate VM Id in removal inventory' };
+      if ($matches.Count -eq 1) { return $matches[0] };
+      return $null
+    };
+    $v = FindRemovalVm;
     if (-not $v) { @{found=$false; removed=$false} | ConvertTo-Json -Compress; exit 0 };
-    if (-not ${OWNED("$v")}) { @{found=$true; removed=$false; error='not ours: the ownership marker is absent'} | ConvertTo-Json -Compress; exit 0 };
+    if (-not ${OWNED("$v", marker)}) { @{found=$true; removed=$false; error='not ours: the ownership marker is absent'} | ConvertTo-Json -Compress; exit 0 };
     try {
       Stop-VM -VM $v -TurnOff -Force -ErrorAction SilentlyContinue;
       $dl = (Get-Date).AddSeconds(20);
-      while ((Get-Date) -lt $dl -and [string](Get-VM -Id ${q(vmId)} -ErrorAction SilentlyContinue).State -ne 'Off') { Start-Sleep -Milliseconds 500 };
+      while ((Get-Date) -lt $dl -and [string](FindRemovalVm).State -ne 'Off') { Start-Sleep -Milliseconds 500 };
       $last = '';
       for ($a = 0; $a -lt 5; $a++) {
-        $now = Get-VM -Id ${q(vmId)} -ErrorAction SilentlyContinue;
+        $now = FindRemovalVm;
         if (-not $now) { break };
+        if (-not ${OWNED("$now", marker)}) { throw 'ownership marker changed during removal' };
         try { Remove-VM -VM $now -Force -ErrorAction Stop } catch { $last = [string]$_.Exception.Message; Start-Sleep -Seconds 2 }
       };
-      if (Get-VM -Id ${q(vmId)} -ErrorAction SilentlyContinue) { @{found=$true; removed=$false; error=('still present after removal: ' + $last)} | ConvertTo-Json -Compress }
+      if (FindRemovalVm) { @{found=$true; removed=$false; error=('still present after removal: ' + $last)} | ConvertTo-Json -Compress }
       else { @{found=$true; removed=$true} | ConvertTo-Json -Compress }
     } catch { @{found=$true; removed=$false; error=[string]$_.Exception.Message} | ConvertTo-Json -Compress }`),
 
@@ -716,6 +765,105 @@ export const CMD = {
     @{present=$true; retired=$true; path=$gsf; sha256=$rsha; archive=$dest} | ConvertTo-Json -Compress`);
   },
 };
+
+/**
+ * REMOVE a run's model-volume disks (the differencing children defineType1 made), once the VM that used them is GONE.
+ * Only *.vhd files under the run directory, never while a VM of that Id or name exists; the store's parents are never
+ * named here. A child holds no data the guest wrote that anyone keeps: the guest mounts its volumes read-only.
+ */
+CMD.removeRunDisks = ({ paths = null, runDir, vmId = null, name = null }) => {
+  if (vmId && !GUID.test(String(vmId))) throw new Error(`removeRunDisks: not a VM Id: ${vmId}`);
+  if (!vmId && !name) throw new Error("removeRunDisks: a VM Id or name is required, to establish that its VM is gone");
+  // no list (a handle recovered after a manager restart): the VM's own per-run children, <name>.mv-*.vhd, in the run
+  // directory - the names start() gives them - and nothing else
+  if (paths === null) {
+    if (!/^[A-Za-z0-9._-]+$/.test(String(name || "")) || !runDir) throw new Error("removeRunDisks: a sweep needs the VM's plain name and the run directory");
+    return ps(`
+    $ErrorActionPreference = 'Stop';
+    ${vmId ? `$still = $null; try { $still = Get-VM -Id ${q(vmId)} -EA Stop } catch { $still = $null };
+    if ($still) { throw ('VM ' + ${q(vmId)} + ' is still present: its disks are not removed while the worker may hold them') };` : ""}
+    if (@(Get-VM -Name ${q(name)} -EA SilentlyContinue).Count) { throw ('a VM named ' + ${q(name)} + ' is still present: its disks are not removed while the worker may hold them') };
+    $removed = @(); $failed = @();
+    foreach ($f in @(Get-ChildItem -LiteralPath ${q(runDir)} -File -Filter ${q(`${name}.mv-*.vhd`)} -EA SilentlyContinue)) {
+      try { Remove-Item -LiteralPath $f.FullName -Force -EA Stop; $removed += $f.FullName } catch { $failed += @{path=$f.FullName; error=[string]$_.Exception.Message} }
+    };
+    @{removed=@($removed); failed=@($failed)} | ConvertTo-Json -Compress -Depth 4`);
+  }
+  if (!Array.isArray(paths) || !paths.length || paths.length > 8) throw new Error("removeRunDisks: 1..8 disk paths");
+  for (const c of paths) checkRunDisk(c, runDir);
+  return ps(`
+    $ErrorActionPreference = 'Stop';
+    ${vmId ? `$still = $null; try { $still = Get-VM -Id ${q(vmId)} -EA Stop } catch { $still = $null };
+    if ($still) { throw ('VM ' + ${q(vmId)} + ' is still present: its disks are not removed while the worker may hold them') };` : ""}
+    ${name ? `if (@(Get-VM -Name ${q(name)} -EA SilentlyContinue).Count) { throw ('a VM named ' + ${q(name)} + ' is still present: its disks are not removed while the worker may hold them') };` : ""}
+    $removed = @(); $failed = @();
+    foreach ($c in @(${paths.map((x) => q(x)).join(", ")})) {
+      if (-not (Test-Path -LiteralPath $c)) { continue };
+      try { Remove-Item -LiteralPath $c -Force -EA Stop; $removed += $c } catch { $failed += @{path=$c; error=[string]$_.Exception.Message} }
+    };
+    @{removed=@($removed); failed=@($failed)} | ConvertTo-Json -Compress -Depth 4`);
+};
+
+/**
+ * ATTACH a run's MODEL-VOLUME DISKS to the VM the definition made (its own step, so the definition stays as it is, and
+ * well under the command-line limit), before it starts. Each is a per-run DIFFERENCING child of the store's fixed VHD,
+ * so the parent is only ever opened read-only and is shared between partitions; the VM's SID gets read on the parent.
+ * Only a VM carrying our marker, still Off, with no disk yet. Read back: exactly these children. A failure detaches and
+ * removes what it made; the caller removes the VM. The guest verifies every block against its own measured table
+ * (isolation/m3/monitor/modelvol.go), so nothing here is trusted with what the bytes are.
+ */
+CMD.attachModelDisks = ({ vmId, disks, runDir, marker = OWNER_MARKER }) => {
+  if (!GUID.test(String(vmId))) throw new Error(`attachModelDisks: not a VM Id: ${vmId}`);
+  if (!disks.length) throw new Error("attachModelDisks: no disks");
+  checkDisks(disks, { uefi: false, runDir });
+  return ps(`
+    $ErrorActionPreference = 'Stop';
+    $v = Get-VM -Id ${q(vmId)};
+    if (-not ${OWNED("$v", marker)}) { throw 'not ours: the ownership marker is absent, so no disk is attached' };
+    if ([string]$v.State -ne 'Off') { throw ('the VM is ' + [string]$v.State + ': model-volume disks attach before it starts') };
+    if (@(Get-VMHardDiskDrive -VM $v -EA SilentlyContinue).Count -ne 0) { throw 'the VM already has a hard disk: refusing to add model volumes beside it' };
+    $grant = 'NT VIRTUAL MACHINE\\' + $v.Id.Guid + ':R'; $made = @();
+    try {
+      if (-not (Get-VMScsiController -VM $v -EA SilentlyContinue)) { Add-VMScsiController -VM $v };
+      foreach ($dk in @(${disks.map((k) => `@{parent=${q(k.parent)}; child=${q(k.child)}}`).join(", ")})) {
+        if (-not (Test-Path -LiteralPath $dk.parent)) { throw ('the model volume ' + $dk.parent + ' is not in this host''s store') };
+        if (Test-Path -LiteralPath $dk.child) { throw ('a per-run model-volume disk already exists at ' + $dk.child + ': refusing to reuse another run''s disk') };
+        New-VHD -Path $dk.child -ParentPath $dk.parent -Differencing | Out-Null; $made += $dk.child;
+        & icacls $dk.parent /grant $grant | Out-Null;
+        if ($LASTEXITCODE -ne 0) { throw ('icacls could not grant the VM read access to ' + $dk.parent + ' (exit ' + $LASTEXITCODE + ')') };
+        Add-VMHardDiskDrive -VM $v -ControllerType SCSI -Path $dk.child
+      }
+    } catch {
+      $err = $_;
+      foreach ($dd in @(Get-VMHardDiskDrive -VM $v -EA SilentlyContinue)) { try { Remove-VMHardDiskDrive -VMHardDiskDrive $dd -EA Stop } catch {} };
+      foreach ($c in $made) { try { Remove-Item -LiteralPath $c -Force -EA Stop } catch {} };
+      throw $err
+    };
+    @{diskPaths=@(Get-VMHardDiskDrive -VM $v | ForEach-Object { [string]$_.Path })} | ConvertTo-Json -Compress -Depth 3`);
+};
+
+/** A run's model-volume disks: linux-direct only (a uefi-medium boot pins exactly one boot entry), at most 8, each child a
+ *  plain .vhd under the run directory and each parent a .vhd. Throws on anything else. */
+export function checkDisks(disks, { uefi, runDir }) {
+  if (!Array.isArray(disks)) throw new Error("defineType1: disks must be a list");
+  if (!disks.length) return;
+  if (uefi) throw new Error("defineType1: model-volume disks attach on the linux-direct boot form only (a uefi-medium definition pins exactly one boot entry)");
+  if (disks.length > 8) throw new Error("defineType1: at most 8 model-volume disks");
+  for (const k of disks) {
+    checkRunDisk(k?.child, runDir);
+    const parent = String(k?.parent || "");
+    if (!/^[A-Za-z]:\\[^'\r\n]+\.vhd$/i.test(parent) || path.win32.resolve(parent).toLowerCase() === path.win32.resolve(String(k.child)).toLowerCase())
+      throw new Error(`defineType1: a model volume's parent must be an absolute .vhd path (got ${JSON.stringify(parent)})`);
+  }
+}
+/** a per-run model-volume disk: a plain .vhd file directly in the run directory */
+function checkRunDisk(child, runDir) {
+  const c = String(child || "");
+  if (!runDir) throw new Error("model-volume disks need a run directory");
+  const dir = path.win32.resolve(String(runDir)).toLowerCase();
+  if (!/^[A-Za-z0-9._-]+\.vhd$/i.test(path.win32.basename(c)) || /['\r\n]/.test(c) || path.win32.dirname(path.win32.resolve(c)).toLowerCase() !== dir)
+    throw new Error(`a model-volume disk must be a .vhd directly in the run directory (got ${JSON.stringify(c)})`);
+}
 
 function parse(out) {
   const t = String(out ?? "").trim();
@@ -769,6 +917,8 @@ const VTPM_NOTE = "Windows makes a vTPM for a VBS VM and the guest-state key pro
   + "PATH READS ITS PCRs: its presence is not attestation and must never be reported as any.";
 
 export class WmiHyperVLauncher {
+  #desktopPlatform = null;
+  get desktopPlatform() { return this.#desktopPlatform; }
   /**
    * @param run  async (script) => { code, stdout, stderr }   injected; nothing here spawns anything
    * @param imagePath / imageSha256  the IGVM the worker loads, and the hash it must have, checked on the host
@@ -785,8 +935,9 @@ export class WmiHyperVLauncher {
   constructor({ run, imagePath, imageSha256, boot = null, medium = null, mediumSha256 = null,
                 guestStateMaster = null, guestStateMasterSha256 = null, guestStateRunDir = null, guestStateArchiveDir = null,
                 hypervModule = null, hypervModuleSha256 = HYPERV_MODULE_SHA256, hypervUtilitiesSha256 = null,
-                prefix = "enclave-app-", pipeFor = null, serve = null, startTransport = null,
-                startEgress = null, egressService = null }) {
+                prefix = DEFAULT_VM_PREFIX, pipeFor = null, serve = null, startTransport = null,
+                startEgress = null, egressService = null, startPackage = null, packageService = null,
+                startCustody = null, custodyService = null, custodyImageSha256 = null, imageRole = "legacy", desktopPlatform = null }) {
     if (typeof run !== "function") throw new Error("a PowerShell runner must be injected");
     // THE BOOT FORM IS STATED. Inferring it from whether a medium happens to be set would let a
     // missing variable silently turn a medium boot into a linux-direct one, and the identity with it.
@@ -817,6 +968,8 @@ export class WmiHyperVLauncher {
     // A STABLE prefix, not one keyed to a pid: a restarted manager must still recognise, and be
     // able to reconcile, the VMs its predecessor left behind.
     this.prefix = prefix;
+    // its ownership marker follows its prefix (markerFor): production's for the default prefix, its own otherwise
+    this.marker = markerFor(prefix);
     // The names THIS launcher created. Cleanup and reconciliation work from this, not from a
     // prefix match, so a duplicate name or a neighbour sharing the prefix is never removed by us.
     this.created = new Set();
@@ -824,6 +977,9 @@ export class WmiHyperVLauncher {
     // THE APP AND ITS RELAY (wmiserve-run.mjs, enclave-5d), opt-in: { exe, bundleDir, portFor?, readyTimeoutMs?, run? }.
     // Without it this launcher boots the VM and stops there, exactly as before (no relay, and the domain stays starting).
     this.serve = serve;
+    // The hook receives this spawn's verified mapping as well as its VM id;
+    // native transports bind the worker claim to the app/profile/allocation.
+    if (startTransport !== null && typeof startTransport !== "function") throw new Error("startTransport must be a function");
     this.startTransport = startTransport;
     // OUTBOUND HTTPS (egress.mjs), opt-in: (vmId, deploymentId, mapping) -> { exited, stop } | null, run after the VM
     // starts and before the app is served; null when this mapping gets none. egressService is the hv_sock service GUID
@@ -832,6 +988,42 @@ export class WmiHyperVLauncher {
     if (startEgress !== null && typeof startEgress !== "function") throw new Error("startEgress must be a function");
     this.startEgress = startEgress;
     this.egressService = egressService ? String(egressService).toLowerCase() : null;
+    // THE OWNER-COMMITTED STARTUP PACKAGE (package-transport.mjs), opt-in: (vmId, deploymentId, bytes) -> { exited, stop },
+    // run with egress for a spawn that carries one; packageService is its hv_sock service GUID (vsock 9446), READ by
+    // preflight like egress's. Without the hook a spawn carrying a package is refused, never started without it.
+    if (packageService !== null && !GUID.test(String(packageService))) throw new Error("packageService must be a service GUID");
+    if (startPackage !== null && typeof startPackage !== "function") throw new Error("startPackage must be a function");
+    this.startPackage = startPackage;
+    this.packageService = packageService ? String(packageService).toLowerCase() : null;
+    // DIRECT CUSTODY (custody-transport.mjs), opt-in: (vmId, deploymentId, { vault }) -> { exited, stop, pending, answer },
+    // run for a spawn whose package keeps its secrets in custody-v2, and ONLY on the image the operator stated is the
+    // custody build (custodyImageSha256 must be this launcher's own pinned image). custodyService is its hv_sock service
+    // GUID (vsock 9445), READ by preflight like the others. Without all three such a spawn is refused before anything runs.
+    if (custodyService !== null && !GUID.test(String(custodyService))) throw new Error("custodyService must be a service GUID");
+    if (startCustody !== null && typeof startCustody !== "function") throw new Error("startCustody must be a function");
+    if (custodyImageSha256 !== null && !SHA256.test(String(custodyImageSha256))) throw new Error("custodyImageSha256 must be a sha256");
+    this.startCustody = startCustody;
+    this.custodyService = custodyService ? String(custodyService).toLowerCase() : null;
+    this.custodyImageSha256 = custodyImageSha256 ? String(custodyImageSha256) : null;
+    // WHICH PINNED IMAGE THIS LAUNCHER STARTS (F3): legacy, shield-direct, gpu or the separately configured desktop.
+    // Shield-direct accepts owner-committed packages; desktop requires its complete native platform. The role is in the VM's
+    // Notes, and a launcher never starts a spawn of the other kind.
+    if (!IMAGE_ROLES.includes(imageRole)) throw new Error(`imageRole must be one of ${IMAGE_ROLES.join(", ")}`);
+    if (imageRole !== "shield-direct" && (startPackage || startCustody))
+      throw new Error("only the Shield-direct image carries owner-committed packages or custody: this launcher's image is " + imageRole);
+    this.imageRole = imageRole;
+    if (imageRole === "desktop") {
+      this.#desktopPlatform = validateDesktopPlatform(desktopPlatform);
+      if (boot !== BOOT_LINUX_DIRECT || this.imageSha256 !== this.#desktopPlatform.igvmSha256)
+        throw new Error("native desktop requires its pinned linux-direct IGVM");
+      if (!startTransport || !startEgress || !egressService || !serve?.exe || !serve?.bundleDir)
+        throw new Error("native desktop requires worker transport, egress and app delivery");
+      if (!guestStateMasterSha256 || !hypervUtilitiesSha256)
+        throw new Error("native desktop requires pinned guest-state master and Hyper-V utilities");
+      this.serve = Object.freeze({ ...serve });
+    } else if (desktopPlatform !== null) {
+      throw new Error("a native desktop platform belongs only to the desktop image role");
+    }
   }
 
   async #ps(script) {
@@ -873,7 +1065,8 @@ export class WmiHyperVLauncher {
   /** Every prerequisite, each answered rather than assumed. Never throws: it reports. */
   async preflight() {
     let got;
-    try { got = await this.#ps(CMD.preflight({ hypervModule: this.hypervModule, guestStateMaster: this.guestStateMaster, egressService: this.egressService })); }
+    try { got = await this.#ps(CMD.preflight({ hypervModule: this.hypervModule, guestStateMaster: this.guestStateMaster, egressService: this.egressService,
+                                               packageService: this.packageService, custodyService: this.custodyService })); }
     catch (e) { return { ok: false, checks: [{ name: "preflight", ok: false, detail: e.message }] }; }
     const fo = got.firmwareOptIn || {};
     const optInOk = fo.present === true && Number(fo.value) === 1 && fo.kind === "DWord";
@@ -909,7 +1102,20 @@ export class WmiHyperVLauncher {
       ...(this.egressService ? [{ name: EGRESS_CHECK, ok: got.egressService === true,
         detail: `${GCS_KEY}\\${this.egressService} (vsock port ${EGRESS_VSOCK_PORT}) is ${got.egressService === true ? "registered" : "NOT registered"}`
               + ": the egress bridge binds this partition's service there. Reported only; this manager never writes the registry." }] : []),
+      ...(this.packageService ? [{ name: PACKAGE_CHECK, ok: got.packageService === true,
+        detail: `${GCS_KEY}\\${this.packageService} (vsock port 9446) is ${got.packageService === true ? "registered" : "NOT registered"}`
+              + ": the startup-package bridge binds this partition's service there. Reported only; this manager never writes the registry." }] : []),
+      ...(this.custodyService ? [{ name: CUSTODY_CHECK, ok: got.custodyService === true,
+        detail: `${GCS_KEY}\\${this.custodyService} (vsock port 9445) is ${got.custodyService === true ? "registered" : "NOT registered"}`
+              + ": the custody-authorization bridge binds this partition's service there. Reported only; registering it is an explicit activation step, and this manager never writes the registry." }] : []),
     ];
+    if (this.imageRole === "desktop") {
+      let registered = false;
+      try { registered = (await this.#ps(`@{registered=[bool](Test-Path -LiteralPath ${q(GCS_KEY + "\\" + DESKTOP_WORKER_SERVICE_GUID)})} | ConvertTo-Json -Compress`)).registered === true; }
+      catch { /* unavailable is not registered */ }
+      checks.push({ name: "native desktop worker service (vsock 19595) registered", ok: registered,
+        detail: "read-only registration check; this launcher never writes the registry" });
+    }
     return { ok: checks.every((c) => c.ok), checks };
   }
 
@@ -942,7 +1148,42 @@ export class WmiHyperVLauncher {
    * the define script removes it itself if it fails before returning - both, because a leak here is a
    * VM nobody owns.
    */
-  async start(mapping, { instanceId, identity = null, guestReadySec = 25, appMemoryMiB = null } = {}) {
+  async start(mapping, { instanceId, identity = null, guestReadySec = 25, appMemoryMiB = null, bootstrap = null, custody = null, volumes = [] } = {}) {
+    // Snapshot and rederive before the first await. A caller cannot change the
+    // bundle, measured record or allocation while preflight is in progress.
+    const native = this.imageRole === "desktop";
+    let nativeMemory = null;
+    if (native) {
+      if (!this.#desktopPlatform || this.boot !== BOOT_LINUX_DIRECT || this.imageSha256 !== this.#desktopPlatform.igvmSha256)
+        throw new Error("native desktop platform differs from the launcher's image");
+      if (volumes?.length) throw new Error("native desktop does not admit legacy model-volume disks");
+      if (bootstrap != null || custody != null)
+        throw new Error("native desktop does not use the Shield-direct package or custody path");
+      mapping = validateDesktopMapping(mapping, this.#desktopPlatform);
+      if (!identity || identity.name !== mapping.record.secretDeployment || identity.appId !== mapping.appId || identity.instanceId !== instanceId
+          || typeof identity.id !== "string" || !identity.id)
+        throw new Error("native desktop deployment identity differs from its measured mapping");
+      identity = Object.freeze({ id: identity.id, name: identity.name, instanceId, appId: mapping.appId });
+      const appMiB = appMemoryMiB ?? mapping.record.policy.memMiB;
+      if (appMiB < mapping.record.policy.memMiB) throw new Error("allocated app RAM is below its catalog minimum");
+      nativeMemory = { appMiB, vmMiB: desktopVmMemMiB(appMiB) };
+    } else if (mapping?.record?.desktop != null) {
+      throw new Error("native desktop requires its dedicated qualified image; this WMI launcher does not support desktop admission");
+    }
+    if (this.imageRole === "shield-direct" && !bootstrap)
+      throw new Error("the Shield-direct image starts only owner-committed packages: its front ends a domain that receives none");
+    if (this.imageRole !== "shield-direct" && (bootstrap || custody))
+      throw new Error(`an owner-committed package starts only on the Shield-direct image, and this launcher's image is ${this.imageRole}`);
+    if (bootstrap && (!this.startPackage || !this.startEgress))
+      throw new Error("an owner-committed startup package needs this launcher's package transport and egress (the guest verifies the package against its own RPC quorum through it)");
+    if (custody) {
+      if (!bootstrap) throw new Error("a custody channel is only for an owner-committed startup package");
+      if (!this.startCustody) throw new Error("a custody-v2 package needs this launcher's custody transport (vsock 9445), and it has none");
+      if (!this.custodyImageSha256 || this.custodyImageSha256 !== this.imageSha256)
+        throw new Error("a custody-v2 package starts only on the image the operator stated is the custody build, and this launcher's pinned image is not it");
+      if (!identity || String(identity.name || "") !== String(custody.deployment || ""))
+        throw new Error("the custody channel names another deployment than this partition's");
+    }
     if (!instanceId || !/^[A-Za-z0-9._-]{4,64}$/.test(String(instanceId)))
       throw new Error("a unique instanceId is required: naming a domain by its AppID alone collides when the same app is deployed twice");
     const miss = this.unconfigured();
@@ -971,17 +1212,20 @@ export class WmiHyperVLauncher {
     if (this.boot === BOOT_UEFI) await this.verifyMedium();
     const name = `${this.prefix}${instanceId}`;
     const pipe = this.pipeFor(name);
-    const notes = identity ? notesFor({ ...identity, instanceId }) : OWNER_MARKER;
+    const notes = identity ? notesFor({ ...identity, instanceId, imageRole: this.imageRole }, { marker: this.marker }) : this.marker;
     const guestStateRun = this.guestStateRunFor(name);
     if (!guestStateRun) throw new Error(`no per-run guest-state path can be made for ${name}`);
+    // MODEL VOLUMES (the manager admitted them from the measured config): each store VHD under a per-run child
+    const disks = (volumes || []).map((v) => ({ parent: String(v.vhd || ""), child: path.win32.join(this.guestStateRunDir, `${name}.mv-${v.name}.vhd`) }));
+    checkDisks(disks, { uefi: this.boot === BOOT_UEFI, runDir: this.guestStateRunDir });
     const vcpus = Math.max(1, Math.floor(mapping.record.policy.vcpus));
     const appMiB = appMemoryMiB ?? mapping.record.policy.memMiB;
     if (!Number.isSafeInteger(appMiB) || appMiB < mapping.record.policy.memMiB)
       throw new Error("allocated app RAM is below its catalog minimum");
-    const memMiB = type1VmMemMiB(appMiB, {name:identity?.name, appId:mapping.appId});
-    let created = null, served = null, transport = null, egress = null;
+    const memMiB = nativeMemory?.vmMiB ?? type1VmMemMiB(appMiB, {name:identity?.name, appId:mapping.appId});
+    let created = null, served = null, transport = null, egress = null, pkg = null, cust = null, desktopMedia = null;
     try {
-      created = await this.#ps(CMD.defineType1({
+      created = await this.#ps(CMD.defineType1({ marker: this.marker,
         name, memMiB, vcpus, notes, pipe, boot: this.boot,
         firmware: this.imagePath, firmwareSha256: this.imageSha256,
         hypervModule: this.hypervModule, hypervModuleSha256: this.hypervModuleSha256, hypervUtilitiesSha256: this.hypervUtilitiesSha256,
@@ -992,9 +1236,21 @@ export class WmiHyperVLauncher {
       checkDefinition(created, { notes, pipe, boot: this.boot, vcpus, memMiB, firmware: this.imagePath, firmwareSha256: this.imageSha256,
                                  hypervModuleSha256: this.hypervModuleSha256, hypervUtilitiesSha256: this.hypervUtilitiesSha256,
                                  guestStateRun, guestStateMaster: this.guestStateMaster, mediumSha256: this.mediumSha256 });
+      if (disks.length) {
+        const att = await this.#ps(CMD.attachModelDisks({ vmId: created.id, disks, runDir: this.guestStateRunDir, marker: this.marker }));
+        const got = (Array.isArray(att?.diskPaths) ? att.diskPaths : []).map((x) => String(x).toLowerCase()).sort();
+        if (JSON.stringify(got) !== JSON.stringify(disks.map((k) => k.child.toLowerCase()).sort()))
+          throw new Error(`the attached disks read back as ${JSON.stringify(att?.diskPaths ?? null)}, not this run's model volumes`);
+      }
+
+      if (native) {
+        if (created.tpmEnabled !== true) throw new Error("native desktop requires its vTPM");
+        const args = { vmId: created.id, name, notes, media: this.#desktopPlatform.media };
+        desktopMedia = checkDesktopMedia(await this.#ps(desktopMediaScript(args)), args);
+      }
 
       // ONE process starts the VM and reads its console, the reader attaching before the guest can speak (startAndRead)
-      const started = await this.#ps(CMD.startAndRead({ vmId: created.id, pipe, seconds: guestReadySec, until: GUEST_READY_LINE }));
+      const started = await this.#ps(CMD.startAndRead({ vmId: created.id, pipe, seconds: guestReadySec, until: GUEST_READY_LINE, marker: this.marker }));
       if (started.state !== "Running")
         throw new Error(`the VM is ${JSON.stringify(started.state ?? null)} after Start-VM, not Running`);
 
@@ -1006,6 +1262,7 @@ export class WmiHyperVLauncher {
       const con = started.console || {};
       if (con.connected !== true)
         throw new Error(`could not attach to the guest console at ${pipe}: ${con.note || "no connection"}`);
+      if (native && con.sawUntil !== true) throw new Error("native desktop monitor did not report ready");
       const booted = Number(con.bytes) > 0;
       if (!booted)
         throw new Error(`the VM is Running but the guest produced no output on ${pipe} within ${guestReadySec}s: a silent partition is not a booted one`);
@@ -1018,21 +1275,45 @@ export class WmiHyperVLauncher {
       const uefi = this.boot === BOOT_UEFI;
       // THE APP AND ITS RELAY, when this launcher was given wmiserve to run (enclave-5d, wmiserve-run.mjs): the bundle
       // into the guest over hv_sock 9000, the report service for THIS VM, and a loopback TCP relay to the domain.
-      if (this.startTransport) transport = await this.startTransport(created.id);
+      if (this.startTransport) transport = await this.startTransport(created.id, mapping);
+      let nativeTransportEnded = false;
+      if (native) {
+        if (typeof transport?.stop !== "function" || typeof transport?.exited?.then !== "function")
+          throw new Error("native desktop worker transport did not start");
+        transport.exited.then(() => { nativeTransportEnded = true; }, () => { nativeTransportEnded = true; });
+      }
       // OUTBOUND HTTPS (egress.mjs): the partition's bridge and egress endpoint, now that the VM runs and before its app is
       // served; the hook decides which mappings get one (main.mjs: secret deployments) and answers null for the rest
-      if (this.startEgress) egress = (await this.startEgress(created.id, identity?.name ?? null, mapping)) || null;
+      if (this.startEgress) egress = (await this.startEgress(created.id, identity?.name ?? null, mapping, { bootstrap: !!bootstrap })) || null;
+      if (native) {
+        if (typeof egress?.stop !== "function" || typeof egress?.exited?.then !== "function")
+          throw new Error("native desktop egress transport did not start");
+        egress.exited.then(() => { nativeTransportEnded = true; }, () => { nativeTransportEnded = true; });
+        await Promise.resolve();
+        if (nativeTransportEnded) throw new Error("native desktop transport exited before app delivery");
+      }
+      // ...and the exact package bytes the node verified, for the Shield-direct front to verify again itself (vsock 9446)
+      if (bootstrap) {
+        if (!egress) throw new Error("an owner-committed startup package needs egress, and the egress hook started none");
+        // the custody channel (vsock 9445) is up BEFORE the package that tells the guest to ask on it
+        if (custody) cust = await this.startCustody(created.id, identity.name, { vault: custody.vault });
+        pkg = await this.startPackage(created.id, identity?.name ?? null, bootstrap);
+      }
       if (this.serve) served = await this.#serveApp({ mapping, instanceId, vmId: created.id, uefi, created, vcpus, memMiB, appMemoryMiB, certName: certNameFor(identity && identity.name) });
+      if (native && (nativeTransportEnded || !served)) throw new Error("native desktop transport or app delivery failed");
       const guestIdentity = uefi
         ? uefiImageIdentity({ mediumSha256: created.mediumSha256, mediumPath: created.mediumPath ?? this.medium })
         : linuxDirectIdentity({ igvmSha256: created.firmwareSha256, igvmPath: this.imagePath });
-      return { transport, egress, instanceId, name, vmId: created.id, pipe, state: started.state,
+      return { imageRole: this.imageRole, transport, egress, package: pkg, custody: cust, instanceId, name, vmId: created.id, pipe, state: started.state,
+               ...(disks.length ? { volumes: (volumes || []).map((v) => v.name), disks: disks.map((k) => k.child) } : {}),
                boot: this.boot, isolationType: 1,
                image: uefi ? guestIdentity.guestImageSha256 : guestIdentity.igvmSha256,
                guestIdentity, firmware, boundary: boundaryFor(this.boot), appId: mapping.appId,
                vtpm: { enabled: created.tpmEnabled === true, pcrsRead: false, note: VTPM_NOTE },
+               ...(native ? { desktop: { profileSha256: this.#desktopPlatform.profileSha256, runtimeId: this.#desktopPlatform.runtimeId,
+                 gpuMilli: mapping.record.desktop.gpuMilli }, media: desktopMedia } : {}),
                memory: { policyMiB: mapping.record.policy.memMiB, appMiB, vmMiB: memMiB,
-                         rule: memMiB === 512 ? "qualified pinned readiness witness: 512 MiB" : `align2(max(${TYPE1_VM_MEM_FLOOR_MIB}, app + ${TYPE1_VM_MEM_OVERHEAD_MIB}))` },
+                         rule: native ? DESKTOP_MEMORY_RULE : memMiB === 512 ? "qualified pinned readiness witness: 512 MiB" : `align2(max(${TYPE1_VM_MEM_FLOOR_MIB}, app + ${TYPE1_VM_MEM_OVERHEAD_MIB}))` },
                definition: { recipe: "petri New-CustomVM, GuestStateIsolationType 1 (uefi-dev-boot.ps1 e0de58cf)",
                              hypervModuleSha256: created.hypervModuleSha256, hypervUtilitiesSha256: created.hypervUtilitiesSha256 ?? null,
                              featureSet: created.featureSet, vtl2Mode: created.vtl2Mode, vbsOptOut: created.vbsOptOut,
@@ -1049,23 +1330,37 @@ export class WmiHyperVLauncher {
                // report's partition.vmId against it, so a report from another partition's launcher never reads as this one
                ...(served ? { tcpPort: served.tcpPort, launcherKey: served.launcherKey, launcherVmId: served.vm, domainId: served.domainId,
                               guestPort: served.guestPort, boot: served.boot, relayNote: served.note, wmiserve: served } : {}),
-               stop: async () => await this.stop({ name, vmId: created.id, wmiserve: served, transport, egress }) };
+               stop: async () => await this.stop({ name, vmId: created.id, wmiserve: served, transport, egress, package: pkg, custody: cust, disks: disks.map((k) => k.child) }) };
     } catch (e) {
-      if (transport) await transport.stop();
-      if (egress) await egress.stop().catch(() => {});
+      // Keep the private cleanup capabilities even when start never returns a
+      // successful handle. A failed carrier stop cannot be retried from a VM
+      // survey alone, and absence of the VM does not prove that carrier closed.
+      // Do not enumerate this on errors: it is process-local state, not JSON.
+      const failedVmId = created && GUID.test(String(created.id || "")) ? String(created.id) : null;
+      if (failedVmId) Object.defineProperty(e, "launchHandle", { value: {
+        name, vmId: failedVmId, transport, egress, package: pkg, custody: cust, wmiserve: served,
+      } });
+      // A carrier failure must not strand the VM or replace the launch error.
+      if (transport) {
+        try { await transport.stop(); }
+        catch (x) { e.transportCleanup = { closed: false, error: String(x?.message ?? x) }; }
+      }
+      if (egress) { try { await egress.stop(); } catch { /* VM cleanup must still run. */ } }
+      if (cust) { try { await cust.stop(); } catch { /* VM cleanup must still run. */ } }
+      if (pkg) { try { await pkg.stop(); } catch { /* VM cleanup must still run. */ } }
       if (served) { e.relay = await this.#closeServed(served); }       // before its VM goes
       const vmId = created && GUID.test(String(created.id || "")) ? String(created.id) : null;
       let swept;
       if (vmId) {
         // BY THE ID THIS ATTEMPT DEFINED. A name is not unique in Hyper-V; the Id is the VM we made.
         // removeById still checks the ownership marker on it - which the define script put on first.
-        swept = await this.#ps(CMD.removeById({ vmId }))
+        swept = await this.#ps(CMD.removeById({ vmId, marker: this.marker }))
           .catch((x) => ({ found: null, removed: false, error: x.message }));
       } else {
         // No Id came back, so the define script has already removed what it made (or never made
         // anything). EXACT name, never a prefix, and the ownership marker unless THIS attempt made it.
         const mine = this.created.has(name);
-        swept = await this.#ps(CMD.removeExact({ name, requireMarker: !mine }))
+        swept = await this.#ps(CMD.removeExact({ name, requireMarker: !mine, marker: this.marker }))
           .catch((x) => ({ found: null, removed: false, error: x.message }));
       }
       this.created.delete(name);
@@ -1080,6 +1375,11 @@ export class WmiHyperVLauncher {
         const g = await this.#retire({ vmId, name }).catch((x) => ({ retired: false, error: x.message }));
         e.guestState = g;
         if (g && g.error) e.message += ` (its guest-state copy was NOT retired: ${g.error})`;
+        if (disks.length) {
+          e.disks = await this.#ps(CMD.removeRunDisks({ paths: disks.map((k) => k.child), runDir: this.guestStateRunDir, vmId, name }))
+            .catch((x) => ({ removed: [], failed: [{ error: x.message }] }));
+          if (e.disks.failed?.length) e.message += ` (its model-volume disks were NOT all removed: ${JSON.stringify(e.disks.failed).slice(0, 200)})`;
+        }
       }
       throw e;
     }
@@ -1101,16 +1401,24 @@ export class WmiHyperVLauncher {
   }
   /** Close a relay and remove its bundle file; the outcome, never a throw. */
   async #closeServed(run) {
-    const closed = await run.stop().catch((x) => ({ closed: false, how: `stop failed: ${x.message}` }));
+    let closed;
+    try { closed = await run.stop(); }
+    catch (x) { closed = { closed: false, how: `stop failed: ${x.message}` }; }
     try { if (run.bundleFile) fs.rmSync(run.bundleFile, { force: true }); } catch (x) { closed.bundle = `not removed: ${x.message}`; }
     return closed;
   }
 
   /** Stop, and SAY when it did not: "ok" for a VM that is still running is how one gets orphaned. */
   async stop(handle) {
-    if (handle?.transport) await handle.transport.stop();
+    let transportError = null;
+    if (handle?.transport) {
+      try { await handle.transport.stop(); }
+      catch (x) { transportError = new Error(`worker transport cleanup failed: ${String(x?.message ?? x)}`); transportError.code = "stop_failed"; }
+    }
     // its egress path has nothing to carry once the domain stops; it ends before the VM goes, and never blocks that
-    if (handle?.egress) await handle.egress.stop().catch(() => {});
+    if (handle?.egress) { try { await handle.egress.stop(); } catch { /* VM cleanup must still run. */ } }
+    if (handle?.custody) { try { await handle.custody.stop(); } catch { /* VM cleanup must still run. */ } }
+    if (handle?.package) { try { await handle.package.stop(); } catch { /* VM cleanup must still run. */ } }
     // The relay and report service first (wmiserve closes on a stdin line), then the VM. Its outcome is REPORTED on the
     // result and never blocks the removal: a relay that will not close is killed, and the VM must go either way.
     const relay = handle && handle.wmiserve ? await this.#closeServed(handle.wmiserve) : null;
@@ -1118,9 +1426,9 @@ export class WmiHyperVLauncher {
       // BY ID, and removed, not just turned off: a stopped VM that keeps its identity notes would be
       // recovered as live by the next manager, and a VM left Off is one nobody owns (63's P2).
       if (!GUID.test(String(handle.vmId))) throw Object.assign(new Error(`not a VM Id: ${handle.vmId}`), { code: "stop_failed" });
-      const r = await this.#ps(CMD.removeById({ vmId: handle.vmId }));
-      if (r && r.found === true && r.removed !== true) {
-        const e = new Error(`could not stop and remove ${handle.name || handle.vmId}: ${r.error || "unknown"}`);
+      const r = await this.#ps(CMD.removeById({ vmId: handle.vmId, marker: this.marker }));
+      if (!(r?.found === false && r.removed === false) && !(r?.found === true && r.removed === true)) {
+        const e = new Error(`could not stop and remove ${handle.name || handle.vmId}: ${r?.error || "removal was not confirmed"}`);
         e.code = "stop_failed"; throw e;
       }
       if (handle.name) this.created.delete(handle.name);
@@ -1130,9 +1438,20 @@ export class WmiHyperVLauncher {
       // result, not thrown - the domain has stopped, and saying otherwise would be the lie in reverse.
       if (this.#retires() && handle.name)
         out.guestState = await this.#retire({ vmId: handle.vmId, name: handle.name }).catch((x) => ({ retired: false, error: x.message }));
+      // ...and its model-volume disks (the per-run children; the store's VHDs are never touched)
+      // (a handle recovered after a restart carries no list: its children are swept by the VM's name)
+      if (handle.disks?.length || (handle.recovered === true && handle.name && this.guestStateRunDir))
+        out.disks = await this.#ps(CMD.removeRunDisks({ paths: handle.disks?.length ? handle.disks : null, runDir: this.guestStateRunDir, vmId: handle.vmId, name: handle.name ?? null }))
+          .catch((x) => ({ removed: [], failed: [{ error: x.message }] }));
+      // Removal still happens if the carrier fails. Keep the caller's
+      // reservation until it can also confirm carrier cleanup on a retry.
+      if (transportError) { transportError.cleanup = out; throw transportError; }
       return out;
     }
+    if (transportError) throw transportError;
     if (!handle || !handle.name) return { stopped: false, reason: "no handle" };
+    // by NAME only for a name in THIS instance's scope (a VM-id-less handle): never another instance's VM
+    if (!String(handle.name).startsWith(this.prefix)) throw Object.assign(new Error(`${handle.name} is not in this instance's scope (${this.prefix})`), { code: "stop_failed" });
     const r = await this.#ps(CMD.stop({ name: handle.name }));
     if (r && r.ok === false) {
       const e = new Error(`could not stop ${handle.name}: ${r.error || "unknown"}`);
@@ -1144,7 +1463,7 @@ export class WmiHyperVLauncher {
   get boundary() { return this.boot ? boundaryFor(this.boot) : null; }
   async state(name) { return await this.#ps(CMD.state({ name })); }
   /** What this prefix owns right now, including anything a previous run left behind. */
-  async survey() { return await this.#ps(CMD.survey({ prefix: this.prefix })); }
+  async survey() { return await this.#ps(CMD.survey({ prefix: this.prefix, marker: this.marker })); }
   /**
    * Remove every VM under this prefix and SAY what could not be removed. It throws when anything
    * was left behind, because a teardown that reports success while an orphan survives is how a
@@ -1156,10 +1475,10 @@ export class WmiHyperVLauncher {
     // - a VM that died between its definition and its Notes - is closed by the exact names we recorded.
     const gone = [];
     for (const name of [...this.created]) {
-      const one = await this.#ps(CMD.removeExact({ name, requireMarker: false })).catch(() => null);
+      const one = await this.#ps(CMD.removeExact({ name, requireMarker: false, marker: this.marker })).catch(() => null);
       if (one && one.removed) { this.created.delete(name); gone.push(name); }
     }
-    const r = await this.#ps(CMD.teardown({ prefix: this.prefix, requireMarker }));
+    const r = await this.#ps(CMD.teardown({ prefix: this.prefix, requireMarker, marker: this.marker }));
     if (Array.isArray(r.removed)) gone.push(...r.removed);
     // Each removed VM's guest-state copy, now that the VM is gone. Reported, never thrown: the VMs are gone.
     if (this.#retires() && gone.length) {

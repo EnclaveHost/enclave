@@ -1,0 +1,22 @@
+{
+  "stageTests": 58,
+  "portableTests": 58,
+  "failures": 0,
+  "skips": 0,
+  "actualGeneratedQueueEnvelopeTests": 7,
+  "priorQueueRegressionTests": 21,
+  "policyTests": 30,
+  "productionActivated": false,
+  "realChainSigning": false,
+  "liveReadOnlyFeeAgreement": {
+    "block": 53205422,
+    "providers": 2
+  },
+  "remaining": [
+    "successor host pending-intent composition",
+    "native-P256 successor HTTP integration",
+    "approved activation manifest and owner grant",
+    "production canary"
+  ],
+  "packageNote": "First prepare refused ABI file hash; root compared all noncomment lines equal. Only metadata source paths/artifact hashes in generated comments differ. Portable pin updated; generated policy/route/sessions bytes match stage exactly."
+}

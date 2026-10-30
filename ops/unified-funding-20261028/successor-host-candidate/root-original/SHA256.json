@@ -1,0 +1,6 @@
+{
+  "prepare.py": "6cbd12294d210d1f04e57d35f14912f1425eac68a99c4f85599ad704dd623ce8",
+  "REVIEW.md": "651c3a5facbb9a7b26a36782a98677165e0516903d841cafcd32fd52982c0145",
+  "test/intent.test.mjs": "ade7e2a2c53f3b6f60172af5f8e6414a8e888c8cad65152ff7560453bddd91b3",
+  "test/legacy-host.test.mjs": "6500425d3cdd1d384c0cc7b19a03e5126a529e149a71891377b1d5fd2a351495"
+}

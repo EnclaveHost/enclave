@@ -1,0 +1,54 @@
+--- authored-proposal
++++ root-reviewed-native-subset
+@@ -30,11 +30,11 @@
+ HC=$W/unified-funding-20261028/lifecycle-schema3-chain-composition-r1
+ HCOMP=$W/unified-funding-20261028/lifecycle-schema3-host-composition-r1
+ R3R=$W/unified-funding-20261028/host-registry-repair-root-review-r3
+-STAGE=/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-authority-permit-r1-20261029; ME2=$STAGE/candidate
++STAGE=/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-authority-permit-r1-20261029; ME2=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-permit-root-review-r1/author-snapshot
+ REGR=/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029
+ REGSRC=$REGR/candidate/contracts/EnclaveHostLifecycleRegistry.sol
+ REGART=$REGR/validation-result-r2/artifacts/EnclaveHostLifecycleRegistry.sol/EnclaveHostLifecycleRegistry.json
+-OUT=$ME2/run-permit-r1; PT=""; rc=0
++OUT=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-permit-root-review-r1/native-r1; PT=""; rc=0
+ die() { echo "## SETUP: $*"; echo "SETUP-FAIL $*" > "$OUT/RESULT" 2>/dev/null; echo "## host-authority-permit-r1 rc=9"; exit 9; }
+ SIDS=""
+ reap() {
+@@ -88,6 +88,8 @@
+ pin "$CMP/bundle.json" bed9c19652edce8ca6f337f691a9909c15763e6755ff237139b07f4d84f3260e
+ pin $REGSRC 68310acc3bda76be0c7bf06ad5149ac1b354e3687f8268223bc8589457c071a8
+ pin $REGART e8690734c4fae1f1adfa3525061d5542b314704c997feec2daa09fdecd49f23a
++pin $NM/solc/package.json d168afdf78c7e12f14d827c16d2b26a9f05c546c4a6dd63b0b757be5053fe4fe
++pin $NM/solc/soljson.js fa4345d648d9a09c6601ffc978e78e9f5267b54e6d91e8f8c473f44c0c16323b
+ # ---- owned tree: identical composition to the root r3 seeded harness ----
+ PT=$(mktemp -d /tmp/hapr1.XXXXXX) || die "mktemp"; T=$PT/r6
+ export ANVIL
+@@ -175,19 +177,13 @@
+ sys.exit(0 if ok else 1)
+ PY
+ }
+-python3 $R3/precompile-test-doubles.py "$T" "$OUT" || die "exact TEST doubles precompile (r3 script, unchanged)"
+-python3 $R3/precompile-test-doubles.py "$ONE" "$OUT/one" || die "exact TEST doubles precompile (one-stage copy)"
+-suite permit-protocol 7 120 test/host-authority-permit.test.mjs
++# ROOT reviewed diagnostic subset only: actual canonical registry16 and final-send adapter7. Other suites NOT run here.
++python3 $R3/precompile-test-doubles.py "$T" "$OUT" || die "exact TEST doubles precompile"
++mkdir "$OUT/one" || die "one-stage output directory"
++python3 $R3/precompile-test-doubles.py "$ONE" "$OUT/one" || die "exact one-stage TEST doubles precompile"
++SDIR=$ONE; suite host-registry 16 420 test/root-host-registry-profile.test.mjs; SDIR=$T
+ suite permit-adapter 7 420 test/root-host-authority-adapter.test.mjs
+-SDIR=$ONE; suite host-registry 16 420 test/root-host-registry-profile.test.mjs; SDIR=$T
+-SDIR=$R3T; suite root-r3 104 240 --import ./test/helpers/baseline.mjs $(cd "$R3T" && ls test/*.test.mjs); SDIR=$T
+-suite schema3-composition 3 120 test/root-schema3-composition.test.mjs
+-suite root-schema3 6 120 test/root-schema3-adapter.test.mjs
+-suite schema3-pure 3 40 test/schema3-pure.test.mjs
+-suite independent-r3 5 90 test/root-independent-adapter.test.mjs
+-suite r5-abi 5 60 test/deployment-chain-adapter-r5-abi.test.mjs
+-suite r5-policy 9 60 test/deployment-chain-adapter-r5-policy.test.mjs
+-suite r5-proof 10 60 test/deployment-chain-adapter-r5-proof.test.mjs
+-cat "$OUT/summary.txt"; { [ $rc = 0 ] && echo "PASS host-authority-permit-r1 175" || echo "FAIL host-authority-permit-r1"; } > "$OUT/RESULT"
+-(cd "$S" && sha256sum -c --quiet SHA256SUMS) || { echo "## FAIL: r6 stage changed during the run"; rc=1; }
+-echo "## outputs $OUT"; echo "## host-authority-permit-r1 rc=$rc"; exit $rc
++cat "$OUT/summary.txt"
++echo "$rc" > "$OUT/tests.rc"
++(cd "$S" && sha256sum -c --quiet SHA256SUMS) || rc=1
++exit "$rc"

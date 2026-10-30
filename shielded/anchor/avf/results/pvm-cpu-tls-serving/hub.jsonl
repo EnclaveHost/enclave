@@ -1,0 +1,37 @@
+{"t":"2026-09-24T05:43:17.541Z","listening":"ws://127.0.0.1:18443/v1/fleet-tunnel","lab":"serving prototype, NOT PRODUCTION"}
+{"t":"2026-09-24T05:43:17.542Z","rawListening":"tcp://127.0.0.1:18445 -> pixel10-pvm-cpu"}
+{"t":"2026-09-24T05:43:35.288Z","hub":"[tunnel] pixel10-pvm-cpu attached via attestation(avf) (1 enclave)"}
+{"t":"2026-09-24T05:43:35.288Z","change":"attach","name":"pixel10-pvm-cpu","row":{"endpoint":"tunnel://pixel10-pvm-cpu","id":"tunnel:pixel10-pvm-cpu","name":"pixel10-pvm-cpu","repo":"EnclaveHost/enclave","lastSeen":1790228615,"tunnel":true,"mode":"avf","publicUrl":"","measurement":"25335c5b7cfaa0d7c00709f1b09439cefe12336ac14f581cccd3b6b6277018ec"}}
+{"t":"2026-09-24T05:43:54.194Z","hub":"[tunnel] pixel10-pvm-cpu abi2 VERIFIED: app 1ad17b45e12aabde… runtime d3370878afa9d5ee…"}
+{"t":"2026-09-24T05:43:54.194Z","change":"abi2","name":"pixel10-pvm-cpu","row":{"endpoint":"tunnel://pixel10-pvm-cpu","id":"tunnel:pixel10-pvm-cpu","name":"pixel10-pvm-cpu","repo":"EnclaveHost/enclave","lastSeen":1790228634,"tunnel":true,"mode":"avf","publicUrl":"","measurement":"25335c5b7cfaa0d7c00709f1b09439cefe12336ac14f581cccd3b6b6277018ec","pvmApp":{"appId":"1ad17b45e12aabdec8ca08538ce1d3a795a7e68c3b87d534b50305d5654ca339","runtimeId":"d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba","transportSpki":"302a300506032b6570032100063ddf62ba6773a3dcdc5e5cfdc73270268991fee8ce1ab335aafa495d1453c1","verifiedAt":1790228634194}}}
+{"t":"2026-09-24T05:44:57.868Z","hub":"[tunnel] pixel10-pvm-cpu pvm-cpu ADMITTED (e2b-q4_0)"}
+{"t":"2026-09-24T05:44:57.868Z","change":"caps","name":"pixel10-pvm-cpu","row":{"endpoint":"tunnel://pixel10-pvm-cpu","id":"tunnel:pixel10-pvm-cpu","name":"pixel10-pvm-cpu","repo":"EnclaveHost/enclave","lastSeen":1790228697,"tunnel":true,"mode":"avf","publicUrl":"","measurement":"25335c5b7cfaa0d7c00709f1b09439cefe12336ac14f581cccd3b6b6277018ec","tier":"pvm-cpu","pvmCpu":{"model":"e2b-q4_0","ctx":4096,"device":"","checkedAt":1790228697867},"pvmApp":{"appId":"1ad17b45e12aabdec8ca08538ce1d3a795a7e68c3b87d534b50305d5654ca339","runtimeId":"d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba","transportSpki":"302a300506032b6570032100063ddf62ba6773a3dcdc5e5cfdc73270268991fee8ce1ab335aafa495d1453c1","verifiedAt":1790228634194}}}
+{"t":"2026-09-24T05:45:01.428Z","raw":"stream opened","name":"pixel10-pvm-cpu"}
+{"t":"2026-09-24T05:45:02.247Z","hub":"[tunnel] pixel10-pvm-cpu raw stream 1 closed (closed by the phone): 1663 bytes in, 1170 out"}
+{"t":"2026-09-24T05:45:02.304Z","raw":"stream opened","name":"pixel10-pvm-cpu"}
+{"t":"2026-09-24T05:45:02.330Z","hub":"[tunnel] pixel10-pvm-cpu raw stream 2 closed (client closed): 1475 bytes in, 608 out"}
+{"t":"2026-09-24T05:45:02.387Z","raw":"stream opened","name":"pixel10-pvm-cpu"}
+{"t":"2026-09-24T05:45:03.409Z","hub":"[tunnel] pixel10-pvm-cpu raw stream 3 closed (closed by the phone): 1663 bytes in, 1169 out"}
+{"t":"2026-09-24T05:45:03.460Z","raw":"stream opened","name":"pixel10-pvm-cpu"}
+{"t":"2026-09-24T05:45:03.631Z","hub":"[tunnel] pixel10-pvm-cpu raw stream 4 closed (closed by the phone): 1663 bytes in, 632 out"}
+{"t":"2026-09-24T05:45:07.816Z","raw":"stream opened","name":"pixel10-pvm-cpu"}
+{"t":"2026-09-24T05:45:07.858Z","hub":"[tunnel] pixel10-pvm-cpu raw stream 5 closed (closed by the phone): 86 bytes in, 7 out"}
+{"t":"2026-09-24T05:45:12.035Z","raw":"stream opened","name":"pixel10-pvm-cpu"}
+{"t":"2026-09-24T05:45:12.823Z","hub":"[tunnel] pixel10-pvm-cpu raw stream 6 closed (closed by the phone): 1663 bytes in, 1170 out"}
+{"t":"2026-09-24T05:46:59.011Z","hub":"[tunnel] pixel10-pvm-cpu detached"}
+{"t":"2026-09-24T05:46:59.011Z","change":"detach","name":"pixel10-pvm-cpu","row":null}
+{"t":"2026-09-24T05:47:20.797Z","hub":"[tunnel] pixel10-pvm-cpu attached via attestation(avf) (1 enclave)"}
+{"t":"2026-09-24T05:47:20.797Z","change":"attach","name":"pixel10-pvm-cpu","row":{"endpoint":"tunnel://pixel10-pvm-cpu","id":"tunnel:pixel10-pvm-cpu","name":"pixel10-pvm-cpu","repo":"EnclaveHost/enclave","lastSeen":1790228840,"tunnel":true,"mode":"avf","publicUrl":"","measurement":"25335c5b7cfaa0d7c00709f1b09439cefe12336ac14f581cccd3b6b6277018ec"}}
+{"t":"2026-09-24T05:47:40.705Z","hub":"[tunnel] pixel10-pvm-cpu abi2 VERIFIED: app 1ad17b45e12aabde… runtime d3370878afa9d5ee…"}
+{"t":"2026-09-24T05:47:40.705Z","change":"abi2","name":"pixel10-pvm-cpu","row":{"endpoint":"tunnel://pixel10-pvm-cpu","id":"tunnel:pixel10-pvm-cpu","name":"pixel10-pvm-cpu","repo":"EnclaveHost/enclave","lastSeen":1790228860,"tunnel":true,"mode":"avf","publicUrl":"","measurement":"25335c5b7cfaa0d7c00709f1b09439cefe12336ac14f581cccd3b6b6277018ec","pvmApp":{"appId":"1ad17b45e12aabdec8ca08538ce1d3a795a7e68c3b87d534b50305d5654ca339","runtimeId":"d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba","transportSpki":"302a300506032b65700321007a6f79a49a207fa2f223d7830a3b206ee75b2d8255c8f05701871e9f44489387","verifiedAt":1790228860705}}}
+{"t":"2026-09-24T05:48:46.747Z","hub":"[tunnel] pixel10-pvm-cpu pvm-cpu ADMITTED (e2b-q4_0)"}
+{"t":"2026-09-24T05:48:46.747Z","change":"caps","name":"pixel10-pvm-cpu","row":{"endpoint":"tunnel://pixel10-pvm-cpu","id":"tunnel:pixel10-pvm-cpu","name":"pixel10-pvm-cpu","repo":"EnclaveHost/enclave","lastSeen":1790228926,"tunnel":true,"mode":"avf","publicUrl":"","measurement":"25335c5b7cfaa0d7c00709f1b09439cefe12336ac14f581cccd3b6b6277018ec","tier":"pvm-cpu","pvmCpu":{"model":"e2b-q4_0","ctx":4096,"device":"","checkedAt":1790228926746},"pvmApp":{"appId":"1ad17b45e12aabdec8ca08538ce1d3a795a7e68c3b87d534b50305d5654ca339","runtimeId":"d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba","transportSpki":"302a300506032b65700321007a6f79a49a207fa2f223d7830a3b206ee75b2d8255c8f05701871e9f44489387","verifiedAt":1790228860705}}}
+{"t":"2026-09-24T05:48:52.594Z","raw":"stream opened","name":"pixel10-pvm-cpu"}
+{"t":"2026-09-24T05:48:53.433Z","hub":"[tunnel] pixel10-pvm-cpu raw stream 7 closed (closed by the phone): 1663 bytes in, 1171 out"}
+{"t":"2026-09-24T05:48:53.489Z","raw":"stream opened","name":"pixel10-pvm-cpu"}
+{"t":"2026-09-24T05:48:53.513Z","hub":"[tunnel] pixel10-pvm-cpu raw stream 8 closed (client closed): 1475 bytes in, 608 out"}
+{"t":"2026-09-24T05:48:54.328Z","raw":"stream opened","name":"pixel10-pvm-cpu"}
+{"t":"2026-09-24T05:48:54.366Z","hub":"[tunnel] pixel10-pvm-cpu raw stream 9 closed (closed by the phone): 1663 bytes in, 632 out"}
+{"t":"2026-09-24T05:50:47.833Z","hub":"[tunnel] pixel10-pvm-cpu detached"}
+{"t":"2026-09-24T05:50:47.833Z","change":"detach","name":"pixel10-pvm-cpu","row":null}
+{"t":"2026-09-24T05:50:52.983Z","end":"SIGTERM"}

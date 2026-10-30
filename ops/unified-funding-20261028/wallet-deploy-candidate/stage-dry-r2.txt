@@ -1,0 +1,7 @@
+[queue] START available=87891MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+{"ok":false,"refusal":{"code":"rate_limited","message":"base-rpc.publicnode.com returned HTTP 429 for eth_getBalance","details":{}}}
+[memory-guard] exit=1 peakTreeRssMiB=85 minHostAvailableMiB=87828
+[memory-guard] at peak: node:85
+[memory-guard] exit=1 peakTreeRssMiB=146 minHostAvailableMiB=87830
+[memory-guard] at peak: node:85 node:60
+[queue] EXIT 1

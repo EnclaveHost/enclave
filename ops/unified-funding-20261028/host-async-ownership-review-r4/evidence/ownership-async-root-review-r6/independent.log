@@ -1,0 +1,66 @@
+TAP version 13
+ROOT double-fault reopen null
+# Subtest: control clean owned write and exact record preserved
+ok 1 - control clean owned write and exact record preserved
+  ---
+  duration_ms: 11.543007
+  type: 'test'
+  ...
+# Subtest: failed final commit sync plus failed retraction cannot reopen clean
+not ok 2 - failed final commit sync plus failed retraction cannot reopen clean
+  ---
+  duration_ms: 2.824083
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-async-root-review-r6/protocol/test-root.mjs:6:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-async-root-review-r6/protocol/test-root.mjs:10:121)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: missing intent cannot be replaced by a new intent describing current bytes
+not ok 3 - missing intent cannot be replaced by a new intent describing current bytes
+  ---
+  duration_ms: 1.538965
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-async-root-review-r6/protocol/test-root.mjs:12:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-async-root-review-r6/protocol/test-root.mjs:14:106)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+ROOT reentrant {"entered":false,"same":true}
+# Subtest: reentrant release during withdrawal must not release actual flock early
+ok 4 - reentrant release during withdrawal must not release actual flock early
+  ---
+  duration_ms: 7.901002
+  type: 'test'
+  ...
+# Subtest: owner release exception resolves the published completion as fenced
+ok 5 - owner release exception resolves the published completion as fenced
+  ---
+  duration_ms: 2.504875
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 3
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 52.723231

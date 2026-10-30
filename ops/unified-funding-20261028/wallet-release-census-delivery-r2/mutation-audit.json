@@ -1,0 +1,231 @@
+{
+  "events": [
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/site/js/core/wallet-release-census.js",
+      "rel": "enclave/site/js/core/wallet-release-census.js",
+      "id": "toolu_01SERC3ok9DceEx7K5VnZh3L",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/site/js/core/wallet-release-chain.js",
+      "rel": "enclave/site/js/core/wallet-release-chain.js",
+      "id": "toolu_01NHfLq1kVUKd3gGxXkvpZnn",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/site/js/core/wallet-release-chain.js",
+      "rel": "enclave/site/js/core/wallet-release-chain.js",
+      "id": "toolu_01M3wiXwmHAKHEZAaAaPi3aL",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/site/js/core/wallet-release-chain.js",
+      "rel": "enclave/site/js/core/wallet-release-chain.js",
+      "id": "toolu_01PUQ7oQD8JUrkKfe7dbuNQV",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/site/js/core/wallet-release-chain.js",
+      "rel": "enclave/site/js/core/wallet-release-chain.js",
+      "id": "toolu_01NUwJ4SM5Bdq9ULoHtnM9sN",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/site/js/core/wallet-release-chain.js",
+      "rel": "enclave/site/js/core/wallet-release-chain.js",
+      "id": "toolu_01T7RCN1yqatiPj81t6afyte",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/site/js/core/wallet-release-controller.js",
+      "rel": "enclave/site/js/core/wallet-release-controller.js",
+      "id": "toolu_014W5vnEhG7TvbLLVkA5Thny",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/site/js/core/wallet-release-controller.js",
+      "rel": "enclave/site/js/core/wallet-release-controller.js",
+      "id": "toolu_01GsnuN1UDpT3U3yQSeEysUa",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/site/js/core/wallet-release-controller.js",
+      "rel": "enclave/site/js/core/wallet-release-controller.js",
+      "id": "toolu_01SukETytWXWrBM3QRsjcwVP",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/site/js/core/wallet-release-controller.js",
+      "rel": "enclave/site/js/core/wallet-release-controller.js",
+      "id": "toolu_01SucbkynLVWnJVWH49T8ryV",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/site/js/core/wallet-release-controller.js",
+      "rel": "enclave/site/js/core/wallet-release-controller.js",
+      "id": "toolu_018FdA4yR3p6YSwJ2nma4Px7",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/site/js/core/wallet-release-controller.js",
+      "rel": "enclave/site/js/core/wallet-release-controller.js",
+      "id": "toolu_01KmQGueQhMacbCFHgmLyBzd",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/site/js/core/wallet-release-view.js",
+      "rel": "enclave/site/js/core/wallet-release-view.js",
+      "id": "toolu_015FGh6pxPB7BQCGBWXJvyEd",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/site/js/core/wallet-release-view.js",
+      "rel": "enclave/site/js/core/wallet-release-view.js",
+      "id": "toolu_01LxfEd59TjwtNM7iur1jGjv",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/site/js/core/wallet-release-view.js",
+      "rel": "enclave/site/js/core/wallet-release-view.js",
+      "id": "toolu_01Tz9MySsSZcMSKQVzkGP3ez",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/site/js/core/wallet-release-view.js",
+      "rel": "enclave/site/js/core/wallet-release-view.js",
+      "id": "toolu_015mLiWgWPaoinZeiqKVa4N3",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/test/wallet-release/chain-store.test.mjs",
+      "rel": "enclave/test/wallet-release/chain-store.test.mjs",
+      "id": "toolu_014PAKzTbSzbdj75S6HypkGZ",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/test/wallet-release/chain-store.test.mjs",
+      "rel": "enclave/test/wallet-release/chain-store.test.mjs",
+      "id": "toolu_01Mvzo7Q419yETwKMgM3FbsW",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/test/wallet-release/census-world.fixture.mjs",
+      "rel": "enclave/test/wallet-release/census-world.fixture.mjs",
+      "id": "toolu_01KjvndcysQsBtjAuBQbzehp",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/test/wallet-release/census.test.mjs",
+      "rel": "enclave/test/wallet-release/census.test.mjs",
+      "id": "toolu_01DPEidc9wDh2ZJpwuMK8UxN",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/test/wallet-release/census-world.fixture.mjs",
+      "rel": "enclave/test/wallet-release/census-world.fixture.mjs",
+      "id": "toolu_015Kr7gSBfcB9em4Ee4F8uis",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/test/wallet-release/census.test.mjs",
+      "rel": "enclave/test/wallet-release/census.test.mjs",
+      "id": "toolu_01RnGsC6VTQVjJAkkcV9oixk",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/test/wallet-release/census.test.mjs",
+      "rel": "enclave/test/wallet-release/census.test.mjs",
+      "id": "toolu_0186yxZXGQn7sfBnWpt3F4QX",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/test/wallet-release/controller.test.mjs",
+      "rel": "enclave/test/wallet-release/controller.test.mjs",
+      "id": "toolu_01Aaa1yfK4Qecm4tcgy1wvx9",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/test/wallet-release/controller.test.mjs",
+      "rel": "enclave/test/wallet-release/controller.test.mjs",
+      "id": "toolu_01HYzvx4eTRGVdSVR3hZbxYW",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/test/wallet-release/controller.test.mjs",
+      "rel": "enclave/test/wallet-release/controller.test.mjs",
+      "id": "toolu_01E2mFY8qiiUTEqRTg7ywuW7",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/test/wallet-release/controller.test.mjs",
+      "rel": "enclave/test/wallet-release/controller.test.mjs",
+      "id": "toolu_01ExP6ZSf5CiuQMJGFxVAbum",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/test/wallet-release/controller.test.mjs",
+      "rel": "enclave/test/wallet-release/controller.test.mjs",
+      "id": "toolu_01CpxRmWpXC996Ez7njPwCWg",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/test/wallet-release/controller.test.mjs",
+      "rel": "enclave/test/wallet-release/controller.test.mjs",
+      "id": "toolu_01JZ3AkUWGLJyx4vsGkPNxzX",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/test/wallet-release/controller.test.mjs",
+      "rel": "enclave/test/wallet-release/controller.test.mjs",
+      "id": "toolu_015sTxurBVuFf97XByxx86KL",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/test/wallet-release/controller.test.mjs",
+      "rel": "enclave/test/wallet-release/controller.test.mjs",
+      "id": "toolu_01DpSZbRqj26Fb2mDujiSS3e",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/candidate/enclave/site/js/core/wallet-release-view.js",
+      "rel": "enclave/site/js/core/wallet-release-view.js",
+      "id": "toolu_01RLJeFDMm9FZPWgRGqq77L9",
+      "outcome": "reported-success"
+    }
+  ],
+  "replayIssues": [],
+  "outsideCandidateAttempts": [],
+  "note": "first successful mutation snapshots reconstructed from immutable seed and successful tool results; any mismatch requires manual audit, never assumed clean"
+}

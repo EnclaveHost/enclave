@@ -1,0 +1,266 @@
+SOURCE ONLY — STOP AND RECONCILE THE EXISTING RELAY
+Prepared 2026-10-28. No command below has been executed by this runbook.
+
+Purpose and limits
+Use the actual signed owner termination/refund as a completed transaction
+prefix, then stop the old writer and reconcile its tail before admitting new
+financial work. This is NOT graceful shutdown or proof that the old queue
+drained. The stop temporarily interrupts relay reads and the three fleet-control
+tunnels. Existing ten-app recovery inventory is not modified by these steps.
+No cancellation, replacement, dummy transaction, alternate-wallet funding,
+signer rotation, or nonce jump is authorized here.
+
+Exact existing target
+  Unit: enclave-api-relay.service
+  Observed MainPID: 228946 (refresh; refuse unexpected identity)
+  Working tree: /opt/nan-relay
+  api-relay.js SHA256:
+    481f00410b87f30ee467183db7121175d37c010be5b2c23891a0a19e63b4579d
+  sessions.mjs SHA256:
+    457e86472adce2f1fdd2dfa82759578a56f7d72f0c5e5ee18e53999a26d0682d
+  store.js SHA256:
+    12157d8ccf8b1ec4ffd4d0af9b5b846650ec20aac748bcc51ad087e119922dcd
+  Existing gate helper: /opt/enclave-funding-staged/maintenance-r1/session_gate.py
+    SHA256 1fa1385b6b8b295be40ceb398ac285c0aa2e88076f7067e90fe7ca9d39f73187
+  Existing watchdog: same directory/interruption_watchdog.py
+    SHA256 fe3e4ab1b8de00246ddd7414e33df8a3175728ac77e234f1b3ef77f53dcc749a
+  Caddy admin: /run/enclave-control-tls/admin.sock
+  Financial state directory: /var/lib/enclave-relay
+  Source publication: b3a262b522b66c58670c96ed8806de929639cac6
+  Prior operation funding-activation-r1-20261028 is CLOSED. Never reuse it.
+
+0. Prepare, without disturbing production
+Choose a NEW operation slug and independent watchdog unit name. Review immutable
+successor pins, original environment/drop-ins and rollback source. Freeze all
+other coordinator financial senders. Keep real signed payloads in the reviewed
+browser/transport flow; this runbook never contains, logs or exports them.
+Read-only commands on the control VM:
+  sudo systemctl show enclave-api-relay.service -p MainPID -p ActiveState \
+    -p SubState -p ControlGroup -p KillMode -p KillSignal -p TimeoutStopUSec \
+    -p TriggeredBy -p ExecStop -p ExecStopPost
+  sudo sha256sum /opt/nan-relay/api-relay.js /opt/nan-relay/sessions.mjs
+  sudo python3 /opt/enclave-funding-staged/maintenance-r1/session_gate.py inspect
+Expected stop semantics: SIGTERM/control-group, no ExecStop, no graceful session
+handler. TimeoutStopUSec=3min is a kill ceiling, not a queue-drain guarantee.
+CORRECTION: there IS a synchronous checkpoint-on-signal handler. The actual
+api-relay.js imports JsonStore from store.js at121 and passes it to initSessions
+at3088; sessions.mjs1250-1251 constructs index/journal with that class. store.js
+registers process.on(sig) in a loop over SIGTERM/SIGINT, flushes every registered
+store synchronously, then process.exit(0). The earlier literal-signal search
+missed this variable-based registration. It does not await the queue.
+Refuse source drift, another gate/activation, unknown writer, or competing unit
+activation. Do not change controllers, guestd, GPU, pad guards, Caddy listener,
+admin socket, fleet policy, environment, or unrelated drop-ins.
+
+1. Make PRIVATE pre-termination checkpoint
+Root coordinator creates a fresh exclusive operation directory under
+/var/lib/enclave-maintenance/funding-cutover, mode0700; umask0077. Never publish
+its contents. Snapshot to a fresh pre-termination subdirectory:
+  * /var/lib/enclave-relay, including sessions-relayer.json, sessions-index.json,
+    owner-control/recovery/revocation state and all other persisted financial
+    records (capture full names before choosing any exclusions; no symlinks).
+  * /etc/systemd/system/enclave-api-relay.service and all existing .d/*.conf.
+  * Original source files, hashes, mode/ownership, and current cgroup path.
+  * /proc/<verified PID>/environ as a private0600 binary; never display it.
+Record private SHA256 manifests. Fsync each copied file and every created
+directory bottom-up, then the checkpoint parent. Compare source hashes before
+and after copy; a live-state copy is not atomic. Keep both copies/hashes if
+records change; do not represent them as one consistent point-in-time image.
+Only counts, public IDs, receipt metadata and manifest hashes may be reported.
+
+2. Legitimate termination through ordinary public route
+Use the reviewed signed migration flow, POST /v1/sessions/owner, op=terminate,
+for the exact original session. This route is PUBLICLY OPEN for this step;
+do not claim other session admissions are yet closed or selective filtering.
+Never exempt all /owner traffic and call it an exact termination-only gate.
+The installed route sends through the same TxQueue as other session work.
+Before submitting, arm the independent watchdog for this NEW operation using
+the reviewed template/900-second deadline; verify root ownership, helper pins,
+ready state, matching PID/startTicks/source pins and boot ID. Its timer must
+not be spent waiting for an unavailable signer. If the legitimate operation
+outlasts its deadline, reconcile it and prepare a fresh window, not a new send.
+
+On success establish the PREFIX anchor:
+  chainId=8453, exact relayer public address, transaction hash, sender nonce N,
+  successful receipt block number/hash, exact vault/owner/SID and SessionEnded;
+  exact USDC refund transfer to the owner and canonical ended-session state.
+Compare two providers at the same canonical block and confirm per the existing
+reviewed confirmation policy. Do not invent a new confirmation count here.
+Verify expected original refund; owner total balance alone is not evidence of
+that transfer. Budget24+4.8+1.2=30 is an intended allocation, not proof of funds
+or authorization to spend. Never count old escrow and the refund twice.
+A lost HTTP response is an UNKNOWN operation: recover the existing hash or
+sender nonce/receipt/state. Do not submit termination again or open new grants.
+Prior queue errors may have been caught: receipt at N does not mean every
+earlier business operation succeeded. Reconcile their recorded outcomes.
+
+3. Gate promptly after verified prefix
+Use the existing qualified gate unchanged. Fresh inspect must show no other
+maintenance marker; recheck watchdog still has adequate remaining time.
+Pass the EXACT returned hash and ETag (including ETag quoting) to:
+  sudo python3 /opt/enclave-funding-staged/maintenance-r1/session_gate.py gate \
+    --op NEW_OPERATION --expected-hash FRESH_HASH --expected-etag FRESH_ETAG --apply
+  sudo python3 /opt/enclave-funding-staged/maintenance-r1/session_gate.py status \
+    --op NEW_OPERATION
+Require phase=gate-verified and ownedGateExact=true. Any timeout/412/lost reply:
+inspect/status and reconcile; no automatic retry or inverse mutation.
+The gate rejects new public session writes; it does NOT cancel admitted work,
+stop keeper tasks, or block a privileged loopback caller. Keep those callers idle.
+Record the bounded category probe for context: three known upgraded fleet
+streams may remain; record ordinary handlers separately. Neither zero ordinary
+handlers nor equal latest/pending nonces constitutes queue-drain proof.
+
+4. Mark activation BEFORE stopping; hold lock across the cutover
+The coordinator's persistent operation driver must hold the SAME exclusive
+activation.lock used by the watchdog. The following is the required driver
+sequence, NOT a standalone one-shot lock that exits before systemctl stop:
+  import os, fcntl, time, pathlib, subprocess
+  import session_gate as g, interruption_watchdog as w
+  wd = w.WATCH / op
+  fd = os.open(wd/'activation.lock', os.O_RDWR | os.O_NOFOLLOW)
+  fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+  watch = g.load(wd/'watchdog.json')
+  assert 'outcome' not in watch
+  assert watch['bootId'] == pathlib.Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+  assert watch['deadlineUnix'] - time.time() > 300
+  assert watch['deadlineMonotonic'] - time.monotonic() > 300
+  assert w.relay_identity() == watch['baseline']
+  # Also verify watchdog unit active and exact owned gate still present.
+  g.save(wd/'activation-started.json', {'at':time.time(), 'phase':'stop-reconcile',
+                                      'checkpoint':str(private_checkpoint)})
+  # Keep fd alive through stop, checkpoint, activation/reconciliation checks.
+Record a durable stop-unknown phase before invoking the single stop command:
+  sudo systemctl stop enclave-api-relay.service
+Driver timeout:220seconds. Timeout is UNKNOWN, not evidence the stop failed.
+Do not issue restart/start just because a command times out. Inspect first.
+The watchdog now retains the gate on expiry/interruption; it cannot safely
+restore a stopped or replaced writer. Never delete the marker to force reopening.
+
+5. Verify writer death, then PRIVATE post-stop checkpoint
+  sudo systemctl show enclave-api-relay.service -p MainPID -p ActiveState \
+    -p SubState -p ControlGroup -p Result
+Require MainPID=0 and unit inactive/failed, old PID/startTicks gone, and no PIDs
+in cgroup.procs for the captured old control-group or any child cgroup. Inspect
+recursively with a bounded local script; if the old cgroup no longer exists,
+record its absence with MainPID0 and old identity gone. Refuse residual writers
+or unexpected automatic reactivation. No kill escalation beyond the reviewed
+unit behavior, traffic killing, or unrelated service changes are in this plan.
+Take a second immutable PRIVATE snapshot as in step1, now post-stop; fsync
+files/directories and record changed hashes. NEVER overwrite original financial
+journals or owner-control records with the earlier snapshot during rollback.
+Preserve both checkpoints and any additional post-stop state.
+
+Existing shutdown checkpoint evidence (source-proven, observer NOT qualified):
+store.js flush writes JSON to file.tmp synchronously and renames it over file;
+there is no fsync. The signal handler calls flush regardless of dirty flag,
+catches each failure without reporting it, and exits0 anyway. Therefore exit0,
+an unchanged content hash, or valid JSON alone cannot attest successful flush.
+A separately reviewed metadata-only directory observer could be armed BEFORE
+stop and record exact sessions-relayer.json MOVED_TO, event order, overflow,
+file identity and process exit. It must not collect payloads or secrets. Plain
+inotify does not attribute PID or distinguish a timer/normal-send flush racing
+SIGTERM from the shutdown-handler flush; do not call one MOVED_TO a proof.
+No observer is installed or run by this runbook. Qualify successful-flush,
+swallowed-write-failure, pre-signal rename, overflow, and SIGKILL cases before
+using it as an acceptance gate. Preserve absence/ambiguity as refusal evidence.
+After writer death, privately open/read back/fsync the actual journal and its
+parent directory, then make the immutable post-stop copy. This makes the bytes
+observed durable; it cannot establish that stale bytes were a fresh checkpoint.
+
+6. Reconcile tail AFTER N, without sending
+Read-only JSON-RPC observations on each coordinator-approved provider:
+  eth_chainId
+  eth_getBlockByNumber [agreedBlockHex,false] -> same block hash
+  eth_getTransactionByHash [eachKnownHash]
+  eth_getTransactionReceipt [eachKnownHash]
+  eth_getTransactionCount [exactRelayer,agreedBlockHex]
+  eth_getTransactionCount [exactRelayer,"pending"]
+  eth_getBlockByNumber [eachBlockFromPrefixThroughAgreedTip,true]
+For the block scan retain only transactions whose from equals the exact
+relayer; retain hash/nonce/to/status and required public effect evidence, not
+unrelated transaction payloads. Pace and bound reads through the shared RPC
+lane. Cross-check every nonce>N with known journal entries and canonical
+receipts; inspect reverted outcomes too. Never infer transaction identity or
+successful funding from an incremented nonce alone.
+
+Keep these nonce domains separate:
+  relayer EOA nonce; session seqOf; owner opNonce; USDC authorization nonce;
+  grant/SID and budget/refund/deposit accounting.
+For lost-response operations verify exactly the original attempt and its
+authorization-consumed state. Do not regenerate a signed deposit, reuse a
+nonce with a new business action, reset the cached nonce, or blindly resend.
+
+Two different latent-work cases:
+  A. A preflight/queued Promise still inside old process: once ALL old writers
+     are verified dead it cannot newly execute. Its unbroadcast work was
+     abandoned, not drained; requests may need truthful failure reporting.
+  B. A transaction already delivered to an RPC provider: it can be accepted or
+     mined after process death, even without a disk hash. It stays an unknown
+     financial outcome until identified/reconciled. Keep its nonce quarantined.
+Exact OLD implementation ordering (sessions.mjs SHA457e8647...): _send first
+awaits gas/fee/nonce reads, then pushes a "sending" record ONLY into memory,
+then awaits wc.sendTransaction. On the normal transaction path the next flush
+occurs after a returned hash or the generic send-error catch; there is NO
+pre-send flush. HOWEVER, a successful synchronous SIGTERM JsonStore checkpoint
+also flushes this in-memory sending record even while sendTransaction awaits.
+While that synchronous handler runs, this process cannot resume async queue
+work before process.exit(0). Thus a VERIFIED successful checkpoint plus writer
+death can cover this process's in-memory send records; pre-record preflights
+cannot later resume and send. It does not cancel an already delivered RPC call.
+Any no-hash sending record remains ambiguous and needs nonce reconciliation.
+If checkpoint success/identity is not established, or termination used SIGKILL,
+an RPC-held transaction may be absent from disk. "All persisted entries mined"
+is NOT by itself complete tail coverage, even with matching pre/post hashes.
+The successor's new pre-send flush is distinct from the old shutdown hook.
+Provider latest=pending equality and stable journal do not prove B absent.
+Canonical termination fences original SID spending, but not an older signed
+open, unrelated owner operation or attestation that was still in preflight.
+
+Finite review policy: one recorded5minute reconciliation interval after writer
+death, observations no more often than30seconds, bounded per-call timeouts and
+no hidden retry loop. The interval is a decision deadline, NOT a finality or
+absence proof. Known pending/unknown hash, unidentified nonce advance, provider
+disagreement, block-hash drift, incomplete bounded scan, unmatched accounting,
+lost checkpoint or residual writer => refuse write resumption. Preserve the
+exact unresolved nonce/hash/state and enter manual recovery at the deadline.
+Do not convert timeout into permission to cancel, replace or skip a nonce.
+
+7. Restore connectivity / enable writes — two distinct decisions
+A. Existing concrete choice: remain stopped until reconciliation and reviewed
+activation can finish. This prolongs the stated relay/fleet-read interruption.
+B. Yet-UNQUALIFIED successor option: immutable startup write-quarantine permits
+reads/fleet tunnels but blocks EVERY session/owner/open/attestation/funding send,
+keeper and automatic recovery sender. Root is preparing it; not currently an
+available safety gate. Qualify all entrypoints, startup/restart persistence,
+lost-response handling and sole-writer enforcement BEFORE relying on it.
+Do not start ordinary old code under only the HTTP gate as a substitute:
+background keeper is a writer too. Never run old and new writers concurrently.
+
+New grants remain paused until durable accounting confirms original termination
+and exact refund once, every observed nonce tail resolved, original owner
+controls retained, and successor pins/environment/drop-ins/admin/fleet policy
+verified. Deployment of new code is not authority for any financial send.
+If new code fails, rollback only reviewed source/config; retain current journals
+and owner/revocation/nonce records. A rollback that resumes old writers is also
+a write-resumption decision and must satisfy the same reconciliation conditions.
+
+8. Close the gate only when the selected service state is safe
+Refresh inspect hash/ETag; remove only THIS exact owned route:
+  sudo python3 /opt/enclave-funding-staged/maintenance-r1/session_gate.py restore \
+    --op NEW_OPERATION --expected-hash FRESH_HASH --expected-etag FRESH_ETAG --apply
+Verify gate absent and intended route preservation. Never restore a whole old
+Caddy config over concurrent changes. After final state is recorded, stop only
+this operation's watchdog unit; retain its state/checkpoints for recovery.
+If the relay is stopped or financial outcome unresolved, retain gate/write
+quarantine and issue a concise status with exact next evidence needed. Do not
+claim queued apps restored, all work drained, or production unchanged after stop.
+
+Evidence to hand back (non-secret summary only)
+  operation and deadlines; baseline/new PID/startTicks and source pins;
+  gate ownership/CAS phases; private checkpoint manifest hashes;
+  termination receipt anchor N/block/hash and exact refund verification;
+  cgroup writer-death observations; each tail nonce/hash/receipt disposition;
+  each distinct budget/owner/deposit nonce check; write-fence status;
+  service/read/fleet health and final gate/watchdog state.
+No signed payloads, environment values, private keys, auth headers or raw
+financial state files belong in the report or this runbook.

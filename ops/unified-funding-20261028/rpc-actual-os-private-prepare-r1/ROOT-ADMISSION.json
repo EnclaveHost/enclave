@@ -1,0 +1,13 @@
+{
+  "at": 1793352174.0624313,
+  "unitStatus": "ActiveState=active\nInvocationID=b6afcecbec1b428b9f46600aca5ca2dd\nMainPID=2531149\n",
+  "writer": {
+    "pid": 2531169,
+    "startTicks": "165723829",
+    "exe": "/usr/bin/python3.14",
+    "cpuAffinity": [
+      1
+    ]
+  },
+  "scope": "Actual private OS derivative; no source writes/publication/VM/finance; root owns SAME collection"
+}

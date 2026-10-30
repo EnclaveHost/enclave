@@ -1,0 +1,159 @@
+{
+  "observedAtUTC": "2026-10-30T04:56:53.222908+00:00",
+  "kind": "MANUAL_TERMINAL_FAILURE_AUDIT_NOT_AUTHOR_DELIVERY",
+  "invocationId": "2af78b2477054a0192c0954c9466360c",
+  "preparedSha256": "b236ed834117574c1da5603e33ca3089dbdfb3fcd72299077022aa27eac6ab0a",
+  "actualRunnerPid": 2315705,
+  "runnerPidSource": "started.json and attempt.json",
+  "actualQueuePid": [
+    2315675
+  ],
+  "claudePid": null,
+  "claudePidLimit": "Transient author PID was not captured; no admission-record fabricated and standard collector not used.",
+  "systemdCurrent": "ActiveState=inactive\nSubState=dead\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "systemdLimit": "Collected transient unit currently has empty InvocationID/default ExecMainStatus; current ExecMainStatus=0 is NOT the invocation result. Invocation-bound journal EXIT1, claude.rc and finished.json prove failure.",
+  "runnerGone": true,
+  "sameExecutableProcesses": [],
+  "samePackageAuthorProcesses": [],
+  "unreadableExactExecutableCwd": [],
+  "candidateFiles": 114,
+  "seedFiles": 114,
+  "readonlyPins": 256,
+  "candidateEqualsSeed": true,
+  "inputDrift": [],
+  "preparedHashDrift": [],
+  "sourceChanges": [],
+  "symlinks": [],
+  "finished": {
+    "rc": 1,
+    "finishedAt": 1793336094.3892171,
+    "inputDrift": []
+  },
+  "durationMsReported": 7421,
+  "runnerElapsedSeconds": 8.229252815246582,
+  "resultSubtype": "success",
+  "isError": true,
+  "apiDurationMs": 0,
+  "apiTokenUsage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0
+  },
+  "sourceToolCalls": [],
+  "errorMessage": "Failed to refresh OAuth token: another Claude Code process is refreshing it or exited mid-refresh. This is usually transient; retry in a minute, and if it persists close other Claude Code processes or sign in again",
+  "transcript": {
+    "sessionId": "968be769-2fdc-4447-ba09-a7adf9e0a1f2",
+    "sha256": "396b90a92122686da4c7686c14e2368ba4135d02600ac739e3e99c6322f14640",
+    "eventSummary": [
+      {
+        "type": "queue-operation",
+        "timestamp": "2026-10-30T04:54:46.389Z",
+        "error": null,
+        "isApiErrorMessage": null
+      },
+      {
+        "type": "queue-operation",
+        "timestamp": "2026-10-30T04:54:46.403Z",
+        "error": null,
+        "isApiErrorMessage": null
+      },
+      {
+        "type": "user",
+        "timestamp": "2026-10-30T04:54:46.442Z",
+        "error": null,
+        "isApiErrorMessage": null
+      },
+      {
+        "type": "attachment",
+        "timestamp": "2026-10-30T04:54:46.441Z",
+        "error": null,
+        "isApiErrorMessage": null
+      },
+      {
+        "type": "attachment",
+        "timestamp": "2026-10-30T04:54:46.441Z",
+        "error": null,
+        "isApiErrorMessage": null
+      },
+      {
+        "type": "atis-latch",
+        "timestamp": null,
+        "error": null,
+        "isApiErrorMessage": null
+      },
+      {
+        "type": "attachment",
+        "timestamp": "2026-10-30T04:54:46.464Z",
+        "error": null,
+        "isApiErrorMessage": null
+      },
+      {
+        "type": "attachment",
+        "timestamp": "2026-10-30T04:54:46.464Z",
+        "error": null,
+        "isApiErrorMessage": null
+      },
+      {
+        "type": "attachment",
+        "timestamp": "2026-10-30T04:54:46.465Z",
+        "error": null,
+        "isApiErrorMessage": null
+      },
+      {
+        "type": "attachment",
+        "timestamp": "2026-10-30T04:54:46.467Z",
+        "error": null,
+        "isApiErrorMessage": null
+      },
+      {
+        "type": "assistant",
+        "timestamp": "2026-10-30T04:54:53.820Z",
+        "error": "server_error",
+        "isApiErrorMessage": true
+      },
+      {
+        "type": "last-prompt",
+        "timestamp": null,
+        "error": null,
+        "isApiErrorMessage": null
+      },
+      {
+        "type": "cost-state",
+        "timestamp": null,
+        "error": null,
+        "isApiErrorMessage": null
+      }
+    ],
+    "copied": false
+  },
+  "journalEvidence": [
+    {
+      "__REALTIME_TIMESTAMP": "1793336085773796",
+      "_PID": "2315675",
+      "_COMM": "python3",
+      "_SYSTEMD_USER_UNIT": "enclave-windows-release-stopped-r1-20261029-author.service",
+      "_SYSTEMD_INVOCATION_ID": "2af78b2477054a0192c0954c9466360c",
+      "MESSAGE": "[queue] START available=34337MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB"
+    },
+    {
+      "__REALTIME_TIMESTAMP": "1793336094410418",
+      "_PID": "2315675",
+      "_COMM": "python3",
+      "_SYSTEMD_USER_UNIT": "enclave-windows-release-stopped-r1-20261029-author.service",
+      "_SYSTEMD_INVOCATION_ID": "2af78b2477054a0192c0954c9466360c",
+      "MESSAGE": "[queue] EXIT 1"
+    }
+  ],
+  "accountChecks": "Root and runner account preflights passed before invocation; this does not demonstrate successful API refresh. No fresh auth commands run by this audit.",
+  "actionsNotTaken": [
+    "standard collector",
+    "retry or new author",
+    "credential/token reads or changes",
+    "login/logout",
+    "process termination",
+    "test/build",
+    "remote/live read",
+    "financial or production action"
+  ]
+}

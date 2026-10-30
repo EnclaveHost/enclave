@@ -1,0 +1,13 @@
+--- a/bundle-origin.json
++++ b/bundle-origin.json
+@@ -12258,6 +12258,10 @@
+     "package.json": "5d9fcf3bb6aaa7c789b4a020b79e208e76fbc32b1989caf2c275db8cb04329de",
+     "wrapper.mjs": "fe154662301fd558f935f9c217fccbe7a7dac02ff39e648a000589403ff27c7f"
+    }
++  },
++  "bundle/config/l1-checkpoint.json": {
++   "origin": "/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/l1-authority-live-1941/checkpoint.json",
++   "sha256": "2e8502e68864abb49a230a69612bd7c98c94775d8dd81f956a0185d53652ac33"
+   }
+  }
+ }

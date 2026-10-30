@@ -1,0 +1,40 @@
+{
+ "allowlistSha256": "d6e376ab92a110cf9daff66997910c80da4264579281a7a8f9eabe22c2934c0e",
+ "extractionReceiptSha256": "18494bbdffcf468441398051559f54cbeeee3d38a3905cbfc390d3e75960e416",
+ "format": "compact-header-static-files/v1",
+ "jobReceiptSha256": "50e433f82bf1b50939edfd78f169839affe097554d0fa7be2484f11c9ed4fd2e",
+ "stageSums": "ee657a9d1c0c120e058f49e77a3cdb67a8394d927ffa7a7807e514716fc9ca84",
+ "staticFiles": [
+  {
+   "name": "static_file_headers_52500000_52999999",
+   "sha256": "a50b7a37496cae527f460635259b7d6cd4d6c9efe8dc343490df1ae4d2156e50",
+   "size": 318751407
+  },
+  {
+   "name": "static_file_headers_52500000_52999999.conf",
+   "sha256": "fa1fa21e667484e16970733cfeffea9c70ac83ec45adf8f87a168634fa74d7be",
+   "size": 75
+  },
+  {
+   "name": "static_file_headers_52500000_52999999.off",
+   "sha256": "02ceb930f34dc57e3e3e7e35966dcc4be866570ee0df6272e472e39c58af53b7",
+   "size": 12000009
+  },
+  {
+   "name": "static_file_headers_53000000_53499999",
+   "sha256": "aea3a6334d373c721ef1eb9d3adc032812617754ba9a9bef07dcb27938874652",
+   "size": 30982072
+  },
+  {
+   "name": "static_file_headers_53000000_53499999.conf",
+   "sha256": "f84fe41406d7df2072eb6a61ec5ce0880905ae9ff5aa3c1db30e898b86d2659a",
+   "size": 75
+  },
+  {
+   "name": "static_file_headers_53000000_53499999.off",
+   "sha256": "515fd24a31206ccf32ea88f51b250a3bcfe009fa1e8db4d4fc530147f1562b91",
+   "size": 1164657
+  }
+ ],
+ "staticFilesDir": "/vm/enclave-volumes/tr004-base-recovery-20261026/compact-header-extraction-20261027T133308Z-3243320/files/data/static_files"
+}

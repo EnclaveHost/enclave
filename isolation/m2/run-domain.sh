@@ -11,14 +11,21 @@
 # domain's vsock CID and the launch time.
 set -e
 here=$(cd "$(dirname "$0")" && pwd)
-. "$here/../m1/domain.env"
+if [ "${1:-}" = start ]; then
+  if [ -n "${DOMAIN_RELEASE_DIR:-}${DOMAIN_RELEASE_ID:-}" ]; then
+    . "$here/../m4/pinned-domain-env.sh"
+  else
+    . "$here/../m1/domain.env"
+  fi
+fi
 # A caller may point this LAUNCH at a different firmware without editing domain.env, which is how
 # verify-firmware.sh tests whether a build actually verifies the SEV kernel hash table. domain.env stays the
 # default so an ordinary run is unchanged.
 #
 # It changes the launch ONLY. build-domain.sh predicts a measurement with domain.env's OVMF, so a suite run with
 # this variable set would predict against one firmware and launch another, and check 1 would fail for the wrong
-# reason. To move a SUITE to another firmware, change domain.env.
+# reason. To move a SUITE to another firmware, change domain.env. A pinned release (DOMAIN_RELEASE_DIR/ID,
+# m4/pinned-domain-env.sh) supplies kernel, firmware and command line itself and refuses this override.
 OVMF=${OVMF_OVERRIDE:-$OVMF}
 
 # FW_DEBUGCON=1 captures the firmware's own DEBUG() output to <tag>.debugcon. It is NOT on the serial console:
@@ -47,7 +54,8 @@ start)
     snp)   MACH="-machine q35,accel=kvm,confidential-guest-support=sev0,memory-backend=ram1
                   -object sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=$KERNEL_HASHES${HD_OPT:-}
                   -object memory-backend-memfd,id=ram1,size=${mem}M,share=true" ;;
-    plain) MACH="-machine q35,accel=kvm"
+    plain) [ -z "${DOMAIN_RELEASE_DIR:-}" ] || { echo "pinned SNP release cannot launch as plain KVM" >&2; exit 2; }
+           MACH="-machine q35,accel=kvm"
            # The verifying firmware refuses to boot a guest with no kernel hash table, and a plain guest has no
            # SEV and therefore no table: an AmdSevX64 build meets that by refusing to load the kernel and falling
            # through to its boot manager (measured: "Failed to mount root securely"). T0 is the explicitly
@@ -70,9 +78,12 @@ start)
   fi
   set --
   pin_shield=0
+  bank=
   if [ -f "$img.shield" ]; then
+    # a pinned CPU release has no Shield template, so an image claiming Shield devices was not built from it
+    [ -z "${DOMAIN_RELEASE_DIR:-}" ] || { echo "pinned CPU release cannot launch a Shield image" >&2; exit 2; }
     model=$(cat "$img.shield")
-    case "$model" in qwen2.5-0.5b-q8-gguf|qwen3.8-27b-mtp-q4-vl-gguf) ;; *) echo "invalid Shield model" >&2; exit 2;; esac
+    case "$model" in qwen2.5-0.5b-q8-gguf|qwen3.8-27b-mtp-q4-vl-gguf|z-image-turbo-q4km-sd) ;; *) echo "invalid Shield model" >&2; exit 2;; esac
     [ -n "${SHIELDED_SHM_DIR:-}" ] || { echo "missing Shield rings" >&2; exit 2; }
     case "$SHIELDED_SHM_DIR${SHIELDED_MODEL_FILE:-}" in *,*) echo "commas are forbidden in QEMU asset paths" >&2; exit 2;; esac
     for card in 0 1; do
@@ -80,6 +91,35 @@ start)
       [ -f "$ring" ] && [ "$(stat -c %s "$ring")" = 67108864 ] || { echo "bad Shield ring" >&2; exit 2; }
       set -- "$@" -object "memory-backend-file,id=sh$card,mem-path=$ring,size=64M,share=on" -device "ivshmem-plain,memdev=sh$card,addr=$((5+card))"
     done
+    if [ "$model" = z-image-turbo-q4km-sd ]; then
+      # A preemptible guest (guestd -shield-profile preemptible=1): if the host kernel ever has to OOM-kill, it takes
+      # this guest before any other (they run at the user manager's +200).
+      oom_adj=1000
+      # ONE public disk: the dm-verity volume (ext4 + hash tree) holding the three model files. The guest verifies
+      # every block it reads against the root hash in its measured release; nothing is copied into guest RAM.
+      # Pad bank second (vdb).
+      [ -n "${SHIELDED_MODEL_FILE:-}" ] || { echo "missing Shield model" >&2; exit 2; }
+      n=0
+      old_ifs=$IFS; IFS=:
+      for f in $SHIELDED_MODEL_FILE; do
+        IFS=$old_ifs
+        [ -f "$f" ] || { echo "missing Shield model file" >&2; exit 2; }
+        set -- "$@" -drive "file=$f,format=raw,if=virtio,readonly=on,cache=none"
+        n=$((n + 1))
+      done
+      IFS=$old_ifs
+      [ "$n" = 1 ] || { echo "the Z-Image Shield model is exactly one verity volume" >&2; exit 2; }
+      if [ -n "${SHIELDED_PAD_BANK_DIR:-}" ]; then
+        case "$tag" in ''|*[!0-9A-Za-z_-]*) echo "invalid tag for the pad bank" >&2; exit 2 ;; esac
+        case "$SHIELDED_PAD_BANK_DIR" in *,*) echo "commas are forbidden in QEMU asset paths" >&2; exit 2 ;; esac
+        # Its own size: a 512px image draws ~45 GB of pads, and the 27B's bank setting is sized for chat.
+        gib=${SHIELDED_PAD_BANK_GIB_SD:-192}
+        case "$gib" in ''|*[!0-9]*) echo "SHIELDED_PAD_BANK_GIB_SD must be a whole number" >&2; exit 2 ;; esac
+        bank="$SHIELDED_PAD_BANK_DIR/$tag.padbank"
+        set -- "$@" -drive "file=$bank,format=raw,if=none,id=padbank,cache=none,discard=ignore" \
+          -device "virtio-blk-pci,drive=padbank,addr=0x10,logical_block_size=4096,physical_block_size=4096"
+      fi
+    fi
     if [ "$model" = qwen3.8-27b-mtp-q4-vl-gguf ]; then
       [ -f "${SHIELDED_MODEL_FILE:-}" ] || { echo "missing Shield model" >&2; exit 2; }
       set -- "$@" -drive "file=$SHIELDED_MODEL_FILE,format=raw,if=virtio,readonly=on,cache=none"
@@ -92,18 +132,9 @@ start)
         case "$SHIELDED_PAD_BANK_DIR" in *,*) echo "commas are forbidden in QEMU asset paths" >&2; exit 2 ;; esac
         gib=${SHIELDED_PAD_BANK_GIB:-192}
         case "$gib" in ''|*[!0-9]*) echo "SHIELDED_PAD_BANK_GIB must be a whole number" >&2; exit 2 ;; esac
-        mkdir -p "$SHIELDED_PAD_BANK_DIR"
-        # A guest that ended without a stop left its bank behind; its keys are gone, so the bytes are noise. Only
-        # banks idle for 10 minutes whose guest unit is gone, so a guest starting beside this one keeps its own.
-        find "$SHIELDED_PAD_BANK_DIR" -maxdepth 1 -name '*.padbank' -mmin +10 2>/dev/null | while read -r old; do
-          t=$(basename "$old" .padbank)
-          systemctl --user list-units --plain --no-legend "m2-$t-*" 2>/dev/null | grep -q . || rm -f "$old"
-        done
         bank="$SHIELDED_PAD_BANK_DIR/$tag.padbank"
-        rm -f "$bank"
-        truncate -s "${gib}G" "$bank"
         # 4 KiB logical blocks: the engine aligns its slots to them, so no I/O is a partial host block (cache=none)
-        set -- "$@" -drive "file=$bank,format=raw,if=none,id=padbank,cache=none" \
+        set -- "$@" -drive "file=$bank,format=raw,if=none,id=padbank,cache=none,discard=ignore" \
           -device "virtio-blk-pci,drive=padbank,addr=0x10,logical_block_size=4096,physical_block_size=4096"
       fi
       # Pause until critical vCPUs are placed on physical cores sharing an L3.
@@ -113,18 +144,46 @@ start)
       pin_shield=1
     fi
   fi
+  # Model volumes (m4/guestd/modelvol.go writes $img.volumes: "<serial> <path>" per volume): each a READ-ONLY virtio
+  # disk with that serial ("mv" + 18 hex of its pinned verity root), which is how the guest's init finds it
+  # (modelvol.h). The guest verifies every block against the root its own measured table pins; nothing here is
+  # trusted for identity, so the checks below only keep a malformed list from reaching QEMU's option parser.
+  if [ -f "$img.volumes" ]; then
+    [ ! -f "$img.shield" ] || { echo "a Shield image carries its own model, not model volumes" >&2; exit 2; }
+    nvol=0
+    while read -r serial vpath extra; do
+      nvol=$((nvol + 1))
+      [ "$nvol" -le 8 ] && [ -z "${extra:-}" ] || { echo "invalid model volume list" >&2; exit 2; }
+      case "$serial" in mv[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
+        *) echo "invalid model volume serial" >&2; exit 2 ;; esac
+      case "$vpath" in /*) ;; *) echo "model volume paths must be absolute" >&2; exit 2 ;; esac
+      case "$vpath" in *,*) echo "commas are forbidden in QEMU asset paths" >&2; exit 2 ;; esac
+      [ -f "$vpath" ] && [ ! -L "$vpath" ] || { echo "missing model volume image" >&2; exit 2; }
+      set -- "$@" -drive "file=$vpath,format=raw,if=none,id=$serial,readonly=on,cache=none" \
+        -device "virtio-blk-pci,drive=$serial,serial=$serial"
+    done < "$img.volumes"
+  fi
   unit="m2-$tag-$$"
   t0=$(date +%s%3N)
   # CPU domains have only the console and vsock. Shield additionally maps two
   # untrusted masked-data BARs and, for 27B, a public model block device whose
   # contents the measured loader copies and authenticates before execution.
   # shellcheck disable=SC2086
-  systemd-run --user --unit="$unit" --collect -q \
-    -p CPUQuota="${quota}%" -p MemoryMax="$((mem + 768))M" -p TasksMax=256 \
-    qemu-system-x86_64 $MACH -cpu host -smp "$vcpus" -m "${mem}M" -bios "$OVMF" \
+  set -- qemu-system-x86_64 $MACH -cpu host -smp "$vcpus" -m "${mem}M" -bios "$OVMF" \
       -kernel "$KERNEL" -initrd "$(realpath "$img")" -append "$APPEND" \
       -device "vhost-vsock-pci,guest-cid=$cid" \
       "$@" -nodefaults -display none -serial "file:$W/$tag.serial" ${FW_DEBUGCON:+-debugcon "file:$W/$tag.debugcon" -global isa-debugcon.iobase=0x402} -no-reboot
+  if [ -n "$bank" ]; then
+    # Allocation runs as the service's main process, so cleanup can distinguish a
+    # starting guest from an orphan. Fully reserve blocks under a shared lock;
+    # never fall back to an unbounded sparse file. See pad-storage.md.
+    post=$(python3 "$here/pad-bank.py" stop-command --directory "$SHIELDED_PAD_BANK_DIR" --unit "$unit.service")
+    set -- -p Type=notify -p NotifyAccess=main -p TimeoutStartSec=120 -p "ExecStopPost=$post" python3 "$here/pad-bank.py" run \
+      --directory "$SHIELDED_PAD_BANK_DIR" --tag "$tag" --unit "$unit.service" --gib "$gib" \
+      --max-gib "${SHIELDED_PAD_BANK_MAX_GIB:-704}" --reserve-gib "${SHIELDED_PAD_BANK_RESERVE_GIB:-100}" -- "$@"
+  fi
+  systemd-run --user --unit="$unit" --collect -q \
+    -p CPUQuota="${quota}%" -p MemoryMax="$((mem + 768))M" -p TasksMax=256 ${oom_adj:+-p OOMScoreAdjust=$oom_adj} "$@"
   if [ "${pin_shield:-0}" = 1 ]; then
     if ! python3 "$here/pin-shield-cpus.py" --qmp "$qmp_dir/qmp" --vcpus "$vcpus" --out "$W/$tag.cpu-placement.json"; then
       systemctl --user stop "$unit"
@@ -146,7 +205,7 @@ stop)
   fi
   # the guest's pad spill, if it had one: noise without the guest's keys
   if [ -n "${SHIELDED_PAD_BANK_DIR:-}" ]; then
-    case "$tag" in ''|*[!0-9A-Za-z_-]*) ;; *) rm -f "$SHIELDED_PAD_BANK_DIR/$tag.padbank" ;; esac
+    python3 "$here/pad-bank.py" reap --directory "$SHIELDED_PAD_BANK_DIR"
   fi
   ;;
 *) echo "usage: run-domain.sh start|stop ..."; exit 2 ;;

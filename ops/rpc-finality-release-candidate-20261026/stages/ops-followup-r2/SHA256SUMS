@@ -1,0 +1,10 @@
+87540cb0a3fdfe8c67bdb584df31859173010b38cf19c41507e7907c7bceaf41  ./README.md
+098c36ad405d7e99e0d58bb548b90148b2b175d84ff37b6217d5b1b85d1c8460  ./install/MANIFEST.json
+b4ee634aa005f0395711fa00057b96cdb9c326eb52ccdd95ac59075956a4cebe  ./install/install_verified.py
+ca54173cee5e868a98d1f7a19c663885ffcc89506929b685b85457d9f76e4837  ./jobs/root-r10-ops-followup-r2-tests.sh
+3172c8b9bc48a27c772c478f55f7fd981fa7e6914ce521be73b06b355764a8a8  ./patches/r2-install_MANIFEST.json.patch
+938004b36d2a3205fe0dd5f0c2d9bead419a7a8bfc9612aa0522c4466f9d433d  ./patches/r2-src_reproof.py.patch
+671ec38a5619b845baaeaae04e23b8463ca129e8854b1bab3c21b625e69535b2  ./patches/r2-tests_test_reproof.py.patch
+cc9ff0b41dc04a5c2213f1e8a34649e41dd1095dc92a1f4a46b474c1f05dbdd3  ./src/reproof.py
+25ee1bfdac0feec1b1a1efb2c64149b7ea18921af20c0dfc4f89c0b2552fe69c  ./tests/test_ops_installer.py
+679a5d458cdd95d7d2824b6ebfdba65d3c35aaac5961de59e3a1784bebe452be  ./tests/test_reproof.py

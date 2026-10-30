@@ -1,0 +1,2 @@
+FWD listening 127.0.0.1:36631 -> vsock 205650:443 mitm=false
+FWD conn 1 relay

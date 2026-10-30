@@ -1,0 +1,428 @@
+{
+ "cmdlineBytes": 728,
+ "cmdlineMax": 2047,
+ "endedAt": 1793037295.332449,
+ "format": "enclave-rpc-qual-inventory/r5",
+ "grub": {
+  "cmdlineFromGrub": [
+   "root=LABEL=cloudimg-rootfs",
+   "ro",
+   "console=tty1",
+   "console=ttyS0"
+  ],
+  "kernelVersion": "6.8.0-147-generic",
+  "partition": "BOOT",
+  "searchUuid": "b4f0deba-ce7d-45dc-9999-0427f2720320"
+ },
+ "maskSet": [
+  "enclave-l1-cl.service",
+  "enclave-l1-el.path",
+  "enclave-l1-el.service",
+  "enclave-rpc-l1-snapshot.service",
+  "enclave-rpc-base-snapshot.service",
+  "enclave-base-holder.path",
+  "enclave-base-holder.service",
+  "enclave-base-retention.service",
+  "enclave-rpc-fwd-base-rpc.service",
+  "enclave-rpc-fwd-base-rpc.socket",
+  "enclave-rpc-fwd-l1-cl.service",
+  "enclave-rpc-fwd-l1-cl.socket",
+  "enclave-rpc-fwd-l1-el.service",
+  "enclave-rpc-fwd-l1-el.socket",
+  "srv-enclave\\x2dl1\\x2dpair.mount",
+  "srv-enclave\\x2dbase\\x2dholder.mount"
+ ],
+ "ok": true,
+ "osDisk": "/vm/enclave-volumes/rpc-production/os.qcow2",
+ "osDiskIdentAfter": [
+  18581159936,
+  1793030445722920013,
+  1793030445722920013,
+  147981797
+ ],
+ "osDiskIdentBefore": [
+  18581159936,
+  1793030445722920013,
+  1793030445722920013,
+  147981797
+ ],
+ "partitions": [
+  {
+   "first": 2099200,
+   "fsUuid": "59134bd0-a76f-4ea0-8e4a-770b2e1eafc2",
+   "index": 1,
+   "label": "cloudimg-rootfs",
+   "last": 67108830,
+   "name": "",
+   "partUuid": "17b4d016-4dff-469b-bb05-776ecd0a63d4",
+   "type": "0fc63daf-8483-4772-8e79-3d69d8477de4"
+  },
+  {
+   "first": 2048,
+   "fsUuid": null,
+   "index": 14,
+   "label": null,
+   "last": 10239,
+   "name": "",
+   "partUuid": "24378bbd-4f0a-4154-93d5-e5be509ad4f9",
+   "type": "21686148-6449-6e6f-744e-656564454649"
+  },
+  {
+   "first": 10240,
+   "fsUuid": null,
+   "index": 15,
+   "label": null,
+   "last": 227327,
+   "name": "",
+   "partUuid": "6ec49856-0bd6-4fc8-891c-2ab8f712b077",
+   "type": "c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
+  },
+  {
+   "first": 227328,
+   "fsUuid": "b4f0deba-ce7d-45dc-9999-0427f2720320",
+   "index": 16,
+   "label": "BOOT",
+   "last": 2097152,
+   "name": "",
+   "partUuid": "4cc491c2-2bfb-46d6-bf48-0a9d606ba0d7",
+   "type": "bc13c2ff-59e6-4262-a352-b275fd6f7172"
+  }
+ ],
+ "problems": [],
+ "production": {
+  "/home/steven/.local/state/enclave-rpc-production/manifest.json": "a28432151c9a24bd207d9adaab401ca4e24a9cdc39807489f12c3000b0936441",
+  "/home/steven/.local/state/enclave-rpc-production/provision_vm.py": "38f8dc891bfa9f5f74fcd8eb4ba50ea6f5f70342c49e3c7e2944a10c504436d7"
+ },
+ "scope": "read-only metadata of the production OS disk; no overlay, no extraction, no capacity use",
+ "startedAt": 1793037294.9089968,
+ "teardown": {
+  "dirRemoved": true,
+  "fusermountRc": 0,
+  "killed": false,
+  "nbdfuseExit": 0,
+  "openAfter": [],
+  "stillMounted": false
+ },
+ "unitScan": {
+  "dirs": {
+   "/etc/systemd/system": {
+    "entries": 47,
+    "real": "/etc/systemd/system",
+    "state": "listed"
+   },
+   "/etc/systemd/system/cloud-config.target.wants": {
+    "entries": 1,
+    "real": "/etc/systemd/system/cloud-config.target.wants",
+    "state": "listed"
+   },
+   "/etc/systemd/system/cloud-final.service.wants": {
+    "entries": 1,
+    "real": "/etc/systemd/system/cloud-final.service.wants",
+    "state": "listed"
+   },
+   "/etc/systemd/system/cloud-init.target.wants": {
+    "entries": 4,
+    "real": "/etc/systemd/system/cloud-init.target.wants",
+    "state": "listed"
+   },
+   "/etc/systemd/system/emergency.target.wants": {
+    "entries": 1,
+    "real": "/etc/systemd/system/emergency.target.wants",
+    "state": "listed"
+   },
+   "/etc/systemd/system/final.target.wants": {
+    "entries": 1,
+    "real": "/etc/systemd/system/final.target.wants",
+    "state": "listed"
+   },
+   "/etc/systemd/system/getty.target.wants": {
+    "entries": 1,
+    "real": "/etc/systemd/system/getty.target.wants",
+    "state": "listed"
+   },
+   "/etc/systemd/system/graphical.target.wants": {
+    "entries": 1,
+    "real": "/etc/systemd/system/graphical.target.wants",
+    "state": "listed"
+   },
+   "/etc/systemd/system/hibernate.target.wants": {
+    "entries": 1,
+    "real": "/etc/systemd/system/hibernate.target.wants",
+    "state": "listed"
+   },
+   "/etc/systemd/system/hybrid-sleep.target.wants": {
+    "entries": 1,
+    "real": "/etc/systemd/system/hybrid-sleep.target.wants",
+    "state": "listed"
+   },
+   "/etc/systemd/system/mdmonitor.service.wants": {
+    "entries": 3,
+    "real": "/etc/systemd/system/mdmonitor.service.wants",
+    "state": "listed"
+   },
+   "/etc/systemd/system/multi-user.target.wants": {
+    "entries": 31,
+    "real": "/etc/systemd/system/multi-user.target.wants",
+    "state": "listed"
+   },
+   "/etc/systemd/system/network-online.target.wants": {
+    "entries": 1,
+    "real": "/etc/systemd/system/network-online.target.wants",
+    "state": "listed"
+   },
+   "/etc/systemd/system/open-vm-tools.service.requires": {
+    "entries": 1,
+    "real": "/etc/systemd/system/open-vm-tools.service.requires",
+    "state": "listed"
+   },
+   "/etc/systemd/system/paths.target.wants": {
+    "entries": 2,
+    "real": "/etc/systemd/system/paths.target.wants",
+    "state": "listed"
+   },
+   "/etc/systemd/system/rescue.target.wants": {
+    "entries": 1,
+    "real": "/etc/systemd/system/rescue.target.wants",
+    "state": "listed"
+   },
+   "/etc/systemd/system/sleep.target.wants": {
+    "entries": 1,
+    "real": "/etc/systemd/system/sleep.target.wants",
+    "state": "listed"
+   },
+   "/etc/systemd/system/sockets.target.wants": {
+    "entries": 11,
+    "real": "/etc/systemd/system/sockets.target.wants",
+    "state": "listed"
+   },
+   "/etc/systemd/system/ssh.service.requires": {
+    "entries": 1,
+    "real": "/etc/systemd/system/ssh.service.requires",
+    "state": "listed"
+   },
+   "/etc/systemd/system/suspend-then-hibernate.target.wants": {
+    "entries": 1,
+    "real": "/etc/systemd/system/suspend-then-hibernate.target.wants",
+    "state": "listed"
+   },
+   "/etc/systemd/system/suspend.target.wants": {
+    "entries": 1,
+    "real": "/etc/systemd/system/suspend.target.wants",
+    "state": "listed"
+   },
+   "/etc/systemd/system/sysinit.target.wants": {
+    "entries": 12,
+    "real": "/etc/systemd/system/sysinit.target.wants",
+    "state": "listed"
+   },
+   "/etc/systemd/system/sysstat.service.wants": {
+    "entries": 2,
+    "real": "/etc/systemd/system/sysstat.service.wants",
+    "state": "listed"
+   },
+   "/etc/systemd/system/timers.target.wants": {
+    "entries": 14,
+    "real": "/etc/systemd/system/timers.target.wants",
+    "state": "listed"
+   },
+   "/etc/systemd/user": {
+    "entries": 2,
+    "real": "/etc/systemd/user",
+    "state": "listed"
+   },
+   "/etc/systemd/user/sockets.target.wants": {
+    "entries": 7,
+    "real": "/etc/systemd/user/sockets.target.wants",
+    "state": "listed"
+   },
+   "/etc/systemd/user/timers.target.wants": {
+    "entries": 1,
+    "real": "/etc/systemd/user/timers.target.wants",
+    "state": "listed"
+   },
+   "/home/rpcadmin/.config/systemd/user": {
+    "missing": "/home/rpcadmin/.config/systemd",
+    "state": "absent"
+   },
+   "/lib/systemd/system": {
+    "of": "/usr/lib/systemd/system",
+    "state": "alias"
+   },
+   "/root/.config/systemd/user": {
+    "missing": "/root/.config",
+    "state": "absent"
+   },
+   "/usr/lib/systemd/system": {
+    "entries": 400,
+    "real": "/usr/lib/systemd/system",
+    "state": "listed"
+   },
+   "/usr/lib/systemd/system/getty.target.wants": {
+    "entries": 1,
+    "real": "/usr/lib/systemd/system/getty.target.wants",
+    "state": "listed"
+   },
+   "/usr/lib/systemd/system/graphical.target.wants": {
+    "entries": 1,
+    "real": "/usr/lib/systemd/system/graphical.target.wants",
+    "state": "listed"
+   },
+   "/usr/lib/systemd/system/halt.target.wants": {
+    "entries": 2,
+    "real": "/usr/lib/systemd/system/halt.target.wants",
+    "state": "listed"
+   },
+   "/usr/lib/systemd/system/initrd-root-device.target.wants": {
+    "entries": 2,
+    "real": "/usr/lib/systemd/system/initrd-root-device.target.wants",
+    "state": "listed"
+   },
+   "/usr/lib/systemd/system/initrd-root-fs.target.wants": {
+    "entries": 1,
+    "real": "/usr/lib/systemd/system/initrd-root-fs.target.wants",
+    "state": "listed"
+   },
+   "/usr/lib/systemd/system/initrd-switch-root.target.wants": {
+    "entries": 2,
+    "real": "/usr/lib/systemd/system/initrd-switch-root.target.wants",
+    "state": "listed"
+   },
+   "/usr/lib/systemd/system/initrd.target.wants": {
+    "entries": 3,
+    "real": "/usr/lib/systemd/system/initrd.target.wants",
+    "state": "listed"
+   },
+   "/usr/lib/systemd/system/kexec.target.wants": {
+    "entries": 2,
+    "real": "/usr/lib/systemd/system/kexec.target.wants",
+    "state": "listed"
+   },
+   "/usr/lib/systemd/system/multi-user.target.wants": {
+    "entries": 8,
+    "real": "/usr/lib/systemd/system/multi-user.target.wants",
+    "state": "listed"
+   },
+   "/usr/lib/systemd/system/poweroff.target.wants": {
+    "entries": 2,
+    "real": "/usr/lib/systemd/system/poweroff.target.wants",
+    "state": "listed"
+   },
+   "/usr/lib/systemd/system/reboot.target.wants": {
+    "entries": 2,
+    "real": "/usr/lib/systemd/system/reboot.target.wants",
+    "state": "listed"
+   },
+   "/usr/lib/systemd/system/rescue.target.wants": {
+    "entries": 1,
+    "real": "/usr/lib/systemd/system/rescue.target.wants",
+    "state": "listed"
+   },
+   "/usr/lib/systemd/system/sockets.target.wants": {
+    "entries": 8,
+    "real": "/usr/lib/systemd/system/sockets.target.wants",
+    "state": "listed"
+   },
+   "/usr/lib/systemd/system/sysinit.target.wants": {
+    "entries": 39,
+    "real": "/usr/lib/systemd/system/sysinit.target.wants",
+    "state": "listed"
+   },
+   "/usr/lib/systemd/system/system-update.target.wants": {
+    "entries": 1,
+    "real": "/usr/lib/systemd/system/system-update.target.wants",
+    "state": "listed"
+   },
+   "/usr/lib/systemd/system/timers.target.wants": {
+    "entries": 1,
+    "real": "/usr/lib/systemd/system/timers.target.wants",
+    "state": "listed"
+   },
+   "/usr/lib/systemd/user": {
+    "entries": 41,
+    "real": "/usr/lib/systemd/user",
+    "state": "listed"
+   },
+   "/usr/lib/systemd/user/graphical-session-pre.target.wants": {
+    "entries": 1,
+    "real": "/usr/lib/systemd/user/graphical-session-pre.target.wants",
+    "state": "listed"
+   },
+   "/usr/lib/systemd/user/sockets.target.wants": {
+    "entries": 2,
+    "real": "/usr/lib/systemd/user/sockets.target.wants",
+    "state": "listed"
+   },
+   "/usr/local/lib/systemd/system": {
+    "missing": "/usr/local/lib/systemd",
+    "state": "absent"
+   },
+   "/usr/local/lib/systemd/user": {
+    "missing": "/usr/local/lib/systemd",
+    "state": "absent"
+   },
+   "/var/lib/systemd/linger": {
+    "entries": 0,
+    "real": "/var/lib/systemd/linger",
+    "state": "listed"
+   }
+  },
+  "linger": [],
+  "problems": [],
+  "system": {
+   "enclave-base-holder.path": [
+    "/etc/systemd/system/enclave-base-holder.path"
+   ],
+   "enclave-base-holder.service": [
+    "/etc/systemd/system/enclave-base-holder.service",
+    "/etc/systemd/system/enclave-base-holder.service.d"
+   ],
+   "enclave-base-retention.service": [
+    "/etc/systemd/system/enclave-base-retention.service"
+   ],
+   "enclave-l1-cl.service": [
+    "/etc/systemd/system/enclave-l1-cl.service",
+    "/etc/systemd/system/enclave-l1-cl.service.d",
+    "/etc/systemd/system/multi-user.target.wants/enclave-l1-cl.service"
+   ],
+   "enclave-l1-el.path": [
+    "/etc/systemd/system/enclave-l1-el.path",
+    "/etc/systemd/system/multi-user.target.wants/enclave-l1-el.path"
+   ],
+   "enclave-l1-el.service": [
+    "/etc/systemd/system/enclave-l1-el.service",
+    "/etc/systemd/system/enclave-l1-el.service.d"
+   ],
+   "enclave-rpc-base-snapshot.service": [
+    "/etc/systemd/system/enclave-rpc-base-snapshot.service",
+    "/etc/systemd/system/enclave-rpc-base-snapshot.service.d",
+    "/etc/systemd/system/multi-user.target.wants/enclave-rpc-base-snapshot.service"
+   ],
+   "enclave-rpc-fwd-base-rpc.service": [
+    "/etc/systemd/system/enclave-rpc-fwd-base-rpc.service"
+   ],
+   "enclave-rpc-fwd-base-rpc.socket": [
+    "/etc/systemd/system/enclave-rpc-fwd-base-rpc.socket",
+    "/etc/systemd/system/sockets.target.wants/enclave-rpc-fwd-base-rpc.socket"
+   ],
+   "enclave-rpc-fwd-l1-cl.service": [
+    "/etc/systemd/system/enclave-rpc-fwd-l1-cl.service"
+   ],
+   "enclave-rpc-fwd-l1-cl.socket": [
+    "/etc/systemd/system/enclave-rpc-fwd-l1-cl.socket",
+    "/etc/systemd/system/sockets.target.wants/enclave-rpc-fwd-l1-cl.socket"
+   ],
+   "enclave-rpc-fwd-l1-el.service": [
+    "/etc/systemd/system/enclave-rpc-fwd-l1-el.service"
+   ],
+   "enclave-rpc-fwd-l1-el.socket": [
+    "/etc/systemd/system/enclave-rpc-fwd-l1-el.socket",
+    "/etc/systemd/system/sockets.target.wants/enclave-rpc-fwd-l1-el.socket"
+   ],
+   "enclave-rpc-l1-snapshot.service": [
+    "/etc/systemd/system/enclave-rpc-l1-snapshot.service",
+    "/etc/systemd/system/multi-user.target.wants/enclave-rpc-l1-snapshot.service"
+   ]
+  },
+  "user": {}
+ }
+}

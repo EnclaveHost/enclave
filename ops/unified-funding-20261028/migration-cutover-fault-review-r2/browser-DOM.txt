@@ -1,0 +1,90 @@
+- 'heading "TEST ONLY: migration-cutover-fault-r2 cutover fault fixture on an owned chain" [level=1]'
+- paragraph:
+  - strong: Owned loopback Anvil (chain id 8453, NOT Base). Public Anvil fixture keys, mock USDC, TEST terms, TEST approval and TEST activation records only (24 legacy / 4.8 nucbox / 1.2 metal). Nothing here is a production review or approval.
+  - text: "Owner signatures come from a server-side TEST fixture signer, not a wallet; no wallet or extension is used. The page under test is the root-qualified migration-cutover-site-review-r1 candidate (pages/funding.js, funding/flows.js, funding/state.js and the vendored funding client), byte-unchanged; site modules around it are TEST facades. Labelled TEST faults: a lost termination reply, ONE bounded time advance, and a same-origin peer tab."
+- region "TEST harness":
+  - heading "Harness (click the phases in order)" [level=2]
+  - generic: "PASS: ALL PHASES PASS (TEST fixture only)"
+  - generic: "phase: done"
+  - generic: "TEST databases: client-site-browser-r1-TEST-legacy-7fc59fd49f7ffa27, client-site-browser-r1-TEST-v2-dd9441f28500ba00"
+  - generic: "TEST clock: +904s (owned Anvil, fixture server and this page; ONE labelled time advance, TEST ONLY)"
+  - 'button "TEST Start: random TEST DBs + ORIGINAL 30 USDC session (SDK, 2 fixture prompts)" [disabled]'
+  - 'button "1. (not in this run: replaced by C1-C10)" [disabled]'
+  - 'button "2. Harness: TEST-approve exactly the displayed TEST plan (reloads)" [disabled]'
+  - button "3. Page Sign with an ACCOUNT switch while the 2nd prompt is open (expect stop, nothing kept)" [disabled]
+  - 'button "4. Page buttons: Sign next (7 prompts), then Send (first gas reply is LOST)" [disabled]'
+  - 'button "C1. Reviewed pause mode: hide the funding API (exact 404) and set the TEST pause terms (reloads)" [disabled]'
+  - 'button "C2. Page: API shown as not deployed; controls render; prepare the pause-bound plan (no wallet)" [disabled]'
+  - 'button "C3. Harness: TEST-approve exactly the displayed pause-bound plan (reloads)" [disabled]'
+  - 'button "C4. Page: Sign the WHOLE plan (7 prompts), then Send: the termination REPLY is LOST after real processing -> durable UNKNOWN" [disabled]'
+  - button "C5. Real reload while the termination outcome is UNKNOWN" [disabled]
+  - 'button "C6. After reload: still UNKNOWN (durable); page Check status proves the exact refund on chain -> PAUSED; no resend, sign or POST" [disabled]'
+  - 'button "C7. Page Record activation with a mismatched record: refused, still paused (then the right record, reloads)" [disabled]'
+  - 'button "C8. Page Record activation with the right record while the API is still absent: refused (intake), still paused" [disabled]'
+  - 'button "C8b. Activation wait: ONE labelled TEST time advance (owned Anvil + fixture server + page clock) past every remaining signing window (reloads)" [disabled]'
+  - button "C8c. Open the PEER tab (second same-origin page on this run's TEST databases; acts only on harness messages)" [disabled]
+  - 'button "C9. Expired + paused offers nothing; ACCOUNT switch stops Record activation; then BOTH tabs click it at one instant: exactly one records" [disabled]'
+  - button "C10. Prepare again x3 keeps terms/pause/evidence/keys/scopes; nothing admits without fresh signatures; Sign (6), Send (first gas reply LOST)" [disabled]
+  - button "Reload page (F5 equivalent)"
+  - 'button "5. After reload: page button Check status on chain (no resend, no signature)" [disabled]'
+  - button "6. Page Sign metal (2 prompts), then Send with a CHAIN switch at its first chain read (expect no send)" [disabled]
+  - 'button "7. BOTH tabs sign metal, then Send at one instant: exactly one admission/send -> complete; conservation, same-key API, finite grants" [disabled]'
+  - button "8. Quote stays visible after render; changing deployment / amount / tier clears it; stale fund refused" [disabled]
+  - 'button "9. Page buttons: quote the selected inputs and Fund; canonical settlement and fixture balances" [disabled]'
+  - 'button "12. After the normal Fund: on-chain-not-final is shown and blocks a quote; page Check status until final" [disabled]'
+  - 'button "13. Page Fund with the reply body LOST after headers: persisted UNKNOWN with the exact intent (then Reload)" [disabled]'
+  - 'button "14. After reload: the UNKNOWN row is still there; page Check status proves it once, read-only" [disabled]'
+  - 'button "15. Page Fund answered by a gateway 502 AFTER real processing: UNKNOWN, then page Check status proves it once" [disabled]'
+  - 'button "16. Page Fund with an ACCOUNT switch, then a CHAIN switch, at the payment''s first chain read: nothing admitted or sent" [disabled]'
+  - 'button "10. Intake OFF, then config/catalog unavailable: owner controls still render; page Terminate works" [disabled]'
+  - 'button "11. Null runtime (reloads): zero signing offered" [disabled]'
+  - 'button "11b. Check the null-runtime page: nothing to sign or send" [disabled]'
+  - button "Delete this run's TEST databases"
+  - list
+  - heading "Cumulative phase history (this run; survives reloads)" [level=3]
+  - list:
+    - listitem: "PASS starting -> original: original open; the page now gets the TEST proposal for this sid"
+    - listitem: "PASS original -> cutMode: TEST pause terms set; funding API hidden"
+    - listitem: "PASS cutMode -> cutPlanned: pause-bound plan prepared; click C3"
+    - listitem: "PASS cutPlanned -> cutApproved: TEST approval set for this exact pause-bound plan"
+    - listitem: "PASS cutApproved -> cutUnknown: termination outcome UNKNOWN (reply lost after real processing); click C5 (real reload)"
+    - listitem: "PASS cutUnknown -> cutReloaded: reloading while the termination outcome is UNKNOWN"
+    - listitem: "PASS cutReloaded -> cutBadAct: UNKNOWN resolved to PAUSED from the chain; a MISMATCHED TEST activation record is configured for the next load"
+    - listitem: "PASS cutBadAct -> cutNoApi: the right TEST record is configured; the funding API is still absent"
+    - listitem: "PASS cutNoApi -> cutApiLive: TEST successor API now answers; click C8b"
+    - listitem: "PASS cutApiLive -> cutWaited: TEST time advanced 904s; reloading so the page clock follows"
+    - listitem: "PASS cutWaited -> cutPeer: peer tab ready; click C9"
+    - listitem: "PASS cutPeer -> cutActivated: activation recorded exactly once; click C10"
+    - listitem: "PASS cutActivated -> interrupted: interrupted as designed: click Reload page, then phase 5 (unchanged)"
+    - listitem: "PASS interrupted -> recovered: recovered after reload without resend"
+    - listitem: "PASS recovered -> switched2: chain switch stopped the send before admission"
+    - listitem: "PASS switched2 -> migrated: migration complete through the page"
+    - listitem: "PASS migrated -> quoted: quote persistence and invalidation verified"
+    - listitem: "PASS quoted -> funded: funded the selected inputs through the page"
+    - listitem: "PASS funded -> execFinal: normal payment shown truthfully until proven final"
+    - listitem: "PASS execFinal -> execUnknown: UNKNOWN persisted; click Reload page, then phase 14"
+    - listitem: "PASS execUnknown -> execRecovered: lost-body payment recovered read-only after reload"
+    - listitem: "PASS execRecovered -> exec502Done: gateway-502 payment recovered read-only"
+    - listitem: "PASS exec502Done -> execDone: account and chain switches cannot dispatch a payment"
+    - listitem: "PASS execDone -> controls: owner controls independent of intake and config"
+    - listitem: "PASS controls -> nullRuntime: runtime set to null for the next load"
+    - listitem: "PASS nullRuntime -> done: ALL PHASES PASS (TEST fixture only)"
+  - heading "Page toasts" [level=3]
+  - heading "Log" [level=3]
+  - generic: "ok page: not set up / not available ok no enabled button anywhere on the page ok no prompt, no POST"
+- separator
+- region "The actual /funding page":
+  - heading "/funding page (actual)" [level=2]
+  - heading "Your controls (work even when new funding is paused)" [level=3]
+  - paragraph: "Gas funding is not set up on this site (funding_runtime_unconfigured: funding_runtime_unconfigured: no DEPLOYED successor runtime is configured for this site (FUNDING_RUNTIME is null); nothing is offered)."
+  - paragraph:
+    - text: Original sessions (the API session) are managed on the
+    - link "Sessions":
+      - /url: sessions
+    - text: page.
+  - heading "Gas payments" [level=3]
+  - paragraph: "Not available (funding_runtime_unconfigured: funding_runtime_unconfigured: no DEPLOYED successor runtime is configured for this site (FUNDING_RUNTIME is null); nothing is offered)."
+  - heading "Funding migration" [level=3]
+  - paragraph: "Not available: no deployed successor is configured for this site."
+  - heading "Gas for your apps" [level=3]
+  - paragraph: Not available here.

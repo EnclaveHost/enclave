@@ -1,0 +1,119 @@
+{
+  "admission": {
+    "unit": "enclave-rpc-offline-cleanup-r1-20261030-author.service",
+    "invocationId": "c5618549078f48688eddb21bf7df70b3",
+    "mainPid": 2449465,
+    "runnerPid": 2449482,
+    "claudePid": 2449522,
+    "capturedAt": 1793346137.388344,
+    "identities": [
+      {
+        "pid": 2449465,
+        "startTicks": "165119537",
+        "exe": "/usr/bin/python3.14",
+        "cwd": "/home/steven",
+        "affinity": [
+          1
+        ],
+        "ppid": 1899
+      },
+      {
+        "pid": 2449482,
+        "startTicks": "165119548",
+        "exe": "/usr/bin/python3.14",
+        "cwd": "/home/steven",
+        "affinity": [
+          1
+        ],
+        "ppid": 2449475
+      },
+      {
+        "pid": 2449522,
+        "startTicks": "165119581",
+        "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+        "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-offline-cleanup-author-r1-20261030",
+        "affinity": [
+          1
+        ],
+        "ppid": 2449482
+      }
+    ],
+    "preparedSha256": "8c005a8734ddec2ad1e457dfec717d13585576f1f419dcb5883824ddf8ecfa0d",
+    "initialCaptureFailure": "Initial all-three affinity assertion rejected queue wrapper affinity0..31; author and runner alreadyCPU1. No relaunch. Exact current queue PID/start/exe/argv verified, then narrowed its own affinity toCPU1.",
+    "queueAffinityBefore": {
+      "pid": 2449465,
+      "startTicks": "165119537",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "affinity": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ],
+      "ppid": 1899
+    }
+  },
+  "unit": "ActiveState=inactive\nSubState=dead\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "finished": {
+    "rc": 0,
+    "finishedAt": 1793346902.0054028,
+    "inputDrift": []
+  },
+  "currentInputDrift": [],
+  "session": "235b9eb7-9e86-4e32-8ea4-f98710558c11",
+  "duration_ms": 819373,
+  "num_turns": 38,
+  "configuredMaxAgenticTurns": 20,
+  "distinctAssistantMessageIds": 13,
+  "transcriptUserRows": 38,
+  "turnMetricNote": "Raw success-result num_turns is a different user-message counter from max-agentic/API-turn limit; retain without conflating. See pinned turn-metric-investigation.json.",
+  "is_error": false,
+  "outputParseFailed": false,
+  "files": 11,
+  "changedFiles": 5,
+  "removedFiles": [],
+  "manifestSha256": "7d910b05a3a7b0581b84f76cb593357bb2c8e1ea12021c645b9487f5858d9289",
+  "firstMutations": 5,
+  "firstMutationManifestSha256": "dcdef46eb5599d9ebc76a6ea18a36475c4ef1365f3a3581345a8b8531d3e38b0",
+  "currentInvocationTools": {
+    "Read": 9,
+    "Grep": 4,
+    "Edit": 20,
+    "Write": 4
+  },
+  "unexpectedTools": [],
+  "outsideCandidateMutationAttempts": [],
+  "mutationReplayIssues": [],
+  "mutationAuditSha256": "7429af41dfb0a9ff424ded51eb83636b2a01a251b0dd5c4ef211b3e88d6641ca",
+  "innerGuard": "[memory-guard] exit=0 peakTreeRssMiB=298 minHostAvailableMiB=28609\n",
+  "outerGuard": "[memory-guard] exit=0 peakTreeRssMiB=366 minHostAvailableMiB=28610\n"
+}

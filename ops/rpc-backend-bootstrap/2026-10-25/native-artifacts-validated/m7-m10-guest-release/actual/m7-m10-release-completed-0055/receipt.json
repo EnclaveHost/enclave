@@ -1,0 +1,18 @@
+{
+ "attempt": 1,
+ "systemdRunExit": 0,
+ "unit": "Result=success ExecMainCode=0 ExecMainStatus=0 MemoryPeak=[not set] ",
+ "start": "2026-10-25T23:51:43Z",
+ "end": "2026-10-26T00:51:10Z",
+ "releaseStageManifestSha256": "9c9b2e83e18ba60c296df5549eb4baa85118429eac266dbbe800d51be73a1a75",
+ "outSha256": "fea4ab4db4e67abcb171d62d59e34f658bf5e83482f7d514c749749bce1e9623",
+ "artifactSha256": "4a7c013a510f88166779281ad0108790f25efa07f22f6457d54add709488372f",
+ "outDirSha256sums": "f5dbbd07b3428d0463e74551a171cb7b388baad6eb9b545221d76454470e998b",
+ "compoundGateSha256": "1082d77551b842cb408fa62a6d62beffe929f2ad1c3470d63918e9fdac8eb263",
+ "guardLines": [
+  "[disk-guard] exit=0 childExit=0 minFreeMiB=13530",
+  "[memory-guard] exit=0 peakTreeRssMiB=4217 minHostAvailableMiB=48799",
+  "[memory-guard] at peak: rustc:3834 cargo:366 python3:12 bash:4 timeout:2"
+ ],
+ "pass": true
+}

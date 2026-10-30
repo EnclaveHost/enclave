@@ -1,0 +1,14 @@
+release af50d526be6deefcdd815968ff1dd2c04327f6c3b3f981c0aa90cc585b0effae
+app_id 5bac47ac3b99d9999314ac3f5ee7c2749defdde98b2a52212302d05da13d58eb
+runtime_id 297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8
+runtime_identity_json {"name":"wasmtime","version":"49.0.0","execution":"jit","targetIsa":"x86_64","hostIsa":"x86_64","cpuFeatures":"host-detected","wx":"enforced","cache":"none"}
+measurement 66ba9f551f25158faf428b82a93dc073751b194c7b76b1e83ffad1ce9c0eae8d521b080d3a39603b1ab2272c67a69217
+
+Running as unit: enclave-loader-predict-20261028.service; invocation ID: 0cbd74ae93da45888f189fbc2b2cb97a
+Finished with result: success
+Main processes terminated with: code=exited/status=0
+Service runtime: 1min 45.951s
+CPU time consumed: 1min 45.029s
+Memory peak: 2.5G
+Memory swap peak: 0B
+

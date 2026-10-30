@@ -1,0 +1,91 @@
+TAP version 13
+# Subtest: ROOT unknown stage obligation survives empty inventory
+not ok 1 - ROOT unknown stage obligation survives empty inventory
+  ---
+  duration_ms: 2.584165
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r3/root-client-route.test.mjs:7:57'
+  failureType: 'testCodeFailure'
+  error: |-
+    absence at this instant or failed hold cannot discharge a possibly late stage
+    
+    false !== true
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r3/root-client-route.test.mjs:16:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: ROOT unknown stage obligation survives hold failure
+not ok 2 - ROOT unknown stage obligation survives hold failure
+  ---
+  duration_ms: 0.341795
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r3/root-client-route.test.mjs:7:57'
+  failureType: 'testCodeFailure'
+  error: |-
+    absence at this instant or failed hold cannot discharge a possibly late stage
+    
+    false !== true
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r3/root-client-route.test.mjs:16:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ROOT matching digest on held expired view cannot reconcile as serving
+not ok 3 - ROOT matching digest on held expired view cannot reconcile as serving
+  ---
+  duration_ms: 0.428144
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r3/root-client-route.test.mjs:18:1'
+  failureType: 'testCodeFailure'
+  error: 'held expired view is not a positive serving observation'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: true
+  operator: 'notStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r3/root-client-route.test.mjs:24:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ROOT authenticated DELETE still withdraws through an unreadable instance journal
+not ok 4 - ROOT authenticated DELETE still withdraws through an unreadable instance journal
+  ---
+  duration_ms: 553.26417
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r3/root-client-route.test.mjs:26:1'
+  failureType: 'testCodeFailure'
+  error: 'actual authenticated DELETE bypassed withdrawal because journal lookup threw first'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r3/root-client-route.test.mjs:36:9)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 0
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 832.63985

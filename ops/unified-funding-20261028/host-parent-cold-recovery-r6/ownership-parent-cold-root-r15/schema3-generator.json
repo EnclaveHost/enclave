@@ -1,0 +1,135 @@
+{
+ "output": "/tmp/hacr2.gTvZAl/r6/network/adapter-s3-generated.mjs",
+ "sha256": "07d02fca0fff2b4b59f7680ac0425c65b779aa61e13ae2b7205b7af4ee4443b2",
+ "baselineSha256": "8e666ed6970b8bfed283acfdd08bde917f7004bbdd4c9ebd51de038892406fb1",
+ "r3Sha256": "8e666ed6970b8bfed283acfdd08bde917f7004bbdd4c9ebd51de038892406fb1",
+ "bundleSha256": "bed9c19652edce8ca6f337f691a9909c15763e6755ff237139b07f4d84f3260e",
+ "manifest": [
+  {
+   "name": "import",
+   "baselineLine": 46,
+   "candidateOffset": 4976,
+   "length": 496
+  },
+  {
+   "name": "r6-abis",
+   "baselineLine": 51,
+   "candidateOffset": 5773,
+   "length": 141
+  },
+  {
+   "name": "profile-accept",
+   "baselineLine": 116,
+   "candidateOffset": 13021,
+   "length": 138
+  },
+  {
+   "name": "adapter-s3",
+   "baselineLine": 220,
+   "candidateOffset": 22074,
+   "length": 502
+  },
+  {
+   "name": "schema-open",
+   "baselineLine": 290,
+   "candidateOffset": 28760,
+   "length": 11
+  },
+  {
+   "name": "schema-close",
+   "baselineLine": 290,
+   "candidateOffset": 28773,
+   "length": 1
+  },
+  {
+   "name": "linked",
+   "baselineLine": 293,
+   "candidateOffset": 29038,
+   "length": 438
+  },
+  {
+   "name": "proofstate-offline",
+   "baselineLine": 324,
+   "candidateOffset": 32395,
+   "length": 164
+  },
+  {
+   "name": "adapter-object",
+   "baselineLine": 421,
+   "candidateOffset": 40772,
+   "length": 62
+  },
+  {
+   "name": "read-offline",
+   "baselineLine": 445,
+   "candidateOffset": 43143,
+   "length": 325
+  },
+  {
+   "name": "read-offline-return",
+   "baselineLine": 446,
+   "candidateOffset": 43792,
+   "length": 24
+  },
+  {
+   "name": "pending-decl",
+   "baselineLine": 449,
+   "candidateOffset": 43925,
+   "length": 144
+  },
+  {
+   "name": "pending-horizon",
+   "baselineLine": 452,
+   "candidateOffset": 44432,
+   "length": 25
+  },
+  {
+   "name": "pending-funded",
+   "baselineLine": 465,
+   "candidateOffset": 45730,
+   "length": 14
+  },
+  {
+   "name": "pending-admitted",
+   "baselineLine": 483,
+   "candidateOffset": 47611,
+   "length": 14
+  },
+  {
+   "name": "snapshot-fields",
+   "baselineLine": 491,
+   "candidateOffset": 48433,
+   "length": 137
+  },
+  {
+   "name": "prepare-pending",
+   "baselineLine": 512,
+   "candidateOffset": 50725,
+   "length": 281
+  },
+  {
+   "name": "submit-offline-read",
+   "baselineLine": 533,
+   "candidateOffset": 53169,
+   "length": 76
+  },
+  {
+   "name": "submit-pending",
+   "baselineLine": 537,
+   "candidateOffset": 53634,
+   "length": 171
+  },
+  {
+   "name": "resolve-emergency",
+   "baselineLine": 559,
+   "candidateOffset": 55631,
+   "length": 147
+  },
+  {
+   "name": "finalize-emergency",
+   "baselineLine": 571,
+   "candidateOffset": 56821,
+   "length": 147
+  }
+ ]
+}

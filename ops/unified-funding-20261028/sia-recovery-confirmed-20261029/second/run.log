@@ -1,0 +1,16 @@
+{
+  "capturedAt": "2026-10-29T19:42:45.411Z",
+  "readOnly": true,
+  "scope": "Exact sia-s3 reserve Deposited events since block53256000; canonical quorum, not finality; no signatures or submissions.",
+  "fundingError": {
+    "message": "chain quorum unavailable: 1 of 3 RPCs answered on chain 8453, 2 required (base-rpc.publicnode.com: HTTP request failed.; base.gateway.tenderly.co: Request exceeds defined limit.)",
+    "failures": [
+      "base-rpc.publicnode.com: HTTP request failed.",
+      "base.gateway.tenderly.co: Request exceeds defined limit."
+    ]
+  },
+  "endpoint": {
+    "error": "fetch failed",
+    "code": "EAI_AGAIN"
+  }
+}

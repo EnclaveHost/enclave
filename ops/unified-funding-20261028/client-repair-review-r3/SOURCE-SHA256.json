@@ -1,0 +1,20 @@
+{
+  "README.md": "c5124c7242167e710771a03b7593dcdf7d05e4a44c9df3cdf2c4cde1f95632ce",
+  "STATUS.md": "60624966c537e4cb906924798809423136956351de2058d170c5697bfb263660",
+  "lib/browser-entry.mjs": "29ad990d3397addf1a5891faeabf15ac4fab7b367c9180fc26132f68d440dd1e",
+  "lib/chain-proof.mjs": "b926ef43af1af52135016a438c2b334722320805e2545c84ed009a84353e28e7",
+  "lib/funding-client.mjs": "a4fe851bd70f824dd9f71e73f162ab91c1ec27f3ccbd0930c56bd5b1e5a35b70",
+  "lib/migration.mjs": "7726706d63e1f7c42c220108b5201e8186ca09f1ddc751beb2c995f4dcd2fe2f",
+  "lib/util.mjs": "f06901fffafba27cfc59476dbe1e1b367eec8a2eef6eb3d914711695bea8eb6e",
+  "lib/v2-store.mjs": "d86b86d40ea833f67d44ab2d8927f9aa55b53703461cd86be865ab62b82fe992",
+  "offline42.txt": "392b8db7866c9ab4a30ac85d0f59102ffad961a71a6072ba6cf7288ea6c278ad",
+  "prepare-expect.json": "91386e19f187553ec6f3a93b44c9431874ab01dafc43234daf20bec81eef8722",
+  "prepare.py": "70d4de1cb76a038e3293955658a067e2b412bc621fccd38854c1d203f4a9b38d",
+  "root-receipt.test.mjs": "cd864e0bfe5c89facbee495eb9dbaccceb370c171523c8d6fd25c28fb70135d8",
+  "site-patch/PATCH.md": "001809d6a3909ba3cb6d2aa50628cc80d525865fad65c5ee8773bdb5afe846ae",
+  "site-patch/js/pages/funding.js": "cab7b194137aa41d6f958bac220ec88d4abc35ff611b56d065b456a7bfa6ab4b",
+  "test/fixtures.mjs": "ad713f713d499d0777a6f21e0fe615bb7dcd48f5664a1b60cc4801a212024cb1",
+  "test/offline.test.mjs": "17fe32e49cf756e15b3aee1ccbc4a7748f80e78f75ad2a7752005a22490d7998",
+  "test/partition.test.mjs": "f39cfd9821901d2fce731cd0a254bc8781432cbfae42e45984e5aa20af0cf10f",
+  "test/root-reorg.test.mjs": "adc633993cdb1886b40d703cf39f3e633c7332bb6cf22589b63cfeb0b378492e"
+}

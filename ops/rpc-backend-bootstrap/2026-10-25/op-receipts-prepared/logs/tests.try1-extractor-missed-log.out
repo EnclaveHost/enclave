@@ -1,0 +1,232 @@
+[queue] START available=20346MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: empty trie root and upstream base proof.rs vectors (Bedrock, Regolith nonce-strip quirk, Canyon, EIP-2930)
+not ok 1 - empty trie root and upstream base proof.rs vectors (Bedrock, Regolith nonce-strip quirk, Canyon, EIP-2930)
+  ---
+  duration_ms: 10.376982
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/op-receipts-root/test/op-receipts-root.test.mjs:33:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    bedrock
+    + actual - expected
+    
+    + '0x1a601d5a4eb1c34c9fd5c0787622ea92e9d5c784a6dc160074d1f07afd08932c'
+    - '0x6eefbb5efb95235476654a8bfbf8cb64a4f5f0b0c80b700b0c5964550beee6d7'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '0x6eefbb5efb95235476654a8bfbf8cb64a4f5f0b0c80b700b0c5964550beee6d7'
+  actual: '0x1a601d5a4eb1c34c9fd5c0787622ea92e9d5c784a6dc160074d1f07afd08932c'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/op-receipts-root/test/op-receipts-root.test.mjs:41:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: REAL Ethereum mainnet block: 202 receipts reproduce the authenticated header's receiptsRoot
+ok 2 - REAL Ethereum mainnet block: 202 receipts reproduce the authenticated header's receiptsRoot
+  ---
+  duration_ms: 67.22989
+  type: 'test'
+  ...
+# Subtest: REAL Base mainnet: 5 blocks, 1,824 receipts (types 0x0/0x1/0x2/0x4/0x7e) reproduce receiptsRoot; headers authenticated
+ok 3 - REAL Base mainnet: 5 blocks, 1,824 receipts (types 0x0/0x1/0x2/0x4/0x7e) reproduce receiptsRoot; headers authenticated
+  ---
+  duration_ms: 681.440382
+  type: 'test'
+  ...
+# Subtest: complete-logs integration: bloom plan over 28 real linked headers + verified receipt entries recover the real lease event
+ok 4 - complete-logs integration: bloom plan over 28 real linked headers + verified receipt entries recover the real lease event
+  ---
+  duration_ms: 682.318826
+  type: 'test'
+  ...
+# Subtest: refuses: drop last receipt -> gas_total
+ok 5 - refuses: drop last receipt -> gas_total
+  ---
+  duration_ms: 39.173629
+  type: 'test'
+  ...
+# Subtest: refuses: drop middle receipt -> order
+ok 6 - refuses: drop middle receipt -> order
+  ---
+  duration_ms: 3.876342
+  type: 'test'
+  ...
+# Subtest: refuses: swap two receipts -> order
+ok 7 - refuses: swap two receipts -> order
+  ---
+  duration_ms: 3.622713
+  type: 'test'
+  ...
+# Subtest: refuses: flip a status -> receipts_root_mismatch
+ok 8 - refuses: flip a status -> receipts_root_mismatch
+  ---
+  duration_ms: 77.494872
+  type: 'test'
+  ...
+# Subtest: refuses: change a cumulativeGasUsed -> receipts_root_mismatch
+ok 9 - refuses: change a cumulativeGasUsed -> receipts_root_mismatch
+  ---
+  duration_ms: 76.518656
+  type: 'test'
+  ...
+# Subtest: refuses: tamper log data (bloom kept) -> receipts_root_mismatch
+ok 10 - refuses: tamper log data (bloom kept) -> receipts_root_mismatch
+  ---
+  duration_ms: 77.84309
+  type: 'test'
+  ...
+# Subtest: refuses: tamper log topic with matching RPC bloom absent -> bloom_mismatch
+not ok 11 - refuses: tamper log topic with matching RPC bloom absent -> bloom_mismatch
+  ---
+  duration_ms: 83.265985
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/op-receipts-root/test/op-receipts-root.test.mjs:119:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    Error: recomputed receipts root 0x17c04e5479ca925ad35f78637427e26709f81c3f7e3e004a738ed0fc3685a869 != header 0xe001b741f711bcdeffbd5e0be8f684fa29ebea098889acd1493fa13108785788
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/op-receipts-root/test/op-receipts-root.test.mjs:123:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: refuses: RPC logsBloom lies -> bloom_mismatch
+ok 12 - refuses: RPC logsBloom lies -> bloom_mismatch
+  ---
+  duration_ms: 4.026842
+  type: 'test'
+  ...
+# Subtest: refuses: deposit without depositNonce -> deposit_fields
+ok 13 - refuses: deposit without depositNonce -> deposit_fields
+  ---
+  duration_ms: 3.071935
+  type: 'test'
+  ...
+# Subtest: refuses: deposit without version (post-Canyon) -> deposit_fields
+ok 14 - refuses: deposit without version (post-Canyon) -> deposit_fields
+  ---
+  duration_ms: 2.959347
+  type: 'test'
+  ...
+# Subtest: refuses: deposit version 2 -> deposit_fields
+ok 15 - refuses: deposit version 2 -> deposit_fields
+  ---
+  duration_ms: 3.381965
+  type: 'test'
+  ...
+# Subtest: refuses: deposit fields on 0x2 -> deposit_fields
+ok 16 - refuses: deposit fields on 0x2 -> deposit_fields
+  ---
+  duration_ms: 2.950767
+  type: 'test'
+  ...
+# Subtest: refuses: blob type 0x3 on Base -> unsupported_type
+ok 17 - refuses: blob type 0x3 on Base -> unsupported_type
+  ---
+  duration_ms: 3.238655
+  type: 'test'
+  ...
+# Subtest: refuses: EIP-8130 0x79 (everest inactive) -> unsupported_type
+ok 18 - refuses: EIP-8130 0x79 (everest inactive) -> unsupported_type
+  ---
+  duration_ms: 3.651413
+  type: 'test'
+  ...
+# Subtest: refuses: unknown type 0x7d -> unsupported_type
+ok 19 - refuses: unknown type 0x7d -> unsupported_type
+  ---
+  duration_ms: 5.346416
+  type: 'test'
+  ...
+# Subtest: refuses: pre-Byzantium root field -> pre_byzantium
+ok 20 - refuses: pre-Byzantium root field -> pre_byzantium
+  ---
+  duration_ms: 2.557708
+  type: 'test'
+  ...
+# Subtest: refuses: removed log -> removed_log
+ok 21 - refuses: removed log -> removed_log
+  ---
+  duration_ms: 2.688767
+  type: 'test'
+  ...
+# Subtest: refuses: logIndex gap -> order
+ok 22 - refuses: logIndex gap -> order
+  ---
+  duration_ms: 2.534278
+  type: 'test'
+  ...
+# Subtest: refuses: non-canonical quantity -> bad_field
+ok 23 - refuses: non-canonical quantity -> bad_field
+  ---
+  duration_ms: 2.389469
+  type: 'test'
+  ...
+# Subtest: refuses: receipt names another block -> wrong_block
+ok 24 - refuses: receipt names another block -> wrong_block
+  ---
+  duration_ms: 2.361239
+  type: 'test'
+  ...
+# Subtest: refuses: header receiptsRoot tampered -> header_hash
+ok 25 - refuses: header receiptsRoot tampered -> header_hash
+  ---
+  duration_ms: 3.003236
+  type: 'test'
+  ...
+# Subtest: refuses: header and hash both replaced (expected hash is authenticated) -> header_hash
+ok 26 - refuses: header and hash both replaced (expected hash is authenticated) -> header_hash
+  ---
+  duration_ms: 2.406659
+  type: 'test'
+  ...
+# Subtest: refuses: wrong expected block hash -> header_hash
+ok 27 - refuses: wrong expected block hash -> header_hash
+  ---
+  duration_ms: 2.343789
+  type: 'test'
+  ...
+# Subtest: refuses: tx binding mismatch -> tx_binding
+ok 28 - refuses: tx binding mismatch -> tx_binding
+  ---
+  duration_ms: 2.345359
+  type: 'test'
+  ...
+# Subtest: refuses: missing receipts list -> bad_input
+ok 29 - refuses: missing receipts list -> bad_input
+  ---
+  duration_ms: 2.308839
+  type: 'test'
+  ...
+# Subtest: Regolith-window deposit rule: nonce required, version forbidden (quirk path selected by timestamp)
+ok 30 - Regolith-window deposit rule: nonce required, version forbidden (quirk path selected by timestamp)
+  ---
+  duration_ms: 2.432899
+  type: 'test'
+  ...
+1..30
+# tests 30
+# suites 0
+# pass 28
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2066.890128
+[memory-guard] exit=1 peakTreeRssMiB=166 minHostAvailableMiB=20283
+[memory-guard] at peak: node:108 node:58
+[queue] EXIT 1

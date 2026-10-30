@@ -1,0 +1,15 @@
+--- a/tests/test_reanchor_recovery.py
++++ b/tests/test_reanchor_recovery.py
+@@ -587,6 +587,12 @@
+         (self.d / 'datadir/db/mdbx.dat').write_bytes(b'restored or rolled back after the permit')
+         self.assertIn('changed since the restart permit', self.start()); self.assertEqual(self.last()['event'], 'restart-permitted')
+ 
++    def test_unpatched_code_pin_refuses_the_fake_binary(self):
++        """r7: with the PRODUCTION HARNESS_BINARY_SHA256 (no fixture override) the fake binary's launch refuses binary_pin"""
++        self.launched()
++        with patch.object(P, 'HARNESS_BINARY_SHA256', '9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f'):
++            self.refused(lambda: P.bound_config(self.launch, self.d / 'cfg.json', A), 'binary_pin')
++
+     def test_permit_only_for_a_bootstrapped_launch_and_rollback_stays_terminal(self):
+         self.launched(); self.assertEqual(self.start(), 'exec')
+         self.refused(self.permit, 'transition')                                    # consumed (no finality): r7 rules unchanged

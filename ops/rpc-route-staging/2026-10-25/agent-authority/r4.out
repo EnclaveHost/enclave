@@ -1,0 +1,134 @@
+[queue] START available=21569MiB required=18048MiB cap=1408MiB floor=16384MiB concurrentSmall=0MiB
+[r4] candidate HEAD dba7b4fdc091441ac8b85cca2738f19efa1003e0 + working-tree diff sha 472a6ee5f5caf897
+[suite] r4-new: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/route-source head dba7b4fdc091441ac8b85cca2738f19efa1003e0 dirty=4; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=0 tests=5 pass=5 fail=0 cancelled=0 skip=0 notrun-native=0 30.0s test/host-services-agent-verifier.test.mjs
+[suite] r4-new: files=1 tests=5 pass=5 fail=0 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=0 -> PASS
+[suite] r4-affected: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/route-source head dba7b4fdc091441ac8b85cca2738f19efa1003e0 dirty=4; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=0 tests=5 pass=5 fail=0 cancelled=0 skip=0 notrun-native=0 0.8s test/challenge-front-managed.test.mjs
+[file] rc=0 tests=9 pass=9 fail=0 cancelled=0 skip=0 notrun-native=0 12.4s test/challenge-replica-host.test.mjs
+[file] rc=0 tests=8 pass=8 fail=0 cancelled=0 skip=0 notrun-native=0 4.5s test/challenge-replica-supervise.test.mjs
+[file] rc=0 tests=14 pass=14 fail=0 cancelled=0 skip=0 notrun-native=0 0.5s test/host-service-transport.test.mjs
+[file] rc=0 tests=9 pass=9 fail=0 cancelled=0 skip=0 notrun-native=0 76.9s test/host-services-carriers.test.mjs
+[file] rc=0 tests=12 pass=12 fail=0 cancelled=0 skip=0 notrun-native=0 53.7s test/host-services-cold-start.test.mjs
+[file] rc=1 tests=13 pass=0 fail=13 cancelled=0 skip=0 notrun-native=0 19.8s test/mcp-independent.test.mjs
+        ✖ tools/list: the hosted tool set, name for name and argument for argument; independent additions are optional (19604.885926ms)
+        ✖ catalog reads and platform moderation: delisting, rejection and pending-public refusals hold without the gateway (0.776722ms)
+        ✖ a NEW user deploys with no gateway: plan, sign, create, fund, then the host claims it - each step from the quorum (0.070839ms)
+        ✖ an EXISTING session on the production factory: found on chain, host reached by client-signed requests, session-signed stop sent by any gas payer (0.138558ms)
+        ✖ a new session: the owner signs the grant, any gas payer opens it, and the server never sees a private key (0.076789ms)
+        ✖ uploads: per-adapter messages signed by the wallet; the bytes go from the client to each adapter and read back (0.032659ms)
+        ✖ every other tool answers from independent sources: reads, host requests, builders decoded and sent, the session ended (0.067249ms)
+        ✖ secrets through custody v2: the owner's own client reads, merges, removes, replaces and clears; opt-in, pause, revision and transfer guards hold; a remote adapter never sees plaintext (0.040909ms)
+        ✖ RPC faults: one lying, dead or wrong-chain RPC is outvoted; too few honest peers refuse and never answer empty (0.207867ms)
+        ✖ an administrator's AddressBook change refuses stale pins before anything is built, and the restored binding answers again (0.137058ms)
+        ✖ the remote adapter serves each reviewed profile at its own path with no state shared between concurrent requests (0.038239ms)
+        ✖ an admin host ban (an anchored platform host policy) removes the host from listings and prices and blocks contacting it (0.03079ms)
+        ✖ CONTROL: the same tools over the hosted backend reach the Enclave gateway and public RPCs (which the guard blocks) (0.026009ms)
+        ✖ tools/list: the hosted tool set, name for name and argument for argument; independent additions are optional (19604.885926ms)
+        ✖ catalog reads and platform moderation: delisting, rejection and pending-public refusals hold without the gateway (0.776722ms)
+        ✖ a NEW user deploys with no gateway: plan, sign, create, fund, then the host claims it - each step from the quorum (0.070839ms)
+        ✖ an EXISTING session on the production factory: found on chain, host reached by client-signed requests, session-signed stop sent by any gas payer (0.138558ms)
+        ✖ a new session: the owner signs the grant, any gas payer opens it, and the server never sees a private key (0.076789ms)
+        ✖ uploads: per-adapter messages signed by the wallet; the bytes go from the client to each adapter and read back (0.032659ms)
+        ✖ every other tool answers from independent sources: reads, host requests, builders decoded and sent, the session ended (0.067249ms)
+        ✖ secrets through custody v2: the owner's own client reads, merges, removes, replaces and clears; opt-in, pause, revision and transfer guards hold; a remote adapter never sees plaintext (0.040909ms)
+        ✖ RPC faults: one lying, dead or wrong-chain RPC is outvoted; too few honest peers refuse and never answer empty (0.207867ms)
+        ✖ an administrator's AddressBook change refuses stale pins before anything is built, and the restored binding answers again (0.137058ms)
+        ✖ the remote adapter serves each reviewed profile at its own path with no state shared between concurrent requests (0.038239ms)
+        ✖ an admin host ban (an anchored platform host policy) removes the host from listings and prices and blocks contacting it (0.03079ms)
+        ✖ CONTROL: the same tools over the hosted backend reach the Enclave gateway and public RPCs (which the guard blocks) (0.026009ms)
+[file] rc=0 tests=14 pass=14 fail=0 cancelled=0 skip=0 notrun-native=0 8.2s test/native-policy.test.mjs
+[file] rc=1 tests=14 pass=13 fail=1 cancelled=0 skip=0 notrun-native=0 5.5s test/node-policy-carriers.test.mjs
+        ✖ parity: with NO carrier setting the candidate resolves exactly what the installed bundle 6bef372d resolves (config, mirrors, quorum, off reasons) (1.72756ms)
+        ✖ parity: with NO carrier setting the candidate resolves exactly what the installed bundle 6bef372d resolves (config, mirrors, quorum, off reasons) (1.72756ms)
+[file] rc=1 tests=2 pass=1 fail=1 cancelled=0 skip=0 notrun-native=0 13.8s test/platform-host-policy-process.test.mjs
+        ✖ PACKAGED relay: starts from the deploy closure with the policy off and on; attach refused, admitted, hot-banned (5.007203ms)
+        ✖ PACKAGED relay: starts from the deploy closure with the policy off and on; attach refused, admitted, hot-banned (5.007203ms)
+[file] rc=0 tests=1 pass=1 fail=0 cancelled=0 skip=0 notrun-native=0 1.5s test/platform-policy-world-blocks.test.mjs
+[file] rc=0 tests=2 pass=2 fail=0 cancelled=0 skip=0 notrun-native=0 0.6s test/policy-mirror-sync-race.test.mjs
+[file] rc=0 tests=9 pass=9 fail=0 cancelled=0 skip=0 notrun-native=0 4.4s test/private-app-frontends.test.mjs
+[file] rc=1 tests=1 pass=0 fail=1 cancelled=0 skip=0 notrun-native=0 63.3s test/storage-indexer-host.test.mjs
+        ✖ storage-indexer host role: platform-policy admission, refusals, and a real PostgreSQL 18 + indexd lifecycle (63135.431602ms)
+        ✖ storage-indexer host role: platform-policy admission, refusals, and a real PostgreSQL 18 + indexd lifecycle (63135.431602ms)
+[file] rc=0 tests=9 pass=9 fail=0 cancelled=0 skip=0 notrun-native=0 3.2s test/windows-chain-authority.test.mjs
+[file] rc=0 tests=12 pass=12 fail=0 cancelled=0 skip=0 notrun-native=0 0.2s test/windows-node-network-enroll.test.mjs
+[file] rc=0 tests=1 pass=1 fail=0 cancelled=0 skip=0 notrun-native=0 0.2s test/windows-node-wallet-enroll.test.mjs
+[file] rc=1 tests=1 pass=0 fail=1 cancelled=0 skip=0 notrun-native=0 0.2s test/windows-verifier.e2e.test.mjs
+        ✖ test/windows-verifier.e2e.test.mjs (207.370564ms)
+        ✖ test/windows-verifier.e2e.test.mjs (207.370564ms)
+[file] rc=0 tests=5 pass=5 fail=0 cancelled=0 skip=0 notrun-native=0 13.2s test/hosted-policy-cold-start.test.mjs
+[file] rc=0 tests=4 pass=4 fail=0 cancelled=0 skip=0 notrun-native=0 9.7s test/host-service-verifier-roles.test.mjs
+[suite] r4-affected: files=20 tests=145 pass=128 fail=17 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=5 -> FAIL
+[suite] failing file: test/mcp-independent.test.mjs
+[suite] failing file: test/node-policy-carriers.test.mjs
+[suite] failing file: test/platform-host-policy-process.test.mjs
+[suite] failing file: test/storage-indexer-host.test.mjs
+[suite] failing file: test/windows-verifier.e2e.test.mjs
+[r4] baseline = clean export of HEAD at /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/route-stage/tmp/base-head; rerunning: test/mcp-independent.test.mjs
+test/node-policy-carriers.test.mjs
+test/platform-host-policy-process.test.mjs
+test/storage-indexer-host.test.mjs
+test/windows-verifier.e2e.test.mjs
+[suite] r4-base-mcp-independent: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/route-stage/tmp/base-head head a53b63c65efd40bd3e0b79ca3d45022aea1c3fe9 dirty=0; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=1 tests=13 pass=0 fail=13 cancelled=0 skip=0 notrun-native=0 1.4s test/mcp-independent.test.mjs
+        ✖ tools/list: the hosted tool set, name for name and argument for argument; independent additions are optional (1156.857084ms)
+        ✖ catalog reads and platform moderation: delisting, rejection and pending-public refusals hold without the gateway (0.90553ms)
+        ✖ a NEW user deploys with no gateway: plan, sign, create, fund, then the host claims it - each step from the quorum (0.078799ms)
+        ✖ an EXISTING session on the production factory: found on chain, host reached by client-signed requests, session-signed stop sent by any gas payer (0.040669ms)
+        ✖ a new session: the owner signs the grant, any gas payer opens it, and the server never sees a private key (0.064809ms)
+        ✖ uploads: per-adapter messages signed by the wallet; the bytes go from the client to each adapter and read back (0.034129ms)
+        ✖ every other tool answers from independent sources: reads, host requests, builders decoded and sent, the session ended (0.122609ms)
+        ✖ secrets through custody v2: the owner's own client reads, merges, removes, replaces and clears; opt-in, pause, revision and transfer guards hold; a remote adapter never sees plaintext (0.04174ms)
+        ✖ RPC faults: one lying, dead or wrong-chain RPC is outvoted; too few honest peers refuse and never answer empty (0.228907ms)
+        ✖ an administrator's AddressBook change refuses stale pins before anything is built, and the restored binding answers again (0.143079ms)
+        ✖ the remote adapter serves each reviewed profile at its own path with no state shared between concurrent requests (0.04112ms)
+        ✖ an admin host ban (an anchored platform host policy) removes the host from listings and prices and blocks contacting it (0.033549ms)
+        ✖ CONTROL: the same tools over the hosted backend reach the Enclave gateway and public RPCs (which the guard blocks) (0.02705ms)
+        ✖ tools/list: the hosted tool set, name for name and argument for argument; independent additions are optional (1156.857084ms)
+        ✖ catalog reads and platform moderation: delisting, rejection and pending-public refusals hold without the gateway (0.90553ms)
+        ✖ a NEW user deploys with no gateway: plan, sign, create, fund, then the host claims it - each step from the quorum (0.078799ms)
+        ✖ an EXISTING session on the production factory: found on chain, host reached by client-signed requests, session-signed stop sent by any gas payer (0.040669ms)
+        ✖ a new session: the owner signs the grant, any gas payer opens it, and the server never sees a private key (0.064809ms)
+        ✖ uploads: per-adapter messages signed by the wallet; the bytes go from the client to each adapter and read back (0.034129ms)
+        ✖ every other tool answers from independent sources: reads, host requests, builders decoded and sent, the session ended (0.122609ms)
+        ✖ secrets through custody v2: the owner's own client reads, merges, removes, replaces and clears; opt-in, pause, revision and transfer guards hold; a remote adapter never sees plaintext (0.04174ms)
+        ✖ RPC faults: one lying, dead or wrong-chain RPC is outvoted; too few honest peers refuse and never answer empty (0.228907ms)
+        ✖ an administrator's AddressBook change refuses stale pins before anything is built, and the restored binding answers again (0.143079ms)
+        ✖ the remote adapter serves each reviewed profile at its own path with no state shared between concurrent requests (0.04112ms)
+        ✖ an admin host ban (an anchored platform host policy) removes the host from listings and prices and blocks contacting it (0.033549ms)
+        ✖ CONTROL: the same tools over the hosted backend reach the Enclave gateway and public RPCs (which the guard blocks) (0.02705ms)
+[suite] r4-base-mcp-independent: files=1 tests=13 pass=0 fail=13 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=1 -> FAIL
+[suite] failing file: test/mcp-independent.test.mjs
+[r4] pre-existing (fails on the baseline too): test/mcp-independent.test.mjs
+[suite] r4-base-node-policy-carriers: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/route-stage/tmp/base-head head a53b63c65efd40bd3e0b79ca3d45022aea1c3fe9 dirty=0; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=1 tests=14 pass=13 fail=1 cancelled=0 skip=0 notrun-native=0 6.2s test/node-policy-carriers.test.mjs
+        ✖ parity: with NO carrier setting the candidate resolves exactly what the installed bundle 6bef372d resolves (config, mirrors, quorum, off reasons) (1.698331ms)
+        ✖ parity: with NO carrier setting the candidate resolves exactly what the installed bundle 6bef372d resolves (config, mirrors, quorum, off reasons) (1.698331ms)
+[suite] r4-base-node-policy-carriers: files=1 tests=14 pass=13 fail=1 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=1 -> FAIL
+[suite] failing file: test/node-policy-carriers.test.mjs
+[r4] pre-existing (fails on the baseline too): test/node-policy-carriers.test.mjs
+[suite] r4-base-platform-host-policy-process: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/route-stage/tmp/base-head head a53b63c65efd40bd3e0b79ca3d45022aea1c3fe9 dirty=0; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=1 tests=2 pass=1 fail=1 cancelled=0 skip=0 notrun-native=0 13.8s test/platform-host-policy-process.test.mjs
+        ✖ PACKAGED relay: starts from the deploy closure with the policy off and on; attach refused, admitted, hot-banned (22.636594ms)
+        ✖ PACKAGED relay: starts from the deploy closure with the policy off and on; attach refused, admitted, hot-banned (22.636594ms)
+[suite] r4-base-platform-host-policy-process: files=1 tests=2 pass=1 fail=1 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=1 -> FAIL
+[suite] failing file: test/platform-host-policy-process.test.mjs
+[r4] pre-existing (fails on the baseline too): test/platform-host-policy-process.test.mjs
+[suite] r4-base-storage-indexer-host: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/route-stage/tmp/base-head head a53b63c65efd40bd3e0b79ca3d45022aea1c3fe9 dirty=0; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=1 tests=1 pass=0 fail=1 cancelled=0 skip=0 notrun-native=0 0.2s test/storage-indexer-host.test.mjs
+        ✖ storage-indexer host role: platform-policy admission, refusals, and a real PostgreSQL 18 + indexd lifecycle (10.489982ms)
+        ✖ storage-indexer host role: platform-policy admission, refusals, and a real PostgreSQL 18 + indexd lifecycle (10.489982ms)
+[suite] r4-base-storage-indexer-host: files=1 tests=1 pass=0 fail=1 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=1 -> FAIL
+[suite] failing file: test/storage-indexer-host.test.mjs
+[r4] pre-existing (fails on the baseline too): test/storage-indexer-host.test.mjs
+[suite] r4-base-windows-verifier.e2e: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/route-stage/tmp/base-head head a53b63c65efd40bd3e0b79ca3d45022aea1c3fe9 dirty=0; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=1 tests=1 pass=0 fail=1 cancelled=0 skip=0 notrun-native=0 0.3s test/windows-verifier.e2e.test.mjs
+        ✖ test/windows-verifier.e2e.test.mjs (220.341778ms)
+        ✖ test/windows-verifier.e2e.test.mjs (220.341778ms)
+[suite] r4-base-windows-verifier.e2e: files=1 tests=1 pass=0 fail=1 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=1 -> FAIL
+[suite] failing file: test/windows-verifier.e2e.test.mjs
+[r4] pre-existing (fails on the baseline too): test/windows-verifier.e2e.test.mjs
+[r4] affected-suite rc=1; job rc=0
+[memory-guard] exit=0 peakTreeRssMiB=710 minHostAvailableMiB=21166
+[memory-guard] at peak: solc-0.8.35:460 node:92 node:57 forge:52 anvil:26 python3:16 bash:4 timeout:2
+[queue] EXIT 0

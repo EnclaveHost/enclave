@@ -1,0 +1,233 @@
+diff --git a/windows/compat/native-desktop-control-installed-20261025/recover_managed.py b/windows/compat/native-desktop-control-installed-20261025/recover_managed.py
+index 24b082276..028e836ad 100644
+--- a/windows/compat/native-desktop-control-installed-20261025/recover_managed.py
++++ b/windows/compat/native-desktop-control-installed-20261025/recover_managed.py
+@@ -46,7 +46,7 @@ def bind_inventory(rows,host):
+             vmid=reported.lower() if reported is not None else None
+             if vmid is not None and any(v['id'].lower()==vmid for v in host):raise ValueError('reported VM has unverified ownership')
+         targets.append(dict(**identity(row),reportedVmId=reported,vmId=vmid,vmPresent=bool(named)))
+-    if len(rows)>2 or len({r['appId'] for r in rows})!=len(rows) or len({r['id'] for r in rows})!=len(rows):
++    if len(rows)>len(rm.NAMES) or len({r['appId'] for r in rows})!=len(rows) or len({r['id'] for r in rows})!=len(rows):
+         raise ValueError('unexpected or duplicate managed targets')
+     if any(v['candidate'] and v['id'].lower() not in bound for v in host):raise ValueError('unattributed or unreviewed host VM')
+     # Preserve only IDs of unrelated VMs; their Notes are never inspected/exported.
+@@ -57,7 +57,7 @@ def validate_plan(plan):
+     if plan.get('schema')!='native-managed-recovery/1' or not re.fullmatch(r'[0-9a-f]{32}',plan['managerEpoch']):
+         raise ValueError('invalid recovery plan')
+     targets=plan['targets']
+-    if len(targets)>2 or len({t['appId'] for t in targets})!=len(targets) or len({t['id'] for t in targets})!=len(targets):
++    if len(targets)>len(rm.NAMES) or len({t['appId'] for t in targets})!=len(targets) or len({t['id'] for t in targets})!=len(targets):
+         raise ValueError('duplicate or unexpected recovery targets')
+     for t in targets:
+         if not valid_identity(t) or type(t.get('vmPresent')) is not bool:raise ValueError('invalid recovery target')
+@@ -92,7 +92,7 @@ def prepare(inspection):
+     if len(procs)!=1 or procs[0]['role']!='manager' or not procs[0]['parentIsCmd']:raise ValueError('unexpected live processes')
+     rows=[dict(r,launcherVmId=r.get('vmId')) for r in inspection['affectedRecords']]
+     targets,unrelated=bind_inventory(rows,inspection['ownershipInventory'])
+-    targets.sort(key=lambda t:t['appId']!=rm.APP)
++    targets.sort(key=rm.retirement_order)
+     return validate_plan(dict(schema='native-managed-recovery/1',capturedUtc=inspection['utc'],managerEpoch=m['epoch'],
+         managerProcess={k:procs[0][k] for k in ['pid','creationDate']},targets=targets,unrelatedVmIds=unrelated))
+ 
+diff --git a/windows/compat/native-desktop-control-installed-20261025/retire_managed.py b/windows/compat/native-desktop-control-installed-20261025/retire_managed.py
+index ccb065cf5..c8e55ba1e 100644
+--- a/windows/compat/native-desktop-control-installed-20261025/retire_managed.py
++++ b/windows/compat/native-desktop-control-installed-20261025/retire_managed.py
+@@ -1,5 +1,5 @@
+ #!/usr/bin/env python3
+-"""Retire only the two reviewed manager-owned instances during a stopped-node handoff.
++"""Retire only reviewed manager-owned instances during a stopped-node handoff.
+ 
+ Does not stop tasks, restart services, release leases, apply files or call Remove-VM.
+ The installed manager must confirm each removal and Hyper-V must confirm absence.
+@@ -20,7 +20,24 @@ spec=importlib.util.spec_from_file_location('handoff_transaction',HERE/'transact
+ tx=importlib.util.module_from_spec(spec);spec.loader.exec_module(tx)
+ APP='10c44a8a81b03e43d91411717be2bb0e477014da322a046e635493c7535d0ea6'
+ WITNESS='a79db30fdf40b37499c8dbf955728c74541fa140201059158694c841736f5030'
+-NAMES={APP:'0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33',WITNESS:'shield-readiness-v1'}
++SIA='ea9d47738f079748b7e3fd29e18c496e2b9e88cd861473671cd9535888654ac3'
++NAMES={APP:'0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33',WITNESS:'shield-readiness-v1',
++       SIA:'0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238',
++       '3f770400d06ed1c96601dfecc2446d0b5e51d15a0b0018616e340ecb03997995':'0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c',
++       'f432295313edd734941113fea9c0703c061534450a7abad167b601922a2c3308':'0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371',
++       '9e2053bc722f4ecafc088ca9b8d754ebf6efc1f24359c687e7e2a88a0afee477':'0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c',
++       'ad0f596eb7b1599d4710967dadb30092b3d48cac5e77a1c3456f0e01affe76cc':'0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77',
++       '3dfcbff878c88c4ef6ba53f7b907bd129cafdb6f077455afa41a74a60cdef768':'0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a',
++       '46de1836623ebbab5157ddc24ac5d82fd7bc67625a73d7703c5ab0267f9bd1b7':'0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681'}
++# Oct 26 restored fleet: these exact eight deployments and the witness. No
++# arbitrary set, unknown app, or subset of this fleet is admitted for retirement.
++REVIEWED_SETS=({APP,WITNESS},{APP,SIA,WITNESS},set(NAMES))
++
++
++def retirement_order(row):
++    # Retire storage consumers first, then the S3/IPFS adapter, then Sia.
++    # Keep the readiness witness until last. Stable identity breaks ties.
++    return ({APP:1,SIA:2,WITNESS:3}.get(row['appId'],0),row['appId'])
+ UUID=r'[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}'
+ 
+ 
+@@ -28,12 +45,14 @@ def validate_plan(plan):
+     if plan.get('schema')!='native-managed-retirement/1':raise ValueError('wrong retirement plan schema')
+     if not re.fullmatch(r'[0-9a-f]{32}',plan['managerEpoch']):raise ValueError('invalid manager epoch')
+     targets=plan['targets']
+-    if len(targets)!=2 or {r['appId'] for r in targets}!={APP,WITNESS}:raise ValueError('expected only the reviewed app and witness')
++    if (len({r['appId'] for r in targets})!=len(targets)
++            or {r['appId'] for r in targets} not in REVIEWED_SETS):
++        raise ValueError('expected only the reviewed app set and witness')
+     for r in targets:
+         if (r['name']!=NAMES[r['appId']] or not re.fullmatch(r'hv[0-9a-f]{30,32}',r['id'])
+                 or not re.fullmatch(UUID,r['vmId'])):raise ValueError('invalid target identity')
+     for field in ['id','vmId']:
+-        if len({r[field] for r in targets})!=2:raise ValueError('duplicate retirement target')
++        if len({r[field] for r in targets})!=len(targets):raise ValueError('duplicate retirement target')
+     manager=plan['managerProcess']
+     if not isinstance(manager['pid'],int) or manager['pid']<=0 or not manager['creationDate']:
+         raise ValueError('invalid manager process identity')
+@@ -43,7 +62,8 @@ def validate_plan(plan):
+ def prepare(inspection):
+     if (inspection.get('schema')!='native-activation-inspection/1' or inspection.get('expectedCodeState','before')!='before' or not inspection.get('baselineMatches')
+             or inspection['manager']['inventory']['state']!='ready'
+-            or inspection['manager']['inventory']['unattributed']!=0):raise ValueError('unverified installed baseline or inventory')
++            or inspection['manager']['inventory']['unattributed']!=0
++            or inspection['manager']['listingEpoch']!=inspection['manager']['epoch']):raise ValueError('unverified installed baseline or inventory')
+     tasks={t['name']:t for t in inspection['tasks']}
+     if set(tasks)!={'Node','Shield','Update'}:raise ValueError('unexpected production task set')
+     for name,t in tasks.items():
+@@ -62,8 +82,8 @@ def prepare(inspection):
+         if len(matches)!=1 or matches[0]['state']!='Running' or not matches[0]['managerOwned']:
+             raise ValueError('manager/Hyper-V identity mismatch')
+         targets.append({k:r[k] for k in ['id','vmId','appId','name']})
+-    # Retire the app first, keeping the readiness witness until its explicit removal.
+-    targets.sort(key=lambda r:r['appId']!=APP)
++    # Stop the upload front end before its storage service; keep the witness last.
++    targets.sort(key=retirement_order)
+     plan=dict(schema='native-managed-retirement/1',capturedUtc=inspection['utc'],
+               managerEpoch=inspection['manager']['epoch'],
+               managerProcess={k:manager[k] for k in ['pid','creationDate']},targets=targets)
+diff --git a/windows/compat/native-desktop-control-installed-20261025/test_recover_managed.py b/windows/compat/native-desktop-control-installed-20261025/test_recover_managed.py
+index 39c6d8086..8dd182c92 100644
+--- a/windows/compat/native-desktop-control-installed-20261025/test_recover_managed.py
++++ b/windows/compat/native-desktop-control-installed-20261025/test_recover_managed.py
+@@ -17,9 +17,10 @@ spec=importlib.util.spec_from_file_location('recover_managed',HERE/'recover_mana
+ rc=importlib.util.module_from_spec(spec);spec.loader.exec_module(rc)
+ 
+ 
+-def fixture():
++def fixture(include_sia=False,include_restored_fleet=False):
+     records=[];host=[]
+-    for n,app in enumerate([rc.rm.APP,rc.rm.WITNESS],1):
++    apps=list(rc.rm.NAMES) if include_restored_fleet else [rc.rm.APP,rc.rm.WITNESS]+([rc.rm.SIA] if include_sia else [])
++    for n,app in enumerate(apps,1):
+         vmid=f'{n:08x}-0000-0000-0000-000000000001'
+         row=dict(id='hv'+str(n)*32,name=rc.rm.NAMES[app],appId=app,instanceId='fixture-'+str(n),
+                  launcherVmId=vmid,status='failed',launching=False,recovered=False,
+@@ -40,6 +41,20 @@ def inspection(data):
+ 
+ 
+ class PlanTests(unittest.TestCase):
++    def test_restored_fleet_keeps_storage_and_witness_last(self):
++        data=fixture(include_restored_fleet=True)
++        plan=rc.prepare(inspection(data))
++        self.assertEqual(len(plan['targets']),9)
++        self.assertEqual([t['appId'] for t in plan['targets'][-3:]],[rc.rm.APP,rc.rm.SIA,rc.rm.WITNESS])
++        self.assertEqual(set(t['appId'] for t in plan['targets']),set(rc.rm.NAMES))
++
++    def test_three_service_recovery_has_exact_identity_and_order(self):
++        data=fixture(include_sia=True)
++        plan=rc.prepare(inspection(data))
++        self.assertEqual([t['appId'] for t in plan['targets']],[rc.rm.APP,rc.rm.SIA,rc.rm.WITNESS])
++        data['records'][2]['name']=rc.rm.NAMES[rc.rm.APP]
++        with self.assertRaisesRegex(ValueError,'unreviewed'):rc.prepare(inspection(data))
++
+     def test_cli_reads_windows_utf8_bom_inspection(self):
+         with tempfile.TemporaryDirectory(prefix='recovery-plan-test-') as tmp:
+             path=Path(tmp);source=path/'inspection.json';plan=path/'plan.json'
+@@ -137,6 +152,20 @@ class RecoveryTests(unittest.TestCase):
+         self.start();self.assert_cleared()
+         self.assertEqual([p for m,p in self.requests if m=='DELETE'],['/vms/'+t['id'] for t in self.plan['targets']])
+ 
++    def test_three_services_release_reservations_and_preserve_unrelated_vm(self):
++        self.data=fixture(include_sia=True);self.start();self.assert_cleared()
++        self.assertEqual([t['appId'] for t in self.plan['targets']],[rc.rm.APP,rc.rm.SIA,rc.rm.WITNESS])
++
++    def test_restored_fleet_releases_reservations_and_preserves_unrelated_vm(self):
++        self.data=fixture(include_restored_fleet=True);self.start();self.assert_cleared()
++        self.assertEqual(len(self.plan['targets']),9)
++        self.assertEqual([t['appId'] for t in self.plan['targets'][-3:]],[rc.rm.APP,rc.rm.SIA,rc.rm.WITNESS])
++
++    def test_three_services_refuse_unknown_fourth_record(self):
++        self.data=fixture(include_sia=True)
++        self.data['records'].append(dict(self.data['records'][2],appId='a'*64,id='hv'+'a'*32))
++        with self.assertRaisesRegex(ValueError,'unreviewed'):rc.prepare(inspection(self.data))
++
+     def test_private_vm_handle_without_public_vm_id(self):
+         del self.data['records'][0]['launcherVmId'];self.start();self.assert_cleared()
+ 
+diff --git a/windows/compat/native-desktop-control-installed-20261025/test_retire_managed.py b/windows/compat/native-desktop-control-installed-20261025/test_retire_managed.py
+index 44473579c..fd2ba0b9a 100644
+--- a/windows/compat/native-desktop-control-installed-20261025/test_retire_managed.py
++++ b/windows/compat/native-desktop-control-installed-20261025/test_retire_managed.py
+@@ -93,7 +93,7 @@ class RetirementTests(unittest.TestCase):
+             if path=='/vms':body['vms'][0]['launcherVmId']='12345678-1234-1234-1234-123456789abc'
+             return code,body
+         with self.assertRaisesRegex(RuntimeError,'identity changed'):self.retire(request_fn=replaced)
+-        self.assertEqual(len(self.ids()),2);self.assertFalse(self.journal.exists())
++        self.assertEqual(len(self.ids()),len(self.plan['targets']));self.assertFalse(self.journal.exists())
+ 
+     def test_new_managed_app_prevents_any_retirement(self):
+         self.start()
+@@ -102,13 +102,13 @@ class RetirementTests(unittest.TestCase):
+             if path=='/vms':body['vms'].append(dict(id='unexpected'))
+             return code,body
+         with self.assertRaisesRegex(RuntimeError,'target set changed'):self.retire(request_fn=extra)
+-        self.assertFalse(self.journal.exists());self.assertEqual(len(self.ids()),2)
++        self.assertFalse(self.journal.exists());self.assertEqual(len(self.ids()),len(self.plan['targets']))
+ 
+     def test_host_stop_failure_leaves_witness_and_app_present(self):
+         self.start('stop-failed')
+         with self.assertRaisesRegex(RuntimeError,'HTTP 500'):self.retire()
+         state=json.loads(self.journal.read_text());self.assertEqual(state['completed'],[])
+-        self.assertEqual(state['phase'],'needs-inspection');self.assertEqual(len(self.ids()),2)
++        self.assertEqual(state['phase'],'needs-inspection');self.assertEqual(len(self.ids()),len(self.plan['targets']))
+ 
+     def test_http_success_without_host_absence_does_not_advance(self):
+         self.start('host-still-present')
+@@ -124,7 +124,7 @@ class RetirementTests(unittest.TestCase):
+             if method=='DELETE':raise TimeoutError('fixture lost response after removal')
+             return result
+         with self.assertRaises(TimeoutError):self.retire(request_fn=lost)
+-        self.assertEqual(len(self.ids()),1)
++        self.assertEqual(len(self.ids()),len(self.plan['targets'])-1)
+         state=json.loads(self.journal.read_text());self.assertEqual(state['completed'],[])
+         self.assertEqual(state['interruptedAtPhase'],'requesting')
+         before=list(self.requests)
+@@ -138,7 +138,7 @@ class RetirementTests(unittest.TestCase):
+             calls+=1
+             if calls==4:raise RuntimeError('node unexpectedly running')
+         with self.assertRaisesRegex(RuntimeError,'node unexpectedly'):self.retire(guard=restarted)
+-        self.assertEqual(len(self.ids()),1)
++        self.assertEqual(len(self.ids()),len(self.plan['targets'])-1)
+         self.assertEqual(len(json.loads(self.journal.read_text())['completed']),1)
+ 
+     def test_failed_host_inventory_is_not_absence(self):
+@@ -162,6 +162,20 @@ class RetirementTests(unittest.TestCase):
+         inspection=copy.deepcopy(self.inspection);inspection['expectedCodeState']='after'
+         with self.assertRaisesRegex(ValueError,'baseline'):rm.prepare(inspection)
+ 
++    def test_capture_epoch_disagreement_refuses_plan(self):
++        inspection=copy.deepcopy(self.inspection);inspection['manager']['listingEpoch']='f'*32
++        with self.assertRaisesRegex(ValueError,'baseline'):rm.prepare(inspection)
++
++    def test_incomplete_restored_fleet_refused(self):
++        if len(self.plan['targets'])!=9:self.skipTest('requires restored fleet capture')
++        for n in range(9):
++            plan=copy.deepcopy(self.plan);plan['targets'].pop(n)
++            with self.assertRaisesRegex(ValueError,'reviewed app'):rm.validate_plan(plan)
++
++    def test_restored_fleet_storage_consumers_stop_first(self):
++        if len(self.plan['targets'])!=9:self.skipTest('requires restored fleet capture')
++        self.assertEqual([t['appId'] for t in self.plan['targets'][-3:]],[rm.APP,rm.SIA,rm.WITNESS])
++
+     def test_live_guard_refuses_without_stopping_running_production(self):
+         # On Linux this checks the platform refusal. On Windows it calls only the
+         # read-only production guard, which must refuse the running Node/Update.

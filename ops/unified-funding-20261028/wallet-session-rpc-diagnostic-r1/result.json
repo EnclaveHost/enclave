@@ -1,0 +1,35 @@
+[
+  {
+    "url": "https://api.enclave.host/rpc/base",
+    "probe": "genesis",
+    "error": null,
+    "success": true,
+    "count": null,
+    "emptyCode": true
+  },
+  {
+    "url": "https://api.enclave.host/rpc/base",
+    "probe": "log-range",
+    "error": "Unterminated string starting at: line 1 column 99964 (char 99963)"
+  },
+  {
+    "url": "https://base-mainnet.public.blastapi.io",
+    "probe": "genesis",
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "url": "https://base-mainnet.public.blastapi.io",
+    "probe": "log-range",
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "url": "https://base-rpc.publicnode.com",
+    "probe": "genesis",
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "url": "https://base-rpc.publicnode.com",
+    "probe": "log-range",
+    "error": "HTTP Error 403: Forbidden"
+  }
+]

@@ -1,0 +1,15 @@
+{
+  "changes": {
+    "offline_mask.py": {
+      "seedSha256": null,
+      "finalSha256": "0947790edc32c69cac0eed9aee03f3b4cdfb246cc4e08c7c2c1898ccc4a6d25c",
+      "kind": "new"
+    },
+    "test_offline_mask.py": {
+      "seedSha256": null,
+      "finalSha256": "0ed021bdb4ee2de5b53cca8616b983058def437fe6afa9136998e6ea34b2f7e9",
+      "kind": "new"
+    }
+  },
+  "removed": []
+}

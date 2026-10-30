@@ -1,0 +1,9 @@
+
+
+## Latest human priority: wallet-owned apps and universal USDC Top up
+
+User explicitly makes migrating ALL vault-owned apps to verified controlling wallets the TOP PRIORITY. Sessions must deploy apps owned by the wallet, with only scoped delegated session permissions. Defer capacity authors/tests/follow-ups; peer confirms no active jobs and is doing read-only migration path review. Root owns inventory/production/finance. Preserve app IDs/secrets/serving leases/refunds/USDC backing and old/new gas reserve keys. No new general migration approval required; technical readiness and actual signing controls remain.
+
+Additional explicit user requirement: Top up must allow "Add runtime (USDC)" even when self-hosted and automatically convert authorized USDC to gas as needed. Keep zero self-host runtime rate zero; no fixed runtime-hours for gas; one budget with real scopes/caps/fees, protected Offline reserve and replay reconciliation. Current live UI remains manual quoted gas purchase, not automatic refill. Do not claim a label change implements it. Architecture required behavior updated; no production code, transfer, payment or signature sent by this update.
+
+Deferred allocation root results: original frozen261 root qualification retention 0PASS/2FAIL; original broad158 suite156PASS/2FAIL. Separate repaired261 changes EXACTONE product file allocation-owner.mjs to prevent expiry sweep releasing qualification holds. Corrected combined160 suite159PASS/1FAIL, both root retention regressionsPASS; stale register unsigned401 reconciliation fixture still fails. No further capacity tests now. Original/failure evidence and repaired tree preserved in U/shared-allocation-owner-root-review-r1; full original delivery already committed b49cce5e34aa. Review artifacts still require source-control preservation. No native Windows qualification, backend activation or new recovery claim.

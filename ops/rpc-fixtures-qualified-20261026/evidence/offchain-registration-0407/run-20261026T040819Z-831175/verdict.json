@@ -1,0 +1,11 @@
+{
+ "ok": true,
+ "rc": 0,
+ "tests": 3,
+ "pass": 3,
+ "fail": 0,
+ "skipped": 0,
+ "todo": 0,
+ "cancelled": 0,
+ "expected": "3/3, nothing skipped"
+}

@@ -1,0 +1,6 @@
+4bfd4fa7ee0289b3f04cd7083f5a9649d95620010612f428e1af650efbca6b46  a1-a2-integration/SHA256SUMS
+739c3245b51f4a465a34bd95276b711a39131d3e11588d99d062fef932ab43a1  bytecode-native-validation/crate/src/lib.rs
+4e26225c99df7230f9250102e1be404eefe660403f6a57fba7291352d2e4791e  bytecode-native-validation/crate/src/main.rs
+125a7d2ada8fdf9ed79354b62e01fb267d87742e008c0fa1a5cb00d2aed1ef13  bytecode-native-validation/crate/src/tests.rs
+e398c4f97e5f7fdd261a002ab705698f00a9fa086660f9909f42dfcc96e23fc8  bytecode-native-validation/crate/Cargo.toml
+fb6ce05b9df91e1fa7691ccc2acdae57e958b007449574ad29e2548bd10b3a42  bytecode-native-validation/release/logs/release-manifest.json

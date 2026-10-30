@@ -1,0 +1,178 @@
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following additional packages will be installed:
+  binutils binutils-common binutils-x86-64-linux-gnu bzip2 clang-18 cmake-data
+  cpp cpp-13 cpp-13-x86-64-linux-gnu cpp-x86-64-linux-gnu dpkg-dev g++ g++-13
+  g++-13-x86-64-linux-gnu g++-x86-64-linux-gnu gcc gcc-13 gcc-13-base
+  gcc-13-x86-64-linux-gnu gcc-x86-64-linux-gnu libasan8 libatomic1 libbinutils
+  libcares2 libcc1-0 libclang-18-dev libclang-common-18-dev libctf-nobfd0
+  libctf0 libdpkg-perl libgc1 libgcc-13-dev libgomp1 libgprofng0 libhwasan0
+  libisl23 libitm1 libjsoncpp25 liblsan0 libmpc3 libnode109 libobjc-13-dev
+  libobjc4 libpkgconf3 libquadmath0 librhash0 libsframe1 libstdc++-13-dev
+  libtsan2 libubsan1 lld-18 llvm-18-linker-tools lto-disabled-list make
+  node-acorn node-busboy node-cjs-module-lexer node-undici node-xtend pkgconf
+  pkgconf-bin
+Suggested packages:
+  binutils-doc gprofng-gui bzip2-doc clang-18-doc wasi-libc cmake-doc
+  cmake-format elpa-cmake-mode ninja-build cpp-doc gcc-13-locales cpp-13-doc
+  debian-keyring g++-multilib g++-13-multilib gcc-13-doc gcc-multilib autoconf
+  automake libtool flex bison gdb gcc-doc gcc-13-multilib gdb-x86-64-linux-gnu
+  bzr libssl-doc libstdc++-13-doc make-doc npm
+Recommended packages:
+  llvm-18-dev fakeroot libalgorithm-merge-perl libclang-rt-18-dev
+  libfile-fcntllock-perl nodejs-doc
+The following NEW packages will be installed:
+  binutils binutils-common binutils-x86-64-linux-gnu build-essential bzip2
+  clang clang-18 cmake cmake-data cpp cpp-13 cpp-13-x86-64-linux-gnu
+  cpp-x86-64-linux-gnu dpkg-dev g++ g++-13 g++-13-x86-64-linux-gnu
+  g++-x86-64-linux-gnu gcc gcc-13 gcc-13-base gcc-13-x86-64-linux-gnu
+  gcc-x86-64-linux-gnu libasan8 libatomic1 libbinutils libcares2 libcc1-0
+  libclang-18-dev libclang-common-18-dev libclang-dev libctf-nobfd0 libctf0
+  libdpkg-perl libgc1 libgcc-13-dev libgomp1 libgprofng0 libhwasan0 libisl23
+  libitm1 libjsoncpp25 liblsan0 libmpc3 libnode109 libobjc-13-dev libobjc4
+  libpkgconf3 libquadmath0 librhash0 libsframe1 libssl-dev libstdc++-13-dev
+  libtsan2 libubsan1 libzstd-dev lld lld-18 llvm-18-linker-tools
+  lto-disabled-list make node-acorn node-busboy node-cjs-module-lexer
+  node-undici node-xtend nodejs pkg-config pkgconf pkgconf-bin
+0 upgraded, 70 newly installed, 0 to remove and 17 not upgraded.
+Inst binutils-common (2.42-4ubuntu2.10 Ubuntu:24.04/noble-updates [amd64])
+Inst libsframe1 (2.42-4ubuntu2.10 Ubuntu:24.04/noble-updates [amd64])
+Inst libbinutils (2.42-4ubuntu2.10 Ubuntu:24.04/noble-updates [amd64])
+Inst libctf-nobfd0 (2.42-4ubuntu2.10 Ubuntu:24.04/noble-updates [amd64])
+Inst libctf0 (2.42-4ubuntu2.10 Ubuntu:24.04/noble-updates [amd64])
+Inst libgprofng0 (2.42-4ubuntu2.10 Ubuntu:24.04/noble-updates [amd64])
+Inst binutils-x86-64-linux-gnu (2.42-4ubuntu2.10 Ubuntu:24.04/noble-updates [amd64])
+Inst binutils (2.42-4ubuntu2.10 Ubuntu:24.04/noble-updates [amd64])
+Inst gcc-13-base (13.3.0-6ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst libisl23 (0.26-3build1.1 Ubuntu:24.04/noble-updates [amd64])
+Inst libmpc3 (1.3.1-1build1.1 Ubuntu:24.04/noble-updates [amd64])
+Inst cpp-13-x86-64-linux-gnu (13.3.0-6ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst cpp-13 (13.3.0-6ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst cpp-x86-64-linux-gnu (4:13.2.0-7ubuntu1 Ubuntu:24.04/noble [amd64])
+Inst cpp (4:13.2.0-7ubuntu1 Ubuntu:24.04/noble [amd64])
+Inst libcc1-0 (14.2.0-4ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst libgomp1 (14.2.0-4ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst libitm1 (14.2.0-4ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst libatomic1 (14.2.0-4ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst libasan8 (14.2.0-4ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst liblsan0 (14.2.0-4ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst libtsan2 (14.2.0-4ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst libubsan1 (14.2.0-4ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst libhwasan0 (14.2.0-4ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst libquadmath0 (14.2.0-4ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst libgcc-13-dev (13.3.0-6ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst gcc-13-x86-64-linux-gnu (13.3.0-6ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst gcc-13 (13.3.0-6ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst gcc-x86-64-linux-gnu (4:13.2.0-7ubuntu1 Ubuntu:24.04/noble [amd64])
+Inst gcc (4:13.2.0-7ubuntu1 Ubuntu:24.04/noble [amd64])
+Inst libstdc++-13-dev (13.3.0-6ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst g++-13-x86-64-linux-gnu (13.3.0-6ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst g++-13 (13.3.0-6ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst g++-x86-64-linux-gnu (4:13.2.0-7ubuntu1 Ubuntu:24.04/noble [amd64])
+Inst g++ (4:13.2.0-7ubuntu1 Ubuntu:24.04/noble [amd64])
+Inst make (4.3-4.1build2 Ubuntu:24.04/noble [amd64])
+Inst libdpkg-perl (1.22.6ubuntu6.6 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [all])
+Inst bzip2 (1.0.8-5.1ubuntu0.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst lto-disabled-list (47 Ubuntu:24.04/noble [all])
+Inst dpkg-dev (1.22.6ubuntu6.6 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [all])
+Inst build-essential (12.10ubuntu1 Ubuntu:24.04/noble [amd64])
+Inst libgc1 (1:8.2.6-1build1 Ubuntu:24.04/noble [amd64])
+Inst libobjc4 (14.2.0-4ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst libobjc-13-dev (13.3.0-6ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst libclang-common-18-dev (1:18.1.3-1ubuntu1 Ubuntu:24.04/noble-updates [amd64])
+Inst llvm-18-linker-tools (1:18.1.3-1ubuntu1 Ubuntu:24.04/noble-updates [amd64])
+Inst clang-18 (1:18.1.3-1ubuntu1 Ubuntu:24.04/noble-updates [amd64])
+Inst clang (1:18.0-59~exp2 Ubuntu:24.04/noble [amd64])
+Inst libjsoncpp25 (1.9.5-6build1 Ubuntu:24.04/noble [amd64])
+Inst librhash0 (1.4.3-3build1 Ubuntu:24.04/noble [amd64])
+Inst cmake-data (3.28.3-1build7 Ubuntu:24.04/noble [all])
+Inst cmake (3.28.3-1build7 Ubuntu:24.04/noble [amd64])
+Inst libcares2 (1.27.0-1.0ubuntu1.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst libclang-18-dev (1:18.1.3-1ubuntu1 Ubuntu:24.04/noble-updates [amd64])
+Inst libclang-dev (1:18.0-59~exp2 Ubuntu:24.04/noble [amd64])
+Inst node-xtend (4.0.2-3 Ubuntu:24.04/noble [all])
+Inst nodejs (18.19.1+dfsg-6ubuntu5 Ubuntu:24.04/noble [amd64]) []
+Inst node-acorn (8.8.1+ds+~cs25.17.7-2 Ubuntu:24.04/noble [all]) []
+Inst node-cjs-module-lexer (1.2.3+dfsg-1 Ubuntu:24.04/noble [all]) []
+Inst node-busboy (1.6.0+~cs2.6.0-2 Ubuntu:24.04/noble [all]) []
+Inst node-undici (5.26.3+dfsg1+~cs23.10.12-2 Ubuntu:24.04/noble [all]) []
+Inst libnode109 (18.19.1+dfsg-6ubuntu5 Ubuntu:24.04/noble [amd64])
+Inst libpkgconf3 (1.8.1-2build1 Ubuntu:24.04/noble [amd64])
+Inst libssl-dev (3.0.13-0ubuntu3.16 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst libzstd-dev (1.5.5+dfsg2-2build1.1 Ubuntu:24.04/noble-updates [amd64])
+Inst lld-18 (1:18.1.3-1ubuntu1 Ubuntu:24.04/noble-updates [amd64])
+Inst lld (1:18.0-59~exp2 Ubuntu:24.04/noble [amd64])
+Inst pkgconf-bin (1.8.1-2build1 Ubuntu:24.04/noble [amd64])
+Inst pkgconf (1.8.1-2build1 Ubuntu:24.04/noble [amd64])
+Inst pkg-config (1.8.1-2build1 Ubuntu:24.04/noble [amd64])
+Conf binutils-common (2.42-4ubuntu2.10 Ubuntu:24.04/noble-updates [amd64])
+Conf libsframe1 (2.42-4ubuntu2.10 Ubuntu:24.04/noble-updates [amd64])
+Conf libbinutils (2.42-4ubuntu2.10 Ubuntu:24.04/noble-updates [amd64])
+Conf libctf-nobfd0 (2.42-4ubuntu2.10 Ubuntu:24.04/noble-updates [amd64])
+Conf libctf0 (2.42-4ubuntu2.10 Ubuntu:24.04/noble-updates [amd64])
+Conf libgprofng0 (2.42-4ubuntu2.10 Ubuntu:24.04/noble-updates [amd64])
+Conf binutils-x86-64-linux-gnu (2.42-4ubuntu2.10 Ubuntu:24.04/noble-updates [amd64])
+Conf binutils (2.42-4ubuntu2.10 Ubuntu:24.04/noble-updates [amd64])
+Conf gcc-13-base (13.3.0-6ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf libisl23 (0.26-3build1.1 Ubuntu:24.04/noble-updates [amd64])
+Conf libmpc3 (1.3.1-1build1.1 Ubuntu:24.04/noble-updates [amd64])
+Conf cpp-13-x86-64-linux-gnu (13.3.0-6ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf cpp-13 (13.3.0-6ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf cpp-x86-64-linux-gnu (4:13.2.0-7ubuntu1 Ubuntu:24.04/noble [amd64])
+Conf cpp (4:13.2.0-7ubuntu1 Ubuntu:24.04/noble [amd64])
+Conf libcc1-0 (14.2.0-4ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf libgomp1 (14.2.0-4ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf libitm1 (14.2.0-4ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf libatomic1 (14.2.0-4ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf libasan8 (14.2.0-4ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf liblsan0 (14.2.0-4ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf libtsan2 (14.2.0-4ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf libubsan1 (14.2.0-4ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf libhwasan0 (14.2.0-4ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf libquadmath0 (14.2.0-4ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf libgcc-13-dev (13.3.0-6ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf gcc-13-x86-64-linux-gnu (13.3.0-6ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf gcc-13 (13.3.0-6ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf gcc-x86-64-linux-gnu (4:13.2.0-7ubuntu1 Ubuntu:24.04/noble [amd64])
+Conf gcc (4:13.2.0-7ubuntu1 Ubuntu:24.04/noble [amd64])
+Conf libstdc++-13-dev (13.3.0-6ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf g++-13-x86-64-linux-gnu (13.3.0-6ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf g++-13 (13.3.0-6ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf g++-x86-64-linux-gnu (4:13.2.0-7ubuntu1 Ubuntu:24.04/noble [amd64])
+Conf g++ (4:13.2.0-7ubuntu1 Ubuntu:24.04/noble [amd64])
+Conf make (4.3-4.1build2 Ubuntu:24.04/noble [amd64])
+Conf libdpkg-perl (1.22.6ubuntu6.6 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [all])
+Conf bzip2 (1.0.8-5.1ubuntu0.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf lto-disabled-list (47 Ubuntu:24.04/noble [all])
+Conf dpkg-dev (1.22.6ubuntu6.6 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [all])
+Conf build-essential (12.10ubuntu1 Ubuntu:24.04/noble [amd64])
+Conf libgc1 (1:8.2.6-1build1 Ubuntu:24.04/noble [amd64])
+Conf libobjc4 (14.2.0-4ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf libobjc-13-dev (13.3.0-6ubuntu2~24.04.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf libclang-common-18-dev (1:18.1.3-1ubuntu1 Ubuntu:24.04/noble-updates [amd64])
+Conf llvm-18-linker-tools (1:18.1.3-1ubuntu1 Ubuntu:24.04/noble-updates [amd64])
+Conf clang-18 (1:18.1.3-1ubuntu1 Ubuntu:24.04/noble-updates [amd64])
+Conf clang (1:18.0-59~exp2 Ubuntu:24.04/noble [amd64])
+Conf libjsoncpp25 (1.9.5-6build1 Ubuntu:24.04/noble [amd64])
+Conf librhash0 (1.4.3-3build1 Ubuntu:24.04/noble [amd64])
+Conf cmake-data (3.28.3-1build7 Ubuntu:24.04/noble [all])
+Conf cmake (3.28.3-1build7 Ubuntu:24.04/noble [amd64])
+Conf libcares2 (1.27.0-1.0ubuntu1.1 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf libclang-18-dev (1:18.1.3-1ubuntu1 Ubuntu:24.04/noble-updates [amd64])
+Conf libclang-dev (1:18.0-59~exp2 Ubuntu:24.04/noble [amd64])
+Conf node-xtend (4.0.2-3 Ubuntu:24.04/noble [all])
+Conf nodejs (18.19.1+dfsg-6ubuntu5 Ubuntu:24.04/noble [amd64])
+Conf node-acorn (8.8.1+ds+~cs25.17.7-2 Ubuntu:24.04/noble [all])
+Conf node-cjs-module-lexer (1.2.3+dfsg-1 Ubuntu:24.04/noble [all])
+Conf node-busboy (1.6.0+~cs2.6.0-2 Ubuntu:24.04/noble [all])
+Conf node-undici (5.26.3+dfsg1+~cs23.10.12-2 Ubuntu:24.04/noble [all])
+Conf libnode109 (18.19.1+dfsg-6ubuntu5 Ubuntu:24.04/noble [amd64])
+Conf libpkgconf3 (1.8.1-2build1 Ubuntu:24.04/noble [amd64])
+Conf libssl-dev (3.0.13-0ubuntu3.16 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Conf libzstd-dev (1.5.5+dfsg2-2build1.1 Ubuntu:24.04/noble-updates [amd64])
+Conf lld-18 (1:18.1.3-1ubuntu1 Ubuntu:24.04/noble-updates [amd64])
+Conf lld (1:18.0-59~exp2 Ubuntu:24.04/noble [amd64])
+Conf pkgconf-bin (1.8.1-2build1 Ubuntu:24.04/noble [amd64])
+Conf pkgconf (1.8.1-2build1 Ubuntu:24.04/noble [amd64])
+Conf pkg-config (1.8.1-2build1 Ubuntu:24.04/noble [amd64])

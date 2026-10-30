@@ -1,0 +1,235 @@
+[queue] START available=34832MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+{
+  "at": "2026-10-30T04:42:23.219Z",
+  "readOnly": true,
+  "limit": "No history scan, no retries, no signing; two exact known creation witnesses and factory boundary only.",
+  "providers": [
+    {
+      "url": "https://api.enclave.host/rpc/base",
+      "witnesses": [
+        {
+          "name": "ledger",
+          "tx": {
+            "hash": "0xddc85def2d8bc739831b931a60ae2d0597e7e922812c3c582e9dbd5984609a89",
+            "blockHash": "0x583fbb7a7ea5ce7a05aae1e88c7b8c38c502ce687ed11b9b3e38eb361842b9ce",
+            "blockNumber": "52515705",
+            "to": null
+          },
+          "receipt": {
+            "transactionHash": "0xddc85def2d8bc739831b931a60ae2d0597e7e922812c3c582e9dbd5984609a89",
+            "blockHash": "0x583fbb7a7ea5ce7a05aae1e88c7b8c38c502ce687ed11b9b3e38eb361842b9ce",
+            "blockNumber": "52515705",
+            "status": "success",
+            "contractAddress": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b"
+          },
+          "block": {
+            "hash": "0x583fbb7a7ea5ce7a05aae1e88c7b8c38c502ce687ed11b9b3e38eb361842b9ce",
+            "number": "52515705",
+            "membership": true
+          },
+          "expected": {
+            "block": "52515705",
+            "blockHash": "0x583fbb7a7ea5ce7a05aae1e88c7b8c38c502ce687ed11b9b3e38eb361842b9ce",
+            "txHash": "0xddc85def2d8bc739831b931a60ae2d0597e7e922812c3c582e9dbd5984609a89"
+          }
+        },
+        {
+          "name": "vault",
+          "tx": {
+            "hash": "0x82eadf6bcf3253c6094d27df0af0e0dad3f34756ede0aa79197bf66071b846f3",
+            "blockHash": "0xcc27ceab340fd86ca60f7f16d5fbdae051ed1968427a2db0a8cc5e8a6de14162",
+            "blockNumber": "52286637",
+            "to": "0x1f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c"
+          },
+          "receipt": {
+            "transactionHash": "0x82eadf6bcf3253c6094d27df0af0e0dad3f34756ede0aa79197bf66071b846f3",
+            "blockHash": "0xcc27ceab340fd86ca60f7f16d5fbdae051ed1968427a2db0a8cc5e8a6de14162",
+            "blockNumber": "52286637",
+            "status": "success",
+            "contractAddress": null
+          },
+          "block": {
+            "hash": "0xcc27ceab340fd86ca60f7f16d5fbdae051ed1968427a2db0a8cc5e8a6de14162",
+            "number": "52286637",
+            "membership": true
+          },
+          "expected": {
+            "block": "52286637",
+            "blockHash": "0xcc27ceab340fd86ca60f7f16d5fbdae051ed1968427a2db0a8cc5e8a6de14162",
+            "txHash": "0x82eadf6bcf3253c6094d27df0af0e0dad3f34756ede0aa79197bf66071b846f3",
+            "logIndex": "344"
+          }
+        }
+      ],
+      "boundary": [
+        {
+          "at": "52286276",
+          "hash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+          "bytes": 0
+        },
+        {
+          "at": "52286277",
+          "hash": "0xc9b6214babb0126b26e818de8555c98b7e2a284b08a7cfd42f51b121e93d4f6c",
+          "bytes": 2208
+        }
+      ],
+      "chain": 8453,
+      "finalized": {
+        "number": "53272105",
+        "hash": "0x651c7f95b4c8d6b5e1e26dc12d13e67ea4b0d02fa5fd560c83542dac84affd2d"
+      }
+    },
+    {
+      "url": "https://base-mainnet.public.blastapi.io",
+      "witnesses": [
+        {
+          "name": "ledger",
+          "tx": {
+            "hash": "0xddc85def2d8bc739831b931a60ae2d0597e7e922812c3c582e9dbd5984609a89",
+            "blockHash": "0x583fbb7a7ea5ce7a05aae1e88c7b8c38c502ce687ed11b9b3e38eb361842b9ce",
+            "blockNumber": "52515705",
+            "to": null
+          },
+          "receipt": {
+            "transactionHash": "0xddc85def2d8bc739831b931a60ae2d0597e7e922812c3c582e9dbd5984609a89",
+            "blockHash": "0x583fbb7a7ea5ce7a05aae1e88c7b8c38c502ce687ed11b9b3e38eb361842b9ce",
+            "blockNumber": "52515705",
+            "status": "success",
+            "contractAddress": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b"
+          },
+          "block": {
+            "hash": "0x583fbb7a7ea5ce7a05aae1e88c7b8c38c502ce687ed11b9b3e38eb361842b9ce",
+            "number": "52515705",
+            "membership": true
+          },
+          "expected": {
+            "block": "52515705",
+            "blockHash": "0x583fbb7a7ea5ce7a05aae1e88c7b8c38c502ce687ed11b9b3e38eb361842b9ce",
+            "txHash": "0xddc85def2d8bc739831b931a60ae2d0597e7e922812c3c582e9dbd5984609a89"
+          }
+        },
+        {
+          "name": "vault",
+          "tx": {
+            "hash": "0x82eadf6bcf3253c6094d27df0af0e0dad3f34756ede0aa79197bf66071b846f3",
+            "blockHash": "0xcc27ceab340fd86ca60f7f16d5fbdae051ed1968427a2db0a8cc5e8a6de14162",
+            "blockNumber": "52286637",
+            "to": "0x1f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c"
+          },
+          "receipt": {
+            "transactionHash": "0x82eadf6bcf3253c6094d27df0af0e0dad3f34756ede0aa79197bf66071b846f3",
+            "blockHash": "0xcc27ceab340fd86ca60f7f16d5fbdae051ed1968427a2db0a8cc5e8a6de14162",
+            "blockNumber": "52286637",
+            "status": "success",
+            "contractAddress": null
+          },
+          "block": {
+            "hash": "0xcc27ceab340fd86ca60f7f16d5fbdae051ed1968427a2db0a8cc5e8a6de14162",
+            "number": "52286637",
+            "membership": true
+          },
+          "expected": {
+            "block": "52286637",
+            "blockHash": "0xcc27ceab340fd86ca60f7f16d5fbdae051ed1968427a2db0a8cc5e8a6de14162",
+            "txHash": "0x82eadf6bcf3253c6094d27df0af0e0dad3f34756ede0aa79197bf66071b846f3",
+            "logIndex": "344"
+          }
+        }
+      ],
+      "boundary": [
+        {
+          "at": "52286276",
+          "hash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+          "bytes": 0
+        },
+        {
+          "at": "52286277",
+          "hash": "0xc9b6214babb0126b26e818de8555c98b7e2a284b08a7cfd42f51b121e93d4f6c",
+          "bytes": 2208
+        }
+      ],
+      "chain": 8453,
+      "finalized": {
+        "number": "53272299",
+        "hash": "0x493e5cf1c4e907bd95db9bff04adea8eaa0f86ccde846f1d46a97e9427d00dfa"
+      }
+    },
+    {
+      "url": "https://rpc.baseazul.dev",
+      "witnesses": [
+        {
+          "name": "ledger",
+          "tx": {
+            "error": "Transaction with hash \"0xddc85def2d8bc739831b931a60ae2d0597e7e922812c3c582e9dbd5984609a89\" could not be found."
+          },
+          "receipt": {
+            "transactionHash": "0xddc85def2d8bc739831b931a60ae2d0597e7e922812c3c582e9dbd5984609a89",
+            "blockHash": "0x583fbb7a7ea5ce7a05aae1e88c7b8c38c502ce687ed11b9b3e38eb361842b9ce",
+            "blockNumber": "52515705",
+            "status": "success",
+            "contractAddress": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b"
+          },
+          "block": {
+            "hash": "0x583fbb7a7ea5ce7a05aae1e88c7b8c38c502ce687ed11b9b3e38eb361842b9ce",
+            "number": "52515705",
+            "membership": true
+          },
+          "expected": {
+            "block": "52515705",
+            "blockHash": "0x583fbb7a7ea5ce7a05aae1e88c7b8c38c502ce687ed11b9b3e38eb361842b9ce",
+            "txHash": "0xddc85def2d8bc739831b931a60ae2d0597e7e922812c3c582e9dbd5984609a89"
+          }
+        },
+        {
+          "name": "vault",
+          "tx": {
+            "hash": "0x82eadf6bcf3253c6094d27df0af0e0dad3f34756ede0aa79197bf66071b846f3",
+            "blockHash": "0xcc27ceab340fd86ca60f7f16d5fbdae051ed1968427a2db0a8cc5e8a6de14162",
+            "blockNumber": "52286637",
+            "to": "0x1f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c"
+          },
+          "receipt": {
+            "transactionHash": "0x82eadf6bcf3253c6094d27df0af0e0dad3f34756ede0aa79197bf66071b846f3",
+            "blockHash": "0xcc27ceab340fd86ca60f7f16d5fbdae051ed1968427a2db0a8cc5e8a6de14162",
+            "blockNumber": "52286637",
+            "status": "success",
+            "contractAddress": null
+          },
+          "block": {
+            "hash": "0xcc27ceab340fd86ca60f7f16d5fbdae051ed1968427a2db0a8cc5e8a6de14162",
+            "number": "52286637",
+            "membership": true
+          },
+          "expected": {
+            "block": "52286637",
+            "blockHash": "0xcc27ceab340fd86ca60f7f16d5fbdae051ed1968427a2db0a8cc5e8a6de14162",
+            "txHash": "0x82eadf6bcf3253c6094d27df0af0e0dad3f34756ede0aa79197bf66071b846f3",
+            "logIndex": "344"
+          }
+        }
+      ],
+      "boundary": [
+        {
+          "at": "52286276",
+          "hash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+          "bytes": 0
+        },
+        {
+          "at": "52286277",
+          "hash": "0xc9b6214babb0126b26e818de8555c98b7e2a284b08a7cfd42f51b121e93d4f6c",
+          "bytes": 2208
+        }
+      ],
+      "chain": 8453,
+      "finalized": {
+        "number": "53272488",
+        "hash": "0x2fce169c3d934d0a929f8d56035a2951a14990b15ec70bb36465e027ec1e9962"
+      }
+    }
+  ]
+}
+[memory-guard] exit=0 peakTreeRssMiB=98 minHostAvailableMiB=34314
+[memory-guard] at peak: node:98
+[memory-guard] exit=0 peakTreeRssMiB=165 minHostAvailableMiB=34315
+[memory-guard] at peak: node:98 node:68
+[queue] EXIT 0

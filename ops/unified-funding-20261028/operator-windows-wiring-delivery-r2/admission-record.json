@@ -1,0 +1,44 @@
+{
+  "unit": "enclave-operator-windows-wiring-r2-20261029.service",
+  "ActiveState": "active",
+  "InvocationID": "0ea10fe59de846dc8c4086e9b2aa413c",
+  "MainPID": "1878242",
+  "processes": [
+    {
+      "pid": 1878242,
+      "start": "161126472",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven"
+    },
+    {
+      "pid": 1878258,
+      "start": "161126484",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven"
+    },
+    {
+      "pid": 1878272,
+      "start": "161126559",
+      "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+      "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r2-20261029",
+      "affinity": "pid 1878272's current affinity list: 1"
+    }
+  ],
+  "account": {
+    "loggedIn": true,
+    "email": "steven.r.batchelor@gmail.com",
+    "subscriptionType": "max"
+  },
+  "verifiedAt": 1793306169.6550364,
+  "sourceOnly": true,
+  "remoteOrFinancialActions": false,
+  "mainPid": 1878242,
+  "mainPidStartTicks": "161126472",
+  "runnerPid": 1878258,
+  "runnerPidStartTicks": "161126484",
+  "claudePid": 1878272,
+  "claudePidStartTicks": "161126559",
+  "invocationId": "0ea10fe59de846dc8c4086e9b2aa413c",
+  "normalizedFromSha256": "df51192bdec946c872487cd96b5c1f341a8c6a761259a90f3c0f86c56fbd6c58",
+  "normalizationReason": "Collector requires lower camel PID fields. Original admission unchanged in admission-record-original.json; no input or source edits."
+}

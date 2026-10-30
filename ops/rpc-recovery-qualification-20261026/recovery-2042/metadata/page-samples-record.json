@@ -1,0 +1,34 @@
+{
+  "readOnly": true,
+  "sourceUnchanged": true,
+  "samples": [
+    {
+      "name": "first-4-pages",
+      "logicalBlock": 0,
+      "physicalBlock": 248373248,
+      "bytes": 16384,
+      "allZero": false,
+      "sha256": "d80d7f060022a33c8574fc3caa6707a6c3d23ae85e9cbb2fc4fa7542e0430957",
+      "first32Hex": "000000000000000000000800000000000000000003114cefbd9d6559ccc11403"
+    },
+    {
+      "name": "middle-page",
+      "logicalBlock": 131864576,
+      "physicalBlock": 43255808,
+      "bytes": 4096,
+      "allZero": false,
+      "sha256": "9d898adc3d4b37925984409ad04586dc5098967ba63e2171b4768973171ab935",
+      "first32Hex": "0160a01b038083169392919081169081851415806120c3575b61200c575b5050"
+    },
+    {
+      "name": "last-extent-first-page",
+      "logicalBlock": 276957184,
+      "physicalBlock": 530196480,
+      "bytes": 4096,
+      "allZero": false,
+      "sha256": "79cabef7fb8d74bc67807269f93217bad26468ce4645987d89a776422dea9bf1",
+      "first32Hex": "811561053557506001146106b3576101928361017e81850382610e21565b6008"
+    }
+  ],
+  "databaseValidated": false
+}

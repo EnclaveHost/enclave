@@ -1,0 +1,670 @@
+{
+ "entrypoints": {
+  "relay/api-relay.js": {
+   "modules": 77,
+   "changed": [
+    "relay/api-relay.js",
+    "relay/derived-writer-authority.mjs"
+   ],
+   "unresolved": [
+    "relay/network-runtime.bundle.mjs"
+   ]
+  },
+  "relay/network-runtime.mjs": {
+   "modules": 70,
+   "changed": [
+    "network/onchain-qualification.mjs"
+   ],
+   "unresolved": []
+  },
+  "network/wg-provider/main.mjs": {
+   "modules": 78,
+   "changed": [
+    "network/derived-reader/api.mjs",
+    "network/derived-reader/coverage-store.mjs",
+    "network/derived-reader/coverage.mjs",
+    "network/derived-reader/journal.mjs",
+    "network/derived-reader/l1-runtime.mjs",
+    "network/derived-reader/libraries.mjs",
+    "network/derived-reader/native.mjs",
+    "network/derived-reader/process.mjs",
+    "network/derived-reader/proof.mjs",
+    "network/derived-reader/provider.mjs",
+    "network/derived-reader/rpc.mjs",
+    "network/derived-reader/vendor/a1-anchor.mjs",
+    "network/derived-reader/vendor/anchor-bootstrap.mjs",
+    "network/derived-reader/vendor/schedule-input-r2.mjs",
+    "network/derived-reader/vendor/schedule_reader.mjs",
+    "network/lifecycle-finality-bridge.mjs",
+    "network/onchain-qualification.mjs",
+    "network/op-receipts-root.mjs",
+    "network/wg-provider/attested-authority.mjs",
+    "network/wg-provider/attested-submission.mjs",
+    "network/wg-provider/derived-anchor-floor.mjs",
+    "network/wg-provider/derived-runtime.mjs",
+    "network/wg-provider/derived-submission.mjs",
+    "network/wg-provider/main.mjs"
+   ],
+   "unresolved": []
+  },
+  "network/wg-provider/derived-runtime.mjs": {
+   "modules": 33,
+   "changed": [
+    "network/derived-reader/api.mjs",
+    "network/derived-reader/coverage-store.mjs",
+    "network/derived-reader/coverage.mjs",
+    "network/derived-reader/journal.mjs",
+    "network/derived-reader/l1-runtime.mjs",
+    "network/derived-reader/libraries.mjs",
+    "network/derived-reader/native.mjs",
+    "network/derived-reader/process.mjs",
+    "network/derived-reader/proof.mjs",
+    "network/derived-reader/provider.mjs",
+    "network/derived-reader/rpc.mjs",
+    "network/derived-reader/vendor/a1-anchor.mjs",
+    "network/derived-reader/vendor/anchor-bootstrap.mjs",
+    "network/derived-reader/vendor/schedule-input-r2.mjs",
+    "network/derived-reader/vendor/schedule_reader.mjs",
+    "network/lifecycle-finality-bridge.mjs",
+    "network/op-receipts-root.mjs",
+    "network/wg-provider/attested-submission.mjs",
+    "network/wg-provider/derived-anchor-floor.mjs",
+    "network/wg-provider/derived-runtime.mjs",
+    "network/wg-provider/derived-submission.mjs"
+   ],
+   "unresolved": []
+  },
+  "windows/node/network-enroll.mjs": {
+   "modules": 7,
+   "changed": [],
+   "unresolved": []
+  }
+ },
+ "candidateTests": {
+  "test/attested-chain-verifier.test.mjs": {
+   "modules": 66,
+   "changed": [
+    "network/wg-provider/attested-authority.mjs",
+    "network/wg-provider/attested-submission.mjs"
+   ]
+  },
+  "test/caller-verifier-wiring.test.mjs": {
+   "modules": 79,
+   "changed": []
+  },
+  "test/chain-authority.test.mjs": {
+   "modules": 26,
+   "changed": []
+  },
+  "test/cli-combined-independent.test.mjs": {
+   "modules": 33,
+   "changed": []
+  },
+  "test/cli-existing-contract-sessions.test.mjs": {
+   "modules": 51,
+   "changed": []
+  },
+  "test/cli-host-independent-lifecycle.test.mjs": {
+   "modules": 43,
+   "changed": []
+  },
+  "test/cli-independent-login.test.mjs": {
+   "modules": 31,
+   "changed": []
+  },
+  "test/cli-independent-signer.test.mjs": {
+   "modules": 28,
+   "changed": []
+  },
+  "test/cli-independent.test.mjs": {
+   "modules": 43,
+   "changed": []
+  },
+  "test/cli-signed-liveness.test.mjs": {
+   "modules": 50,
+   "changed": []
+  },
+  "test/control-front-abort.test.mjs": {
+   "modules": 5,
+   "changed": []
+  },
+  "test/custody-cli-independent.test.mjs": {
+   "modules": 42,
+   "changed": []
+  },
+  "test/custody-owner-read.test.mjs": {
+   "modules": 66,
+   "changed": []
+  },
+  "test/custody-secrets-cli-independent.test.mjs": {
+   "modules": 66,
+   "changed": []
+  },
+  "test/host-liveness.test.mjs": {
+   "modules": 41,
+   "changed": []
+  },
+  "test/lease-pinned-relay-config.test.mjs": {
+   "modules": 35,
+   "changed": []
+  },
+  "test/mcp-guest-bundle.test.mjs": {
+   "modules": 1,
+   "changed": []
+  },
+  "test/mcp-hosted-control.test.mjs": {
+   "modules": 138,
+   "changed": []
+  },
+  "test/mcp-independent-unit.test.mjs": {
+   "modules": 112,
+   "changed": []
+  },
+  "test/mcp-independent-verifier.test.mjs": {
+   "modules": 101,
+   "changed": []
+  },
+  "test/mcp-independent.test.mjs": {
+   "modules": 75,
+   "changed": []
+  },
+  "test/metal-lease-gas-conduit.test.mjs": {
+   "modules": 30,
+   "changed": []
+  },
+  "test/metal-measured-control.test.mjs": {
+   "modules": 56,
+   "changed": []
+  },
+  "test/native-certificate-leaf.test.mjs": {
+   "modules": 17,
+   "changed": []
+  },
+  "test/native-certificate-request-abort.test.mjs": {
+   "modules": 6,
+   "changed": []
+  },
+  "test/native-control-attested.test.mjs": {
+   "modules": 43,
+   "changed": []
+  },
+  "test/native-discovery.test.mjs": {
+   "modules": 39,
+   "changed": []
+  },
+  "test/native-relay-chain-authority.test.mjs": {
+   "modules": 153,
+   "changed": [
+    "relay/api-relay.js",
+    "relay/derived-writer-authority.mjs"
+   ]
+  },
+  "test/owner-nomination-config.test.mjs": {
+   "modules": 6,
+   "changed": []
+  },
+  "test/platform-api-admin-cli.test.mjs": {
+   "modules": 122,
+   "changed": [
+    "relay/api-relay.js",
+    "relay/derived-writer-authority.mjs"
+   ]
+  },
+  "test/platform-api-admin-status.test.mjs": {
+   "modules": 121,
+   "changed": [
+    "relay/api-relay.js",
+    "relay/derived-writer-authority.mjs"
+   ]
+  },
+  "test/platform-api-config.test.mjs": {
+   "modules": 5,
+   "changed": []
+  },
+  "test/platform-api-forward.test.mjs": {
+   "modules": 120,
+   "changed": [
+    "relay/api-relay.js",
+    "relay/derived-writer-authority.mjs"
+   ]
+  },
+  "test/platform-api-handoff-production.test.mjs": {
+   "modules": 123,
+   "changed": [
+    "relay/api-relay.js",
+    "relay/derived-writer-authority.mjs"
+   ]
+  },
+  "test/platform-api-hosted.test.mjs": {
+   "modules": 122,
+   "changed": [
+    "relay/api-relay.js",
+    "relay/derived-writer-authority.mjs"
+   ]
+  },
+  "test/platform-api-native-issuer.test.mjs": {
+   "modules": 123,
+   "changed": [
+    "relay/api-relay.js",
+    "relay/derived-writer-authority.mjs"
+   ]
+  },
+  "test/platform-api-registry.test.mjs": {
+   "modules": 13,
+   "changed": []
+  },
+  "test/relay-chain-consumers.test.mjs": {
+   "modules": 121,
+   "changed": [
+    "relay/api-relay.js",
+    "relay/derived-writer-authority.mjs"
+   ]
+  },
+  "test/relay-policy-carriers.test.mjs": {
+   "modules": 48,
+   "changed": []
+  },
+  "test/stack-admin-controls.test.mjs": {
+   "modules": 5,
+   "changed": []
+  },
+  "test/windows-node-lease-renewal-keeper.test.mjs": {
+   "modules": 51,
+   "changed": []
+  }
+ },
+ "otherTests": {
+  "test/relay-deploy-closure.test.mjs": {
+   "modules": 1,
+   "changed": []
+  },
+  "test/windows-chain-authority-runtime.test.mjs": {
+   "modules": 1,
+   "changed": []
+  },
+  "test/windows-chain-authority.test.mjs": {
+   "modules": 16,
+   "changed": []
+  },
+  "test/windows-control-activation.test.mjs": {
+   "modules": 2,
+   "changed": []
+  },
+  "test/windows-current-runtime.test.mjs": {
+   "modules": 14,
+   "changed": []
+  },
+  "test/windows-host-app-funded.test.mjs": {
+   "modules": 55,
+   "changed": []
+  },
+  "test/windows-host-identity-quorum.test.mjs": {
+   "modules": 1,
+   "changed": []
+  },
+  "test/windows-host-identity.test.mjs": {
+   "modules": 24,
+   "changed": []
+  },
+  "test/windows-hv-memory-accounting.test.mjs": {
+   "modules": 63,
+   "changed": []
+  },
+  "test/windows-installer-app-ram.test.mjs": {
+   "modules": 2,
+   "changed": []
+  },
+  "test/windows-installer-independence.test.mjs": {
+   "modules": 3,
+   "changed": []
+  },
+  "test/windows-isolation-manager-restart.test.mjs": {
+   "modules": 19,
+   "changed": []
+  },
+  "test/windows-lease-closure.test.mjs": {
+   "modules": 3,
+   "changed": []
+  },
+  "test/windows-manager-answer-check.test.mjs": {
+   "modules": 9,
+   "changed": []
+  },
+  "test/windows-manager-judges-partition.test.mjs": {
+   "modules": 23,
+   "changed": []
+  },
+  "test/windows-manager-vm-scope.test.mjs": {
+   "modules": 17,
+   "changed": []
+  },
+  "test/windows-node-abi-handshake.test.mjs": {
+   "modules": 49,
+   "changed": []
+  },
+  "test/windows-node-appzone-abort.test.mjs": {
+   "modules": 2,
+   "changed": []
+  },
+  "test/windows-node-appzone-tls.test.mjs": {
+   "modules": 50,
+   "changed": []
+  },
+  "test/windows-node-appzone-wallet-hold.test.mjs": {
+   "modules": 2,
+   "changed": []
+  },
+  "test/windows-node-artifact-override.test.mjs": {
+   "modules": 50,
+   "changed": []
+  },
+  "test/windows-node-artifact-refusal.test.mjs": {
+   "modules": 1,
+   "changed": []
+  },
+  "test/windows-node-audit-jobs.test.mjs": {
+   "modules": 3,
+   "changed": []
+  },
+  "test/windows-node-audit-owner-only.test.mjs": {
+   "modules": 49,
+   "changed": []
+  },
+  "test/windows-node-availability-flags.test.mjs": {
+   "modules": 61,
+   "changed": []
+  },
+  "test/windows-node-availability-labels.test.mjs": {
+   "modules": 90,
+   "changed": []
+  },
+  "test/windows-node-blob-cache.test.mjs": {
+   "modules": 2,
+   "changed": []
+  },
+  "test/windows-node-capacity-boundary.test.mjs": {
+   "modules": 62,
+   "changed": []
+  },
+  "test/windows-node-claim-policy.test.mjs": {
+   "modules": 7,
+   "changed": []
+  },
+  "test/windows-node-compute-measure.test.mjs": {
+   "modules": 2,
+   "changed": []
+  },
+  "test/windows-node-config-secrets.test.mjs": {
+   "modules": 49,
+   "changed": []
+  },
+  "test/windows-node-deploy-files.test.mjs": {
+   "modules": 2,
+   "changed": []
+  },
+  "test/windows-node-domain-carryover.test.mjs": {
+   "modules": 49,
+   "changed": []
+  },
+  "test/windows-node-domain-lifecycle.test.mjs": {
+   "modules": 49,
+   "changed": []
+  },
+  "test/windows-node-domains.test.mjs": {
+   "modules": 3,
+   "changed": []
+  },
+  "test/windows-node-enclave-budget.test.mjs": {
+   "modules": 49,
+   "changed": []
+  },
+  "test/windows-node-gas-runway.test.mjs": {
+   "modules": 50,
+   "changed": []
+  },
+  "test/windows-node-gflops-floor.test.mjs": {
+   "modules": 8,
+   "changed": []
+  },
+  "test/windows-node-giveup-once.test.mjs": {
+   "modules": 62,
+   "changed": []
+  },
+  "test/windows-node-host-delegation.test.mjs": {
+   "modules": 4,
+   "changed": []
+  },
+  "test/windows-node-host-wide-loss.test.mjs": {
+   "modules": 62,
+   "changed": []
+  },
+  "test/windows-node-hosting-caps.test.mjs": {
+   "modules": 62,
+   "changed": []
+  },
+  "test/windows-node-hv-attach-relay.test.mjs": {
+   "modules": 63,
+   "changed": []
+  },
+  "test/windows-node-hv-attach.test.mjs": {
+   "modules": 90,
+   "changed": []
+  },
+  "test/windows-node-hvcert-pending.test.mjs": {
+   "modules": 11,
+   "changed": []
+  },
+  "test/windows-node-hvcert.test.mjs": {
+   "modules": 60,
+   "changed": []
+  },
+  "test/windows-node-hyperv-events.test.mjs": {
+   "modules": 2,
+   "changed": []
+  },
+  "test/windows-node-isolation-host.test.mjs": {
+   "modules": 62,
+   "changed": []
+  },
+  "test/windows-node-lease-readiness.test.mjs": {
+   "modules": 50,
+   "changed": []
+  },
+  "test/windows-node-lease-renewal-keeper.test.mjs": {
+   "modules": 51,
+   "changed": []
+  },
+  "test/windows-node-live-edit.test.mjs": {
+   "modules": 49,
+   "changed": []
+  },
+  "test/windows-node-module-paths.test.mjs": {
+   "modules": 1,
+   "changed": []
+  },
+  "test/windows-node-network-enroll.test.mjs": {
+   "modules": 8,
+   "changed": []
+  },
+  "test/windows-node-norenew.test.mjs": {
+   "modules": 62,
+   "changed": []
+  },
+  "test/windows-node-origin-request.test.mjs": {
+   "modules": 12,
+   "changed": []
+  },
+  "test/windows-node-owner-set.test.mjs": {
+   "modules": 62,
+   "changed": []
+  },
+  "test/windows-node-platform-policy.test.mjs": {
+   "modules": 58,
+   "changed": []
+  },
+  "test/windows-node-preclaim.test.mjs": {
+   "modules": 61,
+   "changed": []
+  },
+  "test/windows-node-price-once.test.mjs": {
+   "modules": 50,
+   "changed": []
+  },
+  "test/windows-node-pricing.test.mjs": {
+   "modules": 50,
+   "changed": []
+  },
+  "test/windows-node-private-paths.test.mjs": {
+   "modules": 51,
+   "changed": []
+  },
+  "test/windows-node-private.test.mjs": {
+   "modules": 50,
+   "changed": []
+  },
+  "test/windows-node-prove-isolated.test.mjs": {
+   "modules": 49,
+   "changed": []
+  },
+  "test/windows-node-reboot-recovery.test.mjs": {
+   "modules": 62,
+   "changed": []
+  },
+  "test/windows-node-respawn.test.mjs": {
+   "modules": 62,
+   "changed": []
+  },
+  "test/windows-node-restart-gate.test.mjs": {
+   "modules": 52,
+   "changed": []
+  },
+  "test/windows-node-retired-engine-agent.test.mjs": {
+   "modules": 1,
+   "changed": []
+  },
+  "test/windows-node-retired-engine.test.mjs": {
+   "modules": 51,
+   "changed": []
+  },
+  "test/windows-node-scan-slot.test.mjs": {
+   "modules": 61,
+   "changed": []
+  },
+  "test/windows-node-secrets-unknown.test.mjs": {
+   "modules": 62,
+   "changed": []
+  },
+  "test/windows-node-secrets.test.mjs": {
+   "modules": 3,
+   "changed": []
+  },
+  "test/windows-node-session.test.mjs": {
+   "modules": 2,
+   "changed": []
+  },
+  "test/windows-node-siwe.test.mjs": {
+   "modules": 2,
+   "changed": []
+  },
+  "test/windows-node-sni.test.mjs": {
+   "modules": 49,
+   "changed": []
+  },
+  "test/windows-node-sponsor-retry.test.mjs": {
+   "modules": 50,
+   "changed": []
+  },
+  "test/windows-node-startup-egress.test.mjs": {
+   "modules": 2,
+   "changed": []
+  },
+  "test/windows-node-stopapp-tick.test.mjs": {
+   "modules": 61,
+   "changed": []
+  },
+  "test/windows-node-tick-single-flight.test.mjs": {
+   "modules": 50,
+   "changed": []
+  },
+  "test/windows-node-tunnel-handover.test.mjs": {
+   "modules": 4,
+   "changed": []
+  },
+  "test/windows-node-vanished-domain.test.mjs": {
+   "modules": 62,
+   "changed": []
+  },
+  "test/windows-node-version-change.test.mjs": {
+   "modules": 2,
+   "changed": []
+  },
+  "test/windows-node-waf-body.test.mjs": {
+   "modules": 50,
+   "changed": []
+  },
+  "test/windows-node-waf.test.mjs": {
+   "modules": 2,
+   "changed": []
+  },
+  "test/windows-node-wallet-enroll.test.mjs": {
+   "modules": 8,
+   "changed": []
+  },
+  "test/windows-node-wallet-grant-refresh.test.mjs": {
+   "modules": 149,
+   "changed": []
+  },
+  "test/windows-node-wallet-network-hold.test.mjs": {
+   "modules": 149,
+   "changed": []
+  },
+  "test/windows-node-wallet-policy.test.mjs": {
+   "modules": 50,
+   "changed": []
+  },
+  "test/windows-owner-cli.test.mjs": {
+   "modules": 1,
+   "changed": []
+  },
+  "test/windows-publish-host.test.mjs": {
+   "modules": 3,
+   "changed": []
+  },
+  "test/windows-release-channel.test.mjs": {
+   "modules": 3,
+   "changed": []
+  },
+  "test/windows-release-journal.test.mjs": {
+   "modules": 55,
+   "changed": []
+  },
+  "test/windows-shield-custody-transport.test.mjs": {
+   "modules": 36,
+   "changed": []
+  },
+  "test/windows-shield-image-selection.test.mjs": {
+   "modules": 23,
+   "changed": []
+  },
+  "test/windows-shield-local-auth.test.mjs": {
+   "modules": 6,
+   "changed": []
+  },
+  "test/windows-shield-package-transport.test.mjs": {
+   "modules": 18,
+   "changed": []
+  },
+  "test/windows-shield-startup.test.mjs": {
+   "modules": 66,
+   "changed": []
+  },
+  "test/windows-shield-verifier.test.mjs": {
+   "modules": 75,
+   "changed": []
+  },
+  "test/windows-verifier.e2e.test.mjs": {
+   "modules": 80,
+   "changed": []
+  }
+ }
+}

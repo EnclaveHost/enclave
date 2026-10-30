@@ -1,0 +1,18 @@
+{
+  "actualLinkedContracts": true,
+  "actualAdapterComposerRunnerJournal": true,
+  "fullInstalledHostRuntime": false,
+  "productionAuthority": false,
+  "productionMutation": false,
+  "initial": {
+    "pass": 0,
+    "fail": 3,
+    "skip": 0,
+    "cause": "root fixture state ABI index0 instead of1"
+  },
+  "final": {
+    "pass": 3,
+    "fail": 0,
+    "skip": 0
+  }
+}

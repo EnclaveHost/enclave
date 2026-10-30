@@ -1,0 +1,248 @@
+import "../components/cinematic-scene/cinematic-scene.js";
+import "./hex-background.js";
+/* ============================================================
+   Soft-navigation router. Full-document navigations can't be
+   made seamless when an extension injects content scripts
+   (Chromium skips cross-document view transitions and may swap
+   processes - MetaMask users saw every navigation flash), so
+   internal navigation never leaves the document:
+
+     click → fetch the page → document.startViewTransition(swap
+     <main> + title) → import + boot that page's module
+
+   The header, footer, toast, and wallet state are THE SAME live
+   DOM nodes across all navigation - nothing to reload, nothing
+   to flash. Same-document view transitions are a plain DOM API,
+   immune to the extension limitation; browsers without support
+   just swap instantly (the document never unloads, so there's
+   still no flash). Hard navigations (external entry, failures)
+   keep working - every page stays a complete document.
+   ============================================================ */
+
+import "./core/addressbook.js";   // resolve contract addresses from the on-chain book (no-op until one is configured)
+
+const PAGES = {
+  overview:  () => import("./pages/overview.js"),
+  apps:      () => import("./pages/apps.js"),      // also hosts #publish (deploy.js is the lazy chunk behind its quick-deploy modal)
+  develop:   () => import("./pages/develop.js"),
+  dashboard: () => import("./pages/dashboard.js"), // signed-in view: run log + My Apps
+  admin:     () => import("./pages/admin.js"),     // operator console - deliberately absent from the nav
+  terms:     () => import("./pages/terms.js"),     // Terms of Service - linked from the deploy gates + footer
+  privacy:   () => import("./pages/privacy.js"),   // Privacy Policy - linked from the footer + deploy gates
+  checkout:  () => import("./pages/checkout.js"),  // order checkout: card (hosted Stripe) or USDC (PaymentRouter)
+  link:      () => import("./pages/link.js"),      // device-flow approval: the phone side of "Use your phone"
+  authorize: () => import("./pages/authorize.js"), // wallet hand-off for a PRIVATE app - the enclave bounces navigations here
+  host:      () => import("./pages/host.js"),   // seller pitch + the PUBLIC live-fleet panel
+  architecture: () => import("./pages/architecture.js"), // how it works, protection levels, what is proven vs planned
+  "sso-authorize": () => import("./pages/sso-authorize.js"), // Sign in with Enclave for TENANT apps - EST1 hand-off (relay/sso.js)
+  grant:     () => import("./pages/grant.js"),     // approve a session an agent/device asked for (enclave session new)
+  sessions:  () => import("./pages/sessions.js"),  // every session that can act for the wallet; owner controls
+};
+// URL aliases: pathnames that render ANOTHER page's document. /apps/publish
+// is the canonical publish-form URL, but it stays a view of the Apps page -
+// apps.js's applyView picks the view from the pathname. Its document is a
+// build-time copy of apps.html carrying <base href="../">, so the router
+// resolves everything against document.baseURI (= the site root, wherever
+// the site is mounted). (/apps/deploy, the old console, now 301s to the
+// store via _redirects - deploying is one click on an app's card.)
+const PAGE_ALIAS  = { publish: "apps" };
+const PAGE_PRETTY = { publish: "apps/publish" };
+const pageOf = (pathname) => {
+  const segs = pathname.split("/");
+  const base = (segs.pop() || segs.pop()) || "index.html";   // trailing-slash tolerant
+  const name = base.replace(/\.html$/, "");
+  // nested page documents (/sso/authorize) key on "parent-name", so they can
+  // coexist with a root page whose last segment matches (/authorize)
+  const parent = (segs[segs.length - 1] || "").replace(/\.html$/, "");
+  if (parent && PAGES[parent + "-" + name]) return parent + "-" + name;
+  return name === "" || name === "index" ? "overview" : ((PAGES[name] || PAGE_ALIAS[name]) ? name : null);
+};
+// Pretty URLs: the address bar shows extensionless paths (/apps, /dashboard) - 
+// hard loads of those are rewritten by the gateway's _redirects (site/_redirects,
+// DNSLink/subdomain IPFS hosts) - while the router always FETCHES the real
+// .html file, so soft navigation needs no rewrite support at all (raw dev
+// servers, path gateways). Paths stay relative to wherever the site is
+// mounted: /dashboard on enclave.host, /ipns/<key>/dashboard on a path gateway.
+// The directory the site is mounted at: "/" on enclave.host, "/ipns/<key>/"
+// on a path gateway. The ENTRY document's baseURI is always right (root docs
+// sit at root depth; the nested alias docs carry <base href="../">) - but it
+// only stays right until the first soft navigation moves `location` to a
+// nested path this document was never served at (then href="apps" would
+// resolve to /apps/apps and 404). So freeze the root NOW, before any
+// navigation, and pin it into an explicit <base> so the BROWSER resolves
+// every relative href from the site root too (middle-clicks included).
+const SITE_ROOT = new URL(".", document.baseURI).pathname;
+{
+  let b = document.querySelector("base");
+  if (!b) { b = document.createElement("base"); document.head.prepend(b); }
+  b.setAttribute("href", SITE_ROOT);
+}
+const rootDir = () => SITE_ROOT;
+const prettyPath = (page) => rootDir() + (page === "overview" ? "" : (PAGE_PRETTY[page] || page));
+const htmlName = (page) => {
+  const file = PAGE_ALIAS[page] || page;                     // an alias serves its target's document
+  return file === "overview" ? "index.html" : file + ".html";
+};
+
+const docCache = new Map();   // html file name -> text (warmed in idle time; aliases share their target's entry)
+
+async function fetchPage(page) {
+  const key = htmlName(page);
+  if (docCache.has(key)) return docCache.get(key);
+  const r = await fetch(rootDir() + key, { headers: { "Accept": "text/html" } });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  const t = await r.text();
+  docCache.set(key, t);
+  return t;
+}
+
+async function bootPage(page) {
+  const m = await PAGES[PAGE_ALIAS[page] || page]();
+  if (typeof m.boot === "function") m.boot();
+}
+
+function swapFrom(doc) {
+  const next = document.adoptNode(doc.querySelector("main"));
+  document.querySelector("main").replaceWith(next);          // custom elements upgrade + hydrate on connect
+  document.title = doc.title;
+  // a soft navigation must move focus like a real one would: land it on the
+  // new <main> (every page's main carries id="main" tabindex="-1"), which
+  // also makes screen readers announce the swapped content
+  next.focus({ preventScroll: true });
+}
+
+let navSeq = 0;
+// canonicalize a .html entry in place (no reload): the file loaded, the bar
+// shows the pretty path - /dashboard.html -> /dashboard
+{
+  const entry = pageOf(location.pathname);
+  const pp = entry && prettyPath(entry);
+  if (pp && pp !== location.pathname)
+    history.replaceState(history.state, "", pp + location.search + location.hash);
+}
+// the page currently RENDERED - not `location`, which a popstate has already
+// moved to the destination before our handler runs
+let current = { pathname: location.pathname, search: location.search };
+
+export async function navigate(href, opts) {
+  opts = opts || {};
+  const url = new URL(href, document.baseURI);             // <base>-aware: relative hrefs resolve from the site root
+  const page = pageOf(url.pathname);
+  if (!page) { location.href = url; return; }                // not one of ours: hard nav
+  url.pathname = prettyPath(page);                           // the bar always shows the pretty form
+
+  // already rendered - same document, maybe a different sub-view: an alias
+  // and its target (apps ↔ publish) share one <main>, so the flip is
+  // just a URL push + the view signal; no fetch, no swap. Same search only:
+  // a new ?app= must re-boot the page so its prefill logic runs.
+  const curPage = pageOf(current.pathname);
+  if (curPage && (PAGE_ALIAS[page] || page) === (PAGE_ALIAS[curPage] || curPage) && url.search === current.search) {
+    const prev = location.href;
+    if (opts.push) history.pushState({ scroll: 0 }, "", url);
+    current = { pathname: location.pathname, search: location.search };
+    if (opts.scroll != null) scrollTo(0, opts.scroll);
+    else scrollToTarget(url.hash);
+    if (location.href !== prev || opts.push === false)   // pushState never fires hashchange itself;
+      dispatchEvent(new HashChangeEvent("hashchange", { oldURL: prev, newURL: location.href }));
+    return;                                       // pages with view routing need the signal (popstate included)
+  }
+
+  const seq = ++navSeq;
+  let html;
+  try { html = await fetchPage(page); }
+  catch (e) { location.href = href; return; }                // network trouble: fall back to a hard nav
+  if (seq !== navSeq) return;                                // superseded by a newer navigation
+
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  if (!doc.querySelector("main")) { location.href = href; return; }
+
+  if (opts.push !== false) {
+    history.replaceState({ scroll: scrollY }, "");           // remember where we were for Back
+    history.pushState({ scroll: 0 }, "", url);
+  }
+
+  const apply = () => {
+    swapFrom(doc);
+    current = { pathname: url.pathname, search: url.search };
+    const hdr = document.querySelector("c-header");
+    if (hdr) hdr.current = PAGE_ALIAS[page] || page;         // hydrated header just re-toggles the active tab (aliases light their target's)
+  };
+  // the cross-fade is decoration: skip it under prefers-reduced-motion (a11y),
+  // which also sidesteps renderers with wedged frame production (headless test
+  // runs) where the transition callback would never get a rendering slot
+  if (document.startViewTransition && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    try { await document.startViewTransition(apply).updateCallbackDone; } catch (e) { apply(); }
+  } else apply();
+
+  await bootPage(page);
+  if (opts.scroll != null) scrollTo(0, opts.scroll);
+  else scrollToTarget(url.hash);
+}
+
+function scrollToTarget(hash) {
+  const el = hash && document.getElementById(hash.slice(1));
+  if (el) el.scrollIntoView({ block: "start" });
+  else scrollTo(0, 0);
+}
+
+/* intercept plain left-clicks on internal page links */
+document.addEventListener("click", (e) => {
+  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  const a = e.target.closest("a[href]");
+  if (!a || a.target || a.hasAttribute("download")) return;
+  const href = a.getAttribute("href");
+  if (!href) return;
+  if (href.startsWith("#")) {
+    // in-page anchor: the pinned <base> would otherwise resolve "#x" to
+    // "<site root>#x" and the browser would LEAVE the page (/develop#x
+    // became /#x). Keep it on the current pathname ourselves.
+    e.preventDefault();
+    // setting the hash it already has is a no-op (no scroll, no
+    // hashchange), so a second click on the same link scrolls by hand
+    if (location.hash === href) {
+      const el = document.getElementById(decodeURIComponent(href.slice(1)));
+      if (el) el.scrollIntoView({ block: "start" });
+    } else location.hash = href;
+    return;
+  }
+  const url = new URL(a.href);                             // the PROPERTY is <base>-resolved
+  if (url.origin !== location.origin || !pageOf(url.pathname)) return;
+  e.preventDefault();
+  navigate(href, { push: true });
+});
+
+/* back/forward stay soft too */
+addEventListener("popstate", (e) => {
+  navigate(location.href, { push: false, scroll: e.state && e.state.scroll });
+});
+
+/* keyboard-scrollable overflow regions (WCAG 2.1.1): code blocks, schema
+   trees, and table scrollers overflow horizontally; keyboard users need focus
+   to scroll them. Only regions that actually overflow get a tab stop, and
+   only ones this added (data-a11y-scroll) ever get it removed again. */
+const SCROLLABLE_SEL = ".code,.mig-scroll,.schema,.tbl,.hostdoc-code";
+let _scrollScan;
+function syncScrollFocus() {
+  clearTimeout(_scrollScan);
+  _scrollScan = setTimeout(() => {
+    for (const el of document.querySelectorAll(SCROLLABLE_SEL)) {
+      const overflows = el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1;
+      if (overflows && !el.hasAttribute("tabindex")) { el.tabIndex = 0; el.dataset.a11yScroll = "1"; }
+      else if (!overflows && el.dataset.a11yScroll) { el.removeAttribute("tabindex"); delete el.dataset.a11yScroll; }
+    }
+  }, 200);
+}
+new MutationObserver(syncScrollFocus).observe(document.documentElement, { subtree: true, childList: true });
+addEventListener("resize", syncScrollFocus);
+addEventListener("load", syncScrollFocus);
+
+/* boot the page we loaded on, then warm the other pages' HTML in idle time
+   so soft navigations are instant even on a cold, slow gateway */
+const initial = pageOf(location.pathname) || "overview";
+bootPage(initial);
+setTimeout(() => {
+  for (const p of Object.keys(PAGES)) {
+    if (p === "admin" || p === "terms" || p === "privacy" || p === "checkout" || p === "link" || p === "authorize" || p === "sso-authorize" || p === "grant") continue;   // nobody navigates to these by accident - don't warm them
+    if (initial !== p) fetchPage(p).catch(() => {});
+  }
+}, 1500);

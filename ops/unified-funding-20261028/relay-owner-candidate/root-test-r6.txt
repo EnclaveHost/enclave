@@ -1,0 +1,483 @@
+[queue] START available=30177MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+TAP version 13
+# Subtest: owner/end/open are refused unless the host passes ownerManagement AND rateOwner; no body flag enables them
+ok 1 - owner/end/open are refused unless the host passes ownerManagement AND rateOwner; no body flag enables them
+  ---
+  duration_ms: 12.071101
+  type: 'test'
+  ...
+# Subtest: every original owner op is served; ownerCall is direct-owner only
+ok 2 - every original owner op is served; ownerCall is direct-owner only
+  ---
+  duration_ms: 1.30058
+  type: 'test'
+  ...
+# Subtest: forged terminate is refused before off-chain revocation, sends nothing and burns no quota
+ok 3 - forged terminate is refused before off-chain revocation, sends nothing and burns no quota
+  ---
+  duration_ms: 16.993065
+  type: 'test'
+  ...
+# Subtest: forged revokeAll and forged /funding/end never mark anything
+ok 4 - forged revokeAll and forged /funding/end never mark anything
+  ---
+  duration_ms: 16.393029
+  type: 'test'
+  ...
+# Subtest: a body owner that is not the vault's owner is refused
+ok 5 - a body owner that is not the vault's owner is refused
+  ---
+  duration_ms: 6.697301
+  type: 'test'
+  ...
+# Subtest: terminate marks the shared revocation in afterSimulate (before broadcast) and completes only on a canonical receipt
+ok 6 - terminate marks the shared revocation in afterSimulate (before broadcast) and completes only on a canonical receipt
+  ---
+  duration_ms: 10.021736
+  type: 'test'
+  ...
+# Subtest: a failed send after acceptance keeps the revocation (never weakened)
+ok 7 - a failed send after acceptance keeps the revocation (never weakened)
+  ---
+  duration_ms: 8.1309
+  type: 'test'
+  ...
+# Subtest: zero block hash (preconfirmation): 202 pending, no index, no second send, revocation kept
+ok 8 - zero block hash (preconfirmation): 202 pending, no index, no second send, revocation kept
+  ---
+  duration_ms: 8.228699
+  type: 'test'
+  ...
+# Subtest: null block hash: 202 pending, no index, no second send, revocation kept
+ok 9 - null block hash: 202 pending, no index, no second send, revocation kept
+  ---
+  duration_ms: 7.863042
+  type: 'test'
+  ...
+# Subtest: receipt unknown to the node: 202 pending, no index, no second send, revocation kept
+ok 10 - receipt unknown to the node: 202 pending, no index, no second send, revocation kept
+  ---
+  duration_ms: 9.305622
+  type: 'test'
+  ...
+# Subtest: reorged: the node's receipt is in another block: 202 pending, no index, no second send, revocation kept
+ok 11 - reorged: the node's receipt is in another block: 202 pending, no index, no second send, revocation kept
+  ---
+  duration_ms: 7.314096
+  type: 'test'
+  ...
+# Subtest: a block-number/hash mismatch at getBlock is not canonical; reconciliation later completes read-only
+ok 12 - a block-number/hash mismatch at getBlock is not canonical; reconciliation later completes read-only
+  ---
+  duration_ms: 8.071011
+  type: 'test'
+  ...
+# Subtest: revokeAll in flight refuses every session of the vault (quote AND execute before any chain read); completion admits only later epochs
+ok 13 - revokeAll in flight refuses every session of the vault (quote AND execute before any chain read); completion admits only later epochs
+  ---
+  duration_ms: 30.252197
+  type: 'test'
+  ...
+# Subtest: topUp is counted only after acceptance; an exhausted quota refuses before any chain read
+ok 14 - topUp is counted only after acceptance; an exhausted quota refuses before any chain read
+  ---
+  duration_ms: 19.01963
+  type: 'test'
+  ...
+# Subtest: an accepted op whose canonical receipt lacks its event is not reported as done
+ok 15 - an accepted op whose canonical receipt lacks its event is not reported as done
+  ---
+  duration_ms: 6.231364
+  type: 'test'
+  ...
+# Subtest: /funding/end marks before broadcast and completes on a canonical SessionEnded
+ok 16 - /funding/end marks before broadcast and completes on a canonical SessionEnded
+  ---
+  duration_ms: 6.76728
+  type: 'test'
+  ...
+# Subtest: quote refuses opsPerPeriod exhaustion and uint32 periodOps overflow, after period reset rules; and seq == uint64 max
+ok 17 - quote refuses opsPerPeriod exhaustion and uint32 periodOps overflow, after period reset rules; and seq == uint64 max
+  ---
+  duration_ms: 31.011851
+  type: 'test'
+  ...
+# Subtest: execute: zero-hash preconfirmation is pending (no index, one send); a 96-byte result is refused
+ok 18 - execute: zero-hash preconfirmation is pending (no index, one send); a 96-byte result is refused
+  ---
+  duration_ms: 30.255236
+  type: 'test'
+  ...
+# Subtest: strictEvent refuses trailing data bytes and dirty words
+ok 19 - strictEvent refuses trailing data bytes and dirty words
+  ---
+  duration_ms: 0.881803
+  type: 'test'
+  ...
+# Subtest: open refuses api.* scopes, counts quota after acceptance, and indexes openedBlock only from a canonical receipt
+ok 20 - open refuses api.* scopes, counts quota after acceptance, and indexes openedBlock only from a canonical receipt
+  ---
+  duration_ms: 13.042563
+  type: 'test'
+  ...
+# Subtest: root: unsigned close cannot consume the owner's authenticated-operation quota
+ok 21 - root: unsigned close cannot consume the owner's authenticated-operation quota
+  ---
+  duration_ms: 5.942066
+  type: 'test'
+  ...
+# Subtest: root: reconciliation cannot adopt a different transaction returned for the requested hash
+ok 22 - root: reconciliation cannot adopt a different transaction returned for the requested hash
+  ---
+  duration_ms: 6.447822
+  type: 'test'
+  ...
+# Subtest: root: unknown receipt status stays pending without indexing
+not ok 23 - root: unknown receipt status stays pending without indexing
+  ---
+  duration_ms: 8.281389
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-owner-r2/test/owner-route.test.mjs:323:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      Comparison {
+    +   code: 'reverted',
+    +   status: 409
+    -   code: 'pending_reconciliation',
+    -   status: 202
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    status: 202
+    code: 'pending_reconciliation'
+  actual:
+  error: 'owner reverted in canonical block 1001 (0x0000000000000000000000000000000000000000000000000000000000000014)'
+  stack: |-
+    httpError (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-owner-r2/funding-route.mjs:110:53)
+    completed (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-owner-r2/funding-route.mjs:525:13)
+    async waitForActual (node:assert:644:5)
+    async Function.rejects (node:assert:767:25)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-owner-r2/test/owner-route.test.mjs:330:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-owner-r2/test/owner-route.test.mjs:330:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: root: missing log inclusion metadata stays pending without indexing
+not ok 24 - root: missing log inclusion metadata stays pending without indexing
+  ---
+  duration_ms: 10.171195
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-owner-r2/test/owner-route.test.mjs:323:3'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    status: 202
+    code: 'pending_reconciliation'
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-owner-r2/test/owner-route.test.mjs:330:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: root: removed log stays pending without indexing
+not ok 25 - root: removed log stays pending without indexing
+  ---
+  duration_ms: 9.837287
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-owner-r2/test/owner-route.test.mjs:323:3'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    status: 202
+    code: 'pending_reconciliation'
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-owner-r2/test/owner-route.test.mjs:330:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: the source is the pinned original and is not modified
+ok 26 - the source is the pinned original and is not modified
+  ---
+  duration_ms: 1.128122
+  type: 'test'
+  ...
+# Subtest: removing every marked block reproduces the original byte for byte
+ok 27 - removing every marked block reproduces the original byte for byte
+  ---
+  duration_ms: 0.425556
+  type: 'test'
+  ...
+# Subtest: the host hook wires the ACTUAL host helpers and nothing new
+ok 28 - the host hook wires the ACTUAL host helpers and nothing new
+  ---
+  duration_ms: 0.235928
+  type: 'test'
+  ...
+# Subtest: the helpers the hook calls are real host function declarations, declared state precedes the hook
+ok 29 - the helpers the hook calls are real host function declarations, declared state precedes the hook
+  ---
+  duration_ms: 0.166879
+  type: 'test'
+  ...
+# Subtest: the original /owner and /end handlers carry no marked block (the only route() insert is the first line)
+ok 30 - the original /owner and /end handlers carry no marked block (the only route() insert is the first line)
+  ---
+  duration_ms: 0.138989
+  type: 'test'
+  ...
+# Subtest: the drop-in route copy differs from the stage route only by its two imports
+ok 31 - the drop-in route copy differs from the stage route only by its two imports
+  ---
+  duration_ms: 1.291431
+  type: 'test'
+  ...
+# Subtest: the prepare manifest records link references, runtime sizes and grant fields
+ok 32 - the prepare manifest records link references, runtime sizes and grant fields
+  ---
+  duration_ms: 0.378057
+  type: 'test'
+  ...
+# Subtest: offline: no manifest => every /funding route is 503 funding_disabled, nothing read or sent
+ok 33 - offline: no manifest => every /funding route is 503 funding_disabled, nothing read or sent
+  ---
+  duration_ms: 9.220612
+  type: 'test'
+  ...
+# Subtest: offline: a manifest without a host quote policy stays disabled (no invented price)
+ok 34 - offline: a manifest without a host quote policy stays disabled (no invented price)
+  ---
+  duration_ms: 3.091997
+  type: 'test'
+  ...
+# Subtest: offline: manifest refusals (chain, schema, tiers, unknown or enabling fields, empty-code hash)
+ok 35 - offline: manifest refusals (chain, schema, tiers, unknown or enabling fields, empty-code hash)
+  ---
+  duration_ms: 1.434479
+  type: 'test'
+  ...
+# Subtest: offline: pin "chain mismatch" => 503 chain_mismatch before any execute simulation or send
+ok 36 - offline: pin "chain mismatch" => 503 chain_mismatch before any execute simulation or send
+  ---
+  duration_ms: 21.315782
+  type: 'test'
+  ...
+# Subtest: offline: pin "adapter code hash" => 503 codehash_mismatch before any execute simulation or send
+ok 37 - offline: pin "adapter code hash" => 503 codehash_mismatch before any execute simulation or send
+  ---
+  duration_ms: 10.298723
+  type: 'test'
+  ...
+# Subtest: offline: pin "legacy implementation missing code" => 503 missing_code before any execute simulation or send
+ok 38 - offline: pin "legacy implementation missing code" => 503 missing_code before any execute simulation or send
+  ---
+  duration_ms: 11.398856
+  type: 'test'
+  ...
+# Subtest: offline: pin "pool code hash" => 503 codehash_mismatch before any execute simulation or send
+ok 39 - offline: pin "pool code hash" => 503 codehash_mismatch before any execute simulation or send
+  ---
+  duration_ms: 11.297057
+  type: 'test'
+  ...
+# Subtest: offline: pin "factory.implementation()" => 503 identity_mismatch before any execute simulation or send
+ok 40 - offline: pin "factory.implementation()" => 503 identity_mismatch before any execute simulation or send
+  ---
+  duration_ms: 10.327013
+  type: 'test'
+  ...
+# Subtest: offline: pin "implementation.gasAdapter()" => 503 identity_mismatch before any execute simulation or send
+ok 41 - offline: pin "implementation.gasAdapter()" => 503 identity_mismatch before any execute simulation or send
+  ---
+  duration_ms: 16.738337
+  type: 'test'
+  ...
+# Subtest: offline: pin "implementation.legacyFactory()" => 503 identity_mismatch before any execute simulation or send
+ok 42 - offline: pin "implementation.legacyFactory()" => 503 identity_mismatch before any execute simulation or send
+  ---
+  duration_ms: 12.248629
+  type: 'test'
+  ...
+# Subtest: offline: pin "book ledger" => 503 identity_mismatch before any execute simulation or send
+ok 43 - offline: pin "book ledger" => 503 identity_mismatch before any execute simulation or send
+  ---
+  duration_ms: 10.531633
+  type: 'test'
+  ...
+# Subtest: offline: pin "reserve ledger" => 503 identity_mismatch before any execute simulation or send
+ok 44 - offline: pin "reserve ledger" => 503 identity_mismatch before any execute simulation or send
+  ---
+  duration_ms: 10.93993
+  type: 'test'
+  ...
+# Subtest: offline: pin "legacy implementation" => 503 identity_mismatch before any execute simulation or send
+ok 45 - offline: pin "legacy implementation" => 503 identity_mismatch before any execute simulation or send
+  ---
+  duration_ms: 10.78853
+  type: 'test'
+  ...
+# Subtest: offline: pin "quoter factory" => 503 identity_mismatch before any execute simulation or send
+ok 46 - offline: pin "quoter factory" => 503 identity_mismatch before any execute simulation or send
+  ---
+  duration_ms: 10.532572
+  type: 'test'
+  ...
+# Subtest: offline: pin "stale block" => 503 block_stale before any execute simulation or send
+ok 47 - offline: pin "stale block" => 503 block_stale before any execute simulation or send
+  ---
+  duration_ms: 6.993358
+  type: 'test'
+  ...
+# Subtest: offline: an unlinked library is refused (implementation code must embed both library addresses)
+ok 48 - offline: an unlinked library is refused (implementation code must embed both library addresses)
+  ---
+  duration_ms: 0.939353
+  type: 'test'
+  ...
+# Subtest: offline: a stale manifest (now > notAfter) is refused
+ok 49 - offline: a stale manifest (now > notAfter) is refused
+  ---
+  duration_ms: 0.751714
+  type: 'test'
+  ...
+# Subtest: offline: every pin, vault and session read uses ONE pinned block
+ok 50 - offline: every pin, vault and session read uses ONE pinned block
+  ---
+  duration_ms: 7.614424
+  type: 'test'
+  ...
+# Subtest: offline: a vault the successor factory does not register is 404
+ok 51 - offline: a vault the successor factory does not register is 404
+  ---
+  duration_ms: 4.394797
+  type: 'test'
+  ...
+# Subtest: offline: a vault whose owner() lies is refused (CREATE2 prediction, not owner())
+ok 52 - offline: a vault whose owner() lies is refused (CREATE2 prediction, not owner())
+  ---
+  duration_ms: 7.512704
+  type: 'test'
+  ...
+# Subtest: offline: quote = real QuoterV2 amount + bounded slippage, capped by the grant; payer is the vault
+ok 53 - offline: quote = real QuoterV2 amount + bounded slippage, capped by the grant; payer is the vault
+  ---
+  duration_ms: 6.872529
+  type: 'test'
+  ...
+# Subtest: offline: the maximum never exceeds the grant's price cap
+ok 54 - offline: the maximum never exceeds the grant's price cap
+  ---
+  duration_ms: 6.73728
+  type: 'test'
+  ...
+# Subtest: offline: quote refusals - grant cap, fee cap, unpinned tier, missing quote (never a fake price)
+ok 55 - offline: quote refusals - grant cap, fee cap, unpinned tier, missing quote (never a fake price)
+  ---
+  duration_ms: 28.964006
+  type: 'test'
+  ...
+# Subtest: offline: a record in the owner's ORIGINAL vault is quoted in place (legacy factory proof), nothing migrated
+ok 56 - offline: a record in the owner's ORIGINAL vault is quoted in place (legacy factory proof), nothing migrated
+  ---
+  duration_ms: 13.168792
+  type: 'test'
+  ...
+# Subtest: offline: execute simulates at the pinned block, calls simulateAndSend ONCE with the exact ABI args, returns ACTUAL
+ok 57 - offline: execute simulates at the pinned block, calls simulateAndSend ONCE with the exact ABI args, returns ACTUAL
+  ---
+  duration_ms: 16.366859
+  type: 'test'
+  ...
+# Subtest: offline: simulated refusal (scripted BadSignature) => 409 revert, nothing sent
+ok 58 - offline: simulated refusal (scripted BadSignature) => 409 revert, nothing sent
+  ---
+  duration_ms: 29.551591
+  type: 'test'
+  ...
+# Subtest: offline: wrong payer / wrong action / retired action are refused before any chain read
+ok 59 - offline: wrong payer / wrong action / retired action are refused before any chain read
+  ---
+  duration_ms: 7.596034
+  type: 'test'
+  ...
+# Subtest: offline: a session revoked in the host's shared store is refused before anything is read or sent
+ok 60 - offline: a session revoked in the host's shared store is refused before anything is read or sent
+  ---
+  duration_ms: 6.962329
+  type: 'test'
+  ...
+# Subtest: offline: the quote moving above the signed maximum, or the policy refusing, sends nothing
+ok 61 - offline: the quote moving above the signed maximum, or the policy refusing, sends nothing
+  ---
+  duration_ms: 30.317836
+  type: 'test'
+  ...
+# Subtest: offline: a failed receipt is an error and indexes nothing
+ok 62 - offline: a failed receipt is an error and indexes nothing
+  ---
+  duration_ms: 13.788658
+  type: 'test'
+  ...
+# Subtest: offline: settlement refuses maximum-as-spending, a foreign relayer, and actual > maximum
+ok 63 - offline: settlement refuses maximum-as-spending, a foreign relayer, and actual > maximum
+  ---
+  duration_ms: 40.65457
+  type: 'test'
+  ...
+# Subtest: offline: /funding/open is disabled unless HOST code passes ownerManagement; body/manifest flags cannot enable it
+ok 64 - offline: /funding/open is disabled unless HOST code passes ownerManagement; body/manifest flags cannot enable it
+  ---
+  duration_ms: 4.236609
+  type: 'test'
+  ...
+# Subtest: offline: open refuses an original-shaped grant (no gas limits) - no implicit migration or widening
+ok 65 - offline: open refuses an original-shaped grant (no gas limits) - no implicit migration or widening
+  ---
+  duration_ms: 5.933786
+  type: 'test'
+  ...
+# Subtest: offline: open (host-enabled) simulates the factory call, sends ONCE, and never touches the original vault
+ok 66 - offline: open (host-enabled) simulates the factory call, sends ONCE, and never touches the original vault
+  ---
+  duration_ms: 6.554501
+  type: 'test'
+  ...
+# Subtest: static: the module has no wallet client, key, TxQueue, nonce manager or signer
+ok 67 - static: the module has no wallet client, key, TxQueue, nonce manager or signer
+  ---
+  duration_ms: 0.910353
+  type: 'test'
+  ...
+# Subtest: cross-check: CREATE2 prediction and intent encoding agree with client-r1/funding-codec.mjs
+ok 68 - cross-check: CREATE2 prediction and intent encoding agree with client-r1/funding-codec.mjs
+  ---
+  duration_ms: 0.685245
+  type: 'test'
+  ...
+1..68
+# tests 68
+# suites 0
+# pass 65
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1044.676878
+[memory-guard] exit=1 peakTreeRssMiB=136 minHostAvailableMiB=30090
+[memory-guard] at peak: node:75 node:61
+[memory-guard] exit=1 peakTreeRssMiB=186 minHostAvailableMiB=30099
+[memory-guard] at peak: node:75 node:61 node:50
+[queue] EXIT 1

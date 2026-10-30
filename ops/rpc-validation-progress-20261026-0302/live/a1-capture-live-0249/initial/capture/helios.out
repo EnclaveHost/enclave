@@ -1,0 +1,4 @@
+[2m2026-10-26T02:50:40.935649Z[0m [32m INFO[0m [2mhelios::consensus[0m[2m:[0m saved checkpoint to DB: 0xa638c0206edb26fab2ff9cfc0e9d8c1ae7c4056d95391ff41c36c78cd52ab81e
+[2m2026-10-26T02:50:41.255080Z[0m [32m INFO[0m [2mhelios::client[0m[2m:[0m finalized block  number=26273917
+[2m2026-10-26T02:50:41.725510Z[0m [32m INFO[0m [2mhelios::client[0m[2m:[0m latest block     number=26273983 age=18s
+[2m2026-10-26T02:50:52.507552Z[0m [32m INFO[0m [2mhelios::client[0m[2m:[0m latest block     number=26273984 age=17s

@@ -1,0 +1,53 @@
+[queue] START available=21297MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+[env] ssh/scp/sftp -> /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-image-stage/stub/bin (shell + node child proved)
+[env] private network namespace: interfaces = lo only, no IPv4 route (net:[4026533631])
+== 1 pins
+[pin] OK /home/steven/enclave-prod/dist-sdshield-2857356cd/manifest.json cc2571bb5b0c85b53b6bcf232331562578335bfd315bd0173c52ad6f80f776e0
+[pin] OK /home/steven/enclave-prod/dist-sdshield-2857356cd/initramfs.cpio.gz 516d766d9e31f07c02544d16969c34d3d28c2bca0e4032049225635433f10afc
+[pin] OK /home/steven/enclave-prod/dist-sdshield-2857356cd/vmlinuz 1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7
+[pin] OK /home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd 142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9
+[pin] OK /home/steven/Documents/Codex/2026-10-18/wo/work/linux-post-adoption-release/stage/dist-leasegas-deabf8f90/initramfs.cpio.gz c190c040485974a840b40e31a6dd068cc103199cf15315ef9c8c7575781b28e3
+[ok] chain-verifier-inputs PINS.sha256
+[ok] base cmdline = the template
+[tool] sev-snp-measure 0.0.13
+[ok] src HEAD 0235e7d96
+[ok] src tree
+[ok] src clean
+== 2 overlay unittest at the commit, CHAIN_VERIFIER_INPUTS set (no skip allowed)
+----------------------------------------------------------------------
+Ran 19 tests in 27.435s
+
+OK
+[unittest] rc=0
+[ok] overlay unittest passed
+[ok] overlay unittest: no test skipped
+[ok] src clean after unittest
+== 3 calibration
+[cal] production base reproduced b8376e15f7f94f9b40e9891a19be4779b1635b1c6e269e820ee09cf9313c9dfcc810072bd4ab3d1f4b19e1b6794ac35d
+[cal] KEPT reproduced ed918e4b393699b3f6251853d2d34317869d7d9e3150b41ffa917df3d392012c682f376a799494d01e6a6dd5bedd2ac2
+== 4 overlay --control direct --chain-verifier-dir
+{"sha256": "3720a6637ce43018ee2557d4c3d0d7a2f7b544aad293b1e7154ce1c01dae7a0f", "bytes": 322538664}
+[ok] src still clean
+[ok] output cmdline == base cmdline + ' metal.control=direct'
+== 5 measurement A (cmdline from the artifact)
+[append] console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app metal.control=direct
+[measure A/b] 4287b65e718ff958027f31beec6a0753d42784086807b950f557a963cd0277f33c9869173420f03f5fb53e4ad2859be9
+[ok] measurement is not c2442941
+[ok] measurement is not fe897820
+[ok] measurement is not b8376e15
+[ok] measurement is not ed918e4b
+b2e01a68faf1830b1dd5650cd7d6901c9e4397cd8d659d7da841237c422d6362  MEASUREMENT
+fd236eb2762c457bbe20376216e078f3aab3f2f40a3646f9509137b8f67fabb6  cmdline
+3720a6637ce43018ee2557d4c3d0d7a2f7b544aad293b1e7154ce1c01dae7a0f  initramfs.cpio.gz
+9a41781e95cbd92239359616102416a343baa826388166470b71ed27ba9d897e  manifest.json
+1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7  vmlinuz
+97 /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-image-stage/out/dist-direct-0235e7d96-b/MEASUREMENT
+126 /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-image-stage/out/dist-direct-0235e7d96-b/cmdline
+322538664 /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-image-stage/out/dist-direct-0235e7d96-b/initramfs.cpio.gz
+36997 /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-image-stage/out/dist-direct-0235e7d96-b/manifest.json
+17232384 /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-image-stage/out/dist-direct-0235e7d96-b/vmlinuz
+[ok] no ssh/scp/sftp invocation (0)
+BUILD-OK-b
+[memory-guard] exit=0 peakTreeRssMiB=487 minHostAvailableMiB=19797
+[memory-guard] at peak: python3:481 bash:4 timeout:2
+[queue] EXIT 0

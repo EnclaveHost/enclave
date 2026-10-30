@@ -1,0 +1,9 @@
+[queue] START available=22195MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+Ran 8 tests in 0.020s
+
+OK
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/capture-namespace-qualification-stage/r1/runs/tests-20261027T110941Z-3125460
+## cnq-r1-unit rc=0
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

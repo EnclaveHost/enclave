@@ -1,0 +1,15 @@
+--- author/JOB
++++ root/run-native.sh
+@@ -9,10 +9,10 @@
+ LV3=/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-ledger-v3-r1; CMP=$LV3/library-import-size-feedback/compiler
+ HC=$U/lifecycle-schema3-chain-composition-r1; HCOMP=$U/lifecycle-schema3-host-composition-r1; R3R=$U/host-registry-repair-root-review-r3
+ R2R=$U/host-authority-permit-root-review-r2; DENY=$U/host-incarnation-denial-boundary-r1
+-STAGE=/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-authority-completion-r2-20261029; ME2=$STAGE/candidate
++STAGE=/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-authority-completion-r2-20261029; ME2=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r3/candidate
+ REGR=/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029
+ REGSRC=$REGR/candidate/contracts/EnclaveHostLifecycleRegistry.sol; REGART=$REGR/validation-result-r2/artifacts/EnclaveHostLifecycleRegistry.sol/EnclaveHostLifecycleRegistry.json
+-OUT=$ME2/run-completion-r2; PT=""; rc=0
++OUT=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r3/native-r1; PT=""; rc=0
+ die() { echo "## SETUP: $*"; echo "SETUP-FAIL $*" > "$OUT/RESULT" 2>/dev/null; echo "## completion-r2 rc=9"; exit 9; }
+ SIDS=""
+ reap() {

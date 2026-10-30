@@ -1,0 +1,7 @@
+[queue] START available=20633MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+cp: cannot copy a directory, '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r7', into itself, '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r7/logs/root-finality-r7-tests-20261026T061557Z-1022374/stage'
+## SETUP: stage copy
+## finality-r7 rc=9
+[memory-guard] exit=9 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 9

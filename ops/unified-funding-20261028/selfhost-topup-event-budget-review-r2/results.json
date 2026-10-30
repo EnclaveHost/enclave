@@ -1,0 +1,10 @@
+[
+  {
+    "step": "tests",
+    "exitCode": 0
+  },
+  {
+    "step": "build",
+    "exitCode": 0
+  }
+]

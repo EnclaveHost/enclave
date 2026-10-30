@@ -1,0 +1,30 @@
+{
+  "at": "2026-10-28T08:48:49.531795+00:00",
+  "release": "af50d526be6deefcdd815968ff1dd2c04327f6c3b3f981c0aa90cc585b0effae",
+  "guest": "gdc03538eb",
+  "functionalCanary": {
+    "prompt": "Production loader canary: reply with exactly LOADER_CANARY_OK. Do not use tools or web search.",
+    "reply": "LOADER_CANARY_OK",
+    "backend": "gpu",
+    "tokens": 72,
+    "prefillMs": 38187,
+    "decodeMs": 3695,
+    "reportedTokensPerSecond": 19.5
+  },
+  "freshSnpAttestation": true,
+  "tlsBothDomains": true,
+  "loaderCopyVerifyMs": 20874,
+  "oldObservedCopyVerifyMs": 30086,
+  "sourceAdviceFailures": 0,
+  "steadyRamReductionEstablished": false,
+  "latestGuestCurrentBytes": 63010930688,
+  "guestPeakBytes": 63011446784,
+  "sampledMinHostAvailableBytes": 18013999104,
+  "guestMemoryMiB": 64281,
+  "hostFloorMiB": 18432,
+  "generalHostReserveMiB": 16384,
+  "experimentalFirmwareEnabled": false,
+  "packed24Enabled": false,
+  "controlledThroughputComparison": false,
+  "sessionFinancialSpendByThisRollout": 0
+}

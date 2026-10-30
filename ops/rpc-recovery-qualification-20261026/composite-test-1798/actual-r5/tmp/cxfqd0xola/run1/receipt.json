@@ -1,0 +1,63 @@
+{
+ "checks": {},
+ "cleanupComplete": true,
+ "format": "composite-mdbx-validation-receipt/r2",
+ "interrupted": null,
+ "kind": "production",
+ "notClaimed": [
+  "chain verification",
+  "reth table semantics",
+  "state / trie / canonical-root validation",
+  "static_files segments",
+  "value bytes inside structurally valid pages (MDBX has no per-page checksums)",
+  "RPC readiness",
+  "SNP readiness",
+  "recovery acceptance"
+ ],
+ "outcome": "REFUSED",
+ "pins": {
+  "fusermount3": {
+   "path": "/usr/bin/fusermount3",
+   "sha256": "c3d04bdf77c7152eba94ce670338e7089730b8dbfede57762b7b92c893a00f4f"
+  },
+  "mdbxCheckPy": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r4/src/mdbx_check.py",
+   "sha256": "f0d27e40c29271b94d2b48b9d4ab70a84de1f946709db4e9361cdfba00bac131"
+  },
+  "mdbxChk": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r4/runs/run-20261026T210943Z-2354169/bin/mdbx_chk",
+   "sha256": "c228b462c3c71c87b0fd2e9cfa6b3e6bccb2d793dd545bc6a18bef7113187981"
+  },
+  "nbdfuse": {
+   "path": "/usr/bin/nbdfuse",
+   "sha256": "51c1a1fd18785d4fe2240c1710eb4f78590b9d333fcde4cda421871d6f010a01"
+  },
+  "qemuNbd": {
+   "path": "/usr/bin/qemu-nbd",
+   "sha256": "b0f16ff7225e78469733132fce225b1d0af98f0b681a5092d85618936ff61934"
+  },
+  "r6Importer": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/multipart-validation-view-stage/r6/production_import.py",
+   "sha256": "4d48f74ea0360db6b264fcef97750a5c83e3ba5f8ef47260864b93e940b1b2dc"
+  },
+  "r6ViewDescriptor": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/multipart-validation-view-stage/r6/view_descriptor.py",
+   "sha256": "23370c97956fb1a4dde30f4a657ca97e89ce452f1a982cfc29c36970113d39e0"
+  },
+  "r9OverlaySession": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r9/overlay_session.py",
+   "sha256": "65d45ab79da8e134772374ec7298cd3a53fc54d68ecb3b3fd407eec4874a8153"
+  }
+ },
+ "rc": 3,
+ "reasons": [
+  "Refused: view kind 'fixture' is not the expected 'production'"
+ ],
+ "refused": "Refused: view kind 'fixture' is not the expected 'production'",
+ "steps": [
+  [
+   1793064810.895,
+   "view"
+  ]
+ ]
+}

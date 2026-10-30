@@ -1,0 +1,12 @@
+{
+  "directory": "/home/steven/enclave-prod/rpc-host-verifier-7aa504eb",
+  "artifact": {
+    "file": "rpc-runtime.mjs",
+    "sha256": "7aa504eb639b9e1c6eb18f4775f13927cf6eceec83e42b5edd92dbac1066f124",
+    "bytes": 129250
+  },
+  "configSha256": "1e30b4e64d767e5c376bca783807cd0fdf0dc3ed9f56ad1032c61d8cc0118bfb",
+  "stateDir": "/home/steven/.local/state/enclave-rpc-host-verifier",
+  "activated": false,
+  "newWitnessCacheBytes": 0
+}

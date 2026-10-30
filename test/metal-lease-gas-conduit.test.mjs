@@ -1,0 +1,284 @@
+// The metal node's app-funded lease-gas conduit (network/lease-gas-conduit.mjs; work/linux-lease-activation), end to end
+// and at each boundary:
+//   1. the rules: complete and valid, or refused (never a partial configuration, never the operator's wallet);
+//   2. the REAL launcher (a fake QEMU copies out the fw_cfg file the guest reads): what crosses, and refusals before QEMU;
+//   3. the guest half (gsup's legacy path, measured-control's direct path) and the supervisor's REAL loader
+//      (network/lease-gas-runtime.mjs loadLeaseGasConfig, which supervisor.js and the Windows node use);
+//   4. the direct config: optional, HOST_DATA-bound, absent = byte-identical to before;
+//   5. the image: the supervisor's import closure (metal/supervisor-closure.mjs, and the Python overlay's twin) and the
+//      shipped bundle.
+import { test, after } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { base } from "viem/chains";
+import * as LG from "../network/lease-gas-conduit.mjs";
+import * as BUNDLE from "../metal/guest/lease-gas-conduit.bundle.mjs";
+import { loadLeaseGasConfig, leaseGasConfigured } from "../network/lease-gas-runtime.mjs";
+import * as MC from "../metal/guest/measured-control.mjs";
+import { supervisorClosure, specifiersOf, SUPERVISOR_ROOTS } from "../metal/supervisor-closure.mjs";
+
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "metal-lease-gas-"));
+after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+// the reviewed public deployment record of the live reserve/executor (work/lease-relay-activation/deployment.json)
+const RECORD = Buffer.from('{"format":"enclave-lease-gas-deployment/v1","chainId":8453,"reserve":"0x12A3f873041Dec436DaA0085B766a399A6fA3639","executor":"0x8900BACA2167873BA2F8a8bAE8b4876E6396d343","reserveCodeHash":"0xcc00efe9c79c17b34ef9edc2720939030834bf168abc52cea14dcb224304a979","executorCodeHash":"0xdd893cd48b7c102dc266949d027c33d396a7f8884533ee81b3b2275048ec9ab2","ledger":"0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B","registry":"0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC"}');
+const DIGEST = "sha256:" + createHash("sha256").update(RECORD).digest("hex");
+const RECORD_FILE = path.join(tmp, "deployment.json");
+fs.writeFileSync(RECORD_FILE, RECORD);
+const RPCS = ["https://base-rpc.publicnode.com", "https://mainnet.base.org"], RELAYS = ["https://relay-a.example.org", "https://relay-b.example.net"];
+const HOST = () => ({ recordFile: RECORD_FILE, digest: DIGEST, rpcs: [...RPCS], relays: [...RELAYS] });
+const read = (f) => fs.readFileSync(f);
+const BINDING = { chain: base, ledger: "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B", registry: "0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC" };
+
+// ---- 1. the rules --------------------------------------------------------------------------------------------------------
+test("a complete reviewed configuration becomes a public transit; absent is off", () => {
+  assert.equal(LG.leaseGasTransit(undefined, { readFile: read }), null);
+  assert.equal(LG.leaseGasTransit(null, { readFile: read }), null);
+  const t = LG.leaseGasTransit({ ...HOST(), quorum: 2, reserve: "0x12a3f873041dec436daa0085b766a399a6fa3639" }, { readFile: read });
+  assert.deepEqual(Object.keys(t).sort(), ["chainId", "digest", "quorum", "record", "relays", "reserve", "rpcs", "version"]);
+  assert.equal(Buffer.from(t.record, "base64").toString(), RECORD.toString(), "the record's exact bytes, never the host path");
+  assert.equal(t.reserve, "0x12A3f873041Dec436DaA0085B766a399A6fA3639"); assert.equal(t.chainId, 8453); assert.equal(t.quorum, 2);
+  assert.ok(!JSON.stringify(t).includes(tmp), "no host path crosses");
+  assert.equal(LG.leaseGasTransit(HOST(), { readFile: read }).quorum, null);
+});
+
+test("partial or invalid configuration REFUSES (no fallback to the operator's wallet)", () => {
+  const otherRecord = path.join(tmp, "other.json");
+  fs.writeFileSync(otherRecord, RECORD.toString().replace('"chainId":8453', '"chainId":8453,"extra":1'));
+  const cases = [
+    [{ ...HOST(), digest: undefined }, /leaseGas\.digest is required/], [{ ...HOST(), recordFile: "" }, /leaseGas\.recordFile is required/],
+    [{ ...HOST(), rpcs: undefined }, /leaseGas\.rpcs is required/], [{ ...HOST(), relays: null }, /leaseGas\.relays is required/],
+    [{ ...HOST(), wallet: "0x01" }, /unknown field "wallet"/], [[HOST()], /must be an object/], ["on", /must be an object/],
+    [{ ...HOST(), digest: "sha256:" + "0".repeat(64) }, /is not the reviewed/], [{ ...HOST(), digest: DIGEST.toUpperCase() }, /sha256:<64 hex>/],
+    [{ ...HOST(), recordFile: otherRecord, digest: "sha256:" + createHash("sha256").update(fs.readFileSync(otherRecord)).digest("hex") }, /unknown fields/],
+    [{ ...HOST(), rpcs: [RPCS[0]] }, /2 to 8 https RPC URLs/], [{ ...HOST(), rpcs: ["http://mainnet.base.org", RPCS[0]] }, /https/i],
+    [{ ...HOST(), rpcs: ["https://user:pw@mainnet.base.org", RPCS[0]] }, /credentials/], [{ ...HOST(), rpcs: ["https://mainnet.base.org", "https://MAINNET.base.org/v2"] }, /repeats a provider/],
+    [{ ...HOST(), relays: ["http://relay-a.example.org"] }, /https/], [{ ...HOST(), relays: ["https://relay-a.example.org/v1"] }, /written as its origin/],
+    [{ ...HOST(), relays: [RELAYS[0], RELAYS[0]] }, /repeat an origin/], [{ ...HOST(), relays: [] }, /1 to 8/],
+    [{ ...HOST(), reserve: "0x" + "11".repeat(20) }, /reserve differs/], [{ ...HOST(), quorum: 1 }, /strict majority/], [{ ...HOST(), quorum: 3 }, /strict majority/], [{ ...HOST(), quorum: "2" }, /strict majority/],
+  ];
+  for (const [cfg, re] of cases) assert.throws(() => LG.leaseGasTransit(cfg, { readFile: read }), re, JSON.stringify(cfg).slice(0, 120));
+  assert.throws(() => LG.leaseGasTransit({ ...HOST(), recordFile: path.join(tmp, "absent.json") }, { readFile: read }), /ENOENT/);
+  assert.throws(() => LG.leaseGasTransit(HOST(), { readFile: read, chainId: 84532 }), /chain 8453, this host runs chain 84532/);
+  // an RPC URL's key never reaches an error message
+  try { LG.leaseGasTransit({ ...HOST(), rpcs: ["https://k:secretkey@mainnet.base.org", RPCS[0]] }, { readFile: read }); } catch (e) { assert.doesNotMatch(e.message, /secretkey/); }
+});
+
+// ---- 3. the guest half and the supervisor's loader ---------------------------------------------------------------------------
+test("the guest installs exactly the six names and the record; the supervisor's real loader accepts them", () => {
+  const t = LG.leaseGasTransit({ ...HOST(), quorum: 2 }, { readFile: read });
+  const g = LG.leaseGasGuest(JSON.parse(JSON.stringify(t)), { recordFile: path.join(tmp, "guest-record.json") });
+  assert.equal(g.ok, true);
+  assert.deepEqual(Object.keys(g.env).sort(), [...LG.ENV_NAMES].sort());
+  for (const [f, b] of Object.entries(g.files)) fs.writeFileSync(f, b);
+  assert.ok(fs.readFileSync(path.join(tmp, "guest-record.json")).equals(RECORD));
+  const config = loadLeaseGasConfig({ env: g.env, ...BINDING });
+  assert.equal(config.reserve, "0x12A3f873041Dec436DaA0085B766a399A6fA3639");
+  assert.deepEqual([...config.relays], RELAYS); assert.equal(config.quorum, 2); assert.equal(config.clients.length, 2);
+  assert.equal(config.deployment.digest, DIGEST);
+  assert.equal(LG.leaseGasGuest(undefined).configured, false);
+  assert.deepEqual(LG.withLeaseGasEnv({ A: "1" }, LG.leaseGasGuest(undefined)), { A: "1" }, "absent: nothing added");
+});
+
+test("a tampered transit is refused in the guest, fail closed: configured, unloadable, never the operator's ETH", () => {
+  const t = JSON.parse(JSON.stringify(LG.leaseGasTransit(HOST(), { readFile: read })));
+  const altered = Buffer.from(RECORD.toString().replace("0x12A3", "0x12A4")).toString("base64");
+  for (const [bad, re] of [[{ ...t, record: altered }, /not the reviewed/], [{ ...t, digest: "sha256:" + "1".repeat(64) }, /not the reviewed/],
+    [{ ...t, relays: ["http://relay-a.example.org"] }, /https/], [{ ...t, extra: 1 }, /unknown field/], [{ ...t, version: 2 }, /version/],
+    [{ ...t, chainId: 1 }, /chainId differs/], [{ ...t, reserve: "0x" + "22".repeat(20) }, /reserve differs/], ["x", /must be an object/]]) {
+    const g = LG.leaseGasGuest(bad);
+    assert.equal(g.configured, true); assert.equal(g.ok, false); assert.match(g.reason, re);
+    assert.deepEqual(g.env, { ENCLAVE_LEASE_GAS_FILE: LG.REFUSED_RECORD_FILE }); assert.deepEqual(g.files, {});
+    assert.equal(leaseGasConfigured(g.env), true, "the supervisor sees the feature ON");
+    assert.throws(() => loadLeaseGasConfig({ env: g.env, ...BINDING }), /operator-paid fallback is disabled/, "and refuses to load it");
+  }
+});
+
+test("the conduit is the only source of lease-gas names (a flavor file or host policy cannot add, change or drop one)", () => {
+  const g = LG.leaseGasGuest(JSON.parse(JSON.stringify(LG.leaseGasTransit(HOST(), { readFile: read }))));
+  const env = LG.withLeaseGasEnv({ PATH: "/bin", LEASE_GAS_RELAYS: "https://evil.example", ENCLAVE_LEASE_GAS_QUORUM: "1", ENCLAVE_LEASE_GAS_X: "y" }, g);
+  assert.equal(env.PATH, "/bin");
+  assert.deepEqual(Object.keys(env).filter(LG.isLeaseGasName).sort(), Object.keys(g.env).sort());
+  assert.equal(env.ENCLAVE_LEASE_GAS_RELAYS, RELAYS.join(","));
+  assert.deepEqual(Object.keys(LG.withLeaseGasEnv({ LEASE_GAS_FILE: "/x", B: "2" }, null)), ["B"], "absent: none at all, even a stray one");
+  // the supervisor reads exactly these names
+  const sup = fs.readFileSync(path.join(REPO, "supervisor.js"), "utf8");
+  assert.match(sup, /const leaseGasEnv = Object\.freeze\(Object\.fromEntries\(Object\.entries\(process\.env\)\.filter\(\(\[k\]\) => \/\^\(ENCLAVE_\)\?LEASE_GAS_\/\.test\(k\)\)\)\);/);
+});
+
+// ---- 2. the real launcher -------------------------------------------------------------------------------------------------
+const KEY = "ab".repeat(32);
+function launch(cfgOver, { direct = null } = {}) {
+  const t = fs.mkdtempSync(path.join(tmp, "launch-"));
+  fs.mkdirSync(path.join(t, "dist")); fs.mkdirSync(path.join(t, "tmp"));
+  fs.writeFileSync(path.join(t, "dist", "vmlinuz"), "k"); fs.writeFileSync(path.join(t, "dist", "initramfs.cpio.gz"), "i");
+  fs.writeFileSync(path.join(t, "pair.key"), KEY + "\n", { mode: 0o600 });
+  if (direct) fs.writeFileSync(path.join(t, "direct.json"), JSON.stringify(direct));
+  fs.writeFileSync(path.join(t, "fake-qemu"), ["#!/bin/sh", "while [ $# -gt 0 ]; do",
+    '  if [ "$1" = -fw_cfg ]; then case "$2" in name=opt/org.enclave.metal,file=*) cp "${2#name=opt/org.enclave.metal,file=}" "$FAKE_QEMU_OUT.tmp" && mv "$FAKE_QEMU_OUT.tmp" "$FAKE_QEMU_OUT";; esac; fi',
+    "  shift", "done", "exec sleep 30"].join("\n") + "\n", { mode: 0o755 });
+  const cfg = { mode: "snp", name: "lease-test", cpus: 1, memMiB: 512, measureGflops: false, dist: path.join(t, "dist"), ovmf: path.join(t, "ovmf.fd"),
+    qemu: path.join(t, "fake-qemu"), relayUrl: "wss://relay.example.test/v1/fleet-tunnel",
+    isolation: { backend: "snp-guest-per-app", managerUrl: "http://10.0.2.2:8095", dataAddr: "10.0.2.2:8096", pairingKeyFile: path.join(t, "pair.key") },
+    ...(direct ? { control: "direct", direct: path.join(t, "direct.json"), relayUrl: undefined, hostfwd: [{ host: 18444, guest: 8444 }] } : {}), ...cfgOver };
+  for (const k of Object.keys(cfg)) if (cfg[k] === undefined) delete cfg[k];
+  fs.writeFileSync(path.join(t, "config.json"), JSON.stringify(cfg));
+  const out = path.join(t, "fwcfg.json");
+  const p = spawn(process.execPath, [path.join(REPO, "metal/enclave-metal.mjs"), "--config", path.join(t, "config.json")],
+    { env: { ...process.env, TMPDIR: path.join(t, "tmp"), FAKE_QEMU_OUT: out }, stdio: ["ignore", "pipe", "pipe"] });
+  let log = ""; p.stdout.on("data", (d) => { log += d; }); p.stderr.on("data", (d) => { log += d; });
+  const exited = new Promise((r) => p.on("exit", (code) => r(code)));
+  return { out, p, exited, log: () => log };
+}
+async function launched(cfgOver = {}, o = {}) {
+  const run = launch(cfgOver, o);
+  try {
+    for (let i = 0; i < 200 && !fs.existsSync(run.out); i++) { if (run.p.exitCode !== null) break; await new Promise((r) => setTimeout(r, 50)); }
+    if (!fs.existsSync(run.out)) return { refused: true, code: await Promise.race([run.exited, new Promise((r) => setTimeout(() => r("running"), 3000))]), log: run.log() };
+    return { fw: JSON.parse(fs.readFileSync(run.out, "utf8")), log: run.log() };
+  } finally { if (run.p.exitCode === null && run.p.signalCode === null) { run.p.kill("SIGTERM"); await run.exited; } }
+}
+
+test("the real launcher hands the guest the checked transit, and the guest and the supervisor accept what it handed over", async () => {
+  const r = await launched({ leaseGas: { ...HOST(), quorum: 2 } });
+  assert.ok(!r.refused, r.log);
+  assert.deepEqual(r.fw.leaseGas, JSON.parse(JSON.stringify(LG.leaseGasTransit({ ...HOST(), quorum: 2 }, { readFile: read }))));
+  assert.ok(!JSON.stringify(r.fw.leaseGas).includes(tmp), "no host path crosses");
+  assert.match(r.log, /app-funded lease gas: record sha256:1665c2186e59…, reserve 0x12A3f873041Dec436DaA0085B766a399A6fA3639, 2 relay\(s\), 2 RPC\(s\), quorum 2/);
+  // the guest half (the same bundle gsup imports), then the supervisor's loader
+  const g = BUNDLE.leaseGasGuest(r.fw.leaseGas, { recordFile: path.join(tmp, "from-launcher.json") });
+  assert.equal(g.ok, true, g.reason);
+  for (const [f, b] of Object.entries(g.files)) fs.writeFileSync(f, b);
+  assert.equal(loadLeaseGasConfig({ env: g.env, ...BINDING }).deployment.digest, DIGEST);
+  // absent: no leaseGas key at all (the guest then sets none of the names)
+  const off = await launched({});
+  assert.ok(!off.refused, off.log); assert.equal("leaseGas" in off.fw, false);
+});
+
+test("the real launcher REFUSES partial or invalid lease-gas configuration and never starts QEMU", async () => {
+  for (const [lg, re] of [[{ ...HOST(), digest: undefined }, /leaseGas\.digest is required/], [{ ...HOST(), digest: "sha256:" + "0".repeat(64) }, /is not the reviewed/],
+    [{ ...HOST(), rpcs: ["http://mainnet.base.org", RPCS[0]] }, /https/i], [{ ...HOST(), relays: [RELAYS[0], RELAYS[0]] }, /repeat an origin/], [{ ...HOST(), extra: 1 }, /unknown field/]]) {
+    const r = await launched({ leaseGas: lg });
+    assert.equal(r.refused, true, `${JSON.stringify(lg).slice(0, 80)} must refuse:\n${r.log}`);
+    assert.notEqual(r.code, 0); assert.match(r.log, re);
+  }
+});
+
+// ---- 4. the direct config -------------------------------------------------------------------------------------------------
+const a20 = (n) => "0x" + n.toString(16).padStart(40, "0");
+const RAW = () => ({ format: MC.CONFIG_FORMAT, chainId: 8453,
+  contracts: { registry: a20(0x11), deployments: a20(0x12), appCatalog: a20(0x13), proofOfTime: a20(0x14), enclavePay: a20(0), verificationFees: a20(0), sessionVaultFactory: a20(0), secretVaultV2: a20(0) },
+  profileDigest: null, rpcs: ["https://rpc-a.example/v1", "https://rpc-b.example"], quorum: 2, releaseId: "ab".repeat(32),
+  replicas: { gateways: ["http://192.0.2.10:8189", "https://replica.example"], storagePlan: null },
+  identity: { publicUrl: "https://host.example.org", repo: "owner/enclave", operator: a20(0x99) },
+  selling: { cpuPrice6: 14, payout: null }, isolation: { managerUrl: "http://10.0.2.2:8095", dataAddr: "10.0.2.2:8096" }, hostAdmissionSha256: null, controlPort: 8444 });
+const OLD_KEYS = ["chainId", "contracts", "controlPort", "format", "hostAdmissionSha256", "identity", "isolation", "profileDigest", "quorum", "releaseId", "replicas", "rpcs", "selling"];
+const CMDLINE = "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app metal.control=direct";
+
+test("direct config: absent leaseGas keeps the exact config; present, it is bound and becomes the supervisor's names", async () => {
+  const old = MC.canonicalDirectConfig(RAW());
+  assert.deepEqual(Object.keys(old).sort(), OLD_KEYS, "a config written before it keeps its exact fields (and so its digest)");
+  const transit = JSON.parse(JSON.stringify(LG.leaseGasTransit({ ...HOST(), quorum: 2 }, { readFile: read })));
+  const cfg = MC.canonicalDirectConfig({ ...RAW(), leaseGas: transit });
+  assert.deepEqual(cfg.leaseGas, transit);
+  assert.notEqual(MC.configDigest(cfg), MC.configDigest(old), "HOST_DATA binds it");
+  const relayed = MC.canonicalDirectConfig({ ...RAW(), leaseGas: { ...transit, relays: [RELAYS[1]] } });
+  assert.notEqual(MC.configDigest(relayed), MC.configDigest(cfg), "every lease-gas field is bound");
+  const d = fs.mkdtempSync(path.join(tmp, "direct-"));
+  const paths = { ...MC.GUEST_PATHS, runDir: d, pins: path.join(d, "pins.json"), storagePlan: path.join(d, "plan.json"), pairKey: path.join(d, "pair.key"), leaseGasRecord: path.join(d, "lg.json") };
+  const fw = { mode: "snp", direct: { ...RAW(), leaseGas: transit }, isolation: { managerUrl: "http://10.0.2.2:8095", dataAddr: "10.0.2.2:8096", pairingKey: KEY } };
+  const hostData = MC.hostDataHex(MC.configDigest(cfg));
+  const plan = await MC.planDirectBoot({ cmdline: CMDLINE, fw, reportHostData: hostData, paths });
+  assert.equal(plan.ok, true, plan.reasons?.join("; "));
+  assert.deepEqual(Object.keys(plan.env).filter(LG.isLeaseGasName).sort(), [...LG.ENV_NAMES].sort());
+  assert.equal(plan.env.ENCLAVE_LEASE_GAS_FILE, path.join(d, "lg.json"));
+  assert.ok(Buffer.from(plan.files[path.join(d, "lg.json")]).equals(RECORD));
+  for (const [f, b] of Object.entries(plan.files)) fs.writeFileSync(f, b);
+  assert.equal(loadLeaseGasConfig({ env: plan.env, ...BINDING }).quorum, 2, "the supervisor's loader accepts the direct guest's names");
+  // the same config with ANOTHER lease-gas member than HOST_DATA binds: refused
+  const swapped = await MC.planDirectBoot({ cmdline: CMDLINE, fw: { ...fw, direct: { ...RAW(), leaseGas: { ...transit, relays: [RELAYS[1]] } } }, reportHostData: hostData, paths });
+  assert.equal(swapped.ok, false); assert.match(swapped.reasons.join("; "), /does not bind this config/);
+  // without it: none of the names
+  const plain = await MC.planDirectBoot({ cmdline: CMDLINE, fw: { ...fw, direct: RAW() }, reportHostData: MC.hostDataHex(MC.configDigest(old)), paths });
+  assert.equal(plain.ok, true, plain.reasons?.join("; ")); assert.deepEqual(Object.keys(plain.env).filter(LG.isLeaseGasName), []);
+});
+
+test("direct config: the bound member is the checked form, publishable (no RPC query), and on chain 8453", () => {
+  const transit = JSON.parse(JSON.stringify(LG.leaseGasTransit(HOST(), { readFile: read })));
+  assert.throws(() => MC.canonicalDirectConfig({ ...RAW(), leaseGas: { ...transit, rpcs: ["https://mainnet.base.org/?key=x", RPCS[0]] } }), /carries no query/);
+  assert.throws(() => MC.canonicalDirectConfig({ ...RAW(), leaseGas: { ...transit, reserve: transit.reserve.toLowerCase() } }), /checked form/);
+  assert.throws(() => MC.canonicalDirectConfig({ ...RAW(), leaseGas: { ...HOST() } }), /leaseGas: lease-gas: leaseGas transit has an unknown field/);
+  assert.throws(() => MC.canonicalDirectConfig({ ...RAW(), leaseGas: null }), /must be an object/);
+});
+
+test("the real launcher refuses host-config leaseGas in direct mode: there it is only the bound config's", async () => {
+  const transit = JSON.parse(JSON.stringify(LG.leaseGasTransit(HOST(), { readFile: read })));
+  const r = await launched({ leaseGas: HOST() }, { direct: { ...RAW(), leaseGas: transit } });
+  assert.equal(r.refused, true, r.log); assert.match(r.log, /takes leaseGas only inside the bound direct config/);
+  const ok = await launched({}, { direct: { ...RAW(), leaseGas: transit } });
+  assert.ok(!ok.refused, ok.log);
+  assert.deepEqual(ok.fw.direct.leaseGas, transit); assert.equal("leaseGas" in ok.fw, false, "direct: no unbound copy beside the bound one");
+});
+
+// ---- the guest and launcher wiring (gsup cannot run outside a guest: its contract, by text) -----------------------------
+test("gsup and the launcher wire the conduit, and only the conduit", () => {
+  const gsup = fs.readFileSync(path.join(REPO, "metal/guest/gsup.mjs"), "utf8"), launcher = fs.readFileSync(path.join(REPO, "metal/enclave-metal.mjs"), "utf8");
+  assert.match(gsup, /^import \{ leaseGasGuest, withLeaseGasEnv \} from '\.\/lease-gas-conduit\.bundle\.mjs';$/m);
+  // lease-consumer-seams: the guest's lease-gas transit is checked verifier-bound EXACTLY when its own fw_cfg chainVerifier is
+  // present - the same field that makes the supervisor's chain authority (CHAIN_VERIFIER below; chain-verifier.mjs)
+  assert.match(gsup, /const LEASE_GAS = CONTROL \? null : leaseGasGuest\(fw\.leaseGas, \{ verifierBound: fw\.chainVerifier !== undefined && fw\.chainVerifier !== null \}\);/);
+  assert.match(gsup, /const CHAIN_VERIFIER = CONTROL \? null : guestChainVerifier\(fw\.chainVerifier\);/);
+  assert.equal((gsup.match(/leaseGasGuest\(/g) || []).length, 1, "one conduit call");
+  assert.match(launcher, /leaseGasTransit\(cfg\.leaseGas, \{ readFile: \(f\) => fs\.readFileSync\(f\),\n  verifierBound: cfg\.chainVerifier !== undefined && cfg\.chainVerifier !== null \}\)/);
+  // the lease-gas names come from the conduit only; the owner nomination's wrapper adds/drops only its own name (owner-nomination.mjs)
+  // (and the platform policy carriers' wrapper, applied last, adds/drops only its own name: measured-control.mjs withPolicyCarriersEnv)
+  assert.match(gsup, /start\('supervisor', \['\/usr\/local\/bin\/node', '\/app\/supervisor\.js'\], withChainVerifierEnv\(MC_LEGACY\.withPolicyCarriersEnv\(withOwnerNominationEnv\(withLeaseGasEnv\(supEnv, LEASE_GAS\), OWNER_NOMINATION\.nomination\), POLICY_CARRIERS\), CHAIN_VERIFIER\), \{ cwd: '\/app' \}\);/);
+  assert.equal((gsup.match(/LEASE_GAS_/g) || []).length, 0, "gsup names no lease-gas variable itself");
+  assert.match(launcher, /^import \{ leaseGasTransit \} from '\.\/guest\/lease-gas-conduit\.bundle\.mjs';$/m);
+  assert.match(launcher, /\.\.\.\(LEASE_GAS \? \{ leaseGas: LEASE_GAS \} : \{\}\),/);
+  // the shipped bundle is the module (same verdicts, same words)
+  const input = { ...HOST(), quorum: 2 };
+  assert.deepEqual(JSON.parse(JSON.stringify(BUNDLE.leaseGasTransit(input, { readFile: read }))), JSON.parse(JSON.stringify(LG.leaseGasTransit(input, { readFile: read }))));
+  for (const bad of [{ ...HOST(), digest: undefined }, { ...HOST(), quorum: 1 }]) {
+    let m1, m2; try { LG.leaseGasTransit(bad, { readFile: read }); } catch (e) { m1 = e.message; } try { BUNDLE.leaseGasTransit(bad, { readFile: read }); } catch (e) { m2 = e.message; }
+    assert.ok(m1); assert.equal(m2, m1);
+  }
+  const manifest = JSON.parse(fs.readFileSync(path.join(REPO, "metal/guest/lease-gas-conduit.bundle.mjs.manifest.json"), "utf8"));
+  assert.equal(manifest.sha256, createHash("sha256").update(fs.readFileSync(path.join(REPO, "metal/guest/lease-gas-conduit.bundle.mjs"))).digest("hex"));
+  for (const f of ["network/lease-gas-conduit.mjs", "network/lease-gas-owner.mjs", "network/rpc-identity.mjs"]) assert.ok(f in manifest.inputs, f);
+});
+
+// ---- 5. the image: the supervisor's closure --------------------------------------------------------------------------------
+test("the overlay carries the supervisor's whole import closure, including the lease-gas runtime the fixed list omitted", () => {
+  const { files, packages } = supervisorClosure(REPO);
+  for (const f of ["network/lease-gas-runtime.mjs", "network/lease-gas-owner.mjs", "network/lease-executor-client.mjs", "client/lease-executor-client.mjs",
+    "network/lease-executor-authority.mjs", "client/lease-executor-authority.mjs", "network/lease-release-journal.mjs", "network/rpc-identity.mjs",
+    "network/canonical.mjs", "network/host-capacity-producer.mjs", "network/host-capacity-record.mjs", "network/registry-reconcile.mjs", "egress.js", "net-guard.mjs",
+    "isolation/m4/guestd/supervisor-transport.mjs", "isolation/m4/guestd/supervisor-guestcert.mjs", "isolation/m2/judge.mjs"])
+    assert.ok(files.includes(f), `closure lacks ${f}`);
+  assert.deepEqual(Object.keys(packages), ["cors", "express", "jose", "viem", "ws"], "npm packages only, no comment text (\"funded\")");
+  assert.deepEqual(packages.viem, [".", "./accounts", "./chains", "./utils"]);
+  assert.deepEqual(specifiersOf("// what moves from \"funded\" to claimed\n * import x from './no'\nconst a = 1;"), []);
+  // the Python overlay builder computes the same closure from the same rules
+  const py = spawnSync("python3", ["-c", `import importlib.util,json,sys
+spec=importlib.util.spec_from_file_location('o',sys.argv[1]);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+def read(r):
+  try: return open(sys.argv[2]+'/'+r,encoding='utf8').read()
+  except OSError: return None
+f,p=m.supervisor_closure(read,m.SUPERVISOR_ROOTS);print(json.dumps({'files':f,'packages':p}))`, path.join(REPO, "metal/overlay-control-image.py"), REPO], { encoding: "utf8" });
+  assert.equal(py.status, 0, py.stderr);
+  assert.deepEqual(JSON.parse(py.stdout), { files, packages });
+  // both builders use it, and both ship the conduit bundle beside gsup
+  const b = fs.readFileSync(path.join(REPO, "metal/build-image.mjs"), "utf8"), o = fs.readFileSync(path.join(REPO, "metal/overlay-control-image.py"), "utf8");
+  assert.match(b, /const closure = supervisorClosure\(src, \[\.\.\.SUPERVISOR_ROOTS, \.\.\.files\]\);/);
+  assert.match(b, /const packages = checkPackages\(closure\.packages,/);
+  assert.match(b, /'host-policy\.bundle\.mjs', 'lease-gas-conduit\.bundle\.mjs'/);
+  assert.match(o, /installed_app, packages = app_files\(commit, repo\)/);
+  assert.match(o, /OPTIONAL_GUEST_FILES = \['measured-control\.mjs', 'lease-gas-conduit\.bundle\.mjs', 'owner-nomination\.mjs', 'chain-verifier\.mjs'\]/);
+  assert.deepEqual(SUPERVISOR_ROOTS, ["supervisor.js", "addressbook.js"]);
+});

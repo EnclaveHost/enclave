@@ -1,0 +1,74 @@
+--- a/install/install_verified.py
++++ b/install/install_verified.py
+@@ -3,7 +3,7 @@
+ qualified bytes named in MANIFEST.json. Default: a dry run (the plan is printed; nothing is written). --commit installs.
+ PREFLIGHT (no mutation at all) refuses unless:
+   - this stage's files equal its SHA256SUMS and MANIFEST.json is the one SHA256SUMS lists;
+-  - root's qualification run of THIS stage passed: --qualification <out> has '## finality-r6 rc=0' and '## r6 SHA256SUMS <sha>' with
++  - root's qualification run of THIS stage passed: --qualification <out> has '## finality-r9 rc=0' and '## r9 SHA256SUMS <sha>' with
+     this stage's SHA256SUMS sha, and --rc <file> holds 0;
+   - every source equals its manifest sha and still carries its review flags = False (trees: exactly the listed files, each sha);
+   - every destination parent is a real root-owned directory, not group/other writable, no symlink (absent ones are created 0755);
+@@ -53,8 +53,8 @@
+ 
+ def qualified(out, rc, sums_sha):
+     o = pathlib.Path(out).read_text(errors='replace').splitlines()
+-    if pathlib.Path(rc).read_text().strip() != '0' or '## finality-r6 rc=0' not in o or f'## r6 SHA256SUMS {sums_sha}' not in o:
+-        refuse('no passing root qualification of THIS stage (rc 0, "## finality-r6 rc=0", "## r6 SHA256SUMS <this sha>")')
++    if pathlib.Path(rc).read_text().strip() != '0' or '## finality-r9 rc=0' not in o or f'## r9 SHA256SUMS {sums_sha}' not in o:
++        refuse('no passing root qualification of THIS stage (rc 0, "## finality-r9 rc=0", "## r9 SHA256SUMS <this sha>")')
+ 
+ 
+ def tree_sha256(root):
+@@ -119,7 +119,7 @@
+     return sorted(p for p in d.glob('*.json') if json.loads(p.read_bytes()).get('state') == 'open')
+ 
+ 
+-def preflight(m, *, replace, include_wrapper, include_units, stage=STAGE):
++def preflight(m, *, replace, include_wrapper, include_units, include_configs=False, stage=STAGE):
+     """every check, no write; -> the ordered operations (each with its bytes) and the plan"""
+     if m.get('format') != 'enclave-finality-install-manifest/v1':
+         refuse('not the finality install manifest (enclave-finality-install-manifest/v1)')
+@@ -137,6 +137,8 @@
+             plan.append({'dest': e['dest'], 'result': 'skipped (wrapper: needs --include-wrapper)'}); continue
+         if e.get('unit') and not include_units:
+             plan.append({'dest': e['dest'], 'result': 'skipped (systemd unit: needs --include-units; then daemon-reload by root)'}); continue
++        if e.get('config') and not include_configs:                 # r9: templates; never replace a root-filled config
++            plan.append({'dest': e['dest'], 'result': 'skipped (config template: needs --include-configs)'}); continue
+         if e.get('wrapper') and wrapper_running(e['dest']):
+             refuse(f'{e["dest"]} is in use by a running process: stop the units first (root)')
+         src = (stage / e['src']) if not e['src'].startswith('/') else pathlib.Path(e['src'])
+@@ -148,7 +150,7 @@
+                 refuse(f'{e["src"]}: {line} is not False in the source: nothing is installed')
+         add(b, e['dest'], int(e['mode'], 8))
+     for t in m.get('trees', []):
+-        src = pathlib.Path(t['src'])
++        src = pathlib.Path(t['src']) if t['src'].startswith('/') else stage / t['src']      # r9: stage-relative bundle trees
+         files = {p.relative_to(src).as_posix(): p for p in src.rglob('*') if p.is_file() or p.is_symlink()}
+         if tree_sha256(src) != t['treeSha256'] or set(files) != set(t['files']) or any(sha(files[r].read_bytes()) != s for r, s in t['files'].items()):
+             refuse(f'{src} differs from its manifest tree')
+@@ -287,7 +289,7 @@
+     if open_journals():
+         refuse('an install journal is still open (a partial install): run recover, then install again')
+     for e in m['files']:
+-        if e.get('unit'):
++        if e.get('unit') or e.get('config'):          # r9: configs are root-filled after install (their unknowns), never byte-pinned
+             continue
+         d = R(e['dest'])
+         if not d.is_file() or d.is_symlink() or sha(d.read_bytes()) != e['sha256'] or os.lstat(d).st_uid != UID:
+@@ -357,13 +359,13 @@
+             print(json.dumps({'ok': False, 'refused': str(e)})); return 1
+     import argparse
+     ap = argparse.ArgumentParser(); ap.add_argument('--qualification', required=True); ap.add_argument('--rc', required=True)
+-    ap.add_argument('--commit', action='store_true'); ap.add_argument('--replace', action='store_true'); ap.add_argument('--include-wrapper', action='store_true'); ap.add_argument('--include-units', action='store_true')
++    ap.add_argument('--commit', action='store_true'); ap.add_argument('--replace', action='store_true'); ap.add_argument('--include-wrapper', action='store_true'); ap.add_argument('--include-units', action='store_true'); ap.add_argument('--include-configs', action='store_true')
+     a = ap.parse_args(argv)
+     stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ'); plan = []
+     try:
+         sums_sha = stage_sums(); qualified(a.qualification, a.rc, sums_sha)
+         m = json.loads((HERE / 'MANIFEST.json').read_bytes())
+-        ops, plan = preflight(m, replace=a.replace, include_wrapper=a.include_wrapper, include_units=a.include_units)
++        ops, plan = preflight(m, replace=a.replace, include_wrapper=a.include_wrapper, include_units=a.include_units, include_configs=a.include_configs)
+         result = commit(ops, stamp) if a.commit else 'dry-run (nothing written)'
+     except (Refused, OSError, KeyError, ValueError) as e:
+         print(json.dumps({'ok': False, 'refused': str(e), 'plan': plan}, indent=1)); return 1

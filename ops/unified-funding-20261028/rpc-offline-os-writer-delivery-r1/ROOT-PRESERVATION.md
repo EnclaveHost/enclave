@@ -1,0 +1,1 @@
+Full original partial source frozen: rc124 timeout,7files/2new/5seed unchanged/37readonly unchanged/replay0/collectorONCE. REPORT and CLOSURE missing. No tests or image operation yet. Source has real integration gaps (sparse_copy identity schema and sanitized systemctl user-bus environment); root regression tests next. Do not run original on production images.

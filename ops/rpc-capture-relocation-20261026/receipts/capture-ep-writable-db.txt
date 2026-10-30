@@ -1,0 +1,1 @@
+{"refused": "datadir is not on a read-only mount; bind-mount it read-only first"}

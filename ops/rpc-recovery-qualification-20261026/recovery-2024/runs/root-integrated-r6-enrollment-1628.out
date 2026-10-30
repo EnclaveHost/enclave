@@ -1,0 +1,37 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] START available=24473MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+{
+ "mode": "enrollment",
+ "sourceCommit": "bb0eb3e1cd64a5d7207e72f85c1ba27b5bf4a1b4",
+ "sourceTree": "ee3a22997353b89962ee49a34a6af8c32accb6ac",
+ "scheduleReaderPin": {
+  "old": "688b7a1f09c898f66cc7b92473a9fbda042402ef833bb983ff794e5f07128fb0",
+  "new": "694f1297286ff2ecf6d1b0e6b37153203963f7893eb2607f7d53c2f03f2eea0c"
+ },
+ "tests": {
+  "enrollment": {
+   "rc": 0,
+   "tests": 19,
+   "pass": 19,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 19,
+   "ok": true
+  }
+ },
+ "checkpoint": {
+  "checkpoint": "2e8502e68864abb49a230a69612bd7c98c94775d8dd81f956a0185d53652ac33",
+  "slot": 15511008,
+  "expiresUtc": "2026-11-01T19:21:59.000Z"
+ },
+ "ok": true,
+ "scope": "SOURCE + FIXTURES (enrollment): integrated r6 = r5 + the enrollment fixture bound to one primary term (root 1619); integrated r5 = integrated r4 on history r5 (retained-bytes bound); integrated r4 = r3 + root 1612 optional-witnessUrl fix (integrated r2 + placement r2 on history r4 + driver r1; root 1600; review 1596 L1/L2. Witness URL = own backend, HOST_DATA-bound AND signed (both must agree). Fake L1, echo native, fixture producer. NOT measured: native/witness/scan time, S age (M1-M6), the QEMU guest->host->RPC VM path. No template/record enables history/driver; not activated."
+}
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r6/runs/20261026T201754Z-enrollment-2279327
+## writer-integrated-r6 enrollment rc=0
+[memory-guard] exit=0 peakTreeRssMiB=236 minHostAvailableMiB=23762
+[memory-guard] at peak: node:98 node:72 node:58 bash:4 bash:2 timeout:2
+[queue] EXIT 0

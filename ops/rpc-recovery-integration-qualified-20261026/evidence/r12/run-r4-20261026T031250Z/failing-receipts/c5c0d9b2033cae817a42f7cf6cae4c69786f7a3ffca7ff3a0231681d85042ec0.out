@@ -1,0 +1,78 @@
+TAP version 13
+# Subtest: login: the owner's own wallet approves the printed grant, a separate payer opens it, the CLI adopts exactly it; account, top-up-link, logout
+not ok 1 - login: the owner's own wallet approves the printed grant, a separate payer opens it, the CLI adopts exactly it; account, top-up-link, logout
+  ---
+  duration_ms: 1060.342489
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/cli-combined-independent.test.mjs:76:1'
+  failureType: 'hookFailed'
+  error: "ENOENT: no such file or directory, open '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/contracts/foundry/out/EnclaveDeployments.multicallValue.t.sol/MockFeed.json'"
+  code: 'ENOENT'
+  stack: |-
+    Object.readFileSync (node:fs:440:20)
+    art (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/helpers/cli-independent-rig.mjs:35:55)
+    startRig (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/helpers/cli-independent-rig.mjs:129:31)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/cli-combined-independent.test.mjs:32:7)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: login hand-back: another account only signs the grant; the CLI checks it on chain and its OWN gas key submits
+not ok 2 - login hand-back: another account only signs the grant; the CLI checks it on chain and its OWN gas key submits
+  ---
+  duration_ms: 0.71452
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/cli-combined-independent.test.mjs:104:1'
+  failureType: 'hookFailed'
+  error: "ENOENT: no such file or directory, open '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/contracts/foundry/out/EnclaveDeployments.multicallValue.t.sol/MockFeed.json'"
+  code: 'ENOENT'
+  stack: |-
+    Object.readFileSync (node:fs:440:20)
+    art (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/helpers/cli-independent-rig.mjs:35:55)
+    startRig (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/helpers/cli-independent-rig.mjs:129:31)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/cli-combined-independent.test.mjs:32:7)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: host: init/install/run/check through `enclave host` with the plan's quorum; key FILE and BASE_RPCS; check is never ready
+not ok 3 - host: init/install/run/check through `enclave host` with the plan's quorum; key FILE and BASE_RPCS; check is never ready
+  ---
+  duration_ms: 0.066479
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/cli-combined-independent.test.mjs:122:1'
+  failureType: 'hookFailed'
+  error: "ENOENT: no such file or directory, open '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/contracts/foundry/out/EnclaveDeployments.multicallValue.t.sol/MockFeed.json'"
+  code: 'ENOENT'
+  stack: |-
+    Object.readFileSync (node:fs:440:20)
+    art (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/helpers/cli-independent-rig.mjs:35:55)
+    startRig (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/helpers/cli-independent-rig.mjs:129:31)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/cli-combined-independent.test.mjs:32:7)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: dispatch: custody and signer reach their commands; secrets stays refused, naming the pending owner read; --signer-mode needs --independent
+not ok 4 - dispatch: custody and signer reach their commands; secrets stays refused, naming the pending owner read; --signer-mode needs --independent
+  ---
+  duration_ms: 0.098988
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/cli-combined-independent.test.mjs:156:1'
+  failureType: 'hookFailed'
+  error: "ENOENT: no such file or directory, open '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/contracts/foundry/out/EnclaveDeployments.multicallValue.t.sol/MockFeed.json'"
+  code: 'ENOENT'
+  stack: |-
+    Object.readFileSync (node:fs:440:20)
+    art (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/helpers/cli-independent-rig.mjs:35:55)
+    startRig (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/helpers/cli-independent-rig.mjs:129:31)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/cli-combined-independent.test.mjs:32:7)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 0
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1236.479161

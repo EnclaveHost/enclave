@@ -1,0 +1,24 @@
+{
+  "GPUCardBytes": 26628797235,
+  "InferenceModel": "qwen3.8-27b-mtp-q4-vl-gguf",
+  "ID": "gdc03538eb",
+  "Name": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+  "AppID": "5bac47ac3b99d9999314ac3f5ee7c2749defdde98b2a52212302d05da13d58eb",
+  "Measurement": "66ba9f551f25158faf428b82a93dc073751b194c7b76b1e83ffad1ce9c0eae8d521b080d3a39603b1ab2272c67a69217",
+  "RecordSha256": "4c6a3075a5b41248c23b3f14a1c3c39fec5f9841952faf3ab2a9d37ce3fb29c8",
+  "HostData": "9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+  "TransportKeySha256": "8fc42128bc01892922104957f804f8798fdfbac91a0ce07466355d4800547f91",
+  "Unit": "m2-gdc03538eb-112895",
+  "Verdict": "attested",
+  "CID": 171863,
+  "Vcpus": 16,
+  "MemMiB": 64281,
+  "CPUPct": 1600,
+  "Release": true,
+  "Legacy": false,
+  "RuntimeID": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+  "Releases": [
+    "af50d526be6deefcdd815968ff1dd2c04327f6c3b3f981c0aa90cc585b0effae"
+  ],
+  "Created": "2026-10-28T01:33:54.133867127-07:00"
+}

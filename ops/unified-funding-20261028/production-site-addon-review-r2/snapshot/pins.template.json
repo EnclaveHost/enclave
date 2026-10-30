@@ -1,0 +1,10 @@
+{
+  "schema": "enclave-funding-addon-pins-r2",
+  "reviewed": false,
+  "esbuildVersion": null,
+  "config": null,
+  "existingPaths": null,
+  "liveInventory": null,
+  "liveSessionsVendor": null,
+  "inputs": null
+}

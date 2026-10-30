@@ -1,0 +1,14 @@
+{
+ "format": "enclave-witness-producer-config/r1",
+ "listen": {"host": "127.0.0.1", "port": "REQUIRED: the in-guest loopback port the signed driver policy's witness.url names"},
+ "fetch": {"path": "/opt/enclave-rpc/witness/witness_fetch", "sha256": "36604b9c2c5bfd4e5633506ba5e97c78a3b81e53a052d913498135c0cae13f0c"},
+ "bridge": {"path": "/opt/enclave-rpc/witness/witness_rpc_bridge.py", "sha256": "cb9765418d30d238ded384c6908462516d153161f17631f28c7247905198fc9d"},
+ "endpoints": {"l1Rpc": "http://127.0.0.1:18647", "l2Rpc": "http://127.0.0.1:18547",
+               "l1Beacon": "REQUIRED: http://127.0.0.1:<own L1 beacon loopback port>", "l2Node": "REQUIRED: http://127.0.0.1:<own Base node loopback RPC port>"},
+ "maxBlocks": 1800,
+ "maxWitnessBytes": "REQUIRED: <= 256 MiB and >= the driver policy witness.maxBytes; from the measured witness sizes",
+ "fetchTimeoutSec": "REQUIRED: from the measured fetch durations (<= 3600)",
+ "fetchMemoryMiB": "REQUIRED: address-space cap for the fetcher, from the measured peak",
+ "minMemAvailableMiB": "REQUIRED: guest MemAvailable floor below which no fetch starts",
+ "workDir": "/var/lib/enclave-witness-producer"
+}

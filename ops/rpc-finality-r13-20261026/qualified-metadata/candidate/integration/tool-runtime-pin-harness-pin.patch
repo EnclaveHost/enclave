@@ -1,0 +1,11 @@
+--- a/src/finality_state.py
++++ b/src/finality_state.py
+@@ -67,7 +67,7 @@
+                 'a1-recheck.mjs': 'f591f3247fe672f6470685f2be36eb529ceb9280044c03c6a2396174bb0ad9d8',
+                 'a1-anchor.mjs': 'ec92b70f105f88cbfc466e57e4673afcb0fbd104403e425e036f1dba78e6528d'}
+ # r4: fresh A1 provenance = the recovery harness (base-reanchor-recovery-stage/r7, root 0345) and its pinned capture module.
+-HARNESS_SHA256 = '2efc6d66687afd31cff62e23aab705ed4df611c18df64c5afa740e12e8d3eb25'   # base-finality-proof-stage/r9/harness/a2a4.py (pinned parser + closure capture pin)
++HARNESS_SHA256 = '6c1d0b1bf767acebaf0f9c7235dcd46ad1aaab2fa60ca4c3456cb34c56a37805'   # base-finality-proof-stage/r10/harness/a2a4.py
+ HARNESS_SOURCE = pathlib.Path('/opt/enclave-rpc/a2a4-recovery/a2a4.py')      # == base_launch.RECOVERY_A2A4_SOURCE (HOLD: not installed)
+ FRESH_A1_MAX_AGE_SEC = 600                    # the recheck capture's age bound (the harness's a1MaxAgeSec for this use)
+ NOBLE_VERSION = '1.8.0'

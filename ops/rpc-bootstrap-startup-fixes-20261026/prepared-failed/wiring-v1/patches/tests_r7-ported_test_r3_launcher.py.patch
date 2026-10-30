@@ -1,0 +1,20 @@
+--- a/tests/r7-ported/test_r3_launcher.py
++++ b/tests/r7-ported/test_r3_launcher.py
+@@ -42,6 +42,9 @@
+ class Pipeline(TA.Case):
+     def setUp(self):
+         super().setUp()                               # TA.Case.setUp: A.A1_INITIAL_SHA256 = the production pin
++        # production-bootstrap-wiring TEST-ONLY seam: this suite's fixture launches use the LEGACY original-game-recheck receipt files,
++        # which production refuses (harness-first load_config a1_legacy; producer _initial_ok). Restored in tearDown.
++        A.A1_LEGACY_TEST_ONLY = True; pl = patch.object(P, 'A1_LEGACY_TEST_ONLY', True); pl.start(); self.addCleanup(pl.stop)
+         A.BYTECODE_CHECKER_V2_SHA256 = TA.REAL_V2_PIN
+         self.assertEqual(A.A1_INITIAL_SHA256, TA.REAL_INITIAL_SHA, 'every test starts from the production A1 pin')
+         self.assertNotIn(W.HANDSHAKE_ENV, os.environ, 'the test runner must not carry the unit drop-in marker')
+@@ -57,6 +60,7 @@
+ 
+     def tearDown(self):
+         A.BYTECODE_CHECKER_V2_SHA256 = TA.REAL_V2_PIN; A.A1_INITIAL_SHA256 = TA.REAL_INITIAL_SHA
++        A.A1_LEGACY_TEST_ONLY = False
+         os.environ.pop('FAKE_ACTIVE_UNIT', None); super().tearDown()
+ 
+     # ---- the REAL harness pipeline -> produce -> arm --------------------------------------------------------------------

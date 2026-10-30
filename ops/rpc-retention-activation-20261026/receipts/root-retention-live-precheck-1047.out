@@ -1,0 +1,15 @@
+[queue] START available=17218MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "readOnlyGuard": "refused running extraction as required",
+ "missingArchives": 18,
+ "capacityAdmitted": true,
+ "refusals": [
+  "first download enclave-rpc-base-snapshot.service is not inactive/dead with Result=success and exit 0: {'Result': 'success', 'ExecMainStatus': '0', 'LoadState': 'loaded', 'ActiveState': 'activating', 'SubState': 'start', 'UnitFileState': 'enabled'}",
+  "first download marker snapshot-complete absent or not a root-owned regular file",
+  "processes use the datadir or run the base binary: [4061]"
+ ],
+ "productionPidsUnchanged": true
+}
+[memory-guard] exit=0 peakTreeRssMiB=16 minHostAvailableMiB=17393
+[memory-guard] at peak: ssh:10 bash:4 timeout:2
+[queue] EXIT 0

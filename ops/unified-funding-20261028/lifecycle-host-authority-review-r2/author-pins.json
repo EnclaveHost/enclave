@@ -1,0 +1,20 @@
+{
+  "origin": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-host-authority-r2-20261029",
+  "authorExitCode": 0,
+  "sha256": {
+    "docs/REPORT.md": "52f1ae2323d48fbcc1306d8fd6fe1b27afb57191209d6ecb122199f95b410956",
+    "src/network/lifecycle-host-authority.mjs": "434219168149fd3a7d5af404c27217b7426832d94e3d03e6d1cc81ef608a8582",
+    "src/network/lifecycle-host-dispatch.mjs": "3e39df7451893a987c05fb4725627d61fe9c9e93c51bb418c254aaf5cfda6cef",
+    "src/tools/generate-lifecycle-host-candidate.mjs": "845fd5833295aab9715665800e31af90460e72d740b069fc6f0cb9a55607eabf",
+    "test/generate-lifecycle-host-candidate.test.mjs": "ba45e8a665d1eb52511174219a99a2aaaf93c458a9474614149094b739b0ab82",
+    "test/helpers/baseline.mjs": "2f7dd94694a9614ba29578465bed30ed6277852512ae85dd7c22300d933dca6e",
+    "test/helpers/candidate-host.mjs": "bdd9db9b8fc191d4cbfd68abac5a399ff842cdb586bbd8c16c3bca87688d432a",
+    "test/helpers/lifecycle-fixture.mjs": "a19641a23fded8e226167a5dfbde458f925432f3043e05f74e4dcd4832a9d01b",
+    "test/lifecycle-host-authority.test.mjs": "5114db422a54df52d40dd914df7e3715b0a8b678a64a651a63adf8285d46b739",
+    "test/lifecycle-host-candidate.test.mjs": "47e47c628b277c83823cb5128b7c147be502258d87afee46b2ee9bfb8e21fd15",
+    "test/lifecycle-host-dispatch.test.mjs": "7b58434479797980dd59d0e0b4213611b74c5dcbdbed123bc9a92cb28a2939ee",
+    "test/lifecycle-host-independence.test.mjs": "e575bb150c5bb909f82a4368245ed96d827b4009b85fe40b17e9e5d546180841",
+    "test/lifecycle-host-pending.test.mjs": "cac7b11b45e32b6acd104318fc1dc181c6e576ed7488cb4509e74e309fb0c159",
+    "test/root-dispatch-regressions.test.mjs": "4bd47fc24715b325795573d3cf7776cf7884d93963e9e71cf254248653e9cf73"
+  }
+}

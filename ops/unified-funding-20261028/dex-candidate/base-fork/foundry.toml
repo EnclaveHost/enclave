@@ -1,0 +1,12 @@
+[profile.default]
+src = "src"
+test = "test"
+out = "out"
+cache_path = "cache"
+libs = ["../../../../contracts/foundry/lib"]
+remappings = ["forge-std/=../../../../contracts/foundry/lib/forge-std/src/", "dex-src/=../src/"]
+allow_paths = ["../../../../contracts/foundry/lib", "../src"]
+solc = "0.8.35"
+optimizer = true
+optimizer_runs = 200
+via_ir = true

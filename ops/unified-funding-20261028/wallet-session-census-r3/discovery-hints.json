@@ -1,0 +1,27 @@
+{
+  "ledger": {
+    "block": "52515705",
+    "txHash": "0xddc85def2d8bc739831b931a60ae2d0597e7e922812c3c582e9dbd5984609a89",
+    "blockHash": "0x583fbb7a7ea5ce7a05aae1e88c7b8c38c502ce687ed11b9b3e38eb361842b9ce",
+    "method": "verified runtime bracket + adjacent getCode + exact successful direct-creation receipt",
+    "assumption": "canonical creation receipt and RPC history; not receipt-trie proof"
+  },
+  "sourceVault": {
+    "block": "52286637",
+    "event": {
+      "address": "0x1f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c",
+      "topics": [
+        "0x5d9c31ffa0fecffd7cf379989a3c7af252f0335e0d2a1320b55245912c781f53",
+        "0x0000000000000000000000000b2d009c0c9af05b12100d77f3c815fea822ee61"
+      ],
+      "data": "0x000000000000000000000000b794c4dd0e1c5e6b72281799f282bfde7654345d",
+      "blockNumber": "52286637",
+      "blockHash": "0xcc27ceab340fd86ca60f7f16d5fbdae051ed1968427a2db0a8cc5e8a6de14162",
+      "transactionHash": "0x82eadf6bcf3253c6094d27df0af0e0dad3f34756ede0aa79197bf66071b846f3",
+      "transactionIndex": "107",
+      "logIndex": "344"
+    },
+    "factoryCreationBlock": "52286277",
+    "method": "two-provider runtime boundary + exact one-block VaultCreated event and successful receipt"
+  }
+}

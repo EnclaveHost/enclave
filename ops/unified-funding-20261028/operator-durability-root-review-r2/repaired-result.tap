@@ -1,0 +1,226 @@
+TAP version 13
+# Subtest: ROOT final gate removes established state: no inert write
+ok 1 - ROOT final gate removes established state: no inert write
+  ---
+  duration_ms: 348.259643
+  type: 'test'
+  ...
+# Subtest: ROOT final gate removes established.established: no inert write
+ok 2 - ROOT final gate removes established.established: no inert write
+  ---
+  duration_ms: 101.598909
+  type: 'test'
+  ...
+# Subtest: ROOT pending sponsored authorization fences the actual direct sender on the same account/chain
+ok 3 - ROOT pending sponsored authorization fences the actual direct sender on the same account/chain
+  ---
+  duration_ms: 47.175411
+  type: 'test'
+  ...
+# Subtest: ROOT cross-deployment identical authorization stays quarantined: withheld
+ok 4 - ROOT cross-deployment identical authorization stays quarantined: withheld
+  ---
+  duration_ms: 5140.14238
+  type: 'test'
+  ...
+# Subtest: ROOT cross-deployment identical authorization stays quarantined: posted-unknown
+ok 5 - ROOT cross-deployment identical authorization stays quarantined: posted-unknown
+  ---
+  duration_ms: 860.563102
+  type: 'test'
+  ...
+# Subtest: od-r2 shipped client: UNCHANGED POSITIVE renew - authorization + lease signed once, onSigned durable BEFORE the POST, verified receipt, record settled by receipt AND mined account nonce
+ok 6 - od-r2 shipped client: UNCHANGED POSITIVE renew - authorization + lease signed once, onSigned durable BEFORE the POST, verified receipt, record settled by receipt AND mined account nonce
+  ---
+  duration_ms: 321.967661
+  type: 'test'
+  ...
+# Subtest: od-r2 shipped client: permission REVOKED DURING the POST plan's persistence -> 0 POSTs, exactly that planned POST discharged, signature retained (pending), latched; direct send then held by the authorization
+ok 7 - od-r2 shipped client: permission REVOKED DURING the POST plan's persistence -> 0 POSTs, exactly that planned POST discharged, signature retained (pending), latched; direct send then held by the authorization
+  ---
+  duration_ms: 271.294766
+  type: 'test'
+  ...
+# Subtest: od-r2 shipped client: owner/continuity LOST DURING the POST plan's persistence -> 0 POSTs, latched, retained (unsentRetained); restart refuses every effect, nothing re-created
+ok 8 - od-r2 shipped client: owner/continuity LOST DURING the POST plan's persistence -> 0 POSTs, latched, retained (unsentRetained); restart refuses every effect, nothing re-created
+  ---
+  duration_ms: 209.70047
+  type: 'test'
+  ...
+# Subtest: od-r2 shipped client: RETURNED lease signature withheld when permission ends during its result's persistence; restart; another deployment is refused until an independently observed mined fence; direct send then unchanged positive; deadline settles the withheld lease
+ok 9 - od-r2 shipped client: RETURNED lease signature withheld when permission ends during its result's persistence; restart; another deployment is refused until an independently observed mined fence; direct send then unchanged positive; deadline settles the withheld lease
+  ---
+  duration_ms: 655.074482
+  type: 'test'
+  ...
+# Subtest: od-r2 shipped client: an earlier POST (answer lost) then refusal -> unknown outcome, 0 further signatures/POSTs; direct held; restart reconciles BY RECORDED IDENTITY (resolveSigned) once included
+ok 10 - od-r2 shipped client: an earlier POST (answer lost) then refusal -> unknown outcome, 0 further signatures/POSTs; direct held; restart reconciles BY RECORDED IDENTITY (resolveSigned) once included
+  ---
+  duration_ms: 350.639634
+  type: 'test'
+  ...
+# Subtest: od-r2 shipped client: an unresolved DIRECT write refuses a sponsored claim of another deployment before any signature or relay contact, also after restart; the exact mined fence then admits it
+ok 11 - od-r2 shipped client: an unresolved DIRECT write refuses a sponsored claim of another deployment before any signature or relay contact, also after restart; the exact mined fence then admits it
+  ---
+  duration_ms: 257.918092
+  type: 'test'
+  ...
+# Subtest: od-r1: no configured store -> no write (fail closed)
+ok 12 - od-r1: no configured store -> no write (fail closed)
+  ---
+  duration_ms: 6.184955
+  type: 'test'
+  ...
+# Subtest: od-r1: a configured but never-initialized store is NOT first use: refused, nothing created, no write
+ok 13 - od-r1: a configured but never-initialized store is NOT first use: refused, nothing created, no write
+  ---
+  duration_ms: 11.303198
+  type: 'test'
+  ...
+# Subtest: od-r1: uncertain write -> same module refuses; a SECOND owner is refused; fresh process after restart refuses; mined fence -> new nonce
+ok 14 - od-r1: uncertain write -> same module refuses; a SECOND owner is refused; fresh process after restart refuses; mined fence -> new nonce
+  ---
+  duration_ms: 137.672028
+  type: 'test'
+  ...
+# Subtest: od-r1 ROOT gap 1: an established store DELETED after an uncertain write -> a fresh process refuses; no second write
+ok 15 - od-r1 ROOT gap 1: an established store DELETED after an uncertain write -> a fresh process refuses; no second write
+  ---
+  duration_ms: 78.672743
+  type: 'test'
+  ...
+# Subtest: od-r1 ROOT gap 2: final post-persist refusal -> 0 writes, exact discharge (durable), later unchanged-permission positive at the SAME nonce
+ok 16 - od-r1 ROOT gap 2: final post-persist refusal -> 0 writes, exact discharge (durable), later unchanged-permission positive at the SAME nonce
+  ---
+  duration_ms: 87.824957
+  type: 'test'
+  ...
+# Subtest: od-r1: a later refused attempt never discharges an earlier unresolved write (discharge is exact to its own attempt)
+ok 17 - od-r1: a later refused attempt never discharges an earlier unresolved write (discharge is exact to its own attempt)
+  ---
+  duration_ms: 44.562349
+  type: 'test'
+  ...
+# Subtest: od-r1: owner loss (lock file replaced) latches refusal; the recorded obligation stays on disk
+ok 18 - od-r1: owner loss (lock file replaced) latches refusal; the recorded obligation stays on disk
+  ---
+  duration_ms: 32.654185
+  type: 'test'
+  ...
+# Subtest: od-r1: a foreign-domain store and a storage failure before the effect leave no unauthorized write
+ok 19 - od-r1: a foreign-domain store and a storage failure before the effect leave no unauthorized write
+  ---
+  duration_ms: 64.011829
+  type: 'test'
+  ...
+# Subtest: win-log: explicit init, one owner, put/remove survive reopen; status never claims production for the TEST exclusion
+ok 20 - win-log: explicit init, one owner, put/remove survive reopen; status never claims production for the TEST exclusion
+  ---
+  duration_ms: 19.996855
+  type: 'test'
+  ...
+# Subtest: win-log: foreign domain, foreign record, torn tail and legacy records all refuse
+ok 21 - win-log: foreign domain, foreign record, torn tail and legacy records all refuse
+  ---
+  duration_ms: 20.974909
+  type: 'test'
+  ...
+# Subtest: win-log: a short write latches the store (outcome unknown); every later read/change refuses
+ok 22 - win-log: a short write latches the store (outcome unknown); every later read/change refuses
+  ---
+  duration_ms: 8.147321
+  type: 'test'
+  ...
+# Subtest: win-log: bounded - a full store refuses NEW records, settlement stays possible; an oversized request is refused, never truncated
+ok 23 - win-log: bounded - a full store refuses NEW records, settlement stays possible; an oversized request is refused, never truncated
+  ---
+  duration_ms: 84.69721
+  type: 'test'
+  ...
+# Subtest: linux: genuine flock - a second in-process owner AND a separate process are refused while held; after release the child owns it
+ok 24 - linux: genuine flock - a second in-process owner AND a separate process are refused while held; after release the child owns it
+  ---
+  duration_ms: 107.788613
+  type: 'test'
+  ...
+# Subtest: linux: deletion of an established store, a foreign domain and an fsync failure all refuse; never re-created as empty
+ok 25 - linux: deletion of an established store, a foreign domain and an fsync failure all refuse; never re-created as empty
+  ---
+  duration_ms: 33.821526
+  type: 'test'
+  ...
+# Subtest: od-r1 sponsored (root r12 fixtureclosure FAIL, intended behaviour): release signature-time refusal -> pending from the OWNED record; legacy entry kept, not settled unsent; deadline fence settles both
+ok 26 - od-r1 sponsored (root r12 fixtureclosure FAIL, intended behaviour): release signature-time refusal -> pending from the OWNED record; legacy entry kept, not settled unsent; deadline fence settles both
+  ---
+  duration_ms: 78.216416
+  type: 'test'
+  ...
+# Subtest: od-r1 sponsored: supersession is LATCHED - a restored Boolean permission does not revive the operation
+ok 27 - od-r1 sponsored: supersession is LATCHED - a restored Boolean permission does not revive the operation
+  ---
+  duration_ms: 61.240619
+  type: 'test'
+  ...
+# Subtest: od-r1 sponsored: refusal after an earlier POST is an unknown outcome; the posted record survives restart and holds the id
+ok 28 - od-r1 sponsored: refusal after an earlier POST is an unknown outcome; the posted record survives restart and holds the id
+  ---
+  duration_ms: 91.904518
+  type: 'test'
+  ...
+# Subtest: od-r1 sponsored: queue-entry refusal signs nothing; positive renew settles its record; an uninitialized store refuses before signing
+ok 29 - od-r1 sponsored: queue-entry refusal signs nothing; positive renew settles its record; an uninitialized store refuses before signing
+  ---
+  duration_ms: 88.968229
+  type: 'test'
+  ...
+# Subtest: od-r2 ROOT boundary-v2: the final gate sees the established state removed after the intent persisted -> 0 inert writes, latched, retained; restart refuses
+ok 30 - od-r2 ROOT boundary-v2: the final gate sees the established state removed after the intent persisted -> 0 inert writes, latched, retained; restart refuses
+  ---
+  duration_ms: 42.900551
+  type: 'test'
+  ...
+# Subtest: od-r2 ROOT boundary-v2: the final gate sees the established .established removed after the intent persisted -> 0 inert writes, latched, retained; restart refuses
+ok 31 - od-r2 ROOT boundary-v2: the final gate sees the established .established removed after the intent persisted -> 0 inert writes, latched, retained; restart refuses
+  ---
+  duration_ms: 34.358773
+  type: 'test'
+  ...
+# Subtest: od-r2 continuity: a REPLACED state file (same bytes, new inode) after persistence -> 0 writes; the cached records refuse
+ok 32 - od-r2 continuity: a REPLACED state file (same bytes, new inode) after persistence -> 0 writes; the cached records refuse
+  ---
+  duration_ms: 24.98389
+  type: 'test'
+  ...
+# Subtest: od-r2 continuity: store-level cached reads (records/get/assertLive) refuse after the marker or state is lost while the lock is held
+ok 33 - od-r2 continuity: store-level cached reads (records/get/assertLive) refuse after the marker or state is lost while the lock is held
+  ---
+  duration_ms: 44.795948
+  type: 'test'
+  ...
+# Subtest: od-r2 continuity: exact known-unsent discharge stays available with intact storage; unchanged positive at the SAME nonce
+ok 34 - od-r2 continuity: exact known-unsent discharge stays available with intact storage; unchanged positive at the SAME nonce
+  ---
+  duration_ms: 55.404641
+  type: 'test'
+  ...
+# Subtest: od-r2 ROOT boundary-v2 case 3: an established unresolved authorization (account nonce 70) fences the direct sender after owner release + fresh process; pending is not a fence; exact mined fence -> unchanged positive
+ok 35 - od-r2 ROOT boundary-v2 case 3: an established unresolved authorization (account nonce 70) fences the direct sender after owner release + fresh process; pending is not a fence; exact mined fence -> unchanged positive
+  ---
+  duration_ms: 67.605623
+  type: 'test'
+  ...
+# Subtest: od-r2 account nonce: an authorization naming another chain or another signer is UNKNOWN -> held even past its nonce; a sign-threw/unsent one is no exposure
+ok 36 - od-r2 account nonce: an authorization naming another chain or another signer is UNKNOWN -> held even past its nonce; a sign-threw/unsent one is no exposure
+  ---
+  duration_ms: 157.465115
+  type: 'test'
+  ...
+1..36
+# tests 36
+# suites 0
+# pass 36
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10890.93249

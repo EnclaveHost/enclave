@@ -32,6 +32,9 @@ export const LIMITS = Object.freeze({ verificationGas: 200_000n, callGas: 500_00
                                       maxFeePerGas: 1_000_000_000n /* 1 gwei; Base runs at ~0.01 */ });
 const VOUCHER_TTL_SEC = 600;
 
+// EIP-7702: the per-authorization intrinsic cost (PER_EMPTY_ACCOUNT_COST), charged before execution
+const AUTHORIZATION_INTRINSIC_GAS = 25_000n;
+const ACCOUNT_EP_ABI = parseAbi(["function entryPoint() view returns (address)"]);
 const REGISTRY_ABI = parseAbi(["function register(string endpoint, string repo, bytes32 measurement, uint64 cpuPricePerSec6, uint64 gpuPricePerSec6, address proofKey) returns (bytes32)"]);
 const ACCOUNT_ABI = parseAbi(["function execute(address target, uint256 value, bytes data)"]);
 const PAYMASTER_ABI = parseAbi(["function hardwareSponsored(bytes32) view returns (address)", "function operatorSponsored(address) view returns (bytes32)"]);
@@ -72,12 +75,14 @@ export function unpackOp(op) {
  * each answering { status, body }. `endpointOf(name)` is the registry endpoint a box under that tunnel name registers
  * (https://api.enclave.host/t/<name>); `ownerOf(name)` its on-chain operator, or "" when unregistered.
  */
+// authority: the relay's verifier chain authority (relay/relay-chain-authority.mjs) or null. With it every read is the
+// verifier's proven answer and handleOps goes ONLY to the bound own backend (verifierSubmit below); `rpc` is not used.
 export function hostSponsor({ hub, endpointOf, ownerOf, verifierKey, bundlerKey, paymaster, registry, rpc, log = () => {},
-                              client = null, wallet = null, now = () => Math.floor(Date.now() / 1000) }) {
+                              client = null, wallet = null, authority = null, now = () => Math.floor(Date.now() / 1000) }) {
   const verifier = privateKeyToAccount(verifierKey);
   const bundler = privateKeyToAccount(bundlerKey);
-  const pub = client || createPublicClient({ chain: base, transport: viemHttp(rpc) });
-  const wal = wallet || createWalletClient({ chain: base, account: bundler, transport: viemHttp(rpc) });
+  const pub = client || (authority ? authority.client : createPublicClient({ chain: base, transport: viemHttp(rpc) }));
+  const wal = wallet || createWalletClient({ chain: base, account: bundler, transport: authority ? authority.transport : viemHttp(rpc) });
   paymaster = getAddress(paymaster); registry = getAddress(registry);
   const seen = new Map();                                     // request nonces, for ten minutes: a replay asks nothing new
 
@@ -181,12 +186,19 @@ export function hostSponsor({ hub, endpointOf, ownerOf, verifierKey, bundlerKey,
     const packed = { ...op, nonce: BigInt(op.nonce), preVerificationGas: BigInt(op.preVerificationGas), initCode: "0x" };
     delete packed.paymasterGasLimits;
     const data = encodeFunctionData({ abi: ENTRYPOINT_ABI, functionName: "handleOps", args: [[packed], bundler.address] });
-    try {
-      await pub.call({ account: bundler, to: ENTRYPOINT_08, data, authorizationList: [authorization] });   // a revert costs nothing yet
-    } catch (e) { return bad(422, "simulation_failed", `the operation would fail: ${(e.shortMessage || e.message).slice(0, 300)}`); }
+    let sendFields = {};
+    if (authority) {
+      const v = await verifierSimulation(c.claimant, authorization, data);
+      if (v.status) return v;
+      sendFields = v.fields;
+    } else {
+      try {
+        await pub.call({ account: bundler, to: ENTRYPOINT_08, data, authorizationList: [authorization] });   // a revert costs nothing yet
+      } catch (e) { return bad(422, "simulation_failed", `the operation would fail: ${(e.shortMessage || e.message).slice(0, 300)}`); }
+    }
     let hash, rcpt;
     try {
-      hash = await wal.sendTransaction({ to: ENTRYPOINT_08, data, authorizationList: [authorization] });
+      hash = await wal.sendTransaction({ to: ENTRYPOINT_08, data, authorizationList: [authorization], ...sendFields });
       rcpt = await pub.waitForTransactionReceipt({ hash });
     } catch (e) { return bad(502, "not_sent", (e.shortMessage || e.message).slice(0, 300)); }
     const ev = rcpt.logs.find((l) => l.address.toLowerCase() === ENTRYPOINT_08.toLowerCase() && l.topics[0] === USEROP_EVENT);
@@ -194,6 +206,47 @@ export function hostSponsor({ hub, endpointOf, ownerOf, verifierKey, bundlerKey,
     const success = !!ev && hexToBigInt(sliceHex(ev.data, 32, 64)) === 1n;
     log(`[sponsor] ${b.name}: register by ${c.claimant} ${success ? "SUCCEEDED" : "REVERTED"} in ${hash}`);
     return { status: success ? 200 : 409, body: { tx: hash, success, ...(success ? {} : { error: "register_reverted", message: "the registration reverted on chain; the paymaster gave the sponsorship back" }) } };
+  }
+
+  // Under the verifier authority. The pinned verifier executes a call WITHOUT its EIP-7702 authorization list (its call
+  // environment drops it, so a type-4 simulation would run the operator key as a plain account), so the authorization's exact
+  // effect is applied as a state override instead - what it does before execution once checked: the key's code becomes the
+  // Simple7702Account designator and its account nonce advances by one. That is only that effect when the authorization's
+  // nonce IS the key's proven account nonce (otherwise the chain skips it), so that is required first. NEVER vacuous: the
+  // overridden key must run Simple7702Account's code (its entryPoint() answers the EntryPoint) before anything is estimated.
+  // The gas is then a limit at which the verifier's execution of handleOps under the override succeeded (chain-authority's
+  // eth_estimateGas search, a revert is the refusal) plus the authorization's intrinsic cost; fees are the own backend's
+  // priority hint over the verified head's base fee (estimateFeesPerGas); the send goes only to the bound own backend.
+  // -> { fields } for sendTransaction, or a refusal { status, body }.
+  async function verifierSimulation(claimant, authorization, data) {
+    let accountNonce;
+    try { accountNonce = BigInt(await pub.getTransactionCount({ address: claimant })); }
+    catch (e) { return bad(502, "chain_unreadable", (e.details || e.shortMessage || e.message).slice(0, 300)); }
+    if (BigInt(authorization.nonce) !== accountNonce)
+      return bad(409, "authorization_nonce", `the authorization is for account nonce ${authorization.nonce}, the operator key's proven nonce is ${accountNonce}: the chain would skip it`);
+    // NEVER vacuous (2): a call to an address without code "succeeds" too, so the EntryPoint and the delegate's code must be
+    // proven present before any execution is believed
+    for (const [what, at] of [["the EntryPoint", ENTRYPOINT_08], ["Simple7702Account", SIMPLE_7702]]) {
+      let code;
+      try { code = await pub.getCode({ address: at }); }
+      catch (e) { return bad(502, "chain_unreadable", (e.details || e.shortMessage || e.message).slice(0, 300)); }
+      if (!code || code === "0x") return bad(503, "simulation_unavailable", `${what} (${at}) has no code on the verified chain: nothing is simulated or sent`);
+    }
+    const override = { [claimant]: { code: concat(["0xef0100", SIMPLE_7702]).toLowerCase(), nonce: numberToHex(accountNonce + 1n) } };
+    let ep = null;
+    try {
+      ep = await pub.request({ method: "eth_call", params: [{ to: claimant, data: encodeFunctionData({ abi: ACCOUNT_EP_ABI, functionName: "entryPoint" }) }, "latest", override] });
+    } catch (e) { return bad(503, "simulation_unavailable", `the verifier cannot simulate the delegated key: ${(e.details || e.shortMessage || e.message).slice(0, 300)}`); }
+    if (!/^0x[0-9a-f]{64}$/i.test(String(ep)) || getAddress(sliceHex(ep, 12, 32)) !== ENTRYPOINT_08)
+      return bad(503, "simulation_unavailable", `the verifier did not run Simple7702Account's code under the authorization's override (entryPoint() answered ${String(ep).slice(0, 20)}): nothing was sent`);
+    let gas;
+    try {
+      gas = BigInt(await pub.request({ method: "eth_estimateGas", params: [{ from: bundler.address, to: ENTRYPOINT_08, data }, "latest", override] }));
+    } catch (e) { return bad(422, "simulation_failed", `the operation would fail: ${(e.details || e.shortMessage || e.message).slice(0, 300)}`); }
+    let fees;
+    try { fees = await pub.estimateFeesPerGas(); }
+    catch (e) { return bad(502, "chain_unreadable", (e.details || e.shortMessage || e.message).slice(0, 300)); }
+    return { fields: { gas: (gas + AUTHORIZATION_INTRINSIC_GAS) * 12n / 10n, maxFeePerGas: fees.maxFeePerGas, maxPriorityFeePerGas: fees.maxPriorityFeePerGas } };
   }
 
   return { voucher, submit, verifier: verifier.address, bundler: bundler.address };

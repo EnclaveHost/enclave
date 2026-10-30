@@ -1,0 +1,199 @@
+[queue] START available=30663MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: owner/end/open are refused unless the host passes ownerManagement AND rateOwner; no body flag enables them
+ok 1 - owner/end/open are refused unless the host passes ownerManagement AND rateOwner; no body flag enables them
+  ---
+  duration_ms: 14.020597
+  type: 'test'
+  ...
+# Subtest: every original owner op is served; ownerCall is direct-owner only
+ok 2 - every original owner op is served; ownerCall is direct-owner only
+  ---
+  duration_ms: 1.26742
+  type: 'test'
+  ...
+# Subtest: forged terminate is refused before off-chain revocation, sends nothing and burns no quota
+ok 3 - forged terminate is refused before off-chain revocation, sends nothing and burns no quota
+  ---
+  duration_ms: 16.181412
+  type: 'test'
+  ...
+# Subtest: forged revokeAll and forged /funding/end never mark anything
+ok 4 - forged revokeAll and forged /funding/end never mark anything
+  ---
+  duration_ms: 15.508826
+  type: 'test'
+  ...
+# Subtest: a body owner that is not the vault's owner is refused
+ok 5 - a body owner that is not the vault's owner is refused
+  ---
+  duration_ms: 6.265244
+  type: 'test'
+  ...
+# Subtest: terminate marks the shared revocation in afterSimulate (before broadcast) and completes only on a canonical receipt
+ok 6 - terminate marks the shared revocation in afterSimulate (before broadcast) and completes only on a canonical receipt
+  ---
+  duration_ms: 9.51259
+  type: 'test'
+  ...
+# Subtest: a failed send after acceptance keeps the revocation (never weakened)
+ok 7 - a failed send after acceptance keeps the revocation (never weakened)
+  ---
+  duration_ms: 7.903362
+  type: 'test'
+  ...
+# Subtest: zero block hash (preconfirmation): 202 pending, no index, no second send, revocation kept
+ok 8 - zero block hash (preconfirmation): 202 pending, no index, no second send, revocation kept
+  ---
+  duration_ms: 7.762943
+  type: 'test'
+  ...
+# Subtest: null block hash: 202 pending, no index, no second send, revocation kept
+ok 9 - null block hash: 202 pending, no index, no second send, revocation kept
+  ---
+  duration_ms: 7.369716
+  type: 'test'
+  ...
+# Subtest: receipt unknown to the node: 202 pending, no index, no second send, revocation kept
+ok 10 - receipt unknown to the node: 202 pending, no index, no second send, revocation kept
+  ---
+  duration_ms: 6.96074
+  type: 'test'
+  ...
+# Subtest: reorged: the node's receipt is in another block: 202 pending, no index, no second send, revocation kept
+ok 11 - reorged: the node's receipt is in another block: 202 pending, no index, no second send, revocation kept
+  ---
+  duration_ms: 6.261055
+  type: 'test'
+  ...
+# Subtest: a block-number/hash mismatch at getBlock is not canonical; reconciliation later completes read-only
+ok 12 - a block-number/hash mismatch at getBlock is not canonical; reconciliation later completes read-only
+  ---
+  duration_ms: 7.225907
+  type: 'test'
+  ...
+# Subtest: revokeAll in flight refuses every session of the vault (quote AND execute before any chain read); completion admits only later epochs
+ok 13 - revokeAll in flight refuses every session of the vault (quote AND execute before any chain read); completion admits only later epochs
+  ---
+  duration_ms: 27.205812
+  type: 'test'
+  ...
+# Subtest: topUp is counted only after acceptance; an exhausted quota refuses before any chain read
+ok 14 - topUp is counted only after acceptance; an exhausted quota refuses before any chain read
+  ---
+  duration_ms: 17.84074
+  type: 'test'
+  ...
+# Subtest: an accepted op whose canonical receipt lacks its event is not reported as done
+ok 15 - an accepted op whose canonical receipt lacks its event is not reported as done
+  ---
+  duration_ms: 5.766848
+  type: 'test'
+  ...
+# Subtest: /funding/end marks before broadcast and completes on a canonical SessionEnded
+ok 16 - /funding/end marks before broadcast and completes on a canonical SessionEnded
+  ---
+  duration_ms: 6.364934
+  type: 'test'
+  ...
+# Subtest: quote refuses opsPerPeriod exhaustion and uint32 periodOps overflow, after period reset rules; and seq == uint64 max
+ok 17 - quote refuses opsPerPeriod exhaustion and uint32 periodOps overflow, after period reset rules; and seq == uint64 max
+  ---
+  duration_ms: 27.26746
+  type: 'test'
+  ...
+# Subtest: execute: zero-hash preconfirmation is pending (no index, one send); a 96-byte result is refused
+ok 18 - execute: zero-hash preconfirmation is pending (no index, one send); a 96-byte result is refused
+  ---
+  duration_ms: 28.163834
+  type: 'test'
+  ...
+# Subtest: strictEvent refuses trailing data bytes and dirty words
+ok 19 - strictEvent refuses trailing data bytes and dirty words
+  ---
+  duration_ms: 0.930863
+  type: 'test'
+  ...
+# Subtest: open refuses api.* scopes, counts quota after acceptance, and indexes openedBlock only from a canonical receipt
+ok 20 - open refuses api.* scopes, counts quota after acceptance, and indexes openedBlock only from a canonical receipt
+  ---
+  duration_ms: 12.028892
+  type: 'test'
+  ...
+# Subtest: root: unsigned close cannot consume the owner's authenticated-operation quota
+ok 21 - root: unsigned close cannot consume the owner's authenticated-operation quota
+  ---
+  duration_ms: 5.758318
+  type: 'test'
+  ...
+# Subtest: root: reconciliation cannot adopt a different transaction returned for the requested hash
+not ok 22 - root: reconciliation cannot adopt a different transaction returned for the requested hash
+  ---
+  duration_ms: 6.296534
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-owner-r2/test/owner-route.test.mjs:306:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'length')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-owner-r2/test/owner-route.test.mjs:315:29)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: the source is the pinned original and is not modified
+ok 23 - the source is the pinned original and is not modified
+  ---
+  duration_ms: 0.980453
+  type: 'test'
+  ...
+# Subtest: removing every marked block reproduces the original byte for byte
+ok 24 - removing every marked block reproduces the original byte for byte
+  ---
+  duration_ms: 0.399948
+  type: 'test'
+  ...
+# Subtest: the host hook wires the ACTUAL host helpers and nothing new
+ok 25 - the host hook wires the ACTUAL host helpers and nothing new
+  ---
+  duration_ms: 0.212049
+  type: 'test'
+  ...
+# Subtest: the helpers the hook calls are real host function declarations, declared state precedes the hook
+ok 26 - the helpers the hook calls are real host function declarations, declared state precedes the hook
+  ---
+  duration_ms: 0.156248
+  type: 'test'
+  ...
+# Subtest: the original /owner and /end handlers carry no marked block (the only route() insert is the first line)
+ok 27 - the original /owner and /end handlers carry no marked block (the only route() insert is the first line)
+  ---
+  duration_ms: 0.145999
+  type: 'test'
+  ...
+# Subtest: the drop-in route copy differs from the stage route only by its two imports
+ok 28 - the drop-in route copy differs from the stage route only by its two imports
+  ---
+  duration_ms: 0.956893
+  type: 'test'
+  ...
+# Subtest: the prepare manifest records link references, runtime sizes and grant fields
+ok 29 - the prepare manifest records link references, runtime sizes and grant fields
+  ---
+  duration_ms: 0.344558
+  type: 'test'
+  ...
+1..29
+# tests 29
+# suites 0
+# pass 28
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 378.722044
+[memory-guard] exit=1 peakTreeRssMiB=133 minHostAvailableMiB=30594
+[memory-guard] at peak: node:73 node:60
+[memory-guard] exit=1 peakTreeRssMiB=181 minHostAvailableMiB=30596
+[memory-guard] at peak: node:73 node:60 node:48
+[queue] EXIT 1

@@ -1,0 +1,186 @@
+--- a/install/MANIFEST.json
++++ b/install/MANIFEST.json
+@@ -1,6 +1,6 @@
+ {
+  "format": "enclave-finality-install-manifest/v1",
+- "stage": "base-finality-proof-stage/r14-witness",
++ "stage": "historical-origin-segments-stage/r8/compose/r18-candidate",
+  "env": {
+   "FINALITY_NODE": "the reviewed node binary",
+   "FINALITY_DEPS_ROOT": "/opt/enclave-rpc/finality/deps",
+@@ -10,7 +10,7 @@
+   {
+    "src": "src/finality_state.py",
+    "dest": "/opt/enclave-rpc/finality/src/finality_state.py",
+-   "sha256": "608565123278e1d877abffe02fc762aba3fccee6c89e249f3ee6d808b618704e",
++   "sha256": "59dcc9d38de2f61aebb8fa7897cefc8f493fb2d93d0a1e59c76b67f6bf02cb22",
+    "mode": "0644",
+    "flagsFalse": [
+     "FINALITY_PROTOTYPE_REVIEWED"
+@@ -64,7 +64,7 @@
+   {
+    "src": "producer/base_launch.py",
+    "dest": "/opt/enclave-rpc/base-launch/base_launch.py",
+-   "sha256": "5e567c93676a7f7fd48040a7f90ffae860f454a0a69efd8f3f1445a5b87b224b",
++   "sha256": "d2ed6df43b79a287ff50004753bb1cf869b09fc8f1df0d2b5c3092043eacfb1a",
+    "mode": "0755",
+    "flagsFalse": [
+     "FINALITY_PROOF_REVIEWED"
+@@ -73,13 +73,13 @@
+   {
+    "src": "readiness/readiness_sampler.py",
+    "dest": "/opt/enclave-rpc/readiness/readiness_sampler.py",
+-   "sha256": "340b47dc2bf3a3d8ffb1609f0f1db686f06ef7d5a6426c6609595290d71d7d25",
++   "sha256": "37525aed016477e4f5fd25b476aab1abdd570cf7017c7aad0c48a41d65e1a482",
+    "mode": "0755"
+   },
+   {
+    "src": "wrapper/chain_service.py",
+    "dest": "/opt/enclave-rpc/chain_service.py",
+-   "sha256": "9607b831c8941d1108022a500cf1ae328367b84a110e38b00fdd18476ff4656a",
++   "sha256": "17b91a4b58e3f2ae0aec46118ae5ae86d7c0a4ecf59dac8ce40a3c65c71f2b51",
+    "mode": "0755",
+    "wrapper": true,
+    "flagsFalse": [
+@@ -89,7 +89,7 @@
+   {
+    "src": "readiness/publish_readiness.py",
+    "dest": "/opt/enclave-rpc/readiness/publish_readiness.py",
+-   "sha256": "155b5cb7f9501feb4826426a295816cd4ee7a29583d8e0ddb7ccf5bb9a5d585d",
++   "sha256": "379cc93f0bc55d0c21d6014ce952424723e72eab930a2b3209b7ef3208f75f7d",
+    "mode": "0755"
+   },
+   {
+@@ -179,7 +179,7 @@
+    "src": "src/reproof.py",
+    "dest": "/opt/enclave-rpc/finality/src/reproof.py",
+    "mode": "0755",
+-   "sha256": "344451545b9decfa11d259d92ab4249bb58499871df471e195446b8b0640a2e3"
++   "sha256": "f4d41a288641784d5ee6c5be38dc3ab4582e22e383faec983a78a8a00ab1821b"
+   },
+   {
+    "src": "units/enclave-base-finality-reproof.service",
+@@ -199,7 +199,7 @@
+    "src": "recovery/forward_sync.py",
+    "dest": "/opt/enclave-rpc/recovery/forward_sync.py",
+    "mode": "0755",
+-   "sha256": "bc29f8cb992e1ffd15db62c64d7d07ccd2398fed3ec064d878bcb2f05f9dd109"
++   "sha256": "7afcd48935d88be86fb478df29254697f6330a48254590aaec4c48f7118d664e"
+   },
+   {
+    "src": "units/forward-sync/enclave-base-forward-sync.service",
+@@ -426,6 +426,114 @@
+    "mode": "0644",
+    "sha256": "dd82cd45eaf854e1f9d13793adfcda260d13de1aef3a894fffa3dda1d4faf429",
+    "unit": true
++  },
++  {
++   "src": "historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/MANIFEST.json",
++   "dest": "/opt/enclave-rpc/historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/MANIFEST.json",
++   "sha256": "020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e",
++   "mode": "0644"
++  },
++  {
++   "src": "historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/bin/guest-capture.sh",
++   "dest": "/opt/enclave-rpc/historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/bin/guest-capture.sh",
++   "sha256": "9f891056ec773bb3f5681d5ba4b9f0378be4da8a03070dc13f49c1776c9b3d93",
++   "mode": "0755"
++  },
++  {
++   "src": "historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/bin/historical-capture",
++   "dest": "/opt/enclave-rpc/historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/bin/historical-capture",
++   "sha256": "623abbc3050531190a56f19fa87c473b5cba44e9dc0d180da9f25062653220aa",
++   "mode": "0755"
++  },
++  {
++   "src": "historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/lib/anchored_acceptance.py",
++   "dest": "/opt/enclave-rpc/historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/lib/anchored_acceptance.py",
++   "sha256": "cb68413866d0534822bdfc37702e253acfe04abad30d98e34b2231595518138d",
++   "mode": "0644"
++  },
++  {
++   "src": "historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/lib/anchored_origin.py",
++   "dest": "/opt/enclave-rpc/historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/lib/anchored_origin.py",
++   "sha256": "d088592d0398d017ce5101f0f9bf09849735be2fe0fb1c63ef710623be08d199",
++   "mode": "0644"
++  },
++  {
++   "src": "historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/lib/bind_anchor.mjs",
++   "dest": "/opt/enclave-rpc/historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/lib/bind_anchor.mjs",
++   "sha256": "f729420ca16127ae6b19745cc9d500df0b9ae4c97ec90e0656bfeceb9ccd43d8",
++   "mode": "0644"
++  },
++  {
++   "src": "historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/lib/segments.py",
++   "dest": "/opt/enclave-rpc/historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/lib/segments.py",
++   "sha256": "5a88a2e2894b5abb398e614db0251b313e5a6e15bbafc9d1055ec9707f602b56",
++   "mode": "0644"
++  },
++  {
++   "src": "historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/receipt/a1-evidence.json",
++   "dest": "/opt/enclave-rpc/historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/receipt/a1-evidence.json",
++   "sha256": "b9a90847bb3f779262681cabc35af64d7c3b785c9ad5cd2b99e9700b9725256c",
++   "mode": "0644"
++  },
++  {
++   "src": "historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/anchor-bootstrap.mjs",
++   "dest": "/opt/enclave-rpc/historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/anchor-bootstrap.mjs",
++   "sha256": "90a8afba31e7c7029a0fa860f97153cd40665f1d1b2ae87bb0a56fd98c25e8f8",
++   "mode": "0644"
++  },
++  {
++   "src": "historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/coverage/coverage_gate.py",
++   "dest": "/opt/enclave-rpc/historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/coverage/coverage_gate.py",
++   "sha256": "b4f6d639c3f9b12f73938d5993ce0897fe56dcbec1ada3123c4ad80d0ff3854b",
++   "mode": "0644"
++  },
++  {
++   "src": "historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/coverage/kzgcheck",
++   "dest": "/opt/enclave-rpc/historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/coverage/kzgcheck",
++   "sha256": "00b3eeb94efece39e4f2cf8e34d5d3450d532328ccc667a6a74e83b151be10eb",
++   "mode": "0755"
++  },
++  {
++   "src": "historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/coverage/origin_extract.py",
++   "dest": "/opt/enclave-rpc/historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/coverage/origin_extract.py",
++   "sha256": "6b63b901ea07375ea273fd828cb0d0e97baa0859c1b83490c1cb60e15cb3c86c",
++   "mode": "0644"
++  },
++  {
++   "src": "historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/node_modules/@noble/hashes/LICENSE",
++   "dest": "/opt/enclave-rpc/historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/node_modules/@noble/hashes/LICENSE",
++   "sha256": "4f221aee6e072336700c408c68ab3b96a3fc09f6aebe6f48f1bd99e5ef13faec",
++   "mode": "0644"
++  },
++  {
++   "src": "historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/node_modules/@noble/hashes/_u64.js",
++   "dest": "/opt/enclave-rpc/historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/node_modules/@noble/hashes/_u64.js",
++   "sha256": "9b109bb57c0d8852bda12136f0f588ffea2a1a3c0f4241bdbb3727cd449976ae",
++   "mode": "0644"
++  },
++  {
++   "src": "historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/node_modules/@noble/hashes/cryptoNode.js",
++   "dest": "/opt/enclave-rpc/historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/node_modules/@noble/hashes/cryptoNode.js",
++   "sha256": "7d96258d2ff9da048ceb1fe88fb68172c5f952e461dda65fd08f30e20b5416ae",
++   "mode": "0644"
++  },
++  {
++   "src": "historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/node_modules/@noble/hashes/package.json",
++   "dest": "/opt/enclave-rpc/historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/node_modules/@noble/hashes/package.json",
++   "sha256": "7c4657c5e616c22cefa2691cc30670824a639dc71d97bf83925be2d239dc60e3",
++   "mode": "0644"
++  },
++  {
++   "src": "historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/node_modules/@noble/hashes/sha3.js",
++   "dest": "/opt/enclave-rpc/historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/node_modules/@noble/hashes/sha3.js",
++   "sha256": "313da3570150e80b02c3631508ba99099438d2daff641b9cadb2198e0f1d18ec",
++   "mode": "0644"
++  },
++  {
++   "src": "historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/node_modules/@noble/hashes/utils.js",
++   "dest": "/opt/enclave-rpc/historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/node_modules/@noble/hashes/utils.js",
++   "sha256": "7edf19720c345e1cb76e8d3a9306f3344457d4e03576bbb0b3e1ffd0a42d0d30",
++   "mode": "0644"
+   }
+  ],
+  "trees": [

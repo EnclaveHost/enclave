@@ -1,0 +1,7 @@
+[queue] START available=30219MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+{"ok":false,"refusal":{"code":"live_fee_above_review","message":"fresh remaining fee observation 296846667080590 exceeds reviewed 296741375516599; refresh review, do not raise caps silently","details":{}}}
+[memory-guard] exit=1 peakTreeRssMiB=84 minHostAvailableMiB=30124
+[memory-guard] at peak: node:84
+[memory-guard] exit=1 peakTreeRssMiB=145 minHostAvailableMiB=30125
+[memory-guard] at peak: node:84 node:61
+[queue] EXIT 1

@@ -1,0 +1,5 @@
+# Capture r2 actual test result: HOLD, one test assertion is overbroad
+
+Actual sfc-r2-tests ran 14 tests on 2026-10-27, exit1. Receipt: state-fixture-capture-stage/r2/runs/tests-20261027T103234Z-3086044. Thirteen pass; test_11 fails because code_lines preserves inline comments and asserts that `/tmp` never appears anywhere. The r12 line `T=$WORK/trees; O=$WORK/out # ... no /tmp ...` triggers it. This is a test false positive, not evidence of a runtime write to /tmp. Do not mark the suite passing.
+
+Correct the source-inspection test in the next capture revision while retaining rejection of actual forbidden path/default expressions, ideally a quote-aware shell token/comment check and a regression with both a comment mentioning /tmp and executable use of /tmp. Do not edit frozen r2 or r12 merely to remove the comment. Root separately checked the scripts' actual work/output assignments and the bad-argument execution test passed. Parser binding remains intentionally unset in capture r2, so no production run is enabled regardless of this test result.

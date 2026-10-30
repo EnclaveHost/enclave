@@ -1,0 +1,816 @@
+test_archive_change_or_unpinned_binary_refuses (test_guest_state.Extract.test_archive_change_or_unpinned_binary_refuses) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:61: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp8_l2u3t3/holder/data/reth.toml' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.data, 'reth.toml'), 'w').write('# kept\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:66: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp8_l2u3t3/work/state.tar.zst'>
+  self.archive = buf.getvalue(); open(os.path.join(self.work, 'state.tar.zst'), 'wb').write(self.archive)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp8_l2u3t3/manifest.json' mode='w' encoding='UTF-8'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp8_l2u3t3/manifest.json'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:72: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp8_l2u3t3/prov.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-host-archive-provenance/r1', 'manifestSha256': self.msha, 'size': len(self.archive), 'sha256': sha(self.archive)}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp8_l2u3t3/b3sum' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp8_l2u3t3/base-ok' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp8_l2u3t3/base-ok'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:89: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp8_l2u3t3/b3sum'>
+  '--b3sum-sha256', sha(open(self.b3, 'rb').read()), '--kat-expect', sha(b'')],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_extractor_failure_then_clean_retry (test_guest_state.Extract.test_extractor_failure_then_clean_retry) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:61: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp3zi6v5c7/holder/data/reth.toml' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.data, 'reth.toml'), 'w').write('# kept\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:66: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp3zi6v5c7/work/state.tar.zst'>
+  self.archive = buf.getvalue(); open(os.path.join(self.work, 'state.tar.zst'), 'wb').write(self.archive)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp3zi6v5c7/manifest.json' mode='w' encoding='UTF-8'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp3zi6v5c7/manifest.json'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:72: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp3zi6v5c7/prov.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-host-archive-provenance/r1', 'manifestSha256': self.msha, 'size': len(self.archive), 'sha256': sha(self.archive)}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp3zi6v5c7/b3sum' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp3zi6v5c7/base-ok' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp3zi6v5c7/base-ok'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:89: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp3zi6v5c7/b3sum'>
+  '--b3sum-sha256', sha(open(self.b3, 'rb').read()), '--kat-expect', sha(b'')],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp3zi6v5c7/base-fail' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp3zi6v5c7/base-fail'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_hostile_or_wrong_staging_is_refused_and_installs_nothing (test_guest_state.Extract.test_hostile_or_wrong_staging_is_refused_and_installs_nothing) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:61: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpoi0bh4q9/holder/data/reth.toml' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.data, 'reth.toml'), 'w').write('# kept\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:66: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpoi0bh4q9/work/state.tar.zst'>
+  self.archive = buf.getvalue(); open(os.path.join(self.work, 'state.tar.zst'), 'wb').write(self.archive)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpoi0bh4q9/manifest.json' mode='w' encoding='UTF-8'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpoi0bh4q9/manifest.json'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:72: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpoi0bh4q9/prov.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-host-archive-provenance/r1', 'manifestSha256': self.msha, 'size': len(self.archive), 'sha256': sha(self.archive)}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpoi0bh4q9/b3sum' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:61: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmph4vrcbyl/holder/data/reth.toml' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.data, 'reth.toml'), 'w').write('# kept\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:66: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmph4vrcbyl/work/state.tar.zst'>
+  self.archive = buf.getvalue(); open(os.path.join(self.work, 'state.tar.zst'), 'wb').write(self.archive)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmph4vrcbyl/manifest.json' mode='w' encoding='UTF-8'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmph4vrcbyl/manifest.json'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:72: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmph4vrcbyl/prov.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-host-archive-provenance/r1', 'manifestSha256': self.msha, 'size': len(self.archive), 'sha256': sha(self.archive)}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmph4vrcbyl/b3sum' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmph4vrcbyl/base-ok' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmph4vrcbyl/base-ok'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:89: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmph4vrcbyl/b3sum'>
+  '--b3sum-sha256', sha(open(self.b3, 'rb').read()), '--kat-expect', sha(b'')],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmph4vrcbyl/base-symlink' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmph4vrcbyl/base-symlink'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:61: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1senz70e/holder/data/reth.toml' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.data, 'reth.toml'), 'w').write('# kept\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:66: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1senz70e/work/state.tar.zst'>
+  self.archive = buf.getvalue(); open(os.path.join(self.work, 'state.tar.zst'), 'wb').write(self.archive)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1senz70e/manifest.json' mode='w' encoding='UTF-8'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1senz70e/manifest.json'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:72: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1senz70e/prov.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-host-archive-provenance/r1', 'manifestSha256': self.msha, 'size': len(self.archive), 'sha256': sha(self.archive)}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1senz70e/b3sum' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1senz70e/base-ok' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1senz70e/base-ok'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:89: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1senz70e/b3sum'>
+  '--b3sum-sha256', sha(open(self.b3, 'rb').read()), '--kat-expect', sha(b'')],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1senz70e/base-hardlink' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1senz70e/base-hardlink'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:61: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9wv7no4m/holder/data/reth.toml' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.data, 'reth.toml'), 'w').write('# kept\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:66: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9wv7no4m/work/state.tar.zst'>
+  self.archive = buf.getvalue(); open(os.path.join(self.work, 'state.tar.zst'), 'wb').write(self.archive)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9wv7no4m/manifest.json' mode='w' encoding='UTF-8'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9wv7no4m/manifest.json'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:72: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9wv7no4m/prov.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-host-archive-provenance/r1', 'manifestSha256': self.msha, 'size': len(self.archive), 'sha256': sha(self.archive)}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9wv7no4m/b3sum' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9wv7no4m/base-ok' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9wv7no4m/base-ok'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:89: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9wv7no4m/b3sum'>
+  '--b3sum-sha256', sha(open(self.b3, 'rb').read()), '--kat-expect', sha(b'')],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9wv7no4m/base-fifo' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9wv7no4m/base-fifo'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:61: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp_fp9qel6/holder/data/reth.toml' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.data, 'reth.toml'), 'w').write('# kept\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:66: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp_fp9qel6/work/state.tar.zst'>
+  self.archive = buf.getvalue(); open(os.path.join(self.work, 'state.tar.zst'), 'wb').write(self.archive)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp_fp9qel6/manifest.json' mode='w' encoding='UTF-8'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp_fp9qel6/manifest.json'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:72: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp_fp9qel6/prov.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-host-archive-provenance/r1', 'manifestSha256': self.msha, 'size': len(self.archive), 'sha256': sha(self.archive)}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp_fp9qel6/b3sum' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp_fp9qel6/base-ok' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp_fp9qel6/base-ok'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:89: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp_fp9qel6/b3sum'>
+  '--b3sum-sha256', sha(open(self.b3, 'rb').read()), '--kat-expect', sha(b'')],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp_fp9qel6/base-extra' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp_fp9qel6/base-extra'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:61: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp37qftjay/holder/data/reth.toml' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.data, 'reth.toml'), 'w').write('# kept\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:66: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp37qftjay/work/state.tar.zst'>
+  self.archive = buf.getvalue(); open(os.path.join(self.work, 'state.tar.zst'), 'wb').write(self.archive)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp37qftjay/manifest.json' mode='w' encoding='UTF-8'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp37qftjay/manifest.json'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:72: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp37qftjay/prov.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-host-archive-provenance/r1', 'manifestSha256': self.msha, 'size': len(self.archive), 'sha256': sha(self.archive)}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp37qftjay/b3sum' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp37qftjay/base-ok' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp37qftjay/base-ok'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:89: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp37qftjay/b3sum'>
+  '--b3sum-sha256', sha(open(self.b3, 'rb').read()), '--kat-expect', sha(b'')],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp37qftjay/base-extradir' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp37qftjay/base-extradir'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:61: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1aya_kn5/holder/data/reth.toml' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.data, 'reth.toml'), 'w').write('# kept\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:66: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1aya_kn5/work/state.tar.zst'>
+  self.archive = buf.getvalue(); open(os.path.join(self.work, 'state.tar.zst'), 'wb').write(self.archive)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1aya_kn5/manifest.json' mode='w' encoding='UTF-8'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1aya_kn5/manifest.json'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:72: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1aya_kn5/prov.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-host-archive-provenance/r1', 'manifestSha256': self.msha, 'size': len(self.archive), 'sha256': sha(self.archive)}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1aya_kn5/b3sum' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1aya_kn5/base-ok' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1aya_kn5/base-ok'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:89: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1aya_kn5/b3sum'>
+  '--b3sum-sha256', sha(open(self.b3, 'rb').read()), '--kat-expect', sha(b'')],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1aya_kn5/base-missing' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1aya_kn5/base-missing'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:61: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1a9bfd3w/holder/data/reth.toml' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.data, 'reth.toml'), 'w').write('# kept\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:66: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1a9bfd3w/work/state.tar.zst'>
+  self.archive = buf.getvalue(); open(os.path.join(self.work, 'state.tar.zst'), 'wb').write(self.archive)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1a9bfd3w/manifest.json' mode='w' encoding='UTF-8'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1a9bfd3w/manifest.json'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:72: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1a9bfd3w/prov.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-host-archive-provenance/r1', 'manifestSha256': self.msha, 'size': len(self.archive), 'sha256': sha(self.archive)}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1a9bfd3w/b3sum' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1a9bfd3w/base-ok' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1a9bfd3w/base-ok'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:89: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1a9bfd3w/b3sum'>
+  '--b3sum-sha256', sha(open(self.b3, 'rb').read()), '--kat-expect', sha(b'')],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1a9bfd3w/base-wrongsize' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1a9bfd3w/base-wrongsize'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:61: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9ch7u96h/holder/data/reth.toml' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.data, 'reth.toml'), 'w').write('# kept\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:66: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9ch7u96h/work/state.tar.zst'>
+  self.archive = buf.getvalue(); open(os.path.join(self.work, 'state.tar.zst'), 'wb').write(self.archive)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9ch7u96h/manifest.json' mode='w' encoding='UTF-8'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9ch7u96h/manifest.json'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:72: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9ch7u96h/prov.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-host-archive-provenance/r1', 'manifestSha256': self.msha, 'size': len(self.archive), 'sha256': sha(self.archive)}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9ch7u96h/b3sum' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9ch7u96h/base-ok' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9ch7u96h/base-ok'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:89: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9ch7u96h/b3sum'>
+  '--b3sum-sha256', sha(open(self.b3, 'rb').read()), '--kat-expect', sha(b'')],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9ch7u96h/base-setuid' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9ch7u96h/base-setuid'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_staged_extraction_clean_env_exact_set_data_untouched (test_guest_state.Extract.test_staged_extraction_clean_env_exact_set_data_untouched) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:61: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpd8vi302l/holder/data/reth.toml' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.data, 'reth.toml'), 'w').write('# kept\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:66: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpd8vi302l/work/state.tar.zst'>
+  self.archive = buf.getvalue(); open(os.path.join(self.work, 'state.tar.zst'), 'wb').write(self.archive)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpd8vi302l/manifest.json' mode='w' encoding='UTF-8'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpd8vi302l/manifest.json'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:72: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpd8vi302l/prov.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-host-archive-provenance/r1', 'manifestSha256': self.msha, 'size': len(self.archive), 'sha256': sha(self.archive)}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpd8vi302l/b3sum' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpd8vi302l/base-ok' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpd8vi302l/base-ok'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:89: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpd8vi302l/b3sum'>
+  '--b3sum-sha256', sha(open(self.b3, 'rb').read()), '--kat-expect', sha(b'')],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:117: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpd8vi302l/stub.log' mode='r' encoding='UTF-8'>
+  log = json.load(open(self.log))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_guard_allows_only_the_unmodified_installed_state (test_guest_state.Guard.test_guard_allows_only_the_unmodified_installed_state) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:61: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpai4fx0d9/holder/data/reth.toml' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.data, 'reth.toml'), 'w').write('# kept\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:66: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpai4fx0d9/work/state.tar.zst'>
+  self.archive = buf.getvalue(); open(os.path.join(self.work, 'state.tar.zst'), 'wb').write(self.archive)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpai4fx0d9/manifest.json' mode='w' encoding='UTF-8'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpai4fx0d9/manifest.json'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:72: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpai4fx0d9/prov.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-host-archive-provenance/r1', 'manifestSha256': self.msha, 'size': len(self.archive), 'sha256': sha(self.archive)}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpai4fx0d9/b3sum' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpai4fx0d9/base-ok' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpai4fx0d9/base-ok'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:89: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpai4fx0d9/b3sum'>
+  '--b3sum-sha256', sha(open(self.b3, 'rb').read()), '--kat-expect', sha(b'')],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_guard_refuses_finalized_extra_or_foreign_record (test_guest_state.Guard.test_guard_refuses_finalized_extra_or_foreign_record) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:61: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmptv0sc8e7/holder/data/reth.toml' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.data, 'reth.toml'), 'w').write('# kept\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:66: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmptv0sc8e7/work/state.tar.zst'>
+  self.archive = buf.getvalue(); open(os.path.join(self.work, 'state.tar.zst'), 'wb').write(self.archive)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmptv0sc8e7/manifest.json' mode='w' encoding='UTF-8'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmptv0sc8e7/manifest.json'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:72: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmptv0sc8e7/prov.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-host-archive-provenance/r1', 'manifestSha256': self.msha, 'size': len(self.archive), 'sha256': sha(self.archive)}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmptv0sc8e7/b3sum' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmptv0sc8e7/base-ok' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmptv0sc8e7/base-ok'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:89: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmptv0sc8e7/b3sum'>
+  '--b3sum-sha256', sha(open(self.b3, 'rb').read()), '--kat-expect', sha(b'')],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:200: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmptv0sc8e7/holder/retention-complete' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.holder, 'retention-complete'), 'w').write('{}')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:202: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmptv0sc8e7/holder/data/db/x' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.data, 'db', 'x'), 'w').write('x'); self.assertEqual(self.run_('guard').returncode, 2); os.unlink(os.path.join(self.data, 'db', 'x'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:203: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmptv0sc8e7/holder/state-installed.json' mode='r' encoding='UTF-8'>
+  rp = os.path.join(self.holder, 'state-installed.json'); rec = json.load(open(rp)); rec['manifestSha256'] = '00' * 32; json.dump(rec, open(rp, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:203: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmptv0sc8e7/holder/state-installed.json' mode='w' encoding='UTF-8'>
+  rp = os.path.join(self.holder, 'state-installed.json'); rec = json.load(open(rp)); rec['manifestSha256'] = '00' * 32; json.dump(rec, open(rp, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_import_verify_identity_and_refusals (test_guest_state.Import.test_import_verify_identity_and_refusals) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:61: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmps7aqa7lo/holder/data/reth.toml' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.data, 'reth.toml'), 'w').write('# kept\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:66: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmps7aqa7lo/work/state.tar.zst'>
+  self.archive = buf.getvalue(); open(os.path.join(self.work, 'state.tar.zst'), 'wb').write(self.archive)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmps7aqa7lo/manifest.json' mode='w' encoding='UTF-8'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmps7aqa7lo/manifest.json'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:72: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmps7aqa7lo/prov.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-host-archive-provenance/r1', 'manifestSha256': self.msha, 'size': len(self.archive), 'sha256': sha(self.archive)}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmps7aqa7lo/b3sum' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmps7aqa7lo/base-ok' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmps7aqa7lo/base-ok'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:89: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmps7aqa7lo/b3sum'>
+  '--b3sum-sha256', sha(open(self.b3, 'rb').read()), '--kat-expect', sha(b'')],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:105: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmps7aqa7lo/work/state.tar.zst'>
+  self.assertEqual(open(os.path.join(self.work, 'state.tar.zst'), 'rb').read(), self.archive)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:106: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmps7aqa7lo/prov.json' mode='r' encoding='UTF-8'>
+  json.dump({**json.load(open(self.prov)), 'sha256': '00' * 32}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:106: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmps7aqa7lo/prov.json' mode='w' encoding='UTF-8'>
+  json.dump({**json.load(open(self.prov)), 'sha256': '00' * 32}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:108: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmps7aqa7lo/prov.json' mode='r' encoding='UTF-8'>
+  json.dump({**json.load(open(self.prov)), 'format': 'x'}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:108: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmps7aqa7lo/prov.json' mode='w' encoding='UTF-8'>
+  json.dump({**json.load(open(self.prov)), 'format': 'x'}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:110: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmps7aqa7lo/work/state.tar.zst'>
+  open(os.path.join(self.work, 'state.tar.zst'), 'ab').write(b'+')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_crash_between_renames_resumes_exactly (test_guest_state.Install.test_crash_between_renames_resumes_exactly) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:61: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpbu24f1pe/holder/data/reth.toml' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.data, 'reth.toml'), 'w').write('# kept\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:66: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpbu24f1pe/work/state.tar.zst'>
+  self.archive = buf.getvalue(); open(os.path.join(self.work, 'state.tar.zst'), 'wb').write(self.archive)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpbu24f1pe/manifest.json' mode='w' encoding='UTF-8'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpbu24f1pe/manifest.json'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:72: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpbu24f1pe/prov.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-host-archive-provenance/r1', 'manifestSha256': self.msha, 'size': len(self.archive), 'sha256': sha(self.archive)}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpbu24f1pe/b3sum' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:61: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9a_724tx/holder/data/reth.toml' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.data, 'reth.toml'), 'w').write('# kept\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:66: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9a_724tx/work/state.tar.zst'>
+  self.archive = buf.getvalue(); open(os.path.join(self.work, 'state.tar.zst'), 'wb').write(self.archive)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9a_724tx/manifest.json' mode='w' encoding='UTF-8'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9a_724tx/manifest.json'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:72: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9a_724tx/prov.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-host-archive-provenance/r1', 'manifestSha256': self.msha, 'size': len(self.archive), 'sha256': sha(self.archive)}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9a_724tx/b3sum' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9a_724tx/base-ok' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9a_724tx/base-ok'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:89: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9a_724tx/b3sum'>
+  '--b3sum-sha256', sha(open(self.b3, 'rb').read()), '--kat-expect', sha(b'')],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:187: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9a_724tx/holder/data/db/database.version'>
+  self.assertEqual(open(os.path.join(self.data, p), 'rb').read(), b, n)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:187: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9a_724tx/holder/data/db/lock'>
+  self.assertEqual(open(os.path.join(self.data, p), 'rb').read(), b, n)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:187: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9a_724tx/holder/data/db/mdbx.dat'>
+  self.assertEqual(open(os.path.join(self.data, p), 'rb').read(), b, n)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:187: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp9a_724tx/holder/data/db/mdbx.lck'>
+  self.assertEqual(open(os.path.join(self.data, p), 'rb').read(), b, n)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:61: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpgcmd8x0x/holder/data/reth.toml' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.data, 'reth.toml'), 'w').write('# kept\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:66: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpgcmd8x0x/work/state.tar.zst'>
+  self.archive = buf.getvalue(); open(os.path.join(self.work, 'state.tar.zst'), 'wb').write(self.archive)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpgcmd8x0x/manifest.json' mode='w' encoding='UTF-8'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpgcmd8x0x/manifest.json'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:72: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpgcmd8x0x/prov.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-host-archive-provenance/r1', 'manifestSha256': self.msha, 'size': len(self.archive), 'sha256': sha(self.archive)}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpgcmd8x0x/b3sum' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpgcmd8x0x/base-ok' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpgcmd8x0x/base-ok'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:89: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpgcmd8x0x/b3sum'>
+  '--b3sum-sha256', sha(open(self.b3, 'rb').read()), '--kat-expect', sha(b'')],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:187: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpgcmd8x0x/holder/data/db/database.version'>
+  self.assertEqual(open(os.path.join(self.data, p), 'rb').read(), b, n)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:187: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpgcmd8x0x/holder/data/db/lock'>
+  self.assertEqual(open(os.path.join(self.data, p), 'rb').read(), b, n)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:187: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpgcmd8x0x/holder/data/db/mdbx.dat'>
+  self.assertEqual(open(os.path.join(self.data, p), 'rb').read(), b, n)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:187: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpgcmd8x0x/holder/data/db/mdbx.lck'>
+  self.assertEqual(open(os.path.join(self.data, p), 'rb').read(), b, n)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:61: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpx2205x70/holder/data/reth.toml' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.data, 'reth.toml'), 'w').write('# kept\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:66: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpx2205x70/work/state.tar.zst'>
+  self.archive = buf.getvalue(); open(os.path.join(self.work, 'state.tar.zst'), 'wb').write(self.archive)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpx2205x70/manifest.json' mode='w' encoding='UTF-8'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpx2205x70/manifest.json'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:72: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpx2205x70/prov.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-host-archive-provenance/r1', 'manifestSha256': self.msha, 'size': len(self.archive), 'sha256': sha(self.archive)}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpx2205x70/b3sum' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpx2205x70/base-ok' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpx2205x70/base-ok'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:89: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpx2205x70/b3sum'>
+  '--b3sum-sha256', sha(open(self.b3, 'rb').read()), '--kat-expect', sha(b'')],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:187: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpx2205x70/holder/data/db/database.version'>
+  self.assertEqual(open(os.path.join(self.data, p), 'rb').read(), b, n)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:187: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpx2205x70/holder/data/db/lock'>
+  self.assertEqual(open(os.path.join(self.data, p), 'rb').read(), b, n)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:187: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpx2205x70/holder/data/db/mdbx.dat'>
+  self.assertEqual(open(os.path.join(self.data, p), 'rb').read(), b, n)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:187: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpx2205x70/holder/data/db/mdbx.lck'>
+  self.assertEqual(open(os.path.join(self.data, p), 'rb').read(), b, n)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_install_verifies_then_renames_records_and_keeps_the_archive (test_guest_state.Install.test_install_verifies_then_renames_records_and_keeps_the_archive) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:61: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpn8zd88yt/holder/data/reth.toml' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.data, 'reth.toml'), 'w').write('# kept\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:66: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpn8zd88yt/work/state.tar.zst'>
+  self.archive = buf.getvalue(); open(os.path.join(self.work, 'state.tar.zst'), 'wb').write(self.archive)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpn8zd88yt/manifest.json' mode='w' encoding='UTF-8'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpn8zd88yt/manifest.json'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:72: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpn8zd88yt/prov.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-host-archive-provenance/r1', 'manifestSha256': self.msha, 'size': len(self.archive), 'sha256': sha(self.archive)}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpn8zd88yt/b3sum' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpn8zd88yt/base-ok' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpn8zd88yt/base-ok'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:89: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpn8zd88yt/b3sum'>
+  '--b3sum-sha256', sha(open(self.b3, 'rb').read()), '--kat-expect', sha(b'')],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:149: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpn8zd88yt/holder/data/db/database.version'>
+  self.assertEqual(open(os.path.join(self.data, p), 'rb').read(), b)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:149: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpn8zd88yt/holder/data/db/lock'>
+  self.assertEqual(open(os.path.join(self.data, p), 'rb').read(), b)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:149: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpn8zd88yt/holder/data/db/mdbx.dat'>
+  self.assertEqual(open(os.path.join(self.data, p), 'rb').read(), b)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:149: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpn8zd88yt/holder/data/db/mdbx.lck'>
+  self.assertEqual(open(os.path.join(self.data, p), 'rb').read(), b)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:150: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpn8zd88yt/holder/state-installed.json' mode='r' encoding='UTF-8'>
+  rec = json.load(open(os.path.join(self.holder, 'state-installed.json')))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:152: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpn8zd88yt/work/state.tar.zst'>
+  self.assertEqual(open(os.path.join(self.work, 'state.tar.zst'), 'rb').read(), self.archive)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:153: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpn8zd88yt/holder/data/reth.toml' mode='r' encoding='UTF-8'>
+  self.assertEqual(open(os.path.join(self.data, 'reth.toml')).read(), '# kept\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_staged_change_after_extract_and_tool_pins_refuse (test_guest_state.Install.test_staged_change_after_extract_and_tool_pins_refuse) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:61: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1eaf0zsm/holder/data/reth.toml' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.data, 'reth.toml'), 'w').write('# kept\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:66: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1eaf0zsm/work/state.tar.zst'>
+  self.archive = buf.getvalue(); open(os.path.join(self.work, 'state.tar.zst'), 'wb').write(self.archive)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1eaf0zsm/manifest.json' mode='w' encoding='UTF-8'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1eaf0zsm/manifest.json'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:72: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1eaf0zsm/prov.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-host-archive-provenance/r1', 'manifestSha256': self.msha, 'size': len(self.archive), 'sha256': sha(self.archive)}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1eaf0zsm/b3sum' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1eaf0zsm/base-ok' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1eaf0zsm/base-ok'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:89: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmp1eaf0zsm/b3sum'>
+  '--b3sum-sha256', sha(open(self.b3, 'rb').read()), '--kat-expect', sha(b'')],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:61: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpp4xqjk45/holder/data/reth.toml' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.data, 'reth.toml'), 'w').write('# kept\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:66: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpp4xqjk45/work/state.tar.zst'>
+  self.archive = buf.getvalue(); open(os.path.join(self.work, 'state.tar.zst'), 'wb').write(self.archive)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpp4xqjk45/manifest.json' mode='w' encoding='UTF-8'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpp4xqjk45/manifest.json'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:72: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpp4xqjk45/prov.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-host-archive-provenance/r1', 'manifestSha256': self.msha, 'size': len(self.archive), 'sha256': sha(self.archive)}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpp4xqjk45/b3sum' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpp4xqjk45/base-ok' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpp4xqjk45/base-ok'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:89: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpp4xqjk45/b3sum'>
+  '--b3sum-sha256', sha(open(self.b3, 'rb').read()), '--kat-expect', sha(b'')],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:174: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpp4xqjk45/b3sum'>
+  '--datadir', self.data, '--holder-root', self.holder, '--b3sum', self.b3, '--b3sum-sha256', sha(open(self.b3, 'rb').read())], capture_output=True, text=True)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_wrong_digest_db_not_empty_or_missing_installs_nothing (test_guest_state.Install.test_wrong_digest_db_not_empty_or_missing_installs_nothing) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:61: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpmacgc3o4/holder/data/reth.toml' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.data, 'reth.toml'), 'w').write('# kept\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:66: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpmacgc3o4/work/state.tar.zst'>
+  self.archive = buf.getvalue(); open(os.path.join(self.work, 'state.tar.zst'), 'wb').write(self.archive)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpmacgc3o4/manifest.json' mode='w' encoding='UTF-8'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpmacgc3o4/manifest.json'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:72: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpmacgc3o4/prov.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-host-archive-provenance/r1', 'manifestSha256': self.msha, 'size': len(self.archive), 'sha256': sha(self.archive)}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpmacgc3o4/b3sum' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpmacgc3o4/base-ok' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpmacgc3o4/base-ok'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:89: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpmacgc3o4/b3sum'>
+  '--b3sum-sha256', sha(open(self.b3, 'rb').read()), '--kat-expect', sha(b'')],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpmacgc3o4/base-wrongdigest' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpmacgc3o4/base-wrongdigest'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:61: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpt1qmvgws/holder/data/reth.toml' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.data, 'reth.toml'), 'w').write('# kept\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:66: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpt1qmvgws/work/state.tar.zst'>
+  self.archive = buf.getvalue(); open(os.path.join(self.work, 'state.tar.zst'), 'wb').write(self.archive)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpt1qmvgws/manifest.json' mode='w' encoding='UTF-8'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:70: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpt1qmvgws/manifest.json'>
+  open(self.man, 'w').write(json.dumps(m)); self.msha = sha(open(self.man, 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:72: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpt1qmvgws/prov.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-host-archive-provenance/r1', 'manifestSha256': self.msha, 'size': len(self.archive), 'sha256': sha(self.archive)}, open(self.prov, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpt1qmvgws/b3sum' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:79: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpt1qmvgws/base-ok' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.t.name, name); open(p, 'w').write(text); os.chmod(p, 0o755); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:87: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpt1qmvgws/base-ok'>
+  'extract-stage': ['--work-dir', self.work, '--base-bin', base or self.stub(), '--base-bin-sha256', sha(open(base or self.stub(), 'rb').read())],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:89: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpt1qmvgws/b3sum'>
+  '--b3sum-sha256', sha(open(self.b3, 'rb').read()), '--kat-expect', sha(b'')],
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:160: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/runs/20261026T164019Z-2035195/tmp/tmpt1qmvgws/holder/data/db/old' mode='w' encoding='UTF-8'>
+  open(os.path.join(self.data, 'db', 'old'), 'w').write('x')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_extract_is_confined_and_install_never_extracts (test_guest_state.Units.test_extract_is_confined_and_install_never_extracts) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:210: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/units/enclave-base-state-extract-gsi.service' mode='r' encoding='UTF-8'>
+  for l in open(path).read().splitlines():
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:210: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/units/enclave-base-state-install-gsi.service' mode='r' encoding='UTF-8'>
+  for l in open(path).read().splitlines():
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_guard_drop_in_runs_after_the_units_pre_and_before_reth (test_guest_state.Units.test_guard_drop_in_runs_after_the_units_pre_and_before_reth) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:230: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/../../base-retention-stage/activation-r2/enclave-base-retention.service' mode='r' encoding='UTF-8'>
+  unit = open(R2_UNIT).read().splitlines()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/test/test_guest_state.py:231: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r1/units/enclave-base-retention.service.d/60-state-install-guard.conf' mode='r' encoding='UTF-8'>
+  drop = open(os.path.join(STAGE, 'units', 'enclave-base-retention.service.d', '60-state-install-guard.conf')).read().splitlines()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 6.727s
+
+OK

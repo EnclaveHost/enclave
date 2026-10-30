@@ -1,0 +1,214 @@
+[queue] START available=93326MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+{
+  "relay/fee-policy.mjs": "32bcf03ea52db9be70d86e957dd440c1697daf0eaeab79f732378002d4f2bcfd",
+  "relay/funding-abi.mjs": "6bb37e658aca45fd416d5ea17dda3109e1b41791e674976a60425d579f485cd7",
+  "relay/funding-activation.mjs": "7554454dbe091f4bcc7ef8e15ac5dd8082c8be6d94256f52b1c8fadcfc198645",
+  "relay/funding-route.mjs": "1989f3ebf88833ac492e4f121ff33d564b1798eae1e5239b1aae444b63b572cd",
+  "relay/sessions.mjs": "483b1c5ef29d83c937a5fd5b15ea3b2e940025d76706a1c5a63867f33c55c4e3"
+}
+TAP version 13
+# [sessions] funding activation: owner controls off (SESSIONS_FUNDING_OWNER_CONTROLS is not set); intake off (SESSIONS_FUNDING_INTAKE is not set)
+# [sessions] funding: intake off (funding is not configured on this relay (no activation manifest)); owner controls off (successor owner controls are not configured on this relay (no owner-controls manifest))
+# Subtest: default OFF: no flag enables nothing (an intake manifest alone stays inert); every /funding/* is 503; original routes answer
+ok 1 - default OFF: no flag enables nothing (an intake manifest alone stays inert); every /funding/* is 503; original routes answer
+  ---
+  duration_ms: 7.873255
+  type: 'test'
+  ...
+# Subtest: owner controls ON, intake OFF (the rollback state): withdraw, revokeAll, terminate, sign-out and views work; intake stays 503
+ok 2 - owner controls ON, intake OFF (the rollback state): withdraw, revokeAll, terminate, sign-out and views work; intake stays 503
+  ---
+  duration_ms: 35.216291
+  type: 'test'
+  ...
+# Subtest: intake ON via the loader: the actual v2 fee policy prices /funding/quote over the host's request; accept is bound to that quote
+ok 3 - intake ON via the loader: the actual v2 fee policy prices /funding/quote over the host's request; accept is bound to that quote
+  ---
+  duration_ms: 24.216429
+  type: 'test'
+  ...
+# Subtest: rollback by restart: intake ON then OFF over the SAME store, journal and queue nonce keeps successor owner controls
+ok 4 - rollback by restart: intake ON then OFF over the SAME store, journal and queue nonce keeps successor owner controls
+  ---
+  duration_ms: 20.320106
+  type: 'test'
+  ...
+# Subtest: expired intake manifest: intake answers manifest_stale; owner terminate is still sent
+ok 5 - expired intake manifest: intake answers manifest_stale; owner terminate is still sent
+  ---
+  duration_ms: 5.913458
+  type: 'test'
+  ...
+# Subtest: expired fee-policy config: the actual policy refuses config_expired; owner terminate is still sent
+ok 6 - expired fee-policy config: the actual policy refuses config_expired; owner terminate is still sent
+  ---
+  duration_ms: 12.162594
+  type: 'test'
+  ...
+# Subtest: malformed or mismatched new config never throws, never enables intake, and never removes owner controls or original routes
+ok 7 - malformed or mismatched new config never throws, never enables intake, and never removes owner controls or original routes
+  ---
+  duration_ms: 11.486808
+  type: 'test'
+  ...
+# Subtest: owner pins are re-proven per request: provisional addresses without code, or other code, send nothing; the route refuses mismatched intake
+ok 8 - owner pins are re-proven per request: provisional addresses without code, or other code, send nothing; the route refuses mismatched intake
+  ---
+  duration_ms: 3.137708
+  type: 'test'
+  ...
+# Subtest: bounded config reader: only a regular, small, UTF-8 JSON object at a real absolute path is read
+ok 9 - bounded config reader: only a regular, small, UTF-8 JSON object at a real absolute path is read
+  ---
+  duration_ms: 1.47291
+  type: 'test'
+  ...
+# [sessions] init: HTTP request failed.
+# URL: http://127.0.0.1:9/
+# Request body: {"method":"eth_getBalance","params":["0x474Cf92dD22f762d89d3Fd1012DA5E53d32Bc7A0","latest"]}
+# Details: fetch failed
+# Version: viem@2.53.1 (serving anyway; requests will say why)
+# [sessions] funding activation: owner controls on; intake refused (config_json: SESSIONS_FUNDING_FEE_POLICY is not JSON (Expected property name or '}' in JSON at position 2 (line 1 column 3)))
+# [sessions] funding: intake off (funding is not configured on this relay (no activation manifest)); owner controls on (successor factory 0x000000000000000000000000000000000000F001)
+# [sessions] init: HTTP request failed.
+# URL: http://127.0.0.1:9/
+# Request body: {"method":"eth_getBalance","params":["0x474Cf92dD22f762d89d3Fd1012DA5E53d32Bc7A0","latest"]}
+# Details: fetch failed
+# Version: viem@2.53.1 (serving anyway; requests will say why)
+# [sessions] funding activation: owner controls off (SESSIONS_FUNDING_OWNER_CONTROLS is not set); intake off (SESSIONS_FUNDING_INTAKE is not set)
+# [sessions] funding: intake off (funding is not configured on this relay (no activation manifest)); owner controls off (successor owner controls are not configured on this relay (no owner-controls manifest))
+# Subtest: actual initSessions: flags unset wire nothing new; a malformed fee config keeps owner controls and the original routes
+ok 10 - actual initSessions: flags unset wire nothing new; a malformed fee config keeps owner controls and the original routes
+  ---
+  duration_ms: 11771.204139
+  type: 'test'
+  ...
+# [sessions] init: HTTP request failed.
+# URL: http://127.0.0.1:9/
+# Request body: {"method":"eth_getBalance","params":["0x69f58195b180242167c2c0d7984cB3F0a4Ca3b8A","latest"]}
+# Details: fetch failed
+# Version: viem@2.53.1 (serving anyway; requests will say why)
+# Subtest: root: actual initializer leaves manifest files unread while funding flags are off
+ok 11 - root: actual initializer leaves manifest files unread while funding flags are off
+  ---
+  duration_ms: 5866.068688
+  type: 'test'
+  ...
+# Subtest: default: the flag is off unless exactly "1"; any unrecognised value fails closed (ON); off, the gate is a no-op
+ok 12 - default: the flag is off unless exactly "1"; any unrecognised value fails closed (ON); off, the gate is a no-op
+  ---
+  duration_ms: 1.3494
+  type: 'test'
+  ...
+# Subtest: default wiring: every legacy write entry and the keeper reach the ONE TxQueue's send (where the quarantine gate sits)
+ok 13 - default wiring: every legacy write entry and the keeper reach the ONE TxQueue's send (where the quarantine gate sits)
+  ---
+  duration_ms: 6.646503
+  type: 'test'
+  ...
+# Subtest: default surface unchanged: /quarantine is still 404, /quote still answers, a real TxQueue still estimates, signs and journals
+ok 14 - default surface unchanged: /quarantine is still 404, /quote still answers, a real TxQueue still estimates, signs and journals
+  ---
+  duration_ms: 1.184242
+  type: 'test'
+  ...
+# Subtest: static: the gate is the FIRST statement of route, simulateAndSend, keeperOnce, TxQueue.send and TxQueue._send, and precedes the alternate attestor queue
+ok 15 - static: the gate is the FIRST statement of route, simulateAndSend, keeperOnce, TxQueue.send and TxQueue._send, and precedes the alternate attestor queue
+  ---
+  duration_ms: 2.153325
+  type: 'test'
+  ...
+# Subtest: static: the four other modules are byte copies, and none of them can send except through the host's simulateAndSend
+ok 16 - static: the four other modules are byte copies, and none of them can send except through the host's simulateAndSend
+  ---
+  duration_ms: 1.767877
+  type: 'test'
+  ...
+# [sessions] funding activation: owner controls off (SESSIONS_FUNDING_OWNER_CONTROLS is not set); intake off (SESSIONS_FUNDING_INTAKE is not set)
+# [sessions] WRITE QUARANTINE on: this process sends no session transaction and never writes the relayer journal; restart without it only after review
+# [sessions] funding: intake off (funding is not configured on this relay (no activation manifest)); owner controls off (successor owner controls are not configured on this relay (no owner-controls manifest))
+# Subtest: quarantine: the flag was read once at load, is frozen, and cannot be lifted by env changes or assignment
+ok 17 - quarantine: the flag was read once at load, is frozen, and cannot be lifted by env changes or assignment
+  ---
+  duration_ms: 3.311986
+  type: 'test'
+  ...
+# Subtest: quarantine: EVERY write route (legacy, successor, attestor, quote, unknown, any non-GET method) is 503 before any RPC or state change
+ok 18 - quarantine: EVERY write route (legacy, successor, attestor, quote, unknown, any non-GET method) is 503 before any RPC or state change
+  ---
+  duration_ms: 2.534582
+  type: 'test'
+  ...
+# Subtest: quarantine: the keeper admits nothing (no read, no mark, no send)
+ok 19 - quarantine: the keeper admits nothing (no read, no mark, no send)
+  ---
+  duration_ms: 0.361878
+  type: 'test'
+  ...
+# Subtest: quarantine: with an unresolved journal record and a reserved intent (pending preflight), every queue entry refuses before nonce, estimate or reconcile
+ok 20 - quarantine: with an unresolved journal record and a reserved intent (pending preflight), every queue entry refuses before nonce, estimate or reconcile
+  ---
+  duration_ms: 0.766195
+  type: 'test'
+  ...
+# Subtest: quarantine: the queue's wallet client and the relayer account keep their data; every method refuses; neither can be swapped back
+ok 21 - quarantine: the queue's wallet client and the relayer account keep their data; every method refuses; neither can be swapped back
+  ---
+  duration_ms: 0.752775
+  type: 'test'
+  ...
+# Subtest: quarantine: the relayer journal is sealed: flush / saveSoon (the store timer's and exit hook's path) never rewrite the file
+ok 22 - quarantine: the relayer journal is sealed: flush / saveSoon (the store timer's and exit hook's path) never rewrite the file
+  ---
+  duration_ms: 0.997783
+  type: 'test'
+  ...
+# Subtest: quarantine with successor owner controls ON: owner writes are 503 maintenance (no revocation, no intent, no send); owner views still answer
+ok 23 - quarantine with successor owner controls ON: owner writes are 503 maintenance (no revocation, no intent, no send); owner views still answer
+  ---
+  duration_ms: 14.935994
+  type: 'test'
+  ...
+# [sessions] init: HTTP request failed.
+# URL: http://127.0.0.1:9/
+# Request body: {"method":"eth_getBalance","params":["0x8DeCf13f647C6B3B978aDb1c5BC9cf259ddF561c","latest"]}
+# Details: fetch failed
+# Version: viem@2.53.1 (serving anyway; requests will say why)
+# Subtest: quarantine via the ACTUAL initSessions: writes refused, real viem wallet and account disarmed, journal store sealed, status leaks no key
+ok 24 - quarantine via the ACTUAL initSessions: writes refused, real viem wallet and account disarmed, journal store sealed, status leaks no key
+  ---
+  duration_ms: 5903.153205
+  type: 'test'
+  ...
+# Subtest: actual old JsonStore SIGTERM persists a memory-only sending record even when dirty=false
+ok 25 - actual old JsonStore SIGTERM persists a memory-only sending record even when dirty=false
+  ---
+  duration_ms: 28.975124
+  type: 'test'
+  ...
+# Subtest: actual JsonStore clean exit alone does not prove checkpoint success: flush failure is swallowed
+ok 26 - actual JsonStore clean exit alone does not prove checkpoint success: flush failure is swallowed
+  ---
+  duration_ms: 26.593371
+  type: 'test'
+  ...
+# Subtest: quarantined successor preserves the actual JsonStore journal on SIGTERM
+ok 27 - quarantined successor preserves the actual JsonStore journal on SIGTERM
+  ---
+  duration_ms: 212.083546
+  type: 'test'
+  ...
+1..27
+# tests 27
+# suites 0
+# pass 27
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 24710.968037
+[memory-guard] exit=0 peakTreeRssMiB=211 minHostAvailableMiB=93203
+[memory-guard] at peak: node:82 node:62 node:54 python3:13
+[memory-guard] exit=0 peakTreeRssMiB=268 minHostAvailableMiB=93205
+[memory-guard] at peak: node:79 node:62 node:60 node:54 python3:13
+[queue] EXIT 0

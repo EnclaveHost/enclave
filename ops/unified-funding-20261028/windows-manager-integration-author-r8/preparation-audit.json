@@ -1,0 +1,20 @@
+{
+  "status": "PREPARATION_HASH_FILE_AND_HELPER_AST_INSPECTION_ONLY",
+  "preparedSha256": "9f353e48c43599d699afe52a17809b886e7f4234d71048e345bea2bf6d566484",
+  "seedFiles": 169,
+  "candidateExactSeed": true,
+  "preAuthorProductChanges": 0,
+  "readonlyPins": 3340,
+  "inputDrift": [],
+  "authorLaunched": false,
+  "candidateExecuted": false,
+  "testsOrBuildsRun": false,
+  "helperASTParsedNotExecuted": [
+    "run.py",
+    "collect-terminal.py",
+    "readonly-progress.py"
+  ],
+  "collector": "Unchanged reviewed r7 collector, exact pinned executable/cwd terminal scan (not comm=claude).",
+  "preparationCorrection": "Initial metadata preparation stopped on literal-brace formatting KeyError before TASK/runner/launch/pins existed. First resume encountered readonly copied evidence; final resume verifies existing evidence instead of copying over it. Exact untouched169 seed and allowed metadata-only tree verified; no candidate execution or author launch.",
+  "note": "File/hash/AST inspection only; coordinator owns launch. No future mutable root docs pinned."
+}

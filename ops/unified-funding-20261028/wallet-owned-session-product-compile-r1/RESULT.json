@@ -1,0 +1,449 @@
+{
+  "status": "COMPILE_AND_SIZE_PASS_UNTESTED",
+  "argv": [
+    "/home/steven/.local/share/svm/0.8.35/solc-0.8.35",
+    "--standard-json"
+  ],
+  "compilerSha256": "fa8ac9a32d301ad023a36ee5a29f8e291fe3200c60244e43c142539e82a617f4",
+  "inputSha256": "0327ef763b69e3748cff02a16f0be44273232b389cc5289ffc24e66cfa6f3a0c",
+  "sourceFiles": 3,
+  "settings": {
+    "optimizer": {
+      "enabled": true,
+      "runs": 1
+    },
+    "viaIR": true,
+    "evmVersion": "osaka",
+    "metadata": {
+      "bytecodeHash": "ipfs"
+    },
+    "outputSelection": {
+      "contracts/WalletSessionVault.sol": {
+        "WalletSessionVault": [
+          "abi",
+          "metadata",
+          "evm.bytecode.object",
+          "evm.bytecode.linkReferences",
+          "evm.deployedBytecode.object",
+          "evm.deployedBytecode.linkReferences",
+          "evm.deployedBytecode.immutableReferences"
+        ],
+        "WalletSessionVaultFactory": [
+          "abi",
+          "metadata",
+          "evm.bytecode.object",
+          "evm.bytecode.linkReferences",
+          "evm.deployedBytecode.object",
+          "evm.deployedBytecode.linkReferences",
+          "evm.deployedBytecode.immutableReferences"
+        ]
+      },
+      "contracts/SessionVault.sol": {
+        "SessionVaultLib": [
+          "abi",
+          "metadata",
+          "evm.bytecode.object",
+          "evm.bytecode.linkReferences",
+          "evm.deployedBytecode.object",
+          "evm.deployedBytecode.linkReferences",
+          "evm.deployedBytecode.immutableReferences"
+        ]
+      },
+      "contracts/WalletSessionPolicy.sol": {
+        "WalletSessionPolicy": [
+          "abi"
+        ]
+      }
+    }
+  },
+  "executedTests": false,
+  "networkIsolated": true,
+  "sizeLimitsPass": true,
+  "compilerPid": 2225544,
+  "compilerExitCode": 0,
+  "diagnostics": [
+    {
+      "component": "general",
+      "errorCode": "6335",
+      "formattedMessage": "Warning: \"at\" will be promoted to keyword in the future and will not be allowed as an identifier anymore.\n   --> contracts/SessionVault.sol:351:41:\n    |\n351 |     function parseHex32(bytes memory b, uint256 at) public pure returns (bytes32 v, bool ok) {\n    |                                         ^^^^^^^^^^\n\n",
+      "message": "\"at\" will be promoted to keyword in the future and will not be allowed as an identifier anymore.",
+      "severity": "warning",
+      "sourceLocation": {
+        "end": 19206,
+        "file": "contracts/SessionVault.sol",
+        "start": 19196
+      },
+      "type": "Warning"
+    },
+    {
+      "component": "general",
+      "errorCode": "2519",
+      "formattedMessage": "Warning: This declaration shadows an existing declaration.\n   --> contracts/WalletSessionVault.sol:202:9:\n    |\n202 |         ISVLedger _ledger)\n    |         ^^^^^^^^^^^^^^^^^\nNote: The shadowed declaration is here:\n   --> contracts/WalletSessionVault.sol:720:5:\n    |\n720 |     function _ledger() private view returns (ISVLedger) {\n    |     ^ (Relevant source part starts here and spans across multiple lines).\n\n",
+      "message": "This declaration shadows an existing declaration.",
+      "secondarySourceLocations": [
+        {
+          "end": 34788,
+          "file": "contracts/WalletSessionVault.sol",
+          "message": "The shadowed declaration is here:",
+          "start": 34624
+        }
+      ],
+      "severity": "warning",
+      "sourceLocation": {
+        "end": 9935,
+        "file": "contracts/WalletSessionVault.sol",
+        "start": 9918
+      },
+      "type": "Warning"
+    },
+    {
+      "component": "general",
+      "errorCode": "9170",
+      "formattedMessage": "Warning: Comparison of variables of contract type is deprecated and scheduled for removal. Use an explicit cast to address type and compare the addresses instead.\n   --> contracts/WalletSessionVault.sol:665:13:\n    |\n665 |         if (_ledger() != L) revert LedgerMoved();\n    |             ^^^^^^^^^^^^^^\n\n",
+      "message": "Comparison of variables of contract type is deprecated and scheduled for removal. Use an explicit cast to address type and compare the addresses instead.",
+      "severity": "warning",
+      "sourceLocation": {
+        "end": 32044,
+        "file": "contracts/WalletSessionVault.sol",
+        "start": 32030
+      },
+      "type": "Warning"
+    }
+  ],
+  "sizes": {
+    "WalletSessionVault": {
+      "runtimeBytes": 22039,
+      "creationBytes": 22509,
+      "constructorBytes": 192,
+      "runtimeLinks": {
+        "contracts/SessionVault.sol": {
+          "SessionVaultLib": [
+            {
+              "length": 20,
+              "start": 2607
+            },
+            {
+              "length": 20,
+              "start": 10663
+            },
+            {
+              "length": 20,
+              "start": 13629
+            },
+            {
+              "length": 20,
+              "start": 13947
+            },
+            {
+              "length": 20,
+              "start": 14352
+            },
+            {
+              "length": 20,
+              "start": 14574
+            },
+            {
+              "length": 20,
+              "start": 15170
+            },
+            {
+              "length": 20,
+              "start": 18007
+            },
+            {
+              "length": 20,
+              "start": 18209
+            },
+            {
+              "length": 20,
+              "start": 18423
+            },
+            {
+              "length": 20,
+              "start": 20765
+            }
+          ]
+        }
+      },
+      "creationLinks": {
+        "contracts/SessionVault.sol": {
+          "SessionVaultLib": [
+            {
+              "length": 20,
+              "start": 3077
+            },
+            {
+              "length": 20,
+              "start": 11133
+            },
+            {
+              "length": 20,
+              "start": 14099
+            },
+            {
+              "length": 20,
+              "start": 14417
+            },
+            {
+              "length": 20,
+              "start": 14822
+            },
+            {
+              "length": 20,
+              "start": 15044
+            },
+            {
+              "length": 20,
+              "start": 15640
+            },
+            {
+              "length": 20,
+              "start": 18477
+            },
+            {
+              "length": 20,
+              "start": 18679
+            },
+            {
+              "length": 20,
+              "start": 18893
+            },
+            {
+              "length": 20,
+              "start": 21235
+            }
+          ]
+        }
+      },
+      "immutableReferences": {
+        "6522": [
+          {
+            "length": 32,
+            "start": 2103
+          },
+          {
+            "length": 32,
+            "start": 4155
+          },
+          {
+            "length": 32,
+            "start": 6579
+          },
+          {
+            "length": 32,
+            "start": 6996
+          },
+          {
+            "length": 32,
+            "start": 11035
+          },
+          {
+            "length": 32,
+            "start": 11658
+          },
+          {
+            "length": 32,
+            "start": 11884
+          },
+          {
+            "length": 32,
+            "start": 16579
+          },
+          {
+            "length": 32,
+            "start": 21001
+          }
+        ],
+        "6525": [
+          {
+            "length": 32,
+            "start": 8912
+          },
+          {
+            "length": 32,
+            "start": 10619
+          },
+          {
+            "length": 32,
+            "start": 13698
+          },
+          {
+            "length": 32,
+            "start": 13989
+          },
+          {
+            "length": 32,
+            "start": 14596
+          },
+          {
+            "length": 32,
+            "start": 15346
+          },
+          {
+            "length": 32,
+            "start": 19890
+          }
+        ],
+        "6528": [
+          {
+            "length": 32,
+            "start": 709
+          },
+          {
+            "length": 32,
+            "start": 16543
+          }
+        ],
+        "6530": [
+          {
+            "length": 32,
+            "start": 1298
+          },
+          {
+            "length": 32,
+            "start": 1454
+          },
+          {
+            "length": 32,
+            "start": 15917
+          }
+        ],
+        "6533": [
+          {
+            "length": 32,
+            "start": 1563
+          },
+          {
+            "length": 32,
+            "start": 12049
+          }
+        ],
+        "6535": [
+          {
+            "length": 32,
+            "start": 1222
+          },
+          {
+            "length": 32,
+            "start": 11717
+          }
+        ],
+        "6538": [
+          {
+            "length": 32,
+            "start": 5844
+          },
+          {
+            "length": 32,
+            "start": 17799
+          },
+          {
+            "length": 32,
+            "start": 19949
+          }
+        ]
+      },
+      "metadataCompiler": {
+        "version": "0.8.35+commit.47b9dedd"
+      }
+    },
+    "WalletSessionVaultFactory": {
+      "runtimeBytes": 2622,
+      "creationBytes": 25649,
+      "constructorBytes": 160,
+      "runtimeLinks": {},
+      "creationLinks": {
+        "contracts/SessionVault.sol": {
+          "SessionVaultLib": [
+            {
+              "length": 20,
+              "start": 6217
+            },
+            {
+              "length": 20,
+              "start": 14273
+            },
+            {
+              "length": 20,
+              "start": 17239
+            },
+            {
+              "length": 20,
+              "start": 17557
+            },
+            {
+              "length": 20,
+              "start": 17962
+            },
+            {
+              "length": 20,
+              "start": 18184
+            },
+            {
+              "length": 20,
+              "start": 18780
+            },
+            {
+              "length": 20,
+              "start": 21617
+            },
+            {
+              "length": 20,
+              "start": 21819
+            },
+            {
+              "length": 20,
+              "start": 22033
+            },
+            {
+              "length": 20,
+              "start": 24375
+            }
+          ]
+        }
+      },
+      "immutableReferences": {
+        "10636": [
+          {
+            "length": 32,
+            "start": 1184
+          },
+          {
+            "length": 32,
+            "start": 2477
+          }
+        ],
+        "10639": [
+          {
+            "length": 32,
+            "start": 1252
+          }
+        ]
+      },
+      "metadataCompiler": {
+        "version": "0.8.35+commit.47b9dedd"
+      }
+    },
+    "SessionVaultLib": {
+      "runtimeBytes": 10681,
+      "creationBytes": 10713,
+      "constructorBytes": 0,
+      "runtimeLinks": {},
+      "creationLinks": {},
+      "immutableReferences": {
+        "library_deploy_address": [
+          {
+            "length": 32,
+            "start": 7
+          }
+        ]
+      },
+      "metadataCompiler": {
+        "version": "0.8.35+commit.47b9dedd"
+      }
+    }
+  },
+  "inputDrift": [],
+  "elapsedSec": 2.416,
+  "outputSha256": "48ab30c07aed0e0f987fa4af41a1276b3559854df5ba67f048819e6902011d8c"
+}

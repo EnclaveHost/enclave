@@ -1,0 +1,50 @@
+{
+ "baseConfigSha256": "3c3c1893ed3ae15248dc8c64693dfceab8b5c556b53d31331b4bfdfe82cd4bcd",
+ "cases": {
+  "B0": {
+   "atLine32": 1,
+   "exit": 1,
+   "findings": 1,
+   "secretIsExpectedLiteral": true,
+   "secretLength": 18,
+   "secretSha256": "6a0bea19ea97f87d8119c990f41a2a6110d9193c09e667ec32bfe0a35c271680"
+  },
+  "G1": {
+   "atFile": 0,
+   "exit": 0,
+   "otherFindings": 0
+  },
+  "G2": {
+   "atLine32": 1,
+   "exit": 1,
+   "otherFindings": 0
+  },
+  "N1": {
+   "atLine32": 1,
+   "exit": 1
+  },
+  "N2": {
+   "atLine32": 1,
+   "exit": 1
+  },
+  "N3": {
+   "atExtraLine": 1,
+   "atLine32": 0,
+   "exit": 1
+  },
+  "P1": {
+   "exit": 0,
+   "findings": 0
+  }
+ },
+ "commit": "42539cfd4e5832049b8498aea74ad291153f927e",
+ "failures": [],
+ "file": "ops/rpc-durability-review-20261026/journal-r1/root-test.sh",
+ "fileSha256": "ca1ef9ead672e67dfb9813a3fbea316e864be87fe3e051c2e58250ae6e362354",
+ "format": "durability-public-scan/v1",
+ "pass": true,
+ "patchedConfigSha256": "32305545ccc996a87e2015ce2416f97ce226ab09ca43e877a2ceb3db904ddf9e",
+ "sourceConfigUnchangedByThisJob": true,
+ "syntheticNotPrinted": true,
+ "workingSourceConfigSha256": "3c3c1893ed3ae15248dc8c64693dfceab8b5c556b53d31331b4bfdfe82cd4bcd"
+}

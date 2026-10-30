@@ -1,0 +1,120 @@
+{
+  "admission": {
+    "unit": "enclave-shared-allocation-owner-r1-20261029-author.service",
+    "ActiveState": "active",
+    "InvocationID": "0eebfaa71fe94669a7cc19ed17d059b6",
+    "MainPID": "1975418",
+    "mainPid": 1975418,
+    "mainPidStartTicks": "161952609",
+    "runnerPid": 1975435,
+    "runnerPidStartTicks": "161952622",
+    "claudePid": 1975483,
+    "claudePidStartTicks": "161952708",
+    "invocationId": "0eebfaa71fe94669a7cc19ed17d059b6",
+    "processes": [
+      {
+        "pid": 1975418,
+        "start": "161952609",
+        "ppid": 1899,
+        "exe": "/usr/bin/python3.14",
+        "cwd": "/home/steven",
+        "affinity": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31
+        ]
+      },
+      {
+        "pid": 1975435,
+        "start": "161952622",
+        "ppid": 1975428,
+        "exe": "/usr/bin/python3.14",
+        "cwd": "/home/steven",
+        "affinity": [
+          1
+        ]
+      },
+      {
+        "pid": 1975483,
+        "start": "161952708",
+        "ppid": 1975435,
+        "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+        "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029",
+        "affinity": [
+          1
+        ]
+      }
+    ],
+    "verifiedAt": 1793314425.080299,
+    "account": {
+      "loggedIn": true,
+      "email": "steven.r.batchelor@gmail.com",
+      "subscriptionType": "max"
+    },
+    "sourceOnly": true,
+    "remoteOrFinancialActions": false
+  },
+  "unit": "ActiveState=inactive\nSubState=dead\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "finished": {
+    "rc": 0,
+    "finishedAt": 1793315540.5628471,
+    "inputDrift": []
+  },
+  "currentInputDrift": [],
+  "session": "a915bf9a-fdc6-4cf2-80dd-49c4ab245db1",
+  "duration_ms": 1126681,
+  "num_turns": 62,
+  "configuredMaxAgenticTurns": 55,
+  "distinctAssistantMessageIds": 29,
+  "transcriptUserRows": 62,
+  "turnMetricNote": "Raw success-result num_turns is a different user-message counter from max-agentic/API-turn limit; retain without conflating. See pinned turn-metric-investigation.json.",
+  "is_error": false,
+  "outputParseFailed": false,
+  "files": 261,
+  "changedFiles": 13,
+  "removedFiles": [],
+  "manifestSha256": "24f8045f5f3737453171a7c3379d65db596c319e6da7b0a8a9f46113b23351c1",
+  "firstMutations": 13,
+  "firstMutationManifestSha256": "9d21f062698b3b3c811b580518b59d42cfdd5562d3b245af0825d89e78549155",
+  "currentInvocationTools": {
+    "Grep": 8,
+    "Read": 22,
+    "Write": 9,
+    "Edit": 22
+  },
+  "unexpectedTools": [],
+  "outsideCandidateMutationAttempts": [],
+  "mutationReplayIssues": [],
+  "mutationAuditSha256": "88d3a9b45ebed9dc5e1f2b7b2d3554d312e884b6f6c8b1caa4d5adefeb8c0199",
+  "innerGuard": "[memory-guard] exit=0 peakTreeRssMiB=294 minHostAvailableMiB=31556\n",
+  "outerGuard": "[memory-guard] exit=0 peakTreeRssMiB=359 minHostAvailableMiB=31556\n"
+}

@@ -1,0 +1,16 @@
+[queue] START available=20174MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+test_baseline_clean (test_taplog.T.test_baseline_clean) ... ok
+test_baseline_refuses_skip_fail_rc (test_taplog.T.test_baseline_refuses_skip_fail_rc) ... ok
+test_genuine_assertion_kill (test_taplog.T.test_genuine_assertion_kill) ... ok
+test_non_assertion_failure_and_fewer_tests_are_not_kills (test_taplog.T.test_non_assertion_failure_and_fewer_tests_are_not_kills) ... ok
+test_survivor_and_unparsable (test_taplog.T.test_survivor_and_unparsable) ... ok
+test_syntax_load_failure_is_not_a_kill (test_taplog.T.test_syntax_load_failure_is_not_a_kill) ... ok
+test_timeout_and_rc124_are_not_kills (test_taplog.T.test_timeout_and_rc124_are_not_kills) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.267s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=17 minHostAvailableMiB=20133
+[memory-guard] at peak: python3:17
+[queue] EXIT 0

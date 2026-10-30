@@ -1,0 +1,100 @@
+[queue] START available=93059MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+{
+  "schema": "migration-cutover-prep-r1-generated/v1",
+  "status": "UNREVIEWED_NOT_APPROVED_NOT_SIGNABLE",
+  "base": "production-grant-terms-r1/candidate/sdk/funding",
+  "inputs": {
+    "browser-entry.mjs": "9820589c2aab82d3ae22f2ba73011970d0754557f12da7871859f3d368bbf879",
+    "chain-proof.mjs": "ca799d8f86db1dd3a7113703cba5fd929e770f02f5c63fa3f5589b05f5e074b3",
+    "funding-client.mjs": "4a17b36549b5eb115863b0d08ac76e6e9dbd966934b93875bbc34fd0ea897fa7",
+    "funding-codec.mjs": "ceed082639299b35073005d2ffb0ce8e5ceee1a3035804f197cdf53a4f6739d7",
+    "gas-execution.mjs": "1ccf75dbd8ac248c9a139ab692f1f144b8f0f16c8e2b0334c4047ceac9b3df5c",
+    "migration.mjs": "4effbfeb6c893bd897991f609a3314a054ab81070b3772e739c0e6cded9a3b8f",
+    "util.mjs": "38b678a68ecf7fd897fb1ae905d27471a17d10f8061fa29d81f5870549e12e66",
+    "v2-store.mjs": "b00d0742ee3d2b211b4cf811c48c8e7004dbf7e8a4cf30517db5ec199181733c"
+  },
+  "outputs": {
+    "candidate/sdk/funding/browser-entry.mjs": "9820589c2aab82d3ae22f2ba73011970d0754557f12da7871859f3d368bbf879",
+    "candidate/sdk/funding/chain-proof.mjs": "ca799d8f86db1dd3a7113703cba5fd929e770f02f5c63fa3f5589b05f5e074b3",
+    "candidate/sdk/funding/funding-client.mjs": "4a17b36549b5eb115863b0d08ac76e6e9dbd966934b93875bbc34fd0ea897fa7",
+    "candidate/sdk/funding/funding-codec.mjs": "ceed082639299b35073005d2ffb0ce8e5ceee1a3035804f197cdf53a4f6739d7",
+    "candidate/sdk/funding/gas-execution.mjs": "1ccf75dbd8ac248c9a139ab692f1f144b8f0f16c8e2b0334c4047ceac9b3df5c",
+    "candidate/sdk/funding/migration.mjs": "740e0f859da31ce55139e3f893ac2e344214a41257491a8fd3708c3ba0f57ced",
+    "candidate/sdk/funding/util.mjs": "38b678a68ecf7fd897fb1ae905d27471a17d10f8061fa29d81f5870549e12e66",
+    "candidate/sdk/funding/v2-store.mjs": "b00d0742ee3d2b211b4cf811c48c8e7004dbf7e8a4cf30517db5ec199181733c"
+  },
+  "byteIdentical": [
+    "browser-entry.mjs",
+    "chain-proof.mjs",
+    "funding-client.mjs",
+    "funding-codec.mjs",
+    "gas-execution.mjs",
+    "util.mjs",
+    "v2-store.mjs"
+  ],
+  "edits": {
+    "migration.mjs": 11
+  },
+  "viem": {
+    "symlink": "candidate/node_modules/viem",
+    "target": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/viem",
+    "version": "2.53.1"
+  }
+}
+TAP version 13
+# Subtest: only the cutover code differs from the qualified candidate; the other seven modules are byte-identical
+ok 1 - only the cutover code differs from the qualified candidate; the other seven modules are byte-identical
+  ---
+  duration_ms: 1.739718
+  type: 'test'
+  ...
+# Subtest: prepare: a reviewed cutover plan builds with intake absent (recorded, not faked); without cutover intake-off still refuses
+ok 2 - prepare: a reviewed cutover plan builds with intake absent (recorded, not faked); without cutover intake-off still refuses
+  ---
+  duration_ms: 22.259676
+  type: 'test'
+  ...
+# Subtest: cutoverTerms refuses anything but the exact reviewed shape
+ok 3 - cutoverTerms refuses anything but the exact reviewed shape
+  ---
+  duration_ms: 0.376298
+  type: 'test'
+  ...
+# Subtest: terminate is never sent without the FULL plan signed (replacement and every gas part)
+ok 4 - terminate is never sent without the FULL plan signed (replacement and every gas part)
+  ---
+  duration_ms: 5.672013
+  type: 'test'
+  ...
+# Subtest: run sends ONLY the termination, proves the exact refund and durably pauses before legacyOpen
+ok 5 - run sends ONLY the termination, proves the exact refund and durably pauses before legacyOpen
+  ---
+  duration_ms: 8.671714
+  type: 'test'
+  ...
+# Subtest: reload / reconcile / re-sign / rearm keep the pause; nothing after terminate is sent
+ok 6 - reload / reconcile / re-sign / rearm keep the pause; nothing after terminate is sent
+  ---
+  duration_ms: 8.964352
+  type: 'test'
+  ...
+# Subtest: resume needs reviewed activation evidence AND a live post-termination runtime; it never sends
+ok 7 - resume needs reviewed activation evidence AND a live post-termination runtime; it never sends
+  ---
+  duration_ms: 11.503215
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 248.150777
+[memory-guard] exit=0 peakTreeRssMiB=150 minHostAvailableMiB=92991
+[memory-guard] at peak: node:76 node:61 python3:13
+[memory-guard] exit=0 peakTreeRssMiB=199 minHostAvailableMiB=92991
+[memory-guard] at peak: node:75 node:61 node:50 python3:13
+[queue] EXIT 0

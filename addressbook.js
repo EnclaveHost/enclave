@@ -16,6 +16,10 @@
 
 import { createPublicClient, http, fallback, getAddress } from "viem";
 import { base } from "viem/chains";
+import {loadContractPins} from './windows/node/host-admission.bundle.mjs';
+import { chainVerifierOf, createVerifiedSnapshot } from "./network/verified-chain.mjs";
+
+export const CONTRACT_PINS=loadContractPins();
 
 export let REGISTRY_ADDRESS      = process.env.REGISTRY_ADDRESS || "";
 export let DEPLOYMENTS_ADDRESS   = process.env.DEPLOYMENTS_ADDRESS || "";
@@ -40,8 +44,26 @@ const current = () => ({ registry: REGISTRY_ADDRESS, deployments: DEPLOYMENTS_AD
   appCatalog: APP_CATALOG_ADDRESS, enclavePay: FORWARDER_ADDRESS,
   proofOfTime: PROOF_OF_TIME_ADDRESS });
 
-let client = null;
-async function readBook() {
+// Pin at process start. A book owner cannot redirect an explicitly pinned host,
+// even while the book is unavailable, cleared or publishing different addresses.
+if(CONTRACT_PINS)for(const [name,[env,set]] of Object.entries(KEYS)){
+  const address=CONTRACT_PINS[name];set(address);process.env[env]=address;
+}
+
+let client = null, snapshot = null;
+// Under the operator's explicit local verifier (ENCLAVE_CHAIN_AUTHORITY=verifier, network/verified-chain.mjs): the book is
+// read from ONE proof-backed snapshot at a fresh block of the verifier's signed head chain (never below a block already
+// accepted), so the platform administrator's migrations still reach this host with no provider. An invalid selection
+// throws (the read fails; the current bindings stay): never the provider pool.
+function bookVerifier() {
+  return chainVerifierOf({ chainAuthority: process.env.ENCLAVE_CHAIN_AUTHORITY || undefined, chainVerifier: process.env.ENCLAVE_CHAIN_VERIFIER || undefined }, "address book");
+}
+async function readEntries() {
+  const verifier = bookVerifier();
+  if (verifier) {
+    if (!snapshot) snapshot = createVerifiedSnapshot({ verifier, chainId: base.id });
+    return (await snapshot((c) => c.readContract({ address: getAddress(BOOK), abi: ABI, functionName: "all" }))).value;
+  }
   // same multi-provider pool as supervisor.js RPC_POOL: the address book is
   // the root of contract resolution — a throttled single RPC must not pin the
   // fleet to stale addresses or block boot
@@ -49,7 +71,10 @@ async function readBook() {
     transport: fallback([...new Set([process.env.BASE_RPC || "https://mainnet.base.org",
       "https://base-rpc.publicnode.com", "https://base.drpc.org",
       "https://1rpc.io/base", "https://mainnet.base.org"])].map((u) => http(u, { retryCount: 2, retryDelay: 500 }))) });
-  const [keysHex, values] = await client.readContract({ address: getAddress(BOOK), abi: ABI, functionName: "all" });
+  return client.readContract({ address: getAddress(BOOK), abi: ABI, functionName: "all" });
+}
+async function readBook() {
+  const [keysHex, values] = await readEntries();
   const changed = [];
   keysHex.forEach((kh, i) => {
     let key = "";
@@ -68,6 +93,7 @@ async function readBook() {
 /// Boot: block on one read (with the baked env as the fallback on failure),
 /// then poll. Call this BEFORE anything derives state from the addresses.
 export async function initAddressBook(log = console) {
+  if(CONTRACT_PINS){log.log('[addressbook] immutable host contract pins active; book polling disabled');return false;}
   if (!BOOK) return false;
   try {
     const changed = await readBook();

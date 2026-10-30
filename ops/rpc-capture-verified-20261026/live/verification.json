@@ -1,0 +1,81 @@
+{
+  "at": "2026-10-26T03:07:32.722042+00:00",
+  "sourceSha256": "663038c89c9f3767eb441082700c0a08bc8aea7e48643b32c80bddff64c2a3ad",
+  "scope": "Offline verification of unmodified live0252capture by testedr3; no newcapture, no chainrefresh, noSNP, usernamespace",
+  "productionActivated": false,
+  "verification": {
+    "captureId": "f9e9cb02937669c1d1ebf34aae47da3c",
+    "captureSha256": "31e72ac7454bc6fa26c54c42d292159fa235a8867c899822b83fdc47103f8d1f",
+    "mode": "initial",
+    "evidenceSha256": "6174f3803a3d079109c7369024c41c2ae683aa06848809e68d91e80725eafc35",
+    "startedAt": "2026-10-26T02:53:09.617353+00:00",
+    "finishedAt": "2026-10-26T02:54:19.603140+00:00",
+    "node": {
+      "role": "node",
+      "sha256": "7af789e55afc0975d66bb19ccbc5a3b60c4b838f61d1ec10a117832ba70baaf9",
+      "size": 56530480,
+      "source": "/usr/bin/node"
+    },
+    "python": {
+      "executable": "/usr/bin/python3.14",
+      "libpython": "/usr/lib/libpython3.14.so.1.0",
+      "libpythonSha256": "0a5be42fd90e91b9d96010310ac288037a001fe7aa582345cda4e37d15a01500",
+      "sha256": "375532f83be620283ab780c14ca6bcc5907dc379d2b621de0c5d0a112cf5458b",
+      "version": "3.14.8 (main, Oct  2 2026, 10:23:31) [GCC 16.2.1 20260810]"
+    },
+    "runtimePolicy": {
+      "libpython": "0a5be42fd90e91b9d96010310ac288037a001fe7aa582345cda4e37d15a01500",
+      "node": "7af789e55afc0975d66bb19ccbc5a3b60c4b838f61d1ec10a117832ba70baaf9",
+      "provenance": "operator-observed 2026-10-25 (sha256 of the file; pacman owner); NOT upstream-verified; pending root review",
+      "python": "375532f83be620283ab780c14ca6bcc5907dc379d2b621de0c5d0a112cf5458b"
+    },
+    "boundInputs": {
+      "inputs/a1-config.example.json": "2eeadf2457f108de71ea8199724e36dbc58f805b2afa74d23f904a2219774270",
+      "inputs/a1-config.json": "e72f271ea0c7a4a691f0260303fd12639b60c916dcf76ff6c4dd6d479a0811d1",
+      "inputs/l1-authority-config.derived.json": "866c47f0c5ef60aeef29ee9744e19c54c0a0d7992c03015ef2be3923fb0a1468",
+      "inputs/l1-authority-config.json": "6b7ed2430f8204a796d28f2fe332aedc8238442b7743aa9c31af652e98e1ca65",
+      "inputs/l1-checkpoint.json": "2e8502e68864abb49a230a69612bd7c98c94775d8dd81f956a0185d53652ac33",
+      "inputs/portal-result.json": "c1ca3309a17e5cdefa84ec7af7a0a4f098c44b4638f61f30539064fcd267c78a"
+    },
+    "gate": {
+      "mode": "fresh-initial",
+      "initialSha256": "6174f3803a3d079109c7369024c41c2ae683aa06848809e68d91e80725eafc35",
+      "game": "0x75e20e2a3ba7f1cf4fc2ec253ed179ce80b38b37",
+      "N": "52878960",
+      "outputRoot": "0x57ca3d5439be39d99de87a5a879e007fe0e03fdfb40fd1f2a2c2f35752388414",
+      "asr": "0x909f6cf47ed12f010a796527f562bfc26c7f4e72",
+      "respectedGameType": 621,
+      "l1": {
+        "number": 26273917,
+        "hash": "0xf3c40d96b590dd0b8211ba63cec6f2e2b325352cda6280cbeefe015fcb31633f",
+        "timestamp": 1792982231,
+        "ageSec": 962
+      },
+      "at": "2026-10-26T02:54:19.209Z",
+      "pins": {
+        "0x49048044d57e1c92a77f79988d21fa8faf74e97e": {
+          "codeHash": "0x7d1cd19d713c8d64bf663f4168250abfbf690dbb6214c25bf757fee383816914",
+          "slots": {
+            "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc": "0x00000000000000000000000003863ab7f64b733cff85c8ff44a86601c568ca70",
+            "0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103": "0x0000000000000000000000000475cbcaebd9ce8afa5025828d5b98dfb67e059e"
+          }
+        },
+        "0x909f6cf47ed12f010a796527f562bfc26c7f4e72": {
+          "codeHash": "0xfa8c9db6c6cab7108dea276f4cd09d575674eb0852c0fa3187e59e98ef977998",
+          "slots": {
+            "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc": "0x0000000000000000000000004483f964f6711cb55f633820ed174e780369b99d",
+            "0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103": "0x0000000000000000000000000475cbcaebd9ce8afa5025828d5b98dfb67e059e"
+          }
+        },
+        "0x75e20e2a3ba7f1cf4fc2ec253ed179ce80b38b37": {
+          "codeHash": "0x9cd1b654b42de5781f4e1aab8f73b731aae99d57f3c6b1d333e02f9a3287e1d0",
+          "slots": {
+            "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103": "0x0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        }
+      }
+    }
+  },
+  "ok": true
+}

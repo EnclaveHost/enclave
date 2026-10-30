@@ -1,0 +1,13 @@
+--- a/src/reproof.py
++++ b/src/reproof.py
+@@ -17,8 +17,8 @@
+ 
+ FORMAT = 'enclave-base-finality-reproof/v1'
+ CONFIG_KEYS = {'format', 'launchDir', 'chainJson', 'rpcUrl', 'statusOut', 'node', 'depsRoot', 'workdir', 'capturesRoot', 'captureSources'}
+-FINALITY_STATE = (pathlib.Path('/opt/enclave-rpc/finality/src/finality_state.py'), '2fb4b6a854f6e4f187a25a01dfb34fd5682d6d58faa42aa5dc21ec5d7b4f8b0c')
+-PRODUCER = (pathlib.Path('/opt/enclave-rpc/base-launch/base_launch.py'), 'd7289489e7b9fb5a79f751135ece3b142a2d60f099dc9e9bdc730bc338077b2b')
++FINALITY_STATE = (pathlib.Path('/opt/enclave-rpc/finality/src/finality_state.py'), '218bbfe56caec03e6da0829e442b793b88d4cc148a890a324892f0fafd7c78f4')
++PRODUCER = (pathlib.Path('/opt/enclave-rpc/base-launch/base_launch.py'), '2f9450cd5c73de3cf693dd7f7d52b2f4f3a8fe0b66a5a76b1d068dda919ac4e2')
+ KEEP, TEMPFAIL, HOLD = 4, 75, 78
+ HOLD_CODES = {'hold_prototype', 'a1_capture_pending', 'hold_finality'}
+ RETRY_CODES = {'not_newer', 'same_game', 'stale_l1', 'not_post_anchor', 'capture', 'a1_stale', 'a1_stale_at_append', 'not_synced',

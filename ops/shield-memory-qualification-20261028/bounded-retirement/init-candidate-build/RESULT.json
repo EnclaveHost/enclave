@@ -1,0 +1,40 @@
+{
+  "baselineBuiltSha256": "dffd093b8458e109c64756c26fe5efd8b8226da712fb03a81f28d50aaa27cb0b",
+  "candidateInitSha256": "3fbb21ef6b8a2d816e1a61e22b6d6979627bdf01c3736c7d79874b94a3175dde",
+  "candidateInitSize": 116960,
+  "candidateSourceSha256": "5b9521574d4f241a393c62d93ca5f4bb0e5841308c3a89bd3e139f2511b4fc29",
+  "command": [
+    "/usr/bin/gcc",
+    "-specs",
+    "/home/steven/.cache/enclave-isolation/musl-1.2.6/lib/musl-gcc.specs",
+    "-static",
+    "-O2",
+    "-o",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-candidate-build/baseline/init",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-candidate-build/baseline/dominit.c"
+  ],
+  "envpWorstCase": 60,
+  "headers": {
+    "app-seccomp.h": "1bcc87cc8c202caa1d1c3572a535da7f291b4e68f199ceb34419f5341666b325",
+    "sha256-min.h": "9b857776a74ded12ca64f56e45fc4a37a4d73d2e5c6785493f2f625d6448c9c7",
+    "shield-config.h": "fdff187693cdd7ca2c8223a0b1a6e01479c5c0738b8550bc16d20f819a1fb1ff",
+    "shield-memory.h": "13cf4ffcb895414903f2f0a76e26998e0b4506ddb461d4675f6ec5bc1c989c6f"
+  },
+  "kind": "shield-init-retire-budget-build/1",
+  "notDone": [
+    "not composed into a release",
+    "measurement not predicted",
+    "not admitted",
+    "not run"
+  ],
+  "originalSourceSha256": "7427144398f3e0405ba035dad996104bbd582a90099463465b9219162cc86576",
+  "out": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-candidate-build",
+  "pins": {
+    "init": "dffd093b8458e109c64756c26fe5efd8b8226da712fb03a81f28d50aaa27cb0b",
+    "libc": "4f72e098ed0562e8361f7c1713189c5cd7b3e6672dd8d9311d32c49201260959",
+    "source": "7427144398f3e0405ba035dad996104bbd582a90099463465b9219162cc86576",
+    "specs": "4b0202b5fc90f78f227c8937f04afa31378b421036ebe68498513a1cf19895bf"
+  },
+  "reproduced": true,
+  "shield-retire-marker.h": "87e23f75f856ffed94025e6a180c626cecdb323204e8b44bdc894530ff9fb8d4"
+}

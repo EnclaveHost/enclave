@@ -1,0 +1,38 @@
+--- a/tests/test_finality_state.py
++++ b/tests/test_finality_state.py
+@@ -230,7 +230,7 @@
+         self.assertEqual(FS.status(self.d, self.t / 'chain.json', self.fdir, 'http://127.0.0.1:1/', W=self.W, top=self.t, proc=self.proc)['state'], 'none')
+         self.refused('a1_capture', self.q, a1={'initialOut': 'x', 'recheckOut': str(self.t / 'absent')})
+         self.refused('a1_capture', self.q, a1=str(self.t / 'a1'))
+-        self.refused('path', FS.status, self.d, self.t / 'chain.json', self.t / 'no-finality-dir', 'http://127.0.0.1:1/', W=self.W, top=self.t, proc=self.proc)
++        self.refused('finality_dir', FS.status, self.d, self.t / 'chain.json', self.t / 'no-finality-dir', 'http://127.0.0.1:1/', W=self.W, top=self.t, proc=self.proc)
+ 
+     def test_launch_pin_absent_or_different_refuses(self):
+         self.write_launch(pin='0' * 64); self.refused('launch_pin', self.q)
+@@ -390,7 +390,7 @@
+         boot = lambda ref: ('c' * 64, {'event': 'bootstrapped', 'seq': 3, 'evidence': {'finalityEntrySha256': ref, 'finalitySeq': 1}})
+         self.W.events = base + [boot(e)]
+         s = st(); self.assertEqual((s['state'], s['recordedAs'], s['process']['startTime'], s['freshN']), ('qualified', 'c' * 64, '111', NP))
+-        self.W.events = base + [boot('0' * 64)]; self.assertEqual(st()['state'], 'stale-launch-changed')          # names another entry
++        self.W.events = base + [boot('0' * 64)]; self.assertEqual(st()['state'], 'refused')                       # names an entry this journal lacks
+         self.W.events = base + [boot(e), ('d' * 64, {'event': 'restarted', 'seq': 4})]; self.assertEqual(st()['state'], 'stale-launch-changed')
+         self.W.events = [base[0], ('z' * 64, {'event': 'consumed', 'seq': 2}), boot(e)]; self.assertEqual(st()['state'], 'stale-launch-changed')
+         self.W.events = base + [boot(e)]; self.make_proc(port=1, start='999'); self.assertEqual(st()['state'], 'stale-after-restart')
+@@ -399,7 +399,7 @@
+         self.fake_core(); FS.FINALITY_PROTOTYPE_REVIEWED = True
+         self.q(write=True); (self.t / 'run').mkdir(); out = self.t / 'run/base-finality-status.json'
+         st = lambda: FS.status(self.d, self.t / 'chain.json', self.fdir, 'http://127.0.0.1:1/', W=self.W, top=self.t, proc=self.proc)
+-        a = types.SimpleNamespace(finality_status=None, finality_status_uid=os.getuid(), proc_root=self.proc)
++        a = types.SimpleNamespace(finality_status=None, finality_status_uid=os.getuid(), proc_root=self.proc, max_finality_status_age=900)
+         def code(exc):
+             with self.assertRaises(exc) as cm:
+                 RS.validate_finality_status(a)
+@@ -427,7 +427,7 @@
+         self.q(write=True); FS.revoke(self.d, self.t / 'chain.json', self.fdir, 'operator', W=self.W, now=NOW, top=self.t)
+         self.assertEqual(self.W.events[-1][1]['event'], 'finality-terminal')
+         (self.fdir / '000002.json').unlink()                                          # the revoked tail deleted / older copy restored
+-        self.refused('terminal', self.q, a1=self.make_a1('t3', n=NP + 3, l1=L1 + 400), write=True)
++        self.refused('finality_journal_rolled_back', self.q, a1=self.make_a1('t3', n=NP + 3, l1=L1 + 400), write=True)   # the named terminal entry is gone
+         st = FS.status(self.d, self.t / 'chain.json', self.fdir, 'http://127.0.0.1:1/', W=self.W, top=self.t, proc=self.proc)
+         self.assertFalse(st['qualified'])
+ 

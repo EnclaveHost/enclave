@@ -1,0 +1,22 @@
+[
+  {
+    "path": "attempt",
+    "sha256": "84775cebc742e0e4260613182677f4711c452fdb70a641a24f4cc60c101af65e"
+  },
+  {
+    "path": "inner.guard.log",
+    "sha256": "2c28f1083080f29902e879dc1146b6517cf4a8c2e2ab6332e58296aad08584a6"
+  },
+  {
+    "path": "outer.guard.log",
+    "sha256": "57d0ea8dfeebbc7a31cc297c833802c2efd3f17a801c229fa8d6ed8f16455707"
+  },
+  {
+    "path": "read.py",
+    "sha256": "e11a716b3dafafc34e0144952442781d8884768387279a16ff2b18386991913d"
+  },
+  {
+    "path": "result.json",
+    "sha256": "33f004f4fe62805cb61c4cb748f19d385705711afea807007cef7162effa86af"
+  }
+]

@@ -1,0 +1,57 @@
+[enclave-metal] certificates: no certsApi and no relayUrl to derive one from; app-zone TLS stays off
+[enclave-metal] isolation snp-guest-per-app: attested release off
+[enclave-metal] direct control: config 0af7ce0726d370ff… -> HOST_DATA 186382b4de462c94…; operator 0xf3c1a9e76a5138f47833575280d0c52211b37bad (no registryKeyFile: not selling); control front on guest port 8444
+[enclave-metal] launching direct-control-canary mode=snp 4vcpu/2048MiB
+[enclave-metal] cmdline: console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app metal.control=direct
+[enclave-metal] guest haltpoll: on guest_halt_poll_ns=200000 guest_halt_poll_grow_start=50000 guest_halt_poll_grow=2 guest_halt_poll_shrink=2 guest_halt_poll_allow_shrink=1
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;042;160t[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001H[metal-init] PID1 up; mounting pseudo-filesystems
+[metal-init] ephemeral ports 58000-65535 (clear of the policed range)
+[metal-init] loaded qemu_fw_cfg.ko
+[metal-init] loaded failover.ko
+[metal-init] loaded net_failover.ko
+[metal-init] loaded virtio_net.ko
+[metal-init] loaded tsm_report.ko
+[metal-init] loaded sev-guest.ko
+[metal-init] FAILED tdx-guest.ko: finit_module: No such device
+[metal-init] loaded dm-mod.ko
+[metal-init] loaded dm-bufio.ko
+[metal-init] loaded reed_solomon.ko
+[metal-init] loaded dm-verity.ko
+[metal-init] loaded vsock.ko
+[metal-init] loaded vmw_vsock_virtio_transport_common.ko
+[metal-init] loaded vmw_vsock_virtio_transport.ko
+[metal-init] haltpoll on: driver=haltpoll governor=haltpoll ns=200000 grow_start=50000
+[metal-init] eth0 10.0.2.15 via 10.0.2.2
+[metal-init] handing off to gsup
+[gsup] per-app isolation tier snp-guest-per-app: manager http://10.0.2.2:53473, data plane 10.0.2.2:45181, pairing key present, attested release off; no app runs in this CVM
+[gsup] mode=snp name=direct-control-canary public=https://snp-verifier-canary.invalid relay=(none) selling=off ask=list price
+[gsup] advertised capacity: 4 vCPU / 2 GB RAM / 250 GFLOPS (RAM nominal, fleet convention)
+[gsup] direct control: config 0af7ce0726d370ff… BOUND by HOST_DATA; operator 0xf3c1a9e76a5138f47833575280d0c52211b37bad (no operator key: not selling); proof key, session key and control TLS key minted in this guest (TLS sha256:47578d1c1c9fca95…); front on :8444
+[gsup] chain verifier configured: 1 proof source(s), loopback port 50546, signer 0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a; no own transaction backend (nothing is submitted); verified readers refuse until it is ready (unsafe-head tier, no finality)
+[gsup] started chain-verifier pid=175
+[gsup] started supervisor pid=176
+[gsup] started metal-agent pid=177
+[gsup] started control-front pid=178
+[gsup] all services launched
+[control] measured control front on :8444 (mode snp); evidence at /.well-known/enclave-control
+[agent] transport key fingerprint 851c107240d2cc2d…
+[agent] attestation ready: format=sev-snp-guest-metal-v1
+[agent] no relay configured; tunnel disabled (RAD-only mode)
+[agent] RAD endpoint on 127.0.0.1:8443 (mode=snp)
+{"at":"2026-10-25T17:43:16.669Z","event":"locked","tools":{"flock":"flock from util-linux 2.38.1"}}
+{"at":"2026-10-25T17:43:16.966Z","event":"staged","runDir":"/mnt/ramdisk/enclave-chain-verifier/state/runs/r1792950196671-5bfef039c152","staging":"copy","binaries":{"listener":"9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3","helios":"cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0","witnessCheck":"4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411"},"glibcRuntime":{"build":"arch glibc 2.44+r50+g1848099f063e-1, gcc-libs 16.2.1+r23+gd564253eb6c8-1 (the build host of the pinned binaries)","for":["helios","witnessCheck"]}}
+{"at":"2026-10-25T17:43:17.068Z","event":"head-source-started"}
+[addressbook] immutable host contract pins active; book polling disabled
+[chain] authority: local verifier verifier http://127.0.0.1:50546 (unsafe tier, no L1 finality); no own transaction backend: nothing is submitted; logs prove inclusion only; no provider RPC is used
+[host-policy] WARNING: no policy mirror configured - an anchored policy cannot be loaded and will refuse every host
+[direct] direct-only host control: owner-committed startup deployments only; relay, domain, certificate and DNS services off
+[proof] proof-of-time signer 0x7024aEcb5C21F615479483E4C8b4f06E046a43f6
+[pay] watching 0x580270e88e5df35dad59e7fe3d907ebea96673a6 for Paid + PaidEth events every 12s (ETH priced via 0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70)
+enclave supervisor on :8080 · CPU-only enclave (4 vCPU / 2GB, node-share split)
+[pay] poll error: An unknown RPC error occurred.
+[pay] USDC domain read: An unknown RPC error occurred.
+[pay] ETH/USD feed: An unknown RPC error occurred.
+[host-policy] this host is not serving: policy unreadable: no verified chain state: fetch failed
+[attest] CPU TEE detected: amd-sev-snp
+[pay] poll error: An unknown RPC error occurred.
+qemu-system-x86_64: terminating on signal 15 from pid 3684843 (/usr/bin/python3)

@@ -1,0 +1,18 @@
+manifest sha256 1f0c4e6c259d4353f598a94ac75a0540321ced2b52b464fb4e11c2ec34c649f2 bytes 4089437 block 53048526
+distance 140000 -> first chunk 105 covers from 52500000
+since 52515705 -> first chunk 105 covers from 52500000
+selected archives 116, compressed 827.64 GB, decompressed 1274.29 GB
+transactions         chunk104   25.11 GB  chunk105   29.49 GB  chunk106(partial)    2.66 GB  [compressed 105 18.73 GB]  files105=static_files/transactions-52500000-52999999.tar.zst 106=1792886410/transactions-53000000-53499999.tar.zst
+receipts             chunk104   21.61 GB  chunk105   23.56 GB  chunk106(partial)    1.98 GB  [compressed 105 10.47 GB]  files105=static_files/receipts-52500000-52999999.tar.zst 106=1792886410/receipts-53000000-53499999.tar.zst
+transaction_senders  chunk104    2.52 GB  chunk105    2.83 GB  chunk106(partial)    0.24 GB  [compressed 105 0.46 GB]  files105=static_files/transaction_senders-52500000-52999999.tar.zst 106=1792886410/transaction_senders-53000000-53499999.tar.zst
+account_changesets   chunk104    3.75 GB  chunk105    4.12 GB  chunk106(partial)    0.35 GB  [compressed 105 1.45 GB]  files105=static_files/account_changesets-52500000-52999999.tar.zst 106=1792886410/account_changesets-53000000-53499999.tar.zst
+storage_changesets   chunk104   33.32 GB  chunk105   39.15 GB  chunk106(partial)    3.09 GB  [compressed 105 11.70 GB]  files105=static_files/storage_changesets-52500000-52999999.tar.zst 106=1792886410/storage_changesets-53000000-53499999.tar.zst
+headers              chunk104    0.33 GB  chunk105    0.33 GB  chunk106(partial)    0.03 GB  [compressed 105 0.21 GB]  files105=static_files/headers-52500000-52999999.tar.zst 106=1792886410/headers-53000000-53499999.tar.zst
+state                single compressed 761.2 GB decompressed 1138.2 GB
+rocksdb_indices      single compressed 597.1 GB decompressed 715.7 GB
+proofs               single compressed 868.1 GB decompressed 1156.2 GB
+receipts+transactions per full 500k-block chunk (chunk105): 53.05 GB; per day at 43,200 blocks/day: 4.58 GB/day
+  chunk100: receipts 21.76 + txs 34.32 GB
+  chunk102: receipts 20.67 + txs 30.80 GB
+  chunk104: receipts 21.61 + txs 25.11 GB
+  chunk105: receipts 23.56 + txs 29.49 GB

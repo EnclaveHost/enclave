@@ -1,0 +1,7 @@
+e5564eae88f40406d502d3d6719a493a4db97c055e7acee6df5384dfa76750ae  ./PROVENANCE.md
+40620e0a5c8241da0fca865755504e22ed0979d653556cf7ad0d374cce29a43e  ./inputs/claude-accepted-image-state-audit.md
+abd3edf6bf84550f253ce868ae7281a4c706389659440ffac1526bb5ef369a5a  ./inputs/derived-state-ipc-contract.md
+15ce63f70b55d999a19d709c4c24b7d69a6b332437b7135027b38ab7e9d2e2b6  ./inputs/image-enrollment-root-note.txt
+db6fd5ed17e3c747741999293480159e376b1a25e46b01540d718835a4018da2  ./inputs/root-1384-r3-verdict.json
+28f4f5672ffa6c2c64bcfebc9e06419d183b4b8efe833e968f7de82a5e3a55ac  ./jobs/root-accepted-image-enrollment.sh
+df06a34c4f9b76a102adcc005d96ccc9c1df29af41e206a98457c6a307580c2e  ./patches/accepted-image-enrollment-vs-r3.patch

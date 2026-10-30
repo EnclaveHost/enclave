@@ -1,0 +1,76 @@
+TAP version 13
+# Subtest: store legacy: no chain authority named -> the BASE_RPC pool exactly as before, without the runtime bundle; the verifier is never asked
+ok 1 - store legacy: no chain authority named -> the BASE_RPC pool exactly as before, without the runtime bundle; the verifier is never asked
+  ---
+  duration_ms: 276.459334
+  type: 'test'
+  ...
+# Subtest: store verifier: pool reads are the authority (one marked client), proven by the verifier; no provider, the backend is not asked for state
+ok 2 - store verifier: pool reads are the authority (one marked client), proven by the verifier; no provider, the backend is not asked for state
+  ---
+  duration_ms: 258.339809
+  type: 'test'
+  ...
+# Subtest: store verifier: a wallet on rpcParts() submits ONLY to the bound own backend; nonce/fees from it; receipt from the verifier
+ok 3 - store verifier: a wallet on rpcParts() submits ONLY to the bound own backend; nonce/fees from it; receipt from the verifier
+  ---
+  duration_ms: 303.029671
+  type: 'test'
+  ...
+# Subtest: vaultsvc on the verifier (real relayer path): book + factory reads proven; createVault then deposit sent ONLY to the bound backend with pool nonces 0,1; the hash persisted before the receipt is the one sent
+ok 4 - vaultsvc on the verifier (real relayer path): book + factory reads proven; createVault then deposit sent ONLY to the bound backend with pool nonces 0,1; the hash persisted before the receipt is the one sent
+  ---
+  duration_ms: 335.893756
+  type: 'test'
+  ...
+# Subtest: vaultsvc on the verifier, stale head: the deposit path signs nothing that reaches any server
+ok 5 - vaultsvc on the verifier, stale head: the deposit path signs nothing that reaches any server
+  ---
+  duration_ms: 301.76025
+  type: 'test'
+  ...
+# Subtest: store verifier: unbound backend, stale head, no backend -> the send is refused before reaching any server; nothing public
+ok 6 - store verifier: unbound backend, stale head, no backend -> the send is refused before reaching any server; nothing public
+  ---
+  duration_ms: 845.003084
+  type: 'test'
+  ...
+# Subtest: store verifier outage: reads and sends fail closed; the pool and public defaults are never used instead
+ok 7 - store verifier outage: reads and sends fail closed; the pool and public defaults are never used instead
+  ---
+  duration_ms: 486.205925
+  type: 'test'
+  ...
+# Subtest: store: invalid or mixed selections refuse before any request (BASE_RPC, RPC_FALLBACKS, remote verifier, public backend, testnet, R4-R6 provider lists)
+ok 8 - store: invalid or mixed selections refuse before any request (BASE_RPC, RPC_FALLBACKS, remote verifier, public backend, testnet, R4-R6 provider lists)
+  ---
+  duration_ms: 3285.445913
+  type: 'test'
+  ...
+# Subtest: api-relay process, verifier: the book (admin anchor) and ledger reads of chain() are the verifier; no provider; the backend is not asked for state
+ok 9 - api-relay process, verifier: the book (admin anchor) and ledger reads of chain() are the verifier; no provider; the backend is not asked for state
+  ---
+  duration_ms: 398.571813
+  type: 'test'
+  ...
+# Subtest: api-relay process, legacy: chain() reads BASE_RPC exactly as before; the verifier is never asked
+ok 10 - api-relay process, legacy: chain() reads BASE_RPC exactly as before; the verifier is never asked
+  ---
+  duration_ms: 392.452156
+  type: 'test'
+  ...
+# Subtest: api-relay process: a mixed or invalid relay chain selection stops the relay at startup, before any chain request
+ok 11 - api-relay process: a mixed or invalid relay chain selection stops the relay at startup, before any chain request
+  ---
+  duration_ms: 1145.594203
+  type: 'test'
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 11
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8466.508053

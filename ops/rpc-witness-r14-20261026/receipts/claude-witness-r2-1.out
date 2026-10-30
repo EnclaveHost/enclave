@@ -1,0 +1,7 @@
+[queue] START available=18176MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+PASS witness-rpc-access Ran 12
+## witness-rpc-access SHA256SUMS aa01e36ea7356dcda8568a437d1c1b6128258a4bfd0209f0f844ca1fe02c15c3
+## witness-rpc-access rc=0
+[memory-guard] exit=0 peakTreeRssMiB=79 minHostAvailableMiB=18066
+[memory-guard] at peak: python3:71 bash:4 bash:2 timeout:2
+[queue] EXIT 0

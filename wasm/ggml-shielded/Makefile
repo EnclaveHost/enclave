@@ -41,11 +41,12 @@ GGML_INC := -I$(GGML_SRC)/ggml/include -I$(GGML_SRC)/ggml/src
 CXX      ?= c++
 CXXFLAGS ?= -O2 -std=c++17 -Wall -Wextra -fPIC -fno-math-errno
 
-all: shielded-probe field-selftest prepare-selftest half-selftest refill-selftest dealt-selftest pads-unbox pads-keygen prefix-kv-selftest postmortem-selftest
+all: spill-cpu-selftest shielded-probe field-selftest prepare-selftest half-selftest refill-selftest dealt-selftest spill-selftest pads-unbox pads-keygen prefix-kv-selftest postmortem-selftest
 
 shielded-tee.o shielded-tee.dealer.o: shielded-tee.h shielded-mint-balance.h
 shielded-tee.o shielded-tee.dealer.o: shielded-pad-mint-v3.h shielded-pad-mint-v3.inc shielded-pads-v3.h shielded-pad-manifest.h shielded-pad-layout.h
 shielded-tee.o shielded-tee.dealer.o: shielded-parwork.h
+shielded-tee.o shielded-tee.dealer.o: shielded-spill.h shielded-spill.inc shielded-spill-cpu.h
 shielded-parwork.o: shielded-parwork.h
 shielded-pads.o shielded-pads.dealer.o: shielded-pads-v3.inc shielded-pads-v3.h shielded-pad-sparse-table.h shielded-pad-manifest.h shielded-pad-layout.h
 
@@ -97,6 +98,14 @@ refill-selftest: refill-selftest.c shielded-simd-avx512.o shielded-field.o
 dealt-selftest: dealt-selftest.c $(DEALER_OBJ)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
+# Keyed pads (format 4, shielded/dealer/HOST-BANK.md): host-bank cells with their own mask keys.
+pads-bank: pads-bank.c $(DEALER_OBJ)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
+keyed-bank-fixture: keyed-bank-fixture.c $(DEALER_OBJ)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
+keyed-selftest: keyed-selftest.c $(DEALER_OBJ)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
+
 # Node<->C interop helpers for dealt pads (test/pads-interop.test.mjs).
 pads-unbox: pads-unbox.c $(CORE_OBJ)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
@@ -108,13 +117,27 @@ shielded-soak: shielded-soak.c $(CORE_OBJ)
 postmortem-selftest: postmortem-selftest.c $(CORE_OBJ)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
+# The pad spill's CPU governor (shielded-spill-cpu.h): /proc/stat parsing and the cap rule
+spill-cpu-selftest: spill-cpu-selftest.c shielded-spill-cpu.h
+	$(CC) $(CFLAGS) -o $@ spill-cpu-selftest.c
+
+# The pad spill's store (shielded-spill.h): round trips, and the host's moves
+# (replay, move, corrupt) refused. Needs a directory that takes O_DIRECT.
+spill-selftest: spill-selftest.c $(CORE_OBJ)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
+
+# ...and end to end through a worker: idle fill, a burst wider than the ring,
+# refill, and a wiped disk. SHIELDED_WORKER=host:port ./spill-link-selftest DIR
+spill-link-selftest: spill-link-selftest.c $(CORE_OBJ)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
+
 prefix-kv-selftest: prefix-kv-selftest.c prefix-kv.o shielded-pads.o tweetnacl.o poly1305-donna.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
 pads-keygen: pads-keygen.c $(CORE_OBJ)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
-ggml-shielded.o: ggml-shielded.cpp ggml-shielded.h shielded-latency.h shielded-tee.h shielded-field.h shielded-simd.h shielded-source-bytes.h shielded-source-prefetch.h
+ggml-shielded.o: ggml-shielded.cpp ggml-shielded.h shielded-fusion.h shielded-group-key.h shielded-latency.h shielded-tee.h shielded-spill.h shielded-field.h shielded-simd.h shielded-source-bytes.h shielded-source-prefetch.h
 	$(CXX) $(CXXFLAGS) $(GGML_INC) -c $< -o $@
 
 ggml-test: ggml-test.cpp ggml-shielded.o $(CORE_OBJ)
@@ -126,13 +149,13 @@ ggml-test: ggml-test.cpp ggml-shielded.o $(CORE_OBJ)
 # live under /dev/shm on a box that has no CVM ring directory. Production
 # builds pass nothing here and keep the single root-owned ring path.
 SHIELDED_EXTRA_DEFS ?=
-ggml-shielded-dl.o: ggml-shielded.cpp ggml-shielded.h shielded-compact.h shielded-latency.h shielded-tee.h shielded-field.h shielded-simd.h shielded-source-bytes.h shielded-source-prefetch.h
+ggml-shielded-dl.o: ggml-shielded.cpp ggml-shielded.h shielded-fusion.h shielded-group-key.h shielded-compact.h shielded-latency.h shielded-tee.h shielded-spill.h shielded-field.h shielded-simd.h shielded-source-bytes.h shielded-source-prefetch.h
 	$(CXX) $(CXXFLAGS) -DGGML_BACKEND_DL -DGGML_BACKEND_SHARED $(SHIELDED_EXTRA_DEFS) $(COMPACT_DEFS) $(GGML_INC) -c $< -o $@
 
 libggml-shielded.so: ggml-shielded-dl.o $(CORE_OBJ)
 	$(CXX) $(CXXFLAGS) -shared -o $@ $^ -L$(GGML_LIB) -lggml-base $(LDLIBS) -Wl,-rpath,$(GGML_LIB)
 
-ggml-shielded-dealer.o: ggml-shielded.cpp ggml-shielded.h shielded-latency.h shielded-tee.h shielded-field.h shielded-simd.h shielded-source-bytes.h shielded-source-prefetch.h
+ggml-shielded-dealer.o: ggml-shielded.cpp ggml-shielded.h shielded-fusion.h shielded-group-key.h shielded-latency.h shielded-tee.h shielded-spill.h shielded-field.h shielded-simd.h shielded-source-bytes.h shielded-source-prefetch.h
 	$(CXX) $(CXXFLAGS) -DGGML_BACKEND_DL -DGGML_BACKEND_SHARED -DSHIELDED_DEALER_MODE $(GGML_INC) -c $< -o $@
 libggml-shielded-dealer.so: ggml-shielded-dealer.o $(DEALER_OBJ)
 	$(CXX) $(CXXFLAGS) -shared -o $@ $^ -L$(GGML_LIB) -lggml-base $(LDLIBS) -Wl,-rpath,$(GGML_LIB)
@@ -178,7 +201,7 @@ bench-spec: bench-spec.cpp ../llama-shim/enclave_llama.h
 	  -L$(GGML_LIB) -lenclave_llama -lllama -lggml -lggml-base -ldl -Wl,-rpath,$(GGML_LIB)
 
 clean:
-	rm -f $(CORE_OBJ) shielded-compact.o ggml-shielded-dl.o shielded-probe field-selftest prepare-selftest half-selftest refill-selftest dealt-selftest pads-unbox pads-keygen ggml-shielded.o ggml-test shielded-run shielded-calib libggml-shielded.so bench-batch bench-spec
+	rm -f $(CORE_OBJ) spill-cpu-selftest shielded-compact.o ggml-shielded-dl.o shielded-probe field-selftest prepare-selftest half-selftest refill-selftest dealt-selftest spill-selftest spill-link-selftest pads-unbox pads-keygen ggml-shielded.o ggml-test shielded-run shielded-calib libggml-shielded.so bench-batch bench-spec
 
 .PHONY: all clean ggml run calib bench
 
@@ -187,8 +210,19 @@ clean:
 ifneq ($(SHIELDED_COMPACT_ROOT),)
 COMPACT_DEFS := -DSHIELDED_COMPACT
 COMPACT_LIBDIR := $(SHIELDED_COMPACT_ROOT)/usr/lib
-libggml-shielded.so: shielded-compact.o
+libggml-shielded.so: shielded-compact.o shielded-source-store.o
 LDLIBS += -L$(COMPACT_LIBDIR) -ldnnl -lgomp
+shielded-source-store.o: shielded-source-store.cpp shielded-source-store.h shielded-source-quant.h
+	$(CXX) $(CXXFLAGS) -ffp-contract=off $(GGML_INC) -I$(SHIELDED_COMPACT_ROOT)/usr/include -O3 -mavx512f -mavx512bw -mavx512dq -mavx512vl -mavx512vnni -c $< -o $@
 shielded-compact.o: shielded-compact.cpp shielded-compact.h
 	$(CXX) $(CXXFLAGS) -I$(SHIELDED_COMPACT_ROOT)/usr/include -O3 -mavx512f -mavx512bw -mavx512dq -mavx512vl -mavx512vnni -c $< -o $@
 endif
+
+# The diffusion sibling of shielded-calib (sd-calib.cpp): stable-diffusion.cpp's
+# eval callback instead of libllama's. Host tool, shipped nowhere. Build against
+# the SAME ggml the runtime's stable-diffusion.cpp links (SD_SRC / SD_LIB).
+SD_SRC ?= $(HOME)/Projects/sd.cpp
+SD_LIB ?= $(SD_SRC)/build/bin
+sd-calib: sd-calib.cpp shielded-field.o shielded-field.h shielded-group-key.h shielded-source-quant.h
+	$(CXX) $(CXXFLAGS) -DGGML_MAX_NAME=128 -I$(SD_SRC)/include -I$(SD_SRC)/ggml/include -I$(SD_SRC)/ggml/src \
+	  -o $@ sd-calib.cpp shielded-field.o -L$(SD_LIB) -lstable-diffusion -lggml -lggml-base $(LDLIBS) -Wl,-rpath,$(SD_LIB)

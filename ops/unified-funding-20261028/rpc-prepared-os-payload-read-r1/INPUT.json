@@ -1,0 +1,76 @@
+{
+  "product": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-escaped-unit-root-repaired-r1/candidate/offline_mask.py",
+  "image": "/vm/enclave-volumes/rpc-production-maint/os-private-20261030T094345Z-28653e/derivative.qcow2",
+  "identity": [
+    64769,
+    148392388,
+    18581159936,
+    1793353532332647491,
+    1793353539833585078,
+    256
+  ],
+  "offset": 1074790400,
+  "length": 33284931072,
+  "lock": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-actual-os-private-prepare-r1/workflow.lock",
+    "identity": [
+      64768,
+      6179623
+    ]
+  },
+  "files": {
+    "/opt/enclave-rpc/chain_service.py": "6d93c8b76fc4d26fe4ca69b2d722a727e6dfe42571134a1a3b06057fdc0e4b9e",
+    "/etc/enclave-rpc/chain.json": "369f2a620391fda7914b8ef6f050a1edd4a62de3d9b2d5cee1ba14e4791c7ee0",
+    "/opt/enclave-rpc/manifest.json": "c35ec24b39b4cff06a72c00a5fcc032a035658d314771f9072b881f9258a0fb7"
+  },
+  "pins": [
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-escaped-unit-root-repaired-r1/candidate/offline_mask.py",
+      "sha256": "2ac02fe85db023fe86e9ebc46047f685ce9654f40cd143e50cc763bf8ea1a2d1"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-prepared-os-payload-read-r1/read.py",
+      "sha256": "6589dde3fa58563dcef205c6739008f5e262b5b469cdfe58b33099f1b2c6dcbe"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/node-payload-v4/chain_service.py",
+      "sha256": "6d93c8b76fc4d26fe4ca69b2d722a727e6dfe42571134a1a3b06057fdc0e4b9e"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/node-payload-v4/chain.json",
+      "sha256": "369f2a620391fda7914b8ef6f050a1edd4a62de3d9b2d5cee1ba14e4791c7ee0"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/payload-v2/manifest.json",
+      "sha256": "c35ec24b39b4cff06a72c00a5fcc032a035658d314771f9072b881f9258a0fb7"
+    },
+    {
+      "path": "/usr/bin/debugfs",
+      "sha256": "9b27184084383c8607eee03b43c80eca4ef912acf4887b40a7cc420e267ad8a8"
+    },
+    {
+      "path": "/usr/bin/e2fsck",
+      "sha256": "a9ea133a844edd695b5172abadc8bbbbb03aaedad80fc24d039bdbf4563a125c"
+    },
+    {
+      "path": "/usr/bin/fusermount3",
+      "sha256": "c3d04bdf77c7152eba94ce670338e7089730b8dbfede57762b7b92c893a00f4f"
+    },
+    {
+      "path": "/usr/bin/nbdfuse",
+      "sha256": "51c1a1fd18785d4fe2240c1710eb4f78590b9d333fcde4cda421871d6f010a01"
+    },
+    {
+      "path": "/usr/bin/qemu-img",
+      "sha256": "3a57bce6765bfb73a75591dba2ac40d985cccde97d371e95537ecbf16d949d30"
+    },
+    {
+      "path": "/usr/bin/qemu-nbd",
+      "sha256": "b0f16ff7225e78469733132fce225b1d0af98f0b681a5092d85618936ff61934"
+    },
+    {
+      "path": "/usr/bin/systemctl",
+      "sha256": "6e727451366c75070ab02f02d945e3c83f8774ddf7e1661c5d71cbbf0d59b3cc"
+    }
+  ]
+}

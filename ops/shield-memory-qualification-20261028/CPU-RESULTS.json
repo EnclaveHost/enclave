@@ -1,0 +1,79 @@
+[
+  {
+    "command": [
+      "make",
+      "-f",
+      "qualification.mk",
+      "-j1",
+      "pack24-link-selftest",
+      "field-selftest",
+      "spill-selftest",
+      "spill-link-selftest",
+      "dealt-selftest",
+      "spill-cpu-selftest"
+    ],
+    "exitCode": 0,
+    "seconds": 14.634,
+    "log": "cpu-0.log"
+  },
+  {
+    "command": [
+      "./spill-cpu-selftest"
+    ],
+    "exitCode": 0,
+    "seconds": 0.001,
+    "log": "cpu-1.log"
+  },
+  {
+    "command": [
+      "./field-selftest"
+    ],
+    "exitCode": 0,
+    "seconds": 0.001,
+    "log": "cpu-2.log"
+  },
+  {
+    "command": [
+      "./spill-selftest",
+      "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028"
+    ],
+    "exitCode": 0,
+    "seconds": 0.031,
+    "log": "cpu-3.log"
+  },
+  {
+    "command": [
+      "./dealt-selftest"
+    ],
+    "exitCode": 0,
+    "seconds": 0.032,
+    "log": "cpu-4.log"
+  },
+  {
+    "command": [
+      "cc",
+      "-std=c11",
+      "-O3",
+      "-march=native",
+      "-Wall",
+      "-Wextra",
+      "-I.",
+      "pack24-bench.c",
+      "-o",
+      "pack24-bench"
+    ],
+    "exitCode": 0,
+    "seconds": 0.364,
+    "log": "cpu-5.log"
+  },
+  {
+    "command": [
+      "./pack24-bench",
+      "32",
+      "5"
+    ],
+    "exitCode": 0,
+    "seconds": 4.42,
+    "log": "cpu-6.log"
+  }
+]

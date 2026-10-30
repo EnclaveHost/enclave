@@ -1,0 +1,8 @@
+{
+  "url": "http://127.0.0.1:8095",
+  "key_file": "/home/steven/enclave-prod/guestd-pair.key",
+  "client": "/home/steven/Projects/enclave/.consolidation/2026-10-24/worktrees/enclave-padgov-init/isolation/m4/guestd/control-client.mjs",
+  "client_sha256": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6",
+  "probe": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-bench-prep/guestd_commitments_probe.mjs",
+  "probe_sha256": "a7f1d3ea1977d446c43f9ac8955560dd27324583d7ec400f793219567ff941f9"
+}

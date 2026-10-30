@@ -1,0 +1,31 @@
+{
+  "release": {
+    "schema": "enclave-site-release/1",
+    "cid": "bafybeifidlcmnobifev33hflaicusmzjpcqgwutobbzilaoc6tgylwlzcm",
+    "createdAt": "2026-10-27T12:13:45.462Z",
+    "source": {
+      "commit": "48a812d22",
+      "dirty": true
+    },
+    "base": "bafybeiaddtlo6e5jsl7ebf3xlocqpqwe6rn4ehd6qmigizkjrfjklmy52e",
+    "counts": {
+      "files": 1126,
+      "retainedChunks": 0,
+      "cspHashes": 6
+    },
+    "retention": {
+      "hours": 48,
+      "kept": []
+    }
+  },
+  "embedded": {
+    "schema": "enclave-site-release-ledger/1",
+    "builtAt": "2026-10-27T12:13:45.462Z",
+    "source": {
+      "commit": "48a812d22",
+      "dirty": true
+    },
+    "previous": "bafybeiaddtlo6e5jsl7ebf3xlocqpqwe6rn4ehd6qmigizkjrfjklmy52e",
+    "retainHours": 48
+  }
+}

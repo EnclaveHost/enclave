@@ -1,0 +1,32 @@
+{
+ "format": "base-bytecode-check-release/v2",
+ "receiptFormat": "base-bytecode-check/v2",
+ "artifact": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-recovery/build/target/release/base-bytecode-check",
+ "sha256": "b55e6b78c6ac8e0a672f69e238135eca7466d1081479cd0868204cee9a1654d7",
+ "size": 1276048,
+ "fresh": false,
+ "cargoProfileFields": {
+  "opt_level": "3",
+  "debuginfo": 0,
+  "debug_assertions": false,
+  "overflow_checks": false,
+  "test": false
+ },
+ "profile": "release (workspace 5476069f: opt-level 3, lto thin, debug none, strip symbols, panic unwind, codegen-units 16; unchanged)",
+ "rustflags": "-C link-arg=-Wl,--threads=1",
+ "jobs": "1",
+ "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
+ "cargo": "cargo 1.96.0 (30a34c682 2026-05-25)",
+ "baseRev": "5476069f1eb74a56bccb56fdefd4b4bb0e3cda42",
+ "cargoLockSha256": "91a9e7626b5f361faed8f5226268ffae177970575e8ecd243d09cb077bd23bab",
+ "closureManifestSha256": "e901720ad6902c7ee60a4f6830b0052b638b707a9d2fef06d644a053c76e5aac",
+ "libRsSha256": "ed9870e7c89b5b8f8ecc9d38ddbc36614dfdcde6fb13e91f1150612feb5312df",
+ "mainRsSha256": "05dd717eb6da60ce38c9f852fe7656bb202f5ab985514001e72023eb192de25c",
+ "stageSumsSha256": "4a58ecfdd7d622217d1176234345fdbc7a7e4bb2a0459b8a099774fd13622918",
+ "testsRsSha256": "f1bd5c1c9cba8c944a1a7a23643f45ecb2bee794e31224cfc61341e8facd7d43",
+ "recoveryJobSha256": "24bc6d5a16e69ec898bb6f424e614e477967afb28058d183ba786023cc13dfcd",
+ "testedBy": "logs/root-bytecode-v2-recovery-2259 (23/23 + 17 exact controls; debug test profile, NOT this binary; the original 2249 attempt OOM-failed and is not used)",
+ "testReceiptOutSha256": "aae989a6af69d174a09b6daa436dd275474e3a60e5a96bfc4839b4c6e4e8a6e8",
+ "patchedTestBinarySha256": "dae90e387d925e40f15befe2bf1ea599b6221f6fdbb28b4cb2f664d950ee4a07",
+ "notTested": "this release binary on any datadir; live run under root review still required; A2 BYTECODE_CHECKER_V2_SHA256 stays None"
+}

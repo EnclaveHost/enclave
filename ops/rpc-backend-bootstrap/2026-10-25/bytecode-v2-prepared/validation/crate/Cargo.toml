@@ -1,0 +1,27 @@
+# PREPARED, NOT BUILT. Private member of a PRIVATE `git archive 5476069f` tree at etc/tools/base-bytecode-check (matched by the
+# root workspace glob "etc/tools/*": the root Cargo.toml is NOT edited). Built only by ../jobs/root-build-test.sh, offline,
+# --locked against the base 5476069f Cargo.lock plus ONE inserted [[package]] entry (../jobs/insert_lock_entry.py).
+[package]
+name = "base-bytecode-check"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[lib]
+name = "base_bytecode_check"
+path = "src/lib.rs"
+
+[[bin]]
+name = "base-bytecode-check"
+path = "src/main.rs"
+
+[dependencies]
+# all pinned by the base 5476069f lock: reth-db/-api 2.5.2 git base/reth tag base-v2.5.2.8 #7134be3b, revm-bytecode 42.0.0,
+# alloy-primitives 1.6.1, reth-primitives-traits 0.6.0, serde_json 1.0.151. Features requested explicitly (no reliance on
+# unification); any activation that is new to the workspace would change the lock and make --locked fail (= BLOCKER).
+reth-db = { workspace = true }
+reth-db-api = { workspace = true }
+reth-primitives-traits = { workspace = true, features = ["reth-codec"] }
+alloy-primitives = { workspace = true, features = ["std"] }
+revm-bytecode = { workspace = true, features = ["std"] }
+serde_json = { workspace = true, features = ["std"] }

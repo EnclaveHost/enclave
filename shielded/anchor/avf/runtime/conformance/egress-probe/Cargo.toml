@@ -1,0 +1,30 @@
+[package]
+name = "egress-probe"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The pVM CPU tier's egress conformance app (PVM-CPU.md \"Egress\"): a wasi:http component that makes outgoing requests and reads its environment."
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen-rt = { version = "0.39.0", features = ["bitflags"] }
+
+[profile.release]
+codegen-units = 1
+opt-level = "s"
+strip = true
+lto = true
+
+[package.metadata.component]
+package = "enclave:egress-probe"
+
+[package.metadata.component.target]
+path = "wit"
+world = "egress-probe"
+
+[package.metadata.component.target.dependencies]
+"wasi:http" = { path = "wit/deps/http" }
+"wasi:io" = { path = "wit/deps/io" }
+"wasi:clocks" = { path = "wit/deps/clocks" }

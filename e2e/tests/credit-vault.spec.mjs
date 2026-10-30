@@ -8,7 +8,7 @@
 // every WebAuthn ceremony; the P-256 verifier at 0x100 checks them on anvil
 // exactly as Base's native precompile does in prod.
 import { test, expect } from "@playwright/test";
-import { seedStorage, addVirtualAuthenticator, fireStripeWebhook } from "../fixtures/session.mjs";
+import { seedStorage, addVirtualAuthenticator, fireStripeWebhook, stack } from "../fixtures/session.mjs";
 
 test("credit: card top-up lands on-chain; one passkey tap deploys from it; dashboard extends it", async ({ page, context }) => {
   await seedStorage(context, page);
@@ -37,13 +37,13 @@ test("credit: card top-up lands on-chain; one passkey tap deploys from it; dashb
   // that routes signed-in accounts to the passkey path instead of a wallet
   // (the wallet path would die here: no provider is injected). It soft-
   // navigates to the dashboard and narrates into the run log.
-  await page.evaluate(async () => {
+  await page.evaluate(async (reference) => {
     const m = await import("/js/pages/deploy.js");
     await m.deployOnChain({
-      reference: "ipfs://bafyvaultapp", gpuMilli: 250, cpuMilli: 100,
+      reference, gpuMilli: 250, cpuMilli: 100,
       ports: "", isPublic: true, fundUsd: 5,
     });
-  });
+  }, stack.vaultAppRef);
   // the run strip lands on the dashboard and narrates the passkey deploy
   await expect(page.locator("c-deployments .enc-live")).toContainText("created + funded", { timeout: 20_000 });
   // the credit balance lives in the header popover (fetched fresh on every
@@ -51,7 +51,7 @@ test("credit: card top-up lands on-chain; one passkey tap deploys from it; dashb
   await page.locator("#walletBtn").dispatchEvent("click");
   await expect(page.locator("#wpBalCredit")).toContainText("$20.00");
   await page.keyboard.press("Escape");
-  const row = page.locator("c-deployments .enc-row", { hasText: "bafyvaultapp" });
+  const row = page.locator("c-deployments .enc-row", { hasText: "vault-app:1.0.0" });
   // relay ledger cache (10s TTL) + the panel's 10s poll: allow a full cycle.
   // "queued": funded on-chain, no live enclave claims in e2e
   await expect(row).toContainText("queued", { timeout: 30_000 });

@@ -1,0 +1,27 @@
+{
+ "run": "run-20261026T073520Z-2f5bf737",
+ "verdict": "complete",
+ "kind": "diagnostic observations only; NOT a capture, readiness or finality verdict",
+ "guestRc": "0",
+ "stopCollectRc": 0,
+ "deleteRc": 0,
+ "hostFloorBreach": false,
+ "status": {
+  "format": "enclave-guest-call-diagnostic-status/v3",
+  "kind": "diagnostic observations only; NOT a capture, readiness or finality verdict",
+  "variants": [
+   "100",
+   "400"
+  ],
+  "phases": {
+   "A": "complete",
+   "B100": "complete",
+   "B400": "complete"
+  },
+  "invariants": {
+   "ok": true,
+   "violations": []
+  },
+  "complete": true
+ }
+}

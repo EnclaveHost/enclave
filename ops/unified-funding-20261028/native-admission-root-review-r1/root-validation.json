@@ -1,0 +1,37 @@
+{
+  "sourceUnchanged": true,
+  "rootProductChanges": [
+    "admission-envelope.c"
+  ],
+  "originalObserverTerminateImport": true,
+  "repairedObserverTerminateImport": false,
+  "repairedEnvelopeImports": [
+    "BCryptHash",
+    "CreateFileW",
+    "ExitProcess",
+    "GetCommandLineW",
+    "GetCurrentProcess",
+    "GetCurrentProcessId",
+    "GetFileAttributesW",
+    "GetFileInformationByHandle",
+    "GetModuleFileNameW",
+    "GetProcessId",
+    "GetProcessTimes",
+    "GetStdHandle",
+    "IsProcessInJob",
+    "QueryInformationJobObject",
+    "ReadFile",
+    "WaitForSingleObject",
+    "WriteFile"
+  ],
+  "originalAndRepairedBuildExit": 0,
+  "nativeExecuted": false,
+  "nativeQualified": false,
+  "authorJsonCasesExecuted": false,
+  "launcherByteDifferenceOnlyCoffTimestamp": true,
+  "launcherDifferingByteOffsets": [
+    128,
+    129
+  ],
+  "buildNote": "LLD default COFF timestamp makes unchanged launcher relink bytes different; each envelope pins its own exact launcher output. No deterministic-build claim."
+}

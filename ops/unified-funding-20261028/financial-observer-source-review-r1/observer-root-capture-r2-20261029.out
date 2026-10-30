@@ -1,0 +1,13 @@
+[queue] START available=92152MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+test_raw_open_must_not_bypass_role_mapping (__main__.CaptureTests.test_raw_open_must_not_bypass_role_mapping) ... ok
+test_raw_path_mutation_must_not_be_ignored (__main__.CaptureTests.test_raw_path_mutation_must_not_be_ignored) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.001s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak:
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak:
+[queue] EXIT 0

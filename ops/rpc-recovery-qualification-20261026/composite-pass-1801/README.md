@@ -1,0 +1,7 @@
+# Actual composite checker qualification: 4 guard + 12 lifecycle tests passed
+
+The complete r6 fixture suite passed with no skips, warnings, unexpected output, changed peers or leftover mounts. The exact stage, test and runtime hashes are recorded in the receipt; the source is preserved in composite-test-1798/r6. This qualifies the tested tiny-fixture lifecycle, including read-only MDBX opening, cancellation, failed unmount, unchanged inputs, refusal of previous live runs, and cleanup. It does not establish integrity of the recovered production database or canonical chain state.
+
+The outer recovery scheduler was briefly held with a verified pidfd while its current verification worker finished normally. An independent bounded watchdog ensured resumption. The controller resumed scheduling immediately when the checker acquired the shared main lane. No current copy or verify worker was interrupted, no queue process was killed, and no driver source was changed. The archived one-shot controller is operational evidence, not a general resume command.
+
+Production checking still requires all 265 parts independently verified, a validated production view and a coordinated memory/time window. Its entrypoint remains disabled. Original USB writes, downloads and RPC VM boot remain paused; no RAID reset is authorized. Production RPC replacement still requires real-data structural/canonical validation, synchronization, safe/finalized readiness, blobs, proof serving, lease relay and consumer cutover.

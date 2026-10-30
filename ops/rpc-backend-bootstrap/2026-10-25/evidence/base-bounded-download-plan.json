@@ -1,0 +1,821 @@
+{
+  "schemaVersion": 1,
+  "chainId": 8453,
+  "block": 53048526,
+  "totalDownloadSize": 827643763752,
+  "totalOutputSize": 1274286216705,
+  "archives": [
+    {
+      "component": "state",
+      "fileName": "1792886410/state.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/1792886410/state.tar.zst",
+      "downloadSize": 761228785915,
+      "outputSize": 1138167361549
+    },
+    {
+      "component": "account_changesets",
+      "fileName": "1792886410/account_changesets-53000000-53499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/1792886410/account_changesets-53000000-53499999.tar.zst",
+      "downloadSize": 124965901,
+      "outputSize": 352154380
+    },
+    {
+      "component": "account_changesets",
+      "fileName": "static_files/account_changesets-52500000-52999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/account_changesets-52500000-52999999.tar.zst",
+      "downloadSize": 1450797852,
+      "outputSize": 4122798279
+    },
+    {
+      "component": "headers",
+      "fileName": "1792886410/headers-53000000-53499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/1792886410/headers-53000000-53499999.tar.zst",
+      "downloadSize": 20472349,
+      "outputSize": 32146804
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-0-499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-0-499999.tar.zst",
+      "downloadSize": 58105905,
+      "outputSize": 144436251
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-1000000-1499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-1000000-1499999.tar.zst",
+      "downloadSize": 64079718,
+      "outputSize": 149048253
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-10000000-10499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-10000000-10499999.tar.zst",
+      "downloadSize": 161385612,
+      "outputSize": 270401689
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-10500000-10999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-10500000-10999999.tar.zst",
+      "downloadSize": 161452990,
+      "outputSize": 270274640
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-11000000-11499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-11000000-11499999.tar.zst",
+      "downloadSize": 161446188,
+      "outputSize": 271247415
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-11500000-11999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-11500000-11999999.tar.zst",
+      "downloadSize": 171372132,
+      "outputSize": 284477441
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-12000000-12499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-12000000-12499999.tar.zst",
+      "downloadSize": 189792804,
+      "outputSize": 303523215
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-12500000-12999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-12500000-12999999.tar.zst",
+      "downloadSize": 199793654,
+      "outputSize": 302906171
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-13000000-13499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-13000000-13499999.tar.zst",
+      "downloadSize": 200598002,
+      "outputSize": 303301714
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-13500000-13999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-13500000-13999999.tar.zst",
+      "downloadSize": 200495727,
+      "outputSize": 303510697
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-14000000-14499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-14000000-14499999.tar.zst",
+      "downloadSize": 199657844,
+      "outputSize": 303604899
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-14500000-14999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-14500000-14999999.tar.zst",
+      "downloadSize": 198976685,
+      "outputSize": 303721011
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-1500000-1999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-1500000-1999999.tar.zst",
+      "downloadSize": 79397560,
+      "outputSize": 165728090
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-15000000-15499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-15000000-15499999.tar.zst",
+      "downloadSize": 202611810,
+      "outputSize": 302937634
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-15500000-15999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-15500000-15999999.tar.zst",
+      "downloadSize": 203140912,
+      "outputSize": 303206341
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-16000000-16499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-16000000-16499999.tar.zst",
+      "downloadSize": 203833252,
+      "outputSize": 303322143
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-16500000-16999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-16500000-16999999.tar.zst",
+      "downloadSize": 203211929,
+      "outputSize": 303006582
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-17000000-17499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-17000000-17499999.tar.zst",
+      "downloadSize": 207803418,
+      "outputSize": 303906132
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-17500000-17999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-17500000-17999999.tar.zst",
+      "downloadSize": 208901967,
+      "outputSize": 303303981
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-18000000-18499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-18000000-18499999.tar.zst",
+      "downloadSize": 207526647,
+      "outputSize": 302050842
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-18500000-18999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-18500000-18999999.tar.zst",
+      "downloadSize": 210070142,
+      "outputSize": 304046331
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-19000000-19499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-19000000-19499999.tar.zst",
+      "downloadSize": 209779263,
+      "outputSize": 304012006
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-19500000-19999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-19500000-19999999.tar.zst",
+      "downloadSize": 209299133,
+      "outputSize": 303965091
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-2000000-2499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-2000000-2499999.tar.zst",
+      "downloadSize": 144398810,
+      "outputSize": 235489329
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-20000000-20499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-20000000-20499999.tar.zst",
+      "downloadSize": 208515066,
+      "outputSize": 302934007
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-20500000-20999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-20500000-20999999.tar.zst",
+      "downloadSize": 207587849,
+      "outputSize": 302040748
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-21000000-21499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-21000000-21499999.tar.zst",
+      "downloadSize": 210447613,
+      "outputSize": 304187895
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-21500000-21999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-21500000-21999999.tar.zst",
+      "downloadSize": 210604435,
+      "outputSize": 303697724
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-22000000-22499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-22000000-22499999.tar.zst",
+      "downloadSize": 209884098,
+      "outputSize": 302718395
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-22500000-22999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-22500000-22999999.tar.zst",
+      "downloadSize": 209080671,
+      "outputSize": 301920253
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-23000000-23499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-23000000-23499999.tar.zst",
+      "downloadSize": 208751201,
+      "outputSize": 301718039
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-23500000-23999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-23500000-23999999.tar.zst",
+      "downloadSize": 209915573,
+      "outputSize": 302758885
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-24000000-24499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-24000000-24499999.tar.zst",
+      "downloadSize": 210375529,
+      "outputSize": 303411250
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-24500000-24999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-24500000-24999999.tar.zst",
+      "downloadSize": 210934453,
+      "outputSize": 305649475
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-2500000-2999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-2500000-2999999.tar.zst",
+      "downloadSize": 158986949,
+      "outputSize": 252998957
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-25000000-25499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-25000000-25499999.tar.zst",
+      "downloadSize": 211022674,
+      "outputSize": 308654851
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-25500000-25999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-25500000-25999999.tar.zst",
+      "downloadSize": 211073888,
+      "outputSize": 308520359
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-26000000-26499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-26000000-26499999.tar.zst",
+      "downloadSize": 210812728,
+      "outputSize": 308194051
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-26500000-26999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-26500000-26999999.tar.zst",
+      "downloadSize": 209928801,
+      "outputSize": 307034827
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-27000000-27499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-27000000-27499999.tar.zst",
+      "downloadSize": 211467458,
+      "outputSize": 308636770
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-27500000-27999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-27500000-27999999.tar.zst",
+      "downloadSize": 211569335,
+      "outputSize": 308653290
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-28000000-28499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-28000000-28499999.tar.zst",
+      "downloadSize": 211730396,
+      "outputSize": 308740347
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-28500000-28999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-28500000-28999999.tar.zst",
+      "downloadSize": 210986785,
+      "outputSize": 308206210
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-29000000-29499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-29000000-29499999.tar.zst",
+      "downloadSize": 210231584,
+      "outputSize": 307323223
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-29500000-29999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-29500000-29999999.tar.zst",
+      "downloadSize": 210788787,
+      "outputSize": 308025202
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-3000000-3499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-3000000-3499999.tar.zst",
+      "downloadSize": 161198209,
+      "outputSize": 251926851
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-30000000-30499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-30000000-30499999.tar.zst",
+      "downloadSize": 207549778,
+      "outputSize": 322869275
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-30500000-30999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-30500000-30999999.tar.zst",
+      "downloadSize": 203970675,
+      "outputSize": 322188845
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-31000000-31499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-31000000-31499999.tar.zst",
+      "downloadSize": 208810889,
+      "outputSize": 324269670
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-31500000-31999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-31500000-31999999.tar.zst",
+      "downloadSize": 209517031,
+      "outputSize": 324454141
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-32000000-32499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-32000000-32499999.tar.zst",
+      "downloadSize": 209929648,
+      "outputSize": 324251834
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-32500000-32999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-32500000-32999999.tar.zst",
+      "downloadSize": 210397871,
+      "outputSize": 324853595
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-33000000-33499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-33000000-33499999.tar.zst",
+      "downloadSize": 211104475,
+      "outputSize": 325325166
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-33500000-33999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-33500000-33999999.tar.zst",
+      "downloadSize": 210502072,
+      "outputSize": 324698973
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-34000000-34499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-34000000-34499999.tar.zst",
+      "downloadSize": 208880775,
+      "outputSize": 323998269
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-34500000-34999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-34500000-34999999.tar.zst",
+      "downloadSize": 209250759,
+      "outputSize": 324654913
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-3500000-3999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-3500000-3999999.tar.zst",
+      "downloadSize": 159244579,
+      "outputSize": 248521523
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-35000000-35499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-35000000-35499999.tar.zst",
+      "downloadSize": 209419418,
+      "outputSize": 324993650
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-35500000-35999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-35500000-35999999.tar.zst",
+      "downloadSize": 209846864,
+      "outputSize": 325421787
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-36000000-36499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-36000000-36499999.tar.zst",
+      "downloadSize": 209113345,
+      "outputSize": 325611130
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-36500000-36999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-36500000-36999999.tar.zst",
+      "downloadSize": 209916576,
+      "outputSize": 325825559
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-37000000-37499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-37000000-37499999.tar.zst",
+      "downloadSize": 209511406,
+      "outputSize": 325181718
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-37500000-37999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-37500000-37999999.tar.zst",
+      "downloadSize": 208310171,
+      "outputSize": 325458788
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-38000000-38499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-38000000-38499999.tar.zst",
+      "downloadSize": 204506975,
+      "outputSize": 324977425
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-38500000-38999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-38500000-38999999.tar.zst",
+      "downloadSize": 206257399,
+      "outputSize": 325931640
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-39000000-39499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-39000000-39499999.tar.zst",
+      "downloadSize": 206061329,
+      "outputSize": 330101532
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-39500000-39999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-39500000-39999999.tar.zst",
+      "downloadSize": 209306520,
+      "outputSize": 332053450
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-4000000-4499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-4000000-4499999.tar.zst",
+      "downloadSize": 154762317,
+      "outputSize": 243303652
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-40000000-40499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-40000000-40499999.tar.zst",
+      "downloadSize": 208225711,
+      "outputSize": 331998298
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-40500000-40999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-40500000-40999999.tar.zst",
+      "downloadSize": 207655677,
+      "outputSize": 331846230
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-41000000-41499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-41000000-41499999.tar.zst",
+      "downloadSize": 208681944,
+      "outputSize": 331239085
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-41500000-41999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-41500000-41999999.tar.zst",
+      "downloadSize": 209025369,
+      "outputSize": 331709591
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-42000000-42499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-42000000-42499999.tar.zst",
+      "downloadSize": 209105415,
+      "outputSize": 331721451
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-42500000-42999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-42500000-42999999.tar.zst",
+      "downloadSize": 209102819,
+      "outputSize": 331716780
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-43000000-43499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-43000000-43499999.tar.zst",
+      "downloadSize": 207834143,
+      "outputSize": 331515648
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-43500000-43999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-43500000-43999999.tar.zst",
+      "downloadSize": 210127638,
+      "outputSize": 331725799
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-44000000-44499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-44000000-44499999.tar.zst",
+      "downloadSize": 210130553,
+      "outputSize": 331665587
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-44500000-44999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-44500000-44999999.tar.zst",
+      "downloadSize": 211251604,
+      "outputSize": 331798553
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-4500000-4999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-4500000-4999999.tar.zst",
+      "downloadSize": 156710978,
+      "outputSize": 245117351
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-45000000-45499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-45000000-45499999.tar.zst",
+      "downloadSize": 211996343,
+      "outputSize": 331812815
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-45500000-45999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-45500000-45999999.tar.zst",
+      "downloadSize": 211216291,
+      "outputSize": 331674645
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-46000000-46499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-46000000-46499999.tar.zst",
+      "downloadSize": 210687414,
+      "outputSize": 331737129
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-46500000-46999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-46500000-46999999.tar.zst",
+      "downloadSize": 211449953,
+      "outputSize": 331653092
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-47000000-47499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-47000000-47499999.tar.zst",
+      "downloadSize": 210932866,
+      "outputSize": 331208195
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-47500000-47999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-47500000-47999999.tar.zst",
+      "downloadSize": 211028836,
+      "outputSize": 330624557
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-48000000-48499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-48000000-48499999.tar.zst",
+      "downloadSize": 211861416,
+      "outputSize": 331277266
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-48500000-48999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-48500000-48999999.tar.zst",
+      "downloadSize": 211767925,
+      "outputSize": 331266371
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-49000000-49499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-49000000-49499999.tar.zst",
+      "downloadSize": 212170747,
+      "outputSize": 331428954
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-49500000-49999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-49500000-49999999.tar.zst",
+      "downloadSize": 211662423,
+      "outputSize": 331193809
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-500000-999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-500000-999999.tar.zst",
+      "downloadSize": 58134501,
+      "outputSize": 144501887
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-5000000-5499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-5000000-5499999.tar.zst",
+      "downloadSize": 158607381,
+      "outputSize": 247615648
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-50000000-50499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-50000000-50499999.tar.zst",
+      "downloadSize": 211523777,
+      "outputSize": 331759091
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-50500000-50999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-50500000-50999999.tar.zst",
+      "downloadSize": 211704407,
+      "outputSize": 331708076
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-51000000-51499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-51000000-51499999.tar.zst",
+      "downloadSize": 211628148,
+      "outputSize": 331863732
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-51500000-51999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-51500000-51999999.tar.zst",
+      "downloadSize": 210688854,
+      "outputSize": 331662185
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-52000000-52499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-52000000-52499999.tar.zst",
+      "downloadSize": 210765786,
+      "outputSize": 331609146
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-52500000-52999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-52500000-52999999.tar.zst",
+      "downloadSize": 208749772,
+      "outputSize": 330751491
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-5500000-5999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-5500000-5999999.tar.zst",
+      "downloadSize": 153333972,
+      "outputSize": 242759972
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-6000000-6499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-6000000-6499999.tar.zst",
+      "downloadSize": 146536938,
+      "outputSize": 235609289
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-6500000-6999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-6500000-6999999.tar.zst",
+      "downloadSize": 144166686,
+      "outputSize": 233064861
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-7000000-7499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-7000000-7499999.tar.zst",
+      "downloadSize": 143037873,
+      "outputSize": 230860990
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-7500000-7999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-7500000-7999999.tar.zst",
+      "downloadSize": 141321408,
+      "outputSize": 229492912
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-8000000-8499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-8000000-8499999.tar.zst",
+      "downloadSize": 147068743,
+      "outputSize": 237356026
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-8500000-8999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-8500000-8999999.tar.zst",
+      "downloadSize": 149971803,
+      "outputSize": 240764152
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-9000000-9499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-9000000-9499999.tar.zst",
+      "downloadSize": 147873187,
+      "outputSize": 249805312
+    },
+    {
+      "component": "headers",
+      "fileName": "static_files/headers-9500000-9999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/headers-9500000-9999999.tar.zst",
+      "downloadSize": 151620970,
+      "outputSize": 257554721
+    },
+    {
+      "component": "receipts",
+      "fileName": "1792886410/receipts-53000000-53499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/1792886410/receipts-53000000-53499999.tar.zst",
+      "downloadSize": 931845193,
+      "outputSize": 1981685826
+    },
+    {
+      "component": "receipts",
+      "fileName": "static_files/receipts-52500000-52999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/receipts-52500000-52999999.tar.zst",
+      "downloadSize": 10472651961,
+      "outputSize": 23560470952
+    },
+    {
+      "component": "storage_changesets",
+      "fileName": "1792886410/storage_changesets-53000000-53499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/1792886410/storage_changesets-53000000-53499999.tar.zst",
+      "downloadSize": 913185622,
+      "outputSize": 3092392236
+    },
+    {
+      "component": "storage_changesets",
+      "fileName": "static_files/storage_changesets-52500000-52999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/storage_changesets-52500000-52999999.tar.zst",
+      "downloadSize": 11696033978,
+      "outputSize": 39146941100
+    },
+    {
+      "component": "transactions",
+      "fileName": "1792886410/transactions-53000000-53499999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/1792886410/transactions-53000000-53499999.tar.zst",
+      "downloadSize": 1631632348,
+      "outputSize": 2663765565
+    },
+    {
+      "component": "transactions",
+      "fileName": "static_files/transactions-52500000-52999999.tar.zst",
+      "url": "https://mainnet-v2-snapshots.base.org/static_files/transactions-52500000-52999999.tar.zst",
+      "downloadSize": 18734835304,
+      "outputSize": 29489503275
+    }
+  ]
+}

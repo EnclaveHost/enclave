@@ -1,0 +1,10 @@
+Extra receipts+transactions chunks if the history floor D is below 52,500,000 (whole 500k-block files; real manifest sha 1f0c4e6c..., block 53048526)
+floor chunk | covers from | extra chunks | compressed GB | decompressed GB
+        104 |    52000000 |            1 |          25.4 |            46.7
+        100 |    50000000 |            5 |         138.1 |           255.1
+         95 |    47500000 |           10 |         245.2 |           453.0
+         90 |    45000000 |           15 |         379.5 |           698.1
+         80 |    40000000 |           25 |         686.6 |          1312.6
+         60 |    30000000 |           45 |        1357.9 |          2665.4
+         40 |    20000000 |           65 |        1748.6 |          3513.1
+          0 |           0 |          105 |        1932.2 |          3897.3

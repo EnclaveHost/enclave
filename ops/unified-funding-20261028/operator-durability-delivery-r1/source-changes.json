@@ -1,0 +1,55 @@
+{
+  "changes": {
+    "RELEASE-CLOSURE-OPERATOR-DURABILITY-R1.json": {
+      "seedSha256": null,
+      "finalSha256": "379be8f6133e7bcaf141fbd3518f2052f13d4530784138bd0a64fc6a3b512702",
+      "kind": "new"
+    },
+    "REPORT-OPERATOR-DURABILITY-R1.md": {
+      "seedSha256": null,
+      "finalSha256": "136fff8d0c0088d1fde5077d0597df70d9184149c6f7cc0b2005ee9426019ba7",
+      "kind": "new"
+    },
+    "control/windows/node/chain.mjs": {
+      "seedSha256": "f68f1995129282397c6315f17469aca26c0091a1c450de2b66a81c281230f45f",
+      "finalSha256": "292004ac1a017c14c7d43af8514276bfe905d6d9fdab12893734410f76cf1fe9",
+      "kind": "modified"
+    },
+    "control/windows/node/host.mjs": {
+      "seedSha256": "e5acbe23c0bdaac2d85d5a6081347b52d3c5185d511e89bc99e8a9ad56bd9aa7",
+      "finalSha256": "c632b1df0b054f0974a93959260f4cd2828b7dc400e697a30374dce22b9b660d",
+      "kind": "modified"
+    },
+    "control/windows/node/initialize-operator-effects.mjs": {
+      "seedSha256": null,
+      "finalSha256": "e4d0165280581eb24efa72ff05d296b7c898bbda7fd90b45bedb8b5d057519ae",
+      "kind": "new"
+    },
+    "control/windows/node/operator-effects.mjs": {
+      "seedSha256": null,
+      "finalSha256": "41c7d34f4fa443281eb2447611d04713efb103315557ecaf7e3e9687bea73ed6",
+      "kind": "new"
+    },
+    "test/windows-permit/helpers/od-r1-owner-child.mjs": {
+      "seedSha256": null,
+      "finalSha256": "8129643b109a93d19824c87d881c7c643e5910ce7c4aeba1d47d507e69c32b4f",
+      "kind": "new"
+    },
+    "test/windows-permit/od-r1-direct-sender.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "f15b71a471c4695f6d88b9f645200d611bf28052001995ac889ca0bb0189d42a",
+      "kind": "new"
+    },
+    "test/windows-permit/od-r1-operator-effects-store.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "2fa518f1e2235646347e2b4bbe1d35135d47aeb25b03a5d441b398b05c1d1555",
+      "kind": "new"
+    },
+    "test/windows-permit/od-r1-sponsored.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "47374533437c787725143e58a4e334351dffac9e4b6313fa47f02f5136a3fcd1",
+      "kind": "new"
+    }
+  },
+  "removed": []
+}

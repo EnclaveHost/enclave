@@ -15,7 +15,6 @@ quiet_off **INVALID**  quiet_on **VALID**  matched **False**
 | cleanup s | 8.33233 | 24.5497 |
 
 ## quiet_off (INVALID)
-- the dealer bank is 'QUARANTINED_NOT_REUSED', not CLEAR
 - trial 1 (rcvbuf enabled=True buffer=4194304): 16 tokens in 1.29863e+07 us, 1.23207 tok/s overall, 1.27281 tok/s steady over 13; offloaded 2441, local 0, pads 6764/0, verify_fail 0
 - trial 2 (rcvbuf enabled=False buffer=262144): 16 tokens in 2.02104e+07 us, 0.791673 tok/s overall, 0.805052 tok/s steady over 13; offloaded 2441, local 0, pads 6764/0, verify_fail 0
 - pad-budget cards 4, pads_waited [4, 4, 4, 4]
@@ -34,5 +33,4 @@ NOT_COMPARED: leg status: quiet_off=INVALID quiet_on=VALID
 - The overall rate and the steady rate are different measurements and are reported separately; neither is a sustained production rate.
 - A NOT_RUN leg is an absent cycle and an INVALID leg is a failed one. Neither is a zero, a baseline or a result.
 - The APK installed_path and the verification command timings are observations, never identity; identity is the recorded status, manifest and APK digests, version code, calibration bytes and digest, and serial.
-- Quiet admission describes the observed body markers of that run and carries its own limitation text; it is not proof the pads port was silent.
 - GPU memory is a device peak across the whole cycle from the verified own worker, not decode-only utilisation.

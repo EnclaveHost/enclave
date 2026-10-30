@@ -1,0 +1,14 @@
+{
+  "status": "PREPARED_ONLY_UNEXECUTED",
+  "files": 35,
+  "sourcePins": 86,
+  "missingImports": [],
+  "testEntry": "contracts/foundry/test/WalletSessionVault.t.sol",
+  "matchContract": "WalletSessionVault(Test|Rev16DTest)",
+  "settings": "Pinned native solc0.8.35,optimizer1,viaIR,explicitOsaka,default metadata IPFS (no override),FFI false,offline,no code size override. Deployed map sessions/ledger optimizer1/viaIR agrees; native/Emscripten/default target equivalence not freshly proved.",
+  "legacyRig": "imports full SessionVault.t.sol plus generic ledger; run only WalletSessionVaultTest. Native P256 expected on osaka but inherited rig may etch existing pinned fixture; do not claim hardware/native P256 proof.",
+  "ledgerWarning": "Original author suite remains rev15d. Separate explicit rev16d fixture retains its assertions and adds one owner-policy LedgerMoved regression. Both UNRUN. Generic ledger/catalog/router SessionRig dependencies are not all exact deployed builds; do not overstate live equivalence.",
+  "rootNodeResult": "Separate root existing 10=7PASS/3FAIL, no repeats authorized here.",
+  "sizing": "runtime<=24576; initcode factory+5*32<=49152; executor+6*32<=49152; library+0<=49152. Factory embeds executor creation. Record unresolved library links; no deployed-bytecode equivalence claim.",
+  "exactFixture": "contracts/foundry/test/WalletSessionVaultRev16D.t.sol"
+}

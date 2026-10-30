@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""summarize-baseline.py <bench_dir> -- one table from cpu/bench-baseline.sh's output (PVM-CPU.md, "Measured baseline").
+"""summarize-baseline.py <bench_dir> [queue_log] -- one table from cpu/bench-baseline.sh's output (PVM-CPU.md, "Measured baseline").
 
 Per run and per turn: launch -> first token (cold start, from logcat's START and the turn window, both on the PHONE's clocks),
 model load, time to first token (the turn window's first - start: prompt sent -> first token back), prefill and decode rates,
@@ -7,7 +7,7 @@ the CPU window (cores busy, core-ms per token; COMPLETE windows only), the VM's 
 over the run (peak status, peak BIG temperature, lowest big-core caps, lowest MemAvailable). Also the crash run's verdicts."""
 import csv, glob, json, os, re, sys
 
-B = sys.argv[1]
+B = sys.argv[1]; QLOG = sys.argv[2] if len(sys.argv) > 2 else os.path.expanduser("~/gguf-e2b/cpu-baseline.log")
 def rd(p):
     try: return open(p, errors="replace").read()
     except OSError: return ""
@@ -31,7 +31,7 @@ if m:
     t0 = datetime.datetime.fromisoformat(m.group(1)).timestamp()
 
 rows = []
-for log in sorted(set(glob.glob(os.path.join(B, "*", "*", "*.log")))):
+for log in sorted(set(glob.glob(os.path.join(B, "**", "*.log"), recursive=True))):
     label = os.path.basename(log)[:-4]
     if label.endswith(".driver"): continue
     t = rd(log)
@@ -55,7 +55,7 @@ for log in sorted(set(glob.glob(os.path.join(B, "*", "*", "*.log")))):
                      "vm_mem_mib": int(mem.group(1)) if mem else None, "_win": w})
 
 # thermal over each run: the bench log gives each run's start (wall) -- the trace's t_s is seconds since device.txt's start
-blog = rd(os.path.expanduser("~/gguf-e2b/cpu-baseline.log"))
+blog = rd(QLOG)
 run_start = {}
 if t0:
     import datetime
@@ -83,4 +83,15 @@ print("|---|---|---|---|---|---|---|")
 for lab in labels:
     x = therm(lab)
     if x: print(f"| {lab} | {x['status_max']} | {x['big_c_max']} | {x['skin_c_max']} | {x['cap_cpu2_min_ghz']:.3f} | {x['cap_cpu7_min_ghz']:.3f} | {x['mem_avail_min_mib']} |")
+# per run: decode over every turn together (tokens / seconds) and the worst turn -- the sustained criterion (PVM-CPU.md target 2)
+print()
+print("| run | condition | turns | decode tokens | tok/s over the run | worst turn tok/s | core-ms/token (mean of turns) |")
+print("|---|---|---|---|---|---|---|")
+cond = dict(re.findall(r"^== (\S+) \(([^)]*)\)", blog, re.M))
+for lab in sorted({r["run"] for r in rows}):
+    t = [r for r in rows if r["run"] == lab and r["decode_tok_s"] > 0]
+    if not t: continue
+    tok = sum(r["decode_tokens"] for r in t); sec = sum(r["decode_tokens"] / r["decode_tok_s"] for r in t)
+    cms = [r["core_ms_per_token"] for r in t if r["core_ms_per_token"]]
+    print(f"| {lab} | {cond.get(lab, '')} | {len(t)} | {tok} | {tok / sec:.2f} | {min(r['decode_tok_s'] for r in t):.2f} | {sum(cms) / len(cms):.0f} |" if cms else f"| {lab} | {cond.get(lab, '')} | {len(t)} | {tok} | {tok / sec:.2f} | {min(r['decode_tok_s'] for r in t):.2f} | |")
 json.dump([{k: v for k, v in r.items() if not k.startswith("_")} for r in rows], open(os.path.join(B, "summary.json"), "w"), indent=1)

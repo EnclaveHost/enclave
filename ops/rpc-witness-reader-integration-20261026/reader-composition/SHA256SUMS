@@ -1,0 +1,4 @@
+c28a8054f5193436c29a56f01a5db5b62a2d20c972b95306f1de2ecf556ddf4c  ./COMPOSITION.json
+b6475a35034d713c5dcf81b096f39f5a6659f655ff18502bf7924445965dd3da  ./README.md
+5415dbfcb871aa1f0df56b25224599d4e682e230c2d655781a3fd93a7bb106a1  ./composition.patch
+81bf43f5cc69155d9b3de432f212e3ccbcbdeef29bc4eb80ec16394c18ec188c  ./jobs/root-reader-composition.sh

@@ -1,0 +1,1 @@
+Peer static review found state mismatch returned terminal conflict before final anchor recheck. Moved that classification after anchor validation; added state-changing late-reorg regression. No prior execution claim for this new case.

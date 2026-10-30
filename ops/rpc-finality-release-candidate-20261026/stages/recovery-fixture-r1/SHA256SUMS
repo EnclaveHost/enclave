@@ -1,0 +1,4 @@
+34174ed32d0d47a419602aecafe45c3b99482a71966789c9fea6b805c237b0d0  ./README.md
+6db5f54f5174a274aaeafd797839dcbdd81f02787f4dfbbe15477a45971cce8d  ./integration/test_reanchor_recovery.patch
+4850105b88ef07e4904f468bf227fa991f62bae60bad80e75470586a33b55ace  ./jobs/root-r10-recovery-fixture-fix.sh
+6c8bc04959b28fae833d6caf37a13d19df5231d3da1cbe633a66f7112e2de0b4  ./tests/r7-ported/test_reanchor_recovery.py

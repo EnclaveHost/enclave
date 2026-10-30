@@ -1,0 +1,2 @@
+PASS independent-profile rc 0 expected 5 tests 5 pass 5 fail 0 cancelled 0 skipped 0 todo 0
+PASS r5-abi rc 0 expected 5 tests 5 pass 5 fail 0 cancelled 0 skipped 0 todo 0

@@ -1,0 +1,24 @@
+{
+  "status": "PREPARATION_ONLY_NO_CODE_EXECUTION",
+  "preparedSha256": "eaf896e64a3439791850c66830d80868a293dc5d931caa7de72f9eaf41f154b1",
+  "seedFiles": 249,
+  "preAuthorProductEdits": 0,
+  "extraFiles": 0,
+  "readonlyPins": 15042,
+  "inputDrift": [],
+  "authorLaunched": false,
+  "testsBuildsRun": false,
+  "helperASTOnly": true,
+  "bounds": {
+    "agenticTurns": 30,
+    "childSec": 900,
+    "outerSec": 1050,
+    "hardMiB": 1536,
+    "rssMiB": 1408,
+    "floorMiB": 27648,
+    "CPU": 1,
+    "swapMiB": 0
+  },
+  "collectorChange": "Only configuredMaxAgenticTurns55->30 reporting; same terminal/freeze/replay logic",
+  "account": "Fresh required Max/exe verification root prelaunch and runner; not newly observed here"
+}

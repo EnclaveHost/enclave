@@ -1,0 +1,49 @@
+--- collect.py
++++ collect-gc.py
+@@ -25,7 +25,36 @@
+             'unexpected-recorded-scope')
+     outer = unit(plan['unit']); inner = unit(name.rsplit('/', 1)[-1])
+     identities = read('ROOT-IDENTITIES.json')
+-    require(outer.get('InvocationID') == identities['invocation'], 'outer-invocation-drift')
++    terminal_evidence = 'live-unit-invocation'
++    if outer.get('LoadState') == 'not-found':
++        require(identities['invocation'] == 'a1aa5398821646f98c964e94bb753d5d'
++                and identities['processes'][0]['pid'] == 2684335, 'unexpected-gc-run')
++        require(outer.get('ActiveState') == 'inactive' and outer.get('SubState') == 'dead'
++                and outer.get('MainPID') == '0', 'collected-outer-not-terminal')
++        # Collected successful transient units lose InvocationID. Verify exact journal invocation + original queue PID.
++        jr = subprocess.run(['/usr/bin/journalctl', '--user', '_SYSTEMD_INVOCATION_ID=' + identities['invocation'], '_PID=2684335',
++                             '-n', '20', '--no-pager', '-o', 'json'],
++                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=10)
++        require(jr.returncode == 0 and len(jr.stdout) <= 1048576, 'terminal-journal-read')
++        entries = [json.loads(line) for line in jr.stdout.splitlines() if line]
++        done = [e for e in entries if e.get('_SYSTEMD_INVOCATION_ID') == identities['invocation']
++                and str(e.get('_PID')) == str(identities['processes'][0]['pid'])
++                and e.get('MESSAGE') == '[queue] EXIT 0'
++                and int(e.get('__REALTIME_TIMESTAMP', '0')) > int(identities['at'] * 1_000_000)]
++        require(len(done) == 1, 'exact-invocation-terminal-missing')
++        require(result.get('rc') == 0 and result.get('cleanupComplete') is True
++                and result.get('inputsUnchanged') is True and result.get('noOom') is True,
++                'collected-runner-not-successful')
++        for log in ('inner.guard.log', 'outer.guard.log'):
++            require(re.fullmatch(r'\[memory-guard\] exit=0 peakTreeRssMiB=\d+ minHostAvailableMiB=\d+\n?',
++                                 (P / log).read_text()) is not None, 'guard-not-successful')
++        terminal_evidence = {'kind': 'systemd-collected-exact-invocation-journal',
++                             'invocation': identities['invocation'], 'queuePid': identities['processes'][0]['pid'],
++                             'cursor': done[0].get('__CURSOR'), 'message': done[0]['MESSAGE'],
++                             'realtimeTimestampUs': done[0]['__REALTIME_TIMESTAMP'],
++                             'afterRootActiveAt': identities['at']}
++    else:
++        require(outer.get('InvocationID') == identities['invocation'], 'outer-invocation-drift')
+     for old in identities['processes']:
+         current = process(old['pid'])
+         require(current is None or current['startTime'] != old['startTime'], 'recorded-process-still-alive')
+@@ -53,7 +82,7 @@
+     with (P / 'SOURCE.patch').open('x') as f:
+         os.fchmod(f.fileno(), 0o600); f.writelines(patch)
+     collected = {'status': 'COLLECTED-SOURCE-ONLY', 'outerUnit': outer, 'innerScope': inner,
+-                 'remainingPids': remaining, 'runnerStatus': result['status'], 'changedFiles': changed,
++                 'remainingPids': remaining, 'terminalEvidence': terminal_evidence, 'runnerStatus': result['status'], 'changedFiles': changed,
+                  'sourcePatchSha256': sha(P / 'SOURCE.patch'), 'candidatePinsSha256': sha(P / 'CANDIDATE-PINS.json'),
+                  'testsRun': False, 'coldControllerRecoveryQualified': False, 'productionReady': False,
+                  'eligibleForRootSourceReview': result['status'] == 'SOURCE-DELIVERED-UNQUALIFIED'

@@ -1,0 +1,15 @@
+[queue] START available=18263MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+composed tree reproduced: 1df125598825fb5278fe6af96a50a69b46679a1c = base 64156dcd91ff + 27 c66 blobs
+composition.patch on a clean base export == composed tree
+no pre-existing file references the new modules
+node_modules linked (read-only) from the candidate checkout; node v22.23.3
+module closure OK: 109 imports in 23 modules
+runtime import load OK (provider, lifecycle, api, bridge, journal)
+PASS reader-composition tests 20/20 (reader 16 + bridge 4)
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/reader-runtime-composition-stage/logs/run-20261026T111054Z-1554319
+## reader-composition tree 1df125598825fb5278fe6af96a50a69b46679a1c
+## reader-composition SHA256SUMS 902786cd2709c1b41716d9cac71b861a016bba06464dfba4dadae26b53da8853
+## reader-composition rc=0
+[memory-guard] exit=0 peakTreeRssMiB=256 minHostAvailableMiB=17929
+[memory-guard] at peak: node:130 node:63 executable:55 bash:4 bash:2 timeout:2
+[queue] EXIT 0

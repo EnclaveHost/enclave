@@ -1,0 +1,11 @@
+[queue] START available=34711MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-reader-site-r4/capture-current.py", line 9, in <module>
+    (p/(host+'.capture.stderr')).write_text(r.stderr);assert r.returncode==0,host
+                                                             ^^^^^^^^^^^^^^^
+AssertionError: us-west
+[memory-guard] exit=1 peakTreeRssMiB=24 minHostAvailableMiB=34657
+[memory-guard] at peak: python3:13 ssh:10
+[memory-guard] exit=1 peakTreeRssMiB=91 minHostAvailableMiB=34657
+[memory-guard] at peak: node:68 python3:13 ssh:10
+[queue] EXIT 1

@@ -1,0 +1,129 @@
+{
+  "capturedAt": "2026-10-30T00:05:16.176Z",
+  "readOnly": true,
+  "scope": "Known live API session observed in user browser plus public held and active secret-policy metadata only. Not a complete session census. No secret bundle read, policy update, signature or release.",
+  "vault": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+  "book": "0xab214342d5A490150A4A977063A2f88E21F80907",
+  "sid": "0x4a59ff5d7316635d4ea1592c64c4bd3b5a642130d3197f30545f1bf2e680cb5a",
+  "snapshot": {
+    "value": {
+      "factory": "0x1F5c887c0cDF491b16AB6c449abAfDF9B2ec9C9C",
+      "knownSession": {
+        "live": true,
+        "actions": "43215860598959184859848575143834562855167",
+        "envs": 3,
+        "anyApp": true,
+        "apps": [],
+        "expiresAt": "1793765924"
+      },
+      "policies": [
+        {
+          "id": "0xcab8fb59882d976bf4005448701149d734b0dab536d9bf46f2b5159b0b0819e9",
+          "held": [
+            2,
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x95bfb425bfe3ea356d08b2e8e3a2920097ad3d6de5ff60e65583f4d9ba5fcb5d"
+          ],
+          "backends": [
+            {
+              "kind": "secretVault",
+              "address": "0x0000000000000000000000000000000000000000",
+              "configured": false
+            },
+            {
+              "kind": "secretVaultV2",
+              "address": "0x0000000000000000000000000000000000000000",
+              "configured": false
+            }
+          ]
+        },
+        {
+          "id": "0xa62e13de22559ee9a6ce1798891ab3506ac8e1b1eca296ff749cfcd7ab4fc640",
+          "held": [
+            1,
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x95bfb425bfe3ea356d08b2e8e3a2920097ad3d6de5ff60e65583f4d9ba5fcb5d"
+          ],
+          "backends": [
+            {
+              "kind": "secretVault",
+              "address": "0x0000000000000000000000000000000000000000",
+              "configured": false
+            },
+            {
+              "kind": "secretVaultV2",
+              "address": "0x0000000000000000000000000000000000000000",
+              "configured": false
+            }
+          ]
+        },
+        {
+          "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+          "held": [
+            1,
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x95bfb425bfe3ea356d08b2e8e3a2920097ad3d6de5ff60e65583f4d9ba5fcb5d"
+          ],
+          "backends": [
+            {
+              "kind": "secretVault",
+              "address": "0x0000000000000000000000000000000000000000",
+              "configured": false
+            },
+            {
+              "kind": "secretVaultV2",
+              "address": "0x0000000000000000000000000000000000000000",
+              "configured": false
+            }
+          ]
+        },
+        {
+          "id": "0x87508b958c4d14381b58fe05a781efbd3f185a36d5239abdf37e8f242f944538",
+          "held": [
+            1,
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x95bfb425bfe3ea356d08b2e8e3a2920097ad3d6de5ff60e65583f4d9ba5fcb5d"
+          ],
+          "backends": [
+            {
+              "kind": "secretVault",
+              "address": "0x0000000000000000000000000000000000000000",
+              "configured": false
+            },
+            {
+              "kind": "secretVaultV2",
+              "address": "0x0000000000000000000000000000000000000000",
+              "configured": false
+            }
+          ]
+        },
+        {
+          "id": "0x9a28642bed115105c07bea1131c56c83ae2843ce4daf07958ab36437c0528a6b",
+          "held": [
+            2,
+            "0x98ba7eff2aa4dc64ab5a9b6e16238bd176ab4b260e28e88b38091a8e66240ccf",
+            "0x0ef2ef60cef7a3546a948599d8b36fd349de23597d617ff716dde2a3595da6d1"
+          ],
+          "backends": [
+            {
+              "kind": "secretVault",
+              "address": "0x0000000000000000000000000000000000000000",
+              "configured": false
+            },
+            {
+              "kind": "secretVaultV2",
+              "address": "0x0000000000000000000000000000000000000000",
+              "configured": false
+            }
+          ]
+        }
+      ]
+    },
+    "blockNumber": "53264682",
+    "blockHash": "0x97efc02221b3ba39b918a111e3640fe5e945aed545c93cf64dc8974c8f2ab0ee",
+    "timestamp": 1793318711000,
+    "agreeing": 3,
+    "peers": 3,
+    "failures": []
+  }
+}

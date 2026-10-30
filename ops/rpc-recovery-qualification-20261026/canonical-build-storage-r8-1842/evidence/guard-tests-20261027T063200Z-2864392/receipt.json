@@ -1,0 +1,52 @@
+{
+ "format": "bsro-guard-test-receipt/r8",
+ "pass": true,
+ "stageSums": "49a41e28764267797bd0046b90eb193cbfdba57ed3703c8737d96fbb0868c4e9",
+ "suites": {
+  "test_bsro_gate": {
+   "checks": {
+    "lastLineOK": true,
+    "noBadMarkers": true,
+    "ranExactly": true,
+    "rc0": true,
+    "stdoutEmpty": true
+   },
+   "expected": 11,
+   "pass": true,
+   "ran": [
+    "11"
+   ],
+   "rc": 0
+  },
+  "test_disk_guard": {
+   "checks": {
+    "lastLineOK": true,
+    "noBadMarkers": true,
+    "ranExactly": true,
+    "rc0": true,
+    "stdoutEmpty": true
+   },
+   "expected": 10,
+   "pass": true,
+   "ran": [
+    "10"
+   ],
+   "rc": 0
+  },
+  "test_mount_identity": {
+   "checks": {
+    "lastLineOK": true,
+    "noBadMarkers": true,
+    "ranExactly": true,
+    "rc0": true,
+    "stdoutEmpty": true
+   },
+   "expected": 6,
+   "pass": true,
+   "ran": [
+    "6"
+   ],
+   "rc": 0
+  }
+ }
+}

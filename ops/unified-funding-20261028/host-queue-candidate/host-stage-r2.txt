@@ -1,0 +1,25 @@
+[queue] START available=30581MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+wrote relay/sessions.mjs sha256 eb0f5543f2d16bc846ab158b291d26379dc32a7e11461946b1c3537f1b9cd7ba
+wrote relay/funding-route.mjs sha256 87e6df639df4569d6a5c44439d0448a4fe3ce4c2580c2b7e997baab61f5aa7bc
+wrote relay/funding-abi.mjs sha256 6bb37e658aca45fd416d5ea17dda3109e1b41791e674976a60425d579f485cd7
+wrote test/sessions.test.mjs sha256 481ad082e1300c873dc4aea63c6dc498cf317ae7ee09fb5ae3892f83844e290b
+wrote test/helpers/sessions-chain.mjs sha256 6985591425cd4cb7161625aeca0408ed92c800c7e697194363f814845739dc69
+wrote contracts/foundry/out/SessionMocks.sol/MockUSDC3009.json sha256 07011c210be0fc625cb6b5cf669edc0424e58601256c339fe467e49d2608900b
+wrote contracts/foundry/out/SessionMocks.sol/SessionRegistryStub.json sha256 2486580f1d5d4050b46c564a1f9ac5c4e371119fa67db0596ed1b2054fbd68e9
+wrote contracts/foundry/out/EnclaveAddressBook.sol/EnclaveAddressBook.json sha256 547449efe3593a8d54e63859474dc39349ef956021fee979d9cfa45479dca9f1
+wrote contracts/foundry/out/EnclaveAppCatalog.sol/EnclaveAppCatalog.json sha256 15f7bd4b3982847a5d89e42dbce8cbc1ad291b41946c59a95c902472373129dc
+wrote contracts/foundry/out/PaymentRouter.sol/PaymentRouter.json sha256 e829e09df246a8840552868035d7e909a30611fdba9f7ef6f918ceef7cce643b
+wrote contracts/foundry/out/EnclaveDeployments.sol/EnclaveDeployments.json sha256 311b6accf01d1aa5a56db31ae6f48a61b51e103151123f97ca6a047b691f6822
+wrote contracts/foundry/out/EnclaveDeployments.sol/EnclaveLedgerBandwidth.json sha256 f0226350f6e994e5659620f9435277bccea4c132338b7941397c5ffd2c56c1c8
+wrote relay/auth.js sha256 f306187959c97944c18d27f485ca1eee1f3ccdfd3dbb891a15a67b16692f526c
+wrote relay/sso.js sha256 cef16bf239cedec471f78436acda5ad81744b394413767e19772a4eb6066dd1d
+wrote relay/package.json sha256 afa6bffde4fc35e8d42d2dd2373019853a2b25b0048336e20c25e7aa3fec3d6f
+wrote HOST-STAGING.json sha256 ddb4437bfecd9327c99b1cb1260826e21333272420bce837e0e5452c7cbfdc16
+linked relay/vaultsvc.js -> ../../../../source/relay/vaultsvc.js
+linked relay/node_modules -> ../../deps/node_modules
+prepare-host.py: staged host/
+[memory-guard] exit=0 peakTreeRssMiB=18 minHostAvailableMiB=30550
+[memory-guard] at peak: python3:18
+[memory-guard] exit=0 peakTreeRssMiB=69 minHostAvailableMiB=30551
+[memory-guard] at peak: node:50 python3:19
+[queue] EXIT 0

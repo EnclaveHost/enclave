@@ -1,0 +1,101 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 5 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 6 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 7 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 8 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 9 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 10 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 11 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 12 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 13 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 14 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 15 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 16 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 17 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 18 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 19 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 20 not started; sleep 30
+[queue] START available=24001MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+Ran 4 tests in 1.133s
+
+OK
+Ran 12 tests in 60.240s
+
+OK
+{
+ "environment": {
+  "noMountLeft": true,
+  "peersUnchanged": true
+ },
+ "format": "composite-mdbx-validation-test-receipt/r6",
+ "guardSha256": "f64c6115ab8ac871d1813d53d45d3b03369c330c45617763824a4bb3fef287ce",
+ "pass": true,
+ "scope": "tiny real MDBX fixtures + guard unit tests only; no production view or part; not chain/state/RPC/SNP validation",
+ "sessionSha256": "407aa7e98fe18f913112b9f49369416e98524ff28f4e44cde788958f314fdbf6",
+ "stageSums": "06705b02eab351a718234f22c9a53acdbefe3977122682f8f3f7ac25d5b9914a",
+ "suites": {
+  "test_composite_session": {
+   "badMarkers": [],
+   "checks": {
+    "lastLineOK": true,
+    "noBadMarkers": true,
+    "ranExactly": true,
+    "rc0": true,
+    "stdoutEmpty": true
+   },
+   "expectedTests": 12,
+   "pass": true,
+   "ran": [
+    "12"
+   ],
+   "rc": 0,
+   "testsSha256": "0e087dea4f8768e60d482035f61e010db360cc1a08dee90225444c6d5f5c1fd5"
+  },
+  "test_session_guard": {
+   "badMarkers": [],
+   "checks": {
+    "lastLineOK": true,
+    "noBadMarkers": true,
+    "ranExactly": true,
+    "rc0": true,
+    "stdoutEmpty": true
+   },
+   "expectedTests": 4,
+   "pass": true,
+   "ran": [
+    "4"
+   ],
+   "rc": 0,
+   "testsSha256": "6a66be0d0a2ff88d58dbff0d7d2b0c2ead3693a6ac12042901719304f273994b"
+  }
+ }
+}
+## PASS (4+12)
+## receipt /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r6/runs/tests-20261027T020755Z-2617132/receipt.json
+## cmv-r6-tests rc=0
+[memory-guard] exit=0 peakTreeRssMiB=108 minHostAvailableMiB=23846
+[memory-guard] at peak: python3:33 python3:30 python3:21 qemu-nbd:10 nbdfuse:8 bash:4 timeout:2
+[queue] EXIT 0

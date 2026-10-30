@@ -1,0 +1,17 @@
+# earlier stage-layout runs on the same launcher 8b1ece11 (not repeated: path-only changes since)
+## test_real_qemu.py-20261025T170839Z
+test_production_blockdev_unmap_frees_host_blocks (__main__.DiscardUnmap.test_production_blockdev_unmap_frees_host_blocks) ... ok
+test_guard_pauses_via_second_monitor (__main__.GuardOnRealQemu.test_guard_pauses_via_second_monitor) ... ok
+test_powerdown_floor_watch_pauses_from_manifest (__main__.GuardOnRealQemu.test_powerdown_floor_watch_pauses_from_manifest) ... ok
+test_real_qemu_clean_exit_while_waiting (__main__.PowerdownRegression.test_real_qemu_clean_exit_while_waiting) ... ok
+test_timeout_then_events_then_eof (__main__.PowerdownRegression.test_timeout_then_events_then_eof) ... ok
+Ran 5 tests in 7.440s
+OK
+[memory-guard] exit=0 peakTreeRssMiB=59 minHostAvailableMiB=87334
+## test_systemd_lifecycle.py-20261025T171211Z
+test_guard_vm_lifecycle (__main__.Lifecycle.test_guard_vm_lifecycle) ... ok
+test_install_verify_does_not_need_the_guard (__main__.VerifyWithoutGuard.test_install_verify_does_not_need_the_guard) ... ok
+watchdog-to-VM-inactive seconds: 30.1
+Ran 2 tests in 107.693s
+OK
+[memory-guard] exit=0 peakTreeRssMiB=98 minHostAvailableMiB=87468

@@ -1,0 +1,10 @@
+[queue] START available=92685MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+harness: TEST ONLY http://127.0.0.1:43337/  (owned anvil http://127.0.0.1:39255; stops after 600s or Ctrl-C)
+harness: TEST owner signature #1 SessionGrant @ 0xff9af2029778Bcf4F7513419F88E0c95CEef5510
+harness: TEST owner signature #2 ReceiveWithAuthorization @ 0x5FbDB2315678afecb367f032d93F642f64180aa3
+harness: stopping (SIGTERM)
+[memory-guard] exit=0 peakTreeRssMiB=136 minHostAvailableMiB=92379
+[memory-guard] at peak: node:107 anvil:29
+[memory-guard] exit=0 peakTreeRssMiB=202 minHostAvailableMiB=92379
+[memory-guard] at peak: node:107 node:66 anvil:28
+[queue] EXIT 0

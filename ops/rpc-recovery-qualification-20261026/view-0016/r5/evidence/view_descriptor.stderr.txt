@@ -1,0 +1,28 @@
+..REFUSED: part 1: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/multipart-validation-view-stage/r5/runs/tests-20261027T001324Z-2511769/tmp-view_descriptor/mvv-b5_v42cl/rootfs/absent.bin missing
+REFUSED: part 1: sha256 differs from the listed hash
+REFUSED: part 1: not a regular file of exactly 65024 bytes
+REFUSED: --parts: part 3: size 1500 is not a multiple of 512 (FLAT extents are whole sectors)
+REFUSED: --parts: parts cover 198144 bytes, logicalSize 198656
+REFUSED: --parts: part 1: not the next indexed part with an exact size and sha256
+REFUSED: part 1: not an absolute normalized path
+REFUSED: part 1: character or token unsafe in a VMDK descriptor / image-opts string
+REFUSED: part 1: character or token unsafe in a VMDK descriptor / image-opts string
+REFUSED: part 1: character or token unsafe in a VMDK descriptor / image-opts string
+REFUSED: part 1: longer than 511 bytes (vmdk.c %511 extent name)
+REFUSED: part 1: symlink component /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/multipart-validation-view-stage/r5/runs/tests-20261027T001324Z-2511769/tmp-view_descriptor/mvv-b5_v42cl/link
+REFUSED: part 1: has write permission bits (parts must be read-only)
+REFUSED: --parts: part 1: path listed twice
+REFUSED: part 1: the same file as an earlier part
+REFUSED: --parts: only kind 'fixture' in r1; production views need the accepted recovery-multipart r2 schema
+REFUSED: --parts: recovery-multipart manifests are not view input in r1 (await the accepted r2 schema)
+REFUSED: --out-dir must be a NEW absolute normalized directory
+.REFUSED: part 1: identity changed since the view was built
+REFUSED: part 1: identity changed since the view was built
+.REFUSED: pid 2511831 does not hold the verified files (parts [0, 1, 2, 3] and the descriptor)
+REFUSED: part 2: identity changed since the view was built
+REFUSED: part 2: identity changed since the view was built
+.
+----------------------------------------------------------------------
+Ran 5 tests in 0.338s
+
+OK

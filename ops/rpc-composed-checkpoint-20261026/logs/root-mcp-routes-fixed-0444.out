@@ -1,0 +1,6 @@
+[queue] START available=23015MiB required=18048MiB cap=1408MiB floor=16384MiB concurrentSmall=0MiB
+{"ok": true, "rc": 0, "counts": {"tests": 7, "pass": 7, "fail": 0, "cancelled": 0, "skipped": 0, "todo": 0}}
+outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-final-candidate-20261026/mcp-routes-20261026T044223Z
+[memory-guard] exit=0 peakTreeRssMiB=673 minHostAvailableMiB=22450
+[memory-guard] at peak: node:176 node:135 node:128 node:127 node:57 anvil:45 bash:4 timeout:2
+[queue] EXIT 0

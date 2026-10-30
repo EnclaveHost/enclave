@@ -1,0 +1,21 @@
+# base-forward-sync-stage (SOURCE ONLY; not installed): the CONSUMER-ISOLATED forward sync of an authenticated below-floor snapshot.
+# Own unit, own datadir identity (authenticated), own loopback ports (28545/29545; no production/readiness/lease port), our L1 pair,
+# peers allowed, no tx forwarding. It never runs beside the production Base node and never touches consumer units or app VMs.
+[Unit]
+Description=Base forward sync below the retained finality floor (isolated; recovery only)
+Conflicts=enclave-base-holder.service
+After=network-online.target
+OnSuccess=enclave-base-forward-sync-verify.service
+StartLimitIntervalSec=6h
+StartLimitBurst=20
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 -I -B /opt/enclave-rpc/recovery/forward_sync.py run /etc/enclave-rpc/base-forward-sync.json
+Restart=on-failure
+RestartSec=120
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=900
+NoNewPrivileges=no
+PrivateTmp=yes

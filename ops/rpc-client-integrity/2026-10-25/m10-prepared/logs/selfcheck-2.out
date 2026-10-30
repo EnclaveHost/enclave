@@ -1,0 +1,17 @@
+[queue] START available=19858MiB required=18688MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1792MiB
+## git apply --stat (M10):
+ 18 files changed, 987 insertions(+), 8 deletions(-)
+## new files:
+ create mode 100644 crates/consensus/engine/src/sync/anchor.rs
+ create mode 100644 crates/consensus/engine/src/test_utils/anchor_blocks.rs
+ create mode 100644 crates/consensus/service/src/service/anchor_safedb.rs
+applies: OK
+new files present: 3
+derivation actor unchanged (its own first-reset SafeDB wipe kept)
+default unchanged: pub async fn reset_with_checkpoint_reader
+default unchanged: pub async fn reset
+default unchanged: pub async fn find_starting_forkchoice_with_checkpoint_reader
+flag occurrences: 2 (no env)
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

@@ -1,0 +1,53 @@
+{
+ "format": "rpc-maintenance-qmp-author-closure/r1",
+ "status": "source-authored; nothing executed; tests UNRUN",
+ "incident": {
+  "recorded": "BlockingIOError: [Errno 11] Resource temporarily unavailable (no phase, no stack, empty console, cleanup unit gone/pidGone)",
+  "cause": "UNKNOWN; not attributed to connect backlog, socket leak or handshake",
+  "testsCanProveCause": false
+ },
+ "changedPaths": {
+  "modified": ["candidate/maint_boot.py"],
+  "new": ["candidate/test_qmp_transport.py", "candidate/test_maintenance_diagnostics.py", "candidate/REPORT.md", "candidate/CLOSURE.json"],
+  "notCreated": ["candidate/qmp_transport.py (python3 -I leaves the script dir off sys.path; transport kept in maint_boot.py)"],
+  "unchanged": ["candidate/guest_mask.py", "candidate/test_root_maintenance.py", "candidate/SHA256SUMS", "seed/*", "evidence/*", "preparation files"]
+ },
+ "hashesComputedByAuthor": false,
+ "seedRecordedHashes": {
+  "maint_boot.py (seed, now modified)": "10e41ac8e5496856567752b52f36eb84ef8cdd6f44e40d83e85f79604bb0f1ff",
+  "test_root_maintenance.py (unchanged)": "e35025e3c119b449a558fa1965260c2245107a44d8073fb5ac5bb3a434442951",
+  "guest_mask.py (unchanged)": "fe744bde89a985906c9db53130f5a856994d8f3542a576451cbae6c8d5b66d7f"
+ },
+ "originalTests": {"file": "test_root_maintenance.py", "methods": 13, "host": 10, "guest": 3, "byteIdentical": true, "hermetic": false,
+  "note": "Host.setUp reads the pinned launcher and live manifest paths; needs a future root-owned read-only fixture harness"},
+ "symbols": {
+  "newConstants": ["QMP_CMD_S", "QMP_FRAME_MAX", "QMP_RECV", "QMP_EVENTS_KEEP", "QMP_ABANDONED_MAX", "QMP_EINTR_MAX", "QMP_CONNECT_RETRY",
+                   "QMP_MUTATING", "QMP_EVENT", "QMP_REASON", "LAUNCH_PHASES", "TB_FRAMES"],
+  "new": ["safe_text", "errno_name", "unix_stream", "QMPError", "aware", "qmp_cmd", "qmp_pump", "qmp_usable", "qmp_uncertain", "qmp_close",
+          "open_qmp", "exc_brief", "exc_info", "Trace"],
+  "replaced": ["QMP"],
+  "modified": ["Ctx.__init__", "verify_prelaunch", "wait_ssh", "powerdown", "cleanup", "cmd_launch", "main"],
+  "existingConstantsChanged": []
+ },
+ "limits": {"qmpS": 180, "qmpSChanged": false, "commandS": 30, "frameMaxBytes": 1048576, "recvBufferMaxBytes": 1114112, "eventsKept": 64,
+            "pinnedShutdownGuestTrue": 1, "abandonedIdsMax": 4, "lateRepliesKept": 4, "eintrMax": 16, "readinessPauseS": "min(1, remaining)",
+            "cleanupGracefulS": "2*30 + powerdownS(300)", "threads": 0},
+ "retryPolicy": {"retried": "connect(2) only: ENOENT, ECONNREFUSED, EAGAIN; same absolute end; failed attempt closed first; owned unit must be active",
+                 "neverRetried": ["greeting/capabilities/recv/send errors of any errno", "EACCES", "timeouts", "protocol errors"],
+                 "commandsResent": "never",
+                 "rootDecision": "connect EAGAIN retry is a deliberate delta; remove errno.EAGAIN from QMP_CONNECT_RETRY for fail-fast"},
+ "invariantsPreserved": ["full paused prelaunch verification before cont", "exact-InvocationID owned stop only", "no PID signalled",
+  "no resource/floor/timeout/property/argv/disk/backup/activation change", "success still requires SHUTDOWN guest true + QMP closed + unit inactive + pid gone",
+  "evidence write_new O_EXCL 0600 unchanged"],
+ "behaviourDeltas": ["connect EAGAIN retried within the single readiness end", "greeting/capabilities timeout not retried (end expired)",
+  "legacy-factory TimeoutError not retried", "wait_ssh deadline >=", "cleanup graceful part catches any Exception and still reaches the owned stop",
+  "cleanup never resends quit/system_powerdown with unknown outcome", "additive RESULT/REFUSED diagnostics keys",
+  "cleanup exception recorded as cleanupError (main returns 1, not 2)", "stricter greeting/reply/event validation (fail closed)",
+  "QMP.events is a read-only bounded summary property"],
+ "proposedTests": {"files": ["candidate/test_qmp_transport.py", "candidate/test_maintenance_diagnostics.py"], "run": false,
+  "validates": "repaired transport/diagnostics wiring only; not incident cause, DB health, mask success or RPC readiness"},
+ "knownGaps": ["no syntax check or test run by author", "wait_unit_inactive keeps '>' (not QMP)", "ssh 40s + sleep 5 overrun of sshS unchanged",
+  "verify_prelaunch / first system_powerdown keep own 30s bound", "legacy fakes cannot enforce inner deadlines", "fd-count tests Linux-only",
+  "original tests not hermetic"],
+ "runtimeRecoveryClaimed": false
+}

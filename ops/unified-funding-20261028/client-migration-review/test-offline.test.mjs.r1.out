@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: Node WebCrypto (NOT a browser): fresh gas key non-extractable; keyHash = codec = v1 SDK; P-256 over digest bytes
+ok 1 - Node WebCrypto (NOT a browser): fresh gas key non-extractable; keyHash = codec = v1 SDK; P-256 over digest bytes
+  ---
+  duration_ms: 11.434958
+  type: 'test'
+  ...
+# Subtest: gas grant: exact domain 2, action 10 only, staging+prod, 1 USDC, candidate caps; refusals
+ok 2 - gas grant: exact domain 2, action 10 only, staging+prod, 1 USDC, candidate caps; refusals
+  ---
+  duration_ms: 5.879253
+  type: 'test'
+  ...
+# Subtest: gas.fund quote: fee / price / budget caps are enforced, never raised; unreconciled execute blocks
+ok 3 - gas.fund quote: fee / price / budget caps are enforced, never raised; unreconciled execute blocks
+  ---
+  duration_ms: 10.091899
+  type: 'test'
+  ...
+# Subtest: legacy evidence: live mask reproduced from the v1 SDK; missing record / changed chain state STOP
+ok 4 - legacy evidence: live mask reproduced from the v1 SDK; missing record / changed chain state STOP
+  ---
+  duration_ms: 8.448302
+  type: 'test'
+  ...
+# Subtest: plan: explicit split must sum to the fresh balance; replacement changes only budget/grantNonce/signBefore
+ok 5 - plan: explicit split must sum to the fresh balance; replacement changes only budget/grantNonce/signBefore
+  ---
+  duration_ms: 14.853161
+  type: 'test'
+  ...
+# Subtest: sign: no prompt without the root termsHash; then exactly 5 prompts in order
+ok 6 - sign: no prompt without the root termsHash; then exactly 5 prompts in order
+  ---
+  duration_ms: 40.605215
+  type: 'test'
+  ...
+# Subtest: execute (scripted): terminate -> legacy 29 -> gas 1; old record preserved; active moves once; no resend
+ok 7 - execute (scripted): terminate -> legacy 29 -> gas 1; old record preserved; active moves once; no resend
+  ---
+  duration_ms: 30.429346
+  type: 'test'
+  ...
+# Subtest: execute (scripted): replacement open unknown -> stop, nothing resent, old record + pointer kept, reconcile says what to do
+ok 8 - execute (scripted): replacement open unknown -> stop, nothing resent, old record + pointer kept, reconcile says what to do
+  ---
+  duration_ms: 29.639763
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 161.449487

@@ -1,0 +1,23 @@
+# published-layout run 20261025T171843Z (queue 512, TEST_TMP outside the source tree)
+[queue] START available=87575MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+test_levels (__main__.Decide.test_levels) ... ok
+test_thresholds (__main__.Decide.test_thresholds) ... ok
+test_check_failure_pauses (__main__.GuardLoop.test_check_failure_pauses) ... ok
+test_qemu_gone_after_seen_exits_0 (__main__.GuardLoop.test_qemu_gone_after_seen_exits_0) ... ok
+test_qmp_error_while_present_exits_3 (__main__.GuardLoop.test_qmp_error_while_present_exits_3) ... ok
+test_rate_triggers_early_shutdown (__main__.GuardLoop.test_rate_triggers_early_shutdown) ... ok
+test_shutdown_budget_mode_pauses_only_at_floor (__main__.GuardLoop.test_shutdown_budget_mode_pauses_only_at_floor) ... ok
+test_shutdown_then_pause_once_each (__main__.GuardLoop.test_shutdown_then_pause_once_each) ... ok
+test_unreachable_qmp_60s_exits_3 (__main__.GuardLoop.test_unreachable_qmp_60s_exits_3) ... ok
+test_unreachable_qmp_at_pause_exits_3 (__main__.GuardLoop.test_unreachable_qmp_at_pause_exits_3) ... ok
+test_waits_for_qemu_without_acting (__main__.GuardLoop.test_waits_for_qemu_without_acting) ... ok
+test_full_cycle_resume_and_finalize (__main__.Migration.test_full_cycle_resume_and_finalize) ... ok
+test_plan_accepts_only_empty_private_preexisting_dir (__main__.Migration.test_plan_accepts_only_empty_private_preexisting_dir) ... ok
+test_plan_refuses_without_start_capacity (__main__.Migration.test_plan_refuses_without_start_capacity) ... ok
+test_v1_argv_and_unit_render_byte_identical (__main__.V1Compat.test_v1_argv_and_unit_render_byte_identical) ... ok
+test_ok (__main__.ValidateV2.test_ok) ... ok
+test_rejects (__main__.ValidateV2.test_rejects) ... ok
+Ran 17 tests in 5.538s
+OK
+[memory-guard] exit=0 peakTreeRssMiB=39 minHostAvailableMiB=87437
+[queue] EXIT 0

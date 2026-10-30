@@ -1,0 +1,140 @@
+{
+ "format": "enclave-el-probe/v3",
+ "selector": "0x5c0cba33",
+ "portal": "0x49048044d57e1c92a77f79988d21fa8faf74e97e",
+ "startedAt": "2026-10-26T07:35:24.280Z",
+ "complete": true,
+ "steps": [
+  {
+   "label": "head",
+   "method": "eth_blockNumber",
+   "block": null,
+   "ms": 65,
+   "bytes": 45,
+   "http": 200
+  },
+  {
+   "label": "finalized",
+   "method": "eth_getBlockByNumber",
+   "block": "false",
+   "ms": 3,
+   "bytes": 17458,
+   "http": 200
+  },
+  {
+   "label": "call@finalizedHash",
+   "method": "eth_call",
+   "block": "{\"blockHash\":\"0x74fc8339e0407def2abe9a6fd8b3d61c00d68d970d050d32816b9a0d326fceea",
+   "ms": 8,
+   "bytes": 102,
+   "http": 200
+  },
+  {
+   "label": "call@latest",
+   "method": "eth_call",
+   "block": "\"latest\"",
+   "ms": 2,
+   "bytes": 102,
+   "http": 200
+  },
+  {
+   "label": "accessList@finalized",
+   "method": "eth_createAccessList",
+   "block": "\"0x190edf9\"",
+   "ms": 2,
+   "bytes": 354,
+   "http": 200
+  },
+  {
+   "label": "accessList@latest",
+   "method": "eth_createAccessList",
+   "block": "\"latest\"",
+   "ms": 2,
+   "bytes": 354,
+   "http": 200
+  },
+  {
+   "label": "proof@finalized#0",
+   "method": "eth_getProof",
+   "block": "\"0x190edf9\"",
+   "ms": 21986,
+   "bytes": 7925,
+   "http": 200
+  },
+  {
+   "label": "proof@finalized#1",
+   "method": "eth_getProof",
+   "block": "\"0x190edf9\"",
+   "ms": 5390,
+   "bytes": 7925,
+   "http": 200
+  },
+  {
+   "label": "proof@finalized#2",
+   "method": "eth_getProof",
+   "block": "\"0x190edf9\"",
+   "ms": 1614,
+   "bytes": 7925,
+   "http": 200
+  },
+  {
+   "label": "proofKeys@finalized",
+   "method": "eth_getProof",
+   "block": "\"0x190edf9\"",
+   "ms": 1534,
+   "bytes": 17751,
+   "http": 200
+  },
+  {
+   "label": "proofKeys@latest",
+   "method": "eth_getProof",
+   "block": "\"latest\"",
+   "ms": 39,
+   "bytes": 17751,
+   "http": 200
+  },
+  {
+   "label": "proofAccount@finalized:0x03863ab7f64b733cff85c8ff44a86601c568ca70",
+   "method": "eth_getProof",
+   "block": "\"0x190edf9\"",
+   "ms": 1604,
+   "bytes": 7951,
+   "http": 200
+  },
+  {
+   "label": "proofAccount@finalized:0x49048044d57e1c92a77f79988d21fa8faf74e97e",
+   "method": "eth_getProof",
+   "block": "\"0x190edf9\"",
+   "ms": 1570,
+   "bytes": 17751,
+   "http": 200
+  },
+  {
+   "label": "proof@finalized-300 (window check)",
+   "method": "eth_getProof",
+   "block": "\"0x190eccd\"",
+   "ms": 3,
+   "bytes": 115,
+   "http": 200,
+   "error": "{\"code\":-32602,\"message\":\"distance to target block exceeds maximum proof window\"}"
+  }
+ ],
+ "head": 26275403,
+ "finalized": {
+  "number": 26275321,
+  "hash": "0x74fc8339e0407def2abe9a6fd8b3d61c00d68d970d050d32816b9a0d326fceea",
+  "timestamp": 1792999127
+ },
+ "distance": 82,
+ "accessList": [
+  {
+   "address": "0x03863ab7f64b733cff85c8ff44a86601c568ca70",
+   "keys": 0
+  },
+  {
+   "address": "0x49048044d57e1c92a77f79988d21fa8faf74e97e",
+   "keys": 2
+  }
+ ],
+ "finishedAt": "2026-10-26T07:35:58.108Z"
+}

@@ -1,0 +1,4 @@
+lld-link: error: undefined symbol: memset
+>>> referenced by /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-job-probe-build-r4/job-probe.obj:(entry)
+>>> referenced by /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-job-probe-build-r4/job-probe.obj:(entry)
+>>> referenced by /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-job-probe-build-r4/job-probe.obj:(entry)

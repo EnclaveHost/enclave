@@ -1,0 +1,13 @@
+de1e7ade63bbe7600e4936b28d2459631df7d739ed1512da9197e0444dc16beb  ./README.md
+854c5d38d3afc7f7330d5db4171173ab448aa9d61e7034a4e8d3a7a23abc9f65  ./harness/a2a4.py
+836d821b98927ff7d1d2af26dd88a615d1954d067f717ff747bc64926c32bf0b  ./integration/finality_state-node-acceptance-normalized.patch
+17a93f7522bf80027a0a0d6e65421ea967673fcf616dcf37991867a2c71ef9e3  ./integration/harness-clean-reth-env.patch
+bb16862b560df6553b800ddd936f6c7a0ff881b1d18575c950836a106dc44c1e  ./integration/integration-rollback-and-adoption.patch
+0809ba6d8b3f92488f77a7912943f93ddd9db49d8671063ebafc0b7e90473acc  ./integration/producer-durable-adoption-on-r6.1.patch
+d014dce5afcac7893fb19a34ad13d4f0b35b98796fc112e0beaf26b5f3ba3023  ./integration/r7-ported-fake-env-allowlist.patch
+d54fd2cf69b0a82af44fd1f11378ba22a1ce4471ff5e99a72c918370eaaea40d  ./jobs/root-finality-r62-tests.sh
+f6861e475df98d71de83d54cf3b3d73e25bdbf3473e84fddf7be127642636405  ./producer/base_launch.py
+b2ed0aaa27786615b66d4c4b644f79e461e87c5de2c4e807eb78323fd9d38327  ./src/finality_state.py
+18bf2101114b3863f673e99ae8e94e1836cae3e65687c393080c8b1b948798a4  ./tests/r7-ported/test_reanchor_recovery.py
+3fc067164ea58f1161e1683422f1756c7c958a20761ea29708424bd0fa874b9b  ./tests/test_finality_integration.py
+bfeb971868372adb708557d8de6a6aeec0a02afc2a323417c0c9ef243564ee82  ./tests/test_r62_followups.py

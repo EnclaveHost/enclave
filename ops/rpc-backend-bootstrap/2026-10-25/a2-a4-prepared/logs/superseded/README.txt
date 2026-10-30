@@ -1,0 +1,1 @@
+Previous-round results (10/10 tests, 4/4 mutants) for a2a4.py sha ca000564...; SUPERSEDED by the root-review version. The current version was NOT run (queue exit 98: host memory / small lane held). Root: python3 work/claude-test-queue.py --mib 256 --log G -- python3 -u test/test_a2a4.py ; then bash mutants.sh (7 mutants must all be killed).

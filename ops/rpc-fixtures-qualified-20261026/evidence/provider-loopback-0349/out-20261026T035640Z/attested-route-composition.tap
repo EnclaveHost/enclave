@@ -1,0 +1,53 @@
+TAP version 13
+# Subtest: the provider authority is ONE explicit choice: the quorum is unchanged; mixed, paid, root-naming and policy-RPC configs refuse
+ok 1 - the provider authority is ONE explicit choice: the quorum is unchanged; mixed, paid, root-naming and policy-RPC configs refuse
+  ---
+  duration_ms: 22.354298
+  type: 'test'
+  ...
+# Subtest: host-services ADMISSION through the attested verifier, every public provider down: admit, ban, unban, owner rotation, rollback; outage never falls back
+ok 2 - host-services ADMISSION through the attested verifier, every public provider down: admit, ban, unban, owner rotation, rollback; outage never falls back
+  ---
+  duration_ms: 1276.844699
+  type: 'test'
+  ...
+# [parity] [["admit",[true,true]],["ban",[false,false]],["unban",[true,true]],["previous-owner-doc",[false,false]],["current-owner-ban",[false,false]],["current-owner-unban",[true,true]],["rollback-anchor",[false,false]],["re-anchor",[true,true]]]
+# Subtest: PARITY: the legacy QUORUM runtime and the attested runtime give the same decision at every step of one policy history
+ok 3 - PARITY: the legacy QUORUM runtime and the attested runtime give the same decision at every step of one policy history
+  ---
+  duration_ms: 1657.918947
+  type: 'test'
+  ...
+# Subtest: registry/app/OWNER reads: the provider's reader (built as main.mjs builds it) verifies ERC-1271 and SessionVault owners through the attested verifier
+ok 4 - registry/app/OWNER reads: the provider's reader (built as main.mjs builds it) verifies ERC-1271 and SessionVault owners through the attested verifier
+  ---
+  duration_ms: 12334.988073
+  type: 'test'
+  ...
+# Subtest: collateral PRE-SEED: the provider's file collateral attests fully; an EXPIRED pre-seeded CRL refuses (fail closed)
+ok 5 - collateral PRE-SEED: the provider's file collateral attests fully; an EXPIRED pre-seeded CRL refuses (fail closed)
+  ---
+  duration_ms: 31.547213
+  type: 'test'
+  ...
+# Subtest: the PACKAGED provider: source entry and an esbuild bundle of wg-provider/main.mjs report the attested authority, refuse a mixed config, keep the quorum
+ok 6 - the PACKAGED provider: source entry and an esbuild bundle of wg-provider/main.mjs report the attested authority, refuse a mixed config, keep the quorum
+  ---
+  duration_ms: 1082.333782
+  type: 'test'
+  ...
+# Subtest: packaging: separately bundled reader and client share ONE brand; a plain object is never "attested"
+ok 7 - packaging: separately bundled reader and client share ONE brand; a plain object is never "attested"
+  ---
+  duration_ms: 189.317714
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 20658.747892

@@ -1,0 +1,16 @@
+TAP version 13
+# Subtest: the channel is enrolled only while the node runs one: added and dropped with one agent restart each, steady otherwise
+ok 1 - the channel is enrolled only while the node runs one: added and dropped with one agent restart each, steady otherwise
+  ---
+  duration_ms: 12.159808
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 154.865865

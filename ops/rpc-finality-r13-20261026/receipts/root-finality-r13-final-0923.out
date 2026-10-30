@@ -1,0 +1,16 @@
+[queue] START available=18234MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+r13 = r12-final except ['CANARY-R3-RECIPE.md', 'README.md', 'bootstrap/a1_capture_original.py', 'bootstrap/holder_gate.py', 'bootstrap/release_install.py', 'bundle-origin.json', 'capture/a1_capture.py', 'harness-first/a2a4.py', 'harness/a2a4.py', 'install/MANIFEST.json', 'install/MISSING.md', 'install/install_verified.py', 'integration-r13/CANARY-R3-RECIPE.md-r13.patch', 'integration-r13/bootstrap_a1_capture_original.py-r13.patch', 'integration-r13/bundle-origin.json-r13.patch', 'integration-r13/capture_a1_capture.py-r13.patch', 'integration-r13/harness-first_a2a4.py-r13.patch', 'integration-r13/harness_a2a4.py-r13.patch', 'integration-r13/install_MANIFEST.json-r13.patch', 'integration-r13/install_MISSING.md-r13.patch', 'integration-r13/install_install_verified.py-r13.patch', 'integration-r13/producer_base_launch.py-r13.patch', 'integration-r13/recovery_forward_sync.py-r13.patch', 'integration-r13/src_finality_state.py-r13.patch', 'integration-r13/src_reproof.py-r13.patch', 'integration-r13/tests_test_ops_installer.py-r13.patch', 'jobs/root-finality-r13-tests.sh', 'producer/base_launch.py', 'recovery/forward_sync.py', 'src/finality_state.py', 'src/reproof.py', 'tests/r7-ported/test_bootstrap_wiring.py', 'tests/r7-ported/test_r3_launcher.py', 'tests/test_ops_installer.py', 'units/enclave-base-finality-reproof.service', 'units/enclave-base-holder.service.d/60-release-mode.conf', 'wrapper/chain_service.py', 'wrapper/test_l1_pruned_identity.py']
+HISTORY r12-final 0738 PASS (superseded: changed bytes); ops-followup-r2 0728 ops-installer 17/18, recovery-fixture-r2 FAIL, r3 0732 no-test: pinned, superseded; r3 0733 single PASS (informational)
+REUSED ops-readiness Ran 27 OK (receipt 33e54954aae0)
+REUSED sampler Ran 93 OK (receipt 512220bc4031)
+NOT REUSED recovery-existing 34 (old wrapper 4fc3b970): the new wrapper's existing 34-test suite runs in wrapper-pruned (49)
+REUSED JS core 20 (tap receipt)
+pins + manifest closure OK: 61 files 14 trees
+reader pins consistent: da9a9e9c6eff 78df2211342f (capture, both harnesses, MANIFEST, bundle-origin); own EL 18645 template kept
+bundle assembled: {"ok": true, "entries": 32}
+bundle closure OK: 32 entries
+
+[memory-guard] STOPPING own job: host MemAvailable 16200 MiB < floor 16384 MiB
+[memory-guard] exit=SIGTERM peakTreeRssMiB=115 minHostAvailableMiB=16200 STOPPED: host MemAvailable 16200 MiB < floor 16384 MiB
+[memory-guard] at peak: python3:111 bash:4
+[queue] EXIT 99

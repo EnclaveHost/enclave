@@ -1,0 +1,62 @@
+diff --git a/network/host-services/packages/credit-vault-submitter.mjs b/network/host-services/packages/credit-vault-submitter.mjs
+index 71b34daaa6d8f85145fcc433b6dffbc4907be81e..72dccefa0cdc2e4b67f6f65c076a8d6545d46342 100644
+--- a/network/host-services/packages/credit-vault-submitter.mjs
++++ b/network/host-services/packages/credit-vault-submitter.mjs
+@@ -34599,7 +34599,7 @@ function intIn(v, lo, hi, dflt, what) {
+   if (!Number.isSafeInteger(n) || n < lo || n > hi) throw new Error(`${what} must be an integer from ${lo} to ${hi}`);
+   return n;
+ }
+-function loadIndependentTrust({ profileFile, profileDigest: profileDigest2, contractPins, usdc, defaultUsdc, rpcs, quorum, confirmations, maxBlockAgeSec, chainVerifier }) {
++function loadIndependentTrust({ profileFile, profileDigest: profileDigest2, contractPins, usdc, defaultUsdc, rpcs, quorum, confirmations, maxBlockAgeSec, chainVerifier, chainAuthority }) {
+   let profile = null, digest = null, pins = contractPins || null, token = usdc ? String(usdc) : null;
+   if (profileDigest2 && !profileFile) throw new Error("--profile-digest needs --profile");
+   if (profileFile) {
+@@ -34633,6 +34633,24 @@ function loadIndependentTrust({ profileFile, profileDigest: profileDigest2, cont
+   if (!pins) throw new Error("independent mode needs explicit authorities: --profile FILE --profile-digest sha256:\u2026 or --contract-pins FILE");
+   token = token || defaultUsdc;
+   if (!nonZero(token)) throw new Error("independent mode needs a payment token address (--usdc)");
++  if (chainAuthority !== void 0 && chainAuthority !== null && chainAuthority !== "quorum") {
++    if (chainAuthority !== "verifier") throw new Error("chainAuthority must be quorum or verifier");
++    if (rpcs !== void 0 && rpcs !== null) throw new Error("chainAuthority verifier: rpcs must be absent (one explicit authority; a provider quorum is never mixed in)");
++    if (quorum !== void 0 && quorum !== null) throw new Error("chainAuthority verifier: quorum must be absent (the verifier is one proof-backed authority, not a vote)");
++    const only = chainVerifierOf({ chainAuthority: "verifier", chainVerifier }, "chainVerifier");
++    return Object.freeze({
++      pins,
++      usdc: getAddress(token),
++      profile,
++      digest,
++      rpcs: Object.freeze([]),
++      quorum: null,
++      chainAuthority: "verifier",
++      confirmations: intIn(confirmations, 0, 64, 2, "--confirmations"),
++      maxBlockAgeMs: intIn(maxBlockAgeSec, 10, 86400, 120, "--max-block-age") * 1e3,
++      chainVerifier: only
++    });
++  }
+   const origins = validateRpcOrigins(rpcs);
+   const q = intIn(quorum, 2, origins.length, 2, "--quorum");
+   const verifier = chainVerifier ? chainVerifierOf({ chainAuthority: "verifier", chainVerifier }, "--chain-verifier") : null;
+diff --git a/network/host-services/packages/credit-vault-submitter.package.json b/network/host-services/packages/credit-vault-submitter.package.json
+index eaf3569253fdbf3a86ec91a389f7c3d673a6fcef..48de69c48180ebb062f5591e5e74680f20a2444e 100644
+--- a/network/host-services/packages/credit-vault-submitter.package.json
++++ b/network/host-services/packages/credit-vault-submitter.package.json
+@@ -4,8 +4,8 @@
+   "entry": "network/credit-vault-submitter.mjs",
+   "bundleEntry": "network/host-services/entries/credit-vault-submitter.mjs",
+   "bundle": "credit-vault-submitter.mjs",
+-  "bundleSha256": "46a33b197d1b7c62f1943f67546cb01df846497162ec416d9d334ad36a8d0b03",
+-  "bytes": 1298017,
++  "bundleSha256": "bee29dcfa2170a2ffc9f48eeb2a6cd0bf83258a2f5ea9a5201030cead750edd6",
++  "bytes": 1299043,
+   "runtime": "node>=22 (host role; not a wasm component)",
+   "kind": "credit-vault-submitter",
+   "serves": "POST /v1/credit-vault/submit: a passkey-signed credit-vault (or proposed parallel-reserve) request is re-derived from its bytes, simulated at an agreed block and sent unchanged, gas paid by the operator; GET /health",
+@@ -32,7 +32,7 @@
+   "inputs": {
+     "cli/credit-vault.mjs": "13fcf133a685ce593843b2303087d5a3bac81a3824cff2430054fae487f36f82",
+     "cli/independent-signer.mjs": "d6eb8771f0153a33557935df39696a0d211995bde9a5b84b4a2f9c9d14559303",
+-    "cli/independent.mjs": "12245443fff2fc345ed654de7303258168018ae674f0dd1b11631a006dd18453",
++    "cli/independent.mjs": "00338a592c669d41cb2bd6a1250e17142240056f9759c3ea30735c710c1edd5d",
+     "net-guard.mjs": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af",
+     "network/attested-verifier-brand.mjs": "5229c8ec4a67632a3c323307e4cf89a657c0799d6589448dac9c77caa9501191",
+     "network/authority-profile.mjs": "fd760b317a9b48153419919979d025190e2992b2afee6ad148e5ed02e0db0328",

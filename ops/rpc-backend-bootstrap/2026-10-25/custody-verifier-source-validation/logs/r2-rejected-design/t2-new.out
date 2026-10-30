@@ -1,0 +1,17 @@
+✔ legacy default and explicit quorum are unchanged; verifier settings are refused there (1.623448ms)
+✔ verifier mode refuses mixed or public-fallback configuration (1.33369ms)
+✔ a verifier is never one vote in a quorum (v1 and v2 readers) (2.277753ms)
+✔ v1 reads go through the verifier at head - confirmations and see a revoked (paused) policy at once (31.824451ms)
+✔ a stale verifier head and a rolled-back checkpoint fail closed (6.507113ms)
+✔ verifier outage fails closed and never falls back to another server (1.038033ms)
+✔ no finality is invented: safe/finalized are refused, a wrong chain pin is refused (1.213421ms)
+✔ v2 block-hash reads: only blocks canonical on the verifier's chain, re-checked after the read (5.853667ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 283.096046
+new-rc=0

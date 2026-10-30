@@ -1,0 +1,25 @@
+[queue] START available=24028MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+test_01_production_allowlist_exact (__main__.T.test_01_production_allowlist_exact) ... ok
+test_02_allowlist_refusals (__main__.T.test_02_allowlist_refusals) ... ok
+test_03_copy_exact_and_double_read (__main__.T.test_03_copy_exact_and_double_read) ... ok
+test_04_no_symlink_or_hardlink_or_metadata_drift (__main__.T.test_04_no_symlink_or_hardlink_or_metadata_drift) ... ok
+test_05_stop_leaves_partial_only (__main__.T.test_05_stop_leaves_partial_only) ... ok
+test_06_plan_qemu_info_receipt (__main__.T.test_06_plan_qemu_info_receipt) ... ok
+test_07_view_mount_and_fs_header (__main__.T.test_07_view_mount_and_fs_header) ... ok
+test_08_ready_only_from_our_exec_child (__main__.T.test_08_ready_only_from_our_exec_child) ... ok
+test_09_production_refusals_before_anything (__main__.T.test_09_production_refusals_before_anything) ... REFUSED: production needs --request, --request-sha256, --stage-sums and at least the pinned floors
+REFUSED: production needs --request, --request-sha256, --stage-sums and at least the pinned floors
+REFUSED: production needs --request, --request-sha256, --stage-sums and at least the pinned floors
+REFUSED: fixture mode needs --backup --allowlist --uuid --fs-blocks --fuse2fs(+sha) --view-target
+ok
+test_10_coordination_filter (__main__.T.test_10_coordination_filter) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.696s
+
+OK
+## PASS (10)
+## outputs /tmp/che1881-unit-o7ZsbvJA
+[memory-guard] exit=0 peakTreeRssMiB=75 minHostAvailableMiB=23886
+[memory-guard] at peak: python3:50 python3:10 python3:10 bash:4 timeout:2
+[queue] EXIT 0

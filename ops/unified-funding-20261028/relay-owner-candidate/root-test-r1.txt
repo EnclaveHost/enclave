@@ -1,0 +1,213 @@
+[queue] START available=30744MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: owner/end/open are refused unless the host passes ownerManagement AND rateOwner; no body flag enables them
+ok 1 - owner/end/open are refused unless the host passes ownerManagement AND rateOwner; no body flag enables them
+  ---
+  duration_ms: 14.870479
+  type: 'test'
+  ...
+# Subtest: every original owner op is served; ownerCall is direct-owner only
+ok 2 - every original owner op is served; ownerCall is direct-owner only
+  ---
+  duration_ms: 1.263792
+  type: 'test'
+  ...
+# Subtest: forged terminate is refused before off-chain revocation, sends nothing and burns no quota
+ok 3 - forged terminate is refused before off-chain revocation, sends nothing and burns no quota
+  ---
+  duration_ms: 16.974934
+  type: 'test'
+  ...
+# Subtest: forged revokeAll and forged /funding/end never mark anything
+ok 4 - forged revokeAll and forged /funding/end never mark anything
+  ---
+  duration_ms: 16.006431
+  type: 'test'
+  ...
+# Subtest: a body owner that is not the vault's owner is refused
+ok 5 - a body owner that is not the vault's owner is refused
+  ---
+  duration_ms: 6.132658
+  type: 'test'
+  ...
+# Subtest: terminate marks the shared revocation in afterSimulate (before broadcast) and completes only on a canonical receipt
+ok 6 - terminate marks the shared revocation in afterSimulate (before broadcast) and completes only on a canonical receipt
+  ---
+  duration_ms: 9.915952
+  type: 'test'
+  ...
+# Subtest: a failed send after acceptance keeps the revocation (never weakened)
+ok 7 - a failed send after acceptance keeps the revocation (never weakened)
+  ---
+  duration_ms: 8.013595
+  type: 'test'
+  ...
+# Subtest: zero block hash (preconfirmation): 202 pending, no index, no second send, revocation kept
+ok 8 - zero block hash (preconfirmation): 202 pending, no index, no second send, revocation kept
+  ---
+  duration_ms: 7.932646
+  type: 'test'
+  ...
+# Subtest: null block hash: 202 pending, no index, no second send, revocation kept
+ok 9 - null block hash: 202 pending, no index, no second send, revocation kept
+  ---
+  duration_ms: 7.085692
+  type: 'test'
+  ...
+# Subtest: receipt unknown to the node: 202 pending, no index, no second send, revocation kept
+ok 10 - receipt unknown to the node: 202 pending, no index, no second send, revocation kept
+  ---
+  duration_ms: 7.35568
+  type: 'test'
+  ...
+# Subtest: reorged: the node's receipt is in another block: 202 pending, no index, no second send, revocation kept
+ok 11 - reorged: the node's receipt is in another block: 202 pending, no index, no second send, revocation kept
+  ---
+  duration_ms: 6.596445
+  type: 'test'
+  ...
+# Subtest: a block-number/hash mismatch at getBlock is not canonical; reconciliation later completes read-only
+ok 12 - a block-number/hash mismatch at getBlock is not canonical; reconciliation later completes read-only
+  ---
+  duration_ms: 7.249731
+  type: 'test'
+  ...
+# Subtest: revokeAll in flight refuses every session of the vault (quote AND execute before any chain read); completion admits only later epochs
+ok 13 - revokeAll in flight refuses every session of the vault (quote AND execute before any chain read); completion admits only later epochs
+  ---
+  duration_ms: 27.615161
+  type: 'test'
+  ...
+# Subtest: topUp is counted only after acceptance; an exhausted quota refuses before any chain read
+ok 14 - topUp is counted only after acceptance; an exhausted quota refuses before any chain read
+  ---
+  duration_ms: 17.937888
+  type: 'test'
+  ...
+# Subtest: an accepted op whose canonical receipt lacks its event is not reported as done
+ok 15 - an accepted op whose canonical receipt lacks its event is not reported as done
+  ---
+  duration_ms: 5.635162
+  type: 'test'
+  ...
+# Subtest: /funding/end marks before broadcast and completes on a canonical SessionEnded
+ok 16 - /funding/end marks before broadcast and completes on a canonical SessionEnded
+  ---
+  duration_ms: 6.529225
+  type: 'test'
+  ...
+# Subtest: quote refuses opsPerPeriod exhaustion and uint32 periodOps overflow, after period reset rules; and seq == uint64 max
+ok 17 - quote refuses opsPerPeriod exhaustion and uint32 periodOps overflow, after period reset rules; and seq == uint64 max
+  ---
+  duration_ms: 27.9553
+  type: 'test'
+  ...
+# Subtest: execute: zero-hash preconfirmation is pending (no index, one send); a 96-byte result is refused
+ok 18 - execute: zero-hash preconfirmation is pending (no index, one send); a 96-byte result is refused
+  ---
+  duration_ms: 28.790674
+  type: 'test'
+  ...
+# Subtest: strictEvent refuses trailing data bytes and dirty words
+ok 19 - strictEvent refuses trailing data bytes and dirty words
+  ---
+  duration_ms: 0.748195
+  type: 'test'
+  ...
+# Subtest: open refuses api.* scopes, counts quota after acceptance, and indexes openedBlock only from a canonical receipt
+not ok 20 - open refuses api.* scopes, counts quota after acceptance, and indexes openedBlock only from a canonical receipt
+  ---
+  duration_ms: 2.040716
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-owner-r2/test/owner-route.test.mjs:280:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      Comparison {
+    +   code: 'bad_request',
+    -   code: 'api_scopes_unsupported',
+        status: 400
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    status: 400
+    code: 'api_scopes_unsupported'
+  actual:
+  error: 'grant.actions must be a string list'
+  stack: |-
+    httpError (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-owner-r2/funding-route.mjs:111:53)
+    parseGrant (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-owner-r2/funding-route.mjs:788:113)
+    open (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-owner-r2/funding-route.mjs:807:15)
+    Object.route (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-owner-r2/funding-route.mjs:962:63)
+    Object.call (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-owner-r2/test/owner-route.test.mjs:26:48)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-owner-r2/test/owner-route.test.mjs:282:26)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-owner-r2/test/owner-route.test.mjs:282:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: the source is the pinned original and is not modified
+ok 21 - the source is the pinned original and is not modified
+  ---
+  duration_ms: 1.004233
+  type: 'test'
+  ...
+# Subtest: removing every marked block reproduces the original byte for byte
+ok 22 - removing every marked block reproduces the original byte for byte
+  ---
+  duration_ms: 0.390407
+  type: 'test'
+  ...
+# Subtest: the host hook wires the ACTUAL host helpers and nothing new
+ok 23 - the host hook wires the ACTUAL host helpers and nothing new
+  ---
+  duration_ms: 0.221828
+  type: 'test'
+  ...
+# Subtest: the helpers the hook calls are real host function declarations, declared state precedes the hook
+ok 24 - the helpers the hook calls are real host function declarations, declared state precedes the hook
+  ---
+  duration_ms: 0.157989
+  type: 'test'
+  ...
+# Subtest: the original /owner and /end handlers carry no marked block (the only route() insert is the first line)
+ok 25 - the original /owner and /end handlers carry no marked block (the only route() insert is the first line)
+  ---
+  duration_ms: 0.134909
+  type: 'test'
+  ...
+# Subtest: the drop-in route copy differs from the stage route only by its two imports
+ok 26 - the drop-in route copy differs from the stage route only by its two imports
+  ---
+  duration_ms: 1.184382
+  type: 'test'
+  ...
+# Subtest: the prepare manifest records link references, runtime sizes and grant fields
+ok 27 - the prepare manifest records link references, runtime sizes and grant fields
+  ---
+  duration_ms: 0.350218
+  type: 'test'
+  ...
+1..27
+# tests 27
+# suites 0
+# pass 26
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 411.051908
+[memory-guard] exit=1 peakTreeRssMiB=133 minHostAvailableMiB=30746
+[memory-guard] at peak: node:74 node:59
+[memory-guard] exit=1 peakTreeRssMiB=182 minHostAvailableMiB=30746
+[memory-guard] at peak: node:75 node:59 node:48
+[queue] EXIT 1

@@ -1,0 +1,6 @@
+[queue] START available=20967MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+## SETUP: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6-test-fixes/tests/test_finality_state.py is not 58d7a9e6084ee5e069e3a2d90140a2bd55094f3cd7ae32e96f8b73c9ace47213
+## r6-test-fixes rc=9
+[memory-guard] exit=9 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 9

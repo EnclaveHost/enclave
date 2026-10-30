@@ -1,0 +1,2 @@
+Oct 29 20:15:44 warden-host python3[2217015]: [queue] START available=31926MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+Oct 29 20:15:53 warden-host python3[2217015]: [queue] EXIT 99

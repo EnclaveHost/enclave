@@ -86,7 +86,7 @@ export class IsolationManagerClient {
    * and 77 tests passed over a contract that could not execute.
    */
   static spawnBody({ id, image, name, cpuShare = 0, gpuShare = 0, appPort, ports = [], config = "",
-                     configCid = "", egress = "", derive, hosts, isPublic, hasSecrets }) {
+                     configCid = "", egress = "", derive, hosts, isPublic, hasSecrets, bootstrap }) {
     if (!name) throw new Error("a deployment id (name) is required");
     if (!image) throw new Error("an image reference is required");
     if (!derive) throw new Error("a derivation record is required: a CID without one is refused");
@@ -102,8 +102,16 @@ export class IsolationManagerClient {
       throw new Error("hasSecrets must be stated: absent secrets must be KNOWN absent, not assumed");
     const b = { image, name, cpuShare, gpuShare, appPort, ports, config, configCid, egress, derive,
                 isPublic, hasSecrets };
+    if (derive.derivation === "enclave-catalog-bundle/8") {
+      if (config !== "" || configCid !== "") throw new Error("native desktop configuration must be carried in its measured record");
+      // The V8 record carries configBase64. Do not inject the legacy empty
+      // configuration fields as a second, unmeasured configuration source.
+      delete b.config; delete b.configCid;
+    }
     if (id) b.id = id;
     if (hosts) b.hosts = hosts;
+    // an owner-committed startup package (base64), for a Shield-direct partition's own verification (shield-startup.mjs)
+    if (bootstrap !== undefined) b.bootstrap = bootstrap;
     return b;
   }
 
@@ -207,6 +215,16 @@ export class IsolationManagerClient {
       appId: o.appId ?? null,
       runtimeId: o.runtimeId ?? null,
       recordSha256: o.recordSha256 ?? null,
+      derivation: typeof o.derivation === "string" ? o.derivation : null,
+      componentSha256: typeof o.componentSha256 === "string" ? o.componentSha256 : null,
+      desktop: o.desktop && typeof o.desktop === "object" && !Array.isArray(o.desktop)
+        ? { profile: o.desktop.profile, profileSha256: o.desktop.profileSha256, gpuMilli: o.desktop.gpuMilli } : null,
+      // the owner-committed package a Shield-direct partition was given (server.mjs), for the node's adoption check
+      bootstrapSha256: typeof o.bootstrapSha256 === "string" ? o.bootstrapSha256 : null,
+      // the pinned image it runs on (F3): absent means legacy (a manager or VM from before image selection), and the IGVM
+      // hash the launcher stated at its start, which the node compares with its OWN direct pin, never adopts
+      imageRole: typeof o.imageRole === "string" ? o.imageRole : "legacy",
+      igvmSha256: typeof o.igvmSha256 === "string" && /^[0-9a-f]{64}$/.test(o.igvmSha256) ? o.igvmSha256 : null,
       memory: o.memory ?? null,
       image: o.image ?? null,
       transportKeySha256: o.transportKeySha256 ?? null,

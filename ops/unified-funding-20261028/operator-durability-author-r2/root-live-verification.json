@@ -1,0 +1,65 @@
+{
+  "at": 1793302244.137852,
+  "invocation": "d0130484484b4f56965f37d85b64228e",
+  "processes": [
+    {
+      "pid": 1839586,
+      "start": "160728395",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "affinity": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ]
+    },
+    {
+      "pid": 1839605,
+      "start": "160728407",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "affinity": [
+        0
+      ]
+    },
+    {
+      "pid": 1839630,
+      "start": "160728477",
+      "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+      "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r2-20261029",
+      "affinity": [
+        0
+      ]
+    }
+  ],
+  "note": "queue moves children into its own1536MiB no-swap scope; Claude pinned to one CPU by runner"
+}

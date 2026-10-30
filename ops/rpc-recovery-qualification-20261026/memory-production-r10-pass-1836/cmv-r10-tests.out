@@ -1,0 +1,31 @@
+[queue] START available=24254MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+Ran 16 tests in 3.963s
+
+OK
+{
+ "badMarkers": [],
+ "checks": {
+  "lastLineOK": true,
+  "noBadMarkers": true,
+  "ranExactly": true,
+  "rc0": true,
+  "stdoutEmpty": true
+ },
+ "expectedTests": 16,
+ "format": "composite-production-memory-gate-test-receipt/r10",
+ "gateSha256": "d5abdd20f74d2e9039278e9a8fd3033a4c4ad187d5bcc902c913122988dcce84",
+ "pass": true,
+ "ran": [
+  "16"
+ ],
+ "rc": 0,
+ "scope": "gate/runtime unit tests only; no mount, no scope change, no production",
+ "stageSums": "e39bc67d5a74c0aab922ac3cc8d2450603d9dcd0c193f698825f063b3e7c5051",
+ "testsSha256": "97aaa8be8c1a22056db54e6f0a06fee2b8a14cb541ec319c06203d8332c31362"
+}
+## PASS (16)
+## receipt /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r10/runs/tests-20261027T053259Z-2813238/receipt.json
+## cmv-r10-tests rc=0
+[memory-guard] exit=0 peakTreeRssMiB=56 minHostAvailableMiB=24003
+[memory-guard] at peak: python3:28 python3:22 bash:4 timeout:2
+[queue] EXIT 0

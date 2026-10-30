@@ -1,0 +1,35 @@
+[queue] START available=92151MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+test_fsync_failure_refuses (test_financial_private_checkpoint.ReadbackTests.test_fsync_failure_refuses) ... ok
+test_hardlink_refuses (test_financial_private_checkpoint.ReadbackTests.test_hardlink_refuses) ... ok
+test_no_overwrite (test_financial_private_checkpoint.ReadbackTests.test_no_overwrite) ... ok
+test_owned_readback (test_financial_private_checkpoint.ReadbackTests.test_owned_readback) ... ok
+test_size_mismatch_refuses (test_financial_private_checkpoint.ReadbackTests.test_size_mismatch_refuses) ... ok
+test_symlink_refuses (test_financial_private_checkpoint.ReadbackTests.test_symlink_refuses) ... ok
+test_decoded_buffer_rejected_without_echo (test_financial_trace_normalizer.ParserTests.test_decoded_buffer_rejected_without_echo) ... ok
+test_evidence_booleans_not_accepted (test_financial_trace_normalizer.ParserTests.test_evidence_booleans_not_accepted) ... ok
+test_explicit_other_store_role (test_financial_trace_normalizer.ParserTests.test_explicit_other_store_role) ... ok
+test_failed_rename (test_financial_trace_normalizer.ParserTests.test_failed_rename) ... ok
+test_missing_signal (test_financial_trace_normalizer.ParserTests.test_missing_signal) ... ok
+test_missing_terminal (test_financial_trace_normalizer.ParserTests.test_missing_terminal) ... ok
+test_original_refusal_preserved (test_financial_trace_normalizer.ParserTests.test_original_refusal_preserved) ... ok
+test_partial_write (test_financial_trace_normalizer.ParserTests.test_partial_write) ... ok
+test_preserved_trace_metadata_only (test_financial_trace_normalizer.ParserTests.test_preserved_trace_metadata_only) ... ok
+test_root_review_raw_openat_after_checkpoint (test_financial_trace_normalizer.ParserTests.test_root_review_raw_openat_after_checkpoint) ... ok
+test_root_review_raw_rename_after_checkpoint (test_financial_trace_normalizer.ParserTests.test_root_review_raw_rename_after_checkpoint) ... ok
+test_stale_same_success_then_failed_final (test_financial_trace_normalizer.ParserTests.test_stale_same_success_then_failed_final) ... ok
+test_stream_long_line_refuses (test_financial_trace_normalizer.ParserTests.test_stream_long_line_refuses) ... ok
+test_stream_metadata_matches (test_financial_trace_normalizer.ParserTests.test_stream_metadata_matches) ... ok
+test_unexpected_thread (test_financial_trace_normalizer.ParserTests.test_unexpected_thread) ... ok
+test_unpaired_resume (test_financial_trace_normalizer.ParserTests.test_unpaired_resume) ... ok
+test_unrelated_shutdown_io_not_rejected (test_financial_trace_normalizer.ParserTests.test_unrelated_shutdown_io_not_rejected) ... ok
+test_wrong_signal_thread (test_financial_trace_normalizer.ParserTests.test_wrong_signal_thread) ... ok
+
+----------------------------------------------------------------------
+Ran 24 tests in 0.010s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak:
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak:
+[queue] EXIT 0

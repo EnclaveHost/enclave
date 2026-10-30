@@ -1,0 +1,4 @@
+test/attested-paid-provider.test.mjs
+test/attested-provider-collateral.test.mjs
+test/attested-route-composition.test.mjs
+test/host-services-agent-verifier.test.mjs

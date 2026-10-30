@@ -1,0 +1,189 @@
+--- a/metal/enclave-metal.mjs
++++ b/metal/enclave-metal.mjs
+@@ -222,7 +222,8 @@
+ // HOST_DATA-bound direct config.
+ if (DIRECT && cfg.leaseGas !== undefined && cfg.leaseGas !== null)
+   throw new Error('control: "direct" takes leaseGas only inside the bound direct config (HOST_DATA binds it there), not from the host config');
+-const LEASE_GAS = DIRECT ? null : leaseGasTransit(cfg.leaseGas, { readFile: (f) => fs.readFileSync(f) });
++const LEASE_GAS = DIRECT ? null : leaseGasTransit(cfg.leaseGas, { readFile: (f) => fs.readFileSync(f),
++  verifierBound: cfg.chainVerifier !== undefined && cfg.chainVerifier !== null });   // checked below (CHAIN_VERIFIER); lease reads then use it only
+ if (LEASE_GAS) console.log(`[enclave-metal] app-funded lease gas: record ${LEASE_GAS.digest.slice(0, 19)}…, reserve ${LEASE_GAS.reserve}, `
+   + `${LEASE_GAS.relays.length} relay(s), ${LEASE_GAS.rpcs.length} RPC(s)${LEASE_GAS.quorum ? `, quorum ${LEASE_GAS.quorum}` : ''}`);
+ // The operator's owner nomination for the ORIGINAL EnclaveHostOwnership (metal/guest/owner-nomination.mjs): public, the host
+--- a/metal/guest/gsup.mjs
++++ b/metal/guest/gsup.mjs
+@@ -481,7 +481,7 @@
+ // invalid: the supervisor gets a configuration that cannot load, so every claim, renewal and release REFUSES and the
+ // operator's own ETH is never spent on them. These names come ONLY from here (withLeaseGasEnv drops any other source).
+ // A direct control guest takes it only from its HOST_DATA-bound config (measured-control.mjs).
+-const LEASE_GAS = CONTROL ? null : leaseGasGuest(fw.leaseGas);
++const LEASE_GAS = CONTROL ? null : leaseGasGuest(fw.leaseGas, { verifierBound: fw.chainVerifier !== undefined && fw.chainVerifier !== null });
+ if (LEASE_GAS?.configured && LEASE_GAS.ok) {
+   try {
+     for (const [file, bytes] of Object.entries(LEASE_GAS.files)) {
+--- a/metal/guest/measured-control.mjs
++++ b/metal/guest/measured-control.mjs
+@@ -201,7 +201,7 @@
+     isolation: { managerUrl: raw.isolation.managerUrl, dataAddr: raw.isolation.dataAddr },
+     hostAdmissionSha256: raw.hostAdmissionSha256, controlPort,
+     // optional and absent from every config written before it: those keep their exact canonical bytes and digest
+-    ...(raw.leaseGas !== undefined ? { leaseGas: directLeaseGas(raw.leaseGas) } : {}),
++    ...(raw.leaseGas !== undefined ? { leaseGas: directLeaseGas(raw.leaseGas, { verifierBound: chainVerifier !== null }) } : {}),
+     ...(mcp ? { mcp } : {}),
+     ...(platformApi ? { platformApi } : {}),
+     ...(ownerNomination ? { ownerNomination } : {}),
+@@ -462,9 +462,9 @@
+ }
+ // The bound lease-gas member: exactly a conduit transit (lease-gas-conduit.mjs leaseGasTransit makes one from the host form),
+ // re-checked as PUBLISHED (an owner document a verifier recomputes: no RPC query, which could hold a key), chain 8453.
+-function directLeaseGas(raw) {
++function directLeaseGas(raw, { verifierBound = false } = {}) {
+   let t;
+-  try { t = checkTransit(raw, { published: true }); } catch (e) { bad(`leaseGas: ${e.message}`); }
++  try { t = checkTransit(raw, { published: true, verifierBound }); } catch (e) { bad(`leaseGas: ${e.message}`); }
+   if (t.chainId !== CHAIN_ID) bad(`leaseGas: the deployment record is for chain ${t.chainId}, not ${CHAIN_ID}`);
+   if (canonicalJson(t) !== canonicalJson(raw)) bad('leaseGas must be written in its checked form (lease-gas-conduit.mjs leaseGasTransit)');
+   return JSON.parse(canonicalJson(t));
+@@ -536,7 +536,7 @@
+   delete env[CARRIERS_ENV];
+   if (cfg.platformPolicyCarriers) env[CARRIERS_ENV] = canonicalJson(cfg.platformPolicyCarriers);
+   // app-funded lease gas: only from the bound config (never flavor or host policy), absent = none of these names at all
+-  const out = { ...withLeaseGasEnv(env, cfg.leaseGas ? leaseGasGuest(cfg.leaseGas, { recordFile: paths.leaseGasRecord || LEASE_GAS_RECORD, published: true }) : null),
++  const out = { ...withLeaseGasEnv(env, cfg.leaseGas ? leaseGasGuest(cfg.leaseGas, { recordFile: paths.leaseGasRecord || LEASE_GAS_RECORD, published: true, verifierBound: !!cfg.chainVerifier }) : null),
+     // the owner nomination: only from the bound config, absent = no such name
+     ...ownerNominationEnv(cfg.ownerNomination || null) };
+   // the chain authority: ONLY from the bound chainVerifier (the local verifier this guest starts before the supervisor, and
+@@ -685,7 +685,7 @@
+   if (problems.length) return { ok: false, reasons: problems.map((p) => `derived environment: ${p}`), mode, digest, hostData };
+   const carrierProblem = await supervisorCarrierProblem(env, paths.hostAdmissionBundle || GUEST_PATHS.hostAdmissionBundle);
+   if (carrierProblem) return { ok: false, reasons: [`platformPolicyCarriers: ${carrierProblem}`], mode, digest, hostData };
+-  const leaseGas = config.leaseGas ? leaseGasGuest(config.leaseGas, { recordFile: paths.leaseGasRecord || LEASE_GAS_RECORD, published: true }) : null;
++  const leaseGas = config.leaseGas ? leaseGasGuest(config.leaseGas, { recordFile: paths.leaseGasRecord || LEASE_GAS_RECORD, published: true, verifierBound: !!config.chainVerifier }) : null;
+   if (leaseGas && !leaseGas.ok) return { ok: false, reasons: [`leaseGas: ${leaseGas.reason}`], mode, digest, hostData };
+   const files = { [paths.pins]: JSON.stringify(contractPinsDoc(config)), [paths.pairKey]: fw.isolation.pairingKey + '\n',
+     ...(config.replicas.storagePlan ? { [paths.storagePlan]: JSON.stringify(config.replicas.storagePlan) } : {}),
+--- a/network/lease-gas-conduit.mjs
++++ b/network/lease-gas-conduit.mjs
+@@ -100,11 +100,15 @@
+  * The transit object, from its parts, every part checked. `record` is the exact record bytes. -> frozen
+  * { version, record (base64), digest, chainId, reserve, rpcs, relays, quorum[, pinnedRelays] } (pinnedRelays only when given).
+  */
+-function transitOf({ record, digest, rpcs, relays, reserve, quorum, pinnedRelays }, { published = false } = {}) {
++const MIXED = "a chain-verifier-bound leaseGas carries no public rpcs or quorum: a mixed provider + verifier configuration is refused";
++function transitOf({ record, digest, rpcs, relays, reserve, quorum, pinnedRelays }, { published = false, verifierBound = false } = {}) {
+   if (typeof digest !== "string" || !DIGEST.test(digest)) fail("digest must be the reviewed sha256:<64 hex> of the deployment record");
+   const dep = parseDeploymentRecord(record, { expectedDigest: digest });
+   const pr = pinnedList(pinnedRelays);
+-  const r = rpcList(rpcs, { published }), rl = relayList(relays, { pinned: !!pr });
++  // verifierBound (lease-consumer-seams): the guest's lease reads go ONLY to its bound local chain verifier, so no public RPC is
++  // configured, transited or installed; absent or an empty list are the only accepted forms. Legacy (not bound): unchanged.
++  if (verifierBound && ((rpcs !== undefined && rpcs !== null && !(Array.isArray(rpcs) && rpcs.length === 0)) || (quorum !== undefined && quorum !== null))) fail(MIXED);
++  const r = verifierBound ? [] : rpcList(rpcs, { published }), rl = relayList(relays, { pinned: !!pr });
+   if (pr && rl.some((o) => pr.some((p) => p.origin === o))) fail("pinnedRelays repeat a relay origin");
+   if (reserve !== undefined && reserve !== null && (typeof reserve !== "string" || reserve.toLowerCase() !== dep.reserve.toLowerCase()))
+     fail("reserve differs from the reviewed deployment record");
+@@ -117,21 +121,22 @@
+  *   { recordFile, digest, rpcs: [...], relays: [...], reserve?, quorum?, pinnedRelays? } (relays optional with pinnedRelays)
+  * Absent (undefined/null) is the only "off". Anything else must be complete and valid, or this throws (the launch stops).
+  */
+-export function leaseGasTransit(cfg, { readFile, chainId = null } = {}) {
++export function leaseGasTransit(cfg, { readFile, chainId = null, verifierBound = false } = {}) {
+   if (cfg === undefined || cfg === null) return null;
+   only(cfg, ["recordFile", "digest", "rpcs", "relays", "reserve", "quorum", "pinnedRelays"], "leaseGas");
+-  const needed = cfg.pinnedRelays === undefined || cfg.pinnedRelays === null ? ["recordFile", "digest", "rpcs", "relays"] : ["recordFile", "digest", "rpcs"];
++  const needed = (cfg.pinnedRelays === undefined || cfg.pinnedRelays === null ? ["recordFile", "digest", "rpcs", "relays"] : ["recordFile", "digest", "rpcs"])
++    .filter((k) => !(verifierBound && k === "rpcs"));
+   for (const k of needed) if (cfg[k] === undefined || cfg[k] === null || cfg[k] === "")
+     fail(`leaseGas.${k} is required: a partial configuration never falls back to the operator's wallet`);
+   if (typeof cfg.recordFile !== "string") fail("leaseGas.recordFile must be a path");
+   if (typeof readFile !== "function") fail("no file reader");
+-  const t = transitOf({ ...cfg, record: readFile(cfg.recordFile) });
++  const t = transitOf({ ...cfg, record: readFile(cfg.recordFile) }, { verifierBound });
+   if (chainId !== null && t.chainId !== chainId) fail(`the deployment record is for chain ${t.chainId}, this host runs chain ${chainId}`);
+   return t;
+ }
+ 
+ /** Re-check a transit as received (fw_cfg is the host's word; a direct config's is bound). -> the transit (frozen). */
+-export function checkTransit(t, { published = false } = {}) {
++export function checkTransit(t, { published = false, verifierBound = false } = {}) {
+   only(t, ["version", "record", "digest", "chainId", "reserve", "rpcs", "relays", "quorum", "pinnedRelays"], "leaseGas transit");
+   if ("pinnedRelays" in t && (t.pinnedRelays === undefined || t.pinnedRelays === null)) fail("transit pinnedRelays is either a list or absent");
+   if (!Array.isArray(t.relays)) fail("transit relays must be a list");
+@@ -139,7 +144,7 @@
+   if (typeof t.record !== "string" || !/^[A-Za-z0-9+/]+={0,2}$/.test(t.record)) fail("transit record must be base64");
+   const record = Buffer.from(t.record, "base64");
+   if (record.toString("base64") !== t.record) fail("transit record is not canonical base64");
+-  const again = transitOf({ record, digest: t.digest, rpcs: t.rpcs, relays: t.relays, reserve: t.reserve, quorum: t.quorum, pinnedRelays: t.pinnedRelays }, { published });
++  const again = transitOf({ record, digest: t.digest, rpcs: t.rpcs, relays: t.relays, reserve: t.reserve, quorum: t.quorum, pinnedRelays: t.pinnedRelays }, { published, verifierBound });
+   if (again.chainId !== t.chainId) fail("transit chainId differs from its record");
+   return again;
+ }
+@@ -151,16 +156,16 @@
+  *                                                          when pinned relays are configured, the record file; nothing else)
+  *   -> { configured: true, ok: false, env, files: {}, reason } (refused: "configured but unloadable", fail closed)
+  */
+-export function leaseGasGuest(transit, { recordFile = GUEST_RECORD_FILE, published = false } = {}) {
++export function leaseGasGuest(transit, { recordFile = GUEST_RECORD_FILE, published = false, verifierBound = false } = {}) {
+   if (transit === undefined || transit === null) return { configured: false, env: {}, files: {} };
+   let t;
+-  try { t = checkTransit(transit, { published }); }
++  try { t = checkTransit(transit, { published, verifierBound }); }
+   catch (e) { return { configured: true, ok: false, env: { ENCLAVE_LEASE_GAS_FILE: REFUSED_RECORD_FILE }, files: {}, reason: e.message }; }
+-  const env = { ENCLAVE_LEASE_GAS_FILE: recordFile, ENCLAVE_LEASE_GAS_DIGEST: t.digest, ENCLAVE_LEASE_GAS_RPCS: t.rpcs.join(","),
++  const env = { ENCLAVE_LEASE_GAS_FILE: recordFile, ENCLAVE_LEASE_GAS_DIGEST: t.digest, ...(t.rpcs.length ? { ENCLAVE_LEASE_GAS_RPCS: t.rpcs.join(",") } : {}),
+     ...(t.relays.length ? { ENCLAVE_LEASE_GAS_RELAYS: t.relays.join(",") } : {}), ENCLAVE_LEASE_GAS_RESERVE: t.reserve,
+     ...(t.quorum ? { ENCLAVE_LEASE_GAS_QUORUM: String(t.quorum) } : {}), ...(t.pinnedRelays ? { [PINNED_ENV_NAME]: pinnedRelaysValue(t.pinnedRelays) } : {}) };
+   return { configured: true, ok: true, env, files: { [recordFile]: Buffer.from(t.record, "base64") },
+-    summary: `reserve ${t.reserve}, record ${t.digest.slice(0, 19)}…, ${t.relays.length} relay(s)${t.pinnedRelays ? `, ${t.pinnedRelays.length} pinned host relay(s) ${t.pinnedRelays.map((p) => p.origin).join(", ")}` : ""}, RPCs ${t.rpcs.map(rpcLabel).join(", ")}${t.quorum ? ` (quorum ${t.quorum})` : ""}` };
++    summary: `reserve ${t.reserve}, record ${t.digest.slice(0, 19)}…, ${t.relays.length} relay(s)${t.pinnedRelays ? `, ${t.pinnedRelays.length} pinned host relay(s) ${t.pinnedRelays.map((p) => p.origin).join(", ")}` : ""}, ${t.rpcs.length ? `RPCs ${t.rpcs.map(rpcLabel).join(", ")}` : "reads via the bound local chain verifier (no public RPC)"}${t.quorum ? ` (quorum ${t.quorum})` : ""}` };
+ }
+ 
+ /**
+--- a/network/lease-gas-runtime.mjs
++++ b/network/lease-gas-runtime.mjs
+@@ -9,6 +9,9 @@
+ import { validateIndexPin } from "./service-index.mjs";
+ import { chainVerifierOf } from "./verified-chain.mjs";
+ import { chainAuthorityFromEnv } from "./chain-authority.mjs";
++// lease-consumer-seams: re-exported (unchanged) so a host that receives this module as a bundle (windows/node/chain.mjs) builds
++// its explicit chain authority with the SAME constructors as supervisor.js (chainAuthorityFromEnv / refusingChainAuthority).
++export { chainAuthorityFromEnv, refusingChainAuthority } from "./chain-authority.mjs";
+ 
+ // Where a host's lease operations are submitted (at least one): LOCAL_RELAY, an OPTIONAL relay of the host's own on this
+ // machine (loopback only); RELAYS, configured relays; SERVICE_INDEX (<index address>@<runtime code hash>), DESIGNATED relays
+--- a/windows/node/chain.mjs
++++ b/windows/node/chain.mjs
+@@ -32,7 +32,7 @@
+ import path from "node:path";
+ import { parseWaf } from "./waf.mjs";
+ import { planCheckpoints } from "./verification-checkpoints.mjs";
+-import { leaseGasConfigured, loadLeaseGasConfig, configuredLeaseSender, openReleaseJournal } from "./lease-gas-runtime.bundle.mjs";
++import { leaseGasConfigured, loadLeaseGasConfig, configuredLeaseSender, openReleaseJournal, chainAuthorityFromEnv, refusingChainAuthority } from "./lease-gas-runtime.bundle.mjs";
+ 
+ // five public RPCs: the privacy agent wants 2 agreeing (network/lease-reader.mjs) and drpc / mainnet.base.org rate-limit often
+ const RPCS = (process.env.BASE_RPCS || "https://base-rpc.publicnode.com,https://base.gateway.tenderly.co,https://base-public.nodies.app,https://base.drpc.org,https://mainnet.base.org")
+@@ -258,6 +258,15 @@
+ const leaseGasEnv = Object.freeze(Object.fromEntries(Object.entries(process.env)
+   .filter(([key]) => /^(ENCLAVE_)?LEASE_GAS_/.test(key))));
+ let leaseGas = null, leaseJournal = null, onLeaseSigned = null, leaseRelayPolicy;   // undefined: not set by the host yet
++// The host's explicit chain authority for app-funded lease reads, exactly as supervisor.js:327-331: ENCLAVE_CHAIN_AUTHORITY=verifier +
++// ENCLAVE_CHAIN_VERIFIER (network/chain-authority.mjs) -> every lease read goes to that ONE local verifier and ENCLAVE_LEASE_GAS_RPCS
++// is never contacted; an INVALID selection refuses every lease read (no provider is used); unset -> null -> the legacy RPC quorum,
++// unchanged. (leaseGasEnv above holds only LEASE_GAS_ names, so the authority could never be found inside it.)
++const LEASE_CHAIN_AUTHORITY = (() => {
++  try { return chainAuthorityFromEnv(process.env, { chain: base }); }
++  catch (e) { console.error(`[chain] the chain authority selection is INVALID (${e.message}): every app-funded lease read refuses; no provider is used`);
++              return refusingChainAuthority(e.message, { chain: base }); }
++})();
+ // until the host sets its platform host policy, a discovered relay is refused (null is set only when it is explicitly off)
+ const RELAY_POLICY_UNSET = async () => { throw new Error("this host has not set its platform host policy: no discovered relay is admitted"); };
+ /** The host's platform host policy for designated relays (host.mjs passes its policy gate, a refusing decider when on but
+@@ -269,7 +278,7 @@
+   if (!leaseGasActive()) return null;
+   if (!acct) throw new Error("no operator key on this box");
+   if (!leaseGas) {
+-    const config = loadLeaseGasConfig({ env: leaseGasEnv, ...leaseBindings() });
++    const config = loadLeaseGasConfig({ env: leaseGasEnv, ...leaseBindings(), chainAuthority: LEASE_CHAIN_AUTHORITY });
+     leaseGas = configuredLeaseSender({ config, account: acct, getBindings: leaseBindings, relayPolicy: leaseRelayPolicy === undefined ? RELAY_POLICY_UNSET : leaseRelayPolicy,
+       onSigned: (s) => (onLeaseSigned ? onLeaseSigned(s) : undefined) });
+   }

@@ -1,0 +1,28 @@
+[
+  {
+    "suite": "historical93",
+    "expected": 93,
+    "counts": {
+      "tests": 93,
+      "pass": 93,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "qualified": true
+  },
+  {
+    "suite": "root8",
+    "expected": 8,
+    "counts": {
+      "tests": 1,
+      "pass": 0,
+      "fail": 1,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "qualified": false
+  }
+]

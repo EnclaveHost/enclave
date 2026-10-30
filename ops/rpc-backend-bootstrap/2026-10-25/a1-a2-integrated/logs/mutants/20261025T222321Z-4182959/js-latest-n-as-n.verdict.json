@@ -1,0 +1,1 @@
+{"badMarkers": [], "cancelled": 0, "fail": 1, "failing": [{"assertion": true, "failureType": "testCodeFailure", "name": "every rebinding of the REAL producer output refuses with its code (latest N/descendant, pins, labels, freshness, shape)"}], "genuineAssertionFailures": 1, "pass": 7, "rc": 1, "skipped": 0, "suites": 0, "tests": 8, "todo": 0, "verdict": "killed"}

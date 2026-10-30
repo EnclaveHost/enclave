@@ -1,0 +1,29 @@
+{
+  "productionEntries": 125,
+  "seedEntries": 125,
+  "testOnlyOverlay": {
+    "enclave/test/wallet-release/census.test.mjs": {
+      "production": "3fbefcdb5bdcadf044e2d5fc3a3cc28daf16d086da77f43efedb05ab0bd35c7b",
+      "rootTest": "8fbde14c5f700f54930191e2dbea0bab58ba72e7fce03a18ea59d05ae91587a1"
+    }
+  },
+  "preAuthorProductEdits": 0,
+  "requiredOriginalTests": 40,
+  "root40Files": [
+    "root-boundaries.test.mjs",
+    "candidate/enclave/test/wallet-release/chain-store.test.mjs",
+    "candidate/enclave/test/wallet-release/view.test.mjs",
+    "candidate/enclave/test/wallet-release/census.test.mjs"
+  ],
+  "testEnv": {
+    "WALLET_CENSUS_LEDGER_CREATOR": "0x120ba39e91395273496c4c7d065733c9db461dbb:1",
+    "WALLET_RELEASE_SDK_FIXTURE": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/shipped-sessions.mjs"
+  },
+  "testPlanOnly": "Root isolated copied tree, network namespace, node --max-old-space-size=180 --test --test-concurrency=1 --test-timeout=90000 with original40 files and authored additional tests; one reviewed bounded run, no execution here",
+  "scope": "explicit current-content Promote then separately reviewed Release; source-env-aware census; old schema1 uncertainty retained",
+  "collector": "same byte-for-byte reviewed collector; root supplies normalized admission metadata at launch; run ONCE after actual terminal+exactexe/cwd scan",
+  "noLaunch": true,
+  "noTests": true,
+  "noLive": true,
+  "sharedOwnerNonceBoundary": "Same chain+vault+owner/nonce fence across Promote/Release, deployments, tabs/reload and schema1 unresolved records; both-direction same-nonce regressions; never separate nonce namespaces."
+}

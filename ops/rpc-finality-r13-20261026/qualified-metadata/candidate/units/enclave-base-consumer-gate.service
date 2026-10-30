@@ -1,0 +1,7 @@
+# base-finality-proof-stage/r6 (SOURCE ONLY): consumers run ONLY while the Base node is READY with a current post-anchor proof
+[Unit]
+Description=Start/stop Base RPC consumers by readiness (require_ready enforce)
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/python3 -I -B /opt/enclave-rpc/readiness/require_ready.py enforce /etc/enclave-rpc/base-consumer-units

@@ -1,0 +1,109 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] START available=25951MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+## harness: consumer-package-inputs-stage = frozen job 3692b6558160d75962448f2d3ac78fc930b6f7636f02963f62a6e212c7320daa + patch a0eb2a08af3f -> 4ad09d4dff82a7fe0b66c5dbb3642ac668912698be13136648988fb7f076080e
+## node_modules: real dependency directories, read-only bind mounts inside each exported side (no symlink)
+consumer tree 33e9cabcde02c6c5623786fca13588daa0d685d6 reproduced; Windows path, reader closure and shared modules as recorded
+{
+ "mode": "package",
+ "runtimeBundle": {
+  "identicalToBase": true,
+  "sha256": "e12c5bafb8b17abb891fb26fe1cdc054159d7bd2de5486d2c1a2480430671ed6",
+  "matchesCommittedPin": true
+ },
+ "runtimeInputsInTree": {
+  "pristine": {
+   "inputs": 2477,
+   "outside": [],
+   "nOutside": 0
+  },
+  "final": {
+   "inputs": 2477,
+   "outside": [],
+   "nOutside": 0
+  }
+ },
+ "harness": {
+  "stage": "consumer-package-inputs-stage",
+  "derivedFrom": "final-consumer-composition-stage/jobs/root-final-consumer.sh 3692b655",
+  "nodeModules": "real dependency directories bind-mounted read-only (private mount namespace); no symlink"
+ },
+ "reviewRequired": [
+  "release/host-packages (regenerated; see logs/host-packages-regenerated.diff)",
+  "release/metal-guest/platform-api.bundle.mjs + manifest (regenerated measured-image input)"
+ ],
+ "committedGeneratedArtifacts": {
+  "host-packages-check": {
+   "pristine": 1,
+   "final": 1
+  },
+  "mcp-bundle-check": {
+   "pristine": 0,
+   "final": 0
+  },
+  "platform-api-check": {
+   "pristine": 0,
+   "final": 1
+  }
+ },
+ "hostPackages": {
+  "pristine": 1,
+  "finalCommitted": 1,
+  "regeneratedCheckRc": 0
+ },
+ "platformApiGuestBundle": {
+  "committedStaleOnConsumer": true,
+  "regeneratedCheckRc": 0,
+  "regeneratedSha256": "4771fefdaa9b58457c3f9fc702999989e06ab2bbcee329f81dbc168235aa45d3",
+  "regeneratedManifestSha256": "fe5e7b384bf494373db6f1c6b7ceb89bf799eaa21ee0ae25c8df154b7552c0e0"
+ },
+ "packagedProvider": {
+  "alone/quorum": true,
+  "alone/derived-v3": true,
+  "rel/derived-v3": true,
+  "rel/quorum": true
+ },
+ "writerStartup": {
+  "ok": 5,
+  "fail": 0
+ },
+ "writerApiComposition": {
+  "rc": 0,
+  "checks": 6
+ },
+ "relayCheck": 0,
+ "relayDeployClosure": {
+  "pristine": {
+   "rc": 0,
+   "tests": 2,
+   "pass": 2,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  },
+  "final": {
+   "rc": 0,
+   "tests": 2,
+   "pass": 2,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  },
+  "same": true,
+  "finalClean": true
+ },
+ "ok": false,
+ "scope": "release-candidate SOURCE assembly; NOT fresh-state authority, NOT feature availability, NOT production"
+}
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/consumer-package-inputs-stage/runs/20261026T131548Z-package-1809358
+## final-consumer package rc=1
+## consumer-package-inputs rc=1
+[memory-guard] exit=1 peakTreeRssMiB=578 minHostAvailableMiB=25181
+[memory-guard] at peak: esbuild:218 esbuild:168 node:113 node:66 bash:4 bash:4 timeout:2 bash:2
+[queue] EXIT 1

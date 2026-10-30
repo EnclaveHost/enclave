@@ -1,0 +1,24 @@
+{
+ "commit": "77d6cc859fbd3dba0fcf28d372e8fe463e5a589c",
+ "newHelios": "8250f08a7b0e1f2432ea6262903ca3203b60bca6a8e17abd6d9bccbe0dbfa378",
+ "replaces": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+ "files": {
+  "metal/chain-verifier-image.json": {
+   "before": "23ac96adb0c6728ab48627e45b150845ef93690f73dba70da60ab6cf79dea964",
+   "after": "c8fde7bb367a134f3c7434d7aa98da73ef3a2079ad4cb6bb9833741224efaee8"
+  },
+  "network/rpc-runtime.mjs": {
+   "before": "ed7054cbada3c6d8fc783c5cb290be4fb6cb244126af8b27637130ed38856d10",
+   "after": "54780854c82ccb8fb234c4eb6d58698c971e572e3554e1a5b7ee9de89edbfb8c"
+  },
+  "scripts/rpc-runtime/closure.json": {
+   "before": "92ff59d118002d921f213f476bd07b6ce344af96a300564ea77181703206fef4",
+   "after": "d31f106fc8603e4cf6ecbd0bd8cea49ee1934e7351dbec4e1d36af1bed8db51e"
+  }
+ },
+ "manualReview": [
+  "docs/network/local-chain-verifier.md:63,120 (example pin and 'the tested Helios is the debug build cc962e2b')",
+  "test/chain-verifier-guest.e2e.test.mjs:4 (comment naming cc962e2b)",
+  "scripts/rpc-runtime/closure.json:27 (ef320298 note) and :62 (release-blocked history): historical, review wording only"
+ ]
+}

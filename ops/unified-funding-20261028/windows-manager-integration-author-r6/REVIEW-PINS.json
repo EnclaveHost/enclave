@@ -1,0 +1,22 @@
+{
+  "schema": "enclave-reviewed-inputs/1",
+  "files": {
+    "PREPARED.json": "b41f59bea04c894966845ae3c3a8476e4ba580986ab24f54fd760c79c66d72b5",
+    "REVIEW-STATUS.txt": "58db0fe40786d28861b14017bb7cc67a8fc80566a7f10e7b1621cc6847b3ab17",
+    "ROOT-REVIEW.md": "83d395e48f599d168aeb301f78177fc7392857c3cbfeb5383a45ca1b253b35c3",
+    "TASK.txt": "6691622de6090e8784bd42906e3a10fa1a4d9c2e22eaa7261632b81436911adb",
+    "account-verification.json": "8f2349ef4dd4bdced4c14177ee787fb2f6bed2014e08ea0937c064d4e3a9dd00",
+    "admission-record.json": "19a2e04db8042afbde1a783bfeff56d01b8a76c7592cbbc2eafdc7ce74f3bd94",
+    "collect-terminal.py": "ae12607ae2c275d6c1574704d940a1dd46d68937a0da0b015b7dc831bd09cd3c",
+    "evidence-index.json": "bf79128e9a2eee0bd2f410ecfd09019e236b57ac64d6f559ab6e8e397da6ba3a",
+    "input-pins.json": "a58ee638f2cedb07670411e2333a720cbeeca553951fa1717e4a791d030c4e7d",
+    "interface-map.json": "68f5950f7fb84d70fd729bae495230a7d2f214b694868ba4eb99409a54d07ca7",
+    "launch-command.txt": "38fe89a8cfac4f6161b24018e8c501927331aa93eaddfb06df2473ed60964aa4",
+    "readonly-progress.py": "7657e3cf867451e36d2651f2f8ff67ca30ce88216f3c75459538ce2172b7bf61",
+    "root-prelaunch-review.json": "220f598dd83e946f34fee4cf7ed282bc5d02d9728d43e5d4e6cade0856ec51ca",
+    "run.py": "4a5635c245581acba7b2e5b3cbba4cba9807f1c1d42f938da4ea9079fcee1585",
+    "seed-pins.json": "b20f34c263ec895028f5c40380580e8c79f58f1a7a8930379698866a10cbc343",
+    "seed-provenance.json": "e3b834bb7d8811518ef838e040f6996c100f5134c2815432671f02b48d0c53cb",
+    "turn-metric-investigation.json": "9e8987ce7979409ffe37c141e2638409796b08d2f955e1fb8366880b078a3ec8"
+  }
+}

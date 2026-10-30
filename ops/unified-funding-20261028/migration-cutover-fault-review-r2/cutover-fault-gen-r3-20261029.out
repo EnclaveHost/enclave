@@ -1,0 +1,119 @@
+[queue] START available=93268MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+{
+  "schema": "migration-cutover-fault-r2-fixture-generated/v1",
+  "testOnly": true,
+  "inputs": {
+    "migration-cutover-site-review-r1/out/server.mjs": "973229d54e5fa15551cfcf45f6214fad45c37d0218494339315f2236bc4079f8",
+    "migration-cutover-site-review-r1/shell/main.mjs": "2517ddbe3c3d4f08ebd4f47fe1781554c573ef0466839569d4bccbc57d98372f",
+    "migration-cutover-site-review-r1/shell/harness-state.js": "9d9f547b0f7c95526dd26081899fa74e37149175b805744624dd43a1f80c39b8",
+    "migration-cutover-site-review-r1/shell/facade/config.js": "204f1922e17f9e96907ac31eae8a3a70471e1a4b16a1e2c9f2a24a8e963c2930",
+    "migration-cutover-site-review-r1/build/build-harness.mjs": "24f7ed1abf5b5dcef36417c17c710f5b2dfff5b5c2eb0e31d0cb3489dd630ad9",
+    "migration-cutover-site-review-r1/page/index.html": "52d346c01ccf237ce829192d1aaedbad025c4b85466d582c15600680ef95a073",
+    "migration-cutover-site-review-r1/shell/facade/api.js": "a704f02e696c307e931d4ab85a3173f8d32e51d1db6be171731d8de1a9c73365",
+    "migration-cutover-site-review-r1/shell/facade/wallet.js": "be3b53264988e611f93084fc14c9ce3e63ac54383abd5dc5fa29725199712ff1",
+    "migration-cutover-site-review-r1/shell/facade/empty.js": "5dceb4c0198f225d3fe68e3558dd569e7645bddb165ef6656b2be14277d4e3fc",
+    "migration-cutover-site-review-r1/shell/facade/sessions.js": "6740608869692f092cbad180c3566f480a80d27f86e7c9a38675fb6564415a77",
+    "migration-cutover-site-review-r1/shell/facade/vendor-funding.js": "836f3a710a1a602f59351def81bc3c9e18e99bad21337f5a5b3c7f0e57ce6090"
+  },
+  "unchangedUnderTest": {
+    "migration-cutover-site-review-r1/candidate/site/js/pages/funding.js": "635cdcc1737f827badd2c7b5fcd878df7af0080a2a487f19f2fc6644fbab3fc1",
+    "migration-cutover-site-review-r1/candidate/site/js/funding/state.js": "010d864fc4947c2a46961a6011ff8cba2fce29d6097fa8f64e65d2c8ab5e2825",
+    "migration-cutover-site-review-r1/candidate/site/js/funding/flows.js": "88d2e23a8990858546c306d3249483822d9ea14f77846d8007c721fbd6b70ab2",
+    "migration-cutover-site-review-r1/candidate/site/vendor/funding.js": "f23ba2d79661ade43ed484e186d0347b95756dbe70a9735c4b3152da653dd957",
+    "../source/site/js/core/util.js": "71a896f187d4577c7cf615daf72dac22f705a45dc9058d994d6983f83358d830",
+    "../source/sdk/sessions/dist/browser.mjs": "9dda76f6c22ef102e9dce27b7e61731c83a7e41905a611587578e305bc758997"
+  },
+  "outputs": {
+    "build/build-harness.mjs": "c6552cec597fba121d7356849212c1ea8d5411c7d73079906c8a4f3a24cf376f",
+    "out/server.mjs": "0bbf765e53170c5810997b58c9b03f5f302ebb334717848349cadf8b526bf12f",
+    "page/index.html": "de122069ba5f5fbd97db2a674e0f1ae322077be27b8fbed02de6361a03b5aee0",
+    "shell/facade/api.js": "a704f02e696c307e931d4ab85a3173f8d32e51d1db6be171731d8de1a9c73365",
+    "shell/facade/config.js": "204f1922e17f9e96907ac31eae8a3a70471e1a4b16a1e2c9f2a24a8e963c2930",
+    "shell/facade/empty.js": "5dceb4c0198f225d3fe68e3558dd569e7645bddb165ef6656b2be14277d4e3fc",
+    "shell/facade/sessions.js": "6740608869692f092cbad180c3566f480a80d27f86e7c9a38675fb6564415a77",
+    "shell/facade/vendor-funding.js": "836f3a710a1a602f59351def81bc3c9e18e99bad21337f5a5b3c7f0e57ce6090",
+    "shell/facade/wallet.js": "be3b53264988e611f93084fc14c9ce3e63ac54383abd5dc5fa29725199712ff1",
+    "shell/harness-state.js": "9d9f547b0f7c95526dd26081899fa74e37149175b805744624dd43a1f80c39b8",
+    "shell/main.mjs": "cb1d24fb8d05a51e056fb2cfa6dfc5f7785606852359fdfe9fd2542662810e36"
+  },
+  "phases": {
+    "order": [
+      "pStart",
+      "cMode",
+      "cPrepare",
+      "cApprove",
+      "cTerminate",
+      "cReload",
+      "cPausedCheck",
+      "cBadAct",
+      "cNoApi",
+      "cWait",
+      "cPeer",
+      "cActivate",
+      "cResign",
+      "pReload",
+      "pRecover",
+      "pSwitch2",
+      "pComplete",
+      "pQuote",
+      "pFund",
+      "pExecFinal",
+      "pExecLost",
+      "pExecReload",
+      "pExec502",
+      "pExecSwitch",
+      "pControls",
+      "pNull",
+      "pNullCheck"
+    ],
+    "new": [
+      "cMode",
+      "cPrepare",
+      "cApprove",
+      "cTerminate",
+      "cReload",
+      "cPausedCheck",
+      "cBadAct",
+      "cNoApi",
+      "cWait",
+      "cPeer",
+      "cActivate",
+      "cResign"
+    ],
+    "kept": [
+      "pStart",
+      "pReload",
+      "pRecover",
+      "pSwitch2",
+      "pComplete",
+      "pQuote",
+      "pFund",
+      "pExecFinal",
+      "pExecLost",
+      "pExecReload",
+      "pExec502",
+      "pExecSwitch",
+      "pControls",
+      "pNull",
+      "pNullCheck",
+      "pCleanup"
+    ],
+    "disabled": [
+      "pPrepare (and so pApprove, pSwitch1, pSignSend)"
+    ]
+  },
+  "edits": {
+    "server": 8,
+    "shell": 14,
+    "build": 1,
+    "page": 4
+  },
+  "rootMustStill": [
+    "python3 migration-cutover-fault-r2/run-build-r2.py (BUILD-PINS, bundle, HARNESS-INPUTS, node --check)"
+  ]
+}
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

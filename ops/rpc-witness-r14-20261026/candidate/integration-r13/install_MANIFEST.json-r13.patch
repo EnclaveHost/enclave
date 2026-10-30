@@ -1,0 +1,152 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r12-final/install/MANIFEST.json	2026-10-26 00:25:59.000000000 -0700
++++ /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/.r13-final.partial-1289574/install/MANIFEST.json	2026-10-26 02:04:18.055776869 -0700
+@@ -10,7 +10,7 @@
+   {
+    "src": "src/finality_state.py",
+    "dest": "/opt/enclave-rpc/finality/src/finality_state.py",
+-   "sha256": "218bbfe56caec03e6da0829e442b793b88d4cc148a890a324892f0fafd7c78f4",
++   "sha256": "5e4e38ca5742fbf91d0dda0f782525d0db0216a17de7a3de43a291a1c302e02e",
+    "mode": "0644",
+    "flagsFalse": [
+     "FINALITY_PROTOTYPE_REVIEWED"
+@@ -49,7 +49,7 @@
+   {
+    "src": "harness/a2a4.py",
+    "dest": "/opt/enclave-rpc/a2a4-recovery/a2a4.py",
+-   "sha256": "6c1d0b1bf767acebaf0f9c7235dcd46ad1aaab2fa60ca4c3456cb34c56a37805",
++   "sha256": "27ecfb40044025709ed8f7645724082c1580b36e5fac988826aa826fb2f4814e",
+    "mode": "0644",
+    "flagsFalse": [
+     "A1_CAPTURE_REVIEWED"
+@@ -64,7 +64,7 @@
+   {
+    "src": "producer/base_launch.py",
+    "dest": "/opt/enclave-rpc/base-launch/base_launch.py",
+-   "sha256": "2f9450cd5c73de3cf693dd7f7d52b2f4f3a8fe0b66a5a76b1d068dda919ac4e2",
++   "sha256": "d95b9e18cdaafecd8ee4fe3e10be430bcca6a3b977c7ece97e435256a19d40a9",
+    "mode": "0755",
+    "flagsFalse": [
+     "FINALITY_PROOF_REVIEWED"
+@@ -79,7 +79,7 @@
+   {
+    "src": "wrapper/chain_service.py",
+    "dest": "/opt/enclave-rpc/chain_service.py",
+-   "sha256": "4fc3b970e4ec062eeb66ef90c5bd1b14149a9bdcff135e7720708e7c544df8ae",
++   "sha256": "6a4d7aa5da385bf1d8dea74c37060eb1332d5d468625d54ae02ae878c7135189",
+    "mode": "0755",
+    "wrapper": true,
+    "flagsFalse": [
+@@ -179,13 +179,13 @@
+    "src": "src/reproof.py",
+    "dest": "/opt/enclave-rpc/finality/src/reproof.py",
+    "mode": "0755",
+-   "sha256": "cc9ff0b41dc04a5c2213f1e8a34649e41dd1095dc92a1f4a46b474c1f05dbdd3"
++   "sha256": "73287c4273a0b5b4febb7fcd3e2e78bdd46275c82d1526fb875aa174e8b236f3"
+   },
+   {
+    "src": "units/enclave-base-finality-reproof.service",
+    "dest": "/etc/systemd/system/enclave-base-finality-reproof.service",
+    "mode": "0644",
+-   "sha256": "0470cce87f110e591503ee3ba6d3bc8b7e0d0558b5759f411f6c437f90d6e3e2",
++   "sha256": "b36ee8d8e700b9aabf302d9ee237c7131bb4ae8adedeecf0628854acf603e945",
+    "unit": true
+   },
+   {
+@@ -199,7 +199,7 @@
+    "src": "recovery/forward_sync.py",
+    "dest": "/opt/enclave-rpc/recovery/forward_sync.py",
+    "mode": "0755",
+-   "sha256": "b41e71a30140bf2b3dbe1e5a0c11a45ec6cdb15e0d4eff6c8aebe6a18cf623fc"
++   "sha256": "c68046f6ca82c38c70eab3fdde6d5635f6a803ea9abdba14a16da51082b19ba2"
+   },
+   {
+    "src": "units/forward-sync/enclave-base-forward-sync.service",
+@@ -220,7 +220,7 @@
+    "dest": "/opt/enclave-rpc/a2a4/a2a4.py",
+    "mode": "0644",
+    "flagsFalse": [],
+-   "sha256": "dbd4cbe37f9f3e433df2f07900d5b96201ad5af63b84a561bd7f9c835a243d3d"
++   "sha256": "5898466c9e0941761053a5003d5adab0c14d00266f97ae9ef0fab776add9a290"
+   },
+   {
+    "src": "harness-first/selection.py",
+@@ -232,7 +232,7 @@
+    "src": "capture/a1_capture.py",
+    "dest": "/opt/enclave-rpc/a1-capture/a1_capture.py",
+    "mode": "0644",
+-   "sha256": "47c49b114e6d596a7dd3c46a9f4a5e55bb016cd140a95e001a58ff9a0e69c5b5"
++   "sha256": "8da369de00c176364aadac5af57842f2a2d02f3abee20f63fe4361b7a1b0793e"
+   },
+   {
+    "src": "a1gate/a1-gate.mjs",
+@@ -256,7 +256,7 @@
+    "src": "bundle/a1-capture/l1-anchor-a1/a1-read.mjs",
+    "dest": "/opt/enclave-rpc/a1-capture/l1-anchor-a1/a1-read.mjs",
+    "mode": "0644",
+-   "sha256": "a501a3ec56ebd56e6bf1fc43c0c3725da57d013addac5f1efb13a99e598e0ab8"
++   "sha256": "da9a9e9c6eff2dcaae344a2311a7d4824efc3d0895aba766805787067f274f85"
+   },
+   {
+    "src": "bundle/a1-capture/l1-anchor-a1/a1-anchor.mjs",
+@@ -286,7 +286,7 @@
+    "src": "bundle/a1-capture/a1-original-game-prepared/a1-recheck-read.mjs",
+    "dest": "/opt/enclave-rpc/a1-capture/a1-original-game-prepared/a1-recheck-read.mjs",
+    "mode": "0644",
+-   "sha256": "41b83975e96fc816bd5743e56626dd309aa7f0ee03c6efb9912788eb184a7715"
++   "sha256": "78df2211342fd73e180f3f771af8078b76888b2687cd993edff081b118f18825"
+   },
+   {
+    "src": "bundle/a1-capture/a1-original-game-prepared/a1-recheck.mjs",
+@@ -298,7 +298,7 @@
+    "src": "bundle/a1-capture/a1-original-game-prepared/a1-read.mjs",
+    "dest": "/opt/enclave-rpc/a1-capture/a1-original-game-prepared/a1-read.mjs",
+    "mode": "0644",
+-   "sha256": "a501a3ec56ebd56e6bf1fc43c0c3725da57d013addac5f1efb13a99e598e0ab8"
++   "sha256": "da9a9e9c6eff2dcaae344a2311a7d4824efc3d0895aba766805787067f274f85"
+   },
+   {
+    "src": "bundle/a1-capture/a1-original-game-prepared/a1-anchor.mjs",
+@@ -369,6 +369,43 @@
+    "mode": "0644",
+    "config": true,
+    "sha256": "2e8502e68864abb49a230a69612bd7c98c94775d8dd81f956a0185d53652ac33"
++  },
++  {
++   "dest": "/opt/enclave-rpc/bootstrap/holder_gate.py",
++   "mode": "0755",
++   "sha256": "dd68006175135c3a72b668dbc483492980612f5c2ad075ffd481396234892c07",
++   "src": "bootstrap/holder_gate.py"
++  },
++  {
++   "dest": "/opt/enclave-rpc/bootstrap/release_install.py",
++   "mode": "0755",
++   "sha256": "28064db741c75651a8f52f77489aa7644ce148830dcc127fb0591738ce0afa35",
++   "src": "bootstrap/release_install.py"
++  },
++  {
++   "dest": "/opt/enclave-rpc/bootstrap/a1_capture_original.py",
++   "mode": "0755",
++   "sha256": "2f7656b8fc58f4a9d987fe16819a27b83c917e11c9945f88040ff33f149c5420",
++   "src": "bootstrap/a1_capture_original.py"
++  },
++  {
++   "dest": "/etc/systemd/system/enclave-base-holder.service.d/60-release-mode.conf",
++   "mode": "0644",
++   "sha256": "2df07889f713d43a9d352ed954fa8f57489a9867ffcf879bb3e268acdaf6e6be",
++   "src": "units/enclave-base-holder.service.d/60-release-mode.conf",
++   "unit": true
++  },
++  {
++   "dest": "/opt/enclave-rpc/bootstrap/a1-initial-evidence.json",
++   "mode": "0644",
++   "sha256": "b9a90847bb3f779262681cabc35af64d7c3b785c9ad5cd2b99e9700b9725256c",
++   "src": "bundle/bootstrap/a1-initial-evidence.json"
++  },
++  {
++   "dest": "/opt/enclave-rpc/bootstrap/base-bytecode-check",
++   "mode": "0755",
++   "sha256": "b55e6b78c6ac8e0a672f69e238135eca7466d1081479cd0868204cee9a1654d7",
++   "src": "bundle/bootstrap/base-bytecode-check"
+   }
+  ],
+  "trees": [

@@ -1,0 +1,6 @@
+{
+  "baseSha256sums": "1103520a8074fbbcdb38c49985b8381fea499aa2df0294813710924b21914c07",
+  "fix": "Compare NonZeroU64 using get(), preserving interval==1 check",
+  "buildCache": "Reuse original lease-v3 build cache under the same lock; no new dependency copy",
+  "priorBuild": "root-native-lease-v3-1231 failed compilation E0277 before any test ran"
+}

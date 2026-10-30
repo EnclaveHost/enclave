@@ -1,0 +1,10 @@
+[queue] START available=34713MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+us-west current1410 matched
+ca-east current1410 matched
+ap-southeast current1410 matched
+eu-central current1410 matched
+[memory-guard] exit=0 peakTreeRssMiB=36 minHostAvailableMiB=34601
+[memory-guard] at peak: python3:25 ssh:10
+[memory-guard] exit=0 peakTreeRssMiB=103 minHostAvailableMiB=34601
+[memory-guard] at peak: node:68 python3:25 ssh:10
+[queue] EXIT 0

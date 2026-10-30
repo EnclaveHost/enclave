@@ -1,0 +1,19 @@
+# Foundry sources compiled (one per forge invocation, -j 1) and the artifacts the rigs read (test/helpers/cli-independent-rig.mjs
+# and mcp-independent-rig.mjs art(...) calls + haveTools()'s EnclaveDeployments check). All paths under contracts/foundry/out/.
+source contracts/EnclaveAddressBook.sol
+source contracts/EnclaveRegistry.sol
+source contracts/EnclaveAppCatalog.sol
+source contracts/EnclaveDeployments.sol
+source contracts/PaymentRouter.sol
+source contracts/PinnedSessionVaultFactory.sol
+source contracts/SessionVault.sol
+source contracts/foundry/test/mocks/SessionMocks.sol
+artifact EnclaveAppCatalog.sol/EnclaveAppCatalog.json
+artifact EnclaveDeployments.sol/EnclaveDeployments.json
+artifact EnclaveDeployments.sol/EnclaveLedgerBandwidth.json
+artifact EnclaveRegistry.sol/EnclaveRegistry.json
+artifact PaymentRouter.sol/PaymentRouter.json
+artifact PinnedSessionVaultFactory.sol/PinnedSessionVaultFactory.json
+artifact SessionMocks.sol/MockUSDC3009.json
+artifact SessionVault.sol/SessionVault.json
+artifact SessionVault.sol/SessionVaultLib.json

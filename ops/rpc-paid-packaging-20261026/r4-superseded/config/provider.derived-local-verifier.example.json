@@ -1,0 +1,36 @@
+{
+ "operatorKeyFile": "/etc/enclave-network/operator.key",
+ "proofKeyFile": "/etc/enclave-network/host-proof.key",
+ "publicAddress": "203.0.114.7",
+ "uplink": "eth0",
+ "roles": [
+  "exit"
+ ],
+ "pricePerGiB6": 5,
+ "region": "example",
+ "kind": "community",
+ "hostId": "0x1111111111111111111111111111111111111111111111111111111111111111",
+ "directories": [
+  "https://directory.example"
+ ],
+ "stateDir": "/var/lib/enclave-network",
+ "rpc": [
+  "https://rpc-a.example/",
+  "https://rpc-b.example/"
+ ],
+ "chainAuthority": "verifier",
+ "chainVerifier": "http://127.0.0.1:28590/",
+ "txBackend": {
+  "url": "http://127.0.0.1:18545",
+  "maxFeePerGasWei": "1000000000",
+  "maxPriorityFeePerGasWei": "10000000",
+  "maxGas": 300000
+ },
+ "paidFinality": "derived",
+ "derivedFinality": {
+  "readerConfigFile": "/etc/enclave-network/derived-reader.json",
+  "floorFile": "/var/lib/enclave-network/derived-anchor-floor.json",
+  "historyUrl": "http://127.0.0.1:18546",
+  "maxPending": 8
+ }
+}

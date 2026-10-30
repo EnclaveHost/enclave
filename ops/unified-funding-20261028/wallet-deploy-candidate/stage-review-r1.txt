@@ -1,0 +1,71 @@
+[queue] START available=30260MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+TAP version 13
+# Subtest: actual bundle is accepted offline and authorization rejects changed calldata identity
+ok 1 - actual bundle is accepted offline and authorization rejects changed calldata identity
+  ---
+  duration_ms: 1.634358
+  type: 'test'
+  ...
+# Subtest: signing is off without authorization; wrong owner and chain refuse before RPC
+ok 2 - signing is off without authorization; wrong owner and chain refuse before RPC
+  ---
+  duration_ms: 3.554765
+  type: 'test'
+  ...
+# Subtest: stale RPC and consumed nonce refuse
+ok 3 - stale RPC and consumed nonce refuse
+  ---
+  duration_ms: 2.345933
+  type: 'test'
+  ...
+# Subtest: unknown wallet outcome survives reconstruction and never offers again
+ok 4 - unknown wallet outcome survives reconstruction and never offers again
+  ---
+  duration_ms: 6.432074
+  type: 'test'
+  ...
+# Subtest: runtime disagreement and unsafe RPC methods refuse
+ok 5 - runtime disagreement and unsafe RPC methods refuse
+  ---
+  duration_ms: 0.789154
+  type: 'test'
+  ...
+# Subtest: same-origin capability and CSRF protection; GET does not mutate
+ok 6 - same-origin capability and CSRF protection; GET does not mutate
+  ---
+  duration_ms: 27.968883
+  type: 'test'
+  ...
+# Subtest: preflight refreshes L1/operator fee rather than reusing old cost observation
+not ok 7 - preflight refreshes L1/operator fee rather than reusing old cost observation
+  ---
+  duration_ms: 6.729602
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-deploy-r1/root-test.mjs:40:1'
+  failureType: 'testCodeFailure'
+  error: 'no current L1/operator fee read occurred'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-deploy-r1/root-test.mjs:40:210)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 6
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 76.62594
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 1

@@ -1,0 +1,59 @@
+[queue] START available=22374MiB required=18048MiB cap=1408MiB floor=16384MiB concurrentSmall=0MiB
+[all] build rc=0
+< 440d3f90643fa681a9551c86a61cfb2dc5ef8ec1708b0aecc4e9e737c1a882c3  ./policy-mirror.mjs
+< 120aeb0782e1365195ad42bd4fb4b56a6e589af4ec3bd96f0423692302f7fae2  ./policy-mirror.package.json
+< 24aabe4b6514c6e3a43b1659053ad6f278bbe01bb140004e92f4ff9c514a8c88  ./public-rpc.mjs
+< d631cae1a274ea487cdba88cde7d216a80495bcc6a85b99c88267b8f2d5bf186  ./public-rpc.package.json
+< edaae81ab18b6b3f512d850e728dd7c319ee85f16ff84b730675e9e977caa901  ./route-dns.mjs
+< 1daac8a34e837dd804ffb55c80c2432030d67ec06bba87bc0cc2171b44e70c3d  ./route-dns.package.json
+< feda13d354dbcca5e18c166ecec976d5c67b2c903573112b0a48d93f0ca93937  ./service-tls.mjs
+< 8afcd969bc676a39a39dba0c9d4708c9d70be39873f9d4a41ee68789a6ded727  ./service-tls.package.json
+CONTROL: recipe reproduces G3 runner c3c7d9f6 / stage-tool 91cc8868
+== packages vs F aff1dafd build and a206cab4 build
+bootstrap-replica.mjs 1e45e75f1f4a7d2b74ebac22f0e292d76323c9a11bf80203a20d289c9577f467 F=same a206=same
+bootstrap-replica.package.json 7732950bc2f6385275278553bd36f5372a799f3183b2e26abebadd940414dffc F=same a206=same
+credit-vault-submitter.mjs 2a4de6d5b166c25aa9f7ac9cde1f9b2e05620eebc7d65266e6588ecffca6091b F=same a206=same
+credit-vault-submitter.package.json a22cd7a8fc6f7d85fea6edbd7f8e9deb36dc1b55507e3bb396e9bc6a368eb0e6 F=same a206=same
+directory-replica.mjs 45dc23218fd88a4e7bfd025f192aca176bf875554b4e61270d256e121998e971 F=same a206=same
+directory-replica.package.json e9cff3283064bcf2bb765a4c741af384eed2adc14a30bff959c58df8032be2d8 F=same a206=same
+policy-mirror.mjs 440d3f90643fa681a9551c86a61cfb2dc5ef8ec1708b0aecc4e9e737c1a882c3 F=same a206=differs(74878623094a0d2692ac2d2bb36b1b461a3cb3c6a9bdd90393e3ebb62667f9a4)
+policy-mirror.package.json 120aeb0782e1365195ad42bd4fb4b56a6e589af4ec3bd96f0423692302f7fae2 F=same a206=differs(2b5a85468d720d4904f282bc6ff84bcf9ff33e46738172cc32d444ae6e4bacbe)
+public-rpc.mjs 24aabe4b6514c6e3a43b1659053ad6f278bbe01bb140004e92f4ff9c514a8c88 F=differs(b1e8f62e12ef152b5e5adbfee43a5bffd4a3d67694c72df9ea5d98505884ea81) a206=same
+public-rpc.package.json d631cae1a274ea487cdba88cde7d216a80495bcc6a85b99c88267b8f2d5bf186 F=differs(78f06b5b546fa2f7d6e57fb4d073e4e12f542cf0886fa1005cc80c51966d6319) a206=same
+route-dns.mjs edaae81ab18b6b3f512d850e728dd7c319ee85f16ff84b730675e9e977caa901 F=same a206=differs(06293c9331a2e76c9a8f27bb31611e3425ba4feb52deee950b6c93392e02df23)
+route-dns.package.json 1daac8a34e837dd804ffb55c80c2432030d67ec06bba87bc0cc2171b44e70c3d F=same a206=differs(e265478277853d4c3e9fc09337b7b366f4a332cbda31e8b5b10ce674f3970d9c)
+service-tls.mjs feda13d354dbcca5e18c166ecec976d5c67b2c903573112b0a48d93f0ca93937 F=differs(e24645d60d48f07028cc8ed82ef8b8ed2f57fd5d4d80c26262a65410cf5c312f) a206=differs(none)
+service-tls.package.json 8afcd969bc676a39a39dba0c9d4708c9d70be39873f9d4a41ee68789a6ded727 F=differs(1dc46c08f24a2ce62f9822e081c027d8d0d31578d51e7739455afa573995a7b0) a206=differs(none)
+== hs2 bundles (new) vs F aff1dafd final
+host-services-runner.mjs 39ba68c8072d16fd5c1584612f323d83c95eec74814f2032c60e76fe36aabf15 (439 inputs)
+stage-tool.mjs 7c460cbc55d4748c9d3ad8068987eeb0133ecf1be3be4fb180c59480478c1831 (443 inputs)
+8150a635b8af670563595106b72b38abb936147f7782d5a44081f132a97a88ee  hs2/host-services-runner.mjs
+ddd78ec04981d4268bf77b79c9395f9fbb3d416d815f71b19b4c524db0cbb148  hs2/stage-tool.mjs
+BUILD_OK
+[suite] s1-role: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/route-source head aff1dafdf6f2ed8fe9a425574f7c4fe4bd1c6fa4 dirty=4; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=0 tests=13 pass=13 fail=0 cancelled=0 skip=0 notrun-native=0 31.9s test/public-rpc.test.mjs
+[file] rc=0 tests=6 pass=6 fail=0 cancelled=0 skip=0 notrun-native=0 77.8s test/public-rpc-history-consumer.e2e.test.mjs
+[file] rc=0 tests=42 pass=42 fail=0 cancelled=0 skip=0 notrun-native=0 6.5s test/service-tls.test.mjs
+[file] rc=0 tests=5 pass=5 fail=0 cancelled=0 skip=0 notrun-native=0 3.6s test/public-rpc-https.test.mjs
+[suite] s1-role: files=4 tests=66 pass=66 fail=0 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=0 -> PASS
+[suite] s2-consumers: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/route-source head aff1dafdf6f2ed8fe9a425574f7c4fe4bd1c6fa4 dirty=4; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=0 tests=5 pass=5 fail=0 cancelled=0 skip=0 notrun-native=0 46.2s test/public-rpc-witness-consumer.e2e.test.mjs
+[file] rc=0 tests=3 pass=3 fail=0 cancelled=0 skip=0 notrun-native=0 11.5s test/public-rpc-wallet-consumer.e2e.test.mjs
+[file] rc=0 tests=2 pass=2 fail=0 cancelled=0 skip=0 notrun-native=0 13.1s test/public-rpc-browser.test.mjs
+[suite] s2-consumers: files=3 tests=10 pass=10 fail=0 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=0 -> PASS
+[suite] s3-lifecycle: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/route-source head aff1dafdf6f2ed8fe9a425574f7c4fe4bd1c6fa4 dirty=4; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=0 tests=13 pass=13 fail=0 cancelled=0 skip=0 notrun-native=0 4.3s test/host-service-lifecycle.test.mjs
+[file] rc=0 tests=4 pass=4 fail=0 cancelled=0 skip=0 notrun-native=0 9.7s test/host-service-verifier-roles.test.mjs
+[file] rc=0 tests=14 pass=14 fail=0 cancelled=0 skip=0 notrun-native=0 0.5s test/host-service-transport.test.mjs
+[file] rc=1 tests=6 pass=5 fail=1 cancelled=0 skip=0 notrun-native=0 13.6s test/hosted-policy-cold-start.test.mjs
+        ✖ test/hosted-policy-cold-start.test.mjs (13593.704464ms)
+        ✖ test/hosted-policy-cold-start.test.mjs (13593.704464ms)
+[file] rc=0 tests=12 pass=12 fail=0 cancelled=0 skip=0 notrun-native=0 53.5s test/host-services-cold-start.test.mjs
+[file] rc=0 tests=9 pass=9 fail=0 cancelled=0 skip=0 notrun-native=0 76.9s test/host-services-carriers.test.mjs
+[suite] s3-lifecycle: files=6 tests=58 pass=57 fail=1 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=1 -> FAIL
+[suite] failing file: test/hosted-policy-cold-start.test.mjs
+[tests] rc=1
+[all] tests rc=1
+[memory-guard] exit=1 peakTreeRssMiB=1044 minHostAvailableMiB=21371
+[memory-guard] at peak: reth-v2.8.0:313 node:138 node:80 node:80 chrome-headless:80 chrome-headless:78 chrome-headless:72 chrome-headless:58
+[queue] EXIT 1

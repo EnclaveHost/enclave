@@ -1,0 +1,46 @@
+{
+  "accountCommandRunDuringPreparation": false,
+  "astParsedOnly": [
+    "common.py",
+    "preflight.py",
+    "run.py",
+    "collect.py"
+  ],
+  "authorLaunched": false,
+  "buildRun": false,
+  "candidateSeedFiles": 17,
+  "coldControllerActivationQualified": false,
+  "externalInputFiles": 47,
+  "hashes": {
+    "LAUNCH.json": "68bd693ba0565a324d6dc8f64266c62821a5c3c19d7b44683132a018bb4e6a69",
+    "PLAN.json": "7164d76ed2c431395a19635484ffaad5f6adb96a01d1ecddd8e03536aa21b516",
+    "ROOT-REGRESSIONS.json": "df117421f904f1a4ac1942b56c556054cde2faa1854ac5014cc4f6c185bdcc8c",
+    "SEED-PINS.json": "955e3765463b9452a44edd2a7c83ae1cbff998b05cf7678e5387a6d92587fefb",
+    "SOURCE-PINS.json": "e2a5bac904471af1c622071d5b72e04f9dc12a1c2a1b046e45c9cdf13b8cc84e",
+    "TASK.txt": "daee0aff70d1ab474d46380f09fa6a5e79aeba766000bc05e264489be435c7d5",
+    "TOOL-PINS.json": "7e4a3f0fa5b6736ab030ecdc4f5a7c5921b56d4eaea1f5f7edaf51978c3de7c9",
+    "collect.py": "81a4b110db0881dacf58c59c90c2cedb81439ea1f2d2ad7e84ab484d078212ea",
+    "common.py": "0f6dc801a8bbb2f4410b35e4afe293f84976565f6160a2b2e68d9e616e9c7f7d",
+    "preflight.py": "013b4de60d5e01a70993c18ade0509ed3b3c8ba4a272e3de594e46f713065632",
+    "run.py": "076c198eb92699cf2a1539f796d2157eb58e84de90174a765495350e9e6a630a"
+  },
+  "limits": {
+    "childTimeoutSeconds": 900,
+    "cpu": 1,
+    "floorMiB": 27648,
+    "maxTurns": 30,
+    "memoryMiB": 1536,
+    "outerTimeoutSeconds": 1200,
+    "rssMiB": 1408,
+    "swapMiB": 0
+  },
+  "oldFailurePreserved": true,
+  "outerControllerMemoryMiB": 128,
+  "productPreedited": false,
+  "revision": "r3-ownership-stale-continuations",
+  "rootRegressionScenarios": 14,
+  "scope": "source-only-controller-liveness-repair-r3",
+  "seedSupervisorSha256": "16ff1733a4d186718bce006f8995a40cebd631541214810e0651b6927466b33b",
+  "status": "PREPARED_NOT_LAUNCHED",
+  "testsRun": false
+}

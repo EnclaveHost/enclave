@@ -1,0 +1,17 @@
+{
+ "checks": {
+  "lastLineOK": true,
+  "noBadMarkers": true,
+  "ranExactly": true,
+  "rc0": true,
+  "stdoutEmpty": true
+ },
+ "format": "namespace-launch-guard-test-receipt/r3",
+ "pass": true,
+ "ran": [
+  "12"
+ ],
+ "rc": 0,
+ "scope": "mocked dispatch only",
+ "stageSums": "5b35d8213fb5e08b279706add8825902c4ebac860c7e6c299aefec417d3ed7b4"
+}

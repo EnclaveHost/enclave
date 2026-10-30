@@ -1,0 +1,11 @@
+{
+  "frozenRoot": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r10/candidate",
+  "sourceManifest": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r10/source-pins.json",
+  "sourceManifestSha256": "fc95fa8e0f4291d9dfda18f8c6858778f8072018a5e6f901318a686a2589d750",
+  "seedFiles": 222,
+  "seedManifestSha256": "c2ce5554636fa47eea7d760451cc4fa1dd8b07def05358cc95b4d77545c112ff",
+  "preAuthorProductEdits": [],
+  "rootProductChangesSinceAuthorR10": [],
+  "noCandidateCodeExecuted": true,
+  "externalFixtureCorrections": "Full r5 correction and actual policy/send/route regressions readonly; exact candidate untouched."
+}

@@ -1,0 +1,2 @@
+a38de9fbeb0a227e1195fc9a9059f6c963ba15dfbd4e1835d7c3dc219232d495  pre-image test/cli-combined-independent.test.mjs (b6ac5d657 = r7 base = r7 cand = r12 final)
+c5deb9964bc4326a3dcabd0410c131d89fdd79714a3f8aa94f95ab7902926d79  post-image test/cli-combined-independent.test.mjs (P8)

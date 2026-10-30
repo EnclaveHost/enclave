@@ -1,0 +1,25 @@
+TAP version 13
+# Subtest: F2 anchor: global enabled/admitted and per-host hostAdmission are separate; the 34a3 verifier still accepts the anchor
+ok 1 - F2 anchor: global enabled/admitted and per-host hostAdmission are separate; the 34a3 verifier still accepts the anchor
+  ---
+  duration_ms: 1926.295852
+  type: 'test'
+  ...
+# Subtest: F1 self-hosted (payout = owner) and free owner (payout = owner's SessionVault): unfunded balance, rate 0 -> funded, admitted, unbounded; real start = uint64.max
+ok 2 - F1 self-hosted (payout = owner) and free owner (payout = owner's SessionVault): unfunded balance, rate 0 -> funded, admitted, unbounded; real start = uint64.max
+  ---
+  duration_ms: 1790.554002
+  type: 'test'
+  ...
+# Subtest: F1 paid host: horizon = balance / rateFor(id, host), equal to the lease a real start buys; unaffordable here is host-only
+ok 3 - F1 paid host: horizon = balance / rateFor(id, host), equal to the lease a real start buys; unaffordable here is host-only
+  ---
+  duration_ms: 1163.756156
+  type: 'test'
+  ...
+# Subtest: F1 stale stored rate: a free run ended, host turns paid -> horizon is the paid one (not unbounded); revoked self-hosting while running -> unfunded now
+ok 4 - F1 stale stored rate: a free run ended, host turns paid -> horizon is the paid one (not unbounded); revoked self-hosting while running -> unfunded now
+  ---
+  duration_ms: 1826.198531
+  type: 'test'
+  ...

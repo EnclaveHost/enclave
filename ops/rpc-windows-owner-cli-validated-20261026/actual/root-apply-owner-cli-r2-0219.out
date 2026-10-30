@@ -1,0 +1,10 @@
+[queue] START available=22629MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+[fix/rpc-relay-consumers-20261025 b6ac5d657] Route Windows owner CLI through local authority and preserve JSON output
+ 3 files changed, 239 insertions(+), 6 deletions(-)
+ create mode 100644 test/windows-owner-cli.test.mjs
+To https://github.com/EnclaveHost/enclave.git
+   e4f507d6b..b6ac5d657  HEAD -> fix/rpc-relay-consumers-20261025
+Exact3 tested files applied;43 checks PASS; source only.
+[memory-guard] exit=0 peakTreeRssMiB=53 minHostAvailableMiB=21673
+[memory-guard] at peak: python3:18 git-remote-http:16 git:8 git:6 git:4
+[queue] EXIT 0

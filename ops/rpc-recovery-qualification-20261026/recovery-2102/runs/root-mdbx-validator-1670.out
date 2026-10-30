@@ -1,0 +1,17 @@
+[queue] START available=24436MiB required=19200MiB cap=2560MiB floor=16384MiB concurrentSmall=0MiB
+## build OK
+c228b462c3c71c87b0fd2e9cfa6b3e6bccb2d793dd545bc6a18bef7113187981  mdbx_chk
+5b53f828b3b8579abefb486a69555c08e314c9f81aba430d0210630249b92632  mdbx_stat
+ce12b1c1068056de8cfbd5299447ee470e3c35954c5b5692db59ed3df0b93b54  mdbx_dump
+7190180076377e07e75be932fdaf159a05eaa21a5075aef0c59e3403d5e5989a  mk_fixture
+14446d9cec01e18660d88ea13ac26681ab800e629f88ca1ff12d9d293c99bb6f  mdbx-static.o
+9767ebe17e68a2528c529f859ce333eb0de47b7bf0acf521e5b303de00fb23b1  config-gnumake.h
+## version OK v0.13.12-0-gf619d43d
+Ran 0 tests in 0.027s
+
+FAILED (errors=1)
+## test_mdbx_validator FAIL (rc 1)
+## mdbx-validator-r1 rc=1 (mdbx_chk sha256 c228b462c3c71c87b0fd2e9cfa6b3e6bccb2d793dd545bc6a18bef7113187981 kept in /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r1/runs/run-20261026T205843Z-2342321/build)
+[memory-guard] exit=1 peakTreeRssMiB=403 minHostAvailableMiB=23809
+[memory-guard] at peak: cc1plus:386 make:4 bash:4 bash:4 g++:3 bash:2
+[queue] EXIT 1

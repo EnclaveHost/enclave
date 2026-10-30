@@ -1,0 +1,7 @@
+{
+  "head": "2970e5699ba6267f3384ffab20f96647578aebc8",
+  "dirty": " M OvmfPkg/AmdSev/Grub/grub.sh\n",
+  "grub_patch_sha256": "8be684fe5e00f3fde0cea4dea7ab5065ba0e846206129b4167aca59811dc1079",
+  "source": "/home/steven/.cache/enclave-isolation/fwbuild/src/edk2",
+  "copy": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/fwbuild-candidate-r1/src"
+}

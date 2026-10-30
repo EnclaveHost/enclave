@@ -1,0 +1,28 @@
+test_busy_usb_needs_explicit_operator_flag_and_is_journaled (__main__.Flow.test_busy_usb_needs_explicit_operator_flag_and_is_journaled) ... ok
+test_changed_source_after_verify_refuses_until_recopied (__main__.Flow.test_changed_source_after_verify_refuses_until_recopied) ... ok
+test_crash_between_rename_intent_and_symlink_resumes_or_rolls_back (__main__.Flow.test_crash_between_rename_intent_and_symlink_resumes_or_rolls_back) ... ok
+test_directory_mtimes_are_restored_after_copy_and_still_strictly_verified (__main__.Flow.test_directory_mtimes_are_restored_after_copy_and_still_strictly_verified) ... ok
+test_failed_post_cutover_check_rolls_back_automatically (__main__.Flow.test_failed_post_cutover_check_rolls_back_automatically) ... ok
+test_full_flow_cutover_rollback_idempotence_and_preserved_metadata (__main__.Flow.test_full_flow_cutover_rollback_idempotence_and_preserved_metadata) ... ok
+test_guard_pins_and_shutdown_proximity (__main__.Flow.test_guard_pins_and_shutdown_proximity) ... ok
+test_plan_is_read_only_and_points_to_the_next_phase (__main__.Flow.test_plan_is_read_only_and_points_to_the_next_phase) ... ok
+test_reused_image_capacity_and_unmounted_target (__main__.Flow.test_reused_image_capacity_and_unmounted_target) ... ok
+test_tampered_destination_with_same_size_and_mtime_is_refused_by_hash (__main__.Flow.test_tampered_destination_with_same_size_and_mtime_is_refused_by_hash) ... ok
+test_writer_check_hits_incomplete_visibility_staleness_and_root_only (__main__.Flow.test_writer_check_hits_incomplete_visibility_staleness_and_root_only) ... ok
+test_generated_scripts_quote_hostile_paths_and_run_nothing_else (__main__.Hostile.test_generated_scripts_quote_hostile_paths_and_run_nothing_else) ... ok
+test_full_lifecycle_never_deletes_and_never_runs_a_destructive_rsync (__main__.NoDeletion.test_full_lifecycle_never_deletes_and_never_runs_a_destructive_rsync)
+Behavioural: every os.unlink/remove/rmdir/removedirs and every rsync argv the TOOL issues across copy, verify, ... ok
+test_persistence_handoff_script_and_verification_gate_cutover (__main__.Persistence.test_persistence_handoff_script_and_verification_gate_cutover) ... ok
+test_config_validation (__main__.Refusals.test_config_validation) ... ok
+test_destructive_rsync_options_are_refused_at_run_time (__main__.Refusals.test_destructive_rsync_options_are_refused_at_run_time) ... ok
+test_invalid_uuid_label_and_path_characters_are_refused (__main__.Refusals.test_invalid_uuid_label_and_path_characters_are_refused) ... ok
+test_mountinfo_and_loop_identity_checkers (__main__.Refusals.test_mountinfo_and_loop_identity_checkers) ... ok
+test_path_and_tree_safety (__main__.Refusals.test_path_and_tree_safety) ... ok
+test_relative_symlink_escaping_a_tree_is_refused (__main__.Refusals.test_relative_symlink_escaping_a_tree_is_refused) ... ok
+test_a_deletion_in_the_target_is_never_silently_mirrored_back (__main__.SafeRollback.test_a_deletion_in_the_target_is_never_silently_mirrored_back) ... ok
+test_rollback_refuses_after_target_writes_and_reverse_copy_preserves_everything (__main__.SafeRollback.test_rollback_refuses_after_target_writes_and_reverse_copy_preserves_everything) ... ok
+
+----------------------------------------------------------------------
+Ran 22 tests in 3.024s
+
+OK

@@ -1,0 +1,47 @@
+[
+  {
+    "atEpoch": 1793061193.008849,
+    "batches": 32,
+    "event": "start",
+    "job": "driver",
+    "runId": "20261027T003313Z-2526065",
+    "runnerSha256": "5c33f6e24d0b880d47521c08a001c6b8d11af18cfcc044c411ef09a889ad410a"
+  },
+  {
+    "atEpoch": 1793061193.1723013,
+    "capacity": {
+      "root": {
+        "externalReservationBytes": 8589934592,
+        "floorBytes": 42949672960,
+        "freeBytes": 534677581824,
+        "marginBytes": 6396604416,
+        "neededBytes": 528280977408,
+        "remainingLogicalBytes": 476741369856
+      },
+      "vm": {
+        "externalReservationBytes": 0,
+        "floorBytes": 42949672960,
+        "freeBytes": 706084458496,
+        "marginBytes": 40364527616,
+        "neededBytes": 665719930880,
+        "remainingLogicalBytes": 622770257920
+      }
+    },
+    "event": "admitted",
+    "hi": 16,
+    "job": "batch",
+    "lo": 9,
+    "mode": "copy",
+    "runId": "20261027T003313Z-2526065"
+  },
+  {
+    "atEpoch": 1793061193.1747093,
+    "event": "wrapper started",
+    "hi": 16,
+    "job": "batch",
+    "lo": 9,
+    "mode": "copy",
+    "pid": 2532141,
+    "runId": "20261027T003313Z-2526065"
+  }
+]

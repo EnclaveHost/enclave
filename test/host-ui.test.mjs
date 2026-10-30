@@ -27,6 +27,18 @@ test("the hosting view reads a PC node's answer and a phone's, and an older node
   assert.equal(T.hostingView(null).cpuCap, 0, "nothing is a default, never a crash");
 });
 
+test("the Windows Update restart window under the node's state: a PC says it, a phone and an older node do not", () => {
+  const pc = T.hostingView(fake("pc").view());
+  assert.equal(T.updateWindowText(pc), "Windows Update restarts only 01:00–07:00 (this PC's time)");
+  assert.equal(T.updateWindowText(T.hostingView(fake("phone").view())), "");
+  assert.equal(T.updateWindowText(T.hostingView({ caps: {} })), "");
+  const w = (o) => T.updateWindowText(T.hostingView({ updateWindow: o }));
+  assert.equal(w({ managed: true, start: 22, hours: 6, noRebootWhileSignedIn: true }),
+    "Windows Update restarts only 22:00–04:00 (this PC's time), and never while someone is signed in");
+  assert.equal(w({ managed: true, start: 3, hours: 24 }), "Windows Update may restart this PC at any hour");
+  assert.equal(w({ managed: false, start: 1, hours: 6 }), "Windows Update restarts: this PC's own settings (setup left them alone)");
+});
+
 test("the panel's sentences: the switch line, the rows, the notes, the questions", () => {
   const v = T.hostingView(fake("pc").view());
   assert.equal(T.hostingLine(v, false).text, "on \u00B7 listed on enclave.host, taking new work under your limits");

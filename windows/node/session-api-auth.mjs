@@ -210,13 +210,30 @@ export function replayGuard({ ttlSec = 2 * WINDOW_SEC + 10, max = 100_000, now =
  *              given, "deployments"
  *   ledger     () => the deployments ledger (the book's "deployments"), or null: where wallet-held delegation is read
  *   factories  extra SessionVaultFactory addresses (default v2 + v1); the book's factory is always added
+ *   authorityPins optional host pins: exact deployments/sessionVaultFactory, overriding book, ledger and factories
  *   bases      () => apiBases(...) for this host
  *   now        () => unix seconds (this host's clock)
+ *   snapshot   optional (fn) => fn(client) at ONE verified block (network/verified-read-client.mjs verifiedSnapshot, under
+ *              ENCLAVE_CHAIN_AUTHORITY=verifier): each request's chain facts - factory, session, owner (verify) and custody
+ *              or delegation (refusal) - are then read together at one proof-backed block and never from the per-read
+ *              cache, so a revocation is seen on the next request. Without it the reads and caches are as before.
  */
-export function createSessionApiAuth({ pc, book = () => null, ledger = null, factories = DEFAULT_FACTORIES, bases,
-  now = () => Math.floor(Date.now() / 1000), cacheMs = CACHE_MS, log = () => {} } = {}) {
+export function createSessionApiAuth({ pc, book = () => null, ledger = null, factories = DEFAULT_FACTORIES, authorityPins, bases,
+  now = () => Math.floor(Date.now() / 1000), cacheMs = CACHE_MS, log = () => {}, snapshot = null } = {}) {
   if (!pc) throw new Error("createSessionApiAuth: a public client is required");
   if (typeof bases !== "function") throw new Error("createSessionApiAuth: bases() is required");
+  if (snapshot !== null && typeof snapshot !== "function") throw new Error("createSessionApiAuth: snapshot must be a function");
+  // Explicit host pins replace every legacy authority source. A zero factory
+  // disables session-vault credentials; it never restores the book/defaults.
+  if (authorityPins != null) {
+    const valid = a => typeof a === "string" && /^0x[0-9a-fA-F]{40}$/.test(a);
+    if (!authorityPins || Array.isArray(authorityPins) || !valid(authorityPins.deployments) || ZERO.test(authorityPins.deployments) ||
+        !valid(authorityPins.sessionVaultFactory)) throw new Error("invalid pinned session authorities");
+    const pinnedLedger = getAddress(authorityPins.deployments), pinnedFactory = getAddress(authorityPins.sessionVaultFactory);
+    book = () => null;
+    ledger = () => pinnedLedger;
+    factories = ZERO.test(pinnedFactory) ? [] : [pinnedFactory];
+  }
   const replay = replayGuard({ now });
   const fixed = factories.filter((a) => /^0x[0-9a-fA-F]{40}$/.test(String(a || ""))).map((a) => getAddress(a));
   const ms = () => Date.now();
@@ -238,28 +255,28 @@ export function createSessionApiAuth({ pc, book = () => null, ledger = null, fac
       throw new SessionAuthError(503, "chain_unavailable", `This host could not read ${what} from the chain; try again.`);
     }
   };
-  const bookAddr = (key) => cached("book", key, false, 60_000, async () => {
+  const bookAddr = (key, c = pc) => cached("book", key, c !== pc, 60_000, async () => {
     const b = book();
     if (!b || !/^0x[0-9a-fA-F]{40}$/.test(String(b))) return null;
-    const a = await pc.readContract({ address: getAddress(b), abi: BOOK_ABI, functionName: "addr", args: [key] });
+    const a = await c.readContract({ address: getAddress(b), abi: BOOK_ABI, functionName: "addr", args: [key] });
     return a && !ZERO.test(a) ? getAddress(a) : null;
   });
 
-  async function knownFactories() {
-    const fromBook = await bookAddr(BOOK_KEY_FACTORY).catch(() => null);   // the configured list stands without the book
+  async function knownFactories(c = pc) {
+    const fromBook = await bookAddr(BOOK_KEY_FACTORY, c).catch(() => null);   // the configured list stands without the book
     return [...new Set([fromBook, ...fixed].filter(Boolean))];
   }
   const isVaultForever = new Set();
   // A factory address with no code (a list entry for another chain, a typo) answers "not mine"; any other failure
   // to read one is an unreadable chain, and unless another factory says yes the request fails closed (503).
   const noCode = (e) => { for (let x = e, i = 0; x && i < 12; x = x.cause, i++) if (x.name === "ContractFunctionZeroDataError") return true; return false; };
-  async function isVault(vault, fresh) {
+  async function isVault(vault, fresh, c = pc) {
     if (isVaultForever.has(vault)) return true;                             // a vault never stops being one
     const ok = await cached("isVault", vault, fresh, cacheMs, async () => {
       let err = null;
-      for (const f of await knownFactories()) {
+      for (const f of await knownFactories(c)) {
         try {
-          if (await pc.readContract({ address: f, abi: FACTORY_ABI, functionName: "isVault", args: [vault] })) return true;
+          if (await c.readContract({ address: f, abi: FACTORY_ABI, functionName: "isVault", args: [vault] })) return true;
         } catch (e) { if (!noCode(e)) err = e; }
       }
       if (err) throw err;
@@ -268,32 +285,32 @@ export function createSessionApiAuth({ pc, book = () => null, ledger = null, fac
     if (ok) isVaultForever.add(vault);
     return ok;
   }
-  const sessionOf = (vault, sid, fresh) => cached("sessionOf", `${vault}:${sid}`, fresh, cacheMs, async () => {
-    const [s, live, apps] = await pc.readContract({ address: vault, abi: VAULT_ABI, functionName: "sessionOf", args: [sid] });
+  const sessionOf = (vault, sid, fresh, c = pc) => cached("sessionOf", `${vault}:${sid}`, fresh, cacheMs, async () => {
+    const [s, live, apps] = await c.readContract({ address: vault, abi: VAULT_ABI, functionName: "sessionOf", args: [sid] });
     return { ...s, live, apps };
   });
-  const ownerOf = (vault, fresh) => cached("owner", vault, fresh, cacheMs, async () =>
-    getAddress(await pc.readContract({ address: vault, abi: VAULT_ABI, functionName: "owner" })));
-  const heldEnv = (vault, id, fresh) => cached("held", `${vault}:${id}`, fresh, cacheMs, async () =>
-    Number((await pc.readContract({ address: vault, abi: VAULT_ABI, functionName: "held", args: [id] }))[0]));
-  async function ledgerAddr() {
+  const ownerOf = (vault, fresh, c = pc) => cached("owner", vault, fresh, cacheMs, async () =>
+    getAddress(await c.readContract({ address: vault, abi: VAULT_ABI, functionName: "owner" })));
+  const heldEnv = (vault, id, fresh, c = pc) => cached("held", `${vault}:${id}`, fresh, cacheMs, async () =>
+    Number((await c.readContract({ address: vault, abi: VAULT_ABI, functionName: "held", args: [id] }))[0]));
+  async function ledgerAddr(c = pc) {
     const l = typeof ledger === "function" ? ledger() : null;
     if (l && /^0x[0-9a-fA-F]{40}$/.test(String(l))) return getAddress(l);
-    return bookAddr(BOOK_KEY_DEPLOYMENTS);
+    return bookAddr(BOOK_KEY_DEPLOYMENTS, c);
   }
   const support = new Map();        // ledger -> bool, once its code was read (code never changes; no code is never kept)
-  async function delegation(owner, vault, fresh) {
-    const l = await ledgerAddr();
+  async function delegation(owner, vault, fresh, c = pc) {
+    const l = await ledgerAddr(c);
     if (!l) return { ledger: null, supported: false, granted: false };
     let ok = support.get(l);
     if (ok === undefined) {
-      const code = await pc.getCode({ address: l });
+      const code = await c.getCode({ address: l });
       if (!code || code === "0x") return { ledger: l, supported: false, granted: false };
       support.set(l, (ok = codeHasDelegation(code)));
     }
     if (!ok) return { ledger: l, supported: false, granted: false };
     const granted = await cached("delegate", `${l}:${owner}:${vault}`, fresh, cacheMs, async () => {
-      const w = await pc.getStorageAt({ address: l, slot: delegateSlot(owner, vault) });
+      const w = await c.getStorageAt({ address: l, slot: delegateSlot(owner, vault) });
       return !!w && w !== "0x" && BigInt(w) === 1n;
     });
     return { ledger: l, supported: true, granted };
@@ -325,15 +342,20 @@ export function createSessionApiAuth({ pc, book = () => null, ledger = null, fac
     const rkey = `${p.vault.toLowerCase()}:${p.sid}:${p.n}`;
     if (!replay.claim(rkey)) throw e401("replayed request: this nonce was already used here");
     try {
-      if (!(await chainRead("the session vault factory", () => isVault(p.vault, fresh))))
+      // coherent mode: the factory, session and owner facts at ONE verified block (decisions below, outside the snapshot)
+      const facts = snapshot ? await chainRead("the session (one verified block)", () => snapshot(async (c) => {
+        if (!(await isVault(p.vault, true, c))) return { vault: false };
+        return { vault: true, st: await sessionOf(p.vault, p.sid, true, c), owner: await ownerOf(p.vault, true, c) };
+      })) : null;
+      if (!(facts ? facts.vault : await chainRead("the session vault factory", () => isVault(p.vault, fresh))))
         throw e401(`${p.vault} is not a SessionVault of a known factory`);
-      const st = await chainRead("the session", () => sessionOf(p.vault, p.sid, fresh));
+      const st = facts ? facts.st : await chainRead("the session", () => sessionOf(p.vault, p.sid, fresh));
       if (String(st.keyHash).toLowerCase() !== sessionKeyHash(p.x, p.y).toLowerCase())
         throw e401("this key does not belong to the session");
       if (!st.live) throw e401("this session has ended or expired", "session_ended");
       if (scope && !hasScope(st.actions, scope))
         throw new SessionAuthError(403, "not_allowed", `this session lacks ${scope}`);
-      const owner = await chainRead("the vault's owner", () => ownerOf(p.vault, fresh));
+      const owner = facts ? facts.owner : await chainRead("the vault's owner", () => ownerOf(p.vault, fresh));
       return { vault: p.vault, sid: p.sid, owner, actions: BigInt(st.actions), envs: Number(st.envs), anyApp: Boolean(st.anyApp),
         apps: [...(st.apps || [])], expiresAt: Number(st.expiresAt), hostPath };
     } catch (e) { replay.release(rkey); throw e; }
@@ -347,7 +369,8 @@ export function createSessionApiAuth({ pc, book = () => null, ledger = null, fac
     const holder = String(row?.owner || "").toLowerCase();
     if (holder && holder === String(s.vault).toLowerCase()) {
       if (!/^0x[0-9a-fA-F]{64}$/.test(String(row.id || ""))) return "This deployment is not on the ledger.";
-      const env = await chainRead("the vault's custody record", () => heldEnv(s.vault, String(row.id).toLowerCase(), fresh));
+      const env = await chainRead("the vault's custody record", () => snapshot ? snapshot((c) => heldEnv(s.vault, String(row.id).toLowerCase(), true, c))
+        : heldEnv(s.vault, String(row.id).toLowerCase(), fresh));
       if (!env) return "This deployment sits in your session vault but has not been adopted into an environment.";
       if ((s.envs & env) === 0)
         return `This deployment is ${env === ENV_PROD ? "production" : env === ENV_STAGING ? "staging" : `environment ${env}`}, outside this session's environments.`;
@@ -355,7 +378,7 @@ export function createSessionApiAuth({ pc, book = () => null, ledger = null, fac
     }
     if (holder && holder === String(s.owner).toLowerCase()) {
       if ((s.envs & ENV_PROD) === 0) return "This session does not cover your production (wallet-held) deployments.";
-      const d = await chainRead("the ledger delegation", () => delegation(s.owner, s.vault, fresh));
+      const d = await chainRead("the ledger delegation", () => snapshot ? snapshot((c) => delegation(s.owner, s.vault, true, c)) : delegation(s.owner, s.vault, fresh));
       if (!d.supported) return "The deployments ledger has no owner-approved delegates, so a session cannot act on the deployments your wallet holds.";
       if (!d.granted) return "Your wallet has not let your session vault manage the deployments it holds: grant it once with setDelegate from the wallet.";
       return null;

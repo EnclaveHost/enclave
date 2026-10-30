@@ -1,0 +1,79 @@
+{
+  "admission": {
+    "unit": "enclave-wallet-release-census-r2-20261029-author.service",
+    "invocationId": "a8561633fc04457b96fa9b7b238a4f92",
+    "mainPid": 2071906,
+    "runnerPid": 2072457,
+    "claudePid": 2072466,
+    "authoritativeRecordPath": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-author-admission-r2/admission-record.json",
+    "authoritativeRecordSha256": "d104d263dfb78afc5ce089f51cedd509531bc4e62e1698b161bf59a2fb31da43",
+    "authoritativeRecord": {
+      "unit": {
+        "ActiveState": "active",
+        "InvocationID": "a8561633fc04457b96fa9b7b238a4f92",
+        "MainPID": "2071906"
+      },
+      "main": {
+        "pid": 2071906,
+        "startTicks": "162586886",
+        "exe": "/usr/bin/python3.14",
+        "cwd": "/home/steven"
+      },
+      "runner": {
+        "pid": 2072457,
+        "startTicks": "162590696",
+        "exe": "/usr/bin/python3.14",
+        "cwd": "/home/steven"
+      },
+      "children": [
+        {
+          "pid": 2072466,
+          "startTicks": "162590730",
+          "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+          "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029"
+        }
+      ],
+      "preparedSha256": "cfa72e246f89e682064cf71354cf1cea98f0db6cc0a6b3e6bb8f01b38b88933d",
+      "sourceOnly": true,
+      "account": {
+        "loggedIn": true,
+        "email": "steven.r.batchelor@gmail.com",
+        "subscriptionType": "max"
+      }
+    }
+  },
+  "unit": "ActiveState=inactive\nSubState=dead\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "finished": {
+    "rc": 124,
+    "finishedAt": 1793321693.6023016,
+    "inputDrift": []
+  },
+  "currentInputDrift": [],
+  "session": "e19d2629-5a27-47bc-9866-ca20fbb48057",
+  "duration_ms": null,
+  "num_turns": null,
+  "configuredMaxAgenticTurns": 30,
+  "distinctAssistantMessageIds": 24,
+  "transcriptUserRows": 57,
+  "turnMetricNote": "Raw success-result num_turns is a different user-message counter from max-agentic/API-turn limit; retain without conflating. See pinned turn-metric-investigation.json.",
+  "is_error": true,
+  "outputParseFailed": true,
+  "files": 124,
+  "changedFiles": 8,
+  "removedFiles": [],
+  "manifestSha256": "5e2dfd9f67635866b324c2fa1647b76d3df71985dca9f8a1877aba5252ab1ca4",
+  "firstMutations": 8,
+  "firstMutationManifestSha256": "ce8bf81a7adabdbd2b019973767a538e11bd1be0dfc63d473919cc2f8ddf770a",
+  "currentInvocationTools": {
+    "Grep": 12,
+    "Read": 12,
+    "Write": 3,
+    "Edit": 29
+  },
+  "unexpectedTools": [],
+  "outsideCandidateMutationAttempts": [],
+  "mutationReplayIssues": [],
+  "mutationAuditSha256": "7c7424faf5361b6a69bd98f5dca75b5e3a18ac39825186e3e15fc4e9d9190299",
+  "innerGuard": "[memory-guard] exit=124 peakTreeRssMiB=296 minHostAvailableMiB=31032\n",
+  "outerGuard": "[memory-guard] exit=124 peakTreeRssMiB=359 minHostAvailableMiB=31031\n"
+}

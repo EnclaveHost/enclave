@@ -1,0 +1,635 @@
+{
+  "sourceSha256": "9744e66c7ef920f7c1ef7f21f947e0420b0e9a80505b0d1ffee1bd17f0760200",
+  "immutableDefinitions": {
+    "Refusal.__init__": {
+      "sha256": "9cf611de958a24b4275080644a2a6260899e9aef775090b24d75776905405332",
+      "startLine": 76,
+      "endLine": 78
+    },
+    "refuse": {
+      "sha256": "936a8df6aa3e8c92c7ed1c91a834ff96c66cee8c5bde708e7ac90db8953393bd",
+      "startLine": 81,
+      "endLine": 82
+    },
+    "Deadline.__init__": {
+      "sha256": "98af17e682d4b9539f9f6ab570ed71482a751641a38d86a2f10bce044eccfe6c",
+      "startLine": 88,
+      "endLine": 89
+    },
+    "Deadline.left": {
+      "sha256": "373cf25947e8cd24bd5024ba02a3d86de5b39ad10c24a3779aa92b601dbf87a1",
+      "startLine": 91,
+      "endLine": 97
+    },
+    "_no_dupes": {
+      "sha256": "b42902b997ea14a739d4d165de1fc816c9576f68c46088039c28d0357df0bcf0",
+      "startLine": 101,
+      "endLine": 107
+    },
+    "_obj": {
+      "sha256": "3079311f6ce719979b556812e17fd5c3009086c13392843553f15d8f54f4572d",
+      "startLine": 110,
+      "endLine": 113
+    },
+    "_int": {
+      "sha256": "c8815c1e6d0df3de418e75cc39ff958d7606f51ef2a561ec4ed7c39682b277b8",
+      "startLine": 116,
+      "endLine": 119
+    },
+    "_sha": {
+      "sha256": "9b58480778451822bae12068d734614736adf94aa68aaf5fd60c432ea45accf7",
+      "startLine": 122,
+      "endLine": 125
+    },
+    "safe_path": {
+      "sha256": "6afd6a293ccbd9f5e5a900b99717cb1297fbe424ffaec01e46645c95c7c6b04d",
+      "startLine": 128,
+      "endLine": 135
+    },
+    "_guid": {
+      "sha256": "e70cbee8bbe7e92d8228c7667e86620965033f6d6d6744541e9120f6475b9284",
+      "startLine": 138,
+      "endLine": 144
+    },
+    "load_plan": {
+      "sha256": "c1ddb184ed3a3af12c8088ba62ab5ceb033d69e0cdbbbde18c52f3eeece59f28",
+      "startLine": 264,
+      "endLine": 274
+    },
+    "validate_unit_pins": {
+      "sha256": "5f17a724bce5735971c36e462875ac55eadc962d7dd8faea35c5fa2b37bbffec",
+      "startLine": 277,
+      "endLine": 286
+    },
+    "_gpt_header": {
+      "sha256": "17df10028bf510e6952c62262bcb53f4d16919cd7d8c15e98adadc4f08c9ce41",
+      "startLine": 290,
+      "endLine": 309
+    },
+    "parse_gpt": {
+      "sha256": "80d42226414226f8a907b5b44cc49f68b40ed719ff73f0ab4974e06e388655fb",
+      "startLine": 312,
+      "endLine": 360
+    },
+    "_crc32c_raw": {
+      "sha256": "265affd612ba69f08e8e68d2cf038a0fd59e469d1c5fc0fc0eb171f3f05b30c3",
+      "startLine": 363,
+      "endLine": 372
+    },
+    "parse_ext4_sb": {
+      "sha256": "756d09a325c97fa79fce2efd5a2f7998d912756a3aadf7eb3c6f4f8bff7e3b6c",
+      "startLine": 375,
+      "endLine": 391
+    },
+    "validate_sb": {
+      "sha256": "8d7ec308749d1dad22ebb83049b6dcdb706a90adc0990d01ed31d6e04a7889e7",
+      "startLine": 394,
+      "endLine": 419
+    },
+    "select_root": {
+      "sha256": "2a429c34417e15fe603cac868a1e9dc047c101f33b4af439d119ecada705792d",
+      "startLine": 422,
+      "endLine": 438
+    },
+    "parse_qcow2_header": {
+      "sha256": "b2ebb34b48303db35239cbed00dc34d3c192750875104f6ce51a7c21a208d1bc",
+      "startLine": 441,
+      "endLine": 464
+    },
+    "validate_qemu_info": {
+      "sha256": "44ea134c240d2ac8d17866bbb3216c38ccd8c7a44f55216a3f8a135f992e6ce9",
+      "startLine": 467,
+      "endLine": 477
+    },
+    "parse_ls_p": {
+      "sha256": "cb5cefe64a57cb9faeb789f356568bfb81791a30931076fdac9a602740941841",
+      "startLine": 481,
+      "endLine": 493
+    },
+    "parse_stat": {
+      "sha256": "8106191d94ac703e251fd20ec070e9c081feb9498a6f3c80f5ce82865c174ca4",
+      "startLine": 496,
+      "endLine": 511
+    },
+    "stderr_noise": {
+      "sha256": "c2b368d36c2bdecb63e13559fe33d3b4127f71de1910f063632d83ecfcb6ced8",
+      "startLine": 514,
+      "endLine": 516
+    },
+    "Debugfs.__init__": {
+      "sha256": "8a29096f70926d34c42bfa97ee247ef3642095b10272181692355c323cd632a2",
+      "startLine": 520,
+      "endLine": 521
+    },
+    "Debugfs.call": {
+      "sha256": "040312097172cb0811ab5a936575b9b1d2d8f0acb8be09ffa3ba38e8c19240b9",
+      "startLine": 523,
+      "endLine": 536
+    },
+    "Debugfs.ls": {
+      "sha256": "f09ec300767d6dbb4a214bf1062c2ee718ee8fd693b3798c880684a5a9641c23",
+      "startLine": 538,
+      "endLine": 539
+    },
+    "Debugfs.stat": {
+      "sha256": "055859e101cb4e04ccfc6afc10fa7d14a43f8e9a649d60c01190176d58f5f18e",
+      "startLine": 541,
+      "endLine": 542
+    },
+    "Debugfs.cat": {
+      "sha256": "982b71d6744aeebc66417f2d1692e2f21e891debfc1589e12f0e6d71a5cf0f9f",
+      "startLine": 544,
+      "endLine": 545
+    },
+    "Debugfs.ea_list": {
+      "sha256": "58a8861cfa9c30b3b13bbadf7681d943c4de7f9673cf0ddba3b0e2c9289c6582",
+      "startLine": 547,
+      "endLine": 552
+    },
+    "_kind": {
+      "sha256": "748959ebc80d3accc38f17229c59aa6401923b39c83b3afddacdb58065c0b627",
+      "startLine": 555,
+      "endLine": 556
+    },
+    "guest_dirs": {
+      "sha256": "f59f68c48f4ffffa013fc2aff3e1b2e2a5e2874139ce80c9340c62ce2977c9fb",
+      "startLine": 559,
+      "endLine": 572
+    },
+    "inventory": {
+      "sha256": "02b5f353ee52384335279da5a169dc9cc5665b38c8ea20389bdc706930142a3c",
+      "startLine": 575,
+      "endLine": 604
+    },
+    "_allowed_targets": {
+      "sha256": "81ca4f1d8e6c1730797bc0f28a21e695ef934dbe395f78b6058c64676268b4aa",
+      "startLine": 607,
+      "endLine": 609
+    },
+    "check_preconditions": {
+      "sha256": "bf2e60fbcde3c8ca74c818ff006cf840f15b59d2120322090ec58d4672d75a06",
+      "startLine": 612,
+      "endLine": 643
+    },
+    "check_ancestor": {
+      "sha256": "242bf714455c8811bdf20881e3926e4e23685c27fbaeec737a38842ee12a9316",
+      "startLine": 646,
+      "endLine": 648
+    },
+    "build_ops": {
+      "sha256": "3daa3808b036a252c3ec57dec6c4988acf56c444919b9c8bb0929f49b9067f56",
+      "startLine": 651,
+      "endLine": 659
+    },
+    "semantic_delta": {
+      "sha256": "c9270eea89a799b23c15d083ae364d9b0963e326358887efabec33dfec5602f9",
+      "startLine": 662,
+      "endLine": 696
+    },
+    "verify_archive": {
+      "sha256": "95b871e36451a70727b774dbbb87989b51a9892b5223fd96723f20eb64908122",
+      "startLine": 699,
+      "endLine": 706
+    },
+    "check_record": {
+      "sha256": "058c377109e8a90803a15d5a64d33c2d29d481b942a6e6216a56144b18fa8805",
+      "startLine": 713,
+      "endLine": 719
+    },
+    "link_records": {
+      "sha256": "d8964679c91819ef967f31299e55adc280ab5caa07134feaa7ff57ffcb85faeb",
+      "startLine": 722,
+      "endLine": 731
+    },
+    "lsmap": {
+      "sha256": "2c14b70eadf909a68a60cb26c925c8f42d5f245fc5e1766177f69f190ed70fc3",
+      "startLine": 734,
+      "endLine": 735
+    },
+    "_starttime": {
+      "sha256": "cd6b4aa7183bd7f261d5edab94eef9554f65c688a827d14635e010dd40072700",
+      "startLine": 742,
+      "endLine": 747
+    },
+    "_proc_table": {
+      "sha256": "1f561834a7fc759ba69afb3e890ae9e84d2d41572e4ee8f5b21f712a0bf538b9",
+      "startLine": 750,
+      "endLine": 761
+    },
+    "_mounted": {
+      "sha256": "de54665005667767d4f5776c91494ba117fd2e0a23c1efbaab95c51e2d2dcfcb",
+      "startLine": 764,
+      "endLine": 772
+    },
+    "assert_owned": {
+      "sha256": "7b14fd4cb78cee08c84a68921a5ebb41f02b0f8d0fe5ce2ce34915bf91b6e6f3",
+      "startLine": 775,
+      "endLine": 777
+    },
+    "bounded_collect": {
+      "sha256": "0684cc7b60d36ca8db16c2d7eb7991a0dc36e5c1ff340df29043f48d5f31c037",
+      "startLine": 780,
+      "endLine": 802
+    },
+    "OsEffects.__init__": {
+      "sha256": "889691af5e8da8d7f1fd3dbd99963d9e5320f94927f4bb67d903587813829dc2",
+      "startLine": 808,
+      "endLine": 815
+    },
+    "OsEffects.lstat": {
+      "sha256": "c40bc4e98e7189f8fed589f39b24381a4e48ae1eb8d2b12bf60414c855020105",
+      "startLine": 818,
+      "endLine": 821
+    },
+    "OsEffects.read_bounded": {
+      "sha256": "e4da7bc33d31cd7208995d45bd8c5583e5019c86e265b864f1a336cfe5c33a9d",
+      "startLine": 823,
+      "endLine": 831
+    },
+    "OsEffects._ident": {
+      "sha256": "d9a20f6b86147e1c156b3d7ff535844d63a8cc825e357d9241662e112ed6159c",
+      "startLine": 833,
+      "endLine": 834
+    },
+    "OsEffects.hash_file": {
+      "sha256": "e54deb82a1909101dfbe26cff7cfe99bf1d13bff25c281481b1d2d8dbaef95af",
+      "startLine": 836,
+      "endLine": 848
+    },
+    "OsEffects.hash_region": {
+      "sha256": "d4273f113240e16b71bb34ed6a2ca1eb75fded20abf3304c21dcd7ea8f219b4d",
+      "startLine": 850,
+      "endLine": 861
+    },
+    "OsEffects.read_at": {
+      "sha256": "7062c5f08a977217921ce9ba5a1240b3d7569b9b9244eb88c0b7174aaa66a6f2",
+      "startLine": 863,
+      "endLine": 868
+    },
+    "OsEffects.statvfs": {
+      "sha256": "b51f99a9c54a845c61309f702be40f553922b8235cce0852123adf376d8b85fa",
+      "startLine": 870,
+      "endLine": 872
+    },
+    "OsEffects.mkdir_excl": {
+      "sha256": "59033ed7e566741aa12751e443d7cb5c03ad122842837350ac53f052ad79c447",
+      "startLine": 874,
+      "endLine": 877
+    },
+    "OsEffects.write_excl": {
+      "sha256": "6f75e7d435b0739a84942b4c5d74d68d9552dfc7f8bc2bb28a591b9d4253d726",
+      "startLine": 879,
+      "endLine": 889
+    },
+    "OsEffects.append_sync": {
+      "sha256": "30b9020abf4163f3f37ccf7fc2842bd9ed7c5ccf0304b23f454bb2573e7c34a3",
+      "startLine": 891,
+      "endLine": 896
+    },
+    "OsEffects.fsync_dir": {
+      "sha256": "d07e6d49503720f45b0a21e35b4093b55057b31ce00c941bfb49202f526c35b5",
+      "startLine": 898,
+      "endLine": 903
+    },
+    "OsEffects.fsync_file": {
+      "sha256": "9e9dd2da686cc3bd5744dbe9eb172ee6c30eb5f3a1c76e58b1b27c5dc8c7e1d2",
+      "startLine": 905,
+      "endLine": 910
+    },
+    "OsEffects.chmod": {
+      "sha256": "f3d245bf6b175a769c33ca46148f9d8674bed5b941510ab718388ef22c441c61",
+      "startLine": 912,
+      "endLine": 913
+    },
+    "OsEffects.sparse_copy": {
+      "sha256": "ccb489b509515a2cdecb2c39d6ab13e4fc4554bf966cb8c16bd5b3a42126778e",
+      "startLine": 915,
+      "endLine": 955
+    },
+    "OsEffects.lock_evidence": {
+      "sha256": "86d0e1445d9f7b60e8be3519947942d8e7c91f74559e2f6724619eb9512809ed",
+      "startLine": 958,
+      "endLine": 974
+    },
+    "OsEffects.hold_qemu_locks": {
+      "sha256": "ca62713373179369e8293e745a2b4b5e54ba2b8e296d978fbe0bea98dea3db20",
+      "startLine": 976,
+      "endLine": 996
+    },
+    "OsEffects.release": {
+      "sha256": "b3e3391533dc5e0f3526b31d83cd775c8da54c33560bd06eb12653a33cb3e52c",
+      "startLine": 998,
+      "endLine": 999
+    },
+    "OsEffects.scan_holders": {
+      "sha256": "cf5fd3f74738c0bafe18c6384ea07d819a3890c92f04e3731d3b421fb326ced7",
+      "startLine": 1001,
+      "endLine": 1021
+    },
+    "OsEffects.resource_scope": {
+      "sha256": "6331f5265525a06ad952e47bf025007e22a22037d3168e33358097c50a28b29f",
+      "startLine": 1023,
+      "endLine": 1032
+    },
+    "OsEffects._kill_own": {
+      "sha256": "e8f65c595b76617507756acf2770fc2a2096e5546dbc0e6e7e507570100fa6bb",
+      "startLine": 1035,
+      "endLine": 1044
+    },
+    "OsEffects.run": {
+      "sha256": "f8f4644865976b2e5a1559070b692ab0c5539f4bd172f9bc9e00814d2e13f61b",
+      "startLine": 1046,
+      "endLine": 1070
+    },
+    "OsEffects._exited": {
+      "sha256": "4f6915a712e0fdbcea6be405e0966e866c7f0f7aae28b475108d464be99d041f",
+      "startLine": 1073,
+      "endLine": 1075
+    },
+    "OsEffects._owned_scan": {
+      "sha256": "4ab0810a1234199ddf76929df07853b7191f17abdc75dc318213492978114f90",
+      "startLine": 1077,
+      "endLine": 1092
+    },
+    "OsEffects._await_gone": {
+      "sha256": "f2d1736b9990803800896c45dd1c69f942f3a128ef81ce0a22314be6eb0e2d75",
+      "startLine": 1094,
+      "endLine": 1101
+    },
+    "OsEffects._signal_owned": {
+      "sha256": "a4b2e8c42a5d4ec1907dad405e2522777e738effa9d22b3a016779b32ccd2c4e",
+      "startLine": 1103,
+      "endLine": 1127
+    },
+    "OsEffects._drain": {
+      "sha256": "f4be3636ef164cb476724851d8992b7197e13af329a4692145d321932eb8a466",
+      "startLine": 1129,
+      "endLine": 1152
+    },
+    "OsEffects.export_fault": {
+      "sha256": "a3a81134ca6ea57c5a5258aff19d7ad187c1359e640f56b78ff5bce621eb3e0d",
+      "startLine": 1154,
+      "endLine": 1161
+    },
+    "OsEffects.export_start": {
+      "sha256": "405864e1d962d13299a682de2af605cf2eb4e8673af27529264e7467eb36f2ab",
+      "startLine": 1163,
+      "endLine": 1209
+    },
+    "OsEffects.export_stop": {
+      "sha256": "549be4d7253cea359f752a13e2e679168d23feeb1465e251c7652d8393a8d031",
+      "startLine": 1211,
+      "endLine": 1224
+    },
+    "OsEffects.export_force_cleanup": {
+      "sha256": "eebc14de59e4b4ef91106cd7419d07ebb1003e4aa68207100720bc64e40fd6ca",
+      "startLine": 1226,
+      "endLine": 1271
+    },
+    "Writer.__init__": {
+      "sha256": "36425c011371d8b85c32e570ffa36bd6e0fd32a38ffa040181f6f187d1fef8ec",
+      "startLine": 1276,
+      "endLine": 1287
+    },
+    "Writer.log": {
+      "sha256": "63b5bce799c58c5712b22738b2d0f38ddad64243505f60afadd2681affe2e09e",
+      "startLine": 1290,
+      "endLine": 1301
+    },
+    "Writer.run": {
+      "sha256": "d774d67714aa6628a9f1b9daf5bc1bd597bb9f3e7e04a57b9a9a655b681bed75",
+      "startLine": 1303,
+      "endLine": 1307
+    },
+    "Writer.safe_existing": {
+      "sha256": "851d2101ebbc2aab9ef57b84ea2b0618444740247d7f845fa388fe8eb2bbd0c0",
+      "startLine": 1309,
+      "endLine": 1322
+    },
+    "Writer.tool_hashes": {
+      "sha256": "657c4cc4c65ab23b7ec82434f96e6a23c52dd8ca8d1207463f92ec88722daab1",
+      "startLine": 1324,
+      "endLine": 1334
+    },
+    "Writer.check_identity": {
+      "sha256": "35bfad208a3bee46b3bf799c630354830de9da7fa3eac4977339df46990576f2",
+      "startLine": 1336,
+      "endLine": 1350
+    },
+    "Writer.vm_stopped": {
+      "sha256": "95dc549c15ccaa3cb978ed490ca2de084b1be0af5f129e1b239c77211373e7ba",
+      "startLine": 1352,
+      "endLine": 1362
+    },
+    "Writer.capacity": {
+      "sha256": "30685b7e5d927a1019ffa0ae32547a018739dc57a18ba8171b51650d2fad787b",
+      "startLine": 1370,
+      "endLine": 1379
+    },
+    "Writer.export": {
+      "sha256": "926423210fe69de67c6bcef73a062c3e2442583c483744aa6973e476b4389084",
+      "startLine": 1382,
+      "endLine": 1401
+    },
+    "Writer.unexport": {
+      "sha256": "5047f8e4f60a67c1b1b3ddd904275f3b079851a38912f87e814e201fe9b465f6",
+      "startLine": 1403,
+      "endLine": 1410
+    },
+    "Writer.check_exporters": {
+      "sha256": "2e2f9539732013bbbb6676e5f305b05ba87c2e97e0b94275b8f9db2afd13bd6f",
+      "startLine": 1412,
+      "endLine": 1416
+    },
+    "Writer.assert_quiesced": {
+      "sha256": "87b84e62a667f19396db6b27b0a1b429322de5c2a2606cc64163c6199c98cc4c",
+      "startLine": 1418,
+      "endLine": 1424
+    },
+    "Writer.ancestors": {
+      "sha256": "5bab5336f636a7b8d2feb59b0a506f831e2e1ab61f3f01950a1171e1ea0855f9",
+      "startLine": 1427,
+      "endLine": 1440
+    },
+    "Writer.rollback_inputs": {
+      "sha256": "068254e10d9a0a14676d6ffb162e3f76118bf534b58d81cf338e2a6205724358",
+      "startLine": 1442,
+      "endLine": 1448
+    },
+    "Writer.revalidate": {
+      "sha256": "8201180ffbde9e5cd979764201be62a0718524527f5e1f249e101f2f0b04cc00",
+      "startLine": 1450,
+      "endLine": 1477
+    },
+    "Writer.guard": {
+      "sha256": "89307a521296e4ec8fdd8203f21a7fcdaaeb1a51780ed7607e0289316a03ed9d",
+      "startLine": 1479,
+      "endLine": 1500
+    },
+    "Writer.settle": {
+      "sha256": "83883d1fadca843828ee2ad2dbe14a41d4bb4fe031675b6d1d2e0abd508be5cf",
+      "startLine": 1502,
+      "endLine": 1522
+    },
+    "Writer.fsck": {
+      "sha256": "ff83408b69e774c29029b8502b334cd3a19e8192d0df40f10cc0971693b223d0",
+      "startLine": 1524,
+      "endLine": 1528
+    },
+    "Writer.qcheck": {
+      "sha256": "75fa2592be3604fd5371d473d7d101db3758a782cd4e8c10098e3a627a753ecc",
+      "startLine": 1530,
+      "endLine": 1534
+    },
+    "Writer.full_image_facts": {
+      "sha256": "324905e6c7d5d07b039cdadf98fb30343b2be9a33fa4eb809cb8def16fd812d0",
+      "startLine": 1536,
+      "endLine": 1545
+    },
+    "Writer.root_facts": {
+      "sha256": "9b3b914380c1119232f57716922d8ed3bac960f7849539a7eadd9f980c6cb632",
+      "startLine": 1547,
+      "endLine": 1552
+    },
+    "Writer.apply": {
+      "sha256": "baba948c8ef172c583bdf4d2296206d5d9ee033715a8386b4e1cc08673d1f02b",
+      "startLine": 1555,
+      "endLine": 1596
+    },
+    "Writer.cleanup": {
+      "sha256": "0cd837892f6dcff01006f5b14e927d484bc86e3740259c5d95b40bb1c6a0db34",
+      "startLine": 1767,
+      "endLine": 1782
+    },
+    "operate": {
+      "sha256": "94e533f1b2aa14a87e7918c8c9e290880037b18de5b5b20b651f72f061d7646f",
+      "startLine": 1785,
+      "endLine": 1815
+    },
+    "_cancel": {
+      "sha256": "68de2b82403d47d54628fdfa4a43a93a3077b66f9ed5a322f1fcd77cdc348d68",
+      "startLine": 1821,
+      "endLine": 1825
+    },
+    "main": {
+      "sha256": "3510e52637223669654ded3ffe91f8097d85e4ff237f20a27c51aaffef83d896",
+      "startLine": 1828,
+      "endLine": 1856
+    }
+  },
+  "executeStatements": [
+    "p, fx = self.p, self.fx",
+    "if self.writer_path != p['writerSource']['path'] or \\\n                fx.hash_file(self.writer_path, self.deadline, 'pins')[0] != p['writerSource']['sha256']:\n            refuse('pins', 'running writer source is not the reviewed file')",
+    "self.safe_existing(p['unitPins']['path'], 'file', 'pins')",
+    "validate_unit_pins(fx.read_bounded(p['unitPins']['path'], 1 << 16), p['unitPins']['sha256'])",
+    "self.ev['tools'] = self.tool_hashes()",
+    "scope = fx.resource_scope()",
+    "if scope != p['resourceEnvelope']:\n            refuse('scope', f'observed resource scope {scope} is not the reviewed envelope')",
+    "self.ev['scope'] = scope",
+    "if len(self.lock_fds) != len(p['workflowLocks']):\n            refuse('locks', 'each plan workflow lock needs exactly one inherited --lock-fd')",
+    "for fd, lk in zip(self.lock_fds, p['workflowLocks']):\n            e = fx.lock_evidence(fd, lk['path'])\n            if (e['dev'], e['ino']) != (lk['device'], lk['inode']) or not (e['pathMatches'] and e['fdHoldsFlockWrite']\n                                                                            and e['freshTrylockBlocked']):\n                refuse('locks', f'workflow lock {lk[\"path\"]} is not held exclusively by the caller-supplied fd')",
+    "self.ev['vmBefore'] = self.vm_stopped()",
+    "rec = self.p['backup']",
+    "self.safe_existing(rec['receiptPath'], 'file', 'identity')",
+    "receipt = fx.read_bounded(rec['receiptPath'], 1 << 20)",
+    "if hashlib.sha256(receipt).hexdigest() != rec['receiptSha256'] or rec['sha256'].encode() not in receipt:\n            refuse('identity', 'backup receipt hash differs or does not state the backup sha256')",
+    "self.safe_existing(p['destination']['parentDir'], 'dir', 'identity')",
+    "idents = {(p[k]['device'], p[k]['inode']) for k in ('source', 'backup')}",
+    "self.ev['holdersBefore'] = self.holders(idents)",
+    "for k in ('source', 'backup'):\n            self.qlocks.append(fx.hold_qemu_locks(p[k]['path'], p[k]))",
+    "self.ev['sourceBefore'] = self.check_identity('source', True)",
+    "self.ev['backupBefore'] = self.check_identity('backup', False)",
+    "self.ev['capacityBefore'] = self.capacity(0)",
+    "self.phase = 'copy'",
+    "fx.write_excl(self.marker, json.dumps({'operationId': p['operationId'], 'planSha256': self.plan_sha,\n                                               'startedAt': fx.time()}).encode(), 0o444)",
+    "fx.mkdir_excl(self.work, 0o700)",
+    "self.work_created = True",
+    "wst = self.safe_existing(self.work, 'dir', 'copy')",
+    "if wst['dev'] != p['destination']['device']:\n            refuse('copy', 'work directory is not on the reviewed filesystem')",
+    "copied = fx.sparse_copy(p['backup']['path'], p['backup'], self.deriv, self.deadline)",
+    "if copied != p['backup']['sha256']:\n            refuse('copy', 'backup stream hash differs from the verified backup sha256')",
+    "self.ev['backupBefore']['sha256'] = copied",
+    "dst = self.safe_existing(self.deriv, 'file', 'copy')",
+    "if (dst['dev'], dst['ino']) in idents or dst['nlink'] != 1 or dst['size'] != p['backup']['size']:\n            refuse('copy', 'derivative is not a distinct single-link file of the backup size')",
+    "if fx.hash_file(self.deriv, self.deadline, 'copy')[0] != p['backup']['sha256']:\n            refuse('copy', 'derivative initial full hash differs from the backup')",
+    "self.ev['derivativeInitial'] = {'sha256': p['backup']['sha256'], 'dev': dst['dev'], 'ino': dst['ino'],\n                                        'size': dst['size'], 'blocks': dst['blocks']}",
+    "self.ev['capacityAfterCopy'] = self.capacity(dst['blocks'] * 512)",
+    "if self.check_identity('backup', False) != {k: v for k, v in self.ev['backupBefore'].items() if k != 'sha256'}:\n            refuse('identity', 'backup changed during copy')",
+    "self.phase = 'qcow2'",
+    "self.ev['qcow2Header'] = parse_qcow2_header(fx.read_at(self.deriv, 0, 4096), dst['size'])",
+    "if self.ev['qcow2Header']['virtualSize'] != p['image']['virtualSize']:\n            refuse('qcow2', 'header virtual size differs from the plan')",
+    "rc, out, _ = self.run([self.t['qemu-img'], 'info', '--output=json', '-f', 'qcow2', self.deriv])",
+    "try:\n            info = json.loads(out.decode('utf-8')) if rc == 0 else None\n        except (UnicodeDecodeError, ValueError):\n            info = None",
+    "self.ev['qemuInfo'] = validate_qemu_info(info, p['image'])",
+    "self.ev['qcowCheckBefore'] = self.qcheck()",
+    "self.phase = 'gpt'",
+    "h = self.export('full-ro')",
+    "gpt, root, outside = self.full_image_facts(h['file'])",
+    "self.unexport(h)",
+    "self.ev.update(gptBefore=gpt, root=root, outsideRootBefore=outside)",
+    "self.phase = 'inventory'",
+    "h = self.export('root-ro')",
+    "sb, dbg, base = self.root_facts(h['file'])",
+    "self.ev['fsckBefore'] = self.fsck(h['file'])",
+    "anc, keep_exists, keep_before = self.ancestors(dbg)",
+    "frag = {u: dbg.stat(f'{ETC}/{u}') for u in UNITS}",
+    "links = check_preconditions(base, frag, p)",
+    "frag_xattrs, links, dirmaps = self.rollback_inputs(dbg, frag, links, keep_exists)",
+    "self.unexport(h)",
+    "self.ev.update(superblockBefore=sb, inventoryBefore=base, fragmentsBefore=frag, enablementLinks=links,\n                       ancestorsBefore=anc, fragmentXattrs=frag_xattrs)",
+    "ops = build_ops(p, links, keep_exists)",
+    "self.phase = 'receipt'",
+    "fx.write_excl(os.path.join(self.work, 'ROLLBACK.json'), json.dumps({\n            'format': FORMAT_ROLLBACK, 'operationId': p['operationId'], 'derivative': self.deriv,\n            'fragments': {u: {'path': f'{ETC}/{u}', 'archive': f'{KEEP}/{p[\"stamp\"]}/{u}', 'sha256': UNITS[u],\n                              'stat': frag[u], 'xattrs': frag_xattrs[u], 'directives': base['directives'].get(u, [])}\n                          for u in UNITS},\n            'enablementLinks': links, 'operations': ops,\n            'restore': 'from these records only; never infer link targets from unit names'}, sort_keys=True).encode(), 0o444)",
+    "self.phase = 'mutate'",
+    "h = self.export('root-rw')",
+    "wsb = validate_sb(parse_ext4_sb(fx.read_at(h['file'], 1024, 1024)), p['filesystem'], root['length'])",
+    "wdbg = Debugfs(fx, self.t['debugfs'], h['file'], self.b, self.deadline, self.log)",
+    "model = self.revalidate(wdbg, base, frag, links, anc, dirmaps)",
+    "self.mutation_started = True",
+    "for op in ops:\n            self.guard(wdbg, op, frag, links, model)\n            self.apply(wdbg, op, frag)\n            self.settle(wdbg, op, frag, model)",
+    "self.unexport(h)",
+    "self.ev['superblockAtWrite'] = wsb",
+    "self.phase = 'verify'",
+    "h = self.export('root-ro')",
+    "sb2, vdbg, post = self.root_facts(h['file'])",
+    "self.ev['fsckAfter'] = self.fsck(h['file'])",
+    "archived = {u: vdbg.stat(f'{KEEP}/{p[\"stamp\"]}/{u}') for u in UNITS}",
+    "self.ev['archivedXattrs'] = {u: vdbg.ea_list(f'{KEEP}/{p[\"stamp\"]}/{u}') for u in UNITS}",
+    "bad = semantic_delta(base, post, links) + verify_archive(frag, archived, vdbg.ls(f'{KEEP}/{p[\"stamp\"]}'))",
+    "for u in UNITS:\n            if hashlib.sha256(vdbg.cat(f'{KEEP}/{p[\"stamp\"]}/{u}')).hexdigest() != UNITS[u]:\n                bad.append(f'{u}: archived content hash differs')",
+    "if sorted(e['name'] for e in vdbg.ls(KEEP)) != sorted(keep_before + [p['stamp']]):\n            bad.append(f'{KEEP} contains entries beyond the new rollback directory')",
+    "self.unexport(h)",
+    "if bad:\n            refuse('verify', '; '.join(bad[:20]))",
+    "same = ('uuid', 'label', 'blockSize', 'blocksCount', 'inodesCount', 'featureCompat', 'featureIncompat',\n                'featureRoCompat', 'state')",
+    "if any(sb2[k] != sb[k] for k in same):\n            refuse('verify', 'superblock identity/features changed')",
+    "self.ev.update(inventoryAfter=post, archived=archived, superblockAfter=sb2)",
+    "h = self.export('full-ro')",
+    "gpt2, root2, outside2 = self.full_image_facts(h['file'])",
+    "self.unexport(h)",
+    "if gpt2 != gpt or root2 != root or outside2 != outside:\n            refuse('verify', 'GPT or bytes outside the root partition changed')",
+    "self.phase = 'final'",
+    "self.ev['qcowCheckAfter'] = self.qcheck()",
+    "fx.chmod(self.deriv, 0o400)",
+    "fx.fsync_file(self.deriv)",
+    "fx.fsync_dir(self.work)",
+    "sha, before, after = fx.hash_file(self.deriv, self.deadline, 'final')",
+    "if before != after:\n            refuse('final', 'derivative changed while hashing')",
+    "self.ev['derivativeFinal'] = dict(after, sha256=sha, path=self.deriv)",
+    "self.ev['sourceAfter'] = self.check_identity('source', True)",
+    "self.ev['backupAfter'] = self.check_identity('backup', True)",
+    "for k in ('source', 'backup'):\n            if self.ev[k + 'After'] != self.ev[k + 'Before']:\n                refuse('final', f'{k} identity or content changed during the operation')",
+    "self.ev['vmAfter'] = self.vm_stopped()",
+    "self.ev['toolsAfter'] = self.tool_hashes()",
+    "if self.ev['toolsAfter'] != self.ev['tools']:\n            refuse('final', 'tool bytes changed during the operation')",
+    "self.ev['holdersAfter'] = self.holders(idents | {(after['dev'], after['ino'])})",
+    "self.assert_quiesced()",
+    "return 'READY'"
+  ],
+  "allowedExistingDefinitions": [
+    "Writer.execute",
+    "Writer.holders",
+    "Writer.receipt",
+    "validate_plan"
+  ],
+  "executeRule": "Original top-level statements byte-identical and in order; only inserted check calls permitted; root semantic review required."
+}

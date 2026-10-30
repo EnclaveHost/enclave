@@ -1,0 +1,59 @@
+Move to wallet
+
+Destination: 0x0b2d009c0c9af05b12100d77f3c815fea822ee61 (the wallet that controls this vault; it cannot be changed)
+
+Review: this moves the record only. Nothing is stopped, refunded, deposited or re-priced.
+
+APP ID
+0xa62e13de22559ee9a6ce1798891ab3506ac8e1b1eca296ff749cfcd7ab4fc640
+FROM (CURRENT VAULT)
+0xb794c4dd0e1c5e6b72281799f282bfde7654345d
+TO (YOUR WALLET, FIXED)
+0x0b2d009c0c9af05b12100d77f3c815fea822ee61
+BALANCE KEPT
+0.000000 USDC
+SPENT SO FAR
+0.000954 USDC
+RATE / CAP
+3 / 14
+PUBLISHER FEE
+none
+VERSION
+catalog://0x85f28c21b1545a05aee6661faf4b149b5dd18377fce59ad290e9f19857baab06/0
+CONFIG
+{"isolation":{"require":"hyperv-partition-per-app"}}
+PORTS
+http:8000,udp:53,tcp:53,tcp:853
+ACCESS
+PUBLIC
+ENVIRONMENT NOW
+staging
+SESSIONS BEFORE
+Vault-held STAGING: sessions granted staging may change its version/config; production secrets are never released to it.
+SESSIONS AFTER
+Wallet-held: always PRODUCTION to sessions, reachable through your wallet's ledger delegation (currently granted); sessions lose setAppRef/setConfig (they can never change its version/config).
+YOU SIGN
+One EIP-712 "Release" signature (deployment, to = your wallet, one-time nonce, deadline) on your vault's domain; relayed gas-free.
+SESSION ACCESS
+This grants, revokes and changes no session or delegation. Observed effect on existing ones is listed below.
+READ AT BLOCK
+53266882 (0x24edbf7651e703826443f17506830a9d7597ddd520832af75922047d29fc70f6)
+
+Checked 1 delegation records and 24 sessions (1 live) in 1 vault(s), complete history to block 53266882.
+
+Keeps access:
+
+Session 0x4a59ff5d… (staging+production; deploy.create, deploy.fund, deploy.setAppRef, deploy.setConfig, deploy.setShares, deploy.setMaxRate, deploy.setActive, deploy.refund, api.status, api.logs, api.restart, api.upload, api.appAccess, api.placement, api.account) keeps its common actions through your wallet's delegation to this vault, but loses setAppRef/setConfig (PRODUCTION never allows them).
+
+Not proven by this check:
+
+Two providers agreed on these logs and state at one block; that is not a cryptographic proof of log completeness or finality.
+This reads the chain only. Installed host, API and relay behaviour, requests already in flight and owner signatures you already gave are not covered.
+Not atomic: the release call carries no expected state, so a grant, delegation or reserve change between the last check and inclusion is detected afterwards, not prevented.
+Anyone can still deposit into the vault's gas reserve; the reserve check is a preflight, not a lock.
+Complete delegation history relies on the reviewed ledger constructor starting with no delegations, checked against its creation input.
+
+Checked again after you sign and before it is sent. Not atomic: a change on-chain between that check and inclusion is detected afterwards, not prevented.
+
+Sign release with wallet
+Cancel

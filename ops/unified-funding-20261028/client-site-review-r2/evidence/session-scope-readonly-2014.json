@@ -1,0 +1,20 @@
+{
+  "value": {
+    "live": true,
+    "anyApp": true,
+    "apps": [],
+    "actions": "43215860598959184859848575143834562855167",
+    "envs": 3,
+    "balance6": "30000000",
+    "spent6": "0",
+    "expiresAt": "1793765924",
+    "ownerNonce": 1175,
+    "firstDeploymentHasCode": false
+  },
+  "blockNumber": "53214482",
+  "blockHash": "0x62b863a446380a7da9757c2f1f6be9faa3d5b20006a88f310c2fff2c90e9d957",
+  "timestamp": 1793218311000,
+  "agreeing": 3,
+  "peers": 3,
+  "failures": []
+}

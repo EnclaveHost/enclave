@@ -1,0 +1,52 @@
+$ node --test --test-timeout=300000 --test-concurrency=1 --test-reporter=spec test/management-plane.test.mjs
+✔ owner status, streamed logs and attestation reach the current runner with no Enclave service (128.082589ms)
+✔ GPU status uses the current runner and status scope without exposing the host-wide route (96.014224ms)
+✔ restart is attempted exactly once, and a possibly delivered restart is never resent (188.313558ms)
+✔ a wrong owner or a host that is not the current runner gets nothing (47.349257ms)
+✔ stale, withdrawn, foreign-signed and equivocating records refuse before any connection (62.946268ms)
+✔ a gateway presenting a key other than the signed one receives no application byte (32.095144ms)
+✔ admin, listing, deletion and rebinding attempts never reach the supervisor (63.880381ms)
+✔ endpoint records and the gateway refuse private targets and non-loopback upstreams (3.405754ms)
+✔ the host publishes its record to operator directories only, as public data (9.685776ms)
+✔ async SDK signers are awaited, their answer is checked, and expiry during signing sends nothing (90.487398ms)
+✔ rollback floors are per network: the same runner on another pinned ledger cannot poison them (53.697139ms)
+✔ a restart that may have run is never reported as success or as a clean refusal (71.554272ms)
+✔ the gateway bounds trickling answers and slow bodies by total time, and frees every slot (641.711517ms)
+▶ an open log stream stops when the owner, runner, session or lease freshness changes
+  ✔ owner (136.466675ms)
+  ✔ runner (135.746951ms)
+  ✔ session (136.627884ms)
+  ✔ freshness (703.607915ms)
+✔ an open log stream stops when the owner, runner, session or lease freshness changes (1113.285139ms)
+2026-10-25T15:36:40.005Z public signed-record directory listening on {"address":"127.0.0.1","family":"IPv4","port":38415}
+2026-10-25T15:36:40.030Z directory refusal /v1/network/management: management record is not signed by the runner's registry operator
+2026-10-25T15:36:40.032Z public signed-record directory listening on {"address":"127.0.0.1","family":"IPv4","port":42391}
+✔ the real runDirectory accepts, serves and replicates management records from peers (52.216461ms)
+✔ the management host cleans up a failed start and only moves its sequence forward (34.726395ms)
+✔ one lying RPC cannot forge an authorization, and without agreement nothing is forwarded (246.507874ms)
+✔ a slow chain read is bounded, and authority that expires during it forwards nothing (6566.876035ms)
+✔ scope, revocation, transfer and owner delegation are decided from the agreed snapshot (89.498286ms)
+✔ cpu-profile bodies are exact and typed; replays, wrong methods and admin paths never reach the supervisor (54.033917ms)
+✔ app tokens and CPU profiles have exact parity, with honest outcomes for profile controls (74.7282ms)
+✔ the actual supervisor serves every management operation behind the gateway, exactly once (551.672348ms)
+✔ without MANAGEMENT_GATEWAY the actual supervisor keeps its legacy bases only (463.128444ms)
+✔ a dashboard reaches the operator-signed WebPKI origin with per-request owner signatures and no Enclave domain (167.652991ms)
+✔ unlisted page origins, swapped or stale records, a changed owner and no quorum all fail without reaching the supervisor (97.489965ms)
+✔ a certificate the page cannot trust fails closed, and the native SPKI path still works without DNS or a CA (72.145059ms)
+✔ browser origins in records are strict (0.647835ms)
+✔ F1: stalled unauthenticated bodies cannot lock owners out, and one source cannot take the pool (129.333963ms)
+✔ F1: throwaway keys get a bounded number of chain authorizations, and a known owner keeps a reserve (2957.726437ms)
+✔ F1: a deployment this runner does not hold is refused from memory after one agreed read (33.064268ms)
+✔ F2: a sequence cannot run ahead of its issue time, and floors are kept per operator (1.819446ms)
+✔ F2: a former operator's highest record cannot block the next operator, natively or in the browser (61.277973ms)
+✔ F4: a substituted browser origin or record never receives an owner signature (64.794516ms)
+✔ F5: a full replay guard refuses new nonces and never forgets a live one (36.69777ms)
+✔ platform host policy: a runner the policy refuses receives nothing; an admitted runner is served as before (39.540519ms)
+ℹ tests 39
+ℹ suites 0
+ℹ pass 39
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 14698.070563

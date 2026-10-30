@@ -1,0 +1,2 @@
+2026-10-26 03:26:59.336930+00:00
+Only queued wrapper/lock-wait stopped; no test had STARTed or descendant test process existed. Restarting exact same52suite at reduced256MiB small lane; prior45suite peak208MiB, failclosed memoryguard remains. Fullcomposition unaffected. rcdependent114watcher keeps waiting for same job result.

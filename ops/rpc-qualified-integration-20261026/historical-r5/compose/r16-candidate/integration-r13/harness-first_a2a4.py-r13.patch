@@ -1,0 +1,20 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/r2/overlay/harness-first/a2a4.py	2026-10-26 01:35:21.407866227 -0700
++++ /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/.r13-final.partial-1289574/harness-first/a2a4.py	2026-10-26 02:04:18.018457177 -0700
+@@ -75,14 +75,14 @@
+                 'a1-recheck.mjs': 'f591f3247fe672f6470685f2be36eb529ceb9280044c03c6a2396174bb0ad9d8',   # a1-original-game, unmodified
+                 'a1-anchor.mjs': 'ec92b70f105f88cbfc466e57e4673afcb0fbd104403e425e036f1dba78e6528d'}    # l1-anchor-a1, unmodified
+ RECHECK_INPUT_PINS = {'a1-recheck.mjs': 'f591f3247fe672f6470685f2be36eb529ceb9280044c03c6a2396174bb0ad9d8',  # run-recheck.py inputPins
+-                      'a1-recheck-read.mjs': '41b83975e96fc816bd5743e56626dd309aa7f0ee03c6efb9912788eb184a7715',
++                      'a1-recheck-read.mjs': '78df2211342fd73e180f3f771af8078b76888b2687cd993edff081b118f18825',
+                       'a1-anchor.mjs': 'ec92b70f105f88cbfc466e57e4673afcb0fbd104403e425e036f1dba78e6528d',
+-                      'a1-read.mjs': 'a501a3ec56ebd56e6bf1fc43c0c3725da57d013addac5f1efb13a99e598e0ab8',
++                      'a1-read.mjs': 'da9a9e9c6eff2dcaae344a2311a7d4824efc3d0895aba766805787067f274f85',
+                       'vendor/anchor-bootstrap.mjs': '90a8afba31e7c7029a0fa860f97153cd40665f1d1b2ae87bb0a56fd98c25e8f8'}
+ A1_RECHECK_KEYS = ('a1InitialEvidence', 'a1InitialSha256', 'a1RecheckSha256', 'a1RunResult')
+ # ---- production-bootstrap-wiring: the reviewed capture closure, VERBATIM from harness/a2a4.py (the recovery harness) ----
+ A1_CAPTURE_SOURCE = pathlib.Path('/opt/enclave-rpc/a1-capture/a1_capture.py')    # HOLD: not installed
+-A1_CAPTURE_SHA256 = '47c49b114e6d596a7dd3c46a9f4a5e55bb016cd140a95e001a58ff9a0e69c5b5'   # base-finality-proof-stage/r10/capture/a1_capture.py (closure + r10 elUrl/verify fixes)
++A1_CAPTURE_SHA256 = '8da369de00c176364aadac5af57842f2a2d02f3abee20f63fe4361b7a1b0793e'   # base-finality-proof-stage/r10/capture/a1_capture.py (closure + r10 elUrl/verify fixes)
+ A1_FIRST_CAPTURE_REVIEWED = False   # production-bootstrap-wiring: THIS harness's capture flag (installer FLAG_MODULE)
+ # r6 activation (base-finality-proof-stage/r6): a review flag is True only through its source constant OR the root-owned activation
+ # artifact that names THIS module's exact bytes for that flag (written only by install_verified.py `activate`, after qualification).

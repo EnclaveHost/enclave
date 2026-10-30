@@ -1,0 +1,1 @@
+all verifier modules, PINS and GATE resolve inside the relocated bundle: /tmp/hcap.bTVNG1/tt/hcb

@@ -1,0 +1,1 @@
+{"badMarkers": [], "cancelled": 0, "fail": 1, "failing": [{"assertion": true, "failureType": "testCodeFailure", "name": "the complete mock initial receipt is valid fresh-initial input; a missing required read refuses"}], "genuineAssertionFailures": 1, "pass": 7, "rc": 1, "skipped": 0, "suites": 0, "tests": 8, "todo": 0, "verdict": "killed"}

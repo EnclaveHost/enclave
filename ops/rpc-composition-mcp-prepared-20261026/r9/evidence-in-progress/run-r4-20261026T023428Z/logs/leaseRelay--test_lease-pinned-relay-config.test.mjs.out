@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: the endpoint rule: a private IPv4 literal on the host link, explicit port, bare origin, bound payee and operator
+ok 1 - the endpoint rule: a private IPv4 literal on the host link, explicit port, bare origin, bound payee and operator
+  ---
+  duration_ms: 3.368116
+  type: 'test'
+  ...
+# Subtest: the environment form: origin,payee,operator entries separated by ';' (1 to 4), canonical round trip, refusals
+ok 2 - the environment form: origin,payee,operator entries separated by ';' (1 to 4), canonical round trip, refusals
+  ---
+  duration_ms: 1.205652
+  type: 'test'
+  ...
+# Subtest: the shared loader: pinned relays may be the ONLY route; partial or invalid refuses; absent keeps the exact configuration
+ok 3 - the shared loader: pinned relays may be the ONLY route; partial or invalid refuses; absent keeps the exact configuration
+  ---
+  duration_ms: 3.813194
+  type: 'test'
+  ...
+# Subtest: a pinned relay is never usable without the platform policy's admission: the client refuses to be built without it; the factory's policy-off decision refuses
+ok 4 - a pinned relay is never usable without the platform policy's admission: the client refuses to be built without it; the factory's policy-off decision refuses
+  ---
+  duration_ms: 21.834898
+  type: 'test'
+  ...
+# Subtest: conduit ABSENT: the transit, both guest environments and the bound direct-config digest are byte-identical to main's
+ok 5 - conduit ABSENT: the transit, both guest environments and the bound direct-config digest are byte-identical to main's
+  ---
+  duration_ms: 149.857544
+  type: 'test'
+  ...
+# Subtest: conduit PRESENT: checked form only; the legacy fw_cfg path and the HOST_DATA-bound direct path reach the same validated loader
+ok 6 - conduit PRESENT: checked form only; the legacy fw_cfg path and the HOST_DATA-bound direct path reach the same validated loader
+  ---
+  duration_ms: 10.233999
+  type: 'test'
+  ...
+# Subtest: Windows: the read-only config check reports pinned relays exactly; --expect-pinned refuses anything else
+ok 7 - Windows: the read-only config check reports pinned relays exactly; --expect-pinned refuses anything else
+  ---
+  duration_ms: 153.686727
+  type: 'test'
+  ...
+# Subtest: what stays refused: service-index discovery still drops private endpoints (a remote ad can never name the host link)
+ok 8 - what stays refused: service-index discovery still drops private endpoints (a remote ad can never name the host link)
+  ---
+  duration_ms: 0.724915
+  type: 'test'
+  ...
+# Subtest: who admits a relay ROLE: the platform host policy gate, keyed by the host's registered endpoint - never the host ownership extension
+ok 9 - who admits a relay ROLE: the platform host policy gate, keyed by the host's registered endpoint - never the host ownership extension
+  ---
+  duration_ms: 3.863933
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 715.325703

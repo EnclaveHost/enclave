@@ -1,0 +1,8 @@
+- heading "client-native-r1 IndexedDB / CryptoKey / CAS self-test" [level=1]
+- paragraph: TEST ONLY. Uses fresh randomly named test databases; never the site's real stores. No wallet, no network.
+- paragraph:
+  - button "Run"
+  - button "Resume (after reload)"
+  - button "Delete owned test databases"
+- generic: "PASS: run complete - now RELOAD the page and click Resume"
+- generic: "test databases: client-native-r1-selftest-v2-19d5bacd00de9a33, client-native-r1-selftest-old-4a9f63243491c7d8 (fresh random names; real databases are never opened) 1. structured clone of a non-extractable CryptoKey through IndexedDbV2Store ok loaded record is a structured clone (a new CryptoKey object) ok validateGasRecord accepts the loaded record ok loaded gas key: is a CryptoKey ok loaded gas key: private and NON-extractable ok loaded gas key: usable for sign ok loaded gas key: pkcs8 export refused ok loaded gas key: signs; public key verifies 2. two contexts race casJournal, 25 rounds: exactly one admission each ok 25 rounds, one admission each (parent won 23, child won 2) 3. durable marker for the reload check 4. the old test database is untouched ok old test DB: version 1, only its own store ok old test DB: exactly its one record, unchanged ok old test DB key: is a CryptoKey ok old test DB key: private and NON-extractable ok old test DB key: usable for sign ok old test DB key: pkcs8 export refused ok old test DB key: signs; public key verifies"

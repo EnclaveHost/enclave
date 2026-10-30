@@ -1,0 +1,14 @@
+{
+  "scope": "historical existing local evidence only; no fresh process environment/config reads",
+  "historicalCutover": "cutover-c.ps1 replaces exactnodecontrol/networkmanagerandIngress8091->8097 anddata8092->8098; cutover-c-result.applied=true rollback=false legacy9unchanged. v13resume applied=true nodeStarted=true, backendmanagersunchanged",
+  "inference": "Normal node/network launch paths were configured through8097 atcutover. This does not prove presentconfigsunchanged or absenceofdirectadministrativecallers. Rootmustretain currentroutingunknown unless existing currentevidenceclosesit.",
+  "pins": {
+    "/home/steven/Documents/Codex/2026-10-23/it/work/native-cutover-v12/cutover-c.ps1": "b78ba972d7819710e59106f6a4ed853d004524c57ab8a4a5bb5477aab9e3030c",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/native-cutover-v12/cutover-c-result.json": "c8895d26cda74d5516aca19801ffd0b21e0d1e5d3a99ca78f71042a669724e8f",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/native-router-health-v13/resume.ps1": "7e0def098d8cb1cf19068eb14679a075df689ba1760c3ce5c9cd157be7a68e66",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/native-router-health-v13/resumed.json": "f2bd7c826565d37407647b2ea5aa0b92272f87b350e8c9554184455804843c4f",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/native-manager-sidecar-v12/control/windows/vbslike/router/control.mjs": "ae43a93780e4f8651af6e365720ed5f0cc91557aef0f062979732eb867bc17c8",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/native-manager-sidecar-v12/control/windows/vbslike/router/main.mjs": "d021c31460f8b4313ab15a50a1e9792360df4b00de2f64d727e21b79d04fb9a7"
+  },
+  "readonlyProbeScope": "8097listenerPID/start/entry/configpublicpins; boundjournal1MiBfullhashchain+double-identicalread; emitonlyaggregatependingphysical/state/digest; no rawcmdline/config/journal records/secrets; no mutation/lock/clear/VMcall"
+}

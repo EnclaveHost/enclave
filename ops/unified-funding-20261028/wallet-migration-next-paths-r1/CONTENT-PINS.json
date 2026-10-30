@@ -1,0 +1,26 @@
+[
+  {
+    "path": "HANDOFF-LATEST.md",
+    "sha256": "eb62936aa7b77ab3653c2c5c20b2c079a55d5ad21df7f15eef7c68bc9bc088d7"
+  },
+  {
+    "path": "NEXT-SOURCE-TASK.txt",
+    "sha256": "5db4dd77a578c4f88cea1e18c83dea1f4a2b805f62e7a67691075cdc86462452"
+  },
+  {
+    "path": "ROOT-REVIEW.md",
+    "sha256": "6eb8921fec8ec9b61fdec6e63464f506da61127a7a778094a43e2794819bfd20"
+  },
+  {
+    "path": "catalog-live-review.json",
+    "sha256": "351beb87605f454cb66487a78901e3acaeee7d23b5ff09688df541bf3f6ba5da"
+  },
+  {
+    "path": "peer-REVIEW.md",
+    "sha256": "ed804d3b6495611f37384698773f7ce603b3f1a326c24b960602b3f50a4d0a1f"
+  },
+  {
+    "path": "peer-SOURCE-PINS.json",
+    "sha256": "3a67f0f50e41dbb9eea90243b1fbe850515478dc888cb29280556af71cadd419"
+  }
+]

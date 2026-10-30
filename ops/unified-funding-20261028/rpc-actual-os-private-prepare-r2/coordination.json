@@ -1,0 +1,42 @@
+{
+  "format": "enclave-rpc-private-coordination/1",
+  "operationId": "rpc-os-private-20261030t093130z-133828",
+  "stamp": "20261030T093130Z-133828",
+  "vmUnits": [
+    "enclave-rpc-production-vm.service",
+    "enclave-rpc-production-guard.service"
+  ],
+  "workflowLocks": [
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-actual-os-private-prepare-r1/workflow.lock",
+      "device": 64768,
+      "inode": 6179623
+    }
+  ],
+  "lifecycleProducers": [
+    {
+      "name": "enclave-rpc-production-vm.service",
+      "coordination": "plan-vm-unit-stopped",
+      "ref": "enclave-rpc-production-vm.service"
+    },
+    {
+      "name": "enclave-rpc-production-guard.service",
+      "coordination": "plan-vm-unit-stopped",
+      "ref": "enclave-rpc-production-guard.service"
+    },
+    {
+      "name": "root-private-maintenance",
+      "coordination": "plan-workflow-lock",
+      "ref": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-actual-os-private-prepare-r1/workflow.lock"
+    }
+  ],
+  "operatorAssertions": {
+    "localHostRootTrusted": true,
+    "maintenanceUidTrusted": true,
+    "untrustedSameUidCommandsExcluded": true,
+    "untrustedSameUidPluginsExcluded": true,
+    "noCompetingWriterOrPublicationDuringPreparation": true
+  },
+  "sameUidActorDiscovery": "not-performed-operator-assertion-only",
+  "operator": "root-private-maintenance"
+}

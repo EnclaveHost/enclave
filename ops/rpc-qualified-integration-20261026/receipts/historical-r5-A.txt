@@ -1,0 +1,125 @@
+test_cli_writes_once_and_refuses_overwrite (test_anchored_origin.AnchoredOriginTest.test_cli_writes_once_and_refuses_overwrite) ... ok
+test_db_header_or_hash_tamper_is_refused (test_anchored_origin.AnchoredOriginTest.test_db_header_or_hash_tamper_is_refused) ... ok
+test_db_must_hold_n_and_be_the_pinned_tooling (test_anchored_origin.AnchoredOriginTest.test_db_must_hold_n_and_be_the_pinned_tooling) ... ok
+test_exact_n_is_read_and_bound_not_the_safe_head (test_anchored_origin.AnchoredOriginTest.test_exact_n_is_read_and_bound_not_the_safe_head) ... ok
+test_header_that_does_not_reproduce_the_receipt_root_is_refused (test_anchored_origin.AnchoredOriginTest.test_header_that_does_not_reproduce_the_receipt_root_is_refused) ... ok
+test_pinned_modules_are_enforced (test_anchored_origin.AnchoredOriginTest.test_pinned_modules_are_enforced) ... ok
+test_real_pinned_receipt_is_used_and_a_synthetic_header_cannot_bind_to_it (test_anchored_origin.AnchoredOriginTest.test_real_pinned_receipt_is_used_and_a_synthetic_header_cannot_bind_to_it) ... ok
+test_receipt_bytes_must_be_the_pinned_ones (test_anchored_origin.AnchoredOriginTest.test_receipt_bytes_must_be_the_pinned_ones) ... ok
+test_writable_datadir_refused_with_the_real_mount_probe (test_anchored_origin.AnchoredOriginTest.test_writable_datadir_refused_with_the_real_mount_probe) ... ok
+test_hint_scale_range_is_split_not_capped_up (test_segments.RealScalePlanTest.test_hint_scale_range_is_split_not_capped_up) ... ok
+test_a_refused_segment_keeps_the_gate_per_block_refusal (test_segments.SegTest.test_a_refused_segment_keeps_the_gate_per_block_refusal) ... ok
+test_activation_rechecks_evidence_against_current_time (test_segments.SegTest.test_activation_rechecks_evidence_against_current_time) ... ok
+test_anchored_overlay_accepts_only_fully_re_verified_evidence (test_segments.SegTest.test_anchored_overlay_accepts_only_fully_re_verified_evidence) ... ok
+test_cl_discontinuity_across_a_boundary_is_refused (test_segments.SegTest.test_cl_discontinuity_across_a_boundary_is_refused) ... ok
+test_el_discontinuity_across_a_boundary_is_refused (test_segments.SegTest.test_el_discontinuity_across_a_boundary_is_refused) ... ok
+test_future_aggregate_evaluation_is_rejected (test_segments.SegTest.test_future_aggregate_evaluation_is_rejected) ... ok
+test_missed_slot_exactly_at_a_segment_boundary_is_linked_and_counted (test_segments.SegTest.test_missed_slot_exactly_at_a_segment_boundary_is_linked_and_counted) ... ok
+test_non_canonical_origin_hash_is_refused_by_every_segment (test_segments.SegTest.test_non_canonical_origin_hash_is_refused_by_every_segment) ... ok
+test_non_finite_or_boolean_evaluation_time_is_rejected (test_segments.SegTest.test_non_finite_or_boolean_evaluation_time_is_rejected) ... ok
+test_old_activation_code_rejects_every_new_document (test_segments.SegTest.test_old_activation_code_rejects_every_new_document) ... ok
+test_partial_duplicate_stale_tampered_and_foreign_segments_are_refused (test_segments.SegTest.test_partial_duplicate_stale_tampered_and_foreign_segments_are_refused) ... ok
+test_plan_gap_overlap_and_cap_are_refused_everywhere (test_segments.SegTest.test_plan_gap_overlap_and_cap_are_refused_everywhere) ... ok
+test_same_prev_randao_different_parent_beacon_root_is_refused (test_segments.SegTest.test_same_prev_randao_different_parent_beacon_root_is_refused) ... ok
+test_swapped_valid_canonical_origin_is_refused (test_segments.SegTest.test_swapped_valid_canonical_origin_is_refused) ... ok
+test_two_segments_cover_the_exact_anchored_range_via_cli (test_segments.SegTest.test_two_segments_cover_the_exact_anchored_range_via_cli) ... ok
+test_untrusted_batcher_never_reaches_the_gate_or_changes_coverage (test_segments.SegTest.test_untrusted_batcher_never_reaches_the_gate_or_changes_coverage) ... ok
+test_wrong_header_number_hash_pbr_and_tampered_documents_are_refused (test_segments.SegTest.test_wrong_header_number_hash_pbr_and_tampered_documents_are_refused) ... ok
+test_wrong_header_parent_beacon_root_or_mix_is_refused (test_segments.SegTest.test_wrong_header_parent_beacon_root_or_mix_is_refused) ... ok
+test_freshness_parity_at_the_current_time (test_r3_integration.ReadinessAnchoredTests.test_freshness_parity_at_the_current_time)
+Both consumers verify at the CURRENT time: valid now -> accepted; 12 h + 61 s after the review -> expired segments refused; ... ok
+test_parity_with_the_wrapper_on_good_and_every_bad_evidence (test_r3_integration.ReadinessAnchoredTests.test_parity_with_the_wrapper_on_good_and_every_bad_evidence) ... ok
+test_publisher_settings_select_exactly_one_coverage_mode (test_r3_integration.ReadinessAnchoredTests.test_publisher_settings_select_exactly_one_coverage_mode) ... ok
+test_readiness_pins_mode_conflict_and_library (test_r3_integration.ReadinessAnchoredTests.test_readiness_pins_mode_conflict_and_library) ... ok
+test_sampler_not_ready_when_chain_or_evidence_disagree (test_r3_integration.ReadinessAnchoredTests.test_sampler_not_ready_when_chain_or_evidence_disagree) ... ok
+test_sampler_ready_on_anchored_coverage_with_the_live_chain (test_r3_integration.ReadinessAnchoredTests.test_sampler_ready_on_anchored_coverage_with_the_live_chain) ... ok
+test_anchored_mode_accepts_the_complete_bound_evidence (test_r3_integration.WrapperAnchoredTests.test_anchored_mode_accepts_the_complete_bound_evidence) ... ok
+test_every_tampering_case_is_refused (test_r3_integration.WrapperAnchoredTests.test_every_tampering_case_is_refused) ... ok
+test_legacy_path_is_unchanged (test_r3_integration.WrapperAnchoredTests.test_legacy_path_is_unchanged) ... ok
+test_pins_mode_and_verifier_library (test_r3_integration.WrapperAnchoredTests.test_pins_mode_and_verifier_library) ... ok
+test_production_window_refuses_fixture_sized_range (test_r3_integration.WrapperAnchoredTests.test_production_window_refuses_fixture_sized_range) ... ok
+test_release_start_binds_the_launch_record_to_header_n_before_the_handshake (test_r3_integration.WrapperAnchoredTests.test_release_start_binds_the_launch_record_to_header_n_before_the_handshake) ... ok
+test_release_start_refuses_before_the_handshake_on_tampered_evidence (test_r3_integration.WrapperAnchoredTests.test_release_start_refuses_before_the_handshake_on_tampered_evidence) ... ok
+test_floor_a1_l1_is_the_exact_qualified_entry_of_the_floor (test_r5_continuation.ProducerPermitHelpers.test_floor_a1_l1_is_the_exact_qualified_entry_of_the_floor) ... ok
+test_floor_timestamp_comes_only_from_a_well_formed_header_field (test_r5_continuation.ProducerPermitHelpers.test_floor_timestamp_comes_only_from_a_well_formed_header_field) ... ok
+test_no_current_proof_falls_back_to_the_initial_window_and_expired_evidence_fails (test_r5_continuation.ReadinessPhase.test_no_current_proof_falls_back_to_the_initial_window_and_expired_evidence_fails) ... ERROR
+test_post_bootstrap_mode_conflict_is_refused (test_r5_continuation.ReadinessPhase.test_post_bootstrap_mode_conflict_is_refused) ... ERROR
+test_post_bootstrap_ready_with_expired_historical_evidence_and_a_current_recorded_proof (test_r5_continuation.ReadinessPhase.test_post_bootstrap_ready_with_expired_historical_evidence_and_a_current_recorded_proof) ... ERROR
+test_proof_for_another_process_is_not_current (test_r5_continuation.ReadinessPhase.test_proof_for_another_process_is_not_current) ... ERROR
+test_continuation_after_coverage_expiry_starts_without_anchor_coverage_or_blob_probe (test_r5_continuation.WrapperPhase.test_continuation_after_coverage_expiry_starts_without_anchor_coverage_or_blob_probe) ... ok
+test_continuation_floor_timestamp_and_a1_binding_refusals (test_r5_continuation.WrapperPhase.test_continuation_floor_timestamp_and_a1_binding_refusals) ... ok
+test_db_changed_after_the_permit_refuses_before_consume (test_r5_continuation.WrapperPhase.test_db_changed_after_the_permit_refuses_before_consume) ... ok
+test_every_other_journal_state_refuses_with_nothing_consumed (test_r5_continuation.WrapperPhase.test_every_other_journal_state_refuses_with_nothing_consumed) ... ok
+test_expired_initial_refuses_but_the_same_evidence_does_not_block_a_continuation (test_r5_continuation.WrapperPhase.test_expired_initial_refuses_but_the_same_evidence_does_not_block_a_continuation) ... ok
+test_legacy_mode_keeps_the_r14_path (test_r5_continuation.WrapperPhase.test_legacy_mode_keeps_the_r14_path) ... ok
+test_partial_write_is_not_a_state_and_an_edited_entry_breaks_the_chain (test_r5_continuation.WrapperPhase.test_partial_write_is_not_a_state_and_an_edited_entry_breaks_the_chain) ... FAIL
+
+======================================================================
+ERROR: test_no_current_proof_falls_back_to_the_initial_window_and_expired_evidence_fails (test_r5_continuation.ReadinessPhase.test_no_current_proof_falls_back_to_the_initial_window_and_expired_evidence_fails)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r5/tests/test_r5_continuation.py", line 262, in test_no_current_proof_falls_back_to_the_initial_window_and_expired_evidence_fails
+    rc, r = self.run_sampler(self.install(I._stale), finality='initial')
+            ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r5/tests/test_r5_continuation.py", line 251, in run_sampler
+    return self.sampler(inst, finality=finality, **kw)
+           ^^^^^^^^^^^^
+AttributeError: 'ReadinessPhase' object has no attribute 'sampler'
+
+======================================================================
+ERROR: test_post_bootstrap_mode_conflict_is_refused (test_r5_continuation.ReadinessPhase.test_post_bootstrap_mode_conflict_is_refused)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r5/tests/test_r5_continuation.py", line 276, in test_post_bootstrap_mode_conflict_is_refused
+    rc, r = self.run_sampler(inst, extra=('--coverage-receipt', '/x/receipt.json'))
+            ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r5/tests/test_r5_continuation.py", line 251, in run_sampler
+    return self.sampler(inst, finality=finality, **kw)
+           ^^^^^^^^^^^^
+AttributeError: 'ReadinessPhase' object has no attribute 'sampler'
+
+======================================================================
+ERROR: test_post_bootstrap_ready_with_expired_historical_evidence_and_a_current_recorded_proof (test_r5_continuation.ReadinessPhase.test_post_bootstrap_ready_with_expired_historical_evidence_and_a_current_recorded_proof)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r5/tests/test_r5_continuation.py", line 255, in test_post_bootstrap_ready_with_expired_historical_evidence_and_a_current_recorded_proof
+    rc, r = self.run_sampler(inst, extra=())
+            ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r5/tests/test_r5_continuation.py", line 251, in run_sampler
+    return self.sampler(inst, finality=finality, **kw)
+           ^^^^^^^^^^^^
+AttributeError: 'ReadinessPhase' object has no attribute 'sampler'
+
+======================================================================
+ERROR: test_proof_for_another_process_is_not_current (test_r5_continuation.ReadinessPhase.test_proof_for_another_process_is_not_current)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r5/tests/test_r5_continuation.py", line 268, in test_proof_for_another_process_is_not_current
+    rc, r = self.sampler(inst, finality=None, extra=('--finality-status', TRS.finality_status_file(self.tmp, start='1', n=1000),
+            ^^^^^^^^^^^^
+AttributeError: 'ReadinessPhase' object has no attribute 'sampler'
+
+======================================================================
+FAIL: test_partial_write_is_not_a_state_and_an_edited_entry_breaks_the_chain (test_r5_continuation.WrapperPhase.test_partial_write_is_not_a_state_and_an_edited_entry_breaks_the_chain)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r5/tests/test_r5_continuation.py", line 210, in test_partial_write_is_not_a_state_and_an_edited_entry_breaks_the_chain
+    r, _, _ = self.start(t2)
+              ~~~~~~~~~~^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r5/tests/test_r5_continuation.py", line 143, in start
+    before = [e[1]['event'] for e in t.journal()]
+                                     ~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r5/tests/test_r5_continuation.py", line 78, in journal
+    return W.journal_entries(self.bd / 'journal', self.uid, self.lsha, self.root)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r5/overlay/wrapper/chain_service.py", line 960, in journal_entries
+    assert e.get('format') == JOURNAL_FORMAT and e.get('launchSha256') == launch_sha and e.get('seq') == len(out) + 1 \
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        and e.get('prevSha256') == prev, f'journal chain broken at {name}'
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: journal chain broken at 000002.json
+
+----------------------------------------------------------------------
+Ran 54 tests in 100.301s
+
+FAILED (failures=1, errors=4)

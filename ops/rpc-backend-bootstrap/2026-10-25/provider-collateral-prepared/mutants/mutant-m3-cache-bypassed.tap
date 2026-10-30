@@ -1,0 +1,134 @@
+TAP version 13
+# Subtest: the DEFECT, reproduced on the old composition: layered(pre-seed, KDS) serves the expired seed CRL first and KDS is never asked
+ok 1 - the DEFECT, reproduced on the old composition: layered(pre-seed, KDS) serves the expired seed CRL first and KDS is never asked
+  ---
+  duration_ms: 2.837468
+  type: 'test'
+  ...
+# Subtest: stale pre-seed + fresh KDS: the provider fetches the fresh CRL, verifies, and caches only what it authenticated
+not ok 2 - stale pre-seed + fresh KDS: the provider fetches the fresh CRL, verifies, and caches only what it authenticated
+  ---
+  duration_ms: 3.194313
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/collateral-rollout-stage/tmp/mutant-m3-cache-bypassed/test/attested-provider-collateral.test.mjs:68:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/collateral-rollout-stage/tmp/mutant-m3-cache-bypassed/test/attested-provider-collateral.test.mjs:72:67)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: fresh, warm, offline and restart: a warm cache verifies with KDS down and no network, also from a NEW instance (restart)
+not ok 3 - fresh, warm, offline and restart: a warm cache verifies with KDS down and no network, also from a NEW instance (restart)
+  ---
+  duration_ms: 5.039325
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/collateral-rollout-stage/tmp/mutant-m3-cache-bypassed/test/attested-provider-collateral.test.mjs:85:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    no KDS call with a fresh warm cache
+    + actual - expected
+    
+      {
+        chain: 0,
+    +   crl: 2,
+    -   crl: 1,
+        vcek: 0
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    chain: 0
+    vcek: 0
+    crl: 1
+  actual:
+    chain: 0
+    vcek: 0
+    crl: 2
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/collateral-rollout-stage/tmp/mutant-m3-cache-bypassed/test/attested-provider-collateral.test.mjs:90:74)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: stale + KDS outage: rejected (CRL required), never accepted; no CRL anywhere: rejected
+ok 4 - stale + KDS outage: rejected (CRL required), never accepted; no CRL anywhere: rejected
+  ---
+  duration_ms: 2.710989
+  type: 'test'
+  ...
+# Subtest: restoration without restart: KDS back, or (no network) the operator replaces the seed CRL; the same instance verifies again
+ok 5 - restoration without restart: KDS back, or (no network) the operator replaces the seed CRL; the same instance verifies again
+  ---
+  duration_ms: 7.905923
+  type: 'test'
+  ...
+# Subtest: forged and revoked collateral are refused: a CRL under another ARK, a forged pre-seeded chain, another chip's VCEK, an authentic CRL revoking the ASK
+not ok 6 - forged and revoked collateral are refused: a CRL under another ARK, a forged pre-seeded chain, another chip's VCEK, an authentic CRL revoking the ASK
+  ---
+  duration_ms: 2.328556
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/collateral-rollout-stage/tmp/mutant-m3-cache-bypassed/test/attested-provider-collateral.test.mjs:120:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'some')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/collateral-rollout-stage/tmp/mutant-m3-cache-bypassed/test/attested-provider-collateral.test.mjs:133:63)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: defence in depth: the forged CRL delivered with NO cache in between is still rejected by the verifier's own signature check; the genuine fresh CRL in its place verifies
+ok 7 - defence in depth: the forged CRL delivered with NO cache in between is still rejected by the verifier's own signature check; the genuine fresh CRL in its place verifies
+  ---
+  duration_ms: 2.270336
+  type: 'test'
+  ...
+# Subtest: configuration: legacy { dir } unchanged; { dir, kds: true } refused with the migration; cacheDir absolute and separate; nothing names a root
+not ok 8 - configuration: legacy { dir } unchanged; { dir, kds: true } refused with the migration; cacheDir absolute and separate; nothing names a root
+  ---
+  duration_ms: 1.169782
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/collateral-rollout-stage/tmp/mutant-m3-cache-bypassed/test/attested-provider-collateral.test.mjs:164:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'pre-seed+kds'
+    - 'cache'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'cache'
+  actual: 'pre-seed+kds'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/collateral-rollout-stage/tmp/mutant-m3-cache-bypassed/test/attested-provider-collateral.test.mjs:174:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 4
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 50.057416

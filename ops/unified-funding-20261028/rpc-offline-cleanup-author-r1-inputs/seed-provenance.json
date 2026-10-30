@@ -1,0 +1,9 @@
+{
+  "sourceRoot": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-native-locks-r2/candidate",
+  "frozenRoot": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-offline-cleanup-author-r1-20261030/seed",
+  "seedEntries": 7,
+  "productPreEdits": 0,
+  "sourceOnly": true,
+  "qualifiedNativeLockCases": 7,
+  "rootUnitCases": 33
+}

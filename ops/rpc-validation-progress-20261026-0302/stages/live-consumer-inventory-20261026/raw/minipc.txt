@@ -1,0 +1,25 @@
+utc=2026-10-26T02:49:21Z host=NUCBOX_K11
+node_count=6
+node pid=3552 ppid=2752 exe=C:\Program Files\Enclave\runtime\node\node.exe script=C:\ProgramData\Enclave\network-checker\run-checker.mjs sha16=34d223e8cb126f02 user=SYSTEM started=2026-10-23T08:29:30Z
+node pid=6868 ppid=3552 exe=C:\Program Files\Enclave\runtime\node\node.exe script= sha16= user=SYSTEM started=2026-10-23T08:29:32Z
+node pid=4552 ppid=3756 exe=C:\Program Files\Enclave\runtime\node\node.exe script=C:\Program Files\Enclave\lease-relay\releases\74d09e015c375e9cf2047ca4db578801b6ca41217593e61bbe2574bc2959bc64\lease-relay.mjs sha16=74d09e015c375e9c user=SYSTEM started=2026-10-23T08:30:31Z
+node pid=5180 ppid=10316 exe=C:\Program Files\Enclave\runtime\node\node.exe script=C:\Program Files\Enclave\control\windows\vbslike\manager\main.mjs sha16=c051724ba86e4007 user=SYSTEM started=2026-10-23T19:18:15Z
+node pid=16008 ppid=21328 exe=C:\Program Files\Enclave\runtime\node\node.exe script=C:\Program Files\Enclave\network\privacy-agent.mjs sha16=cfb69370a00dea14 user=SYSTEM started=2026-10-23T19:18:43Z
+node pid=4716 ppid=16272 exe=C:\Program Files\Enclave\runtime\node\node.exe script=C:\Program Files\Enclave\control\windows\node\agent.mjs sha16=76cac35597133132 user=SYSTEM started=2026-10-23T19:19:10Z
+task name=enclave-host-services-hs2 state=Ready execute=C:\Program Files\Enclave\host-services\hs2\bin\hostsvc-supervisor.exe workdir=C:\ProgramData\Enclave\host-services\hs2\state
+task name=Node state=Running execute=cmd.exe workdir=
+task name=Relay state=Running execute=cmd.exe workdir=
+service name=EnclaveDNS status=Running start=Automatic bin=C:\Program Files\EnclaveDNS\enclavedns.exe
+pkg root=C:\Program Files\Enclave\control\windows\node name=enclave-windows-node version=0.1.0
+node_listen 127.0.0.1:51280 pid=16008
+node_listen 127.0.0.1:55916 pid=16008
+node_listen 127.0.0.1:55937 pid=16008
+node_listen 127.0.0.1:55940 pid=16008
+node_listen 127.0.0.1:56111 pid=16008
+node_listen 127.0.0.1:60561 pid=16008
+node_listen 127.0.0.1:8091 pid=5180
+node_listen 127.0.0.1:8092 pid=5180
+node_listen 127.0.0.1:8549 pid=4552
+node_listen 127.0.0.1:9600 pid=4716
+node_listen 127.0.0.1:9610 pid=4716
+node_listen 127.0.0.1:9621 pid=4716

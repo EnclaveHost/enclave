@@ -1,0 +1,13 @@
+{
+ "format": "m10-cli-child-compound/v1",
+ "originalReceiptPass": false,
+ "originalReceiptPreserved": true,
+ "compoundAccepted": true,
+ "basis": "run-2 pinned (8 phases + aggregate) + supplement (45 alone + child x3 + no-env control)",
+ "summary": {
+  "nonIgnoredPassed": 45,
+  "childPassed": 3,
+  "controlKilledByAssertion": true
+ },
+ "failures": []
+}

@@ -1,0 +1,103 @@
+{
+  "scope": "Readonly review of frozen r2 source. No candidate code/tests/builds executed; no production changes.",
+  "manifestSha256": "3ef2255486db86f75e610219902b6ae50aa47bef7fa47bfdf56deb8f785b2490",
+  "verdict": "PARTIAL repair candidate; migration NOT complete; production capability must remain unavailable.",
+  "confirmedScopeGaps": [
+    "Supervisor/isolation-client integration absent (A).",
+    "Desktop/GPU, V6/V7 secrets, worker, egress, ports, volumes and command-socket support remain refused (C).",
+    "General 8091/native 8095 wiring unchanged (D).",
+    "Authority reader factory still throws; new readonly wrapper unwired/unqualified (B).",
+    "Numeric Windows EXLOCK wrapper unwired and no actual Windows qualification.",
+    "Dependency/release closure not produced."
+  ],
+  "sourceFindings": [
+    {
+      "id": "deadline-after-flush",
+      "file": "control/windows/vbslike/guard/guard-core.mjs",
+      "lines": [
+        164,
+        166,
+        188,
+        193,
+        199,
+        202,
+        218,
+        219,
+        221,
+        223
+      ],
+      "finding": "register/renew calculate remaining budget before synchronous durable append; arm then sets current monotonic + old budget, schedules without checking current wall deadline, and returns success. Slow append crossing expiry can acknowledge an expired registration and extend monotonic budget. Requires root executed regression; not executed here."
+    },
+    {
+      "id": "qualification-is-plain-record",
+      "file": "control/windows/vbslike/manager/authority-chain-reader.mjs",
+      "lines": [
+        32,
+        33,
+        34,
+        41,
+        42,
+        44,
+        47
+      ],
+      "finding": "Production qualification label follows four caller-supplied plain record fields; factories are arbitrary injected functions and read checks only supplied snapshot flags. This wrapper is not genuine qualified derived-authority construction. Keep unavailable until actual pinned production composition/evidence; not an observed live exploit."
+    },
+    {
+      "id": "journal-failure-before-removal",
+      "file": "control/windows/vbslike/manager/permit-enforcement.mjs",
+      "lines": [
+        334,
+        335,
+        336,
+        338,
+        339
+      ],
+      "finding": "Initial journal instance/putInstance is outside try and precedes independent guard withdraw. Throw here bypasses guard request, manager removal and retry setup. Need failure-injection qualification; no execution here."
+    },
+    {
+      "id": "guard-loss-hung-cleanup",
+      "file": "control/windows/vbslike/manager/permit-enforcement.mjs",
+      "lines": [
+        338,
+        341,
+        344,
+        349,
+        352
+      ],
+      "finding": "Bounded wait retains hung raw/removeRecord promises but does not provide independent manager-side exact removal when guard is unavailable. A hung installed cleanup can keep retries waiting on same call. Report claim of compute removal despite cleanup hang needs narrower guard-alive basis."
+    },
+    {
+      "id": "replay-incomplete",
+      "file": "control/windows/vbslike/manager/permit-journal.mjs",
+      "lines": [
+        94,
+        146,
+        151
+      ],
+      "finding": "checkInst accepts same-sequence different permit digest and nullable permit reset; removed confirmation only needs plain object. checkLc clearing denial lacks persisted restoration provenance. Full transition semantics not yet established."
+    },
+    {
+      "id": "release-retry-gate",
+      "file": "control/network/deployment-permit-gate.mjs",
+      "lines": [
+        214,
+        218
+      ],
+      "finding": "Actual gate close memoizes rejected completion; journal retry of failed release listener cannot recover that completion. Report acknowledges, remains migration blocker if retryable cleanup required."
+    }
+  ],
+  "positiveSourceObservations": [
+    "Release phase revokes admissions synchronously while retaining physical ownership.",
+    "Guard sessionEnded/stop cover durable nonterminal registrations, not just timer map.",
+    "Hold ingress acknowledgement follows synchronous close success; root executed hold defect has a candidate fix, not an executed r2 pass.",
+    "Socket helper retains original identity after legitimate instance removal.",
+    "Correct LaunchJournal(file), persistent-storage refusal and five generated module pins unchanged."
+  ],
+  "clarifications": [
+    "servingContextOf(pins,snapshot) DOES exist at deployment-host-authority.mjs:194; author report uncertainty resolved by source read.",
+    "Actual r18 chain adapter read returns authority and proofVerified at network/deployment-chain-adapter.mjs:556; wrapper field check names exist.",
+    "All 41 newly authored tests are unexecuted here. Prior r1 root results do not establish r2 results.",
+    "Root deep Unix socket fixture issue needs separate short owned IPC directory, with persistent journal directory retained."
+  ],
+  "nextOwner": "Coordinator executes bounded qualification and decides repairs; this chat has not launched another author or run."
+}

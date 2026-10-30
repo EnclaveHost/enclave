@@ -1,0 +1,45 @@
+{
+  "authorError": [
+    "Reached maximum number of turns (30)"
+  ],
+  "authorFailure": "error_max_turns",
+  "authorRc": 1,
+  "authorTurns": 31,
+  "buildRun": false,
+  "candidatePinsSha256": "955e3765463b9452a44edd2a7c83ae1cbff998b05cf7678e5387a6d92587fefb",
+  "changedFiles": [
+    "AUTHOR-NOTES.md",
+    "supervisor.js",
+    "test/isolation-instance-liveness.test.mjs"
+  ],
+  "classification": "Unqualified partial candidate from max-turns failure; preserve FAILED evidence; no automatic retry.",
+  "coldControllerRecoveryQualified": false,
+  "collectorExecutions": 1,
+  "frozenFileCount": 17,
+  "frozenHashes": {
+    "AUTHOR-NOTES.md": "5411b8721ff1889a0c51d2bfcfaed7d0fe07892462f04251d021c7da56015216",
+    "supervisor.js": "16ff1733a4d186718bce006f8995a40cebd631541214810e0651b6927466b33b",
+    "test/isolation-instance-liveness.test.mjs": "9fd173c2d81b1a6705afd450d1f5dbe57956823c89ece9be02de3c1f819eb7d9"
+  },
+  "innerGuard": {
+    "minHostAvailableMiB": 30099,
+    "peakTreeRssMiB": 360
+  },
+  "innerScope": "run-p2655690-i44610005.scope",
+  "innerTerminal": true,
+  "inputsUnchanged": true,
+  "outerExitStatus": 2,
+  "outerGuard": {
+    "minHostAvailableMiB": 30106,
+    "peakTreeRssMiB": 434
+  },
+  "outerInvocation": "6d2375cd888e400d949b87fd71189487",
+  "patchSha256": "fbe6a764c6bbc5d5025a7716c09f751ee126f3106d24b983eaf37c521206b15f",
+  "productionActivationPerformed": false,
+  "protectedDeliveryFilesUnchanged": 41,
+  "replayAppliedOnce": true,
+  "replayByteIdentical": true,
+  "sameOriginalProcessesGone": true,
+  "status": "FAILED-AUTHOR-PARTIAL-SOURCE-FROZEN",
+  "testsRun": false
+}

@@ -1,0 +1,15 @@
+{
+  "ntfs_uid": 1000,
+  "private_directory_mode": "0700",
+  "private_file_mode": "0600",
+  "file_fsync": true,
+  "atomic_replace": true,
+  "directory_fsync": true,
+  "http_status": 206,
+  "content_range": "bytes 0-65535/761228785915",
+  "etag": "\"7a7daba60739fc6601662f58f69d6e1b-5672\"",
+  "last_modified": "Sun, 25 Oct 2026 00:33:37 GMT",
+  "probe_sha256": "6b1e01fbe3e7c2f516d118b47c1795309af8afa1422e7349ec473de44ac7e5c2",
+  "probe_bytes": 65536,
+  "scope": "bounded filesystem and CDN compatibility probe, not archive integrity or power-loss proof"
+}

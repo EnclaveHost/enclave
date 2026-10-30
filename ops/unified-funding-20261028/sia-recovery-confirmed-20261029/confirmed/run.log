@@ -1,0 +1,93 @@
+{
+  "capturedAt": "2026-10-29T19:43:41.235Z",
+  "readOnly": true,
+  "scope": "Exact sia-s3 reserve Deposited events since block53256000; canonical quorum, not finality; no signatures or submissions.",
+  "funding": {
+    "value": {
+      "fromBlock": "53256000",
+      "toBlock": "53256835",
+      "events": [
+        {
+          "transactionHash": "0x9d58496d32380bcefa54082e079ad01c9e342e86b740106d297c95a47a982dfa",
+          "blockNumber": "53256630",
+          "blockHash": "0xb008f910e107be215e96b9bb299d9f1188fa6f7395774a4d31c29bac87ed6e71",
+          "timestamp": "1793302607",
+          "status": "success",
+          "deposit": {
+            "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+            "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+            "from": "0xE5198b7BA033612C45c720d204C469D9ECe77D9e",
+            "amountWei": "200000000000000"
+          },
+          "transaction": {
+            "from": "0xf4b78d91911e1c064a02e4d28c69e2de6056be57",
+            "to": "0x86960ed815ca5500e6cfcdbbb32b221c2acf055a",
+            "valueWei": "0",
+            "selector": "0x57fcab6f"
+          },
+          "gasUsed": "609931",
+          "effectiveGasPrice": "6000000",
+          "tokenTransfers": [
+            {
+              "token": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+              "from": "0x86960ed815ca5500e6cfcdbbb32b221c2acf055a",
+              "to": "0xe5198b7ba033612c45c720d204c469d9ece77d9e",
+              "amount": "471388"
+            },
+            {
+              "token": "0x4200000000000000000000000000000000000006",
+              "from": "0xb4cb800910b228ed3d0834cf79d697127bbb00e5",
+              "to": "0xe5198b7ba033612c45c720d204c469d9ece77d9e",
+              "amount": "200000000000000"
+            },
+            {
+              "token": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+              "from": "0xe5198b7ba033612c45c720d204c469d9ece77d9e",
+              "to": "0xb4cb800910b228ed3d0834cf79d697127bbb00e5",
+              "amount": "466777"
+            },
+            {
+              "token": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+              "from": "0xe5198b7ba033612c45c720d204c469d9ece77d9e",
+              "to": "0x86960ed815ca5500e6cfcdbbb32b221c2acf055a",
+              "amount": "4611"
+            },
+            {
+              "token": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+              "from": "0x86960ed815ca5500e6cfcdbbb32b221c2acf055a",
+              "to": "0xf4b78d91911e1c064a02e4d28c69e2de6056be57",
+              "amount": "67217"
+            }
+          ]
+        }
+      ],
+      "deployment": {
+        "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+        "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+        "active": true,
+        "runner": "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a",
+        "runnerOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+        "leaseUntil": "1793304421",
+        "leaseLive": true,
+        "rate": "0",
+        "computeBalance6": "0",
+        "reserveWei": "198639817012726"
+      }
+    },
+    "blockNumber": "53256835",
+    "blockHash": "0xe8e581be139f51b6eb26996e50d040c7b55f97993928491e19f39c60f71f994c",
+    "timestamp": 1793303017000,
+    "agreeing": 2,
+    "peers": 3,
+    "failures": [
+      "base.drpc.org: RPC Request failed."
+    ]
+  },
+  "endpoint": {
+    "url": "https://ef514ed3.app.enclave.host/",
+    "status": 200,
+    "contentType": "text/html; charset=utf-8",
+    "location": null,
+    "server": "sia-s3"
+  }
+}

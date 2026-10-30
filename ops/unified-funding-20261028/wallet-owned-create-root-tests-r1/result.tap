@@ -1,0 +1,105 @@
+TAP version 13
+# Subtest: resolver refuses implicit configuration and malformed pins
+ok 1 - resolver refuses implicit configuration and malformed pins
+  ---
+  duration_ms: 1.906737
+  type: 'test'
+  ...
+# Subtest: STAGING created row: relay custody gate releases, relay + host session rule allow the scoped wallet-v1 session
+ok 2 - STAGING created row: relay custody gate releases, relay + host session rule allow the scoped wallet-v1 session
+  ---
+  duration_ms: 1.894297
+  type: 'test'
+  ...
+# Subtest: PROD stays refused until the owner approves the exact content; drift and re-environment refuse again
+ok 3 - PROD stays refused until the owner approves the exact content; drift and re-environment refuse again
+  ---
+  duration_ms: 1.50331
+  type: 'test'
+  ...
+# Subtest: scope: app B, another vault, another owner, a legacy session on a bound row
+ok 4 - scope: app B, another vault, another owner, a legacy session on a bound row
+  ---
+  duration_ms: 0.661986
+  type: 'test'
+  ...
+# Subtest: owner detach / transfer away: sessions lose it; secrets follow the plain-wallet rule (explicit owner decisions)
+ok 5 - owner detach / transfer away: sessions lose it; secrets follow the plain-wallet rule (explicit owner decisions)
+  ---
+  duration_ms: 1.215592
+  type: 'test'
+  ...
+# Subtest: missing / unreadable policy never downgrades to legacy
+ok 6 - missing / unreadable policy never downgrades to legacy
+  ---
+  duration_ms: 0.790885
+  type: 'test'
+  ...
+# Subtest: proven legacy-unbound wallet row keeps legacy behaviour; wallet-v1 session never acts on it
+ok 7 - proven legacy-unbound wallet row keeps legacy behaviour; wallet-v1 session never acts on it
+  ---
+  duration_ms: 0.449837
+  type: 'test'
+  ...
+# Subtest: ROOT omitted factory configuration must not release unapproved wallet-session PROD secrets
+not ok 8 - ROOT omitted factory configuration must not release unapproved wallet-session PROD secrets
+  ---
+  duration_ms: 0.541646
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-owned-create-root-tests-r1/candidate/enclave/test/wallet-session/root-discovery.test.mjs:133:1'
+  failureType: 'testCodeFailure'
+  error: 'missing factory configuration is not proof a row has no content policy'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: ~
+  actual: ~
+  operator: 'notStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-owned-create-root-tests-r1/candidate/enclave/test/wallet-session/root-discovery.test.mjs:136:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ROOT incomplete configured factory list must not prove a foreign new row legacy
+not ok 9 - ROOT incomplete configured factory list must not prove a foreign new row legacy
+  ---
+  duration_ms: 0.585796
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-owned-create-root-tests-r1/candidate/enclave/test/wallet-session/root-discovery.test.mjs:138:1'
+  failureType: 'testCodeFailure'
+  error: 'absence from one configured registry is not exhaustive provenance'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: ~
+  actual: ~
+  operator: 'notStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-owned-create-root-tests-r1/candidate/enclave/test/wallet-session/root-discovery.test.mjs:143:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ROOT a cached factory verification must not survive a changed chain identity
+not ok 10 - ROOT a cached factory verification must not survive a changed chain identity
+  ---
+  duration_ms: 0.593966
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-owned-create-root-tests-r1/candidate/enclave/test/wallet-session/root-discovery.test.mjs:145:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection: fresh decisions must be bound to the configured chain'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-owned-create-root-tests-r1/candidate/enclave/test/wallet-session/root-discovery.test.mjs:148:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 7
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 401.064806

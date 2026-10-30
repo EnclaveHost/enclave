@@ -1,0 +1,8 @@
+[queue] START available=89956MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+[build] page/dist/harness.js 101723 bytes sha256 7faa04181b707e9f2c4212346065c66570c55dcb8aa7aa00e0c4e8db7461408a
+[build] inputs: ../source/site/js/core/util.js, client-execution-site-r2/candidate/site/js/pages/funding.js, client-site-repair-r2/authored/site/js/funding/flows.js, client-site-repair-r2/authored/site/js/funding/state.js, production-grant-terms-r1/shell/facade/api.js, production-grant-terms-r1/shell/facade/config.js, production-grant-terms-r1/shell/facade/empty.js, production-grant-terms-r1/shell/facade/sessions.js, production-grant-terms-r1/shell/facade/vendor-funding.js, production-grant-terms-r1/shell/facade/wallet.js, production-grant-terms-r1/shell/harness-state.js, production-grant-terms-r1/shell/main.mjs
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak:
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak:
+[queue] EXIT 0

@@ -1,0 +1,16 @@
+{
+ "errors": 0,
+ "expectedFailures": 0,
+ "mode": "kill",
+ "outcomes": {
+  "BytecodeGate.test_the_gap_stays_open_without_a_v2_receipt_of_the_source_pinned_checker": "fail"
+ },
+ "ranTwice": [],
+ "requested": [
+  "BytecodeGate.test_the_gap_stays_open_without_a_v2_receipt_of_the_source_pinned_checker"
+ ],
+ "skipped": 0,
+ "testsRun": 1,
+ "unexpectedSuccesses": 0,
+ "verdict": "killed"
+}

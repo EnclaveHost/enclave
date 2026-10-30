@@ -1,0 +1,86 @@
+TAP version 13
+# Subtest: REAL Base headers: 52 parent-linked headers authenticate from N down to the floor INCLUSIVE; blooms decide (and only exclusion skips)
+ok 1 - REAL Base headers: 52 parent-linked headers authenticate from N down to the floor INCLUSIVE; blooms decide (and only exclusion skips)
+  ---
+  duration_ms: 528.500226
+  type: 'test'
+  ...
+# Subtest: bloom rule: skip ONLY when the authenticated bloom excludes the ledger or every lease topic
+ok 2 - bloom rule: skip ONLY when the authenticated bloom excludes the ledger or every lease topic
+  ---
+  duration_ms: 1.134486
+  type: 'test'
+  ...
+# Subtest: complete authenticated history: EVERY lease event of the ledger in [floor, N] (floor inclusive), exact positions and transaction hashes; noise excluded
+ok 3 - complete authenticated history: EVERY lease event of the ledger in [floor, N] (floor inclusive), exact positions and transaction hashes; noise excluded
+  ---
+  duration_ms: 22.005243
+  type: 'test'
+  ...
+# Subtest: receipts and transactions are authenticated: wrong roots, missing / reordered receipts, forged log positions and transaction hashes refuse
+ok 4 - receipts and transactions are authenticated: wrong roots, missing / reordered receipts, forged log positions and transaction hashes refuse
+  ---
+  duration_ms: 31.604332
+  type: 'test'
+  ...
+# Subtest: typed and deposit receipts per pinned base v1.5.1: 0x0/0x1/0x2/0x4/0x7e verify; a post-Canyon deposit without its version and type 0x79 refuse
+ok 5 - typed and deposit receipts per pinned base v1.5.1: 0x0/0x1/0x2/0x4/0x7e verify; a post-Canyon deposit without its version and type 0x79 refuse
+  ---
+  duration_ms: 14.106672
+  type: 'test'
+  ...
+# Subtest: outages, truncation and bounds fail closed: nothing partial is ever returned
+ok 6 - outages, truncation and bounds fail closed: nothing partial is ever returned
+  ---
+  duration_ms: 15.153519
+  type: 'test'
+  ...
+# Subtest: restart cache: untrusted header chunks are re-authenticated from N on every use; a tampered chunk is discarded and fetched again; never authority
+not ok 7 - restart cache: untrusted header chunks are re-authenticated from N on every use; a tampered chunk is discarded and fetched again; never authority
+  ---
+  duration_ms: 22.418118
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-cold-recovery-stage/r2/runs/20261026T191133Z-slice-2187872/repo/test/derived-reader/backward-history.test.mjs:189:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The expression evaluated to a falsy value:
+    
+      assert.ok(b.stats.cacheHits > 0)
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-cold-recovery-stage/r2/runs/20261026T191133Z-slice-2187872/repo/test/derived-reader/backward-history.test.mjs:195:44)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: provider: the pre-bootstrap claim is served only after the authenticated scan completed AND joined this start's coverage at N+1; replay finds it
+ok 8 - provider: the pre-bootstrap claim is served only after the authenticated scan completed AND joined this start's coverage at N+1; replay finds it
+  ---
+  duration_ms: 391.590712
+  type: 'test'
+  ...
+# Subtest: provider: an own-node outage during the scan fails closed (no history served), and the scan is retried, never trusted partially
+ok 9 - provider: an own-node outage during the scan fails closed (no history served), and the scan is retried, never trusted partially
+  ---
+  duration_ms: 325.732383
+  type: 'test'
+  ...
+# Subtest: policy: disabled by default (binding unchanged), exact keys, and never on a self-initialized (unsigned) reader state
+ok 10 - policy: disabled by default (binding unchanged), exact keys, and never on a self-initialized (unsigned) reader state
+  ---
+  duration_ms: 232.503008
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 9
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1790.479801

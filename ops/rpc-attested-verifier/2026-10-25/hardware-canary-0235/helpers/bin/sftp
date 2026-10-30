@@ -1,0 +1,5 @@
+#!/bin/sh
+# snp-verifier-canary stub: remote shells are DENIED for every command of this canary (root rule). Never execs the real one.
+echo "$(date -u +%FT%TZ) sftp $*" >> "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/snp-verifier-canary-stage/logs/ssh-stub-invocations.log"
+echo "sftp: denied by the snp-verifier-canary stub (no SSH)" >&2
+exit 255

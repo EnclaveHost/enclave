@@ -1,0 +1,13 @@
+[queue] START available=25090MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+Ran 11 tests in 3.737s
+
+OK
+## test_witness_producer_r5 PASS (11)
+Ran 7 tests in 0.641s
+
+OK
+## test_forward_chain_r5 PASS (7)
+## witness-producer-r5 rc=0
+[memory-guard] exit=0 peakTreeRssMiB=49 minHostAvailableMiB=24921
+[memory-guard] at peak: python3:26 witness_fetch:11 systemd-socket-:6 bash:4 timeout:2
+[queue] EXIT 0

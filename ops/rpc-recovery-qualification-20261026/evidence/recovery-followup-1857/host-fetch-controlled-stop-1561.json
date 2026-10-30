@@ -1,0 +1,11 @@
+{
+  "pid": 2156107,
+  "before": 108649250816,
+  "reason": "brief small256 yield for signed native policy receipt/rate check",
+  "signal": "SIGTERM",
+  "at": "2026-10-26T18:54:18Z",
+  "committed": 108649250816,
+  "archiveSize": 108649250816,
+  "pidGone": true,
+  "terminal": 143
+}

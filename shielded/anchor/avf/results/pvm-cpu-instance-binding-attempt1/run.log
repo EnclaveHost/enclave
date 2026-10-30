@@ -1,0 +1,6 @@
+19:48:39Z capture preflight: PASS the capture preflight: a capture failure stops the shell with exit 3, nothing after it runs
+19:48:40Z client {"client":"enclave-pvm-client","version":"0.5.0","lab":"NOT PRODUCTION"} sha256 6063e24ea3ed2075a143b1023fac9eabdc7a44185e475f740391f28ff6f5a82d; app 29e8942369846359b5936dbef1268c28f7097cccb3101b86345dc4dd8f4c1373; APK1 code 077d5c353aa4a44206e784dbe27b205194fa6aa5629bcc8d238902b76148bf90, APK2 code 49b9e3cb08734dcfbdda15656d69ff56556798033c5928ba1a87dfb32300ac18; lab keys /home/steven/.cache/enclave-pvm-client-lab/ib09241248 (not in the repository)
+19:48:42Z installed apk1.apk over the previous build, data kept (ea36520954c7ea8e09d25034442082ff45f897bb5e1b531fa65bc87fb53e4aef)
+19:48:44Z == A: APK1
+19:55:27Z a: not serving within 400 s
+19:55:27Z STOP: APK1's VM did not serve

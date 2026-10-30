@@ -1,0 +1,18 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 5 not started; sleep 30
+[queue] START available=22382MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+  File "<stdin>", line 4
+    ok=int(sys.argv[2])==0 and g==dict(tests=7,pass=7,fail=0,skipped=0,todo=0,cancelled=0)
+                                               ^^^^
+SyntaxError: invalid syntax
+[memory-guard] exit=1 peakTreeRssMiB=688 minHostAvailableMiB=21700
+[memory-guard] at peak: solc-0.8.35:461 node:88 node:57 forge:52 anvil:24 bash:4 timeout:2
+[queue] EXIT 1

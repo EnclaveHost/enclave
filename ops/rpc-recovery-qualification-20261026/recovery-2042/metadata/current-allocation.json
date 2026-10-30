@@ -1,0 +1,42 @@
+{
+ "format": "extent-overlap-report/r1",
+ "candidate": {
+  "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/logs/base-journal-copy-1626/candidate-extent-coverage.json",
+  "sha256": "94ceb13f5ada6fe58e2db3f02929d49bcaf689f8488360b9892515a5471acb15",
+  "extents": 9001,
+  "authentication": "unchecked candidates only"
+ },
+ "device": "/home/steven/Documents/Codex/2026-10-26/my/work/tr004/base-view/nbd",
+ "tool": {
+  "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/extent-recovery-stage/r5/runs/run-20261026T203604Z-2321914/ext4-extent-overlap",
+  "sha256": "61d110416c9779c71c4b57edd7dd993bd6031ca202de12871422756d6c3e6520"
+ },
+ "header": [
+  "ext4-extent-overlap r1 read-only device=/home/steven/Documents/Codex/2026-10-26/my/work/tr004/base-view/nbd blockSize=4096 blocksCount=976562500 firstDataBlock=0 freeBlocks=933762848 clusterRatio=1 bitmap=[0,976562499] state=0x1 errors=0"
+ ],
+ "summary": {
+  "extents": 9001,
+  "invalid": 0,
+  "inputBlocks": 276959557,
+  "overlapExtents": 0,
+  "overlapRanges": 0,
+  "overlapBlocks": 0,
+  "overlapUnwrittenBlocks": 0,
+  "printedLines": 1,
+  "truncated": 0,
+  "crosscheck": 1,
+  "crosscheckBlocks": 276959557,
+  "crosscheckMismatches": 0
+ },
+ "complete": true,
+ "overlaps": [],
+ "invalid": [],
+ "toolRc": 0,
+ "interpretation": [
+  "overlap = blocks marked ALLOCATED in the CURRENT block bitmap of this read-only view",
+  "any overlap disproves an untouched full recovery from this extent map as-is",
+  "allocated now is NOT proof of overwritten bytes: that needs reading and comparing the actual bytes",
+  "no overlap is NOT proof of intact bytes: transient reuse after the deletion (bitmap history) is a separate gate",
+  "the extent map itself is an UNAUTHENTICATED reconstruction (its 'authentication' field is carried verbatim)"
+ ]
+}

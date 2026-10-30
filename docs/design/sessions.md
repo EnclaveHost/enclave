@@ -1,5 +1,15 @@
 # Sessions for enclave.host: design spec
 
+## Wallet ownership migration status — October 29, 2026 (America/Phoenix)
+
+The required behavior now supersedes the historical custody choice below: session-created deployments must belong to the controlling wallet, with sessions holding scoped permissions only. The existing immutable v2 vault still creates and funds records under its own address. Production migration controls are deployed, but prepared reviews are not completed transfers; no migration signature or ownership change has yet been confirmed in this rollout.
+
+An additive wallet-owned creation candidate is preserved in [the complete source delivery](../../ops/unified-funding-20261028/wallet-owned-session-create-delivery-r1/ROOT-PRESERVATION.md). It is **not deployed or qualified**. The first [root consumer run](../../ops/unified-funding-20261028/wallet-owned-create-root-tests-r1/ROOT-REVIEW.md) passed seven authored cases and failed three added policy-discovery/chain-identity cases. SDK/open and host startup wiring remain incomplete. Factory configuration alone does not prove a row has no policy; missing configuration must not bypass content authorization. A [bounded product-only compile](../../ops/unified-funding-20261028/wallet-owned-session-product-compile-r1/ROOT-RESULT.md) now passes: executor runtime 22,039 bytes, factory 2,622 bytes and shared library 10,681 bytes, all within ordinary runtime and initcode limits. This run executed no contract tests. Exact deployed-ledger tests and final secret-release policy checks remain required.
+
+New-version grants, delegation and budgets cannot be inferred from old ones. The candidate does not migrate existing funded DNS/KVM escrow or gas reserve ownership. Their [immutable-contract limits](../../ops/unified-funding-20261028/wallet-migration-next-paths-r1/peer-REVIEW.md) remain; refunding and funding again does not preserve their accounting and runtime backing.
+
+## Historical implementation
+
 Status: **implemented** (sessions/spec branch). Decisions D1-D8 were taken as recommended below, and §15 records where the build deviates from this text. §16 adds delegated access to the deployments the owner's wallet holds (ledger rev 15d + vault v2, live on Base since 2026-10-07); it supersedes D2's "sessions can't control wallet-owned deployments".
 Branch: `sessions/spec`, cut from main 405133117.
 Live chain state in §1 was read on 2026-10-06. The ledger has moved since (§16.4).
@@ -891,3 +901,21 @@ The delegate is the owner's vault at the **v2** factory, `factory.vaultFor(owner
 - **Mitigations.** Give `prod` only to sessions that need it, with only the actions they need, a small budget and a short expiry. The grant page and the CLI warn on `prod`. One wallet transaction (Revoke) cuts every session off the wallet's apps; `Terminate` or `RevokeAll` ends the sessions themselves. Every operation is listed on `/sessions` with its transaction.
 - **Agents on `staging-publish` are unaffected.** It has no `prod`, so the delegation never reaches it. That is the CLI's agent preset. The MCP server's `session_request` defaults to a preset it calls `agent`: the browser policy without `api.account` and `api.appAccess` (every deployment action, `*` apps, staging and prod; a leaked agent key can't sign in as the owner or open their private apps) with a $20 budget for 7 days, which the delegation does reach.
 - **Several sessions, one grant.** The delegation is per vault, not per session, so it covers every present and future session of that vault that holds `prod`. A session's own grant is what narrows it.
+
+
+### October 30: wallet ownership migration controls deployed
+
+The production Sessions page now offers **Move to wallet** for legacy vault-held deployments. It fixes the destination to the verified controlling wallet and checks ownership, backing, gas reserve, custody policy and complete session/delegate history before signing. One release is journaled before signing and dispatch; ambiguous submissions are reconciled without automatic replay. The site was deployed on all four edges with 424 HTTPS content checks. See the [release evidence](../../ops/unified-funding-20261028/wallet-release-site-production-r2/ROOT-REVIEW.md).
+
+Deployment of these controls is not a completed ownership migration. The two inactive, unleased staging records are initial candidates; funded escrow and production custody barriers remain. No refund, redeployment, promotion or serving-app interruption is implicit in Move to wallet. Automatic USDC-to-gas refill remains unfinished.
+
+For the current rev16d deployment, the historical “refund first” instruction above does **not** preserve a funded app: refund zeroes its runtime balance and deactivates it, while possible runner liabilities remain. DNS and KVM currently fail the transfer escrow gate. The deployed ledger has no ownership-transfer operation that retains all backing and refund rights, and the gas reserve has no owner-bucket reassignment that preserves spending and claim counters. A new frontend or helper cannot add those capabilities to the immutable addresses. See the [funded migration review](../../ops/unified-funding-20261028/wallet-migration-next-paths-r1/peer-REVIEW.md).
+
+An inactive PROD app with clear escrow and empty gas reserves has a different path: its owner can explicitly approve the exact current content and elect wallet-controlled content policy. Existing Promote can bind that content approval; Release is a separate operation and does not bind content. This extension is now deployed on all four edges; its qualification and production evidence are recorded below. Catalog publisher transfer is also separate from deployment transfer: the existing admin form can move a catalog lineage without moving deployment balances or ownership. No such transfer has been submitted in this review.
+
+
+## October30: PROD wallet-release qualification
+
+Explicit owner content approval and separate fresh release passed60 local checks, plus an inert browser flow with real IndexedDB and shipped SDK. Activated on all four edges. Failures and repaired source are preserved in the [root review](../../ops/unified-funding-20261028/wallet-release-prod-review-r1/ROOT-REVIEW.md). No app ownership changed. Funded DNS/KVM escrow/reserve migration remains blocked; legacy sessions and manual gas funding unchanged.
+
+Production update now LIVE on all four edges: CID `bafybeidaz3h2x64fipdqrrcsazr6h5y5vghhvat7v5u5yzolfeqaknsy4i`,1410 files,348 HTTPS content checks. Prior1329 assets preserved; only boot replaced plus80 additions. Eligible PROD records now support owner-elected current-content promotion and separately reviewed release. No ownership transfer has yet been observed; DNS/KVM remain blocked by economic preservation constraints. No backend restart.

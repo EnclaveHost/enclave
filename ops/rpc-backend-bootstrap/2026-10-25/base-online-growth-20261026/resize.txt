@@ -1,0 +1,4 @@
+Filesystem at /dev/sdc is mounted on /srv/enclave-base-holder; on-line resizing required
+old_desc_blocks = 361, new_desc_blocks = 466
+The filesystem on /dev/sdc is now 976562500 (4k) blocks long.
+

@@ -1,0 +1,9 @@
+{
+  "exitCode": 99,
+  "outcome": "guard stopped compiler before tests",
+  "outerCapMiB": 256,
+  "observedPeakTreeRssMiB": 259,
+  "minAvailableMiB": 33903,
+  "source": "author draft plus four root reserve regressions, before reserve fix",
+  "qualification": "no test result"
+}

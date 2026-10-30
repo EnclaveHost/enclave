@@ -1,0 +1,12 @@
+tx-root-check-removed
+ancestry-hash-ignored
+receipts-root-unverified
+consumed-offchain-hint-accepted-as-none
+journal-gap-at-proven-nonce-ignored
+nonce-consumed-reported-as-success
+foreign-pending-gate-removed
+pending-costs-not-committed
+duplicate-call-signed-again
+backend-binding-hash-ignored
+journal-load-gap-accepted
+lost-bytes-not-rebroadcast

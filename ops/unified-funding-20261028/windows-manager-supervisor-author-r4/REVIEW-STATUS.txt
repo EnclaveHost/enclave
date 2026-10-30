@@ -1,0 +1,7 @@
+PREPARED ONLY, NOT LAUNCHED; root exacttask/runner/pins review required.
+Seed exactfrozen152,0preauthorproductchanges; mergedrouter/protectedroutes retained.
+Original80suite78PASS2FAIL; externalfixture-only correction41PASS gives79/80distinctpassing. Rootpolicy: stale lowersequence is refused without killing validnewerpermit; no deadlineextension; actualexpiry/revocation/Stop withdraw. Replace obsolete test with invariance+expiry assertions, preservehistoricalfailure.
+Additionalroot4FAIL:3scriptedcontrolresponse reconciliation failures +1actualMAC/TCP DELETE journalfailure bypassingclose. No duplicateVM demonstrated. Root priorrace/holdtests pass.
+Priority actualhost/supervisor consumption, general/native startupcomposition and positive direct/composite tests first; fullworkloads/genuineauthority/platform/closure stillrequired.
+No remoteWindowsJob/EXLOCKqualification approved; separateproposal notpartofauthor. SameMaxRead/Grep/Write55turn1800/2100sec1536/1408floor27648CPU1noSwap.
+Root strongerreplaypolicy PASS1 actualMAC/TCP/guard,3s expiry/removal confirmed. Four additional root client/Stop failures remain. No productedit for replaypolicy justified by oldexpectation.

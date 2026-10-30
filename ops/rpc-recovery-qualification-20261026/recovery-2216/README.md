@@ -1,0 +1,9 @@
+# Deleted Base database recovery: bounded probe, 2026-10-26 22:16 UTC
+
+The exact-version MDBX checker opened the reconstructed read-only database and began B-tree traversal at transaction 51691982. The bounded probe timed out after 1800.1 seconds. **Integrity is inconclusive: neither corruption nor recovery success is established.** All owned processes exited, both temporary mounts were removed, the disposable overlay was deleted, and original-image identity remained unchanged. No production boot, download restart or original-image write occurred.
+
+Independent review found that helper r5 could reuse cached trie hashes and falsely imply full state validation. Prepared r6 instead requires a root computed from hashed account/storage leaves without cached trie nodes, cache verification, coherent checkpoints and plain/hashed consistency. New fixtures deliberately corrupt hashed and plain values while retaining the old cache. **r6 has not compiled or run; it is source preparation, not qualification.** Canonical-header anchoring remains separate. The report's sentence asking separate authorization for real read-only checks is not applicable: those checks are already authorized. Writes, download resumption and production VM boot remain paused.
+
+The queued r5 build stopped before compilation because its shell comparison did not remove trailing findmnt whitespace. The actual device identity was correct. A narrow parser correction is in progress. With about 59 GiB currently free on /vm, the independent 64 GiB build admission threshold would also prevent building. No threshold was lowered and no large build allocation occurred.
+
+Recovering the candidate onto NVMe would need about 1.16 TB of free capacity. The original USB image remains essential: an allocated-file backup does not preserve these deleted database blocks. The preserved partial download and 115 archives remain fallback assets, not completed extraction or chain synchronization.

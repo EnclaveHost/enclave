@@ -1,0 +1,1 @@
+hook-selftest: 5 real pushes through an absolute core.hooksPath, no temporary file left behind; a missing scanner refuses in both hooks; the scanner beside the hook or in the worktree suffices; an unloadable config falls back to the hook's own, and the crypto scanner refuses a generated key whatever the config

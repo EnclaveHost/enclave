@@ -1,0 +1,5 @@
+# Independent RAID-owner preview finding, pending final-source test
+
+The RAID repair owner identified a restart gap in current r2: existing committed parts from a killed session without session confirmation keep their original unconfirmed source binding. A later independent successful verify in a confirmed session cannot make them count because status exits early on the old commit binding before examining fresh verification receipts. This is conservative, but could strand a partially completed large preservation run.
+
+Require an actual unclean-session fixture (not only graceful cancellation) and a safe fresh-source revalidation path. Preserve historical records. A fresh confirmed source/destination byte-for-byte comparison tied to the exact current destination identity and manifest may establish current preservation evidence; do not accept old hashes or simply relabel an unconfirmed session as confirmed. No real copy should start before the operational resume path is tested or explicitly resolved.

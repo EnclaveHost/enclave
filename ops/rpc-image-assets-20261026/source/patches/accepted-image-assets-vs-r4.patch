@@ -1,0 +1,375 @@
+diff --git a/metal/derived-reader-config.v3.json b/metal/derived-reader-config.v3.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..43de5a384d39fdec726664158fbcd1bddf08ca95
+--- /dev/null
++++ b/metal/derived-reader-config.v3.json
+@@ -0,0 +1,38 @@
++{
++  "stateDir": "/run/measured-control/platform-api/derived-reader-v3",
++  "initializeState": false,
++  "apiPort": 18760,
++  "native": {
++    "path": "/opt/enclave/bin/derivation_harness_lease_v3",
++    "sha256": "49f4d7e3e70e48f7374b0e12b3d300978062cce19cbd75552065f918173a76fa",
++    "resultVersion": 3,
++    "runtime": {
++      "dir": "/opt/enclave/glibc",
++      "build": "arch glibc 2.44+r50+g1848099f063e-1, gcc-libs 16.2.1+r23+gd564253eb6c8-1 (the build host of the pinned binaries)"
++    }
++  },
++  "l1": {
++    "port": 18761,
++    "binary": {
++      "path": "/opt/enclave/bin/helios",
++      "sha256": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0"
++    },
++    "runtime": {
++      "dir": "/opt/enclave/glibc",
++      "build": "arch glibc 2.44+r50+g1848099f063e-1, gcc-libs 16.2.1+r23+gd564253eb6c8-1 (the build host of the pinned binaries)"
++    },
++    "checkpointFile": "/opt/enclave/policy/checkpoint.json",
++    "consensusUrl": "http://127.0.0.1:5052",
++    "executionUrl": "http://127.0.0.1:8545",
++    "readyTimeoutMs": 120000,
++    "requestTimeoutMs": 20000
++  },
++  "baseUrl": "http://127.0.0.1:18545",
++  "maxBlocks": 1800,
++  "intermediateBlockInterval": 1,
++  "maxAnchorAgeSec": 1800,
++  "nativeTimeoutMs": 180000,
++  "maxMemoryMiB": 1536,
++  "maxWitnessBytes": 67108864,
++  "historyMaximumBytes": 4294967296
++}
+diff --git a/metal/derived-reader-image.json b/metal/derived-reader-image.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..091eaf1ed607678f26ecdf21a41764a04f56c0b4
+--- /dev/null
++++ b/metal/derived-reader-image.json
+@@ -0,0 +1,49 @@
++{
++ "format": "enclave-derived-reader-image/v1",
++ "binaries": {
++  "native": {
++   "path": "/opt/enclave/bin/derivation_harness_lease_v3",
++   "sha256": "49f4d7e3e70e48f7374b0e12b3d300978062cce19cbd75552065f918173a76fa"
++  },
++  "l1": {
++   "path": "/opt/enclave/bin/helios",
++   "sha256": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0"
++  }
++ },
++ "files": {
++  "checkpoint": {
++   "path": "/opt/enclave/policy/checkpoint.json",
++   "sha256": "2e8502e68864abb49a230a69612bd7c98c94775d8dd81f956a0185d53652ac33"
++  }
++ },
++ "config": {
++  "path": "/opt/enclave/policy/derived-reader-v3.json",
++  "source": "metal/derived-reader-config.v3.json",
++  "sha256": "8077b3c7ba193b9900965451c2470590426dc7e34e21bf63f6b278548be16cdb"
++ },
++ "glibcRuntime": {
++  "dir": "/opt/enclave/glibc",
++  "build": "arch glibc 2.44+r50+g1848099f063e-1, gcc-libs 16.2.1+r23+gd564253eb6c8-1 (the build host of the pinned binaries)",
++  "files": {
++   "ld-linux-x86-64.so.2": "f5e11cc62f8f2c24dff532982559f4303dba3b17e7450551372a88c8e7ea8757",
++   "libc.so.6": "02c8c3d06180beee9c7d0392aa85736c7d19f274a81e7f8f0b3d9e28e0641524",
++   "libm.so.6": "965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d",
++   "libgcc_s.so.1": "e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a"
++  }
++ },
++ "private": {
++  "stateDir": "/run/measured-control/platform-api/derived-reader-v3",
++  "note": "NOT in the image: the reader's state, coverage store and journal live only in the guest's encrypted RAM state directory (created 0700 by the reader). The image carries no state and no secret; nothing is passed through from the host."
++ },
++ "relayEnv": {
++  "ENCLAVE_WRITER_AUTHORITY_SOURCE": "derived",
++  "ENCLAVE_DERIVED_READER_CONFIG": "/opt/enclave/policy/derived-reader-v3.json",
++  "ENCLAVE_DERIVED_ANCHOR_JOURNAL": "/run/measured-control/platform-api/derived-reader-v3/anchor-journal.json"
++ },
++ "provenance": {
++  "native": "derivation_harness_lease_v3 49f4d7e3: root native v3 r2 build (14/14 Rust tests; source+receipts committed 8594bc1ee); network/derived-reader/native.mjs DERIVATION_V3_BUILDS. Not SNP/accepted-image qualified.",
++  "l1": "helios-eeffcc9 ethereum mode cc962e2b: network/derived-reader/l1-runtime.mjs L1_BUILDS (a different build from the chain verifier's 8250f08a, which stays in metal/chain-verifier-image.json).",
++  "checkpoint": "network/derived-reader/l1-runtime.mjs CHECKPOINT_RECORDS 2e8502e6 (mainnet slot 15511008, five-source); readCheckpoint refuses it 7 days after the slot (about 2026-11-01): rotation is a reviewed source change.",
++  "glibcRuntime": "network/rpc-runtime.mjs PINNED_GLIBC_RUNTIMES (the same four files the chain verifier uses; the guest base is Debian 12 glibc 2.36)"
++ }
++}
+diff --git a/metal/overlay-control-image.py b/metal/overlay-control-image.py
+index a7c41de85f684f26f36c0a7782194defe757058e..c1cf9bc5b684b73ca6c6aaad6cc90e63fbeb3c9b 100644
+--- a/metal/overlay-control-image.py
++++ b/metal/overlay-control-image.py
+@@ -1,6 +1,7 @@
+ #!/usr/bin/env python3
+ """Stage a measured control runtime from committed files over a verified base image.
+-Usage: overlay-control-image.py [--control direct] [--chain-verifier-dir DIR] BASE OUT COMMIT. Never modifies BASE or starts a VM.
++Usage: overlay-control-image.py [--control direct] [--chain-verifier-dir DIR] [--derived-reader-dir DIR] BASE OUT COMMIT.
++Never modifies BASE or starts a VM.
+ Preserves untouched cpio entries, adds missing directories, and records exact inputs.
+ --control direct makes the MEASURED independent control image (docs/network/measured-control-guest.md) over a verified
+ snp-guest-per-app base, as build-image.mjs --control direct does, keeping the base's kernel and modules: it installs the
+@@ -14,6 +15,13 @@ the witness helper and the glibc runtime two of them run through), taken from --
+ unless each one's sha256 is the pinned one. Without --chain-verifier-dir such a commit's image carries the JavaScript but
+ no IMAGE.json and no native file (recorded as chainVerifier.installed false): an operator's opt-in then REFUSES in the guest
+ (every verified read refuses), never runs an unpinned verifier and never falls back to providers.
++--derived-reader-dir DIR (control images only): the lease writer's derived reader assets pinned by the committed record
++metal/derived-reader-image.json - the native v3 derivation binary, the reader's L1 Helios, the reviewed L1 checkpoint, the
++glibc runtime both run through, and the committed reviewed reader config - under /opt/enclave, read-only, taken from DIR by
++name and refused unless each sha256 is the pinned one (the config is the commit's own file, never DIR's). The record itself
++is installed as /opt/enclave/DERIVED-READER-IMAGE.json. Nothing PRIVATE is ever in the image: the reader's state and journal
++live only in the guest's RAM state directory (/run/measured-control/platform-api/...). Without the flag a control image
++records derivedReader.installed false and the relay's derived writer refuses in the guest (no native assets, no fallback).
+ """
+ import gzip, hashlib, io, json, posixpath, re, shutil, stat, subprocess, sys
+ from pathlib import Path
+@@ -41,6 +49,10 @@ OPTIONAL_GUEST_FILES = ['measured-control.mjs', 'lease-gas-conduit.bundle.mjs',
+ # the chain verifier's runtime entry (its whole local import closure is installed with it) and its committed pin record
+ CHAIN_VERIFIER_ROOTS = ['network/rpc-runtime-main.mjs']
+ CHAIN_VERIFIER_PINS = 'metal/chain-verifier-image.json'
++# the lease writer's derived reader assets (control images only) and the reviewed public reader config they run with
++DERIVED_READER_PINS = 'metal/derived-reader-image.json'
++DERIVED_READER_PREFIXES = ('/opt/enclave/bin/', '/opt/enclave/policy/', '/opt/enclave/glibc/')
++SECRETISH = re.compile(r'(secret|token|password|passwd|private|mnemonic|seed|apikey|api_key|hmac|credential|key$|keyfile)', re.I)
+ 
+ _MODES = {}
+ def committed(commit, repo, rel):
+@@ -303,7 +315,66 @@ def chain_verifier_files(commit, repo, vdir):
+     record.append({'path': '/opt/rpc-runtime/IMAGE.json', 'sha256': sha(pins_bytes), 'source': CHAIN_VERIFIER_PINS})
+     return files, modes, {'pins': CHAIN_VERIFIER_PINS, 'pinsSha256': sha(pins_bytes), 'files': record}
+ 
+-def overlay(base, out, commit, repo, control='', chain_verifier_dir=None):
++def derived_reader_install(pins_bytes, config_bytes, vdir):
++    """Pure: -> ({image path: bytes}, {image path: mode}, record). The record must be the reviewed shape; the committed config
++    must hash to its pin and AGREE with it (same binaries, digests, checkpoint, glibc build, a RAM state directory outside
++    the image, no secret-shaped field); every native input comes from vdir by name at its pinned sha256."""
++    pins = json.loads(pins_bytes)
++    if set(pins) != {'format', 'binaries', 'files', 'config', 'glibcRuntime', 'private', 'relayEnv', 'provenance'} or \
++            pins['format'] != 'enclave-derived-reader-image/v1' or set(pins['binaries']) != {'native', 'l1'} or set(pins['files']) != {'checkpoint'}:
++        raise ValueError(DERIVED_READER_PINS+' is not the reviewed enclave-derived-reader-image/v1 shape')
++    if sha(config_bytes) != pins['config']['sha256']:
++        raise ValueError('the committed reader config does not match its pin in '+DERIVED_READER_PINS)
++    cfg = json.loads(config_bytes)
++    def scan(o, where):
++        if isinstance(o, dict):
++            for k, v in o.items():
++                if SECRETISH.search(k):
++                    raise ValueError('the reader config has a secret-shaped field '+where+'.'+k+': secrets never go into the image')
++                scan(v, where+'.'+k)
++    scan(cfg, 'config')
++    g, b = pins['glibcRuntime'], pins['binaries']
++    agree = [(cfg['native']['path'], b['native']['path']), (cfg['native']['sha256'], b['native']['sha256']),
++             (cfg['l1']['binary']['path'], b['l1']['path']), (cfg['l1']['binary']['sha256'], b['l1']['sha256']),
++             (cfg['l1']['checkpointFile'], pins['files']['checkpoint']['path']),
++             (cfg['native'].get('runtime'), {'dir': g['dir'], 'build': g['build']}), (cfg['l1'].get('runtime'), {'dir': g['dir'], 'build': g['build']}),
++             (cfg['stateDir'], pins['private']['stateDir']), (pins['relayEnv'].get('ENCLAVE_DERIVED_READER_CONFIG'), pins['config']['path'])]
++    if any(a != c for a, c in agree):
++        raise ValueError('the reader config and '+DERIVED_READER_PINS+' disagree')
++    if not cfg['stateDir'].startswith('/run/') or cfg.get('initializeState') is not False:
++        raise ValueError('the reader state must be a guest RAM directory (never in the image) and never auto-initialized')
++    wanted = [(v['path'], v['sha256'], 0o100555) for v in b.values()] + [(pins['files']['checkpoint']['path'], pins['files']['checkpoint']['sha256'], 0o100444)]
++    wanted += [(g['dir'].rstrip('/')+'/'+n, d, 0o100555 if n.startswith('ld-linux') else 0o100444) for n, d in g['files'].items()]
++    files, modes, record = {}, {}, []
++    for target, digest, mode in wanted + [(pins['config']['path'], pins['config']['sha256'], 0o100444)]:
++        if not target.startswith(DERIVED_READER_PREFIXES) or '..' in target.split('/') or '//' in target:
++            raise ValueError('a derived reader file must live under /opt/enclave/{bin,policy,glibc}: '+target)
++    for target, digest, mode in wanted:
++        source = Path(vdir)/posixpath.basename(target)
++        data = source.read_bytes()
++        if sha(data) != digest:
++            raise ValueError('derived reader input '+str(source)+' has sha256 '+sha(data)+', not the pinned '+digest)
++        files[target.lstrip('/')], modes[target.lstrip('/')] = data, mode
++        record.append({'path': target, 'sha256': digest, 'bytes': len(data), 'mode': oct(mode & 0o777)})
++    cp = pins['config']['path'].lstrip('/')
++    files[cp], modes[cp] = config_bytes, 0o100444
++    record.append({'path': pins['config']['path'], 'sha256': sha(config_bytes), 'source': pins['config']['source']})
++    files['opt/enclave/DERIVED-READER-IMAGE.json'], modes['opt/enclave/DERIVED-READER-IMAGE.json'] = pins_bytes, 0o100444
++    record.append({'path': '/opt/enclave/DERIVED-READER-IMAGE.json', 'sha256': sha(pins_bytes), 'source': DERIVED_READER_PINS})
++    return files, modes, {'pins': DERIVED_READER_PINS, 'pinsSha256': sha(pins_bytes), 'files': record,
++                          'privateStateDir': pins['private']['stateDir'], 'relayEnv': pins['relayEnv']}
++
++def derived_reader_files(commit, repo, vdir):
++    pins_bytes = committed(commit, repo, DERIVED_READER_PINS)
++    if pins_bytes is None:
++        raise ValueError('--derived-reader-dir given, but the commit has no '+DERIVED_READER_PINS)
++    src = json.loads(pins_bytes).get('config', {}).get('source')
++    config_bytes = committed(commit, repo, src) if isinstance(src, str) else None
++    if config_bytes is None:
++        raise ValueError('the commit has no reviewed reader config '+str(src))
++    return derived_reader_install(pins_bytes, config_bytes, vdir)
++
++def overlay(base, out, commit, repo, control='', chain_verifier_dir=None, derived_reader_dir=None):
+     if control not in ('', 'direct'):
+         raise ValueError('--control must be direct')
+     if out.exists():
+@@ -340,6 +411,20 @@ def overlay(base, out, commit, repo, control='', chain_verifier_dir=None):
+             verifier_record = {'installed': False, 'reason': 'no --chain-verifier-dir: JavaScript only; an opt-in refuses in the guest'}
+     elif chain_verifier_dir:
+         raise ValueError('--chain-verifier-dir given, but the commit\'s gsup.mjs does not launch the chain verifier')
++    reader_record = None
++    if derived_reader_dir and not control:
++        raise ValueError('--derived-reader-dir is for control images (the platform API relay runs the reader): add --control direct')
++    if control:
++        if derived_reader_dir:
++            rnative, rmodes, reader_record = derived_reader_files(commit, repo, derived_reader_dir)
++            reader_record['installed'] = True
++            for k, v in rnative.items():
++                if k in native:
++                    raise ValueError('a derived reader file would replace a chain verifier file: '+k)
++                native[k] = v
++            modes.update(rmodes)
++        else:
++            reader_record = {'installed': False, 'reason': 'no --derived-reader-dir: the derived writer refuses in the guest (no native assets)'}
+     if control:
+         if 'opt/metal/measured-control.mjs' not in paths:
+             raise ValueError('the commit\'s gsup.mjs runs no measured control (metal/guest/measured-control.mjs)')
+@@ -351,7 +436,7 @@ def overlay(base, out, commit, repo, control='', chain_verifier_dir=None):
+     replacements = {k: committed(commit, repo, v) for k,v in paths.items()}
+     for k, v in native.items():
+         if k in replacements:
+-            raise ValueError('a chain verifier file would replace a committed one: '+k)
++            raise ValueError('a pinned native file would replace a committed one: '+k)
+         replacements[k] = v
+     m.pop('expectedMeasurement', None)
+     m.pop('initramfs', None)
+@@ -360,9 +445,11 @@ def overlay(base, out, commit, repo, control='', chain_verifier_dir=None):
+         m.setdefault('controlOverlayHistory', []).append(previous)
+     m['controlOverlay'] = {'baseInitramfsSha256': base_sha, 'commit': commit,
+         'builder': 'metal/overlay-control-image.py', 'builderSha256': file_sha(Path(__file__)),
+-        'files': [{'path': '/'+k, 'source': paths.get(k, 'chain-verifier pin'), 'sha256': sha(v)} for k,v in replacements.items()]}
++        'files': [{'path': '/'+k, 'source': paths.get(k, 'pinned native input'), 'sha256': sha(v)} for k,v in replacements.items()]}
+     if verifier_record:
+         m['controlOverlay']['chainVerifier'] = verifier_record
++    if reader_record:
++        m['controlOverlay']['derivedReader'] = reader_record
+     if control:
+         # the same records build-image.mjs --control direct writes; the kernel and modules stay the base's (m['kernel'])
+         m['control'], m['platformApiBundle'], m['mcpBundle'], m['cmdlineTemplate'] = control, pa_record, mcp_record, cmdline[0]
+@@ -452,17 +539,19 @@ def overlay(base, out, commit, repo, control='', chain_verifier_dir=None):
+     return m
+ 
+ if __name__ == '__main__':
+-    args, control, verifier_dir = sys.argv[1:], '', None
++    args, control, verifier_dir, reader_dir = sys.argv[1:], '', None, None
+     if args[:1] == ['--control']:
+         control, args = (args[1] if len(args) > 1 else ''), args[2:]
+         if control != 'direct':
+             raise SystemExit('--control must be direct')
+     if args[:1] == ['--chain-verifier-dir']:
+         verifier_dir, args = (args[1] if len(args) > 1 else ''), args[2:]
++    if args[:1] == ['--derived-reader-dir']:
++        reader_dir, args = (args[1] if len(args) > 1 else ''), args[2:]
+     if len(args) != 3:
+         raise SystemExit(__doc__)
+     try:
+-        result = overlay(Path(args[0]), Path(args[1]), args[2], Path(__file__).resolve().parent.parent, control, verifier_dir)
++        result = overlay(Path(args[0]), Path(args[1]), args[2], Path(__file__).resolve().parent.parent, control, verifier_dir, reader_dir)
+         print(json.dumps(result['initramfs']))
+     except (ValueError, OSError, subprocess.CalledProcessError) as e:
+         raise SystemExit(str(e))
+diff --git a/test/metal-control-overlay.test.py b/test/metal-control-overlay.test.py
+index ca7adf93fd561bbcafb692dfe05e7a68eb2136ac..6cb39b4bcfa6fbd17f905b047a9fbb3e716a63d5 100644
+--- a/test/metal-control-overlay.test.py
++++ b/test/metal-control-overlay.test.py
+@@ -301,4 +301,100 @@ class ChainVerifierOverlay(ControlOverlay):
+ for _n in [n for n in vars(ControlOverlay) if n.startswith('test_')]:
+     setattr(ChainVerifierOverlay, _n, None)
+ 
++READER_INPUTS=os.environ.get('DERIVED_READER_INPUTS')
++class DerivedReaderOverlay(ControlOverlay):
++    """The lease writer's derived reader assets (metal/derived-reader-image.json): control images only, every native input from
++    --derived-reader-dir at its pinned digest, the commit's own reviewed config, read-only modes under /opt/enclave, and nothing
++    private (state/journal) in the image."""
++    def committed_pins(self):return json.loads(mod.committed(COMMIT,REPO,mod.DERIVED_READER_PINS))
++    def fixture(self,mutate_pins=None,mutate_cfg=None):
++        d=self.root/'reader-inputs';d.mkdir(exist_ok=True)
++        names=['derivation_harness_lease_v3','helios','checkpoint.json','ld-linux-x86-64.so.2','libc.so.6','libm.so.6','libgcc_s.so.1']
++        dig={}
++        for n in names:(d/n).write_bytes(('fixture '+n).encode());dig[n]=mod.sha((d/n).read_bytes())
++        pins=json.loads(json.dumps(self.committed_pins()))
++        pins['binaries']['native']['sha256'],pins['binaries']['l1']['sha256']=dig['derivation_harness_lease_v3'],dig['helios']
++        pins['files']['checkpoint']['sha256']=dig['checkpoint.json']
++        pins['glibcRuntime']['files']={n:dig[n] for n in names[3:]}
++        cfg=json.loads(mod.committed(COMMIT,REPO,pins['config']['source']))
++        cfg['native']['sha256'],cfg['l1']['binary']['sha256']=dig['derivation_harness_lease_v3'],dig['helios']
++        if mutate_cfg:mutate_cfg(cfg)
++        cb=(json.dumps(cfg,indent=2)+'\n').encode();pins['config']['sha256']=mod.sha(cb)
++        if mutate_pins:mutate_pins(pins)
++        return (json.dumps(pins,indent=1)+'\n').encode(),cb,d
++    def test_committed_record_and_config_agree_and_hold_no_private_data(self):
++        p=self.committed_pins();cb=mod.committed(COMMIT,REPO,p['config']['source']);cfg=json.loads(cb)
++        self.assertEqual(mod.sha(cb),p['config']['sha256'])
++        self.assertEqual((p['binaries']['native']['sha256'],p['binaries']['l1']['sha256'],p['files']['checkpoint']['sha256']),
++            ('49f4d7e3e70e48f7374b0e12b3d300978062cce19cbd75552065f918173a76fa','cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0',
++             '2e8502e68864abb49a230a69612bd7c98c94775d8dd81f956a0185d53652ac33'))
++        self.assertTrue(cfg['stateDir'].startswith('/run/measured-control/platform-api/') and cfg['initializeState'] is False)
++        self.assertNotIn(p['private']['stateDir'],[v['path'] for v in [*p['binaries'].values(),*p['files'].values()]])
++        self.assertEqual(p['relayEnv']['ENCLAVE_DERIVED_READER_CONFIG'],p['config']['path'])
++        self.assertTrue(p['relayEnv']['ENCLAVE_DERIVED_ANCHOR_JOURNAL'].startswith(p['private']['stateDir']+'/'))
++        # the reviewed source pins (KVM's committed reader and the RPC runtime) are what the image record pins
++        src=lambda f:mod.committed(COMMIT,REPO,f).decode()
++        self.assertIn(p['binaries']['native']['sha256'],src('network/derived-reader/native.mjs'))
++        l1=src('network/derived-reader/l1-runtime.mjs')
++        self.assertIn(p['binaries']['l1']['sha256'],l1);self.assertIn(p['files']['checkpoint']['sha256'],l1)
++        rt=src('network/rpc-runtime.mjs');self.assertIn(p['glibcRuntime']['build'],rt)
++        for n,dg in p['glibcRuntime']['files'].items():self.assertIn(dg,rt)
++        pb,cb2,d=self.fixture();files,modes,rec=mod.derived_reader_install(pb,cb2,d);self.assertEqual(len(rec['files']),2+1+4+1+1)
++    def test_installer_places_pinned_files_read_only_under_opt_enclave(self):
++        pb,cb,d=self.fixture();files,modes,rec=mod.derived_reader_install(pb,cb,d);p=json.loads(pb)
++        self.assertEqual(modes['opt/enclave/bin/derivation_harness_lease_v3'],0o100555);self.assertEqual(modes['opt/enclave/bin/helios'],0o100555)
++        self.assertEqual(modes['opt/enclave/policy/checkpoint.json'],0o100444);self.assertEqual(modes['opt/enclave/glibc/ld-linux-x86-64.so.2'],0o100555)
++        self.assertEqual(modes['opt/enclave/glibc/libc.so.6'],0o100444)
++        self.assertEqual(files['opt/enclave/policy/derived-reader-v3.json'],cb);self.assertEqual(modes['opt/enclave/policy/derived-reader-v3.json'],0o100444)
++        self.assertEqual(files['opt/enclave/DERIVED-READER-IMAGE.json'],pb)
++        self.assertTrue(all(k.startswith('opt/enclave/') for k in files))
++        self.assertFalse(any(k.startswith(p['private']['stateDir'].lstrip('/')) for k in files),'no state or journal in the image')
++    def test_installer_refusals(self):
++        cases=[(dict(),'not the pinned',lambda d:(d/'helios').write_bytes(b'other bytes')),
++               (dict(mutate_pins=lambda p:p['binaries']['native'].update(path='/usr/local/bin/x')),'disagree',None),
++               (dict(mutate_pins=lambda p:(p['binaries']['native'].update(path='/opt/enclave/bin/../../etc/x'))),'disagree',None),
++               (dict(mutate_pins=lambda p:p['config'].update(sha256='0'*64)),'does not match its pin',None),
++               (dict(mutate_cfg=lambda c:c.update(stateDir='/opt/enclave/state')),'disagree',None),
++               (dict(mutate_cfg=lambda c:c.update(initializeState=True),mutate_pins=None),'never auto-initialized',None),
++               (dict(mutate_cfg=lambda c:c['l1'].update(apiToken='x')),'secret-shaped',None),
++               (dict(mutate_cfg=lambda c:c['native'].update(sha256='1'*64)),'disagree',None),
++               (dict(mutate_pins=lambda p:p.update(hostPassThrough='/home')),'reviewed enclave-derived-reader-image/v1 shape',None),
++               # consistent pins AND config that still break a rule: a path outside /opt/enclave, state outside the RAM fs
++               (dict(mutate_pins=lambda p:p['binaries']['native'].update(path='/usr/local/bin/x'),
++                     mutate_cfg=lambda c:c['native'].update(path='/usr/local/bin/x')),'must live under /opt/enclave',None),
++               (dict(mutate_pins=lambda p:p['private'].update(stateDir='/opt/enclave/state'),
++                     mutate_cfg=lambda c:c.update(stateDir='/opt/enclave/state')),'guest RAM directory',None)]
++        for kw,needle,after in cases:
++            pb,cb,d=self.fixture(**kw)
++            if after:after(d)
++            with self.assertRaisesRegex(ValueError,needle,msg=str(kw)):mod.derived_reader_install(pb,cb,d)
++        pb,cb,d=self.fixture();(d/'checkpoint.json').unlink()
++        with self.assertRaises(OSError):mod.derived_reader_install(pb,cb,d)
++    def test_control_image_without_inputs_records_absent_and_plain_images_refuse_the_flag(self):
++        self.direct_base();out=self.root/'out';m=mod.overlay(self.base,out,COMMIT,REPO,'direct');after=self.read(out)
++        self.assertFalse(any(k.startswith('opt/enclave') for k in after))
++        self.assertEqual(m['controlOverlay']['derivedReader']['installed'],False)
++        self.base_image();out2=self.root/'out2'
++        with self.assertRaisesRegex(ValueError,'control images'):mod.overlay(self.base,out2,COMMIT,REPO,derived_reader_dir=str(self.root))
++        self.assertFalse(out2.exists())
++    @unittest.skipUnless(READER_INPUTS,'DERIVED_READER_INPUTS not set')
++    def test_with_real_inputs_every_pinned_file_is_installed_in_the_control_image(self):
++        self.direct_base();out=self.root/'out';m=mod.overlay(self.base,out,COMMIT,REPO,'direct',derived_reader_dir=READER_INPUTS);after=self.read(out)
++        p=self.committed_pins()
++        for v in [*p['binaries'].values(),p['files']['checkpoint']]:
++            self.assertEqual(mod.sha(after[v['path'].lstrip('/')][1]),v['sha256'])
++        self.assertEqual(after['opt/enclave/bin/derivation_harness_lease_v3'][0][1],0o100555);self.assertEqual(after['opt/enclave/bin/helios'][0][2:4],[0,0])
++        self.assertEqual(after['opt/enclave/policy/derived-reader-v3.json'][1],mod.committed(COMMIT,REPO,p['config']['source']))
++        self.assertEqual(after['opt/enclave/DERIVED-READER-IMAGE.json'][1],mod.committed(COMMIT,REPO,mod.DERIVED_READER_PINS))
++        rec=m['controlOverlay']['derivedReader'];self.assertTrue(rec['installed']);self.assertEqual(len(rec['files']),2+1+4+1+1)
++    @unittest.skipUnless(READER_INPUTS,'DERIVED_READER_INPUTS not set')
++    def test_with_real_inputs_a_changed_native_file_refuses_and_writes_nothing(self):
++        self.direct_base();bad=self.root/'inputs';shutil.copytree(READER_INPUTS,bad)
++        os.chmod(bad/'derivation_harness_lease_v3',0o644);(bad/'derivation_harness_lease_v3').write_bytes((bad/'derivation_harness_lease_v3').read_bytes()+b'x')
++        out=self.root/'out'
++        with self.assertRaisesRegex(ValueError,'not the pinned'):mod.overlay(self.base,out,COMMIT,REPO,'direct',derived_reader_dir=str(bad))
++        self.assertFalse(out.exists())
++for _n in [n for n in vars(ControlOverlay) if n.startswith('test_')]:
++    setattr(DerivedReaderOverlay, _n, None)
++
+ if __name__=='__main__':unittest.main()

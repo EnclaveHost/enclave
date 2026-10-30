@@ -1,0 +1,65 @@
+[queue] START available=18355MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "ok": true,
+ "r13": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r13-final",
+ "handoff": {
+  "note": "r13 canary handoff (50cf): VALID ONLY after root's r13 job prints ## finality-r13 rc=0 with ## r13 SHA256SUMS == stageSha256sums. Activates nothing.",
+  "stage": "base-finality-proof-stage/r13-final",
+  "stageSha256sums": "f58b0b4f70cf830e3d5a9a2ec975a932143e79432d36660241b937701f73a347",
+  "manifest": "5a2de6e74b092c9e1259c425f98dfbff70dd3b5b14e436ac248a920b1eb2f6dc",
+  "bundleOrigin": "4121a5f6d80528babe0929034066816df00ce91dff0242ec229e2ee20aa80bdf",
+  "captureModule": "8da369de00c176364aadac5af57842f2a2d02f3abee20f63fe4361b7a1b0793e",
+  "finalityState": "5e4e38ca5742fbf91d0dda0f782525d0db0216a17de7a3de43a291a1c302e02e",
+  "finalityCore": "686cbc22cd837dbc0bb79512105972297c5addbe512dbd6dce2cfac28aaa6eab",
+  "a1Read": "da9a9e9c6eff2dcaae344a2311a7d4824efc3d0895aba766805787067f274f85",
+  "a1RecheckRead": "78df2211342fd73e180f3f771af8078b76888b2687cd993edff081b118f18825",
+  "coldStage": "cold-proof-timeout-stage/r3",
+  "coldStageSha256sums": "4a637e0109ca4030e31bd6738b00ad028479ebcddb6cfba331450a77a873b68c",
+  "wiringStage": "production-bootstrap-wiring-stage/r2",
+  "wiringSha256sums": "89586568d38d7f6f9df5ef2cec591e65f5327b88c7459e2f8233a555a4f7f06a",
+  "wrapperStage": "wrapper-pruned-identity-stage",
+  "wrapperSha256sums": "281c73cfa3be770f9b3b8ab0ca81052ed0ccb5248e524b4d96829695ec5895f7",
+  "wrapper": "6a4d7aa5da385bf1d8dea74c37060eb1332d5d468625d54ae02ae878c7135189",
+  "harness": "27ecfb40044025709ed8f7645724082c1580b36e5fac988826aa826fb2f4814e",
+  "harnessFirst": "5898466c9e0941761053a5003d5adab0c14d00266f97ae9ef0fab776add9a290",
+  "producer": "d95b9e18cdaafecd8ee4fe3e10be430bcca6a3b977c7ece97e435256a19d40a9",
+  "forwardSync": "c68046f6ca82c38c70eab3fdde6d5635f6a803ea9abdba14a16da51082b19ba2",
+  "reproof": "73287c4273a0b5b4febb7fcd3e2e78bdd46275c82d1526fb875aa174e8b236f3",
+  "productionWiringIncluded": true,
+  "prunedWrapperIncluded": true,
+  "productionReady": false,
+  "productionReadyNote": "composition only: root qualification, the guest canary on these bytes, activation and live readiness are all pending",
+  "dryRunUnapproved": false,
+  "pinUpdates": {
+   "bootstrap/a1_capture_original.py": 1,
+   "bundle-origin.json": 1,
+   "capture/a1_capture.py": 1,
+   "harness-first/a2a4.py": 1,
+   "harness/a2a4.py": 1,
+   "install/MANIFEST.json": 3,
+   "producer/base_launch.py": 2,
+   "recovery/forward_sync.py": 1,
+   "src/finality_state.py": 1,
+   "src/reproof.py": 2
+  },
+  "closure": [
+   "READER:a1-read.mjs",
+   "READER:a1-recheck-read.mjs",
+   "bootstrap/a1_capture_original.py",
+   "capture/a1_capture.py",
+   "harness-first/a2a4.py",
+   "harness/a2a4.py",
+   "install/install_verified.py",
+   "producer/base_launch.py",
+   "recovery/forward_sync.py",
+   "src/finality_state.py",
+   "src/reproof.py",
+   "tests/r7-ported/test_r3_launcher.py",
+   "units/enclave-base-finality-reproof.service",
+   "wrapper/chain_service.py"
+  ]
+ }
+}
+[memory-guard] exit=0 peakTreeRssMiB=57 minHostAvailableMiB=18290
+[memory-guard] at peak: python3:57
+[queue] EXIT 0

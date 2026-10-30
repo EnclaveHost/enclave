@@ -1,0 +1,135 @@
+--- measured-25302-ledger
++++ uncompiled-accounting-library-draft
+@@ -1100,24 +1100,9 @@
+     }
+ 
+     function _splitFunding(bytes32 id, address payer, uint256 rate, uint256 value) private {
+-        (address feeTo, uint256 cut) = _feeShare(id, rate, value);
+-        uint256 esc = 0;
+-        uint96 r6 = _earn[id].rate6;
+-        if (r6 > 0) {
+-            esc = (value * r6 + (rate - 1)) / rate;            // ceil — escrow must cover its seconds
+-            if (esc > value - cut) esc = value - cut;
+-            // cast safe: esc <= value = real USDC received (total supply << uint96.max 6dp)
+-            _earn[id].escrow6 += uint96(esc);
+-            // only the owner's own money is refundable to the owner (rev 10)
+-            if (payer == _deployments[id].owner) ownerEscrow6[id] += esc;
+-        }
+-        if (cut > 0) _sendUSDC(feeTo, cut);
+-        uint256 platformFee = value - cut - esc;
+-        if (platformFee > 0) {
+-            address router=feeRouter;
+-            _sendUSDC(router==address(0)?payout:router,platformFee);
+-            if(router!=address(0)) IVerificationFeeRouter(router).routeFee(id,payer,platformFee);
+-        }
++        (address feeTo,uint256 cut)=_feeShare(id,rate,value);
++        EnclaveLifecycleAccounting.splitFunding(_deployments[id],_earn[id],ownerEscrow6,usdc,
++            payer,rate,value,feeTo,cut);
+     }
+ 
+     /// @notice Fund/top-up with native ETH, credited as USDC-equivalent at the live
+@@ -1349,22 +1334,7 @@
+     ///      the acknowledged lifecycleEndAt cutoff - so no path can meter a
+     ///      revoked run past its cutoff before or at its settlement.
+     function _creditRunner(Deployment storage d, uint64 upto) private {
+-        if (d.runner == bytes32(0)) return;                  // no lease has ever started, or released
+-        Earn storage e = _earn[d.id];
+-        if (upto > d.leaseUntil) upto = d.leaseUntil;        // an expired lease earns through its end, no further
+-        if (proofRequired()) {
+-            uint64 proven = provenUntil[d.id];
+-            if (upto > proven) upto = proven;                // ... and no further than it proved it served
+-        }
+-        if (upto <= e.creditedUntil) return;
+-        uint64 secs = upto - e.creditedUntil;
+-        uint256 credit = uint256(secs) * e.rate6;
+-        if (credit > e.escrow6) credit = e.escrow6;
+-        e.creditedUntil = upto;
+-        if (credit == 0) return;
+-        e.escrow6 -= uint96(credit);                         // cast safe: credit <= escrow6 (uint96)
+-        earned6[d.runnerOperator] += credit;
+-        emit RunnerCredited(d.id, d.runnerOperator, credit, secs);
++        EnclaveLifecycleAccounting.credit(d,_earn[d.id],earned6,upto,proofRequired(),provenUntil[d.id]);
+     }
+ 
+     /// @notice Advance the runner meter without any other state change.
+@@ -1527,13 +1497,7 @@
+         _creditUnlessPending(d);
+         uint256 amt = refundableOf(id);
+         require(amt > 0, LedgerRefused(17));
+-        ownerEscrow6[id] -= amt;                             // <= by refundableOf's cap
+-        _earn[id].escrow6 -= uint96(amt);                    // cast safe: amt <= escrow6 (uint96)
+-        d.balance6 = 0;
+-        d.active = false;
+-        _sendUSDC(d.owner, amt);
+-        emit ActiveSet(id, false);
+-        emit Refunded(id, d.owner, amt);
++        EnclaveLifecycleAccounting.finishRefund(d,_earn[id],ownerEscrow6,usdc,amt);
+     }
+ 
+     /// @notice Recover a DRAINED deployment's residual escrow dust to payout.
+@@ -2022,3 +1986,65 @@
+     not an oversight; the publisher's cut cannot follow either way, since it is
+     another party's money in another party's wallet.
+ */
++
++/// Schema-3 accounting library. SOURCE DRAFT: not compiled, linked or qualified.
++/// Typed storage references are supplied by the ledger. No configurable target.
++/// Unlike the old bandwidth library, this receives the ledger-validated cutoff;
++/// owner/pending/refund authorization stays in the calling ledger.
++library EnclaveLifecycleAccounting {
++    event RunnerCredited(bytes32 indexed id, address indexed operator, uint256 amount6, uint64 secondsCredited);
++    event ActiveSet(bytes32 indexed id, bool active);
++    event Refunded(bytes32 indexed id, address indexed to, uint256 amount6);
++    function credit(EnclaveDeployments.Deployment storage d, EnclaveDeployments.Earn storage e,
++        mapping(address => uint256) storage earned, uint64 upto, bool requiresProof, uint64 proven) external {
++        if (d.runner == bytes32(0)) return;                  // no lease has ever started, or released
++        if (upto > d.leaseUntil) upto = d.leaseUntil;        // an expired lease earns through its end, no further
++        if (requiresProof) {
++            if (upto > proven) upto = proven;                // ... and no further than it proved it served
++        }
++        if (upto <= e.creditedUntil) return;
++        uint64 secs = upto - e.creditedUntil;
++        uint256 credit = uint256(secs) * e.rate6;
++        if (credit > e.escrow6) credit = e.escrow6;
++        e.creditedUntil = upto;
++        if (credit == 0) return;
++        e.escrow6 -= uint96(credit);                         // cast safe: credit <= escrow6 (uint96)
++        earned[d.runnerOperator] += credit;
++        emit RunnerCredited(d.id, d.runnerOperator, credit, secs);
++        }
++    function splitFunding(EnclaveDeployments.Deployment storage d, EnclaveDeployments.Earn storage e,
++        mapping(bytes32 => uint256) storage ownerEscrow, IERC20Auth usdc,
++        address payer, uint256 rate, uint256 value, address feeTo, uint256 cut) external {
++        uint256 esc = 0;
++        uint96 r6 = e.rate6;
++        if (r6 > 0) {
++            esc = (value * r6 + (rate - 1)) / rate;            // ceil — escrow must cover its seconds
++            if (esc > value - cut) esc = value - cut;
++            // cast safe: esc <= value = real USDC received (total supply << uint96.max 6dp)
++            e.escrow6 += uint96(esc);
++            // only the owner's own money is refundable to the owner (rev 10)
++            if (payer == d.owner) ownerEscrow[d.id] += esc;
++        }
++        if (cut > 0) _sendUSDC(usdc, feeTo, cut);
++        uint256 platformFee = value - cut - esc;
++        if (platformFee > 0) {
++            address router=EnclaveDeployments(address(this)).feeRouter();
++            _sendUSDC(usdc, router==address(0)?EnclaveDeployments(address(this)).payout():router,platformFee);
++            if(router!=address(0)) IVerificationFeeRouter(router).routeFee(d.id,payer,platformFee);
++        }
++        }
++    function finishRefund(EnclaveDeployments.Deployment storage d, EnclaveDeployments.Earn storage e,
++        mapping(bytes32 => uint256) storage ownerEscrow, IERC20Auth usdc, uint256 amount) external {
++        require(amount > 0, EnclaveDeployments.LedgerRefused(17));
++        ownerEscrow[d.id] -= amount;
++        e.escrow6 -= uint96(amount);
++        d.balance6 = 0;
++        d.active = false;
++        _sendUSDC(usdc,d.owner,amount);
++        emit ActiveSet(d.id,false);
++        emit Refunded(d.id,d.owner,amount);
++    }
++    function _sendUSDC(IERC20Auth usdc,address to,uint256 amount) private {
++        require(usdc.transfer(to,amount), EnclaveDeployments.LedgerRefused(19));
++    }
++}

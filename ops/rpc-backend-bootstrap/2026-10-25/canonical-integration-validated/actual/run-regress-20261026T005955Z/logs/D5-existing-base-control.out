@@ -1,0 +1,298 @@
+TAP version 13
+# Subtest: G2: the guest checker and the runtime accept http at a PRIVATE IPv4 literal as an untrusted witness source, nothing wider
+ok 1 - G2: the guest checker and the runtime accept http at a PRIVATE IPv4 literal as an untrusted witness source, nothing wider
+  ---
+  duration_ms: 3.099818
+  type: 'test'
+  ...
+# Subtest: G1: expose "attested" exists only in the HOST_DATA-bound direct config; absent keeps every earlier digest; it makes a verifier-only guest
+ok 2 - G1: expose "attested" exists only in the HOST_DATA-bound direct config; absent keeps every earlier digest; it makes a verifier-only guest
+  ---
+  duration_ms: 2.706219
+  type: 'test'
+  ...
+# Subtest: G1: planDirectBoot of a verifier-only guest: the verifier is the only chain authority, every RPC name refuses, nothing is sold, one filtered route
+ok 3 - G1: planDirectBoot of a verifier-only guest: the verifier is the only chain authority, every RPC name refuses, nothing is sold, one filtered route
+  ---
+  duration_ms: 27.285132
+  type: 'test'
+  ...
+# Subtest: the front exposes ONLY filtered reads of the bound verifier; refusals never reach it; the route shape is fixed
+ok 4 - the front exposes ONLY filtered reads of the bound verifier; refusals never reach it; the route shape is fixed
+  ---
+  duration_ms: 75.559263
+  type: 'test'
+  ...
+# Subtest: a verifier answer above the bound is cut off, never served as complete
+ok 5 - a verifier answer above the bound is cut off, never served as complete
+  ---
+  duration_ms: 71.734778
+  type: 'test'
+  ...
+# Subtest: G3: a replica is used only after attestation through the UNCHANGED verifier; the outcome is "attested", never "verified"
+ok 6 - G3: a replica is used only after attestation through the UNCHANGED verifier; the outcome is "attested", never "verified"
+  ---
+  duration_ms: 29.012436
+  type: 'test'
+  ...
+# Subtest: G3: wrong measurement, another config, a HOST_DATA that binds nothing, an unattested front, and a key change all refuse; failover is availability only
+ok 7 - G3: wrong measurement, another config, a HOST_DATA that binds nothing, an unattested front, and a key change all refuse; failover is availability only
+  ---
+  duration_ms: 72.015116
+  type: 'test'
+  ...
+# Subtest: G4: a plain object is never "attested", whatever it claims (the brand marks only client-built objects; not a boundary against same-process code)
+ok 8 - G4: a plain object is never "attested", whatever it claims (the brand marks only client-built objects; not a boundary against same-process code)
+  ---
+  duration_ms: 0.633957
+  type: 'test'
+  ...
+# Subtest: ERC-1271 and SessionVault owner signatures through the ATTESTED verifier on a real chain: the exact call shapes, no public RPC
+ok 9 - ERC-1271 and SessionVault owner signatures through the ATTESTED verifier on a real chain: the exact call shapes, no public RPC
+  ---
+  duration_ms: 12362.878302
+  type: 'test'
+  ...
+# Subtest: config: minTcb is validated as the verifier does (supported product line, exactly its fields, integers 0-255); roots only with the programmatic flag
+ok 10 - config: minTcb is validated as the verifier does (supported product line, exactly its fields, integers 0-255); roots only with the programmatic flag
+  ---
+  duration_ms: 4.560892
+  type: 'test'
+  ...
+# Subtest: ONE deadline across attestation and every replica: 8 hanging replicas settle at the caller's deadline, not 8 x timeout; 8 dead ones fail fast
+ok 11 - ONE deadline across attestation and every replica: 8 hanging replicas settle at the caller's deadline, not 8 x timeout; 8 dead ones fail fast
+  ---
+  duration_ms: 2032.51146
+  type: 'test'
+  ...
+# Subtest: aborts settle promptly while an attestation is pending; repeated aborts share one attestation; close() leaves no socket open
+ok 12 - aborts settle promptly while an attestation is pending; repeated aborts share one attestation; close() leaves no socket open
+  ---
+  duration_ms: 305.470508
+  type: 'test'
+  ...
+# Subtest: G5: the provider authority is ONE explicit choice; legacy modes unchanged; mixed, paid and root-naming configs refuse
+ok 13 - G5: the provider authority is ONE explicit choice; legacy modes unchanged; mixed, paid and root-naming configs refuse
+  ---
+  duration_ms: 19.538093
+  type: 'test'
+  ...
+# Subtest: packaging: separately bundled reader and client share ONE brand (no duplicate-module mislabel); the provider bundle resolves its closure
+ok 14 - packaging: separately bundled reader and client share ONE brand (no duplicate-module mislabel); the provider bundle resolves its closure
+  ---
+  duration_ms: 280.411067
+  type: 'test'
+  ...
+# Subtest: the REAL supervisor starts in a verifier-only boot (refusing RPC names) and, behind the real front, passes attestation step 6
+ok 15 - the REAL supervisor starts in a verifier-only boot (refusing RPC names) and, behind the real front, passes attestation step 6
+  ---
+  duration_ms: 434.694204
+  type: 'test'
+  ...
+# Subtest: the selection: unset or quorum is the legacy path; verifier needs a local URL; anything ambiguous refuses
+ok 16 - the selection: unset or quorum is the legacy path; verifier needs a local URL; anything ambiguous refuses
+  ---
+  duration_ms: 3.339896
+  type: 'test'
+  ...
+# Subtest: the own backend: a loopback or private address literal only, never a name or public address; the guest checker agrees
+ok 17 - the own backend: a loopback or private address literal only, never a name or public address; the guest checker agrees
+  ---
+  duration_ms: 0.755477
+  type: 'test'
+  ...
+# Subtest: routing: state, receipts, logs and nonces go to the verifier only; unlisted methods refuse by name and reach no server
+ok 18 - routing: state, receipts, logs and nonces go to the verifier only; unlisted methods refuse by name and reach no server
+  ---
+  duration_ms: 39.197866
+  type: 'test'
+  ...
+# Subtest: a revert keeps its data through the verifier (simulate/readContract decode it); errors keep their code
+ok 19 - a revert keeps its data through the verifier (simulate/readContract decode it); errors keep their code
+  ---
+  duration_ms: 6.589964
+  type: 'test'
+  ...
+# Subtest: estimateGas answers a gas LIMIT a verified execution succeeded with, never the verifier's gas used after refunds; a revert is the answer
+ok 20 - estimateGas answers a gas LIMIT a verified execution succeeded with, never the verifier's gas used after refunds; a revert is the answer
+  ---
+  duration_ms: 32.481753
+  type: 'test'
+  ...
+# Subtest: submission: only through a backend BOUND to the verifier's chain on a fresh head; otherwise refused before anything is sent
+ok 21 - submission: only through a backend BOUND to the verifier's chain on a fresh head; otherwise refused before anything is sent
+  ---
+  duration_ms: 80.371674
+  type: 'test'
+  ...
+# Subtest: an invalid selection refuses every method and every action: nothing falls back
+ok 22 - an invalid selection refuses every method and every action: nothing falls back
+  ---
+  duration_ms: 0.607118
+  type: 'test'
+  ...
+# Subtest: lease readers: the verifier is ONE authority (required 1), never mixed with RPCs, never repeated; RPC quorums are unchanged
+ok 23 - lease readers: the verifier is ONE authority (required 1), never mixed with RPCs, never repeated; RPC quorums are unchanged
+  ---
+  duration_ms: 10.498178
+  type: 'test'
+  ...
+# Subtest: app-funded lease config under the verifier: reads use it alone, the configured RPCs are never contacted (kept for byte-identical config)
+ok 24 - app-funded lease config under the verifier: reads use it alone, the configured RPCs are never contacted (kept for byte-identical config)
+  ---
+  duration_ms: 2.44627
+  type: 'test'
+  ...
+# Subtest: guest opt-in: txBackend is checked and reaches the supervisor only with a usable verifier, from this channel only
+ok 25 - guest opt-in: txBackend is checked and reaches the supervisor only with a usable verifier, from this channel only
+  ---
+  duration_ms: 1.719233
+  type: 'test'
+  ...
+# Subtest: the setting: checked, canonical, bounded; archive, cache, reserved ports, credentials and implicit providers refused
+ok 26 - the setting: checked, canonical, bounded; archive, cache, reserved ports, credentials and implicit providers refused
+  ---
+  duration_ms: 2.45009
+  type: 'test'
+  ...
+# Subtest: the committed image pin record builds a runtime config the runtime itself accepts (v2, pinned builds, glibc runtime, in place)
+ok 27 - the committed image pin record builds a runtime config the runtime itself accepts (v2, pinned builds, glibc runtime, in place)
+  ---
+  duration_ms: 1.619583
+  type: 'test'
+  ...
+# Subtest: the guest view and the supervisor names: absent unchanged; valid sets exactly two names; invalid or no image refuses
+ok 28 - the guest view and the supervisor names: absent unchanged; valid sets exactly two names; invalid or no image refuses
+  ---
+  duration_ms: 1.422945
+  type: 'test'
+  ...
+# Subtest: gsup: the verifier starts before the supervisor, as a supervised child, and its names wrap the supervisor env last
+ok 29 - gsup: the verifier starts before the supervisor, as a supervised child, and its names wrap the supervisor env last
+  ---
+  duration_ms: 0.527278
+  type: 'test'
+  ...
+# Subtest: the real launcher: the opt-in crosses fw_cfg in its checked form; invalid refuses the launch; absent stays absent
+ok 30 - the real launcher: the opt-in crosses fw_cfg in its checked form; invalid refuses the launch; absent stays absent
+  ---
+  duration_ms: 4528.70955
+  type: 'test'
+  ...
+# Subtest: a valid config normalizes with explicit defaults: loopback bind, no access-list hint, bounded gossip, no cache, no archive
+ok 31 - a valid config normalizes with explicit defaults: loopback bind, no access-list hint, bounded gossip, no cache, no archive
+  ---
+  duration_ms: 2.61831
+  type: 'test'
+  ...
+# Subtest: pins: chain, signer, format and only tested binary builds
+ok 32 - pins: chain, signer, format and only tested binary builds
+  ---
+  duration_ms: 0.916106
+  type: 'test'
+  ...
+# Subtest: untrusted proof sources: explicit, bounded, distinct, no credentials, never plain http off-host, never the verifier itself
+ok 33 - untrusted proof sources: explicit, bounded, distinct, no credentials, never plain http off-host, never the verifier itself
+  ---
+  duration_ms: 0.695117
+  type: 'test'
+  ...
+# Subtest: no secrets, no unknown fields, no public bind, bounded limits
+ok 34 - no secrets, no unknown fields, no public bind, bounded limits
+  ---
+  duration_ms: 0.844597
+  type: 'test'
+  ...
+# Subtest: no unbudgeted local cache; the S3/Sia archive is optional, untrusted, credential-free in config; host tools are reviewed absolute paths
+ok 35 - no unbudgeted local cache; the S3/Sia archive is optional, untrusted, credential-free in config; host tools are reviewed absolute paths
+  ---
+  duration_ms: 0.867426
+  type: 'test'
+  ...
+# Subtest: startup refusals leave nothing behind: a missing binary, a binary that is not the pinned build, a held, legacy or shared stateDir
+ok 36 - startup refusals leave nothing behind: a missing binary, a binary that is not the pinned build, a held, legacy or shared stateDir
+  ---
+  duration_ms: 68.54764
+  type: 'test'
+  ...
+# Subtest: head fan-out: the root store binds first, then the relay; a refused root drops the head; relay refusals are counted
+ok 37 - head fan-out: the root store binds first, then the relay; a refused root drops the head; relay refusals are counted
+  ---
+  duration_ms: 0.749777
+  type: 'test'
+  ...
+# Subtest: glibc runtime: only a tested exact set, only for Helios and the helper; binary staging copy or verify-in-place
+ok 38 - glibc runtime: only a tested exact set, only for Helios and the helper; binary staging copy or verify-in-place
+  ---
+  duration_ms: 0.851556
+  type: 'test'
+  ...
+# Subtest: verify-in-place refuses a binary others could replace (group/other-writable file or directory), before anything starts
+ok 39 - verify-in-place refuses a binary others could replace (group/other-writable file or directory), before anything starts
+  ---
+  duration_ms: 13.713946
+  type: 'test'
+  ...
+# Subtest: a verified snapshot: one confirmed block, fresh, pinned by hash, re-checked, monotonic
+ok 40 - a verified snapshot: one confirmed block, fresh, pinned by hash, re-checked, monotonic
+  ---
+  duration_ms: 3.654866
+  type: 'test'
+  ...
+# Subtest: stale, future, wrong chain, reorganization, proof failure and an unreachable verifier refuse with quorum-class codes
+ok 41 - stale, future, wrong chain, reorganization, proof failure and an unreachable verifier refuse with quorum-class codes
+  ---
+  duration_ms: 1.040346
+  type: 'test'
+  ...
+# Subtest: ONE deadline bounds the whole operation including a hung callback; a retained client refuses afterwards
+ok 42 - ONE deadline bounds the whole operation including a hung callback; a retained client refuses afterwards
+  ---
+  duration_ms: 301.957151
+  type: 'test'
+  ...
+# Subtest: inside a snapshot only proof-backed methods at the pinned block exist; resumed history must still be fresh and canonical
+ok 43 - inside a snapshot only proof-backed methods at the pinned block exist; resumed history must still be fresh and canonical
+  ---
+  duration_ms: 1.557664
+  type: 'test'
+  ...
+# Subtest: the explicit authority choice: quorum by default, verifier only when said, local only
+ok 44 - the explicit authority choice: quorum by default, verifier only when said, local only
+  ---
+  duration_ms: 0.847177
+  type: 'test'
+  ...
+# Subtest: service index under the verifier: same listing logic, no provider client, pin never weakened, refusals are QuorumErrors
+ok 45 - service index under the verifier: same listing logic, no provider client, pin never weakened, refusals are QuorumErrors
+  ---
+  duration_ms: 12.080763
+  type: 'test'
+  ...
+# Subtest: platform host policy config: explicit verifier authority from env or JSON; ambiguous or remote refused
+ok 46 - platform host policy config: explicit verifier authority from env or JSON; ambiguous or remote refused
+  ---
+  duration_ms: 0.729387
+  type: 'test'
+  ...
+# Subtest: the policy snapshot follows the configured authority, with quorumSnapshot's interface and result shape
+ok 47 - the policy snapshot follows the configured authority, with quorumSnapshot's interface and result shape
+  ---
+  duration_ms: 1.398594
+  type: 'test'
+  ...
+# Subtest: host services and the policy-mirror role accept the explicit verifier authority and refuse ambiguous ones
+ok 48 - host services and the policy-mirror role accept the explicit verifier authority and refuse ambiguous ones
+  ---
+  duration_ms: 1.621554
+  type: 'test'
+  ...
+1..48
+# tests 48
+# suites 0
+# pass 48
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 17296.527159

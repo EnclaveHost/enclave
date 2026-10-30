@@ -1,0 +1,23 @@
+{
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-writer-native-fixture-r1/run.py": "b91ecbd9509a57633961af315db760f5d6ce8f6693aa79d0df217de4dc022165",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-writer-native-fixture-r1/UNIT-SOURCES.json": "fbe636d5a3502af2376c59f8532f74c1a592801951da4a275ee09c138e6addd4",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-writer-root-repaired-r1/candidate/offline_mask.py": "1aa482cf4ba4f4724de7dd1d8fccd08908a5f8f856e231d5b12780747e1fa504",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-writer-root-repaired-r1/candidate/test_offline_mask.py": "0ed021bdb4ee2de5b53cca8616b983058def437fe6afa9136998e6ea34b2f7e9",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-writer-root-repaired-r1/candidate/UNIT-PINS.json": "17ae0820e6d33ffbc9d5e424ccfde38f10f1037b8f4a1abe465219cbd2a2bc38",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/payload-v2/units/enclave-rpc-base-snapshot.service": "f7a193f1f50ab147aa15d33cb7de9fbddc1ad0c01c244ffef852b417551950f4",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/payload-v2/units/enclave-rpc-l1-snapshot.service": "42cfc951d82ff4996460a4d180a9d6b91257d1bdfbee76e23c755d7e1e267070",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/enclave-base-retention.service": "f02388268aa110612dbf2648f9a90a90bdc2a2e36d237cab0e869fc49b59ceee",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/node-payload-v4/units/enclave-base-holder.path": "8accb496663c590e2a52a83cd73815d42a81d994b430dde96d17df1e56bf4329",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/node-payload-v4/units/enclave-base-holder.service": "3d305f2ef091af5ee7edec61bcd47607c7e969e64873dec66d021db34f5955ef",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/node-payload-v4/units/enclave-l1-el.path": "d2b379983fb5b5d6a442aef9ec7738e7f09641a2166353227d214ef1579656e3",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/node-payload-v4/units/enclave-l1-el.service": "be00a7d9542f79515658f09d49bc3ad546d3d80de3f30a531a4ee5d1fd72086d",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/node-payload-v4/units/enclave-l1-cl.service": "54791e1a9ac7e27d4e12ce7630d903363ba1069f9fb3529acade709a4a8bb547",
+  "/usr/bin/nbdfuse": "51c1a1fd18785d4fe2240c1710eb4f78590b9d333fcde4cda421871d6f010a01",
+  "/usr/bin/qemu-img": "3a57bce6765bfb73a75591dba2ac40d985cccde97d371e95537ecbf16d949d30",
+  "/usr/bin/qemu-nbd": "b0f16ff7225e78469733132fce225b1d0af98f0b681a5092d85618936ff61934",
+  "/usr/bin/debugfs": "9b27184084383c8607eee03b43c80eca4ef912acf4887b40a7cc420e267ad8a8",
+  "/usr/bin/e2fsck": "a9ea133a844edd695b5172abadc8bbbbb03aaedad80fc24d039bdbf4563a125c",
+  "/usr/bin/fusermount3": "c3d04bdf77c7152eba94ce670338e7089730b8dbfede57762b7b92c893a00f4f",
+  "/usr/bin/mke2fs": "0ad4756fd858ee0a3a7fcaa34875af0c1050b9bccaf0d363c242d87d70575657",
+  "/usr/bin/systemctl": "6e727451366c75070ab02f02d945e3c83f8774ddf7e1661c5d71cbbf0d59b3cc"
+}

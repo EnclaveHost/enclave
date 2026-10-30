@@ -1,0 +1,18 @@
+{
+ "errors": 0,
+ "expectedFailures": 0,
+ "mode": "kill",
+ "outcomes": {
+  "Gates.test_an_advanced_anchor_refuses_release_with_the_documented_code": "fail",
+  "Recheck.test_the_original_game_passes_after_the_latest_anchor_advanced_and_n_never_moves": "fail"
+ },
+ "ranTwice": [],
+ "requested": [
+  "Gates.test_an_advanced_anchor_refuses_release_with_the_documented_code",
+  "Recheck.test_the_original_game_passes_after_the_latest_anchor_advanced_and_n_never_moves"
+ ],
+ "skipped": 0,
+ "testsRun": 2,
+ "unexpectedSuccesses": 0,
+ "verdict": "killed"
+}

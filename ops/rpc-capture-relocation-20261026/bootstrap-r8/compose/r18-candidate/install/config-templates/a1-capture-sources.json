@@ -1,0 +1,5 @@
+{"format": "enclave-a1-capture-sources/v1",
+ "initialDir": "/opt/enclave-rpc/a1-capture/l1-anchor-a1", "recheckDir": "/opt/enclave-rpc/a1-capture/a1-original-game-prepared",
+ "l1Authority": "/opt/enclave-rpc/a1-capture/l1_authority.py", "l1Config": "/etc/enclave-rpc/l1-authority.json",
+ "portalResult": "/opt/enclave-rpc/a1-capture/inputs/portal-result.json", "depsRoot": "/opt/enclave-rpc/a1-capture/deps",
+ "node": "/usr/bin/node", "elUrl": "http://127.0.0.1:18645"}

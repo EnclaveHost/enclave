@@ -23,6 +23,8 @@
 # `enclave session new` links (/grant#<request>), the sessions page of the wallet popover
 /sessions   /sessions.html   200
 /grant      /grant.html      200
+# gas funding (owner controls + a reviewed migration; nothing is offered while FUNDING_RUNTIME is null)
+/funding    /funding.html    200
 # the hosting tray's "Payout wallet" link (windows/tray): a box owner declares their own wallet for their box
 /payout     /host     301
 # /apps/publish is a VIEW of the Apps page (a router alias): a hard load

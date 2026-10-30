@@ -1,0 +1,23 @@
+--- a/anchored_origin.py
++++ b/anchored_origin.py
+@@ -17,14 +17,15 @@
+ Exit 0 = document written; 2 = refusal (JSON {refused} on stdout)."""
+ import argparse, hashlib, json, os, subprocess, sys, types
+ 
+-W = '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025'
++ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))   # relocatable bundle root: <ROOT>/lib/anchored_origin.py
++W = ROOT
+ PINS = {
+-    'origin_extract': (f'{W}/source/ops/rpc-backend-bootstrap/2026-10-25/coverage/origin_extract.py',
++    'origin_extract': (f'{ROOT}/vendor/coverage/origin_extract.py',
+                        '6b63b901ea07375ea273fd828cb0d0e97baa0859c1b83490c1cb60e15cb3c86c'),
+-    'anchor_bootstrap': (f'{W}/base-finality-proof-stage/r12-final/vendor/anchor-bootstrap.mjs',
++    'anchor_bootstrap': (f'{ROOT}/vendor/anchor-bootstrap.mjs',
+                          '90a8afba31e7c7029a0fa860f97153cd40665f1d1b2ae87bb0a56fd98c25e8f8'),
+-    'noble_sha3': (f'{W}/source/node_modules/@noble/hashes/sha3.js', '313da3570150e80b02c3631508ba99099438d2daff641b9cadb2198e0f1d18ec'),
+-    'receipt': (f'{W}/source/ops/rpc-backend-bootstrap/2026-10-25/l1-anchor-a1/live-1958/a1-evidence.json',
++    'noble_sha3': (f'{ROOT}/vendor/node_modules/@noble/hashes/sha3.js', '313da3570150e80b02c3631508ba99099438d2daff641b9cadb2198e0f1d18ec'),
++    'receipt': (f'{ROOT}/receipt/a1-evidence.json',
+                 'b9a90847bb3f779262681cabc35af64d7c3b785c9ad5cd2b99e9700b9725256c'),
+ }
+ FORMAT = 'enclave-base-anchored-origin/v1'

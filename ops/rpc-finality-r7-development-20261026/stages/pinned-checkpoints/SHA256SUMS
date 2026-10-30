@@ -1,0 +1,7 @@
+8adcb4f121dd6ce57a503f8e3213c99bca74ad34217d4127018f38e94098720f  ./README.md
+73ad09a77c1c1ca48aee347eb836f280794347332277f6b32c078d8185787802  ./fixtures/fake_base.py
+501219fd9ddbce4c3bd0a90e57ed782ebef0de9e357865a51b979dc93e7bd464  ./harness/a2a4.py
+21ede49578a5b000bee06113db4d56769738c28ca8b25b8504304e9c67d7c42f  ./jobs/root-pinned-checkpoints.sh
+b26cf05aebb2f955c8a49963142eae427efb6ae535447806ae33835e52b59548  ./patches/fake_base-pinned-format.patch
+625ef75b2e978bfd26a970af6b33bacfa0f0afd5d8731c3eff751a43bb49823c  ./patches/harness-pinned-checkpoints.patch
+9d6f1810fd1569d13a4269a2ccda4bb54980f9899c5eef2c05672cd033be3044  ./tests/test_pinned_checkpoints.py

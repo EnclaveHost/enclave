@@ -31,7 +31,7 @@
   function hostingView(o) {
     o = o || {};
     var caps = obj(o, "caps"), inUse = obj(o, "inUse"), free = obj(o, "free"), gpu = obj(o, "gpu"), market = obj(o, "market"),
-        pricing = obj(o, "pricing"), gas = obj(o, "gas"), device = obj(o, "device");
+        pricing = obj(o, "pricing"), gas = obj(o, "gas"), device = obj(o, "device"), uw = obj(o, "updateWindow");
     var axes = Array.isArray(o.axes) ? o.axes.filter(function (x) { return x === "cpu" || x === "gpu"; }) : ["cpu", "gpu"];
     if (axes.indexOf("cpu") < 0) axes.unshift("cpu");
     var apps = Array.isArray(o.apps) ? o.apps.filter(function (a) { return a && typeof a.id === "string"; }).map(function (a) {
@@ -52,6 +52,9 @@
       dropped: Array.isArray(o.dropped) ? o.dropped.length : 0,
       cpuPrice: priceAxis(pricing && pricing.cpu), gpuPrice: priceAxis(pricing && pricing.gpu),
       gasLow: bool(gas, "low"), gasHoursLeft: gas ? num(gas, "hoursLeft", -1) : -1, gasOperator: str(gas, "operator"),
+      // when Windows Update may restart the PC (null: a node that does not say, or a phone)
+      updateWindow: uw ? { managed: bool(uw, "managed"), start: Math.round(num(uw, "start", 0)), hours: Math.round(num(uw, "hours", 24)),
+                           noRebootWhileSignedIn: bool(uw, "noRebootWhileSignedIn") } : null,
       noun: str(device, "noun") || "PC", axes: axes, gpuAxis: axes.indexOf("gpu") >= 0,
       cpuLabel: str(o, "cpuLabel") || "CPU", apps: apps,
     };
@@ -102,6 +105,17 @@
   function gasText(v) {
     return !v || !v.gasLow ? "" : "Operator gas is LOW" + (v.gasHoursLeft >= 0 ? " (about " + Math.round(v.gasHoursLeft) + " hours left)" : "")
       + ": send a little ETH on Base to " + v.gasOperator + " or apps stop renewing and go away";
+  }
+
+  /** When Windows Update may restart this PC (every app stops with it), under the node's state. "" when the node does not say. */
+  function updateWindowText(v) {
+    var w = v && v.updateWindow;
+    if (!w) return "";
+    if (!w.managed) return "Windows Update restarts: this PC's own settings (setup left them alone)";
+    if (w.hours >= 24) return "Windows Update may restart this PC at any hour";
+    var hh = function (h) { return (h < 10 ? "0" : "") + h + ":00"; };
+    return "Windows Update restarts only " + hh(w.start) + DASH + hh((w.start + w.hours) % 24) + " (this PC's time)"
+      + (w.noRebootWhileSignedIn ? ", and never while someone is signed in" : "");
   }
 
   /** The accordion rows' right side: what each section is set to now; warn where it waits on the owner. */
@@ -227,7 +241,7 @@
   }
 
   var T = { STEPS: STEPS, DASH: DASH, hostingView: hostingView, earningsView: earningsView, pct: pct, step: step, usd: usd, usdPrice: usdPrice,
-            short: short, isAddress: isAddress, hostingLine: hostingLine, statusText: statusText, gasText: gasText, limitsRow: limitsRow, priceRow: priceRow,
+            short: short, isAddress: isAddress, hostingLine: hostingLine, statusText: statusText, gasText: gasText, updateWindowText: updateWindowText, limitsRow: limitsRow, priceRow: priceRow,
             earningsRow: earningsRow, appsRow: appsRow, cpuLines: cpuLines, gpuLines: gpuLines, priceLines: priceLines, parsePrice: parsePrice,
             priceHint: priceHint, earningsLines: earningsLines, walletHint: walletHint, askDrop: askDrop, askOff: askOff, updateSay: updateSay };
   root.EnclaveHostText = T;

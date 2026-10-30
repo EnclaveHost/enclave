@@ -1,0 +1,12 @@
+--- a/readiness/require_ready.py
++++ b/readiness/require_ready.py
+@@ -109,6 +109,9 @@
+         return False, f'root finality status is {s.get("state")!r}: not admitted'
+     if s.get('entrySha256') != entry or s.get('freshN') != info.get('freshN') or s.get('freshBlockHash') != info.get('freshBlockHash'):
+         return False, 'root finality status names another proof entry than the READY report'
++    # r7: the acceptance (the launch journal's `bootstrapped` event recording this proof) is present in BOTH and identical
++    if not re.fullmatch(r'[0-9a-f]{64}', str(info.get('recordedAs'))) or s.get('recordedAs') != info.get('recordedAs'):
++        return False, 'the proof is not durably recorded, or its recorded acceptance changed since the READY report: not admitted'
+     if p.get('pid') != pid or str(p.get('startTime')) != start:
+         return False, 'root finality status names another process than the live holder'
+     age = _iso_age(s.get('publishedAt'), now)

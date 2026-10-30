@@ -1,0 +1,44 @@
+Oct 25 17:56:03 enclave-rpc base[918]: 2026-10-25T17:56:03.562664Z  INFO reth::cli: Startup integrity summary (plain output files) reusable=20 needs_download=96
+Oct 25 17:56:03 enclave-rpc base[918]: 2026-10-25T17:56:03.562820Z  INFO reth::cli: Skipping already verified plain files file=1792886410/account_changesets-53000000-53499999.tar.zst component=Account Changesets
+Oct 25 17:56:03 enclave-rpc base[918]: 2026-10-25T17:56:03.562826Z  INFO reth::cli: Skipping already verified plain files file=static_files/account_changesets-52500000-52999999.tar.zst component=Account Changesets
+Oct 25 17:56:03 enclave-rpc base[918]: 2026-10-25T17:56:03.562829Z  INFO reth::cli: Skipping already verified plain files file=1792886410/headers-53000000-53499999.tar.zst component=Headers
+Oct 25 17:56:03 enclave-rpc base[918]: 2026-10-25T17:56:03.562831Z  INFO reth::cli: Skipping already verified plain files file=static_files/headers-0-499999.tar.zst component=Headers
+Oct 25 17:56:03 enclave-rpc base[918]: 2026-10-25T17:56:03.562835Z  INFO reth::cli: Skipping already verified plain files file=static_files/headers-1000000-1499999.tar.zst component=Headers
+Oct 25 17:56:03 enclave-rpc base[918]: 2026-10-25T17:56:03.562837Z  INFO reth::cli: Skipping already verified plain files file=static_files/headers-10000000-10499999.tar.zst component=Headers
+Oct 25 17:56:03 enclave-rpc base[918]: 2026-10-25T17:56:03.562839Z  INFO reth::cli: Skipping already verified plain files file=static_files/headers-10500000-10999999.tar.zst component=Headers
+Oct 25 17:56:03 enclave-rpc base[918]: 2026-10-25T17:56:03.562841Z  INFO reth::cli: Skipping already verified plain files file=static_files/headers-11000000-11499999.tar.zst component=Headers
+Oct 25 17:56:03 enclave-rpc base[918]: 2026-10-25T17:56:03.562844Z  INFO reth::cli: Skipping already verified plain files file=static_files/headers-11500000-11999999.tar.zst component=Headers
+Oct 25 17:56:03 enclave-rpc base[918]: 2026-10-25T17:56:03.562846Z  INFO reth::cli: Skipping already verified plain files file=static_files/headers-12000000-12499999.tar.zst component=Headers
+Oct 25 17:56:03 enclave-rpc base[918]: 2026-10-25T17:56:03.562848Z  INFO reth::cli: Skipping already verified plain files file=static_files/headers-12500000-12999999.tar.zst component=Headers
+Oct 25 17:56:03 enclave-rpc base[918]: 2026-10-25T17:56:03.562851Z  INFO reth::cli: Skipping already verified plain files file=static_files/headers-13000000-13499999.tar.zst component=Headers
+Oct 25 17:56:03 enclave-rpc base[918]: 2026-10-25T17:56:03.562853Z  INFO reth::cli: Skipping already verified plain files file=static_files/headers-13500000-13999999.tar.zst component=Headers
+Oct 25 17:56:03 enclave-rpc base[918]: 2026-10-25T17:56:03.562856Z  INFO reth::cli: Skipping already verified plain files file=static_files/headers-14000000-14499999.tar.zst component=Headers
+Oct 25 17:56:03 enclave-rpc base[918]: 2026-10-25T17:56:03.562858Z  INFO reth::cli: Skipping already verified plain files file=static_files/headers-14500000-14999999.tar.zst component=Headers
+data/.download-cache/headers-17500000-17999999.tar.zst.part 208901967
+data/.download-cache/headers-18000000-18499999.tar.zst.part 207526647
+data/.download-cache/headers-21000000-21499999.tar.zst.part 210447613
+data/.download-cache/headers-15000000-15499999.tar.zst.part 202611810
+data/.download-cache/headers-20000000-20499999.tar.zst.part 208515066
+data/.download-cache/headers-20500000-20999999.tar.zst.part 207587849
+data/.download-cache/headers-18500000-18999999.tar.zst.part 210070142
+data/.download-cache/state.tar.zst.part 761228785915
+data/static_files/static_file_headers_16500000_16999999.off 12000009
+data/static_files/static_file_headers_15500000_15999999.conf 75
+data/static_files/static_file_headers_19000000_19499999 292011922
+data/static_files/static_file_account-change-sets_53000000_53499999.csoff 776432
+data/static_files/static_file_headers_14500000_14999999.conf 75
+data/static_files/static_file_headers_19500000_19999999.conf 75
+data/static_files/static_file_headers_0_499999.off 12000009
+data/static_files/static_file_headers_11000000_11499999 259247331
+data/static_files/static_file_headers_1500000_1999999.conf 75
+data/static_files/static_file_headers_12000000_12499999 291523131
+data/static_files/static_file_account-change-sets_52500000_52999999.csoff 8000000
+data/static_files/static_file_headers_16000000_16499999.off 12000009
+data/static_files/static_file_headers_2000000_2499999 223489245
+data/static_files/static_file_headers_13000000_13499999.off 12000009
+data/static_files/static_file_headers_10000000_10499999.off 12000009
+data/static_files/static_file_headers_0_499999 132436167
+data/static_files/static_file_headers_16000000_16499999.conf 75
+data/static_files/static_file_headers_19000000_19499999.off 12000009
+data/static_files/static_file_headers_10500000_10999999 258274556
+data/static_files/static_file_headers_14500000_14999999 291720927

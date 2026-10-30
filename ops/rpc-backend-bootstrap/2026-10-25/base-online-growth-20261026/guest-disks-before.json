@@ -1,0 +1,20 @@
+{
+ "disks": [
+  {
+   "bytes": 4000000000000,
+   "label": "enc-l1-origin",
+   "mount": "/srv/enclave-l1-pair",
+   "role": "l1",
+   "serial": "ERPC-L1-6DA15A8D",
+   "uuid": "a2f2a8b5-06ac-4612-95a0-f48a00a7f6e0"
+  },
+  {
+   "bytes": 3100000000000,
+   "label": "enc-base-origin",
+   "mount": "/srv/enclave-base-holder",
+   "role": "base",
+   "serial": "ERPC-BASE-740457FE",
+   "uuid": "11c6bbac-f823-4052-a87a-066eed6ad590"
+  }
+ ]
+}

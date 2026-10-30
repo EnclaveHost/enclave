@@ -1,0 +1,33 @@
+{
+  "at": "2026-10-29T11:50:40.146619+00:00",
+  "probes": [
+    {
+      "edge": "us-west",
+      "ip": "134.199.235.187",
+      "rc": 35,
+      "result": "000 1",
+      "error": "curl: (35) TLS connect error: error:0A000126:SSL routines::unexpected eof while reading\n"
+    },
+    {
+      "edge": "ca-east",
+      "ip": "146.190.246.39",
+      "rc": 0,
+      "result": "200 0",
+      "error": ""
+    },
+    {
+      "edge": "ap-southeast",
+      "ip": "165.245.191.129",
+      "rc": 35,
+      "result": "000 1",
+      "error": "curl: (35) TLS connect error: error:0A000126:SSL routines::unexpected eof while reading\n"
+    },
+    {
+      "edge": "eu-central",
+      "ip": "134.209.248.172",
+      "rc": 0,
+      "result": "200 0",
+      "error": ""
+    }
+  ]
+}

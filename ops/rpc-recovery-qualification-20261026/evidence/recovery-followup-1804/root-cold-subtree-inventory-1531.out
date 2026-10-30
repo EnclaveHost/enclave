@@ -1,0 +1,61 @@
+[queue] START available=30267MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+{
+ "bytes": 158749500752,
+ "counts": {
+  "hashed": 0,
+  "reused1381": 24
+ },
+ "entries": 28,
+ "hashes": "1381",
+ "identity": "bd241ce597dd401b60458e74bba7f20ac39bec82e8b961609b8af21bb9f0dd75",
+ "logical": "2e632b9bd558cdb398416dacd258da89cfcd52024bdf3b15f651844e56be03e7"
+}
+{
+ "bytes": 125195719424,
+ "counts": {
+  "hashed": 0,
+  "reused1381": 6
+ },
+ "entries": 8,
+ "hashes": "1381",
+ "identity": "42a3cc900eb133982b90191f86788abb1e912f17498a9cc4f7bd6c2318d4a77d",
+ "logical": "566784a08712e71eae9f6484e08f1a0f5392ba0f3355abdb651b23c19e4b76d2"
+}
+{
+ "bytes": 43957352504,
+ "counts": {
+  "hashed": 0,
+  "reused1381": 78
+ },
+ "entries": 99,
+ "hashes": "1381",
+ "identity": "8dea59bb44e723aac712d6a6d8e54503cbea50cf92944bce351c1e609ee8632e",
+ "logical": "7f993d7ce3cd294a1d573adc52a16baeb44049911d7780fae4ad6d0035dbc3de"
+}
+{
+ "capacity": {
+  "destAvail": 826232860672,
+  "destAvailAfter": 498329939968,
+  "destFloor": 300000000000,
+  "notInventoried": [],
+  "remainingInventoriedNeed": 327902920704,
+  "sourceFreeInformational": 79900258304
+ },
+ "checks": [
+  "source /vm (cryptvm ext4) and destination / (cryptroot ext4) are the pinned mounts",
+  "destination path private (0700, owner) where it exists; no symlinks",
+  "destination and journal are on the pinned / filesystem, not on /vm",
+  "2026-10-24/home/hf-convert: 24 manifest links resolve into /vm",
+  "2026-10-24/home/gvs5h: 6 manifest links resolve into /vm",
+  "2026-10-24/home/gguf-e2b: 78 manifest links resolve into /vm"
+ ],
+ "notes": [
+  "/vm space is freed ONLY by a separately reviewed reclamation of the .retire-* trees (no deletion here)",
+  "the three subtrees free about 328 GB, about 22 GB above the current qualification threshold; the live Qwen padbank can still grow by about 64 GB: if it resumes, that margin (and the qualification capacity) is lost",
+  "source free is informational only; the production RPC VM prepare/controller/guard thresholds are unchanged and are enforced by their own tools, not by this relief copy (which writes only to /)",
+  "as uid 1000: /proc complete=False hits=0 (informational only)"
+ ]
+}
+[memory-guard] exit=0 peakTreeRssMiB=23 minHostAvailableMiB=30215
+[memory-guard] at peak: python3:23
+[queue] EXIT 0

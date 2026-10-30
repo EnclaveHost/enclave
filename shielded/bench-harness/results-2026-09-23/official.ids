@@ -1,0 +1,6 @@
+2b2c0f0cc8e2a1487360120804316672e07a8b0da8bf4b269ea34ef03dbf5176  /home/steven/enclave-bench/official-build/bin/libggml-cpu.so
+c183ee5191cd0ff0a4890fe044f5e184c108cd48be58edc0c56a92f73747d909  /home/steven/enclave-bench/official-build/bin/libggml-base.so
+8f3e43018fd526f3c4e887fa2ed43ca7ff1290a8be3273734d6edbfe11a6075b  /home/steven/enclave-bench/official-build/bin/libllama.so.0.0.1
+163786179d429334ff5ac5c72fd19448542c5aa9ad048269bd710f17f89aa1ce  /home/steven/enclave-bench/b27/bin-fast/bench-spec2
+fe206527652eecf5ef42b9b70eeb454cb2339d16e6ce76cef168fe56b43ea655  /home/steven/Projects/enclave/wasm/ggml-shielded/libggml-shielded.so
+9039023a0be03d663e06cbc53d2433ff6188bda229bd09ddc645302db1581993  /home/steven/Projects/enclave/shielded/worker-cuda/shielded-worker

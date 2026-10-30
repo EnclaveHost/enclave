@@ -1,0 +1,23 @@
+[queue] START available=24643MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+{"readOnly": true, "sourceUnchanged": true, "rc": 0, "seconds": 2.1673390865325928}
+{
+  "summary": {
+    "extents": 9001,
+    "invalid": 0,
+    "inputBlocks": 276959557,
+    "overlapExtents": 0,
+    "overlapRanges": 0,
+    "overlapBlocks": 0,
+    "overlapUnwrittenBlocks": 0,
+    "printedLines": 1,
+    "truncated": 0,
+    "crosscheck": 1,
+    "crosscheckBlocks": 276959557,
+    "crosscheckMismatches": 0
+  },
+  "complete": true,
+  "firstOverlaps": []
+}
+[memory-guard] exit=0 peakTreeRssMiB=164 minHostAvailableMiB=24485
+[memory-guard] at peak: ext4-extent-ove:121 python3:25 python3:18
+[queue] EXIT 0

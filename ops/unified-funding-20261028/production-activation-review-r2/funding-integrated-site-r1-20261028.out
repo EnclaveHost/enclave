@@ -1,0 +1,101 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 5 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 6 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 7 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 8 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 9 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 10 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 11 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 12 not started; sleep 30
+[queue] START available=89103MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+[build] clean dist/
+[build] contract artifacts (admin console deploy bytecode + selectors)
+[build] tailwind css/src/main.css -> css/site.css
+npm notice run enclave-supervisor@0.1.0 npx
+npm notice run 'tailwindcss' -i site/css/src/main.css -o site/css/site.css --minify
+≈ tailwindcss v4.3.2
+
+Done in 136ms
+[build] esbuild (router entry + code-split pages, templates inlined)
+▲ [WARNING] The CommonJS "module" variable is treated as a global variable in an ECMAScript module and may not work as expected [commonjs-variable-in-esm]
+
+    site/js/lib/qr.js:2300:6:
+      2300 │       module.exports = factory();
+           ╵       ~~~~~~
+
+  This file is considered to be an ECMAScript module because of the "export" keyword here:
+
+    site/js/lib/qr.js:2306:0:
+      2306 │ export function qrSvg(text, opts){
+           ╵ ~~~~~~
+
+[build] copy pages (components prerendered) + static files
+[build] csp-script-src.txt: 6 inline-script hashes (server CSP can now drop 'unsafe-inline' + esm.sh)
+     11.5 KB  dist/js/chunks/sessions-FQB7IGKO.js
+     34.3 KB  dist/js/chunks/funding-ULCOWT6G.js
+      0.3 KB  dist/js/chunks/terms-7DLO3TGN.js
+      0.3 KB  dist/js/chunks/privacy-AYU6MQIG.js
+      6.2 KB  dist/js/chunks/checkout-QQ4K2U6B.js
+      3.6 KB  dist/js/chunks/link-MVIM3JBU.js
+      3.4 KB  dist/js/chunks/authorize-TRLAKFTQ.js
+      1.0 KB  dist/js/chunks/host-JYKDFNW6.js
+      3.3 KB  dist/js/chunks/sso-authorize-3OLLCOSZ.js
+      4.7 KB  dist/js/chunks/grant-772TQ7GA.js
+     27.5 KB  dist/js/chunks/enclave-network-7ZLJVULR.js
+     17.2 KB  dist/js/chunks/deploy-ZOGNTDX2.js
+     64.8 KB  dist/js/chunks/apps-32TVY3UO.js
+      0.5 KB  dist/js/chunks/architecture-MHBUKEAD.js
+     14.2 KB  dist/js/chunks/develop-RQ6KSZNA.js
+      0.4 KB  dist/js/chunks/chunk-RPWPIEI2.js
+      1.3 KB  dist/js/chunks/dashboard-LEDOKG4U.js
+    143.3 KB  dist/js/chunks/chunk-C264BRXJ.js
+      6.2 KB  dist/js/chunks/chunk-G7IIJJH4.js
+     21.4 KB  dist/js/chunks/chunk-H62MURX3.js
+      4.0 KB  dist/js/chunks/chunk-VD5WYJI6.js
+      3.3 KB  dist/js/chunks/chunk-RHLNRC5Y.js
+      9.0 KB  dist/js/chunks/chunk-PDN3XK5Y.js
+     38.8 KB  dist/js/chunks/migrator-RN76MIDC.js
+    442.6 KB  dist/js/chunks/admin-4TV4VP7C.js
+      0.2 KB  dist/js/boot.js
+      1.5 KB  dist/js/chunks/chain-JWEW3LH3.js
+      0.4 KB  dist/js/chunks/vault-SKTHFWPI.js
+      4.9 KB  dist/js/chunks/chunk-DJLINZIW.js
+      1.9 KB  dist/js/chunks/chunk-GPCHFJQ2.js
+      0.8 KB  dist/js/chunks/wallet-FZRWOOS7.js
+      0.5 KB  dist/js/chunks/account-DM4RSHMO.js
+      0.7 KB  dist/js/chunks/sessions-YECHZKWG.js
+     21.3 KB  dist/js/chunks/chunk-3HYCLYU7.js
+     20.5 KB  dist/js/chunks/overview-MAWBF3TX.js
+      1.6 KB  dist/js/chunks/chunk-DIS5FIX6.js
+      7.3 KB  dist/js/chunks/chunk-OVAYCH6A.js
+      0.3 KB  dist/js/chunks/chunk-D7VGFCH5.js
+     11.8 KB  dist/js/chunks/chunk-QX4YHJNV.js
+      9.0 KB  dist/js/chunks/chunk-2ORGAF3U.js
+      2.6 KB  dist/js/chunks/chunk-TXG5D22N.js
+      6.6 KB  dist/js/chunks/chunk-FWRJ3UMV.js
+     43.8 KB  dist/js/chunks/chunk-35UIY42T.js
+     14.2 KB  dist/js/chunks/chunk-UW4XKAN3.js
+     23.2 KB  dist/js/chunks/chunk-BPAVJNL5.js
+      6.2 KB  dist/js/chunks/chunk-SZV6K7K5.js
+    301.3 KB  dist/js/chunks/custody-M5T75VW4.js
+[build] dist/: 161 files · 26.8 MB
+[memory-guard] exit=0 peakTreeRssMiB=420 minHostAvailableMiB=88671
+[memory-guard] at peak: node:354 node:66
+[memory-guard] exit=0 peakTreeRssMiB=482 minHostAvailableMiB=88664
+[memory-guard] at peak: node:354 node:66 node:62
+[queue] EXIT 0

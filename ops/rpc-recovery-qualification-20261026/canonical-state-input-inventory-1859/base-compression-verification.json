@@ -1,0 +1,7 @@
+{
+  "equal": true,
+  "method": "qemu-img compare",
+  "exit_code": 0,
+  "backup": "preserved-images/base-origin.compact.qcow2",
+  "verified_at": "2026-10-26T13:40:13.204781-07:00"
+}

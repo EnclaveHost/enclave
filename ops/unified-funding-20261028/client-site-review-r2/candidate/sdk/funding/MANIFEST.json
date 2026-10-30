@@ -1,0 +1,42 @@
+{
+  "schema": "client-site-repair-r2-funding-core/v1",
+  "source": {
+    "util.mjs": {
+      "from": "client-repair-r4/lib/util.mjs",
+      "sha256": "f06901fffafba27cfc59476dbe1e1b367eec8a2eef6eb3d914711695bea8eb6e"
+    },
+    "v2-store.mjs": {
+      "from": "client-repair-r4/lib/v2-store.mjs",
+      "sha256": "d86b86d40ea833f67d44ab2d8927f9aa55b53703461cd86be865ab62b82fe992"
+    },
+    "chain-proof.mjs": {
+      "from": "client-repair-r4/lib/chain-proof.mjs",
+      "sha256": "b926ef43af1af52135016a438c2b334722320805e2545c84ed009a84353e28e7"
+    },
+    "funding-client.mjs": {
+      "from": "client-repair-r4/lib/funding-client.mjs",
+      "sha256": "a8cf867acd2b90c9b2f6c69ec23f635ecb9a54c474d9a821492348bcf050d27b"
+    },
+    "migration.mjs": {
+      "from": "client-repair-r4/lib/migration.mjs",
+      "sha256": "594e98a03b5b158df52c131cab3a3ad3294675eb8fa4c79497ad0232fcf74b2b"
+    },
+    "browser-entry.mjs": {
+      "from": "client-repair-r4/lib/browser-entry.mjs",
+      "sha256": "29ad990d3397addf1a5891faeabf15ac4fab7b367c9180fc26132f68d440dd1e"
+    },
+    "funding-codec.mjs": {
+      "from": "client-r1/funding-codec.mjs",
+      "sha256": "42c45e5b7d8ec9abf6fa5b7e43c320999233e0a94cb53de06b6eb963e05b5c10"
+    }
+  },
+  "files": {
+    "util.mjs": "38b678a68ecf7fd897fb1ae905d27471a17d10f8061fa29d81f5870549e12e66",
+    "v2-store.mjs": "b00d0742ee3d2b211b4cf811c48c8e7004dbf7e8a4cf30517db5ec199181733c",
+    "chain-proof.mjs": "ca799d8f86db1dd3a7113703cba5fd929e770f02f5c63fa3f5589b05f5e074b3",
+    "funding-client.mjs": "8d79be4d818556545c98a85025bc3d6bac2e508b2a06ef32ff22a3860f2c0ce0",
+    "migration.mjs": "b168fcc1038c9c5c19c685cd9b336fa7ecbd3fb89d91d8cec92bdbea8d4dccf4",
+    "browser-entry.mjs": "29ad990d3397addf1a5891faeabf15ac4fab7b367c9180fc26132f68d440dd1e",
+    "funding-codec.mjs": "ceed082639299b35073005d2ffb0ce8e5ceee1a3035804f197cdf53a4f6739d7"
+  }
+}

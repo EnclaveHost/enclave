@@ -1,0 +1,28 @@
+[queue] START available=22354MiB required=18048MiB cap=1408MiB floor=16384MiB concurrentSmall=0MiB
+=== test/session-api-auth.test.mjs
+✔ isSessionHeader: the scheme, in any case, is a session; Bearer and nothing are not (16098.907708ms)
+✔ parseSessionHeader: every malformed shape is a 401, never a guess (1.940989ms)
+✔ apiBases: front doors as is and with /t/<name>, plus this host's own public URLs; never anything else (0.964395ms)
+✔ the signed bytes are the SDK's and the relay's; the delegate slot and support probe match theirs (0.657176ms)
+✔ replayGuard: single use, expires, and stays bounded (oldest first) (0.342988ms)
+✔ pinned factory and ledger verify real sessions with the book forbidden, and zero never restores legacy factories (19.227753ms)
+✔ a good signature verifies, names the vault, the session and the owner's wallet, and reports what it was signed for (5.50226ms)
+✔ /t/<name> and the host's own URL: verified exactly when this host has that name (11.754054ms)
+✔ tampered method, path, query, body or host: the signature does not verify (2.950594ms)
+✔ stale or future timestamps, and a replayed nonce (single use PER HOST) (13.218577ms)
+✔ a key that is not the session's, an ended session, a missing scope, a vault no known factory made (46.83718ms)
+✔ the record rule: vault-held by environment, wallet-held only with production AND the ledger delegation (26.066515ms)
+✔ Windows Host: a restart and a private app take a wallet session; the box's own sign-in still works (88.913256ms)
+✔ supervisor: logs, restart, app-token, list, get, cpu-profile and create, with wallet sessions over its real routes (526.763795ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 17359.373866
+=== rc 0 test/session-api-auth.test.mjs
+[memory-guard] exit=0 peakTreeRssMiB=611 minHostAvailableMiB=21703
+[memory-guard] at peak: node:382 node:128 node:57 anvil:34 bash:4 timeout:2 tail:2 tee:2
+[queue] EXIT 0

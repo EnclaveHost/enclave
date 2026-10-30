@@ -1,0 +1,28 @@
+{
+  "time": 1793356011.3489044,
+  "invocation": "204894d162074a7d92b485790f994a76",
+  "unit": "enclave-rpc-guestd-adopt-check-r1-20261030.service",
+  "outerMainGone": true,
+  "childPid": 2622904,
+  "childStart": 166098891,
+  "childGone": true,
+  "innerScopeGone": true,
+  "inputToolPins": 136,
+  "allPinsUnchanged": true,
+  "productionProcesses": [
+    {
+      "pid": 194657,
+      "startTime": 148657014,
+      "exe": "/home/steven/enclave-prod/bin/guestd.sdshield-9d1562738cde",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-guestd.service"
+    },
+    {
+      "pid": 1384622,
+      "startTime": 157862186,
+      "exe": "/usr/bin/qemu-system-x86_64",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/m2-gd61126785-1384596.service"
+    }
+  ],
+  "activeCaptureMetadataFailure": "late /proc/2622888 read found already terminal; no fabricated start-time",
+  "privateEvidenceRetained": true
+}

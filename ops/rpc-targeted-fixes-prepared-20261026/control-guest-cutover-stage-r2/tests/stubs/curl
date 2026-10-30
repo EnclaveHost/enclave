@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# TEST STUB. eth_chainId -> state/chainid (default 0x2105); state/rpc-down-<host:port> = unreachable. GET <path> -> the code in
+# state/http ("<path> <code>" lines; default 200). Never opens a socket.
+set -u; ST=$(cd "$(dirname "$0")/.." && pwd)/state; url= data= w=
+while [ $# -gt 0 ]; do case $1 in -w) w=$2; shift;; -o|--max-time|-H) shift;; --data|-d) data=$2; shift;; -*) ;; *) url=$1;; esac; shift; done
+echo "curl $url" >> "$ST/calls"
+if [[ $data == *eth_chainId* ]]; then hp=${url#http://}; hp=${hp%%/*}; [ -e "$ST/rpc-down-$hp" ] && exit 7
+  printf '{"jsonrpc":"2.0","id":1,"result":"%s"}' "$(cat "$ST/chainid" 2>/dev/null || echo 0x2105)"; exit 0; fi
+p=/${url#http://*/}; code=$(awk -v p="$p" '$1==p{print $2}' "$ST/http" 2>/dev/null); code=${code:-200}
+[ "$w" = '%{http_code}' ] && printf '%s' "$code"; exit 0

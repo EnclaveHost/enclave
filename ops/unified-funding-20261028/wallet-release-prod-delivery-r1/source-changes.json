@@ -1,0 +1,50 @@
+{
+  "changes": {
+    "RELEASE-CLOSURE-WALLET-PROD-R1.json": {
+      "seedSha256": null,
+      "finalSha256": "ae69dc3b6d3ac2e9aae5e0854e2dc572d8a778dfa117c64272290f076bc5570a",
+      "kind": "new"
+    },
+    "REPORT-WALLET-PROD-R1.md": {
+      "seedSha256": null,
+      "finalSha256": "274d867cb243da023a743b358701633192a007074fb1db5ba65bb4d3e57cdc1b",
+      "kind": "new"
+    },
+    "enclave/site/js/core/wallet-release-census.js": {
+      "seedSha256": "62ca14fe47e6c4473404621c6bf7fc82b429b5da976f1d82dbf94995e44737d7",
+      "finalSha256": "d5904aee8383b36fdb8eddcc875826bb22018a4fef242a71479d51cb7690063d",
+      "kind": "modified"
+    },
+    "enclave/site/js/core/wallet-release-chain.js": {
+      "seedSha256": "91b5743629a740dbedcfa750f375b979493b27fd23005c626263f897e495f452",
+      "finalSha256": "19370170d81e38c0f99b280eeac43767be98aa778970e020870a4dbfb25aaa18",
+      "kind": "modified"
+    },
+    "enclave/site/js/core/wallet-release-controller.js": {
+      "seedSha256": "5574aed09a4cf8a5823f6ae15108e53617617009da803e0c2b713a3a7cf2f008",
+      "finalSha256": "b7a5f5462ce5b8cf40e40a6d1ba03bee3e4e6fd91561f370a3fbd2181b1e2dbb",
+      "kind": "modified"
+    },
+    "enclave/site/js/core/wallet-release-promote.js": {
+      "seedSha256": null,
+      "finalSha256": "929bc2169e6217f300992291cbae9756f2c83d19773e0979a2a984b0cfc09e2c",
+      "kind": "new"
+    },
+    "enclave/site/js/core/wallet-release-store.js": {
+      "seedSha256": "1379de9e182bb08a9e17d8e0bdb5e457f2ad4dcd606bfe935ff83ef3d0f77029",
+      "finalSha256": "7c06a67da7f216a397b0f48a4f2fec7acad3737d9d3ae68807dbde8980bcb1bb",
+      "kind": "modified"
+    },
+    "enclave/site/js/core/wallet-release-view.js": {
+      "seedSha256": "3b822e82bec410d63f46a3c677de54a905fe0950db165050014f2c07e7b434ab",
+      "finalSha256": "3545b573d6bdbf81e80749dca1d51f4305b4e841244a17bcd93b73f9eeb2243e",
+      "kind": "modified"
+    },
+    "enclave/test/wallet-release/prod-election.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "785f0d5e179a917b2499a9fa3eda271e2a45a78181acba6082bbc86331bdc1e8",
+      "kind": "new"
+    }
+  },
+  "removed": []
+}

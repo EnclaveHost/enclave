@@ -1,0 +1,12 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {rpcClient,PUBLIC_RPCS} from '../capture-observation.mjs';
+const url=PUBLIC_RPCS[0];
+const stub=(fn)=>rpcClient(url,{wait:async()=>{},fetchImpl:async(u,opts)=>{assert.equal(opts.redirect,'error');return fn(JSON.parse(opts.body));}});
+test('unreviewed or credentialed providers refused before fetch',()=>{for(const u of ['https://localhost','https://user:pass@base-rpc.publicnode.com',url+'/other'])assert.throws(()=>rpcClient(u),e=>e.code==='provider');});
+test('send method refused before fetch',async()=>{let calls=0;const r=rpcClient(url,{fetchImpl:async()=>{calls++;}});await assert.rejects(r('eth_sendRawTransaction',['0x']),e=>e.code==='rpc_method');assert.equal(calls,0);});
+test('matching bounded read succeeds',async()=>{const r=stub(q=>Response.json({jsonrpc:'2.0',id:q.id,result:'0x2105'}));assert.equal(await r('eth_chainId',[]),'0x2105');});
+test('mismatched response identity refused',async()=>{const r=stub(q=>Response.json({jsonrpc:'2.0',id:q.id+1,result:'0x2105'}));await assert.rejects(r('eth_chainId',[]),e=>e.code==='rpc_identity');});
+test('JSON-RPC errors and absent version refused',async()=>{for(const body of [{id:1,result:'0x1'},{jsonrpc:'2.0',id:1,error:{code:-1}}]){const r=stub(()=>Response.json(body));await assert.rejects(r('eth_chainId',[]),e=>e.code==='rpc_identity');}});
+test('oversized streaming response refused without trusting content length',async()=>{const r=stub(()=>new Response(new Uint8Array(2000001)));await assert.rejects(r('eth_getCode',['0x'+'11'.repeat(20),'latest']),e=>e.code==='rpc_size');});
+test('oversized announced body refused',async()=>{const r=stub(()=>new Response('{}',{headers:{'content-length':'2000001'}}));await assert.rejects(r('eth_chainId',[]),e=>e.code==='rpc_size');});

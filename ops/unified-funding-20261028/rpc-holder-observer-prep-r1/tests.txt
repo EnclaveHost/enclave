@@ -1,0 +1,28 @@
+test_actual_owned_descriptor_modes_and_incomplete_host_visibility (__main__.DescriptorObserverTests.test_actual_owned_descriptor_modes_and_incomplete_host_visibility) ... ERROR
+test_cli_rejects_paths_duplicates_and_too_many_targets (__main__.DescriptorObserverTests.test_cli_rejects_paths_duplicates_and_too_many_targets) ... ok
+test_cli_requires_host_root_no_fake_success (__main__.DescriptorObserverTests.test_cli_requires_host_root_no_fake_success) ... ok
+test_deadline_never_reports_complete (__main__.DescriptorObserverTests.test_deadline_never_reports_complete) ... ok
+test_missing_matching_descriptor_flags_is_incomplete (__main__.DescriptorObserverTests.test_missing_matching_descriptor_flags_is_incomplete) ... FAIL
+
+======================================================================
+ERROR: test_actual_owned_descriptor_modes_and_incomplete_host_visibility (__main__.DescriptorObserverTests.test_actual_owned_descriptor_modes_and_incomplete_host_visibility)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-holder-observer-prep-r1/test_observe.py", line 30, in test_actual_owned_descriptor_modes_and_incomplete_host_visibility
+    self.assertEqual(own[self.ro]['accessMode'], os.O_RDONLY)
+                     ~~~^^^^^^^^^
+KeyError: 3
+
+======================================================================
+FAIL: test_missing_matching_descriptor_flags_is_incomplete (__main__.DescriptorObserverTests.test_missing_matching_descriptor_flags_is_incomplete)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-holder-observer-prep-r1/test_observe.py", line 53, in test_missing_matching_descriptor_flags_is_incomplete
+    self.assertTrue(any(x.get('pid') == os.getpid() and x.get('phase') == 'descriptor' for x in result['errors']))
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.203s
+
+FAILED (failures=1, errors=1)

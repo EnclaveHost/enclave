@@ -1,0 +1,7 @@
+[queue] START available=22419MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+{'tests': 23, 'pass': 23, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+EQUAL semantic 1fd0851df609edb376a1c9e3551a6ef0f84948ba16b88a7beae41e8f6d001723 (raw manifests 83b3881648ce35ec / d2efb49c83c3c2c9; normalized: build ids, cache timestamps)
+Comparator preflight PASS on original r4 real artifact builds; 73 MCP tests NOT run.
+[memory-guard] exit=0 peakTreeRssMiB=183 minHostAvailableMiB=22294
+[memory-guard] at peak: node:69 node:63 node:47 bash:4
+[queue] EXIT 0

@@ -1,0 +1,5 @@
+{"file": "deployment-serving-permit.mjs", "syntaxExit": 0}
+{"file": "deployment-permit-gate.mjs", "syntaxExit": 0}
+{"file": "deployment-lifecycle-witness.mjs", "syntaxExit": 0}
+{"file": "deployment-isolation-runtime.mjs", "syntaxExit": 0}
+{"file": "deployment-chain-adapter.mjs", "syntaxExit": 0}

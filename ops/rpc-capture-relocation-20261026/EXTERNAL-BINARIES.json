@@ -1,0 +1,20 @@
+[
+  {
+    "path": "capture-original/bundle/vendor/coverage/kzgcheck",
+    "sha256": "00b3eeb94efece39e4f2cf8e34d5d3450d532328ccc667a6a74e83b151be10eb",
+    "buildSource": "ops/rpc-backend-bootstrap/2026-10-25/coverage/kzgcheck",
+    "buildJob": "ops/rpc-backend-bootstrap/2026-10-25/coverage/jobs/build-kzg.sh"
+  },
+  {
+    "path": "capture-r2/bundle/vendor/coverage/kzgcheck",
+    "sha256": "00b3eeb94efece39e4f2cf8e34d5d3450d532328ccc667a6a74e83b151be10eb",
+    "buildSource": "ops/rpc-backend-bootstrap/2026-10-25/coverage/kzgcheck",
+    "buildJob": "ops/rpc-backend-bootstrap/2026-10-25/coverage/jobs/build-kzg.sh"
+  },
+  {
+    "path": "bootstrap-r8/compose/r18-candidate/historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/coverage/kzgcheck",
+    "sha256": "00b3eeb94efece39e4f2cf8e34d5d3450d532328ccc667a6a74e83b151be10eb",
+    "buildSource": "ops/rpc-backend-bootstrap/2026-10-25/coverage/kzgcheck",
+    "buildJob": "ops/rpc-backend-bootstrap/2026-10-25/coverage/jobs/build-kzg.sh"
+  }
+]

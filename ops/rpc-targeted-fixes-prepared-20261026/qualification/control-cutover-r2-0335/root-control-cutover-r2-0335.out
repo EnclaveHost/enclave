@@ -1,0 +1,120 @@
+[queue] START available=22594MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+# T0 test-root guard + positive control
+ok   T0 real systemctl on PATH is refused in a test root
+ok   T0 a test root outside /tmp is refused
+ok   T0 fresh baseline has no drift (rc 0)
+# T1 stale journal
+ok   T1 authority line only from an OLDER invocation -> canary FAIL (rc 1)
+ok   T1 ... names the current invocation
+ok   T1 (frozen r1 defect reproduced) its time-window grep would accept that stale line
+ok   T1 expected activated InvocationID is not the current one -> FAIL (rc 1)
+# T2 non-empty CANARY env
+ok   T2 every local canary check passes -> still HOLD (rc 3)
+ok   T2 ... the local checks really passed
+ok   T2 CANARY_DEPLOYMENT and other CANARY_* set -> still HOLD (rc 3)
+ok   T2 ... never reports PASS
+# T3 fake / non-empty receipts
+ok   T3a no receipts, no approval -> HOLD (rc 3)
+ok   T3a ... names the missing approval
+ok   T3b non-empty fake release receipt, not the pinned hash -> MISMATCH (rc 9)
+ok   T3c fake receipt even when its hash is pinned (no rc=0/commit/manifest) -> MISMATCH (rc 9)
+ok   T3d well-formed receipt bound to another manifest -> MISMATCH (rc 9)
+ok   T3d ... says not bound
+ok   T3e positive control: valid receipts + approval + test-only bypass -> gates pass (rc 0)
+ok   T3f the same valid receipts WITHOUT the test bypass -> HOLD (rc 3)
+ok   T3f ... names the missing canary protocol
+ok   T3f valid receipts + CANARY_DEPLOYMENT set -> canary-protocol gate still HOLDs (rc 3)
+ok   T3f ... the only HOLD is the canary protocol
+ok   T3g staged file changed after its manifest -> MISMATCH (rc 9)
+ok   T3h stray file outside the manifest -> MISMATCH (rc 9)
+ok   T3i verifier identity receipt for another URL -> MISMATCH (rc 9)
+ok   T3j own backend not answering -> HOLD (rc 3)
+ok   T3k tx backend = public gateway 8190 -> MISMATCH (rc 9)
+ok   T3k ... names the public gateway
+# T4 missing release
+ok   T4a staged release absent -> HOLD (rc 3)
+ok   T4a ... no accepted artifact
+ok   T4b apply with EXECUTE but no staged release -> HOLD (rc 3)
+ok   T4b: live release = baseline
+ok   T4b: drop-ins = baseline
+ok   T4b: no run dir
+ok   T4b: unit not restarted
+ok   T4c stage without .deploy-manifest -> HOLD (rc 3)
+ok   T4d no release receipt file -> HOLD (rc 3)
+# T7 drift / T8 NOEXECUTE
+ok   T7a live release changed after the baseline -> MISMATCH, before any change (rc 9)
+ok   T7a ... no run dir
+ok   T7b an env VALUE changed after the baseline -> MISMATCH (rc 9)
+ok   T7b ... names APP_KEY
+ok   T8 every gate passes but CUTOVER_EXECUTE unset -> NOEXECUTE (rc 10)
+ok   T8: live release = baseline
+ok   T8: drop-ins = baseline
+ok   T8: no run dir
+ok   T8: unit not restarted
+# T5 partial apply
+ok   T5a daemon-reload fails after release files + drop-in written -> rolled back (rc 5)
+ok   T5a one run dir
+ok   T5a journal: release files were activated
+ok   T5a: decision rolled-back
+ok   T5a: live release = baseline
+ok   T5a: drop-ins = baseline (operator drop-in kept)
+ok   T5a: new files removed
+ok   T5a: no temp leftovers
+ok   T5a: node_modules untouched
+ok   T5a no restart happened (same invocation)
+ok   T5b the one restart fails -> rolled back and restarted on the baseline (rc 5)
+ok   T5b one run dir
+ok   T5b: decision rolled-back
+ok   T5b: live release = baseline
+ok   T5b: drop-ins = baseline (operator drop-in kept)
+ok   T5b: new files removed
+ok   T5b: no temp leftovers
+ok   T5b: node_modules untouched
+ok   T5b unit active
+ok   T5b rollback restarted it (new invocation)
+ok   T5c full activation, identity ok, canary HOLD -> rolled back, never committed (rc 5)
+ok   T5c one run dir
+ok   T5c candidate identity was verified
+ok   T5c canary rc 3 journaled
+ok   T5c never committed
+ok   T5c: decision rolled-back
+ok   T5c: live release = baseline
+ok   T5c: drop-ins = baseline (operator drop-in kept)
+ok   T5c: new files removed
+ok   T5c: no temp leftovers
+ok   T5c: node_modules untouched
+ok   T5c drift check after rollback: baseline exactly (rc 0)
+ok   T5c a decided run is never rolled back twice (rc 8)
+ok   T5d activation changed an admin VALUE -> identity fails, rolled back (rc 5)
+ok   T5d ... names ADMIN_TOKEN only
+ok   T5d one run dir
+ok   T5d: decision rolled-back
+ok   T5d: live release = baseline
+ok   T5d: drop-ins = baseline (operator drop-in kept)
+ok   T5d: new files removed
+ok   T5d: no temp leftovers
+ok   T5d: node_modules untouched
+# T6 rollback failure
+ok   T6a rollback's restart fails -> ROLLBACK FAILED, explicit rc (rc 8)
+ok   T6a one run dir
+ok   T6a decision rollback-failed
+ok   T6a says ROLLBACK FAILED
+ok   T6a backups kept
+ok   T6b corrupted backup -> not restored, ROLLBACK FAILED, no restart (rc 8)
+ok   T6b one run dir
+ok   T6b names the bad backup
+ok   T6b decision rollback-failed
+ok   T6b candidate file left in place, not overwritten
+ok   T6b backup kept
+ok   T6b unit not restarted
+ok   T6c drop-in changed by someone else -> NOT removed, ROLLBACK FAILED (rc 8)
+ok   T6c names the foreign drop-in
+ok   T6c foreign drop-in still present
+ok   T6c operator drop-in kept
+ok   T6d rollback of a run without a journal (rc 8)
+ok   no fake secret value appears in any output
+## 106 passed, 0 failed (fixtures /tmp/cutover-r2-tests.d49Lwi)
+## rc=0
+[memory-guard] exit=0 peakTreeRssMiB=18 minHostAvailableMiB=21636
+[memory-guard] at peak: bash:5 bash:4 bash:4 bash:3 timeout:2
+[queue] EXIT 0

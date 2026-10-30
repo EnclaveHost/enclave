@@ -1,0 +1,4 @@
+{
+  "enclave-operator-durability-r1-baseline-root-20261029.service": "ActiveState=inactive\nMainPID=0\n",
+  "enclave-operator-durability-r1-boundaryv2-root-20261029.service": "ActiveState=inactive\nMainPID=0\n"
+}

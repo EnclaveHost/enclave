@@ -1,0 +1,1 @@
+Root1351 r2: activation15PASS, controller13/14; foreign-run fixture had run_left=0 and fake_guest completed it before precheck. r3 preserves controller9e3efacd bytes and sets foreign fixture run_left1000. Root tests must confirm rejection before any install/start/stop. Not a production change.

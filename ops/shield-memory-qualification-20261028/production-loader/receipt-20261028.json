@@ -1,0 +1,85 @@
+{
+  "base": {
+    "files": 46,
+    "path": "/home/steven/enclave-prod/release-5cab66e4",
+    "release_id": "5cab66e478a78adf69c5bb6f058117fcd91cddfb72ca3f6c5d47c109cc47ba17",
+    "reverified_after_compose": true
+  },
+  "delta": {
+    "added": {
+      "template/rt/shield-model-drop-cache.enabled": {
+        "content_hex": "310a",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "size": 2
+      }
+    },
+    "removed": {},
+    "replaced": {
+      "template/shieldmodel": {
+        "new": {
+          "sha256": "acd688ecd7fdd1bca3a2e6269a948bab36fa066e8dca2b91b1886d4fe4c68d28",
+          "size": 3010366
+        },
+        "old": {
+          "sha256": "5ce66b51e92f0753b82ddd47898abdeb820cbeb83a45fbb158e63474fda3800f",
+          "size": 1912956
+        }
+      }
+    }
+  },
+  "kind": "shield-prod-loader-release-receipt/1",
+  "loader": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-build-r1/shieldmodel",
+    "sha256": "acd688ecd7fdd1bca3a2e6269a948bab36fa066e8dca2b91b1886d4fe4c68d28",
+    "size": 3010366
+  },
+  "manifest_tool": {
+    "format": "enclave-m4a-domain-release/1",
+    "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m4/release-manifest.py",
+    "sha256": "6facdb9a77da31e6ddaf5a544f58a4966ea8dfdede87ad36e50818e22adbfd6b"
+  },
+  "new": {
+    "files": 47,
+    "path": "/home/steven/enclave-prod/release-loader-staging-20261028",
+    "release_id": "af50d526be6deefcdd815968ff1dd2c04327f6c3b3f981c0aa90cc585b0effae"
+  },
+  "not_done": [
+    "measurement not predicted",
+    "release not installed or admitted",
+    "no guest restarted"
+  ],
+  "production_pins": {
+    "base_id_is_prod": true,
+    "loader_is_prod": true
+  },
+  "rollback": {
+    "how": "relaunch on the base release id; the base was only read and re-verified after compose",
+    "path": "/home/steven/enclave-prod/release-5cab66e4",
+    "release_id": "5cab66e478a78adf69c5bb6f058117fcd91cddfb72ca3f6c5d47c109cc47ba17"
+  },
+  "unchanged": {
+    "cmdline": "console=ttyS0 rdinit=/init loglevel=3",
+    "dirs": [
+      "template",
+      "template/dev",
+      "template/models",
+      "template/models/qwen3.8-27b-mtp-q4-vl-gguf",
+      "template/proc",
+      "template/rt",
+      "template/rt/backends",
+      "template/rt/calib",
+      "template/run",
+      "template/sys",
+      "template/tmp"
+    ],
+    "files": 45,
+    "files_canonical_sha256": "30783fa565583faa9db2d125ad85442571f9da22167c65b090a70d8bc9a98a9b",
+    "measure": {
+      "mode": "snp",
+      "vcpuFamily": 26,
+      "vcpuModel": 2,
+      "vcpuStepping": 1,
+      "vmmType": "QEMU"
+    }
+  }
+}

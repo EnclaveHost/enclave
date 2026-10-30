@@ -1,0 +1,847 @@
+TAP version 13
+# Subtest: the selection: unset or quorum is the legacy path; verifier needs a local URL; anything ambiguous refuses
+ok 1 - the selection: unset or quorum is the legacy path; verifier needs a local URL; anything ambiguous refuses
+  ---
+  duration_ms: 3.123266
+  type: 'test'
+  ...
+# Subtest: the own backend: a loopback or private address literal only, never a name or public address; the guest checker agrees
+ok 2 - the own backend: a loopback or private address literal only, never a name or public address; the guest checker agrees
+  ---
+  duration_ms: 0.723725
+  type: 'test'
+  ...
+# Subtest: routing: state, receipts, logs and nonces go to the verifier only; unlisted methods refuse by name and reach no server
+not ok 3 - routing: state, receipts, logs and nonces go to the verifier only; unlisted methods refuse by name and reach no server
+  ---
+  duration_ms: 16.390334
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/chain-authority.test.mjs:100:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    An unknown RPC error occurred.
+    
+    Raw Call Arguments:
+      to:    0x1111111111111111111111111111111111111111
+      data:  0x06661abd
+     
+    Contract Call:
+      address:   0x1111111111111111111111111111111111111111
+      function:  count()
+    
+    Docs: https://viem.sh/docs/contract/readContract
+    Details: verifier http://127.0.0.1:43265 unreachable: fetch failed
+    Version: viem@2.53.1
+  code: 'ERR_TEST_FAILURE'
+  name: 'ContractFunctionExecutionError'
+  stack: |-
+    getContractError (file:///home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/viem/_esm/utils/errors/getContractError.js:34:12)
+    readContract (file:///home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/viem/_esm/actions/public/readContract.js:58:15)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/chain-authority.test.mjs:103:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a revert keeps its data through the verifier (simulate/readContract decode it); errors keep their code
+not ok 4 - a revert keeps its data through the verifier (simulate/readContract decode it); errors keep their code
+  ---
+  duration_ms: 3.242455
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/chain-authority.test.mjs:117:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    ContractFunctionExecutionError: An unknown RPC error occurred.
+    
+    Raw Call Arguments:
+      from:  0x5555555555555555555555555555555555555555
+      to:    0x1111111111111111111111111111111111111111
+      data:  0x159090bd
+     
+    Contract Call:
+      address:   0x1111111111111111111111111111111111111111
+      function:  take()
+      sender:    0x5555555555555555555555555555555555555555
+    
+    Docs: https://viem.sh/docs/contract/simulateContract
+    Details: verifier http://127.0.0.1:39773 unreachable: fetch failed
+    Version: viem@2.53.1
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/chain-authority.test.mjs:121:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: estimateGas answers a gas LIMIT a verified execution succeeded with, never the verifier's gas used after refunds; a revert is the answer
+not ok 5 - estimateGas answers a gas LIMIT a verified execution succeeded with, never the verifier's gas used after refunds; a revert is the answer
+  ---
+  duration_ms: 3.103636
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/chain-authority.test.mjs:125:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    An unknown RPC error occurred.
+    
+    Estimate Gas Arguments:
+      from:                  0x5555555555555555555555555555555555555555
+      to:                    0x1111111111111111111111111111111111111111
+      data:                  0x67d42a8b
+      maxFeePerGas:          1000000000000000000000 gwei
+      maxPriorityFeePerGas:  0.000000001 gwei
+    
+    Details: verifier http://127.0.0.1:36999 unreachable: fetch failed
+    Version: viem@2.53.1
+  code: 'ERR_TEST_FAILURE'
+  name: 'EstimateGasExecutionError'
+  stack: |-
+    getEstimateGasError (file:///home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/viem/_esm/utils/errors/getEstimateGasError.js:11:12)
+    estimateGas (file:///home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/viem/_esm/actions/public/estimateGas.js:114:15)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/chain-authority.test.mjs:135:15)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: submission: only through a backend BOUND to the verifier's chain on a fresh head; otherwise refused before anything is sent
+not ok 6 - submission: only through a backend BOUND to the verifier's chain on a fresh head; otherwise refused before anything is sent
+  ---
+  duration_ms: 24.73365
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/chain-authority.test.mjs:157:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The method "eth_sendRawTransaction" does not exist / is not available.
+    
+    URL: chain-authority
+    Request body: {"method":"eth_sendRawTransaction"}
+     
+    Request Arguments:
+      from:                  0xeD5970f07eea5A9E7b359D3c5d3F82b34a8F1E15
+      to:                    0xeD5970f07eea5A9E7b359D3c5d3F82b34a8F1E15
+      value:                 0 ETH
+      gas:                   21000
+      maxFeePerGas:          2 gwei
+      maxPriorityFeePerGas:  0.001 gwei
+      nonce:                 6
+    
+    Details: eth_sendRawTransaction refused by the local chain authority: submission not done: the local verifier cannot answer (verifier http://127.0.0.1:37893 unreachable: fetch failed)
+    Version: viem@2.53.1
+  code: 'ERR_TEST_FAILURE'
+  name: 'TransactionExecutionError'
+  stack: |-
+    getTransactionError (file:///home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/viem/_esm/utils/errors/getTransactionError.js:11:12)
+    sendTransaction (file:///home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/viem/_esm/actions/wallet/sendTransaction.js:224:15)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/chain-authority.test.mjs:163:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: an invalid selection refuses every method and every action: nothing falls back
+ok 7 - an invalid selection refuses every method and every action: nothing falls back
+  ---
+  duration_ms: 0.605285
+  type: 'test'
+  ...
+# Subtest: lease readers: the verifier is ONE authority (required 1), never mixed with RPCs, never repeated; RPC quorums are unchanged
+not ok 8 - lease readers: the verifier is ONE authority (required 1), never mixed with RPCs, never repeated; RPC quorums are unchanged
+  ---
+  duration_ms: 3.481683
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/chain-authority.test.mjs:194:1'
+  failureType: 'testCodeFailure'
+  error: 'the authority block is the verifier head minus 2'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/chain-authority.test.mjs:212:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: app-funded lease config under the verifier: reads use it alone, the configured RPCs are never contacted (kept for byte-identical config)
+ok 9 - app-funded lease config under the verifier: reads use it alone, the configured RPCs are never contacted (kept for byte-identical config)
+  ---
+  duration_ms: 2.51526
+  type: 'test'
+  ...
+# Subtest: guest opt-in: txBackend is checked and reaches the supervisor only with a usable verifier, from this channel only
+ok 10 - guest opt-in: txBackend is checked and reaches the supervisor only with a usable verifier, from this channel only
+  ---
+  duration_ms: 1.897935
+  type: 'test'
+  ...
+# Subtest: RFC 9180 A.1.1: DeriveKeyPair reproduces both key pairs
+ok 11 - RFC 9180 A.1.1: DeriveKeyPair reproduces both key pairs
+  ---
+  duration_ms: 4.948422
+  type: 'test'
+  ...
+# Subtest: RFC 9180 A.1.1: the key schedule matches on both sides
+ok 12 - RFC 9180 A.1.1: the key schedule matches on both sides
+  ---
+  duration_ms: 5.14592
+  type: 'test'
+  ...
+# Subtest: RFC 9180 A.1.1.1: encryptions at sequence 0, 1, 2, 4
+ok 13 - RFC 9180 A.1.1.1: encryptions at sequence 0, 1, 2, 4
+  ---
+  duration_ms: 6.348501
+  type: 'test'
+  ...
+# Subtest: single-shot seal/open round-trips and refuses a wrong info, aad, key or a low-order key
+ok 14 - single-shot seal/open round-trips and refuses a wrong info, aad, key or a low-order key
+  ---
+  duration_ms: 12.627393
+  type: 'test'
+  ...
+# Subtest: committee-local admission uses accepted wallet ownership, never payout or an Enclave witness
+ok 15 - committee-local admission uses accepted wallet ownership, never payout or an Enclave witness
+  ---
+  duration_ms: 1.221691
+  type: 'test'
+  ...
+# Subtest: genesis requires every operator permit, fresh peer evidence, same measured code and distinct allowed owners
+ok 16 - genesis requires every operator permit, fresh peer evidence, same measured code and distinct allowed owners
+  ---
+  duration_ms: 75.372811
+  type: 'test'
+  ...
+# Subtest: custodian transport cancels an oversized stream before downloading its tail
+ok 17 - custodian transport cancels an oversized stream before downloading its tail
+  ---
+  duration_ms: 15.59542
+  type: 'test'
+  ...
+# Subtest: declared excessive content length cancels the body before decoding
+ok 18 - declared excessive content length cancels the body before decoding
+  ---
+  duration_ms: 0.605136
+  type: 'test'
+  ...
+# Subtest: limits count UTF-8 bytes and preserve characters split across chunks
+ok 19 - limits count UTF-8 bytes and preserve characters split across chunks
+  ---
+  duration_ms: 1.453639
+  type: 'test'
+  ...
+# Subtest: bounded refusals retain their HTTP meaning and transport policy
+ok 20 - bounded refusals retain their HTTP meaning and transport policy
+  ---
+  duration_ms: 0.996612
+  type: 'test'
+  ...
+# Subtest: a schema-1 registry entry decodes to its operator and active flag
+ok 21 - a schema-1 registry entry decodes to its operator and active flag
+  ---
+  duration_ms: 3.97726
+  type: 'test'
+  ...
+# Subtest: a schema-2 registry entry decodes to its operator and active flag
+ok 22 - a schema-2 registry entry decodes to its operator and active flag
+  ---
+  duration_ms: 0.540256
+  type: 'test'
+  ...
+# Subtest: a schema-3 registry entry decodes to its operator and active flag
+ok 23 - a schema-3 registry entry decodes to its operator and active flag
+  ---
+  duration_ms: 0.455686
+  type: 'test'
+  ...
+# Subtest: a schema-4 registry entry decodes to its operator and active flag
+ok 24 - a schema-4 registry entry decodes to its operator and active flag
+  ---
+  duration_ms: 0.323188
+  type: 'test'
+  ...
+# Subtest: a schema-5 registry entry decodes to its operator and active flag
+ok 25 - a schema-5 registry entry decodes to its operator and active flag
+  ---
+  duration_ms: 0.370687
+  type: 'test'
+  ...
+# Subtest: the full schema-5 tuple does NOT decode a schema-4 entry (why the reader takes the prefix)
+ok 26 - the full schema-5 tuple does NOT decode a schema-4 entry (why the reader takes the prefix)
+  ---
+  duration_ms: 1.390809
+  type: 'test'
+  ...
+# Subtest: the authorization: strict shape, and the digest binds every field, the chain and the vault
+ok 27 - the authorization: strict shape, and the digest binds every field, the chain and the vault
+  ---
+  duration_ms: 38.689333
+  type: 'test'
+  ...
+# Subtest: the guest's judgement: admitted only on the exact authenticated state; every substitution has its own refusal
+ok 28 - the guest's judgement: admitted only on the exact authenticated state; every substitution has its own refusal
+  ---
+  duration_ms: 49.273231
+  type: 'test'
+  ...
+# Subtest: the destination seal: the same payload, openable ONLY by the destination committee for the destination label; the source ciphertext is not
+ok 29 - the destination seal: the same payload, openable ONLY by the destination committee for the destination label; the source ciphertext is not
+  ---
+  duration_ms: 28.414481
+  type: 'test'
+  ...
+# Subtest: the result carries only ciphertext, public facts and its SNP evidence document; nothing builds a switch without verifying it
+ok 30 - the result carries only ciphertext, public facts and its SNP evidence document; nothing builds a switch without verifying it
+  ---
+  duration_ms: 13.646785
+  type: 'test'
+  ...
+# Subtest: the owner's plan: admit adds exactly the rewrap image; rollback restores the original bytes; unsafe rules are refused
+ok 31 - the owner's plan: admit adds exactly the rewrap image; rollback restores the original bytes; unsafe rules are refused
+  ---
+  duration_ms: 5.16844
+  type: 'test'
+  ...
+# Subtest: the host signs ONLY this deployment's release message with a short expiry; results are shape-checked; QEMU binds HOST_DATA
+not ok 32 - the host signs ONLY this deployment's release message with a short expiry; results are shape-checked; QEMU binds HOST_DATA
+  ---
+  duration_ms: 13.00562
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/custody-rewrap-unit.test.mjs:156:1'
+  failureType: 'testCodeFailure'
+  error: 'fetch failed'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    node:internal/deps/undici/undici:15270:13
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async post (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/custody-rewrap-unit.test.mjs:161:47)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/custody-rewrap-unit.test.mjs:165:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: an unbuilt guest (no measured rewrap configuration) refuses and tells the host only a code
+ok 33 - an unbuilt guest (no measured rewrap configuration) refuses and tells the host only a code
+  ---
+  duration_ms: 0.561826
+  type: 'test'
+  ...
+# Subtest: every t-subset of a 3-of-5 split recovers the secret; every share verifies against the commitments
+ok 34 - every t-subset of a 3-of-5 split recovers the secret; every share verifies against the commitments
+  ---
+  duration_ms: 22.521467
+  type: 'test'
+  ...
+# Subtest: t-1 shares do not determine the secret: any value is consistent with them
+ok 35 - t-1 shares do not determine the secret: any value is consistent with them
+  ---
+  duration_ms: 1.660017
+  type: 'test'
+  ...
+# Subtest: a tampered share fails verification, and combining with it gives a wrong secret
+ok 36 - a tampered share fails verification, and combining with it gives a wrong secret
+  ---
+  duration_ms: 2.68529
+  type: 'test'
+  ...
+# Subtest: combine refuses too few shares and duplicate indices
+ok 37 - combine refuses too few shares and duplicate indices
+  ---
+  duration_ms: 1.258521
+  type: 'test'
+  ...
+# Subtest: redistribution 3-of-5 -> 2-of-4 keeps the secret and C_0 without anyone combining it
+ok 38 - redistribution 3-of-5 -> 2-of-4 keeps the secret and C_0 without anyone combining it
+  ---
+  duration_ms: 37.383673
+  type: 'test'
+  ...
+# Subtest: redistribution refuses a dealer that re-shares something other than its share
+ok 39 - redistribution refuses a dealer that re-shares something other than its share
+  ---
+  duration_ms: 4.422236
+  type: 'test'
+  ...
+# Subtest: book-bound release reads the ledger and registry the vault itself reads at that block (no pinned getters)
+ok 40 - book-bound release reads the ledger and registry the vault itself reads at that block (no pinned getters)
+  ---
+  duration_ms: 15.132803
+  type: 'test'
+  ...
+# Subtest: an administrator book change is followed at the next agreed block, as the vault follows it
+ok 41 - an administrator book change is followed at the next agreed block, as the vault follows it
+  ---
+  duration_ms: 5.598757
+  type: 'test'
+  ...
+# Subtest: book mode fails closed on a different book, a missing entry, or RPCs that disagree about the book
+ok 42 - book mode fails closed on a different book, a missing entry, or RPCs that disagree about the book
+  ---
+  duration_ms: 6.314311
+  type: 'test'
+  ...
+# Subtest: book-mode membership never runs without the host-ownership pin, and pinned mode never consults the book
+ok 43 - book-mode membership never runs without the host-ownership pin, and pinned mode never consults the book
+  ---
+  duration_ms: 4.870442
+  type: 'test'
+  ...
+# Subtest: entries report the vault Enclave flag (payout) separately from the accepted host wallet
+ok 44 - entries report the vault Enclave flag (payout) separately from the accepted host wallet
+  ---
+  duration_ms: 7.187715
+  type: 'test'
+  ...
+# Subtest: an ownership extension bound to another registry than the book names fails closed
+ok 45 - an ownership extension bound to another registry than the book names fails closed
+  ---
+  duration_ms: 2.044645
+  type: 'test'
+  ...
+# Subtest: book mode: an unenrolled Enclave-paid seat keeps its binding (existing epoch) but is not admissible to a future epoch
+ok 46 - book mode: an unenrolled Enclave-paid seat keeps its binding (existing epoch) but is not admissible to a future epoch
+  ---
+  duration_ms: 29.011867
+  type: 'test'
+  ...
+# Subtest: book mode: an Enclave-owned AND Enclave-seated host is admissible as the Enclave seat
+ok 47 - book mode: an Enclave-owned AND Enclave-seated host is admissible as the Enclave seat
+  ---
+  duration_ms: 7.286844
+  type: 'test'
+  ...
+# Subtest: book mode: payout-versus-owner mismatches are refused in both directions, before any seat is proposed
+ok 48 - book mode: payout-versus-owner mismatches are refused in both directions, before any seat is proposed
+  ---
+  duration_ms: 13.284478
+  type: 'test'
+  ...
+# Subtest: book mode: a non-Enclave host still needs an accepted owner; payout alone is never ownership
+ok 49 - book mode: a non-Enclave host still needs an accepted owner; payout alone is never ownership
+  ---
+  duration_ms: 12.531363
+  type: 'test'
+  ...
+# Subtest: pinned entries (no vaultEnclave field) keep the accepted-owner classification unchanged
+ok 50 - pinned entries (no vaultEnclave field) keep the accepted-owner classification unchanged
+  ---
+  duration_ms: 7.406943
+  type: 'test'
+  ...
+# Subtest: code permits: the Enclave seat votes only while the Enclave wallet is its accepted owner and its vault seat agrees
+ok 51 - code permits: the Enclave seat votes only while the Enclave wallet is its accepted owner and its vault seat agrees
+  ---
+  duration_ms: 0.582695
+  type: 'test'
+  ...
+# Subtest: measured build: --book selects the reviewed book-bound vault with its code hash; pinned images stay byte-identical; no independent genesis
+ok 52 - measured build: --book selects the reviewed book-bound vault with its code hash; pinned images stay byte-identical; no independent genesis
+  ---
+  duration_ms: 0.499576
+  type: 'test'
+  ...
+# Subtest: the owner CLI reads the deployed 0xE486 vault through its book and every other vault as pinned
+ok 53 - the owner CLI reads the deployed 0xE486 vault through its book and every other vault as pinned
+  ---
+  duration_ms: 0.289068
+  type: 'test'
+  ...
+# Subtest: reviewed vault identity: the production vault is book-bound with its book and ownership pin; code and immutables must match
+ok 54 - reviewed vault identity: the production vault is book-bound with its book and ownership pin; code and immutables must match
+  ---
+  duration_ms: 0.395027
+  type: 'test'
+  ...
+# Subtest: production pins name the production custody vault and the original session factory, never the unused alternates
+ok 55 - production pins name the production custody vault and the original session factory, never the unused alternates
+  ---
+  duration_ms: 0.587236
+  type: 'test'
+  ...
+# Subtest: a candidate's capacity: a trusted witness's receipt for ITS chip and host passes; anything else is refused
+ok 56 - a candidate's capacity: a trusted witness's receipt for ITS chip and host passes; anything else is refused
+  ---
+  duration_ms: 48.833384
+  type: 'test'
+  ...
+# Subtest: each single outlier can refuse, hang, lie about height, or return conflicting state without vetoing 3 of 4
+ok 57 - each single outlier can refuse, hang, lie about height, or return conflicting state without vetoing 3 of 4
+  ---
+  duration_ms: 207.939333
+  type: 'test'
+  ...
+# Subtest: quorum-supported height applies confirmations without falling back to a stale unpaused state
+ok 58 - quorum-supported height applies confirmations without falling back to a stale unpaused state
+  ---
+  duration_ms: 2.389282
+  type: 'test'
+  ...
+# Subtest: rejects stale, future, malformed, moving or wrong-number block headers
+ok 59 - rejects stale, future, malformed, moving or wrong-number block headers
+  ---
+  duration_ms: 1.086641
+  type: 'test'
+  ...
+# Subtest: all chain methods use canonical hash-addressed calls and freshness, including deals and code admission
+ok 60 - all chain methods use canonical hash-addressed calls and freshness, including deals and code admission
+  ---
+  duration_ms: 11.444642
+  type: 'test'
+  ...
+# Subtest: a lost or unsupported canonical-hash call never downgrades to number-only eth_call
+ok 61 - a lost or unsupported canonical-hash call never downgrades to number-only eth_call
+  ---
+  duration_ms: 0.751474
+  type: 'test'
+  ...
+# Subtest: checkpoint survives reader restart and rejects rollback, same-height fork and failed persistence
+ok 62 - checkpoint survives reader restart and rejects rollback, same-height fork and failed persistence
+  ---
+  duration_ms: 1.452588
+  type: 'test'
+  ...
+# Subtest: concurrent reads cannot return an older snapshot after a later one was persisted
+ok 63 - concurrent reads cannot return an older snapshot after a later one was persisted
+  ---
+  duration_ms: 0.872413
+  type: 'test'
+  ...
+# Subtest: configured peers and thresholds cannot silently count one peer twice or accept disjoint quorums
+ok 64 - configured peers and thresholds cannot silently count one peer twice or accept disjoint quorums
+  ---
+  duration_ms: 1.039322
+  type: 'test'
+  ...
+# Subtest: one public RPC host is one vote however it is spelled; loopback test chains count by port
+ok 65 - one public RPC host is one vote however it is spelled; loopback test chains count by port
+  ---
+  duration_ms: 1.895915
+  type: 'test'
+  ...
+# Subtest: invalid reader configuration is refused before any request; custom transports without a URL still work
+ok 66 - invalid reader configuration is refused before any request; custom transports without a URL still work
+  ---
+  duration_ms: 1.431069
+  type: 'test'
+  ...
+# Subtest: a snapshot that goes stale while its checkpoint is being persisted is refused; the mark still advances
+ok 67 - a snapshot that goes stale while its checkpoint is being persisted is refused; the mark still advances
+  ---
+  duration_ms: 0.682895
+  type: 'test'
+  ...
+# Subtest: custody reads accepted host ownership from a fresh agreeing block, separately from payout
+ok 68 - custody reads accepted host ownership from a fresh agreeing block, separately from payout
+  ---
+  duration_ms: 13.03042
+  type: 'test'
+  ...
+# Subtest: stale, disagreeing, or legacy ownership reads never fall back to payout
+ok 69 - stale, disagreeing, or legacy ownership reads never fall back to payout
+  ---
+  duration_ms: 3.163186
+  type: 'test'
+  ...
+# Subtest: a measured authority pin cannot be replaced by a different vault authority
+ok 70 - a measured authority pin cannot be replaced by a different vault authority
+  ---
+  duration_ms: 0.889563
+  type: 'test'
+  ...
+# Subtest: release reads the vault-pinned ledger and host registry without consulting the book
+ok 71 - release reads the vault-pinned ledger and host registry without consulting the book
+  ---
+  duration_ms: 15.537751
+  type: 'test'
+  ...
+# Subtest: legacy or disagreeing release authorities cannot trigger a mutable-book fallback
+ok 72 - legacy or disagreeing release authorities cannot trigger a mutable-book fallback
+  ---
+  duration_ms: 5.083331
+  type: 'test'
+  ...
+# Subtest: default off: the measured module has no opt-in, the Shield routes are an unknown route, /info is unchanged, a Shield document is unsupported
+not ok 73 - default off: the measured module has no opt-in, the Shield routes are an unknown route, /info is unchanged, a Shield document is unsupported
+  ---
+  duration_ms: 21.598144
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/custody-v2-shield-daemon.test.mjs:97:1'
+  failureType: 'testCodeFailure'
+  error: 'connect ENETUNREACH 127.0.0.1:42653 - Local (0.0.0.0:0)'
+  code: 'ENETUNREACH'
+  stack: |-
+    internalConnect (node:net:1111:16)
+    defaultTriggerAsyncIdScope (node:internal/async_hooks:472:18)
+    node:net:1357:9
+    process.processTicksAndRejections (node:internal/process/task_queues:84:11)
+  ...
+# Subtest: every pre-existing route, method, bound and error mapping is the router's, unchanged
+not ok 74 - every pre-existing route, method, bound and error mapping is the router's, unchanged
+  ---
+  duration_ms: 8.942221
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/custody-v2-shield-daemon.test.mjs:114:1'
+  failureType: 'testCodeFailure'
+  error: 'connect ENETUNREACH 127.0.0.1:39241 - Local (0.0.0.0:0)'
+  code: 'ENETUNREACH'
+  stack: |-
+    internalConnect (node:net:1111:16)
+    defaultTriggerAsyncIdScope (node:internal/async_hooks:472:18)
+    node:net:1357:9
+    process.processTicksAndRejections (node:internal/process/task_queues:84:11)
+  ...
+# Subtest: on: the node's session client attests over HTTP to THIS custodian's key, and a release over HTTP opens only for the guest's R
+not ok 75 - on: the node's session client attests over HTTP to THIS custodian's key, and a release over HTTP opens only for the guest's R
+  ---
+  duration_ms: 10.807097
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/custody-v2-shield-daemon.test.mjs:151:1'
+  failureType: 'testCodeFailure'
+  error: 'connect ENETUNREACH 127.0.0.1:40219 - Local (0.0.0.0:0)'
+  code: 'ENETUNREACH'
+  stack: |-
+    internalConnect (node:net:1111:16)
+    defaultTriggerAsyncIdScope (node:internal/async_hooks:472:18)
+    node:net:1357:9
+    process.processTicksAndRejections (node:internal/process/task_queues:84:11)
+  ...
+# Subtest: on: attest replay, another party, default/SNP rules and a wrong ledger owner are each refused over HTTP
+not ok 76 - on: attest replay, another party, default/SNP rules and a wrong ledger owner are each refused over HTTP
+  ---
+  duration_ms: 9.522017
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/custody-v2-shield-daemon.test.mjs:173:1'
+  failureType: 'testCodeFailure'
+  error: 'connect ENETUNREACH 127.0.0.1:37655 - Local (0.0.0.0:0)'
+  code: 'ENETUNREACH'
+  stack: |-
+    internalConnect (node:net:1111:16)
+    defaultTriggerAsyncIdScope (node:internal/async_hooks:472:18)
+    node:net:1357:9
+    process.processTicksAndRejections (node:internal/process/task_queues:84:11)
+  ...
+# Subtest: the adapter's party is this custodian's own encKey, never a configured one
+ok 77 - the adapter's party is this custodian's own encKey, never a configured one
+  ---
+  duration_ms: 13.557286
+  type: 'test'
+  ...
+# Subtest: attest's measured body bound (declared and streamed), its concurrency bound, and 256 KiB on the challenge route
+not ok 78 - attest's measured body bound (declared and streamed), its concurrency bound, and 256 KiB on the challenge route
+  ---
+  duration_ms: 8.640794
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/custody-v2-shield-daemon.test.mjs:236:1'
+  failureType: 'testCodeFailure'
+  error: 'connect ENETUNREACH 127.0.0.1:39211 - Local (0.0.0.0:0)'
+  code: 'ENETUNREACH'
+  stack: |-
+    internalConnect (node:net:1111:16)
+    defaultTriggerAsyncIdScope (node:internal/async_hooks:472:18)
+    node:net:1357:9
+    process.processTicksAndRejections (node:internal/process/task_queues:84:11)
+  ...
+# Subtest: the host config cannot carry the opt-in, and the daemon builds the adapter from MEASURED only and serves the shared router
+ok 79 - the host config cannot carry the opt-in, and the daemon builds the adapter from MEASURED only and serves the shared router
+  ---
+  duration_ms: 4.415746
+  type: 'test'
+  ...
+# Subtest: one TPM cannot fill the live session table with endpoints it does not hold: each EK keeps at most 4 sessions
+not ok 80 - one TPM cannot fill the live session table with endpoints it does not hold: each EK keeps at most 4 sessions
+  ---
+  duration_ms: 9.13824
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/custody-v2-shield-daemon.test.mjs:325:1'
+  failureType: 'testCodeFailure'
+  error: 'connect ENETUNREACH 127.0.0.1:46077 - Local (0.0.0.0:0)'
+  code: 'ENETUNREACH'
+  stack: |-
+    internalConnect (node:net:1111:16)
+    defaultTriggerAsyncIdScope (node:internal/async_hooks:472:18)
+    node:net:1357:9
+    process.processTicksAndRejections (node:internal/process/task_queues:84:11)
+  ...
+# Subtest: a squatter's own genuine TPM and key, attesting for the lease holder's endpoint, never displaces its session or releases
+not ok 81 - a squatter's own genuine TPM and key, attesting for the lease holder's endpoint, never displaces its session or releases
+  ---
+  duration_ms: 8.547505
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/custody-v2-shield-daemon.test.mjs:345:1'
+  failureType: 'testCodeFailure'
+  error: 'connect ENETUNREACH 127.0.0.1:42445 - Local (0.0.0.0:0)'
+  code: 'ENETUNREACH'
+  stack: |-
+    internalConnect (node:net:1111:16)
+    defaultTriggerAsyncIdScope (node:internal/async_hooks:472:18)
+    node:net:1357:9
+    process.processTicksAndRejections (node:internal/process/task_queues:84:11)
+  ...
+# Subtest: over HTTP at the custodian: malicious EKs take no pending slot; the genuine host challenges, attests and its guest is released; replayed and expired sessions refused
+not ok 82 - over HTTP at the custodian: malicious EKs take no pending slot; the genuine host challenges, attests and its guest is released; replayed and expired sessions refused
+  ---
+  duration_ms: 128.947349
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/custody-v2-shield-daemon.test.mjs:378:1'
+  failureType: 'testCodeFailure'
+  error: 'connect ENETUNREACH 127.0.0.1:44785 - Local (0.0.0.0:0)'
+  code: 'ENETUNREACH'
+  stack: |-
+    internalConnect (node:net:1111:16)
+    defaultTriggerAsyncIdScope (node:internal/async_hooks:472:18)
+    node:net:1357:9
+    process.processTicksAndRejections (node:internal/process/task_queues:84:11)
+  ...
+# Subtest: the rate key is the TCP peer by default: a client-chosen x-forwarded-for neither escapes nor splits its bucket; only a measured forwarder's rightmost entry counts
+not ok 83 - the rate key is the TCP peer by default: a client-chosen x-forwarded-for neither escapes nor splits its bucket; only a measured forwarder's rightmost entry counts
+  ---
+  duration_ms: 7.79728
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/custody-v2-shield-daemon.test.mjs:418:1'
+  failureType: 'testCodeFailure'
+  error: 'connect ENETUNREACH 127.0.0.1:38199 - Local (0.0.0.0:0)'
+  code: 'ENETUNREACH'
+  stack: |-
+    internalConnect (node:net:1111:16)
+    defaultTriggerAsyncIdScope (node:internal/async_hooks:472:18)
+    node:net:1357:9
+    process.processTicksAndRejections (node:internal/process/task_queues:84:11)
+  ...
+# Subtest: the certificate clock boundary, deterministically: one ms before an EK's notBefore it is not yet valid; at notBefore the on-die rule decides
+not ok 84 - the certificate clock boundary, deterministically: one ms before an EK's notBefore it is not yet valid; at notBefore the on-die rule decides
+  ---
+  duration_ms: 116.425805
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/custody-v2-shield-daemon.test.mjs:450:1'
+  failureType: 'testCodeFailure'
+  error: 'connect ENETUNREACH 127.0.0.1:35869 - Local (0.0.0.0:0)'
+  code: 'ENETUNREACH'
+  stack: |-
+    internalConnect (node:net:1111:16)
+    defaultTriggerAsyncIdScope (node:internal/async_hooks:472:18)
+    node:net:1357:9
+    process.processTicksAndRejections (node:internal/process/task_queues:84:11)
+  ...
+# Subtest: custody vectors: the JS reference reproduces the pinned fixture, and the Go copy is identical
+ok 85 - custody vectors: the JS reference reproduces the pinned fixture, and the Go copy is identical
+  ---
+  duration_ms: 37.437242
+  type: 'test'
+  ...
+# Subtest: custody vectors: the responses open and combine to the bundle's env (JS side)
+ok 86 - custody vectors: the responses open and combine to the bundle's env (JS side)
+  ---
+  duration_ms: 20.612921
+  type: 'test'
+  ...
+# Subtest: anchor: full 32 bytes in two padded halves; torn, malformed and unpadded values refused; exact unsigned setMany
+ok 87 - anchor: full 32 bytes in two padded halves; torn, malformed and unpadded values refused; exact unsigned setMany
+  ---
+  duration_ms: 7.963669
+  type: 'test'
+  ...
+# Subtest: format binds book, registry and ownership extension; strict bounds
+ok 88 - format binds book, registry and ownership extension; strict bounds
+  ---
+  duration_ms: 1.222641
+  type: 'test'
+  ...
+# Subtest: anchored loader: exact digest only; a withheld newer policy cannot be replaced by an older signed one; missing mirror fails closed
+ok 89 - anchored loader: exact digest only; a withheld newer policy cannot be replaced by an older signed one; missing mirror fails closed
+  ---
+  duration_ms: 23.320881
+  type: 'test'
+  ...
+# Subtest: minority RPC poisoning cannot change the anchor, the owner or a host fact; a poisoned majority-free read does not count
+ok 90 - minority RPC poisoning cannot change the anchor, the owner or a host fact; a poisoned majority-free read does not count
+  ---
+  duration_ms: 11.446262
+  type: 'test'
+  ...
+# Subtest: book owner rotation: the former owner's signature stops verifying; an ERC-1271 owner answers at the snapshot block
+ok 91 - book owner rotation: the former owner's signature stops verifying; an ERC-1271 owner answers at the snapshot block
+  ---
+  duration_ms: 18.1871
+  type: 'test'
+  ...
+# Subtest: persistence: a tampered record is discarded and reported; a persisted newer policy refuses an anchored rollback
+ok 92 - persistence: a tampered record is discarded and reported; a persisted newer policy refuses an anchored rollback
+  ---
+  duration_ms: 20.506393
+  type: 'test'
+  ...
+# Subtest: decisions use the ACCEPTED owner and operator at the agreed block, deny overrides admit, and a node behind the anchor refuses
+ok 93 - decisions use the ACCEPTED owner and operator at the agreed block, deny overrides admit, and a node behind the anchor refuses
+  ---
+  duration_ms: 12.824062
+  type: 'test'
+  ...
+# Subtest: expiry never lifts a ban; stale refuses new hosts; unanchored operation is refused unless explicitly allowed; OFF is explicit
+ok 94 - expiry never lifts a ban; stale refuses new hosts; unanchored operation is refused unless explicitly allowed; OFF is explicit
+  ---
+  duration_ms: 9.769204
+  type: 'test'
+  ...
+# Subtest: runtime: absent config is OFF, malformed config throws, a configured runtime enforces through HTTPS mirrors
+ok 95 - runtime: absent config is OFF, malformed config throws, a configured runtime enforces through HTTPS mirrors
+  ---
+  duration_ms: 36.713978
+  type: 'test'
+  ...
+# Subtest: anchored NON-EXPIRING mode: no renewal schedule; the fresh anchor alone keeps it current, revokes it and replaces it
+not ok 96 - anchored NON-EXPIRING mode: no renewal schedule; the fresh anchor alone keeps it current, revokes it and replaces it
+  ---
+  duration_ms: 19.815358
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/platform-host-policy.test.mjs:171:1'
+  failureType: 'testCodeFailure'
+  error: 'RPCs disagree or only 0 RPCs could read block 10 (need 2; rpc_refused)'
+  code: 'chain_unconfirmed'
+  stack: |-
+    fail (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/custody/v2/quorum.mjs:5:47)
+    file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/custody/v2/quorum.mjs:138:13
+    async Object.refresh (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/network/platform-host-policy.mjs:223:19)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/platform-host-policy.test.mjs:183:70)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: core v2: current-owner authority is re-checked at EVERY decision block; rotation or ERC-1271 withdrawal stops admission; re-signing the same document restores it
+ok 97 - core v2: current-owner authority is re-checked at EVERY decision block; rotation or ERC-1271 withdrawal stops admission; re-signing the same document restores it
+  ---
+  duration_ms: 28.5989
+  type: 'test'
+  ...
+# Subtest: all reader boundaries refuse two votes for one IPv4 host, including translated address spellings
+ok 98 - all reader boundaries refuse two votes for one IPv4 host, including translated address spellings
+  ---
+  duration_ms: 4.531765
+  type: 'test'
+  ...
+# Subtest: loopback aliases preserve local fixtures while Windows production never counts local ports as separate hosts
+ok 99 - loopback aliases preserve local fixtures while Windows production never counts local ports as separate hosts
+  ---
+  duration_ms: 0.522996
+  type: 'test'
+  ...
+# Subtest: malformed and credential-bearing transports are refused without echoing their secrets
+ok 100 - malformed and credential-bearing transports are refused without echoing their secrets
+  ---
+  duration_ms: 0.845994
+  type: 'test'
+  ...
+# Subtest: provider and checker configuration cannot bypass the shared vote identity rule
+ok 101 - provider and checker configuration cannot bypass the shared vote identity rule
+  ---
+  duration_ms: 0.834073
+  type: 'test'
+  ...
+1..101
+# tests 101
+# suites 0
+# pass 84
+# fail 17
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3943.17854

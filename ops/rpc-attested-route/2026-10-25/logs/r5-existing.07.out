@@ -1,0 +1,11 @@
+$ node --test --test-timeout=300000 --test-concurrency=1 --test-reporter=spec test/lease-reader-terminal-snapshot.test.mjs
+✔ a final header that answers after the deadline cannot advance the accepted floor (123.062716ms)
+✔ a retained client refuses metadata AND RPC methods after success, failure or timeout (103.004319ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 485.293867

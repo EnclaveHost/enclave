@@ -1,0 +1,28 @@
+TAP version 13
+# Subtest: r12 REAL CONSUMER: Host -> owned factory/dispatch -> runtime/client -> router/manager: queued -> Running -> TCP -> off-chain refresh -> Stop
+not ok 1 - r12 REAL CONSUMER: Host -> owned factory/dispatch -> runtime/client -> router/manager: queued -> Running -> TCP -> off-chain refresh -> Stop
+  ---
+  duration_ms: 112.165812
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r12/candidate/test/windows-permit/r12-real-consumer.test.mjs:199:1'
+  failureType: 'testCodeFailure'
+  error: 'router configuration absent'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    error (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r12/candidate/control/windows/vbslike/router/control.mjs:33:54)
+    new CompositeManager (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r12/candidate/control/windows/vbslike/router/control.mjs:112:113)
+    rig (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r12/candidate/test/windows-permit/r12-real-consumer.test.mjs:125:18)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r12/candidate/test/windows-permit/r12-real-consumer.test.mjs:201:13)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 478.862372

@@ -1,0 +1,68 @@
+{
+  "samples": 184,
+  "last": [
+    {
+      "at": "2026-10-28T09:53:51.671427+00:00",
+      "ID": "gd6d5c8224",
+      "Name": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+      "Measurement": "f369af4d818204a0f9ddb87d5ecba9c077f7ab13a493447cc22cdf8d1e3575e22d910f7a6ebda2a063535f500bc247c4",
+      "Releases": [
+        "1da344346ffe01df7695059bf4c27a5ef48ea6dc5cad11f6893683c71e5933f7"
+      ],
+      "MemMiB": 64281,
+      "Vcpus": 16,
+      "Verdict": "attested",
+      "memory.current": "15763730432",
+      "memory.peak": "50819276800",
+      "memory.max": "68208820224",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0"
+    },
+    {
+      "at": "2026-10-28T09:53:53.672187+00:00",
+      "ID": "gd6d5c8224",
+      "Name": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+      "Measurement": "f369af4d818204a0f9ddb87d5ecba9c077f7ab13a493447cc22cdf8d1e3575e22d910f7a6ebda2a063535f500bc247c4",
+      "Releases": [
+        "1da344346ffe01df7695059bf4c27a5ef48ea6dc5cad11f6893683c71e5933f7"
+      ],
+      "MemMiB": 64281,
+      "Vcpus": 16,
+      "Verdict": "attested",
+      "memory.current": "9468866560",
+      "memory.peak": "50819276800",
+      "memory.max": "68208820224",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0"
+    },
+    {
+      "at": "2026-10-28T09:53:55.672945+00:00",
+      "ID": "gd6d5c8224",
+      "Name": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+      "Measurement": "f369af4d818204a0f9ddb87d5ecba9c077f7ab13a493447cc22cdf8d1e3575e22d910f7a6ebda2a063535f500bc247c4",
+      "Releases": [
+        "1da344346ffe01df7695059bf4c27a5ef48ea6dc5cad11f6893683c71e5933f7"
+      ],
+      "MemMiB": 64281,
+      "Vcpus": 16,
+      "Verdict": "attested",
+      "memory.current": "3228856320",
+      "memory.peak": "50819276800",
+      "memory.max": "68208820224",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0"
+    },
+    {
+      "at": "2026-10-28T09:53:57.673547+00:00",
+      "ID": "gd6d5c8224",
+      "Name": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+      "Measurement": "f369af4d818204a0f9ddb87d5ecba9c077f7ab13a493447cc22cdf8d1e3575e22d910f7a6ebda2a063535f500bc247c4",
+      "Releases": [
+        "1da344346ffe01df7695059bf4c27a5ef48ea6dc5cad11f6893683c71e5933f7"
+      ],
+      "MemMiB": 64281,
+      "Vcpus": 16,
+      "Verdict": "attested"
+    }
+  ],
+  "maxSampledBytes": 50819014656,
+  "minimumHostAvailableKiB": 28621276,
+  "status": "failed: app status139 during warmup, no inference pass, no OOM recorded in last available cgroup samples"
+}

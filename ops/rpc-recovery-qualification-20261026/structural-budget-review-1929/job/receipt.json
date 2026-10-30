@@ -1,0 +1,38 @@
+{
+ "checks": {
+  "clean": false,
+  "cleanupComplete": true,
+  "noMountLeft": true,
+  "noProcessLeft": true,
+  "peersUnchanged": true,
+  "rc0": false,
+  "snapshotsOk": true
+ },
+ "collectRc": 0,
+ "format": "composite-production-memory-job-receipt/r10",
+ "meaning": "CLEAN = mdbx_chk structural check only; not chain/state/trie/canonical-root/RPC validation, not a production acceptance",
+ "memoryDirty": null,
+ "memoryPeaks": {
+  "cgAnon": 622743552,
+  "cgCurrent": 3892600832,
+  "cgFileMapped": 1071292416,
+  "cgPagetables": 2219929600,
+  "chkRssAnonKiB": 541072,
+  "chkRssFileKiB": 542468,
+  "chkVmPTEKiB": 2165932,
+  "chkVmRSSKiB": 1083516,
+  "minMemAvailableMiB": 92428.71484375,
+  "treeVmRssMiB": 1635.84765625
+ },
+ "mountsLeft": "",
+ "outcome": "CANCELLED",
+ "processesLeft": "",
+ "rc": 5,
+ "reasons": [
+  "signal 15"
+ ],
+ "runtimeKilled": false,
+ "softStop": null,
+ "structurallyCleanRun": false,
+ "wrapperTerm": false
+}

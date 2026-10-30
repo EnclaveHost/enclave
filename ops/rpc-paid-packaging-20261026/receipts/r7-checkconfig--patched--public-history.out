@@ -1,0 +1,11 @@
+file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-adapter-stage/r7/runs/20261026T121923Z-packaging-1671552/patched/network/wg-provider/attested-authority.mjs:49
+const bad = (m) => { throw new Error(`provider chain authority: ${m}`); };
+                           ^
+
+Error: provider chain authority: derivedFinality.historyUrl: must be a loopback or private IPv4 address literal: a name or public address is not the operator's own backend
+    at bad (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-adapter-stage/r7/runs/20261026T121923Z-packaging-1671552/patched/network/wg-provider/attested-authority.mjs:49:28)
+    at providerPaidFinality (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-adapter-stage/r7/runs/20261026T121923Z-packaging-1671552/patched/network/wg-provider/attested-authority.mjs:104:98)
+    at providerChainAuthority (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-adapter-stage/r7/runs/20261026T121923Z-packaging-1671552/patched/network/wg-provider/attested-authority.mjs:116:21)
+    at file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-adapter-stage/r7/runs/20261026T121923Z-packaging-1671552/patched/network/wg-provider/main.mjs:62:17
+
+Node.js v22.23.3

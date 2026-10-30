@@ -1,0 +1,14 @@
+Helios is a fast, secure, and portable multichain light client
+
+Usage: helios [OPTIONS] <COMMAND>
+
+Commands:
+  ethereum  
+  opstack   
+  linea     
+  help      Print this message or the help of the given subcommand(s)
+
+Options:
+      --tui      Enable terminal user interface
+  -h, --help     Print help
+  -V, --version  Print version

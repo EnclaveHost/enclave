@@ -1,0 +1,15 @@
+# Run ONLY after copy-l1.receipt.json exists with "status": "ok", as uid 1000, with the VM and guard units stopped.
+# Reads both receipts, re-checks source/target identity (inode + size + mtime/ctime <= receipt `finished` + 1 s; the
+# receipt has 1 s precision, so this is not an exact-mtime check), runs read-only `qemu-img info` (no -U) and
+# `qemu-img check` (never -r) on both NVMe targets, and STAGES files into a NEW --out dir. Installs nothing.
+# Launcher re-pin: plan pin 4f458aa1 -> 8b1ece11 at the SAME source path (explicit acceptance; same-path re-pin fixed).
+cd /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025
+python3 -I source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/migrate_nvme.py finalize-receipts \
+  --plan source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/plan-final-20261025T165151Z.json \
+  --receipt os=/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/nvme-migration/copy-os.receipt.json \
+  --receipt l1=/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/nvme-migration/copy-l1.receipt.json \
+  --launcher /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/provision_vm.py \
+  --accept-launcher-sha 8b1ece11201b0f6fe157c2dbf053e46846572741663dfc772ca29a0e0bfa463c \
+  --out /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-migration-stage/staged-final
+# Review staged-final/ (manifest.json, both units, provision_vm.py, install.sh, rollback.sh, SHA256SUMS), then with the
+# VM still stopped: staged-final/install.sh   (checks old shas, backs up, installs, daemon-reload, verify; starts nothing)

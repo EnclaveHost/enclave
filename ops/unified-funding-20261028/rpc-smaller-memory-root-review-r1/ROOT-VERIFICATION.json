@@ -1,0 +1,11 @@
+{
+  "reviewedAt": "2026-10-30T05:42:33Z",
+  "packageHashes": {
+    "REVIEW.md": "e9ec1e05d31a0e02245c23a0dad096ea055fbffcf59b212c8cbd39cf089825c5",
+    "INVENTORY.json": "2e63106ef1347d88613dd0e4fe42aedc5df295a7a52952265bf93706cb3deb38",
+    "SOURCE-PINS.json": "d82a027b9ae2b0db80d13c99e4b98e9a1d9cc10d682f574815bf6169c85e1237"
+  },
+  "sourcePinsChecked": 20,
+  "drift": [],
+  "executions": []
+}

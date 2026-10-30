@@ -31,8 +31,8 @@ import { base, baseSepolia } from "viem/chains";
 
 const REPO = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), "..");
 const NETWORKS = {
-  "base-sepolia": { chain: baseSepolia, rpc: "https://sepolia.base.org", explorer: "https://sepolia.basescan.org" },
-  "base":         { chain: base, rpc: "https://mainnet.base.org", explorer: "https://basescan.org" },
+  "base-sepolia": { chain: baseSepolia, rpc: "https://api.enclave.host/rpc/base-sepolia", explorer: "https://sepolia.basescan.org" },
+  "base":         { chain: base, rpc: "https://api.enclave.host/rpc/base", explorer: "https://basescan.org" },
 };
 const args = process.argv.slice(2);
 const ASSUME_YES = args.includes("--yes");

@@ -1,0 +1,26 @@
+[queue] START available=24009MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+
+FAILED (failures=1)
+{
+ "checks": {
+  "lastLineOK": false,
+  "noBadMarkers": false,
+  "ranExactly": true,
+  "rc0": false,
+  "stdoutEmpty": true
+ },
+ "expected": 25,
+ "format": "state-production-test-receipt/r3",
+ "pass": false,
+ "ran": [
+  "25"
+ ],
+ "rc": 1,
+ "scope": "runner logic on SYNTHETIC inputs only: no view, mount, helper run or production data; not a production run, not a state result",
+ "stageSums": "5d24dd4ba64042c78547110dd72101eabbf3041393ff1a880eaf46000892c0a5"
+}
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/state-production-validation-stage/r3/runs/tests-20261027T120233Z-3173349
+## spv-r3-tests rc=1
+[memory-guard] exit=1 peakTreeRssMiB=41 minHostAvailableMiB=23929
+[memory-guard] at peak: python3:35 bash:4 timeout:2
+[queue] EXIT 1

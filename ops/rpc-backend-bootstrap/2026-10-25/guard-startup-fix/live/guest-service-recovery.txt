@@ -1,0 +1,52 @@
+Oct 25 17:54:59 enclave-rpc python3[847]: - Constantinople                   @7280000
+Oct 25 17:54:59 enclave-rpc python3[847]: - Petersburg                       @7280000
+Oct 25 17:54:59 enclave-rpc python3[847]: - Istanbul                         @9069000
+Oct 25 17:54:59 enclave-rpc python3[847]: - MuirGlacier                      @9200000
+Oct 25 17:54:59 enclave-rpc python3[847]: - Berlin                           @12244000
+Oct 25 17:54:59 enclave-rpc python3[847]: - London                           @12965000
+Oct 25 17:54:59 enclave-rpc python3[847]: - ArrowGlacier                     @13773000
+Oct 25 17:54:59 enclave-rpc python3[847]: - GrayGlacier                      @15050000
+Oct 25 17:54:59 enclave-rpc python3[847]: Merge hard forks:
+Oct 25 17:54:59 enclave-rpc python3[847]: - Paris                            @58750000000000000000000 (network is known to be merged)
+Oct 25 17:54:59 enclave-rpc python3[847]: Post-merge hard forks (timestamp based):
+Oct 25 17:54:59 enclave-rpc python3[847]: - Shanghai                         @1681338455
+Oct 25 17:54:59 enclave-rpc python3[847]: - Cancun                           @1710338135          blob: (target: 3, max: 6, fraction: 3338477)
+Oct 25 17:54:59 enclave-rpc python3[847]: - Prague                           @1746612311          blob: (target: 6, max: 9, fraction: 5007716)
+Oct 25 17:54:59 enclave-rpc python3[847]: - Osaka                            @1764798551          blob: (target: 6, max: 9, fraction: 5007716)
+Oct 25 17:54:59 enclave-rpc python3[847]: - Bpo1                             @1765290071          blob: (target: 10, max: 15, fraction: 8346193)
+Oct 25 17:54:59 enclave-rpc python3[847]: - Bpo2                             @1767747671          blob: (target: 14, max: 21, fraction: 11684671)
+Oct 25 17:54:59 enclave-rpc python3[847]: 2026-10-25T17:54:59.310356Z  INFO Loaded storage settings settings=StorageSettings { storage_v2: true } pruning_mode="custom"
+Oct 25 17:54:59 enclave-rpc python3[847]: 2026-10-25T17:54:59.312177Z  INFO Transaction pool initialized
+Oct 25 17:54:59 enclave-rpc python3[847]: 2026-10-25T17:54:59.313338Z  INFO Loading saved peers file=/srv/enclave-l1-pair/data/known-peers.json
+Oct 25 17:54:59 enclave-rpc python3[847]: 2026-10-25T17:54:59.317901Z  INFO Loaded persisted peers count=2395
+Oct 25 17:54:59 enclave-rpc python3[847]: 2026-10-25T17:54:59.320079Z  INFO P2P networking initialized enode=enode://92b32bf8909a53debbb639883db10b72b7c8866ccf3e0aeb885d28407e5e984cd69135d81b03943b323583d9556dfcaf1aa2fa3c8a8e1d1d5cb67bdd10f6d3d2@0.0.0.0:30313
+Oct 25 17:54:59 enclave-rpc python3[847]: 2026-10-25T17:54:59.320883Z  INFO StaticFileProducer initialized
+Oct 25 17:54:59 enclave-rpc python3[847]: 2026-10-25T17:54:59.321188Z  INFO Pruner initialized prune_config=PruneConfig { block_interval: 5, segments: PruneModes { sender_recovery: Some(Full), transaction_lookup: Some(Distance(140000)), receipts: Some(Distance(140000)), account_history: Some(Distance(140000)), storage_history: Some(Distance(140000)), bodies_history: Some(Distance(140000)), receipts_log_filter: ReceiptsLogPruneConfig({}) }, minimum_pruning_distance: 10064 }
+Oct 25 17:54:59 enclave-rpc python3[847]: 2026-10-25T17:54:59.321921Z  INFO Consensus engine initialized
+Oct 25 17:54:59 enclave-rpc python3[847]: 2026-10-25T17:54:59.322020Z  INFO Engine API handler initialized
+Oct 25 17:54:59 enclave-rpc python3[847]: 2026-10-25T17:54:59.323730Z  INFO RPC HTTP server started url=127.0.0.1:18645
+Oct 25 17:54:59 enclave-rpc python3[847]: 2026-10-25T17:54:59.323764Z  INFO RPC auth server started url=127.0.0.1:18651
+Oct 25 17:54:59 enclave-rpc python3[847]: 2026-10-25T17:54:59.324126Z  INFO Starting consensus engine
+Oct 25 17:54:59 enclave-rpc python3[847]: 2026-10-25T17:54:59.324450Z  INFO Target block already reached checkpoint=26270382 target=Hash(0x4a952caca8846edc80ba5af508b23f47ba7c6fbd6050806a005f3b236ba9537f)
+Oct 25 17:54:59 enclave-rpc python3[847]: 2026-10-25T17:54:59.324472Z  INFO Preparing stage pipeline_stages=1/14 stage=Headers checkpoint=26270382 target=None
+Oct 25 17:54:59 enclave-rpc python3[847]: 2026-10-25T17:54:59.324601Z  INFO Executing stage pipeline_stages=1/14 stage=Headers checkpoint=26270382 target=None
+Oct 25 17:54:59 enclave-rpc python3[847]: 2026-10-25T17:54:59.324691Z  INFO Finished stage pipeline_stages=1/14 stage=Headers checkpoint=26270382 target=None stage_progress=100.00%
+Oct 25 17:54:59 enclave-rpc python3[847]: 2026-10-25T17:54:59.324710Z  INFO Preparing stage pipeline_stages=2/14 stage=Bodies checkpoint=26270382 target=26270382
+Oct 25 17:54:59 enclave-rpc python3[847]: 2026-10-25T17:54:59.324715Z  INFO Executing stage pipeline_stages=2/14 stage=Bodies checkpoint=26270382 target=26270382
+Oct 25 17:54:59 enclave-rpc python3[847]: 2026-10-25T17:54:59.324735Z  INFO Finished stage pipeline_stages=2/14 stage=Bodies checkpoint=26270382 target=26270382 stage_progress=100.00%
+Oct 25 17:54:59 enclave-rpc python3[847]: 2026-10-25T17:54:59.324739Z  INFO Preparing stage pipeline_stages=3/14 stage=SenderRecovery checkpoint=26270382 target=26270382
+Oct 25 17:54:59 enclave-rpc python3[847]: 2026-10-25T17:54:59.324760Z  INFO Executing stage pipeline_stages=3/14 stage=SenderRecovery checkpoint=26270382 target=26270382
+Oct 25 17:54:59 enclave-rpc python3[847]: 2026-10-25T17:54:59.324819Z  INFO Finished stage pipeline_stages=3/14 stage=SenderRecovery checkpoint=26270382 target=26270382 stage_progress=99.96%
+Oct 25 17:54:59 enclave-rpc python3[847]: 2026-10-25T17:54:59.324827Z  INFO Preparing stage pipeline_stages=4/14 stage=Execution checkpoint=26263578 target=26270382
+Oct 25 17:54:59 enclave-rpc python3[847]: 2026-10-25T17:54:59.324830Z  INFO Executing stage pipeline_stages=4/14 stage=Execution checkpoint=26263578 target=26270382
+Oct 25 17:55:02 enclave-rpc python3[847]: 2026-10-25T17:55:02.322988Z  INFO Status connected_peers=0 stage=Execution checkpoint=26263578 target=26270382
+Oct 25 17:55:08 enclave-rpc python3[898]: Oct 25 17:55:08.433 INFO  Block production enabled
+Oct 25 17:55:08 enclave-rpc python3[898]: Oct 25 17:55:08.461 WARN  State cache missed                            state_root: 0x7ac10589582bde8a656d7ae87e088b09fa54d91b8a4f49ea0971569a9b7deab0, block_root: 0x147fc14f8a04d22d2393c625908a5778307a4f49fa70635497fe347beed76502
+Oct 25 17:55:09 enclave-rpc python3[847]: 2026-10-25T17:55:09.596467Z  INFO Executed block range start=26263579 end=26263600 throughput="61.49Mgas/second"
+a7adf5e6ba228bc7532f6ceb2591b4c28acd92df5bd021a2e510972c71795e40  /opt/enclave-rpc/chain_service.py
+Oct 25 17:54:47 enclave-rpc kernel: raid6: using avx512x2 recovery algorithm
+Oct 25 17:54:47 enclave-rpc kernel: EXT4-fs (sda1): mounted filesystem 59134bd0-a76f-4ea0-8e4a-770b2e1eafc2 ro with ordered data mode. Quota mode: none.
+Oct 25 17:54:47 enclave-rpc kernel: EXT4-fs (sda1): re-mounted 59134bd0-a76f-4ea0-8e4a-770b2e1eafc2 r/w.
+Oct 25 17:54:48 enclave-rpc kernel: EXT4-fs (sda16): mounted filesystem b4f0deba-ce7d-45dc-9999-0427f2720320 r/w with ordered data mode. Quota mode: none.
+Oct 25 17:54:48 enclave-rpc kernel: EXT4-fs (sdb): mounted filesystem a2f2a8b5-06ac-4612-95a0-f48a00a7f6e0 r/w with ordered data mode. Quota mode: none.
+Oct 25 17:54:48 enclave-rpc kernel: EXT4-fs (sdc): mounted filesystem 11c6bbac-f823-4052-a87a-066eed6ad590 r/w with ordered data mode. Quota mode: none.

@@ -1,0 +1,56 @@
+{
+  "readOnly": true,
+  "files": {
+    "/opt/enclave-rpc/chain_service.py": {
+      "sha256": "75c879ec9c5728688beac8cc98ecf1410c38f29c144b27fabd8b42ea60cfbc92",
+      "size": 37323,
+      "matchesLocalReference": false
+    },
+    "/etc/enclave-rpc/chain.json": {
+      "sha256": "81988aeef841cc073b359ab29993641b06e71d72190ddc5df606057ddd7b5eb7",
+      "size": 3488,
+      "matchesLocalReference": false
+    },
+    "/opt/enclave-rpc/manifest.json": {
+      "sha256": "c35ec24b39b4cff06a72c00a5fcc032a035658d314771f9072b881f9258a0fb7",
+      "size": 670,
+      "matchesLocalReference": true
+    }
+  },
+  "cleanup": [
+    {
+      "pid": 2596063,
+      "signals": [],
+      "unmount": [],
+      "exit": 0,
+      "owned": [
+        [
+          2596065,
+          165980353
+        ]
+      ],
+      "survivors": [],
+      "mountPresent": false,
+      "fault": null,
+      "stderrBytes": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrHead": "",
+      "drainerJoined": true,
+      "result": "complete",
+      "fusermountRc": 0,
+      "normal": true
+    }
+  ],
+  "checkpointEpoch": 484635,
+  "baseOriginL1Block": null,
+  "installedBinaryPins": {
+    "base": "9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f",
+    "reth": "8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250",
+    "lighthouse": "11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96"
+  },
+  "installedMounts": {
+    "base": "/srv/enclave-base-holder",
+    "l1": "/srv/enclave-l1-pair"
+  },
+  "imageIdentityUnchanged": true
+}

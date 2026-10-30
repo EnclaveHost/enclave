@@ -1,0 +1,1 @@
+First root fixture preparation failed before after/ existed: FileNotFoundError after/generator.mjs. Shell still launched unit404cd59321eb4b90bef6a68c538729a3 without run.py; no tests ran. Preserved, corrected preparation ordering; new owned unit required. No product-source finding.

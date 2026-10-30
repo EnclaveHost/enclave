@@ -1,0 +1,328 @@
+{
+ "url": "https://127.0.0.1:55385",
+ "expected": {
+  "measurement": "4287b65e718ff958027f31beec6a0753d42784086807b950f557a963cd0277f33c9869173420f03f5fb53e4ad2859be9",
+  "configDigest": "0af7ce0726d370ffd6b9ac08f4ae6d34a4f28812cdb95df62a91f787d65d1195",
+  "hostData": "186382b4de462c94de28c55271084ff9259b9d4e84e322bc8483ead3810ed8e4",
+  "runtime": {
+   "gsupSha256": "b8882af954b84f1b6a77974dd1f90c8e11dfff527db3c17bf482fefd5d87e24d",
+   "helperSha256": "6489bf13273172105139c599dbbff4c29b9b1f317a88f6fe46bd2669375666a7",
+   "supervisorSha256": "9fe1ea994373b57a62be78b4b42ab7514f6c64be0bbaed3e5aab8c4cfb58ac5c"
+  }
+ },
+ "collateral": {
+  "kds": false,
+  "stats": {
+   "hits": 28,
+   "misses": 0,
+   "fetches": 0,
+   "quarantined": 0,
+   "writeFailures": 0,
+   "staleServed": 0
+  },
+  "events": []
+ },
+ "registryRead": false,
+ "attempts": [
+  {
+   "at": "2026-10-25T17:43:20.257Z",
+   "ms": 39,
+   "status": "pending",
+   "checks": {
+    "statement": true,
+    "config": true,
+    "endpoint key": true,
+    "hardware": {
+     "report shape": true,
+     "report version": true,
+     "product line": true,
+     "guest policy": true,
+     "vmpl": true,
+     "chain": true,
+     "crl": true,
+     "signature": true,
+     "vcek identity": true,
+     "tcb policy": true,
+     "measurement": true,
+     "binding": true,
+     "app id": true,
+     "host data": true
+    },
+    "report": true,
+    "supervisor": true,
+    "registry": null
+   },
+   "reasons": [
+    "the statement is canonical and well-formed",
+    "config 0af7ce0726d370ff… (HOST_DATA 186382b4de462c94…)",
+    "the TLS peer holds the attested control key sha256:47578d1c1c9fca95…",
+    "SEV-SNP report verified: measurement 4287b65e718ff958… is allowed, it binds this statement and our nonce, its role is the control guest, HOST_DATA binds the config",
+    "the supervisor behind the attested endpoint uses the minted proof key 0x7024aecb5c21f615479483e4c8b4f06e046a43f6 and session key nVARSmJshYCU…",
+    "PENDING (registry): no quorum reader supplied, so the on-chain identity is not checked"
+   ]
+  }
+ ],
+ "readiness": {
+  "up": true,
+  "tries": 3
+ },
+ "evidence": {
+  "nonce": "7fb3fdf3af15630969816b12691ac43388d392263434576cda06310bb86ac414",
+  "status": 200,
+  "peerSpkiSha256": "47578d1c1c9fca9508de35064023eb599fe519ae5af0a52a26336a7b0fd74b63",
+  "document": {
+   "format": "enclave-measured-control-evidence/v1",
+   "statement": "{\"bootId\":\"e158d4a3d885205cc54f78e794d88fdf\",\"chainId\":8453,\"configDigest\":\"0af7ce0726d370ffd6b9ac08f4ae6d34a4f28812cdb95df62a91f787d65d1195\",\"format\":\"enclave-measured-control-statement/v1\",\"hostData\":\"186382b4de462c94de28c55271084ff9259b9d4e84e322bc8483ead3810ed8e4\",\"identity\":{\"operator\":\"0xf3c1a9e76a5138f47833575280d0c52211b37bad\",\"publicUrl\":\"https://snp-verifier-canary.invalid\"},\"keys\":{\"controlTls\":{\"spkiSha256\":\"47578d1c1c9fca9508de35064023eb599fe519ae5af0a52a26336a7b0fd74b63\"},\"proof\":{\"curve\":\"secp256k1\",\"publicKey\":\"0449f51abfcdbfb5b5631ab93afec2e32639bb10f09a8ab36c1a241b71d8df6faf2fbf0858db5ef059e1e222c16b98b4d2b2c450f41a458fa181f5f1240c2d09e0\"},\"session\":{\"crv\":\"P-256\",\"kty\":\"EC\",\"x\":\"dObfJt1UwkTkMau4I6vS1KVHr3k0C5Yo43I5TVHSenk\",\"y\":\"AEKZU7bigE5_fE6aWkont5K77rFvLX8gCeghDzcWISc\"}},\"mode\":\"snp\",\"role\":\"direct-control\",\"runtime\":{\"chainVerifierImageSha256\":\"23ac96adb0c6728ab48627e45b150845ef93690f73dba70da60ab6cf79dea964\",\"gsupSha256\":\"b8882af954b84f1b6a77974dd1f90c8e11dfff527db3c17bf482fefd5d87e24d\",\"helperSha256\":\"6489bf13273172105139c599dbbff4c29b9b1f317a88f6fe46bd2669375666a7\",\"supervisorSha256\":\"9fe1ea994373b57a62be78b4b42ab7514f6c64be0bbaed3e5aab8c4cfb58ac5c\"}}",
+   "report": "BQAAAAAAAAAAAAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAABAwIFAAAAdWUAAAAAAAAAAAAAAAAAAAC6L/5HSKv26lnU4jwt4vxEd03SjPiDKQJVyDeLmgncmJkT5kTCp14RZCGy+o/htT9OV/JEzfjEFG5D7P3re/C0Qoe2XnGP+VgCfzG+7GoHU9QnhAhoB7lQ9VepY80Cd/M8mGkXNCDwP1+1PkrShZvpGGOCtN5GLJTeKMVScQhP+SWbnU6E4yK8hIPq04EO2OQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA9bSAE8QFeaab/uSfNJww4jgAEVPKLSM3zqSDjwdyZ3f//////////////////////////////////////////AQMCBQAAAHUaAgEAAAAAAAAAAAAAAAAAAAAAAAAAAAD6Ea/PVK6cUwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQMCBQAAAHUDOgEAAzoBAAEDAgUAAAB1PwAAAAAAAAA/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA6sJyu4Td76OgoK+JBy01/93JRj7aGQoEVW7HcjbIJxvU1PjaXUjA5wLduK2BfxYNAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAeLrGLjTMrQ0yY6owbeEueQ5vetvnijWW7nKF1B70if2iVdQCOaD/WCgSW6L5waIHAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+   "certificate": "-----BEGIN CERTIFICATE-----\nMIIBQTCB6KADAgECAhADMYA0Z9xNG6M3M4ulg7bqMAoGCCqGSM49BAMCMCMxITAf\nBgNVBAMMGGVuY2xhdmUtbWVhc3VyZWQtY29udHJvbDAeFw0yNjEwMjUxNjQzMTZa\nFw0zNjEwMjIxNzQzMTZaMCMxITAfBgNVBAMMGGVuY2xhdmUtbWVhc3VyZWQtY29u\ndHJvbDBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABKrAZJ+dMcq6G7CfFk/iE5gg\nrONoXaIuT3L5QDrpK7AiVC7v1djkI3JJFqijKZhA0CRuohfBhX+a1fK3h/xokjEw\nCgYIKoZIzj0EAwIDSAAwRQIhAPV9zyDZffBGKcrqxm/8Li3b3cr02hnF/aqL6Gkh\nmLMZAiBSx+LCyzZV+mei3JjoZ5P0oHNLW7purMieLzuLfrqqgQ==\n-----END CERTIFICATE-----\n"
+  }
+ },
+ "statementChecks": {
+  "configDigest": true,
+  "hostData": true,
+  "peerIsControlTls": true,
+  "runtime": {
+   "gsupSha256": true,
+   "helperSha256": true,
+   "supervisorSha256": true
+  },
+  "noMcpOrPlatformApi": true,
+  "noNative": true,
+  "controlTlsSpkiSha256": "47578d1c1c9fca9508de35064023eb599fe519ae5af0a52a26336a7b0fd74b63",
+  "operatorMatchesConfig": true,
+  "mode": "snp"
+ },
+ "final": {
+  "status": "pending",
+  "checks": {
+   "statement": true,
+   "config": true,
+   "endpoint key": true,
+   "hardware": {
+    "report shape": true,
+    "report version": true,
+    "product line": true,
+    "guest policy": true,
+    "vmpl": true,
+    "chain": true,
+    "crl": true,
+    "signature": true,
+    "vcek identity": true,
+    "tcb policy": true,
+    "measurement": true,
+    "binding": true,
+    "app id": true,
+    "host data": true
+   },
+   "report": true,
+   "supervisor": true,
+   "registry": null
+  },
+  "reasons": [
+   "the statement is canonical and well-formed",
+   "config 0af7ce0726d370ff… (HOST_DATA 186382b4de462c94…)",
+   "the TLS peer holds the attested control key sha256:47578d1c1c9fca95…",
+   "SEV-SNP report verified: measurement 4287b65e718ff958… is allowed, it binds this statement and our nonce, its role is the control guest, HOST_DATA binds the config",
+   "the supervisor behind the attested endpoint uses the minted proof key 0x7024aecb5c21f615479483e4c8b4f06e046a43f6 and session key nVARSmJshYCU…",
+   "PENDING (registry): no quorum reader supplied, so the on-chain identity is not checked"
+  ],
+  "identity": {
+   "bootId": "e158d4a3d885205cc54f78e794d88fdf",
+   "operator": "0xf3c1a9e76a5138f47833575280d0c52211b37bad",
+   "publicUrl": "https://snp-verifier-canary.invalid",
+   "controlTlsSpkiSha256": "47578d1c1c9fca9508de35064023eb599fe519ae5af0a52a26336a7b0fd74b63",
+   "proofKey": "0x7024aecb5c21f615479483e4c8b4f06e046a43f6",
+   "sessionKid": "nVARSmJshYCUCOMiNc2Mqyj42aSrMs3GstvYE1U-R3I",
+   "registryId": "0x46d63beb518621550d9f2d625db79372e72b80d198bd469e68041d39b0c046b2",
+   "measurement": "4287b65e718ff958027f31beec6a0753d42784086807b950f557a963cd0277f33c9869173420f03f5fb53e4ad2859be9",
+   "chipId": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186"
+  }
+ },
+ "verdict": {
+  "hardwarePass": true,
+  "parts": {
+   "statement": true,
+   "config": true,
+   "endpointKey": true,
+   "report": true,
+   "supervisor": true
+  },
+  "wrapperStatus": "pending",
+  "registryCheck": null
+ },
+ "attestedOutcome": {
+  "status": "attested",
+  "spki": "47578d1c1c9fca9508de35064023eb599fe519ae5af0a52a26336a7b0fd74b63",
+  "measurement": "4287b65e718ff958027f31beec6a0753d42784086807b950f557a963cd0277f33c9869173420f03f5fb53e4ad2859be9",
+  "bootId": "e158d4a3d885205cc54f78e794d88fdf"
+ },
+ "offline": {
+  "control": {
+   "status": "verified",
+   "failed": [],
+   "reasons": []
+  },
+  "reportByte": {
+   "status": "rejected",
+   "failed": [
+    "signature"
+   ],
+   "reasons": [
+    "REJECT: VCEK signature over the report is invalid"
+   ]
+  },
+  "statementByte": {
+   "status": "rejected",
+   "failed": [
+    "binding"
+   ],
+   "reasons": [
+    "REJECT: report_data[0:32] does not equal the ABI/2 (caller-derived Bind2 over key, nonce and runtime identity) binding"
+   ]
+  },
+  "otherNonce": {
+   "status": "rejected",
+   "failed": [
+    "binding"
+   ],
+   "reasons": [
+    "REJECT: report_data[0:32] does not equal the ABI/2 (caller-derived Bind2 over key, nonce and runtime identity) binding"
+   ]
+  }
+ },
+ "liveRejections": {
+  "wrongMeasurement": {
+   "status": "rejected",
+   "checks": {
+    "report": false,
+    "config": true
+   },
+   "hardwareMeasurement": false,
+   "reasons": [
+    "report: VCEK extensions name this chip (fa11afcf54ae9c53...) and the reported TCB (fmc 1, bootloader 3, tee 2, snp 5, microcode 117)",
+    "report: reported TCB meets the supplied Turin minimum (fmc 1, bootloader 3, tee 2, snp 5, microcode 117); committed TCB meets it too",
+    "report: REJECT: launch measurement 4287b65e718ff958... is not an allowed measurement"
+   ]
+  },
+  "wrongConfig": {
+   "status": "rejected",
+   "checks": {
+    "config": false
+   },
+   "reasons": [
+    "the statement is canonical and well-formed",
+    "REJECT (config): the guest runs config 0af7ce0726d370ff…, not the owner's e5fd675342a33e3f…"
+   ]
+  }
+ },
+ "route": {
+  "client": {
+   "attest": [
+    true
+   ],
+   "read": {
+    "ok": false,
+    "error": "attested verifier: no attested replica answered (https://127.0.0.1:55385: HTTP 502)"
+   },
+   "replicaStatus": "attested",
+   "reasons": []
+  },
+  "readProbes": [
+   {
+    "at": "2026-10-25T17:43:20.349Z",
+    "method": "eth_blockNumber",
+    "status": 502,
+    "error": "service_unreachable"
+   },
+   {
+    "at": "2026-10-25T17:43:30.362Z",
+    "method": "eth_blockNumber",
+    "status": 502,
+    "error": "service_unreachable"
+   },
+   {
+    "at": "2026-10-25T17:43:40.376Z",
+    "method": "eth_blockNumber",
+    "status": 502,
+    "error": "service_unreachable"
+   }
+  ],
+  "writeProbe": {
+   "at": "2026-10-25T17:43:40.378Z",
+   "method": "eth_sendRawTransaction",
+   "status": 403,
+   "error": "method_refused"
+  },
+  "wrongClient": {
+   "attest": [
+    false
+   ],
+   "read": {
+    "ok": false,
+    "error": "attested verifier: no attested replica answered (https://127.0.0.1:55385: rejected)"
+   },
+   "replicaStatus": "rejected",
+   "reasons": [
+    "report: AMD chain verified: VCEK -> ASK (SEV-Turin) -> ARK-Turin, ARK pinned by sha256, all three valid at 2026-10-25",
+    "report: CRL verified (ARK-signed, 0 revoked serial(s), valid 2026-09-22 .. 2026-11-09); ASK serial 030001 not revoked",
+    "report: PSP signature over bytes 0..0x2a0 verifies with the VCEK (r, s in range)",
+    "report: VCEK extensions name this chip (fa11afcf54ae9c53...) and the reported TCB (fmc 1, bootloader 3, tee 2, snp 5, microcode 117)",
+    "report: reported TCB meets the supplied Turin minimum (fmc 1, bootloader 3, tee 2, snp 5, microcode 117); committed TCB meets it too",
+    "report: REJECT: launch measurement 4287b65e718ff958... is not an allowed measurement"
+   ]
+  },
+  "signerMismatchRefused": true,
+  "signerMismatchError": "attested verifier: replicas[0].config pins sequencer 0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a, not the caller's 0x1111111111111111111111111111111111111111"
+ },
+ "acceptance": {
+  "pass": true,
+  "required": {
+   "A verifier: statement": true,
+   "A verifier: config + HOST_DATA": true,
+   "A verifier: TLS peer = attested control key": true,
+   "A verifier: AMD report verified with the expected measurement": true,
+   "A verifier: running supervisor holds the minted keys": true,
+   "A verifier-only: status pending with registry null (no registry read)": true,
+   "A verifier-only: attestedOutcome = attested (production acceptance rule)": true,
+   "A evidence: HTTP 200": true,
+   "A evidence: statement config digest = owner config": true,
+   "A evidence: statement HOST_DATA = owner config": true,
+   "A evidence: TLS peer = statement control key": true,
+   "A evidence: same boot as the verifier (control key)": true,
+   "A evidence: mode snp": true,
+   "A evidence: runtime gsup/helper/supervisor = the image manifest": true,
+   "A evidence: no mcpSha256/platformApiSha256 runtime": true,
+   "A evidence: no native member": true,
+   "B offline control: captured evidence re-verifies (non-vacuity)": true,
+   "B tamper: flipped report byte rejected": true,
+   "B tamper: changed statement byte rejected": true,
+   "B replay: another nonce rejected": true,
+   "C wrong measurement rejected at the report": true,
+   "C wrong config rejected at config": true,
+   "D client: replica attested while the backend is unready": true,
+   "D client: read fails closed (HTTP 502)": true,
+   "D route: every read probe 502 service_unreachable": true,
+   "D route: write method 403 method_refused": true,
+   "D client: wrong measurement never attests and its read fails": true,
+   "D client: a different sequencer pin is refused before any connection": true
+  },
+  "failed": [],
+  "diagnostic": {
+   "chipId": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186",
+   "operatorIsTheConfiguredCanaryAddress": true,
+   "offlineFailedChecks": {
+    "control": [],
+    "reportByte": [
+     "signature"
+    ],
+    "statementByte": [
+     "binding"
+    ],
+    "otherNonce": [
+     "binding"
+    ]
+   },
+   "note": "no-key/no-claim authority is proven by the harness from the launcher's own fw_cfg and host config and the restricted QEMU network"
+  }
+ }
+}

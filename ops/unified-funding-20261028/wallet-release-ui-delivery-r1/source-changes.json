@@ -1,0 +1,55 @@
+{
+  "changes": {
+    "REPORT-WALLET-RELEASE-R1.md": {
+      "seedSha256": null,
+      "finalSha256": "a36003071bbd48e2bfe50f514fdc95a3b490ce9120d4ac69f9f0b78b2ec4160f",
+      "kind": "new"
+    },
+    "enclave/site/js/core/wallet-release-chain.js": {
+      "seedSha256": null,
+      "finalSha256": "66dc0b48314635b258b0e66a1e81823e2b051ae24a7f731cb531a5e143dbd6f6",
+      "kind": "new"
+    },
+    "enclave/site/js/core/wallet-release-controller.js": {
+      "seedSha256": null,
+      "finalSha256": "0320129a355d4cb60f92a38920278edda3bb204ef570f9ca45381657f468a3b7",
+      "kind": "new"
+    },
+    "enclave/site/js/core/wallet-release-store.js": {
+      "seedSha256": null,
+      "finalSha256": "1379de9e182bb08a9e17d8e0bdb5e457f2ad4dcd606bfe935ff83ef3d0f77029",
+      "kind": "new"
+    },
+    "enclave/site/js/core/wallet-release-view.js": {
+      "seedSha256": null,
+      "finalSha256": "f23b9311d2e9e09d983af1fc037b44a99cec420ffea8f44f463e25593c3bb746",
+      "kind": "new"
+    },
+    "enclave/site/js/pages/sessions.js": {
+      "seedSha256": "4044eb4efa6bd3d8b657a9ecf705333773ce4799c093a47479b22bd0958c0375",
+      "finalSha256": "2bcdbaf7f2dd583710ddbf09e2cc74d4d0b7b41f653833b7552bb042456a6af2",
+      "kind": "modified"
+    },
+    "enclave/test/wallet-release/chain-store.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "f2e5b7134438ef1030c3988f48612c42d88a2f3a7b081e82304fc10e4f7d04fc",
+      "kind": "new"
+    },
+    "enclave/test/wallet-release/controller.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "91dd4b676c73bcb68dad500bfed0b9a5d652578c9134628c06c1c87e8d1cdc94",
+      "kind": "new"
+    },
+    "enclave/test/wallet-release/held-card.fixture.html": {
+      "seedSha256": null,
+      "finalSha256": "d1a0db9bc6b4f371076c2c88efd26071c2aa6d33422719b9d7a816a6034bf262",
+      "kind": "new"
+    },
+    "enclave/test/wallet-release/view.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "2c5b098e8ced802dd79fcbdff255729193f97349dff7c67c5d710dabc014130d",
+      "kind": "new"
+    }
+  },
+  "removed": []
+}

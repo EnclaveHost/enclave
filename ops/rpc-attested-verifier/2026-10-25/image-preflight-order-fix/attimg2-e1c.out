@@ -1,0 +1,37 @@
+[queue] START available=21444MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+[env] ssh/scp/sftp -> /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-image-stage/stub/bin (shell + node child proved)
+[env] private network namespace: interfaces = lo only, no IPv4 route (net:[4026533631])
+[route] lineage HEAD d69bc38a6ef9a996fa583bd1bbb4aafcdba66f71
+[ok] route HEAD carries the committed bundle (no local edits)
+[deps] route bundle node_modules inputs 411 match 411
+[calibration] rebuild from image e0dfe98aa == the COMMITTED route bundle (86a3e099dd5163e3)
+[b42] rebuilt 8f8eae8e2b74ea9f vs committed 86a3e099dd5163e3
+[code diff] changed lines (banner aside): 6
+[b42 manifest] imageCommit b42d6b3e7 image inputs ['metal/guest/chain-verifier.mjs', 'metal/guest/lease-gas-conduit.bundle.mjs', 'metal/guest/measured-control.mjs', 'metal/guest/owner-nomination.mjs', 'metal/measured-control-verify.mjs', 'relay/snp-verify.mjs', 'verifier/der.mjs', 'verifier/envelope.mjs', 'verifier/snp.mjs', 'verifier/tls-binding.mjs']
+< var __getOwnPropNames=Object.getOwnPropertyNames;var __esm=(fn,res,err)=>function __init(){if(err)throw err[0];try{return fn&&(res=(0,fn[__getOwnPropNames(fn)
+< `);super(a),Object.defineProperty(this,"details",{enumerable:true,configurable:true,writable:true,value:void 0}),Object.defineProperty(this,"docsPath",{enumer
+< `);super(i,r.cause?{cause:r.cause}:void 0),Object.defineProperty(this,"details",{enumerable:true,configurable:true,writable:true,value:void 0}),Object.defineP
+> var __getOwnPropNames=Object.getOwnPropertyNames;var __esm=(fn,res,err)=>function __init(){if(err)throw err[0];try{return fn&&(res=(0,fn[__getOwnPropNames(fn)
+> `);super(a),Object.defineProperty(this,"details",{enumerable:true,configurable:true,writable:true,value:void 0}),Object.defineProperty(this,"docsPath",{enumer
+> `);super(i,r.cause?{cause:r.cause}:void 0),Object.defineProperty(this,"details",{enumerable:true,configurable:true,writable:true,value:void 0}),Object.defineP
+SAME | verifier-only (reviewed shape) | accepted hostData 11afca866a762dc100…
+SAME | plain bound verifier (no expose) | accepted hostData 994df81600ac3a53d6…
+SAME | no chain verifier | accepted hostData 3332e24e29330aaf99…
+SAME | refuse: expose public | refused: chainVerifier: expose must be "attested"
+SAME | refuse: txBackend on a read-only verifier | refused: chainVerifier: expose "attested" is a read-only verifier: it takes no txBackend (nothing is submitted through 
+SAME | refuse: verifier-only + platformApi | refused: chainVerifier.expose "attested" is a verifier-only guest: remove platformApi
+SAME | refuse: verifier-only + mcp | refused: chainVerifier.expose "attested" is a verifier-only guest: remove mcp
+SAME | refuse: verifier-only + leaseGas | refused: chainVerifier.expose "attested" is a verifier-only guest: remove leaseGas
+SAME | refuse: plain config + malformed leaseGas (conduit checkTransit path) | refused: leaseGas: lease-gas: leaseGas transit has an unknown field "format"
+SAME | refuse: public proof source http | refused: chainVerifier: proofSources[0] must be https (or http at a private IPv4 literal) without credentials, query or
+SAME | constant CHAIN_VERIFIER_ROUTE = "/chain-verifier"
+SAME | constant MAX_VERIFIER_ANSWER_BYTES = 16777216
+SAME | CHAIN_VERIFIER_READ_METHODS (14)
+SAME | verifyMeasuredControl source text
+[non-vacuity] verifier-only accepted: true; refusals at the format check: 0
+E1 cases same=10 different=0
+[ok] no ssh/scp/sftp invocation (0)
+E1-EQUIVALENT
+[memory-guard] exit=0 peakTreeRssMiB=176 minHostAvailableMiB=21078
+[memory-guard] at peak: esbuild:99 node:74 bash:4
+[queue] EXIT 0

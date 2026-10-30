@@ -1,0 +1,40 @@
+
+running 35 tests
+test actors::engine::client::tests::disabled_client_accepts_sync_completion_without_an_actor ... ok
+test actors::engine::engine_request_processor::tests::admin_payload_advances_catching_up_conductor_only_when_not_shadow::case_2_shadow_follower ... ok
+test actors::engine::engine_request_processor::tests::admin_payload_advances_catching_up_conductor_only_when_not_shadow::case_1_conductor_follower ... ok
+test actors::engine::engine_request_processor::tests::admin_payload_schedule_is_checked_before_enqueue::case_1_wrong_second ... ok
+test actors::engine::engine_request_processor::tests::admin_payload_schedule_is_checked_before_enqueue::case_2_wrong_slot ... ok
+test actors::engine::engine_request_processor::tests::admin_payload_schedule_is_checked_before_enqueue::case_3_missing_metadata ... ok
+test actors::engine::engine_request_processor::tests::admin_payload_schedule_is_checked_before_enqueue::case_4_valid ... ok
+test actors::engine::engine_request_processor::tests::bootstrap_anchor::first_reset_starts_at_the_anchor_ignoring_a_replayed_label_then_clears_it ... ok
+test actors::engine::engine_request_processor::tests::bootstrap_anchor::precondition_refuses_an_execution_head_that_was_not_unwound_to_the_anchor ... ok
+test actors::engine::engine_request_processor::tests::bootstrap_anchor::without_anchor_the_precondition_is_a_no_op ... ok
+test actors::engine::engine_request_processor::tests::bootstrap_at_genesis_validator_seeds_without_probing_el_sync ... ok
+test actors::engine::engine_request_processor::tests::bootstrap_beyond_genesis_conductor_follower_probes_and_sets_el_sync_finished ... ok
+test actors::engine::engine_request_processor::tests::bootstrap_beyond_genesis_syncing_fcu_defers_reset ... ok
+test actors::engine::engine_request_processor::tests::bootstrap_beyond_genesis_valid_fcu_sets_el_sync_finished ... ok
+test actors::engine::engine_request_processor::tests::bootstrap_beyond_genesis_validator_seeds_without_probing_el_sync ... ok
+test actors::engine::engine_request_processor::tests::bootstrap_beyond_genesis_validator_sends_zeroed_safe_finalized ... ok
+test actors::engine::engine_request_processor::tests::external_payload_logs_denim_activation_once ... ok
+test actors::engine::engine_request_processor::tests::build_invalid_payload_dispatches_flush_signal_exactly_once ... ok
+test actors::engine::engine_request_processor::tests::shadow_cycle_advances_safe_and_finalized_heads_through_canonical_anchor ... ok
+test actors::engine::engine_request_processor::tests::reset_request_rewinds_hash_retrievable_l1_orphan_and_preserves_finalized ... ok
+test actors::engine::engine_request_processor::tests::shadow_gate_survives_initial_el_sync_reset ... ok
+test actors::engine::engine_request_processor::tests::unsafe_payload_processing_updates_queue::case_01_sequencer_enqueues_contiguous_external_payload ... ok
+test actors::engine::engine_request_processor::tests::unsafe_payload_processing_updates_queue::case_02_sequencer_enqueues_near_tip_external_payload_when_safe_is_behind ... ok
+test actors::engine::engine_request_processor::tests::unsafe_payload_processing_updates_queue::case_03_sequencer_enqueues_observed_restart_gap_external_payload ... ok
+test actors::engine::engine_request_processor::tests::unsafe_payload_processing_updates_queue::case_04_sequencer_enqueues_external_payload_at_gap_boundary ... ok
+test actors::engine::engine_request_processor::tests::unsafe_payload_processing_updates_queue::case_05_sequencer_drops_external_payload_beyond_gap_boundary ... ok
+test actors::engine::engine_request_processor::tests::unsafe_payload_processing_updates_queue::case_06_sequencer_drops_deep_sync_external_payload ... ok
+test actors::engine::engine_request_processor::tests::unsafe_payload_processing_updates_queue::case_07_sequencer_drops_stale_external_payload ... ok
+test actors::engine::engine_request_processor::tests::unsafe_payload_processing_updates_queue::case_08_sequencer_enqueues_external_next_block_with_parent_mismatch ... ok
+test actors::engine::engine_request_processor::tests::unsafe_payload_processing_updates_queue::case_09_sequencer_cl_sync_preserves_local_unsafe_payload_insertion ... ok
+test actors::engine::engine_request_processor::tests::unsafe_payload_processing_updates_queue::case_10_local_sequencer_inserts_old_unsafe_payload_without_gap_limit ... ok
+test actors::engine::engine_request_processor::tests::unsafe_payload_processing_updates_queue::case_11_validator_preserves_immediate_unsafe_payload_insertion ... ok
+test actors::engine::engine_request_processor::tests::shadow_reset_is_fatal_only_after_private_cycle_starts ... ok
+test actors::engine::validator_engine_request_handler::tests::anchor_precondition_failure_ends_the_actor_without_seed_state_or_fcu ... ok
+test actors::engine::engine_request_processor::tests::validator_restart_does_not_crash_when_reth_safe_block_body_is_pruned ... ok
+
+test result: ok. 35 passed; 0 failed; 0 ignored; 0 measured; 341 filtered out; finished in 0.01s
+

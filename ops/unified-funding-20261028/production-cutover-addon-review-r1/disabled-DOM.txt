@@ -1,0 +1,97 @@
+- banner:
+  - link "Skip to main content":
+    - /url: "#main"
+  - link "Enclave home":
+    - /url: ./
+  - navigation "Primary":
+    - link "Overview":
+      - /url: ./
+    - link "Apps":
+      - /url: apps
+    - link "Develop":
+      - /url: develop
+    - link "Host":
+      - /url: host
+  - button "Sign in →":
+    - text: Sign in
+    - generic: →
+- main:
+  - heading "Gas funding" [level=1]
+  - region "Your gas funding":
+    - generic: Funding
+    - heading "Gas for your apps, under your control." [level=2]
+    - paragraph: "Nothing here signs or sends on its own: every wallet prompt follows your click, and a migration is offered only for an exactly reviewed plan. You can end, terminate or withdraw at any time."
+    - paragraph: Connect the owner wallet. Nothing is signed by connecting.
+    - button "Connect wallet"
+- contentinfo "Footer":
+  - link "Enclave home":
+    - /url: ./
+  - paragraph: Compute that cannot see your data. Paid per second, for anything that holds a key.
+  - generic: built + operated by Enclave Host, Inc.
+  - text: "front-end: static, pinned to IPFS ·"
+  - code: enclave.host
+  - navigation "Product":
+    - heading "Product" [level=2]
+    - list:
+      - link "What you get":
+        - /url: ./#why
+      - link "How it works":
+        - /url: ./#how
+      - link "App store":
+        - /url: apps
+      - link "Pricing":
+        - /url: ./#pricing
+      - link "Architecture":
+        - /url: develop#architecture
+      - link "Engineering evidence":
+        - /url: develop#progress
+      - link "About the company":
+        - /url: ./#about
+  - navigation "Developers":
+    - heading "Developers" [level=2]
+    - list:
+      - link "App development guide":
+        - /url: develop#docs
+      - link "API reference":
+        - /url: develop#api
+      - link "OpenAPI spec":
+        - /url: openapi.json
+      - link "Attestation guide":
+        - /url: ./#attest
+      - link "Error codes":
+        - /url: develop#api
+  - navigation "Trust":
+    - heading "Trust" [level=2]
+    - list:
+      - link "The isolation contract":
+        - /url: develop#contract
+      - link "Enclave Shield":
+        - /url: develop#shield
+      - link "Verify an enclave":
+        - /url: ./#attest
+      - link "What is measured":
+        - /url: develop#verify
+      - link "What runs on our servers":
+        - /url: develop#independent
+      - link "Source on GitHub":
+        - /url: https://github.com/EnclaveHost/enclave
+  - navigation "Contact and legal":
+    - heading "Contact" [level=2]
+    - list:
+      - link "Support support@enclave.host":
+        - /url: mailto:support@enclave.host
+        - text: Support
+        - code: support@enclave.host
+      - link "Security disclosures security@enclave.host":
+        - /url: mailto:security@enclave.host
+        - text: Security disclosures
+        - code: security@enclave.host
+      - link "security.txt":
+        - /url: .well-known/security.txt
+      - link "Terms of Service":
+        - /url: terms
+      - link "Privacy Policy":
+        - /url: privacy
+  - generic: © 2026 Enclave Host, Inc. · content-addressed on IPFS · build funding-cutover-r1 · 8c7d5889
+  - generic: designed to outlive any one operator
+- status

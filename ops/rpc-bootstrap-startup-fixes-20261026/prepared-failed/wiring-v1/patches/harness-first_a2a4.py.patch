@@ -1,0 +1,331 @@
+--- a/harness-first/a2a4.py
++++ b/harness-first/a2a4.py
+@@ -29,7 +29,7 @@
+     (from==0 -> full rebuild; validate_state_root against header N; mismatch -> exit 1)
+   - `db get` exits 0 with EMPTY output on a missing key -> every read here requires non-empty, parsed output.
+ """
+-import base64, datetime, hashlib, json, os, pathlib, re, shutil, signal, stat, subprocess, sys, tempfile, time, types
++import base64, datetime, fcntl, hashlib, json, os, pathlib, re, shutil, signal, stat, subprocess, sys, tempfile, time, types
+ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+ import selection as SEL
+ 
+@@ -61,7 +61,12 @@
+ LOG_CAP, STDERR_CAP, GRACE_SEC = 256 << 20, 16 << 20, 120
+ FORBIDDEN_STAGES_V2 = ('hashing', 'account-hashing', 'storage-hashing', 'execution')
+ # ---- A1 evidence pins (a1-a2-integration) ----
+-A1_MODES = ('fresh-initial', 'original-game-recheck')
++A1_MODES = ('fresh-initial', 'original-game-recheck', 'capture-original-recheck')
++# production-bootstrap-wiring (bootstrap-closure-review A1/C): the two LEGACY modes accept root-owned receipt FILES whose provenance is
++# self-asserted (run-result.json); production refuses them. The first bootstrap's A1 is capture-original-recheck: the reviewed capture
++# module's `recheck` of the SOURCE-pinned initial receipt, verified HERE (verify) and admitted HERE (the shared ledger). Tests only:
++A1_LEGACY_MODES = ('fresh-initial', 'original-game-recheck')
++A1_LEGACY_TEST_ONLY = False
+ A1_FILE_CAP = 1 << 20
+ A1_MAX_L1_AGE_SEC = 1800                          # recorded finalized-header age (A1 DEFAULT_MAX_FINALIZED_AGE_SEC)
+ A1_RUN_WINDOW_SEC = 300                           # receipt `at` - finalized timestamp - recorded age: the runner's own read time
+@@ -75,6 +80,40 @@
+                       'a1-read.mjs': 'a501a3ec56ebd56e6bf1fc43c0c3725da57d013addac5f1efb13a99e598e0ab8',
+                       'vendor/anchor-bootstrap.mjs': '90a8afba31e7c7029a0fa860f97153cd40665f1d1b2ae87bb0a56fd98c25e8f8'}
+ A1_RECHECK_KEYS = ('a1InitialEvidence', 'a1InitialSha256', 'a1RecheckSha256', 'a1RunResult')
++# ---- production-bootstrap-wiring: the reviewed capture closure, VERBATIM from harness/a2a4.py (the recovery harness) ----
++A1_CAPTURE_SOURCE = pathlib.Path('/opt/enclave-rpc/a1-capture/a1_capture.py')    # HOLD: not installed
++A1_CAPTURE_SHA256 = '47c49b114e6d596a7dd3c46a9f4a5e55bb016cd140a95e001a58ff9a0e69c5b5'   # base-finality-proof-stage/r10/capture/a1_capture.py (closure + r10 elUrl/verify fixes)
++A1_FIRST_CAPTURE_REVIEWED = False   # production-bootstrap-wiring: THIS harness's capture flag (installer FLAG_MODULE)
++# r6 activation (base-finality-proof-stage/r6): a review flag is True only through its source constant OR the root-owned activation
++# artifact that names THIS module's exact bytes for that flag (written only by install_verified.py `activate`, after qualification).
++# The artifact is the deliberate, reviewable activation step: no source edit, so every byte pin stays valid. Absent -> False.
++ACTIVATION_FILE = pathlib.Path('/etc/enclave-rpc/finality-activation.json')
++
++
++def reviewed(name):
++    if globals().get(name) is True:
++        return True
++    try:
++        fd = os.open(ACTIVATION_FILE, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
++    except OSError:
++        return False
++    with os.fdopen(fd, 'rb') as f:
++        st = os.fstat(f.fileno())
++        if not stat.S_ISREG(st.st_mode) or st.st_uid != 0 or st.st_mode & 0o022:
++            return False
++        try:
++            doc = json.loads(f.read(1 << 16))
++        except ValueError:
++            return False
++    try:
++        me = hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest()
++    except (OSError, NameError):
++        return False
++    return isinstance(doc, dict) and doc.get('format') == 'enclave-finality-activation/v1' and (doc.get('flags') or {}).get(name) == me
++
++
++A1_CAPTURE_TEST_PINS = None     # TESTS ONLY: a callable -> that module's Pins over pinned stub sources; production: its reviewed Pins()
++_A1_CAPTURE = None
+ 
+ 
+ class Refused(Exception):
+@@ -100,7 +139,7 @@
+ # ---- config ---------------------------------------------------------------------------------------------------------------
+ KEYS = {'datadir', 'baseBinary', 'baseBinarySha256', 'rethConfig', 'workdir', 'a1Evidence', 'a1MaxAgeSec', 'N', 'outputRoot', 'game',
+         'downloadReceipt', 'manifestPath', 'snapshotMarker', 'timeouts', 'inPlaceReviewed', 'unwindChunk', 'serviceUnits', 'anchorModule',
+-        'depsRoot', 'node', 'minFreeBytes', 'backup', 'bytecodeChecker', 'bytecodeCheckerSha256', 'a1Mode', 'a1GateDir', *A1_RECHECK_KEYS}
++        'depsRoot', 'node', 'minFreeBytes', 'backup', 'bytecodeChecker', 'bytecodeCheckerSha256', 'a1Mode', 'a1GateDir', 'a1CaptureOut', *A1_RECHECK_KEYS}
+ 
+ 
+ def load_config(path):
+@@ -135,6 +174,16 @@
+         refuse('bad_config', f'a1Mode must be one of {A1_MODES}')
+     if not isinstance(c.get('a1GateDir'), str) or not os.path.isabs(c['a1GateDir']):
+         refuse('bad_config', 'a1GateDir must be an absolute path (the pinned a1gate/ modules)')
++    if c['a1Mode'] in A1_LEGACY_MODES and not A1_LEGACY_TEST_ONLY:
++        refuse('a1_legacy', f'a1Mode {c["a1Mode"]} accepts self-asserted receipt files: refused in production; the first bootstrap runs '
++               'capture-original-recheck (a verified capture-module recheck of the pinned initial receipt)')
++    if c['a1Mode'] == 'capture-original-recheck':
++        if not isinstance(c.get('a1CaptureOut'), str) or not os.path.isabs(c['a1CaptureOut']):
++            refuse('bad_config', 'a1CaptureOut (absolute: the capture module\'s recheck OUT directory) is required in capture-original-recheck')
++        if c['a1Evidence'] != os.path.join(c['a1CaptureOut'], 'capture', 'evidence.json'):
++            refuse('bad_config', 'in capture-original-recheck a1Evidence is the capture evidence (no other receipt path)')
++    elif 'a1CaptureOut' in c:
++        refuse('bad_config', 'a1CaptureOut belongs to a1Mode capture-original-recheck only')
+     if c['a1Mode'] == 'original-game-recheck':
+         for k in ('a1InitialEvidence', 'a1RunResult'):
+             if not isinstance(c.get(k), str) or not os.path.isabs(c[k]):
+@@ -335,6 +384,183 @@
+     return cps[stage]
+ 
+ 
++def load_capture():
++    """The reviewed capture module, executed from exactly its pinned bytes (HOLD until A1_CAPTURE_REVIEWED)."""
++    global _A1_CAPTURE
++    if not reviewed('A1_FIRST_CAPTURE_REVIEWED'):
++        refuse('a1_capture_pending', 'HOLD: the A1 capture module (a1-capture-binding-stage/r4) is not reviewed for use (A1_FIRST_CAPTURE_REVIEWED)')
++    if _A1_CAPTURE is None or _A1_CAPTURE[0] != (str(A1_CAPTURE_SOURCE), A1_CAPTURE_SHA256):
++        b = _read_trusted(str(A1_CAPTURE_SOURCE), 'A1 capture module', 4 << 20)
++        if hashlib.sha256(b).hexdigest() != A1_CAPTURE_SHA256:
++            refuse('a1_capture_pin', f'{A1_CAPTURE_SOURCE} is not the reviewed capture module {A1_CAPTURE_SHA256[:12]}...')
++        m = types.ModuleType('a1_capture_reviewed'); m.__file__ = str(A1_CAPTURE_SOURCE); sys.modules['a1_capture_reviewed'] = m
++        exec(compile(b, str(A1_CAPTURE_SOURCE), 'exec'), m.__dict__)
++        _A1_CAPTURE = ((str(A1_CAPTURE_SOURCE), A1_CAPTURE_SHA256), m)
++    return _A1_CAPTURE[1]
++
++
++
++LEDGER_FORMAT = 'enclave-a1-admission-ledger/v1'
++LEDGER_KEYS = {'format', 'seq', 'prevSha256', 'at', 'keys'}
++LEDGER_KEY = re.compile(r'(capture|evidence|record):[0-9a-f]{32,64}')
++LEDGER_MAX = 16 << 20
++LEDGER_LOCK_TIMEOUT_SEC = 60
++# finality r5 (base-finality-proof-stage/r5): the ONE shared admission ledger (== chain_service.A1_ADMISSION_LEDGER). Every admission
++# and every admission check goes through _ledger_paths, which refuses any other path BEFORE the ledger is read or written, so
++# re-anchor admissions and post-anchor finality admissions are one replay domain. A source constant, never config.
++A1_ADMISSION_LEDGER = pathlib.Path('/etc/enclave-rpc/base-a1-admission.jsonl')
++
++
++def ledger_line(rec):
++    """The one canonical encoding of a ledger record (sorted keys, no spaces) + newline."""
++    return json.dumps(rec, sort_keys=True, separators=(',', ':')).encode() + b'\n'
++
++
++def _ledger_paths(c):
++    p = pathlib.Path(c['reanchor']['admissionLedger'])
++    if p != A1_ADMISSION_LEDGER:
++        refuse('a1_ledger_path', f'{p} is not the shared A1 admission ledger {A1_ADMISSION_LEDGER}: nothing is admitted or checked')
++    st = os.lstat(p.parent)
++    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode) or st.st_uid != TRUSTED_UID or st.st_mode & 0o022:
++        refuse('untrusted_file', f'{p.parent} (the ledger directory) must be a real directory owned by uid {TRUSTED_UID}, not group/other-writable')
++    return p, p.with_name(p.name + '.lock')
++
++
++def _ledger_lock(lock):
++    """Exclusive flock on the stable sibling lock file (created 0600 if absent; never a symlink; owner TRUSTED_UID; fd == path)."""
++    try:
++        fd = os.open(lock, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
++    except OSError as e:
++        refuse('untrusted_file', f'ledger lock {lock} cannot be opened safely ({type(e).__name__}: a symlink is refused)')
++    try:
++        st, ln = os.fstat(fd), os.lstat(lock)
++        if not stat.S_ISREG(st.st_mode) or st.st_uid != TRUSTED_UID or st.st_mode & 0o077 or (st.st_dev, st.st_ino) != (ln.st_dev, ln.st_ino):
++            refuse('untrusted_file', f'ledger lock {lock} must be a private regular file owned by uid {TRUSTED_UID}')
++        deadline = time.monotonic() + LEDGER_LOCK_TIMEOUT_SEC
++        while True:
++            try:
++                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
++                return fd
++            except BlockingIOError:
++                if time.monotonic() > deadline:
++                    refuse('a1_ledger_busy', f'the admission ledger lock is held for > {LEDGER_LOCK_TIMEOUT_SEC} s: nothing admitted')
++                time.sleep(0.02)
++    except BaseException:
++        os.close(fd)
++        raise
++
++
++def ledger_records(p):
++    """The verified ledger -> ([(sha256 of line, record)], admitted key set, raw bytes). Refuses an incomplete tail (interrupted
++    append), any non-canonical line, schema/seq/chain break, unsorted/empty/malformed keys, or a key admitted twice."""
++    if not os.path.lexists(p):
++        return [], set(), b''
++    b = _read_trusted(str(p), 'A1 admission ledger', LEDGER_MAX)
++    if b and not b.endswith(b'\n'):
++        refuse('a1_ledger', 'the ledger ends in an incomplete record (an interrupted append): ambiguous, so nothing is admitted until root resolves it')
++    out, seen, prev = [], set(), None
++    for i, line in enumerate(b.split(b'\n')[:-1], 1):
++        try:
++            r = json.loads(line)
++        except ValueError:
++            refuse('a1_ledger', f'ledger record {i} is not JSON')
++        if not (isinstance(r, dict) and set(r) == LEDGER_KEYS and r['format'] == LEDGER_FORMAT and r['seq'] == i and r['prevSha256'] == prev
++                and isinstance(r['at'], str) and isinstance(r['keys'], list) and r['keys'] and r['keys'] == sorted(set(r['keys']))
++                and all(isinstance(k, str) and LEDGER_KEY.fullmatch(k) for k in r['keys'])) or ledger_line(r) != line + b'\n':
++            refuse('a1_ledger', f'ledger record {i} breaks the schema, sequence, hash chain or canonical encoding')
++        if seen & set(r['keys']):
++            refuse('a1_ledger', f'ledger record {i} repeats an already admitted key {sorted(seen & set(r["keys"]))[0]}')
++        seen |= set(r['keys']); prev = hashlib.sha256(line + b'\n').hexdigest(); out.append((prev, r))
++    return out, seen, b
++
++
++def admit_captures(c, summaries):
++    """Durable replay refusal: each capture (id, record, evidence) is admitted at most once, across steps, workdirs and launches.
++    Under the ledger lock: read + verify the whole ledger, apply C.admit (in memory), append ONE canonical record with an exact
++    full write + fsync (+ directory fsync when created), re-verify that it landed. Only then does the step proceed. A step that
++    fails later needs a NEW capture (never a replay)."""
++    C = load_capture(); p, lock = _ledger_paths(c)
++    fd = _ledger_lock(lock)
++    try:
++        recs, seen, raw = ledger_records(p)
++        new = set(seen)
++        try:
++            for summary in summaries:
++                C.admit(summary, new)                     # the replay RULE only; nothing here is durable by itself
++        except C.Refused as e:
++            refuse('a1_replayed', f'{e.code}: {e}')
++        rec = {'format': LEDGER_FORMAT, 'seq': len(recs) + 1, 'prevSha256': recs[-1][0] if recs else None, 'at': now().isoformat(),
++               'keys': sorted(new - seen)}
++        line = ledger_line(rec); created = not os.path.lexists(p)
++        wfd = os.open(p, os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW | os.O_CLOEXEC | (os.O_CREAT | os.O_EXCL if created else 0), 0o600)
++        try:
++            if os.fstat(wfd).st_size != len(raw):
++                refuse('a1_ledger', 'the ledger changed while the lock was held')
++            view = memoryview(line)
++            while view:
++                n = os.write(wfd, view)
++                if n <= 0:
++                    refuse('a1_ledger', 'short write to the ledger')
++                view = view[n:]
++            os.fsync(wfd)
++        finally:
++            os.close(wfd)
++        if created:
++            dfd = os.open(p.parent, os.O_RDONLY | os.O_DIRECTORY)
++            try:
++                os.fsync(dfd)
++            finally:
++                os.close(dfd)
++        after, _seen, _raw = ledger_records(p)
++        if len(after) != rec['seq'] or after[-1][1] != rec:
++            refuse('a1_ledger', 'the ledger append did not land')
++    finally:
++        os.close(fd)
++
++
++def check_admissible(c, summaries):
++    """finality r5: the replay RULE against the shared ledger, in memory only (`finality_state check`): nothing is written."""
++    C = load_capture(); p, _lock = _ledger_paths(c)
++    _recs, seen, _raw = ledger_records(p); new = set(seen)
++    try:
++        for summary in summaries:
++            C.admit(summary, new)
++    except C.Refused as e:
++        refuse('a1_replayed', f'{e.code}: {e}')
++
++
++
++def first_capture(c, out=None, fresh=True):
++    """capture-original-recheck -> (verified summary, initial bytes, evidence bytes) of ONE capture-module `recheck` OUT: the module's
++    own verify() (file set, hashes, runtime identity, argv/env, Helios pin at fresh-finalized, derivations, the pinned A1 gate), mode
++    `recheck`, run against exactly the SOURCE-pinned initial receipt (A1_INITIAL_SHA256; the module's RECHECK_ORIGINAL game/N/root),
++    finished within a1MaxAgeSec (fresh), bytes unchanged since verify. Never a receipt hash from config, never a translated file."""
++    C = load_capture(); out = out or c['a1CaptureOut']
++    kw = {'pins': A1_CAPTURE_TEST_PINS() if A1_CAPTURE_TEST_PINS else None, 'node': c['node'], 'workdir': str(workdir(c))}
++    try:
++        s = C.verify(out, **kw)
++    except C.Refused as e:
++        refuse('a1_capture', f'{e.code}: {e}')
++    if s.get('mode') != 'recheck':
++        refuse('a1_capture_binding', 'the A1 capture is not the capture module\'s original-game recheck (mode recheck)')
++    if (s.get('boundInputs') or {}).get('inputs/initial-a1-evidence.json') != A1_INITIAL_SHA256:
++        refuse('a1_initial_pin', f'the capture rechecked another initial receipt than the source pin {A1_INITIAL_SHA256[:12]}...')
++    if fresh:
++        age = (now() - _utc(s['finishedAt'], 'recheck capture finishedAt')).total_seconds()
++        if age < 0 or age > c['a1MaxAgeSec']:
++            refuse('a1_stale', f'the recheck capture finished {int(age)} s ago (max {c["a1MaxAgeSec"]}): capture a new recheck')
++    ini = _read_trusted(os.path.join(out, 'capture', 'inputs', 'initial-a1-evidence.json'), 'captured initial receipt', A1_FILE_CAP)
++    ev = _read_trusted(os.path.join(out, 'capture', 'evidence.json'), 'recheck capture evidence', A1_FILE_CAP)
++    if hashlib.sha256(ini).hexdigest() != A1_INITIAL_SHA256 or hashlib.sha256(ev).hexdigest() != s['evidenceSha256']:
++        refuse('a1_capture_binding', 'the capture evidence changed after it was verified')
++    return s, ini, ev
++
++
++def _ledger_c(c):
++    """the recovery ledger functions read the ledger path from c['reanchor']; here it is ALWAYS the source constant"""
++    return {**c, 'reanchor': {'admissionLedger': str(A1_ADMISSION_LEDGER)}}
++
++
+ # ---- gates ----------------------------------------------------------------------------------------------------------------
+ def _read_trusted(path, what, cap):
+     """A root-produced evidence file, read ONCE: open without following a final symlink, check the OPEN file (regular, owner uid
+@@ -410,14 +636,20 @@
+         refuse('a1_provenance', 'the recheck receipt time lies outside its run record window')
+ 
+ 
+-def gate_a1(c):
++def gate_a1(c, admit=True):
+     """A1 evidence (module docstring). Both modes: root-owned exact bytes through the pinned JS gate, then here: receipt age <=
+     a1MaxAgeSec, mainnet ASR/type/code-hash pins, exactly the planned N/output root/game, finalized-header age bounded and
+     consistent with the receipt time. original-game-recheck additionally: pinned initial sha, root-reviewed recheck sha, run record."""
+-    ev = _read_trusted(c['a1Evidence'], 'A1 evidence', A1_FILE_CAP)
+-    if c['a1Mode'] == 'fresh-initial':
++    cap = None
++    if c['a1Mode'] == 'capture-original-recheck':          # production-bootstrap-wiring: the verified capture, then the SAME pinned JS gate
++        cap, ini, ev = first_capture(c)
++        s = a1_node_gate(c, {'mode': 'original-game-recheck', 'initial': base64.b64encode(ini).decode(), 'initialSha256': A1_INITIAL_SHA256,
++                             'recheck': base64.b64encode(ev).decode()})
++    elif c['a1Mode'] == 'fresh-initial':
++        ev = _read_trusted(c['a1Evidence'], 'A1 evidence', A1_FILE_CAP)
+         s = a1_node_gate(c, {'mode': 'fresh-initial', 'initial': base64.b64encode(ev).decode()})
+     else:
++        ev = _read_trusted(c['a1Evidence'], 'A1 evidence', A1_FILE_CAP)
+         if c['a1InitialSha256'] != A1_INITIAL_SHA256:
+             refuse('a1_initial_pin', f'a1InitialSha256 is not the pinned initial A1 receipt {A1_INITIAL_SHA256[:12]}... (a source change, never config)')
+         if hashlib.sha256(ev).hexdigest() != c['a1RecheckSha256']:
+@@ -449,6 +681,11 @@
+          'N': s['N'], 'outputRoot': s['outputRoot'], 'game': s['game'], 'asr': s['asr']}
+     if s['mode'] == 'original-game-recheck':
+         g['initialL1'] = s['initialL1']; g['latestAnchorObservation'] = s['latestAnchorObservation']   # recorded, never used
++    if cap is not None:
++        g['a1Mode'] = c['a1Mode']
++        g['recheckCapture'] = {'outPath': c['a1CaptureOut'], **{k: cap[k] for k in ('captureId', 'captureSha256', 'evidenceSha256', 'finishedAt')}}
++        # admitted only after EVERY check passed, ONCE: plan only checks (admit=False); A2 and release each admit their own NEW capture
++        (admit_captures if admit else check_admissible)(_ledger_c(c), [cap])
+     return g
+ 
+ 
+@@ -660,7 +897,7 @@
+ 
+ # ---- steps ----------------------------------------------------------------------------------------------------------------
+ def step_plan(c, base, w):
+-    g = {'a1': gate_a1(c), **gate_static(c, base)}
++    g = {'a1': gate_a1(c, admit=False), **gate_static(c, base)}   # plan admits nothing
+     cps, state = head_state(c, base)
+     if cps['execution'] < c['N']:
+         refuse('below_anchor', f'execution checkpoint {cps["execution"]} is below N: sync forward first (not prepared here)')
+@@ -912,7 +1149,8 @@
+     if gaps:
+         refuse('open_gaps', f'derivation stays blocked: {gaps} (a missing client capability, not bypassable by config)')
+     save(w, 'm10-launch.json', {'bootstrapAnchor': f'{c["N"]}:{a4["blockHash"]}', 'at': now().isoformat(),
+-                                'bytecodes': {k: bv[k] for k in ('checkerSha256', 'receiptSha256', 'receiptVersion')}})
++                                'bytecodes': {k: bv[k] for k in ('checkerSha256', 'receiptSha256', 'receiptVersion')},
++                                **({'a1Gate': a1} if 'recheckCapture' in a1 else {})})   # the producer re-verifies this capture too
+ 
+ 
+ STEPS = {'plan': step_plan, 'a2': step_a2, 'a3': step_a3, 'a4': step_a4, 'bytecodes': step_bytecodes, 'release': step_release}

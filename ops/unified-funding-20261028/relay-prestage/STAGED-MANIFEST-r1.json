@@ -1,0 +1,19 @@
+{
+  "status": "STAGED_ONLY_NOT_INSTALLED_OR_IMPORTED",
+  "at": "2026-10-28T17:16:44.240586+00:00",
+  "path": "/opt/enclave-funding-staged/activation-r1-20261028",
+  "files": {
+    "sessions.mjs": "76341ba39b14463495ce5d9736f115e759751a6f9eaae2d77dbb113327c8530c",
+    "funding-route.mjs": "1989f3ebf88833ac492e4f121ff33d564b1798eae1e5239b1aae444b63b572cd",
+    "funding-abi.mjs": "6bb37e658aca45fd416d5ea17dda3109e1b41791e674976a60425d579f485cd7",
+    "fee-policy.mjs": "32bcf03ea52db9be70d86e957dd440c1697daf0eaeab79f732378002d4f2bcfd",
+    "funding-activation.mjs": "7554454dbe091f4bcc7ef8e15ac5dd8082c8be6d94256f52b1c8fadcfc198645"
+  },
+  "baselineAfter": {
+    "/opt/nan-relay/sessions.mjs": "457e86472adce2f1fdd2dfa82759578a56f7d72f0c5e5ee18e53999a26d0682d",
+    "/opt/nan-relay/snp-verify.mjs": "10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91",
+    "/opt/nan-relay/api-relay.js": "481f00410b87f30ee467183db7121175d37c010be5b2c23891a0a19e63b4579d",
+    "/opt/nan-relay/sessions-abi.mjs": "e9c2464c529d0665e4b2e38bdaa0bf8c703346f046b85521aba755bfc1b2a0a6"
+  },
+  "service": "MainPID=228946\nActiveState=active"
+}

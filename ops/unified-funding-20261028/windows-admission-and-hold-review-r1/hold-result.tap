@@ -1,0 +1,53 @@
+TAP version 13
+# Subtest: ROOT authenticated hold must not acknowledge ingress closed after actual closeInstance fails
+not ok 1 - ROOT authenticated hold must not acknowledge ingress closed after actual closeInstance fails
+  ---
+  duration_ms: 84.312657
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r1/root-hold.test.mjs:4:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    guard exited: node:events:497
+          throw er; // Unhandled 'error' event
+          ^
+    
+    Error: listen EADDRINUSE: address already in use /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r1/persistent-test-tmp/permit-r1-B8KP5D/guard-8278e71d.sock
+        at Server.setupListenHandle [as _listen2] (node:net:1919:21)
+        at listenInCluster (node:net:1998:12)
+        at Server.listen (node:net:2120:5)
+        at main (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r1/candidate/control/windows/vbslike/guard/guard-main.mjs:134:45)
+    Emitted 'error' event on Server instance at:
+        at emitErrorNT (node:net:1977:8)
+        at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+      code: 'EADDRINUSE',
+      errno: -98,
+      syscall: 'listen',
+      address: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r1/persistent-test-tmp/permit-r1-B8KP5D/guard-8278e71d.sock',
+      port: -1
+    }
+    
+    Node.js v22.23.3
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Server.setupListenHandle [as _listen2] (node:net:1919:21)
+    listenInCluster (node:net:1998:12)
+    Server.listen (node:net:2120:5)
+    main (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r1/candidate/control/windows/vbslike/guard/guard-main.mjs:134:45)
+    emitErrorNT (node:net:1977:8)
+    process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+    startGuard (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r1/candidate/test/windows-permit/helpers/world.mjs:123:37)
+    async rig (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r1/candidate/test/windows-permit/helpers/world.mjs:144:25)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r1/root-hold.test.mjs:6:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 368.925842

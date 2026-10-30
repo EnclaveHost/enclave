@@ -1,0 +1,7 @@
+DOM snp=1 vcpus=16 memMiB=62857 boot_ms=7283
+DOM Shield dynamic RAM budget: 58093 MiB, controller=enforced
+DOM Shield pad spill: /dev/vdb, 512 GiB
+MODEL verified bytes=17559178144 sha256=3f227079003add2511437e5b1e94812e363385225bf6a9b47b0054a72bc8b01e copy_verify_ms=20874 source_dontneed_advised_bytes=17559178144 source_dontneed_failures=0
+DOM Shield pad spill: minting on spare CPU (measured, 1 core kept free)
+DOM warmup: started
+DOM warmup: completed

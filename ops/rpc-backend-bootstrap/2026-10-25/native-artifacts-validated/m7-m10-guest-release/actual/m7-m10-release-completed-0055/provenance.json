@@ -1,0 +1,55 @@
+{
+ "artifact": {
+  "file": "base",
+  "sha256": "4a7c013a510f88166779281ad0108790f25efa07f22f6457d54add709488372f"
+ },
+ "source": {
+  "baseRev": "5476069f1eb74a56bccb56fdefd4b4bb0e3cda42",
+  "baseTar": "a92160ebd00fc807dcea3e275e493438c38cf51e9308c04ed741fac538ff75e2",
+  "m7Patch": "e9dfb8c6f950222fb8dee6a42d55612d10bd2cf8c2a68646c9aca8a581485312",
+  "m10FixedPatch": "d97c31b591d41fa5d18ca628ea06eb8efdbccf196122b8e05b1d06c69bf2e0a3",
+  "manifest": "58c572cbb0258bd40f799ec7fac28003529428352d0cd1fe2b82b5556b784405",
+  "cargoLock": "f122da76b80d5df44c9dc0c6fc4efc335abe295280fa49325f367ddcfc7b6a8f"
+ },
+ "testedBy": {
+  "run2Tree": "/srv/m10-guest-validation/runs/run-2/build/tree",
+  "run2TreeManifest": "58c572cbb0258bd40f799ec7fac28003529428352d0cd1fe2b82b5556b784405",
+  "run2OriginalReceiptPass": false,
+  "compoundGate": {
+   "format": "m7-m10-release-compound-gate/v1",
+   "accepted": true,
+   "originalRun2": {
+    "run-2.receipt.json": "b4162de1dcf1c09271eea2a770c599eaa70b285bfb1630f1c5792e520af42001",
+    "run-2.out": "6f22c072d664e34043aadc6e634ed53c0289b8c2df2b6239fe988c82437a02b1",
+    "run-2.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+   },
+   "originalRun2Pass": false,
+   "childStageManifest": "f3d45ccbcb9fce94cd87957baacbc879b37395c3682006aa73671e1560f79708",
+   "checker": "cd2e2e58c3595a7204d0cdb73299f009c315efe34be9abe669cb3535a2cc7ac5",
+   "pins": "4e7c14f1969c5f5af3e648a82033c1f7cfee718c20f3cb1d4d49ff3d90151750",
+   "attempt": 1,
+   "compoundSha256": "79a0beb95ca3058853615e41d83d948f5d875cf1ea5dbc8b511ac9cb15a2ab14",
+   "launcherSha256": "09621f4e6e423ce96898f97c089a10883618f29607d079a4385f28f5dcb98b7c",
+   "childOutSha256": "356466e824768aa415709b1680251c60f91d464ebf97a0c20f4fd97acb4a1dd3",
+   "supplementManifestSha256": "cf75de6890747d4a9224e84c8267628b6f2178348510687f2b4b2c2bec0e8175"
+  }
+ },
+ "build": {
+  "toolchain": "rustc 1.96.0 ac68faa20 / cargo 30a34c682 (staged official dist)",
+  "profile": "m7m10-release-nolto (release, lto=false)",
+  "jobs": 1,
+  "sourceDateEpoch": 1792689943,
+  "rustflags": "-C link-arg=-Wl,--threads=1 + remaps",
+  "host": "private RPC guest (Ubuntu 24.04), uid m10build",
+  "cargoHome": "reused from ENDED run 1 (verified offline; sources only)",
+  "target": "NEW, every unit fresh=false"
+ },
+ "smoke": {
+  "smoke-help-follow.txt": "eb7ea366035d080a91955e58bc3dc0d9378341c49ca3f84412f91003c60978f4",
+  "smoke-help-rpc.txt": "20e86d75b1a802820d869bfeca6ffbc413b56e775dcf0b28ea35daecc9312f2c",
+  "smoke-help-sequencer.txt": "db7e052737e239cf3f6e31e63ec303bf770f39e7ae25dd27d352d8d861fc60ab",
+  "smoke-help.txt": "c3af92d829ac36cbb6608b20052cf49b0f26221ed9873f58ca6290380466fbfb",
+  "smoke-version.txt": "84c1147f423968323bbade54de8da8090021f56ef89c938d36d433a170076957"
+ },
+ "claims": "ONE build of the combined M7+M10 source; NOT an independent reproduction; not deployed"
+}

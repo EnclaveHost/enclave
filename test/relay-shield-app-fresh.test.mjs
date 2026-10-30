@@ -15,13 +15,13 @@ const POLICY = { schema: "enclave-shield-app-policy/1", hosts: "*", platforms: "
 const lease = () => Math.floor(Date.now() / 1000) + 3600;
 const row = (over = {}) => ({ id: DEP, active: true, isPublic: true, runner: HOST.id, leaseUntil: lease(), appRef: "catalog://0x" + "5a".repeat(32) + "/1", ...over });
 
-function world({ answer, rows = { [DEP]: row() } } = {}) {
+function world({ answer, rows = { [DEP]: row() }, policy = POLICY } = {}) {
   const paths = [];
   const hub = { info: (n) => (n === HOST.name ? { mode: "hv-node" } : n === "metal0" ? { mode: "snp" } : null),
     request: async (_o, { path }) => { paths.push(path); const n = new URL(path, "http://x").searchParams.get("nonce"); const a = await answer(n);
       return { status: a.status, headers: {}, body: Buffer.from(JSON.stringify(a.body)) }; } };
   let clock = 1_000_000;
-  const fresh = createShieldAppFresh({ hub, policy: POLICY, confirmRow: async (id) => rows[id] || null, appGapMs: 30000, now: () => clock,
+  const fresh = createShieldAppFresh({ hub, policy, confirmRow: async (id) => rows[id] || null, appGapMs: 30000, now: () => clock,
     expect: async () => ({ appSha256: APP, runtimeId: RUNTIME, requiresConfigBundleV5: false, requiresSecretsV1: false, requiresConfigSocketServer: false }) });
   return { fresh, paths, tick: (ms) => { clock += ms; }, setRow: (r) => { rows[DEP] = r; } };
 }
@@ -40,6 +40,18 @@ test("shield-app-fresh: the node's report over the caller's nonce, verbatim, bes
   assert.deepEqual([r.expected.appSha256, r.expected.runtimeId], [APP, RUNTIME]); assert.match(r.expected.source, /derived by this relay from the deployment's catalog/);
   assert.deepEqual(r.policy.measurements, [IMG, IMG_CFG], "the images for that runtime that meet its requirements (the relay's own admission candidates)");
   assert.equal(r.policy.minimumGuestSvn, 3); assert.equal(r.policy.platforms, "attested");
+});
+
+test('fresh reports carry independently configured image authority pins; incomplete sets are refused before contacting the node', async () => {
+  const identity = { signer: '91'.repeat(32), productId: 1818455653, moduleId: 1734437220 };
+  const policy = { ...POLICY, images: POLICY.images.map(p => ({ ...p, identity })) };
+  const w = world({ answer: good, policy });
+  const proof = await w.fresh(HOST, DEP, Buffer.alloc(32, 7));
+  assert.deepEqual(proof.policy.imageIdentities, [IMG, IMG_CFG].map(measurement => ({ measurement, identity })));
+  const partial = structuredClone(policy); delete partial.images[1].identity;
+  const bad = world({ answer: good, policy: partial });
+  await assert.rejects(bad.fresh(HOST, DEP, Buffer.alloc(32, 7)), /pins are required/);
+  assert.equal(bad.paths.length, 0);
 });
 
 test("shield-app-fresh: one check per app per gap and one per box at a time; a busy node is busy; a foreign or missing report is refused; never retried", async () => {

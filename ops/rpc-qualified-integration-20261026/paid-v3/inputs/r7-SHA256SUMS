@@ -1,0 +1,5 @@
+b6f59e70de1c2709974bbfb693c01145bdda4b149b44c1e6cac541bcc83c2a9b  README.md
+7626c31d150411b6bb088484941a361cff71fe3eec0dbac50a9d59225a5b80ee  jobs/paid-derived-adapter-r7.sh
+b3b0da6bf7ddbffed91716f85a0a6f0911e0084f1d2f08ac90bb30aa12922390  patches/paid-derived-adapter-r7.patch
+1677784abfb825eab9d76af2e063ee1a9cad1a819734dca6691e02559bc471ad  PATCHED-PINS.sha256
+46c98b261ac4246aa25253fdbe39ffbaaf9f1b51361be7c32bf6661c8209e8a0  BASE-PINS.txt

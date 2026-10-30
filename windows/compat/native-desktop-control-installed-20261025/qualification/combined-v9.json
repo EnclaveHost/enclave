@@ -1,0 +1,59 @@
+{
+  "schema": "native-combined-qualification/1",
+  "passed": true,
+  "startedUtc": "2026-10-25T19:09:45.1532096Z",
+  "endedUtc": "2026-10-25T19:21:01.7108296Z",
+  "finalReadbackUtc": "2026-10-25T19:23:24.1025186Z",
+  "scenarios": [
+    "healthy-switch",
+    "failed-manager-start",
+    "partial-launch"
+  ],
+  "codeWritesPerCycle": 31,
+  "runnerWritesPerCycle": 2,
+  "rolledBackTransactions": 6,
+  "restoredCodePaths": 109,
+  "restoredRunnerPaths": 2,
+  "productionUnchanged": true,
+  "forcedCleanup": false,
+  "remainingFixtureProcesses": 0,
+  "remainingFixtureTasks": 0,
+  "managerBeforeAdmissions": true,
+  "resourceAllocationsAfterRecovery": {
+    "cpuUnits": 0,
+    "gpuMilli": 0,
+    "physicalMiB": 0
+  },
+  "real": [
+    "isolated SYSTEM tasks",
+    "relocated CMD runner loops",
+    "pinned Manager HTTP",
+    "code and runner transactions",
+    "allocation accounting",
+    "rollback"
+  ],
+  "simulated": [
+    "admissions",
+    "readiness/preflight",
+    "Hyper-V inventory",
+    "VM creation/removal"
+  ],
+  "notEstablished": [
+    "production activation",
+    "hardware failure recovery",
+    "owner provisioning",
+    "final desktop and Moonlight acceptance",
+    "publication"
+  ],
+  "inputArchive": {
+    "sha256": "725ea6e07cd6cecd431a6bcbabccb883b095c86513a0e48a60aa781c027c9eb7",
+    "bytes": 1653719,
+    "files": 217,
+    "beforeFiles": 92,
+    "afterFiles": 109
+  },
+  "resultArchive": {
+    "sha256": "571148af4a99f08009430be772d1f61f7a3f0fc250515c6e0202cf299f700dc1",
+    "bytes": 1536463
+  }
+}

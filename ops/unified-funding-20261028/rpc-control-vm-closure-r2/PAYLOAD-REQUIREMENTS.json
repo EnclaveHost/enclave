@@ -1,0 +1,79 @@
+{
+  "history": {
+    "BaseProofWindow": 1800,
+    "L1ProofWindow": 256,
+    "coverageActuallyPresentProven": false,
+    "historyFromBlock": 48000000,
+    "ledgerBirthRequiredForOwnership": 52515705,
+    "stateHistoryFromBlock": 52500000
+  },
+  "identityFilesNeverRead": [
+    "/etc/enclave-rpc/jwt.hex",
+    "private SSH keys",
+    "process environment",
+    "controller release journal"
+  ],
+  "installedBinaryPins": {
+    "base": "9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f",
+    "lighthouse": "11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96",
+    "reth": "8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250"
+  },
+  "installedPayload": {
+    "/etc/enclave-rpc/chain.json": {
+      "matchesLocalReference": false,
+      "sha256": "81988aeef841cc073b359ab29993641b06e71d72190ddc5df606057ddd7b5eb7",
+      "size": 3488
+    },
+    "/opt/enclave-rpc/chain_service.py": {
+      "matchesLocalReference": false,
+      "sha256": "75c879ec9c5728688beac8cc98ecf1410c38f29c144b27fabd8b42ea60cfbc92",
+      "size": 37323
+    },
+    "/opt/enclave-rpc/manifest.json": {
+      "matchesLocalReference": true,
+      "sha256": "c35ec24b39b4cff06a72c00a5fcc032a035658d314771f9072b881f9258a0fb7",
+      "size": 670
+    }
+  },
+  "lowMemoryCandidateSha256": "9b8c4c71bb3ad8d28de370922f35c49b92c0c03d527eb504520173d488727b94",
+  "mountRequirements": {
+    "base": "/srv/enclave-base-holder",
+    "filesystem": "ext4",
+    "identity": "each dedicated filesystem UUID from chain.json disks must match findmnt at exact manifest mount",
+    "l1": "/srv/enclave-l1-pair",
+    "rootFallbackAllowed": false,
+    "temporarySubtrees": [
+      "base/tmp",
+      "l1/tmp",
+      "l1/tmp-cl"
+    ],
+    "writableSubtrees": [
+      "base/data",
+      "l1/data",
+      "l1/cl"
+    ]
+  },
+  "notCopied": [
+    "node-payload-v4",
+    "database images",
+    "guest secrets"
+  ],
+  "preserve": [
+    "local EL/CL mainnet genesis and payload/header equality",
+    "non-optimistic current finalized L1",
+    "custody_group_count>=64 and actual blob serving",
+    "BASE_NODE_L1_TRUST_RPC=false",
+    "absolute receipt/body/transaction/account/storage history and exact coverage receipt",
+    "binary hashes and snapshot-complete markers",
+    "normal database flush/durability"
+  ],
+  "publicConfigSha256": "81988aeef841cc073b359ab29993641b06e71d72190ddc5df606057ddd7b5eb7",
+  "rootMustReviewBeforeTrial": [
+    "exact installed binary loader/dependency closure on control VM",
+    "pinned manifest/config/full coverage paths and UUIDs",
+    "positive trial fit and continuous storage ownership",
+    "end-to-end authenticated chain correctness before migration"
+  ],
+  "sourceReceipt": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-prepared-os-payload-read-r1/RESULT.json",
+  "status": "PREPARED_READONLY_REQUIREMENTS_NOT_ACTIVATED"
+}

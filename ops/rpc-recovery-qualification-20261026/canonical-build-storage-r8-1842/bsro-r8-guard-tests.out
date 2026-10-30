@@ -1,0 +1,59 @@
+[queue] START available=24552MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+tail: option used in invalid context -- 2
+{
+ "format": "bsro-guard-test-receipt/r8",
+ "pass": true,
+ "stageSums": "49a41e28764267797bd0046b90eb193cbfdba57ed3703c8737d96fbb0868c4e9",
+ "suites": {
+  "test_bsro_gate": {
+   "checks": {
+    "lastLineOK": true,
+    "noBadMarkers": true,
+    "ranExactly": true,
+    "rc0": true,
+    "stdoutEmpty": true
+   },
+   "expected": 11,
+   "pass": true,
+   "ran": [
+    "11"
+   ],
+   "rc": 0
+  },
+  "test_disk_guard": {
+   "checks": {
+    "lastLineOK": true,
+    "noBadMarkers": true,
+    "ranExactly": true,
+    "rc0": true,
+    "stdoutEmpty": true
+   },
+   "expected": 10,
+   "pass": true,
+   "ran": [
+    "10"
+   ],
+   "rc": 0
+  },
+  "test_mount_identity": {
+   "checks": {
+    "lastLineOK": true,
+    "noBadMarkers": true,
+    "ranExactly": true,
+    "rc0": true,
+    "stdoutEmpty": true
+   },
+   "expected": 6,
+   "pass": true,
+   "ran": [
+    "6"
+   ],
+   "rc": 0
+  }
+ }
+}
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-state-readonly-stage/r8/runs/guard-tests-20261027T063200Z-2864392
+## bsro-r8-guard-tests rc=0
+[memory-guard] exit=0 peakTreeRssMiB=79 minHostAvailableMiB=24373
+[memory-guard] at peak: sort:30 python3:26 sha256sum:6 bash:4 bash:4 find:3 bash:2 cut:2
+[queue] EXIT 0

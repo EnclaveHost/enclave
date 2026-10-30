@@ -1,0 +1,28 @@
+--- a/install/MISSING.md
++++ b/install/MISSING.md
+@@ -1,15 +1,12 @@
+-# Missing real artifacts (r8): every one fails closed while absent
++# r9: what genuinely awaits real artifacts, the guest canary, or root (each fails closed while absent)
+ 
+-The templates in `config-templates/` carry only known facts; each `null` below is refused by its loader.
+-
+-| Artifact | Where it is needed | Why it is missing |
++| Item | Needed by | Status |
+ |---|---|---|
+-| reviewed node binary **path** (sha in the capture module's `ACCEPTED_NODE`) | `base-finality-reproof.json` `node` | Guest path not established here |
+-| coverage receipt, verdict and origin files, plus the expected snapshot-manifest and chain-config sha256 | `readiness-settings.json` (publish_readiness `REQUIRED`) | Coverage qualification of the live snapshot is pending |
+-| the exact harness config the launch record bound (`configSha256`) | `/etc/enclave-rpc/base-a2a4-config.json` (permit-restart-auto) | Produced only at the real bootstrap |
+-| reviewed consumer unit list | `/etc/enclave-rpc/base-consumer-units` | Root's decision; consumer names not established here |
+-| production capture `Sources` | `a1_capture.py` `Sources()` | Its defaults name WORKSTATION stage paths (`ops/l1-anchor-a1`, `finality-stage/l1-authority`, `l1-authority-live-1941/config.json`, `l1-proof-window/.../portal-result.json`). A guest install needs those reviewed inputs installed and the defaults (or a reviewed Sources file) pointing at them. Until then the re-proof capture refuses. |
+-| `/etc/enclave-rpc/finality-activation.json` | every review flag | Activation only after root qualification (`install_verified.py activate`) |
+-| forward-sync config values: `recoveryRoot`, `harnessConfig` (the recovery datadir's harness config), `targetMarginBlocks` | `base-forward-sync.json` | Chosen per recovery; not established here |
+-| guest-deployable capture runtime/Sources (guest Python 3.12 / node 18 vs the capture module's host-only pins) | `production-capture-closure-stage` (da0) | ACTIVE: no report yet; not composed. The live re-proof capture refuses on the guest until it lands |
+-| first-bootstrap harness checkpoint parser (a2-v2 stage `a2a4.py`, `A2A4_SOURCE_SHA256 abe223d6`) | first launch `produce`/`arm` | Still the fake-only `^headers:` parser; a real first bootstrap would refuse `unparsed`. Only the recovery harness got the pinned parser |
++| `/etc/enclave-rpc/l1-checkpoint.json` (the reviewed L1 checkpoint record) | `l1-authority.json` `checkpointFile` (capture) | Root-supplied from a reviewed checkpoint; never invented |
++| guest runtime proof: Python 3.12 / node 18 + libnode / Helios actually running the A1 modules, viem closure and finality core | capture, finality core | **6d24 guest-capture-canary-stage** (in progress). Runtime pins are operator-observed, not upstream-verified |
++| coverage receipt, verdict and origin, plus the expected snapshot-manifest and chain-config sha | `readiness-settings.json` | Real snapshot coverage qualification (download/coverage) |
++| the exact harness config the launch record bound | `/etc/enclave-rpc/base-a2a4-config.json` (permit-restart-auto) | Produced at the real first bootstrap |
++| reviewed consumer unit list | `/etc/enclave-rpc/base-consumer-units` | Root |
++| forward-sync per-recovery values (`recoveryRoot`, `harnessConfig`, `targetMarginBlocks`) | `base-forward-sync.json` | Per recovery event |
++| `/etc/enclave-rpc/finality-activation.json` | every review flag | Only after root qualification (`install_verified.py activate`) |
++| `bundle/` (Helios 124 MB, 13 capture dependency trees, capture inputs, the noble tree) | install | Assembled on the workstation by `tools/assemble_bundle.py` from `bundle-origin.json` (hash-checked); then copied with the stage |

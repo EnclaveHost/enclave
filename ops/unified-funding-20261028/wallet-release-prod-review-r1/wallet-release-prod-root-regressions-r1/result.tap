@@ -1,0 +1,213 @@
+TAP version 13
+# Subtest: default PROD refusal is unchanged: unpromoted, drifted and promoted PROD stay blocked without an owner review
+ok 1 - default PROD refusal is unchanged: unpromoted, drifted and promoted PROD stay blocked without an owner review
+  ---
+  duration_ms: 231.423378
+  type: 'test'
+  ...
+# Subtest: explicit two steps: same-content Promote, confirmed on-chain, then a separately reviewed fresh Release
+ok 2 - explicit two steps: same-content Promote, confirmed on-chain, then a separately reviewed fresh Release
+  ---
+  duration_ms: 111.529784
+  type: 'test'
+  ...
+# Subtest: already promoted: explicit election goes straight to Release; promotion is not offered or redone
+ok 3 - already promoted: explicit election goes straight to Release; promotion is not offered or redone
+  ---
+  duration_ms: 82.67458
+  type: 'test'
+  ...
+# Subtest: STAGING path unchanged; promotion never offered for STAGING
+ok 4 - STAGING path unchanged; promotion never offered for STAGING
+  ---
+  duration_ms: 55.870986
+  type: 'test'
+  ...
+# Subtest: census source env: prod-only grant on source-PROD is not a new privilege; on STAGING it still blocks; other/unknown authority blocks
+ok 5 - census source env: prod-only grant on source-PROD is not a new privilege; on STAGING it still blocks; other/unknown authority blocks
+  ---
+  duration_ms: 251.25604
+  type: 'test'
+  ...
+# Subtest: inactive/unleased/escrow/reserve gates still refuse both steps
+ok 6 - inactive/unleased/escrow/reserve gates still refuse both steps
+  ---
+  duration_ms: 291.222597
+  type: 'test'
+  ...
+# Subtest: review drift: content, catalog label/publisher, public flag, promotion, balance, session or delegate changes need a fresh review
+ok 7 - review drift: content, catalog label/publisher, public flag, promotion, balance, session or delegate changes need a fresh review
+  ---
+  duration_ms: 831.781653
+  type: 'test'
+  ...
+# Subtest: Promote typed data and POST exactness
+ok 8 - Promote typed data and POST exactness
+  ---
+  duration_ms: 58.60435
+  type: 'test'
+  ...
+# Subtest: invalidation during the dispatch CAS, and two tabs: no POST / one signature
+ok 9 - invalidation during the dispatch CAS, and two tabs: no POST / one signature
+  ---
+  duration_ms: 152.604302
+  type: 'test'
+  ...
+# Subtest: uncertain/reload/reorg/foreign/failed promotion: no resend, no early Release
+ok 10 - uncertain/reload/reorg/foreign/failed promotion: no resend, no early Release
+  ---
+  duration_ms: 288.374656
+  type: 'test'
+  ...
+# Subtest: shared owner nonce fence, both directions, other deployment, two tabs, old schema1 Release records
+ok 11 - shared owner nonce fence, both directions, other deployment, two tabs, old schema1 Release records
+  ---
+  duration_ms: 86.533393
+  type: 'test'
+  ...
+# Subtest: EXACT shipped SDK: ownerOperation promote then (separately) release through the guarded seams
+ok 12 - EXACT shipped SDK: ownerOperation promote then (separately) release through the guarded seams
+  ---
+  duration_ms: 109.94383
+  type: 'test'
+  ...
+# Subtest: ROOT old-ledger unresolved release fences the same vault owner
+not ok 13 - ROOT old-ledger unresolved release fences the same vault owner
+  ---
+  duration_ms: 59.805779
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-prod-root-regressions-r1/candidate/enclave/test/wallet-release/prod-root.test.mjs:299:47'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-prod-root-regressions-r1/candidate/enclave/test/wallet-release/prod-root.test.mjs:306:7)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ROOT old-ledger unresolved promote fences the same vault owner
+not ok 14 - ROOT old-ledger unresolved promote fences the same vault owner
+  ---
+  duration_ms: 47.574856
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-prod-root-regressions-r1/candidate/enclave/test/wallet-release/prod-root.test.mjs:299:47'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-prod-root-regressions-r1/candidate/enclave/test/wallet-release/prod-root.test.mjs:305:14)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ROOT independent catalog disagreement prevents a promotion signature
+not ok 15 - ROOT independent catalog disagreement prevents a promotion signature
+  ---
+  duration_ms: 72.338659
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-prod-root-regressions-r1/candidate/enclave/test/wallet-release/prod-root.test.mjs:309:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-prod-root-regressions-r1/candidate/enclave/test/wallet-release/prod-root.test.mjs:312:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ROOT unreviewed catalog runtime refuses owner content approval
+not ok 16 - ROOT unreviewed catalog runtime refuses owner content approval
+  ---
+  duration_ms: 48.096811
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-prod-root-regressions-r1/candidate/enclave/test/wallet-release/prod-root.test.mjs:315:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'eligible'
+    - 'blocked'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'blocked'
+  actual: 'eligible'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-prod-root-regressions-r1/candidate/enclave/test/wallet-release/prod-root.test.mjs:317:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ROOT actual viem reader refuses a missing delegation storage word
+not ok 17 - ROOT actual viem reader refuses a missing delegation storage word
+  ---
+  duration_ms: 0.377576
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-prod-root-regressions-r1/candidate/enclave/test/wallet-release/prod-root.test.mjs:319:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-prod-root-regressions-r1/candidate/enclave/test/wallet-release/prod-root.test.mjs:321:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ROOT transplanted receipt cannot finalize promotion
+not ok 18 - ROOT transplanted receipt cannot finalize promotion
+  ---
+  duration_ms: 59.579691
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-prod-root-regressions-r1/candidate/enclave/test/wallet-release/prod-root.test.mjs:328:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'finalized'
+    - 'conflict'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'conflict'
+  actual: 'finalized'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-prod-root-regressions-r1/candidate/enclave/test/wallet-release/prod-root.test.mjs:330:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ROOT late reorg during promotion state verification cannot finalize
+not ok 19 - ROOT late reorg during promotion state verification cannot finalize
+  ---
+  duration_ms: 68.888022
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-prod-root-regressions-r1/candidate/enclave/test/wallet-release/prod-root.test.mjs:332:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected "actual" to be strictly unequal to:
+    
+    'finalized'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'finalized'
+  actual: 'finalized'
+  operator: 'notStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-prod-root-regressions-r1/candidate/enclave/test/wallet-release/prod-root.test.mjs:335:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..19
+# tests 19
+# suites 0
+# pass 12
+# fail 7
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3019.441371

@@ -1,0 +1,1551 @@
+[queue] START available=24885MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+===== base reth --help
+Execution-layer maintenance utilities (use this group's own --chain flag)
+
+Usage: base reth [OPTIONS] <COMMAND>
+
+Commands:
+  db                   Database debugging utilities
+  init                 Initialize the database from a genesis file
+  init-state           Initialize the database from a state dump file
+  dump-genesis         Dump genesis block JSON configuration to stdout
+  genesis-output-root  Print the OP Stack output root for an L2 genesis configuration
+  stage                Manipulate individual stages
+  p2p                  P2P debugging utilities
+  config               Write config to stdout
+  prune                Prune according to the configuration without any limits
+  re-execute           Re-execute blocks in parallel to verify historical sync correctness
+  help                 Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help
+          Print help (see a summary with '-h')
+
+Logging:
+  -v, --verbose...
+          Set logging verbosity: no flag=INFO, -v=ERROR, -vv=WARN, -vvv=INFO, -vvvv=DEBUG, -vvvvv=TRACE
+          
+          [env: BASE_NODE_LOG_VERBOSITY=]
+
+  -q, --logs.stdout.quiet
+          Suppress stdout logging
+
+      --logs.stdout.format <STDOUT_FORMAT>
+          Stdout log format
+
+          Possible values:
+          - full:    Full format with timestamp, level, target, and spans
+          - json:    JSON format for structured logging
+          - pretty:  Pretty format with colors (for development)
+          - compact: Compact format with minimal metadata
+          - logfmt:  Logfmt format (key=value pairs)
+          
+          [env: BASE_NODE_LOG_FORMAT=]
+          [default: full]
+
+      --logs.file.directory <FILE_DIRECTORY>
+          Directory for file logging (enables file logging when set)
+          
+          [env: BASE_NODE_LOG_DIR=]
+
+      --logs.file.format <FILE_FORMAT>
+          File log format
+
+          Possible values:
+          - full:    Full format with timestamp, level, target, and spans
+          - json:    JSON format for structured logging
+          - pretty:  Pretty format with colors (for development)
+          - compact: Compact format with minimal metadata
+          - logfmt:  Logfmt format (key=value pairs)
+          
+          [default: json]
+
+      --logs.file.rotation <FILE_ROTATION>
+          File log rotation strategy
+
+          Possible values:
+          - minutely: Rotate every minute (for testing)
+          - hourly:   Rotate every hour
+          - daily:    Rotate every day
+          - never:    Never rotate (default)
+          
+          [default: never]
+
+      --logs-otlp[=<URL>]
+          Enable `Opentelemetry` logs export to an OTLP endpoint.
+          
+          If no value provided, defaults based on protocol: - HTTP: `http://localhost:4318/v1/logs` - gRPC: `http://localhost:4317`
+          
+          Example: --logs-otlp=http://collector:4318/v1/logs
+          
+          [env: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=]
+
+      --logs-otlp.filter <FILTER>
+          Set a filter directive for the OTLP logs exporter. This controls the verbosity of logs sent to the OTLP endpoint. It follows the same syntax as the `RUST_LOG` environment variable.
+          
+          Example: --logs-otlp.filter=info,reth=debug
+          
+          Defaults to INFO if not specified.
+          
+          [default: info]
+
+Tracing:
+      --tracing-otlp[=<URL>]
+          Enable `Opentelemetry` tracing export to an OTLP endpoint.
+          
+          If no value provided, defaults based on protocol: - HTTP: `http://localhost:4318/v1/traces` - gRPC: `http://localhost:4317`
+          
+          Example: --tracing-otlp=http://collector:4318/v1/traces
+          
+          [env: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=]
+
+      --tracing-otlp-protocol <PROTOCOL>
+          OTLP transport protocol to use for exporting traces and logs.
+          
+          - `http`: expects endpoint path to end with `/v1/traces` or `/v1/logs` - `grpc`: expects endpoint without a path
+          
+          Defaults to HTTP if not specified.
+
+          Possible values:
+          - http: HTTP/Protobuf transport, port 4318, requires `/v1/traces` path
+          - grpc: gRPC transport, port 4317
+          
+          [env: OTEL_EXPORTER_OTLP_PROTOCOL=]
+          [default: http]
+
+      --tracing-otlp.filter <FILTER>
+          Set a filter directive for the OTLP tracer. This controls the verbosity of spans and events sent to the OTLP endpoint. It follows the same syntax as the `RUST_LOG` environment variable.
+          
+          Example: --tracing-otlp.filter=info,reth=debug,hyper_util=off
+          
+          Defaults to TRACE if not specified.
+          
+          [default: debug]
+
+      --tracing-otlp.sample-ratio <RATIO>
+          Trace sampling ratio to control the percentage of traces to export.
+          
+          Valid range: 0.0 to 1.0 - 1.0, default: Sample all traces - 0.01: Sample 1% of traces - 0.0: Disable sampling
+          
+          Example: --tracing-otlp.sample-ratio=0.0.
+          
+          [env: OTEL_TRACES_SAMPLER_ARG=]
+
+Metrics:
+      --metrics.enabled
+          Controls whether Prometheus metrics are enabled. Disabled by default
+          
+          [env: BASE_NODE_METRICS_ENABLED=]
+
+      --metrics.interval <metrics_interval>
+          The interval for prometheus metrics collection in seconds
+          
+          [env: BASE_NODE_METRICS_INTERVAL=]
+          [default: 30]
+
+      --metrics.port <metrics_port>
+          The port to serve Prometheus metrics on
+          
+          [env: BASE_NODE_METRICS_PORT=]
+          [default: 9090]
+
+      --metrics.addr <ADDR>
+          The IP address to use for Prometheus metrics
+          
+          [env: BASE_NODE_METRICS_ADDR=]
+          [default: 0.0.0.0]
+===== rc=0
+===== base reth db --help
+Database debugging utilities
+
+Usage: base reth db [OPTIONS] <COMMAND>
+
+Commands:
+  stats               Lists all the tables, their entry count and their size
+  list                Lists the contents of a table
+  checksum            Calculates the content checksum of a table or static file segment
+  copy                Copies the MDBX database to a new location (bundled mdbx_copy)
+  diff                Create a diff between two database tables or two entire databases
+  get                 Gets the content of a table for the given key
+  drop                Deletes all database entries
+  clear               Deletes all table entries
+  repair-trie         Verifies trie consistency and outputs any inconsistencies
+  static-file-header  Reads and displays the static file segment header
+  version             Lists current and local database versions
+  path                Returns the full database path
+  settings            Manage storage settings
+  prune-checkpoints   View or set prune checkpoints
+  stage-checkpoints   `reth db stage-checkpoints` subcommand
+  account-storage     Gets storage size information for an account
+  state               Gets account state and storage at a specific block
+  migrate-v2          Migrate storage layout from v1 (MDBX-only) to v2 (static files + RocksDB)
+  help                Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help
+          Print help (see a summary with '-h')
+
+Datadir:
+      --datadir <DATA_DIR>
+          The path to the data dir for all reth files and subdirectories.
+          
+          Defaults to the OS-specific data directory:
+          
+          - Linux: `$XDG_DATA_HOME/reth/` or `$HOME/.local/share/reth/`
+          - Windows: `{FOLDERID_RoamingAppData}/reth/`
+          - macOS: `$HOME/Library/Application Support/reth/`
+          
+          [default: default]
+
+      --datadir.static-files <PATH>
+          The absolute path to store static files in.
+
+      --datadir.rocksdb <PATH>
+          The absolute path to store `RocksDB` database in.
+
+      --datadir.pprof-dumps <PATH>
+          The absolute path to store pprof dumps in.
+
+      --config <FILE>
+          The path to the configuration file to use
+
+      --chain <CHAIN_OR_PATH>
+          The chain this node is running.
+          Possible values are either a built-in chain or the path to a chain specification file.
+          
+          Built-in chains:
+              mainnet, sepolia, zeronet, dev, base, base_sepolia, base-sepolia, base-zeronet
+          
+          [default: mainnet]
+
+Database:
+      --db.log-level <LOG_LEVEL>
+          Database logging level. Levels higher than "notice" require a debug build
+
+          Possible values:
+          - fatal:   Enables logging for critical conditions, i.e. assertion failures
+          - error:   Enables logging for error conditions
+          - warn:    Enables logging for warning conditions
+          - notice:  Enables logging for normal but significant condition
+          - verbose: Enables logging for verbose informational
+          - debug:   Enables logging for debug-level messages
+          - trace:   Enables logging for trace debug-level messages
+          - extra:   Enables logging for extra debug-level messages
+
+      --db.exclusive <EXCLUSIVE>
+          Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
+          
+          [possible values: true, false]
+
+      --db.max-size <MAX_SIZE>
+          Maximum database size (e.g., 4TB, 8TB).
+          
+          This sets the "map size" of the database. If the database grows beyond this limit, the node will stop with an "environment map size limit reached" error.
+          
+          The default value is 8TB.
+
+      --db.page-size <PAGE_SIZE>
+          Database page size (e.g., 4KB, 8KB, 16KB).
+          
+          Specifies the page size used by the MDBX database.
+          
+          The page size determines the maximum database size. MDBX supports up to 2^31 pages, so with the default 4KB page size, the maximum database size is 8TB. To allow larger databases, increase this value to 8KB or higher.
+          
+          WARNING: This setting is only configurable at database creation; changing it later requires re-syncing.
+
+      --db.growth-step <GROWTH_STEP>
+          Database growth step (e.g., 4GB, 4KB)
+
+      --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT>
+          Read transaction timeout in seconds, 0 means no timeout
+
+      --db.max-readers <MAX_READERS>
+          Maximum number of readers allowed to access the database concurrently
+
+      --db.sync-mode <SYNC_MODE>
+          Controls how aggressively the database synchronizes data to disk
+
+      --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE>
+          `RocksDB` block cache size (e.g., 512MB, 4GB).
+          
+          Controls the size of the in-memory LRU cache for decompressed `RocksDB` blocks. A larger cache reduces repeated decompression of hot blocks, improving read performance for history lookups.
+
+      --db.balstore-cache-size <BALSTORE_CACHE_SIZE>
+          Number of recent blocks to keep in the in-memory BAL store cache
+
+      --db.disable-metrics
+          Disable built-in database metrics
+
+Static Files:
+      --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS>
+          Number of blocks per file for the headers segment
+
+      --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS>
+          Number of blocks per file for the transactions segment
+
+      --static-files.blocks-per-file.receipts <BLOCKS_PER_FILE_RECEIPTS>
+          Number of blocks per file for the receipts segment
+
+      --static-files.blocks-per-file.transaction-senders <BLOCKS_PER_FILE_TRANSACTION_SENDERS>
+          Number of blocks per file for the transaction senders segment
+
+      --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT_CHANGE_SETS>
+          Number of blocks per file for the account changesets segment
+
+      --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS>
+          Number of blocks per file for the storage changesets segment
+
+Storage:
+      --storage.v2 [<V2>]
+          Enable V2 (hot/cold) storage layout for new databases.
+          
+          When set, new databases will be initialized with the V2 storage layout that separates hot and cold data. Existing databases always use the settings persisted in their metadata regardless of this flag.
+          
+          [default: true]
+          [possible values: true, false]
+
+Logging:
+  -v, --verbose...
+          Set logging verbosity: no flag=INFO, -v=ERROR, -vv=WARN, -vvv=INFO, -vvvv=DEBUG, -vvvvv=TRACE
+          
+          [env: BASE_NODE_LOG_VERBOSITY=]
+
+  -q, --logs.stdout.quiet
+          Suppress stdout logging
+
+      --logs.stdout.format <STDOUT_FORMAT>
+          Stdout log format
+
+          Possible values:
+          - full:    Full format with timestamp, level, target, and spans
+          - json:    JSON format for structured logging
+          - pretty:  Pretty format with colors (for development)
+          - compact: Compact format with minimal metadata
+          - logfmt:  Logfmt format (key=value pairs)
+          
+          [env: BASE_NODE_LOG_FORMAT=]
+          [default: full]
+
+      --logs.file.directory <FILE_DIRECTORY>
+          Directory for file logging (enables file logging when set)
+          
+          [env: BASE_NODE_LOG_DIR=]
+
+      --logs.file.format <FILE_FORMAT>
+          File log format
+
+          Possible values:
+          - full:    Full format with timestamp, level, target, and spans
+          - json:    JSON format for structured logging
+          - pretty:  Pretty format with colors (for development)
+          - compact: Compact format with minimal metadata
+          - logfmt:  Logfmt format (key=value pairs)
+          
+          [default: json]
+
+      --logs.file.rotation <FILE_ROTATION>
+          File log rotation strategy
+
+          Possible values:
+          - minutely: Rotate every minute (for testing)
+          - hourly:   Rotate every hour
+          - daily:    Rotate every day
+          - never:    Never rotate (default)
+          
+          [default: never]
+
+      --logs-otlp[=<URL>]
+          Enable `Opentelemetry` logs export to an OTLP endpoint.
+          
+          If no value provided, defaults based on protocol: - HTTP: `http://localhost:4318/v1/logs` - gRPC: `http://localhost:4317`
+          
+          Example: --logs-otlp=http://collector:4318/v1/logs
+          
+          [env: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=]
+
+      --logs-otlp.filter <FILTER>
+          Set a filter directive for the OTLP logs exporter. This controls the verbosity of logs sent to the OTLP endpoint. It follows the same syntax as the `RUST_LOG` environment variable.
+          
+          Example: --logs-otlp.filter=info,reth=debug
+          
+          Defaults to INFO if not specified.
+          
+          [default: info]
+
+Tracing:
+      --tracing-otlp[=<URL>]
+          Enable `Opentelemetry` tracing export to an OTLP endpoint.
+          
+          If no value provided, defaults based on protocol: - HTTP: `http://localhost:4318/v1/traces` - gRPC: `http://localhost:4317`
+          
+          Example: --tracing-otlp=http://collector:4318/v1/traces
+          
+          [env: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=]
+
+      --tracing-otlp-protocol <PROTOCOL>
+          OTLP transport protocol to use for exporting traces and logs.
+          
+          - `http`: expects endpoint path to end with `/v1/traces` or `/v1/logs` - `grpc`: expects endpoint without a path
+          
+          Defaults to HTTP if not specified.
+
+          Possible values:
+          - http: HTTP/Protobuf transport, port 4318, requires `/v1/traces` path
+          - grpc: gRPC transport, port 4317
+          
+          [env: OTEL_EXPORTER_OTLP_PROTOCOL=]
+          [default: http]
+
+      --tracing-otlp.filter <FILTER>
+          Set a filter directive for the OTLP tracer. This controls the verbosity of spans and events sent to the OTLP endpoint. It follows the same syntax as the `RUST_LOG` environment variable.
+          
+          Example: --tracing-otlp.filter=info,reth=debug,hyper_util=off
+          
+          Defaults to TRACE if not specified.
+          
+          [default: debug]
+
+      --tracing-otlp.sample-ratio <RATIO>
+          Trace sampling ratio to control the percentage of traces to export.
+          
+          Valid range: 0.0 to 1.0 - 1.0, default: Sample all traces - 0.01: Sample 1% of traces - 0.0: Disable sampling
+          
+          Example: --tracing-otlp.sample-ratio=0.0.
+          
+          [env: OTEL_TRACES_SAMPLER_ARG=]
+
+Metrics:
+      --metrics.enabled
+          Controls whether Prometheus metrics are enabled. Disabled by default
+          
+          [env: BASE_NODE_METRICS_ENABLED=]
+
+      --metrics.interval <metrics_interval>
+          The interval for prometheus metrics collection in seconds
+          
+          [env: BASE_NODE_METRICS_INTERVAL=]
+          [default: 30]
+
+      --metrics.port <metrics_port>
+          The port to serve Prometheus metrics on
+          
+          [env: BASE_NODE_METRICS_PORT=]
+          [default: 9090]
+
+      --metrics.addr <ADDR>
+          The IP address to use for Prometheus metrics
+          
+          [env: BASE_NODE_METRICS_ADDR=]
+          [default: 0.0.0.0]
+===== rc=0
+===== base reth db version --help
+Lists current and local database versions
+
+Usage: base reth db version [OPTIONS]
+
+Options:
+  -h, --help
+          Print help (see a summary with '-h')
+
+Datadir:
+      --chain <CHAIN_OR_PATH>
+          The chain this node is running.
+          Possible values are either a built-in chain or the path to a chain specification file.
+          
+          Built-in chains:
+              mainnet, sepolia, zeronet, dev, base, base_sepolia, base-sepolia, base-zeronet
+          
+          [default: mainnet]
+
+Logging:
+  -v, --verbose...
+          Set logging verbosity: no flag=INFO, -v=ERROR, -vv=WARN, -vvv=INFO, -vvvv=DEBUG, -vvvvv=TRACE
+          
+          [env: BASE_NODE_LOG_VERBOSITY=]
+
+  -q, --logs.stdout.quiet
+          Suppress stdout logging
+
+      --logs.stdout.format <STDOUT_FORMAT>
+          Stdout log format
+
+          Possible values:
+          - full:    Full format with timestamp, level, target, and spans
+          - json:    JSON format for structured logging
+          - pretty:  Pretty format with colors (for development)
+          - compact: Compact format with minimal metadata
+          - logfmt:  Logfmt format (key=value pairs)
+          
+          [env: BASE_NODE_LOG_FORMAT=]
+          [default: full]
+
+      --logs.file.directory <FILE_DIRECTORY>
+          Directory for file logging (enables file logging when set)
+          
+          [env: BASE_NODE_LOG_DIR=]
+
+      --logs.file.format <FILE_FORMAT>
+          File log format
+
+          Possible values:
+          - full:    Full format with timestamp, level, target, and spans
+          - json:    JSON format for structured logging
+          - pretty:  Pretty format with colors (for development)
+          - compact: Compact format with minimal metadata
+          - logfmt:  Logfmt format (key=value pairs)
+          
+          [default: json]
+
+      --logs.file.rotation <FILE_ROTATION>
+          File log rotation strategy
+
+          Possible values:
+          - minutely: Rotate every minute (for testing)
+          - hourly:   Rotate every hour
+          - daily:    Rotate every day
+          - never:    Never rotate (default)
+          
+          [default: never]
+
+      --logs-otlp[=<URL>]
+          Enable `Opentelemetry` logs export to an OTLP endpoint.
+          
+          If no value provided, defaults based on protocol: - HTTP: `http://localhost:4318/v1/logs` - gRPC: `http://localhost:4317`
+          
+          Example: --logs-otlp=http://collector:4318/v1/logs
+          
+          [env: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=]
+
+      --logs-otlp.filter <FILTER>
+          Set a filter directive for the OTLP logs exporter. This controls the verbosity of logs sent to the OTLP endpoint. It follows the same syntax as the `RUST_LOG` environment variable.
+          
+          Example: --logs-otlp.filter=info,reth=debug
+          
+          Defaults to INFO if not specified.
+          
+          [default: info]
+
+Tracing:
+      --tracing-otlp[=<URL>]
+          Enable `Opentelemetry` tracing export to an OTLP endpoint.
+          
+          If no value provided, defaults based on protocol: - HTTP: `http://localhost:4318/v1/traces` - gRPC: `http://localhost:4317`
+          
+          Example: --tracing-otlp=http://collector:4318/v1/traces
+          
+          [env: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=]
+
+      --tracing-otlp-protocol <PROTOCOL>
+          OTLP transport protocol to use for exporting traces and logs.
+          
+          - `http`: expects endpoint path to end with `/v1/traces` or `/v1/logs` - `grpc`: expects endpoint without a path
+          
+          Defaults to HTTP if not specified.
+
+          Possible values:
+          - http: HTTP/Protobuf transport, port 4318, requires `/v1/traces` path
+          - grpc: gRPC transport, port 4317
+          
+          [env: OTEL_EXPORTER_OTLP_PROTOCOL=]
+          [default: http]
+
+      --tracing-otlp.filter <FILTER>
+          Set a filter directive for the OTLP tracer. This controls the verbosity of spans and events sent to the OTLP endpoint. It follows the same syntax as the `RUST_LOG` environment variable.
+          
+          Example: --tracing-otlp.filter=info,reth=debug,hyper_util=off
+          
+          Defaults to TRACE if not specified.
+          
+          [default: debug]
+
+      --tracing-otlp.sample-ratio <RATIO>
+          Trace sampling ratio to control the percentage of traces to export.
+          
+          Valid range: 0.0 to 1.0 - 1.0, default: Sample all traces - 0.01: Sample 1% of traces - 0.0: Disable sampling
+          
+          Example: --tracing-otlp.sample-ratio=0.0.
+          
+          [env: OTEL_TRACES_SAMPLER_ARG=]
+
+Metrics:
+      --metrics.enabled
+          Controls whether Prometheus metrics are enabled. Disabled by default
+          
+          [env: BASE_NODE_METRICS_ENABLED=]
+
+      --metrics.interval <metrics_interval>
+          The interval for prometheus metrics collection in seconds
+          
+          [env: BASE_NODE_METRICS_INTERVAL=]
+          [default: 30]
+
+      --metrics.port <metrics_port>
+          The port to serve Prometheus metrics on
+          
+          [env: BASE_NODE_METRICS_PORT=]
+          [default: 9090]
+
+      --metrics.addr <ADDR>
+          The IP address to use for Prometheus metrics
+          
+          [env: BASE_NODE_METRICS_ADDR=]
+          [default: 0.0.0.0]
+===== rc=0
+===== base reth db stats --help
+Lists all the tables, their entry count and their size
+
+Usage: base reth db stats [OPTIONS]
+
+Options:
+      --skip-consistency-checks
+          Skip consistency checks for static files
+
+      --detailed-sizes
+          Show only the total size for static files
+
+      --detailed-segments
+          Show detailed information per static file segment
+
+      --checksum
+          Show a checksum of each table in the database.
+          
+          WARNING: this option will take a long time to run, as it needs to traverse and hash the entire database.
+          
+          For individual table checksums, use the `reth db checksum` command.
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+Datadir:
+      --chain <CHAIN_OR_PATH>
+          The chain this node is running.
+          Possible values are either a built-in chain or the path to a chain specification file.
+          
+          Built-in chains:
+              mainnet, sepolia, zeronet, dev, base, base_sepolia, base-sepolia, base-zeronet
+          
+          [default: mainnet]
+
+Logging:
+  -v, --verbose...
+          Set logging verbosity: no flag=INFO, -v=ERROR, -vv=WARN, -vvv=INFO, -vvvv=DEBUG, -vvvvv=TRACE
+          
+          [env: BASE_NODE_LOG_VERBOSITY=]
+
+  -q, --logs.stdout.quiet
+          Suppress stdout logging
+
+      --logs.stdout.format <STDOUT_FORMAT>
+          Stdout log format
+
+          Possible values:
+          - full:    Full format with timestamp, level, target, and spans
+          - json:    JSON format for structured logging
+          - pretty:  Pretty format with colors (for development)
+          - compact: Compact format with minimal metadata
+          - logfmt:  Logfmt format (key=value pairs)
+          
+          [env: BASE_NODE_LOG_FORMAT=]
+          [default: full]
+
+      --logs.file.directory <FILE_DIRECTORY>
+          Directory for file logging (enables file logging when set)
+          
+          [env: BASE_NODE_LOG_DIR=]
+
+      --logs.file.format <FILE_FORMAT>
+          File log format
+
+          Possible values:
+          - full:    Full format with timestamp, level, target, and spans
+          - json:    JSON format for structured logging
+          - pretty:  Pretty format with colors (for development)
+          - compact: Compact format with minimal metadata
+          - logfmt:  Logfmt format (key=value pairs)
+          
+          [default: json]
+
+      --logs.file.rotation <FILE_ROTATION>
+          File log rotation strategy
+
+          Possible values:
+          - minutely: Rotate every minute (for testing)
+          - hourly:   Rotate every hour
+          - daily:    Rotate every day
+          - never:    Never rotate (default)
+          
+          [default: never]
+
+      --logs-otlp[=<URL>]
+          Enable `Opentelemetry` logs export to an OTLP endpoint.
+          
+          If no value provided, defaults based on protocol: - HTTP: `http://localhost:4318/v1/logs` - gRPC: `http://localhost:4317`
+          
+          Example: --logs-otlp=http://collector:4318/v1/logs
+          
+          [env: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=]
+
+      --logs-otlp.filter <FILTER>
+          Set a filter directive for the OTLP logs exporter. This controls the verbosity of logs sent to the OTLP endpoint. It follows the same syntax as the `RUST_LOG` environment variable.
+          
+          Example: --logs-otlp.filter=info,reth=debug
+          
+          Defaults to INFO if not specified.
+          
+          [default: info]
+
+Tracing:
+      --tracing-otlp[=<URL>]
+          Enable `Opentelemetry` tracing export to an OTLP endpoint.
+          
+          If no value provided, defaults based on protocol: - HTTP: `http://localhost:4318/v1/traces` - gRPC: `http://localhost:4317`
+          
+          Example: --tracing-otlp=http://collector:4318/v1/traces
+          
+          [env: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=]
+
+      --tracing-otlp-protocol <PROTOCOL>
+          OTLP transport protocol to use for exporting traces and logs.
+          
+          - `http`: expects endpoint path to end with `/v1/traces` or `/v1/logs` - `grpc`: expects endpoint without a path
+          
+          Defaults to HTTP if not specified.
+
+          Possible values:
+          - http: HTTP/Protobuf transport, port 4318, requires `/v1/traces` path
+          - grpc: gRPC transport, port 4317
+          
+          [env: OTEL_EXPORTER_OTLP_PROTOCOL=]
+          [default: http]
+
+      --tracing-otlp.filter <FILTER>
+          Set a filter directive for the OTLP tracer. This controls the verbosity of spans and events sent to the OTLP endpoint. It follows the same syntax as the `RUST_LOG` environment variable.
+          
+          Example: --tracing-otlp.filter=info,reth=debug,hyper_util=off
+          
+          Defaults to TRACE if not specified.
+          
+          [default: debug]
+
+      --tracing-otlp.sample-ratio <RATIO>
+          Trace sampling ratio to control the percentage of traces to export.
+          
+          Valid range: 0.0 to 1.0 - 1.0, default: Sample all traces - 0.01: Sample 1% of traces - 0.0: Disable sampling
+          
+          Example: --tracing-otlp.sample-ratio=0.0.
+          
+          [env: OTEL_TRACES_SAMPLER_ARG=]
+
+Metrics:
+      --metrics.enabled
+          Controls whether Prometheus metrics are enabled. Disabled by default
+          
+          [env: BASE_NODE_METRICS_ENABLED=]
+
+      --metrics.interval <metrics_interval>
+          The interval for prometheus metrics collection in seconds
+          
+          [env: BASE_NODE_METRICS_INTERVAL=]
+          [default: 30]
+
+      --metrics.port <metrics_port>
+          The port to serve Prometheus metrics on
+          
+          [env: BASE_NODE_METRICS_PORT=]
+          [default: 9090]
+
+      --metrics.addr <ADDR>
+          The IP address to use for Prometheus metrics
+          
+          [env: BASE_NODE_METRICS_ADDR=]
+          [default: 0.0.0.0]
+===== rc=0
+===== base reth db stage-checkpoints --help
+`reth db stage-checkpoints` subcommand
+
+Usage: base reth db stage-checkpoints [OPTIONS] <COMMAND>
+
+Commands:
+  get   Get stage checkpoint(s) from database
+  set   Set a stage checkpoint
+  help  Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help
+          Print help (see a summary with '-h')
+
+Datadir:
+      --chain <CHAIN_OR_PATH>
+          The chain this node is running.
+          Possible values are either a built-in chain or the path to a chain specification file.
+          
+          Built-in chains:
+              mainnet, sepolia, zeronet, dev, base, base_sepolia, base-sepolia, base-zeronet
+          
+          [default: mainnet]
+
+Logging:
+  -v, --verbose...
+          Set logging verbosity: no flag=INFO, -v=ERROR, -vv=WARN, -vvv=INFO, -vvvv=DEBUG, -vvvvv=TRACE
+          
+          [env: BASE_NODE_LOG_VERBOSITY=]
+
+  -q, --logs.stdout.quiet
+          Suppress stdout logging
+
+      --logs.stdout.format <STDOUT_FORMAT>
+          Stdout log format
+
+          Possible values:
+          - full:    Full format with timestamp, level, target, and spans
+          - json:    JSON format for structured logging
+          - pretty:  Pretty format with colors (for development)
+          - compact: Compact format with minimal metadata
+          - logfmt:  Logfmt format (key=value pairs)
+          
+          [env: BASE_NODE_LOG_FORMAT=]
+          [default: full]
+
+      --logs.file.directory <FILE_DIRECTORY>
+          Directory for file logging (enables file logging when set)
+          
+          [env: BASE_NODE_LOG_DIR=]
+
+      --logs.file.format <FILE_FORMAT>
+          File log format
+
+          Possible values:
+          - full:    Full format with timestamp, level, target, and spans
+          - json:    JSON format for structured logging
+          - pretty:  Pretty format with colors (for development)
+          - compact: Compact format with minimal metadata
+          - logfmt:  Logfmt format (key=value pairs)
+          
+          [default: json]
+
+      --logs.file.rotation <FILE_ROTATION>
+          File log rotation strategy
+
+          Possible values:
+          - minutely: Rotate every minute (for testing)
+          - hourly:   Rotate every hour
+          - daily:    Rotate every day
+          - never:    Never rotate (default)
+          
+          [default: never]
+
+      --logs-otlp[=<URL>]
+          Enable `Opentelemetry` logs export to an OTLP endpoint.
+          
+          If no value provided, defaults based on protocol: - HTTP: `http://localhost:4318/v1/logs` - gRPC: `http://localhost:4317`
+          
+          Example: --logs-otlp=http://collector:4318/v1/logs
+          
+          [env: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=]
+
+      --logs-otlp.filter <FILTER>
+          Set a filter directive for the OTLP logs exporter. This controls the verbosity of logs sent to the OTLP endpoint. It follows the same syntax as the `RUST_LOG` environment variable.
+          
+          Example: --logs-otlp.filter=info,reth=debug
+          
+          Defaults to INFO if not specified.
+          
+          [default: info]
+
+Tracing:
+      --tracing-otlp[=<URL>]
+          Enable `Opentelemetry` tracing export to an OTLP endpoint.
+          
+          If no value provided, defaults based on protocol: - HTTP: `http://localhost:4318/v1/traces` - gRPC: `http://localhost:4317`
+          
+          Example: --tracing-otlp=http://collector:4318/v1/traces
+          
+          [env: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=]
+
+      --tracing-otlp-protocol <PROTOCOL>
+          OTLP transport protocol to use for exporting traces and logs.
+          
+          - `http`: expects endpoint path to end with `/v1/traces` or `/v1/logs` - `grpc`: expects endpoint without a path
+          
+          Defaults to HTTP if not specified.
+
+          Possible values:
+          - http: HTTP/Protobuf transport, port 4318, requires `/v1/traces` path
+          - grpc: gRPC transport, port 4317
+          
+          [env: OTEL_EXPORTER_OTLP_PROTOCOL=]
+          [default: http]
+
+      --tracing-otlp.filter <FILTER>
+          Set a filter directive for the OTLP tracer. This controls the verbosity of spans and events sent to the OTLP endpoint. It follows the same syntax as the `RUST_LOG` environment variable.
+          
+          Example: --tracing-otlp.filter=info,reth=debug,hyper_util=off
+          
+          Defaults to TRACE if not specified.
+          
+          [default: debug]
+
+      --tracing-otlp.sample-ratio <RATIO>
+          Trace sampling ratio to control the percentage of traces to export.
+          
+          Valid range: 0.0 to 1.0 - 1.0, default: Sample all traces - 0.01: Sample 1% of traces - 0.0: Disable sampling
+          
+          Example: --tracing-otlp.sample-ratio=0.0.
+          
+          [env: OTEL_TRACES_SAMPLER_ARG=]
+
+Metrics:
+      --metrics.enabled
+          Controls whether Prometheus metrics are enabled. Disabled by default
+          
+          [env: BASE_NODE_METRICS_ENABLED=]
+
+      --metrics.interval <metrics_interval>
+          The interval for prometheus metrics collection in seconds
+          
+          [env: BASE_NODE_METRICS_INTERVAL=]
+          [default: 30]
+
+      --metrics.port <metrics_port>
+          The port to serve Prometheus metrics on
+          
+          [env: BASE_NODE_METRICS_PORT=]
+          [default: 9090]
+
+      --metrics.addr <ADDR>
+          The IP address to use for Prometheus metrics
+          
+          [env: BASE_NODE_METRICS_ADDR=]
+          [default: 0.0.0.0]
+===== rc=0
+===== base reth db static-file-header --help
+Reads and displays the static file segment header
+
+Usage: base reth db static-file-header [OPTIONS] <COMMAND>
+
+Commands:
+  block  Query by segment and block number
+  path   Query by path to static file
+  help   Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help
+          Print help (see a summary with '-h')
+
+Datadir:
+      --chain <CHAIN_OR_PATH>
+          The chain this node is running.
+          Possible values are either a built-in chain or the path to a chain specification file.
+          
+          Built-in chains:
+              mainnet, sepolia, zeronet, dev, base, base_sepolia, base-sepolia, base-zeronet
+          
+          [default: mainnet]
+
+Logging:
+  -v, --verbose...
+          Set logging verbosity: no flag=INFO, -v=ERROR, -vv=WARN, -vvv=INFO, -vvvv=DEBUG, -vvvvv=TRACE
+          
+          [env: BASE_NODE_LOG_VERBOSITY=]
+
+  -q, --logs.stdout.quiet
+          Suppress stdout logging
+
+      --logs.stdout.format <STDOUT_FORMAT>
+          Stdout log format
+
+          Possible values:
+          - full:    Full format with timestamp, level, target, and spans
+          - json:    JSON format for structured logging
+          - pretty:  Pretty format with colors (for development)
+          - compact: Compact format with minimal metadata
+          - logfmt:  Logfmt format (key=value pairs)
+          
+          [env: BASE_NODE_LOG_FORMAT=]
+          [default: full]
+
+      --logs.file.directory <FILE_DIRECTORY>
+          Directory for file logging (enables file logging when set)
+          
+          [env: BASE_NODE_LOG_DIR=]
+
+      --logs.file.format <FILE_FORMAT>
+          File log format
+
+          Possible values:
+          - full:    Full format with timestamp, level, target, and spans
+          - json:    JSON format for structured logging
+          - pretty:  Pretty format with colors (for development)
+          - compact: Compact format with minimal metadata
+          - logfmt:  Logfmt format (key=value pairs)
+          
+          [default: json]
+
+      --logs.file.rotation <FILE_ROTATION>
+          File log rotation strategy
+
+          Possible values:
+          - minutely: Rotate every minute (for testing)
+          - hourly:   Rotate every hour
+          - daily:    Rotate every day
+          - never:    Never rotate (default)
+          
+          [default: never]
+
+      --logs-otlp[=<URL>]
+          Enable `Opentelemetry` logs export to an OTLP endpoint.
+          
+          If no value provided, defaults based on protocol: - HTTP: `http://localhost:4318/v1/logs` - gRPC: `http://localhost:4317`
+          
+          Example: --logs-otlp=http://collector:4318/v1/logs
+          
+          [env: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=]
+
+      --logs-otlp.filter <FILTER>
+          Set a filter directive for the OTLP logs exporter. This controls the verbosity of logs sent to the OTLP endpoint. It follows the same syntax as the `RUST_LOG` environment variable.
+          
+          Example: --logs-otlp.filter=info,reth=debug
+          
+          Defaults to INFO if not specified.
+          
+          [default: info]
+
+Tracing:
+      --tracing-otlp[=<URL>]
+          Enable `Opentelemetry` tracing export to an OTLP endpoint.
+          
+          If no value provided, defaults based on protocol: - HTTP: `http://localhost:4318/v1/traces` - gRPC: `http://localhost:4317`
+          
+          Example: --tracing-otlp=http://collector:4318/v1/traces
+          
+          [env: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=]
+
+      --tracing-otlp-protocol <PROTOCOL>
+          OTLP transport protocol to use for exporting traces and logs.
+          
+          - `http`: expects endpoint path to end with `/v1/traces` or `/v1/logs` - `grpc`: expects endpoint without a path
+          
+          Defaults to HTTP if not specified.
+
+          Possible values:
+          - http: HTTP/Protobuf transport, port 4318, requires `/v1/traces` path
+          - grpc: gRPC transport, port 4317
+          
+          [env: OTEL_EXPORTER_OTLP_PROTOCOL=]
+          [default: http]
+
+      --tracing-otlp.filter <FILTER>
+          Set a filter directive for the OTLP tracer. This controls the verbosity of spans and events sent to the OTLP endpoint. It follows the same syntax as the `RUST_LOG` environment variable.
+          
+          Example: --tracing-otlp.filter=info,reth=debug,hyper_util=off
+          
+          Defaults to TRACE if not specified.
+          
+          [default: debug]
+
+      --tracing-otlp.sample-ratio <RATIO>
+          Trace sampling ratio to control the percentage of traces to export.
+          
+          Valid range: 0.0 to 1.0 - 1.0, default: Sample all traces - 0.01: Sample 1% of traces - 0.0: Disable sampling
+          
+          Example: --tracing-otlp.sample-ratio=0.0.
+          
+          [env: OTEL_TRACES_SAMPLER_ARG=]
+
+Metrics:
+      --metrics.enabled
+          Controls whether Prometheus metrics are enabled. Disabled by default
+          
+          [env: BASE_NODE_METRICS_ENABLED=]
+
+      --metrics.interval <metrics_interval>
+          The interval for prometheus metrics collection in seconds
+          
+          [env: BASE_NODE_METRICS_INTERVAL=]
+          [default: 30]
+
+      --metrics.port <metrics_port>
+          The port to serve Prometheus metrics on
+          
+          [env: BASE_NODE_METRICS_PORT=]
+          [default: 9090]
+
+      --metrics.addr <ADDR>
+          The IP address to use for Prometheus metrics
+          
+          [env: BASE_NODE_METRICS_ADDR=]
+          [default: 0.0.0.0]
+===== rc=0
+===== base reth db repair-trie --help
+Verifies trie consistency and outputs any inconsistencies
+
+Usage: base reth db repair-trie [OPTIONS]
+
+Options:
+      --dry-run
+          Only show inconsistencies without making any repairs
+
+      --metrics <ADDR:PORT>
+          Enable Prometheus metrics.
+          
+          The metrics will be served at the given interface and port.
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+Datadir:
+      --chain <CHAIN_OR_PATH>
+          The chain this node is running.
+          Possible values are either a built-in chain or the path to a chain specification file.
+          
+          Built-in chains:
+              mainnet, sepolia, zeronet, dev, base, base_sepolia, base-sepolia, base-zeronet
+          
+          [default: mainnet]
+
+Logging:
+  -v, --verbose...
+          Set logging verbosity: no flag=INFO, -v=ERROR, -vv=WARN, -vvv=INFO, -vvvv=DEBUG, -vvvvv=TRACE
+          
+          [env: BASE_NODE_LOG_VERBOSITY=]
+
+  -q, --logs.stdout.quiet
+          Suppress stdout logging
+
+      --logs.stdout.format <STDOUT_FORMAT>
+          Stdout log format
+
+          Possible values:
+          - full:    Full format with timestamp, level, target, and spans
+          - json:    JSON format for structured logging
+          - pretty:  Pretty format with colors (for development)
+          - compact: Compact format with minimal metadata
+          - logfmt:  Logfmt format (key=value pairs)
+          
+          [env: BASE_NODE_LOG_FORMAT=]
+          [default: full]
+
+      --logs.file.directory <FILE_DIRECTORY>
+          Directory for file logging (enables file logging when set)
+          
+          [env: BASE_NODE_LOG_DIR=]
+
+      --logs.file.format <FILE_FORMAT>
+          File log format
+
+          Possible values:
+          - full:    Full format with timestamp, level, target, and spans
+          - json:    JSON format for structured logging
+          - pretty:  Pretty format with colors (for development)
+          - compact: Compact format with minimal metadata
+          - logfmt:  Logfmt format (key=value pairs)
+          
+          [default: json]
+
+      --logs.file.rotation <FILE_ROTATION>
+          File log rotation strategy
+
+          Possible values:
+          - minutely: Rotate every minute (for testing)
+          - hourly:   Rotate every hour
+          - daily:    Rotate every day
+          - never:    Never rotate (default)
+          
+          [default: never]
+
+      --logs-otlp[=<URL>]
+          Enable `Opentelemetry` logs export to an OTLP endpoint.
+          
+          If no value provided, defaults based on protocol: - HTTP: `http://localhost:4318/v1/logs` - gRPC: `http://localhost:4317`
+          
+          Example: --logs-otlp=http://collector:4318/v1/logs
+          
+          [env: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=]
+
+      --logs-otlp.filter <FILTER>
+          Set a filter directive for the OTLP logs exporter. This controls the verbosity of logs sent to the OTLP endpoint. It follows the same syntax as the `RUST_LOG` environment variable.
+          
+          Example: --logs-otlp.filter=info,reth=debug
+          
+          Defaults to INFO if not specified.
+          
+          [default: info]
+
+Tracing:
+      --tracing-otlp[=<URL>]
+          Enable `Opentelemetry` tracing export to an OTLP endpoint.
+          
+          If no value provided, defaults based on protocol: - HTTP: `http://localhost:4318/v1/traces` - gRPC: `http://localhost:4317`
+          
+          Example: --tracing-otlp=http://collector:4318/v1/traces
+          
+          [env: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=]
+
+      --tracing-otlp-protocol <PROTOCOL>
+          OTLP transport protocol to use for exporting traces and logs.
+          
+          - `http`: expects endpoint path to end with `/v1/traces` or `/v1/logs` - `grpc`: expects endpoint without a path
+          
+          Defaults to HTTP if not specified.
+
+          Possible values:
+          - http: HTTP/Protobuf transport, port 4318, requires `/v1/traces` path
+          - grpc: gRPC transport, port 4317
+          
+          [env: OTEL_EXPORTER_OTLP_PROTOCOL=]
+          [default: http]
+
+      --tracing-otlp.filter <FILTER>
+          Set a filter directive for the OTLP tracer. This controls the verbosity of spans and events sent to the OTLP endpoint. It follows the same syntax as the `RUST_LOG` environment variable.
+          
+          Example: --tracing-otlp.filter=info,reth=debug,hyper_util=off
+          
+          Defaults to TRACE if not specified.
+          
+          [default: debug]
+
+      --tracing-otlp.sample-ratio <RATIO>
+          Trace sampling ratio to control the percentage of traces to export.
+          
+          Valid range: 0.0 to 1.0 - 1.0, default: Sample all traces - 0.01: Sample 1% of traces - 0.0: Disable sampling
+          
+          Example: --tracing-otlp.sample-ratio=0.0.
+          
+          [env: OTEL_TRACES_SAMPLER_ARG=]
+
+Metrics:
+      --metrics.enabled
+          Controls whether Prometheus metrics are enabled. Disabled by default
+          
+          [env: BASE_NODE_METRICS_ENABLED=]
+
+      --metrics.interval <metrics_interval>
+          The interval for prometheus metrics collection in seconds
+          
+          [env: BASE_NODE_METRICS_INTERVAL=]
+          [default: 30]
+
+      --metrics.port <metrics_port>
+          The port to serve Prometheus metrics on
+          
+          [env: BASE_NODE_METRICS_PORT=]
+          [default: 9090]
+
+      --metrics.addr <ADDR>
+          The IP address to use for Prometheus metrics
+          
+          [env: BASE_NODE_METRICS_ADDR=]
+          [default: 0.0.0.0]
+===== rc=0
+===== base reth db settings --help
+Manage storage settings
+
+Usage: base reth db settings [OPTIONS] <COMMAND>
+
+Commands:
+  get   Get current storage settings from database
+  set   Set storage settings in database
+  help  Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help
+          Print help (see a summary with '-h')
+
+Datadir:
+      --chain <CHAIN_OR_PATH>
+          The chain this node is running.
+          Possible values are either a built-in chain or the path to a chain specification file.
+          
+          Built-in chains:
+              mainnet, sepolia, zeronet, dev, base, base_sepolia, base-sepolia, base-zeronet
+          
+          [default: mainnet]
+
+Logging:
+  -v, --verbose...
+          Set logging verbosity: no flag=INFO, -v=ERROR, -vv=WARN, -vvv=INFO, -vvvv=DEBUG, -vvvvv=TRACE
+          
+          [env: BASE_NODE_LOG_VERBOSITY=]
+
+  -q, --logs.stdout.quiet
+          Suppress stdout logging
+
+      --logs.stdout.format <STDOUT_FORMAT>
+          Stdout log format
+
+          Possible values:
+          - full:    Full format with timestamp, level, target, and spans
+          - json:    JSON format for structured logging
+          - pretty:  Pretty format with colors (for development)
+          - compact: Compact format with minimal metadata
+          - logfmt:  Logfmt format (key=value pairs)
+          
+          [env: BASE_NODE_LOG_FORMAT=]
+          [default: full]
+
+      --logs.file.directory <FILE_DIRECTORY>
+          Directory for file logging (enables file logging when set)
+          
+          [env: BASE_NODE_LOG_DIR=]
+
+      --logs.file.format <FILE_FORMAT>
+          File log format
+
+          Possible values:
+          - full:    Full format with timestamp, level, target, and spans
+          - json:    JSON format for structured logging
+          - pretty:  Pretty format with colors (for development)
+          - compact: Compact format with minimal metadata
+          - logfmt:  Logfmt format (key=value pairs)
+          
+          [default: json]
+
+      --logs.file.rotation <FILE_ROTATION>
+          File log rotation strategy
+
+          Possible values:
+          - minutely: Rotate every minute (for testing)
+          - hourly:   Rotate every hour
+          - daily:    Rotate every day
+          - never:    Never rotate (default)
+          
+          [default: never]
+
+      --logs-otlp[=<URL>]
+          Enable `Opentelemetry` logs export to an OTLP endpoint.
+          
+          If no value provided, defaults based on protocol: - HTTP: `http://localhost:4318/v1/logs` - gRPC: `http://localhost:4317`
+          
+          Example: --logs-otlp=http://collector:4318/v1/logs
+          
+          [env: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=]
+
+      --logs-otlp.filter <FILTER>
+          Set a filter directive for the OTLP logs exporter. This controls the verbosity of logs sent to the OTLP endpoint. It follows the same syntax as the `RUST_LOG` environment variable.
+          
+          Example: --logs-otlp.filter=info,reth=debug
+          
+          Defaults to INFO if not specified.
+          
+          [default: info]
+
+Tracing:
+      --tracing-otlp[=<URL>]
+          Enable `Opentelemetry` tracing export to an OTLP endpoint.
+          
+          If no value provided, defaults based on protocol: - HTTP: `http://localhost:4318/v1/traces` - gRPC: `http://localhost:4317`
+          
+          Example: --tracing-otlp=http://collector:4318/v1/traces
+          
+          [env: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=]
+
+      --tracing-otlp-protocol <PROTOCOL>
+          OTLP transport protocol to use for exporting traces and logs.
+          
+          - `http`: expects endpoint path to end with `/v1/traces` or `/v1/logs` - `grpc`: expects endpoint without a path
+          
+          Defaults to HTTP if not specified.
+
+          Possible values:
+          - http: HTTP/Protobuf transport, port 4318, requires `/v1/traces` path
+          - grpc: gRPC transport, port 4317
+          
+          [env: OTEL_EXPORTER_OTLP_PROTOCOL=]
+          [default: http]
+
+      --tracing-otlp.filter <FILTER>
+          Set a filter directive for the OTLP tracer. This controls the verbosity of spans and events sent to the OTLP endpoint. It follows the same syntax as the `RUST_LOG` environment variable.
+          
+          Example: --tracing-otlp.filter=info,reth=debug,hyper_util=off
+          
+          Defaults to TRACE if not specified.
+          
+          [default: debug]
+
+      --tracing-otlp.sample-ratio <RATIO>
+          Trace sampling ratio to control the percentage of traces to export.
+          
+          Valid range: 0.0 to 1.0 - 1.0, default: Sample all traces - 0.01: Sample 1% of traces - 0.0: Disable sampling
+          
+          Example: --tracing-otlp.sample-ratio=0.0.
+          
+          [env: OTEL_TRACES_SAMPLER_ARG=]
+
+Metrics:
+      --metrics.enabled
+          Controls whether Prometheus metrics are enabled. Disabled by default
+          
+          [env: BASE_NODE_METRICS_ENABLED=]
+
+      --metrics.interval <metrics_interval>
+          The interval for prometheus metrics collection in seconds
+          
+          [env: BASE_NODE_METRICS_INTERVAL=]
+          [default: 30]
+
+      --metrics.port <metrics_port>
+          The port to serve Prometheus metrics on
+          
+          [env: BASE_NODE_METRICS_PORT=]
+          [default: 9090]
+
+      --metrics.addr <ADDR>
+          The IP address to use for Prometheus metrics
+          
+          [env: BASE_NODE_METRICS_ADDR=]
+          [default: 0.0.0.0]
+===== rc=0
+===== base reth stage --help
+Manipulate individual stages
+
+Usage: base reth stage [OPTIONS] <COMMAND>
+
+Commands:
+  run     Run a single stage
+  drop    Drop a stage's tables from the database
+  dump    Dumps a stage from a range into a new database
+  unwind  Unwinds a certain block range, deleting it from the database
+  help    Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help
+          Print help (see a summary with '-h')
+
+Logging:
+  -v, --verbose...
+          Set logging verbosity: no flag=INFO, -v=ERROR, -vv=WARN, -vvv=INFO, -vvvv=DEBUG, -vvvvv=TRACE
+          
+          [env: BASE_NODE_LOG_VERBOSITY=]
+
+  -q, --logs.stdout.quiet
+          Suppress stdout logging
+
+      --logs.stdout.format <STDOUT_FORMAT>
+          Stdout log format
+
+          Possible values:
+          - full:    Full format with timestamp, level, target, and spans
+          - json:    JSON format for structured logging
+          - pretty:  Pretty format with colors (for development)
+          - compact: Compact format with minimal metadata
+          - logfmt:  Logfmt format (key=value pairs)
+          
+          [env: BASE_NODE_LOG_FORMAT=]
+          [default: full]
+
+      --logs.file.directory <FILE_DIRECTORY>
+          Directory for file logging (enables file logging when set)
+          
+          [env: BASE_NODE_LOG_DIR=]
+
+      --logs.file.format <FILE_FORMAT>
+          File log format
+
+          Possible values:
+          - full:    Full format with timestamp, level, target, and spans
+          - json:    JSON format for structured logging
+          - pretty:  Pretty format with colors (for development)
+          - compact: Compact format with minimal metadata
+          - logfmt:  Logfmt format (key=value pairs)
+          
+          [default: json]
+
+      --logs.file.rotation <FILE_ROTATION>
+          File log rotation strategy
+
+          Possible values:
+          - minutely: Rotate every minute (for testing)
+          - hourly:   Rotate every hour
+          - daily:    Rotate every day
+          - never:    Never rotate (default)
+          
+          [default: never]
+
+      --logs-otlp[=<URL>]
+          Enable `Opentelemetry` logs export to an OTLP endpoint.
+          
+          If no value provided, defaults based on protocol: - HTTP: `http://localhost:4318/v1/logs` - gRPC: `http://localhost:4317`
+          
+          Example: --logs-otlp=http://collector:4318/v1/logs
+          
+          [env: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=]
+
+      --logs-otlp.filter <FILTER>
+          Set a filter directive for the OTLP logs exporter. This controls the verbosity of logs sent to the OTLP endpoint. It follows the same syntax as the `RUST_LOG` environment variable.
+          
+          Example: --logs-otlp.filter=info,reth=debug
+          
+          Defaults to INFO if not specified.
+          
+          [default: info]
+
+Tracing:
+      --tracing-otlp[=<URL>]
+          Enable `Opentelemetry` tracing export to an OTLP endpoint.
+          
+          If no value provided, defaults based on protocol: - HTTP: `http://localhost:4318/v1/traces` - gRPC: `http://localhost:4317`
+          
+          Example: --tracing-otlp=http://collector:4318/v1/traces
+          
+          [env: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=]
+
+      --tracing-otlp-protocol <PROTOCOL>
+          OTLP transport protocol to use for exporting traces and logs.
+          
+          - `http`: expects endpoint path to end with `/v1/traces` or `/v1/logs` - `grpc`: expects endpoint without a path
+          
+          Defaults to HTTP if not specified.
+
+          Possible values:
+          - http: HTTP/Protobuf transport, port 4318, requires `/v1/traces` path
+          - grpc: gRPC transport, port 4317
+          
+          [env: OTEL_EXPORTER_OTLP_PROTOCOL=]
+          [default: http]
+
+      --tracing-otlp.filter <FILTER>
+          Set a filter directive for the OTLP tracer. This controls the verbosity of spans and events sent to the OTLP endpoint. It follows the same syntax as the `RUST_LOG` environment variable.
+          
+          Example: --tracing-otlp.filter=info,reth=debug,hyper_util=off
+          
+          Defaults to TRACE if not specified.
+          
+          [default: debug]
+
+      --tracing-otlp.sample-ratio <RATIO>
+          Trace sampling ratio to control the percentage of traces to export.
+          
+          Valid range: 0.0 to 1.0 - 1.0, default: Sample all traces - 0.01: Sample 1% of traces - 0.0: Disable sampling
+          
+          Example: --tracing-otlp.sample-ratio=0.0.
+          
+          [env: OTEL_TRACES_SAMPLER_ARG=]
+
+Metrics:
+      --metrics.enabled
+          Controls whether Prometheus metrics are enabled. Disabled by default
+          
+          [env: BASE_NODE_METRICS_ENABLED=]
+
+      --metrics.interval <metrics_interval>
+          The interval for prometheus metrics collection in seconds
+          
+          [env: BASE_NODE_METRICS_INTERVAL=]
+          [default: 30]
+
+      --metrics.port <metrics_port>
+          The port to serve Prometheus metrics on
+          
+          [env: BASE_NODE_METRICS_PORT=]
+          [default: 9090]
+
+      --metrics.addr <ADDR>
+          The IP address to use for Prometheus metrics
+          
+          [env: BASE_NODE_METRICS_ADDR=]
+          [default: 0.0.0.0]
+===== rc=0
+## base-help-probes rc=0
+[memory-guard] exit=0 peakTreeRssMiB=6 minHostAvailableMiB=24692
+[memory-guard] at peak: bash:4 cp:2
+[queue] EXIT 0

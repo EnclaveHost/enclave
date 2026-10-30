@@ -1,0 +1,26 @@
+{
+  "status": "PREPARATION_FILE_HASH_AND_HELPER_AST_ONLY",
+  "preparedSha256": "f0ee244167cd166e9dc396dde05827aec8c8902139e582017f0fc66f0b43a0f3",
+  "seedFiles": 222,
+  "candidateExactSeed": true,
+  "preAuthorProductEdits": 0,
+  "readonlyPins": 6217,
+  "inputDrift": [],
+  "authorLaunched": false,
+  "candidateExecuted": false,
+  "testsOrBuildsRun": false,
+  "helperASTParsedNotExecuted": [
+    "run.py",
+    "collect-terminal.py",
+    "readonly-progress.py"
+  ],
+  "sponsoredReferenceFiles": 42,
+  "manifestedProjectInputsVerified": 22,
+  "sponsoredReferenceConflicts": [
+    "control/network/rpc-identity.mjs",
+    "package-lock.json",
+    "package.json",
+    "control/windows/node/lease-gas-runtime.bundle.mjs"
+  ],
+  "note": "Coordinator alone reviews and launches. Unchanged collector uses frozen root222 immutable baseline."
+}

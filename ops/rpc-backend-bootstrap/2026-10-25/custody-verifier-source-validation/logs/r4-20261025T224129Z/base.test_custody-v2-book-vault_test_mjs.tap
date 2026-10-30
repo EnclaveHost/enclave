@@ -1,0 +1,106 @@
+TAP version 13
+# Subtest: book-bound release reads the ledger and registry the vault itself reads at that block (no pinned getters)
+ok 1 - book-bound release reads the ledger and registry the vault itself reads at that block (no pinned getters)
+  ---
+  duration_ms: 14.916533
+  type: 'test'
+  ...
+# Subtest: an administrator book change is followed at the next agreed block, as the vault follows it
+ok 2 - an administrator book change is followed at the next agreed block, as the vault follows it
+  ---
+  duration_ms: 5.635716
+  type: 'test'
+  ...
+# Subtest: book mode fails closed on a different book, a missing entry, or RPCs that disagree about the book
+ok 3 - book mode fails closed on a different book, a missing entry, or RPCs that disagree about the book
+  ---
+  duration_ms: 6.261261
+  type: 'test'
+  ...
+# Subtest: book-mode membership never runs without the host-ownership pin, and pinned mode never consults the book
+ok 4 - book-mode membership never runs without the host-ownership pin, and pinned mode never consults the book
+  ---
+  duration_ms: 5.291218
+  type: 'test'
+  ...
+# Subtest: entries report the vault Enclave flag (payout) separately from the accepted host wallet
+ok 5 - entries report the vault Enclave flag (payout) separately from the accepted host wallet
+  ---
+  duration_ms: 6.895346
+  type: 'test'
+  ...
+# Subtest: an ownership extension bound to another registry than the book names fails closed
+ok 6 - an ownership extension bound to another registry than the book names fails closed
+  ---
+  duration_ms: 2.010524
+  type: 'test'
+  ...
+# Subtest: book mode: an unenrolled Enclave-paid seat keeps its binding (existing epoch) but is not admissible to a future epoch
+ok 7 - book mode: an unenrolled Enclave-paid seat keeps its binding (existing epoch) but is not admissible to a future epoch
+  ---
+  duration_ms: 29.133051
+  type: 'test'
+  ...
+# Subtest: book mode: an Enclave-owned AND Enclave-seated host is admissible as the Enclave seat
+ok 8 - book mode: an Enclave-owned AND Enclave-seated host is admissible as the Enclave seat
+  ---
+  duration_ms: 7.232553
+  type: 'test'
+  ...
+# Subtest: book mode: payout-versus-owner mismatches are refused in both directions, before any seat is proposed
+ok 9 - book mode: payout-versus-owner mismatches are refused in both directions, before any seat is proposed
+  ---
+  duration_ms: 12.964938
+  type: 'test'
+  ...
+# Subtest: book mode: a non-Enclave host still needs an accepted owner; payout alone is never ownership
+ok 10 - book mode: a non-Enclave host still needs an accepted owner; payout alone is never ownership
+  ---
+  duration_ms: 12.649351
+  type: 'test'
+  ...
+# Subtest: pinned entries (no vaultEnclave field) keep the accepted-owner classification unchanged
+ok 11 - pinned entries (no vaultEnclave field) keep the accepted-owner classification unchanged
+  ---
+  duration_ms: 9.001419
+  type: 'test'
+  ...
+# Subtest: code permits: the Enclave seat votes only while the Enclave wallet is its accepted owner and its vault seat agrees
+ok 12 - code permits: the Enclave seat votes only while the Enclave wallet is its accepted owner and its vault seat agrees
+  ---
+  duration_ms: 0.595375
+  type: 'test'
+  ...
+# Subtest: measured build: --book selects the reviewed book-bound vault with its code hash; pinned images stay byte-identical; no independent genesis
+ok 13 - measured build: --book selects the reviewed book-bound vault with its code hash; pinned images stay byte-identical; no independent genesis
+  ---
+  duration_ms: 0.393737
+  type: 'test'
+  ...
+# Subtest: the owner CLI reads the deployed 0xE486 vault through its book and every other vault as pinned
+ok 14 - the owner CLI reads the deployed 0xE486 vault through its book and every other vault as pinned
+  ---
+  duration_ms: 0.115019
+  type: 'test'
+  ...
+# Subtest: reviewed vault identity: the production vault is book-bound with its book and ownership pin; code and immutables must match
+ok 15 - reviewed vault identity: the production vault is book-bound with its book and ownership pin; code and immutables must match
+  ---
+  duration_ms: 0.268968
+  type: 'test'
+  ...
+# Subtest: production pins name the production custody vault and the original session factory, never the unused alternates
+ok 16 - production pins name the production custody vault and the original session factory, never the unused alternates
+  ---
+  duration_ms: 0.592856
+  type: 'test'
+  ...
+1..16
+# tests 16
+# suites 0
+# pass 16
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 298.64787

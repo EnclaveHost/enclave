@@ -1,0 +1,6 @@
+Source-only capture binding qualification
+Stage 100eb666ea019d0c85172f546f22bc20698e4edbcd86b5c148b9c71267618979
+Source 2352df7b27c39299011038bab9aace681756c2eaef5cf216c665d82f9149d277
+root-a1-capture-r2-0243:36 tests PASS,0skips,actualrc0; run root-capture-tests-20261026T024629Z-651375.
+No new live A1 capture or SNP qualification. Config/runtime provenance limits remain.
+## rc=0

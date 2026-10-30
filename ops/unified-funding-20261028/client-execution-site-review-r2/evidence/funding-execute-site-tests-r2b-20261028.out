@@ -1,0 +1,64 @@
+[queue] START available=90054MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: generate_harness: derived server, shell, build driver and page shell
+ok 1 - generate_harness: derived server, shell, build driver and page shell
+  ---
+  duration_ms: 69.478365
+  type: 'test'
+  ...
+# Subtest: generate_harness refuses drift, a null pin, a removed guard and an existing output directory
+ok 2 - generate_harness refuses drift, a null pin, a removed guard and an existing output directory
+  ---
+  duration_ms: 112.410142
+  type: 'test'
+  ...
+# Subtest: generate_page: the recovery page copy, builder, core copy and install/rollback manifest
+ok 3 - generate_page: the recovery page copy, builder, core copy and install/rollback manifest
+  ---
+  duration_ms: 67.177773
+  type: 'test'
+  ...
+# Subtest: generate_page refuses drift, a null pin, a non-null FUNDING_* default, a candidate that differs, and a missing anchor
+ok 4 - generate_page refuses drift, a null pin, a non-null FUNDING_* default, a candidate that differs, and a missing anchor
+  ---
+  duration_ms: 167.71313
+  type: 'test'
+  ...
+# Subtest: lost reply: one blocking 'unknown' row with its maximum survives a JSON reload; observed stays blocking; final clears it
+ok 5 - lost reply: one blocking 'unknown' row with its maximum survives a JSON reload; observed stays blocking; final clears it
+  ---
+  duration_ms: 23.034966
+  type: 'test'
+  ...
+# Subtest: normal success returns the shape the page message uses: canonical but NOT final until a check proves it
+ok 6 - normal success returns the shape the page message uses: canonical but NOT final until a check proves it
+  ---
+  duration_ms: 4.528254
+  type: 'test'
+  ...
+# Subtest: rows are scoped to the exact record: another record (same owner) sees none
+ok 7 - rows are scoped to the exact record: another record (same owner) sees none
+  ---
+  duration_ms: 3.082225
+  type: 'test'
+  ...
+# Subtest: unreachable relay: the row stays 'unknown' and blocking after a read-only check that finds nothing
+ok 8 - unreachable relay: the row stays 'unknown' and blocking after a read-only check that finds nothing
+  ---
+  duration_ms: 3.599311
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 724.44535
+[memory-guard] exit=0 peakTreeRssMiB=125 minHostAvailableMiB=89944
+[memory-guard] at peak: node:63 node:62
+[memory-guard] exit=0 peakTreeRssMiB=190 minHostAvailableMiB=89938
+[memory-guard] at peak: node:76 node:62 node:52
+[queue] EXIT 0

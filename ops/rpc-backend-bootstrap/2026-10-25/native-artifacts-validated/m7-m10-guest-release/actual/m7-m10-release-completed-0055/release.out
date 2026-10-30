@@ -1,0 +1,54 @@
+== toolchain and pins
+[ok] rustc 1.96.0 from the staged toolchain
+[ok] cargo 1.96.0 from the staged toolchain
+[ok] base tar a92160eb
+[ok] M7 patch e9dfb8c6
+[ok] fixed M10 patch d97c31b5
+[ok] release dirs are new
+== combined source (tar + M7 + fixed M10)
+[pin] release source manifest 58c572cbb0258bd40f799ec7fac28003529428352d0cd1fe2b82b5556b784405 (2533 files)
+[ok] source manifest == 58c572cb (expected combined tree)
+[ok] release tree == the tree run 2 TESTED (/srv/m10-guest-validation/runs/run-2/build/tree)
+[ok] Cargo.lock f122da76
+[ok] M7 gate: CLI default l1 trust-rpc = false
+[ok] M7 gate: provider == validated 201d9b8c
+[ok] M10 gate: --bootstrap.anchor declared exactly twice (rpc-embedded + standalone consensus args; none in sequencer args)
+== reused cargo home (ENDED run 1): offline dependency verification
+[ok] 1535 registry + 110 git, fsck True
+[cache] CARGO_HOME files before: 44411; disk free 17439 MiB
+== build (2026-10-25T23:51:53Z)
+[env] CARGO_BUILD_JOBS=1 SOURCE_DATE_EPOCH=1792689943 PROFILE=m7m10-release-nolto RUSTFLAGS='-C link-arg=-Wl,--threads=1 --remap-path-prefix=/srv/m10-guest-validation/release/run-1/build/tree=/build/base --remap-path-prefix=/srv/m10-guest-validation/runs/run-1/build/cargo-home=/cargo --remap-path-prefix=/srv/m10-guest-validation/release/run-1/build/target=/target' CFLAGS='-ffile-prefix-map=/srv/m10-guest-validation/release/run-1/build/tree=/build/base -ffile-prefix-map=/srv/m10-guest-validation/runs/run-1/build/cargo-home=/cargo -ffile-prefix-map=/srv/m10-guest-validation/release/run-1/build/target=/target'
+## cargo build rc=0 (2026-10-26T00:51:09Z)
+[ok] Cargo.lock unchanged
+[artifacts] 1203 compiler artifacts, 0 fresh
+[ok] every compiled unit was built in this run (fresh=false); binary /srv/m10-guest-validation/release/run-1/build/target/m7m10-release-nolto/base
+== artifact
+[artifact] 4a7c013a510f88166779281ad0108790f25efa07f22f6457d54add709488372f  base  (289478208 bytes)
+[artifact] GNU                  0x00000014	NT_GNU_BUILD_ID (unique build ID bitstring)
+[artifact] Build ID: 35f1b65f4225258e6398cd8cba4985f939a6b761
+[artifact] comment [     0]  rustc version 1.96.0 (ac68faa20 2026-05-25)
+[artifact] comment [    2c]  Linker: LLD 22.1.2 (/checkout/src/llvm-project/llvm 1cb4e3833c1919c2e6fb579a23ac0e2b22587b7e)
+[artifact] comment [    8b]  GCC: (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+[artifact] comment [    b8]  clang version 22.1.0-rc2
+[artifact] NEEDED: libstdc++.so.6 libc.so.6 ld-linux-x86-64.so.2 libssl.so.3 libcrypto.so.3 libgcc_s.so.1 libm.so.6 
+[artifact] highest required: GLIBCXX_3.4.30 CXXABI_1.3.11 GLIBC_2.39 GCC_4.2.0 OPENSSL_3.0.0 
+[artifact] build-path strings (should be 0): 0
+== smoke (bounded, no network, no data dir, HOME=/srv/m10-guest-validation/release/run-1/out/home)
+base 1.5.1
+[ok] base --version rc 0
+[ok] base --help rc 0
+[ok] base rpc --help rc 0
+[ok] base follow --help rc 0
+[ok] base sequencer --help rc 0
+[ok] M7 flag (env BASE_NODE_L1_TRUST_RPC) in rpc
+[ok] M7 flag (env BASE_NODE_L1_TRUST_RPC) in follow
+[ok] M7 flag (env BASE_NODE_L1_TRUST_RPC) in sequencer
+[ok] M10 flag --bootstrap.anchor in rpc
+[ok] M10 flag absent from sequencer
+[ok] M10 flag has no env binding in rpc help
+[info] --bootstrap.anchor in follow help: 0
+[cache] CARGO_HOME files after: 46268; release dir 3938 MiB; disk free 13531 MiB
+## rc=0 (ONE combined M7+M10 release build; tree == run-2 tested tree; NOT an independent reproduction)
+[disk-guard] exit=0 childExit=0 minFreeMiB=13530
+[memory-guard] exit=0 peakTreeRssMiB=4217 minHostAvailableMiB=48799
+[memory-guard] at peak: rustc:3834 cargo:366 python3:12 bash:4 timeout:2

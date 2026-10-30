@@ -1,0 +1,706 @@
+[queue] START available=95098MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "bootSnapshotSafe": false,
+ "enabled": {
+  "enclave-base-holder.path": false,
+  "enclave-base-holder.service": false,
+  "enclave-base-retention.service": false,
+  "enclave-l1-cl.service": true,
+  "enclave-l1-el.path": true,
+  "enclave-l1-el.service": false,
+  "enclave-rpc-base-snapshot.service": true,
+  "enclave-rpc-l1-snapshot.service": true
+ },
+ "format": "enclave-rpc-os-disk-inspection/r1",
+ "fstabBaseMount": [
+  "UUID=11c6bbac-f823-4052-a87a-066eed6ad590 /srv/enclave-base-holder ext4 noauto,noatime,errors=remount-ro,x-systemd.device-timeout=120s 0 2"
+ ],
+ "note": "read-only; the snapshot-complete marker is on the base disk (not read); verify it in the guest before any holder start",
+ "osDisk": "/vm/enclave-volumes/rpc-production/os.qcow2",
+ "osDiskIno": 147981797,
+ "osDiskMtimeNs": 1793030445722920013,
+ "osDiskSha256Prefix": "55fc06b297df27dede277c5d3778e04f7f78bf34b0a075e5d8fcbd8f19be6031",
+ "osDiskSize": 18581159936,
+ "rootOffset": 1074790400,
+ "rootPartition": {
+  "first": 2099200,
+  "index": 1,
+  "last": 67108830,
+  "name": "",
+  "type": "0fc63daf-8483-4772-8e79-3d69d8477de4"
+ },
+ "snapshotUnit": {
+  "dropIns": [
+   "30-download-concurrency.conf"
+  ],
+  "guards": [
+   "RequiresMountsFor=/srv/enclave-base-holder",
+   "ConditionPathIsMountPoint=/srv/enclave-base-holder",
+   "ConditionPathExists=!/srv/enclave-base-holder/snapshot-complete",
+   "ExecStartPre=/usr/bin/mountpoint -q /srv/enclave-base-holder",
+   "ExecStart=/opt/enclave-rpc/bin/base snapshot download --chain base --with-txs-distance 140000 --with-receipts-distance 140000 --with-state-history-distance 140000 --manifest-url https://mainnet-v2-snapshots.base.org/1792886410/manifest.json --datadir /srv/enclave-base-holder/data --download-concurrency 8 --resumable=true -y"
+  ],
+  "identicalToPayload": true,
+  "payloadSha256": "f7a193f1f50ab147aa15d33cb7de9fbddc1ad0c01c244ffef852b417551950f4",
+  "present": true,
+  "sha256": "f7a193f1f50ab147aa15d33cb7de9fbddc1ad0c01c244ffef852b417551950f4"
+ },
+ "unitInventory": {
+  "complete": true,
+  "dirs": {
+   "/etc/systemd/system": {
+    "entries": {
+     "enclave-base-holder.path": {
+      "bytes": 264,
+      "directives": [
+       "RequiresMountsFor=/srv/enclave-base-holder",
+       "PathExists=/srv/enclave-base-holder/snapshot-complete",
+       "Unit=enclave-base-holder.service",
+       "WantedBy=multi-user.target"
+      ],
+      "masked": false,
+      "sha256": "8accb496663c590e2a52a83cd73815d42a81d994b430dde96d17df1e56bf4329",
+      "type": "file"
+     },
+     "enclave-base-holder.service": {
+      "bytes": 735,
+      "directives": [
+       "Wants=network-online.target",
+       "RequiresMountsFor=/srv/enclave-base-holder",
+       "ExecStart=/usr/bin/python3 -I /opt/enclave-rpc/chain_service.py base",
+       "WantedBy=multi-user.target"
+      ],
+      "masked": false,
+      "sha256": "3d305f2ef091af5ee7edec61bcd47607c7e969e64873dec66d021db34f5955ef",
+      "type": "file"
+     },
+     "enclave-base-holder.service.d": {
+      "entries": {
+       "50-enclave-rpc-vm.conf": {
+        "bytes": 87,
+        "directives": [
+         "RequiresMountsFor=/srv/enclave-base-holder"
+        ],
+        "masked": false,
+        "sha256": "98f96fbd61d0d506cb94a526cd74ad456c25e1224a6e02698c47361e25d5297f",
+        "type": "file"
+       }
+      },
+      "type": "dir"
+     },
+     "enclave-base-retention.service": {
+      "bytes": 2664,
+      "directives": [
+       "Wants=network-online.target",
+       "RequiresMountsFor=/srv/enclave-base-holder",
+       "ConditionPathIsMountPoint=/srv/enclave-base-holder",
+       "ConditionPathExists=/srv/enclave-base-holder/snapshot-complete",
+       "ConditionPathExists=!/srv/enclave-base-holder/retention-complete",
+       "ExecStartPre=/usr/bin/mountpoint -q /srv/enclave-base-holder",
+       "ExecStartPre=+/usr/bin/python3 -I /opt/enclave-rpc/retention/retention_guard.py pre",
+       "ExecStart=/opt/enclave-rpc/bin/base snapshot download --chain base --manifest-path /opt/enclave-rpc/snapshots/base-1792886410-manifest.json --datadir /srv/enclave-base-holder/data --with-txs-since 48000000 --with-receipts-since 48000000 --with-state-history-since 52500000 --download-concurrency 16 --resumable=true -y"
+      ],
+      "masked": false,
+      "sha256": "f02388268aa110612dbf2648f9a90a90bdc2a2e36d237cab0e869fc49b59ceee",
+      "type": "file"
+     },
+     "enclave-l1-cl.service": {
+      "bytes": 697,
+      "directives": [
+       "Wants=network-online.target",
+       "RequiresMountsFor=/srv/enclave-l1-pair",
+       "ExecStart=/usr/bin/python3 -I /opt/enclave-rpc/chain_service.py cl",
+       "WantedBy=multi-user.target"
+      ],
+      "masked": false,
+      "sha256": "54791e1a9ac7e27d4e12ce7630d903363ba1069f9fb3529acade709a4a8bb547",
+      "type": "file"
+     },
+     "enclave-l1-cl.service.d": {
+      "entries": {
+       "50-enclave-rpc-vm.conf": {
+        "bytes": 83,
+        "directives": [
+         "RequiresMountsFor=/srv/enclave-l1-pair"
+        ],
+        "masked": false,
+        "sha256": "8a58d594755393609e12318954eac4f67f85e49f05d37650f7e3aaffddfc7d00",
+        "type": "file"
+       }
+      },
+      "type": "dir"
+     },
+     "enclave-l1-el.path": {
+      "bytes": 244,
+      "directives": [
+       "RequiresMountsFor=/srv/enclave-l1-pair",
+       "PathExists=/srv/enclave-l1-pair/snapshot-complete",
+       "Unit=enclave-l1-el.service",
+       "WantedBy=multi-user.target"
+      ],
+      "masked": false,
+      "sha256": "d2b379983fb5b5d6a442aef9ec7738e7f09641a2166353227d214ef1579656e3",
+      "type": "file"
+     },
+     "enclave-l1-el.service": {
+      "bytes": 675,
+      "directives": [
+       "Wants=network-online.target",
+       "RequiresMountsFor=/srv/enclave-l1-pair",
+       "ExecStart=/usr/bin/python3 -I /opt/enclave-rpc/chain_service.py el",
+       "WantedBy=multi-user.target"
+      ],
+      "masked": false,
+      "sha256": "be00a7d9542f79515658f09d49bc3ad546d3d80de3f30a531a4ee5d1fd72086d",
+      "type": "file"
+     },
+     "enclave-l1-el.service.d": {
+      "entries": {
+       "50-enclave-rpc-vm.conf": {
+        "bytes": 83,
+        "directives": [
+         "RequiresMountsFor=/srv/enclave-l1-pair"
+        ],
+        "masked": false,
+        "sha256": "8a58d594755393609e12318954eac4f67f85e49f05d37650f7e3aaffddfc7d00",
+        "type": "file"
+       }
+      },
+      "type": "dir"
+     },
+     "enclave-rpc-base-snapshot.service": {
+      "bytes": 1557,
+      "directives": [
+       "Wants=network-online.target",
+       "Requires=enclave-rpc-l1-snapshot.service",
+       "RequiresMountsFor=/srv/enclave-base-holder",
+       "ConditionPathIsMountPoint=/srv/enclave-base-holder",
+       "ConditionPathExists=!/srv/enclave-base-holder/snapshot-complete",
+       "ExecStartPre=/usr/bin/mountpoint -q /srv/enclave-base-holder",
+       "ExecStart=/opt/enclave-rpc/bin/base snapshot download --chain base --with-txs-distance 140000 --with-receipts-distance 140000 --with-state-history-distance 140000 --manifest-url https://mainnet-v2-snapshots.base.org/1792886410/manifest.json --datadir /srv/enclave-base-holder/data --download-concurrency 8 --resumable=true -y",
+       "WantedBy=multi-user.target"
+      ],
+      "masked": false,
+      "sha256": "f7a193f1f50ab147aa15d33cb7de9fbddc1ad0c01c244ffef852b417551950f4",
+      "type": "file"
+     },
+     "enclave-rpc-base-snapshot.service.d": {
+      "entries": {
+       "30-download-concurrency.conf": {
+        "bytes": 343,
+        "directives": [
+         "ExecStart=",
+         "ExecStart=/opt/enclave-rpc/bin/base snapshot download --chain base --with-txs-distance 140000 --with-receipts-distance 140000 --with-state-history-distance 140000 --manifest-path /opt/enclave-rpc/snapshots/base-1792886410-manifest.json --datadir /srv/enclave-base-holder/data --download-concurrency 16 --resumable=true -y"
+        ],
+        "masked": false,
+        "sha256": "db6895e969dbf320fa20dfdf14a28930e5d4bb027092debd71ad67947aae29ba",
+        "type": "file"
+       }
+      },
+      "type": "dir"
+     },
+     "enclave-rpc-fwd-base-rpc.service": {
+      "bytes": 325,
+      "directives": [
+       "Requires=enclave-rpc-fwd-base-rpc.socket",
+       "ExecStart=/usr/lib/systemd/systemd-socket-proxyd 127.0.0.1:18545"
+      ],
+      "masked": false,
+      "sha256": "2abc6e41cdd257962c656414e4bcd131bb69148618b4333241aa4cca54bf7fe3",
+      "type": "file"
+     },
+     "enclave-rpc-fwd-base-rpc.socket": {
+      "bytes": 175,
+      "directives": [
+       "ListenStream=10.0.2.15:28545",
+       "WantedBy=sockets.target"
+      ],
+      "masked": false,
+      "sha256": "ae52e1d7832c1bb79072995042daf8c6bca6384e971cf26b643698cda491ffe2",
+      "type": "file"
+     },
+     "enclave-rpc-fwd-l1-cl.service": {
+      "bytes": 316,
+      "directives": [
+       "Requires=enclave-rpc-fwd-l1-cl.socket",
+       "ExecStart=/usr/lib/systemd/systemd-socket-proxyd 127.0.0.1:15052"
+      ],
+      "masked": false,
+      "sha256": "6332184ee6d6eb1d65f6ef0fc68fcb64603e3b0a97ceaf62ee5a065deeb718d4",
+      "type": "file"
+     },
+     "enclave-rpc-fwd-l1-cl.socket": {
+      "bytes": 172,
+      "directives": [
+       "ListenStream=10.0.2.15:25052",
+       "WantedBy=sockets.target"
+      ],
+      "masked": false,
+      "sha256": "da12ea8da052f8956aacb60654d99d3baa163369f99df074fcfa4493d1bd532b",
+      "type": "file"
+     },
+     "enclave-rpc-fwd-l1-el.service": {
+      "bytes": 316,
+      "directives": [
+       "Requires=enclave-rpc-fwd-l1-el.socket",
+       "ExecStart=/usr/lib/systemd/systemd-socket-proxyd 127.0.0.1:18645"
+      ],
+      "masked": false,
+      "sha256": "a7422cefea86b670ec7d781cad186f2ccef7accad5e92113f6ceec7956c9823e",
+      "type": "file"
+     },
+     "enclave-rpc-fwd-l1-el.socket": {
+      "bytes": 172,
+      "directives": [
+       "ListenStream=10.0.2.15:28645",
+       "WantedBy=sockets.target"
+      ],
+      "masked": false,
+      "sha256": "86deffa460c5317cab0971d8d1d028e66abbd502ddadb99d1d13882910444036",
+      "type": "file"
+     },
+     "enclave-rpc-l1-snapshot.service": {
+      "bytes": 1440,
+      "directives": [
+       "Wants=network-online.target",
+       "RequiresMountsFor=/srv/enclave-l1-pair",
+       "ConditionPathIsMountPoint=/srv/enclave-l1-pair",
+       "ConditionPathExists=!/srv/enclave-l1-pair/snapshot-complete",
+       "ExecStartPre=/usr/bin/mountpoint -q /srv/enclave-l1-pair",
+       "ExecStart=/opt/enclave-rpc/bin/reth download --chain mainnet --with-txs-distance 140000 --with-receipts-distance 140000 --with-state-history-distance 140000 --manifest-url https://snapshots-r2.reth.rs/reth-1-archive-stable-26263563-1792861874/manifest.json --datadir /srv/enclave-l1-pair/data --download-concurrency 2 --resumable=true -y",
+       "WantedBy=multi-user.target"
+      ],
+      "masked": false,
+      "sha256": "42cfc951d82ff4996460a4d180a9d6b91257d1bdfbee76e23c755d7e1e267070",
+      "type": "file"
+     }
+    },
+    "links": {
+     "multi-user.target.wants/enclave-l1-cl.service": {
+      "masked": false,
+      "target": "/etc/systemd/system/enclave-l1-cl.service",
+      "type": "symlink"
+     },
+     "multi-user.target.wants/enclave-l1-el.path": {
+      "masked": false,
+      "target": "/etc/systemd/system/enclave-l1-el.path",
+      "type": "symlink"
+     },
+     "multi-user.target.wants/enclave-rpc-base-snapshot.service": {
+      "masked": false,
+      "target": "/etc/systemd/system/enclave-rpc-base-snapshot.service",
+      "type": "symlink"
+     },
+     "multi-user.target.wants/enclave-rpc-l1-snapshot.service": {
+      "masked": false,
+      "target": "/etc/systemd/system/enclave-rpc-l1-snapshot.service",
+      "type": "symlink"
+     },
+     "sockets.target.wants/enclave-rpc-fwd-base-rpc.socket": {
+      "masked": false,
+      "target": "/etc/systemd/system/enclave-rpc-fwd-base-rpc.socket",
+      "type": "symlink"
+     },
+     "sockets.target.wants/enclave-rpc-fwd-l1-cl.socket": {
+      "masked": false,
+      "target": "/etc/systemd/system/enclave-rpc-fwd-l1-cl.socket",
+      "type": "symlink"
+     },
+     "sockets.target.wants/enclave-rpc-fwd-l1-el.socket": {
+      "masked": false,
+      "target": "/etc/systemd/system/enclave-rpc-fwd-l1-el.socket",
+      "type": "symlink"
+     }
+    },
+    "status": "ok"
+   },
+   "/lib/systemd/system": {
+    "entries": {},
+    "links": {},
+    "status": "ok"
+   },
+   "/usr/lib/systemd/system": {
+    "entries": {},
+    "links": {},
+    "status": "ok"
+   }
+  },
+  "format": "enclave-rpc-os-unit-inventory/r1",
+  "frozenInspectorSha256": "287c09ba2b3bebd3c1feddb995306bf2fe13a6be073f6b17bdeda257b98a0531",
+  "limits": [
+   "/run/systemd/system, generators, kernel-cmdline masks and non-enclave units pulling enclave units are not evaluated",
+   "bootLinked=linked means a link/trigger/pull exists, not that the start would succeed"
+  ],
+  "readErrors": [],
+  "units": {
+   "enclave-base-holder.path": {
+    "bootLinked": "not-linked",
+    "dropIns": {},
+    "enabledBy": [],
+    "fragment": "/etc/systemd/system/enclave-base-holder.path",
+    "layers": [
+     "/etc/systemd/system"
+    ],
+    "masked": false,
+    "pulledBy": [],
+    "pulls": [],
+    "triggeredBy": [],
+    "triggers": "enclave-base-holder.service"
+   },
+   "enclave-base-holder.service": {
+    "bootLinked": "not-linked",
+    "dropIns": {
+     "/etc/systemd/system/enclave-base-holder.service.d": {
+      "entries": {
+       "50-enclave-rpc-vm.conf": {
+        "bytes": 87,
+        "directives": [
+         "RequiresMountsFor=/srv/enclave-base-holder"
+        ],
+        "masked": false,
+        "sha256": "98f96fbd61d0d506cb94a526cd74ad456c25e1224a6e02698c47361e25d5297f",
+        "type": "file"
+       }
+      },
+      "type": "dir"
+     }
+    },
+    "enabledBy": [],
+    "fragment": "/etc/systemd/system/enclave-base-holder.service",
+    "layers": [
+     "/etc/systemd/system"
+    ],
+    "masked": false,
+    "pulledBy": [],
+    "pulls": [
+     "Wants=network-online.target"
+    ],
+    "triggeredBy": [
+     {
+      "enabledBy": [],
+      "masked": false,
+      "unit": "enclave-base-holder.path"
+     }
+    ],
+    "triggers": null
+   },
+   "enclave-base-retention.service": {
+    "bootLinked": "not-linked",
+    "dropIns": {},
+    "enabledBy": [],
+    "fragment": "/etc/systemd/system/enclave-base-retention.service",
+    "layers": [
+     "/etc/systemd/system"
+    ],
+    "masked": false,
+    "pulledBy": [],
+    "pulls": [
+     "Wants=network-online.target"
+    ],
+    "triggeredBy": [],
+    "triggers": null
+   },
+   "enclave-l1-cl.service": {
+    "bootLinked": "linked",
+    "dropIns": {
+     "/etc/systemd/system/enclave-l1-cl.service.d": {
+      "entries": {
+       "50-enclave-rpc-vm.conf": {
+        "bytes": 83,
+        "directives": [
+         "RequiresMountsFor=/srv/enclave-l1-pair"
+        ],
+        "masked": false,
+        "sha256": "8a58d594755393609e12318954eac4f67f85e49f05d37650f7e3aaffddfc7d00",
+        "type": "file"
+       }
+      },
+      "type": "dir"
+     }
+    },
+    "enabledBy": [
+     "/etc/systemd/system/multi-user.target.wants/enclave-l1-cl.service"
+    ],
+    "fragment": "/etc/systemd/system/enclave-l1-cl.service",
+    "layers": [
+     "/etc/systemd/system"
+    ],
+    "masked": false,
+    "pulledBy": [],
+    "pulls": [
+     "Wants=network-online.target"
+    ],
+    "triggeredBy": [],
+    "triggers": null
+   },
+   "enclave-l1-el.path": {
+    "bootLinked": "linked",
+    "dropIns": {},
+    "enabledBy": [
+     "/etc/systemd/system/multi-user.target.wants/enclave-l1-el.path"
+    ],
+    "fragment": "/etc/systemd/system/enclave-l1-el.path",
+    "layers": [
+     "/etc/systemd/system"
+    ],
+    "masked": false,
+    "pulledBy": [],
+    "pulls": [],
+    "triggeredBy": [],
+    "triggers": "enclave-l1-el.service"
+   },
+   "enclave-l1-el.service": {
+    "bootLinked": "linked",
+    "dropIns": {
+     "/etc/systemd/system/enclave-l1-el.service.d": {
+      "entries": {
+       "50-enclave-rpc-vm.conf": {
+        "bytes": 83,
+        "directives": [
+         "RequiresMountsFor=/srv/enclave-l1-pair"
+        ],
+        "masked": false,
+        "sha256": "8a58d594755393609e12318954eac4f67f85e49f05d37650f7e3aaffddfc7d00",
+        "type": "file"
+       }
+      },
+      "type": "dir"
+     }
+    },
+    "enabledBy": [],
+    "fragment": "/etc/systemd/system/enclave-l1-el.service",
+    "layers": [
+     "/etc/systemd/system"
+    ],
+    "masked": false,
+    "pulledBy": [],
+    "pulls": [
+     "Wants=network-online.target"
+    ],
+    "triggeredBy": [
+     {
+      "enabledBy": [
+       "/etc/systemd/system/multi-user.target.wants/enclave-l1-el.path"
+      ],
+      "masked": false,
+      "unit": "enclave-l1-el.path"
+     }
+    ],
+    "triggers": null
+   },
+   "enclave-rpc-base-snapshot.service": {
+    "bootLinked": "linked",
+    "dropIns": {
+     "/etc/systemd/system/enclave-rpc-base-snapshot.service.d": {
+      "entries": {
+       "30-download-concurrency.conf": {
+        "bytes": 343,
+        "directives": [
+         "ExecStart=",
+         "ExecStart=/opt/enclave-rpc/bin/base snapshot download --chain base --with-txs-distance 140000 --with-receipts-distance 140000 --with-state-history-distance 140000 --manifest-path /opt/enclave-rpc/snapshots/base-1792886410-manifest.json --datadir /srv/enclave-base-holder/data --download-concurrency 16 --resumable=true -y"
+        ],
+        "masked": false,
+        "sha256": "db6895e969dbf320fa20dfdf14a28930e5d4bb027092debd71ad67947aae29ba",
+        "type": "file"
+       }
+      },
+      "type": "dir"
+     }
+    },
+    "enabledBy": [
+     "/etc/systemd/system/multi-user.target.wants/enclave-rpc-base-snapshot.service"
+    ],
+    "fragment": "/etc/systemd/system/enclave-rpc-base-snapshot.service",
+    "layers": [
+     "/etc/systemd/system"
+    ],
+    "masked": false,
+    "pulledBy": [],
+    "pulls": [
+     "Wants=network-online.target",
+     "Requires=enclave-rpc-l1-snapshot.service"
+    ],
+    "triggeredBy": [],
+    "triggers": null
+   },
+   "enclave-rpc-fwd-base-rpc.service": {
+    "bootLinked": "linked",
+    "dropIns": {},
+    "enabledBy": [],
+    "fragment": "/etc/systemd/system/enclave-rpc-fwd-base-rpc.service",
+    "layers": [
+     "/etc/systemd/system"
+    ],
+    "masked": false,
+    "pulledBy": [],
+    "pulls": [
+     "Requires=enclave-rpc-fwd-base-rpc.socket"
+    ],
+    "triggeredBy": [
+     {
+      "enabledBy": [
+       "/etc/systemd/system/sockets.target.wants/enclave-rpc-fwd-base-rpc.socket"
+      ],
+      "masked": false,
+      "unit": "enclave-rpc-fwd-base-rpc.socket"
+     }
+    ],
+    "triggers": null
+   },
+   "enclave-rpc-fwd-base-rpc.socket": {
+    "bootLinked": "linked",
+    "dropIns": {},
+    "enabledBy": [
+     "/etc/systemd/system/sockets.target.wants/enclave-rpc-fwd-base-rpc.socket"
+    ],
+    "fragment": "/etc/systemd/system/enclave-rpc-fwd-base-rpc.socket",
+    "layers": [
+     "/etc/systemd/system"
+    ],
+    "masked": false,
+    "pulledBy": [
+     "enclave-rpc-fwd-base-rpc.service"
+    ],
+    "pulls": [],
+    "triggeredBy": [],
+    "triggers": "enclave-rpc-fwd-base-rpc.service"
+   },
+   "enclave-rpc-fwd-l1-cl.service": {
+    "bootLinked": "linked",
+    "dropIns": {},
+    "enabledBy": [],
+    "fragment": "/etc/systemd/system/enclave-rpc-fwd-l1-cl.service",
+    "layers": [
+     "/etc/systemd/system"
+    ],
+    "masked": false,
+    "pulledBy": [],
+    "pulls": [
+     "Requires=enclave-rpc-fwd-l1-cl.socket"
+    ],
+    "triggeredBy": [
+     {
+      "enabledBy": [
+       "/etc/systemd/system/sockets.target.wants/enclave-rpc-fwd-l1-cl.socket"
+      ],
+      "masked": false,
+      "unit": "enclave-rpc-fwd-l1-cl.socket"
+     }
+    ],
+    "triggers": null
+   },
+   "enclave-rpc-fwd-l1-cl.socket": {
+    "bootLinked": "linked",
+    "dropIns": {},
+    "enabledBy": [
+     "/etc/systemd/system/sockets.target.wants/enclave-rpc-fwd-l1-cl.socket"
+    ],
+    "fragment": "/etc/systemd/system/enclave-rpc-fwd-l1-cl.socket",
+    "layers": [
+     "/etc/systemd/system"
+    ],
+    "masked": false,
+    "pulledBy": [
+     "enclave-rpc-fwd-l1-cl.service"
+    ],
+    "pulls": [],
+    "triggeredBy": [],
+    "triggers": "enclave-rpc-fwd-l1-cl.service"
+   },
+   "enclave-rpc-fwd-l1-el.service": {
+    "bootLinked": "linked",
+    "dropIns": {},
+    "enabledBy": [],
+    "fragment": "/etc/systemd/system/enclave-rpc-fwd-l1-el.service",
+    "layers": [
+     "/etc/systemd/system"
+    ],
+    "masked": false,
+    "pulledBy": [],
+    "pulls": [
+     "Requires=enclave-rpc-fwd-l1-el.socket"
+    ],
+    "triggeredBy": [
+     {
+      "enabledBy": [
+       "/etc/systemd/system/sockets.target.wants/enclave-rpc-fwd-l1-el.socket"
+      ],
+      "masked": false,
+      "unit": "enclave-rpc-fwd-l1-el.socket"
+     }
+    ],
+    "triggers": null
+   },
+   "enclave-rpc-fwd-l1-el.socket": {
+    "bootLinked": "linked",
+    "dropIns": {},
+    "enabledBy": [
+     "/etc/systemd/system/sockets.target.wants/enclave-rpc-fwd-l1-el.socket"
+    ],
+    "fragment": "/etc/systemd/system/enclave-rpc-fwd-l1-el.socket",
+    "layers": [
+     "/etc/systemd/system"
+    ],
+    "masked": false,
+    "pulledBy": [
+     "enclave-rpc-fwd-l1-el.service"
+    ],
+    "pulls": [],
+    "triggeredBy": [],
+    "triggers": "enclave-rpc-fwd-l1-el.service"
+   },
+   "enclave-rpc-l1-snapshot.service": {
+    "bootLinked": "linked",
+    "dropIns": {},
+    "enabledBy": [
+     "/etc/systemd/system/multi-user.target.wants/enclave-rpc-l1-snapshot.service"
+    ],
+    "fragment": "/etc/systemd/system/enclave-rpc-l1-snapshot.service",
+    "layers": [
+     "/etc/systemd/system"
+    ],
+    "masked": false,
+    "pulledBy": [
+     "enclave-rpc-base-snapshot.service"
+    ],
+    "pulls": [
+     "Wants=network-online.target"
+    ],
+    "triggeredBy": [],
+    "triggers": null
+   }
+  }
+ },
+ "wantsDirs": [
+  "cloud-config.target.wants",
+  "cloud-final.service.wants",
+  "cloud-init.target.wants",
+  "emergency.target.wants",
+  "final.target.wants",
+  "getty.target.wants",
+  "graphical.target.wants",
+  "hibernate.target.wants",
+  "hybrid-sleep.target.wants",
+  "mdmonitor.service.wants",
+  "multi-user.target.wants",
+  "network-online.target.wants",
+  "paths.target.wants",
+  "rescue.target.wants",
+  "sleep.target.wants",
+  "sockets.target.wants",
+  "suspend-then-hibernate.target.wants",
+  "suspend.target.wants",
+  "sysinit.target.wants",
+  "sysstat.service.wants",
+  "timers.target.wants"
+ ],
+ "wantsLinks": {
+  "multi-user.target.wants/enclave-l1-cl.service": "/etc/systemd/system/enclave-l1-cl.service",
+  "multi-user.target.wants/enclave-l1-el.path": "/etc/systemd/system/enclave-l1-el.path",
+  "multi-user.target.wants/enclave-rpc-base-snapshot.service": "/etc/systemd/system/enclave-rpc-base-snapshot.service",
+  "multi-user.target.wants/enclave-rpc-l1-snapshot.service": "/etc/systemd/system/enclave-rpc-l1-snapshot.service"
+ }
+}
+[memory-guard] exit=0 peakTreeRssMiB=39 minHostAvailableMiB=95063
+[memory-guard] at peak: python3:22 qemu-nbd:9 nbdfuse:8
+[queue] EXIT 0

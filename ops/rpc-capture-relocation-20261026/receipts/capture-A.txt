@@ -1,0 +1,33 @@
+test_cli_writes_once_and_refuses_overwrite (test_anchored_origin.AnchoredOriginTest.test_cli_writes_once_and_refuses_overwrite) ... ok
+test_db_header_or_hash_tamper_is_refused (test_anchored_origin.AnchoredOriginTest.test_db_header_or_hash_tamper_is_refused) ... ok
+test_db_must_hold_n_and_be_the_pinned_tooling (test_anchored_origin.AnchoredOriginTest.test_db_must_hold_n_and_be_the_pinned_tooling) ... ok
+test_exact_n_is_read_and_bound_not_the_safe_head (test_anchored_origin.AnchoredOriginTest.test_exact_n_is_read_and_bound_not_the_safe_head) ... ok
+test_header_that_does_not_reproduce_the_receipt_root_is_refused (test_anchored_origin.AnchoredOriginTest.test_header_that_does_not_reproduce_the_receipt_root_is_refused) ... ok
+test_pinned_modules_are_enforced (test_anchored_origin.AnchoredOriginTest.test_pinned_modules_are_enforced) ... ok
+test_real_pinned_receipt_is_used_and_a_synthetic_header_cannot_bind_to_it (test_anchored_origin.AnchoredOriginTest.test_real_pinned_receipt_is_used_and_a_synthetic_header_cannot_bind_to_it) ... ok
+test_receipt_bytes_must_be_the_pinned_ones (test_anchored_origin.AnchoredOriginTest.test_receipt_bytes_must_be_the_pinned_ones) ... ok
+test_writable_datadir_refused_with_the_real_mount_probe (test_anchored_origin.AnchoredOriginTest.test_writable_datadir_refused_with_the_real_mount_probe) ... ok
+test_hint_scale_range_is_split_not_capped_up (test_segments.RealScalePlanTest.test_hint_scale_range_is_split_not_capped_up) ... ok
+test_a_refused_segment_keeps_the_gate_per_block_refusal (test_segments.SegTest.test_a_refused_segment_keeps_the_gate_per_block_refusal) ... ok
+test_activation_rechecks_evidence_against_current_time (test_segments.SegTest.test_activation_rechecks_evidence_against_current_time) ... ok
+test_anchored_overlay_accepts_only_fully_re_verified_evidence (test_segments.SegTest.test_anchored_overlay_accepts_only_fully_re_verified_evidence) ... ok
+test_cl_discontinuity_across_a_boundary_is_refused (test_segments.SegTest.test_cl_discontinuity_across_a_boundary_is_refused) ... ok
+test_el_discontinuity_across_a_boundary_is_refused (test_segments.SegTest.test_el_discontinuity_across_a_boundary_is_refused) ... ok
+test_future_aggregate_evaluation_is_rejected (test_segments.SegTest.test_future_aggregate_evaluation_is_rejected) ... ok
+test_missed_slot_exactly_at_a_segment_boundary_is_linked_and_counted (test_segments.SegTest.test_missed_slot_exactly_at_a_segment_boundary_is_linked_and_counted) ... ok
+test_non_canonical_origin_hash_is_refused_by_every_segment (test_segments.SegTest.test_non_canonical_origin_hash_is_refused_by_every_segment) ... ok
+test_non_finite_or_boolean_evaluation_time_is_rejected (test_segments.SegTest.test_non_finite_or_boolean_evaluation_time_is_rejected) ... ok
+test_old_activation_code_rejects_every_new_document (test_segments.SegTest.test_old_activation_code_rejects_every_new_document) ... ok
+test_partial_duplicate_stale_tampered_and_foreign_segments_are_refused (test_segments.SegTest.test_partial_duplicate_stale_tampered_and_foreign_segments_are_refused) ... ok
+test_plan_gap_overlap_and_cap_are_refused_everywhere (test_segments.SegTest.test_plan_gap_overlap_and_cap_are_refused_everywhere) ... ok
+test_same_prev_randao_different_parent_beacon_root_is_refused (test_segments.SegTest.test_same_prev_randao_different_parent_beacon_root_is_refused) ... ok
+test_swapped_valid_canonical_origin_is_refused (test_segments.SegTest.test_swapped_valid_canonical_origin_is_refused) ... ok
+test_two_segments_cover_the_exact_anchored_range_via_cli (test_segments.SegTest.test_two_segments_cover_the_exact_anchored_range_via_cli) ... ok
+test_untrusted_batcher_never_reaches_the_gate_or_changes_coverage (test_segments.SegTest.test_untrusted_batcher_never_reaches_the_gate_or_changes_coverage) ... ok
+test_wrong_header_number_hash_pbr_and_tampered_documents_are_refused (test_segments.SegTest.test_wrong_header_number_hash_pbr_and_tampered_documents_are_refused) ... ok
+test_wrong_header_parent_beacon_root_or_mix_is_refused (test_segments.SegTest.test_wrong_header_parent_beacon_root_or_mix_is_refused) ... ok
+
+----------------------------------------------------------------------
+Ran 28 tests in 79.624s
+
+OK

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -17,7 +18,48 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+// The model is the one the measured /app.shield profile names; dominit has
+// already rejected any other. Every byte loaded is pinned here by size and hash.
 func load() error {
+	profile, err := os.ReadFile("/app.shield")
+	if err != nil {
+		return err
+	}
+	if fields := strings.Fields(string(profile)); len(fields) > 0 && fields[0] == zImageModel {
+		return loadZImage()
+	}
+	return load27B()
+}
+
+const zImageModel = "z-image-turbo-q4km-sd"
+
+// EnclaveHost/z-image-turbo-q4km-sd@af89b828ee54af9121ad479170f89f978e4ad628, attached
+// read-only in this order. The names are the sdcpp backend's generic component names.
+var zImageFiles = []struct {
+	device, name string
+	size         int64
+	sha256       string
+}{
+	{"/dev/vda", "diffusion.gguf", 4981532736, "745ec270db042409fde084d6b5cfccabf214a7fe5a494edf994a391125656afd"},
+	{"/dev/vdb", "llm.gguf", 2497281120, "3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597"},
+	{"/dev/vdc", "vae.safetensors", 335304388, "afc8e28272cd15db3919bacdb6918ce9c1ed22e96cb12c4d5ed0fba823529e38"},
+}
+
+func loadZImage() error {
+	const dir = "/models/" + zImageModel + "/"
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	for _, f := range zImageFiles {
+		if err := copyVerified(f.device, dir+f.name, f.size, f.sha256); err != nil {
+			return fmt.Errorf("%s: %w", f.name, err)
+		}
+	}
+	return nil
+}
+
+func load27B() error {
 	const dir = "/models/qwen3.8-27b-mtp-q4-vl-gguf/"
 	dest := dir + "model.gguf"
 	if _, err := os.Stat("/rt/shield-original-source-reclaim.enabled"); err == nil {

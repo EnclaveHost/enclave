@@ -1,0 +1,28 @@
+{
+  "status": "SOURCE ONLY; not built, compiled, tested, run, staged or deployed",
+  "oldProposal": "../windows-job-exlock-qualification-r3-20261029",
+  "oldProposalPinsSha256": "746c30f29901a61ab26dedfd6682b7e30f4bacb48b5eb8c45ebccddc94150604",
+  "findings": [
+    "CreateProcessW and VirtualAlloc document failure reporting via GetLastError; the consulted API documents do not guarantee one specific code for every job-limit refusal. No hardcoded undocumented expected code is accepted.",
+    "QueryInformationJobObject(NULL) reports immediate job when nested. More restrictive ancestor job limits and unrelated resource failures remain alternative causes.",
+    "Basic accounting is observation, not definitive reason attribution; terminated counters can include other terminations. No automatic attribution from count delta.",
+    "PeakJobMemoryUsed is historical high-water, not current committed usage. Near-cap peak plus failure and successful recovery does not alone prove causal Job cap enforcement.",
+    "GetProcessTimes creation FILETIME emitted as string to avoid JSON integer precision loss; handles retained for exact owned child cleanup. No PID-only kill.",
+    "Probe child checks its own numeric immediate-job limits and exits0; this alone does not prove it is the identical job object.",
+    "Complete receipts may show failed expectations. Exit0/evidenceCollected only mean collection completed; all qualification flags remain false. Owner-death observer and EXLOCK remain separate and unapproved.",
+    "Timeout is entry-relative30000ms, watchdog starts after own-job assignment; early setup and memory pressure sampling limitations preserved."
+  ],
+  "sources": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_basic_limit_information",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_extended_limit_information",
+    "https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-queryinformationjobobject",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc"
+  ],
+  "remainingLimits": [
+    "No actual Windows receipts collected. No one guaranteed error numeric asserted. No job completion-port event instrumentation or native launcher modification in this narrow revision.",
+    "Early incomplete failures may emit a small reason object or exitcode only; template refuses those and grants no qualification.",
+    "Only probe and created children identities emitted; launcher/PowerShell ancestors require exact coordinator launcher receipts if needed.",
+    "4096-character output bound in template; source emits bounded fixed schema, but no compile/run or size validation performed."
+  ]
+}

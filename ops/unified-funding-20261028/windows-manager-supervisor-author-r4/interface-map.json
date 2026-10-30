@@ -1,0 +1,155 @@
+{
+  "scope": "Exact source interfaces and hashes; not an installed live process attestation",
+  "refs": [
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/node/host.mjs",
+      "sha256": "dde60f6ed2f53121692f94201c98e7819f3a293e5ca606e6a9ec4b39b76fab24",
+      "role": "frozen152 source consumer/interface",
+      "notes": "Actual seed node consumer: isolationVerdict/#isolationReconcile use legacy client. Wire protected branch here; current live node process source identity is not established merely by this archived file."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/node/isolation-client.mjs",
+      "sha256": "0b9808c7ab2d39a6e39df79efb98bb946d41d288d83d06861796c58e1d2c8ff5",
+      "role": "frozen152 source consumer/interface",
+      "notes": "Legacy spawnBody/findByName/spawn/remove interface; preserve unprotected behavior."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/node/isolation-lifecycle.mjs",
+      "sha256": "5ae5f457f35fd4debb0b77f8b16ec00325d003470551354377e51c791734b033",
+      "role": "frozen152 source consumer/interface",
+      "notes": "Existing legacy reconcile holds unknown launch/absence; do not route protected enrollment through periodic legacy lease behavior."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/node/protected-isolation.mjs",
+      "sha256": "e969f4e4b38690e5e6978c301ecef6849d63a41935e7095f24055b2ceb96ef66",
+      "role": "frozen152 source consumer/interface",
+      "notes": "New r3 client is currently unconsumed and has demonstrated reconciliation faults."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/isolation/m4/guestd/control-client.mjs",
+      "sha256": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6",
+      "role": "frozen152 source consumer/interface",
+      "notes": "Actual HMAC/replay/response binding; unsigned401 plus null reconcile automatically resends state-changing request."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/vbslike/manager/main.mjs",
+      "sha256": "5f7c0fad4c4354f709df16127fa879b1030557d53360bd21742e42e0e01a44fc",
+      "role": "frozen152 source consumer/interface",
+      "notes": "Actual packaged startup; currently protected native role forbidden and nativewrapper only!permitConfig. Refactor real consumption, not unused helper."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/vbslike/manager/protected-manager.mjs",
+      "sha256": "bd22b3253982de3acb98c4f38901b651ed251a4a7157fa19b7667a50ede8050f",
+      "role": "frozen152 source consumer/interface",
+      "notes": "Actual authenticated routes/CRUD adapter; journal-read beforewithdraw in remove is demonstrated failure."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/vbslike/manager/control.mjs",
+      "sha256": "85cd2f51aa03b9fe969b2ff1406c53ce69b4ba84fbe4646ed42a3b3d12977813",
+      "role": "frozen152 source consumer/interface",
+      "notes": "Actual ControlServer request+response authentication."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/vbslike/manager/permit-enforcement.mjs",
+      "sha256": "a0a694619d8074c49da4e69caa1d443a9f332f4eb1ab664b73397221e7a97de6",
+      "role": "frozen152 source consumer/interface",
+      "notes": "Stage/permit/hold, durable mapping, guard, generic boundary API. Sequence early-return policy explicit."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/vbslike/router/control.mjs",
+      "sha256": "e2bf6ea711d9894aba92fbfb77048adeac0cbdeba135b72f71c7ebc3796424cf",
+      "role": "frozen152 source consumer/interface",
+      "notes": "Merged health baseline and protected route/accounting; missing authGET/vms and nativeprotected path."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/vbslike/router/io.mjs",
+      "sha256": "443cea7957df60696ababca7387f399ce6e0c9998f90c95cc9c591b0bdfa7807",
+      "role": "frozen152 source consumer/interface",
+      "notes": "Actual MAC/header/rawbody forwarding and data routing."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/vbslike/guard/guard-main.mjs",
+      "sha256": "91bc2ee77dc0f9e76a2773388d6a2443e4b7b35da9e76f21eda33db7e15a2fce",
+      "role": "frozen152 source consumer/interface",
+      "notes": "Concrete Windows backend exact removal; entry import safety/composition needed."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/vbslike/datapath/datapath.mjs",
+      "sha256": "1149dfb2099a8ea3963c570d61d40e7b304d060b73c62694a31e8346bd258771",
+      "role": "frozen152 source consumer/interface",
+      "notes": "Actual TCP admission/existing-stream closure."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/vbslike/datapath/node-bridge.mjs",
+      "sha256": "0b6e57087e1ae920f5255e6aeed36a8a610770af7dc0f8f50e84c382138d302e",
+      "role": "frozen152 source consumer/interface",
+      "notes": "Actual launch/readiness/data path bridge."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/vbslike/manager/desktop-worker-transport.mjs",
+      "sha256": "37131b79ce658edf99e2d6d0974ee9df89996af03e6121f5133223e860787805",
+      "role": "frozen152 source consumer/interface",
+      "notes": "Actual desktop worker transport must consume protection, not just configurableadapterlabel."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/vbslike/manager/egress.mjs",
+      "sha256": "1686229adeee15cf1c28017ccbb355dcd47bc24650579414c9fc4e2b01915e05",
+      "role": "frozen152 source consumer/interface",
+      "notes": "Actual egress transport boundary."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-isolation-runtime.mjs",
+      "sha256": "6309c386deefaec230045f0dadad30a1fb86b384be7693f68ce7bbc0a1e8e8f7",
+      "role": "latest generated r18 protocol reference",
+      "notes": "Requires client.findByName/spawn/remove; plans/readiness/collectPermit; boundaries.allow(id,grant),hold. grant has no signed envelope; explicit secure carriage required."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-host-owned-authority.mjs",
+      "sha256": "ee1f93c8ab968ab6b26e3f38a18cf66604d476b87acd37acd7e9cb09ea6c302c",
+      "role": "latest generated r18 protocol reference",
+      "notes": "Actual owned factory constructs runtime and independentdispatch; Linux physical lock implementations are not Windows qualifications."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-permit-collector.mjs",
+      "sha256": "2c2f3fc6d444300c5e15da5b54f393a72d8fb86d519c70cd7419c640a3091dba",
+      "role": "latest generated r18 protocol reference",
+      "notes": "Actual signed-envelope collection interface."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-chain-adapter.mjs",
+      "sha256": "805cad12078d9cca7a24ce3a64f2debab4051d156bd59c0849158b00e42ff328",
+      "role": "latest generated r18 protocol reference",
+      "notes": "Actual read adapter without financial capabilities; full genuine proof authority still required."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-permit-gate.mjs",
+      "sha256": "2ee846d462354874eb704ef0a4cf6492536428497fa8f2fa93f654d411ad235a",
+      "role": "latest generated r18 protocol reference",
+      "notes": "Verified grant shape generation/host/validUntil/hostAuthority; preserves raw effects and physicalowner lifecycle."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-host-authority.mjs",
+      "sha256": "c9edf50ce1bd0b21973728693c23623e3597467f6e0abc644444170f7f7a7a92",
+      "role": "latest generated r18 protocol reference",
+      "notes": "Actual servingContextOf conversion and host-authority enforcement."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-finality-bridge.mjs",
+      "sha256": "a719bece74e0b7d198bd36b35e361bcb4d9e9e155ce366f15185b4e37f91c197",
+      "role": "latest generated r18 protocol reference",
+      "notes": "Actual derived/proof/anchor trust construction; no plain JSON qualification."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/network/deployment-isolation-runtime.mjs",
+      "sha256": "40333d5bc08796f2881650331022746abc0b93051b48351c89f84d62a4462fd9",
+      "role": "source generator or exact general bootstrap reference",
+      "notes": "Retain provenance distinction; author edits copies only under candidate."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/native-manager-livepool-v9/control/windows/vbslike/manager/main.mjs",
+      "sha256": "53a854973c9b2c61e556b317a1dd349135595dee1f07edc8299a43a888eb310b",
+      "role": "source generator or exact general bootstrap reference",
+      "notes": "Retain provenance distinction; author edits copies only under candidate."
+    }
+  ]
+}

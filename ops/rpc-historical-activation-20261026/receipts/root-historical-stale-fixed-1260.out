@@ -1,0 +1,15 @@
+[queue] START available=18255MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+test_activation_rechecks_evidence_against_current_time (__main__.FreshnessRegression.test_activation_rechecks_evidence_against_current_time) ... ok
+test_future_aggregate_evaluation_is_rejected (__main__.FreshnessRegression.test_future_aggregate_evaluation_is_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 7.592s
+
+OK
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmphy743ir4/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmphy743ir4/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmpj7jd4jf6/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmpj7jd4jf6/04-seg1/gate-report.json"}
+[memory-guard] exit=0 peakTreeRssMiB=92 minHostAvailableMiB=18149
+[memory-guard] at peak: node:51 python3:36 bash:4
+[queue] EXIT 0

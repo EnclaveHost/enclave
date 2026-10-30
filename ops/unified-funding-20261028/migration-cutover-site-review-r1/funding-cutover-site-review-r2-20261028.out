@@ -1,0 +1,7 @@
+[queue] START available=92736MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+generate_site.py: site/js/pages/funding.js must keep 'const runtime = await f.verifyRuntime({ pins: FUNDING_RUNTIME, rpc, relay, owner, now: nowS() });' exactly once
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 1

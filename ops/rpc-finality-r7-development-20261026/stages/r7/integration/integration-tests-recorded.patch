@@ -1,0 +1,14 @@
+--- a/tests/test_finality_integration.py
++++ b/tests/test_finality_integration.py
+@@ -300,8 +300,9 @@
+         self.assertEqual(gate(RS.Unavailable), 'finality-stale-after-restart')                              # the old proof's process is gone
+         FS.publish_status(self.status(), out, top=self.t); self.assertEqual(gate(RS.Unavailable), 'finality-not-current')
+         self.qualify(self.captures(NP2, l1_bump=100))                                                       # the post-restart proof
+-        FS.publish_status(self.status(), out, top=self.t); self.assertEqual(gate()['freshN'], NP2)
+-        self.record(); FS.publish_status(self.status(), out, top=self.t); self.assertEqual(gate()['freshN'], NP2)
++        FS.publish_status(self.status(), out, top=self.t); self.assertEqual(gate(RS.Unavailable), 'finality-not-recorded')   # r7: proven only
++        self.record(); FS.publish_status(self.status(), out, top=self.t)
++        self.assertEqual((gate()['freshN'], gate()['recordedAs']), (NP2, self.journal()[-1][0]))                            # recorded: admitted
+ 
+     def rpc(self, name, method, params):
+         q = urllib.request.Request(self.url, data=json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': method, 'params': params}).encode(),

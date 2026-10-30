@@ -1,0 +1,21 @@
+# EXACT tracked paths a regeneration may change (anything else changed = FAIL). Untracked/ignored allowed: relay/network-runtime.bundle.mjs(.manifest.json)
+windows/node/lease-gas-runtime.bundle.mjs
+windows/node/lease-gas-runtime.bundle.mjs.manifest.json
+metal/guest/lease-gas-conduit.bundle.mjs
+metal/guest/lease-gas-conduit.bundle.mjs.manifest.json
+windows/node/host-admission.bundle.mjs
+metal/guest/host-policy.bundle.mjs
+network/host-services/packages/bootstrap-replica.mjs
+network/host-services/packages/bootstrap-replica.package.json
+network/host-services/packages/credit-vault-submitter.mjs
+network/host-services/packages/credit-vault-submitter.package.json
+network/host-services/packages/directory-replica.mjs
+network/host-services/packages/directory-replica.package.json
+network/host-services/packages/policy-mirror.mjs
+network/host-services/packages/policy-mirror.package.json
+network/host-services/packages/route-dns.mjs
+network/host-services/packages/route-dns.package.json
+metal/guest/mcp-server.bundle.mjs
+metal/guest/mcp-server.bundle.mjs.manifest.json
+metal/guest/platform-api.bundle.mjs
+metal/guest/platform-api.bundle.mjs.manifest.json

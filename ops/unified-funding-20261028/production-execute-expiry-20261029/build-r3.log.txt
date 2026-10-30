@@ -1,0 +1,12 @@
+[queue] START available=92707MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+  f25760e41e0fe5b1f641438929abee0336db4f4efd2a9f1eb0839c0d22cf736a      7598  funding.html
+  dfe0f728bca2d855259172ab6ec3ef6bae1f829dddde73bb12f29c3a5ec5d5fb    166379  js/funding-cutover-r1/funding.dfe0f728bca2d855.js
+  9dda76f6c22ef102e9dce27b7e61731c83a7e41905a611587578e305bc758997    342282  vendor/sessions.funding-cutover-r1.9dda76f6c22ef102.js
+  69242be6e8d8d5d3fb7c74e6f838796aa9c6b733108c8ba38dbdd7ff426672ff    377771  vendor/funding.funding-cutover-r1.69242be6e8d8d5d3.js
+  4b52a34c258c6cf5469e4f531040b57b826fd04ec16089cec8e35a79e4cdf2b3    152540  css/site.funding-cutover-r1.4b52a34c258c6cf5.css
+[funding-cutover-addon] additions -> /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/funding-expiry-page-r1/artifact
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

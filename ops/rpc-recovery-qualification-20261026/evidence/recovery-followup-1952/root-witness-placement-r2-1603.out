@@ -1,0 +1,9 @@
+[queue] START available=26975MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+Ran 6 tests in 0.373s
+
+FAILED (failures=2)
+## test_forward_chain FAIL (rc 1)
+## witness-placement-r2 rc=1
+[memory-guard] exit=1 peakTreeRssMiB=37 minHostAvailableMiB=26950
+[memory-guard] at peak: python3:25 systemd-socket-:6 bash:4 timeout:2
+[queue] EXIT 1

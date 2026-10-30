@@ -1,0 +1,50 @@
+{
+  "schema": "enclave-native-platform-candidate/1",
+  "imageRole": "desktop",
+  "admissionEnabled": false,
+  "profileSha256": "0036cf9866d663e19bbc2323d8673b4c0ec4d194f2e517e3686270ea92302c40",
+  "runtimeId": "f548e338e4e41bb1326693688c7b0067c9f330a24f4a21a61037bd334449c74f",
+  "vbsLaunchDigest": "A29B2D8EA0AFD93BB327A6459B3925AAA2636425C5E16BD74A679151206E2CC9",
+  "files": {
+    "initrd": {
+      "file": "native.cpio.gz",
+      "bytes": 32722305,
+      "sha256": "b95fa86668f666d8287542e776ad3d25e4e2921092a463312a04137551c57e3d"
+    },
+    "igvm": {
+      "file": "native-igvm.bin",
+      "bytes": 86616060,
+      "sha256": "299c3b30d214955bd233e60bc772ae90de385b94f4c80ccd2edfba06e90c6d61"
+    },
+    "root.iso": {
+      "file": "root.iso",
+      "bytes": 564977664,
+      "sha256": "1a554b2f334fcdf9cd5bb078f73c4c6e0fcf7e9732fb43c0f79ccab292932d53",
+      "payloadOffset": 65536,
+      "payloadBytes": 564912128,
+      "payloadSha256": "de0dc1abe85bbf52537505d855cd5cb295b3859ef66073c9c941cde3a82d509c"
+    },
+    "hashes.iso": {
+      "file": "hashes.iso",
+      "bytes": 4521984,
+      "sha256": "c14ac65cad01df6dff778a171c401af834a286fd74f6ebc185c87a31988a00fc",
+      "payloadOffset": 65536,
+      "payloadBytes": 4456448,
+      "payloadSha256": "2d484fe78ffa25e4bb4e921e2e642828e560c1ab2561efecbee06a3abb163169"
+    },
+    "models.iso": {
+      "file": "models.iso",
+      "bytes": 2566148096,
+      "sha256": "ddb1c3034f9d8aa12ac06b6076360e649cd18f756dff448569cb7d1352a2b2e8",
+      "payloadOffset": 65536,
+      "payloadBytes": 2566082560,
+      "payloadSha256": "a581dcc6fd15b3e49ee4e0b4796c02da87da8f89ad92184f7226e2f58f1a5022"
+    }
+  },
+  "scope": "Qualified production boot and native lifecycle candidate; owner release and real GPU acceptance pending",
+  "hardwareAttestationChainVerified": false,
+  "hostOsExcluded": false,
+  "containsTestPrograms": false,
+  "controllerBundleIncluded": false,
+  "evidence": "../evidence/native-platform-integration/qualification.json"
+}

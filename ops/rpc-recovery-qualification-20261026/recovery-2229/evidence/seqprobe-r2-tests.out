@@ -1,0 +1,7 @@
+[queue] START available=24300MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+## PASS (7)
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-sequential-probe-stage/r2/runs/tests-20261026T222734Z-2422087
+## seqprobe-r2-tests rc=0
+[memory-guard] exit=0 peakTreeRssMiB=58 minHostAvailableMiB=24178
+[memory-guard] at peak: python3:31 python3:19 bash:4 sleep:2 timeout:2
+[queue] EXIT 0

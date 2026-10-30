@@ -1,0 +1,8 @@
+[queue] START available=20928MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+PASS tool-4 Ran 4 (expected 4)
+## FAIL: integration: rc 1, Ran 16 (expected 16), last FAILED (failures=1, errors=1) (see /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6-test-fixes/logs/run-20261026T055855Z-986876/integration.txt)
+## tool: 30 reused from r6 tool.txt (8f217ae6) + 4 executed; integration 16 executed. NOT covered here: reanchor-recovery/r3-regression (see report)
+## r6-test-fixes rc=1
+[memory-guard] exit=1 peakTreeRssMiB=176 minHostAvailableMiB=20302
+[memory-guard] at peak: python3:102 node:55 python3.14:12 bash:4 bash:2 timeout:2
+[queue] EXIT 1

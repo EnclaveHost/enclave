@@ -1,0 +1,26 @@
+{
+  "format": "enclave-r13-input-qualification/v1",
+  "stage": "production-bootstrap-wiring-stage/r2",
+  "stageSha256sums": "89586568d38d7f6f9df5ef2cec591e65f5327b88c7459e2f8233a555a4f7f06a",
+  "receipts": [
+    {
+      "path": "logs/claude-bootstrap-wiring-r2-2.out",
+      "sha256": "150fe5cb4d9beb7adcc45bbaf4253aedc2f8db4ab3d86b5bd7f0b569672a4017",
+      "lines": [
+        "## bootstrap-wiring-r2 SHA256SUMS 89586568d38d7f6f9df5ef2cec591e65f5327b88c7459e2f8233a555a4f7f06a",
+        "## bootstrap-wiring-r2 rc=0",
+        "PASS bootstrap-wiring Ran 22 (expected 22)",
+        "PASS r3-regression Ran 28 (expected 28)",
+        "PASS ops-installer Ran 18 (expected 18)",
+        "PASS integration Ran 17 (expected 17)",
+        "PASS reproof Ran 17 (expected 17)",
+        "PASS forward-sync-r2 Ran 6 (expected 6)",
+        "PASS reanchor-recovery Ran 25 (expected 25)",
+        "PASS r62-isolated Ran 2 (expected 2)",
+        "PASS forward-sync Ran 8 (expected 8)"
+      ],
+      "rc": "logs/claude-bootstrap-wiring-r2-2.rc"
+    }
+  ],
+  "binds": "stageSha256sums"
+}

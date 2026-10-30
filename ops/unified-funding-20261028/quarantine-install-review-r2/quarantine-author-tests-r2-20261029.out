@@ -1,0 +1,27 @@
+[queue] START available=92608MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+................F....
+======================================================================
+FAIL: test_missing_snapshots (__main__.PreflightRefusals.test_missing_snapshots)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/quarantine-install-root-review-r2/test_quarantine_install_r2.py", line 300, in test_missing_snapshots
+    s.refused("snapshot-missing", s.w.inst.apply, OP, s.ps)
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/quarantine-install-root-review-r2/test_quarantine_install_r2.py", line 188, in refused
+    s.assertEqual(cm.exception.code, code)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'snapshot-copy-missing' != 'snapshot-missing'
+- snapshot-copy-missing
+?          -----
++ snapshot-missing
+
+
+----------------------------------------------------------------------
+Ran 21 tests in 0.247s
+
+FAILED (failures=1)
+[memory-guard] exit=1 peakTreeRssMiB=25 minHostAvailableMiB=92581
+[memory-guard] at peak: python3:25
+[memory-guard] exit=1 peakTreeRssMiB=75 minHostAvailableMiB=92583
+[memory-guard] at peak: node:50 python3:25
+[queue] EXIT 1

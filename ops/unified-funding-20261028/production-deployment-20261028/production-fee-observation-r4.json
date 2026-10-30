@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-28T21:42:34.579Z",
+  "readOnly": true,
+  "activation": false,
+  "providers": [
+    "https://base-rpc.publicnode.com",
+    "https://base-mainnet.public.blastapi.io"
+  ],
+  "signature": false,
+  "error": "base-rpc.publicnode.com returned HTTP 429 for eth_blockNumber"
+}

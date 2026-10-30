@@ -1,0 +1,2 @@
+test/attested-chain-verifier.test.mjs
+test/metal-measured-control.test.mjs

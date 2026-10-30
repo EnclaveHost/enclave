@@ -1,0 +1,16 @@
+[profile.default]
+src = "../candidate/contracts"
+test = "../candidate/test"
+out = "out"
+cache_path = "cache"
+libs = []
+solc = "0.8.35"
+optimizer = true
+optimizer_runs = 1
+via_ir = true
+evm_version = "prague"
+offline = true
+ffi = false
+extra_output = ["storageLayout"]
+allow_paths = ["/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate", "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src"]
+remappings = ["forge-std/=/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/"]

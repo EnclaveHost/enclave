@@ -1,0 +1,98 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 5 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 6 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 7 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 8 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 9 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 10 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 11 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 12 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 13 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 14 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 15 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 16 not started; sleep 30
+[queue] START available=23942MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+Ran 4 tests in 1.130s
+
+OK
+Ran 12 tests in 50.368s
+
+FAILED (errors=1)
+{
+ "environment": {
+  "noMountLeft": true,
+  "peersUnchanged": true
+ },
+ "format": "composite-mdbx-validation-test-receipt/r5",
+ "guardSha256": "f64c6115ab8ac871d1813d53d45d3b03369c330c45617763824a4bb3fef287ce",
+ "pass": false,
+ "scope": "tiny real MDBX fixtures + guard unit tests only; no production view or part; not chain/state/RPC/SNP validation",
+ "sessionSha256": "407aa7e98fe18f913112b9f49369416e98524ff28f4e44cde788958f314fdbf6",
+ "stageSums": "b3a318d6864f23a991480f89fe2075c643799df1959bab46721b4d9a0e525b98",
+ "suites": {
+  "test_composite_session": {
+   "badMarkers": [
+    "FAIL",
+    "ERROR",
+    "Traceback"
+   ],
+   "checks": {
+    "lastLineOK": false,
+    "noBadMarkers": false,
+    "ranExactly": true,
+    "rc0": false,
+    "stdoutEmpty": true
+   },
+   "expectedTests": 12,
+   "pass": false,
+   "ran": [
+    "12"
+   ],
+   "rc": 1,
+   "testsSha256": "7478ededf6830be7812c730b4d0724f1b2915c8ae2240b204debaa75e5aa65c6"
+  },
+  "test_session_guard": {
+   "badMarkers": [],
+   "checks": {
+    "lastLineOK": true,
+    "noBadMarkers": true,
+    "ranExactly": true,
+    "rc0": true,
+    "stdoutEmpty": true
+   },
+   "expectedTests": 4,
+   "pass": true,
+   "ran": [
+    "4"
+   ],
+   "rc": 0,
+   "testsSha256": "6a66be0d0a2ff88d58dbff0d7d2b0c2ead3693a6ac12042901719304f273994b"
+  }
+ }
+}
+## fixtures RETAINED for inspection: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r5/runs/tests-20261027T013310Z-2582681/tmp (never removed after a failure or with a mount)
+## FAIL
+## receipt /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r5/runs/tests-20261027T013310Z-2582681/receipt.json
+## cmv-r5-tests rc=1
+[memory-guard] exit=1 peakTreeRssMiB=116 minHostAvailableMiB=23801
+[memory-guard] at peak: python3:33 python3:30 python3:20 qemu-nbd:10 python3:10 nbdfuse:8 bash:4 timeout:2
+[queue] EXIT 1

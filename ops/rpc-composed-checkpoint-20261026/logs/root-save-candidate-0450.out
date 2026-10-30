@@ -1,0 +1,20 @@
+[queue] START available=22782MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+[fix/rpc-runtime-final-20261026 10cdf913b] Integrate explicit RPC verifier authority and preserve host enrollment
+ 20 files changed, 927 insertions(+), 89 deletions(-)
+ create mode 100644 test/helpers-recorder.mjs
+ create mode 100644 test/mcp-independent-verifier.test.mjs
+ create mode 100644 test/stack-admin-controls.test.mjs
+ create mode 100644 test/stack-chain-authority-boundary.test.mjs
+ create mode 100644 test/stack-custody-v2-refused.test.mjs
+ create mode 100644 test/stack-provider-authority.test.mjs
+ create mode 100644 test/stack-windows-chain-reader.test.mjs
+remote: 
+remote: Create a pull request for 'fix/rpc-runtime-final-20261026' on GitHub by visiting:        
+remote:      https://github.com/EnclaveHost/enclave/pull/new/fix/rpc-runtime-final-20261026        
+remote: 
+To https://github.com/EnclaveHost/enclave.git
+ * [new branch]          HEAD -> fix/rpc-runtime-final-20261026
+10cdf913b9b8bb168156e42da2a9a2a26c2526ad
+[memory-guard] exit=0 peakTreeRssMiB=186 minHostAvailableMiB=22629
+[memory-guard] at peak: git:150 git-remote-http:15 git:7 git:5 git:4 bash:4
+[queue] EXIT 0

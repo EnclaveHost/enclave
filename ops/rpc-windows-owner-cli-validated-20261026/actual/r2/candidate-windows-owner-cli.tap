@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: status under the verifier: the registry entry and the owner balance are read from the verifier only; nothing is sent
+ok 1 - status under the verifier: the registry entry and the owner balance are read from the verifier only; nothing is sent
+  ---
+  duration_ms: 306.132906
+  type: 'test'
+  ...
+# Subtest: fund-operator under the verifier: gated, bound backend submission, pending nonce from the backend, verified receipt; never the verifier, never public
+ok 2 - fund-operator under the verifier: gated, bound backend submission, pending nonce from the backend, verified receipt; never the verifier, never public
+  ---
+  duration_ms: 329.252778
+  type: 'test'
+  ...
+# Subtest: declare-payout under the verifier: simulate on the verifier, gated submission to the backend, the payout wallet read back from the verifier
+ok 3 - declare-payout under the verifier: simulate on the verifier, gated submission to the backend, the payout wallet read back from the verifier
+  ---
+  duration_ms: 326.68578
+  type: 'test'
+  ...
+# Subtest: pool acceptance is never inclusion: no verified receipt -> no success; a reverted receipt -> refused
+ok 4 - pool acceptance is never inclusion: no verified receipt -> no success; a reverted receipt -> refused
+  ---
+  duration_ms: 15356.311606
+  type: 'test'
+  ...
+# Subtest: no own backend: reads work, every owner-signed command is refused before signing, nothing is submitted anywhere
+ok 5 - no own backend: reads work, every owner-signed command is refused before signing, nothing is submitted anywhere
+  ---
+  duration_ms: 995.213964
+  type: 'test'
+  ...
+# Subtest: refusals before anything: BASE_RPCS mixed with the verifier, invalid selections, a non-loopback verifier; a backend on another chain sends nothing
+ok 6 - refusals before anything: BASE_RPCS mixed with the verifier, invalid selections, a non-loopback verifier; a backend on another chain sends nothing
+  ---
+  duration_ms: 1627.431867
+  type: 'test'
+  ...
+# Subtest: ownership-status under the verifier: the verified host-ownership contract read at head - 2; a CONTRACT-WALLET owner is reported as the accepted owner
+ok 7 - ownership-status under the verifier: the verified host-ownership contract read at head - 2; a CONTRACT-WALLET owner is reported as the accepted owner
+  ---
+  duration_ms: 330.356596
+  type: 'test'
+  ...
+# Subtest: legacy (no authority): BASE_RPCS is used exactly as before for reads and the send; the verifier and backend are never contacted
+ok 8 - legacy (no authority): BASE_RPCS is used exactly as before for reads and the send; the verifier and backend are never contacted
+  ---
+  duration_ms: 628.081905
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 20070.065983

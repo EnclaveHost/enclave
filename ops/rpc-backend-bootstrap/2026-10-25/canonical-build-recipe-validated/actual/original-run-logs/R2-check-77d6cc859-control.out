@@ -1,0 +1,26 @@
+{
+  "source": "https://codeload.github.com/base/base/tar.gz/5476069f1eb74a56bccb56fdefd4b4bb0e3cda42",
+  "commit": "5476069f1eb74a56bccb56fdefd4b4bb0e3cda42",
+  "tarballSha256": "9784e20a3cfeac555d96e8d1f15526d5264f0e6d8885b951c6f1220355038012",
+  "filesExtracted": 207,
+  "crates": {
+    "base-consensus-gossip": "crates/consensus/gossip",
+    "base-consensus-peers": "crates/consensus/peers",
+    "base-consensus-disc": "crates/consensus/disc",
+    "base-protocol": "crates/consensus/protocol",
+    "base-common-chains": "crates/common/chains",
+    "base-common-genesis": "crates/common/genesis",
+    "base-common-consensus": "crates/common/consensus",
+    "base-common-rpc-types-engine": "crates/common/rpc-types-engine",
+    "base-metrics": "crates/utilities/metrics"
+  },
+  "crateManifestsModified": false,
+  "generated": [
+    "Cargo.toml (root)",
+    "upstream/base-5476069f/Cargo.toml (vendor mini workspace)"
+  ]
+}
+helios: resolves --locked --offline; packages 979; lock 28f4400cef93f04c28c2a0fe012cef917937c821560387456369ee88241cabc4
+listener: resolves --locked --offline; packages 625; lock 5ad182d75859595c7e8f70f03b9ae35da9eeae3f6ef7890b367dca78b349c0eb
+rustc 1.96.0 (ac68faa20 2026-05-25); base 9784e20a3cfeac555d96e8d1f15526d5264f0e6d8885b951c6f1220355038012; helios ef3202982b475212d9bb6adfdc3eed4ebb0b83c5 tree eec339e18296d850a514f72de2efdd8729302efd; listener 5e178676bbe0ce5cda7ea95a3ccfefa8dca8a4b7 tree 00e3a61d48c91a6072355bf0ac67564490a6fc8b
+CLOSURE_CHECK_OK

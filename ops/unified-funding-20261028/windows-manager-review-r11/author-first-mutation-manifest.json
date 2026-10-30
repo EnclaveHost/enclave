@@ -1,0 +1,11 @@
+{
+  "RELEASE-CLOSURE-R11.json": "49671b368fae50925646f6ef6f428fc1198eb62151afce817f0578b9fae42bc3",
+  "REPORT-WINDOWS-PERMIT-R11.md": "9ce90854b07e5390b4f9870eef0f96a2b8a66828b9e9ae86e77b3c8b73614969",
+  "control/network/lifecycle-host-dispatch.mjs": "d14550bb85bc8ddc27f30096f1aadb8aeb96faca9d230c5f901bb54693c596dd",
+  "control/windows/node/chain.mjs": "26dec3804cf4b3716566cc38d7cc67136eb13fe83bb2451af4460d57f72e03fa",
+  "control/windows/node/host.mjs": "7b7d3537c9cbccb8e74f59746f619f60d3a7b307a78bf44852a213b029c2d265",
+  "control/windows/node/protected-authority-factory.mjs": "16abe17b64f7bff04e241704c994346152088b349efdb89df3225dea1cf16b09",
+  "control/windows/node/protected-supervisor.mjs": "b3bcae561d352bfebed47f791d1b1f2537516d43272106f6c6674a4cb9cab522",
+  "test/windows-permit/r10-host-independence.test.mjs": "feef7113ee3c13dcdba5883639ce73bdb8eb9e55341862f97485af0f08c5f8f1",
+  "test/windows-permit/r11-policy-send-boundary.test.mjs": "d1a59bd3576e3c7f01bfef4240aaa9a9edeeedf66f9ff21dcb419cefed7a1ede"
+}

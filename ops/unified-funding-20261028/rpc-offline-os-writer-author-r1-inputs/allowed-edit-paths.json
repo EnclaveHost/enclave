@@ -1,0 +1,23 @@
+{
+  "existing": [],
+  "newSource": [
+    "offline_mask.py"
+  ],
+  "newTests": [
+    "test_offline_mask.py"
+  ],
+  "reports": [
+    "REPORT.md",
+    "CLOSURE.json"
+  ],
+  "immutable": [
+    "inspect_os_disk.py",
+    "inspect_units.py",
+    "guest_mask.py",
+    "fixture_reference.py",
+    "UNIT-PINS.json",
+    "all files outside candidate"
+  ],
+  "scope": "Fresh OS derivative writer only; never production publication or VM/client/DB/funding changes",
+  "note": "Tool allowlist is not an OS sandbox; manual semantic review and terminal mutation audit required."
+}

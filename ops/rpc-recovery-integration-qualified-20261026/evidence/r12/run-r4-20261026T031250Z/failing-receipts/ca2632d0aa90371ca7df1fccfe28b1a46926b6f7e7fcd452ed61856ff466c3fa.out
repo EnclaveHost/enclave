@@ -1,0 +1,143 @@
+TAP version 13
+# Subtest: the chain module's four lease-gas imports are exported by this tree's self-contained runtime bundle
+ok 1 - the chain module's four lease-gas imports are exported by this tree's self-contained runtime bundle
+  ---
+  duration_ms: 892.328447
+  type: 'test'
+  ...
+# Subtest: the migration's node settings load in the runtime bundle as local-first + the alternate; the previous ones as before; tampering refuses
+ok 2 - the migration's node settings load in the runtime bundle as local-first + the alternate; the previous ones as before; tampering refuses
+  ---
+  duration_ms: 307.501418
+  type: 'test'
+  ...
+# Subtest: before the move: settings naming the source first relay through it; no operator ETH
+not ok 3 - before the move: settings naming the source first relay through it; no operator ETH
+  ---
+  duration_ms: 142.87302
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/lease-relay-migration.test.mjs:177:1'
+  failureType: 'testCodeFailure'
+  error: "The requested module './lease-gas-runtime.bundle.mjs' does not provide an export named 'chainAuthorityFromEnv'"
+  code: 'ERR_TEST_FAILURE'
+  name: 'SyntaxError'
+  stack: |-
+    ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    async loadHost (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/lease-relay-migration.test.mjs:88:13)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/lease-relay-migration.test.mjs:178:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: the source's unresolved send: a broadcast lost in the mempool leaves {nonce, raw, hash} on the source; the host fails over to eu-central
+not ok 4 - the source's unresolved send: a broadcast lost in the mempool leaves {nonce, raw, hash} on the source; the host fails over to eu-central
+  ---
+  duration_ms: 6.308001
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/lease-relay-migration.test.mjs:186:1'
+  failureType: 'testCodeFailure'
+  error: "The requested module './lease-gas-runtime.bundle.mjs' does not provide an export named 'chainAuthorityFromEnv'"
+  code: 'ERR_TEST_FAILURE'
+  name: 'SyntaxError'
+  stack: |-
+    ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    async loadHost (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/lease-relay-migration.test.mjs:88:13)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/lease-relay-migration.test.mjs:187:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: the migration gate: refuses an absent journal, another key's record, a consumed nonce and a source still serving; passes the moved key
+not ok 5 - the migration gate: refuses an absent journal, another key's record, a consumed nonce and a source still serving; passes the moved key
+  ---
+  duration_ms: 0.733302
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/lease-relay-migration.test.mjs:204:1'
+  failureType: 'testCodeFailure'
+  error: "the previous test left the source's unresolved send"
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/lease-relay-migration.test.mjs:205:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: the moved key on the target: same payee, the journal's bytes re-broadcast before any new send, local FIRST with the DO relays absent, no operator ETH
+not ok 6 - the moved key on the target: same payee, the journal's bytes re-broadcast before any new send, local FIRST with the DO relays absent, no operator ETH
+  ---
+  duration_ms: 31.801648
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/lease-relay-migration.test.mjs:236:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    [lease-relay-check] /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/tmp/local-relay-migration-lI8lTv/ProgramData/Enclave/lease-relay/relay.key: ENOENT
+    [lease-relay-check] LEASE_RELAY_STATE directory /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/tmp/local-relay-migration-lI8lTv/ProgramData/Enclave/lease-relay: ENOENT
+    
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/lease-relay-migration.test.mjs:240:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: the local relay down: the approved secondary (eu-central) serves; restarted on its own key and journal it is first again
+not ok 7 - the local relay down: the approved secondary (eu-central) serves; restarted on its own key and journal it is first again
+  ---
+  duration_ms: 0.345246
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/lease-relay-migration.test.mjs:270:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'stop')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/lease-relay-migration.test.mjs:271:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: settings without a local relay (a rollback of the settings) relay through the configured relays as before; the source is gone: the alternate serves
+not ok 8 - settings without a local relay (a rollback of the settings) relay through the configured relays as before; the source is gone: the alternate serves
+  ---
+  duration_ms: 9.171598
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/lease-relay-migration.test.mjs:287:1'
+  failureType: 'testCodeFailure'
+  error: "The requested module './lease-gas-runtime.bundle.mjs' does not provide an export named 'chainAuthorityFromEnv'"
+  code: 'ERR_TEST_FAILURE'
+  name: 'SyntaxError'
+  stack: |-
+    ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    async loadHost (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/lease-relay-migration.test.mjs:88:13)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/lease-relay-migration.test.mjs:288:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 2
+# fail 6
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1880.073258

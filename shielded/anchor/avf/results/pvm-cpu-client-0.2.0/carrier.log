@@ -1,0 +1,15 @@
+127.0.0.1 - - [24/Sep/2026 03:12:58] "GET /current.json HTTP/1.1" 200 -
+127.0.0.1 - - [24/Sep/2026 03:13:04] "GET /current.json HTTP/1.1" 200 -
+127.0.0.1 - - [24/Sep/2026 03:13:09] "GET /current.json HTTP/1.1" 200 -
+127.0.0.1 - - [24/Sep/2026 03:13:12] "GET /current.json HTTP/1.1" 200 -
+127.0.0.1 - - [24/Sep/2026 03:13:18] "GET /current.json HTTP/1.1" 200 -
+127.0.0.1 - - [24/Sep/2026 03:13:21] "GET /current.json HTTP/1.1" 200 -
+127.0.0.1 - - [24/Sep/2026 03:13:25] "GET /current.json HTTP/1.1" 200 -
+127.0.0.1 - - [24/Sep/2026 03:13:28] "GET /current.json HTTP/1.1" 200 -
+127.0.0.1 - - [24/Sep/2026 03:13:33] "GET /current.json HTTP/1.1" 200 -
+127.0.0.1 - - [24/Sep/2026 03:13:41] "GET /current.json?for=ext-stream HTTP/1.1" 200 -
+127.0.0.1 - - [24/Sep/2026 03:13:49] "GET /current.json?for=ext-policy-2 HTTP/1.1" 200 -
+127.0.0.1 - - [24/Sep/2026 03:13:58] "GET /current.json?for=ext-attacker-policy HTTP/1.1" 200 -
+127.0.0.1 - - [24/Sep/2026 03:14:03] "GET /current.json?for=ext-rollback HTTP/1.1" 200 -
+127.0.0.1 - - [24/Sep/2026 03:14:10] "GET /current.json?for=ext-relay-swaps-key HTTP/1.1" 200 -
+127.0.0.1 - - [24/Sep/2026 03:14:17] "GET /current.json?for=ext-relay-truncates HTTP/1.1" 200 -

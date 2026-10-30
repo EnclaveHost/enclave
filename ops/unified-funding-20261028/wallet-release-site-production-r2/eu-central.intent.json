@@ -1,0 +1,10 @@
+{
+  "host": "eu-central",
+  "cid": "bafybeigthicg2adduyduhvavlibxn6vz6kl2xshz5ysstirofn5tdg5dzq",
+  "state": "REQUESTED_NO_AUTOMATIC_RETRY",
+  "scriptSha256": "0e223770d14060aac05ea7cb81f1bc02bd8651f3f288d99c7a765217b88a5d58",
+  "semanticChanges": [
+    "apps/http/servers/srv1/errors/routes/0/handle/0/routes/0/handle/0/routes/0/handle/0/root",
+    "apps/http/servers/srv1/routes/4/handle/0/routes/4/handle/0/routes/0/handle/0/root"
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "package": "/var/cache/pacman/pkg/libnfs-6.0.2-5-x86_64.pkg.tar.zst",
+  "package_sha256": "35668e71566c8f508add6db8a3b2de56bee1561302e0ed47dfcf9f9616ae4a51",
+  "library_sha256": "d46de35eb68e1fe261df832f4e7ac1fd3c356c47a9b371585a676e1683ca10d3",
+  "scope": "private test-only QEMU library, no system install"
+}

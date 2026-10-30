@@ -1,0 +1,493 @@
+test_drop_order_ids_and_irreversibility (__main__.DropPrivileges.test_drop_order_ids_and_irreversibility) ... ok
+test_incomplete_or_reversible_drop_refuses (__main__.DropPrivileges.test_incomplete_or_reversible_drop_refuses) ... ok
+test_service_identity_is_never_root (__main__.DropPrivileges.test_service_identity_is_never_root) ... ok
+test_crash_after_consume_refuses_until_rearm_with_the_unchanged_db (__main__.Handshake.test_crash_after_consume_refuses_until_rearm_with_the_unchanged_db) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ERROR
+test_crash_before_consume_keeps_the_launch_pending (__main__.Handshake.test_crash_before_consume_keeps_the_launch_pending) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ERROR
+test_expired_start_refuses_without_consuming (__main__.Handshake.test_expired_start_refuses_without_consuming) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ERROR
+test_lock_and_journal_tamper_refuse (__main__.Handshake.test_lock_and_journal_tamper_refuse) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ERROR
+test_one_shot_gates_under_lock_consume_before_exec_and_restarts_refuse (__main__.Handshake.test_one_shot_gates_under_lock_consume_before_exec_and_restarts_refuse) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ERROR
+test_rearm_needs_a_consumed_start_and_arm_needs_the_db_at_n (__main__.Handshake.test_rearm_needs_a_consumed_start_and_arm_needs_the_db_at_n) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ERROR
+test_rearm_refuses_unless_the_stopped_db_is_unchanged_at_n (__main__.Handshake.test_rearm_refuses_unless_the_stopped_db_is_unchanged_at_n) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ERROR
+test_release_mode_needs_the_root_handshake_and_legacy_is_unchanged (__main__.Handshake.test_release_mode_needs_the_root_handshake_and_legacy_is_unchanged) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ERROR
+test_rollback_is_terminal (__main__.Handshake.test_rollback_is_terminal) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ERROR
+test_source_holds_refuse_before_consuming_and_no_finality_is_accepted (__main__.Handshake.test_source_holds_refuse_before_consuming_and_no_finality_is_accepted) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ERROR
+test_two_concurrent_starts_launch_exactly_once (__main__.Handshake.test_two_concurrent_starts_launch_exactly_once)
+Deterministic: the lock holder blocks INSIDE its gates on a pipe until the parent releases it; no sleeps. ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ERROR
+test_every_binding_mismatch_refuses_before_consuming (__main__.LaunchBinding.test_every_binding_mismatch_refuses_before_consuming) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ERROR
+test_launch_pin_is_the_immutable_record_only (__main__.LaunchBinding.test_launch_pin_is_the_immutable_record_only) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ERROR
+test_binary_harness_and_coverage_bindings_refuse (__main__.ProduceRefusals.test_binary_harness_and_coverage_bindings_refuse) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ok
+test_db_or_journal_change_after_the_scan_refuses (__main__.ProduceRefusals.test_db_or_journal_change_after_the_scan_refuses) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/tmp/tmpy5czgc0b'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ok
+test_never_overwrites_and_needs_the_reviewed_harness_source (__main__.ProduceRefusals.test_never_overwrites_and_needs_the_reviewed_harness_source) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ok
+test_produce_publishes_exact_copies_atomically (__main__.ProduceRefusals.test_produce_publishes_exact_copies_atomically) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ok
+test_refuses_without_a_newest_successful_release (__main__.ProduceRefusals.test_refuses_without_a_newest_successful_release) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"step": "plan", "ok": true, "refused": null}
+ok
+test_stale_release_refuses (__main__.ProduceRefusals.test_stale_release_refuses) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ok
+test_tampered_harness_records_refuse (__main__.ProduceRefusals.test_tampered_harness_records_refuse) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ok
+test_the_production_a1_pin_refuses_the_fixture_receipt (__main__.ProduceRefusals.test_the_production_a1_pin_refuses_the_fixture_receipt) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ok
+test_the_real_source_checker_pin_keeps_the_gap_open (__main__.ProduceRefusals.test_the_real_source_checker_pin_keeps_the_gap_open) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ok
+test_tampered_release_refuses_in_the_real_call_path_before_consuming (__main__.ReleaseSelection.test_tampered_release_refuses_in_the_real_call_path_before_consuming) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ERROR
+test_valid_release_selected_and_every_deviation_refused (__main__.ReleaseSelection.test_valid_release_selected_and_every_deviation_refused) ... ok
+
+======================================================================
+ERROR: test_crash_after_consume_refuses_until_rearm_with_the_unchanged_db (__main__.Handshake.test_crash_after_consume_refuses_until_rearm_with_the_unchanged_db)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 383, in test_crash_after_consume_refuses_until_rearm_with_the_unchanged_db
+    self.launched()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 83, in launched
+    self.released(); self.produce(); self.assertEqual(self.arm()['event'], 'armed')
+                                                      ~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 86, in arm
+    return P.arm(self.out, self.d / 'cfg.json', A=A, W=W, owner=self.uid, top=self.top, **kw)
+           ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 684, in arm
+    evidence = stopped_db_unchanged_at_n(launch, cfg_path, A=A)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 415, in stopped_db_unchanged_at_n
+    c = bound_config(launch, cfg_path, A); w = pathlib.Path(c['workdir'])
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 407, in bound_config
+    refuse('binary_pin', 'the config names another base binary than the harness pin')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 89, in refuse
+    raise Refused(f'{code}: {why}')
+base_launch.Refused: binary_pin: the config names another base binary than the harness pin
+
+======================================================================
+ERROR: test_crash_before_consume_keeps_the_launch_pending (__main__.Handshake.test_crash_before_consume_keeps_the_launch_pending)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 406, in test_crash_before_consume_keeps_the_launch_pending
+    self.launched()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 83, in launched
+    self.released(); self.produce(); self.assertEqual(self.arm()['event'], 'armed')
+                                                      ~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 86, in arm
+    return P.arm(self.out, self.d / 'cfg.json', A=A, W=W, owner=self.uid, top=self.top, **kw)
+           ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 684, in arm
+    evidence = stopped_db_unchanged_at_n(launch, cfg_path, A=A)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 415, in stopped_db_unchanged_at_n
+    c = bound_config(launch, cfg_path, A); w = pathlib.Path(c['workdir'])
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 407, in bound_config
+    refuse('binary_pin', 'the config names another base binary than the harness pin')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 89, in refuse
+    raise Refused(f'{code}: {why}')
+base_launch.Refused: binary_pin: the config names another base binary than the harness pin
+
+======================================================================
+ERROR: test_expired_start_refuses_without_consuming (__main__.Handshake.test_expired_start_refuses_without_consuming)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 452, in test_expired_start_refuses_without_consuming
+    self.launched(); before = self.journal()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 83, in launched
+    self.released(); self.produce(); self.assertEqual(self.arm()['event'], 'armed')
+                                                      ~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 86, in arm
+    return P.arm(self.out, self.d / 'cfg.json', A=A, W=W, owner=self.uid, top=self.top, **kw)
+           ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 684, in arm
+    evidence = stopped_db_unchanged_at_n(launch, cfg_path, A=A)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 415, in stopped_db_unchanged_at_n
+    c = bound_config(launch, cfg_path, A); w = pathlib.Path(c['workdir'])
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 407, in bound_config
+    refuse('binary_pin', 'the config names another base binary than the harness pin')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 89, in refuse
+    raise Refused(f'{code}: {why}')
+base_launch.Refused: binary_pin: the config names another base binary than the harness pin
+
+======================================================================
+ERROR: test_lock_and_journal_tamper_refuse (__main__.Handshake.test_lock_and_journal_tamper_refuse)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 532, in test_lock_and_journal_tamper_refuse
+    self.launched(); self.assertEqual(self.start(), 'exec'); lock = self.out / 'journal.lock'; jd = self.out / 'journal'
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 83, in launched
+    self.released(); self.produce(); self.assertEqual(self.arm()['event'], 'armed')
+                                                      ~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 86, in arm
+    return P.arm(self.out, self.d / 'cfg.json', A=A, W=W, owner=self.uid, top=self.top, **kw)
+           ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 684, in arm
+    evidence = stopped_db_unchanged_at_n(launch, cfg_path, A=A)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 415, in stopped_db_unchanged_at_n
+    c = bound_config(launch, cfg_path, A); w = pathlib.Path(c['workdir'])
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 407, in bound_config
+    refuse('binary_pin', 'the config names another base binary than the harness pin')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 89, in refuse
+    raise Refused(f'{code}: {why}')
+base_launch.Refused: binary_pin: the config names another base binary than the harness pin
+
+======================================================================
+ERROR: test_one_shot_gates_under_lock_consume_before_exec_and_restarts_refuse (__main__.Handshake.test_one_shot_gates_under_lock_consume_before_exec_and_restarts_refuse)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 364, in test_one_shot_gates_under_lock_consume_before_exec_and_restarts_refuse
+    self.launched()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 83, in launched
+    self.released(); self.produce(); self.assertEqual(self.arm()['event'], 'armed')
+                                                      ~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 86, in arm
+    return P.arm(self.out, self.d / 'cfg.json', A=A, W=W, owner=self.uid, top=self.top, **kw)
+           ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 684, in arm
+    evidence = stopped_db_unchanged_at_n(launch, cfg_path, A=A)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 415, in stopped_db_unchanged_at_n
+    c = bound_config(launch, cfg_path, A); w = pathlib.Path(c['workdir'])
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 407, in bound_config
+    refuse('binary_pin', 'the config names another base binary than the harness pin')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 89, in refuse
+    raise Refused(f'{code}: {why}')
+base_launch.Refused: binary_pin: the config names another base binary than the harness pin
+
+======================================================================
+ERROR: test_rearm_needs_a_consumed_start_and_arm_needs_the_db_at_n (__main__.Handshake.test_rearm_needs_a_consumed_start_and_arm_needs_the_db_at_n)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 482, in test_rearm_needs_a_consumed_start_and_arm_needs_the_db_at_n
+    self.launched()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 83, in launched
+    self.released(); self.produce(); self.assertEqual(self.arm()['event'], 'armed')
+                                                      ~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 86, in arm
+    return P.arm(self.out, self.d / 'cfg.json', A=A, W=W, owner=self.uid, top=self.top, **kw)
+           ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 684, in arm
+    evidence = stopped_db_unchanged_at_n(launch, cfg_path, A=A)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 415, in stopped_db_unchanged_at_n
+    c = bound_config(launch, cfg_path, A); w = pathlib.Path(c['workdir'])
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 407, in bound_config
+    refuse('binary_pin', 'the config names another base binary than the harness pin')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 89, in refuse
+    raise Refused(f'{code}: {why}')
+base_launch.Refused: binary_pin: the config names another base binary than the harness pin
+
+======================================================================
+ERROR: test_rearm_refuses_unless_the_stopped_db_is_unchanged_at_n (__main__.Handshake.test_rearm_refuses_unless_the_stopped_db_is_unchanged_at_n)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 465, in test_rearm_refuses_unless_the_stopped_db_is_unchanged_at_n
+    self.launched(); self.assertEqual(self.start(), 'exec'); before = self.journal()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 83, in launched
+    self.released(); self.produce(); self.assertEqual(self.arm()['event'], 'armed')
+                                                      ~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 86, in arm
+    return P.arm(self.out, self.d / 'cfg.json', A=A, W=W, owner=self.uid, top=self.top, **kw)
+           ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 684, in arm
+    evidence = stopped_db_unchanged_at_n(launch, cfg_path, A=A)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 415, in stopped_db_unchanged_at_n
+    c = bound_config(launch, cfg_path, A); w = pathlib.Path(c['workdir'])
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 407, in bound_config
+    refuse('binary_pin', 'the config names another base binary than the harness pin')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 89, in refuse
+    raise Refused(f'{code}: {why}')
+base_launch.Refused: binary_pin: the config names another base binary than the harness pin
+
+======================================================================
+ERROR: test_release_mode_needs_the_root_handshake_and_legacy_is_unchanged (__main__.Handshake.test_release_mode_needs_the_root_handshake_and_legacy_is_unchanged)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 515, in test_release_mode_needs_the_root_handshake_and_legacy_is_unchanged
+    self.launched(); before = self.journal()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 83, in launched
+    self.released(); self.produce(); self.assertEqual(self.arm()['event'], 'armed')
+                                                      ~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 86, in arm
+    return P.arm(self.out, self.d / 'cfg.json', A=A, W=W, owner=self.uid, top=self.top, **kw)
+           ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 684, in arm
+    evidence = stopped_db_unchanged_at_n(launch, cfg_path, A=A)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 415, in stopped_db_unchanged_at_n
+    c = bound_config(launch, cfg_path, A); w = pathlib.Path(c['workdir'])
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 407, in bound_config
+    refuse('binary_pin', 'the config names another base binary than the harness pin')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 89, in refuse
+    raise Refused(f'{code}: {why}')
+base_launch.Refused: binary_pin: the config names another base binary than the harness pin
+
+======================================================================
+ERROR: test_rollback_is_terminal (__main__.Handshake.test_rollback_is_terminal)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 494, in test_rollback_is_terminal
+    self.launched(); self.assertEqual(self.rollback()['event'], 'rolled-back')
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 83, in launched
+    self.released(); self.produce(); self.assertEqual(self.arm()['event'], 'armed')
+                                                      ~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 86, in arm
+    return P.arm(self.out, self.d / 'cfg.json', A=A, W=W, owner=self.uid, top=self.top, **kw)
+           ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 684, in arm
+    evidence = stopped_db_unchanged_at_n(launch, cfg_path, A=A)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 415, in stopped_db_unchanged_at_n
+    c = bound_config(launch, cfg_path, A); w = pathlib.Path(c['workdir'])
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 407, in bound_config
+    refuse('binary_pin', 'the config names another base binary than the harness pin')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 89, in refuse
+    raise Refused(f'{code}: {why}')
+base_launch.Refused: binary_pin: the config names another base binary than the harness pin
+
+======================================================================
+ERROR: test_source_holds_refuse_before_consuming_and_no_finality_is_accepted (__main__.Handshake.test_source_holds_refuse_before_consuming_and_no_finality_is_accepted)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 504, in test_source_holds_refuse_before_consuming_and_no_finality_is_accepted
+    self.launched(); before = self.journal()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 83, in launched
+    self.released(); self.produce(); self.assertEqual(self.arm()['event'], 'armed')
+                                                      ~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 86, in arm
+    return P.arm(self.out, self.d / 'cfg.json', A=A, W=W, owner=self.uid, top=self.top, **kw)
+           ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 684, in arm
+    evidence = stopped_db_unchanged_at_n(launch, cfg_path, A=A)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 415, in stopped_db_unchanged_at_n
+    c = bound_config(launch, cfg_path, A); w = pathlib.Path(c['workdir'])
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 407, in bound_config
+    refuse('binary_pin', 'the config names another base binary than the harness pin')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 89, in refuse
+    raise Refused(f'{code}: {why}')
+base_launch.Refused: binary_pin: the config names another base binary than the harness pin
+
+======================================================================
+ERROR: test_two_concurrent_starts_launch_exactly_once (__main__.Handshake.test_two_concurrent_starts_launch_exactly_once)
+Deterministic: the lock holder blocks INSIDE its gates on a pipe until the parent releases it; no sleeps.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 419, in test_two_concurrent_starts_launch_exactly_once
+    self.launched()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 83, in launched
+    self.released(); self.produce(); self.assertEqual(self.arm()['event'], 'armed')
+                                                      ~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 86, in arm
+    return P.arm(self.out, self.d / 'cfg.json', A=A, W=W, owner=self.uid, top=self.top, **kw)
+           ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 684, in arm
+    evidence = stopped_db_unchanged_at_n(launch, cfg_path, A=A)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 415, in stopped_db_unchanged_at_n
+    c = bound_config(launch, cfg_path, A); w = pathlib.Path(c['workdir'])
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 407, in bound_config
+    refuse('binary_pin', 'the config names another base binary than the harness pin')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 89, in refuse
+    raise Refused(f'{code}: {why}')
+base_launch.Refused: binary_pin: the config names another base binary than the harness pin
+
+======================================================================
+ERROR: test_every_binding_mismatch_refuses_before_consuming (__main__.LaunchBinding.test_every_binding_mismatch_refuses_before_consuming)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 312, in test_every_binding_mismatch_refuses_before_consuming
+    self.launched(); before = self.journal(); q = self.out / 'qualification'
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 83, in launched
+    self.released(); self.produce(); self.assertEqual(self.arm()['event'], 'armed')
+                                                      ~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 86, in arm
+    return P.arm(self.out, self.d / 'cfg.json', A=A, W=W, owner=self.uid, top=self.top, **kw)
+           ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 684, in arm
+    evidence = stopped_db_unchanged_at_n(launch, cfg_path, A=A)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 415, in stopped_db_unchanged_at_n
+    c = bound_config(launch, cfg_path, A); w = pathlib.Path(c['workdir'])
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 407, in bound_config
+    refuse('binary_pin', 'the config names another base binary than the harness pin')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 89, in refuse
+    raise Refused(f'{code}: {why}')
+base_launch.Refused: binary_pin: the config names another base binary than the harness pin
+
+======================================================================
+ERROR: test_launch_pin_is_the_immutable_record_only (__main__.LaunchBinding.test_launch_pin_is_the_immutable_record_only)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 353, in test_launch_pin_is_the_immutable_record_only
+    self.launched()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 83, in launched
+    self.released(); self.produce(); self.assertEqual(self.arm()['event'], 'armed')
+                                                      ~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 86, in arm
+    return P.arm(self.out, self.d / 'cfg.json', A=A, W=W, owner=self.uid, top=self.top, **kw)
+           ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 684, in arm
+    evidence = stopped_db_unchanged_at_n(launch, cfg_path, A=A)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 415, in stopped_db_unchanged_at_n
+    c = bound_config(launch, cfg_path, A); w = pathlib.Path(c['workdir'])
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 407, in bound_config
+    refuse('binary_pin', 'the config names another base binary than the harness pin')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 89, in refuse
+    raise Refused(f'{code}: {why}')
+base_launch.Refused: binary_pin: the config names another base binary than the harness pin
+
+======================================================================
+ERROR: test_tampered_release_refuses_in_the_real_call_path_before_consuming (__main__.ReleaseSelection.test_tampered_release_refuses_in_the_real_call_path_before_consuming)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 303, in test_tampered_release_refuses_in_the_real_call_path_before_consuming
+    self.launched(); before = self.journal()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 83, in launched
+    self.released(); self.produce(); self.assertEqual(self.arm()['event'], 'armed')
+                                                      ~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/tests/test_r3_launcher.py", line 86, in arm
+    return P.arm(self.out, self.d / 'cfg.json', A=A, W=W, owner=self.uid, top=self.top, **kw)
+           ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 684, in arm
+    evidence = stopped_db_unchanged_at_n(launch, cfg_path, A=A)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 415, in stopped_db_unchanged_at_n
+    c = bound_config(launch, cfg_path, A); w = pathlib.Path(c['workdir'])
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 407, in bound_config
+    refuse('binary_pin', 'the config names another base binary than the harness pin')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6/logs/root-finality-r6-tests-20261026T054735Z-964702/r7-with-r6/producer/base_launch.py", line 89, in refuse
+    raise Refused(f'{code}: {why}')
+base_launch.Refused: binary_pin: the config names another base binary than the harness pin
+
+----------------------------------------------------------------------
+Ran 27 tests in 116.492s
+
+FAILED (errors=14)

@@ -1,0 +1,119 @@
+--- a/harness-first/a2a4.py
++++ b/harness-first/a2a4.py
+@@ -279,12 +279,60 @@
+     return json.loads(m.group(1))
+ 
+ 
++# Pinned reth 7134be3b51cf9d9504f988bff3266a23085f0bd9 (base-v1.5.1 Cargo.lock rev):
++#  - `db stage-checkpoints get` without a stage prints `{stage}: {checkpoint:?}` for EVERY row of tables::StageCheckpoints
++#    (crates/cli/commands/src/db/stage_checkpoints.rs `get`, None branch): the key is the StageId Display string and the value
++#    the StageCheckpoint Debug `StageCheckpoint { block_number: N, stage_checkpoint: <Option<StageUnitCheckpoint>> }`;
++#  - StageId Display = as_str (crates/stages/types/src/id.rs): 'Headers', 'Bodies', 'Execution', 'MerkleExecute', 'Finish', ...;
++#  - live-sync persistence (DatabaseProvider::save_blocks -> update_pipeline_stages, crates/storage/provider/src/providers/
++#    database/provider.rs) moves EVERY StageId::ALL row to the persisted tip and records a LAGGING state/trie frontier ONLY in
++#    Finish's FinishCheckpoint.partial_state_trie (crates/stages/types/src/checkpoints.rs): labels are not persisted state.
++STAGE_KEYS = {'Headers': 'headers', 'Bodies': 'bodies', 'Execution': 'execution', 'MerkleExecute': 'merkle-execute', 'Finish': 'finish'}
++KNOWN_STAGES = frozenset({'StaticFile', 'MerkleChangeSets', 'Era', 'Headers', 'Bodies', 'SenderRecovery', 'Execution', 'PruneSenderRecovery',
++                          'MerkleUnwind', 'AccountHashing', 'StorageHashing', 'MerkleExecute', 'TransactionLookup', 'IndexAccountHistory',
++                          'IndexStorageHistory', 'Prune', 'Finish'})           # id.rs as_str (StageId::Other refused: not this client)
++STAGE_ROW = re.compile(r'(?P<s>[A-Za-z]+): StageCheckpoint \{ block_number: (?P<n>[0-9]+), stage_checkpoint: (?P<d>None|Some\(.*\)) \}')
++FINISH_DETAIL = re.compile(r'Some\(Finish\(FinishCheckpoint \{ partial_state_trie: (?:None|Some\((?P<p>[0-9]+)\)) \}\)\)')
++
++
++def parse_checkpoints(text):
++    """-> ({canonical key: block_number} for the five stages the harness uses, state frontier). Every non-empty line must be a
++    well-formed row of a known StageId; duplicates and missing required rows refuse. state frontier = Finish.partial_state_trie
++    when recorded, else Finish.block_number; never above Finish."""
++    rows = {}
++    for line in text.splitlines():
++        if not line.strip():
++            continue
++        m = STAGE_ROW.fullmatch(line.strip())
++        if not m:
++            refuse('unparsed', f'not a pinned stage-checkpoints row: {line.strip()[:160]!r}')
++        if m['s'] not in KNOWN_STAGES:
++            refuse('unparsed', f'unknown stage {m["s"]!r} (not a pinned StageId)')
++        if m['s'] in rows:
++            refuse('unparsed', f'duplicate checkpoint row for {m["s"]}')
++        rows[m['s']] = (int(m['n']), m['d'])
++    missing = [s for s in STAGE_KEYS if s not in rows]
++    if missing:
++        refuse('unparsed', f'no checkpoint for {missing}')
++    fin_n, fin_d = rows['Finish']
++    if fin_d == 'None':
++        state = fin_n
++    else:
++        f = FINISH_DETAIL.fullmatch(fin_d)
++        if not f:
++            refuse('unparsed', f'Finish stage_checkpoint is not a FinishCheckpoint: {fin_d[:160]!r}')
++        state = int(f['p']) if f['p'] is not None else fin_n
++    if state > fin_n:
++        refuse('unparsed', f'state frontier {state} above the Finish checkpoint {fin_n}')
++    return {k: rows[s][0] for s, k in STAGE_KEYS.items()}, state
++
++
+ def checkpoint_block(text, stage):
+-    """`stage-checkpoints get` prints Rust Debug 'stage: Some(StageCheckpoint { block_number: N, .. })'."""
+-    m = re.search(rf'^{re.escape(stage)}:\s*.*?block_number:\s*(\d+)', text, re.M)
+-    if not m:
++    """canonical key ('headers', 'merkle-execute', ...) -> block_number, from the pinned output (parse_checkpoints)"""
++    cps, _state = parse_checkpoints(text)
++    if stage not in cps:
+         refuse('unparsed', f'no checkpoint for {stage}')
+-    return int(m.group(1))
++    return cps[stage]
+ 
+ 
+ # ---- gates ----------------------------------------------------------------------------------------------------------------
+@@ -597,8 +645,12 @@
+ 
+ 
+ def head_checkpoints(c, base):
+-    t = base.db('stage-checkpoints', 'get')
+-    return {s: checkpoint_block(t, s) for s in ('headers', 'bodies', 'execution', 'merkle-execute', 'finish')}
++    return head_state(c, base)[0]
++
++
++def head_state(c, base):
++    """-> (canonical checkpoints, persisted state frontier) of the stopped DB (parse_checkpoints)"""
++    return parse_checkpoints(base.db('stage-checkpoints', 'get'))
+ 
+ 
+ def require_reviewed(c):
+@@ -609,9 +661,11 @@
+ # ---- steps ----------------------------------------------------------------------------------------------------------------
+ def step_plan(c, base, w):
+     g = {'a1': gate_a1(c), **gate_static(c, base)}
+-    cps = head_checkpoints(c, base)
++    cps, state = head_state(c, base)
+     if cps['execution'] < c['N']:
+         refuse('below_anchor', f'execution checkpoint {cps["execution"]} is below N: sync forward first (not prepared here)')
++    if state < c['N']:
++        refuse('state_below_anchor', f'the persisted state/trie frontier {state} (Finish.partial_state_trie) is below N: labels are not state')
+     targets = list(range(cps['execution'] - c['unwindChunk'], c['N'], -c['unwindChunk'])) + [c['N']]
+     a4 = [['stage', 'drop', '--datadir', c['datadir'], '--config', c['rethConfig'], 'merkle'],
+           ['stage', 'run', '--datadir', c['datadir'], '--config', c['rethConfig'], '--from', '0', '--to', str(c['N']), '--commit', '--checkpoints', '--skip-unwind', 'merkle']]
+@@ -645,9 +699,9 @@
+         done.append({'target': int(argv[-1]), 'checkpoints': cp})
+         if cp['execution'] != int(argv[-1]):
+             refuse('unwind_short', f'execution checkpoint {cp["execution"]} != unwind target {argv[-1]}')
+-    cps = head_checkpoints(c, base)
+-    if any(v != c['N'] for k, v in cps.items() if k != 'merkle-execute') or cps['merkle-execute'] > c['N']:
+-        refuse('unwind_incomplete', f'stage checkpoints after the unwind are not at N: {cps}')
++    cps, state = head_state(c, base)
++    if any(v != c['N'] for k, v in cps.items() if k != 'merkle-execute') or cps['merkle-execute'] > c['N'] or state != c['N']:
++        refuse('unwind_incomplete', f'stage checkpoints after the unwind are not at N: {cps} (state frontier {state})')
+     above = base.run('db', '--datadir', c['datadir'], '--config', c['rethConfig'], 'get', 'static-file', 'headers', str(c['N'] + 1))
+     if above.stdout.strip():
+         refuse('headers_above_n', 'a header above N survived the unwind')
+@@ -667,8 +721,8 @@
+     auth = load(w, 'a2-authenticated.json')['anchor']
+     load(w, 'a3-unwound.json')
+     plan = step_plan(c, base, w)
+-    pre = head_checkpoints(c, base)                  # the A3 receipt is not enough: THIS DB must still be unwound to exactly N
+-    if any(v != c['N'] for k, v in pre.items() if k != 'merkle-execute'):
++    pre, pre_state = head_state(c, base)             # the A3 receipt is not enough: THIS DB must still be unwound to exactly N
++    if any(v != c['N'] for k, v in pre.items() if k != 'merkle-execute') or pre_state != c['N']:
+         refuse('not_unwound', f'stage checkpoints {pre} are not at N: A4 runs only on the A3-unwound DB')
+     for argv in plan['a4']:
+         if any(s in argv for s in FORBIDDEN_STAGES_V2):

@@ -1,0 +1,5 @@
+test/chain-authority.test.mjs
+test/cli-combined-independent.test.mjs
+test/mcp-independent-unit.test.mjs
+test/mcp-independent-verifier.test.mjs
+test/mcp-independent.test.mjs

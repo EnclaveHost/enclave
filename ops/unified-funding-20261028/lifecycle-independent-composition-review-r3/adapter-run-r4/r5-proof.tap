@@ -1,0 +1,70 @@
+TAP version 13
+# Subtest: confirmed only with the exact transaction + receipt proven at ancestry of the authority block (queued and running)
+ok 1 - confirmed only with the exact transaction + receipt proven at ancestry of the authority block (queued and running)
+  ---
+  duration_ms: 1314.010102
+  type: 'test'
+  ...
+# Subtest: state alone never confirms: no location, a location above the authority block, or beyond the ancestry bound -> unknown
+ok 2 - state alone never confirms: no location, a location above the authority block, or beyond the ancestry bound -> unknown
+  ---
+  duration_ms: 893.588032
+  type: 'test'
+  ...
+# Subtest: tampered transaction bytes, receipt status, payment log, header root or header chain never confirm
+ok 3 - tampered transaction bytes, receipt status, payment log, header root or header chain never confirm
+  ---
+  duration_ms: 997.091445
+  type: 'test'
+  ...
+# Subtest: branch binding: data of a reorged-away branch never proves; the canonical re-execution does
+ok 4 - branch binding: data of a reorged-away branch never proves; the canonical re-execution does
+  ---
+  duration_ms: 989.062293
+  type: 'test'
+  ...
+# Subtest: an unrelated receipt never settles this intent: earlier intent, another controller, a non-transition call
+ok 5 - an unrelated receipt never settles this intent: earlier intent, another controller, a non-transition call
+  ---
+  duration_ms: 1307.452577
+  type: 'test'
+  ...
+# Subtest: runner: lost relay response and missing/tampered proof keep the exact intent pending; no resubmit, no serve; settles only with a proof
+ok 6 - runner: lost relay response and missing/tampered proof keep the exact intent pending; no resubmit, no serve; settles only with a proof
+  ---
+  duration_ms: 1065.848586
+  type: 'test'
+  ...
+# Subtest: finalize: finalized only with the proof; after a reorg removes it, unknown, then reorged once the deadline is past (no proof)
+ok 7 - finalize: finalized only with the proof; after a reorg removes it, unknown, then reorged once the deadline is past (no proof)
+  ---
+  duration_ms: 871.400169
+  type: 'test'
+  ...
+# Subtest: finalized fence: another transition consumed the generation -> fence (no proof, never confirmed); theirs is proven
+ok 8 - finalized fence: another transition consumed the generation -> fence (no proof, never confirmed); theirs is proven
+  ---
+  duration_ms: 809.40328
+  type: 'test'
+  ...
+# Subtest: fee payload bound: a rewritten, over-cap or over-budget fee is refused before broadcast; the prepared fee is min(budget, cap)
+ok 9 - fee payload bound: a rewritten, over-cap or over-budget fee is refused before broadcast; the prepared fee is min(budget, cap)
+  ---
+  duration_ms: 832.179028
+  type: 'test'
+  ...
+# Subtest: rpc-quorum: a valid receipt proof is still never verified; an unverified snapshot never prepares
+ok 10 - rpc-quorum: a valid receipt proof is still never verified; an unverified snapshot never prepares
+  ---
+  duration_ms: 600.231169
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 9925.888945

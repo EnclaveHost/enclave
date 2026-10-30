@@ -1,0 +1,406 @@
+// A PAID provider's on-chain sends (EnclaveConnectivity setHost and qualify, network/onchain-qualification.mjs) under
+// paidFinality "derived" (attested-authority.mjs providerPaidFinality). Every fact a send depends on is taken at an
+// L1-FINALIZED DERIVED Base block, never at the sequencer-signed unsafe head:
+//   * the block: ONE network/lifecycle-finality-bridge.mjs snapshot per operation, over the IN-PROCESS derived reader
+//     capability (network/derived-reader: tier l1-finalized-derived, bounded age, a durable floor that refuses a rollback or
+//     a contradiction - derived-anchor-floor.mjs); the executor's header at that number must be exactly the derived hash,
+//     state root and timestamp, before and after the read;
+//   * state (nonce, simulation, gas search, balance, contract reads): the proof executor - the branded attested verifier or
+//     the local loopback verifier, chosen by chainAuthority - pinned to { blockHash: the derived hash };
+//   * a receipt: the history source names only WHERE (a location hint). Its block M must be the derived block B or an
+//     ancestor whose hash is proven at B (EIP-2935 history storage slot M % 8191, read by the executor pinned to B);
+//     keccak(RLP) of M's header must be that hash; M's transaction bodies (ordinary eth_getBlockByNumber(M, true)) are
+//     re-encoded to their EIP-2718 bytes, each must hash to its body's hash and together they must reproduce M's
+//     transactionsRoot (so a receipt's index is THIS transaction's); the receipts trie, blooms and gas total recomputed by
+//     network/op-receipts-root.mjs must be M's receiptsRoot. Status, gas used and logs come only from that verified data.
+//     A wrong or unknown encoding cannot reproduce the root: it refuses (fails closed), it never resolves.
+//
+// THE NONCE JOURNAL (durable, contiguous, exclusively owned - a kernel lock beside the file). The next nonce is P, the nonce
+// PROVEN at the derived block, plus the number of this provider's own recorded, exact-byte transactions at or above P - never
+// a backend's word. Each signed transaction is written durably BEFORE its broadcast and is only ever re-broadcast as the same
+// bytes. At each derived block:
+//   * an entry below P resolves: by a receipt proven as above (success or revert), else as "nonce consumed" (proven at
+//     finality, not landed by this send) - never as success;
+//   * the journal's first remaining entry must be exactly P: anything else is a gap or a contradiction (refused, nothing
+//     pruned, nothing signed - settle it by hand);
+//   * the own backend's pending nonce is only a GATE: above P + own entries = a transaction of this key nobody recorded
+//     (refused); below = the pool lost own bytes (re-broadcast unchanged, signing waits for the pool to hold them).
+// Several sends can therefore be pending at once (bounded by maxPending), each awaiting its own proof. A call identical to a
+// pending one (same to and data) returns that pending hash instead of being signed again. What pipelining does NOT give:
+// a simulation and the balance check run at B and ignore this provider's own pending transactions (the balance covers all
+// of their maximum costs together); a later transaction that depends on an earlier pending one can still revert at the head
+// (reported as reverted). Final success always waits for a derived anchor covering the block (L1 finality plus derivation).
+//
+// The operator's OWN Base node (cfg.txBackend) is never evidence: chain id, its header at B (must hash to the derived hash),
+// the pending-nonce gate, the tip hint (capped), and eth_sendRawTransaction. History bytes come from the optional private
+// read-only historyUrl (else from the own backend's eth namespace): eth_chainId, eth_getTransactionReceipt (hint),
+// eth_getBlockByNumber, eth_getBlockReceipts - every byte checked as above. No debug namespace is used.
+import fs from 'node:fs';
+import path from 'node:path';
+import { encodeFunctionData, keccak256, hexToBytes, bytesToHex, parseTransaction, recoverTransactionAddress, getAddress, serializeTransaction } from 'viem';
+import { verifierEndpoint } from '../verified-chain.mjs';
+import { createLifecycleFinalitySnapshot } from '../lifecycle-finality-bridge.mjs';
+import { headerHash } from '../derived-reader/vendor/anchor-bootstrap.mjs';
+import { verifyBlockReceipts, orderedTrieRoot, rlp, BASE_MAINNET } from '../op-receipts-root.mjs';
+import { strictWriteFile } from '../lease-release-journal.mjs';
+import { takeRuntimeLock } from '../runtime-lock.mjs';
+import { backendCaller, quantity, parseSendRecord } from './attested-submission.mjs';
+
+const fail = (code, message, extra = {}) => Object.assign(new Error(message), { code, status: 503, ...extra });
+const hex = (n) => '0x' + BigInt(n).toString(16);
+const lc = (s) => String(s).toLowerCase();
+const HASH = /^0x[0-9a-f]{64}$/i;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const kc = (bytes) => hexToBytes(keccak256(bytes));
+// EIP-2935 (Isthmus on Base): the history storage contract; the state of block B holds the hashes of blocks B-8191 .. B-1
+export const HISTORY_STORAGE = '0x0000F90827F1C53a10cb7A02335B175320002935';
+export const HISTORY_WINDOW = 8191;
+export const JOURNAL_FORMAT = 'enclave-provider-send-journal/v1';
+export const JOURNAL_MAX_BYTES = 1 << 20;
+// the methods asked of each server under derived finality, and nothing else
+export const DERIVED_BACKEND_USE = Object.freeze(['eth_chainId', 'eth_getBlockByNumber', 'eth_getTransactionCount(pending)', 'eth_maxPriorityFeePerGas', 'eth_sendRawTransaction']);
+export const DERIVED_HISTORY_USE = Object.freeze(['eth_chainId', 'eth_getTransactionReceipt (location hint)', 'eth_getBlockByNumber', 'eth_getBlockReceipts']);
+
+// ---- an RPC transaction body -> its canonical EIP-2718 bytes (checked by the caller against the hash and the trie) -------
+const qtyOf = (x, what) => quantity(x === undefined || x === null ? '0x0' : x, what, 'chain_receipt_invalid');
+const addr = (x, what) => { if (typeof x !== 'string' || !/^0x[0-9a-fA-F]{40}$/.test(x)) throw fail('chain_receipt_invalid', `${what}: not an address`); return x; };
+const data = (x, what) => { if (typeof x !== 'string' || !/^0x(?:[0-9a-fA-F]{2})*$/.test(x)) throw fail('chain_receipt_invalid', `${what}: not hex bytes`); return x; };
+export function encodeRpcTransaction(t) {
+  if (!t || typeof t !== 'object') throw fail('chain_receipt_invalid', 'a transaction body is not an object');
+  const type = lc(t.type);
+  if (type === '0x7e') {                                                   // OP deposit: 0x7e || rlp([sourceHash, from, to, mint, value, gas, isSystemTx, data])
+    if (!HASH.test(String(t.sourceHash)) || typeof t.isSystemTx !== 'boolean') throw fail('chain_receipt_invalid', 'deposit body: sourceHash / isSystemTx');
+    const body = rlp([hexToBytes(t.sourceHash), hexToBytes(addr(t.from, 'deposit from')), t.to ? hexToBytes(addr(t.to, 'deposit to')) : new Uint8Array(0),
+      qtyOf(t.mint, 'deposit mint'), qtyOf(t.value, 'deposit value'), qtyOf(t.gas, 'deposit gas'), t.isSystemTx ? Uint8Array.of(1) : new Uint8Array(0), hexToBytes(data(t.input, 'deposit input'))]);
+    return Uint8Array.from([0x7e, ...body]);
+  }
+  const common = { nonce: Number(qtyOf(t.nonce, 'nonce')), gas: qtyOf(t.gas, 'gas'), to: t.to ? addr(t.to, 'to') : undefined, value: qtyOf(t.value, 'value'), data: data(t.input, 'input') };
+  if (!Number.isSafeInteger(common.nonce)) throw fail('chain_receipt_invalid', 'nonce beyond a safe integer');
+  const sigPart = (x, what) => '0x' + qtyOf(x, what).toString(16).padStart(64, '0');   // RPC r/s are quantities (no leading zeros)
+  const r = sigPart(t.r, 'r'), s = sigPart(t.s, 's');
+  const access = () => (Array.isArray(t.accessList) ? t.accessList.map((a) => ({ address: addr(a.address, 'access address'), storageKeys: (a.storageKeys || []).map((k) => data(k, 'storage key')) })) : []);
+  const chainId = () => Number(qtyOf(t.chainId, 'chainId'));
+  const parity = () => Number(qtyOf(t.yParity ?? t.v, 'yParity'));
+  let tx, sig;
+  if (type === '0x0') { tx = { type: 'legacy', ...common, gasPrice: qtyOf(t.gasPrice, 'gasPrice') }; sig = { r, s, v: qtyOf(t.v, 'v') }; }
+  else if (type === '0x1') { tx = { type: 'eip2930', ...common, chainId: chainId(), gasPrice: qtyOf(t.gasPrice, 'gasPrice'), accessList: access() }; sig = { r, s, yParity: parity() }; }
+  else if (type === '0x2') { tx = { type: 'eip1559', ...common, chainId: chainId(), maxFeePerGas: qtyOf(t.maxFeePerGas, 'maxFeePerGas'), maxPriorityFeePerGas: qtyOf(t.maxPriorityFeePerGas, 'maxPriorityFeePerGas'), accessList: access() }; sig = { r, s, yParity: parity() }; }
+  else if (type === '0x4') {
+    if (!Array.isArray(t.authorizationList)) throw fail('chain_receipt_invalid', 'set-code body without authorizationList');
+    tx = { type: 'eip7702', ...common, chainId: chainId(), maxFeePerGas: qtyOf(t.maxFeePerGas, 'maxFeePerGas'), maxPriorityFeePerGas: qtyOf(t.maxPriorityFeePerGas, 'maxPriorityFeePerGas'), accessList: access(),
+      authorizationList: t.authorizationList.map((a) => ({ address: addr(a.address, 'authorization address'), chainId: Number(qtyOf(a.chainId, 'authorization chainId')), nonce: Number(qtyOf(a.nonce, 'authorization nonce')),
+        r: sigPart(a.r, 'authorization r'), s: sigPart(a.s, 'authorization s'), yParity: Number(qtyOf(a.yParity ?? a.v, 'authorization yParity')) })) };
+    sig = { r, s, yParity: parity() };
+  } else throw fail('chain_receipt_invalid', `transaction type ${String(t.type).slice(0, 8)} has no encoding here (unresolved, never accepted)`);
+  try { return hexToBytes(serializeTransaction(tx, sig)); }
+  catch (e) { throw fail('chain_receipt_invalid', `transaction body does not encode: ${String(e?.shortMessage || e?.message || e).slice(0, 200)}`); }
+}
+
+// ---- the journal file: {} | {nonce, raw, hash} (attested-submission's single record) | {format, entries} --------------------
+export function parseSendJournal(text, where) {
+  let j; try { j = JSON.parse(text); } catch { throw new Error(`${where}: not a provider send journal (not JSON); settle it by hand`); }
+  if (j && typeof j === 'object' && !Array.isArray(j) && j.format !== undefined) {
+    if (j.format !== JOURNAL_FORMAT || Object.keys(j).sort().join(',') !== 'entries,format' || !Array.isArray(j.entries) || j.entries.length < 2)
+      throw new Error(`${where}: not a provider send journal (format); settle it by hand`);
+    return j.entries.map((e, i) => { const r = parseSendRecord(JSON.stringify(e), `${where} entry ${i}`); if (!r) throw new Error(`${where}: empty journal entry ${i}; settle it by hand`); return r; });
+  }
+  const r = parseSendRecord(text, where);
+  return r ? [r] : [];
+}
+const serializeJournal = (entries) => JSON.stringify(entries.length === 0 ? {} : entries.length === 1 ? entries[0] : { format: JOURNAL_FORMAT, entries });
+
+/**
+ * createDerivedSubmitter({reader, journal, verifier, executor, backend (providerTxBackend), history?, account, stateFile, ...})
+ *   reader    the IN-PROCESS derived reader capability (an object with readAnchor({signal})); a URL, a JSON document or a status
+ *             endpoint is not that capability and is refused
+ *   journal   the durable anchor floor (derived-anchor-floor.mjs openDerivedAnchorFloor)
+ *   verifier  the proof executor; executor names which one it must be: 'attested-verifier' or 'local-verifier' (no relabel)
+ *   history   optional {url, label} (checkOwnBackend shape): the private read-only history source; default the own backend
+ * -> { client: {readContract, waitForTransactionReceipt}, wallet: {account, writeContract}, settle, pending, describe, ready, close }
+ */
+export function createDerivedSubmitter({ reader, journal, verifier, executor, backend, history = null, account, stateFile, chainId = 8453, maxAnchorAgeSec = 1800,
+  maxPending = 8, timeoutMs = 15_000, historyTimeoutMs = 60_000, maxHistoryBytes = 32 << 20, deadlineMs = 180_000, receiptPollMs = 5_000,
+  fetch: fetchImpl = globalThis.fetch, now = Date.now, log = () => {} } = {}) {
+  if (!reader || typeof reader !== 'object' || typeof reader.readAnchor !== 'function') throw new Error('derived submission needs the in-process derived reader capability (readAnchor): a URL, a JSON anchor or a status endpoint is not one');
+  if (typeof journal?.readAnchor !== 'function' || typeof journal?.acceptAnchor !== 'function') throw new Error('derived submission needs the durable derived anchor floor');
+  const v = verifierEndpoint(verifier);
+  if (executor !== 'attested-verifier' && executor !== 'local-verifier') throw new Error('derived submission needs the executor named: attested-verifier or local-verifier');
+  if ((executor === 'attested-verifier') !== v.attested) throw new Error(`derived submission: the proof executor is ${v.attested ? 'the attested verifier' : 'not the attested verifier'}, not ${executor}`);
+  if (!backend?.url || !backend.caps) throw new Error('derived submission needs the own transaction backend (providerTxBackend): nothing is sent without it');
+  if (history !== null && (!history?.url || !history.label)) throw new Error('derived submission: history must be { url, label } (a private read-only eth source) or absent');
+  if (!account?.address || typeof account.signTransaction !== 'function') throw new Error('derived submission needs the operator account');
+  if (typeof stateFile !== 'string' || !path.isAbsolute(stateFile)) throw new Error('derived submission needs an absolute stateFile (its durable send journal)');
+  if (!Number.isSafeInteger(maxPending) || maxPending < 1 || maxPending > 64) throw new Error('derived submission: maxPending must be 1 to 64');
+  if (!Number.isSafeInteger(maxHistoryBytes) || maxHistoryBytes < 1 << 20 || maxHistoryBytes > 128 << 20) throw new Error('derived submission: maxHistoryBytes must be 1 to 128 MiB');
+  const from = getAddress(account.address), caps = backend.caps, hsrc = history || backend;
+  const X = (method, params) => v.request(method, params, timeoutMs);        // the executor, always pinned by the derived hash below
+  const B = backendCaller(backend.url, backend.label, timeoutMs, fetchImpl);
+  const H = backendCaller(hsrc.url, hsrc.label, historyTimeoutMs, fetchImpl, maxHistoryBytes);   // history bytes (verified, never evidence)
+  const bridge = createLifecycleFinalitySnapshot({ readAnchor: (o) => reader.readAnchor(o), verifier, journal, chainId, maxAnchorAgeSec, deadlineMs, now });
+  const evidence = Object.freeze({ authority: 'derived-finality', finality: 'l1-finalized-derived', executor, localProof: !v.attested, verifier: v.label });
+
+  // ---- one derived snapshot at a time (the bridge refuses a concurrent one): every use is queued here ----------------------
+  let snapQueue = Promise.resolve();
+  function derived(fn) {
+    const p = snapQueue.then(async () => {
+      const r = await bridge(async (client, number, header) => fn({ client, number, hash: lc(header.hash), at: { blockHash: header.hash } }));
+      if (r?.evidence?.tier !== 'l1-finalized-derived' || r.evidence.authority !== 'consumer-domain-derivation' || r.blockHash !== r.evidence.base?.hash)
+        throw fail('chain_unconfirmed', 'the finality bridge did not answer at a derived anchor');
+      return r.value;
+    });
+    snapQueue = p.catch(() => {});
+    return p.catch((e) => { throw e?.code ? e : fail('chain_unconfirmed', `no derived snapshot: ${String(e?.message || e).slice(0, 300)}`); });
+  }
+
+  // ---- the journal: loaded under the kernel lock, each entry THIS key's own transaction on this chain, nonces contiguous ---
+  let entries = [], unlock = null, closed = false;
+  const resolved = new Map();                                                   // hash -> {state, receipt?} of entries pruned in this run
+  const ready = (async () => {
+    unlock = await takeRuntimeLock(stateFile + '.lock');
+    let st = null;
+    try { st = fs.lstatSync(stateFile); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+    if (!st) return;
+    if (!st.isFile() || st.size > JOURNAL_MAX_BYTES) throw new Error(`${stateFile}: not a provider send journal (a regular file of at most ${JOURNAL_MAX_BYTES} bytes); settle it by hand`);
+    const list = parseSendJournal(fs.readFileSync(stateFile, 'utf8'), stateFile);
+    const bad = (why) => { throw new Error(`${stateFile}: not this provider's send journal (${why}); settle it by hand`); };
+    for (const [i, j] of list.entries()) {
+      let tx; try { tx = parseTransaction(j.raw); } catch { bad(`entry ${i}: not a signed transaction`); }
+      if (tx.chainId !== chainId || tx.nonce !== j.nonce) bad(`entry ${i}: chain ${tx.chainId}, nonce ${tx.nonce}`);
+      if (i > 0 && j.nonce !== list[i - 1].nonce + 1) bad(`entry ${i}: nonce ${j.nonce} does not follow ${list[i - 1].nonce} (a gap)`);
+      const signer = await recoverTransactionAddress({ serializedTransaction: j.raw }).catch(() => bad(`entry ${i}: no recoverable signature`));
+      if (getAddress(signer) !== from) bad(`entry ${i}: signed by another key`);
+    }
+    if (list.length > maxPending) bad(`${list.length} entries exceed maxPending ${maxPending}`);
+    entries = list;
+    if (list.length) log(`[derived-submission] ${list.length} unresolved send(s) restored (nonces ${list[0].nonce}..${list.at(-1).nonce}): re-broadcast as the same bytes until derived anchors resolve them`);
+  })();
+  ready.catch(() => { unlock?.(); unlock = null; });
+  const setEntries = (list) => { strictWriteFile(stateFile, serializeJournal(list)); entries = list; };
+  let queue = Promise.resolve();
+  const serial = (fn) => { const p = queue.then(async () => { await ready; if (closed) throw new Error('derived submission closed'); return fn(); }); queue = p.catch(() => {}); return p; };
+
+  // ---- the own backend bound to the derived block: its header there must HASH to the derived hash ----------------------------
+  async function bind(s) {
+    const id = quantity(await B('eth_chainId', []), 'the own backend\'s chain id', 'chain_backend_unavailable');
+    if (id !== BigInt(chainId)) throw fail('chain_backend_wrong_chain', `the own backend ${backend.label} follows chain ${id}, not ${chainId}`);
+    const bb = await B('eth_getBlockByNumber', [hex(s.number), false]);
+    if (bb === null) throw fail('chain_backend_behind', `the own backend ${backend.label} has no block ${s.number} (the derived block)`);
+    let h; try { h = headerHash(bb, kc); } catch { throw fail('chain_backend_unavailable', `the own backend ${backend.label} answered a malformed block ${s.number}`, { unavailable: true }); }
+    if (h !== s.hash || (bb.hash !== undefined && lc(bb.hash) !== h)) throw fail('chain_backend_unbound', `the own backend ${backend.label} has another block ${s.number} than the derived anchor: not submitting through it`);
+    return bb;                                                                   // its fields are now authenticated by the derived hash
+  }
+  const provenNonce = async (s) => {
+    const n = quantity(await X('eth_getTransactionCount', [from, s.at]), 'the proven nonce');
+    if (n > BigInt(Number.MAX_SAFE_INTEGER)) throw fail('chain_unconfirmed', `the proven nonce ${n} is beyond a safe integer`);
+    return Number(n);
+  };
+
+  // ---- a receipt proven at finalized ancestry of the derived block ---------------------------------------------------------
+  async function ancestorHash(s, m) {
+    if (m === s.number) return s.hash;
+    if (m > s.number) return null;                                               // not covered by a derived anchor yet
+    if (s.number - m > BigInt(HISTORY_WINDOW)) {                                 // no receipt provable at this depth: the nonce decides
+      log(`[derived-submission] block ${m} is more than ${HISTORY_WINDOW} blocks below the derived block ${s.number}: its ancestry is not provable here (no receipt)`);
+      return null;
+    }
+    const slot = '0x' + (m % BigInt(HISTORY_WINDOW)).toString(16).padStart(64, '0');
+    const got = lc(await s.client.getStorageAt({ address: HISTORY_STORAGE, slot }));
+    if (!/^0x[0-9a-f]{64}$/.test(got) || /^0x0{64}$/.test(got)) throw fail('chain_history_unproven', `no proven ancestor hash of block ${m} at the derived block ${s.number}`);
+    return got;
+  }
+  let historyChecked = false;
+  // consumed: the transaction's nonce is PROVEN used at s. Then the history source must show where (at or below s, on the
+  // finalized chain, inside that block): a location off the chain, above s or in a block without it is a contradiction and
+  // refuses (nothing resolved). Only "no receipt" or a depth beyond the provable window resolve as "nonce consumed".
+  async function provenReceipt(s, hash, { consumed = false } = {}) {
+    if (!historyChecked) {
+      const id = quantity(await H('eth_chainId', []), 'the history source\'s chain id', 'chain_backend_unavailable');
+      if (id !== BigInt(chainId)) throw fail('chain_backend_wrong_chain', `the history source ${hsrc.label} follows chain ${id}, not ${chainId}`);
+      historyChecked = true;
+    }
+    const hint = await H('eth_getTransactionReceipt', [hash]);                  // WHERE only; a failure propagates (resolves nothing)
+    if (hint === null) return null;
+    if (!hint || typeof hint !== 'object' || lc(hint.transactionHash) !== lc(hash) || !HASH.test(String(hint.blockHash))) throw fail('chain_receipt_invalid', `the history source answered a malformed receipt hint for ${hash}`);
+    const m = quantity(hint.blockNumber, 'receipt hint block number', 'chain_receipt_invalid');
+    const contradiction = (why) => { throw fail('chain_receipt_invalid', `the history source places ${hash} ${why}, but its nonce is proven used at derived block ${s.number}: does not verify; nothing resolved`); };
+    if (consumed && m > s.number) contradiction(`in block ${m}, above the derived block`);
+    if (consumed && s.number - m > BigInt(HISTORY_WINDOW)) { log(`[derived-submission] ${hash}: its block ${m} is more than ${HISTORY_WINDOW} blocks below the derived block ${s.number}: its receipt is not provable here`); return null; }
+    const want = await ancestorHash(s, m);
+    if (want === null || want !== lc(hint.blockHash)) {                         // above the anchor, or off the finalized chain (reorged)
+      if (consumed) contradiction(`in block ${m} ${hint.blockHash}, which is not the finalized chain's block ${m} (${want})`);
+      return null;
+    }
+    const block = await H('eth_getBlockByNumber', [hex(m), true]), receipts = await H('eth_getBlockReceipts', [hex(m)]);
+    try {
+      if (!block || headerHash(block, kc) !== want) throw new Error('the header does not hash to the proven ancestor hash');
+      if (!Array.isArray(block.transactions)) throw new Error('the block has no transaction bodies');
+      const txs = block.transactions.map((t, i) => {
+        const bytes = encodeRpcTransaction(t);
+        if (lc(t.hash) !== bytesToHex(kc(bytes))) throw new Error(`body ${i} does not hash to its hash`);
+        return bytes;
+      });
+      if (orderedTrieRoot(txs, kc) !== lc(block.transactionsRoot)) throw new Error('the transactions do not reproduce transactionsRoot');
+      const txHashes = txs.map((t) => bytesToHex(kc(t)));
+      const verified = verifyBlockReceipts({ header: block, expectedBlockHash: want, receipts, txHashes, chain: BASE_MAINNET }, { keccak: kc, headerHash: (h, k) => headerHash(h, k) });
+      const i = txHashes.indexOf(lc(hash));
+      if (i < 0) { if (consumed) throw new Error(`block ${m} does not contain it`); return null; }   // the hint named a block without it
+      const raw = bytesToHex(txs[i]), tx = parseTransaction(raw);
+      if (getAddress(await recoverTransactionAddress({ serializedTransaction: raw })) !== from) throw new Error('the transaction is not this operator\'s');
+      const cum = (k) => (k < 0 ? 0n : BigInt(receipts[k].cumulativeGasUsed));
+      return { status: BigInt(receipts[i].status) === 1n ? 'success' : 'reverted', transactionHash: lc(hash), blockNumber: m, blockHash: want, nonce: tx.nonce,
+        gasUsed: cum(i) - cum(i - 1), from, to: tx.to ? getAddress(tx.to) : null, logs: verified.logs.filter((l) => l.transactionIndex === i),
+        evidence: { ...evidence, receiptsRoot: verified.receiptsRoot, transactionsRoot: lc(block.transactionsRoot), derived: { number: s.number, hash: s.hash } } };
+    } catch (e) {
+      throw fail('chain_receipt_invalid', `block ${m} (proven ancestor ${want}) does not verify: ${String(e?.code ? `${e.code}: ${e.message}` : e?.message || e).slice(0, 300)}; nothing resolved`);
+    }
+  }
+
+  // ---- reconcile the journal at one derived block: -> {P, done: [{entry, result}], remaining} (applied only after the bridge) -
+  async function reconcile(s) {
+    const P = await provenNonce(s), done = [];
+    for (const e of entries) {
+      if (e.nonce >= P) break;
+      const rc = await provenReceipt(s, e.hash, { consumed: true });
+      done.push({ entry: e, result: rc ? { state: 'receipt', receipt: rc } : { state: 'nonce-consumed' } });
+    }
+    const remaining = entries.filter((e) => e.nonce >= P);
+    if (remaining.length && remaining[0].nonce !== P)
+      throw fail('tx_journal_gap', `the send journal's first open nonce ${remaining[0].nonce} is not the nonce ${P} proven at derived block ${s.number}: a gap or a contradiction; nothing pruned or signed (settle it by hand)`);
+    return { P, done, remaining };
+  }
+  function apply(plan) {
+    if (!plan.done.length) return;
+    const gone = new Set(plan.done.map((d) => d.entry.hash));
+    setEntries(entries.filter((e) => !gone.has(e.hash)));
+    for (const { entry, result } of plan.done) {
+      resolved.set(entry.hash, result);
+      if (resolved.size > 256) resolved.delete(resolved.keys().next().value);
+      if (result.state === 'nonce-consumed') log(`[derived-submission] nonce ${entry.nonce} was consumed at a derived block without a proven receipt of ${entry.hash}: not landed by this send as far as proven (another transaction used the nonce, or the history source showed no provable receipt) - never success`);
+      else log(`[derived-submission] ${entry.hash} (nonce ${entry.nonce}) ${result.receipt.status} in block ${result.receipt.blockNumber}, proven at derived block ${result.receipt.evidence.derived.number}`);
+    }
+  }
+
+  // ---- submission (own backend only) -------------------------------------------------------------------------------------
+  const definiteRejection = (m) => /insufficient funds|intrinsic gas|exceeds block gas|invalid sender|invalid signature|max fee per gas less than block base fee|fee cap|transaction type not supported/i.test(m);
+  const alreadyKnown = (m) => /already known|known transaction|already imported/i.test(m);
+  async function broadcast(raw, hash) {
+    let r;
+    try { r = await B('eth_sendRawTransaction', [raw]); }
+    catch (e) {
+      const m = String(e?.rpcMessage || '');
+      if (e?.code === 'chain_backend_error' && alreadyKnown(m)) return { outcome: 'accepted', why: m.slice(0, 200) };
+      if (e?.code === 'chain_backend_error' && definiteRejection(m)) return { outcome: 'rejected', why: m.slice(0, 200) };
+      log(`[derived-submission] broadcast of ${hash}: no clear answer (${String(e?.message || e).slice(0, 200)}): it may or may not be pending`);
+      return { outcome: 'unknown', why: String(e?.message || e).slice(0, 200) };
+    }
+    if (typeof r === 'string' && lc(r) === lc(hash)) return { outcome: 'accepted', why: null };
+    log(`[derived-submission] the own backend answered another hash (${String(r).slice(0, 18)}) for ${hash}: not evidence, treated as unknown`);
+    return { outcome: 'unknown', why: 'the backend answered another hash' };
+  }
+  // the pending-nonce GATE: -> 'held' (the pool holds exactly P + own entries) | throws. Lost own bytes are re-broadcast first.
+  async function poolGate(s, plan) {
+    const expect = plan.P + plan.remaining.length;
+    const pending = async () => Number(quantity(await B('eth_getTransactionCount', [from, 'pending']), 'the own backend\'s pending nonce', 'chain_backend_unavailable'));
+    let p = await pending();
+    if (p < expect) {
+      const lost = plan.remaining.filter((e) => e.nonce >= p);
+      for (const e of lost) await broadcast(e.raw, e.hash);
+      log(`[derived-submission] the own backend's pending nonce ${p} is below ${expect} (proven ${plan.P} at derived block ${s.number} + ${plan.remaining.length} own): re-broadcast ${lost.length} recorded transaction(s) as the same bytes`);
+      p = await pending();
+    }
+    if (p > expect) throw fail('tx_foreign_pending', `the own backend's pool holds ${p - expect} transaction(s) of ${from} this provider has no record of (pending nonce ${p}, proven ${plan.P} at derived block ${s.number} + ${plan.remaining.length} own): nothing signed until a derived anchor shows them`);
+    if (p < expect) throw fail('chain_backend_pool_behind', `the own backend's pending nonce ${p} is still below ${expect} after re-broadcasting the recorded bytes: nothing new signed`);
+    return 'held';
+  }
+  const sameCall = (e, to, data) => { const tx = parseTransaction(e.raw); return lc(tx.to) === lc(to) && lc(tx.data || '0x') === lc(data); };
+  const maxCost = (e) => { const tx = parseTransaction(e.raw); return BigInt(tx.gas) * BigInt(tx.maxFeePerGas ?? tx.gasPrice ?? 0n); };
+
+  // ---- write: reconcile, dedupe, gate, prepare at ONE derived block; then sign, record durably, broadcast -------------------
+  async function writeContract({ address, abi, functionName, args }) {
+    return serial(async () => {
+      const to = getAddress(address), data = encodeFunctionData({ abi, functionName, args });
+      const plan = await derived(async (s) => {
+        const bb = await bind(s);
+        const pl = await reconcile(s);
+        if (pl.done.some((d) => sameCall(d.entry, to, data))) return { ...pl, previous: true };
+        const dup = pl.remaining.find((e) => sameCall(e, to, data));
+        if (dup) return { ...pl, duplicate: dup };
+        if (pl.remaining.length >= maxPending) throw fail('tx_pipeline_full', `${pl.remaining.length} sends are pending (maxPending ${maxPending}): nothing new signed until derived anchors resolve them`);
+        await poolGate(s, pl);
+        const call = { from, to, data };
+        try { await X('eth_call', [call, s.at]); }
+        catch (e) { throw fail('tx_simulation', `simulation at derived block ${s.number} refused by the executor: ${String(e?.message || e).slice(0, 300)}; nothing signed`); }
+        const works = async (g) => { try { await X('eth_call', [{ ...call, gas: hex(g) }, s.at]); return true; } catch { return false; } };
+        let used = null;                                                         // a hint only: the gate is a pinned execution with the limit
+        try { used = quantity(await X('eth_estimateGas', [call, hex(s.number)]), 'the gas estimate'); } catch {}
+        let gas = used === null ? caps.maxGas : ((used * 5n) / 4n + 2300n) * 64n / 63n + 1n;
+        if (gas > caps.maxGas || !(await works(gas))) gas = caps.maxGas;
+        if (gas === caps.maxGas && !(await works(gas))) throw fail('tx_gas_cap', `no execution at derived block ${s.number} succeeds within maxGas ${caps.maxGas}: nothing signed`);
+        const base = quantity(bb.baseFeePerGas, 'the derived block\'s base fee (nothing signed)');
+        let tip = quantity(await B('eth_maxPriorityFeePerGas', []), 'the own backend\'s tip hint (nothing signed)', 'chain_backend_unavailable');
+        if (tip > caps.maxPriorityFeePerGas) tip = caps.maxPriorityFeePerGas;
+        const maxFee = caps.maxFeePerGas;                                        // the derived base fee is a floor, not the head's
+        if (maxFee < base + tip) throw fail('tx_fee_cap', `the derived block's base fee ${base} wei + tip ${tip} exceeds maxFeePerGasWei ${caps.maxFeePerGas}: nothing signed`);
+        const balance = BigInt(await s.client.getBalance({ address: from }));
+        const committed = pl.remaining.reduce((a, e) => a + maxCost(e), 0n);
+        if (balance < committed + gas * maxFee) throw fail('tx_insufficient_funds', `the proven balance of ${from} at derived block ${s.number} (${balance} wei) does not cover the ${pl.remaining.length} pending send(s) (${committed} wei) plus gas ${gas} x max fee ${maxFee}: nothing signed`);
+        const nonce = pl.P + pl.remaining.length;
+        if (!Number.isSafeInteger(nonce) || gas <= 0n || tip < 0n || maxFee <= 0n || tip > maxFee) throw fail('tx_bounds', 'transaction fields out of bounds: nothing signed');
+        return { ...pl, fields: { nonce, gas, maxFeePerGas: maxFee, maxPriorityFeePerGas: tip, block: s.number } };
+      });
+      apply(plan);
+      if (plan.previous) throw fail('tx_previous_resolved', `an identical ${functionName} was resolved just now at a derived block: re-evaluate from derived state; nothing signed`);
+      if (plan.duplicate) { log(`[derived-submission] ${functionName} is already pending as ${plan.duplicate.hash} (nonce ${plan.duplicate.nonce}): not signed again`); return plan.duplicate.hash; }
+      const p = plan.fields;
+      const raw = await account.signTransaction({ chainId, type: 'eip1559', nonce: p.nonce, to, data, value: 0n, gas: p.gas, maxFeePerGas: p.maxFeePerGas, maxPriorityFeePerGas: p.maxPriorityFeePerGas });
+      const hash = keccak256(raw);
+      setEntries([...entries, { nonce: p.nonce, raw, hash }]);            // durable BEFORE the backend has the bytes
+      const { outcome, why } = await broadcast(raw, hash);
+      if (outcome === 'rejected') throw fail('tx_refused', `the own backend refused ${functionName} ${hash} (${why}): refused, NOT proof that nothing is pending; the signed bytes stay recorded until a derived anchor shows their receipt or their nonce consumed`, { hash });
+      log(`[derived-submission] ${functionName} ${hash} nonce ${p.nonce} gas ${p.gas} maxFee ${p.maxFeePerGas} (state at derived block ${p.block}): submitted (${outcome}; a submission, not inclusion)`);
+      return hash;
+    });
+  }
+
+  /** Resolve what a derived anchor now proves; re-broadcast own bytes the pool lost. -> {state: 'none'|'pending', resolved, pending}. */
+  const settle = () => serial(async () => {
+    if (!entries.length) return { state: 'none', resolved: [], pending: [] };
+    const plan = await derived(async (s) => {
+      await bind(s);
+      const pl = await reconcile(s);
+      if (pl.remaining.length) await poolGate(s, pl).catch((e) => { if (e?.code !== 'tx_foreign_pending' && e?.code !== 'chain_backend_pool_behind') throw e; log(`[derived-submission] settle: ${e.message}`); });
+      return pl;
+    });
+    apply(plan);
+    return { state: entries.length ? 'pending' : 'none', resolved: plan.done.map((d) => ({ hash: d.entry.hash, nonce: d.entry.nonce, ...d.result })), pending: entries.map((e) => ({ nonce: e.nonce, hash: e.hash })) };
+  });
+
+  /** A receipt proven at derived finality for `hash` within `timeout` ms; a reverted one is returned as reverted. */
+  async function waitForTransactionReceipt({ hash, timeout = 60_000 }) {
+    const end = Date.now() + timeout, h = lc(hash);
+    let lastErr = null;
+    for (;;) {
+      try {
+        await ready;
+        if (!resolved.has(h) && entries.some((e) => e.hash === h)) await serial(async () => apply(await derived(reconcile)));
+        const r = resolved.get(h);
+        if (r?.state === 'receipt') return r.receipt;
+        if (r?.state === 'nonce-consumed') throw fail('tx_nonce_consumed', `nonce of ${hash} was consumed by another transaction; it has no proven receipt: not landed by this send`);
+        if (!r && !entries.some((e) => e.hash === h)) { const rc = await derived((s) => provenReceipt(s, h)); if (rc) return rc; }
+      } catch (e) { if (['tx_nonce_consumed', 'chain_receipt_invalid', 'tx_journal_gap'].includes(e?.code)) throw e; lastErr = e; }
+      if (Date.now() >= end) throw fail('tx_unconfirmed', `${hash} has no receipt proven at a derived (L1-finalized) block within ${timeout} ms${lastErr ? ` (${String(lastErr.message).slice(0, 200)})` : ''}; it stays this provider's recorded send (re-broadcast as the same bytes, never re-signed)`);
+      await sleep(receiptPollMs);
+    }
+  }
+
+  async function readContract(args) {
+    if (args.blockTag !== undefined || args.blockNumber !== undefined) throw new Error('derived submission reads at the derived block only');
+    return derived((s) => s.client.readContract(args));
+  }
+  const describe = () => ({ ...evidence, maxPending, submission: { backend: backend.label, scope: backend.scope, use: DERIVED_BACKEND_USE, evidence: 'none (inclusion only by a receipt proven at derived finality)' },
+    history: { source: hsrc.label, separate: !!history, use: DERIVED_HISTORY_USE, evidence: 'none (every byte checked against hashes proven at the derived anchor)' },
+    caps: { maxFeePerGasWei: String(caps.maxFeePerGas), maxPriorityFeePerGasWei: String(caps.maxPriorityFeePerGas), maxGas: Number(caps.maxGas) } });
+  const close = async () => { await ready.catch(() => {}); await queue; closed = true; unlock?.(); unlock = null; };
+  return Object.freeze({ client: Object.freeze({ readContract, waitForTransactionReceipt }), wallet: Object.freeze({ account, writeContract }),
+    settle, pending: () => entries.map((e) => ({ nonce: e.nonce, hash: e.hash })), describe, ready, close });
+}

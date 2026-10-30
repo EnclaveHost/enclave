@@ -1,0 +1,71 @@
+{
+ "format": "enclave-rpc-runtime-closure/v1",
+ "purpose": "Pinned inputs of the three native binaries network/rpc-runtime.mjs runs (build-binaries.sh builds them offline from exactly these).",
+ "toolchain": {
+  "rust": "1.96.0",
+  "host": "x86_64-unknown-linux-gnu",
+  "note": "base/base 5476069f requires Rust 1.96; Helios's own rust-toolchain.toml says 1.94.0 and is overridden with RUSTUP_TOOLCHAIN=1.96.0 (as every tested build was). No toolchain is installed by the build."
+ },
+ "sources": {
+  "base": {
+   "what": "base/base v1.5.1 (MIT): the maintained Base EVM (Helios) and base-consensus-gossip (listener)",
+   "commit": "5476069f1eb74a56bccb56fdefd4b4bb0e3cda42",
+   "url": "https://codeload.github.com/base/base/tar.gz/5476069f1eb74a56bccb56fdefd4b4bb0e3cda42",
+   "tarballSha256": "9784e20a3cfeac555d96e8d1f15526d5264f0e6d8885b951c6f1220355038012",
+   "layout": "Helios's opstack/Cargo.toml names ../../vendor-inspect/base-v1.5.1: the build extracts the tarball (top directory stripped) to <work>/vendor-inspect/base-v1.5.1 next to <work>/helios. The listener's tools/prepare-upstream.py extracts its nine crates from the same tarball into upstream/base-5476069f. No other local tree is read."
+  },
+  "helios": {
+   "what": "a16z/helios 2af9b418 + enclave-base-evm (4 patches, eeffcc9) + enclave-witness-check (1ec2c1a5, aca81764, ef320298)",
+   "commit": "ef3202982b475212d9bb6adfdc3eed4ebb0b83c5",
+   "tree": "eec339e18296d850a514f72de2efdd8729302efd",
+   "cargoLockSha256": "28f4400cef93f04c28c2a0fe012cef917937c821560387456369ee88241cabc4",
+   "preserved": "checkpoint/decentralization-20261022: rpc-base-evm-export (eeffcc9 patches) + witness-helios 1ec2c1a5 + aca81764 + ef320298 (P witness-failover/helios; D owns publication)",
+   "binaries": {
+    "helios": "-p helios-cli --bin helios",
+    "witnessCheck": "-p helios-opstack --bin witness-check"
+   },
+   "note": "ef320298 changes only opstack/bin/witness-check.rs and opstack/src/witness_check.rs relative to aca81764 (Cargo.lock unchanged), so this commit's helper is witness-check 4fe0cd3b; the tested Helios CLI is NOT built from this commit but from eeffcc9 + canonical-block.patch 41667ec9 (8250f08a; tested.heliosNote)"
+  },
+  "listener": {
+   "what": "enclave-base-head-listener (rpc-gossip-bridge/listener branch commitment-mode)",
+   "commit": "5e178676bbe0ce5cda7ea95a3ccfefa8dca8a4b7",
+   "tree": "00e3a61d48c91a6072355bf0ac67564490a6fc8b",
+   "cargoLockSha256": "5ad182d75859595c7e8f70f03b9ae35da9eeae3f6ef7890b367dca78b349c0eb",
+   "preserved": "checkpoint/decentralization-20261022 7b477d57: rpc-native-codec-export (listener f3159ea + 3 patches)",
+   "binaries": {
+    "listener": "-p enclave-base-head-listener --bin enclave-base-head-listener"
+   }
+  }
+ },
+ "dependencies": "crates.io packages exactly as each Cargo.lock lists them (cargo verifies every .crate against the lock's checksum); the build is --locked --offline against a provided CARGO_HOME and refuses to resolve or fetch anything",
+ "tested": {
+  "profile": "dev (debug, debuginfo off)",
+  "listener": "ebd045b428227530fac1c1b079f47c67ecb874637a1c7dcb4f021dd5929e8d3a",
+  "helios": "8250f08a7b0e1f2432ea6262903ca3203b60bca6a8e17abd6d9bccbe0dbfa378",
+  "witnessCheck": "4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411",
+  "witnessCheckNote": "built by P from ef320298 (debug); the aca81764 helpers fab2f1ce (debug) and a3377048 (release) lack the block op and are no longer accepted",
+  "heliosNote": "8250f08a was built from eeffcc9 + canonical-block.patch 41667ec9 (build-20261026T004633Z, provenance.json); it replaces cc962e2b (eeffcc9 without the patch)"
+ },
+ "release": {
+  "builtWith": "scripts/rpc-runtime/build-binaries.sh <work> <helios repo> <listener repo> <base tarball> <cargo home> release <one>, offline (unshare -r -n), CARGO_BUILD_JOBS=1, under the host memory guard at 1536 MiB",
+  "listener": {
+   "sha256": "9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3",
+   "peakMiB": 745,
+   "at": "2026-10-23T06:02Z"
+  },
+  "witnessCheck": {
+   "sha256": null,
+   "superseded": "a33770482356c92861b77c3630e840761208c6c183aa5a67db795a44e8f85acf was a release of aca81764 (peak 1529 MiB, 7 MiB under the 1536 MiB allocation); it is not accepted. No release of ef320298 was built in this integration."
+  },
+  "helios": {
+   "sha256": null,
+   "blocked": "the memory guard stopped the build at 1547 MiB > 1536 MiB while compiling helios-opstack (before the final fat-LTO link), 2026-10-23T06:28-06:38Z, exit 99; not retried and the repo's release profile was not changed. A release Helios needs a larger, reviewed build allocation; until then the tested Helios is a debug build (now 8250f08a, which replaced cc962e2b; tested.helios)."
+  },
+  "pathsInBinaries": "no build-directory or home path strings in the listener and witness-check release binaries (remapped)",
+  "reproducedTwice": false
+ },
+ "hostTools": {
+  "flock": "util-linux flock (tested 2.42.4 at /usr/bin/flock): --exclusive --nonblock --conflict-exit-code 73 on an inherited fd 3; reviewed absolute path in config hostTools.flock",
+  "curl": "curl with --aws-sigv4 (only with witnessArchive; credentials on stdin as a config file); reviewed absolute path in config hostTools.curl"
+ }
+}

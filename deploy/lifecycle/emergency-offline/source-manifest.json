@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "status": "offline prototype validated: 32 PASS (18 unique), 0 failures/skips; original draft 2 reserve regressions reproduced; actual paired ledger and production integration pending",
+  "files": [
+    {
+      "path": "candidate/contracts/EnclaveDeploymentLifecycleEmergency.sol",
+      "sha256": "ac4023b9ccac9b6b48536f78f07282e8a08e6669bd983bb292bbe1ea8a8ea677"
+    },
+    {
+      "path": "candidate/test/LifecycleEmergency.t.sol",
+      "sha256": "b0553dd8fe6de17aa32763b31666a47e2b0c516aa315857a41a8f525dbd69ef2"
+    },
+    {
+      "path": "candidate/test/RootReserveRegression.t.sol",
+      "sha256": "823bf2f0921ee62dd308eb555d564f9b3d4bc46fa08af65f7e816581694e29b1"
+    },
+    {
+      "path": "candidate/test/mocks/EmergencyMocks.sol",
+      "sha256": "978717c81337e7b4c15cabbe553086216ce426ebff1da9fd0c0656eaf9ad5e27"
+    },
+    {
+      "path": "foundry.toml",
+      "sha256": "23bd9fed268a304d778b53b9c6021ccdad0633230845055e40a36758f1132bcc"
+    }
+  ],
+  "runtimeBytes": 17253,
+  "EIP170Fits": true
+}

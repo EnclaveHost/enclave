@@ -1,0 +1,16 @@
+Oct 25 17:56:36 enclave-rpc base[918]: 2026-10-25T17:56:36.563844Z  INFO reth::cli: Downloading snapshot archives archives=21/116 progress=0.6% elapsed=33s eta=1h 33m bytes=4.52 GB/770.80 GB
+Oct 25 17:56:39 enclave-rpc base[918]: 2026-10-25T17:56:39.563889Z  INFO reth::cli: Downloading snapshot archives archives=21/116 progress=0.6% elapsed=36s eta=1h 39m bytes=4.62 GB/770.80 GB
+Oct 25 17:56:42 enclave-rpc base[918]: 2026-10-25T17:56:42.564166Z  INFO reth::cli: Downloading snapshot archives archives=21/116 progress=0.6% elapsed=39s eta=1h 46m bytes=4.68 GB/770.80 GB
+Oct 25 17:56:45 enclave-rpc base[918]: 2026-10-25T17:56:45.563952Z  INFO reth::cli: Downloading snapshot archives archives=21/116 progress=0.6% elapsed=42s eta=1h 54m bytes=4.68 GB/770.80 GB
+Oct 25 17:56:48 enclave-rpc base[918]: 2026-10-25T17:56:48.564001Z  INFO reth::cli: Downloading snapshot archives archives=21/116 progress=0.6% elapsed=45s eta=2h 1m bytes=4.74 GB/770.80 GB
+Oct 25 17:56:51 enclave-rpc base[918]: 2026-10-25T17:56:51.564135Z  INFO reth::cli: Downloading snapshot archives archives=21/116 progress=0.6% elapsed=48s eta=2h 9m bytes=4.75 GB/770.80 GB
+Oct 25 17:56:15 enclave-rpc python3[847]: 2026-10-25T17:56:15.265084Z  INFO Executed block range start=26263748 end=26263750 throughput="6.93Mgas/second"
+Oct 25 17:56:18 enclave-rpc python3[847]: 2026-10-25T17:56:18.315349Z  INFO Status connected_peers=1 stage=Execution checkpoint=26263578 target=26270382
+Oct 25 17:56:26 enclave-rpc python3[847]: 2026-10-25T17:56:26.197567Z  INFO Executed block range start=26263751 end=26263753 throughput="7.15Mgas/second"
+Oct 25 17:56:36 enclave-rpc python3[847]: 2026-10-25T17:56:36.388500Z  INFO Executed block range start=26263754 end=26263787 throughput="97.94Mgas/second"
+Oct 25 17:56:43 enclave-rpc python3[847]: 2026-10-25T17:56:43.315424Z  INFO Status connected_peers=2 stage=Execution checkpoint=26263578 target=26270382
+Oct 25 17:56:46 enclave-rpc python3[847]: 2026-10-25T17:56:46.469135Z  INFO Executed block range start=26263788 end=26263855 throughput="206.48Mgas/second"
+a93adc65ec30ac1ea6d8f4c59b9ef12e522e07606e038777f93cdbf7e67304c7  /srv/enclave-l1-pair/data/reth.toml
+MainPID=918
+Result=success
+ActiveState=activating

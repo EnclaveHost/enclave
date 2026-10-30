@@ -1,0 +1,38 @@
+[
+  {
+    "path": "INPUT-PINS.json",
+    "sha256": "255cd0d9e4739d69d4bfbd94f62e658757d965a0f773e1262e7949d4faaaa9f7"
+  },
+  {
+    "path": "ROOT-REVIEW.md",
+    "sha256": "f31568424ec780110b36b155ef3636602302e173fabcb278f806429c5bbadb85"
+  },
+  {
+    "path": "attempt.json",
+    "sha256": "4fa6eb364f30e531f1e925d00790096d16a8eaa908377497b285bf81da58d258"
+  },
+  {
+    "path": "config.json",
+    "sha256": "efbcac904adcf543ad417f0a2d9f760b822ff45f25a8d6a293c78e047312359e"
+  },
+  {
+    "path": "discovery-hints.json",
+    "sha256": "1314d22d28a3c44255b1ecb986e3ddded8ac97080d409c6da36fd699f8a69959"
+  },
+  {
+    "path": "inner.guard.log",
+    "sha256": "aec62f48d3a24aa5d296a170bf04a75189b9a9ddf5f887cc746fe2ee9874c6f3"
+  },
+  {
+    "path": "outer.guard.log",
+    "sha256": "c98eca742cb623f9e01c373d3196b973665de6982319e55d5b5b55fc86ed9da9"
+  },
+  {
+    "path": "read.mjs",
+    "sha256": "6ba7177f60bbee52768df52da17b3845a6f3d232751c0010c3e96307600b9be8"
+  },
+  {
+    "path": "result.json",
+    "sha256": "271cedd837e7b4cc45dcdc004779ce285b375a12e6de22f80f028738d4d3c507"
+  }
+]

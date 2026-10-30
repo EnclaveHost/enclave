@@ -1,0 +1,7 @@
+# R7 source author admission
+
+One source-only Claude invocation is active; no output or completed implementation is claimed. The root reviewed TASK, runner, launch, collector delta and interfaces, independently checked all2668 readonly input pins, all165 unchanged seed files, the exact2.1.281 executable and the required Max account before launch. The runner repeats those checks. admission-record.json records actual running process identities; silent output is not termination.
+
+Priority is actual positive two-manager COMPOSITE with real capacity checks, then consuming Stop/Offline independent of admission, late-operation withdrawal acknowledgement and owner-loss/persistence cleanup. Actual factory, all supported workloads, independent authority and platform/release qualification remain required. Tests are authored only; root reviews and executes separately. No production, wallet, app or Windows changes are authorized by this author pass.
+
+55 agentic rounds/1800second child/2100outer,1536MiB hard and shared queue/1408RSS/floor27648MiB/CPU1/noSwap. Read/Grep/Write/Edit tools only, candidate subtree only, no CLI execution/network/Git/extra agents or automatic retry. These tool restrictions are not an OS sandbox. Peer owns the SAME invocation terminal collection, candidate freeze and mutation replay audit. Collector now checks actual pinned executable plus cwd, rather than assuming process comm is claude. Existing live apps, finite grants and all resource/security constraints remain unchanged.

@@ -1,0 +1,18 @@
+[queue] START available=20213MiB required=18688MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1792MiB
+baseline passes
+killed proof-hash
+killed proof-extra
+killed game-finalized
+killed header-hash
+killed asr-binding
+killed proof-slots
+killed json-fields
+killed stale-age
+killed future-skew
+killed fin-number
+killed read-byte-cap
+killed read-http-status
+## mutants rc=0
+[memory-guard] exit=0 peakTreeRssMiB=165 minHostAvailableMiB=19935
+[memory-guard] at peak: node:96 node:63 sh:4 sh:2
+[queue] EXIT 0

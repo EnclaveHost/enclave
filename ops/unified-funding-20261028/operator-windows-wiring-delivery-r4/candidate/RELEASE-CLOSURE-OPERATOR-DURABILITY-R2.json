@@ -1,0 +1,71 @@
+{
+  "release": "operator-durability-repair-r2",
+  "status": "SOURCE ONLY, AUTHORED, NOT RUN. No tests, builds, module evaluation, shell, network, Git, signing, services or funds were used. Root owns hashes, runs, Windows/Base qualification and any production or financial action. Not permission to install; migration not complete.",
+  "baseline": { "files": 238, "manifestSha256": "2ab1b702572dff77bc96d3ace4982ebced581371b31687022607e9c65196f24c", "rootDefectEvidence": "evidence/root-operator-r1/root-boundary-v2.test.mjs (3 cases, 0 PASS / 3 FAIL)" },
+  "historicalEvidencePreserved": ["REPORT-OPERATOR-DURABILITY-R1.md", "RELEASE-CLOSURE-OPERATOR-DURABILITY-R1.json"],
+  "mutationChronology": [
+    "control/windows/node/operator-effects.mjs",
+    "control/windows/node/chain.mjs",
+    "test/windows-permit/od-r1-sponsored.test.mjs (fixture-input adaptation only; assertions unchanged)",
+    "test/windows-permit/od-r2-direct-continuity.test.mjs (new)",
+    "test/windows-permit/helpers/od-r2-inert-chain.mjs (new)",
+    "test/windows-permit/od-r2-shipped-client.test.mjs (new)",
+    "REPORT-OPERATOR-DURABILITY-R2.md (new)",
+    "RELEASE-CLOSURE-OPERATOR-DURABILITY-R2.json (new)"
+  ],
+  "testsAuthoredFirst": false,
+  "changedSource": {
+    "control/windows/node/operator-effects.mjs": [
+      "Linux io.assertLive = owned-durable-state h.state -> check(): owner lock + latch + state file identity + marker presence (was lock-only); every records/get/put/remove/assertLive goes through it and a loss latches",
+      "Windows log io.assertLive adds path presence + inode/device identity under the held handle",
+      "entry states: authorization withheld/unsent, lease signing unsent; optional sponsored leaseOutcome (r1 records stay valid)"
+    ],
+    "control/windows/node/chain.mjs": [
+      "durableBlock = writeBlock (r12/r1 unchanged) + EIP-7702 authorization ACCOUNT-nonce obligations of every sponsored record (any deployment id, any earlier process); unknown identity held; only the MINED count fences",
+      "sponsored admission: writeBlock reconciliation, any unresolved direct write refuses before any record/signature/relay contact; mined count read when other authorizations exist",
+      "leaseFinal: + store.assertLive (owner + continuity) + no direct write record, at every boundary, latched",
+      "accountNonceGate before signAuthorization: exact tuple required; another unresolved authorization of a different tuple at nonce >= admitted mined count refuses; an identical tuple is allowed",
+      "gatedLeaseAccount: post-persistence leaseFinal before each signer invocation (refusal discharges exactly that entry as unsent), after the result (withheld) and after the result's persistence (withheld at handoff)",
+      "gatedLeaseFetch: POST planned durably, post-persistence leaseFinal immediately before the transport; refusal discharges exactly that planned POST; failed discharge retained (unsentRetained)",
+      "retained includes live authorizations; resolvePendingSponsored and leaseSend success/NonceConsumed settle lease part and authorization part separately (leaseOutcome); releaseHold/same-id admission ignore lease-settled records"
+    ]
+  },
+  "semantics": {
+    "accountVsLeaseNonce": "authorization nonce = operator ACCOUNT nonce; lease signature nonce = executor lease nonce lane; lease signatures/POSTs without an authorization consume no account nonce",
+    "fence": "only latest (mined) account count > nonce; pending is never a fence; a mined nonce is never proof of success; lease deadline/receipt is never an authorization expiry",
+    "unknown": "authorization request without exact integer nonce, this chainId (0 included as unknown), this signer, or a delegate address: held, blocks direct sends and new authorizations, settled by hand",
+    "knownUnsent": "only the current operation's exact entry/POST whose signer/transport was provably not invoked after a post-persistence refusal; earlier POSTs/authorizations/signatures never cleared",
+    "errors": "pending/notSent/unknownOutcome/unsentRetained computed from the retained record (pending:true when the store is unreadable)"
+  },
+  "shippedClientFixture": {
+    "test": "test/windows-permit/od-r2-shipped-client.test.mjs",
+    "path": "actual chain.mjs -> configuredLeaseSender (shipped bundle) -> real createLeaseClient -> actual owned store (Linux flock)",
+    "bundle": { "path": "control/windows/node/lease-gas-runtime.bundle.mjs", "sha256Expected": "159108d171e49cadf8a75dc8081df9e7213257e6f7930ac8b0f4f6e6e43b829d", "edited": false, "hooked": false, "wrapped": false, "rootVerifiesByteIdentity": true },
+    "injectedExternalInputsOnly": ["ENCLAVE_LEASE_GAS_* (record file + digest, TEST RPC/relay URLs)", "globalThis.fetch in-memory TEST RPC/relay dispatcher (non-TEST URLs refused)", "chain.mjs viem imports: inert TEST account + inert direct-path clients", "store fsImpl wrapper triggering TEST revocation/loss during persistence"],
+    "sourceSeamAdded": false,
+    "versionCaveat": "in-memory chain follows the readonly reference client (bundle 21fece1f..., newer); shape differences are fixture gaps to adapt in the helper, never in the bundle",
+    "runtimeDependencies": ["npm viem (helper only)", "Node global Response/fetch API types", "/usr/bin/flock (Linux)"]
+  },
+  "testsAuthoredNotRun": [
+    "test/windows-permit/od-r2-direct-continuity.test.mjs",
+    "test/windows-permit/od-r2-shipped-client.test.mjs"
+  ],
+  "r1TestsPreserved": { "count": 18, "deletedOrSkipped": 0, "assertionsWeakened": 0, "fixtureInputAdaptation": "od-r1-sponsored.test.mjs TEST RPC getTransactionCount answers S.mined (rig default 4) instead of 0; reason in REPORT section 5" },
+  "additiveHelperProvenance": { "test/windows-permit/helpers/od-r2-inert-chain.mjs": "ABI fragments/answer shapes transcribed from readonly-reference/sponsored-runtime/source/client/lease-executor-client.mjs and client/lease-executor-authority.mjs; nothing imported from outside candidate" },
+  "rootRepairsPreserved": {
+    "control/isolation/m4/guestd/control-client.mjs": "df77d6dbbcab2d57729e6cb6b70e5f8fab006c8c1ac5be9eb7baf1440df934b4",
+    "control/windows/node/protected-isolation.mjs": "bfbab051a4784bb45d1510596b7d8a337d80b0bccf45447149c6181ecb65f160",
+    "control/windows/node/protected-supervisor.mjs": "1cd9be0545bd0284ffb26c12131c4233b340d1e6773872fecdff8f8f540e8408",
+    "edited": false
+  },
+  "importEdgesChanged": false,
+  "hashesComputedByAuthor": false,
+  "remainingGates": [
+    "Windows: agent.mjs lacks operatorEffects storage/SDDL context; no explicit installer initialization step; pinned runtime lacks default UV_FS_O_EXLOCK; supported reviewed exclusion + qualification required; no in-process lock is production",
+    "native ACL/fixed-NTFS, cross-process exclusion, power loss, share-mode deletion/replacement denial, attribute-only stat under held handle, guard/restart, useful workload acceptance: unexecuted",
+    "Base/mainnet qualification of the shipped client against real relays",
+    "explicit store maintenance/compaction; manual settlement of UNKNOWN authorizations and posted-without-intent records",
+    "Host #renewSend caller assertions (r1 gap, still open)",
+    "npm ci / full build-lock qualification (root)"
+  ]
+}

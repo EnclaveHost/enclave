@@ -1,0 +1,82 @@
+TAP version 13
+# Subtest: election: one primary per epoch from a majority; a commit reaches the members before it counts; followers hold exactly the primary's files
+ok 1 - election: one primary per epoch from a majority; a commit reaches the members before it counts; followers hold exactly the primary's files
+  ---
+  duration_ms: 342.128932
+  type: 'test'
+  ...
+# Subtest: quorum: one member down still commits (2 of 3); two down fails the commit and the primary steps down at once
+ok 2 - quorum: one member down still commits (2 of 3); two down fails the commit and the primary steps down at once
+  ---
+  duration_ms: 334.288061
+  type: 'test'
+  ...
+# Subtest: a lagging member (down for several commits) is brought level with a full snapshot
+ok 3 - a lagging member (down for several commits) is brought level with a full snapshot
+  ---
+  duration_ms: 336.252625
+  type: 'test'
+  ...
+# Subtest: failover: an isolated primary loses its lease and stops; the majority elects a successor with every acknowledged write; the old primary rejoins as a follower and cannot commit
+ok 4 - failover: an isolated primary loses its lease and stops; the majority elects a successor with every acknowledged write; the old primary rejoins as a follower and cannot commit
+  ---
+  duration_ms: 678.277721
+  type: 'test'
+  ...
+# Subtest: a successor adopts the most advanced state among its voters (a write only one other member holds is not lost)
+ok 5 - a successor adopts the most advanced state among its voters (a write only one other member holds is not lost)
+  ---
+  duration_ms: 674.613833
+  type: 'test'
+  ...
+# Subtest: one vote per epoch; a member that rebooted (forgot its votes) stays quiet for a lease before voting
+ok 6 - one vote per epoch; a member that rebooted (forgot its votes) stays quiet for a lease before voting
+  ---
+  duration_ms: 675.769777
+  type: 'test'
+  ...
+# Subtest: AEAD: another key, another kind or one flipped byte does not open; members refuse such a request; archives are ciphertext that only K opens
+ok 7 - AEAD: another key, another kind or one flipped byte does not open; members refuse such a request; archives are ciphertext that only K opens
+  ---
+  duration_ms: 334.459133
+  type: 'test'
+  ...
+# Subtest: timers end to end: the group elects by itself, renews by heartbeat, and re-elects within a few leases after the primary is cut off; never two valid leases
+ok 8 - timers end to end: the group elects by itself, renews by heartbeat, and re-elects within a few leases after the primary is cut off; never two valid leases
+  ---
+  duration_ms: 1664.242292
+  type: 'test'
+  ...
+# Subtest: REPLAYED ANSWERS (root's reproduction): with every new request dropped and only earlier captured answers replayed, a commit is NOT counted, nothing is acknowledged, and the primary steps down
+ok 9 - REPLAYED ANSWERS (root's reproduction): with every new request dropped and only earlier captured answers replayed, a commit is NOT counted, nothing is acknowledged, and the primary steps down
+  ---
+  duration_ms: 334.368956
+  type: 'test'
+  ...
+# Subtest: REPLAYED GRANTS: captured vote grants from an earlier election do not elect anyone in a later one
+ok 10 - REPLAYED GRANTS: captured vote grants from an earlier election do not elect anyone in a later one
+  ---
+  duration_ms: 673.574084
+  type: 'test'
+  ...
+# Subtest: REPLAYED REQUESTS: an old authentic snapshot, append or heartbeat replayed to a follower changes nothing (nonce, freshness window, monotonic head)
+ok 11 - REPLAYED REQUESTS: an old authentic snapshot, append or heartbeat replayed to a follower changes nothing (nonce, freshness window, monotonic head)
+  ---
+  duration_ms: 4.380913
+  type: 'test'
+  ...
+# Subtest: a crash between two files of one change: the journaled change is re-applied whole at the next start; the directory never mixes two heads
+ok 12 - a crash between two files of one change: the journaled change is re-applied whole at the next start; the directory never mixes two heads
+  ---
+  duration_ms: 333.01191
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6432.278667

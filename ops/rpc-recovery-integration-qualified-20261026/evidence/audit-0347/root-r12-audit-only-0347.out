@@ -1,0 +1,6 @@
+[queue] NOT STARTED: small allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] START available=22513MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+[memory-guard] exit=1 peakTreeRssMiB=52 minHostAvailableMiB=22570
+[memory-guard] at peak: python3:28 python3:19 bash:4
+[queue] EXIT 1

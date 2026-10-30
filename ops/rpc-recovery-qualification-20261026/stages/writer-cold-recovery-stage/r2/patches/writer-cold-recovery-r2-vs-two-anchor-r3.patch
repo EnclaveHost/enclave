@@ -1,0 +1,982 @@
+diff --git a/network/derived-reader/backward-history.mjs b/network/derived-reader/backward-history.mjs
+new file mode 100644
+index 0000000..e213340
+--- /dev/null
++++ b/network/derived-reader/backward-history.mjs
+@@ -0,0 +1,155 @@
++// AUTHENTICATED BACKWARD LEASE HISTORY (writer-cold-recovery r2; root decision 1554/1556, review §Alt).
++// Every start's runtime-verified native coverage begins at the ASR bootstrap anchor N+1; lease claims older than N would be
++// unservable. This module recovers EVERY lease event of the signed ledgers in [floor, N] (floor INCLUSIVE) with no new trust:
++//   - N's block hash is the one authenticateAnchor bound to the ASR output root (proof.mjs authenticateBootstrap seed);
++//   - walking DOWN, each header's keccak(RLP) (vendor/anchor-bootstrap.mjs headerHash, Isthmus fields required) must equal
++//     its child's parentHash: a block hash commits to its parent, so every header down to the floor is authenticated by N;
++//   - a block is skipped ONLY when its authenticated logsBloom EXCLUDES the ledger address or EXCLUDES every lease topic0
++//     (a bloom has no false negatives: such a block holds no lease log of that ledger);
++//   - every other block: the complete ordered receipt list must reproduce receiptsRoot, blooms and gas total, with OP/Base
++//     typed and deposit receipts per pinned base v1.5.1 (network/op-receipts-root.mjs verifyBlockReceipts: log positions
++//     recomputed; an RPC logIndex is only accepted when equal), and every transaction hash is bound by recomputing
++//     transactionsRoot from the block's RAW transactions (keccak(raw) = the hash; a receipt alone never binds one).
++// The own node is untrusted transport. Nothing here is persisted as authority: the optional header cache is untrusted bytes,
++// re-hashed and re-linked from N on every use. Fail closed: missing, malformed, non-canonical, oversized, truncated, gapped,
++// mismatched-root or unsupported-type input refuses the whole scan.
++import { headerHash } from './vendor/anchor-bootstrap.mjs';
++import { verifyBlockReceipts, orderedTrieRoot, BASE_MAINNET } from '../op-receipts-root.mjs';
++import { LEASE_TOPICS } from './coverage.mjs';
++import fs from 'node:fs';
++import path from 'node:path';
++
++export const BACKWARD_HISTORY_FORMAT = 'enclave-derived-backward-lease-history/v1';
++export const BACKWARD_HISTORY_POLICY_FORMAT = 'enclave-lease16-backward-history-policy/v1';
++const HASH = /^0x[0-9a-f]{64}$/, ADDRESS = /^0x[0-9a-f]{40}$/, RAW = /^0x(?:[0-9a-f]{2})+$/;
++const uint = n => Number.isSafeInteger(n) && n >= 0;
++const lc = s => String(s).toLowerCase();
++const hex = n => `0x${n.toString(16)}`;
++const fail = (code, message) => { throw Object.assign(new Error(`backward history: ${message}`), { code }); };
++const bytesOf = h => Uint8Array.from(h.slice(2).match(/../g) || [], x => parseInt(x, 16));
++const toHex = b => '0x' + Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
++
++/** The signed policy (in the reader binding only when configured; absent = disabled). */
++export function backwardHistoryPolicy(p) {
++  const keys = ['format', 'ledgers', 'floor', 'chunk', 'maxScanBlocks', 'maxLogs'];
++  if (!p || typeof p !== 'object' || Array.isArray(p) || Object.keys(p).length !== keys.length || keys.some(k => !Object.hasOwn(p, k)) ||
++      p.format !== BACKWARD_HISTORY_POLICY_FORMAT || !Array.isArray(p.ledgers) || !p.ledgers.length || p.ledgers.length > 4 ||
++      p.ledgers.some(a => !ADDRESS.test(a)) || new Set(p.ledgers).size !== p.ledgers.length || !uint(p.floor) || p.floor < 1 ||
++      !Number.isInteger(p.chunk) || p.chunk < 1 || p.chunk > 1024 || !Number.isInteger(p.maxScanBlocks) || p.maxScanBlocks < 1 || p.maxScanBlocks > 100_000_000 ||
++      !Number.isInteger(p.maxLogs) || p.maxLogs < 1 || p.maxLogs > 1_000_000) throw Error('invalid backward history policy');
++  return Object.freeze({ ...p, ledgers: Object.freeze([...p.ledgers].sort()) });
++}
++
++// ---- bloom membership (the exact bit selection of op-receipts-root.mjs bloomAdd) -----------------------------------------
++export function bloomMayContain(bloomHex, itemHex, keccak) {
++  const bloom = bytesOf(bloomHex), d = keccak(bytesOf(itemHex));
++  for (const i of [0, 2, 4]) { const bit = ((d[i] << 8) | d[i + 1]) & 2047; if (!(bloom[255 - (bit >> 3)] & (1 << (bit & 7)))) return false; }
++  return true;
++}
++/** may this authenticated header hold a lease log of one of the ledgers? false ONLY when the bloom excludes it */
++export const mayHoldLeaseLog = (logsBloom, ledgers, keccak) =>
++  ledgers.some(a => bloomMayContain(logsBloom, a, keccak)) && LEASE_TOPICS.some(t => bloomMayContain(logsBloom, t, keccak));
++
++// ---- untrusted header cache (never authority) --------------------------------------------------------------------------
++/** A private directory of header chunks keyed by their lowest number. Whatever it returns is re-verified by the scan. */
++export function fileHeaderCache(directory, { maxBytes = 2 << 30 } = {}) {
++  if (!path.isAbsolute(directory)) throw Error('header cache directory must be absolute');
++  fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
++  const st = fs.lstatSync(directory);
++  if (!st.isDirectory() || st.isSymbolicLink() || st.uid !== process.getuid() || (st.mode & 0o077)) throw Error('header cache directory must be private');
++  const file = lo => path.join(directory, `headers-${lo}.json`);
++  const used = () => fs.readdirSync(directory).reduce((n, f) => n + fs.statSync(path.join(directory, f)).size, 0);
++  return Object.freeze({
++    get(lo) { try { const v = JSON.parse(fs.readFileSync(file(lo), 'utf8')); return Array.isArray(v) ? v : null; } catch { return null; } },
++    put(lo, headers) { const bytes = JSON.stringify(headers); if (used() + bytes.length <= maxBytes) { fs.writeFileSync(file(lo) + '.tmp', bytes, { mode: 0o600 }); fs.renameSync(file(lo) + '.tmp', file(lo)); } },
++    drop(lo) { fs.rmSync(file(lo), { force: true }); },
++  });
++}
++
++/**
++ * scanBackwardLeaseHistory({ request, anchor, ledgers, floor, keccak, signal, chunk, maxScanBlocks, maxLogs, cache, rawTransactions })
++ *   request(method, params, {signal}) the OWN node (untrusted transport, bounded); anchor { number, hash } AUTHENTICATED (ASR seed)
++ *   rawTransactions 'debug' (debug_getRawTransactions(blockHash)) | 'per-index' (eth_getRawTransactionByBlockHashAndIndex)
++ * -> frozen { format, anchor, floor, ledgers, logs (ascending; native coverage log shape), stats }
++ */
++export async function scanBackwardLeaseHistory({ request, anchor, ledgers, floor, keccak, signal, chunk = 256, maxScanBlocks, maxLogs,
++  cache = null, rawTransactions = 'debug', chain = BASE_MAINNET }) {
++  if (typeof request !== 'function' || typeof keccak !== 'function') fail('bad_input', 'request and keccak are required');
++  if (!anchor || !uint(anchor.number) || !HASH.test(lc(anchor.hash))) fail('no_anchor', 'an authenticated anchor {number, hash} is required');
++  if (!Array.isArray(ledgers) || !ledgers.length || ledgers.some(a => !ADDRESS.test(a))) fail('bad_input', 'ledgers must be lowercase addresses');
++  if (!uint(floor) || !Number.isInteger(chunk) || chunk < 1 || !Number.isInteger(maxScanBlocks) || !Number.isInteger(maxLogs)) fail('bad_input', 'invalid bounds');
++  if (!['debug', 'per-index'].includes(rawTransactions)) fail('bad_input', 'rawTransactions must be debug or per-index');
++  const top = anchor.number, collected = [], stats = { headers: 0, bloomHits: 0, receiptBlocks: 0, cacheHits: 0, cacheRejected: 0 };
++  if (floor > top) return freeze({ logs: [] });
++  if (top - floor + 1 > maxScanBlocks) fail('resource_bound', `scan of ${top - floor + 1} blocks exceeds maxScanBlocks ${maxScanBlocks}`);
++  let expectHash = lc(anchor.hash), expectNumber = top;
++  const fetchChunk = (lo, hi) => Promise.all(Array.from({ length: hi - lo + 1 }, (_, i) => request('eth_getBlockByNumber', [hex(lo + i), false], { signal })));
++  // verify one ascending chunk [lo, hi] DOWNWARD against the authenticated expectation; -> the per-block verified headers
++  const verifyChunk = (headers, lo, hi) => {
++    if (!Array.isArray(headers) || headers.length !== hi - lo + 1) fail('truncated', `header chunk ${lo}..${hi} is incomplete`);
++    const out = [];
++    let want = expectHash;
++    for (let n = hi; n >= lo; n--) {
++      const h = headers[n - lo];
++      if (!h || typeof h !== 'object') fail('missing', `header ${n} is missing`);
++      let hash;
++      try { hash = headerHash(h, keccak, { requireIsthmus: true }); } catch (e) { fail('malformed', `header ${n}: ${String(e?.message || e).slice(0, 160)}`); }
++      if (h.hash !== undefined && lc(h.hash) !== hash) fail('hash_claim', `header ${n}'s claimed hash is not keccak(RLP(header))`);
++      if (Number(BigInt(h.number)) !== n) fail('discontinuity', `header at ${n} names block ${h.number}`);
++      if (hash !== want) fail('unlinked', n === top ? 'the anchor header does not hash to the authenticated anchor' : `header ${n} is not the parent of ${n + 1} (non-canonical)`);
++      if (!HASH.test(lc(h.parentHash)) || !HASH.test(lc(h.receiptsRoot)) || !HASH.test(lc(h.transactionsRoot)) || !/^0x[0-9a-f]{512}$/.test(lc(h.logsBloom)))
++        fail('malformed', `header ${n} lacks parentHash, roots or a 256-byte bloom`);
++      out.push({ n, h, hash });
++      want = lc(h.parentHash);
++    }
++    return { out, want };
++  };
++  for (let hi = top; hi >= floor; hi -= chunk) {
++    signal?.throwIfAborted();
++    const lo = Math.max(floor, hi - chunk + 1);
++    let verified = null;
++    const cached = cache?.get(lo);
++    if (cached) {
++      try { verified = verifyChunk(cached, lo, hi); stats.cacheHits++; }
++      catch { stats.cacheRejected++; cache.drop(lo); }           // tampered or stale cache: discarded, fetched again
++    }
++    if (!verified) {
++      const fetched = await fetchChunk(lo, hi);
++      verified = verifyChunk(fetched, lo, hi);
++      if (cache) try { cache.put(lo, fetched); } catch { /* cache is optional */ }
++    }
++    for (const { n, h, hash } of verified.out) {
++      stats.headers++;
++      if (!mayHoldLeaseLog(lc(h.logsBloom), ledgers, keccak)) continue;
++      stats.bloomHits++;
++      const logs = await verifiedBlockLeaseLogs(h, hash, n);
++      for (let i = logs.length - 1; i >= 0; i--) collected.push(logs[i]);   // collected descending; reversed at the end
++      if (collected.length > maxLogs) fail('resource_bound', `more than ${maxLogs} lease logs`);
++    }
++    expectHash = verified.want; expectNumber = lo - 1;
++  }
++  if (expectNumber !== floor - 1) fail('gap', 'the scan did not reach the floor');
++  return freeze({ logs: collected.reverse() });
++
++  async function verifiedBlockLeaseLogs(header, blockHash, n) {
++    stats.receiptBlocks++;
++    const receipts = await request('eth_getBlockReceipts', [blockHash], { signal });
++    if (!Array.isArray(receipts)) fail('missing', `no receipt list for block ${n}`);
++    let raws;
++    if (rawTransactions === 'debug') raws = await request('debug_getRawTransactions', [blockHash], { signal });
++    else raws = await Promise.all(receipts.map((_, i) => request('eth_getRawTransactionByBlockHashAndIndex', [blockHash, hex(i)], { signal })));
++    if (!Array.isArray(raws) || raws.some(r => typeof r !== 'string' || !RAW.test(lc(r)))) fail('missing', `raw transactions of block ${n} are missing or malformed`);
++    const txs = raws.map(r => bytesOf(lc(r)));
++    if (orderedTrieRoot(txs, keccak) !== lc(header.transactionsRoot)) fail('root_mismatch', `raw transactions of block ${n} do not reproduce transactionsRoot`);
++    const txHashes = txs.map(t => toHex(keccak(t)));
++    let v;
++    try { v = verifyBlockReceipts({ header, expectedBlockHash: blockHash, receipts, txHashes, chain }, { keccak, headerHash: (x, k) => headerHash(x, k, { requireIsthmus: true }) }); }
++    catch (e) { fail(e?.code || 'receipts', `block ${n}: ${String(e?.message || e).slice(0, 200)}`); }
++    return v.logs.filter(l => ledgers.includes(l.address) && LEASE_TOPICS.includes(l.topics[0]))
++      .map(l => ({ address: l.address, blockNumber: l.blockNumber, blockHash: l.blockHash, logIndex: l.logIndex, topics: [...l.topics], data: l.data, txHash: l.transactionHash }));
++  }
++  function freeze({ logs }) {
++    const deep = o => { if (o && typeof o === 'object') { for (const v of Object.values(o)) deep(v); Object.freeze(o); } return o; };
++    return deep({ format: BACKWARD_HISTORY_FORMAT, anchor: { number: top, hash: lc(anchor.hash) }, floor, ledgers: [...ledgers], logs, stats: { ...stats } });
++  }
++}
+diff --git a/network/derived-reader/coverage-store.mjs b/network/derived-reader/coverage-store.mjs
+index 7f912a9..bac7317 100644
+--- a/network/derived-reader/coverage-store.mjs
++++ b/network/derived-reader/coverage-store.mjs
+@@ -104,6 +104,7 @@ export async function openCoverageStore(directory, { binding, initialize = false
+     alive(); if (pending) throw Error('coverage publication pending; recovery required');
+     return { usedBytes, maximumBytes, reservedMetadataBytes: 2 * MANIFEST_BYTES,
+       verifiedFromBlock: verified[0]?.fromBlock ?? null, verifiedToBlock: verified.at(-1)?.toBlock ?? null,
++      verifiedAgreedRoot: verified[0]?.agreedRoot ?? null,   // the output root the first runtime segment was derived from (cold-history join)
+       savedFloor: structuredClone(state.floor) };
+   };
+   return Object.freeze({ status,
+diff --git a/network/derived-reader/lifecycle.mjs b/network/derived-reader/lifecycle.mjs
+index 4ffaf43..ae2259b 100644
+--- a/network/derived-reader/lifecycle.mjs
++++ b/network/derived-reader/lifecycle.mjs
+@@ -27,6 +27,8 @@ export async function startDerivedLifecycleReader(config, { verifier, journal, .
+     const snapshot = createLifecycleFinalitySnapshot({ readAnchor: reader.readAnchor, verifier, journal,
+       maxAnchorAgeSec: config.maxAnchorAgeSec ?? 1800, now: options.now || Date.now,
+       ...(provisional ? { readStateAnchor: reader.readStateAnchor, maxStateAgeSec: config.provisional.maxStateAgeSec } : {}) });
+-    return { reader, snapshot, ...(provisional ? { stateSnapshot: snapshot.twoAnchor, recordStateFact: evidence.record } : {}), close: reader.close };
++    // cold recovery of claims older than this start's coverage: the authenticated backward history, only with its signed policy
++    const history = config.history !== undefined ? { leaseHistory: q => reader.readLeaseHistory(q) } : {};
++    return { reader, snapshot, ...(provisional ? { stateSnapshot: snapshot.twoAnchor, recordStateFact: evidence.record } : {}), ...history, close: reader.close };
+   } catch (e) { await reader.close(); throw e; }
+ }
+diff --git a/network/derived-reader/provider.mjs b/network/derived-reader/provider.mjs
+index 979cd0e..0b31bca 100644
+--- a/network/derived-reader/provider.mjs
++++ b/network/derived-reader/provider.mjs
+@@ -11,10 +11,11 @@ import { stageBinary, reapRun } from './process.mjs';
+ import { startL1Runtime, assertL1Runtime, readCheckpoint, L1_HEAD_TIERS, MAX_ATTESTED_AGE_SEC } from './l1-runtime.mjs';
+ import { stageLibraries } from './libraries.mjs';
+ import { boundedRpc, finalizedHeader } from './rpc.mjs';
+-import { authenticateBootstrap, prepareProof, bindNativeV2, bindNativeV3, DERIVED_TIERS } from './proof.mjs';
++import { authenticateBootstrap, prepareProof, bindNativeV2, bindNativeV3, DERIVED_TIERS, keccak } from './proof.mjs';
+ import { invokeDerivation, DERIVATION_BUILDS, DERIVATION_V3_BUILDS } from './native.mjs';
+ import { openCoverageStore, MAX_HISTORY_BYTES } from './coverage-store.mjs';
+-import { MAX_COVERAGE_BYTES } from './coverage.mjs';
++import { MAX_COVERAGE_BYTES, LEASE_TOPICS, COVERAGE_FORMAT, FILTER_ID } from './coverage.mjs';
++import { backwardHistoryPolicy, scanBackwardLeaseHistory, fileHeaderCache } from './backward-history.mjs';
+ import { takeRuntimeLock } from '../runtime-lock.mjs';
+ import { strictWriteFile } from '../lease-release-journal.mjs';
+ import { commitJournalBytes, journalBytesDigest, validateJournalCommit } from '../journal-commit.mjs';
+@@ -45,7 +46,7 @@ export function provisionalPolicy(p) {
+ export const LOCK_WAIT_MS = 30000;
+ const EVIDENCE_FUNCTIONS = ['disabled', 'fence', 'reconcile'];
+ export async function createDerivedProvider({ l1, journal, executable, runtime = null, workDir, bootstrap, base,
+-  resultVersion = 2, coverageStore = null, provisional = null, provisionalEvidence = null,
++  resultVersion = 2, coverageStore = null, provisional = null, provisionalEvidence = null, history = null, historyRequest = null, historyCache = null,
+   maxBlocks = 1800, intermediateBlockInterval = 1, maxAnchorAgeSec = 1800, nativeTimeoutMs = 180000,
+   maxWitnessBytes = 64 << 20, maxMemoryMiB = 1536, now = Date.now }) {
+   assertL1Runtime(l1);
+@@ -58,6 +59,10 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+   const evidence = provisionalEvidence;
+   if (policy && !EVIDENCE_FUNCTIONS.every(f => typeof evidence?.[f] === 'function')) throw Error('the provisional tier needs its durable evidence journal');
+   if (!policy && evidence !== null) throw Error('provisional evidence without the provisional policy');
++  // The authenticated backward lease history (backward-history.mjs): only with its signed policy, on the v3 reader, over
++  // the own node (untrusted transport) given as historyRequest. RAM only; never a journal, floor or agreed root.
++  const historyPolicy = history === null ? null : backwardHistoryPolicy(history);
++  if (historyPolicy && (resultVersion !== 3 || typeof historyRequest !== 'function')) throw Error('the backward lease history needs the v3 reader and its own-node transport');
+   if (!Number.isInteger(maxBlocks) || maxBlocks < 1 || maxBlocks > 1800 ||
+       !Number.isInteger(intermediateBlockInterval) || intermediateBlockInterval < 1 || intermediateBlockInterval > maxBlocks ||
+       !Number.isInteger(maxAnchorAgeSec) || maxAnchorAgeSec < 20 || maxAnchorAgeSec > 3600 ||
+@@ -211,6 +216,20 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+     if (Math.floor(now() / 1000) - state.base.timestamp > policy.maxStateAgeSec) throw Error('provisional state anchor aged out while reading');
+     return { root, state, segments: prov.segments.map(s => s.coverage) };
+   }
++  // ---- authenticated backward lease history: [floor, N] from the ASR seed N, joined to coverage (N, anchor] ----
++  let scan = null;
++  function startHistoryScan(seed) {
++    if (!historyPolicy) return;
++    const controller = new AbortController(), current = { seed, controller, result: null, error: null, failedAt: 0, startedAt: now() };
++    scan?.controller.abort(Error('history scan replaced'));
++    scan = current;
++    // N's hash is the one authenticateAnchor bound to the ASR output root (the seed); I/O only, off the native slot
++    scanBackwardLeaseHistory({ request: historyRequest, anchor: { number: seed.base.number, hash: seed.base.hash }, ledgers: historyPolicy.ledgers,
++      floor: historyPolicy.floor, keccak, signal: controller.signal, chunk: historyPolicy.chunk, maxScanBlocks: historyPolicy.maxScanBlocks,
++      maxLogs: historyPolicy.maxLogs, cache: historyCache })
++      .then(result => { if (scan === current && !closed) current.result = result; })
++      .catch(e => { if (scan === current) { current.error = String(e?.code || e?.message || e).slice(0, 160); current.failedAt = now(); } });
++  }
+   // S with the exact finalized root it extends (the bridge pairs it only with that B_f)
+   const stateWithRoot = ({ root, state }) => ({ ...structuredClone(state), finalizedRoot: { number: root.base.number, hash: root.base.hash } });
+   return Object.freeze({
+@@ -224,7 +243,9 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+           const seed = validateAnchor(await bootstrap({ signal: proofSignal }));
+           if (seed.tier !== 'l1-finalized-asr-anchor') throw Error('initial agreed root must be freshly ASR-authenticated');
+           agreed = seed; // never load an agreed root from journal JSON
++          startHistoryScan(seed);
+         }
++        if (scan?.error && now() - scan.failedAt > 60000) startHistoryScan(scan.seed);   // a failed scan is retried, never trusted
+         const floor = savedFloor();
+         if (!Number.isSafeInteger(blockNumber) || blockNumber <= agreed.base.number || blockNumber - agreed.base.number > maxBlocks ||
+             (blockNumber - agreed.base.number) % intermediateBlockInterval !== 0) throw Error('candidate range exceeds reader bounds');
+@@ -357,6 +378,36 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+     async readStateAnchor({ signal } = {}) {
+       return exclusive(signal, async s => stateWithRoot(await currentProvisional(s)));
+     },
++    // COLD RECOVERY of claims older than this start's coverage: EVERY lease log of the deployment over [floor, anchor] =
++    // the authenticated backward scan [floor, N] + this process's runtime-verified coverage (N, anchor] (with the provisional
++    // overlay for S). Served only when the scan completed for this process's seed N and the coverage starts at exactly N+1
++    // from N's output root. Read-only: nothing is persisted.
++    async readLeaseHistory({ address, deployment, anchor: requested, signal: callerSignal } = {}) {
++      return exclusive(callerSignal, async proofSignal => {
++        if (!historyPolicy || !coverageStore) throw Error('the backward lease history is not enabled by the signed reader binding');
++        const h = scan?.result;
++        if (!h) throw Error(`backward lease history unavailable: ${scan?.error ? `the scan failed (${scan.error})` : 'the scan has not completed'}`);
++        if (!historyPolicy.ledgers.includes(address) || !/^0x[0-9a-f]{64}$/.test(String(deployment))) throw Error('backward lease history query outside its signed ledgers');
++        const signal = AbortSignal.any([proofSignal, AbortSignal.timeout(30000)]);
++        const s = prov?.segments.at(-1)?.anchor, provisional = !!s && requested?.number === s.base.number && requested?.hash === s.base.hash;
++        const current = provisional ? await currentProvisional(signal) : null, anchor = current ? current.state : await currentAnchor(signal);
++        if (requested?.number !== anchor.base.number || requested?.hash !== anchor.base.hash) throw Error('derived logs require an exact current snapshot anchor');
++        const N = scan.seed.base, cov = coverageStore.status();
++        if (h.anchor.number !== N.number || h.anchor.hash !== N.hash || cov.verifiedFromBlock !== N.number + 1 || cov.verifiedAgreedRoot !== N.outputRoot)
++          throw Error('backward lease history is not joined to this process\'s coverage at its bootstrap anchor');
++        if (anchor.base.number < N.number) throw Error('backward lease history is ahead of the snapshot anchor');
++        const own = h.logs.filter(l => l.address === address && l.topics[1] === deployment);
++        const fresh = anchor.base.number === N.number ? [] : (await coverageStore.read({ address, topic0s: [...LEASE_TOPICS], topic1: deployment,
++          fromBlock: N.number + 1, toBlock: anchor.base.number, anchor: requested }, anchor, { signal, ...(current ? { overlay: current.segments } : {}) })).logs;
++        if (current) { if ((await currentProvisional(signal)).state !== current.state) throw Error('provisional state changed while reading'); }
++        else await currentAnchor(signal);
++        const result = { format: 'enclave-derived-lease-history/v1', anchor: structuredClone(anchor), ledger: address, deployment,
++          join: { number: N.number, hash: N.hash }, logs: [...own.map(l => structuredClone(l)), ...fresh],
++          coverage: { format: COVERAGE_FORMAT, filterId: FILTER_ID, fromBlock: historyPolicy.floor, toBlock: anchor.base.number, complete: true } };
++        if (Buffer.byteLength(JSON.stringify(result)) > MAX_COVERAGE_BYTES) throw Error('backward lease history response exceeds its byte bound');
++        return result;
++      });
++    },
+     async readDerivedLogs(query = {}) {
+       return exclusive(query.signal, async proofSignal => {
+         if (!coverageStore) throw Error('derived logs require the explicit v3 reader');
+@@ -384,9 +435,11 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+       resultVersion, coverage: coverageStore?.status() ?? null,
+       provisional: policy ? { segments: prov?.segments.length ?? 0, stateThrough: prov?.segments.at(-1)?.anchor.base.number ?? null,
+         hasPendingWitness: !!provPending && provPending.expiresAt > now(), fenced: provFence } : null,
+-      nativeRunning: !!native }; },
++      nativeRunning: !!native,
++      history: historyPolicy ? { state: scan?.result ? 'complete' : scan?.error ? 'failed' : scan ? 'scanning' : 'not-started', anchor: scan?.seed.base.number ?? null,
++        floor: historyPolicy.floor, error: scan?.error ?? null, stats: scan?.result?.stats ?? null } : null }; },
+     async close() {
+-      closed = true; pending = null; latest = null; dropProvisional();
++      closed = true; pending = null; latest = null; dropProvisional(); scan?.controller.abort(Error('derived provider closed'));
+       const run = native; run?.controller.abort(Error('derived provider closed'));
+       active?.abort(Error('derived provider closed')); await activeDone; await run?.done;
+     },
+@@ -420,13 +473,15 @@ function readerConfiguration(config, options) {
+   const checkpoint = readCheckpoint(l1Config.checkpointFile, { accepted: options.l1Options?.acceptedCheckpoints, now: options.now || Date.now });
+   // Present only when configured: the default binding is byte-for-byte unchanged.
+   const provisional = config.provisional === undefined ? null : provisionalPolicy(config.provisional);
++  const history = config.history === undefined ? null : backwardHistoryPolicy(config.history);
++  if (history && resultVersion !== 3) throw Error('the backward lease history needs the v3 coverage reader');
+   if (provisional && resultVersion !== 3) throw Error('the provisional tier needs the v3 coverage reader');
+   const binding = createHash('sha256').update(JSON.stringify({ chain: 8453, native: native.sha256,
+     nativeRuntime: native.runtime?.build ?? null, l1Runtime: l1Config.runtime?.build ?? null,
+     l1: l1Config.binary.sha256, checkpoint: checkpoint.digest, a1: a1Config, interval: config.intermediateBlockInterval ?? 1,
+     ...(resultVersion === 3 ? { resultVersion, historyMaximumBytes: config.historyMaximumBytes ?? MAX_HISTORY_BYTES } : {}),
+-    ...(provisional ? { provisional } : {}) })).digest('hex');
+-  return { ...layout, native, l1Config, a1Config, baseUrl, resultVersion, builds, binding, provisional };
++    ...(provisional ? { provisional } : {}), ...(history ? { history } : {}) })).digest('hex');
++  return { ...layout, native, l1Config, a1Config, baseUrl, resultVersion, builds, binding, provisional, history };
+ }
+ function privateDirectory(directory) {
+   const stat = fs.lstatSync(directory);
+@@ -516,13 +571,15 @@ export async function enrollDerivedState(config, { anchorJournal, verifyEnrollme
+   }
+ }
+ export async function startDerivedReader(config, options = {}) {
+-  const { journalDir, coverageDir, runsDir: runs, split, native, l1Config, a1Config, baseUrl, resultVersion, builds, binding, provisional } = readerConfiguration(config, options);
++  const { journalDir, coverageDir, runsDir: runs, split, native, l1Config, a1Config, baseUrl, resultVersion, builds, binding, provisional, history } = readerConfiguration(config, options);
+   const initializeState = config.initializeState ?? false;
+   // S1: the provisional tier only on the ENROLLED reader state (split layout, never
+   // self-initialized, every journal write role-committed): a private config file alone
+   // never enables it; the signed enrollment binding carries the policy.
+   if (provisional && (!split || initializeState !== false || options.requireJournalCommit !== true || typeof options.journalCommit !== 'function'))
+     throw Error('the provisional tier needs the enrolled, role-committed reader state (an admin-signed binding); a private config alone never enables it');
++  if (history && (!split || initializeState !== false || options.requireJournalCommit !== true || typeof options.journalCommit !== 'function'))
++    throw Error('the backward lease history needs the enrolled, role-committed reader state (an admin-signed binding); a private config alone never enables it');
+   for (const dir of [journalDir, runs]) { fs.mkdirSync(dir, { recursive: true, mode: 0o700 }); privateDirectory(dir); }
+   const journal = await openDerivedJournal(journalDir, { binding, initialize: initializeState,
+     commit: options.journalCommit, requireCommit: options.requireJournalCommit, commitTimeoutMs: options.commitTimeoutMs });
+@@ -562,7 +619,11 @@ export async function startDerivedReader(config, options = {}) {
+     const base = boundedRpc(baseUrl);
+     const execution = boundedRpc(l1Config.executionUrl);
+     provider = await createDerivedProvider({ l1, journal, executable, runtime, workDir: nativeDir, base, resultVersion, coverageStore, provisional,
+-      provisionalEvidence: provisional ? options.provisionalEvidence ?? null : null,
++      provisionalEvidence: provisional ? options.provisionalEvidence ?? null : null, history,
++      // the own Base node: untrusted transport for the scan (receipts of large blocks need a larger byte cap)
++      historyRequest: history ? boundedRpc(baseUrl, { maxBytes: 32 << 20, timeoutMs: 60000 }) : null,
++      // untrusted header bytes kept across restarts (beside runs/, never reaped as a run): re-authenticated from N on every use
++      historyCache: history ? fileHeaderCache(path.join(path.dirname(runs), 'history-cache')) : null,
+       bootstrap: params => authenticateBootstrap({ l1, execution, base, a1Config, ...params, now: options.now || Date.now }),
+       maxBlocks: config.maxBlocks, intermediateBlockInterval: config.intermediateBlockInterval, maxAnchorAgeSec: config.maxAnchorAgeSec,
+       nativeTimeoutMs: config.nativeTimeoutMs, maxWitnessBytes: config.maxWitnessBytes, maxMemoryMiB: config.maxMemoryMiB, now: options.now || Date.now });
+diff --git a/relay/derived-writer-authority.mjs b/relay/derived-writer-authority.mjs
+index eb4d63c..4e39e37 100644
+--- a/relay/derived-writer-authority.mjs
++++ b/relay/derived-writer-authority.mjs
+@@ -142,26 +142,53 @@ export function checkDerivedLogs(res, ask) {
+     fail("coverage_incomplete", "the derived reader did not answer with complete coverage of exactly the asked range", true);
+   if (!Array.isArray(res.logs)) fail("derived_logs_invalid", "no log list", true);
+   const out = [];
+-  let prev = null;
+   for (const l of res.logs) {
+-    const topics = Array.isArray(l?.topics) ? l.topics.map(lc) : [];
+-    if (lc(l?.address) !== ask.address || topics[1] !== ask.topic1 || !LEASE_TOPIC0S.includes(topics[0])) continue;   // not this lease's
+-    const shape = SHAPE[topics[0]], data = lc(l.data);
+-    if (topics.length !== shape.topics || !topics.every((t) => H32.test(t)) || !DATA.test(data) || data.length !== 2 + 64 * shape.words ||
+-        !uint(l.blockNumber) || l.blockNumber < ask.fromBlock || l.blockNumber > ask.toBlock || !uint(l.logIndex) ||
+-        !H32.test(lc(l.blockHash)) || !H32.test(lc(l.txHash)))
+-      fail("bad_answer", "a lease log of the derived coverage is malformed or outside the asked range", true);
+-    if (prev && (l.blockNumber < prev.blockNumber || l.blockNumber === prev.blockNumber && l.logIndex <= prev.logIndex))
+-      fail("bad_answer", "the derived lease logs are not in strict (block, logIndex) order", true);
+-    if (prev && l.blockNumber === prev.blockNumber && lc(l.blockHash) !== prev.blockHash)
+-      fail("bad_answer", "two blocks of one number in the derived lease logs", true);
+-    if (l.blockNumber === ask.anchor.number && lc(l.blockHash) !== ask.anchor.hash)
+-      fail("anchor_mismatch", "a lease log of the anchor block names another block hash", true);
+-    prev = { blockNumber: l.blockNumber, logIndex: l.logIndex, blockHash: lc(l.blockHash), transactionHash: lc(l.txHash), topics, data };
+-    out.push(prev);
++    if (!ofLease(l, ask)) continue;   // not this lease's
++    pushLeaseLog(out, l, ask, ask.fromBlock, ask.toBlock);
+   }
+   return out;
+ }
++const ofLease = (l, ask) => { const topics = Array.isArray(l?.topics) ? l.topics.map(lc) : [];
++  return lc(l?.address) === ask.address && topics[1] === ask.topic1 && LEASE_TOPIC0S.includes(topics[0]); };
++/** one lease log of this deployment, strictly validated (ABI shape, range [lo, hi], order after `out`, the anchor block hash) */
++function pushLeaseLog(out, l, ask, lo, hi) {
++  const prev = out.at(-1), topics = l.topics.map(lc);
++  const shape = SHAPE[topics[0]], data = lc(l.data);
++  if (topics.length !== shape.topics || !topics.every((t) => H32.test(t)) || !DATA.test(data) || data.length !== 2 + 64 * shape.words ||
++      !uint(l.blockNumber) || l.blockNumber < lo || l.blockNumber > hi || !uint(l.logIndex) ||
++      !H32.test(lc(l.blockHash)) || !H32.test(lc(l.txHash)))
++    fail("bad_answer", "a lease log of the derived coverage is malformed or outside the asked range", true);
++  if (prev && (l.blockNumber < prev.blockNumber || l.blockNumber === prev.blockNumber && l.logIndex <= prev.logIndex))
++    fail("bad_answer", "the derived lease logs are not in strict (block, logIndex) order", true);
++  if (prev && l.blockNumber === prev.blockNumber && lc(l.blockHash) !== prev.blockHash)
++    fail("bad_answer", "two blocks of one number in the derived lease logs", true);
++  if (l.blockNumber === ask.anchor.number && lc(l.blockHash) !== ask.anchor.hash)
++    fail("anchor_mismatch", "a lease log of the anchor block names another block hash", true);
++  out.push({ blockNumber: l.blockNumber, logIndex: l.logIndex, blockHash: lc(l.blockHash), transactionHash: lc(l.txHash), topics, data });
++}
++
++export const LEASE_HISTORY_FORMAT = "enclave-derived-lease-history/v1";
++/** COLD RECOVERY (writer-cold-recovery r2): strict check of one readLeaseHistory answer - EVERY lease log of this deployment over
++ *  [fromBlock, anchor], from the reader's authenticated backward header+receipt scan [floor, N] joined to its runtime-verified
++ *  coverage (N, anchor] - against exactly what was asked. The range must start at or below the ledger floor and end at the
++ *  anchor; every log passes the same per-log rules as checkDerivedLogs. -> { logs, from, join } */
++export function checkLeaseHistory(res, ask) {
++  if (!res || res.format !== LEASE_HISTORY_FORMAT) fail("derived_logs_invalid", "the derived reader's answer is not enclave-derived-lease-history/v1", true);
++  const b = res.anchor?.base;
++  if (!b || b.number !== ask.anchor.number || lc(b.hash) !== ask.anchor.hash)
++    fail("anchor_mismatch", "the lease history is of another anchor than the snapshot's", true);
++  if (lc(res.ledger) !== ask.address || lc(res.deployment) !== ask.topic1) fail("derived_logs_invalid", "the derived reader answered for another lease", true);
++  const c = res.coverage, j = res.join;
++  if (!c || c.format !== COVERAGE_FORMAT || c.filterId !== FILTER_ID || c.complete !== true || !uint(c.fromBlock) || c.fromBlock > ask.ledgerFloor ||
++      c.toBlock !== ask.anchor.number)
++    fail("coverage_incomplete", "the lease history does not cover [ledger floor, anchor] completely", true);
++  if (!j || !uint(j.number) || j.number < c.fromBlock - 1 || j.number > ask.anchor.number || !H32.test(lc(j.hash)))
++    fail("derived_logs_invalid", "the lease history names no join point inside its range", true);
++  if (!Array.isArray(res.logs)) fail("derived_logs_invalid", "no log list", true);
++  const out = [];
++  for (const l of res.logs) if (ofLease(l, ask)) pushLeaseLog(out, l, ask, c.fromBlock, ask.anchor.number);
++  return { logs: out, from: c.fromBlock, join: { number: j.number, hash: lc(j.hash) } };
++}
+ 
+ /** The existing replay (lease-generation.mjs step 4/5) over COMPLETE logs: the last Claimed and everything after it must yield the
+  *  row. -> the claim log. */
+@@ -208,6 +235,16 @@ export function createDerivedWriterAuthority({ capability, fresh, ledgerPin = ""
+     fail("provisional_disabled", `the provisional state anchor is disabled by a durable marker (${m.slice(0, 120)})`, true);
+   };
+   const MARKER = /disabled by a durable marker|provisional track fenced/;
++  // COLD RECOVERY: the runtime-verified coverage of every start begins at its ASR anchor; when that is after the ledger floor and
++  // the runtime offers it (signed binding, enrolled state), the reader's authenticated backward history supplies every older log
++  if (capability.readLeaseHistory !== undefined && typeof capability.readLeaseHistory !== "function") throw new Error("the derived reader's lease history is not a capability");
++  const historyUnavailable = (e) => { const m = String(e?.message || e);
++    if (/^backward lease history |^the backward lease history /.test(m)) fail("history_unavailable", `the claim predates this start's coverage and the authenticated backward history cannot serve it yet (${m.slice(0, 120)})`, true); };
++  async function historyLogs(base, availableFrom) {
++    if (availableFrom <= fromBlock || typeof capability.readLeaseHistory !== "function") return null;
++    const res = await capability.readLeaseHistory({ address: base.address, deployment: base.topic1, anchor: base.anchor, signal: base.signal });
++    return checkLeaseHistory(res, { address: base.address, topic1: base.topic1, anchor: base.anchor, ledgerFloor: fromBlock });
++  }
+   if (!Number.isInteger(maxFinalizedAgeSec) || maxFinalizedAgeSec < 1 || maxFinalizedAgeSec > MAX_FINALIZED_AGE_SEC)
+     throw new Error(`maxFinalizedAgeSec must be 1..${MAX_FINALIZED_AGE_SEC} s`);
+   if (!fresh || typeof fresh.getBlockNumber !== "function" || typeof fresh.request !== "function" || typeof fresh.readContract !== "function")
+@@ -242,6 +279,8 @@ export function createDerivedWriterAuthority({ capability, fresh, ledgerPin = ""
+         // the reader's complete coverage starts at availableFrom: learn it at the anchor block itself, then read everything since
+         const probeAsk = { ...base, fromBlock: B, toBlock: B }, probe = await capability.readDerivedLogs(probeAsk);
+         checkDerivedLogs(probe, probeAsk);
++        const hist = await historyLogs(base, probe.coverage.availableFromBlock);
++        if (hist) return { B, hash, time, ledger, schema, row, logs: hist.logs, from: hist.from, join: hist.join };
+         const from = Math.max(fromBlock, probe.coverage.availableFromBlock);
+         if (from > B) fail("claim_not_covered", "the derived reader's coverage starts after the anchor");
+         const ask = { ...base, fromBlock: from, toBlock: B };
+@@ -250,6 +289,7 @@ export function createDerivedWriterAuthority({ capability, fresh, ledgerPin = ""
+     } catch (e) {
+       if (signal?.aborted) throw aborted(signal);
+       if (e instanceof LeaseGenerationError) throw e;
++      historyUnavailable(e);
+       fail("derived_unavailable", `the derived reader could not answer (${String(e?.message || e).slice(0, 120)})`, true);
+     }
+     const v = snap?.value;
+@@ -282,6 +322,8 @@ export function createDerivedWriterAuthority({ capability, fresh, ledgerPin = ""
+         const base = { address: s.ledger, topic0s: [...LEASE_TOPIC0S], topic1: id, anchor, signal };
+         const probeAsk = { ...base, fromBlock: s.B, toBlock: s.B }, probe = await capability.readDerivedLogs(probeAsk);
+         checkDerivedLogs(probe, probeAsk);
++        const hist = await historyLogs(base, probe.coverage.availableFromBlock);
++        if (hist) return { ...s, final, logs: hist.logs, from: hist.from, join: hist.join };
+         const from = Math.max(fromBlock, probe.coverage.availableFromBlock);
+         if (from > final.B) fail("claim_not_covered", "the derived reader's coverage starts after the finalized anchor");
+         const ask = { ...base, fromBlock: from, toBlock: s.B };
+@@ -292,6 +334,7 @@ export function createDerivedWriterAuthority({ capability, fresh, ledgerPin = ""
+       if (e instanceof LeaseGenerationError) throw e;
+       const m = String(e?.message || e);
+       if (MARKER.test(m)) disabled(m);
++      historyUnavailable(e);
+       if (/provisional coverage|coverage gap|outside runtime-verified coverage|coverage incomplete/.test(m))
+         fail("coverage_incomplete", `the derived reader has no complete coverage through the state anchor (${m.slice(0, 120)})`, true);
+       fail("derived_unavailable", `the derived reader could not answer (${m.slice(0, 120)})`, true);
+@@ -381,8 +424,9 @@ export function createDerivedWriterAuthority({ capability, fresh, ledgerPin = ""
+                claim: { blockNumber: C.blockNumber, blockHash: C.blockHash, logIndex: C.logIndex, transactionHash: C.transactionHash, runner: row.runner },
+                evidence: v.final
+                  ? { authority: "consumer-domain-derivation", tier: STATE_TIER, claimTier: CLAIM_TIER, coverageFromBlock: v.from,
+-                     finalized: { number: v.final.B, hash: v.final.hash, time: v.final.time }, state: { number: v.B, hash: v.hash, time: v.time } }
+-                 : { authority: "consumer-domain-derivation", tier: "l1-finalized-derived", coverageFromBlock: v.from } };
++                     finalized: { number: v.final.B, hash: v.final.hash, time: v.final.time }, state: { number: v.B, hash: v.hash, time: v.time },
++                     ...(v.join ? { historyJoin: v.join } : {}) }
++                 : { authority: "consumer-domain-derivation", tier: "l1-finalized-derived", coverageFromBlock: v.from, ...(v.join ? { historyJoin: v.join } : {}) } };
+     }, signal);
+   }
+   return { writerAuthority };
+@@ -454,13 +498,14 @@ export async function derivedWriterAuthorityFromEnv(env, { relayChain, loadRunti
+     // S1: without the role's enrolled state nothing is signed: a private config carrying the provisional policy refuses here
+     // (KVM's startDerivedReader refuses it on any unenrolled state as well)
+     if (config.provisional !== undefined) throw new Error(`the provisional writer tier needs the role's enrolled, admin-signed state (${STATE_ENV}); a private reader config never enables it`);
++    if (config.history !== undefined) throw new Error(`the backward lease history needs the role's enrolled, admin-signed state (${STATE_ENV}); a private reader config never enables it`);
+     service = await runtime.startDerivedLifecycleReader(config, { verifier, journal: runtime.openLifecycleJournal(journalPath) });
+   }
+   if (typeof service?.reader?.readDerivedLogs !== "function" || typeof service?.snapshot !== "function")
+     throw new Error("the derived reader has no readDerivedLogs (R3) capability");
+-  if (!state && typeof service.stateSnapshot === "function") {
++  if (!state && (typeof service.stateSnapshot === "function" || typeof service.leaseHistory === "function")) {
+     await service.close?.();
+-    throw new Error(`a reader without the role's enrolled state offered a provisional state anchor: refused (${STATE_ENV} is required)`);
++    throw new Error(`a reader without the role's enrolled state offered a provisional state anchor or a lease history: refused (${STATE_ENV} is required)`);
+   }
+   let api = null;
+   if (env[API_PORT_ENV]) {
+@@ -472,7 +517,9 @@ export async function derivedWriterAuthorityFromEnv(env, { relayChain, loadRunti
+   // decides from the enrolled config; no env, flag or caller here can add it)
+   const twoAnchors = typeof service.stateSnapshot === "function";
+   const capability = { snapshot: service.snapshot, readDerivedLogs: (q) => service.reader.readDerivedLogs(q),
+-    ...(twoAnchors ? { stateSnapshot: service.stateSnapshot, recordStateFact: service.recordStateFact } : {}) };
++    ...(twoAnchors ? { stateSnapshot: service.stateSnapshot, recordStateFact: service.recordStateFact } : {}),
++    // cold recovery: the authenticated backward history, only as the runtime offers it (signed binding, enrolled state)
++    ...(typeof service.leaseHistory === "function" ? { readLeaseHistory: service.leaseHistory } : {}) };
+   // the reader config's own maxAnchorAgeSec bounds KVM's reader only; the writer authority keeps its fixed 120 s ceiling
+   const authority = createDerivedWriterAuthority({ capability, fresh: relayChain.client, ledgerPin, addressBook, log, ...(now ? { now } : {}),
+     ...(twoAnchors && Number.isInteger(config.maxAnchorAgeSec) ? { maxFinalizedAgeSec: Math.min(config.maxAnchorAgeSec, MAX_FINALIZED_AGE_SEC) } : {}) });
+diff --git a/test/derived-reader/backward-history.test.mjs b/test/derived-reader/backward-history.test.mjs
+new file mode 100644
+index 0000000..d2cab86
+--- /dev/null
++++ b/test/derived-reader/backward-history.test.mjs
+@@ -0,0 +1,284 @@
++// writer-cold-recovery-stage/r2: the AUTHENTICATED BACKWARD lease history (network/derived-reader/backward-history.mjs) and its
++// provider join. What is real: 52 REAL Base mainnet headers (test/fixtures/base-headers-52965055-52965106.json: real hashes,
++// parent links, Isthmus fields and real logsBloom) for the walk and the bloom-skip rule, and the pinned primitives themselves
++// (anchor-bootstrap headerHash, op-receipts-root verifyBlockReceipts / orderedTrieRoot). Receipts and raw transactions are not
++// available offline: the receipt paths use a SYNTHETIC but canonical chain built with those same encoders (headers whose
++// receiptsRoot, transactionsRoot, logsBloom and gasUsed are recomputed from the generated receipts). Nothing here measures
++// scan speed or own-node behaviour; no performance claim.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import { headerHash } from '../../network/derived-reader/vendor/anchor-bootstrap.mjs';
++import { consensusReceiptsRoot, logsBloom, orderedTrieRoot } from '../../network/op-receipts-root.mjs';
++import { keccak } from '../../network/derived-reader/proof.mjs';
++import { LEASE_TOPICS } from '../../network/derived-reader/coverage.mjs';
++import { scanBackwardLeaseHistory, mayHoldLeaseLog, bloomMayContain, fileHeaderCache, backwardHistoryPolicy, BACKWARD_HISTORY_POLICY_FORMAT } from '../../network/derived-reader/backward-history.mjs';
++import { createDerivedProvider, derivedReaderBinding, startDerivedReader } from '../../network/derived-reader/provider.mjs';
++import { openDerivedJournal } from '../../network/derived-reader/journal.mjs';
++import { openCoverageStore } from '../../network/derived-reader/coverage-store.mjs';
++import { sha256File } from '../../network/derived-reader/process.mjs';
++import { checkLeaseHistory, replayToRow } from '../../relay/derived-writer-authority.mjs';
++import { header, anchorOf } from './helpers.mjs';
++import { hash, TEMPLATE, result, l1Fixture } from './two-anchor-fixtures.mjs';
++
++const [CLAIMED, RENEWED, RELEASED] = LEASE_TOPICS;
++const hx = b => '0x' + Buffer.from(b).toString('hex'), by = h => Uint8Array.from(Buffer.from(h.slice(2), 'hex'));
++const q = v => '0x' + BigInt(v).toString(16);
++const word = n => BigInt(n).toString(16).padStart(64, '0');
++const LEDGER = `0x${'66'.repeat(20)}`, OTHER = `0x${'67'.repeat(20)}`, ID = `0x${'11'.repeat(32)}`, R1 = `0x${'22'.repeat(32)}`, R2 = `0x${'33'.repeat(32)}`;
++const OP = `0x${'44'.repeat(20)}`, pad = a => `0x${'0'.repeat(24)}${a.slice(2)}`;
++const claimed = (runner, until) => ({ address: LEDGER, topics: [CLAIMED, ID, runner, pad(OP)], data: `0x${word(until)}${word(5)}` });
++const renewed = (runner, until) => ({ address: LEDGER, topics: [RENEWED, ID, runner], data: `0x${word(until)}${word(5)}` });
++const released = runner => ({ address: LEDGER, topics: [RELEASED, ID, runner], data: `0x${word(7)}` });
++const FUNDED = hash('Funded(bytes32,uint256)');
++
++/** A canonical synthetic chain [from, to]: contents[n] = [{ type, logs }] per transaction (default: the L1-info deposit only). */
++function buildChain({ from, to, t0 = 1_790_000_000, contents = {} }) {
++  const headers = new Map(), receipts = new Map(), raws = new Map(), expected = [];
++  let parent = hash(`parent-of-${from}`);
++  for (let n = from; n <= to; n++) {
++    const txs = contents[n] || [{ type: '0x7e', logs: [] }];
++    const raw = txs.map((t, i) => Uint8Array.from([t.type === '0x0' ? 0xf8 : Number(t.type), ...keccak(new TextEncoder().encode(`tx-${n}-${i}`))]));
++    let cum = 0n;
++    const consensus = txs.map((t, i) => { cum += 21000n * BigInt(i + 1);
++      return { type: t.type, status: 1, cumulativeGasUsed: cum, logs: t.logs.map(l => ({ address: by(l.address), topics: l.topics.map(by), data: by(l.data) })),
++        ...(t.type === '0x7e' ? { depositNonce: BigInt(n * 10 + i), depositReceiptVersion: 1n } : {}) }; });
++    const bloom = new Uint8Array(256);
++    for (const r of consensus) logsBloom(r.logs, keccak).forEach((x, k) => { bloom[k] |= x; });
++    const h = { ...header(n, t0 + (n - from) * 2), parentHash: parent, receiptsRoot: consensusReceiptsRoot(consensus, keccak),
++      transactionsRoot: orderedTrieRoot(raw, keccak), logsBloom: hx(bloom), gasUsed: q(cum) };
++    delete h.hash; h.hash = headerHash(h, keccak, { requireIsthmus: true });
++    const txh = raw.map(r => hx(keccak(r)));
++    let li = 0;
++    receipts.set(h.hash, consensus.map((r, i) => ({ type: r.type, status: '0x1', cumulativeGasUsed: q(r.cumulativeGasUsed), blockHash: h.hash, blockNumber: q(n),
++      transactionIndex: q(i), transactionHash: txh[i], ...(r.depositNonce !== undefined ? { depositNonce: q(r.depositNonce), depositReceiptVersion: '0x1' } : {}),
++      logs: txs[i].logs.map(l => { const logIndex = li++;
++        if (l.address === LEDGER && LEASE_TOPICS.includes(l.topics[0]))
++          expected.push({ address: LEDGER, blockNumber: n, blockHash: h.hash, logIndex, topics: [...l.topics], data: l.data, txHash: txh[i] });
++        return { ...l, blockHash: h.hash, blockNumber: q(n), transactionIndex: q(i), transactionHash: txh[i], logIndex: q(logIndex), removed: false }; }) })));
++    raws.set(h.hash, raw.map(hx));
++    headers.set(n, h); parent = h.hash;
++  }
++  return { from, to, headers, receipts, raws, expected, anchor: n => ({ number: n, hash: headers.get(n).hash }) };
++}
++/** the own node: untrusted transport over the chain, with tamper and outage hooks; records every call */
++function node(c, tamper = {}) {
++  const calls = [];
++  const request = async (method, params) => {
++    calls.push([method, params[0]]);
++    if (tamper.fail?.(method, params)) throw Error('own node outage');
++    const or = (t, v) => (t === undefined ? v : t);                 // a hook returns undefined (unchanged) or the answer, null included
++    if (method === 'eth_getBlockByNumber') { const n = Number(BigInt(params[0])), h = c.headers.get(n); if (!h) return null; const v = structuredClone(h); return or(tamper.header?.(v, n), v); }
++    if (method === 'eth_getBlockReceipts') { const r = c.receipts.get(params[0]); if (!r) return null; const v = structuredClone(r); return or(tamper.receipts?.(v, params[0]), v); }
++    if (method === 'debug_getRawTransactions') { const r = c.raws.get(params[0]); if (!r) return null; const v = [...r]; return or(tamper.raws?.(v), v); }
++    if (method === 'eth_getRawTransactionByBlockHashAndIndex') return c.raws.get(params[0])?.[Number(BigInt(params[1]))] ?? null;
++    throw Error(`unexpected ${method}`);
++  };
++  return { request, calls, receiptCalls: () => calls.filter(c => c[0] === 'eth_getBlockReceipts').map(c => c[1]) };
++}
++const scan = (c, own, extra = {}) => scanBackwardLeaseHistory({ request: own.request, anchor: c.anchor(c.to), ledgers: [LEDGER], floor: c.from, keccak,
++  chunk: 3, maxScanBlocks: 1000, maxLogs: 100, ...extra });
++/** a consistently lying node: altered fields WITH a recomputed hash field (so only the parent link can expose it) */
++const rehash = h => { delete h.hash; h.hash = headerHash(h, keccak, { requireIsthmus: true }); return h; };
++const refuses = (p, code) => assert.rejects(p, e => { assert.equal(e.code, code, e.message); return true; });
++/** the history the tests use: the first claim in the FLOOR block itself, typed receipts, noise, a release + same-runner re-claim */
++const history = () => buildChain({ from: 1000, to: 1012, contents: {
++  1000: [{ type: '0x7e', logs: [] }, { type: '0x2', logs: [claimed(R1, 2_000_000_000)] }],                                      // floor: inclusive
++  1003: [{ type: '0x7e', logs: [] }, { type: '0x0', logs: [{ address: LEDGER, topics: [FUNDED, ID], data: `0x${word(1)}` }] },
++         { type: '0x2', logs: [renewed(R1, 2_000_000_100), { address: OTHER, topics: [CLAIMED, ID, R2, pad(OP)], data: `0x${word(1)}${word(1)}` }] }],
++  1007: [{ type: '0x7e', logs: [] }, { type: '0x1', logs: [released(R1)] }, { type: '0x4', logs: [claimed(R1, 2_000_000_500)] }],
++  1011: [{ type: '0x7e', logs: [] }, { type: '0x2', logs: [renewed(R2, 2_000_000_900)] }] } });
++
++test('REAL Base headers: 52 parent-linked headers authenticate from N down to the floor INCLUSIVE; blooms decide (and only exclusion skips)', async () => {
++  const FIX = JSON.parse(fs.readFileSync(new URL('../fixtures/base-headers-52965055-52965106.json', import.meta.url)));
++  const real = new Map(FIX.headers.map(e => [Number(e.number), e.header])), lo = 52965055, hi = 52965106;
++  const N = { number: hi, hash: real.get(hi).hash.toLowerCase() };
++  for (const [n, h] of real) assert.equal(headerHash(h, keccak, { requireIsthmus: true }), h.hash.toLowerCase(), `real header ${n} recomputes its hash`);
++  const realNode = (tamper = {}) => { const calls = [];
++    return { calls, request: async (method, params) => { calls.push([method, params[0]]);
++      if (method === 'eth_getBlockByNumber') { const n = Number(BigInt(params[0])), h = real.get(n); const v = h && structuredClone(h); return v && (tamper(v, n) ?? v); }
++      throw Error(`no ${method} for real fixtures (receipts are not available offline)`); } }; };
++  // an address whose bit pattern the REAL blooms exclude in every block: the whole range is authenticated, no receipt is fetched
++  const candidates = Array.from({ length: 5000 }, (_, i) => hx(keccak(new TextEncoder().encode(`candidate-${i}`))).slice(0, 42));
++  const hits = a => [...real.values()].filter(h => mayHoldLeaseLog(h.logsBloom.toLowerCase(), [a], keccak)).map(h => Number(BigInt(h.number)));
++  const clean = candidates.find(a => hits(a).length === 0), busy = candidates.find(a => hits(a).length > 0);
++  assert.ok(clean, 'real blooms exclude some candidate ledger');
++  const quiet = realNode(() => undefined);
++  const r = await scanBackwardLeaseHistory({ request: quiet.request, anchor: N, ledgers: [clean], floor: lo, keccak, chunk: 8, maxScanBlocks: 100, maxLogs: 10 });
++  assert.equal(r.stats.headers, hi - lo + 1, 'every header down to and including the floor');
++  assert.deepEqual(r.logs, []); assert.equal(r.stats.bloomHits, 0);
++  assert.deepEqual(quiet.calls.map(c => Number(BigInt(c[1]))).sort((a, b) => a - b), Array.from({ length: hi - lo + 1 }, (_, i) => lo + i), 'no block below the floor, none skipped');
++  // where a REAL bloom may contain a candidate and a lease topic, the block is never skipped: its receipts are demanded, here
++  // unavailable, so refused (whether such a candidate exists depends on the real blooms; the synthetic suite covers it always)
++  if (busy) await assert.rejects(scanBackwardLeaseHistory({ request: realNode(() => undefined).request, anchor: N, ledgers: [busy], floor: lo, keccak, chunk: 8,
++    maxScanBlocks: 100, maxLogs: 10 }), /receipts are not available offline/);
++  // one altered real header anywhere in the range: non-canonical, refused
++  await refuses(scanBackwardLeaseHistory({ request: realNode((h, n) => n === 52965080 ? rehash({ ...h, extraData: '0x01' }) : undefined).request, anchor: N, ledgers: [clean], floor: lo,
++    keccak, chunk: 8, maxScanBlocks: 100, maxLogs: 10 }), 'unlinked');
++  await refuses(scanBackwardLeaseHistory({ request: realNode((h, n) => n === 52965080 ? structuredClone(real.get(52965081)) : undefined).request, anchor: N, ledgers: [clean],
++    floor: lo, keccak, chunk: 8, maxScanBlocks: 100, maxLogs: 10 }), 'discontinuity');
++  await refuses(scanBackwardLeaseHistory({ request: quiet.request, anchor: { ...N, hash: hash('another anchor') }, ledgers: [clean], floor: lo, keccak, chunk: 8, maxScanBlocks: 100, maxLogs: 10 }), 'unlinked');
++});
++
++test('bloom rule: skip ONLY when the authenticated bloom excludes the ledger or every lease topic', () => {
++  const only = logs => hx(logsBloom(logs.map(l => ({ address: by(l.address), topics: l.topics.map(by), data: by(l.data) })), keccak));
++  assert.equal(mayHoldLeaseLog(only([claimed(R1, 1)]), [LEDGER], keccak), true);
++  assert.equal(mayHoldLeaseLog(only([{ address: LEDGER, topics: [FUNDED, ID], data: '0x' }]), [LEDGER], keccak), false, 'the ledger but no lease topic');
++  assert.equal(mayHoldLeaseLog(only([{ ...claimed(R1, 1), address: OTHER }]), [LEDGER], keccak), false, 'a lease topic of another address');
++  assert.equal(mayHoldLeaseLog(only([{ ...claimed(R1, 1), address: OTHER }, { address: LEDGER, topics: [FUNDED, ID], data: '0x' }]), [LEDGER], keccak), true,
++    'a bloom cannot tell which address emitted the topic: both present means fetch');
++  assert.equal(bloomMayContain(`0x${'00'.repeat(256)}`, LEDGER, keccak), false);
++  assert.equal(bloomMayContain(`0x${'ff'.repeat(256)}`, LEDGER, keccak), true);
++});
++
++test('complete authenticated history: EVERY lease event of the ledger in [floor, N] (floor inclusive), exact positions and transaction hashes; noise excluded', async () => {
++  const c = history(), own = node(c);
++  const r = await scan(c, own);
++  assert.deepEqual(r.logs, c.expected, 'every lease event, in (block, logIndex) order, nothing omitted, nothing compacted');
++  assert.equal(r.logs[0].blockNumber, 1000, 'the first claim in the floor block itself');
++  assert.deepEqual(r.logs.map(l => l.topics[0]), [CLAIMED, RENEWED, RELEASED, CLAIMED, RENEWED]);
++  assert.deepEqual(r.logs.map(l => l.logIndex), [0, 1, 0, 1, 0], 'positions derived per block (the Funded and foreign logs count)');
++  for (const l of r.logs) assert.equal(l.txHash, hx(keccak(by(c.raws.get(l.blockHash)[Number(c.receipts.get(l.blockHash).find(x => x.transactionHash === l.txHash).transactionIndex)]))));
++  assert.deepEqual(own.receiptCalls().sort(), [1000, 1003, 1007, 1011].map(n => c.headers.get(n).hash).sort(), 'receipts only where the bloom may hold a lease log');
++  assert.ok(!own.calls.some(x => x[0] === 'eth_getBlockByNumber' && Number(BigInt(x[1])) < 1000), 'nothing below the floor');
++  // per-index raw transactions give the same history
++  assert.deepEqual((await scan(c, node(c), { rawTransactions: 'per-index' })).logs, c.expected);
++  // the floor ABOVE the first claim: that claim is outside the scanned range (the writer then needs coverage from <= its ledger floor)
++  assert.equal((await scan(c, node(c), { floor: 1001 })).logs[0].blockNumber, 1003);
++});
++
++test('receipts and transactions are authenticated: wrong roots, missing / reordered receipts, forged log positions and transaction hashes refuse', async () => {
++  const c = history(), at = c.headers.get(1003).hash;
++  const one = (tamper, code) => refuses(scan(c, node(c, tamper)), code);
++  await one({ receipts: (r, h) => h === at ? (r[1].status = '0x0', r) : r }, 'receipts_root_mismatch');
++  await one({ receipts: (r, h) => h === at ? r.slice(0, -1) : r }, 'tx_binding');
++  await one({ receipts: (r, h) => h === at ? [r[0], r[2], r[1]] : r }, 'order');
++  await one({ receipts: (r, h) => h === at ? (r[2].logs[0].logIndex = '0x5', r) : r }, 'order');
++  await one({ receipts: (r, h) => h === at ? (r[2].transactionHash = hash('forged'), r[2].logs.forEach(l => { l.transactionHash = hash('forged'); }), r) : r }, 'tx_binding');
++  await one({ receipts: (r, h) => h === at ? (r[2].logs[0].data = `0x${word(9)}${word(5)}`, r) : r }, 'receipts_root_mismatch');   // data is not in a bloom
++  await one({ raws: v => (v[1] = v[1].slice(0, -2) + (v[1].endsWith('00') ? '01' : '00'), v) }, 'root_mismatch');
++  await one({ raws: v => v.slice(1) }, 'root_mismatch');
++  await one({ receipts: () => null }, 'missing');
++  await one({ header: (h, n) => n === 1003 ? rehash({ ...h, receiptsRoot: hash('other root') }) : undefined }, 'unlinked');
++  await one({ header: (h, n) => n === 1003 ? { ...h, receiptsRoot: hash('other root') } : undefined }, 'hash_claim');
++});
++
++test('typed and deposit receipts per pinned base v1.5.1: 0x0/0x1/0x2/0x4/0x7e verify; a post-Canyon deposit without its version and type 0x79 refuse', async () => {
++  const c = history();
++  assert.equal((await scan(c, node(c))).logs.length, 5);
++  const at = c.headers.get(1007).hash;
++  await refuses(scan(c, node(c, { receipts: (r, h) => h === at ? (delete r[0].depositReceiptVersion, r) : r })), 'deposit_fields');
++  await refuses(scan(c, node(c, { receipts: (r, h) => h === at ? (r[1].type = '0x79', r) : r })), 'unsupported_type');
++  await refuses(scan(c, node(c, { receipts: (r, h) => h === at ? (r[1].depositNonce = '0x1', r) : r })), 'deposit_fields');
++});
++
++test('outages, truncation and bounds fail closed: nothing partial is ever returned', async () => {
++  const c = history();
++  await assert.rejects(scan(c, node(c, { fail: (m, p) => m === 'eth_getBlockByNumber' && Number(BigInt(p[0])) === 1005 })), /own node outage/);
++  await assert.rejects(scan(c, node(c, { fail: m => m === 'debug_getRawTransactions' })), /own node outage/);
++  await refuses(scan(c, node(c, { header: (h, n) => n === 1004 ? null : undefined })), 'missing');
++  await refuses(scan(c, node(c), { maxScanBlocks: 12 }), 'resource_bound');
++  await refuses(scan(c, node(c), { maxLogs: 4 }), 'resource_bound');
++  await refuses(scan(c, node(c, { raws: () => ['0xzz'] })), 'missing');
++  const ac = new AbortController(); ac.abort(Error('stopped'));
++  await assert.rejects(scan(c, node(c), { signal: ac.signal }), /stopped/);
++});
++
++test('restart cache: untrusted header chunks are re-authenticated from N on every use; a tampered chunk is discarded and fetched again; never authority', async t => {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'history-cache-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true })); fs.chmodSync(dir, 0o700);
++  const c = history(), first = node(c), cache = fileHeaderCache(path.join(dir, 'cache'));
++  const a = await scan(c, first, { cache });
++  assert.equal(a.stats.cacheHits, 0);
++  const second = node(c), b = await scan(c, second, { cache: fileHeaderCache(path.join(dir, 'cache')) });
++  assert.deepEqual(b.logs, a.logs); assert.ok(b.stats.cacheHits > 0);
++  assert.equal(second.calls.filter(x => x[0] === 'eth_getBlockByNumber').length, 0, 'headers came from the cache, yet every one was re-hashed and re-linked');
++  // tamper one cached chunk (an attacker hides the release block's bloom): rejected, fetched again, same complete history
++  const files = fs.readdirSync(path.join(dir, 'cache')).filter(f => f.endsWith('.json'));
++  const victim = files.find(f => JSON.parse(fs.readFileSync(path.join(dir, 'cache', f))).some(h => Number(BigInt(h.number)) === 1007));
++  const chunk = JSON.parse(fs.readFileSync(path.join(dir, 'cache', victim)));
++  for (const h of chunk) if (Number(BigInt(h.number)) === 1007) h.logsBloom = `0x${'00'.repeat(256)}`;
++  fs.writeFileSync(path.join(dir, 'cache', victim), JSON.stringify(chunk));
++  const third = node(c), d = await scan(c, third, { cache: fileHeaderCache(path.join(dir, 'cache')) });
++  assert.deepEqual(d.logs, a.logs, 'the release is still found');
++  assert.ok(d.stats.cacheRejected >= 1);
++  // a tampered cache AND a lying node: refused
++  fs.writeFileSync(path.join(dir, 'cache', victim), JSON.stringify(chunk));
++  await refuses(scan(c, node(c, { header: (h, n) => n === 1007 ? rehash({ ...h, logsBloom: `0x${'00'.repeat(256)}` }) : undefined }), { cache: fileHeaderCache(path.join(dir, 'cache')) }), 'unlinked');
++});
++
++// ---- provider: the old claim is served ONLY after the scan completed AND joined coverage (N, anchor] exactly ----
++const POLICY = (floor) => ({ format: BACKWARD_HISTORY_POLICY_FORMAT, ledgers: [LEDGER], floor, chunk: 4, maxScanBlocks: 1000, maxLogs: 100 });
++async function historyReader(t, { tamper = {} } = {}) {
++  const f = await l1Fixture(t), seconds = Math.floor(f.now / 1000);
++  const c = buildChain({ from: 1000, to: 1013, t0: seconds - 1000, contents: { 1000: [{ type: '0x7e', logs: [] }, { type: '0x2', logs: [claimed(R1, seconds + 86400)] }] } });
++  const own = node(c, tamper);
++  f.chain = c; f.own = own;
++  f.agreed = anchorOf(c.headers.get(1012), { number: 9990, hash: hash('l1-9990'), stateRoot: hash('l1state-9990'), timestamp: seconds - 1000 });
++  f.journal = await openDerivedJournal(f.directory, { binding: 'e'.repeat(64), initialize: true });
++  f.store = await openCoverageStore(path.join(f.directory, 'coverage'), { binding: 'e'.repeat(64), initialize: true });
++  f.options = { l1: f.l1, journal: f.journal, executable: f.native, workDir: f.directory, now: () => f.now, resultVersion: 3, coverageStore: f.store,
++    bootstrap: async () => f.agreed, base: async () => f.candidate, history: POLICY(1000), historyRequest: own.request };
++  f.reader = await createDerivedProvider(f.options);
++  t.after(async () => { await f.reader.close(); f.store.close(); f.journal.close(); });
++  return f;
++}
++const until = async (cond, ms = 10000) => { const end = Date.now() + ms; while (!cond()) { if (Date.now() > end) throw Error('condition not reached'); await new Promise(r => setTimeout(r, 10)); } };
++
++test('provider: the pre-bootstrap claim is served only after the authenticated scan completed AND joined this start\'s coverage at N+1; replay finds it', async t => {
++  const f = await historyReader(t);
++  const h1013 = f.chain.headers.get(1013), renewal = { ...renewed(R1, Math.floor(f.now / 1000) + 90000), blockNumber: 1013, blockHash: h1013.hash, logIndex: 0, txHash: hash('tx-1013') };
++  f.candidate = h1013;
++  const ticket = await f.reader.prepare({ blockNumber: 1013, rollupConfigTemplate: TEMPLATE });   // bootstraps the seed N = 1012: the scan starts
++  await until(() => f.reader.status().history.state !== 'scanning');
++  assert.equal(f.reader.status().history.state, 'complete'); assert.equal(f.reader.status().history.anchor, 1012);
++  // no runtime coverage yet: never served (the join is exact, not an inequality)
++  await assert.rejects(f.reader.readLeaseHistory({ address: LEDGER, deployment: ID, anchor: { number: 1012, hash: f.chain.headers.get(1012).hash } }), /no locally derived anchor|not joined/);
++  assert.equal((await f.reader.submit({ ticket: ticket.ticket, witness: Buffer.from(JSON.stringify(result(ticket, [h1013], [renewal]))) })).status, 'verified');
++  const anchor = { number: 1013, hash: h1013.hash };
++  const res = await f.reader.readLeaseHistory({ address: LEDGER, deployment: ID, anchor });
++  assert.deepEqual(res.join, { number: 1012, hash: f.chain.headers.get(1012).hash });
++  assert.deepEqual(res.coverage.fromBlock, 1000);
++  assert.deepEqual(res.logs.map(l => [l.blockNumber, l.topics[0]]), [[1000, CLAIMED], [1013, RENEWED]], 'scan [1000, 1012] + coverage (1012, 1013]');
++  // the relay's strict check + the UNCHANGED replay: the current claim is the pre-bootstrap one
++  const checked = checkLeaseHistory(res, { address: LEDGER, topic1: ID, anchor, ledgerFloor: 1000 });
++  const C = replayToRow(checked.logs, { runner: R1, runnerOperator: OP, leaseUntil: Math.floor(f.now / 1000) + 90000 });
++  assert.equal(C.blockNumber, 1000);
++  // a writer ledger floor BELOW the scanned floor: the answer does not cover it, refused
++  assert.throws(() => checkLeaseHistory(res, { address: LEDGER, topic1: ID, anchor, ledgerFloor: 999 }), e => e.code === 'coverage_incomplete');
++  // outside the signed ledgers, or a stale anchor: refused
++  await assert.rejects(f.reader.readLeaseHistory({ address: OTHER, deployment: ID, anchor }), /outside its signed ledgers/);
++  await assert.rejects(f.reader.readLeaseHistory({ address: LEDGER, deployment: ID, anchor: { number: 1012, hash: f.chain.headers.get(1012).hash } }), /exact current snapshot anchor/);
++  // nothing persisted: the journal carries no history
++  assert.equal(JSON.stringify(f.journal.read()).includes(f.chain.headers.get(1000).hash), false);
++});
++
++test('provider: an own-node outage during the scan fails closed (no history served), and the scan is retried, never trusted partially', async t => {
++  let down = true;
++  const f = await historyReader(t, { tamper: { fail: (m, p) => down && m === 'eth_getBlockByNumber' && Number(BigInt(p[0])) === 1005 } });
++  f.candidate = f.chain.headers.get(1013);
++  const ticket = await f.reader.prepare({ blockNumber: 1013, rollupConfigTemplate: TEMPLATE });
++  await until(() => f.reader.status().history.state !== 'scanning');
++  assert.equal(f.reader.status().history.state, 'failed');
++  await f.reader.submit({ ticket: ticket.ticket, witness: Buffer.from(JSON.stringify(result(ticket, [f.chain.headers.get(1013)]))) });
++  const anchor = { number: 1013, hash: f.chain.headers.get(1013).hash };
++  await assert.rejects(f.reader.readLeaseHistory({ address: LEDGER, deployment: ID, anchor }), /backward lease history unavailable: the scan failed/);
++  down = false; f.now += 61_000;
++  f.candidate = f.chain.headers.get(1013);
++  await f.reader.prepare({ blockNumber: 1014, rollupConfigTemplate: TEMPLATE }).catch(() => {});   // any prepare restarts a failed scan
++  await until(() => f.reader.status().history.state === 'complete');
++});
++
++test('policy: disabled by default (binding unchanged), exact keys, and never on a self-initialized (unsigned) reader state', async t => {
++  assert.equal(backwardHistoryPolicy(POLICY(52515705)).floor, 52515705);
++  for (const bad of [{ ...POLICY(1), extra: 1 }, { ...POLICY(1), ledgers: [] }, { ...POLICY(1), chunk: 0 }, { ...POLICY(0) }, { ...POLICY(1), ledgers: ['0xABC'] }])
++    assert.throws(() => backwardHistoryPolicy(bad), /invalid backward history policy/);
++  const f = await l1Fixture(t); await f.l1.close(); f.l1 = null;
++  const sha256 = await sha256File(f.native);
++  const options = { now: () => f.now, l1Options: f.l1Options, acceptedDerivationBuilds: { [sha256]: 'fixture' } };
++  const config = { stateDir: path.join(f.directory, 'state'), native: { path: f.native, sha256, resultVersion: 3 }, l1: f.l1Config, baseUrl: 'http://127.0.0.1:1' };
++  assert.notEqual(derivedReaderBinding(config, options), derivedReaderBinding({ ...config, history: POLICY(52515705) }, options));
++  await assert.rejects(startDerivedReader({ ...config, initializeState: true, history: POLICY(52515705) }, options), /enrolled, role-committed reader state/);
++  assert.equal(fs.existsSync(path.join(f.directory, 'state')), false);
++});
+diff --git a/test/derived-writer-history.test.mjs b/test/derived-writer-history.test.mjs
+new file mode 100644
+index 0000000..ecaa1cc
+--- /dev/null
++++ b/test/derived-writer-history.test.mjs
+@@ -0,0 +1,166 @@
++// writer-cold-recovery-stage/r2: relay/derived-writer-authority.mjs with the reader's AUTHENTICATED BACKWARD lease history
++// (capability.readLeaseHistory). ADAPTER LOGIC ONLY: the capability is an in-test fake whose answers prove nothing; the reader side
++// (header chain, receipts, join) is test/derived-reader/backward-history.test.mjs. Shown: a claim older than this start's coverage
++// is served from the complete [ledger floor, anchor] history with the unchanged replay, 120 s ceiling, claim finality and A2
++// evidence; strict answer checks; unavailability refuses (retryable); the default path is unchanged; unsigned paths refuse.
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import * as DS from "../metal/guest/derived-state.mjs";
++import { CLAIMED, RENEWED, RELEASED, LeaseGenerationError } from "../relay/lease-generation.mjs";
++import { createDerivedWriterAuthority, derivedWriterAuthorityFromEnv, checkLeaseHistory, LEASE_HISTORY_FORMAT, STATE_TIER, CLAIM_TIER, DERIVED_STATE_API } from "../relay/derived-writer-authority.mjs";
++
++const h = (b, n = 32) => "0x" + b.repeat(n);
++const ID = h("11"), RUNNER = h("22"), OTHER = h("33"), OP = "0x" + "44".repeat(20), LEDGER = "0x" + "66".repeat(20), BOOK = "0x" + "77".repeat(20);
++const O = 53_000_000, FLOOR = O + 100, B = O + 1_000, HB = h("ab"), NOW = 1_700_000_000, T = NOW - 30;
++const word = (n) => BigInt(n).toString(16).padStart(64, "0");
++const pad = (a) => "0x" + "0".repeat(24) + a.slice(2);
++let seq = 0;
++const tx = () => "0x" + (++seq).toString(16).padStart(64, "0");
++const bh = (n) => (n === B ? HB : "0x" + n.toString(16).padStart(64, "c"));
++const claimed = (n, i, until, runner = RUNNER) => ({ address: LEDGER, blockNumber: O + n, blockHash: bh(O + n), logIndex: i, topics: [CLAIMED, ID, runner, pad(OP)], data: "0x" + word(until) + word(5), txHash: tx() });
++const renewed = (n, i, until, runner = RUNNER) => ({ address: LEDGER, blockNumber: O + n, blockHash: bh(O + n), logIndex: i, topics: [RENEWED, ID, runner], data: "0x" + word(until) + word(5), txHash: tx() });
++const released = (n, i) => ({ address: LEDGER, blockNumber: O + n, blockHash: bh(O + n), logIndex: i, topics: [RELEASED, ID, RUNNER], data: "0x" + word(7), txHash: tx() });
++const row = (o = {}) => ({ id: ID, owner: OP, appRef: "", ports: "", configCid: "", gpuMilli: 0, cpuMilli: 1, appPort: 80, isPublic: false, active: true, createdAt: 1n, rate: 1n,
++  balance6: 1n, spent6: 1n, runner: RUNNER, runnerOperator: OP, leaseUntil: BigInt(NOW + 1200), ...o });
++
++/** single (finalized, fresh) anchor B; runtime coverage from availableFrom; `history` = every lease log in [histFrom, B] */
++function world({ history = [claimed(150, 3, NOW + 600), renewed(950, 0, NOW + 1200)], availableFrom = O + 900, histFrom = FLOOR, mutate = (r) => r,
++                 historyFails = null, withHistory = true } = {}) {
++  const calls = [];
++  const capability = {
++    async snapshot(read) {
++      const client = { getBlock: async () => ({ number: BigInt(B), hash: HB, timestamp: BigInt(T) }),
++        readContract: async ({ functionName }) => functionName === "addr" ? LEDGER : functionName === "deploymentsSchema" ? 16n : row() };
++      return { blockNumber: BigInt(B), blockHash: HB, value: await read(client, BigInt(B), {}) };
++    },
++    async readDerivedLogs(q) {
++      calls.push(["logs", q.fromBlock, q.toBlock]);
++      if (q.fromBlock < availableFrom) throw new Error("requested history is outside runtime-verified coverage");
++      return { format: "enclave-derived-logs/v1", logs: history.filter((l) => l.blockNumber >= q.fromBlock && l.blockNumber <= q.toBlock),
++        anchor: { tier: "l1-finalized-derived", base: { number: B, hash: HB } }, filter: { address: q.address, topic0s: q.topic0s, topic1: q.topic1 },
++        coverage: { format: "enclave-lease16-coverage/v1", filterId: "lease16-events/v1", fromBlock: q.fromBlock, toBlock: q.toBlock, complete: true,
++          availableFromBlock: availableFrom, availableToBlock: B } };
++    },
++    ...(withHistory ? { async readLeaseHistory(q) {
++      calls.push(["history", q.address, q.deployment, q.anchor.number]);
++      if (historyFails) throw new Error(historyFails);
++      return mutate({ format: LEASE_HISTORY_FORMAT, anchor: { tier: "l1-finalized-derived", base: { number: B, hash: HB } }, ledger: q.address, deployment: q.deployment,
++        join: { number: availableFrom - 1, hash: h("9a") }, logs: history.filter((l) => l.blockNumber >= histFrom && l.blockNumber <= B),
++        coverage: { format: "enclave-lease16-coverage/v1", filterId: "lease16-events/v1", fromBlock: histFrom, toBlock: B, complete: true } });
++    } } : {}),
++  };
++  const fresh = { getBlockNumber: async () => BigInt(B + 10), request: async () => [], readContract: async ({ functionName }) => functionName === "addr" ? LEDGER : row() };
++  return { capability, fresh, calls };
++}
++const authority = (w, o = {}) => createDerivedWriterAuthority({ capability: w.capability, fresh: w.fresh, addressBook: BOOK, fromBlock: FLOOR, now: () => NOW * 1000, ...o });
++const refuses = async (p, code) => assert.rejects(p, (e) => { assert.ok(e instanceof LeaseGenerationError, String(e)); assert.equal(e.code, code, e.message); return true; });
++
++test("an existing claim OLDER than this start's coverage is served from the authenticated [ledger floor, anchor] history with the unchanged replay", async () => {
++  const w = world();
++  const r = await authority(w).writerAuthority(ID, { runner: RUNNER });
++  assert.equal(r.factJson, JSON.stringify({ source: "lease16", chainId: 8453, ledger: LEDGER, deployment: ID, claimBlock: O + 150, claimLogIndex: 3 }));
++  assert.deepEqual(r.evidence, { authority: "consumer-domain-derivation", tier: "l1-finalized-derived", coverageFromBlock: FLOOR, historyJoin: { number: O + 899, hash: h("9a") } });
++  assert.deepEqual(w.calls, [["logs", B, B], ["history", LEDGER, ID, B]], "the probe, then the history; never a coverage read below availableFrom");
++  // the same-runner release + re-claim inside the history: the LATER claim is the fact (all events preserved, none compacted)
++  const again = await authority(world({ history: [claimed(150, 3, NOW - 10), released(400, 1), claimed(500, 2, NOW + 600), renewed(950, 0, NOW + 1200)] })).writerAuthority(ID);
++  assert.equal(again.fact.claimBlock, O + 500);
++  // a Released after the last claim, anywhere in the history: refused by the unchanged replay
++  await refuses(authority(world({ history: [claimed(150, 3, NOW + 1200), released(600, 0)] })).writerAuthority(ID), "inconsistent_logs");
++  // no claim at all in [floor, anchor]: never a fact
++  await refuses(authority(world({ history: [renewed(950, 0, NOW + 1200)] })).writerAuthority(ID), "claim_not_covered");
++});
++
++test("the default path is unchanged: coverage from the ledger floor or no history capability means no history call", async () => {
++  const covered = world({ availableFrom: FLOOR });
++  assert.equal((await authority(covered).writerAuthority(ID)).fact.claimBlock, O + 150);
++  assert.ok(!covered.calls.some((c) => c[0] === "history"));
++  assert.equal((await authority(covered).writerAuthority(ID)).evidence.historyJoin, undefined);
++  const none = world({ withHistory: false });
++  await refuses(authority(none).writerAuthority(ID), "claim_not_covered");
++  assert.throws(() => authority({ ...none, capability: { ...none.capability, readLeaseHistory: "x" } }), /lease history is not a capability/);
++});
++
++test("the history answer is checked strictly: range from <= ledger floor to the anchor, this lease, this anchor, per-log ABI/order/range rules", async () => {
++  const bad = (mutate) => authority(world({ mutate })).writerAuthority(ID);
++  await refuses(authority(world({ histFrom: FLOOR + 1 })).writerAuthority(ID), "coverage_incomplete");
++  await refuses(bad((r) => ({ ...r, coverage: { ...r.coverage, toBlock: B - 1 } })), "coverage_incomplete");
++  await refuses(bad((r) => ({ ...r, coverage: { ...r.coverage, complete: false } })), "coverage_incomplete");
++  await refuses(bad((r) => ({ ...r, deployment: h("99") })), "derived_logs_invalid");
++  await refuses(bad((r) => ({ ...r, anchor: { base: { number: B, hash: h("ee") } } })), "anchor_mismatch");
++  await refuses(bad((r) => ({ ...r, format: "enclave-derived-logs/v1" })), "derived_logs_invalid");
++  await refuses(bad((r) => ({ ...r, join: { number: B + 1, hash: h("9a") } })), "derived_logs_invalid");
++  await refuses(bad((r) => ({ ...r, logs: [...r.logs].reverse() })), "bad_answer");
++  await refuses(bad((r) => ({ ...r, logs: [{ ...r.logs[0], topics: r.logs[0].topics.slice(0, 3) }, ...r.logs.slice(1)] })), "bad_answer");
++  await refuses(bad((r) => ({ ...r, logs: [{ ...r.logs[0], blockNumber: FLOOR - 1 }, ...r.logs.slice(1)] })), "bad_answer");
++  // another deployment's / address's logs in the answer are ignored, never a reason to accept or refuse
++  const other = { ...claimed(700, 0, NOW + 5000, OTHER), topics: [CLAIMED, h("98"), OTHER, pad(OP)] };
++  assert.equal((await bad((r) => ({ ...r, logs: [...r.logs, other].sort((a, b) => a.blockNumber - b.blockNumber) }))).fact.claimBlock, O + 150);
++  assert.equal(checkLeaseHistory(world().capability && { format: LEASE_HISTORY_FORMAT, anchor: { base: { number: B, hash: HB } }, ledger: LEDGER, deployment: ID,
++    join: { number: B, hash: HB }, logs: [], coverage: { format: "enclave-lease16-coverage/v1", filterId: "lease16-events/v1", fromBlock: FLOOR, toBlock: B, complete: true } },
++    { address: LEDGER, topic1: ID, anchor: { number: B, hash: HB }, ledgerFloor: FLOOR }).logs.length, 0);
++});
++
++test("an unavailable history (scan running, failed, not joined, not enabled) refuses retryably; other reader failures stay derived_unavailable", async () => {
++  for (const why of ["backward lease history unavailable: the scan has not completed", "backward lease history unavailable: the scan failed (unlinked)",
++                     "backward lease history is not joined to this process's coverage at its bootstrap anchor", "the backward lease history is not enabled by the signed reader binding"]) {
++    const e = await authority(world({ historyFails: why })).writerAuthority(ID).catch((x) => x);
++    assert.equal(e.code, "history_unavailable", why); assert.equal(e.retry, true);
++  }
++  await refuses(authority(world({ historyFails: "derived provider busy" })).writerAuthority(ID), "derived_unavailable");
++});
++
++test("two anchors: the old claim from the history is still subject to claim <= B_f, the 120 s ceiling on S, and A2 evidence before the fact", async () => {
++  const BF = B - 300, HF = h("af"), S = B, SL1 = { number: 26_000_300, hash: h("1e") }, records = [];
++  const w = world();
++  // the row at B_f predates the renewal at O+950 (its leaseUntil is the claim's); the row at S includes it
++  const side = (num, hash, time, r) => ({ number: BigInt(num), client: { getBlock: async () => ({ number: BigInt(num), hash, timestamp: BigInt(time) }),
++    readContract: async ({ functionName }) => functionName === "addr" ? LEDGER : functionName === "deploymentsSchema" ? 16n : r } });
++  const cap = { ...w.capability, async snapshot() { throw new Error("legacy snapshot unused"); },
++    async stateSnapshot(read) { const value = await read({ claim: side(BF, HF, NOW - 900, row({ leaseUntil: BigInt(NOW + 600) })), state: side(S, HB, T, row()) });
++      return { blockNumber: BigInt(BF), blockHash: HF, value, state: { blockNumber: BigInt(S), blockHash: HB }, evidence: { tier: STATE_TIER, claimTier: CLAIM_TIER, state: { l1: SL1 } } }; },
++    async recordStateFact(entry) { records.push(entry); return "recorded"; } };
++  const a = createDerivedWriterAuthority({ capability: cap, fresh: w.fresh, addressBook: BOOK, fromBlock: FLOOR, now: () => NOW * 1000 });
++  const r = await a.writerAuthority(ID);
++  assert.equal(r.fact.claimBlock, O + 150); assert.deepEqual(r.evidence.historyJoin, { number: O + 899, hash: h("9a") });
++  assert.equal(records.length, 1); assert.equal(records[0].fact.claimBlock, O + 150);
++  // a claim in (B_f, S] found by the history is still claim_not_final
++  const late = { ...w, capability: { ...cap } };
++  const lw = world({ history: [claimed(150, 3, NOW + 600), claimed(800, 0, NOW + 1200)] });
++  late.capability.readLeaseHistory = lw.capability.readLeaseHistory; late.capability.readDerivedLogs = lw.capability.readDerivedLogs;
++  await refuses(createDerivedWriterAuthority({ capability: late.capability, fresh: w.fresh, addressBook: BOOK, fromBlock: FLOOR, now: () => NOW * 1000 }).writerAuthority(ID), "claim_not_final");
++});
++
++test("selector: the history only from the ENROLLED state's runtime service; an unsigned config or service offering it refuses", async (t) => {
++  const w = world();
++  const base = { ENCLAVE_WRITER_AUTHORITY_SOURCE: "derived", ENCLAVE_DERIVED_READER_CONFIG: "/etc/r.json", ENCLAVE_DERIVED_ANCHOR_JOURNAL: "/var/j", ADDRESS_BOOK_ADDRESS: BOOK };
++  const plain = (svc) => ({ openLifecycleJournal: () => ({}), startDerivedLifecycleReader: async () => svc });
++  await assert.rejects(derivedWriterAuthorityFromEnv(base, { relayChain: { client: w.fresh }, readFile: async () => JSON.stringify({ history: { format: "x" } }),
++    loadRuntime: async () => plain({ reader: { readDerivedLogs: w.capability.readDerivedLogs }, snapshot: w.capability.snapshot, close: async () => {} }) }), /backward lease history needs the role's enrolled/);
++  const offered = { reader: { readDerivedLogs: w.capability.readDerivedLogs }, snapshot: w.capability.snapshot, leaseHistory: w.capability.readLeaseHistory };
++  offered.close = async () => { offered.closed = true; };
++  await assert.rejects(derivedWriterAuthorityFromEnv(base, { relayChain: { client: w.fresh }, readFile: async () => "{}", loadRuntime: async () => plain(offered) }), /offered a provisional state anchor or a lease history/);
++  assert.equal(offered.closed, true);
++  // the enrolled branch: the runtime's leaseHistory becomes the capability (the env selector's ledger floor is the live 52,515,705)
++  const live = world({ histFrom: 52_515_705 });
++  const enrolled = { reader: { readDerivedLogs: live.capability.readDerivedLogs }, snapshot: live.capability.snapshot, leaseHistory: live.capability.readLeaseHistory };
++  const d = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "w2c-relay-"))); t.after(() => fs.rmSync(d, { recursive: true, force: true }));
++  const JD = path.join(d, "journal"); fs.mkdirSync(JD);
++  const BINDING = "bb".repeat(32), DG = "d".repeat(64), BR = "bridge/anchor-journal.json", J = path.join(d, "j.json"), R = path.join(JD, "derived-state.json");
++  fs.writeFileSync(path.join(d, "reader.json"), "{}");
++  fs.writeFileSync(R, JSON.stringify({ format: "enclave-derived-root-journal/v1", binding: BINDING, floor: null, entries: [], enrollment: { digest: DG, phase: "committed" } }));
++  fs.writeFileSync(path.join(d, "state.json"), JSON.stringify({ format: DS.STATE_FORMAT, enrollment: { mode: "genesis", digest: DG, binding: BINDING, highWater: null },
++    files: [{ rel: "reader/derived-state.json", path: R }, { rel: BR, path: J }], journalDir: JD, coverageDir: path.join(d, "coverage", BINDING), runsDir: path.join(d, "runs"),
++    paths: { "reader/derived-state.json": R, [BR]: J }, commit: { protocol: DS.COMMIT_PROTOCOL, boot: "a".repeat(32) } }));
++  const env = { ...base, ENCLAVE_DERIVED_READER_CONFIG: path.join(d, "reader.json"), ENCLAVE_DERIVED_ANCHOR_JOURNAL: J, ENCLAVE_DERIVED_STATE: path.join(d, "state.json"),
++    ENCLAVE_DERIVED_COMMIT_BOOT: "a".repeat(32) };
++  const runtime = { DERIVED_STATE_API, derivedReaderBinding: () => BINDING, derivedEnrollmentFloorDigest: DS.floorDigestOf, enrollDerivedState: async () => { throw new Error("no"); },
++    openLifecycleJournal: () => ({}), startDerivedLifecycleReader: async () => ({ ...enrolled, close: async () => {} }) };
++  const a = await derivedWriterAuthorityFromEnv(env, { relayChain: { client: live.fresh }, readFile: (f, e) => fs.promises.readFile(f, e), loadRuntime: async () => runtime,
++    createCommitter: () => ({ commit: async () => true, verifyEnrollment: async () => ({}), status: () => ({}) }), now: () => NOW * 1000 });
++  const r = await a.writerAuthority(ID);
++  assert.equal(r.fact.claimBlock, O + 150); assert.equal(r.evidence.coverageFromBlock, 52_515_705);
++  assert.ok(live.calls.some((c) => c[0] === "history"));
++});

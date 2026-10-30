@@ -1,0 +1,34 @@
+TAP version 13
+# Subtest: ROOT stage: unchanged policy reaches authenticated destination
+ok 1 - ROOT stage: unchanged policy reaches authenticated destination
+  ---
+  duration_ms: 40.245473
+  type: 'test'
+  ...
+# Subtest: ROOT stage: policy revoked during handshake blocks mutation
+ok 2 - ROOT stage: policy revoked during handshake blocks mutation
+  ---
+  duration_ms: 22.208206
+  type: 'test'
+  ...
+# Subtest: ROOT permit: unchanged policy reaches authenticated destination
+ok 3 - ROOT permit: unchanged policy reaches authenticated destination
+  ---
+  duration_ms: 22.554543
+  type: 'test'
+  ...
+# Subtest: ROOT permit: policy revoked during handshake blocks mutation
+ok 4 - ROOT permit: policy revoked during handshake blocks mutation
+  ---
+  duration_ms: 14.996635
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 371.170722

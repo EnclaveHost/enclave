@@ -22,14 +22,18 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- STANDALONE.md: the phone hosts on its own: it starts hosting again after a reboot, and runs while the screen is off -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-feature android:name="android.software.virtualization_framework" android:required="true" />
     <!-- debuggable: lets `adb shell run-as` place a model in the app's files dir on a locked
          phone (an app cannot read /data/local/tmp). The VM's protection and the attestation
          do not depend on this flag; a release build drops it. -->
-    <application android:usesCleartextTraffic="true" android:hasCode="true" android:extractNativeLibs="false" android:debuggable="true" android:label="Enclave Anchor (AVF)">
+    <application android:usesCleartextTraffic="true" android:hasCode="true" android:extractNativeLibs="false" android:debuggable="true" android:label="Enclave Anchor (AVF)" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher">
         <!-- Shielded-TPU decode: the app-side worker reaches the Tensor TPU through the vendor's LiteRT dispatch library -->
         <uses-native-library android:name="libedgetpu_litert.so" android:required="false" />
-        <activity android:name=".Main" android:exported="true">
+        <activity android:name=".Main" android:exported="true" android:theme="@android:style/Theme.Material.NoActionBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -38,5 +42,21 @@
         <service android:name=".AnchorService" android:exported="true" android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="hosts the Enclave Shield anchor in a protected VM" />
         </service>
+        <!-- STANDALONE.md: the host agent and the Enclave network on the phone (Node from the APK), in their own process;
+             it starts the VM services above itself, so a standalone build exports none of them -->
+        <service android:name=".AgentService" android:process=":agent" android:exported="false" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="runs the phone's hosting agent: registration, leases, proofs, app networking" />
+        </service>
+        <!-- STANDALONE.md: the pairing code typed into Enclave's setup notification -->
+        <receiver android:name=".SelfPair" android:exported="false" />
+        <receiver android:name=".BootReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+        <!-- slots: the same service in its own process each, one protected VM per app at once (PVM-CPU.md "Slots by share"):
+             build.sh writes ANCHOR_SLOTS of them here (AnchorServiceSlot1..N, process ":slotN"); how many run is the shares' -->
+        <!-- SLOT SERVICES -->
     </application>
 </manifest>

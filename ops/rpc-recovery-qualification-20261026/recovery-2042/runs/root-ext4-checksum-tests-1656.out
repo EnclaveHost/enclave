@@ -1,0 +1,45 @@
+[queue] START available=24660MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+## verified SHA256SUMS e0e02acba0b983f703b32154cb5477d2ad88d3ff03b5106bc4cf49ec3144cffc
+test_block_accounting_must_match_and_depth0_depth1_trees_qualify (__main__.Checksums.test_block_accounting_must_match_and_depth0_depth1_trees_qualify) ... ok
+test_choice_is_the_newest_valid_image_at_or_before_the_inode_and_a_newer_invalid_one_blocks (__main__.Checksums.test_choice_is_the_newest_valid_image_at_or_before_the_inode_and_a_newer_invalid_one_blocks) ... ok
+test_crc32c_pure_table_equals_libext2fs_and_the_check_vector (__main__.Checksums.test_crc32c_pure_table_equals_libext2fs_and_the_check_vector) ... ok
+test_depth2_tree_all_checksums_valid_map_accounted_holes_and_sparse_tail_only_then (__main__.Checksums.test_depth2_tree_all_checksums_valid_map_accounted_holes_and_sparse_tail_only_then) ... ok
+test_extent_blocks_bound_to_the_inode_generation_and_kernel_structure_rules (__main__.Checksums.test_extent_blocks_bound_to_the_inode_generation_and_kernel_structure_rules) ... ok
+test_inode_versions_bad_checksum_other_generation_and_bounds (__main__.Checksums.test_inode_versions_bad_checksum_other_generation_and_bounds) ... ok
+test_inputs_bounded_no_follow_and_refusals_write_nothing (__main__.Safety.test_inputs_bounded_no_follow_and_refusals_write_nothing) ... REFUSED: journal copy: cannot open without following a symlink (Too many levels of symbolic links)
+REFUSED: journal copy must be a regular file of root or this user, not group/world-writable, <= 1073741824 bytes
+REFUSED: journal copy must be exactly 1073741824 bytes
+REFUSED: inventory is not journal-recovery-r1-jbd2-inventory/v1
+REFUSED: only filesystems WITHOUT metadata_csum_seed are supported; assert --no-csum-seed after checking the superblock
+REFUSED: FileExistsError: File exists
+ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.102s
+
+OK
+{"written": "/tmp/tmp.4jf0qRvv29/ext4csum-67xck6mu/out1.json", "bytes": 3404}
+{"written": "/tmp/tmp.4jf0qRvv29/ext4csum-67xck6mu/out2.json", "bytes": 1984}
+{"written": "/tmp/tmp.4jf0qRvv29/ext4csum-67xck6mu/out3.json", "bytes": 2293}
+{"written": "/tmp/tmp.4jf0qRvv29/ext4csum-67xck6mu/out4.json", "bytes": 2328}
+{"written": "/tmp/tmp.4jf0qRvv29/ext4csum-vvd96dhm/out1.json", "bytes": 3691}
+{"written": "/tmp/tmp.4jf0qRvv29/ext4csum-vvd96dhm/out2.json", "bytes": 3977}
+{"written": "/tmp/tmp.4jf0qRvv29/ext4csum-apl7orba/out1.json", "bytes": 3032}
+{"written": "/tmp/tmp.4jf0qRvv29/ext4csum-y_6wfkvf/out1.json", "bytes": 3093}
+{"written": "/tmp/tmp.4jf0qRvv29/ext4csum-y_6wfkvf/out2.json", "bytes": 3053}
+{"written": "/tmp/tmp.4jf0qRvv29/ext4csum-y_6wfkvf/out3.json", "bytes": 3034}
+{"written": "/tmp/tmp.4jf0qRvv29/ext4csum-y_6wfkvf/out4.json", "bytes": 3032}
+{"written": "/tmp/tmp.4jf0qRvv29/ext4csum-y_6wfkvf/out5.json", "bytes": 3048}
+{"written": "/tmp/tmp.4jf0qRvv29/ext4csum-y_6wfkvf/out6.json", "bytes": 3049}
+{"written": "/tmp/tmp.4jf0qRvv29/ext4csum-y_6wfkvf/out7.json", "bytes": 3055}
+{"written": "/tmp/tmp.4jf0qRvv29/ext4csum-y_6wfkvf/out8.json", "bytes": 3070}
+{"written": "/tmp/tmp.4jf0qRvv29/ext4csum-y_6wfkvf/out9.json", "bytes": 3032}
+{"written": "/tmp/tmp.4jf0qRvv29/ext4csum-y_6wfkvf/out10.json", "bytes": 1638}
+{"written": "/tmp/tmp.4jf0qRvv29/ext4csum-346_bk4j/out1.json", "bytes": 3466}
+{"written": "/tmp/tmp.4jf0qRvv29/ext4csum-346_bk4j/out2.json", "bytes": 1574}
+{"written": "/tmp/tmp.4jf0qRvv29/ext4csum-346_bk4j/out3.json", "bytes": 1574}
+{"written": "/tmp/tmp.4jf0qRvv29/ext4csum-njgjnmu3/o.json", "bytes": 3032}
+## ext4-checksum-r1-tests rc=1
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 1

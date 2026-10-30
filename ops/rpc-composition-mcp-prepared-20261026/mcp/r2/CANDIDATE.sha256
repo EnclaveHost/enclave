@@ -1,0 +1,4 @@
+00338a592c669d41cb2bd6a1250e17142240056f9759c3ea30735c710c1edd5d  cli/independent.mjs
+ad8d0314faa59bffcfcecbe75683b77b455c2d918494d632ece69dd3a0730c7c  mcp/independent.mjs
+646fc7569a58806fdb4ff9059bd667bb40f49225912cedd8070c7e5d3b44fb44  mcp/independent-secrets.mjs
+a06a99cbb1e5d0a61d51f1526ab7b508828269fcf1def16e5cc34fdb2735bd11  test/mcp-independent-verifier.test.mjs

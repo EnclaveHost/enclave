@@ -1,0 +1,1 @@
+{"refused": "base binary differs from its pinned sha256"}

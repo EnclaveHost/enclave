@@ -1,0 +1,22 @@
+[queue] NOT STARTED: small allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 5 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 6 not started; sleep 30
+[queue] START available=22297MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+[fix/rpc-relay-consumers-20261025 12b41d459] Honor site release read authority on the credit page
+ 4 files changed, 104 insertions(+), 1 deletion(-)
+ create mode 100644 test/credit-read-authority.test.mjs
+To https://github.com/EnclaveHost/enclave.git
+   b6ac5d657..12b41d459  HEAD -> fix/rpc-relay-consumers-20261025
+Exact4 tested files applied;31 checks and both actual credit bundle modes PASS; source only.
+[memory-guard] exit=0 peakTreeRssMiB=52 minHostAvailableMiB=22255
+[memory-guard] at peak: python3:18 git-remote-http:16 git:8 git:6 git:4
+[queue] EXIT 0

@@ -1,0 +1,27 @@
+✘ [ERROR] No matching export in "windows/node/host-admission.bundle.mjs" for import "verifiedStateReader"
+
+    windows/node/chain-reader.mjs:10:9:
+      10 │ import { verifiedStateReader } from "./host-admission.bundle.mjs";
+         ╵          ~~~~~~~~~~~~~~~~~~~
+
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/final/node_modules/esbuild/lib/main.js:1748
+  let error = new Error(text);
+              ^
+
+Error: Build failed with 1 error:
+windows/node/chain-reader.mjs:10:9: ERROR: No matching export in "windows/node/host-admission.bundle.mjs" for import "verifiedStateReader"
+    at failureErrorWithLog (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/final/node_modules/esbuild/lib/main.js:1748:15)
+    at /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/final/node_modules/esbuild/lib/main.js:1207:25
+    at /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/final/node_modules/esbuild/lib/main.js:1159:52
+    at buildResponseToResult (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/final/node_modules/esbuild/lib/main.js:1205:7)
+    at /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/final/node_modules/esbuild/lib/main.js:1232:16
+    at responseCallbacks.<computed> (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/final/node_modules/esbuild/lib/main.js:884:9)
+    at handleIncomingPacket (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/final/node_modules/esbuild/lib/main.js:939:12)
+    at Socket.readFromStdout (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/final/node_modules/esbuild/lib/main.js:862:7)
+    at Socket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12) {
+  errors: [Getter/Setter],
+  warnings: [Getter/Setter]
+}
+
+Node.js v22.23.3

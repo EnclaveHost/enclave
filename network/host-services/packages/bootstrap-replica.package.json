@@ -1,0 +1,32 @@
+{
+  "format": "enclave-host-service-package/v1",
+  "role": "bootstrap-replica",
+  "entry": "network/bootstrap-gateway.mjs",
+  "bundle": "bootstrap-replica.mjs",
+  "bundleSha256": "1e45e75f1f4a7d2b74ebac22f0e292d76323c9a11bf80203a20d289c9577f467",
+  "bytes": 5033,
+  "runtime": "node>=22 (host role; not a wasm component)",
+  "kind": "replica",
+  "serves": "CID-addressed public bootstrap artifacts (release and runtime downloads), GET/HEAD /ipfs/<cid>, digest-checked at start",
+  "state": {
+    "durable": true,
+    "what": "the artifact files of a verified bootstrap manifest",
+    "rebuild": "refilled by CID from any replica or storage copy (fill: sha256 and CAR digest checked before a file is kept)"
+  },
+  "secrets": "none",
+  "cold": [
+    "the artifact files on local disk, each checked against the manifest's sha256 and CAR digest before the first request"
+  ],
+  "notCold": [
+    "discovery",
+    "directories",
+    "storage adapters",
+    "lease relays",
+    "any app",
+    "the network (once filled)"
+  ],
+  "builder": "scripts/build-host-service-packages.mjs",
+  "inputs": {
+    "network/bootstrap-gateway.mjs": "bac818554bee24b8b9b78ed1f2fdc61c6d217cfe190715515c42a4c4c21ce244"
+  }
+}

@@ -1,0 +1,70 @@
+TAP version 13
+# Subtest: the selection: unset or quorum is the legacy path; verifier needs a local URL; anything ambiguous refuses
+ok 1 - the selection: unset or quorum is the legacy path; verifier needs a local URL; anything ambiguous refuses
+  ---
+  duration_ms: 3.489175
+  type: 'test'
+  ...
+# Subtest: the own backend: a loopback or private address literal only, never a name or public address; the guest checker agrees
+ok 2 - the own backend: a loopback or private address literal only, never a name or public address; the guest checker agrees
+  ---
+  duration_ms: 0.736823
+  type: 'test'
+  ...
+# Subtest: routing: state, receipts, logs and nonces go to the verifier only; unlisted methods refuse by name and reach no server
+ok 3 - routing: state, receipts, logs and nonces go to the verifier only; unlisted methods refuse by name and reach no server
+  ---
+  duration_ms: 37.990988
+  type: 'test'
+  ...
+# Subtest: a revert keeps its data through the verifier (simulate/readContract decode it); errors keep their code
+ok 4 - a revert keeps its data through the verifier (simulate/readContract decode it); errors keep their code
+  ---
+  duration_ms: 6.510714
+  type: 'test'
+  ...
+# Subtest: estimateGas answers a gas LIMIT a verified execution succeeded with, never the verifier's gas used after refunds; a revert is the answer
+ok 5 - estimateGas answers a gas LIMIT a verified execution succeeded with, never the verifier's gas used after refunds; a revert is the answer
+  ---
+  duration_ms: 30.950179
+  type: 'test'
+  ...
+# Subtest: submission: only through a backend BOUND to the verifier's chain on a fresh head; otherwise refused before anything is sent
+ok 6 - submission: only through a backend BOUND to the verifier's chain on a fresh head; otherwise refused before anything is sent
+  ---
+  duration_ms: 73.853778
+  type: 'test'
+  ...
+# Subtest: an invalid selection refuses every method and every action: nothing falls back
+ok 7 - an invalid selection refuses every method and every action: nothing falls back
+  ---
+  duration_ms: 0.576744
+  type: 'test'
+  ...
+# Subtest: lease readers: the verifier is ONE authority (required 1), never mixed with RPCs, never repeated; RPC quorums are unchanged
+ok 8 - lease readers: the verifier is ONE authority (required 1), never mixed with RPCs, never repeated; RPC quorums are unchanged
+  ---
+  duration_ms: 10.202488
+  type: 'test'
+  ...
+# Subtest: app-funded lease config under the verifier: reads use it alone, the configured RPCs are never contacted (kept for byte-identical config)
+ok 9 - app-funded lease config under the verifier: reads use it alone, the configured RPCs are never contacted (kept for byte-identical config)
+  ---
+  duration_ms: 2.196978
+  type: 'test'
+  ...
+# Subtest: guest opt-in: txBackend is checked and reaches the supervisor only with a usable verifier, from this channel only
+ok 10 - guest opt-in: txBackend is checked and reaches the supervisor only with a usable verifier, from this channel only
+  ---
+  duration_ms: 1.567185
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 437.008767

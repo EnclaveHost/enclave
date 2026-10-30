@@ -1,0 +1,16 @@
+{
+ "errors": 0,
+ "expectedFailures": 0,
+ "mode": "kill",
+ "outcomes": {
+  "Recheck.test_full_flow_binds_release_to_the_a2_receipt": "fail"
+ },
+ "ranTwice": [],
+ "requested": [
+  "Recheck.test_full_flow_binds_release_to_the_a2_receipt"
+ ],
+ "skipped": 0,
+ "testsRun": 1,
+ "unexpectedSuccesses": 0,
+ "verdict": "killed"
+}

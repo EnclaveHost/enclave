@@ -1,0 +1,48 @@
+{
+  "status": "PREPARED_NOT_RUN",
+  "frozenCandidateFiles": 261,
+  "frozenManifestSha256": "24f8045f5f3737453171a7c3379d65db596c319e6da7b0a8a9f46113b23351c1",
+  "previousRootChecks": 140,
+  "newOwnerCases": 9,
+  "newIntegrationCases": 9,
+  "expectedBaseChecks": 158,
+  "entryFiles": [
+    "retained-root-boundary-v2.test.mjs",
+    "retained-root-quarantine.test.mjs",
+    "retained-shipped-client.test.mjs",
+    "root-installer-boundaries.test.mjs",
+    "root-powershell-bounds.test.mjs",
+    "root-trust-inputs.test.mjs",
+    "candidate/test/windows-permit/od-r1-operator-effects-store.test.mjs",
+    "candidate/test/windows-permit/od-r1-direct-sender.test.mjs",
+    "candidate/test/windows-permit/od-r1-sponsored.test.mjs",
+    "candidate/test/windows-permit/od-r2-direct-continuity.test.mjs",
+    "candidate/test/windows-permit/ow-r1-operator-windows-wiring.test.mjs",
+    "candidate/test/windows-permit/ow-r4-system-identity.test.mjs",
+    "candidate/test/windows-permit/allocation-owner.test.mjs",
+    "candidate/test/windows-permit/allocation-integration.test.mjs"
+  ],
+  "dependencies": {
+    "candidate": "complete frozen261 conservative superset; unchanged bytes",
+    "rootHarness": "six unchanged retained root test files + unchanged liveness import",
+    "external": "all files in existing workspace node_modules pinned conservatively; no installation or download",
+    "externalFileCount": 14059,
+    "externalBytes": 162267639,
+    "fixture": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/installed-manager-http-baseline-r1/derive_vectors.json",
+    "runtime": "executable pins; inherited OS/shared libraries are not a hermetic runtime closure"
+  },
+  "guard": {
+    "memoryMaxMiB": 512,
+    "treeRssMiB": 450,
+    "availableFloorMiB": 27648,
+    "cpu": [
+      1
+    ],
+    "swapMiB": 0,
+    "runtimeSeconds": 420,
+    "testCommandTimeoutSeconds": 300,
+    "network": "unshare -Urn; loopback only"
+  },
+  "noExecution": true,
+  "regressions": "Coordinator owns additional qualification TTL/restart regressions, to be separately pinned and explicitly appended before its run. Expected count increases accordingly."
+}

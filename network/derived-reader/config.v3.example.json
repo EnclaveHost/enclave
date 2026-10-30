@@ -1,0 +1,30 @@
+{
+  "stateDir": "/var/lib/enclave/derived-reader-v3",
+  "initializeState": false,
+  "apiPort": 18760,
+  "native": {
+    "path": "/opt/enclave/bin/derivation_harness_lease_v3",
+    "sha256": "49f4d7e3e70e48f7374b0e12b3d300978062cce19cbd75552065f918173a76fa",
+    "resultVersion": 3
+  },
+  "l1": {
+    "port": 18761,
+    "binary": {
+      "path": "/opt/enclave/bin/helios",
+      "sha256": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0"
+    },
+    "checkpointFile": "/opt/enclave/policy/checkpoint.json",
+    "consensusUrl": "http://127.0.0.1:5052",
+    "executionUrl": "http://127.0.0.1:8545",
+    "readyTimeoutMs": 120000,
+    "requestTimeoutMs": 20000
+  },
+  "baseUrl": "http://127.0.0.1:18545",
+  "maxBlocks": 1800,
+  "intermediateBlockInterval": 1,
+  "maxAnchorAgeSec": 1800,
+  "nativeTimeoutMs": 180000,
+  "maxMemoryMiB": 1536,
+  "maxWitnessBytes": 67108864,
+  "historyMaximumBytes": 4294967296
+}

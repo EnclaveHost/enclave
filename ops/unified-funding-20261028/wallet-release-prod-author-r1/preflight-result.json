@@ -1,0 +1,14 @@
+{
+  "account": {
+    "loggedIn": true,
+    "email": "steven.r.batchelor@gmail.com",
+    "subscriptionType": "max"
+  },
+  "seedFiles": 125,
+  "readonlyPins": 294,
+  "drift": 0,
+  "preparedSha256": "24a2c19ad09ec0cb25106ff74c1b38a9c7cc275e52bae3586fadffd56539e7ec",
+  "sourceOnly": true,
+  "productMatchesLive": true,
+  "testOnlyOverlay": "census.test.mjs"
+}

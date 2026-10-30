@@ -1,0 +1,227 @@
+{
+  "schema": "client-site-repair-r2-install/v1",
+  "note": "Copy each output into the source repository root at `target` ONLY after root review. A patched target may be replaced only while it still has `replaces_sha256`; a new target only while it does not exist. Rollback: restore each patched target from ROLLBACK/<target> (sha256 = replaces_sha256) and delete each new target (plus site/vendor/funding.js and funding.manifest.json if built). Every FUNDING_* value is null.",
+  "inputs": {
+    "client-repair-r4/lib/util.mjs": "f06901fffafba27cfc59476dbe1e1b367eec8a2eef6eb3d914711695bea8eb6e",
+    "client-repair-r4/lib/v2-store.mjs": "d86b86d40ea833f67d44ab2d8927f9aa55b53703461cd86be865ab62b82fe992",
+    "client-repair-r4/lib/chain-proof.mjs": "b926ef43af1af52135016a438c2b334722320805e2545c84ed009a84353e28e7",
+    "client-repair-r4/lib/funding-client.mjs": "a8cf867acd2b90c9b2f6c69ec23f635ecb9a54c474d9a821492348bcf050d27b",
+    "client-repair-r4/lib/migration.mjs": "594e98a03b5b158df52c131cab3a3ad3294675eb8fa4c79497ad0232fcf74b2b",
+    "client-repair-r4/lib/browser-entry.mjs": "29ad990d3397addf1a5891faeabf15ac4fab7b367c9180fc26132f68d440dd1e",
+    "client-r1/funding-codec.mjs": "42c45e5b7d8ec9abf6fa5b7e43c320999233e0a94cb53de06b6eb963e05b5c10",
+    "client-site-repair-r2/authored/scripts/build-funding-vendor.mjs": "70c432052505c6ad2ad02179a1a6576233135743b098fe332eb152df7208c570",
+    "client-site-repair-r2/authored/site/js/pages/funding.js": "6123b6e202641f3d04f41d9481c3d6a63918013703fafc40bf4de502314c27e3",
+    "client-site-repair-r2/authored/site/js/funding/state.js": "361bae2bc531a640cfb58d389e026d5677eb5da70063f2bdda07070b09397f54",
+    "client-site-repair-r2/authored/site/js/funding/flows.js": "137b4a1babb7ccb5d6f913488c519660c99d5b934c79a433a0255b35e8fa48d1",
+    "../source/site/js/boot.js": "cb1d6710682a25f2a190439fd0bfade4aa4230e3ea5170ccf8fb0f5ce2ae1ac6",
+    "../source/site/js/core/config.js": "abb7461757307b856b912f06623cf1c37df05f6ffd57c79a70b343000b8fb72e",
+    "../source/site/sessions.html": "b3b98a6bc96ef76b58468dfa3395d7c840f3e89e1e4c513ae3afd10834fc361c",
+    "../source/scripts/build-site.mjs": "ac12580edc94078a834e0d44830d687ea8d361a090e5b925c012c66854c3408c",
+    "../source/scripts/build-vendor.mjs": "0f66ed42552a662d7999692a2bc5262b3ef61d0b3b9edcb034ea1f970477cae7",
+    "../source/site/_redirects": "47140c4afb46e00e0bc8da0a5bdd63d9aa42b37b9a7e28f9028916b28a9336d2"
+  },
+  "outputs": {
+    "scripts/build-funding-vendor.mjs": {
+      "target": "scripts/build-funding-vendor.mjs",
+      "kind": "new (authored)",
+      "sha256": "70c432052505c6ad2ad02179a1a6576233135743b098fe332eb152df7208c570",
+      "must_not_exist": true
+    },
+    "scripts/build-site.mjs": {
+      "target": "scripts/build-site.mjs",
+      "kind": "patched copy (insert-only)",
+      "sha256": "63942a59c3483507d22ad49dcad847b47977653b72e4fb60a50bf5cfb84c1ccd",
+      "replaces_sha256": "ac12580edc94078a834e0d44830d687ea8d361a090e5b925c012c66854c3408c"
+    },
+    "scripts/build-vendor.mjs": {
+      "target": "scripts/build-vendor.mjs",
+      "kind": "patched copy (append-only)",
+      "sha256": "b91be70387398ccbdb24a59786d7b9a8abfd795a26f0418e401722dc358b31d2",
+      "replaces_sha256": "0f66ed42552a662d7999692a2bc5262b3ef61d0b3b9edcb034ea1f970477cae7"
+    },
+    "sdk/funding/MANIFEST.json": {
+      "target": "sdk/funding/MANIFEST.json",
+      "kind": "new",
+      "sha256": "ac8972fa2598da46f63e45a402da25b7a8457681c7b34dca9495d442ebf4d50d",
+      "must_not_exist": true
+    },
+    "sdk/funding/browser-entry.mjs": {
+      "target": "sdk/funding/browser-entry.mjs",
+      "kind": "new (core, import specifiers rewritten only)",
+      "sha256": "29ad990d3397addf1a5891faeabf15ac4fab7b367c9180fc26132f68d440dd1e",
+      "must_not_exist": true
+    },
+    "sdk/funding/chain-proof.mjs": {
+      "target": "sdk/funding/chain-proof.mjs",
+      "kind": "new (core, import specifiers rewritten only)",
+      "sha256": "ca799d8f86db1dd3a7113703cba5fd929e770f02f5c63fa3f5589b05f5e074b3",
+      "must_not_exist": true
+    },
+    "sdk/funding/funding-client.mjs": {
+      "target": "sdk/funding/funding-client.mjs",
+      "kind": "new (core, import specifiers rewritten only)",
+      "sha256": "8d79be4d818556545c98a85025bc3d6bac2e508b2a06ef32ff22a3860f2c0ce0",
+      "must_not_exist": true
+    },
+    "sdk/funding/funding-codec.mjs": {
+      "target": "sdk/funding/funding-codec.mjs",
+      "kind": "new (core, import specifiers rewritten only)",
+      "sha256": "ceed082639299b35073005d2ffb0ce8e5ceee1a3035804f197cdf53a4f6739d7",
+      "must_not_exist": true
+    },
+    "sdk/funding/migration.mjs": {
+      "target": "sdk/funding/migration.mjs",
+      "kind": "new (core, import specifiers rewritten only)",
+      "sha256": "b168fcc1038c9c5c19c685cd9b336fa7ecbd3fb89d91d8cec92bdbea8d4dccf4",
+      "must_not_exist": true
+    },
+    "sdk/funding/util.mjs": {
+      "target": "sdk/funding/util.mjs",
+      "kind": "new (core, import specifiers rewritten only)",
+      "sha256": "38b678a68ecf7fd897fb1ae905d27471a17d10f8061fa29d81f5870549e12e66",
+      "must_not_exist": true
+    },
+    "sdk/funding/v2-store.mjs": {
+      "target": "sdk/funding/v2-store.mjs",
+      "kind": "new (core, import specifiers rewritten only)",
+      "sha256": "b00d0742ee3d2b211b4cf811c48c8e7004dbf7e8a4cf30517db5ec199181733c",
+      "must_not_exist": true
+    },
+    "site/_redirects": {
+      "target": "site/_redirects",
+      "kind": "patched copy (insert-only)",
+      "sha256": "7674db1802d0e44c72bf11e8c6f089e06385aa60b26d8ab82c45b838167aa417",
+      "replaces_sha256": "47140c4afb46e00e0bc8da0a5bdd63d9aa42b37b9a7e28f9028916b28a9336d2"
+    },
+    "site/funding.html": {
+      "target": "site/funding.html",
+      "kind": "new (derived from site/sessions.html)",
+      "sha256": "2f46bebb4e74c2c5840dae57105c3a0c5e1f6c5c47ccdc9ac0c5013769527b66",
+      "must_not_exist": true
+    },
+    "site/js/boot.js": {
+      "target": "site/js/boot.js",
+      "kind": "patched copy (insert-only)",
+      "sha256": "fc7675f3f07c1fe63e2876e21e079c1934456522b42073ab1794c2986d690ba1",
+      "replaces_sha256": "cb1d6710682a25f2a190439fd0bfade4aa4230e3ea5170ccf8fb0f5ce2ae1ac6"
+    },
+    "site/js/core/config.js": {
+      "target": "site/js/core/config.js",
+      "kind": "patched copy (append-only)",
+      "sha256": "3d687efdbedbc826529274866b993e2c60952df495807ae7d0c0099c2effccad",
+      "replaces_sha256": "abb7461757307b856b912f06623cf1c37df05f6ffd57c79a70b343000b8fb72e"
+    },
+    "site/js/funding/flows.js": {
+      "target": "site/js/funding/flows.js",
+      "kind": "new (authored)",
+      "sha256": "137b4a1babb7ccb5d6f913488c519660c99d5b934c79a433a0255b35e8fa48d1",
+      "must_not_exist": true
+    },
+    "site/js/funding/state.js": {
+      "target": "site/js/funding/state.js",
+      "kind": "new (authored)",
+      "sha256": "361bae2bc531a640cfb58d389e026d5677eb5da70063f2bdda07070b09397f54",
+      "must_not_exist": true
+    },
+    "site/js/pages/funding.js": {
+      "target": "site/js/pages/funding.js",
+      "kind": "new (authored)",
+      "sha256": "6123b6e202641f3d04f41d9481c3d6a63918013703fafc40bf4de502314c27e3",
+      "must_not_exist": true
+    }
+  },
+  "rollback": [
+    {
+      "target": "scripts/build-funding-vendor.mjs",
+      "action": "delete"
+    },
+    {
+      "target": "scripts/build-site.mjs",
+      "action": "restore",
+      "from": "ROLLBACK/scripts/build-site.mjs",
+      "sha256": "ac12580edc94078a834e0d44830d687ea8d361a090e5b925c012c66854c3408c"
+    },
+    {
+      "target": "scripts/build-vendor.mjs",
+      "action": "restore",
+      "from": "ROLLBACK/scripts/build-vendor.mjs",
+      "sha256": "0f66ed42552a662d7999692a2bc5262b3ef61d0b3b9edcb034ea1f970477cae7"
+    },
+    {
+      "target": "sdk/funding/MANIFEST.json",
+      "action": "delete"
+    },
+    {
+      "target": "sdk/funding/browser-entry.mjs",
+      "action": "delete"
+    },
+    {
+      "target": "sdk/funding/chain-proof.mjs",
+      "action": "delete"
+    },
+    {
+      "target": "sdk/funding/funding-client.mjs",
+      "action": "delete"
+    },
+    {
+      "target": "sdk/funding/funding-codec.mjs",
+      "action": "delete"
+    },
+    {
+      "target": "sdk/funding/migration.mjs",
+      "action": "delete"
+    },
+    {
+      "target": "sdk/funding/util.mjs",
+      "action": "delete"
+    },
+    {
+      "target": "sdk/funding/v2-store.mjs",
+      "action": "delete"
+    },
+    {
+      "target": "site/_redirects",
+      "action": "restore",
+      "from": "ROLLBACK/site/_redirects",
+      "sha256": "47140c4afb46e00e0bc8da0a5bdd63d9aa42b37b9a7e28f9028916b28a9336d2"
+    },
+    {
+      "target": "site/funding.html",
+      "action": "delete"
+    },
+    {
+      "target": "site/js/boot.js",
+      "action": "restore",
+      "from": "ROLLBACK/site/js/boot.js",
+      "sha256": "cb1d6710682a25f2a190439fd0bfade4aa4230e3ea5170ccf8fb0f5ce2ae1ac6"
+    },
+    {
+      "target": "site/js/core/config.js",
+      "action": "restore",
+      "from": "ROLLBACK/site/js/core/config.js",
+      "sha256": "abb7461757307b856b912f06623cf1c37df05f6ffd57c79a70b343000b8fb72e"
+    },
+    {
+      "target": "site/js/funding/flows.js",
+      "action": "delete"
+    },
+    {
+      "target": "site/js/funding/state.js",
+      "action": "delete"
+    },
+    {
+      "target": "site/js/pages/funding.js",
+      "action": "delete"
+    },
+    {
+      "target": "site/vendor/funding.js",
+      "action": "delete",
+      "note": "built by scripts/build-funding-vendor.mjs"
+    },
+    {
+      "target": "site/vendor/funding.manifest.json",
+      "action": "delete",
+      "note": "built by scripts/build-funding-vendor.mjs"
+    }
+  ]
+}

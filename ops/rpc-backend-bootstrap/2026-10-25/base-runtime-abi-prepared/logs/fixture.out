@@ -1,0 +1,44 @@
+[queue] START available=19764MiB required=18688MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1792MiB
+== T1 closure of /usr/bin/openssl (stand-in: links the host's OpenSSL 3.6.5 + glibc 2.44)
+   needed ['libssl.so.3', 'libcrypto.so.3', 'libc.so.6'] | libs ['ld-linux-x86-64.so.2', 'libbrotlicommon.so.1', 'libbrotlidec.so.1', 'libbrotlienc.so.1', 'libc.so.6', 'libcrypto.so.3', 'libm.so.6', 'libssl.so.3', 'libz.so.1', 'libzstd.so.1'] | highest {'GLIBC': 'GLIBC_2.44', 'OPENSSL': 'OPENSSL_3.6.0'}
+[ok] closure complete, package-owned, loader == native verifier pin f5e11cc6
+   {
+    "binaryNeedsGlibc": "GLIBC_2.38",
+    "exceedsTargetGlibc": false,
+    "binaryNeedsOpenssl": "OPENSSL_3.6.0",
+    "exceedsTargetOpenssl": true,
+    "binaryNeedsGlibcxx": null,
+    "needed": [
+     "libssl.so.3",
+     "libcrypto.so.3",
+     "libc.so.6"
+    ],
+    "advice": "a private bundle is required if any 'exceeds' is true; otherwise the system libraries MAY suffice, but only a smoke on the target decides"
+   }
+== T2 bundle + SHA256SUMS
+[ok] bundle built
+[ok] SHA256SUMS verify
+[ok] a wrong binary pin is refused
+== T3 run through the wrapper; resolution guard
+   OpenSSL 3.6.5 29 Sep 2026 (Library: OpenSSL 3.6.5 29 Sep 2026)
+[ok] bundled libcrypto/libssl used
+[ok] guard: every library inside the bundle
+== T4 fail closed: a library missing from the bundle would silently fall back to the loader's default dir
+[ok] guard refuses the fallback: ['libcrypto.so.3 => /usr/lib/libcrypto.so.3 (0x00007f0c33600000)']
+[ok] wrapper refuses to start (65): runtime guard: outside the bundle: libcrypto.so.3=>/usr/lib/libcrypto.so.3
+== T5 LD_* scrub
+   (bare loader honours LD_PRELOAD: ERROR: ld.so: object '/nonexistent/evil.so' from LD_PRELOAD cannot be preloaded (cannot op)
+[ok] wrapper scrubs LD_PRELOAD (warnings: 1 = the shell's own; unscrubbed control: 4)
+== T6 CA plumbing (local test CA; no network)
+[ok] SSL_CERT_FILE honoured by the bundled libcrypto
+[ok] without the CA: verification fails (no hidden store)
+[ok] pinned openssl.cnf loads the default provider
+== T7 name resolution under the bundled glibc (NSS files/dns are built into glibc >= 2.34)
+   ::1             localhost
+[ok] localhost resolves via /etc/hosts
+== T8 self-update refused
+[ok] update refused (64)
+## fixture rc=0
+[memory-guard] exit=0 peakTreeRssMiB=71 minHostAvailableMiB=19456
+[memory-guard] at peak: pacman:47 python3:20 bash:4
+[queue] EXIT 0

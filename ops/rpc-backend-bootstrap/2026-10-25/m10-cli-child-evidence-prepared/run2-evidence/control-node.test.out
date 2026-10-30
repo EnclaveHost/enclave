@@ -1,0 +1,26 @@
+
+running 3 tests
+test service::anchor_safedb::tests::a_surviving_entry_is_refused_and_disabled_is_accepted ... ok
+test service::anchor_safedb::tests::a_failing_reset_is_fatal ... FAILED
+test service::anchor_safedb::tests::real_redb_wipe_removes_snapshot_entries_persistently ... FAILED
+
+failures:
+
+---- service::anchor_safedb::tests::a_failing_reset_is_fatal stdout ----
+
+thread 'service::anchor_safedb::tests::a_failing_reset_is_fatal' (39480) panicked at crates/consensus/service/src/service/anchor_safedb.rs:127:83:
+called `Result::unwrap_err()` on an `Ok` value: ()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- service::anchor_safedb::tests::real_redb_wipe_removes_snapshot_entries_persistently stdout ----
+
+thread 'service::anchor_safedb::tests::real_redb_wipe_removes_snapshot_entries_persistently' (39482) panicked at crates/consensus/service/src/service/anchor_safedb.rs:117:51:
+called `Result::unwrap()` on an `Err` value: NotWiped(SafeHeadResponse { l1_block: NumHash { number: 21000600, hash: 0x1111111111111111111111111111111111111111111111111111111111111111 }, safe_head: NumHash { number: 53048526, hash: 0x2222222222222222222222222222222222222222222222222222222222222222 } })
+
+
+failures:
+    service::anchor_safedb::tests::a_failing_reset_is_fatal
+    service::anchor_safedb::tests::real_redb_wipe_removes_snapshot_entries_persistently
+
+test result: FAILED. 1 passed; 2 failed; 0 ignored; 0 measured; 373 filtered out; finished in 0.08s
+

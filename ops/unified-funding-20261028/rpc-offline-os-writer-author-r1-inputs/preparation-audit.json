@@ -1,0 +1,13 @@
+{
+  "seedEntries": 5,
+  "candidateEqualsSeed": true,
+  "productPreEdits": 0,
+  "readonlyInputPins": 37,
+  "inputDrift": [],
+  "authorLaunched": false,
+  "accountCheckedNow": false,
+  "testsRun": false,
+  "imageOrDatabaseRead": false,
+  "networkOrRemoteRead": false,
+  "runtimeOrFinancialAction": false
+}

@@ -1,0 +1,24 @@
+--- original-test-fixture
++++ owned-precompiled-fixture
+@@ -8,7 +8,7 @@
+ import net from 'node:net';
+ import os from 'node:os';
+ import path from 'node:path';
+-import solc from 'solc';
++import {createHash} from 'node:crypto';
+ import { createPublicClient, createWalletClient, decodeFunctionResult, encodeDeployData, encodeEventTopics, encodeFunctionData, getAddress, http, keccak256,
+   parseEther, toBytes } from 'viem';
+ import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
+@@ -39,9 +39,9 @@
+     // 4000 ms default poll (root 1386 latency diagnosis). No assertion, authority, freshness or timeout changes.
+     S.pub = createPublicClient({ cacheTime: 0, pollingInterval: 25, transport: http(url, { retryCount: 0 }) }); S.wallet = createWalletClient({ transport: http(url, { retryCount: 0 }) });
+     for (let i = 0; ; ++i) { try { if (await S.pub.getChainId() === 8453) break; } catch { if (i > 100) throw Error('anvil did not start'); } await new Promise(r => setTimeout(r, 100)); }
+-    const out = JSON.parse(solc.compile(JSON.stringify({ language: 'Solidity',
+-      sources: { 'D.sol': { content: fs.readFileSync(new URL('./LifecycleR5Doubles.sol', import.meta.url), 'utf8') } },
+-      settings: { evmVersion: 'prague', outputSelection: { '*': { '*': ['abi', 'evm.bytecode'] } } } })));
++    const compiled = fs.readFileSync(new URL('./root-doubles-output.json', import.meta.url));
++    if (createHash('sha256').update(compiled).digest('hex') !== '31426a9799dab3dec5652b9288ec3237f701f5edba15f0535807bc82fe27e02f') throw Error('TEST doubles output changed');
++    const out = JSON.parse(compiled);
+     if (out.errors?.some(e => e.severity === 'error')) throw Error(JSON.stringify(out.errors));
+     S.K = out.contracts['D.sol'];
+   });

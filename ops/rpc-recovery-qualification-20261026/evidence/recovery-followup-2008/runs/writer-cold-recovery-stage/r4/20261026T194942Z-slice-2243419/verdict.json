@@ -1,0 +1,183 @@
+{
+ "mode": "slice",
+ "sourceCommit": "4ab73319228bdff456be6d96af6fccf1aab142ee",
+ "sourceTree": "571b5c84a8ffe3e6bc9c21ca4184a5b4a7ebb1af",
+ "scheduleReaderPin": {
+  "old": "688b7a1f09c898f66cc7b92473a9fbda042402ef833bb983ff794e5f07128fb0",
+  "new": "694f1297286ff2ecf6d1b0e6b37153203963f7893eb2607f7d53c2f03f2eea0c"
+ },
+ "tests": {
+  "two-anchor-reader": {
+   "rc": 0,
+   "tests": 13,
+   "pass": 13,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 13,
+   "ok": true
+  },
+  "two-anchor-reader-r2": {
+   "rc": 0,
+   "tests": 12,
+   "pass": 12,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 12,
+   "ok": true
+  },
+  "two-anchor-writer": {
+   "rc": 0,
+   "tests": 12,
+   "pass": 12,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 12,
+   "ok": true
+  },
+  "backward-history": {
+   "rc": 0,
+   "tests": 16,
+   "pass": 16,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 16,
+   "ok": true
+  },
+  "writer-history": {
+   "rc": 0,
+   "tests": 9,
+   "pass": 9,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 9,
+   "ok": true
+  },
+  "kvm--test_journal-durability.test.mjs": {
+   "rc": 0,
+   "tests": 22,
+   "pass": 22,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 22,
+   "ok": true
+  },
+  "kvm--test_lifecycle-finality-bridge.test.mjs": {
+   "rc": 0,
+   "tests": 6,
+   "pass": 6,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 6,
+   "ok": true
+  },
+  "kvm--test_deployment-lifecycle-journal.test.mjs": {
+   "rc": 0,
+   "tests": 5,
+   "pass": 5,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 5,
+   "ok": true
+  },
+  "kvm--test_derived-reader_provider.test.mjs": {
+   "rc": 0,
+   "tests": 10,
+   "pass": 10,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 10,
+   "ok": true
+  },
+  "kvm--test_derived-reader_boundaries.test.mjs": {
+   "rc": 0,
+   "tests": 8,
+   "pass": 8,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 8,
+   "ok": true
+  },
+  "kvm--test_derived-reader_coverage.test.mjs": {
+   "rc": 0,
+   "tests": 14,
+   "pass": 14,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 14,
+   "ok": true
+  },
+  "writer": {
+   "rc": 0,
+   "tests": 23,
+   "pass": 23,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 23,
+   "ok": true
+  },
+  "composition": {
+   "rc": 0,
+   "tests": 6,
+   "pass": 6,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 6,
+   "ok": true
+  },
+  "replica-exact": {
+   "rc": 0,
+   "tests": 8,
+   "pass": 8,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 8,
+   "ok": true
+  },
+  "enrollment": {
+   "rc": 0,
+   "tests": 19,
+   "pass": 19,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 19,
+   "ok": true
+  }
+ },
+ "checkpoint": {
+  "checkpoint": "2e8502e68864abb49a230a69612bd7c98c94775d8dd81f956a0185d53652ac33",
+  "slot": 15511008,
+  "expiresUtc": "2026-11-01T19:21:59.000Z"
+ },
+ "ok": true,
+ "scope": "SOURCE + FIXTURES (r4 bounds: per-method byte caps, scan-wide call/byte budget, batch abort+settle; r3 repair: coverage-first writer, absolute-chunk lean bounded cache, signed pre-flighted raw method, bounded receipt concurrency, RAM resume, join-hash check): cold recovery of claims older than the start-time ASR anchor N by the authenticated backward header + receipt scan (floor..N, joined exactly to runtime coverage N+1..anchor), on the frozen two-anchor r3 path. Real Base headers for the parent-link walk and blooms; synthetic canonical receipts (no real receipt vector offline). NOT measured: scan cost from N to 52,515,705, own-node receipt/raw-transaction support, native time, S age (M1-M6). No driver (separate agent); no image template enabling any policy; not activated; production writer authority stays refused."
+}

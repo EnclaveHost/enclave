@@ -1,0 +1,42 @@
+--- original-claude-test-queue.py	2026-10-25 12:04:06.732166397 -0700
++++ claude-test-queue.py	2026-10-25 12:04:06.742843545 -0700
+@@ -15,8 +15,11 @@
+ import time
+ 
+ ROOT = Path(__file__).resolve().parent
++# The largest grantable allocation. A small job joining an occupied large lane reserves this
++# whole amount, and a large job yields to a reserved small job by the same figure.
++MAX_LARGE_MIB = 1792
+ parser = argparse.ArgumentParser()
+-parser.add_argument("--mib", type=int, required=True, choices=[256, 512, 768, 1024, 1408, 1536])
++parser.add_argument("--mib", type=int, required=True, choices=[256, 512, 768, 1024, 1408, 1536, MAX_LARGE_MIB])
+ parser.add_argument("--log", required=True)
+ parser.add_argument("command", nargs=argparse.REMAINDER)
+ args = parser.parse_args()
+@@ -68,7 +71,7 @@
+ floor = 16384
+ # Reserve the WHOLE concurrent small allocation, even though its existing RSS
+ # already reduces MemAvailable. Keep another 256 MiB for host variation.
+-# A small job joining an occupied large lane reserves its maximum 1536 MiB,
++# A small job joining an occupied large lane reserves its maximum MAX_LARGE_MIB,
+ # even though the running large job's RSS already reduces MemAvailable.
+ while True:
+     # A large request must own the lane for its admission snapshot, but must not
+@@ -96,7 +99,7 @@
+             pass
+         else:
+             owns_main_lock = True
+-    reserved = 1536 if small and not owns_main_lock else small_reservation()
++    reserved = MAX_LARGE_MIB if small and not owns_main_lock else small_reservation()
+     start = floor + args.mib + 256 + reserved
+     available = next(int(l.split()[1]) // 1024 for l in Path("/proc/meminfo").read_text().splitlines() if l.startswith("MemAvailable:"))
+     # If a small job has already reserved its lane, let it enter first when
+@@ -104,7 +107,7 @@
+     # impossible. A running small job finishes quickly; a waiting one can now
+     # acquire the released main lane. This is scheduling only: the same floors,
+     # full caps and reservations apply before any child is started.
+-    if not small and reserved and available < floor + 1536 + 256 + 256:
++    if not small and reserved and available < floor + MAX_LARGE_MIB + 256 + 256:
+         fcntl.flock(lock, fcntl.LOCK_UN)
+         owns_main_lock = False
+         if time.monotonic() >= deadline:

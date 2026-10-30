@@ -1,0 +1,2 @@
+mutant: INVALID (never a kill)
+  [INVALID] error line(s) other than cargo's exact test-failure footer for the failed binaries ['rpc_exact_hash_postcondition']: ['error: test failed, to rerun pass `-p helios-core --test rpc_exact_hash_postcondition`', 'error: 1 target failed:']

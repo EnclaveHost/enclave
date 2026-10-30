@@ -1,0 +1,18 @@
+{
+  "ROOT-REVIEW.md": "77e4d830371901cd03bcbcb80f1f19e0cd9e3e9ee342e27a64604a2680ba908b",
+  "funding-addon-r2-tests-20261028.out": "f9b6ae1385c7428b55aeae7c844b2394462db18d4da341a0766112fd16379e8b",
+  "funding-addon-r2-tests-20261028.rc": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+  "funding-addon-r2-tests-b-20261028.out": "17ecd065d5a1e1060511d3c186f761084ffeeeaa22d5c50cec5f064c808d6f83",
+  "funding-addon-r2-tests-b-20261028.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+  "snapshot/README.md": "5951bb47002eb63d1b38a21487c8de6c5a4b80b823bcd04d93918452abdf49da",
+  "snapshot/build.mjs": "5a3230261d58ae5d9e315cce2e051a834b54b16c93600374654490b4ab1aa147",
+  "snapshot/config.template.json": "25c705afc2c2350134851e329ef3b02d2383a279d445ec0e79a86cd0d858ec59",
+  "snapshot/lib.mjs": "c5017676b9f9e0260ef7aed4cf78fb037ccee724f414f9256cd7935df4f7ce4b",
+  "snapshot/package.json": "78be33b2a8507fd2aa5001bc3b89c4feca745f83ccef88dd293d986d5ce19c97",
+  "snapshot/pins.template.json": "e08a1ac3deea7c1d4c39b805363a7a13e87922aea7d999b5c68c3dce2a0d4c85",
+  "snapshot/root-original/integration.test.mjs": "58e5a66cb221e7e15ca0da400df6967435af716183f5a2bd560fc0944895f143",
+  "snapshot/src/entry.js": "0e8ccaebe5dca36cb7ab8f806075ad3d202d8081e0ab207c84b6c9848a471e7e",
+  "snapshot/src/hard-nav.js": "6598b6050caa0ebbf7cef8a66921de95c7ea85e494b6e468ae7d5157da1342f9",
+  "snapshot/test/integration.test.mjs": "d1ec32a4b3ddab9fb6b50f764805f5f3c5687f200c9e5f70fd83f14d50162c53",
+  "snapshot/test/lib.test.mjs": "0b38ac23c04553a97c55d8d45515ef2004625a741533f3db6974ec25446a465f"
+}

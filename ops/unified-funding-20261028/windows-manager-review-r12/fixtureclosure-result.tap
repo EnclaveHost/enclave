@@ -1,0 +1,204 @@
+TAP version 13
+# Subtest: r11 policy: unchanged valid policy keeps the unenrolled neighbour usable on every call
+ok 1 - r11 policy: unchanged valid policy keeps the unenrolled neighbour usable on every call
+  ---
+  duration_ms: 4.965514
+  type: 'test'
+  ...
+# Subtest: r11 policy (root r10 FAIL carried): corruption after the first successful read is unknown at the final predicate
+ok 2 - r11 policy (root r10 FAIL carried): corruption after the first successful read is unknown at the final predicate
+  ---
+  duration_ms: 4.174832
+  type: 'test'
+  ...
+# Subtest: r11 policy (root r10 FAIL carried): a missing policy after the first read is unknown
+ok 3 - r11 policy (root r10 FAIL carried): a missing policy after the first read is unknown
+  ---
+  duration_ms: 0.587634
+  type: 'test'
+  ...
+# Subtest: r11 policy: a changed configured path/sha after establishment is unknown, even with a valid new file
+ok 4 - r11 policy: a changed configured path/sha after establishment is unknown, even with a valid new file
+  ---
+  duration_ms: 0.724443
+  type: 'test'
+  ...
+# Subtest: r11 policy: previous no-policy state does not authorize legacy once a policy is configured
+ok 5 - r11 policy: previous no-policy state does not authorize legacy once a policy is configured
+  ---
+  duration_ms: 0.922951
+  type: 'test'
+  ...
+# Subtest: r11 policy POSITIVE control: initially corrupt policy refuses (root r10 PASS carried)
+ok 6 - r11 policy POSITIVE control: initially corrupt policy refuses (root r10 PASS carried)
+  ---
+  duration_ms: 1.566016
+  type: 'test'
+  ...
+# Subtest: r11 direct (root r10 FAIL carried): claim and release carry the caller gate into the actual sender
+ok 7 - r11 direct (root r10 FAIL carried): claim and release carry the caller gate into the actual sender
+  ---
+  duration_ms: 0.925452
+  type: 'test'
+  ...
+# Subtest: r11 direct (root r10 FAIL carried): permission ending during simulation sends nothing
+ok 8 - r11 direct (root r10 FAIL carried): permission ending during simulation sends nothing
+  ---
+  duration_ms: 0.534445
+  type: 'test'
+  ...
+# Subtest: r11 direct: permission ending during the nonce read sends nothing and spends no nonce
+ok 9 - r11 direct: permission ending during the nonce read sends nothing and spends no nonce
+  ---
+  duration_ms: 8.793199
+  type: 'test'
+  ...
+# Subtest: r11 direct: a pre-write transient retry is a new decision point (gate re-asked after the backoff)
+ok 10 - r11 direct: a pre-write transient retry is a new decision point (gate re-asked after the backoff)
+  ---
+  duration_ms: 3000.315669
+  type: 'test'
+  ...
+# Subtest: r11 direct: an ambiguous post-write error is never resent, never given a new nonce, and blocks later sends until mined
+ok 11 - r11 direct: an ambiguous post-write error is never resent, never given a new nonce, and blocks later sends until mined
+  ---
+  duration_ms: 18.876927
+  type: 'test'
+  ...
+# Subtest: r11 direct POSITIVE: an unchanged permission sends exactly once
+ok 12 - r11 direct POSITIVE: an unchanged permission sends exactly once
+  ---
+  duration_ms: 6.944537
+  type: 'test'
+  ...
+# Subtest: r11 sponsored: permission ending DURING the lease signature keeps the signature and POSTs to no relay
+ok 13 - r11 sponsored: permission ending DURING the lease signature keeps the signature and POSTs to no relay
+  ---
+  duration_ms: 8.058787
+  type: 'test'
+  ...
+# Subtest: r11 sponsored release: a signature made while permission ended is journaled before the refused POST and stays pending
+not ok 14 - r11 sponsored release: a signature made while permission ended is journaled before the refused POST and stays pending
+  ---
+  duration_ms: 8.360214
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r12/root-r11-fixture.test.mjs:191:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    Error: app-funded release not sent: TEST policy corrupt during signing (permission ended during the lease signature); this host's ETH is never used instead
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r12/root-r11-fixture.test.mjs:193:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: r11 sponsored: refusal after an earlier relay's POST reports an unknown outcome, not unsent
+ok 15 - r11 sponsored: refusal after an earlier relay's POST reports an unknown outcome, not unsent
+  ---
+  duration_ms: 13.604225
+  type: 'test'
+  ...
+# Subtest: r11 sponsored: queue-entry refusal signs nothing (claim)
+ok 16 - r11 sponsored: queue-entry refusal signs nothing (claim)
+  ---
+  duration_ms: 0.218218
+  type: 'test'
+  ...
+# Subtest: r11 sponsored POSITIVE: unchanged permission signs once, POSTs once and lands
+ok 17 - r11 sponsored POSITIVE: unchanged permission signs once, POSTs once and lands
+  ---
+  duration_ms: 9.435763
+  type: 'test'
+  ...
+# Subtest: R5 DIRECT: repeated queued reconcile keeps the SAME staged instance through readiness, then Running permit, I/O, Stop
+ok 18 - R5 DIRECT: repeated queued reconcile keeps the SAME staged instance through readiness, then Running permit, I/O, Stop
+  ---
+  duration_ms: 665.466593
+  type: 'test'
+  ...
+# Subtest: R5 changed client origin: an enrolled deployment never reaches legacy lookup; it reaches the policy's protected owner
+ok 19 - R5 changed client origin: an enrolled deployment never reaches legacy lookup; it reaches the policy's protected owner
+  ---
+  duration_ms: 117.89182
+  type: 'test'
+  ...
+# Subtest: R5 host identity mismatch holds enrolled deployments; unenrolled neighbours stay legacy
+ok 20 - R5 host identity mismatch holds enrolled deployments; unenrolled neighbours stay legacy
+  ---
+  duration_ms: 99.684257
+  type: 'test'
+  ...
+# Subtest: R5 lost stage (actual MAC/TCP, TEST held transport): owned until the exact outcome; cancel refuses the late signed request
+ok 21 - R5 lost stage (actual MAC/TCP, TEST held transport): owned until the exact outcome; cancel refuses the late signed request
+  ---
+  duration_ms: 95.980461
+  type: 'test'
+  ...
+# Subtest: R5 inventory: a terminal row never masks an unmapped live protected VM
+ok 22 - R5 inventory: a terminal row never masks an unmapped live protected VM
+  ---
+  duration_ms: 123.138602
+  type: 'test'
+  ...
+# Subtest: R5 unsigned protected mutation aliases are refused without disturbing state; legacy routes unchanged
+ok 23 - R5 unsigned protected mutation aliases are refused without disturbing state; legacy routes unchanged
+  ---
+  duration_ms: 121.994893
+  type: 'test'
+  ...
+# Subtest: ROOT (extended, root r6 0/1): owner released after the actual accepted stage -> no usable success, exact retirement, cold recovery discharges
+ok 24 - ROOT (extended, root r6 0/1): owner released after the actual accepted stage -> no usable success, exact retirement, cold recovery discharges
+  ---
+  duration_ms: 244.992247
+  type: 'test'
+  ...
+# Subtest: r7 owner lost WHILE the raw stage is pending: the late 202 never recreates owner authority
+ok 25 - r7 owner lost WHILE the raw stage is pending: the late 202 never recreates owner authority
+  ---
+  duration_ms: 130.367796
+  type: 'test'
+  ...
+# Subtest: r7 a FAILED owned write after stage latches: no permit is sent, the loss is reported, retirement of the bound instance is the gate's
+ok 26 - r7 a FAILED owned write after stage latches: no permit is sent, the loss is reported, retirement of the bound instance is the gate's
+  ---
+  duration_ms: 122.892445
+  type: 'test'
+  ...
+# Subtest: r8 factory: pinned config refuses unknown fields, forbidden capabilities, wrong host and hash drift
+ok 27 - r8 factory: pinned config refuses unknown fields, forbidden capabilities, wrong host and hash drift
+  ---
+  duration_ms: 8.709
+  type: 'test'
+  ...
+# Subtest: r8 factory: the supervisor's chain reader is read-only; proof qualification comes only from the adapter's own fields
+ok 28 - r8 factory: the supervisor's chain reader is read-only; proof qualification comes only from the adapter's own fields
+  ---
+  duration_ms: 0.523236
+  type: 'test'
+  ...
+# Subtest: r8 factory: node entry composition -> no signer/relay adapter -> owned lifecycle bound to the client's runtime adapters, dispatch stopped
+ok 29 - r8 factory: node entry composition -> no signer/relay adapter -> owned lifecycle bound to the client's runtime adapters, dispatch stopped
+  ---
+  duration_ms: 7.310563
+  type: 'test'
+  ...
+# Subtest: r8 supervisor over factory snapshots: Online despite Enclave catalog refusal proceeds; Offline revokes; unverified fences; wrong host withdraws
+ok 30 - r8 supervisor over factory snapshots: Online despite Enclave catalog refusal proceeds; Offline revokes; unverified fences; wrong host withdraws
+  ---
+  duration_ms: 2.998903
+  type: 'test'
+  ...
+1..30
+# tests 30
+# suites 0
+# pass 29
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5997.682428

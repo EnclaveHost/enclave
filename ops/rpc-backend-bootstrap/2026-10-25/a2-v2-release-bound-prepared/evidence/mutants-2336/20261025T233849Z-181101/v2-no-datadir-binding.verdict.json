@@ -1,0 +1,16 @@
+{
+ "errors": 0,
+ "expectedFailures": 0,
+ "mode": "kill",
+ "outcomes": {
+  "BytecodeGate.test_another_datadir_in_the_receipt_refuses": "fail"
+ },
+ "ranTwice": [],
+ "requested": [
+  "BytecodeGate.test_another_datadir_in_the_receipt_refuses"
+ ],
+ "skipped": 0,
+ "testsRun": 1,
+ "unexpectedSuccesses": 0,
+ "verdict": "killed"
+}

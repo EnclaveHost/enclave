@@ -1,0 +1,128 @@
+{
+ "stage": "lifecycle-chain-adapter-stage/r6",
+ "status": "PREPARED, NOT TESTED; r5 + local-anvil polling fix + KVM runtime-lock closure + per-suite session cleanup",
+ "source": {
+  "path": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-rollout-20261026/source-r1",
+  "SHA256SUMS": "b506c43cff2246fa82598daba005ff8344de3f2f9ad1cc3a0c853f38f7eaad58",
+  "commit": "34a3c0d6d4c5aebffffb2492437487c9de74fb66"
+ },
+ "closure34a3": {
+  "repo": "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle",
+  "commit": "34a3c0d6d4c5aebffffb2492437487c9de74fb66",
+  "files": {
+   "net-guard.mjs": {
+    "gitBlob34a3c0d6": "2cea7e6339b7b9d58340b265d72990b22f442212",
+    "sha256": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af"
+   },
+   "package.json": {
+    "gitBlob34a3c0d6": "d43e310c0448fe581082257370e571815b251de1",
+    "sha256": "176365e77ddfe0cef859d07a2916e702f177854f34b23abfd1b806df9200de93",
+    "note": "34a3 root package.json: \"type\": \"module\" for site/js/core/catalog-policy.js"
+   },
+   "network/canonical.mjs": {
+    "gitBlob34a3c0d6": "45cef3b7653c40380c38f828860ae0bfe8b0c0a7",
+    "sha256": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3"
+   },
+   "network/host-admission-policy.mjs": {
+    "gitBlob34a3c0d6": "0a0fa6b951b79e1202d90d657d1231d45d86663d",
+    "sha256": "a15c05ea4dfd963ba72be60af03f0a712f39974423abe4b1abc80cbfabc145e0"
+   },
+   "network/lease-release-journal.mjs": {
+    "gitBlob34a3c0d6": "65f4b4ff4bc41af6ac678629cfb9c7cfd0b00a9e",
+    "sha256": "6411481a118b341e3efcd99bbaad6da644d490fd2815abd40033014f7edf2ff6",
+    "note": "root closure stage lifecycle-chain-adapter-closure-stage (SHA256SUMS 4b9a304c...), 34a3 dependency omitted by source-r1"
+   },
+   "network/network-policy-core.mjs": {
+    "gitBlob34a3c0d6": "d0f36631e7849e8196c57011d9ae92aeef4c0488",
+    "sha256": "6e5049d1476d4f362570c48d61f0abc8ad483ed54ba4b2c22fa07f363d4e3064"
+   },
+   "network/network-policy.mjs": {
+    "gitBlob34a3c0d6": "0f0ae610ed6987d7f7cceffff43a5824e0eb411b",
+    "sha256": "b4f5050e2d3841b56facf4050f85c3aba5a6e03649ed80d6833c0675adbbfa2f"
+   },
+   "network/provider-qualification.mjs": {
+    "gitBlob34a3c0d6": "6ae17cf266b078fa3884c427af391ea6b73a53cc",
+    "sha256": "a64f838366a83203e4954d0614c92038b835e5e04f019b5bbbec61c67e9eebf9"
+   },
+   "network/route-record.mjs": {
+    "gitBlob34a3c0d6": "b12b06e657817ccefe4051c60a40a6b8d6042dec",
+    "sha256": "9ba9f6d34744f8a715cefd469a7f335d7cf2a154c91b70c5955a0b03afb49bd1"
+   },
+   "site/js/core/catalog-policy.js": {
+    "gitBlob34a3c0d6": "68096430f228191e3004678340d6bbe9be463ed5",
+    "sha256": "58806185a5ed3fe70163d9ec04ba129399b2557d67270538e2efb0aea949b6f5"
+   },
+   "windows/node/isolation-client.mjs": {
+    "gitBlob34a3c0d6": "00c6994073b384a8e412b1f608bf97520850e7ff",
+    "sha256": "8d07cb4ea105819c8f769e942c58063d20cf1289544c2afac0b9aeda0d963b7b",
+    "note": "imported by the runtime-expiry-r1 test; identical at 34a3c0d6 and 700beed7"
+   }
+  },
+  "symlinks": {
+   "relay/net-guard.mjs": "../net-guard.mjs (34a3 tree mode 120000 blob 9107fe53)"
+  }
+ },
+ "r4FinalConsumerHelpers": {
+  "network/op-receipts-root.mjs": "4f6d7b651c126ec18741f876690f1621f68f2f7f",
+  "network/derived-reader/vendor/anchor-bootstrap.mjs": "5473933dbd5c7411192dd99dcb20cd17483369c2",
+  "pin": "final-consumer-composition-stage/r4 SHA256SUMS afd35070 -> R4-BLOBS.txt b6f3f52b"
+ },
+ "abi": {
+  "abi/dependencies-r1.json": {
+   "sha256": "9f8f9426cd934c28bf1b893d9958a6927eba6d17679b31ae3caff0f572e96f57",
+   "from": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-rollout-20261026/dependencies-r1/abi.json (SHA256SUMS deb51211acdc35a45ee03346297fae3a242147eab47c42afb68e270196f4d9e4)"
+  },
+  "abi/dependencies-34a3c0d6.json": {
+   "sha256": "8cb57fbd2b324cad7bed4ce6b5a0f6ad4f3249df41ca8bf44e92e1fd5232f47d",
+   "from": "lifecycle-chain-adapter-stage/r2 (38f712c5); addressBook/catalog/registry views only in r4"
+  }
+ },
+ "runtimeExpiry": {
+  "path": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-rollout-20261026/runtime-expiry-r1",
+  "SHA256SUMS": "c0bb0ea3e0483fdc0ecad2d08327fccaa2511f8c4e352c9fb3dcf7d38c6ddf51",
+  "commit": "700beed7f45c3d963897503a0c281e6fef793038",
+  "replaces": {
+   "network/deployment-isolation-runtime.mjs": [
+    "da809b9af528dde165c4d67dd15212f07f919a3d469ef65b35abd667705d9375",
+    "40333d5bc08796f2881650331022746abc0b93051b48351c89f84d62a4462fd9"
+   ],
+   "test/deployment-isolation-runtime.test.mjs": [
+    "312f115a7de316adb220daf2b3d234b332adc304082cef25cf26a1b0119b1545",
+    "92f9db61c55ea38d93b38062ded8e40c81527856490e4a94e655cb7a2073d98b"
+   ]
+  }
+ },
+ "hostAdmission": {
+  "path": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-rollout-20261026/host-admission-r1",
+  "SHA256SUMS": "069343be4e70641ce91f79e6a1cfbe980061677ea28f2b4a95c4611962d6485a",
+  "commit": "b7dcf5af9fe8255e537dd7faa51c218448864ea2",
+  "patch": "host-admission.patch c15d2ff7d198d6e07c30cb9c09eae2d5d1f9c0800c2b8427f840561e814632e7 (applied with patch -p1 after runtime-expiry)",
+  "files": [
+   "deploy/lifecycle/AUTHORITY-ADAPTER.md",
+   "network/deployment-authority-window.mjs",
+   "network/deployment-lifecycle-runner.mjs",
+   "network/deployment-lifecycle-witness.mjs",
+   "network/deployment-serving-permit.mjs",
+   "test/deployment-generation-certificate.test.mjs"
+  ],
+  "proof": "every composed file changed by b7dcf5af9 (8, incl. the 2 runtime-expiry files) is byte-compared with git show b7dcf5af9:<file>",
+  "kvmResult": "35/35 PASS (generation-certificate 15, lifecycle-boundary 9, lifecycle-runner 11) per result.json; re-run by root here"
+ },
+ "priorEvidence": {
+  "root1369_r3": "lifecycle-chain-adapter-stage/r3/logs/run-20261026T141734Z-1891850 (base-r1-corrected 23/23 PASS, r2-corrected 1/7, r3 0/10: registry get() misdecoded: 11-field double vs actual 13-field 34a3 ABI)",
+  "root1378_r4": "lifecycle-chain-adapter-stage/r4/logs/run-20261026T143411Z-1901978 (r4-policy 0/9, r4-proof 0/10: authorityPins modelled as indexed array; actual ABI is a 3-address tuple getter)",
+  "root1386_r5": "lifecycle-chain-adapter-stage/r5/logs/run-20261026T144333Z-1917184: abi 5/5 PASS; policy 6 pass + 1 cancelled (file --test-timeout 600 s; F5-F7 never ran; cause: viem default 4000 ms receipt polling vs async anvil sealing, logs/claude-lifecycle-test-latency.md); proof 10/10 PASS (exact receipt proof on real anvil blocks); kvm-host-admission 26 pass + 1 file fail (missing runtime-lock.mjs); runtime-expiry 7/7 PASS"
+ },
+ "closureKvmCommit": {
+  "commit": "b7dcf5af9fe8255e537dd7faa51c218448864ea2",
+  "files": {
+   "network/runtime-lock.mjs": {
+    "gitBlob": "76b1e6361f00eec31481df27265fd6f191dbefb1",
+    "sha256": "256aeca3000aae08dc2cfa5fb45a2a900728a312d2ec415a2620588d1152ac1a",
+    "why": "imported by network/deployment-journal-owner.mjs (deployment-lifecycle-boundary test); absent from source-r1; root 1386 failed ERR_MODULE_NOT_FOUND",
+    "note": "same blob at 34a3c0d6; imports node:child_process/fs/path only; uses /usr/bin/flock"
+   }
+  },
+  "audit": "full relative-import closure of all composed suites + adapter (31 modules) resolved at b7dcf5af9: runtime-lock.mjs was the only missing file"
+ }
+}

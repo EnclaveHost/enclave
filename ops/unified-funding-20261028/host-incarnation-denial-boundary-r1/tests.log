@@ -1,0 +1,102 @@
+TAP version 13
+# Subtest: same-generation Offline persists and older Online cannot erase denial
+not ok 1 - same-generation Offline persists and older Online cannot erase denial
+  ---
+  duration_ms: 3.326407
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-incarnation-denial-boundary-r1/baseline.test.mjs:17:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    accepted Offline must persist even without generation advance
+    + actual - expected
+
+    + 'online'
+    - 'offline'
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'offline'
+  actual: 'online'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-incarnation-denial-boundary-r1/baseline.test.mjs:21:9)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: explicit new-generation recovery remains possible after Offline
+ok 2 - explicit new-generation recovery remains possible after Offline
+  ---
+  duration_ms: 0.858314
+  type: 'test'
+  ...
+# Subtest: loss of an already observed journal remains unknown rather than fresh genesis
+not ok 3 - loss of an already observed journal remains unknown rather than fresh genesis
+  ---
+  duration_ms: 0.884244
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-incarnation-denial-boundary-r1/baseline.test.mjs:32:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception: missing observed state cannot become an empty journal'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-incarnation-denial-boundary-r1/baseline.test.mjs:35:9)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: malformed nested accepted floor is rejected
+not ok 4 - malformed nested accepted floor is rejected
+  ---
+  duration_ms: 1.711098
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-incarnation-denial-boundary-r1/baseline.test.mjs:37:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception: nested context must match accepted floor and digest'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-incarnation-denial-boundary-r1/baseline.test.mjs:41:9)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: directory fsync failure after rename stays unknown in the same process
+not ok 5 - directory fsync failure after rename stays unknown in the same process
+  ---
+  duration_ms: 1.36563
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-incarnation-denial-boundary-r1/baseline.test.mjs:43:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception: readback of renamed bytes must not turn failed durability into authorization'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-incarnation-denial-boundary-r1/baseline.test.mjs:47:9)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 1
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 73.477458

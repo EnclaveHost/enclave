@@ -1,0 +1,1 @@
+Copy journal-r1 to a fresh directory, overlay journal-r2-delta including SHA256SUMS, then sha256sum -c SHA256SUMS. Unchanged files are retained from r1; no additional download. Unit15 passed. Full58/native/roleIPC/production NOT qualified.

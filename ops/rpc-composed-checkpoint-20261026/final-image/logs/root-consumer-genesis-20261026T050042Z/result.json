@@ -1,0 +1,12 @@
+{
+  "ok": true,
+  "rc": 0,
+  "counts": {
+    "tests": 7,
+    "pass": 7,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "todo": 0
+  }
+}

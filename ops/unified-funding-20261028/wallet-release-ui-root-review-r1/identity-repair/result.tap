@@ -1,0 +1,176 @@
+TAP version 13
+# Subtest: typed data guard accepts exactly the SDK Release and nothing else
+ok 1 - typed data guard accepts exactly the SDK Release and nothing else
+  ---
+  duration_ms: 1.715767
+  type: 'test'
+  ...
+# Subtest: release calldata: exact selector, canonical round trip only
+ok 2 - release calldata: exact selector, canonical round trip only
+  ---
+  duration_ms: 1.452429
+  type: 'test'
+  ...
+# Subtest: promoted commitment is keccak256(abi.encode(string,string))
+ok 3 - promoted commitment is keccak256(abi.encode(string,string))
+  ---
+  duration_ms: 7.458153
+  type: 'test'
+  ...
+# Subtest: historical KVM 9a28642b and DNS 59f1273d stay blocked (active, lease, escrow, old reserve)
+ok 4 - historical KVM 9a28642b and DNS 59f1273d stay blocked (active, lease, escrow, old reserve)
+  ---
+  duration_ms: 4.976722
+  type: 'test'
+  ...
+# Subtest: cab8fb59: positive runtime balance alone is not a blocker; staging and continuity still are
+ok 5 - cab8fb59: positive runtime balance alone is not a blocker; staging and continuity still are
+  ---
+  duration_ms: 1.363559
+  type: 'test'
+  ...
+# Subtest: journal: put-if-absent, CAS, single writer, transitions, bounded shape
+ok 6 - journal: put-if-absent, CAS, single writer, transitions, bounded shape
+  ---
+  duration_ms: 0.941543
+  type: 'test'
+  ...
+# Subtest: checking/blocked: Move to wallet present but disabled, status is announced
+ok 7 - checking/blocked: Move to wallet present but disabled, status is announced
+  ---
+  duration_ms: 1.124092
+  type: 'test'
+  ...
+# Subtest: blocker text and codes are escaped
+ok 8 - blocker text and codes are escaped
+  ---
+  duration_ms: 0.249049
+  type: 'test'
+  ...
+# Subtest: eligible -> enabled; review shows full id, vault, fixed destination, preserved balance, signature, no widening
+ok 9 - eligible -> enabled; review shows full id, vault, fixed destination, preserved balance, signature, no widening
+  ---
+  duration_ms: 0.396837
+  type: 'test'
+  ...
+# Subtest: journal states: pending/uncertain offer only a read-only re-check; finalized offers nothing
+ok 10 - journal states: pending/uncertain offer only a read-only re-check; finalized offers nothing
+  ---
+  duration_ms: 0.423197
+  type: 'test'
+  ...
+# Subtest: the actual /sessions page wires the slot into the held card and keeps every other control
+ok 11 - the actual /sessions page wires the slot into the held card and keeps every other control
+  ---
+  duration_ms: 0.572435
+  type: 'test'
+  ...
+# Subtest: positive: inactive funded runtime, no escrow, promoted PROD with qualified policy -> one sign, one POST, verified
+ok 12 - positive: inactive funded runtime, no escrow, promoted PROD with qualified policy -> one sign, one POST, verified
+  ---
+  duration_ms: 22.721836
+  type: 'test'
+  ...
+# Subtest: environment/content/session continuity gate
+ok 13 - environment/content/session continuity gate
+  ---
+  duration_ms: 25.342356
+  type: 'test'
+  ...
+# Subtest: escrow OR gate exactly as deployed; lease, activity and reserves
+ok 14 - escrow OR gate exactly as deployed; lease, activity and reserves
+  ---
+  duration_ms: 28.536812
+  type: 'test'
+  ...
+# Subtest: identity, code, chain and freshness drift all block (no fallback)
+ok 15 - identity, code, chain and freshness drift all block (no fallback)
+  ---
+  duration_ms: 15.858749
+  type: 'test'
+  ...
+# Subtest: wallet provider on another chain/account blocks without requesting a connection
+ok 16 - wallet provider on another chain/account blocks without requesting a connection
+  ---
+  duration_ms: 8.952692
+  type: 'test'
+  ...
+# Subtest: account change, unmount, state drift or failed simulation after the signature: nothing sent, durable cancel
+ok 17 - account change, unmount, state drift or failed simulation after the signature: nothing sent, durable cancel
+  ---
+  duration_ms: 19.434752
+  type: 'test'
+  ...
+# Subtest: double click and two controllers (two tabs, one journal): one signature, one POST
+ok 18 - double click and two controllers (two tabs, one journal): one signature, one POST
+  ---
+  duration_ms: 13.607116
+  type: 'test'
+  ...
+# Subtest: journal failure at each boundary stops at the last durable point
+ok 19 - journal failure at each boundary stops at the last durable point
+  ---
+  duration_ms: 20.979509
+  type: 'test'
+  ...
+# Subtest: relay accepted then timed out (hash lost): uncertain, reload finds it by exact nonce, never re-signs
+ok 20 - relay accepted then timed out (hash lost): uncertain, reload finds it by exact nonce, never re-signs
+  ---
+  duration_ms: 10.51047
+  type: 'test'
+  ...
+# Subtest: relay rejected (maybe sent): stays unresolved, no resign or repost
+ok 21 - relay rejected (maybe sent): stays unresolved, no resign or repost
+  ---
+  duration_ms: 4.781003
+  type: 'test'
+  ...
+# Subtest: wrong event / failed receipt / changed poststate / foreign nonce / reorg are refused
+ok 22 - wrong event / failed receipt / changed poststate / foreign nonce / reorg are refused
+  ---
+  duration_ms: 32.464302
+  type: 'test'
+  ...
+# Subtest: an interrupted pre-dispatch record resolves only after its deadline passes on-chain
+ok 23 - an interrupted pre-dispatch record resolves only after its deadline passes on-chain
+  ---
+  duration_ms: 2.58642
+  type: 'test'
+  ...
+# Subtest: EXACT vendored ownerOperation: wrapped signer sees generated typed data before signing, POST after
+ok 24 - EXACT vendored ownerOperation: wrapped signer sees generated typed data before signing, POST after
+  ---
+  duration_ms: 24.177425
+  type: 'test'
+  ...
+# Subtest: ROOT dispose during durable dispatching commit must prevent relay POST
+not ok 25 - ROOT dispose during durable dispatching commit must prevent relay POST
+  ---
+  duration_ms: 4.953492
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1-idfix/root-boundaries.test.mjs:367:41'
+  failureType: 'testCodeFailure'
+  error: |-
+    revoked view must not dispatch after persistence
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1-idfix/root-boundaries.test.mjs:373:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..25
+# tests 25
+# suites 0
+# pass 24
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 504.152771

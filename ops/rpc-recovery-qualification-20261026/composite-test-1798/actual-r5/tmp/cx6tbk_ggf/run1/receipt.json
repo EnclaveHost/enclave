@@ -1,0 +1,209 @@
+{
+ "adoptedKilled": [],
+ "checks": {
+  "heldBeforeExec": {
+   "detail": "check-held refused",
+   "ok": true
+  },
+  "heldBeforeMount": {
+   "detail": "check-held refused",
+   "ok": true
+  },
+  "logicalSize": {
+   "detail": 1593344,
+   "ok": true
+  },
+  "mountReadOnly": {
+   "detail": "the FUSE mount is not ST_RDONLY",
+   "ok": true
+  },
+  "nbdfuseBound": {
+   "detail": "cmdline / exe differ from what we spawned",
+   "ok": true
+  },
+  "nbdfuseForeground": {
+   "detail": "it daemonized",
+   "ok": true
+  },
+  "onlyMdbxDat": {
+   "detail": [
+    "mdbx.dat"
+   ],
+   "ok": true
+  },
+  "postUseRecheck": {
+   "ok": true
+  },
+  "preUseRecheck": {
+   "ok": true
+  },
+  "qemu-nbdBound": {
+   "detail": "cmdline / exe differ from what we spawned",
+   "ok": true
+  },
+  "socketOurs": {
+   "detail": "not our socket",
+   "ok": true
+  },
+  "writeRefused": {
+   "detail": "an O_WRONLY open of the exposed mdbx.dat succeeded",
+   "ok": true
+  }
+ },
+ "children": {
+  "exec": {
+   "argv": [
+    "/usr/bin/python3",
+    "-I",
+    "-c",
+    "import os, time\nopen('/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r5/runs/tests-20261027T013310Z-2582681/tmp/cx6tbk_ggf/run1/ready', 'w').close()\nend = time.monotonic() + 120\nwhile not os.path.exists('/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r5/runs/tests-20261027T013310Z-2582681/tmp/cx6tbk_ggf/go') and time.monotonic() < end:\n    time.sleep(0.1)\n"
+   ],
+   "pid": 2583695,
+   "returncode": 0
+  },
+  "nbdfuse": {
+   "argv": [
+    "/usr/bin/nbdfuse",
+    "-r",
+    "-C",
+    "1",
+    "-o",
+    "ro",
+    "-P",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r5/runs/tests-20261027T013310Z-2582681/tmp/cx6tbk_ggf/run1/work/nbdfuse.pid",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r5/runs/tests-20261027T013310Z-2582681/tmp/cx6tbk_ggf/run1/work/db/mdbx.dat",
+    "--unix",
+    "/proc/self/cwd/nbd.sock"
+   ],
+   "exe": [
+    64768,
+    14986678
+   ],
+   "pid": 2583686,
+   "returncode": 1,
+   "startTime": 136994973
+  },
+  "qemu-nbd": {
+   "argv": [
+    "/usr/bin/qemu-nbd",
+    "--read-only",
+    "--shared=1",
+    "--socket=/proc/self/cwd/nbd.sock",
+    "--image-opts",
+    "driver=vmdk,read-only=on,file.driver=file,file.filename=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r5/runs/tests-20261027T013310Z-2582681/tmp/cx6tbk_ggf/view/view.vmdk,extents.0.driver=file,extents.1.driver=file,extents.2.driver=file,extents.3.driver=file,extents.4.driver=file,extents.5.driver=file,extents.6.driver=file,extents.7.driver=file,extents.8.driver=file,extents.9.driver=file,extents.10.driver=file,extents.11.driver=file,extents.12.driver=file,extents.13.driver=file,extents.14.driver=file,extents.15.driver=file,extents.16.driver=file,extents.17.driver=file,extents.18.driver=file,extents.19.driver=file,extents.20.driver=file,extents.21.driver=file,extents.22.driver=file,extents.23.driver=file,extents.24.driver=file"
+   ],
+   "exe": [
+    64768,
+    14981978
+   ],
+   "pid": 2583683,
+   "returncode": 0,
+   "startTime": 136994952
+  }
+ },
+ "childrenAlive": [],
+ "cleanupComplete": false,
+ "cleanupErrors": [],
+ "exec": {
+  "escapedKilled": 0,
+  "groupEmpty": true,
+  "groupLeftovers": [],
+  "limitSeconds": 300,
+  "orphansGone": true,
+  "rc": 0,
+  "timedOut": false
+ },
+ "format": "composite-mdbx-validation-receipt/r2",
+ "interrupted": null,
+ "kind": "fixture",
+ "leftoverProcesses": [],
+ "mountLeft": false,
+ "notClaimed": [
+  "chain verification",
+  "reth table semantics",
+  "state / trie / canonical-root validation",
+  "static_files segments",
+  "value bytes inside structurally valid pages (MDBX has no per-page checksums)",
+  "RPC readiness",
+  "SNP readiness",
+  "recovery acceptance"
+ ],
+ "outcome": "CLEANUP-INCOMPLETE",
+ "pins": {
+  "fusermount3": {
+   "path": "/usr/bin/fusermount3",
+   "sha256": "c3d04bdf77c7152eba94ce670338e7089730b8dbfede57762b7b92c893a00f4f"
+  },
+  "mdbxCheckPy": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r4/src/mdbx_check.py",
+   "sha256": "f0d27e40c29271b94d2b48b9d4ab70a84de1f946709db4e9361cdfba00bac131"
+  },
+  "mdbxChk": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r4/runs/run-20261026T210943Z-2354169/bin/mdbx_chk",
+   "sha256": "c228b462c3c71c87b0fd2e9cfa6b3e6bccb2d793dd545bc6a18bef7113187981"
+  },
+  "nbdfuse": {
+   "path": "/usr/bin/nbdfuse",
+   "sha256": "51c1a1fd18785d4fe2240c1710eb4f78590b9d333fcde4cda421871d6f010a01"
+  },
+  "qemuNbd": {
+   "path": "/usr/bin/qemu-nbd",
+   "sha256": "b0f16ff7225e78469733132fce225b1d0af98f0b681a5092d85618936ff61934"
+  },
+  "r6Importer": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/multipart-validation-view-stage/r6/production_import.py",
+   "sha256": "4d48f74ea0360db6b264fcef97750a5c83e3ba5f8ef47260864b93e940b1b2dc"
+  },
+  "r6ViewDescriptor": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/multipart-validation-view-stage/r6/view_descriptor.py",
+   "sha256": "23370c97956fb1a4dde30f4a657ca97e89ce452f1a982cfc29c36970113d39e0"
+  },
+  "r9OverlaySession": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r9/overlay_session.py",
+   "sha256": "65d45ab79da8e134772374ec7298cd3a53fc54d68ecb3b3fd407eec4874a8153"
+  }
+ },
+ "rc": 4,
+ "reasons": [
+  "cleanup incomplete: stop and inspect; never re-run over this run dir"
+ ],
+ "refused": null,
+ "steps": [
+  [
+   1793064835.793,
+   "view"
+  ],
+  [
+   1793064835.808,
+   "qemu-nbd"
+  ],
+  [
+   1793064836.015,
+   "nbdfuse"
+  ],
+  [
+   1793064836.222,
+   "validator"
+  ],
+  [
+   1793064836.751,
+   "post-use recheck"
+  ],
+  [
+   1793064836.756,
+   "cleanup"
+  ]
+ ],
+ "unmount": {
+  "normal": "1: /usr/bin/fusermount3: failed to unmount /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r5/runs/te"
+ },
+ "view": {
+  "descriptorSha256": "f9c1887deabb12f514272b59b982806a2680c041259cd0c1167607d00222a07a",
+  "dir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r5/runs/tests-20261027T013310Z-2582681/tmp/cx6tbk_ggf/view",
+  "kind": "fixture",
+  "logicalSize": 1593344,
+  "manifestSha256": "5dea5eec8892798a9ef06fd45c9eb697723ffeacca9c4262d0c372ad83e33c58",
+  "parts": 25,
+  "receiptSha256": "2802e207cb7ed0797bc8f93069c980c15e5879199e0c934270c816e6b042fb1f"
+ }
+}

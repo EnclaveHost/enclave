@@ -1,0 +1,32 @@
+{
+  "vms": [
+    {
+      "status": "running",
+      "name": "shield-readiness-v1",
+      "id": "hv4c2e5185d0e5b8a548a08d1370b530cf",
+      "appReady": true
+    },
+    {
+      "status": "running",
+      "name": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "id": "hv464276f706bd897daaf36caf4da10a2e",
+      "appReady": true
+    },
+    {
+      "status": "running",
+      "name": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+      "id": "hv1b7637fa6218c0154358bcc0a940b9e7",
+      "appReady": true
+    }
+  ],
+  "deployment": [
+    {
+      "status": "running",
+      "claimTx": "0xa9a49ff9c114253bf692a96134f6e9ceb3ed69a5bdd0b0338dbaccfe93409bc5",
+      "leaseUntil": 1793247313,
+      "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+      "reason": ""
+    }
+  ],
+  "utc": "2026-10-29T03:55:11.8452553Z"
+}

@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: 1 legacy: the node https RPC list (>= 2, http dropped) replaces the agent list and restarts once; an unchanged list restarts nothing
+ok 1 - 1 legacy: the node https RPC list (>= 2, http dropped) replaces the agent list and restarts once; an unchanged list restarts nothing
+  ---
+  duration_ms: 8.723317
+  type: 'test'
+  ...
+# Subtest: 2 legacy: fewer than two https RPCs never replace (or empty) the agent list
+ok 2 - 2 legacy: fewer than two https RPCs never replace (or empty) the agent list
+  ---
+  duration_ms: 1.317509
+  type: 'test'
+  ...
+# Subtest: 3 verifier authority: the chain is exactly the local verifier; the node public chainRpc is never written beside it (no public fallback)
+ok 3 - 3 verifier authority: the chain is exactly the local verifier; the node public chainRpc is never written beside it (no public fallback)
+  ---
+  duration_ms: 1.406618
+  type: 'test'
+  ...
+# Subtest: 4 an INVALID authority selection configures NO RPC at all (the agent readers refuse), never the public list
+ok 4 - 4 an INVALID authority selection configures NO RPC at all (the agent readers refuse), never the public list
+  ---
+  duration_ms: 1.260559
+  type: 'test'
+  ...
+# Subtest: 5 verifier -> legacy: the verifier selection is removed explicitly and the node https list is restored, one restart
+ok 5 - 5 verifier -> legacy: the verifier selection is removed explicitly and the node https list is restored, one restart
+  ---
+  duration_ms: 1.306299
+  type: 'test'
+  ...
+# Subtest: 6 the operator challengeReplica opt-in is kept byte-for-byte across a legacy RPC switch
+ok 6 - 6 the operator challengeReplica opt-in is kept byte-for-byte across a legacy RPC switch
+  ---
+  duration_ms: 1.19409
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 148.907454

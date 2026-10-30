@@ -1,0 +1,7 @@
+adopt-check current: rc=0 ['2026/10/28 02:57:34 ADOPT OK gdfc27c272']
+adopt-check candidate: rc=0 ['2026/10/28 02:57:35 ADOPT OK gdfc27c272']
+preserved into /home/steven/enclave-prod/retire-rollback-preservation-20261028
+control QEMU 3967858 held (watchdog 60s)
+manager 194657 runs af50d526, ADOPT OK gdfc27c272, guest QEMU 191523 unchanged
+control QEMU 3967858 resumed
+watchdog: released sigcont=sent

@@ -1,0 +1,12 @@
+{
+  "preparedSha256": "913969b5fdcd94afaea6543f36af32139895141334a708aebc8a7916c36fcbb1",
+  "readonlyPins": 4316,
+  "originalSeed": 176,
+  "seed": 216,
+  "added": 40,
+  "seedDrift": [],
+  "readonlyDrift": [],
+  "collectorUnchanged": true,
+  "executableVerified": true,
+  "launchPerformed": false
+}

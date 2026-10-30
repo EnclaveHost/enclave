@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: catch-up: a file written after the scan is NOT shipped under that head; the member's answer does not count; the next round ships the exact new bytes
+ok 1 - catch-up: a file written after the scan is NOT shipped under that head; the member's answer does not count; the next round ships the exact new bytes
+  ---
+  duration_ms: 348.757362
+  type: 'test'
+  ...
+# Subtest: readAllExact: a changed or vanished file refuses the snapshot (code changed); unchanged files are returned exactly
+ok 2 - readAllExact: a changed or vanished file refuses the snapshot (code changed); unchanged files are returned exactly
+  ---
+  duration_ms: 1.295409
+  type: 'test'
+  ...
+# Subtest: election: the new primary's epoch snapshot carries exactly its scanned bytes; every member then holds its committed scan
+ok 3 - election: the new primary's epoch snapshot carries exactly its scanned bytes; every member then holds its committed scan
+  ---
+  duration_ms: 937.931975
+  type: 'test'
+  ...
+# Subtest: interleaved writers (barrier, credentials, derived) and commits: no member ever holds bytes other than the committed scan of its head
+ok 4 - interleaved writers (barrier, credentials, derived) and commits: no member ever holds bytes other than the committed scan of its head
+  ---
+  duration_ms: 400.891492
+  type: 'test'
+  ...
+# Subtest: M1 forced read race: a file rewritten between the scan and the diff read is re-scanned (never shipped under the old sha); a persistent race sends NOTHING
+ok 5 - M1 forced read race: a file rewritten between the scan and the diff read is re-scanned (never shipped under the old sha); a persistent race sends NOTHING
+  ---
+  duration_ms: 335.354417
+  type: 'test'
+  ...
+# Subtest: M1 real cross-process writer (atomic renames in ANOTHER process) racing repeated commits: commits never reject, and every member ends exactly on the committed scan
+ok 6 - M1 real cross-process writer (atomic renames in ANOTHER process) racing repeated commits: commits never reject, and every member ends exactly on the committed scan
+  ---
+  duration_ms: 2560.713425
+  type: 'test'
+  ...
+# Subtest: M2: an election whose snapshot changed under its scan opens NO epoch and ships nothing
+ok 7 - M2: an election whose snapshot changed under its scan opens NO epoch and ships nothing
+  ---
+  duration_ms: 934.751762
+  type: 'test'
+  ...
+# Subtest: M3: an unexpected failure inside a commit is a plain false and a step-down, never a rejection
+ok 8 - M3: an unexpected failure inside a commit is a plain false and a step-down, never a rejection
+  ---
+  duration_ms: 384.086436
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5978.577113

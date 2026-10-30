@@ -1,0 +1,12 @@
+{
+  "invocation": "1b667d53edc74ac2b032968c0fe6fe34",
+  "mainPID": 0,
+  "result": {
+    "tests": 79,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "success": true
+  },
+  "temporaryDirectoryGone": true
+}

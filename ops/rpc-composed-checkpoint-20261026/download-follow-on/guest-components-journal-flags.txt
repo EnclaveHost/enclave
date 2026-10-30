@@ -1,0 +1,52 @@
+account_changesets: chunked 107 files total 139.82 GB; last2 1.58 GB; first=static_files/account_changesets-0-499999.tar.zst last=1792886410/account_changesets-53000000-53499999.tar.zst
+headers: chunked 107 files total 20.46 GB; last2 0.23 GB; first=static_files/headers-0-499999.tar.zst last=1792886410/headers-53000000-53499999.tar.zst
+proofs: single proofs.tar.zst 868.13 GB (decompressed 1156.23 GB)
+receipts: chunked 107 files total 682.64 GB; last2 11.40 GB; first=static_files/receipts-0-499999.tar.zst last=1792886410/receipts-53000000-53499999.tar.zst
+rocksdb_indices: single 1792886410/rocksdb_indices.tar.zst 597.06 GB (decompressed 715.70 GB)
+state: single 1792886410/state.tar.zst 761.23 GB (decompressed 1138.17 GB)
+storage_changesets: chunked 107 files total 747.24 GB; last2 12.61 GB; first=static_files/storage_changesets-0-499999.tar.zst last=1792886410/storage_changesets-53000000-53499999.tar.zst
+transaction_senders: chunked 107 files total 46.25 GB; last2 0.50 GB; first=static_files/transaction_senders-0-499999.tar.zst last=1792886410/transaction_senders-53000000-53499999.tar.zst
+transactions: chunked 107 files total 1281.36 GB; last2 20.37 GB; first=static_files/transactions-0-499999.tar.zst last=1792886410/transactions-53000000-53499999.tar.zst
+--- journal: process starts and selection
+2026-10-25T11:10:44+00:00 enclave-rpc systemd[1]: Starting enclave-rpc-base-snapshot.service - Enclave base pinned snapshot bootstrap (not production readiness)...
+2026-10-25T11:10:44+00:00 enclave-rpc base[2215]: 2026-10-25T11:10:44.552190Z  INFO reth::cli: Loaded snapshot manifest block=53048526 chain_id=8453 storage_version=2 components=9
+2026-10-25T11:10:44+00:00 enclave-rpc base[2215]: 2026-10-25T11:10:44.552245Z  INFO reth::cli: Queued component for download component=State (mdbx) archives=1 selection=All
+2026-10-25T11:10:44+00:00 enclave-rpc base[2215]: 2026-10-25T11:10:44.552326Z  INFO reth::cli: Queued component for download component=Headers archives=107 selection=All
+2026-10-25T11:10:44+00:00 enclave-rpc base[2215]: 2026-10-25T11:10:44.552337Z  INFO reth::cli: Queued component for download component=Transactions archives=1 selection=Last 10064 blocks
+2026-10-25T11:10:44+00:00 enclave-rpc base[2215]: 2026-10-25T11:10:44.552344Z  INFO reth::cli: Queued component for download component=Receipts archives=1 selection=Last 64 blocks
+2026-10-25T11:10:44+00:00 enclave-rpc base[2215]: 2026-10-25T11:10:44.552347Z  INFO reth::cli: Queued component for download component=Account Changesets archives=1 selection=Last 10064 blocks
+2026-10-25T11:10:44+00:00 enclave-rpc base[2215]: 2026-10-25T11:10:44.552350Z  INFO reth::cli: Queued component for download component=Storage Changesets archives=1 selection=Last 10064 blocks
+2026-10-25T11:10:44+00:00 enclave-rpc base[2215]: 2026-10-25T11:10:44.553494Z  INFO reth::cli: Startup integrity summary (plain output files) reusable=0 needs_download=112
+2026-10-25T11:10:44+00:00 enclave-rpc base[2215]: 2026-10-25T11:10:44.553519Z  INFO reth::cli: Downloading all archives archives=112 download_total=731.36 GB output_total=1097.07 GB
+2026-10-25T11:10:44+00:00 enclave-rpc base[2215]: 2026-10-25T11:10:44.857362Z  INFO reth::cli: Starting queued segmented download total_size=708.95 GB piece_size=64.00 MB pieces=11344 workers=2 max_concurrent_requests=2
+2026-10-25T11:11:06+00:00 enclave-rpc base[2215]: 2026-10-25T11:11:06.028911Z  INFO reth::cli: Archive download complete file=1792886410/account_changesets-53000000-53499999.tar.zst component=Account Changesets size=119.18 MB
+2026-10-25T11:19:41+00:00 enclave-rpc systemd[1]: Stopped enclave-rpc-base-snapshot.service - Enclave base pinned snapshot bootstrap (not production readiness).
+2026-10-25T11:19:41+00:00 enclave-rpc systemd[1]: Starting enclave-rpc-base-snapshot.service - Enclave base pinned snapshot bootstrap (not production readiness)...
+2026-10-25T11:19:42+00:00 enclave-rpc base[4501]: 2026-10-25T11:19:42.073944Z  INFO reth::cli: Loaded snapshot manifest block=53048526 chain_id=8453 storage_version=2 components=9
+2026-10-25T11:19:42+00:00 enclave-rpc base[4501]: 2026-10-25T11:19:42.073995Z  INFO reth::cli: Queued component for download component=State (mdbx) archives=1 selection=All
+2026-10-25T11:19:42+00:00 enclave-rpc base[4501]: 2026-10-25T11:19:42.074074Z  INFO reth::cli: Queued component for download component=Headers archives=107 selection=All
+2026-10-25T11:19:42+00:00 enclave-rpc base[4501]: 2026-10-25T11:19:42.074093Z  INFO reth::cli: Queued component for download component=Transactions archives=1 selection=Last 10064 blocks
+2026-10-25T11:19:42+00:00 enclave-rpc base[4501]: 2026-10-25T11:19:42.074100Z  INFO reth::cli: Queued component for download component=Receipts archives=1 selection=Last 64 blocks
+2026-10-25T11:19:42+00:00 enclave-rpc base[4501]: 2026-10-25T11:19:42.074103Z  INFO reth::cli: Queued component for download component=Account Changesets archives=1 selection=Last 10064 blocks
+2026-10-25T11:19:42+00:00 enclave-rpc base[4501]: 2026-10-25T11:19:42.074106Z  INFO reth::cli: Queued component for download component=Storage Changesets archives=1 selection=Last 10064 blocks
+2026-10-25T11:19:42+00:00 enclave-rpc base[4501]: 2026-10-25T11:19:42.098878Z  INFO reth::cli: Startup integrity summary (plain output files) reusable=1 needs_download=111
+2026-10-25T11:19:42+00:00 enclave-rpc base[4501]: 2026-10-25T11:19:42.098918Z  INFO reth::cli: Downloading all archives archives=112 download_total=731.36 GB output_total=1097.07 GB
+2026-10-25T11:19:42+00:00 enclave-rpc base[4501]: 2026-10-25T11:19:42.098944Z  INFO reth::cli: Skipping already verified plain files file=1792886410/account_changesets-53000000-53499999.tar.zst component=Account Changesets
+2026-10-25T11:19:42+00:00 enclave-rpc base[4501]: 2026-10-25T11:19:42.222750Z  INFO reth::cli: Starting queued segmented download total_size=153.97 MB piece_size=32.00 MB pieces=5 workers=5 max_concurrent_requests=8
+2026-10-25T11:19:42+00:00 enclave-rpc base[4501]: 2026-10-25T11:19:42.224130Z  INFO reth::cli: Starting queued segmented download total_size=153.97 MB piece_size=32.00 MB pieces=5 workers=5 max_concurrent_requests=8
+2026-10-25T11:19:42+00:00 enclave-rpc base[4501]: 2026-10-25T11:19:42.230104Z  INFO reth::cli: Starting queued segmented download total_size=153.91 MB piece_size=32.00 MB pieces=5 workers=5 max_concurrent_requests=8
+2026-10-25T11:19:42+00:00 enclave-rpc base[4501]: 2026-10-25T11:19:42.256103Z  INFO reth::cli: Starting queued segmented download total_size=163.43 MB piece_size=32.00 MB pieces=6 workers=6 max_concurrent_requests=8
+2026-10-25T11:19:42+00:00 enclave-rpc base[4501]: 2026-10-25T11:19:42.317476Z  INFO reth::cli: Starting queued segmented download total_size=708.95 GB piece_size=64.00 MB pieces=11344 workers=8 max_concurrent_requests=8
+2026-10-25T11:19:48+00:00 enclave-rpc base[4501]: 2026-10-25T11:19:48.026338Z  INFO reth::cli: Archive download complete file=1792886410/headers-53000000-53499999.tar.zst component=Headers size=19.52 MB
+2026-10-25T11:19:48+00:00 enclave-rpc base[4501]: 2026-10-25T11:19:48.342126Z  INFO reth::cli: Starting queued segmented download total_size=181.00 MB piece_size=32.00 MB pieces=6 workers=6 max_concurrent_requests=8
+2026-10-25T11:19:56+00:00 enclave-rpc base[4501]: 2026-10-25T11:19:56.530751Z  INFO reth::cli: Archive download complete file=static_files/headers-1000000-1499999.tar.zst component=Headers size=61.11 MB
+2026-10-25T11:19:57+00:00 enclave-rpc base[4501]: 2026-10-25T11:19:57.090457Z  INFO reth::cli: Starting queued segmented download total_size=190.54 MB piece_size=32.00 MB pieces=6 workers=6 max_concurrent_requests=8
+2026-10-25T11:19:57+00:00 enclave-rpc base[4501]: 2026-10-25T11:19:57.189963Z  INFO reth::cli: Archive download complete file=static_files/headers-0-499999.tar.zst component=Headers size=55.41 MB
+2026-10-25T11:19:57+00:00 enclave-rpc base[4501]: 2026-10-25T11:19:57.579016Z  INFO reth::cli: Starting queued segmented download total_size=191.31 MB piece_size=32.00 MB pieces=6 workers=6 max_concurrent_requests=8
+2026-10-25T11:20:41+00:00 enclave-rpc base[4501]: 2026-10-25T11:20:41.888127Z  INFO reth::cli: Archive download complete file=static_files/headers-10500000-10999999.tar.zst component=Headers size=153.97 MB
+2026-10-25T11:20:42+00:00 enclave-rpc base[4501]: 2026-10-25T11:20:42.714241Z  INFO reth::cli: Starting queued segmented download total_size=191.21 MB piece_size=32.00 MB pieces=6 workers=6 max_concurrent_requests=8
+2026-10-25T11:20:54+00:00 enclave-rpc base[4501]: 2026-10-25T11:20:54.777680Z  INFO reth::cli: Archive download complete file=static_files/headers-11000000-11499999.tar.zst component=Headers size=153.97 MB
+2026-10-25T11:20:55+00:00 enclave-rpc base[4501]: 2026-10-25T11:20:55.734880Z  INFO reth::cli: Starting queued segmented download total_size=190.41 MB piece_size=32.00 MB pieces=6 workers=6 max_concurrent_requests=8
+2026-10-25T11:21:51+00:00 enclave-rpc base[4501]: 2026-10-25T11:21:51.375965Z  INFO reth::cli: Archive download complete file=static_files/headers-10000000-10499999.tar.zst component=Headers size=153.91 MB
+--- flags
+ -h, --help  --datadir  --datadir  --datadir  --datadir  --config  --chain  --db  --db  --db  --db  --db  --db  --db  --db  --db  --db  --db  --static-files  --static-files  --static-files  --static-files  --static-files  --static-files  --storage  -u, --url  --manifest-url  --manifest-path  --with-txs  --with-txs-since  --with-txs-distance  --with-receipts  --with-receipts-since  --with-receipts-distance  --with-state-history  --with-state-history-since  --with-state-history-distance  --with-senders  --with-rocksdb  --archive  --minimal  --full  --without-rocksdb  -y, --non-interactive  --force  --prune-unlisted  --resumable  --download-concurrency  --retry-backoff  --list  --print-plan-json  --proofs  -v, --verbose  -q, --logs  --logs  --logs  --logs  --logs  --logs-otlp  --logs-otlp  --tracing-otlp  --tracing-otlp-protocol  --tracing-otlp  --tracing-otlp  --metrics  --metrics  --metrics  --metrics 

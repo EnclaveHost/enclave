@@ -1,0 +1,227 @@
+node:internal/modules/esm/resolve:275
+    throw new ERR_MODULE_NOT_FOUND(
+          ^
+
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/client/lease-executor-authority.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/test/chain-authority.test.mjs
+    at finalizeResolution (node:internal/modules/esm/resolve:275:11)
+    at moduleResolve (node:internal/modules/esm/resolve:865:10)
+    at defaultResolve (node:internal/modules/esm/resolve:989:11)
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+    at ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+    at ModuleJob._link (node:internal/modules/esm/module_job:182:49) {
+  code: 'ERR_MODULE_NOT_FOUND',
+  url: 'file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/client/lease-executor-authority.mjs'
+}
+
+Node.js v22.23.3
+✖ test/chain-authority.test.mjs (191.423358ms)
+✔ RFC 9180 A.1.1: DeriveKeyPair reproduces both key pairs (4.04056ms)
+✔ RFC 9180 A.1.1: the key schedule matches on both sides (5.090323ms)
+✔ RFC 9180 A.1.1.1: encryptions at sequence 0, 1, 2, 4 (6.248604ms)
+✔ single-shot seal/open round-trips and refuses a wrong info, aad, key or a low-order key (12.42896ms)
+✔ committee-local admission uses accepted wallet ownership, never payout or an Enclave witness (1.197812ms)
+✔ genesis requires every operator permit, fresh peer evidence, same measured code and distinct allowed owners (71.435314ms)
+node:internal/modules/esm/resolve:275
+    throw new ERR_MODULE_NOT_FOUND(
+          ^
+
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/relay/vbs-app-core.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/custody/v2/shield-rules.mjs
+    at finalizeResolution (node:internal/modules/esm/resolve:275:11)
+    at moduleResolve (node:internal/modules/esm/resolve:865:10)
+    at defaultResolve (node:internal/modules/esm/resolve:989:11)
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+    at ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+    at ModuleJob._link (node:internal/modules/esm/module_job:182:49) {
+  code: 'ERR_MODULE_NOT_FOUND',
+  url: 'file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/relay/vbs-app-core.mjs'
+}
+
+Node.js v22.23.3
+✖ test/custody-owner-read-transport.test.mjs (47.693155ms)
+✔ a schema-1 registry entry decodes to its operator and active flag (3.773753ms)
+✔ a schema-2 registry entry decodes to its operator and active flag (0.593876ms)
+✔ a schema-3 registry entry decodes to its operator and active flag (0.491876ms)
+✔ a schema-4 registry entry decodes to its operator and active flag (0.379267ms)
+✔ a schema-5 registry entry decodes to its operator and active flag (0.403287ms)
+✔ the full schema-5 tuple does NOT decode a schema-4 entry (why the reader takes the prefix) (2.164254ms)
+node:internal/modules/esm/resolve:275
+    throw new ERR_MODULE_NOT_FOUND(
+          ^
+
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/isolation/contract/runtime.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/custody/v2/rewrap.mjs
+    at finalizeResolution (node:internal/modules/esm/resolve:275:11)
+    at moduleResolve (node:internal/modules/esm/resolve:865:10)
+    at defaultResolve (node:internal/modules/esm/resolve:989:11)
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+    at ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+    at ModuleJob._link (node:internal/modules/esm/module_job:182:49) {
+  code: 'ERR_MODULE_NOT_FOUND',
+  url: 'file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/isolation/contract/runtime.mjs'
+}
+
+Node.js v22.23.3
+✖ test/custody-rewrap-unit.test.mjs (156.496731ms)
+✔ every t-subset of a 3-of-5 split recovers the secret; every share verifies against the commitments (25.085739ms)
+✔ t-1 shares do not determine the secret: any value is consistent with them (2.024215ms)
+✔ a tampered share fails verification, and combining with it gives a wrong secret (3.157627ms)
+✔ combine refuses too few shares and duplicate indices (1.34166ms)
+✔ redistribution 3-of-5 -> 2-of-4 keeps the secret and C_0 without anyone combining it (43.085419ms)
+✔ redistribution refuses a dealer that re-shares something other than its share (4.856785ms)
+node:internal/modules/esm/resolve:275
+    throw new ERR_MODULE_NOT_FOUND(
+          ^
+
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/cli/custody-v2.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/test/custody-v2-book-vault.test.mjs
+    at finalizeResolution (node:internal/modules/esm/resolve:275:11)
+    at moduleResolve (node:internal/modules/esm/resolve:865:10)
+    at defaultResolve (node:internal/modules/esm/resolve:989:11)
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+    at ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+    at ModuleJob._link (node:internal/modules/esm/module_job:182:49) {
+  code: 'ERR_MODULE_NOT_FOUND',
+  url: 'file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/cli/custody-v2.mjs'
+}
+
+Node.js v22.23.3
+✖ test/custody-v2-book-vault.test.mjs (138.199902ms)
+node:internal/modules/esm/resolve:275
+    throw new ERR_MODULE_NOT_FOUND(
+          ^
+
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/availability/evidence.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/test/custody-v2-capacity.test.mjs
+    at finalizeResolution (node:internal/modules/esm/resolve:275:11)
+    at moduleResolve (node:internal/modules/esm/resolve:865:10)
+    at defaultResolve (node:internal/modules/esm/resolve:989:11)
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+    at ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+    at ModuleJob._link (node:internal/modules/esm/module_job:182:49) {
+  code: 'ERR_MODULE_NOT_FOUND',
+  url: 'file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/availability/evidence.mjs'
+}
+
+Node.js v22.23.3
+✖ test/custody-v2-capacity.test.mjs (55.706348ms)
+✔ each single outlier can refuse, hang, lie about height, or return conflicting state without vetoing 3 of 4 (210.41155ms)
+✔ quorum-supported height applies confirmations without falling back to a stale unpaused state (1.769777ms)
+✔ rejects stale, future, malformed, moving or wrong-number block headers (1.847147ms)
+✔ all chain methods use canonical hash-addressed calls and freshness, including deals and code admission (12.701849ms)
+✔ a lost or unsupported canonical-hash call never downgrades to number-only eth_call (0.790324ms)
+✔ checkpoint survives reader restart and rejects rollback, same-height fork and failed persistence (1.903856ms)
+✔ concurrent reads cannot return an older snapshot after a later one was persisted (0.645006ms)
+✔ configured peers and thresholds cannot silently count one peer twice or accept disjoint quorums (1.017193ms)
+✔ one public RPC host is one vote however it is spelled; loopback test chains count by port (2.277454ms)
+✔ invalid reader configuration is refused before any request; custom transports without a URL still work (1.901757ms)
+✔ a snapshot that goes stale while its checkpoint is being persisted is refused; the mark still advances (0.544356ms)
+✔ custody reads accepted host ownership from a fresh agreeing block, separately from payout (12.202702ms)
+✔ stale, disagreeing, or legacy ownership reads never fall back to payout (3.290046ms)
+✔ a measured authority pin cannot be replaced by a different vault authority (0.878814ms)
+✔ release reads the vault-pinned ledger and host registry without consulting the book (15.011312ms)
+✔ legacy or disagreeing release authorities cannot trigger a mutable-book fallback (5.311151ms)
+node:internal/modules/esm/resolve:275
+    throw new ERR_MODULE_NOT_FOUND(
+          ^
+
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/windows/node/hvnode-evidence.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/test/custody-v2-shield-daemon.test.mjs
+    at finalizeResolution (node:internal/modules/esm/resolve:275:11)
+    at moduleResolve (node:internal/modules/esm/resolve:865:10)
+    at defaultResolve (node:internal/modules/esm/resolve:989:11)
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+    at ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+    at ModuleJob._link (node:internal/modules/esm/module_job:182:49) {
+  code: 'ERR_MODULE_NOT_FOUND',
+  url: 'file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/windows/node/hvnode-evidence.mjs'
+}
+
+Node.js v22.23.3
+✖ test/custody-v2-shield-daemon.test.mjs (130.877566ms)
+✖ custody vectors: the JS reference reproduces the pinned fixture, and the Go copy is identical (38.152475ms)
+✔ custody vectors: the responses open and combine to the bundle's env (JS side) (21.582854ms)
+✔ anchor: full 32 bytes in two padded halves; torn, malformed and unpadded values refused; exact unsigned setMany (7.492615ms)
+✔ format binds book, registry and ownership extension; strict bounds (1.229231ms)
+✔ anchored loader: exact digest only; a withheld newer policy cannot be replaced by an older signed one; missing mirror fails closed (22.901275ms)
+✔ minority RPC poisoning cannot change the anchor, the owner or a host fact; a poisoned majority-free read does not count (11.183469ms)
+✔ book owner rotation: the former owner's signature stops verifying; an ERC-1271 owner answers at the snapshot block (18.04563ms)
+✔ persistence: a tampered record is discarded and reported; a persisted newer policy refuses an anchored rollback (19.668738ms)
+✔ decisions use the ACCEPTED owner and operator at the agreed block, deny overrides admit, and a node behind the anchor refuses (12.193412ms)
+✔ expiry never lifts a ban; stale refuses new hosts; unanchored operation is refused unless explicitly allowed; OFF is explicit (9.627471ms)
+✔ runtime: absent config is OFF, malformed config throws, a configured runtime enforces through HTTPS mirrors (38.122194ms)
+✔ anchored NON-EXPIRING mode: no renewal schedule; the fresh anchor alone keeps it current, revokes it and replaces it (41.43171ms)
+✔ core v2: current-owner authority is re-checked at EVERY decision block; rotation or ERC-1271 withdrawal stops admission; re-signing the same document restores it (30.066793ms)
+node:internal/modules/esm/resolve:275
+    throw new ERR_MODULE_NOT_FOUND(
+          ^
+
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/scripts/network/service-index.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/test/rpc-identity-common.test.mjs
+    at finalizeResolution (node:internal/modules/esm/resolve:275:11)
+    at moduleResolve (node:internal/modules/esm/resolve:865:10)
+    at defaultResolve (node:internal/modules/esm/resolve:989:11)
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+    at ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+    at ModuleJob._link (node:internal/modules/esm/module_job:182:49) {
+  code: 'ERR_MODULE_NOT_FOUND',
+  url: 'file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/scripts/network/service-index.mjs'
+}
+
+Node.js v22.23.3
+✖ test/rpc-identity-common.test.mjs (160.853848ms)
+ℹ tests 54
+ℹ suites 0
+ℹ pass 46
+ℹ fail 8
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2562.951185
+
+✖ failing tests:
+
+test at test/chain-authority.test.mjs:1:1
+✖ test/chain-authority.test.mjs (191.423358ms)
+  'test failed'
+
+test at test/custody-owner-read-transport.test.mjs:1:1
+✖ test/custody-owner-read-transport.test.mjs (47.693155ms)
+  'test failed'
+
+test at test/custody-rewrap-unit.test.mjs:1:1
+✖ test/custody-rewrap-unit.test.mjs (156.496731ms)
+  'test failed'
+
+test at test/custody-v2-book-vault.test.mjs:1:1
+✖ test/custody-v2-book-vault.test.mjs (138.199902ms)
+  'test failed'
+
+test at test/custody-v2-capacity.test.mjs:1:1
+✖ test/custody-v2-capacity.test.mjs (55.706348ms)
+  'test failed'
+
+test at test/custody-v2-shield-daemon.test.mjs:1:1
+✖ test/custody-v2-shield-daemon.test.mjs (130.877566ms)
+  'test failed'
+
+test at test/custody-vectors.test.mjs:63:1
+✖ custody vectors: the JS reference reproduces the pinned fixture, and the Go copy is identical (38.152475ms)
+  Error: ENOENT: no such file or directory, open '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/isolation/m2/custody/testdata/vectors.json'
+      at Object.readFileSync (node:fs:440:20)
+      at TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/test/custody-vectors.test.mjs:68:19)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.start (node:internal/test_runner/test:944:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17) {
+    errno: -2,
+    code: 'ENOENT',
+    syscall: 'open',
+    path: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/run/isolation/m2/custody/testdata/vectors.json'
+  }
+
+test at test/rpc-identity-common.test.mjs:1:1
+✖ test/rpc-identity-common.test.mjs (160.853848ms)
+  'test failed'
+reg-rc=1

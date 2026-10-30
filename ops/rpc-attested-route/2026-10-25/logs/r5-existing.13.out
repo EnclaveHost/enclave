@@ -1,0 +1,24 @@
+$ node --test --test-timeout=300000 --test-concurrency=1 --test-reporter=spec test/native-policy.test.mjs
+✔ an admin-banned host receives no proof request, credential, upgrade or upload byte (645.893267ms)
+✔ an allowed host works normally (credentials, streamed upload, SSE, WebSocket) while another host is banned (2678.80479ms)
+✔ a newly anchored ban closes an open stream, an upload in progress and a WebSocket; nothing reconnects (3196.511397ms)
+▶ forged, older, torn, unreachable and unactivated policy follow the shared semantics (same decision as the CLI)
+  ✔ forged signature on the anchored document (265.302801ms)
+  ✔ older validly signed policy for a newer anchor (243.960534ms)
+  ✔ torn anchor (94.362862ms)
+  ✔ policy RPC quorum unreachable (47.979755ms)
+  ✔ mirror unreachable for the anchored policy (199.143555ms)
+  ✔ unanchored under activation "required" (85.052813ms)
+  ✔ unanchored under activation "anchor" (not activated) (158.156847ms)
+  ✔ explicit ENCLAVE_PLATFORM_HOST_POLICY=off (94.459611ms)
+✔ forged, older, torn, unreachable and unactivated policy follow the shared semantics (same decision as the CLI) (1190.296865ms)
+✔ a profile pinned to the Enclave platform network is enforced by default with the production authority; profiles cannot opt out (1.460249ms)
+✔ mirror bodies are bounded before buffering, through the shared mirror transport (27.065784ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 8051.851563
