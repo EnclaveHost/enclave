@@ -1,5 +1,6 @@
 {
   "ROOT-REVIEW.md": "dadb372f5aa7ca5b49644d438168793fdcba2b49f48b8c744ec752bdcbdee355",
+  "root-changed-files.json": "20fa0a19ed5eacbbd1d13705ccdc9f01a9c8d3989f961bab8b9f1562fa342611",
   "wallet-release-prod-browser-r1/README.md": "254c55738a12acfd0213cc933e11df44f501d579db84a409438a9a219422855c",
   "wallet-release-prod-browser-r1/enclave/network/canonical.mjs": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3",
   "wallet-release-prod-browser-r1/enclave/network/network-policy-core.mjs": "6e5049d1476d4f362570c48d61f0abc8ad483ed54ba4b2c22fa07f363d4e3064",

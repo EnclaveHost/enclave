@@ -1,0 +1,10 @@
+{
+  "host": "us-west",
+  "cid": "bafybeidaz3h2x64fipdqrrcsazr6h5y5vghhvat7v5u5yzolfeqaknsy4i",
+  "state": "REQUESTED_NO_AUTOMATIC_RETRY",
+  "scriptSha256": "d948204b1d5b0503cb263977728e3bae4d5faa733235f2270fea76d6ca4ac602",
+  "semanticChanges": [
+    "apps/http/servers/srv1/errors/routes/0/handle/0/routes/0/handle/0/routes/0/handle/0/root",
+    "apps/http/servers/srv1/routes/4/handle/0/routes/4/handle/0/routes/0/handle/0/root"
+  ]
+}

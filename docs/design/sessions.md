@@ -907,3 +907,5 @@ An inactive PROD app with clear escrow and empty gas reserves has a different pa
 ## October30: PROD wallet-release qualification
 
 Explicit owner content approval and separate fresh release passed60 local checks, plus an inert browser flow with real IndexedDB and shipped SDK. Built but not activated. Failures and repaired source: `ops/unified-funding-20261028/wallet-release-prod-review-r1/ROOT-REVIEW.md`. No app ownership changed. Funded DNS/KVM escrow/reserve migration remains blocked; legacy sessions and manual gas funding unchanged.
+
+Production update now LIVE on all four edges: CID `bafybeidaz3h2x64fipdqrrcsazr6h5y5vghhvat7v5u5yzolfeqaknsy4i`,1410 files,348 HTTPS content checks. Prior1329 assets preserved; only boot replaced plus80 additions. Eligible PROD records now support owner-elected current-content promotion and separately reviewed release. No ownership transfer has yet been observed; DNS/KVM remain blocked by economic preservation constraints. No backend restart.
