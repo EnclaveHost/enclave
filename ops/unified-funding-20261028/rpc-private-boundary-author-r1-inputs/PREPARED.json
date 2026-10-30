@@ -1,0 +1,61 @@
+{
+  "status": "PREPARED_NOT_LAUNCHED",
+  "priority": "ROOT_REVIEW_PENDING_NO_LAUNCH",
+  "seedEntries": 11,
+  "readonlyInputPins": 69,
+  "freshSession": true,
+  "sourceTools": [
+    "Read",
+    "Grep",
+    "Write",
+    "Edit"
+  ],
+  "turnLimit": 20,
+  "childTimeoutSec": 900,
+  "outerTimeoutSec": 1200,
+  "queueMiB": 1536,
+  "hardMemoryMiB": 1536,
+  "rssMiB": 1408,
+  "availableMemoryFloorMiB": 27648,
+  "cpuIndex": 1,
+  "cpus": 1,
+  "swapMiB": 0,
+  "persistentTmpdir": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-private-boundary-author-r1-20261030/owned-tmp",
+  "claudeExecutable": {
+    "path": "/home/steven/.local/share/claude/versions/2.1.281",
+    "sha256": "56fe3da88458465fb27d7e9299dddb3fead55750fb9c2de795f233b5eea6dce1"
+  },
+  "accountCheckedNow": false,
+  "productPreEdits": 0,
+  "scope": "Explicit private-derivative plan policy; default global-holder gate unchanged; preserve native lock/copy/cleanup/filesystem",
+  "rootAdmissionGate": "root-author-approval.json must bind this PREPARED sha256 with launchAuthorized true; root independently checks Max first",
+  "sourceClosureLimitations": [
+    "No current Max check or author launch.",
+    "No new policy qualification or actual derivative preparation.",
+    "Existing tests preserved; new tests source-only.",
+    "Root reviews source and resource admission before all execution."
+  ],
+  "hashes": {
+    "ACCOUNT-PREFLIGHT.md": "ea744144afe802746f415f0c342412acbf03794429fbe350cad2eedc7a66e54d",
+    "CONTRACT.md": "e8aa44a95bef9cc481366e45c0a4a830ecd801e80401379749f12ae90ae38fd3",
+    "PLAN.md": "d35d7e48d49108c7b79fa98995a2bae17d783205557ac6d3c68c224d0a698340",
+    "PROTECTED-SOURCE.json": "de3f92e5ed2d4e80868b61da376245b68b1148840396a376a85cc56c74ff9267",
+    "REVIEW-STATUS.txt": "d14455ee566840da1dc78320ba0000833aaafb7d7654e0dde77b5612d6a650aa",
+    "TASK.txt": "3497a08b688cf76ff7ff14effcad1f43475eff917b335362cf3ebdf09b351898",
+    "account-requirements.json": "f7f904f166ddbb3f4c8a0c039b4a520d42823408422fbc2bc8f2861553466d34",
+    "allowed-edit-paths.json": "5b4f1702a958c92c9209840690828bc39fb3ef2c96291b3f2a52d97c7497a01b",
+    "collect-terminal.py": "2ef7336830d0667e328c345a4129aa70b3321cc192eebefc0f2b42fe33c361b3",
+    "dependency-closure.json": "8ef1b107fa68f2626e73d19bee09a3e75df481cfe081015eac0b0de48f809efa",
+    "input-pins.json": "f8011489b8b605e6d1dbc0945a515008f682eaabda4374dd781901e6aa3704fe",
+    "launch-command.txt": "afdfcd965872f6e73ea7fc3e0c16aa2ffffd04a2df03c927f61fe357e0ec2a43",
+    "native-tool-pins.json": "b74bae381439481edf3d883bc06847b9b92b7af2983986779a2cf83e714323b4",
+    "preparation-audit.json": "d643bd2e05c0674ea2871e3f761469277fe07d4375be495fb84eba62ee18c04f",
+    "prepare.py": "22bd4faa8ddb8a1a51974ae29b870d0090abea6fc60a656fe0c92ff8fc2b7c54",
+    "readonly-progress.py": "7657e3cf867451e36d2651f2f8ff67ca30ce88216f3c75459538ce2172b7bf61",
+    "root-preflight.py": "f2b64c984bac20feb6cbc31c6df55131ef834f0c4939a8f82f47593fae43658b",
+    "run.py": "97af48598c5774de393cc6474aca796680acb74646e421621df0d8cdac3c7090",
+    "seed-pins.json": "b3cf7da62a0c3c6f354c02a5efb52f967905b5246692c5ac4aa572816ca77c87",
+    "seed-provenance.json": "e9ed62019a8c1676f4e5114a6cbd7a4ff717dd73b8e026887b257e0450e7b197",
+    "turn-metric-investigation.json": "9e8987ce7979409ffe37c141e2638409796b08d2f955e1fb8366880b078a3ec8"
+  }
+}

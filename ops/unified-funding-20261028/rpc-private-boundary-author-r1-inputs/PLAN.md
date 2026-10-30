@@ -1,0 +1,7 @@
+Prepare one isolated source-only author of the explicit private-derivative plan policy. No privileged observer bridge, installation, RPC launch or new authority. The existing bridge package remains on HOLD and unchanged.
+
+Root reviews final package digest/current Max/shared resource commitments before one fresh20turn900s author under1200s outer,1536MiB hard/shared queue,1408MiB RSS,27648MiB floor,CPU1,swap0. Taskset covers queue and children. No product preedit or execution during preparation. Candidate is exact committed writer/test/reference seed.
+
+Only offline_mask.py may change. Preserve all existing definitions except validate_plan, Writer.holders, Writer.receipt and inserted top-level checks in Writer.execute; every original execute statement must remain byte-identical/in order. New named test/native-proposal/report files allowed. Original53 tests/native evidence immutable. Collector freezes once after actual terminal unit/PIDs, reconstructs successful edits, audits exact allowlist/immutable files and AST source segments, and retains failures rather than declaring qualification.
+
+Contract and root metadata are review evidence only. Actual invocation needs a separately pinned opt-in plan, fresh access evidence, trusted operators, retained locks/stopped units/digests/cleanup and honest private receipt. Default holder refusal must remain unchanged. Root owns all subsequent tests/native fixture qualification and any actual derivative preparation. Publication/boot require a separate later decision, not this private-preparation policy.

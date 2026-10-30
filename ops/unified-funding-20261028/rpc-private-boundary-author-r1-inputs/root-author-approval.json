@@ -1,0 +1,11 @@
+{
+  "preparedSha256": "584d1563ee37f0a0400587b77e4e502a9a07f2d21ef2ae899d43fad03c2b527f",
+  "launchAuthorized": true,
+  "reviewedAt": 1793350181.6941872,
+  "preflightInvocation": "0b94722a3dcb41c5889968e3c2b51a87",
+  "preflightResultSha256": "928a58e65047274f4987d7b3b592f85cfcc02e0f87fd52be5834bb88518aac12",
+  "independentPreflightSourceSha256": "59105bfca47fc3837043f68ddaf845146143eba8033a55fd5180b80a0863b97a",
+  "scope": "one source-only author; strict opt-in private derivative policy; no tests/native/image/runtime/finance",
+  "noOtherAuthorObserved": true,
+  "knownUnreadableProcessClassificationLimitationRetained": true
+}

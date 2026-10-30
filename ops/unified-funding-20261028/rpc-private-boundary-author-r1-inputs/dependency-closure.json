@@ -1,0 +1,7 @@
+{
+  "runtime": "Existing Python standard library/native tools; no new dependency or privilege",
+  "preserved": "All existing writer definitions except explicitly allowed policy points; original test bytes",
+  "author": "source only; no execution",
+  "collector": "terminal actual unit/PID evidence and once-only freeze/replay",
+  "policyQualification": "unqualified; future root review/targeted tests/native fixtures required"
+}
