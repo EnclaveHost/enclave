@@ -1,7 +1,9 @@
 {
-  "HANDOFF-LATEST.md": "9a0df36b43109742100ca087045dcd338a2e1a1a2120542c23df2a8f598b5e7b",
-  "ROOT-REVIEW.md": "a1506dab2f0a1a7f4e18950f0a4bffa0d9b649d3b1e37412d81ed8b897c214b0",
+  "HANDOFF-LATEST.md": "0c3686d19b40b84fe1172b79bcdc0318e320ad9a87e2a3ae11a219e1cd133660",
+  "ROOT-REVIEW.md": "e834cad64dbd3dc30e81f507c2639ddb5af45824034c18f0a8ecea954c37fcfc",
   "browser-bundles.json": "93a288815aab317829bd463ff8fdea1d09a0971d14679a8a250efb0585cbc8c0",
+  "browser-promotion-review.png": "b119ae7589a47529a132d1aa0abc29570b6311ce55fc84ce3cd5490b2985800a",
+  "browser-promotion-review.txt": "d162f7a55836273687a0241eb52407167f184eb76293290bc56c87bc7827a825",
   "inner.log": "baa54982b9e81ab1de39f5de987d5abb1ffb17f76dd56df3f204f733c7a649bf",
   "outer.log": "082c9decef6aca4bb0231f5c94c4fa88638b3184643c28c7a17ba0fc3c54a523",
   "read.mjs": "0d4b62acff1ee1fc69091ee3b136719362b56b713341a5d6a07c9faee436b046",

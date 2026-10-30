@@ -1,1 +1,4 @@
 Actual read-only deployed chain/catalog adapters at block53268690: API and Azul agree exactly on current cab8 catalog (EnclaveDNS0.1.0, walletpublisher), reviewed catalog runtime. No signature/transaction. Browser asset inventory subsequently proved verification tab723101070 had loaded previous boot-wallet-release-r2 while edge rollout was still finishing. Reloaded only this new verification tab after all4edges verified; original a62 handoff remains untouched. Absence of promotion offer in old loaded graph was not a new catalog contract defect. New full history scan pending.
+
+
+Live UI follow-through: one cached-history refresh reached cab8 current-content promotion review at block53268897, retaining the displayed9.5USDC. Review only; Sign Promote unclicked. Firsta62 release still unsigned. See browser-promotion-review.txt and screenshot (right edge clipped); neither is transaction evidence.
