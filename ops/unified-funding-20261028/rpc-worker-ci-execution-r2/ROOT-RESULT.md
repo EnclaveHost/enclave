@@ -1,0 +1,1 @@
+CI41136670370 failed during Windows Git checkout despite sparse selection. No compiler/test ran. Preserve actual result/log; never rerun. New Linux-assembled exact source artifact delivery is a separate reviewed attempt.
