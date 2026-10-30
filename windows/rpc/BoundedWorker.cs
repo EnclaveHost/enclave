@@ -64,7 +64,7 @@ namespace Enclave.OwnedRpc {
         public bool ReservationMayRelease { get { return false; } }
     }
 
-    public static class BoundedWorker {
+    public static partial class BoundedWorker {
         const uint Suspended = 4, NoWindow = 0x08000000, ExtendedStartup = 0x00080000;
         const uint UnicodeEnvironment = 0x400, KillOnClose = 0x2000;
         const uint JobMemory = 0x200, ActiveLimit = 8, AffinityLimit = 0x10;
@@ -75,6 +75,7 @@ namespace Enclave.OwnedRpc {
         static readonly object EnvelopeLock = new object();
         static bool envelopeAttempted;
         static bool envelopeVerified;
+        static ulong envelopeMemoryBytes;
         static bool operationAttempted;
         // Deliberately retained until OS process teardown. Closing a kill-on-close
         // job containing ourselves would terminate us and every descendant.
@@ -236,6 +237,7 @@ namespace Enclave.OwnedRpc {
                     var receipt=new SupervisorEnvelopeReceipt { ProcessId=GetCurrentProcessId(),
                         CreationFileTime=creation,JobCommitLimitBytes=memoryBytes,BootstrapPrivateBytes=bootstrapPrivate,
                         MembershipVerified=true,LimitsVerified=true };
+                    envelopeMemoryBytes=memoryBytes;
                     envelopeVerified=true;
                     return receipt;
                 } finally {

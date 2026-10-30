@@ -117,3 +117,41 @@ cover identity before resume, refusal, exception, late acceptance and null guard
 CI41139614293 at6f876d2af8918ec2d7cb2cd828524e6610caeb57 passed all16 cases
 in3.636s, including those five. They do not prove a cross-process observer exists.
 The late acceptance case confirmed timeout without resume and exact cleanup.
+
+
+## Independent owner job candidate
+
+`OwnerObserver.cs` adds a one-shot observer-owned private job distinct from the
+observer's own128MiB envelope. Its sole noninheritable owner-job handle stays in
+the observer process until OS teardown; the owner never receives that handle.
+The gated owner is assigned to the256MiB/four-process/CPU1 job before it creates
+children. Assignment readback and exact owner incarnation precede admission.
+An independent thread is armed before job setup and terminates the observer at
+the original absolute deadline. Closing the sole owner-job handle on observer
+exit is the owner-tree backstop, including when the binding thread is blocked.
+All native handles are retained until process exit; there is no detach/close API
+or concurrent close/query race. This is a finite process-lifetime primitive.
+
+The owner transfers only one noninheritable query/synchronize child handle into
+the held observer process. Observer-side validation checks exact PID/creation,
+owner-job membership, original deadline and nonce/boot/contract token before
+release. The trusted owner rechecks the held observer and original deadline
+before returning from RunGuarded's callback. Duplicate acknowledgment loss is
+ambiguous: never transfer again or guess which remote handle to close.
+[IsProcessInJob accepts limited-query process handles](https://learn.microsoft.com/en-us/windows/win32/api/jobapi/nf-jobapi-isprocessinjob).
+
+This candidate has no production IPC or SYSTEM task entry point. The CI fixture
+uses bounded atomic files in its disposable directory and synthetic boot/digest
+context; token shape is not authentication or target boot proof. The trusted
+owner must have no children before assignment: job assignment does not capture
+preexisting children. Bootstrap allocations, task startup, protected paths,
+current admission and durable provider settlement remain separate requirements.
+Six new finite cases use an external controller holding exact owner/observer/
+child handles before intentional observer death: normal release, wrong child
+identity, late binding, observer loss before release, observer loss during Run,
+and a blocked owner callback interrupted by the independent original deadline.
+They are not target qualification until separately executed and reviewed.
+
+The timing validator rejects negative/overflowing origins before arithmetic. A
+separate finite helper regression rejects Int64.MinValue/Int64.MaxValue before
+arming any watchdog; expected hosted CI count is23 including the original16.

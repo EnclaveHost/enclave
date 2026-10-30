@@ -8,7 +8,7 @@ using System.Threading;
 using System.Web.Script.Serialization;
 using Enclave.OwnedRpc;
 
-static class Harness {
+static partial class Harness {
     [DllImport("kernel32.dll",SetLastError=true)] static extern uint GetProcessId(IntPtr handle);
     [DllImport("kernel32.dll",SetLastError=true)] static extern bool GetProcessTimes(IntPtr handle,out long created,out long exited,out long kernel,out long user);
     [DllImport("kernel32.dll",SetLastError=true)] static extern uint WaitForSingleObject(IntPtr handle,uint timeout);
@@ -70,6 +70,12 @@ static class Harness {
     }
     static int Helper(string mode,string path) {
         Identity(path);
+        if (mode=="invalid-observer-clock") {
+            BoundedWorker.EnterSupervisorEnvelope(128UL*1024*1024);
+            try {BoundedWorker.ArmOwnerObserver(Int64.MinValue,Int64.MaxValue,new string('a',128));}
+            catch(ArgumentOutOfRangeException) {return 74;}
+            return 75;
+        }
         if (mode=="invalid-envelope") {
             bool rejected=false;
             try { BoundedWorker.EnterSupervisorEnvelope(1); }
@@ -100,6 +106,8 @@ static class Harness {
     }
     static int Main(string[] args) {
         try {
+            if (args.Length==6 && args[0]=="observed-owner") return OwnerRole(args[1],args[2],args[3],Int64.Parse(args[4]),Int64.Parse(args[5]));
+            if (args.Length==6 && args[0]=="owner-observer") return ObserverRole(args[1],args[2],args[3],Int64.Parse(args[4]),Int64.Parse(args[5]));
             if (args.Length==3 && args[0]=="helper") return Helper(args[1],args[2]);
             if (args.Length==2 && args[0]=="supervisor") { Run("sleep",args[1],4000); return 0; }
             if (args.Length!=1) return 98;
@@ -224,6 +232,9 @@ static class Harness {
             try { BoundedWorker.Run(Exe,Quote(Exe),dir,Env(),BoundedWorker.MonotonicMilliseconds()-1,1000,128UL*1024*1024); }
             catch(ArgumentOutOfRangeException) { refused=true; }
             Check("expired-absolute-deadline",refused,null);
+            var invalidObserverClock=Run("invalid-observer-clock",Path.Combine(dir,"invalid-observer-clock"),3000);
+            Check("observer-overflow-clock-refused",Dead(invalidObserverClock) && invalidObserverClock.ExitCode==74 && !invalidObserverClock.TimedOut,invalidObserverClock);
+            foreach(string mode in new[]{"normal","wrong-identity","late-bind","loss-before","loss-during","blocked-callback"}) ObserverCase(dir,mode);
             return 0;
         } catch (Exception error) { Console.Error.WriteLine(error.GetType().Name+": "+error.Message); return 1; }
     }

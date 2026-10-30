@@ -54,11 +54,11 @@ function Invoke-FiniteProcess([string]$Executable,[string[]]$Arguments,[int]$Dea
     if($failure -or $record.exitCode -ne 0){throw ($Label+' failed: '+($record|ConvertTo-Json -Compress))}
 }
 try{
-    Invoke-FiniteProcess $csc @('/nologo','/target:exe','/platform:x64','/r:System.Web.Extensions.dll',('/out:'+$exe),(Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $PSScriptRoot 'Harness.cs')) 20000 'compile'
+    Invoke-FiniteProcess $csc @('/nologo','/target:exe','/platform:x64','/r:System.Web.Extensions.dll',('/out:'+$exe),(Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $PSScriptRoot 'ObserverHarness.cs'),(Join-Path $PSScriptRoot 'Harness.cs')) 20000 'compile'
     Invoke-FiniteProcess $exe @((Join-Path $work 'identities')) 30000 'inert'
     $lines=@(Get-Content -LiteralPath (Join-Path $work 'inert.out'))
     $results=@($lines|ForEach-Object{$_|ConvertFrom-Json})
-    if($results.Count -ne 16 -or @($results|Where-Object{-not $_.passed}).Count){throw 'Incomplete inert qualification'}
+    if($results.Count -ne 23 -or @($results|Where-Object{-not $_.passed}).Count){throw 'Incomplete inert qualification'}
     $results|ConvertTo-Json -Depth 8
 }finally{
     # Helpers have no unbounded loop: sleeps <=5s, allocation <=192MiB. These
@@ -66,7 +66,7 @@ try{
     # and independent process supervisor remain the outer containment boundary.
     # Preserve records on failure; do not use a broad process kill or any VM cleanup.
     $records|ConvertTo-Json -Depth 5|Set-Content -LiteralPath (Join-Path $work 'process-results.json')
-    Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $PSScriptRoot 'Harness.cs'),$csc|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'pins.json')
+    Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $PSScriptRoot 'ObserverHarness.cs'),(Join-Path $PSScriptRoot 'Harness.cs'),$csc|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'pins.json')
     if(Test-Path -LiteralPath $exe){Get-FileHash -Algorithm SHA256 -LiteralPath $exe|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'artifact.json')}
     # Never export the raw work directory. Failed truncation or unexpected compiler
     # output must not turn an always-upload step into unbounded publication.

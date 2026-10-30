@@ -1,0 +1,9 @@
+{
+  "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+  "windows/rpc/OwnerObserver.cs": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80",
+  "test/rpc-windows-worker/Harness.cs": "7adb8aae958c2933bac6c5e1738f679dadcd6b46c7d703e58639deab0458fecf",
+  "test/rpc-windows-worker/ObserverHarness.cs": "c927a36d95425a2aa4b521a57ad9a24baf28faaec2d43754d9f2621815dfd85e",
+  "test/rpc-windows-worker/run-ci.ps1": "a2ad44ffbd0e8048a91a2728fe6af8bc52874a37109bff59d4bed53e4f466b80",
+  ".github/workflows/rpc-worker-inert.yml": "a57d085720870387cc4d9394445e1e45cf2a7dbbdb85d1221b53d87709771279",
+  "windows/rpc/README.md": "25d182de84a021672d089672134beb66bd4e112de1172a1289df514d16ef5c90"
+}
