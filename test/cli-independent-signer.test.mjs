@@ -348,6 +348,10 @@ test("sign path, ambiguous broadcast: the journaled bytes are resolved from the 
   const e = await s.sendQuorumTx(delivered, { to: SINK, data: "0x21", ...WAIT }).catch((x) => x);
   assert.equal(e.code, "unknown"); assert.ok(e.outcomeUnknown); assert.match(e.message, /Do not resend/);
   assert.equal(s.journal.get(e.intent).state, "unknown");
+  // Losing every broadcast reply does not wait for mining. Establish the mined
+  // fixture before asking the independent quorum for its one-shot resolution.
+  const deliveredReceipt = await pc.waitForTransactionReceipt({ hash: s.journal.get(e.intent).hash, pollingInterval: 50, timeout: 15000 });
+  assert.equal(deliveredReceipt.status, "success");
   assert.equal((await resolveIntent(chain, s.journal, e.intent)).state, "confirmed");
   assert.equal(await nonceOf(A0.address), before + 1);
   // 2. never delivered: resolve keeps it open; rebroadcast sends THE SAME BYTES; no second signature is asked for
