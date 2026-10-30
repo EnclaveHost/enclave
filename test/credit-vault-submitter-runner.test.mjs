@@ -63,7 +63,10 @@ test("the shared host-service runner launches the packaged credit-vault submitte
   const dreq = await CV.signPrepared(lib, dp, profile, { pins: PINS, origin: F.ORIGIN, getFn: K.getFn(), intent: { op: "deploy", params: { spec, fundUsd: "10" } } });
   const dj = F.memJournal();
   const ds = await CV.submitRequest(lib, dreq, CV.walletTransport(F.eip1193(A), F.ACCT.payer.address), { journal: dj, reader, pins: PINS });
-  const id = (await A.pub.getTransactionReceipt({ hash: ds.txHash })).logs.find((l) => lc(l.address) === lc(S.ledger)).topics[1];
+  // The owner's wallet returns on broadcast; wait for the fixture deployment before starting the role.
+  const deployed = await A.pub.waitForTransactionReceipt({ hash: ds.txHash, pollingInterval: 50, timeout: 30000 });
+  assert.equal(deployed.status, "success");
+  const id = deployed.logs.find((l) => lc(l.address) === lc(S.ledger)).topics[1];
 
   const port = await F.freePort();
   const config = { port, bind: "127.0.0.1", stateDir: path.join(tmp, "submitter-state"), rpc: A.rpcs, confirmations: 0, signer: A.url, from: F.ACCT.relay.address, chainId: 8453, pins: PINS };

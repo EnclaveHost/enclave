@@ -224,7 +224,8 @@ test("the credit-vault relay under concurrent requests: one flight per digest, o
         const raw = rpcs[0].st.raws.at(-1);
         assert.equal(lib.keccak256(raw), H);
         await A.raw("eth_sendRawTransaction", [raw]);
-        assert.equal((await A.pub.getTransactionReceipt({ hash: H })).status, "success");
+        // This is the test operator's raw broadcast, not the relay's confirmed-return path.
+        assert.equal((await A.pub.waitForTransactionReceipt({ hash: H, pollingInterval: 50, timeout: 30000 })).status, "success");
         assert.equal(await F.usdcOf(A, S, V2.vault), bal - 1_000000n, "exactly once");
         assert.deepEqual(await submit(req), { txHash: H, unknown: true }, "the relay still answers the held transaction");
         if (signerRpc){
