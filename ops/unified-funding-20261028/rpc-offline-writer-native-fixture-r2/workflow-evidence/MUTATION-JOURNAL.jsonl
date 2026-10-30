@@ -1,0 +1,68 @@
+{"begin": {"op": "mkdir", "path": "/var/lib/enclave-rpc-maint"}}
+{"done": {"op": "mkdir", "path": "/var/lib/enclave-rpc-maint"}}
+{"begin": {"op": "mkdir", "path": "/var/lib/enclave-rpc-maint/20261030T120000Z-abcdef"}}
+{"done": {"op": "mkdir", "path": "/var/lib/enclave-rpc-maint/20261030T120000Z-abcdef"}}
+{"begin": {"op": "ln", "unit": "enclave-rpc-base-snapshot.service", "path": "/var/lib/enclave-rpc-maint/20261030T120000Z-abcdef/enclave-rpc-base-snapshot.service"}}
+{"done": {"op": "ln", "unit": "enclave-rpc-base-snapshot.service", "path": "/var/lib/enclave-rpc-maint/20261030T120000Z-abcdef/enclave-rpc-base-snapshot.service"}}
+{"begin": {"op": "unlink", "unit": "enclave-rpc-base-snapshot.service", "path": "/etc/systemd/system/enclave-rpc-base-snapshot.service"}}
+{"done": {"op": "unlink", "unit": "enclave-rpc-base-snapshot.service", "path": "/etc/systemd/system/enclave-rpc-base-snapshot.service"}}
+{"begin": {"op": "symlink", "unit": "enclave-rpc-base-snapshot.service", "path": "/etc/systemd/system/enclave-rpc-base-snapshot.service", "target": "/dev/null"}}
+{"done": {"op": "symlink", "unit": "enclave-rpc-base-snapshot.service", "path": "/etc/systemd/system/enclave-rpc-base-snapshot.service", "target": "/dev/null"}}
+{"begin": {"op": "ln", "unit": "enclave-rpc-l1-snapshot.service", "path": "/var/lib/enclave-rpc-maint/20261030T120000Z-abcdef/enclave-rpc-l1-snapshot.service"}}
+{"done": {"op": "ln", "unit": "enclave-rpc-l1-snapshot.service", "path": "/var/lib/enclave-rpc-maint/20261030T120000Z-abcdef/enclave-rpc-l1-snapshot.service"}}
+{"begin": {"op": "unlink", "unit": "enclave-rpc-l1-snapshot.service", "path": "/etc/systemd/system/enclave-rpc-l1-snapshot.service"}}
+{"done": {"op": "unlink", "unit": "enclave-rpc-l1-snapshot.service", "path": "/etc/systemd/system/enclave-rpc-l1-snapshot.service"}}
+{"begin": {"op": "symlink", "unit": "enclave-rpc-l1-snapshot.service", "path": "/etc/systemd/system/enclave-rpc-l1-snapshot.service", "target": "/dev/null"}}
+{"done": {"op": "symlink", "unit": "enclave-rpc-l1-snapshot.service", "path": "/etc/systemd/system/enclave-rpc-l1-snapshot.service", "target": "/dev/null"}}
+{"begin": {"op": "ln", "unit": "enclave-base-retention.service", "path": "/var/lib/enclave-rpc-maint/20261030T120000Z-abcdef/enclave-base-retention.service"}}
+{"done": {"op": "ln", "unit": "enclave-base-retention.service", "path": "/var/lib/enclave-rpc-maint/20261030T120000Z-abcdef/enclave-base-retention.service"}}
+{"begin": {"op": "unlink", "unit": "enclave-base-retention.service", "path": "/etc/systemd/system/enclave-base-retention.service"}}
+{"done": {"op": "unlink", "unit": "enclave-base-retention.service", "path": "/etc/systemd/system/enclave-base-retention.service"}}
+{"begin": {"op": "symlink", "unit": "enclave-base-retention.service", "path": "/etc/systemd/system/enclave-base-retention.service", "target": "/dev/null"}}
+{"done": {"op": "symlink", "unit": "enclave-base-retention.service", "path": "/etc/systemd/system/enclave-base-retention.service", "target": "/dev/null"}}
+{"begin": {"op": "ln", "unit": "enclave-base-holder.path", "path": "/var/lib/enclave-rpc-maint/20261030T120000Z-abcdef/enclave-base-holder.path"}}
+{"done": {"op": "ln", "unit": "enclave-base-holder.path", "path": "/var/lib/enclave-rpc-maint/20261030T120000Z-abcdef/enclave-base-holder.path"}}
+{"begin": {"op": "unlink", "unit": "enclave-base-holder.path", "path": "/etc/systemd/system/enclave-base-holder.path"}}
+{"done": {"op": "unlink", "unit": "enclave-base-holder.path", "path": "/etc/systemd/system/enclave-base-holder.path"}}
+{"begin": {"op": "symlink", "unit": "enclave-base-holder.path", "path": "/etc/systemd/system/enclave-base-holder.path", "target": "/dev/null"}}
+{"done": {"op": "symlink", "unit": "enclave-base-holder.path", "path": "/etc/systemd/system/enclave-base-holder.path", "target": "/dev/null"}}
+{"begin": {"op": "ln", "unit": "enclave-base-holder.service", "path": "/var/lib/enclave-rpc-maint/20261030T120000Z-abcdef/enclave-base-holder.service"}}
+{"done": {"op": "ln", "unit": "enclave-base-holder.service", "path": "/var/lib/enclave-rpc-maint/20261030T120000Z-abcdef/enclave-base-holder.service"}}
+{"begin": {"op": "unlink", "unit": "enclave-base-holder.service", "path": "/etc/systemd/system/enclave-base-holder.service"}}
+{"done": {"op": "unlink", "unit": "enclave-base-holder.service", "path": "/etc/systemd/system/enclave-base-holder.service"}}
+{"begin": {"op": "symlink", "unit": "enclave-base-holder.service", "path": "/etc/systemd/system/enclave-base-holder.service", "target": "/dev/null"}}
+{"done": {"op": "symlink", "unit": "enclave-base-holder.service", "path": "/etc/systemd/system/enclave-base-holder.service", "target": "/dev/null"}}
+{"begin": {"op": "ln", "unit": "enclave-l1-el.path", "path": "/var/lib/enclave-rpc-maint/20261030T120000Z-abcdef/enclave-l1-el.path"}}
+{"done": {"op": "ln", "unit": "enclave-l1-el.path", "path": "/var/lib/enclave-rpc-maint/20261030T120000Z-abcdef/enclave-l1-el.path"}}
+{"begin": {"op": "unlink", "unit": "enclave-l1-el.path", "path": "/etc/systemd/system/enclave-l1-el.path"}}
+{"done": {"op": "unlink", "unit": "enclave-l1-el.path", "path": "/etc/systemd/system/enclave-l1-el.path"}}
+{"begin": {"op": "symlink", "unit": "enclave-l1-el.path", "path": "/etc/systemd/system/enclave-l1-el.path", "target": "/dev/null"}}
+{"done": {"op": "symlink", "unit": "enclave-l1-el.path", "path": "/etc/systemd/system/enclave-l1-el.path", "target": "/dev/null"}}
+{"begin": {"op": "ln", "unit": "enclave-l1-el.service", "path": "/var/lib/enclave-rpc-maint/20261030T120000Z-abcdef/enclave-l1-el.service"}}
+{"done": {"op": "ln", "unit": "enclave-l1-el.service", "path": "/var/lib/enclave-rpc-maint/20261030T120000Z-abcdef/enclave-l1-el.service"}}
+{"begin": {"op": "unlink", "unit": "enclave-l1-el.service", "path": "/etc/systemd/system/enclave-l1-el.service"}}
+{"done": {"op": "unlink", "unit": "enclave-l1-el.service", "path": "/etc/systemd/system/enclave-l1-el.service"}}
+{"begin": {"op": "symlink", "unit": "enclave-l1-el.service", "path": "/etc/systemd/system/enclave-l1-el.service", "target": "/dev/null"}}
+{"done": {"op": "symlink", "unit": "enclave-l1-el.service", "path": "/etc/systemd/system/enclave-l1-el.service", "target": "/dev/null"}}
+{"begin": {"op": "ln", "unit": "enclave-l1-cl.service", "path": "/var/lib/enclave-rpc-maint/20261030T120000Z-abcdef/enclave-l1-cl.service"}}
+{"done": {"op": "ln", "unit": "enclave-l1-cl.service", "path": "/var/lib/enclave-rpc-maint/20261030T120000Z-abcdef/enclave-l1-cl.service"}}
+{"begin": {"op": "unlink", "unit": "enclave-l1-cl.service", "path": "/etc/systemd/system/enclave-l1-cl.service"}}
+{"done": {"op": "unlink", "unit": "enclave-l1-cl.service", "path": "/etc/systemd/system/enclave-l1-cl.service"}}
+{"begin": {"op": "symlink", "unit": "enclave-l1-cl.service", "path": "/etc/systemd/system/enclave-l1-cl.service", "target": "/dev/null"}}
+{"done": {"op": "symlink", "unit": "enclave-l1-cl.service", "path": "/etc/systemd/system/enclave-l1-cl.service", "target": "/dev/null"}}
+{"begin": {"op": "rm", "path": "/etc/systemd/system/multi-user.target.wants/enclave-base-holder.path"}}
+{"done": {"op": "rm", "path": "/etc/systemd/system/multi-user.target.wants/enclave-base-holder.path"}}
+{"begin": {"op": "rm", "path": "/etc/systemd/system/multi-user.target.wants/enclave-base-holder.service"}}
+{"done": {"op": "rm", "path": "/etc/systemd/system/multi-user.target.wants/enclave-base-holder.service"}}
+{"begin": {"op": "rm", "path": "/etc/systemd/system/multi-user.target.wants/enclave-base-retention.service"}}
+{"done": {"op": "rm", "path": "/etc/systemd/system/multi-user.target.wants/enclave-base-retention.service"}}
+{"begin": {"op": "rm", "path": "/etc/systemd/system/multi-user.target.wants/enclave-l1-cl.service"}}
+{"done": {"op": "rm", "path": "/etc/systemd/system/multi-user.target.wants/enclave-l1-cl.service"}}
+{"begin": {"op": "rm", "path": "/etc/systemd/system/multi-user.target.wants/enclave-l1-el.path"}}
+{"done": {"op": "rm", "path": "/etc/systemd/system/multi-user.target.wants/enclave-l1-el.path"}}
+{"begin": {"op": "rm", "path": "/etc/systemd/system/multi-user.target.wants/enclave-l1-el.service"}}
+{"done": {"op": "rm", "path": "/etc/systemd/system/multi-user.target.wants/enclave-l1-el.service"}}
+{"begin": {"op": "rm", "path": "/etc/systemd/system/multi-user.target.wants/enclave-rpc-base-snapshot.service"}}
+{"done": {"op": "rm", "path": "/etc/systemd/system/multi-user.target.wants/enclave-rpc-base-snapshot.service"}}
+{"begin": {"op": "rm", "path": "/etc/systemd/system/multi-user.target.wants/enclave-rpc-l1-snapshot.service"}}
+{"done": {"op": "rm", "path": "/etc/systemd/system/multi-user.target.wants/enclave-rpc-l1-snapshot.service"}}

@@ -1,0 +1,16 @@
+{
+  "unit": "enclave-rpc-offline-writer-native-fixture-r1-20261030.service",
+  "invocations": [
+    "9d0bff6eb593404dabe63ded1cf5c416"
+  ],
+  "writerStatus": "FAILED",
+  "mutationOperations": 0,
+  "syntheticOnly": true,
+  "mocks": [
+    "vm_stopped",
+    "scan_holders constrained to exact fresh synthetic file inodes"
+  ],
+  "productionQualified": false,
+  "originalBackupUnchanged": true,
+  "readinessLimit": "full filesystem workflow exercised, not real image holder exclusion or failure cleanup"
+}

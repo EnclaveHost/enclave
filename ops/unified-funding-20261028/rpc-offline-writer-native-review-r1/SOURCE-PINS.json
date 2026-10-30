@@ -1,0 +1,34 @@
+{
+  "scope": "read-only source and captured evidence",
+  "executedTests": false,
+  "sources": [
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-offline-os-writer-author-r1-20261029/author-delivery/offline_mask.py",
+      "sha256": "0947790edc32c69cac0eed9aee03f3b4cdfb246cc4e08c7c2c1898ccc4a6d25c"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-offline-os-writer-author-r1-20261029/author-delivery/test_offline_mask.py",
+      "sha256": "0ed021bdb4ee2de5b53cca8616b983058def437fe6afa9136998e6ea34b2f7e9"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-mask-fixture-r1/run.py",
+      "sha256": "aa94fc722edade15522ba077a8a284f7687856e69e2f3e687ca45064c1a6c51a"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-mask-fixture-r1/commands.jsonl",
+      "sha256": "b88be7edd5ed72a461e58f56f885fa39801c832998d1351e3e0b323d107831f8"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-mask-fixture-r1/RESULT.json",
+      "sha256": "05a3ddacefd0c8e62ad697c3f8e407762ab43a58e8daa1166db6828d3d112901"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-backup-readonly-fsck-r1/RESULT.json",
+      "sha256": "70c433d0e0d3489c45eb17e6df23f7abe232735009842d8bd132f213cde7b216"
+    },
+    {
+      "path": "/usr/include/ext2fs/ext2_fs.h",
+      "sha256": "83048ca1568496e5bc1831445b7d44106aa2b4445b2b82521193373f0e0bd9aa"
+    }
+  ]
+}

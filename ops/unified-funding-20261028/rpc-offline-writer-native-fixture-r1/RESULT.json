@@ -1,0 +1,26 @@
+{
+  "exit": 3,
+  "writerResult": {
+    "status": "FAILED",
+    "receipt": "/vm/enclave-volumes/rpc-production-maint/synthetic-writer-b49xhdhd/result/RESULT.json",
+    "error": {
+      "phase": "preconditions",
+      "message": "preconditions: enclave-base-retention.service: mode/owner/xattrs differ from the plan"
+    }
+  },
+  "syntheticOnly": true,
+  "mocks": [
+    "vm_stopped",
+    "scan_holders for exact new fixture inodes only"
+  ],
+  "real": [
+    "sparse_copy",
+    "native OFD lock attempts",
+    "GPT/ext4 validation",
+    "native export/fsck/debugfs/qcow checks",
+    "writer workflow"
+  ],
+  "sourceBackupUnchanged": true,
+  "fixture": "/vm/enclave-volumes/rpc-production-maint/synthetic-writer-b49xhdhd",
+  "productionQualified": false
+}
