@@ -1,0 +1,1 @@
+CI41136360584 failed at Windows checkout (reserved aux path), before compiler/test. No native worker outcome exists. Original run must never be rerun. Distinct sparse source checkout repair is reviewed in rpc-worker-ci-admission-r2.

@@ -20,6 +20,11 @@ jobs:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
         with:
           persist-credentials: false
+          # Retained evidence includes POSIX-only paths (for example aux/).
+          # Materialize only this test's source closure; retain Windows safeguards.
+          sparse-checkout: |
+            windows/rpc
+            test/rpc-windows-worker
       - name: Check exact reviewed source
         shell: powershell
         env:
