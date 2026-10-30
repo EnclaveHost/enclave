@@ -1,0 +1,72 @@
+Retained EL r9 diagnosis, read-only; no observer/retry run in this lane.
+
+Evidence is pinned in DIAGNOSIS-PINS.json. RESULT_JSON in PARSED-MAIN.json
+belongs to actual EL invocation36c16b8333b84816b7088a4a33d3c171 under outer
+7e9733f7884a46cd8b79fda5e93079b2. ROOT-TERMINAL reports terminal2/Main0,
+nine known local PIDs gone, no source/runtime drift, independent cleanup PASS,
+original/frozen unchanged. STOP_POST resources-without-watchdog failure remains
+retained; successful teardown is not successful application startup.
+
+Same-incarnation first→last diagnostic spans3598.062s: read_bytes+4460113920,
+778277 major faults,44.93 CPU seconds. This is1.240MB/s,216majorfaults/s,
+~5731readbytes/majorfault and1.25% of one CPU over the interval. All111 retained
+D-thread observations waited at folio_wait_bit_common. The final recovery worker
+is D there. These are strong storage/page-fault wait indicators; they do not
+measure network RTT, physical-disk service time, exporter CPU or queue depth.
+Zero blockIoDelayTicks is not proof of zero I/O wait.
+
+Memory: ancestor cap2304MiB reached, memory.events max6181/OOM0. The child's
+max0 does not exclude ancestor pressure. Final anon555MiB/file1101MiB/kernel
+645MiB includes475MiB page tables. Page tables were1.17MiB at455s,135MiB at597s,
+227MiB at729s. Direct reclaim792896pages; refault_file15447 versus778278 major
+faults does NOT establish repeated thrashing as the dominant cost. Cold sparse
+mmap faults are a plausible contributor. Retained sample history ends741s;
+there is a separate3598s last sample. No middle-time trajectory is claimed.
+
+Exact runtime flags: source/run-body.py start_export (~140) uses qemu-nbd
+--persistent --shared=1 --format=qcow2 --cache=none --aio=threads, exported over
+an SSH stream socket to the Control VM. source/client-main.py (~77) uses
+nbd-client -n -L -u -N <export> -t5 -b4096. Three-layer private r9→frozenr6→
+original qcow2 chain. Client low-memory flags are the pinned wrapper's Reth
+engine.cross-block-cache-size256 and bounded RPC caches; these do not split
+the pre-RPC partial-trie unwind. No cache/durability flag was changed here.
+
+Source citations retained verbatim in references/ (hashes in PREPARED-PINS):
+- reth-launch-common-05ba481.rs584–615 deliberately uses
+  walk_all_changed_branch_children=true for partial-state-trie recovery.
+  ~650–685 persists/clears the recovery marker around recovery, awaiting outcome.
+- reth-merkle-05ba481.rs370–444 performs root_with_updates() over the unwind
+  range, validates the target header state root, then writes updates and returns.
+- reth-pipeline-05ba481.rs~400–463 invokes unwind, logs Stage unwound before
+  checkpoint persistence, then commits. This is not an inner-Merkle checkpoint.
+
+Runtime log identifies Reth2.8.0(05ba481); exact payload SHA is
+8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250.
+The retained source filenames/revision support path analysis; they are not a
+new reproducible-build proof. A separately cached7134be3 MDBX source sets
+no_rdahead=true; that is NOT exact deployed-source evidence and must not justify
+assuming or changing deployed readahead. No client help/version was executed.
+
+No Merkle completion/checkpoint proof appears after52minutes in that phase.
+Reth's own5s runtime-shutdown timeout despite code1/status0 is not clean recovery.
+Any future continuation must retain markers and validate through the same client.
+
+Corrective direction: put recovery close to the existing storage, preserve
+exact binary/history/custody/validation and use a fresh private child. Avoid a
+528GB copy/download, an unqualified Rust rebuild, or another unchanged hour.
+Direct/local attachment could remove the SSH/NBD path, but does not cure slow
+underlying media by itself. Installed local provision_vm.py qemu_argv288–315
+already describes direct qcow2 blockdev+virtio-scsi; its existing VM requests
+far more RAM than this trial, and must NOT be launched by the observation.
+Control's retained create-control-vm.ps1 describes a separate Hyper-V VM; same-
+host hotplug there is not assumed. Local metadata/sysfs checks establish the
+candidate topology and permissions only; no exclusive attachment is proven.
+
+Historical Control residual above reserve was673MiB. +512MiB might fit that
+snapshot, +768MiB would not. Neither is admitted now or proven to cure cold reads.
+The local observation must include authoritative guestd pending, actual caps,
+native client plus attachment/guardian/tooling, and other pending commitments.
+Unknown growth is unresolved, never zero. A new native trial waits for Nan n10
+terminal and cleanup. If storage performance remains uncertain, the next
+necessary qualified run needs exporter CPU/I/O pressure and NBD completion/time
+counters, not invented bandwidth/latency or an uninstrumented repeat.

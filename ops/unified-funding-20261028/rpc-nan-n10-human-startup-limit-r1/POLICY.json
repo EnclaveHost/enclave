@@ -1,0 +1,15 @@
+{
+  "request": "Human reduced current startup window to15 minutes; if not ready use a different approach.",
+  "invocation": "788a6b50252d41b893d1aeb9d95f481b",
+  "unit": "enclave-rpc-nan-cl-n10-prepared-r1-20261030.service",
+  "mainPid": 3030236,
+  "mainStartTicks": 169569607,
+  "attemptAt": 1793390582.6953652,
+  "deadline": 1793391482.6953652,
+  "deadlineUtc": "2026-10-30T20:18:02.695365+00:00",
+  "runtime": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-n10-root-r2/runtime",
+  "runtimePinsSha256": "d90427587ddc020bc1cf200533233c86069ef11f71e731f2f3a0a9b1d902d64f",
+  "stopPath": "existing exact-incarnation request-stop; watchdog retains cleanup and independent verification",
+  "cleanupGraceSeparate": true,
+  "unchangedRetryAllowed": false
+}

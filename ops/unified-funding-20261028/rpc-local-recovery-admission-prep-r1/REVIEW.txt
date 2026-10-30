@@ -1,0 +1,53 @@
+PREPARED ONLY. No observer, test, syntax check, author, build, remote call, native
+client, image mount or live change has run. Root owns review and any execution.
+
+One local-only observation command: outer128MiB/130s, queueworker256MiB,
+RSS220MiB, floor27648MiB, CPU1, zero swap. The existing queue preserves its
+4096MiB maximum-large-lane reservation when the small observation overlaps the
+active Nan coordinator. This is a small status read, not a second native trial.
+Command/source/tool pins are fixed; installed manager executable and unit-file
+hashes plus installed authenticated client source are checked before observing.
+Product source and installed services remain unchanged.
+
+Authenticated guestd reads use the existing local pairing key without emitting
+it, its identifier, a session token, or raw health/VM responses. The only status
+requests are GET /health, GET /vms, GET /health. The existing protocol necessarily
+uses its ephemeral handshake/session, with response MAC verification. It never
+falls back to unauthenticated HTTP. Responses have262144B caps/2.5s deadlines,
+handshakes16KiB/2s, helper18s total deadline. Status failure is UNKNOWN/refusal,
+not zero pending. The guestd source semantics are retained in references:
+pool.go153–183 counts held reservation minus observed unit use; starting/unread
+units count their full reservation; pool.go277–302 exposes this in /health.pool.
+The running binary is separately pinned, not assumed rebuilt from that reference.
+Before/after systemd identity and baseline process executable/cgroup bind the
+installed manager incarnation. Allocation snapshots are checked against the
+sanitized per-guest reservation sum; drift remains explicit.
+
+Local metadata reads: MemAvailable/swap/pressure, bounded process identity/RSS/
+cgroups, leaf cgroup caps/current/pending growth, selected systemd unit identity,
+user/system queued jobs, user timers, queue-lock metadata and /proc/locks.
+No environments, command lines, maps, journals, pad files or running Nan client
+are inspected. No remote host is contacted. Unknown/unbounded cgroups remain
+unresolved; do not sum them naively with guestd pending (double counting).
+
+Storage reads are lstat/access/statvfs/mountinfo and at most16 selected sysfs
+block-topology nodes per named image, plus bounded local NBD metadata. No disk
+content, DB directory enumeration, qemu-img execution, lock acquisition, NBD
+attach, loop setup, mount, VM launch or repair. Existing installed VM manifest
+is read only for selected disk/backing path/size/type fields. Its full-size VM
+is NOT a candidate for automatic launch. File permissions are not exclusive-use
+proof; a future attachment still needs independent identity/locking qualification.
+
+Scenarios explicitly include client2304/2816/4096MiB +attach128+guardian128+
+tooling512+outer128. They also subtract authoritative guestd pending and the
+whole640MiB known active Nan local coordinator allowance. Other existing growth
+and schedules/pending queues are null until ROOT classifies them. Thus every
+scenario says admitted=false even if known residual exceeds floor. The observer
+does not authorize new allocation. Nan terminal/cleanup is required first.
+
+Current resource numbers are intentionally absent: generating this package is
+not a live observation. Root should inspect/qualify the source and command before
+running once. A changed executable/unit/tool pin or missing access fails closed.
+Prepared inputs may be copied into maintained evidence by root; regenerate the
+command's package path and pins if moved. Do not reuse an old observation as a
+new admission or treat static source analysis as measured storage performance.

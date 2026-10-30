@@ -1,0 +1,3 @@
+# Root static review
+
+Prepared source pins verified: 17 files unchanged. Reviewed observe.py, guestd-read.mjs, configuration, exact command and installed-client binding. Read-only authenticated health/VM/health status uses existing key privately and outputs only public resource fields. No private key bytes, environments or journals are retained. Missing status remains a refusal, not zero pending. Conditional residual calculations subtract observed pending plus planned tooling and retained Nan coordinator; every scenario remains unadmitted. Source was reviewed, not executed or tested. Root may perform one bounded small observation after the human deadline enforcer releases its lane. New native work requires separate root admission and Nan terminal cleanup.

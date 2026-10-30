@@ -1,0 +1,148 @@
+{
+  "readOnly": true,
+  "nativeAdmitted": false,
+  "futureClientMiB": [
+    2304,
+    2816,
+    4096
+  ],
+  "futureAttachMiB": 128,
+  "futureGuardianMiB": 128,
+  "futureToolingMiB": 512,
+  "futureOuterMiB": 128,
+  "hostFloorMiB": 27648,
+  "knownActiveNanCoordinatorReserveMiB": 640,
+  "activeNanMustBeTerminalBeforeNative": true,
+  "guestdUrl": "http://127.0.0.1:8095",
+  "guestdKeyFile": "/home/steven/enclave-prod/guestd-pair.key",
+  "installedControlClient": "/home/steven/enclave-prod/capacity-audit/src/isolation/m4/guestd/control-client.mjs",
+  "installedControlClientSha256": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6",
+  "images": [
+    {
+      "role": "original",
+      "path": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2"
+    },
+    {
+      "role": "frozen-r6",
+      "path": "/vm/enclave-volumes/rpc-control-l1-client-r6/overlay.qcow2"
+    },
+    {
+      "role": "completed-r9-child",
+      "path": "/vm/enclave-volumes/rpc-control-l1-client-r9/overlay.qcow2"
+    }
+  ],
+  "metadataPaths": [
+    "/home/steven/.local/state/enclave-rpc-production/manifest.json"
+  ],
+  "existingOtherRemainingGrowthMiB": null,
+  "assumeUnknownPendingZero": false,
+  "storageHeadroomBytes": 300000000000,
+  "sourceReferences": [
+    {
+      "source": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-el-r9-sourceonly-author-prep-20261030-r4/references/reth-merkle-05ba481.rs",
+      "copy": "references/reth-merkle-05ba481.rs",
+      "sha256": "34a877845f9f764e21bff30960ec61a2bb6ce1aa15d8cdba84e749dcd0d04910"
+    },
+    {
+      "source": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-el-r9-sourceonly-author-prep-20261030-r4/references/reth-launch-common-05ba481.rs",
+      "copy": "references/reth-launch-common-05ba481.rs",
+      "sha256": "87a23ec78bb713a9301a56feb86b63a7bd2f100695afdad1f6e4bcc86ba85350"
+    },
+    {
+      "source": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-el-r9-sourceonly-author-prep-20261030-r4/references/reth-pipeline-05ba481.rs",
+      "copy": "references/reth-pipeline-05ba481.rs",
+      "sha256": "8419307f1cefbe4d79df401f05f31a4ea2f2000c226da62e94f39037f93a2b4f"
+    }
+  ],
+  "resultEvidence": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-el-r9-direct-source-r3/PARSED-MAIN.json",
+  "terminalEvidence": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-el-r9-direct-source-r3/ROOT-TERMINAL.json",
+  "installedGuestdUnitFiles": [
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service",
+      "bytes": 1047,
+      "sha256": "48fa9961869d775cc0d6bc5e21d24ed9b5f48784a6781ba3c6b2a0d86079304c"
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/70-protected-ports.conf",
+      "bytes": 956,
+      "sha256": "d0686e07bc87b9b30716a11657d7ac42b6612547fe0b03a467c9b250b5fe4515"
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/80-shield-inference.conf",
+      "bytes": 5092,
+      "sha256": "40aaf3d092987e7b3348f95bf2f332357969670ca55a0f223af5fc8ba05d9634"
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/90-tuna-egress.conf",
+      "bytes": 5117,
+      "sha256": "33f65b768e8e201348c6c17ea27850fd298b9d27cd49f483104dde7320f63da7"
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/95-public-web.conf",
+      "bytes": 5389,
+      "sha256": "36ced5266c6c54bb2b447b9b202a611b62e026a59812fa819dbe3fad5d509303"
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/97-codegen.conf",
+      "bytes": 5522,
+      "sha256": "2d7cdb647bc285f44eea27544054609fa56cca5f2250e65f231789842093f5e5"
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/98-artifact-gateway.conf",
+      "bytes": 5517,
+      "sha256": "7470ab5a3f57b65ebe1be60bb15fb040e81224da69ff5889b3751252a0976e85"
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/99-app-egress.conf",
+      "bytes": 5584,
+      "sha256": "2575f7f3be73cb17185558eb356b36de2474dbd0b30e8cfda5d89365ca6f63fa"
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zz-memory-budget64.conf",
+      "bytes": 5584,
+      "sha256": "95262681ae3f1e6ec83a8bd0ea8d591981519ab88258ed2c82ec4e24b208efe3"
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zzz-eyesoff-vision.conf",
+      "bytes": 6364,
+      "sha256": "621f977837d78660affe966beff5a5e0b50d45c44985d2355460aceb89dfe498"
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zzzz-pad-spill.conf",
+      "bytes": 8711,
+      "sha256": "5ff15a00d3437f389a54977a8c8a70485c71ceb943bd0a1c1274ae846f179446"
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzz-custody.conf",
+      "bytes": 9095,
+      "sha256": "6f86e683d01ed9d2b8d7f37d58e7dc9927df85361782dc9452f2ed347ac24d71"
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzz-zimage.conf",
+      "bytes": 10328,
+      "sha256": "5f3e511a57390bc385a79cb8e3afdf8c71681b8c822fce1bfc2c282ad9118020"
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzz-recovery-pad-location.conf",
+      "bytes": 195,
+      "sha256": "9e08c5115b7df086523ef5e704b280f1e3ea43c5b768f985cc7a98adbe2fc45f"
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzzz-loader-cache-20261028.conf",
+      "bytes": 9837,
+      "sha256": "f2e2d75d53d567bd3e8b7e6deb3c92c756fd5897962721060be447e6a508d5f9"
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzzzz-retire-budget-20261028.conf",
+      "bytes": 10163,
+      "sha256": "1efea8e09eccacd941c1a13875b01698678547c0478a9eaa5830c6a8dc57d7df"
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzzzzz-retire-rollback-20261028.conf",
+      "bytes": 10296,
+      "sha256": "5aadd2b03a78fc543c884bd4b9a26e4a7c417ce5a6b5e0bc69763dd6b124c48d"
+    }
+  ],
+  "installedGuestdExecutable": "/home/steven/enclave-prod/bin/guestd.sdshield-9d1562738cde",
+  "installedGuestdExecutableSha256": "9d1562738cde6d43cef9e58931cb6425542e400b26364986c209e90377759314"
+}

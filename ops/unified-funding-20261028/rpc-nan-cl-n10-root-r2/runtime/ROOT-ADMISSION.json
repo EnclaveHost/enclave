@@ -1,0 +1,598 @@
+{
+  "authorized": true,
+  "at": 1793390577.934583,
+  "scope": "actual-nan-cl-bounded-client-n10",
+  "nonce": "17f00092-bae5-4e2c-a019-8dc6bd496969",
+  "bootId": "4b84b9bd-a89d-4b37-94cb-26334dbf4666",
+  "pinsSha256": "d90427587ddc020bc1cf200533233c86069ef11f71e731f2f3a0a9b1d902d64f",
+  "observationSha256": "2cb00c5d241c139ed93c2fbff51d12a695ebc85997b0e89d65d2084447f733a9",
+  "admission": {
+    "authorized": true,
+    "scope": "nan-cl-only-4096",
+    "nonce": "17f00092-bae5-4e2c-a019-8dc6bd496969",
+    "observedPendingMiB": 0,
+    "osReserveMiB": 2048,
+    "creatorClassification": "two-launches-before-wait-no-repeated-allocator",
+    "at": 1793390556.4467614,
+    "expiresAt": 1793392656.4467614,
+    "ordinaryOsExecutables": [
+      "/usr/bin/dbus-daemon",
+      "/usr/bin/sleep",
+      "/usr/bin/udevadm",
+      "/usr/lib/polkit-1/polkitd",
+      "/usr/lib/systemd/systemd",
+      "/usr/lib/systemd/systemd-journald",
+      "/usr/lib/systemd/systemd-networkd",
+      "/usr/lib/systemd/systemd-resolved",
+      "/usr/lib/systemd/systemd-timesyncd",
+      "/usr/sbin/atd",
+      "/usr/sbin/cron",
+      "/usr/sbin/multipathd",
+      "/usr/sbin/qemu-ga",
+      "/usr/sbin/rsyslogd",
+      "/usr/sbin/sshd"
+    ],
+    "existingOtherProcesses": [
+      "500189:1075251477:/usr/bin/sudo",
+      "500190:1075251478:/usr/bin/systemd-run",
+      "500191:1075251479:/usr/bin/python3.12",
+      "1281392:867080689:/usr/bin/bash"
+    ],
+    "scheduleFiles": [
+      {
+        "path": "/etc/cron.d/e2scrub_all",
+        "sha256": "d4df081b982b23e66cac7102f9d91032f296caf13031991d90af44ee6cbf6e3b"
+      },
+      {
+        "path": "/etc/cron.d/sysstat",
+        "sha256": "47a67deba0d029d43209e6e512399543a945172f2a640021a6c21422a66adb1a"
+      },
+      {
+        "path": "/etc/cron.d/.placeholder",
+        "sha256": "49674d9b1bd433cdb58f30497f6c441dc823de549160eef5c1acec4c20786810"
+      },
+      {
+        "path": "/etc/cron.hourly/.placeholder",
+        "sha256": "49674d9b1bd433cdb58f30497f6c441dc823de549160eef5c1acec4c20786810"
+      },
+      {
+        "path": "/etc/cron.daily/apport",
+        "sha256": "ece406240beddfd8d262a9f0f2ffd5aa40cae4bf5401e7641db3ae1aca737a39"
+      },
+      {
+        "path": "/etc/cron.daily/sysstat",
+        "sha256": "bf4e40f5cbe6a073dbd2b7148a8f4c574e33729426d44b0ef852d78f12c8a0c9"
+      },
+      {
+        "path": "/etc/cron.daily/.placeholder",
+        "sha256": "49674d9b1bd433cdb58f30497f6c441dc823de549160eef5c1acec4c20786810"
+      },
+      {
+        "path": "/etc/cron.daily/logrotate",
+        "sha256": "12b36ff7068d3932f428e6eba07cbc9b9b2f7f7d37756d86ce13ddfcc6cd875f"
+      },
+      {
+        "path": "/etc/cron.daily/dpkg",
+        "sha256": "9f2fdd4b4e7706dda74e8e443e1e1da0fbbb19c62a58e230e90d648b69177c35"
+      },
+      {
+        "path": "/etc/cron.daily/apt-compat",
+        "sha256": "1983c659b042b1ec26127e7874954d83cd97eb8dcfd03238a7d2031ea0182fbe"
+      },
+      {
+        "path": "/etc/cron.daily/man-db",
+        "sha256": "8436d3109f24a1a4e221e765c42b3cc34a455bd30478ad3a09d793c736a8a2e7"
+      },
+      {
+        "path": "/etc/cron.weekly/.placeholder",
+        "sha256": "49674d9b1bd433cdb58f30497f6c441dc823de549160eef5c1acec4c20786810"
+      },
+      {
+        "path": "/etc/cron.weekly/man-db",
+        "sha256": "292aa5e844ae053ede690e31806c0a1f0451789555b3655a1a93221f7df4bfd5"
+      },
+      {
+        "path": "/etc/cron.monthly/.placeholder",
+        "sha256": "49674d9b1bd433cdb58f30497f6c441dc823de549160eef5c1acec4c20786810"
+      },
+      {
+        "path": "/etc/crontab",
+        "sha256": "ffb48ad57868ed639fad049d11ef4b9bcdd3d2d3e556754ce69b4d6b016969a3"
+      }
+    ],
+    "creatorCmdlineSha256": "8a016019ad176a0fcc7113d7117b64a69fdde83a4f54ffc33dc2017f147ea65f",
+    "scheduleDirectories": [
+      {
+        "path": "/etc/cron.d",
+        "entries": [
+          ".placeholder",
+          "e2scrub_all",
+          "sysstat"
+        ]
+      },
+      {
+        "path": "/etc/cron.hourly",
+        "entries": [
+          ".placeholder"
+        ]
+      },
+      {
+        "path": "/etc/cron.daily",
+        "entries": [
+          ".placeholder",
+          "apport",
+          "apt-compat",
+          "dpkg",
+          "logrotate",
+          "man-db",
+          "sysstat"
+        ]
+      },
+      {
+        "path": "/etc/cron.weekly",
+        "entries": [
+          ".placeholder",
+          "man-db"
+        ]
+      },
+      {
+        "path": "/etc/cron.monthly",
+        "entries": [
+          ".placeholder"
+        ]
+      },
+      {
+        "path": "/var/spool/cron/crontabs",
+        "entries": []
+      }
+    ],
+    "timerConfigFiles": [
+      {
+        "path": "/usr/lib/systemd/system/apport-autoreport.service",
+        "sha256": "9be72b6a5ce373fc3c4580cbe3901703a6cb47fff0bde3d2c29fb82d69160b73"
+      },
+      {
+        "path": "/usr/lib/systemd/system/apport-autoreport.timer",
+        "sha256": "72e4700854d2c3babee612f6dda7c1c61caf37878b7adf9663ddbcbbc3e4c9c5"
+      },
+      {
+        "path": "/usr/lib/systemd/system/apt-daily-upgrade.service",
+        "sha256": "da0651537cad0ed384291bd50c0bbc3268e6c625626ec9344150de4e8db3925e"
+      },
+      {
+        "path": "/usr/lib/systemd/system/apt-daily-upgrade.timer",
+        "sha256": "b804d7bab8eb41202384f9270e25d5383346ace8b3d7c4f5029c150638d77bcd"
+      },
+      {
+        "path": "/usr/lib/systemd/system/apt-daily.service",
+        "sha256": "90f87047f4ea2f261f9117d02870de8719f808b911bb1808bf039ff3c162e5e9"
+      },
+      {
+        "path": "/usr/lib/systemd/system/apt-daily.timer",
+        "sha256": "0075e974af4e3a94757e219ba50ccb8348d4d1a8834d938f6cc9b1f4fd1db4e5"
+      },
+      {
+        "path": "/usr/lib/systemd/system/dpkg-db-backup.service",
+        "sha256": "85249c5a74e9c47bf39d34e78612f0a0fe56cb8b35145482b40f8f73f08b2d5c"
+      },
+      {
+        "path": "/usr/lib/systemd/system/dpkg-db-backup.timer",
+        "sha256": "2e0dd766329313bfabd86b1acbd40069510afcfef3935cdea010168b503afde1"
+      },
+      {
+        "path": "/usr/lib/systemd/system/e2scrub_all.service",
+        "sha256": "59a0a04718fcd5e608c9291d41ff378cd531debfa2e6d539add1b716c958a128"
+      },
+      {
+        "path": "/usr/lib/systemd/system/e2scrub_all.timer",
+        "sha256": "23f20fb6edc9fd54bf4754ef4311f88cba45ba65c6aecfa1885e8fb99531c211"
+      },
+      {
+        "path": "/usr/lib/systemd/system/fstrim.service",
+        "sha256": "9d5ab55ca0f12257edd33d154e5dc523ddea4d5f2525557cbf96e30b97deab56"
+      },
+      {
+        "path": "/usr/lib/systemd/system/fstrim.timer",
+        "sha256": "699161252ffaa35a0272aae055e51332df694ff4d28c39f8b666d47ecced3397"
+      },
+      {
+        "path": "/usr/lib/systemd/system/logrotate.service",
+        "sha256": "cc5c35e740bce405c1177903f675e8beb471c2fba394732eaf8100e4e9a5e0fb"
+      },
+      {
+        "path": "/usr/lib/systemd/system/logrotate.timer",
+        "sha256": "42f723dc5d90247a5fda11a3358d1a67eccceed856192b2264aa222d6aa240f4"
+      },
+      {
+        "path": "/usr/lib/systemd/system/man-db.service",
+        "sha256": "c2d010471cf2733569410185944d7b065268a974bf5b986f188a026172b9c69f"
+      },
+      {
+        "path": "/usr/lib/systemd/system/man-db.timer",
+        "sha256": "3a3a1ca2ab2c92fe74bae1257e4c666e5dd0a31f441221dfa809bc0cf6540774"
+      },
+      {
+        "path": "/usr/lib/systemd/system/motd-news.service",
+        "sha256": "b39d6da1bf420221beedb50b2d65f82ce5932c0ec9dba4f5dee5fcad874d6a37"
+      },
+      {
+        "path": "/usr/lib/systemd/system/motd-news.timer",
+        "sha256": "f18dbd0f64344440d7d6e8f1ff302d26fe383921be2a3f13948a8e2e2545ee58"
+      },
+      {
+        "path": "/usr/lib/systemd/system/snapd.snap-repair.service",
+        "sha256": "c7a40c203c7c0656ebec216f506d84bca05ccd035b3bc7be31cd9f3e71d037bb"
+      },
+      {
+        "path": "/usr/lib/systemd/system/snapd.snap-repair.timer",
+        "sha256": "0b9917717923d7e3b086c0dc6873f8df59589c26e8de32749125a1ca76036480"
+      },
+      {
+        "path": "/usr/lib/systemd/system/sysstat-collect.service",
+        "sha256": "94f24387c197affe7ee536eaa9980835a2351b229812cfdb6ab5ff2dabe942f5"
+      },
+      {
+        "path": "/usr/lib/systemd/system/sysstat-collect.timer",
+        "sha256": "241a0094bc117bdbd71e79a3ca1f88920cebac98084aaef89fdb7ac3c72d810b"
+      },
+      {
+        "path": "/usr/lib/systemd/system/sysstat-summary.service",
+        "sha256": "8a153538a8b92e3780011027e5557ee53e178227ba73ac79bad094c9fdda8059"
+      },
+      {
+        "path": "/usr/lib/systemd/system/sysstat-summary.timer",
+        "sha256": "7ff4be8583010655cbde8820e190b8d4329bfce85a0edecddf5e89995b970745"
+      },
+      {
+        "path": "/usr/lib/systemd/system/systemd-tmpfiles-clean.service",
+        "sha256": "91c07d7c7e13eae3dfe5c475eea3df4dc12f93d00b3b6c0b4e6f3f50e8f6cccf"
+      },
+      {
+        "path": "/usr/lib/systemd/system/systemd-tmpfiles-clean.timer",
+        "sha256": "5d0d5e43fba69a001527d4ef354971c9a089b64d7d88973f2c190f7d80b25c61"
+      },
+      {
+        "path": "/usr/lib/systemd/system/ua-timer.service",
+        "sha256": "2bebcb43a4e48724223e58caa0e412e67b58992d916adf72a8a7ca20a34cb551"
+      },
+      {
+        "path": "/usr/lib/systemd/system/ua-timer.timer",
+        "sha256": "298cb263192451d1db12687202a5db3d849f2335db8bec0fc8d99a89f5897175"
+      },
+      {
+        "path": "/usr/lib/systemd/system/update-notifier-download.service",
+        "sha256": "02d1056d34c6b222d96dce8afcf752d7745ecbc76ca0912e96a44910519cf9ab"
+      },
+      {
+        "path": "/usr/lib/systemd/system/update-notifier-download.timer",
+        "sha256": "78f01ff5be8b01eee4c438d6a7971dcb9f34687cb75bd0d61f754eb5eb42ad22"
+      },
+      {
+        "path": "/usr/lib/systemd/system/update-notifier-motd.service",
+        "sha256": "bf11e51d49360c2df12678ee8a2df445a20c12cc4402eb4e291b8edd8ed6924b"
+      },
+      {
+        "path": "/usr/lib/systemd/system/update-notifier-motd.timer",
+        "sha256": "7e5fa1f167ad72cf1bd0421d72ca3017ccb5a62f98d91ec3f9e25efd46c2a9ef"
+      }
+    ],
+    "timerUnitPaths": {
+      "apport-autoreport.service": {
+        "FragmentPath": "/usr/lib/systemd/system/apport-autoreport.service",
+        "DropInPaths": ""
+      },
+      "apport-autoreport.timer": {
+        "FragmentPath": "/usr/lib/systemd/system/apport-autoreport.timer",
+        "DropInPaths": ""
+      },
+      "apt-daily-upgrade.service": {
+        "FragmentPath": "/usr/lib/systemd/system/apt-daily-upgrade.service",
+        "DropInPaths": ""
+      },
+      "apt-daily-upgrade.timer": {
+        "FragmentPath": "/usr/lib/systemd/system/apt-daily-upgrade.timer",
+        "DropInPaths": ""
+      },
+      "apt-daily.service": {
+        "FragmentPath": "/usr/lib/systemd/system/apt-daily.service",
+        "DropInPaths": ""
+      },
+      "apt-daily.timer": {
+        "FragmentPath": "/usr/lib/systemd/system/apt-daily.timer",
+        "DropInPaths": ""
+      },
+      "dpkg-db-backup.service": {
+        "FragmentPath": "/usr/lib/systemd/system/dpkg-db-backup.service",
+        "DropInPaths": ""
+      },
+      "dpkg-db-backup.timer": {
+        "FragmentPath": "/usr/lib/systemd/system/dpkg-db-backup.timer",
+        "DropInPaths": ""
+      },
+      "e2scrub_all.service": {
+        "FragmentPath": "/usr/lib/systemd/system/e2scrub_all.service",
+        "DropInPaths": ""
+      },
+      "e2scrub_all.timer": {
+        "FragmentPath": "/usr/lib/systemd/system/e2scrub_all.timer",
+        "DropInPaths": ""
+      },
+      "fstrim.service": {
+        "FragmentPath": "/usr/lib/systemd/system/fstrim.service",
+        "DropInPaths": ""
+      },
+      "fstrim.timer": {
+        "FragmentPath": "/usr/lib/systemd/system/fstrim.timer",
+        "DropInPaths": ""
+      },
+      "logrotate.service": {
+        "FragmentPath": "/usr/lib/systemd/system/logrotate.service",
+        "DropInPaths": ""
+      },
+      "logrotate.timer": {
+        "FragmentPath": "/usr/lib/systemd/system/logrotate.timer",
+        "DropInPaths": ""
+      },
+      "man-db.service": {
+        "FragmentPath": "/usr/lib/systemd/system/man-db.service",
+        "DropInPaths": ""
+      },
+      "man-db.timer": {
+        "FragmentPath": "/usr/lib/systemd/system/man-db.timer",
+        "DropInPaths": ""
+      },
+      "motd-news.service": {
+        "FragmentPath": "/usr/lib/systemd/system/motd-news.service",
+        "DropInPaths": ""
+      },
+      "motd-news.timer": {
+        "FragmentPath": "/usr/lib/systemd/system/motd-news.timer",
+        "DropInPaths": ""
+      },
+      "snapd.snap-repair.service": {
+        "FragmentPath": "/usr/lib/systemd/system/snapd.snap-repair.service",
+        "DropInPaths": ""
+      },
+      "snapd.snap-repair.timer": {
+        "FragmentPath": "/usr/lib/systemd/system/snapd.snap-repair.timer",
+        "DropInPaths": ""
+      },
+      "sysstat-collect.service": {
+        "FragmentPath": "/usr/lib/systemd/system/sysstat-collect.service",
+        "DropInPaths": ""
+      },
+      "sysstat-collect.timer": {
+        "FragmentPath": "/usr/lib/systemd/system/sysstat-collect.timer",
+        "DropInPaths": ""
+      },
+      "sysstat-summary.service": {
+        "FragmentPath": "/usr/lib/systemd/system/sysstat-summary.service",
+        "DropInPaths": ""
+      },
+      "sysstat-summary.timer": {
+        "FragmentPath": "/usr/lib/systemd/system/sysstat-summary.timer",
+        "DropInPaths": ""
+      },
+      "systemd-tmpfiles-clean.service": {
+        "FragmentPath": "/usr/lib/systemd/system/systemd-tmpfiles-clean.service",
+        "DropInPaths": ""
+      },
+      "systemd-tmpfiles-clean.timer": {
+        "FragmentPath": "/usr/lib/systemd/system/systemd-tmpfiles-clean.timer",
+        "DropInPaths": ""
+      },
+      "ua-timer.service": {
+        "FragmentPath": "/usr/lib/systemd/system/ua-timer.service",
+        "DropInPaths": ""
+      },
+      "ua-timer.timer": {
+        "FragmentPath": "/usr/lib/systemd/system/ua-timer.timer",
+        "DropInPaths": ""
+      },
+      "update-notifier-download.service": {
+        "FragmentPath": "/usr/lib/systemd/system/update-notifier-download.service",
+        "DropInPaths": ""
+      },
+      "update-notifier-download.timer": {
+        "FragmentPath": "/usr/lib/systemd/system/update-notifier-download.timer",
+        "DropInPaths": ""
+      },
+      "update-notifier-motd.service": {
+        "FragmentPath": "/usr/lib/systemd/system/update-notifier-motd.service",
+        "DropInPaths": ""
+      },
+      "update-notifier-motd.timer": {
+        "FragmentPath": "/usr/lib/systemd/system/update-notifier-motd.timer",
+        "DropInPaths": ""
+      }
+    },
+    "timerRows": [
+      [
+        [
+          "apport-autoreport.timer",
+          "apport-autoreport.service"
+        ],
+        [
+          "-"
+        ]
+      ],
+      [
+        [
+          "apt-daily-upgrade.timer",
+          "apt-daily-upgrade.service"
+        ],
+        [
+          "Sat",
+          "2026-10-31",
+          "06:51:49",
+          "UTC"
+        ]
+      ],
+      [
+        [
+          "apt-daily.timer",
+          "apt-daily.service"
+        ],
+        [
+          "Fri",
+          "2026-10-30",
+          "21:46:19",
+          "UTC"
+        ]
+      ],
+      [
+        [
+          "dpkg-db-backup.timer",
+          "dpkg-db-backup.service"
+        ],
+        [
+          "Sat",
+          "2026-10-31",
+          "00:00:00",
+          "UTC"
+        ]
+      ],
+      [
+        [
+          "e2scrub_all.timer",
+          "e2scrub_all.service"
+        ],
+        [
+          "Sun",
+          "2026-11-01",
+          "03:10:07",
+          "UTC"
+        ]
+      ],
+      [
+        [
+          "fstrim.timer",
+          "fstrim.service"
+        ],
+        [
+          "Mon",
+          "2026-11-02",
+          "00:55:00",
+          "UTC"
+        ]
+      ],
+      [
+        [
+          "logrotate.timer",
+          "logrotate.service"
+        ],
+        [
+          "Sat",
+          "2026-10-31",
+          "00:00:00",
+          "UTC"
+        ]
+      ],
+      [
+        [
+          "man-db.timer",
+          "man-db.service"
+        ],
+        [
+          "Sat",
+          "2026-10-31",
+          "05:57:30",
+          "UTC"
+        ]
+      ],
+      [
+        [
+          "motd-news.timer",
+          "motd-news.service"
+        ],
+        [
+          "Sat",
+          "2026-10-31",
+          "05:41:03",
+          "UTC"
+        ]
+      ],
+      [
+        [
+          "snapd.snap-repair.timer",
+          "snapd.snap-repair.service"
+        ],
+        [
+          "-"
+        ]
+      ],
+      [
+        [
+          "sysstat-collect.timer",
+          "sysstat-collect.service"
+        ],
+        [
+          "Fri",
+          "2026-10-30",
+          "20:10:00",
+          "UTC"
+        ]
+      ],
+      [
+        [
+          "sysstat-summary.timer",
+          "sysstat-summary.service"
+        ],
+        [
+          "Sat",
+          "2026-10-31",
+          "00:07:00",
+          "UTC"
+        ]
+      ],
+      [
+        [
+          "systemd-tmpfiles-clean.timer",
+          "systemd-tmpfiles-clean.service"
+        ],
+        [
+          "Sat",
+          "2026-10-31",
+          "09:43:20",
+          "UTC"
+        ]
+      ],
+      [
+        [
+          "ua-timer.timer",
+          "ua-timer.service"
+        ],
+        [
+          "-"
+        ]
+      ],
+      [
+        [
+          "update-notifier-download.timer",
+          "update-notifier-download.service"
+        ],
+        [
+          "Sat",
+          "2026-10-31",
+          "09:34:06",
+          "UTC"
+        ]
+      ],
+      [
+        [
+          "update-notifier-motd.timer",
+          "update-notifier-motd.service"
+        ],
+        [
+          "Tue",
+          "2026-11-03",
+          "23:20:23",
+          "UTC"
+        ]
+      ]
+    ]
+  },
+  "admissionSha256": "88aeec7e58ca112cf09175aa01f442721462f92c670693c82f93f545dee8a26f",
+  "rootReview": "Root verified EL r9 terminal2, all9 local processes gone, exact pins unchanged, independent remote cleanup and original/frozen integrity passed. Fresh Nan same boot,21 processes, empty systemd jobs and at queue; no pending native clients. OS services and unchanged creator plus transient fresh-read sudo/systemd-run/python classified by exact pid/start. Schedule/config hashes exactly match previously reviewed n9: sysstat at ten-minute intervals within horizon through20:44 UTC; hourly cron empty, no user crontabs; apt21:46 and other timers outside horizon. 7294576 KiB available less4352MiB full trial leaves over2048MiB operational OS reserve, continuous guard required; not a universal reservation. Same4GiB client cap and no swap, only qualified allocator configuration changes. No serving managers, app funds, or RPC consumers modified.",
+  "rootReviewSha256": "59e0c9e3a11b5615b40853fb3ce8c2a08c76ce7b8771c1d2308d0cb6811ee6c0"
+}
