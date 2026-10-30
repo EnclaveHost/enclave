@@ -1,0 +1,10 @@
+[queue] START available=31439MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+{"host": "us-west", "files": 1231, "activeRoot": "/opt/enclave-site/bafybeibigqg4v6sd3ebv4hw53d4skfil344rlnwhdnovscj5kskz2k5qmq/site", "matchesPreviousRelease": true}
+{"host": "ca-east", "files": 1231, "activeRoot": "/opt/enclave-site/bafybeibigqg4v6sd3ebv4hw53d4skfil344rlnwhdnovscj5kskz2k5qmq/site", "matchesPreviousRelease": true}
+{"host": "ap-southeast", "files": 1231, "activeRoot": "/opt/enclave-site/bafybeibigqg4v6sd3ebv4hw53d4skfil344rlnwhdnovscj5kskz2k5qmq/site", "matchesPreviousRelease": true}
+{"host": "eu-central", "files": 1231, "activeRoot": "/opt/enclave-site/bafybeibigqg4v6sd3ebv4hw53d4skfil344rlnwhdnovscj5kskz2k5qmq/site", "matchesPreviousRelease": true}
+[memory-guard] exit=0 peakTreeRssMiB=42 minHostAvailableMiB=31365
+[memory-guard] at peak: python3:30 ssh:10 timeout:2
+[memory-guard] exit=0 peakTreeRssMiB=104 minHostAvailableMiB=31364
+[memory-guard] at peak: node:62 python3:30 ssh:10 timeout:2
+[queue] EXIT 0
