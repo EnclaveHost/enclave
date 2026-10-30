@@ -1,0 +1,140 @@
+--- root-r2/client-operations.py
++++ prep-r3/client-operations.py
+@@ -1,8 +1,8 @@
+ # PREPARED ONLY. Appended to the qualified transport/ownership helpers.
+ import pwd,grp,secrets,shutil,urllib.request,urllib.error,contextlib
+-PAYLOAD=EXEC/'payload';SLICE='enclavel1trialr2.slice';GUARD_SLICE='enclavel1guardianr2.slice';ATTACH_SLICE='enclavel1attachr2.slice';NBD_UNIT='enclave-rpc-l1-nbd-r2.service'
+-UNITS={'el':'enclave-rpc-l1-el-trial-r2.service','cl':'enclave-rpc-l1-cl-trial-r2.service'}
+-HELPER='enclave-rpc-l1-helper-r2.service';WATCH='enclave-rpc-l1-watch-r2.service'
++PAYLOAD=EXEC/'payload';SLICE='enclavel1trialr3.slice';GUARD_SLICE='enclavel1guardianr3.slice';ATTACH_SLICE='enclavel1attachr3.slice';NBD_UNIT='enclave-rpc-l1-nbd-r3.service'
++UNITS={'el':'enclave-rpc-l1-el-trial-r3.service','cl':'enclave-rpc-l1-cl-trial-r3.service'}
++HELPER='enclave-rpc-l1-helper-r3.service';WATCH='enclave-rpc-l1-watch-r3.service'
+ STOP=ROOT/'STOP';DONE=ROOT/'CLEANUP.json';LOCK=ROOT/'operation.lock'
+ def atomic_json(path,value):
+     tmp=path.with_suffix('.next')
+@@ -30,39 +30,60 @@
+     try:
+         with STOP.open('x') as f:f.write(reason+'\n');f.flush();os.fsync(f.fileno())
+     except FileExistsError:pass
++def retained_identities():
++    # r2 created these accounts. Reuse only exact, idle mappings; never create/repair them here.
++    expected={'el':('enclavel1el',997,987),'cl':('enclavel1cl',995,986)}
++    assert set(M['identities'])==set(expected),'unexpected-client-identities'
++    assert M['jwtGroup']=={'name':'enclavel1jwt','gid':50002},'unexpected-JWT-identity'
++    provenance=M['retainedAccountProvenance']
++    assert provenance['rootInvocation']=='0481622ff7ed4bdc9284906867ba75d2','wrong-account-provenance'
++    assert provenance['retainedAccounts']=={'users':[{'name':'enclavel1el','uid':997,'gid':987},{'name':'enclavel1cl','uid':995,'gid':986}],'groups':[{'name':'enclavel1el','gid':987},{'name':'enclavel1cl','gid':986},{'name':'enclavel1jwt','gid':50002}]},'wrong-retained-accounts'
++    users=pwd.getpwall();groups=grp.getgrall()
++    result={'users':[],'groups':[]}
++    for side,(name,uid,gid) in expected.items():
++        identity=M['identities'][side]
++        assert (identity['name'],identity['uid'],identity['gid'])==(name,uid,gid),'identity-manifest-drift'
++        matching=[x for x in users if x.pw_name==name or x.pw_uid==uid]
++        assert len(matching)==1,'client-account-missing-or-alias'
++        account=matching[0]
++        assert (account.pw_name,account.pw_uid,account.pw_gid,account.pw_dir,account.pw_shell)==(name,uid,gid,'/nonexistent','/usr/sbin/nologin'),'retained-account-drift'
++        matching=[x for x in groups if x.gr_name==name or x.gr_gid==gid]
++        assert len(matching)==1 and (matching[0].gr_name,matching[0].gr_gid,matching[0].gr_mem)==(name,gid,[]),'retained-group-drift'
++        assert [x.pw_name for x in users if x.pw_gid==gid]==[name],'unexpected-primary-group-user'
++        assert not any(name in x.gr_mem for x in groups),'unexpected-supplementary-group'
++        result['users'].append({'name':name,'uid':uid,'gid':gid})
++        result['groups'].append({'name':name,'gid':gid})
++    matching=[x for x in groups if x.gr_name=='enclavel1jwt' or x.gr_gid==50002]
++    assert len(matching)==1 and (matching[0].gr_name,matching[0].gr_gid,matching[0].gr_mem)==('enclavel1jwt',50002,[]),'retained-JWT-group-drift'
++    assert not any(x.pw_gid==50002 for x in users),'unexpected-JWT-primary-user'
++    result['groups'].append({'name':'enclavel1jwt','gid':50002})
++    count=0;uids={997,995};gids={987,986,50002}
++    for q in P('/proc').iterdir():
++        if not q.name.isdigit():continue
++        count+=1;assert count<=512,'process-census-limit'
++        try:lines=(q/'status').read_text().splitlines()
++        except FileNotFoundError:continue
++        fields={line.split(':',1)[0]:line.split(':',1)[1].split() for line in lines if ':' in line}
++        assert 'Uid' in fields and 'Gid' in fields and 'Groups' in fields,'incomplete-process-identity'
++        assert not(uids & {int(x) for x in fields['Uid']}),'process-occupies-client-UID'
++        assert not(gids & {int(x) for x in fields['Gid']+fields['Groups']}),'process-occupies-client-GID'
++    return result
++
+ def check_owners():
++    retained_identities()
+     records={}
+     for side,identity in M['identities'].items():
+         for rel in identity['paths']:
+             q=MOUNT/rel;st=q.lstat()
+             assert not stat.S_ISLNK(st.st_mode) and st.st_uid==identity['uid'] and st.st_gid==identity['gid'],'unexpected-datadir-owner:'+rel
+             records[rel]={'uid':st.st_uid,'gid':st.st_gid,'mode':st.st_mode,'inode':st.st_ino}
+-        for lookup,value in ((pwd.getpwuid,identity['uid']),(pwd.getpwnam,identity['name']),(grp.getgrgid,identity['gid']),(grp.getgrnam,identity['name'])):
+-            try:lookup(value)
+-            except KeyError:pass
+-            else:raise RuntimeError('identity-already-occupied:'+str(value))
+-    for lookup,value in ((grp.getgrgid,M['jwtGroup']['gid']),(grp.getgrnam,M['jwtGroup']['name'])):
+-        try:lookup(value)
+-        except KeyError:pass
+-        else:raise RuntimeError('JWT-group-occupied')
+-    count=0;uids={x['uid'] for x in M['identities'].values()}
+-    for q in P('/proc').iterdir():
+-        if not q.name.isdigit():continue
+-        count+=1;assert count<=512,'process-census-limit'
+-        try:lines=(q/'status').read_text().splitlines()
+-        except FileNotFoundError:continue
+-        current=next(l for l in lines if l.startswith('Uid:')).split()[1:]
+-        assert not(uids & {int(x) for x in current}),'process-occupies-client-UID'
+     return records
++
+ def create_identities():
+-    for identity in M['identities'].values():
+-        cmd('group:'+identity['name'],['/usr/sbin/groupadd','--system','--gid',str(identity['gid']),identity['name']],5)
+-        s=state();s.setdefault('createdGroups',[]).append({'name':identity['name'],'gid':identity['gid']});save(s)
+-        cmd('user:'+identity['name'],['/usr/sbin/useradd','--system','--uid',str(identity['uid']),'--gid',str(identity['gid']),'--no-create-home','--home-dir','/nonexistent','--shell','/usr/sbin/nologin',identity['name']],5)
+-        s=state();s.setdefault('createdUsers',[]).append({'name':identity['name'],'uid':identity['uid'],'gid':identity['gid']});save(s)
+-        actual=pwd.getpwnam(identity['name']);assert actual.pw_uid==identity['uid'] and actual.pw_gid==identity['gid']
+-    cmd('jwtGroup',['/usr/sbin/groupadd','--system','--gid',str(M['jwtGroup']['gid']),M['jwtGroup']['name']],5)
+-    s=state();s.setdefault('createdGroups',[]).append(M['jwtGroup']);save(s)
++    # Retain call-site compatibility; this revision performs verification only.
++    identities=retained_identities()
++    s=state();s['reusedUsers']=identities['users'];s['reusedGroups']=identities['groups'];save(s)
++
+ def create_slice():
+     for unit,mib,cpu in ((SLICE,2304,100),(GUARD_SLICE,128,50)):
+         path=P('/run/systemd/system')/unit
+@@ -98,7 +119,31 @@
+     s=state();s.setdefault('clientLaunchIntents',{})[side]={'description':description(side),'unit':UNITS[side],'executable':str(PAYLOAD/'chain_service.py'),'user':identity['name']};save(s)
+     cmd('start:'+side,argv,8)
+     info=unit_info(UNITS[side]);assert info.get('User')==identity['name'] and info.get('Group')==identity['name']
++    cg=info.get('ControlGroup')
++    assert cg=='/'+SLICE+'/'+UNITS[side],'unexpected-client-cgroup'
++    st=(P('/sys/fs/cgroup'+cg)).stat()
++    info['cgroupIdentity']=[st.st_dev,st.st_ino]
+     return info
++
++def sample_client_memory(clients):
++    values={}
++    for side,info in clients.items():
++        record={'unit':UNITS[side],'invocationID':info.get('InvocationID'),'controlGroup':info.get('ControlGroup')}
++        values[side]=record
++        try:
++            cg=info.get('ControlGroup')
++            assert cg=='/'+SLICE+'/'+UNITS[side],'unexpected-client-cgroup'
++            q=P('/sys/fs/cgroup'+cg);st=q.stat()
++            assert [st.st_dev,st.st_ino]==info['cgroupIdentity'],'client-cgroup-replaced'
++            for name in ('memory.current','memory.peak','memory.events','memory.stat'):
++                with (q/name).open() as f:value=f.read(32769)
++                assert len(value)<=32768,'memory-field-limit'
++                record[name]=value.strip()
++            st=q.stat();assert [st.st_dev,st.st_ino]==info['cgroupIdentity'],'client-cgroup-replaced'
++        except FileNotFoundError:record['unavailable']='owned-cgroup-removed'
++        except Exception as e:record['unavailable']=type(e).__name__
++    return values
++
+ def sample_rpc():
+     value={}
+     for name,url,request in (
+@@ -122,7 +167,7 @@
+                 try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB);break
+                 except BlockingIOError:
+                     assert time.monotonic()<until,'mutation-lock-timeout';time.sleep(.1)
+-            s=state();receipt['retainedAccounts']={'users':s.get('createdUsers',[]),'groups':s.get('createdGroups',[])}
++            s=state();receipt['retainedAccounts']={'users':s.get('createdUsers',[])+s.get('reusedUsers',[]),'groups':s.get('createdGroups',[])+s.get('reusedGroups',[])}
+             for side,unit in UNITS.items():
+                 expected=s.get('clients',{}).get(side,{}).get('InvocationID')
+                 info=owned_info(unit,side,M['identities'][side]['name'],str(PAYLOAD/'chain_service.py'),expected)

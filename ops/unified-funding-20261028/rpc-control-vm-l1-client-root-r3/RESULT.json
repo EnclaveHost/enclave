@@ -1,0 +1,384 @@
+{
+  "status": "CLIENT_TRIAL_FAILED_NO_RETRY",
+  "errors": [
+    "AssertionError:remote:main"
+  ],
+  "results": {
+    "originalBackingChain": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.1057517530862242,
+      "stdout": "[\n    {\n        \"children\": [\n            {\n                \"name\": \"file\",\n                \"info\": {\n                    \"children\": [\n                    ],\n                    \"virtual-size\": 528387407872,\n                    \"filename\": \"/vm/enclave-volumes/rpc-production/l1-origin.qcow2\",\n                    \"format\": \"file\",\n                    \"actual-size\": 461808537600,\n                    \"format-specific\": {\n                        \"type\": \"file\",\n                        \"data\": {\n                        }\n                    },\n                    \"dirty-flag\": false\n                }\n            }\n        ],\n        \"virtual-size\": 4000000000000,\n        \"filename\": \"/vm/enclave-volumes/rpc-production/l1-origin.qcow2\",\n        \"cluster-size\": 65536,\n        \"format\": \"qcow2\",\n        \"actual-size\": 461808537600,\n        \"format-specific\": {\n            \"type\": \"qcow2\",\n            \"data\": {\n                \"compat\": \"1.1\",\n                \"compression-type\": \"zlib\",\n                \"lazy-refcounts\": false,\n                \"refcount-bits\": 16,\n                \"corrupt\": false,\n                \"extended-l2\": false\n            }\n        },\n        \"dirty-flag\": false\n    }\n]\n",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 1204,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "createPrivateClientCow": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.1614057889673859,
+      "stdout": "Formatting '/vm/enclave-volumes/rpc-control-l1-client-r3/overlay.qcow2', fmt=qcow2 cluster_size=65536 extended_l2=off compression_type=zlib size=4000000000000 backing_file=/vm/enclave-volumes/rpc-production/l1-origin.qcow2 backing_fmt=qcow2 lazy_refcounts=off refcount_bits=16\n",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 277,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "backingChain": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.10481007001362741,
+      "stdout": "[\n    {\n        \"children\": [\n            {\n                \"name\": \"file\",\n                \"info\": {\n                    \"children\": [\n                    ],\n                    \"virtual-size\": 256512,\n                    \"filename\": \"/vm/enclave-volumes/rpc-control-l1-client-r3/overlay.qcow2\",\n                    \"format\": \"file\",\n                    \"actual-size\": 258048,\n                    \"format-specific\": {\n                        \"type\": \"file\",\n                        \"data\": {\n                        }\n                    },\n                    \"dirty-flag\": false\n                }\n            }\n        ],\n        \"backing-filename-format\": \"qcow2\",\n        \"virtual-size\": 4000000000000,\n        \"filename\": \"/vm/enclave-volumes/rpc-control-l1-client-r3/overlay.qcow2\",\n        \"cluster-size\": 65536,\n        \"format\": \"qcow2\",\n        \"actual-size\": 258048,\n        \"format-specific\": {\n            \"type\": \"qcow2\",\n            \"data\": {\n                \"compat\": \"1.1\",\n                \"compression-type\": \"zlib\",\n                \"lazy-refcounts\": false,\n                \"refcount-bits\": 16,\n                \"corrupt\": false,\n                \"extended-l2\": false\n            }\n        },\n        \"full-backing-filename\": \"/vm/enclave-volumes/rpc-production/l1-origin.qcow2\",\n        \"backing-filename\": \"/vm/enclave-volumes/rpc-production/l1-origin.qcow2\",\n        \"dirty-flag\": false\n    },\n    {\n        \"children\": [\n            {\n                \"name\": \"file\",\n                \"info\": {\n                    \"children\": [\n                    ],\n                    \"virtual-size\": 528387407872,\n                    \"filename\": \"/vm/enclave-volumes/rpc-production/l1-origin.qcow2\",\n                    \"format\": \"file\",\n                    \"actual-size\": 461808537600,\n                    \"format-specific\": {\n                        \"type\": \"file\",\n                        \"data\": {\n                        }\n                    },\n                    \"dirty-flag\": false\n                }\n            }\n        ],\n        \"virtual-size\": 4000000000000,\n        \"filename\": \"/vm/enclave-volumes/rpc-production/l1-origin.qcow2\",\n        \"cluster-size\": 65536,\n        \"format\": \"qcow2\",\n        \"actual-size\": 461808537600,\n        \"format-specific\": {\n            \"type\": \"qcow2\",\n            \"data\": {\n                \"compat\": \"1.1\",\n                \"compression-type\": \"zlib\",\n                \"lazy-refcounts\": false,\n                \"refcount-bits\": 16,\n                \"corrupt\": false,\n                \"extended-l2\": false\n            }\n        },\n        \"dirty-flag\": false\n    }\n]\n",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 2616,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "uploadDirectory": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.6896822149865329,
+      "stdout": "",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 173,
+      "stdinBytesRequested": 173,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "upload:reth": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 1.6292516849935055,
+      "stdout": "",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "upload:lighthouse": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 1.4344270278234035,
+      "stdout": "",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "upload:manifest.json": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.4680802410002798,
+      "stdout": "",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "upload:chain.json": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.45193401095457375,
+      "stdout": "",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "upload:chain_service.py": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.45073704118840396,
+      "stdout": "",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "upload:disks.json": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.44793408596888185,
+      "stdout": "",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "upload:original-reth.toml": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.3543470180593431,
+      "stdout": "",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "upload:proposed-reth.toml": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.35471765394322574,
+      "stdout": "",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "upload:program.py": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.4764331199694425,
+      "stdout": "",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "bootstrap": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.8749226350337267,
+      "stdout": "{\"root\": \"/run/enclave-rpc-l1-client-r3\", \"programSha256\": \"5b16cd9e5253cc3856c9c67df826357fdf83ad5d766af9e8e700878af29a76f5\", \"sliceMaximum\": 134217728, \"clientStarted\": false}\n",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 178,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 20058,
+      "stdinBytesRequested": 20058,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "remote:main": {
+      "rc": 2,
+      "reason": null,
+      "elapsedSeconds": 5.843223168049008,
+      "stdout": "RESULT_JSON={\"action\": \"main\", \"cleanup\": {\"clients\": {\"cl\": {\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"Description\": \"enclave-rpc-l1-cl-trial-r3.service\", \"DropInPaths\": \"\", \"ExecMainCode\": \"0\", \"ExecMainStatus\": \"0\", \"FragmentPath\": \"\", \"Group\": \"\", \"InvocationID\": \"\", \"LoadState\": \"not-found\", \"MainPID\": \"0\", \"Result\": \"success\", \"SubState\": \"dead\", \"Transient\": \"no\", \"User\": \"\"}, \"el\": {\"ActiveState\": \"failed\", \"ControlGroup\": \"\", \"Description\": \"Enclave L1 ffacb9ab-4999-4182-8746-694d0a26b8af el\", \"DropInPaths\": \"\", \"ExecMainCode\": \"1\", \"ExecMainStatus\": \"1\", \"ExecStart\": \"{ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 -I -B /var/lib/enclave-rpc-l1-client-r3/payload/chain_service.py el ; ignore_errors=no ; start_time=[Fri 2026-10-30 14:01:56 UTC] ; stop_time=[Fri 2026-10-30 14:01:56 UTC] ; pid=300015 ; code=exited ; status=1 }\", \"FragmentPath\": \"/run/systemd/transient/enclave-rpc-l1-el-trial-r3.service\", \"Group\": \"enclavel1el\", \"InvocationID\": \"b069700cbb5d47358ad44ee3f3f18055\", \"LoadState\": \"loaded\", \"MainPID\": \"0\", \"Result\": \"exit-code\", \"SubState\": \"failed\", \"Transient\": \"yes\", \"User\": \"enclavel1el\"}}, \"errors\": [], \"nbdUnit\": {\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"Description\": \"enclave-rpc-l1-nbd-r3.service\", \"DropInPaths\": \"\", \"ExecMainCode\": \"0\", \"ExecMainStatus\": \"0\", \"FragmentPath\": \"\", \"Group\": \"\", \"InvocationID\": \"\", \"LoadState\": \"not-found\", \"MainPID\": \"0\", \"Result\": \"success\", \"SubState\": \"dead\", \"Transient\": \"no\", \"User\": \"\"}, \"ok\": true, \"ownedInvocations\": {\"el\": \"b069700cbb5d47358ad44ee3f3f18055\"}, \"reason\": \"main-error\", \"retainedAccounts\": {\"groups\": [{\"gid\": 987, \"name\": \"enclavel1el\"}, {\"gid\": 986, \"name\": \"enclavel1cl\"}, {\"gid\": 50002, \"name\": \"enclavel1jwt\"}], \"users\": [{\"gid\": 987, \"name\": \"enclavel1el\", \"uid\": 997}, {\"gid\": 986, \"name\": \"enclavel1cl\", \"uid\": 995}]}}, \"daemonReload\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.18127253302372992, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}, \"errors\": [\"FileNotFoundError:[Errno 2] No such file or directory: '/sys/fs/cgroup/enclavel1trialr3.slice/enclave-rpc-l1-el-trial-r3.service'\"], \"exportInfo\": {\"bytes\": 4000000000000, \"flags\": 3181}, \"filesystemUuid\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 37}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.4330829529790208, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"a2f2a8b5-06ac-4612-95a0-f48a00a7f6e0\\n\", \"truncated\": false}, \"jwtCreatedPrivately\": true, \"lastHeadroom\": {\"available\": 7254781952, \"existingRemainingCapGrowth\": 2404167680, \"floor\": 1610612736, \"groups\": [{\"current\": 0, \"maximum\": 2415919104, \"path\": \"/enclavel1trialr3.slice\"}, {\"current\": 134082560, \"maximum\": 134217728, \"path\": \"/enclavel1attachr3.slice\"}, {\"current\": 13967360, \"maximum\": 134217728, \"path\": \"/enclavel1guardianr3.slice\"}], \"residual\": 2314309632, \"trialCurrent\": 148049920, \"trialMaximum\": 2684354560, \"trialPending\": 2536304640}, \"libraryOwner:ld-linux-x86-64.so.2\": {\"bytesObserved\": {\"stderr\": 86, \"stdout\": 60}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.12913746293634176, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 1, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"dpkg-query: no path found matching pattern /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2\\n\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"libc6:amd64: /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2\\n\", \"truncated\": false}, \"libraryOwner:libc.so.6\": {\"bytesObserved\": {\"stderr\": 75, \"stdout\": 49}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.12319914693944156, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 1, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"dpkg-query: no path found matching pattern /lib/x86_64-linux-gnu/libc.so.6\\n\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"libc6:amd64: /usr/lib/x86_64-linux-gnu/libc.so.6\\n\", \"truncated\": false}, \"libraryOwner:libgcc_s.so.1\": {\"bytesObserved\": {\"stderr\": 79, \"stdout\": 57}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.12646321405190974, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 1, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"dpkg-query: no path found matching pattern /lib/x86_64-linux-gnu/libgcc_s.so.1\\n\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"libgcc-s1:amd64: /usr/lib/x86_64-linux-gnu/libgcc_s.so.1\\n\", \"truncated\": false}, \"libraryOwner:libm.so.6\": {\"bytesObserved\": {\"stderr\": 75, \"stdout\": 49}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.12564766104333103, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 1, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"dpkg-query: no path found matching pattern /lib/x86_64-linux-gnu/libm.so.6\\n\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"libc6:amd64: /usr/lib/x86_64-linux-gnu/libm.so.6\\n\", \"truncated\": false}, \"libraryOwner:libstdc++.so.6\": {\"bytesObserved\": {\"stderr\": 85, \"stdout\": 64}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.1476613519480452, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 1, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"dpkg-query: no path found matching pattern /lib/x86_64-linux-gnu/libstdc++.so.6.0.33\\n\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"libstdc++6:amd64: /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33\\n\", \"truncated\": false}, \"libraryOwner:libz.so.1\": {\"bytesObserved\": {\"stderr\": 77, \"stdout\": 52}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.12496849906165153, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 1, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"dpkg-query: no path found matching pattern /lib/x86_64-linux-gnu/libz.so.1.3\\n\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"zlib1g:amd64: /usr/lib/x86_64-linux-gnu/libz.so.1.3\\n\", \"truncated\": false}, \"libraryVersion:ld-linux-x86-64.so.2\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 19}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.10532454599160701, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"2.39-0ubuntu8.9\\tii \", \"truncated\": false}, \"libraryVersion:libc.so.6\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 19}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.10574695107061416, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"2.39-0ubuntu8.9\\tii \", \"truncated\": false}, \"libraryVersion:libgcc_s.so.1\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 27}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.10565820604097098, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"14.2.0-4ubuntu2~24.04.1\\tii \", \"truncated\": false}, \"libraryVersion:libm.so.6\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 19}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.10564314795192331, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"2.39-0ubuntu8.9\\tii \", \"truncated\": false}, \"libraryVersion:libstdc++.so.6\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 27}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.10445099894423038, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"14.2.0-4ubuntu2~24.04.1\\tii \", \"truncated\": false}, \"libraryVersion:libz.so.1\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 27}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.10617913608439267, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"1:1.3.dfsg-3.1ubuntu2.3\\tii \", \"truncated\": false}, \"loadModule\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.013209776021540165, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}, \"ok\": false, \"owners\": {\"cl\": {\"gid\": 986, \"inode\": 540673, \"mode\": 16872, \"uid\": 995}, \"cl/beacon\": {\"gid\": 986, \"inode\": 540674, \"mode\": 16872, \"uid\": 995}, \"cl/beacon/chain_db\": {\"gid\": 986, \"inode\": 540679, \"mode\": 16872, \"uid\": 995}, \"data\": {\"gid\": 987, \"inode\": 1789953, \"mode\": 16872, \"uid\": 997}, \"data/db\": {\"gid\": 987, \"inode\": 1792001, \"mode\": 16872, \"uid\": 997}, \"data/db/mdbx.dat\": {\"gid\": 987, \"inode\": 1792003, \"mode\": 33188, \"uid\": 997}, \"data/reth.toml\": {\"gid\": 987, \"inode\": 1791598, \"mode\": 33184, \"uid\": 997}, \"data/static_files\": {\"gid\": 987, \"inode\": 1789956, \"mode\": 16872, \"uid\": 997}, \"tmp\": {\"gid\": 987, \"inode\": 1292289, \"mode\": 16872, \"uid\": 997}, \"tmp-cl\": {\"gid\": 986, \"inode\": 1130497, \"mode\": 16872, \"uid\": 995}}, \"privateCowWritableMount\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.2270518420264125, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}, \"readOnlyPreflightMount\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.2627630210481584, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}, \"runtimeLibraries\": [{\"bytes\": 2592224, \"installedVersion\": \"14.2.0-4ubuntu2~24.04.1\", \"name\": \"libstdc++.so.6\", \"package\": \"libstdc++6:amd64\", \"path\": \"/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33\", \"sha256\": \"1fd75fe70354a416d75aef22bcae68c47bd25d20e2d0568c30b1a9838cf62f11\"}, {\"bytes\": 952616, \"installedVersion\": \"2.39-0ubuntu8.9\", \"name\": \"libm.so.6\", \"package\": \"libc6:amd64\", \"path\": \"/usr/lib/x86_64-linux-gnu/libm.so.6\", \"sha256\": \"fce00b6f25f459cf4ae0b7fae4257909a1a8a86f9149e7c029a5d617baf1ccd0\"}, {\"bytes\": 2129424, \"installedVersion\": \"2.39-0ubuntu8.9\", \"name\": \"libc.so.6\", \"package\": \"libc6:amd64\", \"path\": \"/usr/lib/x86_64-linux-gnu/libc.so.6\", \"sha256\": \"3a15d66867d83762c7f2f1e37359cb8f6c5743edb369c65285cb0b1c4f7498bf\"}, {\"bytes\": 236616, \"installedVersion\": \"2.39-0ubuntu8.9\", \"name\": \"ld-linux-x86-64.so.2\", \"package\": \"libc6:amd64\", \"path\": \"/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2\", \"sha256\": \"c20a2dc8917c755f02b94049356320fe1f62ac7d9f8994731f807d9df39302da\"}, {\"bytes\": 183024, \"installedVersion\": \"14.2.0-4ubuntu2~24.04.1\", \"name\": \"libgcc_s.so.1\", \"package\": \"libgcc-s1:amd64\", \"path\": \"/usr/lib/x86_64-linux-gnu/libgcc_s.so.1\", \"sha256\": \"d93224d2b0dab4247598be683adca02f5cf00586f99c187579cd7e92058fb7cb\"}, {\"bytes\": 113000, \"installedVersion\": \"1:1.3.dfsg-3.1ubuntu2.3\", \"name\": \"libz.so.1\", \"package\": \"zlib1g:amd64\", \"path\": \"/usr/lib/x86_64-linux-gnu/libz.so.1.3\", \"sha256\": \"f61677c7bdb7c2aa2a243ea781bfd16afcb361cede7b4ef76127a9d8eb9a5242\"}], \"start:el\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.02054512407630682, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}, \"startNBDUnit\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.018382867914624512, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}, \"startSlices\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.006447383901104331, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}, \"startWatchdog\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.015825084992684424, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}, \"unit:enclave-rpc-l1-cl-trial-r3.service\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 240}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.00518699805252254, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nResult=success\\nExecMainCode=0\\nExecMainStatus=0\\nControlGroup=\\nUser=\\nGroup=\\nDescription=enclave-rpc-l1-cl-trial-r3.service\\nLoadState=not-found\\nActiveState=inactive\\nSubState=dead\\nFragmentPath=\\nDropInPaths=\\nTransient=no\\nInvocationID=\\n\", \"truncated\": false}, \"unit:enclave-rpc-l1-el-trial-r3.service\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 679}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.1069886030163616, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=300015\\nResult=success\\nExecMainCode=0\\nExecMainStatus=0\\nExecStart={ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 -I -B /var/lib/enclave-rpc-l1-client-r3/payload/chain_service.py el ; ignore_errors=no ; start_time=[Fri 2026-10-30 14:01:56 UTC] ; stop_time=[n/a] ; pid=300015 ; code=(null) ; status=0/0 }\\nControlGroup=/enclavel1trialr3.slice/enclave-rpc-l1-el-trial-r3.service\\nUser=enclavel1el\\nGroup=enclavel1el\\nDescription=Enclave L1 ffacb9ab-4999-4182-8746-694d0a26b8af el\\nLoadState=loaded\\nActiveState=active\\nSubState=running\\nFragmentPath=/run/systemd/transient/enclave-rpc-l1-el-trial-r3.service\\nDropInPaths=\\nTransient=yes\\nInvocationID=b069700cbb5d47358ad44ee3f3f18055\\n\", \"truncated\": false}, \"unit:enclave-rpc-l1-nbd-r3.service\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 779}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.10984252695925534, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=299997\\nResult=success\\nExecMainCode=0\\nExecMainStatus=0\\nExecStart={ path=/var/lib/enclave-rpc-l1-client-r3/nbd-client ; argv[]=/var/lib/enclave-rpc-l1-client-r3/nbd-client -n -L -u -N enclave-l1-client-ffacb9ab-4999-4182-8746-694d0a26b8af -t 5 -b 4096 /home/controladmin/rpc-l1-client-r3/export.sock /dev/nbd7 ; ignore_errors=no ; start_time=[Fri 2026-10-30 14:01:54 UTC] ; stop_time=[n/a] ; pid=299997 ; code=(null) ; status=0/0 }\\nControlGroup=/enclavel1attachr3.slice/enclave-rpc-l1-nbd-r3.service\\nUser=root\\nGroup=\\nDescription=Enclave L1 ffacb9ab-4999-4182-8746-694d0a26b8af nbd\\nLoadState=loaded\\nActiveState=active\\nSubState=running\\nFragmentPath=/run/systemd/transient/enclave-rpc-l1-nbd-r3.service\\nDropInPaths=\\nTransient=yes\\nInvocationID=f53c051080a240a49ccd851cabfacc6d\\n\", \"truncated\": false}, \"unit:enclave-rpc-l1-watch-r3.service\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 649}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.0053941329242661595, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=299962\\nResult=success\\nExecMainCode=0\\nExecMainStatus=0\\nExecStart={ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 -B /run/enclave-rpc-l1-client-r3/program.py watchdog ; ignore_errors=no ; start_time=[Fri 2026-10-30 14:01:54 UTC] ; stop_time=[n/a] ; pid=299962 ; code=(null) ; status=0/0 }\\nControlGroup=/enclavel1guardianr3.slice/enclave-rpc-l1-watch-r3.service\\nUser=root\\nGroup=\\nDescription=Enclave L1 ffacb9ab-4999-4182-8746-694d0a26b8af watchdog\\nLoadState=loaded\\nActiveState=active\\nSubState=running\\nFragmentPath=/run/systemd/transient/enclave-rpc-l1-watch-r3.service\\nDropInPaths=\\nTransient=yes\\nInvocationID=3932c7abf55243c38234731e9a57f439\\n\", \"truncated\": false}, \"unit:enclavel1guardianr3.slice\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 159}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.005976076936349273, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"ControlGroup=\\nDescription=Slice /enclavel1guardianr3\\nLoadState=loaded\\nActiveState=inactive\\nSubState=dead\\nFragmentPath=\\nDropInPaths=\\nTransient=no\\nInvocationID=\\n\", \"truncated\": false}, \"unit:enclavel1trialr3.slice\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 156}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.004052145057357848, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"ControlGroup=\\nDescription=Slice /enclavel1trialr3\\nLoadState=loaded\\nActiveState=inactive\\nSubState=dead\\nFragmentPath=\\nDropInPaths=\\nTransient=no\\nInvocationID=\\n\", \"truncated\": false}, \"unmountPreflight\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.005592452944256365, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}}\nSTOP_POST_JSON={\"action\": \"wait-cleanup\", \"cleanup\": {\"clients\": {\"cl\": {\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"Description\": \"enclave-rpc-l1-cl-trial-r3.service\", \"DropInPaths\": \"\", \"ExecMainCode\": \"0\", \"ExecMainStatus\": \"0\", \"FragmentPath\": \"\", \"Group\": \"\", \"InvocationID\": \"\", \"LoadState\": \"not-found\", \"MainPID\": \"0\", \"Result\": \"success\", \"SubState\": \"dead\", \"Transient\": \"no\", \"User\": \"\"}, \"el\": {\"ActiveState\": \"failed\", \"ControlGroup\": \"\", \"Description\": \"Enclave L1 ffacb9ab-4999-4182-8746-694d0a26b8af el\", \"DropInPaths\": \"\", \"ExecMainCode\": \"1\", \"ExecMainStatus\": \"1\", \"ExecStart\": \"{ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 -I -B /var/lib/enclave-rpc-l1-client-r3/payload/chain_service.py el ; ignore_errors=no ; start_time=[Fri 2026-10-30 14:01:56 UTC] ; stop_time=[Fri 2026-10-30 14:01:56 UTC] ; pid=300015 ; code=exited ; status=1 }\", \"FragmentPath\": \"/run/systemd/transient/enclave-rpc-l1-el-trial-r3.service\", \"Group\": \"enclavel1el\", \"InvocationID\": \"b069700cbb5d47358ad44ee3f3f18055\", \"LoadState\": \"loaded\", \"MainPID\": \"0\", \"Result\": \"exit-code\", \"SubState\": \"failed\", \"Transient\": \"yes\", \"User\": \"enclavel1el\"}}, \"errors\": [], \"nbdUnit\": {\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"Description\": \"enclave-rpc-l1-nbd-r3.service\", \"DropInPaths\": \"\", \"ExecMainCode\": \"0\", \"ExecMainStatus\": \"0\", \"FragmentPath\": \"\", \"Group\": \"\", \"InvocationID\": \"\", \"LoadState\": \"not-found\", \"MainPID\": \"0\", \"Result\": \"success\", \"SubState\": \"dead\", \"Transient\": \"no\", \"User\": \"\"}, \"ok\": true, \"ownedInvocations\": {\"el\": \"b069700cbb5d47358ad44ee3f3f18055\"}, \"reason\": \"main-error\", \"retainedAccounts\": {\"groups\": [{\"gid\": 987, \"name\": \"enclavel1el\"}, {\"gid\": 986, \"name\": \"enclavel1cl\"}, {\"gid\": 50002, \"name\": \"enclavel1jwt\"}], \"users\": [{\"gid\": 987, \"name\": \"enclavel1el\", \"uid\": 997}, {\"gid\": 986, \"name\": \"enclavel1cl\", \"uid\": 995}]}}, \"errors\": [], \"ok\": true, \"unit:enclave-rpc-l1-watch-r3.service\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 607}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.004739084048196673, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nResult=success\\nExecMainCode=1\\nExecMainStatus=0\\nExecStart={ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 -B /run/enclave-rpc-l1-client-r3/program.py watchdog ; ignore_errors=no ; start_time=[Fri 2026-10-30 14:01:54 UTC] ; stop_time=[Fri 2026-10-30 14:01:57 UTC] ; pid=299962 ; code=exited ; status=0 }\\nControlGroup=\\nUser=root\\nGroup=\\nDescription=Enclave L1 ffacb9ab-4999-4182-8746-694d0a26b8af watchdog\\nLoadState=loaded\\nActiveState=inactive\\nSubState=dead\\nFragmentPath=/run/systemd/transient/enclave-rpc-l1-watch-r3.service\\nDropInPaths=\\nTransient=yes\\nInvocationID=3932c7abf55243c38234731e9a57f439\\n\", \"truncated\": false}}\n",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 22984,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "remote:request-stop": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.6030261078849435,
+      "stdout": "RESULT_JSON={\"action\": \"request-stop\", \"errors\": [], \"ok\": true, \"stopRequested\": true, \"unit:enclave-rpc-l1-watch-r3.service\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 607}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.004797362023964524, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nResult=success\\nExecMainCode=1\\nExecMainStatus=0\\nExecStart={ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 -B /run/enclave-rpc-l1-client-r3/program.py watchdog ; ignore_errors=no ; start_time=[Fri 2026-10-30 14:01:54 UTC] ; stop_time=[Fri 2026-10-30 14:01:57 UTC] ; pid=299962 ; code=exited ; status=0 }\\nControlGroup=\\nUser=root\\nGroup=\\nDescription=Enclave L1 ffacb9ab-4999-4182-8746-694d0a26b8af watchdog\\nLoadState=loaded\\nActiveState=inactive\\nSubState=dead\\nFragmentPath=/run/systemd/transient/enclave-rpc-l1-watch-r3.service\\nDropInPaths=\\nTransient=yes\\nInvocationID=3932c7abf55243c38234731e9a57f439\\n\", \"truncated\": false}}\n",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 1137,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "remote:verify": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.7973346260841936,
+      "stdout": "RESULT_JSON={\"action\": \"verify\", \"cleanup\": {\"clients\": {\"cl\": {\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"Description\": \"enclave-rpc-l1-cl-trial-r3.service\", \"DropInPaths\": \"\", \"ExecMainCode\": \"0\", \"ExecMainStatus\": \"0\", \"FragmentPath\": \"\", \"Group\": \"\", \"InvocationID\": \"\", \"LoadState\": \"not-found\", \"MainPID\": \"0\", \"Result\": \"success\", \"SubState\": \"dead\", \"Transient\": \"no\", \"User\": \"\"}, \"el\": {\"ActiveState\": \"failed\", \"ControlGroup\": \"\", \"Description\": \"Enclave L1 ffacb9ab-4999-4182-8746-694d0a26b8af el\", \"DropInPaths\": \"\", \"ExecMainCode\": \"1\", \"ExecMainStatus\": \"1\", \"ExecStart\": \"{ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 -I -B /var/lib/enclave-rpc-l1-client-r3/payload/chain_service.py el ; ignore_errors=no ; start_time=[Fri 2026-10-30 14:01:56 UTC] ; stop_time=[Fri 2026-10-30 14:01:56 UTC] ; pid=300015 ; code=exited ; status=1 }\", \"FragmentPath\": \"/run/systemd/transient/enclave-rpc-l1-el-trial-r3.service\", \"Group\": \"enclavel1el\", \"InvocationID\": \"b069700cbb5d47358ad44ee3f3f18055\", \"LoadState\": \"loaded\", \"MainPID\": \"0\", \"Result\": \"exit-code\", \"SubState\": \"failed\", \"Transient\": \"yes\", \"User\": \"enclavel1el\"}}, \"errors\": [], \"nbdUnit\": {\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"Description\": \"enclave-rpc-l1-nbd-r3.service\", \"DropInPaths\": \"\", \"ExecMainCode\": \"0\", \"ExecMainStatus\": \"0\", \"FragmentPath\": \"\", \"Group\": \"\", \"InvocationID\": \"\", \"LoadState\": \"not-found\", \"MainPID\": \"0\", \"Result\": \"success\", \"SubState\": \"dead\", \"Transient\": \"no\", \"User\": \"\"}, \"ok\": true, \"ownedInvocations\": {\"el\": \"b069700cbb5d47358ad44ee3f3f18055\"}, \"reason\": \"main-error\", \"retainedAccounts\": {\"groups\": [{\"gid\": 987, \"name\": \"enclavel1el\"}, {\"gid\": 986, \"name\": \"enclavel1cl\"}, {\"gid\": 50002, \"name\": \"enclavel1jwt\"}], \"users\": [{\"gid\": 987, \"name\": \"enclavel1el\", \"uid\": 997}, {\"gid\": 986, \"name\": \"enclavel1cl\", \"uid\": 995}]}}, \"enclave-rpc-l1-cl-trial-r3.service\": {\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"Description\": \"enclave-rpc-l1-cl-trial-r3.service\", \"DropInPaths\": \"\", \"ExecMainCode\": \"0\", \"ExecMainStatus\": \"0\", \"FragmentPath\": \"\", \"Group\": \"\", \"InvocationID\": \"\", \"LoadState\": \"not-found\", \"MainPID\": \"0\", \"Result\": \"success\", \"SubState\": \"dead\", \"Transient\": \"no\", \"User\": \"\"}, \"enclave-rpc-l1-el-trial-r3.service\": {\"ActiveState\": \"failed\", \"ControlGroup\": \"\", \"Description\": \"Enclave L1 ffacb9ab-4999-4182-8746-694d0a26b8af el\", \"DropInPaths\": \"\", \"ExecMainCode\": \"1\", \"ExecMainStatus\": \"1\", \"ExecStart\": \"{ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 -I -B /var/lib/enclave-rpc-l1-client-r3/payload/chain_service.py el ; ignore_errors=no ; start_time=[Fri 2026-10-30 14:01:56 UTC] ; stop_time=[Fri 2026-10-30 14:01:56 UTC] ; pid=300015 ; code=exited ; status=1 }\", \"FragmentPath\": \"/run/systemd/transient/enclave-rpc-l1-el-trial-r3.service\", \"Group\": \"enclavel1el\", \"InvocationID\": \"b069700cbb5d47358ad44ee3f3f18055\", \"LoadState\": \"loaded\", \"MainPID\": \"0\", \"Result\": \"exit-code\", \"SubState\": \"failed\", \"Transient\": \"yes\", \"User\": \"enclavel1el\"}, \"enclave-rpc-l1-helper-r3.service\": {\"ActiveState\": \"failed\", \"ControlGroup\": \"\", \"Description\": \"/usr/bin/python3 -B /run/enclave-rpc-l1-client-r3/program.py main\", \"DropInPaths\": \"\", \"ExecMainCode\": \"1\", \"ExecMainStatus\": \"2\", \"ExecStart\": \"{ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 -B /run/enclave-rpc-l1-client-r3/program.py main ; ignore_errors=no ; start_time=[Fri 2026-10-30 14:01:52 UTC] ; stop_time=[Fri 2026-10-30 14:01:57 UTC] ; pid=299886 ; code=exited ; status=2 }\", \"FragmentPath\": \"/run/systemd/transient/enclave-rpc-l1-helper-r3.service\", \"Group\": \"\", \"InvocationID\": \"931da85371bb49fe9b3081a5b914fcec\", \"LoadState\": \"loaded\", \"MainPID\": \"0\", \"Result\": \"exit-code\", \"SubState\": \"failed\", \"Transient\": \"yes\", \"User\": \"root\"}, \"enclave-rpc-l1-nbd-r3.service\": {\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"Description\": \"enclave-rpc-l1-nbd-r3.service\", \"DropInPaths\": \"\", \"ExecMainCode\": \"0\", \"ExecMainStatus\": \"0\", \"FragmentPath\": \"\", \"Group\": \"\", \"InvocationID\": \"\", \"LoadState\": \"not-found\", \"MainPID\": \"0\", \"Result\": \"success\", \"SubState\": \"dead\", \"Transient\": \"no\", \"User\": \"\"}, \"enclave-rpc-l1-watch-r3.service\": {\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"Description\": \"Enclave L1 ffacb9ab-4999-4182-8746-694d0a26b8af watchdog\", \"DropInPaths\": \"\", \"ExecMainCode\": \"1\", \"ExecMainStatus\": \"0\", \"ExecStart\": \"{ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 -B /run/enclave-rpc-l1-client-r3/program.py watchdog ; ignore_errors=no ; start_time=[Fri 2026-10-30 14:01:54 UTC] ; stop_time=[Fri 2026-10-30 14:01:57 UTC] ; pid=299962 ; code=exited ; status=0 }\", \"FragmentPath\": \"/run/systemd/transient/enclave-rpc-l1-watch-r3.service\", \"Group\": \"\", \"InvocationID\": \"3932c7abf55243c38234731e9a57f439\", \"LoadState\": \"loaded\", \"MainPID\": \"0\", \"Result\": \"success\", \"SubState\": \"dead\", \"Transient\": \"yes\", \"User\": \"root\"}, \"errors\": [], \"ok\": true, \"remoteCleanupVerified\": true, \"unit:enclave-rpc-l1-cl-trial-r3.service\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 240}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.10420308005996048, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nResult=success\\nExecMainCode=0\\nExecMainStatus=0\\nControlGroup=\\nUser=\\nGroup=\\nDescription=enclave-rpc-l1-cl-trial-r3.service\\nLoadState=not-found\\nActiveState=inactive\\nSubState=dead\\nFragmentPath=\\nDropInPaths=\\nTransient=no\\nInvocationID=\\n\", \"truncated\": false}, \"unit:enclave-rpc-l1-el-trial-r3.service\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 639}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.004055620986036956, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nResult=exit-code\\nExecMainCode=1\\nExecMainStatus=1\\nExecStart={ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 -I -B /var/lib/enclave-rpc-l1-client-r3/payload/chain_service.py el ; ignore_errors=no ; start_time=[Fri 2026-10-30 14:01:56 UTC] ; stop_time=[Fri 2026-10-30 14:01:56 UTC] ; pid=300015 ; code=exited ; status=1 }\\nControlGroup=\\nUser=enclavel1el\\nGroup=enclavel1el\\nDescription=Enclave L1 ffacb9ab-4999-4182-8746-694d0a26b8af el\\nLoadState=loaded\\nActiveState=failed\\nSubState=failed\\nFragmentPath=/run/systemd/transient/enclave-rpc-l1-el-trial-r3.service\\nDropInPaths=\\nTransient=yes\\nInvocationID=b069700cbb5d47358ad44ee3f3f18055\\n\", \"truncated\": false}, \"unit:enclave-rpc-l1-helper-r3.service\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 615}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.004295198014006019, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nResult=exit-code\\nExecMainCode=1\\nExecMainStatus=2\\nExecStart={ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 -B /run/enclave-rpc-l1-client-r3/program.py main ; ignore_errors=no ; start_time=[Fri 2026-10-30 14:01:52 UTC] ; stop_time=[Fri 2026-10-30 14:01:57 UTC] ; pid=299886 ; code=exited ; status=2 }\\nControlGroup=\\nUser=root\\nGroup=\\nDescription=/usr/bin/python3 -B /run/enclave-rpc-l1-client-r3/program.py main\\nLoadState=loaded\\nActiveState=failed\\nSubState=failed\\nFragmentPath=/run/systemd/transient/enclave-rpc-l1-helper-r3.service\\nDropInPaths=\\nTransient=yes\\nInvocationID=931da85371bb49fe9b3081a5b914fcec\\n\", \"truncated\": false}, \"unit:enclave-rpc-l1-nbd-r3.service\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 235}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.005530567024834454, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nResult=success\\nExecMainCode=0\\nExecMainStatus=0\\nControlGroup=\\nUser=\\nGroup=\\nDescription=enclave-rpc-l1-nbd-r3.service\\nLoadState=not-found\\nActiveState=inactive\\nSubState=dead\\nFragmentPath=\\nDropInPaths=\\nTransient=no\\nInvocationID=\\n\", \"truncated\": false}, \"unit:enclave-rpc-l1-watch-r3.service\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 607}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.10428470000624657, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nResult=success\\nExecMainCode=1\\nExecMainStatus=0\\nExecStart={ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 -B /run/enclave-rpc-l1-client-r3/program.py watchdog ; ignore_errors=no ; start_time=[Fri 2026-10-30 14:01:54 UTC] ; stop_time=[Fri 2026-10-30 14:01:57 UTC] ; pid=299962 ; code=exited ; status=0 }\\nControlGroup=\\nUser=root\\nGroup=\\nDescription=Enclave L1 ffacb9ab-4999-4182-8746-694d0a26b8af watchdog\\nLoadState=loaded\\nActiveState=inactive\\nSubState=dead\\nFragmentPath=/run/systemd/transient/enclave-rpc-l1-watch-r3.service\\nDropInPaths=\\nTransient=yes\\nInvocationID=3932c7abf55243c38234731e9a57f439\\n\", \"truncated\": false}}\n",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 9447,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "stop:tunnel-trial": {
+      "pid": 2843878,
+      "rc": 255,
+      "reaped": true
+    },
+    "remote:socket-clear": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.567299178102985,
+      "stdout": "RESULT_JSON={\"action\": \"socket-clear\", \"cleanup\": {\"clients\": {\"cl\": {\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"Description\": \"enclave-rpc-l1-cl-trial-r3.service\", \"DropInPaths\": \"\", \"ExecMainCode\": \"0\", \"ExecMainStatus\": \"0\", \"FragmentPath\": \"\", \"Group\": \"\", \"InvocationID\": \"\", \"LoadState\": \"not-found\", \"MainPID\": \"0\", \"Result\": \"success\", \"SubState\": \"dead\", \"Transient\": \"no\", \"User\": \"\"}, \"el\": {\"ActiveState\": \"failed\", \"ControlGroup\": \"\", \"Description\": \"Enclave L1 ffacb9ab-4999-4182-8746-694d0a26b8af el\", \"DropInPaths\": \"\", \"ExecMainCode\": \"1\", \"ExecMainStatus\": \"1\", \"ExecStart\": \"{ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 -I -B /var/lib/enclave-rpc-l1-client-r3/payload/chain_service.py el ; ignore_errors=no ; start_time=[Fri 2026-10-30 14:01:56 UTC] ; stop_time=[Fri 2026-10-30 14:01:56 UTC] ; pid=300015 ; code=exited ; status=1 }\", \"FragmentPath\": \"/run/systemd/transient/enclave-rpc-l1-el-trial-r3.service\", \"Group\": \"enclavel1el\", \"InvocationID\": \"b069700cbb5d47358ad44ee3f3f18055\", \"LoadState\": \"loaded\", \"MainPID\": \"0\", \"Result\": \"exit-code\", \"SubState\": \"failed\", \"Transient\": \"yes\", \"User\": \"enclavel1el\"}}, \"errors\": [], \"nbdUnit\": {\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"Description\": \"enclave-rpc-l1-nbd-r3.service\", \"DropInPaths\": \"\", \"ExecMainCode\": \"0\", \"ExecMainStatus\": \"0\", \"FragmentPath\": \"\", \"Group\": \"\", \"InvocationID\": \"\", \"LoadState\": \"not-found\", \"MainPID\": \"0\", \"Result\": \"success\", \"SubState\": \"dead\", \"Transient\": \"no\", \"User\": \"\"}, \"ok\": true, \"ownedInvocations\": {\"el\": \"b069700cbb5d47358ad44ee3f3f18055\"}, \"reason\": \"main-error\", \"retainedAccounts\": {\"groups\": [{\"gid\": 987, \"name\": \"enclavel1el\"}, {\"gid\": 986, \"name\": \"enclavel1cl\"}, {\"gid\": 50002, \"name\": \"enclavel1jwt\"}], \"users\": [{\"gid\": 987, \"name\": \"enclavel1el\", \"uid\": 997}, {\"gid\": 986, \"name\": \"enclavel1cl\", \"uid\": 995}]}}, \"errors\": [], \"ok\": true, \"socketClosedVerified\": true}\n",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 1911,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "stop:export-trial": {
+      "pid": 2843871,
+      "rc": 0,
+      "reaped": true
+    }
+  },
+  "remoteCleanupVerified": true,
+  "parentUnchanged": true,
+  "privateCowRetained": "/vm/enclave-volumes/rpc-control-l1-client-r3/overlay.qcow2",
+  "productionReady": false,
+  "consumerChanged": false,
+  "baseStarted": false
+}

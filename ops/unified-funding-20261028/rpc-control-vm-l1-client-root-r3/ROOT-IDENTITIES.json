@@ -1,0 +1,54 @@
+{
+  "at": 1793368902.7273092,
+  "unit": "enclave-rpc-control-vm-l1-client-prep-r3-20261030.service",
+  "systemd": {
+    "ActiveState": "active",
+    "InvocationID": "5b2e44a0ed014595a8172b187d8ecf1b",
+    "MainPID": "2843759",
+    "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-control-vm-l1-client-prep-r3-20261030.service"
+  },
+  "processes": [
+    {
+      "pid": 2843759,
+      "start": "167401642",
+      "exe": "/proc/2843759/exe",
+      "cwd": "/proc/2843759/cwd",
+      "cmdline": "(taskset)                                                            ",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-control-vm-l1-client-prep-r3-20261030.service",
+      "affinity": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ]
+    }
+  ]
+}

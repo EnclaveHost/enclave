@@ -1,0 +1,14 @@
+{
+  "originalLocalFile": "PINS.json",
+  "originalSha256": "3ed036e8cfd592416802859eb93c58a483f5b672d2fd0e6d2f3a5f68835d2b4b",
+  "records": [
+    {
+      "path": "ROOT-ADMISSION.md",
+      "sha256": "31d13cc7d0ace9589624db726c1307517bbd510ffa7e84501f84183b845b8feb"
+    },
+    {
+      "path": "run.py",
+      "sha256": "c000c707f13074abc6e35673b147813bb941800f86b33a9fd242f3da1c2fd31e"
+    }
+  ]
+}

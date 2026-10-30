@@ -1,0 +1,30 @@
+--- root-r2/client-main.py
++++ prep-r3/client-main.py
+@@ -86,7 +86,7 @@
+         config=MOUNT/'data/reth.toml';assert sha(config)==M['originalTomlSha256']
+         assert (MOUNT/'snapshot-complete').is_file() and (MOUNT/'cl/beacon/chain_db').is_dir(),'actual-database-missing'
+         for unit in UNITS.values():assert unit_info(unit).get('LoadState')=='not-found','unit-preexists:'+unit
+-        # Verify fresh account mappings before creating any identity. No existing file owner changes.
++        # Verify exact idle retained r2 account mappings. No account or file-owner changes.
+         create_identities()
+         cmd('unmountPreflight',['/usr/bin/umount',str(MOUNT)],10)
+         cmd('privateCowWritableMount',['/usr/bin/mount','-t','ext4','-o','rw,nosuid,nodev,noexec',str(DEV),str(MOUNT)],10)
+@@ -110,7 +110,8 @@
+             info=start_client(side);s=state();s['clients'][side]=info;save(s)
+     samples=[];until=time.monotonic()+90
+     while time.monotonic()<until and not STOP.exists():
+-        headroom();sample={'at':time.time(),'rpc':sample_rpc()}
++        headroom();sample={'at':time.time(),'clientMemory':sample_client_memory(s['clients'])}
++        sample['rpc']=sample_rpc()
+         q=P('/sys/fs/cgroup')/SLICE
+         sample['memory']={n:read(q/n) for n in ('memory.current','memory.peak','memory.events')}
+         samples.append(sample);time.sleep(2)
+@@ -131,7 +132,7 @@
+     os.umask(0o077)
+     assert os.geteuid()==0 and read('/proc/sys/kernel/random/boot_id')==M['bootId']
+     assert sha(ROOT/'program.py')==M['programSha256']
+-    cg=read('/proc/self/cgroup');assert (cg.startswith('0::/enclavel1attachr2.slice/enclave-rpc-l1-') or cg.startswith('0::/enclavel1guardianr2.slice/enclave-rpc-l1-')) and cg.endswith('.service')
++    cg=read('/proc/self/cgroup');assert (cg.startswith('0::/enclavel1attachr3.slice/enclave-rpc-l1-') or cg.startswith('0::/enclavel1guardianr3.slice/enclave-rpc-l1-')) and cg.endswith('.service')
+     c=P('/sys/fs/cgroup'+cg[3:]);assert read(c/'memory.max')==str(128<<20) and read(c/'memory.swap.max')=='0'
+     for row in M['remotePins']:pin(row)
+     def terminated(signum,frame):raise RuntimeError('unit-termination')

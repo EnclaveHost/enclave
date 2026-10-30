@@ -1,0 +1,9 @@
+{
+  "disks": [
+    {
+      "role": "l1",
+      "mount": "/srv/enclave-l1-pair-r4",
+      "uuid": "a2f2a8b5-06ac-4612-95a0-f48a00a7f6e0"
+    }
+  ]
+}

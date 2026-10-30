@@ -1,0 +1,44 @@
+--- root-r2/EXTERNAL-PINS.json
++++ prep-r3/EXTERNAL-PINS.json
+@@ -190,5 +190,41 @@
+     "realpath": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-identity-r1/RESULT.json",
+     "bytes": 22692,
+     "sha256": "4c69b04a42088202413c2f8a9eade4f6ce2c092724804fd8959d349951229df7"
++  },
++  {
++    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r2/PINS.json",
++    "realpath": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r2/PINS.json",
++    "bytes": 3905,
++    "sha256": "de902a05f4ce25e3898b1213d645d5619361411fb255314cd23600089c2cd20e"
++  },
++  {
++    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r2/MANIFEST.json",
++    "realpath": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r2/MANIFEST.json",
++    "bytes": 11242,
++    "sha256": "03c2fd0e6315913d3644d408e249135d73bdecbe284e01e7462fe17b2ee640d5"
++  },
++  {
++    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r2/PARSED-MAIN.json",
++    "realpath": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r2/PARSED-MAIN.json",
++    "bytes": 35673,
++    "sha256": "6eb1de87eadcefbb34c5187bf7287774a20042c742d6955de7803264977e9a59"
++  },
++  {
++    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r2/RESULT.json",
++    "realpath": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r2/RESULT.json",
++    "bytes": 67968,
++    "sha256": "ff4728ad7f747a24b30873bacd763bbc18c6f0274ee5ac4ed3287928b7243b8c"
++  },
++  {
++    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r2/ROOT-TERMINAL.json",
++    "realpath": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r2/ROOT-TERMINAL.json",
++    "bytes": 347,
++    "sha256": "b376a7291a25a46c4c38a4e9c40b885f2d70bb4b2233ca7d3e62b61f8cceaa0a"
++  },
++  {
++    "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-l1-cache-r3-source-prep-20261030/PINS.json",
++    "realpath": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-l1-cache-r3-source-prep-20261030/PINS.json",
++    "bytes": 1925,
++    "sha256": "6ac58b657916e74fc915964199e6f59afcb92f92f1b40dbccef4c72036b7821a"
+   }
+ ]

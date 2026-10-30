@@ -1,0 +1,1 @@
+One exact public EL invocation journal read, bounded35 records/32768bytes/remote64MiB15sCPU1noSwap/local256/220floor27648CPU1noSwap. No client restart, private environment/config/journal reads or mutation. Source suspected payload manifest mount mismatch; actual error required.

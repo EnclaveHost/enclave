@@ -1,0 +1,14 @@
+{
+  "priorPinsSha256": "962c08b990d7fe27656ea1a5afcd9d89cdf3d2beca545fcd2286171a2a34075a",
+  "priorTerminalSha256": "03697ad064746bbabae79aba1f5d1ec935036c5553d9170e5f3a8e115b466e42",
+  "diagnosticSha256": "fc9701440bc5c5538cd4eb4a371874443b2da0e178a138bff44948112549f65d",
+  "originalPayloadManifest": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/payload-v2/manifest.json",
+    "sha256": "c35ec24b39b4cff06a72c00a5fcc032a035658d314771f9072b881f9258a0fb7"
+  },
+  "onlyPayloadSemanticChange": "mounts.l1",
+  "mountConsistency": true,
+  "programsReassembled": true,
+  "syntaxOnly": true,
+  "nativeExecuted": false
+}

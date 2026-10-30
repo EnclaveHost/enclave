@@ -1,0 +1,25 @@
+{
+  "status": "PREPARED_ONLY_FROZEN_UNRUN",
+  "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r2",
+  "sourcePinsSha256": "de902a05f4ce25e3898b1213d645d5619361411fb255314cd23600089c2cd20e",
+  "scope": "actual-l1-bounded-client-r3",
+  "nativeExecution": false,
+  "pythonAstParsed": false,
+  "testsRun": false,
+  "remoteContacts": false,
+  "clientLimitMiB": 2304,
+  "attachmentLimitMiB": 128,
+  "guardianLimitMiB": 128,
+  "totalGuestLimitMiB": 2560,
+  "changedCacheArgs": [
+    "--state-cache-size",
+    "2",
+    "--hdiff-buffer-cache-size",
+    "1",
+    "--shuffling-cache-size",
+    "1"
+  ],
+  "remoteProgramSha256": "5b16cd9e5253cc3856c9c67df826357fdf83ad5d766af9e8e700878af29a76f5",
+  "runSha256": "f168d9efe929b7c263bc34ed2045ba2739904f5fd26aa24a5779523c6f793670",
+  "priorRootInvocation": "0481622ff7ed4bdc9284906867ba75d2"
+}

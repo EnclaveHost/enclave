@@ -1,0 +1,7 @@
+# R3 configuration failure before the cache hypothesis was exercised
+
+Invocation5b2e44a0ed014595a8172b187d8ecf1b terminal2/MainPID0 after18s. EL wrapper exited1 before Reth execution; Lighthouse was not launched. New per-client cgroup sampling saw the EL cgroup already gone, a secondary symptom. Exact EL invocationb069700cbb5d47358ad44ee3f3f18055 journal diagnostic6a083f98d54e49019d3376cc5ddc3e12 terminal0 confirms AssertionError: dedicated mount absent. Top manifest/disks/helper moved to fresh-r3 mount, but nested payload manifest retained the original mount path. Root review missed this configuration-reference mismatch. No memory-fit result.
+
+Independent cleanup verified clients dead, NBD unmounted/detached/module unloaded/socket cleared; original parent unchanged, private r3 COW retained. Account exact-reuse check passed with no account mutation. All32pins unchanged. Only original mainPID2843759 was sampled before quick terminal; later descendant sampling found it already gone, no fabricated child start identities. Export/tunnel termination receipts retained. No Base or production consumer changes.
+
+Separate corrected r4 uses a private payload-manifest copy whose sole semantic change is mounts.l1 to fresh r4 mount, with payload hash/bytes regenerated and static consistency checked across manifest/disks/helper/wrapper. All resource caps, retention/custody and cleanup remain. r3 is retained unchanged and never rerun.

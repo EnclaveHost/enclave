@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.8635307820513844,
+  "stdout": "Traceback (most recent call last):\n  File \"/var/lib/enclave-rpc-l1-client-r3/payload/chain_service.py\", line 572, in <module>\n    main(sys.argv[1:])\n  File \"/var/lib/enclave-rpc-l1-client-r3/payload/chain_service.py\", line 567, in main\n    run(argv[0])\n  File \"/var/lib/enclave-rpc-l1-client-r3/payload/chain_service.py\", line 464, in run\n    base = mount(role, side)\n           ^^^^^^^^^^^^^^^^^\n  File \"/var/lib/enclave-rpc-l1-client-r3/payload/chain_service.py\", line 29, in mount\n    assert d['mount'] == expected and os.path.ismount(expected), 'dedicated mount absent'\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: dedicated mount absent\n",
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+  "bytesObserved": {
+    "stdout": 677,
+    "stderr": 222
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

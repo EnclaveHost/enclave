@@ -1,0 +1,8 @@
+{
+  "authorized": true,
+  "at": 1793368902.7032356,
+  "scope": "actual-l1-bounded-client-r3",
+  "pinsSha256": "962c08b990d7fe27656ea1a5afcd9d89cdf3d2beca545fcd2286171a2a34075a",
+  "reason": "Root-reviewed cache2/1/1 change, exact retained account reuse, fresh COW, unchanged resource/custody/history/cleanup guards; no production switch",
+  "sourceCommit": "d2b153d3b9e3b29a007568f644a8a8441007a35c"
+}
