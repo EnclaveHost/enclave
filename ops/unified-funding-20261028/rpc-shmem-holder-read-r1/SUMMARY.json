@@ -1,0 +1,15 @@
+{
+  "readOnly": true,
+  "counts": {
+    "pids": 47,
+    "groups": 1,
+    "fdEntries": 325,
+    "mapMetadataBytes": 231834
+  },
+  "distinctCandidateObjects": 0,
+  "objects": [],
+  "unresolvedProcesses": 0,
+  "unresolvedHolderCount": 0,
+  "rawPathsPrivate": true,
+  "cleanupAuthorized": false
+}

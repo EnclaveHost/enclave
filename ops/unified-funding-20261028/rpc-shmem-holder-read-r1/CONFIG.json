@@ -1,0 +1,10 @@
+{
+  "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+  "identity": [
+    29,
+    2182628
+  ],
+  "boot": "b5382987-896d-4f01-938b-12d1bb149fd5",
+  "purpose": "read-only holder metadata; no contents or cleanup",
+  "readOnly": true
+}

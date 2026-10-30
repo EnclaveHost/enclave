@@ -1,0 +1,9 @@
+{
+  "rc": 0,
+  "at": 1793392701.954133,
+  "output": "{\"observedUtc\":\"2026-10-30T20:38:21.8618282Z\",\"bootUtc\":\"2026-10-23T08:29:16.5000000Z\",\"totalPhysicalKiB\":117255972,\"freePhysicalKiB\":81898540,\"totalVirtualKiB\":274768516,\"freeVirtualKiB\":226996900,\"vms\":[{\"Id\":\"1ca457d6-17bf-47fa-ad26-72770d74e08b\",\"State\":2,\"MemoryAssigned\":536870912,\"MemoryDemand\":0,\"DynamicMemoryEnabled\":false,\"MemoryStartup\":536870912,\"MemoryMinimum\":536870912,\"MemoryMaximum\":1099511627776,\"ProcessorCount\":1},{\"Id\":\"1b81f648-59a6-4906-b034-86faaa42dc49\",\"State\":2,\"MemoryAssigned\":2147483648,\"MemoryDemand\":0,\"DynamicMemoryEnabled\":false,\"MemoryStartup\":2147483648,\"MemoryMinimum\":536870912,\"MemoryMaximum\":1099511627776,\"ProcessorCount\":1},{\"Id\":\"d715126f-2227-428f-80ce-59c14caa8a90\",\"State\":2,\"MemoryAssigned\":2732589056,\"MemoryDemand\":0,\"DynamicMemoryEnabled\":false,\"MemoryStartup\":2732589056,\"MemoryMinimum\":536870912,\"MemoryMaximum\":1099511627776,\"ProcessorCount\":1},{\"Id\":\"dd8df95d-b771-4545-a861-0092e74a40f3\",\"State\":2,\"MemoryAssigned\":8589934592,\"MemoryDemand\":2061500416,\"DynamicMemoryEnabled\":false,\"MemoryStartup\":8589934592,\"MemoryMinimum\":536870912,\"MemoryMaximum\":1099511627776,\"ProcessorCount\":4},{\"Id\":\"4a4ddcac-d06f-4a5c-b96e-e692302db5c8\",\"State\":2,\"MemoryAssigned\":4294967296,\"MemoryDemand\":2490368000,\"DynamicMemoryEnabled\":false,\"MemoryStartup\":4294967296,\"MemoryMinimum\":536870912,\"MemoryMaximum\":1099511627776,\"ProcessorCount\":2}],\"pendingCommitments\":\"NOT_QUERIED\",\"admitted\":false}\r\n",
+  "stderrBytes": 1062,
+  "capacityAdmitted": false,
+  "pending": "UNKNOWN",
+  "nativeExecutionQualified": false
+}
