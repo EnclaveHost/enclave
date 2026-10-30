@@ -1,0 +1,42 @@
+{
+  "at": 1793373475.9635997,
+  "invocation": "276307fb5f814474bbafce6aad4d620e",
+  "processes": [
+    {
+      "pid": 2883418,
+      "start": "167845774",
+      "sameIdentityStillPresent": false
+    },
+    {
+      "pid": 2883419,
+      "start": "167845779",
+      "sameIdentityStillPresent": false
+    },
+    {
+      "pid": 2883426,
+      "start": "167845783",
+      "sameIdentityStillPresent": false
+    },
+    {
+      "pid": 2883433,
+      "start": "167845785",
+      "sameIdentityStillPresent": false
+    },
+    {
+      "pid": 2883464,
+      "start": "167846100",
+      "sameIdentityStillPresent": false
+    },
+    {
+      "pid": 2883465,
+      "start": "167846100",
+      "sameIdentityStillPresent": false
+    }
+  ],
+  "inputDrift": [],
+  "result": "CLIENT_TRIAL_FAILED_NO_RETRY",
+  "mainErrors": [
+    "AssertionError:filesystemUuid"
+  ],
+  "independentCleanup": true
+}

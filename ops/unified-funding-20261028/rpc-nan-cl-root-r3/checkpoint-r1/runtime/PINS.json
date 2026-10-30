@@ -1,0 +1,17 @@
+{
+  "EXTERNAL-PINS.json": "a1a8e6b334ce924510c3cdfd1e76f3f9f699a95762d89850f22e6dbd7f743063",
+  "MANIFEST.json": "4a8839fc2c557d3c74fa225b0ae1b6ca90f99e67bb179275b741021c137a1e97",
+  "capture-local.py": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c",
+  "capture-remote.py": "aee3fe3b07126b8cc8b3b3fd4225ebc94e42ae2344177ef316106899ec642655",
+  "client-main.py": "bf788e1d544f5d7b160552adfa71e43ed6b7b33dd1d8f30ae69a6f5a3ae1ffff",
+  "client-operations.py": "13f0881f142f8f7180eb74b775449d2913fabd300d023c125d76a9af3f3bb214",
+  "disks.json": "5e520ca214c93c23589a42d48c8eda3b25d6362e3db95335887e612b185c5aa0",
+  "nan-admission.py": "d91c2b966c8d6c72137c69026afc75e4dca74cd2faeabdfad27daee834b49af6",
+  "ownership.py": "38e40f7a2635de6a995d4d5a99ecdaf0f24d09c1fe99192c201e343657d859f4",
+  "payload-manifest.json": "3bcf3cc56896db486ed80661e744547a14e300814f47cd17d57ae3cd76aafd68",
+  "remote-program.py": "df8c67c073db6ab8b716cc8cd7bcfa7a308cdd28685cd28628bb605681c290ad",
+  "run-body.py": "4f11fcf67220b976b9e4f19df58c8690a9a36efd3a1ab9b5158fdad5415b4977",
+  "run.py": "89fa9d65763977241bf040cb553c118f9e744d6e97a60570d4f272663ef9448a",
+  "transport-helpers.py": "0208486c3334244a6756d9ab8ef695a2b37161daaac2d860b58d8edde8b47fc7",
+  "trial-chain-service.py": "593afa9a1fa3e4a098f90d262095a401f39cacdea619174ce31b2ff71d025790"
+}

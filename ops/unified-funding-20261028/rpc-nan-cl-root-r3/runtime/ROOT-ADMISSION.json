@@ -1,0 +1,10 @@
+{
+  "authorized": true,
+  "at": 1793373764.5318544,
+  "scope": "actual-nan-cl-bounded-client-n3",
+  "pinsSha256": "1e5a87e0ee89dc4d446dd1470ceeb24ec5cc9c25ac8fc892a19f23314f48ca56",
+  "admissionSha256": "23a1500620c7ad0bea6bde2b11a43520189352991bc7f997e06d963648e7291a",
+  "sourceTests": 36,
+  "sourceReview": "Single4096 O_DIRECT child; CRC32C and exactUUID/dev; cleanstate1/norecovery/noorphans. Peer static review and final orphan predicates root reviewed. Existing caps and original image preserved.",
+  "noProductionConsumerChange": true
+}

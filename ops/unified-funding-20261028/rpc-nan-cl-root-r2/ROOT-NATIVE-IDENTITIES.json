@@ -1,0 +1,181 @@
+{
+  "unit": {
+    "ActiveState": "active",
+    "InvocationID": "276307fb5f814474bbafce6aad4d620e",
+    "MainPID": "2883418",
+    "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-nan-cl-native-n2-20261030.service"
+  },
+  "processes": [
+    {
+      "pid": 2883418,
+      "parent": 1899,
+      "start": "167845774",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py",
+        "--mib",
+        "512",
+        "--log",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r2/native.outer.log",
+        "--",
+        "/usr/bin/node",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs",
+        "--max-rss-mib",
+        "450",
+        "--floor-available-mib",
+        "27648",
+        "--log",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r2/native.inner.log",
+        "--",
+        "/usr/bin/python3",
+        "-B",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r2/runtime/run.py"
+      ],
+      "affinity": [
+        1
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-nan-cl-native-n2-20261030.service"
+    },
+    {
+      "pid": 2883419,
+      "parent": 2883418,
+      "start": "167845779",
+      "exe": "/usr/bin/node",
+      "cwd": "/home/steven",
+      "argv": [
+        "/usr/bin/node",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs",
+        "--max-rss-mib",
+        "512",
+        "--floor-available-mib",
+        "16384",
+        "--log",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r2/native.outer.log",
+        "--",
+        "/usr/bin/node",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs",
+        "--max-rss-mib",
+        "450",
+        "--floor-available-mib",
+        "27648",
+        "--log",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r2/native.inner.log",
+        "--",
+        "/usr/bin/python3",
+        "-B",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r2/runtime/run.py"
+      ],
+      "affinity": [
+        1
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2883419-i44814319.scope"
+    },
+    {
+      "pid": 2883426,
+      "parent": 2883419,
+      "start": "167845783",
+      "exe": "/usr/bin/node",
+      "cwd": "/home/steven",
+      "argv": [
+        "/usr/bin/node",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs",
+        "--max-rss-mib",
+        "450",
+        "--floor-available-mib",
+        "27648",
+        "--log",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r2/native.inner.log",
+        "--",
+        "/usr/bin/python3",
+        "-B",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r2/runtime/run.py"
+      ],
+      "affinity": [
+        1
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2883419-i44814319.scope"
+    },
+    {
+      "pid": 2883433,
+      "parent": 2883426,
+      "start": "167845785",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "argv": [
+        "/usr/bin/python3",
+        "-B",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r2/runtime/run.py"
+      ],
+      "affinity": [
+        1
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2883419-i44814319.scope"
+    },
+    {
+      "pid": 2883464,
+      "parent": 2883433,
+      "start": "167846100",
+      "exe": "/usr/bin/scp",
+      "cwd": "/home/steven",
+      "argv": [
+        "/usr/bin/scp",
+        "-q",
+        "-oBatchMode=yes",
+        "-oStrictHostKeyChecking=yes",
+        "-oConnectTimeout=5",
+        "-oControlMaster=no",
+        "-oControlPath=none",
+        "-oServerAliveInterval=5",
+        "-oServerAliveCountMax=2",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/payload-v2/bin/lighthouse",
+        "nan:/root/rpc-nan-upload-n2/lighthouse"
+      ],
+      "affinity": [
+        1
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2883419-i44814319.scope"
+    },
+    {
+      "pid": 2883465,
+      "parent": 2883464,
+      "start": "167846100",
+      "exe": "/usr/bin/ssh",
+      "cwd": "/home/steven",
+      "argv": [
+        "/usr/bin/ssh",
+        "-x",
+        "-oPermitLocalCommand=no",
+        "-oClearAllForwardings=yes",
+        "-oRemoteCommand=none",
+        "-oRequestTTY=no",
+        "-oControlMaster=no",
+        "-q",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "StrictHostKeyChecking=yes",
+        "-o",
+        "ConnectTimeout=5",
+        "-o",
+        "ControlMaster=no",
+        "-o",
+        "ControlPath=none",
+        "-o",
+        "ServerAliveInterval=5",
+        "-o",
+        "ServerAliveCountMax=2",
+        "-oForwardAgent=no",
+        "-s",
+        "--",
+        "nan",
+        "sftp"
+      ],
+      "affinity": [
+        1
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2883419-i44814319.scope"
+    }
+  ]
+}
