@@ -1,0 +1,40 @@
+{
+  "status": "PREPARED_ONLY_NOT_EXECUTED",
+  "seedFiles": 35,
+  "inputPins": 86,
+  "settings": {
+    "solc": "0.8.35 native path pinned; not executed yet",
+    "optimizerRuns": 1,
+    "viaIR": true,
+    "evmVersion": "osaka",
+    "metadataHash": "ipfs default",
+    "FFI": false,
+    "offline": true,
+    "codeSizeOverride": false
+  },
+  "hardMemoryMiB": 512,
+  "rssMiB": 450,
+  "availableFloorMiB": 27648,
+  "cpuIndex": 1,
+  "swapMiB": 0,
+  "compileSec": 720,
+  "testSec": 180,
+  "totalChildSec": 900,
+  "outerSec": 1200,
+  "rootAdmission": "root-test-approval.json with launchAuthorized true and exact preparedSha256; not created",
+  "hashes": {
+    "REVIEW.md": "e205a9b26b0226e39fc3cec5370954f2c279933f47b22ecef80a4808758c1524",
+    "closure.json": "f4cd253fd4e9e7be58085a2289b9341fe0a576f9c38969c00aa3f024a5f4ec22",
+    "extend-fixture.py": "0c994f6c816463091da836114efaff40f59dd3722d7943fc68140c6cb7f1a4e6",
+    "fixture-provenance.json": "137fabf738f2aca56b59fe8596b816225ff1b9941b984a93629a8efcb8cd1dff",
+    "input-pins.json": "4c0a40ea51c23d7db4087307c5076a3f296db77a375f60c364d4859ea2be9b85",
+    "launch-command.txt": "af3537f296f23935274b492e176068b814015b1cac639ec474047b829f0b8368",
+    "prepare.py": "ba1241fd302bd8a4cf294758133c58dc35e3a28698c49806445b61dcf6798572",
+    "rev16d-fixture.diff": "d5379821c11b57d6f0270515701ec36888362c2698eed3eab207ddc6ec0552a2",
+    "run.py": "f195fee839616a29ed32c207db3e35ef6a9f6e488d300ed08736f23f16cacf12",
+    "seed-pins.json": "05337eb5aba22c874bd571ad3e41f3da46efa94271aaba4ae79b08094ebe0f65",
+    "source-origins.json": "0b2e3d4fe515299621c9b730b1cd06fc119c8d6d76bd17f052571cc8225da6b7"
+  },
+  "hostNetworkNamespace": "net:[4026531833]",
+  "hostNamespacePreflight": "Root must compare current host namespace to this recorded value before launch. Runner compares self namespace after reviewed unshare wrapper; PID1 namespace is unreadable to this user."
+}
