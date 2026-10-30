@@ -1,0 +1,1 @@
+Root reviewed guarded-worker finite16-case closure and finalpeerreview. Exact6f876d2af8918ec2d7cb2cd828524e6610caeb57 pushed/exactremote. One manual hosted CI dispatch authorized; no production/native target or retry.

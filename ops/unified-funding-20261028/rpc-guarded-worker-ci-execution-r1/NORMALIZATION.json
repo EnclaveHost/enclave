@@ -1,0 +1,30 @@
+{
+  "reason": "Publictext normalized for whitespace; U originals remain unchanged.",
+  "files": [
+    {
+      "path": "artifacts/artifact.json",
+      "originalSha256": "fd18c723c8059dab6a08035957c257c4268d1ea0e6f15964586072a8d78b99bd",
+      "normalizedSha256": "b40da3a03771842ed18996865d6cb6eabb876a994840795e4a56316b2a84e819"
+    },
+    {
+      "path": "artifacts/publication.json",
+      "originalSha256": "658de6ceaad8f9c6441c6541b8bb44eb2d86e33d8bfb6d14ba3a47c26640a67a",
+      "normalizedSha256": "425227eda96659e94b81b70c4609b33c4c6763bc15f73f1e3755f19887075348"
+    },
+    {
+      "path": "artifacts/process-results.json",
+      "originalSha256": "0bdcbe0db8405be1faf16a4472cf260aef91adc7db8f4eb6fe6e7e230758d361",
+      "normalizedSha256": "e8e000425d787cd2a199d1bc555d1c9be2bec56bd527853f9decd110c8b84c9a"
+    },
+    {
+      "path": "artifacts/pins.json",
+      "originalSha256": "049aa0f0def2b53068d74af9da129e14c592a78eb3c09222faf8b2c71510dcbe",
+      "normalizedSha256": "01274588126d9edac84a376fb40b71bfde3a0727799e9960430e0563dfdf0edb"
+    },
+    {
+      "path": "artifacts/inert.out",
+      "originalSha256": "cb5db9e26dd4f72d5d47fe46a7592b3f65e15c4b8593a530d7a943a87ab3230d",
+      "normalizedSha256": "b1bed338f0424c1ad8d5ac697f55d71b90c7f5c2b802aeee907804bd96dcf9cb"
+    }
+  ]
+}

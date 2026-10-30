@@ -96,7 +96,7 @@ snapshot was12488704B; the harness completed in2.956s. Its inner128MiB allocatio
 test does not behaviorally prove exhaustion of the outer256MiB cap. This is hosted
 CI evidence, not target-host or independent guardian qualification.
 
-## Pre-resume binding candidate (source only)
+## Pre-resume binding (hosted CI only)
 
 `RunGuarded` requires a trusted callback after creation-time job assignment and
 exact child identity acquisition, while the first thread is still suspended. The
@@ -114,4 +114,6 @@ termination, protected namespace and target SYSTEM qualification are not yet
 implemented here. Default Run remains available for existing inert callers;
 future guarded owner code must never fall back to it. Five new finite CI cases
 cover identity before resume, refusal, exception, late acceptance and null guard.
-They do not prove a cross-process observer exists. No new run has occurred yet.
+CI41139614293 at6f876d2af8918ec2d7cb2cd828524e6610caeb57 passed all16 cases
+in3.636s, including those five. They do not prove a cross-process observer exists.
+The late acceptance case confirmed timeout without resume and exact cleanup.
