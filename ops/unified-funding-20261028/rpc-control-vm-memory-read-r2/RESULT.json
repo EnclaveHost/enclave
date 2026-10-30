@@ -1,0 +1,10 @@
+{
+  "at": 1793359990.0797253,
+  "rc": 0,
+  "output": "Linux\nMemTotal:        8131180 kB\nMemAvailable:    7090136 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\n4\nFilesystem         1-blocks        Used    Available Capacity Mounted on\n/dev/sda1      132011507712 19949150208 112045580288      16% /\nroot-memory-max-unavailable\nMemoryCurrent=230088704\nMemoryHigh=infinity\nMemoryMax=1610612736\nId=enclave-api-relay.service\nActiveState=active\n\nMemoryCurrent=57638912\nMemoryHigh=infinity\nMemoryMax=268435456\nId=enclave-dns.service\nActiveState=active\n\nMemoryCurrent=19845120\nMemoryHigh=infinity\nMemoryMax=134217728\nId=enclave-native-discovery.service\nActiveState=active\n\nMemoryCurrent=[not set]\nMemoryHigh=infinity\nMemoryMax=infinity\nId=nan-wasm-gateway.service\nActiveState=inactive\n",
+  "stderrBytes": 222,
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+  "capacityAdmitted": false,
+  "newAllocation": false,
+  "productionChanged": false
+}

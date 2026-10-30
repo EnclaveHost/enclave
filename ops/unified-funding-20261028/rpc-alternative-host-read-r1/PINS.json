@@ -1,0 +1,14 @@
+[
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-alternative-host-read-r1/run.py",
+    "sha256": "c21bc6f63391ee0a75c1c422e16278bff0cd1f54210b1a8b3e2a8533e6838444"
+  },
+  {
+    "path": "/usr/bin/ssh",
+    "sha256": "0d82109d60d32e5ca4007bd39b4abf213ff037fca99491bc2669a6b52051b74c"
+  },
+  {
+    "path": "/usr/bin/python3.14",
+    "sha256": "375532f83be620283ab780c14ca6bcc5907dc379d2b621de0c5d0a112cf5458b"
+  }
+]

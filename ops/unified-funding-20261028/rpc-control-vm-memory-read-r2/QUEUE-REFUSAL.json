@@ -1,0 +1,8 @@
+{
+  "invocation": "17117c5d1b9c4aa3962672498581f447",
+  "unit": "enclave-rpc-control-vm-memory-read-r2-20261030.service",
+  "exit": 98,
+  "status": "NOT_STARTED_SMALL_LANE_HELD",
+  "attemptExists": false,
+  "at": 1793359912.383929
+}
