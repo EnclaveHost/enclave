@@ -77,7 +77,8 @@ suite in four shards, contracts, browser flows, native manager/guest source and
 full site build. Scanner checks remain enabled. `security-review.json` records
 reviewed false positives: public source identifiers, protocol strings, run IDs,
 loopback test data and dependency-file digests independently rehashed from their
-installed packages. Exceptions require the rule, exact path and exact full line.
+installed packages. Historical exceptions require the exact commit, path, rule and line fingerprint;
+changed or future source remains scanned.
 
 The compact-weight fixture passed ASan/UBSan and the focused Shield/config/pad
 checks passed. A bounded required-cache compilation hit its memory cap; SD

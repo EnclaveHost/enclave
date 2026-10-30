@@ -282,5 +282,5 @@
       "classification": "Public bytes32 registry address-book selector (ASCII registry, zero padded)"
     }
   ],
-  "scope": "Each exception is rule AND exact path AND exact complete line. Changed content and adjacent credentials remain subject to scanners."
+  "scope": "Exact historical commit/path/rule/line fingerprints in .gitleaksignore. Changed or future source remains scanned; dependency digests independently rehashed."
 }
