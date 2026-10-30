@@ -1,0 +1,15 @@
+{
+  "invocation": "de1f58da193e4e43ae09780303290f3a",
+  "terminal": true,
+  "mainPID": 0,
+  "passed": 118,
+  "failed": 0,
+  "sourceDrift": [],
+  "assemblyPassed": true,
+  "runtimePinsSha256": "d90427587ddc020bc1cf200533233c86069ef11f71e731f2f3a0a9b1d902d64f",
+  "nativeAdmitted": false,
+  "nativeExecuted": false,
+  "pollDeadlineSeconds": 12,
+  "hardPollCompletionGuarantee": false,
+  "postConfirmationFullWindowHeadroomRequired": true
+}

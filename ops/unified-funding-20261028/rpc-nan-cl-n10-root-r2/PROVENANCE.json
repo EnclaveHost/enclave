@@ -1,0 +1,11 @@
+{
+  "sourceBase": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r9",
+  "actualCaptureOverride": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-n9-admission-r2/source/capture-remote.py",
+  "priorOomPreserved": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-n9-admission-r2/runtime/REMOTE-MAIN.json",
+  "oldNonce": "6b0ddadd-94f2-4d4e-b687-f0859a4d4780",
+  "nonce": "17f00092-bae5-4e2c-a019-8dc6bd496969",
+  "sourcePreparationOnly": true,
+  "tested": false,
+  "nativeAdmitted": false,
+  "allocatorCapabilityIsNotMemoryFit": true
+}

@@ -1,0 +1,74 @@
+--- n9/run-body.py
++++ n10/run-body.py
+@@ -2,7 +2,7 @@
+ from pathlib import Path
+ import hashlib,json,fcntl,struct,stat,sys,resource
+ P=Path(__file__).resolve().parent;M=json.loads((P/'MANIFEST.json').read_text())
+-art=P/'artifacts';sockdir=Path('/run/user/1000/rpc-nan-client-n9')
++art=P/'artifacts';sockdir=Path('/run/user/1000/rpc-nan-client-n10')
+ parent=Path(M['parent']['path']);overlay=Path(M['overlayPath'])
+ exporter=None;tunnel=None;lockfd=None;remote_attempted=False;cut=False;workflow=None;main_completed=False;overlay_identity=None;overlay_creating=False
+ results={};errors=[];owned=[];cleaning=False;remote_calls={};preparation_deadline=None;main_phase=False;admission_metadata_hashes={}
+@@ -19,7 +19,7 @@
+     # This is local reviewed admission, not a cryptographic remote authorization claim.
+     a=admit['admission'];template=manifest['admission']
+     assert template['authorized'] is False,'committed-manifest-must-be-unadmitted'
+-    assert admit['authorized'] is True and admit['scope']=='actual-nan-cl-bounded-client-n9','root-admission-scope'
++    assert admit['authorized'] is True and admit['scope']=='actual-nan-cl-bounded-client-n10','root-admission-scope'
+     assert admit['nonce']==manifest['nonce'] and admit['bootId']==manifest['bootId'],'root-admission-identity'
+     assert admit['pinsSha256']==pins_sha,'root-admission-pins'
+     assert admit['observationSha256']==observation_sha,'root-observation-pin'
+@@ -117,7 +117,7 @@
+     common=(P/'capture-remote.py').read_text()
+     body=r"""
+ import pathlib,json,hashlib,stat,sys
+-P=pathlib.Path;root=P('/run/enclave-rpc-nan-client-n9');os.umask(0o077)
++P=pathlib.Path;root=P('/run/enclave-rpc-nan-client-n10');os.umask(0o077)
+ assert os.geteuid()==0
+ assert P('/proc/sys/kernel/random/boot_id').read_text().strip()==M['bootId']
+ assert os.statvfs('/var/lib').f_bavail*os.statvfs('/var/lib').f_frsize>=8<<30
+@@ -128,8 +128,8 @@
+ program=P(M['uploadDirectory'])/'program.py';st=program.lstat()
+ assert stat.S_ISREG(st.st_mode) and st.st_size<=131072
+ raw=program.read_bytes();assert hashlib.sha256(raw).hexdigest()==M['programSha256']
+-unit=P('/run/systemd/system/enclavenanattachn9.slice');assert not unit.exists()
+-for name in ('enclavenanattachn9.slice','enclavenantrialn9.slice','enclavenanguardn9.slice','enclave-rpc-nan-helper-n9.service','enclave-rpc-nan-watch-n9.service','enclave-rpc-nan-nbd-n9.service','enclave-rpc-nan-cl-trial-n9.service'):
++unit=P('/run/systemd/system/enclavenanattachn10.slice');assert not unit.exists()
++for name in ('enclavenanattachn10.slice','enclavenantrialn10.slice','enclavenanguardn10.slice','enclave-rpc-nan-helper-n10.service','enclave-rpc-nan-watch-n10.service','enclave-rpc-nan-nbd-n10.service','enclave-rpc-nan-cl-trial-n10.service'):
+  r=capture(['/usr/bin/systemctl','show',name,'--property=LoadState,ActiveState,FragmentPath,DropInPaths,ControlGroup,InvocationID,Transient'],3,limit=4096);assert not r['reason'] and not r['truncated'],'unit-observation-failed'
+  info=dict(line.split('=',1) for line in r['stdout'].splitlines() if '=' in line)
+  if name.endswith('.slice'):
+@@ -152,18 +152,18 @@
+     policy=(P/'nan-admission.py').read_text()
+     definitions="from pathlib import Path as P\nimport hashlib\ncleaning=False\nACTION='bootstrap'\nlast_guard=0\nout={}\ndef read(p):return P(p).read_text().strip()\ndef sha(p):\n with P(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()\n"
+     script=common+'\nM='+repr(M)+'\n'+definitions+policy+'\nfresh_nan_policy()\n'+body
+-    command='/usr/bin/sudo -n /usr/bin/systemd-run --quiet --wait --pipe --unit=enclave-rpc-nan-bootstrap-n9 --property=User=root --property=MemoryMax=128M --property=MemorySwapMax=0 --property=CPUQuota=100% --property=AllowedCPUs=1 --property=RuntimeMaxSec=40 --property=TimeoutStopSec=10 --property=UMask=0077 /usr/bin/python3 -B -'
++    command='/usr/bin/sudo -n /usr/bin/systemd-run --quiet --wait --pipe --unit=enclave-rpc-nan-bootstrap-n10 --property=User=root --property=MemoryMax=128M --property=MemorySwapMax=0 --property=CPUQuota=100% --property=AllowedCPUs=1 --property=RuntimeMaxSec=40 --property=TimeoutStopSec=10 --property=UMask=0077 /usr/bin/python3 -B -'
+     r=capture([*sshargs(),M['target'],command],55,stdin=script.encode(),limit=65536);results['bootstrap']=r
+     record('BOOTSTRAP.json',r);assert r['rc']==0 and not r['reason'] and not r['truncated'],'bootstrap'
+ def remote(action):
+     if action=='main':
+-        unit='enclave-rpc-nan-helper-n9';slice_name='enclavenanattachn9.slice';runtime=2100;stop_seconds=145;seconds=2255
+-        post=" '--property=ExecStopPost=/usr/bin/python3 -B /run/enclave-rpc-nan-client-n9/program.py wait-cleanup'"
++        unit='enclave-rpc-nan-helper-n10';slice_name='enclavenanattachn10.slice';runtime=2100;stop_seconds=145;seconds=2255
++        post=" '--property=ExecStopPost=/usr/bin/python3 -B /run/enclave-rpc-nan-client-n10/program.py wait-cleanup'"
+     elif action=='verify':
+-        unit='enclave-rpc-nan-verify-n9';slice_name='enclavenanguardn9.slice';runtime=45;stop_seconds=10;seconds=60;post=''
++        unit='enclave-rpc-nan-verify-n10';slice_name='enclavenanguardn10.slice';runtime=45;stop_seconds=10;seconds=60;post=''
+     else:
+-        unit='enclave-rpc-nan-'+action+'-n9';slice_name='enclavenanguardn9.slice';runtime=10;stop_seconds=5;seconds=20;post=''
+-    command='/usr/bin/sudo -n /usr/bin/systemd-run --quiet --wait --pipe --unit='+unit+' --slice='+slice_name+' --property=User=root --property=MemoryMax=128M --property=MemorySwapMax=0 --property=CPUQuota=100% --property=TasksMax=64 --property=RuntimeMaxSec='+str(runtime)+' --property=TimeoutStopSec='+str(stop_seconds)+' --property=KillMode=control-group --property=UMask=0077'+post+' /usr/bin/python3 -B /run/enclave-rpc-nan-client-n9/program.py '+action
++        unit='enclave-rpc-nan-'+action+'-n10';slice_name='enclavenanguardn10.slice';runtime=10;stop_seconds=5;seconds=20;post=''
++    command='/usr/bin/sudo -n /usr/bin/systemd-run --quiet --wait --pipe --unit='+unit+' --slice='+slice_name+' --property=User=root --property=MemoryMax=128M --property=MemorySwapMax=0 --property=CPUQuota=100% --property=TasksMax=64 --property=RuntimeMaxSec='+str(runtime)+' --property=TimeoutStopSec='+str(stop_seconds)+' --property=KillMode=control-group --property=UMask=0077'+post+' /usr/bin/python3 -B /run/enclave-rpc-nan-client-n10/program.py '+action
+     r=capture([*sshargs(),M['target'],command],seconds,limit=2097152);results['remote:'+action]=r;record('REMOTE-'+action.upper()+'.json',r)
+     assert r['rc']==0 and not r['reason'] and not r['truncated'],'remote:'+action
+     lines=[json.loads(l[len('RESULT_JSON='):]) for l in r['stdout'].splitlines() if l.startswith('RESULT_JSON=')]
+@@ -198,7 +198,7 @@
+     art.mkdir(mode=0o700);sockdir.mkdir(mode=0o700);overlay.parent.mkdir(mode=0o700)
+     assert overlay.parent.stat().st_dev==M['parent']['device']
+     resource.setrlimit(resource.RLIMIT_FSIZE,(8<<30,8<<30))
+-    workflow=os.open(overlay.parent/'client-trial-n9.lock',os.O_CREAT|os.O_EXCL|os.O_RDWR|os.O_CLOEXEC,0o600);fcntl.flock(workflow,fcntl.LOCK_EX|fcntl.LOCK_NB)
++    workflow=os.open(overlay.parent/'client-trial-n10.lock',os.O_CREAT|os.O_EXCL|os.O_RDWR|os.O_CLOEXEC,0o600);fcntl.flock(workflow,fcntl.LOCK_EX|fcntl.LOCK_NB)
+     lockfd=os.open(parent,os.O_RDONLY|os.O_NOFOLLOW|os.O_CLOEXEC)
+     for byte in (201,202,203):fcntl.fcntl(lockfd,fcntl.F_OFD_SETLK,struct.pack('@hhqqi4x',fcntl.F_RDLCK,os.SEEK_SET,byte,1,0))
+     occupied=fcntl.fcntl(lockfd,fcntl.F_OFD_GETLK,struct.pack('@hhqqi4x',fcntl.F_WRLCK,os.SEEK_SET,100,200,0));assert struct.unpack('@hhqqi4x',occupied)[0]==fcntl.F_UNLCK

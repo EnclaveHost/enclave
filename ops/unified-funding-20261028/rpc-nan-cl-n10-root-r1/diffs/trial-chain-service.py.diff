@@ -1,0 +1,20 @@
+--- n9/trial-chain-service.py
++++ n10/trial-chain-service.py
+@@ -18,7 +18,7 @@
+ import urllib.request
+ import urllib.error
+ 
+-ROOT = pathlib.Path('/var/lib/enclave-rpc-nan-client-n9/payload')
++ROOT = pathlib.Path('/var/lib/enclave-rpc-nan-client-n10/payload')
+ MANIFEST = json.loads((ROOT / 'manifest.json').read_text())
+ DISKS = json.loads((ROOT / 'disks.json').read_text())['disks']
+ CONFIG = json.loads((ROOT / 'chain.json').read_text())
+@@ -515,6 +515,8 @@
+              '--txpool.disable-transactions-backup', '--disable-tx-gossip', '--txpool.no-local-transactions-propagation',
+              '--log.file.directory', datadir + '/logs', '--log.file.max-files', '5']
+     elif side == 'cl':
++        # Exact-binary qualified startup configuration; never inherit host allocator settings.
++        env['_RJEM_MALLOC_CONF'] = 'confirm_conf:true,abort_conf:true,narenas:1,dirty_decay_ms:0,muzzy_decay_ms:0,background_thread:false'
+         a = [binary('lighthouse'), '--debug-level', 'debug', 'beacon_node', '--network', 'mainnet', '--datadir', datadir,
+              '--http', '--http-address', '127.0.0.1', '--http-port', '15052',
+              '--execution-endpoint', 'http://127.0.0.1:18651', '--execution-jwt', jwt,

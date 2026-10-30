@@ -1,0 +1,59 @@
+Nan n10 allocator candidate — SOURCE PREPARATION ONLY
+
+No candidate, assembler, test suite, syntax check, compiler, author model, native
+client, remote observer, image or financial action was executed by this lane.
+Root owns source integration, tests, fresh admission and any actual trial.
+
+Base: rpc-nan-cl-root-r9/source plus the actual qualified admission-r2
+capture-remote.py. The n9 OOM result and source are unchanged. New n10 namespaces
+cover sockets, upload, executable payload, units/slices, mount, COW and authority
+scope. The new nonce is shared by manifest, admission template and mount payload.
+No prior admission/observation/result/attempt files are copied. The old n5
+binary-reuse path intentionally remains: the framework verifies exact binary
+bytes before sealing a fresh n10 executable payload. No database reuse is added.
+
+The ONLY change to Lighthouse's launch function is one fresh-env assignment in
+the CL branch:
+  _RJEM_MALLOC_CONF=confirm_conf:true,abort_conf:true,narenas:1,dirty_decay_ms:0,muzzy_decay_ms:0,background_thread:false
+No native stats_print, host environment inheritance, allocator preload, binary
+change, lower custody, prune change or history reset. An AST equivalence fixture
+removes that one assignment and compares the complete old/new launch functions.
+
+The startup observer requires exact initializer confirmation: all five sources,
+the exact six accepted environment options, and an empty final override source.
+This is anchored to the actual retained binary's concrete isolated initializer
+output. It rejects any differing/missing/reordered/extra allocator lines rather
+than accepting substrings. Unknown later settings or invalid settings fail.
+It reads only the first64 journal records, at most32768 bytes, and retains fixed
+option/identity metadata only. The underlying journal capture is at most2s per
+attempt within a12s poll deadline; it also enforces existing headroom/stop checks.
+Each allocator record must match boot, unit, actual invocation and process PID.
+Before accepting proof, the existing proc/cgroup/startTicks observer must show
+the exact sealed Lighthouse executable, and systemd must still show that active
+incarnation. This is checked again before accepting startup RPC success.
+Incomplete evidence never proves readiness. Actual journal metadata/line layout
+has NOT yet been qualified on Nan; a mismatch fails closed for root review.
+
+The existing1805s admission/watchdog headroom check runs AFTER confirmation, so
+the bounded initializer read cannot silently shrink the1800s sampling window.
+The existing4096+128+128MiB caps,2048MiB OS reserve, no swap, identity mapping,
+cleanup, original protection, fresh resource admission and timing envelope are
+unchanged. The512MiB local worker/RSS450/floor27648/CPU1 profile is NOT a Rust
+build budget. Startup RPC is still explicitly NOT production readiness or sync.
+
+Root workflow: review source pins and changes; run check-source.py and
+assemble.py in the existing separately admitted bounded local fixture framework.
+check-source now discovers both inherited test_source.py and test_allocator.py.
+The new tests use exact retained --version output with explicitly documented
+removal of capability-only stats options; they do NOT represent a native run.
+Review/commit exact source/runtime first. After EL terminates, obtain a fresh
+Nan observation and create new nonce/boot/pins-bound authority. Do not reuse
+ROOT-ADMISSION or stale observation. This package includes no authority grant
+and deliberately does not include a stale fresh-read launcher.
+
+Remaining production gates include measured successful startup within caps,
+graceful teardown and original integrity; then separately admitted own-chain
+sync/finality and EL/CL agreement, retained historical receipts/blobs/data column
+custody, and authenticated reader/service/consumer qualification. The exact
+binary allocator capability is established by root, but memory fit and end-to-end
+production functionality remain unproved.

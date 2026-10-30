@@ -1,0 +1,27 @@
+--- n9/client-main.py
++++ n10/client-main.py
+@@ -172,6 +172,7 @@
+         out['jwtCreatedPrivately']=True
+         for side in ('cl',):
+             info=start_client(side);s=state();s['clients'][side]=info;save(s)
++            require_allocator_confirmation(info)
+     require_sampling_headroom(time.time(),M['admission'],s['watchdogDeadline'])
+     samples=[];until=time.monotonic()+1800;next_diagnostic=0;diagnostic_count=0;samples_bytes=0;dropped_samples=0;rpc_observed=False
+     while time.monotonic()<until and not STOP.exists():
+@@ -194,6 +195,7 @@
+     out['samples']=samples
+     out['sampleEvidence']={'windowSeconds':1800,'sampleLimit':901,'byteLimit':1048576,'retainedBytes':samples_bytes,'droppedSamples':dropped_samples,'truncated':dropped_samples>0,'diagnosticSamples':diagnostic_count,'diagnosticSampleLimit':181,'diagnosticIntervalSeconds':10}
+     out['clRpcObserved']=rpc_observed
++    if rpc_observed:require_allocator_at_startup_rpc(s['clients']['cl'])
+     stop_request('bounded-trial-finished')
+     out['cleanup']=wait_cleanup()
+     for side,info in s['clients'].items():
+@@ -208,7 +210,7 @@
+     os.umask(0o077)
+     assert os.geteuid()==0 and read('/proc/sys/kernel/random/boot_id')==M['bootId']
+     assert sha(ROOT/'program.py')==M['programSha256']
+-    cg=read('/proc/self/cgroup');assert (cg.startswith('0::/enclavenanattachn9.slice/enclave-rpc-nan-') or cg.startswith('0::/enclavenanguardn9.slice/enclave-rpc-nan-')) and cg.endswith('.service')
++    cg=read('/proc/self/cgroup');assert (cg.startswith('0::/enclavenanattachn10.slice/enclave-rpc-nan-') or cg.startswith('0::/enclavenanguardn10.slice/enclave-rpc-nan-')) and cg.endswith('.service')
+     c=P('/sys/fs/cgroup'+cg[3:]);assert read(c/'memory.max')==str(128<<20) and read(c/'memory.swap.max')=='0'
+     for row in M['remotePins']:pin(row)
+     def terminated(signum,frame):raise RuntimeError('unit-termination')
