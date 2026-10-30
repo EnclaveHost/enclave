@@ -1,8 +1,8 @@
 {
   "bundle": "metal/guest/platform-api.bundle.mjs",
   "entry": "metal/guest/platform-api-entry.mjs",
-  "sha256": "a063cdcde65f4e51391b6b381577572449685de00d5cbb54c152788adc0984b0",
-  "bytes": 9476086,
+  "sha256": "e85de39ac7ef709c03d7f1c832bfe979578aa660b646bbc049585eae0a3edaad",
+  "bytes": 9476239,
   "inputs": {
     "custody/hpke.mjs": "1806a74c947db89db0e410c370ad7963eac9fa30d1807d8f55846690fafc0c03",
     "custody/v2/quorum.mjs": "5464a7a97916186121e367984fdc0610a769f93f7b69a26a6b40c6b8098c7a47",
@@ -457,7 +457,7 @@
     "node_modules/ws/lib/websocket-server.js": "6d8dd89a841748c80445fd5fcdb5ba8005369b53cc3525135e11304c8b9c55e5",
     "node_modules/ws/lib/websocket.js": "de5add831db49e159d3ee0adb1c5e042eba3af13166374c5584f4fc520d1e734",
     "node_modules/ws/wrapper.mjs": "fe154662301fd558f935f9c217fccbe7a7dac02ff39e648a000589403ff27c7f",
-    "relay/api-relay.js": "dec86c53c383aa294c650f5a1efdd3d906fe5aee3272cae8bf84042a4240be6b",
+    "relay/api-relay.js": "10f2d9577640b0c797882012c54be05734f640601cef52111d39a718768aca40",
     "relay/attestation-paths.mjs": "d9d68bd9f4d8d276e15ac49fdcfba156746239fb2838c0c6f987912b07c89b1d",
     "relay/auth.js": "f306187959c97944c18d27f485ca1eee1f3ccdfd3dbb891a15a67b16692f526c",
     "relay/avf-binding.mjs": "a0c53d387515cd46065e614274f3ab5374196edc193f0bcd88b4af4ef0816673",

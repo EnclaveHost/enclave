@@ -34,8 +34,10 @@ recovering the exact SHA-256 and Git blob recorded in the deployment manifest.
 - Ledger 16d owner-approved delegates, preserving owner-only deployment transfer,
   and legacy Windows app slot/epoch isolation. These source changes do not execute
   a ledger migration or enable the legacy engine.
-- RPC preparation and live-adoption evidence through `e1ee422d3`; further runtime
-  activation remains owned by the Decentralize enclave.host workstream.
+- RPC preparation and live-adoption evidence through `b48e3124806fedbd4c8ce7e99f83427a0882e50a`; further runtime
+  activation remains owned by the Decentralize enclave.host workstream. The R3
+  controller ownership/continuation repair is an unvalidated, deferred candidate;
+  its dated records and control-VM observations do not qualify or activate it.
 
 Full-branch merges were unsuitable where earlier composed histories held stale
 vault, CLI, runtime pins or transport code. Those changes were reconciled by path

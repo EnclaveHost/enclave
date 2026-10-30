@@ -260483,7 +260483,9 @@ function handleRequest(req, res) {
       res.end();
     });
   }
-  if (depFromHost(routingHost(req)) || domainDeployment(routingHost(req)) || /^\/(?:t\/[^/]+\/)?x(?:\/|$)/.test(canonicalBoxPath(u3.pathname) || ""))
+  const rHost = routingHost(req);
+  if (pvmServe && String(req.url || "").startsWith("/x/") && !depFromHost(rHost) && !domainDeployment(rHost) && !isMcpHost(rHost) && !boxLabelOfHost(rHost) && pvmServe(req, res)) return;
+  if (depFromHost(rHost) || domainDeployment(rHost) || /^\/(?:t\/[^/]+\/)?x(?:\/|$)/.test(canonicalBoxPath(u3.pathname) || ""))
     return json(res, 410, { error: "application_transport_moved", message: "Use the application's own hostname." }, req);
   if (isMcpHost(routingHost(req)) || u3.pathname === "/mcp" || u3.pathname === "/mcp/")
     return handleMcp(req, res, u3).catch((e) => json(res, 500, { error: "mcp_error", message: e.message }, req));
@@ -260750,7 +260752,6 @@ function handleRequest(req, res) {
     if (refused2) return json(res, refused2.status, { error: refused2.error, message: refused2.message }, req);
     return proxyTo(origin, req, res, { path: (tm3[2] || "/") + (u3.search || ""), setCors: true, publicOnly: !tunnelEligible(origin) });
   }
-  if (pvmServe && pvmServe(req, res)) return;
   if (proxied(u3.pathname))
     return gateway(u3, req, res).catch((e) => json(res, 502, { error: "gateway_error", message: e.message, updatedAt }, req));
   json(res, 404, { error: "not_found", routes: ["/health", "/enclaves", "/v1/relays", "/route?gpuShare=0.25&cpuShare=0.05", "/v1/* /x/* /availability (fleet-routed to the enclaves)"] }, req);
