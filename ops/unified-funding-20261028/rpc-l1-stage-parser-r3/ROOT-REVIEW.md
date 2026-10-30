@@ -1,0 +1,3 @@
+# Root correction of parser-result interpretation
+
+All three attempts failed to qualify the proposed TOML. r1 failed reading /proc/1/ns/net before running Reth. r2 failed mutually exclusive discovery CLI flags before parsing. r3 positive AND deliberately invalid negative cases both failed database directory creation before TOML parsing. Therefore positiveAcceptedThenDatadirRefused=true in the raw r3 harness result is NOT evidence of acceptance. No parser or runtime qualification, no real database creation, no production change. Preserve raw outputs; no unchanged retry. A subsequent meaningful check must permit a distinct disposable database or run the admitted private chain trial.

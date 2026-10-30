@@ -1,0 +1,7 @@
+{
+  "authorized": true,
+  "scope": "private-control-vm-nbd-extract-r1",
+  "pinsSha256": "9cd86e6e1f399c14ce67088063765df2d6ed1505a3ee9160865eb8152222781b",
+  "at": 1793362230.866681,
+  "review": "Root reviewed complete extraction/runner/capture diff, final merged-usr handling and manifest composition. All9content/11external pins verified. Authorizes ONE private signed-package extraction and loader/help checks only; no module/attach/mount/client/service/system-package mutation."
+}

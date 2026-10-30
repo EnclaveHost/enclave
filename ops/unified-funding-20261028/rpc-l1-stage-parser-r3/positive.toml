@@ -1,0 +1,42 @@
+[stages.headers]
+downloader_max_concurrent_requests = 2
+downloader_min_concurrent_requests = 1
+downloader_max_buffered_responses = 2
+downloader_request_limit = 100
+commit_threshold = 1000
+
+[stages.bodies]
+downloader_request_limit = 16
+downloader_stream_batch_size = 16
+downloader_max_buffered_blocks_size_bytes = 134217728
+downloader_min_concurrent_requests = 1
+downloader_max_concurrent_requests = 2
+
+[stages.sender_recovery]
+commit_threshold = 100000
+
+[stages.execution]
+max_blocks = 100
+max_changes = 100000
+max_cumulative_gas = 3000000000
+max_duration = "30s"
+
+[stages.account_hashing]
+commit_threshold = 1000
+commit_entries = 100000
+
+[stages.storage_hashing]
+commit_threshold = 1000
+commit_entries = 100000
+
+[stages.transaction_lookup]
+chunk_size = 100000
+
+[stages.index_account_history]
+commit_threshold = 1000
+
+[stages.index_storage_history]
+commit_threshold = 1000
+
+[stages.etl]
+file_size = 67108864

@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.5583816790021956,
+  "stdout": "RESULT_JSON={\"action\": \"bootstrap\", \"errors\": [], \"loadModule\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.009572530980221927, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}, \"ok\": true, \"state\": {\"claimed\": false, \"deviceNumber\": \"43:7\", \"moduleInitiallyLoaded\": false, \"moduleLoadedByFixture\": true, \"nonce\": \"4e5e94e9-baf8-4f23-8785-4c261d6062f0\", \"rootIdentity\": [26, 19365], \"stopPostSha256\": \"261316afbc8a771fcd045640e2ecf479bb8044e6300a579d620a3d8047a6ae34\", \"unitPrefix\": \"enclave-rpc-nbd-fixture-\"}}\n",
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+  "bytesObserved": {
+    "stdout": 782,
+    "stderr": 222
+  },
+  "stdinBytesWritten": 50773,
+  "stdinBytesRequested": 50773,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

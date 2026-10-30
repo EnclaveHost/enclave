@@ -1,0 +1,20 @@
+{
+  "at": "2026-10-30T12:11:57.857767+00:00",
+  "invocation": "133b81fa7a4c4faebbeb0e8c29ee1435",
+  "scopeProcesses": [],
+  "pinsUnchanged": true,
+  "unit": "inactive/Main0/garbage-collected",
+  "status": "PRIVATE_TOOL_PREPARED_NOT_ATTACHED",
+  "remoteStatus": "PRIVATE_TOOL_READY_NOT_ATTACHED",
+  "innerPeakMiB": 40,
+  "outerPeakMiB": 108,
+  "minHostAvailableMiB": 30303,
+  "noModuleAttachMountOrClients": true,
+  "binary": {
+    "archiveMember": "sbin/nbd-client",
+    "bytes": 56376,
+    "path": "/home/controladmin/rpc-nbd-tools-20261030-r1/nbd-client",
+    "sha256": "0a256b67962d1ffc1ab8bacecd4319b8e459a0535467abb66f83329ce5221167"
+  },
+  "libraryRecordCount": 13
+}

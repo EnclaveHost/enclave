@@ -1,0 +1,67 @@
+{
+  "bootId": "b39ecfe2-82b2-4c2a-a596-a52630bb59fd",
+  "version": "1:3.26.1-1ubuntu0.1",
+  "filename": "pool/universe/n/nbd/nbd-client_3.26.1-1ubuntu0.1_amd64.deb",
+  "size": 43644,
+  "sha256": "b34104e8e3b57e09b5368581d26cfb32b8b0acb8cc5b5c08dc81d075288e521c",
+  "release": {
+    "bytes": 126125,
+    "mtimeNs": 1793316962000000000,
+    "path": "/var/lib/apt/lists/archive.ubuntu.com_ubuntu_dists_noble-updates_InRelease",
+    "sha256": "96c33b3572665457051772ca8456301bbf4f1c19d877231d8c86f259c584de44"
+  },
+  "keyring": {
+    "bytes": 3607,
+    "path": "/usr/share/keyrings/ubuntu-archive-keyring.gpg",
+    "sha256": "80a36b0a6de2f69f49d2df75ef473ccde121e9e190b9ea01d20a4f63778d5c31"
+  },
+  "remotePins": [
+    {
+      "bytes": 8020928,
+      "path": "/usr/bin/python3",
+      "realpath": "/usr/bin/python3.12",
+      "sha256": "e50d468e8b0adfb05733f5b87b3cff34829c4a8c1aea50c865aa8bdfe4bb150f"
+    },
+    {
+      "bytes": 146000,
+      "path": "/usr/bin/dpkg-deb",
+      "realpath": "/usr/bin/dpkg-deb",
+      "sha256": "fc9dde782ca8309b65ab92e61d13318bf463cd1aa71daa8967b87b81b48b63d2"
+    },
+    {
+      "bytes": 310416,
+      "path": "/usr/bin/gpgv",
+      "realpath": "/usr/bin/gpgv",
+      "sha256": "f14d026b9eae172c432e015bce227483293b4966f2f3fdcfa582f71d3dbb2ae8"
+    },
+    {
+      "bytes": 3607,
+      "path": "/usr/share/keyrings/ubuntu-archive-keyring.gpg",
+      "sha256": "80a36b0a6de2f69f49d2df75ef473ccde121e9e190b9ea01d20a4f63778d5c31"
+    }
+  ],
+  "installedVersions": {
+    "debconf": "1.5.86ubuntu1",
+    "gcc-14-base:amd64": "14.2.0-4ubuntu2~24.04.1",
+    "libc6:amd64": "2.39-0ubuntu8.9",
+    "libffi8:amd64": "3.4.6-1build1",
+    "libgcc-s1:amd64": "14.2.0-4ubuntu2~24.04.1",
+    "libgmp10:amd64": "2:6.3.0+dfsg-2ubuntu6.1",
+    "libgnutls30t64:amd64": "3.8.3-1.1ubuntu3.6",
+    "libhogweed6t64:amd64": "3.9.1-2.2build1.1",
+    "libidn2-0:amd64": "2.3.7-2build1.1",
+    "libnettle8t64:amd64": "3.9.1-2.2build1.1",
+    "libnewt0.52:amd64": "0.52.24-2ubuntu2",
+    "libnl-3-200:amd64": "3.7.0-0.3build1.1",
+    "libnl-genl-3-200:amd64": "3.7.0-0.3build1.1",
+    "libp11-kit0:amd64": "0.25.3-4ubuntu2.2",
+    "libpcre2-8-0:amd64": "10.42-4ubuntu2.1",
+    "libreadline8t64:amd64": "8.2-4build1",
+    "libselinux1:amd64": "3.5-2ubuntu2.1",
+    "libslang2:amd64": "2.3.3-3build2",
+    "libtasn1-6:amd64": "4.19.0-3ubuntu0.24.04.2",
+    "libtinfo6:amd64": "6.4+20240113-1ubuntu2.2",
+    "libunistring5:amd64": "1.1-2build1.1",
+    "readline-common": "8.2-4build1"
+  }
+}

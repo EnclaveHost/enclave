@@ -1,0 +1,1 @@
+Root admits ONE exact binary parser positive/negative check in network namespace, CPU1/512hard450RSS/floor27648/noSwap. Two intentional configuration/datadir refusals; no real data or client service. Source and script reviewed before execution. Any unexpected order/failure is retained, no unchanged retry.

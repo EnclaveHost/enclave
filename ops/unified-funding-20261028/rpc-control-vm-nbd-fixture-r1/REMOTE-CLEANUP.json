@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.6337216140236706,
+  "stdout": "RESULT_JSON={\"action\": \"cleanup\", \"errors\": [], \"ok\": true, \"state\": {\"attachCgroup\": \"0::/system.slice/enclave-rpc-nbd-fixture-write-r1.service\", \"claimed\": false, \"cleanupCompleted\": true, \"deviceNumber\": \"43:7\", \"moduleInitiallyLoaded\": false, \"moduleLoadedByFixture\": true, \"nonce\": \"4e5e94e9-baf8-4f23-8785-4c261d6062f0\", \"rootIdentity\": [26, 19365], \"socketIdentity\": [2049, 1843864], \"stopPostSha256\": \"261316afbc8a771fcd045640e2ecf479bb8044e6300a579d620a3d8047a6ae34\", \"unitPrefix\": \"enclave-rpc-nbd-fixture-\"}, \"stop:bootstrap\": {\"bytesObserved\": {\"stderr\": 123, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.004289860953576863, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 5, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"Failed to stop enclave-rpc-nbd-fixture-bootstrap-r1.service: Unit enclave-rpc-nbd-fixture-bootstrap-r1.service not loaded.\\n\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}, \"stop:disconnect\": {\"bytesObserved\": {\"stderr\": 125, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.0032601410057395697, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 5, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"Failed to stop enclave-rpc-nbd-fixture-disconnect-r1.service: Unit enclave-rpc-nbd-fixture-disconnect-r1.service not loaded.\\n\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}, \"stop:read\": {\"bytesObserved\": {\"stderr\": 113, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.0031159999780356884, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 5, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"Failed to stop enclave-rpc-nbd-fixture-read-r1.service: Unit enclave-rpc-nbd-fixture-read-r1.service not loaded.\\n\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}, \"stop:write\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.0038628389593213797, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}, \"unloadModule\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.08716588106472045, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}}\n",
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+  "bytesObserved": {
+    "stdout": 2892,
+    "stderr": 222
+  },
+  "stdinBytesWritten": 24850,
+  "stdinBytesRequested": 24850,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}
