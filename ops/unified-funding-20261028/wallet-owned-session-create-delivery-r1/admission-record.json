@@ -1,0 +1,49 @@
+{
+  "unit": "enclave-wallet-owned-session-create-r1-20261029-author.service",
+  "invocationId": "8d94dc3a6d9a46278fea528aa067091b",
+  "mainPid": 2190532,
+  "runnerPid": 2190577,
+  "claudePid": 2190586,
+  "observedAt": 1793328446.4041133,
+  "unitProperties": {
+    "ActiveState": "active",
+    "SubState": "running",
+    "InvocationID": "8d94dc3a6d9a46278fea528aa067091b",
+    "MainPID": "2190532",
+    "CPUQuotaPerSecUSec": "1s",
+    "AllowedCPUs": "1",
+    "MemoryMax": "1610612736",
+    "MemorySwapMax": "0"
+  },
+  "processes": {
+    "2190532": {
+      "startTicks": 163354271,
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "cpuAllowed": [
+        "Cpus_allowed_list:\t0-31"
+      ]
+    },
+    "2190577": {
+      "startTicks": 163354282,
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "cpuAllowed": [
+        "Cpus_allowed_list:\t1"
+      ]
+    },
+    "2190586": {
+      "startTicks": 163354316,
+      "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+      "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-owned-session-create-r1-20261029",
+      "cpuAllowed": [
+        "Cpus_allowed_list:\t1"
+      ]
+    }
+  },
+  "runnerAccount": {
+    "loggedIn": true,
+    "email": "steven.r.batchelor@gmail.com",
+    "subscriptionType": "max"
+  }
+}

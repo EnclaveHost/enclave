@@ -1,0 +1,16 @@
+{
+  "CLOSURE.json": "996f3697efcb359455c40e20513d4ecfe44dcfae435f8631b0b03d06d81e03d9",
+  "REPORT.md": "d64602013871a933a255ea679261f1f6a445746219836cb57d5640f4b02e8463",
+  "enclave/cli/enclave.mjs": "264593e038538b9545bace86291e30c0f02a25c480e3cbb7acaa394741220de9",
+  "enclave/contracts/WalletSessionPolicy.sol": "f08888e1fb61e4d530e4c42627f54e2551ebbb35f2136843af2c2c1c9cf0a8ad",
+  "enclave/contracts/WalletSessionVault.sol": "c6dc12779995c54a4f10090e8a59dec9cd70b6c2d9c71ed2b767ff75e774a660",
+  "enclave/contracts/foundry/test/WalletSessionVault.t.sol": "8e2fb9fbf89ac2bfb94c6a3453904d198ef09ebd5f2f0e9526af84ed32661f97",
+  "enclave/relay/api-relay.js": "c570fc0eda221fefac006dd9437c7442921a1022b2d9c1a778cd29b26a3c1397",
+  "enclave/relay/sessions.mjs": "4c4a827b9e4c204f079f6a0e480871cac539e60cebffb386e7d6ccce9586c9e7",
+  "enclave/relay/shield-secrets.mjs": "12d305cfc59b7f47daf9ee51c245e07f3b63d9a6435bcb5255f67f85a13b6d42",
+  "enclave/relay/wallet-session-policy.mjs": "d1d6f1cc1ea396b213ec620f93dc91170d4e698679bf467c11d9afe70f98c0c2",
+  "enclave/sdk/sessions/src/wallet.ts": "f9b64f5945e305831505e8ec8f5f56e829614014533b59bacb0f86b5aec1de40",
+  "enclave/test/wallet-session/consumers.test.mjs": "892e276da2ebe72827406c5e9c00d5321a9109dea349dd9ed1782aec46a9d495",
+  "enclave/windows/node/host.mjs": "99c49ddfaf4ce1c89162f8ddfb50f74e21a300b68a932444ba9d067131e23b23",
+  "enclave/windows/node/session-api-auth.mjs": "168db31887082838fff5eff54a45f8effadd1253297771c7102ba939549c0525"
+}
