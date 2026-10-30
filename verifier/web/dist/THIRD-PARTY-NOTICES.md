@@ -13,6 +13,7 @@ Build tool, not distributed in the bundle: esbuild 0.28.1 (MIT).
 - `relay/pvm-evidence-core.mjs`
 - `relay/snp-verify.mjs`
 - `relay/vbs-app-core.mjs`
+- `relay/vbs-image-identity.mjs`
 - `relay/vbs-tcglog-core.mjs`
 - `relay/vbs-tpm.mjs`
 - `relay/vbs-vm-report-core.mjs`

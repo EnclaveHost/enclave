@@ -1166,11 +1166,11 @@ var init_abi = __esm({
       }
     };
     AbiDecodingDataSizeTooSmallError = class extends BaseError2 {
-      constructor({ data, params, size: size9 }) {
+      constructor({ data: data2, params, size: size9 }) {
         super([`Data size of ${size9} bytes is too small for given parameters.`].join("\n"), {
           metaMessages: [
             `Params: (${formatAbiParams(params, { includeName: true })})`,
-            `Data:   ${data} (${size9} bytes)`
+            `Data:   ${data2} (${size9} bytes)`
           ],
           name: "AbiDecodingDataSizeTooSmallError"
         });
@@ -1192,7 +1192,7 @@ var init_abi = __esm({
           writable: true,
           value: void 0
         });
-        this.data = data;
+        this.data = data2;
         this.params = params;
         this.size = size9;
       }
@@ -1359,13 +1359,13 @@ var init_abi = __esm({
       }
     };
     DecodeLogDataMismatch = class extends BaseError2 {
-      constructor({ abiItem, data, params, size: size9 }) {
+      constructor({ abiItem, data: data2, params, size: size9 }) {
         super([
           `Data size of ${size9} bytes is too small for non-indexed event parameters.`
         ].join("\n"), {
           metaMessages: [
             `Params: (${formatAbiParams(params, { includeName: true })})`,
-            `Data:   ${data} (${size9} bytes)`
+            `Data:   ${data2} (${size9} bytes)`
           ],
           name: "DecodeLogDataMismatch"
         });
@@ -1394,7 +1394,7 @@ var init_abi = __esm({
           value: void 0
         });
         this.abiItem = abiItem;
-        this.data = data;
+        this.data = data2;
         this.params = params;
         this.size = size9;
       }
@@ -1557,21 +1557,21 @@ var init_encoding = __esm({
 
 // relay/node_modules/viem/_esm/utils/data/trim.js
 function trim(hexOrBytes, { dir = "left" } = {}) {
-  let data = typeof hexOrBytes === "string" ? hexOrBytes.replace("0x", "") : hexOrBytes;
+  let data2 = typeof hexOrBytes === "string" ? hexOrBytes.replace("0x", "") : hexOrBytes;
   let sliceLength = 0;
-  for (let i = 0; i < data.length - 1; i++) {
-    if (data[dir === "left" ? i : data.length - i - 1].toString() === "0")
+  for (let i = 0; i < data2.length - 1; i++) {
+    if (data2[dir === "left" ? i : data2.length - i - 1].toString() === "0")
       sliceLength++;
     else
       break;
   }
-  data = dir === "left" ? data.slice(sliceLength) : data.slice(0, data.length - sliceLength);
+  data2 = dir === "left" ? data2.slice(sliceLength) : data2.slice(0, data2.length - sliceLength);
   if (typeof hexOrBytes === "string") {
-    if (data.length === 1 && dir === "right")
-      data = `${data}0`;
-    return `0x${data.length % 2 === 1 ? `0${data}` : data}`;
+    if (data2.length === 1 && dir === "right")
+      data2 = `${data2}0`;
+    return `0x${data2.length % 2 === 1 ? `0${data2}` : data2}`;
   }
-  return data;
+  return data2;
 }
 var init_trim = __esm({
   "relay/node_modules/viem/_esm/utils/data/trim.js"() {
@@ -1885,11 +1885,11 @@ function utf8ToBytes(str) {
     throw new Error("string expected");
   return new Uint8Array(new TextEncoder().encode(str));
 }
-function toBytes2(data) {
-  if (typeof data === "string")
-    data = utf8ToBytes(data);
-  abytes(data);
-  return data;
+function toBytes2(data2) {
+  if (typeof data2 === "string")
+    data2 = utf8ToBytes(data2);
+  abytes(data2);
+  return data2;
 }
 function concatBytes(...arrays) {
   let sum = 0;
@@ -2036,16 +2036,16 @@ var init_sha3 = __esm({
         this.posOut = 0;
         this.pos = 0;
       }
-      update(data) {
+      update(data2) {
         aexists(this);
-        data = toBytes2(data);
-        abytes(data);
+        data2 = toBytes2(data2);
+        abytes(data2);
         const { blockLen, state } = this;
-        const len = data.length;
+        const len = data2.length;
         for (let pos = 0; pos < len; ) {
           const take = Math.min(blockLen - this.pos, len - pos);
           for (let i = 0; i < take; i++)
-            state[this.pos++] ^= data[pos++];
+            state[this.pos++] ^= data2[pos++];
           if (this.pos === blockLen)
             this.keccak();
         }
@@ -2547,16 +2547,16 @@ function encodeArray(value, { length, param }) {
     preparedParams.push(preparedParam);
   }
   if (dynamic || dynamicChild) {
-    const data = encodeParams(preparedParams);
+    const data2 = encodeParams(preparedParams);
     if (dynamic) {
       const length2 = numberToHex(preparedParams.length, { size: 32 });
       return {
         dynamic: true,
-        encoded: concatHex([length2, data])
+        encoded: concatHex([length2, data2])
       };
     }
     if (dynamicChild)
-      return { dynamic: true, encoded: data };
+      return { dynamic: true, encoded: data2 };
   }
   return {
     dynamic: false,
@@ -2979,8 +2979,8 @@ function encodeFunctionData(parameters) {
   })();
   const abiItem = abi3[0];
   const signature = functionName;
-  const data = "inputs" in abiItem && abiItem.inputs ? encodeAbiParameters(abiItem.inputs, args ?? []) : void 0;
-  return concatHex([signature, data ?? "0x"]);
+  const data2 = "inputs" in abiItem && abiItem.inputs ? encodeAbiParameters(abiItem.inputs, args ?? []) : void 0;
+  return concatHex([signature, data2 ?? "0x"]);
 }
 var init_encodeFunctionData = __esm({
   "relay/node_modules/viem/_esm/utils/abi/encodeFunctionData.js"() {
@@ -3269,16 +3269,16 @@ var init_fromBytes = __esm({
 });
 
 // relay/node_modules/viem/_esm/utils/abi/decodeAbiParameters.js
-function decodeAbiParameters(params, data) {
-  const bytes = typeof data === "string" ? hexToBytes(data) : data;
+function decodeAbiParameters(params, data2) {
+  const bytes = typeof data2 === "string" ? hexToBytes(data2) : data2;
   const cursor = createCursor(bytes);
   if (size(bytes) === 0 && params.length > 0)
     throw new AbiDecodingZeroDataError();
-  if (size(data) && size(data) < 32)
+  if (size(data2) && size(data2) < 32)
     throw new AbiDecodingDataSizeTooSmallError({
-      data: typeof data === "string" ? data : bytesToHex(data),
+      data: typeof data2 === "string" ? data2 : bytesToHex(data2),
       params,
-      size: size(data)
+      size: size(data2)
     });
   let consumed = 0;
   const values = [];
@@ -3286,11 +3286,11 @@ function decodeAbiParameters(params, data) {
     const param = params[i];
     if (consumed < bytes.length)
       cursor.setPosition(consumed);
-    const [data2, consumed_] = decodeParameter(cursor, param, {
+    const [data3, consumed_] = decodeParameter(cursor, param, {
       staticPosition: 0
     });
     consumed += consumed_;
-    values.push(data2);
+    values.push(data3);
   }
   return values;
 }
@@ -3332,11 +3332,11 @@ function decodeArray(cursor, param, { length, staticPosition }) {
     const value2 = [];
     for (let i = 0; i < length2; ++i) {
       cursor.setPosition(startOfData + (dynamicChild ? i * 32 : consumed2));
-      const [data, consumed_] = decodeParameter(cursor, param, {
+      const [data2, consumed_] = decodeParameter(cursor, param, {
         staticPosition: startOfData
       });
       consumed2 += consumed_;
-      value2.push(data);
+      value2.push(data2);
       if (consumed_ === 0) {
         cursor.assertReadLimit();
         cursor._touch();
@@ -3351,10 +3351,10 @@ function decodeArray(cursor, param, { length, staticPosition }) {
     const value2 = [];
     for (let i = 0; i < length; ++i) {
       cursor.setPosition(start + i * 32);
-      const [data] = decodeParameter(cursor, param, {
+      const [data2] = decodeParameter(cursor, param, {
         staticPosition: start
       });
-      value2.push(data);
+      value2.push(data2);
     }
     cursor.setPosition(staticPosition + 32);
     return [value2, 32];
@@ -3362,11 +3362,11 @@ function decodeArray(cursor, param, { length, staticPosition }) {
   let consumed = 0;
   const value = [];
   for (let i = 0; i < length; ++i) {
-    const [data, consumed_] = decodeParameter(cursor, param, {
+    const [data2, consumed_] = decodeParameter(cursor, param, {
       staticPosition: staticPosition + consumed
     });
     consumed += consumed_;
-    value.push(data);
+    value.push(data2);
     if (consumed_ === 0) {
       cursor.assertReadLimit();
       cursor._touch();
@@ -3387,9 +3387,9 @@ function decodeBytes(cursor, param, { staticPosition }) {
       cursor.setPosition(staticPosition + 32);
       return ["0x", 32];
     }
-    const data = cursor.readBytes(length);
+    const data2 = cursor.readBytes(length);
     cursor.setPosition(staticPosition + 32);
-    return [bytesToHex(data), 32];
+    return [bytesToHex(data2), 32];
   }
   const value = bytesToHex(cursor.readBytes(Number.parseInt(size9, 10), 32));
   return [value, 32];
@@ -3413,21 +3413,21 @@ function decodeTuple(cursor, param, { staticPosition }) {
     for (let i = 0; i < param.components.length; ++i) {
       const component = param.components[i];
       cursor.setPosition(start + consumed);
-      const [data, consumed_] = decodeParameter(cursor, component, {
+      const [data2, consumed_] = decodeParameter(cursor, component, {
         staticPosition: start
       });
       consumed += consumed_;
-      value[hasUnnamedChild ? i : component?.name] = data;
+      value[hasUnnamedChild ? i : component?.name] = data2;
     }
     cursor.setPosition(staticPosition + 32);
     return [value, 32];
   }
   for (let i = 0; i < param.components.length; ++i) {
     const component = param.components[i];
-    const [data, consumed_] = decodeParameter(cursor, component, {
+    const [data2, consumed_] = decodeParameter(cursor, component, {
       staticPosition
     });
-    value[hasUnnamedChild ? i : component?.name] = data;
+    value[hasUnnamedChild ? i : component?.name] = data2;
     consumed += consumed_;
   }
   return [value, consumed];
@@ -3441,8 +3441,8 @@ function decodeString(cursor, { staticPosition }) {
     cursor.setPosition(staticPosition + 32);
     return ["", 32];
   }
-  const data = cursor.readBytes(length, 32);
-  const value = bytesToString(trim(data));
+  const data2 = cursor.readBytes(length, 32);
+  const value = bytesToString(trim(data2));
   cursor.setPosition(staticPosition + 32);
   return [value, 32];
 }
@@ -3481,8 +3481,8 @@ var init_decodeAbiParameters = __esm({
 
 // relay/node_modules/viem/_esm/utils/abi/decodeErrorResult.js
 function decodeErrorResult(parameters) {
-  const { abi: abi3, data, cause } = parameters;
-  const signature = slice(data, 0, 4);
+  const { abi: abi3, data: data2, cause } = parameters;
+  const signature = slice(data2, 0, 4);
   if (signature === "0x")
     throw new AbiDecodingZeroDataError({ cause });
   const abi_ = [...abi3 || [], solidityError, solidityPanic];
@@ -3494,7 +3494,7 @@ function decodeErrorResult(parameters) {
     });
   return {
     abiItem,
-    args: "inputs" in abiItem && abiItem.inputs && abiItem.inputs.length > 0 ? decodeAbiParameters(abiItem.inputs, slice(data, 4)) : void 0,
+    args: "inputs" in abiItem && abiItem.inputs && abiItem.inputs.length > 0 ? decodeAbiParameters(abiItem.inputs, slice(data2, 4)) : void 0,
     errorName: abiItem.name
   };
 }
@@ -3558,12 +3558,12 @@ function formatUnits(value, decimals) {
   if (negative)
     display = display.slice(1);
   display = display.padStart(decimals, "0");
-  let [integer, fraction] = [
+  let [integer2, fraction] = [
     display.slice(0, display.length - decimals),
     display.slice(display.length - decimals)
   ];
   fraction = fraction.replace(/(0+)$/, "");
-  return `${negative ? "-" : ""}${integer || "0"}${fraction ? `.${fraction}` : ""}`;
+  return `${negative ? "-" : ""}${integer2 || "0"}${fraction ? `.${fraction}` : ""}`;
 }
 var init_formatUnits = __esm({
   "relay/node_modules/viem/_esm/utils/unit/formatUnits.js"() {
@@ -3694,13 +3694,13 @@ var init_transaction = __esm({
       }
     };
     TransactionExecutionError = class extends BaseError2 {
-      constructor(cause, { account, docsPath: docsPath16, chain: chain2, data, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2, to: to4, value }) {
+      constructor(cause, { account, docsPath: docsPath16, chain: chain2, data: data2, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2, to: to4, value }) {
         const prettyArgs = prettyPrint({
           chain: chain2 && `${chain2?.name} (id: ${chain2?.id})`,
           from: account?.address,
           to: to4,
           value: typeof value !== "undefined" && `${formatEther(value)} ${chain2?.nativeCurrency?.symbol || "ETH"}`,
-          data,
+          data: data2,
           gas,
           gasPrice: typeof gasPrice !== "undefined" && `${formatGwei(gasPrice)} gwei`,
           maxFeePerGas: typeof maxFeePerGas !== "undefined" && `${formatGwei(maxFeePerGas)} gwei`,
@@ -3828,13 +3828,13 @@ var init_contract = __esm({
     init_transaction();
     init_utils3();
     CallExecutionError = class extends BaseError2 {
-      constructor(cause, { account: account_, docsPath: docsPath16, chain: chain2, data, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2, to: to4, value, stateOverride }) {
+      constructor(cause, { account: account_, docsPath: docsPath16, chain: chain2, data: data2, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2, to: to4, value, stateOverride }) {
         const account = account_ ? parseAccount(account_) : void 0;
         let prettyArgs = prettyPrint({
           from: account?.address,
           to: to4,
           value: typeof value !== "undefined" && `${formatEther(value)} ${chain2?.nativeCurrency?.symbol || "ETH"}`,
-          data,
+          data: data2,
           gas,
           gasPrice: typeof gasPrice !== "undefined" && `${formatGwei(gasPrice)} gwei`,
           maxFeePerGas: typeof maxFeePerGas !== "undefined" && `${formatGwei(maxFeePerGas)} gwei`,
@@ -3941,14 +3941,14 @@ ${prettyStateOverride(stateOverride)}`;
       }
     };
     ContractFunctionRevertedError = class extends BaseError2 {
-      constructor({ abi: abi3, data, functionName, message: message2, cause: error }) {
+      constructor({ abi: abi3, data: data2, functionName, message: message2, cause: error }) {
         let cause;
         let decodedData;
         let metaMessages;
         let reason;
-        if (data && data !== "0x") {
+        if (data2 && data2 !== "0x") {
           try {
-            decodedData = decodeErrorResult({ abi: abi3, data, cause: error });
+            decodedData = decodeErrorResult({ abi: abi3, data: data2, cause: error });
             const { abiItem, errorName, args: errorArgs } = decodedData;
             if (errorName === "Error") {
               reason = errorArgs[0];
@@ -4015,7 +4015,7 @@ ${prettyStateOverride(stateOverride)}`;
           value: void 0
         });
         this.data = decodedData;
-        this.raw = data;
+        this.raw = data2;
         this.reason = reason;
         this.signature = signature;
       }
@@ -4047,7 +4047,7 @@ ${prettyStateOverride(stateOverride)}`;
       }
     };
     RawContractError = class extends BaseError2 {
-      constructor({ data, message: message2 }) {
+      constructor({ data: data2, message: message2 }) {
         super(message2 || "", { name: "RawContractError" });
         Object.defineProperty(this, "code", {
           enumerable: true,
@@ -4061,7 +4061,7 @@ ${prettyStateOverride(stateOverride)}`;
           writable: true,
           value: void 0
         });
-        this.data = data;
+        this.data = data2;
       }
     };
   }
@@ -4641,14 +4641,14 @@ var init_rpc = __esm({
 // relay/node_modules/viem/_esm/utils/errors/getContractError.js
 function getContractError(err3, { abi: abi3, address: address4, args, docsPath: docsPath16, functionName, sender }) {
   const error = err3 instanceof RawContractError ? err3 : err3 instanceof BaseError2 ? err3.walk((err4) => "data" in err4) || err3.walk() : {};
-  const { code, data, details, message: message2, shortMessage } = error;
+  const { code, data: data2, details, message: message2, shortMessage } = error;
   const cause = (() => {
     if (err3 instanceof AbiDecodingZeroDataError)
       return new ContractFunctionZeroDataError({ functionName, cause: err3 });
-    if ([EXECUTION_REVERTED_ERROR_CODE, InternalRpcError.code].includes(code) && (data || details || message2 || shortMessage) || code === InvalidInputRpcError.code && details === "execution reverted" && data) {
+    if ([EXECUTION_REVERTED_ERROR_CODE, InternalRpcError.code].includes(code) && (data2 || details || message2 || shortMessage) || code === InvalidInputRpcError.code && details === "execution reverted" && data2) {
       return new ContractFunctionRevertedError({
         abi: abi3,
-        data: typeof data === "object" ? data.data : data,
+        data: typeof data2 === "object" ? data2.data : data2,
         functionName,
         message: error instanceof RpcRequestError ? details : shortMessage ?? message2,
         cause: err3
@@ -4726,21 +4726,21 @@ var init_md = __esm({
         this.buffer = new Uint8Array(blockLen);
         this.view = createView(this.buffer);
       }
-      update(data) {
+      update(data2) {
         aexists(this);
-        data = toBytes2(data);
-        abytes(data);
+        data2 = toBytes2(data2);
+        abytes(data2);
         const { view, buffer: buffer3, blockLen } = this;
-        const len = data.length;
+        const len = data2.length;
         for (let pos = 0; pos < len; ) {
           const take = Math.min(blockLen - this.pos, len - pos);
           if (take === blockLen) {
-            const dataView = createView(data);
+            const dataView = createView(data2);
             for (; blockLen <= len - pos; pos += blockLen)
               this.process(dataView, pos);
             continue;
           }
-          buffer3.set(data.subarray(pos, pos + take), this.pos);
+          buffer3.set(data2.subarray(pos, pos + take), this.pos);
           this.pos += take;
           pos += take;
           if (this.pos === blockLen) {
@@ -4748,7 +4748,7 @@ var init_md = __esm({
             this.pos = 0;
           }
         }
-        this.length += data.length;
+        this.length += data2.length;
         this.roundClean();
         return this;
       }
@@ -6678,29 +6678,29 @@ var init_weierstrass = __esm({
       Err: DERErr,
       // Basic building block is TLV (Tag-Length-Value)
       _tlv: {
-        encode: (tag, data) => {
+        encode: (tag, data2) => {
           const { Err: E } = DER;
           if (tag < 0 || tag > 256)
             throw new E("tlv.encode: wrong tag");
-          if (data.length & 1)
+          if (data2.length & 1)
             throw new E("tlv.encode: unpadded data");
-          const dataLen = data.length / 2;
+          const dataLen = data2.length / 2;
           const len = numberToHexUnpadded(dataLen);
           if (len.length / 2 & 128)
             throw new E("tlv.encode: long form length too big");
           const lenLen = dataLen > 127 ? numberToHexUnpadded(len.length / 2 | 128) : "";
           const t = numberToHexUnpadded(tag);
-          return t + lenLen + len + data;
+          return t + lenLen + len + data2;
         },
         // v - value, l - left bytes (unparsed)
-        decode(tag, data) {
+        decode(tag, data2) {
           const { Err: E } = DER;
           let pos = 0;
           if (tag < 0 || tag > 256)
             throw new E("tlv.encode: wrong tag");
-          if (data.length < 2 || data[pos++] !== tag)
+          if (data2.length < 2 || data2[pos++] !== tag)
             throw new E("tlv.decode: wrong tlv");
-          const first = data[pos++];
+          const first = data2[pos++];
           const isLong = !!(first & 128);
           let length = 0;
           if (!isLong)
@@ -6711,7 +6711,7 @@ var init_weierstrass = __esm({
               throw new E("tlv.decode(long): indefinite length not supported");
             if (lenLen > 4)
               throw new E("tlv.decode(long): byte length is too big");
-            const lengthBytes = data.subarray(pos, pos + lenLen);
+            const lengthBytes = data2.subarray(pos, pos + lenLen);
             if (lengthBytes.length !== lenLen)
               throw new E("tlv.decode: length bytes not complete");
             if (lengthBytes[0] === 0)
@@ -6722,10 +6722,10 @@ var init_weierstrass = __esm({
             if (length < 128)
               throw new E("tlv.decode(long): not minimal encoding");
           }
-          const v = data.subarray(pos, pos + length);
+          const v = data2.subarray(pos, pos + length);
           if (v.length !== length)
             throw new E("tlv.decode: wrong value length");
-          return { v, l: data.subarray(pos + length) };
+          return { v, l: data2.subarray(pos + length) };
         }
       },
       // https://crypto.stackexchange.com/a/57734 Leftmost bit of first byte is 'negative' flag,
@@ -6744,19 +6744,19 @@ var init_weierstrass = __esm({
             throw new E("unexpected DER parsing assertion: unpadded hex");
           return hex3;
         },
-        decode(data) {
+        decode(data2) {
           const { Err: E } = DER;
-          if (data[0] & 128)
+          if (data2[0] & 128)
             throw new E("invalid signature integer: negative");
-          if (data[0] === 0 && !(data[1] & 128))
+          if (data2[0] === 0 && !(data2[1] & 128))
             throw new E("invalid signature integer: unnecessary leading zero");
-          return bytesToNumberBE(data);
+          return bytesToNumberBE(data2);
         }
       },
       toSig(hex3) {
         const { Err: E, _int: int2, _tlv: tlv3 } = DER;
-        const data = ensureBytes("signature", hex3);
-        const { v: seqBytes, l: seqLeftBytes } = tlv3.decode(48, data);
+        const data2 = ensureBytes("signature", hex3);
+        const { v: seqBytes, l: seqLeftBytes } = tlv3.decode(48, data2);
         if (seqLeftBytes.length)
           throw new E("invalid signature: left bytes after parsing");
         const { v: rBytes, l: rLeftBytes } = tlv3.decode(2, seqBytes);
@@ -7384,12 +7384,12 @@ var init_estimateGas = __esm({
     init_base();
     init_transaction();
     EstimateGasExecutionError = class extends BaseError2 {
-      constructor(cause, { account, docsPath: docsPath16, chain: chain2, data, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2, to: to4, value }) {
+      constructor(cause, { account, docsPath: docsPath16, chain: chain2, data: data2, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2, to: to4, value }) {
         const prettyArgs = prettyPrint({
           from: account?.address,
           to: to4,
           value: typeof value !== "undefined" && `${formatEther(value)} ${chain2?.nativeCurrency?.symbol || "ETH"}`,
-          data,
+          data: data2,
           gas,
           gasPrice: typeof gasPrice !== "undefined" && `${formatGwei(gasPrice)} gwei`,
           maxFeePerGas: typeof maxFeePerGas !== "undefined" && `${formatGwei(maxFeePerGas)} gwei`,
@@ -8500,8 +8500,8 @@ var init_blob2 = __esm({
 // relay/node_modules/viem/_esm/utils/blob/toBlobs.js
 function toBlobs(parameters) {
   const to4 = parameters.to ?? (typeof parameters.data === "string" ? "hex" : "bytes");
-  const data = typeof parameters.data === "string" ? hexToBytes(parameters.data) : parameters.data;
-  const size_ = size(data);
+  const data2 = typeof parameters.data === "string" ? hexToBytes(parameters.data) : parameters.data;
+  const size_ = size(data2);
   if (!size_)
     throw new EmptyBlobError();
   if (size_ > maxBytesPerTransaction)
@@ -8516,7 +8516,7 @@ function toBlobs(parameters) {
     const blob = createCursor(new Uint8Array(bytesPerBlob));
     let size9 = 0;
     while (size9 < fieldElementsPerBlob) {
-      const bytes = data.slice(position, position + (bytesPerFieldElement - 1));
+      const bytes = data2.slice(position, position + (bytesPerFieldElement - 1));
       blob.pushByte(0);
       blob.pushBytes(bytes);
       if (bytes.length < 31) {
@@ -8544,8 +8544,8 @@ var init_toBlobs = __esm({
 
 // relay/node_modules/viem/_esm/utils/blob/toBlobSidecars.js
 function toBlobSidecars(parameters) {
-  const { data, kzg, to: to4 } = parameters;
-  const blobs = parameters.blobs ?? toBlobs({ data, to: to4 });
+  const { data: data2, kzg, to: to4 } = parameters;
+  const blobs = parameters.blobs ?? toBlobs({ data: data2, to: to4 });
   const commitments = parameters.commitments ?? blobsToCommitments({ blobs, kzg, to: to4 });
   const proofs = parameters.proofs ?? blobsToProofs({ blobs, commitments, kzg, to: to4 });
   const sidecars = [];
@@ -8625,7 +8625,7 @@ var init_getChainId = __esm({
 
 // relay/node_modules/viem/_esm/actions/public/fillTransaction.js
 async function fillTransaction(client, parameters) {
-  const { account = client.account, accessList, authorizationList, chain: chain2 = client.chain, blobVersionedHashes, blobs, data, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce_, nonceManager: nonceManager2, to: to4, type: type2, value, ...rest } = parameters;
+  const { account = client.account, accessList, authorizationList, chain: chain2 = client.chain, blobVersionedHashes, blobs, data: data2, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce_, nonceManager: nonceManager2, to: to4, type: type2, value, ...rest } = parameters;
   const nonce2 = await (async () => {
     if (!account)
       return nonce_;
@@ -8652,7 +8652,7 @@ async function fillTransaction(client, parameters) {
     authorizationList,
     blobs,
     blobVersionedHashes,
-    data,
+    data: data2,
     gas,
     gasPrice,
     maxFeePerBlobGas,
@@ -9007,7 +9007,7 @@ async function estimateGas(client, args) {
         });
       return void 0;
     })();
-    const { accessList, authorizationList, blobs, blobVersionedHashes, blockNumber, blockTag, data, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2, value, stateOverride, ...rest } = prepare ? await prepareTransactionRequest(client, {
+    const { accessList, authorizationList, blobs, blobVersionedHashes, blockNumber, blockTag, data: data2, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2, value, stateOverride, ...rest } = prepare ? await prepareTransactionRequest(client, {
       ...args,
       parameters,
       to: to4
@@ -9028,7 +9028,7 @@ async function estimateGas(client, args) {
       authorizationList,
       blobs,
       blobVersionedHashes,
-      data,
+      data: data2,
       gasPrice,
       maxFeePerBlobGas,
       maxFeePerGas,
@@ -9071,14 +9071,14 @@ var init_estimateGas2 = __esm({
 // relay/node_modules/viem/_esm/actions/public/estimateContractGas.js
 async function estimateContractGas(client, parameters) {
   const { abi: abi3, address: address4, args, functionName, dataSuffix = typeof client.dataSuffix === "string" ? client.dataSuffix : client.dataSuffix?.value, ...request } = parameters;
-  const data = encodeFunctionData({
+  const data2 = encodeFunctionData({
     abi: abi3,
     args,
     functionName
   });
   try {
     const gas = await getAction(client, estimateGas, "estimateGas")({
-      data: `${data}${dataSuffix ? dataSuffix.replace("0x", "") : ""}`,
+      data: `${data2}${dataSuffix ? dataSuffix.replace("0x", "") : ""}`,
       to: address4,
       ...request
     });
@@ -9140,7 +9140,7 @@ var init_log2 = __esm({
 
 // relay/node_modules/viem/_esm/utils/abi/decodeEventLog.js
 function decodeEventLog(parameters) {
-  const { abi: abi3, data, strict: strict_, topics } = parameters;
+  const { abi: abi3, data: data2, strict: strict_, topics } = parameters;
   const strict = strict_ ?? true;
   const [signature, ...argTopics] = topics;
   if (!signature)
@@ -9173,9 +9173,9 @@ function decodeEventLog(parameters) {
   const nonIndexedInputs = inputs.filter((x) => !("indexed" in x && x.indexed));
   const inputsToDecode = strict ? nonIndexedInputs : [...missingIndexedInputs.map(([param]) => param), ...nonIndexedInputs];
   if (inputsToDecode.length > 0) {
-    if (data && data !== "0x") {
+    if (data2 && data2 !== "0x") {
       try {
-        const decodedData = decodeAbiParameters(inputsToDecode, data);
+        const decodedData = decodeAbiParameters(inputsToDecode, data2);
         if (decodedData) {
           let dataIndex = 0;
           if (!strict) {
@@ -9196,9 +9196,9 @@ function decodeEventLog(parameters) {
           if (err3 instanceof AbiDecodingDataSizeTooSmallError || err3 instanceof PositionOutOfBoundsError)
             throw new DecodeLogDataMismatch({
               abiItem,
-              data,
+              data: data2,
               params: inputsToDecode,
-              size: size(data)
+              size: size(data2)
             });
           throw err3;
         }
@@ -9430,7 +9430,7 @@ var init_getContractEvents = __esm({
 
 // relay/node_modules/viem/_esm/utils/abi/decodeFunctionResult.js
 function decodeFunctionResult(parameters) {
-  const { abi: abi3, args, functionName, data } = parameters;
+  const { abi: abi3, args, functionName, data: data2 } = parameters;
   let abiItem = abi3[0];
   if (functionName) {
     const item = getAbiItem({ abi: abi3, args, name: functionName });
@@ -9442,7 +9442,7 @@ function decodeFunctionResult(parameters) {
     throw new AbiFunctionNotFoundError(void 0, { docsPath: docsPath4 });
   if (!abiItem.outputs)
     throw new AbiFunctionOutputsNotFoundError(abiItem.name, { docsPath: docsPath4 });
-  const values = decodeAbiParameters(abiItem.outputs, data);
+  const values = decodeAbiParameters(abiItem.outputs, data2);
   if (values && values.length > 1)
     return values;
   if (values && values.length === 1)
@@ -9665,16 +9665,16 @@ function pad2(bytes, options = {}) {
 }
 function trim2(value, options = {}) {
   const { dir = "left" } = options;
-  let data = value;
+  let data2 = value;
   let sliceLength = 0;
-  for (let i = 0; i < data.length - 1; i++) {
-    if (data[dir === "left" ? i : data.length - i - 1].toString() === "0")
+  for (let i = 0; i < data2.length - 1; i++) {
+    if (data2[dir === "left" ? i : data2.length - i - 1].toString() === "0")
       sliceLength++;
     else
       break;
   }
-  data = dir === "left" ? data.slice(sliceLength) : data.slice(0, data.length - sliceLength);
-  return data;
+  data2 = dir === "left" ? data2.slice(sliceLength) : data2.slice(0, data2.length - sliceLength);
+  return data2;
 }
 var charCodeMap2;
 var init_bytes = __esm({
@@ -9731,20 +9731,20 @@ function pad3(hex_, options = {}) {
 }
 function trim3(value, options = {}) {
   const { dir = "left" } = options;
-  let data = value.replace("0x", "");
+  let data2 = value.replace("0x", "");
   let sliceLength = 0;
-  for (let i = 0; i < data.length - 1; i++) {
-    if (data[dir === "left" ? i : data.length - i - 1].toString() === "0")
+  for (let i = 0; i < data2.length - 1; i++) {
+    if (data2[dir === "left" ? i : data2.length - i - 1].toString() === "0")
       sliceLength++;
     else
       break;
   }
-  data = dir === "left" ? data.slice(sliceLength) : data.slice(0, data.length - sliceLength);
-  if (data === "0")
+  data2 = dir === "left" ? data2.slice(sliceLength) : data2.slice(0, data2.length - sliceLength);
+  if (data2 === "0")
     return "0x";
-  if (dir === "right" && data.length % 2 === 1)
-    return `0x${data}0`;
-  return `0x${data}`;
+  if (dir === "right" && data2.length % 2 === 1)
+    return `0x${data2}0`;
+  return `0x${data2}`;
 }
 var init_hex = __esm({
   "relay/node_modules/ox/_esm/core/internal/hex.js"() {
@@ -10829,8 +10829,8 @@ function encodeDeployData(parameters) {
     throw new AbiConstructorParamsNotFoundError({ docsPath: docsPath5 });
   if (!description.inputs || description.inputs.length === 0)
     throw new AbiConstructorParamsNotFoundError({ docsPath: docsPath5 });
-  const data = encodeAbiParameters(description.inputs, args);
-  return concatHex([bytecode, data]);
+  const data2 = encodeAbiParameters(description.inputs, args);
+  return concatHex([bytecode, data2]);
 }
 var docsPath5;
 var init_encodeDeployData = __esm({
@@ -10911,12 +10911,12 @@ function createBatchScheduler({ fn: fn3, id: id3, shouldSplitBatch, wait: wait3 
     const args = scheduler.map(({ args: args2 }) => args2);
     if (args.length === 0)
       return;
-    fn3(args).then((data) => {
-      if (sort && Array.isArray(data))
-        data.sort(sort);
+    fn3(args).then((data2) => {
+      if (sort && Array.isArray(data2))
+        data2.sort(sort);
       for (let i = 0; i < scheduler.length; i++) {
         const { resolve: resolve3 } = scheduler[i];
-        resolve3?.([data[i], data]);
+        resolve3?.([data2[i], data2]);
       }
     }).catch((err3) => {
       for (let i = 0; i < scheduler.length; i++) {
@@ -10963,7 +10963,7 @@ var init_ccip = __esm({
     init_base();
     init_utils3();
     OffchainLookupError = class extends BaseError2 {
-      constructor({ callbackSelector, cause, data, extraData, sender, urls }) {
+      constructor({ callbackSelector, cause, data: data2, extraData, sender, urls }) {
         super(cause.shortMessage || "An error occurred while fetching for an offchain result.", {
           cause,
           metaMessages: [
@@ -10975,7 +10975,7 @@ var init_ccip = __esm({
               ...urls.map((url) => `    ${getUrl(url)}`)
             ],
             `  Sender: ${sender}`,
-            `  Data: ${data}`,
+            `  Data: ${data2}`,
             `  Callback selector: ${callbackSelector}`,
             `  Extra data: ${extraData}`
           ].flat(),
@@ -11010,8 +11010,8 @@ var init_ccip = __esm({
 
 // relay/node_modules/viem/_esm/utils/abi/decodeFunctionData.js
 function decodeFunctionData(parameters) {
-  const { abi: abi3, data } = parameters;
-  const signature = slice(data, 0, 4);
+  const { abi: abi3, data: data2 } = parameters;
+  const signature = slice(data2, 0, 4);
   const description = abi3.find((x) => x.type === "function" && signature === toFunctionSelector(formatAbiItem2(x)));
   if (!description)
     throw new AbiFunctionSignatureNotFoundError(signature, {
@@ -11019,7 +11019,7 @@ function decodeFunctionData(parameters) {
     });
   return {
     functionName: description.name,
-    args: "inputs" in description && description.inputs && description.inputs.length > 0 ? decodeAbiParameters(description.inputs, slice(data, 4)) : void 0
+    args: "inputs" in description && description.inputs && description.inputs.length > 0 ? decodeAbiParameters(description.inputs, slice(data2, 4)) : void 0
   };
 }
 var init_decodeFunctionData = __esm({
@@ -11046,13 +11046,13 @@ function encodeErrorResult(parameters) {
     throw new AbiErrorNotFoundError(void 0, { docsPath: docsPath6 });
   const definition = formatAbiItem2(abiItem);
   const signature = toFunctionSelector(definition);
-  let data = "0x";
+  let data2 = "0x";
   if (args && args.length > 0) {
     if (!abiItem.inputs)
       throw new AbiErrorInputsNotFoundError(abiItem.name, { docsPath: docsPath6 });
-    data = encodeAbiParameters(abiItem.inputs, args);
+    data2 = encodeAbiParameters(abiItem.inputs, args);
   }
-  return concatHex([signature, data]);
+  return concatHex([signature, data2]);
 }
 var docsPath6;
 var init_encodeErrorResult = __esm({
@@ -11104,8 +11104,8 @@ var init_encodeFunctionResult = __esm({
 
 // relay/node_modules/viem/_esm/utils/ens/localBatchGatewayRequest.js
 async function localBatchGatewayRequest(parameters) {
-  const { data, ccipRequest: ccipRequest3 } = parameters;
-  const { args: [queries] } = decodeFunctionData({ abi: batchGatewayAbi, data });
+  const { data: data2, ccipRequest: ccipRequest3 } = parameters;
+  const { args: [queries] } = decodeFunctionData({ abi: batchGatewayAbi, data: data2 });
   const failures = [];
   const responses = [];
   await Promise.all(queries.map(async (query, i) => {
@@ -11156,9 +11156,9 @@ __export(ccip_exports, {
   offchainLookupAbiItem: () => offchainLookupAbiItem,
   offchainLookupSignature: () => offchainLookupSignature
 });
-async function offchainLookup(client, { blockNumber, blockTag, data, requestOptions, to: to4 }) {
+async function offchainLookup(client, { blockNumber, blockTag, data: data2, requestOptions, to: to4 }) {
   const { args } = decodeErrorResult({
-    data,
+    data: data2,
     abi: [offchainLookupAbiItem]
   });
   const [sender, urls, callData, callbackSelector, extraData] = args;
@@ -11190,24 +11190,24 @@ async function offchainLookup(client, { blockNumber, blockTag, data, requestOpti
     throw new OffchainLookupError({
       callbackSelector,
       cause: err3,
-      data,
+      data: data2,
       extraData,
       sender,
       urls
     });
   }
 }
-async function ccipRequest({ data, requestOptions, sender, urls }) {
+async function ccipRequest({ data: data2, requestOptions, sender, urls }) {
   let error = new Error("An unknown error occurred.");
   for (let i = 0; i < urls.length; i++) {
     if (requestOptions?.signal?.aborted)
       throw getAbortError(requestOptions.signal);
     const url = urls[i];
     const method = url.includes("{data}") ? "GET" : "POST";
-    const body2 = method === "POST" ? { data, sender } : void 0;
+    const body2 = method === "POST" ? { data: data2, sender } : void 0;
     const headers = method === "POST" ? { "Content-Type": "application/json" } : {};
     try {
-      const response = await fetch(url.replace("{sender}", sender.toLowerCase()).replace("{data}", data), {
+      const response = await fetch(url.replace("{sender}", sender.toLowerCase()).replace("{data}", data2), {
         body: JSON.stringify(body2),
         headers,
         method,
@@ -11306,7 +11306,7 @@ async function call(client, args) {
   const deploylessCallViaBytecode = code && data_;
   const deploylessCallViaFactory = factory && factoryData && to4 && data_;
   const deploylessCall = deploylessCallViaBytecode || deploylessCallViaFactory;
-  const data = (() => {
+  const data2 = (() => {
     if (deploylessCallViaBytecode)
       return toDeploylessCallViaBytecodeData({
         code,
@@ -11340,7 +11340,7 @@ async function call(client, args) {
       account,
       authorizationList,
       blobs,
-      data,
+      data: data2,
       gas,
       gasPrice,
       maxFeePerBlobGas,
@@ -11398,13 +11398,13 @@ async function call(client, args) {
       throw getAbortError(requestOptions.signal);
     if (isAbortError(err3))
       throw err3;
-    const data2 = getRevertErrorData(err3);
+    const data3 = getRevertErrorData(err3);
     const { offchainLookup: offchainLookup3, offchainLookupSignature: offchainLookupSignature3 } = await Promise.resolve().then(() => (init_ccip2(), ccip_exports));
-    if (client.ccipRead !== false && data2?.slice(0, 10) === offchainLookupSignature3 && to4)
+    if (client.ccipRead !== false && data3?.slice(0, 10) === offchainLookupSignature3 && to4)
       return {
-        data: await offchainLookup3(client, { data: data2, requestOptions, to: to4 })
+        data: await offchainLookup3(client, { data: data3, requestOptions, to: to4 })
       };
-    if (deploylessCall && data2?.slice(0, 10) === "0x101bb98d")
+    if (deploylessCall && data3?.slice(0, 10) === "0x101bb98d")
       throw new CounterfactualDeploymentFailedError({ factory });
     throw getCallError(err3, {
       ...args,
@@ -11414,10 +11414,10 @@ async function call(client, args) {
   }
 }
 function shouldPerformMulticall({ request }) {
-  const { data, to: to4, ...request_ } = request;
-  if (!data)
+  const { data: data2, to: to4, ...request_ } = request;
+  if (!data2)
     return false;
-  if (data.startsWith(aggregate3Signature))
+  if (data2.startsWith(aggregate3Signature))
     return false;
   if (!to4)
     return false;
@@ -11437,7 +11437,7 @@ function getRequestOptionsId(requestOptions) {
 }
 async function scheduleMulticall(client, args) {
   const { batchSize = 1024, deployless = false, wait: wait3 = 0 } = typeof client.batch?.multicall === "object" ? client.batch.multicall : {};
-  const { blockHash, blockNumber, blockTag = client.experimental_blockTag ?? "latest", requireCanonical, data, multicallAddress: multicallAddress_, requestOptions, rpcStateOverride, to: to4 } = args;
+  const { blockHash, blockNumber, blockTag = client.experimental_blockTag ?? "latest", requireCanonical, data: data2, multicallAddress: multicallAddress_, requestOptions, rpcStateOverride, to: to4 } = args;
   const multicallAddress = multicallAddress_ !== void 0 ? multicallAddress_ : getMulticallAddress(client, {
     blockNumber,
     deployless
@@ -11454,7 +11454,7 @@ async function scheduleMulticall(client, args) {
     id: `${client.uid}.${blockId}.${getRequestOptionsId(requestOptions)}${stateOverrideKey}`,
     wait: wait3,
     shouldSplitBatch(args2) {
-      const size9 = args2.reduce((size10, { data: data2 }) => size10 + (data2.length - 2), 0);
+      const size9 = args2.reduce((size10, { data: data3 }) => size10 + (data3.length - 2), 0);
       return size9 > batchSize * 2;
     },
     fn: async (requests) => {
@@ -11476,7 +11476,7 @@ async function scheduleMulticall(client, args) {
           })
         } : { to: multicallAddress, data: calldata }
       };
-      const data2 = await client.request({
+      const data3 = await client.request({
         method: "eth_call",
         params: rpcStateOverride ? [multicallRequest, block, rpcStateOverride] : [multicallRequest, block]
       }, requestOptions);
@@ -11484,11 +11484,11 @@ async function scheduleMulticall(client, args) {
         abi: multicall3Abi,
         args: [calls],
         functionName: "aggregate3",
-        data: data2 || "0x"
+        data: data3 || "0x"
       });
     }
   });
-  const [{ returnData, success }] = await schedule({ data, to: to4 });
+  const [{ returnData, success }] = await schedule({ data: data2, to: to4 });
   if (!success)
     throw new RawContractError({ data: returnData });
   if (returnData === "0x")
@@ -11513,19 +11513,19 @@ function hasStateOverrideForAddress(rpcStateOverride, address4) {
   return Object.keys(rpcStateOverride).some((stateOverrideAddress) => isAddressEqual(stateOverrideAddress, address4));
 }
 function toDeploylessCallViaBytecodeData(parameters) {
-  const { code, data } = parameters;
+  const { code, data: data2 } = parameters;
   return encodeDeployData({
     abi: parseAbi(["constructor(bytes, bytes)"]),
     bytecode: deploylessCallViaBytecodeBytecode,
-    args: [code, data]
+    args: [code, data2]
   });
 }
 function toDeploylessCallViaFactoryData(parameters) {
-  const { data, factory, factoryData, to: to4 } = parameters;
+  const { data: data2, factory, factoryData, to: to4 } = parameters;
   return encodeDeployData({
     abi: parseAbi(["constructor(address, bytes, address, bytes)"]),
     bytecode: deploylessCallViaFactoryBytecode,
-    args: [to4, data, factory, factoryData]
+    args: [to4, data2, factory, factoryData]
   });
 }
 function getRevertErrorData(err3) {
@@ -11573,7 +11573,7 @@ async function readContract(client, parameters) {
     functionName
   });
   try {
-    const { data } = await getAction(client, call, "call")({
+    const { data: data2 } = await getAction(client, call, "call")({
       ...rest,
       data: calldata,
       to: address4
@@ -11582,7 +11582,7 @@ async function readContract(client, parameters) {
       abi: abi3,
       args,
       functionName,
-      data: data || "0x"
+      data: data2 || "0x"
     });
   } catch (error) {
     throw getContractError(error, {
@@ -11610,7 +11610,7 @@ async function simulateContract(client, parameters) {
   const account = callRequest.account ? parseAccount(callRequest.account) : client.account;
   const calldata = encodeFunctionData({ abi: abi3, args, functionName });
   try {
-    const { data } = await getAction(client, call, "call")({
+    const { data: data2 } = await getAction(client, call, "call")({
       batch: false,
       data: `${calldata}${dataSuffix ? dataSuffix.replace("0x", "") : ""}`,
       to: address4,
@@ -11621,7 +11621,7 @@ async function simulateContract(client, parameters) {
       abi: abi3,
       args,
       functionName,
-      data: data || "0x"
+      data: data2 || "0x"
     });
     const minimizedAbi = abi3.filter((abiItem) => "name" in abiItem && abiItem.name === parameters.functionName);
     return {
@@ -11747,10 +11747,10 @@ function poll(fn3, { emitOnBegin, initialWaitTime, interval }) {
   let active = true;
   const unwatch = () => active = false;
   const watch = async () => {
-    let data;
+    let data2;
     if (emitOnBegin)
-      data = await fn3({ unpoll: unwatch });
-    const initialWait = await initialWaitTime?.(data) ?? interval;
+      data2 = await fn3({ unpoll: unwatch });
+    const initialWait = await initialWaitTime?.(data2) ?? interval;
     await wait(initialWait);
     const poll3 = async () => {
       if (!active)
@@ -11775,7 +11775,7 @@ function getCache(cacheKey3) {
   const buildCache = (cacheKey4, cache2) => ({
     clear: () => cache2.delete(cacheKey4),
     get: () => cache2.get(cacheKey4),
-    set: (data) => cache2.set(cacheKey4, data)
+    set: (data2) => cache2.set(cacheKey4, data2)
   });
   const promise = buildCache(cacheKey3, promiseCache);
   const response = buildCache(cacheKey3, responseCache);
@@ -11802,9 +11802,9 @@ async function withCache(fn3, { cacheKey: cacheKey3, cacheTime = Number.POSITIVE
     cache2.promise.set(promise);
   }
   try {
-    const data = await promise;
-    cache2.response.set({ created: /* @__PURE__ */ new Date(), data });
-    return data;
+    const data2 = await promise;
+    cache2.response.set({ created: /* @__PURE__ */ new Date(), data: data2 });
+    return data2;
   } finally {
     cache2.promise.clear();
   }
@@ -11996,10 +11996,10 @@ function watchContractEvent(client, parameters) {
           }) : [];
           const { unsubscribe: unsubscribe_ } = await transport.subscribe({
             params: ["logs", { address: address4, topics }],
-            onData(data) {
+            onData(data2) {
               if (!active)
                 return;
-              const log = data.result;
+              const log = data2.result;
               try {
                 const { eventName: eventName2, args: args2 } = decodeEventLog({
                   abi: abi3,
@@ -12116,8 +12116,8 @@ function withRetry(fn3, { delay: delay_ = 100, retryCount = 2, shouldRetry: shou
         attemptRetry({ count: count + 1 });
       };
       try {
-        const data = await fn3();
-        resolve3(data);
+        const data2 = await fn3();
+        resolve3(data2);
       } catch (err3) {
         if (signal?.aborted) {
           reject(getAbortError(signal));
@@ -12466,18 +12466,18 @@ async function getEnsAddress(client, parameters) {
     throw err3;
   }
 }
-function decodeAddress2({ coinType, data, args }) {
+function decodeAddress2({ coinType, data: data2, args }) {
   try {
     return decodeFunctionResult({
       abi: addressResolverAbi,
       args,
       functionName: "addr",
-      data
+      data: data2
     });
   } catch (err3) {
     if (coinType == null)
       throw err3;
-    const address4 = trim(data);
+    const address4 = trim(data2);
     if (size(address4) === 20)
       return getAddress(address4);
     throw err3;
@@ -12508,12 +12508,12 @@ var init_ens = __esm({
   "relay/node_modules/viem/_esm/errors/ens.js"() {
     init_base();
     EnsAvatarInvalidMetadataError = class extends BaseError2 {
-      constructor({ data }) {
+      constructor({ data: data2 }) {
         super("Unable to extract image from metadata. The metadata may be malformed or invalid.", {
           metaMessages: [
             "- Metadata must be a JSON object with at least an `image`, `image_url` or `image_data` property.",
             "",
-            `Provided data: ${JSON.stringify(data)}`
+            `Provided data: ${JSON.stringify(data2)}`
           ],
           name: "EnsAvatarInvalidMetadataError"
         });
@@ -12616,11 +12616,11 @@ function resolveAvatarUri({ uri, gatewayUrls }) {
   }
   throw new EnsAvatarUriResolutionError({ uri });
 }
-function getJsonImage(data) {
-  if (typeof data !== "object" || !("image" in data) && !("image_url" in data) && !("image_data" in data)) {
-    throw new EnsAvatarInvalidMetadataError({ data });
+function getJsonImage(data2) {
+  if (typeof data2 !== "object" || !("image" in data2) && !("image_url" in data2) && !("image_data" in data2)) {
+    throw new EnsAvatarInvalidMetadataError({ data: data2 });
   }
-  return data.image || data.image_url || data.image_data;
+  return data2.image || data2.image_url || data2.image_data;
 }
 async function getMetadataAvatarUri({ gatewayUrls, uri }) {
   try {
@@ -12949,7 +12949,7 @@ var init_getEnsResolver = __esm({
 
 // relay/node_modules/viem/_esm/actions/public/createAccessList.js
 async function createAccessList(client, args) {
-  const { account: account_ = client.account, blockNumber, blockTag = "latest", blobs, data, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, to: to4, value, ...rest } = args;
+  const { account: account_ = client.account, blockNumber, blockTag = "latest", blobs, data: data2, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, to: to4, value, ...rest } = args;
   const account = account_ ? parseAccount(account_) : void 0;
   try {
     assertRequest(args);
@@ -12962,7 +12962,7 @@ async function createAccessList(client, args) {
       ...extract(rest, { format: chainFormat }),
       account,
       blobs,
-      data,
+      data: data2,
       gas,
       gasPrice,
       maxFeePerBlobGas,
@@ -13096,7 +13096,7 @@ async function getBalance(client, { address: address4, blockHash, blockNumber, b
       functionName: "getEthBalance",
       args: [address4]
     });
-    const { data } = await getAction(client, call, "call")({
+    const { data: data2 } = await getAction(client, call, "call")({
       to: multicall3Address,
       data: calldata,
       blockHash,
@@ -13108,7 +13108,7 @@ async function getBalance(client, { address: address4, blockHash, blockNumber, b
       abi: multicall3Abi,
       functionName: "getEthBalance",
       args: [address4],
-      data: data || "0x"
+      data: data2 || "0x"
     });
   }
   const balance = await client.request({
@@ -13256,7 +13256,7 @@ var init_eip712 = __esm({
 async function getEip712Domain(client, parameters) {
   const { address: address4, factory, factoryData } = parameters;
   try {
-    const [fields2, name, version7, chainId, verifyingContract, salt, extensions] = await getAction(client, readContract, "readContract")({
+    const [fields4, name, version7, chainId, verifyingContract, salt, extensions] = await getAction(client, readContract, "readContract")({
       abi,
       address: address4,
       functionName: "eip712Domain",
@@ -13272,7 +13272,7 @@ async function getEip712Domain(client, parameters) {
         salt
       },
       extensions,
-      fields: fields2
+      fields: fields4
     };
   } catch (e) {
     const error = e;
@@ -13489,7 +13489,7 @@ function serializeTransaction(transaction, signature) {
   return serializeTransactionLegacy(transaction, signature);
 }
 function serializeTransactionEIP7702(transaction, signature) {
-  const { authorizationList, chainId, gas, nonce: nonce2, to: to4, value, maxFeePerGas, maxPriorityFeePerGas, accessList, data } = transaction;
+  const { authorizationList, chainId, gas, nonce: nonce2, to: to4, value, maxFeePerGas, maxPriorityFeePerGas, accessList, data: data2 } = transaction;
   assertTransactionEIP7702(transaction);
   const serializedAccessList = serializeAccessList(accessList);
   const serializedAuthorizationList = serializeAuthorizationList(authorizationList);
@@ -13503,7 +13503,7 @@ function serializeTransactionEIP7702(transaction, signature) {
       gas ? numberToHex(gas) : "0x",
       to4 ?? "0x",
       value ? numberToHex(value) : "0x",
-      data ?? "0x",
+      data2 ?? "0x",
       serializedAccessList,
       serializedAuthorizationList,
       ...toYParitySignatureArray(transaction, signature)
@@ -13511,7 +13511,7 @@ function serializeTransactionEIP7702(transaction, signature) {
   ]);
 }
 function serializeTransactionEIP4844(transaction, signature) {
-  const { chainId, gas, nonce: nonce2, to: to4, value, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, accessList, data } = transaction;
+  const { chainId, gas, nonce: nonce2, to: to4, value, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, accessList, data: data2 } = transaction;
   assertTransactionEIP4844(transaction);
   let blobVersionedHashes = transaction.blobVersionedHashes;
   let sidecars = transaction.sidecars;
@@ -13540,7 +13540,7 @@ function serializeTransactionEIP4844(transaction, signature) {
     gas ? numberToHex(gas) : "0x",
     to4 ?? "0x",
     value ? numberToHex(value) : "0x",
-    data ?? "0x",
+    data2 ?? "0x",
     serializedAccessList,
     maxFeePerBlobGas ? numberToHex(maxFeePerBlobGas) : "0x",
     blobVersionedHashes ?? [],
@@ -13568,7 +13568,7 @@ function serializeTransactionEIP4844(transaction, signature) {
   ]);
 }
 function serializeTransactionEIP1559(transaction, signature) {
-  const { chainId, gas, nonce: nonce2, to: to4, value, maxFeePerGas, maxPriorityFeePerGas, accessList, data } = transaction;
+  const { chainId, gas, nonce: nonce2, to: to4, value, maxFeePerGas, maxPriorityFeePerGas, accessList, data: data2 } = transaction;
   assertTransactionEIP1559(transaction);
   const serializedAccessList = serializeAccessList(accessList);
   const serializedTransaction = [
@@ -13579,7 +13579,7 @@ function serializeTransactionEIP1559(transaction, signature) {
     gas ? numberToHex(gas) : "0x",
     to4 ?? "0x",
     value ? numberToHex(value) : "0x",
-    data ?? "0x",
+    data2 ?? "0x",
     serializedAccessList,
     ...toYParitySignatureArray(transaction, signature)
   ];
@@ -13589,7 +13589,7 @@ function serializeTransactionEIP1559(transaction, signature) {
   ]);
 }
 function serializeTransactionEIP2930(transaction, signature) {
-  const { chainId, gas, data, nonce: nonce2, to: to4, value, accessList, gasPrice } = transaction;
+  const { chainId, gas, data: data2, nonce: nonce2, to: to4, value, accessList, gasPrice } = transaction;
   assertTransactionEIP2930(transaction);
   const serializedAccessList = serializeAccessList(accessList);
   const serializedTransaction = [
@@ -13599,7 +13599,7 @@ function serializeTransactionEIP2930(transaction, signature) {
     gas ? numberToHex(gas) : "0x",
     to4 ?? "0x",
     value ? numberToHex(value) : "0x",
-    data ?? "0x",
+    data2 ?? "0x",
     serializedAccessList,
     ...toYParitySignatureArray(transaction, signature)
   ];
@@ -13609,7 +13609,7 @@ function serializeTransactionEIP2930(transaction, signature) {
   ]);
 }
 function serializeTransactionLegacy(transaction, signature) {
-  const { chainId = 0, gas, data, nonce: nonce2, to: to4, value, gasPrice } = transaction;
+  const { chainId = 0, gas, data: data2, nonce: nonce2, to: to4, value, gasPrice } = transaction;
   assertTransactionLegacy(transaction);
   let serializedTransaction = [
     nonce2 ? numberToHex(nonce2) : "0x",
@@ -13617,7 +13617,7 @@ function serializeTransactionLegacy(transaction, signature) {
     gas ? numberToHex(gas) : "0x",
     to4 ?? "0x",
     value ? numberToHex(value) : "0x",
-    data ?? "0x"
+    data2 ?? "0x"
   ];
   if (signature) {
     const v = (() => {
@@ -14067,34 +14067,34 @@ function getHttpRpcClient(url_, options = {}) {
         });
         if (onResponse)
           await onResponse(response);
-        let data;
+        let data2;
         const responseBody = await readResponseBody(response, {
           maxResponseBodySize
         });
         if (response.headers.get("Content-Type")?.startsWith("application/json"))
-          data = JSON.parse(responseBody);
+          data2 = JSON.parse(responseBody);
         else {
-          data = responseBody;
+          data2 = responseBody;
           try {
-            data = JSON.parse(data || "{}");
+            data2 = JSON.parse(data2 || "{}");
           } catch (err3) {
             if (response.ok)
               throw err3;
-            data = { error: data };
+            data2 = { error: data2 };
           }
         }
         if (!response.ok) {
-          if (typeof data.error?.code === "number" && typeof data.error?.message === "string")
-            return data;
+          if (typeof data2.error?.code === "number" && typeof data2.error?.message === "string")
+            return data2;
           throw new HttpRequestError({
             body: body2,
-            details: stringify(data.error) || response.statusText,
+            details: stringify(data2.error) || response.statusText,
             headers: response.headers,
             status: response.status,
             url
           });
         }
-        return data;
+        return data2;
       } catch (err3) {
         if (signal_?.aborted)
           throw getAbortError(signal_);
@@ -14269,10 +14269,10 @@ var init_typedData = __esm({
 // relay/node_modules/viem/_esm/utils/typedData.js
 function validateTypedData(parameters) {
   const { domain: domain2, message: message2, primaryType, types: types2 } = parameters;
-  const validateData = (struct, data) => {
+  const validateData = (struct, data2) => {
     for (const param of struct) {
       const { name, type: type2 } = param;
-      const value = data[name];
+      const value = data2[name];
       const integerMatch = type2.match(integerRegex2);
       if (integerMatch && (typeof value === "number" || typeof value === "bigint")) {
         const [_type, base3, size_] = integerMatch;
@@ -14376,15 +14376,15 @@ function hashDomain({ domain: domain2, types: types2 }) {
     types: types2
   });
 }
-function hashStruct({ data, primaryType, types: types2 }) {
+function hashStruct({ data: data2, primaryType, types: types2 }) {
   const encoded = encodeData({
-    data,
+    data: data2,
     primaryType,
     types: types2
   });
   return keccak256(encoded);
 }
-function encodeData({ data, primaryType, types: types2 }) {
+function encodeData({ data: data2, primaryType, types: types2 }) {
   const encodedTypes = [{ type: "bytes32" }];
   const encodedValues = [hashType({ primaryType, types: types2 })];
   for (const field of types2[primaryType]) {
@@ -14392,7 +14392,7 @@ function encodeData({ data, primaryType, types: types2 }) {
       types: types2,
       name: field.name,
       type: field.type,
-      value: data[field.name]
+      value: data2[field.name]
     });
     encodedTypes.push(type2);
     encodedValues.push(value);
@@ -14937,12 +14937,12 @@ function decodeArray2(cursor, param, options) {
     const value2 = [];
     for (let i = 0; i < length2; ++i) {
       cursor.setPosition(startOfData + (dynamicChild ? i * 32 : consumed2));
-      const [data, consumed_] = decodeParameter2(cursor, param, {
+      const [data2, consumed_] = decodeParameter2(cursor, param, {
         checksumAddress: checksumAddress3,
         staticPosition: startOfData
       });
       consumed2 += consumed_;
-      value2.push(data);
+      value2.push(data2);
     }
     cursor.setPosition(staticPosition + 32);
     return [value2, 32];
@@ -14953,11 +14953,11 @@ function decodeArray2(cursor, param, options) {
     const value2 = [];
     for (let i = 0; i < length; ++i) {
       cursor.setPosition(start + i * 32);
-      const [data] = decodeParameter2(cursor, param, {
+      const [data2] = decodeParameter2(cursor, param, {
         checksumAddress: checksumAddress3,
         staticPosition: start
       });
-      value2.push(data);
+      value2.push(data2);
     }
     cursor.setPosition(staticPosition + 32);
     return [value2, 32];
@@ -14965,12 +14965,12 @@ function decodeArray2(cursor, param, options) {
   let consumed = 0;
   const value = [];
   for (let i = 0; i < length; ++i) {
-    const [data, consumed_] = decodeParameter2(cursor, param, {
+    const [data2, consumed_] = decodeParameter2(cursor, param, {
       checksumAddress: checksumAddress3,
       staticPosition: staticPosition + consumed
     });
     consumed += consumed_;
-    value.push(data);
+    value.push(data2);
   }
   return [value, consumed];
 }
@@ -14987,9 +14987,9 @@ function decodeBytes2(cursor, param, { staticPosition }) {
       cursor.setPosition(staticPosition + 32);
       return ["0x", 32];
     }
-    const data = cursor.readBytes(length);
+    const data2 = cursor.readBytes(length);
     cursor.setPosition(staticPosition + 32);
-    return [fromBytes(data), 32];
+    return [fromBytes(data2), 32];
   }
   const value = fromBytes(cursor.readBytes(Number.parseInt(size9, 10), 32));
   return [value, 32];
@@ -15014,23 +15014,23 @@ function decodeTuple2(cursor, param, options) {
     for (let i = 0; i < param.components.length; ++i) {
       const component = param.components[i];
       cursor.setPosition(start + consumed);
-      const [data, consumed_] = decodeParameter2(cursor, component, {
+      const [data2, consumed_] = decodeParameter2(cursor, component, {
         checksumAddress: checksumAddress3,
         staticPosition: start
       });
       consumed += consumed_;
-      value[hasUnnamedChild ? i : component?.name] = data;
+      value[hasUnnamedChild ? i : component?.name] = data2;
     }
     cursor.setPosition(staticPosition + 32);
     return [value, 32];
   }
   for (let i = 0; i < param.components.length; ++i) {
     const component = param.components[i];
-    const [data, consumed_] = decodeParameter2(cursor, component, {
+    const [data2, consumed_] = decodeParameter2(cursor, component, {
       checksumAddress: checksumAddress3,
       staticPosition
     });
-    value[hasUnnamedChild ? i : component?.name] = data;
+    value[hasUnnamedChild ? i : component?.name] = data2;
     consumed += consumed_;
   }
   return [value, consumed];
@@ -15044,8 +15044,8 @@ function decodeString2(cursor, { staticPosition }) {
     cursor.setPosition(staticPosition + 32);
     return ["", 32];
   }
-  const data = cursor.readBytes(length, 32);
-  const value = toString(trimLeft(data));
+  const data2 = cursor.readBytes(length, 32);
+  const value = toString(trimLeft(data2));
   cursor.setPosition(staticPosition + 32);
   return [value, 32];
 }
@@ -15160,16 +15160,16 @@ function encodeArray2(value, options) {
     preparedParameters.push(preparedParam);
   }
   if (dynamic || dynamicChild) {
-    const data = encode(preparedParameters);
+    const data2 = encode(preparedParameters);
     if (dynamic) {
       const length2 = fromNumber(preparedParameters.length, { size: 32 });
       return {
         dynamic: true,
-        encoded: preparedParameters.length > 0 ? concat2(length2, data) : length2
+        encoded: preparedParameters.length > 0 ? concat2(length2, data2) : length2
       };
     }
     if (dynamicChild)
-      return { dynamic: true, encoded: data };
+      return { dynamic: true, encoded: data2 };
   }
   return {
     dynamic: false,
@@ -15502,15 +15502,15 @@ var init_cursor3 = __esm({
 });
 
 // relay/node_modules/ox/_esm/core/AbiParameters.js
-function decode(parameters, data, options = {}) {
+function decode(parameters, data2, options = {}) {
   const { as: as3 = "Array", checksumAddress: checksumAddress3 = false } = options;
-  const bytes = typeof data === "string" ? fromHex(data) : data;
+  const bytes = typeof data2 === "string" ? fromHex(data2) : data2;
   const cursor = create(bytes);
   if (size2(bytes) === 0 && parameters.length > 0)
     throw new ZeroDataError();
   if (size2(bytes) && size2(bytes) < 32)
     throw new DataSizeTooSmallError({
-      data: typeof data === "string" ? data : fromBytes(data),
+      data: typeof data2 === "string" ? data2 : fromBytes(data2),
       parameters,
       size: size2(bytes)
     });
@@ -15519,15 +15519,15 @@ function decode(parameters, data, options = {}) {
   for (let i = 0; i < parameters.length; ++i) {
     const param = parameters[i];
     cursor.setPosition(consumed);
-    const [data2, consumed_] = decodeParameter2(cursor, param, {
+    const [data3, consumed_] = decodeParameter2(cursor, param, {
       checksumAddress: checksumAddress3,
       staticPosition: 0
     });
     consumed += consumed_;
     if (as3 === "Array")
-      values.push(data2);
+      values.push(data3);
     else
-      values[param.name ?? i] = data2;
+      values[param.name ?? i] = data3;
   }
   return values;
 }
@@ -15543,10 +15543,10 @@ function encode2(parameters, values, options) {
     parameters,
     values
   });
-  const data = encode(preparedParameters);
-  if (data.length === 0)
+  const data2 = encode(preparedParameters);
+  if (data2.length === 0)
     return "0x";
-  return data;
+  return data2;
 }
 function encodePacked(types2, values) {
   if (types2.length !== values.length)
@@ -15554,13 +15554,13 @@ function encodePacked(types2, values) {
       expectedLength: types2.length,
       givenLength: values.length
     });
-  const data = [];
+  const data2 = [];
   for (let i = 0; i < types2.length; i++) {
     const type2 = types2[i];
     const value = values[i];
-    data.push(encodePacked.encode(type2, value));
+    data2.push(encodePacked.encode(type2, value));
   }
-  return concat2(...data);
+  return concat2(...data2);
 }
 function from5(parameters) {
   if (Array.isArray(parameters) && typeof parameters[0] === "string")
@@ -15615,24 +15615,24 @@ var init_AbiParameters = __esm({
         const arrayMatch = type2.match(arrayRegex);
         if (arrayMatch && Array.isArray(value)) {
           const [_type, childType] = arrayMatch;
-          const data = [];
+          const data2 = [];
           for (let i = 0; i < value.length; i++) {
-            data.push(encode8(childType, value[i], true));
+            data2.push(encode8(childType, value[i], true));
           }
-          if (data.length === 0)
+          if (data2.length === 0)
             return "0x";
-          return concat2(...data);
+          return concat2(...data2);
         }
         throw new InvalidTypeError(type2);
       }
       encodePacked4.encode = encode8;
     })(encodePacked || (encodePacked = {}));
     DataSizeTooSmallError = class extends BaseError3 {
-      constructor({ data, parameters, size: size9 }) {
+      constructor({ data: data2, parameters, size: size9 }) {
         super(`Data size of ${size9} bytes is too small for given parameters.`, {
           metaMessages: [
             `Params: (${formatAbiParameters(parameters)})`,
-            `Data:   ${data} (${size9} bytes)`
+            `Data:   ${data2} (${size9} bytes)`
           ]
         });
         Object.defineProperty(this, "name", {
@@ -16105,7 +16105,7 @@ function unwrap(wrapped) {
   const suffixLength = toNumber(slice3(wrapped, -64, -32));
   const suffix = slice3(wrapped, -suffixLength - 64, -64);
   const signature = slice3(wrapped, 0, -suffixLength - 64);
-  const [auth, to4, data] = decode(suffixParameters, suffix);
+  const [auth, to4, data2] = decode(suffixParameters, suffix);
   const authorization = from8({
     address: auth.delegation,
     chainId: Number(auth.chainId),
@@ -16117,11 +16117,11 @@ function unwrap(wrapped) {
   return {
     authorization,
     signature,
-    ...data && data !== "0x" ? { data, to: to4 } : {}
+    ...data2 && data2 !== "0x" ? { data: data2, to: to4 } : {}
   };
 }
 function wrap(value) {
-  const { data, signature } = value;
+  const { data: data2, signature } = value;
   assert6(value);
   const self3 = recoverAddress2({
     payload: getSignPayload(value.authorization),
@@ -16134,7 +16134,7 @@ function wrap(value) {
       chainId: BigInt(value.authorization.chainId)
     },
     value.to ?? self3,
-    data ?? "0x"
+    data2 ?? "0x"
   ]);
   const suffixLength = fromNumber(size3(suffix), { size: 32 });
   return concat2(signature, suffix, suffixLength, magicBytes);
@@ -16237,11 +16237,11 @@ async function getStorageAt(client, { address: address4, blockHash, blockNumber,
     blockTag,
     requireCanonical
   });
-  const data = await client.request({
+  const data2 = await client.request({
     method: "eth_getStorageAt",
     params: [address4, slot, block]
   });
-  return data;
+  return data2;
 }
 var init_getStorageAt = __esm({
   "relay/node_modules/viem/_esm/actions/public/getStorageAt.js"() {
@@ -16487,11 +16487,11 @@ async function simulateBlocks(client, parameters) {
       const calls = block2.calls.map((call_) => {
         const call3 = call_;
         const account = call3.account ? parseAccount(call3.account) : void 0;
-        const data = call3.abi ? encodeFunctionData(call3) : call3.data;
+        const data2 = call3.abi ? encodeFunctionData(call3) : call3.data;
         const request = {
           ...call3,
           account,
-          data: call3.dataSuffix ? concat([data || "0x", call3.dataSuffix]) : data,
+          data: call3.dataSuffix ? concat([data2 || "0x", call3.dataSuffix]) : data2,
           from: call3.from ?? account?.address
         };
         assertRequest(request);
@@ -16517,23 +16517,23 @@ async function simulateBlocks(client, parameters) {
       ...formatBlock(block2),
       calls: block2.calls.map((call3, j3) => {
         const { abi: abi3, args, functionName, to: to4 } = blocks[i].calls[j3];
-        const data = call3.error?.data ?? call3.returnData;
+        const data2 = call3.error?.data ?? call3.returnData;
         const gasUsed = BigInt(call3.gasUsed);
         const logs = call3.logs?.map((log) => formatLog(log));
         const status = call3.status === "0x1" ? "success" : "failure";
-        const result2 = abi3 && status === "success" && data !== "0x" ? decodeFunctionResult({
+        const result2 = abi3 && status === "success" && data2 !== "0x" ? decodeFunctionResult({
           abi: abi3,
-          data,
+          data: data2,
           functionName
         }) : null;
         const error = (() => {
           if (status === "success")
             return void 0;
           let error2;
-          if (data === "0x")
+          if (data2 === "0x")
             error2 = new AbiDecodingZeroDataError();
-          else if (data)
-            error2 = new RawContractError({ data });
+          else if (data2)
+            error2 = new RawContractError({ data: data2 });
           if (!error2)
             return void 0;
           return getContractError(error2, {
@@ -16544,7 +16544,7 @@ async function simulateBlocks(client, parameters) {
           });
         })();
         return {
-          data,
+          data: data2,
           gasUsed,
           logs,
           status,
@@ -16845,12 +16845,12 @@ var init_AbiItem = __esm({
       }
     };
     NotFoundError = class extends BaseError3 {
-      constructor({ name, data, type: type2 = "item" }) {
+      constructor({ name, data: data2, type: type2 = "item" }) {
         const selector = (() => {
           if (name)
             return ` with name "${name}"`;
-          if (data)
-            return ` with data "${data}"`;
+          if (data2)
+            return ` with data "${data2}"`;
           return "";
         })();
         super(`ABI ${type2}${selector} not found.`);
@@ -16909,8 +16909,8 @@ function encodeData2(...parameters) {
     args
   }) : abiFunction;
   const selector = getSelector2(item);
-  const data = args.length > 0 ? encode2(item.inputs, args) : void 0;
-  return data ? concat2(selector, data) : selector;
+  const data2 = args.length > 0 ? encode2(item.inputs, args) : void 0;
+  return data2 ? concat2(selector, data2) : selector;
 }
 function from12(abiFunction, options = {}) {
   return from10(abiFunction, options);
@@ -17177,14 +17177,14 @@ function from13(wrapped) {
 }
 function unwrap2(wrapped) {
   assert7(wrapped);
-  const [to4, data, signature] = decode(from5("address, bytes, bytes"), wrapped);
-  return { data, signature, to: to4 };
+  const [to4, data2, signature] = decode(from5("address, bytes, bytes"), wrapped);
+  return { data: data2, signature, to: to4 };
 }
 function wrap2(value) {
-  const { data, signature, to: to4 } = value;
+  const { data: data2, signature, to: to4 } = value;
   return concat2(encode2(from5("address, bytes, bytes"), [
     to4,
-    data,
+    data2,
     signature
   ]), magicBytes2);
 }
@@ -17397,8 +17397,8 @@ async function verifyErc8010(client, parameters) {
       ]
     ]
   });
-  const data = results[results.length - 1]?.returnData;
-  if (data?.startsWith("0x1626ba7e"))
+  const data2 = results[results.length - 1]?.returnData;
+  if (data2?.startsWith("0x1626ba7e"))
     return true;
   throw new VerificationError();
 }
@@ -17431,12 +17431,12 @@ async function verifyErc6492(client, parameters) {
     }),
     ...rest
   };
-  const { data } = await getAction(client, call, "call")(args).catch((error) => {
+  const { data: data2 } = await getAction(client, call, "call")(args).catch((error) => {
     if (error instanceof CallExecutionError)
       throw new VerificationError();
     throw error;
   });
-  if (hexToBool(data ?? "0x0"))
+  if (hexToBool(data2 ?? "0x0"))
     return true;
   throw new VerificationError();
 }
@@ -17595,10 +17595,10 @@ function watchBlockNumber(client, { emitOnBegin = false, emitMissed = false, onB
           })();
           const { unsubscribe: unsubscribe_ } = await transport.subscribe({
             params: ["newHeads"],
-            onData(data) {
+            onData(data2) {
               if (!active)
                 return;
-              const blockNumber = hexToBigInt(data.result?.number);
+              const blockNumber = hexToBigInt(data2.result?.number);
               emit.onBlockNumber(blockNumber, prevBlockNumber);
               prevBlockNumber = blockNumber;
             },
@@ -17867,11 +17867,11 @@ function watchBlocks(client, { blockTag = client.experimental_blockTag ?? "lates
         })();
         const { unsubscribe: unsubscribe_ } = await transport.subscribe({
           params: ["newHeads"],
-          async onData(data) {
+          async onData(data2) {
             if (!active)
               return;
             const block = await getAction(client, getBlock, "getBlock")({
-              blockNumber: data.result?.number,
+              blockNumber: data2.result?.number,
               includeTransactions
             }).catch(() => {
             });
@@ -18024,10 +18024,10 @@ function watchEvent(client, { address: address4, args, batch = true, event, even
         }
         const { unsubscribe: unsubscribe_ } = await transport.subscribe({
           params: ["logs", { address: address4, topics }],
-          onData(data) {
+          onData(data2) {
             if (!active)
               return;
-            const log = data.result;
+            const log = data2.result;
             try {
               const { eventName, args: args2 } = decodeEventLog({
                 abi: events_ ?? [],
@@ -18139,10 +18139,10 @@ function watchPendingTransactions(client, { batch = true, onError, onTransaction
       try {
         const { unsubscribe: unsubscribe_ } = await client.transport.subscribe({
           params: ["newPendingTransactions"],
-          onData(data) {
+          onData(data2) {
             if (!active)
               return;
-            const transaction = data.result;
+            const transaction = data2.result;
             onTransactions([transaction]);
           },
           onError(error) {
@@ -19061,7 +19061,7 @@ function serializeTransaction2(transaction, signature) {
 }
 function serializeTransactionDeposit(transaction) {
   assertTransactionDeposit(transaction);
-  const { sourceHash, data, from: from33, gas, isSystemTx, mint: mint2, to: to4, value } = transaction;
+  const { sourceHash, data: data2, from: from33, gas, isSystemTx, mint: mint2, to: to4, value } = transaction;
   const serializedTransaction = [
     sourceHash,
     from33,
@@ -19070,7 +19070,7 @@ function serializeTransactionDeposit(transaction) {
     value ? toHex(value) : "0x",
     gas ? toHex(gas) : "0x",
     isSystemTx ? "0x1" : "0x",
-    data ?? "0x"
+    data2 ?? "0x"
   ];
   return concatHex([
     "0x7e",
@@ -19471,14 +19471,14 @@ async function self2(method, path12, { token, body: body2, raw } = {}) {
     if (!r.ok) throw new Error(`${path12} -> ${r.status}: ${text2.slice(0, 300)}`);
     return text2;
   }
-  let data;
+  let data2;
   try {
-    data = JSON.parse(text2);
+    data2 = JSON.parse(text2);
   } catch {
-    data = { raw: text2.slice(0, 4e3) };
+    data2 = { raw: text2.slice(0, 4e3) };
   }
-  if (!r.ok) throw new Error(`${path12} -> ${r.status}: ${data.message || data.error || text2.slice(0, 300)}`);
-  return data;
+  if (!r.ok) throw new Error(`${path12} -> ${r.status}: ${data2.message || data2.error || text2.slice(0, 300)}`);
+  return data2;
 }
 function word32(v, name) {
   const s = String(v ?? "").trim();
@@ -19540,8 +19540,8 @@ function decodeSessionState(st3) {
 function stepsFromTxs(txs, { deployments, appCatalog, rev, catRevision, env, fund6, usdc = USDC_ADDRESS }) {
   const steps = [];
   const depAbi = depsAbiFor(rev);
-  const one = (data, describe) => {
-    const { functionName: fn3, args } = decodeFunctionData({ abi: depAbi, data });
+  const one = (data2, describe) => {
+    const { functionName: fn3, args } = decodeFunctionData({ abi: depAbi, data: data2 });
     const d3 = (action, encoded, id3) => steps.push({ action, args: encoded, id: id3, describe: describe || `${fn3}(${id3 ? id3.slice(0, 10) + "\u2026" : ""})` });
     switch (fn3) {
       case "multicall":
@@ -21277,7 +21277,7 @@ var init_mcp = __esm({
     IPFS_UPLOAD = "https://ipfs.enclave.host";
     EXPECTED_REPO = "EnclaveHost/enclave";
     RPCS = [.../* @__PURE__ */ new Set([
-      ...process.env.BASE_RPC ? [process.env.BASE_RPC] : [],
+      process.env.BASE_RPC || "https://api.enclave.host/rpc/base",
       "https://base-rpc.publicnode.com",
       "https://base.drpc.org",
       "https://1rpc.io/base",
@@ -21595,7 +21595,7 @@ var init_mcp = __esm({
         outputs: []
       }
     ];
-    tx = (to4, data, value = 0n, describe = "") => ({ chainId: CHAIN_ID, to: to4, data, value: "0x" + value.toString(16), function: describe });
+    tx = (to4, data2, value = 0n, describe = "") => ({ chainId: CHAIN_ID, to: to4, data: data2, value: "0x" + value.toString(16), function: describe });
     bearerize = (t) => !t ? null : /^bearer /i.test(t) ? t : `Bearer ${t}`;
     isB32 = (s) => /^0x[0-9a-fA-F]{64}$/.test(String(s || ""));
     isAddr = (s) => /^0x[0-9a-fA-F]{40}$/.test(String(s || ""));
@@ -23062,22 +23062,22 @@ var init_abi2 = __esm({
       }
     };
     AbiDecodingDataSizeInvalidError = class extends BaseError5 {
-      constructor({ data, size: size9 }) {
+      constructor({ data: data2, size: size9 }) {
         super([
           `Data size of ${size9} bytes is invalid.`,
           "Size must be in increments of 32 bytes (size % 32 === 0)."
         ].join("\n"), {
-          metaMessages: [`Data: ${data} (${size9} bytes)`],
+          metaMessages: [`Data: ${data2} (${size9} bytes)`],
           name: "AbiDecodingDataSizeInvalidError"
         });
       }
     };
     AbiDecodingDataSizeTooSmallError2 = class extends BaseError5 {
-      constructor({ data, params, size: size9 }) {
+      constructor({ data: data2, params, size: size9 }) {
         super([`Data size of ${size9} bytes is too small for given parameters.`].join("\n"), {
           metaMessages: [
             `Params: (${formatAbiParams2(params, { includeName: true })})`,
-            `Data:   ${data} (${size9} bytes)`
+            `Data:   ${data2} (${size9} bytes)`
           ],
           name: "AbiDecodingDataSizeTooSmallError"
         });
@@ -23099,7 +23099,7 @@ var init_abi2 = __esm({
           writable: true,
           value: void 0
         });
-        this.data = data;
+        this.data = data2;
         this.params = params;
         this.size = size9;
       }
@@ -23266,13 +23266,13 @@ var init_abi2 = __esm({
       }
     };
     DecodeLogDataMismatch2 = class extends BaseError5 {
-      constructor({ abiItem, data, params, size: size9 }) {
+      constructor({ abiItem, data: data2, params, size: size9 }) {
         super([
           `Data size of ${size9} bytes is too small for non-indexed event parameters.`
         ].join("\n"), {
           metaMessages: [
             `Params: (${formatAbiParams2(params, { includeName: true })})`,
-            `Data:   ${data} (${size9} bytes)`
+            `Data:   ${data2} (${size9} bytes)`
           ],
           name: "DecodeLogDataMismatch"
         });
@@ -23301,7 +23301,7 @@ var init_abi2 = __esm({
           value: void 0
         });
         this.abiItem = abiItem;
-        this.data = data;
+        this.data = data2;
         this.params = params;
         this.size = size9;
       }
@@ -23476,21 +23476,21 @@ var init_encoding2 = __esm({
 
 // node_modules/viem/_esm/utils/data/trim.js
 function trim4(hexOrBytes, { dir = "left" } = {}) {
-  let data = typeof hexOrBytes === "string" ? hexOrBytes.replace("0x", "") : hexOrBytes;
+  let data2 = typeof hexOrBytes === "string" ? hexOrBytes.replace("0x", "") : hexOrBytes;
   let sliceLength = 0;
-  for (let i = 0; i < data.length - 1; i++) {
-    if (data[dir === "left" ? i : data.length - i - 1].toString() === "0")
+  for (let i = 0; i < data2.length - 1; i++) {
+    if (data2[dir === "left" ? i : data2.length - i - 1].toString() === "0")
       sliceLength++;
     else
       break;
   }
-  data = dir === "left" ? data.slice(sliceLength) : data.slice(0, data.length - sliceLength);
+  data2 = dir === "left" ? data2.slice(sliceLength) : data2.slice(0, data2.length - sliceLength);
   if (typeof hexOrBytes === "string") {
-    if (data.length === 1 && dir === "right")
-      data = `${data}0`;
-    return `0x${data.length % 2 === 1 ? `0${data}` : data}`;
+    if (data2.length === 1 && dir === "right")
+      data2 = `${data2}0`;
+    return `0x${data2.length % 2 === 1 ? `0${data2}` : data2}`;
   }
-  return data;
+  return data2;
 }
 var init_trim2 = __esm({
   "node_modules/viem/_esm/utils/data/trim.js"() {
@@ -23885,17 +23885,17 @@ function utf8ToBytes3(str) {
     throw new Error("string expected");
   return new Uint8Array(new TextEncoder().encode(str));
 }
-function toBytes5(data) {
-  if (typeof data === "string")
-    data = utf8ToBytes3(data);
-  abytes3(data);
-  return data;
+function toBytes5(data2) {
+  if (typeof data2 === "string")
+    data2 = utf8ToBytes3(data2);
+  abytes3(data2);
+  return data2;
 }
-function kdfInputToBytes(data) {
-  if (typeof data === "string")
-    data = utf8ToBytes3(data);
-  abytes3(data);
-  return data;
+function kdfInputToBytes(data2) {
+  if (typeof data2 === "string")
+    data2 = utf8ToBytes3(data2);
+  abytes3(data2);
+  return data2;
 }
 function concatBytes4(...arrays) {
   let sum = 0;
@@ -24054,16 +24054,16 @@ var init_sha32 = __esm({
         this.posOut = 0;
         this.pos = 0;
       }
-      update(data) {
+      update(data2) {
         aexists2(this);
-        data = toBytes5(data);
-        abytes3(data);
+        data2 = toBytes5(data2);
+        abytes3(data2);
         const { blockLen, state } = this;
-        const len = data.length;
+        const len = data2.length;
         for (let pos = 0; pos < len; ) {
           const take = Math.min(blockLen - this.pos, len - pos);
           for (let i = 0; i < take; i++)
-            state[this.pos++] ^= data[pos++];
+            state[this.pos++] ^= data2[pos++];
           if (this.pos === blockLen)
             this.keccak();
         }
@@ -24474,10 +24474,10 @@ function encodeAbiParameters2(params, values) {
     params,
     values
   });
-  const data = encodeParams2(preparedParams);
-  if (data.length === 0)
+  const data2 = encodeParams2(preparedParams);
+  if (data2.length === 0)
     return "0x";
-  return data;
+  return data2;
 }
 function prepareParams2({ params, values }) {
   const preparedParams = [];
@@ -24569,16 +24569,16 @@ function encodeArray3(value, { length, param }) {
     preparedParams.push(preparedParam);
   }
   if (dynamic || dynamicChild) {
-    const data = encodeParams2(preparedParams);
+    const data2 = encodeParams2(preparedParams);
     if (dynamic) {
       const length2 = numberToHex2(preparedParams.length, { size: 32 });
       return {
         dynamic: true,
-        encoded: preparedParams.length > 0 ? concat3([length2, data]) : length2
+        encoded: preparedParams.length > 0 ? concat3([length2, data2]) : length2
       };
     }
     if (dynamicChild)
-      return { dynamic: true, encoded: data };
+      return { dynamic: true, encoded: data2 };
   }
   return {
     dynamic: false,
@@ -24983,8 +24983,8 @@ function encodeFunctionData2(parameters) {
   })();
   const abiItem = abi3[0];
   const signature = functionName;
-  const data = "inputs" in abiItem && abiItem.inputs ? encodeAbiParameters2(abiItem.inputs, args ?? []) : void 0;
-  return concatHex2([signature, data ?? "0x"]);
+  const data2 = "inputs" in abiItem && abiItem.inputs ? encodeAbiParameters2(abiItem.inputs, args ?? []) : void 0;
+  return concatHex2([signature, data2 ?? "0x"]);
 }
 var init_encodeFunctionData2 = __esm({
   "node_modules/viem/_esm/utils/abi/encodeFunctionData.js"() {
@@ -25286,27 +25286,27 @@ var init_fromBytes2 = __esm({
 });
 
 // node_modules/viem/_esm/utils/abi/decodeAbiParameters.js
-function decodeAbiParameters2(params, data) {
-  const bytes = typeof data === "string" ? hexToBytes3(data) : data;
+function decodeAbiParameters2(params, data2) {
+  const bytes = typeof data2 === "string" ? hexToBytes3(data2) : data2;
   const cursor = createCursor2(bytes);
   if (size5(bytes) === 0 && params.length > 0)
     throw new AbiDecodingZeroDataError2();
-  if (size5(data) && size5(data) < 32)
+  if (size5(data2) && size5(data2) < 32)
     throw new AbiDecodingDataSizeTooSmallError2({
-      data: typeof data === "string" ? data : bytesToHex3(data),
+      data: typeof data2 === "string" ? data2 : bytesToHex3(data2),
       params,
-      size: size5(data)
+      size: size5(data2)
     });
   let consumed = 0;
   const values = [];
   for (let i = 0; i < params.length; ++i) {
     const param = params[i];
     cursor.setPosition(consumed);
-    const [data2, consumed_] = decodeParameter3(cursor, param, {
+    const [data3, consumed_] = decodeParameter3(cursor, param, {
       staticPosition: 0
     });
     consumed += consumed_;
-    values.push(data2);
+    values.push(data3);
   }
   return values;
 }
@@ -25348,11 +25348,11 @@ function decodeArray3(cursor, param, { length, staticPosition }) {
     const value2 = [];
     for (let i = 0; i < length2; ++i) {
       cursor.setPosition(startOfData + (dynamicChild ? i * 32 : consumed2));
-      const [data, consumed_] = decodeParameter3(cursor, param, {
+      const [data2, consumed_] = decodeParameter3(cursor, param, {
         staticPosition: startOfData
       });
       consumed2 += consumed_;
-      value2.push(data);
+      value2.push(data2);
     }
     cursor.setPosition(staticPosition + 32);
     return [value2, 32];
@@ -25363,10 +25363,10 @@ function decodeArray3(cursor, param, { length, staticPosition }) {
     const value2 = [];
     for (let i = 0; i < length; ++i) {
       cursor.setPosition(start + i * 32);
-      const [data] = decodeParameter3(cursor, param, {
+      const [data2] = decodeParameter3(cursor, param, {
         staticPosition: start
       });
-      value2.push(data);
+      value2.push(data2);
     }
     cursor.setPosition(staticPosition + 32);
     return [value2, 32];
@@ -25374,11 +25374,11 @@ function decodeArray3(cursor, param, { length, staticPosition }) {
   let consumed = 0;
   const value = [];
   for (let i = 0; i < length; ++i) {
-    const [data, consumed_] = decodeParameter3(cursor, param, {
+    const [data2, consumed_] = decodeParameter3(cursor, param, {
       staticPosition: staticPosition + consumed
     });
     consumed += consumed_;
-    value.push(data);
+    value.push(data2);
   }
   return [value, consumed];
 }
@@ -25395,9 +25395,9 @@ function decodeBytes3(cursor, param, { staticPosition }) {
       cursor.setPosition(staticPosition + 32);
       return ["0x", 32];
     }
-    const data = cursor.readBytes(length);
+    const data2 = cursor.readBytes(length);
     cursor.setPosition(staticPosition + 32);
-    return [bytesToHex3(data), 32];
+    return [bytesToHex3(data2), 32];
   }
   const value = bytesToHex3(cursor.readBytes(Number.parseInt(size9, 10), 32));
   return [value, 32];
@@ -25421,21 +25421,21 @@ function decodeTuple3(cursor, param, { staticPosition }) {
     for (let i = 0; i < param.components.length; ++i) {
       const component = param.components[i];
       cursor.setPosition(start + consumed);
-      const [data, consumed_] = decodeParameter3(cursor, component, {
+      const [data2, consumed_] = decodeParameter3(cursor, component, {
         staticPosition: start
       });
       consumed += consumed_;
-      value[hasUnnamedChild ? i : component?.name] = data;
+      value[hasUnnamedChild ? i : component?.name] = data2;
     }
     cursor.setPosition(staticPosition + 32);
     return [value, 32];
   }
   for (let i = 0; i < param.components.length; ++i) {
     const component = param.components[i];
-    const [data, consumed_] = decodeParameter3(cursor, component, {
+    const [data2, consumed_] = decodeParameter3(cursor, component, {
       staticPosition
     });
-    value[hasUnnamedChild ? i : component?.name] = data;
+    value[hasUnnamedChild ? i : component?.name] = data2;
     consumed += consumed_;
   }
   return [value, consumed];
@@ -25449,8 +25449,8 @@ function decodeString3(cursor, { staticPosition }) {
     cursor.setPosition(staticPosition + 32);
     return ["", 32];
   }
-  const data = cursor.readBytes(length, 32);
-  const value = bytesToString2(trim4(data));
+  const data2 = cursor.readBytes(length, 32);
+  const value = bytesToString2(trim4(data2));
   cursor.setPosition(staticPosition + 32);
   return [value, 32];
 }
@@ -25489,8 +25489,8 @@ var init_decodeAbiParameters2 = __esm({
 
 // node_modules/viem/_esm/utils/abi/decodeErrorResult.js
 function decodeErrorResult2(parameters) {
-  const { abi: abi3, data, cause } = parameters;
-  const signature = slice4(data, 0, 4);
+  const { abi: abi3, data: data2, cause } = parameters;
+  const signature = slice4(data2, 0, 4);
   if (signature === "0x")
     throw new AbiDecodingZeroDataError2({ cause });
   const abi_ = [...abi3 || [], solidityError2, solidityPanic2];
@@ -25502,7 +25502,7 @@ function decodeErrorResult2(parameters) {
     });
   return {
     abiItem,
-    args: "inputs" in abiItem && abiItem.inputs && abiItem.inputs.length > 0 ? decodeAbiParameters2(abiItem.inputs, slice4(data, 4)) : void 0,
+    args: "inputs" in abiItem && abiItem.inputs && abiItem.inputs.length > 0 ? decodeAbiParameters2(abiItem.inputs, slice4(data2, 4)) : void 0,
     errorName: abiItem.name
   };
 }
@@ -25570,12 +25570,12 @@ function formatUnits2(value, decimals) {
   if (negative)
     display = display.slice(1);
   display = display.padStart(decimals, "0");
-  let [integer, fraction] = [
+  let [integer2, fraction] = [
     display.slice(0, display.length - decimals),
     display.slice(display.length - decimals)
   ];
   fraction = fraction.replace(/(0+)$/, "");
-  return `${negative ? "-" : ""}${integer || "0"}${fraction ? `.${fraction}` : ""}`;
+  return `${negative ? "-" : ""}${integer2 || "0"}${fraction ? `.${fraction}` : ""}`;
 }
 var init_formatUnits2 = __esm({
   "node_modules/viem/_esm/utils/unit/formatUnits.js"() {
@@ -25754,13 +25754,13 @@ var init_transaction3 = __esm({
       }
     };
     TransactionExecutionError2 = class extends BaseError5 {
-      constructor(cause, { account, docsPath: docsPath16, chain: chain2, data, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2, to: to4, value }) {
+      constructor(cause, { account, docsPath: docsPath16, chain: chain2, data: data2, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2, to: to4, value }) {
         const prettyArgs = prettyPrint2({
           chain: chain2 && `${chain2?.name} (id: ${chain2?.id})`,
           from: account?.address,
           to: to4,
           value: typeof value !== "undefined" && `${formatEther2(value)} ${chain2?.nativeCurrency?.symbol || "ETH"}`,
-          data,
+          data: data2,
           gas,
           gasPrice: typeof gasPrice !== "undefined" && `${formatGwei2(gasPrice)} gwei`,
           maxFeePerGas: typeof maxFeePerGas !== "undefined" && `${formatGwei2(maxFeePerGas)} gwei`,
@@ -25888,13 +25888,13 @@ var init_contract3 = __esm({
     init_transaction3();
     init_utils9();
     CallExecutionError2 = class extends BaseError5 {
-      constructor(cause, { account: account_, docsPath: docsPath16, chain: chain2, data, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2, to: to4, value, stateOverride }) {
+      constructor(cause, { account: account_, docsPath: docsPath16, chain: chain2, data: data2, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2, to: to4, value, stateOverride }) {
         const account = account_ ? parseAccount2(account_) : void 0;
         let prettyArgs = prettyPrint2({
           from: account?.address,
           to: to4,
           value: typeof value !== "undefined" && `${formatEther2(value)} ${chain2?.nativeCurrency?.symbol || "ETH"}`,
-          data,
+          data: data2,
           gas,
           gasPrice: typeof gasPrice !== "undefined" && `${formatGwei2(gasPrice)} gwei`,
           maxFeePerGas: typeof maxFeePerGas !== "undefined" && `${formatGwei2(maxFeePerGas)} gwei`,
@@ -26001,14 +26001,14 @@ ${prettyStateOverride2(stateOverride)}`;
       }
     };
     ContractFunctionRevertedError2 = class extends BaseError5 {
-      constructor({ abi: abi3, data, functionName, message: message2, cause: error }) {
+      constructor({ abi: abi3, data: data2, functionName, message: message2, cause: error }) {
         let cause;
         let decodedData;
         let metaMessages;
         let reason;
-        if (data && data !== "0x") {
+        if (data2 && data2 !== "0x") {
           try {
-            decodedData = decodeErrorResult2({ abi: abi3, data, cause: error });
+            decodedData = decodeErrorResult2({ abi: abi3, data: data2, cause: error });
             const { abiItem, errorName, args: errorArgs } = decodedData;
             if (errorName === "Error") {
               reason = errorArgs[0];
@@ -26075,7 +26075,7 @@ ${prettyStateOverride2(stateOverride)}`;
           value: void 0
         });
         this.data = decodedData;
-        this.raw = data;
+        this.raw = data2;
         this.reason = reason;
         this.signature = signature;
       }
@@ -26107,7 +26107,7 @@ ${prettyStateOverride2(stateOverride)}`;
       }
     };
     RawContractError2 = class extends BaseError5 {
-      constructor({ data, message: message2 }) {
+      constructor({ data: data2, message: message2 }) {
         super(message2 || "", { name: "RawContractError" });
         Object.defineProperty(this, "code", {
           enumerable: true,
@@ -26121,7 +26121,7 @@ ${prettyStateOverride2(stateOverride)}`;
           writable: true,
           value: void 0
         });
-        this.data = data;
+        this.data = data2;
       }
     };
   }
@@ -26714,14 +26714,14 @@ var init_rpc2 = __esm({
 // node_modules/viem/_esm/utils/errors/getContractError.js
 function getContractError2(err3, { abi: abi3, address: address4, args, docsPath: docsPath16, functionName, sender }) {
   const error = err3 instanceof RawContractError2 ? err3 : err3 instanceof BaseError5 ? err3.walk((err4) => "data" in err4) || err3.walk() : {};
-  const { code, data, details, message: message2, shortMessage } = error;
+  const { code, data: data2, details, message: message2, shortMessage } = error;
   const cause = (() => {
     if (err3 instanceof AbiDecodingZeroDataError2)
       return new ContractFunctionZeroDataError2({ functionName, cause: err3 });
-    if ([EXECUTION_REVERTED_ERROR_CODE2, InternalRpcError2.code].includes(code) && (data || details || message2 || shortMessage) || code === InvalidInputRpcError2.code && details === "execution reverted" && data) {
+    if ([EXECUTION_REVERTED_ERROR_CODE2, InternalRpcError2.code].includes(code) && (data2 || details || message2 || shortMessage) || code === InvalidInputRpcError2.code && details === "execution reverted" && data2) {
       return new ContractFunctionRevertedError2({
         abi: abi3,
-        data: typeof data === "object" ? data.data : data,
+        data: typeof data2 === "object" ? data2.data : data2,
         functionName,
         message: error instanceof RpcRequestError2 ? details : shortMessage ?? message2,
         cause: err3
@@ -26799,21 +26799,21 @@ var init_md2 = __esm({
         this.buffer = new Uint8Array(blockLen);
         this.view = createView2(this.buffer);
       }
-      update(data) {
+      update(data2) {
         aexists2(this);
-        data = toBytes5(data);
-        abytes3(data);
+        data2 = toBytes5(data2);
+        abytes3(data2);
         const { view, buffer: buffer3, blockLen } = this;
-        const len = data.length;
+        const len = data2.length;
         for (let pos = 0; pos < len; ) {
           const take = Math.min(blockLen - this.pos, len - pos);
           if (take === blockLen) {
-            const dataView = createView2(data);
+            const dataView = createView2(data2);
             for (; blockLen <= len - pos; pos += blockLen)
               this.process(dataView, pos);
             continue;
           }
-          buffer3.set(data.subarray(pos, pos + take), this.pos);
+          buffer3.set(data2.subarray(pos, pos + take), this.pos);
           this.pos += take;
           pos += take;
           if (this.pos === blockLen) {
@@ -26821,7 +26821,7 @@ var init_md2 = __esm({
             this.pos = 0;
           }
         }
-        this.length += data.length;
+        this.length += data2.length;
         this.roundClean();
         return this;
       }
@@ -29016,29 +29016,29 @@ var init_weierstrass2 = __esm({
       Err: DERErr2,
       // Basic building block is TLV (Tag-Length-Value)
       _tlv: {
-        encode: (tag, data) => {
+        encode: (tag, data2) => {
           const { Err: E } = DER2;
           if (tag < 0 || tag > 256)
             throw new E("tlv.encode: wrong tag");
-          if (data.length & 1)
+          if (data2.length & 1)
             throw new E("tlv.encode: unpadded data");
-          const dataLen = data.length / 2;
+          const dataLen = data2.length / 2;
           const len = numberToHexUnpadded2(dataLen);
           if (len.length / 2 & 128)
             throw new E("tlv.encode: long form length too big");
           const lenLen = dataLen > 127 ? numberToHexUnpadded2(len.length / 2 | 128) : "";
           const t = numberToHexUnpadded2(tag);
-          return t + lenLen + len + data;
+          return t + lenLen + len + data2;
         },
         // v - value, l - left bytes (unparsed)
-        decode(tag, data) {
+        decode(tag, data2) {
           const { Err: E } = DER2;
           let pos = 0;
           if (tag < 0 || tag > 256)
             throw new E("tlv.encode: wrong tag");
-          if (data.length < 2 || data[pos++] !== tag)
+          if (data2.length < 2 || data2[pos++] !== tag)
             throw new E("tlv.decode: wrong tlv");
-          const first = data[pos++];
+          const first = data2[pos++];
           const isLong = !!(first & 128);
           let length = 0;
           if (!isLong)
@@ -29049,7 +29049,7 @@ var init_weierstrass2 = __esm({
               throw new E("tlv.decode(long): indefinite length not supported");
             if (lenLen > 4)
               throw new E("tlv.decode(long): byte length is too big");
-            const lengthBytes = data.subarray(pos, pos + lenLen);
+            const lengthBytes = data2.subarray(pos, pos + lenLen);
             if (lengthBytes.length !== lenLen)
               throw new E("tlv.decode: length bytes not complete");
             if (lengthBytes[0] === 0)
@@ -29060,10 +29060,10 @@ var init_weierstrass2 = __esm({
             if (length < 128)
               throw new E("tlv.decode(long): not minimal encoding");
           }
-          const v = data.subarray(pos, pos + length);
+          const v = data2.subarray(pos, pos + length);
           if (v.length !== length)
             throw new E("tlv.decode: wrong value length");
-          return { v, l: data.subarray(pos + length) };
+          return { v, l: data2.subarray(pos + length) };
         }
       },
       // https://crypto.stackexchange.com/a/57734 Leftmost bit of first byte is 'negative' flag,
@@ -29082,19 +29082,19 @@ var init_weierstrass2 = __esm({
             throw new E("unexpected DER parsing assertion: unpadded hex");
           return hex3;
         },
-        decode(data) {
+        decode(data2) {
           const { Err: E } = DER2;
-          if (data[0] & 128)
+          if (data2[0] & 128)
             throw new E("invalid signature integer: negative");
-          if (data[0] === 0 && !(data[1] & 128))
+          if (data2[0] === 0 && !(data2[1] & 128))
             throw new E("invalid signature integer: unnecessary leading zero");
-          return bytesToNumberBE2(data);
+          return bytesToNumberBE2(data2);
         }
       },
       toSig(hex3) {
         const { Err: E, _int: int2, _tlv: tlv3 } = DER2;
-        const data = ensureBytes2("signature", hex3);
-        const { v: seqBytes, l: seqLeftBytes } = tlv3.decode(48, data);
+        const data2 = ensureBytes2("signature", hex3);
+        const { v: seqBytes, l: seqLeftBytes } = tlv3.decode(48, data2);
         if (seqLeftBytes.length)
           throw new E("invalid signature: left bytes after parsing");
         const { v: rBytes, l: rLeftBytes } = tlv3.decode(2, seqBytes);
@@ -29728,12 +29728,12 @@ var init_estimateGas3 = __esm({
     init_base3();
     init_transaction3();
     EstimateGasExecutionError2 = class extends BaseError5 {
-      constructor(cause, { account, docsPath: docsPath16, chain: chain2, data, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2, to: to4, value }) {
+      constructor(cause, { account, docsPath: docsPath16, chain: chain2, data: data2, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2, to: to4, value }) {
         const prettyArgs = prettyPrint2({
           from: account?.address,
           to: to4,
           value: typeof value !== "undefined" && `${formatEther2(value)} ${chain2?.nativeCurrency?.symbol || "ETH"}`,
-          data,
+          data: data2,
           gas,
           gasPrice: typeof gasPrice !== "undefined" && `${formatGwei2(gasPrice)} gwei`,
           maxFeePerGas: typeof maxFeePerGas !== "undefined" && `${formatGwei2(maxFeePerGas)} gwei`,
@@ -30846,8 +30846,8 @@ var init_blob4 = __esm({
 // node_modules/viem/_esm/utils/blob/toBlobs.js
 function toBlobs2(parameters) {
   const to4 = parameters.to ?? (typeof parameters.data === "string" ? "hex" : "bytes");
-  const data = typeof parameters.data === "string" ? hexToBytes3(parameters.data) : parameters.data;
-  const size_ = size5(data);
+  const data2 = typeof parameters.data === "string" ? hexToBytes3(parameters.data) : parameters.data;
+  const size_ = size5(data2);
   if (!size_)
     throw new EmptyBlobError2();
   if (size_ > maxBytesPerTransaction2)
@@ -30862,7 +30862,7 @@ function toBlobs2(parameters) {
     const blob = createCursor2(new Uint8Array(bytesPerBlob2));
     let size9 = 0;
     while (size9 < fieldElementsPerBlob2) {
-      const bytes = data.slice(position, position + (bytesPerFieldElement2 - 1));
+      const bytes = data2.slice(position, position + (bytesPerFieldElement2 - 1));
       blob.pushByte(0);
       blob.pushBytes(bytes);
       if (bytes.length < 31) {
@@ -30890,8 +30890,8 @@ var init_toBlobs2 = __esm({
 
 // node_modules/viem/_esm/utils/blob/toBlobSidecars.js
 function toBlobSidecars2(parameters) {
-  const { data, kzg, to: to4 } = parameters;
-  const blobs = parameters.blobs ?? toBlobs2({ data, to: to4 });
+  const { data: data2, kzg, to: to4 } = parameters;
+  const blobs = parameters.blobs ?? toBlobs2({ data: data2, to: to4 });
   const commitments = parameters.commitments ?? blobsToCommitments2({ blobs, kzg, to: to4 });
   const proofs = parameters.proofs ?? blobsToProofs2({ blobs, commitments, kzg, to: to4 });
   const sidecars = [];
@@ -30971,7 +30971,7 @@ var init_getChainId2 = __esm({
 
 // node_modules/viem/_esm/actions/public/fillTransaction.js
 async function fillTransaction2(client, parameters) {
-  const { account = client.account, accessList, authorizationList, chain: chain2 = client.chain, blobVersionedHashes, blobs, data, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce_, nonceManager: nonceManager2, to: to4, type: type2, value, ...rest } = parameters;
+  const { account = client.account, accessList, authorizationList, chain: chain2 = client.chain, blobVersionedHashes, blobs, data: data2, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce_, nonceManager: nonceManager2, to: to4, type: type2, value, ...rest } = parameters;
   const nonce2 = await (async () => {
     if (!account)
       return nonce_;
@@ -30998,7 +30998,7 @@ async function fillTransaction2(client, parameters) {
     authorizationList,
     blobs,
     blobVersionedHashes,
-    data,
+    data: data2,
     gas,
     gasPrice,
     maxFeePerBlobGas,
@@ -31353,7 +31353,7 @@ async function estimateGas2(client, args) {
         });
       return void 0;
     })();
-    const { accessList, authorizationList, blobs, blobVersionedHashes, blockNumber, blockTag, data, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2, value, stateOverride, ...rest } = prepare ? await prepareTransactionRequest2(client, {
+    const { accessList, authorizationList, blobs, blobVersionedHashes, blockNumber, blockTag, data: data2, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2, value, stateOverride, ...rest } = prepare ? await prepareTransactionRequest2(client, {
       ...args,
       parameters,
       to: to4
@@ -31374,7 +31374,7 @@ async function estimateGas2(client, args) {
       authorizationList,
       blobs,
       blobVersionedHashes,
-      data,
+      data: data2,
       gasPrice,
       maxFeePerBlobGas,
       maxFeePerGas,
@@ -31417,14 +31417,14 @@ var init_estimateGas4 = __esm({
 // node_modules/viem/_esm/actions/public/estimateContractGas.js
 async function estimateContractGas2(client, parameters) {
   const { abi: abi3, address: address4, args, functionName, dataSuffix = typeof client.dataSuffix === "string" ? client.dataSuffix : client.dataSuffix?.value, ...request } = parameters;
-  const data = encodeFunctionData2({
+  const data2 = encodeFunctionData2({
     abi: abi3,
     args,
     functionName
   });
   try {
     const gas = await getAction2(client, estimateGas2, "estimateGas")({
-      data: `${data}${dataSuffix ? dataSuffix.replace("0x", "") : ""}`,
+      data: `${data2}${dataSuffix ? dataSuffix.replace("0x", "") : ""}`,
       to: address4,
       ...request
     });
@@ -31486,7 +31486,7 @@ var init_log4 = __esm({
 
 // node_modules/viem/_esm/utils/abi/decodeEventLog.js
 function decodeEventLog2(parameters) {
-  const { abi: abi3, data, strict: strict_, topics } = parameters;
+  const { abi: abi3, data: data2, strict: strict_, topics } = parameters;
   const strict = strict_ ?? true;
   const [signature, ...argTopics] = topics;
   if (!signature)
@@ -31519,9 +31519,9 @@ function decodeEventLog2(parameters) {
   const nonIndexedInputs = inputs.filter((x) => !("indexed" in x && x.indexed));
   const inputsToDecode = strict ? nonIndexedInputs : [...missingIndexedInputs.map(([param]) => param), ...nonIndexedInputs];
   if (inputsToDecode.length > 0) {
-    if (data && data !== "0x") {
+    if (data2 && data2 !== "0x") {
       try {
-        const decodedData = decodeAbiParameters2(inputsToDecode, data);
+        const decodedData = decodeAbiParameters2(inputsToDecode, data2);
         if (decodedData) {
           let dataIndex = 0;
           if (!strict) {
@@ -31542,9 +31542,9 @@ function decodeEventLog2(parameters) {
           if (err3 instanceof AbiDecodingDataSizeTooSmallError2 || err3 instanceof PositionOutOfBoundsError3)
             throw new DecodeLogDataMismatch2({
               abiItem,
-              data,
+              data: data2,
               params: inputsToDecode,
-              size: size5(data)
+              size: size5(data2)
             });
           throw err3;
         }
@@ -31776,7 +31776,7 @@ var init_getContractEvents2 = __esm({
 
 // node_modules/viem/_esm/utils/abi/decodeFunctionResult.js
 function decodeFunctionResult2(parameters) {
-  const { abi: abi3, args, functionName, data } = parameters;
+  const { abi: abi3, args, functionName, data: data2 } = parameters;
   let abiItem = abi3[0];
   if (functionName) {
     const item = getAbiItem2({ abi: abi3, args, name: functionName });
@@ -31788,7 +31788,7 @@ function decodeFunctionResult2(parameters) {
     throw new AbiFunctionNotFoundError2(void 0, { docsPath: docsPath11 });
   if (!abiItem.outputs)
     throw new AbiFunctionOutputsNotFoundError2(abiItem.name, { docsPath: docsPath11 });
-  const values = decodeAbiParameters2(abiItem.outputs, data);
+  const values = decodeAbiParameters2(abiItem.outputs, data2);
   if (values && values.length > 1)
     return values;
   if (values && values.length === 1)
@@ -32011,16 +32011,16 @@ function pad5(bytes, options = {}) {
 }
 function trim5(value, options = {}) {
   const { dir = "left" } = options;
-  let data = value;
+  let data2 = value;
   let sliceLength = 0;
-  for (let i = 0; i < data.length - 1; i++) {
-    if (data[dir === "left" ? i : data.length - i - 1].toString() === "0")
+  for (let i = 0; i < data2.length - 1; i++) {
+    if (data2[dir === "left" ? i : data2.length - i - 1].toString() === "0")
       sliceLength++;
     else
       break;
   }
-  data = dir === "left" ? data.slice(sliceLength) : data.slice(0, data.length - sliceLength);
-  return data;
+  data2 = dir === "left" ? data2.slice(sliceLength) : data2.slice(0, data2.length - sliceLength);
+  return data2;
 }
 var charCodeMap4;
 var init_bytes2 = __esm({
@@ -32077,20 +32077,20 @@ function pad6(hex_, options = {}) {
 }
 function trim6(value, options = {}) {
   const { dir = "left" } = options;
-  let data = value.replace("0x", "");
+  let data2 = value.replace("0x", "");
   let sliceLength = 0;
-  for (let i = 0; i < data.length - 1; i++) {
-    if (data[dir === "left" ? i : data.length - i - 1].toString() === "0")
+  for (let i = 0; i < data2.length - 1; i++) {
+    if (data2[dir === "left" ? i : data2.length - i - 1].toString() === "0")
       sliceLength++;
     else
       break;
   }
-  data = dir === "left" ? data.slice(sliceLength) : data.slice(0, data.length - sliceLength);
-  if (data === "0")
+  data2 = dir === "left" ? data2.slice(sliceLength) : data2.slice(0, data2.length - sliceLength);
+  if (data2 === "0")
     return "0x";
-  if (dir === "right" && data.length % 2 === 1)
-    return `0x${data}0`;
-  return `0x${data}`;
+  if (dir === "right" && data2.length % 2 === 1)
+    return `0x${data2}0`;
+  return `0x${data2}`;
 }
 var init_hex2 = __esm({
   "node_modules/ox/_esm/core/internal/hex.js"() {
@@ -34665,8 +34665,8 @@ function encodeDeployData2(parameters) {
     throw new AbiConstructorParamsNotFoundError2({ docsPath: docsPath12 });
   if (!description.inputs || description.inputs.length === 0)
     throw new AbiConstructorParamsNotFoundError2({ docsPath: docsPath12 });
-  const data = encodeAbiParameters2(description.inputs, args);
-  return concatHex2([bytecode, data]);
+  const data2 = encodeAbiParameters2(description.inputs, args);
+  return concatHex2([bytecode, data2]);
 }
 var docsPath12;
 var init_encodeDeployData2 = __esm({
@@ -34747,12 +34747,12 @@ function createBatchScheduler2({ fn: fn3, id: id3, shouldSplitBatch, wait: wait3
     const args = scheduler.map(({ args: args2 }) => args2);
     if (args.length === 0)
       return;
-    fn3(args).then((data) => {
-      if (sort && Array.isArray(data))
-        data.sort(sort);
+    fn3(args).then((data2) => {
+      if (sort && Array.isArray(data2))
+        data2.sort(sort);
       for (let i = 0; i < scheduler.length; i++) {
         const { resolve: resolve3 } = scheduler[i];
-        resolve3?.([data[i], data]);
+        resolve3?.([data2[i], data2]);
       }
     }).catch((err3) => {
       for (let i = 0; i < scheduler.length; i++) {
@@ -34799,7 +34799,7 @@ var init_ccip3 = __esm({
     init_base3();
     init_utils9();
     OffchainLookupError2 = class extends BaseError5 {
-      constructor({ callbackSelector, cause, data, extraData, sender, urls }) {
+      constructor({ callbackSelector, cause, data: data2, extraData, sender, urls }) {
         super(cause.shortMessage || "An error occurred while fetching for an offchain result.", {
           cause,
           metaMessages: [
@@ -34811,7 +34811,7 @@ var init_ccip3 = __esm({
               ...urls.map((url) => `    ${getUrl2(url)}`)
             ],
             `  Sender: ${sender}`,
-            `  Data: ${data}`,
+            `  Data: ${data2}`,
             `  Callback selector: ${callbackSelector}`,
             `  Extra data: ${extraData}`
           ].flat(),
@@ -34846,8 +34846,8 @@ var init_ccip3 = __esm({
 
 // node_modules/viem/_esm/utils/abi/decodeFunctionData.js
 function decodeFunctionData2(parameters) {
-  const { abi: abi3, data } = parameters;
-  const signature = slice4(data, 0, 4);
+  const { abi: abi3, data: data2 } = parameters;
+  const signature = slice4(data2, 0, 4);
   const description = abi3.find((x) => x.type === "function" && signature === toFunctionSelector2(formatAbiItem4(x)));
   if (!description)
     throw new AbiFunctionSignatureNotFoundError2(signature, {
@@ -34855,7 +34855,7 @@ function decodeFunctionData2(parameters) {
     });
   return {
     functionName: description.name,
-    args: "inputs" in description && description.inputs && description.inputs.length > 0 ? decodeAbiParameters2(description.inputs, slice4(data, 4)) : void 0
+    args: "inputs" in description && description.inputs && description.inputs.length > 0 ? decodeAbiParameters2(description.inputs, slice4(data2, 4)) : void 0
   };
 }
 var init_decodeFunctionData2 = __esm({
@@ -34882,13 +34882,13 @@ function encodeErrorResult2(parameters) {
     throw new AbiErrorNotFoundError2(void 0, { docsPath: docsPath13 });
   const definition = formatAbiItem4(abiItem);
   const signature = toFunctionSelector2(definition);
-  let data = "0x";
+  let data2 = "0x";
   if (args && args.length > 0) {
     if (!abiItem.inputs)
       throw new AbiErrorInputsNotFoundError2(abiItem.name, { docsPath: docsPath13 });
-    data = encodeAbiParameters2(abiItem.inputs, args);
+    data2 = encodeAbiParameters2(abiItem.inputs, args);
   }
-  return concatHex2([signature, data]);
+  return concatHex2([signature, data2]);
 }
 var docsPath13;
 var init_encodeErrorResult2 = __esm({
@@ -34940,8 +34940,8 @@ var init_encodeFunctionResult2 = __esm({
 
 // node_modules/viem/_esm/utils/ens/localBatchGatewayRequest.js
 async function localBatchGatewayRequest2(parameters) {
-  const { data, ccipRequest: ccipRequest3 } = parameters;
-  const { args: [queries] } = decodeFunctionData2({ abi: batchGatewayAbi2, data });
+  const { data: data2, ccipRequest: ccipRequest3 } = parameters;
+  const { args: [queries] } = decodeFunctionData2({ abi: batchGatewayAbi2, data: data2 });
   const failures = [];
   const responses = [];
   await Promise.all(queries.map(async (query, i) => {
@@ -34992,9 +34992,9 @@ __export(ccip_exports2, {
   offchainLookupAbiItem: () => offchainLookupAbiItem2,
   offchainLookupSignature: () => offchainLookupSignature2
 });
-async function offchainLookup2(client, { blockNumber, blockTag, data, requestOptions, to: to4 }) {
+async function offchainLookup2(client, { blockNumber, blockTag, data: data2, requestOptions, to: to4 }) {
   const { args } = decodeErrorResult2({
-    data,
+    data: data2,
     abi: [offchainLookupAbiItem2]
   });
   const [sender, urls, callData, callbackSelector, extraData] = args;
@@ -35026,24 +35026,24 @@ async function offchainLookup2(client, { blockNumber, blockTag, data, requestOpt
     throw new OffchainLookupError2({
       callbackSelector,
       cause: err3,
-      data,
+      data: data2,
       extraData,
       sender,
       urls
     });
   }
 }
-async function ccipRequest2({ data, requestOptions, sender, urls }) {
+async function ccipRequest2({ data: data2, requestOptions, sender, urls }) {
   let error = new Error("An unknown error occurred.");
   for (let i = 0; i < urls.length; i++) {
     if (requestOptions?.signal?.aborted)
       throw getAbortError2(requestOptions.signal);
     const url = urls[i];
     const method = url.includes("{data}") ? "GET" : "POST";
-    const body2 = method === "POST" ? { data, sender } : void 0;
+    const body2 = method === "POST" ? { data: data2, sender } : void 0;
     const headers = method === "POST" ? { "Content-Type": "application/json" } : {};
     try {
-      const response = await fetch(url.replace("{sender}", sender.toLowerCase()).replace("{data}", data), {
+      const response = await fetch(url.replace("{sender}", sender.toLowerCase()).replace("{data}", data2), {
         body: JSON.stringify(body2),
         headers,
         method,
@@ -35142,7 +35142,7 @@ async function call2(client, args) {
   const deploylessCallViaBytecode = code && data_;
   const deploylessCallViaFactory = factory && factoryData && to4 && data_;
   const deploylessCall = deploylessCallViaBytecode || deploylessCallViaFactory;
-  const data = (() => {
+  const data2 = (() => {
     if (deploylessCallViaBytecode)
       return toDeploylessCallViaBytecodeData2({
         code,
@@ -35176,7 +35176,7 @@ async function call2(client, args) {
       account,
       authorizationList,
       blobs,
-      data,
+      data: data2,
       gas,
       gasPrice,
       maxFeePerBlobGas,
@@ -35234,13 +35234,13 @@ async function call2(client, args) {
       throw getAbortError2(requestOptions.signal);
     if (isAbortError2(err3))
       throw err3;
-    const data2 = getRevertErrorData2(err3);
+    const data3 = getRevertErrorData2(err3);
     const { offchainLookup: offchainLookup3, offchainLookupSignature: offchainLookupSignature3 } = await Promise.resolve().then(() => (init_ccip4(), ccip_exports2));
-    if (client.ccipRead !== false && data2?.slice(0, 10) === offchainLookupSignature3 && to4)
+    if (client.ccipRead !== false && data3?.slice(0, 10) === offchainLookupSignature3 && to4)
       return {
-        data: await offchainLookup3(client, { data: data2, requestOptions, to: to4 })
+        data: await offchainLookup3(client, { data: data3, requestOptions, to: to4 })
       };
-    if (deploylessCall && data2?.slice(0, 10) === "0x101bb98d")
+    if (deploylessCall && data3?.slice(0, 10) === "0x101bb98d")
       throw new CounterfactualDeploymentFailedError2({ factory });
     throw getCallError2(err3, {
       ...args,
@@ -35250,10 +35250,10 @@ async function call2(client, args) {
   }
 }
 function shouldPerformMulticall2({ request }) {
-  const { data, to: to4, ...request_ } = request;
-  if (!data)
+  const { data: data2, to: to4, ...request_ } = request;
+  if (!data2)
     return false;
-  if (data.startsWith(aggregate3Signature2))
+  if (data2.startsWith(aggregate3Signature2))
     return false;
   if (!to4)
     return false;
@@ -35273,7 +35273,7 @@ function getRequestOptionsId2(requestOptions) {
 }
 async function scheduleMulticall2(client, args) {
   const { batchSize = 1024, deployless = false, wait: wait3 = 0 } = typeof client.batch?.multicall === "object" ? client.batch.multicall : {};
-  const { blockHash, blockNumber, blockTag = client.experimental_blockTag ?? "latest", requireCanonical, data, multicallAddress: multicallAddress_, requestOptions, rpcStateOverride, to: to4 } = args;
+  const { blockHash, blockNumber, blockTag = client.experimental_blockTag ?? "latest", requireCanonical, data: data2, multicallAddress: multicallAddress_, requestOptions, rpcStateOverride, to: to4 } = args;
   const multicallAddress = multicallAddress_ !== void 0 ? multicallAddress_ : getMulticallAddress2(client, {
     blockNumber,
     deployless
@@ -35290,7 +35290,7 @@ async function scheduleMulticall2(client, args) {
     id: `${client.uid}.${blockId}.${getRequestOptionsId2(requestOptions)}${stateOverrideKey}`,
     wait: wait3,
     shouldSplitBatch(args2) {
-      const size9 = args2.reduce((size10, { data: data2 }) => size10 + (data2.length - 2), 0);
+      const size9 = args2.reduce((size10, { data: data3 }) => size10 + (data3.length - 2), 0);
       return size9 > batchSize * 2;
     },
     fn: async (requests) => {
@@ -35312,7 +35312,7 @@ async function scheduleMulticall2(client, args) {
           })
         } : { to: multicallAddress, data: calldata }
       };
-      const data2 = await client.request({
+      const data3 = await client.request({
         method: "eth_call",
         params: rpcStateOverride ? [multicallRequest, block, rpcStateOverride] : [multicallRequest, block]
       }, requestOptions);
@@ -35320,11 +35320,11 @@ async function scheduleMulticall2(client, args) {
         abi: multicall3Abi2,
         args: [calls],
         functionName: "aggregate3",
-        data: data2 || "0x"
+        data: data3 || "0x"
       });
     }
   });
-  const [{ returnData, success }] = await schedule({ data, to: to4 });
+  const [{ returnData, success }] = await schedule({ data: data2, to: to4 });
   if (!success)
     throw new RawContractError2({ data: returnData });
   if (returnData === "0x")
@@ -35349,19 +35349,19 @@ function hasStateOverrideForAddress2(rpcStateOverride, address4) {
   return Object.keys(rpcStateOverride).some((stateOverrideAddress) => isAddressEqual2(stateOverrideAddress, address4));
 }
 function toDeploylessCallViaBytecodeData2(parameters) {
-  const { code, data } = parameters;
+  const { code, data: data2 } = parameters;
   return encodeDeployData2({
     abi: parseAbi2(["constructor(bytes, bytes)"]),
     bytecode: deploylessCallViaBytecodeBytecode2,
-    args: [code, data]
+    args: [code, data2]
   });
 }
 function toDeploylessCallViaFactoryData2(parameters) {
-  const { data, factory, factoryData, to: to4 } = parameters;
+  const { data: data2, factory, factoryData, to: to4 } = parameters;
   return encodeDeployData2({
     abi: parseAbi2(["constructor(address, bytes, address, bytes)"]),
     bytecode: deploylessCallViaFactoryBytecode2,
-    args: [to4, data, factory, factoryData]
+    args: [to4, data2, factory, factoryData]
   });
 }
 function getRevertErrorData2(err3) {
@@ -35409,7 +35409,7 @@ async function readContract2(client, parameters) {
     functionName
   });
   try {
-    const { data } = await getAction2(client, call2, "call")({
+    const { data: data2 } = await getAction2(client, call2, "call")({
       ...rest,
       data: calldata,
       to: address4
@@ -35418,7 +35418,7 @@ async function readContract2(client, parameters) {
       abi: abi3,
       args,
       functionName,
-      data: data || "0x"
+      data: data2 || "0x"
     });
   } catch (error) {
     throw getContractError2(error, {
@@ -35446,7 +35446,7 @@ async function simulateContract2(client, parameters) {
   const account = callRequest.account ? parseAccount2(callRequest.account) : client.account;
   const calldata = encodeFunctionData2({ abi: abi3, args, functionName });
   try {
-    const { data } = await getAction2(client, call2, "call")({
+    const { data: data2 } = await getAction2(client, call2, "call")({
       batch: false,
       data: `${calldata}${dataSuffix ? dataSuffix.replace("0x", "") : ""}`,
       to: address4,
@@ -35457,7 +35457,7 @@ async function simulateContract2(client, parameters) {
       abi: abi3,
       args,
       functionName,
-      data: data || "0x"
+      data: data2 || "0x"
     });
     const minimizedAbi = abi3.filter((abiItem) => "name" in abiItem && abiItem.name === parameters.functionName);
     return {
@@ -35583,10 +35583,10 @@ function poll2(fn3, { emitOnBegin, initialWaitTime, interval }) {
   let active = true;
   const unwatch = () => active = false;
   const watch = async () => {
-    let data;
+    let data2;
     if (emitOnBegin)
-      data = await fn3({ unpoll: unwatch });
-    const initialWait = await initialWaitTime?.(data) ?? interval;
+      data2 = await fn3({ unpoll: unwatch });
+    const initialWait = await initialWaitTime?.(data2) ?? interval;
     await wait2(initialWait);
     const poll3 = async () => {
       if (!active)
@@ -35611,7 +35611,7 @@ function getCache2(cacheKey3) {
   const buildCache = (cacheKey4, cache2) => ({
     clear: () => cache2.delete(cacheKey4),
     get: () => cache2.get(cacheKey4),
-    set: (data) => cache2.set(cacheKey4, data)
+    set: (data2) => cache2.set(cacheKey4, data2)
   });
   const promise = buildCache(cacheKey3, promiseCache3);
   const response = buildCache(cacheKey3, responseCache2);
@@ -35638,9 +35638,9 @@ async function withCache2(fn3, { cacheKey: cacheKey3, cacheTime = Number.POSITIV
     cache2.promise.set(promise);
   }
   try {
-    const data = await promise;
-    cache2.response.set({ created: /* @__PURE__ */ new Date(), data });
-    return data;
+    const data2 = await promise;
+    cache2.response.set({ created: /* @__PURE__ */ new Date(), data: data2 });
+    return data2;
   } finally {
     cache2.promise.clear();
   }
@@ -35832,10 +35832,10 @@ function watchContractEvent2(client, parameters) {
           }) : [];
           const { unsubscribe: unsubscribe_ } = await transport.subscribe({
             params: ["logs", { address: address4, topics }],
-            onData(data) {
+            onData(data2) {
               if (!active)
                 return;
-              const log = data.result;
+              const log = data2.result;
               try {
                 const { eventName: eventName2, args: args2 } = decodeEventLog2({
                   abi: abi3,
@@ -35955,7 +35955,7 @@ var init_sendRawTransaction2 = __esm({
 
 // node_modules/viem/_esm/actions/wallet/sendTransaction.js
 async function sendTransaction(client, parameters) {
-  const { account: account_ = client.account, assertChainId = true, chain: chain2 = client.chain, accessList, authorizationList, blobs, data, dataSuffix = typeof client.dataSuffix === "string" ? client.dataSuffix : client.dataSuffix?.value, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2, type: type2, value, ...rest } = parameters;
+  const { account: account_ = client.account, assertChainId = true, chain: chain2 = client.chain, accessList, authorizationList, blobs, data: data2, dataSuffix = typeof client.dataSuffix === "string" ? client.dataSuffix : client.dataSuffix?.value, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2, type: type2, value, ...rest } = parameters;
   if (typeof account_ === "undefined")
     throw new AccountNotFoundError2({
       docsPath: "/docs/actions/wallet/sendTransaction"
@@ -35997,7 +35997,7 @@ async function sendTransaction(client, parameters) {
         authorizationList,
         blobs,
         chainId,
-        data: dataSuffix ? concat3([data ?? "0x", dataSuffix]) : data,
+        data: dataSuffix ? concat3([data2 ?? "0x", dataSuffix]) : data2,
         gas,
         gasPrice,
         maxFeePerBlobGas,
@@ -36056,7 +36056,7 @@ async function sendTransaction(client, parameters) {
         authorizationList,
         blobs,
         chain: chain2,
-        data: dataSuffix ? concat3([data ?? "0x", dataSuffix]) : data,
+        data: dataSuffix ? concat3([data2 ?? "0x", dataSuffix]) : data2,
         gas,
         gasPrice,
         maxFeePerBlobGas,
@@ -36144,14 +36144,14 @@ var init_writeContract = __esm({
             docsPath: "/docs/contract/writeContract"
           });
         const account = account_ ? parseAccount2(account_) : null;
-        const data = encodeFunctionData2({
+        const data2 = encodeFunctionData2({
           abi: abi3,
           args,
           functionName
         });
         try {
           return await getAction2(client, actionFn, name)({
-            data,
+            data: data2,
             to: address4,
             account,
             ...request
@@ -36397,8 +36397,8 @@ function withRetry2(fn3, { delay: delay_ = 100, retryCount = 2, shouldRetry: sho
         attemptRetry({ count: count + 1 });
       };
       try {
-        const data = await fn3();
-        resolve3(data);
+        const data2 = await fn3();
+        resolve3(data2);
       } catch (err3) {
         if (signal?.aborted) {
           reject(getAbortError2(signal));
@@ -36481,13 +36481,13 @@ async function sendCalls(client, parameters) {
   }
   const calls = parameters.calls.map((call_) => {
     const call3 = call_;
-    const data = call3.abi ? encodeFunctionData2({
+    const data2 = call3.abi ? encodeFunctionData2({
       abi: call3.abi,
       functionName: call3.functionName,
       args: call3.args
     }) : call3.data;
     return {
-      data: call3.dataSuffix && data ? concat3([data, call3.dataSuffix]) : data,
+      data: call3.dataSuffix && data2 ? concat3([data2, call3.dataSuffix]) : data2,
       to: call3.to,
       value: call3.value ? numberToHex2(call3.value) : void 0
     };
@@ -36987,18 +36987,18 @@ async function getEnsAddress2(client, parameters) {
     throw err3;
   }
 }
-function decodeAddress5({ coinType, data, args }) {
+function decodeAddress5({ coinType, data: data2, args }) {
   try {
     return decodeFunctionResult2({
       abi: addressResolverAbi2,
       args,
       functionName: "addr",
-      data
+      data: data2
     });
   } catch (err3) {
     if (coinType == null)
       throw err3;
-    const address4 = trim4(data);
+    const address4 = trim4(data2);
     if (size5(address4) === 20)
       return getAddress2(address4);
     throw err3;
@@ -37029,12 +37029,12 @@ var init_ens2 = __esm({
   "node_modules/viem/_esm/errors/ens.js"() {
     init_base3();
     EnsAvatarInvalidMetadataError2 = class extends BaseError5 {
-      constructor({ data }) {
+      constructor({ data: data2 }) {
         super("Unable to extract image from metadata. The metadata may be malformed or invalid.", {
           metaMessages: [
             "- Metadata must be a JSON object with at least an `image`, `image_url` or `image_data` property.",
             "",
-            `Provided data: ${JSON.stringify(data)}`
+            `Provided data: ${JSON.stringify(data2)}`
           ],
           name: "EnsAvatarInvalidMetadataError"
         });
@@ -37144,11 +37144,11 @@ function resolveAvatarUri2({ uri, gatewayUrls }) {
   }
   throw new EnsAvatarUriResolutionError2({ uri });
 }
-function getJsonImage2(data) {
-  if (typeof data !== "object" || !("image" in data) && !("image_url" in data) && !("image_data" in data)) {
-    throw new EnsAvatarInvalidMetadataError2({ data });
+function getJsonImage2(data2) {
+  if (typeof data2 !== "object" || !("image" in data2) && !("image_url" in data2) && !("image_data" in data2)) {
+    throw new EnsAvatarInvalidMetadataError2({ data: data2 });
   }
-  return data.image || data.image_url || data.image_data;
+  return data2.image || data2.image_url || data2.image_data;
 }
 async function getMetadataAvatarUri2({ gatewayUrls, uri }) {
   try {
@@ -37477,7 +37477,7 @@ var init_getEnsResolver2 = __esm({
 
 // node_modules/viem/_esm/actions/public/createAccessList.js
 async function createAccessList2(client, args) {
-  const { account: account_ = client.account, blockNumber, blockTag = "latest", blobs, data, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, to: to4, value, ...rest } = args;
+  const { account: account_ = client.account, blockNumber, blockTag = "latest", blobs, data: data2, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, to: to4, value, ...rest } = args;
   const account = account_ ? parseAccount2(account_) : void 0;
   try {
     assertRequest2(args);
@@ -37490,7 +37490,7 @@ async function createAccessList2(client, args) {
       ...extract3(rest, { format: chainFormat }),
       account,
       blobs,
-      data,
+      data: data2,
       gas,
       gasPrice,
       maxFeePerBlobGas,
@@ -37624,7 +37624,7 @@ async function getBalance3(client, { address: address4, blockHash, blockNumber, 
       functionName: "getEthBalance",
       args: [address4]
     });
-    const { data } = await getAction2(client, call2, "call")({
+    const { data: data2 } = await getAction2(client, call2, "call")({
       to: multicall3Address,
       data: calldata,
       blockHash,
@@ -37636,7 +37636,7 @@ async function getBalance3(client, { address: address4, blockHash, blockNumber, 
       abi: multicall3Abi2,
       functionName: "getEthBalance",
       args: [address4],
-      data: data || "0x"
+      data: data2 || "0x"
     });
   }
   const balance = await client.request({
@@ -37784,7 +37784,7 @@ var init_eip7122 = __esm({
 async function getEip712Domain2(client, parameters) {
   const { address: address4, factory, factoryData } = parameters;
   try {
-    const [fields2, name, version7, chainId, verifyingContract, salt, extensions] = await getAction2(client, readContract2, "readContract")({
+    const [fields4, name, version7, chainId, verifyingContract, salt, extensions] = await getAction2(client, readContract2, "readContract")({
       abi: abi2,
       address: address4,
       functionName: "eip712Domain",
@@ -37800,7 +37800,7 @@ async function getEip712Domain2(client, parameters) {
         salt
       },
       extensions,
-      fields: fields2
+      fields: fields4
     };
   } catch (e) {
     const error = e;
@@ -37900,13 +37900,13 @@ function encodePacked2(types2, values) {
       expectedLength: types2.length,
       givenLength: values.length
     });
-  const data = [];
+  const data2 = [];
   for (let i = 0; i < types2.length; i++) {
     const type2 = types2[i];
     const value = values[i];
-    data.push(encode4(type2, value));
+    data2.push(encode4(type2, value));
   }
-  return concatHex2(data);
+  return concatHex2(data2);
 }
 function encode4(type2, value, isArray = false) {
   if (type2 === "address") {
@@ -37945,13 +37945,13 @@ function encode4(type2, value, isArray = false) {
   const arrayMatch = type2.match(arrayRegex2);
   if (arrayMatch && Array.isArray(value)) {
     const [_type, childType] = arrayMatch;
-    const data = [];
+    const data2 = [];
     for (let i = 0; i < value.length; i++) {
-      data.push(encode4(childType, value[i], true));
+      data2.push(encode4(childType, value[i], true));
     }
-    if (data.length === 0)
+    if (data2.length === 0)
       return "0x";
-    return concatHex2(data);
+    return concatHex2(data2);
   }
   throw new UnsupportedPackedAbiType(type2);
 }
@@ -38147,7 +38147,7 @@ function serializeTransaction3(transaction, signature) {
   return serializeTransactionLegacy2(transaction, signature);
 }
 function serializeTransactionEIP77022(transaction, signature) {
-  const { authorizationList, chainId, gas, nonce: nonce2, to: to4, value, maxFeePerGas, maxPriorityFeePerGas, accessList, data } = transaction;
+  const { authorizationList, chainId, gas, nonce: nonce2, to: to4, value, maxFeePerGas, maxPriorityFeePerGas, accessList, data: data2 } = transaction;
   assertTransactionEIP77022(transaction);
   const serializedAccessList = serializeAccessList2(accessList);
   const serializedAuthorizationList = serializeAuthorizationList2(authorizationList);
@@ -38161,7 +38161,7 @@ function serializeTransactionEIP77022(transaction, signature) {
       gas ? numberToHex2(gas) : "0x",
       to4 ?? "0x",
       value ? numberToHex2(value) : "0x",
-      data ?? "0x",
+      data2 ?? "0x",
       serializedAccessList,
       serializedAuthorizationList,
       ...toYParitySignatureArray2(transaction, signature)
@@ -38169,7 +38169,7 @@ function serializeTransactionEIP77022(transaction, signature) {
   ]);
 }
 function serializeTransactionEIP48442(transaction, signature) {
-  const { chainId, gas, nonce: nonce2, to: to4, value, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, accessList, data } = transaction;
+  const { chainId, gas, nonce: nonce2, to: to4, value, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, accessList, data: data2 } = transaction;
   assertTransactionEIP48442(transaction);
   let blobVersionedHashes = transaction.blobVersionedHashes;
   let sidecars = transaction.sidecars;
@@ -38198,7 +38198,7 @@ function serializeTransactionEIP48442(transaction, signature) {
     gas ? numberToHex2(gas) : "0x",
     to4 ?? "0x",
     value ? numberToHex2(value) : "0x",
-    data ?? "0x",
+    data2 ?? "0x",
     serializedAccessList,
     maxFeePerBlobGas ? numberToHex2(maxFeePerBlobGas) : "0x",
     blobVersionedHashes ?? [],
@@ -38226,7 +38226,7 @@ function serializeTransactionEIP48442(transaction, signature) {
   ]);
 }
 function serializeTransactionEIP15592(transaction, signature) {
-  const { chainId, gas, nonce: nonce2, to: to4, value, maxFeePerGas, maxPriorityFeePerGas, accessList, data } = transaction;
+  const { chainId, gas, nonce: nonce2, to: to4, value, maxFeePerGas, maxPriorityFeePerGas, accessList, data: data2 } = transaction;
   assertTransactionEIP15592(transaction);
   const serializedAccessList = serializeAccessList2(accessList);
   const serializedTransaction = [
@@ -38237,7 +38237,7 @@ function serializeTransactionEIP15592(transaction, signature) {
     gas ? numberToHex2(gas) : "0x",
     to4 ?? "0x",
     value ? numberToHex2(value) : "0x",
-    data ?? "0x",
+    data2 ?? "0x",
     serializedAccessList,
     ...toYParitySignatureArray2(transaction, signature)
   ];
@@ -38247,7 +38247,7 @@ function serializeTransactionEIP15592(transaction, signature) {
   ]);
 }
 function serializeTransactionEIP29302(transaction, signature) {
-  const { chainId, gas, data, nonce: nonce2, to: to4, value, accessList, gasPrice } = transaction;
+  const { chainId, gas, data: data2, nonce: nonce2, to: to4, value, accessList, gasPrice } = transaction;
   assertTransactionEIP29302(transaction);
   const serializedAccessList = serializeAccessList2(accessList);
   const serializedTransaction = [
@@ -38257,7 +38257,7 @@ function serializeTransactionEIP29302(transaction, signature) {
     gas ? numberToHex2(gas) : "0x",
     to4 ?? "0x",
     value ? numberToHex2(value) : "0x",
-    data ?? "0x",
+    data2 ?? "0x",
     serializedAccessList,
     ...toYParitySignatureArray2(transaction, signature)
   ];
@@ -38267,7 +38267,7 @@ function serializeTransactionEIP29302(transaction, signature) {
   ]);
 }
 function serializeTransactionLegacy2(transaction, signature) {
-  const { chainId = 0, gas, data, nonce: nonce2, to: to4, value, gasPrice } = transaction;
+  const { chainId = 0, gas, data: data2, nonce: nonce2, to: to4, value, gasPrice } = transaction;
   assertTransactionLegacy2(transaction);
   let serializedTransaction = [
     nonce2 ? numberToHex2(nonce2) : "0x",
@@ -38275,7 +38275,7 @@ function serializeTransactionLegacy2(transaction, signature) {
     gas ? numberToHex2(gas) : "0x",
     to4 ?? "0x",
     value ? numberToHex2(value) : "0x",
-    data ?? "0x"
+    data2 ?? "0x"
   ];
   if (signature) {
     const v = (() => {
@@ -38606,10 +38606,10 @@ var init_buildRequest2 = __esm({
 // node_modules/viem/_esm/utils/ccipTunnel.js
 function ccipReadTunnel({ batchGateways, ccipRequest: ccipRequest3 = ccipRequest2 }) {
   return {
-    async request({ data, sender, urls }) {
+    async request({ data: data2, sender, urls }) {
       if (urls.includes(localBatchGatewayUrl2)) {
         return ccipRequest3({
-          data,
+          data: data2,
           sender,
           urls: batchGateways
         });
@@ -38621,7 +38621,7 @@ function ccipReadTunnel({ batchGateways, ccipRequest: ccipRequest3 = ccipRequest
             data: encodeFunctionData2({
               abi: batchGatewayAbi2,
               functionName: "query",
-              args: [[{ sender, data, urls }]]
+              args: [[{ sender, data: data2, urls }]]
             }),
             sender,
             urls: batchGateways
@@ -39132,31 +39132,31 @@ function getHttpRpcClient2(url_, options = {}) {
         });
         if (onResponse)
           await onResponse(response);
-        let data;
+        let data2;
         if (response.headers.get("Content-Type")?.startsWith("application/json"))
-          data = await response.json();
+          data2 = await response.json();
         else {
-          data = await response.text();
+          data2 = await response.text();
           try {
-            data = JSON.parse(data || "{}");
+            data2 = JSON.parse(data2 || "{}");
           } catch (err3) {
             if (response.ok)
               throw err3;
-            data = { error: data };
+            data2 = { error: data2 };
           }
         }
         if (!response.ok) {
-          if (typeof data.error?.code === "number" && typeof data.error?.message === "string")
-            return data;
+          if (typeof data2.error?.code === "number" && typeof data2.error?.message === "string")
+            return data2;
           throw new HttpRequestError2({
             body: body2,
-            details: stringify3(data.error) || response.statusText,
+            details: stringify3(data2.error) || response.statusText,
             headers: response.headers,
             status: response.status,
             url
           });
         }
-        return data;
+        return data2;
       } catch (err3) {
         if (signal_?.aborted)
           throw getAbortError2(signal_);
@@ -39268,13 +39268,13 @@ async function getSocketRpcClient(parameters) {
             error = void 0;
             reconnectCount = 0;
           },
-          onResponse(data) {
-            const isSubscription = data.method === "eth_subscription";
-            const id4 = isSubscription ? data.params.subscription : data.id;
+          onResponse(data2) {
+            const isSubscription = data2.method === "eth_subscription";
+            const id4 = isSubscription ? data2.params.subscription : data2.id;
             const cache2 = isSubscription ? subscriptions : requests;
             const callback = cache2.get(id4);
             if (callback)
-              callback.onResponse(data);
+              callback.onResponse(data2);
             if (!isSubscription)
               cache2.delete(id4);
           }
@@ -39439,16 +39439,16 @@ var require_buffer_util = __commonJS({
       }
       return buf2.buffer.slice(buf2.byteOffset, buf2.byteOffset + buf2.length);
     }
-    function toBuffer(data) {
+    function toBuffer(data2) {
       toBuffer.readOnly = true;
-      if (Buffer.isBuffer(data)) return data;
+      if (Buffer.isBuffer(data2)) return data2;
       let buf2;
-      if (data instanceof ArrayBuffer) {
-        buf2 = new FastBuffer(data);
-      } else if (ArrayBuffer.isView(data)) {
-        buf2 = new FastBuffer(data.buffer, data.byteOffset, data.byteLength);
+      if (data2 instanceof ArrayBuffer) {
+        buf2 = new FastBuffer(data2);
+      } else if (ArrayBuffer.isView(data2)) {
+        buf2 = new FastBuffer(data2.buffer, data2.byteOffset, data2.byteLength);
       } else {
-        buf2 = Buffer.from(data);
+        buf2 = Buffer.from(data2);
         toBuffer.readOnly = false;
       }
       return buf2;
@@ -39762,9 +39762,9 @@ var require_permessage_deflate = __commonJS({
        * @param {Function} callback Callback
        * @public
        */
-      decompress(data, fin, callback) {
+      decompress(data2, fin, callback) {
         zlibLimiter.add((done) => {
-          this._decompress(data, fin, (err3, result) => {
+          this._decompress(data2, fin, (err3, result) => {
             done();
             callback(err3, result);
           });
@@ -39778,9 +39778,9 @@ var require_permessage_deflate = __commonJS({
        * @param {Function} callback Callback
        * @public
        */
-      compress(data, fin, callback) {
+      compress(data2, fin, callback) {
         zlibLimiter.add((done) => {
-          this._compress(data, fin, (err3, result) => {
+          this._compress(data2, fin, (err3, result) => {
             done();
             callback(err3, result);
           });
@@ -39794,7 +39794,7 @@ var require_permessage_deflate = __commonJS({
        * @param {Function} callback Callback
        * @private
        */
-      _decompress(data, fin, callback) {
+      _decompress(data2, fin, callback) {
         const endpoint = this._isServer ? "client" : "server";
         if (!this._inflate) {
           const key2 = `${endpoint}_max_window_bits`;
@@ -39810,7 +39810,7 @@ var require_permessage_deflate = __commonJS({
           this._inflate.on("data", inflateOnData);
         }
         this._inflate[kCallback] = callback;
-        this._inflate.write(data);
+        this._inflate.write(data2);
         if (fin) this._inflate.write(TRAILER);
         this._inflate.flush(() => {
           const err3 = this._inflate[kError];
@@ -39820,7 +39820,7 @@ var require_permessage_deflate = __commonJS({
             callback(err3);
             return;
           }
-          const data2 = bufferUtil.concat(
+          const data3 = bufferUtil.concat(
             this._inflate[kBuffers],
             this._inflate[kTotalLength]
           );
@@ -39834,7 +39834,7 @@ var require_permessage_deflate = __commonJS({
               this._inflate.reset();
             }
           }
-          callback(null, data2);
+          callback(null, data3);
         });
       }
       /**
@@ -39845,7 +39845,7 @@ var require_permessage_deflate = __commonJS({
        * @param {Function} callback Callback
        * @private
        */
-      _compress(data, fin, callback) {
+      _compress(data2, fin, callback) {
         const endpoint = this._isServer ? "server" : "client";
         if (!this._deflate) {
           const key2 = `${endpoint}_max_window_bits`;
@@ -39859,17 +39859,17 @@ var require_permessage_deflate = __commonJS({
           this._deflate.on("data", deflateOnData);
         }
         this._deflate[kCallback] = callback;
-        this._deflate.write(data);
+        this._deflate.write(data2);
         this._deflate.flush(zlib.Z_SYNC_FLUSH, () => {
           if (!this._deflate) {
             return;
           }
-          let data2 = bufferUtil.concat(
+          let data3 = bufferUtil.concat(
             this._deflate[kBuffers],
             this._deflate[kTotalLength]
           );
           if (fin) {
-            data2 = new FastBuffer(data2.buffer, data2.byteOffset, data2.length - 4);
+            data3 = new FastBuffer(data3.buffer, data3.byteOffset, data3.length - 4);
           }
           this._deflate[kCallback] = null;
           this._deflate[kTotalLength] = 0;
@@ -39877,7 +39877,7 @@ var require_permessage_deflate = __commonJS({
           if (fin && this.params[`${endpoint}_no_context_takeover`]) {
             this._deflate.reset();
           }
-          callback(null, data2);
+          callback(null, data3);
         });
       }
     };
@@ -40512,19 +40512,19 @@ var require_receiver = __commonJS({
        * @private
        */
       getData(cb3) {
-        let data = EMPTY_BUFFER2;
+        let data2 = EMPTY_BUFFER2;
         if (this._payloadLength) {
           if (this._bufferedBytes < this._payloadLength) {
             this._loop = false;
             return;
           }
-          data = this.consume(this._payloadLength);
+          data2 = this.consume(this._payloadLength);
           if (this._masked && (this._mask[0] | this._mask[1] | this._mask[2] | this._mask[3]) !== 0) {
-            unmask(data, this._mask);
+            unmask(data2, this._mask);
           }
         }
         if (this._opcode > 7) {
-          this.controlMessage(data, cb3);
+          this.controlMessage(data2, cb3);
           return;
         }
         if (this._maxFragments > 0 && ++this._numFragments > this._maxFragments) {
@@ -40540,12 +40540,12 @@ var require_receiver = __commonJS({
         }
         if (this._compressed) {
           this._state = INFLATING;
-          this.decompress(data, cb3);
+          this.decompress(data2, cb3);
           return;
         }
-        if (data.length) {
+        if (data2.length) {
           this._messageLength = this._totalPayloadLength;
-          this._fragments.push(data);
+          this._fragments.push(data2);
         }
         this.dataMessage(cb3);
       }
@@ -40556,9 +40556,9 @@ var require_receiver = __commonJS({
        * @param {Function} cb Callback
        * @private
        */
-      decompress(data, cb3) {
+      decompress(data2, cb3) {
         const perMessageDeflate = this._extensions[PerMessageDeflate2.extensionName];
-        perMessageDeflate.decompress(data, this._fin, (err3, buf2) => {
+        perMessageDeflate.decompress(data2, this._fin, (err3, buf2) => {
           if (err3) return cb3(err3);
           if (buf2.length) {
             this._messageLength += buf2.length;
@@ -40598,23 +40598,23 @@ var require_receiver = __commonJS({
         this._numFragments = 0;
         this._fragments = [];
         if (this._opcode === 2) {
-          let data;
+          let data2;
           if (this._binaryType === "nodebuffer") {
-            data = concat6(fragments, messageLength);
+            data2 = concat6(fragments, messageLength);
           } else if (this._binaryType === "arraybuffer") {
-            data = toArrayBuffer(concat6(fragments, messageLength));
+            data2 = toArrayBuffer(concat6(fragments, messageLength));
           } else if (this._binaryType === "blob") {
-            data = new Blob(fragments);
+            data2 = new Blob(fragments);
           } else {
-            data = fragments;
+            data2 = fragments;
           }
           if (this._allowSynchronousEvents) {
-            this.emit("message", data, true);
+            this.emit("message", data2, true);
             this._state = GET_INFO;
           } else {
             this._state = DEFER_EVENT;
             setImmediate(() => {
-              this.emit("message", data, true);
+              this.emit("message", data2, true);
               this._state = GET_INFO;
               this.startLoop(cb3);
             });
@@ -40652,14 +40652,14 @@ var require_receiver = __commonJS({
        * @return {(Error|RangeError|undefined)} A possible error
        * @private
        */
-      controlMessage(data, cb3) {
+      controlMessage(data2, cb3) {
         if (this._opcode === 8) {
-          if (data.length === 0) {
+          if (data2.length === 0) {
             this._loop = false;
             this.emit("conclude", 1005, EMPTY_BUFFER2);
             this.end();
           } else {
-            const code = data.readUInt16BE(0);
+            const code = data2.readUInt16BE(0);
             if (!isValidStatusCode(code)) {
               const error = this.createError(
                 RangeError,
@@ -40672,9 +40672,9 @@ var require_receiver = __commonJS({
               return;
             }
             const buf2 = new FastBuffer(
-              data.buffer,
-              data.byteOffset + 2,
-              data.length - 2
+              data2.buffer,
+              data2.byteOffset + 2,
+              data2.length - 2
             );
             if (!this._skipUTF8Validation && !isValidUTF8(buf2)) {
               const error = this.createError(
@@ -40695,12 +40695,12 @@ var require_receiver = __commonJS({
           return;
         }
         if (this._allowSynchronousEvents) {
-          this.emit(this._opcode === 9 ? "ping" : "pong", data);
+          this.emit(this._opcode === 9 ? "ping" : "pong", data2);
           this._state = GET_INFO;
         } else {
           this._state = DEFER_EVENT;
           setImmediate(() => {
-            this.emit(this._opcode === 9 ? "ping" : "pong", data);
+            this.emit(this._opcode === 9 ? "ping" : "pong", data2);
             this._state = GET_INFO;
             this.startLoop(cb3);
           });
@@ -40800,7 +40800,7 @@ var require_sender = __commonJS({
        * @return {(Buffer|String)[]} The framed data
        * @public
        */
-      static frame(data, options) {
+      static frame(data2, options) {
         let mask;
         let merge = false;
         let offset = 2;
@@ -40826,15 +40826,15 @@ var require_sender = __commonJS({
           offset = 6;
         }
         let dataLength;
-        if (typeof data === "string") {
+        if (typeof data2 === "string") {
           if ((!options.mask || skipMasking) && options[kByteLength] !== void 0) {
             dataLength = options[kByteLength];
           } else {
-            data = Buffer.from(data);
-            dataLength = data.length;
+            data2 = Buffer.from(data2);
+            dataLength = data2.length;
           }
         } else {
-          dataLength = data.length;
+          dataLength = data2.length;
           merge = options.mask && options.readOnly && !skipMasking;
         }
         let payloadLength = dataLength;
@@ -40855,19 +40855,19 @@ var require_sender = __commonJS({
           target[2] = target[3] = 0;
           target.writeUIntBE(dataLength, 4, 6);
         }
-        if (!options.mask) return [target, data];
+        if (!options.mask) return [target, data2];
         target[1] |= 128;
         target[offset - 4] = mask[0];
         target[offset - 3] = mask[1];
         target[offset - 2] = mask[2];
         target[offset - 1] = mask[3];
-        if (skipMasking) return [target, data];
+        if (skipMasking) return [target, data2];
         if (merge) {
-          applyMask(data, mask, target, offset, dataLength);
+          applyMask(data2, mask, target, offset, dataLength);
           return [target];
         }
-        applyMask(data, mask, data, 0, dataLength);
-        return [target, data];
+        applyMask(data2, mask, data2, 0, dataLength);
+        return [target, data2];
       }
       /**
        * Sends a close message to the other peer.
@@ -40878,26 +40878,26 @@ var require_sender = __commonJS({
        * @param {Function} [cb] Callback
        * @public
        */
-      close(code, data, mask, cb3) {
+      close(code, data2, mask, cb3) {
         let buf2;
         if (code === void 0) {
           buf2 = EMPTY_BUFFER2;
         } else if (typeof code !== "number" || !isValidStatusCode(code)) {
           throw new TypeError("First argument must be a valid error code number");
-        } else if (data === void 0 || !data.length) {
+        } else if (data2 === void 0 || !data2.length) {
           buf2 = Buffer.allocUnsafe(2);
           buf2.writeUInt16BE(code, 0);
         } else {
-          const length = Buffer.byteLength(data);
+          const length = Buffer.byteLength(data2);
           if (length > 123) {
             throw new RangeError("The message must not be greater than 123 bytes");
           }
           buf2 = Buffer.allocUnsafe(2 + length);
           buf2.writeUInt16BE(code, 0);
-          if (typeof data === "string") {
-            buf2.write(data, 2);
-          } else if (isUint8Array(data)) {
-            buf2.set(data, 2);
+          if (typeof data2 === "string") {
+            buf2.write(data2, 2);
+          } else if (isUint8Array(data2)) {
+            buf2.set(data2, 2);
           } else {
             throw new TypeError("Second argument must be a string or a Uint8Array");
           }
@@ -40926,18 +40926,18 @@ var require_sender = __commonJS({
        * @param {Function} [cb] Callback
        * @public
        */
-      ping(data, mask, cb3) {
+      ping(data2, mask, cb3) {
         let byteLength;
         let readOnly;
-        if (typeof data === "string") {
-          byteLength = Buffer.byteLength(data);
+        if (typeof data2 === "string") {
+          byteLength = Buffer.byteLength(data2);
           readOnly = false;
-        } else if (isBlob(data)) {
-          byteLength = data.size;
+        } else if (isBlob(data2)) {
+          byteLength = data2.size;
           readOnly = false;
         } else {
-          data = toBuffer(data);
-          byteLength = data.length;
+          data2 = toBuffer(data2);
+          byteLength = data2.length;
           readOnly = toBuffer.readOnly;
         }
         if (byteLength > 125) {
@@ -40953,16 +40953,16 @@ var require_sender = __commonJS({
           readOnly,
           rsv1: false
         };
-        if (isBlob(data)) {
+        if (isBlob(data2)) {
           if (this._state !== DEFAULT) {
-            this.enqueue([this.getBlobData, data, false, options, cb3]);
+            this.enqueue([this.getBlobData, data2, false, options, cb3]);
           } else {
-            this.getBlobData(data, false, options, cb3);
+            this.getBlobData(data2, false, options, cb3);
           }
         } else if (this._state !== DEFAULT) {
-          this.enqueue([this.dispatch, data, false, options, cb3]);
+          this.enqueue([this.dispatch, data2, false, options, cb3]);
         } else {
-          this.sendFrame(_Sender.frame(data, options), cb3);
+          this.sendFrame(_Sender.frame(data2, options), cb3);
         }
       }
       /**
@@ -40973,18 +40973,18 @@ var require_sender = __commonJS({
        * @param {Function} [cb] Callback
        * @public
        */
-      pong(data, mask, cb3) {
+      pong(data2, mask, cb3) {
         let byteLength;
         let readOnly;
-        if (typeof data === "string") {
-          byteLength = Buffer.byteLength(data);
+        if (typeof data2 === "string") {
+          byteLength = Buffer.byteLength(data2);
           readOnly = false;
-        } else if (isBlob(data)) {
-          byteLength = data.size;
+        } else if (isBlob(data2)) {
+          byteLength = data2.size;
           readOnly = false;
         } else {
-          data = toBuffer(data);
-          byteLength = data.length;
+          data2 = toBuffer(data2);
+          byteLength = data2.length;
           readOnly = toBuffer.readOnly;
         }
         if (byteLength > 125) {
@@ -41000,16 +41000,16 @@ var require_sender = __commonJS({
           readOnly,
           rsv1: false
         };
-        if (isBlob(data)) {
+        if (isBlob(data2)) {
           if (this._state !== DEFAULT) {
-            this.enqueue([this.getBlobData, data, false, options, cb3]);
+            this.enqueue([this.getBlobData, data2, false, options, cb3]);
           } else {
-            this.getBlobData(data, false, options, cb3);
+            this.getBlobData(data2, false, options, cb3);
           }
         } else if (this._state !== DEFAULT) {
-          this.enqueue([this.dispatch, data, false, options, cb3]);
+          this.enqueue([this.dispatch, data2, false, options, cb3]);
         } else {
-          this.sendFrame(_Sender.frame(data, options), cb3);
+          this.sendFrame(_Sender.frame(data2, options), cb3);
         }
       }
       /**
@@ -41028,21 +41028,21 @@ var require_sender = __commonJS({
        * @param {Function} [cb] Callback
        * @public
        */
-      send(data, options, cb3) {
+      send(data2, options, cb3) {
         const perMessageDeflate = this._extensions[PerMessageDeflate2.extensionName];
         let opcode = options.binary ? 2 : 1;
         let rsv1 = options.compress;
         let byteLength;
         let readOnly;
-        if (typeof data === "string") {
-          byteLength = Buffer.byteLength(data);
+        if (typeof data2 === "string") {
+          byteLength = Buffer.byteLength(data2);
           readOnly = false;
-        } else if (isBlob(data)) {
-          byteLength = data.size;
+        } else if (isBlob(data2)) {
+          byteLength = data2.size;
           readOnly = false;
         } else {
-          data = toBuffer(data);
-          byteLength = data.length;
+          data2 = toBuffer(data2);
+          byteLength = data2.length;
           readOnly = toBuffer.readOnly;
         }
         if (this._firstFragment) {
@@ -41066,16 +41066,16 @@ var require_sender = __commonJS({
           readOnly,
           rsv1
         };
-        if (isBlob(data)) {
+        if (isBlob(data2)) {
           if (this._state !== DEFAULT) {
-            this.enqueue([this.getBlobData, data, this._compress, opts, cb3]);
+            this.enqueue([this.getBlobData, data2, this._compress, opts, cb3]);
           } else {
-            this.getBlobData(data, this._compress, opts, cb3);
+            this.getBlobData(data2, this._compress, opts, cb3);
           }
         } else if (this._state !== DEFAULT) {
-          this.enqueue([this.dispatch, data, this._compress, opts, cb3]);
+          this.enqueue([this.dispatch, data2, this._compress, opts, cb3]);
         } else {
-          this.dispatch(data, this._compress, opts, cb3);
+          this.dispatch(data2, this._compress, opts, cb3);
         }
       }
       /**
@@ -41113,13 +41113,13 @@ var require_sender = __commonJS({
             return;
           }
           this._bufferedBytes -= options[kByteLength];
-          const data = toBuffer(arrayBuffer);
+          const data2 = toBuffer(arrayBuffer);
           if (!compress) {
             this._state = DEFAULT;
-            this.sendFrame(_Sender.frame(data, options), cb3);
+            this.sendFrame(_Sender.frame(data2, options), cb3);
             this.dequeue();
           } else {
-            this.dispatch(data, compress, options, cb3);
+            this.dispatch(data2, compress, options, cb3);
           }
         }).catch((err3) => {
           process.nextTick(onError, this, err3, cb3);
@@ -41148,15 +41148,15 @@ var require_sender = __commonJS({
        * @param {Function} [cb] Callback
        * @private
        */
-      dispatch(data, compress, options, cb3) {
+      dispatch(data2, compress, options, cb3) {
         if (!compress) {
-          this.sendFrame(_Sender.frame(data, options), cb3);
+          this.sendFrame(_Sender.frame(data2, options), cb3);
           return;
         }
         const perMessageDeflate = this._extensions[PerMessageDeflate2.extensionName];
         this._bufferedBytes += options[kByteLength];
         this._state = DEFLATING;
-        perMessageDeflate.compress(data, options.fin, (_, buf2) => {
+        perMessageDeflate.compress(data2, options.fin, (_, buf2) => {
           if (this._socket.destroyed) {
             const err3 = new Error(
               "The socket was closed while data was being compressed"
@@ -41380,9 +41380,9 @@ var require_event_target = __commonJS({
         }
         let wrapper;
         if (type2 === "message") {
-          wrapper = function onMessage(data, isBinary) {
+          wrapper = function onMessage(data2, isBinary) {
             const event = new MessageEvent("message", {
-              data: isBinary ? data : data.toString()
+              data: isBinary ? data2 : data2.toString()
             });
             event[kTarget] = this;
             callListener(handler, this, event);
@@ -41862,7 +41862,7 @@ var require_websocket = __commonJS({
        *     closing
        * @public
        */
-      close(code, data) {
+      close(code, data2) {
         if (this.readyState === _WebSocket.CLOSED) return;
         if (this.readyState === _WebSocket.CONNECTING) {
           const msg = "WebSocket was closed before the connection was established";
@@ -41876,7 +41876,7 @@ var require_websocket = __commonJS({
           return;
         }
         this._readyState = _WebSocket.CLOSING;
-        this._sender.close(code, data, !this._isServer, (err3) => {
+        this._sender.close(code, data2, !this._isServer, (err3) => {
           if (err3) return;
           this._closeFrameSent = true;
           if (this._closeFrameReceived || this._receiver._writableState.errorEmitted) {
@@ -41905,24 +41905,24 @@ var require_websocket = __commonJS({
        * @param {Function} [cb] Callback which is executed when the ping is sent
        * @public
        */
-      ping(data, mask, cb3) {
+      ping(data2, mask, cb3) {
         if (this.readyState === _WebSocket.CONNECTING) {
           throw new Error("WebSocket is not open: readyState 0 (CONNECTING)");
         }
-        if (typeof data === "function") {
-          cb3 = data;
-          data = mask = void 0;
+        if (typeof data2 === "function") {
+          cb3 = data2;
+          data2 = mask = void 0;
         } else if (typeof mask === "function") {
           cb3 = mask;
           mask = void 0;
         }
-        if (typeof data === "number") data = data.toString();
+        if (typeof data2 === "number") data2 = data2.toString();
         if (this.readyState !== _WebSocket.OPEN) {
-          sendAfterClose(this, data, cb3);
+          sendAfterClose(this, data2, cb3);
           return;
         }
         if (mask === void 0) mask = !this._isServer;
-        this._sender.ping(data || EMPTY_BUFFER2, mask, cb3);
+        this._sender.ping(data2 || EMPTY_BUFFER2, mask, cb3);
       }
       /**
        * Send a pong.
@@ -41932,24 +41932,24 @@ var require_websocket = __commonJS({
        * @param {Function} [cb] Callback which is executed when the pong is sent
        * @public
        */
-      pong(data, mask, cb3) {
+      pong(data2, mask, cb3) {
         if (this.readyState === _WebSocket.CONNECTING) {
           throw new Error("WebSocket is not open: readyState 0 (CONNECTING)");
         }
-        if (typeof data === "function") {
-          cb3 = data;
-          data = mask = void 0;
+        if (typeof data2 === "function") {
+          cb3 = data2;
+          data2 = mask = void 0;
         } else if (typeof mask === "function") {
           cb3 = mask;
           mask = void 0;
         }
-        if (typeof data === "number") data = data.toString();
+        if (typeof data2 === "number") data2 = data2.toString();
         if (this.readyState !== _WebSocket.OPEN) {
-          sendAfterClose(this, data, cb3);
+          sendAfterClose(this, data2, cb3);
           return;
         }
         if (mask === void 0) mask = !this._isServer;
-        this._sender.pong(data || EMPTY_BUFFER2, mask, cb3);
+        this._sender.pong(data2 || EMPTY_BUFFER2, mask, cb3);
       }
       /**
        * Resume the socket.
@@ -41978,7 +41978,7 @@ var require_websocket = __commonJS({
        * @param {Function} [cb] Callback which is executed when data is written out
        * @public
        */
-      send(data, options, cb3) {
+      send(data2, options, cb3) {
         if (this.readyState === _WebSocket.CONNECTING) {
           throw new Error("WebSocket is not open: readyState 0 (CONNECTING)");
         }
@@ -41986,13 +41986,13 @@ var require_websocket = __commonJS({
           cb3 = options;
           options = {};
         }
-        if (typeof data === "number") data = data.toString();
+        if (typeof data2 === "number") data2 = data2.toString();
         if (this.readyState !== _WebSocket.OPEN) {
-          sendAfterClose(this, data, cb3);
+          sendAfterClose(this, data2, cb3);
           return;
         }
         const opts = {
-          binary: typeof data !== "string",
+          binary: typeof data2 !== "string",
           mask: !this._isServer,
           compress: true,
           fin: true,
@@ -42001,7 +42001,7 @@ var require_websocket = __commonJS({
         if (!this._extensions[PerMessageDeflate2.extensionName]) {
           opts.compress = false;
         }
-        this._sender.send(data || EMPTY_BUFFER2, opts, cb3);
+        this._sender.send(data2 || EMPTY_BUFFER2, opts, cb3);
       }
       /**
        * Forcibly close the connection.
@@ -42386,9 +42386,9 @@ var require_websocket = __commonJS({
         stream.once("close", websocket.emitClose.bind(websocket));
       }
     }
-    function sendAfterClose(websocket, data, cb3) {
-      if (data) {
-        const length = isBlob(data) ? data.size : toBuffer(data).length;
+    function sendAfterClose(websocket, data2, cb3) {
+      if (data2) {
+        const length = isBlob(data2) ? data2.size : toBuffer(data2).length;
         if (websocket._socket) websocket._sender._bufferedBytes += length;
         else websocket._bufferedAmount += length;
       }
@@ -42429,16 +42429,16 @@ var require_websocket = __commonJS({
     function receiverOnFinish() {
       this[kWebSocket].emitClose();
     }
-    function receiverOnMessage(data, isBinary) {
-      this[kWebSocket].emit("message", data, isBinary);
+    function receiverOnMessage(data2, isBinary) {
+      this[kWebSocket].emit("message", data2, isBinary);
     }
-    function receiverOnPing(data) {
+    function receiverOnPing(data2) {
       const websocket = this[kWebSocket];
-      if (websocket._autoPong) websocket.pong(data, !this._isServer, NOOP);
-      websocket.emit("ping", data);
+      if (websocket._autoPong) websocket.pong(data2, !this._isServer, NOOP);
+      websocket.emit("ping", data2);
     }
-    function receiverOnPong(data) {
-      this[kWebSocket].emit("pong", data);
+    function receiverOnPong(data2) {
+      this[kWebSocket].emit("pong", data2);
     }
     function resume(stream) {
       stream.resume();
@@ -42536,8 +42536,8 @@ var require_stream = __commonJS({
         writableObjectMode: false
       });
       ws3.on("message", function message2(msg, isBinary) {
-        const data = !isBinary && duplex._readableState.objectMode ? msg.toString() : msg;
-        if (!duplex.push(data)) ws3.pause();
+        const data2 = !isBinary && duplex._readableState.objectMode ? msg.toString() : msg;
+        if (!duplex.push(data2)) ws3.pause();
       });
       ws3.once("error", function error(err3) {
         if (duplex.destroyed) return;
@@ -43130,11 +43130,11 @@ async function getWebSocketRpcClient(url, options = {}) {
         socket.removeEventListener("open", onOpen);
         onClose();
       }
-      function onMessage({ data }) {
-        if (typeof data === "string" && data.trim().length === 0)
+      function onMessage({ data: data2 }) {
+        if (typeof data2 === "string" && data2.trim().length === 0)
           return;
         try {
-          const _data = JSON.parse(data);
+          const _data = JSON.parse(data2);
           onResponse(_data);
         } catch (error) {
           onError(error);
@@ -43289,13 +43289,13 @@ var init_typedData3 = __esm({
 function serializeTypedData(parameters) {
   const { domain: domain_, message: message_, primaryType, types: types2 } = parameters;
   const normalizeData = (struct, data_) => {
-    const data = { ...data_ };
+    const data2 = { ...data_ };
     for (const param of struct) {
       const { name, type: type2 } = param;
       if (type2 === "address")
-        data[name] = data[name].toLowerCase();
+        data2[name] = data2[name].toLowerCase();
     }
-    return data;
+    return data2;
   };
   const domain2 = (() => {
     if (!types2.EIP712Domain)
@@ -43313,10 +43313,10 @@ function serializeTypedData(parameters) {
 }
 function validateTypedData2(parameters) {
   const { domain: domain2, message: message2, primaryType, types: types2 } = parameters;
-  const validateData = (struct, data) => {
+  const validateData = (struct, data2) => {
     for (const param of struct) {
       const { name, type: type2 } = param;
-      const value = data[name];
+      const value = data2[name];
       const integerMatch = type2.match(integerRegex5);
       if (integerMatch && (typeof value === "number" || typeof value === "bigint")) {
         const [_type, base3, size_] = integerMatch;
@@ -43430,15 +43430,15 @@ function hashDomain2({ domain: domain2, types: types2 }) {
     types: types2
   });
 }
-function hashStruct2({ data, primaryType, types: types2 }) {
+function hashStruct2({ data: data2, primaryType, types: types2 }) {
   const encoded = encodeData3({
-    data,
+    data: data2,
     primaryType,
     types: types2
   });
   return keccak2563(encoded);
 }
-function encodeData3({ data, primaryType, types: types2 }) {
+function encodeData3({ data: data2, primaryType, types: types2 }) {
   const encodedTypes = [{ type: "bytes32" }];
   const encodedValues = [hashType2({ primaryType, types: types2 })];
   for (const field of types2[primaryType]) {
@@ -43446,7 +43446,7 @@ function encodeData3({ data, primaryType, types: types2 }) {
       types: types2,
       name: field.name,
       type: field.type,
-      value: data[field.name]
+      value: data2[field.name]
     });
     encodedTypes.push(type2);
     encodedValues.push(value);
@@ -44030,12 +44030,12 @@ function decodeArray4(cursor, param, options) {
     const value2 = [];
     for (let i = 0; i < length2; ++i) {
       cursor.setPosition(startOfData + (dynamicChild ? i * 32 : consumed2));
-      const [data, consumed_] = decodeParameter4(cursor, param, {
+      const [data2, consumed_] = decodeParameter4(cursor, param, {
         checksumAddress: checksumAddress3,
         staticPosition: startOfData
       });
       consumed2 += consumed_;
-      value2.push(data);
+      value2.push(data2);
     }
     cursor.setPosition(staticPosition + 32);
     return [value2, 32];
@@ -44046,11 +44046,11 @@ function decodeArray4(cursor, param, options) {
     const value2 = [];
     for (let i = 0; i < length; ++i) {
       cursor.setPosition(start + i * 32);
-      const [data] = decodeParameter4(cursor, param, {
+      const [data2] = decodeParameter4(cursor, param, {
         checksumAddress: checksumAddress3,
         staticPosition: start
       });
-      value2.push(data);
+      value2.push(data2);
     }
     cursor.setPosition(staticPosition + 32);
     return [value2, 32];
@@ -44058,12 +44058,12 @@ function decodeArray4(cursor, param, options) {
   let consumed = 0;
   const value = [];
   for (let i = 0; i < length; ++i) {
-    const [data, consumed_] = decodeParameter4(cursor, param, {
+    const [data2, consumed_] = decodeParameter4(cursor, param, {
       checksumAddress: checksumAddress3,
       staticPosition: staticPosition + consumed
     });
     consumed += consumed_;
-    value.push(data);
+    value.push(data2);
   }
   return [value, consumed];
 }
@@ -44080,9 +44080,9 @@ function decodeBytes4(cursor, param, { staticPosition }) {
       cursor.setPosition(staticPosition + 32);
       return ["0x", 32];
     }
-    const data = cursor.readBytes(length);
+    const data2 = cursor.readBytes(length);
     cursor.setPosition(staticPosition + 32);
-    return [fromBytes5(data), 32];
+    return [fromBytes5(data2), 32];
   }
   const value = fromBytes5(cursor.readBytes(Number.parseInt(size9, 10), 32));
   return [value, 32];
@@ -44107,23 +44107,23 @@ function decodeTuple4(cursor, param, options) {
     for (let i = 0; i < param.components.length; ++i) {
       const component = param.components[i];
       cursor.setPosition(start + consumed);
-      const [data, consumed_] = decodeParameter4(cursor, component, {
+      const [data2, consumed_] = decodeParameter4(cursor, component, {
         checksumAddress: checksumAddress3,
         staticPosition: start
       });
       consumed += consumed_;
-      value[hasUnnamedChild ? i : component?.name] = data;
+      value[hasUnnamedChild ? i : component?.name] = data2;
     }
     cursor.setPosition(staticPosition + 32);
     return [value, 32];
   }
   for (let i = 0; i < param.components.length; ++i) {
     const component = param.components[i];
-    const [data, consumed_] = decodeParameter4(cursor, component, {
+    const [data2, consumed_] = decodeParameter4(cursor, component, {
       checksumAddress: checksumAddress3,
       staticPosition
     });
-    value[hasUnnamedChild ? i : component?.name] = data;
+    value[hasUnnamedChild ? i : component?.name] = data2;
     consumed += consumed_;
   }
   return [value, consumed];
@@ -44137,8 +44137,8 @@ function decodeString4(cursor, { staticPosition }) {
     cursor.setPosition(staticPosition + 32);
     return ["", 32];
   }
-  const data = cursor.readBytes(length, 32);
-  const value = toString2(trimLeft3(data));
+  const data2 = cursor.readBytes(length, 32);
+  const value = toString2(trimLeft3(data2));
   cursor.setPosition(staticPosition + 32);
   return [value, 32];
 }
@@ -44253,16 +44253,16 @@ function encodeArray4(value, options) {
     preparedParameters.push(preparedParam);
   }
   if (dynamic || dynamicChild) {
-    const data = encode5(preparedParameters);
+    const data2 = encode5(preparedParameters);
     if (dynamic) {
       const length2 = fromNumber2(preparedParameters.length, { size: 32 });
       return {
         dynamic: true,
-        encoded: preparedParameters.length > 0 ? concat5(length2, data) : length2
+        encoded: preparedParameters.length > 0 ? concat5(length2, data2) : length2
       };
     }
     if (dynamicChild)
-      return { dynamic: true, encoded: data };
+      return { dynamic: true, encoded: data2 };
   }
   return {
     dynamic: false,
@@ -44595,15 +44595,15 @@ var init_cursor6 = __esm({
 });
 
 // node_modules/ox/_esm/core/AbiParameters.js
-function decode2(parameters, data, options = {}) {
+function decode2(parameters, data2, options = {}) {
   const { as: as3 = "Array", checksumAddress: checksumAddress3 = false } = options;
-  const bytes = typeof data === "string" ? fromHex7(data) : data;
+  const bytes = typeof data2 === "string" ? fromHex7(data2) : data2;
   const cursor = create2(bytes);
   if (size6(bytes) === 0 && parameters.length > 0)
     throw new ZeroDataError2();
   if (size6(bytes) && size6(bytes) < 32)
     throw new DataSizeTooSmallError2({
-      data: typeof data === "string" ? data : fromBytes5(data),
+      data: typeof data2 === "string" ? data2 : fromBytes5(data2),
       parameters,
       size: size6(bytes)
     });
@@ -44612,15 +44612,15 @@ function decode2(parameters, data, options = {}) {
   for (let i = 0; i < parameters.length; ++i) {
     const param = parameters[i];
     cursor.setPosition(consumed);
-    const [data2, consumed_] = decodeParameter4(cursor, param, {
+    const [data3, consumed_] = decodeParameter4(cursor, param, {
       checksumAddress: checksumAddress3,
       staticPosition: 0
     });
     consumed += consumed_;
     if (as3 === "Array")
-      values.push(data2);
+      values.push(data3);
     else
-      values[param.name ?? i] = data2;
+      values[param.name ?? i] = data3;
   }
   return values;
 }
@@ -44636,10 +44636,10 @@ function encode6(parameters, values, options) {
     parameters,
     values
   });
-  const data = encode5(preparedParameters);
-  if (data.length === 0)
+  const data2 = encode5(preparedParameters);
+  if (data2.length === 0)
     return "0x";
-  return data;
+  return data2;
 }
 function encodePacked3(types2, values) {
   if (types2.length !== values.length)
@@ -44647,13 +44647,13 @@ function encodePacked3(types2, values) {
       expectedLength: types2.length,
       givenLength: values.length
     });
-  const data = [];
+  const data2 = [];
   for (let i = 0; i < types2.length; i++) {
     const type2 = types2[i];
     const value = values[i];
-    data.push(encodePacked3.encode(type2, value));
+    data2.push(encodePacked3.encode(type2, value));
   }
-  return concat5(...data);
+  return concat5(...data2);
 }
 function from18(parameters) {
   if (Array.isArray(parameters) && typeof parameters[0] === "string")
@@ -44708,24 +44708,24 @@ var init_AbiParameters2 = __esm({
         const arrayMatch = type2.match(arrayRegex3);
         if (arrayMatch && Array.isArray(value)) {
           const [_type, childType] = arrayMatch;
-          const data = [];
+          const data2 = [];
           for (let i = 0; i < value.length; i++) {
-            data.push(encode8(childType, value[i], true));
+            data2.push(encode8(childType, value[i], true));
           }
-          if (data.length === 0)
+          if (data2.length === 0)
             return "0x";
-          return concat5(...data);
+          return concat5(...data2);
         }
         throw new InvalidTypeError2(type2);
       }
       encodePacked4.encode = encode8;
     })(encodePacked3 || (encodePacked3 = {}));
     DataSizeTooSmallError2 = class extends BaseError6 {
-      constructor({ data, parameters, size: size9 }) {
+      constructor({ data: data2, parameters, size: size9 }) {
         super(`Data size of ${size9} bytes is too small for given parameters.`, {
           metaMessages: [
             `Params: (${formatAbiParameters2(parameters)})`,
-            `Data:   ${data} (${size9} bytes)`
+            `Data:   ${data2} (${size9} bytes)`
           ]
         });
         Object.defineProperty(this, "name", {
@@ -45310,7 +45310,7 @@ function unwrap3(wrapped) {
   const suffixLength = toNumber3(slice6(wrapped, -64, -32));
   const suffix = slice6(wrapped, -suffixLength - 64, -64);
   const signature = slice6(wrapped, 0, -suffixLength - 64);
-  const [auth, to4, data] = decode2(suffixParameters2, suffix);
+  const [auth, to4, data2] = decode2(suffixParameters2, suffix);
   const authorization = from21({
     address: auth.delegation,
     chainId: Number(auth.chainId),
@@ -45322,11 +45322,11 @@ function unwrap3(wrapped) {
   return {
     authorization,
     signature,
-    ...data && data !== "0x" ? { data, to: to4 } : {}
+    ...data2 && data2 !== "0x" ? { data: data2, to: to4 } : {}
   };
 }
 function wrap3(value) {
-  const { data, signature } = value;
+  const { data: data2, signature } = value;
   assert13(value);
   const self3 = recoverAddress4({
     payload: getSignPayload2(value.authorization),
@@ -45339,7 +45339,7 @@ function wrap3(value) {
       chainId: BigInt(value.authorization.chainId)
     },
     value.to ?? self3,
-    data ?? "0x"
+    data2 ?? "0x"
   ]);
   const suffixLength = fromNumber2(size7(suffix), { size: 32 });
   return concat5(signature, suffix, suffixLength, magicBytes3);
@@ -45398,8 +45398,8 @@ var init_isErc8010Signature = __esm({
 function parseErc6492Signature(signature) {
   if (!isErc6492Signature(signature))
     return { signature };
-  const [address4, data, signature_] = decodeAbiParameters2([{ type: "address" }, { type: "bytes" }, { type: "bytes" }], signature);
-  return { address: address4, data, signature: signature_ };
+  const [address4, data2, signature_] = decodeAbiParameters2([{ type: "address" }, { type: "bytes" }, { type: "bytes" }], signature);
+  return { address: address4, data: data2, signature: signature_ };
 }
 var init_parseErc6492Signature = __esm({
   "node_modules/viem/_esm/utils/signature/parseErc6492Signature.js"() {
@@ -45467,9 +45467,9 @@ var init_recoverTypedDataAddress = __esm({
 
 // node_modules/viem/_esm/utils/signature/serializeErc6492Signature.js
 function serializeErc6492Signature(parameters) {
-  const { address: address4, data, signature, to: to4 = "hex" } = parameters;
+  const { address: address4, data: data2, signature, to: to4 = "hex" } = parameters;
   const signature_ = concatHex2([
-    encodeAbiParameters2([{ type: "address" }, { type: "bytes" }, { type: "bytes" }], [address4, data, signature]),
+    encodeAbiParameters2([{ type: "address" }, { type: "bytes" }, { type: "bytes" }], [address4, data2, signature]),
     erc6492MagicBytes
   ]);
   if (to4 === "hex")
@@ -45487,7 +45487,7 @@ var init_serializeErc6492Signature = __esm({
 
 // node_modules/viem/_esm/utils/signature/serializeErc8010Signature.js
 function serializeErc8010Signature(parameters) {
-  const { address: address4, data, signature, to: to4 = "hex" } = parameters;
+  const { address: address4, data: data2, signature, to: to4 = "hex" } = parameters;
   const signature_ = SignatureErc8010_exports2.wrap({
     authorization: {
       address: parameters.authorization.address,
@@ -45497,7 +45497,7 @@ function serializeErc8010Signature(parameters) {
       s: BigInt(parameters.authorization.s),
       yParity: parameters.authorization.yParity
     },
-    data,
+    data: data2,
     signature,
     to: address4
   });
@@ -45593,7 +45593,7 @@ function parseTransaction(serializedTransaction) {
 }
 function parseTransactionEIP7702(serializedTransaction) {
   const transactionArray = toTransactionArray(serializedTransaction);
-  const [chainId, nonce2, maxPriorityFeePerGas, maxFeePerGas, gas, to4, value, data, accessList, authorizationList, v, r, s] = transactionArray;
+  const [chainId, nonce2, maxPriorityFeePerGas, maxFeePerGas, gas, to4, value, data2, accessList, authorizationList, v, r, s] = transactionArray;
   if (transactionArray.length !== 10 && transactionArray.length !== 13)
     throw new InvalidSerializedTransactionError({
       attributes: {
@@ -45604,7 +45604,7 @@ function parseTransactionEIP7702(serializedTransaction) {
         gas,
         to: to4,
         value,
-        data,
+        data: data2,
         accessList,
         authorizationList,
         ...transactionArray.length > 9 ? {
@@ -45624,8 +45624,8 @@ function parseTransactionEIP7702(serializedTransaction) {
     transaction.to = to4;
   if (isHex2(gas) && gas !== "0x")
     transaction.gas = hexToBigInt2(gas);
-  if (isHex2(data) && data !== "0x")
-    transaction.data = data;
+  if (isHex2(data2) && data2 !== "0x")
+    transaction.data = data2;
   if (isHex2(nonce2))
     transaction.nonce = nonce2 === "0x" ? 0 : hexToNumber3(nonce2);
   if (isHex2(value) && value !== "0x")
@@ -45647,7 +45647,7 @@ function parseTransactionEIP4844(serializedTransaction) {
   const hasNetworkWrapper = transactionOrWrapperArray.length === 4;
   const transactionArray = hasNetworkWrapper ? transactionOrWrapperArray[0] : transactionOrWrapperArray;
   const wrapperArray = hasNetworkWrapper ? transactionOrWrapperArray.slice(1) : [];
-  const [chainId, nonce2, maxPriorityFeePerGas, maxFeePerGas, gas, to4, value, data, accessList, maxFeePerBlobGas, blobVersionedHashes, v, r, s] = transactionArray;
+  const [chainId, nonce2, maxPriorityFeePerGas, maxFeePerGas, gas, to4, value, data2, accessList, maxFeePerBlobGas, blobVersionedHashes, v, r, s] = transactionArray;
   const [blobs, commitments, proofs] = wrapperArray;
   if (!(transactionArray.length === 11 || transactionArray.length === 14))
     throw new InvalidSerializedTransactionError({
@@ -45659,7 +45659,7 @@ function parseTransactionEIP4844(serializedTransaction) {
         gas,
         to: to4,
         value,
-        data,
+        data: data2,
         accessList,
         ...transactionArray.length > 9 ? {
           v,
@@ -45678,8 +45678,8 @@ function parseTransactionEIP4844(serializedTransaction) {
   };
   if (isHex2(gas) && gas !== "0x")
     transaction.gas = hexToBigInt2(gas);
-  if (isHex2(data) && data !== "0x")
-    transaction.data = data;
+  if (isHex2(data2) && data2 !== "0x")
+    transaction.data = data2;
   if (isHex2(nonce2))
     transaction.nonce = nonce2 === "0x" ? 0 : hexToNumber3(nonce2);
   if (isHex2(value) && value !== "0x")
@@ -45704,7 +45704,7 @@ function parseTransactionEIP4844(serializedTransaction) {
 }
 function parseTransactionEIP1559(serializedTransaction) {
   const transactionArray = toTransactionArray(serializedTransaction);
-  const [chainId, nonce2, maxPriorityFeePerGas, maxFeePerGas, gas, to4, value, data, accessList, v, r, s] = transactionArray;
+  const [chainId, nonce2, maxPriorityFeePerGas, maxFeePerGas, gas, to4, value, data2, accessList, v, r, s] = transactionArray;
   if (!(transactionArray.length === 9 || transactionArray.length === 12))
     throw new InvalidSerializedTransactionError({
       attributes: {
@@ -45715,7 +45715,7 @@ function parseTransactionEIP1559(serializedTransaction) {
         gas,
         to: to4,
         value,
-        data,
+        data: data2,
         accessList,
         ...transactionArray.length > 9 ? {
           v,
@@ -45734,8 +45734,8 @@ function parseTransactionEIP1559(serializedTransaction) {
     transaction.to = to4;
   if (isHex2(gas) && gas !== "0x")
     transaction.gas = hexToBigInt2(gas);
-  if (isHex2(data) && data !== "0x")
-    transaction.data = data;
+  if (isHex2(data2) && data2 !== "0x")
+    transaction.data = data2;
   if (isHex2(nonce2))
     transaction.nonce = nonce2 === "0x" ? 0 : hexToNumber3(nonce2);
   if (isHex2(value) && value !== "0x")
@@ -45752,7 +45752,7 @@ function parseTransactionEIP1559(serializedTransaction) {
 }
 function parseTransactionEIP2930(serializedTransaction) {
   const transactionArray = toTransactionArray(serializedTransaction);
-  const [chainId, nonce2, gasPrice, gas, to4, value, data, accessList, v, r, s] = transactionArray;
+  const [chainId, nonce2, gasPrice, gas, to4, value, data2, accessList, v, r, s] = transactionArray;
   if (!(transactionArray.length === 8 || transactionArray.length === 11))
     throw new InvalidSerializedTransactionError({
       attributes: {
@@ -45762,7 +45762,7 @@ function parseTransactionEIP2930(serializedTransaction) {
         gas,
         to: to4,
         value,
-        data,
+        data: data2,
         accessList,
         ...transactionArray.length > 8 ? {
           v,
@@ -45781,8 +45781,8 @@ function parseTransactionEIP2930(serializedTransaction) {
     transaction.to = to4;
   if (isHex2(gas) && gas !== "0x")
     transaction.gas = hexToBigInt2(gas);
-  if (isHex2(data) && data !== "0x")
-    transaction.data = data;
+  if (isHex2(data2) && data2 !== "0x")
+    transaction.data = data2;
   if (isHex2(nonce2))
     transaction.nonce = nonce2 === "0x" ? 0 : hexToNumber3(nonce2);
   if (isHex2(value) && value !== "0x")
@@ -45797,7 +45797,7 @@ function parseTransactionEIP2930(serializedTransaction) {
 }
 function parseTransactionLegacy(serializedTransaction) {
   const transactionArray = fromRlp(serializedTransaction, "hex");
-  const [nonce2, gasPrice, gas, to4, value, data, chainIdOrV_, r, s] = transactionArray;
+  const [nonce2, gasPrice, gas, to4, value, data2, chainIdOrV_, r, s] = transactionArray;
   if (!(transactionArray.length === 6 || transactionArray.length === 9))
     throw new InvalidSerializedTransactionError({
       attributes: {
@@ -45806,7 +45806,7 @@ function parseTransactionLegacy(serializedTransaction) {
         gas,
         to: to4,
         value,
-        data,
+        data: data2,
         ...transactionArray.length > 6 ? {
           v: chainIdOrV_,
           r,
@@ -45823,8 +45823,8 @@ function parseTransactionLegacy(serializedTransaction) {
     transaction.to = to4;
   if (isHex2(gas) && gas !== "0x")
     transaction.gas = hexToBigInt2(gas);
-  if (isHex2(data) && data !== "0x")
-    transaction.data = data;
+  if (isHex2(data2) && data2 !== "0x")
+    transaction.data = data2;
   if (isHex2(nonce2))
     transaction.nonce = nonce2 === "0x" ? 0 : hexToNumber3(nonce2);
   if (isHex2(value) && value !== "0x")
@@ -45927,14 +45927,14 @@ var init_unit3 = __esm({
 function parseUnits(value, decimals) {
   if (!/^(-?)([0-9]*)\.?([0-9]*)$/.test(value))
     throw new InvalidDecimalNumberError({ value });
-  let [integer, fraction = "0"] = value.split(".");
-  const negative = integer.startsWith("-");
+  let [integer2, fraction = "0"] = value.split(".");
+  const negative = integer2.startsWith("-");
   if (negative)
-    integer = integer.slice(1);
+    integer2 = integer2.slice(1);
   fraction = fraction.replace(/(0+)$/, "");
   if (decimals === 0) {
     if (Math.round(Number(`.${fraction}`)) === 1)
-      integer = `${BigInt(integer) + 1n}`;
+      integer2 = `${BigInt(integer2) + 1n}`;
     fraction = "";
   } else if (fraction.length > decimals) {
     const [left, unit, right] = [
@@ -45949,13 +45949,13 @@ function parseUnits(value, decimals) {
       fraction = `${left}${rounded}`;
     if (fraction.length > decimals) {
       fraction = fraction.slice(1);
-      integer = `${BigInt(integer) + 1n}`;
+      integer2 = `${BigInt(integer2) + 1n}`;
     }
     fraction = fraction.slice(0, decimals);
   } else {
     fraction = fraction.padEnd(decimals, "0");
   }
-  return BigInt(`${negative ? "-" : ""}${integer}${fraction}`);
+  return BigInt(`${negative ? "-" : ""}${integer2}${fraction}`);
 }
 var init_parseUnits = __esm({
   "node_modules/viem/_esm/utils/unit/parseUnits.js"() {
@@ -46043,11 +46043,11 @@ async function getStorageAt2(client, { address: address4, blockHash, blockNumber
     blockTag,
     requireCanonical
   });
-  const data = await client.request({
+  const data2 = await client.request({
     method: "eth_getStorageAt",
     params: [address4, slot, block]
   });
-  return data;
+  return data2;
 }
 var init_getStorageAt2 = __esm({
   "node_modules/viem/_esm/actions/public/getStorageAt.js"() {
@@ -46293,11 +46293,11 @@ async function simulateBlocks2(client, parameters) {
       const calls = block2.calls.map((call_) => {
         const call3 = call_;
         const account = call3.account ? parseAccount2(call3.account) : void 0;
-        const data = call3.abi ? encodeFunctionData2(call3) : call3.data;
+        const data2 = call3.abi ? encodeFunctionData2(call3) : call3.data;
         const request = {
           ...call3,
           account,
-          data: call3.dataSuffix ? concat3([data || "0x", call3.dataSuffix]) : data,
+          data: call3.dataSuffix ? concat3([data2 || "0x", call3.dataSuffix]) : data2,
           from: call3.from ?? account?.address
         };
         assertRequest2(request);
@@ -46323,23 +46323,23 @@ async function simulateBlocks2(client, parameters) {
       ...formatBlock2(block2),
       calls: block2.calls.map((call3, j3) => {
         const { abi: abi3, args, functionName, to: to4 } = blocks[i].calls[j3];
-        const data = call3.error?.data ?? call3.returnData;
+        const data2 = call3.error?.data ?? call3.returnData;
         const gasUsed = BigInt(call3.gasUsed);
         const logs = call3.logs?.map((log) => formatLog2(log));
         const status = call3.status === "0x1" ? "success" : "failure";
-        const result2 = abi3 && status === "success" && data !== "0x" ? decodeFunctionResult2({
+        const result2 = abi3 && status === "success" && data2 !== "0x" ? decodeFunctionResult2({
           abi: abi3,
-          data,
+          data: data2,
           functionName
         }) : null;
         const error = (() => {
           if (status === "success")
             return void 0;
           let error2;
-          if (data === "0x")
+          if (data2 === "0x")
             error2 = new AbiDecodingZeroDataError2();
-          else if (data)
-            error2 = new RawContractError2({ data });
+          else if (data2)
+            error2 = new RawContractError2({ data: data2 });
           if (!error2)
             return void 0;
           return getContractError2(error2, {
@@ -46350,7 +46350,7 @@ async function simulateBlocks2(client, parameters) {
           });
         })();
         return {
-          data,
+          data: data2,
           gasUsed,
           logs,
           status,
@@ -46651,12 +46651,12 @@ var init_AbiItem2 = __esm({
       }
     };
     NotFoundError2 = class extends BaseError6 {
-      constructor({ name, data, type: type2 = "item" }) {
+      constructor({ name, data: data2, type: type2 = "item" }) {
         const selector = (() => {
           if (name)
             return ` with name "${name}"`;
-          if (data)
-            return ` with data "${data}"`;
+          if (data2)
+            return ` with data "${data2}"`;
           return "";
         })();
         super(`ABI ${type2}${selector} not found.`);
@@ -46715,8 +46715,8 @@ function encodeData4(...parameters) {
     args
   }) : abiFunction;
   const selector = getSelector4(item);
-  const data = args.length > 0 ? encode6(item.inputs, args) : void 0;
-  return data ? concat5(selector, data) : selector;
+  const data2 = args.length > 0 ? encode6(item.inputs, args) : void 0;
+  return data2 ? concat5(selector, data2) : selector;
 }
 function from25(abiFunction, options = {}) {
   return from23(abiFunction, options);
@@ -46983,14 +46983,14 @@ function from26(wrapped) {
 }
 function unwrap4(wrapped) {
   assert14(wrapped);
-  const [to4, data, signature] = decode2(from18("address, bytes, bytes"), wrapped);
-  return { data, signature, to: to4 };
+  const [to4, data2, signature] = decode2(from18("address, bytes, bytes"), wrapped);
+  return { data: data2, signature, to: to4 };
 }
 function wrap4(value) {
-  const { data, signature, to: to4 } = value;
+  const { data: data2, signature, to: to4 } = value;
   return concat5(encode6(from18("address, bytes, bytes"), [
     to4,
-    data,
+    data2,
     signature
   ]), magicBytes4);
 }
@@ -47203,8 +47203,8 @@ async function verifyErc80102(client, parameters) {
       ]
     ]
   });
-  const data = results[results.length - 1]?.returnData;
-  if (data?.startsWith("0x1626ba7e"))
+  const data2 = results[results.length - 1]?.returnData;
+  if (data2?.startsWith("0x1626ba7e"))
     return true;
   throw new VerificationError2();
 }
@@ -47237,12 +47237,12 @@ async function verifyErc64922(client, parameters) {
     }),
     ...rest
   };
-  const { data } = await getAction2(client, call2, "call")(args).catch((error) => {
+  const { data: data2 } = await getAction2(client, call2, "call")(args).catch((error) => {
     if (error instanceof CallExecutionError2)
       throw new VerificationError2();
     throw error;
   });
-  if (hexToBool2(data ?? "0x0"))
+  if (hexToBool2(data2 ?? "0x0"))
     return true;
   throw new VerificationError2();
 }
@@ -47401,10 +47401,10 @@ function watchBlockNumber2(client, { emitOnBegin = false, emitMissed = false, on
           })();
           const { unsubscribe: unsubscribe_ } = await transport.subscribe({
             params: ["newHeads"],
-            onData(data) {
+            onData(data2) {
               if (!active)
                 return;
-              const blockNumber = hexToBigInt2(data.result?.number);
+              const blockNumber = hexToBigInt2(data2.result?.number);
               emit.onBlockNumber(blockNumber, prevBlockNumber);
               prevBlockNumber = blockNumber;
             },
@@ -47673,11 +47673,11 @@ function watchBlocks2(client, { blockTag = client.experimental_blockTag ?? "late
         })();
         const { unsubscribe: unsubscribe_ } = await transport.subscribe({
           params: ["newHeads"],
-          async onData(data) {
+          async onData(data2) {
             if (!active)
               return;
             const block = await getAction2(client, getBlock2, "getBlock")({
-              blockNumber: data.result?.number,
+              blockNumber: data2.result?.number,
               includeTransactions
             }).catch(() => {
             });
@@ -47830,10 +47830,10 @@ function watchEvent2(client, { address: address4, args, batch = true, event, eve
         }
         const { unsubscribe: unsubscribe_ } = await transport.subscribe({
           params: ["logs", { address: address4, topics }],
-          onData(data) {
+          onData(data2) {
             if (!active)
               return;
-            const log = data.result;
+            const log = data2.result;
             try {
               const { eventName, args: args2 } = decodeEventLog2({
                 abi: events_ ?? [],
@@ -47945,10 +47945,10 @@ function watchPendingTransactions2(client, { batch = true, onError, onTransactio
       try {
         const { unsubscribe: unsubscribe_ } = await client.transport.subscribe({
           params: ["newPendingTransactions"],
-          onData(data) {
+          onData(data2) {
             if (!active)
               return;
-            const transaction = data.result;
+            const transaction = data2.result;
             onTransactions([transaction]);
           },
           onError(error) {
@@ -48401,14 +48401,14 @@ var init_revert = __esm({
 
 // node_modules/viem/_esm/actions/test/sendUnsignedTransaction.js
 async function sendUnsignedTransaction(client, args) {
-  const { accessList, data, from: from33, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2, to: to4, value, ...rest } = args;
+  const { accessList, data: data2, from: from33, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2, to: to4, value, ...rest } = args;
   const chainFormat = client.chain?.formatters?.transactionRequest?.format;
   const format2 = chainFormat || formatTransactionRequest2;
   const request = format2({
     // Pick out extra data that might exist on the chain's transaction request type.
     ...extract3(rest, { format: chainFormat }),
     accessList,
-    data,
+    data: data2,
     from: from33,
     gas,
     gasPrice,
@@ -48934,7 +48934,7 @@ var init_sendCallsSync = __esm({
 
 // node_modules/viem/_esm/actions/wallet/sendTransactionSync.js
 async function sendTransactionSync(client, parameters) {
-  const { account: account_ = client.account, assertChainId = true, chain: chain2 = client.chain, accessList, authorizationList, blobs, data, dataSuffix = typeof client.dataSuffix === "string" ? client.dataSuffix : client.dataSuffix?.value, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2, pollingInterval, throwOnReceiptRevert, type: type2, value, ...rest } = parameters;
+  const { account: account_ = client.account, assertChainId = true, chain: chain2 = client.chain, accessList, authorizationList, blobs, data: data2, dataSuffix = typeof client.dataSuffix === "string" ? client.dataSuffix : client.dataSuffix?.value, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2, pollingInterval, throwOnReceiptRevert, type: type2, value, ...rest } = parameters;
   const timeout = parameters.timeout ?? Math.max((chain2?.blockTime ?? 0) * 3, 5e3);
   if (typeof account_ === "undefined")
     throw new AccountNotFoundError2({
@@ -48977,7 +48977,7 @@ async function sendTransactionSync(client, parameters) {
         authorizationList,
         blobs,
         chainId,
-        data: dataSuffix ? concat3([data ?? "0x", dataSuffix]) : data,
+        data: dataSuffix ? concat3([data2 ?? "0x", dataSuffix]) : data2,
         gas,
         gasPrice,
         maxFeePerBlobGas,
@@ -49047,7 +49047,7 @@ async function sendTransactionSync(client, parameters) {
         authorizationList,
         blobs,
         chain: chain2,
-        data: dataSuffix ? concat3([data ?? "0x", dataSuffix]) : data,
+        data: dataSuffix ? concat3([data2 ?? "0x", dataSuffix]) : data2,
         gas,
         gasPrice,
         maxFeePerBlobGas,
@@ -49805,8 +49805,8 @@ var init_eip1193 = __esm({
 
 // node_modules/viem/_esm/utils/abi/decodeDeployData.js
 function decodeDeployData(parameters) {
-  const { abi: abi3, bytecode, data } = parameters;
-  if (data === bytecode)
+  const { abi: abi3, bytecode, data: data2 } = parameters;
+  if (data2 === bytecode)
     return { bytecode };
   const description = abi3.find((x) => "type" in x && x.type === "constructor");
   if (!description)
@@ -49815,7 +49815,7 @@ function decodeDeployData(parameters) {
     throw new AbiConstructorParamsNotFoundError2({ docsPath: docsPath15 });
   if (!description.inputs || description.inputs.length === 0)
     throw new AbiConstructorParamsNotFoundError2({ docsPath: docsPath15 });
-  const args = decodeAbiParameters2(description.inputs, `0x${data.replace(bytecode, "")}`);
+  const args = decodeAbiParameters2(description.inputs, `0x${data2.replace(bytecode, "")}`);
   return { args, bytecode };
 }
 var docsPath15;
@@ -49832,7 +49832,7 @@ function fromBlobs(parameters) {
   const to4 = parameters.to ?? (typeof parameters.blobs[0] === "string" ? "hex" : "bytes");
   const blobs = typeof parameters.blobs[0] === "string" ? parameters.blobs.map((x) => hexToBytes3(x)) : parameters.blobs;
   const length = blobs.reduce((length2, blob) => length2 + blob.length, 0);
-  const data = createCursor2(new Uint8Array(length));
+  const data2 = createCursor2(new Uint8Array(length));
   let active = true;
   for (const blob of blobs) {
     const cursor = createCursor2(blob);
@@ -49848,11 +49848,11 @@ function fromBlobs(parameters) {
           active = false;
           break;
         }
-        data.pushByte(byte);
+        data2.pushByte(byte);
       }
     }
   }
-  const trimmedData = data.bytes.slice(0, data.position);
+  const trimmedData = data2.bytes.slice(0, data2.position);
   return to4 === "hex" ? bytesToHex3(trimmedData) : trimmedData;
 }
 var init_fromBlobs = __esm({
@@ -50800,17 +50800,17 @@ function pinnedClient({ b: b7, hash: hash8, request, chainId, alive = () => {
       return { number: b7, hash: h3.hash, stateRoot: h3.stateRoot, timestamp: BigInt(h3.timestamp / 1e3) };
     },
     readContract: async ({ address: address4, abi: abi3, functionName, args, blockNumber, blockTag, account }) => {
-      const data = encodeFunctionData2({ abi: abi3, functionName, args });
+      const data2 = encodeFunctionData2({ abi: abi3, functionName, args });
       const from33 = typeof account === "string" ? account : account?.address;
-      return decodeFunctionResult2({ abi: abi3, functionName, data: await request("eth_call", [{ to: address4, data, ...from33 ? { from: from33 } : {} }, at3(blockNumber, blockTag)]) });
+      return decodeFunctionResult2({ abi: abi3, functionName, data: await request("eth_call", [{ to: address4, data: data2, ...from33 ? { from: from33 } : {} }, at3(blockNumber, blockTag)]) });
     },
     getCode: code,
     getBytecode: code,
     getStorageAt: async ({ address: address4, slot, blockNumber, blockTag }) => request("eth_getStorageAt", [address4, slot, at3(blockNumber, blockTag)]),
     getBalance: async ({ address: address4, blockNumber, blockTag }) => BigInt(await request("eth_getBalance", [address4, at3(blockNumber, blockTag)])),
-    ...allowCall ? { call: async ({ account, to: to4, data, value, blockNumber, blockTag }) => {
+    ...allowCall ? { call: async ({ account, to: to4, data: data2, value, blockNumber, blockTag }) => {
       const from33 = typeof account === "string" ? account : account?.address;
-      const tx4 = { to: to4, ...data ? { data } : {}, ...from33 ? { from: from33 } : {}, ...value ? { value: "0x" + BigInt(value).toString(16) } : {} };
+      const tx4 = { to: to4, ...data2 ? { data: data2 } : {}, ...from33 ? { from: from33 } : {}, ...value ? { value: "0x" + BigInt(value).toString(16) } : {} };
       return { data: await request("eth_call", [tx4, at3(blockNumber, blockTag)]) };
     } } : {}
   };
@@ -51266,7 +51266,7 @@ function serializeTransaction4(transaction, signature) {
   return serializeTransaction3(transaction, signature);
 }
 function serializeTransactionEIP712(transaction) {
-  const { chainId, gas, nonce: nonce2, to: to4, from: from33, value, maxFeePerGas, maxPriorityFeePerGas, customSignature, factoryDeps, paymaster, paymasterInput, gasPerPubdata, data } = transaction;
+  const { chainId, gas, nonce: nonce2, to: to4, from: from33, value, maxFeePerGas, maxPriorityFeePerGas, customSignature, factoryDeps, paymaster, paymasterInput, gasPerPubdata, data: data2 } = transaction;
   assertEip712Transaction(transaction);
   const serializedTransaction = [
     nonce2 ? toHex3(nonce2) : "0x",
@@ -51275,7 +51275,7 @@ function serializeTransactionEIP712(transaction) {
     gas ? toHex3(gas) : "0x",
     to4 ?? "0x",
     value ? toHex3(value) : "0x",
-    data ?? "0x",
+    data2 ?? "0x",
     toHex3(chainId),
     toHex3(""),
     toHex3(""),
@@ -51370,7 +51370,7 @@ var init_hashBytecode = __esm({
 
 // node_modules/viem/_esm/zksync/utils/getEip712Domain.js
 function transactionToMessage(transaction) {
-  const { gas, nonce: nonce2, to: to4, from: from33, value, maxFeePerGas, maxPriorityFeePerGas, factoryDeps, paymaster, paymasterInput, gasPerPubdata, data } = transaction;
+  const { gas, nonce: nonce2, to: to4, from: from33, value, maxFeePerGas, maxPriorityFeePerGas, factoryDeps, paymaster, paymasterInput, gasPerPubdata, data: data2 } = transaction;
   return {
     txType: 113n,
     from: BigInt(from33),
@@ -51382,7 +51382,7 @@ function transactionToMessage(transaction) {
     paymaster: paymaster ? BigInt(paymaster) : 0n,
     nonce: nonce2 ? BigInt(nonce2) : 0n,
     value: value ?? 0n,
-    data: data ?? "0x",
+    data: data2 ?? "0x",
     factoryDeps: factoryDeps?.map((dep) => toHex3(hashBytecode(dep))) ?? [],
     paymasterInput: paymasterInput ? paymasterInput : "0x"
   };
@@ -51933,7 +51933,7 @@ function serializeTransaction5(transaction, signature) {
 }
 function serializeTransactionDeposit2(transaction) {
   assertTransactionDeposit2(transaction);
-  const { sourceHash, data, from: from33, gas, isSystemTx, mint: mint2, to: to4, value } = transaction;
+  const { sourceHash, data: data2, from: from33, gas, isSystemTx, mint: mint2, to: to4, value } = transaction;
   const serializedTransaction = [
     sourceHash,
     from33,
@@ -51942,7 +51942,7 @@ function serializeTransactionDeposit2(transaction) {
     value ? toHex3(value) : "0x",
     gas ? toHex3(gas) : "0x",
     isSystemTx ? "0x1" : "0x",
-    data ?? "0x"
+    data2 ?? "0x"
   ];
   return concatHex2([
     "0x7e",
@@ -54847,7 +54847,7 @@ function serializeTransaction6(transaction, signature) {
 }
 function serializeTransactionCIP64(transaction, signature) {
   assertTransactionCIP64(transaction);
-  const { chainId, gas, nonce: nonce2, to: to4, value, maxFeePerGas, maxPriorityFeePerGas, accessList, feeCurrency, data } = transaction;
+  const { chainId, gas, nonce: nonce2, to: to4, value, maxFeePerGas, maxPriorityFeePerGas, accessList, feeCurrency, data: data2 } = transaction;
   const serializedTransaction = [
     toHex3(chainId),
     nonce2 ? toHex3(nonce2) : "0x",
@@ -54856,7 +54856,7 @@ function serializeTransactionCIP64(transaction, signature) {
     gas ? toHex3(gas) : "0x",
     to4 ?? "0x",
     value ? toHex3(value) : "0x",
-    data ?? "0x",
+    data2 ?? "0x",
     serializeAccessList2(accessList),
     feeCurrency,
     ...toYParitySignatureArray2(transaction, signature)
@@ -62584,7 +62584,7 @@ async function estimateGas3(client, args) {
     throw new AccountNotFoundError2();
   const account = parseAccount2(account_);
   try {
-    const { accessList, blockNumber, blockTag, data, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2, to: to4, value, ...rest } = args;
+    const { accessList, blockNumber, blockTag, data: data2, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2, to: to4, value, ...rest } = args;
     const blockNumberHex = typeof blockNumber === "bigint" ? numberToHex2(blockNumber) : void 0;
     const block = blockNumberHex || blockTag;
     assertRequest2(args);
@@ -62595,7 +62595,7 @@ async function estimateGas3(client, args) {
       ...extract3(rest, { format: chainFormat }),
       account,
       accessList,
-      data,
+      data: data2,
       gas,
       gasPrice,
       maxFeePerGas,
@@ -71834,8 +71834,8 @@ function deserialize(value) {
     return { signature, type: "secp256k1" };
   }
   const typeId = slice6(serialized, 0, 1);
-  const data = slice6(serialized, 1);
-  const dataSize = size7(data);
+  const data2 = slice6(serialized, 1);
+  const dataSize = size7(data2);
   if (typeId === serializedP256Type) {
     if (dataSize !== 129)
       throw new InvalidSerializedError({
@@ -71845,13 +71845,13 @@ function deserialize(value) {
     return {
       publicKey: {
         prefix: 4,
-        x: toBigInt3(slice6(data, 64, 96)),
-        y: toBigInt3(slice6(data, 96, 128))
+        x: toBigInt3(slice6(data2, 64, 96)),
+        y: toBigInt3(slice6(data2, 96, 128))
       },
-      prehash: toNumber3(slice6(data, 128, 129)) !== 0,
+      prehash: toNumber3(slice6(data2, 128, 129)) !== 0,
       signature: {
-        r: toBigInt3(slice6(data, 0, 32)),
-        s: toBigInt3(slice6(data, 32, 64))
+        r: toBigInt3(slice6(data2, 0, 32)),
+        s: toBigInt3(slice6(data2, 32, 64))
       },
       type: "p256"
     };
@@ -71863,7 +71863,7 @@ function deserialize(value) {
         serialized
       });
     const webauthnDataSize = dataSize - 128;
-    const webauthnData = slice6(data, 0, webauthnDataSize);
+    const webauthnData = slice6(data2, 0, webauthnDataSize);
     let authenticatorData;
     let clientDataJSON;
     for (let split3 = 37; split3 < webauthnDataSize; split3++) {
@@ -71886,23 +71886,23 @@ function deserialize(value) {
     return {
       publicKey: {
         prefix: 4,
-        x: toBigInt3(slice6(data, webauthnDataSize + 64, webauthnDataSize + 96)),
-        y: toBigInt3(slice6(data, webauthnDataSize + 96, webauthnDataSize + 128))
+        x: toBigInt3(slice6(data2, webauthnDataSize + 64, webauthnDataSize + 96)),
+        y: toBigInt3(slice6(data2, webauthnDataSize + 96, webauthnDataSize + 128))
       },
       metadata: {
         authenticatorData,
         clientDataJSON
       },
       signature: {
-        r: toBigInt3(slice6(data, webauthnDataSize, webauthnDataSize + 32)),
-        s: toBigInt3(slice6(data, webauthnDataSize + 32, webauthnDataSize + 64))
+        r: toBigInt3(slice6(data2, webauthnDataSize, webauthnDataSize + 32)),
+        s: toBigInt3(slice6(data2, webauthnDataSize + 32, webauthnDataSize + 64))
       },
       type: "webAuthn"
     };
   }
   if (typeId === serializedKeychainType || typeId === serializedKeychainV2Type) {
-    const userAddress = slice6(data, 0, 20);
-    const inner = deserialize(slice6(data, 20));
+    const userAddress = slice6(data2, 0, 20);
+    const inner = deserialize(slice6(data2, 20));
     return {
       userAddress,
       inner,
@@ -71911,7 +71911,7 @@ function deserialize(value) {
     };
   }
   if (typeId === serializedMultisigType) {
-    const [account, genesisConfigId, signatures, init] = toHex5(data);
+    const [account, genesisConfigId, signatures, init] = toHex5(data2);
     return {
       type: "multisig",
       account,
@@ -73312,12 +73312,12 @@ function format(value, decimals = 0) {
   if (negative)
     display = display.slice(1);
   display = display.padStart(decimals, "0");
-  let [integer, fraction] = [
+  let [integer2, fraction] = [
     display.slice(0, display.length - decimals),
     display.slice(display.length - decimals)
   ];
   fraction = fraction.replace(/(0+)$/, "");
-  return `${negative ? "-" : ""}${integer || "0"}${fraction ? `.${fraction}` : ""}`;
+  return `${negative ? "-" : ""}${integer2 || "0"}${fraction ? `.${fraction}` : ""}`;
 }
 function formatGwei3(wei, unit = "wei") {
   return format(wei, exponents.gwei - exponents[unit]);
@@ -73493,14 +73493,14 @@ function deserialize3(serialized) {
   if (calls && calls !== "0x") {
     const callsArray = calls;
     transaction.calls = callsArray.map((callTuple) => {
-      const [to4, value, data] = callTuple;
+      const [to4, value, data2] = callTuple;
       const call3 = {};
       if (to4 && to4 !== "0x")
         call3.to = to4;
       if (value && value !== "0x")
         call3.value = BigInt(value);
-      if (data && data !== "0x")
-        call3.data = data;
+      if (data2 && data2 !== "0x")
+        call3.data = data2;
       return call3;
     });
   }
@@ -77333,12 +77333,12 @@ function formatTransactionRequest3(r, action) {
     ..."feePayerSignature" in request && request.feePayerSignature !== void 0 ? { feePayerSignature: request.feePayerSignature } : {}
   };
 }
-function shimKeyData(data) {
-  if (!data)
-    return data;
-  const byteLength = (data.length - 2) / 2;
+function shimKeyData(data2) {
+  if (!data2)
+    return data2;
+  const byteLength = (data2.length - 2) / 2;
   if (byteLength <= 4)
-    return data;
+    return data2;
   return fromNumber2(byteLength, { size: 2 });
 }
 var init_Formatters = __esm({
@@ -82237,8 +82237,8 @@ function publicProviderAddress(address4) {
   return typeof address4 === "string" && !!net.isIP(address4) && !isBlockedHost(address4);
 }
 function qualificationMessage(report) {
-  const fields2 = ["version", "hostId", "operator", "address", "issuedAt", "expiresAt", "checks"];
-  if (!report || Object.keys(report).some((k3) => !fields2.includes(k3)) || report.version !== 1 || !idPattern.test(report.hostId) || !addressPattern.test(report.operator) || !publicProviderAddress(report.address) || !Number.isSafeInteger(report.issuedAt) || !Number.isSafeInteger(report.expiresAt) || report.expiresAt <= report.issuedAt || report.expiresAt - report.issuedAt > 3e5 || !report.checks || Object.keys(report.checks).length !== PROVIDER_CHECKS.length || PROVIDER_CHECKS.some((k3) => report.checks[k3] !== true)) throw new Error("provider qualification failed");
+  const fields4 = ["version", "hostId", "operator", "address", "issuedAt", "expiresAt", "checks"];
+  if (!report || Object.keys(report).some((k3) => !fields4.includes(k3)) || report.version !== 1 || !idPattern.test(report.hostId) || !addressPattern.test(report.operator) || !publicProviderAddress(report.address) || !Number.isSafeInteger(report.issuedAt) || !Number.isSafeInteger(report.expiresAt) || report.expiresAt <= report.issuedAt || report.expiresAt - report.issuedAt > 3e5 || !report.checks || Object.keys(report.checks).length !== PROVIDER_CHECKS.length || PROVIDER_CHECKS.some((k3) => report.checks[k3] !== true)) throw new Error("provider qualification failed");
   return "enclave-provider-qualification:v1\n" + JSON.stringify({
     version: 1,
     hostId: report.hostId,
@@ -83273,9 +83273,9 @@ var init_lease_reader = __esm({
             return { number: b7, hash: h3.hash, stateRoot: h3.stateRoot, timestamp: BigInt(h3.timestamp / 1e3) };
           },
           readContract: async ({ address: address4, abi: abi3, functionName, args, blockNumber, blockTag, account }) => {
-            const data = encodeFunctionData2({ abi: abi3, functionName, args });
+            const data2 = encodeFunctionData2({ abi: abi3, functionName, args });
             const from33 = typeof account === "string" ? account : account?.address;
-            const out = await call3("eth_call", [{ to: address4, data, ...from33 ? { from: from33 } : {} }, at3(blockNumber, blockTag)]);
+            const out = await call3("eth_call", [{ to: address4, data: data2, ...from33 ? { from: from33 } : {} }, at3(blockNumber, blockTag)]);
             return decodeFunctionResult2({ abi: abi3, functionName, data: out });
           },
           getCode: code,
@@ -85298,14 +85298,14 @@ async function sessionSnapshot(chain2, { factory, vault, sid }) {
   if (x.factory !== factory.toLowerCase()) throw new Error(`vault ${vault} names factory ${x.factory}, not the pinned ${factory}`);
   return { ...s, ...x, exists: !/^0x0{64}$/i.test(x.session.keyHash) };
 }
-async function sendQuorumTx(chain2, { account, to: to4, data, value = 0n, maxFeeGwei = 5, gasCap = 15000000n, timeoutMs = 18e4, pollMs = 1e3, log = () => {
+async function sendQuorumTx(chain2, { account, to: to4, data: data2, value = 0n, maxFeeGwei = 5, gasCap = 15000000n, timeoutMs = 18e4, pollMs = 1e3, log = () => {
 } }) {
-  if (typeof account?.sendQuorumTx === "function") return account.sendQuorumTx(chain2, { to: to4, data, value, maxFeeGwei, gasCap, timeoutMs, pollMs, log });
+  if (typeof account?.sendQuorumTx === "function") return account.sendQuorumTx(chain2, { to: to4, data: data2, value, maxFeeGwei, gasCap, timeoutMs, pollMs, log });
   if (typeof account?.signTransaction !== "function") throw new Error("independent mode signs with the wallet key (ENCLAVE_KEY or the key file), an external signer (--signer URL --from 0x\u2026) or --unsigned");
   const from33 = account.address;
   const sim = await chain2.snapshot(async (c, blockNumber) => {
     try {
-      await c.call({ account: from33, to: to4, data, value, blockNumber });
+      await c.call({ account: from33, to: to4, data: data2, value, blockNumber });
       return { ok: true };
     } catch (e) {
       if (isRevert(e)) return { revert: revertReason(e) };
@@ -85316,7 +85316,7 @@ async function sendQuorumTx(chain2, { account, to: to4, data, value = 0n, maxFee
   const nonces = await chain2.each((c) => c.getTransactionCount({ address: from33, blockTag: "pending" }), "pending nonce");
   if (new Set(nonces.map(String)).size !== 1) throw new Error(`refusing to send: the RPCs disagree on this wallet's pending nonce (${[...new Set(nonces.map(String))].join(", ")}); a transaction may be in flight - wait and check status`);
   const nonce2 = Number(nonces[0]);
-  const gases = await chain2.each((c) => c.estimateGas({ account: from33, to: to4, data, value }), "gas estimate");
+  const gases = await chain2.each((c) => c.estimateGas({ account: from33, to: to4, data: data2, value }), "gas estimate");
   let gas = gases.reduce((m, g) => g > m ? g : m, 0n);
   gas = gas + gas / 5n;
   if (gas > gasCap) throw new Error(`refusing to send: gas estimate ${gas} is above the ${gasCap} cap`);
@@ -85330,7 +85330,7 @@ async function sendQuorumTx(chain2, { account, to: to4, data, value = 0n, maxFee
     chainId: chain2.chainId,
     nonce: nonce2,
     to: to4,
-    data,
+    data: data2,
     value,
     gas,
     maxFeePerGas,
@@ -87031,8 +87031,8 @@ var init_chain3 = __esm({
     lc5 = (a) => String(a).toLowerCase();
     machineOut = (m) => ({ identity: lc5(m.identity), encKey: lc5(m.encKey), endpoint: m.endpoint, chipId: lc5(m.chipId), registryId: lc5(m.registryId), measurement: lc5(m.measurement) });
     rdOf = (client, block) => async (address4, abi3, functionName, args = []) => {
-      const data = encodeFunctionData2({ abi: abi3, functionName, args });
-      const result = await client.request({ method: "eth_call", params: [{ to: address4, data }, { blockHash: block.blockHash, requireCanonical: true }] });
+      const data2 = encodeFunctionData2({ abi: abi3, functionName, args });
+      const result = await client.request({ method: "eth_call", params: [{ to: address4, data: data2 }, { blockHash: block.blockHash, requireCanonical: true }] });
       return decodeFunctionResult2({ abi: abi3, functionName, data: result });
     };
     codeAt = (client, block) => (a) => client.request({ method: "eth_getCode", params: [a, { blockHash: block.blockHash, requireCanonical: true }] });
@@ -87131,14 +87131,14 @@ function utf8ToBytes5(str) {
     throw new Error("string expected");
   return new Uint8Array(new TextEncoder().encode(str));
 }
-function toBytes8(data) {
-  if (typeof data === "string")
-    data = utf8ToBytes5(data);
-  else if (isBytes6(data))
-    data = copyBytes(data);
+function toBytes8(data2) {
+  if (typeof data2 === "string")
+    data2 = utf8ToBytes5(data2);
+  else if (isBytes6(data2))
+    data2 = copyBytes(data2);
   else
-    throw new Error("Uint8Array expected, got " + typeof data);
-  return data;
+    throw new Error("Uint8Array expected, got " + typeof data2);
+  return data2;
 }
 function equalBytes2(a, b7) {
   if (a.length !== b7.length)
@@ -87215,20 +87215,20 @@ var init_utils17 = __esm({
         };
         let called = false;
         const wrCipher = {
-          encrypt(data, output) {
+          encrypt(data2, output) {
             if (called)
               throw new Error("cannot encrypt() twice with same key + nonce");
             called = true;
-            abytes5(data);
+            abytes5(data2);
             checkOutput(cipher.encrypt.length, output);
-            return cipher.encrypt(data, output);
+            return cipher.encrypt(data2, output);
           },
-          decrypt(data, output) {
-            abytes5(data);
-            if (tagl && data.length < tagl)
+          decrypt(data2, output) {
+            abytes5(data2);
+            if (tagl && data2.length < tagl)
               throw new Error("invalid ciphertext length: smaller than tagLength=" + tagl);
             checkOutput(cipher.decrypt.length, output);
-            return cipher.decrypt(data, output);
+            return cipher.decrypt(data2, output);
           }
         };
         return wrCipher;
@@ -87353,18 +87353,18 @@ var init_polyval = __esm({
         this.s2 = o22;
         this.s3 = o3;
       }
-      update(data) {
+      update(data2) {
         aexists3(this);
-        data = toBytes8(data);
-        abytes5(data);
-        const b322 = u323(data);
-        const blocks = Math.floor(data.length / BLOCK_SIZE);
-        const left = data.length % BLOCK_SIZE;
+        data2 = toBytes8(data2);
+        abytes5(data2);
+        const b322 = u323(data2);
+        const blocks = Math.floor(data2.length / BLOCK_SIZE);
+        const left = data2.length % BLOCK_SIZE;
         for (let i = 0; i < blocks; i++) {
           this._updateBlock(b322[i * 4 + 0], b322[i * 4 + 1], b322[i * 4 + 2], b322[i * 4 + 3]);
         }
         if (left) {
-          ZEROS16.set(data.subarray(blocks * BLOCK_SIZE));
+          ZEROS16.set(data2.subarray(blocks * BLOCK_SIZE));
           this._updateBlock(ZEROS32[0], ZEROS32[1], ZEROS32[2], ZEROS32[3]);
           clean4(ZEROS32);
         }
@@ -87403,17 +87403,17 @@ var init_polyval = __esm({
         super(ghKey, expectedLength);
         clean4(ghKey);
       }
-      update(data) {
-        data = toBytes8(data);
+      update(data2) {
+        data2 = toBytes8(data2);
         aexists3(this);
-        const b322 = u323(data);
-        const left = data.length % BLOCK_SIZE;
-        const blocks = Math.floor(data.length / BLOCK_SIZE);
+        const b322 = u323(data2);
+        const left = data2.length % BLOCK_SIZE;
+        const blocks = Math.floor(data2.length / BLOCK_SIZE);
         for (let i = 0; i < blocks; i++) {
           this._updateBlock(swapLE(b322[i * 4 + 3]), swapLE(b322[i * 4 + 2]), swapLE(b322[i * 4 + 1]), swapLE(b322[i * 4 + 0]));
         }
         if (left) {
-          ZEROS16.set(data.subarray(blocks * BLOCK_SIZE));
+          ZEROS16.set(data2.subarray(blocks * BLOCK_SIZE));
           this._updateBlock(swapLE(ZEROS32[3]), swapLE(ZEROS32[2]), swapLE(ZEROS32[1]), swapLE(ZEROS32[0]));
           clean4(ZEROS32);
         }
@@ -87550,13 +87550,13 @@ function ctr32(xk, isLE4, nonce2, src, dst) {
   }
   return dst;
 }
-function computeTag(fn3, isLE4, key2, data, AAD) {
+function computeTag(fn3, isLE4, key2, data2, AAD) {
   const aadLength = AAD ? AAD.length : 0;
-  const h3 = fn3.create(key2, data.length + aadLength);
+  const h3 = fn3.create(key2, data2.length + aadLength);
   if (AAD)
     h3.update(AAD);
-  const num5 = u64Lengths(8 * data.length, 8 * aadLength, isLE4);
-  h3.update(data);
+  const num5 = u64Lengths(8 * data2.length, 8 * aadLength, isLE4);
+  h3.update(data2);
   h3.update(num5);
   const res = h3.digest();
   clean4(num5);
@@ -87598,8 +87598,8 @@ var init_aes = __esm({
       if (nonce2.length < 8)
         throw new Error("aes/gcm: invalid nonce length");
       const tagLength = 16;
-      function _computeTag(authKey, tagMask, data) {
-        const tag = computeTag(ghash, false, authKey, data, AAD);
+      function _computeTag(authKey, tagMask, data2) {
+        const tag = computeTag(ghash, false, authKey, data2, AAD);
         for (let i = 0; i < tagMask.length; i++)
           tag[i] ^= tagMask[i];
         return tag;
@@ -87641,13 +87641,13 @@ var init_aes = __esm({
           const toClean = [xk, authKey, tagMask, counter];
           if (!isAligned32(ciphertext))
             toClean.push(ciphertext = copyBytes(ciphertext));
-          const data = ciphertext.subarray(0, -tagLength);
+          const data2 = ciphertext.subarray(0, -tagLength);
           const passedTag = ciphertext.subarray(-tagLength);
-          const tag = _computeTag(authKey, tagMask, data);
+          const tag = _computeTag(authKey, tagMask, data2);
           toClean.push(tag);
           if (!equalBytes2(tag, passedTag))
             throw new Error("aes/gcm: invalid ghash tag");
-          const out = ctr32(xk, false, counter, data);
+          const out = ctr32(xk, false, counter, data2);
           clean4(...toClean);
           return out;
         }
@@ -88515,10 +88515,10 @@ function validateRules(r) {
   }
   if (!r.minTcb || typeof r.minTcb !== "object" || Array.isArray(r.minTcb) || !Object.keys(r.minTcb).length) throw new Error("rules.minTcb must name at least one product line");
   for (const [line, f] of Object.entries(r.minTcb)) {
-    const fields2 = TCB_FIELDS[line];
-    if (!fields2) throw new Error(`rules.minTcb: unknown product line "${line}"`);
-    exactKeys2(f, fields2, `rules.minTcb.${line}`);
-    for (const k3 of fields2) if (!Number.isInteger(f[k3]) || f[k3] < 0 || f[k3] > 255) throw new Error(`rules.minTcb.${line}.${k3} must be 0..255`);
+    const fields4 = TCB_FIELDS[line];
+    if (!fields4) throw new Error(`rules.minTcb: unknown product line "${line}"`);
+    exactKeys2(f, fields4, `rules.minTcb.${line}`);
+    for (const k3 of fields4) if (!Number.isInteger(f[k3]) || f[k3] < 0 || f[k3] > 255) throw new Error(`rules.minTcb.${line}.${k3} must be 0..255`);
   }
   return r;
 }
@@ -88755,7 +88755,7 @@ async function readOwnerSecrets({ chainId, vault, id: id3, state, owner, post, n
   const kp3 = generateKeyPair();
   try {
     const expiry = Math.floor(now() / 1e3) + expirySec;
-    const fields2 = {
+    const fields4 = {
       chainId,
       vault,
       id: id3,
@@ -88767,12 +88767,12 @@ async function readOwnerSecrets({ chainId, vault, id: id3, state, owner, post, n
       recipientKey: kp3.publicKey,
       expiry
     };
-    const sig = await owner.signTypedData(ownerReadTypedData(fields2));
+    const sig = await owner.signTypedData(ownerReadTypedData(fields4));
     const req = {
       v: 2,
       purpose: OWNER_READ_PURPOSE,
       id: id3,
-      committeeId: fields2.committeeId,
+      committeeId: fields4.committeeId,
       epoch: com.epoch,
       policyRev: String(pol.policyRev),
       secretRev: String(pol.secretRev),
@@ -88781,7 +88781,7 @@ async function readOwnerSecrets({ chainId, vault, id: id3, state, owner, post, n
       sig: lc6(sig),
       challenges: chs.map((c) => ({ encKey: bytesToHex4(c.encKey), nonce: bytesToHex4(c.nonce) }))
     };
-    const binding = ownerReadBinding(fields2);
+    const binding = ownerReadBinding(fields4);
     const R = parseBundle(bundle).R;
     const commitments = [];
     for (let i = 0; i < com.commitments.length; i += 33) commitments.push(com.commitments.subarray(i, i + 33));
@@ -89151,43 +89151,43 @@ function amountOf(action, a) {
   if (action === "deploy.fund") return a.amount6;
   return 0n;
 }
-function decodeArgs(action, data) {
+function decodeArgs(action, data2) {
   switch (action) {
     case "deploy.create": {
-      const [c] = decodeAbiParameters2(CREATE, data);
+      const [c] = decodeAbiParameters2(CREATE, data2);
       const env = Object.keys(ENVIRONMENTS).find((k3) => ENVIRONMENTS[k3] === c.env);
       return { ...c, env };
     }
     case "deploy.fund": {
-      const [id3, amount6] = decodeAbiParameters2([B322, { type: "uint256" }], data);
+      const [id3, amount6] = decodeAbiParameters2([B322, { type: "uint256" }], data2);
       return { id: id3, amount6 };
     }
     case "deploy.setAppRef": {
-      const [id3, appRef] = decodeAbiParameters2([B322, { type: "string" }], data);
+      const [id3, appRef] = decodeAbiParameters2([B322, { type: "string" }], data2);
       return { id: id3, appRef };
     }
     case "deploy.setConfig": {
-      const [id3, configCid] = decodeAbiParameters2([B322, { type: "string" }], data);
+      const [id3, configCid] = decodeAbiParameters2([B322, { type: "string" }], data2);
       return { id: id3, configCid };
     }
     case "deploy.setShares": {
-      const [id3, gpuMilli, cpuMilli] = decodeAbiParameters2([B322, { type: "uint16" }, { type: "uint16" }], data);
+      const [id3, gpuMilli, cpuMilli] = decodeAbiParameters2([B322, { type: "uint16" }, { type: "uint16" }], data2);
       return { id: id3, gpuMilli, cpuMilli };
     }
     case "deploy.setMaxRate": {
-      const [id3, maxRate6] = decodeAbiParameters2([B322, { type: "uint256" }], data);
+      const [id3, maxRate6] = decodeAbiParameters2([B322, { type: "uint256" }], data2);
       return { id: id3, maxRate6 };
     }
     case "deploy.setActive": {
-      const [id3, active] = decodeAbiParameters2([B322, { type: "bool" }], data);
+      const [id3, active] = decodeAbiParameters2([B322, { type: "bool" }], data2);
       return { id: id3, active };
     }
     case "deploy.refund": {
-      const [id3] = decodeAbiParameters2([B322], data);
+      const [id3] = decodeAbiParameters2([B322], data2);
       return { id: id3 };
     }
     case "app.publish": {
-      const [p] = decodeAbiParameters2(PUBLISH, data);
+      const [p] = decodeAbiParameters2(PUBLISH, data2);
       return { ...p };
     }
   }
@@ -89229,8 +89229,8 @@ async function exportPrivateKey(privateKey) {
 async function importPrivateKey(pkcs8) {
   return subtle().importKey("pkcs8", unb64u(pkcs8), ALG, false, ["sign"]);
 }
-function sha256Hex(data) {
-  return sha2566(typeof data === "string" ? new TextEncoder().encode(data) : data);
+function sha256Hex(data2) {
+  return sha2566(typeof data2 === "string" ? new TextEncoder().encode(data2) : data2);
 }
 function randomHex32() {
   const b7 = new Uint8Array(32);
@@ -89310,10 +89310,10 @@ function decodeGrantRequest(s) {
 function grantLink(siteOrigin, r) {
   return `${siteOrigin.replace(/\/$/, "")}/grant#${encodeGrantRequest(r)}`;
 }
-function decodeVaultError(data) {
-  if (data && data.length >= 10) {
+function decodeVaultError(data2) {
+  if (data2 && data2.length >= 10) {
     try {
-      const e = decodeErrorResult2({ abi: sessionVaultAbi, data });
+      const e = decodeErrorResult2({ abi: sessionVaultAbi, data: data2 });
       const args = e.args ?? [];
       if (e.errorName === "Error" && args[0] === "!owner")
         return new SessionError("delegation", "the ledger refused: your wallet has not let your session vault manage the deployments it holds (grant it once with setDelegate, from the wallet)", { error: "Error", args });
@@ -89325,7 +89325,7 @@ function decodeVaultError(data) {
     } catch {
     }
   }
-  return new SessionError("revert", "the vault refused the operation", { data });
+  return new SessionError("revert", "the vault refused the operation", { data: data2 });
 }
 function chainClient(chainId, rpc) {
   const net6 = Object.values(NETWORKS).find((n) => n.chainId === chainId);
@@ -89449,7 +89449,7 @@ async function prepareSessionOpen(p) {
     "SessionGrant",
     p.grant
   ));
-  let data;
+  let data2;
   if (p.grant.budget > 0n) {
     const deposit = await signDeposit(
       p.owner,
@@ -89459,18 +89459,18 @@ async function prepareSessionOpen(p) {
       grantDigest(p.chainId, vault, p.grant),
       p.grant.signBefore
     );
-    data = encodeFunctionData2({
+    data2 = encodeFunctionData2({
       abi: sessionVaultFactoryAbi,
       functionName: "openWithDepositFor",
       args: [p.owner.address, p.grant, ownerSig, deposit.validAfter, deposit.validBefore, deposit.sig]
     });
   } else {
-    data = encodeFunctionData2({ abi: sessionVaultFactoryAbi, functionName: "openFor", args: [p.owner.address, p.grant, ownerSig] });
+    data2 = encodeFunctionData2({ abi: sessionVaultFactoryAbi, functionName: "openFor", args: [p.owner.address, p.grant, ownerSig] });
   }
   return {
     chainId: p.chainId,
     to: p.factory,
-    data,
+    data: data2,
     value: 0n,
     vault,
     sid: sessionIdOf(vault, p.grant.sessionKey, p.grant.grantNonce)
@@ -89484,8 +89484,8 @@ function randomNonce() {
 async function ownerOperation(p) {
   const opNonce = randomNonce();
   const signBefore = BigInt(Math.floor(Date.now() / 1e3) + (p.validSeconds ?? 600));
-  const { op: op3, ...fields2 } = p.op;
-  const message2 = { ...fields2, opNonce, signBefore };
+  const { op: op3, ...fields4 } = p.op;
+  const message2 = { ...fields4, opNonce, signBefore };
   const sig = await p.owner.signTypedData(typedData(p.chainId, p.vault, OP_TYPE[op3], message2));
   return p.relay.request("POST", "/owner", { owner: p.owner.address, vault: p.vault, op: op3, args: message2, sig });
 }
@@ -89529,8 +89529,8 @@ async function prepareOwnerOperation(p) {
   const signBefore = now + validWindow(p.validSeconds);
   let sig = "0x";
   if (p.mode === "signed") {
-    const { op: op3, ...fields2 } = p.op;
-    sig = await p.owner.signTypedData(typedData(p.chainId, p.vault, OP_TYPE[op3], { ...fields2, opNonce, signBefore }));
+    const { op: op3, ...fields4 } = p.op;
+    sig = await p.owner.signTypedData(typedData(p.chainId, p.vault, OP_TYPE[op3], { ...fields4, opNonce, signBefore }));
   }
   return {
     chainId: p.chainId,
@@ -89754,14 +89754,14 @@ var init_node3 = __esm({
         usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         book: "0xab214342d5A490150A4A977063A2f88E21F80907",
         relay: "https://api.enclave.host",
-        rpc: "https://base-rpc.publicnode.com"
+        rpc: "https://api.enclave.host/rpc/base"
       },
       "base-sepolia": {
         chainId: 84532,
         name: "Base Sepolia",
         usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
         relay: "https://api.enclave.host",
-        rpc: "https://base-sepolia-rpc.publicnode.com"
+        rpc: "https://api.enclave.host/rpc/base-sepolia"
       }
     };
     BOOK_KEY_FACTORY = "sessionVaultFactory";
@@ -92732,13 +92732,13 @@ var init_node3 = __esm({
           throw new SessionError("not_allowed", `this session may not ${action}`);
         const amount2 = amountOf(action, args);
         if (amount2 > s.balance6) throw new SessionError("budget", `needs ${amount2}, session has ${s.balance6}`);
-        const data = encodeArgs(action, args);
+        const data2 = encodeArgs(action, args);
         const nonce2 = lane << 64n | await this.seq(lane);
         const digest = digestOf(this.handle.chainId, this.handle.vault, "SessionCall", {
           sessionId: this.handle.sid,
           nonce: nonce2,
           action: ACTIONS[action],
-          argsHash: keccak2563(data),
+          argsHash: keccak2563(data2),
           fee: 0n,
           deadline
         });
@@ -92750,7 +92750,7 @@ var init_node3 = __esm({
           data: encodeFunctionData2({
             abi: sessionVaultAbi,
             functionName: "execute",
-            args: [this.handle.sid, nonce2, ACTIONS[action], data, 0n, deadline, this.signer.x, this.signer.y, r, sv2]
+            args: [this.handle.sid, nonce2, ACTIONS[action], data2, 0n, deadline, this.signer.x, this.signer.y, r, sv2]
           })
         };
       }
@@ -92781,13 +92781,13 @@ var init_node3 = __esm({
         );
         const bit = BigInt(ACTIONS[action]);
         if ((s.actions >> bit & 1n) === 0n) throw new SessionError("not_allowed", `this session may not ${action}`);
-        const data = encodeArgs(action, args);
+        const data2 = encodeArgs(action, args);
         const amount2 = amountOf(action, args);
         const q3 = await this.relay.request("POST", "/quote", {
           vault: this.handle.vault,
           sid: this.handle.sid,
           action: ACTIONS[action],
-          args: data
+          args: data2
         });
         const cap = opts.maxFee !== void 0 && opts.maxFee < s.maxFee6 ? opts.maxFee : s.maxFee6;
         if (q3.fee > cap) throw new SessionError("fee", `relay fee ${q3.fee} exceeds this session's cap ${cap}`);
@@ -92809,7 +92809,7 @@ var init_node3 = __esm({
           sessionId: this.handle.sid,
           nonce: nonce2,
           action: ACTIONS[action],
-          argsHash: keccak2563(data),
+          argsHash: keccak2563(data2),
           fee: q3.fee,
           deadline
         });
@@ -92819,7 +92819,7 @@ var init_node3 = __esm({
           sid: this.handle.sid,
           nonce: nonce2,
           action: ACTIONS[action],
-          args: data,
+          args: data2,
           fee: q3.fee,
           deadline,
           x: this.signer.x,
@@ -111377,11 +111377,11 @@ function padding(bits, chr = "=") {
   anumber3(bits);
   astr("padding", chr);
   return {
-    encode(data) {
-      astrArr("padding.encode", data);
-      while (data.length * bits % 8)
-        data.push(chr);
-      return data;
+    encode(data2) {
+      astrArr("padding.encode", data2);
+      while (data2.length * bits % 8)
+        data2.push(chr);
+      return data2;
     },
     decode(input) {
       astrArr("padding.decode", input);
@@ -111398,17 +111398,17 @@ function padding(bits, chr = "=") {
     }
   };
 }
-function convertRadix(data, from33, to4) {
+function convertRadix(data2, from33, to4) {
   if (from33 < 2)
     throw new Error(`convertRadix: invalid from=${from33}, base cannot be less than 2`);
   if (to4 < 2)
     throw new Error(`convertRadix: invalid to=${to4}, base cannot be less than 2`);
-  aArr(data);
-  if (!data.length)
+  aArr(data2);
+  if (!data2.length)
     return [];
   let pos = 0;
   const res = [];
-  const digits = Array.from(data, (d3) => {
+  const digits = Array.from(data2, (d3) => {
     anumber3(d3);
     if (d3 < 0 || d3 >= from33)
       throw new Error(`invalid integer: ${d3}`);
@@ -111442,12 +111442,12 @@ function convertRadix(data, from33, to4) {
     if (done)
       break;
   }
-  for (let i = 0; i < data.length - 1 && data[i] === 0; i++)
+  for (let i = 0; i < data2.length - 1 && data2[i] === 0; i++)
     res.push(0);
   return res.reverse();
 }
-function convertRadix2(data, from33, to4, padding2) {
-  aArr(data);
+function convertRadix2(data2, from33, to4, padding2) {
+  aArr(data2);
   if (from33 <= 0 || from33 > 32)
     throw new Error(`convertRadix2: wrong from=${from33}`);
   if (to4 <= 0 || to4 > 32)
@@ -111460,7 +111460,7 @@ function convertRadix2(data, from33, to4, padding2) {
   const max = powers[from33];
   const mask = powers[to4] - 1;
   const res = [];
-  for (const n of data) {
+  for (const n of data2) {
     anumber3(n);
     if (n >= max)
       throw new Error(`convertRadix2: invalid data word=${n} from=${from33}`);
@@ -111523,20 +111523,20 @@ function checksum5(len, fn3) {
   anumber3(len);
   afn(fn3);
   return {
-    encode(data) {
-      if (!isBytes7(data))
+    encode(data2) {
+      if (!isBytes7(data2))
         throw new Error("checksum.encode: input should be Uint8Array");
-      const sum = fn3(data).slice(0, len);
-      const res = new Uint8Array(data.length + len);
-      res.set(data);
-      res.set(sum, data.length);
+      const sum = fn3(data2).slice(0, len);
+      const res = new Uint8Array(data2.length + len);
+      res.set(data2);
+      res.set(sum, data2.length);
       return res;
     },
-    decode(data) {
-      if (!isBytes7(data))
+    decode(data2) {
+      if (!isBytes7(data2))
         throw new Error("checksum.decode: input should be Uint8Array");
-      const payload = data.slice(0, -len);
-      const oldChecksum = data.slice(-len);
+      const payload = data2.slice(0, -len);
+      const oldChecksum = data2.slice(-len);
       const newChecksum = fn3(payload).slice(0, len);
       for (let i = 0; i < len; i++)
         if (newChecksum[i] !== oldChecksum[i])
@@ -111569,7 +111569,7 @@ var init_esm4 = __esm({
     };
     genBase58 = /* @__NO_SIDE_EFFECTS__ */ (abc) => /* @__PURE__ */ chain(/* @__PURE__ */ radix(58), /* @__PURE__ */ alphabet(abc), /* @__PURE__ */ join2(""));
     base58 = /* @__PURE__ */ genBase58("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz");
-    createBase58check = (sha25612) => /* @__PURE__ */ chain(checksum5(4, (data) => sha25612(sha25612(data))), base58);
+    createBase58check = (sha25612) => /* @__PURE__ */ chain(checksum5(4, (data2) => sha25612(sha25612(data2))), base58);
   }
 });
 
@@ -111599,8 +111599,8 @@ var init_esm5 = __esm({
     MASTER_SECRET = utf8ToBytes3("Bitcoin seed");
     BITCOIN_VERSIONS = { private: 76066276, public: 76067358 };
     HARDENED_OFFSET = 2147483648;
-    hash160 = (data) => ripemd160(sha2564(data));
-    fromU32 = (data) => createView2(data).getUint32(0, false);
+    hash160 = (data2) => ripemd160(sha2564(data2));
+    fromU32 = (data2) => createView2(data2).getUint32(0, false);
     toU32 = (n) => {
       if (!Number.isSafeInteger(n) || n < 0 || n > 2 ** 32 - 1) {
         throw new Error("invalid number, should be from 0 to 2**32-1, got " + n);
@@ -111742,17 +111742,17 @@ var init_esm5 = __esm({
         if (!this.pubKey || !this.chainCode) {
           throw new Error("No publicKey or chainCode set");
         }
-        let data = toU32(index3);
+        let data2 = toU32(index3);
         if (index3 >= HARDENED_OFFSET) {
           const priv = this.privateKey;
           if (!priv) {
             throw new Error("Could not derive hardened child key");
           }
-          data = concatBytes4(new Uint8Array([0]), priv, data);
+          data2 = concatBytes4(new Uint8Array([0]), priv, data2);
         } else {
-          data = concatBytes4(this.pubKey, data);
+          data2 = concatBytes4(this.pubKey, data2);
         }
-        const I = hmac2(sha512, this.chainCode, data);
+        const I = hmac2(sha512, this.chainCode, data2);
         const childTweak = bytesToNumber3(I.slice(0, 32));
         const chainCode = I.slice(32);
         if (!secp256k12.utils.isValidPrivateKey(childTweak)) {
@@ -133860,11 +133860,11 @@ var init_management_client = __esm({
       }
       /** The capture's state, and its gperftools bytes once complete (at most 16 MiB). -> {profile, data: Buffer|null} */
       async cpuProfile() {
-        const r = await this._json("cpuProfile"), { data, ...profile } = r.json;
+        const r = await this._json("cpuProfile"), { data: data2, ...profile } = r.json;
         if (typeof profile.state !== "string") throw new ManagementError("the host answered with a malformed CPU profile", { status: r.status, sent: true });
-        if (data === void 0 || data === null) return { profile, data: null };
-        const bytes = typeof data === "string" && /^[A-Za-z0-9+/]*={0,2}$/.test(data) ? Buffer.from(data, "base64") : null;
-        if (!bytes || bytes.length > MAX_PROFILE_BYTES2 || bytes.toString("base64") !== data || profile.bytes !== void 0 && profile.bytes !== bytes.length)
+        if (data2 === void 0 || data2 === null) return { profile, data: null };
+        const bytes = typeof data2 === "string" && /^[A-Za-z0-9+/]*={0,2}$/.test(data2) ? Buffer.from(data2, "base64") : null;
+        if (!bytes || bytes.length > MAX_PROFILE_BYTES2 || bytes.toString("base64") !== data2 || profile.bytes !== void 0 && profile.bytes !== bytes.length)
           throw new ManagementError("the host answered with a malformed CPU profile capture", { status: r.status, sent: true });
         return { profile, data: bytes };
       }
@@ -134623,11 +134623,11 @@ function checkMinTcb(minTcb, product, p) {
   const lines = Object.keys(minTcb);
   if (!lines.length) return bad("minimum-TCB policy malformed: names no product line");
   for (const line of lines) {
-    const f = minTcb[line], fields2 = TCB_FIELDS2[line];
-    if (!fields2) return bad(`minimum-TCB policy malformed: unknown product line "${line}"`);
+    const f = minTcb[line], fields4 = TCB_FIELDS2[line];
+    if (!fields4) return bad(`minimum-TCB policy malformed: unknown product line "${line}"`);
     if (!f || typeof f !== "object" || Array.isArray(f)) return bad(`minimum-TCB policy malformed: ${line} is not an object`);
-    for (const k3 of Object.keys(f)) if (!fields2.includes(k3)) return bad(`minimum-TCB policy malformed: ${line} has unknown field "${k3}"`);
-    for (const k3 of fields2)
+    for (const k3 of Object.keys(f)) if (!fields4.includes(k3)) return bad(`minimum-TCB policy malformed: ${line} has unknown field "${k3}"`);
+    for (const k3 of fields4)
       if (!Number.isInteger(f[k3]) || f[k3] < 0 || f[k3] > 255) return bad(`minimum-TCB policy malformed: ${line}.${k3} must be an integer 0-255`);
   }
   if (!product) return bad("cannot judge the TCB: the report's product line is unknown");
@@ -135217,8 +135217,8 @@ var init_secrets_release = __esm({
 });
 
 // relay/vbs-tcglog-core.mjs
-function parseTcgLog(data, { maxBytes = TCG_MAX_LOG_BYTES, maxEvents = TCG_MAX_EVENTS } = {}) {
-  const b7 = toBuf(data);
+function parseTcgLog(data2, { maxBytes = TCG_MAX_LOG_BYTES, maxEvents = TCG_MAX_EVENTS } = {}) {
+  const b7 = toBuf(data2);
   if (b7.length > maxBytes) throw new Error(`TCG log exceeds ${maxBytes} bytes`);
   const need = (off2, n) => {
     if (!Number.isSafeInteger(off2) || off2 < 0 || n < 0 || off2 + n > b7.length) throw new Error("TCG log truncated");
@@ -135324,15 +135324,15 @@ function tcgLogWith(sha25612) {
     return out;
   }
   function sipaFields2(events, pcr = 12, alg = TCG_SHA256) {
-    const fields2 = /* @__PURE__ */ new Map();
+    const fields4 = /* @__PURE__ */ new Map();
     for (const r of sipaRecords2(events, pcr, alg)) {
       if (SIPA_CONTAINERS.has(r.id)) continue;
       const v = r.value;
       const val = [1, 2, 4, 8].includes(v.length) ? scalar(v) : SIPA_STRINGS.has(r.id) ? utf16(v) : v;
-      if (!fields2.has(r.name)) fields2.set(r.name, []);
-      fields2.get(r.name).push(val);
+      if (!fields4.has(r.name)) fields4.set(r.name, []);
+      fields4.get(r.name).push(val);
     }
-    return fields2;
+    return fields4;
   }
   function vsmKey2(events, which = "IDKS", alg = TCG_SHA256) {
     const id3 = which === "IDKS" ? SIPA_VSM_IDKS_INFO : SIPA_VSM_IDK_INFO;
@@ -135593,8 +135593,8 @@ function extensionValue(certDer, oid) {
   if (certFields.length !== 3 || certFields[0].tag !== 48 || certFields[1].tag !== 48 || certFields[2].tag !== 3)
     throw new Error("certificate fields malformed");
   const [tbs] = certFields;
-  const fields2 = children(b7, tbs);
-  const extensions = fields2.filter((f) => f.tag === 163);
+  const fields4 = children(b7, tbs);
+  const extensions = fields4.filter((f) => f.tag === 163);
   if (!extensions.length) return null;
   if (extensions.length !== 1) throw new Error("duplicate extension containers");
   const wrapped = children(b7, extensions[0], 1), seq = wrapped[0];
@@ -135620,20 +135620,20 @@ function parseAvfExtension(certDer) {
   if (!v) throw new Error("no AVF attestation extension");
   const top = tlv(v, 0);
   if (top.tag !== 48 || top.end !== v.length) throw new Error("AttestationExtension is not an exact SEQUENCE");
-  const fields2 = children(v, top, 4);
-  if (fields2.length !== 3 && fields2.length !== 4) throw new Error("AttestationExtension must have three fields (or four, the fourth an empty SEQUENCE)");
-  if (fields2.length === 4 && (fields2[3].tag !== 48 || body(v, fields2[3]).length !== 0))
+  const fields4 = children(v, top, 4);
+  if (fields4.length !== 3 && fields4.length !== 4) throw new Error("AttestationExtension must have three fields (or four, the fourth an empty SEQUENCE)");
+  if (fields4.length === 4 && (fields4[3].tag !== 48 || body(v, fields4[3]).length !== 0))
     throw new Error("AttestationExtension's fourth field is not an empty SEQUENCE: unknown structure, refused");
-  const [chal, secure, comps] = fields2;
+  const [chal, secure, comps] = fields4;
   if (!chal || chal.tag !== 4) throw new Error("attestationChallenge missing");
   if (!secure || secure.tag !== 1) throw new Error("isVmSecure missing");
   if (!comps || comps.tag !== 48) throw new Error("vmComponents missing");
   const isVmSecure = boolOf(v, secure);
   const components = children(v, comps, AVF_MAX_COMPONENTS).map((c) => {
     if (c.tag !== 48) throw new Error("VmComponent is not a SEQUENCE");
-    const fields3 = children(v, c, 4);
-    if (fields3.length !== 4) throw new Error("VmComponent must have four fields");
-    const [name, ver, code, auth] = fields3;
+    const fields5 = children(v, c, 4);
+    if (fields5.length !== 4) throw new Error("VmComponent must have four fields");
+    const [name, ver, code, auth] = fields5;
     if (!name || name.tag !== 12 || !ver || ver.tag !== 2 || !code || code.tag !== 4 || !auth || auth.tag !== 4)
       throw new Error("VmComponent malformed");
     const nameBytes = body(v, name);
@@ -136901,8 +136901,33 @@ var init_hvnode_verify = __esm({
       cert: ({ der }) => new X509Certificate4(der),
       chain: ({ leaf, extra, trust: trust2, now }) => verifyEkChain(leaf, extra, trust2, now),
       rsaKey: ({ modulus, exponent }) => rsaKeyFromModulus(modulus, exponent),
-      rsaPkcs1Sha256: ({ key: key2, data, sig }) => cryptoVerify2("sha256", data, { key: key2, padding: constants2.RSA_PKCS1_PADDING }, sig),
-      ed25519: ({ spki, data, sig }) => cryptoVerify2(null, data, createPublicKey6({ key: spki, format: "der", type: "spki" }), sig)
+      rsaPkcs1Sha256: ({ key: key2, data: data2, sig }) => cryptoVerify2("sha256", data2, { key: key2, padding: constants2.RSA_PKCS1_PADDING }, sig),
+      ed25519: ({ spki, data: data2, sig }) => cryptoVerify2(null, data2, createPublicKey6({ key: spki, format: "der", type: "spki" }), sig)
+    });
+  }
+});
+
+// relay/vbs-image-identity.mjs
+function validImageIdentity(p) {
+  return fields2(p, ["signer", "productId", "moduleId"]) && typeof p.signer === "string" && p.signer.length === 64 && HEX2.test(p.signer) && p.signer !== "0".repeat(64) && u325(p.productId) && u325(p.moduleId);
+}
+function validImageIdentities(pins) {
+  return Array.isArray(pins) && pins.length > 0 && pins.length <= 256 && Array.from(pins).every((p) => fields2(p, ["measurement", "identity"]) && typeof p.measurement === "string" && p.measurement.length === 64 && HEX2.test(p.measurement) && validImageIdentity(p.identity));
+}
+function imageIdentityPins(images) {
+  if (!images.some((p) => p.identity !== void 0 || p.nativeDesktop === true)) return void 0;
+  const pins = images.map((p) => ({ measurement: p.measurement, identity: p.identity }));
+  if (!validImageIdentities(pins)) throw new Error("explicit image signer/product/module pins are required for every candidate");
+  return pins;
+}
+var HEX2, u325, fields2;
+var init_vbs_image_identity = __esm({
+  "relay/vbs-image-identity.mjs"() {
+    HEX2 = /^[0-9a-f]{64}$/;
+    u325 = (n) => Number.isInteger(n) && n >= 0 && n <= 4294967295;
+    fields2 = (p, names) => !!p && typeof p === "object" && !Array.isArray(p) && Reflect.ownKeys(p).length === names.length && names.every((k3) => {
+      const d3 = Object.getOwnPropertyDescriptor(p, k3);
+      return d3 && Object.hasOwn(d3, "value") && d3.enumerable;
     });
   }
 });
@@ -136949,10 +136974,11 @@ function vbsVmReportWith({ sha256: sha25612, equal: equal3 = ctEqual }) {
       enabledVtl: r(216),
       policy: r(220),
       guestVtl: r(224),
-      guestSvn: r(228)
+      guestSvn: r(228),
+      identity: { signer: report.subarray(152, 184).toString("hex"), productId: r(232), moduleId: r(236) }
     };
   }
-  function* vbsVmReportChecks({ envelope, idksPublicKey, expectedUserData, allowedMeasurements, minimumGuestSvn = 0 } = {}) {
+  function* vbsVmReportChecks({ envelope, idksPublicKey, expectedUserData, allowedMeasurements, minimumGuestSvn = 0, imageIdentities } = {}) {
     const checks = Object.fromEntries(VBS_VM_REPORT_CHECKS.map((k3) => [k3, void 0]));
     let reason = null, p = null;
     const step2 = (key2, fn3) => {
@@ -136964,7 +136990,7 @@ function vbsVmReportWith({ sha256: sha25612, equal: equal3 = ctEqual }) {
         if (reason === null) reason = e.message;
       }
     };
-    const done = () => reason === null ? { ok: true, measurement: p.measurement, guestSvn: p.guestSvn, parsed: p, checks } : { ok: false, reason, parsed: p, checks };
+    const done = () => reason === null ? { ok: true, measurement: p.measurement, guestSvn: p.guestSvn, identity: p.identity, parsed: p, checks } : { ok: false, reason, parsed: p, checks };
     step2("inputs", () => {
       requireThat(
         Buffer.isBuffer(expectedUserData) && expectedUserData.length === 64,
@@ -136978,6 +137004,10 @@ function vbsVmReportWith({ sha256: sha25612, equal: equal3 = ctEqual }) {
         Number.isSafeInteger(minimumGuestSvn) && minimumGuestSvn >= 0,
         "invalid minimum guest SVN"
       );
+      requireThat(
+        imageIdentities === void 0 || validImageIdentities(imageIdentities),
+        "invalid image signer/product/module pins"
+      );
     });
     if (reason !== null) return done();
     step2("envelope", () => {
@@ -136990,6 +137020,10 @@ function vbsVmReportWith({ sha256: sha25612, equal: equal3 = ctEqual }) {
     ));
     step2("svn", () => requireThat(p.guestSvn >= minimumGuestSvn, "guest SVN below policy"));
     step2("measurement", () => requireThat(allowedMeasurements.includes(p.measurement), "image measurement is not pinned"));
+    if (imageIdentities !== void 0) step2("image-identity", () => requireThat(
+      imageIdentities.some((pin) => pin.measurement === p.measurement && pin.identity.signer === p.identity.signer && pin.identity.productId === p.identity.productId && pin.identity.moduleId === p.identity.moduleId),
+      "image signer/product/module identity is not pinned"
+    ));
     step2("user-data", () => requireThat(equal3(p.userData, expectedUserData), "guest binding differs from verifier request"));
     let signed2 = false, why = null;
     try {
@@ -137008,6 +137042,7 @@ function vbsVmReportWith({ sha256: sha25612, equal: equal3 = ctEqual }) {
 var BASE, META, REPORT_SIZE, requireThat, zero2, ctEqual, VBS_VM_REPORT_CHECKS, VBS_VM_REPORT_SCOPE;
 var init_vbs_vm_report_core = __esm({
   "relay/vbs-vm-report-core.mjs"() {
+    init_vbs_image_identity();
     BASE = 1236;
     META = 1216;
     REPORT_SIZE = 560;
@@ -137021,7 +137056,7 @@ var init_vbs_vm_report_core = __esm({
       for (let i = 0; i < a.length; i++) d3 |= a[i] ^ b7[i];
       return d3 === 0;
     };
-    VBS_VM_REPORT_CHECKS = Object.freeze(["inputs", "envelope", "vtl", "svn", "measurement", "user-data", "signature"]);
+    VBS_VM_REPORT_CHECKS = Object.freeze(["inputs", "envelope", "vtl", "svn", "measurement", "image-identity", "user-data", "signature"]);
     VBS_VM_REPORT_SCOPE = "VBS image and guest input under supplied IDKS; caller must authenticate IDKS and app key custody";
   }
 });
@@ -137033,12 +137068,13 @@ function verifyVbsVmReport({
   idksPublicKey,
   expectedUserData,
   allowedMeasurements,
-  minimumGuestSvn = 0
+  minimumGuestSvn = 0,
+  imageIdentities
 }) {
   try {
-    const r = runSync(CORE.vbsVmReportChecks({ envelope, idksPublicKey, expectedUserData, allowedMeasurements, minimumGuestSvn }), OPS);
-    if (!r.ok) return { ok: false, reason: r.reason };
-    return { ok: true, measurement: r.measurement, guestSvn: r.guestSvn, scope: VBS_VM_REPORT_SCOPE };
+    const r = runSync(CORE.vbsVmReportChecks({ envelope, idksPublicKey, expectedUserData, allowedMeasurements, minimumGuestSvn, imageIdentities }), OPS);
+    if (!r.ok) return { ok: false, reason: r.reason, checks: r.checks };
+    return { ok: true, measurement: r.measurement, guestSvn: r.guestSvn, identity: r.identity, checks: r.checks, scope: VBS_VM_REPORT_SCOPE };
   } catch (e) {
     return { ok: false, reason: e.message };
   }
@@ -137052,9 +137088,9 @@ var init_vbs_vm_report = __esm({
     equal2 = (a, b7) => a.length === b7.length && timingSafeEqual3(a, b7);
     CORE = vbsVmReportWith({ sha256: hash7, equal: equal2 });
     OPS = Object.freeze({
-      rsaPssSha256: ({ key: key2, data, sig }) => verify7(
+      rsaPssSha256: ({ key: key2, data: data2, sig }) => verify7(
         "sha256",
-        data,
+        data2,
         { key: key2, padding: constants3.RSA_PKCS1_PSS_PADDING, saltLength: 32 },
         sig
       )
@@ -137096,13 +137132,15 @@ function verifyVbsAppEvidence({
       idksPublicKey: rsaKeyFromModulus(key2.modulus, key2.exponent),
       expectedUserData: vbsAppUserData(binding, expectedAppSha256),
       allowedMeasurements: policy.allowedMeasurements,
-      minimumGuestSvn: policy.minimumGuestSvn ?? 0
+      minimumGuestSvn: policy.minimumGuestSvn ?? 0,
+      imageIdentities: policy.imageIdentities
     });
     if (!result.ok) return result;
     return {
       ok: true,
       scope: "hardware-bound app evidence; admission is a separate policy decision",
       measurement: result.measurement,
+      identity: result.identity,
       appSha256: expectedAppSha256,
       runtimeId: expectedRuntimeId,
       boot: host.boot
@@ -137123,6 +137161,147 @@ var init_vbs_app_verify = __esm({
   }
 });
 
+// relay/shield-derive.mjs
+var MAX_CONFIG_BYTES2, MAX_MANIFEST_BYTES, COMPONENT_PREAMBLE;
+var init_shield_derive = __esm({
+  "relay/shield-derive.mjs"() {
+    MAX_CONFIG_BYTES2 = 32 << 10;
+    MAX_MANIFEST_BYTES = 64 << 10;
+    COMPONENT_PREAMBLE = Buffer.from([0, 97, 115, 109, 13, 0, 1, 0]);
+  }
+});
+
+// relay/shield-desktop-derive.mjs
+var DESKTOP_PORTS;
+var init_shield_desktop_derive = __esm({
+  "relay/shield-desktop-derive.mjs"() {
+    init_shield_derive();
+    DESKTOP_PORTS = Object.freeze([
+      "tcp:47984",
+      "tcp:47989",
+      "tcp:48010",
+      "udp:47998",
+      "udp:47999",
+      "udp:48000"
+    ]);
+  }
+});
+
+// relay/shield-desktop-release.mjs
+function integer(value, low, high, label2) {
+  if (!Number.isInteger(value) || value < low || value > high)
+    throw new Error(`${label2} outside ${low}..${high}`);
+}
+function data(value, label2, depth = 0) {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new Error(`${label2} must contain finite numbers`);
+    return value;
+  }
+  if (typeof value !== "object" || depth >= MAX_DEPTH2) throw new Error(`${label2} must be bounded plain data`);
+  const array = Array.isArray(value);
+  const proto = Object.getPrototypeOf(value);
+  if (array ? proto !== Array.prototype : proto !== Object.prototype && proto !== null)
+    throw new Error(`${label2} must be plain data objects`);
+  const names = Reflect.ownKeys(value);
+  if (array && (names.length !== value.length + 1 || names.some((name) => name !== "length" && (typeof name !== "string" || !/^(0|[1-9][0-9]*)$/.test(name) || Number(name) >= value.length))))
+    throw new Error(`${label2} arrays must be dense and contain only indexed elements`);
+  const out = array ? [] : {};
+  for (const name of names) {
+    if (array && name === "length") continue;
+    const d3 = typeof name === "string" ? Reflect.getOwnPropertyDescriptor(value, name) : null;
+    if (!d3 || !Object.hasOwn(d3, "value") || !d3.enumerable) throw new Error(`${label2} must be data-only`);
+    Object.defineProperty(out, name, {
+      value: data(d3.value, label2, depth + 1),
+      enumerable: true,
+      writable: true,
+      configurable: true
+    });
+  }
+  return out;
+}
+function fields3(value, expected, label2) {
+  if (!value || typeof value !== "object" || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value)))
+    throw new Error(`${label2} must be a plain object`);
+  const names = Reflect.ownKeys(value);
+  if (names.length !== expected.length || !expected.every((k3) => names.includes(k3)))
+    throw new Error(`${label2} requires exactly its declared fields`);
+  const out = {};
+  for (const k3 of expected) {
+    const d3 = Reflect.getOwnPropertyDescriptor(value, k3);
+    if (!d3 || !Object.hasOwn(d3, "value") || !d3.enumerable) throw new Error(`${label2} must be data-only`);
+    out[k3] = d3.value;
+  }
+  return out;
+}
+function validateDesktopRelease(raw) {
+  const r = fields3(data(raw, "desktop release"), RELEASE_FIELDS, "desktop release");
+  if (r.schema !== DESKTOP_RELEASE_SCHEMA) throw new Error(`desktop release requires ${DESKTOP_RELEASE_SCHEMA}`);
+  if (!isCid(r.controllerCid)) throw new Error("invalid desktop controller CID");
+  for (const k3 of HASH_FIELDS)
+    if (!nonzero2(r[k3])) throw new Error(`desktop release ${k3} must be nonzero lowercase 64-hex`);
+  integer(r.minimumCpuMilli, 1, 1e3, "minimum CPU milli");
+  const p = fields3(r.policy, ["cpuPercent", "vcpus"], "desktop release policy");
+  integer(p.cpuPercent, 400, 1600, "CPU percent");
+  integer(p.vcpus, 4, 16, "vCPUs");
+  if (p.cpuPercent > p.vcpus * 100) throw new Error("CPU percent exceeds the pinned vCPUs");
+  return Object.freeze({
+    schema: r.schema,
+    controllerCid: r.controllerCid,
+    controllerSha256: r.controllerSha256,
+    runtimeId: r.runtimeId,
+    igvmSha256: r.igvmSha256,
+    profileSha256: r.profileSha256,
+    launchMeasurement: r.launchMeasurement,
+    minimumCpuMilli: r.minimumCpuMilli,
+    policy: Object.freeze({ cpuPercent: p.cpuPercent, vcpus: p.vcpus })
+  });
+}
+var DESKTOP_RELEASE_SCHEMA, RELEASE_FIELDS, HASH_FIELDS, HASH2, CID, REQUIRED_PORTS, MAX_DEPTH2, nonzero2, isCid;
+var init_shield_desktop_release = __esm({
+  "relay/shield-desktop-release.mjs"() {
+    init_shield_derive();
+    init_shield_desktop_derive();
+    DESKTOP_RELEASE_SCHEMA = "enclave-desktop-release/1";
+    RELEASE_FIELDS = [
+      "schema",
+      "controllerCid",
+      "controllerSha256",
+      "runtimeId",
+      "igvmSha256",
+      "profileSha256",
+      "launchMeasurement",
+      "minimumCpuMilli",
+      "policy"
+    ];
+    HASH_FIELDS = ["controllerSha256", "runtimeId", "igvmSha256", "profileSha256", "launchMeasurement"];
+    HASH2 = /^[0-9a-f]{64}$/;
+    CID = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{50,120}|z[1-9A-HJ-NP-Za-km-z]{40,120})$/;
+    REQUIRED_PORTS = Object.freeze(["http:8000", ...DESKTOP_PORTS]);
+    MAX_DEPTH2 = 64;
+    nonzero2 = (x) => typeof x === "string" && x.length === 64 && HASH2.test(x) && x !== "0".repeat(64);
+    isCid = (x) => typeof x === "string" && CID.exec(x)?.[0] === x;
+  }
+});
+
+// relay/shield-image-candidates.mjs
+function shieldImageCandidates(policy, expected) {
+  const desktop = policy?.desktop == null ? null : validateDesktopRelease(policy.desktop);
+  const native = expected?.requiresDesktop === true;
+  if (expected?.requiresDesktop !== void 0 && typeof expected.requiresDesktop !== "boolean") return [];
+  if (native && (!desktop || expected.runtimeId !== desktop.runtimeId)) return [];
+  if (!native && desktop && expected?.runtimeId === desktop.runtimeId) return [];
+  return (Array.isArray(policy?.images) ? policy.images : []).filter((p) => HEX3.test(p?.measurement || "") && p.runtimeId === expected?.runtimeId && (!expected.requiresConfigBundleV5 || p.configBundleV5 === true) && (!expected.requiresSecretsV1 || p.secretsV1 === true) && (!expected.requiresConfigSocketServer || p.configSocketServer === true) && (native ? p.nativeDesktop === true && validImageIdentity(p.identity) && p.measurement === desktop.launchMeasurement && p.igvmSha256 === desktop.igvmSha256 && p.profileSha256 === desktop.profileSha256 && p.controllerSha256 === desktop.controllerSha256 && p.configBundleV5 === true && p.secretsV1 === true && p.configSocketServer === true && p.protectedPorts === true : p.nativeDesktop !== true && (!desktop || p.measurement !== desktop.launchMeasurement)));
+}
+var HEX3;
+var init_shield_image_candidates = __esm({
+  "relay/shield-image-candidates.mjs"() {
+    init_shield_desktop_release();
+    init_vbs_image_identity();
+    HEX3 = /^[0-9a-f]{64}$/;
+  }
+});
+
 // relay/shield-app-policy.mjs
 import { createHash as createHash19 } from "node:crypto";
 function verifyShieldAppPolicy(input, policy = {}) {
@@ -137132,20 +137311,21 @@ function verifyShieldAppPolicy(input, policy = {}) {
     const { platforms, images } = policy;
     if (!platformsValid(platforms))
       return no3('explicit TPM identity and platform firmware pins (or "attested") are required');
-    if (!Array.isArray(images) || !images.length || images.some((p) => !HEX2.test(p?.measurement || "") || !HEX2.test(p?.runtimeId || "")))
+    if (!Array.isArray(images) || !images.length || images.some((p) => !HEX4.test(p?.measurement || "") || !HEX4.test(p?.runtimeId || "")))
       return no3("explicit image/runtime pairs are required");
-    const candidates = images.filter((p) => p.runtimeId === input?.expectedRuntimeId && (!input.requiresConfigBundleV5 || p.configBundleV5 === true) && (!input.requiresSecretsV1 || p.secretsV1 === true) && (!input.requiresConfigSocketServer || p.configSocketServer === true));
+    const candidates = shieldImageCandidates(policy, { ...input, runtimeId: input?.expectedRuntimeId });
     if (!candidates.length) return no3("runtime has no admitted image");
     const v = verifyVbsAppEvidence(input, {
       ekRoots: policy.ekRoots,
       allowedMeasurements: candidates.map((p) => p.measurement),
+      imageIdentities: imageIdentityPins(candidates),
       minimumGuestSvn: policy.minimumGuestSvn ?? 0
     });
     if (!v.ok) return v;
     if (!platformAdmitted(platforms, v.boot))
       return no3("authenticated TPM/platform pair is not admitted");
     const spkiSha256 = createHash19("sha256").update(input.handshakeSpki).digest("hex");
-    if (input.expectedCsrSpkiSha256 !== void 0 && (!HEX2.test(input.expectedCsrSpkiSha256) || input.expectedCsrSpkiSha256 !== spkiSha256))
+    if (input.expectedCsrSpkiSha256 !== void 0 && (!HEX4.test(input.expectedCsrSpkiSha256) || input.expectedCsrSpkiSha256 !== spkiSha256))
       return no3("certificate key differs from the verified app key");
     return {
       ...v,
@@ -137156,18 +137336,21 @@ function verifyShieldAppPolicy(input, policy = {}) {
     return no3(e.message);
   }
 }
-var HEX2;
+var HEX4;
 var init_shield_app_policy = __esm({
   async "relay/shield-app-policy.mjs"() {
     await init_vbs_app_verify();
     init_vbs_app_core();
+    init_shield_image_candidates();
+    init_vbs_image_identity();
     init_vbs_app_core();
-    HEX2 = /^[0-9a-f]{64}$/;
+    init_shield_image_candidates();
+    HEX4 = /^[0-9a-f]{64}$/;
   }
 });
 
 // relay/pvm-evidence-core.mjs
-function canonical5(v) {
+function canonical6(v) {
   const sort = (x) => Array.isArray(x) ? x.map(sort) : x && typeof x === "object" ? Object.fromEntries(Object.keys(x).sort().map((k3) => [k3, sort(x[k3])])) : x;
   return Buffer.from(JSON.stringify(sort(v)));
 }
@@ -137225,7 +137408,7 @@ function pvmEvidenceRules(c) {
   function runtimeId4(r) {
     const why = validateRuntimeIdentity3(r);
     if (why) throw new Error(`inadmissible runtime identity: ${why}`);
-    return c.sha256(canonical5(Object.fromEntries(FIELDS4.map((k3) => [k3, r[k3]]))));
+    return c.sha256(canonical6(Object.fromEntries(FIELDS4.map((k3) => [k3, r[k3]]))));
   }
   function bind24(spki, nonce2, rid) {
     if (nonce2.length !== 32) throw new Error("nonce must be 32 bytes");
@@ -137272,7 +137455,7 @@ function pvmEvidenceRules(c) {
     }
     const why = validateRuntimeIdentity3(r);
     if (why) return fail3(`the runtime identity is not admissible: ${why}`);
-    if (!canonical5(r).equals(Buffer.from(identity2))) return fail3("the runtime identity is not in canonical form (the VM hashes exactly what it prints)");
+    if (!canonical6(r).equals(Buffer.from(identity2))) return fail3("the runtime identity is not in canonical form (the VM hashes exactly what it prints)");
     const rid = runtimeId4(r);
     const allowed = new Set([...opts.allowedRuntimeIds || []].map((h3) => String(h3).toLowerCase()));
     if (!allowed.size) return fail3("no pinned runtime IDs: refusing (fail closed)");
@@ -137526,7 +137709,8 @@ function get(hostname, address4, path12, agent, pin, port2 = 443) {
     req.once("error", reject);
   });
 }
-async function probeGuest({ deploymentId, hostname, address: address4, port: port2 = 443, proxy, direct = false, expected, linux, shield, hostSession, pvm, localUpstream: localUpstream2, openApp, domainIndependent = false, verifySnp = judge, pinnedSpkiSha256 = null, startupEgress = false, attestationBootstrap = false }) {
+async function probeGuest({ deploymentId, hostname, address: address4, port: port2 = 443, proxy, direct = false, expected, linux, shield, hostSession, pvm, localUpstream: localUpstream2, openApp, domainIndependent = false, verifySnp = judge, pinnedSpkiSha256 = null, startupEgress = false, startupRoute = false, attestationBootstrap = false }) {
+  if (startupRoute && (!/^[0-9a-f]{64}$/.test(pinnedSpkiSha256 || "") || expected?.requiresDesktop !== true || expected?.requiresConfigSocketServer !== true || expected?.requiresSecretsV1 !== true || !proxy && !direct || openApp || localUpstream2 || startupEgress || attestationBootstrap)) throw new Error("native startup route requires a current attested key and explicit native secret policy");
   if (startupEgress && (!openApp || proxy || pinnedSpkiSha256 || expected.requiresConfigSocketServer !== true || expected.requiresSecretsV1 !== true)) throw new Error("startup egress requires a local configured secret command proof");
   if ([proxy, localUpstream2, openApp, direct].filter(Boolean).length !== 1) throw new Error("guest probes require exactly one explicit app transport");
   if (attestationBootstrap && (!direct || !isIP3(address4) || pinnedSpkiSha256 || domainIndependent || startupEgress || !hostname || !/^0x[0-9a-f]{64}$/.test(deploymentId) || !expected || !/^[0-9a-f]{64}$/.test(expected.appSha256) || !/^[0-9a-f]{64}$/.test(expected.runtimeId) || !(linux || shield && hostSession || pvm))) throw new Error("attestation bootstrap requires a literal direct route and explicit guest policy");
@@ -137547,8 +137731,8 @@ async function probeGuest({ deploymentId, hostname, address: address4, port: por
       const ready2 = await get(hostname, address4, "/.well-known/enclave-ready", agent, void 0, port2);
       const spkiSha256 = createHash21("sha256").update(ready2.spki).digest("hex");
       if (spkiSha256 === pinnedSpkiSha256) {
-        if (ready2.status !== 200) throw new Error("guest readiness HTTP " + ready2.status);
-        return { verified: true, deploymentId, appSha256: expected.appSha256, runtimeId: expected.runtimeId, spkiSha256, pinned: true };
+        if (ready2.status !== 200 && !(startupRoute && ready2.status === 503)) throw new Error("guest readiness HTTP " + ready2.status);
+        return { ready: ready2.status === 200, verified: true, deploymentId, appSha256: expected.appSha256, runtimeId: expected.runtimeId, spkiSha256, pinned: true };
       }
       throw new Error("guest TLS key changed");
     }
@@ -137568,7 +137752,7 @@ async function probeGuest({ deploymentId, hostname, address: address4, port: por
       verified = verdict.gateOpen === true && verdict.verdict === "attested";
       if (!verified) throw new Error("SNP guest proof refused: " + JSON.stringify(verdict));
     } else if (shield && hostSession) {
-      const verdict = verifyShieldAppPolicy({ doc, handshakeSpki: response.spki, nonce: nonce2, expectedAppSha256: expected.appSha256, expectedRuntimeId: expected.runtimeId, hostSession, requiresConfigBundleV5: expected.requiresConfigBundleV5, requiresSecretsV1: expected.requiresSecretsV1, requiresConfigSocketServer: expected.requiresConfigSocketServer }, shield);
+      const verdict = verifyShieldAppPolicy({ doc, handshakeSpki: response.spki, nonce: nonce2, expectedAppSha256: expected.appSha256, expectedRuntimeId: expected.runtimeId, hostSession, requiresDesktop: expected.requiresDesktop, requiresConfigBundleV5: expected.requiresConfigBundleV5, requiresSecretsV1: expected.requiresSecretsV1, requiresConfigSocketServer: expected.requiresConfigSocketServer }, shield);
       verified = verdict.ok === true;
       if (!verified) throw new Error("Shield guest proof refused: " + verdict.reason);
     } else if (pvm && String(doc.format || "").startsWith("enclave-pvm-app-evidence/")) {
@@ -138273,10 +138457,10 @@ var init_native_client = __esm({
             idle = setTimeout(() => fail3(Error("native websocket idle timeout")), idleTimeoutMs);
           };
           const open2 = () => !finished && ws3.readyState === wrapper_default.OPEN;
-          const send2 = (data, { binary } = {}) => {
+          const send2 = (data2, { binary } = {}) => {
             try {
               if (!open2()) throw Error("native websocket is not open");
-              const text2 = typeof data === "string", bytes = bytesOf(data, "native websocket messages must be bytes or strings"), asBinary = binary === void 0 ? !text2 : binary;
+              const text2 = typeof data2 === "string", bytes = bytesOf(data2, "native websocket messages must be bytes or strings"), asBinary = binary === void 0 ? !text2 : binary;
               if (typeof asBinary !== "boolean") throw Error("native websocket binary flag must be boolean");
               if (bytes.length > maxMessageBytes) throw Error("native websocket message too large");
               if (bytesOut + bytes.length > maxSentBytes) throw Error("native websocket send limit reached");
@@ -138288,10 +138472,10 @@ var init_native_client = __esm({
               return Promise.reject(e);
             }
           };
-          const ping = (data = "") => {
+          const ping = (data2 = "") => {
             try {
               if (!open2()) throw Error("native websocket is not open");
-              const bytes = bytesOf(data, "native websocket ping data must be bytes or a string");
+              const bytes = bytesOf(data2, "native websocket ping data must be bytes or a string");
               if (bytes.length > 125) throw Error("native websocket ping too large");
               return new Promise((ok, no3) => {
                 pongs.push({ resolve: ok, reject: no3 });
@@ -138394,13 +138578,13 @@ var init_native_client = __esm({
             unwatch = this._watch(fingerprint2, chosen, recheckMs, fail3);
             resolve3(handle2);
           });
-          ws3.on("message", (data, binary) => {
+          ws3.on("message", (data2, binary) => {
             if (finished) return;
-            bytesIn += data.length;
+            bytesIn += data2.length;
             if (bytesIn > maxBytes) return fail3(Error("native websocket received too much"));
             armIdle();
-            queue.push({ data, binary });
-            queued += data.length;
+            queue.push({ data: data2, binary });
+            queued += data2.length;
             if (queued > maxQueuedBytes && !ws3.isPaused) ws3.pause();
             wake?.();
           });
@@ -139994,7 +140178,7 @@ async function managementCall(B3, a, op3, { opts, runner, repeat } = {}) {
   const { LeaseReader: LeaseReader2 } = await Promise.resolve().then(() => (init_lease_reader(), lease_reader_exports));
   const { networkAuthorities: networkAuthorities2 } = await init_independent_host().then(() => independent_host_exports);
   const { independentReaderAuthority: independentReaderAuthority2 } = await Promise.resolve().then(() => (init_independent(), independent_exports));
-  const { apiMessage: apiMessage3, sha256Hex: sha256Hex3 } = await Promise.resolve().then(() => (init_session_api_auth(), session_api_auth_exports));
+  const { apiMessage: apiMessage3, sha256Hex: sha256Hex4 } = await Promise.resolve().then(() => (init_session_api_auth(), session_api_auth_exports));
   const authorityPins = networkAuthorities2(trust2);
   const reader2 = new LeaseReader2({
     ...independentReaderAuthority2(trust2, B3.authority.chain),
@@ -140008,7 +140192,7 @@ async function managementCall(B3, a, op3, { opts, runner, repeat } = {}) {
   const signer = async ({ method, hostPath, body: body2 }) => {
     if (header2) return header2;
     const ts3 = Math.floor(Date.now() / 1e3), n = randomBytes9(12).toString("base64url");
-    prepared = { method, hostPath, bodySha256: sha256Hex3(body2), ts: ts3, n, vault, sid, message: apiMessage3(method, hostPath, sha256Hex3(body2), ts3, n, vault, sid) };
+    prepared = { method, hostPath, bodySha256: sha256Hex4(body2), ts: ts3, n, vault, sid, message: apiMessage3(method, hostPath, sha256Hex4(body2), ts3, n, vault, sid) };
     throw new IndependentError("unsigned", "prepared");
   };
   fs16.mkdirSync(path10.join(cfg.stateDir, "management"), { recursive: true, mode: 448 });
@@ -140106,10 +140290,10 @@ function p256Verify(pk, digest, sig) {
   const key2 = createPublicKey8({ key: { kty: "EC", crv: "P-256", x: Buffer.from(pk.x.slice(2), "hex").toString("base64url"), y: Buffer.from(pk.y.slice(2), "hex").toString("base64url") }, format: "jwk" });
   return verifyBytes2("sha256", Buffer.from(digest.slice(2), "hex"), { key: key2, dsaEncoding: "ieee-p1363" }, Buffer.concat([Buffer.from(sig.r.slice(2), "hex"), Buffer.from(sig.s.slice(2), "hex")]));
 }
-async function simulate(B3, { from: from33 = ZERO3, to: to4, data, value = 0n }) {
+async function simulate(B3, { from: from33 = ZERO3, to: to4, data: data2, value = 0n }) {
   return currentScope().agree(async (c, blockNumber) => {
     try {
-      await c.call({ account: from33 === ZERO3 ? void 0 : from33, to: to4, data, value, blockNumber });
+      await c.call({ account: from33 === ZERO3 ? void 0 : from33, to: to4, data: data2, value, blockNumber });
       return { ok: true };
     } catch (e) {
       for (let x = e, i = 0; x && i < 8; x = x.cause, i++) if (x.name === "ContractFunctionRevertedError" || x.name === "ExecutionRevertedError" || x.name === "CallExecutionError" && /revert/i.test(x.shortMessage || "")) return { revert: String(x.reason || x.shortMessage || "reverted").slice(0, 200) };
@@ -140379,8 +140563,8 @@ var overrides = {
       const td3 = S7.typedData(CHAIN_ID2, vault2, "SessionGrant", req.grant);
       if (!await verifyTypedData2({ ...td3, address: owner, signature: a.ownerSignature }))
         throw new IndependentError("grant", `ownerSignature is not ${owner}'s SessionGrant signature over exactly this grant for vault ${vault2}`);
-      const data = encodeFunctionData2({ abi: S7.sessionVaultFactoryAbi, functionName: "openFor", args: [owner, req.grant, a.ownerSignature] });
-      const sim = await simulate(B3, { to: b7.factory, data });
+      const data2 = encodeFunctionData2({ abi: S7.sessionVaultFactoryAbi, functionName: "openFor", args: [owner, req.grant, a.ownerSignature] });
+      const sim = await simulate(B3, { to: b7.factory, data: data2 });
       if (sim.revert !== void 0) throw new IndependentError("grant", `the factory would refuse this open at the agreed block (${sim.revert})`);
       const sid2 = S7.sessionIdOf(vault2, req.grant.sessionKey, req.grant.grantNonce);
       const { unsignedTx } = await M();
@@ -140388,7 +140572,7 @@ var overrides = {
         vault: vault2,
         sid: sid2,
         owner,
-        transactions: [unsignedTx(b7.factory, data, 0n, `SessionVaultFactory.openFor(${owner.slice(0, 10)}\u2026, grant ${keyHashOf3(pk2).slice(2, 10).toUpperCase()})`)],
+        transactions: [unsignedTx(b7.factory, data2, 0n, `SessionVaultFactory.openFor(${owner.slice(0, 10)}\u2026, grant ${keyHashOf3(pk2).slice(2, 10).toUpperCase()})`)],
         next: `any gas payer sends it (the grant cannot be altered or redirected); then session_status { publicKey } shows the live session ${sid2}`
       };
     }
@@ -140457,16 +140641,16 @@ var overrides = {
       const sig = sessionSignature2(c.signature);
       const digest = sessionCallDigest2({ vault, sid, nonce: BigInt(c.nonce), action: Number(c.action), args: c.args, fee: BigInt(c.fee), deadline: BigInt(c.deadline) });
       if (!p256Verify(pk, digest, sig)) throw new IndependentError("signature", `call ${i} (${ACTION_NAME2[c.action] ?? c.action}): the signature is not this session key's over that call's digest`);
-      const data = encodeFunctionData2({
+      const data2 = encodeFunctionData2({
         abi: S7.sessionVaultAbi,
         functionName: "execute",
         args: [sid, BigInt(c.nonce), Number(c.action), c.args, BigInt(c.fee), BigInt(c.deadline), BigInt(pk.x), BigInt(pk.y), sig.r, sig.s]
       });
       if (i === 0) {
-        const sim = await simulate(B3, { to: vault, data });
+        const sim = await simulate(B3, { to: vault, data: data2 });
         if (sim.revert !== void 0) throw new IndependentError("simulation", `call 0 (${ACTION_NAME2[c.action] ?? c.action}) would revert at the agreed block: ${sim.revert}; nothing to send`);
       }
-      txs.push(unsignedTx(vault, data, 0n, `SessionVault.execute(${ACTION_NAME2[c.action] ?? c.action}, nonce ${c.nonce})`));
+      txs.push(unsignedTx(vault, data2, 0n, `SessionVault.execute(${ACTION_NAME2[c.action] ?? c.action}, nonce ${c.nonce})`));
     }
     return {
       transactions: txs,
@@ -140501,11 +140685,11 @@ var overrides = {
     const pk = sessionPublicKey2(a.publicKey), sig = sessionSignature2(a.signature);
     const ss3 = await sessionAt(B3, vault, sid);
     if (lc14(keyHashOf3(pk)) !== lc14(ss3.session.keyHash)) throw new IndependentError("session", "publicKey is not this session's key");
-    const data = encodeFunctionData2({ abi: S7.sessionVaultAbi, functionName: "terminateBySession", args: [sid, BigInt(a.deadline), BigInt(pk.x), BigInt(pk.y), sig.r, sig.s] });
-    const sim = await simulate(B3, { to: vault, data });
+    const data2 = encodeFunctionData2({ abi: S7.sessionVaultAbi, functionName: "terminateBySession", args: [sid, BigInt(a.deadline), BigInt(pk.x), BigInt(pk.y), sig.r, sig.s] });
+    const sim = await simulate(B3, { to: vault, data: data2 });
     if (sim.revert !== void 0) throw new IndependentError("simulation", `the vault would refuse this termination at the agreed block: ${sim.revert}`);
     return {
-      transactions: [unsignedTx(vault, data, 0n, "SessionVault.terminateBySession (the session key ends itself)")],
+      transactions: [unsignedTx(vault, data2, 0n, "SessionVault.terminateBySession (the session key ends itself)")],
       vault,
       sid,
       refund: `${usd(ss3.session.balance6)} returns to the owner's vault`,

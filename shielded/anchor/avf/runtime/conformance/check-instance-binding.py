@@ -118,22 +118,24 @@ for label, phase, kind in CALLS:
     elif label == "other-a": link = bool(nonce)   # a refusal carries no verified nonce: the exchange mapping is the link
     else: link = bool(nonce) and ver.get("nonce") == nonce[:16]
     expect(link, f"{label}: the exchange's nonce is the one this call used ({(nonce or '')[:16]} vs {(en or {}).get('nonce', '')[:16] if label == 'enroll-a' else ver.get('nonce')})")
-    jobs.append({"key": label, "nonce": nonce, "file": base + ".json"}); want[label] = (phase, kind, ver.get("key"))
+    jobs.append({"key": label, "nonce": nonce, "file": base + ".json", "at": r.get("utcEnd")}); want[label] = (phase, kind, ver.get("key"))
 # the enrollment record's OWN envelope, over its own nonce -- never its fields
 if en and isinstance(en.get("envelope"), dict) and isinstance(en.get("nonce"), str):
     rec = os.path.join(d, ".enroll-envelope.check.json")
     with open(rec, "w") as f: json.dump(en["envelope"], f)
-    jobs.append({"key": "enroll-record", "nonce": en["nonce"], "file": rec})
+    jobs.append({"key": "enroll-record", "nonce": en["nonce"], "file": rec, "at": en.get("at")})
 
 script = r"""
 import fs from "node:fs";
+const captureTime = value => { const time = Date.parse(value); if (!Number.isFinite(time)) throw new Error("invalid capture timestamp"); return time; };
+
 const { verifyPvmAppEvidence } = await import(process.argv[1] + "/relay/pvm-app-attest.mjs");
 const [jobs, pins] = [JSON.parse(process.argv[2]), JSON.parse(process.argv[3])];
 for (const j of jobs) {
   let raw, env;
   try { raw = fs.readFileSync(j.file, "utf8"); env = JSON.parse(raw); } catch (e) { console.log(JSON.stringify({ key: j.key, ok: false, why: "unreadable: " + e.message })); continue; }
   const v = /^[0-9a-f]{64}$/.test(j.nonce || "") ? verifyPvmAppEvidence(env, { nonce: j.nonce, appId: pins.app, allowedRuntimeIds: pins.runtimeIds,
-      allowedCodeHashes: pins.codeHashes, allowedAuthorityHashes: pins.authorityHashes, rootPins: pins.rootPins }) : { ok: false, reasons: ["no nonce"] };
+      allowedCodeHashes: pins.codeHashes, allowedAuthorityHashes: pins.authorityHashes, rootPins: pins.rootPins, now: captureTime(j.at) }) : { ok: false, reasons: ["no nonce"] };
   console.log(JSON.stringify({ key: j.key, ok: v.ok, why: v.reasons.at(-1), format: env.format, instanceId: v.instanceId || null, spki: env.spki || null, canon: JSON.stringify(env) }));
 }"""
 out = subprocess.run(["node", "--input-type=module", "-e", script, REPO, json.dumps(jobs), json.dumps(pins)], capture_output=True, text=True, cwd=REPO)

@@ -51,7 +51,7 @@ test("credit: card top-up lands on-chain; one passkey tap deploys from it; dashb
   await page.locator("#walletBtn").dispatchEvent("click");
   await expect(page.locator("#wpBalCredit")).toContainText("$20.00");
   await page.keyboard.press("Escape");
-  const row = page.locator("c-deployments .enc-row", { hasText: "Vault test app" });
+  const row = page.locator("c-deployments .enc-row", { hasText: "vault-app:1.0.0" });
   // relay ledger cache (10s TTL) + the panel's 10s poll: allow a full cycle.
   // "queued": funded on-chain, no live enclave claims in e2e
   await expect(row).toContainText("queued", { timeout: 30_000 });

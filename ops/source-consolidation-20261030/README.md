@@ -108,3 +108,18 @@ missing inputs; source CI does not claim to qualify those external artifacts.
 The PostgreSQL 18/indexd lifecycle test runs via `npm run test:storage-qualification`
 with the reviewed `STORAGE_PACKAGE_TARBALL`. Missing package input fails that
 command. It is not counted as source-only CI coverage.
+
+## Generated source and historical evidence
+
+`generated-source.json` records the CI source revision, artifact and hashes for
+regenerated contract ABI, browser assets, verifier and guest bundles. The build
+job regenerates the verifier before copying it into the site. Guest bundle
+manifests retain the hashes of their actual source inputs.
+
+Archived pVM conformance runs verify certificates at each recorded capture time;
+missing timestamps and expired-at-capture evidence fail. Live attestation keeps
+wall-clock expiry. The historical replay checks do not qualify a live device.
+The focused Windows lifecycle batch passed 116 tests; six historical pVM checkers
+passed independently. Native source, contract, network and full site/guest bundle
+CI jobs passed before the final browser and historical fixture reconciliation.
+Final merge status is recorded by PR 8's checks, not inferred from these partial runs.

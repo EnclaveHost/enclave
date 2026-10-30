@@ -93,12 +93,12 @@ test("the relay module routes a deployment by its ledger runner to that runner's
     assert.equal(r2.step, "verify"); assert.equal(ev(vm2), 1, "the new runner's VM answered the fresh nonce"); assert.equal(ev(vm1), 1);
     // raw HTTP: a prefix id, another method, an oversized evidence request, sealed to a tunnel whose app the hub did not verify
     assert.equal((await raw(port, "POST", "/x/0xd1d1d1d1/pvm/evidence", "EVIDENCE x\n")).status, 404, "a prefix never resolves");
-    assert.equal((await raw(port, "GET", `/x/${D1}/pvm/evidence`)).status, 405);
+    assert.equal((await raw(port, "GET", `/x/${D1}/pvm/evidence`)).status, 404, "non-POST falls through to the ordinary server route");
     assert.equal((await raw(port, "POST", `/x/${D1}/pvm/evidence`, "E".repeat(300))).status, 413);
     const noapp = await raw(port, "POST", `/x/${D4}/pvm/sealed`, "x");
     assert.equal(noapp.status, 404); assert.equal(noapp.body, "", "a plain status, no body a client could mistake for an envelope");
     // the per-deployment rate (4 a minute here): D1 has used 3 -- two runs and the oversized request (the rate is checked
-    // before the body is read; the 405 is refused before the rate) -- so one more passes and the next is 429
+    // before the body is read; the non-POST falls through before the rate) -- so one more passes and the next is 429
     await raw(port, "POST", `/x/${D1}/pvm/evidence`, "EVIDENCE " + "ab".repeat(32) + "\n"); await raw(port, "POST", `/x/${D1}/pvm/evidence`, "EVIDENCE " + "cd".repeat(32) + "\n");
     const limited = (await run(D1)).result;
     // the lab web carrier (cpu/web-carrier.mjs) answers an oversized request with its status too, not a reset

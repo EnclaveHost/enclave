@@ -27,6 +27,7 @@ const { verifyAvfEvidence } = await import(path.join(REPO, "relay/avf-verify.mjs
 const { avfPadBinding, AVF_PAD_FORMAT } = await import(path.join(REPO, "relay/avf-binding.mjs"));
 const V = await import("viem");
 const d = path.resolve(process.argv[2] || ".");
+const captureTime = value => { const time = Date.parse(value); if (!Number.isFinite(time)) throw new Error("invalid capture timestamp"); return time; };
 const fails = [];
 const expect = (ok, what) => { console.log((ok ? "ok   " : "FAIL ") + what); if (!ok) fails.push(what); };
 const rd = (f) => { try { return fs.readFileSync(path.join(d, f), "utf8"); } catch { return null; } };
@@ -69,7 +70,7 @@ for (const x of okOwner) {
     const q = x.request, nonce = Buffer.from(q.nonce, "base64"), spki = Buffer.from(q.rad.transportKey, "base64"), Bt = avfPadBinding(spki, q.rad.padKey, nonce);
     const ev = JSON.parse(Buffer.from(q.rad.body, "base64").toString("utf8"));
     const v = verifyAvfEvidence({ chain: ev.chain.map((c) => Buffer.from(c, "base64")), challenge: createHash("sha256").update(Bt).digest(), signature: Buffer.from(ev.signature, "base64"), signedMessage: Bt },
-                                { allowedCodeHashes: [run.code], allowedAuthorityHashes: [run.authority], rootPins: run.googleRootPins, now: Date.parse(x.utc) });
+                                { allowedCodeHashes: [run.code], allowedAuthorityHashes: [run.authority], rootPins: run.googleRootPins, now: captureTime(x.utc) });
     const iid = sha(Buffer.from(q.instanceKey, "hex"));
     const iok = cryptoVerify(null, Buffer.concat([Buffer.from(DOMAIN), Bt]), createPublicKey({ key: Buffer.from(q.instanceKey, "hex"), format: "der", type: "spki" }), Buffer.from(q.instanceSig, "hex"));
     const msg = `enclave-tunnel-attach:${NAME}:${nonce.toString("base64")}`, signer = (await V.recoverMessageAddress({ message: msg, signature: x.verdict.operatorSig })).toLowerCase();
@@ -95,7 +96,7 @@ const statements = pk.filter((x) => !isRefusal(x)), refusals = pk.filter(isRefus
 let sOk = 0; const key = B.a.proofKey;
 for (const x of statements) {
   const v = verifyPvmProofKey(first(x.answer), { nonce: x.request.slice(9), appId: run.app, allowedRuntimeIds: [run.runtimeId], allowedCodeHashes: [run.code], allowedAuthorityHashes: [run.authority],
-    rootPins: run.googleRootPins, instanceIds: [OWNER], deployment: D });
+    rootPins: run.googleRootPins, now: captureTime(x.utcEnd), instanceIds: [OWNER], deployment: D });
   if (v.ok && v.claims.proofKey === key && v.claims.codeHash === run.code && ["chainId", "proofOfTime", "registry", "deployment", "enclaveId", "operator"].every((k) => v.claims[k] === pins[k])) sOk++;
 }
 expect(statements.length >= 2 && sOk === statements.length, `statements: all ${statements.length} re-verify over their own nonces (the owner's instance, this deployment, codeHash = the lab build)`);

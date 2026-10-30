@@ -19,6 +19,7 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const { verifyPvmProofKey } = await import(path.join(REPO, "relay/pvm-app-attest.mjs"));
 const { verifyPvmCheckpoint } = await import(path.join(REPO, "relay/pvm-checkpoint.mjs"));
 const d = path.resolve(process.argv[2] || ".");
+const captureTime = value => { const time = Date.parse(value); if (!Number.isFinite(time)) throw new Error("invalid capture timestamp"); return time; };
 const fails = [];
 const expect = (ok, what) => { console.log((ok ? "ok   " : "FAIL ") + what); if (!ok) fails.push(what); };
 const rd = (f) => { try { return fs.readFileSync(path.join(d, f), "utf8"); } catch { return null; } };
@@ -52,7 +53,7 @@ const ROOTS = run?.googleRootPins || [], CODE = run?.code, AUTH = run?.authority
 const verifyStatement = (label, phase) => {
   const nonce = nonceOf(label);
   const v = nonce ? verifyPvmProofKey(call(label).answer, { nonce, appId: run?.app, allowedRuntimeIds: [RID], allowedCodeHashes: [CODE], allowedAuthorityHashes: [AUTH],
-                                                           rootPins: ROOTS, instanceIds: [VM[phase].instance], deployment: run?.pins?.deployment }) : { ok: false, reasons: ["no nonce"] };
+                                                           rootPins: ROOTS, now: captureTime(call(label).utcEnd), instanceIds: [VM[phase].instance], deployment: run?.pins?.deployment }) : { ok: false, reasons: ["no nonce"] };
   const pinsOk = v.ok && ["chainId", "proofOfTime", "registry", "deployment", "enclaveId", "operator"].every((k) => v.claims[k] === run.pins[k]);
   expect(v.ok && pinsOk && v.claims.proofKey === VM[phase].proofKey,
          `${label}: re-verifies over its own nonce (Google's roots, the build, deployment, boot ${phase.toUpperCase()}'s instance), names the run's pins, and attests the proof key the VM logged${v.ok ? "" : ` -- ${v.reasons.at(-1)}`}`);

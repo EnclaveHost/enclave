@@ -23,6 +23,7 @@ const { verifyPvmProofKey } = await import(path.join(REPO, "relay/pvm-app-attest
 const { verifyPvmCheckpoint } = await import(path.join(REPO, "relay/pvm-checkpoint.mjs"));
 const V = await import(path.join(REPO, "node_modules/viem/_esm/index.js")).catch(() => import("viem"));
 const d = path.resolve(process.argv[2] || ".");
+const captureTime = value => { const time = Date.parse(value); if (!Number.isFinite(time)) throw new Error("invalid capture timestamp"); return time; };
 const fails = [];
 const expect = (ok, what) => { console.log((ok ? "ok   " : "FAIL ") + what); if (!ok) fails.push(what); };
 const rd = (f) => { try { return fs.readFileSync(path.join(d, f), "utf8"); } catch { return null; } };
@@ -65,6 +66,7 @@ expect(replayed.length === 1 && replayed[0].step === "replay" && replayed[0].mod
        && px.some((y) => y.n < replayed[0].n && y.answer === replayed[0].handed) && replayed[0].handed !== replayed[0].answer,
        "replay: exactly one answer was swapped, in the replay step, for an EARLIER genuine answer (not the VM's answer to that request)");
 
+// Historical evidence is checked at its recorded capture time; live verifiers still use wall-clock expiry.
 // ---- statements ----
 const firstLine = (s) => { try { return JSON.parse(String(s).split("\n")[0]); } catch { return null; } };
 const statements = px.filter((x) => x.request.startsWith("PROOFKEY "));
@@ -72,7 +74,7 @@ let key = null; const spkis = {};
 for (const x of statements) {
   const nonce = x.request.slice(9), doc = firstLine(handed(x));
   const v = verifyPvmProofKey(doc, { nonce, appId: run.app, allowedRuntimeIds: [run.runtimeId], allowedCodeHashes: [run.code], allowedAuthorityHashes: [run.authority],
-                                     rootPins: run.googleRootPins, instanceIds: [A.instance], deployment: D });
+                                     rootPins: run.googleRootPins, now: captureTime(x.utcEnd), instanceIds: [A.instance], deployment: D });
   const same = v.ok && ["chainId", "proofOfTime", "registry", "deployment", "enclaveId", "operator"].every((k) => v.claims[k] === pins[k]);
   expect(v.ok && same && v.claims.proofKey === A.proofKey, `statement ${x.n} (${x.step}): re-verifies over its own nonce, names the run's pins, attests the key the VM logged${v.ok ? "" : ` -- ${v.reasons.at(-1)}`}`);
   if (v.ok) { key = v.claims.proofKey; (spkis[x.step === "start-b" ? "b" : "a"] = spkis[x.step === "start-b" ? "b" : "a"] || new Set()).add(doc.evidence.spki); }

@@ -1,0 +1,19 @@
+{
+  "sourceCommit": "9f6e3ef5d",
+  "buildRun": "https://github.com/EnclaveHost/enclave/actions/runs/41047023595",
+  "artifact": "generated-site-source",
+  "browserVendor": "Exact copy of the generated verifier/web/dist/enclave-verifier-web.js; verified against its manifest",
+  "sha256": {
+    "contracts/EnclaveDeployments.abi.json": "1e9ac8aa04a284bfeb6cefc4265be2825758190da709a60cd564e670a7e85b96",
+    "site/js/gen/contract-artifacts.js": "63788ead906500b0b4945cf56598f86dbc7e2f8bc117188ae1d786cf6eb7e577",
+    "site/css/site.css": "a6575ec54be966d66281bebfb504a9d00a7d591899d37b0b0b3b1c2f258c26b9",
+    "metal/guest/mcp-server.bundle.mjs": "74db9867fd5706987d2a2ed13ed886b659b0d9980ff934731328159bcfe8bd21",
+    "metal/guest/mcp-server.bundle.mjs.manifest.json": "d6908379809ef61afd61ad51056d061328727d5917a1adc9ca192474379af4b7",
+    "metal/guest/platform-api.bundle.mjs": "a063cdcde65f4e51391b6b381577572449685de00d5cbb54c152788adc0984b0",
+    "metal/guest/platform-api.bundle.mjs.manifest.json": "6a34f0233f3051b1be4a77d631e4ef17063ef589cd5d3072118c9b8e6a57e123",
+    "verifier/web/dist/MANIFEST.json": "c23d49367b554e6aa98169faaa30c4db1517fd9b4bbb60344ea3ff620a167aeb",
+    "verifier/web/dist/enclave-verifier-web.js": "e861049a41fcc42f6b3449c9878b269e9a2137a47c82b7550037a77b6db0e8c8",
+    "verifier/web/dist/THIRD-PARTY-NOTICES.md": "07c5bd09393542608981d6685c4ebc9ccdc4357cb3fd1d5dd227b7aa76d89b1e",
+    "site/vendor/enclave-verifier.js": "e861049a41fcc42f6b3449c9878b269e9a2137a47c82b7550037a77b6db0e8c8"
+  }
+}

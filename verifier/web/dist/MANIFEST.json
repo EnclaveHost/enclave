@@ -1,8 +1,8 @@
 {
  "artifact": {
   "file": "enclave-verifier-web.js",
-  "bytes": 281968,
-  "sha256": "77a10569e96d31e844f66580a2e1341e3bf7f2cf731e9e65daa489146fced892"
+  "bytes": 283819,
+  "sha256": "e861049a41fcc42f6b3449c9878b269e9a2137a47c82b7550037a77b6db0e8c8"
  },
  "build": {
   "tool": "esbuild",
@@ -397,6 +397,11 @@
    "sha256": "4d6130154e61f994898df5b869f9d4e332eb2b437204a5c631c1ac53e9978f70"
   },
   {
+   "path": "relay/vbs-image-identity.mjs",
+   "bytes": 1637,
+   "sha256": "5ffd3ba2eb21f312dd0a21bd0a6277ae290e8bd42b9ec05c53436d3a3bd36090"
+  },
+  {
    "path": "relay/vbs-tcglog-core.mjs",
    "bytes": 13766,
    "sha256": "936fc2ccc116154b6936d16a05fa89774a8f68a6dcb36b2733b064d4f2425912"
@@ -408,8 +413,8 @@
   },
   {
    "path": "relay/vbs-vm-report-core.mjs",
-   "bytes": 5972,
-   "sha256": "5c0fca2992494d985c6ac83d44c6a185e71ac83d0b9c232320da77db9609e314"
+   "bytes": 6676,
+   "sha256": "e2d6301bc59b4c4e59f85a50a27c2d88264fad6587b322d1d82ef19359ecbfc7"
   },
   {
    "path": "verifier/der.mjs",
@@ -468,8 +473,8 @@
   },
   {
    "path": "verifier/web/shield-app.mjs",
-   "bytes": 21290,
-   "sha256": "ba6af3eca4ae4b87d8ae9b4aaaa7d53881548d8745e3f57bdc93327afdce1434"
+   "bytes": 22295,
+   "sha256": "eb885d3bbf94e0e61e38b379dc5b38a5a7ba1031067aabfadf170c9c30f234ed"
   },
   {
    "path": "verifier/web/shield-host.mjs",

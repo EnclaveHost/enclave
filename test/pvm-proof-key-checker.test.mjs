@@ -34,6 +34,8 @@ function check(mutate) {
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 const CASES = [
+  ["a missing capture timestamp", (d) => { const rows = lines(d, "calls.jsonl"); delete rows.find(x => x.label === "statement-a").utcEnd; write(d, "calls.jsonl", rows); }, /invalid capture timestamp/],
+  ["a capture time after certificate expiry", (d) => { const rows = lines(d, "calls.jsonl"); rows.find(x => x.label === "statement-a").utcEnd = "2099-01-01T00:00:00Z"; write(d, "calls.jsonl", rows); }, /FAIL statement-a: re-verifies/],
   ["a checkpoint's recorded exchange deleted", (d) => { for (const x of ["json", "request", "meta.json"]) fs.rmSync(ev(d, 5, x), { force: true }); },
    /FAIL coverage: the carrier recorded exactly 8 exchanges|FAIL checkpoint-a2: exchange 005/],
   ["a call removed from the plan's record", (d) => write(d, "calls.jsonl", lines(d, "calls.jsonl").filter((c) => c.label !== "checkpoint-a2")), /FAIL coverage: checkpoint-a2 is recorded once/],

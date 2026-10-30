@@ -163,10 +163,10 @@ jobs:
           node relay/build-network.mjs
       - name: Build the complete hosted site and guest source bundles
         run: |
+          node verifier/web/build.mjs
           npm run build:site
           node scripts/build-mcp-guest-bundle.mjs
           node scripts/build-platform-api-guest-bundle.mjs
-          node verifier/web/build.mjs
       - name: Retain generated source for reproducible synchronization
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -177,7 +177,9 @@ jobs:
             site/css/site.css
             metal/guest/mcp-server.bundle.mjs*
             metal/guest/platform-api.bundle.mjs*
+            relay/network-runtime.bundle.mjs
             verifier/web/dist/
+            site/vendor/enclave-verifier.js
           retention-days: 7
 
   native-source:

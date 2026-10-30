@@ -22,6 +22,7 @@ const { verifyPvmProofKey } = await import(path.join(REPO, "relay/pvm-app-attest
 const { verifyPvmCheckpoint } = await import(path.join(REPO, "relay/pvm-checkpoint.mjs"));
 const V = await import("viem");
 const d = path.resolve(process.argv[2] || ".");
+const captureTime = value => { const time = Date.parse(value); if (!Number.isFinite(time)) throw new Error("invalid capture timestamp"); return time; };
 const fails = [];
 const expect = (ok, what) => { console.log((ok ? "ok   " : "FAIL ") + what); if (!ok) fails.push(what); };
 const rd = (f) => { try { return fs.readFileSync(path.join(d, f), "utf8"); } catch { return null; } };
@@ -65,7 +66,7 @@ const first = (s) => { try { return JSON.parse(String(s).split("\n")[0]); } catc
 let sOk = 0; const sts = px.filter((x) => x.request.startsWith("PROOFKEY "));
 for (const x of sts) {
   const v = verifyPvmProofKey(first(x.answer), { nonce: x.request.slice(9), appId: run.app, allowedRuntimeIds: [run.runtimeId], allowedCodeHashes: [run.code], allowedAuthorityHashes: [run.authority],
-                                                  rootPins: run.googleRootPins, instanceIds: [VM.instance], deployment: D });
+                                                  rootPins: run.googleRootPins, now: captureTime(x.utcEnd), instanceIds: [VM.instance], deployment: D });
   if (v.ok && v.claims.proofKey === VM.proofKey && ["chainId", "proofOfTime", "registry", "deployment", "enclaveId", "operator"].every((k) => v.claims[k] === pins[k])) sOk++;
 }
 expect(sts.length >= 3 && sOk === sts.length, `statements: all ${sts.length} re-verify over their own nonces, for this lease, attesting the key the VM logged (${sOk})`);
