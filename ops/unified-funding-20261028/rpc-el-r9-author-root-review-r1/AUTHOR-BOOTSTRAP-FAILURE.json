@@ -1,0 +1,22 @@
+{
+  "at": 1793384549.2897313,
+  "invocation": "460444a32f75453ca9ed9f3564c8780d",
+  "terminalExit": 1,
+  "failure": "actual scope CPU/cpuset limit not applied",
+  "phase": "outer bootstrap before outer-launch marker and shared queue",
+  "packageDrift": [],
+  "readonlyDrift": [],
+  "candidateDrift": [],
+  "absentArtifacts": [
+    "outer-launch.json",
+    "attempt.json",
+    "started.json",
+    "queue-scope-binding.json",
+    "account-verification.json",
+    "claude.out",
+    "finished.json"
+  ],
+  "currentDelegatedControllers": "cpu memory pids",
+  "limitations": "Collected unit lost kernel values; exact failed predicate values were not retained. Current delegation lacks cpuset. No author work or native execution; no collector run; no retry.",
+  "journal": "Oct 30 11:18:00 warden-host systemd[1899]: Started [systemd-run] /usr/bin/taskset -c 1 /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-23/it/work/rpc-el-r9-sourceonly-author-prep-20261030-r3/outer-launch.py.\nOct 30 11:18:00 warden-host taskset[2978320]: actual scope CPU/cpuset limit not applied\nOct 30 11:18:00 warden-host systemd[1899]: enclave-rpc-el-r9-sourceonly-author-20261030-r3.service: Main process exited, code=exited, status=1/FAILURE\nOct 30 11:18:00 warden-host systemd[1899]: enclave-rpc-el-r9-sourceonly-author-20261030-r3.service: Failed with result 'exit-code'.\n"
+}

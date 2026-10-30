@@ -1,0 +1,26 @@
+{
+  "at": 1793384280.4222605,
+  "rc": 0,
+  "stdout": "",
+  "stderr": "Running as unit: enclave-rpc-el-r9-sourceonly-author-20261030-r3.service; invocation ID: 460444a32f75453ca9ed9f3564c8780d\n",
+  "approval": {
+    "at": 1793384280.416792,
+    "scope": "el-r9-sourceonly-author",
+    "launchAuthorized": true,
+    "queueScopeResourceMutationAuthorized": true,
+    "preparedSha256": "38ce9f9dc0e896d46252fc869a4cbb26055f708188cb89be36cc67eea8313f66",
+    "rootPreflightSha256": "92472eac745241b9d7044c24e8661cc2c958752848386eee3c1d91dee004b1a1",
+    "nanTerminalVerified": true,
+    "nanInvocation": "a3a3381868dc484cb4056f6bf32d28a0",
+    "availableMiB": 30241,
+    "requiredAvailableMiB": 29568,
+    "outerHardMiB": 128,
+    "scopeHardMiB": 1536,
+    "rssMiB": 1408,
+    "floorMiB": 27648,
+    "CPU": [
+      1
+    ],
+    "swap": 0
+  }
+}
