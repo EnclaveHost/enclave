@@ -106,11 +106,12 @@ static partial class Harness {
     }
     static int Main(string[] args) {
         try {
+            if (args.Length==5 && args[0]=="system-probe") return SystemProbe(args[1],args[2],Int64.Parse(args[3]),Int64.Parse(args[4]));
             if (args.Length==6 && args[0]=="observed-owner") return OwnerRole(args[1],args[2],args[3],Int64.Parse(args[4]),Int64.Parse(args[5]));
             if (args.Length==6 && args[0]=="owner-observer") return ObserverRole(args[1],args[2],args[3],Int64.Parse(args[4]),Int64.Parse(args[5]));
             if (args.Length==3 && args[0]=="helper") return Helper(args[1],args[2]);
             if (args.Length==2 && args[0]=="supervisor") { Run("sleep",args[1],4000); return 0; }
-            if (args.Length!=1) return 98;
+            if (args.Length!=2) return 98;
             var envelope=BoundedWorker.EnterSupervisorEnvelope(256UL*1024*1024);
             Check("supervisor-envelope-readback",envelope.ProcessId>0 && envelope.CreationFileTime>0 &&
                 envelope.MembershipVerified && envelope.LimitsVerified &&
@@ -235,6 +236,7 @@ static partial class Harness {
             var invalidObserverClock=Run("invalid-observer-clock",Path.Combine(dir,"invalid-observer-clock"),3000);
             Check("observer-overflow-clock-refused",Dead(invalidObserverClock) && invalidObserverClock.ExitCode==74 && !invalidObserverClock.TimedOut,invalidObserverClock);
             foreach(string mode in new[]{"normal","wrong-identity","late-bind","loss-before","loss-during","blocked-callback"}) ObserverCase(dir,mode);
+            SystemCases(Path.GetFullPath(args[1]));
             return 0;
         } catch (Exception error) { Console.Error.WriteLine(error.GetType().Name+": "+error.Message); return 1; }
     }

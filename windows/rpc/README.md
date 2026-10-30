@@ -163,3 +163,39 @@ The blocked callback was terminated by the original2500ms observer deadline
 (all exact handles signaled by2513ms), before its natural5000ms return. These
 are actual hosted process-death observations, not SYSTEM target admission or
 provider-operation settlement.
+
+
+## Protected SYSTEM inert entry candidate
+
+`InertEntry.cs` is an explicit, finite SYSTEM-only entry point for `owner`,
+`observer`, and the inert child. It has no provider/VM/network/DB operation or
+arbitrary command argument. Original CLI monotonic timing is validated and an
+independent process deadline thread is armed before filesystem or native boot
+queries; the immutable contract must contain the same origin/deadline. The
+qualification window is at most30s with a5s bootstrap cutoff, not permission to
+extend the900s RPC startup policy. SYSTEM primary identity is mandatory.
+
+`ProtectedAttempt.cs` holds every existing ancestor without delete sharing,
+refuses reparse points and foreign owner/ACL mutation rights, and requires a
+protected SYSTEM/Administrators leaf and file DACL. TrustedInstaller is accepted
+only for OS ancestors. Contract and executable are opened read-only with write/
+delete sharing denied, bounded and hashed. The fixed UTF-8 line contract binds
+nonce, actual native boot GUID, original clock and executable hash to inert-v1.
+The boot-query class/layout fails closed on unsupported Windows; it still needs
+qualification on the actual target. No synthetic boot identity is accepted here.
+
+Each role consumes its own durable CreateNew record before work. An explicit
+protected `admit` message keeps both roles gated until the controller admits the
+attempt. Messages are at most4096bytes, flushed and atomically renamed without
+replacement; pending files or prior final records prevent replay. Published
+incarnations are re-opened, file-ID checked and held read-only. This is not a
+provider start journal or a proof of filesystem power-loss durability.
+
+The observer validates the peer's held process incarnation, SYSTEM token and
+pinned image path before owner-job assignment. Existing child binding/observer
+loss behavior is reused. The entry executable never registers its own task or
+admits current host resources. Hosted CI adds exact separate SYSTEM tasks and
+negative hash/boot/ACL/write/rename/replay fixtures. Task state and LastTaskResult
+are diagnostics only; PASS requires held process handles and explicit results.
+No target task, namespace, current physical/pending admission or VM is qualified
+by source or hosted results alone.
