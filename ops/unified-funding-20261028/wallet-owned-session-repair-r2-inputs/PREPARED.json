@@ -1,0 +1,56 @@
+{
+  "status": "PREPARED_NOT_LAUNCHED",
+  "priority": "ROOT_REVIEW_PENDING_NO_LAUNCH",
+  "seedEntries": 227,
+  "readonlyInputPins": 772,
+  "freshSession": true,
+  "sourceTools": [
+    "Read",
+    "Grep",
+    "Write",
+    "Edit"
+  ],
+  "turnLimit": 55,
+  "childTimeoutSec": 1800,
+  "outerTimeoutSec": 2100,
+  "queueMiB": 1536,
+  "hardMemoryMiB": 1536,
+  "rssMiB": 1408,
+  "availableMemoryFloorMiB": 27648,
+  "cpuIndex": 1,
+  "cpus": 1,
+  "swapMiB": 0,
+  "persistentTmpdir": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-owned-session-repair-r2-20261029/owned-tmp",
+  "claudeExecutable": {
+    "path": "/home/steven/.local/share/claude/versions/2.1.281",
+    "sha256": "56fe3da88458465fb27d7e9299dddb3fead55750fb9c2de795f233b5eea6dce1"
+  },
+  "hashes": {
+    "PLAN.md": "2751f7a5ce3b7e2e3e12d05a40d3802bf1ac5223530599051cd1d31a6aed2eed",
+    "REVIEW-STATUS.txt": "c0f39946e0f37c5434d30fbc08b24d25545e842d6dc88c3a88cdc3743bb4d3b5",
+    "TASK.txt": "55f90489311a475c9d0ad4131323c42f1c90871d68f734b3ac163986a2fb38c5",
+    "THIN-CONTRACT-TEST-PLAN.md": "d1bcece74603a1f76580917e11a0a01f94bd51c09061e57ad31c7fdcc68de98a",
+    "account-requirements.json": "f7f904f166ddbb3f4c8a0c039b4a520d42823408422fbc2bc8f2861553466d34",
+    "allowed-edit-paths.json": "7ae6bf7457c04ef0afa4027c1bdcf58628d8659601e7caffbe4b70f0e7e97e99",
+    "collect-terminal.py": "c0a16176148b0e3abb0acd6fcb10f3aca56257246298653c53183396ac4504c5",
+    "dependency-closure.json": "cafc835975745ec672401ece7bec973d0248a5e557fe05b3a2c5f5b10909b30a",
+    "finalize-source.py": "7ae5dfd48a9efc99bbd6390201fd319aeb7603252d8fd1621362c82f5521ac77",
+    "input-pins.json": "ebef5cc29274e63f6ba06906e603470caba97078d5c66724c21ded46fc187376",
+    "launch-command.txt": "df9da1d9a9186ae0495dcfd5729c0aab0235fbcdf0c8ecb35b61d9438905cdc9",
+    "preparation-audit.json": "cdb348a5a8b62c7ea8d6e1cf16392c546c455c2d505ceef60ddd9c6479681d5d",
+    "prepare.py": "a517aa048bef4c3e77a4a82cf710450a12eb5ffa7c8c03bdf78baa36d95394de",
+    "readonly-progress.py": "7657e3cf867451e36d2651f2f8ff67ca30ce88216f3c75459538ce2172b7bf61",
+    "run.py": "eb894da24ff0253e60c2aef5f7db80bb8df6aa7dc39b076793b86e81fb9d540e",
+    "seed-pins.json": "8f89413485c781cb6475994eb5094d29f5a17faaf6a707b3f2038cbcd63c703e",
+    "seed-provenance.json": "5c82d98aaabcb7a21f8e662f633e4684d27de31787579f228b20bff7405c1dd2",
+    "turn-metric-investigation.json": "9e8987ce7979409ffe37c141e2638409796b08d2f955e1fb8366880b078a3ec8"
+  },
+  "accountCheckedNow": false,
+  "productPreEdits": 0,
+  "scope": "Focused wallet-owned session source repair; no production or funded old-app migration",
+  "rootAdmissionGate": "root-author-approval.json must bind this PREPARED sha256 with launchAuthorized true; root independently checks Max first",
+  "sourceClosureLimitations": [
+    "Original dynamic relay/network-runtime.bundle.mjs absent; root must supply qualified runtime/dependency closure before any import/integration execution.",
+    "New compiled artifact identity cannot be generated or claimed by source-only author."
+  ]
+}

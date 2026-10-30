@@ -1,0 +1,21 @@
+{
+  "seedFiles": 227,
+  "additionalSourceMissing": [],
+  "status": "SOURCE_ONLY_AUTHOR_CLOSURE_NOT_RUNTIME_BUILD_PROOF",
+  "note": "Generated files/runtime fixtures may be absent; do not build/install/test. Original202 dependency closure retained. Root separately reviews execution inputs.",
+  "excludedCommentMatches": [
+    {
+      "from": "windows/node/deploy-files.mjs",
+      "line": 8,
+      "matches": [
+        "import(\"...\")",
+        "require(\"...\")"
+      ],
+      "reason": "documentation comment, not real dependencies"
+    }
+  ],
+  "executionGates": [
+    "Original dynamic relay/network-runtime.bundle.mjs absent; root must supply qualified runtime/dependency closure before any import/integration execution.",
+    "New compiled artifact identity cannot be generated or claimed by source-only author."
+  ]
+}
