@@ -1,0 +1,18 @@
+{
+  "originalLocalFile": "PINS.json",
+  "originalSha256": "813cb87b6ab506b6a6d1c4bf56a41b67b02df39b9c176396467f5e06cacfd4cf",
+  "records": [
+    {
+      "path": "remote.py",
+      "sha256": "3aebe70659c4a67ceee086b0b68a58fd0ddee964c79d0e221e9968f53f0321a5"
+    },
+    {
+      "path": "ROOT-ADMISSION.md",
+      "sha256": "ee630ac18afd298bb6b32bbfe5d392f614ba2d5beaad2051d5de104d0560cbf0"
+    },
+    {
+      "path": "run.py",
+      "sha256": "0692f9068b60217fa5116ef4a7316ef8f334c94f9d0ef0ff0e97da88034a2c61"
+    }
+  ]
+}

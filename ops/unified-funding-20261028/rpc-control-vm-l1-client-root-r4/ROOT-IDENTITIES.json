@@ -1,0 +1,83 @@
+{
+  "at": 1793369117.3965852,
+  "invocation": "86e757fd4b584063af9afa2ffb82e81f",
+  "processes": [
+    {
+      "pid": 2845628,
+      "start": "167422246",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "cmdline": "/usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib 512 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r4/outer.log -- /usr/bin/taskset -c 1 /usr/bin/node /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs --max-rss-mib 450 --floor-available-mib 27648 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r4/inner.log -- /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r4/run.py ",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-control-vm-l1-client-prep-r4-20261030.service",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2845630,
+      "start": "167422251",
+      "exe": "/usr/bin/node",
+      "cwd": "/home/steven",
+      "cmdline": "/usr/bin/node /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs --max-rss-mib 512 --floor-available-mib 16384 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r4/outer.log -- /usr/bin/taskset -c 1 /usr/bin/node /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs --max-rss-mib 450 --floor-available-mib 27648 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r4/inner.log -- /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r4/run.py ",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2845630-i44811394.scope",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2845637,
+      "start": "167422254",
+      "exe": "/usr/bin/node",
+      "cwd": "/home/steven",
+      "cmdline": "/usr/bin/node /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs --max-rss-mib 450 --floor-available-mib 27648 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r4/inner.log -- /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r4/run.py ",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2845630-i44811394.scope",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2845644,
+      "start": "167422256",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "cmdline": "/usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r4/run.py ",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2845630-i44811394.scope",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2845739,
+      "start": "167423090",
+      "exe": "/usr/bin/qemu-nbd",
+      "cwd": "/",
+      "cmdline": "/usr/sbin/qemu-nbd --persistent --shared=1 --socket /run/user/1000/rpc-l1-client-r4/export.sock --export-name enclave-l1-client-4213b340-4817-4df2-baaa-ee492962e9ad --format=qcow2 --cache=none --aio=threads /vm/enclave-volumes/rpc-control-l1-client-r4/overlay.qcow2 ",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2845630-i44811394.scope",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2845749,
+      "start": "167423101",
+      "exe": "/usr/bin/ssh",
+      "cwd": "/home/steven",
+      "cmdline": "/usr/bin/ssh -oBatchMode=yes -oStrictHostKeyChecking=yes -oConnectTimeout=5 -oControlMaster=no -oControlPath=none -oServerAliveInterval=5 -oServerAliveCountMax=2 -oIdentitiesOnly=yes -i /home/steven/.ssh/minipc -oProxyJump=minipc -oHostKeyAlias=[127.0.0.1]:32423 -oUserKnownHostsFile=/home/steven/Documents/Codex/2026-10-18/wo/work/control-vm/known_hosts -N -oExitOnForwardFailure=yes -oStreamLocalBindMask=0177 -oStreamLocalBindUnlink=no -R /home/controladmin/rpc-l1-client-r4/export.sock:/run/user/1000/rpc-l1-client-r4/export.sock controladmin@172.17.28.159 ",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2845630-i44811394.scope",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2845750,
+      "start": "167423101",
+      "exe": "/usr/bin/ssh",
+      "cwd": "/home/steven",
+      "cmdline": "/usr/bin/ssh -W [172.17.28.159]:22 minipc ",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2845630-i44811394.scope",
+      "affinity": [
+        1
+      ]
+    }
+  ]
+}

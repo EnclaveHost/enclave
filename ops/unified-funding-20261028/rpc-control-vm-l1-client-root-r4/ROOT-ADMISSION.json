@@ -1,0 +1,8 @@
+{
+  "authorized": true,
+  "at": 1793369108.741766,
+  "scope": "actual-l1-bounded-client-r4",
+  "pinsSha256": "14015168432eb9668003f3403805fdbd0fdaefd28401f0358c39575fb06daeba",
+  "reason": "Corrected nested private payload mount binding; cache2/1/1 hypothesis unchanged and not yet exercised. All limits/retention/custody/cleanup unchanged; no consumer activation.",
+  "priorCleanupVerified": true
+}

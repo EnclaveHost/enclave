@@ -1,0 +1,10 @@
+{
+  "at": 1793369108.7521963,
+  "unit": "enclave-rpc-control-vm-l1-client-prep-r4-20261030.service",
+  "properties": {
+    "ActiveState": "active",
+    "InvocationID": "86e757fd4b584063af9afa2ffb82e81f",
+    "MainPID": "2845628",
+    "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-control-vm-l1-client-prep-r4-20261030.service"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "status": "PROPOSED_NOT_ADMITTED",
+  "host": "Nan",
+  "requiredFreshCreatorInventory": true,
+  "clientMiB": 4096,
+  "attachmentMiB": 128,
+  "guardianMiB": 128,
+  "residualMiB": 2048,
+  "initialMinimumMiBExcludingOtherPending": 6400,
+  "otherPending": "UNKNOWN_UNTIL_ROOT_INTERPRETATION",
+  "ordinaryOSPolicy": "explicit monitored residual; not a worst-case reservation",
+  "candidateAccount": {
+    "user": "enclavel1clnan",
+    "uid": 50011,
+    "gid": 50011,
+    "jwtGroup": "enclavel1jwtnan",
+    "jwtGid": 50012,
+    "availabilityVerified": false
+  },
+  "ownershipScope": [
+    "cl",
+    "tmp-cl"
+  ],
+  "ownershipMethod": "bounded FD-based change on new private COW only",
+  "ownershipPreflightLimits": {
+    "entries": 20000,
+    "depth": 32,
+    "ledgerBytes": 3145728,
+    "seconds": 60
+  },
+  "sourceOriginalMutation": false,
+  "executed": false,
+  "knownPendingClosure": {
+    "rootInvocation": "b805bbbcb3b04ce183f94bb80eafef12",
+    "atAndSystemdQueuesEmpty": true,
+    "standardTimersAndCronOnly": true,
+    "nbdLibraryMatches": 13,
+    "unresolvedCreator": {
+      "pid": 1281392,
+      "start": "867080689",
+      "executable": "/usr/bin/bash",
+      "cwd": "/root/padspill-20261005"
+    },
+    "newAdmission": false
+  }
+}

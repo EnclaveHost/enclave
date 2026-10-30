@@ -1,0 +1,28 @@
+{
+  "at": 1793369325.1891367,
+  "knownAlive": [],
+  "knownGone": [
+    2845628,
+    2845630,
+    2845637,
+    2845644,
+    2845739,
+    2845749,
+    2845750
+  ],
+  "contentDrift": [],
+  "remoteCleanupVerified": true,
+  "systemd": "MainPID=0\nResult=exit-code\nExecMainStatus=2\n",
+  "localHelpers": [
+    {
+      "pid": 2845749,
+      "rc": 255,
+      "reaped": true
+    },
+    {
+      "pid": 2845739,
+      "rc": 0,
+      "reaped": true
+    }
+  ]
+}

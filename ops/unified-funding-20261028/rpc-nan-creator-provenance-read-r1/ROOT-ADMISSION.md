@@ -1,0 +1,1 @@
+One exact PID/start/exe/CWD source-provenance read for already observed Nan padspill shell. No environment or pad/privatejournal read. Only command digest, source filename/hash, command basenames and numeric resource literals returned; raw arguments and source bodies withheld. No process signal/restart/edit.128MiBremote60s/local256/220floor27648CPU1noSwap, no retry.

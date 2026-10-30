@@ -1,0 +1,32 @@
+[
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-placement-read-r1/OBSERVATION.json",
+    "bytes": 179963,
+    "sha256": "61b4aacae2a7de57decdda690d76de15e7a9a21052a7607b55c07a4da633d17a"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r4/PARSED-MAIN.json",
+    "bytes": 58764,
+    "sha256": "d09de97e6b69e4615a4b8d7425603b5c632e61ddad632596244e8b358795d628"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r4/PINS.json",
+    "bytes": 3105,
+    "sha256": "14015168432eb9668003f3403805fdbd0fdaefd28401f0358c39575fb06daeba"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r4/client-operations.py",
+    "bytes": 14146,
+    "sha256": "66b3ab57d260f28ef78a7e1cd77461cd9ad56f8b52c2de65237c37bd7c549c12"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r4/transport-helpers.py",
+    "bytes": 8242,
+    "sha256": "b8622aa259a62740c6583b27d181ccaca04556b3034a39fd6f6b34f12b5dc642"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-pending-closure-read-r1/OBSERVATION.json",
+    "bytes": 98969,
+    "sha256": "188867ca6cf7fb31d8762c9427ee7334591f3c2ddd8af067d6f61df30423757a"
+  }
+]

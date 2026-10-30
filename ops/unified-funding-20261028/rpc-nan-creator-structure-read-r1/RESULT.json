@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 2.6246584590990096,
+  "stdout": "{\"at\": 1793369724.971102, \"pid\": 1281392, \"start\": \"867080689\", \"cmdlineSha256\": \"8a016019ad176a0fcc7113d7117b64a69fdde83a4f54ffc33dc2017f147ea65f\", \"tokens\": [{\"literal\": \"cd\"}, {\"redactedWordBytes\": 23, \"sha256\": \"204b307f1be2d5ce5a60f898591a7d91574a249a706af216a8adc449700a7992\", \"quoted\": false}, {\"literal\": \"&&\"}, {\"literal\": \"rm\"}, {\"literal\": \"-f\"}, {\"redactedWordBytes\": 10, \"sha256\": \"f89a9e91530b7ecf99e6bae8d26ec86862e752c296483ead3b83cbe7c5a6d395\", \"quoted\": false}, {\"literal\": \";\"}, {\"literal\": \"(\"}, {\"assignmentName\": \"TOOLS\", \"valueRedacted\": true}, {\"assignmentName\": \"THINK\", \"valueRedacted\": true}, {\"literal\": \"node\"}, {\"redactedWordBytes\": 16, \"sha256\": \"941464ab9687aa30238a7655ab6068b0474ae6e0a0f55344f623fea96ac33d88\", \"quoted\": false}, {\"literal\": \"600\"}, {\"redactedWordBytes\": 4, \"sha256\": \"faac7b4852d93e5421dd3366db992e9eb152eae4ded041d9495d5cf2c448d523\", \"quoted\": false}, {\"literal\": \">\"}, {\"redactedWordBytes\": 10, \"sha256\": \"5a0eb5f5534900d6d834d4000860bd76e5fb440b16ea682458cdaf6a797accc3\", \"quoted\": false}, {\"literal\": \"2\"}, {\"literal\": \">&\"}, {\"literal\": \"1\"}, {\"redactedWordBytes\": 3, \"sha256\": \"9578cc69b6e150828e27e3b485c286895cbaa7c798b15f4c246cfb5537e9bd00\", \"quoted\": false}, {\"literal\": \"(\"}, {\"assignmentName\": \"TOOLS\", \"valueRedacted\": true}, {\"assignmentName\": \"THINK\", \"valueRedacted\": true}, {\"literal\": \"node\"}, {\"redactedWordBytes\": 16, \"sha256\": \"941464ab9687aa30238a7655ab6068b0474ae6e0a0f55344f623fea96ac33d88\", \"quoted\": false}, {\"literal\": \"600\"}, {\"redactedWordBytes\": 4, \"sha256\": \"4d1fc063c35e39d06238fd22068731ed9c55f79ce139a6a77c50c5a54f9bfce9\", \"quoted\": false}, {\"literal\": \">\"}, {\"redactedWordBytes\": 10, \"sha256\": \"4c411bd15e8d7f26c8b923072d50b3ea1f64ce1aad70fc80fd75fbb562dec26c\", \"quoted\": false}, {\"literal\": \"2\"}, {\"literal\": \">&\"}, {\"literal\": \"1\"}, {\"redactedWordBytes\": 3, \"sha256\": \"9578cc69b6e150828e27e3b485c286895cbaa7c798b15f4c246cfb5537e9bd00\", \"quoted\": false}, {\"literal\": \"sleep\"}, {\"literal\": \"5\"}, {\"literal\": \";\"}, {\"literal\": \"while\"}, {\"literal\": \"pgrep\"}, {\"literal\": \"-f\"}, {\"redactedWordBytes\": 26, \"sha256\": \"f467a95ed0751ff4d2d752a5a3e4423c332b09faa778f8e15605d2eb14112453\", \"quoted\": true}, {\"literal\": \">\"}, {\"literal\": \"/dev/null\"}, {\"literal\": \";\"}, {\"literal\": \"do\"}, {\"literal\": \"sleep\"}, {\"literal\": \"5\"}, {\"literal\": \";\"}, {\"literal\": \"done\"}, {\"literal\": \";\"}, {\"literal\": \"cat\"}, {\"redactedWordBytes\": 10, \"sha256\": \"5a0eb5f5534900d6d834d4000860bd76e5fb440b16ea682458cdaf6a797accc3\", \"quoted\": false}, {\"redactedWordBytes\": 10, \"sha256\": \"4c411bd15e8d7f26c8b923072d50b3ea1f64ce1aad70fc80fd75fbb562dec26c\", \"quoted\": false}], \"noEnvironmentOrPadRead\": true}\n",
+  "stderr": "",
+  "bytesObserved": {
+    "stdout": 2659,
+    "stderr": 0
+  },
+  "stdinBytesWritten": 8483,
+  "stdinBytesRequested": 8483,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

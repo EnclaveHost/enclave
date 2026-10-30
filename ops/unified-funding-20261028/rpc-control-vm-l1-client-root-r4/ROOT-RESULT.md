@@ -1,0 +1,9 @@
+# Actual cache-reduced L1 r4: OOM, memory hypothesis rejected at this cap
+
+Invocation86e757fd4b584063af9afa2ffb82e81f terminated2/MainPID0. All33 content pins unchanged; seven independently sampled PID/start identities gone. Corrected nested mount manifest accepted. Reth opened private DB/loaded unchanged reduced TOML. Lighthouse8.3.2 accepted cache2/1/1, resumed HotColdDB then OOM-killed at14:05:40UTC, invocation98965a0b949f4863b0b96207fb92b3b8/PID301202. Neither client RPC was observed. This is an actual negative memory result under shared2304MiB, not a syntax/harness failure.
+
+Nine separate samples: last CL current1871990784/peak2029371392 bytes, anon1602404352,file254566400,kernel10522624; EL current364154880/peak364257280,anon115044352,file242147328,kernel6963200. Samples precede death, not final total peaks. The smaller caches do not solve this saved-state resume working set at the current shared cap. No further unchanged cache-only repetition or blind cap raise.
+
+Independent watchdog reason client-ended:cl; clients dead before unmount/NBD detach/module unload/socket clear, all verified separately. Original parent unchanged; private r4 COW retained. Exporter/tunnel/ProxyJump and guards gone. Accounts reused exactly, no account changes. Inner95MiB/outer163MiB/minhost30208; unchanged512hard450RSSfloor27648CPU1/noSwap shared queue. No Base/client-consumer/production changes. EL transient unit GC means no inferred exact graceful exit code.
+
+Next placement is isolated CL on existing Nan with source-reviewed private COW ownership adaptation and a separately justified finite4GiB client budget plus128MiB attachment+128MiB guardian and2GiB residual OS/unclassified-growth reserve. Fresh observed scheduled/application creators and real startup must qualify this; not a guaranteed worst-case reservation, not full-stack fit. No new source author/native run is admitted by this result.

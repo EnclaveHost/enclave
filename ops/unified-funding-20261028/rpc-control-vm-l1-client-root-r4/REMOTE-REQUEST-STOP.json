@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.5745751999784261,
+  "stdout": "RESULT_JSON={\"action\": \"request-stop\", \"errors\": [], \"ok\": true, \"stopRequested\": true, \"unit:enclave-rpc-l1-watch-r4.service\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 607}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.004451891058124602, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nResult=success\\nExecMainCode=1\\nExecMainStatus=0\\nExecStart={ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 -B /run/enclave-rpc-l1-client-r4/program.py watchdog ; ignore_errors=no ; start_time=[Fri 2026-10-30 14:05:21 UTC] ; stop_time=[Fri 2026-10-30 14:05:41 UTC] ; pid=301139 ; code=exited ; status=0 }\\nControlGroup=\\nUser=root\\nGroup=\\nDescription=Enclave L1 4213b340-4817-4df2-baaa-ee492962e9ad watchdog\\nLoadState=loaded\\nActiveState=inactive\\nSubState=dead\\nFragmentPath=/run/systemd/transient/enclave-rpc-l1-watch-r4.service\\nDropInPaths=\\nTransient=yes\\nInvocationID=a218d67e296747739943486b51f26cd2\\n\", \"truncated\": false}}\n",
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+  "bytesObserved": {
+    "stdout": 1137,
+    "stderr": 222
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}
