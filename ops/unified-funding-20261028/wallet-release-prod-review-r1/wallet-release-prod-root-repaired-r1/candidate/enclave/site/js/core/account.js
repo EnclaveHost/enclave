@@ -1,0 +1,303 @@
+/* ============================================================
+   Relay account sign-in - passkeys (primary) + wallet SIWE
+   (secondary), against api.enclave.host /v1/account/*.
+
+   A THIRD state domain on the Enclave global, orthogonal to the
+   wallet connection and the enclave session (wallet.js):
+     Enclave.accountToken/accountId/accountMethod - ES256 JWT the
+     RELAY minted; gates billing/orders/checkout only. Every edge
+     emits `enclave:account` {authed, method}; existing consumers
+     of enclave:wallet / enclave:auth are untouched.
+
+   Passkeys: username-less discoverable credentials via
+   @simplewebauthn/browser, lazy-loaded same-origin from
+   /vendor/webauthn.js (scripts/build-vendor.mjs pin) - no
+   WebAuthn bytes load until the user picks the option. The
+   private key lives in the user's authenticator; the relay
+   stores only the public key + credential id + counter.
+
+   Session persists in localStorage "enclave_account" - a
+   DIFFERENT key from "enclave_session" (the enclave token):
+   the two trust domains never share storage.
+   ============================================================ */
+import { ACCOUNTS_ENABLED } from "./config.js";
+import { Enclave, EnclaveError } from "./api.js";
+import { modalize, buildSiwe, assertSiweLogin, jwtExp, connectWallet, refreshWallet, personalSign } from "./wallet.js";
+import { $, esc, lsGet, lsSet, showToast, emit } from "./util.js";
+import { qrSvg } from "../lib/qr.js";
+
+export function passkeySupported(){
+  return typeof window !== "undefined" && !!window.PublicKeyCredential;
+}
+
+/* ---- session lifecycle ---- */
+export function adoptAccountSession(sess){
+  Enclave.accountToken = sess.token;
+  Enclave.accountTokenBase = Enclave.base;      // bound to the endpoint that minted it
+  Enclave.accountId = sess.accountId;
+  Enclave.accountMethod = sess.method || null;
+  saveAccountSession();
+  emit("enclave:account", { authed: true, method: Enclave.accountMethod });
+  refreshWallet();
+  return sess;
+}
+export function saveAccountSession(){
+  if (!Enclave.accountToken){ lsSet("enclave_account", ""); return; }
+  try { lsSet("enclave_account", JSON.stringify({ token: Enclave.accountToken, accountId: Enclave.accountId,
+    method: Enclave.accountMethod, base: Enclave.accountTokenBase || Enclave.base })); } catch(e){}
+}
+export function restoreAccountSession(){
+  let raw; try { raw = lsGet("enclave_account"); } catch(e){ return; }
+  if (!raw) return;
+  let s; try { s = JSON.parse(raw); } catch(e){ lsSet("enclave_account", ""); return; }
+  if (!s || !s.token) return;
+  const exp = jwtExp(s.token);
+  if (exp && exp * 1000 <= Date.now()){ lsSet("enclave_account", ""); return; }
+  Enclave.accountToken = s.token;
+  Enclave.accountTokenBase = s.base || null;   // absent on a pre-binding session: default endpoint only
+  Enclave.accountId = s.accountId || null;
+  Enclave.accountMethod = s.method || null;
+  emit("enclave:account", { authed: true, method: Enclave.accountMethod });
+  refreshWallet();
+}
+/* a session-derived account token dies with its session; on load, re-derive it
+   when this browser still holds a live session (no wallet prompt) */
+export async function restoreSessionAccount(){
+  try {
+    const S = await import("./sessions.js");
+    const c = await S.currentSession();
+    if (!c) return;
+    const live = await c.session.status().then((s) => s.live, () => true);
+    if (!live){ await S.endSession({ quiet: true }); return; }
+    if (!Enclave.accountToken) await S.accountFromSession();
+    emit("enclave:session", { active: true });
+  } catch(e){ /* best effort: the popover offers to start a new session */ }
+}
+export function signOutAccount(){
+  Enclave.clearAccountSession();
+  refreshWallet();
+}
+
+/* ---- passkey ceremonies (lazy same-origin WebAuthn client) ---- */
+async function webauthn(){
+  try { return await import("/vendor/webauthn.js"); }
+  catch(e){ throw new EnclaveError("Could not load the passkey client: " + (e.message || e), 0); }
+}
+export async function registerPasskey(){
+  const wa = await webauthn();
+  const { challengeId, options } = await Enclave.accountRegisterOptions();
+  let credential;
+  try { credential = await wa.startRegistration({ optionsJSON: options }); }
+  catch(e){ throw ceremonyError(e, "create"); }
+  return adoptAccountSession(await Enclave.accountRegisterVerify(challengeId, credential));
+}
+export async function signInWithPasskey(){
+  const wa = await webauthn();
+  const { challengeId, options } = await Enclave.accountLoginOptions();
+  let credential;
+  try { credential = await wa.startAuthentication({ optionsJSON: options }); }
+  catch(e){ throw ceremonyError(e, "use"); }
+  return adoptAccountSession(await Enclave.accountLoginVerify(challengeId, credential));
+}
+// browser ceremony errors, translated once: cancelled/timed out is retryable
+// (the modal keeps both options up), anything else names itself
+function ceremonyError(e, verb){
+  const name = e && e.name;
+  if (name === "NotAllowedError")
+    return Object.assign(new EnclaveError("That was cancelled or timed out. Try again.", 0), { retryable: true });
+  if (name === "InvalidStateError" && verb === "create")
+    return Object.assign(new EnclaveError("This device already has a passkey for Enclave. Use \"Continue with passkey\" instead.", 0), { retryable: true });
+  return new EnclaveError("Passkey " + verb + " failed: " + ((e && (e.message || e.name)) || e), 0);
+}
+
+/* ---- wallet SIWE against the RELAY (account sign-in) ----
+   Distinct from wallet.js authenticate(), which mints the ENCLAVE session;
+   a wallet user typically ends up with both, each doing its own job. */
+export async function signInWalletAccount(){
+  if (!Enclave.provider) await connectWallet();
+  // Sessions (docs/design/sessions.md §9): the session grant IS the sign-in - one
+  // wallet signature, after which actions need no prompt and the relay account
+  // token is derived from the session. SIWE stays only for relays without sessions.
+  const S = await import("./sessions.js");
+  if (await S.sessionsAvailable()){
+    const ok = await S.openSessionModal();
+    if (!ok) throw Object.assign(new EnclaveError("Sign-in cancelled.", 0), { cancelled: true });
+    return Enclave.accountToken ? { token: Enclave.accountToken, accountId: Enclave.accountId, method: Enclave.accountMethod } : null;
+  }
+  const ch = await Enclave.accountSiweNonce(Enclave.address);
+  const message = assertSiweLogin((ch && ch.message) ? ch.message : buildSiwe(ch), Enclave.address);
+  let signature;
+  try {
+    signature = await personalSign(message);
+  } catch(e){
+    throw new EnclaveError((e && e.code === 4001) ? "Signature rejected." : ("Could not sign in: " + (e.message || e)), 0);
+  }
+  return adoptAccountSession(await Enclave.accountSiweVerify(message, signature));
+}
+
+/* ---- the sign-in entry point ----
+   Always the chooser. Auto-SIWE for extension users predates accounts -
+   back then MetaMask was the only way in, so a detected wallet WAS the
+   choice. Now every path starts at the same modal, and "Connect a wallet"
+   there runs the wallet flow. */
+export function openSignIn(){
+  return openAuthModal();
+}
+
+/* ---- the sign-in chooser (renders into the #walletPick overlay) ----
+   Resolves with the session on success, rejects on cancel. Passkey errors
+   that are retryable stay INSIDE the modal (inline role=alert); terminal
+   ones toast and keep the modal up so the other option remains. */
+export function openAuthModal(){
+  if (!ACCOUNTS_ENABLED) return Promise.reject(new EnclaveError("Accounts are not enabled yet.", 0));
+  let host = $("#walletPick");
+  if (!host){
+    // same portal wallet-button.js creates on wire-up; making it here too
+    // means the modal never races component connection (auto-open on /link)
+    host = document.createElement("div");
+    host.className = "wallet-pick"; host.id = "walletPick"; host.hidden = true;
+    document.body.appendChild(host);
+  }
+  const pk = passkeySupported();
+  return new Promise((resolve, reject) => {
+    let done = false, stopPhone = null, inPhone = false, passkeyDirect = false;
+    // the chooser card is a render FUNCTION, not a one-shot innerHTML: the
+    // phone view backs out to it, and the passkey button must come back in
+    // whatever state passkeyFlow left it (passkeyDirect below)
+    const mainView = () => {
+      inPhone = false;
+      host.innerHTML = '<div class="wp-card"><div class="wp-h">Sign in to Enclave</div>' +
+        '<div class="wp-note">Sign in with a passkey and pay by card - no wallet or crypto needed. Already use a wallet? Connect it for direct on-chain control of your deployments.</div>' +
+        (pk ? '<button class="wp-item wp-go" id="authPasskey" type="button">' + (passkeyDirect ? "Create a passkey" : "Continue with passkey") + '</button>' +
+              '<div class="wp-or"><span>or</span></div>'
+            : '<div class="wp-note">This browser does not support passkeys - use your phone below.</div>') +
+        '<button class="wp-item wp-center" id="authPhone" type="button">Use your phone</button>' +
+        // Always offered: an installed extension answers it directly, and
+        // WalletConnect reaches wallets that aren't extensions - a phone
+        // wallet, or Trezor Suite holding a Safe 7 over Bluetooth. With
+        // neither present the click explains what to install (noWalletReason)
+        // rather than this modal hiding the path.
+        '<button class="wp-item wp-center" id="authWallet" type="button">Connect a wallet</button>' +
+        '<div class="wp-err" id="authErr" role="alert" hidden></div>' +
+        '<button class="wp-cancel" type="button">Cancel</button></div>';
+    };
+    mainView();
+    host.hidden = false;
+    const close = () => { if (stopPhone) stopPhone(); unmodal(); host.hidden = true; host.innerHTML = ""; host.onclick = null; host.onpointerdown = null; };
+    // Dismissal is view-aware, matching the wallet flow: from the phone view
+    // Cancel/Escape/backdrop mean "back" - stop the poll, land on the
+    // chooser, move focus there (the re-render destroyed the button holding
+    // it) - and only from the chooser itself do they close and reject.
+    const cancel = () => {
+      if (done) return;
+      if (inPhone){
+        if (stopPhone) stopPhone();
+        mainView();
+        const f = host.querySelector("button"); if (f) f.focus();
+        return;
+      }
+      done = true; close(); reject(new EnclaveError("Sign-in cancelled.", 0));
+    };
+    const unmodal = modalize(host, cancel);
+    host.onpointerdown = (e) => { if (e.target === host) cancel(); };
+    const fail = (e) => {
+      const el = host.querySelector("#authErr");
+      if (el && e && e.retryable){ el.textContent = e.message; el.hidden = false; return; }
+      showToast((e && e.message) || String(e));
+      if (el){ el.textContent = (e && e.message) || String(e); el.hidden = false; }
+    };
+    const attempt = (fn) => async () => {
+      if (done) return;
+      const el = host.querySelector("#authErr"); if (el) el.hidden = true;
+      try {
+        const sess = await fn();
+        if (done) return;
+        done = true; close(); resolve(sess);
+      } catch(e){ if (!done) fail(e); }
+    };
+    // "Use your phone": the self-hosted device flow for browsers with no
+    // passkey path (Linux Firefox, no Bluetooth). The QR carries only the
+    // one-time code; the claim secret never leaves this browser. Polls until
+    // the phone approves on /link, then adopts the session like any other.
+    const phoneView = async () => {
+      if (done) return;
+      const card = host.querySelector(".wp-card"); if (!card) return;
+      inPhone = true;
+      let dead = false, timer = 0;
+      stopPhone = () => { dead = true; clearTimeout(timer); stopPhone = null; };
+      card.innerHTML = '<div class="wp-h">Sign in with your phone</div><div class="wp-note">Starting…</div>';
+      let d;
+      try { d = await Enclave.accountDeviceStart(); }
+      // start failed: land BACK on the chooser and say why there - the
+      // "Starting…" card has no buttons, so erroring on it strands the user
+      catch(e){ if (!dead){ stopPhone(); mainView(); fail(e); } return; }
+      if (dead) return;
+      const url = location.origin + "/link?code=" + encodeURIComponent(d.code);
+      card.innerHTML =
+        '<div class="wp-h">Sign in with your phone</div>' +
+        '<div class="wp-note">Scan with your phone camera, then approve there. Only approve a code you started yourself.</div>' +
+        '<div class="wp-qr" aria-label="sign-in link as a QR code">' + qrSvg(url) + '</div>' +
+        '<div class="wp-note">or open <b>enclave.host/link</b> on your phone and enter <code class="wp-code">' +
+          esc(d.code.slice(0, 4) + "-" + d.code.slice(4)) + '</code></div>' +
+        '<div class="wp-err" id="authErr" role="alert" hidden></div>' +
+        '<button class="wp-cancel" type="button">Cancel</button>';
+      const poll = async () => {
+        if (dead || done) return;
+        try {
+          const r = await Enclave.accountDeviceClaim(d.code, d.secret);
+          if (dead || done) return;
+          if (r.status === "ok"){ done = true; close(); resolve(adoptAccountSession(r)); return; }
+          if (r.status === "denied"){ stopPhone(); fail(new EnclaveError("The request was denied on your phone.", 0)); return; }
+        } catch(e){
+          if (dead || done) return;
+          if (e && e.status === 404){ stopPhone(); fail(new EnclaveError("The code expired. Try again.", 0)); return; }
+          // transient network errors: keep polling
+        }
+        timer = setTimeout(poll, (d.interval || 3) * 1000);
+      };
+      timer = setTimeout(poll, (d.interval || 3) * 1000);
+    };
+    // one passkey button, the /link chain: sign in, and when that fails
+    // (no credential / dismissed - WebAuthn hides which) roll into register.
+    // Safari grants ONE user activation per tap and the failed get() can eat
+    // it, so when the whole chain dies the button converts to a direct
+    // "Create a passkey" - the next tap runs register alone, fresh activation.
+    const passkeyFlow = async () => {
+      if (passkeyDirect) return registerPasskey();
+      try { return await signInWithPasskey(); }
+      catch(_) {
+        try { return await registerPasskey(); }
+        catch(e2){
+          if (e2 && /already has a passkey/i.test(e2.message || "")) throw e2;   // InvalidStateError: sign-in is what they need
+          passkeyDirect = true;
+          const btn = host.querySelector("#authPasskey");
+          if (btn) btn.textContent = "Create a passkey";
+          throw Object.assign(new EnclaveError("That didn't finish. Tap \"Create a passkey\" to make one on this device.", 0), { retryable: true });
+        }
+      }
+    };
+    // The wallet flow renders its OWN card into this same #walletPick overlay
+    // (the chooser, then the pairing QR), so hand the overlay over instead of
+    // nesting: tear this modal down first, then run the flow. Not attempt(),
+    // which would keep this card up and let the QR clobber it mid-flight -
+    // leaving a cancelled pairing with no card left to show the error in.
+    // Cancel inside that flow (`cancelled` on the error) means "back", not
+    // "give up": reopen this modal so the user lands where they started.
+    const walletFlow = () => {
+      if (done) return;
+      done = true;
+      if (stopPhone) stopPhone();
+      close();
+      signInWalletAccount().then(resolve, (e) => {
+        if (e && e.cancelled) openAuthModal().then(resolve, reject);
+        else reject(e);
+      });
+    };
+    host.onclick = (e) => {
+      if (e.target.closest("#authPasskey")) return attempt(passkeyFlow)();
+      if (e.target.closest("#authPhone")) return void phoneView();
+      if (e.target.closest("#authWallet")) return void walletFlow();
+      if (e.target.closest(".wp-cancel")) cancel();
+    };
+  });
+}

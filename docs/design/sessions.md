@@ -902,3 +902,8 @@ Deployment of these controls is not a completed ownership migration. The two ina
 For the current rev16d deployment, the historical “refund first” instruction above does **not** preserve a funded app: refund zeroes its runtime balance and deactivates it, while possible runner liabilities remain. DNS and KVM currently fail the transfer escrow gate. The deployed ledger has no ownership-transfer operation that retains all backing and refund rights, and the gas reserve has no owner-bucket reassignment that preserves spending and claim counters. A new frontend or helper cannot add those capabilities to the immutable addresses. See the [funded migration review](../../ops/unified-funding-20261028/wallet-migration-next-paths-r1/peer-REVIEW.md).
 
 An inactive PROD app with clear escrow and empty gas reserves has a different path: its owner can explicitly approve the exact current content and elect wallet-controlled content policy. Existing Promote can bind that content approval; Release is a separate operation and does not bind content. This extension is prepared, not deployed. Catalog publisher transfer is also separate from deployment transfer: the existing admin form can move a catalog lineage without moving deployment balances or ownership. No such transfer has been submitted in this review.
+
+
+## October30: PROD wallet-release qualification
+
+Explicit owner content approval and separate fresh release passed60 local checks, plus an inert browser flow with real IndexedDB and shipped SDK. Built but not activated. Failures and repaired source: `ops/unified-funding-20261028/wallet-release-prod-review-r1/ROOT-REVIEW.md`. No app ownership changed. Funded DNS/KVM escrow/reserve migration remains blocked; legacy sessions and manual gas funding unchanged.

@@ -1,0 +1,1 @@
+PREPARED production update: exact current r2 composite plus compiled qualified PROD promotion/release path. Only boot replaced; identical emitted files excluded from delta, prior assets retained. Scripts use fresh operation directories, compare installed roots/config/bytes and exclusive intents; no completed helper replay. No wallet transaction or backend restart.
