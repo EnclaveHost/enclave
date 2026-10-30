@@ -14,11 +14,12 @@ function equal(a,b){return Object.keys(a).length===Object.keys(b).length&&Object
 if(!equal(inventory(base),before))throw Error('base changed');
 if(fs.existsSync(p+'/build')||fs.existsSync(p+'/composite'))throw Error('new output required');
 const site=p+'/source/enclave/site';
-const r=await build({entryPoints:[site+'/js/boot.js'],bundle:true,splitting:true,format:'esm',target:['es2022'],minify:true,sourcemap:true,outdir:p+'/build',outbase:site,entryNames:'[dir]/[name]-selfhost-topup-r1',chunkNames:'js/chunks/[name]-[hash]',external:['https://*','/vendor/*'],nodePaths:['/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules'],metafile:true});
+const r=await build({entryPoints:[site+'/js/boot.js'],bundle:true,splitting:true,format:'esm',target:['es2022'],minify:true,sourcemap:true,outdir:p+'/build',outbase:site,entryNames:'[dir]/[name]-wallet-release-r2',chunkNames:'js/chunks/[name]-[hash]',external:['https://*','/vendor/*'],nodePaths:['/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules'],metafile:true});
 if(!Object.keys(r.metafile.inputs).some(n=>n.endsWith('wallet-release-controller.js')))throw Error('migration controller disconnected');
 fs.writeFileSync(p+'/build/js/boot.js','export { navigate } from "./boot-wallet-release-r2.js";\nimport "./deployment-search-clear-54a35db6e1f0.js";\n');
 fs.writeFileSync(p+'/metafile.json',JSON.stringify(r.metafile,null,2)+'\n');
 await stop(); // Release the esbuild service before importing the full content-addressed tree.
+fs.cpSync(site+'/wallet-release',p+'/build/wallet-release',{recursive:true});
 const delta=inventory(p+'/build');
 for(const n of Object.keys(delta))if(n in before&&n!=='js/boot.js'&&delta[n]!==before[n])throw Error('unexpected replacement '+n);
 fs.mkdirSync(p+'/composite');fs.cpSync(base,p+'/composite/site',{recursive:true});

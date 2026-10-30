@@ -1,0 +1,132 @@
+[
+  {
+    "origin": "https://rpcfree.com/base-rpc",
+    "responses": [
+      {
+        "method": "eth_chainId",
+        "error": "HTTP Error 403: Forbidden"
+      },
+      {
+        "method": "eth_getLogs",
+        "error": "HTTP Error 403: Forbidden"
+      }
+    ]
+  },
+  {
+    "origin": "https://rpc.baseazul.dev",
+    "responses": [
+      {
+        "method": "eth_chainId",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0x2105"
+        }
+      },
+      {
+        "method": "eth_getLogs",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 2,
+          "error": {
+            "code": -32602,
+            "message": "block range exceeds limit of 1000 blocks"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "origin": "https://rpc.satelink.network/rpc/base",
+    "responses": [
+      {
+        "method": "eth_chainId",
+        "error": "HTTP Error 403: Forbidden"
+      },
+      {
+        "method": "eth_getLogs",
+        "error": "HTTP Error 403: Forbidden"
+      }
+    ]
+  },
+  {
+    "origin": "https://xrpc.cl/base",
+    "responses": [
+      {
+        "method": "eth_chainId",
+        "error": "HTTP Error 503: Service Unavailable"
+      },
+      {
+        "method": "eth_getLogs",
+        "error": "HTTP Error 503: Service Unavailable"
+      }
+    ]
+  },
+  {
+    "origin": "https://base-rpc.blockreq.com/v1/rpc/public",
+    "responses": [
+      {
+        "method": "eth_chainId",
+        "error": "HTTP Error 403: Forbidden"
+      },
+      {
+        "method": "eth_getLogs",
+        "error": "HTTP Error 403: Forbidden"
+      }
+    ]
+  },
+  {
+    "origin": "https://base.daybreak-rpc.network",
+    "responses": [
+      {
+        "method": "eth_chainId",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0x2105"
+        }
+      },
+      {
+        "method": "eth_getLogs",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 2,
+          "error": {
+            "code": -32602,
+            "message": "query exceeds max block range 2000"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "origin": "https://api.blockvectra.com/v1/base_mainnet/public",
+    "responses": [
+      {
+        "method": "eth_chainId",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0x2105"
+        }
+      },
+      {
+        "method": "eth_getLogs",
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 2,
+          "error": {
+            "code": -32601,
+            "message": "method is not available on the public endpoint",
+            "data": {
+              "reason": "method_not_public",
+              "docs_url": "https://docs.blockvectra.com/en/errors/#method_not_public",
+              "retryable": false,
+              "request_id": "01a18a51-af2a-752c-b99f-862805f2a311"
+            }
+          }
+        }
+      }
+    ]
+  }
+]

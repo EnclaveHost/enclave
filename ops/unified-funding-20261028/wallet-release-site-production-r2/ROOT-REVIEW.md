@@ -1,0 +1,11 @@
+# Wallet migration site release r2 — prepared production release
+
+The exact frozen census delivery passed38 checks. Two additional root regressions showed missing delegation storage treated as false; separate one-module repair rejects missing/malformed words. Corrected full40PASS/0FAIL/0skip/cancel, actual modules and shipped signing SDK with inert signers, not chain transactions. The original delivery and failures are preserved.
+
+Independent complete DelegateSet and24SessionOpened history agrees API/Alchemy-backed gateway vs Azul at53265826 after1734 read-only calls, canonical anchor cd02f9832223a9d53c9f6a8f6945154a5f162574ed4e006efc16042576c10404. Fresh2provider tails/current state at53266625 agrees: one wallet->B794 delegate, no source-vault delegates,24sessions/one live API grant envs3, no unknown authority. Not finality or cryptographic log-completeness proof. Daybreak returned only8of24 history and was rejected; no missing history substituted.
+
+One product module additionally selects Azul1000-block history, bounds1024ranges/2200calls and batches at most3 read requests/provider. Protocol identity/provenance/freshness, current storage, same-owner destination, zero old/new reserve, inactive/unleased checks and journal-last-send gates remain. Browser history first-load may take several minutes; cached history only is shared among rows, current state always reread. Other production/content and escrow blockers remain explicit.
+
+Added exact reviewed ledger initcode artifact with four constructor arguments from creation transaction ddc85def2d8bc739831b931a60ae2d0597e7e922812c3c582e9dbd5984609a89; two-provider browser check authenticates this creation input before use. Missing asset no longer silently blocks every row.
+
+Built CID bafybeigthicg2adduyduhvavlibxn6vz6kl2xshz5ysstirofn5tdg5dzq,1330files. Exact current1231-file search-clear/HostCopy/Topup base captured across4edges; preserve1230unchanged oldfiles, onlyboot replaced+99new. Build207MiBpeak/min31743MiB,512hard450RSSfloor27648CPU1noswap/network namespace. Separate operation directory and CaddyETagCAS helpers reviewed; no stale deployment helper rerun. Actual activation status is recorded only in per-edge result/HTTPS verification files. No ownership, signature, refund or payment has been performed by this review.
