@@ -280,6 +280,12 @@
       "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/platform-api.bundle.mjs:ethereum-private-key-env:214079",
       "lineSha256": "dccb1de32b39a8612e859a988007d17fa01ce1f01a7e177f5843959933c57f8c",
       "classification": "Public bytes32 registry address-book selector (ASCII registry, zero padded)"
+    },
+    {
+      "fingerprint": "4eb344f9254f0b0736d77beae0102eaee51d9f63:metal/guest/platform-api.bundle.mjs:generic-api-key:252313",
+      "lineSha256": "4990cd2acb09fc8314855e5c47a5e2408bc8fc9794f564ef8b1b9b8e444b187c",
+      "classification": "Generated public JavaScript expression app3.ownerException in servesUntil; no string credential or secret value. Source condition verified in maintained relay source.",
+      "source": "relay/shield-marketplace.mjs:48"
     }
   ],
   "scope": "Exact historical commit/path/rule/line fingerprints in .gitleaksignore. Changed or future source remains scanned; dependency digests independently rehashed."
