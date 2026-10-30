@@ -1,0 +1,26 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r7/assemble.py
++++ /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r8/assemble.py
+@@ -5,17 +5,17 @@
+ assert not dest.exists(),'immutable assembled output already exists'
+ sha=lambda f:hashlib.file_digest(f.open('rb'),'sha256').hexdigest()
+ for f in s.glob('*.py'):ast.parse(f.read_text(),filename=str(f))
+-m=json.loads((s/'MANIFEST.json').read_text());m['ownedBootstrapUnits']=['enclave-rpc-nan-bootstrap-n7.service']
+-m['ownedUnits']=[*m['ownedSlices'],*m['ownedBootstrapUnits'],'enclave-rpc-nan-helper-n7.service','enclave-rpc-nan-watch-n7.service','enclave-rpc-nan-nbd-n7.service','enclave-rpc-nan-cl-trial-n7.service','enclave-rpc-nan-verify-n7.service','enclave-rpc-nan-request-stop-n7.service','enclave-rpc-nan-socket-clear-n7.service']
++m=json.loads((s/'MANIFEST.json').read_text());m['ownedBootstrapUnits']=['enclave-rpc-nan-bootstrap-n8.service']
++m['ownedUnits']=[*m['ownedSlices'],*m['ownedBootstrapUnits'],'enclave-rpc-nan-helper-n8.service','enclave-rpc-nan-watch-n8.service','enclave-rpc-nan-nbd-n8.service','enclave-rpc-nan-cl-trial-n8.service','enclave-rpc-nan-verify-n8.service','enclave-rpc-nan-request-stop-n8.service','enclave-rpc-nan-socket-clear-n8.service']
+ # Extract generated remote command strings without invoking functions/importing runner.
+ tree=ast.parse((s/'run-body.py').read_text());commands=[]
+ bootstrap=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='bootstrap')
+ commands.append(next(ast.literal_eval(n.value) for n in bootstrap.body if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='command' for t in n.targets)))
+ for action in ('main','verify','request-stop','socket-clear'):
+- if action=='main':unit='enclave-rpc-nan-helper-n7';slice_name='enclavenanattachn7.slice';runtime=510;stop_seconds=145;post=" '--property=ExecStopPost=/usr/bin/python3 -B /run/enclave-rpc-nan-client-n7/program.py wait-cleanup'"
+- elif action=='verify':unit='enclave-rpc-nan-verify-n7';slice_name='enclavenanguardn7.slice';runtime=45;stop_seconds=10;post=''
+- else:unit='enclave-rpc-nan-'+action+'-n7';slice_name='enclavenanguardn7.slice';runtime=10;stop_seconds=5;post=''
+- commands.append('/usr/bin/sudo -n /usr/bin/systemd-run --quiet --wait --pipe --unit='+unit+' --slice='+slice_name+' --property=User=root --property=MemoryMax=128M --property=MemorySwapMax=0 --property=CPUQuota=100% --property=TasksMax=64 --property=RuntimeMaxSec='+str(runtime)+' --property=TimeoutStopSec='+str(stop_seconds)+' --property=KillMode=control-group --property=UMask=0077'+post+' /usr/bin/python3 -B /run/enclave-rpc-nan-client-n7/program.py '+action)
++ if action=='main':unit='enclave-rpc-nan-helper-n8';slice_name='enclavenanattachn8.slice';runtime=600;stop_seconds=145;post=" '--property=ExecStopPost=/usr/bin/python3 -B /run/enclave-rpc-nan-client-n8/program.py wait-cleanup'"
++ elif action=='verify':unit='enclave-rpc-nan-verify-n8';slice_name='enclavenanguardn8.slice';runtime=45;stop_seconds=10;post=''
++ else:unit='enclave-rpc-nan-'+action+'-n8';slice_name='enclavenanguardn8.slice';runtime=10;stop_seconds=5;post=''
++ commands.append('/usr/bin/sudo -n /usr/bin/systemd-run --quiet --wait --pipe --unit='+unit+' --slice='+slice_name+' --property=User=root --property=MemoryMax=128M --property=MemorySwapMax=0 --property=CPUQuota=100% --property=TasksMax=64 --property=RuntimeMaxSec='+str(runtime)+' --property=TimeoutStopSec='+str(stop_seconds)+' --property=KillMode=control-group --property=UMask=0077'+post+' /usr/bin/python3 -B /run/enclave-rpc-nan-client-n8/program.py '+action)
+ m['transportCommands']=commands;m['transportArgv']=[v for c in commands for v in (shlex.split(c),shlex.split(c)[2:])]
+ dest.mkdir(mode=0o700)
+ for name in ('capture-local.py','capture-remote.py','transport-helpers.py','nan-admission.py','ownership.py','client-operations.py','client-main.py','run-body.py','trial-chain-service.py','disks.json','payload-manifest.json'):

@@ -1,0 +1,58 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r7/source/client-operations.py
++++ /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r8/source/client-operations.py
+@@ -1,8 +1,8 @@
+ # PREPARED ONLY. Appended to the qualified transport/ownership helpers.
+ import pwd,grp,secrets,shutil,urllib.request,urllib.error,contextlib
+-PAYLOAD=EXEC/'payload';SLICE='enclavenantrialn7.slice';GUARD_SLICE='enclavenanguardn7.slice';ATTACH_SLICE='enclavenanattachn7.slice';NBD_UNIT='enclave-rpc-nan-nbd-n7.service'
+-UNITS={'cl':'enclave-rpc-nan-cl-trial-n7.service'}
+-HELPER='enclave-rpc-nan-helper-n7.service';WATCH='enclave-rpc-nan-watch-n7.service'
++PAYLOAD=EXEC/'payload';SLICE='enclavenantrialn8.slice';GUARD_SLICE='enclavenanguardn8.slice';ATTACH_SLICE='enclavenanattachn8.slice';NBD_UNIT='enclave-rpc-nan-nbd-n8.service'
++UNITS={'cl':'enclave-rpc-nan-cl-trial-n8.service'}
++HELPER='enclave-rpc-nan-helper-n8.service';WATCH='enclave-rpc-nan-watch-n8.service'
+ STOP=ROOT/'STOP';DONE=ROOT/'CLEANUP.json';LOCK=ROOT/'operation.lock'
+ def atomic_json(path,value):
+     tmp=path.with_suffix('.next')
+@@ -178,7 +178,9 @@
+ 
+ DIAGNOSTIC_LOG_MARKERS=('Lighthouse started','Configured network','Data directory initialised','Deposit contract',
+     'Opening HotColdDB','Opening LevelDB','Loaded anchor info','Hot-Cold DB initialized',
+-    'Block production enabled','HTTP API started','Unable to open database')
++    'Block production enabled','HTTP API started','Unable to open database',
++    'Starting beacon chain','Loading hot state','Cached state','Restoring fork choice from persisted',
++    'Cached state and hdiff buffer','Topping up validator pubkey cache','Beacon chain initialized')
+ def diagnostic_journal(invocation):
+     # Never attach raw debug text to evidence. Fixed labels and journal timestamps only.
+     assert len(invocation)==32 and all(c in '0123456789abcdef' for c in invocation)
+@@ -244,6 +246,23 @@
+         except FileNotFoundError:record['unavailable']='owned-cgroup-removed'
+         except Exception as e:record['unavailable']=type(e).__name__
+     return values
++
++def require_sampling_headroom(now,admission,watchdog_deadline):
++    assert admission['authorized'] is True and admission['at']<=now<admission['expiresAt'],'stale-sampling-admission'
++    assert 0<admission['expiresAt']-admission['at']<=600,'sampling-admission-lifetime'
++    assert admission['expiresAt']-now>=455,'insufficient-450s-admission-window'
++    assert watchdog_deadline-now>=455,'insufficient-450s-watchdog-window'
++
++def valid_cl_startup_rpc(value):
++    # Startup proof only: syncing/optimistic/EL-offline may all be true in this CL-only trial.
++    if not isinstance(value,dict) or 'error' in value or not isinstance(value.get('data'),dict):return False
++    data=value['data']
++    if any(type(data.get(k)) is not bool for k in ('is_syncing','is_optimistic','el_offline')):return False
++    for key in ('head_slot','sync_distance'):
++        number=data.get(key)
++        if not isinstance(number,str) or not 1<=len(number)<=20 or not number.isascii() or not number.isdigit():return False
++        if int(number)>18446744073709551615:return False
++    return True
+ 
+ def sample_rpc():
+     value={}
+@@ -319,7 +338,7 @@
+                 info=unit_info(UNITS[side])
+                 if info.get('InvocationID')!=expected.get('InvocationID') or info.get('ActiveState') not in ('active','activating'):
+                     reason='client-ended:'+side;stop_request(reason);break
+-            if STOP.exists():break
++            if STOP.exists():reason=read(STOP);break
+             time.sleep(.5)
+     except Exception as e:reason='watchdog:'+type(e).__name__+':'+str(e)[:100]
+     return clean_trial(reason)

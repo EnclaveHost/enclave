@@ -1,0 +1,11 @@
+{
+  "status": "PREPARED_SOURCE_ONLY",
+  "sourceParent": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r7",
+  "nonce": "5870ca5c-305b-4511-b069-c6ce2325e4dd",
+  "testsExecuted": false,
+  "syntaxCheckExecuted": false,
+  "assemblyExecuted": false,
+  "remoteCalled": false,
+  "nativeAdmitted": false,
+  "rootOwnsReviewAndExecution": true
+}
