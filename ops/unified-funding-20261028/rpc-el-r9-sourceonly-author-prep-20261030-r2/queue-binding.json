@@ -1,0 +1,15 @@
+{
+  "outerUnit": "enclave-rpc-el-r9-sourceonly-author-20261030-r2.service",
+  "queue": "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py",
+  "guard": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs",
+  "launchNonce": "ac833e8d-0074-48d1-a526-929dcf148e28",
+  "scopeMutation": {
+    "CPUQuota": "100%",
+    "AllowedCPUs": "1"
+  },
+  "limitations": [
+    "Preparation only; no auth, preflight, author, syntax execution, tests or native checks.",
+    "Process and digest binding protects accidental cross-target launch; not a hostile same-UID sandbox.",
+    "User-manager CPU/cpuset controller delegation and property support must pass on admitted launch; no fallback."
+  ]
+}

@@ -1,0 +1,70 @@
+{
+  "at": 1793382110.7311478,
+  "unit": "enclave-rpc-nan-cl-n9-admission-r2-20261030.service",
+  "show": "ActiveState=active\nInvocationID=a3a3381868dc484cb4056f6bf32d28a0\nMainPID=2955086\n",
+  "identities": [
+    {
+      "pid": 2955086,
+      "start": "168717200",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2955087,
+      "start": "168717205",
+      "exe": "/usr/bin/node",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2955094,
+      "start": "168717208",
+      "exe": "/usr/bin/node",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2955101,
+      "start": "168717210",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2955292,
+      "start": "168720100",
+      "exe": "/usr/bin/qemu-nbd",
+      "cwd": "/",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2955295,
+      "start": "168720110",
+      "exe": "/usr/bin/ssh",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2955305,
+      "start": "168720210",
+      "exe": "/usr/bin/ssh",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    }
+  ]
+}

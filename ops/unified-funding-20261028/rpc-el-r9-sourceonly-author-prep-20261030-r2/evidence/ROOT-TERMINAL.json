@@ -1,0 +1,36 @@
+{
+  "at": 1793381829.1602957,
+  "show": "ActiveState=failed\nInvocationID=bec2b5f656f843c0985295ad2bae2ad2\nMainPID=0\nExecMainStatus=2\n",
+  "liveKnownIdentities": [],
+  "inputDrift": [],
+  "retainedSamples": 367,
+  "sampleEvidence": {
+    "byteCount": 1048181,
+    "dropped": 77,
+    "observed": 444,
+    "retained": 367,
+    "truncated": true
+  },
+  "progress": {
+    "elapsedSeconds": 900.3349654229823,
+    "invalidSamples": 0,
+    "secondsWithoutSemanticProgress": 434.2475399939576,
+    "secondsWithoutWork": 8.11580123892054,
+    "semanticMarkers": 18,
+    "validSamples": 89
+  },
+  "reason": "recovery-window-ended",
+  "rpc": false,
+  "lastSliceMemory": {
+    "memory.current": "2415796224",
+    "memory.events": "low 0\nhigh 0\nmax 536\noom 0\noom_kill 0\noom_group_kill 0",
+    "memory.peak": "2415919104"
+  },
+  "cleanup": true,
+  "remoteCleanupVerified": true,
+  "retainedDiagnosticInterval": {
+    "readDelta": 1716682752,
+    "writeDelta": 864681984,
+    "count": 74
+  }
+}

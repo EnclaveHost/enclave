@@ -1,0 +1,7 @@
+# EL r9 author input review
+
+Root reviewed TASK, r3 bootstrap, run.py, queue_binding.py, preflight, exact tool pins and retained unchanged37-file seed. PREPARED38ce9f9dc0e896d46252fc869a4cbb26055f708188cb89be36cc67eea8313f66, package digest drift0; all4 launcher Python files parse. No product source executed.
+
+Original r1 incorrectly required runner to inhabit the outer service despite shared queue scope. R2 incorrectly required a live systemd-run ancestor although it execs the outer node guard. Both rejected before launch and preserved. Root actual inert queue observation bfc69c2c224f47c58f820d79fe505330 confirms queue -> outer node -> inner node -> runner with distinct scope and CPU1 affinity. r3 binds that exact ancestry, argv, scope and process identities before runtime enforcement of only its own scope CPUQuota100% and AllowedCPUs1. Controller acceptance remains a live fail-closed check before author. No shared queue change.
+
+Root admits a separate current Max preflight under256MiB/220RSS/floor27648/CPU1/noSwap. A successful fresh result can authorize ONE source-only author, not tests/build/remote/native/production. Author scope1536 plus outer128 =1664MiB; require MemAvailable>=29568MiB before launch, in addition to shared queue/continuous27648 floor and1408RSS. Same Nan invocation is terminal/Main0/knownPIDs gone with sourcepins unchanged. No competing author/native permitted. Final independent account/pin evidence and actual process identities required. Tool restrictions are not an OS filesystem sandbox.

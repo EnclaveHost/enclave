@@ -1,0 +1,426 @@
+{
+  "ACCOUNT-PREFLIGHT.md": {
+    "sha256": "ea744144afe802746f415f0c342412acbf03794429fbe350cad2eedc7a66e54d",
+    "source": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-nan-cl-author-r1-20261030/ACCOUNT-PREFLIGHT.md"
+  },
+  "account-requirements.json": {
+    "sha256": "f7f904f166ddbb3f4c8a0c039b4a520d42823408422fbc2bc8f2861553466d34",
+    "source": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-nan-cl-author-r1-20261030/account-requirements.json"
+  },
+  "candidate/PREPARATION.json": {
+    "sha256": "c24f105a597b5bc2897177ee09b03eed869b95acb835ed57b0a7d662691a6ea3",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/PREPARATION.json"
+  },
+  "candidate/REVIEW.md": {
+    "sha256": "9335c9a7f5421097c94546cb6488ef5214ae2ee02d78145e663c483ea4917293",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/REVIEW.md"
+  },
+  "candidate/SOURCE-PINS.json": {
+    "sha256": "f901dd16576ca256e68aaad052d3090dc84af797df9fcd02e2d7ad679a865bfb",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/SOURCE-PINS.json"
+  },
+  "candidate/assemble.py": {
+    "sha256": "032a3d8c00253fba2ae02f1f31f23dac29281c0ed9a76c71e0702324092d77b7",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/assemble.py"
+  },
+  "candidate/check-runtime.py": {
+    "sha256": "6ff009bb5c817cb6dab04e605fa47e72414fbbf0cf32e04bf76ac5b7821e8fec",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/check-runtime.py"
+  },
+  "candidate/check-source.py": {
+    "sha256": "5c41e52c128562d0c4a55e12e1a8406959fce4d928af0029eeda2767e4629a7e",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/check-source.py"
+  },
+  "candidate/diffs/MANIFEST.json.patch": {
+    "sha256": "2f7f48f7accf82e727cf0fb722a1a7ee653bc0772864689b8db7f3eb1852ad35",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/diffs/MANIFEST.json.patch"
+  },
+  "candidate/diffs/client-main.py.patch": {
+    "sha256": "467cdf777da0572c22b793ce246b4d3c5808d9707069ceabaaf6d7e95f018a4c",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/diffs/client-main.py.patch"
+  },
+  "candidate/diffs/client-operations.py.patch": {
+    "sha256": "1e64d5d57cd088202f6ca0b303de61c3535cfa2a248a5a2c0a2536384c003494",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/diffs/client-operations.py.patch"
+  },
+  "candidate/diffs/disks.json.patch": {
+    "sha256": "11da681ccf01671c4829ddb9060bee4a275110f584a809cff9856df1cfbd364e",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/diffs/disks.json.patch"
+  },
+  "candidate/diffs/payload-manifest.json.patch": {
+    "sha256": "943005ee89d261b2ee63b46fe5d173ed7c7cf7ec54f69a818a74d735522f5901",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/diffs/payload-manifest.json.patch"
+  },
+  "candidate/diffs/recovery-progress.py.patch": {
+    "sha256": "783fefe6b406540d49b4d33cf0353ad87a23fbe42197aa47ae65d59a66d7f032",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/diffs/recovery-progress.py.patch"
+  },
+  "candidate/diffs/run-body.py.patch": {
+    "sha256": "0c2f8a82f602afecd7eefd32db28a65e23f99d758dc15da2a77a60a31c5cc2b9",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/diffs/run-body.py.patch"
+  },
+  "candidate/diffs/test_source.py.patch": {
+    "sha256": "edeac80ec01aeead6348675ad94d34b665f8dc64d39019bf2b785c1c80aeb0a3",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/diffs/test_source.py.patch"
+  },
+  "candidate/diffs/transport-helpers.py.patch": {
+    "sha256": "7c7f2c685ab7ce43a885289ad46a732311a7488b0efac8dda6607f2033e8e90c",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/diffs/transport-helpers.py.patch"
+  },
+  "candidate/diffs/trial-chain-service.py.patch": {
+    "sha256": "bb018c4c4b6bc9f6be2af80b328d7dbc224a4e1efb12583ef9b7071aaae528fa",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/diffs/trial-chain-service.py.patch"
+  },
+  "candidate/fixtures/PROVENANCE.json": {
+    "sha256": "358ef5978e7a625290ab20f4abf7f34b7075af28b02b0fd19cea9c9f9739f970",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/fixtures/PROVENANCE.json"
+  },
+  "candidate/fixtures/ROOT-OBSERVED-BYTE-FIXTURES.json": {
+    "sha256": "9f0925653e494ed822a66c17c78f11c8b97a5bdf93b639231c89048b2a89a341",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/fixtures/ROOT-OBSERVED-BYTE-FIXTURES.json"
+  },
+  "candidate/fixtures/observed-journal-bytes.json": {
+    "sha256": "e8282221c7451d371950f82f51d106a741c3b0904a335d32b0fafbbcc6f824fc",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/fixtures/observed-journal-bytes.json"
+  },
+  "candidate/fresh-read.py": {
+    "sha256": "237be05ca018f87f689feadc9f3e217da274ad72d62c065cc3ee0c984a4b3a61",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/fresh-read.py"
+  },
+  "candidate/launch-command.txt": {
+    "sha256": "56174da206d02793a113a298bb634fdece216ee934c74a3a9adfec10c028e44c",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/launch-command.txt"
+  },
+  "candidate/source/EXTERNAL-PINS.json": {
+    "sha256": "5d4a8813caaece71a482473a4fe173a63d262c164303b04a472b00891b112ae1",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/EXTERNAL-PINS.json"
+  },
+  "candidate/source/MANIFEST.json": {
+    "sha256": "65614fa07c1e6453a6c5cd82300b9facf178e0a7fb67f6aaa6ede249e3a0e35d",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/MANIFEST.json"
+  },
+  "candidate/source/backing-policy.py": {
+    "sha256": "a4a2fc8d9756905ae95277ca8e36aadaaf1ab432cfc419bb7569397adbef34e4",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/backing-policy.py"
+  },
+  "candidate/source/capture-local.py": {
+    "sha256": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/capture-local.py"
+  },
+  "candidate/source/capture-remote.py": {
+    "sha256": "aee3fe3b07126b8cc8b3b3fd4225ebc94e42ae2344177ef316106899ec642655",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/capture-remote.py"
+  },
+  "candidate/source/client-main.py": {
+    "sha256": "6c90e319b336a054602a2b46a9018df9bbfbbdaab580d30c1179236687a8f262",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/client-main.py"
+  },
+  "candidate/source/client-operations.py": {
+    "sha256": "dc7d2c9f30da3118abb9e44a04c081584070062b19300ff1b54aa4a22f508f98",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/client-operations.py"
+  },
+  "candidate/source/disks.json": {
+    "sha256": "d3633e87f15a194fcfc87359ddfc00ca33b675dbd49c977852656408bfc7874d",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/disks.json"
+  },
+  "candidate/source/original-reth.toml": {
+    "sha256": "a93adc65ec30ac1ea6d8f4c59b9ef12e522e07606e038777f93cdbf7e67304c7",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/original-reth.toml"
+  },
+  "candidate/source/payload-manifest.json": {
+    "sha256": "b6a9262ba9fb49850ebdcca98f147948c596e92b3462b5858ffab97c3b3aa535",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/payload-manifest.json"
+  },
+  "candidate/source/proposed-reth.toml": {
+    "sha256": "63bc71f103c49e06cd661ab410cc7005fd101ca9578cd6cb15fac7be6e35c320",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/proposed-reth.toml"
+  },
+  "candidate/source/recovery-progress.py": {
+    "sha256": "8e27b0f994bf7c614ec82384ba720ff8963f0f6dbd243c604276337cf11c7816",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/recovery-progress.py"
+  },
+  "candidate/source/run-body.py": {
+    "sha256": "7bd886b7e0f3178b9898f712fe280c38ae898249f978982bbda529f2d4005592",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/run-body.py"
+  },
+  "candidate/source/transport-helpers.py": {
+    "sha256": "56a78a005a6fbc88e91f201e78535497fe11e01be773550f4e011f11101ce32d",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/transport-helpers.py"
+  },
+  "candidate/source/trial-chain-service.py": {
+    "sha256": "3a51c1c7c7dcf1587caf94cca829116c94d9081e2585f8b3c1a06b46f953b260",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/trial-chain-service.py"
+  },
+  "candidate/test_source.py": {
+    "sha256": "e1d00a4e8648c42158f6810c038420e0c69f61dad6be81a9cc2f2e58019c12bd",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/test_source.py"
+  },
+  "evidence/PARSED-MAIN.json": {
+    "sha256": "a0c7c595f84cf8ff4ff089fa6b4ad395b1ecbdb0e1bac5c477f653a94e8f7dff",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/PARSED-MAIN.json"
+  },
+  "evidence/ROOT-NATIVE-IDENTITIES.json": {
+    "sha256": "6b4f02a35776718317f57b72549014c7d9171440e5279fb0e528b12bca12a1c6",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/ROOT-NATIVE-IDENTITIES.json"
+  },
+  "evidence/ROOT-RESULT.md": {
+    "sha256": "294dcebe1f84b4342e3624d45dda645fba9b496841d68d45d05f46461d811975",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/ROOT-RESULT.md"
+  },
+  "evidence/ROOT-REVIEW.md": {
+    "sha256": "b3110cfee17968d890928288e56d9272cd5782639f20bc9cb070681ac4593c51",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/ROOT-REVIEW.md"
+  },
+  "evidence/ROOT-TERMINAL.json": {
+    "sha256": "2e5dccdd19a6ec7a9e8d4ef9a058ded35b752bc36714a7f949ad465588ccf754",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/ROOT-TERMINAL.json"
+  },
+  "evidence/runtime/EXTERNAL-PINS.json": {
+    "sha256": "5d4a8813caaece71a482473a4fe173a63d262c164303b04a472b00891b112ae1",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/runtime/EXTERNAL-PINS.json"
+  },
+  "evidence/runtime/MANIFEST.json": {
+    "sha256": "b7c14bfb527be0c6cb25c9beef71a2c6aeb40bfba82b8d9b4e33aef9f03e872f",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/runtime/MANIFEST.json"
+  },
+  "evidence/runtime/PINS.json": {
+    "sha256": "370c55e771f736a37ac000109441b3dba79db28d35be70f2a75b0f6a09209001",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/runtime/PINS.json"
+  },
+  "evidence/runtime/REMOTE-SOCKET-CLEAR.json": {
+    "sha256": "87b1b9a15cf29414bd21bc513163eaf1d554ab5abef23c9a4387d74e6f2fce45",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/runtime/REMOTE-SOCKET-CLEAR.json"
+  },
+  "evidence/runtime/REMOTE-VERIFY.json": {
+    "sha256": "d146beb8d462ec2660cada8878a602ae627085933fd37eda2666bce3ac8e7a4d",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/runtime/REMOTE-VERIFY.json"
+  },
+  "evidence/runtime/RESULT.json": {
+    "sha256": "3309c5d1778647e69bb39434162311e90fb781762dc0fdd79978ba36138c1ccf",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/runtime/RESULT.json"
+  },
+  "evidence/runtime/backing-policy.py": {
+    "sha256": "a4a2fc8d9756905ae95277ca8e36aadaaf1ab432cfc419bb7569397adbef34e4",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/runtime/backing-policy.py"
+  },
+  "evidence/runtime/capture-local.py": {
+    "sha256": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/runtime/capture-local.py"
+  },
+  "evidence/runtime/capture-remote.py": {
+    "sha256": "aee3fe3b07126b8cc8b3b3fd4225ebc94e42ae2344177ef316106899ec642655",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/runtime/capture-remote.py"
+  },
+  "evidence/runtime/client-main.py": {
+    "sha256": "6c90e319b336a054602a2b46a9018df9bbfbbdaab580d30c1179236687a8f262",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/runtime/client-main.py"
+  },
+  "evidence/runtime/client-operations.py": {
+    "sha256": "dc7d2c9f30da3118abb9e44a04c081584070062b19300ff1b54aa4a22f508f98",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/runtime/client-operations.py"
+  },
+  "evidence/runtime/disks.json": {
+    "sha256": "d3633e87f15a194fcfc87359ddfc00ca33b675dbd49c977852656408bfc7874d",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/runtime/disks.json"
+  },
+  "evidence/runtime/original-reth.toml": {
+    "sha256": "a93adc65ec30ac1ea6d8f4c59b9ef12e522e07606e038777f93cdbf7e67304c7",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/runtime/original-reth.toml"
+  },
+  "evidence/runtime/payload-manifest.json": {
+    "sha256": "b6a9262ba9fb49850ebdcca98f147948c596e92b3462b5858ffab97c3b3aa535",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/runtime/payload-manifest.json"
+  },
+  "evidence/runtime/proposed-reth.toml": {
+    "sha256": "63bc71f103c49e06cd661ab410cc7005fd101ca9578cd6cb15fac7be6e35c320",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/runtime/proposed-reth.toml"
+  },
+  "evidence/runtime/recovery-progress.py": {
+    "sha256": "8e27b0f994bf7c614ec82384ba720ff8963f0f6dbd243c604276337cf11c7816",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/runtime/recovery-progress.py"
+  },
+  "evidence/runtime/remote-program.py": {
+    "sha256": "734d316a4d1ca2ec4e338edd86d2081c88f55b07b906f559514a88565b6ae877",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/runtime/remote-program.py"
+  },
+  "evidence/runtime/run-body.py": {
+    "sha256": "7bd886b7e0f3178b9898f712fe280c38ae898249f978982bbda529f2d4005592",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/runtime/run-body.py"
+  },
+  "evidence/runtime/run.py": {
+    "sha256": "adc3d2371a72219d258937ab266240cd2d8a5940b749ad2e415e816b981b83de",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/runtime/run.py"
+  },
+  "evidence/runtime/transport-helpers.py": {
+    "sha256": "56a78a005a6fbc88e91f201e78535497fe11e01be773550f4e011f11101ce32d",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/runtime/transport-helpers.py"
+  },
+  "evidence/runtime/trial-chain-service.py": {
+    "sha256": "3a51c1c7c7dcf1587caf94cca829116c94d9081e2585f8b3c1a06b46f953b260",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/runtime/trial-chain-service.py"
+  },
+  "references/AGENTS.md": {
+    "sha256": "73c45e3cbf63944aac5f92d41f6ce0dc13ef3fe23247e97bbe12c18818c60d1e",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/AGENTS.md"
+  },
+  "references/previous-author-runner.py": {
+    "sha256": "fde2d7c39e0d4ae4cf298d600b082ea22f2b4386d2f6d227aebdb17199bf51e3",
+    "source": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-nan-cl-author-r1-20261030/run.py"
+  },
+  "references/previous-recovery-plan.md": {
+    "sha256": "81727f1d9f9ce74c03b4915c1909a0cf49e6821d158fc0545c1135ffa43fc3a1",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-el-recovery-plan-r1/PLAN.md"
+  },
+  "references/previous-root-preflight.py": {
+    "sha256": "59105bfca47fc3837043f68ddaf845146143eba8033a55fd5180b80a0863b97a",
+    "source": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-nan-cl-author-r1-20261030/root-preflight.py"
+  },
+  "seed/PREPARATION.json": {
+    "sha256": "c24f105a597b5bc2897177ee09b03eed869b95acb835ed57b0a7d662691a6ea3",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/PREPARATION.json"
+  },
+  "seed/REVIEW.md": {
+    "sha256": "9335c9a7f5421097c94546cb6488ef5214ae2ee02d78145e663c483ea4917293",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/REVIEW.md"
+  },
+  "seed/SOURCE-PINS.json": {
+    "sha256": "f901dd16576ca256e68aaad052d3090dc84af797df9fcd02e2d7ad679a865bfb",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/SOURCE-PINS.json"
+  },
+  "seed/assemble.py": {
+    "sha256": "032a3d8c00253fba2ae02f1f31f23dac29281c0ed9a76c71e0702324092d77b7",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/assemble.py"
+  },
+  "seed/check-runtime.py": {
+    "sha256": "6ff009bb5c817cb6dab04e605fa47e72414fbbf0cf32e04bf76ac5b7821e8fec",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/check-runtime.py"
+  },
+  "seed/check-source.py": {
+    "sha256": "5c41e52c128562d0c4a55e12e1a8406959fce4d928af0029eeda2767e4629a7e",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/check-source.py"
+  },
+  "seed/diffs/MANIFEST.json.patch": {
+    "sha256": "2f7f48f7accf82e727cf0fb722a1a7ee653bc0772864689b8db7f3eb1852ad35",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/diffs/MANIFEST.json.patch"
+  },
+  "seed/diffs/client-main.py.patch": {
+    "sha256": "467cdf777da0572c22b793ce246b4d3c5808d9707069ceabaaf6d7e95f018a4c",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/diffs/client-main.py.patch"
+  },
+  "seed/diffs/client-operations.py.patch": {
+    "sha256": "1e64d5d57cd088202f6ca0b303de61c3535cfa2a248a5a2c0a2536384c003494",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/diffs/client-operations.py.patch"
+  },
+  "seed/diffs/disks.json.patch": {
+    "sha256": "11da681ccf01671c4829ddb9060bee4a275110f584a809cff9856df1cfbd364e",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/diffs/disks.json.patch"
+  },
+  "seed/diffs/payload-manifest.json.patch": {
+    "sha256": "943005ee89d261b2ee63b46fe5d173ed7c7cf7ec54f69a818a74d735522f5901",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/diffs/payload-manifest.json.patch"
+  },
+  "seed/diffs/recovery-progress.py.patch": {
+    "sha256": "783fefe6b406540d49b4d33cf0353ad87a23fbe42197aa47ae65d59a66d7f032",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/diffs/recovery-progress.py.patch"
+  },
+  "seed/diffs/run-body.py.patch": {
+    "sha256": "0c2f8a82f602afecd7eefd32db28a65e23f99d758dc15da2a77a60a31c5cc2b9",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/diffs/run-body.py.patch"
+  },
+  "seed/diffs/test_source.py.patch": {
+    "sha256": "edeac80ec01aeead6348675ad94d34b665f8dc64d39019bf2b785c1c80aeb0a3",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/diffs/test_source.py.patch"
+  },
+  "seed/diffs/transport-helpers.py.patch": {
+    "sha256": "7c7f2c685ab7ce43a885289ad46a732311a7488b0efac8dda6607f2033e8e90c",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/diffs/transport-helpers.py.patch"
+  },
+  "seed/diffs/trial-chain-service.py.patch": {
+    "sha256": "bb018c4c4b6bc9f6be2af80b328d7dbc224a4e1efb12583ef9b7071aaae528fa",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/diffs/trial-chain-service.py.patch"
+  },
+  "seed/fixtures/PROVENANCE.json": {
+    "sha256": "358ef5978e7a625290ab20f4abf7f34b7075af28b02b0fd19cea9c9f9739f970",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/fixtures/PROVENANCE.json"
+  },
+  "seed/fixtures/ROOT-OBSERVED-BYTE-FIXTURES.json": {
+    "sha256": "9f0925653e494ed822a66c17c78f11c8b97a5bdf93b639231c89048b2a89a341",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/fixtures/ROOT-OBSERVED-BYTE-FIXTURES.json"
+  },
+  "seed/fixtures/observed-journal-bytes.json": {
+    "sha256": "e8282221c7451d371950f82f51d106a741c3b0904a335d32b0fafbbcc6f824fc",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/fixtures/observed-journal-bytes.json"
+  },
+  "seed/fresh-read.py": {
+    "sha256": "237be05ca018f87f689feadc9f3e217da274ad72d62c065cc3ee0c984a4b3a61",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/fresh-read.py"
+  },
+  "seed/launch-command.txt": {
+    "sha256": "56174da206d02793a113a298bb634fdece216ee934c74a3a9adfec10c028e44c",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/launch-command.txt"
+  },
+  "seed/source/EXTERNAL-PINS.json": {
+    "sha256": "5d4a8813caaece71a482473a4fe173a63d262c164303b04a472b00891b112ae1",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/EXTERNAL-PINS.json"
+  },
+  "seed/source/MANIFEST.json": {
+    "sha256": "65614fa07c1e6453a6c5cd82300b9facf178e0a7fb67f6aaa6ede249e3a0e35d",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/MANIFEST.json"
+  },
+  "seed/source/backing-policy.py": {
+    "sha256": "a4a2fc8d9756905ae95277ca8e36aadaaf1ab432cfc419bb7569397adbef34e4",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/backing-policy.py"
+  },
+  "seed/source/capture-local.py": {
+    "sha256": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/capture-local.py"
+  },
+  "seed/source/capture-remote.py": {
+    "sha256": "aee3fe3b07126b8cc8b3b3fd4225ebc94e42ae2344177ef316106899ec642655",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/capture-remote.py"
+  },
+  "seed/source/client-main.py": {
+    "sha256": "6c90e319b336a054602a2b46a9018df9bbfbbdaab580d30c1179236687a8f262",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/client-main.py"
+  },
+  "seed/source/client-operations.py": {
+    "sha256": "dc7d2c9f30da3118abb9e44a04c081584070062b19300ff1b54aa4a22f508f98",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/client-operations.py"
+  },
+  "seed/source/disks.json": {
+    "sha256": "d3633e87f15a194fcfc87359ddfc00ca33b675dbd49c977852656408bfc7874d",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/disks.json"
+  },
+  "seed/source/original-reth.toml": {
+    "sha256": "a93adc65ec30ac1ea6d8f4c59b9ef12e522e07606e038777f93cdbf7e67304c7",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/original-reth.toml"
+  },
+  "seed/source/payload-manifest.json": {
+    "sha256": "b6a9262ba9fb49850ebdcca98f147948c596e92b3462b5858ffab97c3b3aa535",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/payload-manifest.json"
+  },
+  "seed/source/proposed-reth.toml": {
+    "sha256": "63bc71f103c49e06cd661ab410cc7005fd101ca9578cd6cb15fac7be6e35c320",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/proposed-reth.toml"
+  },
+  "seed/source/recovery-progress.py": {
+    "sha256": "8e27b0f994bf7c614ec82384ba720ff8963f0f6dbd243c604276337cf11c7816",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/recovery-progress.py"
+  },
+  "seed/source/run-body.py": {
+    "sha256": "7bd886b7e0f3178b9898f712fe280c38ae898249f978982bbda529f2d4005592",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/run-body.py"
+  },
+  "seed/source/transport-helpers.py": {
+    "sha256": "56a78a005a6fbc88e91f201e78535497fe11e01be773550f4e011f11101ce32d",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/transport-helpers.py"
+  },
+  "seed/source/trial-chain-service.py": {
+    "sha256": "3a51c1c7c7dcf1587caf94cca829116c94d9081e2585f8b3c1a06b46f953b260",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/trial-chain-service.py"
+  },
+  "seed/test_source.py": {
+    "sha256": "e1d00a4e8648c42158f6810c038420e0c69f61dad6be81a9cc2f2e58019c12bd",
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/test_source.py"
+  }
+}

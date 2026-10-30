@@ -1,0 +1,10 @@
+{
+  "filesystemIsolation": "Tool/task scope plus pre/post immutable-input pin checks; not represented as a kernel filesystem sandbox.",
+  "noExecution": true,
+  "readOnly": [
+    "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-el-r9-sourceonly-author-prep-20261030-r3/seed",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-el-r9-sourceonly-author-prep-20261030-r3/evidence",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-el-r9-sourceonly-author-prep-20261030-r3/references"
+  ],
+  "writeOnly": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-el-r9-sourceonly-author-prep-20261030-r3/candidate"
+}

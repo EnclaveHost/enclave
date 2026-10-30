@@ -1,0 +1,3 @@
+# PREPARED ONLY, not executed. Root approval must additionally authorize queueScopeResourceMutationAuthorized=true.
+# Fresh independent root preflight remains required. Root must bound that separate account-only invocation.
+/usr/bin/systemd-run --user --unit=enclave-rpc-el-r9-sourceonly-author-20261030-r3.service --property=RuntimeMaxSec=1200 --property=TimeoutStopSec=3 --property=MemoryMax=128M --property=MemorySwapMax=0 --property=CPUQuota=100% --property=AllowedCPUs=1 --property=UMask=0077 --collect /usr/bin/taskset -c 1 /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-23/it/work/rpc-el-r9-sourceonly-author-prep-20261030-r3/outer-launch.py

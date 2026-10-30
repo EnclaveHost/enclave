@@ -1,0 +1,14 @@
+--- repaired-r2/source/client-operations.py
++++ r8/source/client-operations.py
+@@ -1,8 +1,8 @@
+ # PREPARED ONLY. Appended to the qualified transport/ownership helpers.
+ import pwd,grp,secrets,shutil,urllib.request,urllib.error,contextlib
+-PAYLOAD=EXEC/'payload';SLICE='enclavel1trialr7.slice';GUARD_SLICE='enclavel1guardianr7.slice';ATTACH_SLICE='enclavel1attachr7.slice';NBD_UNIT='enclave-rpc-l1-nbd-r7.service'
+-UNITS={'el':'enclave-rpc-l1-el-trial-r7.service','cl':'enclave-rpc-l1-cl-trial-r7.service'}
+-HELPER='enclave-rpc-l1-helper-r7.service';WATCH='enclave-rpc-l1-watch-r7.service'
++PAYLOAD=EXEC/'payload';SLICE='enclavel1trialr8.slice';GUARD_SLICE='enclavel1guardianr8.slice';ATTACH_SLICE='enclavel1attachr8.slice';NBD_UNIT='enclave-rpc-l1-nbd-r8.service'
++UNITS={'el':'enclave-rpc-l1-el-trial-r8.service','cl':'enclave-rpc-l1-cl-trial-r8.service'}
++HELPER='enclave-rpc-l1-helper-r8.service';WATCH='enclave-rpc-l1-watch-r8.service'
+ STOP=ROOT/'STOP';DONE=ROOT/'CLEANUP.json';LOCK=ROOT/'operation.lock'
+ def atomic_json(path,value):
+     tmp=path.with_suffix('.next')

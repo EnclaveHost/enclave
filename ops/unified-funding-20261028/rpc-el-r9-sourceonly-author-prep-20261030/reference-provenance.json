@@ -1,0 +1,26 @@
+[
+  {
+    "bytes": 65446,
+    "commitReference": "05ba481",
+    "path": "references/reth-launch-common-05ba481.rs",
+    "purpose": "read-only source reference, never executable or a replacement binary",
+    "sha256": "87a23ec78bb713a9301a56feb86b63a7bd2f100695afdad1f6e4bcc86ba85350",
+    "url": "https://raw.githubusercontent.com/paradigmxyz/reth/05ba481/crates/node/builder/src/launch/common.rs"
+  },
+  {
+    "bytes": 35597,
+    "commitReference": "05ba481",
+    "path": "references/reth-merkle-05ba481.rs",
+    "purpose": "read-only source reference, never executable or a replacement binary",
+    "sha256": "34a877845f9f764e21bff30960ec61a2bb6ce1aa15d8cdba84e749dcd0d04910",
+    "url": "https://raw.githubusercontent.com/paradigmxyz/reth/05ba481/crates/stages/stages/src/stages/merkle.rs"
+  },
+  {
+    "bytes": 55549,
+    "commitReference": "05ba481",
+    "path": "references/reth-pipeline-05ba481.rs",
+    "purpose": "read-only source reference, never executable or a replacement binary",
+    "sha256": "8419307f1cefbe4d79df401f05f31a4ea2f2000c226da62e94f39037f93a2b4f",
+    "url": "https://raw.githubusercontent.com/paradigmxyz/reth/05ba481/crates/stages/api/src/pipeline/mod.rs"
+  }
+]

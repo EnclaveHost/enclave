@@ -1,0 +1,54 @@
+{
+  "unit": {
+    "ActiveState": "active",
+    "InvocationID": "4faa4cab2bc64c9d9f5d8d540289df59",
+    "MainPID": "2868408",
+    "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-nan-cl-native-n1-20261030.service"
+  },
+  "rows": [
+    {
+      "pid": 2868408,
+      "startTicks": "167661301",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "cpu": [
+        1
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-nan-cl-native-n1-20261030.service\n",
+      "argv0": "/usr/bin/python3"
+    },
+    {
+      "pid": 2868409,
+      "startTicks": "167661307",
+      "exe": "/usr/bin/node",
+      "cwd": "/home/steven",
+      "cpu": [
+        1
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2868409-i44813170.scope\n",
+      "argv0": "/usr/bin/node"
+    },
+    {
+      "pid": 2868416,
+      "startTicks": "167661311",
+      "exe": "/usr/bin/node",
+      "cwd": "/home/steven",
+      "cpu": [
+        1
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2868409-i44813170.scope\n",
+      "argv0": "/usr/bin/node"
+    },
+    {
+      "pid": 2868423,
+      "startTicks": "167661313",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "cpu": [
+        1
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2868409-i44813170.scope\n",
+      "argv0": "/usr/bin/python3"
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "at": 1793380889.6355402,
+  "unit": "enclave-rpc-control-vm-l1-client-native-r8-20261030.service",
+  "show": "ActiveState=active\nInvocationID=bec2b5f656f843c0985295ad2bae2ad2\nMainPID=2944924\n",
+  "identities": [
+    {
+      "pid": 2944924,
+      "start": "168595894",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2944925,
+      "start": "168595900",
+      "exe": "/usr/bin/node",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2944932,
+      "start": "168595903",
+      "exe": "/usr/bin/node",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2944939,
+      "start": "168595906",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2945027,
+      "start": "168596722",
+      "exe": "/usr/bin/ssh",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2945028,
+      "start": "168596722",
+      "exe": "/usr/bin/ssh",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2945023,
+      "start": "168596622",
+      "exe": "/usr/bin/ssh",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2945024,
+      "start": "168596622",
+      "exe": "/usr/bin/ssh",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2945020,
+      "start": "168596612",
+      "exe": "/usr/bin/qemu-nbd",
+      "cwd": "/",
+      "affinity": [
+        1
+      ]
+    }
+  ]
+}

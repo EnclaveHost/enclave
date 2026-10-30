@@ -1,0 +1,78 @@
+--- repaired-r2/test_source.py
++++ r8/test_source.py
+@@ -155,4 +155,75 @@
+  def test_stop_already_present(self):self.assertEqual(self.invoke([True]),'bounded-trial-finished')
+  def test_actual_deadline_remains_deadline(self):self.assertEqual(self.invoke([],0),'watchdog-deadline')
+ 
++
++class JournalBytes(unittest.TestCase):
++ def setUp(self):
++  self.g=funcs('recovery-progress.py')
++  self.observed=json.loads((p/'fixtures/ROOT-OBSERVED-BYTE-FIXTURES.json').read_text())
++  self.inv='205a20e90fe34de19c0b348d24c0d6fd'
++ def parse(self,value,invocation=None):
++  return self.g['recovery_markers'](json.dumps({'MESSAGE':value,'_SYSTEMD_INVOCATION_ID':invocation or self.inv}),self.inv)
++ def test_exact_root_history_byte_array(self):
++  row=self.observed[0]['journalRow']
++  self.assertEqual(self.g['recovery_markers'](json.dumps(row),self.inv),[('StoragesHistory: healing via changesets','',(('checkpoint',26277866),('sf_tip',26277896)))])
++ def test_exact_root_merkle_byte_array(self):
++  row=self.observed[1]['journalRow']
++  self.assertEqual(self.g['recovery_markers'](json.dumps(row),self.inv),[('Starting unwind','MerkleUnwind',(('from',26277896),('to',26277866)))])
++ def test_root_fixtures_match_observed_sha(self):
++  for row in self.observed:
++   self.assertEqual(hashlib.sha256(bytes(row['journalRow']['MESSAGE'])).hexdigest(),row['messageSha256'])
++ def test_five_real_phase_records_match_plain_strings(self):
++  rows=json.loads((p/'fixtures/observed-journal-bytes.json').read_text())
++  self.assertEqual(len(rows),5)
++  expected=[('StoragesHistory: healing via changesets','',(('checkpoint',26277866),('sf_tip',26277896))),
++    ('StoragesHistory: unwinding batch','',(('batch_end',26277896),('batch_num',1),('batch_start',26277867),('total_batches',1))),
++    ('AccountsHistory: healing via changesets','',(('checkpoint',26277866),('sf_tip',26277896))),
++    ('AccountsHistory: unwinding batch','',(('batch_end',26277896),('batch_num',1),('batch_start',26277867),('total_batches',1))),
++    ('Starting unwind','MerkleUnwind',(('from',26277896),('to',26277866)))]
++  for row,marker in zip(rows,expected):
++   raw=bytes(row['MESSAGE']);self.assertEqual(hashlib.sha256(raw).hexdigest(),row['messageSha256']);self.assertEqual(len(raw),row['messageLength'])
++   self.assertEqual(self.parse(row['MESSAGE']),[marker]);self.assertEqual(self.parse(raw.decode('utf-8')),[marker])
++ def test_wrong_invocation_byte_array_refused(self):
++  with self.assertRaisesRegex(AssertionError,'invocation'):self.parse(self.observed[1]['journalRow']['MESSAGE'],'b'*32)
++ def test_missing_invocation_byte_array_refused(self):
++  with self.assertRaisesRegex(AssertionError,'invocation'):self.g['recovery_markers'](json.dumps({'MESSAGE':[79]}),self.inv)
++ def test_boolean_float_out_of_range_byte_values_rejected(self):
++  base=list(b'Opening database')
++  for bad in (True,False,1.0,-1,256,10**50,'65',None,{}):
++   with self.subTest(bad=bad):self.assertEqual(self.parse(base+[bad]),[])
++ def test_multiple_values_nested_arrays_and_scalars_rejected(self):
++  good=list(b'Opening database')
++  for bad in ([good],['Opening database'],[good,good],['Opening database',good],None,{},42,False,[]):
++   with self.subTest(value=bad):self.assertEqual(self.parse(bad),[])
++ def test_invalid_utf8_never_ignored_or_replaced(self):
++  for suffix in ([255],[192,175],[226,130],[237,160,128]):
++   self.assertEqual(self.parse(list(b'Opening database ')+suffix),[])
++ def test_8192_boundary_and_oversize(self):
++  raw=b'Opening database'+b' '*(8192-len(b'Opening database'))
++  self.assertEqual(self.parse(list(raw)),[('Opening database','',())])
++  self.assertEqual(self.parse(list(raw+b' ')),[])
++  self.assertEqual(self.parse((raw+b' ').decode()),[])
++ def test_utf8_multibyte_text_decodes_before_marker(self):
++  message='café Opening database'
++  self.assertEqual(self.parse(list(message.encode('utf-8'))),self.parse(message))
++ def test_unrecognized_byte_array_is_not_retained(self):
++  self.assertEqual(self.parse(list(b'arbitrary fixture secret content')),[])
++ def test_byte_array_replay_does_not_reset_semantic_clock(self):
++  markers=self.parse(self.observed[1]['journalRow']['MESSAGE']);c=self.g['recovery_clock'](0)
++  d={'sameIncarnation':True,'identity':{'pid':1,'startTicks':10,'invocationID':self.inv,'procIdentity':[1,2]},'io':{'read_bytes':0,'write_bytes':0},'stat':{'userTicks':0,'systemTicks':0}}
++  self.g['advance_recovery'](c,0,d,markers);d['io']['read_bytes']=1
++  self.assertIsNone(self.g['advance_recovery'](c,200,d,markers));self.assertEqual(c['lastSemantic'],0)
++  d['io']['read_bytes']=2;self.assertEqual(self.g['advance_recovery'](c,600,d,markers),'recovery-semantic-progress-limit')
++ def test_actual_byte_array_sampler_retains_query_and_read_caps(self):
++  row=self.observed[1]['journalRow'];calls=[]
++  def capture(argv,seconds,limit):
++   calls.append((argv,seconds,limit));return {'rc':0,'reason':None,'truncated':False,'stdout':json.dumps(row)}
++  self.g['capture']=capture
++  self.assertEqual(self.g['sample_recovery_markers']({'InvocationID':self.inv}),[('Starting unwind','MerkleUnwind',(('from',26277896),('to',26277866)))])
++  argv,seconds,limit=calls[0];self.assertEqual(seconds,4);self.assertEqual(limit,131072)
++  self.assertEqual(argv,['/usr/bin/journalctl','--no-pager','-o','json','-n','256','--output-fields=MESSAGE,_SYSTEMD_INVOCATION_ID','_SYSTEMD_INVOCATION_ID='+self.inv])
++ def test_truncated_capture_never_credits_markers(self):
++  self.g['capture']=lambda *a,**k:{'rc':0,'reason':None,'truncated':True,'stdout':json.dumps(self.observed[1]['journalRow'])}
++  with self.assertRaisesRegex(AssertionError,'journal-read'):self.g['sample_recovery_markers']({'InvocationID':self.inv})
++
+ if __name__=='__main__':unittest.main(verbosity=2)

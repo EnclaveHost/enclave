@@ -1,0 +1,54 @@
+[
+  {
+    "pid": 2976183,
+    "ppid": 2976176,
+    "startTicks": "168914816",
+    "exe": "/usr/bin/python3.14",
+    "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2976169-i44907170.scope",
+    "affinity": [
+      1
+    ],
+    "memoryMax": "268435456",
+    "swapMax": "0",
+    "cpuMax": "max 100000"
+  },
+  {
+    "pid": 2976176,
+    "ppid": 2976169,
+    "startTicks": "168914814",
+    "exe": "/usr/bin/node",
+    "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2976169-i44907170.scope",
+    "affinity": [
+      1
+    ],
+    "memoryMax": "268435456",
+    "swapMax": "0",
+    "cpuMax": "max 100000"
+  },
+  {
+    "pid": 2976169,
+    "ppid": 2976168,
+    "startTicks": "168914810",
+    "exe": "/usr/bin/node",
+    "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2976169-i44907170.scope",
+    "affinity": [
+      1
+    ],
+    "memoryMax": "268435456",
+    "swapMax": "0",
+    "cpuMax": "max 100000"
+  },
+  {
+    "pid": 2976168,
+    "ppid": 1899,
+    "startTicks": "168914805",
+    "exe": "/usr/bin/python3.14",
+    "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-author-queue-topology-r1-20261030.service",
+    "affinity": [
+      1
+    ],
+    "memoryMax": "134217728",
+    "swapMax": "0",
+    "cpuMax": "100000 100000"
+  }
+]

@@ -1,0 +1,82 @@
+{
+  "beacon_node/beacon_chain/src/builder.rs": {
+    "url": "https://raw.githubusercontent.com/sigp/lighthouse/v8.3.2/beacon_node/beacon_chain/src/builder.rs",
+    "sha256": "593e21555e92c70439e146aec3cddcfb02d1b8c48ec62044af683d0de0abf682",
+    "bytes": 71260
+  },
+  "beacon_node/beacon_chain/src/beacon_fork_choice_store.rs": {
+    "url": "https://raw.githubusercontent.com/sigp/lighthouse/v8.3.2/beacon_node/beacon_chain/src/beacon_fork_choice_store.rs",
+    "sha256": "b53b2f750caca8deda97e95b13a019371a7bdf02279d9b5196bd5eeb12981947",
+    "bytes": 15576
+  },
+  "consensus/proto_array/src/justified_balances.rs": {
+    "url": "https://raw.githubusercontent.com/sigp/lighthouse/v8.3.2/consensus/proto_array/src/justified_balances.rs",
+    "sha256": "760af807c66fffa178a2a12d8b0d6b6df56a039d2802032e67894f3a129b8c23",
+    "bytes": 4973
+  },
+  "beacon_node/store/src/state_cache.rs": {
+    "url": "https://raw.githubusercontent.com/sigp/lighthouse/v8.3.2/beacon_node/store/src/state_cache.rs",
+    "sha256": "71c54d2d7de03402f85357a6a54bfe66f690a216d806b8bc420b6c10ea243282",
+    "bytes": 19443
+  },
+  "beacon_node/store/src/hot_cold_store.rs": {
+    "url": "https://raw.githubusercontent.com/sigp/lighthouse/v8.3.2/beacon_node/store/src/hot_cold_store.rs",
+    "sha256": "6458ea7aa6a509299ff166e19852dd8e81fb3a915e2a90f8a41e79a91308b0fc",
+    "bytes": 159580
+  },
+  "beacon_node/store/src/hdiff.rs": {
+    "url": "https://raw.githubusercontent.com/sigp/lighthouse/v8.3.2/beacon_node/store/src/hdiff.rs",
+    "sha256": "4d8f5afc52de7cfa95d1cb9a65cd6eac4aebe86ddb9a12744dcf14b1d27213fe",
+    "bytes": 42688
+  },
+  "beacon_node/store/src/config.rs": {
+    "url": "https://raw.githubusercontent.com/sigp/lighthouse/v8.3.2/beacon_node/store/src/config.rs",
+    "sha256": "23e74f3d26e3f9598437465389899ec8fcf37926c17807d06d6f1ce375188fa7",
+    "bytes": 10337
+  },
+  "beacon_node/src/config.rs": {
+    "url": "https://raw.githubusercontent.com/sigp/lighthouse/v8.3.2/beacon_node/src/config.rs",
+    "sha256": "961360600c7066ac307dc4d1fbe28f5d8922f8a26b26743159386e8161ec853a",
+    "bytes": 63555
+  },
+  "beacon_node/beacon_chain/src/validator_pubkey_cache.rs": {
+    "url": "https://raw.githubusercontent.com/sigp/lighthouse/v8.3.2/beacon_node/beacon_chain/src/validator_pubkey_cache.rs",
+    "sha256": "3947712bd545c6d25a8a9aed69f70e464d32293ea4dbd5194ac150dcd04f41d6",
+    "bytes": 13677
+  },
+  "beacon_node/beacon_chain/src/beacon_chain.rs": {
+    "url": "https://raw.githubusercontent.com/sigp/lighthouse/v8.3.2/beacon_node/beacon_chain/src/beacon_chain.rs",
+    "sha256": "c378fa7c48b370765a0008bc357827b238dff03f926a279bc236ea021a828672",
+    "bytes": 355334
+  },
+  "beacon_node/store/src/historic_state_cache.rs": {
+    "url": "https://raw.githubusercontent.com/sigp/lighthouse/v8.3.2/beacon_node/store/src/historic_state_cache.rs",
+    "sha256": "e24e08639c91aadbda1d1db77376f236fe63770e6042999fc4cfe2066fef9855",
+    "bytes": 3253
+  },
+  "lighthouse/environment/src/lib.rs": {
+    "url": "https://raw.githubusercontent.com/sigp/lighthouse/v8.3.2/lighthouse/environment/src/lib.rs",
+    "sha256": "4bab174ae0d542ddbf281b5a2fb2638e225794e6c47e55b9cd734a508a88c241",
+    "bytes": 17759
+  },
+  "common/malloc_utils/src/jemalloc.rs": {
+    "url": "https://raw.githubusercontent.com/sigp/lighthouse/v8.3.2/common/malloc_utils/src/jemalloc.rs",
+    "sha256": "9e7e25f9c3c6ee1ce191c217dfa988464518640ae622c731ff4f5a07c6d31337",
+    "bytes": 5093
+  },
+  ".cargo/config.toml": {
+    "url": "https://raw.githubusercontent.com/sigp/lighthouse/v8.3.2/.cargo/config.toml",
+    "sha256": "23ca17faf95238bd3c57c9dd2fb3124bd678eeb236aa6e7988f8eef016f0255a",
+    "bytes": 607
+  },
+  "lighthouse/Cargo.toml": {
+    "url": "https://raw.githubusercontent.com/sigp/lighthouse/v8.3.2/lighthouse/Cargo.toml",
+    "sha256": "786a3e33e15c33d1bdcb7fe691d13fa2e8349174b14665cf5a86590b39d04043",
+    "bytes": 3587
+  },
+  "beacon_node/store/Cargo.toml": {
+    "url": "https://raw.githubusercontent.com/sigp/lighthouse/v8.3.2/beacon_node/store/Cargo.toml",
+    "sha256": "a0fa25fd90e9e065aeb592efb6fcf57cc0361da0ca1bd0ac2f9ba25b5092988d",
+    "bytes": 1365
+  }
+}

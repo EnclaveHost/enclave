@@ -1,0 +1,92 @@
+--- repaired-r2/source/MANIFEST.json
++++ r8/source/MANIFEST.json
+@@ -1,10 +1,10 @@
+ {
+-  "nonce": "2c51a7be-4d7b-4f34-8161-ba3d97d8bfed",
++  "nonce": "13adb8b1-d469-4e0d-923b-0582681c9d37",
+   "unitPrefix": "enclave-rpc-l1-",
+   "uuid": "a2f2a8b5-06ac-4612-95a0-f48a00a7f6e0",
+   "bytes": 4000000000000,
+-  "exportName": "enclave-l1-client-2c51a7be-4d7b-4f34-8161-ba3d97d8bfed",
+-  "remoteSocket": "/home/controladmin/rpc-l1-client-r7/export.sock",
++  "exportName": "enclave-l1-client-13adb8b1-d469-4e0d-923b-0582681c9d37",
++  "remoteSocket": "/home/controladmin/rpc-l1-client-r8/export.sock",
+   "target": "controladmin@172.17.28.159",
+   "knownHosts": "/home/steven/Documents/Codex/2026-10-18/wo/work/control-vm/known_hosts",
+   "bootId": "b39ecfe2-82b2-4c2a-a596-a52630bb59fd",
+@@ -147,8 +147,8 @@
+     "source": "/dev/sda1",
+     "fstype": "ext4"
+   },
+-  "overlayDirectory": "/vm/enclave-volumes/rpc-control-l1-client-r7",
+-  "expectedProductionMount": "/srv/enclave-l1-pair-r7",
++  "overlayDirectory": "/vm/enclave-volumes/rpc-control-l1-client-r8",
++  "expectedProductionMount": "/srv/enclave-l1-pair-r8",
+   "parent": {
+     "path": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2",
+     "device": 64769,
+@@ -168,8 +168,8 @@
+     "enclave-provider-migration-mirror.service": 192,
+     "enclave-rpc-gateway.service": 192
+   },
+-  "uploadDirectory": "/home/controladmin/rpc-l1-upload-r7",
+-  "programSha256": "f7160bae772324f14598664c80cf5397414bc495f45a9360dfeddb0971205f31",
++  "uploadDirectory": "/home/controladmin/rpc-l1-upload-r8",
++  "programSha256": "734d316a4d1ca2ec4e338edd86d2081c88f55b07b906f559514a88565b6ae877",
+   "originalTomlSha256": "a93adc65ec30ac1ea6d8f4c59b9ef12e522e07606e038777f93cdbf7e67304c7",
+   "proposedTomlSha256": "63bc71f103c49e06cd661ab410cc7005fd101ca9578cd6cb15fac7be6e35c320",
+   "identities": {
+@@ -255,10 +255,10 @@
+       "sha256": "8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250"
+     },
+     "manifest.json": {
+-      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r7/source/payload-manifest.json",
++      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/payload-manifest.json",
+       "destination": "manifest.json",
+       "bytes": 673,
+-      "sha256": "f687470bb33fd29367f1c72efbb76e63af47cb6c9c7b52ec2d84aef08ab006bb"
++      "sha256": "b6a9262ba9fb49850ebdcca98f147948c596e92b3462b5858ffab97c3b3aa535"
+     },
+     "chain.json": {
+       "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-low-memory-current-wrapper-r1/installed-chain.json",
+@@ -267,25 +267,25 @@
+       "sha256": "81988aeef841cc073b359ab29993641b06e71d72190ddc5df606057ddd7b5eb7"
+     },
+     "chain_service.py": {
+-      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r7/source/trial-chain-service.py",
++      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/trial-chain-service.py",
+       "destination": "chain_service.py",
+       "bytes": 38830,
+-      "sha256": "b8a4c8559e34e038b550a75ae1666a1b2f1d9914a78dd4b8404777099f4f3c86"
++      "sha256": "3a51c1c7c7dcf1587caf94cca829116c94d9081e2585f8b3c1a06b46f953b260"
+     },
+     "disks.json": {
+-      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r7/source/disks.json",
++      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/disks.json",
+       "destination": "disks.json",
+       "bytes": 148,
+-      "sha256": "4f468749ca884a4baa6d9bd660120667a92cb3db62e70f9270101ef1bb51f276"
++      "sha256": "d3633e87f15a194fcfc87359ddfc00ca33b675dbd49c977852656408bfc7874d"
+     },
+     "original-reth.toml": {
+-      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r7/source/original-reth.toml",
++      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/original-reth.toml",
+       "destination": "original-reth.toml",
+       "bytes": 2611,
+       "sha256": "a93adc65ec30ac1ea6d8f4c59b9ef12e522e07606e038777f93cdbf7e67304c7"
+     },
+     "proposed-reth.toml": {
+-      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r7/source/proposed-reth.toml",
++      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8/source/proposed-reth.toml",
+       "destination": "proposed-reth.toml",
+       "bytes": 2577,
+       "sha256": "63bc71f103c49e06cd661ab410cc7005fd101ca9578cd6cb15fac7be6e35c320"
+@@ -301,7 +301,7 @@
+     "mode": 33152,
+     "sha256": "ddea119560fa26f6d193adac91c43d6eff03ef89ea4ed69d643c62f175e994bf"
+   },
+-  "overlayPath": "/vm/enclave-volumes/rpc-control-l1-client-r7/overlay.qcow2",
++  "overlayPath": "/vm/enclave-volumes/rpc-control-l1-client-r8/overlay.qcow2",
+   "retainedAccountProvenance": {
+     "sourceDirectory": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r2",
+     "rootSourceCommit": "1163609305071f29af7dfa32ac6490c3153da6cb",
