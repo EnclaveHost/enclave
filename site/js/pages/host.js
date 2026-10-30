@@ -10,6 +10,7 @@
 import { Enclave } from "../core/api.js";
 import { refreshFleetInto } from "../core/fleet-read.js";
 import "../../components/fleet-list/fleet-list.js";
+import "../../components/code/code.js";
 
 let _poll = null;
 

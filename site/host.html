@@ -60,7 +60,7 @@
       <h2 id="windows">On a Windows PC</h2>
       <p>Each app runs in its own Enclave Shield partition, a Hyper-V virtual machine on a PC that has proven to the network, through its TPM, that it booted securely. Setup checks the PC, turns on Hyper-V and asks you to name your host. Joining costs nothing: once the PC proves its hardware, its first registration is paid for you.</p>
       <p>Setup can also be run from PowerShell:</p>
-      <pre class="hostdoc-code"><code>irm https://get.enclave.host/host.ps1 | iex</code></pre>
+      <c-code fn="PowerShell"><pre><code>irm https://get.enclave.host/host.ps1 | iex</code></pre></c-code>
       <div class="doc-note">
         <span class="nt">Needs</span>
         <p>Windows 11 Pro, Enterprise or Education (24H2 or later), an AMD processor with its firmware TPM on, Secure Boot on, virtualization on in the firmware, and 16 GB of RAM.</p>
@@ -104,13 +104,13 @@
 
       <h2 id="setup">Setting it up</h2>
       <p>Everything is one command line tool. Each step below is also a plain script in the repository if you would rather drive it yourself.</p>
-      <pre class="hostdoc-code"><code>curl -fsSL https://get.enclave.host | sh
+      <c-code fn="terminal"><pre><code>curl -fsSL https://get.enclave.host | sh
 
-enclave host init      <span class="c"># mint this box's key, write its config</span>
-enclave host build     <span class="c"># build the measured guest image</span>
-enclave host run       <span class="c"># boot it, ctrl-c to stop</span>
-enclave host check     <span class="c"># is it answering, is the quote real hardware</span>
-enclave host install   <span class="c"># run it under systemd instead, enabled at boot</span></code></pre>
+enclave host init      <span class="tok-com"># mint this box's key, write its config</span>
+enclave host build     <span class="tok-com"># build the measured guest image</span>
+enclave host run       <span class="tok-com"># boot it, ctrl-c to stop</span>
+enclave host check     <span class="tok-com"># is it answering, is the quote real hardware</span>
+enclave host install   <span class="tok-com"># run it under systemd instead, enabled at boot</span></code></pre></c-code>
       <p><code>enclave host build</code> assembles the guest from a tagged release, and folds the kernel, the initramfs and the boot arguments into the launch measurement.</p>
       <div class="doc-note">
         <span class="nt">Reproducible</span>
@@ -119,10 +119,10 @@ enclave host install   <span class="c"># run it under systemd instead, enabled a
 
       <h2>Getting paid</h2>
       <p>Once the box has gas, it registers itself and claims funded deployments from the queue. The ledger escrows the runner share of each payment, credits your operator key for the time you actually hold the lease, and sweeps the balance to the wallet you named once it clears the payout threshold.</p>
-      <pre class="hostdoc-code"><code>enclave host fund --eth 0.002   <span class="c"># gas the box, one signed transfer</span>
-enclave host status             <span class="c"># gas left, serving or not, earnings accrued</span></code></pre>
+      <c-code fn="terminal"><pre><code>enclave host fund --eth 0.002   <span class="tok-com"># gas the box, one signed transfer</span>
+enclave host status             <span class="tok-com"># gas left, serving or not, earnings accrued</span></code></pre></c-code>
       <p>You set your own price. A box can name what it charges per hour for a full node and, if it has one, a full card. It then refuses work paying less than that, and the number is published alongside its capacity so buyers can see it.</p>
-      <pre class="hostdoc-code"><code>enclave host init --price-cpu 2.50 <span class="c"># USD per hour for a full node</span></code></pre>
+      <c-code fn="terminal"><pre><code>enclave host init --price-cpu 2.50 <span class="tok-com"># USD per hour for a full node</span></code></pre></c-code>
 
       <h2>What tenants get, and what you can see</h2>
       <p>Apps that land on a confidential server each run in their own confidential VM, and the memory of each VM is encrypted by the processor against your operating system and every process on it, root included. You host the work without being able to read it. Their TLS terminates inside the enclave too, so traffic passes through your machine as ciphertext.</p>
