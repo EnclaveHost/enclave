@@ -1,0 +1,1 @@
+One bounded pure-local assembly plus readonly Nan process/schedule/memory/queue/listener refresh, strictSSH, remote128MiB40s/local256hard220RSSfloor27648CPU1noSwap90s. No runtime install/account/module/client/mount changes. Root reviews resulting actual snapshot before preparing separate native approval; this script cannot admit native.

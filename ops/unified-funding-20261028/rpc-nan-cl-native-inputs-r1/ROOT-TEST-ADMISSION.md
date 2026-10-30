@@ -1,0 +1,1 @@
+ONE bounded local filesystem ownership/regression source check; no runtime/SSH/systemd/NBD/client execution. Exact SOURCE-PINS,512 hard450RSS27648floorCPU1noSwap sharedqueue,30s child90s outer. Reviewed existing same-owner fchown positive and hardlink/symlink/privilege/drift/stop/depth/time negative cases. Native admission remains false.

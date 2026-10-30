@@ -1,0 +1,6 @@
+{
+  "rc": 0,
+  "stdout": "",
+  "stderr": "test_depth (__main__.Ownership.test_depth) ... ok\ntest_drift_before_write (__main__.Ownership.test_drift_before_write) ... ok\ntest_hardlink (__main__.Ownership.test_hardlink) ... ok\ntest_metadata_roundtrip (__main__.Ownership.test_metadata_roundtrip) ... ok\ntest_privilege_bits (__main__.Ownership.test_privilege_bits) ... ok\ntest_stop_request (__main__.Ownership.test_stop_request) ... ok\ntest_symlink (__main__.Ownership.test_symlink) ... ok\ntest_time_bound (__main__.Ownership.test_time_bound) ... ok\ntest_unknown_uid (__main__.Ownership.test_unknown_uid) ... ok\ntest_all_sources_parse (__main__.Source.test_all_sources_parse) ... ok\ntest_no_el_in_client_path (__main__.Source.test_no_el_in_client_path) ... ok\ntest_source_mount_consistency (__main__.Source.test_source_mount_consistency) ... ok\n\n----------------------------------------------------------------------\nRan 12 tests in 0.029s\n\nOK\n",
+  "inputDrift": []
+}

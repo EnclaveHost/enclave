@@ -1,0 +1,10 @@
+{
+  "authorized": true,
+  "scope": "actual-nan-cl-bounded-client-n1",
+  "pinsSha256": "f1ae881e37be3031fe7109a19cdd7f6503f76fb9ecf8b345b988979924a7cc1e",
+  "admissionSha256": "733321d533f1a9a64dd3b9b692148ebb209a26238f010d796ef613027474d93b",
+  "at": 1793371447.3853033,
+  "sourceReview": "Root + Explore KVM readonly;15 actual local source/ownership cases pass, later timer/pgrep guard AST-reviewed; not native qualification.",
+  "resource": "Nan4096CL+128attach+128guardian+2048residual; Warden512/450RSS/floor27648CPU1noswap",
+  "preservation": "Fresh private COW only, original immutable, no production consumer changes, no repeat"
+}
