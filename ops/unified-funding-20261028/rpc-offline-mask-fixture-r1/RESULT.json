@@ -1,0 +1,13 @@
+{
+  "pass": true,
+  "syntheticOnly": true,
+  "partitionBounded": true,
+  "originalUnchanged": true,
+  "archiveInodePreserved": true,
+  "maskVerified": true,
+  "enablementRemoved": true,
+  "ext4ChecksPassed": true,
+  "qcowCheckPassed": true,
+  "fusePidGone": true,
+  "fixturePath": "/tmp/rpc-fs-de3udi7p"
+}

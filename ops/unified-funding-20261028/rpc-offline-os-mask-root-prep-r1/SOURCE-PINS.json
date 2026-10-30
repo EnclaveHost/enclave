@@ -1,0 +1,46 @@
+{
+  "kind": "offline-mask-procedure-preparation/1",
+  "executed": false,
+  "sources": [
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postrestore-maintenance-stage/r1/guest_mask.py",
+      "bytes": 7752,
+      "sha256": "fe744bde89a985906c9db53130f5a856994d8f3542a576451cbae6c8d5b66d7f"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/inspect_os_disk.py",
+      "bytes": 10133,
+      "sha256": "287c09ba2b3bebd3c1feddb995306bf2fe13a6be073f6b17bdeda257b98a0531"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postrestore-recovery-stage/r1/inspect_units.py",
+      "bytes": 10285,
+      "sha256": "984245562e85e2ce6f198bb2b4227146561d7b848a52075966bb46dfbb39bde5"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-recovery-qualification-20261026/postrestore-recovery-r1/root-postrestore-mask-inventory-20261028.txt",
+      "bytes": 22801,
+      "sha256": "850b66e2734d25946e250e0254240ca88a2a876716caeefebea8a293e8140b8f"
+    },
+    {
+      "path": "/usr/share/man/man1/nbdfuse.1.gz",
+      "bytes": 5881,
+      "sha256": "894653f30ce2786a9742c50c6292874f818d48a3c49e2bdbe71a6956554bc7c2"
+    },
+    {
+      "path": "/usr/share/man/man8/qemu-nbd.8.gz",
+      "bytes": 4210,
+      "sha256": "69c2bde58db1e4d9087f277e3fed4103bedffcae3b806b6b6b072cec6fcb1252"
+    },
+    {
+      "path": "/usr/share/man/man8/debugfs.8.gz",
+      "bytes": 7767,
+      "sha256": "55648084ecef1f576396add8bd64cf65e84c71c7ebe89e5e4441ff7b2cddd2b5"
+    },
+    {
+      "path": "/usr/share/man/man8/e2fsck.8.gz",
+      "bytes": 5781,
+      "sha256": "175131a48ceb8e13720a8afc2de2191f4d259e08e8c5d8537d1976e09516c5f1"
+    }
+  ]
+}
