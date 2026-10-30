@@ -1,0 +1,68 @@
+{
+  "at": 1793390791.7395995,
+  "processes": [
+    {
+      "pid": 3030236,
+      "ppid": 1899,
+      "startTicks": 169569607,
+      "exe": "/usr/bin/python3.14",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 3030237,
+      "ppid": 3030236,
+      "startTicks": 169569613,
+      "exe": "/usr/bin/node",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 3030244,
+      "ppid": 3030237,
+      "startTicks": 169569617,
+      "exe": "/usr/bin/node",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 3030251,
+      "ppid": 3030244,
+      "startTicks": 169569620,
+      "exe": "/usr/bin/python3.14",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 3030867,
+      "ppid": 3030251,
+      "startTicks": 169572617,
+      "exe": "/usr/bin/qemu-nbd",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 3030872,
+      "ppid": 3030251,
+      "startTicks": 169572628,
+      "exe": "/usr/bin/ssh",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 3030881,
+      "ppid": 3030251,
+      "startTicks": 169572728,
+      "exe": "/usr/bin/ssh",
+      "affinity": [
+        1
+      ]
+    }
+  ]
+}
