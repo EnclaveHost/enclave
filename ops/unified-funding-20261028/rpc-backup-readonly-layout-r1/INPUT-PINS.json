@@ -1,0 +1,7 @@
+{
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-backup-readonly-layout-r1/read.py": "9197bb6798403d01868ead4d7741c860c29e1d8aecfff4ae34777c1ced864b16",
+  "/usr/bin/qemu-img": "3a57bce6765bfb73a75591dba2ac40d985cccde97d371e95537ecbf16d949d30",
+  "/usr/bin/qemu-nbd": "b0f16ff7225e78469733132fce225b1d0af98f0b681a5092d85618936ff61934",
+  "/usr/bin/nbdfuse": "51c1a1fd18785d4fe2240c1710eb4f78590b9d333fcde4cda421871d6f010a01",
+  "/usr/bin/fusermount3": "c3d04bdf77c7152eba94ce670338e7089730b8dbfede57762b7b92c893a00f4f"
+}

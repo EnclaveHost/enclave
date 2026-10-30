@@ -1,0 +1,112 @@
+{
+  "virtualSize": 34359738368,
+  "primary": {
+    "this": 1,
+    "other": 67108863,
+    "firstUsable": 34,
+    "lastUsable": 67108830,
+    "diskGuid": "e14d0243-d31d-4718-846e-d99094e48a2a",
+    "tableLba": 2,
+    "entries": 128,
+    "entrySize": 128,
+    "tableSha256": "b5554d4657bf1bef59d484053317825f195611763c7421c98bf4bb30d9d7e452"
+  },
+  "backup": {
+    "this": 67108863,
+    "other": 1,
+    "firstUsable": 34,
+    "lastUsable": 67108830,
+    "diskGuid": "e14d0243-d31d-4718-846e-d99094e48a2a",
+    "tableLba": 67108831,
+    "entries": 128,
+    "entrySize": 128,
+    "tableSha256": "b5554d4657bf1bef59d484053317825f195611763c7421c98bf4bb30d9d7e452"
+  },
+  "partitions": [
+    {
+      "index": 1,
+      "type": "0fc63daf-8483-4772-8e79-3d69d8477de4",
+      "guid": "17b4d016-4dff-469b-bb05-776ecd0a63d4",
+      "firstLba": 2099200,
+      "lastLba": 67108830,
+      "name": "",
+      "ext4": {
+        "uuid": "59134bd0-a76f-4ea0-8e4a-770b2e1eafc2",
+        "label": "cloudimg-rootfs",
+        "state": 1,
+        "blockSize": 4096,
+        "blocksLo": 8126203,
+        "blocksHi": 0,
+        "compat": 60,
+        "incompat": 706,
+        "roCompat": 1131,
+        "needsRecovery": false,
+        "journalUuid": "00000000-0000-0000-0000-000000000000",
+        "journalDevice": 0
+      }
+    },
+    {
+      "index": 14,
+      "type": "21686148-6449-6e6f-744e-656564454649",
+      "guid": "24378bbd-4f0a-4154-93d5-e5be509ad4f9",
+      "firstLba": 2048,
+      "lastLba": 10239,
+      "name": ""
+    },
+    {
+      "index": 15,
+      "type": "c12a7328-f81f-11d2-ba4b-00a0c93ec93b",
+      "guid": "6ec49856-0bd6-4fc8-891c-2ab8f712b077",
+      "firstLba": 10240,
+      "lastLba": 227327,
+      "name": ""
+    },
+    {
+      "index": 16,
+      "type": "bc13c2ff-59e6-4262-a352-b275fd6f7172",
+      "guid": "4cc491c2-2bfb-46d6-bf48-0a9d606ba0d7",
+      "firstLba": 227328,
+      "lastLba": 2097152,
+      "name": "",
+      "ext4": {
+        "uuid": "b4f0deba-ce7d-45dc-9999-0427f2720320",
+        "label": "BOOT",
+        "state": 1,
+        "blockSize": 4096,
+        "blocksLo": 233728,
+        "blocksHi": 0,
+        "compat": 60,
+        "incompat": 706,
+        "roCompat": 1131,
+        "needsRecovery": false,
+        "journalUuid": "00000000-0000-0000-0000-000000000000",
+        "journalDevice": 0
+      }
+    }
+  ],
+  "root": {
+    "index": 1,
+    "type": "0fc63daf-8483-4772-8e79-3d69d8477de4",
+    "guid": "17b4d016-4dff-469b-bb05-776ecd0a63d4",
+    "firstLba": 2099200,
+    "lastLba": 67108830,
+    "name": "",
+    "ext4": {
+      "uuid": "59134bd0-a76f-4ea0-8e4a-770b2e1eafc2",
+      "label": "cloudimg-rootfs",
+      "state": 1,
+      "blockSize": 4096,
+      "blocksLo": 8126203,
+      "blocksHi": 0,
+      "compat": 60,
+      "incompat": 706,
+      "roCompat": 1131,
+      "needsRecovery": false,
+      "journalUuid": "00000000-0000-0000-0000-000000000000",
+      "journalDevice": 0
+    }
+  },
+  "scope": "readonly GPT CRC/layout and ext4 superblock; no fsck or image mutation; stat continuity not new full hash",
+  "backupIdentityUnchanged": true,
+  "exporterGone": true
+}
