@@ -1,0 +1,10 @@
+{
+  "source": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-l1-client-prep-20261030-r3",
+  "sourcePinsSha256": "04c0a38b46b1b78e2af0429140c07a0f4998997842948e87057331c7fba9cb0b",
+  "sourcePinsCount": 30,
+  "sourceUnchanged": true,
+  "combinedProgramsExact": true,
+  "syntaxParsedOnly": true,
+  "wrapperFunctionsUnchangedAfterPrivatePathNormalization": true,
+  "runtimeExecuted": false
+}

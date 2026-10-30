@@ -1,0 +1,134 @@
+{
+  "originalLocalFile": "PINS.json",
+  "originalSha256": "962c08b990d7fe27656ea1a5afcd9d89cdf3d2beca545fcd2286171a2a34075a",
+  "records": [
+    {
+      "path": "EXTERNAL-PINS.json",
+      "sha256": "7f8f810b06e11084dff56852be490800755c4bf9cc3117788a2e0d0a3c949827"
+    },
+    {
+      "path": "MANIFEST.json",
+      "sha256": "4e3c3a9ae21ae06c4942f30ad9df05e7c106c2689914ef7a7948c95ca0b0dc72"
+    },
+    {
+      "path": "PEER-PINS.json",
+      "sha256": "04c0a38b46b1b78e2af0429140c07a0f4998997842948e87057331c7fba9cb0b"
+    },
+    {
+      "path": "PREPARATION.json",
+      "sha256": "6dcbdc0df329c4e4ebe89b78319ea8b674cb25ba0d405261fa97904f1782062d"
+    },
+    {
+      "path": "ROOT-ASSEMBLY.json",
+      "sha256": "14923fcf41e8f77c6351502bf1a47ba68d784afdc4c8a0c6a01f13182c079783"
+    },
+    {
+      "path": "ROOT-REVIEW.md",
+      "sha256": "33c9af3369fe48bb1cc68c78ff41e70e65a8b945005a9075e5c0f48b9b57db05"
+    },
+    {
+      "path": "RUNTIME-DESIGN.md",
+      "sha256": "6a012bfe7ddff8a5db34c595b16469ceb141c7d61fbd96bcf1a8b3091985a386"
+    },
+    {
+      "path": "capture-local.py",
+      "sha256": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c"
+    },
+    {
+      "path": "capture-remote.py",
+      "sha256": "aee3fe3b07126b8cc8b3b3fd4225ebc94e42ae2344177ef316106899ec642655"
+    },
+    {
+      "path": "client-main.py",
+      "sha256": "d9b12a7cb7b3f9461228b71ec79316c90cf91fe9458ac713a6cde77f3339fa0f"
+    },
+    {
+      "path": "client-operations.py",
+      "sha256": "320eaad0a45fc178813e96dea63ae1ef48cb7c8e9a8913481524f0dbe7d97a8f"
+    },
+    {
+      "path": "diffs/EXTERNAL-PINS.json.patch",
+      "sha256": "bff34e38a08381ee8061b02f804f66b0d996bfa2470697887567896a5d0c344b"
+    },
+    {
+      "path": "diffs/MANIFEST.json.patch",
+      "sha256": "aab5b7c3db16ee8141b2e70c15d77462ef79e7f97ccb2cc556c84e8469443461"
+    },
+    {
+      "path": "diffs/client-main.py.patch",
+      "sha256": "6046685c4302795f79ed5d850affc960e2849a999e651ca2c2b21823543c22e0"
+    },
+    {
+      "path": "diffs/client-operations.py.patch",
+      "sha256": "66e5252ed05714ed7f5032b0b54354f87f5120ac2efa9efef3d94170eda82a86"
+    },
+    {
+      "path": "diffs/disks.json.patch",
+      "sha256": "793eb2a8365558483e345cc9fa44cd264496cd5694967df580a6747167f6c557"
+    },
+    {
+      "path": "diffs/launch-command.txt.patch",
+      "sha256": "6176281db8eaed6f3bf9a5b630bc898b1cf47ff7f21563c4fd11b500693a68c6"
+    },
+    {
+      "path": "diffs/remote-program.py.patch",
+      "sha256": "ddec62c192699a9377709872b60a0ef23de4a976c1b76f3f63b6c923309debaf"
+    },
+    {
+      "path": "diffs/run-body.py.patch",
+      "sha256": "0bb5957e66cacffb0b5eb84ff3eb45bea026995d7516b784ab6ce27d103e83c0"
+    },
+    {
+      "path": "diffs/run.py.patch",
+      "sha256": "fffc4e9f68b65724788827406d8f7ce3f059a6d2ffd1d8ab88008c0db6e52fcd"
+    },
+    {
+      "path": "diffs/transport-helpers.py.patch",
+      "sha256": "c2a0e4fb390d98205d5e68a45ddef662dcf01d0a16ccc39eb62a6a5e75750de8"
+    },
+    {
+      "path": "diffs/trial-chain-service.py.patch",
+      "sha256": "969802abdc05a0e5b5c4494e23cee90e4c68dc68b734ae5b4ae4b4fb08fec876"
+    },
+    {
+      "path": "disks.json",
+      "sha256": "d1a90257cc9b4878c9757934f226a35b76a24aabfa7827c19ed23d9cac05a397"
+    },
+    {
+      "path": "launch-command.txt",
+      "sha256": "88cf2afb03754e08eb18d9490edf170cea6c2aefea53831e2c10f46882db7de6"
+    },
+    {
+      "path": "original-reth.toml",
+      "sha256": "a93adc65ec30ac1ea6d8f4c59b9ef12e522e07606e038777f93cdbf7e67304c7"
+    },
+    {
+      "path": "proposed-reth.toml",
+      "sha256": "63bc71f103c49e06cd661ab410cc7005fd101ca9578cd6cb15fac7be6e35c320"
+    },
+    {
+      "path": "remote-program.py",
+      "sha256": "5b16cd9e5253cc3856c9c67df826357fdf83ad5d766af9e8e700878af29a76f5"
+    },
+    {
+      "path": "reth-stage-only.patch",
+      "sha256": "aae647cd9e69d5326b5a193c30cc30f51f80278d60303aefcb989c4b587e286e"
+    },
+    {
+      "path": "run-body.py",
+      "sha256": "e21fd33e252e875c15aaa82fd85dab8ea0d7a7a6218b8b3d2959e2674188859e"
+    },
+    {
+      "path": "run.py",
+      "sha256": "f168d9efe929b7c263bc34ed2045ba2739904f5fd26aa24a5779523c6f793670"
+    },
+    {
+      "path": "transport-helpers.py",
+      "sha256": "c3b63a0a69e67b8a0b76bb07537917054de2cb7b318abdc62fd8dc47f9980da4"
+    },
+    {
+      "path": "trial-chain-service.py",
+      "sha256": "de4d74ed58c618de70128061a0a0f675598f8ad904d279da5df57bc0552f1c6c"
+    }
+  ]
+}

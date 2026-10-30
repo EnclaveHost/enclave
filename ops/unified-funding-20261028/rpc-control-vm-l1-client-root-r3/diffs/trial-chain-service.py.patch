@@ -1,0 +1,20 @@
+--- root-r2/trial-chain-service.py
++++ prep-r3/trial-chain-service.py
+@@ -18,7 +18,7 @@
+ import urllib.request
+ import urllib.error
+ 
+-ROOT = pathlib.Path('/var/lib/enclave-rpc-l1-client-r2/payload')
++ROOT = pathlib.Path('/var/lib/enclave-rpc-l1-client-r3/payload')
+ MANIFEST = json.loads((ROOT / 'manifest.json').read_text())
+ DISKS = json.loads((ROOT / 'disks.json').read_text())['disks']
+ CONFIG = json.loads((ROOT / 'chain.json').read_text())
+@@ -451,7 +451,7 @@
+ # Bounded trial profile, supported by the exact installed binary --help evidence.
+ # These are cache capacities, not a claim of resident memory use or full-stack fit.
+ LOW_MEMORY_PINS = {'base': '9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f', 'reth': '8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250', 'lighthouse': '11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96'}
+-LOW_MEMORY_ARGS = {'base': ('--engine.cross-block-cache-size', '512', '--rpc-cache.max-blocks', '128', '--rpc-cache.max-receipts', '128', '--rpc-cache.max-headers', '256', '--rpc-cache.max-concurrent-db-requests', '8', '--rpc.max-blocking-io-requests', '4'), 'reth': ('--engine.cross-block-cache-size', '256', '--rpc-cache.max-blocks', '128', '--rpc-cache.max-receipts', '128', '--rpc-cache.max-blocks-bytes', '64MB', '--rpc-cache.max-receipts-bytes', '64MB', '--rpc-cache.max-bals-bytes', '32MB', '--rpc-cache.max-concurrent-db-requests', '8', '--rpc.max-blocking-io-requests', '4'), 'lighthouse': ('--state-cache-size', '16')}
++LOW_MEMORY_ARGS = {'base': ('--engine.cross-block-cache-size', '512', '--rpc-cache.max-blocks', '128', '--rpc-cache.max-receipts', '128', '--rpc-cache.max-headers', '256', '--rpc-cache.max-concurrent-db-requests', '8', '--rpc.max-blocking-io-requests', '4'), 'reth': ('--engine.cross-block-cache-size', '256', '--rpc-cache.max-blocks', '128', '--rpc-cache.max-receipts', '128', '--rpc-cache.max-blocks-bytes', '64MB', '--rpc-cache.max-receipts-bytes', '64MB', '--rpc-cache.max-bals-bytes', '32MB', '--rpc-cache.max-concurrent-db-requests', '8', '--rpc.max-blocking-io-requests', '4'), 'lighthouse': ('--state-cache-size', '2', '--hdiff-buffer-cache-size', '1', '--shuffling-cache-size', '1')}
+ 
+ def low_memory_args(name, existing):
+     assert MANIFEST['binaries'].get(name) == LOW_MEMORY_PINS[name], 'memory profile binary not reviewed'

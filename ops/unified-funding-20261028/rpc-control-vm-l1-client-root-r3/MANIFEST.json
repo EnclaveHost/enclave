@@ -1,0 +1,353 @@
+{
+  "nonce": "ffacb9ab-4999-4182-8746-694d0a26b8af",
+  "unitPrefix": "enclave-rpc-l1-",
+  "uuid": "a2f2a8b5-06ac-4612-95a0-f48a00a7f6e0",
+  "bytes": 4000000000000,
+  "exportName": "enclave-l1-client-ffacb9ab-4999-4182-8746-694d0a26b8af",
+  "remoteSocket": "/home/controladmin/rpc-l1-client-r3/export.sock",
+  "target": "controladmin@172.17.28.159",
+  "knownHosts": "/home/steven/Documents/Codex/2026-10-18/wo/work/control-vm/known_hosts",
+  "bootId": "b39ecfe2-82b2-4c2a-a596-a52630bb59fd",
+  "client": {
+    "archiveMember": "sbin/nbd-client",
+    "bytes": 56376,
+    "path": "/home/controladmin/rpc-nbd-tools-20261030-r1/nbd-client",
+    "sha256": "0a256b67962d1ffc1ab8bacecd4319b8e459a0535467abb66f83329ce5221167"
+  },
+  "remotePins": [
+    {
+      "bytes": 2065824,
+      "installedMd5Matched": true,
+      "package": "libgnutls30t64:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libgnutls.so.30.37.1",
+      "sha256": "ddbae2995750875c07bc218d12a062d73f8250678f54dedda7e9be5068781c98",
+      "version": "3.8.3-1.1ubuntu3.6"
+    },
+    {
+      "bytes": 27984,
+      "installedMd5Matched": true,
+      "package": "libnl-genl-3-200:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libnl-genl-3.so.200.26.0",
+      "sha256": "0757db7e6c5fbc4d2a8bbedbac7061fbb8ebb6196b4d2954d3a321e9ff76933c",
+      "version": "3.7.0-0.3build1.1"
+    },
+    {
+      "bytes": 133944,
+      "installedMd5Matched": true,
+      "package": "libnl-3-200:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libnl-3.so.200.26.0",
+      "sha256": "afcb69e2ef0b46c2ce7b7483848332fa9462776d33163f64209acf01f86eddd7",
+      "version": "3.7.0-0.3build1.1"
+    },
+    {
+      "bytes": 2129424,
+      "installedMd5Matched": true,
+      "package": "libc6:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "3a15d66867d83762c7f2f1e37359cb8f6c5743edb369c65285cb0b1c4f7498bf",
+      "version": "2.39-0ubuntu8.9"
+    },
+    {
+      "bytes": 1714008,
+      "installedMd5Matched": true,
+      "package": "libp11-kit0:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libp11-kit.so.0.3.1",
+      "sha256": "a59efd4792d3343dedea1d26a28f5597abfe3369082deb504c4802a31b014897",
+      "version": "0.25.3-4ubuntu2.2"
+    },
+    {
+      "bytes": 133192,
+      "installedMd5Matched": true,
+      "package": "libidn2-0:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libidn2.so.0.4.0",
+      "sha256": "6e632fd9a3125db60bbc623719bbc17b0470330321c5b1c57f1ff7190e5551ad",
+      "version": "2.3.7-2build1.1"
+    },
+    {
+      "bytes": 1755312,
+      "installedMd5Matched": true,
+      "package": "libunistring5:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libunistring.so.5.0.0",
+      "sha256": "7bcf825cd449892db5105ad2aed91dcf94a27b796426600c765720c584c54dd1",
+      "version": "1.1-2build1.1"
+    },
+    {
+      "bytes": 88216,
+      "installedMd5Matched": true,
+      "package": "libtasn1-6:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libtasn1.so.6.6.3",
+      "sha256": "59994414d0cdec4f678ef91eaaafc44b26b00bca507e4cc7978caaf79f584173",
+      "version": "4.19.0-3ubuntu0.24.04.2"
+    },
+    {
+      "bytes": 342280,
+      "installedMd5Matched": true,
+      "package": "libnettle8t64:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libnettle.so.8.8",
+      "sha256": "a245ed916229583d6fe0b07657b3ed945bc148c28cc08b5266295f620d2b91cc",
+      "version": "3.9.1-2.2build1.1"
+    },
+    {
+      "bytes": 288920,
+      "installedMd5Matched": true,
+      "package": "libhogweed6t64:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libhogweed.so.6.8",
+      "sha256": "c3c606139d4f7776efa4dbd4a6b62e30c916b07a0cafd8c3ef173d6f093607e3",
+      "version": "3.9.1-2.2build1.1"
+    },
+    {
+      "bytes": 534896,
+      "installedMd5Matched": true,
+      "package": "libgmp10:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libgmp.so.10.5.0",
+      "sha256": "0ccdfb6d6f5c039465f6d002cf7e4c072d48ac6a2cffc8dd6c748dec31592804",
+      "version": "2:6.3.0+dfsg-2ubuntu6.1"
+    },
+    {
+      "bytes": 236616,
+      "installedMd5Matched": true,
+      "package": "libc6:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "c20a2dc8917c755f02b94049356320fe1f62ac7d9f8994731f807d9df39302da",
+      "version": "2.39-0ubuntu8.9"
+    },
+    {
+      "bytes": 47672,
+      "installedMd5Matched": true,
+      "package": "libffi8:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libffi.so.8.1.4",
+      "sha256": "00f593fe192f2851b8ce23b25cec2488d769beb5a8f63e8c9e563071e1075153",
+      "version": "3.4.6-1build1"
+    },
+    {
+      "bytes": 8020928,
+      "path": "/usr/bin/python3",
+      "realpath": "/usr/bin/python3.12",
+      "sha256": "e50d468e8b0adfb05733f5b87b3cff34829c4a8c1aea50c865aa8bdfe4bb150f"
+    },
+    {
+      "bytes": 174328,
+      "path": "/usr/sbin/modprobe",
+      "realpath": "/usr/bin/kmod",
+      "sha256": "5abf732e561c8be9ccd1794940b5d43025b041d4bed1db34782d979e0accc36f"
+    },
+    {
+      "bytes": 55720,
+      "path": "/usr/sbin/blkid",
+      "realpath": "/usr/sbin/blkid",
+      "sha256": "0d7e7a3e410b59848f0e36cacae29b94bcdb362f120dd9ab9ce4d51baf999a10"
+    }
+  ],
+  "qemuNbd": "/usr/sbin/qemu-nbd",
+  "qemuImg": "/usr/sbin/qemu-img",
+  "mke2fs": "/usr/sbin/mke2fs",
+  "e2fsck": "/usr/sbin/e2fsck",
+  "execMount": {
+    "target": "/",
+    "source": "/dev/sda1",
+    "fstype": "ext4"
+  },
+  "overlayDirectory": "/vm/enclave-volumes/rpc-control-l1-client-r3",
+  "expectedProductionMount": "/srv/enclave-l1-pair-r3",
+  "parent": {
+    "path": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2",
+    "device": 64769,
+    "inode": 147981798,
+    "bytes": 528387407872,
+    "mtimeNs": 1793030445134925227,
+    "ctimeNs": 1793030445134925227,
+    "mode": 33152,
+    "header104Sha256": "b06a08884bafb1540f1115ce307ef52c715b66a791665f59f90b52b3b400cb8c"
+  },
+  "serviceCapsMiB": {
+    "enclave-api-relay.service": 1536,
+    "enclave-control-tls.service": 256,
+    "enclave-dns.service": 256,
+    "enclave-native-discovery.service": 128,
+    "enclave-policy-migration-bridge.service": 256,
+    "enclave-provider-migration-mirror.service": 192,
+    "enclave-rpc-gateway.service": 192
+  },
+  "uploadDirectory": "/home/controladmin/rpc-l1-upload-r3",
+  "programSha256": "5b16cd9e5253cc3856c9c67df826357fdf83ad5d766af9e8e700878af29a76f5",
+  "originalTomlSha256": "a93adc65ec30ac1ea6d8f4c59b9ef12e522e07606e038777f93cdbf7e67304c7",
+  "proposedTomlSha256": "63bc71f103c49e06cd661ab410cc7005fd101ca9578cd6cb15fac7be6e35c320",
+  "identities": {
+    "el": {
+      "uid": 997,
+      "gid": 987,
+      "name": "enclavel1el",
+      "paths": [
+        "data",
+        "data/db",
+        "data/db/mdbx.dat",
+        "data/reth.toml",
+        "data/static_files",
+        "tmp"
+      ]
+    },
+    "cl": {
+      "uid": 995,
+      "gid": 986,
+      "name": "enclavel1cl",
+      "paths": [
+        "cl",
+        "cl/beacon",
+        "cl/beacon/chain_db",
+        "tmp-cl"
+      ]
+    }
+  },
+  "jwtGroup": {
+    "name": "enclavel1jwt",
+    "gid": 50002
+  },
+  "stageOverrides": {
+    "headers": {
+      "downloader_max_concurrent_requests": 2,
+      "downloader_min_concurrent_requests": 1,
+      "downloader_max_buffered_responses": 2,
+      "downloader_request_limit": 100,
+      "commit_threshold": 1000
+    },
+    "bodies": {
+      "downloader_request_limit": 16,
+      "downloader_stream_batch_size": 16,
+      "downloader_max_buffered_blocks_size_bytes": 134217728,
+      "downloader_min_concurrent_requests": 1,
+      "downloader_max_concurrent_requests": 2
+    },
+    "sender_recovery": {
+      "commit_threshold": 100000
+    },
+    "execution": {
+      "max_blocks": 100,
+      "max_changes": 100000,
+      "max_cumulative_gas": 3000000000,
+      "max_duration": "30s"
+    },
+    "account_hashing": {
+      "commit_threshold": 1000,
+      "commit_entries": 100000
+    },
+    "storage_hashing": {
+      "commit_threshold": 1000,
+      "commit_entries": 100000
+    },
+    "transaction_lookup": {
+      "chunk_size": 100000
+    },
+    "index_account_history": {
+      "commit_threshold": 1000
+    },
+    "index_storage_history": {
+      "commit_threshold": 1000
+    },
+    "etl": {
+      "file_size": 67108864
+    }
+  },
+  "payloadFiles": {
+    "reth": {
+      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/payload-v2/bin/reth",
+      "destination": "bin/reth",
+      "bytes": 139248776,
+      "sha256": "8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250"
+    },
+    "lighthouse": {
+      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/payload-v2/bin/lighthouse",
+      "destination": "bin/lighthouse",
+      "bytes": 105018160,
+      "sha256": "11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96"
+    },
+    "manifest.json": {
+      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/payload-v2/manifest.json",
+      "destination": "manifest.json",
+      "bytes": 670,
+      "sha256": "c35ec24b39b4cff06a72c00a5fcc032a035658d314771f9072b881f9258a0fb7"
+    },
+    "chain.json": {
+      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-low-memory-current-wrapper-r1/installed-chain.json",
+      "destination": "chain.json",
+      "bytes": 3488,
+      "sha256": "81988aeef841cc073b359ab29993641b06e71d72190ddc5df606057ddd7b5eb7"
+    },
+    "chain_service.py": {
+      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r3/trial-chain-service.py",
+      "destination": "chain_service.py",
+      "bytes": 38790,
+      "sha256": "de4d74ed58c618de70128061a0a0f675598f8ad904d279da5df57bc0552f1c6c"
+    },
+    "disks.json": {
+      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r3/disks.json",
+      "destination": "disks.json",
+      "bytes": 148,
+      "sha256": "d1a90257cc9b4878c9757934f226a35b76a24aabfa7827c19ed23d9cac05a397"
+    },
+    "original-reth.toml": {
+      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r3/original-reth.toml",
+      "destination": "original-reth.toml",
+      "bytes": 2611,
+      "sha256": "a93adc65ec30ac1ea6d8f4c59b9ef12e522e07606e038777f93cdbf7e67304c7"
+    },
+    "proposed-reth.toml": {
+      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r3/proposed-reth.toml",
+      "destination": "proposed-reth.toml",
+      "bytes": 2577,
+      "sha256": "63bc71f103c49e06cd661ab410cc7005fd101ca9578cd6cb15fac7be6e35c320"
+    }
+  },
+  "metadataOverlayReference": {
+    "path": "/vm/enclave-volumes/rpc-control-l1-metadata-r1/overlay.qcow2",
+    "device": 64769,
+    "inode": 148393019,
+    "bytes": 256216,
+    "mtimeNs": 1793364198237622678,
+    "ctimeNs": 1793364198237622678,
+    "mode": 33152,
+    "sha256": "ddea119560fa26f6d193adac91c43d6eff03ef89ea4ed69d643c62f175e994bf"
+  },
+  "overlayPath": "/vm/enclave-volumes/rpc-control-l1-client-r3/overlay.qcow2",
+  "retainedAccountProvenance": {
+    "sourceDirectory": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r2",
+    "rootSourceCommit": "1163609305071f29af7dfa32ac6490c3153da6cb",
+    "rootInvocation": "0481622ff7ed4bdc9284906867ba75d2",
+    "parsedMainSha256": "6eb1de87eadcefbb34c5187bf7287774a20042c742d6955de7803264977e9a59",
+    "resultSha256": "ff4728ad7f747a24b30873bacd763bbc18c6f0274ee5ac4ed3287928b7243b8c",
+    "terminalSha256": "b376a7291a25a46c4c38a4e9c40b885f2d70bb4b2233ca7d3e62b61f8cceaa0a",
+    "retainedAccounts": {
+      "groups": [
+        {
+          "gid": 987,
+          "name": "enclavel1el"
+        },
+        {
+          "gid": 986,
+          "name": "enclavel1cl"
+        },
+        {
+          "gid": 50002,
+          "name": "enclavel1jwt"
+        }
+      ],
+      "users": [
+        {
+          "gid": 987,
+          "name": "enclavel1el",
+          "uid": 997
+        },
+        {
+          "gid": 986,
+          "name": "enclavel1cl",
+          "uid": 995
+        }
+      ]
+    }
+  },
+  "lighthouseCacheProfile": {
+    "state": 2,
+    "coldHdiff": 1,
+    "shuffling": 1,
+    "startupFitVerified": false
+  }
+}
