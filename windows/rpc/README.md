@@ -1,0 +1,65 @@
+# Owned RPC lifecycle primitives
+
+These sources are unfinished and are not loaded by the host manager or installed
+as services. They do not admit or start a VM. The production activation gate stays
+closed until the native worker, independent guardian, durable provider-operation
+journal, protected namespace, storage attachment and resource admission pass.
+
+`BoundedWorker.cs` is a C# 5 / 64-bit Windows candidate for running one trusted,
+pinned observation or submission worker. It creates an unnamed Job Object with
+commit-memory, active-process and CPU-affinity limits and kill-on-last-handle-close.
+The process enters that job at creation through `PROC_THREAD_ATTRIBUTE_JOB_LIST`,
+before its suspended first thread is resumed. There is no create-then-assign
+fallback and no inherited job handle. This avoids leaving a suspended process
+outside containment if the supervisor dies during setup.
+
+The primitive uses held process handles and creation time, never a PID lookup for
+termination. Normal completion also terminates leftover descendants. A termination
+request is followed by an exact process wait and an empty-job observation; timeout
+or cleanup failure is reported without claiming death. The caller must keep a
+reservation on any uncertain result. Job memory is Windows committed memory, not
+an assertion about resident memory or pagefile policy.
+
+Dispatch passes an absolute same-boot monotonic deadline with at most 30 seconds
+remaining, capped by the original immutable lifecycle deadline. The worker does
+not restart that budget after setup or process creation. The trusted child must
+also check its bound contract deadline immediately before submitting any provider
+operation. `LocalSuccess` requires known creation/exit identity, exit code zero,
+no timeout/failure, observed process exit and an empty job, and confirmed handle
+cleanup. A default exit-code field is never a success receipt. Local success still
+does not establish a provider fence or VM readiness.
+
+This candidate has **not been compiled or run**. Its native ABI, nested-job behavior,
+creation-time job assignment, parent-death behavior and resource enforcement are
+unqualified. It is a low-level trusted primitive, not an authorization boundary:
+the caller must independently pin the executable, arguments, environment,
+directory, script/module closure and protected ancestor namespace. No production
+caller is wired to it. An independent supervisor must bound the primitive itself,
+including setup and native calls; its internal stopwatch alone does not prove
+those native calls cannot hang. Fresh whole-host admission is required before
+even the inert native qualification run.
+
+Killing a local worker does **not** cancel a Hyper-V operation already accepted by
+VMMS. Both `ProviderOperationFenced` and `ReservationMayRelease` always return false.
+The production protocol needs an exclusive durable start intent before submission,
+the exact returned provider operation persisted before acknowledgment, an
+independent deadline owner, and a closed start gate. Lost submission responses stay
+ambiguous and must never trigger automatic retry. Only settled native operations,
+fenced workers and a subsequent original-owned Off/zero-memory observation can
+contribute to a release decision; storage writer/export fencing is separate.
+
+Native qualification must cover normal exit, a hung worker, descendants left after
+parent exit, supervisor death before resume and during execution, memory exhaustion,
+failed job setup, unsupported job-list attributes, nested job restrictions and
+forced cleanup failure. It must use inert processes only, independently verify
+death, preserve failed evidence and respect a reviewed aggregate resource bound.
+No VM, WMI/CIM state-change call, production disk or production credential belongs
+in those cases.
+
+Windows API references used for this candidate:
+
+- [Process creation attributes](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-updateprocthreadattribute)
+- [Microsoft SDK job-list constant](https://github.com/microsoft/win32metadata/blob/main/generation/WinSDK/RecompiledIdlHeaders/um/WinBase.h)
+- [Job memory limits](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_extended_limit_information)
+- [Job accounting](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_basic_accounting_information)
+- [Job termination](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-terminatejobobject)
