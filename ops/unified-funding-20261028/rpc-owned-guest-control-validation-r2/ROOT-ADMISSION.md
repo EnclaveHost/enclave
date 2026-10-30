@@ -1,0 +1,1 @@
+Separate r3 regression run after two new review defects repaired; original19PASS retained. Same fresh Control observation309a64 at1793395827.436647 remains under300s. Actual isolated test process rechecks age/boot/all7caps/headroom;128MiBnoSwapCPU1private-networkDynamicUser/20s. No extra observation, native/VM/DB. Local bounded256MiB coordinator only.

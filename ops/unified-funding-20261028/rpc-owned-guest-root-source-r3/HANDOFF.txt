@@ -1,0 +1,2 @@
+
+21:34UTC r3purelifecycle fixes additionalpeeredgecases: persistentrequires_ownership_revalidation survivesquarantine->watchdogSTOPPING/resume, consumedonlyoriginalownedOffproof; releasedstaletimerinert. Actual21PASS0FAIL0skip via c4546e69423141b6913d298020bc8d2a Controlisolated128MiBnoSwapCPU1/20s, samefreshread under300s/recheck4.637GBresidual. r1/r2unchanged, r2evidence20fc1b812b72 PUSHEDexactremote. ActualWindowsadapter/guardian/boot/attachment/readinessstillunfinished/no native/productioneffects. U/rpc-owned-guest-root-source-r3 ROOT-RESULT authoritative.
