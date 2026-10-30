@@ -34,6 +34,7 @@ function stubRpc({ hang = false } = {}) {
   return http.createServer((req, res) => { let b = ""; req.on("data", (d) => (b += d)); req.on("end", () => {
     if (hang) return;   // a ledger that never answers
     const q = JSON.parse(b || "{}"); const one = (m) => { const data = String(m.params?.[0]?.data || "");
+      if (data.startsWith("0x5d1b72b6")) return "0x" + W(2);   // the ledger's schema revision (2), as test/relay-u7-eligible-routing.test.mjs answers it
       if (data.startsWith("0x06661abd")) return "0x" + W(LEDGER.length);
       if (m.method === "eth_call" && data.length >= 138) { const start = Number(BigInt("0x" + data.slice(10, 74))), n = Number(BigInt("0x" + data.slice(74, 138))); return encPage(LEDGER.slice(start, start + n)); }
       if (m.method === "eth_call") return "0x" + W(0);   // any other view (schema probes, address-book reads): a zero word
@@ -66,7 +67,9 @@ const CONFIGURED = { PVM_SERVING: "1", METAL_AVF_CODE_HASHES: "aa".repeat(32), M
 async function appEnclave(t) {
   const seen = [];
   const e = http.createServer((req, res) => { seen.push(req.url);
-    if (req.url === "/availability") { res.setHeader("content-type", "application/json"); return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5 })); }
+    // U7: an ordinary app host is an ELIGIBLE one (a dialed row naming its confidential CPU, as test/relay-u7-eligible-routing.test.mjs's
+    // stub boxes do) -- the carrier's paths are judged beside a host that may serve tenant traffic, never instead of one
+    if (req.url === "/availability") { res.setHeader("content-type", "application/json"); return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, teeCpu: "amd-sev-snp" })); }
     if (req.method === "HEAD") { res.statusCode = 200; return res.end(); }
     let b = ""; req.on("data", (d) => (b += d)); req.on("end", () => { const h = { ...req.headers }; for (const k of ["host", "content-length", "connection", "x-forwarded-for", "x-real-ip"]) delete h[k];
       res.setHeader("content-type", "application/json"); res.setHeader("x-app", "own"); res.end(JSON.stringify({ app: "OWN RESPONSE", headers: h, body: b })); }); });
@@ -92,9 +95,13 @@ test("PVM_SERVING OFF (the default): /x/<id>/pvm/* is an ordinary /x path -- sam
   assert.equal(pvm.status, 200); assert.equal(JSON.parse(pvm.body).app, "OWN RESPONSE", "OFF: the app's own path is the app's");
   assert.deepEqual(JSON.parse(pvm.body).headers, JSON.parse(other.body).headers, "the relay forwarded the same headers on both paths");
   assert.ok(same(pvm.headers, other.headers), `the same response headers: ${JSON.stringify(pvm.headers)} vs ${JSON.stringify(other.headers)}`);
+  // U7 reads the ledger afresh at most once per 5 s: each pair is compared from the same state (the cooldown waited out
+  // before each request), and the answer's updatedAt stamp is the relay's poll clock, not the route's
+  const noStamp = (b) => { try { const o = JSON.parse(b); delete o.updatedAt; return JSON.stringify(o); } catch { return b; } };
   for (const id of [ID("33"), ID("99")]) {
-    const a = await req(port, "POST", `/x/${id}/pvm/evidence`, "x"), b = await req(port, "POST", `/x/${id}/some/app/path`, "x");
-    assert.equal(a.status, b.status, id); assert.equal(a.body, b.body); assert.ok(same(a.headers, b.headers));
+    await new Promise((r) => setTimeout(r, 5200)); const a = await req(port, "POST", `/x/${id}/pvm/evidence`, "x");
+    await new Promise((r) => setTimeout(r, 5200)); const b = await req(port, "POST", `/x/${id}/some/app/path`, "x");
+    assert.equal(a.status, b.status, id); assert.equal(noStamp(a.body), noStamp(b.body)); assert.ok(same(a.headers, b.headers));
   }
   const up = await upgrade(port, `/x/${ID("66")}/pvm/evidence`);
   assert.equal(up.status, 101); assert.match(up.head, /x-app: own/); assert.ok(app.seen.includes(`UPGRADE /x/${ID("66")}/pvm/evidence`), "a WebSocket upgrade there is the app's");
@@ -123,10 +130,14 @@ test("OFF carries no new code: with a deliberately BROKEN pvm-serving.mjs beside
 test("PVM_SERVING ON without its configuration: both pVM routes answer the same plain empty 503 (no Retry-After); every other route serves; the log names what is missing", async (t) => {
   const app = await appEnclave(t); LEDGER = [LEDGER[0], app.row];
   const bare = await relay(t, { PVM_SERVING: "1" }, {}, { enclaves: app.endpoint });
-  for (const [m, p] of [["POST", `/x/${ID("33")}/pvm/evidence`], ["POST", `/x/${ID("33")}/pvm/sealed`], ["POST", `/x/${ID("66")}/pvm/sealed`], ["GET", `/x/${ID("99")}/pvm/evidence`]]) {
+  for (const [m, p] of [["POST", `/x/${ID("33")}/pvm/evidence`], ["POST", `/x/${ID("33")}/pvm/sealed`], ["POST", `/x/${ID("66")}/pvm/sealed`]]) {
     const r = await req(bare.port, m, p, "x"); assert.equal(r.status, 503, `${m} ${p}`); assert.equal(r.body, ""); assert.equal(r.headers["retry-after"], undefined);
     assert.equal(r.headers.connection, "close", "refused before its body is read: the connection closes (a reused socket would be reset)");
+    assert.equal(r.headers["content-security-policy"], "sandbox; default-src 'none'"); assert.equal(r.headers["x-content-type-options"], "nosniff");
   }
+  // only an exact POST is the carrier's: a GET on the same path is the relay's own answer (U7), never the carrier's refusal
+  { const r = await req(bare.port, "GET", `/x/${ID("99")}/pvm/evidence`); assert.equal(r.type, "application/json", JSON.stringify(r)); assert.ok(JSON.parse(r.body).error);
+    assert.notEqual(r.headers["content-security-policy"], "sandbox; default-src 'none'"); }
   assert.equal((await req(bare.port, "GET", "/health")).status, 200);
   assert.equal(JSON.parse((await req(bare.port, "POST", `/x/${ID("66")}/other`, "x")).body).app, "OWN RESPONSE", "the ordinary /x path serves");
   // every other route answers exactly as an OFF relay does (a stub ledger answers only some views: the property is equality)
@@ -157,8 +168,11 @@ test("PVM_SERVING ON and configured: the ledger runner only -- an ordinary app's
   // the reservation: deployment 66 runs an ordinary app on a live https enclave; its runner is not a pVM tunnel
   const shadow = await post(ID("66"));
   assert.equal(shadow.status, 404); assert.equal(shadow.body, ""); assert.ok(!app.seen.some((u) => u.includes("/pvm/")), "the app never saw the request");
+  // a PREFIX is not the carrier's (exact canonical ids only): it is the relay's ordinary /x path, judged by U7 -- for this
+  // eligible app host the app's own
   const lookalike = await post(ID("66").slice(0, 10));
-  assert.equal(lookalike.status, 404); assert.ok(!app.seen.some((u) => u.includes("/pvm/")), "a prefix of it neither: never the app's answer");
+  assert.equal(lookalike.status, 200); assert.equal(JSON.parse(lookalike.body).app, "OWN RESPONSE", "a prefix falls through to the relay's /x routing (U7)");
+  app.seen.length = 0;
   assert.equal(JSON.parse((await req(port, "POST", `/x/${ID("66")}/other`, "x")).body).app, "OWN RESPONSE", "its other paths are untouched");
   // the app's OWN origin (its subdomain) is never the carrier: the same path there is the app's, whatever it names
   for (const p of ["/pvm/evidence", `/x/${ID("66")}/pvm/evidence`, `/x/${ID("33")}/pvm/sealed`]) {
@@ -171,26 +185,33 @@ test("PVM_SERVING ON and configured: the ledger runner only -- an ordinary app's
   // WebSocket upgrades are NOT reserved: one on the same path takes the ordinary /x upgrade path to the app, as OFF
   const up = await upgrade(port, `/x/${ID("66")}/pvm/evidence`);
   assert.equal(up.status, 101); assert.match(up.head, /x-app: own/); assert.ok(app.seen.includes(`UPGRADE /x/${ID("66")}/pvm/evidence`), "the app answered the handshake itself");
-  const g = await req(port, "GET", `/x/${ID("33")}/pvm/evidence`, "a body"); assert.equal(g.status, 405); assert.equal(g.headers.connection, "close");
-  assert.equal((await req(port, "GET", "/health")).status, 200, "the next request after an early refusal is served");
+  // a GET is not the carrier's either: the relay's ordinary /x answer (U7: deployment 33's lease holder is not attached)
+  const g = await req(port, "GET", `/x/${ID("33")}/pvm/evidence`); assert.equal(g.status, 503, JSON.stringify(g)); assert.equal(JSON.parse(g.body).error, "runner_unreachable");
+  assert.equal((await req(port, "GET", "/health")).status, 200, "the next request is served");
   // the BOOTSTRAP route /t/<name>/pvm/evidence is claimed ONLY for a name attached as a pVM (AVF) tunnel: a token-attached box's
-  // own path of that name is proxied to the box exactly as before, and a name with no tunnel gets the ordinary /t/ answer
+  // path of that name falls through to the relay's /t/ handling unchanged -- under U7 a token tunnel is not eligible, so only
+  // its own surfaces pass and this POST is refused, never reaching the box -- and a name with no tunnel gets the ordinary /t/ answer
   const { WebSocket } = await import("ws");
   const box = new WebSocket(`ws://127.0.0.1:${port}/v1/fleet-tunnel`, { headers: { "x-metal-name": "box1", "x-metal-token": "lab-box-attach" } });
   box.on("message", (d) => { const f = JSON.parse(d); if (f.t === "req") box.send(JSON.stringify({ t: "res", id: f.id, status: 200, headers: { "content-type": "text/plain" }, body: Buffer.from(`BOX:${f.method} ${f.path}`).toString("base64") })); });
   await new Promise((r) => box.on("open", r)); t.after(() => box.close());
-  let boxed = null; for (let i = 0; i < 40 && !(boxed && boxed.status === 200); i++) { boxed = await req(port, "POST", "/t/box1/pvm/evidence", "EVIDENCE " + "ab".repeat(32) + "\n"); if (boxed.status !== 200) await new Promise((r) => setTimeout(r, 100)); }
-  assert.equal(boxed.status, 200, JSON.stringify(boxed)); assert.equal(boxed.body, "BOX:POST /pvm/evidence", "a non-pVM tunnel's /t/<name>/pvm/evidence is its own, untouched");
+  let own = null; for (let i = 0; i < 40 && !(own && own.status === 200); i++) { own = await req(port, "GET", "/t/box1/availability"); if (own.status !== 200) await new Promise((r) => setTimeout(r, 100)); }
+  assert.equal(own.status, 200, JSON.stringify(own)); assert.equal(own.body, "BOX:GET /availability", "the token box is attached: its own surface passes");
+  const boxed = await req(port, "POST", "/t/box1/pvm/evidence", "EVIDENCE " + "ab".repeat(32) + "\n");
+  assert.equal(boxed.status, 503, JSON.stringify(boxed)); assert.equal(JSON.parse(boxed.body).error, "host_ineligible", "a non-pVM tunnel's /t/<name>/pvm/evidence falls through to U7, unchanged");
+  assert.doesNotMatch(log(), /\[pvm-serving\][^\n]*"tunnel":"box1"/, "the carrier never claimed it");
   const none = await req(port, "POST", "/t/no-pvm-tunnel/pvm/evidence", "EVIDENCE " + "ab".repeat(32) + "\n");
   assert.equal(none.status, 404); assert.equal(JSON.parse(none.body).error, "no_tunnel", "no tunnel under that name: the ordinary /t/ answer, not the carrier's");
-  assert.equal((await post("0x3333333333")).status, 404, "a prefix never resolves");
+  { const pre = await post("0x3333333333"); assert.equal(pre.type, "application/json"); assert.ok(JSON.parse(pre.body).error, "a prefix is never the carrier's: the relay's own answer (U7)"); }
   assert.equal((await post(ID("33"), "evidence", "E".repeat(300))).status, 413);
   // identity = the relay's clientIp: the LAST X-Forwarded-For hop (TRUSTED_PROXY), the socket when there is none
   const as = (last, first = "203.0.113.9") => ({ "x-forwarded-for": `${first}, ${last}` });
   const drain = async (h, dep = ID("98")) => { let n = 0; while (n < 80 && (await post(dep, "evidence", undefined, h)).status !== 429) n++; return n; };
   const nA = await drain(as("198.51.100.7", "10.0.0.1"));
   assert.ok(nA >= 29 && nA <= 36, `one client: its own bucket of 30 (+ refill) -- ${nA}`);
-  assert.equal((await post(ID("98"), "evidence", undefined, as("198.51.100.7", "192.0.2.200"))).status, 429, "another first entry, same last hop: the same client");
+  { const r = await post(ID("98"), "evidence", undefined, as("198.51.100.7", "192.0.2.200"));
+    assert.equal(r.status, 429, "another first entry, same last hop: the same client");
+    assert.equal(r.headers.connection, "close", "an early refusal (before the body is read) closes the connection: a reused socket would be reset"); }
   assert.equal((await post(ID("98"), "evidence", undefined, as("198.51.100.8"))).status, 404, "another last hop is another client, with its own bucket");
   assert.equal((await post(ID("97"))).status, 404, "a direct hit with no X-Forwarded-For keys on the socket, and works");
   // the per-deployment bucket (60, a courtesy to the VM): two clients spend deployment 96's budget; a THIRD, fresh client
