@@ -1,0 +1,7 @@
+{
+  "authorized": true,
+  "scope": "readonly-control-vm-storage-metadata-r1",
+  "pinsSha256": "0b18050f027a6e626073af363055cf42cac4f57f089e4fb03e92cbb4f3ef9809",
+  "at": 1793361913.9980109,
+  "review": "Root reviewed full metadata and runner bodies, unchanged capture and all8 content/13 external pins. One readonly cached package metadata observation; no install/module/storage mutation."
+}

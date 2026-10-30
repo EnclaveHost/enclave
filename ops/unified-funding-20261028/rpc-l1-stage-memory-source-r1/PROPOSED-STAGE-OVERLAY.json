@@ -1,0 +1,65 @@
+{
+  "status": "PROPOSED_NOT_APPLIED_NOT_PARSER_VALIDATED",
+  "binarySha256": "8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250",
+  "sourceCommit": "05ba48120a0ce8d6beb65f0b2a7ad4710f4f2915",
+  "sourceSha256": "6e4bbddc293bbcfff4799de4456fc4b9382c34ebcc663f21fb38f017dcfe41b5",
+  "editSemantics": "Overlay only exact allowlisted stage fields onto a separately preserved actual existing TOML. Do not replace the full configuration or change prune/static_files/chain/network settings. Refuse missing effective-config evidence.",
+  "stageOverrides": {
+    "headers": {
+      "downloader_max_concurrent_requests": 2,
+      "downloader_min_concurrent_requests": 1,
+      "downloader_max_buffered_responses": 2,
+      "downloader_request_limit": 100,
+      "commit_threshold": 1000
+    },
+    "bodies": {
+      "downloader_request_limit": 16,
+      "downloader_stream_batch_size": 16,
+      "downloader_max_buffered_blocks_size_bytes": 134217728,
+      "downloader_min_concurrent_requests": 1,
+      "downloader_max_concurrent_requests": 2
+    },
+    "sender_recovery": {
+      "commit_threshold": 100000
+    },
+    "execution": {
+      "max_blocks": 100,
+      "max_changes": 100000,
+      "max_cumulative_gas": 3000000000,
+      "max_duration": "30s"
+    },
+    "account_hashing": {
+      "commit_threshold": 1000,
+      "commit_entries": 100000
+    },
+    "storage_hashing": {
+      "commit_threshold": 1000,
+      "commit_entries": 100000
+    },
+    "transaction_lookup": {
+      "chunk_size": 100000
+    },
+    "index_account_history": {
+      "commit_threshold": 1000
+    },
+    "index_storage_history": {
+      "commit_threshold": 1000
+    },
+    "etl": {
+      "file_size": 67108864
+    }
+  },
+  "notHardLimits": [
+    "Individual blocks and in-flight requests may exceed a batch threshold.",
+    "Allocator, database, consensus state, networking and kernel memory are additional.",
+    "A cgroup cap can terminate a trial; it does not prove successful sync within that cap."
+  ],
+  "requires": [
+    "actual effective TOML inspection and preservation",
+    "exact binary parser proof in disposable datadir",
+    "argument and configuration precedence checks",
+    "native storage qualification",
+    "bounded actual startup/catch-up/durable-stop measurements",
+    "unchanged validation/pruning/history/proof/blob guards"
+  ]
+}

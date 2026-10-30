@@ -1,0 +1,5 @@
+# Exact Reth stage configuration source
+
+One bounded source fetch4782d012b27443c8805081db0c4528cb completed0/Main0. The41515-byte file matches Git blob d95d5e259ab31808179d29d8a58454fd8a947b7c from the previously preserved full Reth05ba4812 tree. No binary/client/database was executed. The process completed between RSS samples: peak0 is an absent sampled measurement, not a zero-memory claim. Outer minimum available30511MiB; cgroup256MiB/guard220/floor27648/CPU1/noSwap applied.
+
+Exact source defaults are2GiB body buffer and500MiB ETL buffer, in addition to engine/RPC caches; execution and history stages also have large batches. PROPOSED-STAGE-OVERLAY.json records lower batches and buffers for review. It is not installed or parser-qualified and must be applied only to a preserved actual effective TOML, retaining every pruning/static-file/history/validation setting. These settings trade throughput for lower buffered work, with no measured RSS claim. Per-block and in-flight overhead remain; the aggregate2560MiB trial still needs native evidence.
