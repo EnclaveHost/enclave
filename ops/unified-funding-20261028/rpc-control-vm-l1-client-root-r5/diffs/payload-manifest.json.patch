@@ -1,0 +1,11 @@
+--- r4/payload-manifest.json
++++ r5/payload-manifest.json
+@@ -11,7 +11,7 @@
+   },
+   "mounts": {
+     "base": "/srv/enclave-base-holder",
+-    "l1": "/srv/enclave-l1-pair-r4"
++    "l1": "/srv/enclave-l1-pair-r5"
+   },
+   "servingProduction": false,
+   "nvmeCacheBytes": 0

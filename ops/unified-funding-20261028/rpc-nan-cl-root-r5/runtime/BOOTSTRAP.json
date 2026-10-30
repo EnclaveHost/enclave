@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 3.726283720927313,
+  "stdout": "{\"root\": \"/run/enclave-rpc-nan-client-n5\", \"programSha256\": \"f39d1c6f96b4bfb3de705464c13f5e59edefd21bed882772ee3f4d13f79b3866\", \"sliceMaximum\": 134217728, \"clientStarted\": false}\n",
+  "stderr": "",
+  "bytesObserved": {
+    "stdout": 179,
+    "stderr": 0
+  },
+  "stdinBytesWritten": 45085,
+  "stdinBytesRequested": 45085,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

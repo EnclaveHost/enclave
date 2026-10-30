@@ -1,0 +1,33 @@
+--- r4/transport-helpers.py
++++ r5/transport-helpers.py
+@@ -1,9 +1,9 @@
+ # PREPARED ONLY. Invoked by root in a dedicated bounded systemd unit.
+ import pathlib, json, hashlib, stat, socket, struct, errno, mmap, fcntl, sys, resource, tomllib
+ P=pathlib.Path
+-ROOT=P('/run/enclave-rpc-l1-client-r4');M=json.loads((ROOT/'manifest.json').read_text());ACTION=sys.argv[1];STATE=ROOT/'state.json'
+-EXEC=P('/var/lib/enclave-rpc-l1-client-r4')
+-DEV=P('/dev/nbd7');SYS=P('/sys/block/nbd7');MOUNT=P('/srv/enclave-l1-pair-r4')
++ROOT=P('/run/enclave-rpc-l1-client-r5');M=json.loads((ROOT/'manifest.json').read_text());ACTION=sys.argv[1];STATE=ROOT/'state.json'
++EXEC=P('/var/lib/enclave-rpc-l1-client-r5')
++DEV=P('/dev/nbd7');SYS=P('/sys/block/nbd7');MOUNT=P('/srv/enclave-l1-pair-r5')
+ out={'action':ACTION,'ok':False,'errors':[]};client=None;mounted=False;cleaning=False
+ def sha(p):
+     with P(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+@@ -43,7 +43,7 @@
+         assert maximum==mib*(1<<20),'existing-service-cap-changed'
+         growth+=max(0,maximum-current)
+     pending=0;actual=0;budget=[]
+-    for path,mib in (('/enclavel1trialr4.slice',2304),('/enclavel1attachr4.slice',128),('/enclavel1guardianr4.slice',128)):
++    for path,mib in (('/enclavel1trialr5.slice',2304),('/enclavel1attachr5.slice',128),('/enclavel1guardianr5.slice',128)):
+         q=P('/sys/fs/cgroup'+path)
+         current=int(read(q/'memory.current')) if q.exists() else 0
+         if q.exists():assert read(q/'memory.max')==str(mib<<20),'trial-budget-drift'
+@@ -117,7 +117,7 @@
+         if current:
+             assert unitof(current)==s.get('attachCgroup') and (not s.get('nbdPid') or current==s['nbdPid']),'foreign-nbd-pid'
+         assert size() in (0,M['bytes']),'device-size-drift'
+-        cmd('detach',['/var/lib/enclave-rpc-l1-client-r4/nbd-client','-d',str(DEV)],8)
++        cmd('detach',['/var/lib/enclave-rpc-l1-client-r5/nbd-client','-d',str(DEV)],8)
+     until=time.monotonic()+5
+     while not idle() and time.monotonic()<until:time.sleep(.1)
+     assert idle() and not mounts(),'device-cleanup-incomplete'

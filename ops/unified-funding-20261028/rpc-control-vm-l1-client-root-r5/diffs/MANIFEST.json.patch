@@ -1,0 +1,118 @@
+--- r4/MANIFEST.json
++++ r5/MANIFEST.json
+@@ -1,10 +1,10 @@
+ {
+-  "nonce": "4213b340-4817-4df2-baaa-ee492962e9ad",
++  "nonce": "d17f3a40-96ef-425e-88b9-c9a279d7ebd1",
+   "unitPrefix": "enclave-rpc-l1-",
+   "uuid": "a2f2a8b5-06ac-4612-95a0-f48a00a7f6e0",
+   "bytes": 4000000000000,
+-  "exportName": "enclave-l1-client-4213b340-4817-4df2-baaa-ee492962e9ad",
+-  "remoteSocket": "/home/controladmin/rpc-l1-client-r4/export.sock",
++  "exportName": "enclave-l1-client-d17f3a40-96ef-425e-88b9-c9a279d7ebd1",
++  "remoteSocket": "/home/controladmin/rpc-l1-client-r5/export.sock",
+   "target": "controladmin@172.17.28.159",
+   "knownHosts": "/home/steven/Documents/Codex/2026-10-18/wo/work/control-vm/known_hosts",
+   "bootId": "b39ecfe2-82b2-4c2a-a596-a52630bb59fd",
+@@ -147,8 +147,8 @@
+     "source": "/dev/sda1",
+     "fstype": "ext4"
+   },
+-  "overlayDirectory": "/vm/enclave-volumes/rpc-control-l1-client-r4",
+-  "expectedProductionMount": "/srv/enclave-l1-pair-r4",
++  "overlayDirectory": "/vm/enclave-volumes/rpc-control-l1-client-r5",
++  "expectedProductionMount": "/srv/enclave-l1-pair-r5",
+   "parent": {
+     "path": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2",
+     "device": 64769,
+@@ -168,8 +168,8 @@
+     "enclave-provider-migration-mirror.service": 192,
+     "enclave-rpc-gateway.service": 192
+   },
+-  "uploadDirectory": "/home/controladmin/rpc-l1-upload-r4",
+-  "programSha256": "e7af14b628e43c26d475fa1c241ad68ab27b75218069ba7a51c5c0203d306403",
++  "uploadDirectory": "/home/controladmin/rpc-l1-upload-r5",
++  "programSha256": "283053c8bef6a6743d4e347bd2828d77db96362a0cf549978707298ecbbbe80f",
+   "originalTomlSha256": "a93adc65ec30ac1ea6d8f4c59b9ef12e522e07606e038777f93cdbf7e67304c7",
+   "proposedTomlSha256": "63bc71f103c49e06cd661ab410cc7005fd101ca9578cd6cb15fac7be6e35c320",
+   "identities": {
+@@ -254,17 +254,11 @@
+       "bytes": 139248776,
+       "sha256": "8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250"
+     },
+-    "lighthouse": {
+-      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/payload-v2/bin/lighthouse",
+-      "destination": "bin/lighthouse",
+-      "bytes": 105018160,
+-      "sha256": "11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96"
+-    },
+     "manifest.json": {
+-      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r4/payload-manifest.json",
++      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r5/payload-manifest.json",
+       "destination": "manifest.json",
+       "bytes": 673,
+-      "sha256": "298f7a99926433426d2445c670abcb962221091199a3b2193924d60f08434532"
++      "sha256": "1681f116beee2bd94630249a089f929d29a8f2f9bfbcb07520f44455135a44de"
+     },
+     "chain.json": {
+       "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-low-memory-current-wrapper-r1/installed-chain.json",
+@@ -273,25 +267,25 @@
+       "sha256": "81988aeef841cc073b359ab29993641b06e71d72190ddc5df606057ddd7b5eb7"
+     },
+     "chain_service.py": {
+-      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r4/trial-chain-service.py",
++      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r5/trial-chain-service.py",
+       "destination": "chain_service.py",
+-      "bytes": 38790,
+-      "sha256": "abcb256023545a302be6eb4f3773ac25519de18d14ebba7c7bd7de2586dbe98c"
++      "bytes": 38830,
++      "sha256": "7b356077facfad50fc6af3f2d1466ac851aaf61674ee2d493df6e7ee9b0f7aef"
+     },
+     "disks.json": {
+-      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r4/disks.json",
++      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r5/disks.json",
+       "destination": "disks.json",
+       "bytes": 148,
+-      "sha256": "eaa116f6f59d0ff086e38aacfc445f41d903c5819fd4a2fae9757b716282ec9d"
++      "sha256": "aae8778982845e76fb4620c017c22fea791052d92953a879366195c574d29ad4"
+     },
+     "original-reth.toml": {
+-      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r4/original-reth.toml",
++      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r5/original-reth.toml",
+       "destination": "original-reth.toml",
+       "bytes": 2611,
+       "sha256": "a93adc65ec30ac1ea6d8f4c59b9ef12e522e07606e038777f93cdbf7e67304c7"
+     },
+     "proposed-reth.toml": {
+-      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r4/proposed-reth.toml",
++      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r5/proposed-reth.toml",
+       "destination": "proposed-reth.toml",
+       "bytes": 2577,
+       "sha256": "63bc71f103c49e06cd661ab410cc7005fd101ca9578cd6cb15fac7be6e35c320"
+@@ -307,7 +301,7 @@
+     "mode": 33152,
+     "sha256": "ddea119560fa26f6d193adac91c43d6eff03ef89ea4ed69d643c62f175e994bf"
+   },
+-  "overlayPath": "/vm/enclave-volumes/rpc-control-l1-client-r4/overlay.qcow2",
++  "overlayPath": "/vm/enclave-volumes/rpc-control-l1-client-r5/overlay.qcow2",
+   "retainedAccountProvenance": {
+     "sourceDirectory": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r2",
+     "rootSourceCommit": "1163609305071f29af7dfa32ac6490c3153da6cb",
+@@ -344,10 +338,12 @@
+       ]
+     }
+   },
+-  "lighthouseCacheProfile": {
+-    "state": 2,
+-    "coldHdiff": 1,
+-    "shuffling": 1,
+-    "startupFitVerified": false
++  "trialRole": "el",
++  "productionReady": false,
++  "previousTrial": {
++    "directory": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r4",
++    "pinsSha256": "14015168432eb9668003f3403805fdbd0fdaefd28401f0358c39575fb06daeba",
++    "resultSha256": "456892e450f25801fa3386a8afdd745ca8ae889828056207f5da2b84cac67951",
++    "terminalSha256": "504de84d675bbfd9192464a5c4334bddfce67f3a15cbc319a5cdb40c177abb4d"
+   }
+ }

@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 2.387081213062629,
+  "stdout": "RESULT_JSON={\"action\": \"socket-clear\", \"cleanup\": {\"clients\": {\"cl\": {\"ActiveState\": \"failed\", \"ControlGroup\": \"\", \"Description\": \"Enclave L1 676b0793-6ea4-4d6e-b85b-8cbde58d6dca cl\", \"DropInPaths\": \"\", \"ExecMainCode\": \"2\", \"ExecMainStatus\": \"9\", \"ExecStart\": \"{ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 -I -B /var/lib/enclave-rpc-nan-client-n5/payload/chain_service.py cl ; ignore_errors=no ; start_time=[Fri 2026-10-30 15:50:56 UTC] ; stop_time=[Fri 2026-10-30 15:53:15 UTC] ; pid=478663 ; code=killed ; status=9/KILL }\", \"FragmentPath\": \"/run/systemd/transient/enclave-rpc-nan-cl-trial-n5.service\", \"Group\": \"enclavenancl\", \"InvocationID\": \"27ef5269928141429c26bad2064cbb97\", \"LoadState\": \"loaded\", \"MainPID\": \"0\", \"Result\": \"timeout\", \"SubState\": \"failed\", \"Transient\": \"yes\", \"User\": \"enclavenancl\"}}, \"errors\": [], \"identityMutationIntents\": [], \"identityReconciliation\": [], \"nbdUnit\": {\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"Description\": \"enclave-rpc-nan-nbd-n5.service\", \"DropInPaths\": \"\", \"ExecMainCode\": \"0\", \"ExecMainStatus\": \"0\", \"FragmentPath\": \"\", \"Group\": \"\", \"InvocationID\": \"\", \"LoadState\": \"not-found\", \"MainPID\": \"0\", \"Result\": \"success\", \"SubState\": \"dead\", \"Transient\": \"no\", \"User\": \"\"}, \"ok\": true, \"ownedInvocations\": {\"cl\": \"27ef5269928141429c26bad2064cbb97\"}, \"reason\": \"bounded-trial-finished\", \"retainedAccounts\": {\"groups\": [{\"gid\": 50011, \"name\": \"enclavenancl\"}, {\"gid\": 50012, \"name\": \"enclavenanjwt\"}], \"users\": [{\"gid\": 50011, \"name\": \"enclavenancl\", \"uid\": 50011}]}}, \"errors\": [], \"ok\": true, \"socketClosedVerified\": true}\n",
+  "stderr": "",
+  "bytesObserved": {
+    "stdout": 1577,
+    "stderr": 0
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

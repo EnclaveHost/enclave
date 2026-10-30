@@ -1,0 +1,9 @@
+{
+  "authorized": true,
+  "at": 1793375975.1515596,
+  "scope": "actual-l1-el-only-bounded-client-r5",
+  "pinsSha256": "da868883e5f779db7edb79a881cea757c08e6503ca50688c1813f4c33f240268",
+  "reason": "Root reviewed exact EL-only differential and prior cleanup. Composition/payload/TOML/RethAST checks and10RPCcases pass. Current sameboot/38processes/emptyjobs/unchanged7caps; residual2100MiB after full trial+service growth. Same continuous1536floor and original+COW guards. No paired/sync/production claim.",
+  "freshObservationSha256": "369b064272da8fa5b057d4d2d65fea6dcb058d12a67d6fbb27cfb61dd1c54d90",
+  "priorCleanupVerified": true
+}

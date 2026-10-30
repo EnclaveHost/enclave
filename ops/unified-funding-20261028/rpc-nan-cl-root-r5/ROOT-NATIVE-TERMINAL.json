@@ -1,0 +1,33 @@
+{
+  "knownAlive": [],
+  "contentDrift": [],
+  "parentUnchanged": true,
+  "remoteCleanupVerified": true,
+  "samples": 44,
+  "clRpcObserved": false,
+  "lastClientMemory": {
+    "memory.current": "60030976",
+    "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+    "memory.peak": "62431232"
+  },
+  "cleanup": {
+    "cl": {
+      "ActiveState": "failed",
+      "ControlGroup": "",
+      "Description": "Enclave L1 676b0793-6ea4-4d6e-b85b-8cbde58d6dca cl",
+      "DropInPaths": "",
+      "ExecMainCode": "2",
+      "ExecMainStatus": "9",
+      "ExecStart": "{ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 -I -B /var/lib/enclave-rpc-nan-client-n5/payload/chain_service.py cl ; ignore_errors=no ; start_time=[Fri 2026-10-30 15:50:56 UTC] ; stop_time=[Fri 2026-10-30 15:53:15 UTC] ; pid=478663 ; code=killed ; status=9/KILL }",
+      "FragmentPath": "/run/systemd/transient/enclave-rpc-nan-cl-trial-n5.service",
+      "Group": "enclavenancl",
+      "InvocationID": "27ef5269928141429c26bad2064cbb97",
+      "LoadState": "loaded",
+      "MainPID": "0",
+      "Result": "timeout",
+      "SubState": "failed",
+      "Transient": "yes",
+      "User": "enclavenancl"
+    }
+  }
+}

@@ -1,0 +1,124 @@
+--- r4/remote-program.py
++++ r5/remote-program.py
+@@ -126,9 +126,9 @@
+ # PREPARED ONLY. Invoked by root in a dedicated bounded systemd unit.
+ import pathlib, json, hashlib, stat, socket, struct, errno, mmap, fcntl, sys, resource, tomllib
+ P=pathlib.Path
+-ROOT=P('/run/enclave-rpc-l1-client-r4');M=json.loads((ROOT/'manifest.json').read_text());ACTION=sys.argv[1];STATE=ROOT/'state.json'
+-EXEC=P('/var/lib/enclave-rpc-l1-client-r4')
+-DEV=P('/dev/nbd7');SYS=P('/sys/block/nbd7');MOUNT=P('/srv/enclave-l1-pair-r4')
++ROOT=P('/run/enclave-rpc-l1-client-r5');M=json.loads((ROOT/'manifest.json').read_text());ACTION=sys.argv[1];STATE=ROOT/'state.json'
++EXEC=P('/var/lib/enclave-rpc-l1-client-r5')
++DEV=P('/dev/nbd7');SYS=P('/sys/block/nbd7');MOUNT=P('/srv/enclave-l1-pair-r5')
+ out={'action':ACTION,'ok':False,'errors':[]};client=None;mounted=False;cleaning=False
+ def sha(p):
+     with P(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+@@ -168,7 +168,7 @@
+         assert maximum==mib*(1<<20),'existing-service-cap-changed'
+         growth+=max(0,maximum-current)
+     pending=0;actual=0;budget=[]
+-    for path,mib in (('/enclavel1trialr4.slice',2304),('/enclavel1attachr4.slice',128),('/enclavel1guardianr4.slice',128)):
++    for path,mib in (('/enclavel1trialr5.slice',2304),('/enclavel1attachr5.slice',128),('/enclavel1guardianr5.slice',128)):
+         q=P('/sys/fs/cgroup'+path)
+         current=int(read(q/'memory.current')) if q.exists() else 0
+         if q.exists():assert read(q/'memory.max')==str(mib<<20),'trial-budget-drift'
+@@ -242,7 +242,7 @@
+         if current:
+             assert unitof(current)==s.get('attachCgroup') and (not s.get('nbdPid') or current==s['nbdPid']),'foreign-nbd-pid'
+         assert size() in (0,M['bytes']),'device-size-drift'
+-        cmd('detach',['/var/lib/enclave-rpc-l1-client-r4/nbd-client','-d',str(DEV)],8)
++        cmd('detach',['/var/lib/enclave-rpc-l1-client-r5/nbd-client','-d',str(DEV)],8)
+     until=time.monotonic()+5
+     while not idle() and time.monotonic()<until:time.sleep(.1)
+     assert idle() and not mounts(),'device-cleanup-incomplete'
+@@ -276,9 +276,9 @@
+ 
+ # PREPARED ONLY. Appended to the qualified transport/ownership helpers.
+ import pwd,grp,secrets,shutil,urllib.request,urllib.error,contextlib
+-PAYLOAD=EXEC/'payload';SLICE='enclavel1trialr4.slice';GUARD_SLICE='enclavel1guardianr4.slice';ATTACH_SLICE='enclavel1attachr4.slice';NBD_UNIT='enclave-rpc-l1-nbd-r4.service'
+-UNITS={'el':'enclave-rpc-l1-el-trial-r4.service','cl':'enclave-rpc-l1-cl-trial-r4.service'}
+-HELPER='enclave-rpc-l1-helper-r4.service';WATCH='enclave-rpc-l1-watch-r4.service'
++PAYLOAD=EXEC/'payload';SLICE='enclavel1trialr5.slice';GUARD_SLICE='enclavel1guardianr5.slice';ATTACH_SLICE='enclavel1attachr5.slice';NBD_UNIT='enclave-rpc-l1-nbd-r5.service'
++UNITS={'el':'enclave-rpc-l1-el-trial-r5.service','cl':'enclave-rpc-l1-cl-trial-r5.service'}
++HELPER='enclave-rpc-l1-helper-r5.service';WATCH='enclave-rpc-l1-watch-r5.service'
+ STOP=ROOT/'STOP';DONE=ROOT/'CLEANUP.json';LOCK=ROOT/'operation.lock'
+ def atomic_json(path,value):
+     tmp=path.with_suffix('.next')
+@@ -381,6 +381,7 @@
+     if expected:assert info.get('InvocationID')==expected,'unit-invocation-drift'
+     return info
+ def start_client(side):
++    assert side=='el','EL-only-trial'
+     identity=M['identities'][side];data=str(MOUNT/('data' if side=='el' else 'cl'));tmp=str(MOUNT/('tmp' if side=='el' else 'tmp-cl'))
+     argv=['/usr/bin/systemd-run','--quiet','--unit='+UNITS[side],'--slice='+SLICE,'--description='+description(side),'--property=Type=exec',
+           '--property=User='+identity['name'],'--property=Group='+identity['name'],
+@@ -421,17 +422,19 @@
+     return values
+ 
+ def sample_rpc():
+-    value={}
+-    for name,url,request in (
+-        ('el','http://127.0.0.1:18645',{'jsonrpc':'2.0','id':1,'method':'eth_blockNumber','params':[]}),
+-        ('cl','http://127.0.0.1:15052/eth/v1/node/syncing',None)):
+-        try:
+-            data=json.dumps(request).encode() if request else None
+-            req=urllib.request.Request(url,data,{'Content-Type':'application/json'})
+-            with urllib.request.urlopen(req,timeout=1) as response:raw=response.read(65537)
+-            assert len(raw)<=65536;value[name]=json.loads(raw)
+-        except Exception as e:value[name]={'unavailable':type(e).__name__}
+-    return value
++    # Startup response only. This does not prove synchronization or paired consensus.
++    try:
++        request={'jsonrpc':'2.0','id':1,'method':'eth_blockNumber','params':[]}
++        req=urllib.request.Request('http://127.0.0.1:18645',json.dumps(request).encode(),{'Content-Type':'application/json'})
++        with urllib.request.urlopen(req,timeout=1) as response:raw=response.read(65537)
++        assert len(raw)<=65536,'EL-RPC-response-limit'
++        value=json.loads(raw)
++        assert isinstance(value,dict) and value.get('jsonrpc')=='2.0' and type(value.get('id')) is int and value['id']==1 and 'error' not in value,'EL-RPC-envelope'
++        block=value.get('result')
++        assert isinstance(block,str) and block.startswith('0x') and len(block)>2 and all(c in '0123456789abcdef' for c in block[2:]),'EL-RPC-block-number'
++        assert block=='0x0' or block[2]!='0','EL-RPC-block-number-canonical'
++        return {'el':{'response':value,'validBlockNumber':True}}
++    except Exception as e:return {'el':{'unavailable':type(e).__name__}}
+ def clean_trial(reason):
+     global cleaning
+     cleaning=True;stop_request(reason)
+@@ -603,7 +606,7 @@
+         with jwt.open('x') as f:f.write(secrets.token_hex(32));f.flush();os.fsync(f.fileno())
+         os.chown(jwt,0,M['jwtGroup']['gid']);jwt.chmod(0o640)
+         out['jwtCreatedPrivately']=True
+-        for side in ('el','cl'):
++        for side in ('el',):
+             info=start_client(side);s=state();s['clients'][side]=info;save(s)
+     samples=[];until=time.monotonic()+90
+     while time.monotonic()<until and not STOP.exists():
+@@ -613,23 +616,24 @@
+         sample['memory']={n:read(q/n) for n in ('memory.current','memory.peak','memory.events')}
+         samples.append(sample);time.sleep(2)
+     out['samples']=samples
+-    out['elRpcObserved']=any(isinstance(x['rpc'].get('el',{}).get('result'),str) for x in samples)
+-    out['clRpcObserved']=any(isinstance(x['rpc'].get('cl',{}).get('data'),dict) for x in samples)
++    out['elRpcObserved']=any(x['rpc'].get('el',{}).get('validBlockNumber') is True for x in samples)
++    out['clStarted']=False
++    assert set(s['clients'])=={'el'},'unexpected-launched-client'
+     stop_request('bounded-trial-finished')
+     out['cleanup']=wait_cleanup()
+     for side,info in s['clients'].items():
+         if info.get('InvocationID'):
+             cmd('clientLog:'+side,['/usr/bin/journalctl','--no-pager','-o','cat','-n','40','_SYSTEMD_INVOCATION_ID='+info['InvocationID']],4)
+-    assert out['elRpcObserved'] and out['clRpcObserved'],'client-RPC-startup-not-observed'
++    assert out['elRpcObserved'],'EL-RPC-startup-not-observed'
+     assert out['cleanup']['reason']=='bounded-trial-finished','trial-stopped-by-watchdog'
+     for info in out['cleanup']['clients'].values():
+         assert info.get('Result')=='success' and info.get('ExecMainCode')=='1' and info.get('ExecMainStatus')=='0','client-not-gracefully-stopped'
+-    out['startupObserved']=True;out['productionReady']=False
++    out['startupObserved']=True;out['productionReady']=False;out['paired']=False;out['syncVerified']=False;out['consensusOfflineExpected']=True
+ try:
+     os.umask(0o077)
+     assert os.geteuid()==0 and read('/proc/sys/kernel/random/boot_id')==M['bootId']
+     assert sha(ROOT/'program.py')==M['programSha256']
+-    cg=read('/proc/self/cgroup');assert (cg.startswith('0::/enclavel1attachr4.slice/enclave-rpc-l1-') or cg.startswith('0::/enclavel1guardianr4.slice/enclave-rpc-l1-')) and cg.endswith('.service')
++    cg=read('/proc/self/cgroup');assert (cg.startswith('0::/enclavel1attachr5.slice/enclave-rpc-l1-') or cg.startswith('0::/enclavel1guardianr5.slice/enclave-rpc-l1-')) and cg.endswith('.service')
+     c=P('/sys/fs/cgroup'+cg[3:]);assert read(c/'memory.max')==str(128<<20) and read(c/'memory.swap.max')=='0'
+     for row in M['remotePins']:pin(row)
+     def terminated(signum,frame):raise RuntimeError('unit-termination')
