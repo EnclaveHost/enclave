@@ -1,0 +1,13 @@
+# OAuth failure: evidence and recovery options
+
+This invocation failed before source work: rc1, 7421ms reported, zero API duration/tokens, no source tool calls. All114 seed/candidate files and256 readonly pins are unchanged. The assistant transcript contains an isApiErrorMessage=true/server_error event; the result's subtype says success but is_error=true and rc1 govern the outcome. This is not a completed source delivery. No standard collector was used, no transient Claude PID invented, no credentials copied. Actual runner PID and invocation-bound queue PID are in audit.json.
+
+The CLI diagnostic says another process may be refreshing OAuth or may have exited mid-refresh. That is the tool's explanation, not independent proof of which condition occurred. Root and runner Max account checks passed immediately beforehand; local account status did not establish that an API refresh would work. Current process inventory records only public PIDs and whether their CWD belongs to this package. It neither proves nor repairs credential state.
+
+Possible next steps for the coordinator, none executed or authorized here:
+
+1. Serialize any future Claude API admission with other Claude work, allow the reported transient refresh conflict to clear, and independently recheck the required account before considering a new bounded invocation. The existing attempt remains consumed: do not delete its attempt marker or overwrite logs to force a retry. A future attempt requires explicit new admission and separate attempt evidence with the same source/pins revalidated. A successful account-status check alone still cannot promise the next API request will authenticate.
+2. If the same failure persists, coordinate with owners of other Claude processes before any stop; do not kill unrelated work or remove lock/credential files based on this message. The diagnostic suggests closing other processes, but this audit does not establish that doing so is necessary or safe.
+3. If the coordinator establishes that sign-in must be renewed, use the normal user-controlled Claude sign-in flow. This changes authentication state and is outside this read-only assignment. Do not copy tokens, edit credential stores, switch accounts, or substitute paid API credentials. No login command was run or prepared for automatic execution.
+
+These options are grounded in this exact local error message and conservative coordination, not an assertion that any recovery has succeeded. No retries, account changes, source edits, tests, build, restart, remote call or transaction occurred in this audit. Production site-reader release status reported by the coordinator is independent of this failed host-release author.
