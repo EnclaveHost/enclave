@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.5508963169995695,
+  "stdout": "RESULT_JSON={\"action\": \"crash-verify\", \"actualAbruptCleanupVerified\": true, \"crashUnit\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 135}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.004598496947437525, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nResult=signal\\nExecMainCode=2\\nExecMainStatus=9\\nControlGroup=\\nActiveState=failed\\nInvocationID=67f8c9502c1a45508a51565c27a07aa5\\n\", \"truncated\": false}, \"errors\": [], \"ok\": true}\n",
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+  "bytesObserved": {
+    "stdout": 643,
+    "stderr": 222
+  },
+  "stdinBytesWritten": 27654,
+  "stdinBytesRequested": 27654,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

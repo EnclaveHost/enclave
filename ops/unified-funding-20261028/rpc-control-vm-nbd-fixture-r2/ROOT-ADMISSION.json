@@ -1,0 +1,11 @@
+{
+  "authorized": true,
+  "scope": "disposable-control-vm-nbd-fixture-r2",
+  "pinsSha256": "31bab66bc636cec007efc7fef3c4a25abcd6c36a7f1bceb57ca0e78050d0a8ef",
+  "at": 1793363614.0518978,
+  "rootReview": "Full r2 diff and remote source reviewed; distinct executable root-owned placement with observed mount gate; held fd before loss; actual main SIGKILL plus independently verified stop-post. Disposable64MiB only, no chain attachment or production qualification. Original failed r1 preserved38dec9c38.",
+  "maxMiB": 512,
+  "rssMiB": 450,
+  "hostFloorMiB": 27648,
+  "CPU": 1
+}

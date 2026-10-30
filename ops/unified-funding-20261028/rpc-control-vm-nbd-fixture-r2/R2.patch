@@ -1,0 +1,282 @@
+--- r1/FIXTURE.json
++++ r2/FIXTURE.json
+@@ -1,11 +1,11 @@
+ {
+-  "nonce": "4e5e94e9-baf8-4f23-8785-4c261d6062f0",
++  "nonce": "02e05fc9-0cc3-4e60-bd4c-133134ff7b9d",
+   "unitPrefix": "enclave-rpc-nbd-fixture-",
+-  "uuid": "a801b652-24d7-4645-aa6d-0489a0a50f0b",
++  "uuid": "506ef1b6-8c8c-4edf-a868-14209a28d0f7",
+   "bytes": 67108864,
+-  "payload": "enclave-rpc-disposable-fsync-4e5e94e9-baf8-4f23-8785-4c261d6062f0",
+-  "exportName": "enclave-disposable-4e5e94e9-baf8-4f23-8785-4c261d6062f0",
+-  "remoteSocket": "/home/controladmin/rpc-nbd-fixture-r1/export.sock",
++  "payload": "enclave-rpc-disposable-fsync-02e05fc9-0cc3-4e60-bd4c-133134ff7b9d",
++  "exportName": "enclave-disposable-02e05fc9-0cc3-4e60-bd4c-133134ff7b9d",
++  "remoteSocket": "/home/controladmin/rpc-nbd-fixture-r2/export.sock",
+   "target": "controladmin@172.17.28.159",
+   "knownHosts": "/home/steven/Documents/Codex/2026-10-18/wo/work/control-vm/known_hosts",
+   "bootId": "b39ecfe2-82b2-4c2a-a596-a52630bb59fd",
+@@ -142,5 +142,10 @@
+   "qemuNbd": "/usr/sbin/qemu-nbd",
+   "qemuImg": "/usr/sbin/qemu-img",
+   "mke2fs": "/usr/sbin/mke2fs",
+-  "e2fsck": "/usr/sbin/e2fsck"
++  "e2fsck": "/usr/sbin/e2fsck",
++  "execMount": {
++    "target": "/",
++    "source": "/dev/sda1",
++    "fstype": "ext4"
++  }
+ }
+--- r1/remote-body.py
++++ r2/remote-body.py
+@@ -2,7 +2,8 @@
+ import pathlib, json, hashlib, stat, socket, struct, errno, mmap, fcntl, sys, resource
+ P=pathlib.Path
+ M=json.loads(MANIFEST_JSON);ACTION=ACTION_VALUE
+-ROOT=P('/run/enclave-rpc-nbd-fixture-r1');STATE=ROOT/'state.json'
++ROOT=P('/run/enclave-rpc-nbd-fixture-r2');STATE=ROOT/'state.json'
++EXEC=P('/var/lib/enclave-rpc-nbd-fixture-r2')
+ DEV=P('/dev/nbd7');SYS=P('/sys/block/nbd7');MOUNT=ROOT/'mnt'
+ out={'action':ACTION,'ok':False,'errors':[]};client=None;mounted=False
+ def sha(p):
+@@ -30,11 +31,29 @@
+         if cols[4]==str(MOUNT):lines.append(cols)
+     return lines
+ def unitof(pid):return read('/proc/'+str(pid)+'/cgroup')
++def mount_policy(path):
++    resolved=P(path).resolve();entries=[]
++    for line in P('/proc/self/mountinfo').read_text().splitlines():
++        cols=line.split();sep=cols.index('-');target=cols[4]
++        if str(resolved)==target or str(resolved).startswith(target.rstrip('/')+'/'):
++            entries.append({'target':target,'source':cols[sep+2],'fstype':cols[sep+1],'device':cols[2],'options':sorted(set(cols[5].split(',')+cols[sep+3].split(',')))})
++    assert entries,'mount-policy-missing'
++    return max(entries,key=lambda x:len(x['target']))
++def executable_policy():
++    assert EXEC.parent.resolve()==EXEC.parent
++    for parent in (P('/'),P('/var'),EXEC.parent):
++        st=parent.stat();assert st.st_uid==0 and not(st.st_mode&0o022),'exec-parent-permission'
++    policy=mount_policy(EXEC.parent)
++    assert all(policy[k]==v for k,v in M['execMount'].items()),'unadmitted-executable-mount'
++    assert 'noexec' not in policy['options'] and 'ro' not in policy['options'] and not(os.statvfs(EXEC.parent).f_flag & os.ST_NOEXEC),'execution-disabled'
++    return policy
+ def state():
+     s=json.loads(STATE.read_text())
+     assert s.get('nonce')==M['nonce'] and s.get('unitPrefix')==M['unitPrefix'],'foreign-attempt-state'
+     st=ROOT.lstat();assert stat.S_ISDIR(st.st_mode) and st.st_uid==0 and stat.S_IMODE(st.st_mode)==0o700
+     assert s['rootIdentity']==[st.st_dev,st.st_ino],'root-identity-drift'
++    st=EXEC.lstat();assert stat.S_ISDIR(st.st_mode) and st.st_uid==0 and stat.S_IMODE(st.st_mode)==0o700
++    assert s['execIdentity']==[st.st_dev,st.st_ino],'exec-identity-drift'
+     return s
+ def device_mounts(number):
+     seen=set();found=[];until=time.monotonic()+5;count=0
+@@ -74,7 +93,7 @@
+         if current:
+             assert unitof(current)==s.get('attachCgroup') and (not s.get('nbdPid') or current==s['nbdPid']),'foreign-nbd-pid'
+         assert size() in (0,M['bytes']),'device-size-drift'
+-        cmd('detach',['/run/enclave-rpc-nbd-fixture-r1/nbd-client','-d',str(DEV)],8)
++        cmd('detach',['/var/lib/enclave-rpc-nbd-fixture-r2/nbd-client','-d',str(DEV)],8)
+     until=time.monotonic()+5
+     while not idle() and time.monotonic()<until:time.sleep(.1)
+     assert idle() and not mounts(),'device-cleanup-incomplete'
+@@ -117,17 +136,20 @@
+     for row in M['remotePins']:pin(row)
+     def termination(signum,frame):raise RuntimeError('unit-termination')
+     signal.signal(signal.SIGTERM,termination)
+-    if ACTION=='bootstrap':
+-        ROOT.mkdir(mode=0o700);MOUNT.mkdir(mode=0o700)
++    if ACTION=='policy':
++        out['executableMount']=executable_policy();out['runMount']=mount_policy('/run')
++    elif ACTION=='bootstrap':
++        out['executableMount']=executable_policy();out['runMount']=mount_policy('/run')
++        ROOT.mkdir(mode=0o700);MOUNT.mkdir(mode=0o700);EXEC.mkdir(mode=0o700)
+         assert not ROOT.is_symlink()
+         loaded=P('/sys/module/nbd').exists()
+-        st=ROOT.stat();s={'nonce':M['nonce'],'unitPrefix':M['unitPrefix'],'rootIdentity':[st.st_dev,st.st_ino],'moduleInitiallyLoaded':loaded,'moduleLoadedByFixture':False,'claimed':False}
++        st=ROOT.stat();s={'nonce':M['nonce'],'unitPrefix':M['unitPrefix'],'rootIdentity':[st.st_dev,st.st_ino],'execIdentity':[EXEC.stat().st_dev,EXEC.stat().st_ino],'moduleInitiallyLoaded':loaded,'moduleLoadedByFixture':False,'claimed':False}
+         with (ROOT/'stop-post.py').open('x') as f:f.write(STOP_POST_SOURCE);f.flush();os.fsync(f.fileno())
+         (ROOT/'stop-post.py').chmod(0o700)
+         s['stopPostSha256']=sha(ROOT/'stop-post.py');save(s)
+         data=P(M['client']['path']).read_bytes();assert hashlib.sha256(data).hexdigest()==M['client']['sha256']
+-        with (ROOT/'nbd-client').open('xb') as f:f.write(data);f.flush();os.fsync(f.fileno())
+-        (ROOT/'nbd-client').chmod(0o700)
++        with (EXEC/'nbd-client').open('xb') as f:f.write(data);f.flush();os.fsync(f.fileno())
++        (EXEC/'nbd-client').chmod(0o700)
+         if not loaded:
+             # Save ownership before loading so an interrupted load remains collectable.
+             s['moduleLoadedByFixture']=True;save(s)
+@@ -136,10 +158,10 @@
+         st=DEV.stat();s['deviceNumber']=str(os.major(st.st_rdev))+':'+str(os.minor(st.st_rdev))
+         assert not device_mounts(s['deviceNumber']),'preexisting-device-mount'
+         save(s);out['state']=s
+-    elif ACTION in ('write','read','disconnect'):
++    elif ACTION in ('write','read','crash','disconnect'):
+         assert ROOT.stat().st_uid==0 and stat.S_IMODE(ROOT.stat().st_mode)==0o700 and not ROOT.is_symlink()
+         s=state();assert idle() and not device_mounts(s['deviceNumber'])
+-        assert sha(ROOT/'nbd-client')==M['client']['sha256']
++        assert sha(EXEC/'nbd-client')==M['client']['sha256']
+         q=P(M['remoteSocket']);until=time.monotonic()+5
+         while not q.exists() and time.monotonic()<until:time.sleep(.1)
+         st=q.lstat();parent=q.parent.lstat()
+@@ -149,7 +171,7 @@
+         time.sleep(.2)
+         s['claimed']=True;s['attachCgroup']=cg;s['socketIdentity']=[st.st_dev,st.st_ino];save(s)
+         log=(ROOT/(ACTION+'-client.log')).open('xb')
+-        client=subprocess.Popen([str(ROOT/'nbd-client'),'-n','-L','-u','-N',M['exportName'],'-t','5','-b','4096',M['remoteSocket'],str(DEV)],
++        client=subprocess.Popen([str(EXEC/'nbd-client'),'-n','-L','-u','-N',M['exportName'],'-t','5','-b','4096',M['remoteSocket'],str(DEV)],
+                                 stdin=subprocess.DEVNULL,stdout=log,stderr=log,env={'PATH':'/usr/sbin:/usr/bin:/sbin:/bin','LANG':'C'},start_new_session=True)
+         until=time.monotonic()+8
+         while (size()!=M['bytes'] or not pidof()) and time.monotonic()<until:time.sleep(.1)
+@@ -168,11 +190,15 @@
+                 finally:os.close(d)
+             else:assert file.read_bytes()==data,'reopen-data-mismatch'
+             out['dataSha256']=sha(file);out['dataBytes']=len(data)
++        elif ACTION=='crash':
++            print('ARMED_UNIT_CRASH',flush=True)
++            os.kill(os.getpid(),signal.SIGKILL)
++            raise RuntimeError('SIGKILL-returned')
+         else:
+             # Unmounted O_DIRECT read after tunnel loss cannot pass from page cache.
+-            print('READY_DISCONNECT',flush=True);time.sleep(2)
+             fd=os.open(DEV,os.O_RDONLY|os.O_DIRECT);buf=mmap.mmap(-1,4096)
+             try:
++                print('READY_DISCONNECT',flush=True);time.sleep(2)
+                 os.lseek(fd,8<<20,os.SEEK_SET)
+                 try:os.readv(fd,[buf])
+                 except OSError as e:
+@@ -186,12 +212,21 @@
+         if SYS.exists() and 'deviceNumber' in s:detach(s)
+         elif SYS.exists():assert idle(),'partial-bootstrap-active-device'
+         out['stopPostDetached']=not SYS.exists() or idle()
++    elif ACTION=='crash-verify':
++        s=state();assert not s['claimed'] and idle() and not device_mounts(s['deviceNumber']),'crash-cleanup-incomplete'
++        value=cmd('crashUnit',['/usr/bin/systemctl','show','enclave-rpc-nbd-fixture-crash-r2.service','--property=ActiveState,MainPID,ExecMainCode,ExecMainStatus,Result,ControlGroup,InvocationID'])
++        props=dict(l.split('=',1) for l in value.splitlines() if '=' in l)
++        assert props['ActiveState']=='failed' and props['MainPID']=='0' and props['ExecMainCode']=='2' and props['ExecMainStatus']=='9' and props['Result']=='signal','not-actual-main-SIGKILL'
++        if props.get('ControlGroup'):
++            path=P('/sys/fs/cgroup'+props['ControlGroup'])
++            assert not path.exists() or all(not q.read_text().strip() for q in path.rglob('cgroup.procs')),'crash-processes-remain'
++        out['actualAbruptCleanupVerified']=True
+     elif ACTION=='cleanup':
+         assert ROOT.is_dir() and ROOT.stat().st_uid==0
+         s=state()
+         if SYS.exists():detach(s)
+-        for name in ('bootstrap','write','read','disconnect'):
+-            unit='enclave-rpc-nbd-fixture-'+name+'-r1.service'
++        for name in ('bootstrap','write','read','crash','disconnect'):
++            unit='enclave-rpc-nbd-fixture-'+name+'-r2.service'
+             cmd('stop:'+name,['/usr/bin/systemctl','stop',unit],8,allowed=(0,5))
+         if s.get('moduleLoadedByFixture') and P('/sys/module/nbd').exists():
+             for q in P('/sys/block').glob('nbd*'):
+@@ -205,8 +240,8 @@
+         assert not SYS.exists() or idle()
+         if s.get('moduleLoadedByFixture'):assert not P('/sys/module/nbd').exists()
+         units=[]
+-        for name in ('bootstrap','write','read','disconnect','socket-clear-1','socket-clear-2','cleanup'):
+-            unit='enclave-rpc-nbd-fixture-'+name+'-r1.service'
++        for name in ('policy','bootstrap','write','read','crash','crash-verify','disconnect','socket-clear-1','socket-clear-2','socket-clear-3','cleanup'):
++            unit='enclave-rpc-nbd-fixture-'+name+'-r2.service'
+             value=cmd('unit:'+name,['/usr/bin/systemctl','show',unit,'--property=ActiveState,SubState,ControlGroup,MainPID,InvocationID'],3)
+             props=dict(l.split('=',1) for l in value.splitlines() if '=' in l)
+             assert props.get('ActiveState') in ('inactive','failed') and props.get('MainPID')=='0','unit-still-live'
+@@ -220,7 +255,7 @@
+     out['ok']=True
+ except Exception as e:out['errors'].append(type(e).__name__+':'+str(e)[:200])
+ finally:
+-    if ACTION in ('write','read','disconnect') and STATE.exists():
++    if ACTION in ('write','read','crash','disconnect') and STATE.exists():
+         try:detach(state())
+         except Exception as e:out['ok']=False;out['errors'].append('cleanup:'+type(e).__name__+':'+str(e)[:160])
+     if client is not None:
+--- r1/run-body.py
++++ r2/run-body.py
+@@ -2,7 +2,7 @@
+ from pathlib import Path
+ import hashlib,json,fcntl,struct,stat,sys,resource
+ P=Path(__file__).resolve().parent;M=json.loads((P/'FIXTURE.json').read_text())
+-art=P/'artifacts';sockdir=Path('/run/user/1000/rpc-nbd-fixture-r1')
++art=P/'artifacts';sockdir=Path('/run/user/1000/rpc-nbd-fixture-r2')
+ parent=art/'parent.raw';overlay=art/'overlay.qcow2';recovered=art/'recovered.raw'
+ exporter=None;tunnel=None;lockfd=None;remote_attempted=False;cut=False
+ results={};errors=[];owned=[];cleaning=False;remote_calls={}
+@@ -67,8 +67,8 @@
+     if action=='bootstrap':script+='STOP_POST_SOURCE='+repr(prefix+"ACTION_VALUE='stop-post'\n"+body)+'\n'
+     script+=body
+     assert len(script.encode())<=131072
+-    unit='enclave-rpc-nbd-fixture-'+call_name+'-r1'
+-    post=" '--property=ExecStopPost=/usr/bin/python3 -B /run/enclave-rpc-nbd-fixture-r1/stop-post.py'" if action in ('write','read','disconnect') else ''
++    unit='enclave-rpc-nbd-fixture-'+call_name+'-r2'
++    post=" '--property=ExecStopPost=/usr/bin/python3 -B /run/enclave-rpc-nbd-fixture-r2/stop-post.py'" if action in ('write','read','crash','disconnect') else ''
+     cmd='/usr/bin/sudo -n /usr/bin/systemd-run --quiet --wait --pipe --unit='+unit+' --property=RuntimeMaxSec=55 --property=TimeoutStopSec=25 --property=MemoryMax=256M --property=MemorySwapMax=0 --property=CPUQuota=100% --property=TasksMax=32 --property=KillMode=control-group --property=UMask=0077'+post+' /usr/bin/python3 -B -'
+     seen=bytearray()
+     def progress(data):
+@@ -78,10 +78,14 @@
+             stop(tunnel);cut=True
+     r=capture([*sshargs(),M['target'],cmd],95,stdin=script.encode(),limit=262144,on_stdout=progress)
+     results['remote:'+call_name]=r;record('REMOTE-'+call_name.upper()+'.json',r)
+-    assert r['rc']==0 and not r['reason'] and not r['truncated'],'remote:'+action
++    assert (r['rc'] not in (None,0) if action=='crash' else r['rc']==0) and not r['reason'] and not r['truncated'],'remote:'+action
+     lines=[l.removeprefix('RESULT_JSON=') for l in r['stdout'].splitlines() if l.startswith('RESULT_JSON=')]
+-    assert len(lines)==1;value=json.loads(lines[0]);assert value['ok'] and not value['errors'],'remote-result:'+action
+-    if action in ('write','read','disconnect'):
++    if action=='crash':
++        assert not lines and 'ARMED_UNIT_CRASH\n' in r['stdout'],'crash-not-armed'
++        value={'expectedAbruptExit':True}
++    else:
++        assert len(lines)==1;value=json.loads(lines[0]);assert value['ok'] and not value['errors'],'remote-result:'+action
++    if action in ('write','read','crash','disconnect'):
+         post=[json.loads(l.removeprefix('STOP_POST_JSON=')) for l in r['stdout'].splitlines() if l.startswith('STOP_POST_JSON=')]
+         assert len(post)==1 and post[0]['ok'] and post[0].get('stopPostDetached') and not post[0]['errors'],'stop-post-not-proven'
+     return value
+@@ -106,7 +110,7 @@
+     global lockfd,remote_attempted
+     os.umask(0o077);verify()
+     a=json.loads((P/'ROOT-ADMISSION.json').read_text())
+-    assert a['authorized'] is True and a['scope']=='disposable-control-vm-nbd-fixture-r1' and a['pinsSha256']==sha(P/'PINS.json') and 0<=time.time()-a['at']<=300
++    assert a['authorized'] is True and a['scope']=='disposable-control-vm-nbd-fixture-r2' and a['pinsSha256']==sha(P/'PINS.json') and 0<=time.time()-a['at']<=300
+     assert os.sched_getaffinity(0)=={1} and os.uname().machine=='x86_64'
+     cg=Path('/proc/self/cgroup').read_text().strip();assert cg.startswith('0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-') and cg.endswith('.scope')
+     c=Path('/sys/fs/cgroup'+cg[3:]);assert (c/'memory.max').read_text().strip()==str(512<<20) and (c/'memory.swap.max').read_text().strip()=='0'
+@@ -121,6 +125,7 @@
+     occupied=fcntl.fcntl(lockfd,fcntl.F_OFD_GETLK,struct.pack('@hhqqi4x',fcntl.F_WRLCK,os.SEEK_SET,100,200,0))
+     assert struct.unpack('@hhqqi4x',occupied)[0]==fcntl.F_UNLCK
+     command('createOverlay',[M['qemuImg'],'create','-f','qcow2','-F','raw','-b',str(parent),str(overlay)],8)
++    remote('policy')
+     setup="import pathlib,os,json;os.umask(0o077);p=pathlib.Path("+repr(str(Path(M['remoteSocket']).parent))+ ");p.mkdir(mode=0o700);print(json.dumps({'path':str(p),'uid':p.stat().st_uid,'mode':oct(p.stat().st_mode&511)}))"
+     r=capture([*sshargs(),M['target'],'/usr/bin/python3 -B -'],8,stdin=setup.encode(),limit=4096)
+     results['remoteSocketDirectory']=r;assert r['rc']==0 and not r['reason']
+@@ -138,6 +143,7 @@
+     start_export('read');remote('read');stop_export();remote('socket-clear')
+     command('convertReadback',[M['qemuImg'],'convert','-f','qcow2','-O','raw',str(overlay),str(recovered)],15)
+     command('filesystemCheck',[M['e2fsck'],'-f','-n',str(recovered)],12)
++    start_export('crash');remote('crash');remote('crash-verify');stop_export();remote('socket-clear')
+     start_export('disconnect');remote('disconnect');assert cut,'tunnel-not-cut'
+     assert sha(parent)==results['parentSha256Before'],'parent-mutated'
+     results['parentSha256After']=sha(parent)
+--- r1/EXTERNAL-PINS.json
++++ r2/EXTERNAL-PINS.json
+@@ -106,5 +106,17 @@
+     "realpath": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-private-boundary-root-repaired-r1/candidate/offline_mask.py",
+     "bytes": 123002,
+     "sha256": "7030b775a93dcfea5005d4b8362876d9c4b191337c8121d909ebb10bd1e17d9c"
++  },
++  {
++    "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-nbd-fixture-prep-20261030/PINS.json",
++    "realpath": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-nbd-fixture-prep-20261030/PINS.json",
++    "bytes": 896,
++    "sha256": "248390dd31f5416bef16e3c7ff061d2e73ad221ebdd06b398b89f354744c885b"
++  },
++  {
++    "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-nbd-fixture-prep-20261030/RESULT.json",
++    "realpath": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-nbd-fixture-prep-20261030/RESULT.json",
++    "bytes": 16685,
++    "sha256": "1dd29f379aca0cbf849fc5ea60da351f4a140032f8fc2831b682d35ee378cd40"
+   }
+ ]
+--- r1/launch-command.txt
++++ r2/launch-command.txt
+@@ -1,2 +1,2 @@
+ # PREPARED ONLY; requires root review and matching fresh admission.
+-/usr/bin/systemd-run --user --unit=enclave-rpc-control-vm-nbd-fixture-r1-20261030 --property=RuntimeMaxSec=480 --property=TimeoutStopSec=10 --property=MemoryMax=128M --property=MemorySwapMax=0 --property=CPUQuota=100% --property=AllowedCPUs=1 --property=UMask=0077 --setenv=PATH=/usr/bin:/bin /usr/bin/taskset -c 1 /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib 512 --log /home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-nbd-fixture-prep-20261030/outer.log -- /usr/bin/taskset -c 1 /usr/bin/node /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs --max-rss-mib 450 --floor-available-mib 27648 --log /home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-nbd-fixture-prep-20261030/inner.log -- /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-nbd-fixture-prep-20261030/run.py
++/usr/bin/systemd-run --user --unit=enclave-rpc-control-vm-nbd-fixture-r2-20261030 --property=RuntimeMaxSec=480 --property=TimeoutStopSec=10 --property=MemoryMax=128M --property=MemorySwapMax=0 --property=CPUQuota=100% --property=AllowedCPUs=1 --property=UMask=0077 --setenv=PATH=/usr/bin:/bin /usr/bin/taskset -c 1 /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib 512 --log /home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-nbd-fixture-prep-20261030-r2/outer.log -- /usr/bin/taskset -c 1 /usr/bin/node /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs --max-rss-mib 450 --floor-available-mib 27648 --log /home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-nbd-fixture-prep-20261030-r2/inner.log -- /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-nbd-fixture-prep-20261030-r2/run.py

@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 3.2710381881333888,
+  "stdout": "READY_DISCONNECT\nRESULT_JSON={\"action\": \"disconnect\", \"disconnectErrno\": 5, \"errors\": [], \"exportInfo\": {\"bytes\": 67108864, \"flags\": 3181}, \"filesystemUuid\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 37}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.34448370710015297, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"506ef1b6-8c8c-4edf-a868-14209a28d0f7\\n\", \"truncated\": false}, \"ok\": true, \"unknownExport\": {\"unknownRejected\": true}}\nSTOP_POST_JSON={\"action\": \"stop-post\", \"errors\": [], \"ok\": true, \"stopPostDetached\": true}\n",
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+  "bytesObserved": {
+    "stdout": 727,
+    "stderr": 222
+  },
+  "stdinBytesWritten": 27652,
+  "stdinBytesRequested": 27652,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}
