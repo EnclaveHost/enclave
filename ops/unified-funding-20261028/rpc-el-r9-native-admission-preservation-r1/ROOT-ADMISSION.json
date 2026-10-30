@@ -1,0 +1,10 @@
+{
+  "authorized": true,
+  "scope": "actual-l1-el-only-bounded-client-r9",
+  "pinsSha256": "a346117a236c215064a2e37e56b32e188eb66d309ecfdc668c4fc3bb82fa24a6",
+  "at": 1793386531.7862058,
+  "reviewedHorizonSeconds": 4500,
+  "freshObservationSha256": "abd7d4030d5935bde55e166a423b0f5871d0d383b1b42f2a7976383abcdfc877",
+  "review": "Root reviewed same boot, 38 public process identities comprising established OS, seven production services, four tunnels and observer SSH; no other native client or queued job. Full seven service cap growth deducted plus 2560MiB trial leaves2218668032 bytes. Sysstat periodic and fwupd-refresh19:04 within4500s; preserved operational1536MiB OS residual and continuous headroom guard, not universal hard reservation. No service restart/cap change. Actual installed five-case recorder fixture and peer review PASS; exact production target receipt still must be observed. New exclusive private r9 child over fully qualified readonly frozenr6/original; same2304MiB EL128attach128guardian, local512hard450RSSfloor27648CPU1noswap. No finance/production consumers or paired readiness claim.",
+  "recorderFixtureResultSha256": "9239c3d7af796c739254a1a8de15686f089b492831c71c300034295c8adb33ee"
+}
