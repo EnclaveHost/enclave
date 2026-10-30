@@ -1,0 +1,20 @@
+{
+  "bytesObserved": {
+    "stderr": 1062,
+    "stdout": 396
+  },
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "elapsedSeconds": 1.5714098180178553,
+  "localChildReaped": true,
+  "localProcessGroupDeathProven": false,
+  "ownedGroupKillAttempted": true,
+  "rc": 0,
+  "reason": null,
+  "remoteDeathProven": false,
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n#< CLIXML\r\n<Objs Version=\"1.1.0.1\" xmlns=\"http://schemas.microsoft.com/powershell/2004/04\"><Obj S=\"progress\" RefId=\"0\"><TN RefId=\"0\"><T>System.Management.Automation.PSCustomObject</T><T>System.Object</T></TN><MS><I64 N=\"SourceId\">1</I64><PR N=\"Record\"><AV>Preparing modules for first use.</AV><AI>0</AI><Nil /><PI>-1</PI><PC>-1</PC><T>Completed</T><SR>-1</SR><SD> </SD></PR></MS></Obj><Obj S=\"progress\" RefId=\"1\"><TNRef RefId=\"0\" /><MS><I64 N=\"SourceId\">2</I64><PR N=\"Record\"><AV>Preparing modules for first use.</AV><AI>0</AI><Nil /><PI>-1</PI><PC>-1</PC><T>Completed</T><SR>-1</SR><SD> </SD></PR></MS></Obj><Obj S=\"progress\" RefId=\"2\"><TNRef RefId=\"0\" /><MS><I64 N=\"SourceId\">2</I64><PR N=\"Record\"><AV>Preparing modules for first use.</AV><AI>0</AI><Nil /><PI>-1</PI><PC>-1</PC><T>Completed</T><SR>-1</SR><SD> </SD></PR></MS></Obj></Objs>",
+  "stdinBytesRequested": 0,
+  "stdinBytesWritten": 0,
+  "stdout": "{\"readOnly\":true,\"capacityAdmitted\":false,\"vm\":{\"Name\":\"enclave-control\",\"Id\":\"dd8df95d-b771-4545-a861-0092e74a40f3\",\"State\":\"Running\",\"MemoryAssigned\":8589934592,\"MemoryDemand\":2061500416,\"ProcessorCount\":4,\"Generation\":2,\"DynamicMemoryEnabled\":false,\"Minimum\":536870912,\"Maximum\":1099511627776,\"Startup\":8589934592},\"host\":{\"TotalVisibleMemoryKiB\":117255972,\"FreePhysicalMemoryKiB\":82497448}}\r\n",
+  "truncated": false
+}
