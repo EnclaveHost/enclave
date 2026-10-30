@@ -73,7 +73,7 @@ const IPFS_UPLOAD = "https://ipfs.enclave.host";
 const EXPECTED_REPO = "EnclaveHost/enclave";
 
 // ---- chain plumbing -----------------------------------------------------------
-const RPCS = [...new Set([...(process.env.BASE_RPC ? [process.env.BASE_RPC] : []),
+const RPCS = [...new Set([process.env.BASE_RPC || "https://api.enclave.host/rpc/base",
   "https://base-rpc.publicnode.com", "https://base.drpc.org",
   "https://1rpc.io/base", "https://mainnet.base.org"])];
 // Under the relay's verifier authority api-relay.js hands its ONE proven client in (useMcpChainClient) before it serves any

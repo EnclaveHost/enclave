@@ -55,7 +55,9 @@ const VERIFIER = VALID_AUTHORITY ? { verifier: selectedVerifier(process.env, CHA
 const stateReader = VERIFIER ? verifiedStateReader({ verifier: VERIFIER.verifier }) : null;
 // a paged enumeration (allDeployments) gets a longer whole-operation budget: every page is a proof-backed call
 const enumReader = VERIFIER ? verifiedStateReader({ verifier: VERIFIER.verifier, deadlineMs: 120000 }) : null;
-const rpcTransport = () => CHAIN_AUTHORITY ? CHAIN_AUTHORITY.transport : fallback(RPCS.map((u) => http(u, { retryCount: 2, retryDelay: 600 })));
+// Cached ordinary reads are separate from independent security witnesses (RPCS).
+const CLIENT_RPCS = [...new Set([process.env.BASE_RPC || "https://api.enclave.host/rpc/base", ...RPCS])];
+const rpcTransport = () => CHAIN_AUTHORITY ? CHAIN_AUTHORITY.transport : fallback(CLIENT_RPCS.map((u) => http(u, { retryCount: 2, retryDelay: 600 })));
 // a diagnostic, so stderr: stdout belongs to the importing program's own output (host-onchain.mjs status / ownership-status
 // print exactly one JSON document there, and before the authority existed nothing else was printed on import)
 if (CHAIN_AUTHORITY) { const d = CHAIN_AUTHORITY.describe();

@@ -65,7 +65,7 @@ const VERSION = "1.6.0";
 const DEFAULTS = {
   apiBase: "https://api.enclave.host",
   chainId: 8453,
-  rpcs: ["https://base-rpc.publicnode.com", "https://base.drpc.org",
+  rpcs: ["https://api.enclave.host/rpc/base", "https://base-rpc.publicnode.com", "https://base.drpc.org",
          "https://1rpc.io/base", "https://mainnet.base.org"],
   DEPLOYMENTS_ADDRESS: "0xF9e71385C5cB49844F2457ba6567De0742f8B89a",
   APP_CATALOG_ADDRESS: "0x18419CA2b502D423A8de6269AEeE171a378626e3",   // the address book's appCatalog (read 2026-09-26; 0xAc5270… is a RETIRED catalog): a FALLBACK only, see resolveAddressBook

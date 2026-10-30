@@ -124,7 +124,7 @@ export async function rpcParts() {
   const { http: viemHttp, fallback } = await import("viem");
   const { base, baseSepolia } = await import("viem/chains");
   const testnet = (process.env.BILLING_NETWORK || "base") === "base-sepolia";
-  const BASE_RPC = process.env.BASE_RPC || (testnet ? "https://sepolia.base.org" : "https://mainnet.base.org");
+  const BASE_RPC = process.env.BASE_RPC || (testnet ? "https://api.enclave.host/rpc/base-sepolia" : "https://api.enclave.host/rpc/base");
   // RPC_FALLBACKS=0 pins the pool to BASE_RPC alone. Tests need this: with a
   // local BASE_RPC (anvil/stub) the mainnet fallbacks are a DIFFERENT CHAIN,
   // and one transient local error silently routes sends/receipt-polls there

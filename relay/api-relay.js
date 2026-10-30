@@ -322,7 +322,7 @@ const tunnelHub = createTunnelHub({
 let   REGISTRY_ADDRESS  = (process.env.REGISTRY_ADDRESS || "").trim();   // env fallback; the address book (below) overrides
 let   DEPLOYMENTS_ADDRESS = (process.env.DEPLOYMENTS_ADDRESS || "").trim(); // EnclaveDeployments ledger; book overrides too
 const ADDRESS_BOOK      = (process.env.ADDRESS_BOOK_ADDRESS || "").trim();
-const BASE_RPC          = process.env.BASE_RPC || "https://mainnet.base.org";
+const BASE_RPC          = process.env.BASE_RPC || "https://api.enclave.host/rpc/base";
 // THE RELAY'S CHAIN AUTHORITY (relay/relay-chain-authority.mjs): unset, chain() and the store's pool use BASE_RPC and its
 // fallbacks exactly as before. With ENCLAVE_CHAIN_AUTHORITY=verifier every read of chain() and of the pool is proven by the
 // local verifier, sends go only to the bound own backend, and no provider client exists (BASE_RPC must then be unset). An

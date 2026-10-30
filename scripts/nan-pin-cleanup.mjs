@@ -54,7 +54,7 @@ const RELAY_DIR = (process.env.RELAY_DIR || "/opt/nan-relay").replace(/\/+$/, ""
 const require = createRequire(RELAY_DIR + "/__pin_cleanup_require__.js");
 const { createPublicClient, http, stringToHex, hexToString, getAddress } = require("viem");
 
-const RPC     = process.env.BASE_RPC || "https://base-rpc.publicnode.com";
+const RPC     = process.env.BASE_RPC || "https://api.enclave.host/rpc/base";
 const BOOK    = process.env.ADDRESS_BOOK_ADDRESS || "0xab214342d5A490150A4A977063A2f88E21F80907";
 const KUBO    = (process.env.KUBO_API || "http://127.0.0.1:5001").replace(/\/+$/, "");
 const DRY_RUN = process.env.PIN_CLEANUP_DRY_RUN === "1" || process.argv.includes("--dry-run");

@@ -51,7 +51,8 @@ const enclaveId = keccak256(toBytes(ENDPOINT));
 const AUTH = chain.chainAuthority();
 if (AUTH && AUTH.describe().authority === "refusing") { console.error(`the chain authority selection is INVALID (${AUTH.describe().why}): nothing is read or sent`); process.exit(2); }
 if (AUTH && String(process.env.BASE_RPCS || "").trim()) { console.error("BASE_RPCS is set but ENCLAVE_CHAIN_AUTHORITY=verifier: the owner CLI never mixes a provider list into the local verifier"); process.exit(2); }
-const transport = () => (AUTH ? AUTH.transport : fallback(RPCS.map((u) => http(u))));
+const CLIENT_RPCS = [...new Set([process.env.BASE_RPC || "https://api.enclave.host/rpc/base", ...RPCS])];
+const transport = () => (AUTH ? AUTH.transport : fallback(CLIENT_RPCS.map((u) => http(u))));
 /** Before an owner-signed submission: the verifier's head is fresh and the own backend is bound to its chain (else refused). */
 const gate = (what) => (AUTH ? AUTH.actionGate({ what, submit: true }) : Promise.resolve());
 const pub = createPublicClient({ chain: base, transport: transport() });

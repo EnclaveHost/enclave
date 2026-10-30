@@ -33,9 +33,9 @@ const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
 export const EIP170 = 24576;
 export const NETWORKS = {
-  base: { chain: base, rpc: "https://mainnet.base.org", book: "0xab214342d5A490150A4A977063A2f88E21F80907",
+  base: { chain: base, rpc: "https://api.enclave.host/rpc/base", book: "0xab214342d5A490150A4A977063A2f88E21F80907",
           enclaveOwner: "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61", explorer: "https://basescan.org" },
-  "base-sepolia": { chain: baseSepolia, rpc: "https://sepolia.base.org", book: null, enclaveOwner: null, explorer: "https://sepolia.basescan.org" },
+  "base-sepolia": { chain: baseSepolia, rpc: "https://api.enclave.host/rpc/base-sepolia", book: null, enclaveOwner: null, explorer: "https://sepolia.basescan.org" },
   local: { chain: foundry, rpc: "http://127.0.0.1:8545", book: null, enclaveOwner: null },
 };
 export const BOOK_KEY = "secretVaultV2";

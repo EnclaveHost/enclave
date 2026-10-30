@@ -35,7 +35,7 @@ export function installProcessGuards(name, log = console.error) {
 }
 
 const DEFAULTS = {
-  baseRpc: "https://mainnet.base.org",
+  baseRpc: "https://api.enclave.host/rpc/base",
   registryPollSec: 300,
   staleAfterSec: 3600,
 };
