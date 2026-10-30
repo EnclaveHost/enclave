@@ -1,0 +1,14 @@
+[
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postrestore-maintenance-stage/r1/maint_boot.py",
+    "sha256": "10e41ac8e5496856567752b52f36eb84ef8cdd6f44e40d83e85f79604bb0f1ff"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postrestore-maintenance-stage/r1/test_root_maintenance.py",
+    "sha256": "e35025e3c119b449a558fa1965260c2245107a44d8073fb5ac5bb3a434442951"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postrestore-maintenance-stage/production-20261028/RESULT.json",
+    "sha256": "0109d136465881211355445f435bfb3c24712ab5b7a32d5483bfe81653bbbb7f"
+  }
+]

@@ -1,0 +1,82 @@
+[
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/own-rpc-recovery-status-20261030/status.json",
+    "sha256": "7882cfb47acc976e7b2daa164413ba9d55ae69fa68d705e107a954aba843c996"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/own-rpc-recovery-status-20261030/ROOT-REVIEW.md",
+    "sha256": "133ae2786c46bd955dcbe22a80ddb4190b51ea4b0d8dde06e0ec61c62277d8bc"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/node-payload-v4/chain_service.py",
+    "sha256": "6d93c8b76fc4d26fe4ca69b2d722a727e6dfe42571134a1a3b06057fdc0e4b9e"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/node-payload-v4/units/enclave-l1-el.service",
+    "sha256": "be00a7d9542f79515658f09d49bc3ad546d3d80de3f30a531a4ee5d1fd72086d"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/node-payload-v4/units/enclave-l1-cl.service",
+    "sha256": "54791e1a9ac7e27d4e12ce7630d903363ba1069f9fb3529acade709a4a8bb547"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/node-payload-v4/units/enclave-base-holder.service",
+    "sha256": "3d305f2ef091af5ee7edec61bcd47607c7e969e64873dec66d021db34f5955ef"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/provision_vm.py",
+    "sha256": "38f8dc891bfa9f5f74fcd8eb4ba50ea6f5f70342c49e3c7e2944a10c504436d7"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-recovery-qualification-20261026/postrestore-recovery-r1/root-postrestore-mask-inventory-20261028.txt",
+    "sha256": "850b66e2734d25946e250e0254240ca88a2a876716caeefebea8a293e8140b8f"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postrestore-recovery-stage/staged-20261028/evidence.json",
+    "sha256": "c6adfec773fddee3ee2d2975d3c532bd32beb329326ab20308e7e52e0d1f6af2"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postrestore-recovery-stage/staged-20261028/manifest.json",
+    "sha256": "d73dcb68e2219ad85217d88b7727f5501aad2e7913f3c65eb1071d19a1229b39"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postrestore-recovery-stage/staged-20261028/NOT-INSTALLED.md",
+    "sha256": "529236c29a08e5824e26a43ccc28d4c808922f03c18e5fc1859ea2418dd937cf"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postrestore-maintenance-stage/production-20261028/RESULT.json",
+    "sha256": "0109d136465881211355445f435bfb3c24712ab5b7a32d5483bfe81653bbbb7f"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postrestore-maintenance-stage/production-20261028/plan.json",
+    "sha256": "353af60250652156b96dbc5070b46809877504fa7351a9ce7981160b76d68472"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/README.md",
+    "sha256": "ece6d247fe30b54b133b12ccb1cf7280f0ac0851b98c08dfd138282b775e7419"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/selection-r4/README.md",
+    "sha256": "633d9de83b7d899be16b81d3d870be57f79502704f30abe716584e2ec9dcab11"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-recovery-qualification-20261026/recovery-2102/reports/claude-rpc-memory-layout-audit-1664.md",
+    "sha256": "4161377157a6ef84969869e743145d87281fd1e812a3bd77d9f1bb6104ee22c5"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-app-restore-observe-r1/result.json",
+    "sha256": "27f9c7468b1315ec9778437c8d38cf99dec51ffb35eac159082a776c0702e7bf"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/sync-0413/guest.out",
+    "sha256": "fd9de456f1e9d7ddfcce2d5156d28dba9e39833f2c5c5cfba7752adf1f17133a"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/sync-0010/guest.out",
+    "sha256": "d67550733eecadad96a203167d3532bfb5f57531e1b0daa0006092a0ac67a7a5"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/sync-post-trim-0501/l1-health.json",
+    "sha256": "963a0d8a0541e54ac11d06d044d0ecb20bcc68e2eb332a571e7b58845f438d8b"
+  }
+]
