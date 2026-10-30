@@ -1,0 +1,1 @@
+Exact three deployment public projections and manager GETs, bounded15*2.5s responses. 55s SSH observation deadline includes before/after process binding. No mutation or imports of installed modules. Claim status or cached transaction alone cannot release a pending reservation. Compare process incarnations and epochs against source-bound read.

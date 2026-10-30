@@ -1,0 +1,1 @@
+Read-only bounded source hashing for exact previously observed manager incarnations and release manifests. No command-line output, module import, VM mutation, journal reconciliation or retry. Current disk hashes do not prove loaded bytes. Existing 256/220 MiB guard and 27648 MiB floor unchanged.

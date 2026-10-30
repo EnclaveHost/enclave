@@ -1,0 +1,1 @@
+Actual read 8e70eac5ac8c4a7192c66ebd1adf6ff3 completed rc0 at21:12:39UTC. Exact manager incarnations and release manifests agree. Installed helper and router file hashes captured, unchanged input pins. This proves current disk source binding, not loaded module bytes or complete resource admission.

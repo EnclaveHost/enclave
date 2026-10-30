@@ -1,0 +1,685 @@
+{
+  "at": 1793394789.9525287,
+  "readOnly": true,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 222,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "before": {
+      "value": [
+        {
+          "port": 9600,
+          "created": "2026-10-27T08:24:45.0989590Z",
+          "pid": 41272,
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        },
+        {
+          "port": 8097,
+          "created": "2026-10-27T08:24:42.8500370Z",
+          "pid": 40360,
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        },
+        {
+          "port": 8095,
+          "created": "2026-10-27T08:02:19.4407050Z",
+          "pid": 41308,
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        },
+        {
+          "port": 8091,
+          "created": "2026-10-26T17:17:18.5617520Z",
+          "pid": 38076,
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        }
+      ],
+      "Count": 4
+    },
+    "nodeExit": 0,
+    "manager": {
+      "schema": "minipc-exact-claim-route-read/1",
+      "readOnly": true,
+      "startedAt": "2026-10-30T21:13:06.688Z",
+      "observations": [
+        {
+          "label": "claim-before",
+          "port": 9600,
+          "path": "/v1/deployments/0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+          "at": "2026-10-30T21:13:06.689Z",
+          "data": {
+            "fields": {
+              "values": {
+                "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+                "status": "stopped",
+                "appRef": "catalog://0xf1897f065ed94bc096d351b831514311e08b30702148c639cbaf8d0deb74d03a/3",
+                "updatedAt": "2026-10-30T21:13:06.392Z",
+                "leaseUntil": 1793126775,
+                "memMb": 128,
+                "cpuShare": 0.01,
+                "needCpuShare": 0.01,
+                "gpuShare": 0,
+                "isolationRequired": true
+              },
+              "invalid": []
+            },
+            "isolationPresent": true,
+            "isolationHeldPresent": true,
+            "isolationRetireFailedPresent": true,
+            "hasIsolation": false,
+            "hasIsolationHold": false,
+            "hasRetireFailure": false,
+            "isolation": {
+              "fields": {
+                "values": {},
+                "invalid": []
+              },
+              "memory": {
+                "values": {},
+                "invalid": []
+              },
+              "policy": {
+                "values": {},
+                "invalid": []
+              },
+              "catalog": {
+                "values": {},
+                "invalid": []
+              },
+              "desktop": {
+                "values": {},
+                "invalid": []
+              }
+            }
+          }
+        },
+        {
+          "label": "claim-before",
+          "port": 9600,
+          "path": "/v1/deployments/0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+          "at": "2026-10-30T21:13:06.694Z",
+          "data": {
+            "fields": {
+              "values": {
+                "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+                "status": "claiming",
+                "appRef": "catalog://0x85f28c21b1545a05aee6661faf4b149b5dd18377fce59ad290e9f19857baab06/5",
+                "updatedAt": "2026-10-30T21:13:00.827Z",
+                "leaseUntil": 1793141661,
+                "memMb": 256,
+                "cpuShare": 0.04,
+                "needCpuShare": 0.02,
+                "gpuShare": 0,
+                "isolationRequired": true
+              },
+              "invalid": []
+            },
+            "isolationPresent": true,
+            "isolationHeldPresent": true,
+            "isolationRetireFailedPresent": true,
+            "hasIsolation": false,
+            "hasIsolationHold": false,
+            "hasRetireFailure": false,
+            "isolation": {
+              "fields": {
+                "values": {},
+                "invalid": []
+              },
+              "memory": {
+                "values": {},
+                "invalid": []
+              },
+              "policy": {
+                "values": {},
+                "invalid": []
+              },
+              "catalog": {
+                "values": {},
+                "invalid": []
+              },
+              "desktop": {
+                "values": {},
+                "invalid": []
+              }
+            }
+          }
+        },
+        {
+          "label": "claim-before",
+          "port": 9600,
+          "path": "/v1/deployments/0x9a28642bed115105c07bea1131c56c83ae2843ce4daf07958ab36437c0528a6b",
+          "at": "2026-10-30T21:13:06.697Z",
+          "data": {
+            "fields": {
+              "values": {
+                "id": "0x9a28642bed115105c07bea1131c56c83ae2843ce4daf07958ab36437c0528a6b",
+                "status": "claiming",
+                "appRef": "catalog://0xcdc1fa941d248411e49f922e0bc7adfe8cc343712ca4fe4dfb24fab3ef6c70ce/0",
+                "updatedAt": "2026-10-30T21:12:58.796Z",
+                "leaseUntil": 1793133631,
+                "memMb": 8192,
+                "cpuShare": 0.25,
+                "needCpuShare": 0.25,
+                "gpuShare": 0.5,
+                "isolationRequired": true
+              },
+              "invalid": []
+            },
+            "isolationPresent": true,
+            "isolationHeldPresent": true,
+            "isolationRetireFailedPresent": true,
+            "hasIsolation": false,
+            "hasIsolationHold": false,
+            "hasRetireFailure": false,
+            "isolation": {
+              "fields": {
+                "values": {},
+                "invalid": []
+              },
+              "memory": {
+                "values": {},
+                "invalid": []
+              },
+              "policy": {
+                "values": {},
+                "invalid": []
+              },
+              "catalog": {
+                "values": {},
+                "invalid": []
+              },
+              "desktop": {
+                "values": {},
+                "invalid": []
+              }
+            }
+          }
+        },
+        {
+          "label": "health-before",
+          "port": 8091,
+          "path": "/health",
+          "at": "2026-10-30T21:13:06.699Z",
+          "data": {
+            "fields": {
+              "values": {
+                "managerEpoch": "6ba9af9a243b9f4754d8091d3de2f415",
+                "backend": "hyperv-partition-per-app",
+                "canStart": true
+              },
+              "invalid": []
+            },
+            "memory": {
+              "values": {
+                "rule": "cpu-share",
+                "poolMiB": 98304
+              },
+              "invalid": []
+            },
+            "physicalMemory": {
+              "values": {
+                "poolMiB": 84992,
+                "allocatedMiB": 5166,
+                "freeMiB": 79826
+              },
+              "invalid": []
+            },
+            "desktop": {
+              "values": {
+                "ready": true,
+                "runtimeId": "f548e338e4e41bb1326693688c7b0067c9f330a24f4a21a61037bd334449c74f",
+                "profileSha256": "0ad8b0f51f0398927dd4e3ffbeedea2f0257a1310aa0e80bdd508d072ff0a988",
+                "igvmSha256": "2e801d0fde8259b29a44e53d7854dab2ddaeed7f8db8578e00bec0fde734bff3",
+                "controllerSha256": "104468ceffadc0792d09674ef97bcd30aaa212ee1137cf1f8c0560c99cf82786"
+              },
+              "invalid": []
+            }
+          }
+        },
+        {
+          "label": "vms",
+          "port": 8091,
+          "path": "/vms",
+          "at": "2026-10-30T21:13:06.701Z",
+          "data": {
+            "managerEpoch": {
+              "values": {
+                "managerEpoch": "6ba9af9a243b9f4754d8091d3de2f415"
+              },
+              "invalid": []
+            },
+            "totalRows": 3,
+            "matches": []
+          }
+        },
+        {
+          "label": "health-after",
+          "port": 8091,
+          "path": "/health",
+          "at": "2026-10-30T21:13:06.703Z",
+          "data": {
+            "fields": {
+              "values": {
+                "managerEpoch": "6ba9af9a243b9f4754d8091d3de2f415",
+                "backend": "hyperv-partition-per-app",
+                "canStart": true
+              },
+              "invalid": []
+            },
+            "memory": {
+              "values": {
+                "rule": "cpu-share",
+                "poolMiB": 98304
+              },
+              "invalid": []
+            },
+            "physicalMemory": {
+              "values": {
+                "poolMiB": 84992,
+                "allocatedMiB": 5166,
+                "freeMiB": 79826
+              },
+              "invalid": []
+            },
+            "desktop": {
+              "values": {
+                "ready": true,
+                "runtimeId": "f548e338e4e41bb1326693688c7b0067c9f330a24f4a21a61037bd334449c74f",
+                "profileSha256": "0ad8b0f51f0398927dd4e3ffbeedea2f0257a1310aa0e80bdd508d072ff0a988",
+                "igvmSha256": "2e801d0fde8259b29a44e53d7854dab2ddaeed7f8db8578e00bec0fde734bff3",
+                "controllerSha256": "104468ceffadc0792d09674ef97bcd30aaa212ee1137cf1f8c0560c99cf82786"
+              },
+              "invalid": []
+            }
+          }
+        },
+        {
+          "label": "health-before",
+          "port": 8095,
+          "path": "/health",
+          "at": "2026-10-30T21:13:06.705Z",
+          "data": {
+            "fields": {
+              "values": {
+                "managerEpoch": "eb81408d8b99f58cd715d5c56017258c",
+                "backend": "hyperv-partition-per-app",
+                "canStart": true
+              },
+              "invalid": []
+            },
+            "memory": {
+              "values": {
+                "rule": "cpu-share",
+                "poolMiB": 98304
+              },
+              "invalid": []
+            },
+            "physicalMemory": {
+              "values": {
+                "poolMiB": 84992,
+                "allocatedMiB": 0,
+                "freeMiB": 84992
+              },
+              "invalid": []
+            },
+            "desktop": {
+              "values": {
+                "ready": true,
+                "runtimeId": "f548e338e4e41bb1326693688c7b0067c9f330a24f4a21a61037bd334449c74f",
+                "profileSha256": "dffd7d80cd0dd1ff929dd3b4f79d4dc58ff81570b52eec2aab740d04e8ee3dd6",
+                "igvmSha256": "a2272bcd8f7d5db883ae212ee1cb499a8bf100f9cc6f23073e61b68343f185f9",
+                "controllerSha256": "104468ceffadc0792d09674ef97bcd30aaa212ee1137cf1f8c0560c99cf82786"
+              },
+              "invalid": []
+            }
+          }
+        },
+        {
+          "label": "vms",
+          "port": 8095,
+          "path": "/vms",
+          "at": "2026-10-30T21:13:06.707Z",
+          "data": {
+            "managerEpoch": {
+              "values": {
+                "managerEpoch": "eb81408d8b99f58cd715d5c56017258c"
+              },
+              "invalid": []
+            },
+            "totalRows": 0,
+            "matches": []
+          }
+        },
+        {
+          "label": "health-after",
+          "port": 8095,
+          "path": "/health",
+          "at": "2026-10-30T21:13:06.709Z",
+          "data": {
+            "fields": {
+              "values": {
+                "managerEpoch": "eb81408d8b99f58cd715d5c56017258c",
+                "backend": "hyperv-partition-per-app",
+                "canStart": true
+              },
+              "invalid": []
+            },
+            "memory": {
+              "values": {
+                "rule": "cpu-share",
+                "poolMiB": 98304
+              },
+              "invalid": []
+            },
+            "physicalMemory": {
+              "values": {
+                "poolMiB": 84992,
+                "allocatedMiB": 0,
+                "freeMiB": 84992
+              },
+              "invalid": []
+            },
+            "desktop": {
+              "values": {
+                "ready": true,
+                "runtimeId": "f548e338e4e41bb1326693688c7b0067c9f330a24f4a21a61037bd334449c74f",
+                "profileSha256": "dffd7d80cd0dd1ff929dd3b4f79d4dc58ff81570b52eec2aab740d04e8ee3dd6",
+                "igvmSha256": "a2272bcd8f7d5db883ae212ee1cb499a8bf100f9cc6f23073e61b68343f185f9",
+                "controllerSha256": "104468ceffadc0792d09674ef97bcd30aaa212ee1137cf1f8c0560c99cf82786"
+              },
+              "invalid": []
+            }
+          }
+        },
+        {
+          "label": "health-before",
+          "port": 8097,
+          "path": "/health",
+          "at": "2026-10-30T21:13:06.710Z",
+          "data": {
+            "fields": {
+              "values": {
+                "managerEpoch": "007aeb77d057cbacb97e1219aa91bd1dcaa630b84411769f4d0642222e3a0d2e",
+                "backend": "hyperv-partition-per-app",
+                "canStart": true
+              },
+              "invalid": []
+            },
+            "memory": {
+              "values": {
+                "rule": "cpu-share",
+                "poolMiB": 98304,
+                "freeMiB": 95099
+              },
+              "invalid": []
+            },
+            "physicalMemory": {
+              "values": {
+                "poolMiB": 84992,
+                "allocatedMiB": 5166,
+                "freeMiB": 79826
+              },
+              "invalid": []
+            },
+            "desktop": {
+              "values": {
+                "ready": true,
+                "runtimeId": "f548e338e4e41bb1326693688c7b0067c9f330a24f4a21a61037bd334449c74f",
+                "profileSha256": "dffd7d80cd0dd1ff929dd3b4f79d4dc58ff81570b52eec2aab740d04e8ee3dd6",
+                "igvmSha256": "a2272bcd8f7d5db883ae212ee1cb499a8bf100f9cc6f23073e61b68343f185f9",
+                "controllerSha256": "104468ceffadc0792d09674ef97bcd30aaa212ee1137cf1f8c0560c99cf82786"
+              },
+              "invalid": []
+            }
+          }
+        },
+        {
+          "label": "vms",
+          "port": 8097,
+          "path": "/vms",
+          "at": "2026-10-30T21:13:06.715Z",
+          "data": {
+            "managerEpoch": {
+              "values": {
+                "managerEpoch": "007aeb77d057cbacb97e1219aa91bd1dcaa630b84411769f4d0642222e3a0d2e"
+              },
+              "invalid": []
+            },
+            "totalRows": 3,
+            "matches": []
+          }
+        },
+        {
+          "label": "health-after",
+          "port": 8097,
+          "path": "/health",
+          "at": "2026-10-30T21:13:06.719Z",
+          "data": {
+            "fields": {
+              "values": {
+                "managerEpoch": "007aeb77d057cbacb97e1219aa91bd1dcaa630b84411769f4d0642222e3a0d2e",
+                "backend": "hyperv-partition-per-app",
+                "canStart": true
+              },
+              "invalid": []
+            },
+            "memory": {
+              "values": {
+                "rule": "cpu-share",
+                "poolMiB": 98304,
+                "freeMiB": 95099
+              },
+              "invalid": []
+            },
+            "physicalMemory": {
+              "values": {
+                "poolMiB": 84992,
+                "allocatedMiB": 5166,
+                "freeMiB": 79826
+              },
+              "invalid": []
+            },
+            "desktop": {
+              "values": {
+                "ready": true,
+                "runtimeId": "f548e338e4e41bb1326693688c7b0067c9f330a24f4a21a61037bd334449c74f",
+                "profileSha256": "dffd7d80cd0dd1ff929dd3b4f79d4dc58ff81570b52eec2aab740d04e8ee3dd6",
+                "igvmSha256": "a2272bcd8f7d5db883ae212ee1cb499a8bf100f9cc6f23073e61b68343f185f9",
+                "controllerSha256": "104468ceffadc0792d09674ef97bcd30aaa212ee1137cf1f8c0560c99cf82786"
+              },
+              "invalid": []
+            }
+          }
+        },
+        {
+          "label": "claim-after",
+          "port": 9600,
+          "path": "/v1/deployments/0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+          "at": "2026-10-30T21:13:06.724Z",
+          "data": {
+            "fields": {
+              "values": {
+                "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+                "status": "stopped",
+                "appRef": "catalog://0xf1897f065ed94bc096d351b831514311e08b30702148c639cbaf8d0deb74d03a/3",
+                "updatedAt": "2026-10-30T21:13:06.392Z",
+                "leaseUntil": 1793126775,
+                "memMb": 128,
+                "cpuShare": 0.01,
+                "needCpuShare": 0.01,
+                "gpuShare": 0,
+                "isolationRequired": true
+              },
+              "invalid": []
+            },
+            "isolationPresent": true,
+            "isolationHeldPresent": true,
+            "isolationRetireFailedPresent": true,
+            "hasIsolation": false,
+            "hasIsolationHold": false,
+            "hasRetireFailure": false,
+            "isolation": {
+              "fields": {
+                "values": {},
+                "invalid": []
+              },
+              "memory": {
+                "values": {},
+                "invalid": []
+              },
+              "policy": {
+                "values": {},
+                "invalid": []
+              },
+              "catalog": {
+                "values": {},
+                "invalid": []
+              },
+              "desktop": {
+                "values": {},
+                "invalid": []
+              }
+            }
+          }
+        },
+        {
+          "label": "claim-after",
+          "port": 9600,
+          "path": "/v1/deployments/0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+          "at": "2026-10-30T21:13:06.726Z",
+          "data": {
+            "fields": {
+              "values": {
+                "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+                "status": "claiming",
+                "appRef": "catalog://0x85f28c21b1545a05aee6661faf4b149b5dd18377fce59ad290e9f19857baab06/5",
+                "updatedAt": "2026-10-30T21:13:00.827Z",
+                "leaseUntil": 1793141661,
+                "memMb": 256,
+                "cpuShare": 0.04,
+                "needCpuShare": 0.02,
+                "gpuShare": 0,
+                "isolationRequired": true
+              },
+              "invalid": []
+            },
+            "isolationPresent": true,
+            "isolationHeldPresent": true,
+            "isolationRetireFailedPresent": true,
+            "hasIsolation": false,
+            "hasIsolationHold": false,
+            "hasRetireFailure": false,
+            "isolation": {
+              "fields": {
+                "values": {},
+                "invalid": []
+              },
+              "memory": {
+                "values": {},
+                "invalid": []
+              },
+              "policy": {
+                "values": {},
+                "invalid": []
+              },
+              "catalog": {
+                "values": {},
+                "invalid": []
+              },
+              "desktop": {
+                "values": {},
+                "invalid": []
+              }
+            }
+          }
+        },
+        {
+          "label": "claim-after",
+          "port": 9600,
+          "path": "/v1/deployments/0x9a28642bed115105c07bea1131c56c83ae2843ce4daf07958ab36437c0528a6b",
+          "at": "2026-10-30T21:13:06.727Z",
+          "data": {
+            "fields": {
+              "values": {
+                "id": "0x9a28642bed115105c07bea1131c56c83ae2843ce4daf07958ab36437c0528a6b",
+                "status": "claiming",
+                "appRef": "catalog://0xcdc1fa941d248411e49f922e0bc7adfe8cc343712ca4fe4dfb24fab3ef6c70ce/0",
+                "updatedAt": "2026-10-30T21:12:58.796Z",
+                "leaseUntil": 1793133631,
+                "memMb": 8192,
+                "cpuShare": 0.25,
+                "needCpuShare": 0.25,
+                "gpuShare": 0.5,
+                "isolationRequired": true
+              },
+              "invalid": []
+            },
+            "isolationPresent": true,
+            "isolationHeldPresent": true,
+            "isolationRetireFailedPresent": true,
+            "hasIsolation": false,
+            "hasIsolationHold": false,
+            "hasRetireFailure": false,
+            "isolation": {
+              "fields": {
+                "values": {},
+                "invalid": []
+              },
+              "memory": {
+                "values": {},
+                "invalid": []
+              },
+              "policy": {
+                "values": {},
+                "invalid": []
+              },
+              "catalog": {
+                "values": {},
+                "invalid": []
+              },
+              "desktop": {
+                "values": {},
+                "invalid": []
+              }
+            }
+          }
+        }
+      ],
+      "errors": [],
+      "capacityAdmitted": false,
+      "finishedAt": "2026-10-30T21:13:06.729Z",
+      "completeTransport": true
+    },
+    "after": {
+      "value": [
+        {
+          "port": 9600,
+          "created": "2026-10-27T08:24:45.0989590Z",
+          "pid": 41272,
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        },
+        {
+          "port": 8097,
+          "created": "2026-10-27T08:24:42.8500370Z",
+          "pid": 40360,
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        },
+        {
+          "port": 8095,
+          "created": "2026-10-27T08:02:19.4407050Z",
+          "pid": 41308,
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        },
+        {
+          "port": 8091,
+          "created": "2026-10-26T17:17:18.5617520Z",
+          "pid": 38076,
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        }
+      ],
+      "Count": 4
+    },
+    "readOnly": true,
+    "admitted": false
+  }
+}

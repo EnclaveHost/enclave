@@ -1,0 +1,5 @@
+
+
+## October30 21:13UTC: current sizing source and narrow claim observations
+
+Runtime metadata preservation0cd1808c172b PUSHED/exactremote via43d72e4bb4084aff847e56a1f61c3ea6. Source-binding read8e70eac5ac8c4a7192c66ebd1adf6ff3 terminal0; exact8091/8095/8097 incarnations and release manifests agree, current helper/router hashes recorded. Narrow read395deb24f5684ef38891381602b4361b terminal0/all15GETs complete/epochs and process identities stable: DNS/KVM claiming without isolation/hold/VM;38f stopped; absentclaimTx NOTproof ofunsent. Retain conservative39388MiB prospective reservation until route/claim qualification.28GiBguest notadmitted;20GiBwhole-stack proposal only, freshphysical admission pending. No native/VM/production/finance changes. Peer local readonly hash comparison only.

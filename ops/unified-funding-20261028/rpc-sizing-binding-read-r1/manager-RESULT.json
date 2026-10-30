@@ -1,0 +1,127 @@
+{
+  "at": 1793394759.693073,
+  "readOnly": true,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 222,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "readOnly": true,
+    "schema": "minipc-sizing-source-binding/1",
+    "atUtc": "2026-10-30T21:12:39.5670361Z",
+    "capacityAdmitted": false,
+    "loadedModuleBytesProven": false,
+    "rows": [
+      {
+        "port": 8091,
+        "processId": 38076,
+        "created": "2026-10-26T17:17:18.5617520Z",
+        "releasePin": null,
+        "files": [
+          {
+            "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\desktop-memory.mjs",
+            "sha256": "f791e7de897ec69c4e138ef9efb7f36193d1f793b38afe002b50a1859d5275e6",
+            "bytes": 641
+          },
+          {
+            "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\memory-share.mjs",
+            "sha256": "a9d8200b8ccd8c89e64aebadced10068e6ed952ca74dd857f0f99a1a637bfc52",
+            "bytes": 786
+          },
+          {
+            "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\wmi-launcher.mjs",
+            "sha256": "a22d90ee3c2711cdbe9ded0c5f9760c1afda9cd6dd4ebb182d7d4c1499c62de3",
+            "bytes": 99848
+          },
+          {
+            "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\server.mjs",
+            "sha256": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc",
+            "bytes": 64364
+          }
+        ]
+      },
+      {
+        "port": 8095,
+        "processId": 41308,
+        "created": "2026-10-27T08:02:19.4407050Z",
+        "releasePin": "58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929",
+        "files": [
+          {
+            "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\source-manifest.json",
+            "sha256": "58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929",
+            "bytes": 17929
+          },
+          {
+            "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\desktop-memory.mjs",
+            "sha256": "57787b8591a3f6545b94185d927c8c7c08088663985ec43c108aea1c69af67bb",
+            "bytes": 831
+          },
+          {
+            "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\memory-share.mjs",
+            "sha256": "a9d8200b8ccd8c89e64aebadced10068e6ed952ca74dd857f0f99a1a637bfc52",
+            "bytes": 786
+          },
+          {
+            "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\wmi-launcher.mjs",
+            "sha256": "bba4c309f5a837e17bf44be54cd8e4c4432ad74174a7d09eda559f11f5ef250e",
+            "bytes": 99854
+          },
+          {
+            "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\server.mjs",
+            "sha256": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc",
+            "bytes": 64364
+          }
+        ]
+      },
+      {
+        "port": 8097,
+        "processId": 40360,
+        "created": "2026-10-27T08:24:42.8500370Z",
+        "releasePin": "93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292",
+        "files": [
+          {
+            "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292\\source-manifest.json",
+            "sha256": "93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292",
+            "bytes": 18164
+          },
+          {
+            "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292\\control\\windows\\vbslike\\manager\\desktop-memory.mjs",
+            "sha256": "57787b8591a3f6545b94185d927c8c7c08088663985ec43c108aea1c69af67bb",
+            "bytes": 831
+          },
+          {
+            "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292\\control\\windows\\vbslike\\manager\\memory-share.mjs",
+            "sha256": "a9d8200b8ccd8c89e64aebadced10068e6ed952ca74dd857f0f99a1a637bfc52",
+            "bytes": 786
+          },
+          {
+            "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292\\control\\windows\\vbslike\\manager\\wmi-launcher.mjs",
+            "sha256": "bba4c309f5a837e17bf44be54cd8e4c4432ad74174a7d09eda559f11f5ef250e",
+            "bytes": 99854
+          },
+          {
+            "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292\\control\\windows\\vbslike\\manager\\server.mjs",
+            "sha256": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc",
+            "bytes": 64364
+          },
+          {
+            "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292\\control\\windows\\vbslike\\router\\main.mjs",
+            "sha256": "d021c31460f8b4313ab15a50a1e9792360df4b00de2f64d727e21b79d04fb9a7",
+            "bytes": 2268
+          },
+          {
+            "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292\\control\\windows\\vbslike\\router\\control.mjs",
+            "sha256": "966fd3b5480e9859de4f1dc578b25afa1150e97552437e8c183c03bba4606e6a",
+            "bytes": 21406
+          },
+          {
+            "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292\\control\\windows\\vbslike\\router\\platform.mjs",
+            "sha256": "1dc849de7a4495c91dcfd3b7f82e2fbc6385b0456a69855be569c3bbd27a3710",
+            "bytes": 3154
+          }
+        ]
+      }
+    ]
+  }
+}
