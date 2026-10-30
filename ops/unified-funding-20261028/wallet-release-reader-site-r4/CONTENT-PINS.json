@@ -1,7 +1,7 @@
 {
   "CAPTURE-CORRECTION.md": "55f6040b90925192a4f5bec32641cae3dd909c1a465b909778faa9e75d5847db",
-  "HANDOFF-LATEST.md": "7e2b599acfe99eef48f5e1eaef380c580df0b352f67c9d4a5d910dc5dc61818f",
-  "ROOT-REVIEW.md": "a7b1a384db0e099d2f359dc364cde6a079f5ae9d952ae1be226896f9bfde34be",
+  "HANDOFF-LATEST.md": "aa5d968955d2a4ed9decbbe85fe509a69d4b38744fa5396f9a0fa45c4f746756",
+  "ROOT-REVIEW.md": "b408118b6b761ececbc618bdeb89f7bad50b6d9d22e4842effac6e35c7c679ae",
   "activate-inner.jsonl": "912e173553c36a68a9a708afbcadace9253dbccf12f3070b38e3f907dea5e2b9",
   "activate-outer.jsonl": "bde1646dff01737441737ef811479d2404e15a0c4153c7872e75944fba7b09b1",
   "activate.log": "67a5bc45a377999862aa8ca4e3f9e788f955040f7cfc06e5e9cea2550a743aff",
@@ -283,5 +283,7 @@
   "us-west.intent.json": "5cb1d452ce057f548acf39e060f87c44c10d9de73d5630954613b7bcb7b26d47",
   "us-west.result.txt": "b21667be90b43c1caec48a4e45b2dbc61e997d02d9476332399ab77c0266afac",
   "us-west.verified.json": "17ad9312815bfd519d9ae87fd85bb21ca27ad5be29bcad0f13edc32c9013062d",
-  "verify-edge.py": "e98671b0290368eb88b872ae2675d8bcf3cdadd34f58e6d0fda09e6074b723ca"
+  "verify-edge.py": "e98671b0290368eb88b872ae2675d8bcf3cdadd34f58e6d0fda09e6074b723ca",
+  "wallet-875-sign-request-20261030.jpg": "0992d956494bfd523c9667c79f1b72c25c384abb5c042ad28a905024a5e5d4ed",
+  "wallet-875-sign-request-20261030.txt": "0e2859546e6225efceb026a45df7f0f9939a8463ada2b024543dcd320beeceba"
 }
