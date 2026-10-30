@@ -9,3 +9,10 @@ One product module additionally selects Azul1000-block history, bounds1024ranges
 Added exact reviewed ledger initcode artifact with four constructor arguments from creation transaction ddc85def2d8bc739831b931a60ae2d0597e7e922812c3c582e9dbd5984609a89; two-provider browser check authenticates this creation input before use. Missing asset no longer silently blocks every row.
 
 Built CID bafybeigthicg2adduyduhvavlibxn6vz6kl2xshz5ysstirofn5tdg5dzq,1330files. Exact current1231-file search-clear/HostCopy/Topup base captured across4edges; preserve1230unchanged oldfiles, onlyboot replaced+99new. Build207MiBpeak/min31743MiB,512hard450RSSfloor27648CPU1noswap/network namespace. Separate operation directory and CaddyETagCAS helpers reviewed; no stale deployment helper rerun. Actual activation status is recorded only in per-edge result/HTTPS verification files. No ownership, signature, refund or payment has been performed by this review.
+
+
+## Production activation October30 01:19UTC
+
+All four edges now serve CID `bafybeigthicg2adduyduhvavlibxn6vz6kl2xshz5ysstirofn5tdg5dzq`: 1330 files, 1230 prior files unchanged, only existing boot replaced, 99 additions. Every edge passed 106 actual normal-TLS HTTPS content hashes (424 total). Current search-clear and Host Copy preserved. No backend restart or payment/ownership transaction. West unit ce3b8fc7579e4bf2904671274d5c1f7d and finish a84e1ed9eb39439fbdc8830470bd627e both terminal0/Main0; final guard peak77MiB/minavailable31698MiB. Do not replay deployment helpers.
+
+Actual signed-in Chrome4 tab723101015 was intentionally reloaded, connected to the same wallet, and displays all five Move to wallet controls while its real chain checks run. This confirms production UI delivery, not successful migration. Final wallet signatures and canonical post-transfer ownership verification remain.

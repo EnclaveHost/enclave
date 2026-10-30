@@ -891,3 +891,10 @@ The delegate is the owner's vault at the **v2** factory, `factory.vaultFor(owner
 - **Mitigations.** Give `prod` only to sessions that need it, with only the actions they need, a small budget and a short expiry. The grant page and the CLI warn on `prod`. One wallet transaction (Revoke) cuts every session off the wallet's apps; `Terminate` or `RevokeAll` ends the sessions themselves. Every operation is listed on `/sessions` with its transaction.
 - **Agents on `staging-publish` are unaffected.** It has no `prod`, so the delegation never reaches it. That is the CLI's agent preset. The MCP server's `session_request` defaults to a preset it calls `agent`: the browser policy without `api.account` and `api.appAccess` (every deployment action, `*` apps, staging and prod; a leaked agent key can't sign in as the owner or open their private apps) with a $20 budget for 7 days, which the delegation does reach.
 - **Several sessions, one grant.** The delegation is per vault, not per session, so it covers every present and future session of that vault that holds `prod`. A session's own grant is what narrows it.
+
+
+### October 30: wallet ownership migration controls deployed
+
+The production Sessions page now offers **Move to wallet** for legacy vault-held deployments. It fixes the destination to the verified controlling wallet and checks ownership, backing, gas reserve, custody policy and complete session/delegate history before signing. One release is journaled before signing and dispatch; ambiguous submissions are reconciled without automatic replay. The site was deployed on all four edges with 424 HTTPS content checks. See the [release evidence](../../ops/unified-funding-20261028/wallet-release-site-production-r2/ROOT-REVIEW.md).
+
+Deployment of these controls is not a completed ownership migration. The two inactive, unleased staging records are initial candidates; funded escrow and production custody barriers remain. No refund, redeployment, promotion or serving-app interruption is implicit in Move to wallet. Automatic USDC-to-gas refill remains unfinished.
