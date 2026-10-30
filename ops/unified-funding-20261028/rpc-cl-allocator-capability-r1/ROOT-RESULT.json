@@ -1,0 +1,24 @@
+{
+  "invocation": "0921cde8c2e64eb889afddc8a6cb1415",
+  "terminal": true,
+  "mainPID": 0,
+  "pinsUnchanged": true,
+  "effectiveOptions": {
+    "baseline": {
+      "narenas": "16",
+      "background_thread": "true (background_thread: true)",
+      "dirty_decay_ms": "10000 (arenas.dirty_decay_ms: 10000)",
+      "muzzy_decay_ms": "0 (arenas.muzzy_decay_ms: 0)",
+      "abort_conf": "true"
+    },
+    "low-retention": {
+      "narenas": "1",
+      "background_thread": "false (background_thread: false)",
+      "dirty_decay_ms": "0 (arenas.dirty_decay_ms: 0)",
+      "muzzy_decay_ms": "0 (arenas.muzzy_decay_ms: 0)",
+      "abort_conf": "true"
+    }
+  },
+  "onlyVersion": true,
+  "workloadFitProven": false
+}

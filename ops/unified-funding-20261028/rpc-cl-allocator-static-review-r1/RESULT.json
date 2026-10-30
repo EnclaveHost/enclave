@@ -1,0 +1,208 @@
+{
+  "at": 1793386658.053714,
+  "binary": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/payload-v2/bin/lighthouse",
+  "sha256": "11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96",
+  "bytes": 105018160,
+  "readOnly": true,
+  "executed": false,
+  "hits": {
+    "_RJEM_MALLOC_CONF": [
+      {
+        "offset": 4828816,
+        "context": "3.34/src/stream/stream/into_future.rs..._RJEM_MALLOC_CONF.tcache.base.empty_slabs.nhugifies.ndirty_nonhuge.log_start.prof_accum.allocatedp.r"
+      }
+    ],
+    "dirty_decay_ms": [
+      {
+        "offset": 4730472,
+        "context": "zy_lock.config.opt_safety_checks.arenas.dirty_decay_ms.opt.tcache_gc_incr_bytes.opt.prof_accum.purged.metadata_thp:.sec_bytes.!((*scan) > (i"
+      },
+      {
+        "offset": 4749694,
+        "context": "1bc051e7ac4/library/alloc/src/string.rs.dirty_decay_ms.stats_interval.tcache_nslots_small_min.aborting.bin.prof.prof_thds_data.thp.012345678"
+      },
+      {
+        "offset": 4771042,
+        "context": ".opt.zero.arenas.quantum.stats.arenas.0.dirty_decay_ms.stats.arenas.0.muzzy_decay_ms.stats.arenas.0.large.nmalloc.tcache_stashed_bytes:.uniq"
+      },
+      {
+        "offset": 4818909,
+        "context": "ge.muzzy_bytes.curregs.nshards.read.opt.dirty_decay_ms.arenas.tcache_max.stats.arenas.0.pmuzzy.stats.arenas.0.large.ndalloc.stats.arenas.0.l"
+      },
+      {
+        "offset": 104777508,
+        "context": "etion.arena_decay_impl.arena_slab_alloc.dirty_decay_ms_default.muzzy_decay_ms_default.nbins_total.huge_arena_ind.background_thread.c.backgro"
+      },
+      {
+        "offset": 104779567,
+        "context": "ts_print_ctl.opt_muzzy_decay_ms_ctl.opt_dirty_decay_ms_ctl.opt_max_background_threads_ctl.opt_background_thread_ctl.opt_mutex_max_spin_ctl.o"
+      },
+      {
+        "offset": 104781481,
+        "context": "fety_checks_ctl.config_debug_ctl.arenas_dirty_decay_ms_ctl.arena_i_oversize_threshold_ctl.arena_i_dirty_decay_ms_ctl.arena_i_muzzy_decay_ms_"
+      },
+      {
+        "offset": 104781539,
+        "context": ".arena_i_oversize_threshold_ctl.arena_i_dirty_decay_ms_ctl.arena_i_muzzy_decay_ms_ctl.arena_i_index.ctl_mtx.super_arena_i_node.ctl_arenas.th"
+      }
+    ],
+    "muzzy_decay_ms": [
+      {
+        "offset": 4771072,
+        "context": ".arenas.0.dirty_decay_ms.stats.arenas.0.muzzy_decay_ms.stats.arenas.0.large.nmalloc.tcache_stashed_bytes:.unique.env->me_lck_mmap.fd != (-1)"
+      },
+      {
+        "offset": 4946474,
+        "context": ".destroy.prof_final.%u.config.stats.opt.muzzy_decay_ms.opt.lg_tcache_nslots_mul.stats.metadata_thp.fuse.<null>.it >= begin && it <= end.TXL "
+      },
+      {
+        "offset": 4966820,
+        "context": "rof_active.lg_prof_sample.%%%d%s.arenas.muzzy_decay_ms.opt.prof_active.stats.arenas.0.pactive.stats.arenas.0.large.nfills.stats.arenas.0.tca"
+      },
+      {
+        "offset": 5015296,
+        "context": ": no more credit left.Error setting dss.muzzy_decay_ms.lg_tcache_flush_small_div.san_guard_large.tcache_ql.disabled.config.pactive.nactive_n"
+      },
+      {
+        "offset": 104777531,
+        "context": "arena_slab_alloc.dirty_decay_ms_default.muzzy_decay_ms_default.nbins_total.huge_arena_ind.background_thread.c.background_threads_disable_sin"
+      },
+      {
+        "offset": 104779544,
+        "context": "_print_opts_ctl.opt_stats_print_ctl.opt_muzzy_decay_ms_ctl.opt_dirty_decay_ms_ctl.opt_max_background_threads_ctl.opt_background_thread_ctl.o"
+      },
+      {
+        "offset": 104780588,
+        "context": "mental_prof_recent_alloc_max_ctl.arenas_muzzy_decay_ms_ctl.prof_log_stop_ctl.experimental_prof_recent_alloc_dump_ctl.opt_utrace_ctl.opt_xmal"
+      },
+      {
+        "offset": 104781566,
+        "context": "_ctl.arena_i_dirty_decay_ms_ctl.arena_i_muzzy_decay_ms_ctl.arena_i_index.ctl_mtx.super_arena_i_node.ctl_arenas.thread_arena_ctl.stats_alloca"
+      }
+    ],
+    "confirm_conf": [
+      {
+        "offset": 4856392,
+        "context": "cf8c6b5b557f/zstd-safe-7.3.0/src/lib.rs.confirm_conf.true.tcache_gc_delay_bytes.prof_recent.large.retained_bytes.thread_active_init.cache_ob"
+      },
+      {
+        "offset": 4978069,
+        "context": ".cache_oblivious.config.malloc_conf.opt.confirm_conf.opt.tcache_nslots_large.opt.stats_print_opts.stats.arenas.0.dirty_npurge.muzzy.extents:"
+      },
+      {
+        "offset": 104780084,
+        "context": "_hpa_slab_max_alloc_ctl.opt_hpa_ctl.opt_confirm_conf_ctl.opt_trust_madvise_ctl.opt_cache_oblivious_ctl.opt_abort_conf_ctl.opt_abort_ctl.conf"
+      },
+      {
+        "offset": 104925495,
+        "context": "ersonality._rjem_je_arenas._rjem_je_opt_confirm_conf._rjem_malloc_conf._rjem_je_opt_abort_conf._rjem_malloc_conf_2_conf_harder._rjem_je_opt_"
+      }
+    ],
+    "abort_conf": [
+      {
+        "offset": 4887205,
+        "context": "57f/yasna-0.5.2/src/writer/mod.rs.abort.abort_conf.batch_alloc.install.ndirty_huge.log_stop.N/A.\"%s\".1.opt.hpa_dirty_mult.opt.background_thr"
+      },
+      {
+        "offset": 5023752,
+        "context": "mp_allocator.n_waiting.stats.arenas.opt.abort_conf.opt.retain.stats.arenas.0.dss.dirty:.base:.stats.arenas.0.hpa_sec_bytes.leaf.not a regula"
+      },
+      {
+        "offset": 19115571,
+        "context": "d\" WHERE rowid=?1....<jemalloc>: Abort (abort_conf:true) on invalid conf value (see above)...<jemalloc>: arena 0 background thread creation "
+      },
+      {
+        "offset": 19143839,
+        "context": "l, idx));........background_thread:true,abort_conf:true,narenas:16......./sys/kernel/mm/transparent_hugepage/enabled.....stats.arenas.0.hpa_"
+      },
+      {
+        "offset": 104780151,
+        "context": "madvise_ctl.opt_cache_oblivious_ctl.opt_abort_conf_ctl.opt_abort_ctl.config_cache_oblivious_ctl.config_malloc_conf_ctl.thread_deallocatedp_c"
+      },
+      {
+        "offset": 104925539,
+        "context": "irm_conf._rjem_malloc_conf._rjem_je_opt_abort_conf._rjem_malloc_conf_2_conf_harder._rjem_je_opt_abort._rjem_je_opt_hpa_opts._rjem_je_opt_tru"
+      }
+    ],
+    "jemalloc": [
+      {
+        "offset": 4795403,
+        "context": "e path for '..'.common/malloc_utils/src/jemalloc.rs.arenas.page./usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mediatype-0.1"
+      },
+      {
+        "offset": 4799645,
+        "context": "nal.resident:.dirty.arena.0.initialized.jemalloc.fstat(%s), err %d..9P.!dp.mdbx_dirtylist_check(txn).branch-node[%u] wrong 0-node key-length"
+      },
+      {
+        "offset": 4946381,
+        "context": "lid OID {.. .. ...}.percpu_arena.percpu.jemalloc_bg_thd.stats.resident.dirty_npurge.nlextents.destroy.prof_final.%u.config.stats.opt.muzzy_d"
+      },
+      {
+        "offset": 4994542,
+        "context": "c/index.crates.io-1949cf8c6b5b557f/tikv-jemalloc-ctl-0.6.1/src/raw.rs./usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1"
+      },
+      {
+        "offset": 4995998,
+        "context": "d pong .., estimated round-trip-time ..<jemalloc>: %s: %.*s:%.*s..num_runs.dirty_nmadvise.nrequests.enabled.hpa_central_grow.0X.n_owner_swit"
+      },
+      {
+        "offset": 5001912,
+        "context": " using ...in ReadTcpState::LenBytes: ...jemalloc (..K).\"failed to decode unsigned varint: ../usr/local/cargo/registry/src/index.crates.io-19"
+      },
+      {
+        "offset": 5011483,
+        "context": "cution/execution_payload_header.rs......jemalloc (error: ..)./usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/moka-0.12.16/src"
+      },
+      {
+        "offset": 18225762,
+        "context": " to get native time: Invalid time formatjemalloc_num_arenasThe number of arenas in usejemalloc_bytes_activeEquivalent to stats.activejemallo"
+      }
+    ],
+    "malloc_conf": [
+      {
+        "offset": 4936825,
+        "context": "ace.nflushes.slab_size.lg_prof_interval.malloc_conf.extent_grow.config.xmalloc.opt.prof_gdump.dss allocation precedence.merged.r.MDBX_WANNA_"
+      },
+      {
+        "offset": 4978053,
+        "context": "ntral.%ld.config.cache_oblivious.config.malloc_conf.opt.confirm_conf.opt.tcache_nslots_large.opt.stats_print_opts.stats.arenas.0.dirty_npurg"
+      },
+      {
+        "offset": 19096217,
+        "context": "tring pointed to by the global variable malloc_conf_2_conf_harder......pgno >= 3 && pgno <= 0x7FFFffffU........dl->length < 2 || dl->items[1"
+      },
+      {
+        "offset": 19126884,
+        "context": "'%q_parent' VALUES(?1, ?2)..<jemalloc>: malloc_conf #%u (%s): \"%s\"..Invalid settings for bin_shards.<jemalloc>: Conf string ends with comma."
+      },
+      {
+        "offset": 19152297,
+        "context": "tring pointed to by the global variable malloc_conf....POISON_MEMORY_REGION(%p, %zu) at %u.....INDXSIZE(key) <= env->me_nodemax........txn->"
+      },
+      {
+        "offset": 104776954,
+        "context": "ult_junk_free.malloc_abort_invalid_conf.malloc_conf_multi_sizes_next.sz_size2index_compute.rtree_read.constprop.0.malloc_conf_init_helper.ha"
+      },
+      {
+        "offset": 104777028,
+        "context": "ze2index_compute.rtree_read.constprop.0.malloc_conf_init_helper.had_conf_error.opts_explain.0.narenas_total.malloc_init_hard_a0_locked.mallo"
+      },
+      {
+        "offset": 104780214,
+        "context": "t_ctl.config_cache_oblivious_ctl.config_malloc_conf_ctl.thread_deallocatedp_ctl.thread_deallocated_ctl.thread_allocatedp_ctl.thread_allocate"
+      }
+    ],
+    "narenas:": [
+      {
+        "offset": 19143855,
+        "context": ".background_thread:true,abort_conf:true,narenas:16......./sys/kernel/mm/transparent_hugepage/enabled.....stats.arenas.0.hpa_shard.empty_slab"
+      }
+    ],
+    "5.3.0": [
+      {
+        "offset": 19115688,
+        "context": "ground thread creation failed (%d)......5.3.0-1-ge13ca993e8ccb9ba9847cc330696e02839f328f7.......<jemalloc>: Error re-initializing mutex in c"
+      }
+    ]
+  }
+}
