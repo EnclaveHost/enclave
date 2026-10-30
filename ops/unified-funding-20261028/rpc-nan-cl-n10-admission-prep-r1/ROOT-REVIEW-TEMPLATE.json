@@ -1,0 +1,29 @@
+{
+  "authorized": false,
+  "scope": "actual-nan-cl-bounded-client-n10",
+  "runtimePinsSha256": "d90427587ddc020bc1cf200533233c86069ef11f71e731f2f3a0a9b1d902d64f",
+  "observationSha256": null,
+  "observedPendingMiB": null,
+  "ordinaryOsExecutables": [
+    "/usr/bin/dbus-daemon",
+    "/usr/bin/sleep",
+    "/usr/bin/udevadm",
+    "/usr/lib/polkit-1/polkitd",
+    "/usr/lib/systemd/systemd",
+    "/usr/lib/systemd/systemd-journald",
+    "/usr/lib/systemd/systemd-networkd",
+    "/usr/lib/systemd/systemd-resolved",
+    "/usr/lib/systemd/systemd-timesyncd",
+    "/usr/sbin/atd",
+    "/usr/sbin/cron",
+    "/usr/sbin/multipathd",
+    "/usr/sbin/qemu-ga",
+    "/usr/sbin/rsyslogd",
+    "/usr/sbin/sshd"
+  ],
+  "existingOtherProcesses": [],
+  "creatorCmdlineSha256": null,
+  "elTrialTerminalAndClean": false,
+  "scheduleAndTimersReviewedThroughAt": 0,
+  "rootReview": ""
+}

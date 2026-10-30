@@ -1,0 +1,53 @@
+{
+  "passed": [
+    {
+      "case": "valid",
+      "passed": true,
+      "rejection": null
+    },
+    {
+      "case": "unauthorized",
+      "passed": true,
+      "rejection": "root-review-required"
+    },
+    {
+      "case": "el-not-clean",
+      "passed": true,
+      "rejection": "root-review-required"
+    },
+    {
+      "case": "wrong-pins",
+      "passed": true,
+      "rejection": ""
+    },
+    {
+      "case": "wrong-observation",
+      "passed": true,
+      "rejection": "review-observation-mismatch"
+    },
+    {
+      "case": "stale",
+      "passed": true,
+      "rejection": "fresh-admission-headroom-at-load"
+    },
+    {
+      "case": "short-horizon",
+      "passed": true,
+      "rejection": "outer-horizon-not-reviewed"
+    },
+    {
+      "case": "template-refused",
+      "passed": true,
+      "rejection": "unadmitted-template"
+    },
+    {
+      "case": "partial-output",
+      "passed": true,
+      "rejection": "runtime-already-used"
+    }
+  ],
+  "sourceUnchanged": true,
+  "actualRuntimeUnadmitted": true,
+  "syntheticTimeAndObservation": true,
+  "nativeExecuted": false
+}

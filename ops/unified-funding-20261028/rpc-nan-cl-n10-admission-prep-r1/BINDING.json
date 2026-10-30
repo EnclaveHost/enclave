@@ -1,0 +1,15 @@
+{
+  "runtime": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-n10-root-r2/runtime",
+  "runtimePinsSha256": "d90427587ddc020bc1cf200533233c86069ef11f71e731f2f3a0a9b1d902d64f",
+  "sourcePinsSha256": "a5983eb62315a3930995e493726bf5b98fab002f2a4e3b32e714a81acf7abb99",
+  "nonce": "17f00092-bae5-4e2c-a019-8dc6bd496969",
+  "bootId": "4b84b9bd-a89d-4b37-94cb-26334dbf4666",
+  "scope": "actual-nan-cl-bounded-client-n10",
+  "target": "nan",
+  "outerSeconds": 2500,
+  "authoritySeconds": 2100,
+  "preMainRemainingSeconds": 2010,
+  "sampleRemainingSeconds": 1805,
+  "priorReadSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-n9-admission-r2/fresh-read.py",
+  "sourcePreparationOnly": true
+}

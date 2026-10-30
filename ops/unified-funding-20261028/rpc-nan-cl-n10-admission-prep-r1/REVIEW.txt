@@ -1,0 +1,51 @@
+SOURCE PREPARATION ONLY — no command, test, AST validation, remote read or native
+client was executed by this preparation lane. No authority has been granted.
+
+Read-only final composition review of rootr2:
+35 source pins matched a5983eb62315a3930995e493726bf5b98fab002f2a4e3b32e714a81acf7abb99;
+16 runtime pins matched d90427587ddc020bc1cf200533233c86069ef11f71e731f2f3a0a9b1d902d64f.
+Remote/local compositions were compared as bytes, not executed. Both match their
+components exactly; source/runtime module copies match; mount/manifest nonce
+matches; manifest authority remains false. Strict8192B UTF8 byte-array decoder
+preserves allocator matching after decoding and rejects malformed byte values.
+No additional defect found. Root records118checks PASS and pureassembly PASS;
+this lane did not rerun tests.
+
+This separate admission package binds the exact existing rootr2 runtime. It does
+not copy its sources or change them. capture-local/remote and fresh-read-body are
+copied from the qualified n9 pattern, with the fresh launcher using a new n10
+remote unit. Launcher pins all prepared inputs and runtime inputs before read,
+uses exact fixed commands and exclusive evidence files. The body preserves Nan's
+expected boot/creator identity, bounded process/schedule/timer census and memory
+observation. As before, no environment, pad or secret content is read.
+
+ROOT-REVIEW-TEMPLATE.json is deliberately authorized=false, pending bytes unset,
+no process exemptions, no horizon review, no EL terminal claim and no observation
+hash. It cannot grant authority. Root creates a DIFFERENT ROOT-REVIEW.json only
+after reviewing the new actual observation and EL terminal/cleanup evidence.
+The retained ordinary OS list is an example from n9, not a fresh classification.
+Root must classify actual processes and pending work and review all cron/timer
+activity through observation.at+2500; review includes the2048MiB operational
+reserve and continuous guard, not a universal worst-case reservation.
+
+Loader validates that fresh review, memory floor, empty jobs/at, exact creator,
+observation/boot/pins/nonce and outer horizon. It derives2100s expiry exclusively
+from observation.at, creates the previously required admissionSha256 and invokes
+ONLY the actual assembled validate_admission_metadata AST function as preflight.
+That validates2010s remaining at load. Runtime again checks2010s immediately
+before main and1805s before sampling after allocator confirmation. The loader
+copies ONLY fresh metadata into runtime, never changes immutable pinned inputs,
+and does not launch anything. Metadata outputs use exclusive opens/no renewal.
+A partially written pair requires root reconciliation, never overwrites/retries.
+
+COMMANDS.json and commands.txt contain three exact, sequential commands:
+fresh read (256/220MiB,90s outer), reviewed metadata loader (256/220MiB,30s outer),
+native candidate (512/450MiB,2500s outer). Each retains floor27648/CPU1/zero swap
+and128MiB outer service. They are commands for ROOT REVIEW, not execution receipts.
+The read's remote service retains128MiB/CPU1/noSwap/40s; local capture50s. Root
+must finish reviewing/integrating source and checking launch closure BEFORE the
+fresh observation so it does not expire while preparing code. If a queue delays
+the native launch, runtime refuses stale authority rather than renewing it.
+
+No admission files, observation, attempt or production-ready claim exists here.
+No extra observer was started against the active EL trial. No copied n9 grant.
