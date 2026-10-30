@@ -36,6 +36,7 @@ extern "C" {
 }
 
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <new>
 #include <stdexcept>
@@ -62,8 +63,20 @@ static inline bool sh_is_repacked(const ggml_tensor *t) {
     return bn && strstr(bn, "REPACK");
 }
 
+/* SHIELDED_SOURCE_FLOAT=1 also admits bf16 / f16 weights (Z-Image's noise refiner is
+ * bf16): to_float is exact for both, and the encoder reads float rows like any other
+ * source. Opt-in, so a model whose float weights were never calibrated sees no change
+ * (a claim needs a calibrated site anyway). */
+static inline bool sh_source_float_ok(void) {
+    static const bool on = [] { const char *e = getenv("SHIELDED_SOURCE_FLOAT"); return e && e[0] == '1' && e[1] == 0; }();
+    return on;
+}
 static inline bool sh_source_type_ok(ggml_type t) {
     if (t == GGML_TYPE_Q8_0) return true;
+    if ((t == GGML_TYPE_BF16 || t == GGML_TYPE_F16) && sh_source_float_ok()) {
+        const ggml_type_traits *tr = ggml_get_type_traits(t);
+        return tr && tr->to_float;
+    }
     if (!ggml_is_quantized(t)) return false;
     const ggml_type_traits *tr = ggml_get_type_traits(t);
     return tr && tr->to_float && ggml_blck_size(t) > 0;
