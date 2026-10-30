@@ -1,0 +1,17 @@
+{
+  "invocation": "2af78b2477054a0192c0954c9466360c",
+  "rc": 1,
+  "mainPidFromJournal": 2315675,
+  "runnerPid": 2315705,
+  "claudePid": null,
+  "claudePidNote": "Process completed before root capture; do not fabricate collector admission",
+  "sourceFiles": 114,
+  "readonlyPins": 256,
+  "inputDrift": [],
+  "seedDrift": [],
+  "reason": "Failed to refresh OAuth token: another Claude Code process is refreshing it or exited mid-refresh. This is usually transient; retry in a minute, and if it persists close other Claude Code processes or sign in again",
+  "apiInputTokens": 0,
+  "apiOutputTokens": 0,
+  "status": "TERMINAL_AUTH_ERROR_NOT_RETRIED",
+  "currentUnitMainPID": 0
+}

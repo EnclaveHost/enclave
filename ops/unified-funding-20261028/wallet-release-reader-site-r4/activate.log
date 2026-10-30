@@ -1,0 +1,26 @@
+[queue] START available=34280MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+ACTIVATE us-west
+{"phase": "apex-switched", "cid": "bafybeigpmrrdbibmlqiljg5v6a5bnstuv36ovixm7vbuxsala2hhhu2mea", "verifiedFiles": 1490, "changedRoots": 2, "oldTreePreserved": true, "configSha256": "51f2ef5b4b8df372777c2ae2cdf17dc153b75b258f04caf99c75863b95cb2418", "onlyExistingPathReplaced": "js/boot.js"}
+
+
+{"host": "us-west", "files": 87, "tlsVerified": true}
+ACTIVATE ca-east
+{"phase": "apex-switched", "cid": "bafybeigpmrrdbibmlqiljg5v6a5bnstuv36ovixm7vbuxsala2hhhu2mea", "verifiedFiles": 1490, "changedRoots": 2, "oldTreePreserved": true, "configSha256": "476555c5e4dadb1be46477a01cfc048f99ba014e543a68dcbb24664e28ca8981", "onlyExistingPathReplaced": "js/boot.js"}
+
+
+{"host": "ca-east", "files": 87, "tlsVerified": true}
+ACTIVATE ap-southeast
+{"phase": "apex-switched", "cid": "bafybeigpmrrdbibmlqiljg5v6a5bnstuv36ovixm7vbuxsala2hhhu2mea", "verifiedFiles": 1490, "changedRoots": 2, "oldTreePreserved": true, "configSha256": "566ffc15d206b2a27f94569f08f5462afafb321595be001c7153b8aa0cdd2a03", "onlyExistingPathReplaced": "js/boot.js"}
+
+
+{"host": "ap-southeast", "files": 87, "tlsVerified": true}
+ACTIVATE eu-central
+{"phase": "apex-switched", "cid": "bafybeigpmrrdbibmlqiljg5v6a5bnstuv36ovixm7vbuxsala2hhhu2mea", "verifiedFiles": 1490, "changedRoots": 2, "oldTreePreserved": true, "configSha256": "1a4db6a3a5141f9ba666e414560eb98230fe492cac738c3ca270c58bc5b47bd4", "onlyExistingPathReplaced": "js/boot.js"}
+
+
+{"host": "eu-central", "files": 87, "tlsVerified": true}
+[memory-guard] exit=0 peakTreeRssMiB=77 minHostAvailableMiB=34224
+[memory-guard] at peak: python3:24 curl:13 curl:13 curl:13 python3:13
+[memory-guard] exit=0 peakTreeRssMiB=145 minHostAvailableMiB=34209
+[memory-guard] at peak: node:68 python3:24 curl:13 curl:13 curl:13 python3:13
+[queue] EXIT 0

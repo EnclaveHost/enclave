@@ -9,3 +9,7 @@ Original positive regression failed as expected and is retained. Repaired suite:
 Site build invocation 6bc4696990db4ef083816cad963a4d26 completed under 512 MiB hard / 450 MiB RSS / 27648 MiB available floor / CPU1 / no swap / shared queue and network namespace. New CID bafybeigpmrrdbibmlqiljg5v6a5bnstuv36ovixm7vbuxsala2hhhu2mea, 1490 files: all 1409 non-boot base files preserved, only boot replaced, 80 new files. CAR roundtrip passed. Existing qr.js module-format warning retained. Failed capture used a stale base CID and stopped read-only; corrected capture verified all 1410 current files on all four edges. No production activation yet.
 
 This fixes reader availability, not the remaining old runner lease/release/reserve migration gap. DNS and KVM refunds must not repeat; a62 release must not replay. Future wallet-create r2 delivery is preserved separately as UNVALIDATED.
+
+## Production activation
+
+Invocation350a05fde057405f8f267669423700d0 is terminal success/Main0. All four apex edge roots now serve the new CID. 87 normal TLS HTTPS file hash checks per edge,348 total PASS. No backend restart, signing, refund or funding. Do not rerun completed activation helpers. Browser verification follows separately.

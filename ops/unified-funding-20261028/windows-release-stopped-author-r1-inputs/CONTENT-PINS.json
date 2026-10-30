@@ -1,12 +1,18 @@
 {
+  "HANDOFF-LATEST.md": "7e2b599acfe99eef48f5e1eaef380c580df0b352f67c9d4a5d910dc5dc61818f",
   "PLAN.md": "02482746a3345c56ea9c01e6010a24c4a856938c4cc1d52d6312caa70c546d33",
   "PREPARED.json": "b236ed834117574c1da5603e33ca3089dbdfb3fcd72299077022aa27eac6ab0a",
   "REVIEW-STATUS.txt": "0546945da83c10777a81c792cc6980e09edcf039b96986b1a8a985506f4805c1",
   "ROOT-ADMISSION.md": "939b7c7b62a85a6717c732386360133e908c3bb9dc3fc8912118b52c8815e847",
+  "ROOT-FAILED-ATTEMPT.json": "c212a36e719e3ab0703a7d9701737d043424226b916ff7449315c0003be7f7e0",
   "SOURCE-NOTES.md": "ef989da6b0e94eecc68510d8c641657e705ad10879bb120f47d5d2dcc93ef39e",
   "TASK.txt": "bf78fa85b0c3fa678ced22b932afaf660047f2db4c855a2eab17e9525bc406bf",
   "account-requirements.json": "f7f904f166ddbb3f4c8a0c039b4a520d42823408422fbc2bc8f2861553466d34",
+  "account-verification.json": "8f2349ef4dd4bdced4c14177ee787fb2f6bed2014e08ea0937c064d4e3a9dd00",
   "allowed-edit-paths.json": "1b0f5d627a7963b55f9f5c29ab03d43baf8dec828f75e0cef5bafdb657c1684d",
+  "attempt.json": "c1d4c856fbe0bb1735567c7d94d77b405b6909866738f245af3234f859d00bf0",
+  "claude.out": "22e42b0be92644bfdca4294f1f7536ab5180acc9be3011b56e84207ac99959b4",
+  "claude.rc": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
   "collect-terminal.py": "c0a16176148b0e3abb0acd6fcb10f3aca56257246298653c53183396ac4504c5",
   "dependency-closure.json": "5313387e2866398458ab3c7bd23025c27c967b8c107078ffc463b5b500aa7d0c",
   "evidence/INSTALLED-WINDOWS-ROUTE-PINS.json": "dfc2a8cc7fcf8b8139ee204c9f0ffd4a1b60e7457e2548347115faa44b25e173",
@@ -18,8 +24,11 @@
   "evidence/prior-identity-result.json": "f67e587b31a60a322afd314a9a5dd1de233f8f4990596d970d027f8a0e592482",
   "evidence/signer-callsite-excerpts.json": "e5ee2677b6da006193b1f7634740b06c501e737c44a838d35b27ce3404d45252",
   "evidence/source-manifest.json": "58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929",
+  "finished.json": "a2bae9f57be9fdc0c14033cce866ce61615fa000f32652e2aba1788e2b02ed80",
+  "inner.guard.log": "fd41ce574b023c10c9c2385727d391588e702a54806c53c09426469137485e2b",
   "input-pins.json": "4cc21cdbbc8dcfde2f90b57c01521c05e234c1f3dadcd3a890162d21e9ebfd52",
   "launch-command.txt": "0fe4472246045daed3fdeeddd75a512b9df3e914af3d824b7614688cfc89dbb8",
+  "outer.guard.log": "483202597b63069018609fedbb18d7efe0b5939454608d359a5706fb26f383f2",
   "preparation-audit.json": "bb312571762fb9d36ec529f9c8ee05325ce7a225868543fc7b86fe372d7377c3",
   "prepare.py": "a09a205e9a6c2abdb72f355aaf60c0e9bb7f46304e85110f02cbd4ae2ab4a642",
   "readonly-progress.py": "7657e3cf867451e36d2651f2f8ff67ca30ce88216f3c75459538ce2172b7bf61",
@@ -146,5 +155,6 @@
   "seed/control/windows/vbslike/verify/judge-hv.mjs": "bae3916e4a9ee1c3f4d67503f76b52d93febfbf356375a3321c7fe1fb9781f7f",
   "seed-pins.json": "baffb691d7996893ca296943280431a72788fe16dfd166db26bb3a77546a9d88",
   "seed-provenance.json": "f6e9f12f2e3eafa141fe12af06b06700807ba05cfdeb940506a18b6bebf35ce3",
-  "turn-metric-investigation.json": "9e8987ce7979409ffe37c141e2638409796b08d2f955e1fb8366880b078a3ec8"
+  "turn-metric-investigation.json": "9e8987ce7979409ffe37c141e2638409796b08d2f955e1fb8366880b078a3ec8",
+  "unit-failure.log": "a6b438536ac5ec80ad109c8153fa2ce22fafaf31a37b8e1e427e87f660e8d38b"
 }
