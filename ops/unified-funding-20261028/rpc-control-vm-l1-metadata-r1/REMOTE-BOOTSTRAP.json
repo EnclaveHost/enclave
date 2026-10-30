@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.46586164785549045,
+  "stdout": "RESULT_JSON={\"action\": \"bootstrap\", \"errors\": [], \"executableMount\": {\"device\": \"8:1\", \"fstype\": \"ext4\", \"options\": [\"commit=30\", \"discard\", \"errors=remount-ro\", \"relatime\", \"rw\"], \"source\": \"/dev/sda1\", \"target\": \"/\"}, \"lastHeadroom\": {\"available\": 7257780224, \"existingRemainingCapGrowth\": 2401206272, \"floor\": 1610612736, \"helperCurrent\": 9728000, \"helperMaximum\": 268435456, \"residual\": 4597866496}, \"loadModule\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.009373179054819047, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}, \"ok\": true, \"runMount\": {\"device\": \"0:26\", \"fstype\": \"tmpfs\", \"options\": [\"inode64\", \"mode=755\", \"nodev\", \"noexec\", \"nosuid\", \"relatime\", \"rw\", \"size=813120k\"], \"source\": \"tmpfs\", \"target\": \"/run\"}, \"state\": {\"claimed\": false, \"deviceNumber\": \"43:7\", \"execIdentity\": [2049, 1843869], \"moduleInitiallyLoaded\": false, \"moduleLoadedByFixture\": true, \"nonce\": \"a68c1fb3-322c-4a6e-b8c3-39c119c47b13\", \"rootIdentity\": [26, 19966], \"stopPostSha256\": \"58aaef89e404567db9dbd2881230722f42f858f9ea0bc6db4e0406e426348161\", \"unitPrefix\": \"enclave-rpc-l1-metadata-\"}}\n",
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+  "bytesObserved": {
+    "stdout": 1356,
+    "stderr": 222
+  },
+  "stdinBytesWritten": 61643,
+  "stdinBytesRequested": 61643,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

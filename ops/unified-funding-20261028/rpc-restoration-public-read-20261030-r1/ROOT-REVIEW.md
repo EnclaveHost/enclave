@@ -1,0 +1,1 @@
+One read-only HEAD attempt per original app URL failed locally with temporary name-resolution errors. This is NOT proof of app downtime or running state. No retries, payment, funding, refund, mutation or RPC request. Invocation f244683ff4024f44a4c3d4ee8f4d1053. Retain failures; restore status remains unverified.

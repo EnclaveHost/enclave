@@ -1,0 +1,11 @@
+{
+  "authorized": true,
+  "scope": "actual-l1-cow-metadata-r1",
+  "pinsSha256": "668fdcfe6d8b833db86d4a4e12f14ac2fcc2c8c875a0ccadebaf6226a069623d",
+  "at": 1793364197.8799748,
+  "review": "Exact parent identity/header/OFD holds and backing-chain check; new private COW on same filesystem, readonly exporter and nbd-R/sysfsRO/clean-superblock/ro-noload. Only public config and bounded fixed metadata. Preserve300GB NVMe floor, existing seven service caps and dynamic1536MiB residual. No original writes, journal replay, client, funding or consumer change. Independent stop-post and separate cleanup verification required.",
+  "maxMiB": 512,
+  "rssMiB": 450,
+  "hostFloorMiB": 27648,
+  "CPU": 1
+}

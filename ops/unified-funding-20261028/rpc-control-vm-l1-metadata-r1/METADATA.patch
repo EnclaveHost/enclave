@@ -1,0 +1,428 @@
+--- qualified-r2/remote-body.py
++++ l1-metadata/remote-body.py
+@@ -1,11 +1,11 @@
+ # PREPARED ONLY. Invoked by root in a dedicated bounded systemd unit.
+-import pathlib, json, hashlib, stat, socket, struct, errno, mmap, fcntl, sys, resource
++import pathlib, json, hashlib, stat, socket, struct, errno, mmap, fcntl, sys, resource, tomllib
+ P=pathlib.Path
+ M=json.loads(MANIFEST_JSON);ACTION=ACTION_VALUE
+-ROOT=P('/run/enclave-rpc-nbd-fixture-r2');STATE=ROOT/'state.json'
+-EXEC=P('/var/lib/enclave-rpc-nbd-fixture-r2')
++ROOT=P('/run/enclave-rpc-l1-metadata-r1');STATE=ROOT/'state.json'
++EXEC=P('/var/lib/enclave-rpc-l1-metadata-r1')
+ DEV=P('/dev/nbd7');SYS=P('/sys/block/nbd7');MOUNT=ROOT/'mnt'
+-out={'action':ACTION,'ok':False,'errors':[]};client=None;mounted=False
++out={'action':ACTION,'ok':False,'errors':[]};client=None;mounted=False;cleaning=False
+ def sha(p):
+     with P(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+ def read(p):return P(p).read_text().strip()
+@@ -31,6 +31,25 @@
+         if cols[4]==str(MOUNT):lines.append(cols)
+     return lines
+ def unitof(pid):return read('/proc/'+str(pid)+'/cgroup')
++def headroom():
++    global last_guard
++    if cleaning or ACTION in ('cleanup','verify','stop-post'):return
++    now=time.monotonic()
++    if now-last_guard<.5:return
++    last_guard=now
++    available=next(int(l.split()[1])*1024 for l in P('/proc/meminfo').read_text().splitlines() if l.startswith('MemAvailable:'))
++    growth=0
++    for unit,mib in M['serviceCapsMiB'].items():
++        q=P('/sys/fs/cgroup/system.slice')/unit
++        maximum=int(read(q/'memory.max'));current=int(read(q/'memory.current'))
++        assert maximum==mib*(1<<20),'existing-service-cap-changed'
++        growth+=max(0,maximum-current)
++    cg=read('/proc/self/cgroup');q=P('/sys/fs/cgroup'+cg[3:]);maximum=int(read(q/'memory.max'));current=int(read(q/'memory.current'))
++    residual=available-growth-max(0,maximum-current)
++    assert residual>=1536*(1<<20),'service-growth-residual-floor'
++    out['lastHeadroom']={'available':available,'existingRemainingCapGrowth':growth,'helperMaximum':maximum,'helperCurrent':current,'residual':residual,'floor':1536*(1<<20)}
++last_guard=0
++CAPTURE_GUARD=headroom
+ def mount_policy(path):
+     resolved=P(path).resolve();entries=[]
+     for line in P('/proc/self/mountinfo').read_text().splitlines():
+@@ -82,6 +101,8 @@
+             else:raise RuntimeError('forward-still-live')
+         q.unlink()
+ def detach(s):
++    global cleaning
++    cleaning=True
+     rows=mounts()
+     if rows:
+         assert len(rows)==1 and rows[0][2]==s['deviceNumber'],'foreign-mount'
+@@ -93,7 +114,7 @@
+         if current:
+             assert unitof(current)==s.get('attachCgroup') and (not s.get('nbdPid') or current==s['nbdPid']),'foreign-nbd-pid'
+         assert size() in (0,M['bytes']),'device-size-drift'
+-        cmd('detach',['/var/lib/enclave-rpc-nbd-fixture-r2/nbd-client','-d',str(DEV)],8)
++        cmd('detach',['/var/lib/enclave-rpc-l1-metadata-r1/nbd-client','-d',str(DEV)],8)
+     until=time.monotonic()+5
+     while not idle() and time.monotonic()<until:time.sleep(.1)
+     assert idle() and not mounts(),'device-cleanup-incomplete'
+@@ -121,18 +142,18 @@
+             if typ==3 and len(data)>=12 and struct.unpack_from('>H',data)[0]==0:
+                 _,nbytes,transmission=struct.unpack_from('>HQH',data);info={'bytes':nbytes,'flags':transmission}
+             if typ==1:
+-                assert info and info['bytes']==M['bytes'] and info['flags']&1 and info['flags']&4 and info['flags']&8,'export-size-flush-fua'
++                assert info and info['bytes']==M['bytes'] and info['flags']&1 and info['flags']&2,'export-size-readonly'
+                 sock.sendall(struct.pack('>QII',opts,2,0));return info
+         raise RuntimeError('NBD-reply-limit')
+ try:
+     os.umask(0o077)
+     resource.setrlimit(resource.RLIMIT_FSIZE,(1<<20,1<<20))
+     assert os.geteuid()==0 and read('/proc/sys/kernel/random/boot_id')==M['bootId']
+-    cg=read('/proc/self/cgroup');assert cg.startswith('0::/system.slice/enclave-rpc-nbd-fixture-') and cg.endswith('.service')
++    cg=read('/proc/self/cgroup');assert cg.startswith('0::/system.slice/enclave-rpc-l1-metadata-') and cg.endswith('.service')
+     c=P('/sys/fs/cgroup'+cg[3:]);assert read(c/'memory.max')==str(256<<20) and read(c/'memory.swap.max')=='0'
+     if ACTION not in ('cleanup','verify','stop-post'):
+         available=next(int(l.split()[1]) for l in P('/proc/meminfo').read_text().splitlines() if l.startswith('MemAvailable:'))
+-        assert available>=5632*1024,'memory-floor'
++        headroom()
+     for row in M['remotePins']:pin(row)
+     def termination(signum,frame):raise RuntimeError('unit-termination')
+     signal.signal(signal.SIGTERM,termination)
+@@ -158,7 +179,7 @@
+         st=DEV.stat();s['deviceNumber']=str(os.major(st.st_rdev))+':'+str(os.minor(st.st_rdev))
+         assert not device_mounts(s['deviceNumber']),'preexisting-device-mount'
+         save(s);out['state']=s
+-    elif ACTION in ('write','read','crash','disconnect'):
++    elif ACTION=='read':
+         assert ROOT.stat().st_uid==0 and stat.S_IMODE(ROOT.stat().st_mode)==0o700 and not ROOT.is_symlink()
+         s=state();assert idle() and not device_mounts(s['deviceNumber'])
+         assert sha(EXEC/'nbd-client')==M['client']['sha256']
+@@ -171,7 +192,7 @@
+         time.sleep(.2)
+         s['claimed']=True;s['attachCgroup']=cg;s['socketIdentity']=[st.st_dev,st.st_ino];save(s)
+         log=(ROOT/(ACTION+'-client.log')).open('xb')
+-        client=subprocess.Popen([str(EXEC/'nbd-client'),'-n','-L','-u','-N',M['exportName'],'-t','5','-b','4096',M['remoteSocket'],str(DEV)],
++        client=subprocess.Popen([str(EXEC/'nbd-client'),'-n','-L','-R','-u','-N',M['exportName'],'-t','5','-b','4096',M['remoteSocket'],str(DEV)],
+                                 stdin=subprocess.DEVNULL,stdout=log,stderr=log,env={'PATH':'/usr/sbin:/usr/bin:/sbin:/bin','LANG':'C'},start_new_session=True)
+         until=time.monotonic()+8
+         while (size()!=M['bytes'] or not pidof()) and time.monotonic()<until:time.sleep(.1)
+@@ -179,69 +200,72 @@
+         s['nbdPid']=pidof();assert unitof(s['nbdPid'])==cg,'attach-owner';save(s)
+         uuid=cmd('filesystemUuid',['/usr/sbin/blkid','-p','-s','UUID','-o','value',str(DEV)]).strip()
+         assert uuid==M['uuid'],'filesystem-uuid'
+-        if ACTION in ('write','read'):
+-            cmd('mount',['/usr/bin/mount','-t','ext4','-o','rw,nosuid,nodev,noexec',str(DEV),str(MOUNT)])
+-            assert len(mounts())==1 and mounts()[0][2]==s['deviceNumber']
+-            file=MOUNT/'durability.bin';data=(M['payload']+'\n').encode()*4096
+-            if ACTION=='write':
+-                with file.open('xb') as f:f.write(data);f.flush();os.fsync(f.fileno())
+-                d=os.open(MOUNT,os.O_RDONLY|os.O_DIRECTORY)
+-                try:os.fsync(d)
+-                finally:os.close(d)
+-            else:assert file.read_bytes()==data,'reopen-data-mismatch'
+-            out['dataSha256']=sha(file);out['dataBytes']=len(data)
+-        elif ACTION=='crash':
+-            print('ARMED_UNIT_CRASH',flush=True)
+-            os.kill(os.getpid(),signal.SIGKILL)
+-            raise RuntimeError('SIGKILL-returned')
+-        else:
+-            # Unmounted O_DIRECT read after tunnel loss cannot pass from page cache.
+-            fd=os.open(DEV,os.O_RDONLY|os.O_DIRECT);buf=mmap.mmap(-1,4096)
+-            try:
+-                print('READY_DISCONNECT',flush=True);time.sleep(2)
+-                os.lseek(fd,8<<20,os.SEEK_SET)
+-                try:os.readv(fd,[buf])
+-                except OSError as e:
+-                    assert e.errno in (errno.EIO,errno.ENODEV,errno.ENOTCONN,errno.ESHUTDOWN,errno.ETIMEDOUT)
+-                    out['disconnectErrno']=e.errno
+-                else:raise RuntimeError('read-succeeded-after-disconnect')
+-            finally:buf.close();os.close(fd)
++        assert read(SYS/'ro')=='1','device-not-readonly'
++        fd=os.open(DEV,os.O_RDONLY)
++        try:superblock=os.pread(fd,1024,1024)
++        finally:os.close(fd)
++        assert len(superblock)==1024 and struct.unpack_from('<H',superblock,56)[0]==0xef53
++        fsstate=struct.unpack_from('<H',superblock,58)[0];incompat=struct.unpack_from('<I',superblock,96)[0]
++        out['filesystemSuperblock']={'state':fsstate,'incompat':incompat,'needsRecovery':bool(incompat&4)}
++        assert fsstate&1 and not incompat&4,'filesystem-needs-recovery-before-read'
++        cmd('mount',['/usr/bin/mount','-t','ext4','-o','ro,noload,nosuid,nodev,noexec',str(DEV),str(MOUNT)])
++        rows=mounts();assert len(rows)==1 and rows[0][2]==s['deviceNumber'] and 'ro' in rows[0][5].split(',')
++        out['mounted']={'filesystemOptions':rows[0][rows[0].index('-')+3],'uuid':uuid,'deviceNumber':s['deviceNumber'],'path':str(MOUNT),'options':rows[0][5],'expectedProductionMount':M['expectedProductionMount']}
++        def confined(rel):
++            q=MOUNT
++            for part in P(rel).parts:
++                assert part not in ('..','.','')
++                q=q/part;st=q.lstat();assert not stat.S_ISLNK(st.st_mode),'symlink-not-admitted'
++            return q
++        def meta(rel,required=False):
++            headroom()
++            try:q=confined(rel);st=q.stat()
++            except FileNotFoundError:
++                assert not required,'required-path-missing:'+rel
++                return {'present':False}
++            return {'present':True,'bytes':st.st_size,'mode':st.st_mode,'inode':st.st_ino,'mtimeNs':st.st_mtime_ns,'directory':stat.S_ISDIR(st.st_mode),'regular':stat.S_ISREG(st.st_mode)}
++        out['paths']={rel:meta(rel,rel in ('snapshot-complete','data','data/reth.toml','data/db','data/static_files')) for rel in ('snapshot-complete','data','data/reth.toml','data/db','data/db/mdbx.dat','data/static_files','cl','cl/beacon','cl/beacon/chain_db','anchor/state.ssz','anchor/block.ssz')}
++        q=confined('data/reth.toml');assert q.is_file() and q.stat().st_size<=1<<20
++        raw=q.read_bytes();profile=tomllib.loads(raw.decode())
++        assert profile.get('static_files',{}).get('blocks_per_file'),'missing-static-segment-config'
++        assert isinstance(profile.get('prune'),dict),'missing-prune-profile'
++        # Standard Reth TOML is public configuration. Refuse unexpected key-bearing fields.
++        assert not any(word in raw.lower() for word in (b'private_key',b'jwtsecret',b'jwt_secret',b'password')),'unexpected-sensitive-config-field'
++        out['effectiveRethToml']={'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest(),'text':raw.decode(),'parsed':profile}
++        out['staticFiles']=[]
++        for index,q in enumerate(confined('data/static_files').iterdir()):
++            headroom();assert index<1024,'static-inventory-limit'
++            st=q.lstat();assert not stat.S_ISLNK(st.st_mode),'static-symlink'
++            out['staticFiles'].append({'name':q.name,'bytes':st.st_size,'mode':st.st_mode,'mtimeNs':st.st_mtime_ns})
++        out['staticFiles'].sort(key=lambda x:x['name'])
++        marker=confined('snapshot-complete');assert marker.is_file() and marker.stat().st_size<=65536
++        raw=marker.read_bytes();out['snapshotMarker']={'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()}
++        out['clientStarted']=False;out['configModified']=False;out['databaseContentRead']=False
+         detach(s)
+     elif ACTION=='stop-post':
+         s=state();assert sha(ROOT/'stop-post.py')==s['stopPostSha256']
+         if SYS.exists() and 'deviceNumber' in s:detach(s)
+         elif SYS.exists():assert idle(),'partial-bootstrap-active-device'
+         out['stopPostDetached']=not SYS.exists() or idle()
+-    elif ACTION=='crash-verify':
+-        s=state();assert not s['claimed'] and idle() and not device_mounts(s['deviceNumber']),'crash-cleanup-incomplete'
+-        value=cmd('crashUnit',['/usr/bin/systemctl','show','enclave-rpc-nbd-fixture-crash-r2.service','--property=ActiveState,MainPID,ExecMainCode,ExecMainStatus,Result,ControlGroup,InvocationID'])
+-        props=dict(l.split('=',1) for l in value.splitlines() if '=' in l)
+-        assert props['ActiveState']=='failed' and props['MainPID']=='0' and props['ExecMainCode']=='2' and props['ExecMainStatus']=='9' and props['Result']=='signal','not-actual-main-SIGKILL'
+-        if props.get('ControlGroup'):
+-            path=P('/sys/fs/cgroup'+props['ControlGroup'])
+-            assert not path.exists() or all(not q.read_text().strip() for q in path.rglob('cgroup.procs')),'crash-processes-remain'
+-        out['actualAbruptCleanupVerified']=True
+     elif ACTION=='cleanup':
+         assert ROOT.is_dir() and ROOT.stat().st_uid==0
+         s=state()
+         if SYS.exists():detach(s)
+-        for name in ('bootstrap','write','read','crash','disconnect'):
+-            unit='enclave-rpc-nbd-fixture-'+name+'-r2.service'
++        for name in ('bootstrap','read'):
++            unit='enclave-rpc-l1-metadata-'+name+'-r1.service'
+             cmd('stop:'+name,['/usr/bin/systemctl','stop',unit],8,allowed=(0,5))
+         if s.get('moduleLoadedByFixture') and P('/sys/module/nbd').exists():
+             for q in P('/sys/block').glob('nbd*'):
+                 assert int(read(q/'size'))==0 and (not(q/'pid').exists() or read(q/'pid') in ('','0')) and not list((q/'holders').iterdir()),'other-nbd-active'
+             cmd('unloadModule',['/usr/sbin/modprobe','-r','nbd'],8)
+         s['cleanupCompleted']=True;save(s);out['state']=s
+-    elif ACTION=='socket-clear':
+-        s=state();assert idle() and not device_mounts(s['deviceNumber']);clear_socket(s)
+     elif ACTION=='verify':
+         s=state();assert s.get('cleanupCompleted') and not device_mounts(s['deviceNumber'])
+         assert not SYS.exists() or idle()
+         if s.get('moduleLoadedByFixture'):assert not P('/sys/module/nbd').exists()
+         units=[]
+-        for name in ('policy','bootstrap','write','read','crash','crash-verify','disconnect','socket-clear-1','socket-clear-2','socket-clear-3','cleanup'):
+-            unit='enclave-rpc-nbd-fixture-'+name+'-r2.service'
++        for name in ('policy','bootstrap','read','cleanup'):
++            unit='enclave-rpc-l1-metadata-'+name+'-r1.service'
+             value=cmd('unit:'+name,['/usr/bin/systemctl','show',unit,'--property=ActiveState,SubState,ControlGroup,MainPID,InvocationID'],3)
+             props=dict(l.split('=',1) for l in value.splitlines() if '=' in l)
+             assert props.get('ActiveState') in ('inactive','failed') and props.get('MainPID')=='0','unit-still-live'
+@@ -255,7 +279,7 @@
+     out['ok']=True
+ except Exception as e:out['errors'].append(type(e).__name__+':'+str(e)[:200])
+ finally:
+-    if ACTION in ('write','read','crash','disconnect') and STATE.exists():
++    if ACTION in ('read',) and STATE.exists():
+         try:detach(state())
+         except Exception as e:out['ok']=False;out['errors'].append('cleanup:'+type(e).__name__+':'+str(e)[:160])
+     if client is not None:
+--- qualified-r2/run-body.py
++++ l1-metadata/run-body.py
+@@ -1,9 +1,9 @@
+-# PREPARED ONLY. Root admission required; all image paths are new disposable fixtures.
++# PREPARED ONLY. Root admission required; actual parent read-only, private persistent COW.
+ from pathlib import Path
+ import hashlib,json,fcntl,struct,stat,sys,resource
+-P=Path(__file__).resolve().parent;M=json.loads((P/'FIXTURE.json').read_text())
+-art=P/'artifacts';sockdir=Path('/run/user/1000/rpc-nbd-fixture-r2')
+-parent=art/'parent.raw';overlay=art/'overlay.qcow2';recovered=art/'recovered.raw'
++P=Path(__file__).resolve().parent;M=json.loads((P/'MANIFEST.json').read_text())
++art=Path(M['overlayDirectory']);sockdir=Path('/run/user/1000/rpc-l1-metadata-r1')
++parent=Path(M['parent']['path']);overlay=art/'overlay.qcow2'
+ exporter=None;tunnel=None;lockfd=None;remote_attempted=False;cut=False
+ results={};errors=[];owned=[];cleaning=False;remote_calls={}
+ def sha(p):
+@@ -16,12 +16,13 @@
+         q=Path(row['path']);assert str(q.resolve())==row['realpath'] and q.stat().st_size==row['bytes'] and sha(q)==row['sha256'],'external-drift'
+ def guard():
+     if cleaning:return
++    if lockfd is not None:parent_identity()
+     available=next(int(l.split()[1]) for l in Path('/proc/meminfo').read_text().splitlines() if l.startswith('MemAvailable:'))
+     assert available>=27648*1024,'host-memory-floor'
+-    fs=os.statvfs(P);assert fs.f_bavail*fs.f_frsize>=2<<30,'host-disk-floor'
++    fs=os.statvfs(art.parent);assert fs.f_bavail*fs.f_frsize>=300000000000,'nvme-disk-floor'
+     if art.exists():
+         used=sum(q.stat().st_blocks*512 for q in art.iterdir() if q.is_file())
+-        assert used<=256<<20,'fixture-disk-cap'
++        assert used<=128<<20,'metadata-overlay-disk-cap'
+         for q in art.glob('*.log'):assert q.stat().st_size<=1<<20,'log-cap'
+     for row in owned:
+         if not row['closed']:
+@@ -67,25 +68,15 @@
+     if action=='bootstrap':script+='STOP_POST_SOURCE='+repr(prefix+"ACTION_VALUE='stop-post'\n"+body)+'\n'
+     script+=body
+     assert len(script.encode())<=131072
+-    unit='enclave-rpc-nbd-fixture-'+call_name+'-r2'
+-    post=" '--property=ExecStopPost=/usr/bin/python3 -B /run/enclave-rpc-nbd-fixture-r2/stop-post.py'" if action in ('write','read','crash','disconnect') else ''
++    unit='enclave-rpc-l1-metadata-'+call_name+'-r1'
++    post=" '--property=ExecStopPost=/usr/bin/python3 -B /run/enclave-rpc-l1-metadata-r1/stop-post.py'" if action=='read' else ''
+     cmd='/usr/bin/sudo -n /usr/bin/systemd-run --quiet --wait --pipe --unit='+unit+' --property=RuntimeMaxSec=55 --property=TimeoutStopSec=25 --property=MemoryMax=256M --property=MemorySwapMax=0 --property=CPUQuota=100% --property=TasksMax=32 --property=KillMode=control-group --property=UMask=0077'+post+' /usr/bin/python3 -B -'
+-    seen=bytearray()
+-    def progress(data):
+-        global cut
+-        seen.extend(data[:max(0,256-len(seen))])
+-        if action=='disconnect' and not cut and b'READY_DISCONNECT\n' in seen:
+-            stop(tunnel);cut=True
+-    r=capture([*sshargs(),M['target'],cmd],95,stdin=script.encode(),limit=262144,on_stdout=progress)
++    r=capture([*sshargs(),M['target'],cmd],95,stdin=script.encode(),limit=1048576)
+     results['remote:'+call_name]=r;record('REMOTE-'+call_name.upper()+'.json',r)
+-    assert (r['rc'] not in (None,0) if action=='crash' else r['rc']==0) and not r['reason'] and not r['truncated'],'remote:'+action
++    assert r['rc']==0 and not r['reason'] and not r['truncated'],'remote:'+action
+     lines=[l.removeprefix('RESULT_JSON=') for l in r['stdout'].splitlines() if l.startswith('RESULT_JSON=')]
+-    if action=='crash':
+-        assert not lines and 'ARMED_UNIT_CRASH\n' in r['stdout'],'crash-not-armed'
+-        value={'expectedAbruptExit':True}
+-    else:
+-        assert len(lines)==1;value=json.loads(lines[0]);assert value['ok'] and not value['errors'],'remote-result:'+action
+-    if action in ('write','read','crash','disconnect'):
++    assert len(lines)==1;value=json.loads(lines[0]);assert value['ok'] and not value['errors'],'remote-result:'+action
++    if action=='read':
+         post=[json.loads(l.removeprefix('STOP_POST_JSON=')) for l in r['stdout'].splitlines() if l.startswith('STOP_POST_JSON=')]
+         assert len(post)==1 and post[0]['ok'] and post[0].get('stopPostDetached') and not post[0]['errors'],'stop-post-not-proven'
+     return value
+@@ -95,7 +86,7 @@
+     # Remove only a closed socket from a previously owned exporter.
+     if socket.exists():
+         assert exporter and exporter['closed'] and stat.S_ISSOCK(socket.lstat().st_mode);socket.unlink()
+-    exporter=background('export-'+label,[M['qemuNbd'],'--persistent','--shared=1','--socket',str(socket),
++    exporter=background('export-'+label,[M['qemuNbd'],'--read-only','--persistent','--shared=1','--socket',str(socket),
+        '--export-name',M['exportName'],'--format=qcow2','--cache=none','--aio=threads',str(overlay)])
+     until=time.monotonic()+5
+     while not socket.exists() and time.monotonic()<until:guard();time.sleep(.1)
+@@ -106,68 +97,76 @@
+     time.sleep(1);guard()
+ def stop_export():
+     stop(tunnel);stop(exporter)
++def parent_identity():
++    q=parent.lstat();row=M['parent']
++    assert not parent.is_symlink() and [q.st_dev,q.st_ino,q.st_size,q.st_mtime_ns,q.st_ctime_ns,q.st_mode]==[row[k] for k in ('device','inode','bytes','mtimeNs','ctimeNs','mode')],'parent-identity-drift'
++    if lockfd is not None:
++        f=os.fstat(lockfd);assert (f.st_dev,f.st_ino)==(q.st_dev,q.st_ino),'held-parent-path-drift'
++    return {'device':q.st_dev,'inode':q.st_ino,'bytes':q.st_size,'mtimeNs':q.st_mtime_ns,'ctimeNs':q.st_ctime_ns}
++def header_pin():
++    with parent.open('rb') as f:b=f.read(104)
++    assert len(b)==104 and hashlib.sha256(b).hexdigest()==M['parent']['header104Sha256'],'parent-header-drift'
++    magic,version,backing,backing_size,bits,nbytes=struct.unpack_from('>IIQIIQ',b)
++    assert magic==0x514649fb and version==3 and backing==0 and backing_size==0 and nbytes==M['bytes'],'unexpected-parent-layout'
+ def run():
+     global lockfd,remote_attempted
+     os.umask(0o077);verify()
+     a=json.loads((P/'ROOT-ADMISSION.json').read_text())
+-    assert a['authorized'] is True and a['scope']=='disposable-control-vm-nbd-fixture-r2' and a['pinsSha256']==sha(P/'PINS.json') and 0<=time.time()-a['at']<=300
++    assert a['authorized'] is True and a['scope']=='actual-l1-cow-metadata-r1' and a['pinsSha256']==sha(P/'PINS.json') and 0<=time.time()-a['at']<=300
+     assert os.sched_getaffinity(0)=={1} and os.uname().machine=='x86_64'
+     cg=Path('/proc/self/cgroup').read_text().strip();assert cg.startswith('0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-') and cg.endswith('.scope')
+     c=Path('/sys/fs/cgroup'+cg[3:]);assert (c/'memory.max').read_text().strip()==str(512<<20) and (c/'memory.swap.max').read_text().strip()=='0'
+-    guard();record('ATTEMPT.json',{'at':time.time(),'scope':cg,'pinsSha256':sha(P/'PINS.json'),'disposableOnly':True,'noRetry':True})
++    guard();parent_identity();header_pin()
++    record('ATTEMPT.json',{'at':time.time(),'scope':cg,'pinsSha256':sha(P/'PINS.json'),'originalReadOnly':True,'clientStart':False,'noRetry':True})
+     art.mkdir(mode=0o700);sockdir.mkdir(mode=0o700)
++    assert art.stat().st_dev==M['parent']['device'],'overlay-not-on-parent-filesystem'
+     resource.setrlimit(resource.RLIMIT_FSIZE,(96<<20,96<<20))
+-    with parent.open('xb') as f:f.truncate(M['bytes'])
+-    command('mkfs',[M['mke2fs'],'-q','-F','-t','ext4','-b','4096','-U',M['uuid'],'-E','lazy_itable_init=0,lazy_journal_init=0',str(parent)],12)
+-    results['parentSha256Before']=sha(parent)
+     lockfd=os.open(parent,os.O_RDONLY|os.O_NOFOLLOW|os.O_CLOEXEC)
+     for byte in (201,202,203):fcntl.fcntl(lockfd,fcntl.F_OFD_SETLK,struct.pack('@hhqqi4x',fcntl.F_RDLCK,os.SEEK_SET,byte,1,0))
+     occupied=fcntl.fcntl(lockfd,fcntl.F_OFD_GETLK,struct.pack('@hhqqi4x',fcntl.F_WRLCK,os.SEEK_SET,100,200,0))
+-    assert struct.unpack('@hhqqi4x',occupied)[0]==fcntl.F_UNLCK
+-    command('createOverlay',[M['qemuImg'],'create','-f','qcow2','-F','raw','-b',str(parent),str(overlay)],8)
++    assert struct.unpack('@hhqqi4x',occupied)[0]==fcntl.F_UNLCK,'competing-qemu-holder'
++    parent_identity();header_pin()
++    r=command('parentInfo',[M['qemuImg'],'info','--output=json','--backing-chain',str(parent)],10)
++    chain=json.loads(r['stdout']);assert isinstance(chain,list) and len(chain)==1
++    info=chain[0];assert info['format']=='qcow2' and info['virtual-size']==M['bytes'] and not info.get('backing-filename') and not info.get('encrypted')
++    assert not (info.get('format-specific',{}).get('data',{}).get('data-file')),'external-data-file-not-admitted'
++    command('createPrivateOverlay',[M['qemuImg'],'create','-f','qcow2','-F','qcow2','-b',str(parent),str(overlay)],10)
++    r=command('overlayInfo',[M['qemuImg'],'info','--output=json','--backing-chain',str(overlay)],10)
++    chain=json.loads(r['stdout']);assert len(chain)==2 and chain[0]['format']=='qcow2' and chain[0]['virtual-size']==M['bytes']
++    assert chain[0].get('full-backing-filename',chain[0].get('backing-filename'))==str(parent) and chain[1]['filename']==str(parent) and chain[1]['format']=='qcow2'
+     remote('policy')
+-    setup="import pathlib,os,json;os.umask(0o077);p=pathlib.Path("+repr(str(Path(M['remoteSocket']).parent))+ ");p.mkdir(mode=0o700);print(json.dumps({'path':str(p),'uid':p.stat().st_uid,'mode':oct(p.stat().st_mode&511)}))"
++    setup="import pathlib,os,json;os.umask(0o077);p=pathlib.Path("+repr(str(Path(M['remoteSocket']).parent))+");p.mkdir(mode=0o700);print(json.dumps({'path':str(p),'uid':p.stat().st_uid,'mode':oct(p.stat().st_mode&511)}))"
+     r=capture([*sshargs(),M['target'],'/usr/bin/python3 -B -'],8,stdin=setup.encode(),limit=4096)
+     results['remoteSocketDirectory']=r;assert r['rc']==0 and not r['reason']
+-    remote_attempted=True;remote('bootstrap')
+-    start_export('write')
+-    for name,fmt,path in [('overlay','qcow2',overlay),('parent','raw',parent)]:
+-        r=capture([M['qemuNbd'],'--socket',str(sockdir/(name+'-second.sock')),'--format='+fmt,str(path)],3,limit=16384)
+-        results['secondWriter:'+name]=r
+-        assert r['rc']==1 and not r['reason'] and any(message in r['stderr'] for message in ('Failed to get \"write\" lock','Failed to get shared \"write\" lock')),'second-writer-not-rejected'
+-    remote('write');stop_export()
+-    # SSH normally removes its remote socket; confirm/remove stale unbound owned
+-    # socket before another -R using a separate authenticated root action.
+-    remote('socket-clear')
+-    command('checkAfterWrite',[M['qemuImg'],'check','-f','qcow2',str(overlay)],10)
+-    start_export('read');remote('read');stop_export();remote('socket-clear')
+-    command('convertReadback',[M['qemuImg'],'convert','-f','qcow2','-O','raw',str(overlay),str(recovered)],15)
+-    command('filesystemCheck',[M['e2fsck'],'-f','-n',str(recovered)],12)
+-    start_export('crash');remote('crash');remote('crash-verify');stop_export();remote('socket-clear')
+-    start_export('disconnect');remote('disconnect');assert cut,'tunnel-not-cut'
+-    assert sha(parent)==results['parentSha256Before'],'parent-mutated'
+-    results['parentSha256After']=sha(parent)
++    remote_attempted=True;remote('bootstrap');start_export('metadata')
++    value=remote('read')
++    record('MOUNTED-METADATA.json',value)
++    raw=value['effectiveRethToml']['text'].encode()
++    assert hashlib.sha256(raw).hexdigest()==value['effectiveRethToml']['sha256']
++    with (P/'actual-reth.toml').open('xb') as f:f.write(raw)
++    parent_identity();header_pin()
++    results['parentIdentityAfterRead']=parent_identity()
+ try:
+     run()
+ except Exception as e:errors.append(type(e).__name__+':'+str(e)[:220])
+ finally:
+-    cleaning=True
+-    cleaned=False
++    cleaning=True;cleaned=False
+     if remote_attempted:
+-        try:
+-            remote('cleanup');stop(tunnel);remote('verify');cleaned=True
++        try:remote('cleanup');stop(tunnel);remote('verify');cleaned=True
+         except Exception as e:errors.append('independent-cleanup:'+type(e).__name__+':'+str(e)[:180])
+     for row in reversed(owned):
+         try:stop(row)
+         except Exception as e:errors.append('local-cleanup:'+type(e).__name__)
+     if lockfd is not None:
+-        if remote_attempted and not cleaned:errors.append('DISPOSABLE_ONLY_EMERGENCY_RELEASE_REMOTE_CLEANUP_UNPROVEN')
++        try:parent_identity();header_pin()
++        except Exception as e:errors.append('parent-final:'+type(e).__name__)
++        if remote_attempted and not cleaned:errors.append('REMOTE_CLEANUP_UNPROVEN_NO_CLIENT_ADMISSION')
+         os.close(lockfd)
+     if (P/'ATTEMPT.json').exists():
+         try:verify()
+         except Exception as e:errors.append('input-drift:'+type(e).__name__)
+-        status='DISPOSABLE_STORAGE_PASSED_NOT_PRODUCTION_ADMITTED' if not errors and cleaned else 'FIXTURE_FAILED_NO_RETRY'
+-        record('RESULT.json',{'status':status,'errors':errors,'results':results,'remoteCleanupVerified':cleaned,'chainDisksTouched':False,'chainClientsStarted':False,'productionChanged':False})
++        status='ACTUAL_L1_METADATA_READ_NO_CLIENT_ADMISSION' if not errors and cleaned else 'METADATA_FAILED_NO_RETRY'
++        record('RESULT.json',{'status':status,'errors':errors,'results':results,'remoteCleanupVerified':cleaned,'originalWritten':False,'chainClientsStarted':False,'overlayRetained':str(overlay),'productionChanged':False})
+         print(json.dumps({'status':status,'errors':errors,'remoteCleanupVerified':cleaned}))
+-    else:print(json.dumps({'status':'REFUSED_BEFORE_FIXTURE','errors':errors}))
++    else:print(json.dumps({'status':'REFUSED_BEFORE_METADATA','errors':errors}))
+ sys.exit(0 if not errors and cleaned else 2)
+--- qualified-r2/capture-remote.py
++++ l1-metadata/capture-remote.py
+@@ -1,6 +1,7 @@
+ """Bounded read-command capture; source only until root admission."""
+ import os, selectors, signal, subprocess, time
+ 
++CAPTURE_GUARD=None
+ def capture(argv, seconds, stdin=None, limit=1048576):
+     started = time.monotonic()
+     deadline = started + seconds
+@@ -39,6 +40,7 @@
+             if len(payload): sel.register(child.stdin, selectors.EVENT_WRITE, 'stdin')
+             else: child.stdin.close()
+         while True:
++            if CAPTURE_GUARD is not None: CAPTURE_GUARD()
+             remaining = deadline - time.monotonic()
+             if remaining <= 0:
+                 deadline_exceeded = True; reason = reason or 'timeout'; break

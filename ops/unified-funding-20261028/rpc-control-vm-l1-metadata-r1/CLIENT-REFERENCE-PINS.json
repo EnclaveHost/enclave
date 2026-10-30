@@ -1,0 +1,18 @@
+[
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-l1-stage-memory-source-r1/PROPOSED-STAGE-OVERLAY.json",
+    "sha256": "9444ada1ccbfad87609cc94638f4213e2635bb8fe90372e1360ea49c3fbf807e"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-low-memory-current-wrapper-r1/candidate/chain_service.py",
+    "sha256": "9b8c4c71bb3ad8d28de370922f35c49b92c0c03d527eb504520173d488727b94"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-low-memory-current-wrapper-r1/installed-chain.json",
+    "sha256": "81988aeef841cc073b359ab29993641b06e71d72190ddc5df606057ddd7b5eb7"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-prepared-os-payload-read-r1/RESULT.json",
+    "sha256": "52d3c85e2db610ce8d99fac4b96bb692c2c73f9325ddbed293b445f92624ec98"
+  }
+]

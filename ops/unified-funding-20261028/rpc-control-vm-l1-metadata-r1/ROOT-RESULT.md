@@ -1,0 +1,9 @@
+# Actual L1 metadata: partial observations, overall failure retained
+
+Invocation5df3ec8e9b48475995124b10705041e8 terminated2. The sole remote read assertion was static-inventory-limit after1024 entries; this is not a complete static-file inventory and is not a passing metadata job. No unchanged retry. No live child start times captured before completion.
+
+Before that limit the actual read-only export/nbd-R/sysfsRO/ro,noload ext4 mount succeeded, UUIDa2f2a8b5-06ac-4612-95a0-f48a00a7f6e0, clean superblock state1/incompat706/no recovery. Original parent inode/size/mtime/ctime/mode/header unchanged under OFD holds; fresh endpoint check confirmed after completion. New private COW retained. Effective Reth TOML2611B SHAa93adc65ec30ac1ea6d8f4c59b9ef12e522e07606e038777f93cdbf7e67304c7 recovered byte-exactly from retained raw stdout. ROOT-OBSERVED-PARTIAL-METADATA.json faithfully parses the raw result including its failure.
+
+Actual MDBX279172874240B, existing CL beacon/chain_db directory, anchor files, required static_files/data dirs and zero-byte regular snapshot-complete observed. Configuration carries50k static segments, persisted140000-distance pruning and sender_recovery full. No fields modified. Database contents were not opened and canonical correctness is unknown. Incomplete listing does not itself require another bulk scan before a private bounded startup; native client validation and eventual canonical/history/proof checks remain mandatory before production.
+
+Independent stop-post plus separate remote cleanup/verification passed; module unloaded and no device/mount/unit remnants. Every recorded local exporter/tunnel PID and inner scope gone. All content/external pins unchanged. No client started, no original write, public endpoint/VM/service-cap/financial change. Next action is separately reviewed actual L1 client trial from these observed inputs; not production acceptance.

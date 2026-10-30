@@ -1,0 +1,14 @@
+{
+  "CLIENT-REFERENCE-PINS.json": "48c1a07f9226af13901c1c36f2d762bd582e91bff2668a37f710ea52ef1aa02d",
+  "EXTERNAL-PINS.json": "51e542edd02e82ccf22f1e9db09f8a180c25e55f2bb9df92723fc0078c498634",
+  "L1-CLIENT-INTERFACE.md": "500737cdfca1b327a02a1729be8b120e3ff75d32c07a1a9c8ff11fc46ccebcd8",
+  "MANIFEST.json": "07f06b9be532dace2d946cf1df729a48b83fc450a6ad1fba66484857c77767c8",
+  "METADATA.patch": "cd1aa8933ddbdba07a5042dda647aeb62aebd6292594c57174f75070f9b1238b",
+  "ROOT-REVIEW.md": "dc2d6ae56ee62f19790aef1e32800fd4ad1d1ee9d78429fbfbcb75f0b891194a",
+  "capture-local.py": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c",
+  "capture-remote.py": "aee3fe3b07126b8cc8b3b3fd4225ebc94e42ae2344177ef316106899ec642655",
+  "launch-command.txt": "751f676dbd2908d4f116801ce7fdabb59f2dca98ed82fa9de13be0685b6c4acf",
+  "remote-body.py": "9a76a3ff9add3390e19bb314282c11acc181b20ee95dcf3e03b58d3395d39d3a",
+  "run-body.py": "0451950be62ac5a73bdb9a91015c5b5f5c7d5eeb24f298da8e556a8384e048f1",
+  "run.py": "3ebc4ad9846c19a0a02bb2e79d74dc6f8e3bc8996bc55b15eb3f7b0075465156"
+}

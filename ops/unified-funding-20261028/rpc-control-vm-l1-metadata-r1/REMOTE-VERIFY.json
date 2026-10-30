@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.5390036781318486,
+  "stdout": "RESULT_JSON={\"action\": \"verify\", \"errors\": [], \"ok\": true, \"remoteCleanupVerified\": true, \"unit:bootstrap\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 73}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.004215358989313245, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nControlGroup=\\nActiveState=inactive\\nSubState=dead\\nInvocationID=\\n\", \"truncated\": false}, \"unit:cleanup\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 73}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.0034800260327756405, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nControlGroup=\\nActiveState=inactive\\nSubState=dead\\nInvocationID=\\n\", \"truncated\": false}, \"unit:policy\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 73}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.005016817012801766, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nControlGroup=\\nActiveState=inactive\\nSubState=dead\\nInvocationID=\\n\", \"truncated\": false}, \"unit:read\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 105}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.00400651094969362, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nControlGroup=\\nActiveState=failed\\nSubState=failed\\nInvocationID=4225368927984e418b9065e286cfc4b9\\n\", \"truncated\": false}, \"units\": [{\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"InvocationID\": \"\", \"MainPID\": \"0\", \"SubState\": \"dead\"}, {\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"InvocationID\": \"\", \"MainPID\": \"0\", \"SubState\": \"dead\"}, {\"ActiveState\": \"failed\", \"ControlGroup\": \"\", \"InvocationID\": \"4225368927984e418b9065e286cfc4b9\", \"MainPID\": \"0\", \"SubState\": \"failed\"}, {\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"InvocationID\": \"\", \"MainPID\": \"0\", \"SubState\": \"dead\"}]}\n",
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+  "bytesObserved": {
+    "stdout": 2500,
+    "stderr": 222
+  },
+  "stdinBytesWritten": 30136,
+  "stdinBytesRequested": 30136,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}
