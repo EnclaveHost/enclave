@@ -1,0 +1,1 @@
+Original manager read failed rc1 before any usable result. Root generated PowerShell Node path had Python escape sequences CR/LF from backslashes. Exact source confirms defect. Separate r2 corrects literal Windows path only; original preserved. Same GET-only scope/bounds; no remote mutation/retry of consumed namespace. Transport timeout remains not remote-death proof.

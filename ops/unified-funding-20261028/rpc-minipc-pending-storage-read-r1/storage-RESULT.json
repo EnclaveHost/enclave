@@ -1,0 +1,147 @@
+{
+  "at": 1793393042.021318,
+  "readOnly": true,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 222,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "finishedAt": "2026-10-30T20:44:01.8956434Z",
+    "startedAt": "2026-10-30T20:43:57.6545289Z",
+    "partitions": [
+      {
+        "diskNumber": 0,
+        "accessPaths": [
+          "\\\\?\\Volume{2402787d-1eec-4104-beea-db6b8d18b683}\\"
+        ],
+        "drive": "\u0000",
+        "partitionNumber": 1,
+        "sizeBytes": 104857600
+      },
+      {
+        "diskNumber": 0,
+        "accessPaths": [
+          null
+        ],
+        "drive": "\u0000",
+        "partitionNumber": 2,
+        "sizeBytes": 16777216
+      },
+      {
+        "diskNumber": 0,
+        "accessPaths": [
+          "C:\\",
+          "\\\\?\\Volume{a21b3c3b-8e24-4e09-845c-daa7f04cf883}\\"
+        ],
+        "drive": "C",
+        "partitionNumber": 3,
+        "sizeBytes": 2047236636672
+      },
+      {
+        "diskNumber": 0,
+        "accessPaths": [
+          "\\\\?\\Volume{eec27faa-464f-4645-a81f-006e3393fb39}\\"
+        ],
+        "drive": "\u0000",
+        "partitionNumber": 4,
+        "sizeBytes": 1048576000
+      }
+    ],
+    "capacityAdmitted": false,
+    "attachments": [
+      {
+        "diskNumber": null,
+        "controller": "SCSI",
+        "path": "C:\\ProgramData\\Enclave\\control-vm\\enclave-control.vhdx",
+        "controllerNumber": 0,
+        "vmId": "dd8df95d-b771-4545-a861-0092e74a40f3",
+        "location": 0,
+        "vmName": "enclave-control"
+      },
+      {
+        "diskNumber": null,
+        "controller": "SCSI",
+        "path": "C:\\ProgramData\\Enclave\\storage-vm\\enclave-storage.vhdx",
+        "controllerNumber": 0,
+        "vmId": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
+        "location": 0,
+        "vmName": "enclave-storage"
+      }
+    ],
+    "readOnly": true,
+    "volumes": [
+      {
+        "freeBytes": 44938240,
+        "drive": "",
+        "path": "\\\\?\\Volume{2402787d-1eec-4104-beea-db6b8d18b683}\\",
+        "sizeBytes": 100663296,
+        "health": "Healthy",
+        "fs": "FAT32"
+      },
+      {
+        "freeBytes": 22820847616,
+        "drive": "C",
+        "path": "\\\\?\\Volume{a21b3c3b-8e24-4e09-845c-daa7f04cf883}\\",
+        "sizeBytes": 2047236632576,
+        "health": "Healthy",
+        "fs": "NTFS"
+      },
+      {
+        "freeBytes": 1033269248,
+        "drive": "",
+        "path": "\\\\?\\Volume{eec27faa-464f-4645-a81f-006e3393fb39}\\",
+        "sizeBytes": 1048571904,
+        "health": "Healthy",
+        "fs": "NTFS"
+      }
+    ],
+    "vhds": [
+      {
+        "virtualBytes": 137438953472,
+        "path": "C:\\ProgramData\\Enclave\\control-vm\\enclave-control.vhdx",
+        "type": "Dynamic",
+        "parentPath": "",
+        "format": "VHDX",
+        "diskNumber": null,
+        "fragmentationPercent": 12,
+        "fileBytes": 44551897088,
+        "attached": true
+      },
+      {
+        "virtualBytes": 68719476736,
+        "path": "C:\\ProgramData\\Enclave\\storage-vm\\enclave-storage.vhdx",
+        "type": "Dynamic",
+        "parentPath": "",
+        "format": "VHDX",
+        "diskNumber": null,
+        "fragmentationPercent": 3,
+        "fileBytes": 44166021120,
+        "attached": true
+      }
+    ],
+    "disks": [
+      {
+        "readOnly": false,
+        "name": "Lexar SSD NM7A1 2TB",
+        "bus": "NVMe",
+        "health": "Healthy",
+        "offline": false,
+        "number": 0,
+        "sizeBytes": 2048408248320,
+        "partitionStyle": "GPT"
+      }
+    ],
+    "schema": "minipc-storage-placement-read/1",
+    "physicalDisks": [
+      {
+        "name": "Lexar SSD NM7A1 2TB",
+        "sizeBytes": 2048408248320,
+        "bus": "NVMe",
+        "health": "Healthy",
+        "deviceId": "0",
+        "media": "SSD"
+      }
+    ]
+  }
+}
