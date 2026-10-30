@@ -1,0 +1,5 @@
+# SYSTEM entry diagnostic result
+
+Run41146393924 at2312a9efae35ee769019dd407145eee8f68a5e39 TERMINAL FAILURE. Compiles1418/129ms exit0, selected harness4626ms exit1 within unchanged deadline. Two envelope checks pass; no SYSTEM case completed. Bounded task stderr from both roles says InvalidOperationException: Untrusted namespace mutation right. No exact role handles obtained, so LastTaskResult1 still does not certify death. CI-only cmd diagnostic transport successfully collected the actual gate refusal; no production entry code or ACL policy was weakened.
+
+All seven compiled source hashes match frozen admission. Root next selects a new owned CI directory directly below the system-drive root to remove ProgramData ancestry, leaving every remaining handle/owner/DACL/reparse/mutation check unchanged. Add exact refusal path/SID/mask/strict details. This is a distinct namespace qualification, not an unchanged rerun or a claim that ProgramData was conclusively the rejected ancestor. If remaining ancestry fails, use that actual evidence. No target import, VM/provider/storage/funds.

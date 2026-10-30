@@ -1,0 +1,9 @@
+CI task diagnostic (possibly incomplete) EnclaveRpcInertCI-7d2c8d9010744a538427faf6d49ae63a.out:
+CI task diagnostic (possibly incomplete) EnclaveRpcInertCI-7d2c8d9010744a538427faf6d49ae63a.err: InvalidOperationException: Untrusted namespace mutation right
+
+CI task diagnostic (possibly incomplete) EnclaveRpcInertCI-ccb1a96ec3ed4157addda2df23e3b0f8.out:
+CI task diagnostic (possibly incomplete) EnclaveRpcInertCI-ccb1a96ec3ed4157addda2df23e3b0f8.err: InvalidOperationException: Untrusted namespace mutation right
+
+Owned CI task EnclaveRpcInertCI-7d2c8d9010744a538427faf6d49ae63a diagnostic LastTaskResult=1
+Owned CI task EnclaveRpcInertCI-ccb1a96ec3ed4157addda2df23e3b0f8 diagnostic LastTaskResult=1
+Exception: Fixture original deadline

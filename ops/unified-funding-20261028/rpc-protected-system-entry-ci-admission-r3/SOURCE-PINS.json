@@ -1,0 +1,12 @@
+{
+  "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+  "windows/rpc/OwnerObserver.cs": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80",
+  "windows/rpc/ProtectedAttempt.cs": "a3b93c9456750c941fbecbd8618303530b276af44ced2575acc4ca56b9a4dc34",
+  "windows/rpc/InertEntry.cs": "452abc5edbcf8fb6de4ae64e44034d5f514671b3c4f9795185dc85599815d5ef",
+  "test/rpc-windows-worker/Harness.cs": "10a4ef67241a0c7025c3514f073a7ff4b47161b90f0361fbc171a2dc8f9875f4",
+  "test/rpc-windows-worker/ObserverHarness.cs": "c927a36d95425a2aa4b521a57ad9a24baf28faaec2d43754d9f2621815dfd85e",
+  "test/rpc-windows-worker/SystemHarness.cs": "38674be200bfaae0cc53fb635707c55370a2fcbf4d6908c6c94cc1e60925011b",
+  "test/rpc-windows-worker/run-ci.ps1": "93cd8175dd49525451da8ca99d905d404b323971bea81cd81b784816798dd957",
+  ".github/workflows/rpc-worker-inert.yml": "4cd50e16935952d0067250c02afddb5379096e3c8509ba91bcbb8f5acc98ae74",
+  "windows/rpc/README.md": "a1a53da3c2c54d37c47f4cc032a6f59ba75bc0ca3aaa55eee6c377bf7bc91cd6"
+}

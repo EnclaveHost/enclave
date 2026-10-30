@@ -1,0 +1,2 @@
+{"name":"supervisor-envelope-readback","passed":true,"details":{"ProcessId":8796,"CreationFileTime":134378775865587832,"JobCommitLimitBytes":268435456,"BootstrapPrivateBytes":12525568,"MembershipVerified":true,"LimitsVerified":true,"CoversPreAssignmentMemory":false,"BoundsWallTime":false,"ReservationMayRelease":false}}
+{"name":"supervisor-envelope-one-shot","passed":true,"details":null}

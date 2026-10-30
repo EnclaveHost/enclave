@@ -70,7 +70,7 @@ namespace Enclave.OwnedRpc {
                 if(segment.Length==0 || segment.EndsWith(".") || segment.EndsWith(" ")) throw new ArgumentException("Ambiguous path segment");
             return path;
         }
-        static void Authority(SafeFileHandle handle,bool strict,bool directory) {
+        static void Authority(SafeFileHandle handle,bool strict,bool directory,string label) {
             FileInfo info;
             if(!GetFileInformationByHandle(handle,out info)) throw new Win32Exception(Marshal.GetLastWin32Error());
             if((info.Attributes&0x400)!=0 || ((info.Attributes&0x10)!=0)!=directory)
@@ -105,7 +105,7 @@ namespace Enclave.OwnedRpc {
                     int danger=strict?leafDanger:ancestorDanger;
                     if(sid==SystemSid || sid==AdminSid || (!strict && sid==installer)) continue;
                     if(sid!=SystemSid && sid!=AdminSid && ((common.AccessMask&danger)!=0 || (common.AccessMask&unchecked((int)0x50000000))!=0))
-                        throw new InvalidOperationException("Untrusted namespace mutation right");
+                        throw new InvalidOperationException("Untrusted namespace mutation right: "+label+" sid="+sid+" mask="+common.AccessMask.ToString("x8")+" strict="+strict);
                 }
             } finally {if(descriptor!=IntPtr.Zero)LocalFree(descriptor);}
         }
@@ -113,12 +113,12 @@ namespace Enclave.OwnedRpc {
             // FILE_FLAG_OPEN_REPARSE_POINT | BACKUP_SEMANTICS; no DELETE sharing.
             var handle=CreateFile(path,0x20000|0x80,3,IntPtr.Zero,3,0x02200000,IntPtr.Zero);
             if(handle.IsInvalid) {handle.Dispose();throw new Win32Exception(Marshal.GetLastWin32Error());}
-            held.Add(handle);directories.Add(handle);Authority(handle,strict,true);
+            held.Add(handle);directories.Add(handle);Authority(handle,strict,true,path);
         }
         FileStream HoldRead(string path,int maximum) {
             var handle=CreateFile(path,0x80000000|0x20000,1,IntPtr.Zero,3,0x00200000,IntPtr.Zero);
             if(handle.IsInvalid) {handle.Dispose();throw new Win32Exception(Marshal.GetLastWin32Error());}
-            held.Add(handle);Authority(handle,true,false);
+            held.Add(handle);Authority(handle,true,false,path);
             var stream=new FileStream(handle,FileAccess.Read);held.Add(stream);
             if(stream.Length<1 || stream.Length>maximum) throw new InvalidOperationException("Protected file size");
             return stream;
@@ -174,7 +174,7 @@ namespace Enclave.OwnedRpc {
                 FileShare.Read,4096,FileOptions.WriteThrough,security);
             FileInfo before;
             using(stream) {
-                Authority(stream.SafeFileHandle,true,false);
+                Authority(stream.SafeFileHandle,true,false,Path.Combine(Root,name+".pending"));
                 if(!GetFileInformationByHandle(stream.SafeFileHandle,out before))throw new Win32Exception(Marshal.GetLastWin32Error());
                 stream.Write(bytes,0,bytes.Length);stream.Flush(true);
             }

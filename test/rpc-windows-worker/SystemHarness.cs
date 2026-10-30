@@ -99,7 +99,7 @@ static partial class Harness {
         bool badHash=false;try {using(var a=new ProtectedAttempt(Path.Combine(good,"contract.txt"),new string('0',64))) {}}
         catch(InvalidOperationException e){badHash=e.Message=="Contract digest mismatch";}checks["system-contract-wrong-hash"]=badHash;
         bool writable=false;try {using(var a=new ProtectedAttempt(Path.Combine(settings["writable"],"contract.txt"),settings["writableHash"])) {}}
-        catch(InvalidOperationException e){writable=e.Message=="Untrusted namespace mutation right";}checks["system-contract-writable-namespace"]=writable;
+        catch(InvalidOperationException e){writable=e.Message.StartsWith("Untrusted namespace mutation right:",StringComparison.Ordinal);}checks["system-contract-writable-namespace"]=writable;
         bool wrongBoot=false;try {using(var a=new ProtectedAttempt(Path.Combine(settings["boot"],"contract.txt"),settings["bootHash"])) {}}
         catch(InvalidOperationException e){wrongBoot=e.Message=="Attempt belongs to another boot";}checks["system-contract-wrong-boot"]=wrongBoot;
         using(var a=new ProtectedAttempt(Path.Combine(good,"contract.txt"),hash)) {
@@ -116,7 +116,7 @@ static partial class Harness {
         foreach(bool passed in checks.Values)if(!passed)return 1;return 0;
     }
     static void SystemCases(string entry) {
-        string root=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),"EnclaveRpcInertCI-"+Guid.NewGuid().ToString("N"));
+        string root=Path.Combine(Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.System)),"EnclaveRpcInertCI-"+Guid.NewGuid().ToString("N"));
         SecureDirectory(root);var tasks=new List<string>();Process owner=null,observer=null,probe=null;
         try {
             long origin=BoundedWorker.MonotonicMilliseconds(),deadline=origin+20000;string boot=ProtectedAttempt.CurrentBoot();

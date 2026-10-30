@@ -1,0 +1,11 @@
+{
+  "run": 41146393924,
+  "head": "2312a9efae35ee769019dd407145eee8f68a5e39",
+  "compiledSourcePinsMatch": true,
+  "binarySha256": {
+    "worker-harness.exe": "e32aeeeeec5fe1f9375fc62e8e49d7a9cdb14853aebdefad241433cec52dbd68",
+    "owned-entry.exe": "78f3cb4286f32f563f822978b6f5da2e374bf976903ed3496d4b7f0655f4d956"
+  },
+  "diagnosis": "Untrusted namespace mutation right",
+  "executedLocally": false
+}
