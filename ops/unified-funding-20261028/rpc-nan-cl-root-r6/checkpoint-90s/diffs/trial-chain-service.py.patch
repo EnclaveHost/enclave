@@ -1,0 +1,20 @@
+--- n5/source/trial-chain-service.py
++++ n6/source/trial-chain-service.py
+@@ -18,7 +18,7 @@
+ import urllib.request
+ import urllib.error
+ 
+-ROOT = pathlib.Path('/var/lib/enclave-rpc-nan-client-n5/payload')
++ROOT = pathlib.Path('/var/lib/enclave-rpc-nan-client-n6/payload')
+ MANIFEST = json.loads((ROOT / 'manifest.json').read_text())
+ DISKS = json.loads((ROOT / 'disks.json').read_text())['disks']
+ CONFIG = json.loads((ROOT / 'chain.json').read_text())
+@@ -515,7 +515,7 @@
+              '--txpool.disable-transactions-backup', '--disable-tx-gossip', '--txpool.no-local-transactions-propagation',
+              '--log.file.directory', datadir + '/logs', '--log.file.max-files', '5']
+     elif side == 'cl':
+-        a = [binary('lighthouse'), 'beacon_node', '--network', 'mainnet', '--datadir', datadir,
++        a = [binary('lighthouse'), '--debug-level', 'debug', 'beacon_node', '--network', 'mainnet', '--datadir', datadir,
+              '--http', '--http-address', '127.0.0.1', '--http-port', '15052',
+              '--execution-endpoint', 'http://127.0.0.1:18651', '--execution-jwt', jwt,
+              '--listen-address', '0.0.0.0', '--port', '9310', '--quic-port', '9311', '--disable-upnp',

@@ -1,0 +1,15 @@
+--- n5/source/transport-helpers.py
++++ n6/source/transport-helpers.py
+@@ -1,9 +1,9 @@
+ # PREPARED ONLY. Invoked by root in a dedicated bounded systemd unit.
+ import pathlib, json, hashlib, stat, socket, struct, errno, mmap, fcntl, sys, resource, tomllib
+ P=pathlib.Path
+-ROOT=P('/run/enclave-rpc-nan-client-n5');M=json.loads((ROOT/'manifest.json').read_text());ACTION=sys.argv[1];STATE=ROOT/'state.json'
+-EXEC=P('/var/lib/enclave-rpc-nan-client-n5')
+-DEV=P('/dev/nbd7');SYS=P('/sys/block/nbd7');MOUNT=P('/srv/enclave-nan-cl-n5/volume')
++ROOT=P('/run/enclave-rpc-nan-client-n6');M=json.loads((ROOT/'manifest.json').read_text());ACTION=sys.argv[1];STATE=ROOT/'state.json'
++EXEC=P('/var/lib/enclave-rpc-nan-client-n6')
++DEV=P('/dev/nbd7');SYS=P('/sys/block/nbd7');MOUNT=P('/srv/enclave-nan-cl-n6/volume')
+ out={'action':ACTION,'ok':False,'errors':[]};client=None;mounted=False;cleaning=False
+ def sha(p):
+     with P(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()

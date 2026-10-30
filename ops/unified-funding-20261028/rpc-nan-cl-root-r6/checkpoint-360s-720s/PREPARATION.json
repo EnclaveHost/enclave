@@ -1,0 +1,16 @@
+{
+  "status": "PREPARED_ONLY_UNRUN",
+  "prior": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r5",
+  "priorPinsSha256": "a725c1b93061443660fa1269177b68f32aee3c07c530c0e6cbac5925f35a82e0",
+  "priorTerminalSha256": "c40a9c23b9a05618d4e0546db8b57188ae30ceb7f09190d020efe340a4b731d7",
+  "priorRuntimePinsSha256": "80e9e2385b558eea999d1721629b6e88775e222a6eb46199948932b24e8f28ac",
+  "nonce": "9b69383d-8eb4-4aa4-bd83-ec7ac3f9a5bf",
+  "testsRun": false,
+  "syntaxParsed": false,
+  "runtimeAssembled": false,
+  "remoteContacts": false,
+  "nativeLaunch": false,
+  "admissionAuthorized": false,
+  "checkpoint90sPinsSha256": "56fc21acef8120a2fa04279be6a7eab4b4c7eabcc99c1c31dcbd16fb458aac13",
+  "sampleWindowSeconds": 360
+}

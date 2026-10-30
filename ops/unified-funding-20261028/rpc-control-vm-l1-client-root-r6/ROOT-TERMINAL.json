@@ -1,0 +1,17 @@
+{
+  "at": 1793377374.577135,
+  "knownAlive": [],
+  "contentDrift": [],
+  "remoteCleanupVerified": true,
+  "parentUnchanged": true,
+  "samples": 180,
+  "elRpcObserved": false,
+  "lastClientMemory": {
+    "memory.current": "985571328",
+    "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+    "memory.peak": "985829376"
+  },
+  "errors": [
+    "AssertionError:EL-RPC-startup-not-observed"
+  ]
+}

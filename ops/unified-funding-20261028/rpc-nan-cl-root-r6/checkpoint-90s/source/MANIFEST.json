@@ -1,0 +1,288 @@
+{
+  "nonce": "9b69383d-8eb4-4aa4-bd83-ec7ac3f9a5bf",
+  "unitPrefix": "enclave-rpc-nan-",
+  "uuid": "a2f2a8b5-06ac-4612-95a0-f48a00a7f6e0",
+  "bytes": 4000000000000,
+  "exportName": "enclave-nan-cl-9b69383d-8eb4-4aa4-bd83-ec7ac3f9a5bf",
+  "remoteSocket": "/root/rpc-nan-client-n6/export.sock",
+  "target": "nan",
+  "knownHosts": "/home/steven/Documents/Codex/2026-10-18/wo/work/control-vm/known_hosts",
+  "bootId": "4b84b9bd-a89d-4b37-94cb-26334dbf4666",
+  "client": {
+    "archiveMember": "sbin/nbd-client",
+    "bytes": 56376,
+    "path": "/root/rpc-nan-upload-n6/nbd-client",
+    "sha256": "0a256b67962d1ffc1ab8bacecd4319b8e459a0535467abb66f83329ce5221167"
+  },
+  "remotePins": [
+    {
+      "bytes": 2065824,
+      "installedMd5Matched": true,
+      "package": "libgnutls30t64:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libgnutls.so.30.37.1",
+      "sha256": "ddbae2995750875c07bc218d12a062d73f8250678f54dedda7e9be5068781c98",
+      "version": "3.8.3-1.1ubuntu3.6"
+    },
+    {
+      "bytes": 27984,
+      "installedMd5Matched": true,
+      "package": "libnl-genl-3-200:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libnl-genl-3.so.200.26.0",
+      "sha256": "0757db7e6c5fbc4d2a8bbedbac7061fbb8ebb6196b4d2954d3a321e9ff76933c",
+      "version": "3.7.0-0.3build1.1"
+    },
+    {
+      "bytes": 133944,
+      "installedMd5Matched": true,
+      "package": "libnl-3-200:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libnl-3.so.200.26.0",
+      "sha256": "afcb69e2ef0b46c2ce7b7483848332fa9462776d33163f64209acf01f86eddd7",
+      "version": "3.7.0-0.3build1.1"
+    },
+    {
+      "bytes": 2129424,
+      "installedMd5Matched": true,
+      "package": "libc6:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "3a15d66867d83762c7f2f1e37359cb8f6c5743edb369c65285cb0b1c4f7498bf",
+      "version": "2.39-0ubuntu8.9"
+    },
+    {
+      "bytes": 1714008,
+      "installedMd5Matched": true,
+      "package": "libp11-kit0:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libp11-kit.so.0.3.1",
+      "sha256": "a59efd4792d3343dedea1d26a28f5597abfe3369082deb504c4802a31b014897",
+      "version": "0.25.3-4ubuntu2.2"
+    },
+    {
+      "bytes": 133192,
+      "installedMd5Matched": true,
+      "package": "libidn2-0:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libidn2.so.0.4.0",
+      "sha256": "6e632fd9a3125db60bbc623719bbc17b0470330321c5b1c57f1ff7190e5551ad",
+      "version": "2.3.7-2build1.1"
+    },
+    {
+      "bytes": 1755312,
+      "installedMd5Matched": true,
+      "package": "libunistring5:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libunistring.so.5.0.0",
+      "sha256": "7bcf825cd449892db5105ad2aed91dcf94a27b796426600c765720c584c54dd1",
+      "version": "1.1-2build1.1"
+    },
+    {
+      "bytes": 88216,
+      "installedMd5Matched": true,
+      "package": "libtasn1-6:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libtasn1.so.6.6.3",
+      "sha256": "59994414d0cdec4f678ef91eaaafc44b26b00bca507e4cc7978caaf79f584173",
+      "version": "4.19.0-3ubuntu0.24.04.2"
+    },
+    {
+      "bytes": 342280,
+      "installedMd5Matched": true,
+      "package": "libnettle8t64:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libnettle.so.8.8",
+      "sha256": "a245ed916229583d6fe0b07657b3ed945bc148c28cc08b5266295f620d2b91cc",
+      "version": "3.9.1-2.2build1.1"
+    },
+    {
+      "bytes": 288920,
+      "installedMd5Matched": true,
+      "package": "libhogweed6t64:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libhogweed.so.6.8",
+      "sha256": "c3c606139d4f7776efa4dbd4a6b62e30c916b07a0cafd8c3ef173d6f093607e3",
+      "version": "3.9.1-2.2build1.1"
+    },
+    {
+      "bytes": 534896,
+      "installedMd5Matched": true,
+      "package": "libgmp10:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libgmp.so.10.5.0",
+      "sha256": "0ccdfb6d6f5c039465f6d002cf7e4c072d48ac6a2cffc8dd6c748dec31592804",
+      "version": "2:6.3.0+dfsg-2ubuntu6.1"
+    },
+    {
+      "bytes": 236616,
+      "installedMd5Matched": true,
+      "package": "libc6:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "c20a2dc8917c755f02b94049356320fe1f62ac7d9f8994731f807d9df39302da",
+      "version": "2.39-0ubuntu8.9"
+    },
+    {
+      "bytes": 47672,
+      "installedMd5Matched": true,
+      "package": "libffi8:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libffi.so.8.1.4",
+      "sha256": "00f593fe192f2851b8ce23b25cec2488d769beb5a8f63e8c9e563071e1075153",
+      "version": "3.4.6-1build1"
+    },
+    {
+      "bytes": 8020928,
+      "path": "/usr/bin/python3",
+      "realpath": "/usr/bin/python3.12",
+      "sha256": "e50d468e8b0adfb05733f5b87b3cff34829c4a8c1aea50c865aa8bdfe4bb150f"
+    },
+    {
+      "bytes": 174328,
+      "path": "/usr/sbin/modprobe",
+      "realpath": "/usr/bin/kmod",
+      "sha256": "5abf732e561c8be9ccd1794940b5d43025b041d4bed1db34782d979e0accc36f"
+    },
+    {
+      "bytes": 55720,
+      "path": "/usr/sbin/blkid",
+      "realpath": "/usr/sbin/blkid",
+      "sha256": "0d7e7a3e410b59848f0e36cacae29b94bcdb362f120dd9ab9ce4d51baf999a10"
+    },
+    {
+      "path": "/usr/bin/mount",
+      "realpath": "/usr/bin/mount",
+      "bytes": 51584,
+      "sha256": "fde2b1540ca79ea42df942653bdfd09b9b3e3ff1d4713602bd280f754033957a"
+    },
+    {
+      "path": "/usr/bin/umount",
+      "realpath": "/usr/bin/umount",
+      "bytes": 39296,
+      "sha256": "186774a008ad69cf60bce6af35a850608d1c6ba410d3eca4113ea55b3a8b54d6"
+    },
+    {
+      "path": "/usr/bin/findmnt",
+      "realpath": "/usr/bin/findmnt",
+      "bytes": 69280,
+      "sha256": "08652d0a79159c9d5b73f9181d3436bf044466e8efffecd0feef5c4cbb4e7670"
+    },
+    {
+      "path": "/usr/lib/x86_64-linux-gnu/libmount.so.1",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libmount.so.1.1.0",
+      "bytes": 309960,
+      "sha256": "7472255ae5799059b37ddd544788f5665dbd3e1cb78259f52180293039efc2a5"
+    }
+  ],
+  "qemuNbd": "/usr/sbin/qemu-nbd",
+  "qemuImg": "/usr/sbin/qemu-img",
+  "mke2fs": "/usr/sbin/mke2fs",
+  "e2fsck": "/usr/sbin/e2fsck",
+  "execMount": {
+    "target": "/",
+    "source": "/dev/sda1",
+    "fstype": "ext4"
+  },
+  "overlayDirectory": "/vm/enclave-volumes/rpc-nan-cl-n6",
+  "expectedProductionMount": "/srv/enclave-nan-cl-n6/volume",
+  "parent": {
+    "path": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2",
+    "device": 64769,
+    "inode": 147981798,
+    "bytes": 528387407872,
+    "mtimeNs": 1793030445134925227,
+    "ctimeNs": 1793030445134925227,
+    "mode": 33152,
+    "header104Sha256": "b06a08884bafb1540f1115ce307ef52c715b66a791665f59f90b52b3b400cb8c"
+  },
+  "uploadDirectory": "/root/rpc-nan-upload-n6",
+  "programSha256": "762a7050b3cd197c15f7093a28594c8226f2ae62e19b2664a67aa1874e170217",
+  "originalTomlSha256": "a93adc65ec30ac1ea6d8f4c59b9ef12e522e07606e038777f93cdbf7e67304c7",
+  "proposedTomlSha256": "63bc71f103c49e06cd661ab410cc7005fd101ca9578cd6cb15fac7be6e35c320",
+  "identities": {
+    "cl": {
+      "uid": 50011,
+      "gid": 50011,
+      "name": "enclavenancl",
+      "paths": [
+        "cl",
+        "cl/beacon",
+        "cl/beacon/chain_db",
+        "tmp-cl"
+      ]
+    }
+  },
+  "jwtGroup": {
+    "name": "enclavenanjwt",
+    "gid": 50012
+  },
+  "payloadFiles": {
+    "lighthouse": {
+      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/payload-v2/bin/lighthouse",
+      "destination": "bin/lighthouse",
+      "bytes": 105018160,
+      "sha256": "11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96"
+    },
+    "manifest.json": {
+      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r6/source/payload-manifest.json",
+      "destination": "manifest.json",
+      "bytes": 740,
+      "sha256": "aa54c7511ecc50d5e49f09f503b77defa2465cecf9bcfa282440084de3fe4b59"
+    },
+    "chain.json": {
+      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-low-memory-current-wrapper-r1/installed-chain.json",
+      "destination": "chain.json",
+      "bytes": 3488,
+      "sha256": "81988aeef841cc073b359ab29993641b06e71d72190ddc5df606057ddd7b5eb7"
+    },
+    "chain_service.py": {
+      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r6/source/trial-chain-service.py",
+      "destination": "chain_service.py",
+      "bytes": 40169,
+      "sha256": "47a9eaede23ce632eaccb590037e99f3043352046466e5b7d1e6f7d6bcdbd7dc"
+    },
+    "disks.json": {
+      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r6/source/disks.json",
+      "destination": "disks.json",
+      "bytes": 154,
+      "sha256": "34e2662b045c3eaf678f13934888324e816369d57246d6c289d9510a618494fe"
+    }
+  },
+  "metadataOverlayReference": {
+    "path": "/vm/enclave-volumes/rpc-control-l1-metadata-r1/overlay.qcow2",
+    "device": 64769,
+    "inode": 148393019,
+    "bytes": 256216,
+    "mtimeNs": 1793364198237622678,
+    "ctimeNs": 1793364198237622678,
+    "mode": 33152,
+    "sha256": "ddea119560fa26f6d193adac91c43d6eff03ef89ea4ed69d643c62f175e994bf"
+  },
+  "overlayPath": "/vm/enclave-volumes/rpc-nan-cl-n6/overlay.qcow2",
+  "lighthouseCacheProfile": {
+    "state": 2,
+    "coldHdiff": 1,
+    "shuffling": 1,
+    "startupFitVerified": false
+  },
+  "sshUid": 0,
+  "ownedSlices": [
+    "enclavenantrialn6.slice",
+    "enclavenanattachn6.slice",
+    "enclavenanguardn6.slice"
+  ],
+  "localNbdClient": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nbd-local-public-copy-r1/nbd-client",
+  "admission": {
+    "authorized": false,
+    "scope": "nan-cl-only-4096",
+    "nonce": "9b69383d-8eb4-4aa4-bd83-ec7ac3f9a5bf",
+    "observedPendingMiB": null,
+    "osReserveMiB": 2048,
+    "creatorClassification": "two-launches-before-wait-no-repeated-allocator",
+    "at": 0,
+    "expiresAt": 0,
+    "ordinaryOsExecutables": [],
+    "existingOtherProcesses": [],
+    "scheduleFiles": [],
+    "creatorCmdlineSha256": ""
+  },
+  "identityMode": "idmapped-whole-ext4",
+  "idmapOptions": "u:995:50011:1 g:986:50011:1",
+  "idmapNativeFixture": "983470b2dea84ecfbad8b5279e96f6c2",
+  "diagnosticPolicy": {
+    "debugLevel": "debug",
+    "sampleThreadLimit": 64,
+    "sampleTimeBudgetSeconds": 0.25,
+    "sampleWindowSeconds": 90,
+    "rawLogEvidence": false,
+    "sameIncarnationRequired": true
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "authorized": true,
+  "at": 1793377374.5780976,
+  "scope": "actual-nan-cl-bounded-client-n6",
+  "pinsSha256": "678244f9ffc6a120dd5e24fc2274dd807520934c9c774127e3edc780519efa32",
+  "admissionSha256": "095a79e23e6f7d59a2a3cf92a1df341b994667bf49e8b7455634f3cce162c094",
+  "sourceTests": 57,
+  "sourceReview": "Same4096+128+128/2048 residual, exact idmap and receipt.360s diagnostics with900s outer. Root reviewed retained binary FD copy and actual frozen source;57 source fixtures, no native qualification. Fresh census known OS plus observer and pinned creator only. No production consumers."
+}

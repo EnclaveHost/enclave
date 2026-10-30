@@ -1,0 +1,14 @@
+--- n5/source/payload-manifest.json
++++ n6/source/payload-manifest.json
+@@ -11,9 +11,9 @@
+   },
+   "mounts": {
+     "base": "/srv/enclave-base-holder",
+-    "l1": "/srv/enclave-nan-cl-n5/volume"
++    "l1": "/srv/enclave-nan-cl-n6/volume"
+   },
+   "servingProduction": false,
+   "nvmeCacheBytes": 0,
+-  "trialMountNonce": "676b0793-6ea4-4d6e-b85b-8cbde58d6dca"
++  "trialMountNonce": "9b69383d-8eb4-4aa4-bd83-ec7ac3f9a5bf"
+ }

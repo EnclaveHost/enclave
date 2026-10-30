@@ -1,0 +1,28 @@
+--- n5/source/client-main.py
++++ n6/source/client-main.py
+@@ -129,6 +129,7 @@
+     samples=[];until=time.monotonic()+90
+     while time.monotonic()<until and not STOP.exists():
+         headroom();sample={'at':time.time(),'clientMemory':sample_client_memory(s['clients'])}
++        sample['clientDiagnostics']=sample_client_diagnostics(s['clients'])
+         sample['rpc']=sample_rpc()
+         q=P('/sys/fs/cgroup')/SLICE
+         sample['memory']={n:read(q/n) for n in ('memory.current','memory.peak','memory.events')} if q.exists() else {'unavailable':'slice-removed'}
+@@ -139,7 +140,7 @@
+     out['cleanup']=wait_cleanup()
+     for side,info in s['clients'].items():
+         if info.get('InvocationID'):
+-            cmd('clientLog:'+side,['/usr/bin/journalctl','--no-pager','-o','cat','-n','40','_SYSTEMD_INVOCATION_ID='+info['InvocationID']],4)
++            out['clientLog:'+side]=diagnostic_journal(info['InvocationID'])
+     assert out['clRpcObserved'],'CL-RPC-startup-not-observed'
+     assert out['cleanup']['reason']=='bounded-trial-finished','trial-stopped-by-watchdog'
+     for info in out['cleanup']['clients'].values():
+@@ -149,7 +150,7 @@
+     os.umask(0o077)
+     assert os.geteuid()==0 and read('/proc/sys/kernel/random/boot_id')==M['bootId']
+     assert sha(ROOT/'program.py')==M['programSha256']
+-    cg=read('/proc/self/cgroup');assert (cg.startswith('0::/enclavenanattachn5.slice/enclave-rpc-nan-') or cg.startswith('0::/enclavenanguardn5.slice/enclave-rpc-nan-')) and cg.endswith('.service')
++    cg=read('/proc/self/cgroup');assert (cg.startswith('0::/enclavenanattachn6.slice/enclave-rpc-nan-') or cg.startswith('0::/enclavenanguardn6.slice/enclave-rpc-nan-')) and cg.endswith('.service')
+     c=P('/sys/fs/cgroup'+cg[3:]);assert read(c/'memory.max')==str(128<<20) and read(c/'memory.swap.max')=='0'
+     for row in M['remotePins']:pin(row)
+     def terminated(signum,frame):raise RuntimeError('unit-termination')

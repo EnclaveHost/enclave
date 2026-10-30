@@ -1,0 +1,245 @@
+{
+  "unit": {
+    "ActiveState": "active",
+    "InvocationID": "eb6e07c18f3442859fd7a75ad6cdd4a6",
+    "MainPID": "2911051",
+    "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-control-vm-l1-client-prep-r6-20261030.service"
+  },
+  "processes": [
+    {
+      "pid": 2911051,
+      "parent": 1899,
+      "start": "168188572",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "argv": [
+        "/usr/bin/python3",
+        "-B",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py",
+        "--mib",
+        "512",
+        "--log",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r6/outer.log",
+        "--",
+        "/usr/bin/taskset",
+        "-c",
+        "1",
+        "/usr/bin/node",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs",
+        "--max-rss-mib",
+        "450",
+        "--floor-available-mib",
+        "27648",
+        "--log",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r6/inner.log",
+        "--",
+        "/usr/bin/python3",
+        "-B",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r6/run.py"
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-control-vm-l1-client-prep-r6-20261030.service",
+      "cpu": [
+        "Cpus_allowed_list:\t1"
+      ]
+    },
+    {
+      "pid": 2911061,
+      "parent": 2911051,
+      "start": "168188576",
+      "exe": "/usr/bin/node",
+      "cwd": "/home/steven",
+      "argv": [
+        "/usr/bin/node",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs",
+        "--max-rss-mib",
+        "512",
+        "--floor-available-mib",
+        "16384",
+        "--log",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r6/outer.log",
+        "--",
+        "/usr/bin/taskset",
+        "-c",
+        "1",
+        "/usr/bin/node",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs",
+        "--max-rss-mib",
+        "450",
+        "--floor-available-mib",
+        "27648",
+        "--log",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r6/inner.log",
+        "--",
+        "/usr/bin/python3",
+        "-B",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r6/run.py"
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2911061-i44861570.scope",
+      "cpu": [
+        "Cpus_allowed_list:\t1"
+      ]
+    },
+    {
+      "pid": 2911077,
+      "parent": 2911061,
+      "start": "168188580",
+      "exe": "/usr/bin/node",
+      "cwd": "/home/steven",
+      "argv": [
+        "/usr/bin/node",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs",
+        "--max-rss-mib",
+        "450",
+        "--floor-available-mib",
+        "27648",
+        "--log",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r6/inner.log",
+        "--",
+        "/usr/bin/python3",
+        "-B",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r6/run.py"
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2911061-i44861570.scope",
+      "cpu": [
+        "Cpus_allowed_list:\t1"
+      ]
+    },
+    {
+      "pid": 2911084,
+      "parent": 2911077,
+      "start": "168188582",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "argv": [
+        "/usr/bin/python3",
+        "-B",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r6/run.py"
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2911061-i44861570.scope",
+      "cpu": [
+        "Cpus_allowed_list:\t1"
+      ]
+    },
+    {
+      "pid": 2911169,
+      "parent": 2911084,
+      "start": "168189283",
+      "exe": "/usr/bin/qemu-nbd",
+      "cwd": "/",
+      "argv": [
+        "/usr/sbin/qemu-nbd",
+        "--persistent",
+        "--shared=1",
+        "--socket",
+        "/run/user/1000/rpc-l1-client-r6/export.sock",
+        "--export-name",
+        "enclave-l1-client-d17afb0e-fa85-40e0-9830-0a01d364257d",
+        "--format=qcow2",
+        "--cache=none",
+        "--aio=threads",
+        "/vm/enclave-volumes/rpc-control-l1-client-r6/overlay.qcow2"
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2911061-i44861570.scope",
+      "cpu": [
+        "Cpus_allowed_list:\t1"
+      ]
+    },
+    {
+      "pid": 2911172,
+      "parent": 2911084,
+      "start": "168189293",
+      "exe": "/usr/bin/ssh",
+      "cwd": "/home/steven",
+      "argv": [
+        "/usr/bin/ssh",
+        "-oBatchMode=yes",
+        "-oStrictHostKeyChecking=yes",
+        "-oConnectTimeout=5",
+        "-oControlMaster=no",
+        "-oControlPath=none",
+        "-oServerAliveInterval=5",
+        "-oServerAliveCountMax=2",
+        "-oIdentitiesOnly=yes",
+        "-i",
+        "/home/steven/.ssh/minipc",
+        "-oProxyJump=minipc",
+        "-oHostKeyAlias=[127.0.0.1]:32423",
+        "-oUserKnownHostsFile=/home/steven/Documents/Codex/2026-10-18/wo/work/control-vm/known_hosts",
+        "-N",
+        "-oExitOnForwardFailure=yes",
+        "-oStreamLocalBindMask=0177",
+        "-oStreamLocalBindUnlink=no",
+        "-R",
+        "/home/controladmin/rpc-l1-client-r6/export.sock:/run/user/1000/rpc-l1-client-r6/export.sock",
+        "controladmin@172.17.28.159"
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2911061-i44861570.scope",
+      "cpu": [
+        "Cpus_allowed_list:\t1"
+      ]
+    },
+    {
+      "pid": 2911173,
+      "parent": 2911172,
+      "start": "168189293",
+      "exe": "/usr/bin/ssh",
+      "cwd": "/home/steven",
+      "argv": [
+        "/usr/bin/ssh",
+        "-W",
+        "[172.17.28.159]:22",
+        "minipc"
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2911061-i44861570.scope",
+      "cpu": [
+        "Cpus_allowed_list:\t1"
+      ]
+    },
+    {
+      "pid": 2911181,
+      "parent": 2911084,
+      "start": "168189393",
+      "exe": "/usr/bin/ssh",
+      "cwd": "/home/steven",
+      "argv": [
+        "/usr/bin/ssh",
+        "-oBatchMode=yes",
+        "-oStrictHostKeyChecking=yes",
+        "-oConnectTimeout=5",
+        "-oControlMaster=no",
+        "-oControlPath=none",
+        "-oServerAliveInterval=5",
+        "-oServerAliveCountMax=2",
+        "-oIdentitiesOnly=yes",
+        "-i",
+        "/home/steven/.ssh/minipc",
+        "-oProxyJump=minipc",
+        "-oHostKeyAlias=[127.0.0.1]:32423",
+        "-oUserKnownHostsFile=/home/steven/Documents/Codex/2026-10-18/wo/work/control-vm/known_hosts",
+        "controladmin@172.17.28.159",
+        "/usr/bin/sudo -n /usr/bin/systemd-run --quiet --wait --pipe --unit=enclave-rpc-l1-helper-r6 --slice=enclavel1attachr6.slice --property=User=root --property=MemoryMax=128M --property=MemorySwapMax=0 --property=CPUQuota=100% --property=TasksMax=64 --property=RuntimeMaxSec=510 --property=TimeoutStopSec=95 --property=KillMode=control-group --property=UMask=0077 '--property=ExecStopPost=/usr/bin/python3 -B /run/enclave-rpc-l1-client-r6/program.py wait-cleanup' /usr/bin/python3 -B /run/enclave-rpc-l1-client-r6/program.py main"
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2911061-i44861570.scope",
+      "cpu": [
+        "Cpus_allowed_list:\t1"
+      ]
+    },
+    {
+      "pid": 2911182,
+      "parent": 2911181,
+      "start": "168189394",
+      "exe": "/usr/bin/ssh",
+      "cwd": "/home/steven",
+      "argv": [
+        "/usr/bin/ssh",
+        "-W",
+        "[172.17.28.159]:22",
+        "minipc"
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2911061-i44861570.scope",
+      "cpu": [
+        "Cpus_allowed_list:\t1"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "originalFileSha256": "678244f9ffc6a120dd5e24fc2274dd807520934c9c774127e3edc780519efa32",
+  "publicContentPins": [
+    {
+      "path": "EXTERNAL-PINS.json",
+      "sha256": "a1a8e6b334ce924510c3cdfd1e76f3f9f699a95762d89850f22e6dbd7f743063"
+    },
+    {
+      "path": "MANIFEST.json",
+      "sha256": "48f001843ed0c9ef2627d393be679af64fe1a8e4accc13eca8c11f6141c9d387"
+    },
+    {
+      "path": "capture-local.py",
+      "sha256": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c"
+    },
+    {
+      "path": "capture-remote.py",
+      "sha256": "aee3fe3b07126b8cc8b3b3fd4225ebc94e42ae2344177ef316106899ec642655"
+    },
+    {
+      "path": "client-main.py",
+      "sha256": "32fedcc674e84b5c2921de403b6bcc2f63929d6f11ab3db59c2f095538b261f2"
+    },
+    {
+      "path": "client-operations.py",
+      "sha256": "7f66096057eb4f8ccf88f140a37fd1ef168effe8f178a1d575d713cfcfd653f4"
+    },
+    {
+      "path": "disks.json",
+      "sha256": "34e2662b045c3eaf678f13934888324e816369d57246d6c289d9510a618494fe"
+    },
+    {
+      "path": "nan-admission.py",
+      "sha256": "d91c2b966c8d6c72137c69026afc75e4dca74cd2faeabdfad27daee834b49af6"
+    },
+    {
+      "path": "ownership.py",
+      "sha256": "38e40f7a2635de6a995d4d5a99ecdaf0f24d09c1fe99192c201e343657d859f4"
+    },
+    {
+      "path": "payload-manifest.json",
+      "sha256": "aa54c7511ecc50d5e49f09f503b77defa2465cecf9bcfa282440084de3fe4b59"
+    },
+    {
+      "path": "remote-program.py",
+      "sha256": "ade556d3ca3fbd6c43301d2b88033f89c76698d9d2c149fc37695fdd41eee581"
+    },
+    {
+      "path": "run-body.py",
+      "sha256": "5126f7a68e826dfd9b5437c2ece3ccd2257905456fb75c345862d53da7032ca1"
+    },
+    {
+      "path": "run.py",
+      "sha256": "ce00df3c5a75c737c0c346379879475196f61b0622450d387e09f0a5b90a83b5"
+    },
+    {
+      "path": "transport-helpers.py",
+      "sha256": "3649a5b84a407c08634395029f22475a022595d8b93482c77098382255c2babe"
+    },
+    {
+      "path": "trial-chain-service.py",
+      "sha256": "47a9eaede23ce632eaccb590037e99f3043352046466e5b7d1e6f7d6bcdbd7dc"
+    }
+  ]
+}

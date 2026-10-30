@@ -1,0 +1,80 @@
+--- n5/source/client-main.py
++++ n6/source/client-main.py
+@@ -48,7 +48,7 @@
+     s={'nonce':M['nonce'],'unitPrefix':M['unitPrefix'],'rootIdentity':[st.st_dev,st.st_ino],
+        'execIdentity':None,'claimed':False,'clients':{},'watchStarted':False,'socketIdentity':[socket_stat.st_dev,socket_stat.st_ino],
+        'helperPid':os.getpid(),'helperStart':P('/proc/self/stat').read_text().rsplit(')',1)[1].split()[19],
+-       'watchdogDeadline':time.time()+300,'moduleInitiallyLoaded':P('/sys/module/nbd').exists(),'moduleLoadedByFixture':False}
++       'watchdogDeadline':time.time()+400,'moduleInitiallyLoaded':P('/sys/module/nbd').exists(),'moduleLoadedByFixture':False}
+     save(s)
+     out['runtimeLibraries']=library_receipt()
+     seal_payload();MOUNT.parent.mkdir(mode=0o700);MOUNT.mkdir(mode=0o700)
+@@ -58,7 +58,7 @@
+     s['watchLaunchIntent']=description('watchdog');save(s)
+     cmd('startWatchdog',['/usr/bin/systemd-run','--quiet','--unit='+WATCH,'--slice='+GUARD_SLICE,'--description='+description('watchdog'),'--property=Type=exec','--property=User=root',
+         '--property=MemoryMax=128M','--property=MemorySwapMax=0','--property=CPUQuota=50%',
+-        '--property=TasksMax=32','--property=RuntimeMaxSec=380','--property=TimeoutStopSec=70',
++        '--property=TasksMax=32','--property=RuntimeMaxSec=550','--property=TimeoutStopSec=70',
+         '--property=KillMode=control-group','--property=UMask=0077',
+         '--property=ExecStopPost=/usr/bin/python3 -B '+str(ROOT/'program.py')+' emergency-cleanup',
+         '/usr/bin/python3','-B',str(ROOT/'program.py'),'watchdog'],8)
+@@ -80,7 +80,7 @@
+         cmd('startNBDUnit',['/usr/bin/systemd-run','--quiet','--unit='+NBD_UNIT,'--slice='+ATTACH_SLICE,
+             '--description='+description('nbd'),'--property=Type=exec','--property=User=root','--property=MemoryMax=128M',
+             '--property=MemorySwapMax=0','--property=TasksMax=32','--property=KillMode=control-group',
+-            '--property=TimeoutStopSec=10','--property=RuntimeMaxSec=480',
++            '--property=TimeoutStopSec=10','--property=RuntimeMaxSec=560',
+             str(EXEC/'nbd-client'),'-n','-L','-u','-N',M['exportName'],'-t','5','-b','4096',M['remoteSocket'],str(DEV)],8)
+         s['nbdInvocation']=owned_info(NBD_UNIT,'nbd','root',str(EXEC/'nbd-client')).get('InvocationID');save(s)
+         until=time.monotonic()+8
+@@ -126,20 +126,29 @@
+         out['jwtCreatedPrivately']=True
+         for side in ('cl',):
+             info=start_client(side);s=state();s['clients'][side]=info;save(s)
+-    samples=[];until=time.monotonic()+90
++    assert time.time()+365<=s['watchdogDeadline'],'insufficient-360s-diagnostic-window'
++    samples=[];until=time.monotonic()+360;next_diagnostic=0;diagnostic_count=0;samples_bytes=0;dropped_samples=0
+     while time.monotonic()<until and not STOP.exists():
+         headroom();sample={'at':time.time(),'clientMemory':sample_client_memory(s['clients'])}
++        if time.monotonic()>=next_diagnostic and diagnostic_count<37:
++            sample['clientDiagnostics']=sample_client_diagnostics(s['clients']);diagnostic_count+=1
++            next_diagnostic=time.monotonic()+10
+         sample['rpc']=sample_rpc()
+         q=P('/sys/fs/cgroup')/SLICE
+         sample['memory']={n:read(q/n) for n in ('memory.current','memory.peak','memory.events')} if q.exists() else {'unavailable':'slice-removed'}
+-        samples.append(sample);time.sleep(2)
++        encoded_bytes=len(json.dumps(sample,sort_keys=True).encode())
++        if len(samples)<181 and samples_bytes+encoded_bytes<=1048576:
++            samples.append(sample);samples_bytes+=encoded_bytes
++        else:dropped_samples+=1
++        time.sleep(2)
+     out['samples']=samples
++    out['sampleEvidence']={'windowSeconds':360,'sampleLimit':181,'byteLimit':1048576,'retainedBytes':samples_bytes,'droppedSamples':dropped_samples,'truncated':dropped_samples>0,'diagnosticSamples':diagnostic_count,'diagnosticSampleLimit':37,'diagnosticIntervalSeconds':10}
+     out['clRpcObserved']=any(isinstance(x['rpc'].get('cl',{}).get('data'),dict) for x in samples)
+     stop_request('bounded-trial-finished')
+     out['cleanup']=wait_cleanup()
+     for side,info in s['clients'].items():
+         if info.get('InvocationID'):
+-            cmd('clientLog:'+side,['/usr/bin/journalctl','--no-pager','-o','cat','-n','40','_SYSTEMD_INVOCATION_ID='+info['InvocationID']],4)
++            out['clientLog:'+side]=diagnostic_journal(info['InvocationID'])
+     assert out['clRpcObserved'],'CL-RPC-startup-not-observed'
+     assert out['cleanup']['reason']=='bounded-trial-finished','trial-stopped-by-watchdog'
+     for info in out['cleanup']['clients'].values():
+@@ -149,7 +158,7 @@
+     os.umask(0o077)
+     assert os.geteuid()==0 and read('/proc/sys/kernel/random/boot_id')==M['bootId']
+     assert sha(ROOT/'program.py')==M['programSha256']
+-    cg=read('/proc/self/cgroup');assert (cg.startswith('0::/enclavenanattachn5.slice/enclave-rpc-nan-') or cg.startswith('0::/enclavenanguardn5.slice/enclave-rpc-nan-')) and cg.endswith('.service')
++    cg=read('/proc/self/cgroup');assert (cg.startswith('0::/enclavenanattachn6.slice/enclave-rpc-nan-') or cg.startswith('0::/enclavenanguardn6.slice/enclave-rpc-nan-')) and cg.endswith('.service')
+     c=P('/sys/fs/cgroup'+cg[3:]);assert read(c/'memory.max')==str(128<<20) and read(c/'memory.swap.max')=='0'
+     for row in M['remotePins']:pin(row)
+     def terminated(signum,frame):raise RuntimeError('unit-termination')
+@@ -179,7 +188,7 @@
+                 assert s.get('watchLaunchIntent')==description('watchdog')
+                 stop_request('helper-ended');out['cleanup']=wait_cleanup()
+     elif ACTION=='verify':
+-        cleaning=True;s=state();out['cleanup']=wait_cleanup(85)
++        cleaning=True;s=state();out['cleanup']=wait_cleanup(1)
+         until=time.monotonic()+12
+         while time.monotonic()<until:
+             if all(unit_info(unit).get('ActiveState') in ('inactive','failed') for unit in (HELPER,WATCH)):break
