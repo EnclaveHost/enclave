@@ -1,0 +1,93 @@
+{
+  "readOnly": true,
+  "admitted": false,
+  "localRoute": {
+    "rc": 0,
+    "reason": null,
+    "elapsedSeconds": 0.1049905268009752,
+    "stdout": "[{\"dst\":\"192.168.8.238\",\"dev\":\"enp162s0u1u3\",\"prefsrc\":\"192.168.8.249\",\"flags\":[],\"uid\":1000,\"cache\":[]}]\n",
+    "stderr": "",
+    "bytesObserved": {
+      "stdout": 106,
+      "stderr": 0
+    },
+    "stdinBytesWritten": 0,
+    "stdinBytesRequested": 0,
+    "truncated": false,
+    "localChildReaped": true,
+    "ownedGroupKillAttempted": true,
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "localProcessGroupDeathProven": false,
+    "remoteDeathProven": false
+  },
+  "localAddress": {
+    "rc": 0,
+    "reason": null,
+    "elapsedSeconds": 0.10320638306438923,
+    "stdout": "[{\"ifindex\":31,\"ifname\":\"enp162s0u1u3\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"fq_codel\",\"operstate\":\"UP\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"00:e0:4c:5c:35:28\",\"broadcast\":\"ff:ff:ff:ff:ff:ff\",\"altnames\":[\"enx00e04c5c3528\"],\"addr_info\":[{\"family\":\"inet\",\"local\":\"192.168.8.249\",\"prefixlen\":24,\"broadcast\":\"192.168.8.255\",\"scope\":\"global\",\"dynamic\":true,\"noprefixroute\":true,\"label\":\"enp162s0u1u3\",\"valid_life_time\":35903,\"preferred_life_time\":35903},{\"family\":\"inet6\",\"local\":\"fe80::7bae:d695:b250:caab\",\"prefixlen\":64,\"scope\":\"link\",\"noprefixroute\":true,\"valid_life_time\":4294967295,\"preferred_life_time\":4294967295}]}]\n",
+    "stderr": "",
+    "bytesObserved": {
+      "stdout": 678,
+      "stderr": 0
+    },
+    "stdinBytesWritten": 0,
+    "stdinBytesRequested": 0,
+    "truncated": false,
+    "localChildReaped": true,
+    "ownedGroupKillAttempted": true,
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "localProcessGroupDeathProven": false,
+    "remoteDeathProven": false
+  },
+  "sourceIp": "192.168.8.249",
+  "interface": "enp162s0u1u3",
+  "linkMetadata": {
+    "speed": "1000",
+    "duplex": "full",
+    "mtu": "1500",
+    "operstate": "up"
+  },
+  "windowsTopology": {
+    "rc": 0,
+    "reason": null,
+    "elapsedSeconds": 6.036608269205317,
+    "stdout": "{\"atUtc\":\"2026-10-30T20:52:19.9488486Z\",\"adapters\":[{\"Name\":\"Wi-Fi\",\"InterfaceIndex\":23,\"Status\":\"Disconnected\",\"LinkSpeed\":\"1.7 Gbps\",\"InterfaceDescription\":\"Intel(R) Wi-Fi 6 AX200 160MHz\"},{\"Name\":\"Ethernet 2\",\"InterfaceIndex\":19,\"Status\":\"Up\",\"LinkSpeed\":\"1 Gbps\",\"InterfaceDescription\":\"Intel(R) Ethernet Controller I226-V\"},{\"Name\":\"Bluetooth Network Connection\",\"InterfaceIndex\":17,\"Status\":\"Disconnected\",\"LinkSpeed\":\"3 Mbps\",\"InterfaceDescription\":\"Bluetooth Device (Personal Area Network)\"},{\"Name\":\"Ethernet 3\",\"InterfaceIndex\":11,\"Status\":\"Disconnected\",\"LinkSpeed\":\"0 bps\",\"InterfaceDescription\":\"Intel(R) Ethernet Controller I226-V #2\"},{\"Name\":\"ZeroTier One [632ea290855e76c2]\",\"InterfaceIndex\":10,\"Status\":\"Up\",\"LinkSpeed\":\"100 Mbps\",\"InterfaceDescription\":\"ZeroTier Virtual Port\"},{\"Name\":\"vEthernet (Default Switch)\",\"InterfaceIndex\":26,\"Status\":\"Up\",\"LinkSpeed\":\"10 Gbps\",\"InterfaceDescription\":\"Hyper-V Virtual Ethernet Adapter\"},{\"Name\":\"vEthernet (WSL (Hyper-V firewall))\",\"InterfaceIndex\":57,\"Status\":\"Up\",\"LinkSpeed\":\"10 Gbps\",\"InterfaceDescription\":\"Hyper-V Virtual Ethernet Adapter #2\"}],\"switches\":[{\"Name\":\"Default Switch\",\"Id\":\"c08cb7b8-9b3c-408e-8e30-5e16a3aeb444\",\"SwitchType\":1,\"NetAdapterInterfaceDescription\":null},{\"Name\":\"WSL (Hyper-V firewall)\",\"Id\":\"790e58b4-7939-4434-9358-89ae7ddbe87e\",\"SwitchType\":1,\"NetAdapterInterfaceDescription\":null}],\"controlNics\":[{\"VMId\":\"dd8df95d-b771-4545-a861-0092e74a40f3\",\"SwitchName\":\"Default Switch\",\"SwitchId\":\"c08cb7b8-9b3c-408e-8e30-5e16a3aeb444\",\"IPAddresses\":[\"172.17.28.159\",\"fe80::215:5dff:fe01:3317\"],\"Status\":[2]}],\"routes\":[{\"IPAddress\":\"192.168.8.238\",\"InterfaceIndex\":19,\"NextHop\":null,\"DestinationPrefix\":null},{\"IPAddress\":null,\"InterfaceIndex\":19,\"NextHop\":\"0.0.0.0\",\"DestinationPrefix\":\"192.168.8.0/24\"}],\"readOnly\":true}\r\n",
+    "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+    "bytesObserved": {
+      "stdout": 1811,
+      "stderr": 222
+    },
+    "stdinBytesWritten": 0,
+    "stdinBytesRequested": 0,
+    "truncated": false,
+    "localChildReaped": true,
+    "ownedGroupKillAttempted": true,
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "localProcessGroupDeathProven": false,
+    "remoteDeathProven": false
+  },
+  "controlReferenceRoute": {
+    "rc": 0,
+    "reason": null,
+    "elapsedSeconds": 0.7816571458242834,
+    "stdout": "[{\"dst\":\"192.168.8.249\",\"gateway\":\"172.17.16.1\",\"dev\":\"eth0\",\"prefsrc\":\"172.17.28.159\",\"flags\":[],\"uid\":1000,\"cache\":[]}]\n",
+    "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+    "bytesObserved": {
+      "stdout": 122,
+      "stderr": 222
+    },
+    "stdinBytesWritten": 0,
+    "stdinBytesRequested": 0,
+    "truncated": false,
+    "localChildReaped": true,
+    "ownedGroupKillAttempted": true,
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "localProcessGroupDeathProven": false,
+    "remoteDeathProven": false
+  },
+  "completedAt": 1793393541.8839118
+}

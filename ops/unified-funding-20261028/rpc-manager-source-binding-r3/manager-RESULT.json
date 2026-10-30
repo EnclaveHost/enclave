@@ -1,0 +1,132 @@
+{
+  "at": 1793393794.3526075,
+  "readOnly": true,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 222,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "readOnly": true,
+    "loadedModuleBytesProven": false,
+    "atUtc": "2026-10-30T20:56:34.2490247Z",
+    "rows": [
+      {
+        "port": 9600,
+        "files": [
+          {
+            "path": "C:\\Program Files\\Enclave\\control\\windows\\node\\agent.mjs",
+            "sha256": "a41ca4cd59252d6a00648fda88232e97fe92049c8142dc1bf7910ae38ecae1a4",
+            "bytes": 93212
+          },
+          {
+            "path": "C:\\Program Files\\Enclave\\control\\windows\\node\\host.mjs",
+            "sha256": "dde60f6ed2f53121692f94201c98e7819f3a293e5ca606e6a9ec4b39b76fab24",
+            "bytes": 319366
+          },
+          {
+            "path": "C:\\Program Files\\Enclave\\control\\windows\\node\\isolation-client.mjs",
+            "sha256": "0b9808c7ab2d39a6e39df79efb98bb946d41d288d83d06861796c58e1d2c8ff5",
+            "bytes": 18440
+          }
+        ],
+        "pid": 41272,
+        "created": "2026-10-27T08:24:45.0989590Z",
+        "role": "node\\agent.mjs",
+        "releasePin": null
+      },
+      {
+        "port": 8091,
+        "files": [
+          {
+            "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\main.mjs",
+            "sha256": "53a854973c9b2c61e556b317a1dd349135595dee1f07edc8299a43a888eb310b",
+            "bytes": 22655
+          },
+          {
+            "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\server.mjs",
+            "sha256": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc",
+            "bytes": 64364
+          },
+          {
+            "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\wmi-launcher.mjs",
+            "sha256": "a22d90ee3c2711cdbe9ded0c5f9760c1afda9cd6dd4ebb182d7d4c1499c62de3",
+            "bytes": 99848
+          }
+        ],
+        "pid": 38076,
+        "created": "2026-10-26T17:17:18.5617520Z",
+        "role": "vbslike\\manager\\main.mjs",
+        "releasePin": null
+      },
+      {
+        "port": 8095,
+        "files": [
+          {
+            "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\bootstrap.mjs",
+            "sha256": "8b749fa787ce991577ae9007b0c4cf2a884e5d3d362e8444b9fbc15736de3b25",
+            "bytes": 1619
+          },
+          {
+            "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\source-manifest.json",
+            "sha256": "58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929",
+            "bytes": 17929
+          },
+          {
+            "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\main.mjs",
+            "sha256": "e7d05dc1d552c97e556591901d40913ab3521628f9111a012f7b77467f74b10b",
+            "bytes": 24175
+          },
+          {
+            "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\server.mjs",
+            "sha256": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc",
+            "bytes": 64364
+          },
+          {
+            "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\router\\main.mjs",
+            "sha256": "d021c31460f8b4313ab15a50a1e9792360df4b00de2f64d727e21b79d04fb9a7",
+            "bytes": 2268
+          }
+        ],
+        "pid": 41308,
+        "created": "2026-10-27T08:02:19.4407050Z",
+        "role": "manager",
+        "releasePin": "58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929"
+      },
+      {
+        "port": 8097,
+        "files": [
+          {
+            "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292\\bootstrap.mjs",
+            "sha256": "8b749fa787ce991577ae9007b0c4cf2a884e5d3d362e8444b9fbc15736de3b25",
+            "bytes": 1619
+          },
+          {
+            "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292\\source-manifest.json",
+            "sha256": "93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292",
+            "bytes": 18164
+          },
+          {
+            "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292\\control\\windows\\vbslike\\manager\\main.mjs",
+            "sha256": "e7d05dc1d552c97e556591901d40913ab3521628f9111a012f7b77467f74b10b",
+            "bytes": 24175
+          },
+          {
+            "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292\\control\\windows\\vbslike\\manager\\server.mjs",
+            "sha256": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc",
+            "bytes": 64364
+          },
+          {
+            "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292\\control\\windows\\vbslike\\router\\main.mjs",
+            "sha256": "d021c31460f8b4313ab15a50a1e9792360df4b00de2f64d727e21b79d04fb9a7",
+            "bytes": 2268
+          }
+        ],
+        "pid": 40360,
+        "created": "2026-10-27T08:24:42.8500370Z",
+        "role": "router",
+        "releasePin": "93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292"
+      }
+    ]
+  }
+}

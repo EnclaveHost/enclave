@@ -1,0 +1,1 @@
+Original rootbinding regex erroneously doubleescaped regex dot/whitespace, so rejectedentry; static inspection confirms. Separate r2 fixes only those tokens inregexlines. Bounded sanitized JSON catch now retained even exitnonzero; no rawcommandline/stderr exported. Same strictpublicpathscope/read-only/failclosed. Originalfailure retained.

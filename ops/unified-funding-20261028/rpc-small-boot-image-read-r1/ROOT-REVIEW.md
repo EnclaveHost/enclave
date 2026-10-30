@@ -1,0 +1,1 @@
+One bounded readonly exactcachedUbuntucloudimage621284352B. Verify qcowheader and no backing reference before qemu-imginfo, streamSHA1MiBblocks versus retainedSHA256SUMS, stableinode/size/timestamps. No mount/conversion/guest orkeys. Signatureindependentverification not implied.30souter/small256220floor27648CPU1noswap.

@@ -1,0 +1,20 @@
+{
+  "rc": 1,
+  "reason": null,
+  "elapsedSeconds": 0.15431711310520768,
+  "stdout": "",
+  "stderr": "Traceback (most recent call last):\n  File \"/fixture.py\", line 9, in <module>\n    r=run(['/usr/sbin/ip','link','set','lo','up']);assert r.returncode==0, 'private-loopback'\n                                                          ^^^^^^^^^^^^^^^\nAssertionError: private-loopback\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 278
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

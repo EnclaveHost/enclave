@@ -1,0 +1,1 @@
+Kernel/interface/HyperV route metadata only. No traffic probes/export/VM/network mutations. ExactsourceIP fromknownminipcroute, strictIPv4/devicevalidation beforeadaptivequery. Local3s+Windows15s+referenceControl10s/percapture64KiB; SSHtimeoutnotremotedeath. ExistingControlreference not newguestrouteproof. Small256220floor27648CPU1noswap.

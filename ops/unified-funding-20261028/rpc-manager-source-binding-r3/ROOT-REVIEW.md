@@ -1,0 +1,1 @@
+Original manual regex path escaping invalid at first9600: r2 diagnostic MethodInvocationException; local regexcompile confirms bad escapeP. Separate r3 constructs literalWindows prefixes using char92 and Regex.Escape; regex operators have no backslash. Publicscope unchanged. Earlierfailure/source retained; no mutations. Use construction rather than furtherescape substitutions.

@@ -1,0 +1,1 @@
+R2passednamespace loopback thenopensslreqfailed with missinghostconfignotmounted inisolation. Separate r3 explicitlycreatesminimalfixtureopensslconfig inprivateTMPFS plusCAconstraints/keyusage. No hostconfig/privatekeys mounted; samefixturecases/bounds. Include boundedopensslstderr iffailure. Originalr1/r2retained. No productioneffects.

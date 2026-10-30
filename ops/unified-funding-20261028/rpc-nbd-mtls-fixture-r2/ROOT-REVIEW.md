@@ -1,0 +1,1 @@
+Original r1failed beforecerts/export:NET_ADMIN not effective across exec for nonroot namespaceUID. Separate r2 maps invokinguser to UID/GID0 inside newusernamespace only and grantsNET_ADMIN onlyinprivateNETnamespace forloopback; no hostprivilege/newhostnetwork. Same fixture/rootreadonlybinds, noDB/productionkeys. No externalconnectivity. Originalretained.

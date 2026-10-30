@@ -1,0 +1,20 @@
+{
+  "rc": 1,
+  "reason": null,
+  "elapsedSeconds": 0.057743976125493646,
+  "stdout": "",
+  "stderr": "Traceback (most recent call last):\n  File \"/fixture.py\", line 14, in <module>\n    ok(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-keyout','ca-key.pem','-out','ca-cert.pem','-days','1','-subj','/CN=rpc-fixture-ca'])\n    ~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/fixture.py\", line 13, in ok\n    r=run(args);assert r.returncode==0, {'command':args[0], 'rc':r.returncode}\n                       ^^^^^^^^^^^^^^^\nAssertionError: {'command': 'openssl', 'rc': 1}\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 579
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

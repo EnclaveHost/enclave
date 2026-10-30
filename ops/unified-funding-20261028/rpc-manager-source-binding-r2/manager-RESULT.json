@@ -1,0 +1,16 @@
+{
+  "at": 1793393686.6066077,
+  "readOnly": true,
+  "rc": 1,
+  "failure": null,
+  "stderrBytes": 222,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "readOnly": true,
+    "stagePort": 9600,
+    "reason": "public source binding refused",
+    "rows": [],
+    "errorType": "System.Management.Automation.MethodInvocationException"
+  }
+}

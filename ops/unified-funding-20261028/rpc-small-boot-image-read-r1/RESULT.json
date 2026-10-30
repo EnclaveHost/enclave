@@ -1,0 +1,49 @@
+{
+  "at": 1793393484.95176,
+  "sha256": "04e8f2461a16a44e78a370284471f29616cdd9baf1893df25807b71f985b6c94",
+  "stat": {
+    "device": 64768,
+    "inode": 210540221,
+    "bytes": 621284352,
+    "mode": "0o644"
+  },
+  "image": {
+    "children": [
+      {
+        "name": "file",
+        "info": {
+          "children": [],
+          "virtual-size": 621284352,
+          "filename": "/home/steven/Documents/Codex/2026-10-18/wo/work/storage-vm/image/noble-server-cloudimg-amd64.img",
+          "format": "file",
+          "actual-size": 621289472,
+          "format-specific": {
+            "type": "file",
+            "data": {}
+          },
+          "dirty-flag": false
+        }
+      }
+    ],
+    "virtual-size": 3758096384,
+    "filename": "/home/steven/Documents/Codex/2026-10-18/wo/work/storage-vm/image/noble-server-cloudimg-amd64.img",
+    "cluster-size": 65536,
+    "format": "qcow2",
+    "actual-size": 621289472,
+    "format-specific": {
+      "type": "qcow2",
+      "data": {
+        "compat": "1.1",
+        "compression-type": "zlib",
+        "lazy-refcounts": false,
+        "refcount-bits": 16,
+        "corrupt": false,
+        "extended-l2": false
+      }
+    },
+    "dirty-flag": false
+  },
+  "mutation": false,
+  "signatureIndependentlyVerified": false,
+  "bootQualified": false
+}
