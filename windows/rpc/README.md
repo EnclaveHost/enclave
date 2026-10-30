@@ -155,3 +155,11 @@ They are not target qualification until separately executed and reviewed.
 The timing validator rejects negative/overflowing origins before arithmetic. A
 separate finite helper regression rejects Int64.MinValue/Int64.MaxValue before
 arming any watchdog; expected hosted CI count is23 including the original16.
+
+Hosted CI41142703119 atadd959e74fa76cc839455ed8c752bb6c7348aae4 passed
+all23 cases (compiler10.483s, harness9.862s). Killing the observer before release
+terminated owner+child7ms later; killing it during Run terminated both9ms later.
+The blocked callback was terminated by the original2500ms observer deadline
+(all exact handles signaled by2513ms), before its natural5000ms return. These
+are actual hosted process-death observations, not SYSTEM target admission or
+provider-operation settlement.

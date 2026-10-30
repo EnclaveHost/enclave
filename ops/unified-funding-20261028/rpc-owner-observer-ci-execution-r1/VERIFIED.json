@@ -1,0 +1,9 @@
+{
+  "run": 41142703119,
+  "head": "add959e74fa76cc839455ed8c752bb6c7348aae4",
+  "passed": 23,
+  "failed": 0,
+  "sourcePinsMatch": true,
+  "executableSha256": "ff466159ffe9aacd16dec03c542c075de978d5232ff58d1db7cb21c19b0f964c",
+  "executedLocally": false
+}

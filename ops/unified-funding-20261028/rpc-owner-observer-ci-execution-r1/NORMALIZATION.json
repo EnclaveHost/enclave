@@ -1,0 +1,47 @@
+[
+  {
+    "path": "DISPATCH-INTENT.json",
+    "originalSha256": "15770a764effffffe4d7316aafb573283c1438503f53bd486464cf970a21318c",
+    "publicSha256": "1b7caf70a26232c807d7fa04f215c03e3d11d7214017a33cd802e72a8cecab24"
+  },
+  {
+    "path": "artifacts/artifact.json",
+    "originalSha256": "48c7139a45501c3a089e6fc011a3ced79978d2848640c215f17817f7960882af",
+    "publicSha256": "93a3c0093d70b0b9401b8fee37560dfb3cc941e8c259f90235486296162166b5"
+  },
+  {
+    "path": "artifacts/compile.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "path": "artifacts/inert.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "path": "artifacts/publication.json",
+    "originalSha256": "b59d91acd7bafd0e02e44a45d6df13815daab349bafa008c516c55abb92e98ff",
+    "publicSha256": "a19cea56832b5705a5f3b46ae00aa5e676b08c00245c3eb6fbf4d8e2d00345ab"
+  },
+  {
+    "path": "artifacts/process-results.json",
+    "originalSha256": "a91151cad01ea9ad8d552ccc3f842bb97d41c6003658cd0a190d22e35dabff8f",
+    "publicSha256": "ecd651af785c2c6b824ca34f836c63ddfba01a6b116a66adcc3981fad8d96461"
+  },
+  {
+    "path": "artifacts/compile.out",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "path": "artifacts/pins.json",
+    "originalSha256": "f05ce0d9285b33a80d7907f534c9abae6b525140ed232f770359e5eb8cdd5c39",
+    "publicSha256": "632760b9f5f47b96d29394dfd226c583ccf651363469555c68b5a962f94d79a2"
+  },
+  {
+    "path": "artifacts/inert.out",
+    "originalSha256": "0274d62a17ae60a9b4769c786134ef47c616ed0e0575ee1947707dd9ae40a180",
+    "publicSha256": "ab2a02013d26aadccd8f9b5a796e6cb058879718fd5e1b15b4f1f02d5d78fdcc"
+  }
+]
