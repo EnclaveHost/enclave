@@ -1,0 +1,61 @@
+{
+  "at": 1793392136.509506,
+  "readOnly": true,
+  "cgroups": {
+    "app-org.chromium.Chromium-2290848.scope": {
+      "current": 20899545088,
+      "stats": {
+        "anon": 1523580928,
+        "file": 16936955904,
+        "shmem": 73879552,
+        "kernel": 2418995200,
+        "file_mapped": 56012800,
+        "active_file": 11112448,
+        "inactive_file": 16851963904,
+        "slab_reclaimable": 2356798768
+      }
+    },
+    "app-org.chromium.Chromium-2190679.scope": {
+      "current": 9913303040,
+      "stats": {
+        "anon": 58187776,
+        "file": 8336019456,
+        "shmem": 7405993984,
+        "kernel": 1358704640,
+        "file_mapped": 321605632,
+        "active_file": 216125440,
+        "inactive_file": 713904128,
+        "slab_reclaimable": 519338568
+      }
+    },
+    "app-code-oss-33624.scope": {
+      "current": 2604240896,
+      "stats": {
+        "anon": 1411497984,
+        "file": 235642880,
+        "shmem": 234614784,
+        "kernel": 156266496,
+        "file_mapped": 18378752,
+        "active_file": 425984,
+        "inactive_file": 602112,
+        "slab_reclaimable": 28174184
+      }
+    }
+  },
+  "tmpfsUsage": {
+    "/tmp": {
+      "usedBytes": 11948310528,
+      "availableBytes": 55059484672
+    },
+    "/dev/shm": {
+      "usedBytes": 94826496,
+      "availableBytes": 66912964608
+    },
+    "/run/user/1000": {
+      "usedBytes": 2752512,
+      "availableBytes": 13398802432
+    }
+  },
+  "noProcessesStopped": true,
+  "noFilesDeleted": true
+}
