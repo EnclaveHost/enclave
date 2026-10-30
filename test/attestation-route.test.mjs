@@ -31,7 +31,8 @@ test("no other source spells the alias; the supervisor and the relay take the pa
   const walk = (dir) => {
     for (const e of fs.readdirSync(path.join(REPO, dir), { withFileTypes: true })) {
       const rel = dir ? `${dir}/${e.name}` : e.name;
-      if (e.isDirectory()) { if (!["node_modules", ".git"].includes(e.name)) walk(rel); continue; }
+      // Dated ops snapshots preserve historical wire spellings; they are evidence, not maintained runtime source.
+      if (e.isDirectory()) { if (rel !== "ops" && !["node_modules", ".git"].includes(e.name)) walk(rel); continue; }
       if (!e.isFile() || !/\.(m?js|cjs|ts|json|md|html|py|sh|go|rs|sol|txt)$/.test(e.name) || generated.test(rel) || allowed.has(rel)) continue;
       if (fs.readFileSync(path.join(REPO, rel), "utf8").includes(alias)) hits.push(rel);
     }

@@ -424,7 +424,7 @@ export async function startActualHost(r, { id, owner, dir, token, host = { key: 
     r.stops.push(() => fs.rmSync(keys, { recursive: true, force: true }));
   }
   const effects = [], mode = {}, vmId = "vm-move-1";
-  let vmPresent = seed;
+  let vmPresent = seed, vmName = id;
   const manager = http.createServer(async (req, res) => {
     const raw = await body(req);
     const json = (status, v) => { res.writeHead(status, { "content-type": "application/json" }); res.end(JSON.stringify(v)); };
@@ -437,11 +437,11 @@ export async function startActualHost(r, { id, owner, dir, token, host = { key: 
     }
     if (req.method === "POST" && u.pathname === "/vms") {
       let name = null; try { name = JSON.parse(raw).name || null; } catch {}
-      vmPresent = true;
+      vmPresent = true; vmName = name;
       effects.push({ launched: true, name, at: Date.now() });   // name: the deployment id the supervisor launches
       return json(201, { id: vmId, hostPort: 0, status: "running" });
     }
-    if (req.method === "GET" && u.pathname === "/vms") return json(200, vmPresent ? [{ id: vmId, name: id, status: "running" }] : []);
+    if (req.method === "GET" && u.pathname === "/vms") return json(200, { vms: vmPresent ? [{ id: vmId, name: vmName, status: "running" }] : [] });
     if (req.method === "GET" && u.pathname.startsWith("/vms/")) return vmPresent ? json(200, { id: vmId, status: "running" }) : json(404, { error: "not found" });
     return json(200, { ok: true });
   });

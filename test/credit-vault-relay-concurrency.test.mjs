@@ -82,7 +82,12 @@ test("the credit-vault relay under concurrent requests: one flight per digest, o
   const sign = async (V, op, params) => CV.signPrepared(lib, await CV.prepareVaultOp(lib, V.profile, op, params, opts), V.profile,
     { pins: PINS, origin: F.ORIGIN, getFn: V.K.getFn(), intent: { op, params } });
   const spec = { appRef: "catalog://app/0", gpuMilli: 0, cpuMilli: 500, appPort: 8080, ports: "", isPublic: true, configCid: "", maxRate6: "1000" };
-  const deploymentOf = async (hash) => (await A.pub.getTransactionReceipt({ hash })).logs.find((l) => lc(l.address) === lc(S.ledger)).topics[1];
+  const deploymentOf = async (hash) => {
+    // Wallet submission may return before Anvil automines. The fixture needs the confirmed Created event.
+    const receipt = await A.pub.waitForTransactionReceipt({ hash, pollingInterval: 50, timeout: 30000 });
+    assert.equal(receipt.status, "success");
+    return receipt.logs.find((l) => lc(l.address) === lc(S.ledger)).topics[1];
+  };
   const waitFor = async (f, what) => { const end = Date.now() + 10000; while (!f()) { if (Date.now() > end) throw new Error("timed out: " + what); await F.sleep(5); } };
   const settled = (ps) => Promise.allSettled(ps).then((rs) => rs.map((r) => r.status === "fulfilled" ? { ok: r.value } : { error: String(r.reason && r.reason.message || r.reason).slice(0, 160) }));
 

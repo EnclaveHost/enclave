@@ -546,7 +546,7 @@ test("custom names: added with the challenge alias shown, edited, deleted - each
   let row = await startTab();
   assert.equal(await row.locator(".es-hosts").inputValue(), "");
   await row.locator(".es-hosts").fill("WWW.example.org\nshop.example.org");
-  await row.locator(".es-names summary").click();
+  await row.locator(".es-names summary", { hasText: "Certificates issued inside the app (optional)" }).click();
   await row.locator(".es-acme-dir").fill("https://ca.example/directory");
   await row.locator(".es-acme-ch").fill("https://responder.example");
   await row.locator(".es-acme-zone").fill(zone);

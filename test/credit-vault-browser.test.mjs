@@ -30,15 +30,17 @@ let chromium; try { ({ chromium } = require("playwright")); } catch {}
 const haveAnvil = (() => { try { execFileSync("anvil", ["--version"], { stdio: "ignore" }); return true; } catch { return false; } })();
 const skip = process.env.INJECT_FAILURE ? "negative-control run: only the injected test" : !chromium ? "Playwright unavailable" : !haveAnvil ? "needs Foundry's anvil" : false;
 const SITE = path.resolve(process.env.SITE_DIR || path.join(REPO, "site"));
-const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".json": "application/json", ".css": "text/css" };
+const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8", ".json": "application/json", ".css": "text/css" };
 
 function serve(port, overrides){
   const served = [];
   const srv = http.createServer((req, res) => {
     const p = decodeURIComponent(new URL(req.url, "http://x").pathname); served.push(p);
     if (overrides[p] !== undefined){ res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" }); return res.end(overrides[p]); }
-    let f = path.join(SITE, p);
-    if (!f.startsWith(SITE)){ res.writeHead(400); return res.end(); }
+    // The unbundled page imports the browser-safe policy validator; production bundles it.
+    const base = p === "/network/host-policy-mirrors.mjs" ? REPO : SITE;
+    let f = path.resolve(base, "." + p);
+    if (!f.startsWith(base + path.sep)){ res.writeHead(400); return res.end(); }
     if (fs.existsSync(f) && fs.statSync(f).isDirectory()){ if (!p.endsWith("/")){ res.writeHead(301, { location: p + "/" }); return res.end(); } f = path.join(f, "index.html"); }
     if (!fs.existsSync(f)){ res.writeHead(404); return res.end(); }
     res.writeHead(200, { "content-type": TYPES[path.extname(f)] || "application/octet-stream", "cache-control": "no-store",
@@ -100,7 +102,9 @@ test("/credit/ in Chromium: find, deploy, fund, control - no Enclave API", { ski
     window.ethereum = { request: ({ method, params }) => method === "eth_requestAccounts" ? Promise.resolve([payer]) : call(method, params || []) };
   }, { rpc: A.rpcs[0], payer: F.ACCT.payer.address });
   const page = await ctx.newPage();
-  const errs = []; page.on("pageerror", (e) => errs.push(String(e)));
+  const errs = [], failedLoads = []; page.on("pageerror", (e) => errs.push(String(e)));
+  page.on("response", (r) => { if (r.status() >= 400) failedLoads.push(r.status() + " " + r.url()); });
+  page.on("requestfailed", (r) => failedLoads.push(r.url() + " " + r.failure()?.errorText));
   const cdp = await ctx.newCDPSession(page);
   await cdp.send("WebAuthn.enable");
   const { authenticatorId } = await cdp.send("WebAuthn.addVirtualAuthenticator", { options: { protocol: "ctap2", transport: "internal",
@@ -109,7 +113,7 @@ test("/credit/ in Chromium: find, deploy, fund, control - no Enclave API", { ski
     privateKey: K.pkcs8, userHandle: Buffer.from("owner").toString("base64"), signCount: 0 } });
   const noteText = () => page.locator("#note").textContent();
   // a wait that fails names what the page said (its #note carries every refusal and error)
-  const withNote = async (p) => { try { return await p; } catch (e){ throw new Error(e.message.split("\n")[0] + " - page note: " + await noteText().catch(() => "?")); } };
+  const withNote = async (p) => { try { return await p; } catch (e){ throw new Error(e.message.split("\n")[0] + " - page note: " + await noteText().catch(() => "?") + " - page errors: " + JSON.stringify(errs) + " - failed loads: " + JSON.stringify(failedLoads)); } };
   const _wfs = page.waitForSelector.bind(page), _wff = page.waitForFunction.bind(page);
   page.waitForSelector = (...a) => withNote(_wfs(...a)); page.waitForFunction = (...a) => withNote(_wff(...a));
   const waitNote = (re, timeout = 60000) => page.waitForFunction((src) => new RegExp(src).test(document.querySelector("#note").textContent), re.source, { timeout });
