@@ -1,0 +1,9 @@
+{
+  "authorized": true,
+  "scope": "actual-l1-el-only-bounded-client-r8",
+  "pinsSha256": "370c55e771f736a37ac000109441b3dba79db28d35be70f2a75b0f6a09209001",
+  "at": 1793380845.2249367,
+  "reviewedHorizonSeconds": 1800,
+  "freshObservationSha256": "4bf70c6d034c52b3dbabd17564e17e1803eb2461cfbb9f0507543ca524e1cce3",
+  "review": "Same boot, all7fullservicecaps, emptyjobs and sameobservedOS/transport processes. Sysstat and fwupd due inside1800s; operational1536MiB OS residual+continuousguard not a hard reservation. Only private COWnewwriter; bothfrozenancestorsreadonly. No finance or existingservicechange."
+}
