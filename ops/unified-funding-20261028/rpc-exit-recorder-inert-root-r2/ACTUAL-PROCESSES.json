@@ -1,0 +1,66 @@
+{
+  "at": 1793386202.88158,
+  "invocation": "e5797921e8664503bbde3b726dbfd927",
+  "processes": [
+    {
+      "pid": 2993368,
+      "ppid": 1899,
+      "startTicks": "169128591",
+      "exe": "/usr/bin/python3.14",
+      "affinity": [
+        1
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-exit-recorder-inert-root-r2-20261030.service"
+    },
+    {
+      "pid": 2993369,
+      "ppid": 2993368,
+      "startTicks": "169128596",
+      "exe": "/usr/bin/node",
+      "affinity": [
+        1
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2993369-i44908356.scope"
+    },
+    {
+      "pid": 2993376,
+      "ppid": 2993369,
+      "startTicks": "169128600",
+      "exe": "/usr/bin/node",
+      "affinity": [
+        1
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2993369-i44908356.scope"
+    },
+    {
+      "pid": 2993383,
+      "ppid": 2993376,
+      "startTicks": "169128602",
+      "exe": "/usr/bin/python3.14",
+      "affinity": [
+        1
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2993369-i44908356.scope"
+    },
+    {
+      "pid": 2993409,
+      "ppid": 2993383,
+      "startTicks": "169128694",
+      "exe": "/usr/bin/ssh",
+      "affinity": [
+        1
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2993369-i44908356.scope"
+    },
+    {
+      "pid": 2993410,
+      "ppid": 2993409,
+      "startTicks": "169128694",
+      "exe": "/usr/bin/ssh",
+      "affinity": [
+        1
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2993369-i44908356.scope"
+    }
+  ]
+}

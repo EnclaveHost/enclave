@@ -1,0 +1,23 @@
+{
+  "status": "PREPARED_NOT_EXECUTED",
+  "sourcePinsSha256": "7bf9954f38b659ef9ed1520e222ec5ebf3ce2b9a335e0497857c14bee7c2df85",
+  "nonce": "e8b7ac32-499f-4de8-9f1d-7cb13708b941",
+  "nativeExecuted": false,
+  "rootAdmissionProvided": false,
+  "hashes": {
+    "AST-EQUIVALENCE.json": "74e542adaee1d562bb06c4a84550c922d0f8a8a84069da5b62ab8bcfb3f52cbc",
+    "CONFIG.json": "2ecc3b5588a835eb1ca8917bf4760b0b614a8cbf8f894a751d1a9209fc55a3b9",
+    "INSTALLED-OBSERVATION.json": "034a5fa40e412c761a6ca2f774b4573230381b4b408ff25c2df267176ef837ab",
+    "REVIEW.md": "a2b1f05792d5db2f68736237f27faa623ce6c304a12fbbdb0f36ae13afa51ca2",
+    "bootstrap.py": "d15de51613f0a0eead654f44aa6a5a03e78d739e0cc29658d1bb7ef775402f04",
+    "helper.py": "72547bc64dad872bbacc4877c905119653019b9120d93f95c08f2666ca09b87c",
+    "inert-client.py": "d0ed9078384b4c889067a08a15f7ed7c91f0c8903f17cf373e7d89ddcea28a78",
+    "launch-commands.txt": "750d218e99eca512847b9ff4830db580ddd017ea850a86709cb337e7fb2adefd",
+    "reviewed-exit-recorder.py": "d61489641fb78c8c38f0544a16f00ee8e3a79a50f70268e42a702f1ee6bcc181",
+    "variants/clean/exit-recorder.py": "3e58602086a0d4df5c5698d28ae0e9801761ce5be6652f8170b5892cefc7e95d",
+    "variants/exit7/exit-recorder.py": "b3ccbcbe4e0383b68eaf3c8e073ef6058e3b0450e1a345bea464c75154c807e5",
+    "variants/missingbinding/exit-recorder.py": "50dc309d07bceaa9fe510617980b058b587e8f8c6a1ea331263e95f06a00e9d9",
+    "variants/nooverwrite/exit-recorder.py": "bc980fa7baca7ac39c7510957d58bc384255321fd5d9f3638dc2cc4be93c9b35",
+    "variants/timeout/exit-recorder.py": "b40a11a127835b94bb07d80b5d068e6c80ba40808ccf0b79e5d216172d6d142a"
+  }
+}

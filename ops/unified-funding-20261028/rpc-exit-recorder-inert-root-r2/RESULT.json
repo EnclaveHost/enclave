@@ -1,0 +1,24 @@
+{
+  "ok": true,
+  "finishedAt": 1793386230.9417892,
+  "stages": {
+    "bootstrap": {
+      "rc": 0,
+      "reason": null,
+      "truncated": false,
+      "elapsedSeconds": 0.8966558300890028
+    },
+    "helper": {
+      "rc": 0,
+      "reason": null,
+      "truncated": false,
+      "elapsedSeconds": 57.19512301590294
+    },
+    "independent": {
+      "rc": 0,
+      "reason": null,
+      "truncated": false,
+      "elapsedSeconds": 0.5170843619853258
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "at": 1793386172.1824343,
+  "preparedSha256": "f2bd5165bd795f15bbf4f003395d90836c83605303130f313952861e6dbcc17e",
+  "freshObservationSha256": "9058318738fed256cd844c80bcbe4bd10f9e47954ea567792fc8c4c6f2c36ec7",
+  "observedAt": 1793386110.7972236,
+  "horizonSeconds": 480,
+  "authorizedScope": "five inert recorder cases only",
+  "remoteAggregateMiB": 256,
+  "remoteOSResidualMiB": 1536,
+  "localHardMiB": 512,
+  "localRssMiB": 450,
+  "localFloorMiB": 27648,
+  "CPU": 1,
+  "swap": 0,
+  "scheduleReview": "sysstat within480s covered by residual plus continuous helper guard; fwupd next19:04 outside horizon. No OS configuration changes. Residual is operational guard, not universal hard reservation."
+}

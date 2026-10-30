@@ -1,0 +1,17 @@
+{
+  "invocation": "e5797921e8664503bbde3b726dbfd927",
+  "terminal": true,
+  "mainPID": 0,
+  "knownAlive": [],
+  "contentDrift": [],
+  "preparedSha256": "f2bd5165bd795f15bbf4f003395d90836c83605303130f313952861e6dbcc17e",
+  "allFiveCases": true,
+  "namespaceVariantOnly": true,
+  "nativeApplication": false,
+  "independentDeathAndCleanup": true,
+  "limitations": [
+    "Receipt persists across unit GC, not power loss",
+    "Fixture uses namespace-only AST-equivalent variants, not production target paths",
+    "Independent final remote read was bounded capture, not remote cgroup capped"
+  ]
+}

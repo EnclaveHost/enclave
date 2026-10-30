@@ -1,0 +1,47 @@
+{
+  "clean": {
+    "sourceSha256": "d61489641fb78c8c38f0544a16f00ee8e3a79a50f70268e42a702f1ee6bcc181",
+    "variantSha256": "3e58602086a0d4df5c5698d28ae0e9801761ce5be6652f8170b5892cefc7e95d",
+    "normalizedAstSha256": "5fb38b9ee40648b9572cbec10f117afc0ac464cbaf66bbc401bdc905462c21f1",
+    "onlyLiteralSubstitutions": {
+      "/run/enclave-rpc-l1-client-r9": "/run/enclave-rpc-recorder-fixture-r1/clean",
+      "enclave-rpc-l1-el-trial-r9.service": "enclave-rpc-recorder-fixture-r1-clean.service"
+    }
+  },
+  "exit7": {
+    "sourceSha256": "d61489641fb78c8c38f0544a16f00ee8e3a79a50f70268e42a702f1ee6bcc181",
+    "variantSha256": "b3ccbcbe4e0383b68eaf3c8e073ef6058e3b0450e1a345bea464c75154c807e5",
+    "normalizedAstSha256": "5fb38b9ee40648b9572cbec10f117afc0ac464cbaf66bbc401bdc905462c21f1",
+    "onlyLiteralSubstitutions": {
+      "/run/enclave-rpc-l1-client-r9": "/run/enclave-rpc-recorder-fixture-r1/exit7",
+      "enclave-rpc-l1-el-trial-r9.service": "enclave-rpc-recorder-fixture-r1-exit7.service"
+    }
+  },
+  "timeout": {
+    "sourceSha256": "d61489641fb78c8c38f0544a16f00ee8e3a79a50f70268e42a702f1ee6bcc181",
+    "variantSha256": "b40a11a127835b94bb07d80b5d068e6c80ba40808ccf0b79e5d216172d6d142a",
+    "normalizedAstSha256": "5fb38b9ee40648b9572cbec10f117afc0ac464cbaf66bbc401bdc905462c21f1",
+    "onlyLiteralSubstitutions": {
+      "/run/enclave-rpc-l1-client-r9": "/run/enclave-rpc-recorder-fixture-r1/timeout",
+      "enclave-rpc-l1-el-trial-r9.service": "enclave-rpc-recorder-fixture-r1-timeout.service"
+    }
+  },
+  "missingbinding": {
+    "sourceSha256": "d61489641fb78c8c38f0544a16f00ee8e3a79a50f70268e42a702f1ee6bcc181",
+    "variantSha256": "50dc309d07bceaa9fe510617980b058b587e8f8c6a1ea331263e95f06a00e9d9",
+    "normalizedAstSha256": "5fb38b9ee40648b9572cbec10f117afc0ac464cbaf66bbc401bdc905462c21f1",
+    "onlyLiteralSubstitutions": {
+      "/run/enclave-rpc-l1-client-r9": "/run/enclave-rpc-recorder-fixture-r1/missingbinding",
+      "enclave-rpc-l1-el-trial-r9.service": "enclave-rpc-recorder-fixture-r1-missingbinding.service"
+    }
+  },
+  "nooverwrite": {
+    "sourceSha256": "d61489641fb78c8c38f0544a16f00ee8e3a79a50f70268e42a702f1ee6bcc181",
+    "variantSha256": "bc980fa7baca7ac39c7510957d58bc384255321fd5d9f3638dc2cc4be93c9b35",
+    "normalizedAstSha256": "5fb38b9ee40648b9572cbec10f117afc0ac464cbaf66bbc401bdc905462c21f1",
+    "onlyLiteralSubstitutions": {
+      "/run/enclave-rpc-l1-client-r9": "/run/enclave-rpc-recorder-fixture-r1/nooverwrite",
+      "enclave-rpc-l1-el-trial-r9.service": "enclave-rpc-recorder-fixture-r1-nooverwrite.service"
+    }
+  }
+}

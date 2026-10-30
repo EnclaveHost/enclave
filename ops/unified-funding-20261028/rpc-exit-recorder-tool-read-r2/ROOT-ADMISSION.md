@@ -1,0 +1,1 @@
+One distinct readonly observation for missing taskset/systemd-run/journalctl installed closure. Same reviewed boot/service caps/residual and64MiB remote15s bound as prior observation. No client/files/services restarted; fixed public files only. No retry.
