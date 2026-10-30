@@ -1,0 +1,10 @@
+{
+  "checkedAt": "2026-10-30T03:24:24.151845+00:00",
+  "preparedSha256": "4713ab2ca120dda909c8977014cef45e403694b8e04bc35ac8f8f1f7b25ae59a",
+  "inputPins": 17,
+  "sourceFiles": 3,
+  "drift": 0,
+  "hostNetworkNamespace": "net:[4026531833]",
+  "launchAuthorized": true,
+  "scope": "ONE product-only isolated compile; no tests, deployment or financial actions; unchanged limits"
+}

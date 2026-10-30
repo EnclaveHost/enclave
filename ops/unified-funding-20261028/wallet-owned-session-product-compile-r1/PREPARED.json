@@ -1,0 +1,75 @@
+{
+  "status": "PREPARED_ONLY_NOT_EXECUTED",
+  "sourceFiles": 3,
+  "sourceBytes": 104410,
+  "inputPins": 17,
+  "sourcePreEdits": 0,
+  "settings": {
+    "optimizer": {
+      "enabled": true,
+      "runs": 1
+    },
+    "viaIR": true,
+    "evmVersion": "osaka",
+    "metadata": {
+      "bytecodeHash": "ipfs"
+    },
+    "outputSelection": {
+      "contracts/WalletSessionVault.sol": {
+        "WalletSessionVault": [
+          "abi",
+          "metadata",
+          "evm.bytecode.object",
+          "evm.bytecode.linkReferences",
+          "evm.deployedBytecode.object",
+          "evm.deployedBytecode.linkReferences",
+          "evm.deployedBytecode.immutableReferences"
+        ],
+        "WalletSessionVaultFactory": [
+          "abi",
+          "metadata",
+          "evm.bytecode.object",
+          "evm.bytecode.linkReferences",
+          "evm.deployedBytecode.object",
+          "evm.deployedBytecode.linkReferences",
+          "evm.deployedBytecode.immutableReferences"
+        ]
+      },
+      "contracts/SessionVault.sol": {
+        "SessionVaultLib": [
+          "abi",
+          "metadata",
+          "evm.bytecode.object",
+          "evm.bytecode.linkReferences",
+          "evm.deployedBytecode.object",
+          "evm.deployedBytecode.linkReferences",
+          "evm.deployedBytecode.immutableReferences"
+        ]
+      },
+      "contracts/WalletSessionPolicy.sol": {
+        "WalletSessionPolicy": [
+          "abi"
+        ]
+      }
+    }
+  },
+  "hardMemoryMiB": 512,
+  "rssMiB": 450,
+  "availableFloorMiB": 27648,
+  "cpuIndex": 1,
+  "swapMiB": 0,
+  "compilerSeconds": 600,
+  "outerSeconds": 900,
+  "hostNetworkNamespace": "net:[4026531833]",
+  "rootAdmission": "root-compile-approval.json requires launchAuthorized true + exact preparedSha256; absent",
+  "hashes": {
+    "REVIEW.md": "e313f65e90c1684e4248dbf34c90874d0194c1ae34f92b82f7ed34ffdfc002b5",
+    "closure.json": "49cde44a1aa8020ac2ddd8cc925226f659ab5605460cb59f992a00e70cdcbc9d",
+    "compiler-input.json": "0327ef763b69e3748cff02a16f0be44273232b389cc5289ffc24e66cfa6f3a0c",
+    "input-pins.json": "fc121c3bb375b9045e9c3c9a1dac633384dc8d00841996798861701ffacbbe83",
+    "launch-command.txt": "5a917c24ee917b1ba8ac49948ad8202195a6c3aaac3c98e05d11dc08a1deda06",
+    "prepare.py": "95d38a8648c163caa53b86fd6226c1c37423121c616c82183b4187fafc0d4319",
+    "run.py": "bbc23bdbdae06f6884107cfaa6043314f92cb11f365edf0ca42e4479800bfc61",
+    "source-origins.json": "de04cd1e58f42bd6c21f4214573f65af27a5435f6d8f4e0c388e938c6476151b"
+  }
+}
