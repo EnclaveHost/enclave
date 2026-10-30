@@ -1,0 +1,7 @@
+# Actual disposable Windows qualification result
+
+CI41137680341, exact source f5bb2df8ff8d9967068ca5f5909bef1719761904, completed SUCCESS. Compiler1826ms/exit0/maximum observed RSS29454336B; harness2706ms/exit0/maximum observed RSS24653824B. All eight inert cases PASS. Parent-death fixture held exact supervisor/child identities, observed both alive, killed at91ms and observed both exited at95ms; parent exit-1, child exit0. This validates the prior fixture correction, without changing product limits. Original CI41137051967 five-PASS/one-FAIL evidence retained; no replay.
+
+These are actual Windows2025 hosted-runner results only. No production host import/execution, VM, provider action, data export, payment or app recovery occurred. Production nested-job environment, independent guardian, durable protected start intent/reference settlement, namespace authority, fresh physical/pending/storage admission remain unqualified. ProviderOperationFenced and ReservationMayRelease remain false. Downloaded executable is retained evidence and must not be executed on a production host without separate reviewed admission.
+
+The preservation attempt ef7169d4966041edb58b1e836849a192 failed whitespace checks on CRLF Windows artifacts before commit. Separate normalized text copies plus original/normalized SHA records succeeded via3ccb959135994e09b6a63c040027e36a; original local downloaded bytes unchanged. Source f5bb2df8ff8d9967068ca5f5909bef1719761904 matched remote. Dispatch6a1e46325a944f02a296a006356fe089 terminal0. Never rerun completed helpers/runs.
