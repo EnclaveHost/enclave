@@ -203,10 +203,15 @@ func TestColdHistoryRig(t *testing.T) {
 			}
 		}
 		attempts := 0
+		sawExpectedRefusal := false
 		t0 := time.Now()
 		w, err := WhenFinal(ctx, time.Duration(c.WindowMs)*time.Millisecond, time.Duration(c.StepMs)*time.Millisecond, func(x context.Context) (appconfig.WriterAuthority, error) {
 			attempts++
-			return auth.WriterAuthority(x)
+			w, err := auth.WriterAuthority(x)
+			if c.Contains != "" && err != nil && strings.Contains(err.Error(), c.Contains) {
+				sawExpectedRefusal = true
+			}
+			return w, err
 		})
 		cancel()
 		fmt.Printf("ATTEMPTS %s %d %dms %v\n", c.Name, attempts, time.Since(t0).Milliseconds(), err)
@@ -217,8 +222,11 @@ func TestColdHistoryRig(t *testing.T) {
 				t.Errorf("%s: want %s, got %v", c.Name, c.Code, err)
 			}
 		case c.Contains != "":
-			if err == nil || !strings.Contains(err.Error(), c.Contains) {
-				t.Errorf("%s: want an error containing %q, got %v", c.Name, c.Contains, err)
+			// Deadline cancellation can interrupt the final RPC and replace its
+			// diagnostic. Require the specific refusal from a completed attempt
+			// and require WhenFinal to return an error, never a writer fact.
+			if err == nil || !sawExpectedRefusal {
+				t.Errorf("%s: want an observed refusal containing %q and no writer fact, got %v (observed=%v)", c.Name, c.Contains, err, sawExpectedRefusal)
 			}
 		case len(c.Fact) == 0: // the driver compares the fact itself (it changed the chain during the run)
 			j, _ := w.JSON()

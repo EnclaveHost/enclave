@@ -484,19 +484,23 @@ test("reorganizations: a receipt reorganized away is rebroadcast while its ancho
   let agent;
   try {
     const cfg = S.config({ policy: { confirmations: 3, receiptTimeoutMs: 6000, confirmTimeoutMs: 20000, pollMs: 1000 } });
-    // (1) snapshot just before the send; during the confirmation wait, revert to it and build another chain of empty blocks
+    // (1) snapshot before sending; return a mined receipt, then replace its
+    // chain before the agent can confirm it. A receipt-poll sleep is too early:
+    // the transaction may not have been mined or observed yet.
     let snap = null, reorged = false;
     const client = new Proxy(S.chain.publicClient, { get(t, k) {
       if (k === "sendRawTransaction") return async (args) => { if (!snap && !reorged) snap = await S.chain.snapshot(); return t.sendRawTransaction(args); };
+      if (k === "getTransactionReceipt") return async (args) => {
+        const receipt = await t.getTransactionReceipt(args);
+        if (snap && !reorged) { reorged = true; await S.chain.revert(snap); await S.chain.setAutomine(false); await S.chain.dropAll(); await S.chain.mine(2); await S.chain.setAutomine(true); }
+        return receipt;
+      };
       return t[k];
     } });
     agent = await S.agentOf({ client, cfg });
     await agent.start();
     await S.later();
-    S.clock.onSleep = async () => {
-      if (snap && !reorged) { reorged = true; await S.chain.revert(snap); await S.chain.setAutomine(false); await S.chain.dropAll(); await S.chain.mine(2); await S.chain.setAutomine(true); }
-      else await S.chain.mine(1);
-    };
+    S.clock.onSleep = () => S.chain.mine(1);
     const a = await agent.tick();
     S.clock.onSleep = null;
     assert.equal(a.kind, "landed", JSON.stringify(a));
@@ -514,7 +518,11 @@ test("reorganizations: a receipt reorganized away is rebroadcast while its ancho
     const client2 = new Proxy(S.chain.publicClient, { get(t, k) {
       if (k === "sendRawTransaction") return async (args) => {
         const h = await t.sendRawTransaction(args);
-        if (holder.snap) { const s0 = holder.snap; holder.snap = null; await S.chain.revert(s0); await S.chain.setAutomine(false); await S.chain.dropAll(); await S.chain.mine(4); await S.chain.setAutomine(true); }
+        if (holder.snap) {
+          // Finish the old-chain mining operation before rolling its anchor back.
+          await t.waitForTransactionReceipt({ hash: h, pollingInterval: 50, timeout: 30000 });
+          const s0 = holder.snap; holder.snap = null; await S.chain.revert(s0); await S.chain.setAutomine(false); await S.chain.dropAll(); await S.chain.mine(4); await S.chain.setAutomine(true);
+        }
         return h;
       };
       return t[k];

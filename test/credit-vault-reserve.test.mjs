@@ -75,6 +75,8 @@ test("vault-owned app lease gas through the proposed parallel reserve; the submi
     const req = await GR.signReserveAction(lib, prep, prof, { pins: PINS, origin: F.ORIGIN, getFn: key.getFn(), intent: { action, params: { id, ...params } } });
     const s = await GR.submitReserveRequest(lib, req, wallet(), { journal: rj, reader, pins: PINS, record });
     assert.equal(s.status, "broadcast");
+    // Reconciliation may correctly remain pending until this wallet broadcast is mined.
+    assert.equal((await A.pub.waitForTransactionReceipt({ hash: s.txHash, pollingInterval: 50, timeout: 30000 })).status, "success");
     const out = await GR.reconcileReserve(lib, await rj.get(prof.vault), { reader, journal: rj });
     assert.equal(out.status, "executed", action);
     return { prep, req, out };

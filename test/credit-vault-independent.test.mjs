@@ -56,6 +56,15 @@ test("existing credit vault without the billing API", { skip: process.env.INJECT
   const K1 = passkey();
   const opts = { reader, pins: PINS };
   const wallet = () => CV.walletTransport(eip1193(A), ACCT.payer.address);
+  // A wallet acknowledges broadcast before mining. Tests of executed state wait
+  // for inclusion explicitly; hostile relay/pending/replay-refusal paths stay raw.
+  const submitConfirmedWallet = async (request, options) => {
+    const submitted = await CV.submitRequest(lib, request, wallet(), options);
+    assert.equal(submitted.status, "broadcast");
+    const receipt = await A.pub.waitForTransactionReceipt({ hash: submitted.txHash, pollingInterval: 50, timeout: 30000 });
+    assert.equal(receipt.status, "success");
+    return submitted;
+  };
 
   // the customer's credit: a vault at the OLDER factory (from before a factory rotation) and at the current one
   const vOld = CV.deriveVault(lib, K1.x, K1.y, S.older), vCur = CV.deriveVault(lib, K1.x, K1.y, S.current);
@@ -93,7 +102,7 @@ test("existing credit vault without the billing API", { skip: process.env.INJECT
     const run = async (op, params) => {
       const prepared = await CV.prepareVaultOp(lib, profile, op, params, { ...opts, journal });
       const req = await CV.signPrepared(lib, prepared, profile, { pins: PINS, origin: ORIGIN, getFn: K1.getFn(), intent: { op, params } });
-      const s = await CV.submitRequest(lib, req, wallet(), { journal, reader, pins: PINS });
+      const s = await submitConfirmedWallet(req, { journal, reader, pins: PINS });
       assert.equal(s.status, "broadcast");
       const r = await CV.reconcile(lib, await journal.get(profile.vault), { reader, journal });
       assert.equal(r.status, "executed", op); assert.equal(r.txHash, s.txHash);
@@ -170,7 +179,7 @@ test("existing credit vault without the billing API", { skip: process.env.INJECT
     const intent = { op: "fund", params: { id: deploymentId, amountUsd: "2" } };
     const prep = await CV.prepareVaultOp(lib, profile, "fund", intent.params, opts);
     const req = await CV.signPrepared(lib, prep, profile, { pins: PINS, origin: ORIGIN, getFn: K1.getFn(), intent });
-    assert.equal((await CV.submitRequest(lib, req, wallet(), { journal, reader, pins: PINS })).status, "broadcast");
+    assert.equal((await submitConfirmedWallet(req, { journal, reader, pins: PINS })).status, "broadcast");
     assert.equal((await CV.reconcile(lib, await journal.get(profile.vault), { reader, journal })).status, "executed");
     const bal = await usdcOf(A, S, profile.vault);
     await assert.rejects(CV.submitRequest(lib, req, wallet(), { journal, reader, pins: PINS }), /vault would refuse/);
@@ -206,14 +215,14 @@ test("existing credit vault without the billing API", { skip: process.env.INJECT
     const addI = { op: "addKey", params: { x: K2.x, y: K2.y } };
     let p = await CV.prepareVaultOp(lib, profile, "addKey", addI.params, opts);
     let r = await CV.signPrepared(lib, p, profile, { pins: PINS, origin: ORIGIN, getFn: K1.getFn(), intent: addI });
-    await CV.submitRequest(lib, r, wallet(), { journal, reader, pins: PINS }); assert.equal((await CV.reconcile(lib, await journal.get(profile.vault), { reader, journal })).status, "executed");
+    await submitConfirmedWallet(r, { journal, reader, pins: PINS }); assert.equal((await CV.reconcile(lib, await journal.get(profile.vault), { reader, journal })).status, "executed");
     const row2 = await CV.checkVaultForKey(lib, profile.vault, K2, opts);
     const profile2 = profileOf(row2, K2, "phone");
     const kh1 = CV.keyHash(lib, K1.x, K1.y);
     const delI = { op: "removeKey", params: { keyHash: kh1 } };
     p = await CV.prepareVaultOp(lib, profile2, "removeKey", delI.params, opts);
     r = await CV.signPrepared(lib, p, profile2, { pins: PINS, origin: ORIGIN, getFn: K2.getFn(), intent: delI });
-    await CV.submitRequest(lib, r, wallet(), { journal, reader, pins: PINS }); assert.equal((await CV.reconcile(lib, await journal.get(profile.vault), { reader, journal })).status, "executed");
+    await submitConfirmedWallet(r, { journal, reader, pins: PINS }); assert.equal((await CV.reconcile(lib, await journal.get(profile.vault), { reader, journal })).status, "executed");
     await assert.rejects(CV.prepareVaultOp(lib, profile, "fund", intent.params, opts), /not an active key/);
     await assert.rejects(CV.checkVaultForKey(lib, profile.vault, K1, opts), /not an active key/);
     const st = await CV.vaultState(lib, profile2, opts);
@@ -293,7 +302,7 @@ test("existing credit vault without the billing API", { skip: process.env.INJECT
     const ctl = { op: "control", params: { id: deploymentId, action: "resume" } };
     const req4 = await sign(await CV.prepareVaultOp(lib, profile, "control", ctl.params, { ...opts, journal: other }), ctl);
     assert.equal(req4.nonce, req3.nonce);
-    await CV.submitRequest(lib, req4, wallet(), { journal: other, reader, pins: PINS });
+    await submitConfirmedWallet(req4, { journal: other, reader, pins: PINS });
     assert.equal((await CV.reconcile(lib, await other.get(profile.vault), { reader, journal: other })).status, "executed", "control: found by its receipt");
     assert.equal((await CV.reconcile(lib, await journal.get(profile.vault), { reader, journal })).status, "superseded");
     await assert.rejects(A.raw("eth_call", [{ from: ACCT.payer.address, to: req3.to, data: req3.data }, "latest"]), /bad signature/, "the superseded bytes can never execute");
@@ -310,7 +319,7 @@ test("existing credit vault without the billing API", { skip: process.env.INJECT
     const intent = { op: "deploy", params: { spec, fundUsd: "4" } };
     const journal = memJournal();
     const req = await sign(await CV.prepareVaultOp(lib, profile, "deploy", intent.params, opts), intent);
-    const s = await CV.submitRequest(lib, req, wallet(), { journal, reader, pins: PINS });
+    const s = await submitConfirmedWallet(req, { journal, reader, pins: PINS });
     assert.equal((await CV.reconcile(lib, await journal.get(profile.vault), { reader, journal })).status, "executed");
     const rc = await A.pub.getTransactionReceipt({ hash: s.txHash });
     assert.ok(rc.logs.some((l) => lc(l.address) === ledger2), "created on the ledger the book names");
@@ -328,7 +337,7 @@ test("existing credit vault without the billing API", { skip: process.env.INJECT
     const pr = await CV.prepareVaultOp(lib, pOld, "refund", ri.params, opts);
     assert.ok(pr.limits.some((l) => /off-chain/.test(l)));
     const rq = await CV.signPrepared(lib, pr, pOld, { pins: PINS, origin: ORIGIN, getFn: K1.getFn(), intent: ri });
-    await CV.submitRequest(lib, rq, wallet(), { journal, reader, pins: PINS });
+    await submitConfirmedWallet(rq, { journal, reader, pins: PINS });
     assert.equal((await CV.reconcile(lib, await journal.get(pOld.vault), { reader, journal })).status, "executed");
     assert.equal(await usdcOf(A, S, TREASURY), t0 + 25_000000n); assert.equal(await usdcOf(A, S, pOld.vault), 0n);
   });
