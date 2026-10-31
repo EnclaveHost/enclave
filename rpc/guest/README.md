@@ -234,3 +234,59 @@ the existing identity and contains no live activation request, attachment contra
 server receipt or automatic activation. Previous 36/37-file seeds remain historical
 candidates and must not be mixed with the new lifetime dependencies. Fresh host
 admission and actual guest/kernel/storage/client validation remain outstanding.
+
+### Authenticated bundle delivery
+
+`rpc/deliver_activation.py` is the owner's one-shot sender. Its configuration has
+exactly `bundleReceipt`, `seedReceipt`, `guestBootId`, `target`, `jump`, `sshSha256`
+and `journalRoot`. Both receipt inputs use protected `{path, sha256}` records.
+`bundleReceipt` points to the operator preparer's `RESULT.json`; `seedReceipt`
+points to the private seed builder's own `output/RESULT.json` (not the enclosing
+transport observation). The latter binds the installed source/unit pins and the
+seeded SSH host public key. Neither receipt is an attestation; their hashes must
+come from the owner's verified artifact and admission workflow.
+
+`target` contains an explicit IP, port, `rpcadmin` user and canonical private local
+`identityFile`. An optional `jump` contains its own endpoint, alias and hash-pinned
+known-hosts file. The sender disables ambient SSH configuration, connection reuse,
+password prompts, host-key updates and global/DNS host-key fallback. Guest host-key
+checking uses the exact Ed25519 key and fingerprint from the private seed receipt.
+The local SSH client binary is pinned. The sender never reads or copies the local
+SSH private key; the normal SSH client uses it locally.
+
+The sender creates an exclusive private journal for the attempt and fsyncs its
+intent before one submission. Its public wire bundle contains only the three
+prepared JSON files and the activation request; it never transports issuer,
+server, client or SSH private keys. The receiver runs as a separately bounded
+root systemd unit (64MiB, no swap, CPU1, five-second runtime, one-second stop,
+no restart). It validates its exact process/unit envelope, the original contract
+window, guest identity, installed source and seeded credentials. It consumes a
+persistent delivery intent, installs the private bundle, and publishes the
+root0600 activation request last. Partial results are retained, never overwritten.
+It does not start activation or any mount/client service.
+
+The sender accepts only the exact fresh installed receipt. Timeout, dropped reply,
+changed receipt or any other uncertain result leaves the local journal consumed
+and unresolved, even when the receiver already installed the request. Do not
+resubmit or erase either journal. Reconcile the exact guest boot, delivery unit
+and durable receipt through the authenticated owner channel. Transport exit is
+not proof of remote death, storage fencing or permission to release reservations.
+A subsequent activation start is a separate owner operation under the unchanged
+external startup deadline; this sender does not perform it.
+
+The sender still requires an independently admitted owner resource/deadline
+envelope. Target SSH and the root receiver unit have not been executed in the new
+guest. Qualification currently covers 14 delivery tests plus the 13 activation
+and 10 attachment regressions. Actual protected files pass through packaging,
+receiver installation and the activation parser in a disposable root namespace.
+SSH/systemd orchestration is mocked there; real inert child processes test local
+transport success, output limits and timeout cleanup. Lost-acknowledgement tests
+prove no automatic second submission. These checks do not establish actual SSH
+authentication, guest boot, kernel NBD, chain startup or RPC readiness.
+
+The delivery-capable private seed is a new 39-file candidate (13,219,840 bytes).
+Its independent whole-image/file/mode/key-pair checks, six Python compile checks,
+and actual prepared guest cloud-init schema all pass. It reuses the existing
+credentials and instance. Earlier activation-only media do not contain the
+receiver entrypoint and must not be used for this delivery workflow. No live
+request, contract or service start is embedded in the new seed.

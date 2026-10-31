@@ -1,0 +1,7 @@
+# One-shot activation delivery qualification
+
+Actual bounded disposable root-namespace tests:14 delivery +13 activation +10 attachment PASS. Source/units match the maintained closure; all pins unchanged and unit terminal0/MainPID0. Earlier r1 had35 PASS; r2 added two entrypoint-envelope tests to close the previously untested receive_main gate, with unchanged product source.
+
+Protected owner bundle packaging -> actual guest receive file installation -> actual activation stage passes. Lost acknowledgement leaves remote installation present and local intent unresolved; a second call refuses the consumed journal without invoking transport. Wrong host-key fingerprint, runtime substitution, wire digest, deadline, receipt, extra path and partial install are refused. Exact receiver runtime relaxation is rejected before input read. Real inert Python children exercise local pipe success, timeout and output bounds.
+
+SSH execution and systemd property observations are mocked in these tests. They do not qualify actual host authentication, root guest execution, unit resource enforcement, kernel NBD, first boot, client readiness, provider/storage fencing or reservation release. Local SSH group cleanup never establishes remote death. Sender must execute under independent resource/deadline admission; the guest receiver separately checks its bounded64MiB/5s systemd envelope before reading stdin.

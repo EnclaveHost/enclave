@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.44130069110542536,
+  "stdout": "",
+  "stderr": "test_actual_local_exchange_success (__main__.Tests.test_actual_local_exchange_success) ... ok\ntest_actual_local_exchange_timeout_and_output_bound (__main__.Tests.test_actual_local_exchange_timeout_and_output_bound) ... ok\ntest_exact_remote_limit_and_jump_host_pinning (__main__.Tests.test_exact_remote_limit_and_jump_host_pinning) ... ok\ntest_foreign_success_receipt_is_not_completion (__main__.Tests.test_foreign_success_receipt_is_not_completion) ... ok\ntest_lost_ack_leaves_consumed_intent_without_replay (__main__.Tests.test_lost_ack_leaves_consumed_intent_without_replay) ... ok\ntest_owner_package_to_actual_receiver_to_activation_stage (__main__.Tests.test_owner_package_to_actual_receiver_to_activation_stage) ... ok\ntest_receiver_checks_original_deadline (__main__.Tests.test_receiver_checks_original_deadline) ... ok\ntest_receiver_partial_request_is_held (__main__.Tests.test_receiver_partial_request_is_held) ... ok\ntest_receiver_refuses_runtime_substitution_before_consumption (__main__.Tests.test_receiver_refuses_runtime_substitution_before_consumption) ... ok\ntest_seed_host_key_mismatch_refused_before_submit (__main__.Tests.test_seed_host_key_mismatch_refused_before_submit) ... ok\ntest_unknown_bundle_path_is_never_written (__main__.Tests.test_unknown_bundle_path_is_never_written) ... ok\ntest_wire_hash_refused_before_consumption (__main__.Tests.test_wire_hash_refused_before_consumption) ... ok\n\n----------------------------------------------------------------------\nRan 12 tests in 0.235s\n\nOK\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 1513
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

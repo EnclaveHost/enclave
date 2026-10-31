@@ -1,0 +1,14 @@
+{
+  "omittedLocalFiles": {
+    "PINS.json": "a2d535d9a6a9489a228aaa33706ad60568096eb2f93d43be3627c7de9e9a9a11",
+    "SSH.json": "0574c7d96d7cd5f60d64c86c4a0de321785319bf9aad8eadf9221729ce6db20e",
+    "REMOTE.json": "d8c6ff9414976bafba719c71781985170c5a731586110976a27b9e6b90535788",
+    "outer.log": "44d67c570e9bc2aa33508706c66096fad3eba538233e8d61340504d3ceaf2ceb",
+    "RESULT.json": "e4c49dd8e7ee19d55051ef0585177ddb244e3a35905db1b970e06b22f9a562b1",
+    "inner.log": "3c5138c8bfa5d9102dd536993a09906dd81698d6d5263f77bdabe072964d26c6",
+    "CONFIG.json": "ffbbcdc114511ccded20b84aa3f6aea96b58462b643ab902f0504fdde8db06f8",
+    "COMMAND.json": "64c6fb2808df55d4ed03d025d020095490e4d455580081fffe79eb8997269bdb"
+  },
+  "privateMediaPublished": false,
+  "scope": "Public evidence only. Private preparation configs/transports/embedded operator identity retained locally."
+}

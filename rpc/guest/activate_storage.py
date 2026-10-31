@@ -5,7 +5,7 @@ An admitted external owner still owns the original VM deadline and reservations.
 The local watchdog and BindsTo/After relationships stop attachment units if this
 owner stalls or exits. They do not prove device or provider-level writer fencing.
 """
-import hashlib,importlib.util,json,os,re,socket,stat,subprocess,time
+import base64,hashlib,importlib.util,json,os,re,socket,stat,subprocess,sys,time
 from pathlib import Path
 
 HERE=Path(__file__).resolve().parent
@@ -53,34 +53,35 @@ def required_pins():
             | {'/etc/systemd/system/'+name:0o644 for name in units})
 
 
-def stage(request_raw,invocation):
+def validate_request(request):
     if os.geteuid()!=0:raise ValueError('Guest root required')
-    request=protocol.decode(request_raw)
     if set(request)!={'bundle','resultSha256','runtimePins'} or set(request['runtimePins'])!=set(required_pins()):
         raise ValueError('Exact activation request and runtime closure required')
-    if not re.fullmatch('[0-9a-f]{32}',invocation):raise ValueError('Exact activation invocation required')
     for path,pin in request['runtimePins'].items():
         protocol.digest(pin)
-        if hashlib.sha256(protected_bytes(path,required_pins()[path],262144)).hexdigest()!=pin:raise ValueError('Activation source/unit changed')
+        if protocol.sha(protected_bytes(path,required_pins()[path],262144))!=pin:raise ValueError('Activation source/unit changed')
     bundle=Path(request['bundle'])
     if bundle.parent!=Path('/run/enclave-rpc-import') or not re.fullmatch('[0-9a-f]{32}',bundle.name):raise ValueError('Fixed import namespace required')
-    for parent in (bundle,bundle.parent):
-        st=parent.lstat()
-        if not stat.S_ISDIR(st.st_mode) or st.st_uid!=0 or stat.S_IMODE(st.st_mode)!=0o700:raise ValueError('Private root import directory required')
-    result_raw=protected_bytes(bundle/'RESULT.json');protocol.digest(request['resultSha256'])
+    protocol.digest(request['resultSha256'])
+    return bundle
+
+
+def validate_bundle(request,files):
+    if set(files)!={'attachment.json','server-ready.json','RESULT.json'}:raise ValueError('Exact public bundle files required')
+    result_raw=files['RESULT.json']
     if protocol.sha(result_raw)!=request['resultSha256']:raise ValueError('Owner bundle receipt changed')
+    raw={name:files[name] for name in ['attachment.json','server-ready.json']}
     result=protocol.decode(result_raw)
     expected={'schema','attempt','instance','guestBootId','createdUtcNs','deadlineUtcNs','files','contractInputs','storageAttached','rpcReady','writersFenced'}
     if set(result)!=expected or result['schema']!='owned-rpc-attachment-bundle/1' or set(result['files'])!={'attachment.json','server-ready.json'}:
         raise ValueError('Exact owner bundle receipt required')
     if any(result[k] is not False for k in ['storageAttached','rpcReady','writersFenced']):raise ValueError('Bundle makes premature activation claim')
-    raw={name:protected_bytes(bundle/name) for name in result['files']}
     if any(protocol.sha(raw[name])!=pin for name,pin in result['files'].items()):raise ValueError('Owner bundle member changed')
     contract=protocol.decode(raw['attachment.json']);boot=Path('/proc/sys/kernel/random/boot_id').read_text().strip()
     protocol.validate_attachment(contract,time.time_ns(),boot)
     protocol.validate_ready(protocol.decode(raw['server-ready.json']),contract,time.time_ns())
     if contract['serverReadySha256']!=protocol.sha(raw['server-ready.json']):raise ValueError('Server receipt differs')
-    if bundle.name!=contract['attempt']:raise ValueError('Imported attempt differs')
+    if Path(request['bundle']).name!=contract['attempt']:raise ValueError('Imported attempt differs')
     for left,right in [('attempt','attempt'),('instance','instance'),('guestBootId','bootId'),('createdUtcNs','createdUtcNs'),('deadlineUtcNs','deadlineUtcNs')]:
         if result[left]!=contract[right]:raise ValueError('Owner manifest and guest contract differ')
     if set(result['contractInputs'])!={'serverContract','serverReady','credentialReceipt'}:raise ValueError('Owner input provenance incomplete')
@@ -97,17 +98,81 @@ def stage(request_raw,invocation):
         for name,key in [('ca-cert.pem','caSha256'),('client-cert.pem','certificateSha256')]:
             if protocol.sha(protected_bytes(path/name))!=row[key]:raise ValueError('Seeded credential differs')
         protected_bytes(path/'client-key.pem')
-    # Do not overwrite a previous or partial installation. Consume before writes.
-    st=STATE.lstat()
-    if not stat.S_ISDIR(st.st_mode) or st.st_uid!=0 or stat.S_IMODE(st.st_mode)!=0o700:raise ValueError('Private persistent activation state required')
-    state=STATE/contract['attempt'];state.mkdir(mode=0o700)
-    fd=os.open(STATE,os.O_RDONLY|os.O_DIRECTORY)
+    return contract
+
+
+def private_directory(path):
+    if path.resolve(strict=True)!=path:raise ValueError('Canonical private directory required')
+    for parent in [path,*path.parents]:
+        st=parent.lstat()
+        if not stat.S_ISDIR(st.st_mode) or st.st_uid!=0 or st.st_mode&0o022:raise ValueError('Protected directory authority required')
+    if stat.S_IMODE(path.stat().st_mode)!=0o700:raise ValueError('Private root directory required')
+
+
+def consume(parent,attempt):
+    private_directory(parent);state=parent/attempt;state.mkdir(mode=0o700)
+    fd=os.open(parent,os.O_RDONLY|os.O_DIRECTORY)
     try:os.fsync(fd)
     finally:os.close(fd)
+    return state
+
+
+def stage(request_raw,invocation):
+    request=protocol.decode(request_raw);bundle=validate_request(request)
+    if not re.fullmatch('[0-9a-f]{32}',invocation):raise ValueError('Exact activation invocation required')
+    private_directory(bundle);private_directory(bundle.parent)
+    files={name:protected_bytes(bundle/name) for name in ['attachment.json','server-ready.json','RESULT.json']}
+    contract=validate_bundle(request,files);boot=contract['bootId']
+    # Do not overwrite a previous or partial installation. Consume before writes.
+    state=consume(STATE,contract['attempt'])
     write_new(state/'intent.json',{'attempt':contract['attempt'],'bootId':boot,'requestSha256':protocol.sha(request_raw),'unitInvocation':invocation,'deadlineUtcNs':contract['deadlineUtcNs']})
-    for name,data in raw.items():write_new(CONFIG/name,data)
+    for name in ['attachment.json','server-ready.json']:write_new(CONFIG/name,files[name])
     protocol.validate_attachment(contract,time.time_ns(),boot)
-    return contract,state,protocol.sha(raw['attachment.json'])
+    return contract,state,protocol.sha(files['attachment.json'])
+
+
+def receive(raw,attempt,wire_sha,invocation):
+    """Install a public owner bundle once; never start a service or extend time."""
+    if not re.fullmatch('[0-9a-f]{32}',attempt) or not re.fullmatch('[0-9a-f]{32}',invocation):raise ValueError('Exact delivery incarnation required')
+    protocol.digest(wire_sha)
+    if protocol.sha(raw)!=wire_sha:raise ValueError('Delivery bytes changed')
+    wire=protocol.decode(raw)
+    if set(wire)!={'schema','request','files'} or wire['schema']!='owned-rpc-activation-delivery/1':raise ValueError('Exact delivery schema required')
+    request=wire['request'];bundle=validate_request(request)
+    if bundle.name!=attempt:raise ValueError('Delivery attempt differs')
+    files={name:base64.b64decode(value,validate=True) for name,value in wire['files'].items()}
+    contract=validate_bundle(request,files);private_directory(bundle.parent)
+    state=consume(Path('/var/lib/enclave-rpc-delivery'),attempt)
+    write_new(state/'intent.json',{'attempt':attempt,'bootId':contract['bootId'],'wireSha256':wire_sha,'unitInvocation':invocation,'deadlineUtcNs':contract['deadlineUtcNs']})
+    consume(bundle.parent,attempt)
+    for name,data in files.items():write_new(bundle/name,data)
+    request_raw=json.dumps(request,sort_keys=True).encode()+b'\n'
+    # Publication comes last; failure leaves a consumed, non-retryable attempt.
+    protocol.validate_attachment(contract,time.time_ns(),contract['bootId'])
+    write_new(REQUEST,request_raw)
+    for name,data in files.items():
+        if protected_bytes(bundle/name)!=data:raise ValueError('Installed bundle changed')
+    if protected_bytes(REQUEST)!=request_raw:raise ValueError('Installed request changed')
+    validate_request(request);validate_bundle(request,files)
+    result={'schema':'owned-rpc-activation-delivery-receipt/1','attempt':attempt,'bootId':contract['bootId'],
+        'wireSha256':wire_sha,'requestSha256':protocol.sha(request_raw),'unitInvocation':invocation,'atUtcNs':time.time_ns(),
+        'installed':True,'activationStarted':False,'rpcReady':False}
+    write_new(state/'receipt.json',result)
+    protocol.validate_attachment(contract,time.time_ns(),contract['bootId'])
+    return result
+
+
+def receive_main(attempt,wire_sha):
+    os.umask(0o077)
+    unit='enclave-rpc-delivery-'+attempt+'.service';row=show(unit)
+    if (row['Id']!=unit or row['MainPID']!=str(os.getpid()) or row['InvocationID']!=os.environ.get('INVOCATION_ID')
+        or row['Type']!='exec' or row['RuntimeMaxUSec']!='5s' or row['TimeoutStopUSec']!='1s'
+        or row['MemoryMax']!=str(64<<20) or row['MemorySwapMax']!='0' or row['CPUQuotaPerSecUSec']!='1s'
+        or row['KillMode']!='control-group' or row['Restart']!='no' or row['SendSIGKILL']!='yes' or row['FinalKillSignal']!='9'
+        or Path('/proc/self/cgroup').read_text().strip()!='0::'+row['ControlGroup']):raise ValueError('Independent delivery envelope mismatch')
+    raw=sys.stdin.buffer.read(65537)
+    result=receive(raw,attempt,wire_sha,os.environ['INVOCATION_ID'])
+    print(json.dumps(result),flush=True)
 
 
 def command(args):
@@ -117,7 +182,7 @@ def command(args):
 
 
 def show(unit):
-    props='Id,LoadState,ActiveState,SubState,MainPID,ControlPID,Job,InvocationID,ControlGroup,FragmentPath,DropInPaths,NeedDaemonReload,BindsTo,After,Type,NotifyAccess,WatchdogUSec,WatchdogSignal,WatchdogTimestampMonotonic,KillMode,Restart,MemoryMax,MemorySwapMax,CPUQuotaPerSecUSec,TimeoutStartUSec,TimeoutStopUSec,SendSIGKILL,FinalKillSignal'
+    props='RuntimeMaxUSec,Id,LoadState,ActiveState,SubState,MainPID,ControlPID,Job,InvocationID,ControlGroup,FragmentPath,DropInPaths,NeedDaemonReload,BindsTo,After,Type,NotifyAccess,WatchdogUSec,WatchdogSignal,WatchdogTimestampMonotonic,KillMode,Restart,MemoryMax,MemorySwapMax,CPUQuotaPerSecUSec,TimeoutStartUSec,TimeoutStopUSec,SendSIGKILL,FinalKillSignal'
     return dict(line.split('=',1) for line in command(['show',unit,'--property='+props]).splitlines() if '=' in line)
 
 
@@ -206,4 +271,7 @@ def main():
         time.sleep(.1)
 
 
-if __name__=='__main__':main()
+if __name__=='__main__':
+    if len(sys.argv)==1:main()
+    elif len(sys.argv)==4 and sys.argv[1]=='receive':receive_main(sys.argv[2],sys.argv[3])
+    else:raise ValueError('Explicit activation or one-shot delivery only')

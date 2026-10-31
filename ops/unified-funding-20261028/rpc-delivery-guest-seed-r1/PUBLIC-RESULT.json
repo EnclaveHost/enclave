@@ -1,0 +1,236 @@
+{
+  "rc": 0,
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\n** The server may need to be upgraded. See https://openssh.com/pq.html\n",
+  "privateArtifactPreparation": true,
+  "observation": {
+    "result": {
+      "instance": "rpc-owned-8ee4452b174746c2b606b9b68f0fa623",
+      "seed": "/home/controladmin/rpc-delivery-guest-7f345bba3cb8432e9a726435e8ea1c7c/output/seed.iso",
+      "bytes": 13219840,
+      "sha256": "58e9efdd7cdf373e6bcc4ae171b706e4b4a355e77a7ebf27ecba5cdb4d5f996f",
+      "records": {
+        "/opt/enclave-rpc/nbd/lib/ld-linux-x86-64.so.2": {
+          "bytes": 236616,
+          "mode": "0755",
+          "sha256": "c20a2dc8917c755f02b94049356320fe1f62ac7d9f8994731f807d9df39302da"
+        },
+        "/opt/enclave-rpc/nbd/lib/libc.so.6": {
+          "bytes": 2129424,
+          "mode": "0755",
+          "sha256": "3a15d66867d83762c7f2f1e37359cb8f6c5743edb369c65285cb0b1c4f7498bf"
+        },
+        "/opt/enclave-rpc/nbd/lib/libffi.so.8.1.4": {
+          "bytes": 47672,
+          "mode": "0755",
+          "sha256": "00f593fe192f2851b8ce23b25cec2488d769beb5a8f63e8c9e563071e1075153"
+        },
+        "/opt/enclave-rpc/nbd/lib/libgmp.so.10.5.0": {
+          "bytes": 534896,
+          "mode": "0755",
+          "sha256": "0ccdfb6d6f5c039465f6d002cf7e4c072d48ac6a2cffc8dd6c748dec31592804"
+        },
+        "/opt/enclave-rpc/nbd/lib/libgnutls.so.30.37.1": {
+          "bytes": 2065824,
+          "mode": "0755",
+          "sha256": "ddbae2995750875c07bc218d12a062d73f8250678f54dedda7e9be5068781c98"
+        },
+        "/opt/enclave-rpc/nbd/lib/libhogweed.so.6.8": {
+          "bytes": 288920,
+          "mode": "0755",
+          "sha256": "c3c606139d4f7776efa4dbd4a6b62e30c916b07a0cafd8c3ef173d6f093607e3"
+        },
+        "/opt/enclave-rpc/nbd/lib/libidn2.so.0.4.0": {
+          "bytes": 133192,
+          "mode": "0755",
+          "sha256": "6e632fd9a3125db60bbc623719bbc17b0470330321c5b1c57f1ff7190e5551ad"
+        },
+        "/opt/enclave-rpc/nbd/lib/libnettle.so.8.8": {
+          "bytes": 342280,
+          "mode": "0755",
+          "sha256": "a245ed916229583d6fe0b07657b3ed945bc148c28cc08b5266295f620d2b91cc"
+        },
+        "/opt/enclave-rpc/nbd/lib/libnl-3.so.200.26.0": {
+          "bytes": 133944,
+          "mode": "0755",
+          "sha256": "afcb69e2ef0b46c2ce7b7483848332fa9462776d33163f64209acf01f86eddd7"
+        },
+        "/opt/enclave-rpc/nbd/lib/libnl-genl-3.so.200.26.0": {
+          "bytes": 27984,
+          "mode": "0755",
+          "sha256": "0757db7e6c5fbc4d2a8bbedbac7061fbb8ebb6196b4d2954d3a321e9ff76933c"
+        },
+        "/opt/enclave-rpc/nbd/lib/libp11-kit.so.0.3.1": {
+          "bytes": 1714008,
+          "mode": "0755",
+          "sha256": "a59efd4792d3343dedea1d26a28f5597abfe3369082deb504c4802a31b014897"
+        },
+        "/opt/enclave-rpc/nbd/lib/libtasn1.so.6.6.3": {
+          "bytes": 88216,
+          "mode": "0755",
+          "sha256": "59994414d0cdec4f678ef91eaaafc44b26b00bca507e4cc7978caaf79f584173"
+        },
+        "/opt/enclave-rpc/nbd/lib/libunistring.so.5.0.0": {
+          "bytes": 1755312,
+          "mode": "0755",
+          "sha256": "7bcf825cd449892db5105ad2aed91dcf94a27b796426600c765720c584c54dd1"
+        },
+        "/opt/enclave-rpc/nbd/nbd-client": {
+          "bytes": 56376,
+          "mode": "0755",
+          "sha256": "0a256b67962d1ffc1ab8bacecd4319b8e459a0535467abb66f83329ce5221167"
+        },
+        "/opt/enclave-rpc/identity.py": {
+          "bytes": 6838,
+          "mode": "0755",
+          "sha256": "1fac9d4de16a903233ca1613881d2157ec99710b99aee0c1cfd0cba4f75be103"
+        },
+        "/opt/enclave-rpc/install_storage_client.py": {
+          "bytes": 2638,
+          "mode": "0755",
+          "sha256": "36ca702a610ce4cc318112128e6779a99495b84912cefc18430d60478e9448a8"
+        },
+        "/opt/enclave-rpc/storage_library.py": {
+          "bytes": 4983,
+          "mode": "0644",
+          "sha256": "129ed77dc8e36c36b9e39c0400063e74e0444b7042b6b038c9238886c28c8dcf"
+        },
+        "/opt/enclave-rpc/attach_storage.py": {
+          "bytes": 14524,
+          "mode": "0755",
+          "sha256": "93859170fba8f078a2df14db52acc95d90a4405add8be63574c0a84049905da9"
+        },
+        "/etc/systemd/system/enclave-rpc-identity.service": {
+          "bytes": 612,
+          "mode": "0644",
+          "sha256": "5252b795055e449b038a974727034e0361e631ccff0cdb5f7eb6a877c07d7ac7"
+        },
+        "/etc/systemd/system/enclave-rpc-storage-client.service": {
+          "bytes": 478,
+          "mode": "0644",
+          "sha256": "3771ac80fd4eecda92483920397a6383c3ec9219d94110d0e69d12666cc4b729"
+        },
+        "/etc/systemd/system/enclave-rpc-attach-l1.service": {
+          "bytes": 724,
+          "mode": "0644",
+          "sha256": "ffb31f8176eb54e094afa15e28f8505bc96cc7449859ef73d0f50e8e580605ba"
+        },
+        "/etc/systemd/system/enclave-rpc-attach-base.service": {
+          "bytes": 732,
+          "mode": "0644",
+          "sha256": "c24027c2e9a5b1769d34e2c95d79c0050cb2eebde5d4820a33033c0ba103dccc"
+        },
+        "/etc/systemd/system/srv-enclave\\x2dl1\\x2dpair.mount": {
+          "bytes": 274,
+          "mode": "0644",
+          "sha256": "1c0d9117a85d1b371d1c93b34687da36e051605ae30cefab9ad130ad0d0ccf0c"
+        },
+        "/etc/systemd/system/srv-enclave\\x2dbase\\x2dholder.mount": {
+          "bytes": 286,
+          "mode": "0644",
+          "sha256": "bf48c55a5cb408d2751bc2908e2e6add8ae031e01583cfa7373ee8c2c32a01c0"
+        },
+        "/etc/systemd/system/enclave-rpc-el.service.d/identity.conf": {
+          "bytes": 118,
+          "mode": "0644",
+          "sha256": "7aba21c1278cea2f9ed60244c5067f59f67ad4f29af23aa3a2fa0e57e450217f"
+        },
+        "/etc/systemd/system/enclave-rpc-cl.service.d/identity.conf": {
+          "bytes": 118,
+          "mode": "0644",
+          "sha256": "7aba21c1278cea2f9ed60244c5067f59f67ad4f29af23aa3a2fa0e57e450217f"
+        },
+        "/etc/systemd/system/enclave-rpc-base.service.d/identity.conf": {
+          "bytes": 80,
+          "mode": "0644",
+          "sha256": "77f5e49ad5940f1b44bf3972ae469792993438f5e1d7ea781a236d89a9e647c0"
+        },
+        "/opt/enclave-rpc/storage_protocol.py": {
+          "bytes": 7217,
+          "mode": "0644",
+          "sha256": "80a3f865a76914a5d986528d50dfb77bd90ec5604f9884f3391ae99c4f02bc31"
+        },
+        "/opt/enclave-rpc/activate_storage.py": {
+          "bytes": 18961,
+          "mode": "0755",
+          "sha256": "1b1c92b0922cea8810c668eaa783447a3c0fcc146201aa556298678ec757f97d"
+        },
+        "/etc/systemd/system/enclave-rpc-storage-activation.service": {
+          "bytes": 727,
+          "mode": "0644",
+          "sha256": "1820e91dc31a3840ee488719ba5506fd5f050728526f7fbf0aadf76cbc2e84a7"
+        },
+        "/etc/enclave-rpc/identity.json": {
+          "bytes": 316,
+          "mode": "0644",
+          "sha256": "3e6706c9b6e4b8928a7244feda3f3465cbe22948a3f0dd85386d222a7118ad86"
+        },
+        "/etc/enclave-rpc/storage-client.json": {
+          "bytes": 2248,
+          "mode": "0644",
+          "sha256": "33a8cba1178b2f4e922817dceaa7763557e8275c278372272bdf936e542d674d"
+        },
+        "/etc/ssh/sshd_config.d/00-rpc-key-only.conf": {
+          "bytes": 77,
+          "mode": "0644",
+          "sha256": "707ade3a8e8c3543a603248afb58da57552ff51891c752b9b502516f62205511"
+        },
+        "/etc/enclave-rpc/storage/8ee4452b174746c2b606b9b68f0fa623/base/ca-cert.pem": {
+          "bytes": 1196,
+          "mode": "0600",
+          "sha256": "520a8e2f5c29b88ba673539c172f3968dd570cf33e3bc3722b710f12768352bf"
+        },
+        "/etc/enclave-rpc/storage/8ee4452b174746c2b606b9b68f0fa623/base/client-cert.pem": {
+          "bytes": 1342,
+          "mode": "0600",
+          "sha256": "a7c6f67b5a1b1ff832466b1258f0752185c47e2d542ed9024cb1a4f699a11f5e"
+        },
+        "/etc/enclave-rpc/storage/8ee4452b174746c2b606b9b68f0fa623/base/client-key.pem": {
+          "bytes": 1704,
+          "mode": "0600",
+          "private": true
+        },
+        "/etc/enclave-rpc/storage/8ee4452b174746c2b606b9b68f0fa623/l1/ca-cert.pem": {
+          "bytes": 1192,
+          "mode": "0600",
+          "sha256": "8403a636f24ef1885ac05b27278354bf1749bdd4a32521b4cc32b611d0ab2853"
+        },
+        "/etc/enclave-rpc/storage/8ee4452b174746c2b606b9b68f0fa623/l1/client-cert.pem": {
+          "bytes": 1338,
+          "mode": "0600",
+          "sha256": "300fdb3a557f11e2385939beaef1149fe23e8237ae321eb2504a5c3abce45aca"
+        },
+        "/etc/enclave-rpc/storage/8ee4452b174746c2b606b9b68f0fa623/l1/client-key.pem": {
+          "bytes": 1704,
+          "mode": "0600",
+          "private": true
+        }
+      },
+      "seconds": 0.3117108099395409,
+      "readbackVerified": true,
+      "storageAttached": false,
+      "clientsStarted": false,
+      "engineSecretIncluded": false,
+      "seedContainsPrivateCredentials": true,
+      "credentialPublic": null,
+      "invocation": "ae79ef99a41947a6927f924ab20a806c"
+    },
+    "privateBundle": "/home/controladmin/rpc-private-guest-8ee4452b174746c2b606b9b68f0fa623/8ee4452b174746c2b606b9b68f0fa623",
+    "publicCredentialReceiptSha256": "031225948e5f62d553d703c001ac172ce21aa30668f3acc67e52f17054324c43",
+    "schemaExit": 0,
+    "cloudInitExecuted": false,
+    "before": {
+      "memAvailableBytes": 7275782144,
+      "diskFreeBytes": 99597357056
+    },
+    "after": {
+      "memAvailableBytes": 7193485312,
+      "diskFreeBytes": 99558371328
+    },
+    "seconds": 3.040599189000204,
+    "invocation": "ae79ef99a41947a6927f924ab20a806c",
+    "sourcePins": {
+      "prepare_seed.py": "a6ffc88230f6b8db4aa98eadf4f8352b0ac9a35ad077a299c831276255a5ce51",
+      "credentials.py": "b02baf0cbf2b71fed1caded598381c59763dd885c1867b6ea2e69bc009508158"
+    }
+  }
+}

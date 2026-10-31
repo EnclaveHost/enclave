@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.19631245988421142,
+  "stdout": "",
+  "stderr": "..........\n----------------------------------------------------------------------\nRan 10 tests in 0.002s\n\nOK\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 109
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

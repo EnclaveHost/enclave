@@ -1,0 +1,7 @@
+# Delivery-capable private seed verification
+
+New Control seed /home/controladmin/rpc-delivery-guest-7f345bba3cb8432e9a726435e8ea1c7c/output/seed.iso;13,219,840 bytes;SHA25658e9efdd7cdf373e6bcc4ae171b706e4b4a355e77a7ebf27ecba5cdb4d5f996f. Build ae79ef99a41947a6927f924ab20a806c succeeded in3.040599s. Independent verification1b3e5fae90d0481cafbfd8b62d2e322e checks wholeISO/all39files/modes/keypairs/sixPythoncompiles and actual guest ext4 cloud-init schema with0errors/rootmetadataunchanged. Installed Control cloud-init CLI also passed.
+
+Existing instance and credentials reused; no keys regenerated or rotated. This candidate adds receive capability to the activation script but embeds no live request/contracts/receipts and starts no activation, mounts or clients. Prior39-file activation-only candidate is historical and must not be mixed with the receiver source pins. Private media, keys, user-data, readback and embedded operator identity/configuration are retained locally, never Git/public hosting.
+
+Source integration/artifact qualification is not production deployment, new VM admission, first boot, native SSH delivery, kernel storage, workload fit or RPC readiness. Actual Windows staging must use the complete client image plus this private seed under protected target custody; the old staged SSH-only image is insufficient. Original8091 must remain alive and no allocator cut or boot proceeds without the complete workflow and fresh resource admission.

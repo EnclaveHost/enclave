@@ -1,0 +1,11 @@
+{
+  "omittedLocalFiles": {
+    "PINS.json": "4c7fc5c71b437036079e4876f16919b93c6ab07f16b95694938d7c9ae435e2f5",
+    "qualification-only": "1d5ea0fb35de68a5c79d0a33f41cfd2392e54b4bcd15bea9463a804808d496b7",
+    "outer.log": "08a985021c2b73e1b286f16e952ad8ce1c93874bedc752c5f761b7e5b2ef8a0b",
+    "inner.log": "b6fd9297e9813aa6732906ee9e14128c5ec1ca0dae1661bb8a32a8519c73ec31",
+    "COMMAND.json": "57dc8fc6deefd991b9127357c28969f7574abe6525b207affa3b347cc6edb1e7"
+  },
+  "privateMediaPublished": false,
+  "scope": "Public evidence only. Private preparation configs/transports/embedded operator identity retained locally."
+}

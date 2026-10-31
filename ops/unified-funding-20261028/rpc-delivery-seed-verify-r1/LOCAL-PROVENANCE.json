@@ -1,0 +1,13 @@
+{
+  "omittedLocalFiles": {
+    "verify.py": "f1a6dbc3716f7c0da22ebe52bc7ed75cbd68d6ba81ddbb0c60379907fcaed75f",
+    "PINS.json": "4ffb57365959d4678fa295cd303273550d82672f7b554903f8d94425b8b07aee",
+    "SSH.json": "0574c7d96d7cd5f60d64c86c4a0de321785319bf9aad8eadf9221729ce6db20e",
+    "REMOTE.json": "65f0d371d1353c4a28c3292e13b43f003c0a8822f2ff50892f0f238090a84b4c",
+    "outer.log": "60f3d17842cee3123b7652d25b26f94f9ec691c8da9ffb543ecac990ed8d6e76",
+    "inner.log": "2dbaf4658667e39a29f4e9f4b605303e58b0ad72e9174760b093c39d147093f5",
+    "COMMAND.json": "3a161c300a5fffd03909d7bdea61629f67fcecacd9dd64cfc0f001a5d64e6504"
+  },
+  "privateMediaPublished": false,
+  "scope": "Public evidence only. Private preparation configs/transports/embedded operator identity retained locally."
+}
