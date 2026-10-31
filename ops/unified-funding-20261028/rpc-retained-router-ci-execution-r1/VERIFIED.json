@@ -1,0 +1,13 @@
+{
+  "run": 41166651454,
+  "head": "fcd045d6e0a31c52b06de8c032df9b01237125b3",
+  "files": 55,
+  "gitAndCurrentMatch": true,
+  "result": {
+    "rc": 0,
+    "elapsedMs": 7283,
+    "sourceDrift": [],
+    "scope": "hosted-inert-manager-only",
+    "productionAdmission": false
+  }
+}
