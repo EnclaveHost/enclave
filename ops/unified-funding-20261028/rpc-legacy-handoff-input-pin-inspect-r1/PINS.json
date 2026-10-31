@@ -1,0 +1,13 @@
+{
+  "create.ps1": "4f9d64b9701d110ce02c49a688338d56c640fe4b4a96753cf7dff837647fd4ee",
+  "create-COMMAND.json": "6c6d3d3b73e8a615f4c2245f4027699ef4c1e16b43d94d3392c2d4f2c86d2a2c",
+  "execute-template.ps1": "bfb699f252afd47eab3d50dbbdb3b001ae5695d9411f3dd7d65a09e5aded556c",
+  "entry.exe": "28ffe56cf25737589b5602c73f050a6461f21cfd97a3419ddfd13444b4b157a3",
+  "ROOT-REVIEW.md": "e6df42e12c38faf505432239b6f11669e34f9283aa158484dd98275b5d447220",
+  "execute-COMMAND.json": "b9b1fb2d14cfd5612a3ddf7627da8031ffa4f8d114799e91c4dff4a17cbc035c",
+  "stage-COMMAND.json": "8e7e3c2304b322b641f2cfdfa67949276d4acd73c098ec2b971994e5e8538c91",
+  "handoff.json": "d3167fbcc3b8168ee810ca9db2862382dc00554f8fcc46b2ea4653cc635d84af",
+  "SPEC.json": "72b4d2a16882db8acd1b24429ee544737d3351ad01205cf906568a944c167a15",
+  "run.py": "d8a459e8ba61e30938021d3ecff860794c1839afb59e4f03f8327bf53b7af813",
+  "owned-entry.exe": "b2cf9f95a9be44f8c18aeb1ff5194cea047f6c1fd1ef3d673af1270ae44d2bed"
+}

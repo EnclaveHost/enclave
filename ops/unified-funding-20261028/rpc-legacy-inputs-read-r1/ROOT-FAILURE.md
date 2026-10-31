@@ -1,0 +1,1 @@
+Original unit terminal status 1. ATTEMPT exists, RESULT absent. Reproduction of pure command construction fails command length assertion before subprocess.Popen; this proves no remote SSH launched by this code path. Original source/attempt preserved. Changed raw here-string transport is separate r2; command-size limit unchanged.

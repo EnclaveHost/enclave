@@ -19,8 +19,9 @@ public static class LegacyHandoffHarness {
  static void DirectoryNew(string path){var d=new DirectorySecurity();d.SetOwner(new SecurityIdentifier("S-1-5-32-544"));d.SetAccessRuleProtection(true,false);foreach(string id in new[]{"S-1-5-18","S-1-5-32-544"})d.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(id),FileSystemRights.FullControl,InheritanceFlags.ContainerInherit|InheritanceFlags.ObjectInherit,PropagationFlags.None,AccessControlType.Allow));Directory.CreateDirectory(path,d);}
  static void Put(string path,byte[] bytes){var acl=new FileSecurity();acl.SetOwner(new SecurityIdentifier("S-1-5-32-544"));acl.SetAccessRuleProtection(true,false);foreach(string id in new[]{"S-1-5-18","S-1-5-32-544"})acl.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(id),FileSystemRights.FullControl,AccessControlType.Allow));using(var f=new FileStream(path,FileMode.CreateNew,FileSystemRights.WriteData,FileShare.None,4096,FileOptions.WriteThrough,acl)){f.Write(bytes,0,bytes.Length);f.Flush(true);}}
  sealed class Contract {
-  public string PathName,Hash;public readonly byte[] Manifest=Encoding.UTF8.GetBytes("{\"schema\":\"refusal-fixture\"}");
-  public Contract(string op,bool wrongDigest){
+  public string PathName,Hash;public readonly byte[] Manifest;
+  public Contract(string op,bool wrongDigest,byte[] manifest=null){
+   Manifest=manifest??Encoding.UTF8.GetBytes("{\"schema\":\"refusal-fixture\"}");
    string nonce=Guid.NewGuid().ToString("N"),parent=Path.Combine(Path.GetPathRoot(Environment.SystemDirectory),"rpc-handoff-ci-"+nonce),root=Path.Combine(parent,nonce);DirectoryNew(parent);DirectoryNew(root);
    byte[] image=File.ReadAllBytes(Process.GetCurrentProcess().MainModule.FileName);Put(Path.Combine(root,"entry.exe"),image);Put(Path.Combine(root,"handoff.json"),Manifest);
    long now=BoundedWorker.MonotonicMilliseconds();string digest=wrongDigest?new string('0',64):ProtectedAttempt.Hash(Manifest);
@@ -49,6 +50,16 @@ public static class LegacyHandoffHarness {
   Test("unknown-operation-refused",()=>{var c=new Contract("start",false);Refuse(()=>{using(var a=ProtectedAttempt.PinLegacyHandoffController(c.PathName,c.Hash)){};});});
   Test("manifest-substitution-refused",()=>{var c=new Contract("legacy-memory-inspect-v1",true);using(var a=ProtectedAttempt.PinLegacyHandoffController(c.PathName,c.Hash))Refuse(()=>a.ReadLegacyHandoff());});
   Test("wrong-manifest-schema-before-host-work",()=>{var c=new Contract("legacy-memory-inspect-v1",false);int calls=0;using(var a=ProtectedAttempt.PinLegacyHandoffController(c.PathName,c.Hash))Refuse(()=>LegacyHandoff.Run(a,()=>{calls++;}));Check(calls==0&&!File.Exists(Path.Combine(Path.GetDirectoryName(c.PathName),"handoff.consumed")));});
+  Test("input-refusal-publishes-bounded-diagnostic-before-host-work",()=>{
+   string parent=Path.Combine(Path.GetPathRoot(Environment.SystemDirectory),"rpc-missing-input-"+Guid.NewGuid().ToString("N"));DirectoryNew(parent);
+   var json=new System.Web.Script.Serialization.JavaScriptSerializer();string secretMarker="never-publish-this-path";
+   byte[] manifest=Encoding.UTF8.GetBytes(json.Serialize(new{schema="legacy-memory-handoff/1",boot=ProtectedAttempt.CurrentBoot(),topology="mandatory-copy-direct-powershell/1",master=new{path=Path.Combine(parent,"master.vmgs"),sha256=new string('0',64),bytes=1},issuers=new[]{new{port=8091}},inputs=new[]{new{path=Path.Combine(parent,secretMarker),sha256=new string('0',64),bytes=1}}}));
+   var c=new Contract("legacy-memory-inspect-v1",false,manifest);using(var a=ProtectedAttempt.PinLegacyHandoffController(c.PathName,c.Hash)){
+    Refuse(()=>LegacyHandoff.Run(a,()=>{}));string text=a.ReadOnce("handoff.failure");var d=LegacyHandoff.Obj(json.DeserializeObject(text));
+    Check(d.Count==9&&LegacyHandoff.Str(d["manifest"])==ProtectedAttempt.Hash(manifest)&&LegacyHandoff.Str(d["phase"])=="input-file-open"&&LegacyHandoff.Num(d["inputIndex"])==0&&LegacyHandoff.Num(d["nativeError"])==2&&!text.Contains(secretMarker)&&!(bool)d["capacityAdmitted"]&&!(bool)d["reservationMayRelease"]);
+    Check(!File.Exists(Path.Combine(a.Root,"handoff.consumed"))&&!File.Exists(Path.Combine(a.Root,"handoff.result")));
+   }
+  });
   Console.WriteLine("RESULT tests="+count+" providerCalls=false vmChanged=false targetInventoryQualified=false");return 0;
  }catch(Exception e){Console.Error.WriteLine(e.ToString());return 1;}}
 }

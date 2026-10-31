@@ -1,0 +1,610 @@
+{
+  "schema": "legacy-handoff-inputs-preparation/1",
+  "preparedOnly": true,
+  "readyForCut": false,
+  "allLoadedInputsProven": false,
+  "currentRuntimeClosureProven": false,
+  "candidateCount": 89,
+  "candidateBytes": 1531125,
+  "issuers": [
+    {
+      "port": 8091,
+      "pid": 38076,
+      "created": 134375086385617521,
+      "createdUtc": "2026-10-26T17:17:18.5617520Z",
+      "image": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
+      "epoch": "6ba9af9a243b9f4754d8091d3de2f415",
+      "desktop": true,
+      "evidence": {
+        "file": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-legacy-handoff-target-inspect-r1/execute-remote-RESULT.json",
+        "fileSha256": "eb4fd929159834b6f6f9ed303c7e54eb50e7865d2ca21f3b39c16fba861e1186",
+        "pointer": "/result/result/inventory/receipt/issuers"
+      }
+    },
+    {
+      "port": 8095,
+      "pid": 41308,
+      "created": 134375617394407059,
+      "createdUtc": "2026-10-27T08:02:19.4407050Z",
+      "image": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
+      "epoch": "eb81408d8b99f58cd715d5c56017258c",
+      "desktop": true,
+      "evidence": {
+        "file": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-legacy-handoff-target-inspect-r1/execute-remote-RESULT.json",
+        "fileSha256": "eb4fd929159834b6f6f9ed303c7e54eb50e7865d2ca21f3b39c16fba861e1186",
+        "pointer": "/result/result/inventory/receipt/issuers"
+      }
+    }
+  ],
+  "masterSeparate": {
+    "path": "C:\\ProgramData\\Enclave\\shield\\type1.vmgs",
+    "sha256": "e93237a717a7e0e9fa201db2b331d2ed480274bfa47145854ea3ba85852abb96",
+    "bytes": 4194816,
+    "provenance": [
+      {
+        "file": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-template-config-diagnostic-r1/manager-RESULT.json",
+        "fileSha256": "5d3a4cb375b2ae75f442eb3cc768c31807b3b18a572eec66fa6cc7f6a8670454",
+        "pointer": "/observation/public/master"
+      },
+      {
+        "file": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-loaded-master-health-read-r1/manager-RESULT.json",
+        "fileSha256": "e643e190c496fad66ffac1ea6259ff29fa1c69d6994b71eef45cfb0180ae2a0a",
+        "pointer": "/observation/public/rows"
+      }
+    ],
+    "excludedFromInputs": "Must remain exclusively available to LegacyTemplateFence; never add master to ordinary PinInput list."
+  },
+  "inputs": [
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\isolation\\contract\\runtime.mjs",
+      "sha256": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69",
+      "bytes": 6224
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\isolation\\m2\\judge.mjs",
+      "sha256": "650b931d32ef72c84459141f6deeaf0f5a7a4e8c6441ac95f47f4bd8a624f1dd",
+      "bytes": 39168
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\isolation\\m4\\guestd\\supervisor-splice.mjs",
+      "sha256": "dcfc95b315995750ce1c19caef9d4551fdb6735a35b7bbdbf91a54cd29b2066b",
+      "bytes": 17220
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\relay\\shield-derive.mjs",
+      "sha256": "a475447301686a3be0e1dcaae9f5682db45e5066402cbf103e0009016e79c878",
+      "bytes": 10257
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\relay\\shield-desktop-derive.mjs",
+      "sha256": "52c99e557ac4f119e3e1cba1b69c0909d4bc06068cc784d0298f62261c09c6e4",
+      "bytes": 5426
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\relay\\shield-desktop-release.mjs",
+      "sha256": "a84635db7e33d5fe4f68796f29945597dd4b341fc1996c0394f804331a49f38d",
+      "bytes": 8977
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\relay\\snp-verify.mjs",
+      "sha256": "10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91",
+      "bytes": 25976
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\sdk\\bootstrap\\package.mjs",
+      "sha256": "17cc4cbaad3c8bc7ab9df99ca8b88d00674f7bed6825be33004375cff1b02e2a",
+      "bytes": 17866
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\sdk\\storage\\model-volumes.mjs",
+      "sha256": "152ed24ce1ab6d2ca87a4d81d46fbab48d471559d59c2e35d76faf076a57501a",
+      "bytes": 15967
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\node\\fetch-cid.py",
+      "sha256": "729e6a0c252d9f45823df1d065bcfedda22d9e9e75b36f2c580af1107c32a6f6",
+      "bytes": 2231
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\node\\host.mjs",
+      "sha256": "dde60f6ed2f53121692f94201c98e7819f3a293e5ca606e6a9ec4b39b76fab24",
+      "bytes": 319366
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\node\\ipfs_fetch.py",
+      "sha256": "93334ad552a124a05780d7447495f51d7caeb6665511df0beb60aba1b49067af",
+      "bytes": 10467
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\node\\isolation-client.mjs",
+      "sha256": "0b9808c7ab2d39a6e39df79efb98bb946d41d288d83d06861796c58e1d2c8ff5",
+      "bytes": 18440
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\node\\isolation-lifecycle.mjs",
+      "sha256": "5ae5f457f35fd4debb0b77f8b16ec00325d003470551354377e51c791734b033",
+      "bytes": 10944
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\node\\shieldedcard.mjs",
+      "sha256": "287f86d53617455f390fb65e39d99cb4f996edc1f4050351bd7ee710bc69f047",
+      "bytes": 6829
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\datapath\\datapath.mjs",
+      "sha256": "1149dfb2099a8ea3963c570d61d40e7b304d060b73c62694a31e8346bd258771",
+      "bytes": 9779
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\datapath\\desktop-plan.mjs",
+      "sha256": "038236f0207c1532477fff1127f64267a802f8a3acf6427f921d88ec1387144f",
+      "bytes": 3546
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\datapath\\node-bridge.mjs",
+      "sha256": "0b6e57087e1ae920f5255e6aeed36a8a610770af7dc0f8f50e84c382138d302e",
+      "bytes": 23368
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\backend.mjs",
+      "sha256": "d90b596a81a4f76752ba87c7905bb521f1f1674a6bbba3d8f3db210d657af9e2",
+      "bytes": 5557
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\bridge-auth.mjs",
+      "sha256": "259b4e879e91ab97b7776ee661a7aeda84c8a47c521a1e0d71e65df479693860",
+      "bytes": 4935
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\console-log.mjs",
+      "sha256": "ab6e7ec9c648d00920652ce9e67f7d194f1a86468f7c4fb88484c450e1521635",
+      "bytes": 11615
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\cpu-share.mjs",
+      "sha256": "ad792116e5c3939fcd287f76b9131eacf738cb7060f7ff19f94039a3e340e48f",
+      "bytes": 3268
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\derive.mjs",
+      "sha256": "b6f1e97574812230f251ad1626379804ec16d5c0607aa28e40e7b145a4ac7aaf",
+      "bytes": 10219
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\desktop-admission.mjs",
+      "sha256": "a59c5f3693c396a4018e3332f3b3885e7fe64dafe7b48a16462f02bff0993980",
+      "bytes": 6243
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\desktop-config.mjs",
+      "sha256": "d51822a41945f82ce71f326252757347b1eecebfcd6c86c4240b7c641296cd8a",
+      "bytes": 2871
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\desktop-derive.mjs",
+      "sha256": "3365d34388329b5432685efe55271c4e40245051c4fb4b038a4c4c461d06eb0a",
+      "bytes": 5419
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\desktop-media.mjs",
+      "sha256": "846e0c022f3a457b8926dc3d892f0848d3ea0473f258093646379fa0aae901c8",
+      "bytes": 21569
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\desktop-memory.mjs",
+      "sha256": "f791e7de897ec69c4e138ef9efb7f36193d1f793b38afe002b50a1859d5275e6",
+      "bytes": 641
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\desktop-platform.mjs",
+      "sha256": "ee7f2eab2b5943c5b0037ae360ed8639de290b4a882ca8c8a81b0f1f3114c355",
+      "bytes": 13568
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\desktop-router.mjs",
+      "sha256": "16b3ad77d10d8e82a5b90bea15ae9185af0ade0f51509156451b3ab8ea62635f",
+      "bytes": 1507
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\desktop-worker-transport.mjs",
+      "sha256": "37131b79ce658edf99e2d6d0974ee9df89996af03e6121f5133223e860787805",
+      "bytes": 10871
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\egress.mjs",
+      "sha256": "1686229adeee15cf1c28017ccbb355dcd47bc24650579414c9fc4e2b01915e05",
+      "bytes": 10148
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\fetchcid.mjs",
+      "sha256": "5f3443c431d36812554202303c4b5596a181727f88c74d95a52a6440cc46cafd",
+      "bytes": 4603
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\main.mjs",
+      "sha256": "53a854973c9b2c61e556b317a1dd349135595dee1f07edc8299a43a888eb310b",
+      "bytes": 22655
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\memory-share.mjs",
+      "sha256": "a9d8200b8ccd8c89e64aebadced10068e6ed952ca74dd857f0f99a1a637bfc52",
+      "bytes": 786
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\model-volumes.mjs",
+      "sha256": "15304eabf58e201c2e60c66b380b045e8bce3706f36aeef5479bf4900cef6954",
+      "bytes": 3190
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\psrun.mjs",
+      "sha256": "39ed693cd9e4258bf6f5b1e2c9b14b90e8314743b95b37e1dc8ec6283b1720b6",
+      "bytes": 2341
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\ready.mjs",
+      "sha256": "9b2fe8bc5df5ad3f9b203c94d12121c22fcf99558718b5181c58ddab256737a7",
+      "bytes": 13943
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\server.mjs",
+      "sha256": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc",
+      "bytes": 64364
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\shield-profile.mjs",
+      "sha256": "87e8935a192c49fb1c3de69e058256aacd883641989ca0618222e9466af2139c",
+      "bytes": 4188
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\wmi-launcher.mjs",
+      "sha256": "a22d90ee3c2711cdbe9ded0c5f9760c1afda9cd6dd4ebb182d7d4c1499c62de3",
+      "bytes": 99848
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\wmiserve-run.mjs",
+      "sha256": "9f6ea7ecf1f3bf28337f808c0f3bd49fe255a82199d4f8e14730904f500aaf14",
+      "bytes": 13831
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\verify\\boot-statements.mjs",
+      "sha256": "f34a98484a9190b08dcd3d06a3fe28f35e702e764b64d4d3eca6d9b79c5816d3",
+      "bytes": 1712
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\verify\\judge-hv.mjs",
+      "sha256": "bae3916e4a9ee1c3f4d67503f76b52d93febfbf356375a3321c7fe1fb9781f7f",
+      "bytes": 16382
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\guest\\hyperv.psm1",
+      "sha256": "17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c",
+      "bytes": 38595
+    },
+    {
+      "path": "C:\\Program Files\\Enclave\\guest\\utilities.psm1",
+      "sha256": "517766e996ddb021594c0ae2c7a60688d4293e2ee9459f558f2a436e6da30731",
+      "bytes": 11745
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\bootstrap.mjs",
+      "sha256": "8b749fa787ce991577ae9007b0c4cf2a884e5d3d362e8444b9fbc15736de3b25",
+      "bytes": 1619
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\isolation\\contract\\runtime.mjs",
+      "sha256": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69",
+      "bytes": 6224
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\isolation\\m2\\judge.mjs",
+      "sha256": "650b931d32ef72c84459141f6deeaf0f5a7a4e8c6441ac95f47f4bd8a624f1dd",
+      "bytes": 39168
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\isolation\\m4\\guestd\\supervisor-splice.mjs",
+      "sha256": "dcfc95b315995750ce1c19caef9d4551fdb6735a35b7bbdbf91a54cd29b2066b",
+      "bytes": 17220
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\relay\\shield-derive.mjs",
+      "sha256": "a475447301686a3be0e1dcaae9f5682db45e5066402cbf103e0009016e79c878",
+      "bytes": 10257
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\relay\\shield-desktop-derive.mjs",
+      "sha256": "52c99e557ac4f119e3e1cba1b69c0909d4bc06068cc784d0298f62261c09c6e4",
+      "bytes": 5426
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\relay\\shield-desktop-release.mjs",
+      "sha256": "a84635db7e33d5fe4f68796f29945597dd4b341fc1996c0394f804331a49f38d",
+      "bytes": 8977
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\relay\\snp-verify.mjs",
+      "sha256": "10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91",
+      "bytes": 25976
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\sdk\\bootstrap\\package.mjs",
+      "sha256": "17cc4cbaad3c8bc7ab9df99ca8b88d00674f7bed6825be33004375cff1b02e2a",
+      "bytes": 17866
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\sdk\\storage\\model-volumes.mjs",
+      "sha256": "152ed24ce1ab6d2ca87a4d81d46fbab48d471559d59c2e35d76faf076a57501a",
+      "bytes": 15967
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\node\\shieldedcard.mjs",
+      "sha256": "287f86d53617455f390fb65e39d99cb4f996edc1f4050351bd7ee710bc69f047",
+      "bytes": 6829
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\datapath\\datapath.mjs",
+      "sha256": "1149dfb2099a8ea3963c570d61d40e7b304d060b73c62694a31e8346bd258771",
+      "bytes": 9779
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\datapath\\desktop-plan.mjs",
+      "sha256": "038236f0207c1532477fff1127f64267a802f8a3acf6427f921d88ec1387144f",
+      "bytes": 3546
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\datapath\\node-bridge.mjs",
+      "sha256": "0b6e57087e1ae920f5255e6aeed36a8a610770af7dc0f8f50e84c382138d302e",
+      "bytes": 23368
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\backend.mjs",
+      "sha256": "d90b596a81a4f76752ba87c7905bb521f1f1674a6bbba3d8f3db210d657af9e2",
+      "bytes": 5557
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\bridge-auth.mjs",
+      "sha256": "259b4e879e91ab97b7776ee661a7aeda84c8a47c521a1e0d71e65df479693860",
+      "bytes": 4935
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\console-log.mjs",
+      "sha256": "ab6e7ec9c648d00920652ce9e67f7d194f1a86468f7c4fb88484c450e1521635",
+      "bytes": 11615
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\cpu-share.mjs",
+      "sha256": "ad792116e5c3939fcd287f76b9131eacf738cb7060f7ff19f94039a3e340e48f",
+      "bytes": 3268
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\derive.mjs",
+      "sha256": "b6f1e97574812230f251ad1626379804ec16d5c0607aa28e40e7b145a4ac7aaf",
+      "bytes": 10219
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\desktop-admission.mjs",
+      "sha256": "a59c5f3693c396a4018e3332f3b3885e7fe64dafe7b48a16462f02bff0993980",
+      "bytes": 6243
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\desktop-config.mjs",
+      "sha256": "d51822a41945f82ce71f326252757347b1eecebfcd6c86c4240b7c641296cd8a",
+      "bytes": 2871
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\desktop-derive.mjs",
+      "sha256": "3365d34388329b5432685efe55271c4e40245051c4fb4b038a4c4c461d06eb0a",
+      "bytes": 5419
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\desktop-media.mjs",
+      "sha256": "846e0c022f3a457b8926dc3d892f0848d3ea0473f258093646379fa0aae901c8",
+      "bytes": 21569
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\desktop-memory.mjs",
+      "sha256": "57787b8591a3f6545b94185d927c8c7c08088663985ec43c108aea1c69af67bb",
+      "bytes": 831
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\desktop-platform.mjs",
+      "sha256": "ee7f2eab2b5943c5b0037ae360ed8639de290b4a882ca8c8a81b0f1f3114c355",
+      "bytes": 13568
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\desktop-router.mjs",
+      "sha256": "16b3ad77d10d8e82a5b90bea15ae9185af0ade0f51509156451b3ab8ea62635f",
+      "bytes": 1507
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\desktop-worker-transport.mjs",
+      "sha256": "37131b79ce658edf99e2d6d0974ee9df89996af03e6121f5133223e860787805",
+      "bytes": 10871
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\egress.mjs",
+      "sha256": "1686229adeee15cf1c28017ccbb355dcd47bc24650579414c9fc4e2b01915e05",
+      "bytes": 10148
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\fetchcid.mjs",
+      "sha256": "5f3443c431d36812554202303c4b5596a181727f88c74d95a52a6440cc46cafd",
+      "bytes": 4603
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\main.mjs",
+      "sha256": "e7d05dc1d552c97e556591901d40913ab3521628f9111a012f7b77467f74b10b",
+      "bytes": 24175
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\memory-share.mjs",
+      "sha256": "a9d8200b8ccd8c89e64aebadced10068e6ed952ca74dd857f0f99a1a637bfc52",
+      "bytes": 786
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\model-volumes.mjs",
+      "sha256": "15304eabf58e201c2e60c66b380b045e8bce3706f36aeef5479bf4900cef6954",
+      "bytes": 3190
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\psrun.mjs",
+      "sha256": "39ed693cd9e4258bf6f5b1e2c9b14b90e8314743b95b37e1dc8ec6283b1720b6",
+      "bytes": 2341
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\ready.mjs",
+      "sha256": "9b2fe8bc5df5ad3f9b203c94d12121c22fcf99558718b5181c58ddab256737a7",
+      "bytes": 13943
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\server.mjs",
+      "sha256": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc",
+      "bytes": 64364
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\shield-profile.mjs",
+      "sha256": "87e8935a192c49fb1c3de69e058256aacd883641989ca0618222e9466af2139c",
+      "bytes": 4188
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\wmi-launcher.mjs",
+      "sha256": "bba4c309f5a837e17bf44be54cd8e4c4432ad74174a7d09eda559f11f5ef250e",
+      "bytes": 99854
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\wmiserve-run.mjs",
+      "sha256": "9f6ea7ecf1f3bf28337f808c0f3bd49fe255a82199d4f8e14730904f500aaf14",
+      "bytes": 13831
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\verify\\boot-statements.mjs",
+      "sha256": "f34a98484a9190b08dcd3d06a3fe28f35e702e764b64d4d3eca6d9b79c5816d3",
+      "bytes": 1712
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\verify\\judge-hv.mjs",
+      "sha256": "bae3916e4a9ee1c3f4d67503f76b52d93febfbf356375a3321c7fe1fb9781f7f",
+      "bytes": 16382
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\run-manager.cmd",
+      "sha256": "a7d6217b1aa64c609f16e5437db82ddac699f1f9a8f81942dea2fd40e0ec62a0",
+      "bytes": 1820
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\source-manifest.json",
+      "sha256": "58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929",
+      "bytes": 17929
+    },
+    {
+      "path": "C:\\ProgramData\\Enclave\\shield-config.cmd",
+      "sha256": "d688c172b44b21267067ed390803aff1c957f01e13549e6d82f1bd4e01496047",
+      "bytes": 2499
+    }
+  ],
+  "unresolved": [
+    {
+      "kind": "bare-package-resolution",
+      "role": "legacy8091",
+      "specifier": "ws",
+      "importer": "C:\\Program Files\\Enclave\\control\\isolation\\m4\\guestd\\supervisor-splice.mjs",
+      "status": "resolved installed package path/content unknown; candidates are resolution locations, not observed files",
+      "packageJsonCandidates": [
+        "C:\\Program Files\\Enclave\\control\\isolation\\m4\\guestd\\node_modules\\ws\\package.json",
+        "C:\\Program Files\\Enclave\\control\\isolation\\m4\\node_modules\\ws\\package.json",
+        "C:\\Program Files\\Enclave\\control\\isolation\\node_modules\\ws\\package.json",
+        "C:\\Program Files\\Enclave\\control\\node_modules\\ws\\package.json",
+        "C:\\Program Files\\Enclave\\node_modules\\ws\\package.json",
+        "C:\\Program Files\\node_modules\\ws\\package.json",
+        "C:\\node_modules\\ws\\package.json"
+      ],
+      "requirement": "Identify actual package root and package.json exports/main, then exact runtime dependency files; do not assume a checkout package or index.js is loaded."
+    },
+    {
+      "kind": "bare-package-resolution",
+      "role": "native8095",
+      "specifier": "ws",
+      "importer": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\isolation\\m4\\guestd\\supervisor-splice.mjs",
+      "status": "resolved installed package path/content unknown; candidates are resolution locations, not observed files",
+      "packageJsonCandidates": [
+        "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\isolation\\m4\\guestd\\node_modules\\ws\\package.json",
+        "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\isolation\\m4\\node_modules\\ws\\package.json",
+        "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\isolation\\node_modules\\ws\\package.json",
+        "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\node_modules\\ws\\package.json",
+        "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\node_modules\\ws\\package.json",
+        "C:\\ProgramData\\Enclave\\native-manager\\releases\\node_modules\\ws\\package.json",
+        "C:\\ProgramData\\Enclave\\native-manager\\node_modules\\ws\\package.json",
+        "C:\\ProgramData\\Enclave\\node_modules\\ws\\package.json",
+        "C:\\ProgramData\\node_modules\\ws\\package.json",
+        "C:\\node_modules\\ws\\package.json"
+      ],
+      "requirement": "Identify actual package root and package.json exports/main, then exact runtime dependency files; do not assume a checkout package or index.js is loaded."
+    },
+    {
+      "kind": "node-executable",
+      "path": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
+      "sha256": null,
+      "bytes": null,
+      "status": "exact running path/incarnation known; no executable hash/size established by selected retained installed reads",
+      "provenance": [
+        {
+          "file": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-legacy-handoff-target-inspect-r1/execute-remote-RESULT.json",
+          "fileSha256": "eb4fd929159834b6f6f9ed303c7e54eb50e7865d2ca21f3b39c16fba861e1186",
+          "pointer": "/result/result/inventory/receipt/issuers"
+        }
+      ]
+    },
+    {
+      "kind": "legacy-wrapper",
+      "role": "legacy8091",
+      "path": null,
+      "sha256": null,
+      "bytes": null,
+      "status": "Shield task and exact cmd parent known; complete installed wrapper path/bytes not present in scoped projection; do not guess run-shield.cmd",
+      "provenance": [
+        {
+          "file": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-pool-enrollment-read-r1/manager-RESULT.json",
+          "fileSha256": "08398c373ef74a74946c920b1b81658099ecb215bba326b8c2e68ab9c66b3559",
+          "pointer": "/observation/tasks"
+        },
+        {
+          "file": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-pool-enrollment-read-r1/manager-RESULT.json",
+          "fileSha256": "08398c373ef74a74946c920b1b81658099ecb215bba326b8c2e68ab9c66b3559",
+          "pointer": "/observation/processTopology"
+        }
+      ]
+    },
+    {
+      "kind": "loaded-ancillary-configs",
+      "roles": [
+        "legacy8091",
+        "native8095"
+      ],
+      "path": null,
+      "sha256": null,
+      "bytes": null,
+      "status": "CPU/GPU/desktop master path is independently exposed by loaded health. Exact loaded profile/desktop/router config paths and current bytes are not established by these master-only health fields. Historical wrapper hints below are not current pins."
+    },
+    {
+      "kind": "input-protection",
+      "status": "No preparation metadata establishes live held ACL/link/file identity. Apply existing protected input pinning to the selected complete list during the operation."
+    }
+  ],
+  "historicalConfigHints": [
+    {
+      "variable": "ENCLAVE_DESKTOP_CONFIG",
+      "historicalPath": "C:\\ProgramData\\Enclave\\native-desktop\\releases\\91791dc89d55b1026ef1949068551f4d20973580aa0f807b6463110b343b2680\\desktop-config.json",
+      "historicalSha256": "10d34ce6a4b2d2c03b149aaa0e666c71f25a0597d4944b097632d4c66e48dee8",
+      "status": "local wrapper561f differs from current observed a7d; do not promote without new evidence",
+      "localWrapper": "/home/steven/Documents/Codex/2026-10-23/it/work/native-manager-sidecar-v12/run-manager.cmd",
+      "localWrapperSha256": "561f71c8c16ed8125c1b865f8ae6f5bec43d212f1341730b3dcfa14c4e54c9f8"
+    },
+    {
+      "variable": "ENCLAVE_NATIVE_ROUTER_CONFIG",
+      "historicalPath": "C:\\ProgramData\\Enclave\\native-desktop\\releases\\91791dc89d55b1026ef1949068551f4d20973580aa0f807b6463110b343b2680\\router-config.json",
+      "historicalSha256": "a4ba4c47cb8868c4bdac2961613a6d12ea0343f129b6879572ff41037c1920a3",
+      "status": "local wrapper561f differs from current observed a7d; do not promote without new evidence",
+      "localWrapper": "/home/steven/Documents/Codex/2026-10-23/it/work/native-manager-sidecar-v12/run-manager.cmd",
+      "localWrapperSha256": "561f71c8c16ed8125c1b865f8ae6f5bec43d212f1341730b3dcfa14c4e54c9f8"
+    }
+  ]
+}

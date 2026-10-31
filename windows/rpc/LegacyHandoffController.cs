@@ -183,7 +183,17 @@ public static class LegacyHandoffController {
             if(sum!=Num(receipt["maximumBytes"])||Encoding.UTF8.GetString(Read(Path.Combine(Root,"handoff.inventory"),4096))!="legacy-vm-inventory/1\n"+String.Join("\n",index))
                 throw new InvalidOperationException("VM inventory sum/index differs");
             InventoryResult=new{receipt=receipt,vms=rows};passed=true;
-        }catch(Exception error){Failures.Add(error.GetType().Name+": "+error.Message);}finally{Cleanup();}
+        }catch(Exception error){
+            Failures.Add(error.GetType().Name+": "+error.Message);
+            try{
+                if(NamespacePin!=null&&File.Exists(Path.Combine(Root,"handoff.failure"))){
+                    var d=Obj(Json.DeserializeObject(Encoding.UTF8.GetString(Read(Path.Combine(Root,"handoff.failure"),4096))));
+                    var phases=new HashSet<string>{"initial","input-schema","input-parent-open","input-parent-authority","input-file-open","input-file-authority","input-file-identity","input-file-read","issuer-binding","inspect-inventory","definition-cut","cut-inventory"};
+                    if(d.Count!=9||Str(d["schema"])!="legacy-handoff-failure/1"||Str(d["manifest"])!=ManifestHash||!phases.Contains(Str(d["phase"]))||!False(d["capacityAdmitted"])||!False(d["reservationMayRelease"])||Num(d["inputIndex"]) < -1||Num(d["inputIndex"])>=128||Num(d["parentDepth"]) < -1||Num(d["parentDepth"])>128)throw new InvalidOperationException("Invalid public failure receipt");
+                    Failures.Add("Public handoff diagnostic: "+Json.Serialize(new{phase=Str(d["phase"]),inputIndex=Num(d["inputIndex"]),parentDepth=Num(d["parentDepth"]),hresult=Num(d["hresult"]),nativeError=Num(d["nativeError"])}));
+                }
+            }catch{Failures.Add("Public handoff diagnostic unavailable");}
+        }finally{Cleanup();}
         Console.WriteLine(Json.Serialize(new{schema="owned-rpc-target-legacy-handoff/1",passed=passed&&Failures.Count==0,operation=Operation,manifest=ManifestHash,inventory=InventoryResult,origin=Origin,deadline=Deadline,elapsedMs=BoundedWorker.MonotonicMilliseconds()-Origin,root=Root,freeBytes=free,requiredFreeBytes=Required,failures=Failures,providerFenced=false,reservationMayRelease=false,vmsChanged=false}));
         return passed&&Failures.Count==0?0:1;
     }

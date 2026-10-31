@@ -24,6 +24,7 @@ namespace Enclave.OwnedRpc {
   readonly IList issuers,inputs;
   readonly Dictionary<uint,Process> processes=new Dictionary<uint,Process>();
   readonly bool inspect;
+  string phase="initial";int inputIndex=-1,parentDepth=-1;
   [StructLayout(LayoutKind.Sequential,Pack=4)] struct Info {public uint Attributes;public long Created,Accessed,Written;public uint Volume,SizeHigh,SizeLow,Links,IndexHigh,IndexLow;}
   [DllImport("kernel32.dll",SetLastError=true)] static extern bool GetFileInformationByHandle(SafeFileHandle h,out Info i);
   LegacyHandoff(ProtectedAttempt lease,Action live){
@@ -46,21 +47,24 @@ namespace Enclave.OwnedRpc {
   void Check(){lease.CheckDeadline();live();foreach(var p in processes.Values)if(p.HasExited)throw new InvalidOperationException("Retained issuer exited during handoff");}
   void Parent(string path){
    if(!parents.Add(path))return;
+   phase="input-parent-open";
    var h=ProtectedAttempt.CreateFile(path,0x20000|0x80,3,IntPtr.Zero,3,0x02200000,IntPtr.Zero);
    if(h.IsInvalid){int e=Marshal.GetLastWin32Error();h.Dispose();throw new Win32Exception(e);}
-   held.Add(h);ProtectedAttempt.Authority(h,false,true,path);Check();
+   held.Add(h);phase="input-parent-authority";ProtectedAttempt.Authority(h,false,true,path);Check();
   }
   void PinInput(Dictionary<string,object> input){
    Keys(input,"path","sha256","bytes");string path=ProtectedAttempt.LocalPath(Str(input["path"])),hash=Str(input["sha256"]);long size=Num(input["bytes"]);
    StartIdentity.Hex(hash,64);if(size<1||size>128*1048576)throw new InvalidOperationException("Public source input bound");
    if(String.Equals(path,Str(master["path"]),StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("Master must remain exclusively available for fence");
-   string dir=Path.GetDirectoryName(path),current=Path.GetPathRoot(path);Parent(current);
-   foreach(string part in dir.Substring(3).Split('\\')){current=Path.Combine(current,part);Parent(current);}
+   string dir=Path.GetDirectoryName(path),current=Path.GetPathRoot(path);parentDepth=0;Parent(current);
+   foreach(string part in dir.Substring(3).Split('\\')){parentDepth++;current=Path.Combine(current,part);Parent(current);}
+   phase="input-file-open";
    var h=ProtectedAttempt.CreateFile(path,0x80000000|0x20000,1,IntPtr.Zero,3,0x00200000,IntPtr.Zero);
    if(h.IsInvalid){int e=Marshal.GetLastWin32Error();h.Dispose();throw new Win32Exception(e);}
-   held.Add(h);ProtectedAttempt.PinnedTemplateAuthority(h,path);Info identity;
+   held.Add(h);phase="input-file-authority";ProtectedAttempt.PinnedTemplateAuthority(h,path);Info identity;
+   phase="input-file-identity";
    if(!GetFileInformationByHandle(h,out identity)||identity.Links!=1)throw new InvalidOperationException("Public source alias/identity unavailable");
-   var stream=new FileStream(h,FileAccess.Read);held.Add(stream);
+   phase="input-file-read";var stream=new FileStream(h,FileAccess.Read);held.Add(stream);
    if(stream.Length!=size)throw new InvalidOperationException("Reviewed source size differs");
    // Streaming keeps even the pinned Node image within the small worker budget.
    using(var sha=SHA256.Create())if(BitConverter.ToString(sha.ComputeHash(stream)).Replace("-","").ToLowerInvariant()!=hash)
@@ -166,19 +170,21 @@ namespace Enclave.OwnedRpc {
   }
   void Execute(){
    Check();long total=0;var paths=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-   foreach(object o in inputs){var d=Obj(o);if(!paths.Add(Str(d["path"])))throw new InvalidOperationException("Duplicate source input");total=checked(total+Num(d["bytes"]));if(total>256*1048576)throw new InvalidOperationException("Reviewed input byte bound");PinInput(d);}
+   foreach(object o in inputs){inputIndex++;phase="input-schema";var d=Obj(o);if(!paths.Add(Str(d["path"])))throw new InvalidOperationException("Duplicate source input");total=checked(total+Num(d["bytes"]));if(total>256*1048576)throw new InvalidOperationException("Reviewed input byte bound");PinInput(d);}
+   phase="issuer-binding";
    var exact=BindIssuers();Check();
    if(inspect){
+    phase="inspect-inventory";
     var inventory=Inventory();var again=Inventory();if(json.Serialize(inventory)!=json.Serialize(again))throw new InvalidOperationException("Inspect inventory changed");
     BindIssuers();Check();PublishInventory(inventory,0,exact);return;
    }
-   lease.WriteOnce("handoff.consumed",lease.PermitHash+";"+lease.Token);
+   phase="definition-cut";lease.WriteOnce("handoff.consumed",lease.PermitHash+";"+lease.Token);
    long cutDeadline=Math.Min(lease.Deadline-5000,BoundedWorker.MonotonicMilliseconds()+10000);
    var cut=LegacyLaunchCohort.ApplyAndDrain(exact,Path.Combine(Environment.SystemDirectory,@"WindowsPowerShell\v1.0\powershell.exe"),Str(master["path"]),Str(master["sha256"]),Num(master["bytes"]),lease.Boot,Path.Combine(lease.Root,"definition-fence.intent"),cutDeadline);
    Check();string cohort=json.Serialize(cut.Exited);int childIndex=0;
    foreach(var p in cut.Exited){lease.WriteOnce("cohort-"+(char)('a'+childIndex/26)+(char)('a'+childIndex%26),json.Serialize(p));childIndex++;}
    lease.WriteOnce("handoff.cut",json.Serialize(new{schema="legacy-cut/1",manifest=lease.PermitHash,cutAt=cut.CutAt,master=cut.Fence.ObjectIdentity,intent=cut.Fence.IntentHash,cohortCount=cut.Exited.Length,cohortSha256=ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(cohort)),providerSettled=false,capacityAdmitted=false}));
-   var first=Inventory();var second=Inventory();if(json.Serialize(first)!=json.Serialize(second))throw new InvalidOperationException("Configured VM inventory changed; keep claims held");
+   phase="cut-inventory";var first=Inventory();var second=Inventory();if(json.Serialize(first)!=json.Serialize(second))throw new InvalidOperationException("Configured VM inventory changed; keep claims held");
    BindIssuers();Check();PublishInventory(first,cut.CutAt,exact);
   }
   void PublishInventory(SortedDictionary<string,MemoryRecord> inventory,long cutAt,LegacyLaunchCohort.Issuer[] exact){
@@ -190,7 +196,14 @@ namespace Enclave.OwnedRpc {
    lease.WriteOnce("handoff.inventory","legacy-vm-inventory/1\n"+String.Join("\n",index));Check();
    lease.WriteOnce("handoff.result",json.Serialize(new{schema="legacy-memory-handoff-result/2",manifest=lease.PermitHash,inspectOnly=inspect,cutAt=cutAt,observedAt=BoundedWorker.MonotonicMilliseconds(),issuers=exact,vmCount=n,maximumBytes=maximumBytes,providerSettled=false,capacityAdmitted=false,reservationMayRelease=false,poolSeeded=false}));
   }
-  public static void Run(ProtectedAttempt lease,Action live){using(var work=new LegacyHandoff(lease,live))work.Execute();}
+  public static void Run(ProtectedAttempt lease,Action live){using(var work=new LegacyHandoff(lease,live)){
+   try{work.Execute();}catch(Exception error){
+    // Fixed public metadata only: never publish exception messages, paths,
+    // environment values or source contents. Failure never grants admission.
+    try{var native=error as Win32Exception;lease.WriteOnce("handoff.failure",work.json.Serialize(new{schema="legacy-handoff-failure/1",manifest=lease.PermitHash,phase=work.phase,inputIndex=work.inputIndex,parentDepth=work.parentDepth,hresult=error.HResult,nativeError=native==null?0:native.NativeErrorCode,capacityAdmitted=false,reservationMayRelease=false}));}catch{}
+    throw;
+   }
+  }}
   public void Dispose(){for(int n=held.Count-1;n>=0;n--)held[n].Dispose();held.Clear();}
  }
 }
