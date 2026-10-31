@@ -1,4 +1,5 @@
 {
   "windows/rpc/DefinitionWorkerEntry.cs": "4313d713d28b00e47e2a151bd533adf4fd1ba5309430f62f58859ed1ff9790af",
-  "test/rpc-windows-worker/OwnedVmDefinitionHarness.cs": "ab772e520311c822f8c576a59ab11099ec712c7bb4718e3eaa07752d74ef339f"
+  "test/rpc-windows-worker/OwnedVmDefinitionHarness.cs": "ab772e520311c822f8c576a59ab11099ec712c7bb4718e3eaa07752d74ef339f",
+  "test/rpc-windows-worker/run-definition-ci.ps1": "aa7b15cdf98f1a1609a190f1eb1ae53c2ded4faf062f16b3fe95927c7334c3c1"
 }
