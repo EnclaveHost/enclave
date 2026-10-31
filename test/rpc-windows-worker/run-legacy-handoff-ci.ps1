@@ -59,11 +59,17 @@ try{
     $sources=@((Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $root 'windows\rpc\VmStartGuardian.cs'),(Join-Path $root 'windows\rpc\ProtectedAttempt.cs'),(Join-Path $root 'windows\rpc\ProviderStart.cs'),(Join-Path $root 'windows\rpc\ProviderStop.cs'),(Join-Path $root 'windows\rpc\HostPhysicalPool.cs'),(Join-Path $root 'windows\rpc\PhysicalPoolCommand.cs'),(Join-Path $root 'windows\rpc\OwnedVmPermit.cs'),(Join-Path $root 'windows\rpc\WindowsStartAdmission.cs'),(Join-Path $root 'windows\rpc\ProviderWorkerEntry.cs'),(Join-Path $root 'windows\rpc\LegacyTemplateFence.cs'),(Join-Path $root 'windows\rpc\InertEntry.cs'),(Join-Path $root 'windows\rpc\InertQualification.cs'),(Join-Path $root 'windows\rpc\LegacyLaunchCohort.cs'),(Join-Path $root 'windows\rpc\LegacyHandoff.cs'),(Join-Path $root 'windows\rpc\LegacyHandoffEntry.cs'),(Join-Path $root 'windows\rpc\LegacyHandoffController.cs'),(Join-Path $root 'test\rpc-windows-worker\LegacyHandoffHarness.cs'))
     $references=@('/nologo','/target:exe','/platform:x64','/main:LegacyHandoffHarness','/r:System.Management.dll','/r:System.Web.Extensions.dll','/r:Microsoft.CSharp.dll')
     Invoke-FiniteProcess $csc ($references+@('/out:'+$controller)+$sources) 20000 'compile'
-    Invoke-FiniteProcess $controller @() 15000 'handoff'
     $entry=Join-Path $work 'handoff-entry.exe';$target=Join-Path $work 'handoff-controller.exe'
     $base=@($references|Where-Object{$_ -notlike '/main:*'})
-    Invoke-FiniteProcess $csc ($base+@('/main:Enclave.OwnedRpc.LegacyHandoffEntry',('/out:'+$entry))+$sources) 20000 'compile-entry'
-    Invoke-FiniteProcess $csc ($base+@('/main:LegacyHandoffController',('/out:'+$target))+$sources) 20000 'compile-controller'
+    # Keep fixture code out of the two target images. Their existing 256KiB
+    # protected-input limit remains enforced independently of artifact storage.
+    $productionSources=@($sources|Where-Object{$_ -notlike '*\LegacyHandoffHarness.cs'})
+    if($productionSources.Count -ne 18){throw 'Unexpected target compilation closure'}
+    Invoke-FiniteProcess $csc ($base+@('/main:Enclave.OwnedRpc.LegacyHandoffEntry',('/out:'+$entry))+$productionSources) 20000 'compile-entry'
+    Invoke-FiniteProcess $csc ($base+@('/main:LegacyHandoffController',('/out:'+$target))+$productionSources) 20000 'compile-controller'
+    foreach($image in @($entry,$target)){if((Get-Item -LiteralPath $image).Length -gt 262144){throw 'Target image exceeds protected-input bound'}}
+    $targetDigest=(Get-FileHash -Algorithm SHA256 -LiteralPath $target).Hash.ToLowerInvariant()
+    Invoke-FiniteProcess $controller @($target,$targetDigest) 15000 'handoff'
     $lines=@(Get-Content -LiteralPath (Join-Path $work 'handoff.out'))
     if(@($lines|Where-Object{$_ -like 'PASS *'}).Count -ne 54 -or $lines[-1] -cne 'RESULT tests=54 providerCalls=false vmChanged=false targetInventoryQualified=false'){throw 'Handoff qualification incomplete'}
 }finally{

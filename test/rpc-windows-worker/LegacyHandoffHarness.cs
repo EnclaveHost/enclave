@@ -14,6 +14,7 @@ public static class LegacyHandoffHarness {
  [DllImport("kernel32.dll")] static extern IntPtr GetCurrentProcess();
  [DllImport("kernel32.dll")] static extern bool TerminateProcess(IntPtr p,uint code);
  static int count;
+ static byte[] fixtureImage;
  static void Check(bool ok){if(!ok)throw new Exception("Unexpected handoff qualification result");}
  static void Test(string name,Action a){a();Console.WriteLine("PASS "+name);count++;}
  static void Refuse(Action a){bool refused=false;try{a();}catch{refused=true;}Check(refused);}
@@ -24,7 +25,7 @@ public static class LegacyHandoffHarness {
   public Contract(string op,bool wrongDigest,byte[] manifest=null){
    Manifest=manifest??Encoding.UTF8.GetBytes("{\"schema\":\"refusal-fixture\"}");
    string nonce=Guid.NewGuid().ToString("N"),parent=Path.Combine(Path.GetPathRoot(Environment.SystemDirectory),"rpc-handoff-ci-"+nonce),root=Path.Combine(parent,nonce);DirectoryNew(parent);DirectoryNew(root);
-   byte[] image=File.ReadAllBytes(Process.GetCurrentProcess().MainModule.FileName);Put(Path.Combine(root,"entry.exe"),image);Put(Path.Combine(root,"handoff.json"),Manifest);
+   byte[] image=fixtureImage;Put(Path.Combine(root,"entry.exe"),image);Put(Path.Combine(root,"handoff.json"),Manifest);
    long now=BoundedWorker.MonotonicMilliseconds();string digest=wrongDigest?new string('0',64):ProtectedAttempt.Hash(Manifest);
    byte[] contract=Encoding.UTF8.GetBytes("owned-rpc-legacy-handoff-v1\n"+nonce+"\n"+ProtectedAttempt.CurrentBoot()+"\n"+now+"\n"+(now+20000)+"\n"+ProtectedAttempt.Hash(image)+"\n"+op+"\n"+digest+"\n");
    PathName=Path.Combine(root,"contract.txt");Hash=ProtectedAttempt.Hash(contract);Put(PathName,contract);
@@ -91,9 +92,16 @@ public static class LegacyHandoffHarness {
    }
   });
  }
- public static int Main(){try{
+ public static int Main(string[] args){try{
   BoundedWorker.EnterSupervisorEnvelope(256UL*1024*1024);long deadline=BoundedWorker.MonotonicMilliseconds()+9000;
   new Thread(()=>{while(BoundedWorker.MonotonicMilliseconds()<deadline)Thread.Sleep(5);TerminateProcess(GetCurrentProcess(),124);}){IsBackground=true}.Start();
+  if(args.Length!=2)throw new ArgumentException("Exact compiled target image and digest required");
+  using(var input=new FileStream(args[0],FileMode.Open,FileAccess.Read,FileShare.Read)){
+   if(input.Length<1||input.Length>262144)throw new InvalidOperationException("Fixture target image bound");
+   fixtureImage=new byte[(int)input.Length];int offset=0;
+   while(offset<fixtureImage.Length){int n=input.Read(fixtureImage,offset,fixtureImage.Length-offset);if(n==0)throw new IOException("Short fixture image");offset+=n;}
+   if(input.ReadByte()!=-1||ProtectedAttempt.Hash(fixtureImage)!=args[1])throw new InvalidOperationException("Fixture image digest differs");
+  }
   ResidentTests();SeedTests();
   Test("static-memory-bytes",()=>Check(LegacyHandoff.MaximumMemory(Row())==2147483648));
   Test("contradictory-static-reservation-refused",()=>{var r=Row();r["Reservation"]=(ulong)8192;Refuse(()=>LegacyHandoff.MaximumMemory(r));});

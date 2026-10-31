@@ -1,0 +1,8 @@
+System.InvalidOperationException: Protected file size
+   at Enclave.OwnedRpc.ProtectedAttempt.HoldRead(String path, Int32 maximum, Boolean allowMissing)
+   at Enclave.OwnedRpc.ProtectedAttempt..ctor(String contractPath, String expectedHash, Boolean controller, String profile)
+   at Enclave.OwnedRpc.ProtectedAttempt.PinLegacyHandoffController(String path, String hash)
+   at LegacyHandoffHarness.<ResidentTests>b__6()
+   at LegacyHandoffHarness.Test(String name, Action a)
+   at LegacyHandoffHarness.ResidentTests()
+   at LegacyHandoffHarness.Main()
