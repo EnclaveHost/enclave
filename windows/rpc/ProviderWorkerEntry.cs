@@ -312,10 +312,7 @@ namespace Enclave.OwnedRpc {
                                 if(a.Operation=="stop"||a.Operation=="stop-reconcile") {
                                     runtime.AwaitClosedStart(id);
                                     var stops=new HyperVStopProvider(runtime,journal);
-                                    var stopped=a.Operation=="stop"?ProviderStop.Submit(id,journal,provider,stops,runtime):ProviderStop.Reconcile(id,journal,provider,stops,runtime);
-                                    while(!stopped.OwnedOffZeroConfirmed&&runtime.Now+1000<a.Deadline&&stopped.State!="start-unsettled-held"&&stopped.State!="stop-submission-not-proven"&&stopped.State!="stop-response-lost-held") {
-                                        Thread.Sleep(100);stopped=ProviderStop.Reconcile(id,journal,provider,stops,runtime);
-                                    }
+                                    var stopped=ProviderStop.Cleanup(id,journal,provider,stops,runtime,a.Operation=="stop",a.Deadline,delegate{Thread.Sleep(100);});
                                     a.WriteOnce("child.result",stopped.State+";start-settled="+stopped.StartSettled+";stop-settled="+stopped.StopSettled+";owned-off-zero="+stopped.OwnedOffZeroConfirmed+";provider-fenced=false;reservation-release=false");return 0;
                                 }
                                 var result=a.Operation=="start"?ProviderStart.Submit(id,journal,provider,runtime):ProviderStart.Reconcile(id,journal,provider,runtime);

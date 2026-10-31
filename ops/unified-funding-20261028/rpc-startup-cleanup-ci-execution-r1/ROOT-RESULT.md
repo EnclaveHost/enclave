@@ -1,0 +1,1 @@
+CI41181287848 at a429786f8d5f68a8e42a5f00400118429f1cfc15 TERMINAL failure. Compiler CS1513: missing class closing brace in StartupCleanup.cs. No tests/native execution. Original compiled closure retained in Git/artifact. Source correction plus pending-start cleanup fix requires a new changed-source attempt. No production effect.

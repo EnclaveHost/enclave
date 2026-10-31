@@ -84,6 +84,7 @@ namespace Enclave.OwnedRpc {
    try{string raw=read();if(raw==null)return false;validate(raw);return beforeDeadline();}
    catch{refused=true;try{recordRefusal();}catch{}return false;}
   }
+ }
  internal static class StartupOperatorAdoption {
   // An explicit protected host-owner decision. This deliberately does not claim
   // that a report digest proves sync/finality or consumer readiness. The operator

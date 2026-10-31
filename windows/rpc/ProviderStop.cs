@@ -61,6 +61,25 @@ namespace Enclave.OwnedRpc {
             ProviderStart.PersistResponse(journal,"stop",intent,response);
             return Reconcile(id,journal,starts,stops,runtime);
         }
+        // Poll only the exact recorded async operation. A pending start has not
+        // consumed stop.submit, so settlement can enable the first stop exactly
+        // once. Missing/lost responses never become an excuse to submit again.
+        internal static StopOutcome Cleanup(StartIdentity id,IStartJournal journal,IStartProvider starts,IStopProvider stops,IStopRuntime runtime,bool maySubmit,long deadline,Action wait){
+            if(wait==null||deadline<=runtime.Now||deadline>id.Deadline+30000)throw new InvalidOperationException("Bounded original cleanup window required");
+            BoundIntent(id,journal);runtime.VerifyClosedStart(id);
+            var start=ProviderStart.Reconcile(id,journal,starts,runtime);
+            while(!start.OperationSettled&&start.State.StartsWith("job-state-",StringComparison.Ordinal)&&runtime.Now+1000<deadline){
+                wait();runtime.VerifyClosedStart(id);start=ProviderStart.Reconcile(id,journal,starts,runtime);
+            }
+            if(!start.OperationSettled)return new StopOutcome("start-unsettled-held",false,false,false);
+            if(runtime.Now>=deadline)throw new TimeoutException("Original cleanup window expired");
+            bool consumed=journal.Read("stop.submit")!=null||journal.Read("stop.native")!=null||journal.Read("stop.receipt")!=null;
+            var result=maySubmit&&!consumed?Submit(id,journal,starts,stops,runtime):Reconcile(id,journal,starts,stops,runtime);
+            while(!result.OwnedOffZeroConfirmed&&(result.State.StartsWith("stop-job-state-",StringComparison.Ordinal)||result.State=="owned-vm-not-off-zero-held")&&runtime.Now+1000<deadline){
+                wait();result=Reconcile(id,journal,starts,stops,runtime);
+            }
+            return result;
+        }
         public static StopOutcome Reconcile(StartIdentity id,IStartJournal journal,IStartProvider starts,IStopProvider stops,IStopRuntime runtime) {
             string intent=BoundIntent(id,journal);
             if(!StartSettled(id,journal,starts,runtime))return new StopOutcome("start-unsettled-held",false,false,false);

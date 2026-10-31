@@ -1,0 +1,1 @@
+Changed-source attempts: startup cleanup23cases and actual production binaries; provider regression41start/30stop/14pool/7transport plus six hosted SYSTEM negative paths. Pending recorded start may settle inside original cleanupwindow before first stop; prior consumedstop read only; lostresponse held. Same caps/deadlines, no productionactivation. Original compilefailure retained.

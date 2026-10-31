@@ -70,7 +70,7 @@ try{
     Invoke-FiniteProcess $csc ($shared+@('/main:ProviderStopHarness',('/out:'+$stops),(Join-Path $root 'test\rpc-windows-worker\ProviderStopHarness.cs'))+$sources) 20000 'stop-compile'
     Invoke-FiniteProcess $stops @() 20000 'stops'
     $stopLines=@(Get-Content -LiteralPath (Join-Path $work 'stops.out'))
-    if(@($stopLines|Where-Object{$_ -like 'PASS *'}).Count -ne 24 -or $stopLines[-1] -cne 'RESULT tests=24 providerCallsAreFakes=true vmChanged=false'){throw 'Incomplete cleanup regressions'}
+    if(@($stopLines|Where-Object{$_ -like 'PASS *'}).Count -ne 30 -or $stopLines[-1] -cne 'RESULT tests=30 providerCallsAreFakes=true vmChanged=false'){throw 'Incomplete cleanup regressions'}
     $poolTests=Join-Path $work 'physical-pool-tests.exe'
     Invoke-FiniteProcess $csc ($shared+@('/main:HostPhysicalPoolHarness',('/out:'+$poolTests),(Join-Path $root 'test\rpc-windows-worker\HostPhysicalPoolHarness.cs'))+$sources) 20000 'pool-compile'
     Invoke-FiniteProcess $poolTests @() 20000 'physical-pool'

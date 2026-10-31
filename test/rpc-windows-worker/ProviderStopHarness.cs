@@ -19,9 +19,9 @@ public static class ProviderStopHarness {
         public void VerifyBeforeStop(StartIdentity id){VerifyClosedStart(id);if(StopDenied)throw new InvalidOperationException("Stop denied");}
     }
     sealed class Starts:IStartProvider {
-        internal uint Code;internal int Calls;
-        public StartResponse Start(StartIdentity id){Calls++;return new StartResponse(Code,null);}
-        public StartJob ReadJob(string reference){throw new Exception("Unexpected start job read");}
+        internal uint Code;internal int Calls;internal ushort JobState=4;
+        public StartResponse Start(StartIdentity id){Calls++;return new StartResponse(Code,Code==4096?HyperVStartProvider.ReferenceForId("cleanup-start-fixture"):null);}
+        public StartJob ReadJob(string reference){return new StartJob(reference,"cleanup-start-fixture","20261031000000.000000+000",JobState,0,1);}
     }
     sealed class Stops:IStopProvider {
         internal readonly Store Store;internal readonly Runtime Runtime;
@@ -40,11 +40,18 @@ public static class ProviderStopHarness {
         internal StopOutcome Submit(){return ProviderStop.Submit(Id,S,A,B,R);}
         internal StopOutcome Read(){return ProviderStop.Reconcile(Id,S,A,B,R);}
     }
+    static Case AsyncCase(){var c=new Case();c.S.Values.Remove("start.receipt");ProviderStart.PersistResponse(c.S,"start",ProviderStop.Hash(c.Id.Encode()),new StartResponse(4096,HyperVStartProvider.ReferenceForId("cleanup-start-fixture")));return c;}
     static int Count;
     static void Check(bool condition){if(!condition)throw new Exception("assertion failed");}
     static void Refuse(Action action){bool refused=false;try{action();}catch{refused=true;}Check(refused);}
     static void Test(string name,Action action){action();Count++;Console.WriteLine("PASS "+name);}
     public static int Main(){try {
+        Test("pending-start-settles-then-one-stop",()=>{var c=AsyncCase();int waits=0;var r=ProviderStop.Cleanup(c.Id,c.S,c.A,c.B,c.R,true,c.Id.Deadline+29000,()=>{waits++;c.R.Clock+=100;c.A.JobState=7;});Check(r.OwnedOffZeroConfirmed&&waits==1&&c.B.Calls==1);});
+        Test("never-settled-start-does-not-stop",()=>{var c=AsyncCase();var r=ProviderStop.Cleanup(c.Id,c.S,c.A,c.B,c.R,true,c.Id.Deadline+2000,()=>c.R.Clock+=100);Check(!r.StartSettled&&c.B.Calls==0&&!c.S.Values.ContainsKey("stop.submit")&&c.R.Clock<c.Id.Deadline+2000);});
+        Test("consumed-stop-is-observed-never-repeated",()=>{var c=new Case();c.B.JobState=4;c.Submit();int waits=0;var r=ProviderStop.Cleanup(c.Id,c.S,c.A,c.B,c.R,true,c.Id.Deadline+29000,()=>{waits++;c.R.Clock+=100;c.B.JobState=7;});Check(r.OwnedOffZeroConfirmed&&c.B.Calls==1&&waits==1);});
+        Test("lost-start-response-never-polls-or-stops",()=>{var c=new Case();c.S.Values.Remove("start.receipt");var r=ProviderStop.Cleanup(c.Id,c.S,c.A,c.B,c.R,true,c.Id.Deadline+29000,()=>{throw new Exception("Unexpected poll");});Check(!r.StartSettled&&c.B.Calls==0);});
+        Test("cleanup-reconcile-never-submits-stop",()=>{var c=new Case();var r=ProviderStop.Cleanup(c.Id,c.S,c.A,c.B,c.R,false,c.Id.Deadline+29000,()=>{throw new Exception("Unexpected poll");});Check(!r.StopSettled&&c.B.Calls==0&&!c.S.Values.ContainsKey("stop.submit"));});
+        Test("cleanup-window-cannot-extend",()=>{var c=new Case();Refuse(()=>ProviderStop.Cleanup(c.Id,c.S,c.A,c.B,c.R,true,c.Id.Deadline+30001,()=>{}));Check(c.B.Calls==0);});
         Test("settled-start-stop-off-zero",()=>{var c=new Case();var r=c.Submit();Check(r.StartSettled&&r.StopSettled&&r.OwnedOffZeroConfirmed&&!r.ReservationMayRelease&&!r.ProviderOperationFenced&&c.A.Calls==1&&c.B.Calls==1);});
         Test("unknown-start-never-stops",()=>{var c=new Case();c.S.Values.Remove("start.receipt");Check(!c.Submit().StartSettled&&c.B.Calls==0&&!c.S.Values.ContainsKey("stop.submit"));});
         Test("original-worker-live-refuses",()=>{var c=new Case();c.R.Live=true;Refuse(()=>c.Submit());Check(c.B.Calls==0);});

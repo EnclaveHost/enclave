@@ -1,0 +1,10 @@
+{
+    "label":  "controller-compile",
+    "pid":  8508,
+    "exitCode":  1,
+    "elapsedMs":  308,
+    "failure":  null,
+    "processExited":  true,
+    "maximumObservedWorkingSet":  10113024,
+    "outputBytes":  78
+}
