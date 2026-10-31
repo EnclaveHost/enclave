@@ -1,0 +1,26 @@
+{
+  "head": "87e649d173948084ba6a01abe7af769f890b8be0",
+  "run": 41168626914,
+  "compiledFiles": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/VmStartGuardian.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/ProviderStart.cs",
+    "windows/rpc/ProviderStop.cs",
+    "windows/rpc/HostPhysicalPool.cs",
+    "windows/rpc/PhysicalPoolCommand.cs",
+    "windows/rpc/OwnedVmPermit.cs",
+    "windows/rpc/WindowsStartAdmission.cs",
+    "windows/rpc/ProviderWorkerEntry.cs",
+    "windows/rpc/LegacyTemplateFence.cs",
+    "windows/rpc/InertEntry.cs",
+    "windows/rpc/InertQualification.cs",
+    "test/rpc-windows-worker/SystemTemplateFenceFixture.cs"
+  ],
+  "binaries": {
+    "qualification-controller.exe": "bd786338742acbba89ae75ad2976fed0da90497272ffc389f156f2cd97d32502",
+    "owned-entry.exe": "8fde465a635a7e0cb9f850414fee3d30ebf1c6db796a4a1be493c500f78f78ff"
+  },
+  "outcome": "failure; exact role completion failed; no phase evidence yet"
+}

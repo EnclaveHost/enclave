@@ -153,7 +153,17 @@ public static class InertQualification {
             NamespacePin=ProtectedAttempt.PinController(contract,hash);Admitted=true;string token=args[3]+boot+hash;
             string arguments=Quote(contract)+" "+hash+" "+Origin+" "+Deadline;Schedule("owner","owner "+arguments);Schedule("observer","observer "+arguments);
             Process owner=Identity("owner",token),observer=Identity("observer",token);Publish(Path.Combine(Root,"admit"),Encoding.UTF8.GetBytes(token));
-            foreach(var p in new[]{owner,observer})if(!p.WaitForExit((int)Math.Max(0,Deadline-BoundedWorker.MonotonicMilliseconds()))||p.ExitCode!=0)throw new InvalidOperationException("Exact role completion failed");
+            foreach(var p in new[]{owner,observer})if(!p.WaitForExit((int)Math.Max(0,Deadline-BoundedWorker.MonotonicMilliseconds()))||p.ExitCode!=0){
+#if TEMPLATE_FENCE_QUALIFICATION
+                string failed=Path.Combine(Root,"template.failure");
+                if(File.Exists(failed)){
+                    string text=Encoding.UTF8.GetString(Read(failed,4096));
+                    if(!text.EndsWith(";"+token,StringComparison.Ordinal))throw new InvalidOperationException("Unbound fixture failure");
+                    Failures.Add("Template fixture: "+text.Substring(0,text.Length-token.Length-1));
+                }
+#endif
+                throw new InvalidOperationException("Exact role completion failed");
+            }
             if(Encoding.UTF8.GetString(Read(Path.Combine(Root,"owner.result"),4096))!="inert-complete;provider-fenced=false;reservation-release=false"||Encoding.UTF8.GetString(Read(Path.Combine(Root,"observer.result"),4096))!="exact-owner-death;job-empty;provider-fenced=false;reservation-release=false")throw new InvalidOperationException("Role receipts incomplete");
 #if TEMPLATE_FENCE_QUALIFICATION
             if(Encoding.UTF8.GetString(Read(Path.Combine(Root,"template.result"),4096))!=SystemTemplateFenceFixture.Result+token)

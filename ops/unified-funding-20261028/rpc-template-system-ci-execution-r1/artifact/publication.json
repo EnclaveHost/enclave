@@ -1,0 +1,57 @@
+[
+    {
+        "name":  "entry-compile.out",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "entry-compile.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "controller-compile.out",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "controller-compile.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "system-fence.out",
+        "bytes":  424,
+        "included":  true
+    },
+    {
+        "name":  "system-fence.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "process-results.json",
+        "bytes":  802,
+        "included":  true
+    },
+    {
+        "name":  "pins.json",
+        "bytes":  3670,
+        "included":  true
+    },
+    {
+        "name":  "controller-artifact.json",
+        "bytes":  476,
+        "included":  true
+    },
+    {
+        "name":  "qualification-controller.exe",
+        "bytes":  145920,
+        "included":  true
+    },
+    {
+        "name":  "owned-entry.exe",
+        "bytes":  145920,
+        "included":  true
+    }
+]

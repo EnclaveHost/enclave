@@ -1,0 +1,12 @@
+[
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "BD786338742ACBBA89AE75AD2976FED0DA90497272FFC389F156F2CD97D32502",
+        "Path":  "D:\\a\\_temp\\rpc-worker-71606fb98f09424a9ae97f6ac799b936\\qualification-controller.exe"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "8FDE465A635A7E0CB9F850414FEE3D30EBF1C6DB796A4A1BE493C500F78F78FF",
+        "Path":  "D:\\a\\_temp\\rpc-worker-71606fb98f09424a9ae97f6ac799b936\\owned-entry.exe"
+    }
+]

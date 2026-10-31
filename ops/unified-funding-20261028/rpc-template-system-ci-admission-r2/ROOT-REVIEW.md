@@ -1,0 +1,1 @@
+Diagnostic refinement to actualfailedSYSTEMfixture. Fixed stage, exception type and HRESULT only; no raw messages/config/ACL/private data. Exactboundfailure receipt; defaultsunchanged. Originalcaps/deadlines/sourceclosure unchanged. One changed-source hostedrun; no production/targetenable.
