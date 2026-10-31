@@ -1,0 +1,12 @@
+[Unit]
+Description=Owned RPC base exclusive state volume
+Requires=enclave-rpc-attach-base.service
+After=enclave-rpc-attach-base.service
+BindsTo=enclave-rpc-attach-base.service
+
+[Mount]
+What=/dev/nbd7
+Where=/srv/enclave-base-holder
+Type=ext4
+Options=rw,nosuid,nodev,noexec
+TimeoutSec=15

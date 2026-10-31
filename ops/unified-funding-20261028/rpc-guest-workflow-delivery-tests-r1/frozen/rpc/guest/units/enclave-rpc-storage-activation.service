@@ -1,0 +1,30 @@
+[Unit]
+Description=Owner-controlled one-shot RPC storage activation
+Requires=enclave-rpc-identity.service
+After=enclave-rpc-identity.service
+Before=enclave-rpc-attach-l1.service enclave-rpc-attach-base.service
+
+[Service]
+Type=notify
+NotifyAccess=main
+ExecStart=/usr/bin/python3 -I /opt/enclave-rpc/activate_storage.py
+Restart=no
+WatchdogSec=2
+WatchdogSignal=SIGKILL
+TimeoutStartSec=3
+TimeoutStopSec=1
+KillMode=control-group
+SendSIGKILL=yes
+FinalKillSignal=SIGKILL
+MemoryMax=128M
+MemorySwapMax=0
+CPUQuota=100%
+TasksMax=16
+LimitCORE=0
+UMask=0077
+StateDirectory=enclave-rpc-activation
+StateDirectoryMode=0700
+NoNewPrivileges=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/etc/enclave-rpc /var/lib/enclave-rpc-activation

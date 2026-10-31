@@ -1,0 +1,20 @@
+{
+  "tests": [
+    {
+      "name": "test_deliver_guest_workflow.py",
+      "rc": 0,
+      "seconds": 2.841260866029188
+    },
+    {
+      "name": "test_run_guest_workflow.py",
+      "rc": 0,
+      "seconds": 1.0236028500366956
+    },
+    {
+      "name": "test_windows_endpoint.py",
+      "rc": 0,
+      "seconds": 1.7189654761459678
+    }
+  ],
+  "drift": []
+}

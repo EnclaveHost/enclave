@@ -274,3 +274,46 @@ transfers only server contract/ready; it does not yet deliver the workflow's
 endpoint/config or execute this runner. The Warden/Windows side still needs
 complete operational composition before consuming a production clock or cut.
 No private guest seed or staged lifecycle executable changed.
+
+
+### Authenticated guest workflow handoff (source integration qualified)
+
+`deliver_guest_workflow.send(config)` connects the original Warden owner to
+`run_guest_workflow.py` on the independently admitted guest-key owner. It
+requires the original `clock`, public `serverContract`/`serverReady`, completed
+`exportReceipt`, original `endpointReceipt`, pinned SSH `target`/`knownHosts`/
+`hostAlias`/`sshSha256`, admitted `recipientRoot`/`recipientUid`/
+`recipientBootId`, and already staged private `sourceRoot`/`sourcePins` plus
+an existing pinned local `profile`. All14 source files must match maintained
+source. The source directories must contain exactly the expected files;
+additional files, including a shadow guest storage protocol, are refused.
+
+The recipient profile contains public `seedReceipt`, `imageReceipt`,
+`credentialReceipt`, local `guestIdentityFile`, optional pinned `jump`,
+`sshSha256`, private `journalRoot`, `ownerBootId` and original `vmAttempt`.
+The profile stays on Control. The sender transfers public endpoint bytes and
+the prior two-file import's path/hash bindings; it does not transfer keys, code,
+seed media or blockchain data. Endpoint provenance is rechecked against the
+original four-phase journals. This transports the previously accepted endpoint
+snapshot without asserting renewed native freshness.
+
+A fixed consumed owner journal and fsynced intent precede one pinned SSH call.
+At least255 seconds of the original window must remain; the transport allows
+at most250 seconds. The remote bootstrap runs inside the workflow's fixed
+256MiB/240s user unit, checking UID/boot/PID/cgroup/invocation/limits and cutoff
+before stdin or importing source. It verifies the14-file private closure and
+profile, consumes an exclusive remote attempt, installs only public endpoint
+and workflow request files, rechecks source/profile and invokes the maintained
+runner. Any uncertain outcome remains consumed on both hosts. No replay,
+clock extension, automatic cleanup or reservation release is supplied.
+
+15 new checks plus33 relevant regressions passed. The integration executes
+actual owner journals, the exact transported bootstrap, protected source
+imports, actual runner, preparers and all six senders. Windows, SSH, PID1 and
+guest replies are mocked. Evidence is in
+`ops/unified-funding-20261028/rpc-guest-workflow-delivery-tests-r1/ROOT-RESULT.md`.
+Actual Control source/profile staging, route/jump, clock agreement, unit and
+namespace/capacity admission remain unqualified. The sender now provides the
+workflow execution handoff missing from the two-file export transfer, while
+full Warden/Windows startup composition still needs implementation before a
+production attempt. No private seed or staged lifecycle executable changed.
