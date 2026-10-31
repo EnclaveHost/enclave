@@ -1,0 +1,2 @@
+One fresh read after newreceipt-difference CI completes, immediately before actualnewstaging/diagnostic. Sameoriginalplan528Bhashrequired and4manager/VM/nativephysical/pending checks. No provider/productionclock/cut mutation, no pollingloop. Independent reader death not inferredfromSSH.
+ r1 never launched: queue exit98. This new invocation is serialized after exact collector terminal0/Main0, no native attempt replay.

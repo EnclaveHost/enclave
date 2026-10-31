@@ -1,0 +1,27 @@
+{
+  "returned": true,
+  "native": {
+    "schema": "owned-rpc-target-definition/1",
+    "passed": true,
+    "operation": "admission-check",
+    "plan": "16845fb7f96a22e43a01eb56c2580bb159bfe9e4cf869dde0f51f375df943aa7",
+    "result": {
+      "state": "admission-observed",
+      "definitionAuthorized": false,
+      "startAuthorized": false,
+      "reservationMayRelease": false
+    },
+    "origin": 746069029,
+    "deadline": 746099029,
+    "elapsedMs": 8874,
+    "root": "C:\\EnclaveRpcDefinition-4f9785059d8942f288e6904a598d4c0e\\4f9785059d8942f288e6904a598d4c0e",
+    "freeBytes": 84789784576,
+    "requiredFreeBytes": 62709039104,
+    "failures": [],
+    "startAuthorized": false,
+    "reservationMayRelease": false
+  },
+  "readOnlyDiagnostic": true,
+  "remoteDeathProven": false,
+  "reservationMayRelease": false
+}

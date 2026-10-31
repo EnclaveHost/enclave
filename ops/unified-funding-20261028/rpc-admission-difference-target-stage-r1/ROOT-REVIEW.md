@@ -1,0 +1,1 @@
+New protected namespace for independently CI-verified diagnostic definition binaries plus fresh private observation. Material change is bounded exact receipt difference capture; no admission conditions changed. No productionclock/VM/cut/provider. Actual staging requires postCI fresh admission and pinned binaries. No stageaction yet.

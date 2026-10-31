@@ -1,0 +1,12 @@
+{
+  "run.py": "ba4762265de7b51c558a91325a1617d6052da27b6ae00b12d3a3dc95886d99ca",
+  "capture_local.py": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c",
+  "create.ps1": "653744091ac70dbbab0bc93b03e8b0b707482b73072d1c190bb130516c399e2c",
+  "verify.ps1": "b18a993d2744df9c72752d665ce176fcfc78122bd0d671491c5938ce40ce5f2b",
+  "FILES.json": "58340b4a3c65a5c6a183d2712d85a8cf640d4698b09266ba332bf80a2fd9218f",
+  "SPEC.json": "7dbfbb10b25f61987ae8df9a42d5ce4077545dd2ab0d31f197f8815dad98904e",
+  "ARTIFACTS.json": "2d24eab44dbe1ba665bffc9d96798e8bca8e8bba27da9bc8ac88a29bbe21fff9",
+  "bundle/definition-controller.exe": "23a21b2022656edad8e4f6fe502bad110abffb1b12cfe5d78e23ad4a08dfcc2e",
+  "bundle/definition-entry.exe": "24b607b7dc45bef67f4b9fff79f3e01a22c55b74dc7e2d0fcf16428146635828",
+  "bundle/observation.json": "3f8854fd96a6c2b8e7fceaded1116a3b01dd9436ab44474a7cc00f6c5c847df6"
+}

@@ -1,0 +1,62 @@
+{
+  "atUtc": "2026-10-31T23:44:04.1599240Z",
+  "exactDeaths": [
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379638348643115",
+      "pid": "36612",
+      "absent": true,
+      "role": "owner"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379638348643182",
+      "pid": "57616",
+      "absent": true,
+      "role": "observer"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379638350155324",
+      "pid": "57560",
+      "absent": true,
+      "role": "child"
+    }
+  ],
+  "priorStageDeaths": [
+    {
+      "label": "admission",
+      "expectedCreation": "134379638013368490",
+      "pid": 57124,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "create",
+      "expectedCreation": "134379638211488380",
+      "pid": 18132,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "verify",
+      "expectedCreation": "134379638293622521",
+      "pid": 37988,
+      "sameIncarnationAlive": false,
+      "absent": true
+    }
+  ],
+  "exactDefinitionProcesses": [],
+  "exactTasks": [],
+  "original8091Alive": true,
+  "originalVMsUnchanged": true,
+  "originalPlanJournalNames": [
+    "definition-plan.txt",
+    "definition.intent",
+    "definition.submit"
+  ],
+  "admissionPassed": true,
+  "definitionAuthorized": false,
+  "startAuthorized": false,
+  "reservationMayRelease": false
+}

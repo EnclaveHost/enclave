@@ -1,0 +1,1 @@
+One fresh read after newreceipt-difference CI completes, immediately before actualnewstaging/diagnostic. Sameoriginalplan528Bhashrequired and4manager/VM/nativephysical/pending checks. No provider/productionclock/cut mutation, no pollingloop. Independent reader death not inferredfromSSH.
