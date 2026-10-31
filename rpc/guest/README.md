@@ -84,7 +84,7 @@ real temporary file operations; targetGID50002 access and actual first boot rema
 unqualified. Cloud-init's documented [base64 write_files support](https://docs.cloud-init.io/en/25.3/reference/yaml_examples/write_files.html)
 is used, with root ownership and explicit modes.
 
-This seed initializes identities and storage-client dependencies only. It does not
+That earlier public seed initializes identities and storage-client dependencies only. It does not
 attach state, supply TLS private credentials or start chain clients. Authenticated
 exclusive state attachment, runtime readiness and the independently enforced
 startup deadline must be integrated before target activation.
@@ -111,8 +111,9 @@ Actual exact-closure TLS negotiation passed six isolated dummy-export cases, and
 the prepared image contains its NBD kernel module and required tools. Ten attachment
 source fixtures passed. Kernel attachment, native mount-unit behavior, write/FLUSH,
 reconnect, server/guest death cleanup and production readiness remain unqualified.
-Attachment code is not yet in the seed; the server export/credential/deadline
-workflow must be concrete before adding it and starting the guest. NBD process
+Attachment code was absent from that earlier public seed; the later private
+candidates below include it. The server export/credential/deadline workflow
+still needs native qualification before starting the guest. NBD process
 and TLS options follow the [upstream-packaged client manual](https://manpages.debian.org/bookworm/nbd-client/nbd-client.8.en.html).
 
 `credentials.py` prepares independent, owner-controlled certificate authorities
@@ -290,3 +291,65 @@ and actual prepared guest cloud-init schema all pass. It reuses the existing
 credentials and instance. Earlier activation-only media do not contain the
 receiver entrypoint and must not be used for this delivery workflow. No live
 request, contract or service start is embedded in the new seed.
+
+### Owner-requested mount and client startup
+
+`start_runtime.py` supplies the next step after storage activation. It has two
+explicit phases: `l1` mounts the authenticated L1 volume, then submits EL and CL;
+`base` requires those same L1 process incarnations and mount, then mounts and
+submits Base. It never restarts a failed phase, approves coverage, adopts the
+guest, or labels a running process as synchronized RPC. Base still executes the
+unchanged wrapper's coverage, history, proof and owned-L1 checks. Obtain actual
+L1 readiness and reviewed Base coverage before requesting the Base phase.
+
+The owner uses `rpc/prepare_runtime.py` with `phase`, `output`, and five protected
+`{path, sha256}` inputs: `activationRequest`, `activationReady`,
+`attachmentReceipt`, `imageReceipt`, and `seedReceipt`. These are the exact guest
+activation request/ready record, original attachment preparer's result, offline
+image builder's result, and private seed builder's result. Use the actual results,
+not enclosing SSH transport wrappers. Receipt hashes require the authenticated
+owner workflow; they are not self-authenticating attestations. The producer binds
+the original attempt, guest boot/instance and unchanged 900-second window. It
+combines exact file modes/digests from the image and seed, with seed overrides
+taking precedence, and refuses media missing the startup helper.
+
+Preparation creates a new private directory containing
+`runtime-start-<phase>.json` and `RESULT.json`. Through the authenticated owner
+channel, install the request once as root0600 at
+`/etc/enclave-rpc/runtime-start-<phase>.json`; retain partial or ambiguous delivery
+for reconciliation rather than overwrite it. This producer does not deliver or
+execute the request. No private credentials enter the request.
+
+Invoke `/usr/bin/python3 -I /opt/enclave-rpc/start_runtime.py <phase>` only in the
+independently admitted root transient unit `enclave-rpc-runtime-<phase>.service`:
+64MiB memory, zero swap, one CPU quota, 20-second RuntimeMaxSec, one-second stop,
+KillMode=control-group, Restart=no, SendSIGKILL=yes, FinalKillSignal=SIGKILL and
+UMask=0077. It must share PID1's mount namespace; do not enable private-mount
+features for this observer. The helper checks its exact main PID, invocation,
+cgroup and limits before reading the request. The external original VM deadline
+and active storage owner's lifetime remain required; this transient unit cannot
+replace either.
+
+Before each submission the helper verifies the original active activation owner,
+both exact attachment receipts and kernel-owner identities, loaded unit settings,
+runtime/config pins and the aggregate17GiB client slice. Mount units do not expose
+MainPID: ControlPID and pending jobs are checked instead. Each phase and each
+submission receives a durable exclusive intent before systemd is called once.
+Mount identity/flags are checked through mountinfo before client submission.
+The resulting `runtime-<phase>-started.json` binds exact process incarnations but
+keeps `rpcReady`, `adopted` and `writersFenced` false. Lost acknowledgements and
+late or failed starts remain consumed; original deadline cleanup still applies.
+
+Qualification currently covers17 new disposable protected-file tests, including
+producer-to-consumer integration, deadline expiry during observation, owner loss,
+lost acknowledgement, replacement of an L1 process, loaded-budget overrides and
+mount-device/flag refusal. The existing37 delivery/activation/attachment cases
+also pass. Systemd submission and mount observations are mocked; one test reads
+an actual local process incarnation. These results do not prove guest-native
+mounting, client startup, cleanup or RPC readiness. The former39-file seed predates
+this helper and remains historical. The new40-file private seed is13,236,224 bytes;
+independent image/file/mode/key-pair checks, seven Python compilation checks and the
+prepared guest's cloud-init schema pass. It reuses the same identity and is staged
+with the client boot disk in a new protected NucBox directory; exact source and
+target evidence is in `ops/unified-funding-20261028/rpc-private-media-stage-r2`.
+No automatic service start or live runtime request is added to cloud-init.

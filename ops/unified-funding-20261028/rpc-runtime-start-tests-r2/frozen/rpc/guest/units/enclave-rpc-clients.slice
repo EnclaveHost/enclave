@@ -1,0 +1,9 @@
+[Unit]
+Description=Owned RPC clients, aggregate 17GiB guest budget
+
+[Slice]
+MemoryAccounting=yes
+MemoryMax=17G
+MemoryHigh=16G
+MemorySwapMax=0
+TasksMax=8192

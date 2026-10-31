@@ -1,0 +1,23 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 22.23380937008187,
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 666
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false,
+  "at": 1793450660.6745324,
+  "phase": "copy-media",
+  "success": true,
+  "noRetry": true,
+  "vmChanged": false
+}

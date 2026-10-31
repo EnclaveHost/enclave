@@ -1,0 +1,14 @@
+Host rpc-media-control
+  HostName 172.17.28.159
+  User controladmin
+  IdentityFile /home/steven/.ssh/minipc
+  IdentitiesOnly yes
+  ProxyJump minipc
+  HostKeyAlias [127.0.0.1]:32423
+  UserKnownHostsFile /home/steven/Documents/Codex/2026-10-18/wo/work/control-vm/known_hosts
+  StrictHostKeyChecking yes
+  BatchMode yes
+  ControlMaster no
+  ControlPath none
+Host *
+Include /home/steven/.ssh/config

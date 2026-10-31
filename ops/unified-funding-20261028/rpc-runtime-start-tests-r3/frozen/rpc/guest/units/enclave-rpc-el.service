@@ -1,0 +1,28 @@
+[Unit]
+Description=Owned RPC el client with pinned state and binary
+Wants=network-online.target
+After=network-online.target
+RequiresMountsFor=/srv/enclave-l1-pair
+BindsTo=srv-enclave\x2dl1\x2dpair.mount
+
+[Service]
+Type=exec
+Slice=enclave-rpc-clients.slice
+User=rpcl1el
+Group=rpcl1el
+ExecStart=/usr/bin/python3 -I /opt/enclave-rpc/chain_service.py el
+Restart=no
+TimeoutStopSec=20
+KillMode=control-group
+KillSignal=SIGINT
+MemoryMax=5G
+MemoryHigh=4608M
+MemorySwapMax=0
+TasksMax=4096
+LimitNOFILE=65536
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/srv/enclave-l1-pair/data /srv/enclave-l1-pair/tmp
+PrivateTmp=yes
+UMask=0027

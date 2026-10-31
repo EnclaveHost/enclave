@@ -1,0 +1,25 @@
+[Unit]
+Description=Owned RPC base authenticated block attachment
+Requires=enclave-rpc-identity.service
+After=network-online.target enclave-rpc-identity.service enclave-rpc-storage-activation.service
+BindsTo=enclave-rpc-storage-activation.service
+Wants=network-online.target
+Before=srv-enclave\x2dbase\x2dholder.mount
+
+[Service]
+Type=notify
+NotifyAccess=main
+ExecStart=/usr/bin/python3 -I /opt/enclave-rpc/attach_storage.py base
+Restart=no
+TimeoutStartSec=45
+TimeoutStopSec=30
+KillMode=control-group
+MemoryMax=128M
+MemorySwapMax=0
+CPUQuota=100%
+TasksMax=16
+UMask=0077
+NoNewPrivileges=yes
+ProtectHome=yes
+# Kernel NBD devices are shared with the separate static mount units.
+# Preflight mounts are read-only and removed before READY.

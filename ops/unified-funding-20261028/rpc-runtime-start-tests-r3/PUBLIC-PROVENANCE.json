@@ -1,0 +1,75 @@
+{
+  "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-runtime-start-tests-r3",
+  "files": [
+    {
+      "path": "PINS.json",
+      "sha256": "eccf5a51d2598541ff87c4e8e8cae054f02f3a24b0d8b32f2860f2f0146e8004"
+    },
+    {
+      "path": "ACTIVATION-RESULT.json",
+      "sha256": "c3f7dcb503c81aab6258e29637e4d754a690f3c3bfd59b778ae76af8bf265e1c"
+    },
+    {
+      "path": "GUEST-RESULT.json",
+      "sha256": "10665918e151962512572506e6374d2d0794ecf8dbd12f044103299b88822416"
+    },
+    {
+      "path": "DELIVERY-RESULT.json",
+      "sha256": "bba06cc1b41d85776d483c17988e6940024f9c0da91e8d0b8c22ebf3f5f26f32"
+    },
+    {
+      "path": "ROOT-REVIEW.md",
+      "sha256": "f77d9c44b88d7ab45d405509e87c47eadb8a414df2dde12b93519e75f4c17ae3"
+    },
+    {
+      "path": "ATTEMPT.json",
+      "sha256": "a46299be837291bd4dede395e8a6382179b66c03be47818f57126d1ff476e1df"
+    },
+    {
+      "path": "ROOT-RESULT.md",
+      "sha256": "8df082538a51fa53d020388a83cdda7dd978e2aaae105923cf84f0d99fe3b68d"
+    },
+    {
+      "path": "qualification-only",
+      "sha256": "1d5ea0fb35de68a5c79d0a33f41cfd2392e54b4bcd15bea9463a804808d496b7"
+    },
+    {
+      "path": "RUNTIME-RESULT.json",
+      "sha256": "477527be2ccdfba2462b681039976f6e01b356a287f606bc79a6c14583fc2f3c"
+    },
+    {
+      "path": "outer.log",
+      "sha256": "ec81b3949038d482f766c01ace593e9e53c23e7326dbc24d30f5955900a68ae2"
+    },
+    {
+      "path": "RESULT.json",
+      "sha256": "05245d8981f55d80e19173836c5d532577265b469b3861d20fc5a9ac9bb7a384"
+    },
+    {
+      "path": "LAUNCH.json",
+      "sha256": "ad2ee58f3b0a68f05a637b74cd4c224879978752be50731816638a129c137093"
+    },
+    {
+      "path": "inner.log",
+      "sha256": "2aceb523cc9e090ec6df607a2f40a20067d9199c09bce9fa25cfb86e9fa53c72"
+    },
+    {
+      "path": "COMMAND.json",
+      "sha256": "9d7557b7cd20a2e49c00b49e45c5498ddfe25f5d6934f6eed33758eed2e2ccde"
+    },
+    {
+      "path": "run.py",
+      "sha256": "9964622cae28c18b675a2399f4f5cf79af1d749888b9ac7435e7c35e7cd35906"
+    },
+    {
+      "path": "capture_local.py",
+      "sha256": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c"
+    }
+  ],
+  "privateEmbeddedOperatorConfigOmitted": false,
+  "sshPublicIdentityValuesOmitted": false,
+  "privateArtifactsNeverPublished": true,
+  "rawTransportDiagnosticsOmitted": true,
+  "publicStagingPinsUseExplicitPathSha256Records": false,
+  "localOriginalsUnchanged": true
+}

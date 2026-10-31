@@ -1,0 +1,37 @@
+{
+  "nonce": "b6ae58975e414ca2b3c45f3523cacab2",
+  "boot": "2026-10-23T08:29:16.5000000Z",
+  "manager": {
+    "port": 8091,
+    "created": "2026-10-26T17:17:18.5617520Z",
+    "pid": 38076,
+    "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+  },
+  "files": {
+    "boot.vhdx": {
+      "path": "/home/controladmin/rpc-guest-image-20261031-r1/output/boot.vhdx",
+      "bytes": 2301624320,
+      "sha256": "a76940c926985b91590ab5916c7996c23d7812ccc2277fe8188bb21f11a0ae2c",
+      "mode": "0600",
+      "metadata": [
+        2049,
+        1844279,
+        2301624320,
+        1793439736535613435,
+        1793439736535613435
+      ]
+    },
+    "seed.iso": {
+      "path": "/home/controladmin/rpc-runtime-guest-1d39262eb55642cc80dd840352d449b2/output/seed.iso",
+      "bytes": 13236224,
+      "sha256": "e586a1524df52435a2678f4a2587d2d445071cfcf784e139297b7eed42ba4c2a",
+      "mode": "0600"
+    },
+    "custody-probe.bin": {
+      "path": "/home/controladmin/rpc-private-media-source-74d42b8883374a60af752dce1955612a/custody-probe.bin",
+      "bytes": 35,
+      "sha256": "8856fb6b080a8b9d702e53643eae5e65c8381e7cff5e668b906222fd8c7fdc87",
+      "mode": "0600"
+    }
+  }
+}

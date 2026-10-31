@@ -1,0 +1,25 @@
+{
+  "format": "public-path-sha256-records",
+  "files": [
+    {
+      "path": "stage-private-media.ps1",
+      "sha256": "96816dffdfe151bbaf4ced73d5ea4f66b1ea9ef19530b9c97c02a841b751490c"
+    },
+    {
+      "path": "capture_local.py",
+      "sha256": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c"
+    },
+    {
+      "path": "ssh-config",
+      "sha256": "10e5e26b8e9539c76b8b43e88348eeb07033f1b2476dad1aba528e3710654888"
+    },
+    {
+      "path": "run.py",
+      "sha256": "84a845ceba306bd9b2cb5b48cbed56e2c753a35a4ec2a3e13739ce7f8872d14a"
+    },
+    {
+      "path": "SPEC.json",
+      "sha256": "086dc1b870d75750bb5ca2cbcae0fc98bd9b861b5d6a34099714e62fbe5a0cf0"
+    }
+  ]
+}

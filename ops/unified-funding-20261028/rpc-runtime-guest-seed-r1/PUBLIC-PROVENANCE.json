@@ -1,0 +1,59 @@
+{
+  "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-runtime-guest-seed-r1",
+  "files": [
+    {
+      "path": "PINS.json",
+      "sha256": "2fb2ec954eeec169e2a76cc46490701b0a147fa340cc61db816182d660388a08"
+    },
+    {
+      "path": "build.py",
+      "sha256": "92c23c542de7d344538ce082ce05f546a15c4433edb3c8d17f9e508e1ddd9d4a"
+    },
+    {
+      "path": "SSH.json",
+      "sha256": "0574c7d96d7cd5f60d64c86c4a0de321785319bf9aad8eadf9221729ce6db20e"
+    },
+    {
+      "path": "ATTEMPT.json",
+      "sha256": "cc193b6e3893fbd1388abfc0ab4b31794412de9789bb49fc79e9fe666d9eab10"
+    },
+    {
+      "path": "REMOTE.json",
+      "sha256": "a2ff6c78617801813c7e213f6d6a244a17d4425963f179717b91d8f04bf0732c"
+    },
+    {
+      "path": "outer.log",
+      "sha256": "1e4d128eaf6ef879e1eba19a77d20929cbea84b5e88a2a47b9c810438e126b52"
+    },
+    {
+      "path": "RESULT.json",
+      "sha256": "c45689bffb5d1b9bc24dc6e15fa3ed589990940f1df4ccd9b2aef0e6cd15ce24"
+    },
+    {
+      "path": "LAUNCH.json",
+      "sha256": "a41be5558e391cf42b02ba88e37b69b1b93274ad7ae1d6cb34f0867aa771c688"
+    },
+    {
+      "path": "inner.log",
+      "sha256": "d8eea82bbebc7f298c38b68699dce3594258918a763f816dcf8b6a2b55977687"
+    },
+    {
+      "path": "CONFIG.json",
+      "sha256": "3f1fc226051b5b52aac210f334772f372337aff0e0830bf7ac6abca53c861b5c"
+    },
+    {
+      "path": "COMMAND.json",
+      "sha256": "060ce0c5ed2a4a05939eb831fecd5cb18d64396d04e7baf91ca68357549eaea3"
+    },
+    {
+      "path": "run.py",
+      "sha256": "13ef4c70ee4e59becdd4fc464619048df879ece42ec1a1e98edf4d737210e54e"
+    }
+  ],
+  "privateEmbeddedOperatorConfigOmitted": true,
+  "sshPublicIdentityValuesOmitted": true,
+  "privateArtifactsNeverPublished": true,
+  "rawTransportDiagnosticsOmitted": true,
+  "publicStagingPinsUseExplicitPathSha256Records": false,
+  "localOriginalsUnchanged": true
+}
