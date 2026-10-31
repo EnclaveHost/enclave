@@ -1,0 +1,10 @@
+source-closure\test\rpc-windows-worker\OwnedVmDefinitionHarness.cs(69,129): error CS1519: Invalid token ')' in class, struct, or interface member declaration
+source-closure\test\rpc-windows-worker\OwnedVmDefinitionHarness.cs(70,3): error CS1520: Method must have a return type
+source-closure\test\rpc-windows-worker\OwnedVmDefinitionHarness.cs(70,8): error CS1031: Type expected
+source-closure\test\rpc-windows-worker\OwnedVmDefinitionHarness.cs(70,95): error CS1519: Invalid token 'using' in class, struct, or interface member declaration
+source-closure\test\rpc-windows-worker\OwnedVmDefinitionHarness.cs(70,116): error CS1002: ; expected
+source-closure\test\rpc-windows-worker\OwnedVmDefinitionHarness.cs(70,117): error CS1520: Method must have a return type
+source-closure\test\rpc-windows-worker\OwnedVmDefinitionHarness.cs(70,124): error CS1031: Type expected
+source-closure\test\rpc-windows-worker\OwnedVmDefinitionHarness.cs(70,213): error CS1002: ; expected
+source-closure\test\rpc-windows-worker\OwnedVmDefinitionHarness.cs(70,218): error CS0116: A namespace cannot directly contain members such as fields or methods
+source-closure\test\rpc-windows-worker\OwnedVmDefinitionHarness.cs(70,220): error CS1022: Type or namespace definition, or end-of-file expected

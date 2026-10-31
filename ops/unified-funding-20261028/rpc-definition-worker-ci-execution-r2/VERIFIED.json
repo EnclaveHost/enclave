@@ -1,0 +1,17 @@
+{
+  "head": "7677aad7d2952c972daf56098499617fdff32cee",
+  "run": 41180043811,
+  "compileInputPins": 14,
+  "testsExecuted": 0,
+  "processes": {
+    "label": "controller-compile",
+    "pid": 7148,
+    "exitCode": 1,
+    "elapsedMs": 304,
+    "failure": null,
+    "processExited": true,
+    "maximumObservedWorkingSet": 9867264,
+    "outputBytes": 1281
+  },
+  "productionActivated": false
+}
