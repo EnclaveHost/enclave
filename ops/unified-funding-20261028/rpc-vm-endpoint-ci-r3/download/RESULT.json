@@ -1,0 +1,18 @@
+{
+    "passed":  true,
+    "selectorTests":  13,
+    "bootTests":  38,
+    "watchdog":  {
+                     "label":  "watchdog",
+                     "pid":  212,
+                     "exitCode":  124,
+                     "elapsedMs":  1027,
+                     "failure":  null,
+                     "processExited":  true,
+                     "maximumObservedWorkingSet":  15523840,
+                     "outputBytes":  16
+                 },
+    "providerCalls":  false,
+    "targetQualified":  false,
+    "vmChanged":  false
+}

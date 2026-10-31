@@ -1,0 +1,1 @@
+source-closure\windows\rpc\ProtectedAttempt.cs(32,23): warning CS0649: Field 'Enclave.OwnedRpc.ProtectedAttempt.startupCleanup' is never assigned to, and will always have its default value false

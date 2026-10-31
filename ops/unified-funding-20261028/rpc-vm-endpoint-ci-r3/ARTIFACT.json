@@ -1,0 +1,20 @@
+{
+  "id": 13058943145,
+  "node_id": "MDg6QXJ0aWZhY3QxMzA1ODk0MzE0NQ==",
+  "name": "rpc-vm-endpoint-results",
+  "size_in_bytes": 37925,
+  "url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13058943145",
+  "archive_download_url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13058943145/zip",
+  "expired": false,
+  "digest": "sha256:b59d568e63aa8ed24d3cc5a116c665371cfe05103ca8335e6addc1988688119a",
+  "created_at": "2026-10-31T22:04:01Z",
+  "updated_at": "2026-10-31T22:04:01Z",
+  "expires_at": "2026-11-07T22:04:00Z",
+  "workflow_run": {
+    "id": 41246416745,
+    "repository_id": 1428203917,
+    "head_repository_id": 1428203917,
+    "head_branch": "main",
+    "head_sha": "68c24d22d21479272853ef498b6f200b057e47b9"
+  }
+}

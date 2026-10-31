@@ -1,0 +1,42 @@
+[
+    {
+        "label":  "endpoint-compile",
+        "pid":  3856,
+        "exitCode":  0,
+        "elapsedMs":  4123,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  33198080,
+        "outputBytes":  395
+    },
+    {
+        "label":  "fixture-compile",
+        "pid":  9224,
+        "exitCode":  0,
+        "elapsedMs":  179,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  35237888,
+        "outputBytes":  196
+    },
+    {
+        "label":  "inert",
+        "pid":  1256,
+        "exitCode":  0,
+        "elapsedMs":  770,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  31285248,
+        "outputBytes":  2254
+    },
+    {
+        "label":  "watchdog",
+        "pid":  212,
+        "exitCode":  124,
+        "elapsedMs":  1027,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  15523840,
+        "outputBytes":  16
+    }
+]

@@ -1,0 +1,1 @@
+R3 finite hosted qualification: same6production sources and13selector+38boot+1blockedwatchdog cases. Corrected PowerShell supervisor to omit empty ArgumentList. ActualR2 production84992Bcompiled but harness notexecuted. No sourcecap/floorrelaxation or targetexecution. Previous failures preserved.

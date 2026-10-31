@@ -972,7 +972,7 @@ fixture and its consumed attempt remain preserved. See
 `ops/unified-funding-20261028/rpc-files-collect-copy-target-r2/ROOT-RESULT.md`.
 
 
-## Exact VM endpoint reader (unqualified source candidate)
+## Exact VM endpoint reader (hosted fixtures qualified; target unqualified)
 
 `VmEndpoint.cs` adds a read-only administrator entrypoint:
 `vm-endpoint.exe <vm-permit.txt> <permit-sha256> <image-sha256> <worker-origin-ms> <worker-deadline-ms> <required-free-bytes>`.
@@ -998,5 +998,9 @@ The receipt is a host association observation, not guest authentication,
 attestation, RPC readiness, remote death or reservation release. A guest-provided
 address must still pass the separately seeded pinned SSH/boot identity check;
 the complete driver must preserve receipt freshness and exact original lineage.
-The new binary and Running path require hosted compile/finite fixtures, then
-actual target-context qualification. Existing staged binaries are unchanged.
+Hosted run41246416745 compiled the84992B reader and passed13selector checks,
+38boot lineage regressions and an independent blocked-main deadline test.
+The held process exited124 in1027ms. No real WMI/VM lookup was exercised.
+The native Running path still needs actual target-context qualification within
+the original owned startup. Existing staged binaries are unchanged. Results
+and prior failures are retained in `ops/unified-funding-20261028/rpc-vm-endpoint-ci-r3`.
