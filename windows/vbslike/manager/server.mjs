@@ -314,6 +314,10 @@ export class Manager {
    * spawning is refused while one exists. A survey that fails leaves the gate shut: unknown is not absent.
    */
   async recover() {
+    // Replacing a launching record loses its native-operation association and
+    // can let remove() free a reservation while that start is still in flight.
+    if (this.#spawnRequests.size || this.#recovering)
+      throw unavailable({ state: "busy", error: "inventory recovery cannot overlap pending starts or recovery" });
     this.#recovering++; this.#allocationRevision++;
     try { return await this.#recover(); }
     finally { this.#recovering--; this.#allocationRevision++; }
@@ -400,8 +404,9 @@ export class Manager {
    * they must not be added to that domain a second time. Failed starts stay held.
    */
   allocationView() {
-    const requests = [...this.#spawnRequests].map(([requestId, domainId]) => ({
-      requestId, phase: domainId === null ? "preparing" : "reserved", domainId,
+    const requests = [...this.#spawnRequests].map(([requestId, record]) => ({
+      requestId, phase: record === null ? "preparing" : "reserved", domainId: record?.id ?? null,
+      reservationLinked: record === null ? false : this.domains.get(record.id) === record,
     }));
     const reservations = [...this.domains.values()].map(r => ({
       id: r.id, physicalMiB: Number.isSafeInteger(r.physicalMemoryMiB) && r.physicalMemoryMiB > 0
@@ -414,7 +419,7 @@ export class Manager {
       revision: this.#allocationRevision.toString(), inventoryReady: this.inventoryReady && this.#recovering === 0,
       poolMiB: this.physicalRamPoolMiB, heldMiB, requests, reservations, unknown, preparing,
       known: this.inventoryReady && this.#recovering === 0 && this.physicalRamPoolMiB !== null && heldMiB !== null
-        && unknown.length === 0 && preparing === 0,
+        && unknown.length === 0 && preparing === 0 && requests.every(r => r.reservationLinked),
       // A read does not reserve capacity against the next request or other managers.
       atomicHostReservation: false };
   }
@@ -507,6 +512,7 @@ export class Manager {
     finally { this.#spawnRequests.delete(requestId); this.#allocationRevision++; }
   }
   async #spawn(body, requestId) {
+    if (this.#recovering) throw unavailable({ state: "busy", error: "inventory recovery is in progress" });
     if (!this.inventoryReady) throw unavailable(this.inventory);
     const orphans = [...this.domains.values()].filter((r) => r.unattributed);
     if (orphans.length) {
@@ -696,7 +702,7 @@ export class Manager {
     this.domains.set(id, rec);
     // Synchronous transfer from preparing to the existing held domain, before
     // backend.start can submit or await a native allocation.
-    this.#spawnRequests.set(requestId, id);
+    this.#spawnRequests.set(requestId, rec);
     this.#allocationRevision++;
     try {
       const h = await this.backend.start(mapping, { instanceId, ...(memory ? { appMemoryMiB: memory.appMiB } : {}), identity: { id, name, instanceId, appId: mapping.appId },
@@ -1069,7 +1075,8 @@ function unattributedUnknown(id, orphans) {
   e.status = 503; e.unattributed = orphans.map((r) => r.id); return e;
 }
 function unavailable(inv) {
-  const e = new Error(inv && inv.state === "failed" ? `the inventory is unavailable: ${inv.error}`
+  const e = new Error(inv?.state === "busy" ? inv.error
+                      : inv && inv.state === "failed" ? `the inventory is unavailable: ${inv.error}`
                                                     : "the manager has not yet surveyed Hyper-V, so it cannot say what exists");
   e.status = 503; e.inventory = inv; return e;
 }

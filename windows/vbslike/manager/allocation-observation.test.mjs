@@ -2,6 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {Manager} from './server.mjs';
 import {DERIVATION, DERIVATION_V5, COMPONENT_PREAMBLE} from './derive.mjs';
+import {notesFor} from './wmi-launcher.mjs';
 
 function deferred() { let resolve, reject; const promise=new Promise((a,b)=>{resolve=a;reject=b;}); return {promise,resolve,reject}; }
 function request(name='a') { return {name:'0x'+name.repeat(64),cpuShare:.25,hasSecrets:false,isPublic:true,
@@ -11,7 +12,7 @@ function request(name='a') { return {name:'0x'+name.repeat(64),cpuShare:.25,hasS
 async function setup(options={}) {
   const state={starts:0,stopFails:false};
   const backend={canSurvey:true,supports:{},backend:'hyperv-partition-per-app',survey:async()=>({vms:[]}),
-    start:async()=>{state.starts++; if(state.startGate)await state.startGate.promise;
+    start:async(_mapping,options)=>{state.starts++;state.identity=options.identity; if(state.startGate)await state.startGate.promise;
       return {appReady:true,memory:{vmMiB:2048}};},
     stop:async()=>{if(state.stopFails)throw Error('not stopped');}};
   const m=new Manager({backend,ramPoolMiB:4096,physicalRamPoolMiB:4096,
@@ -99,4 +100,40 @@ test('observations are detached, incarnation-bound and never grant host capacity
   view.reservations[0].physicalMiB=1;view.reservations.push({id:'fake',physicalMiB:1});
   assert.deepEqual(m.health().allocation.reservations,[{id:result.id,physicalMiB:2048}]);
   const {m:other}=await setup();assert.notEqual(other.health().allocation.managerEpoch,view.managerEpoch);
+});
+test('recovery cannot replace an in-flight start and enable removal of its reservation',async()=>{
+  const {m,state}=await setup();state.startGate=deferred();
+  const starting=m.spawn(request());await new Promise(r=>setImmediate(r));
+  const before=m.health().allocation,id=before.reservations[0].id;
+  let surveys=0;m.backend.survey=async()=>{surveys++;return {vms:[{
+    vmId:'00000000-0000-4000-8000-000000000001',name:'enclave-app-pending',
+    state:'Running',notes:notesFor(state.identity)}]};};
+  await assert.rejects(m.recover(),e=>e.status===503&&/cannot overlap/.test(e.message));
+  assert.equal(surveys,0);
+  await assert.rejects(m.remove(id),e=>e.status===409);
+  assert.equal(m.health().allocation.heldMiB,2048);
+  assert.equal(m.health().allocation.requests[0].reservationLinked,true);
+  state.startGate.resolve();await starting;
+  await m.recover();assert.equal(surveys,1);assert.equal(m.health().allocation.known,false);
+});
+test('spawn and a second recovery refuse during an unresolved inventory survey',async()=>{
+  const {m,state}=await setup();const gate=deferred();m.backend.survey=()=>gate.promise;
+  const recovering=m.recover();
+  await assert.rejects(m.spawn(request()),e=>e.status===503&&/recovery is in progress/.test(e.message));
+  await assert.rejects(m.recover(),e=>e.status===503&&/cannot overlap/.test(e.message));
+  assert.equal(state.starts,0);assert.equal(m.health().allocation.known,false);
+  gate.resolve({vms:[]});await recovering;
+  assert.equal(m.health().allocation.known,true);await m.spawn(request());assert.equal(state.starts,1);
+});
+test('missing or replaced reserved domain identities are unknown even with a matching byte count',async()=>{
+  for(const replace of [false,true]) {
+    const {m,state}=await setup();state.startGate=deferred();
+    const starting=m.spawn(request());await new Promise(r=>setImmediate(r));
+    const id=m.health().allocation.requests[0].domainId,record=m.domains.get(id);
+    if(replace)m.domains.set(id,{...record});else m.domains.delete(id);
+    assert.equal(m.health().allocation.known,false);
+    assert.equal(m.health().allocation.requests[0].reservationLinked,false);
+    m.domains.set(id,record);state.startGate.resolve();await starting;
+    assert.equal(m.health().allocation.known,true);
+  }
 });

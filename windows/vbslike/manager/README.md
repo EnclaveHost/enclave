@@ -58,6 +58,14 @@ shared reservation at every allocator, or enforced disjoint budgets; this field
 alone cannot authorize a production RPC start. This source change is not a live
 manager upgrade and does not authorize a service restart.
 
+Inventory recovery and pending starts cannot overlap: recovery refuses while a
+spawn is preparing or launching, and spawn refuses while a recovery survey is
+pending. This prevents a recovered record replacing a still-launching record and
+making it removable before its start settles. Each reserved request also retains
+the exact domain record identity; `reservationLinked: false` forces `known: false`
+if that record is ever removed or replaced. A same-ID, same-size record is not a
+substitute for the original operation association.
+
 ## What is derived but NOT served: `enclave-catalog-bundle/2`
 
 `/2` is a COMMAND that serves HTTP on its own socket (`wasi:cli` plus the version's one declared

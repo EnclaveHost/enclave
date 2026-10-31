@@ -17,10 +17,10 @@ out = Path('allocation-results').resolve()
 root.mkdir()
 out.mkdir()
 files = json.loads(Path(__file__).with_name('source-files.json').read_text())
-assert len(files) == 26 and len(set(files)) == len(files)
+assert len(files) == 28 and len(set(files)) == len(files)
 pins = {}
 for name in files:
-    assert re.fullmatch(r'[A-Za-z0-9_./-]+\.mjs', name) and '..' not in Path(name).parts
+    assert re.fullmatch(r'[A-Za-z0-9_./-]+\.(mjs|json)', name) and '..' not in Path(name).parts
     data = subprocess.check_output(['git', 'show', expected + ':' + name])
     assert 0 < len(data) <= 131072
     path = root / name
@@ -49,7 +49,8 @@ command = ['sudo', 'systemd-run', '--wait', '--pipe', '--unit=' + unit,
     node, '--test', '--test-concurrency=1', '--test-timeout=5000',
     'windows/vbslike/manager/allocation-observation.test.mjs',
     'windows/vbslike/manager/physical-memory.test.mjs',
-    'windows/vbslike/manager/memory-share.test.mjs']
+    'windows/vbslike/manager/memory-share.test.mjs',
+    'windows/vbslike/manager/restart.test.mjs']
 (out / 'COMMAND.json').write_text(json.dumps(command, indent=2) + '\n')
 began = time.monotonic()
 with (out / 'tests.log').open('x') as log:
