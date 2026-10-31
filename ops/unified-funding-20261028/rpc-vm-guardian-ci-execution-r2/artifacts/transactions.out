@@ -1,0 +1,38 @@
+PASS missing intent cannot submit
+PASS prepare one-shot
+PASS partial prepare stays consumed
+PASS lost return survives restart without resend
+PASS receipt persistence failure never acknowledged
+PASS response precedes exact job read and GC recovery
+PASS job reincarnation stays held
+PASS absent job does not settle
+PASS synchronous return persists before success
+PASS unknown native return held
+PASS abnormal suspended killed service not settlement
+PASS recurring completed job not settlement
+PASS completed error is settled not success
+PASS terminal persistence failure stays held
+PASS original deadline and rollback refuse submit
+PASS guardian refusal consumes gate without invoking
+PASS concurrent submit exactly one native call
+PASS exact local reference canonicalizes
+PASS remote wrongnamespace extra keys refused
+PASS malformed response remains consumed
+PASS actual protected adapter definitive absence
+PASS actual protected adapter empty pending is held
+PASS post-startup guarded read settles without restarting
+PASS expired read guard prevents provider observation
+PASS read guard expiry during query cannot publish terminal
+PASS canonical intent decoding preserves original worker
+PASS permit binds VM identity and original intent
+PASS permit refuses unreviewed aggregate allocation
+PASS permit startup expiry leaves only reconciliation access
+PASS actual journal reopen retains consumed start gate
+PASS reconciliation cannot create intent native call or response
+PASS actual reopened partial journal stays held
+PASS worker lease disposal closes journal access
+PASS independent lease expiry cannot extend journal access
+PASS actual permit hash mismatch refuses journal opening
+PASS inert lease cannot masquerade as VM journal
+PASS actual journal rejects altered consumed identity
+RESULT tests=37 providerCallsAreFakes=true vmChanged=false

@@ -1,0 +1,203 @@
+{
+  "ci": 41157150138,
+  "head": "a1863d3fd8793482fb88c06d0c4b290a39cbc33c",
+  "sourcePins": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/VmStartGuardian.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/ProviderStart.cs",
+    "windows/rpc/OwnedVmPermit.cs",
+    "windows/rpc/WindowsStartAdmission.cs",
+    "windows/rpc/ProviderWorkerEntry.cs",
+    "test/rpc-windows-worker/ProviderWorkerQualification.cs",
+    "test/rpc-windows-worker/ProviderStartHarness.cs"
+  ],
+  "artifacts": {
+    "owned-entry.exe": "c818850599641e56d46d425a7ea57dc77d05d82ac6c15cc3822afdb2471ce734",
+    "qualification-controller.exe": "8f8bb31d57abaf8381052c249540e661b913ca38b36fcb1bccd2729f1b40c391"
+  },
+  "records": [
+    {
+      "label": "entry-compile",
+      "pid": 8948,
+      "exitCode": 0,
+      "elapsedMs": 1773,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 33460224,
+      "outputBytes": 0
+    },
+    {
+      "label": "controller-compile",
+      "pid": 5916,
+      "exitCode": 0,
+      "elapsedMs": 229,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 33972224,
+      "outputBytes": 0
+    },
+    {
+      "label": "transaction-compile",
+      "pid": 7632,
+      "exitCode": 0,
+      "elapsedMs": 219,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 33640448,
+      "outputBytes": 0
+    },
+    {
+      "label": "transactions",
+      "pid": 7448,
+      "exitCode": 0,
+      "elapsedMs": 2995,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 35708928,
+      "outputBytes": 1884
+    },
+    {
+      "label": "admission-fixtures",
+      "pid": 6244,
+      "exitCode": 0,
+      "elapsedMs": 412,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 32673792,
+      "outputBytes": 166
+    },
+    {
+      "label": "reconcile",
+      "pid": 9184,
+      "exitCode": 0,
+      "elapsedMs": 1310,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 45301760,
+      "outputBytes": 684
+    },
+    {
+      "label": "denied-start",
+      "pid": 4556,
+      "exitCode": 0,
+      "elapsedMs": 1131,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 46043136,
+      "outputBytes": 605
+    },
+    {
+      "label": "guardian-bind",
+      "pid": 3144,
+      "exitCode": 0,
+      "elapsedMs": 1675,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 46202880,
+      "outputBytes": 605
+    },
+    {
+      "label": "guardian-publication-failure",
+      "pid": 7048,
+      "exitCode": 0,
+      "elapsedMs": 935,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 46153728,
+      "outputBytes": 604
+    }
+  ],
+  "results": {
+    "admission-fixtures": {
+      "schema": "owned-rpc-pending-fixtures/1",
+      "passed": true,
+      "fixtures": 6,
+      "nativeSubmitted": false,
+      "vmsChanged": false,
+      "providerFenced": false,
+      "reservationMayRelease": false
+    },
+    "reconcile": {
+      "schema": "owned-rpc-provider-worker-qualification/1",
+      "passed": true,
+      "deniedStart": false,
+      "guardianBind": false,
+      "guardianPublicationFailure": false,
+      "guardianFailureElapsedMs": -1,
+      "origin": 135822,
+      "deadline": 165822,
+      "elapsedMs": 1302,
+      "root": "C:\\EnclaveRpcProviderQualification-bcf50146efe541418d73d5511e72f8f8\\bcf50146efe541418d73d5511e72f8f8",
+      "vmRoot": "C:\\EnclaveRpcProviderQualification-bcf50146efe541418d73d5511e72f8f8\\22273bed16bc4e1885579f0c76992b97",
+      "freeBytes": 14334668800,
+      "childResult": "response-lost-held;settled=False;provider-fenced=false;reservation-release=false",
+      "failures": [],
+      "nativeSubmitted": false,
+      "providerFenced": false,
+      "reservationMayRelease": false,
+      "vmsChanged": false
+    },
+    "denied-start": {
+      "schema": "owned-rpc-provider-worker-qualification/1",
+      "passed": true,
+      "deniedStart": true,
+      "guardianBind": false,
+      "guardianPublicationFailure": false,
+      "guardianFailureElapsedMs": -1,
+      "origin": 137137,
+      "deadline": 167137,
+      "elapsedMs": 1107,
+      "root": "C:\\EnclaveRpcProviderQualification-2181865da40240da9dddc5e5f80d75b9\\2181865da40240da9dddc5e5f80d75b9",
+      "vmRoot": "C:\\EnclaveRpcProviderQualification-2181865da40240da9dddc5e5f80d75b9\\ff9fa341781d4f2c8e20772641596753",
+      "freeBytes": 14331408384,
+      "childResult": null,
+      "failures": [],
+      "nativeSubmitted": false,
+      "providerFenced": false,
+      "reservationMayRelease": false,
+      "vmsChanged": false
+    },
+    "guardian-bind": {
+      "schema": "owned-rpc-provider-worker-qualification/1",
+      "passed": true,
+      "deniedStart": false,
+      "guardianBind": true,
+      "guardianPublicationFailure": false,
+      "guardianFailureElapsedMs": -1,
+      "origin": 138273,
+      "deadline": 168273,
+      "elapsedMs": 1658,
+      "root": "C:\\EnclaveRpcProviderQualification-a68e18f49cdd4575928692f65d55150b\\a68e18f49cdd4575928692f65d55150b",
+      "vmRoot": "C:\\EnclaveRpcProviderQualification-a68e18f49cdd4575928692f65d55150b\\4569dfdc8ad54232a460bd2fec1a37e7",
+      "freeBytes": 14328766464,
+      "childResult": null,
+      "failures": [],
+      "nativeSubmitted": false,
+      "providerFenced": false,
+      "reservationMayRelease": false,
+      "vmsChanged": false
+    },
+    "guardian-publication-failure": {
+      "schema": "owned-rpc-provider-worker-qualification/1",
+      "passed": true,
+      "deniedStart": false,
+      "guardianBind": true,
+      "guardianPublicationFailure": true,
+      "guardianFailureElapsedMs": 793,
+      "origin": 139953,
+      "deadline": 169953,
+      "elapsedMs": 918,
+      "root": "C:\\EnclaveRpcProviderQualification-2d5535b855b946b2a4cbc8cd4d5c3321\\2d5535b855b946b2a4cbc8cd4d5c3321",
+      "vmRoot": "C:\\EnclaveRpcProviderQualification-2d5535b855b946b2a4cbc8cd4d5c3321\\c144e2f603884d528baa648126a3bbb4",
+      "freeBytes": 14343602176,
+      "childResult": null,
+      "failures": [],
+      "nativeSubmitted": false,
+      "providerFenced": false,
+      "reservationMayRelease": false,
+      "vmsChanged": false
+    }
+  }
+}

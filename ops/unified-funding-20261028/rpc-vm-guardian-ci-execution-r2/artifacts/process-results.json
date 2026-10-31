@@ -1,0 +1,92 @@
+[
+    {
+        "label":  "entry-compile",
+        "pid":  8948,
+        "exitCode":  0,
+        "elapsedMs":  1773,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  33460224,
+        "outputBytes":  0
+    },
+    {
+        "label":  "controller-compile",
+        "pid":  5916,
+        "exitCode":  0,
+        "elapsedMs":  229,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  33972224,
+        "outputBytes":  0
+    },
+    {
+        "label":  "transaction-compile",
+        "pid":  7632,
+        "exitCode":  0,
+        "elapsedMs":  219,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  33640448,
+        "outputBytes":  0
+    },
+    {
+        "label":  "transactions",
+        "pid":  7448,
+        "exitCode":  0,
+        "elapsedMs":  2995,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  35708928,
+        "outputBytes":  1884
+    },
+    {
+        "label":  "admission-fixtures",
+        "pid":  6244,
+        "exitCode":  0,
+        "elapsedMs":  412,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  32673792,
+        "outputBytes":  166
+    },
+    {
+        "label":  "reconcile",
+        "pid":  9184,
+        "exitCode":  0,
+        "elapsedMs":  1310,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  45301760,
+        "outputBytes":  684
+    },
+    {
+        "label":  "denied-start",
+        "pid":  4556,
+        "exitCode":  0,
+        "elapsedMs":  1131,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  46043136,
+        "outputBytes":  605
+    },
+    {
+        "label":  "guardian-bind",
+        "pid":  3144,
+        "exitCode":  0,
+        "elapsedMs":  1675,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  46202880,
+        "outputBytes":  605
+    },
+    {
+        "label":  "guardian-publication-failure",
+        "pid":  7048,
+        "exitCode":  0,
+        "elapsedMs":  935,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  46153728,
+        "outputBytes":  604
+    }
+]
