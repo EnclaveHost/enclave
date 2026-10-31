@@ -90,7 +90,7 @@ function InvokeCase([string]$operation,[string]$nonce,$payload,[string]$label,[i
 try{
  $compile=@('/nologo','/target:exe','/platform:x64','/r:System.Web.Extensions.dll','/main:Enclave.OwnedRpc.TransitionFiles')
  Invoke-FiniteProcess $csc ($compile+@('/out:'+$controller)+$sources) 20000 'production-compile'
- Invoke-FiniteProcess $csc ($compile+@('/define:TRANSITION_FILES_CI','/out:'+$ci)+$sources) 20000 'ci-compile'
+ Invoke-FiniteProcess $csc ($compile+@('/define:TRANSITION_FILES_CI',('/out:'+$ci))+$sources) 20000 'ci-compile'
  [void][Reflection.Assembly]::Load([IO.File]::ReadAllBytes($controller))
  $boot=[Enclave.OwnedRpc.ProtectedAttempt]::CurrentBoot();$original=[Enclave.OwnedRpc.BoundedWorker]::MonotonicMilliseconds()
  $vmNonce=[guid]::NewGuid().ToString('N');$imageRoot=DirectoryFixture 'FileHelper' ([guid]::NewGuid().ToString('N'));$exe=Join-Path $imageRoot 'transition-files.exe'
