@@ -1,0 +1,124 @@
+{
+  "at": 1793422731.7815747,
+  "readOnly": true,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 614,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "priorOperationsSettled": false,
+    "public": {
+      "schema": "loaded-master-health/1",
+      "readOnly": true,
+      "rows": [
+        {
+          "port": 8091,
+          "managerEpoch": "6ba9af9a243b9f4754d8091d3de2f415",
+          "masters": [
+            {
+              "where": "preflight",
+              "path": "C:\\ProgramData\\Enclave\\shield\\type1.vmgs",
+              "bytes": 4194816,
+              "ok": true
+            },
+            {
+              "where": "preflight.roles.desktop",
+              "path": "C:\\ProgramData\\Enclave\\shield\\type1.vmgs",
+              "bytes": 4194816,
+              "ok": true
+            }
+          ],
+          "modules": [
+            {
+              "where": "preflight",
+              "sha256": "17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c",
+              "ok": true
+            },
+            {
+              "where": "preflight.roles.desktop",
+              "sha256": "17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c",
+              "ok": true
+            }
+          ]
+        },
+        {
+          "port": 8095,
+          "managerEpoch": "eb81408d8b99f58cd715d5c56017258c",
+          "masters": [
+            {
+              "where": "preflight",
+              "path": "C:\\ProgramData\\Enclave\\shield\\type1.vmgs",
+              "bytes": 4194816,
+              "ok": true
+            },
+            {
+              "where": "preflight.roles.desktop",
+              "path": "C:\\ProgramData\\Enclave\\shield\\type1.vmgs",
+              "bytes": 4194816,
+              "ok": true
+            }
+          ],
+          "modules": [
+            {
+              "where": "preflight",
+              "sha256": "17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c",
+              "ok": true
+            },
+            {
+              "where": "preflight.roles.desktop",
+              "sha256": "17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c",
+              "ok": true
+            }
+          ]
+        }
+      ],
+      "capacityAdmitted": false,
+      "allIssuerCoverageProven": false
+    },
+    "readOnly": true,
+    "schema": "loaded-master-health-read/1",
+    "physical": {
+      "physicalBytes": 120070115328,
+      "filesystem": "NTFS",
+      "freeBytes": 83874902016,
+      "atUtc": "2026-10-31T04:58:47.5465333Z",
+      "diskFreeBytes": 21549338624,
+      "bootUtc": "2026-10-23T08:29:16.5000000Z"
+    },
+    "listeners": {
+      "value": [
+        {
+          "port": 8095,
+          "parent": 11268,
+          "pid": 41308,
+          "created": "2026-10-27T08:02:19.4407050Z",
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        },
+        {
+          "port": 8091,
+          "parent": 37940,
+          "pid": 38076,
+          "created": "2026-10-26T17:17:18.5617520Z",
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        },
+        {
+          "port": 9600,
+          "parent": 38368,
+          "pid": 41272,
+          "created": "2026-10-27T08:24:45.0989590Z",
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        },
+        {
+          "port": 8097,
+          "parent": 33732,
+          "pid": 40360,
+          "created": "2026-10-27T08:24:42.8500370Z",
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        }
+      ],
+      "Count": 4
+    },
+    "capacityAdmitted": false
+  }
+}

@@ -33,12 +33,15 @@ public static class LegacyHandoffHarness {
   BoundedWorker.EnterSupervisorEnvelope(256UL*1024*1024);long deadline=BoundedWorker.MonotonicMilliseconds()+9000;
   new Thread(()=>{while(BoundedWorker.MonotonicMilliseconds()<deadline)Thread.Sleep(5);TerminateProcess(GetCurrentProcess(),124);}){IsBackground=true}.Start();
   Test("static-memory-bytes",()=>Check(LegacyHandoff.MaximumMemory(Row())==2147483648));
-  Test("all-configured-quantities-accounted",()=>{var r=Row();r["Reservation"]=(ulong)8192;Check(LegacyHandoff.MaximumMemory(r)==8589934592);});
+  Test("contradictory-static-reservation-refused",()=>{var r=Row();r["Reservation"]=(ulong)8192;Refuse(()=>LegacyHandoff.MaximumMemory(r));});
+  Test("dormant-dynamic-limit-not-static-growth",()=>{var r=Row();r["Limit"]=(ulong)1048576;Check(LegacyHandoff.MaximumMemory(r)==2147483648);});
+  Test("static-quantity-over-limit-refused",()=>{var r=Row();r["Limit"]=(ulong)1024;Refuse(()=>LegacyHandoff.MaximumMemory(r));});
+  Test("zero-static-quantity-refused",()=>{var r=Row();r["VirtualQuantity"]=(ulong)0;Refuse(()=>LegacyHandoff.MaximumMemory(r));});
   Test("dynamic-memory-refused",()=>{var r=Row();r["DynamicMemoryEnabled"]=true;Refuse(()=>LegacyHandoff.MaximumMemory(r));});
   Test("missing-memory-refused",()=>{var r=Row();r.Remove("Limit");Refuse(()=>LegacyHandoff.MaximumMemory(r));});
   Test("wrong-units-refused",()=>{var r=Row();r["AllocationUnits"]="bytes";Refuse(()=>LegacyHandoff.MaximumMemory(r));});
   Test("serialized-not-native-quantity-refused",()=>{var r=Row();r["Limit"]="2048";Refuse(()=>LegacyHandoff.MaximumMemory(r));});
-  Test("unbounded-maximum-refused",()=>{var r=Row();r["Limit"]=UInt64.MaxValue;Refuse(()=>LegacyHandoff.MaximumMemory(r));});
+  Test("unbounded-maximum-refused",()=>{var r=Row();r["VirtualQuantity"]=UInt64.MaxValue;Refuse(()=>LegacyHandoff.MaximumMemory(r));});
   Test("inspect-contract-binds-manifest",()=>{var c=new Contract("legacy-memory-inspect-v1",false);using(var a=ProtectedAttempt.PinLegacyHandoffController(c.PathName,c.Hash)){Check(a.Operation=="legacy-memory-inspect-v1"&&ProtectedAttempt.Hash(a.ReadLegacyHandoff())==ProtectedAttempt.Hash(c.Manifest));}});
   Test("cut-is-separate-explicit-operation",()=>{var c=new Contract("legacy-memory-cut-v1",false);using(var a=ProtectedAttempt.PinLegacyHandoffController(c.PathName,c.Hash))Check(a.Operation=="legacy-memory-cut-v1");});
   Test("inert-cannot-open-handoff",()=>{var c=new Contract("legacy-memory-inspect-v1",false);Refuse(()=>{using(var a=ProtectedAttempt.PinController(c.PathName,c.Hash)){};});});

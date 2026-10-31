@@ -129,27 +129,38 @@ namespace Enclave.OwnedRpc {
       Str(row["AllocationUnits"])!="byte * 2^20"||Str(row["VirtualQuantityUnits"])!="byte * 2^20"||
       !(row["DynamicMemoryEnabled"] is bool)||(bool)row["DynamicMemoryEnabled"])
     throw new InvalidOperationException("Unsupported or dynamic old VM memory");
-   ulong maximum=0;foreach(string k in new[]{"VirtualQuantity","Reservation","Limit"}){
-    if(!(row[k] is ulong))throw new InvalidOperationException("Exact native memory quantity required");maximum=Math.Max(maximum,(ulong)row[k]);
-   }
-   if(maximum==0||maximum>1048576)throw new InvalidOperationException("Configured maximum bound");return checked((long)maximum*1048576);
+   foreach(string k in new[]{"VirtualQuantity","Reservation","Limit"})
+    if(!(row[k] is ulong))throw new InvalidOperationException("Exact native memory quantity required");
+   ulong quantity=(ulong)row["VirtualQuantity"],minimum=(ulong)row["Reservation"],limit=(ulong)row["Limit"];
+   if(quantity==0||quantity>1048576||limit<quantity||minimum>quantity)
+    throw new InvalidOperationException("Contradictory static memory configuration");
+   // Dynamic memory is explicitly refused above. VirtualQuantity is the fixed
+   // guest RAM; Limit is the dormant dynamic ceiling, not automatic static growth.
+   // Any future ModifyResourceSettings is a new allocation requiring admission.
+   return checked((long)quantity*1048576);
   }
-  SortedDictionary<string,long> Inventory(){
+  public sealed class MemoryRecord {
+   public string Rule="fixed-memory-virtual-quantity/1";
+   public long Bytes;public ulong VirtualQuantityMiB,ReservationMiB,LimitMiB;
+   public bool DynamicMemoryEnabled;
+  }
+
+  SortedDictionary<string,MemoryRecord> Inventory(){
    const string ns=@"root\virtualization\v2";Check();
    var systems=Query(ns,"SELECT Name FROM Msvm_ComputerSystem WHERE Caption='Virtual Machine'",new[]{"Name"},32);
    var expected=new HashSet<string>();foreach(var s in systems){Guid id;if(!Guid.TryParseExact(Str(s["Name"]),"D",out id)||!expected.Add(id.ToString("D")))throw new InvalidOperationException("VM identifier ambiguity");}
-   var result=new SortedDictionary<string,long>(StringComparer.Ordinal);
+   var result=new SortedDictionary<string,MemoryRecord>(StringComparer.Ordinal);
    var opts=new EnumerationOptions{Timeout=TimeSpan.FromSeconds(3),ReturnImmediately=false,Rewindable=false};
    using(var search=new ManagementObjectSearcher(ns,"SELECT * FROM Msvm_VirtualSystemSettingData WHERE VirtualSystemType='Microsoft:Hyper-V:System:Realized'",opts))using(var rows=search.Get())
     foreach(ManagementObject vm in rows)using(vm){
      Check();Guid id;if(result.Count>=32||!Guid.TryParseExact((string)vm["VirtualSystemIdentifier"],"D",out id)||!expected.Contains(id.ToString("D"))||result.ContainsKey(id.ToString("D")))throw new InvalidOperationException("Realized VM inventory differs");
-     int count=0;long maximum=0;
+     int count=0;MemoryRecord record=null;
      using(var memory=vm.GetRelated("Msvm_MemorySettingData"))foreach(ManagementObject m in memory)using(m){
       Check();if(++count!=1)throw new InvalidOperationException("VM memory association ambiguity");var d=new Dictionary<string,object>();
       foreach(string k in new[]{"ResourceType","ResourceSubType","AllocationUnits","VirtualQuantityUnits","VirtualQuantity","Reservation","Limit","DynamicMemoryEnabled"})d[k]=m[k];
-      maximum=MaximumMemory(d);
+      record=new MemoryRecord{Bytes=MaximumMemory(d),VirtualQuantityMiB=(ulong)d["VirtualQuantity"],ReservationMiB=(ulong)d["Reservation"],LimitMiB=(ulong)d["Limit"],DynamicMemoryEnabled=(bool)d["DynamicMemoryEnabled"]};
      }
-     if(count!=1)throw new InvalidOperationException("Missing VM memory association");result.Add(id.ToString("D"),maximum);
+     if(count!=1)throw new InvalidOperationException("Missing VM memory association");result.Add(id.ToString("D"),record);
     }
    if(result.Count!=expected.Count)throw new InvalidOperationException("Incomplete all-VM inventory");Check();return result;
   }
@@ -170,14 +181,14 @@ namespace Enclave.OwnedRpc {
    var first=Inventory();var second=Inventory();if(json.Serialize(first)!=json.Serialize(second))throw new InvalidOperationException("Configured VM inventory changed; keep claims held");
    BindIssuers();Check();PublishInventory(first,cut.CutAt,exact);
   }
-  void PublishInventory(SortedDictionary<string,long> inventory,long cutAt,LegacyLaunchCohort.Issuer[] exact){
+  void PublishInventory(SortedDictionary<string,MemoryRecord> inventory,long cutAt,LegacyLaunchCohort.Issuer[] exact){
    long maximumBytes=0;int n=0;var index=new List<string>();
    foreach(var vm in inventory){
-    maximumBytes=checked(maximumBytes+vm.Value);string name="vm-"+(char)('a'+n/26)+(char)('a'+n%26);n++;
-    string row=json.Serialize(new{guid=vm.Key,maximumBytes=vm.Value,cutAt=cutAt,manifest=lease.PermitHash});lease.WriteOnce(name,row);index.Add(vm.Key+":"+ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(row)));
+    maximumBytes=checked(maximumBytes+vm.Value.Bytes);string name="vm-"+(char)('a'+n/26)+(char)('a'+n%26);n++;
+    string row=json.Serialize(new{guid=vm.Key,maximumBytes=vm.Value.Bytes,memory=vm.Value,cutAt=cutAt,manifest=lease.PermitHash});lease.WriteOnce(name,row);index.Add(vm.Key+":"+ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(row)));
    }
    lease.WriteOnce("handoff.inventory","legacy-vm-inventory/1\n"+String.Join("\n",index));Check();
-   lease.WriteOnce("handoff.result",json.Serialize(new{schema="legacy-memory-handoff-result/1",manifest=lease.PermitHash,inspectOnly=inspect,cutAt=cutAt,observedAt=BoundedWorker.MonotonicMilliseconds(),issuers=exact,vmCount=n,maximumBytes=maximumBytes,providerSettled=false,capacityAdmitted=false,reservationMayRelease=false,poolSeeded=false}));
+   lease.WriteOnce("handoff.result",json.Serialize(new{schema="legacy-memory-handoff-result/2",manifest=lease.PermitHash,inspectOnly=inspect,cutAt=cutAt,observedAt=BoundedWorker.MonotonicMilliseconds(),issuers=exact,vmCount=n,maximumBytes=maximumBytes,providerSettled=false,capacityAdmitted=false,reservationMayRelease=false,poolSeeded=false}));
   }
   public static void Run(ProtectedAttempt lease,Action live){using(var work=new LegacyHandoff(lease,live))work.Execute();}
   public void Dispose(){for(int n=held.Count-1;n>=0;n--)held[n].Dispose();held.Clear();}

@@ -1,0 +1,57 @@
+{
+  "public-reader.mjs": {
+    "originalSha256": "6c6b9043fd793b9b3432583861c359f7a8279a3aac5ea02cbb02d0ab743b9359",
+    "publicSha256": "6c6b9043fd793b9b3432583861c359f7a8279a3aac5ea02cbb02d0ab743b9359",
+    "bytes": 2412
+  },
+  "PINS.json": {
+    "originalSha256": "e3ee7b35ea934a9e4e5c06774f9bdb9d0a815f810cbcd9bfeb453443a45f66e6",
+    "publicSha256": "e3ee7b35ea934a9e4e5c06774f9bdb9d0a815f810cbcd9bfeb453443a45f66e6",
+    "bytes": 438
+  },
+  "manager-ATTEMPT.json": {
+    "originalSha256": "796833ab53437c05b9ce59d458c13d0c68ba31884c7ca3b700050b931e4d2698",
+    "publicSha256": "28e9c12d323c126f1df459f543c75109b0211e307be64278ac7b096ac9a0c2ac",
+    "bytes": 61
+  },
+  "ROOT-REVIEW.md": {
+    "originalSha256": "4fc9a4b4b1b5ed0a24965323ec0d1f77beca5ec384ae1851bfb46a95963fe703",
+    "publicSha256": "4fc9a4b4b1b5ed0a24965323ec0d1f77beca5ec384ae1851bfb46a95963fe703",
+    "bytes": 606
+  },
+  "ROOT-LAUNCH.txt": {
+    "originalSha256": "259402528e672cf1766b7dd105fda900555d740e895bb463d8d83bacbc8672a1",
+    "publicSha256": "259402528e672cf1766b7dd105fda900555d740e895bb463d8d83bacbc8672a1",
+    "bytes": 124
+  },
+  "manager-inner.log": {
+    "originalSha256": "476c45ed86c3515b6248d37753dbbadb24f0d89029047f0987a4322572969b75",
+    "publicSha256": "476c45ed86c3515b6248d37753dbbadb24f0d89029047f0987a4322572969b75",
+    "bytes": 66
+  },
+  "manager-outer.log": {
+    "originalSha256": "e8a034bff68862be87d12c3cf726cddd573477f6c7f654cfe2b29a15775771e5",
+    "publicSha256": "e8a034bff68862be87d12c3cf726cddd573477f6c7f654cfe2b29a15775771e5",
+    "bytes": 66
+  },
+  "COMMAND.json": {
+    "originalSha256": "e39601664fcf5d11738a2c02b4c91444e944e77a77e86f116bf04ed0d7aa40fe",
+    "publicSha256": "e39601664fcf5d11738a2c02b4c91444e944e77a77e86f116bf04ed0d7aa40fe",
+    "bytes": 1244
+  },
+  "manager-RESULT.json": {
+    "originalSha256": "e643e190c496fad66ffac1ea6259ff29fa1c69d6994b71eef45cfb0180ae2a0a",
+    "publicSha256": "e643e190c496fad66ffac1ea6259ff29fa1c69d6994b71eef45cfb0180ae2a0a",
+    "bytes": 3610
+  },
+  "run.py": {
+    "originalSha256": "46854fc4189bcc62250333a501069d96ed9b7cb75c521863006899fd6ced5b59",
+    "publicSha256": "46854fc4189bcc62250333a501069d96ed9b7cb75c521863006899fd6ced5b59",
+    "bytes": 2290
+  },
+  "manager-read.ps1": {
+    "originalSha256": "ffb24d05668e6012ca7070ad5a579fb325de482209bc808ed51596c378db6cb4",
+    "publicSha256": "ffb24d05668e6012ca7070ad5a579fb325de482209bc808ed51596c378db6cb4",
+    "bytes": 6241
+  }
+}

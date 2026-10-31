@@ -1,0 +1,47 @@
+{
+  "PINS.json": {
+    "originalSha256": "2e100d355e9399c83217c5edd6117c0a442d69356fa485f6086775667af215d2",
+    "publicSha256": "2e100d355e9399c83217c5edd6117c0a442d69356fa485f6086775667af215d2",
+    "bytes": 259
+  },
+  "manager-ATTEMPT.json": {
+    "originalSha256": "8d49915e66779291e2483595a533f925cb88f2e2ca31d70ef4cd5c547ab36670",
+    "publicSha256": "5fe10b62493c10137f7806e020c56dbadd8588ac6486449a4d268e2a6445f53d",
+    "bytes": 62
+  },
+  "ROOT-REVIEW.md": {
+    "originalSha256": "215a47b0de9e845fc78cadc1f98d064bb8b9c30c9cb113ea5e44c27089271458",
+    "publicSha256": "215a47b0de9e845fc78cadc1f98d064bb8b9c30c9cb113ea5e44c27089271458",
+    "bytes": 442
+  },
+  "manager-inner.log": {
+    "originalSha256": "bb25cf19d43394cfeef4aadfceaefffa9e57f5e493117dff670066d22a99a4e9",
+    "publicSha256": "bb25cf19d43394cfeef4aadfceaefffa9e57f5e493117dff670066d22a99a4e9",
+    "bytes": 66
+  },
+  "manager-outer.log": {
+    "originalSha256": "bad0391fcfe2df7446bae8492d44a3ea1c3f263dba9f331a3e334b60e08028bb",
+    "publicSha256": "bad0391fcfe2df7446bae8492d44a3ea1c3f263dba9f331a3e334b60e08028bb",
+    "bytes": 66
+  },
+  "COMMAND.json": {
+    "originalSha256": "b07536967358a8709ebf8b9412ebbee6aab17d495dda091f93585a8d090ac74c",
+    "publicSha256": "b07536967358a8709ebf8b9412ebbee6aab17d495dda091f93585a8d090ac74c",
+    "bytes": 1248
+  },
+  "manager-RESULT.json": {
+    "originalSha256": "383d8c9a207496a744fb00b2284addbf827f8a8cbe5ef79e0ef2e77562ff900a",
+    "publicSha256": "383d8c9a207496a744fb00b2284addbf827f8a8cbe5ef79e0ef2e77562ff900a",
+    "bytes": 29867
+  },
+  "run.py": {
+    "originalSha256": "46854fc4189bcc62250333a501069d96ed9b7cb75c521863006899fd6ced5b59",
+    "publicSha256": "46854fc4189bcc62250333a501069d96ed9b7cb75c521863006899fd6ced5b59",
+    "bytes": 2290
+  },
+  "manager-read.ps1": {
+    "originalSha256": "5056fb7e10a47f9b40ad36b43d762676d765d8a73fa56531b470ac3dc1e05196",
+    "publicSha256": "5056fb7e10a47f9b40ad36b43d762676d765d8a73fa56531b470ac3dc1e05196",
+    "bytes": 8528
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "run.py": "d8a459e8ba61e30938021d3ecff860794c1839afb59e4f03f8327bf53b7af813",
+  "SPEC.json": "e7f444f1f8c7f0669ba64fd2c349b2247ab3dca3f7ae4e336a62c461cfcda567",
+  "create.ps1": "e3fbe5d1a680f2880c0812255cc1a73f0102feea4ed852a9bbf04164d8deb2c3",
+  "execute-template.ps1": "f024f540a715fbc15528ec0b3dbda4c10a80cb247f79cf417bd4ca582f72af9b",
+  "entry.exe": "c04623d38d2edaf0a9929890072622c5ff08cf6dc1dc2f0013c6b7ec2fbf0e72",
+  "owned-entry.exe": "111cdd6004c95089ff9db93047b031a639d7587090fb660ef96988b944cd6662",
+  "handoff-prep.json": "38a8391383f3a49d655afac0e1e48e94f589ad2d1434c30043fb13c47b97d23d"
+}

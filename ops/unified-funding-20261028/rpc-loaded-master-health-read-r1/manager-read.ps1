@@ -1,0 +1,31 @@
+# PREPARED ONLY. Read-only queries. Never dot-source configs or read environment/commands.
+$ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue'
+function Bindings {
+ $ls=@(Get-CimInstance -Namespace root/StandardCimv2 -ClassName MSFT_NetTCPConnection -Filter '(LocalPort=8091 OR LocalPort=8095 OR LocalPort=8097 OR LocalPort=9600) AND State=2' -OperationTimeoutSec 3)
+ if($ls.Count-gt 16){throw 'listener bound'}
+ $rows=@(foreach($l in $ls){$p=Get-CimInstance Win32_Process -Filter ('ProcessId='+[uint32]$l.OwningProcess) -Property ProcessId,ParentProcessId,CreationDate,ExecutablePath -OperationTimeoutSec 3
+  if(!$p){throw 'listener disappeared'};@{port=[int]$l.LocalPort;pid=[uint32]$p.ProcessId;parent=[uint32]$p.ParentProcessId;created=$p.CreationDate.ToUniversalTime().ToString('o');exe=$p.ExecutablePath}})
+ ConvertTo-Json -InputObject @($rows|Sort-Object port,pid) -Depth 4 -Compress
+}
+function Physical {
+ $os=Get-CimInstance Win32_OperatingSystem -Property LastBootUpTime,TotalVisibleMemorySize,FreePhysicalMemory -OperationTimeoutSec 3
+ $d=Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'" -Property FreeSpace,FileSystem -OperationTimeoutSec 3
+ @{atUtc=[DateTime]::UtcNow.ToString('o');bootUtc=$os.LastBootUpTime.ToUniversalTime().ToString('o');physicalBytes=[int64]$os.TotalVisibleMemorySize*1024;freeBytes=[int64]$os.FreePhysicalMemory*1024;diskFreeBytes=[int64]$d.FreeSpace;filesystem=$d.FileSystem}
+}
+function NamespaceFact([string]$path){
+ $i=Get-Item -LiteralPath $path -Force;$a=Get-Acl -LiteralPath $path
+ $row=@{path=$path;directory=[bool]$i.PSIsContainer;attributes=[int]$i.Attributes;owner=$a.GetOwner([Security.Principal.SecurityIdentifier]).Value;accessProtected=[bool]$a.AreAccessRulesProtected;sddl=$a.Sddl}
+ $j=Get-Item -LiteralPath $path -Force
+ if($i.LastWriteTimeUtc-ne $j.LastWriteTimeUtc -or $i.Attributes-ne $j.Attributes){throw 'namespace changed'}
+ return $row
+}
+$before=Bindings;$physicalBefore=Physical
+# Root must match these known retained incarnations before accepting template configuration observations.
+$expected=@(@{port=8091;pid=38076;created='2026-10-26T17:17:18.5617520Z'},@{port=8095;pid=41308;created='2026-10-27T08:02:19.4407050Z'},@{port=8097;pid=40360;created='2026-10-27T08:24:42.8500370Z'})
+foreach($e in $expected){$got=@(($before|ConvertFrom-Json)|Where-Object{$_.port-eq $e.port});if($got.Count-ne 1 -or $got[0].pid-ne $e.pid -or $got[0].created-cne $e.created){throw 'retained incarnation changed'}}
+$js=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('aW1wb3J0IGh0dHAgZnJvbSAnbm9kZTpodHRwJzsKZnVuY3Rpb24gZ2V0KHBvcnQpe3JldHVybiBuZXcgUHJvbWlzZSgocmVzb2x2ZSxyZWplY3QpPT57CiBsZXQgZG9uZT1mYWxzZTtjb25zdCBmaW5pc2g9KGUsdik9PntpZihkb25lKXJldHVybjtkb25lPXRydWU7Y2xlYXJUaW1lb3V0KHRpbWVyKTtpZihlKXtyZXEuZGVzdHJveSgpO3JlamVjdChlKTt9ZWxzZSByZXNvbHZlKHYpO307CiBjb25zdCByZXE9aHR0cC5nZXQoe2hvc3Q6JzEyNy4wLjAuMScscG9ydCxwYXRoOicvaGVhbHRoJyxhZ2VudDpmYWxzZX0scmVzPT57aWYocmVzLnN0YXR1c0NvZGUhPT0yMDApcmV0dXJuIGZpbmlzaChFcnJvcignaHR0cC1zdGF0dXMnKSk7bGV0IGNvdW50PTA7Y29uc3QgY2h1bmtzPVtdO3Jlcy5vbignZGF0YScsYj0+e2NvdW50Kz1iLmxlbmd0aDtpZihjb3VudD42NTUzNilyZXR1cm4gZmluaXNoKEVycm9yKCdib2R5LWJvdW5kJykpO2NodW5rcy5wdXNoKGIpO30pO3Jlcy5vbignZW5kJywoKT0+e3RyeXtmaW5pc2gobnVsbCxKU09OLnBhcnNlKEJ1ZmZlci5jb25jYXQoY2h1bmtzKS50b1N0cmluZygndXRmOCcpKSk7fWNhdGNoe2ZpbmlzaChFcnJvcignanNvbicpKTt9fSk7cmVzLm9uKCdlcnJvcicsKCk9PmZpbmlzaChFcnJvcignYm9keS1lcnJvcicpKSk7fSk7CiBjb25zdCB0aW1lcj1zZXRUaW1lb3V0KCgpPT5maW5pc2goRXJyb3IoJ2RlYWRsaW5lJykpLDI1MDApO3JlcS5vbignZXJyb3InLCgpPT5maW5pc2goRXJyb3IoJ3RyYW5zcG9ydCcpKSk7Cn0pO30KZnVuY3Rpb24gcHJvamVjdChwLHdoZXJlPSdwcmVmbGlnaHQnLGRlcHRoPTApewogaWYoZGVwdGg+M3x8IXB8fHR5cGVvZiBwIT09J29iamVjdCcpdGhyb3cgRXJyb3IoJ3ByZWZsaWdodC1zaGFwZScpO2NvbnN0IG1hc3RlcnM9W10sbW9kdWxlcz1bXTsKIGlmKHAuY2hlY2tzIT09dW5kZWZpbmVkKXtpZighQXJyYXkuaXNBcnJheShwLmNoZWNrcyl8fHAuY2hlY2tzLmxlbmd0aD42NCl0aHJvdyBFcnJvcignY2hlY2stYm91bmQnKTtmb3IoY29uc3QgYyBvZiBwLmNoZWNrcyl7CiAgaWYoYy5uYW1lPT09J3R5cGUtMSBndWVzdC1zdGF0ZSBtYXN0ZXIgKFZNR1MpJyl7CiAgIGNvbnN0IG09L14oQzpcXFByb2dyYW1EYXRhXFxFbmNsYXZlXFxbXlxyXG47XSspIFwoKFswLTldezEsOH0pIGJ5dGVzXCk7IGVhY2ggcnVuIGdldHMgYSBmcmVzaCBjb3B5JC8uZXhlYyhjLmRldGFpbD8/JycpOwogICBpZighbXx8Yy5vayE9PXRydWUpdGhyb3cgRXJyb3IoJ2xvYWRlZC1tYXN0ZXItdW5xdWFsaWZpZWQnKTttYXN0ZXJzLnB1c2goe3doZXJlLHBhdGg6bVsxXSxieXRlczpOdW1iZXIobVsyXSksb2s6dHJ1ZX0pOwogIH0KICBpZihjLm5hbWU9PT0naHlwZXJ2LnBzbTEgKE5ldy1DdXN0b21WTSksIHBpbm5lZCcpewogICBjb25zdCBtPS9ec2hhMjU2IChbYS1mQS1GMC05XXs2NH0pJC8uZXhlYyhjLmRldGFpbD8/JycpO2lmKCFtfHxjLm9rIT09dHJ1ZSl0aHJvdyBFcnJvcignbG9hZGVkLW1vZHVsZS11bnF1YWxpZmllZCcpO21vZHVsZXMucHVzaCh7d2hlcmUsc2hhMjU2Om1bMV0udG9Mb3dlckNhc2UoKSxvazp0cnVlfSk7CiAgfQogfX0KIGlmKHAucm9sZXMhPT11bmRlZmluZWQpe2lmKCFwLnJvbGVzfHxBcnJheS5pc0FycmF5KHAucm9sZXMpfHxPYmplY3Qua2V5cyhwLnJvbGVzKS5sZW5ndGg+OCl0aHJvdyBFcnJvcigncm9sZS1ib3VuZCcpO2Zvcihjb25zdCBba2V5LHZhbHVlXSBvZiBPYmplY3QuZW50cmllcyhwLnJvbGVzKSl7aWYoIS9eW2EtekEtWjAtOV8tXXsxLDMyfSQvLnRlc3Qoa2V5KSl0aHJvdyBFcnJvcigncm9sZS1uYW1lJyk7Y29uc3QgeD1wcm9qZWN0KHZhbHVlLHdoZXJlKycucm9sZXMuJytrZXksZGVwdGgrMSk7bWFzdGVycy5wdXNoKC4uLngubWFzdGVycyk7bW9kdWxlcy5wdXNoKC4uLngubW9kdWxlcyk7fX0KIHJldHVybiB7bWFzdGVycyxtb2R1bGVzfTsKfQpjb25zdCBvdXQ9e3NjaGVtYTonbG9hZGVkLW1hc3Rlci1oZWFsdGgvMScscmVhZE9ubHk6dHJ1ZSxyb3dzOltdLGNhcGFjaXR5QWRtaXR0ZWQ6ZmFsc2UsYWxsSXNzdWVyQ292ZXJhZ2VQcm92ZW46ZmFsc2V9Owpmb3IoY29uc3QgcG9ydCBvZiBbODA5MSw4MDk1XSl7Y29uc3QgaD1hd2FpdCBnZXQocG9ydCkscD1wcm9qZWN0KGgucHJlZmxpZ2h0KTtpZighcC5tYXN0ZXJzLmxlbmd0aHx8IXAubW9kdWxlcy5sZW5ndGgpdGhyb3cgRXJyb3IoJ21pc3NpbmctbG9hZGVkLXByb29mJyk7aWYodHlwZW9mIGgubWFuYWdlckVwb2NoIT09J3N0cmluZyd8fGgubWFuYWdlckVwb2NoLmxlbmd0aD4yNTYpdGhyb3cgRXJyb3IoJ2Vwb2NoJyk7b3V0LnJvd3MucHVzaCh7cG9ydCxtYW5hZ2VyRXBvY2g6aC5tYW5hZ2VyRXBvY2gsLi4ucH0pO30KcHJvY2Vzcy5zdGRvdXQud3JpdGUoSlNPTi5zdHJpbmdpZnkob3V0KSsnXG4nKTsK'))
+$output=($js|& 'C:\Program Files\Enclave\runtime\node\node.exe' --input-type=module -)
+if($LASTEXITCODE-ne 0){throw 'public diagnostic failed'}
+$public=$output|ConvertFrom-Json
+$after=Bindings;if($before-cne $after){throw 'listener incarnation changed'}
+@{schema='loaded-master-health-read/1';readOnly=$true;listeners=($before|ConvertFrom-Json);physical=$physicalBefore;public=$public;capacityAdmitted=$false;priorOperationsSettled=$false}|ConvertTo-Json -Depth 10 -Compress

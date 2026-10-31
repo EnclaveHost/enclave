@@ -1,0 +1,32 @@
+[
+    {
+        "label":  "compile",
+        "pid":  2496,
+        "exitCode":  0,
+        "elapsedMs":  1632,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  36921344,
+        "outputBytes":  0
+    },
+    {
+        "label":  "handoff",
+        "pid":  9784,
+        "exitCode":  0,
+        "elapsedMs":  457,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  29184000,
+        "outputBytes":  572
+    },
+    {
+        "label":  "compile-entry",
+        "pid":  1364,
+        "exitCode":  1,
+        "elapsedMs":  18,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  0,
+        "outputBytes":  110
+    }
+]

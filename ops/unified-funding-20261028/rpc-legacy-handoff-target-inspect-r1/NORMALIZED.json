@@ -1,0 +1,146 @@
+{
+  "stage-INTENT.json": {
+    "originalSha256": "658a4c461e141badd9b60ae18d21506b0796d3a73f865044f2391f8ed550c194",
+    "publicSha256": "9ba243265a5600edddb5103fd802c503f516576b738e637fd5baed7f006235e9"
+  },
+  "SPEC-PREP.json": {
+    "originalSha256": "a76e9e80046d2a2023102df36dfab55a7c7b8b4302995d74f4a3edd01c035922",
+    "publicSha256": "a76e9e80046d2a2023102df36dfab55a7c7b8b4302995d74f4a3edd01c035922"
+  },
+  "EXECUTE-PINS.json": {
+    "originalSha256": "f13e5d9d29ba399883c4d8b40edd30bf910959b7114e067a4900c22824d0fc53",
+    "publicSha256": "f13e5d9d29ba399883c4d8b40edd30bf910959b7114e067a4900c22824d0fc53"
+  },
+  "create-RESULT.json": {
+    "originalSha256": "7e8f67eb7e30828f613223c4cabe3d41849a74e3b070f7049b5cfb4a0ba15124",
+    "publicSha256": "7e8f67eb7e30828f613223c4cabe3d41849a74e3b070f7049b5cfb4a0ba15124"
+  },
+  "ROOT-TERMINAL.json": {
+    "originalSha256": "213c238bbae00ec1c80cde032fd58cfecd20033af62d288aac2a1d53ceacf613",
+    "publicSha256": "213c238bbae00ec1c80cde032fd58cfecd20033af62d288aac2a1d53ceacf613"
+  },
+  "PINS.json": {
+    "originalSha256": "4b011d36858fe177d5bdcd5b8851f2db0d23f3ccdbfeacbf229f7159939fba14",
+    "publicSha256": "4b011d36858fe177d5bdcd5b8851f2db0d23f3ccdbfeacbf229f7159939fba14"
+  },
+  "create.ps1": {
+    "originalSha256": "e3fbe5d1a680f2880c0812255cc1a73f0102feea4ed852a9bbf04164d8deb2c3",
+    "publicSha256": "e3fbe5d1a680f2880c0812255cc1a73f0102feea4ed852a9bbf04164d8deb2c3"
+  },
+  "create-COMMAND.json": {
+    "originalSha256": "e9757fb6f0be68f8b86db3834883e827c6a348bf0375a539b562af0aca87f5d2",
+    "publicSha256": "e9757fb6f0be68f8b86db3834883e827c6a348bf0375a539b562af0aca87f5d2"
+  },
+  "create-outer.log": {
+    "originalSha256": "8c6aaa4856038a4c5748265da2b2b391d577f7c6f76941675babd079a5f24f3a",
+    "publicSha256": "8c6aaa4856038a4c5748265da2b2b391d577f7c6f76941675babd079a5f24f3a"
+  },
+  "execute-inner.log": {
+    "originalSha256": "7ed102dde48383d48fb31be8d8041bb74dfb9b361d29277c0776867cb87ad990",
+    "publicSha256": "7ed102dde48383d48fb31be8d8041bb74dfb9b361d29277c0776867cb87ad990"
+  },
+  "stage-inner.log": {
+    "originalSha256": "e7cf82545934cae401e380f679c96915f88c366839686c0187f77953336ed234",
+    "publicSha256": "e7cf82545934cae401e380f679c96915f88c366839686c0187f77953336ed234"
+  },
+  "execute-template.ps1": {
+    "originalSha256": "f024f540a715fbc15528ec0b3dbda4c10a80cb247f79cf417bd4ca582f72af9b",
+    "publicSha256": "f024f540a715fbc15528ec0b3dbda4c10a80cb247f79cf417bd4ca582f72af9b"
+  },
+  "execute-remote-RESULT.json": {
+    "originalSha256": "eb4fd929159834b6f6f9ed303c7e54eb50e7865d2ca21f3b39c16fba861e1186",
+    "publicSha256": "eb4fd929159834b6f6f9ed303c7e54eb50e7865d2ca21f3b39c16fba861e1186"
+  },
+  "observation.json": {
+    "originalSha256": "383d8c9a207496a744fb00b2284addbf827f8a8cbe5ef79e0ef2e77562ff900a",
+    "publicSha256": "383d8c9a207496a744fb00b2284addbf827f8a8cbe5ef79e0ef2e77562ff900a"
+  },
+  "stage-outer.log": {
+    "originalSha256": "5805240212e3599b929c92cab0a60bd21bee5178e95fbe0d920315c1582c07b3",
+    "publicSha256": "5805240212e3599b929c92cab0a60bd21bee5178e95fbe0d920315c1582c07b3"
+  },
+  "execute-RESULT.json": {
+    "originalSha256": "3cf4dc1f495fcfbbf042296b5531dc47f48068d94bc8c8c2b650fc0d453c34a7",
+    "publicSha256": "3cf4dc1f495fcfbbf042296b5531dc47f48068d94bc8c8c2b650fc0d453c34a7"
+  },
+  "create-inner.log": {
+    "originalSha256": "1e6e1ae80ac74615a1611180f198055d15b4a2dbd2ba8a47f9f32dfbfd780e06",
+    "publicSha256": "1e6e1ae80ac74615a1611180f198055d15b4a2dbd2ba8a47f9f32dfbfd780e06"
+  },
+  "handoff-prep.json": {
+    "originalSha256": "38a8391383f3a49d655afac0e1e48e94f589ad2d1434c30043fb13c47b97d23d",
+    "publicSha256": "38a8391383f3a49d655afac0e1e48e94f589ad2d1434c30043fb13c47b97d23d"
+  },
+  "entry.exe": {
+    "originalSha256": "c04623d38d2edaf0a9929890072622c5ff08cf6dc1dc2f0013c6b7ec2fbf0e72",
+    "publicSha256": "c04623d38d2edaf0a9929890072622c5ff08cf6dc1dc2f0013c6b7ec2fbf0e72"
+  },
+  "ROOT-REVIEW.md": {
+    "originalSha256": "9ffd2775421c89fcbf4d65a7f2af140ae50efc7cee194d7332c825caa46a4033",
+    "publicSha256": "9ffd2775421c89fcbf4d65a7f2af140ae50efc7cee194d7332c825caa46a4033"
+  },
+  "execute-COMMAND.json": {
+    "originalSha256": "1fab7efb9c4285e9a3752610e9620ee8cd5a190b8ffca257ca46f3f2806636ed",
+    "publicSha256": "1fab7efb9c4285e9a3752610e9620ee8cd5a190b8ffca257ca46f3f2806636ed"
+  },
+  "create-INTENT.json": {
+    "originalSha256": "2028b8cade8e6b50fad8947dd0fbf45adfbb88f29daff5eacaeaef7ae5cf7caa",
+    "publicSha256": "0f02db326695e6d42475ad1d87e2ee09401af6d4b65b26fee5608a0f71deacb6"
+  },
+  "execute-upload-RESULT.json": {
+    "originalSha256": "822b284dd9e163fd2d9699d701292bad0da4b1c2348f22e455867b2afe1d9994",
+    "publicSha256": "822b284dd9e163fd2d9699d701292bad0da4b1c2348f22e455867b2afe1d9994"
+  },
+  "ROOT-RESULT.md": {
+    "originalSha256": "3a272183770453ccdc1e5fd0ed84ccea1a26597df6addb0d1528ac570b91e35c",
+    "publicSha256": "3a272183770453ccdc1e5fd0ed84ccea1a26597df6addb0d1528ac570b91e35c"
+  },
+  "execute-INTENT.json": {
+    "originalSha256": "e356d1da1bb27fd7e713489da691727aa21430675c3733a961c9a3ed1ba567dd",
+    "publicSha256": "22ea26e09b4950db6a22ff23b89952c58b1071e3c4409967eef30215bde70c37"
+  },
+  "execute.ps1": {
+    "originalSha256": "296d5a709893391588b7af63aba4fbf588f829e48faadac6b554bc58de94c00e",
+    "publicSha256": "296d5a709893391588b7af63aba4fbf588f829e48faadac6b554bc58de94c00e"
+  },
+  "stage-COMMAND.json": {
+    "originalSha256": "150b1ba05a39c3d3f022dca5ea91bc9424b14a4f5d734dfb8179e58b57c86508",
+    "publicSha256": "150b1ba05a39c3d3f022dca5ea91bc9424b14a4f5d734dfb8179e58b57c86508"
+  },
+  "ROOT-ADMISSION.json": {
+    "originalSha256": "0ee9d39252d975d0a13c1a9b6c92ed516635d7f2c15a13dc1e70b74c9b948f71",
+    "publicSha256": "0ee9d39252d975d0a13c1a9b6c92ed516635d7f2c15a13dc1e70b74c9b948f71"
+  },
+  "create-remote-RESULT.json": {
+    "originalSha256": "b17b36004196709f0758f0633d13b182287b1897586a3715a6a99f1e2f92775c",
+    "publicSha256": "b17b36004196709f0758f0633d13b182287b1897586a3715a6a99f1e2f92775c"
+  },
+  "handoff.json": {
+    "originalSha256": "38202ee7ab69006d70852227c473928bc17b8a7be08522b572c3f63ecbbc9030",
+    "publicSha256": "38202ee7ab69006d70852227c473928bc17b8a7be08522b572c3f63ecbbc9030"
+  },
+  "SPEC.json": {
+    "originalSha256": "e7f444f1f8c7f0669ba64fd2c349b2247ab3dca3f7ae4e336a62c461cfcda567",
+    "publicSha256": "e7f444f1f8c7f0669ba64fd2c349b2247ab3dca3f7ae4e336a62c461cfcda567"
+  },
+  "execute-outer.log": {
+    "originalSha256": "36d9c48abba518fb649eb8b61071953af653fc2149e6ea68824784224649878a",
+    "publicSha256": "36d9c48abba518fb649eb8b61071953af653fc2149e6ea68824784224649878a"
+  },
+  "run.py": {
+    "originalSha256": "d8a459e8ba61e30938021d3ecff860794c1839afb59e4f03f8327bf53b7af813",
+    "publicSha256": "d8a459e8ba61e30938021d3ecff860794c1839afb59e4f03f8327bf53b7af813"
+  },
+  "stage-upload-RESULT.json": {
+    "originalSha256": "e4547ef6216bd8d3ba416ca468f5808f365ea693409fa975079a51a24a4d907d",
+    "publicSha256": "e4547ef6216bd8d3ba416ca468f5808f365ea693409fa975079a51a24a4d907d"
+  },
+  "stage-RESULT.json": {
+    "originalSha256": "e6e95586d3c710810d41bcc247eb3a7d10d1f6c0118c73904339aab3fb7517a2",
+    "publicSha256": "e6e95586d3c710810d41bcc247eb3a7d10d1f6c0118c73904339aab3fb7517a2"
+  },
+  "owned-entry.exe": {
+    "originalSha256": "111cdd6004c95089ff9db93047b031a639d7587090fb660ef96988b944cd6662",
+    "publicSha256": "111cdd6004c95089ff9db93047b031a639d7587090fb660ef96988b944cd6662"
+  }
+}

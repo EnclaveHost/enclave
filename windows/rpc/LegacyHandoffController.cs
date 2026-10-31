@@ -160,7 +160,7 @@ public static class LegacyHandoffController {
             }
             if(Encoding.UTF8.GetString(Read(Path.Combine(Root,"owner.result"),4096))!="handoff-complete;provider-fenced=false;reservation-release=false"||Encoding.UTF8.GetString(Read(Path.Combine(Root,"observer.result"),4096))!="exact-owner-death;job-empty;provider-fenced=false;reservation-release=false")throw new InvalidOperationException("Role receipts incomplete");
             var receipt=Obj(Json.DeserializeObject(Encoding.UTF8.GetString(Read(Path.Combine(Root,"handoff.result"),4096))));
-            if(Str(receipt["schema"])!="legacy-memory-handoff-result/1"||Str(receipt["manifest"])!=ManifestHash||
+            if(Str(receipt["schema"])!="legacy-memory-handoff-result/2"||Str(receipt["manifest"])!=ManifestHash||
                !(receipt["inspectOnly"] is bool)||(bool)receipt["inspectOnly"]!=(Operation=="legacy-memory-inspect-v1")||
                !False(receipt["providerSettled"])||!False(receipt["capacityAdmitted"])||!False(receipt["reservationMayRelease"])||!False(receipt["poolSeeded"]))
                 throw new InvalidOperationException("Handoff result authority differs");
@@ -170,8 +170,14 @@ public static class LegacyHandoffController {
             for(int n=0;n<count;n++){
                 string name="vm-"+(char)('a'+n/26)+(char)('a'+n%26);byte[] raw=Read(Path.Combine(Root,name),4096);
                 var row=Obj(Json.DeserializeObject(Encoding.UTF8.GetString(raw)));Guid id;
-                if(row.Count!=4||!Guid.TryParseExact(Str(row["guid"]),"D",out id)||!ids.Add(id.ToString("D"))||
+                if(row.Count!=5||!Guid.TryParseExact(Str(row["guid"]),"D",out id)||!ids.Add(id.ToString("D"))||
                    Num(row["cutAt"])!=cutAt||Str(row["manifest"])!=ManifestHash||Num(row["maximumBytes"])<=0)throw new InvalidOperationException("VM inventory binding differs");
+                var memory=Obj(row["memory"]);
+                if(memory.Count!=6||Str(memory["Rule"])!="fixed-memory-virtual-quantity/1"||!False(memory["DynamicMemoryEnabled"])||
+                   Num(memory["Bytes"])!=Num(row["maximumBytes"])||Num(memory["VirtualQuantityMiB"])<=0||
+                   checked(Num(memory["VirtualQuantityMiB"])*1048576)!=Num(row["maximumBytes"])||
+                   Num(memory["ReservationMiB"])>Num(memory["VirtualQuantityMiB"])||Num(memory["ReservationMiB"])<0||
+                   Num(memory["LimitMiB"])<Num(memory["VirtualQuantityMiB"]))throw new InvalidOperationException("Static memory receipt differs");
                 sum=checked(sum+Num(row["maximumBytes"]));index.Add(id.ToString("D")+":"+ProtectedAttempt.Hash(raw));rows.Add(row);
             }
             if(sum!=Num(receipt["maximumBytes"])||Encoding.UTF8.GetString(Read(Path.Combine(Root,"handoff.inventory"),4096))!="legacy-vm-inventory/1\n"+String.Join("\n",index))

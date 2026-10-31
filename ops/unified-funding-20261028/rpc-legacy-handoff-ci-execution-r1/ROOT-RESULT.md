@@ -1,0 +1,1 @@
+Actual CI41171806184 retained failure: compiled full source and all14 contract/memory checks passed in457ms. Separate entry packaging failed CS2005 missing /out due PowerShell array concatenation. No target operation. Corrected runner separately committed615233f88 and dispatched41171888615. No unchanged rerun/cap/deadline change.

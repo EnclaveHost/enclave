@@ -1,0 +1,72 @@
+{
+  "run": 41171888615,
+  "head": "615233f8832cb3810683e9d60f8613a9c15c94d7",
+  "sourcePins": {
+    "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+    "windows/rpc/OwnerObserver.cs": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80",
+    "windows/rpc/VmStartGuardian.cs": "4e23387225ee2a710f60d7a17db68e73a39cd15409981cb2e0eb9fa1d64cf336",
+    "windows/rpc/ProtectedAttempt.cs": "7c6209117a2fd61acbeca21053eddd456cf935d3a181428dac02d67427732d61",
+    "windows/rpc/ProviderStart.cs": "d2eb7bbebc74b02be707fcd705c9165af9b6fdf2f6440a94fde76dcc0ceaeea2",
+    "windows/rpc/ProviderStop.cs": "0dd8605139b7d20910dc5c738fb1f8fac8e44f94f4f95dcc07d40f6905be223f",
+    "windows/rpc/HostPhysicalPool.cs": "42bb1b64e90ba121d60f399fcd8894ff4d97dc742878df69efe45aecff4d34d2",
+    "windows/rpc/PhysicalPoolCommand.cs": "b06119b07562ddab4baafe5e6381a8415a61fdf3d520cdfc829f5dea955bbffe",
+    "windows/rpc/OwnedVmPermit.cs": "a4d1f9640a4087714b9907cddcdc64340cb57f07de04dd1b6baf97197ac60373",
+    "windows/rpc/WindowsStartAdmission.cs": "5fa0edc22472884cbb814c33c4e8c4616777e202dce21f9a8f6d4dbf948246c6",
+    "windows/rpc/ProviderWorkerEntry.cs": "de59e9ad7e48d65f7132539637455c27c70b27588fd5d7518a38ea203a37808f",
+    "windows/rpc/LegacyTemplateFence.cs": "ce782dbf852ca139972bf2e86b24c765a08ed6ff150154afeb79593557030402",
+    "windows/rpc/InertEntry.cs": "3fd8b572228ad03e86422e0dbb14f35e462b57092cdc7127f2a0d5d25c00d909",
+    "windows/rpc/InertQualification.cs": "fc9d8461190c20f22686ca85bcc903d0355826b49844bf9dd6f788386deaeaba",
+    "windows/rpc/LegacyLaunchCohort.cs": "ce22aa16e0d353fa8354bca26f8dc4057d520c001540d0659778e2769135f5a2",
+    "windows/rpc/LegacyHandoff.cs": "aed902334a2b821fcefc8a8611093ac6ec9926755bafefcc5015bcaf5a59b939",
+    "windows/rpc/LegacyHandoffEntry.cs": "486c0365655e7fbaf4f61fac2833f41fef6ff0deda7eb1222cc1b46cc896f16c",
+    "windows/rpc/LegacyHandoffController.cs": "1c7bf2e8ee0273e2ac81ac03fe61756043998c1afef59473772c16da6aaa82da",
+    "test/rpc-windows-worker/LegacyHandoffHarness.cs": "bc04ac0522d55745be8889b0840ec9d64abc53630b3568f6b87bd6b0f2434490"
+  },
+  "records": [
+    {
+      "label": "compile",
+      "pid": 6748,
+      "exitCode": 0,
+      "elapsedMs": 1717,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 36995072,
+      "outputBytes": 0
+    },
+    {
+      "label": "handoff",
+      "pid": 10020,
+      "exitCode": 0,
+      "elapsedMs": 505,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 25149440,
+      "outputBytes": 572
+    },
+    {
+      "label": "compile-entry",
+      "pid": 10156,
+      "exitCode": 0,
+      "elapsedMs": 276,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 36384768,
+      "outputBytes": 0
+    },
+    {
+      "label": "compile-controller",
+      "pid": 9420,
+      "exitCode": 0,
+      "elapsedMs": 262,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 35639296,
+      "outputBytes": 0
+    }
+  ],
+  "binaries": {
+    "handoff-entry.exe": "111cdd6004c95089ff9db93047b031a639d7587090fb660ef96988b944cd6662",
+    "handoff-controller.exe": "c04623d38d2edaf0a9929890072622c5ff08cf6dc1dc2f0013c6b7ec2fbf0e72",
+    "legacy-handoff.exe": "b7106befa4b64b249b29f75cdf3df853fb6dd5734a930e7c53f98ae08b9d2bbd"
+  }
+}

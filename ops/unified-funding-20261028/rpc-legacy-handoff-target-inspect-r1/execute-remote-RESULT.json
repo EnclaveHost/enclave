@@ -1,0 +1,91 @@
+{
+  "at": 1793423903.484194,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 222,
+  "remoteDeathProven": false,
+  "automaticRetry": false,
+  "result": {
+    "started": true,
+    "exactControllerDeath": true,
+    "exitCode": 0,
+    "failure": null,
+    "result": {
+      "schema": "owned-rpc-target-legacy-handoff/1",
+      "passed": true,
+      "operation": "legacy-memory-inspect-v1",
+      "manifest": "38202ee7ab69006d70852227c473928bc17b8a7be08522b572c3f63ecbbc9030",
+      "inventory": {
+        "receipt": {
+          "schema": "legacy-memory-handoff-result/1",
+          "manifest": "38202ee7ab69006d70852227c473928bc17b8a7be08522b572c3f63ecbbc9030",
+          "inspectOnly": true,
+          "cutAt": 0,
+          "observedAt": 679741584,
+          "issuers": [
+            {
+              "Pid": 38076,
+              "Created": 134375086385617521,
+              "Image": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+            },
+            {
+              "Pid": 41308,
+              "Created": 134375617394407059,
+              "Image": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+            }
+          ],
+          "vmCount": 5,
+          "maximumBytes": 5497558138880,
+          "providerSettled": false,
+          "capacityAdmitted": false,
+          "reservationMayRelease": false,
+          "poolSeeded": false
+        },
+        "vms": [
+          {
+            "guid": "1087652f-4192-42e2-8138-74ac5c4a696d",
+            "maximumBytes": 1099511627776,
+            "cutAt": 0,
+            "manifest": "38202ee7ab69006d70852227c473928bc17b8a7be08522b572c3f63ecbbc9030"
+          },
+          {
+            "guid": "1ca457d6-17bf-47fa-ad26-72770d74e08b",
+            "maximumBytes": 1099511627776,
+            "cutAt": 0,
+            "manifest": "38202ee7ab69006d70852227c473928bc17b8a7be08522b572c3f63ecbbc9030"
+          },
+          {
+            "guid": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
+            "maximumBytes": 1099511627776,
+            "cutAt": 0,
+            "manifest": "38202ee7ab69006d70852227c473928bc17b8a7be08522b572c3f63ecbbc9030"
+          },
+          {
+            "guid": "a90c40fe-53af-4ef7-a491-65ab4d05b859",
+            "maximumBytes": 1099511627776,
+            "cutAt": 0,
+            "manifest": "38202ee7ab69006d70852227c473928bc17b8a7be08522b572c3f63ecbbc9030"
+          },
+          {
+            "guid": "dd8df95d-b771-4545-a861-0092e74a40f3",
+            "maximumBytes": 1099511627776,
+            "cutAt": 0,
+            "manifest": "38202ee7ab69006d70852227c473928bc17b8a7be08522b572c3f63ecbbc9030"
+          }
+        ]
+      },
+      "origin": 679732064,
+      "deadline": 679762064,
+      "elapsedMs": 9712,
+      "root": "C:\\EnclaveRpcLegacyHandoff-0db09ed11ee24457afaad9620147fb3b\\0db09ed11ee24457afaad9620147fb3b",
+      "freeBytes": 83852574720,
+      "requiredFreeBytes": 62709039104,
+      "failures": [],
+      "providerFenced": false,
+      "reservationMayRelease": false,
+      "vmsChanged": false
+    },
+    "reservationMayRelease": false,
+    "vmsChanged": false
+  }
+}

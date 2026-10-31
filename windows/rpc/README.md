@@ -484,3 +484,12 @@ This integration is initially unqualified on the target. Hosted contract/memory-
 fixtures and compilation cannot prove actual Hyper-V schema, protected installation,
 resource admission, or a production cut. Inspect must succeed against fresh actual
 identities before constructing the live cut and shared-pool seed.
+
+Actual target inspection exposed a dormant 1TiB `Limit` on each static VM. The
+updated result schema `/2` accounts fixed `VirtualQuantity` only after explicitly
+refusing dynamic memory and contradictory quantities; it publishes all raw quantity,
+reservation and limit fields with the accounting rule. This follows Microsoft's
+[Msvm_MemorySettingData documentation](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-memorysettingdata).
+Future explicit memory modification needs a new admission; this receipt does not
+reserve every possible privileged operator reconfiguration. Neither inspected nor
+post-cut rows grant admission themselves.

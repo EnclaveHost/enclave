@@ -1,0 +1,15 @@
+{
+  "at": 1793423849.478015,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 222,
+  "remoteDeathProven": false,
+  "automaticRetry": false,
+  "result": {
+    "created": true,
+    "root": "C:\\EnclaveRpcHandoffInputs-84696cfd345246f8a0f782604f219e0f\\84696cfd345246f8a0f782604f219e0f",
+    "freeBytes": 83836014592,
+    "diskFreeBytes": 23913119744,
+    "nativeAttempted": false
+  }
+}
