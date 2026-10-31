@@ -1,0 +1,82 @@
+[
+    {
+        "label":  "sample-compile",
+        "pid":  7140,
+        "exitCode":  0,
+        "elapsedMs":  1782,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  30711808,
+        "outputBytes":  984
+    },
+    {
+        "label":  "fixture-compile",
+        "pid":  6168,
+        "exitCode":  0,
+        "elapsedMs":  138,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  30461952,
+        "outputBytes":  984
+    },
+    {
+        "label":  "normal",
+        "pid":  9336,
+        "exitCode":  0,
+        "elapsedMs":  76,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  19845120,
+        "outputBytes":  212
+    },
+    {
+        "label":  "uppercase",
+        "pid":  7712,
+        "exitCode":  1,
+        "elapsedMs":  60,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  16044032,
+        "outputBytes":  0
+    },
+    {
+        "label":  "invalid-vm",
+        "pid":  5024,
+        "exitCode":  1,
+        "elapsedMs":  64,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  13213696,
+        "outputBytes":  0
+    },
+    {
+        "label":  "wrong-image",
+        "pid":  8484,
+        "exitCode":  1,
+        "elapsedMs":  56,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  18333696,
+        "outputBytes":  0
+    },
+    {
+        "label":  "arity",
+        "pid":  8532,
+        "exitCode":  64,
+        "elapsedMs":  45,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  14594048,
+        "outputBytes":  0
+    },
+    {
+        "label":  "watchdog",
+        "pid":  8784,
+        "exitCode":  124,
+        "elapsedMs":  5031,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  15831040,
+        "outputBytes":  16
+    }
+]

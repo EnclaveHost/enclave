@@ -1,0 +1,8 @@
+{
+  "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+  "windows/rpc/ProtectedAttempt.cs": "27329b618545772cc1c419d244ac6f25cb2f7987db337eee975230e8fb54e8ea",
+  "windows/rpc/ClockSample.cs": "0b5f03119f7f7fb1fd364577485b6a74ca71c7fba77c93dd28d5c0fd0bfca4f3",
+  "test/rpc-windows-worker/ClockSampleHarness.cs": "55aacd569d910bedff1898e4b7c55561e3730dbdc2c4aead1e07d0c478cc48d7",
+  "test/rpc-windows-worker/run-clock-ci.ps1": "bdc086d3f6bb215448dd4c0e4b3f7e53512ca6a720ab40a419ebcebcd02e357f",
+  ".github/workflows/rpc-clock-sampler.yml": "8cf10b180648f9fbc6c8f24c38304ed0ca4dccff5b4ac9eb052cc394be9b1543"
+}

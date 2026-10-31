@@ -844,3 +844,11 @@ and exercises normal output, invalid identities, wrong image, wrong arity and a
 blocked-main-thread watchdog case on a disposable Windows runner. Hosted results
 must be recorded separately from target qualification; this source addition alone
 does not stage or run the sampler on NucBox.
+
+Hosted run `41238669296` completed six cases successfully at runtime source
+`e3215df25010cf69f003ffc8756691732d625ae7`. The blocked-main fixture exited
+through its native watchdog in 5.031 seconds. The sampler binary is 44,544 bytes,
+SHA-256 `57c35df39b752694a9cd420b84eed6c1f800c0331c2442dbe8fb743eacaf03f6`;
+all three compiled source pins were independently checked. This is CI evidence,
+not target namespace, SYSTEM execution or actual cross-host handshake evidence.
+See `ops/unified-funding-20261028/rpc-clock-sampler-ci-r1/ROOT-RESULT.md`.

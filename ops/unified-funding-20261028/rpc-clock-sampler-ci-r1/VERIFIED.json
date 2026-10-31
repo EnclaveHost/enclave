@@ -1,0 +1,16 @@
+{
+  "run": 41238669296,
+  "head": "e3215df25010cf69f003ffc8756691732d625ae7",
+  "tests": 6,
+  "executableSha256": "57c35df39b752694a9cd420b84eed6c1f800c0331c2442dbe8fb743eacaf03f6",
+  "executableBytes": 44544,
+  "compiledSourcePinsMatch": true,
+  "watchdogMilliseconds": 5031,
+  "targetQualified": false,
+  "compiledSourcePinsChecked": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/ClockSample.cs",
+    "windows/rpc/ProtectedAttempt.cs"
+  ],
+  "allReviewedSourcePinsUnchanged": true
+}

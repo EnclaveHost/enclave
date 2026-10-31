@@ -1,0 +1,27 @@
+{
+    "passed":  true,
+    "tests":  6,
+    "windowsBoot":  "3167a65ec6d011f1b83900224846f572",
+    "before":  160114,
+    "after":  160193,
+    "sample":  {
+                   "schema":  "owned-rpc-windows-clock/1",
+                   "attempt":  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                   "vmAttempt":  "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                   "windowsBoot":  "3167a65ec6d011f1b83900224846f572",
+                   "monotonicMilliseconds":  160187
+               },
+    "watchdog":  {
+                     "label":  "watchdog",
+                     "pid":  8784,
+                     "exitCode":  124,
+                     "elapsedMs":  5031,
+                     "failure":  null,
+                     "processExited":  true,
+                     "maximumObservedWorkingSet":  15831040,
+                     "outputBytes":  16
+                 },
+    "targetQualified":  false,
+    "vmChanged":  false,
+    "remoteTransportQualified":  false
+}
