@@ -445,3 +445,25 @@ actual owned-VM query remains part of the admitted startup; staging is not VM
 association, RPC readiness or production memory admission. Evidence is in
 `ops/unified-funding-20261028/rpc-endpoint-target-stage-r1` and
 `rpc-endpoint-target-exit-read-r1`.
+
+
+The first production startup consumed its original 900-second clock, brought
+both storage exports up, and completed legacy allocation fencing/pool seeding.
+It stopped at VM definition before the `definition.native` journal gate. The
+three exact SYSTEM workers subsequently exited; the original four VMs and
+original8091 remained. No copy, boot, start or guest workflow was submitted.
+The exporter was then stopped with all four preheld pidfds signalled and its
+cgroup empty. Retained overlays, the consumed cut/pool and private journals
+must not be replayed or discarded. This is not RPC readiness or reservation
+release. See `ops/unified-funding-20261028/rpc-production-attempt-held-r1`.
+
+That failure exposed discarded nonzero transport output. `ExchangeFailure`
+now retains up to 8192 bytes per captured stream without including them in
+exception text. Windows transitions save failed sampler/controller output as
+base64 in exclusive, fsynced 0600 private phase journals. Failure still raises,
+consumes the phase, and cannot authorize a retry or imply remote death.
+Oversized output remains refused. These diagnostics must never be published;
+only reviewed sanitized evidence belongs in Git. Three inert local process
+cases plus 32 transition/clock cases passed. Native child stderr persistence
+and the original admission failure cause remain unresolved; no native retry
+was performed and no new Windows binaries were built for this change.

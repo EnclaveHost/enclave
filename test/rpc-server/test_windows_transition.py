@@ -148,6 +148,40 @@ class Transition(unittest.TestCase):
         with self.assertRaises(FileExistsError): w.execute(config)
         self.assertEqual(self.call.call_count, 2)
 
+    def test_nonzero_submit_evidence_is_private_and_never_replayed(self):
+        config = self.config('cut-seed')
+        normal = self.exchange
+        def failed(argv, raw, seconds):
+            if 'clock-sample.exe' in argv[-1]:
+                return normal(argv, raw, seconds)
+            raise w.delivery.ExchangeFailure(None, 1, b'{"failed":true}', b'private diagnostic')
+        self.call.side_effect = failed
+        with self.assertRaises(w.delivery.ExchangeFailure) as caught:
+            w.execute(config)
+        self.assertNotIn('private diagnostic', str(caught.exception))
+        root = self.journal/'windows-cut-seed'
+        path = root/'submit.failure.json'
+        row = c.protocol.decode(c.read(path))
+        self.assertEqual(base64.b64decode(row['stderrBase64']), b'private diagnostic')
+        self.assertEqual(base64.b64decode(row['stdoutBase64']), b'{"failed":true}')
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        for flag in ('automaticRetry', 'remoteDeathProven', 'reservationMayRelease', 'rpcReady'):
+            self.assertFalse(row[flag])
+        self.assertTrue((root/'submit.intent').exists())
+        self.assertFalse((root/'RESULT.json').exists())
+        with self.assertRaises(FileExistsError): w.execute(config)
+        self.assertEqual(self.call.call_count, 2)
+
+    def test_sampler_timeout_evidence_does_not_submit_controller(self):
+        config = self.config('cut-seed')
+        self.call.side_effect = w.delivery.ExchangeFailure('transport-timeout', -9, b'partial', b'')
+        with self.assertRaises(w.delivery.ExchangeFailure): w.execute(config)
+        root = self.journal/'windows-cut-seed'
+        row = c.protocol.decode(c.read(root/'sample.failure.json'))
+        self.assertEqual(row['reason'], 'transport-timeout')
+        self.assertFalse((root/'submit.intent').exists())
+        self.assertEqual(self.call.call_count, 1)
+
     def test_missing_predecessor_refused_before_transport(self):
         config = self.config('boot')
         with self.assertRaises(ValueError): w.execute(config)

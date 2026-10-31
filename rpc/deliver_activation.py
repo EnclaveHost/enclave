@@ -81,6 +81,15 @@ def remote_command(attempt,sha):
   *['--property='+v for v in properties],'/usr/bin/python3','-I','/opt/enclave-rpc/activate_storage.py','receive',attempt,sha]
 
 
+class ExchangeFailure(RuntimeError):
+ """Private bounded evidence; exception text deliberately excludes remote output."""
+ def __init__(self,reason,returncode,stdout,stderr):
+  self.reason=reason;self.returncode=returncode
+  self.stdout=bytes(stdout);self.stderr=bytes(stderr)
+  if len(self.stdout)>8192 or len(self.stderr)>8192:raise ValueError('SSH output bound')
+  super().__init__('Delivery outcome unresolved: '+str(reason or returncode))
+
+
 def exchange(argv,raw,seconds):
  """Bounded local SSH group; never infer remote death from transport exit."""
  child=subprocess.Popen(argv,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True,bufsize=0)
@@ -114,7 +123,7 @@ def exchange(argv,raw,seconds):
   for name in ['stdin','stdout','stderr']:
    stream=getattr(child,name)
    if not stream.closed:stream.close()
- if reason or rc!=0:raise RuntimeError('Delivery outcome unresolved: '+str(reason or rc))
+ if reason or rc!=0:raise ExchangeFailure(reason,rc,buffers['stdout'],buffers['stderr'])
  return bytes(buffers['stdout'])
 
 

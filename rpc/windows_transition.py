@@ -257,7 +257,7 @@ def execute(config):
     # the executable into a PowerShell string expression with unnecessary quotes.
     sample_command = t['samplerPath'] + ' ' + config['nonce'] + ' ' + original['vmAttempt'] + ' ' + t['samplerSha256']
     began = time.monotonic_ns()
-    sample_raw = delivery.exchange(argv + [sample_command], b'', min(3, c.remaining(config['clock'])))
+    sample_raw = exchange_recorded(root, 'sample', argv + [sample_command], min(3, c.remaining(config['clock'])))
     sample = c.protocol.decode(sample_raw)
     exact(sample, ('schema', 'attempt', 'vmAttempt', 'windowsBoot', 'monotonicMilliseconds'))
     if (sample['schema'] != 'owned-rpc-windows-clock/1' or sample['attempt'] != config['nonce']
@@ -286,7 +286,7 @@ def execute(config):
         raise ValueError('Phase input changed before submission')
     c.write_new(root / 'submit.intent', c.encode({'requestSha256': request['sha256'], 'command': command,
                                                'origin': origin, 'deadline': deadline, 'outcome': 'unresolved'}))
-    reply = delivery.exchange(argv + [command], b'', min(32, c.remaining(config['clock'])))
+    reply = exchange_recorded(root, 'submit', argv + [command], min(32, c.remaining(config['clock'])))
     response = c.write_new(root / 'response.json', reply)
     row = c.protocol.decode(reply)
     validate_reply(row, phase, config, original, origin, deadline)
@@ -301,6 +301,27 @@ def execute(config):
               'previous': config['previous'], 'native': row, 'completed': True,
               'rpcReady': False, 'remoteDeathProven': False, 'reservationMayRelease': False}
     return c.write_new(root / 'RESULT.json', c.encode(result))
+
+
+def exchange_recorded(root, stage, argv, seconds):
+    """Retain failed transport evidence in the already-private consumed phase.
+
+    Neither output nor process exit establishes native settlement. Do not emit
+    remote text to logs: these exclusive 0600 records remain private journals.
+    """
+    if stage not in ('sample', 'submit'):
+        raise ValueError('Fixed transport evidence stage required')
+    try:
+        return delivery.exchange(argv, b'', seconds)
+    except delivery.ExchangeFailure as error:
+        c.write_new(root / (stage + '.failure.json'), c.encode({
+            'schema': 'owned-rpc-transport-failure/1', 'stage': stage,
+            'reason': error.reason, 'returncode': error.returncode,
+            'stdoutBase64': base64.b64encode(error.stdout).decode('ascii'),
+            'stderrBase64': base64.b64encode(error.stderr).decode('ascii'),
+            'automaticRetry': False, 'remoteDeathProven': False,
+            'reservationMayRelease': False, 'rpcReady': False}))
+        raise
 
 
 def prepare_definition(config):
