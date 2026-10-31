@@ -1,0 +1,1 @@
+Actual hosted run 41241600916 production compile PASS; CI variant compile refused CS2005 missing output filename because PowerShell comma/concatenation grouped the argument list incorrectly. Parenthesize only output argument. Native source unchanged. No target execution. Prior failure preserved; no unchanged retry. Normal hooks and authenticated pending-aware admission retained.

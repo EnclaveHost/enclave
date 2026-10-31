@@ -1,0 +1,92 @@
+[
+  {
+    "path": "dispatch.py",
+    "sha256": "37f9126cdbcc3d0f224364c142be67e2a04695616765534310647614c1f70221",
+    "bytes": 1038
+  },
+  {
+    "path": "VERIFIED.json",
+    "sha256": "47b30706f3f172cee83d7e14e1660c475a25a8bd1b41e33dd3531064fb8152d5",
+    "bytes": 4571
+  },
+  {
+    "path": "DISPATCH-RESULT.json",
+    "sha256": "5afc93c9367547b1aa388ab9801431aad4391d2eb84ff75d7e9b68b541cea08f",
+    "bytes": 165
+  },
+  {
+    "path": "ROOT-REVIEW.md",
+    "sha256": "cd4c410621d9c5dc3cdb0681bc192bcc18f271c6a8fa0b671d09d54e99d9d603",
+    "bytes": 871
+  },
+  {
+    "path": "RUN.json",
+    "sha256": "0efafcad9ebc81c2cbf42fb1286e7ec0de6fe4473ac11d5bff6f390d1eccc9dd",
+    "bytes": 2741
+  },
+  {
+    "path": "SOURCE-PINS.json",
+    "sha256": "c22af8f8598044871047427a50cc6072e16a8327a540efc65704ca34a664d15d",
+    "bytes": 555
+  },
+  {
+    "path": "ROOT-RESULT.md",
+    "sha256": "92a328d0369b7a0a86afd0f4b90905524bffe1d63253f1851f65558faab242d1",
+    "bytes": 414
+  },
+  {
+    "path": "DISPATCH-INTENT.json",
+    "sha256": "01928885bb69fd60214df248486e2c5d45e53521e3a2efb32d401ef8abb93314",
+    "bytes": 135
+  },
+  {
+    "path": "LAUNCH.json",
+    "sha256": "39e646644c34d2b357e154ff8a1693484e40c09372f729035dcdf5e2edcff1bd",
+    "bytes": 156
+  },
+  {
+    "path": "COMMAND.json",
+    "sha256": "814e1d85776297726edad8c9bf2011fedeead8f43c0810ace0168388256441d8",
+    "bytes": 1085
+  },
+  {
+    "path": "TERMINAL-READBACK.json",
+    "sha256": "71078de06c065c56f65328c367d8be20863e9b9368fdb68d44507509cfeb21bc",
+    "bytes": 187
+  },
+  {
+    "path": "artifacts/ci-compile.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "path": "artifacts/process-results.json",
+    "sha256": "4294045df23097505477982e763333b9bcd387da6c5b1922bcc582e4f75fbb30",
+    "bytes": 531
+  },
+  {
+    "path": "artifacts/production-compile.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "path": "artifacts/pins.json",
+    "sha256": "65896eff2693f42e3ae034a4b0dfcc6dfdc054d959de0ea272a2dfc1fc9c2c9c",
+    "bytes": 903
+  },
+  {
+    "path": "artifacts/ci-compile.out",
+    "sha256": "21c234b592bb3b2fad0e24087d50ecfd86d06cb785cf48d8cacdcc52e2868290",
+    "bytes": 110
+  },
+  {
+    "path": "artifacts/production-compile.out",
+    "sha256": "abdeab6a9988a82a666c460c6ba3028b11aafda121f8ce8bea9dd1cfb109947f",
+    "bytes": 984
+  },
+  {
+    "path": "artifacts/controller-artifact.json",
+    "sha256": "8da4f583b786b918237149ede39b573a6b0828032449ccc6d9e2f81fb98196ad",
+    "bytes": 213
+  }
+]

@@ -1,0 +1,7 @@
+{
+  "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+  "windows/rpc/ProtectedAttempt.cs": "27329b618545772cc1c419d244ac6f25cb2f7987db337eee975230e8fb54e8ea",
+  "windows/rpc/TransitionFiles.cs": "23853c5eecf5d1db71571cad471ace9580dc3553b4f361c67416ab739cd8a6fb",
+  "test/rpc-windows-worker/run-transition-files-ci.ps1": "b495a2c795dc679ebaffcbcae63dd18ddfe25cca8e676beb7059337583d8caf1",
+  ".github/workflows/rpc-transition-files.yml": "069989110510ff4224dec8bd4be44f384e9ea23e7f7c9c222b4b8263c9ac7894"
+}

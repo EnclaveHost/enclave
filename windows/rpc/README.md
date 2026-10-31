@@ -881,3 +881,53 @@ display value back into FILETIME caused the retained native refusal. Correcting
 the input required no comparison tolerance, cap/floor change, or controller
 rebuild. See `ops/unified-funding-20261028/rpc-clock-target-qualification-r3/ROOT-RESULT.md`
 and the retained r1/r2 failures and independent exit-read-r1 evidence.
+
+### Protected transition files
+
+`TransitionFiles.cs` implements fixed `collect-cut`, `stage-inputs` and
+`copy-media` operations for the owner transaction. Its command is
+`--target OPERATION NONCE BOOT ORIGIN DEADLINE SELF_SHA256`, followed by one
+bounded JSON request on stdin. It requires an admin token, exact native boot,
+protected executable custody, the retained 62,709,039,104-byte physical-memory
+threshold, a fresh worker lease of at most 30 seconds, and the immutable original
+900-second window. A dedicated native termination thread is armed before stdin
+or file work. Its self job is 128 MiB/CPU1; the 64 MiB bootstrap check is a
+snapshot, not a prior-allocation or peak hard limit. Complete current external
+admission must include its bootstrap and transport commitments.
+
+Collection holds the exact completed cut files and compares the activation to
+the native seed object already returned by the cut controller. Staging accepts
+only observation and optional definition files, creates an exclusive namespace
+with protected ACLs atomically, and verifies the bytes after writing. Copying
+holds both protected namespaces and source handles, rejects any foreign read
+grant on private media, requires the original definition journal, and refuses
+existing destination media or attachment/start intents. It writes an exclusive
+copy intent, streams with 64 KiB buffers, flushes and hashes destination readback,
+then publishes completion. Partial copies remain consumed; it never repairs
+source ACLs, overwrites files, retries or deletes evidence.
+
+Copying retains a 16 GiB disk floor, 256 MiB artifact allowance, remaining copy
+bytes and boot growth up to 4 GiB. It checks this before copying and at most
+every 8 MiB of progress. This helper performs no provider call: its definition
+journal binding does not prove the VM is currently Off. The boot worker remains
+responsible for exact original-owned Off/zero verification before attachment.
+No file operation establishes provider fencing or reservation release.
+
+The hosted workflow builds production and a separate compile-time CI variant.
+The variant requires a disposable GitHub runner and uses its 3 GiB floor; this
+branch is excluded from the target binary. Fixtures contain only dummy media
+and synthetic definition/cut records, never VM or production-data activation.
+The first run41241600916 compiled production successfully but the CI variant
+compiler received a malformed PowerShell argument. The harness grouping was
+corrected without changing native source or limits; the failed run is retained.
+Target staging and execution remain separate qualifications.
+
+Hosted run41241922430 at runtimeabef7a2 passed all nine cases. Production and CI
+compiles took2036ms and182ms; the blocked-stdin case exited124 through the native
+watchdog in1496ms without an external kill. The dummy copy covered32796bytes.
+The production executable is68608bytes, SHA-256
+`2114ef029e5f5f8ec3b448edb8124b753dc641eb24b8825ee1124be95e8903d9`;
+its hash and all three compiled source pins were independently recomputed.
+This qualifies the hosted fixture operations, not target execution, a full-size
+private copy, live VM state or RPC readiness. See
+`ops/unified-funding-20261028/rpc-transition-files-ci-r2/ROOT-RESULT.md`.

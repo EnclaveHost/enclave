@@ -88,11 +88,39 @@ pinned local `contract`, `activation` and `complete` files. `observation` and
 `owned-rpc-boot-network/1` schema. The returned result pins the admission and
 definition plan ready for protected staging and the subsequent sender call.
 
-The 20 transition/producer tests use real exclusive owner journals and simulated
-SSH/native replies; the 10 clock transport regressions also pass. No production
-phase has been submitted through this sender. Complete operational integration
-still needs authenticated collection/staging of the actual cut evidence and
-produced definition inputs, protected media copy into the defined VM root, and
-the coordinated exporter/guest activation/runtime path. Do not cut the allocator
-or consume the production clock until that complete workflow is ready. Existing
-NucBox clock qualification is separate from these simulated transport tests.
+`windows_files` supplies three owner adapters for the maintained native
+`TransitionFiles.cs` helper: `collect_cut`, `stage_inputs` and `copy_media`.
+All receive `clock`, `transport`, `helper` (protected path and digest) and a fresh
+`nonce`. They preserve the original clock and use the same qualified sampler and
+explicit pinned SSH endpoint. Each operation has an exclusive fixed journal,
+fsynced intent before its sole transport, and an unresolved outcome on loss or
+invalid readback. Changing nonce cannot retry a consumed operation. Run them
+inside a separately admitted, independently bounded owner process.
+
+`collect_cut` additionally receives the actual `cutResult`. It validates the
+preceding sender evidence and collects the exact protected contract, activation
+and completion bytes. Its result's `cutEvidence` feeds `prepare_definition`.
+`stage_inputs` receives `phase` and a `files` mapping of local pinned bindings:
+`observation.json`, plus `definition-plan.txt` for definition. The returned
+`result.files` supplies the remote path/local binding pairs consumed by the
+phase sender. It cannot stage arbitrary filenames or private credentials.
+
+`copy_media` receives the actual `definitionResult` and `preparedDefinition`
+binding. The prepared media metadata must also include its protected Windows
+`root`. The helper copies the already staged private boot and seed locally into
+the exact defined VM directory, checks the original hashes and destination
+readback, and never sends media contents through this owner transport. Existing
+files or a previous copy intent refuse another copy; partial files remain held.
+The receipt binds the durable definition journal, **not current VM state**.
+The native boot worker must still independently verify original-owned Off/zero
+before attachment. No adapter claims remote death, RPC readiness or release.
+
+The 13 file-adapter tests, 20 transition/producer tests and 10 clock transport
+tests pass using real exclusive owner journals and simulated SSH/native replies.
+They compose collection into the actual definition producer, staged inputs into
+the sender, and defined-media lineage into copy requests. No production phase
+has been submitted through these adapters. Hosted native helper qualification is
+separate from target custody and full original-clock composition. Complete
+operational integration still requires target qualification and the coordinated
+exporter/guest activation/runtime path. Do not cut the allocator or consume the
+production clock until that complete workflow is ready.

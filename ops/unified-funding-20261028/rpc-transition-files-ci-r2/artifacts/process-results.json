@@ -1,0 +1,102 @@
+[
+    {
+        "label":  "production-compile",
+        "pid":  2368,
+        "exitCode":  0,
+        "elapsedMs":  2036,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  31801344,
+        "outputBytes":  984
+    },
+    {
+        "label":  "ci-compile",
+        "pid":  7824,
+        "exitCode":  0,
+        "elapsedMs":  182,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  32145408,
+        "outputBytes":  984
+    },
+    {
+        "label":  "stage",
+        "pid":  1324,
+        "exitCode":  0,
+        "elapsedMs":  182,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  26705920,
+        "outputBytes":  939
+    },
+    {
+        "label":  "stage-consumed",
+        "pid":  2996,
+        "exitCode":  1,
+        "elapsedMs":  96,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  25239552,
+        "outputBytes":  68
+    },
+    {
+        "label":  "collect",
+        "pid":  2512,
+        "exitCode":  0,
+        "elapsedMs":  101,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  25661440,
+        "outputBytes":  2668
+    },
+    {
+        "label":  "wrong-contract",
+        "pid":  4324,
+        "exitCode":  1,
+        "elapsedMs":  102,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  25989120,
+        "outputBytes":  58
+    },
+    {
+        "label":  "foreign-read",
+        "pid":  5424,
+        "exitCode":  1,
+        "elapsedMs":  99,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  26681344,
+        "outputBytes":  59
+    },
+    {
+        "label":  "copy",
+        "pid":  5112,
+        "exitCode":  0,
+        "elapsedMs":  207,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  26406912,
+        "outputBytes":  1334
+    },
+    {
+        "label":  "copy-consumed",
+        "pid":  5008,
+        "exitCode":  1,
+        "elapsedMs":  98,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  19083264,
+        "outputBytes":  82
+    },
+    {
+        "label":  "wrong-boot",
+        "pid":  6032,
+        "exitCode":  1,
+        "elapsedMs":  76,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  17997824,
+        "outputBytes":  48
+    }
+]

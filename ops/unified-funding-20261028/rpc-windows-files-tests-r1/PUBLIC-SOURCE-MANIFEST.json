@@ -1,0 +1,62 @@
+[
+  {
+    "path": "ADMISSION.json",
+    "sha256": "8c2b7c972ecd6c1f1bc9687a764f4eeeb0a94df4ef249478fd064bb1c09a6db1",
+    "bytes": 103
+  },
+  {
+    "path": "PINS.json",
+    "sha256": "4cf6e365724d8ee77421d4b866e20f5ea327e3bea7695e4ec7d61b2c49bdd71e",
+    "bytes": 1354
+  },
+  {
+    "path": "test_windows_transition.py.log",
+    "sha256": "a03f3e583647530e5bb38e7cb04401ae41f7015fa775ca4f87818b835596efe0",
+    "bytes": 2483
+  },
+  {
+    "path": "ROOT-REVIEW.md",
+    "sha256": "4499de0316ca720b43ab20a6dd32dc744071975d3c772281c87be0703ee8eb4f",
+    "bytes": 415
+  },
+  {
+    "path": "ROOT-RESULT.md",
+    "sha256": "be3b6e886c5a2b2a9a8546a61d4858710071e6e26a4ad5ad8456e8145265c96f",
+    "bytes": 509
+  },
+  {
+    "path": "RESULT.json",
+    "sha256": "a381baa0f1f367cc4737098ea8d1efd6acc6f42c9ef447d2cbabb711672180d9",
+    "bytes": 360
+  },
+  {
+    "path": "LAUNCH.json",
+    "sha256": "df4cdcc0f534e72737aec0db3fa2cb79b1947b849e930aa51b9bfd68c0868479",
+    "bytes": 157
+  },
+  {
+    "path": "test_windows_clock_transport.py.log",
+    "sha256": "2ba07b1ea62edb7e59f88c1929298af9b06de636db5b856a6ceb18fc6121a4b3",
+    "bytes": 1095
+  },
+  {
+    "path": "COMMAND.json",
+    "sha256": "a6371848f0c92f2c4b0009d459eca2245acbab126b08602fb5a7accbee499065",
+    "bytes": 1128
+  },
+  {
+    "path": "run.py",
+    "sha256": "395a301f44ed3766f1d7a771c17ec9d00a73b2963fc5e43e27ccf40205b90fc0",
+    "bytes": 1430
+  },
+  {
+    "path": "TERMINAL-READBACK.json",
+    "sha256": "84366e797f58ac1e19194cdf90558efd4069bb969805ca6ea21f2d0dd7455142",
+    "bytes": 187
+  },
+  {
+    "path": "test_windows_files.py.log",
+    "sha256": "d30e80cde574751c55a61bc31d0a87c0c67b79051b56f8ef0078efb5f943e451",
+    "bytes": 1651
+  }
+]

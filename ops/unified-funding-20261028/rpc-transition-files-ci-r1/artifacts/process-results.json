@@ -1,0 +1,22 @@
+[
+    {
+        "label":  "production-compile",
+        "pid":  10028,
+        "exitCode":  0,
+        "elapsedMs":  1763,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  32030720,
+        "outputBytes":  984
+    },
+    {
+        "label":  "ci-compile",
+        "pid":  6220,
+        "exitCode":  1,
+        "elapsedMs":  25,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  0,
+        "outputBytes":  110
+    }
+]

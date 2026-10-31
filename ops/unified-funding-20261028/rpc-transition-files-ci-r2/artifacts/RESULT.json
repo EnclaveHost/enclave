@@ -1,0 +1,37 @@
+{
+    "passed":  true,
+    "tests":  9,
+    "watchdog":  {
+                     "exitCode":  124,
+                     "pid":  6916,
+                     "externalKill":  false,
+                     "exactExited":  true,
+                     "elapsedMs":  1496
+                 },
+    "stageEnvelope":  {
+                          "ProcessId":  1324,
+                          "CreationFileTime":  134379543407917250,
+                          "JobCommitLimitBytes":  134217728,
+                          "BootstrapPrivateBytes":  20291584,
+                          "MembershipVerified":  true,
+                          "LimitsVerified":  true,
+                          "CoversPreAssignmentMemory":  false,
+                          "BoundsWallTime":  false,
+                          "ReservationMayRelease":  false
+                      },
+    "copyEnvelope":  {
+                         "ProcessId":  5112,
+                         "CreationFileTime":  134379543414999591,
+                         "JobCommitLimitBytes":  134217728,
+                         "BootstrapPrivateBytes":  20242432,
+                         "MembershipVerified":  true,
+                         "LimitsVerified":  true,
+                         "CoversPreAssignmentMemory":  false,
+                         "BoundsWallTime":  false,
+                         "ReservationMayRelease":  false
+                     },
+    "dummyBytes":  32796,
+    "nativeVmProof":  false,
+    "targetQualified":  false,
+    "productionBinaryExecuted":  false
+}

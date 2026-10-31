@@ -1,0 +1,1 @@
+Changed harness argument grouping only after actual CS2005 failure in 41241600916. Production source unchanged, compiled successfully in prior run. Hosted disposable CI only; independent native deadlines and original limits unchanged; no target work. No automatic retry.
