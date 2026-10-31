@@ -192,7 +192,8 @@ def finish(begin_binding, sample_binding):
     return write_new(root / 'clock.json', encode(clock))
 
 
-def validate(binding):
+def inspect_historical(binding):
+    """Verify immutable clock lineage only; never authorizes work or renewal."""
     raw = read_pinned(binding)
     root = directory(Path(binding['path']).parent)
     if Path(binding['path']).name != 'clock.json':
@@ -208,7 +209,12 @@ def validate(binding):
     expected = compose(row, protocol.decode(sample), clock.get('handshakeElapsedNs'), protocol.sha(original), protocol.sha(sample))
     if clock != expected:
         raise ValueError('Completed clock was reset or rebound')
-    current(row)
+    return clock
+
+
+def validate(binding):
+    clock = inspect_historical(binding)
+    current(clock)
     return clock
 
 

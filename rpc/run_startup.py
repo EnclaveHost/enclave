@@ -181,7 +181,8 @@ def await_ready(clock, contract, lease):
 
 def preflight(config):
     owner_field = 'localGuestOwner' if 'localGuestOwner' in config else 'control'
-    w.exact(config, ('clock','windows','observation','handoff','media','network','nonces','export',owner_field,'ownerReserveMiB'))
+    cut_field = 'retainedCut' if 'retainedCut' in config else 'handoff'
+    w.exact(config, ('clock','windows','observation',cut_field,'media','network','nonces','export',owner_field,'ownerReserveMiB'))
     original = c.validate(config['clock'])
     win = config['windows']
     w.exact(win, ('transport','binaries','filesHelper','endpointHelper','requiredFreeBytes'))
@@ -200,11 +201,16 @@ def preflight(config):
     journal = Path(config['clock']['path']).parent
     w.transport(win['transport'],journal/'startup')
     observed = w.observation(c.read_pinned(config['observation']),original)
-    if any(key in observed for key in ('legacyCutSeed','sharedPhysicalPool','bootNetwork','startupCleanup')):
+    if any(key in observed for key in ('legacyCutSeed','sharedPhysicalPool','bootNetwork','startupCleanup','unsubmittedPredecessor')):
         raise ValueError('Original bare observation required before any work')
-    manifest = p.decode(w.staged(config['handoff'],'handoff.json'))
-    if manifest.get('schema')!='legacy-memory-handoff/2' or manifest['boot']!=original['windowsBoot']:
-        raise ValueError('Original protected handoff manifest required')
+    if cut_field == 'retainedCut':
+        prior = w.retained_source(config['retainedCut'], config['clock'], win['transport'])
+        if any(n in (prior['priorCutNonce'],prior['priorWorkerNonce']) for n in nonces):
+            raise ValueError('Original cut/definition worker nonce must not be reused')
+    else:
+        manifest = p.decode(w.staged(config['handoff'],'handoff.json'))
+        if manifest.get('schema')!='legacy-memory-handoff/2' or manifest['boot']!=original['windowsBoot']:
+            raise ValueError('Original protected handoff manifest required')
     media = p.decode(c.read_pinned(config['media']))
     if (media.get('schema')!='rpc-staged-client-media-binding/1' or media['instance']!=original['instance']
             or type(media.get('files')) is not list or len(media['files'])!=2):
@@ -270,14 +276,18 @@ def run(config):
     c.write_new(root/'intent.json',c.encode({'configurationSha256':p.sha(c.encode(config)),'owner':process,
         'clock':config['clock'],'outcome':'consumed-no-automatic-retry'}))
     static = {k:c.read_pinned(config[k]) for k in ('observation','media')}
-    handoff_raw = w.staged(config['handoff'],'handoff.json')
+    retained = 'retainedCut' in config
+    handoff_raw = None if retained else w.staged(config['handoff'],'handoff.json')
+    retained_state = w.retained_source(config['retainedCut'],config['clock'],config['windows']['transport']) if retained else None
     local_profile = c.read_pinned(config['localGuestOwner']['profile']) if 'localGuestOwner' in config else None
     lease = None;phase = 'admission';receipts = {}
 
     def current():
         c.validate(config['clock'])
         if any(c.read_pinned(config[k])!=raw for k,raw in static.items()):raise ValueError('Original startup inputs changed')
-        if w.staged(config['handoff'],'handoff.json')!=handoff_raw:raise ValueError('Original handoff changed')
+        if retained:
+            if w.retained_source(config['retainedCut'],config['clock'],config['windows']['transport'])!=retained_state:raise ValueError('Retained source changed')
+        elif w.staged(config['handoff'],'handoff.json')!=handoff_raw:raise ValueError('Original handoff changed')
         if local_profile is not None and c.read_pinned(config['localGuestOwner']['profile'])!=local_profile:raise ValueError('Local owner profile changed')
         if lease is not None:lease.check()
 
@@ -302,12 +312,17 @@ def run(config):
         win = config['windows'];nonces = config['nonces']
         base = {'clock':config['clock'],'transport':win['transport']}
         files = dict(base,helper=win['filesHelper'])
-        staged_cut = decoded(step('stage-cut',f.stage_inputs,dict(files,nonce=nonces['stage-cut'],phase='cut-seed',files={'observation.json':config['observation']})))
-        cut = step('cut-seed',w.execute,dict(base,phase='cut-seed',nonce=nonces['cut-seed'],binaries=win['binaries']['cut-seed'],
-                 observation=staged_cut['result']['files']['observation.json'],input=config['handoff'],previous=None))
-        collected = decoded(step('collect',f.collect_cut,dict(files,nonce=nonces['collect'],cutResult=cut)))
+        if retained:
+            cut = step('adopt-cut',w.adopt_retained_cut,dict(base,retained=config['retainedCut']))
+            evidence = decoded(cut)['cutEvidence']
+        else:
+            staged_cut = decoded(step('stage-cut',f.stage_inputs,dict(files,nonce=nonces['stage-cut'],phase='cut-seed',files={'observation.json':config['observation']})))
+            cut = step('cut-seed',w.execute,dict(base,phase='cut-seed',nonce=nonces['cut-seed'],binaries=win['binaries']['cut-seed'],
+                     observation=staged_cut['result']['files']['observation.json'],input=config['handoff'],previous=None))
+            collected = decoded(step('collect',f.collect_cut,dict(files,nonce=nonces['collect'],cutResult=cut)))
+            evidence = collected['result']['cutEvidence']
         prepared = step('prepare-definition',w.prepare_definition,{'clock':config['clock'],'cutResult':cut,
-            'cutEvidence':collected['result']['cutEvidence'],'observation':config['observation'],'media':config['media'],
+            'cutEvidence':evidence,'observation':config['observation'],'media':config['media'],
             'providerSha256':win['binaries']['start-once']['entry']['sha256'],
             'cleanupSha256':win['binaries']['start-once']['cleanup']['sha256'],'network':config['network']})
         definition = decoded(prepared)

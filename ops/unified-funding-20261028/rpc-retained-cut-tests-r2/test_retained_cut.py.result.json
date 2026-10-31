@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 3.226348133990541,
+  "stdout": "",
+  "stderr": "test_adoption_is_one_shot_and_no_transport (__main__.RetainedCut.test_adoption_is_one_shot_and_no_transport) ... ok\ntest_adoption_mutation_after_receipt_refused (__main__.RetainedCut.test_adoption_mutation_after_receipt_refused) ... ok\ntest_boot_overlap_and_vm_reuse_are_refused (__main__.RetainedCut.test_boot_overlap_and_vm_reuse_are_refused) ... ok\ntest_changed_channel_refused_before_work (__main__.RetainedCut.test_changed_channel_refused_before_work) ... ok\ntest_changed_original_definition_submit_refused (__main__.RetainedCut.test_changed_original_definition_submit_refused) ... ok\ntest_collection_rebinding_refused_before_adoption (__main__.RetainedCut.test_collection_rebinding_refused_before_adoption) ... ok\ntest_corrupt_original_response_refused_before_export (__main__.RetainedCut.test_corrupt_original_response_refused_before_export) ... ok\ntest_historical_inspection_never_renews_active_deadline (__main__.RetainedCut.test_historical_inspection_never_renews_active_deadline) ... ok\ntest_later_original_phase_refused (__main__.RetainedCut.test_later_original_phase_refused) ... ok\ntest_lost_successor_definition_remains_held_without_cut_replay (__main__.RetainedCut.test_lost_successor_definition_remains_held_without_cut_replay) ... ok\ntest_omitted_native_predecessor_binding_refused_before_submit (__main__.RetainedCut.test_omitted_native_predecessor_binding_refused_before_submit) ... ok\ntest_original_nonce_reuse_refused_before_work (__main__.RetainedCut.test_original_nonce_reuse_refused_before_work) ... ok\ntest_successor_composition_skips_cut_and_collect_preserves_history (__main__.RetainedCut.test_successor_composition_skips_cut_and_collect_preserves_history) ... ok\n\n----------------------------------------------------------------------\nRan 13 tests in 2.880s\n\nOK\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 1791
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

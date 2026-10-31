@@ -1,0 +1,10 @@
+{
+  "tests": [
+    {
+      "name": "test_retained_cut.py",
+      "rc": 1,
+      "seconds": 3.0118852290324867
+    }
+  ],
+  "drift": []
+}

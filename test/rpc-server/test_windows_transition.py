@@ -93,10 +93,10 @@ class Transition(unittest.TestCase):
         self.assertIn('-oStrictHostKeyChecking=yes', argv)
         self.assertIn('-F', argv)
         if 'clock-sample.exe' in argv[-1]:
-            self.assertEqual(argv[-1].split(), [self.transport['samplerPath'], self.nonce, 'b'*32, 'd'*64])
+            self.assertEqual(argv[-1].split(), [self.transport['samplerPath'], self.nonce, self.original['vmAttempt'], 'd'*64])
             self.assertTrue((folder/'sample.intent').is_file())
             return c.encode({'schema': 'owned-rpc-windows-clock/1', 'attempt': self.nonce,
-                             'vmAttempt': 'b'*32, 'windowsBoot': 'c'*32,
+                             'vmAttempt': self.original['vmAttempt'], 'windowsBoot': 'c'*32,
                              'monotonicMilliseconds': self.original['windowsDeadlineMilliseconds']-15000})
         submit = c.protocol.decode(c.read(folder/'submit.intent'))
         self.assertEqual(submit['command'], argv[-1])

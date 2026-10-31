@@ -43,10 +43,10 @@ class Files(unittest.TestCase):
         self.assertLessEqual(seconds, 32)
         self.assertTrue((root/'sample.intent').is_file())
         if 'clock-sample.exe' in argv[-1]:
-            self.assertEqual(argv[-1].split(), [self.x.transport['samplerPath'], self.config['nonce'], 'b'*32, 'd'*64])
+            self.assertEqual(argv[-1].split(), [self.x.transport['samplerPath'], self.config['nonce'], self.x.original['vmAttempt'], 'd'*64])
             self.assertEqual(raw, b'')
             return c.encode(dict(schema='owned-rpc-windows-clock/1', attempt=self.config['nonce'],
-                vmAttempt='b'*32, windowsBoot='c'*32,
+                vmAttempt=self.x.original['vmAttempt'], windowsBoot='c'*32,
                 monotonicMilliseconds=self.x.original['windowsDeadlineMilliseconds']-15000))
         submit = c.protocol.decode(c.read(root/'submit.intent'))
         self.assertEqual(submit['command'], argv[-1])
@@ -66,7 +66,7 @@ class Files(unittest.TestCase):
                 files=[{k:r[k] for k in ('name','bytes','sha256')} for r in self.media['files']],
                 definitionJournalBound=True, currentVmOffObserved=False, mediaAttached=False, privateContentsPrinted=False)
         row = dict(schema='owned-rpc-transition-files-result/1', operation=self.operation, nonce=self.config['nonce'],
-            requestHash=c.protocol.sha(raw), windowsBoot='c'*32, vmAttempt='b'*32,
+            requestHash=c.protocol.sha(raw), windowsBoot='c'*32, vmAttempt=self.x.original['vmAttempt'],
             origin=submit['origin'], deadline=submit['deadline'], result=result, pid=20, creation=12345,
             envelope=dict(MembershipVerified=True, LimitsVerified=True, JobCommitLimitBytes=128*1048576,
                 BootstrapPrivateBytes=12*1048576, ProcessId=20, CreationFileTime=12345),

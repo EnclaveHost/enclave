@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 1.053579217987135,
+  "stdout": "",
+  "stderr": "test_boot_wrong_guid_cannot_advance (__main__.Transition.test_boot_wrong_guid_cannot_advance) ... ok\ntest_changed_definition_clock_refused (__main__.Transition.test_changed_definition_clock_refused) ... ok\ntest_changed_previous_response_refused (__main__.Transition.test_changed_previous_response_refused) ... ok\ntest_changed_transport_refused (__main__.Transition.test_changed_transport_refused) ... ok\ntest_expired_original_window_never_submits (__main__.Transition.test_expired_original_window_never_submits) ... ok\ntest_four_phase_sequence_original_deadline_and_no_readiness (__main__.Transition.test_four_phase_sequence_original_deadline_and_no_readiness) ... ok\ntest_lost_controller_response_holds_without_receipt (__main__.Transition.test_lost_controller_response_holds_without_receipt) ... ok\ntest_missing_predecessor_refused_before_transport (__main__.Transition.test_missing_predecessor_refused_before_transport) ... ok\ntest_nonzero_submit_evidence_is_private_and_never_replayed (__main__.Transition.test_nonzero_submit_evidence_is_private_and_never_replayed) ... ok\ntest_preparation_cannot_replace_existing_admission (__main__.Transition.test_preparation_cannot_replace_existing_admission) ... ok\ntest_preparation_rejects_changed_cut_contract (__main__.Transition.test_preparation_rejects_changed_cut_contract) ... ok\ntest_preparation_rejects_foreign_media (__main__.Transition.test_preparation_rejects_foreign_media) ... ok\ntest_preparation_rejects_oversized_media (__main__.Transition.test_preparation_rejects_oversized_media) ... ok\ntest_preparation_rejects_wrong_completion_digest (__main__.Transition.test_preparation_rejects_wrong_completion_digest) ... ok\ntest_prepared_definition_uses_exact_evidence_and_original_clock (__main__.Transition.test_prepared_definition_uses_exact_evidence_and_original_clock) ... ok\ntest_replay_even_different_nonce_never_resubmits (__main__.Transition.test_replay_even_different_nonce_never_resubmits) ... ok\ntest_sample_loss_consumes_phase_without_submission (__main__.Transition.test_sample_loss_consumes_phase_without_submission) ... ok\ntest_sampler_timeout_evidence_does_not_submit_controller (__main__.Transition.test_sampler_timeout_evidence_does_not_submit_controller) ... ok\ntest_shell_injection_refused_before_transport (__main__.Transition.test_shell_injection_refused_before_transport) ... ok\ntest_unsettled_definition_cannot_advance (__main__.Transition.test_unsettled_definition_cannot_advance) ... ok\ntest_wrong_cut_binding_refused (__main__.Transition.test_wrong_cut_binding_refused) ... ok\ntest_wrong_sample_boot_holds_before_mutation (__main__.Transition.test_wrong_sample_boot_holds_before_mutation) ... ok\n\n----------------------------------------------------------------------\nRan 22 tests in 0.859s\n\nOK\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 2773
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

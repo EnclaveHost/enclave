@@ -1,0 +1,44 @@
+{
+  "tests": [
+    {
+      "name": "test_retained_cut.py",
+      "tests": 13,
+      "seconds": 3.226348133990541,
+      "rc": 0
+    },
+    {
+      "name": "test_run_startup.py",
+      "tests": 19,
+      "seconds": 2.1754322841297835,
+      "rc": 0
+    },
+    {
+      "name": "test_windows_transition.py",
+      "tests": 22,
+      "seconds": 1.053579217987135,
+      "rc": 0
+    },
+    {
+      "name": "test_windows_files.py",
+      "tests": 13,
+      "seconds": 0.682068319991231,
+      "rc": 0
+    },
+    {
+      "name": "test_windows_endpoint.py",
+      "tests": 15,
+      "seconds": 1.6227687681093812,
+      "rc": 0
+    },
+    {
+      "name": "test_startup_export.py",
+      "tests": 26,
+      "seconds": 1.842431931057945,
+      "rc": 0
+    }
+  ],
+  "total": 108,
+  "pinsMatched": 49,
+  "terminal": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+  "invocation": "2d78c1ad48364bc7a9b9f52734d46bb6"
+}

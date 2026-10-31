@@ -1,0 +1,20 @@
+{
+  "rc": 1,
+  "reason": null,
+  "elapsedSeconds": 3.0118852290324867,
+  "stdout": "",
+  "stderr": "test_adoption_is_one_shot_and_no_transport (__main__.RetainedCut.test_adoption_is_one_shot_and_no_transport) ... ok\ntest_adoption_mutation_after_receipt_refused (__main__.RetainedCut.test_adoption_mutation_after_receipt_refused) ... ok\ntest_boot_overlap_and_vm_reuse_are_refused (__main__.RetainedCut.test_boot_overlap_and_vm_reuse_are_refused) ... ok\ntest_changed_channel_refused_before_work (__main__.RetainedCut.test_changed_channel_refused_before_work) ... ok\ntest_changed_original_definition_submit_refused (__main__.RetainedCut.test_changed_original_definition_submit_refused) ... ok\ntest_collection_rebinding_refused_before_adoption (__main__.RetainedCut.test_collection_rebinding_refused_before_adoption) ... ok\ntest_corrupt_original_response_refused_before_export (__main__.RetainedCut.test_corrupt_original_response_refused_before_export) ... ok\ntest_historical_inspection_never_renews_active_deadline (__main__.RetainedCut.test_historical_inspection_never_renews_active_deadline) ... ok\ntest_later_original_phase_refused (__main__.RetainedCut.test_later_original_phase_refused) ... ok\ntest_lost_successor_definition_remains_held_without_cut_replay (__main__.RetainedCut.test_lost_successor_definition_remains_held_without_cut_replay) ... ok\ntest_omitted_native_predecessor_binding_refused_before_submit (__main__.RetainedCut.test_omitted_native_predecessor_binding_refused_before_submit) ... ok\ntest_original_nonce_reuse_refused_before_work (__main__.RetainedCut.test_original_nonce_reuse_refused_before_work) ... ok\ntest_successor_composition_skips_cut_and_collect_preserves_history (__main__.RetainedCut.test_successor_composition_skips_cut_and_collect_preserves_history) ... ERROR\n\n======================================================================\nERROR: test_successor_composition_skips_cut_and_collect_preserves_history (__main__.RetainedCut.test_successor_composition_skips_cut_and_collect_preserves_history)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-retained-cut-tests-r1/frozen/test/rpc-server/test_retained_cut.py\", line 50, in test_successor_composition_skips_cut_and_collect_preserves_history\n    row=c.protocol.decode(c.read_pinned(r.run(self.s.cfg)))\n                                        ~~~~~^^^^^^^^^^^^\n  File \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-retained-cut-tests-r1/frozen/rpc/run_startup.py\", line 338, in run\n    endpoint = step('endpoint',e.observe,dict(base,helper=win['endpointHelper'],nonce=nonces['endpoint'],\n                   startResult=previous,requiredFreeBytes=win['requiredFreeBytes']))\n  File \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-retained-cut-tests-r1/frozen/rpc/run_startup.py\", line 298, in step\n    result = function(arguments);current()\n  File \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-retained-cut-tests-r1/frozen/rpc/windows_endpoint.py\", line 143, in observe\n    expected = lineage(config, original)\n  File \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-retained-cut-tests-r1/frozen/rpc/windows_endpoint.py\", line 28, in lineage\n    raise ValueError('Exact original startup result chain required')\nValueError: Exact original startup result chain required\n\n----------------------------------------------------------------------\nRan 13 tests in 2.670s\n\nFAILED (errors=1)\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 3678
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

@@ -18,11 +18,17 @@ MINIMUM_FREE = (18432 + 39388 + 256) * 1048576
 
 
 def lineage(config, original):
-    """Re-read all four exact consumed phase requests and authenticated replies."""
+    """Re-read consumed phases and the original cut or explicit retained cut."""
     journal = c.directory(Path(config['clock']['path']).parent)
     binding = config['startResult']
     rows, requests, nonces = {}, {}, set()
+    retained = None
     for phase in reversed(w.PHASES):
+        if phase == 'cut-seed' and isinstance(binding, dict) and binding.get('path') == str(journal / 'retained-cut' / 'RESULT.json'):
+            retained = w.validate_retained_cut(binding, config['clock'], config['transport'], config['nonce'])
+            if nonces.intersection((retained['priorCutNonce'], retained['priorWorkerNonce'])):
+                raise ValueError('Retained worker nonce reused by successor')
+            break
         folder = journal / ('windows-' + phase)
         if not isinstance(binding, dict) or binding.get('path') != str(folder / 'RESULT.json'):
             raise ValueError('Exact original startup result chain required')
@@ -74,6 +80,8 @@ def lineage(config, original):
     admission = c.protocol.decode(w.staged(requests['define']['observation'], 'observation.json'))
     if requests['define']['observation']['binding']['sha256'] != plan[3]:
         raise ValueError('Original definition admission differs')
+    if retained is not None and admission.get('unsubmittedPredecessor') != retained['unsubmittedPredecessor']:
+        raise ValueError('Successor omitted native predecessor binding')
     network = admission['bootNetwork']
     w.exact(network, ('schema', 'switchGuid', 'mac'))
     if network['schema'] != 'owned-rpc-boot-network/1' or not re.fullmatch('02[0-9A-F]{10}', network['mac']):

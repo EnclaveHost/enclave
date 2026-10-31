@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 1.6227687681093812,
+  "stdout": "",
+  "stderr": "test_floor_cannot_omit_pending (__main__.Endpoint.test_floor_cannot_omit_pending) ... ok\ntest_invalid_envelope_and_host_refused (__main__.Endpoint.test_invalid_envelope_and_host_refused) ... ok\ntest_lineage_change_during_observation_is_held (__main__.Endpoint.test_lineage_change_during_observation_is_held) ... ok\ntest_lost_clock_does_not_launch_observer (__main__.Endpoint.test_lost_clock_does_not_launch_observer) ... ok\ntest_lost_native_response_consumed_even_new_nonce (__main__.Endpoint.test_lost_native_response_consumed_even_new_nonce) ... ok\ntest_original_cut_evidence_tamper_before_transport (__main__.Endpoint.test_original_cut_evidence_tamper_before_transport) ... ok\ntest_original_full_chain_derives_exact_permit_and_endpoint (__main__.Endpoint.test_original_full_chain_derives_exact_permit_and_endpoint) ... ok\ntest_original_plan_tamper_before_transport (__main__.Endpoint.test_original_plan_tamper_before_transport) ... ok\ntest_pending_is_preserved_without_guess_or_retry (__main__.Endpoint.test_pending_is_preserved_without_guess_or_retry) ... ok\ntest_shell_metacharacter_image_refused (__main__.Endpoint.test_shell_metacharacter_image_refused) ... ok\ntest_short_original_remaining_time_no_transport (__main__.Endpoint.test_short_original_remaining_time_no_transport) ... ok\ntest_stale_observation_and_future_ticks_refused (__main__.Endpoint.test_stale_observation_and_future_ticks_refused) ... ok\ntest_transport_change_before_query (__main__.Endpoint.test_transport_change_before_query) ... ok\ntest_wrong_native_vm_or_network_is_not_endpoint (__main__.Endpoint.test_wrong_native_vm_or_network_is_not_endpoint) ... ok\ntest_wrong_sample_boot_is_consumed_without_reader (__main__.Endpoint.test_wrong_sample_boot_is_consumed_without_reader) ... ok\n\n----------------------------------------------------------------------\nRan 15 tests in 1.368s\n\nOK\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 1860
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

@@ -356,7 +356,7 @@ explicit adoption are not implemented by this driver.
 17 new cases and28 relevant regressions passed; see
 `ops/unified-funding-20261028/rpc-startup-composition-tests-r1/ROOT-RESULT.md`.
 Windows/native/SSH and export/Control boundaries are simulated as described
-there. No production startup has been performed. Actual local staging and
+there. Those fixtures do not establish production startup. Actual local staging and
 unit/route qualification are recorded below; fresh full capacity admission,
 the actual owned-VM query remains required.
 
@@ -467,3 +467,53 @@ only reviewed sanitized evidence belongs in Git. Three inert local process
 cases plus 32 transition/clock cases passed. Native child stderr persistence
 and the original admission failure cause remain unresolved; no native retry
 was performed and no new Windows binaries were built for this change.
+
+
+## Successor after a consumed pre-native definition
+
+The October 31 original attempt completed the allocation cut and storage export,
+then stopped at definition. Its clock and cut remain consumed. Export processes
+were subsequently observed dead and their data/journals retained. The RPC has
+not been observed serving. A successful later SYSTEM admission-only check did
+not grant definition or start authority.
+
+`run_startup.py` now accepts exactly one of `handoff` (first attempt) or
+`retainedCut` (explicit successor). The retained object has three pinned owner
+bindings: `clock`, `cutResult`, and `collectedCut`, referring to the original
+`clock.json`, `windows-cut-seed/RESULT.json`, and
+`windows-files-collect-cut/RESULT.json`. The successor has a distinct attempt,
+instance and VM namespace, the same owner and Windows boots, and a new original
+900-second window beginning after all three old deadlines (UTC, owner monotonic
+and Windows monotonic). `startup_clock.inspect_historical` verifies immutable
+begin/sample/finish lineage without authorizing work; `validate` still requires
+an unexpired current clock.
+
+The retained path rechecks original consumed requests, transport identity,
+response hashes, actual collected contract/activation/completion bytes, and the
+old definition command and plan. It publishes an exclusive local
+`retained-cut/RESULT.json` with schema `owned-rpc-retained-cut/1`. This is a
+separate evidence-adoption record, not a new native cut result. `stage-cut`,
+`cut-seed` and `collect` are skipped. Original source records are rechecked
+between phases, including endpoint lineage verification. Changed evidence,
+boot, channel, overlapping clocks, reused identities/nonces or later original
+boot/definition state remain held. This initial implementation supports one
+original pre-native definition; it does not automatically traverse failed
+successor attempts.
+
+The newly prepared admission must include the derived
+`unsubmittedPredecessor` worker contract path/hash and producer hash. The
+Windows definition worker independently verifies old exact process deaths and
+protected journals before provider invocation, alongside its fresh completed-cut,
+capacity and namespace checks. Local receipt absence does not establish remote
+settlement. Adoption claims neither native predecessor verification nor capacity,
+provider settlement, readiness or reservation release. Lost successor replies
+remain consumed with no automatic retry.
+
+The owner integration is tested with actual local journals, two immutable clocks,
+producers and endpoint lineage. SSH/native, export, PID1 and guest boundaries are
+mocked. See `ops/unified-funding-20261028/rpc-retained-cut-tests-r2/ROOT-RESULT.md`;
+the first failed endpoint-integration run is also preserved. No successor
+production clock or target action has been performed. Before that attempt,
+prepare new instance-bound seed/media and owner profile/source closure, stage
+qualified current binaries, and obtain fresh full admission. The old seed and
+profile are tied to the consumed attempt and cannot be silently reused.

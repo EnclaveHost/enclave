@@ -44,7 +44,7 @@ class Endpoint(unittest.TestCase):
         if 'clock-sample.exe' in argv[-1]:
             self.assertLessEqual(seconds, 3)
             return c.encode({'schema': 'owned-rpc-windows-clock/1', 'attempt': self.cfg['nonce'],
-                             'vmAttempt': 'b'*32, 'windowsBoot': 'c'*32, 'monotonicMilliseconds': self.origin})
+                             'vmAttempt': self.x.original['vmAttempt'], 'windowsBoot': 'c'*32, 'monotonicMilliseconds': self.origin})
         intent = c.protocol.decode(c.read(folder/'submit.intent'))
         self.assertEqual(intent['command'], argv[-1])
         self.assertEqual(intent['requestSha256'], c.protocol.sha(c.read(folder/'request.json')))
@@ -52,7 +52,7 @@ class Endpoint(unittest.TestCase):
         self.assertEqual(argv[-1].split(), [self.cfg['helper']['path'], expected['permitPath'], expected['permitSha256'],
                                           self.cfg['helper']['sha256'], str(self.origin), str(self.x.original['windowsDeadlineMilliseconds']), str(e.MINIMUM_FREE)])
         self.assertLessEqual(seconds, 32)
-        row = dict(schema='owned-rpc-vm-endpoint/1', vmAttempt='b'*32, windowsBoot='c'*32,
+        row = dict(schema='owned-rpc-vm-endpoint/1', vmAttempt=self.x.original['vmAttempt'], windowsBoot='c'*32,
                    permitSha256=expected['permitSha256'], vmGuid=self.x.guid,
                    switchGuid=self.network['switchGuid'], mac=self.network['mac'],
                    originalOrigin=self.x.original['windowsOriginMilliseconds'], originalDeadline=self.x.original['windowsDeadlineMilliseconds'],

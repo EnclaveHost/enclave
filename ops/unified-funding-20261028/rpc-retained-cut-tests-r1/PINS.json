@@ -1,0 +1,198 @@
+[
+  {
+    "path": "rpc/deliver_guest_workflow.py",
+    "sha256": "d397e7ab6a20a166100381d37f0396c508bfd231ae6e0409b285a68b13ca50ee"
+  },
+  {
+    "path": "rpc/deliver_runtime.py",
+    "sha256": "6e5da03961302f6e6337c5c21b331cbe29df63f2db6e891b745410ab0e1722a8"
+  },
+  {
+    "path": "rpc/launch_activation.py",
+    "sha256": "271505f2edeb40b982f17dd293f2e39846288b33eecc4435e3b0db8b7206e2d7"
+  },
+  {
+    "path": "rpc/windows_transition.py",
+    "sha256": "bac2aff8fd8b7f748a4bc5ba130cf10cc94af07dbe08d4910aa7df11cd1702a4"
+  },
+  {
+    "path": "rpc/prepare_attachment.py",
+    "sha256": "c0685fbf106fe2fc49e1ce076b0dca096716d37ecd832a227480b6832e5f625a"
+  },
+  {
+    "path": "rpc/windows_files.py",
+    "sha256": "6c88bba44c2665503c73419555db5372bdc9f3c9c875f61997c3e8435139ea7a"
+  },
+  {
+    "path": "rpc/transfer_export.py",
+    "sha256": "e44e7860d31ba1ea67914887c231a66035a6b398a4095a2caa089d4a82457f9a"
+  },
+  {
+    "path": "rpc/observe_guest.py",
+    "sha256": "d742ab58663874aed4ae655cb3d9664b88c72f399bc2550ad5ff100939fdc743"
+  },
+  {
+    "path": "rpc/storage_protocol.py",
+    "sha256": "80a3f865a76914a5d986528d50dfb77bd90ec5604f9884f3391ae99c4f02bc31"
+  },
+  {
+    "path": "rpc/observe_activation.py",
+    "sha256": "c59ee978a4f6f0ff51ce5beeef33e438555e072014095973f71fda76985c0236"
+  },
+  {
+    "path": "rpc/deliver_activation.py",
+    "sha256": "4b8cd7467e9555a2393ece38fc960ae55e7ae321da3e731ada5bead5fe92c889"
+  },
+  {
+    "path": "rpc/run_guest_workflow.py",
+    "sha256": "13e9395dbdf921def87d246a9a76562bdbc610d05c32e918492c6d8ad3772b3e"
+  },
+  {
+    "path": "rpc/run_startup.py",
+    "sha256": "04bf527277bae66ce5275332f189e6bfeaed80c7d163103f0b4fb95ece26835c"
+  },
+  {
+    "path": "rpc/prepare_runtime.py",
+    "sha256": "6c8f872f15554bc2cd1dd1ccda094e70783dedcfa1e9c457543b04927851681d"
+  },
+  {
+    "path": "rpc/sample_windows_clock.py",
+    "sha256": "7c4c9778eb134a75ee13bd1e11fa4c4683822391ef95ab080b9d44bb7511eb37"
+  },
+  {
+    "path": "rpc/startup_clock.py",
+    "sha256": "baff8279f12968acc788a79555ca273db97bfd2cd5be2ae4fd22001dce9e4cc9"
+  },
+  {
+    "path": "rpc/windows_endpoint.py",
+    "sha256": "706bb137750e683fbedc8333282471fc16895ed55215b2b6dd2952911e100caa"
+  },
+  {
+    "path": "rpc/guest/start_runtime.py",
+    "sha256": "e17affef1c3ced9505250fe6fddfc3d8560dc76d908eb3cfb2fdab33c540b912"
+  },
+  {
+    "path": "rpc/guest/prepare_storage_client.py",
+    "sha256": "129ed77dc8e36c36b9e39c0400063e74e0444b7042b6b038c9238886c28c8dcf"
+  },
+  {
+    "path": "rpc/guest/attach_storage.py",
+    "sha256": "93859170fba8f078a2df14db52acc95d90a4405add8be63574c0a84049905da9"
+  },
+  {
+    "path": "rpc/guest/prepare_seed.py",
+    "sha256": "a6ffc88230f6b8db4aa98eadf4f8352b0ac9a35ad077a299c831276255a5ce51"
+  },
+  {
+    "path": "rpc/guest/read_owners.py",
+    "sha256": "db68fff651b1e5461a9d9ef4bd88396b7d7d7955779875399a486139d819222b"
+  },
+  {
+    "path": "rpc/guest/identity.py",
+    "sha256": "1fac9d4de16a903233ca1613881d2157ec99710b99aee0c1cfd0cba4f75be103"
+  },
+  {
+    "path": "rpc/guest/credentials.py",
+    "sha256": "b02baf0cbf2b71fed1caded598381c59763dd885c1867b6ea2e69bc009508158"
+  },
+  {
+    "path": "rpc/guest/inject_image.py",
+    "sha256": "ef130ca34e4e6df3efd445a39f7e08c740d5dcb0fd1b15620078908bdf595378"
+  },
+  {
+    "path": "rpc/guest/activate_storage.py",
+    "sha256": "1b1c92b0922cea8810c668eaa783447a3c0fcc146201aa556298678ec757f97d"
+  },
+  {
+    "path": "rpc/guest/install_storage_client.py",
+    "sha256": "36ca702a610ce4cc318112128e6779a99495b84912cefc18430d60478e9448a8"
+  },
+  {
+    "path": "rpc/guest/chain_service.py",
+    "sha256": "75c879ec9c5728688beac8cc98ecf1410c38f29c144b27fabd8b42ea60cfbc92"
+  },
+  {
+    "path": "rpc/guest/prepare_bundle.py",
+    "sha256": "acd7493a8261eb2b6f0a93a845893411b0199b4c5c945c0b9f22e1dfad2eafe8"
+  },
+  {
+    "path": "rpc/server/prepare_export.py",
+    "sha256": "66d42945d33165873a907aaa072e79ef7834b0bfd34626cf48c5d5d28769cc74"
+  },
+  {
+    "path": "rpc/server/volume_export.py",
+    "sha256": "ff94868d582438b964c67cc4651ae6f80bedd56a5cc99c2f0a3cff481b4bbbb2"
+  },
+  {
+    "path": "rpc/server/guarded_export.py",
+    "sha256": "c3eefa565ce8062e8436e6caa61d05c2b04ac2222708864e488fe479ed40a928"
+  },
+  {
+    "path": "rpc/gateway.mjs",
+    "sha256": "3b23200d8e77565da2fef2b5c440220108a9e66191f0ad38199c56873928435f"
+  },
+  {
+    "path": "rpc/server/observe_resources.mjs",
+    "sha256": "d2d8e9a69548e689d093434787b43ab3278c4fea032d329c16c2b82c0866bdee"
+  },
+  {
+    "path": "test/rpc-server/test_transport_failure.py",
+    "sha256": "51111c13fa8d6322d03e96fdf4bda488b74705e6a05c9fcfd1f539aaa076f440"
+  },
+  {
+    "path": "test/rpc-server/test_windows_transition.py",
+    "sha256": "e273b675b582ad837be97ccc244d03a752f3ec6415f59326c075585877e51cef"
+  },
+  {
+    "path": "test/rpc-server/test_guarded_export.py",
+    "sha256": "ced1dd8c8d89bfd9ede43ab004e9ee46133b5dc303b8e7f39db268734d2ce456"
+  },
+  {
+    "path": "test/rpc-server/test_storage_protocol.py",
+    "sha256": "d0c6128a56231a626b014f7fe127f8e49b362c61dd7362ccb55a40a366464f06"
+  },
+  {
+    "path": "test/rpc-server/test_retained_cut.py",
+    "sha256": "19202360a530ff7ea6b9302ed320cb61d28484fd85dbf852367c9729f4267a8a"
+  },
+  {
+    "path": "test/rpc-server/test_windows_clock_transport.py",
+    "sha256": "6167e1f9d56fea7daa335d71c380d9b476a782d3b0ec3ec76a31e4742074000c"
+  },
+  {
+    "path": "test/rpc-server/qualify_systemd_watchdog.py",
+    "sha256": "f48387a550d0cfbbf61b185cbdb7d882c5987ea0c9381ecee46c261321e41a90"
+  },
+  {
+    "path": "test/rpc-server/test_windows_files.py",
+    "sha256": "3ade092cefe357bd515428faf7d816ff3eaf75393c75a68d5cb6c8f1beef2e67"
+  },
+  {
+    "path": "test/rpc-server/qualify_storage_protocol.py",
+    "sha256": "986c49c8a772f440cde1d6700a3da3dacc916f26bc555ada6132e17bc3ddcf4e"
+  },
+  {
+    "path": "test/rpc-server/qualify_volume_export.py",
+    "sha256": "041254b99cdbe91de4d6212ccc4bdba0c7513180f4b91351d8349c21d379f98d"
+  },
+  {
+    "path": "test/rpc-server/qualify_guarded_cli.py",
+    "sha256": "81ed59e2b3f4eaf755cb066c7ac3adf8b391b9588cbd709bafe08eac61d0ac87"
+  },
+  {
+    "path": "test/rpc-server/qualify_guarded_export.py",
+    "sha256": "7c70dfd3c6642535d0d3c5244b48dea6d9bd5e05bed757ed7a3cac9775550d66"
+  },
+  {
+    "path": "test/rpc-server/test_startup_export.py",
+    "sha256": "8373b0ec7d4f91828d584633a9a9460ce85aa05e52fbad801338e884fb351e4f"
+  },
+  {
+    "path": "test/rpc-server/test_run_startup.py",
+    "sha256": "b3a9939cb1750ad696830a8973f1463de1b987a4f1c7b1525c69e7dcb5f1b563"
+  },
+  {
+    "path": "test/rpc-server/test_windows_endpoint.py",
+    "sha256": "6887baebe9894136dbe9faae4c182e72225f34793634aeb25daf4e75316dec6a"
+  }
+]

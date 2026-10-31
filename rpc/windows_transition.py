@@ -121,6 +121,8 @@ def validate_previous(config, clock, journal):
             raise ValueError('First phase cannot adopt an unrelated predecessor')
         return None
     previous = config['previous']
+    if phase == 'define' and isinstance(previous, dict) and previous.get('path') == str(journal / 'retained-cut' / 'RESULT.json'):
+        return validate_retained_cut(previous, config['clock'], config['transport'], config['nonce'])
     expected = journal / ('windows-' + PHASES[index - 1]) / 'RESULT.json'
     if not isinstance(previous, dict) or previous.get('path') != str(expected):
         raise ValueError('Exact original predecessor receipt required')
@@ -224,13 +226,16 @@ def execute(config):
             # Admission must identify the actual preceding cut/seed namespace.
             admission = c.protocol.decode(obs_raw)
             cut = admission['legacyCutSeed']
-            seed = previous['native']['inventory']['seed']
-            if (cut['contractPath'] != previous['native']['root'] + '\\contract.txt'
-                    or cut['manifestHash'] != previous['native']['manifest']
+            native = cut_native(previous)
+            seed = native['inventory']['seed']
+            if (cut['contractPath'] != native['root'] + '\\contract.txt'
+                    or cut['manifestHash'] != native['manifest']
                     or admission['sharedPhysicalPool']['configPath'] != seed['configPath']
                     or admission['sharedPhysicalPool']['configHash'] != seed['poolHash']
                     or admission['sharedPhysicalPool']['capacityBytes'] != seed['capacityBytes']):
                 raise ValueError('Definition admission belongs to a different cut/seed')
+            if previous.get('schema') == 'owned-rpc-retained-cut/1' and admission.get('unsubmittedPredecessor') != previous['unsubmittedPredecessor']:
+                raise ValueError('Successor omitted or changed native predecessor guard')
         else:
             request = c.protocol.decode(c.read(Path(config['previous']['path']).parent / 'request.json'))
             if request['input']['binding']['sha256'] != config['input']['binding']['sha256']:
@@ -324,6 +329,151 @@ def exchange_recorded(root, stage, argv, seconds):
         raise
 
 
+
+def cut_native(row):
+    return row['retainedNative'] if row.get('schema') == 'owned-rpc-retained-cut/1' else row['native']
+
+
+def cut_evidence(native, request, original, bindings):
+    exact(bindings, ('contract', 'activation', 'complete'))
+    evidence = {name: c.read_pinned(pin) for name, pin in bindings.items()}
+    contract = '\n'.join(['owned-rpc-legacy-handoff-v1', request['nonce'], original['windowsBoot'],
+                         str(native['origin']), str(native['deadline']), request['binaries']['entry']['sha256'],
+                         'legacy-memory-cut-seed-v1', native['manifest'], '']).encode()
+    if (evidence['contract'] != contract or c.protocol.decode(evidence['activation']) != native['inventory']['seed']
+            or evidence['complete'] != c.protocol.sha(evidence['activation']).encode('ascii')):
+        raise ValueError('Exact native contract/activation/completion evidence differs')
+    return evidence
+
+
+def retained_source(retained, successor_binding, channel):
+    """Historical evidence only: Windows must still prove no provider call.
+
+    Only a first expired definition is supported. No local reply, exit status or
+    absence of a file on this host establishes remote settlement or exact death.
+    """
+    exact(retained, ('clock', 'cutResult', 'collectedCut'))
+    old = c.inspect_historical(retained['clock']);new = c.validate(successor_binding)
+    if (old['bootId'] != new['bootId'] or old['windowsBoot'] != new['windowsBoot']
+            or old['attempt'] == new['attempt'] or old['vmAttempt'] == new['vmAttempt'] or old['instance'] == new['instance']
+            or old['deadlineMonotonicNs'] > new['originMonotonicNs'] or old['deadlineUtcNs'] > new['createdUtcNs']
+            or old['windowsDeadlineMilliseconds'] > new['windowsOriginMilliseconds']):
+        raise ValueError('Distinct successor after expired predecessor on original boots required')
+    journal = c.directory(Path(retained['clock']['path']).parent)
+    cut = validate_previous({'phase': 'define', 'previous': retained['cutResult'], 'clock': retained['clock'],
+                             'transport': channel, 'nonce': new['vmAttempt']}, old, journal)
+    if cut.get('schema') != 'owned-rpc-windows-transition/1':raise ValueError('Original completed cut required')
+    request = c.protocol.decode(c.read(journal / 'windows-cut-seed' / 'request.json'))
+    if request['clock'] != retained['clock'] or request['phase'] != 'cut-seed' or request['previous'] is not None:
+        raise ValueError('Original cut request lineage differs')
+    native = cut['native'];validate_reply(native, 'cut-seed', request, old, native['origin'], native['deadline'])
+    submit = c.protocol.decode(c.read(journal / 'windows-cut-seed' / 'submit.intent'))
+    if ((submit['origin'], submit['deadline']) != (native['origin'], native['deadline'])
+            or not old['windowsOriginMilliseconds'] <= native['origin'] < native['deadline'] <= old['windowsDeadlineMilliseconds']
+            or native['deadline'] - native['origin'] > 30000):raise ValueError('Original cut interval differs')
+    # Re-read the authenticated collection, not caller-created evidence bytes.
+    folder = journal / 'windows-files-collect-cut'
+    if retained['collectedCut'].get('path') != str(folder / 'RESULT.json'):raise ValueError('Exact original cut collection required')
+    collected = c.protocol.decode(c.read_pinned(retained['collectedCut']))
+    cfg = c.protocol.decode(c.read(folder / 'configuration.json'))
+    wire = c.read(folder / 'request.json');wire_row = c.protocol.decode(wire)
+    sent = c.protocol.decode(c.read(folder / 'submit.intent'))
+    if (collected.get('schema') != 'owned-rpc-windows-files/1' or collected['clock'] != retained['clock']
+            or collected['result']['cutResult'] != retained['cutResult']
+            or any(collected.get(k) is not False for k in ('rpcReady', 'remoteDeathProven', 'reservationMayRelease'))
+            or cfg['clock'] != retained['clock'] or cfg['transport'] != channel or cfg['cutResult'] != retained['cutResult']
+            or collected['response']['path'] != str(folder / 'response.json') or sent['requestSha256'] != c.protocol.sha(wire)):
+        raise ValueError('Original authenticated collection lineage differs')
+    reply = c.protocol.decode(c.read_pinned(collected['response']))
+    if (reply.get('schema') != 'owned-rpc-transition-files-result/1' or reply.get('operation') != 'collect-cut'
+            or reply.get('nonce') != cfg['nonce'] or reply.get('requestHash') != c.protocol.sha(wire)
+            or reply.get('windowsBoot') != old['windowsBoot'] or reply.get('vmAttempt') != old['vmAttempt']
+            or (reply.get('origin'), reply.get('deadline')) != (sent['origin'], sent['deadline'])
+            or any(reply.get(k) is not False for k in ('vmChanged', 'rpcReady', 'reservationMayRelease'))):
+        raise ValueError('Original authenticated collection response differs')
+    bindings = collected['result']['cutEvidence'];evidence = cut_evidence(native, request, old, bindings)
+    payload = {'root': native['root'], 'contractHash': c.protocol.sha(evidence['contract']), 'activation': native['inventory']['seed']}
+    if wire_row != {'schema': 'owned-rpc-transition-files/1', 'operation': 'collect-cut', 'nonce': cfg['nonce'],
+                    'windowsBoot': old['windowsBoot'], 'vmAttempt': old['vmAttempt'],
+                    'origin': old['windowsOriginMilliseconds'], 'deadline': old['windowsDeadlineMilliseconds'],
+                    'payload': payload} or reply['result'].get('root') != native['root']:
+        raise ValueError('Original collected namespace differs')
+    records = reply['result']['files']
+    if not isinstance(records, list) or len(records) != 3:raise ValueError('Exact collected records required')
+    actual = {}
+    for record in records:
+        exact(record, ('name', 'bytes', 'sha256', 'base64'));raw = base64.b64decode(record['base64'], validate=True)
+        if record['name'] in actual or len(raw) != record['bytes'] or c.protocol.sha(raw) != record['sha256']:
+            raise ValueError('Original collected bytes changed')
+        actual[record['name']] = raw
+    names = ('contract.txt', 'pool.activation', 'pool.complete');keys = ('contract', 'activation', 'complete')
+    if actual != dict(zip(names, (evidence[k] for k in keys))):raise ValueError('Original collected evidence differs')
+    for key, name in zip(keys, names):
+        if bindings[key]['path'] != str(folder / name):raise ValueError('Original collected file location differs')
+    # Bind the consumed definition command to its exact native worker contract.
+    prior_folder = journal / 'windows-define';prior_raw = c.read(prior_folder / 'request.json');prior = c.protocol.decode(prior_raw)
+    exact(prior, ('clock', 'transport', 'phase', 'nonce', 'binaries', 'observation', 'input', 'previous'))
+    if (prior['clock'] != retained['clock'] or prior['transport'] != channel or prior['phase'] != 'define'
+            or prior['previous'] != retained['cutResult'] or prior['nonce'] in (request['nonce'], new['attempt'], new['vmAttempt'])):
+        raise ValueError('Original definition request differs')
+    c.hex32(prior['nonce']);exact(prior['binaries'], ('controller', 'entry'))
+    for key, filename in zip(('controller', 'entry'), IMAGES['define']):image(prior['binaries'][key], filename)
+    plan_raw = staged(prior['input'], 'definition-plan.txt');plan = definition(plan_raw, old)
+    observed_raw = staged(prior['observation'], 'observation.json');observed = observation(observed_raw, old)
+    if (plan[3] != c.protocol.sha(observed_raw) or 'unsubmittedPredecessor' in observed
+            or observed['legacyCutSeed']['contractHash'] != c.protocol.sha(evidence['contract'])
+            or observed['legacyCutSeed']['activationHash'] != c.protocol.sha(evidence['activation'])
+            or observed['sharedPhysicalPool']['configHash'] != native['inventory']['seed']['poolHash']):
+        raise ValueError('Original definition does not bind original cut')
+    sent = c.protocol.decode(c.read(prior_folder / 'submit.intent'));origin, deadline = c.integer(sent['origin']), c.integer(sent['deadline'])
+    if (sent['requestSha256'] != c.protocol.sha(prior_raw) or sent['outcome'] != 'unresolved'
+            or not old['windowsOriginMilliseconds'] <= origin < deadline <= old['windowsDeadlineMilliseconds'] or deadline - origin > 30000):
+        raise ValueError('Original definition submit interval differs')
+    args = [prior['binaries']['controller']['path'], '--target', prior['binaries']['entry']['path'], prior['binaries']['entry']['sha256'],
+            prior['nonce'], 'define', prior['observation']['path'], prior['observation']['binding']['sha256'],
+            prior['input']['path'], prior['input']['binding']['sha256'], str(origin), str(deadline)]
+    if sent['command'] != ' '.join(args):raise ValueError('Original definition submitted command differs')
+    for path in (prior_folder / 'RESULT.json', journal / 'windows-boot', journal / 'windows-start-once', journal / 'windows-files-copy-media'):
+        if path.exists() or path.is_symlink():raise ValueError('Later original definition/boot state remains held')
+    worker = '\n'.join(['owned-rpc-definition-worker-v1', prior['nonce'], old['windowsBoot'], str(origin), str(deadline),
+                        prior['binaries']['entry']['sha256'], 'define', plan[5] + '\\definition-plan.txt', c.protocol.sha(plan_raw), '']).encode()
+    guard = {'schema': 'owned-rpc-unsubmitted-predecessor/1',
+             'contractPath': 'C:\\EnclaveRpcDefinition-' + prior['nonce'] + '\\' + prior['nonce'] + '\\contract.txt',
+             'contractHash': c.protocol.sha(worker), 'producerHash': prior['binaries']['entry']['sha256']}
+    c.validate(successor_binding)
+    return {'retainedNative': native, 'cutEvidence': bindings, 'unsubmittedPredecessor': guard,
+            'priorDefinitionRequestSha256': c.protocol.sha(prior_raw), 'priorWorkerNonce': prior['nonce'], 'priorCutNonce': request['nonce']}
+
+
+def adopt_retained_cut(config):
+    """Publish one explicit local adoption; no native cut or provider call."""
+    exact(config, ('clock', 'transport', 'retained'));source = retained_source(config['retained'], config['clock'], config['transport'])
+    original = c.validate(config['clock']);parent = c.directory(Path(config['clock']['path']).parent);root = parent / 'retained-cut'
+    root.mkdir(mode=0o700);c.sync_directory(parent)
+    request = c.write_new(root / 'request.json', c.encode(config))
+    c.write_new(root / 'adopt.intent', c.encode({'requestSha256': request['sha256']}))
+    if retained_source(config['retained'], config['clock'], config['transport']) != source:raise ValueError('Retained evidence changed during adoption')
+    return c.write_new(root / 'RESULT.json', c.encode({'schema': 'owned-rpc-retained-cut/1', 'clock': config['clock'],
+        'attempt': original['attempt'], 'vmAttempt': original['vmAttempt'], 'requestSha256': request['sha256'], **source,
+        'nativeCutSubmitted': False, 'nativePredecessorVerified': False, 'capacityAdmitted': False, 'rpcReady': False, 'reservationMayRelease': False}))
+
+
+def validate_retained_cut(binding, clock, channel, nonce):
+    original = c.validate(clock);folder = c.directory(Path(clock['path']).parent) / 'retained-cut'
+    if binding.get('path') != str(folder / 'RESULT.json'):raise ValueError('Exact successor retained-cut receipt required')
+    row = c.protocol.decode(c.read_pinned(binding));request_raw = c.read(folder / 'request.json');request = c.protocol.decode(request_raw)
+    exact(request, ('clock', 'transport', 'retained'))
+    if request['clock'] != clock or request['transport'] != channel:raise ValueError('Retained cut channel or successor clock differs')
+    if c.protocol.decode(c.read(folder / 'adopt.intent')) != {'requestSha256': c.protocol.sha(request_raw)}:
+        raise ValueError('Consumed retained cut intent differs')
+    source = retained_source(request['retained'], clock, channel)
+    if nonce in (source['priorWorkerNonce'], source['priorCutNonce']):raise ValueError('Original worker nonce must not be reused')
+    expected = {'schema': 'owned-rpc-retained-cut/1', 'clock': clock, 'attempt': original['attempt'], 'vmAttempt': original['vmAttempt'],
+        'requestSha256': c.protocol.sha(request_raw), **source, 'nativeCutSubmitted': False, 'nativePredecessorVerified': False,
+        'capacityAdmitted': False, 'rpcReady': False, 'reservationMayRelease': False}
+    if row != expected:raise ValueError('Retained cut receipt differs from original evidence')
+    return row
+
 def prepare_definition(config):
     """Bind actual cut evidence into the original Off-only definition inputs.
 
@@ -336,32 +486,33 @@ def prepare_definition(config):
                    'providerSha256', 'cleanupSha256', 'network'))
     original = c.validate(config['clock'])
     journal = c.directory(Path(config['clock']['path']).parent)
-    result_path = journal / 'windows-cut-seed' / 'RESULT.json'
-    if config['cutResult'].get('path') != str(result_path):
-        raise ValueError('Original cut result required')
-    cut = c.protocol.decode(c.read_pinned(config['cutResult']))
-    request = c.protocol.decode(c.read(result_path.parent / 'request.json'))
-    # Reuse the full predecessor evidence verification without creating a phase.
-    validate_previous({'phase': 'define', 'previous': config['cutResult'], 'clock': config['clock'],
-                       'transport': request['transport'], 'nonce': original['vmAttempt']}, original, journal)
-    native = cut['native']
-    validate_reply(native, 'cut-seed', request, original, native['origin'], native['deadline'])
-    exact(config['cutEvidence'], ('contract', 'activation', 'complete'))
-    evidence = {name: c.read_pinned(pin) for name, pin in config['cutEvidence'].items()}
-    expected_contract = '\n'.join(['owned-rpc-legacy-handoff-v1', request['nonce'], original['windowsBoot'],
-                                  str(native['origin']), str(native['deadline']), request['binaries']['entry']['sha256'],
-                                  'legacy-memory-cut-seed-v1', native['manifest'], '']).encode()
+    retained = config['cutResult'].get('path') == str(journal / 'retained-cut' / 'RESULT.json')
+    if retained:
+        source_request = c.protocol.decode(c.read(journal / 'retained-cut' / 'request.json'))
+        cut = validate_retained_cut(config['cutResult'], config['clock'], source_request['transport'], original['vmAttempt'])
+        if config['cutEvidence'] != cut['cutEvidence']:
+            raise ValueError('Successor must retain exact original collected evidence')
+        historical = source_request['retained']
+        old = c.inspect_historical(historical['clock'])
+        request = c.protocol.decode(c.read(Path(historical['cutResult']['path']).parent / 'request.json'))
+    else:
+        result_path = journal / 'windows-cut-seed' / 'RESULT.json'
+        if config['cutResult'].get('path') != str(result_path):raise ValueError('Original cut result required')
+        request = c.protocol.decode(c.read(result_path.parent / 'request.json'))
+        cut = validate_previous({'phase': 'define', 'previous': config['cutResult'], 'clock': config['clock'],
+                                'transport': request['transport'], 'nonce': original['vmAttempt']}, original, journal)
+        old = original
+    native = cut_native(cut)
+    validate_reply(native, 'cut-seed', request, old, native['origin'], native['deadline'])
+    evidence = cut_evidence(native, request, old, config['cutEvidence'])
     activation = c.protocol.decode(evidence['activation'])
     activation_hash = c.protocol.sha(evidence['activation'])
-    if (evidence['contract'] != expected_contract or activation != native['inventory']['seed']
-            or evidence['complete'] != activation_hash.encode('ascii')):
-        raise ValueError('Exact native contract/activation/completion evidence differs')
     c.protocol.digest(activation['poolHash'])
     windows_path(activation['configPath'], 'pool.txt')
     c.integer(activation['capacityBytes'])
     obs_raw = c.read_pinned(config['observation'])
     admission = observation(obs_raw, original)
-    if any(key in admission for key in ('legacyCutSeed', 'sharedPhysicalPool', 'bootNetwork', 'startupCleanup')):
+    if any(key in admission for key in ('legacyCutSeed', 'sharedPhysicalPool', 'bootNetwork', 'startupCleanup', 'unsubmittedPredecessor')):
         raise ValueError('Observation must not contain preexisting admission bindings')
     for key in ('providerSha256', 'cleanupSha256'):
         c.protocol.digest(config[key])
@@ -395,6 +546,7 @@ def prepare_definition(config):
         bootNetwork=dict(network),
         startupCleanup={'schema': 'owned-rpc-startup-cleanup/1', 'imageHash': config['cleanupSha256'],
                         'reservedBytes': 192 * 1048576})
+    if retained:admission['unsubmittedPredecessor'] = cut['unsubmittedPredecessor']
     admission_raw = c.encode(admission)
     vm_root = 'C:\\EnclaveRpcVm-' + original['vmAttempt'] + '\\' + original['vmAttempt']
     plan = '\n'.join(['owned-rpc-definition/1', original['vmAttempt'], original['windowsBoot'],
@@ -416,6 +568,7 @@ def prepare_definition(config):
     if c.read_pinned(config['observation']) != obs_raw or c.read_pinned(config['media']) != media_raw:
         raise ValueError('Observation or media changed during preparation')
     c.read_pinned(config['cutResult'])
+    if retained:validate_retained_cut(config['cutResult'], config['clock'], source_request['transport'], original['vmAttempt'])
     c.validate(config['clock'])
     return c.write_new(root / 'RESULT.json', c.encode({
         'schema': 'owned-rpc-definition-inputs/1', 'clock': config['clock'], 'cutResult': config['cutResult'],
