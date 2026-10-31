@@ -607,3 +607,18 @@ boot preparation, start authorization or RPC readiness. Hosted Windows CI4117929
 Compilation took1540ms and the harness230ms; all7 compiled-source pins matched.
 Provider calls were fakes: native property support/readback, actual VM creation
 and production integration remain unqualified. No native VM has been created.
+
+
+### Protected definition worker (qualification pending)
+
+`DefinitionWorkerEntry.cs` and `DefinitionWorkerController.cs` connect the Off-only
+definition transaction to independently bounded SYSTEM owner/observer/child roles.
+A separate immutable definition plan retains the original900s startup deadline.
+The pre-definition capacity path requires the actual completed legacy cut and
+exact initial pool/inventory. It never fabricates a VM GUID or zero pending work.
+Definition allocates no resident RAM; the existing start path must acquire and
+consume the full20GiB claim after the real GUID is returned.
+
+The controller does not attach media, start a VM or publish a start permit.
+Reconciliation cannot resubmit creation. Protected fixtures and compilation are
+pending; production activation, native settings and startup remain unqualified.

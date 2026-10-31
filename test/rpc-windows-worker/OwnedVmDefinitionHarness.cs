@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using System.Text;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Runtime.InteropServices;
 using Enclave.OwnedRpc;
 public static class OwnedVmDefinitionHarness {
@@ -37,7 +40,40 @@ public static class OwnedVmDefinitionHarness {
   public void RequireOwnedOff(OwnedVmDefinitionPlan p,string guid){Off++;Check(Journal.Read("definition.system")!=null&&guid==Id);if(WrongOff)throw new Exception("Owned Off readback differs");}
  }
  sealed class Case {public OwnedVmDefinitionPlan P=Plan();public Journal J=new Journal();public Runtime R=new Runtime();public Provider V;public Case(){V=new Provider(J);OwnedVmDefinition.Prepare(P,J);}public DefinitionOutcome Run(){return OwnedVmDefinition.Submit(P,J,V,R);}public DefinitionOutcome Read(){return OwnedVmDefinition.Reconcile(P,J,V,R);}}
- public static int Main(){try{
+ static byte[] fixtureImage;
+ static void DirectoryNew(string path){var a=new DirectorySecurity();a.SetOwner(new SecurityIdentifier("S-1-5-32-544"));a.SetAccessRuleProtection(true,false);foreach(string sid in new[]{"S-1-5-18","S-1-5-32-544"})a.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid),FileSystemRights.FullControl,InheritanceFlags.ContainerInherit|InheritanceFlags.ObjectInherit,PropagationFlags.None,AccessControlType.Allow));Directory.CreateDirectory(path,a);}
+ static void Put(string path,byte[] bytes){var a=new FileSecurity();a.SetOwner(new SecurityIdentifier("S-1-5-32-544"));a.SetAccessRuleProtection(true,false);foreach(string sid in new[]{"S-1-5-18","S-1-5-32-544"})a.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid),FileSystemRights.FullControl,AccessControlType.Allow));using(var f=new FileStream(path,FileMode.CreateNew,FileSystemRights.WriteData,FileShare.None,4096,FileOptions.WriteThrough,a)){f.Write(bytes,0,bytes.Length);f.Flush(true);}}
+ sealed class ProtectedCase {
+  internal readonly string Contract,Hash,PlanPath,PlanHash;internal readonly OwnedVmDefinitionPlan P;
+  internal ProtectedCase(string op="define",bool wrongHash=false,bool expired=false,bool wrongBoot=false){
+   string n=Guid.NewGuid().ToString("N"),b=ProtectedAttempt.CurrentBoot(),basePath=Path.GetPathRoot(Environment.SystemDirectory),parent=Path.Combine(basePath,"rpc-definition-ci-"+n),root=Path.Combine(parent,n);
+   DirectoryNew(parent);DirectoryNew(root);Put(Path.Combine(root,"entry.exe"),fixtureImage);
+   string id=Guid.NewGuid().ToString("N"),vp=Path.Combine(basePath,"EnclaveRpcVm-"+id),vr=Path.Combine(vp,id);DirectoryNew(vp);DirectoryNew(vr);
+   long now=BoundedWorker.MonotonicMilliseconds(),origin=expired?now-899999:now;
+   P=new OwnedVmDefinitionPlan(id,wrongBoot?new string('b',32):b,new string('c',64),ProtectedAttempt.Hash(fixtureImage),vr,origin,origin+900000,new string('e',64),new string('f',64));
+   PlanPath=Path.Combine(vr,"definition-plan.txt");byte[] plan=Encoding.UTF8.GetBytes(P.Encode());PlanHash=wrongHash?new string('0',64):ProtectedAttempt.Hash(plan);Put(PlanPath,plan);
+   byte[] c=Encoding.UTF8.GetBytes("owned-rpc-definition-worker-v1\n"+n+"\n"+b+"\n"+now+"\n"+(now+20000)+"\n"+ProtectedAttempt.Hash(fixtureImage)+"\n"+op+"\n"+PlanPath+"\n"+PlanHash+"\n");
+   Contract=Path.Combine(root,"contract.txt");Hash=ProtectedAttempt.Hash(c);Put(Contract,c);
+  }
+  internal ProtectedAttempt Lease(){return ProtectedAttempt.PinDefinitionController(Contract,Hash);}
+ }
+ static void ProtectedTests(){
+  Test("plan-canonical-roundtrip",()=>Check(OwnedVmDefinitionPlan.Parse(Plan().Encode()).Encode()==Plan().Encode()));
+  Test("plan-extra-field-refused",()=>Refuse(()=>OwnedVmDefinitionPlan.Parse(Plan().Encode()+"x")));
+  Test("plan-total-substitution-refused",()=>Refuse(()=>OwnedVmDefinitionPlan.Parse(Plan().Encode().Replace("support=1073741824","support=0"))));
+  Test("protected-definition-plan-and-consumed-journal",()=>{var c=new ProtectedCase();using(var a=c.Lease())using(var p=ProtectedAttempt.PinDefinitionJournalController(c.PlanPath,c.PlanHash,a)){Check(p.DefinitionPlan.Encode()==c.P.Encode());var j=new OwnedDefinitionJournal(p);OwnedVmDefinition.Prepare(c.P,j);Refuse(()=>OwnedVmDefinition.Prepare(c.P,j));Check(j.Read("definition.intent")==c.P.Encode());}});
+  Test("definition-contract-not-inert-authority",()=>{var c=new ProtectedCase();Refuse(()=>{using(var a=ProtectedAttempt.PinController(c.Contract,c.Hash)){};});});
+  Test("definition-contract-not-start-authority",()=>{var c=new ProtectedCase();Refuse(()=>{using(var a=ProtectedAttempt.PinProviderController(c.Contract,c.Hash)){};});});
+  Test("definition-unknown-operation-refused",()=>{var c=new ProtectedCase("start");Refuse(()=>{using(var a=c.Lease()){};});});
+  Test("protected-definition-wrong-plan-hash",()=>{var c=new ProtectedCase("define",true);using(var a=c.Lease())Refuse(()=>{using(var p=ProtectedAttempt.PinDefinitionJournalController(c.PlanPath,c.PlanHash,a)){};});});
+  Test("definition-worker-cannot-extend-original900s",()=>{var c=new ProtectedCase("define",false,true);using(var a=c.Lease())Refuse(()=>{using(var p=ProtectedAttempt.PinDefinitionJournalController(c.PlanPath,c.PlanHash,a)){};});});
+  Test("definition-plan-other-boot-refused",()=>{var c=new ProtectedCase("define",false,false,true);using(var a=c.Lease())Refuse(()=>{using(var p=ProtectedAttempt.PinDefinitionJournalController(c.PlanPath,c.PlanHash,a)){};});});
+  Test("reconcile-can-record-observation-but-never-submit",()=>{var c=new ProtectedCase("definition-reconcile");using(var a=c.Lease())using(var p=ProtectedAttempt.PinDefinitionJournalController(c.PlanPath,c.PlanHash,a)){var j=new OwnedDefinitionJournal(p);Refuse(()=>OwnedVmDefinition.Prepare(c.P,j));Refuse(()=>j.WriteOnce("definition.native","x"));Refuse(()=>j.WriteOnce("definition.receipt","x"));j.WriteOnce("definition.job","fixture-observation");Check(j.Read("definition.job")=="fixture-observation");}});
+  Test("definition-journal-cannot-publish-start",()=>{var c=new ProtectedCase();using(var a=c.Lease())using(var p=ProtectedAttempt.PinDefinitionJournalController(c.PlanPath,c.PlanHash,a)){var j=new OwnedDefinitionJournal(p);Refuse(()=>j.WriteOnce("start.intent","x"));Refuse(()=>j.WriteOnce("definition.intent","x"));}});
+  Test("controller-requires-exclusive-fixed-vm-root",()=>{var c=new ProtectedCase();Check(DefinitionWorkerController.DefinitionRoot(c.P)==Path.GetDirectoryName(c.P.Root));Refuse(()=>DefinitionWorkerController.DefinitionRoot(Plan()));});
+ }
+ public static int Main(string[] args){try{
+  if(args.Length!=1)throw new ArgumentException("Exact compiled entry fixture required");fixtureImage=File.ReadAllBytes(args[0]);if(fixtureImage.Length>262144)throw new ArgumentException("Fixture image bound");
   BoundedWorker.EnterSupervisorEnvelope(256UL*1024*1024);long end=BoundedWorker.MonotonicMilliseconds()+9000;new Thread(()=>{while(BoundedWorker.MonotonicMilliseconds()<end)Thread.Sleep(5);TerminateProcess(GetCurrentProcess(),124);}){IsBackground=true}.Start();
   Test("synchronous-return-persists-guid-before-off-query",()=>{var c=new Case();var r=c.Run();Check(r.Guid==Id&&r.DefinitionSettled&&!r.StartAuthorized&&!r.ReservationMayRelease&&c.V.Defines==1&&c.V.Reads==0&&c.V.Off==1);});
   Test("lost-response-remains-held",()=>{var c=new Case();c.V.Lose=true;Refuse(()=>c.Run());Check(c.Read().State=="response-lost-held"&&c.V.Defines==1);});
@@ -71,6 +107,7 @@ public static class OwnedVmDefinitionHarness {
   Test("missing-vcpu-readback-refused",()=>Refuse(()=>HyperVOwnedDefinition.RequireProcessors(new object[]{})));
   Test("duplicate-vcpu-readback-refused",()=>Refuse(()=>HyperVOwnedDefinition.RequireProcessors(new object[]{(ulong)4,(ulong)4})));
   Test("plan-overflow-refused",()=>Refuse(()=>new OwnedVmDefinitionPlan(new string('a',32),new string('b',32),new string('c',64),new string('d',64),@"C:\OwnedRpcFixture\"+new string('a',32),Int64.MaxValue,Int64.MaxValue,new string('e',64),new string('f',64))));
+  ProtectedTests();
   Console.WriteLine("RESULT tests="+count+" providerCallsAreFakes=true vmChanged=false");return 0;
  }catch(Exception e){Console.Error.WriteLine(e);return 1;}}
 }

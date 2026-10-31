@@ -15,9 +15,9 @@ internal sealed class WindowsStartAdmission {
     // Whole stack + prospective apps + real host floor + variation + extra
     // transient startup overhead. Existing VM allocations are already in free.
     internal const long Required=20*GiB+39388*MiB+18*GiB+GiB+512*MiB;
-    readonly ProtectedAttempt vm;readonly long began;readonly LegacyHandoff.Completion completed;
+    readonly ProtectedAttempt vm;readonly string admissionHash;readonly long began;readonly LegacyHandoff.Completion completed;
     readonly JavaScriptSerializer Json=new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32};
-    WindowsStartAdmission(ProtectedAttempt vm,LegacyHandoff.Completion completed){this.vm=vm;this.completed=completed;began=BoundedWorker.MonotonicMilliseconds();}
+    WindowsStartAdmission(ProtectedAttempt vm,string admissionHash,LegacyHandoff.Completion completed){this.vm=vm;this.admissionHash=admissionHash;this.completed=completed;began=BoundedWorker.MonotonicMilliseconds();}
     void CheckTime(){vm.CheckDeadline();long now=BoundedWorker.MonotonicMilliseconds();if(now<began||now-began>2000)throw new TimeoutException("Aggregate start observation exceeds two seconds");}
     static Dictionary<string,object> Obj(object value){var d=value as Dictionary<string,object>;if(d==null)throw new InvalidOperationException("Object required");return d;}
     static IList Rows(object value){var a=value as IList;if(a==null||a.Count>128)throw new InvalidOperationException("Row bound");return a;}
@@ -90,7 +90,7 @@ internal sealed class WindowsStartAdmission {
     void Read() {
         var os=One("SELECT LastBootUpTime,TotalVisibleMemorySize,FreePhysicalMemory FROM Win32_OperatingSystem",new[]{"LastBootUpTime","TotalVisibleMemorySize","FreePhysicalMemory"});
         long free=checked(Convert.ToInt64(os["FreePhysicalMemory"])*1024);
-        byte[] raw=vm.ReadAdmission(vm.VmPermit.AdmissionHash);
+        byte[] raw=vm.ReadAdmission(admissionHash);
         var result=Obj(Json.DeserializeObject(new UTF8Encoding(false,true).GetString(raw)));
         var obs=Obj(result["observation"]);var manager=Obj(obs["manager"]);
         if(Num(result["rc"])!=0||result["failure"]!=null||!Yes(result["readOnly"])||Num(obs["nodeExit"])!=0||!Yes(manager["completeTransport"])||Rows(manager["errors"]).Count!=0)
@@ -136,7 +136,19 @@ internal sealed class WindowsStartAdmission {
             if(completed==null)completed=new LegacyHandoff.Completion(Obj(binding),Obj(reviewed["sharedPhysicalPool"]),reader,vm);
             else completed.Verify();
         }else if(completed!=null)throw new InvalidOperationException("Completed handoff mode cannot disappear");
-        new WindowsStartAdmission(vm,completed).Read();
+        new WindowsStartAdmission(vm,vm.VmPermit.AdmissionHash,completed).Read();
+    }
+    // Definition is an Off-only operation and has no GUID or RAM claim yet.
+    // Require the actual completed cut and INITIAL pool, never a fabricated VM
+    // permit or missing-health fallback. Start separately consumes the full claim.
+    internal static void VerifyDefinition(ProtectedAttempt plan,string hash,ProtectedAttempt reader,ref LegacyHandoff.Completion completed){
+        if(plan==null||reader==null||reader.LeaseProfile!="definition"||reader.Operation!="define")throw new ArgumentException("Protected definition context required");
+        plan.CheckDeadline();reader.CheckDeadline();
+        var reviewed=Obj(new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32}.DeserializeObject(new UTF8Encoding(false,true).GetString(plan.ReadAdmission(hash))));
+        object binding;if(!reviewed.TryGetValue("legacyCutSeed",out binding))throw new InvalidOperationException("Completed cut required before definition");
+        if(completed==null)completed=new LegacyHandoff.Completion(Obj(binding),Obj(reviewed["sharedPhysicalPool"]),reader);
+        else completed.Verify();
+        new WindowsStartAdmission(plan,hash,completed).Read();
     }
     internal static HostPhysicalPool AcquireShared(ProtectedAttempt vm,StartIdentity id,long workerDeadline,out PhysicalClaim claim) {
         vm.CheckDeadline();vm.VmPermit.Bind(id,vm.ContractHash);

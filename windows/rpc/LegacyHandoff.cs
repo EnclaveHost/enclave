@@ -297,15 +297,19 @@ namespace Enclave.OwnedRpc {
    HostPhysicalPool pool;LegacyTemplateFence.HeldDenial denial;SortedDictionary<string,MemoryRecord> current;
    internal readonly string Receipt;
    bool disposed;
-   internal Completion(Dictionary<string,object> binding,Dictionary<string,object> shared,ProtectedAttempt reader,ProtectedAttempt vm){
+   internal Completion(Dictionary<string,object> binding,Dictionary<string,object> shared,ProtectedAttempt reader,ProtectedAttempt vm)
+    : this(binding,shared,reader,vm==null?null:vm.VmPermit,vm==null?null:vm.ContractHash,false) {}
+   internal Completion(Dictionary<string,object> binding,Dictionary<string,object> shared,ProtectedAttempt reader)
+    : this(binding,shared,reader,null,null,true) {}
+   Completion(Dictionary<string,object> binding,Dictionary<string,object> shared,ProtectedAttempt reader,OwnedVmPermit owned,string permitHash,bool beforeDefinition){
     Keys(binding,"schema","contractPath","contractHash","activationHash","manifestHash","producerHash","creationMode");
     if(Str(binding["schema"])!="legacy-cut-seed-admission/1"||Str(binding["creationMode"])!="retained-fenced-rpc-only/1")throw new InvalidOperationException("Exact first-RPC handoff mode required");
     Keys(shared,"schema","configPath","configHash","capacityBytes");
-    if(Str(shared["schema"])!="host-physical-pool-binding/1"||vm==null||vm.VmPermit==null)throw new InvalidOperationException("RPC permit/shared pool required");
-    permit=vm.VmPermit;Receipt=Str(binding["activationHash"]);StartIdentity.Hex(Receipt,64);
+    if(Str(shared["schema"])!="host-physical-pool-binding/1"||reader==null||(!beforeDefinition&&owned==null)||(beforeDefinition&&(owned!=null||reader.LeaseProfile!="definition")))throw new InvalidOperationException("RPC permit/shared pool required");
+    permit=owned;Receipt=Str(binding["activationHash"]);StartIdentity.Hex(Receipt,64);
     try{
      evidence=ProtectedAttempt.OpenCompletedHandoff(Str(binding["contractPath"]),Str(binding["contractHash"]),reader);
-     if(evidence.PermitHash!=Str(binding["manifestHash"])||evidence.ExecutableHash!=Str(binding["producerHash"])||evidence.Boot!=permit.Boot)throw new InvalidOperationException("Reviewed completed producer differs");
+     if(evidence.PermitHash!=Str(binding["manifestHash"])||evidence.ExecutableHash!=Str(binding["producerHash"])||evidence.Boot!=(permit==null?reader.Boot:permit.Boot))throw new InvalidOperationException("Reviewed completed producer differs");
      work=new LegacyHandoff(evidence,()=>reader.CheckDeadline());
      string activation=evidence.ReadOnce("pool.activation"),cutRaw=evidence.ReadOnce("handoff.cut"),inventory=evidence.ReadOnce("handoff.inventory");
      if(ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(activation))!=Receipt||evidence.ReadOnce("pool.complete")!=Receipt)throw new InvalidOperationException("Reviewed seed completion differs");
@@ -323,7 +327,7 @@ namespace Enclave.OwnedRpc {
      var index=new List<string>();long sum=0;
      for(int n=0;n<count;n++){
       string raw=evidence.ReadOnce("vm-"+(char)('a'+n/26)+(char)('a'+n%26));var row=Obj(work.json.DeserializeObject(raw));Keys(row,"guid","maximumBytes","memory","cutAt","manifest");
-      string id=Str(row["guid"]);Guid guid;if(!Guid.TryParseExact(id,"D",out guid)||guid.ToString("D")!=id||initial.ContainsKey(id)||id==permit.VmGuid||Num(row["cutAt"])!=cutAt||Str(row["manifest"])!=evidence.PermitHash)throw new InvalidOperationException("Initial VM binding differs");
+      string id=Str(row["guid"]);Guid guid;if(!Guid.TryParseExact(id,"D",out guid)||guid.ToString("D")!=id||initial.ContainsKey(id)||(permit!=null&&id==permit.VmGuid)||Num(row["cutAt"])!=cutAt||Str(row["manifest"])!=evidence.PermitHash)throw new InvalidOperationException("Initial VM binding differs");
       var m=Obj(row["memory"]);Keys(m,"Rule","Bytes","VirtualQuantityMiB","ReservationMiB","LimitMiB","DynamicMemoryEnabled");
       long bytes=Num(m["Bytes"]),quantity=Num(m["VirtualQuantityMiB"]),reservation=Num(m["ReservationMiB"]),limit=Num(m["LimitMiB"]);
       if(Str(m["Rule"])!="fixed-memory-virtual-quantity/1"||!False(m["DynamicMemoryEnabled"])||quantity<=0||quantity>1048576||bytes!=checked(quantity*1048576)||bytes!=Num(row["maximumBytes"])||reservation<0||reservation>quantity||limit<quantity)throw new InvalidOperationException("Initial static memory differs");
@@ -340,7 +344,7 @@ namespace Enclave.OwnedRpc {
      denial=new LegacyTemplateFence.HeldDenial(f[2],f[3],Num(work.master["bytes"]),evidence.Boot,reader.AccessDeadline);
      work.PinReviewedInputs();work.PinReplacement();
      foreach(var pair in initial)claims.Add(new PhysicalClaim(work.seed.Hash,evidence.Boot,"app-legacy",LegacyPoolSeed.ClaimId(evidence.PermitHash,evidence.Boot,pair.Key),pair.Value.Bytes));
-     rpc=new PhysicalClaim(work.seed.Hash,evidence.Boot,"rpc",ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(vm.ContractHash+"\n"+permit.VmGuid)),permit.TotalBytes);
+     if(permit!=null)rpc=new PhysicalClaim(work.seed.Hash,evidence.Boot,"rpc",ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(permitHash+"\n"+permit.VmGuid)),permit.TotalBytes);
      pool=new HostPhysicalPool(Str(shared["configPath"]),work.seed.Hash,reader.AccessDeadline);Verify();
     }catch{Dispose();throw;}
    }
@@ -362,15 +366,15 @@ namespace Enclave.OwnedRpc {
     if(current.Count<initial.Count||current.Count>initial.Count+1)throw new InvalidOperationException("Uncovered current VM allocation");
     foreach(var pair in current){MemoryRecord prior;
      if(initial.TryGetValue(pair.Key,out prior)){if(work.json.Serialize(prior)!=work.json.Serialize(pair.Value))throw new InvalidOperationException("Retained VM configuration changed");}
-     else if(pair.Key!=permit.VmGuid||pair.Value.Bytes!=permit.GuestBytes)throw new InvalidOperationException("Only exact owned RPC may join seed");
+     else if(permit==null||pair.Key!=permit.VmGuid||pair.Value.Bytes!=permit.GuestBytes)throw new InvalidOperationException("Only exact owned RPC may join seed");
     }
     foreach(string id in initial.Keys)if(!current.ContainsKey(id))throw new InvalidOperationException("Retained VM inventory changed");
     VerifyResources();CheckHeld();
    }
-   internal void CheckHeld(){if(disposed)throw new ObjectDisposedException("Completed handoff");work.Check();denial.Verify();pool.VerifyRetainedRpcOnly(claims,rpc);}
+   internal void CheckHeld(){if(disposed)throw new ObjectDisposedException("Completed handoff");work.Check();denial.Verify();if(permit==null)pool.VerifyInitial(claims);else pool.VerifyRetainedRpcOnly(claims,rpc);}
    internal void VerifyResources(){
     CheckHeld();var sample=work.ObserveResident(current);long rpcAssigned;
-    if(sample.Residents.TryGetValue(permit.VmGuid,out rpcAssigned)&&rpcAssigned!=0)throw new InvalidOperationException("RPC already has resident memory before original start");
+    if(permit!=null&&sample.Residents.TryGetValue(permit.VmGuid,out rpcAssigned)&&rpcAssigned!=0)throw new InvalidOperationException("RPC already has resident memory before original start");
     long total=0;foreach(var m in initial.Values)total=checked(total+m.Bytes);
     work.seed.Fit(sample.Physical,sample.Free,total,sample.Assigned);CheckHeld();
    }

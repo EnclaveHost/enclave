@@ -24,6 +24,12 @@ namespace Enclave.OwnedRpc {
    if(Path.GetFileName(root)!=attempt||origin<0||origin>Int64.MaxValue-900000||deadline!=origin+900000)throw new ArgumentException("Original owned definition namespace/time");
    Attempt=attempt;Boot=boot;AdmissionHash=admission;ProviderImageHash=providerImage;Root=root;Origin=origin;Deadline=deadline;BootDiskHash=bootDisk;SeedHash=seed;
   }
+  public static OwnedVmDefinitionPlan Parse(string raw){
+   if(raw==null||Encoding.UTF8.GetByteCount(raw)>4096)throw new ArgumentException("Definition plan bound");
+   string[] f=raw.Split('\n');if(f.Length!=12||f[0]!="owned-rpc-definition/1"||f[10]!="generation-2-ubuntu;guest=20401094656;support=1073741824;vcpus=4;start=false"||f[11]!="")throw new ArgumentException("Exact definition plan schema");
+   var p=new OwnedVmDefinitionPlan(f[1],f[2],f[3],f[4],f[5],Int64.Parse(f[6],NumberStyles.None,CultureInfo.InvariantCulture),Int64.Parse(f[7],NumberStyles.None,CultureInfo.InvariantCulture),f[8],f[9]);
+   if(p.Encode()!=raw)throw new ArgumentException("Canonical definition plan required");return p;
+  }
   public string Encode(){return String.Join("\n",new[]{"owned-rpc-definition/1",Attempt,Boot,AdmissionHash,ProviderImageHash,Root,Origin.ToString(CultureInfo.InvariantCulture),Deadline.ToString(CultureInfo.InvariantCulture),BootDiskHash,SeedHash,"generation-2-ubuntu;guest=20401094656;support=1073741824;vcpus=4;start=false",""});}
   public OwnedVmPermit Permit(string actualGuid){return new OwnedVmPermit(Attempt,Boot,AdmissionHash,ProviderImageHash,actualGuid,ConfigurationRoot,Origin,Deadline,GuestBytes,SupportBytes);}
  }
@@ -193,6 +199,47 @@ namespace Enclave.OwnedRpc {
     var quantities=new List<object>();using(var rows=settings.GetRelated("Msvm_ProcessorSettingData"))foreach(ManagementObject cpu in rows)using(cpu){if(quantities.Count>=2)throw new InvalidOperationException("Processor ambiguity");quantities.Add(cpu["VirtualQuantity"]);}RequireProcessors(quantities);
     int n=0;using(var rows=settings.GetRelated("Msvm_MemorySettingData"))foreach(ManagementObject m in rows)using(m){if(++n>1)throw new InvalidOperationException("Memory ambiguity");var d=new Dictionary<string,object>();foreach(string k in new[]{"ResourceType","ResourceSubType","AllocationUnits","VirtualQuantityUnits","VirtualQuantity","Reservation","Limit","DynamicMemoryEnabled","AutomaticAllocation","SwapFilesInUse"})d[k]=m[k];HyperVStartProvider.RequireGuestMemory(d,OwnedVmDefinitionPlan.GuestBytes);}if(n!=1)throw new InvalidOperationException("Memory absent");
    }runtime.VerifyObservation(p);
+  }
+ }
+}
+
+namespace Enclave.OwnedRpc {
+ public sealed partial class ProtectedAttempt {
+  public readonly OwnedVmDefinitionPlan DefinitionPlan;
+  enum DefinitionJournalKind { FixedOffDefinition }
+  public static ProtectedAttempt OpenDefinitionJournal(string path,string hash,ProtectedAttempt reader){
+   RequireSystem();return new ProtectedAttempt(path,hash,reader,DefinitionJournalKind.FixedOffDefinition,false);
+  }
+  public static ProtectedAttempt PinDefinitionJournalController(string path,string hash,ProtectedAttempt reader){
+   RequireAdministrator();return new ProtectedAttempt(path,hash,reader,DefinitionJournalKind.FixedOffDefinition,true);
+  }
+  private ProtectedAttempt(string path,string hash,ProtectedAttempt reader,DefinitionJournalKind definition,bool controller){
+   if(definition!=DefinitionJournalKind.FixedOffDefinition||reader==null||reader.LeaseProfile!="definition"||reader.PermitPath!=path||reader.PermitHash!=hash)throw new ArgumentException("Exact definition reader binding required");
+   reader.CheckDeadline();LocalPath(path);Hex(hash,64);if(Path.GetFileName(path)!="definition-plan.txt")throw new ArgumentException("Fixed plan filename");
+   Root=Path.GetDirectoryName(path);ContractHash=hash;recordOwner=controller?AdminSid:SystemSid;accessLease=reader;definitionJournal=true;LeaseProfile="definition-journal";
+   try{
+    string current=Path.GetPathRoot(Root);HoldDirectory(current,false);string[] parts=Root.Substring(3).Split('\\');
+    for(int n=0;n<parts.Length;n++){current=Path.Combine(current,parts[n]);HoldDirectory(current,n==parts.Length-1);}
+    byte[] raw=Bytes(HoldRead(path,4096),4096);if(Hash(raw)!=hash)throw new InvalidOperationException("Definition plan digest differs");
+    DefinitionPlan=OwnedVmDefinitionPlan.Parse(Utf8.GetString(raw));var p=DefinitionPlan;
+    Nonce=p.Attempt;Boot=p.Boot;Origin=p.Origin;Deadline=p.Deadline;ExecutableHash=p.ProviderImageHash;
+    if(p.Root!=Root||Path.GetFileName(Root)!=Nonce||Boot!=reader.Boot||Boot!=CurrentBoot()||Origin>reader.Origin)throw new InvalidOperationException("Definition namespace/boot/origin differs");
+    if(reader.Operation=="define"&&(BoundedWorker.MonotonicMilliseconds()<Origin||reader.Deadline>Deadline))throw new InvalidOperationException("Definition worker exceeds original startup window");
+    CheckDeadline();
+   }catch{Dispose();throw;}
+  }
+ }
+ public sealed class OwnedDefinitionJournal:IStartJournal {
+  readonly ProtectedAttempt pin;
+  public OwnedDefinitionJournal(ProtectedAttempt pin){if(pin==null||pin.DefinitionPlan==null||pin.LeaseProfile!="definition-journal")throw new ArgumentException("Held definition plan required");this.pin=pin;pin.CheckDeadline();}
+  public void WriteOnce(string name,string value){
+   if(!ProtectedAttempt.DefinitionRecordAllowed(name,false))throw new InvalidOperationException("Definition record name");
+   if(name=="definition.intent"&&value!=pin.DefinitionPlan.Encode())throw new InvalidOperationException("Definition intent differs from protected plan");
+   pin.WriteOnce(name,value);
+  }
+  public string Read(string name){
+   if(!ProtectedAttempt.DefinitionRecordAllowed(name,false))throw new InvalidOperationException("Definition record name");
+   string v=pin.ReadOptionalOnce(name);if(name=="definition.intent"&&v!=null&&v!=pin.DefinitionPlan.Encode())throw new InvalidOperationException("Consumed definition intent differs");return v;
   }
  }
 }

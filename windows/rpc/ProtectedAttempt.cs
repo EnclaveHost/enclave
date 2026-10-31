@@ -28,6 +28,7 @@ namespace Enclave.OwnedRpc {
         readonly bool guardianOnly;
         readonly bool cleanupAccess;
         readonly bool evidenceOnly;
+        readonly bool definitionJournal;
         readonly string recordOwner;
         bool disposed;
         const string SystemSid="S-1-5-18",AdminSid="S-1-5-32-544";
@@ -174,6 +175,8 @@ namespace Enclave.OwnedRpc {
         }
         public static ProtectedAttempt OpenProviderWorker(string path,string hash) {return new ProtectedAttempt(path,hash,false,"provider");}
         public static ProtectedAttempt PinProviderController(string path,string hash) {RequireAdministrator();return new ProtectedAttempt(path,hash,true,"provider");}
+        public static ProtectedAttempt OpenDefinitionWorker(string path,string hash) {return new ProtectedAttempt(path,hash,false,"definition");}
+        public static ProtectedAttempt PinDefinitionController(string path,string hash) {RequireAdministrator();return new ProtectedAttempt(path,hash,true,"definition");}
         public static ProtectedAttempt OpenLegacyHandoffWorker(string path,string hash) {return new ProtectedAttempt(path,hash,false,"legacy-handoff");}
         public static ProtectedAttempt PinLegacyHandoffController(string path,string hash) {RequireAdministrator();return new ProtectedAttempt(path,hash,true,"legacy-handoff");}
         // Reopen completed records under a CURRENT bounded reader. This never
@@ -222,6 +225,10 @@ namespace Enclave.OwnedRpc {
                 string[] fields=Utf8.GetString(bytes).Split('\n');
                 if(profile=="inert") {
                     if(fields.Length!=8 || fields[0]!="owned-rpc-inert-v1" || fields[6]!="inert-v1" || fields[7]!="")throw new InvalidOperationException("Exact inert contract schema required");
+                } else if(profile=="definition") {
+                    if(fields.Length!=10||fields[0]!="owned-rpc-definition-worker-v1"||(fields[6]!="define"&&fields[6]!="definition-reconcile")||fields[9]!="")throw new InvalidOperationException("Exact definition worker contract required");
+                    Operation=fields[6];PermitPath=LocalPath(fields[7]);PermitHash=fields[8];Hex(PermitHash,64);
+                    if(Path.GetFileName(PermitPath)!="definition-plan.txt")throw new InvalidOperationException("Fixed definition plan path required");
                 } else if(profile=="legacy-handoff") {
                     if(fields.Length!=9||fields[0]!="owned-rpc-legacy-handoff-v1"||(fields[6]!="legacy-memory-cut-v1"&&fields[6]!="legacy-memory-inspect-v1"&&fields[6]!="legacy-memory-cut-seed-v1"&&fields[6]!="legacy-memory-resident-inspect-v1")||fields[8]!="")throw new InvalidOperationException("Exact legacy handoff contract required");
                     Operation=fields[6];PermitPath=Path.Combine(Root,"handoff.json");PermitHash=fields[7];Hex(PermitHash,64);
@@ -262,6 +269,10 @@ namespace Enclave.OwnedRpc {
             if(name==null || name.Length>40)throw new ArgumentException("Message name");
             foreach(char c in name) if(!((c>='a'&&c<='z') || c=='.' || c=='-'))throw new ArgumentException("Message name encoding");
         }
+        internal static bool DefinitionRecordAllowed(string name,bool reconcile) {
+            if(name=="definition.job"||name=="definition.terminal"||name=="definition.system"||name=="definition.off")return true;
+            return !reconcile&&(name=="definition.intent"||name=="definition.submit"||name=="definition.native"||name=="definition.invoke"||name=="definition.receipt");
+        }
         // CreateNew consumes the role before any work. A crash/partial durable write
         // remains consumed and ambiguous. No delete, overwrite, rename or retry API.
         public void WriteOnce(string name,string value) {
@@ -270,6 +281,9 @@ namespace Enclave.OwnedRpc {
             if(guardianOnly) {
                 if(name!="guardian.consumed"&&name!="guardian.request"&&name!="guardian.armed"&&name!="guardian.bound"&&name!="guardian.result")
                     throw new InvalidOperationException("Guardian cannot write provider records");
+            } else if(definitionJournal) {
+                if(!DefinitionRecordAllowed(name,accessLease.Operation=="definition-reconcile"))throw new InvalidOperationException("Fixed definition journal record required");
+                if(accessLease.Operation=="define"&&(BoundedWorker.MonotonicMilliseconds()<Origin||BoundedWorker.MonotonicMilliseconds()>=Deadline))throw new InvalidOperationException("Original definition time expired");
             } else if(accessLease!=null) {
                 if(cleanupAccess) {
                     bool observations=name=="start.job"||name=="start.terminal"||name=="stop.job"||name=="stop.terminal";

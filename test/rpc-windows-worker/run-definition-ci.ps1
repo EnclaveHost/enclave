@@ -12,6 +12,7 @@ $csc=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 if(-not (Test-Path -LiteralPath $csc)){throw 'Exact 64-bit Framework compiler missing; no fallback'}
 $controller=Join-Path $work 'qualification-controller.exe'
 $entry=Join-Path $work 'owned-entry.exe'
+$target=Join-Path $work 'definition-controller.exe'
 $records=New-Object Collections.Generic.List[object]
 function Invoke-FiniteProcess([string]$Executable,[string[]]$Arguments,[int]$DeadlineMs,[string]$Label){
     foreach($a in $Arguments){if($a -match '["\r\n]'){throw 'Unexpected fixture argument'}}
@@ -57,10 +58,17 @@ function Invoke-FiniteProcess([string]$Executable,[string[]]$Arguments,[int]$Dea
     if($failure -or $record.exitCode -ne 0){throw ($Label+' failed: '+($record|ConvertTo-Json -Compress))}
 }
 try{
-    Invoke-FiniteProcess $csc @('/nologo','/target:exe','/platform:x64','/main:OwnedVmDefinitionHarness','/r:System.Management.dll','/r:System.Web.Extensions.dll',('/out:'+$controller),(Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $root 'windows\rpc\ProtectedAttempt.cs'),(Join-Path $root 'windows\rpc\ProviderStart.cs'),(Join-Path $root 'windows\rpc\OwnedVmPermit.cs'),(Join-Path $root 'windows\rpc\OwnedVmDefinition.cs'),(Join-Path $root 'test\rpc-windows-worker\OwnedVmDefinitionHarness.cs')) 20000 'controller-compile'
-    Invoke-FiniteProcess $controller @() 20000 'inert'
+    $sources=@((Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $root 'windows\rpc\ProtectedAttempt.cs'),(Join-Path $root 'windows\rpc\ProviderStart.cs'),(Join-Path $root 'windows\rpc\OwnedVmPermit.cs'),(Join-Path $root 'windows\rpc\OwnedVmDefinition.cs'),(Join-Path $root 'windows\rpc\HostPhysicalPool.cs'),(Join-Path $root 'windows\rpc\WindowsStartAdmission.cs'),(Join-Path $root 'windows\rpc\LegacyTemplateFence.cs'),(Join-Path $root 'windows\rpc\LegacyLaunchCohort.cs'),(Join-Path $root 'windows\rpc\LegacyHandoff.cs'),(Join-Path $root 'windows\rpc\DefinitionWorkerEntry.cs'),(Join-Path $root 'windows\rpc\DefinitionWorkerController.cs'),(Join-Path $root 'test\rpc-windows-worker\OwnedVmDefinitionHarness.cs'))
+    $base=@('/nologo','/target:exe','/platform:x64','/r:System.Management.dll','/r:System.Web.Extensions.dll','/r:Microsoft.CSharp.dll')
+    $production=@($sources|Where-Object{$_ -notlike '*\OwnedVmDefinitionHarness.cs'})
+    if($production.Count -ne 13){throw 'Unexpected target definition closure'}
+    Invoke-FiniteProcess $csc ($base+@('/main:OwnedVmDefinitionHarness',('/out:'+$controller))+$sources) 20000 'controller-compile'
+    Invoke-FiniteProcess $csc ($base+@('/main:Enclave.OwnedRpc.DefinitionWorkerEntry',('/out:'+$entry))+$production) 20000 'entry-compile'
+    Invoke-FiniteProcess $csc ($base+@('/main:DefinitionWorkerController',('/out:'+$target))+$production) 20000 'target-compile'
+    if((Get-Item $entry).Length -gt 262144 -or (Get-Item $target).Length -gt 262144){throw 'Native definition image bound'}
+    Invoke-FiniteProcess $controller @($entry) 20000 'inert'
     $lines=@(Get-Content -LiteralPath (Join-Path $work 'inert.out'))
-    if(@($lines|Where-Object{$_ -like 'PASS *'}).Count -ne 32 -or $lines[-1] -cne 'RESULT tests=32 providerCallsAreFakes=true vmChanged=false'){throw 'Incomplete provider transaction tests'}
+    if(@($lines|Where-Object{$_ -like 'PASS *'}).Count -ne 45 -or $lines[-1] -cne 'RESULT tests=45 providerCallsAreFakes=true vmChanged=false'){throw 'Incomplete provider transaction tests'}
     $lines
 }finally{
     # Helpers have no unbounded loop: sleeps <=5s, allocation <=192MiB. These
@@ -68,19 +76,20 @@ try{
     # and independent process supervisor remain the outer containment boundary.
     # Preserve records on failure; do not use a broad process kill or any VM cleanup.
     $records|ConvertTo-Json -Depth 5|Set-Content -LiteralPath (Join-Path $work 'process-results.json')
-    Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $root 'windows\rpc\ProtectedAttempt.cs'),(Join-Path $root 'windows\rpc\ProviderStart.cs'),(Join-Path $root 'windows\rpc\OwnedVmPermit.cs'),(Join-Path $root 'windows\rpc\OwnedVmDefinition.cs'),(Join-Path $root 'test\rpc-windows-worker\OwnedVmDefinitionHarness.cs'),$csc|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'pins.json')
+    Get-FileHash -Algorithm SHA256 -LiteralPath ($sources+@($csc))|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'pins.json')
     if(Test-Path -LiteralPath $controller){Get-FileHash -Algorithm SHA256 -LiteralPath $controller|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'controller-artifact.json')}
     if(Test-Path -LiteralPath $entry){Get-FileHash -Algorithm SHA256 -LiteralPath $entry|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'entry-artifact.json')}
+    if(Test-Path -LiteralPath $target){Get-FileHash -Algorithm SHA256 -LiteralPath $target|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'target-artifact.json')}
     # Never export the raw work directory. Failed truncation or unexpected compiler
     # output must not turn an always-upload step into unbounded publication.
     $publish=Join-Path $env:RUNNER_TEMP ('rpc-worker-results-'+[guid]::NewGuid().ToString('N'))
     $null=New-Item -ItemType Directory -Path $publish
     $published=New-Object Collections.Generic.List[object];$total=0L
-    foreach($name in @('controller-compile.out','controller-compile.err','entry-compile.out','entry-compile.err','inert.out','inert.err','process-results.json','pins.json','controller-artifact.json','entry-artifact.json','qualification-controller.exe','owned-entry.exe')){
+    foreach($name in @('controller-compile.out','controller-compile.err','entry-compile.out','entry-compile.err','target-compile.out','target-compile.err','target-artifact.json','definition-controller.exe','inert.out','inert.err','process-results.json','pins.json','controller-artifact.json','entry-artifact.json','qualification-controller.exe','owned-entry.exe')){
         $file=Join-Path $work $name
         if(Test-Path -LiteralPath $file){
             $item=Get-Item -LiteralPath $file;$limit=65536L
-            if($name -eq 'qualification-controller.exe' -or $name -eq 'owned-entry.exe'){$limit=262144L}
+            if($name -eq 'qualification-controller.exe' -or $name -eq 'owned-entry.exe' -or $name -eq 'definition-controller.exe'){$limit=262144L}
             if($item.Length -le $limit -and $total+$item.Length -le 1048576){
                 # Exact finite compiler/harness processes have exited before here;
                 # use a bounded held read anyway, not a copy of a mutable path.
