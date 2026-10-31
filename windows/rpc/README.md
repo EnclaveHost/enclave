@@ -970,3 +970,33 @@ This does not prove a full-size private copy, live definition or attachment,
 SYSTEM lifecycle, guest boot, or RPC readiness. The original failed PowerShell
 fixture and its consumed attempt remain preserved. See
 `ops/unified-funding-20261028/rpc-files-collect-copy-target-r2/ROOT-RESULT.md`.
+
+
+## Exact VM endpoint reader (unqualified source candidate)
+
+`VmEndpoint.cs` adds a read-only administrator entrypoint:
+`vm-endpoint.exe <vm-permit.txt> <permit-sha256> <image-sha256> <worker-origin-ms> <worker-deadline-ms> <required-free-bytes>`.
+The caller must first qualify protected executable staging and independently
+admit bootstrap/transport/registration overhead. The native reader requires the
+retained18GiB floor,39388MiB prospective commitments and256MiB reader allowance;
+a higher supplied threshold is retained. It arms an independent native watchdog
+before its128MiB/CPU1 self envelope or WMI/file work; bootstrap snapshot must be
+at most64MiB. This does not prove prior allocation or peak bounds.
+
+It pins the original protected VM permit/boot/source journal, retains the
+original900s and a fresh worker lease at most30s, and reuses the full configured
+boot graph readback with Running required. Existing start `Verify()` still
+requires Off. The fixed NIC's `Msvm_SettingDataComponent` association supplies
+`Msvm_GuestNetworkAdapterConfiguration.IPAddresses`. It checks the graph and
+addresses again within an aggregate2s interval. One canonical unicast IPv4 is
+returned; none means pending, multiple or changing candidates refuse. No subnet
+scan, guessed address, hostname lookup, start/stop or provider mutation occurs.
+[Microsoft association documentation](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-settingdatacomponent)
+explains this read-only NIC association.
+
+The receipt is a host association observation, not guest authentication,
+attestation, RPC readiness, remote death or reservation release. A guest-provided
+address must still pass the separately seeded pinned SSH/boot identity check;
+the complete driver must preserve receipt freshness and exact original lineage.
+The new binary and Running path require hosted compile/finite fixtures, then
+actual target-context qualification. Existing staged binaries are unchanged.

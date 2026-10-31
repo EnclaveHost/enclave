@@ -57,12 +57,19 @@ namespace Enclave.OwnedRpc {
    else if(!Object.Equals(a,b))throw new InvalidOperationException("Boot typed value differs");
   }
   void Current(long began){live();vm.CheckDeadline();long now=BoundedWorker.MonotonicMilliseconds();if(now<began||now-began>2000)throw new InvalidOperationException("Aggregate boot readback exceeds two seconds");}
-  internal void Verify(){
+  internal void Verify(){VerifyState(3);}
+  // Read-only endpoint observation retains the identical configured graph and
+  // ownership checks; the start gate still calls only Verify() requiring Off.
+  internal void VerifyRunning(){VerifyState(2);}
+  internal string NetworkReference {get{return refs["nic"];}}
+  internal string NetworkMac {get{return mac;}}
+  internal string NetworkSwitch {get{return switchGuid;}}
+  void VerifyState(ushort state){
    long began=BoundedWorker.MonotonicMilliseconds();Current(began);var p=vm.VmPermit;var scope=HyperVStartProvider.Scope();
    using(var system=HyperVStartProvider.One(scope,"SELECT * FROM Msvm_ComputerSystem WHERE Name='"+p.VmGuid+"'"))
    using(var settings=HyperVStartProvider.One(scope,"SELECT * FROM Msvm_VirtualSystemSettingData WHERE VirtualSystemIdentifier='"+p.VmGuid+"' AND VirtualSystemType='Microsoft:Hyper-V:System:Realized'"))
    using(var sw=HyperVStartProvider.One(scope,"SELECT * FROM Msvm_VirtualEthernetSwitch WHERE Name='"+switchGuid+"'")){
-    if((string)system["Name"]!=p.VmGuid||(string)system["ElementName"]!=p.VmName||Convert.ToUInt16(system["EnabledState"])!=3)throw new InvalidOperationException("Boot target is not original owned Off VM");
+    if((string)system["Name"]!=p.VmGuid||(string)system["ElementName"]!=p.VmName||Convert.ToUInt16(system["EnabledState"])!=state)throw new InvalidOperationException("Boot target is not original owned VM in required state");
     Same(settings["Notes"],new[]{p.OwnerNote});Same(settings["ConfigurationDataRoot"],p.ConfigurationRoot);Same(settings["VirtualSystemSubType"],"Microsoft:Hyper-V:SubType:2");
     Same(settings["AutomaticStartupAction"],(ushort)2);Same(settings["AutomaticShutdownAction"],(ushort)4);Same(settings["UserSnapshotType"],(ushort)2);Same(settings["AutomaticSnapshotsEnabled"],false);Same(settings["SecureBootEnabled"],true);Same(settings["SecureBootTemplateId"],"272e7447-90a4-4563-a4b9-8e4ab00526ce");
     if((string)sw["Name"]!=switchGuid)throw new InvalidOperationException("Boot switch changed");
@@ -87,7 +94,7 @@ namespace Enclave.OwnedRpc {
       }
      }
     }
-    system.Get();settings.Get();if(Convert.ToUInt16(system["EnabledState"])!=3||(string)system["ElementName"]!=p.VmName)throw new InvalidOperationException("VM changed during boot readback");Same(settings["Notes"],new[]{p.OwnerNote});Same(settings["ConfigurationDataRoot"],p.ConfigurationRoot);
+    system.Get();settings.Get();if(Convert.ToUInt16(system["EnabledState"])!=state||(string)system["ElementName"]!=p.VmName)throw new InvalidOperationException("VM changed during boot readback");Same(settings["Notes"],new[]{p.OwnerNote});Same(settings["ConfigurationDataRoot"],p.ConfigurationRoot);
    }Current(began);
   }
  }
