@@ -1,0 +1,88 @@
+{
+  "sourcePackage": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-runtime-delivery-tests-r1",
+  "files": [
+    {
+      "path": "run.py",
+      "sha256": "64aa125bdbf83d05f8d4c439fceb5e3d9c9aab0d18f01c11a83422340f47251e"
+    },
+    {
+      "path": "capture_local.py",
+      "sha256": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c"
+    },
+    {
+      "path": "qualification-only",
+      "sha256": "1d5ea0fb35de68a5c79d0a33f41cfd2392e54b4bcd15bea9463a804808d496b7"
+    },
+    {
+      "path": "PINS.json",
+      "sha256": "25fc13589ed30cf23e4a30b34f3d39be1d900b046a2e21d9aded8352d7ef6f8f"
+    },
+    {
+      "path": "COMMAND.json",
+      "sha256": "4b768d1f8ea67abd42e7e8f3f80f196d6f6761a85945ece057a319e2614311d5"
+    },
+    {
+      "path": "LAUNCH.txt",
+      "sha256": "e21969c8044292384d06d66896e9fdc9b1ad88e9e6a76d02c290f94a8818d9ab"
+    },
+    {
+      "path": "ATTEMPT.json",
+      "sha256": "e892c1207d797adb1fff53704a3b981d3e1123848dbafab1f0940cd2e87c93a4"
+    },
+    {
+      "path": "TERMINAL.txt",
+      "sha256": "8bea5db14f598b506c88be27601abc2a04c1c53a264b068a61d7e29ef773f3f0"
+    },
+    {
+      "path": "RESULT.json",
+      "sha256": "05245d8981f55d80e19173836c5d532577265b469b3861d20fc5a9ac9bb7a384"
+    },
+    {
+      "path": "ROOT-ADMISSION.md",
+      "sha256": "a9e0b405dd79506f749376e8ee1e6be009a2f141d1765c03c8df3b65649b0b58"
+    },
+    {
+      "path": "ROOT-RESULT.md",
+      "sha256": "2417994ae2fe76a8bd7fae03a7dd16b48819caec124d6757b7031100f512d78a"
+    },
+    {
+      "path": "CURRENT-SEED-COMPATIBILITY.json",
+      "sha256": "70a85c54dfa2fc4a4e7d904a573f3677bcb70d095b1406075ddeeee3995d553f"
+    },
+    {
+      "path": "RUNTIME_DELIVERY-RESULT.json",
+      "sha256": "7903bc83787f71de56bdb6f1526ec6a174306a312870b4cced3416ee4384a63b"
+    },
+    {
+      "path": "RUNTIME-RESULT.json",
+      "sha256": "62a64c6dbb0df5ae5a1fcd4c58633074661a132b299f35c71885c42e8968d1a5"
+    },
+    {
+      "path": "DELIVERY-RESULT.json",
+      "sha256": "f0f1828dc794c59c2afc2876e0166df39b804bf8c4c95cdd6ef6d58f63086d6a"
+    },
+    {
+      "path": "ACTIVATION-RESULT.json",
+      "sha256": "8048e4585154888184f1b0459e41381b7a1cd1ed51add51091f0d64a01a3bb92"
+    },
+    {
+      "path": "GUEST-RESULT.json",
+      "sha256": "d09b99ce1d648d70f95b2d7bb5a782adb387bd4971edc8e61c815ce90abebe63"
+    },
+    {
+      "path": "inner.log",
+      "sha256": "53b3c63432ff8f5ae76c6b21951cd8cb98a28873e451db5ecd52bb71906db24f",
+      "publishedAs": "inner.log.txt",
+      "normalization": "LF"
+    },
+    {
+      "path": "outer.log",
+      "sha256": "aa49afa21b08cc2fcccef8d7cea4ea62403c5f376848d700c7352e51fa989bad",
+      "publishedAs": "outer.log.txt",
+      "normalization": "LF"
+    }
+  ],
+  "frozenInputManifest": "PINS.json",
+  "privateDataIncluded": false,
+  "nativeGuestQualified": false
+}

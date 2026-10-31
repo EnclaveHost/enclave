@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.14621850103139877,
+  "stdout": "",
+  "stderr": "test_actual_process_identity_with_synthetic_kernel_view (__main__.Tests.test_actual_process_identity_with_synthetic_kernel_view) ... ok\ntest_adoption_cannot_extend_or_change_binding (__main__.Tests.test_adoption_cannot_extend_or_change_binding) ... ok\ntest_install_exact_bytes_and_consume_once (__main__.Tests.test_install_exact_bytes_and_consume_once) ... ok\ntest_l1_failure_does_not_start_base (__main__.Tests.test_l1_failure_does_not_start_base) ... ok\ntest_lifetime_dependency_required (__main__.Tests.test_lifetime_dependency_required) ... ok\ntest_partial_install_remains_consumed (__main__.Tests.test_partial_install_remains_consumed) ... ok\ntest_private_key_permissions (__main__.Tests.test_private_key_permissions) ... ok\ntest_sequence_l1_ready_before_base_and_no_rpc_claim (__main__.Tests.test_sequence_l1_ready_before_base_and_no_rpc_claim) ... ok\ntest_source_pin_and_installed_mode_refusal (__main__.Tests.test_source_pin_and_installed_mode_refusal) ... ok\ntest_symlink_and_hardlink_refused (__main__.Tests.test_symlink_and_hardlink_refused) ... ok\ntest_tampered_bundle_before_consumption (__main__.Tests.test_tampered_bundle_before_consumption) ... ok\ntest_unknown_start_response_never_resubmitted (__main__.Tests.test_unknown_start_response_never_resubmitted) ... ok\ntest_wrong_guest_instance (__main__.Tests.test_wrong_guest_instance) ... ok\n\n----------------------------------------------------------------------\nRan 13 tests in 0.033s\n\nOK\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 1455
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

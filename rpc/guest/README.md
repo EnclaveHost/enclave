@@ -353,3 +353,39 @@ prepared guest's cloud-init schema pass. It reuses the same identity and is stag
 with the client boot disk in a new protected NucBox directory; exact source and
 target evidence is in `ops/unified-funding-20261028/rpc-private-media-stage-r2`.
 No automatic service start or live runtime request is added to cloud-init.
+## Owner runtime submission
+
+After authenticated storage activation, `../prepare_runtime.py` produces a
+protected request for the explicit `l1` or `base` phase. `../deliver_runtime.py`
+installs and submits that request once over the seeded, pinned SSH host key.
+Its configuration supplies hash-pinned `runtimeReceipt`, `attachmentReceipt`
+and `seedReceipt`, the observed `guestBootId`, explicit `target` and optional
+`jump` SSH endpoints, `sshSha256`, and a private `journalRoot`. These are the
+actual producer receipts, not transport wrappers. The SSH identity remains local.
+
+The sender reuses the activation delivery transport's strict host-key policy and
+bounded local process-group cleanup. It writes and flushes an exclusive
+attempt/phase journal before one transport call. Input changes, a lost reply or
+an invalid receipt leave the phase consumed. There is no automatic retry, journal
+reset, alternate RPC authority, or implicit adoption.
+
+The fixed owner bootstrap runs in the exact root `enclave-rpc-runtime-PHASE`
+transient unit:64MiB, one CPU, no swap,20seconds, one-second stop escalation.
+It retains PID1's mount namespace, verifies the guest boot and original deadline,
+and checks the five seeded Python import files before loading the runtime helper.
+The helper verifies its actual unit before the bootstrap reads stdin. Installation
+uses an exclusive root0600 request file and directory fsync; an existing request
+is never overwritten. The unchanged seeded helper then performs its owner,
+attachment, source, unit, mount and client checks. The original900-second startup
+window remains authoritative; the sender refuses less than28seconds remaining.
+
+This owner-side command does not require a new guest seed or change its helpers.
+The result records observed client processes, not RPC readiness, synchronization,
+writer fencing, reservation release or operator adoption. A20-second transient
+unit does not replace the original VM deadline or the live storage activation
+owner. Local SSH exit also does not prove remote process death.
+
+Qualification covers14 new request/transport/bootstrap cases plus54 existing
+runtime, delivery and attachment cases. Real bootstrap subprocesses use a pinned
+stub runtime in a disposable root namespace; SSH, systemd and kernel orchestration
+remain mocked. Actual guest delivery and chain readiness are still unqualified.

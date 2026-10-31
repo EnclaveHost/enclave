@@ -1,0 +1,33 @@
+{
+  "seedSha256": "e586a1524df52435a2678f4a2587d2d445071cfcf784e139297b7eed42ba4c2a",
+  "seedBytes": 13236224,
+  "files": [
+    {
+      "path": "/opt/enclave-rpc/start_runtime.py",
+      "sha256": "e17affef1c3ced9505250fe6fddfc3d8560dc76d908eb3cfb2fdab33c540b912",
+      "mode": "0755"
+    },
+    {
+      "path": "/opt/enclave-rpc/activate_storage.py",
+      "sha256": "1b1c92b0922cea8810c668eaa783447a3c0fcc146201aa556298678ec757f97d",
+      "mode": "0755"
+    },
+    {
+      "path": "/opt/enclave-rpc/attach_storage.py",
+      "sha256": "93859170fba8f078a2df14db52acc95d90a4405add8be63574c0a84049905da9",
+      "mode": "0755"
+    },
+    {
+      "path": "/opt/enclave-rpc/identity.py",
+      "sha256": "1fac9d4de16a903233ca1613881d2157ec99710b99aee0c1cfd0cba4f75be103",
+      "mode": "0755"
+    },
+    {
+      "path": "/opt/enclave-rpc/storage_protocol.py",
+      "sha256": "80a3f865a76914a5d986528d50dfb77bd90ec5604f9884f3391ae99c4f02bc31",
+      "mode": "0644"
+    }
+  ],
+  "guestFilesChanged": false,
+  "nativeDeliveryProven": false
+}

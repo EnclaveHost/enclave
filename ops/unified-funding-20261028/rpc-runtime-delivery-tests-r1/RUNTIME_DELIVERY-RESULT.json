@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.6491261238697916,
+  "stdout": "",
+  "stderr": "test_foreign_boot_receipt_is_not_success (__main__.Tests.test_foreign_boot_receipt_is_not_success) ... ok\ntest_lost_ack_consumes_local_phase_without_second_call (__main__.Tests.test_lost_ack_consumes_local_phase_without_second_call) ... ok\ntest_original_deadline_and_no_clock_extension (__main__.Tests.test_original_deadline_and_no_clock_extension) ... ok\ntest_preparer_to_sender_to_actual_helper (__main__.Tests.test_preparer_to_sender_to_actual_helper) ... ok\ntest_real_bootstrap_envelope_failure_precedes_publication (__main__.Tests.test_real_bootstrap_envelope_failure_precedes_publication) ... ok\ntest_real_bootstrap_install_and_second_submission_refusal (__main__.Tests.test_real_bootstrap_install_and_second_submission_refusal) ... ok\ntest_real_bootstrap_pin_drift_does_not_import (__main__.Tests.test_real_bootstrap_pin_drift_does_not_import) ... ok\ntest_real_bootstrap_request_bound_and_deadline (__main__.Tests.test_real_bootstrap_request_bound_and_deadline) ... ok\ntest_real_bootstrap_symlink_refused_without_overwrite (__main__.Tests.test_real_bootstrap_symlink_refused_without_overwrite) ... ok\ntest_real_bootstrap_wrong_boot_does_not_install (__main__.Tests.test_real_bootstrap_wrong_boot_does_not_install) ... ok\ntest_receipt_cannot_claim_rpc_adoption (__main__.Tests.test_receipt_cannot_claim_rpc_adoption) ... ok\ntest_remote_envelope_and_jump_pin (__main__.Tests.test_remote_envelope_and_jump_pin) ... ok\ntest_runtime_request_tamper_refused_before_transport (__main__.Tests.test_runtime_request_tamper_refused_before_transport) ... ok\ntest_seed_key_refusal_before_transport (__main__.Tests.test_seed_key_refusal_before_transport) ... ok\n\n----------------------------------------------------------------------\nRan 14 tests in 0.411s\n\nOK\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 1753
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}
