@@ -258,3 +258,10 @@ records. This is source integration, not a live guardian or native VM admission.
 CI41152666323 passed22 fault/adapter cases; provider calls were fake, so this
 is not native VM-operation qualification. CI41152911185 then passed25 cases, including bounded post-startup reads
 without extending the original start deadline.
+
+CI41154097230 passed37 cases including original25 and12 VM permit/reopening
+cases. Native protected-file access was exercised; provider calls were fake.
+First run41153903059 compiled but failed after29 cases because administrator
+controller writes attempted SYSTEM owner assignment. That failure is retained;
+explicit administrator pins now use Administrators record ownership, while
+SYSTEM worker pins retain SYSTEM ownership and the same protected DACL.
