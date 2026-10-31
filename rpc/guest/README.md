@@ -181,3 +181,56 @@ modules compile under the installed guest-family Python interpreter. The earlier
 36-file schema1 candidate is retained but is not compatible with schema2 activation.
 No guest first boot, live contract installation, attachment or client startup was
 performed by these artifact checks.
+
+### One-shot storage activation
+
+`activate_storage.py` and `enclave-rpc-storage-activation.service` now install the
+owner's schema2 bundle and sequence L1 readiness before submitting Base startup.
+This is maintained source and an offline-qualified private seed candidate; it is
+not an activated guest capability yet.
+
+Deliver the immutable owner bundle to `/run/enclave-rpc-import/<attempt>` through
+an authenticated owner channel. That directory and its parent are root0700;
+`attachment.json`, `server-ready.json` and `RESULT.json` are root0600. The separate
+root0600 `/etc/enclave-rpc/activation-request.json` contains exactly `bundle`,
+`resultSha256` and `runtimePins`. The runtime pins cover the four scripts returned
+by `required_pins()` and the activation/two attachment units. Executable scripts
+are 0755, the shared protocol is 0644, and units are 0644. The bundle's original
+900-second deadline, guest boot/instance, server receipt and seeded certificate
+pins must match. No new deadline is created by installation.
+
+The activation owner durably consumes the attempt before installing files and
+records each start intent before its single systemd submission. Partial installs,
+existing attempts, already-active or queued attachment units, missing bindings and
+ambiguous start responses fail without replay. Both attachment units have
+`BindsTo` plus `After` on the activation owner. The owner acknowledges its systemd
+watchdog before starting attachments, then checks the exact unit invocation,
+ready receipt, kernel device/PID/size and process incarnation. It starts no mounts
+or chain clients and never claims RPC readiness or writer fencing.
+
+After both attachments are ready, `/var/lib/enclave-rpc-activation/<attempt>/ready.json`
+records their bindings. Continued service beyond the original deadline requires a
+separate protected `adoption.json`, observed before that deadline, with exactly
+`attempt`, `bootId`, `activationRequestSha256`, `activationReadySha256` and
+`adoptedUtcNs`. This controller does not create adoption. It does not replace the
+server and attachment adoption receipts or the independently owned VM deadline.
+External cleanup must still establish storage/provider fencing before releasing
+reservations. A local watchdog timeout alone cannot establish that fact.
+
+Qualification: 13 disposable root-namespace activation tests and 10 attachment
+regressions pass. Orchestration tests mock systemd; process identity tests use a
+synthetic kernel-device view. A separate actual user-systemd dummy fixture freezes
+its owner and observes exact owner/L1/Base process exits and empty cgroups in
+3.26 seconds, including SIGTERM-resistant children. A late dependent never executes
+because the owner's consumed attempt refuses replay. That fixture uses 32MiB dummy
+actors with one-second stop bounds, not the guest's 128MiB attachment units and
+30-second attachment cleanup. It proves the dependency mechanism, not the native
+guest composition, NBD cleanup or production storage readiness.
+
+The new 13,215,744-byte private seed contains 39 files, including activation and its
+unit. Independent whole-image hash, file/mode/key-pair checks, six Python compile
+checks and the prepared guest's actual cloud-init schema pass. The seed retains
+the existing identity and contains no live activation request, attachment contract,
+server receipt or automatic activation. Previous 36/37-file seeds remain historical
+candidates and must not be mixed with the new lifetime dependencies. Fresh host
+admission and actual guest/kernel/storage/client validation remain outstanding.

@@ -1,0 +1,12 @@
+{
+  "omittedLocalFiles": {
+    "PINS.json": "af9bfebd61e1b1bf1e483d225fd2b3d21ff468ebf5b416c96c40c0cd0b7617aa",
+    "SSH.json": "0574c7d96d7cd5f60d64c86c4a0de321785319bf9aad8eadf9221729ce6db20e",
+    "REMOTE.json": "8e05ebc90d21e874c4b691407b334cc6c291ef6722d2bca32dfa6588b248f2bf",
+    "outer.log": "86178a0f9dbfc03817a1bf82b07e5e22f708a43383dc225d899f7be71a106cd1",
+    "inner.log": "208aa0d16ec535eb86515d75b38f3c538c267f1b184e14b338cb3790a1d5ac13",
+    "COMMAND.json": "69ac5344e358f9f82301ad745a588b3afaf196eb0f8545dcee8852c5354d13bc"
+  },
+  "privateMediaPublished": false,
+  "scope": "Public evidence only; private preparation configs/transports retained locally."
+}

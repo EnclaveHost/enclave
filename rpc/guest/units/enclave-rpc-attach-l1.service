@@ -1,7 +1,8 @@
 [Unit]
 Description=Owned RPC l1 authenticated block attachment
 Requires=enclave-rpc-identity.service
-After=network-online.target enclave-rpc-identity.service
+After=network-online.target enclave-rpc-identity.service enclave-rpc-storage-activation.service
+BindsTo=enclave-rpc-storage-activation.service
 Wants=network-online.target
 Before=srv-enclave\x2dl1\x2dpair.mount
 

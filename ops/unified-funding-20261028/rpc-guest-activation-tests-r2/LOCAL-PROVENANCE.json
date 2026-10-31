@@ -1,0 +1,11 @@
+{
+  "omittedLocalFiles": {
+    "PINS.json": "7d7949a0b9739c7f4ba7781af271a84d690e89746c2a30f43639258be5927a60",
+    "qualification-only": "1d5ea0fb35de68a5c79d0a33f41cfd2392e54b4bcd15bea9463a804808d496b7",
+    "outer.log": "85695a7a084d2320ff152d9ad7c26340710ad43134442a9868d5a253d885f85c",
+    "inner.log": "bfdcc383071e6a4608878fa7bf65b96898bbdd09bb9fa2fdcf7953ab9c43ed0a",
+    "COMMAND.json": "d89ae303ea84f09d89995c82e64c011a4338c8b6df79dce63a42a3980db0cacb"
+  },
+  "privateMediaPublished": false,
+  "scope": "Public evidence only; private preparation configs/transports retained locally."
+}

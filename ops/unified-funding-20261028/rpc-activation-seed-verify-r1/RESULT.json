@@ -1,0 +1,27 @@
+{
+  "rc": 0,
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\n** The server may need to be upgraded. See https://openssh.com/pq.html\n",
+  "privateArtifactPreparation": true,
+  "observation": {
+    "seedSha256": "e0cfb85459e0ada71835a94e53ede61cf25f07878e41146d358c8b613dd141a6",
+    "seedBytes": 13215744,
+    "verifiedFiles": 39,
+    "pythonSyntaxChecks": 6,
+    "keyPairsVerified": true,
+    "privateModesVerified": true,
+    "guestSchemaSha256": "e9bff937d90de84570eda8728f8a127b59a6d5f4ef84b6c358230dc137b33f49",
+    "guestSchemaErrors": [],
+    "rootImageMetadataUnchanged": true,
+    "rootImageMetadata": [
+      2049,
+      1844165,
+      2683289088,
+      1793439718452561646,
+      1793439718452561646
+    ],
+    "firstBootExecuted": false,
+    "storageAttached": false,
+    "clientsStarted": false,
+    "invocation": "08bf66bdfe264d07aa830fd11dc4e8c1"
+  }
+}

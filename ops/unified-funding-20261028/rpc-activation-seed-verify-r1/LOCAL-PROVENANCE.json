@@ -1,0 +1,13 @@
+{
+  "omittedLocalFiles": {
+    "verify.py": "d4e5fb34451180229c4ea861d1a6b1c6ac74693fc9ba843ac278344fc76f4e9c",
+    "PINS.json": "656a043eeecfb85b876a73aeb3e2e8161c588bd19de303422ed3bf2d1d52c383",
+    "SSH.json": "0574c7d96d7cd5f60d64c86c4a0de321785319bf9aad8eadf9221729ce6db20e",
+    "REMOTE.json": "d31070df5107bc585791a5e5201ed2ec55abf05c6047ad0852d979468a9247c3",
+    "outer.log": "e9beb91b1801186bdd50c9aee2e28a72f904b67723ba34c1aae099f59a5c13ac",
+    "inner.log": "ec0dc678e16cad383b99a8970a014368461118c9c6109ebeecaae7675801bb23",
+    "COMMAND.json": "6026b02967c0f372f37db4d791ba48f01b7b6068e6ae04aa2acb64aba8d50c58"
+  },
+  "privateMediaPublished": false,
+  "scope": "Public evidence only; private preparation configs/transports retained locally."
+}
