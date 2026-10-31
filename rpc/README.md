@@ -315,5 +315,47 @@ guest replies are mocked. Evidence is in
 Actual Control source/profile staging, route/jump, clock agreement, unit and
 namespace/capacity admission remain unqualified. The sender now provides the
 workflow execution handoff missing from the two-file export transfer, while
-full Warden/Windows startup composition still needs implementation before a
+the Warden/Windows composition below still requires live qualification before a
 production attempt. No private seed or staged lifecycle executable changed.
+
+
+## Original Warden startup composition
+
+`run_startup.py` connects the original clock to guarded storage export,
+Windows cut/collection/definition inputs/staging/definition/private copy/boot/
+one-shot start, endpoint observation, two-file Control import and authenticated
+guest workflow submission. It accepts an existing authenticated clock; it cannot
+begin a replacement clock. Preparation remains inside the original900-second
+window. An exclusive whole-attempt journal and fsynced phase intents precede
+work; partial or ambiguous outcomes stay consumed without automatic retry.
+
+The owner must run in the exact `enclave-rpc-startup-ATTEMPT.service` user unit:
+Typeexec,256MiB,CPU1,noSwap,16tasks,NoNewPrivileges,600-second runtime and
+one-second stop. Its monotonic cutoff plus3-second allowance must precede the
+original deadline. Admission subtracts authenticated pending commitments and
+an explicit Warden allowance of at least1024MiB while retaining the27648MiB
+floor. This is a per-host minimum, not whole-stack fit or a bootstrap peak bound.
+The proposed19GiB guest plus1GiB support remains unmeasured; independent owners
+on Warden, Windows, Control and inside the guest must all be accounted for.
+
+Before changing Windows state, the driver validates fixed staged image names,
+media pair/bounds/custody/namespace, bare observation, network and Control
+source/connection pins. The unchanged export preparer validates original files,
+credentials and runtime hashes. The driver submits one independent384MiB
+export guardian with a two-second watchdog, holds its exact pidfd, and checks
+PID/start/cgroup/invocation/limits and fresh watchdog acknowledgments between
+phases. The guardian retains its own original deadline during blocking owner
+transports. Closing the observation handle neither stops nor adopts exports.
+
+The original definition and collected native cut evidence feed subsequent
+phases directly. A pending endpoint stops before Control submission. Returned
+client process observations keep RPC readiness, adoption, provider settlement,
+writer fencing, remote death and reservation release false. Serving checks and
+explicit adoption are not implemented by this driver.
+
+17 new cases and28 relevant regressions passed; see
+`ops/unified-funding-20261028/rpc-startup-composition-tests-r1/ROOT-RESULT.md`.
+Windows/native/SSH and export/Control boundaries are simulated as described
+there. No production startup has been performed. Control source/profile staging,
+route/jump, real unit/namespace/clock agreement and capacity remain prerequisites;
+Windows endpoint staging and the actual owned-VM query are still unqualified.

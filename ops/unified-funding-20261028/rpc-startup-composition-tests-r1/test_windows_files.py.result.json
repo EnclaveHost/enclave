@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.7734504318796098,
+  "stdout": "",
+  "stderr": "test_changed_readback_stays_held (__main__.Files.test_changed_readback_stays_held) ... ok\ntest_collect_exact_raw_completion_feeds_definition_and_stage (__main__.Files.test_collect_exact_raw_completion_feeds_definition_and_stage) ... ok\ntest_collect_wrong_raw_completion_refused (__main__.Files.test_collect_wrong_raw_completion_refused) ... ok\ntest_copy_exact_defined_media_metadata_without_secret_transport (__main__.Files.test_copy_exact_defined_media_metadata_without_secret_transport) ... ok\ntest_copy_foreign_prepared_plan_refused_before_transport (__main__.Files.test_copy_foreign_prepared_plan_refused_before_transport) ... ok\ntest_copy_wrong_destination_hash_refused (__main__.Files.test_copy_wrong_destination_hash_refused) ... ok\ntest_invalid_file_name_refused_before_transport (__main__.Files.test_invalid_file_name_refused_before_transport) ... ok\ntest_lost_ack_consumed_without_result_or_retry (__main__.Files.test_lost_ack_consumed_without_result_or_retry) ... ok\ntest_original_expiry_refused_before_transport (__main__.Files.test_original_expiry_refused_before_transport) ... ok\ntest_process_envelope_identity_mismatch_refused (__main__.Files.test_process_envelope_identity_mismatch_refused) ... ok\ntest_stage_producer_output_feeds_phase_sender (__main__.Files.test_stage_producer_output_feeds_phase_sender) ... ok\ntest_stage_replay_different_nonce_cannot_resubmit (__main__.Files.test_stage_replay_different_nonce_cannot_resubmit) ... ok\ntest_wrong_sample_boot_never_submits (__main__.Files.test_wrong_sample_boot_never_submits) ... ok\n\n----------------------------------------------------------------------\nRan 13 tests in 0.537s\n\nOK\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 1651
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

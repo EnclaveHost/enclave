@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 2.770229746121913,
+  "stdout": "",
+  "stderr": "test_another_import_recipient_cannot_launch (__main__.Tests.test_another_import_recipient_cannot_launch) ... ok\ntest_endpoint_lineage_tamper_before_transport (__main__.Tests.test_endpoint_lineage_tamper_before_transport) ... ok\ntest_envelope_refusal_before_stdin (__main__.Tests.test_envelope_refusal_before_stdin) ... ok\ntest_exact_fixed_unit_and_no_key_bytes_in_wire (__main__.Tests.test_exact_fixed_unit_and_no_key_bytes_in_wire) ... ok\ntest_imported_files_tamper_blocks_all_guest_calls (__main__.Tests.test_imported_files_tamper_blocks_all_guest_calls) ... ok\ntest_lost_result_keeps_both_hosts_consumed (__main__.Tests.test_lost_result_keeps_both_hosts_consumed) ... ok\ntest_original_native_lineage_to_exact_bootstrap_and_complete_runner (__main__.Tests.test_original_native_lineage_to_exact_bootstrap_and_complete_runner) ... ok\ntest_original_window_requires_complete_independent_cutoff (__main__.Tests.test_original_window_requires_complete_independent_cutoff) ... ok\ntest_profile_pin_tamper_blocks_import_and_guest (__main__.Tests.test_profile_pin_tamper_blocks_import_and_guest) ... ok\ntest_recipient_partial_intent_not_overwritten (__main__.Tests.test_recipient_partial_intent_not_overwritten) ... ok\ntest_remote_boot_uid_refused_before_input (__main__.Tests.test_remote_boot_uid_refused_before_input) ... ok\ntest_reply_cannot_promote_adoption_or_rpc_ready (__main__.Tests.test_reply_cannot_promote_adoption_or_rpc_ready) ... ok\ntest_source_pin_tamper_refused_before_import (__main__.Tests.test_source_pin_tamper_refused_before_import) ... ok\ntest_unpinned_guest_protocol_shadow_refused (__main__.Tests.test_unpinned_guest_protocol_shadow_refused) ... ok\ntest_wrong_wire_and_bound_refused (__main__.Tests.test_wrong_wire_and_bound_refused) ... ok\n\n----------------------------------------------------------------------\nRan 15 tests in 2.458s\n\nOK\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 1855
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}
