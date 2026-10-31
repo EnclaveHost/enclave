@@ -90,7 +90,7 @@ public static class StartupController {
             if(listenerMatches!=1||processMatches!=1)throw new InvalidOperationException("Current manager incarnation differs");
         }
         var disk=One("SELECT FreeSpace FROM Win32_LogicalDisk WHERE DeviceID='C:'",new[]{"FreeSpace"});
-        if(free<Required||Math.Min(Num(before["freeBytes"]),Num(after["freeBytes"]))<Required||Convert.ToInt64(disk["FreeSpace"])<16*GiB+16*MiB)
+        if(free<Required||Math.Min(Num(before["freeBytes"]),Num(after["freeBytes"]))<Required||Convert.ToInt64(disk["FreeSpace"])<StartupDiskBudget.Floor+StartupDiskBudget.MaximumBoot+StartupDiskBudget.Artifacts)
             throw new InvalidOperationException("Target qualification headroom refused");
         return free;
     }

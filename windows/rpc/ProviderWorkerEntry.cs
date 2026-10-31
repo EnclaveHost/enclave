@@ -189,7 +189,13 @@ namespace Enclave.OwnedRpc {
                 if(lease.Operation!="stop"&&lease.Operation!="stop-reconcile")throw new InvalidOperationException("Cleanup lease required");
                 // Expiry alone cannot cancel a native call. Exact original local
                 // death AND persisted provider settlement are separate requirements.
-                if(Now<id.Deadline)throw new StartGuardRefused("cleanup-before-startup-deadline");
+                if(Now<id.Deadline){
+                    StartupAbort.Validate(vm.ReadOnce("startup.abort"),vm.VmPermit,vm.ContractHash,Now);
+                    string[] g=vm.ReadOnce("guardian.consumed").Split(',');
+                    if(g.Length!=4||g[2]!=vm.Token||g[3]!="guardian")throw new InvalidOperationException("Original guardian identity");
+                    uint gp=UInt32.Parse(g[0],CultureInfo.InvariantCulture);long gc=Number(g[1]);if(gp==0||gc<=0)throw new InvalidOperationException("Original guardian identity invalid");
+                    OriginalProcessExited(gp,gc);
+                }
                 if(id.WorkerPid==selfPid&&id.WorkerCreation==selfCreation)throw new InvalidOperationException("Cleanup cannot be original submitter");
                 OriginalProcessExited(id.WorkerPid,id.WorkerCreation);OriginalProcessExited(id.ObserverPid,id.ObserverCreation);
                 Common(id);
@@ -263,7 +269,7 @@ namespace Enclave.OwnedRpc {
                     selfPid=(uint)self.Id;selfCreation=self.StartTime.ToUniversalTime().ToFileTimeUtc();
                     if(!String.Equals(self.MainModule.FileName,vm.Executable,StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("Guardian entry path differs");
                 }
-                vm.WriteOnce("guardian.consumed",Identity(vm,"guardian"));
+                StartupAbort.Refuse(vm);vm.WriteOnce("guardian.consumed",Identity(vm,"guardian"));
                 string[] request=WaitMessage(vm,"guardian.request").Split('\n');
                 if(request.Length!=2)throw new InvalidOperationException("Exact guardian request required");
                 using(var a=ProtectedAttempt.OpenProviderWorker(request[0],request[1])) {
@@ -277,7 +283,7 @@ namespace Enclave.OwnedRpc {
                         string identity=vm.Token+","+selfPid+","+selfCreation+","+vm.Origin+","+vm.Deadline;
                         vm.WriteOnce("guardian.armed",identity);
                         vm.WriteOnce("guardian.bound",identity+","+a.Token+","+sp+","+sc);
-                        a.WriteOnce("admit",a.Token);
+                        StartupAbort.Refuse(vm);a.WriteOnce("admit",a.Token);
                         while(!guard.ObservePairExited()){vm.CheckDeadline();Thread.Sleep(5);}
                         // Exact local death is recorded separately from provider
                         // settlement. No reservation is released by this receipt.

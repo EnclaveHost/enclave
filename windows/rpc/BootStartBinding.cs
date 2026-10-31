@@ -93,13 +93,13 @@ namespace Enclave.OwnedRpc {
  }
  public sealed partial class ProtectedAttempt {
   internal string ReadBootDefinition(){CheckDeadline();return Utf8.GetString(Bytes(HoldRead(Path.Combine(Root,"definition-plan.txt"),4096),4096));}
-  internal void HoldBootStartMedia(string name,string expectedHash,object value,long maximum){
+  internal Microsoft.Win32.SafeHandles.SafeFileHandle HoldBootStartMedia(string name,string expectedHash,object value,long maximum){
    if(name!="boot.vhdx"&&name!="seed.iso")throw new ArgumentException("Fixed boot asset required");
    var fields=value as IList;if(fields==null||fields.Count!=4||StartRecords.Text(fields[0])!=expectedHash)throw new InvalidOperationException("Initial media proof absent");
    string path=Path.Combine(Root,name);var handle=CreateFile(path,0x20000|0x80,3,IntPtr.Zero,3,0x00200000,IntPtr.Zero);
    if(handle.IsInvalid){handle.Dispose();throw new System.ComponentModel.Win32Exception(System.Runtime.InteropServices.Marshal.GetLastWin32Error());}held.Add(handle);Authority(handle,true,false,path);FileInfo info;
    if(!GetFileInformationByHandle(handle,out info)||StartRecords.Number(fields[1])!=info.Volume||StartRecords.Number(fields[2])!=info.IndexHigh||StartRecords.Number(fields[3])!=info.IndexLow)throw new InvalidOperationException("Initial boot asset replaced");
-   long size=checked(((long)info.SizeHigh<<32)|info.SizeLow);if(size<1||size>maximum)throw new InvalidOperationException("Boot asset exceeds admitted disk bound");CheckDeadline();
+   long size=checked(((long)info.SizeHigh<<32)|info.SizeLow);if(size<1||size>maximum)throw new InvalidOperationException("Boot asset exceeds admitted disk bound");CheckDeadline();return handle;
   }
  }
 }

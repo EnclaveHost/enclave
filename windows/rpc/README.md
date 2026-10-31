@@ -740,3 +740,19 @@ Windows boot-volume constraint:147,354,484,736 bytes free at the recorded read.
 This is disk-capacity evidence only; fresh complete memory/pending admission and
 actual integrated boot remain required. See
 `ops/unified-funding-20261028/nucbox-game-space-recovery-r1`.
+
+Startup disk protection now charges the full4GiB boot envelope,256MiB metadata
+allowance and16GiB volume floor at admission. During startup the independent
+cleanup controller samples the held original boot file and system-volume free
+space on a background thread. A failed or more-than-two-second-old sample
+latches an abort; the supervisor does not wait on a blocked native read.
+The protected abort permanently refuses new start gates and terminates only the
+exact original guardian, closing its local worker group. Early cleanup still
+requires exact original guardian/submitter/observer death and native start
+settlement before an exact-VM Stop; a lost response remains held. Neither the
+900-second start deadline nor reservation-release rules change. The early stop
+worker gets at most29 seconds, bounded by the original cleanup deadline.
+This is an operational startup guard, not a filesystem quota or proof against
+arbitrary unrelated disk writes. Explicit operator adoption ends this startup
+monitor and requires a reviewed ongoing-host lifecycle; it is not automatic.
+Actual target monitoring/early Hyper-V stop are not yet qualified.

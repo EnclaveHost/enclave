@@ -118,7 +118,7 @@ internal sealed class WindowsStartAdmission {
             if(listenerMatches!=1||processMatches!=1)throw new InvalidOperationException("Current manager incarnation differs");
         }
         var disk=One("SELECT FreeSpace FROM Win32_LogicalDisk WHERE DeviceID='C:'",new[]{"FreeSpace"});
-        if(free<Required||Math.Min(Num(before["freeBytes"]),Num(after["freeBytes"]))<Required||Convert.ToInt64(disk["FreeSpace"])<16*GiB+256*MiB)
+        if(free<Required||Math.Min(Num(before["freeBytes"]),Num(after["freeBytes"]))<Required||Convert.ToInt64(disk["FreeSpace"])<StartupDiskBudget.Floor+StartupDiskBudget.MaximumBoot+StartupDiskBudget.Artifacts)
             throw new InvalidOperationException("Target qualification headroom refused");
         var end=One("SELECT LastBootUpTime,TotalVisibleMemorySize,FreePhysicalMemory FROM Win32_OperatingSystem",new[]{"LastBootUpTime","TotalVisibleMemorySize","FreePhysicalMemory"});
         if(TimeText(end["LastBootUpTime"])!=TimeText(os["LastBootUpTime"])||Convert.ToInt64(end["TotalVisibleMemorySize"])!=Convert.ToInt64(os["TotalVisibleMemorySize"])||

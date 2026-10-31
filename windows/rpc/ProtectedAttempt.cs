@@ -288,7 +288,7 @@ namespace Enclave.OwnedRpc {
             if(evidenceOnly||LeaseProfile=="startup-staging")throw new InvalidOperationException("Evidence/staging custody is read-only");
             Name(name);CheckDeadline();byte[] bytes=Utf8.GetBytes(value);
             if(startupCleanup) {
-                if(name!="cleanup.consumed"&&name!="cleanup.armed"&&name!="cleanup.dispatch"&&name!="cleanup.result"&&name!="cleanup.adoption-refused")throw new InvalidOperationException("Cleanup controller cannot write provider records");
+                if(name!="cleanup.consumed"&&name!="cleanup.armed"&&name!="cleanup.dispatch"&&name!="cleanup.result"&&name!="cleanup.adoption-refused"&&name!="startup.abort")throw new InvalidOperationException("Cleanup controller cannot write provider records");
             } else if(guardianOnly) {
                 if(name!="guardian.consumed"&&name!="guardian.request"&&name!="guardian.armed"&&name!="guardian.bound"&&name!="guardian.result")
                     throw new InvalidOperationException("Guardian cannot write provider records");

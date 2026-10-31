@@ -1,0 +1,21 @@
+{
+  "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+  "windows/rpc/OwnerObserver.cs": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80",
+  "windows/rpc/VmStartGuardian.cs": "4e23387225ee2a710f60d7a17db68e73a39cd15409981cb2e0eb9fa1d64cf336",
+  "windows/rpc/ProtectedAttempt.cs": "27329b618545772cc1c419d244ac6f25cb2f7987db337eee975230e8fb54e8ea",
+  "windows/rpc/ProviderStart.cs": "d2eb7bbebc74b02be707fcd705c9165af9b6fdf2f6440a94fde76dcc0ceaeea2",
+  "windows/rpc/ProviderStop.cs": "b2f5ecb6557a8af5df419c0a1e49f8e90138c13fbb76ec0d4cdab1d300b18361",
+  "windows/rpc/OwnedVmPermit.cs": "a4d1f9640a4087714b9907cddcdc64340cb57f07de04dd1b6baf97197ac60373",
+  "windows/rpc/HostPhysicalPool.cs": "218483e78967e94f77c2c88fdee9ca04970eb9c4a3f10adbf543b8ccd0c904af",
+  "windows/rpc/WindowsStartAdmission.cs": "94162e9e39b2564262002f23d2cc7f0f38bdcac095a94a174293620f80095261",
+  "windows/rpc/LegacyTemplateFence.cs": "d2bfc04762cf64b2555575e4c8aa95842dd35be108f9c9780dd3ecf0ecd0cd0f",
+  "windows/rpc/LegacyLaunchCohort.cs": "ce22aa16e0d353fa8354bca26f8dc4057d520c001540d0659778e2769135f5a2",
+  "windows/rpc/LegacyHandoff.cs": "4ced7f0d753217d263f21342e390ff6120a55f8b4135b0fa28cc5d95875358ce",
+  "windows/rpc/ProviderWorkerEntry.cs": "fdd2e222238ded6d6afcf3861476db479bd5f1135ccfb6d62123a0d9b4f0fe47",
+  "windows/rpc/BootStartBinding.cs": "3d031872f627363bfb4133c852ba8b989e807cb859fef673e3b77fbdccff13b0",
+  "windows/rpc/StartupCleanup.cs": "87a2c3f193e0b915cb450591288205b27ca2c94591e2b567cc4292d9744ef26b",
+  "windows/rpc/StartupCleanupController.cs": "d8c3b5cee707034b67f41313a91b9507cb2a6b276b5e98cb6a3cdac8a2bc2bea",
+  "test/rpc-windows-worker/StartupCleanupHarness.cs": "637d2d6020eb92517f2e71d8b831646c6e9383a1c1bffe64dc70c339ebed042d",
+  "test/rpc-windows-worker/run-startup-cleanup-ci.ps1": "1bf92dccb7c569720e596ff321a99389e2d07cc6e0356a4b6b60453e870db9d7",
+  ".github/workflows/rpc-startup-cleanup.yml": "3669b28790add2a4aae8d76a45828add9355044baac3f4593863296121c370af"
+}

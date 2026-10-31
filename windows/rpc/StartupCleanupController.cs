@@ -27,6 +27,7 @@ public static class StartupCleanupController {
     static string Root,Entry,Operation;
     static object CleanupResult;
     static bool Admitted;
+    static StartupDiskWatch Disk;
     static dynamic Folder;
     static ProtectedAttempt NamespacePin;
     static void CheckTime(){if(BoundedWorker.MonotonicMilliseconds()>=Deadline)throw new TimeoutException("Original controller deadline");}
@@ -109,7 +110,7 @@ public static class StartupCleanupController {
             delegate { Vm.WriteOnce("cleanup.adoption-refused","invalid-operator-adoption;cleanup-still-required"); });
     }
     public static int Main(string[] args){
-        bool off=false,adopted=false;long originalOrigin=0,originalDeadline=0;
+        bool off=false,adopted=false,aborted=false;long originalOrigin=0,originalDeadline=0;
         try{
             if(args.Length!=4)throw new ArgumentException("Exact original permit/hash/origin/deadline required");
             originalOrigin=Int64.Parse(args[2],NumberStyles.None,CultureInfo.InvariantCulture);originalDeadline=Int64.Parse(args[3],NumberStyles.None,CultureInfo.InvariantCulture);
@@ -123,11 +124,20 @@ public static class StartupCleanupController {
             }
             string nonce=Guid.NewGuid().ToString("N"),parent=Path.Combine(Path.GetPathRoot(Environment.SystemDirectory),"EnclaveRpcStartupCleanup-"+nonce);DirectoryNew(parent);Root=Path.Combine(parent,nonce);DirectoryNew(Root);
             byte[] image=Read(Vm.Executable,262144);if(ProtectedAttempt.Hash(image)!=Vm.ExecutableHash)throw new InvalidOperationException("Original provider image changed");Entry=Path.Combine(Root,"entry.exe");Publish(Entry,image);
+            Disk=new StartupDiskWatch(Vm.PinStartupDiskSample(),BoundedWorker.MonotonicMilliseconds);
+            while(!Disk.Healthy()&&!Disk.Failed){Vm.CheckDeadline();Thread.Sleep(10);}
+            if(Disk.Failed)throw new InvalidOperationException("Initial disk observation failed");
             Vm.WriteOnce("cleanup.armed",Vm.ReadOnce("cleanup.consumed"));
-            while(BoundedWorker.MonotonicMilliseconds()<originalDeadline){if(Adopted()){adopted=true;break;}Thread.Sleep(100);}
+            while(BoundedWorker.MonotonicMilliseconds()<originalDeadline){
+                if(!Disk.Healthy()){
+                    Vm.WriteOnce("startup.abort",StartupAbort.Encode(Vm.VmPermit,Vm.ContractHash,BoundedWorker.MonotonicMilliseconds()));aborted=true;
+                    StartupAbort.CloseGuardian(Vm);break;
+                }
+                if(Adopted()&&Disk.Healthy()){adopted=true;break;}Thread.Sleep(100);
+            }
             if(adopted){Vm.WriteOnce("cleanup.result","operator-adopted;readiness-proven=false;reservation-release=false");}
             else{
-                Vm.CheckDeadline();Origin=BoundedWorker.MonotonicMilliseconds();Deadline=originalDeadline+29000;
+                Vm.CheckDeadline();Origin=BoundedWorker.MonotonicMilliseconds();Deadline=Math.Min(originalDeadline+29000,Origin+29000);ArmAbsoluteDeadline(Deadline+1000);
                 if(Origin>=Deadline||Deadline-Origin>30000)throw new InvalidOperationException("Cleanup dispatch window exhausted");
                 string intent=Vm.ReadOnce("start.intent");var id=StartIdentity.Decode(intent);Vm.VmPermit.Bind(id,Vm.ContractHash);
                 Operation=Vm.ReadOptionalOnce("stop.submit")==null&&Vm.ReadOptionalOnce("stop.native")==null?"stop":"stop-reconcile";
@@ -144,8 +154,8 @@ public static class StartupCleanupController {
                 CleanupResult=result;Vm.WriteOnce("cleanup.result",off?"owned-off-zero-observed;reservation-release=false":"cleanup-unconfirmed-held;reservation-release=false");
             }
         }catch(Exception error){Failures.Add(error.GetType().Name+": "+error.Message);}
-        finally{Cleanup();if(Vm!=null)Vm.Dispose();}
-        Console.WriteLine(Json.Serialize(new{schema="owned-rpc-startup-cleanup/1",completed=(off||adopted)&&Failures.Count==0,ownedOffZero=off,operatorAdopted=adopted,rpcReadinessProven=false,originalOrigin=originalOrigin,originalDeadline=originalDeadline,result=CleanupResult,failures=Failures,reservationMayRelease=false}));
+        finally{if(Disk!=null)Disk.Dispose();Cleanup();if(Vm!=null)Vm.Dispose();}
+        Console.WriteLine(Json.Serialize(new{schema="owned-rpc-startup-cleanup/1",completed=(off||adopted)&&Failures.Count==0,ownedOffZero=off,operatorAdopted=adopted,diskAborted=aborted,rpcReadinessProven=false,originalOrigin=originalOrigin,originalDeadline=originalDeadline,result=CleanupResult,failures=Failures,reservationMayRelease=false}));
         return (off||adopted)&&Failures.Count==0?0:1;
     }
 }
