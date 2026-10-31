@@ -407,7 +407,7 @@ preflight reads metadata only, and existing VMs use independent run copies.
 This candidate ONLY blocks future reads on that exact object. Prior copies,
 definitions, starts and native provider jobs are NOT settled by it. Every old
 master/issuer and new-master distinct object must be qualified on target; no
-production wiring or activation is provided. Existing-operation settlement,
+production wiring or activation is provided. Existing-operation accounting,
 shared pool seeding and durable front-end transition are still required. Do not
 use its receipt as the router admission callback or as permission to release RAM.
 
@@ -426,3 +426,30 @@ not inheritance-history flags in the enclosing descriptor. Windows documents the
 assignment normalization in [ACE inheritance](https://learn.microsoft.com/en-us/windows/win32/secauthz/ace-inheritance).
 The changed ACL operation requires both the original 13-case regression and the
 fixed SYSTEM inherited/untrusted-rights fixture before target qualification.
+
+`LegacyLaunchCohort.ApplyAndDrain` is the concrete memory-only transition cut for
+one shared old master and one or two pinned direct-PowerShell manager issuers.
+It holds the exact issuer PID/creation time/image, captures and holds their shell
+children before the fence, applies the persistent barrier, and captures again
+afterward. It waits for those exact process handles to signal, within the original
+10-second operation window. It does not kill managers or launch children. Any
+capture, identity, wait or deadline failure retains the fence and consumed intent;
+there is no automatic retry or rollback. The caller must independently supervise
+the worker and qualify complete installed issuer/config/module coverage.
+
+The exact installed `hyperv.psm1` and `utilities.psm1` show no hidden start or retry:
+New-CustomVM defines and configures the VM; later JavaScript continuations issue
+Start-VM against its returned GUID. The utilities helper polls only JobState4 and
+can return for a different nonterminal state with ErrorCode0, so a successful helper
+return is NOT provider settlement. Successful outer definition JSON nevertheless
+requires the already-existing GUID and configured-memory readback. After the cut,
+reserve ALL defined VMs' configured maxima (including Off/Starting), unresolved
+claims and overhead before admitting RPC. Later successful JS continuations are
+covered by those GUID reservations; a late definition with a dead failed caller
+has no path to a later JS Start. No reservation is released on API absence or a
+missing provider job. This argument is same-boot and specific to the pinned old
+mandatory fresh-copy path, not a general Hyper-V cancellation guarantee.
+
+`rpc-legacy-cohort.yml` qualifies the changed process-cut implementation with
+bounded disposable Windows children and dummy files. It does not enumerate target
+VMs, establish loaded issuer coverage, seed the shared pool or activate production.
