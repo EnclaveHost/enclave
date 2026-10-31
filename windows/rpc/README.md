@@ -768,11 +768,23 @@ still applies. The actual hosted final handoff suite passed71 cases, and the
 ordinary definition/boot suite passed83 cases. These tests use fake provider
 calls and do not establish native target readiness.
 
-`build-boot-media.py` currently produces an Ubuntu disk and an SSH-only NoCloud
-seed. It does **not** install the execution/consensus/Base clients, mount their
-network-backed state or demonstrate RPC readiness. Stage and bind the exact
-client/runtime and storage configuration before consuming the original
-900-second startup window. Starting the shell VM is not a successful RPC trial.
+The original `build-boot-media.py` output was an Ubuntu disk and SSH-only
+NoCloud seed. It is historical and must not be used for the current RPC trial.
+The replacement client image from `rpc/guest/inject_image.py` and private
+40-file seed from `rpc/guest/prepare_seed.py` are staged on the target. The seed
+includes storage attachment, activation delivery and mount/client startup
+handlers. No live activation or runtime request is installed by staging.
+
+The second prepared transition package binds this replacement media through
+exact paths, sizes and whole-file digests, plus the independent seed and Windows
+custody verification receipts. Its seven executables and handoff manifest are
+unchanged from the first package; each executable retains its own compiled
+source revision. `MEDIA.json` is preparation evidence, not current admission.
+See `ops/unified-funding-20261028/rpc-target-transition-package-r2`.
+The original 900-second startup clock remains unassigned. Fresh host and storage
+admission, protected media copy into the original definition namespace, actual
+guest attachment/mount/client startup, RPC sync/finality and consumer cutover
+remain required. Starting the shell VM is not a successful RPC trial.
 The allocator transition must not be treated as completion of app recovery or
 independent hosting: its initial mode admits only the reserved RPC claim.
 

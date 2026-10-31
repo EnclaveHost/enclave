@@ -1,0 +1,20 @@
+{
+  "run.py": "ecf99490fc943d07111816154885ee56124fa7208abdd87c587af0ef378561f4",
+  "capture_local.py": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c",
+  "SPEC.json": "9b1b2d35ef5e8a7287b42e20eb6102f84f594b3bd8e7943ea5b95f9d502da6bf",
+  "FILES.json": "2a8a3f0eec450917fd622b3794cd2ad825f789f8b64a9c8f2d4aa417e5015ef0",
+  "ARTIFACTS.json": "94d8a44a3b59a8353f980d2495415ca4cd88d9cadb5766c42dd3fe4b8a2baa4d",
+  "create.ps1": "d0e24d9443ed8b39de341465f2d25ce05deac40b0f0d737896e6794f5c718fed",
+  "verify.ps1": "92b2750251f8b7b4ccd78a55164ab048c44a9e736df1308f02db55a1eb1a5885",
+  "bundle/BUNDLE.json": "4247500a5467f113283eb4a34bd25dc60cb21613c78525a2d7cba805fc67f5ed",
+  "bundle/MEDIA.json": "e048430785e94f76676e3d2d14de69362f1bd29f4f1f28e3fe004315d9056991",
+  "bundle/SPEC.json": "9b1b2d35ef5e8a7287b42e20eb6102f84f594b3bd8e7943ea5b95f9d502da6bf",
+  "bundle/cleanup-controller.exe": "b5f9fe59febaf0c5af2aefd4d46286ae87a3be73dd4f0a75e22abbc51f0dfc36",
+  "bundle/definition-controller.exe": "8d34296e58b83f27d5662adb5f58b3cd80f89bd2953435b2232211fb727b8b41",
+  "bundle/definition-entry.exe": "fc23708df1e44f1bbea1305b21aa4e7c2546c3a05cf153903cfdaa82bce1eacc",
+  "bundle/handoff-controller.exe": "0fc47781f75b22e6677d319a52950f05989d6f173dc2c5362e00491eb4527b1c",
+  "bundle/handoff-entry.exe": "5d52a5e22f48d17465274048a805b1d412c1a24e68f1062351b21406afa47fa2",
+  "bundle/handoff.json": "918e99aec938a30f1b4fcc9a660ec57afbbee5d9f54ce6408dbaa57725124d64",
+  "bundle/provider-entry.exe": "3a439f8ca0d8a677734df0008b4aa729136bce19a3facb6878caa7bb9e775cf3",
+  "bundle/startup-controller.exe": "cb84bfda1dd6083bb431cbb394b47728d4f194fabd4fe9ae7e029d7442f61516"
+}

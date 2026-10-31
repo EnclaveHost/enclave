@@ -1,0 +1,39 @@
+{
+  "schema": "rpc-staged-client-media-binding/1",
+  "instance": "rpc-owned-8ee4452b174746c2b606b9b68f0fa623",
+  "root": "C:\\EnclaveRpcPrivateMedia-b6ae58975e414ca2b3c45f3523cacab2\\b6ae58975e414ca2b3c45f3523cacab2",
+  "files": [
+    {
+      "sha256": "a76940c926985b91590ab5916c7996c23d7812ccc2277fe8188bb21f11a0ae2c",
+      "name": "boot.vhdx",
+      "bytes": 2301624320,
+      "privateAcl": true
+    },
+    {
+      "sha256": "e586a1524df52435a2678f4a2587d2d445071cfcf784e139297b7eed42ba4c2a",
+      "name": "seed.iso",
+      "bytes": 13236224,
+      "privateAcl": true
+    }
+  ],
+  "seedFileCount": 40,
+  "guestSourceRuntime": "9df7d5333e39c9b5307533c25b2928454a275fbc",
+  "runtimeHelper": {
+    "path": "/opt/enclave-rpc/start_runtime.py",
+    "sha256": "e17affef1c3ced9505250fe6fddfc3d8560dc76d908eb3cfb2fdab33c540b912",
+    "mode": "0755"
+  },
+  "evidence": [
+    {
+      "path": "rpc-private-media-stage-r2/verify-RESULT.json",
+      "sha256": "4b9cfb0de3e6e146ba565ac9477cbef2eb52c2e17a024b457c9144d1d5a1a5c7"
+    },
+    {
+      "path": "rpc-runtime-seed-verify-r1/RESULT.json",
+      "sha256": "a926d019bf1e83e76e09e40cfba96e5a6fd4dc51cfe03bd3fea9012ded5cc8d5"
+    }
+  ],
+  "nativeAdmission": false,
+  "bootExecuted": false,
+  "rpcReady": false
+}

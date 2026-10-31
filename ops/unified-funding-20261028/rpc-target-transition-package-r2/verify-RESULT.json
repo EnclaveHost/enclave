@@ -1,0 +1,86 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 1.0636558050755411,
+  "bytesObserved": {
+    "stdout": 1485,
+    "stderr": 222
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false,
+  "at": 1793451329.0089068,
+  "phase": "verify",
+  "success": true,
+  "noRetry": true,
+  "vmChanged": false,
+  "observation": {
+    "verified": true,
+    "root": "C:\\EnclaveRpcTransition-2716589b77df4ba7b3a2a3b34d9ceb21\\2716589b77df4ba7b3a2a3b34d9ceb21",
+    "files": [
+      {
+        "sha256": "4247500a5467f113283eb4a34bd25dc60cb21613c78525a2d7cba805fc67f5ed",
+        "name": "BUNDLE.json",
+        "bytes": 2012
+      },
+      {
+        "sha256": "e048430785e94f76676e3d2d14de69362f1bd29f4f1f28e3fe004315d9056991",
+        "name": "MEDIA.json",
+        "bytes": 1257
+      },
+      {
+        "sha256": "9b1b2d35ef5e8a7287b42e20eb6102f84f594b3bd8e7943ea5b95f9d502da6bf",
+        "name": "SPEC.json",
+        "bytes": 1985
+      },
+      {
+        "sha256": "b5f9fe59febaf0c5af2aefd4d46286ae87a3be73dd4f0a75e22abbc51f0dfc36",
+        "name": "cleanup-controller.exe",
+        "bytes": 250880
+      },
+      {
+        "sha256": "8d34296e58b83f27d5662adb5f58b3cd80f89bd2953435b2232211fb727b8b41",
+        "name": "definition-controller.exe",
+        "bytes": 241152
+      },
+      {
+        "sha256": "fc23708df1e44f1bbea1305b21aa4e7c2546c3a05cf153903cfdaa82bce1eacc",
+        "name": "definition-entry.exe",
+        "bytes": 241152
+      },
+      {
+        "sha256": "0fc47781f75b22e6677d319a52950f05989d6f173dc2c5362e00491eb4527b1c",
+        "name": "handoff-controller.exe",
+        "bytes": 247296
+      },
+      {
+        "sha256": "5d52a5e22f48d17465274048a805b1d412c1a24e68f1062351b21406afa47fa2",
+        "name": "handoff-entry.exe",
+        "bytes": 247296
+      },
+      {
+        "sha256": "918e99aec938a30f1b4fcc9a660ec57afbbee5d9f54ce6408dbaa57725124d64",
+        "name": "handoff.json",
+        "bytes": 24522
+      },
+      {
+        "sha256": "3a439f8ca0d8a677734df0008b4aa729136bce19a3facb6878caa7bb9e775cf3",
+        "name": "provider-entry.exe",
+        "bytes": 250880
+      },
+      {
+        "sha256": "cb84bfda1dd6083bb431cbb394b47728d4f194fabd4fe9ae7e029d7442f61516",
+        "name": "startup-controller.exe",
+        "bytes": 250880
+      }
+    ],
+    "executed": false,
+    "nativeAttempted": false
+  }
+}

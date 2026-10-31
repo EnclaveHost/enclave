@@ -1,0 +1,13 @@
+[
+  "BUNDLE.json",
+  "MEDIA.json",
+  "SPEC.json",
+  "cleanup-controller.exe",
+  "definition-controller.exe",
+  "definition-entry.exe",
+  "handoff-controller.exe",
+  "handoff-entry.exe",
+  "handoff.json",
+  "provider-entry.exe",
+  "startup-controller.exe"
+]

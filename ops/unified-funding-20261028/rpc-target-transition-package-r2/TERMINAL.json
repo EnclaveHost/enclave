@@ -1,0 +1,20 @@
+{
+  "create": {
+    "ActiveState": "inactive",
+    "InvocationID": "",
+    "MainPID": "0",
+    "ExecMainStatus": "0"
+  },
+  "stage": {
+    "ActiveState": "inactive",
+    "InvocationID": "",
+    "MainPID": "0",
+    "ExecMainStatus": "0"
+  },
+  "verify": {
+    "ActiveState": "inactive",
+    "InvocationID": "",
+    "MainPID": "0",
+    "ExecMainStatus": "0"
+  }
+}
