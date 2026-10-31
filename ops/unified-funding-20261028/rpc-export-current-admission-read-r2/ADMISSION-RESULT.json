@@ -1,0 +1,16 @@
+{
+  "availableMiB": 31965,
+  "pendingMiB": 5948,
+  "installedFloorMiB": 18432,
+  "requiredStartupFloorMiB": 27648,
+  "exportAllowanceMiB": 512,
+  "residualMiB": 25505,
+  "deficitMiB": 2143,
+  "deficitBytes": 2247098368,
+  "admitted": false,
+  "authenticated": true,
+  "unreadUnits": 0,
+  "invocation": "84d7810ca26740b9a4e2a14a2cc64a1c",
+  "elapsedSeconds": 0.1969875239301473,
+  "runtimeChanged": false
+}

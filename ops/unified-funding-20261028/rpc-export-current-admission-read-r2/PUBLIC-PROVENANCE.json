@@ -1,0 +1,61 @@
+{
+  "sourcePackage": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-export-current-admission-read-r2",
+  "files": [
+    {
+      "path": "run.py",
+      "sha256": "e617d2f427a5491a9e9528f7ecf40f6ba2558d20c325b1d9665b969bcb0bfab5"
+    },
+    {
+      "path": "capture_local.py",
+      "sha256": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c"
+    },
+    {
+      "path": "observe_resources.mjs",
+      "sha256": "d2d8e9a69548e689d093434787b43ab3278c4fea032d329c16c2b82c0866bdee"
+    },
+    {
+      "path": "PINS.json",
+      "sha256": "112ecb16b703e51d6904b779137381b22fe2e8042a1086893b03995336416e70"
+    },
+    {
+      "path": "COMMAND.json",
+      "sha256": "547f12471c8bea028323026d33ace4ed32641853584ce3309e272c29495e8c25"
+    },
+    {
+      "path": "LAUNCH.txt",
+      "sha256": "e969bab1f49fcb3532181b0d900bfff5c7912b23c0374d4c81417c913f1d640b"
+    },
+    {
+      "path": "ATTEMPT.json",
+      "sha256": "f75a4b7a8fda12844531ad497b0a7062fa8fab400c5ca6d72313e2f34f2ca4aa"
+    },
+    {
+      "path": "RESULT.json",
+      "sha256": "acf166023fa5bcf90296d1ffceb6b8ca27f6a6682bbe824f731e29d1c597abf0"
+    },
+    {
+      "path": "TERMINAL.txt",
+      "sha256": "8bea5db14f598b506c88be27601abc2a04c1c53a264b068a61d7e29ef773f3f0"
+    },
+    {
+      "path": "ROOT-ADMISSION.md",
+      "sha256": "de931d6a3e20db62d91f6dd3751985ca193a2002fdc8d47b51b11cb2c39af7ec"
+    },
+    {
+      "path": "ROOT-RESULT.md",
+      "sha256": "bdd35ffb650695440c8fa9c6b4c628a20b26ce791f240896aa2386717092e555"
+    },
+    {
+      "path": "ADMISSION-RESULT.json",
+      "sha256": "3876d2305f60f6d57878152d6face1727acc43f8512b085619544accd216afad"
+    },
+    {
+      "path": "BLOCKED-AUDIT.md",
+      "sha256": "94424539bb75c8e34a91ec26b85bec4eb7930bf11bcbd8b346208d0cd983b58e"
+    }
+  ],
+  "omitted": [
+    "CONFIG.json (protected installed-control/key location configuration; digest retained in pins)"
+  ],
+  "noPrivateKeyOutput": true
+}

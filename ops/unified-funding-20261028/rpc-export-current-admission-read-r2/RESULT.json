@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.1969875239301473,
+  "stdout": "{\"authenticated\":true,\"availableMiB\":31965,\"pendingMiB\":5948,\"floorMiB\":18432,\"unreadUnits\":0}\n",
+  "stderr": "",
+  "bytesObserved": {
+    "stdout": 95,
+    "stderr": 0
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}
