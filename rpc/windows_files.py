@@ -45,7 +45,9 @@ def call(config, original, operation, journal_name, payload):
     request = c.write_new(root / 'request.json', raw)
     c.write_new(root / 'sample.intent', c.encode({'request': request}))
     t = config['transport']
-    command = '"' + t['samplerPath'] + '" ' + config['nonce'] + ' ' + original['vmAttempt'] + ' ' + t['samplerSha256']
+    # Validated canonical paths need no quotes in cmd or PowerShell. A quoted
+    # path is a PowerShell string expression, not an executable invocation.
+    command = t['samplerPath'] + ' ' + config['nonce'] + ' ' + original['vmAttempt'] + ' ' + t['samplerSha256']
     began = time.monotonic_ns()
     sample_raw = w.delivery.exchange(argv + [command], b'', min(3, c.remaining(config['clock'])))
     sample = c.protocol.decode(sample_raw)

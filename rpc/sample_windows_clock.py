@@ -54,7 +54,10 @@ def sample(config):
     key = base64.b64decode(fields[2], validate=True)
     if len(key) != 51 or key[:19] != b'\0\0\0\x0bssh-ed25519\0\0\0\x20':
         raise ValueError('Invalid Windows host key')
-    command = '"' + path + '" ' + row['attempt'] + ' ' + row['vmAttempt'] + ' ' + config['samplerSha256']
+    # The validated path contains no spaces or shell metacharacters. A quoted
+    # executable is only a string expression under Windows OpenSSH's installed
+    # PowerShell shell; the bare canonical path invokes it in both PS and cmd.
+    command = path + ' ' + row['attempt'] + ' ' + row['vmAttempt'] + ' ' + config['samplerSha256']
     clock.current(row, True)
     # A valid request is consumed before the sole transport, including ambiguity.
     clock.write_new(root / 'sampling.intent', clock.encode({

@@ -66,7 +66,7 @@ class Transport(unittest.TestCase):
         self.assertIn('-oStrictHostKeyChecking=yes', argv)
         self.assertIn('-oIdentitiesOnly=yes', argv)
         self.assertIn('-oGlobalKnownHostsFile=/dev/null', argv)
-        self.assertEqual(argv[-1], '"'+self.config['samplerPath']+'" '+'a'*32+' '+'b'*32+' '+'d'*64)
+        self.assertEqual(argv[-1], self.config['samplerPath']+' '+'a'*32+' '+'b'*32+' '+'d'*64)
         with self.assertRaises(FileExistsError):sample.sample(self.config)
         self.assertEqual(self.call.call_count, 1)
 

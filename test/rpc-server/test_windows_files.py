@@ -43,6 +43,7 @@ class Files(unittest.TestCase):
         self.assertLessEqual(seconds, 32)
         self.assertTrue((root/'sample.intent').is_file())
         if 'clock-sample.exe' in argv[-1]:
+            self.assertEqual(argv[-1].split(), [self.x.transport['samplerPath'], self.config['nonce'], 'b'*32, 'd'*64])
             self.assertEqual(raw, b'')
             return c.encode(dict(schema='owned-rpc-windows-clock/1', attempt=self.config['nonce'],
                 vmAttempt='b'*32, windowsBoot='c'*32,

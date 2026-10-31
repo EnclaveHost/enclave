@@ -253,7 +253,9 @@ def execute(config):
     c.write_new(root / 'known-hosts', known)
     c.write_new(root / 'sample.intent', c.encode({'requestSha256': request['sha256']}))
     t = config['transport']
-    sample_command = '"' + t['samplerPath'] + '" ' + config['nonce'] + ' ' + original['vmAttempt'] + ' ' + t['samplerSha256']
+    # Canonical path validation excludes whitespace/metacharacters; do not turn
+    # the executable into a PowerShell string expression with unnecessary quotes.
+    sample_command = t['samplerPath'] + ' ' + config['nonce'] + ' ' + original['vmAttempt'] + ' ' + t['samplerSha256']
     began = time.monotonic_ns()
     sample_raw = delivery.exchange(argv + [sample_command], b'', min(3, c.remaining(config['clock'])))
     sample = c.protocol.decode(sample_raw)
