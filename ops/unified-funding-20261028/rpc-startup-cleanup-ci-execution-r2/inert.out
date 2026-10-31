@@ -1,0 +1,24 @@
+PASS cleanup-binding-fixed-reservation
+PASS cleanup-underreservation-refused
+PASS cleanup-extra-option-refused
+PASS cleanup-missing-image-refused
+PASS cleanup-image-substitution-refused
+PASS original-startup-deadline-retained
+PASS arming-at-startup-expiry-refused
+PASS arming-before-origin-refused
+PASS startup-extension-refused
+PASS cleanup-overflow-refused
+PASS operator-decision-exact-binding
+PASS operator-decision-wrong-vm
+PASS operator-decision-wrong-receipt
+PASS operator-decision-other-boot
+PASS operator-decision-expired
+PASS operator-decision-future-observation
+PASS operator-decision-extra-option
+PASS absent-decision-can-arrive-later
+PASS invalid-decision-read-once-despite-diagnostic-failure
+PASS unreadable-decision-does-not-abort-cleanup
+PASS expiry-during-validation-cannot-adopt
+PASS expired-decision-not-read
+PASS independent-watchdog-kills-blocked-main
+RESULT tests=23 providerCalls=false vmChanged=false
