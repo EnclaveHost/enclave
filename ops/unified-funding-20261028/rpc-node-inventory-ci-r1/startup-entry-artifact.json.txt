@@ -1,0 +1,5 @@
+{
+    "Algorithm":  "SHA256",
+    "Hash":  "BB316A29B8EDBED9E7BF75B2F9468BEDE7AE3E03EA1F1B466A00B1A15C5D718B",
+    "Path":  "D:\\a\\_temp\\rpc-worker-747d512644f740b9b20ddd5ee2e6d459\\owned-entry.exe"
+}

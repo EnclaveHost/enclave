@@ -1,0 +1,5 @@
+{
+    "Algorithm":  "SHA256",
+    "Hash":  "C439BDCA7BDF1DC1C678BD54404D9817018E324FAA1D269AA30FF436D1554D7B",
+    "Path":  "D:\\a\\_temp\\rpc-worker-747d512644f740b9b20ddd5ee2e6d459\\qualification-controller.exe"
+}

@@ -1,0 +1,5 @@
+{
+    "Algorithm":  "SHA256",
+    "Hash":  "8CF444AB7F8326BA4C0BED969D8E489DC74C34A704718FAC8EBF8FD5690D8E9D",
+    "Path":  "D:\\a\\_temp\\rpc-worker-747d512644f740b9b20ddd5ee2e6d459\\startup-controller.exe"
+}

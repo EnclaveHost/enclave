@@ -1,0 +1,1 @@
+Read-only exact reader/create/verify native process incarnation absence; independently hash/readback all5protectedpublicfiles/exactDACL/namespace, original4managers andVMinventory. No executable invocation andno cleanup.

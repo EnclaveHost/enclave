@@ -1014,5 +1014,10 @@ rows with unknown memory still refuse admission. This receipt compares identity,
 status, memory and isolation flags; it never supplies a capacity estimate or
 replaces complete pending reservations or a verified completed allocator handoff.
 The 39,388 MiB prospective allowance and all physical floors are unchanged.
-Existing staged executables predate this correction and must be replaced by
-reviewed compiled artifacts before the production attempt. No launch is implied.
+Hosted checks passed at runtime `09e10c405fdaeba36b0fe70aab689fe0ad1b0417`: 40
+startup cases and 83 definition/boot cases. Five corrected executables are staged
+and independently hash/ACL verified in `EnclaveRpcTransition-8fd1a2cc4ef5432cbbaabaa77efbbed0`.
+The corresponding `rpc-node-inventory-target-stage-r1/BINARY-BINDINGS.json` replaces
+the old definition/provider/startup/cleanup paths in the launch inputs. The old
+handoff pair is unchanged and does not call this reader. Target execution and
+RPC readiness remain unproven; no production startup clock has begun.

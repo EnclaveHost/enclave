@@ -1,0 +1,1 @@
+Preservation42f0ae211ab74d55bf199f60e80613f0 terminal1/Main0 at git diff --cached --check: two Windows stdout CRLF lines treated as trailing whitespace. No commit/push attempted. Public display normalized LF and original raw bytes/SHA/base64 preserved. Normalhooks retained; new preservation invocation after actual correction, no native/test replay.

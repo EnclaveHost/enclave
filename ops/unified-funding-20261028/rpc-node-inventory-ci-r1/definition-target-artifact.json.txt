@@ -1,0 +1,5 @@
+{
+    "Algorithm":  "SHA256",
+    "Hash":  "AF2330BCFFE71B3108A8B9100FCC20CA995A3496F09A83FB4BC0A8FE6E799002",
+    "Path":  "D:\\a\\_temp\\rpc-worker-d21feeb04eed48f093488b389de5e306\\definition-controller.exe"
+}

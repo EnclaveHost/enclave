@@ -1,0 +1,18 @@
+{
+  "verify-COMMAND.json": "bcb4d2a2e8882b0c441fd11b65855b1af56e616303388a8fc5c43100b1d1e69c",
+  "verify.ps1": "2ff1081fbc4f54b1b2171dbf81d2c90de2afb0158d2bf37d31418902ec5da586",
+  "create.ps1": "9d6a3280c3f1a348a69140fb98fab90a238bc79ce062079c3642d585ae6dfec6",
+  "create-COMMAND.json": "dd44900df291c84bec3bd5c40abac8ea800c0a7a36d92bb64d5e57bb2d4e7052",
+  "ARTIFACTS.json": "8033a2e93076287ece9857f811ba1feba59029ece7b0777130275a7f25e7810a",
+  "ROOT-REVIEW.md": "ffc61b308b57980c3d0dcdce943c928121f037e02301ad5c28f69a427e1db399",
+  "stage-COMMAND.json": "62efb9ed16db96f1229f143f13b1106f9ed3bc137635caa63815da8affa2a836",
+  "SPEC.json": "d26c7fa89042aa37bf107007f20fb4052b0762a991cc59d071728ed203ab4df6",
+  "run.py": "dc2e18cbe2846308451b5e35be0b2df901eeb96e1b6a7cc1b71b593cf34b2e42",
+  "capture_local.py": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c",
+  "FILES.json": "4fca3752ae57b9617609b621f34838c2b21fa074b754a6237e7ed2951050b6a6",
+  "bundle/definition-entry.exe": "28c4ffa76c79d22eba77b3857adb0e4d1ddd767d73d4eb62496d9d4e6bc328e4",
+  "bundle/cleanup-controller.exe": "ef0b40ea00532e137e5de7033225f9acd3c79362e35a6a2be174b3e4836acaea",
+  "bundle/definition-controller.exe": "af2330bcffe71b3108a8b9100fcc20ca995a3496f09a83fb4bc0a8fe6e799002",
+  "bundle/startup-controller.exe": "8cf444ab7f8326ba4c0bed969d8e489dc74c34a704718fac8ebf8fd5690d8e9d",
+  "bundle/provider-entry.exe": "bb316a29b8edbed9e7bf75b2f9468bede7ae3e03ea1f1b466a00b1a15c5d718b"
+}
