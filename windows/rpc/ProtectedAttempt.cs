@@ -26,6 +26,7 @@ namespace Enclave.OwnedRpc {
         readonly ProtectedAttempt accessLease;
         readonly bool reconciliationOnly;
         readonly bool guardianOnly;
+        readonly bool cleanupAccess;
         readonly string recordOwner;
         bool disposed;
         const string SystemSid="S-1-5-18",AdminSid="S-1-5-32-544";
@@ -173,11 +174,11 @@ namespace Enclave.OwnedRpc {
                 if(profile=="inert") {
                     if(fields.Length!=8 || fields[0]!="owned-rpc-inert-v1" || fields[6]!="inert-v1" || fields[7]!="")throw new InvalidOperationException("Exact inert contract schema required");
                 } else {
-                    if(profile!="provider"||fields.Length!=12||fields[0]!="owned-rpc-provider-worker-v1"||fields[11]!=""||(fields[6]!="start"&&fields[6]!="reconcile"))throw new InvalidOperationException("Exact provider worker contract required");
+                    if(profile!="provider"||fields.Length!=12||fields[0]!="owned-rpc-provider-worker-v1"||fields[11]!=""||(fields[6]!="start"&&fields[6]!="reconcile"&&fields[6]!="stop"&&fields[6]!="stop-reconcile"))throw new InvalidOperationException("Exact provider worker contract required");
                     Operation=fields[6];PermitPath=LocalPath(fields[7]);PermitHash=fields[8];Hex(PermitHash,64);
                     if(Path.GetFileName(PermitPath)!="vm-permit.txt")throw new InvalidOperationException("Fixed VM permit path required");
                     GuardianPid=UInt32.Parse(fields[9],NumberStyles.None,CultureInfo.InvariantCulture);GuardianCreation=Int64.Parse(fields[10],NumberStyles.None,CultureInfo.InvariantCulture);
-                    if((Operation=="start"&&(GuardianPid==0||GuardianCreation<=0))||(Operation=="reconcile"&&(GuardianPid!=0||GuardianCreation!=0)))throw new InvalidOperationException("Exact guardian binding required for start only");
+                    if((Operation=="start"&&(GuardianPid==0||GuardianCreation<=0))||(Operation!="start"&&(GuardianPid!=0||GuardianCreation!=0)))throw new InvalidOperationException("Exact guardian binding required for start only");
                 }
                 Nonce=fields[1];Boot=fields[2];ExecutableHash=fields[5];Hex(Nonce,32);Hex(Boot,32);Hex(ExecutableHash,64);
                 if(Path.GetFileName(Root)!=Nonce)throw new InvalidOperationException("Attempt namespace differs");
@@ -212,7 +213,11 @@ namespace Enclave.OwnedRpc {
                 if(name!="guardian.consumed"&&name!="guardian.request"&&name!="guardian.armed"&&name!="guardian.bound"&&name!="guardian.result")
                     throw new InvalidOperationException("Guardian cannot write provider records");
             } else if(accessLease!=null) {
-                if(reconciliationOnly) {
+                if(cleanupAccess) {
+                    bool observations=name=="start.job"||name=="start.terminal"||name=="stop.job"||name=="stop.terminal";
+                    bool stopWrite=accessLease.Operation=="stop"&&(name=="stop.intent"||name=="stop.submit"||name=="stop.native"||name=="stop.receipt");
+                    if(!observations&&!stopWrite)throw new InvalidOperationException("Cleanup lease cannot grant a start or resubmit stop");
+                } else if(reconciliationOnly) {
                     if(name!="start.job" && name!="start.terminal")throw new InvalidOperationException("Reconciliation cannot grant or acknowledge a start");
                 } else {
                     if(BoundedWorker.MonotonicMilliseconds()<Origin || BoundedWorker.MonotonicMilliseconds()>=Deadline)

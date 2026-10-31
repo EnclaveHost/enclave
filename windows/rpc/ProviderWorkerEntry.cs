@@ -74,7 +74,7 @@ namespace Enclave.OwnedRpc {
         }
         static string Quote(string text) {if(text.IndexOf('"')>=0)throw new ArgumentException("Quote in path");return "\""+text+"\"";}
         static int Owner(ProtectedAttempt a,string contract) {
-            using(var vm=ProtectedAttempt.OpenVmJournal(a.PermitPath,a.PermitHash,a,a.Operation=="reconcile")) {
+            using(var vm=ProtectedAttempt.OpenVmJournal(a.PermitPath,a.PermitHash,a,a.Operation!="start")) {
             a.WriteOnce("owner.consumed",Identity(a,"owner"));
             if(WaitMessage(a,"admit")!=a.Token)throw new InvalidOperationException("Closed owner gate differs");
             uint pid;long creation;
@@ -91,7 +91,10 @@ namespace Enclave.OwnedRpc {
                             intent=new StartIdentity(p.Attempt,p.Boot,p.AdmissionHash,vm.ContractHash,p.VmGuid,p.VmName,p.OwnerNote,p.ConfigurationRoot,p.Origin,p.Deadline,
                                 child.ProcessId,child.CreationFileTime,pid,creation,p.ImageHash);
                             ProviderStart.Prepare(intent,new OwnedVmStartJournal(vm,intent));
-                        } else {intent=StartIdentity.Decode(vm.ReadOnce("start.intent"));vm.VmPermit.Bind(intent,vm.ContractHash);}
+                        } else {
+                            intent=StartIdentity.Decode(vm.ReadOnce("start.intent"));vm.VmPermit.Bind(intent,vm.ContractHash);
+                            if(a.Operation=="stop")ProviderStop.Prepare(intent,new OwnedVmStartJournal(vm,intent));
+                        }
                         a.WriteOnce("operation.bound",a.Token+","+vm.ContractHash+","+a.Operation+","+ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(intent.Encode())));
                         long remote=BoundedWorker.DuplicateChildToObserver(child,observer.DangerousGetHandle(),pid,creation);
                         a.WriteOnce("child.binding",remote+","+child.ProcessId+","+child.CreationFileTime+","+a.Token+","+a.Deadline);
@@ -129,7 +132,7 @@ namespace Enclave.OwnedRpc {
             }
         }
 
-        sealed class Runtime : IStartRuntime,IDisposable {
+        sealed class Runtime : IStopRuntime,IDisposable {
             readonly ProtectedAttempt lease,vm;
             readonly StartIdentity original;
             readonly SafeWaitHandle observer,owner;
@@ -159,6 +162,37 @@ namespace Enclave.OwnedRpc {
                     throw new InvalidOperationException("One-shot operation release differs");
             }
             public void VerifyObservation(StartIdentity id){Common(id);}
+            static void OriginalProcessExited(uint pid,long creation) {
+                // Same boot is checked by Common. A reused PID with a different
+                // creation time is not the original process; access denial is not death.
+                var held=OpenProcess(0x1000|0x100000,false,pid);
+                if(held.IsInvalid) {
+                    int error=Marshal.GetLastWin32Error();held.Dispose();
+                    if(error==87)return; // validated nonzero PID absent on this boot
+                    throw new Win32Exception(error,"Original process death unknown");
+                }
+                using(held) {
+                    long c,e,k,u;if(!GetProcessTimes(held.DangerousGetHandle(),out c,out e,out k,out u))throw new Win32Exception(Marshal.GetLastWin32Error());
+                    if(c>creation)return;
+                    if(c!=creation)throw new InvalidOperationException("Original process creation ordering differs");
+                    if(WaitForSingleObject(held.DangerousGetHandle(),0)!=0)throw new StartGuardRefused("original-start-worker-still-live");
+                }
+            }
+            public void VerifyClosedStart(StartIdentity id) {
+                Common(id);
+                if(lease.Operation!="stop"&&lease.Operation!="stop-reconcile")throw new InvalidOperationException("Cleanup lease required");
+                // Expiry alone cannot cancel a native call. Exact original local
+                // death AND persisted provider settlement are separate requirements.
+                if(Now<id.Deadline)throw new StartGuardRefused("cleanup-before-startup-deadline");
+                if(id.WorkerPid==selfPid&&id.WorkerCreation==selfCreation)throw new InvalidOperationException("Cleanup cannot be original submitter");
+                OriginalProcessExited(id.WorkerPid,id.WorkerCreation);OriginalProcessExited(id.ObserverPid,id.ObserverCreation);
+                Common(id);
+            }
+            public void VerifyBeforeStop(StartIdentity id) {
+                VerifyClosedStart(id);
+                if(lease.Operation!="stop")throw new InvalidOperationException("Read-only cleanup cannot disable a VM");
+            }
+
             public void VerifyBeforeSubmit(StartIdentity id) {
                 Common(id);
                 if(lease.Operation!="start"||id.WorkerPid!=selfPid||id.WorkerCreation!=selfCreation||id.ObserverPid!=observerPid||id.ObserverCreation!=observerCreation)
@@ -250,13 +284,18 @@ namespace Enclave.OwnedRpc {
                     if(args[0]=="owner")return Owner(a,args[1]);
                     if(args[0]=="observer")return Observer(a);
                     a.WriteOnce("child.consumed",Identity(a,"child"));
-                    using(var vm=ProtectedAttempt.OpenVmJournal(a.PermitPath,a.PermitHash,a,a.Operation=="reconcile")) {
+                    using(var vm=ProtectedAttempt.OpenVmJournal(a.PermitPath,a.PermitHash,a,a.Operation!="start")) {
                         var id=StartIdentity.Decode(vm.ReadOnce("start.intent"));
                         var journal=new OwnedVmStartJournal(vm,id);
                         using(var runtime=new Runtime(a,vm,id)) {
                             runtime.VerifyObservation(id);
                             var provider=new HyperVStartProvider(runtime,journal);
                             try {
+                                if(a.Operation=="stop"||a.Operation=="stop-reconcile") {
+                                    var stops=new HyperVStopProvider(runtime,journal);
+                                    var stopped=a.Operation=="stop"?ProviderStop.Submit(id,journal,provider,stops,runtime):ProviderStop.Reconcile(id,journal,provider,stops,runtime);
+                                    a.WriteOnce("child.result",stopped.State+";start-settled="+stopped.StartSettled+";stop-settled="+stopped.StopSettled+";owned-off-zero="+stopped.OwnedOffZeroConfirmed+";provider-fenced=false;reservation-release=false");return 0;
+                                }
                                 var result=a.Operation=="start"?ProviderStart.Submit(id,journal,provider,runtime):ProviderStart.Reconcile(id,journal,provider,runtime);
                                 a.WriteOnce("child.result",result.State+";settled="+result.OperationSettled+";provider-fenced=false;reservation-release=false");return 0;
                             }catch(StartGuardRefused denied){a.WriteOnce("child.refusal",denied.Code);return 1;}

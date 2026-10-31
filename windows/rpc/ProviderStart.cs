@@ -104,7 +104,7 @@ namespace Enclave.OwnedRpc {
         }
         internal static string Text(object v){var s=v as string;if(s==null||s.Length>2048)throw new InvalidOperationException("Record string");return s;}
         internal static long Number(object v){if(!(v is int)&&!(v is long))throw new InvalidOperationException("Record integer");return Convert.ToInt64(v,CultureInfo.InvariantCulture);}
-        internal static void Name(string n){if(n!="start.intent"&&n!="start.submit"&&n!="start.native"&&n!="start.receipt"&&n!="start.job"&&n!="start.terminal")throw new ArgumentException("Fixed record name");}
+        internal static void Name(string n){if(n=="stop.intent"||n=="stop.submit"||n=="stop.native"||n=="stop.receipt"||n=="stop.job"||n=="stop.terminal")return;if(n!="start.intent"&&n!="start.submit"&&n!="start.native"&&n!="start.receipt"&&n!="start.job"&&n!="start.terminal")throw new ArgumentException("Fixed record name");}
     }
     public static class ProviderStart {
         static string Hash(string s){return ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(s));}
@@ -121,18 +121,27 @@ namespace Enclave.OwnedRpc {
             runtime.VerifyBeforeSubmit(id);Current(id,runtime);
             StartResponse response=provider.Start(id); // exactly ONE call; exceptions stay consumed
             if(response==null)throw new InvalidOperationException("Lost native response");
+            PersistResponse(journal,"start",intent,response);
+            return Reconcile(id,journal,provider,runtime);
+        }
+        internal static void PersistResponse(IStartJournal journal,string prefix,string intent,StartResponse response) {
+            if(prefix!="start"&&prefix!="stop")throw new ArgumentException("Fixed operation prefix");
+            if(response==null)throw new InvalidOperationException("Lost native response");
             string reference="";
             if(response.ReturnCode==4096)reference=HyperVStartProvider.CanonicalJobReference(response.JobReference);
             else if(!String.IsNullOrEmpty(response.JobReference))throw new InvalidOperationException("Unexpected response reference");
             // Persist the exact validated returned reference BEFORE any provider
             // follow-up read or acknowledgement to the caller.
-            journal.WriteOnce("start.receipt",StartRecords.Encode(new Dictionary<string,object>{{"intent",intent},{"code",response.ReturnCode},{"job",reference}}));
-            return Reconcile(id,journal,provider,runtime);
+            journal.WriteOnce(prefix+".receipt",StartRecords.Encode(new Dictionary<string,object>{{"intent",intent},{"code",response.ReturnCode},{"job",reference}}));
         }
         public static StartOutcome Reconcile(StartIdentity id,IStartJournal journal,IStartProvider provider,IStartRuntime runtime){
             string intent=Intent(id,journal);
             if(journal.Read("start.submit")!=intent)return new StartOutcome("submission-not-proven",false,false);
-            string raw=journal.Read("start.receipt");if(raw==null)return new StartOutcome("response-lost-held",false,false);
+            return ReconcileOperation(id,journal,provider.ReadJob,runtime,"start",intent);
+        }
+        internal static StartOutcome ReconcileOperation(StartIdentity id,IStartJournal journal,Func<string,StartJob> readJob,IStartRuntime runtime,string prefix,string intent) {
+            if(prefix!="start"&&prefix!="stop")throw new ArgumentException("Fixed operation prefix");
+            string raw=journal.Read(prefix+".receipt");if(raw==null)return new StartOutcome("response-lost-held",false,false);
             var receipt=StartRecords.Parse(raw,new[]{"intent","code","job"});
             if(StartRecords.Text(receipt["intent"])!=intent)throw new InvalidOperationException("Receipt intent differs");
             long code=StartRecords.Number(receipt["code"]);string reference=StartRecords.Text(receipt["job"]);
@@ -140,10 +149,10 @@ namespace Enclave.OwnedRpc {
             if(code==0){if(reference!="")throw new InvalidOperationException("Synchronous reference");return new StartOutcome("synchronous-complete",true,true);}
             if(code!=4096){if(reference!="")throw new InvalidOperationException("Refusal reference");return new StartOutcome("provider-return-"+code+"-held",false,false);}
             if(HyperVStartProvider.CanonicalJobReference(reference)!=reference)throw new InvalidOperationException("Noncanonical receipt job");
-            string terminal=journal.Read("start.terminal");
+            string terminal=journal.Read(prefix+".terminal");
             if(terminal!=null){
                 var t=StartRecords.Parse(terminal,new[]{"receipt","identity","state","error","runs"});
-                string identity=journal.Read("start.job");if(identity==null||StartRecords.Text(t["receipt"])!=Hash(raw)||StartRecords.Text(t["identity"])!=Hash(identity)||StartRecords.Number(t["state"])!=7||StartRecords.Number(t["runs"])!=1)
+                string identity=journal.Read(prefix+".job");if(identity==null||StartRecords.Text(t["receipt"])!=Hash(raw)||StartRecords.Text(t["identity"])!=Hash(identity)||StartRecords.Number(t["state"])!=7||StartRecords.Number(t["runs"])!=1)
                     throw new InvalidOperationException("Terminal receipt binding");
                 long error=StartRecords.Number(t["error"]);if(error<0||error>UInt16.MaxValue)throw new InvalidOperationException("Terminal error range");
                 return new StartOutcome("job-completed",true,error==0);
@@ -151,17 +160,17 @@ namespace Enclave.OwnedRpc {
             // Only live observation needs the current worker/boot/admission check.
             // A protected complete receipt survives provider garbage collection.
             runtime.VerifyObservation(id);
-            StartJob job=provider.ReadJob(reference);runtime.VerifyObservation(id);
+            StartJob job=readJob(reference);runtime.VerifyObservation(id);
             if(job==null||job.Reference!=reference||HyperVStartProvider.ReferenceForId(job.InstanceId)!=reference||String.IsNullOrEmpty(job.TimeSubmitted)||job.TimeSubmitted.Length>32)
                 throw new InvalidOperationException("Returned job identity unavailable");
             string expected=StartRecords.Encode(new Dictionary<string,object>{{"receipt",Hash(raw)},{"job",reference},{"submitted",job.TimeSubmitted}});
-            string recorded=journal.Read("start.job");
-            if(recorded==null){journal.WriteOnce("start.job",expected);recorded=expected;}
+            string recorded=journal.Read(prefix+".job");
+            if(recorded==null){journal.WriteOnce(prefix+".job",expected);recorded=expected;}
             if(recorded!=expected)throw new InvalidOperationException("Provider job incarnation changed");
             // Suspended/service/abnormal/killed are NOT proof of no later work.
             // Only nonrecurring Completed has an admitted settlement meaning.
             if(job.State!=7||job.RunTimes!=1)return new StartOutcome("job-state-"+job.State+"-held",false,false);
-            journal.WriteOnce("start.terminal",StartRecords.Encode(new Dictionary<string,object>{{"receipt",Hash(raw)},{"identity",Hash(recorded)},{"state",7},{"error",job.ErrorCode},{"runs",job.RunTimes}}));
+            journal.WriteOnce(prefix+".terminal",StartRecords.Encode(new Dictionary<string,object>{{"receipt",Hash(raw)},{"identity",Hash(recorded)},{"state",7},{"error",job.ErrorCode},{"runs",job.RunTimes}}));
             return new StartOutcome("job-completed",true,job.ErrorCode==0);
         }
     }
@@ -183,8 +192,8 @@ namespace Enclave.OwnedRpc {
             var m=Regex.Match(path.RelativePath,"\\AMsvm_ConcreteJob\\.InstanceID=\"([A-Za-z0-9_:{}.\\-]{1,128})\"\\z",RegexOptions.IgnoreCase);
             if(!m.Success)throw new InvalidOperationException("Exact single job key required");return ReferenceForId(m.Groups[1].Value);
         }
-        static ManagementScope Scope(){return new ManagementScope(@"\\.\"+Namespace,new ConnectionOptions{EnablePrivileges=true,Timeout=TimeSpan.FromSeconds(2)});}
-        static ManagementObject One(ManagementScope scope,string query){
+        internal static ManagementScope Scope(){return new ManagementScope(@"\\.\"+Namespace,new ConnectionOptions{EnablePrivileges=true,Timeout=TimeSpan.FromSeconds(2)});}
+        internal static ManagementObject One(ManagementScope scope,string query){
             var options=new EnumerationOptions{ReturnImmediately=false,Rewindable=false,Timeout=TimeSpan.FromSeconds(2)};ManagementObject found=null;
             try{using(var search=new ManagementObjectSearcher(scope,new ObjectQuery(query),options))using(var rows=search.Get())foreach(ManagementObject row in rows){if(found!=null){row.Dispose();throw new InvalidOperationException("Exact singleton required");}found=row;}
                 if(found==null)throw new InvalidOperationException("Exact provider object absent");return found;

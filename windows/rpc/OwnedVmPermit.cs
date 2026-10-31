@@ -32,14 +32,14 @@ namespace Enclave.OwnedRpc {
             Origin=origin;Deadline=deadline;GuestBytes=guestBytes;SupportBytes=supportBytes;
         }
         public string Encode() {
-            return String.Join("\n",new[]{"owned-rpc-vm-permit-v1",Attempt,Boot,AdmissionHash,ImageHash,VmGuid,ConfigurationRoot,
+            return String.Join("\n",new[]{"owned-rpc-vm-permit-v2",Attempt,Boot,AdmissionHash,ImageHash,VmGuid,ConfigurationRoot,
                 Origin.ToString(CultureInfo.InvariantCulture),Deadline.ToString(CultureInfo.InvariantCulture),
-                GuestBytes.ToString(CultureInfo.InvariantCulture),SupportBytes.ToString(CultureInfo.InvariantCulture),"fixed-local-start-and-reconcile-v1",""});
+                GuestBytes.ToString(CultureInfo.InvariantCulture),SupportBytes.ToString(CultureInfo.InvariantCulture),"fixed-local-start-disable-and-reconcile-v2",""});
         }
         public static OwnedVmPermit Parse(string raw) {
             if(raw==null||Encoding.UTF8.GetByteCount(raw)>2048)throw new ArgumentException("Permit bound");
             string[] f=raw.Split('\n');
-            if(f.Length!=13||f[0]!="owned-rpc-vm-permit-v1"||f[11]!="fixed-local-start-and-reconcile-v1"||f[12]!="")throw new ArgumentException("Exact VM permit schema");
+            if(f.Length!=13||f[0]!="owned-rpc-vm-permit-v2"||f[11]!="fixed-local-start-disable-and-reconcile-v2"||f[12]!="")throw new ArgumentException("Exact VM permit schema");
             var p=new OwnedVmPermit(f[1],f[2],f[3],f[4],f[5],f[6],
                 Int64.Parse(f[7],NumberStyles.None,CultureInfo.InvariantCulture),Int64.Parse(f[8],NumberStyles.None,CultureInfo.InvariantCulture),
                 Int64.Parse(f[9],NumberStyles.None,CultureInfo.InvariantCulture),Int64.Parse(f[10],NumberStyles.None,CultureInfo.InvariantCulture));
@@ -124,6 +124,7 @@ namespace Enclave.OwnedRpc {
             lease.CheckDeadline();Hex(expectedHash,64);LocalPath(path);
             if(Path.GetFileName(path)!="vm-permit.txt")throw new ArgumentException("Fixed VM permit filename");
             Root=Path.GetDirectoryName(path);ContractHash=expectedHash;accessLease=lease;reconciliationOnly=reconcile;
+            cleanupAccess=lease.LeaseProfile=="provider"&&(lease.Operation=="stop"||lease.Operation=="stop-reconcile");
             if(String.Equals(Root,lease.Root,StringComparison.OrdinalIgnoreCase))throw new ArgumentException("Separate journal and worker namespaces required");
             try {
                 string current=Path.GetPathRoot(Root);HoldDirectory(current,false);
@@ -137,7 +138,7 @@ namespace Enclave.OwnedRpc {
                     throw new InvalidOperationException("VM configuration outside owned attempt");
                 if(Boot!=lease.Boot||Boot!=CurrentBoot()||ExecutableHash!=lease.ExecutableHash)throw new InvalidOperationException("Worker boot/image differs from permit");
                 if(Hash(Bytes(HoldRead(Path.Combine(Root,"entry.exe"),262144),262144))!=ExecutableHash)throw new InvalidOperationException("Pinned VM worker image differs");
-                VmPermit.ValidateAccess(BoundedWorker.MonotonicMilliseconds(),reconcile);
+                VmPermit.ValidateAccess(BoundedWorker.MonotonicMilliseconds(),reconcile||cleanupAccess);
                 CheckDeadline();
             }catch{Dispose();throw;}
         }

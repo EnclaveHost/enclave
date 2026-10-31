@@ -1,0 +1,18 @@
+{
+  "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+  "windows/rpc/OwnerObserver.cs": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80",
+  "windows/rpc/VmStartGuardian.cs": "4e23387225ee2a710f60d7a17db68e73a39cd15409981cb2e0eb9fa1d64cf336",
+  "windows/rpc/ProtectedAttempt.cs": "f84f0b6aa2adc499867bda872ba13442376409b87e5886dbc87603715bb0b6a0",
+  "windows/rpc/ProviderStart.cs": "c46c9f15acadd07c6ec44f899386c9a5828264727eead746545bad731810b323",
+  "windows/rpc/OwnedVmPermit.cs": "a4d1f9640a4087714b9907cddcdc64340cb57f07de04dd1b6baf97197ac60373",
+  "windows/rpc/WindowsStartAdmission.cs": "90e4484367d052d7a15b05a5fa2cb89793df8a17b21f221f29bf7eae07aedf78",
+  "windows/rpc/ProviderWorkerEntry.cs": "6744299ae7a3a1af91854f2e08c10e2f6fffa4d830381f3bcebd81c36a08facb",
+  "test/rpc-windows-worker/ProviderWorkerQualification.cs": "bbcb5f911266b9c2cc9ced89dbe11e70d8b830d130ce86de9d995886ff3118dc",
+  "test/rpc-windows-worker/ProviderStartHarness.cs": "7bddd72c7e4fd8621b865b716d38baba0c2085ef438303da8dc3006d961958b3",
+  "test/rpc-windows-worker/run-provider-worker-ci.ps1": "9a4575bea83b5e10f9ea2c6fa321c2fb917110ee81a47b7a6af22134cd370e77",
+  ".github/workflows/rpc-provider-worker.yml": "8a938580b7f6c264e884995252ab661fd730fffdc2ca28737fa8fc70142cf9af",
+  "windows/rpc/README.md": "f4f5bf03725606f4fad754db796b827902c8629fa4ddd546521229238a29d13e",
+  "windows/rpc/PROVIDER-LIFECYCLE.md": "acc17bb139318e23c53a99056e4d4e17ea310d1378cfb2a40beb510718839507",
+  "windows/rpc/ProviderStop.cs": "0dd8605139b7d20910dc5c738fb1f8fac8e44f94f4f95dcc07d40f6905be223f",
+  "test/rpc-windows-worker/ProviderStopHarness.cs": "ffa4b259accd914278d39699b7b5706ad8e389f6b7aba4f00f389960bab8077d"
+}
