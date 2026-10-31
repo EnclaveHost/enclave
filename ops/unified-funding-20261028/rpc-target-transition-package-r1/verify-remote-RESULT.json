@@ -1,0 +1,66 @@
+{
+  "at": 1793438476.8191833,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 222,
+  "remoteDeathProven": false,
+  "automaticRetry": false,
+  "result": {
+    "verified": true,
+    "root": "C:\\EnclaveRpcTransition-6cdae0f945e64d0db1edd29b46844744\\6cdae0f945e64d0db1edd29b46844744",
+    "files": [
+      {
+        "sha256": "fc23708df1e44f1bbea1305b21aa4e7c2546c3a05cf153903cfdaa82bce1eacc",
+        "name": "definition-entry.exe",
+        "bytes": 241152
+      },
+      {
+        "sha256": "4247500a5467f113283eb4a34bd25dc60cb21613c78525a2d7cba805fc67f5ed",
+        "name": "BUNDLE.json",
+        "bytes": 2012
+      },
+      {
+        "sha256": "b5f9fe59febaf0c5af2aefd4d46286ae87a3be73dd4f0a75e22abbc51f0dfc36",
+        "name": "cleanup-controller.exe",
+        "bytes": 250880
+      },
+      {
+        "sha256": "5d52a5e22f48d17465274048a805b1d412c1a24e68f1062351b21406afa47fa2",
+        "name": "handoff-entry.exe",
+        "bytes": 247296
+      },
+      {
+        "sha256": "0fc47781f75b22e6677d319a52950f05989d6f173dc2c5362e00491eb4527b1c",
+        "name": "handoff-controller.exe",
+        "bytes": 247296
+      },
+      {
+        "sha256": "8d34296e58b83f27d5662adb5f58b3cd80f89bd2953435b2232211fb727b8b41",
+        "name": "definition-controller.exe",
+        "bytes": 241152
+      },
+      {
+        "sha256": "cb84bfda1dd6083bb431cbb394b47728d4f194fabd4fe9ae7e029d7442f61516",
+        "name": "startup-controller.exe",
+        "bytes": 250880
+      },
+      {
+        "sha256": "918e99aec938a30f1b4fcc9a660ec57afbbee5d9f54ce6408dbaa57725124d64",
+        "name": "handoff.json",
+        "bytes": 24522
+      },
+      {
+        "sha256": "c7b15b837fc07d5f625276fa25c22bb5da67e2d7d35ab25fb285c1e403d06c7f",
+        "name": "SPEC.json",
+        "bytes": 1381
+      },
+      {
+        "sha256": "3a439f8ca0d8a677734df0008b4aa729136bce19a3facb6878caa7bb9e775cf3",
+        "name": "provider-entry.exe",
+        "bytes": 250880
+      }
+    ],
+    "executed": false,
+    "nativeAttempted": false
+  }
+}

@@ -528,8 +528,9 @@ no reset, retry, deletion or capacity-release API.
 
 A held metadata handle rechecks the original fenced object and protected read
 denial during initialization. This still does not prove provider settlement.
-The RPC admission consumer and production routing integration remain missing;
-no production cut, pool or new VM is authorized solely by source qualification.
+The completed-handoff RPC admission consumer is implemented below. Production
+routing integration remains incomplete; source qualification alone does not
+authorize a production cut, pool or new VM.
 
 Changed Windows CI41175423495 at379e067d928a passed44 cases in1.110s,
 with compiler1.485s. All19 compiled source pins and three executable hashes were
@@ -756,3 +757,21 @@ This is an operational startup guard, not a filesystem quota or proof against
 arbitrary unrelated disk writes. Explicit operator adoption ends this startup
 monitor and requires a reviewed ongoing-host lifecycle; it is not automatic.
 Actual target monitoring/early Hyper-V stop are not yet qualified.
+
+### Current activation package boundary
+
+The current target bundle includes separately pinned legacy handoff, ordinary
+VM definition, provider, startup and cleanup executables. Each keeps its exact
+compiled-source revision and image digest. The handoff target excludes the
+unrelated inert qualification entrypoints; the original 256KiB input limit
+still applies. The actual hosted final handoff suite passed71 cases, and the
+ordinary definition/boot suite passed83 cases. These tests use fake provider
+calls and do not establish native target readiness.
+
+`build-boot-media.py` currently produces an Ubuntu disk and an SSH-only NoCloud
+seed. It does **not** install the execution/consensus/Base clients, mount their
+network-backed state or demonstrate RPC readiness. Stage and bind the exact
+client/runtime and storage configuration before consuming the original
+900-second startup window. Starting the shell VM is not a successful RPC trial.
+The allocator transition must not be treated as completion of app recovery or
+independent hosting: its initial mode admits only the reserved RPC claim.

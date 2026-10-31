@@ -1,0 +1,57 @@
+[
+  {
+    "file": "compile-controller.out",
+    "originalSha256": "8270f7c75c21e3c3297d4f4078163793e60febb673f8568ca6b3ef223075619a",
+    "publicSha256": "d8c9f52904c5c6fe1924544815048da7b74abc60ae848c2b1542b4093fce0127"
+  },
+  {
+    "file": "compile.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "file": "process-results.json",
+    "originalSha256": "c3870fa04eb00d6dcb2569151e550ac0759635f8fe126a9b73e81df62aa66480",
+    "publicSha256": "0bdd12e7be74aa170efa283cb0230f2ead0e4daa32f02790103ed1e9cabca9a7"
+  },
+  {
+    "file": "compile.out",
+    "originalSha256": "8270f7c75c21e3c3297d4f4078163793e60febb673f8568ca6b3ef223075619a",
+    "publicSha256": "d8c9f52904c5c6fe1924544815048da7b74abc60ae848c2b1542b4093fce0127"
+  },
+  {
+    "file": "pins.json",
+    "originalSha256": "6f87f8619b5287f6aba671acaffd7aeb22976c124ab99db3e209a9377376847f",
+    "publicSha256": "fa57e38a07ef1bb55265b234c23ef414eaf719418b5aec2111f067817a0e669a"
+  },
+  {
+    "file": "handoff.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "file": "compile-controller.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "file": "controller-artifact.json",
+    "originalSha256": "d95a558616eab5db785aeb0f5acf7b249e498b7fe8b607589c9089545dfa92bb",
+    "publicSha256": "087c05c23b517e6df7537220bfe590f41925c935327c5624b7cedeb0c9cfd333"
+  },
+  {
+    "file": "handoff.out",
+    "originalSha256": "285c32bd574aa09907861c4483c11f83bde639fedcd1ab9a5f587b674b4de8de",
+    "publicSha256": "8541fddfb32e964bfa2892f3f8e7a887bf70e95b2e070911d3d1156f45c517f0"
+  },
+  {
+    "file": "compile-entry.out",
+    "originalSha256": "8270f7c75c21e3c3297d4f4078163793e60febb673f8568ca6b3ef223075619a",
+    "publicSha256": "d8c9f52904c5c6fe1924544815048da7b74abc60ae848c2b1542b4093fce0127"
+  },
+  {
+    "file": "compile-entry.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  }
+]

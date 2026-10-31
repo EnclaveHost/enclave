@@ -1,0 +1,1 @@
+One bounded read of current four-listener/complete VM inventory, manager pending observations and prepared exact new master/media. No mutation, no full admission, no missing reservation = zero inference. Required before concrete pool plan. Original manager must remain alive. Local 256/220/floor27648 lane; original40s transport bound, timeout is not remote death.

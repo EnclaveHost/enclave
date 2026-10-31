@@ -1,0 +1,56 @@
+{
+  "schema": "rpc-target-bundle/1",
+  "components": [
+    {
+      "name": "handoff-entry.exe",
+      "sha256": "5d52a5e22f48d17465274048a805b1d412c1a24e68f1062351b21406afa47fa2",
+      "bytes": 247296,
+      "runtime": "82c842cfc1fb4e92e08292c6abc3b0b5914ccb90",
+      "compiledPinsVerified": 21
+    },
+    {
+      "name": "handoff-controller.exe",
+      "sha256": "0fc47781f75b22e6677d319a52950f05989d6f173dc2c5362e00491eb4527b1c",
+      "bytes": 247296,
+      "runtime": "82c842cfc1fb4e92e08292c6abc3b0b5914ccb90",
+      "compiledPinsVerified": 21
+    },
+    {
+      "name": "definition-entry.exe",
+      "sha256": "fc23708df1e44f1bbea1305b21aa4e7c2546c3a05cf153903cfdaa82bce1eacc",
+      "bytes": 241152,
+      "runtime": "c0bbc562a1c3aad1c1df307d2b2413a5b2efffec",
+      "compiledPinsVerified": 17
+    },
+    {
+      "name": "definition-controller.exe",
+      "sha256": "8d34296e58b83f27d5662adb5f58b3cd80f89bd2953435b2232211fb727b8b41",
+      "bytes": 241152,
+      "runtime": "c0bbc562a1c3aad1c1df307d2b2413a5b2efffec",
+      "compiledPinsVerified": 17
+    },
+    {
+      "name": "provider-entry.exe",
+      "sha256": "3a439f8ca0d8a677734df0008b4aa729136bce19a3facb6878caa7bb9e775cf3",
+      "bytes": 250880,
+      "runtime": "ac702ab95b0e6062fcd27d234fdae96ef1ef6b1a",
+      "compiledPinsVerified": 19
+    },
+    {
+      "name": "startup-controller.exe",
+      "sha256": "cb84bfda1dd6083bb431cbb394b47728d4f194fabd4fe9ae7e029d7442f61516",
+      "bytes": 250880,
+      "runtime": "ac702ab95b0e6062fcd27d234fdae96ef1ef6b1a",
+      "compiledPinsVerified": 19
+    },
+    {
+      "name": "cleanup-controller.exe",
+      "sha256": "b5f9fe59febaf0c5af2aefd4d46286ae87a3be73dd4f0a75e22abbc51f0dfc36",
+      "bytes": 250880,
+      "runtime": "ac702ab95b0e6062fcd27d234fdae96ef1ef6b1a",
+      "compiledPinsVerified": 19
+    }
+  ],
+  "nativeActivated": false,
+  "sourceNote": "Each independently qualified component retains its exact runtime, image and compiled source pins; no claim of one shared binary build."
+}

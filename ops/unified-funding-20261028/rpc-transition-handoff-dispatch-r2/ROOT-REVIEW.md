@@ -1,0 +1,1 @@
+Changed target closure excludes two unrelated inert test programs, unchanged native256KiB bound and original full71-case harness. Prior oversized final images/failure retained; no unchanged retry. One hosted dispatch only.

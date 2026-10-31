@@ -1,0 +1,17 @@
+{
+  "run.py": "1b1d3816d3ee045fd469612213158ed2be72e2c5dc8e62ddcc3310248ac8ffbc",
+  "create.ps1": "d99a521de431a7b0cb685c45b7981def9b2f73d73e6f8ab964fa03d5d84d1c9a",
+  "verify.ps1": "812ff7017a70b5dda831a843ae7952e193d3bd08135463912514cead0ce77eaf",
+  "FILES.json": "f012b3812b9f640e443f4269d91498102b3fdc8ab26dafd552fe613d4a4ebc3d",
+  "SPEC.json": "879724c384a7de3166d3e96e1ec0769d96c734639dc623adb1f879df8388a7e6",
+  "bundle/definition-entry.exe": "fc23708df1e44f1bbea1305b21aa4e7c2546c3a05cf153903cfdaa82bce1eacc",
+  "bundle/BUNDLE.json": "4247500a5467f113283eb4a34bd25dc60cb21613c78525a2d7cba805fc67f5ed",
+  "bundle/cleanup-controller.exe": "b5f9fe59febaf0c5af2aefd4d46286ae87a3be73dd4f0a75e22abbc51f0dfc36",
+  "bundle/handoff-entry.exe": "5d52a5e22f48d17465274048a805b1d412c1a24e68f1062351b21406afa47fa2",
+  "bundle/handoff-controller.exe": "0fc47781f75b22e6677d319a52950f05989d6f173dc2c5362e00491eb4527b1c",
+  "bundle/definition-controller.exe": "8d34296e58b83f27d5662adb5f58b3cd80f89bd2953435b2232211fb727b8b41",
+  "bundle/startup-controller.exe": "cb84bfda1dd6083bb431cbb394b47728d4f194fabd4fe9ae7e029d7442f61516",
+  "bundle/handoff.json": "918e99aec938a30f1b4fcc9a660ec57afbbee5d9f54ce6408dbaa57725124d64",
+  "bundle/SPEC.json": "c7b15b837fc07d5f625276fa25c22bb5da67e2d7d35ab25fb285c1e403d06c7f",
+  "bundle/provider-entry.exe": "3a439f8ca0d8a677734df0008b4aa729136bce19a3facb6878caa7bb9e775cf3"
+}
