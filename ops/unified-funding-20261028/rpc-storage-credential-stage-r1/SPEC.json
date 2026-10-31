@@ -1,0 +1,13 @@
+{
+  "attempt": "8ee4452b174746c2b606b9b68f0fa623",
+  "instance": "rpc-owned-8ee4452b174746c2b606b9b68f0fa623",
+  "source": "/home/controladmin/rpc-private-guest-8ee4452b174746c2b606b9b68f0fa623/8ee4452b174746c2b606b9b68f0fa623",
+  "receiptSha256": "031225948e5f62d553d703c001ac172ce21aa30668f3acc67e52f17054324c43",
+  "remoteUnit": "enclave-rpc-storage-credential-read-r1-20261031",
+  "openssl": {
+    "path": "/usr/bin/openssl",
+    "sha256": "9b81b075be7cc0d39d237132e24418ae6c48dd166e8bf0ca61b0cb19a76fa445"
+  },
+  "resourceConfig": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-export-current-admission-read-r2/CONFIG.json",
+  "sourceRoot": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source"
+}

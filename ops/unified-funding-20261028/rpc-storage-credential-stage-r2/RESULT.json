@@ -1,0 +1,21 @@
+{
+  "schema": "owned-rpc-server-credential-stage/1",
+  "attempt": "8ee4452b174746c2b606b9b68f0fa623",
+  "instance": "rpc-owned-8ee4452b174746c2b606b9b68f0fa623",
+  "destination": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-storage-credential-stage-r2/private/8ee4452b174746c2b606b9b68f0fa623",
+  "publicReceiptSha256": "031225948e5f62d553d703c001ac172ce21aa30668f3acc67e52f17054324c43",
+  "files": 13,
+  "keyPairsVerified": 4,
+  "privateModesVerified": true,
+  "sourceMetadataUnchanged": true,
+  "remoteInvocation": "a4908542bab24a339bb1b845a85af322",
+  "remoteBootId": "b39ecfe2-82b2-4c2a-a596-a52630bb59fd",
+  "remoteAvailableMiB": 6942,
+  "seconds": 1.1287002090830356,
+  "issuerKeysTransferred": false,
+  "guestSshPrivateKeyTransferred": false,
+  "credentialsRotated": false,
+  "exportStarted": false,
+  "vmStarted": false,
+  "rpcReady": false
+}

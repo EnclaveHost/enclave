@@ -106,6 +106,20 @@ statement. This does not change the production supervisor384MiB plus128MiB
 bootstrap allowance. Guest attachment, workload fit and production readiness are
 still unproven.
 
+The existing guest's TLS credentials have now been staged privately on Warden
+over the authenticated Control SSH path. Both role-specific server credentials
+and matching client credentials for the supervisor's probe were transferred;
+issuer keys and the guest SSH private key stayed on Control. All13 files passed
+private-permission/readback checks, and all four certificate/key pairs matched
+the original pinned identity receipt. No keys were regenerated. Public evidence
+is in
+[the staging result](../../ops/unified-funding-20261028/rpc-storage-credential-stage-r2/ROOT-RESULT.md);
+the credential directory and captured transport are excluded from Git.
+The first collector's transient-unit metadata failure is retained separately.
+This completes credential placement only. The original common startup deadline,
+production export contract, Windows definition/boot/start and authenticated guest
+activation remain to be executed together; no production export is listening.
+
 
 ## Guest receipt binding
 
