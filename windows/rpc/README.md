@@ -816,3 +816,31 @@ transfers retain their directory for inspection rather than retrying. Local
 SSH/SCP timeout or exit does not prove remote process death. Preparation has
 its own resource checks and is not RPC startup admission; the complete guest
 and storage workflow still requires independent lifecycle and capacity checks.
+
+### Clock sample for the cross-host startup window
+
+`ClockSample.cs` is a read-only executable taking exactly three arguments:
+`<credential-attempt-hex32> <VM-attempt-hex32> <image-sha256>`.
+It arms a dedicated five-second termination thread at entry, enters the existing
+128 MiB self job, verifies its image bytes, and returns one
+`owned-rpc-windows-clock/1` JSON object using the same native boot identifier and
+monotonic clock as the controllers. It creates no children, tasks, files, VM or
+provider operations. The job does not bound allocations before assignment;
+bootstrap and SSH/collector resources require separate admission. Loading an
+image and checking its path hash do not prove namespace custody: the reviewed
+binary must first be staged and independently checked in a protected target
+namespace. The sampler does not qualify SYSTEM controller execution.
+
+`rpc/sample_windows_clock.py` sends one request through explicit, pinned SSH
+configuration. It consumes `sampling.intent` in the existing private begin
+journal before transport. A timeout, malformed reply, wrong boot or wrong attempt
+leaves that attempt held, with no retry. The complete handshake must fit in the
+original ten-second allowance; the returned sample completes the existing
+900-second clock rather than beginning another window. Local transport exit is
+not remote death. Only the original operation can consume the resulting clock.
+
+The dedicated `rpc-clock-sampler.yml` workflow compiles the exact source closure
+and exercises normal output, invalid identities, wrong image, wrong arity and a
+blocked-main-thread watchdog case on a disposable Windows runner. Hosted results
+must be recorded separately from target qualification; this source addition alone
+does not stage or run the sampler on NucBox.

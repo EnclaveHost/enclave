@@ -1,0 +1,26 @@
+[
+  {
+    "path": "rpc/sample_windows_clock.py",
+    "sha256": "bf3c84b4fb639936c2477f32f3ba434f2178085190baf711ab15229aa6e588eb"
+  },
+  {
+    "path": "rpc/startup_clock.py",
+    "sha256": "ac975905dd71268d5ac345071ec6001a0a408e0aa314074ec354442abb634375"
+  },
+  {
+    "path": "rpc/deliver_activation.py",
+    "sha256": "931153da9dc9b2fe359086aa907fa7a33fbf24adb627597c7d66ea40ba915cdf"
+  },
+  {
+    "path": "rpc/prepare_attachment.py",
+    "sha256": "c0685fbf106fe2fc49e1ce076b0dca096716d37ecd832a227480b6832e5f625a"
+  },
+  {
+    "path": "rpc/storage_protocol.py",
+    "sha256": "80a3f865a76914a5d986528d50dfb77bd90ec5604f9884f3391ae99c4f02bc31"
+  },
+  {
+    "path": "test/rpc-server/test_windows_clock_transport.py",
+    "sha256": "f5f1bd3175fdb82a5bd9bc478d2089737bb59689d6739dc68a90da89eccc7949"
+  }
+]

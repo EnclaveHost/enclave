@@ -216,3 +216,13 @@ filesystem UUID and directory ownership before READY. The old per-role flat
 receipt with `exclusiveCow`/`originalsReadOnly` boolean assertions is no longer
 accepted; it was never production-qualified. Existing schema1 seed artifacts
 must not be combined with these schema2 contracts.
+
+The owner can complete its existing begin binding with
+`rpc/sample_windows_clock.py:sample(config)`. Configuration binds `begin`, the
+explicit SSH `target` (host/port/user/identityFile), one private pinned `knownHosts`
+file and `hostAlias`, `sshSha256`, protected `samplerPath`, `samplerSha256`, and the
+reviewed `windowsBoot`. The remote image is `windows/rpc/ClockSample.cs`, staged
+and qualified separately. This API creates no new original clock and performs no
+VM or exporter launch. Ten sender tests use actual protected journals and mocked
+transport; they are not proof of a live Windows handshake. Both host admission
+and a complete startup workflow are required before consuming the live begin.
