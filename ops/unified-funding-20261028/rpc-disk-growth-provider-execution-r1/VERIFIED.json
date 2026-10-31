@@ -1,0 +1,38 @@
+{
+  "runId": 41187209092,
+  "runtime": "31ece363a19ba4c43362c155f50ce9690fd450c6",
+  "compiledSourcePins": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/VmStartGuardian.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/ProviderStart.cs",
+    "windows/rpc/ProviderStop.cs",
+    "windows/rpc/HostPhysicalPool.cs",
+    "windows/rpc/PhysicalPoolCommand.cs",
+    "windows/rpc/OwnedVmPermit.cs",
+    "windows/rpc/WindowsStartAdmission.cs",
+    "windows/rpc/ProviderWorkerEntry.cs",
+    "windows/rpc/BootStartBinding.cs",
+    "windows/rpc/StartupCleanup.cs",
+    "test/rpc-windows-worker/ProviderWorkerQualification.cs",
+    "test/rpc-windows-worker/ProviderStartHarness.cs",
+    "test/rpc-windows-worker/ProviderStopHarness.cs",
+    "test/rpc-windows-worker/HostPhysicalPoolHarness.cs"
+  ],
+  "binaries": {
+    "physical-pool-command.exe": {
+      "bytes": 209920,
+      "sha256": "197caeed5b0e67d1c3a4e0388c8b147205803bd46a8dd667f27a8c843bbf4be8"
+    },
+    "qualification-controller.exe": {
+      "bytes": 242176,
+      "sha256": "7379bd6fa3af118bc8a36a65e82b9cce57403de8f596f05dc50a5ca3528b8d11"
+    },
+    "owned-entry.exe": {
+      "bytes": 209920,
+      "sha256": "62cee8eff1937084c9ae797d98e926c52d0f3cefab4599e02c45251f6ac07013"
+    }
+  },
+  "nativeTarget": false
+}

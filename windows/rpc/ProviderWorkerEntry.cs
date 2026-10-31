@@ -190,7 +190,8 @@ namespace Enclave.OwnedRpc {
                 // Expiry alone cannot cancel a native call. Exact original local
                 // death AND persisted provider settlement are separate requirements.
                 if(Now<id.Deadline){
-                    StartupAbort.Validate(vm.ReadOnce("startup.abort"),vm.VmPermit,vm.ContractHash,Now);
+                    string abort=vm.ReadOptionalOnce("startup.abort");if(abort==null)throw new StartGuardRefused("cleanup-before-startup-deadline");
+                    StartupAbort.Validate(abort,vm.VmPermit,vm.ContractHash,Now);
                     string[] g=vm.ReadOnce("guardian.consumed").Split(',');
                     if(g.Length!=4||g[2]!=vm.Token||g[3]!="guardian")throw new InvalidOperationException("Original guardian identity");
                     uint gp=UInt32.Parse(g[0],CultureInfo.InvariantCulture);long gc=Number(g[1]);if(gp==0||gc<=0)throw new InvalidOperationException("Original guardian identity invalid");

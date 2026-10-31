@@ -1,0 +1,40 @@
+{
+  "runId": 41187176545,
+  "runtime": "31ece363a19ba4c43362c155f50ce9690fd450c6",
+  "compiledSourcePins": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/VmStartGuardian.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/ProviderStart.cs",
+    "windows/rpc/ProviderStop.cs",
+    "windows/rpc/OwnedVmPermit.cs",
+    "windows/rpc/HostPhysicalPool.cs",
+    "windows/rpc/WindowsStartAdmission.cs",
+    "windows/rpc/LegacyTemplateFence.cs",
+    "windows/rpc/LegacyLaunchCohort.cs",
+    "windows/rpc/LegacyHandoff.cs",
+    "windows/rpc/ProviderWorkerEntry.cs",
+    "windows/rpc/BootStartBinding.cs",
+    "windows/rpc/StartupCleanup.cs",
+    "windows/rpc/StartupCleanupController.cs",
+    "windows/rpc/StartupController.cs",
+    "windows/rpc/OwnedVmDefinition.cs",
+    "test/rpc-windows-worker/StartupControllerHarness.cs"
+  ],
+  "binaries": {
+    "cleanup-controller.exe": {
+      "bytes": 250880,
+      "sha256": "56803e8c0a1ae05754501c8dc4f5ee4d43d6b90de4fcf77c1c7304db53f47fc7"
+    },
+    "startup-controller.exe": {
+      "bytes": 250880,
+      "sha256": "73a31ede879b48fcb6a88450a991601910950f220b9593b43f06d09455dfea80"
+    },
+    "owned-entry.exe": {
+      "bytes": 250880,
+      "sha256": "8caf98c250a1c30504c175e4cab9eff7e04eca2d3690461a5f329c7ecc2316cd"
+    }
+  },
+  "nativeTarget": false
+}

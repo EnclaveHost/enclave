@@ -1,0 +1,102 @@
+[
+    {
+        "name":  "startup-compile.out",
+        "bytes":  199,
+        "included":  true
+    },
+    {
+        "name":  "startup-compile.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "startup-artifact.json",
+        "bytes":  215,
+        "included":  true
+    },
+    {
+        "name":  "startup-controller.exe",
+        "bytes":  250880,
+        "included":  true
+    },
+    {
+        "name":  "controller-compile.out",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "controller-compile.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "entry-compile.out",
+        "bytes":  199,
+        "included":  true
+    },
+    {
+        "name":  "entry-compile.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "target-compile.out",
+        "bytes":  199,
+        "included":  true
+    },
+    {
+        "name":  "target-compile.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "target-artifact.json",
+        "bytes":  215,
+        "included":  true
+    },
+    {
+        "name":  "cleanup-controller.exe",
+        "bytes":  250880,
+        "included":  true
+    },
+    {
+        "name":  "inert.out",
+        "bytes":  855,
+        "included":  true
+    },
+    {
+        "name":  "inert.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "process-results.json",
+        "bytes":  1329,
+        "included":  true
+    },
+    {
+        "name":  "pins.json",
+        "bytes":  4592,
+        "included":  true
+    },
+    {
+        "name":  "controller-artifact.json",
+        "bytes":  221,
+        "included":  true
+    },
+    {
+        "name":  "entry-artifact.json",
+        "bytes":  208,
+        "included":  true
+    },
+    {
+        "name":  "qualification-controller.exe",
+        "bytes":  275968,
+        "included":  false
+    },
+    {
+        "name":  "owned-entry.exe",
+        "bytes":  250880,
+        "included":  true
+    }
+]

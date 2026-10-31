@@ -1,0 +1,350 @@
+{
+  "reason": "Normal git diff --check rejected raw Windows CRLF as trailing whitespace. Public text normalized to LF/trailing whitespace only; exact original bytes retained in U artifact directories. No compiler/runtime files modified. Failed preservation bb74152 retained, no bypass.",
+  "files": [
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-ci-execution-r1/artifact/target-compile.err",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-ci-execution-r1/artifact/inert.err",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-ci-execution-r1/artifact/publication.json",
+      "originalSha256": "4c93389c74dbcd283ac0ec343fd9ffd9e4c30acbaf3b96375ba0c51ee2d5f4de",
+      "publicSha256": "3cf639a160f5e7f83125ba5d369ea17791aa9affc600340b66f9a55eb305cfa1"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-ci-execution-r1/artifact/process-results.json",
+      "originalSha256": "aeebb6419f15cdb7e7957859bdde7aeb75cfc21abbb1a094d3338213b2db9321",
+      "publicSha256": "6dc1312f218fb48442cb3c84deabb3a4af66205b5081009b3b5e02beb5f392b0"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-ci-execution-r1/artifact/controller-compile.err",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-ci-execution-r1/artifact/target-artifact.json",
+      "originalSha256": "b657d794c4985f9851f5c143830b8565aaa6d4306d7b51890477a83b790155eb",
+      "publicSha256": "48b5beab57f143f4daf5020a7d21d13d80dc80d11fbcc5f537841181cad821e1"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-ci-execution-r1/artifact/pins.json",
+      "originalSha256": "677851573e3a45e4f9c4096da03dda49ec8b4093c390d028e170cab7f8415069",
+      "publicSha256": "2d51414b8591564c1229cb22c1e94ae74b1c68ceba5f54eb41156da2f23c0551"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-ci-execution-r1/artifact/entry-compile.out",
+      "originalSha256": "8270f7c75c21e3c3297d4f4078163793e60febb673f8568ca6b3ef223075619a",
+      "publicSha256": "d8c9f52904c5c6fe1924544815048da7b74abc60ae848c2b1542b4093fce0127"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-ci-execution-r1/artifact/entry-artifact.json",
+      "originalSha256": "07ecbb4fc279099ba516808c52ebcd241e06499a5285f150b824e20fa95ff8a0",
+      "publicSha256": "9d22c0e2d03b81bc1f55587ef29b1054154c99afc7a47b5230478881c3123a2a"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-ci-execution-r1/artifact/inert.out",
+      "originalSha256": "d8436a90f8cb3ccede9278d1020504e262820eb624f918f33bc7a664b540dc52",
+      "publicSha256": "1b06de7c7fd8907ce43cb548091d08767ffb4ade544f7bd8a122aa8c0c79449e"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-ci-execution-r1/artifact/controller-artifact.json",
+      "originalSha256": "fae0b783ca464191324049591788f2f87571b177c0f033e405738ae9605783fa",
+      "publicSha256": "203560c2c331accffb0115afb13d2b820836f490746edfba6007c16a87f5eb7c"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-ci-execution-r1/artifact/entry-compile.err",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-ci-execution-r1/artifact/controller-compile.out",
+      "originalSha256": "8270f7c75c21e3c3297d4f4078163793e60febb673f8568ca6b3ef223075619a",
+      "publicSha256": "d8c9f52904c5c6fe1924544815048da7b74abc60ae848c2b1542b4093fce0127"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-ci-execution-r1/artifact/target-compile.out",
+      "originalSha256": "8270f7c75c21e3c3297d4f4078163793e60febb673f8568ca6b3ef223075619a",
+      "publicSha256": "d8c9f52904c5c6fe1924544815048da7b74abc60ae848c2b1542b4093fce0127"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-startup-execution-r1/artifact/target-compile.err",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-startup-execution-r1/artifact/startup-compile.err",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-startup-execution-r1/artifact/inert.err",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-startup-execution-r1/artifact/startup-compile.out",
+      "originalSha256": "8270f7c75c21e3c3297d4f4078163793e60febb673f8568ca6b3ef223075619a",
+      "publicSha256": "d8c9f52904c5c6fe1924544815048da7b74abc60ae848c2b1542b4093fce0127"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-startup-execution-r1/artifact/publication.json",
+      "originalSha256": "50e8b29f3e0bb2bf6fe0d664542500d69f6d4dd8d41f5e62fec3dbff9b9d9af9",
+      "publicSha256": "e972edb004acde3f8556317808751bd62e30ba14259f06f1768c08fd4aa95ec7"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-startup-execution-r1/artifact/process-results.json",
+      "originalSha256": "de73d3e9729f35bddd37fd75fb92e2e4360c7f3b5aa48653055fbe781648d257",
+      "publicSha256": "d6c2f850f2743004716602b52428e9118918a8b20ea10d025ccb7bfcd92473ef"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-startup-execution-r1/artifact/controller-compile.err",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-startup-execution-r1/artifact/target-artifact.json",
+      "originalSha256": "d0e0e31e11972bc40c0c59d4f35fcbe22d47e53264e89c08c750e7e9b532e542",
+      "publicSha256": "eaab594959f169659857165bbdde65c814673725f0dbb13efa39ae62abeb5d8b"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-startup-execution-r1/artifact/pins.json",
+      "originalSha256": "013472e6db4d3c04f0006f453ef7ee1f2ec02f8da99860593040c415f37824cb",
+      "publicSha256": "5f10629813375e7019d39427f0d27cb8f8f51da1a8ab1eaf9cac82e0c68f55c8"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-startup-execution-r1/artifact/entry-compile.out",
+      "originalSha256": "8270f7c75c21e3c3297d4f4078163793e60febb673f8568ca6b3ef223075619a",
+      "publicSha256": "d8c9f52904c5c6fe1924544815048da7b74abc60ae848c2b1542b4093fce0127"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-startup-execution-r1/artifact/entry-artifact.json",
+      "originalSha256": "a850fb00f164d927a2b93747df00335dedb5015e51998abb092682480e37490a",
+      "publicSha256": "a8bf1a72d19ceee64eb4d6256778f6485fd00253ca32b55808e1f6aa3a308388"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-startup-execution-r1/artifact/startup-artifact.json",
+      "originalSha256": "940f48497524b4b8c952ff96d6d22ee41759adcf8ea85b8d0b408e10367b7732",
+      "publicSha256": "90af748260b6835c9f5dae08c38269c5a139a04bc919fb8137bb206a356ff0e8"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-startup-execution-r1/artifact/inert.out",
+      "originalSha256": "f9aad0753b295d16c79d7a70d2d97963effaf3b24492ccf27f47320e6027c5d2",
+      "publicSha256": "27e8ca355adde9316a39bab271c632d8e689c57257a3c5a6956f55da696dfa46"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-startup-execution-r1/artifact/controller-artifact.json",
+      "originalSha256": "ce2aa2924600852fd6a03657b40e64a11992d6d15adaeb90eb94af5cadfd3f15",
+      "publicSha256": "b546923322bf8df65b31cd39abc859cc1a30a857fef8ffb6808cd1f539dc12bf"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-startup-execution-r1/artifact/entry-compile.err",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-startup-execution-r1/artifact/controller-compile.out",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-startup-execution-r1/artifact/target-compile.out",
+      "originalSha256": "8270f7c75c21e3c3297d4f4078163793e60febb673f8568ca6b3ef223075619a",
+      "publicSha256": "d8c9f52904c5c6fe1924544815048da7b74abc60ae848c2b1542b4093fce0127"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/pool-compile.out",
+      "originalSha256": "8270f7c75c21e3c3297d4f4078163793e60febb673f8568ca6b3ef223075619a",
+      "publicSha256": "d8c9f52904c5c6fe1924544815048da7b74abc60ae848c2b1542b4093fce0127"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/guardian-publication-failure.err",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/physical-pool.out",
+      "originalSha256": "d4ed376326a5605e6bfbb7fdc38250623291146d96cd66fc866bc8dc47584715",
+      "publicSha256": "58335d740ed8c661bf6d616d8d7dc3aba51f11f13960d5ad8f9f8aadb7e52235"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/stop-compile.err",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/pool-transport.out",
+      "originalSha256": "ac38e9ae71d64ad43864b5cba91a21797c30e61e2574b0e6eb092ae3ebe1d43f",
+      "publicSha256": "2b3e9cc85e4427a1c3ae985efa35669f2daeaaa21fa793f3a449ab5ec9b2a42e"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/stops.err",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/transactions.err",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/guardian-publication-failure.out",
+      "originalSha256": "d0e4d7a1ba5d8e92a852273d7c2e98ff14e1e79cd98fc8a49883a044d2812e0b",
+      "publicSha256": "5d7f57b1489c419971d9fe9d7745de2dafcb58a20b4158be3b3e7564666ab3c2"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/pool-compile.err",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/admission-fixtures.err",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/transaction-compile.err",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/guardian-bind.err",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/publication.json",
+      "originalSha256": "e79dc10723c8e515cdc7d132d14214cfe72189a121223412020ebe4633d5ba4f",
+      "publicSha256": "eaa4240bcea0da244cf7e749122989932980511622392295de56dd75ffaf883a"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/process-results.json",
+      "originalSha256": "3bda973a238dce785c0cb60548270c925dd5003a9a4cd6048fb8355718e7d0a5",
+      "publicSha256": "51936c0faa0bd9dc91e7addf729f20b30d707934c8991c837760df34a0654ebc"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/reconcile.out",
+      "originalSha256": "05d250f437aee83cfaa6a19a13e1e118797dfa1de7be471e8c195801b21aba5d",
+      "publicSha256": "77f0f008853e8d5e8967b196f1b4e3cd2b35756f0a576b775a89cf5d8d7f27b9"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/stops.out",
+      "originalSha256": "9bb84654485b83fa6f0c8f89b20dc817327574ce079765cf2566ec4f2c5b469f",
+      "publicSha256": "8dc8054ebf051103ed18731dddb9a492ecba41a331e802edc619a3b1347aa8c9"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/denied-start.out",
+      "originalSha256": "1099ef7880748aae4fdf675801382930039d0b5b991a3556c59fd2f604fc102e",
+      "publicSha256": "8ab01be88e5444bd4608c0a8d91821c8a6063d8e3037c10e50080e621f0b55d5"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/pool-command-compile.err",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/stop-compile.out",
+      "originalSha256": "c47b5a435a816b9c1e534bd82cab33954f21166e5c0cf9846a3cc785c23c4924",
+      "publicSha256": "31be75e15d18ac8afd59f1d5c2dadbc1137d0d71a855928fba623aa3658f2eb7"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/controller-compile.err",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/reconcile.err",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/stop-too-early.err",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/transaction-compile.out",
+      "originalSha256": "8270f7c75c21e3c3297d4f4078163793e60febb673f8568ca6b3ef223075619a",
+      "publicSha256": "d8c9f52904c5c6fe1924544815048da7b74abc60ae848c2b1542b4093fce0127"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/pins.json",
+      "originalSha256": "34428ea595f02f6d25662dc9ca29d4b8ba402b908d93b13ed64bc97703c8806d",
+      "publicSha256": "bcc9f88169e293fe515dd21f972bda326d9b62def6ee925ab6712ad891e877a7"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/denied-start.err",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/physical-pool.err",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/entry-compile.out",
+      "originalSha256": "8270f7c75c21e3c3297d4f4078163793e60febb673f8568ca6b3ef223075619a",
+      "publicSha256": "d8c9f52904c5c6fe1924544815048da7b74abc60ae848c2b1542b4093fce0127"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/entry-artifact.json",
+      "originalSha256": "bffdd2fb071c540cd655566f6e29237ffca9e6e58c129c9906edfa0eff88cca6",
+      "publicSha256": "62f2193329a80f4aa1c1e2c3e9acfa2234020c7532a1c0258d5a31e0a1198bff"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/pool-command-artifact.json",
+      "originalSha256": "c49ad3d930bea436e254eb785219aa2cadb24a6c18ed06dab08933d407e59a75",
+      "publicSha256": "c6dc25f4d36fea8f52cc3a013b9e1d3ee0b254060a391452c2495176cace882d"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/controller-artifact.json",
+      "originalSha256": "1ed42993c8debf59a56019d98958a3284a9b861837488a9219893a33eccafacb",
+      "publicSha256": "f8a479497703689afcf8d7c4190e1d389b834b7291e5b9394d0987a7a45080c0"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/guardian-bind.out",
+      "originalSha256": "05e1ffb6df3b7aef8b0d41f6a9e82cb46d3635e20d026e37281bcbb19af6b29c",
+      "publicSha256": "b02fd3fa0936e9aca33f85f52aa25f677fb94d78c16e04d39ac703f79055f447"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/entry-compile.err",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/pool-command-compile.out",
+      "originalSha256": "8270f7c75c21e3c3297d4f4078163793e60febb673f8568ca6b3ef223075619a",
+      "publicSha256": "d8c9f52904c5c6fe1924544815048da7b74abc60ae848c2b1542b4093fce0127"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/transactions.out",
+      "originalSha256": "742dcd47e8ad2750aac39485a86bd0ec5a82d0d94cbcac004d0f229b673f4948",
+      "publicSha256": "4a8090d16718fd67955fe885fcb10a88679bd3209cc68c72197bc1dae3f34f38"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/controller-compile.out",
+      "originalSha256": "8270f7c75c21e3c3297d4f4078163793e60febb673f8568ca6b3ef223075619a",
+      "publicSha256": "d8c9f52904c5c6fe1924544815048da7b74abc60ae848c2b1542b4093fce0127"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/pool-transport.err",
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/admission-fixtures.out",
+      "originalSha256": "4e4cbaf727e9e807038938c0fd876d02263f7dea322e2932192b8c13bce1eae5",
+      "publicSha256": "86ed0fdddc3eff75fb3f4a27e7bf716725824d3b9b79d7b40ea643476dc796b7"
+    },
+    {
+      "path": "ops/unified-funding-20261028/rpc-disk-growth-provider-execution-r1/artifact/stop-too-early.out",
+      "originalSha256": "ec4841ae04c5bf15062a227d49e1548c029c544147e5b0e0854f071a7fde5bb9",
+      "publicSha256": "1af9403722601e45b81bdf4c054467bf1a192322d1df7b545f225df03d325ad6"
+    }
+  ]
+}
