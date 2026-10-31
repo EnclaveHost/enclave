@@ -1,0 +1,20 @@
+{
+  "rc": 1,
+  "reason": null,
+  "elapsedSeconds": 0.542387176072225,
+  "stdout": "",
+  "stderr": "Traceback (most recent call last):\n  File \"/src/test/rpc-server/qualify_volume_export.py\", line 96, in <module>\n    probe=probe_export(server,{'clientTls':str(pki),'tlsName':'rpc-storage-fixture'})\n  File \"/src/rpc/server/guarded_export.py\", line 200, in probe_export\n    raise ValueError('Negotiated export identity mismatch: '+text[:1024])\nValueError: Negotiated export identity mismatch: exports available: 1\n export: 'rpc-f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2-l1'\n  size:  1048576\n  flags: 0x1ced ( flush fua trim zeroes df cache fast-zero block-status-payload )\n  min block: 1\n  opt block: 4096\n  max block: 33554432\n  transaction size: 64-bit\n  available meta contexts: 1\n   base:allocation\n\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 693
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

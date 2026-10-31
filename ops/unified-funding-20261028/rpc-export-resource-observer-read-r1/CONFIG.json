@@ -1,0 +1,6 @@
+{
+  "url": "http://127.0.0.1:8095",
+  "controlClient": "/home/steven/enclave-prod/capacity-audit/src/isolation/m4/guestd/control-client.mjs",
+  "controlClientSha256": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6",
+  "keyFile": "/home/steven/enclave-prod/guestd-pair.key"
+}

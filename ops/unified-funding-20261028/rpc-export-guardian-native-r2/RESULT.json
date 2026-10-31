@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.7966837920248508,
+  "stdout": "{\"allPass\": true, \"cases\": [\"authenticated-backing-read\", \"write-FUA-flush-readback\", \"supervisor-authenticated-readiness-probe\", \"explicit-disconnect-reconnect-readback\", \"wrong-client-DN-refused\", \"wrong-server-name-refused\", \"wrong-export-refused\", \"plaintext-refused\", \"second-overlay-writer-refused\", \"original-writer-refused\", \"authorized-after-refusals\", \"child-death-original-hashes-and-overlay-check\", \"consumed-attempt-refused\", \"persisted-overlay-readback-after-exit\"], \"count\": 14, \"cleanup\": {\"exactChildExited\": true, \"forced\": false, \"originalMetadataUnchanged\": true, \"overlayRetained\": true, \"writersFenced\": false, \"cleanFilesystemProven\": false}, \"originalHashesUnchanged\": true, \"dummyBytes\": 1048576, \"productionData\": false, \"kernelAttachmentTested\": false, \"automaticReconnectEnabled\": false, \"guardianQualified\": false, \"sourceModuleUsed\": true}\n",
+  "stderr": "",
+  "bytesObserved": {
+    "stdout": 870,
+    "stderr": 0
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

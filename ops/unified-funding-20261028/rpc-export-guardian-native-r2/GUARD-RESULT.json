@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 3.139082581968978,
+  "stdout": "",
+  "stderr": "test_actual_probe_format_and_refusals (__main__.Tests.test_actual_probe_format_and_refusals) ... ok\ntest_adoption_must_remain (__main__.Tests.test_adoption_must_remain) ... ok\ntest_blocked_owner_original_deadline (__main__.Tests.test_blocked_owner_original_deadline) ... ok\ntest_expired_before_fork (__main__.Tests.test_expired_before_fork) ... ok\ntest_hung_resource_never_opens_gate (__main__.Tests.test_hung_resource_never_opens_gate) ... ok\ntest_late_adoption_cannot_extend_deadline (__main__.Tests.test_late_adoption_cannot_extend_deadline) ... ok\ntest_low_reserve_never_opens_gate (__main__.Tests.test_low_reserve_never_opens_gate) ... ok\ntest_owner_exit_is_terminal (__main__.Tests.test_owner_exit_is_terminal) ... ok\ntest_readiness_does_not_adopt (__main__.Tests.test_readiness_does_not_adopt) ... ok\ntest_wrong_authority_cleans_gated_owner (__main__.Tests.test_wrong_authority_cleans_gated_owner) ... ok\n\n----------------------------------------------------------------------\nRan 10 tests in 2.973s\n\nOK\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 1011
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

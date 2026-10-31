@@ -9,6 +9,9 @@ import ssl
 import struct
 import subprocess
 import time
+import sys
+sys.path.insert(0,'/src/rpc/server')
+from guarded_export import probe_export
 
 spec=importlib.util.spec_from_file_location('export','/src/rpc/server/volume_export.py')
 export=importlib.util.module_from_spec(spec);spec.loader.exec_module(export)
@@ -90,6 +93,9 @@ try:
     assert c.request(0,length=4096)==b'B'*4096
     cases.append('write-FUA-flush-readback')
     c.close()
+    probe=probe_export(server,{'clientTls':str(pki),'tlsName':'rpc-storage-fixture'})
+    assert probe['authenticated'] and probe['bytes']==1048576
+    cases.append('supervisor-authenticated-readiness-probe')
     c=Client();assert c.request(0,length=4096)==b'B'*4096;c.close()
     cases.append('explicit-disconnect-reconnect-readback')
     for title,kw in [('wrong-client-DN',{'prefix':'other'}),('wrong-server-name',{'hostname':'wrong.invalid'}),('wrong-export',{'export_name':name+'-wrong'}),('plaintext',{'tls':False})]:

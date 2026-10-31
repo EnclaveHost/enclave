@@ -1,0 +1,1 @@
+{"pid": 3733248, "start": "174914343", "childPid": 3733249, "childStart": "174914346", "invocation": "1befbadcf1a14f6ea8a2b051b4a87c39", "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-watchdog-fixture-ccd9d1a8eb814943ae262e4dfb812db2.service"}

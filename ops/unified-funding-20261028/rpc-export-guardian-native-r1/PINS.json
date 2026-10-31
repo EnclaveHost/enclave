@@ -1,0 +1,9 @@
+{
+  "run.py": "116315b800143f661c113fc946a00469a36e4e01cc21e112462b27470690460a",
+  "capture_local.py": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c",
+  "frozen/rpc/server/observe_resources.mjs": "d2d8e9a69548e689d093434787b43ab3278c4fea032d329c16c2b82c0866bdee",
+  "frozen/rpc/server/volume_export.py": "ff94868d582438b964c67cc4651ae6f80bedd56a5cc99c2f0a3cff481b4bbbb2",
+  "frozen/rpc/server/guarded_export.py": "182a285f9646818e7eb0b2e3c39c7ca7ed88222e4ef6647ec13bc4a8087b5af2",
+  "frozen/test/rpc-server/test_guarded_export.py": "7713450b450430222fb2ea6d03fd828384c4129444b83ed349f0648da3f4f04d",
+  "frozen/test/rpc-server/qualify_volume_export.py": "041254b99cdbe91de4d6212ccc4bdba0c7513180f4b91351d8349c21d379f98d"
+}

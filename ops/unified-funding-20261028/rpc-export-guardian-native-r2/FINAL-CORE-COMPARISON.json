@@ -1,0 +1,13 @@
+{
+  "digest": true,
+  "protected_json": true,
+  "notify": true,
+  "unit_admission": false,
+  "adoption": true,
+  "reap_group": true,
+  "guard": true,
+  "parse_probe": true,
+  "probe_export": true,
+  "export_owner": true,
+  "main": false
+}
