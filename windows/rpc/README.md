@@ -419,3 +419,10 @@ their prior behavior. The fixture accepts no target paths or operations and leav
 its consumed intent and denied dummy file intact. This establishes neither complete
 old-issuer coverage nor settlement of preexisting native starts. Production master
 files remain untouched; target-context qualification still needs fresh admission.
+
+Inherited template rules are copied to explicit rules before adding the read deny.
+Readback compares the exact DACL bytes and protected flag plus unchanged owner/group,
+not inheritance-history flags in the enclosing descriptor. Windows documents the
+assignment normalization in [ACE inheritance](https://learn.microsoft.com/en-us/windows/win32/secauthz/ace-inheritance).
+The changed ACL operation requires both the original 13-case regression and the
+fixed SYSTEM inherited/untrusted-rights fixture before target qualification.

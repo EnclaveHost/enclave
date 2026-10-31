@@ -19,6 +19,12 @@ namespace Enclave.OwnedRpc {
   static void Check(long deadline){if(BoundedWorker.MonotonicMilliseconds()>=deadline)throw new InvalidOperationException("Template fence deadline");}
   static Info Identity(SafeFileHandle h){Info i;if(!GetFileInformationByHandle(h,out i))throw new Win32Exception(Marshal.GetLastWin32Error());return i;}
   static string Key(Info i){return i.Volume.ToString("x8")+":"+i.IndexHigh.ToString("x8")+i.IndexLow.ToString("x8");}
+  static string AclBytes(FileSecurity security){
+   var raw=new RawSecurityDescriptor(security.GetSecurityDescriptorBinaryForm(),0);
+   if(raw.DiscretionaryAcl==null)throw new InvalidOperationException("Missing template DACL");
+   byte[] bytes=new byte[raw.DiscretionaryAcl.BinaryLength];raw.DiscretionaryAcl.GetBinaryForm(bytes,0);
+   return Convert.ToBase64String(bytes);
+  }
   static void PinParents(string file,List<SafeFileHandle> held){
    string dir=Path.GetDirectoryName(file),current=Path.GetPathRoot(dir);
    var paths=new List<string>();paths.Add(current);
@@ -61,15 +67,20 @@ namespace Enclave.OwnedRpc {
      if(stream.ReadByte()!=-1||ProtectedAttempt.Hash(bytes)!=expectedHash)throw new InvalidOperationException("Template hash differs");
      var security=stream.GetAccessControl();string original=security.GetSecurityDescriptorSddlForm(AccessControlSections.Access|AccessControlSections.Owner|AccessControlSections.Group);
      if(original.Length>32768)throw new InvalidOperationException("Template descriptor bound");
-     var world=new SecurityIdentifier("S-1-1-0");
-     security.AddAccessRule(new FileSystemAccessRule(world,FileSystemRights.ReadData,AccessControlType.Deny));
-     security.SetAccessRuleProtection(true,true);
-     string wanted=security.GetSecurityDescriptorSddlForm(AccessControlSections.Access);
+     // Materialize validated effective/inherit-only rules explicitly. Merely
+     // setting protection on the old descriptor retains inherited ACE metadata
+     // in memory, while Windows normalizes it when assigning a protected ACL.
+     // Write only access rules, preserving owner/group and every existing right.
+     var denied=new FileSecurity();denied.SetAccessRuleProtection(true,false);
+     foreach(FileSystemAccessRule rule in security.GetAccessRules(true,true,typeof(SecurityIdentifier)))
+      denied.AddAccessRule(new FileSystemAccessRule(rule.IdentityReference,rule.FileSystemRights,rule.InheritanceFlags,rule.PropagationFlags,rule.AccessControlType));
+     denied.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier("S-1-1-0"),FileSystemRights.ReadData,AccessControlType.Deny));
+     string wanted=AclBytes(denied),owner=security.GetOwner(typeof(SecurityIdentifier)).Value,group=security.GetGroup(typeof(SecurityIdentifier)).Value;
      string record="legacy-template-fence/1\n"+expectedBoot+"\n"+master+"\n"+Key(before)+"\n"+expectedHash+"\n"+expectedLength+"\n"+Convert.ToBase64String(Encoding.UTF8.GetBytes(original))+"\n";
      byte[] intent=Encoding.UTF8.GetBytes(record);
      var sec=new FileSecurity();sec.SetAccessRuleProtection(true,false);
-     string owner;using(var who=WindowsIdentity.GetCurrent())owner=who.User.Value=="S-1-5-18"?"S-1-5-18":"S-1-5-32-544";
-     sec.SetOwner(new SecurityIdentifier(owner));
+     string journalOwner;using(var who=WindowsIdentity.GetCurrent())journalOwner=who.User.Value=="S-1-5-18"?"S-1-5-18":"S-1-5-32-544";
+     sec.SetOwner(new SecurityIdentifier(journalOwner));
      foreach(string sid in new[]{"S-1-5-18","S-1-5-32-544"})sec.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid),FileSystemRights.FullControl,AccessControlType.Allow));
      Check(deadline);
      // Consumed intent precedes mutation and survives any lost response. CreateNew
@@ -77,8 +88,10 @@ namespace Enclave.OwnedRpc {
      using(var journal=new FileStream(intentPath,FileMode.CreateNew,FileSystemRights.WriteData|FileSystemRights.ReadPermissions,FileShare.Read,4096,FileOptions.WriteThrough,sec)){
       ProtectedAttempt.Authority(journal.SafeFileHandle,true,false,intentPath);
       journal.Write(intent,0,intent.Length);journal.Flush(true);Check(deadline);
-      stream.SetAccessControl(security);Check(deadline);
-      if(Key(Identity(h))!=Key(before)||stream.GetAccessControl().GetSecurityDescriptorSddlForm(AccessControlSections.Access)!=wanted)
+      stream.SetAccessControl(denied);Check(deadline);
+      var actual=stream.GetAccessControl();
+      if(Key(Identity(h))!=Key(before)||!actual.AreAccessRulesProtected||AclBytes(actual)!=wanted||
+         actual.GetOwner(typeof(SecurityIdentifier)).Value!=owner||actual.GetGroup(typeof(SecurityIdentifier)).Value!=group)
        throw new InvalidOperationException("Template fence readback differs; keep outcome held");
      }
      return new Receipt{ObjectIdentity=Key(before),MasterHash=expectedHash,IntentHash=ProtectedAttempt.Hash(intent),PersistentReadDenial=true};

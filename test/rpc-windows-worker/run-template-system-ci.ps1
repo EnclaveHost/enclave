@@ -12,6 +12,7 @@ $csc=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 if(-not (Test-Path -LiteralPath $csc)){throw 'Exact 64-bit Framework compiler missing; no fallback'}
 $controller=Join-Path $work 'qualification-controller.exe'
 $entry=Join-Path $work 'owned-entry.exe'
+$regression=Join-Path $work 'template-regressions.exe'
 $records=New-Object Collections.Generic.List[object]
 function Invoke-FiniteProcess([string]$Executable,[string[]]$Arguments,[int]$DeadlineMs,[string]$Label){
     foreach($a in $Arguments){if($a -match '["\r\n]'){throw 'Unexpected fixture argument'}}
@@ -57,10 +58,14 @@ function Invoke-FiniteProcess([string]$Executable,[string[]]$Arguments,[int]$Dea
     if($failure -or $record.exitCode -ne 0){throw ($Label+' failed: '+($record|ConvertTo-Json -Compress))}
 }
 try{
-    $sources=@((Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $root 'windows\rpc\VmStartGuardian.cs'),(Join-Path $root 'windows\rpc\ProtectedAttempt.cs'),(Join-Path $root 'windows\rpc\ProviderStart.cs'),(Join-Path $root 'windows\rpc\ProviderStop.cs'),(Join-Path $root 'windows\rpc\HostPhysicalPool.cs'),(Join-Path $root 'windows\rpc\PhysicalPoolCommand.cs'),(Join-Path $root 'windows\rpc\OwnedVmPermit.cs'),(Join-Path $root 'windows\rpc\WindowsStartAdmission.cs'),(Join-Path $root 'windows\rpc\ProviderWorkerEntry.cs'),(Join-Path $root 'windows\rpc\LegacyTemplateFence.cs'),(Join-Path $root 'windows\rpc\InertEntry.cs'),(Join-Path $root 'windows\rpc\InertQualification.cs'),(Join-Path $root 'test\rpc-windows-worker\SystemTemplateFenceFixture.cs'))
+    $sources=@((Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $root 'windows\rpc\VmStartGuardian.cs'),(Join-Path $root 'windows\rpc\ProtectedAttempt.cs'),(Join-Path $root 'windows\rpc\ProviderStart.cs'),(Join-Path $root 'windows\rpc\ProviderStop.cs'),(Join-Path $root 'windows\rpc\HostPhysicalPool.cs'),(Join-Path $root 'windows\rpc\PhysicalPoolCommand.cs'),(Join-Path $root 'windows\rpc\OwnedVmPermit.cs'),(Join-Path $root 'windows\rpc\WindowsStartAdmission.cs'),(Join-Path $root 'windows\rpc\ProviderWorkerEntry.cs'),(Join-Path $root 'windows\rpc\LegacyTemplateFence.cs'),(Join-Path $root 'windows\rpc\InertEntry.cs'),(Join-Path $root 'windows\rpc\InertQualification.cs'),(Join-Path $root 'test\rpc-windows-worker\SystemTemplateFenceFixture.cs'),(Join-Path $root 'test\rpc-windows-worker\LegacyTemplateFenceHarness.cs'))
     $references=@('/nologo','/target:exe','/platform:x64','/define:TEMPLATE_FENCE_QUALIFICATION','/r:System.Management.dll','/r:System.Web.Extensions.dll','/r:Microsoft.CSharp.dll')
     Invoke-FiniteProcess $csc ($references+@('/main:Enclave.OwnedRpc.InertEntry',('/out:'+$entry))+$sources) 20000 'entry-compile'
     Invoke-FiniteProcess $csc ($references+@('/main:InertQualification',('/out:'+$controller))+$sources) 20000 'controller-compile'
+    Invoke-FiniteProcess $csc ($references+@('/main:LegacyTemplateFenceHarness',('/out:'+$regression))+$sources) 20000 'regression-compile'
+    Invoke-FiniteProcess $regression @() 15000 'regression'
+    $lines=@(Get-Content -LiteralPath (Join-Path $work 'regression.out'))
+    if(@($lines|Where-Object{$_ -like 'PASS *'}).Count -ne 13 -or $lines[-1] -cne 'RESULT tests=13 nativeAcl=true providerCalls=false vmChanged=false'){throw 'Changed ACL regression qualification incomplete'}
     $entryHash=(Get-FileHash -Algorithm SHA256 -LiteralPath $entry).Hash.ToLowerInvariant()
     $nonce=[guid]::NewGuid().ToString('N')
     # Loading this already pinned fixture assembly only supplies the native
@@ -77,18 +82,18 @@ try{
 }finally{
     $records|ConvertTo-Json -Depth 5|Set-Content -LiteralPath (Join-Path $work 'process-results.json')
     Get-FileHash -Algorithm SHA256 -LiteralPath ($sources+@($csc))|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'pins.json')
-    $built=@(@($controller,$entry)|Where-Object{Test-Path -LiteralPath $_})
+    $built=@(@($controller,$entry,$regression)|Where-Object{Test-Path -LiteralPath $_})
     if($built.Count){Get-FileHash -Algorithm SHA256 -LiteralPath $built|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'controller-artifact.json')}
     # Never export the raw work directory. Failed truncation or unexpected compiler
     # output must not turn an always-upload step into unbounded publication.
     $publish=Join-Path $env:RUNNER_TEMP ('rpc-worker-results-'+[guid]::NewGuid().ToString('N'))
     $null=New-Item -ItemType Directory -Path $publish
     $published=New-Object Collections.Generic.List[object];$total=0L
-    foreach($name in @('entry-compile.out','entry-compile.err','controller-compile.out','controller-compile.err','system-fence.out','system-fence.err','template-result.txt','process-results.json','pins.json','controller-artifact.json','qualification-controller.exe','owned-entry.exe')){
+    foreach($name in @('regression-compile.out','regression-compile.err','regression.out','regression.err','template-regressions.exe','entry-compile.out','entry-compile.err','controller-compile.out','controller-compile.err','system-fence.out','system-fence.err','template-result.txt','process-results.json','pins.json','controller-artifact.json','qualification-controller.exe','owned-entry.exe')){
         $file=Join-Path $work $name
         if(Test-Path -LiteralPath $file){
             $item=Get-Item -LiteralPath $file;$limit=65536L
-            if($name -eq 'qualification-controller.exe' -or $name -eq 'owned-entry.exe' -or $name -eq 'physical-pool-command.exe'){$limit=262144L}
+            if($name -eq 'template-regressions.exe' -or $name -eq 'qualification-controller.exe' -or $name -eq 'owned-entry.exe' -or $name -eq 'physical-pool-command.exe'){$limit=262144L}
             if($item.Length -le $limit -and $total+$item.Length -le 1048576){
                 # Exact finite compiler/harness processes have exited before here;
                 # use a bounded held read anyway, not a copy of a mutable path.

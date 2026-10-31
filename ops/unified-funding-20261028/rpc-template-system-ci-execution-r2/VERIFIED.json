@@ -1,0 +1,25 @@
+{
+  "head": "42e5f002772a50dc1c5b590239c28ccd6916c373",
+  "run": 41168780533,
+  "compiledFiles": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/VmStartGuardian.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/ProviderStart.cs",
+    "windows/rpc/ProviderStop.cs",
+    "windows/rpc/HostPhysicalPool.cs",
+    "windows/rpc/PhysicalPoolCommand.cs",
+    "windows/rpc/OwnedVmPermit.cs",
+    "windows/rpc/WindowsStartAdmission.cs",
+    "windows/rpc/ProviderWorkerEntry.cs",
+    "windows/rpc/LegacyTemplateFence.cs",
+    "windows/rpc/InertEntry.cs",
+    "windows/rpc/InertQualification.cs",
+    "test/rpc-windows-worker/SystemTemplateFenceFixture.cs"
+  ],
+  "binaries": {
+    "qualification-controller.exe": "4d257abb092b4ee37edbe88a961c3cc92df8c3a53d06325248dd15aad1d124ef",
+    "owned-entry.exe": "6efcf326433a28c09311d60fb7a90f15429d82dae5029aa976368ff99e11fd29"
+  }
+}

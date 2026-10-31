@@ -1,0 +1,58 @@
+{
+  "public-reader.mjs": {
+    "originalSha256": "f081681bc62d1b1c39a8a05e981be39de27c80ce275aa90fb6b4de8df0b7dca9",
+    "publicSha256": "f081681bc62d1b1c39a8a05e981be39de27c80ce275aa90fb6b4de8df0b7dca9"
+  },
+  "PINS.json": {
+    "originalSha256": "db226312db692e9dca5c6663dfce1d70cff212f864b474648e545b0befc41be9",
+    "publicSha256": "db226312db692e9dca5c6663dfce1d70cff212f864b474648e545b0befc41be9"
+  },
+  "manager-ATTEMPT.json": {
+    "originalSha256": "9a618abf10f523482490deed805260c8c6ca54e13624fad3a9700abec6c27e7a",
+    "publicSha256": "ab4aabd0ddaae5bb87723a6b60a66190fd004db163202ea7a33d524203884591"
+  },
+  "ROOT-REVIEW.md": {
+    "originalSha256": "9324c3588540bd3ea79a2b9b0d2d0bc4e77193ec1a16f08f903fbbab4b72641e",
+    "publicSha256": "9324c3588540bd3ea79a2b9b0d2d0bc4e77193ec1a16f08f903fbbab4b72641e"
+  },
+  "ROOT-RESULT.md": {
+    "originalSha256": "0d7afdb7b1cbbf8dbe328b5710470ccb64c6af37466e8b168836914be27796d6",
+    "publicSha256": "0d7afdb7b1cbbf8dbe328b5710470ccb64c6af37466e8b168836914be27796d6"
+  },
+  "ROOT-LAUNCH.txt": {
+    "originalSha256": "e4bd9b543f02e5bf19c76363c8fb55762a863ab6879bc67b45dfeaa205ddaf46",
+    "publicSha256": "e4bd9b543f02e5bf19c76363c8fb55762a863ab6879bc67b45dfeaa205ddaf46"
+  },
+  "manager-read.template.ps1": {
+    "originalSha256": "ae62f0fd53a6aa9013ffc5332a9af5560ab955813ff3b50066bbfc35009f78c1",
+    "publicSha256": "ae62f0fd53a6aa9013ffc5332a9af5560ab955813ff3b50066bbfc35009f78c1"
+  },
+  "manager-inner.log": {
+    "originalSha256": "070f813abcb11c3922e4550c0971ea24fd29b189bceab2880194b1684546d84d",
+    "publicSha256": "070f813abcb11c3922e4550c0971ea24fd29b189bceab2880194b1684546d84d"
+  },
+  "manager-outer.log": {
+    "originalSha256": "c0720670527b613bda156ad8fa6803509339ed81a2dfe4690973a6b358da0532",
+    "publicSha256": "c0720670527b613bda156ad8fa6803509339ed81a2dfe4690973a6b358da0532"
+  },
+  "COMMAND.json": {
+    "originalSha256": "780bc8dec8663c1a67bd12ca31d91c4f6575370009e4473140ac351b4be127bc",
+    "publicSha256": "780bc8dec8663c1a67bd12ca31d91c4f6575370009e4473140ac351b4be127bc"
+  },
+  "manager-RESULT.json": {
+    "originalSha256": "f120d87c30e9e043c11be2b9e212bfee6b3db1e165900e5451b5aaea8ddb0151",
+    "publicSha256": "f120d87c30e9e043c11be2b9e212bfee6b3db1e165900e5451b5aaea8ddb0151"
+  },
+  "run.py": {
+    "originalSha256": "46854fc4189bcc62250333a501069d96ed9b7cb75c521863006899fd6ced5b59",
+    "publicSha256": "46854fc4189bcc62250333a501069d96ed9b7cb75c521863006899fd6ced5b59"
+  },
+  "ROOT-TERMINAL.txt": {
+    "originalSha256": "6f18458cc2432a8b8b722c8eed8df49e1ca4622b54f8c9218476d2f9e38a2b24",
+    "publicSha256": "6f18458cc2432a8b8b722c8eed8df49e1ca4622b54f8c9218476d2f9e38a2b24"
+  },
+  "manager-read.ps1": {
+    "originalSha256": "39276a1eb15f738962c0924022665529d68089111252bcd811320a114e7ddd3f",
+    "publicSha256": "39276a1eb15f738962c0924022665529d68089111252bcd811320a114e7ddd3f"
+  }
+}
