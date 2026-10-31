@@ -1,0 +1,1 @@
+Stage only newly CI-qualified corrected definition images plus fresh private observation under new protected namespace. Exact cut/pool binding retained; no execution/VM/productionclock or originalplan mutation. Fresh admission required after completed CI; two binaries independently hashed, strict DACL. No stage action yet.

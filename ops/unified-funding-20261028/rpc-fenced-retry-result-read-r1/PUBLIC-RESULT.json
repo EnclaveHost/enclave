@@ -1,0 +1,69 @@
+{
+  "atUtc": "2026-10-31T23:39:21.9479610Z",
+  "exactDeaths": [
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379635471615885",
+      "pid": "53176",
+      "absent": true,
+      "role": "owner"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379635471616489",
+      "pid": "52616",
+      "absent": true,
+      "role": "observer"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379635473414014",
+      "pid": "57760",
+      "absent": true,
+      "role": "child"
+    }
+  ],
+  "priorStageDeaths": [
+    {
+      "label": "admission-r1",
+      "expectedCreation": "134379632634322967",
+      "pid": 54712,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "admission-r2",
+      "expectedCreation": "134379634925328127",
+      "pid": 9980,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "create",
+      "expectedCreation": "134379635197910325",
+      "pid": 51804,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "verify",
+      "expectedCreation": "134379635353046900",
+      "pid": 56392,
+      "sameIncarnationAlive": false,
+      "absent": true
+    }
+  ],
+  "exactDefinitionProcesses": [],
+  "exactTasks": [],
+  "original8091Alive": true,
+  "exceptionType": "System.InvalidOperationException",
+  "exceptionMessage": "Node commitments changed since review",
+  "originalVMsUnchanged": true,
+  "originalPlanJournalNames": [
+    "definition-plan.txt",
+    "definition.intent",
+    "definition.submit"
+  ],
+  "rpcReady": false,
+  "reservationMayRelease": false
+}

@@ -1,0 +1,20 @@
+{
+  "at": 1793489900.167037,
+  "rc": 0,
+  "failure": null,
+  "processId": 9980,
+  "creationFileTime": "134379634925328127",
+  "physicalAfter": {
+    "filesystem": "NTFS",
+    "physicalBytes": 120070115328,
+    "monotonicMilliseconds": 745738142,
+    "boot": "2026-10-23T08:29:16.5000000Z",
+    "atUtc": "2026-10-31T23:38:19.9529414Z",
+    "freeBytes": 84771778560,
+    "diskFreeBytes": 154305560576
+  },
+  "managerCount": 4,
+  "managersAlive": true,
+  "historicalOnly": true,
+  "reservationMayRelease": false
+}

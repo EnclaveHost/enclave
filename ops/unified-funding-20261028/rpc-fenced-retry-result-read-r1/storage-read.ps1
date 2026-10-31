@@ -1,0 +1,26 @@
+$ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue'
+$roots=@('C:\EnclaveRpcDefinition-68fdf475d09b44f3aaef56ccdfc2294d\68fdf475d09b44f3aaef56ccdfc2294d','C:\EnclaveRpcVm-7647ee54e3c24997bb8ab5da70427109\7647ee54e3c24997bb8ab5da70427109')
+$names=@('controller.consumed','contract.txt','owner.consumed','observer.consumed','child.consumed','owner.result','observer.result','child.result','owner.failure','observer.failure','child.failure','child.binding','admit','attached','release','definition-plan.txt','definition.intent','definition.submit','definition.submit.pending','definition.native','definition.native.pending','definition.receipt','definition.job','definition.terminal','definition.system','definition.off')
+$results=@(foreach($root in $roots){
+ $files=@(foreach($name in $names){$path=Join-Path $root $name;if([IO.File]::Exists($path)){
+  if([IO.File]::GetAttributes($path) -band [IO.FileAttributes]::ReparsePoint){throw 'Reparse journal refused'}
+  $f=New-Object IO.FileStream($path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+  try{if($f.Length -gt 8192){throw 'Journal bound'};$b=New-Object byte[] ([int]$f.Length);$offset=0;while($offset -lt $b.Length){$n=$f.Read($b,$offset,$b.Length-$offset);if($n -le 0){throw 'Short journal'};$offset+=$n};@{name=$name;bytes=$b.Length;text=[Text.Encoding]::UTF8.GetString($b)}}finally{$f.Dispose()}
+ }})
+ @{root=$root;exists=[IO.Directory]::Exists($root);files=$files}
+})
+$roleDeaths=@(foreach($role in @('owner','observer','child')){
+ $record=@($results[0].files|Where-Object{$_.name -ceq ($role+'.consumed')})
+ if($record.Count -ne 1){throw 'Exact role receipt missing'}
+ $parts=$record[0].text.Split(',');if($parts.Length -ne 4 -or $parts[3] -cne $role){throw 'Role identity shape'}
+ $q=$null;try{$q=[Diagnostics.Process]::GetProcessById([int]$parts[0]);$h=$q.Handle;$c=$q.StartTime.ToUniversalTime().ToFileTimeUtc().ToString();@{role=$role;pid=$parts[0];expectedCreation=$parts[1];sameIncarnationAlive=(!$q.HasExited -and $c -ceq $parts[1]);currentCreation=$c}}catch [ArgumentException]{@{role=$role;pid=$parts[0];expectedCreation=$parts[1];sameIncarnationAlive=$false;absent=$true}}finally{if($q){$q.Dispose()}}
+})
+$procs=@(Get-CimInstance Win32_Process -Filter "Name='definition-controller.exe' OR Name='entry.exe'" -Property ProcessId,CreationDate,ExecutablePath,CommandLine -OperationTimeoutSec 3|Where-Object{$_.CommandLine -like '*68fdf475d09b44f3aaef56ccdfc2294d*'}|Select-Object ProcessId,CreationDate,ExecutablePath)
+if($procs.Count -gt 8){throw 'Exact process bound'}
+$tasks=@(foreach($name in @('EnclaveRpcDefinition-68fdf475d09b44f3aaef56ccdfc2294d-owner','EnclaveRpcDefinition-68fdf475d09b44f3aaef56ccdfc2294d-observer')){$t=Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue;if($t){@{name=$name;state=[string]$t.State}}})
+$vms=@(Get-VM|Select-Object Id,State,MemoryAssigned,Name,Path);if($vms.Count -gt 32){throw 'VM bound'}
+$x=[Diagnostics.Process]::GetProcessById(38076);try{$h=$x.Handle;$creation=$x.StartTime.ToUniversalTime().ToFileTimeUtc().ToString();if($x.HasExited -or $creation -cne '134375086385617521'){throw 'Original8091 changed'}}finally{$x.Dispose()}
+$priorDeaths=@(foreach($item in @(@{label='admission-r1';pid=54712;creation='134379632634322967'},@{label='admission-r2';pid=9980;creation='134379634925328127'},@{label='create';pid=51804;creation='134379635197910325'},@{label='verify';pid=56392;creation='134379635353046900'})){
+ $q=$null;try{$q=[Diagnostics.Process]::GetProcessById($item.pid);$h=$q.Handle;$c=$q.StartTime.ToUniversalTime().ToFileTimeUtc().ToString();@{label=$item.label;pid=$item.pid;expectedCreation=$item.creation;sameIncarnationAlive=(!$q.HasExited -and $c -ceq $item.creation);currentCreation=$c}}catch [ArgumentException]{@{label=$item.label;pid=$item.pid;expectedCreation=$item.creation;sameIncarnationAlive=$false;absent=$true}}finally{if($q){$q.Dispose()}}
+})
+[pscustomobject]@{success=$true;atUtc=[DateTime]::UtcNow.ToString('o');processId=$PID;creationFileTime=([Diagnostics.Process]::GetCurrentProcess().StartTime.ToUniversalTime().ToFileTimeUtc().ToString());exactDeaths=$roleDeaths;priorStageDeaths=$priorDeaths;roots=$results;exactDefinitionProcesses=$procs;exactTasks=$tasks;vms=$vms;original8091Alive=$true;readOnly=$true;noRetry=$true;reservationMayRelease=$false}|ConvertTo-Json -Depth 12 -Compress

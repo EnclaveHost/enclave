@@ -1049,3 +1049,5 @@ unchanged two-second observation bound. Pending growth, physical floors, cut
 custody and shared-pool verification remain mandatory and unchanged. Unknown
 memory on a claiming record is refused. This does not admit a new allocation
 or treat a historical snapshot as current capacity.
+
+The fenced historical retry comparison passed hosted startup 50 and definition 93 cases at `69d6d76af0d2e8515fdc63252e2770da05231e5e`, but the subsequent actual SYSTEM admission-only check still refused `Node commitments changed since review`. This comparison change is not target admission qualification. Exact compared field differences still need private bounded diagnostics; production remains unstarted and the consumed original attempt/cut must not be replayed.

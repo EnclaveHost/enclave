@@ -1,0 +1,1 @@
+One fresh target observation after corrected CI41253313137/41253315392 complete, before staging and actual admission-only inspection. Prior read expired while build dependency failure corrected; no capacity polling loop or native trial retry. Exact retained immutable plan required, original managers/VM inventory, no productionclock/cut/provider/export.

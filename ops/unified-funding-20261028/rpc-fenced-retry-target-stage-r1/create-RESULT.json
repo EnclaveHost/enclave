@@ -1,0 +1,32 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 1.0218048300594091,
+  "bytesObserved": {
+    "stdout": 254,
+    "stderr": 222
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false,
+  "at": 1793489920.3617442,
+  "phase": "create",
+  "success": true,
+  "noRetry": true,
+  "vmChanged": false,
+  "observation": {
+    "processId": 51804,
+    "creationFileTime": "134379635197910325",
+    "created": true,
+    "root": "C:\\EnclaveRpcTransition-a7d16c8843e944f8891ef4ff69a2100d\\a7d16c8843e944f8891ef4ff69a2100d",
+    "freeBytes": 84787552256,
+    "diskFreeBytes": 154305617920,
+    "nativeAttempted": false
+  }
+}

@@ -1,0 +1,1 @@
+Read only exact diagnostic journals/knownroleidentities and explicitpriorstaging identities; boundedfixedallowlist, no broadjobscan/cancellation/cleanup. Rawjournals privateexcludedGit. SSHreaderexit not ownremote-deathproof.

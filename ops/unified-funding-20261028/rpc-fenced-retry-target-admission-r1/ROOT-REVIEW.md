@@ -1,0 +1,1 @@
+Fresh read for materially changed fenced-retry admission and explicit readonly diagnostic. Exactretainedplanhash required; no productionclock/provider/cut mutation. Original4managers/4VMs, physical/disk andpending observation. Sourcefreshness/resourcefloor unchanged; this is not standaloneadmission. SSHexitnotremote-death.
