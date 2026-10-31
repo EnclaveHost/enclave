@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.9259398959111422,
+  "stdout": "{\"allPass\": true, \"count\": 8, \"cases\": [\"both-live-mutual-TLS-negotiations\", \"exact-export-size-FLUSH-FUA\", \"owner-input-hash-bindings\", \"original-window-preserved\", \"actual-guest-v2-parser\", \"unmodified-server-receipt\", \"no-RPC-or-writer-fence-claim\", \"both-exact-export-exits-originals-unchanged\"], \"sparseOriginalAllocatedBytes\": 516096, \"virtualBytesPerRole\": 4000000000000, \"productionData\": false, \"kernelAttachment\": false, \"filesystemUuidTested\": false, \"guardianCompositionQualified\": false, \"cleanup\": [{\"exactChildExited\": true, \"forced\": false, \"originalMetadataUnchanged\": true, \"overlayRetained\": true, \"writersFenced\": false, \"cleanFilesystemProven\": false}, {\"exactChildExited\": true, \"forced\": false, \"originalMetadataUnchanged\": true, \"overlayRetained\": true, \"writersFenced\": false, \"cleanFilesystemProven\": false}]}\n",
+  "stderr": "",
+  "bytesObserved": {
+    "stdout": 836,
+    "stderr": 0
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

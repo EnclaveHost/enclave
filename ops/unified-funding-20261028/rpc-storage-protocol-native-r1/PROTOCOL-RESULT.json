@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.17779636895284057,
+  "stdout": "",
+  "stderr": "test_actual_exclusive_file_bundle (__main__.Tests.test_actual_exclusive_file_bundle) ... ok\ntest_credentials_cannot_switch_guest_or_role (__main__.Tests.test_credentials_cannot_switch_guest_or_role) ... ok\ntest_current_producer_to_actual_guest_parser (__main__.Tests.test_current_producer_to_actual_guest_parser) ... ok\ntest_duplicate_json_and_legacy_receipt_refused (__main__.Tests.test_duplicate_json_and_legacy_receipt_refused) ... ok\ntest_expired_or_future_receipt (__main__.Tests.test_expired_or_future_receipt) ... ok\ntest_no_metadata_rpc_or_fence_claim (__main__.Tests.test_no_metadata_rpc_or_fence_claim) ... ok\ntest_unnegotiated_or_incomplete_metadata (__main__.Tests.test_unnegotiated_or_incomplete_metadata) ... ok\ntest_wrong_contract_or_origin (__main__.Tests.test_wrong_contract_or_origin) ... ok\n\n----------------------------------------------------------------------\nRan 8 tests in 0.005s\n\nOK\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 908
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

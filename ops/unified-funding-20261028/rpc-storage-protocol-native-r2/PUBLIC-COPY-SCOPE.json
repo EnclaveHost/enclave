@@ -1,0 +1,134 @@
+{
+  "privateArtifactsNeverCopied": true,
+  "publicIdentityValuesOmittedFromResults": true,
+  "originalFileRecords": [
+    {
+      "path": "GUARD-RESULT.json",
+      "sha256": "15987f95eb5f7fb443efce1db681593a6d9bad459275800d7dd138dd5f864ae8"
+    },
+    {
+      "path": "NATIVE-RESULT.json",
+      "sha256": "743a5b9dc12ead6cad6768ade2d41df5087e7d0f71884c7f899024d3ae5c5b2a"
+    },
+    {
+      "path": "PROTOCOL-RESULT.json",
+      "sha256": "521614fa5f92a9deec93c2baba4a91ec1c895618036361439accfecda3575dc1"
+    },
+    {
+      "path": "PINS.json",
+      "sha256": "a68d47552db271cd1400ab372d010308c8929fcb376cf1afde207a74ebb44521"
+    },
+    {
+      "path": "GUEST-RESULT.json",
+      "sha256": "5a3620a95f249a23b6df130f76c611727f7757e9e185c7330536a17beaef35fe"
+    },
+    {
+      "path": "ATTEMPT.json",
+      "sha256": "81c9a6f3e40bce1e464e7b35495dc6979776ab329517ae4fbe2ac55abf20a6bc"
+    },
+    {
+      "path": "TERMINAL.txt",
+      "sha256": "e092bed09801fbe69ad8bd6b66b670a6c735b7eba56bf43566e7d2874641c077"
+    },
+    {
+      "path": "ROOT-RESULT.md",
+      "sha256": "cfa1a8c652c84d01def45f4398b78fa2fd378c5ba87e4cace04972078b10f8b3"
+    },
+    {
+      "path": "outer.log",
+      "sha256": "4fb077c914b5c1695b1ffc4f92ee4d32a827f1260c869e69566cc387cf3712ca"
+    },
+    {
+      "path": "RESULT.json",
+      "sha256": "6188e527d8d3e47610845b04e023ed1099c6553df8b2221e4d3568a82e4fd2c4"
+    },
+    {
+      "path": "LAUNCH.json",
+      "sha256": "912af6b38ddd2c0343ca23873385274fefac00660e468153026cbfa7100bf1be"
+    },
+    {
+      "path": "inner.log",
+      "sha256": "1ae29f101d6fa9bf3e77a014585cac9d1e4e776592b85751d51ede1c5ce17fd1"
+    },
+    {
+      "path": "FINAL-SOURCE-COMPARISON.json",
+      "sha256": "7ceae669fc9688ffd80b63c88ce6724f88cf3b956c8abc7ea0433ee0bb9430da"
+    },
+    {
+      "path": "COMMAND.json",
+      "sha256": "3d4845c95a92c0b2d721d7ee18870e9adecfab71a70b53565667eacb3a8b0784"
+    },
+    {
+      "path": "run.py",
+      "sha256": "b4da4322a30eebddd4a7c0e2c901b61b1702c7e5dbf54583baecd2cd6df32f9b"
+    },
+    {
+      "path": "capture_local.py",
+      "sha256": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c"
+    },
+    {
+      "path": "fixture-etc/group",
+      "sha256": "7a696fcfba89a55a6d73fa1a03c7f071fad2141340027b17a25db249e26b9be8"
+    },
+    {
+      "path": "fixture-etc/passwd",
+      "sha256": "d6042e053109403a43ec5621e0f56bf0730cc29678cd45386b407cf41954b3fb"
+    },
+    {
+      "path": "frozen/rpc/prepare_attachment.py",
+      "sha256": "c0685fbf106fe2fc49e1ce076b0dca096716d37ecd832a227480b6832e5f625a"
+    },
+    {
+      "path": "frozen/rpc/storage_protocol.py",
+      "sha256": "80a3f865a76914a5d986528d50dfb77bd90ec5604f9884f3391ae99c4f02bc31"
+    },
+    {
+      "path": "frozen/rpc/guest/attach_storage.py",
+      "sha256": "93859170fba8f078a2df14db52acc95d90a4405add8be63574c0a84049905da9"
+    },
+    {
+      "path": "frozen/rpc/guest/credentials.py",
+      "sha256": "b02baf0cbf2b71fed1caded598381c59763dd885c1867b6ea2e69bc009508158"
+    },
+    {
+      "path": "frozen/rpc/server/volume_export.py",
+      "sha256": "ff94868d582438b964c67cc4651ae6f80bedd56a5cc99c2f0a3cff481b4bbbb2"
+    },
+    {
+      "path": "frozen/rpc/server/guarded_export.py",
+      "sha256": "2202e059be97fcf40a860601a345b2530f8b3f770d9cbc4724e43ce4a5d7a937"
+    },
+    {
+      "path": "frozen/rpc/guest/units/enclave-rpc-attach-l1.service",
+      "sha256": "55ecd963d4d31cd99606114a01bc0629905f3640d712695d1c9f0374d87f7308"
+    },
+    {
+      "path": "frozen/rpc/guest/units/enclave-rpc-attach-base.service",
+      "sha256": "e1e9aa037fc61c0a26346b072f9580ef52d12131af437eda1d0e57eb986bdff7"
+    },
+    {
+      "path": "frozen/rpc/guest/units/srv-enclave\\x2dl1\\x2dpair.mount",
+      "sha256": "1c0d9117a85d1b371d1c93b34687da36e051605ae30cefab9ad130ad0d0ccf0c"
+    },
+    {
+      "path": "frozen/rpc/guest/units/srv-enclave\\x2dbase\\x2dholder.mount",
+      "sha256": "bf48c55a5cb408d2751bc2908e2e6add8ae031e01583cfa7373ee8c2c32a01c0"
+    },
+    {
+      "path": "frozen/test/rpc-guest/test_attach_storage.py",
+      "sha256": "d537e6c7ba9b9b571702b0274abbd8546a1f4af2b6d8ac8e09abdb05df716905"
+    },
+    {
+      "path": "frozen/test/rpc-server/test_guarded_export.py",
+      "sha256": "ced1dd8c8d89bfd9ede43ab004e9ee46133b5dc303b8e7f39db268734d2ce456"
+    },
+    {
+      "path": "frozen/test/rpc-server/test_storage_protocol.py",
+      "sha256": "d0c6128a56231a626b014f7fe127f8e49b362c61dd7362ccb55a40a366464f06"
+    },
+    {
+      "path": "frozen/test/rpc-server/qualify_storage_protocol.py",
+      "sha256": "986c49c8a772f440cde1d6700a3da3dacc916f26bc555ada6132e17bc3ddcf4e"
+    }
+  ]
+}

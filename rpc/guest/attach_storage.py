@@ -19,6 +19,11 @@ import subprocess
 import sys
 import time
 
+_protocol_path=Path(__file__).resolve().with_name('storage_protocol.py')
+if not _protocol_path.exists():_protocol_path=Path(__file__).resolve().parents[1]/'storage_protocol.py'
+_protocol_spec=importlib.util.spec_from_file_location('storage_protocol',_protocol_path)
+protocol=importlib.util.module_from_spec(_protocol_spec);_protocol_spec.loader.exec_module(protocol)
+
 ROOT=Path('/opt/enclave-rpc')
 ROLES={
     'l1':{'device':'nbd6','uuid':'a2f2a8b5-06ac-4612-95a0-f48a00a7f6e0','mount':'/srv/enclave-l1-pair',
@@ -39,32 +44,8 @@ def protected(path, mode=None):
 
 
 def validate_config(c, role, now_ns, boot):
-    if role not in ROLES or set(c)!={'schema','instance','bootId','attempt','createdUtcNs','deadlineUtcNs','roles'}:
-        raise ValueError('Exact attachment contract required')
-    if c['schema']!='owned-rpc-attachment/1' or c['bootId']!=boot or not re.fullmatch('[0-9a-f]{32}',c['attempt']):
-        raise ValueError('Attachment identity mismatch')
-    if not re.fullmatch(r'rpc-owned-[a-z0-9-]{8,64}',c['instance']):raise ValueError('Invalid instance')
-    if any(type(c[k]) is not int for k in ['createdUtcNs','deadlineUtcNs']):raise ValueError('Integral original times required')
-    if c['createdUtcNs']<0 or c['deadlineUtcNs']-c['createdUtcNs']!=900_000_000_000 or not c['createdUtcNs']<=now_ns<c['deadlineUtcNs']:
-        raise ValueError('Original startup window invalid or expired')
-    if set(c['roles'])!=set(ROLES):raise ValueError('Both state roles required')
-    exports=set()
-    for name,row in c['roles'].items():
-        if set(row)!={'host','port','tlsName','export','bytes','uuid','caSha256','certificateSha256','serverReceiptSha256'}:
-            raise ValueError('Exact endpoint fields required')
-        ip=ipaddress.ip_address(row['host'])
-        if ip.is_loopback or ip.is_unspecified or ip.is_multicast or ip.is_link_local:
-            raise ValueError('Explicit unicast storage address required')
-        if type(row['port']) is not int or not 1024<=row['port']<=65535:raise ValueError('Invalid storage port')
-        if row['bytes']!=BYTES or type(row['bytes']) is not int or row['uuid']!=ROLES[name]['uuid']:
-            raise ValueError('Volume identity mismatch')
-        if not re.fullmatch(r'rpc-storage-[a-z0-9-]{8,80}',row['tlsName']):raise ValueError('Explicit server TLS name required')
-        if row['export']!=f"rpc-{c['attempt']}-{name}":raise ValueError('Export not bound to this attempt')
-        endpoint=(row['host'],row['port'],row['export'])
-        if endpoint in exports:raise ValueError('Shared role export')
-        exports.add(endpoint)
-        for field in ['caSha256','certificateSha256','serverReceiptSha256']:
-            if not re.fullmatch('[0-9a-f]{64}',row[field]):raise ValueError('Pinned public credential/receipt required')
+    if role not in ROLES:raise ValueError('Unknown attachment role')
+    protocol.validate_attachment(c,now_ns,boot)
     return c['roles'][role]
 
 
@@ -140,7 +121,8 @@ def main(role):
     identity_path=Path('/etc/enclave-rpc/identity.json');protected(identity_path,mode=0o644)
     identity_config=json.loads(identity_path.read_text());identity.check_context(identity_config)
     path=Path('/etc/enclave-rpc/attachment.json');protected(path,mode=0o600)
-    raw=path.read_bytes();c=json.loads(raw);contract_sha=hashlib.sha256(raw).hexdigest()
+    if path.stat().st_size>65536:raise ValueError('Attachment contract bound')
+    raw=path.read_bytes();c=protocol.decode(raw);contract_sha=hashlib.sha256(raw).hexdigest()
     boot=Path('/proc/sys/kernel/random/boot_id').read_text().strip();wall=time.time_ns();mono=time.monotonic_ns()
     row=validate_config(c,role,wall,boot)
     if identity_config['instance']!=c['instance']:raise ValueError('Contract belongs to another guest')
@@ -150,17 +132,17 @@ def main(role):
     for parent in [credential.parent.parent,credential.parent,credential]:
         st=parent.lstat()
         if not stat.S_ISDIR(st.st_mode) or st.st_uid!=0 or stat.S_IMODE(st.st_mode)!=0o700:raise ValueError('Private credential directory required')
-    for name,pin in [('ca-cert.pem','caSha256'),('client-cert.pem','certificateSha256'),('server-ready.json','serverReceiptSha256')]:
+    for name,pin in [('ca-cert.pem','caSha256'),('client-cert.pem','certificateSha256')]:
         p=credential/name;protected(p,mode=0o600)
         if hashlib.sha256(p.read_bytes()).hexdigest()!=row[pin]:raise ValueError('Public storage binding changed')
     protected(credential/'client-key.pem',mode=0o600)
-    receipt=json.loads((credential/'server-ready.json').read_text())
-    if (receipt.get('attempt'),receipt.get('export'),receipt.get('uuid'),receipt.get('bytes'))!=(c['attempt'],row['export'],row['uuid'],BYTES):
-        raise ValueError('Server receipt not bound to this state')
-    if receipt.get('exclusiveCow') is not True or receipt.get('originalsReadOnly') is not True:
-        raise ValueError('Operator-reviewed exclusive COW receipt required')
-    # Receipt arrives through the authenticated operator channel; booleans alone
-    # do not independently establish server exclusivity or writer fencing.
+    receipt_path=Path('/etc/enclave-rpc/server-ready.json');protected(receipt_path,mode=0o600)
+    if receipt_path.stat().st_size>65536:raise ValueError('Server metadata receipt bound')
+    receipt_raw=receipt_path.read_bytes()
+    if protocol.sha(receipt_raw)!=c['serverReadySha256']:raise ValueError('Server metadata receipt changed')
+    protocol.validate_ready(protocol.decode(receipt_raw),c,time.time_ns())
+    # Metadata binds the reviewed owner-side contract and actual negotiation, not
+    # an invented writer-fence assertion. Live TLS, UUID and ownership follow below.
     storage_spec=importlib.util.spec_from_file_location('storage_install',ROOT/'install_storage_client.py')
     storage=importlib.util.module_from_spec(storage_spec);storage_spec.loader.exec_module(storage);storage.install()
     root=Path('/run/enclave-rpc-attachment');root.mkdir(mode=0o700,exist_ok=True)

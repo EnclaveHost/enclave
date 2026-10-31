@@ -56,11 +56,12 @@ for an acknowledged active watchdog before forking. This is a required backstop
 for a guardian that itself stalls; Python time checks alone are insufficient.
 The unit and config are not installed or started by importing this module.
 
-The protected0600 contract binds attempt, host boot, original created/deadline
+The protected0600 contract binds attempt, guest instance, host boot, original created/deadline
 UTC nanoseconds separated by exactly900seconds, role-specific original chains,
 TLS locations and endpoint names, state directory, runtime source hashes and the
 maintained resource reader command. Runtime pins include both Python components,
-`observe_resources.mjs`, its protected configuration, and the Node executable.
+`observe_resources.mjs`, its protected configuration, the shared `../storage_protocol.py`,
+and the Node executable.
 The resource reader verifies the installed local control client hash and performs
 two authenticated GET /health requests. It never invokes VM operations. Pending
 RAM includes growth still reserved for **running guests**; it is not a queue that
@@ -89,3 +90,30 @@ cgroups in about2.2seconds, including a child configured to ignore SIGTERM. Thos
 used128MiB actor units; they do not qualify the production384MiB supervisor or
 whole-stack admission. Guest credential delivery, full composed lifecycle,
 kernel attachment, sustained workload and actual production cutover remain open.
+
+
+## Guest receipt binding
+
+`storage_protocol.py` is shared by the server emitter, owner-side
+`prepare_attachment.py`, and guest attachment helper. The server emits
+`owned-rpc-server-ready/1` only after both real TLS probes return the expected
+export, size and writable/FLUSH/FUA metadata. The receipt binds guest instance,
+server boot, exact server contract hash, supervisor invocation, and the original
+900-second window. It deliberately does not assert a filesystem UUID, global
+writer fence, or RPC readiness that the probe has not established.
+
+The owner-side preparer reads protected, explicitly hash-pinned server contract,
+server receipt and credential receipt files. It creates an exclusive directory
+containing `attachment.json` (schema2), the byte-identical `server-ready.json`, and
+a public result. It never creates a later deadline, invents an export receipt,
+starts services, copies private keys, or performs network calls. The expected guest
+boot/instance must come from the owner's authenticated SSH channel using the pinned
+host key. File hashes check bindings; they do not authenticate an arbitrary file's
+origin. Source/namespace admission and the actual exporter process remain the
+operator's responsibility.
+
+The guest checks those same identities and times, then verifies live TLS,
+filesystem UUID and directory ownership before READY. The old per-role flat
+receipt with `exclusiveCow`/`originalsReadOnly` boolean assertions is no longer
+accepted; it was never production-qualified. Existing schema1 seed artifacts
+must not be combined with these schema2 contracts.

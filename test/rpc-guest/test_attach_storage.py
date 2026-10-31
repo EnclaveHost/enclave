@@ -9,37 +9,37 @@ spec=importlib.util.spec_from_file_location('attach',Path(__file__).resolve().pa
 m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 
 def config():
-    c={'schema':'owned-rpc-attachment/1','instance':'rpc-owned-fixture-20261031','bootId':'fixture-boot','attempt':'a'*32,
+    c={'schema':'owned-rpc-attachment/2','instance':'rpc-owned-fixture-20261031','bootId':'11111111-1111-1111-1111-111111111111','serverBootId':'22222222-2222-2222-2222-222222222222','serverContractSha256':'e'*64,'serverReadySha256':'f'*64,'attempt':'a'*32,
        'createdUtcNs':100_000_000_000,'deadlineUtcNs':1000_000_000_000,'roles':{}}
     for role in m.ROLES:
-        c['roles'][role]={'host':'192.168.8.249','port':10809 if role=='l1' else 10810,'tlsName':'rpc-storage-fixture-20261031',
+        c['roles'][role]={'host':'192.168.8.249','port':10809 if role=='l1' else 10810,'tlsName':'rpc-storage-'+c['attempt']+'-'+role,
                          'export':f"rpc-{c['attempt']}-{role}",'bytes':m.BYTES,'uuid':m.ROLES[role]['uuid'],
-                         'caSha256':'b'*64,'certificateSha256':'c'*64,'serverReceiptSha256':'d'*64}
+                         'caSha256':'b'*64,'certificateSha256':'c'*64}
     return c
 
 class AttachmentContractTests(unittest.TestCase):
     def test_actual_roles(self):
-        for role in m.ROLES:m.validate_config(config(),role,101_000_000_000,'fixture-boot')
+        for role in m.ROLES:m.validate_config(config(),role,101_000_000_000,'11111111-1111-1111-1111-111111111111')
     def test_independent_public_storage_address_supported(self):
         c=config();c['roles']['l1']['host']='93.184.216.34'
-        m.validate_config(c,'l1',101_000_000_000,'fixture-boot')
+        m.validate_config(c,'l1',101_000_000_000,'11111111-1111-1111-1111-111111111111')
     def test_original_deadline_not_extended(self):
         for field,value in [('deadlineUtcNs',1001_000_000_000),('createdUtcNs',99_000_000_000),('createdUtcNs',True)]:
             c=config();c[field]=value
-            with self.assertRaises(ValueError):m.validate_config(c,'l1',101_000_000_000,'fixture-boot')
+            with self.assertRaises(ValueError):m.validate_config(c,'l1',101_000_000_000,'11111111-1111-1111-1111-111111111111')
         for now in [99_000_000_000,1000_000_000_000]:
-            with self.assertRaises(ValueError):m.validate_config(config(),'l1',now,'fixture-boot')
+            with self.assertRaises(ValueError):m.validate_config(config(),'l1',now,'11111111-1111-1111-1111-111111111111')
     def test_wrong_boot(self):
         with self.assertRaises(ValueError):m.validate_config(config(),'l1',101_000_000_000,'another')
     def test_fixed_role_identity(self):
         for field,value in [('uuid',m.ROLES['base']['uuid']),('bytes',m.BYTES+512),('bytes',True),('export','default'),('host','224.0.0.1'),('host','127.0.0.1'),('tlsName',''),('port',True),('caSha256','')]:
             c=config();c['roles']['l1'][field]=value
-            with self.assertRaises(ValueError):m.validate_config(c,'l1',101_000_000_000,'fixture-boot')
+            with self.assertRaises(ValueError):m.validate_config(c,'l1',101_000_000_000,'11111111-1111-1111-1111-111111111111')
     def test_no_extra_fields_or_omission(self):
         c=config();del c['roles']['base']
-        with self.assertRaises(ValueError):m.validate_config(c,'l1',101_000_000_000,'fixture-boot')
+        with self.assertRaises(ValueError):m.validate_config(c,'l1',101_000_000_000,'11111111-1111-1111-1111-111111111111')
         c=config();c['roles']['l1']['persist']=True
-        with self.assertRaises(ValueError):m.validate_config(c,'l1',101_000_000_000,'fixture-boot')
+        with self.assertRaises(ValueError):m.validate_config(c,'l1',101_000_000_000,'11111111-1111-1111-1111-111111111111')
     def test_adoption_exact_binding_and_time(self):
         import json
         with tempfile.TemporaryDirectory() as td,patch.object(m,'protected'):

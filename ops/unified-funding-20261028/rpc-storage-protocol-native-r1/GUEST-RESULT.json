@@ -1,0 +1,20 @@
+{
+  "rc": 1,
+  "reason": null,
+  "elapsedSeconds": 0.20725095202215016,
+  "stdout": "",
+  "stderr": ".....E....\n======================================================================\nERROR: test_mount_dependencies (__main__.AttachmentContractTests.test_mount_dependencies)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/src/test/rpc-guest/test_attach_storage.py\", line 67, in test_mount_dependencies\n    text=(root/f'enclave-rpc-attach-{role}.service').read_text()\n  File \"/usr/lib/python3.14/pathlib/__init__.py\", line 787, in read_text\n    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:\n         ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.14/pathlib/__init__.py\", line 771, in open\n    return io.open(self, mode, buffering, encoding, errors, newline)\n           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nFileNotFoundError: [Errno 2] No such file or directory: '/src/rpc/guest/units/enclave-rpc-attach-l1.service'\n\n----------------------------------------------------------------------\nRan 10 tests in 0.003s\n\nFAILED (errors=1)\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 1100
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

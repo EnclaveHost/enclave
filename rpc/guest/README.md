@@ -103,8 +103,9 @@ The helper never automatically reconnects, starts chain clients, declares RPC
 readiness or produces operator adoption. Adoption must be observed before the
 original deadline. Ambiguous ownership or mounted devices prevent forced cleanup;
 cleanup receipts always leave writer fencing unproven. The server receipt must come
-from the authenticated operator workflow after actual exclusive-COW qualification;
-its boolean fields alone are not evidence of exclusivity.
+from the authenticated operator workflow after actual exclusive-COW qualification.
+Schema2 now consumes the shared server metadata receipt and original contract hash;
+it no longer accepts the earlier flat boolean assertions as a receipt format.
 
 Actual exact-closure TLS negotiation passed six isolated dummy-export cases, and
 the prepared image contains its NBD kernel module and required tools. Ten attachment
@@ -156,3 +157,27 @@ These are offline checks, not execution of cloud-init modules or kernel mounts.
 The private candidate is retained on the operator's Control VM and must never be
 published. It still requires the fresh original-deadline attachment contract and
 actual server readiness receipts before any attachment or client start.
+
+
+The schema2 attachment helper requires `/opt/enclave-rpc/storage_protocol.py`.
+The operator uses `rpc/prepare_attachment.py` with protected hash-pinned public
+inputs to produce `/etc/enclave-rpc/attachment.json` and the byte-identical
+`/etc/enclave-rpc/server-ready.json` (both root0600). These are delivered only
+through the authenticated owner channel after the actual guest boot and export
+receipt are known. They are intentionally absent from pre-boot seed media.
+The original deadline is copied from the reviewed server contract, never reset
+when the guest connects. Actual TLS, UUID and owner checks still precede mounting.
+
+Attachment startup should be sequenced L1 then Base by the owner controller;
+the module-load lock deliberately refuses a concurrent competing preparation.
+Starting services, kernel attachment/cleanup, timely operator adoption and sustained
+RPC validation remain separate native qualification. No contract bundle itself
+is evidence that a guest is running or that a storage reservation may be released.
+
+A separate schema2 candidate now contains 37 files, including the shared validator,
+with 13,193,216-byte ISO readback and independent file/key/mode verification.
+The prepared guest's own schema reports no errors, and all five seeded Python
+modules compile under the installed guest-family Python interpreter. The earlier
+36-file schema1 candidate is retained but is not compatible with schema2 activation.
+No guest first boot, live contract installation, attachment or client startup was
+performed by these artifact checks.

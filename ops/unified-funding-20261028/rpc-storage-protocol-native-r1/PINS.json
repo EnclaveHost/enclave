@@ -1,0 +1,16 @@
+{
+  "run.py": "b4da4322a30eebddd4a7c0e2c901b61b1702c7e5dbf54583baecd2cd6df32f9b",
+  "capture_local.py": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c",
+  "fixture-etc/group": "7a696fcfba89a55a6d73fa1a03c7f071fad2141340027b17a25db249e26b9be8",
+  "fixture-etc/passwd": "d6042e053109403a43ec5621e0f56bf0730cc29678cd45386b407cf41954b3fb",
+  "frozen/rpc/prepare_attachment.py": "c0685fbf106fe2fc49e1ce076b0dca096716d37ecd832a227480b6832e5f625a",
+  "frozen/rpc/storage_protocol.py": "80a3f865a76914a5d986528d50dfb77bd90ec5604f9884f3391ae99c4f02bc31",
+  "frozen/rpc/guest/attach_storage.py": "93859170fba8f078a2df14db52acc95d90a4405add8be63574c0a84049905da9",
+  "frozen/rpc/guest/credentials.py": "b02baf0cbf2b71fed1caded598381c59763dd885c1867b6ea2e69bc009508158",
+  "frozen/rpc/server/volume_export.py": "ff94868d582438b964c67cc4651ae6f80bedd56a5cc99c2f0a3cff481b4bbbb2",
+  "frozen/rpc/server/guarded_export.py": "2202e059be97fcf40a860601a345b2530f8b3f770d9cbc4724e43ce4a5d7a937",
+  "frozen/test/rpc-guest/test_attach_storage.py": "d537e6c7ba9b9b571702b0274abbd8546a1f4af2b6d8ac8e09abdb05df716905",
+  "frozen/test/rpc-server/test_guarded_export.py": "ced1dd8c8d89bfd9ede43ab004e9ee46133b5dc303b8e7f39db268734d2ce456",
+  "frozen/test/rpc-server/test_storage_protocol.py": "d0c6128a56231a626b014f7fe127f8e49b362c61dd7362ccb55a40a366464f06",
+  "frozen/test/rpc-server/qualify_storage_protocol.py": "986c49c8a772f440cde1d6700a3da3dacc916f26bc555ada6132e17bc3ddcf4e"
+}

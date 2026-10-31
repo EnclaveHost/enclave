@@ -1,0 +1,46 @@
+{
+  "privateArtifactsNeverCopied": true,
+  "publicIdentityValuesOmittedFromResults": true,
+  "originalFileRecords": [
+    {
+      "path": "read.py",
+      "sha256": "f3124a9280a1f8979f83d8ca1c6197c9cef19a4e12d8f5776adbe9d9b5a0a8e4"
+    },
+    {
+      "path": "SSH.json",
+      "sha256": "0574c7d96d7cd5f60d64c86c4a0de321785319bf9aad8eadf9221729ce6db20e"
+    },
+    {
+      "path": "ATTEMPT.json",
+      "sha256": "ae7e185e3147ac3d5c196683b5d60cae91d192ba4bba186e88378cd5471ab960"
+    },
+    {
+      "path": "TERMINAL.txt",
+      "sha256": "e092bed09801fbe69ad8bd6b66b670a6c735b7eba56bf43566e7d2874641c077"
+    },
+    {
+      "path": "outer.log",
+      "sha256": "4e36fda36254297f904473ab77159741bc379ae096da6eacf0b6bee7259f1709"
+    },
+    {
+      "path": "RESULT.json",
+      "sha256": "0c8fb91d5954a7ef7474fb791ae3bf4f0add22f1efa125622f119c9d88f2d2d9"
+    },
+    {
+      "path": "LAUNCH.json",
+      "sha256": "b48afd8e3afe1a1c827cb469ab85c1ef1c6277f4b928a2dbf89123da6a5c4570"
+    },
+    {
+      "path": "inner.log",
+      "sha256": "d7e7e39f2e6daff7583a710f4ff4c9bc59ac371665a68924cb57b56b6df72cee"
+    },
+    {
+      "path": "COMMAND.json",
+      "sha256": "72f070aa2d6b9c1a14f5a5cb36ddb676192039837d98bb06da6ce2a2668e4531"
+    },
+    {
+      "path": "run.py",
+      "sha256": "e70ee5481cc6fa1913b0cd959d3e8e6b180f6923035a8717675b31881bed10e9"
+    }
+  ]
+}

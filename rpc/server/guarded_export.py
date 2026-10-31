@@ -4,6 +4,7 @@ Only the explicit CLI checks/adopts a production unit. Imported guard() is also
 used by finite, isolated death/deadline fixtures. No RPC readiness is inferred.
 """
 import ctypes
+import importlib.util
 import hashlib
 import json
 import os
@@ -18,6 +19,10 @@ import sys
 import time
 
 from volume_export import CowExport, directory
+
+_protocol_path=Path(__file__).resolve().parents[1]/'storage_protocol.py'
+_protocol_spec=importlib.util.spec_from_file_location('storage_protocol',_protocol_path)
+protocol=importlib.util.module_from_spec(_protocol_spec);_protocol_spec.loader.exec_module(protocol)
 
 
 def digest(path):
@@ -250,7 +255,7 @@ def export_owner(c,channel,deadline):
 def main(path):
     os.umask(0o077)
     c=protected_json(path);c['contractSha256']=digest(path)
-    if not re.fullmatch('[0-9a-f]{32}',c['attempt']):raise ValueError('Exact attempt required')
+    protocol.identity(c['attempt'],c['instance']);protocol.boot(c['bootId'])
     if any(type(c[k]) is not int for k in ('createdUtcNs','deadlineUtcNs','floorMiB','reserveMiB')):
         raise ValueError('Integral original timing/resource contract required')
     here=Path(__file__).resolve().parent
@@ -258,7 +263,7 @@ def main(path):
     if len(argv)!=3 or argv[:2]!=['/usr/bin/node',str(here/'observe_resources.mjs')]:
         raise ValueError('Maintained authenticated resource observer required')
     protected_json(argv[2])
-    required={str(here/'guarded_export.py'),str(here/'volume_export.py'),str(here/'observe_resources.mjs'),argv[2],'/usr/bin/node'}
+    required={str(here/'guarded_export.py'),str(here/'volume_export.py'),str(here/'observe_resources.mjs'),str(_protocol_path),argv[2],'/usr/bin/node'}
     if not required.issubset(c['sourcePins']):raise ValueError('Complete runtime pins required')
     if c['bootId']!=Path('/proc/sys/kernel/random/boot_id').read_text().strip():raise ValueError('Wrong boot')
     if c['deadlineUtcNs']-c['createdUtcNs']!=900_000_000_000 or not c['createdUtcNs']<=time.time_ns()<c['deadlineUtcNs']:
@@ -283,8 +288,7 @@ def main(path):
     def record_ready(roles):
         nonlocal ready_hash
         if time.monotonic()>=deadline or set(roles)!={'l1','base'}:raise ValueError('Late/incomplete export readiness')
-        value={'attempt':c['attempt'],'bootId':c['bootId'],'contractSha256':c['contractSha256'],'roles':roles,
-               'rpcReady':False,'atUtcNs':time.time_ns()}
+        value=protocol.make_ready(c,c['contractSha256'],roles,os.environ['INVOCATION_ID'],time.time_ns())
         with (state/'ready.json').open('x') as f:json.dump(value,f);f.flush();os.fsync(f.fileno())
         ready_hash=digest(state/'ready.json')
     def is_adopted():
