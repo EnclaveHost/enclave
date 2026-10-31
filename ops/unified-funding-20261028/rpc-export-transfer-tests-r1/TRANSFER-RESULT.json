@@ -1,0 +1,20 @@
+{
+  "rc": 1,
+  "reason": null,
+  "elapsedSeconds": 0.23376454110257328,
+  "stdout": "",
+  "stderr": "Traceback (most recent call last):\n  File \"/src/test/rpc-guest/test_transfer_export.py\", line 14, in <module>\n    x=load('export_transfer','rpc/transfer_export.py');c=x.c;p=x.p\n  File \"/src/test/rpc-guest/test_transfer_export.py\", line 12, in load\n    s=importlib.util.spec_from_file_location(name,ROOT/path);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m\n                                                                                                  ~~~~~~~~~~~~~~~~~~~~^^^\n  File \"<frozen importlib._bootstrap_external>\", line 763, in exec_module\n  File \"<frozen importlib._bootstrap>\", line 491, in _call_with_frames_removed\n  File \"/src/rpc/transfer_export.py\", line 12, in <module>\n    c=load('startup_clock');d=load('deliver_activation');p=c.protocol\n  File \"/src/rpc/transfer_export.py\", line 11, in load\n    s=importlib.util.spec_from_file_location(name,Path(__file__).with_name(name+'.py'));m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m\n                                                                                                                             ~~~~~~~~~~~~~~~~~~~~^^^\n  File \"<frozen importlib._bootstrap_external>\", line 759, in exec_module\n  File \"<frozen importlib._bootstrap_external>\", line 896, in get_code\n  File \"<frozen importlib._bootstrap_external>\", line 954, in get_data\nFileNotFoundError: [Errno 2] No such file or directory: '/src/rpc/startup_clock.py'\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 1445
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

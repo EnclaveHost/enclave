@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.31864421791397035,
+  "stdout": "",
+  "stderr": "test_actual_instance_mismatch (__main__.Tests.test_actual_instance_mismatch) ... ok\ntest_envelope_refused_before_import (__main__.Tests.test_envelope_refused_before_import) ... ok\ntest_exact_unit_and_pinned_jump (__main__.Tests.test_exact_unit_and_pinned_jump) ... ok\ntest_foreign_seed_instance_and_attempt (__main__.Tests.test_foreign_seed_instance_and_attempt) ... ok\ntest_identity_configuration_other_runtime_refused (__main__.Tests.test_identity_configuration_other_runtime_refused) ... ok\ntest_identity_source_drift_refused_before_import (__main__.Tests.test_identity_source_drift_refused_before_import) ... ok\ntest_instance_symlink_and_size_bound (__main__.Tests.test_instance_symlink_and_size_bound) ... ok\ntest_insufficient_original_time_before_transport (__main__.Tests.test_insufficient_original_time_before_transport) ... ok\ntest_lost_reply_consumed_without_second_transport (__main__.Tests.test_lost_reply_consumed_without_second_transport) ... ok\ntest_original_window_expired_before_transport (__main__.Tests.test_original_window_expired_before_transport) ... ok\ntest_real_seeded_identity_to_actual_attachment_preparer (__main__.Tests.test_real_seeded_identity_to_actual_attachment_preparer) ... ok\ntest_reply_binding_boot_time_and_false_claim_refusals (__main__.Tests.test_reply_binding_boot_time_and_false_claim_refusals) ... ok\ntest_runtime_pin_and_file_mode_refused (__main__.Tests.test_runtime_pin_and_file_mode_refused) ... ok\ntest_seed_host_key_substitution_before_transport (__main__.Tests.test_seed_host_key_substitution_before_transport) ... ok\n\n----------------------------------------------------------------------\nRan 14 tests in 0.085s\n\nOK\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 1667
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

@@ -171,3 +171,34 @@ protected files and the seeded identity validator, then feed its boot ID into
 the actual attachment preparer. SSH and systemd are mocked: a live guest boot
 and the remote unit remain unqualified. No guest file or private seed changed.
 See `ops/unified-funding-20261028/rpc-guest-observation-tests-r1/ROOT-RESULT.md`.
+
+
+### Public export metadata transfer (source integration only)
+
+`transfer_export.py` runs on the original storage-clock owner and transfers only
+its pinned server contract and server readiness receipt to the separately
+admitted guest-key owner. Configuration requires `clock`, `serverContract`,
+`serverReady`, explicit `target`, pinned `knownHosts` and `hostAlias`,
+`sshSha256`, and independently verified `recipientRoot`, `recipientUid`,
+`recipientBootId`. The destination must already be a private owned directory.
+The receiver checks its exact boot, UID and actual user-unit envelope before
+reading input. Its fixed limits are64MiB, CPU1, no swap,10s runtime and1s stop.
+Bootstrap, transport and registration overhead require separate admission.
+
+Both sides retain the original900-second window and consume exclusive fsynced
+intents before submission/import. The sender makes one pinned SSH call and
+requires18s remaining. Lost replies or partial imports stay consumed; there
+is no overwrite, retry, new clock, credential transfer or guest submission.
+`recipientFiles` supplies exact local bindings for the existing guest observer
+and attachment preparer. Hashes bind content; authenticated channels and
+protected source custody establish provenance. The imported readiness receipt
+records storage negotiation and does not mean the RPC is ready.
+
+Actual14 new tests plus28 relevant regressions passed. Tests execute the exact
+receiver bootstrap and protected filesystem writes and feed the imported
+metadata into actual downstream producers; SSH and systemd remain mocked.
+The initial frozen-closure omission and corrected42PASS results are preserved
+in `ops/unified-funding-20261028/rpc-export-transfer-tests-r1` and `-r2`.
+Control user-unit support, live admission, cross-host clock agreement and
+transport still need qualification before the complete startup transaction.
+No guest files or private seed changed.

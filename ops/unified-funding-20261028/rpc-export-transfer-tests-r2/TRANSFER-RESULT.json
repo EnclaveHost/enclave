@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.2953179420437664,
+  "stdout": "",
+  "stderr": "test_actual_envelope_before_stdin (__main__.Tests.test_actual_envelope_before_stdin) ... ok\ntest_actual_import_to_guest_observer_and_attachment_producers (__main__.Tests.test_actual_import_to_guest_observer_and_attachment_producers) ... ok\ntest_deadline_not_reset_or_transport_started_too_late (__main__.Tests.test_deadline_not_reset_or_transport_started_too_late) ... ok\ntest_hash_bound_and_oversized_input (__main__.Tests.test_hash_bound_and_oversized_input) ... ok\ntest_key_never_read_and_fixed_bounded_command (__main__.Tests.test_key_never_read_and_fixed_bounded_command) ... ok\ntest_lost_ack_is_consumed_on_both_hosts (__main__.Tests.test_lost_ack_is_consumed_on_both_hosts) ... ok\ntest_metadata_extra_fields_and_invalid_role_refused (__main__.Tests.test_metadata_extra_fields_and_invalid_role_refused) ... ok\ntest_original_clock_binding_cannot_change (__main__.Tests.test_original_clock_binding_cannot_change) ... ok\ntest_partial_receiver_directory_never_overwritten (__main__.Tests.test_partial_receiver_directory_never_overwritten) ... ok\ntest_ready_must_match_hash_window_and_negotiation (__main__.Tests.test_ready_must_match_hash_window_and_negotiation) ... ok\ntest_unsafe_and_symlink_namespace (__main__.Tests.test_unsafe_and_symlink_namespace) ... ok\ntest_wrong_pinned_host_refused_before_transport (__main__.Tests.test_wrong_pinned_host_refused_before_transport) ... ok\ntest_wrong_receipt_path_is_held (__main__.Tests.test_wrong_receipt_path_is_held) ... ok\ntest_wrong_recipient_boot_and_uid_before_input (__main__.Tests.test_wrong_recipient_boot_and_uid_before_input) ... ok\n\n----------------------------------------------------------------------\nRan 14 tests in 0.160s\n\nOK\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 1689
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

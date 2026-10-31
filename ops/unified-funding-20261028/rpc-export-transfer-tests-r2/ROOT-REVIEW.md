@@ -1,0 +1,9 @@
+# Root review: bounded public export transfer fixture
+
+Reviewed fixed two-file public schema, original owner clock association, retained 900-second window, exact pinned host key, normal local SSH identity only, independent recipient user-unit 64 MiB/CPU1/noSwap/10s/1s stop envelope before stdin. Receiver checks admitted boot/uid, private canonical ancestors, CreateNew/fsync and exact readback. Both sides consume exclusive intent; ambiguous result is held with no retry. Sender refuses less than18s remaining. Only public path/digest/negotiated metadata allowed, no private credentials or production image/data bytes.
+
+Tests execute exact bootstrap in disposable bwrap root namespace, actual begin/finish clock, actual protected files and downstream observer/attachment producers. SSH and systemd mocked, synthetic Windows clock; no live authentication, cross-host clock, target envelope or admission proof. All readiness/fencing/death claims false. Recipient bootstrap preallocation is not a prior-allocation hard bound; real admission must include it and transport/controller overhead. Remote user-unit support and root namespace custody require live qualification. No production operation authorized by this fixture.
+
+New transfer14 cases plus relevant guest observation14 and delivery14 regressions. Scope512MiB+wrapper128MiB, RSS450, CPU1/noSwap, retained27648MiB floor plus authenticated pending; per-suite25s/output65536. Freeze before run; no native/remote execution.
+
+R2 corrects frozen closure by adding maintained startup_clock.py; prior attempt failed on missing import, no test cases executed. No production source or test behavior changed.

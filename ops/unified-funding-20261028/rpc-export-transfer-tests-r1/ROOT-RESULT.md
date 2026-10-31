@@ -1,0 +1,1 @@
+Actual invocation dedb8402a42645b4813506bc3ba071d5 terminal1/MainPID0. Fixture failed during import before any test: frozen closure omitted startup_clock.py. No source execution beyond imports/native/remote work. Failure retained; r2 adds the missing maintained import to the frozen closure.

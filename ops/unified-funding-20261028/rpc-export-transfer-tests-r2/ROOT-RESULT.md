@@ -1,0 +1,7 @@
+# Actual bounded export metadata transfer integration
+
+Invocation5dd44fda453a40ca944a69173c28c551 terminal0/MainPID0. Actual14 new transfer +14 guest observation +14 delivery regressions=42PASS. New suite0.295s wall/0.160s unittest; guest0.319s/delivery0.458s. All43 frozen pins unchanged and source matches maintained files. Initial r1 dedb8402a42645b4813506bc3ba071d5 failed on missing startup_clock.py in frozen closure before tests; preserved, corrected r2 closure only.
+
+Actual original begin/finish clock and exclusive protected/fsynced files, exact transported receiver bootstrap, downstream observe_guest.package and prepare_attachment. SSH/systemd mocked; synthetic Windows clock. Lost acknowledgment leaves both consumed, partial directory never overwritten; original clock/hash/window/negotiation/host/boot/uid/envelope/bounds/authority refusals passed. No private key read by sender, image/block data transfer, guest submission, readiness, fencing or remote-death claim.
+
+Independent test scope512MiB +wrapper128MiB/CPU1/noSwap/RSS450/150s, authenticated pending-aware27648MiB floor. Actual admission in ADMISSION.json. Receiver user-unit and namespace on Control, cross-host clock agreement, independent bootstrap admission and authenticated transport remain unqualified. No native/remote production action. Root author fallback after prior terminal Claude OAuth conflict; no authentication retry.
