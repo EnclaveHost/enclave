@@ -1004,3 +1004,15 @@ The held process exited124 in1027ms. No real WMI/VM lookup was exercised.
 The native Running path still needs actual target-context qualification within
 the original owned startup. Existing staged binaries are unchanged. Results
 and prior failures are retained in `ops/unified-funding-20261028/rpc-vm-endpoint-ci-r3`.
+
+### Deployment inventory equality and unknown memory
+
+The startup/definition reader preserves absent and null `memMb` values separately
+from numeric zero when comparing reviewed and current node inventories. Legacy
+queued, refused and stopped rows can lack this field. Running or isolation-held
+rows with unknown memory still refuse admission. This receipt compares identity,
+status, memory and isolation flags; it never supplies a capacity estimate or
+replaces complete pending reservations or a verified completed allocator handoff.
+The 39,388 MiB prospective allowance and all physical floors are unchanged.
+Existing staged executables predate this correction and must be replaced by
+reviewed compiled artifacts before the production attempt. No launch is implied.

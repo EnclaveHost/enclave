@@ -18,10 +18,50 @@ public static class StartupControllerHarness {
  static string Record(string reference){return StartRecords.Encode(new Dictionary<string,object>{{"receipt",new string('a',64)},{"system",reference}});}
  static void ProtectDirectory(string path){var acl=new DirectorySecurity();acl.SetOwner(new SecurityIdentifier("S-1-5-32-544"));acl.SetAccessRuleProtection(true,false);foreach(string sid in new[]{"S-1-5-32-544","S-1-5-18"})acl.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid),FileSystemRights.FullControl,InheritanceFlags.ContainerInherit|InheritanceFlags.ObjectInherit,PropagationFlags.None,AccessControlType.Allow));Directory.CreateDirectory(path,acl);}
  static void ProtectFile(string path,string content){var acl=new FileSecurity();acl.SetOwner(new SecurityIdentifier("S-1-5-32-544"));acl.SetAccessRuleProtection(true,false);foreach(string sid in new[]{"S-1-5-32-544","S-1-5-18"})acl.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid),FileSystemRights.FullControl,AccessControlType.Allow));using(var f=new FileStream(path,FileMode.CreateNew,FileSystemRights.WriteData,FileShare.None,4096,FileOptions.WriteThrough,acl)){byte[] b=Encoding.UTF8.GetBytes(content);f.Write(b,0,b.Length);f.Flush(true);}}
+ // Synthetic identities with the exact 21-row status/memory shape observed on
+ // 2026-10-31. Twelve memory fields are absent; none is silently valued at zero.
+ static Dictionary<string,object> Node(bool raw){
+  string[] states={"queued","refused","running","failed","failed","failed","failed","failed","failed","stopped","failed","stopped","stopped","refused","refused","refused","refused","refused","refused","refused","refused"};
+  long[] sizes={-1,-1,1024,128,512,256,128,128,128,2048,8192,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
+  var rows=new object[states.Length];
+  for(int i=0;i<rows.Length;i++){
+   var r=new Dictionary<string,object>{{"id","fixture-"+i},{"status",states[i]},{"isolationHeld",false},{"isolationRetireFailed",false}};
+   if(sizes[i]>=0)r.Add("memMb",sizes[i]);
+   if(raw){if(i==2)r.Add("isolation",new Dictionary<string,object>{{"kind","fixture"}});}else r.Add("hasIsolation",i==2);
+   rows[i]=r;
+  }
+  return new Dictionary<string,object>{{"deployments",rows}};
+ }
+ static Dictionary<string,object> Row(Dictionary<string,object> n,int i){return (Dictionary<string,object>)((object[])n["deployments"])[i];}
+ static string Receipt(Dictionary<string,object> n,bool raw=false){return WindowsStartAdmission.DeploymentReceipt(n,raw);}
+ static void AdmissionTests(){
+  string original=Receipt(Node(false));
+  Test("node-observed-21-row-shape-raw-matches-projection",()=>Check(original==Receipt(Node(true),true)));
+  Test("node-unknown-is-not-zero",()=>{var n=Node(false);Row(n,0)["memMb"]=0;Check(original!=Receipt(n));});
+  Test("node-null-is-not-absent",()=>{var n=Node(false);Row(n,0)["memMb"]=null;Check(original!=Receipt(n));});
+  Test("node-null-raw-matches-projection",()=>{var n=Node(false);var r=Node(true);Row(n,0)["memMb"]=null;Row(r,0)["memMb"]=null;Check(Receipt(n)==Receipt(r,true));});
+  Test("node-memory-change-detected",()=>{var n=Node(false);Row(n,2)["memMb"]=2048;Check(original!=Receipt(n));});
+  Test("node-status-change-detected",()=>{var n=Node(false);Row(n,0)["status"]="refused";Check(original!=Receipt(n));});
+  Test("node-isolation-change-detected",()=>{var n=Node(false);Row(n,3)["hasIsolation"]=true;Check(original!=Receipt(n));});
+  Test("node-held-change-detected",()=>{var n=Node(false);Row(n,3)["isolationHeld"]=true;Check(original!=Receipt(n));});
+  Test("node-retire-change-detected",()=>{var n=Node(false);Row(n,3)["isolationRetireFailed"]=true;Check(original!=Receipt(n));});
+  Test("node-order-does-not-change-receipt",()=>{var n=Node(false);Array.Reverse((object[])n["deployments"]);Check(original==Receipt(n));});
+  Test("node-duplicate-identity-refused",()=>{var n=Node(false);Row(n,0)["id"]="fixture-1";Refuse(()=>Receipt(n));});
+  Test("node-negative-memory-refused",()=>{var n=Node(false);Row(n,3)["memMb"]=-1;Refuse(()=>Receipt(n));});
+  Test("node-string-memory-refused",()=>{var n=Node(false);Row(n,3)["memMb"]="128";Refuse(()=>Receipt(n));});
+  Test("node-fractional-memory-refused",()=>{var n=Node(false);Row(n,3)["memMb"]=128.5;Refuse(()=>Receipt(n));});
+  Test("node-running-memory-unknown-refused",()=>{var n=Node(false);Row(n,0)["status"]="running";Refuse(()=>Receipt(n));});
+  Test("node-isolated-memory-unknown-refused",()=>{var n=Node(true);Row(n,0)["isolation"]=new object();Refuse(()=>Receipt(n,true));});
+  Test("node-held-memory-unknown-refused",()=>{var n=Node(false);Row(n,0)["isolationHeld"]=true;Refuse(()=>Receipt(n));});
+  Test("node-retire-memory-unknown-refused",()=>{var n=Node(false);Row(n,0)["isolationRetireFailed"]=true;Refuse(()=>Receipt(n));});
+  Test("node-receipt-does-not-replace-pending-authority",()=>Refuse(()=>WindowsStartAdmission.PendingReceipt(new object[]{Node(false),Node(false),Node(false)})));
+  Test("node-missing-deployment-inventory-refused",()=>Refuse(()=>Receipt(new Dictionary<string,object>())));
+ }
  const string GuidText="12345678-1234-1234-1234-123456789012";
  public static int Main(string[] args){try{
   if(args.Length!=0)throw new ArgumentException("No native mode");
   BoundedWorker.EnterSupervisorEnvelope(256UL*1024*1024);StartupCleanupController.ArmAbsoluteDeadline(BoundedWorker.MonotonicMilliseconds()+12000);
+  AdmissionTests();
   string raw=Plan(new string('a',32),new string('b',32),1000);var permit=StartupController.PermitFromDefinition(raw,GuidText);
   Test("original-definition-to-permit",()=>Check(permit.Origin==1000&&permit.Deadline==901000&&permit.TotalBytes==21474836480L&&permit.ImageHash==new string('d',64)));
   Test("definition-schema-refused",()=>Refuse(()=>StartupController.PermitFromDefinition(raw.Replace("owned-rpc-definition/1","other/1"),GuidText)));
