@@ -197,11 +197,17 @@ namespace Enclave.OwnedRpc {
             journal.WriteOnce("start.native",digest); // native adapter itself is one-shot too
             var scope=Scope();
             using(var vm=One(scope,"SELECT * FROM Msvm_ComputerSystem WHERE Name='"+id.VmGuid+"'"))
+            using(var memory=One(scope,"SELECT SystemName,BlockSize,NumberOfBlocks FROM Msvm_Memory WHERE SystemName='"+id.VmGuid+"'"))
             using(var settings=One(scope,"SELECT * FROM Msvm_VirtualSystemSettingData WHERE VirtualSystemIdentifier='"+id.VmGuid+"' AND VirtualSystemType='Microsoft:Hyper-V:System:Realized'")){
                 var notes=settings["Notes"] as string[];
                 if((string)vm["Name"]!=id.VmGuid||(string)vm["ElementName"]!=id.VmName||Convert.ToUInt16(vm["EnabledState"])!=3||
                     (string)settings["VirtualSystemIdentifier"]!=id.VmGuid||(string)settings["ElementName"]!=id.VmName||notes==null||notes.Length!=1||notes[0]!=id.OwnerNote||
                     !String.Equals((string)settings["ConfigurationDataRoot"],id.ConfigurationRoot,StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("Original owned Off VM differs");
+                // Msvm_Memory is the current allocation, not configured startup
+                // RAM. Missing/unreadable rows or fields are not zero allocation.
+                if(memory["SystemName"]==null||memory["BlockSize"]==null||memory["NumberOfBlocks"]==null||
+                    (string)memory["SystemName"]!=id.VmGuid||Convert.ToUInt64(memory["BlockSize"])!=1048576||Convert.ToUInt64(memory["NumberOfBlocks"])!=0)
+                    throw new InvalidOperationException("Original VM zero assigned memory unconfirmed");
                 using(var input=vm.GetMethodParameters("RequestStateChange")){
                     input["RequestedState"]=(ushort)2;
                     runtime.VerifyBeforeSubmit(id);long now=runtime.Now;if(now<id.Origin||now>=id.Deadline)throw new InvalidOperationException("Original deadline expired");

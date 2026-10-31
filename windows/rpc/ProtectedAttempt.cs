@@ -1,4 +1,5 @@
-// Finite Windows SYSTEM inert qualification contract. No VM/provider authority.
+// Protected Windows namespace and finite worker leases. Default construction is
+// inert; provider workers require a separate explicit profile and VM permit.
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -15,6 +16,9 @@ namespace Enclave.OwnedRpc {
     public sealed partial class ProtectedAttempt : IDisposable {
         public readonly string Root,Nonce,Boot,ContractHash,ExecutableHash;
         public readonly long Origin,Deadline;
+        public readonly string LeaseProfile,Operation,PermitPath,PermitHash;
+        public readonly uint GuardianPid;
+        public readonly long GuardianCreation;
         readonly List<IDisposable> held=new List<IDisposable>();
         readonly List<SafeFileHandle> directories=new List<SafeFileHandle>();
         // VM journals reuse these held namespace checks, but have a separate
@@ -139,18 +143,23 @@ namespace Enclave.OwnedRpc {
         // Controller pinning is a separate trusted-operator API. Child construction
         // still unconditionally requires a SYSTEM primary token.
         public static ProtectedAttempt PinController(string contractPath,string expectedHash) {
+            RequireAdministrator();return new ProtectedAttempt(contractPath,expectedHash,true);
+        }
+        static void RequireAdministrator() {
             using(var identity=WindowsIdentity.GetCurrent()) {
                 var principal=new WindowsPrincipal(identity);
                 if(identity.ImpersonationLevel!=TokenImpersonationLevel.None ||
                     !principal.IsInRole(WindowsBuiltInRole.Administrator))
                     throw new InvalidOperationException("Primary administrator controller required");
             }
-            return new ProtectedAttempt(contractPath,expectedHash,true);
         }
+        public static ProtectedAttempt OpenProviderWorker(string path,string hash) {return new ProtectedAttempt(path,hash,false,"provider");}
+        public static ProtectedAttempt PinProviderController(string path,string hash) {RequireAdministrator();return new ProtectedAttempt(path,hash,true,"provider");}
         public ProtectedAttempt(string contractPath,string expectedHash) : this(contractPath,expectedHash,false) {}
-        private ProtectedAttempt(string contractPath,string expectedHash,bool controller) {
+        private ProtectedAttempt(string contractPath,string expectedHash,bool controller) : this(contractPath,expectedHash,controller,"inert") {}
+        private ProtectedAttempt(string contractPath,string expectedHash,bool controller,string profile) {
             if(!controller)RequireSystem();Hex(expectedHash,64);LocalPath(contractPath);
-            recordOwner=controller?AdminSid:SystemSid;
+            recordOwner=controller?AdminSid:SystemSid;LeaseProfile=profile;
             if(Path.GetFileName(contractPath)!="contract.txt")throw new ArgumentException("Fixed contract filename required");
             Root=Path.GetDirectoryName(contractPath);ContractHash=expectedHash;
             try {
@@ -160,8 +169,15 @@ namespace Enclave.OwnedRpc {
                 byte[] bytes=Bytes(HoldRead(contractPath,2048),2048);
                 if(Hash(bytes)!=expectedHash)throw new InvalidOperationException("Contract digest mismatch");
                 string[] fields=Utf8.GetString(bytes).Split('\n');
-                if(fields.Length!=8 || fields[0]!="owned-rpc-inert-v1" || fields[6]!="inert-v1" || fields[7]!="")
-                    throw new InvalidOperationException("Exact inert contract schema required");
+                if(profile=="inert") {
+                    if(fields.Length!=8 || fields[0]!="owned-rpc-inert-v1" || fields[6]!="inert-v1" || fields[7]!="")throw new InvalidOperationException("Exact inert contract schema required");
+                } else {
+                    if(profile!="provider"||fields.Length!=12||fields[0]!="owned-rpc-provider-worker-v1"||fields[11]!=""||(fields[6]!="start"&&fields[6]!="reconcile"))throw new InvalidOperationException("Exact provider worker contract required");
+                    Operation=fields[6];PermitPath=LocalPath(fields[7]);PermitHash=fields[8];Hex(PermitHash,64);
+                    if(Path.GetFileName(PermitPath)!="vm-permit.txt")throw new InvalidOperationException("Fixed VM permit path required");
+                    GuardianPid=UInt32.Parse(fields[9],NumberStyles.None,CultureInfo.InvariantCulture);GuardianCreation=Int64.Parse(fields[10],NumberStyles.None,CultureInfo.InvariantCulture);
+                    if((Operation=="start"&&(GuardianPid==0||GuardianCreation<=0))||(Operation=="reconcile"&&(GuardianPid!=0||GuardianCreation!=0)))throw new InvalidOperationException("Exact guardian binding required for start only");
+                }
                 Nonce=fields[1];Boot=fields[2];ExecutableHash=fields[5];Hex(Nonce,32);Hex(Boot,32);Hex(ExecutableHash,64);
                 if(Path.GetFileName(Root)!=Nonce)throw new InvalidOperationException("Attempt namespace differs");
                 Origin=Int64.Parse(fields[3],NumberStyles.None,CultureInfo.InvariantCulture);
@@ -232,6 +248,10 @@ namespace Enclave.OwnedRpc {
         }
         public string ReadOnce(string name) {
             Name(name);CheckDeadline();return Utf8.GetString(Bytes(HoldRead(Path.Combine(Root,name),4096),4096));
+        }
+        public byte[] ReadAdmission(string expectedHash) {
+            Hex(expectedHash,64);CheckDeadline();byte[] bytes=Bytes(HoldRead(Path.Combine(Root,"admission.json"),262144),262144);
+            if(Hash(bytes)!=expectedHash)throw new InvalidOperationException("Reviewed admission digest differs");CheckDeadline();return bytes;
         }
         public void Dispose() {disposed=true;for(int i=held.Count-1;i>=0;i--)held[i].Dispose();held.Clear();}
     }

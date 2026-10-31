@@ -265,3 +265,28 @@ First run41153903059 compiled but failed after29 cases because administrator
 controller writes attempted SYSTEM owner assignment. That failure is retained;
 explicit administrator pins now use Administrators record ownership, while
 SYSTEM worker pins retain SYSTEM ownership and the same protected DACL.
+
+## Guarded provider worker (not activated)
+
+`ProviderWorkerEntry.cs` connects the start/read transaction to separately
+scheduled SYSTEM owner/observer roles and a suspended child. Its explicit
+provider-worker profile is rejected by the original inert constructor. The owner
+persists the exact child-bound intent before releasing the work gate. The real
+`IStartRuntime` implementation holds and rechecks owner/observer/self process
+identities, protected release records and immutable VM binding. Reconciliation
+retains the original submitter identity.
+
+Start also requires a distinct live pinned SYSTEM VM guardian and original
+900-second armed/bound records. That guardian producer and native VM lifecycle
+are still unfinished; this entrypoint has not been activated.
+`WindowsStartAdmission.cs` requires current node commitments and complete current
+manager reservations before and after native host checks, within two seconds.
+Missing legacy reservation fields refuse admission; stable PIDs or historical
+free memory cannot substitute for current pending commitments. This remains a
+read-based check, not an atomic host reservation.
+
+The fixed provider adapter additionally requires an exact Msvm_Memory row proving
+zero current allocation before starting the owned Off VM. These native provider
+schema/semantics still require target qualification. Hosted qualification uses
+only a synthetic VM permit: one real SYSTEM read-held path and one exact guardian
+image-mismatch refusal, with no valid native start guardian or VM creation.

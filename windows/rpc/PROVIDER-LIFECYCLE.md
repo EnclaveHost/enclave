@@ -92,3 +92,29 @@ These APIs are not an independent supervisor. They still need composition with
 the live worker/observer handle checks, actual admission, a guarded fixed native
 entrypoint and the 900-second VM guardian. No existing inert entrypoint gains a
 VM operation, and no provider fence or reservation release is asserted.
+
+
+The explicit provider-worker lease binds operation, permit path/hash and (for
+start only) a distinct guardian PID/creation time. The original inert lease never
+accepts this schema. The new SYSTEM worker composes actual held process identity
+checks with the one-shot protected release, original consumed intent and fixed
+provider adapter. A short worker observer is not accepted as the 900-second VM
+guardian. Guardian armed/bound records must come from a separately qualified
+producer, which is not implemented or activated yet.
+
+Start admission retains the reviewed manager/node snapshot but also reads current
+manager reservations and current node deployment memory/status/isolation identity
+before and after host observations. Missing or unknown reservation authority
+fails closed. Installed legacy managers have previously omitted these fields, so
+this must be resolved before production start; there is no assumption of zero.
+The three managers are counted conservatively; stable current reads are not an
+atomic cross-manager reservation lock. The prospective39388MiB allowance,18GiB
+floor,20GiB stack,1GiB variation and512MiB extra transient startup allowance all
+remain in the native free-memory threshold. Disk checks preserve16GiB plus256MiB
+remaining support space; original boot allocation/growth qualification is separate.
+
+Microsoft documents Msvm_Memory as the currently allocated memory, with fixed
+1048576-byte blocks. The start adapter requires the exact VM's row with zero
+NumberOfBlocks; absence or null fields do not prove zero. This is a native API
+requirement, not yet observed on the new RPC VM:
+https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-memory
