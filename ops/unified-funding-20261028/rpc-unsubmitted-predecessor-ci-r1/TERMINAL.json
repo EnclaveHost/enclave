@@ -1,0 +1,10 @@
+[
+  {
+    "unit": "enclave-rpc-unsubmitted-predecessor-ci-r1-20261031.service",
+    "observed": "Id=enclave-rpc-unsubmitted-predecessor-ci-r1-20261031.service\nActiveState=inactive\nInvocationID=\nMainPID=0\nExecMainStatus=0\n"
+  },
+  {
+    "unit": "enclave-rpc-unsubmitted-predecessor-collect-r1-20261031.service",
+    "observed": "Id=enclave-rpc-unsubmitted-predecessor-collect-r1-20261031.service\nActiveState=inactive\nInvocationID=\nMainPID=0\nExecMainStatus=0\n"
+  }
+]
