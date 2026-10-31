@@ -1,0 +1,23 @@
+{
+  "source": "/home/controladmin/rpc-guest-image-20261031-r1/source.qcow2",
+  "bundle": "/home/controladmin/rpc-guest-image-20261031-r1/runtime.tar",
+  "receipt": "/home/controladmin/rpc-guest-image-20261031-r1/bundle.json",
+  "output": "/home/controladmin/rpc-guest-image-20261031-r1/output",
+  "bundleSha256": "3f0bb020ee6c8b67217c55b4bd0208dd1a6c83ed76df21dbfdf34c6daa718e6c",
+  "receiptSha256": "b347c8ca66c6fc7ed5adaab31a469f509828524bda50eaaef79a3b60bd205b6a",
+  "libraryPath": "/home/controladmin/rpc-media-tools-20261031-r1/tools/usr/lib/x86_64-linux-gnu",
+  "tools": {
+    "debugfs": {
+      "path": "/usr/sbin/debugfs",
+      "sha256": "1e83118cc9582afcad2711fbb7f40f56668adccb386d988cb6d9ad5c2d001049"
+    },
+    "e2fsck": {
+      "path": "/usr/sbin/e2fsck",
+      "sha256": "c69c6315f602d389821b3a1dab1308618616259400f2cf5d997243c4a83c284c"
+    },
+    "qemu-img": {
+      "path": "/home/controladmin/rpc-media-tools-20261031-r1/tools/usr/bin/qemu-img",
+      "sha256": "634320b91165669917123e8e79cce1c4d00cee0a4aa4d662d7c0a8186479b3fb"
+    }
+  }
+}

@@ -1,0 +1,110 @@
+[
+  {
+    "path": "ops/unified-funding-20261028/rpc-guest-image-input-transfer-r1/stderr.txt",
+    "originalSha256": "048e2ba89ae430962e02f5341cf60c694fb7e131cb417790075a56b32ca09992",
+    "publicSha256": "94dbeecfedf57900fced12d73898498aca6d71ec748d21eae0e0cf23f3c901ad",
+    "normalization": "UTF-8 LF and trailing whitespace only; original U files/RESULT JSON unchanged"
+  },
+  {
+    "path": "ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-020.txt",
+    "originalSha256": "f363c901b02932355184f2ce5fb11d6b6d70a0972f3103cf82e039b8f0a01a03",
+    "publicSha256": "725d67e4c04433ab64b1a7cdf734bdd0912505a2e0fd9c49542f85c910ce2677",
+    "normalization": "UTF-8 LF and trailing whitespace only; original U files/RESULT JSON unchanged"
+  },
+  {
+    "path": "ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-009.txt",
+    "originalSha256": "63179307a9e676be9cc41e6cb347e017fc34eaf3da90ab8db5716b64ebd135c1",
+    "publicSha256": "7a497ad46c9954efe53d79d44746d0d808903f62070bdd05da8cc67add8211ee",
+    "normalization": "UTF-8 LF and trailing whitespace only; original U files/RESULT JSON unchanged"
+  },
+  {
+    "path": "ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-013.txt",
+    "originalSha256": "1444d981abfa76ded4f2c25c39dbcbd1ca2cc4a2cd8a10e1e41a90ce96c6fac1",
+    "publicSha256": "770af505df5e013d311d6c9de39308144875f5a5d9ba55e7d41a75df3a15b70d",
+    "normalization": "UTF-8 LF and trailing whitespace only; original U files/RESULT JSON unchanged"
+  },
+  {
+    "path": "ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-017.txt",
+    "originalSha256": "c4cc79e0d0bf270162b3b8cd87565cba06f88ca1a028d575411ed34a621c7462",
+    "publicSha256": "c20cd26e6bdf84f114e6fd0f58d376747e218d9847bccb1932714a7a851f568e",
+    "normalization": "UTF-8 LF and trailing whitespace only; original U files/RESULT JSON unchanged"
+  },
+  {
+    "path": "ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-030.txt",
+    "originalSha256": "d2c5bf3c8e728ff8a28ed401b6d74989d10d94243d2238881716bcb25e43a31f",
+    "publicSha256": "12daff5067ae4cabeba026b08052b3ebfb1a8f0763ebff356fde66d6ae9d8067",
+    "normalization": "UTF-8 LF and trailing whitespace only; original U files/RESULT JSON unchanged"
+  },
+  {
+    "path": "ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-026.txt",
+    "originalSha256": "8146afd5e186efa89ac3937a4e49f697428e8737ddc2fbf6f6bebde5a5cebdd6",
+    "publicSha256": "e009741eaae89f61e57d52691be7a406f1108e9b1b0ffae18cc1f3228692ce77",
+    "normalization": "UTF-8 LF and trailing whitespace only; original U files/RESULT JSON unchanged"
+  },
+  {
+    "path": "ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-023.txt",
+    "originalSha256": "6ef09919aad13d01e7c83e70aee3b2ce031ccb9666a37d7dbdd7dc5dfcb4cbe5",
+    "publicSha256": "fdb251ef83cca40b49ba9435af275b03752d4f02479362305cdd5ebac41eb577",
+    "normalization": "UTF-8 LF and trailing whitespace only; original U files/RESULT JSON unchanged"
+  },
+  {
+    "path": "ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-006.txt",
+    "originalSha256": "960e2593c5a9e39b15bff0d1d1c1eccf835ccd58525d2b2aadedc820aaaddfba",
+    "publicSha256": "44feea8f3f1139d14f43f925cda46a3b4cbc25ebb8e68f21065fb42769610b6f",
+    "normalization": "UTF-8 LF and trailing whitespace only; original U files/RESULT JSON unchanged"
+  },
+  {
+    "path": "ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-024.txt",
+    "originalSha256": "2a058c985cbd88e42b90a714dc9453a486977d2bf430c9ae4d0f11163a5243c3",
+    "publicSha256": "23bc6e6edac3e181d0bf1f51f64c4e75cc2b5042d730c8d4273a4ccd9e434351",
+    "normalization": "UTF-8 LF and trailing whitespace only; original U files/RESULT JSON unchanged"
+  },
+  {
+    "path": "ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-021.txt",
+    "originalSha256": "838bc12da6faac79c33500d441aa22545efe281ea2d465dfe3fd32958a5ed997",
+    "publicSha256": "05316db79c3bd9046c753983a276f458417c97fd99ca52e8a0703e7a9a94eec1",
+    "normalization": "UTF-8 LF and trailing whitespace only; original U files/RESULT JSON unchanged"
+  },
+  {
+    "path": "ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-029.txt",
+    "originalSha256": "7177f358db860c8d49a38bd67c8960f363206586a273d51d56f5d8693d227e00",
+    "publicSha256": "0511ac9c61dad93945a5d7dc19b86264886123d21f769943c85f421dcf93bc28",
+    "normalization": "UTF-8 LF and trailing whitespace only; original U files/RESULT JSON unchanged"
+  },
+  {
+    "path": "ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-055.txt",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "normalization": "UTF-8 LF and trailing whitespace only; original U files/RESULT JSON unchanged"
+  },
+  {
+    "path": "ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-002.txt",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "normalization": "UTF-8 LF and trailing whitespace only; original U files/RESULT JSON unchanged"
+  },
+  {
+    "path": "ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-022.txt",
+    "originalSha256": "47203aedbbf0438215875b940a4e2789c75e82c392b1ab70cb7d86b3f3100928",
+    "publicSha256": "6438821639c8d48a3ad5e1653ca144d15ea851fedd7beafc20d74e69a545335b",
+    "normalization": "UTF-8 LF and trailing whitespace only; original U files/RESULT JSON unchanged"
+  },
+  {
+    "path": "ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-025.txt",
+    "originalSha256": "81487eb34a8e489f475d3754bd8e829d89aa27c641c6eaabc5072769d319dbc5",
+    "publicSha256": "5fc2c0a205d7ff8a0438ca416c83e2c7711271183992ace8c389e286b3fcdb64",
+    "normalization": "UTF-8 LF and trailing whitespace only; original U files/RESULT JSON unchanged"
+  },
+  {
+    "path": "ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-027.txt",
+    "originalSha256": "6c0cdc4e7317e25d889e5e481d1d71f227b759d30b39e570407955dc9a637cc5",
+    "publicSha256": "34ebfc9348822784aa02abb2c469986fee65df6df0b2fd47d815bab51b975e8e",
+    "normalization": "UTF-8 LF and trailing whitespace only; original U files/RESULT JSON unchanged"
+  },
+  {
+    "path": "ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-028.txt",
+    "originalSha256": "bd862c849743d397db32576f326e45f8d676168805ded7d444260fbf6ac9e77e",
+    "publicSha256": "3d482524e86174b965309b9ad88f7085ffbb00a948ef563cfa84af38b51fb565",
+    "normalization": "UTF-8 LF and trailing whitespace only; original U files/RESULT JSON unchanged"
+  }
+]

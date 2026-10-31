@@ -1,0 +1,44 @@
+ops/unified-funding-20261028/rpc-guest-image-input-transfer-r1/stderr.txt:1: trailing whitespace.
++** WARNING: connection is not using a post-quantum key exchange algorithm.
+ops/unified-funding-20261028/rpc-guest-image-input-transfer-r1/stderr.txt:2: trailing whitespace.
++** This session may be vulnerable to "store now, decrypt later" attacks.
+ops/unified-funding-20261028/rpc-guest-image-input-transfer-r1/stderr.txt:3: trailing whitespace.
++** The server may need to be upgraded. See https://openssh.com/pq.html
+ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-006.txt:2: trailing whitespace.
++/etc/enclave-rpc: File not found by ext2_lookup
+ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-009.txt:2: trailing whitespace.
++/etc/enclave-rpc-vm: File not found by ext2_lookup
+ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-013.txt:2: trailing whitespace.
++/opt/enclave-rpc: File not found by ext2_lookup
+ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-017.txt:2: trailing whitespace.
++/opt/enclave-rpc/bin: File not found by ext2_lookup
+ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-020.txt:2: trailing whitespace.
++/etc/enclave-rpc-vm/disks.json: File not found by ext2_lookup
+ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-021.txt:2: trailing whitespace.
++/etc/enclave-rpc/chain.json: File not found by ext2_lookup
+ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-022.txt:2: trailing whitespace.
++/etc/systemd/system/enclave-rpc-base.service: File not found by ext2_lookup
+ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-023.txt:2: trailing whitespace.
++/etc/systemd/system/enclave-rpc-cl.service: File not found by ext2_lookup
+ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-024.txt:2: trailing whitespace.
++/etc/systemd/system/enclave-rpc-clients.slice: File not found by ext2_lookup
+ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-025.txt:2: trailing whitespace.
++/etc/systemd/system/enclave-rpc-el.service: File not found by ext2_lookup
+ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-026.txt:2: trailing whitespace.
++/opt/enclave-rpc/bin/base: File not found by ext2_lookup
+ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-027.txt:2: trailing whitespace.
++/opt/enclave-rpc/bin/lighthouse: File not found by ext2_lookup
+ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-028.txt:2: trailing whitespace.
++/opt/enclave-rpc/bin/reth: File not found by ext2_lookup
+ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-029.txt:2: trailing whitespace.
++/opt/enclave-rpc/chain_service.py: File not found by ext2_lookup
+ops/unified-funding-20261028/rpc-guest-image-verify-r1/tool-logs/step-030.txt:2: trailing whitespace.
++/opt/enclave-rpc/manifest.json: File not found by ext2_lookup
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-guest-image-preserve-r1/preserve.py", line 6, in <module>
+    subprocess.run(['git','diff','--cached','--check'],cwd=s,check=True)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 578, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['git', 'diff', '--cached', '--check']' returned non-zero exit status 2.

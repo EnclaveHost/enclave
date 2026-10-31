@@ -1,0 +1,83 @@
+{
+  "rc": 0,
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\n** The server may need to be upgraded. See https://openssh.com/pq.html\n",
+  "readOnly": false,
+  "observation": {
+    "schema": "rpc-offline-image/1",
+    "sourceSha256": "04e8f2461a16a44e78a370284471f29616cdd9baf1893df25807b71f985b6c94",
+    "bundleSha256": "3f0bb020ee6c8b67217c55b4bd0208dd1a6c83ed76df21dbfdf34c6daa718e6c",
+    "installedFiles": {
+      "etc/enclave-rpc-vm/disks.json": {
+        "bytes": 276,
+        "mode": 420,
+        "sha256": "40296446d48607b5b2275359c264977173d623076870c5ea959c27504bdcc979"
+      },
+      "etc/enclave-rpc/chain.json": {
+        "bytes": 3488,
+        "mode": 420,
+        "sha256": "4fe454a1951f23aa492140b881abfabfbe0d6341d6d0704757982e3c09a3c660"
+      },
+      "etc/systemd/system/enclave-rpc-base.service": {
+        "bytes": 713,
+        "mode": 420,
+        "sha256": "d0a63c1aa3eafe226fca38d6bb8e9d0a8b08d32f7297e6e69e66eeb0ad8dd551"
+      },
+      "etc/systemd/system/enclave-rpc-cl.service": {
+        "bytes": 671,
+        "mode": 420,
+        "sha256": "9e35d78d14222e1566c263ed0cb622a9dfa4fb9ae70efa6974367bc0915ca078"
+      },
+      "etc/systemd/system/enclave-rpc-clients.slice": {
+        "bytes": 156,
+        "mode": 420,
+        "sha256": "ae1456b42df7ead3332e3aec151fb2d1030220922d08ad1e96dc29b35a59b335"
+      },
+      "etc/systemd/system/enclave-rpc-el.service": {
+        "bytes": 647,
+        "mode": 420,
+        "sha256": "415f303d09f0e976a1f025873d1b6b6dedda727dd0892467a31a69870eaf5d27"
+      },
+      "opt/enclave-rpc/bin/base": {
+        "bytes": 153601320,
+        "mode": 493,
+        "sha256": "9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f"
+      },
+      "opt/enclave-rpc/bin/lighthouse": {
+        "bytes": 105018160,
+        "mode": 493,
+        "sha256": "11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96"
+      },
+      "opt/enclave-rpc/bin/reth": {
+        "bytes": 139248776,
+        "mode": 493,
+        "sha256": "8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250"
+      },
+      "opt/enclave-rpc/chain_service.py": {
+        "bytes": 37323,
+        "mode": 493,
+        "sha256": "75c879ec9c5728688beac8cc98ecf1410c38f29c144b27fabd8b42ea60cfbc92"
+      },
+      "opt/enclave-rpc/manifest.json": {
+        "bytes": 670,
+        "mode": 420,
+        "sha256": "8bc81c93fde18234fec42792a15cf854dfc09df22f31ec2825733fce97f24441"
+      }
+    },
+    "rootPartitionOffset": 1074790400,
+    "rootPartitionBytes": 2683289088,
+    "filesystemChecksPassed": true,
+    "installedReadbackPassed": true,
+    "logicalComparePassed": true,
+    "sourceUnchanged": true,
+    "bytes": 2301624320,
+    "sha256": "a76940c926985b91590ab5916c7996c23d7812ccc2277fe8188bb21f11a0ae2c",
+    "elapsedSeconds": 47.16970281698741,
+    "minimumMemoryBytes": 7242600448,
+    "minimumDiskBytes": 99868680192,
+    "bootQualified": false,
+    "accountsConfigured": false,
+    "storageAttached": false,
+    "rpcReady": false,
+    "invocation": "3dbaaaa92bcf4f17a5dd1424796f6eaa"
+  }
+}

@@ -1,0 +1,15 @@
+debugfs 1.47.0 (5-Feb-2023)
+Inode: 1690   Type: directory    Mode:  0755   Flags: 0x80000
+Generation: 4137474201    Version: 0x00000000:00000004
+User:     0   Group:     0   Project:     0   Size: 4096
+File ACL: 0
+Links: 2   Blockcount: 8
+Fragment:  Address: 0    Number: 0    Size: 0
+ ctime: 0x6ad370d3:58a15214 -- Sat Oct 17 12:57:55 2026
+ atime: 0x6ad370f4:ba02d75c -- Sat Oct 17 12:58:28 2026
+ mtime: 0x6ad37025:11277ac4 -- Sat Oct 17 12:55:01 2026
+crtime: 0x6ad370d3:58a15214 -- Sat Oct 17 12:57:55 2026
+Size of extra inode fields: 32
+Inode checksum: 0xac27275b
+EXTENTS:
+(0):17010

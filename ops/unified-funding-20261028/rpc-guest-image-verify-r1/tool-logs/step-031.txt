@@ -1,0 +1,56 @@
+debugfs 1.47.0 (5-Feb-2023)
+debugfs: write /home/controladmin/rpc-guest-image-20261031-r1/output/payload/etc/enclave-rpc-vm/disks.json /etc/enclave-rpc-vm/disks.json
+Allocated inode: 84994
+debugfs: set_inode_field /etc/enclave-rpc-vm/disks.json mode 0100644
+debugfs: set_inode_field /etc/enclave-rpc-vm/disks.json uid 0
+debugfs: set_inode_field /etc/enclave-rpc-vm/disks.json gid 0
+debugfs: write /home/controladmin/rpc-guest-image-20261031-r1/output/payload/etc/enclave-rpc/chain.json /etc/enclave-rpc/chain.json
+Allocated inode: 84997
+debugfs: set_inode_field /etc/enclave-rpc/chain.json mode 0100644
+debugfs: set_inode_field /etc/enclave-rpc/chain.json uid 0
+debugfs: set_inode_field /etc/enclave-rpc/chain.json gid 0
+debugfs: write /home/controladmin/rpc-guest-image-20261031-r1/output/payload/etc/systemd/system/enclave-rpc-base.service /etc/systemd/system/enclave-rpc-base.service
+Allocated inode: 85007
+debugfs: set_inode_field /etc/systemd/system/enclave-rpc-base.service mode 0100644
+debugfs: set_inode_field /etc/systemd/system/enclave-rpc-base.service uid 0
+debugfs: set_inode_field /etc/systemd/system/enclave-rpc-base.service gid 0
+debugfs: write /home/controladmin/rpc-guest-image-20261031-r1/output/payload/etc/systemd/system/enclave-rpc-cl.service /etc/systemd/system/enclave-rpc-cl.service
+Allocated inode: 85008
+debugfs: set_inode_field /etc/systemd/system/enclave-rpc-cl.service mode 0100644
+debugfs: set_inode_field /etc/systemd/system/enclave-rpc-cl.service uid 0
+debugfs: set_inode_field /etc/systemd/system/enclave-rpc-cl.service gid 0
+debugfs: write /home/controladmin/rpc-guest-image-20261031-r1/output/payload/etc/systemd/system/enclave-rpc-clients.slice /etc/systemd/system/enclave-rpc-clients.slice
+Allocated inode: 85010
+debugfs: set_inode_field /etc/systemd/system/enclave-rpc-clients.slice mode 0100644
+debugfs: set_inode_field /etc/systemd/system/enclave-rpc-clients.slice uid 0
+debugfs: set_inode_field /etc/systemd/system/enclave-rpc-clients.slice gid 0
+debugfs: write /home/controladmin/rpc-guest-image-20261031-r1/output/payload/etc/systemd/system/enclave-rpc-el.service /etc/systemd/system/enclave-rpc-el.service
+Allocated inode: 85018
+debugfs: set_inode_field /etc/systemd/system/enclave-rpc-el.service mode 0100644
+debugfs: set_inode_field /etc/systemd/system/enclave-rpc-el.service uid 0
+debugfs: set_inode_field /etc/systemd/system/enclave-rpc-el.service gid 0
+debugfs: write /home/controladmin/rpc-guest-image-20261031-r1/output/payload/opt/enclave-rpc/bin/base /opt/enclave-rpc/bin/base
+Allocated inode: 85019
+debugfs: set_inode_field /opt/enclave-rpc/bin/base mode 0100755
+debugfs: set_inode_field /opt/enclave-rpc/bin/base uid 0
+debugfs: set_inode_field /opt/enclave-rpc/bin/base gid 0
+debugfs: write /home/controladmin/rpc-guest-image-20261031-r1/output/payload/opt/enclave-rpc/bin/lighthouse /opt/enclave-rpc/bin/lighthouse
+Allocated inode: 85020
+debugfs: set_inode_field /opt/enclave-rpc/bin/lighthouse mode 0100755
+debugfs: set_inode_field /opt/enclave-rpc/bin/lighthouse uid 0
+debugfs: set_inode_field /opt/enclave-rpc/bin/lighthouse gid 0
+debugfs: write /home/controladmin/rpc-guest-image-20261031-r1/output/payload/opt/enclave-rpc/bin/reth /opt/enclave-rpc/bin/reth
+Allocated inode: 85026
+debugfs: set_inode_field /opt/enclave-rpc/bin/reth mode 0100755
+debugfs: set_inode_field /opt/enclave-rpc/bin/reth uid 0
+debugfs: set_inode_field /opt/enclave-rpc/bin/reth gid 0
+debugfs: write /home/controladmin/rpc-guest-image-20261031-r1/output/payload/opt/enclave-rpc/chain_service.py /opt/enclave-rpc/chain_service.py
+Allocated inode: 85054
+debugfs: set_inode_field /opt/enclave-rpc/chain_service.py mode 0100755
+debugfs: set_inode_field /opt/enclave-rpc/chain_service.py uid 0
+debugfs: set_inode_field /opt/enclave-rpc/chain_service.py gid 0
+debugfs: write /home/controladmin/rpc-guest-image-20261031-r1/output/payload/opt/enclave-rpc/manifest.json /opt/enclave-rpc/manifest.json
+Allocated inode: 85056
+debugfs: set_inode_field /opt/enclave-rpc/manifest.json mode 0100644
+debugfs: set_inode_field /opt/enclave-rpc/manifest.json uid 0
+debugfs: set_inode_field /opt/enclave-rpc/manifest.json gid 0

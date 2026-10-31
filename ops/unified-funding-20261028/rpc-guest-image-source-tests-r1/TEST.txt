@@ -1,0 +1,13 @@
+test_copy_exact_range_and_short_source (test_inject_image.ImageTests.test_copy_exact_range_and_short_source) ... ok
+test_copy_resource_guard_interrupts_before_write (test_inject_image.ImageTests.test_copy_resource_guard_interrupts_before_write) ... ok
+test_corrupt_header_refused (test_inject_image.ImageTests.test_corrupt_header_refused) ... ok
+test_corrupt_table_refused (test_inject_image.ImageTests.test_corrupt_table_refused) ... ok
+test_out_of_range_partition_refused (test_inject_image.ImageTests.test_out_of_range_partition_refused) ... ok
+test_paths_confined_to_runtime (test_inject_image.ImageTests.test_paths_confined_to_runtime) ... ok
+test_root_geometry_and_identity (test_inject_image.ImageTests.test_root_geometry_and_identity) ... ok
+test_wrong_root_filesystem_refused (test_inject_image.ImageTests.test_wrong_root_filesystem_refused) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.003s
+
+OK

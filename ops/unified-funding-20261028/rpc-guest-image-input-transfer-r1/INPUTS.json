@@ -1,0 +1,32 @@
+[
+  {
+    "name": "source.qcow2",
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/storage-vm/image/noble-server-cloudimg-amd64.img",
+    "bytes": 621284352,
+    "sha256": "04e8f2461a16a44e78a370284471f29616cdd9baf1893df25807b71f985b6c94"
+  },
+  {
+    "name": "runtime.tar",
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-guest-runtime-bundle-r1/output-parent/bundle/runtime.tar",
+    "bytes": 397926400,
+    "sha256": "3f0bb020ee6c8b67217c55b4bd0208dd1a6c83ed76df21dbfdf34c6daa718e6c"
+  },
+  {
+    "name": "bundle.json",
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-guest-runtime-bundle-r1/output-parent/bundle/RESULT.json",
+    "bytes": 2694,
+    "sha256": "b347c8ca66c6fc7ed5adaab31a469f509828524bda50eaaef79a3b60bd205b6a"
+  },
+  {
+    "name": "inject_image.py",
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/guest/inject_image.py",
+    "bytes": 11398,
+    "sha256": "ef130ca34e4e6df3efd445a39f7e08c740d5dcb0fd1b15620078908bdf595378"
+  },
+  {
+    "name": "config.json",
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-guest-image-input-transfer-r1/config.json",
+    "bytes": 1061,
+    "sha256": "160a0f0b43a88a5b4a31cd54bbcf9185e55501966147e7c70c817ceac762e939"
+  }
+]

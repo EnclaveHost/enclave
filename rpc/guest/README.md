@@ -35,3 +35,20 @@ The present Base configuration has no accepted coverage receipt. Keep that
 gate closed until the existing coverage checks succeed with actual evidence.
 A running Linux VM, an installed bundle or a listening client is not synchronized
 RPC readiness, production consumer cutover or decentralization completion.
+
+`inject_image.py` installs the reviewed archive into a fresh copy of the pinned
+Ubuntu cloud image. It operates on ordinary private files with qemu-img and
+[e2fsprogs debugfs](https://man7.org/linux/man-pages/man8/debugfs.8.html), without
+host filesystem mounts or guest execution. It checks the GPT checksums and root
+filesystem identity, refuses existing destination files, dumps every installed
+file for hash/mode/owner verification, runs read-only filesystem checks, and
+compares the resulting VHDX with the edited raw disk. Original inputs and failed
+attempts are retained. The caller must supply an independently bounded process
+unit; the image tool also checks its 600-second artifact deadline, 2 GiB build
+host memory floor, 16 GiB disk floor and 4 GiB output bound. This preparation
+happens before the separate 900-second RPC startup attempt.
+
+Image installation deliberately does not create service accounts, generate an
+engine JWT, attach state storage or enable services. Those need the exact state
+volume ownership and authenticated attachment configuration. An installed image
+is not boot qualification or evidence that the 20 GiB workload budget fits.

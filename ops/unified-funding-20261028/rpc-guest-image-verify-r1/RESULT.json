@@ -1,0 +1,170 @@
+{
+  "rc": 0,
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\n** The server may need to be upgraded. See https://openssh.com/pq.html\n",
+  "readOnly": true,
+  "observation": {
+    "at": 1793439793.939498,
+    "sha256": "a76940c926985b91590ab5916c7996c23d7812ccc2277fe8188bb21f11a0ae2c",
+    "bytes": 2301624320,
+    "hashAgrees": true,
+    "seconds": 2.2640975980320945,
+    "accounts": [
+      {
+        "name": "nobody",
+        "uid": 65534,
+        "gid": 65534
+      },
+      {
+        "name": "systemd-network",
+        "uid": 998,
+        "gid": 998
+      },
+      {
+        "name": "systemd-timesync",
+        "uid": 996,
+        "gid": 996
+      },
+      {
+        "name": "systemd-resolve",
+        "uid": 991,
+        "gid": 991
+      },
+      {
+        "name": "fwupd-refresh",
+        "uid": 990,
+        "gid": 990
+      }
+    ],
+    "groups": [
+      {
+        "name": "nogroup",
+        "gid": 65534
+      },
+      {
+        "name": "systemd-journal",
+        "gid": 999
+      },
+      {
+        "name": "systemd-network",
+        "gid": 998
+      },
+      {
+        "name": "crontab",
+        "gid": 997
+      },
+      {
+        "name": "systemd-timesync",
+        "gid": 996
+      },
+      {
+        "name": "input",
+        "gid": 995
+      },
+      {
+        "name": "sgx",
+        "gid": 994
+      },
+      {
+        "name": "kvm",
+        "gid": 993
+      },
+      {
+        "name": "render",
+        "gid": 992
+      },
+      {
+        "name": "systemd-resolve",
+        "gid": 991
+      },
+      {
+        "name": "fwupd-refresh",
+        "gid": 990
+      },
+      {
+        "name": "polkitd",
+        "gid": 989
+      }
+    ],
+    "tools": {
+      "/usr/bin/python3.12": {
+        "stdout": "Inode: 2113   Type: regular    Mode:  0755   Flags: 0x80000\nGeneration: 4273881934    Version: 0x00000000:0000000c\nUser:     0   Group:     0   Project:     0   Size: 8020928\nFile ACL: 0\nLinks: 1   Blockcount: 15672\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ad370d3:6d9c98d8 -- Sat Oct 17 12:57:55 2026\n atime: 0x6ad370e5:526aa308 -- Sat Oct 17 12:58:13 2026\n mtime: 0x6a9554f2:00000000 -- Mon Aug 31 10:18:26 2026\ncrtime: 0x6ad370d3:6b774310 -- Sat Oct 17 12:57:55 2026\nSize of extra inode fields: 32\nInode checksum: 0xd43166d5\nEXTENTS:\n(0-1958):65536-67494\n",
+        "stderr": "debugfs 1.47.0 (5-Feb-2023)\n"
+      },
+      "/usr/sbin/nbd-client": {
+        "stdout": "",
+        "stderr": "debugfs 1.47.0 (5-Feb-2023)\n/usr/sbin/nbd-client: File not found by ext2_lookup \n"
+      },
+      "/usr/bin/nbd-client": {
+        "stdout": "",
+        "stderr": "debugfs 1.47.0 (5-Feb-2023)\n/usr/bin/nbd-client: File not found by ext2_lookup \n"
+      },
+      "/usr/bin/nbdfuse": {
+        "stdout": "",
+        "stderr": "debugfs 1.47.0 (5-Feb-2023)\n/usr/bin/nbdfuse: File not found by ext2_lookup \n"
+      },
+      "/usr/bin/qemu-nbd": {
+        "stdout": "",
+        "stderr": "debugfs 1.47.0 (5-Feb-2023)\n/usr/bin/qemu-nbd: File not found by ext2_lookup \n"
+      }
+    },
+    "logs": {
+      "step-044.txt": "debugfs 1.47.0 (5-Feb-2023)\n",
+      "step-035.txt": "debugfs 1.47.0 (5-Feb-2023)\nInode: 84997   Type: regular    Mode:  0644   Flags: 0x80000\nGeneration: 0    Version: 0x00000000:00000000\nUser:     0   Group:     0   Project:     0   Size: 3488\nFile ACL: 0\nLinks: 1   Blockcount: 8\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\n atime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\n mtime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\ncrtime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\nSize of extra inode fields: 32\nInode checksum: 0x2721ce95\nEXTENTS:\n(0):33042\n",
+      "step-007.txt": "debugfs 1.47.0 (5-Feb-2023)\n",
+      "step-049.txt": "debugfs 1.47.0 (5-Feb-2023)\nInode: 85026   Type: regular    Mode:  0755   Flags: 0x80000\nGeneration: 0    Version: 0x00000000:00000000\nUser:     0   Group:     0   Project:     0   Size: 139248776\nFile ACL: 0\nLinks: 1   Blockcount: 268320\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ae5b7e5:00000000 -- Sat Oct 31 09:41:57 2026\n atime: 0x6ae5b7e5:00000000 -- Sat Oct 31 09:41:57 2026\n mtime: 0x6ae5b7e5:00000000 -- Sat Oct 31 09:41:57 2026\ncrtime: 0x6ae5b7e5:00000000 -- Sat Oct 31 09:41:57 2026\nSize of extra inode fields: 32\nInode checksum: 0x94391d86\nEXTENTS:\n(ETB0):383915, (0-2496):381304-383800, (2544-2593):383801-383850, (2599-2648):383851-383900, (2654-2666):383901-383913, (2668):383914, (2669-2679):383916-383926, (2681-2703):383927-383949, (2716-2719):383950-383953, (2771-2773):383954-383956, (2826-2827):383957-383958, (2874-2881):383959-383966, (2940-2943):383967-383970, (2953-2960):383971-383978, (2991-2992):383979-383980, (2995-3039):383981-384025, (3050-3087):384026-384063, (3101-3102):384064-384065, (3106):384066, (3149-12297):384067-393215, (12298-12310):393395-393407, (12311-12318):393720-393727, (12319-12454):396152-396287, (12455-12457):400157-400159, (12458-12469):400276-400287, (12470-12477):400376-400383, (12478-12738):402683-402943, (12739-12754):405584-405599, (12755):410111, (12756-13001):412938-413183, (13002-13011):414661-414670, (13012):414703, (13013-13016):415740-415743, (13017-13019):418429-418431, (13020-13034):421361-421375, (13035-13451):421983-422399, (13452-13682):422681-422911, (13683-13737):423369-423423, (13738-13741):429912-429915, (13742-13745):431100-431103, (13746-13753):432120-432127, (13754-13757):444668-444671, (13758-13761):448540-448543, (13762-13777):449008-449023, (13778-13795):450030-450047, (13796):465919, (13797-13987):466753-466943, (13988-13999):470516-470527, (14000-14006):473081-473087, (14007-14009):474109-474111, (14010-14021):476660-476671, (14022-14034):479731-479743, (14035-14038):481276-481279, (14039-14044):485370-485375, (14045-14047):487421-487423, (14048-14233):488774-488959, (14234-14248):489457-489471, (14249-14278):490850-490879, (14279-33397):528392-547510, (33399-33416):547511-547528, (33423-33760):547529-547866, (33766-33770):547867-547871, (33777-33813):547872-547908, (33815-33827):547909-547921, (33843-33863):547922-547942, (33866-33868):547943-547945, (33873-33878):547946-547951, (33880-33882):547952-547954, (33884-33892):547955-547963, (33894-33901):547964-547971, (33904-33906):547972-547974, (33909-33922):547975-547988, (33932):547989, (33935):547990, (33940-33956):547991-548007, (33960-33965):548008-548013, (33972-33996):548014-548038\n",
+      "step-050.txt": "debugfs 1.47.0 (5-Feb-2023)\n",
+      "step-055.txt": "",
+      "step-003.txt": "e2fsck 1.47.0 (5-Feb-2023)\nPass 1: Checking inodes, blocks, and sizes\nPass 2: Checking directory structure\nPass 3: Checking directory connectivity\nPass 4: Checking reference counts\nPass 5: Checking group summary information\ncloudimg-rootfs: 85067/327680 files (0.0% non-contiguous), 451817/655099 blocks\n",
+      "step-027.txt": "debugfs 1.47.0 (5-Feb-2023)\n/opt/enclave-rpc/bin/lighthouse: File not found by ext2_lookup \n",
+      "step-015.txt": "debugfs 1.47.0 (5-Feb-2023)\nInode: 84697   Type: directory    Mode:  0755   Flags: 0x80000\nGeneration: 0    Version: 0x00000000:00000000\nUser:     0   Group:     0   Project:     0   Size: 4096\nFile ACL: 0\nLinks: 2   Blockcount: 8\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\n atime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\n mtime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\ncrtime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\nSize of extra inode fields: 32\nInode checksum: 0x07f38aa8\nEXTENTS:\n(0):33039\n",
+      "step-010.txt": "debugfs 1.47.0 (5-Feb-2023)\n",
+      "step-042.txt": "debugfs 1.47.0 (5-Feb-2023)\n",
+      "step-032.txt": "debugfs 1.47.0 (5-Feb-2023)\n",
+      "step-019.txt": "debugfs 1.47.0 (5-Feb-2023)\nInode: 84993   Type: directory    Mode:  0755   Flags: 0x80000\nGeneration: 0    Version: 0x00000000:00000000\nUser:     0   Group:     0   Project:     0   Size: 4096\nFile ACL: 0\nLinks: 2   Blockcount: 8\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\n atime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\n mtime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\ncrtime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\nSize of extra inode fields: 32\nInode checksum: 0xd70b10ca\nEXTENTS:\n(0):33040\n",
+      "step-008.txt": "debugfs 1.47.0 (5-Feb-2023)\nInode: 81199   Type: directory    Mode:  0755   Flags: 0x80000\nGeneration: 0    Version: 0x00000000:00000000\nUser:     0   Group:     0   Project:     0   Size: 4096\nFile ACL: 0\nLinks: 2   Blockcount: 8\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ae5b7e2:00000000 -- Sat Oct 31 09:41:54 2026\n atime: 0x6ae5b7e2:00000000 -- Sat Oct 31 09:41:54 2026\n mtime: 0x6ae5b7e2:00000000 -- Sat Oct 31 09:41:54 2026\ncrtime: 0x6ae5b7e2:00000000 -- Sat Oct 31 09:41:54 2026\nSize of extra inode fields: 32\nInode checksum: 0x0fba11a6\nEXTENTS:\n(0):33033\n",
+      "step-014.txt": "debugfs 1.47.0 (5-Feb-2023)\n",
+      "step-022.txt": "debugfs 1.47.0 (5-Feb-2023)\n/etc/systemd/system/enclave-rpc-base.service: File not found by ext2_lookup \n",
+      "step-038.txt": "debugfs 1.47.0 (5-Feb-2023)\n",
+      "step-017.txt": "debugfs 1.47.0 (5-Feb-2023)\n/opt/enclave-rpc/bin: File not found by ext2_lookup \n",
+      "step-004.txt": "debugfs 1.47.0 (5-Feb-2023)\nInode: 42   Type: directory    Mode:  0755   Flags: 0x80000\nGeneration: 1371580664    Version: 0x00000000:000000ca\nUser:     0   Group:     0   Project:     0   Size: 4096\nFile ACL: 0\nLinks: 105   Blockcount: 8\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ad37107:4e5ffd68 -- Sat Oct 17 12:58:47 2026\n atime: 0x6ad370f4:ba3fdfe8 -- Sat Oct 17 12:58:28 2026\n mtime: 0x6ad37107:4e5ffd68 -- Sat Oct 17 12:58:47 2026\ncrtime: 0x6ad370d3:3f5b5fc4 -- Sat Oct 17 12:57:55 2026\nSize of extra inode fields: 32\nInode checksum: 0x85493ce8\nEXTENTS:\n(0):16685\n",
+      "step-034.txt": "debugfs 1.47.0 (5-Feb-2023)\n",
+      "step-029.txt": "debugfs 1.47.0 (5-Feb-2023)\n/opt/enclave-rpc/chain_service.py: File not found by ext2_lookup \n",
+      "step-028.txt": "debugfs 1.47.0 (5-Feb-2023)\n/opt/enclave-rpc/bin/reth: File not found by ext2_lookup \n",
+      "step-043.txt": "debugfs 1.47.0 (5-Feb-2023)\nInode: 85018   Type: regular    Mode:  0644   Flags: 0x80000\nGeneration: 0    Version: 0x00000000:00000000\nUser:     0   Group:     0   Project:     0   Size: 647\nFile ACL: 0\nLinks: 1   Blockcount: 8\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\n atime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\n mtime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\ncrtime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\nSize of extra inode fields: 32\nInode checksum: 0x4874c160\nEXTENTS:\n(0):33046\n",
+      "step-030.txt": "debugfs 1.47.0 (5-Feb-2023)\n/opt/enclave-rpc/manifest.json: File not found by ext2_lookup \n",
+      "step-016.txt": "debugfs 1.47.0 (5-Feb-2023)\nInode: 370   Type: directory    Mode:  0755   Flags: 0x80000\nGeneration: 927130020    Version: 0x00000000:00000021\nUser:     0   Group:     0   Project:     0   Size: 4096\nFile ACL: 0\nLinks: 25   Blockcount: 8\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ad370d3:445d27ec -- Sat Oct 17 12:57:55 2026\n atime: 0x6ad370f4:bbae1338 -- Sat Oct 17 12:58:28 2026\n mtime: 0x6ad36ff5:00000000 -- Sat Oct 17 12:54:13 2026\ncrtime: 0x6ad370d3:42eeeebc -- Sat Oct 17 12:57:55 2026\nSize of extra inode fields: 32\nInode checksum: 0x706732b1\nEXTENTS:\n(0):16715\n",
+      "step-045.txt": "debugfs 1.47.0 (5-Feb-2023)\nInode: 85019   Type: regular    Mode:  0755   Flags: 0x80000\nGeneration: 0    Version: 0x00000000:00000000\nUser:     0   Group:     0   Project:     0   Size: 153601320\nFile ACL: 0\nLinks: 1   Blockcount: 299744\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\n atime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\n mtime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\ncrtime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\nSize of extra inode fields: 32\nInode checksum: 0x502d194c\nEXTENTS:\n(ETB0):34304, (0-232):33047-33279, (233-742):33283-33792, (743):33816, (744-745):33820-33821, (746):33832, (747-1073):34305-34631, (1074-5169):34816-38911, (5170-5680):38913-39423, (5681-6189):39427-39935, (6190-6192):40187-40189, (6193):40192, (6194-6310):40197-40313, (6311):40325, (6312-6531):40327-40546, (6532-12678):40960-47106, (12679-12681):47620-47622, (12682):47624, (12683-12685):47645-47647, (12686):47655, (12687-13222):47669-48204, (13223):305151, (13224-13228):311291-311295, (13229-13393):316938-317102, (13394-13419):317158-317183, (13420-14313):317218-318111, (14314):318143, (14315-15104):318188-318977, (15105-15124):318988-319007, (15125-15603):319009-319487, (15604-15606):321469-321471, (15607-15651):321492-321536, (15652-15653):321540-321541, (15654-15655):321543-321544, (15656-15657):321546-321547, (15658-15684):321549-321575, (15685-15686):321586-321587, (15687-16109):321625-322047, (16110-16186):322995-323071, (16187-16642):323640-324095, (16643-17094):324668-325119, (17095-17117):325769-325791, (17118-17449):325812-326143, (17450-17904):326713-327167, (17905-18099):327741-327935, (18100-18145):328146-328191, (18146-18167):328842-328863, (18168-18241):328886-328959, (18242-18263):329194-329215, (18264-18282):329453-329471, (18283-18301):329709-329727, (18302-18323):329962-329983, (18324-18412):330151-330239, (18413-18916):330752-331255, (18917-18937):331499-331519, (18938-20050):331687-332799, (20051-20480):333394-333823, (20481-37006):333906-350431, (37013-37147):350432-350566, (37150-37167):350567-350584, (37169-37413):350585-350829, (37416-37419):350830-350833, (37429):350834, (37432-37433):350835-350836, (37437-37453):350837-350853, (37456-37471):350854-350869, (37479-37500):350870-350891\n",
+      "step-002.txt": "",
+      "step-037.txt": "debugfs 1.47.0 (5-Feb-2023)\nInode: 85007   Type: regular    Mode:  0644   Flags: 0x80000\nGeneration: 0    Version: 0x00000000:00000000\nUser:     0   Group:     0   Project:     0   Size: 713\nFile ACL: 0\nLinks: 1   Blockcount: 8\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\n atime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\n mtime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\ncrtime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\nSize of extra inode fields: 32\nInode checksum: 0xf4c8fa6f\nEXTENTS:\n(0):33043\n",
+      "step-020.txt": "debugfs 1.47.0 (5-Feb-2023)\n/etc/enclave-rpc-vm/disks.json: File not found by ext2_lookup \n",
+      "step-001.txt": "{\n    \"children\": [\n        {\n            \"name\": \"file\",\n            \"info\": {\n                \"children\": [\n                ],\n                \"virtual-size\": 621284352,\n                \"filename\": \"/home/controladmin/rpc-guest-image-20261031-r1/source.qcow2\",\n                \"format\": \"file\",\n                \"actual-size\": 621289472,\n                \"format-specific\": {\n                    \"type\": \"file\",\n                    \"data\": {\n                    }\n                },\n                \"dirty-flag\": false\n            }\n        }\n    ],\n    \"virtual-size\": 3758096384,\n    \"filename\": \"/home/controladmin/rpc-guest-image-20261031-r1/source.qcow2\",\n    \"cluster-size\": 65536,\n    \"format\": \"qcow2\",\n    \"actual-size\": 621289472,\n    \"format-specific\": {\n        \"type\": \"qcow2\",\n        \"data\": {\n            \"compat\": \"1.1\",\n            \"compression-type\": \"zlib\",\n            \"lazy-refcounts\": false,\n            \"refcount-bits\": 16,\n            \"corrupt\": false,\n            \"extended-l2\": false\n        }\n    },\n    \"dirty-flag\": false\n}\n",
+      "step-024.txt": "debugfs 1.47.0 (5-Feb-2023)\n/etc/systemd/system/enclave-rpc-clients.slice: File not found by ext2_lookup \n",
+      "step-021.txt": "debugfs 1.47.0 (5-Feb-2023)\n/etc/enclave-rpc/chain.json: File not found by ext2_lookup \n",
+      "step-011.txt": "debugfs 1.47.0 (5-Feb-2023)\nInode: 84689   Type: directory    Mode:  0755   Flags: 0x80000\nGeneration: 0    Version: 0x00000000:00000000\nUser:     0   Group:     0   Project:     0   Size: 4096\nFile ACL: 0\nLinks: 2   Blockcount: 8\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ae5b7e2:00000000 -- Sat Oct 31 09:41:54 2026\n atime: 0x6ae5b7e2:00000000 -- Sat Oct 31 09:41:54 2026\n mtime: 0x6ae5b7e2:00000000 -- Sat Oct 31 09:41:54 2026\ncrtime: 0x6ae5b7e2:00000000 -- Sat Oct 31 09:41:54 2026\nSize of extra inode fields: 32\nInode checksum: 0x1cd3f03b\nEXTENTS:\n(0):33038\n",
+      "step-054.txt": "e2fsck 1.47.0 (5-Feb-2023)\nPass 1: Checking inodes, blocks, and sizes\nPass 2: Checking directory structure\nPass 3: Checking directory connectivity\nPass 4: Checking reference counts\nPass 5: Checking group summary information\ncloudimg-rootfs: 85082/327680 files (0.0% non-contiguous), 548050/655099 blocks\n",
+      "step-039.txt": "debugfs 1.47.0 (5-Feb-2023)\nInode: 85008   Type: regular    Mode:  0644   Flags: 0x80000\nGeneration: 0    Version: 0x00000000:00000000\nUser:     0   Group:     0   Project:     0   Size: 671\nFile ACL: 0\nLinks: 1   Blockcount: 8\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\n atime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\n mtime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\ncrtime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\nSize of extra inode fields: 32\nInode checksum: 0xa3afa761\nEXTENTS:\n(0):33044\n",
+      "step-018.txt": "debugfs 1.47.0 (5-Feb-2023)\n",
+      "step-005.txt": "debugfs 1.47.0 (5-Feb-2023)\nInode: 1690   Type: directory    Mode:  0755   Flags: 0x80000\nGeneration: 4137474201    Version: 0x00000000:00000004\nUser:     0   Group:     0   Project:     0   Size: 4096\nFile ACL: 0\nLinks: 2   Blockcount: 8\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ad370d3:58a15214 -- Sat Oct 17 12:57:55 2026\n atime: 0x6ad370f4:ba02d75c -- Sat Oct 17 12:58:28 2026\n mtime: 0x6ad37025:11277ac4 -- Sat Oct 17 12:55:01 2026\ncrtime: 0x6ad370d3:58a15214 -- Sat Oct 17 12:57:55 2026\nSize of extra inode fields: 32\nInode checksum: 0xac27275b\nEXTENTS:\n(0):17010\n",
+      "step-013.txt": "debugfs 1.47.0 (5-Feb-2023)\n/opt/enclave-rpc: File not found by ext2_lookup \n",
+      "step-041.txt": "debugfs 1.47.0 (5-Feb-2023)\nInode: 85010   Type: regular    Mode:  0644   Flags: 0x80000\nGeneration: 0    Version: 0x00000000:00000000\nUser:     0   Group:     0   Project:     0   Size: 156\nFile ACL: 0\nLinks: 1   Blockcount: 8\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\n atime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\n mtime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\ncrtime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\nSize of extra inode fields: 32\nInode checksum: 0x0dd4d398\nEXTENTS:\n(0):33045\n",
+      "step-036.txt": "debugfs 1.47.0 (5-Feb-2023)\n",
+      "step-023.txt": "debugfs 1.47.0 (5-Feb-2023)\n/etc/systemd/system/enclave-rpc-cl.service: File not found by ext2_lookup \n",
+      "step-009.txt": "debugfs 1.47.0 (5-Feb-2023)\n/etc/enclave-rpc-vm: File not found by ext2_lookup \n",
+      "step-033.txt": "debugfs 1.47.0 (5-Feb-2023)\nInode: 84994   Type: regular    Mode:  0644   Flags: 0x80000\nGeneration: 0    Version: 0x00000000:00000000\nUser:     0   Group:     0   Project:     0   Size: 276\nFile ACL: 0\nLinks: 1   Blockcount: 8\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\n atime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\n mtime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\ncrtime: 0x6ae5b7e3:00000000 -- Sat Oct 31 09:41:55 2026\nSize of extra inode fields: 32\nInode checksum: 0x8ccd2926\nEXTENTS:\n(0):33041\n",
+      "step-006.txt": "debugfs 1.47.0 (5-Feb-2023)\n/etc/enclave-rpc: File not found by ext2_lookup \n",
+      "step-052.txt": "debugfs 1.47.0 (5-Feb-2023)\n",
+      "step-053.txt": "debugfs 1.47.0 (5-Feb-2023)\nInode: 85056   Type: regular    Mode:  0644   Flags: 0x80000\nGeneration: 0    Version: 0x00000000:00000000\nUser:     0   Group:     0   Project:     0   Size: 670\nFile ACL: 0\nLinks: 1   Blockcount: 8\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ae5b7e6:00000000 -- Sat Oct 31 09:41:58 2026\n atime: 0x6ae5b7e6:00000000 -- Sat Oct 31 09:41:58 2026\n mtime: 0x6ae5b7e6:00000000 -- Sat Oct 31 09:41:58 2026\ncrtime: 0x6ae5b7e6:00000000 -- Sat Oct 31 09:41:58 2026\nSize of extra inode fields: 32\nInode checksum: 0x45c40ece\nEXTENTS:\n(0):548049\n",
+      "step-012.txt": "debugfs 1.47.0 (5-Feb-2023)\nInode: 369   Type: directory    Mode:  0755   Flags: 0x80000\nGeneration: 985531006    Version: 0x00000000:00000011\nUser:     0   Group:     0   Project:     0   Size: 4096\nFile ACL: 0\nLinks: 6   Blockcount: 8\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ad370d3:44d73afc -- Sat Oct 17 12:57:55 2026\n atime: 0x6ad370f4:bb710aac -- Sat Oct 17 12:58:28 2026\n mtime: 0x6ad36ff5:00000000 -- Sat Oct 17 12:54:13 2026\ncrtime: 0x6ad370d3:42eeeebc -- Sat Oct 17 12:57:55 2026\nSize of extra inode fields: 32\nInode checksum: 0x361efb91\nEXTENTS:\n(0):16714\n",
+      "step-056.txt": "Images are identical.\n",
+      "step-046.txt": "debugfs 1.47.0 (5-Feb-2023)\n",
+      "step-026.txt": "debugfs 1.47.0 (5-Feb-2023)\n/opt/enclave-rpc/bin/base: File not found by ext2_lookup \n",
+      "step-047.txt": "debugfs 1.47.0 (5-Feb-2023)\nInode: 85020   Type: regular    Mode:  0755   Flags: 0x80000\nGeneration: 0    Version: 0x00000000:00000000\nUser:     0   Group:     0   Project:     0   Size: 105018160\nFile ACL: 0\nLinks: 1   Blockcount: 201632\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ae5b7e4:00000000 -- Sat Oct 31 09:41:56 2026\n atime: 0x6ae5b7e4:00000000 -- Sat Oct 31 09:41:56 2026\n mtime: 0x6ae5b7e4:00000000 -- Sat Oct 31 09:41:56 2026\ncrtime: 0x6ae5b7e4:00000000 -- Sat Oct 31 09:41:56 2026\nSize of extra inode fields: 32\nInode checksum: 0x1be60c0b\nEXTENTS:\n(ETB0):353926, (0-1339):350892-352231, (1467-1980):352232-352745, (1996-2661):352746-353411, (2789-3301):353412-353924, (3317):353925, (3318-3449):353927-354058, (3577-4089):354059-354571, (4105-9980):354572-360447, (9981-10131):365417-365567, (10132-10133):365668-365669, (10134-10143):365676-365685, (10144-20998):365819-376673, (21002-21021):376674-376693, (21023-21034):376694-376705, (21042-25639):376706-381303\n",
+      "step-031.txt": "debugfs 1.47.0 (5-Feb-2023)\ndebugfs: write /home/controladmin/rpc-guest-image-20261031-r1/output/payload/etc/enclave-rpc-vm/disks.json /etc/enclave-rpc-vm/disks.json\nAllocated inode: 84994\ndebugfs: set_inode_field /etc/enclave-rpc-vm/disks.json mode 0100644\ndebugfs: set_inode_field /etc/enclave-rpc-vm/disks.json uid 0\ndebugfs: set_inode_field /etc/enclave-rpc-vm/disks.json gid 0\ndebugfs: write /home/controladmin/rpc-guest-image-20261031-r1/output/payload/etc/enclave-rpc/chain.json /etc/enclave-rpc/chain.json\nAllocated inode: 84997\ndebugfs: set_inode_field /etc/enclave-rpc/chain.json mode 0100644\ndebugfs: set_inode_field /etc/enclave-rpc/chain.json uid 0\ndebugfs: set_inode_field /etc/enclave-rpc/chain.json gid 0\ndebugfs: write /home/controladmin/rpc-guest-image-20261031-r1/output/payload/etc/systemd/system/enclave-rpc-base.service /etc/systemd/system/enclave-rpc-base.service\nAllocated inode: 85007\ndebugfs: set_inode_field /etc/systemd/system/enclave-rpc-base.service mode 0100644\ndebugfs: set_inode_field /etc/systemd/system/enclave-rpc-base.service uid 0\ndebugfs: set_inode_field /etc/systemd/system/enclave-rpc-base.service gid 0\ndebugfs: write /home/controladmin/rpc-guest-image-20261031-r1/output/payload/etc/systemd/system/enclave-rpc-cl.service /etc/systemd/system/enclave-rpc-cl.service\nAllocated inode: 85008\ndebugfs: set_inode_field /etc/systemd/system/enclave-rpc-cl.service mode 0100644\ndebugfs: set_inode_field /etc/systemd/system/enclave-rpc-cl.service uid 0\ndebugfs: set_inode_field /etc/systemd/system/enclave-rpc-cl.service gid 0\ndebugfs: write /home/controladmin/rpc-guest-image-20261031-r1/output/payload/etc/systemd/system/enclave-rpc-clients.slice /etc/systemd/system/enclave-rpc-clients.slice\nAllocated inode: 85010\ndebugfs: set_inode_field /etc/systemd/system/enclave-rpc-clients.slice mode 0100644\ndebugfs: set_inode_field /etc/systemd/system/enclave-rpc-clients.slice uid 0\ndebugfs: set_inode_field /etc/systemd/system/enclave-rpc-clients.slice gid 0\ndebugfs: write /home/controladmin/rpc-guest-image-20261031-r1/output/payload/etc/systemd/system/enclave-rpc-el.service /etc/systemd/system/enclave-rpc-el.service\nAllocated inode: 85018\ndebugfs: set_inode_field /etc/systemd/system/enclave-rpc-el.service mode 0100644\ndebugfs: set_inode_field /etc/systemd/system/enclave-rpc-el.service uid 0\ndebugfs: set_inode_field /etc/systemd/system/enclave-rpc-el.service gid 0\ndebugfs: write /home/controladmin/rpc-guest-image-20261031-r1/output/payload/opt/enclave-rpc/bin/base /opt/enclave-rpc/bin/base\nAllocated inode: 85019\ndebugfs: set_inode_field /opt/enclave-rpc/bin/base mode 0100755\ndebugfs: set_inode_field /opt/enclave-rpc/bin/base uid 0\ndebugfs: set_inode_field /opt/enclave-rpc/bin/base gid 0\ndebugfs: write /home/controladmin/rpc-guest-image-20261031-r1/output/payload/opt/enclave-rpc/bin/lighthouse /opt/enclave-rpc/bin/lighthouse\nAllocated inode: 85020\ndebugfs: set_inode_field /opt/enclave-rpc/bin/lighthouse mode 0100755\ndebugfs: set_inode_field /opt/enclave-rpc/bin/lighthouse uid 0\ndebugfs: set_inode_field /opt/enclave-rpc/bin/lighthouse gid 0\ndebugfs: write /home/controladmin/rpc-guest-image-20261031-r1/output/payload/opt/enclave-rpc/bin/reth /opt/enclave-rpc/bin/reth\nAllocated inode: 85026\ndebugfs: set_inode_field /opt/enclave-rpc/bin/reth mode 0100755\ndebugfs: set_inode_field /opt/enclave-rpc/bin/reth uid 0\ndebugfs: set_inode_field /opt/enclave-rpc/bin/reth gid 0\ndebugfs: write /home/controladmin/rpc-guest-image-20261031-r1/output/payload/opt/enclave-rpc/chain_service.py /opt/enclave-rpc/chain_service.py\nAllocated inode: 85054\ndebugfs: set_inode_field /opt/enclave-rpc/chain_service.py mode 0100755\ndebugfs: set_inode_field /opt/enclave-rpc/chain_service.py uid 0\ndebugfs: set_inode_field /opt/enclave-rpc/chain_service.py gid 0\ndebugfs: write /home/controladmin/rpc-guest-image-20261031-r1/output/payload/opt/enclave-rpc/manifest.json /opt/enclave-rpc/manifest.json\nAllocated inode: 85056\ndebugfs: set_inode_field /opt/enclave-rpc/manifest.json mode 0100644\ndebugfs: set_inode_field /opt/enclave-rpc/manifest.json uid 0\ndebugfs: set_inode_field /opt/enclave-rpc/manifest.json gid 0\n",
+      "step-048.txt": "debugfs 1.47.0 (5-Feb-2023)\n",
+      "step-040.txt": "debugfs 1.47.0 (5-Feb-2023)\n",
+      "step-051.txt": "debugfs 1.47.0 (5-Feb-2023)\nInode: 85054   Type: regular    Mode:  0755   Flags: 0x80000\nGeneration: 0    Version: 0x00000000:00000000\nUser:     0   Group:     0   Project:     0   Size: 37323\nFile ACL: 0\nLinks: 1   Blockcount: 80\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ae5b7e6:00000000 -- Sat Oct 31 09:41:58 2026\n atime: 0x6ae5b7e6:00000000 -- Sat Oct 31 09:41:58 2026\n mtime: 0x6ae5b7e6:00000000 -- Sat Oct 31 09:41:58 2026\ncrtime: 0x6ae5b7e6:00000000 -- Sat Oct 31 09:41:58 2026\nSize of extra inode fields: 32\nInode checksum: 0x8621fbd4\nEXTENTS:\n(0-9):548039-548048\n",
+      "step-025.txt": "debugfs 1.47.0 (5-Feb-2023)\n/etc/systemd/system/enclave-rpc-el.service: File not found by ext2_lookup \n"
+    },
+    "invocation": "48729c71e2da4671b4cc99bca1a44a33"
+  }
+}

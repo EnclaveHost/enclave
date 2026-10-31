@@ -1,0 +1,4 @@
+{
+  "rpc/guest/inject_image.py": "ef130ca34e4e6df3efd445a39f7e08c740d5dcb0fd1b15620078908bdf595378",
+  "test/rpc-guest/test_inject_image.py": "415a84b1b0dbf636ba81275826eeb71309ac555ec7cec2f90b80d2587fde295d"
+}

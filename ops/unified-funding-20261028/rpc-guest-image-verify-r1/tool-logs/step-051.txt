@@ -1,0 +1,15 @@
+debugfs 1.47.0 (5-Feb-2023)
+Inode: 85054   Type: regular    Mode:  0755   Flags: 0x80000
+Generation: 0    Version: 0x00000000:00000000
+User:     0   Group:     0   Project:     0   Size: 37323
+File ACL: 0
+Links: 1   Blockcount: 80
+Fragment:  Address: 0    Number: 0    Size: 0
+ ctime: 0x6ae5b7e6:00000000 -- Sat Oct 31 09:41:58 2026
+ atime: 0x6ae5b7e6:00000000 -- Sat Oct 31 09:41:58 2026
+ mtime: 0x6ae5b7e6:00000000 -- Sat Oct 31 09:41:58 2026
+crtime: 0x6ae5b7e6:00000000 -- Sat Oct 31 09:41:58 2026
+Size of extra inode fields: 32
+Inode checksum: 0x8621fbd4
+EXTENTS:
+(0-9):548039-548048

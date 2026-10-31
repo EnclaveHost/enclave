@@ -1,0 +1,38 @@
+{
+    "children": [
+        {
+            "name": "file",
+            "info": {
+                "children": [
+                ],
+                "virtual-size": 621284352,
+                "filename": "/home/controladmin/rpc-guest-image-20261031-r1/source.qcow2",
+                "format": "file",
+                "actual-size": 621289472,
+                "format-specific": {
+                    "type": "file",
+                    "data": {
+                    }
+                },
+                "dirty-flag": false
+            }
+        }
+    ],
+    "virtual-size": 3758096384,
+    "filename": "/home/controladmin/rpc-guest-image-20261031-r1/source.qcow2",
+    "cluster-size": 65536,
+    "format": "qcow2",
+    "actual-size": 621289472,
+    "format-specific": {
+        "type": "qcow2",
+        "data": {
+            "compat": "1.1",
+            "compression-type": "zlib",
+            "lazy-refcounts": false,
+            "refcount-bits": 16,
+            "corrupt": false,
+            "extended-l2": false
+        }
+    },
+    "dirty-flag": false
+}
