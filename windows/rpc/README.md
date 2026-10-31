@@ -347,8 +347,29 @@ rechecks local identity/capacity after each await, and consumes a dispatch befor
 `backend.start`. Spawn bodies cannot choose or shrink this claim. Uncertain
 acquire, dispatch, or native outcomes retain reservations.
 
-**Remaining activation work:** the manager's bounded Windows transport is not
-implemented/enrolled, the installed managers do not use this ledger, existing VM
+`PhysicalPoolCommand.cs` and the manager's `physical-reservations.mjs` provide
+the fixed local command transport. The maintained manager entrypoint accepts an
+all-or-nothing operator configuration: `ENCLAVE_PHYSICAL_POOL_COMMAND`,
+`ENCLAVE_PHYSICAL_POOL_COMMAND_SHA256`, `ENCLAVE_PHYSICAL_POOL_CONFIG`,
+`ENCLAVE_PHYSICAL_POOL_SHA256`, and `ENCLAVE_PHYSICAL_POOL_BOOT`. No request body
+can supply these values. The only accepted executable is
+`physical-pool-command.exe` beside the manager's own transport module. Before
+enabling these pins, enrollment must verify the **entire existing manager code
+installation**, helper file and ancestors: SYSTEM/admin ownership, protected
+mutation rights, no reparse points or untrusted parent replacement. This is a
+deployment prerequisite, not a property proved by a hash check or by the child
+checking itself after launch. An unprotected source checkout is not eligible.
+The command validates its protected image and the
+pool namespace, uses a 128 MiB post-entry job, and arms an independent original
+five-second deadline before native setup. Reserve another 64 MiB for bootstrap;
+this allowance is not a pre-entry hard cap. Each manager allows one command in
+flight. A timeout/unknown worker poisons that client and retains all claims.
+The helper never creates, starts, stops or releases a VM. Transport success
+requires the exact command process to close successfully with a matching
+operation, nonce, boot, image and claim. A kill request is not death proof.
+
+**Remaining activation work:** this transport needs actual target qualification
+and enrollment. The installed managers do not use this ledger, existing VM
 and pending commitments have not been seeded, and no production pool exists.
 Qualified reclaim requires conclusive provider settlement, original-owned Off,
 and relevant write fencing; there is no reclaim API yet. An optional adapter or

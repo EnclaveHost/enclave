@@ -20,6 +20,22 @@ public static class HostPhysicalPoolHarness {
     static FileSecurity Security(){var s=new FileSecurity();s.SetOwner(new SecurityIdentifier("S-1-5-32-544"));s.SetAccessRuleProtection(true,false);
         foreach(string sid in new[]{"S-1-5-18","S-1-5-32-544"})s.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid),FileSystemRights.FullControl,AccessControlType.Allow));return s;}
     static void Write(string path,string value){using(var f=new FileStream(path,FileMode.CreateNew,FileSystemRights.ReadData|FileSystemRights.WriteData|FileSystemRights.ReadPermissions,FileShare.None,4096,FileOptions.WriteThrough,Security())){byte[] b=Encoding.UTF8.GetBytes(value);f.Write(b,0,b.Length);f.Flush(true);}}
+    static int Transport(string[] args) {
+        var f=new Fixture(2048*MiB);string parent=System.IO.Path.GetDirectoryName(f.Root),exe=System.IO.Path.Combine(parent,"physical-pool-command.exe");
+        byte[] bytes=File.ReadAllBytes(args[0]);Check(bytes.Length<262144,"Command bound");
+        using(var file=new FileStream(exe,FileMode.CreateNew,FileSystemRights.ReadData|FileSystemRights.WriteData|FileSystemRights.ReadPermissions,FileShare.None,4096,FileOptions.WriteThrough,Security())){file.Write(bytes,0,bytes.Length);file.Flush(true);}
+        string script=System.IO.Path.Combine(parent,"physical-pool-transport.mjs");
+        Write(script,File.ReadAllText(args[2]));
+        Write(System.IO.Path.Combine(parent,"physical-reservations.mjs"),File.ReadAllText(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(args[2]),"..","..","windows","vbslike","manager","physical-reservations.mjs")));
+        string argv="\""+script+"\" \""+exe+"\" "+ProtectedAttempt.Hash(bytes)+" \""+f.Path+"\" "+f.Hash+" "+f.Boot;
+        using(var child=new Process{StartInfo=new ProcessStartInfo(args[1],argv){UseShellExecute=false,CreateNoWindow=true}}) {
+            Check(child.Start(),"Node launch");var held=child.Handle;
+            try{Check(Finish(child)==0,"Actual Node transport result");}finally{if(!child.HasExited){child.Kill();Check(child.WaitForExit(1000),"Exact Node death");}}
+        }
+        Check(Directory.GetFiles(f.Root,"*.claim").Length==2&&Directory.GetFiles(f.Root,"*.dispatch").Length==2,"Exactly two durable claims and dispatches");
+        Check(Directory.GetFiles(f.Root,"*.pending").Length==0,"No unaccounted publication");
+        Console.WriteLine("RESULT transportLedgerVerified=true vmChanged=false");return 0;
+    }
     sealed class Fixture {
         internal readonly string Root,Path,Hash,Boot;
         internal Fixture(long capacity) {
@@ -57,9 +73,10 @@ public static class HostPhysicalPoolHarness {
     }
     public static int Main(string[] args){try {
         if(args.Length==8&&args[0]=="child")return ChildMain(args);
-        Check(args.Length==0,"Arguments");BoundedWorker.EnterSupervisorEnvelope(256UL*1024*1024);
+        Check(args.Length==0||args.Length==3,"Arguments");BoundedWorker.EnterSupervisorEnvelope(256UL*1024*1024);
         deadline=BoundedWorker.MonotonicMilliseconds()+15000;
         new Thread(()=>{while(BoundedWorker.MonotonicMilliseconds()<deadline)Thread.Sleep(10);TerminateProcess(GetCurrentProcess(),124);}){IsBackground=true}.Start();
+        if(args.Length==3)return Transport(args);
         Pass("durable exact claim",()=>{var f=new Fixture(2048*MiB);using(var p=f.Open())p.Acquire(f.Claim('a',1024));Check(File.ReadAllText(System.IO.Path.Combine(f.Root,new string('a',64)+".claim"))==f.Claim('a',1024).Encode(),"Claim persisted");});
         Pass("all actors share one ceiling",()=>{var f=new Fixture(2048*MiB);using(var p=f.Open()){p.Acquire(f.Claim('a',1024));p.Acquire(f.Claim('b',1024,"rpc"));Refuse(()=>p.Acquire(f.Claim('c',1024,"app-native")),"capacity exhausted");}});
         Pass("idempotent acquire does not resize or change actor",()=>{var f=new Fixture(2048*MiB);using(var p=f.Open()){p.Acquire(f.Claim('a',1024));p.Acquire(f.Claim('a',1024));Refuse(()=>p.Acquire(f.Claim('a',2048)),"Conflicting claim");Refuse(()=>p.Acquire(f.Claim('a',1024,"rpc")),"Conflicting claim");}});

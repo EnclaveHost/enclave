@@ -29,7 +29,7 @@ namespace Enclave.OwnedRpc {
         static extern bool QueryFullProcessImageName(IntPtr handle,uint flags,StringBuilder name,ref int length);
         [DllImport("advapi32.dll",SetLastError=true)] static extern bool OpenProcessToken(IntPtr process,uint access,out SafeWaitHandle token);
         static long Number(string value) {return Int64.Parse(value,NumberStyles.None,CultureInfo.InvariantCulture);}
-        static void ArmOriginalDeadline(long origin,long deadline) {
+        internal static void ArmOriginalDeadline(long origin,long deadline) {
             long now=BoundedWorker.MonotonicMilliseconds();
             if(origin<0 || origin>Int64.MaxValue-30000 || origin>now || now-origin>=5000 || deadline<=now || deadline<=origin || deadline-origin>30000)
                 throw new ArgumentException("Original entry timing refused");

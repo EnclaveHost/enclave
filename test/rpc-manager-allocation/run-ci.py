@@ -17,7 +17,7 @@ out = Path('allocation-results').resolve()
 root.mkdir()
 out.mkdir()
 files = json.loads(Path(__file__).with_name('source-files.json').read_text())
-assert len(files) == 29 and len(set(files)) == len(files)
+assert len(files) == 31 and len(set(files)) == len(files)
 pins = {}
 for name in files:
     assert re.fullmatch(r'[A-Za-z0-9_./-]+\.(mjs|json)', name) and '..' not in Path(name).parts
@@ -51,7 +51,8 @@ command = ['sudo', 'systemd-run', '--wait', '--pipe', '--unit=' + unit,
     'windows/vbslike/manager/physical-memory.test.mjs',
     'windows/vbslike/manager/memory-share.test.mjs',
     'windows/vbslike/manager/restart.test.mjs',
-    'windows/vbslike/manager/shared-physical-reservations.test.mjs']
+    'windows/vbslike/manager/shared-physical-reservations.test.mjs',
+    'windows/vbslike/manager/physical-reservations.test.mjs']
 (out / 'COMMAND.json').write_text(json.dumps(command, indent=2) + '\n')
 began = time.monotonic()
 with (out / 'tests.log').open('x') as log:

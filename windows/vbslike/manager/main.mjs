@@ -27,6 +27,7 @@ import { loadDesktopConfig, probeDesktopWorker } from "./desktop-config.mjs";
 import { startDesktopWorkerTransport } from "./desktop-worker-transport.mjs";
 import { PartitionConsoleLogs, consoleTargets, partitionLogDir } from "./console-log.mjs";
 import { loadModelVolumes } from "./model-volumes.mjs";
+import { physicalReservationsFromEnv } from "./physical-reservations.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const env = (k, d = "") => (process.env[k] || d).trim();
@@ -302,6 +303,7 @@ const manager = new Manager({ judgeReady: judgeRunning, answerCheck: checkAnswer
   ramPoolMiB: env("NODE_APP_RAM_GB") ? Number(env("NODE_APP_RAM_GB")) * 1024 : null,
   // Separate VM budget INCLUDING overhead, after Windows/other workload RAM.
   physicalRamPoolMiB: env("NODE_VM_RAM_GB") ? Number(env("NODE_VM_RAM_GB")) * 1024 : null,
+  physicalReservations: physicalReservationsFromEnv(process.env),
   runtime,
   shield,
   desktopWorker,

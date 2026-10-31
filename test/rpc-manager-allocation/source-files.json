@@ -21,6 +21,8 @@
   "windows/vbslike/manager/memory-share.test.mjs",
   "windows/vbslike/manager/model-volumes.mjs",
   "windows/vbslike/manager/physical-memory.test.mjs",
+  "windows/vbslike/manager/physical-reservations.mjs",
+  "windows/vbslike/manager/physical-reservations.test.mjs",
   "windows/vbslike/manager/restart.test.mjs",
   "windows/vbslike/manager/server.mjs",
   "windows/vbslike/manager/shared-physical-reservations.test.mjs",
