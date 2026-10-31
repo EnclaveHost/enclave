@@ -146,11 +146,11 @@ public static class ProviderWorkerQualification {
         b["managerEpoch"]="epoch-2";if(valid==WindowsStartAdmission.PendingReceipt(new object[]{a,b,c}))throw new Exception("Manager generation change was hidden");
     }
     public static int Main(string[] args) {
-        Origin=BoundedWorker.MonotonicMilliseconds();Deadline=Origin+30000;bool passed=false,deniedStart=false,guardianBind=false;long free=0;
+        Origin=BoundedWorker.MonotonicMilliseconds();Deadline=Origin+30000;bool passed=false,deniedStart=false,guardianBind=false,guardianFault=false;long free=0,guardianFailureElapsed=-1;
         ProtectedAttempt vmPin=null,guardianPin=null;string vmRoot=null,childResult=null;
         try {
-            if(args.Length!=6||(args[0]!="--hosted-reconcile"&&args[0]!="--hosted-denied-start"&&args[0]!="--hosted-admission-fixtures"&&args[0]!="--hosted-guardian-bind"))throw new ArgumentException("Explicit disposable qualification mode required");
-            deniedStart=args[0]=="--hosted-denied-start";guardianBind=args[0]=="--hosted-guardian-bind";
+            if(args.Length!=6||(args[0]!="--hosted-reconcile"&&args[0]!="--hosted-denied-start"&&args[0]!="--hosted-admission-fixtures"&&args[0]!="--hosted-guardian-bind"&&args[0]!="--hosted-guardian-publication-failure"))throw new ArgumentException("Explicit disposable qualification mode required");
+            deniedStart=args[0]=="--hosted-denied-start";guardianFault=args[0]=="--hosted-guardian-publication-failure";guardianBind=args[0]=="--hosted-guardian-bind"||guardianFault;
             Origin=Int64.Parse(args[4],NumberStyles.None,CultureInfo.InvariantCulture);Deadline=Int64.Parse(args[5],NumberStyles.None,CultureInfo.InvariantCulture);
             Hex(args[2],64);Hex(args[3],32);
             BoundedWorker.EnterSupervisorEnvelope(128UL*1024*1024);Watchdog=BoundedWorker.ArmOwnerObserver(Origin,Deadline,args[3]+args[3]+args[3]+args[3]);
@@ -194,9 +194,25 @@ public static class ProviderWorkerQualification {
                 var j=new OwnedVmStartJournal(vmPin,id);ProviderStart.Prepare(id,j);j.WriteOnce("start.submit",ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(id.Encode())));
             }
             Admitted=true;string token=args[3]+boot+hash;
-            if(guardianBind)guardianPin.WriteOnce("guardian.request",contract+"\n"+hash);
             string arguments=Quote(contract)+" "+hash+" "+Origin+" "+workerDeadline;Schedule("owner","owner "+arguments);Schedule("observer","observer "+arguments);
             Process owner=Identity("owner",token),observer=Identity("observer",token);if(!guardianBind)Publish(Path.Combine(Root,"admit"),Encoding.UTF8.GetBytes(token));
+            if(guardianBind) {
+                if(guardianFault)Publish(Path.Combine(Root,"admit.pending"),Encoding.UTF8.GetBytes("consumed-test-publication"));
+                if(owner.HasExited||observer.HasExited||actualGuardian.HasExited)throw new InvalidOperationException("Fixture roles died before exact handles were held");
+                guardianPin.WriteOnce("guardian.request",contract+"\n"+hash);
+            }
+            if(guardianFault) {
+                if(!actualGuardian.WaitForExit((int)Math.Max(0,Deadline-BoundedWorker.MonotonicMilliseconds()))||actualGuardian.ExitCode!=1||
+                    !owner.WaitForExit(1000)||!observer.WaitForExit(1000))throw new InvalidOperationException("Guardian failure did not kill the exact gated pair");
+                guardianFailureElapsed=BoundedWorker.MonotonicMilliseconds()-Origin;
+                if(guardianFailureElapsed>=12000)throw new InvalidOperationException("Local entry deadline could explain pair death");
+                string identity=guardianPin.Token+","+guardianPid+","+guardianCreation+","+permit.Origin+","+permit.Deadline;
+                if(guardianPin.ReadOnce("guardian.armed")!=identity||guardianPin.ReadOnce("guardian.bound")!=identity+","+token+","+observer.Id+","+observer.StartTime.ToUniversalTime().ToFileTimeUtc())throw new InvalidOperationException("Guardian never assigned the pair");
+                if(NamespacePin.ReadOptionalOnce("admit")!=null||NamespacePin.ReadOptionalOnce("child.consumed")!=null||
+                    vmPin.ReadOptionalOnce("start.intent")!=null||vmPin.ReadOptionalOnce("start.native")!=null||vmPin.ReadOptionalOnce("start.receipt")!=null)
+                    throw new InvalidOperationException("Failed publication allowed worker execution");
+                passed=true;
+            } else {
             if(!owner.WaitForExit((int)Math.Max(0,Deadline-BoundedWorker.MonotonicMilliseconds()))||owner.ExitCode!=((deniedStart||guardianBind)?1:0))throw new InvalidOperationException("Exact owner outcome differs");
             if(!observer.WaitForExit((int)Math.Max(0,Deadline-BoundedWorker.MonotonicMilliseconds()))||observer.ExitCode!=0)throw new InvalidOperationException("Exact observer cleanup failed");
             string expectedOwner=(deniedStart||guardianBind)?"worker-failed;reservation-release=false":"worker-complete;provider-fenced=false;reservation-release=false";
@@ -215,9 +231,10 @@ public static class ProviderWorkerQualification {
             if(vmPin.ReadOptionalOnce("start.native")!=null||vmPin.ReadOptionalOnce("start.receipt")!=null)throw new InvalidOperationException("Unexpected native start path");
             if(vmPin.ReadOnce("start.submit")!=ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(vmPin.ReadOnce("start.intent")) ))throw new InvalidOperationException("Consumed start intent lost");
             passed=true;
+            }
         } catch(Exception error){Failures.Add(error.GetType().Name+": "+error.Message);}
         finally{try{if(vmPin!=null)vmPin.Dispose();if(guardianPin!=null)guardianPin.Dispose();}catch{Failures.Add("VM namespace close failed");}finally{Cleanup();}}
-        Console.WriteLine(Json.Serialize(new{schema="owned-rpc-provider-worker-qualification/1",passed=passed&&Failures.Count==0,deniedStart=deniedStart,guardianBind=guardianBind,origin=Origin,deadline=Deadline,elapsedMs=BoundedWorker.MonotonicMilliseconds()-Origin,root=Root,vmRoot=vmRoot,freeBytes=free,childResult=childResult,failures=Failures,nativeSubmitted=passed?(object)false:null,providerFenced=false,reservationMayRelease=false,vmsChanged=passed?(object)false:null}));
+        Console.WriteLine(Json.Serialize(new{schema="owned-rpc-provider-worker-qualification/1",passed=passed&&Failures.Count==0,deniedStart=deniedStart,guardianBind=guardianBind,guardianPublicationFailure=guardianFault,guardianFailureElapsedMs=guardianFailureElapsed,origin=Origin,deadline=Deadline,elapsedMs=BoundedWorker.MonotonicMilliseconds()-Origin,root=Root,vmRoot=vmRoot,freeBytes=free,childResult=childResult,failures=Failures,nativeSubmitted=passed?(object)false:null,providerFenced=false,reservationMayRelease=false,vmsChanged=passed?(object)false:null}));
         return passed&&Failures.Count==0?0:1;
     }
 }

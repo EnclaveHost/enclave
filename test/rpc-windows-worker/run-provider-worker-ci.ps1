@@ -66,7 +66,7 @@ try{
     Invoke-FiniteProcess $transaction @() 20000 'transactions'
     $lines=@(Get-Content -LiteralPath (Join-Path $work 'transactions.out'))
     if(@($lines|Where-Object{$_ -like 'PASS *'}).Count -ne 37 -or $lines[-1] -cne 'RESULT tests=37 providerCallsAreFakes=true vmChanged=false'){throw 'Incomplete transaction regressions'}
-    foreach($case in @('admission-fixtures','reconcile','denied-start','guardian-bind')){
+    foreach($case in @('admission-fixtures','reconcile','denied-start','guardian-bind','guardian-publication-failure')){
         $launchOrigin=[long][decimal]::Floor(([decimal][Diagnostics.Stopwatch]::GetTimestamp()*1000)/[Diagnostics.Stopwatch]::Frequency)
         $launchDeadline=$launchOrigin+30000
         Invoke-FiniteProcess $controller @(('--hosted-'+$case),$entry,(Get-FileHash -Algorithm SHA256 -LiteralPath $entry).Hash.ToLowerInvariant(),[guid]::NewGuid().ToString('N'),[string]$launchOrigin,[string]$launchDeadline) 30000 $case
@@ -89,7 +89,7 @@ try{
     $publish=Join-Path $env:RUNNER_TEMP ('rpc-worker-results-'+[guid]::NewGuid().ToString('N'))
     $null=New-Item -ItemType Directory -Path $publish
     $published=New-Object Collections.Generic.List[object];$total=0L
-    foreach($name in @('guardian-bind.out','guardian-bind.err','admission-fixtures.out','admission-fixtures.err','transaction-compile.out','transaction-compile.err','transactions.out','transactions.err','reconcile.out','reconcile.err','denied-start.out','denied-start.err','controller-compile.out','controller-compile.err','entry-compile.out','entry-compile.err','inert.out','inert.err','process-results.json','pins.json','controller-artifact.json','entry-artifact.json','qualification-controller.exe','owned-entry.exe')){
+    foreach($name in @('guardian-publication-failure.out','guardian-publication-failure.err','guardian-bind.out','guardian-bind.err','admission-fixtures.out','admission-fixtures.err','transaction-compile.out','transaction-compile.err','transactions.out','transactions.err','reconcile.out','reconcile.err','denied-start.out','denied-start.err','controller-compile.out','controller-compile.err','entry-compile.out','entry-compile.err','inert.out','inert.err','process-results.json','pins.json','controller-artifact.json','entry-artifact.json','qualification-controller.exe','owned-entry.exe')){
         $file=Join-Path $work $name
         if(Test-Path -LiteralPath $file){
             $item=Get-Item -LiteralPath $file;$limit=65536L

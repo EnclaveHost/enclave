@@ -1,0 +1,102 @@
+{
+  "ci": 41156908520,
+  "head": "619625d942393a85e0571837a88560db70af0edb",
+  "sourcePins": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/VmStartGuardian.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/ProviderStart.cs",
+    "windows/rpc/OwnedVmPermit.cs",
+    "windows/rpc/WindowsStartAdmission.cs",
+    "windows/rpc/ProviderWorkerEntry.cs",
+    "test/rpc-windows-worker/ProviderWorkerQualification.cs",
+    "test/rpc-windows-worker/ProviderStartHarness.cs"
+  ],
+  "artifacts": {
+    "owned-entry.exe": "485212420da509e3524fd97e37f73168c57365d21716ab49d1eac20740495b26",
+    "qualification-controller.exe": "07e226dc1c3a33fecff5fb01c7bb54c2773530e4851eeefe880e4a4ddb67caa6"
+  },
+  "records": [
+    {
+      "label": "entry-compile",
+      "pid": 2408,
+      "exitCode": 0,
+      "elapsedMs": 4642,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 33427456,
+      "outputBytes": 0
+    },
+    {
+      "label": "controller-compile",
+      "pid": 6968,
+      "exitCode": 0,
+      "elapsedMs": 233,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 34455552,
+      "outputBytes": 0
+    },
+    {
+      "label": "transaction-compile",
+      "pid": 8912,
+      "exitCode": 0,
+      "elapsedMs": 236,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 33783808,
+      "outputBytes": 0
+    },
+    {
+      "label": "transactions",
+      "pid": 6964,
+      "exitCode": 0,
+      "elapsedMs": 2421,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 35692544,
+      "outputBytes": 1884
+    },
+    {
+      "label": "admission-fixtures",
+      "pid": 7088,
+      "exitCode": 0,
+      "elapsedMs": 982,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 32010240,
+      "outputBytes": 166
+    },
+    {
+      "label": "reconcile",
+      "pid": 1148,
+      "exitCode": 0,
+      "elapsedMs": 1548,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 45527040,
+      "outputBytes": 619
+    },
+    {
+      "label": "denied-start",
+      "pid": 1728,
+      "exitCode": 0,
+      "elapsedMs": 985,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 44154880,
+      "outputBytes": 539
+    },
+    {
+      "label": "guardian-bind",
+      "pid": 5808,
+      "exitCode": 0,
+      "elapsedMs": 1237,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 44298240,
+      "outputBytes": 540
+    }
+  ]
+}
