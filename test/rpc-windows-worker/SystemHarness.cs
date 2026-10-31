@@ -22,9 +22,12 @@ static partial class Harness {
     static void SecureFile(string path,byte[] data) {
         var sd=new FileSecurity();sd.SetOwner(Admin);sd.SetAccessRuleProtection(true,false);
         foreach(var sid in new[]{Admin,SystemUser})sd.AddAccessRule(new FileSystemAccessRule(sid,FileSystemRights.FullControl,AccessControlType.Allow));
-        using(var f=new FileStream(path,FileMode.CreateNew,FileSystemRights.WriteData|FileSystemRights.ReadPermissions,FileShare.None,4096,FileOptions.WriteThrough,sd)){
+        // Publish only after close: readers must never see an in-progress gate.
+        string pending=path+".pending";
+        using(var f=new FileStream(pending,FileMode.CreateNew,FileSystemRights.WriteData|FileSystemRights.ReadPermissions,FileShare.None,4096,FileOptions.WriteThrough,sd)){
             f.Write(data,0,data.Length);f.Flush(true);
         }
+        File.Move(pending,path);
     }
     static string PrepareContract(string root,string entry,string boot,long origin,long deadline,bool writable) {
         SecureDirectory(root);SecureFile(Path.Combine(root,"entry.exe"),File.ReadAllBytes(entry));

@@ -1,0 +1,9 @@
+CI task diagnostic (possibly incomplete) EnclaveRpcInertCI-1681203eba3f48aeaa975b66288f8a44.out:
+CI task diagnostic (possibly incomplete) EnclaveRpcInertCI-1681203eba3f48aeaa975b66288f8a44.err: Win32Exception: The process cannot access the file because it is being used by another process
+
+CI task diagnostic (possibly incomplete) EnclaveRpcInertCI-d532501dbe884a589dafd857c2cde72e.out:
+CI task diagnostic (possibly incomplete) EnclaveRpcInertCI-d532501dbe884a589dafd857c2cde72e.err: InvalidOperationException: Peer executable differs
+
+Owned CI task EnclaveRpcInertCI-1681203eba3f48aeaa975b66288f8a44 diagnostic LastTaskResult=1
+Owned CI task EnclaveRpcInertCI-d532501dbe884a589dafd857c2cde72e diagnostic LastTaskResult=1
+Exception: Fixture failed: system-separate-task-protected-entry

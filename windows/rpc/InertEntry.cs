@@ -56,8 +56,10 @@ namespace Enclave.OwnedRpc {
                 if(GetProcessId(h)!=pid || !GetProcessTimes(h,out c,out e,out k,out u) || c!=creation || WaitForSingleObject(h,0)!=258)
                     throw new InvalidOperationException("Peer incarnation differs");
                 var image=new StringBuilder(512);int length=image.Capacity;
-                if(!QueryFullProcessImageName(h,0,image,ref length) || !String.Equals(image.ToString(),a.Executable,StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidOperationException("Peer executable differs");
+                if(!QueryFullProcessImageName(h,0,image,ref length))
+                    throw new Win32Exception(Marshal.GetLastWin32Error(),"Peer image query failed");
+                if(!String.Equals(image.ToString(),a.Executable,StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("Peer executable differs: actual="+image+" expected="+a.Executable);
                 SafeWaitHandle token;
                 if(!OpenProcessToken(h,8,out token))throw new Win32Exception(Marshal.GetLastWin32Error());
                 using(token)using(var identity=new WindowsIdentity(token.DangerousGetHandle()))

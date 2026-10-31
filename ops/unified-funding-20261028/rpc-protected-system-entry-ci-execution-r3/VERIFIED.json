@@ -1,0 +1,17 @@
+{
+  "run": 41146949553,
+  "source": "884c84e6237677021227427f6c366086f66cde42",
+  "compiledPins": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/InertEntry.cs",
+    "test/rpc-windows-worker/SystemHarness.cs",
+    "test/rpc-windows-worker/ObserverHarness.cs",
+    "test/rpc-windows-worker/Harness.cs"
+  ],
+  "binaries": {
+    "worker-harness.exe": "fd393a7b7c6591c40bdb0dec415cc162a19c544f88c9b7c149a666731d08783b",
+    "owned-entry.exe": "37dbb76cf43d781376e3404478a8bcebdf22d92f32141ca4fd2b9a9f838be35e"
+  }
+}

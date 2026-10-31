@@ -1,0 +1,3 @@
+{"name":"supervisor-envelope-readback","passed":true,"details":{"ProcessId":7340,"CreationFileTime":134378779349822978,"JobCommitLimitBytes":268435456,"BootstrapPrivateBytes":12509184,"MembershipVerified":true,"LimitsVerified":true,"CoversPreAssignmentMemory":false,"BoundsWallTime":false,"ReservationMayRelease":false}}
+{"name":"supervisor-envelope-one-shot","passed":true,"details":null}
+{"name":"system-separate-task-protected-entry","passed":false,"details":{"ownerPid":4196,"observerPid":7032,"ownerDead":true,"observerDead":true,"elapsed":631,"providerFenced":false,"reservationRelease":false}}
