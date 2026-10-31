@@ -1,0 +1,20 @@
+{
+  "rc": 1,
+  "reason": null,
+  "elapsedSeconds": 0.6816507731564343,
+  "stdout": "",
+  "stderr": "setUpClass (__main__.Credentials) ... ERROR\n\n======================================================================\nERROR: setUpClass (__main__.Credentials)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/src/test/rpc-guest/test_credentials.py\", line 19, in setUpClass\n    cls.generated=c.generate(cls.parent,cls.attempt,cls.instance,PINS)\n                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/src/rpc/guest/credentials.py\", line 107, in generate\n    tools.run('ssh-keygen',['-q','-t','ed25519','-N','','-C',instance,'-f',host/'ssh_host_ed25519_key'])\n    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/src/rpc/guest/credentials.py\", line 64, in run\n    raise ValueError('Credential tool failed: '+name+' exit '+str(r.returncode))\nValueError: Credential tool failed: ssh-keygen exit 255\n\n----------------------------------------------------------------------\nRan 0 tests in 0.509s\n\nFAILED (errors=1)\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 1056
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

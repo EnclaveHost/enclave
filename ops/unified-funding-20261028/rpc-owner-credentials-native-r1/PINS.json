@@ -1,0 +1,7 @@
+{
+  "run.py": "e36ccb82b064cf9afb09062766f5c031012d2e86f2e5c72fb407362d6dc7856c",
+  "capture_local.py": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c",
+  "frozen/rpc/guest/prepare_seed.py": "a6ffc88230f6b8db4aa98eadf4f8352b0ac9a35ad077a299c831276255a5ce51",
+  "frozen/rpc/guest/credentials.py": "300354a6fb6c85570a64dc5d1856efeebf09e813fdd0737c216c78ba37580b3c",
+  "frozen/test/rpc-guest/test_credentials.py": "eeb81ef9f660182ba84d11e7b889a512a80eee33b73d1cb49f805e78bf476144"
+}

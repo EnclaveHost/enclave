@@ -113,3 +113,29 @@ reconnect, server/guest death cleanup and production readiness remain unqualifie
 Attachment code is not yet in the seed; the server export/credential/deadline
 workflow must be concrete before adding it and starting the guest. NBD process
 and TLS options follow the [upstream-packaged client manual](https://manpages.debian.org/bookworm/nbd-client/nbd-client.8.en.html).
+
+`credentials.py` prepares independent, owner-controlled certificate authorities
+for each storage role, server/client leaf certificates, and an Ed25519 SSH host
+key. No Enclave CA, discovery service or online identity service participates.
+Creation uses an exclusive attempt directory; failed attempts and existing keys
+are never silently replaced. Tool hashes, certificate/private-key pairs, receipt,
+guest instance, file ownership and permissions are checked before seed rendering.
+Certificates expire after 365 days; replacement remains an explicit owner operation.
+
+The optional `credentials` input to `prepare_seed.py` contains `bundle`,
+`publicReceiptSha256` and pinned `tools` (`openssl` and `ssh-keygen`). It changes the
+output classification: **the entire output directory and ISO are private**.
+Only client credentials and the guest SSH key enter this media; CA signing keys
+and storage-server private keys remain in the operator bundle. Do not publish the
+bundle, user-data, extraction/readback directory or ISO, and do not commit them.
+Transfer and retain them only through an authenticated owner-controlled channel.
+The public result records the SSH host public key/fingerprint for strict initial
+host-key checking and omits private key contents and individual private key hashes.
+
+Cloud-init's documented [SSH host-key input](https://docs.cloud-init.io/en/latest/reference/modules.html#ssh)
+is used with host-key publication disabled. A boot command makes only the storage
+credential subtree private (0700); `/etc/enclave-rpc` remains traversable for the
+separate EL/CL JWT group. Files and local private media are 0600. This candidate
+still does not supply the live attachment contract/server receipt or enable
+attachment/client startup. The earlier public seed artifacts remain unchanged;
+credential-capable source and isolated tests are not target first-boot proof.

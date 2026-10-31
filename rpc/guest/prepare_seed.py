@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Prepare an exclusive public NoCloud seed for owned RPC guest initialization.
+"""Prepare an exclusive NoCloud seed for owned RPC guest initialization.
 
-Embeds verified public runtime/library files. Engine JWT is generated only in
-that guest. No TLS private key, state export, mounts or client startup is added.
+Embeds verified runtime/library files and optional owner-controlled credentials.
+Credential-bearing media are PRIVATE, never public build artifacts. Engine JWT
+is generated only in the guest. No exports, mounts or clients are started.
 """
 import base64
+import importlib.util
 import hashlib
 import json
 import os
@@ -19,7 +21,7 @@ def digest(path):
     with path.open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
 
 
-def build(config):
+def _build(config):
     origin=time.monotonic()
     if Path('/proc/sys/kernel/random/boot_id').read_text().strip()!=config['bootId']:
         raise ValueError('Build host boot changed')
@@ -29,6 +31,12 @@ def build(config):
     archive=Path(config['archive']);receipt=config['storageReceipt']
     if archive.stat().st_size!=receipt['bytes'] or digest(archive)!=receipt['sha256']:
         raise ValueError('Storage archive changed')
+    credential_writes={};credential_cloud={};credential_public=None
+    if 'credentials' in config:
+        spec=importlib.util.spec_from_file_location('rpc_credentials',Path(__file__).with_name('credentials.py'))
+        credentials=importlib.util.module_from_spec(spec);spec.loader.exec_module(credentials)
+        credential_writes,credential_cloud,credential_public=credentials.seed_material(config['credentials'],instance)
+        credentials.private_directory(Path(config['output']).parent)
     output=Path(config['output']);output.mkdir(mode=0o700)
     def guard():
         mem=next(int(x.split()[1])*1024 for x in Path('/proc/meminfo').read_text().splitlines() if x.startswith('MemAvailable:'))
@@ -36,10 +44,12 @@ def build(config):
         if mem<2*1024**3 or disk.f_bavail*disk.f_frsize<16*1024**3 or time.monotonic()-origin>=90:
             raise ValueError('Seed resource/deadline guard')
     guard();writes=[];records={}
-    def add(path,data,mode):
+    def add(path,data,mode,private=False):
         if path in records or len(data)>16*1024**2:raise ValueError('Duplicate or oversized seed member')
         writes.append({'path':path,'permissions':mode,'owner':'root:root','encoding':'b64','content':base64.b64encode(data).decode()})
-        records[path]={'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest(),'mode':mode}
+        records[path]={'bytes':len(data),'mode':mode}
+        if private:records[path]['private']=True
+        else:records[path]['sha256']=hashlib.sha256(data).hexdigest()
     prefix='opt/enclave-rpc/nbd/'
     files={prefix+k:v for k,v in receipt['files'].items()};aliases={prefix+'lib/'+n:v for n,v in receipt['sonames'].items() if n!=v}
     with tarfile.open(archive,'r:') as t:
@@ -68,7 +78,9 @@ def build(config):
     cloud={'users':[{'name':'rpcadmin','groups':['sudo'],'shell':'/bin/bash','sudo':'ALL=(ALL) NOPASSWD:ALL','lock_passwd':True,'ssh_authorized_keys':[key]}],
            'ssh_pwauth':False,'disable_root':True,'package_update':False,'package_upgrade':False,'write_files':writes,
            'runcmd':[['/usr/bin/systemctl','daemon-reload'],['/usr/bin/systemctl','start','enclave-rpc-identity.service']]}
-    seed=output/'seed';seed.mkdir()
+    for path,row in credential_writes.items():add(path,row['data'],row['mode'],row['private'])
+    cloud.update(credential_cloud)
+    seed=output/'seed';seed.mkdir(mode=0o700)
     (seed/'meta-data').write_text('instance-id: '+instance+'\nlocal-hostname: '+instance+'\n')
     data=('#cloud-config\n'+json.dumps(cloud,indent=2)+'\n').encode()
     if len(data)>24*1024**2:raise ValueError('Seed content bound')
@@ -83,17 +95,27 @@ def build(config):
         guard()
     iso=output/'seed.iso'
     run(['-as','mkisofs','-V','cidata','-J','-r','-o',iso,seed/'user-data',seed/'meta-data'],'build.txt')
+    iso.chmod(0o600)
     if iso.stat().st_size>64*1024**2:raise ValueError('Seed exceeds boot contract')
     extracted=output/'readback'
     run(['-osirrox','on','-indev',iso,'-extract','/',extracted],'readback.txt')
+    extracted.chmod(0o700)
     for name in ['user-data','meta-data']:
+        (extracted/name).chmod(0o600)
         if (seed/name).read_bytes()!=(extracted/name).read_bytes():raise ValueError('Seed readback differs')
     if digest(archive)!=receipt['sha256']:raise ValueError('Source archive changed')
     result={'instance':instance,'seed':str(iso),'bytes':iso.stat().st_size,'sha256':digest(iso),'records':records,
             'seconds':time.monotonic()-origin,'readbackVerified':True,'storageAttached':False,'clientsStarted':False,
-            'engineSecretIncluded':False,'invocation':os.environ.get('INVOCATION_ID')}
+            'engineSecretIncluded':False,'seedContainsPrivateCredentials':credential_public is not None,
+            'credentialPublic':credential_public,'invocation':os.environ.get('INVOCATION_ID')}
     (output/'RESULT.json').write_text(json.dumps(result,indent=2)+'\n')
     return result
+
+def build(config):
+    old=os.umask(0o077)
+    try:return _build(config)
+    finally:os.umask(old)
+
 
 if __name__=='__main__':
     import sys
