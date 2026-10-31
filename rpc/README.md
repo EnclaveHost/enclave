@@ -228,3 +228,49 @@ and mocked SSH/native responses. Evidence is in
 The native reader still needs protected staging and qualification against the
 actual owned VM during the admitted startup. The full driver and cross-host
 integration remain unfinished. No guest seed or staged lifecycle image changed.
+
+
+### Guest-key-owner workflow (source integration qualified)
+
+`run_guest_workflow.py` connects the existing guest observer, attachment
+preparer, delivery, activation launch, activation observer, and L1/Base runtime
+preparation and submission. Run it on the host that already owns the normal
+guest SSH identity. Configuration requires pinned public `serverContract`,
+`serverReady`, `endpointReceipt`, `seedReceipt`, `imageReceipt`, and
+`credentialReceipt`, plus `target`, optional pinned `jump`, `sshSha256`, private
+`journalRoot`, the admitted key-owner `ownerBootId`, and original `vmAttempt`.
+The endpoint receipt must arrive through the authenticated original owner's
+channel and match the original startup clock, VM namespace and target address.
+A hash alone is not authentication; an endpoint snapshot is not a continuing
+freshness or guest attestation claim. Foreign owner paths in that receipt are
+provenance references and are never opened on the key-owner host.
+
+The fixed user unit is `enclave-rpc-guest-workflow-ATTEMPT.service`: Type=exec,
+MemoryMax=256M, MemorySwapMax=0, CPUQuota=100%, TasksMax=16,
+RuntimeMaxSec=240, TimeoutStopSec=1, KillMode=control-group, SendSIGKILL=yes,
+FinalKillSignal=SIGKILL, Restart=no, NoNewPrivileges=yes, UMask=0077 and
+LimitCORE=0. The runner verifies actual PID, cgroup, invocation, limits and
+monotonic process origin. Its independent cutoff including stop grace and a
+2-second clock allowance must fit before the original startup deadline.
+Preparation/transport/bootstrap memory and live capacity admission remain
+separate; the unit does not establish a prior-allocation hard bound.
+
+All public inputs and runtime closure are checked before guest contact and
+rechecked between phases. Exclusive fsynced workflow and phase intents prevent
+automatic replay. Every phase retains the original window and observed guest
+boot. Lost replies stop the sequence, preserving HELD and consumed subphase
+journals. The same activation owner must remain present through L1 and Base.
+There is no automatic cleanup, clock reset, start retry or reservation release.
+The final result reports client processes observed, not RPC readiness, adoption,
+provider settlement, writer fencing or remote death.
+
+18 new integration checks plus28 activation/runtime regressions passed. The
+new tests execute actual preparers and all six senders with protected files;
+SSH, systemd and guest responses are mocked. See
+`ops/unified-funding-20261028/rpc-guest-workflow-tests-r1/ROOT-RESULT.md`.
+The live Control unit, route/jump, protected source staging and authenticated
+endpoint/config transfer remain unqualified. `transfer_export.py` currently
+transfers only server contract/ready; it does not yet deliver the workflow's
+endpoint/config or execute this runner. The Warden/Windows side still needs
+complete operational composition before consuming a production clock or cut.
+No private guest seed or staged lifecycle executable changed.

@@ -1,0 +1,20 @@
+{
+  "tests": [
+    {
+      "name": "test_run_guest_workflow.py",
+      "rc": 0,
+      "seconds": 1.039112958824262
+    },
+    {
+      "name": "test_observe_activation.py",
+      "rc": 0,
+      "seconds": 0.8119717238005251
+    },
+    {
+      "name": "test_deliver_runtime.py",
+      "rc": 0,
+      "seconds": 0.6691578149329871
+    }
+  ],
+  "drift": []
+}

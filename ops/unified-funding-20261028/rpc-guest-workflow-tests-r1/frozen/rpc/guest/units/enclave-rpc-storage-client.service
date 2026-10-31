@@ -1,0 +1,22 @@
+[Unit]
+Description=Verify seeded private authenticated storage client
+After=cloud-config.service
+Before=enclave-rpc-identity.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -I /opt/enclave-rpc/install_storage_client.py
+RemainAfterExit=yes
+Restart=no
+TimeoutStartSec=10
+MemoryMax=128M
+MemorySwapMax=0
+CPUQuota=100%
+TasksMax=8
+UMask=0077
+PrivateNetwork=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/opt/enclave-rpc/nbd/lib

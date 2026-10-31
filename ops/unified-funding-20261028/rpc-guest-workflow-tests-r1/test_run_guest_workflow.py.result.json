@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 1.039112958824262,
+  "stdout": "",
+  "stderr": "test_changed_guest_boot_in_launch_blocks_activation_observer (__main__.Tests.test_changed_guest_boot_in_launch_blocks_activation_observer) ... ok\ntest_completed_attempt_cannot_repeat (__main__.Tests.test_completed_attempt_cannot_repeat) ... ok\ntest_envelope_checks_pid_cgroup_invocation_and_start (__main__.Tests.test_envelope_checks_pid_cgroup_invocation_and_start) ... ok\ntest_envelope_cutoff_cannot_outlive_original_deadline (__main__.Tests.test_envelope_cutoff_cannot_outlive_original_deadline) ... ok\ntest_full_six_transports_actual_preparers_and_original_window (__main__.Tests.test_full_six_transports_actual_preparers_and_original_window) ... ok\ntest_incomplete_runtime_closure_refused_before_guest_contact (__main__.Tests.test_incomplete_runtime_closure_refused_before_guest_contact) ... ok\ntest_lost_l1_never_submits_base (__main__.Tests.test_lost_l1_never_submits_base) ... ok\ntest_lost_launch_consumed_no_later_submission_or_retry (__main__.Tests.test_lost_launch_consumed_no_later_submission_or_retry) ... ok\ntest_other_vm_attempt_refused (__main__.Tests.test_other_vm_attempt_refused) ... ok\ntest_pending_address_does_not_guess (__main__.Tests.test_pending_address_does_not_guess) ... ok\ntest_pinned_jump_reaches_every_stage (__main__.Tests.test_pinned_jump_reaches_every_stage) ... ok\ntest_provider_settlement_claim_cannot_be_invented (__main__.Tests.test_provider_settlement_claim_cannot_be_invented) ... ok\ntest_rebooted_key_owner_refused (__main__.Tests.test_rebooted_key_owner_refused) ... ok\ntest_relaxed_envelope_refused_before_journal (__main__.Tests.test_relaxed_envelope_refused_before_journal) ... ok\ntest_replaced_activation_owner_blocks_base (__main__.Tests.test_replaced_activation_owner_blocks_base) ... ok\ntest_result_cannot_promote_rpc_readiness (__main__.Tests.test_result_cannot_promote_rpc_readiness) ... ok\ntest_source_drift_after_observation_blocks_delivery (__main__.Tests.test_source_drift_after_observation_blocks_delivery) ... ok\ntest_target_switch_and_original_clock_refused (__main__.Tests.test_target_switch_and_original_clock_refused) ... ok\n\n----------------------------------------------------------------------\nRan 18 tests in 0.778s\n\nOK\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 2185
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}
