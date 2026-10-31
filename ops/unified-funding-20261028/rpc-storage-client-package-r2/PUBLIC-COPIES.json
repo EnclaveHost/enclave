@@ -1,0 +1,62 @@
+[
+  {
+    "file": "prepare_storage_client.py",
+    "originalSha256": "539d8e9456067398890b8a6cfe59bf207d575fcba8f1aa4e3523faa3fb6b212f",
+    "publicSha256": "539d8e9456067398890b8a6cfe59bf207d575fcba8f1aa4e3523faa3fb6b212f"
+  },
+  {
+    "file": "SSH.json",
+    "originalSha256": "0574c7d96d7cd5f60d64c86c4a0de321785319bf9aad8eadf9221729ce6db20e",
+    "publicSha256": "0574c7d96d7cd5f60d64c86c4a0de321785319bf9aad8eadf9221729ce6db20e"
+  },
+  {
+    "file": "ROOT-REVIEW.md",
+    "originalSha256": "a0f194c02c1b55bd286f5c37def538116be9997f13321242b8cfe0445bb61b14",
+    "publicSha256": "a0f194c02c1b55bd286f5c37def538116be9997f13321242b8cfe0445bb61b14"
+  },
+  {
+    "file": "ATTEMPT.json",
+    "originalSha256": "7086782e1bf391953ea81dd6727ebc35bb066039d12777da47d2ceacf9771ee9",
+    "publicSha256": "b7f82135363cc27ab17bec114133ca4440f44d18e705109ee594124b1f688e0e"
+  },
+  {
+    "file": "TERMINAL.txt",
+    "originalSha256": "95eed1b0fdbc3f3710524c3c2ccb82a6a0ab14cd53ed46a1766fecc33241993c",
+    "publicSha256": "95eed1b0fdbc3f3710524c3c2ccb82a6a0ab14cd53ed46a1766fecc33241993c"
+  },
+  {
+    "file": "REMOTE.json",
+    "originalSha256": "770d2ce7b36f99e0c5a511b77bc266e8b3a3c7f93e0423436229e326a900cfe9",
+    "publicSha256": "39f17f427353750b4a0e963fb7121b21fed7df8d73a325ff2fcdf299129161a4"
+  },
+  {
+    "file": "outer.txt",
+    "originalSha256": "47a5d4f90d62300def9bfbc0bd38c5ff5c301c3dbcd5edc4828c6b5e497f595b",
+    "publicSha256": "47a5d4f90d62300def9bfbc0bd38c5ff5c301c3dbcd5edc4828c6b5e497f595b"
+  },
+  {
+    "file": "RESULT.json",
+    "originalSha256": "3e8e6d759b9930d97a830b97f2f6c5754d7a5c75c8f3fcb099e2830391c7fe4e",
+    "publicSha256": "3e8e6d759b9930d97a830b97f2f6c5754d7a5c75c8f3fcb099e2830391c7fe4e"
+  },
+  {
+    "file": "inner.txt",
+    "originalSha256": "99e5a9fbdeba503a7ce2a6cf46a2b9d706a1aac16bba031581939b67ba937d09",
+    "publicSha256": "99e5a9fbdeba503a7ce2a6cf46a2b9d706a1aac16bba031581939b67ba937d09"
+  },
+  {
+    "file": "CONFIG.json",
+    "originalSha256": "33a0c900bfad7c9c177697a8e72b4fd5d457790534b5d7b26f1a024a3bde7343",
+    "publicSha256": "33a0c900bfad7c9c177697a8e72b4fd5d457790534b5d7b26f1a024a3bde7343"
+  },
+  {
+    "file": "COMMAND.json",
+    "originalSha256": "be1a4be40467be2df43f07a396c1b40b69293c585aea3792c9185460544ff512",
+    "publicSha256": "be1a4be40467be2df43f07a396c1b40b69293c585aea3792c9185460544ff512"
+  },
+  {
+    "file": "run.py",
+    "originalSha256": "e70ee5481cc6fa1913b0cd959d3e8e6b180f6923035a8717675b31881bed10e9",
+    "publicSha256": "e70ee5481cc6fa1913b0cd959d3e8e6b180f6923035a8717675b31881bed10e9"
+  }
+]

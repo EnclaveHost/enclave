@@ -1,0 +1,1 @@
+[memory-guard] exit=1 peakTreeRssMiB=94 minHostAvailableMiB=32088

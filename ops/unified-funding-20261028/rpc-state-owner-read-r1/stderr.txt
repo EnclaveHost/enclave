@@ -1,0 +1,11 @@
+Traceback (most recent call last):
+  File "/job/read_owners.py", line 113, in <module>
+    main(json.loads(Path(sys.argv[1]).read_text()))
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/job/read_owners.py", line 101, in main
+    fixture=inspect(raw,'raw',['/lost+found'],32*1024**2,write_refusal=True)
+  File "/job/read_owners.py", line 44, in inspect
+    log.seek(0);raise RuntimeError('View startup: '+log.read(4096).decode(errors='replace'))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: View startup: fusermount3: mount failed: Operation not permitted
+fuse_mount: Operation not permitted

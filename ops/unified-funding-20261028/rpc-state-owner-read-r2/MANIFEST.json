@@ -1,0 +1,66 @@
+{
+  "tools": {
+    "/usr/sbin/nbdfuse": "51c1a1fd18785d4fe2240c1710eb4f78590b9d333fcde4cda421871d6f010a01",
+    "/usr/sbin/qemu-nbd": "b0f16ff7225e78469733132fce225b1d0af98f0b681a5092d85618936ff61934",
+    "/usr/sbin/debugfs": "9b27184084383c8607eee03b43c80eca4ef912acf4887b40a7cc420e267ad8a8",
+    "/usr/sbin/fusermount3": "c3d04bdf77c7152eba94ce670338e7089730b8dbfede57762b7b92c893a00f4f",
+    "/usr/sbin/mke2fs": "0ad4756fd858ee0a3a7fcaa34875af0c1050b9bccaf0d363c242d87d70575657"
+  },
+  "inputs": [
+    {
+      "path": "/vm/enclave-volumes/rpc-control-l1-client-r6/overlay.qcow2",
+      "identity": [
+        64769,
+        148393098,
+        277741568,
+        1793377151538885655,
+        1793377151538885655
+      ]
+    },
+    {
+      "path": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2",
+      "identity": [
+        64769,
+        147981798,
+        528387407872,
+        1793030445134925227,
+        1793030445134925227
+      ]
+    },
+    {
+      "path": "/mnt/usb/enclave-rpc-production/base-origin.qcow2",
+      "identity": [
+        2049,
+        929,
+        1255588233216,
+        1793152612815840500,
+        1793152612815840500
+      ]
+    }
+  ],
+  "volumes": [
+    {
+      "role": "l1",
+      "path": "/vm/enclave-volumes/rpc-control-l1-client-r6/overlay.qcow2",
+      "bytes": 4000000000000,
+      "uuid": "a2f2a8b5-06ac-4612-95a0-f48a00a7f6e0",
+      "paths": [
+        "/data",
+        "/tmp",
+        "/cl",
+        "/tmp-cl"
+      ]
+    },
+    {
+      "role": "base",
+      "path": "/mnt/usb/enclave-rpc-production/base-origin.qcow2",
+      "bytes": 4000000000000,
+      "uuid": "11c6bbac-f823-4052-a87a-066eed6ad590",
+      "paths": [
+        "/data",
+        "/tmp"
+      ]
+    }
+  ],
+  "workRoot": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-state-owner-read-r2/views"
+}

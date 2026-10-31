@@ -1,0 +1,11 @@
+{
+  "rc": 0,
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\n** The server may need to be upgraded. See https://openssh.com/pq.html\n",
+  "readOnly": true,
+  "observation": {
+    "rc": 0,
+    "stdout": "\tlinux-vdso.so.1 (0x00007ffe9b9af000)\n\tlibgnutls.so.30 => /home/controladmin/rpc-storage-client-package-20261031-r2/nbd/lib/libgnutls.so.30 (0x00007f2a8de9a000)\n\tlibnl-genl-3.so.200 => /home/controladmin/rpc-storage-client-package-20261031-r2/nbd/lib/libnl-genl-3.so.200 (0x00007f2a8de92000)\n\tlibnl-3.so.200 => /home/controladmin/rpc-storage-client-package-20261031-r2/nbd/lib/libnl-3.so.200 (0x00007f2a8de70000)\n\tlibc.so.6 => /home/controladmin/rpc-storage-client-package-20261031-r2/nbd/lib/libc.so.6 (0x00007f2a8dc00000)\n\tlibp11-kit.so.0 => /home/controladmin/rpc-storage-client-package-20261031-r2/nbd/lib/libp11-kit.so.0 (0x00007f2a8da5c000)\n\tlibidn2.so.0 => /home/controladmin/rpc-storage-client-package-20261031-r2/nbd/lib/libidn2.so.0 (0x00007f2a8de4c000)\n\tlibunistring.so.5 => /home/controladmin/rpc-storage-client-package-20261031-r2/nbd/lib/libunistring.so.5 (0x00007f2a8d8af000)\n\tlibtasn1.so.6 => /home/controladmin/rpc-storage-client-package-20261031-r2/nbd/lib/libtasn1.so.6 (0x00007f2a8de36000)\n\tlibnettle.so.8 => /home/controladmin/rpc-storage-client-package-20261031-r2/nbd/lib/libnettle.so.8 (0x00007f2a8d85a000)\n\tlibhogweed.so.6 => /home/controladmin/rpc-storage-client-package-20261031-r2/nbd/lib/libhogweed.so.6 (0x00007f2a8d812000)\n\tlibgmp.so.10 => /home/controladmin/rpc-storage-client-package-20261031-r2/nbd/lib/libgmp.so.10 (0x00007f2a8d78e000)\n\t/lib64/ld-linux-x86-64.so.2 => /home/controladmin/rpc-storage-client-package-20261031-r2/nbd/lib/ld-linux-x86-64.so.2 (0x00007f2a8e0a6000)\n\tlibffi.so.8 => /home/controladmin/rpc-storage-client-package-20261031-r2/nbd/lib/libffi.so.8 (0x00007f2a8de28000)\n",
+    "stderr": "",
+    "invocation": "a1da48b908394833bac67c073a3b86b6"
+  }
+}

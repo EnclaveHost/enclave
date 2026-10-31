@@ -1,0 +1,4 @@
+ActiveState=failed
+InvocationID=5163c06f4b944e82a4efe1460df513ca
+MainPID=0
+ExecMainStatus=1

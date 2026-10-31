@@ -1,0 +1,89 @@
+{
+  "rc": 0,
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\n** The server may need to be upgraded. See https://openssh.com/pq.html\n",
+  "publicArtifactPreparation": true,
+  "observation": {
+    "archive": "/home/controladmin/rpc-storage-client-package-20261031-r3/storage-client.tar",
+    "bytes": 9574400,
+    "sha256": "64222d5433f24a6d32adf0a84031c1d844aaaca534bf162227657475f494ae9c",
+    "files": {
+      "nbd-client": {
+        "sha256": "0a256b67962d1ffc1ab8bacecd4319b8e459a0535467abb66f83329ce5221167",
+        "bytes": 56376
+      },
+      "lib/libgnutls.so.30.37.1": {
+        "sha256": "ddbae2995750875c07bc218d12a062d73f8250678f54dedda7e9be5068781c98",
+        "bytes": 2065824
+      },
+      "lib/libnl-genl-3.so.200.26.0": {
+        "sha256": "0757db7e6c5fbc4d2a8bbedbac7061fbb8ebb6196b4d2954d3a321e9ff76933c",
+        "bytes": 27984
+      },
+      "lib/libnl-3.so.200.26.0": {
+        "sha256": "afcb69e2ef0b46c2ce7b7483848332fa9462776d33163f64209acf01f86eddd7",
+        "bytes": 133944
+      },
+      "lib/libc.so.6": {
+        "sha256": "3a15d66867d83762c7f2f1e37359cb8f6c5743edb369c65285cb0b1c4f7498bf",
+        "bytes": 2129424
+      },
+      "lib/libp11-kit.so.0.3.1": {
+        "sha256": "a59efd4792d3343dedea1d26a28f5597abfe3369082deb504c4802a31b014897",
+        "bytes": 1714008
+      },
+      "lib/libidn2.so.0.4.0": {
+        "sha256": "6e632fd9a3125db60bbc623719bbc17b0470330321c5b1c57f1ff7190e5551ad",
+        "bytes": 133192
+      },
+      "lib/libunistring.so.5.0.0": {
+        "sha256": "7bcf825cd449892db5105ad2aed91dcf94a27b796426600c765720c584c54dd1",
+        "bytes": 1755312
+      },
+      "lib/libtasn1.so.6.6.3": {
+        "sha256": "59994414d0cdec4f678ef91eaaafc44b26b00bca507e4cc7978caaf79f584173",
+        "bytes": 88216
+      },
+      "lib/libnettle.so.8.8": {
+        "sha256": "a245ed916229583d6fe0b07657b3ed945bc148c28cc08b5266295f620d2b91cc",
+        "bytes": 342280
+      },
+      "lib/libhogweed.so.6.8": {
+        "sha256": "c3c606139d4f7776efa4dbd4a6b62e30c916b07a0cafd8c3ef173d6f093607e3",
+        "bytes": 288920
+      },
+      "lib/libgmp.so.10.5.0": {
+        "sha256": "0ccdfb6d6f5c039465f6d002cf7e4c072d48ac6a2cffc8dd6c748dec31592804",
+        "bytes": 534896
+      },
+      "lib/ld-linux-x86-64.so.2": {
+        "sha256": "c20a2dc8917c755f02b94049356320fe1f62ac7d9f8994731f807d9df39302da",
+        "bytes": 236616
+      },
+      "lib/libffi.so.8.1.4": {
+        "sha256": "00f593fe192f2851b8ce23b25cec2488d769beb5a8f63e8c9e563071e1075153",
+        "bytes": 47672
+      }
+    },
+    "sonames": {
+      "libgnutls.so.30": "libgnutls.so.30.37.1",
+      "libnl-genl-3.so.200": "libnl-genl-3.so.200.26.0",
+      "libnl-3.so.200": "libnl-3.so.200.26.0",
+      "libc.so.6": "libc.so.6",
+      "libp11-kit.so.0": "libp11-kit.so.0.3.1",
+      "libidn2.so.0": "libidn2.so.0.4.0",
+      "libunistring.so.5": "libunistring.so.5.0.0",
+      "libtasn1.so.6": "libtasn1.so.6.6.3",
+      "libnettle.so.8": "libnettle.so.8.8",
+      "libhogweed.so.6": "libhogweed.so.6.8",
+      "libgmp.so.10": "libgmp.so.10.5.0",
+      "ld-linux-x86-64.so.2": "ld-linux-x86-64.so.2",
+      "libffi.so.8": "libffi.so.8.1.4"
+    },
+    "loaderList": "\tlinux-vdso.so.1 (0x00007ffd8b7dc000)\n\tlibgnutls.so.30 => /home/controladmin/rpc-storage-client-package-20261031-r3/nbd/lib/libgnutls.so.30 (0x0000721a877cc000)\n\tlibnl-genl-3.so.200 => /home/controladmin/rpc-storage-client-package-20261031-r3/nbd/lib/libnl-genl-3.so.200 (0x0000721a877c4000)\n\tlibnl-3.so.200 => /home/controladmin/rpc-storage-client-package-20261031-r3/nbd/lib/libnl-3.so.200 (0x0000721a877a2000)\n\tlibc.so.6 => /home/controladmin/rpc-storage-client-package-20261031-r3/nbd/lib/libc.so.6 (0x0000721a87400000)\n\tlibp11-kit.so.0 => /home/controladmin/rpc-storage-client-package-20261031-r3/nbd/lib/libp11-kit.so.0 (0x0000721a8725c000)\n\tlibidn2.so.0 => /home/controladmin/rpc-storage-client-package-20261031-r3/nbd/lib/libidn2.so.0 (0x0000721a8777e000)\n\tlibunistring.so.5 => /home/controladmin/rpc-storage-client-package-20261031-r3/nbd/lib/libunistring.so.5 (0x0000721a870af000)\n\tlibtasn1.so.6 => /home/controladmin/rpc-storage-client-package-20261031-r3/nbd/lib/libtasn1.so.6 (0x0000721a87768000)\n\tlibnettle.so.8 => /home/controladmin/rpc-storage-client-package-20261031-r3/nbd/lib/libnettle.so.8 (0x0000721a87713000)\n\tlibhogweed.so.6 => /home/controladmin/rpc-storage-client-package-20261031-r3/nbd/lib/libhogweed.so.6 (0x0000721a876cb000)\n\tlibgmp.so.10 => /home/controladmin/rpc-storage-client-package-20261031-r3/nbd/lib/libgmp.so.10 (0x0000721a87645000)\n\t/lib64/ld-linux-x86-64.so.2 => /home/controladmin/rpc-storage-client-package-20261031-r3/nbd/lib/ld-linux-x86-64.so.2 (0x0000721a879d8000)\n\tlibffi.so.8 => /home/controladmin/rpc-storage-client-package-20261031-r3/nbd/lib/libffi.so.8 (0x0000721a87639000)\n",
+    "sourcesUnchanged": true,
+    "seconds": 0.051536984043195844,
+    "connectionsMade": false,
+    "installed": false,
+    "invocation": "83f92f2f703646c98fd5dceeace9a4e0"
+  }
+}

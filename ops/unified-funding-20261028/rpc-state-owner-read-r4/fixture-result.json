@@ -1,0 +1,14 @@
+{
+  "uuid": "e7fa948f-ddaa-4875-a7bd-7687d85318b7",
+  "virtualBytes": 33554432,
+  "owners": {
+    "/lost+found": {
+      "uid": 0,
+      "gid": 0,
+      "stat": "Inode: 11   Type: directory    Mode:  0700   Flags: 0x80000\nGeneration: 0    Version: 0x00000000:00000000\nUser:     0   Group:     0   Project:     0   Size: 12288\nFile ACL: 0\nLinks: 2   Blockcount: 24\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ae5bc22:00000000 -- Sat Oct 31 03:00:02 2026\n atime: 0x6ae5bc22:00000000 -- Sat Oct 31 03:00:02 2026\n mtime: 0x6ae5bc22:00000000 -- Sat Oct 31 03:00:02 2026\ncrtime: 0x6ae5bc22:00000000 -- Sat Oct 31 03:00:02 2026\nSize of extra inode fields: 32\nInode checksum: 0x457bdd54\nEXTENTS:\n(0-11):2315-2326\n"
+    }
+  },
+  "fixtureWritableOpenRefused": true,
+  "viewExited": true,
+  "exactChildrenGone": true
+}

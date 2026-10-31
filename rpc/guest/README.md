@@ -52,3 +52,18 @@ Image installation deliberately does not create service accounts, generate an
 engine JWT, attach state storage or enable services. Those need the exact state
 volume ownership and authenticated attachment configuration. An installed image
 is not boot qualification or evidence that the 20 GiB workload budget fits.
+
+`read_owners.py` reads only selected directory metadata through a private read-only
+NBD/FUSE file view. `debugfs -c` avoids scanning allocation bitmaps and forces
+read-only access. The caller owns the finite resource unit and independent
+unmount cleanup. Actual state identities were observed as EL 997:987,
+CL 995:986 and Base 994:985, with distinct identities available in the new image.
+This is directory ownership evidence, not proof of every database file or readiness.
+
+`prepare_storage_client.py` packages the pinned NBD client and thirteen exact
+libraries without replacing host libraries or downloading packages. Its loader
+check requires every dependency, including the interpreter, to resolve to its
+exact private file. It creates no connections and mounts no devices. The resulting
+9,574,400-byte archive has been independently reread; target guest TLS, kernel
+attachment, write/FLUSH/reconnect and exclusive-writer qualification remain pending.
+The engine JWT and account setup still belong in the guest-specific seed.

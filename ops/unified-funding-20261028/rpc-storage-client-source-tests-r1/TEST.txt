@@ -1,0 +1,6 @@
+test_actual_loader_shape_and_private_aliases (test_storage_client.LoaderTests.test_actual_loader_shape_and_private_aliases) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+OK

@@ -1,0 +1,116 @@
+{
+  "bootId": "b39ecfe2-82b2-4c2a-a596-a52630bb59fd",
+  "output": "/home/controladmin/rpc-storage-client-package-20261031-r1",
+  "client": {
+    "archiveMember": "sbin/nbd-client",
+    "bytes": 56376,
+    "path": "/home/controladmin/rpc-nbd-tools-20261030-r1/nbd-client",
+    "sha256": "0a256b67962d1ffc1ab8bacecd4319b8e459a0535467abb66f83329ce5221167"
+  },
+  "libraries": [
+    {
+      "bytes": 2065824,
+      "installedMd5Matched": true,
+      "package": "libgnutls30t64:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libgnutls.so.30.37.1",
+      "sha256": "ddbae2995750875c07bc218d12a062d73f8250678f54dedda7e9be5068781c98",
+      "version": "3.8.3-1.1ubuntu3.6"
+    },
+    {
+      "bytes": 27984,
+      "installedMd5Matched": true,
+      "package": "libnl-genl-3-200:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libnl-genl-3.so.200.26.0",
+      "sha256": "0757db7e6c5fbc4d2a8bbedbac7061fbb8ebb6196b4d2954d3a321e9ff76933c",
+      "version": "3.7.0-0.3build1.1"
+    },
+    {
+      "bytes": 133944,
+      "installedMd5Matched": true,
+      "package": "libnl-3-200:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libnl-3.so.200.26.0",
+      "sha256": "afcb69e2ef0b46c2ce7b7483848332fa9462776d33163f64209acf01f86eddd7",
+      "version": "3.7.0-0.3build1.1"
+    },
+    {
+      "bytes": 2129424,
+      "installedMd5Matched": true,
+      "package": "libc6:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "3a15d66867d83762c7f2f1e37359cb8f6c5743edb369c65285cb0b1c4f7498bf",
+      "version": "2.39-0ubuntu8.9"
+    },
+    {
+      "bytes": 1714008,
+      "installedMd5Matched": true,
+      "package": "libp11-kit0:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libp11-kit.so.0.3.1",
+      "sha256": "a59efd4792d3343dedea1d26a28f5597abfe3369082deb504c4802a31b014897",
+      "version": "0.25.3-4ubuntu2.2"
+    },
+    {
+      "bytes": 133192,
+      "installedMd5Matched": true,
+      "package": "libidn2-0:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libidn2.so.0.4.0",
+      "sha256": "6e632fd9a3125db60bbc623719bbc17b0470330321c5b1c57f1ff7190e5551ad",
+      "version": "2.3.7-2build1.1"
+    },
+    {
+      "bytes": 1755312,
+      "installedMd5Matched": true,
+      "package": "libunistring5:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libunistring.so.5.0.0",
+      "sha256": "7bcf825cd449892db5105ad2aed91dcf94a27b796426600c765720c584c54dd1",
+      "version": "1.1-2build1.1"
+    },
+    {
+      "bytes": 88216,
+      "installedMd5Matched": true,
+      "package": "libtasn1-6:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libtasn1.so.6.6.3",
+      "sha256": "59994414d0cdec4f678ef91eaaafc44b26b00bca507e4cc7978caaf79f584173",
+      "version": "4.19.0-3ubuntu0.24.04.2"
+    },
+    {
+      "bytes": 342280,
+      "installedMd5Matched": true,
+      "package": "libnettle8t64:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libnettle.so.8.8",
+      "sha256": "a245ed916229583d6fe0b07657b3ed945bc148c28cc08b5266295f620d2b91cc",
+      "version": "3.9.1-2.2build1.1"
+    },
+    {
+      "bytes": 288920,
+      "installedMd5Matched": true,
+      "package": "libhogweed6t64:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libhogweed.so.6.8",
+      "sha256": "c3c606139d4f7776efa4dbd4a6b62e30c916b07a0cafd8c3ef173d6f093607e3",
+      "version": "3.9.1-2.2build1.1"
+    },
+    {
+      "bytes": 534896,
+      "installedMd5Matched": true,
+      "package": "libgmp10:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libgmp.so.10.5.0",
+      "sha256": "0ccdfb6d6f5c039465f6d002cf7e4c072d48ac6a2cffc8dd6c748dec31592804",
+      "version": "2:6.3.0+dfsg-2ubuntu6.1"
+    },
+    {
+      "bytes": 236616,
+      "installedMd5Matched": true,
+      "package": "libc6:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "c20a2dc8917c755f02b94049356320fe1f62ac7d9f8994731f807d9df39302da",
+      "version": "2.39-0ubuntu8.9"
+    },
+    {
+      "bytes": 47672,
+      "installedMd5Matched": true,
+      "package": "libffi8:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libffi.so.8.1.4",
+      "sha256": "00f593fe192f2851b8ce23b25cec2488d769beb5a8f63e8c9e563071e1075153",
+      "version": "3.4.6-1build1"
+    }
+  ]
+}

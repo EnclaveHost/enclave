@@ -1,0 +1,77 @@
+[
+  {
+    "file": "stdout.txt",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "CLEANUP.json",
+    "originalSha256": "b79a7672399603f99cb73d06c2175dcbb0f45844f89dbe520bf52097f510f07e",
+    "publicSha256": "b79a7672399603f99cb73d06c2175dcbb0f45844f89dbe520bf52097f510f07e"
+  },
+  {
+    "file": "PINS.json",
+    "originalSha256": "4560be461d5c73f073a49fe2d22652a9e82005151edb66b0293a5092e1760bdd",
+    "publicSha256": "4560be461d5c73f073a49fe2d22652a9e82005151edb66b0293a5092e1760bdd"
+  },
+  {
+    "file": "MANIFEST.json",
+    "originalSha256": "3cb86322bd6590c7b40f6295fd2c1df52360f812edb4778ed0cefdfc97ce1522",
+    "publicSha256": "3cb86322bd6590c7b40f6295fd2c1df52360f812edb4778ed0cefdfc97ce1522"
+  },
+  {
+    "file": "cleanup.py",
+    "originalSha256": "1ba8c758ffc833515c0fb12f9bb5e19097baf3af6c5de413ab6d013305b26aae",
+    "publicSha256": "1ba8c758ffc833515c0fb12f9bb5e19097baf3af6c5de413ab6d013305b26aae"
+  },
+  {
+    "file": "stderr.txt",
+    "originalSha256": "dc226310d5ca48f62cfabfcf8eaa47c8e86c7ef0bd3e2dae1d2821446e15b1ee",
+    "publicSha256": "dc226310d5ca48f62cfabfcf8eaa47c8e86c7ef0bd3e2dae1d2821446e15b1ee"
+  },
+  {
+    "file": "ROOT-REVIEW.md",
+    "originalSha256": "cbe2233e4c587282f70ba483cbf4009fb68a751588fb04757735b56418e19415",
+    "publicSha256": "cbe2233e4c587282f70ba483cbf4009fb68a751588fb04757735b56418e19415"
+  },
+  {
+    "file": "TERMINAL.txt",
+    "originalSha256": "171507a9024671ab3d66470f40dba264ee3cd9566c24bd83a660e36f652ca815",
+    "publicSha256": "171507a9024671ab3d66470f40dba264ee3cd9566c24bd83a660e36f652ca815"
+  },
+  {
+    "file": "read_owners.py",
+    "originalSha256": "3ccb1dcae2dbd6f4eb2b733f3bf370f39e0fa52690d0d713637589e018c771d7",
+    "publicSha256": "3ccb1dcae2dbd6f4eb2b733f3bf370f39e0fa52690d0d713637589e018c771d7"
+  },
+  {
+    "file": "outer.txt",
+    "originalSha256": "3007577fa0c3291ae5bf028d21d5fa8fa47297e415b3f2c26646c2c326272b2d",
+    "publicSha256": "3007577fa0c3291ae5bf028d21d5fa8fa47297e415b3f2c26646c2c326272b2d"
+  },
+  {
+    "file": "RESULT.json",
+    "originalSha256": "f65036bfc4b5daf0dbdd3b9659f8cba0d325f9e4baef1172aca336fc7607b49f",
+    "publicSha256": "f65036bfc4b5daf0dbdd3b9659f8cba0d325f9e4baef1172aca336fc7607b49f"
+  },
+  {
+    "file": "LAUNCH.json",
+    "originalSha256": "f486e9b42afea6f1f5506cb2d9f244830c90228b45a01d1ef2adc0fdac015caa",
+    "publicSha256": "f486e9b42afea6f1f5506cb2d9f244830c90228b45a01d1ef2adc0fdac015caa"
+  },
+  {
+    "file": "inner.txt",
+    "originalSha256": "3007577fa0c3291ae5bf028d21d5fa8fa47297e415b3f2c26646c2c326272b2d",
+    "publicSha256": "3007577fa0c3291ae5bf028d21d5fa8fa47297e415b3f2c26646c2c326272b2d"
+  },
+  {
+    "file": "COMMAND.json",
+    "originalSha256": "1b9b4f338c2f0151412644474a86e4096ce6001a7ae1eb48c4d54d6391b37e26",
+    "publicSha256": "1b9b4f338c2f0151412644474a86e4096ce6001a7ae1eb48c4d54d6391b37e26"
+  },
+  {
+    "file": "run.py",
+    "originalSha256": "39ddfae58c4a332a031767deb0b49ba2eaa887126613fafc66fb281312d94df9",
+    "publicSha256": "39ddfae58c4a332a031767deb0b49ba2eaa887126613fafc66fb281312d94df9"
+  }
+]

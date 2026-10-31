@@ -1,0 +1,19 @@
+{
+  "uuid": "11c6bbac-f823-4052-a87a-066eed6ad590",
+  "virtualBytes": 4000000000000,
+  "owners": {
+    "/data": {
+      "uid": 994,
+      "gid": 985,
+      "stat": "Inode: 1949697   Type: directory    Mode:  0750   Flags: 0x80000\nGeneration: 693182033    Version: 0x00000000:00000008\nUser:   994   Group:   985   Project:     0   Size: 4096\nFile ACL: 0\nLinks: 5   Blockcount: 8\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6adf6906:1765fd34 -- Mon Oct 26 07:51:50 2026\n atime: 0x6adde3b3:b47273d8 -- Sun Oct 25 04:10:43 2026\n mtime: 0x6adf6906:1765fd34 -- Mon Oct 26 07:51:50 2026\ncrtime: 0x6adde3b3:b47273d8 -- Sun Oct 25 04:10:43 2026\nSize of extra inode fields: 32\nInode checksum: 0x479364d0\nEXTENTS:\n(0):499122336\n"
+    },
+    "/tmp": {
+      "uid": 994,
+      "gid": 985,
+      "stat": "Inode: 352257   Type: directory    Mode:  0750   Flags: 0x80000\nGeneration: 1215670828    Version: 0x00000000:00000004\nUser:   994   Group:   985   Project:     0   Size: 4096\nFile ACL: 0\nLinks: 2   Blockcount: 8\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6adde77e:4b87ba74 -- Sun Oct 25 04:26:54 2026\n atime: 0x6adde3b3:b47273d8 -- Sun Oct 25 04:10:43 2026\n mtime: 0x6adde3b3:b47273d8 -- Sun Oct 25 04:10:43 2026\ncrtime: 0x6adde3b3:b47273d8 -- Sun Oct 25 04:10:43 2026\nSize of extra inode fields: 32\nInode checksum: 0x53e423eb\nEXTENTS:\n(0):90177696\n"
+    }
+  },
+  "fixtureWritableOpenRefused": false,
+  "viewExited": true,
+  "exactChildrenGone": true
+}

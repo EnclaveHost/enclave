@@ -1,0 +1,5 @@
+Actual Control packaging succeeded: remote83f92f2f703646c98fd5dceeace9a4e0/local15d0e20692f54e99a1a1ac142080d77c, 0.052s. Archive9574400B SHA64222d5433f24a6d32adf0a84031c1d844aaaca534bf162227657475f494ae9c at /home/controladmin/rpc-storage-client-package-20261031-r3/storage-client.tar. Pinned client+13private libraries; loader resolves all13 exact private files, no system fallback. Independent archive verification fb18cfd83e0542a1b2c4fdb02df274e3 recomputed archive and14file digests/11aliases/rootownership/modes, no extraction.
+
+R1 no readelf failed after one copied file; r2 parser incorrectly expected12 mappings and refused actual13th interpreter mapping. Both retained. Separate read diagnosed exact output; revised validator tested actual filesystem aliases plus missing/duplicate/unknown/unparseable/interpreter/escape refusals in one isolated unittest. No timeout/cap changes.
+
+Artifact preparation only: no NBD connection/block attachment/kernel module/chain execution/VM effect. Existing six-case inert TLS evidence is for previous closure, not this archive or target guest. No production RPC readiness.

@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-state-owner-read-r2/read_owners.py", line 120, in <module>
+    main(json.loads(Path(sys.argv[1]).read_text()))
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-state-owner-read-r2/read_owners.py", line 108, in main
+    fixture=inspect(raw,'raw',['/lost+found'],32*1024**2,write_refusal=True,workspace=work/'fixture' if work else None)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-state-owner-read-r2/read_owners.py", line 71, in inspect
+    if not re.fullmatch(r'/[A-Za-z0-9_/-]+',path):raise ValueError('Fixed metadata path required')
+                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: Fixed metadata path required

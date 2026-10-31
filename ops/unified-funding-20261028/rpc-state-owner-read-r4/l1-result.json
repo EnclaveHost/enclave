@@ -1,0 +1,29 @@
+{
+  "uuid": "a2f2a8b5-06ac-4612-95a0-f48a00a7f6e0",
+  "virtualBytes": 4000000000000,
+  "owners": {
+    "/data": {
+      "uid": 997,
+      "gid": 987,
+      "stat": "Inode: 1789953   Type: directory    Mode:  0750   Flags: 0x80000\nGeneration: 3709096569    Version: 0x00000000:00000021\nUser:   997   Group:   987   Project:     0   Size: 4096\nFile ACL: 0\nLinks: 9   Blockcount: 8\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ae4c210:90c1ab8c -- Fri Oct 30 09:13:04 2026\n atime: 0x6adde3b3:b8fa1c48 -- Sun Oct 25 04:10:43 2026\n mtime: 0x6ae4c210:90c1ab8c -- Fri Oct 30 09:13:04 2026\ncrtime: 0x6adde3b3:b8fa1c48 -- Sun Oct 25 04:10:43 2026\nSize of extra inode fields: 32\nInode checksum: 0x51df753d\nEXTENTS:\n(0):458227872\n"
+    },
+    "/tmp": {
+      "uid": 997,
+      "gid": 987,
+      "stat": "Inode: 1292289   Type: directory    Mode:  0750   Flags: 0x80000\nGeneration: 1220496582    Version: 0x00000000:00000004\nUser:   997   Group:   987   Project:     0   Size: 4096\nFile ACL: 0\nLinks: 2   Blockcount: 8\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6adde77e:4b0da8c0 -- Sun Oct 25 04:26:54 2026\n atime: 0x6adde3b3:b8fa1c48 -- Sun Oct 25 04:10:43 2026\n mtime: 0x6adde3b3:b8fa1c48 -- Sun Oct 25 04:10:43 2026\ncrtime: 0x6adde3b3:b8fa1c48 -- Sun Oct 25 04:10:43 2026\nSize of extra inode fields: 32\nInode checksum: 0xb19d06d2\nEXTENTS:\n(0):330825888\n"
+    },
+    "/cl": {
+      "uid": 995,
+      "gid": 986,
+      "stat": "Inode: 540673   Type: directory    Mode:  0750   Flags: 0x80000\nGeneration: 299619057    Version: 0x00000000:00000005\nUser:   995   Group:   986   Project:     0   Size: 4096\nFile ACL: 0\nLinks: 3   Blockcount: 8\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6adde77e:4b4ab19c -- Sun Oct 25 04:26:54 2026\n atime: 0x6adde3fa:82f22088 -- Sun Oct 25 04:11:54 2026\n mtime: 0x6adde526:5946b90c -- Sun Oct 25 04:16:54 2026\ncrtime: 0x6adde3fa:82f22088 -- Sun Oct 25 04:11:54 2026\nSize of extra inode fields: 32\nInode checksum: 0xfb7061b5\nEXTENTS:\n(0):138412192\n"
+    },
+    "/tmp-cl": {
+      "uid": 995,
+      "gid": 986,
+      "stat": "Inode: 1130497   Type: directory    Mode:  0750   Flags: 0x80000\nGeneration: 1419990835    Version: 0x00000000:00000003\nUser:   995   Group:   986   Project:     0   Size: 4096\nFile ACL: 0\nLinks: 2   Blockcount: 8\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6adde77e:4bc4c350 -- Sun Oct 25 04:26:54 2026\n atime: 0x6adde77e:4bc4c350 -- Sun Oct 25 04:26:54 2026\n mtime: 0x6adde77e:4bc4c350 -- Sun Oct 25 04:26:54 2026\ncrtime: 0x6adde77e:4bc4c350 -- Sun Oct 25 04:26:54 2026\nSize of extra inode fields: 32\nInode checksum: 0xc1567216\nEXTENTS:\n(0):289407136\n"
+    }
+  },
+  "fixtureWritableOpenRefused": false,
+  "viewExited": true,
+  "exactChildrenGone": true
+}
