@@ -1,0 +1,342 @@
+{
+  "rc": 0,
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\n** The server may need to be upgraded. See https://openssh.com/pq.html\n",
+  "readOnly": true,
+  "observation": {
+    "at": 1793434914.541285,
+    "invocation": "429b8dac2e0c4e68a6d8e96cd5f1d1e9",
+    "pid": 324545,
+    "boot": "b39ecfe2-82b2-4c2a-a596-a52630bb59fd",
+    "memory": {
+      "MemTotal": 8326328320,
+      "MemAvailable": 7300128768,
+      "SwapTotal": 0,
+      "SwapFree": 0
+    },
+    "diskFreeBytes": 108929077248,
+    "processes": [
+      {
+        "pid": 1,
+        "comm": "systemd",
+        "start": 3,
+        "rss": 14524416,
+        "exe": "/usr/lib/systemd/systemd"
+      },
+      {
+        "pid": 347,
+        "comm": "systemd-journal",
+        "start": 107,
+        "rss": 47198208,
+        "exe": "/usr/lib/systemd/systemd-journald"
+      },
+      {
+        "pid": 404,
+        "comm": "multipathd",
+        "start": 115,
+        "rss": 27525120,
+        "exe": "/usr/sbin/multipathd"
+      },
+      {
+        "pid": 410,
+        "comm": "systemd-udevd",
+        "start": 116,
+        "rss": 7835648,
+        "exe": "/usr/bin/udevadm"
+      },
+      {
+        "pid": 502,
+        "comm": "hv_kvp_daemon",
+        "start": 132,
+        "rss": 2097152,
+        "exe": "/usr/lib/linux-tools-6.8.0-147/hv_kvp_daemon"
+      },
+      {
+        "pid": 639,
+        "comm": "systemd-resolve",
+        "start": 148,
+        "rss": 13369344,
+        "exe": "/usr/lib/systemd/systemd-resolved"
+      },
+      {
+        "pid": 659,
+        "comm": "systemd-timesyn",
+        "start": 148,
+        "rss": 7733248,
+        "exe": "/usr/lib/systemd/systemd-timesyncd"
+      },
+      {
+        "pid": 720,
+        "comm": "systemd-network",
+        "start": 193,
+        "rss": 9568256,
+        "exe": "/usr/lib/systemd/systemd-networkd"
+      },
+      {
+        "pid": 771,
+        "comm": "cron",
+        "start": 409,
+        "rss": 2752512,
+        "exe": "/usr/sbin/cron"
+      },
+      {
+        "pid": 772,
+        "comm": "dbus-daemon",
+        "start": 409,
+        "rss": 5636096,
+        "exe": "/usr/bin/dbus-daemon"
+      },
+      {
+        "pid": 777,
+        "comm": "caddy",
+        "start": 411,
+        "rss": 60493824,
+        "exe": "/usr/bin/caddy"
+      },
+      {
+        "pid": 786,
+        "comm": "hv_vss_daemon",
+        "start": 413,
+        "rss": 1703936,
+        "exe": "/usr/lib/linux-tools-6.8.0-147/hv_vss_daemon"
+      },
+      {
+        "pid": 787,
+        "comm": "polkitd",
+        "start": 414,
+        "rss": 8126464,
+        "exe": "/usr/lib/polkit-1/polkitd"
+      },
+      {
+        "pid": 796,
+        "comm": "systemd-logind",
+        "start": 416,
+        "rss": 8781824,
+        "exe": "/usr/lib/systemd/systemd-logind"
+      },
+      {
+        "pid": 803,
+        "comm": "udisksd",
+        "start": 416,
+        "rss": 13893632,
+        "exe": "/usr/libexec/udisks2/udisksd"
+      },
+      {
+        "pid": 828,
+        "comm": "node",
+        "start": 419,
+        "rss": 61919232,
+        "exe": "/usr/bin/node"
+      },
+      {
+        "pid": 839,
+        "comm": "node",
+        "start": 422,
+        "rss": 75517952,
+        "exe": "/usr/bin/node"
+      },
+      {
+        "pid": 840,
+        "comm": "node",
+        "start": 422,
+        "rss": 91324416,
+        "exe": "/usr/bin/node"
+      },
+      {
+        "pid": 858,
+        "comm": "rsyslogd",
+        "start": 425,
+        "rss": 6619136,
+        "exe": "/usr/sbin/rsyslogd"
+      },
+      {
+        "pid": 892,
+        "comm": "unattended-upgr",
+        "start": 431,
+        "rss": 23461888,
+        "exe": "/usr/bin/python3.12"
+      },
+      {
+        "pid": 921,
+        "comm": "agetty",
+        "start": 434,
+        "rss": 2097152,
+        "exe": "/usr/sbin/agetty"
+      },
+      {
+        "pid": 952,
+        "comm": "ModemManager",
+        "start": 436,
+        "rss": 12845056,
+        "exe": "/usr/sbin/ModemManager"
+      },
+      {
+        "pid": 9137,
+        "comm": "sshd",
+        "start": 160075,
+        "rss": 8388608,
+        "exe": "/usr/sbin/sshd"
+      },
+      {
+        "pid": 101767,
+        "comm": "node",
+        "start": 21128190,
+        "rss": 132227072,
+        "exe": "/usr/bin/node"
+      },
+      {
+        "pid": 105063,
+        "comm": "node",
+        "start": 21142993,
+        "rss": 110039040,
+        "exe": "/usr/bin/node"
+      },
+      {
+        "pid": 200620,
+        "comm": "fwupd",
+        "start": 40793434,
+        "rss": 49070080,
+        "exe": "/usr/libexec/fwupd/fwupd"
+      },
+      {
+        "pid": 246373,
+        "comm": "ssh",
+        "start": 45178704,
+        "rss": 9637888,
+        "exe": "/usr/bin/ssh"
+      },
+      {
+        "pid": 246408,
+        "comm": "ssh",
+        "start": 45195554,
+        "rss": 10809344,
+        "exe": "/usr/bin/ssh"
+      },
+      {
+        "pid": 246410,
+        "comm": "ssh",
+        "start": 45197954,
+        "rss": 11268096,
+        "exe": "/usr/bin/ssh"
+      },
+      {
+        "pid": 270588,
+        "comm": "node",
+        "start": 49760405,
+        "rss": 258928640,
+        "exe": "/usr/bin/node"
+      },
+      {
+        "pid": 288480,
+        "comm": "ssh",
+        "start": 50741429,
+        "rss": 9142272,
+        "exe": "/usr/bin/ssh"
+      },
+      {
+        "pid": 324248,
+        "comm": "systemd",
+        "start": 69044361,
+        "rss": 11534336,
+        "exe": "/usr/lib/systemd/systemd"
+      },
+      {
+        "pid": 324249,
+        "comm": "(sd-pam)",
+        "start": 69044362,
+        "rss": 3600384,
+        "exe": "/usr/lib/systemd/systemd-executor"
+      },
+      {
+        "pid": 324366,
+        "comm": "sudo",
+        "start": 69044454,
+        "rss": 7077888,
+        "exe": "/usr/bin/sudo"
+      },
+      {
+        "pid": 324367,
+        "comm": "systemd-run",
+        "start": 69044455,
+        "rss": 7602176,
+        "exe": "/usr/bin/systemd-run"
+      },
+      {
+        "pid": 324494,
+        "comm": "sshd",
+        "start": 69063899,
+        "rss": 10485760,
+        "exe": "/usr/sbin/sshd"
+      },
+      {
+        "pid": 324542,
+        "comm": "sshd",
+        "start": 69063912,
+        "rss": 7237632,
+        "exe": "/usr/sbin/sshd"
+      },
+      {
+        "pid": 324543,
+        "comm": "sudo",
+        "start": 69063917,
+        "rss": 7077888,
+        "exe": "/usr/bin/sudo"
+      },
+      {
+        "pid": 324544,
+        "comm": "systemd-run",
+        "start": 69063917,
+        "rss": 7602176,
+        "exe": "/usr/bin/systemd-run"
+      },
+      {
+        "pid": 324545,
+        "comm": "python3",
+        "start": 69063918,
+        "rss": 17432576,
+        "exe": "/usr/bin/python3.12"
+      }
+    ],
+    "jobs": {
+      "rc": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "timers": {
+      "rc": 0,
+      "stdout": "NEXT                             LEFT LAST                              PASSED UNIT                           ACTIVATES\nSat 2026-10-31 08:30:00 UTC      8min Sat 2026-10-31 08:20:09 UTC 1min 45s ago sysstat-collect.timer          sysstat-collect.service\nSat 2026-10-31 08:37:24 UTC     15min Fri 2026-10-30 08:37:24 UTC      23h ago update-notifier-download.timer update-notifier-download.service\nSat 2026-10-31 08:47:49 UTC     25min Fri 2026-10-30 08:47:49 UTC      23h ago systemd-tmpfiles-clean.timer   systemd-tmpfiles-clean.service\nSat 2026-10-31 09:24:53 UTC   1h 2min Sat 2026-10-31 08:15:43 UTC     6min ago fwupd-refresh.timer            fwupd-refresh.service\nSat 2026-10-31 10:32:41 UTC  2h 10min Fri 2026-10-30 14:01:50 UTC      18h ago motd-news.timer                motd-news.service\nSat 2026-10-31 10:56:17 UTC  2h 34min Fri 2026-10-30 22:53:46 UTC       9h ago enclave-native-certs.timer     enclave-native-certs.service\nSat 2026-10-31 14:33:20 UTC        6h Sat 2026-10-31 02:22:44 UTC 5h 59min ago apt-daily.timer                apt-daily.service\nSun 2026-11-01 00:00:00 UTC       15h Sat 2026-10-31 00:00:03 UTC       8h ago dpkg-db-backup.timer           dpkg-db-backup.service\nSun 2026-11-01 00:00:00 UTC       15h Sat 2026-10-31 00:00:03 UTC       8h ago logrotate.timer                logrotate.service\nSun 2026-11-01 00:07:00 UTC       15h Sat 2026-10-31 00:07:02 UTC       8h ago sysstat-summary.timer          sysstat-summary.service\nSun 2026-11-01 03:10:10 UTC       18h Sun 2026-10-25 03:10:43 UTC   6 days ago e2scrub_all.timer              e2scrub_all.service\nSun 2026-11-01 06:35:41 UTC       22h Sat 2026-10-31 06:26:50 UTC 1h 55min ago apt-daily-upgrade.timer        apt-daily-upgrade.service\nSun 2026-11-01 06:45:41 UTC       22h Sat 2026-10-31 02:29:09 UTC 5h 52min ago man-db.timer                   man-db.service\nMon 2026-11-02 00:30:25 UTC 1 day 16h Mon 2026-10-26 00:46:24 UTC   5 days ago fstrim.timer                   fstrim.service\nMon 2026-11-02 16:38:28 UTC    2 days Wed 2026-10-28 08:27:54 UTC   2 days ago update-notifier-motd.timer     update-notifier-motd.service\n-                                   - -                                      - apport-autoreport.timer        apport-autoreport.service\n-                                   - -                                      - snapd.snap-repair.timer        snapd.snap-repair.service\n-                                   - -                                      - ua-timer.timer                 ua-timer.service\n\n18 timers listed.\n",
+      "stderr": ""
+    },
+    "binaries": {
+      "qemu-img": {
+        "path": null,
+        "sha256": null
+      },
+      "xorriso": {
+        "path": null,
+        "sha256": null
+      },
+      "systemd-run": {
+        "path": "/usr/bin/systemd-run",
+        "sha256": "de28cc5757d3789efa5f6fed5659893410469f68b42175d4531f5b34d3a09e16"
+      },
+      "timeout": {
+        "path": "/usr/bin/timeout",
+        "sha256": "12690a043dfd555a6c14ccc1564f5649c18f1762c0d6ff66729948130898ec52"
+      },
+      "python3": {
+        "path": "/usr/bin/python3",
+        "sha256": "e50d468e8b0adfb05733f5b87b3cff34829c4a8c1aea50c865aa8bdfe4bb150f"
+      }
+    },
+    "qemuVersion": {
+      "missing": true
+    },
+    "packageSimulation": {
+      "rc": 0,
+      "stdout": "Reading package lists...\nBuilding dependency tree...\nReading state information...\nThe following additional packages will be installed:\n  libburn4t64 libisoburn1t64 libisofs6t64 liburing2\nSuggested packages:\n  xorriso-tcltk jigit cdck\nRecommended packages:\n  qemu-block-extra\nThe following NEW packages will be installed:\n  libburn4t64 libisoburn1t64 libisofs6t64 liburing2 qemu-utils xorriso\n0 upgraded, 6 newly installed, 0 to remove and 8 not upgraded.\nInst libburn4t64 (1.5.6-1.1build1 Ubuntu:24.04/noble [amd64])\nInst libisofs6t64 (1.5.6.pl01-1.1ubuntu2 Ubuntu:24.04/noble [amd64])\nInst libisoburn1t64 (1:1.5.6-1.1ubuntu3 Ubuntu:24.04/noble [amd64])\nInst liburing2 (2.5-1build1 Ubuntu:24.04/noble [amd64])\nInst qemu-utils (1:8.2.2+ds-0ubuntu1.18 Ubuntu:24.04/noble-updates [amd64])\nInst xorriso (1:1.5.6-1.1ubuntu3 Ubuntu:24.04/noble [amd64])\nConf libburn4t64 (1.5.6-1.1build1 Ubuntu:24.04/noble [amd64])\nConf libisofs6t64 (1.5.6.pl01-1.1ubuntu2 Ubuntu:24.04/noble [amd64])\nConf libisoburn1t64 (1:1.5.6-1.1ubuntu3 Ubuntu:24.04/noble [amd64])\nConf liburing2 (2.5-1build1 Ubuntu:24.04/noble [amd64])\nConf qemu-utils (1:8.2.2+ds-0ubuntu1.18 Ubuntu:24.04/noble-updates [amd64])\nConf xorriso (1:1.5.6-1.1ubuntu3 Ubuntu:24.04/noble [amd64])\n",
+      "stderr": ""
+    },
+    "readOnly": true,
+    "admitted": false
+  }
+}

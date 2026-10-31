@@ -1,0 +1,1 @@
+Fresh authenticated local guestd/physical read to select safe boot media conversion placement. Same reviewed bounded read-only client; no VM command, no private output. Prospective512MiB media job+128MiB outer charged in addition to actual pending and27648MiB operationalfloor. No admission or conversion in this read.

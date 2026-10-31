@@ -1,0 +1,1 @@
+Exclusive public cloud-image copy only, exact621284352 bytes/SHA04e8f246 input,128MiB remote/noSwap/CPU1/120s; source readonly local. Remote2GiB memory/16GiBdisk guard; no existing image overwritten. No privatekeys/productiondata/VM. Local256/220/floor27648 sharedlane.

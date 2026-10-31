@@ -1,0 +1,32 @@
+{
+  "rc": 0,
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\n** The server may need to be upgraded. See https://openssh.com/pq.html\n",
+  "readOnly": false,
+  "observation": {
+    "schema": "rpc-private-media-tools/1",
+    "invocation": "acdf1a49078d407bbde3835721ca9891",
+    "elapsed": 3.0148890959098935,
+    "packages": [
+      "libburn4t64=1.5.6-1.1build1",
+      "libisofs6t64=1.5.6.pl01-1.1ubuntu2",
+      "libisoburn1t64=1:1.5.6-1.1ubuntu3",
+      "liburing2=2.5-1build1",
+      "qemu-utils=1:8.2.2+ds-0ubuntu1.18",
+      "xorriso=1:1.5.6-1.1ubuntu3"
+    ],
+    "debs": {
+      "libburn4t64_1.5.6-1.1build1_amd64.deb": "1ffba645a32e490ef69b3142d12d5a02f1efc495f11179202a760e04baf03c19",
+      "libisoburn1t64_1%3a1.5.6-1.1ubuntu3_amd64.deb": "0ddf6338c1ae7a30bf40a1222f5defebb7415bd46d64f57071c93f132d8c8a93",
+      "libisofs6t64_1.5.6.pl01-1.1ubuntu2_amd64.deb": "05404ceb43455cbbc1c4c0976ac2720976d2764ae5f7a8698ea733887a3184f9",
+      "liburing2_2.5-1build1_amd64.deb": "c2aef62accee92a06263c3ad4ef46132c13e409b54296c44792a20491830a7b0",
+      "qemu-utils_1%3a8.2.2+ds-0ubuntu1.18_amd64.deb": "10695e57937d8a1d0ec6d017a6770d02353ec0c9500e4a36928230b2d39026c5",
+      "xorriso_1%3a1.5.6-1.1ubuntu3_amd64.deb": "7a0644fc4bc269d22ce8d27bd39e14b5849b532097265161938a9b216468f84d"
+    },
+    "binaries": {
+      "qemu-img": "634320b91165669917123e8e79cce1c4d00cee0a4aa4d662d7c0a8186479b3fb",
+      "xorriso": "c66a5be11a674e97ed8983af520eae8fad900b47d104c92bc63e5cf254391922"
+    },
+    "systemPackagesChanged": false,
+    "servicesRestarted": false
+  }
+}

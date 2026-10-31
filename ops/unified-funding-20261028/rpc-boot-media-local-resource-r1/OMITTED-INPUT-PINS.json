@@ -1,0 +1,7 @@
+[
+  {
+    "path": "CONFIG.json",
+    "sha256": "61e9f9aa3c28c5a34d5426659d30a84fb507db160d691abcf293baa8f3f44b83",
+    "reason": "Input config/embedded public authorization material omitted; original retained locally"
+  }
+]

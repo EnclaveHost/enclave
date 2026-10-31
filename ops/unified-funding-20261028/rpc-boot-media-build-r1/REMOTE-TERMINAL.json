@@ -1,0 +1,23 @@
+{
+  "rc": 0,
+  "rows": [
+    {
+      "__REALTIME_TIMESTAMP": "1793435077035207",
+      "MESSAGE": null,
+      "UNIT": "enclave-rpc-boot-media-build-r1-20261031.service",
+      "INVOCATION_ID": "ae01b105f33d4915a8a28eb725db7bad"
+    },
+    {
+      "__REALTIME_TIMESTAMP": "1793435103210754",
+      "MESSAGE": "enclave-rpc-boot-media-build-r1-20261031.service: Deactivated successfully.",
+      "UNIT": "enclave-rpc-boot-media-build-r1-20261031.service",
+      "INVOCATION_ID": "ae01b105f33d4915a8a28eb725db7bad"
+    },
+    {
+      "__REALTIME_TIMESTAMP": "1793435103211097",
+      "MESSAGE": "enclave-rpc-boot-media-build-r1-20261031.service: Consumed 24.042s CPU time, 3.3M memory peak, 0B memory swap peak.",
+      "UNIT": "enclave-rpc-boot-media-build-r1-20261031.service",
+      "INVOCATION_ID": "ae01b105f33d4915a8a28eb725db7bad"
+    }
+  ]
+}

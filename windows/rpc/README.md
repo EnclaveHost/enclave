@@ -711,3 +711,21 @@ Initial admission charges84,385,202,176 bytes free, including the20GiB proposal,
 prospective apps,18GiB reserve, variation and transient role/controller overhead.
 Older host measurements cannot admit this run. Media preparation, actual target
 WMI/ACL behavior, boot, RPC workload fit/sync/finality and consumer cutover remain.
+
+`build-boot-media.py` prepares a fresh standalone dynamic VHDX and NoCloud seed
+inside an independently bounded Linux unit. Its configuration pins the source
+image and tool binaries, uses a new exclusive output directory, enforces memory,
+disk and time limits, compares logical disk contents and extracts the seed for
+byte-for-byte verification. It accepts a public SSH key only; it neither creates
+a VM nor changes a live host's packages. The source image remains unchanged.
+
+The actual first preparation on the existing Control guest completed in24.35s
+under512MiB/one CPU/no swap. Logical comparison and seed readback passed. The
+VHDX file is1,933,574,144 bytes with3,758,096,384 virtual bytes; the seed is378,880
+bytes. Tools were downloaded at exact reviewed Ubuntu package versions and
+extracted privately, with no installation, upgrade or service restart. The local
+host's proposed preparation allocation had failed its pending-aware floor check;
+the Control guest had separate measured capacity and continuous guards. These
+are verified media artifacts, not target boot or RPC readiness evidence. Actual
+target staging, current physical/disk/pending admission and integrated startup
+remain required. Public evidence is in `ops/unified-funding-20261028/rpc-boot-media-build-r1`.

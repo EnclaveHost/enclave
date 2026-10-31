@@ -1,0 +1,12 @@
+[
+  {
+    "path": "REMOTE.json",
+    "sha256": "94eb3f508c78d238a0e5df6a5276c47b69fff2c5c47ff308f6ef9a017920c700",
+    "reason": "Input config/embedded public authorization material omitted; original retained locally"
+  },
+  {
+    "path": "CONFIG.json",
+    "sha256": "60d50559f604bf59fc047e768ea7ab5495145d5f771b4db099aa68294bf8b514",
+    "reason": "Input config/embedded public authorization material omitted; original retained locally"
+  }
+]

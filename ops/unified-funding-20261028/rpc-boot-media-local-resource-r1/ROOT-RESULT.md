@@ -1,0 +1,1 @@
+Authenticated local guestd pending5948MiB, available32324MiB. Proposed media512+outer128 leaves25736MiB below27648MiB operational floor. No local conversion admitted. No author/API attempt or cap/floor relaxation. Private tools and media production moved into existing Control guest with independent resource admission.

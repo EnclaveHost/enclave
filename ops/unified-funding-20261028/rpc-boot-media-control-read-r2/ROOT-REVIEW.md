@@ -1,0 +1,1 @@
+Changed read after exactterminal proof: missing qemu is an observation, not lost output. Same128MiB/30s/noswap/CPU1 remote bound. Adds apt-get --simulate only; no install/network index update/VM mutation. Original failure preserved.

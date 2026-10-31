@@ -1,0 +1,23 @@
+[
+  "sudo",
+  "-n",
+  "systemd-run",
+  "--quiet",
+  "--wait",
+  "--pipe",
+  "--remain-after-exit",
+  "--unit=enclave-rpc-boot-media-read-r1-20261031",
+  "--property=MemoryMax=128M",
+  "--property=MemorySwapMax=0",
+  "--property=CPUQuota=100%",
+  "--property=TasksMax=16",
+  "--property=RuntimeMaxSec=30",
+  "--property=TimeoutStopSec=5",
+  "--property=KillMode=control-group",
+  "--property=UMask=0077",
+  "/usr/bin/python3",
+  "-I",
+  "-B",
+  "-c",
+  "import os,json,pathlib,subprocess,time,shutil,hashlib\np=pathlib.Path\nmem={line.split(':')[0]:int(line.split()[1])*1024 for line in p('/proc/meminfo').read_text().splitlines() if line.split(':')[0] in ['MemTotal','MemAvailable','SwapTotal','SwapFree']}\ndef call(argv):\n r=subprocess.run(argv,capture_output=True,text=True,timeout=5);assert len(r.stdout)<65536 and len(r.stderr)<4096;return {'rc':r.returncode,'stdout':r.stdout,'stderr':r.stderr}\nprocesses=[]\nfor f in p('/proc').iterdir():\n if not f.name.isdigit():continue\n try:\n  stat=(f/'stat').read_text().rsplit(')',1)[1].split();processes.append({'pid':int(f.name),'comm':(f/'comm').read_text().strip(),'start':int(stat[19]),'rss':int(stat[21])*os.sysconf('SC_PAGE_SIZE'),'exe':str((f/'exe').resolve())})\n except (FileNotFoundError,PermissionError,ProcessLookupError):pass\nassert len(processes)<256\nv=os.statvfs('/home/controladmin');bins={}\nfor name in ['qemu-img','xorriso','systemd-run','timeout','python3']:\n f=shutil.which(name);bins[name]={'path':f,'sha256':hashlib.file_digest(open(f,'rb'),'sha256').hexdigest() if f else None}\nprint(json.dumps({'at':time.time(),'boot':p('/proc/sys/kernel/random/boot_id').read_text().strip(),'memory':mem,'diskFreeBytes':v.f_bavail*v.f_frsize,'processes':processes,'jobs':call(['systemctl','list-jobs','--no-pager','--no-legend']),'timers':call(['systemctl','list-timers','--all','--no-pager']),'binaries':bins,'qemuVersion':call(['qemu-img','--version']),'readOnly':True,'admitted':False}))\n"
+]

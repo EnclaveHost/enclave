@@ -1,0 +1,15 @@
+{
+  "source": "/home/controladmin/rpc-boot-media-20261031-r1/source.qcow2",
+  "sourceSha256": "04e8f2461a16a44e78a370284471f29616cdd9baf1893df25807b71f985b6c94",
+  "tools": "/home/controladmin/rpc-media-tools-20261031-r1/tools",
+  "output": "/home/controladmin/rpc-boot-media-20261031-r1/output",
+  "instance": "rpc-owned-20261031-r1",
+  "binaries": {
+    "qemu-img": "634320b91165669917123e8e79cce1c4d00cee0a4aa4d662d7c0a8186479b3fb",
+    "xorriso": "c66a5be11a674e97ed8983af520eae8fad900b47d104c92bc63e5cf254391922"
+  },
+  "memoryFloorBytes": 2147483648,
+  "diskFloorBytes": 17179869184,
+  "deadlineSeconds": 600,
+  "publicKeySha256": "cea0c538f64df4d420f4e688a07882db3195caecec4d953cc95040b6826b44f2"
+}

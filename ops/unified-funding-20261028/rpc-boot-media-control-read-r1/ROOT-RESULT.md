@@ -1,0 +1,1 @@
+Actual Control read terminal1 because qemu-img is absent; version subprocess raised before output publication. Exact remote service MainPID0/ExecMainStatus1 verified and retained. No image/VM/production mutation. Changed r2 tolerates absent tools and records apt simulation for concrete tooling preparation; no automatic native trial or cap relaxation.

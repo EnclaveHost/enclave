@@ -1,0 +1,1 @@
+Actual read terminal0; remote invocation 429b8dac2e0c4e68a6d8e96cd5f1d1e9. Available7300128768B, disk108929077248B,40processes,empty systemd job queue,swap0. Package simulation succeeds six new tools/libraries,zero upgrades/removals. This qualifies bounded private preparation after live guards, not20GiB RPC/Windows admission. No package installation.

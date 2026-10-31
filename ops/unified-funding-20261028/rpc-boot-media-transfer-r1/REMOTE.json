@@ -1,0 +1,23 @@
+[
+  "sudo",
+  "-n",
+  "systemd-run",
+  "--quiet",
+  "--wait",
+  "--pipe",
+  "--unit=enclave-rpc-media-transfer-r1-20261031",
+  "--property=User=controladmin",
+  "--property=MemoryMax=128M",
+  "--property=MemorySwapMax=0",
+  "--property=CPUQuota=100%",
+  "--property=TasksMax=8",
+  "--property=RuntimeMaxSec=120",
+  "--property=TimeoutStopSec=5",
+  "--property=KillMode=control-group",
+  "--property=UMask=0077",
+  "/usr/bin/python3",
+  "-I",
+  "-B",
+  "-c",
+  "import pathlib,sys,os,hashlib,json,time\nroot=pathlib.Path('/home/controladmin/rpc-boot-media-20261031-r1');root.mkdir(mode=0o700)\nexpected='04e8f2461a16a44e78a370284471f29616cdd9baf1893df25807b71f985b6c94';h=hashlib.sha256();n=0;start=time.monotonic()\nwith (root/'source.qcow2').open('xb') as f:\n while True:\n  b=sys.stdin.buffer.read(1024*1024)\n  if not b:break\n  n+=len(b)\n  if n>621284352 or time.monotonic()-start>110:raise RuntimeError('Input bound')\n  v=os.statvfs(root);m=next(int(x.split()[1])*1024 for x in pathlib.Path('/proc/meminfo').read_text().splitlines() if x.startswith('MemAvailable:'))\n  if v.f_bavail*v.f_frsize<16*1024**3 or m<2*1024**3:raise RuntimeError('Resource guard')\n  h.update(b);f.write(b)\n f.flush();os.fsync(f.fileno())\nif n!=621284352 or h.hexdigest()!=expected:raise RuntimeError('Input mismatch')\nos.chmod(root/'source.qcow2',0o400)\nr={'bytes':n,'sha256':h.hexdigest(),'elapsed':time.monotonic()-start,'invocation':os.environ.get('INVOCATION_ID'),'sourceOnly':True}\n(root/'TRANSFER.json').write_text(json.dumps(r,indent=2)+'\\n');print(json.dumps(r))\n"
+]
