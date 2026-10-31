@@ -1,0 +1,19 @@
+from pathlib import Path
+import json,hashlib,subprocess,os,time
+boot=Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+assert boot=='b39ecfe2-82b2-4c2a-a596-a52630bb59fd'
+mem=next(int(x.split()[1])*1024 for x in Path('/proc/meminfo').read_text().splitlines() if x.startswith('MemAvailable:'))
+disk=os.statvfs('/home/controladmin');free=disk.f_bavail*disk.f_frsize
+assert mem>=2*1024**3+128*1024**2 and free>=16*1024**3
+pins={}
+for name in ['openssl','ssh-keygen']:
+ p=Path('/usr/bin')/name;assert p.resolve()==p
+ with p.open('rb') as f:h=hashlib.file_digest(f,'sha256').hexdigest()
+ pins[name]={'path':str(p),'sha256':h}
+schema=Path('/usr/bin/cloud-init');assert schema.is_file()
+r=subprocess.run([str(schema),'--version'],capture_output=True,text=True,timeout=3)
+assert r.returncode==0 and len(r.stdout)+len(r.stderr)<4096
+source=Path('/usr/lib/python3/dist-packages/cloudinit/config/cc_ssh.py').read_text()
+lines=source.splitlines();start=next(i for i,line in enumerate(lines) if 'if \"ssh_keys\" in cfg' in line)
+branch='\n'.join(lines[start:start+85])
+print(json.dumps({'bootId':boot,'memAvailableBytes':mem,'diskFreeBytes':free,'tools':pins,'cloudInitVersion':(r.stdout+r.stderr).strip(),'atUtcNs':time.time_ns(),'invocation':os.environ.get('INVOCATION_ID'),'readOnly':True,'sshExplicitKeyBranch':branch}))

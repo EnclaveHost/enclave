@@ -1,0 +1,9 @@
+{
+  "run.py": "b40d6ebcc0b79440f9ec46c761f4d2c2df68719d13887a511d7effbeda1abf5f",
+  "capture_local.py": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c",
+  "fixture-etc/group": "7a696fcfba89a55a6d73fa1a03c7f071fad2141340027b17a25db249e26b9be8",
+  "fixture-etc/passwd": "d6042e053109403a43ec5621e0f56bf0730cc29678cd45386b407cf41954b3fb",
+  "frozen/rpc/guest/prepare_seed.py": "a6ffc88230f6b8db4aa98eadf4f8352b0ac9a35ad077a299c831276255a5ce51",
+  "frozen/rpc/guest/credentials.py": "b02baf0cbf2b71fed1caded598381c59763dd885c1867b6ea2e69bc009508158",
+  "frozen/test/rpc-guest/test_credentials.py": "774574cddee8fc49f8f3b2da58022a90d76d610a6b7c92214dce6aee96396bf1"
+}

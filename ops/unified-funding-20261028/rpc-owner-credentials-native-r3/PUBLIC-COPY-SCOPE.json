@@ -1,0 +1,71 @@
+{
+  "publicResultOmitsSshPublicKeyValues": true,
+  "privateKeysAndMediaNeverCopied": true,
+  "originalFileRecords": [
+    {
+      "path": "PINS.json",
+      "sha256": "fe49e1b1118592ed358e2e88151ff1732ca14aa020de80ee30fd5931e12cf1f9"
+    },
+    {
+      "path": "ATTEMPT.json",
+      "sha256": "34346c37ece3d7213a462851361c2306928503e2b1d74f1377bc230455f987eb"
+    },
+    {
+      "path": "TERMINAL.txt",
+      "sha256": "e092bed09801fbe69ad8bd6b66b670a6c735b7eba56bf43566e7d2874641c077"
+    },
+    {
+      "path": "outer.log",
+      "sha256": "a28f9898ee6f4d9e385101c0e52aa7984cb970b89243908a83fc2ef3029bc417"
+    },
+    {
+      "path": "RESULT.json",
+      "sha256": "41100d68aa7d42c17425fae39f5963cc306f7e0d632a92bf0cb5cb935734b1e2"
+    },
+    {
+      "path": "LAUNCH.json",
+      "sha256": "0e16a4d88ee122275fa1cffecd96fe459a51e4863b680a7dd09263520d32498e"
+    },
+    {
+      "path": "inner.log",
+      "sha256": "cbded118c029d7b86524886b884fad0d3a958bb5c223e5eee6fe4a42293c94f9"
+    },
+    {
+      "path": "FINAL-SOURCE-COMPARISON.json",
+      "sha256": "07ddaddf8c6d46072300c5083443abbd2b622ab024c37f49255f8e59b84e9754"
+    },
+    {
+      "path": "COMMAND.json",
+      "sha256": "81ba8e4062135b1a9e27c820b639ee30823945af953124eb782a82bd2113f8e1"
+    },
+    {
+      "path": "run.py",
+      "sha256": "b40d6ebcc0b79440f9ec46c761f4d2c2df68719d13887a511d7effbeda1abf5f"
+    },
+    {
+      "path": "capture_local.py",
+      "sha256": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c"
+    },
+    {
+      "path": "fixture-etc/group",
+      "sha256": "7a696fcfba89a55a6d73fa1a03c7f071fad2141340027b17a25db249e26b9be8"
+    },
+    {
+      "path": "fixture-etc/passwd",
+      "sha256": "d6042e053109403a43ec5621e0f56bf0730cc29678cd45386b407cf41954b3fb"
+    },
+    {
+      "path": "frozen/rpc/guest/prepare_seed.py",
+      "sha256": "a6ffc88230f6b8db4aa98eadf4f8352b0ac9a35ad077a299c831276255a5ce51"
+    },
+    {
+      "path": "frozen/rpc/guest/credentials.py",
+      "sha256": "b02baf0cbf2b71fed1caded598381c59763dd885c1867b6ea2e69bc009508158"
+    },
+    {
+      "path": "frozen/test/rpc-guest/test_credentials.py",
+      "sha256": "774574cddee8fc49f8f3b2da58022a90d76d610a6b7c92214dce6aee96396bf1"
+    }
+  ],
+  "operatorContextRetainedLocally": []
+}

@@ -1,0 +1,53 @@
+{
+  "publicResultOmitsSshPublicKeyValues": true,
+  "privateKeysAndMediaNeverCopied": true,
+  "originalFileRecords": [
+    {
+      "path": "read.py",
+      "sha256": "009df0c8251228499f5ebe02349bd7110a19fbaa5dabf27db72a12930f0e1d2e"
+    },
+    {
+      "path": "SSH.json",
+      "sha256": "0574c7d96d7cd5f60d64c86c4a0de321785319bf9aad8eadf9221729ce6db20e"
+    },
+    {
+      "path": "ATTEMPT.json",
+      "sha256": "c0056e18d7f40b1b268229d9b879295db4abf478061f776b8b3e3b5908f01e0d"
+    },
+    {
+      "path": "TERMINAL.txt",
+      "sha256": "e092bed09801fbe69ad8bd6b66b670a6c735b7eba56bf43566e7d2874641c077"
+    },
+    {
+      "path": "outer.log",
+      "sha256": "d7a173b67065c1f42af911947433811bc9d9e29c32b0ca4d2fc7d132de75f32a"
+    },
+    {
+      "path": "RESULT.json",
+      "sha256": "12d3200c7a9312ea01bb1e8951a246bf15ce8e5e46f3d963dd272d7496a763ef"
+    },
+    {
+      "path": "LAUNCH.json",
+      "sha256": "e6c28eebc91caba778f786efb6edf26a4436d2adf0020544fe384840ed78d72b"
+    },
+    {
+      "path": "inner.log",
+      "sha256": "f54bba8d297382ae4fb058697b3071b42f9b288dd035f467cbf2a71f1df1e65a"
+    },
+    {
+      "path": "COMMAND.json",
+      "sha256": "86bd592400b61d27667a5eec61357b92636b27342f37f86c6c0054499869f604"
+    },
+    {
+      "path": "run.py",
+      "sha256": "e70ee5481cc6fa1913b0cd959d3e8e6b180f6923035a8717675b31881bed10e9"
+    }
+  ],
+  "operatorContextRetainedLocally": [
+    {
+      "path": "REMOTE.json",
+      "sha256": "87c482fbefcbec645f740a3657f03438e5cdc71e8391ea86fa6e2450d003e8c8",
+      "retainedLocally": true
+    }
+  ]
+}

@@ -139,3 +139,20 @@ separate EL/CL JWT group. Files and local private media are 0600. This candidate
 still does not supply the live attachment contract/server receipt or enable
 attachment/client startup. The earlier public seed artifacts remain unchanged;
 credential-capable source and isolated tests are not target first-boot proof.
+
+The first full private seed candidate was rejected by the installed cloud-init
+schema because `ssh_genkeytypes: []` violates its minimum list length. The corrected
+renderer omits that setting: inspection of the installed SSH module confirms that
+explicit `ssh_keys` takes the supplied-key branch instead of automatic generation.
+The failed artifact and its credentials are retained; the repaired seed reuses the
+same identity in a separate output directory.
+
+The corrected 13,185,024-byte private candidate includes 36 files, including the
+attachment helper and both attachment/mount unit pairs. Actual ISO readback,
+independent file/mode/key-pair verification, installed cloud-init CLI validation,
+and validation against the schema read from the prepared guest's ext4 image passed.
+All 15 disposable credential/TLS tests also passed after the renderer correction.
+These are offline checks, not execution of cloud-init modules or kernel mounts.
+The private candidate is retained on the operator's Control VM and must never be
+published. It still requires the fresh original-deadline attachment contract and
+actual server readiness receipts before any attachment or client start.

@@ -1,0 +1,25 @@
+{
+  "rc": 0,
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\n** The server may need to be upgraded. See https://openssh.com/pq.html\n",
+  "readOnly": true,
+  "observation": {
+    "bootId": "b39ecfe2-82b2-4c2a-a596-a52630bb59fd",
+    "memAvailableBytes": 7275073536,
+    "diskFreeBytes": 99722928128,
+    "tools": {
+      "openssl": {
+        "path": "/usr/bin/openssl",
+        "sha256": "b4f547c0f16272d1cc7f870330a6f2c243710c335e7a99c734ff7a0c6fdb2503"
+      },
+      "ssh-keygen": {
+        "path": "/usr/bin/ssh-keygen",
+        "sha256": "f0b9e19ffa077d62ef6795a44d50c721f03456067a874395e015ec69c276dca6"
+      }
+    },
+    "cloudInitVersion": "/usr/bin/cloud-init 26.1-0ubuntu1~24.04.1",
+    "atUtcNs": 1793445606521594302,
+    "invocation": "2d1e715d87d84f1ebf5410e7e7fe7b82",
+    "readOnly": true,
+    "sshExplicitKeyBranch": "    if \"ssh_keys\" in cfg:\n        # if there are keys and/or certificates in cloud-config, use them\n        cert_config = []\n        for key, val in cfg[\"ssh_keys\"].items():\n            if key not in CONFIG_KEY_TO_FILE:\n                if re.match(\n                    \"^(ecdsa-sk|ed25519-sk)_(private|public|certificate)$\", key\n                ):\n                    reason = \"unsupported\"\n                else:\n                    reason = \"unrecognized\"\n                LOG.warning('Skipping %s ssh_keys entry: \"%s\"', reason, key)\n                continue\n            tgt_fn = CONFIG_KEY_TO_FILE[key][0]\n            tgt_perms = CONFIG_KEY_TO_FILE[key][1]\n            util.write_file(tgt_fn, val, tgt_perms)\n            # set server to present the most recently identified certificate\n            if \"_certificate\" in key:\n                cert_config.append((\"HostCertificate\", str(tgt_fn)))\n\n        if cert_config:\n            ssh_util.append_ssh_config(cert_config)\n\n        for private_type, public_type in PRIV_TO_PUB.items():\n            if (\n                public_type in cfg[\"ssh_keys\"]\n                or private_type not in cfg[\"ssh_keys\"]\n            ):\n                continue\n            private_file, public_file = (\n                CONFIG_KEY_TO_FILE[private_type][0],\n                CONFIG_KEY_TO_FILE[public_type][0],\n            )\n            cmd = [\"sh\", \"-xc\", KEY_GEN_TPL % (private_file, public_file)]\n            try:\n                # TODO(harlowja): Is this guard needed?\n                with util.SeLinuxGuard(\"/etc/ssh\", recursive=True):\n                    subp.subp(cmd, capture=False)\n                LOG.debug(\n                    \"Generated a key for %s from %s\", public_file, private_file\n                )\n            except Exception:\n                util.logexc(\n                    LOG,\n                    \"Failed generating a key for \"\n                    f\"{public_file} from {private_file}\",\n                )\n    else:\n        # if not, generate them\n        genkeys = util.get_cfg_option_list(\n            cfg, \"ssh_genkeytypes\", GENERATE_KEY_NAMES\n        )\n        # remove keys that are not supported in fips mode if its enabled\n        key_names = (\n            genkeys\n            if not util.fips_enabled()\n            else [\n                names\n                for names in genkeys\n                if names not in FIPS_UNSUPPORTED_KEY_NAMES\n            ]\n        )\n        skipped_keys = set(genkeys).difference(key_names)\n        if skipped_keys:\n            LOG.debug(\n                \"skipping keys that are not supported in fips mode: %s\",\n                \",\".join(skipped_keys),\n            )\n\n        for keytype in key_names:\n            keyfile = KEY_FILE_TPL % (keytype)\n            if os.path.exists(keyfile):\n                continue\n            util.ensure_dir(os.path.dirname(keyfile))\n            cmd = [\"ssh-keygen\", \"-t\", keytype, \"-N\", \"\", \"-f\", keyfile]\n\n            # TODO(harlowja): Is this guard needed?\n            with util.SeLinuxGuard(\"/etc/ssh\", recursive=True):\n                try:\n                    out, err = subp.subp(\n                        cmd, capture=True, update_env={\"LANG\": \"C\"}\n                    )\n                    if not util.get_cfg_option_bool(\n                        cfg, \"ssh_quiet_keygen\", False\n                    ):"
+  }
+}

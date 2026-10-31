@@ -148,8 +148,10 @@ def seed_material(config,instance):
     public=material['public'];attempt=public['attempt']
     directories=['/etc/enclave-rpc/storage','/etc/enclave-rpc/storage/'+attempt]
     directories.extend('/etc/enclave-rpc/storage/'+attempt+'/'+role for role in ('l1','base'))
+    # Explicit ssh_keys bypasses automatic generation; an empty ssh_genkeytypes
+    # list is invalid under the installed cloud-init schema. Omit that setting.
     cloud={'bootcmd':[['/usr/bin/install','-d','-m','0700',*directories]],
-           'ssh_keys':material['ssh_keys'],'ssh_deletekeys':True,'ssh_genkeytypes':[],
+           'ssh_keys':material['ssh_keys'],'ssh_deletekeys':True,
            'ssh_quiet_keygen':True,'ssh_publish_hostkeys':{'enabled':False}}
     # /etc/enclave-rpc itself must remain traversable for the EL/CL group JWT.
     return material['writes'],cloud,{'publicReceiptSha256':config['publicReceiptSha256'],

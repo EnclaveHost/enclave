@@ -1,0 +1,24 @@
+{
+  "rc": 0,
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\n** The server may need to be upgraded. See https://openssh.com/pq.html\n",
+  "readOnly": true,
+  "observation": {
+    "bootId": "b39ecfe2-82b2-4c2a-a596-a52630bb59fd",
+    "memAvailableBytes": 7289839616,
+    "diskFreeBytes": 99762044928,
+    "tools": {
+      "openssl": {
+        "path": "/usr/bin/openssl",
+        "sha256": "b4f547c0f16272d1cc7f870330a6f2c243710c335e7a99c734ff7a0c6fdb2503"
+      },
+      "ssh-keygen": {
+        "path": "/usr/bin/ssh-keygen",
+        "sha256": "f0b9e19ffa077d62ef6795a44d50c721f03456067a874395e015ec69c276dca6"
+      }
+    },
+    "cloudInitVersion": "/usr/bin/cloud-init 26.1-0ubuntu1~24.04.1",
+    "atUtcNs": 1793445381263626556,
+    "invocation": "7cfe087238184b62879d8b8c1f8bbca7",
+    "readOnly": true
+  }
+}

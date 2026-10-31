@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 1.0530175101011992,
+  "stdout": "",
+  "stderr": "test_01_owned_modes (__main__.Credentials.test_01_owned_modes) ... ok\ntest_02_attempt_cannot_be_reused (__main__.Credentials.test_02_attempt_cannot_be_reused) ... ok\ntest_03_wrong_guest (__main__.Credentials.test_03_wrong_guest) ... ok\ntest_04_wrong_receipt (__main__.Credentials.test_04_wrong_receipt) ... ok\ntest_05_role_authorities_separate (__main__.Credentials.test_05_role_authorities_separate) ... ok\ntest_06_client_key_substitution (__main__.Credentials.test_06_client_key_substitution) ... ok\ntest_07_public_permissions_refused (__main__.Credentials.test_07_public_permissions_refused) ... ok\ntest_08_symlink_refused (__main__.Credentials.test_08_symlink_refused) ... ok\ntest_09_guest_has_only_clients (__main__.Credentials.test_09_guest_has_only_clients) ... ok\ntest_10_ssh_private_substitution (__main__.Credentials.test_10_ssh_private_substitution) ... ok\ntest_11_seed_directory_access (__main__.Credentials.test_11_seed_directory_access) ... ok\ntest_12_real_mutual_tls (__main__.Credentials.test_12_real_mutual_tls) ... ok\ntest_13_cross_role_tls_refused (__main__.Credentials.test_13_cross_role_tls_refused) ... ok\ntest_14_wrong_server_name_refused (__main__.Credentials.test_14_wrong_server_name_refused) ... ok\ntest_15_private_iso_readback (__main__.Credentials.test_15_private_iso_readback) ... ok\n\n----------------------------------------------------------------------\nRan 15 tests in 0.883s\n\nOK\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 1413
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

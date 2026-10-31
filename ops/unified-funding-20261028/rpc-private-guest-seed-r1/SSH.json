@@ -1,0 +1,17 @@
+[
+  "/usr/bin/ssh",
+  "-oBatchMode=yes",
+  "-oStrictHostKeyChecking=yes",
+  "-oConnectTimeout=5",
+  "-oControlMaster=no",
+  "-oControlPath=none",
+  "-oServerAliveInterval=5",
+  "-oServerAliveCountMax=2",
+  "-oIdentitiesOnly=yes",
+  "-i",
+  "/home/steven/.ssh/minipc",
+  "-oProxyJump=minipc",
+  "-oHostKeyAlias=[127.0.0.1]:32423",
+  "-oUserKnownHostsFile=/home/steven/Documents/Codex/2026-10-18/wo/work/control-vm/known_hosts",
+  "controladmin@172.17.28.159"
+]

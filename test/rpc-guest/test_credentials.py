@@ -65,6 +65,7 @@ class Credentials(unittest.TestCase):
         dirs=cloud['bootcmd'][0][4:]
         self.assertNotIn('/etc/enclave-rpc',dirs)
         self.assertEqual(len(dirs),4);self.assertFalse(cloud['ssh_publish_hostkeys']['enabled'])
+        self.assertNotIn('ssh_genkeytypes',cloud)
         self.assertNotIn('PRIVATE KEY',json.dumps(public))
         self.assertEqual(public['sshHostPublicKey'],cloud['ssh_keys']['ed25519_public'])
     def tls(self,client_role,hostname=None):

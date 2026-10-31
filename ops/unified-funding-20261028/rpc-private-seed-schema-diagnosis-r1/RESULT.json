@@ -1,0 +1,26 @@
+{
+  "rc": 0,
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\n** The server may need to be upgraded. See https://openssh.com/pq.html\n",
+  "readOnly": true,
+  "observation": {
+    "errors": [
+      {
+        "path": [
+          "ssh_genkeytypes"
+        ],
+        "validator": "minItems",
+        "schemaPath": [
+          "allOf",
+          44,
+          "properties",
+          "ssh_genkeytypes",
+          "minItems"
+        ]
+      }
+    ],
+    "schema": "/usr/lib/python3/dist-packages/cloudinit/config/schemas/schema-cloud-config-v1.json",
+    "schemaDialect": "http://json-schema.org/draft-04/schema#",
+    "invocation": "d5beed3da776470c8eaafd36474d122a",
+    "privateValuesDisclosed": false
+  }
+}
