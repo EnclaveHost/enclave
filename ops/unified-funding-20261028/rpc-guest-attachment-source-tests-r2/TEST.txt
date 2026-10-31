@@ -1,0 +1,14 @@
+test_actual_roles (test_attach_storage.AttachmentContractTests.test_actual_roles) ... ok
+test_adoption_exact_binding_and_time (test_attach_storage.AttachmentContractTests.test_adoption_exact_binding_and_time) ... ok
+test_consumed_receipt_not_overwritten (test_attach_storage.AttachmentContractTests.test_consumed_receipt_not_overwritten) ... ok
+test_fixed_role_identity (test_attach_storage.AttachmentContractTests.test_fixed_role_identity) ... ok
+test_mount_dependencies (test_attach_storage.AttachmentContractTests.test_mount_dependencies) ... ok
+test_no_extra_fields_or_omission (test_attach_storage.AttachmentContractTests.test_no_extra_fields_or_omission) ... ok
+test_original_deadline_not_extended (test_attach_storage.AttachmentContractTests.test_original_deadline_not_extended) ... ok
+test_replaced_owner_and_exit_refused_before_ready (test_attach_storage.AttachmentContractTests.test_replaced_owner_and_exit_refused_before_ready) ... ok
+test_wrong_boot (test_attach_storage.AttachmentContractTests.test_wrong_boot) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.002s
+
+OK

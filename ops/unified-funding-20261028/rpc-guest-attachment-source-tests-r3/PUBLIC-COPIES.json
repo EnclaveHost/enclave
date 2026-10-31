@@ -1,0 +1,77 @@
+[
+  {
+    "path": "COMMAND.json",
+    "originalSha256": "c423ea471fe423e3f7180a70a41056bb3ab71ce335f251a32f96ab8c2df4b17d",
+    "publicSha256": "c423ea471fe423e3f7180a70a41056bb3ab71ce335f251a32f96ab8c2df4b17d"
+  },
+  {
+    "path": "PINS.json",
+    "originalSha256": "bcf87a3e5c5972103fbe3a89b5b2b9de62a65c693a7fd25332f03ee3ce911025",
+    "publicSha256": "bcf87a3e5c5972103fbe3a89b5b2b9de62a65c693a7fd25332f03ee3ce911025"
+  },
+  {
+    "path": "RESULT.json",
+    "originalSha256": "2b0d3e42d6b6504187f0c90a6e4afe0ba87fdf1cd9baf0afe5abde75a8297495",
+    "publicSha256": "2b0d3e42d6b6504187f0c90a6e4afe0ba87fdf1cd9baf0afe5abde75a8297495"
+  },
+  {
+    "path": "ROOT-RESULT.md",
+    "originalSha256": "07de050d95b87bb8ec48c31c5fc7828808baecb8b2b470b84e3c95ef88340afd",
+    "publicSha256": "07de050d95b87bb8ec48c31c5fc7828808baecb8b2b470b84e3c95ef88340afd"
+  },
+  {
+    "path": "TERMINAL.txt",
+    "originalSha256": "845ff4391aa71173edfacc5d10166f108a7a6d104b8867a8cf5f709061de6ea4",
+    "publicSha256": "845ff4391aa71173edfacc5d10166f108a7a6d104b8867a8cf5f709061de6ea4"
+  },
+  {
+    "path": "TEST.txt",
+    "originalSha256": "37de9a2cbbcd9fd20d06e7d5effc7a91618b9c03f2b6ea2a354453310a36d65c",
+    "publicSha256": "37de9a2cbbcd9fd20d06e7d5effc7a91618b9c03f2b6ea2a354453310a36d65c"
+  },
+  {
+    "path": "frozen/rpc/guest/attach_storage.py",
+    "originalSha256": "eeb74d895b441914ce6c7913cbd672f66980134160d47c283671a01b3c51f87c",
+    "publicSha256": "eeb74d895b441914ce6c7913cbd672f66980134160d47c283671a01b3c51f87c"
+  },
+  {
+    "path": "frozen/rpc/guest/units/enclave-rpc-attach-base.service",
+    "originalSha256": "e1e9aa037fc61c0a26346b072f9580ef52d12131af437eda1d0e57eb986bdff7",
+    "publicSha256": "e1e9aa037fc61c0a26346b072f9580ef52d12131af437eda1d0e57eb986bdff7"
+  },
+  {
+    "path": "frozen/rpc/guest/units/enclave-rpc-attach-l1.service",
+    "originalSha256": "55ecd963d4d31cd99606114a01bc0629905f3640d712695d1c9f0374d87f7308",
+    "publicSha256": "55ecd963d4d31cd99606114a01bc0629905f3640d712695d1c9f0374d87f7308"
+  },
+  {
+    "path": "frozen/rpc/guest/units/srv-enclave\\x2dbase\\x2dholder.mount",
+    "originalSha256": "bf48c55a5cb408d2751bc2908e2e6add8ae031e01583cfa7373ee8c2c32a01c0",
+    "publicSha256": "bf48c55a5cb408d2751bc2908e2e6add8ae031e01583cfa7373ee8c2c32a01c0"
+  },
+  {
+    "path": "frozen/rpc/guest/units/srv-enclave\\x2dl1\\x2dpair.mount",
+    "originalSha256": "1c0d9117a85d1b371d1c93b34687da36e051605ae30cefab9ad130ad0d0ccf0c",
+    "publicSha256": "1c0d9117a85d1b371d1c93b34687da36e051605ae30cefab9ad130ad0d0ccf0c"
+  },
+  {
+    "path": "frozen/test/rpc-guest/test_attach_storage.py",
+    "originalSha256": "90ddde16dfc245d447f329adb9de713fec854cff556528ea81405ec3bba4add4",
+    "publicSha256": "90ddde16dfc245d447f329adb9de713fec854cff556528ea81405ec3bba4add4"
+  },
+  {
+    "path": "inner.txt",
+    "originalSha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+    "publicSha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1"
+  },
+  {
+    "path": "outer.txt",
+    "originalSha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+    "publicSha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1"
+  },
+  {
+    "path": "run.py",
+    "originalSha256": "0e7ca79bc000d944bbaa920aea57975a4ed097c814ef6bccbf33bc41d92b7b3b",
+    "publicSha256": "0e7ca79bc000d944bbaa920aea57975a4ed097c814ef6bccbf33bc41d92b7b3b"
+  }
+]

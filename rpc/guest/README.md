@@ -88,3 +88,28 @@ This seed initializes identities and storage-client dependencies only. It does n
 attach state, supply TLS private credentials or start chain clients. Authenticated
 exclusive state attachment, runtime readiness and the independently enforced
 startup deadline must be integrated before target activation.
+
+`attach_storage.py` and the two attachment/mount unit pairs implement guest-side
+authenticated attachment. A protected operator-delivered contract binds the original
+900-second window, guest boot/instance, attempt-specific export names, TLS credentials
+and exact L1/Base filesystem identities. Endpoint selection is explicit and supports
+independently hosted unicast addresses; there is no required Enclave discovery path.
+The helper consumes one attempt, verifies the reserved block device is idle,
+connects the pinned client, checks a read-only preflight mount and publishes READY
+only while the exact owner and original deadline remain valid. Separate static
+mount units provide the writable private-COW filesystems to the existing clients.
+
+The helper never automatically reconnects, starts chain clients, declares RPC
+readiness or produces operator adoption. Adoption must be observed before the
+original deadline. Ambiguous ownership or mounted devices prevent forced cleanup;
+cleanup receipts always leave writer fencing unproven. The server receipt must come
+from the authenticated operator workflow after actual exclusive-COW qualification;
+its boolean fields alone are not evidence of exclusivity.
+
+Actual exact-closure TLS negotiation passed six isolated dummy-export cases, and
+the prepared image contains its NBD kernel module and required tools. Ten attachment
+source fixtures passed. Kernel attachment, native mount-unit behavior, write/FLUSH,
+reconnect, server/guest death cleanup and production readiness remain unqualified.
+Attachment code is not yet in the seed; the server export/credential/deadline
+workflow must be concrete before adding it and starting the guest. NBD process
+and TLS options follow the [upstream-packaged client manual](https://manpages.debian.org/bookworm/nbd-client/nbd-client.8.en.html).

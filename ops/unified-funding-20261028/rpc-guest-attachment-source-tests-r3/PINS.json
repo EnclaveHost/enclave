@@ -1,0 +1,8 @@
+{
+  "rpc/guest/attach_storage.py": "eeb74d895b441914ce6c7913cbd672f66980134160d47c283671a01b3c51f87c",
+  "test/rpc-guest/test_attach_storage.py": "90ddde16dfc245d447f329adb9de713fec854cff556528ea81405ec3bba4add4",
+  "rpc/guest/units/srv-enclave\\x2dl1\\x2dpair.mount": "1c0d9117a85d1b371d1c93b34687da36e051605ae30cefab9ad130ad0d0ccf0c",
+  "rpc/guest/units/srv-enclave\\x2dbase\\x2dholder.mount": "bf48c55a5cb408d2751bc2908e2e6add8ae031e01583cfa7373ee8c2c32a01c0",
+  "rpc/guest/units/enclave-rpc-attach-l1.service": "55ecd963d4d31cd99606114a01bc0629905f3640d712695d1c9f0374d87f7308",
+  "rpc/guest/units/enclave-rpc-attach-base.service": "e1e9aa037fc61c0a26346b072f9580ef52d12131af437eda1d0e57eb986bdff7"
+}

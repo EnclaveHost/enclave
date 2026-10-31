@@ -1,0 +1,64 @@
+{
+  "rc": 0,
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\n** The server may need to be upgraded. See https://openssh.com/pq.html\n",
+  "readOnly": true,
+  "observation": {
+    "versions": {
+      "stdout": "/21347/040755/0/0/.//\n/4243/040755/0/0/..//\n/21348/040755/0/0/6.8.0-147-generic//\n\n",
+      "stderr": "debugfs 1.47.0 (5-Feb-2023)\n"
+    },
+    "modules": {
+      "6.8.0-147-generic": {
+        "kernel/drivers/block/nbd.ko": {
+          "stdout": "",
+          "stderr": "debugfs 1.47.0 (5-Feb-2023)\n/usr/lib/modules/6.8.0-147-generic/kernel/drivers/block/nbd.ko: File not found by ext2_lookup \n"
+        },
+        "kernel/drivers/block/nbd.ko.zst": {
+          "stdout": "Inode: 21507   Type: regular    Mode:  0644   Flags: 0x80000\nGeneration: 3960807068    Version: 0x00000000:00000003\nUser:     0   Group:     0   Project:     0   Size: 28952\nFile ACL: 0\nLinks: 1   Blockcount: 64\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ad370d5:504d2b3c -- Sat Oct 17 12:57:57 2026\n atime: 0x6ad37074:00000000 -- Sat Oct 17 12:56:20 2026\n mtime: 0x6ab4e75c:00000000 -- Thu Sep 24 09:03:24 2026\ncrtime: 0x6ad370d5:504d2b3c -- Sat Oct 17 12:57:57 2026\nSize of extra inode fields: 32\nInode checksum: 0x84155f3d\nEXTENTS:\n(0-7):498392-498399\n",
+          "stderr": "debugfs 1.47.0 (5-Feb-2023)\n"
+        },
+        "kernel/drivers/block/nbd.ko.xz": {
+          "stdout": "",
+          "stderr": "debugfs 1.47.0 (5-Feb-2023)\n/usr/lib/modules/6.8.0-147-generic/kernel/drivers/block/nbd.ko.xz: File not found by ext2_lookup \n"
+        },
+        "modules.dep": {
+          "stdout": "Inode: 22656   Type: regular    Mode:  0644   Flags: 0x80000\nGeneration: 4233431013    Version: 0x00000000:00000003\nUser:     0   Group:     0   Project:     0   Size: 99547\nFile ACL: 0\nLinks: 1   Blockcount: 200\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ad370d5:64174258 -- Sat Oct 17 12:57:57 2026\n atime: 0x6ad3709b:66b8bbc8 -- Sat Oct 17 12:56:59 2026\n mtime: 0x6ad3709b:67ace1e4 -- Sat Oct 17 12:56:59 2026\ncrtime: 0x6ad370d5:64174258 -- Sat Oct 17 12:57:57 2026\nSize of extra inode fields: 32\nInode checksum: 0xf195441e\nEXTENTS:\n(0-24):251571-251595\n",
+          "stderr": "debugfs 1.47.0 (5-Feb-2023)\n"
+        }
+      }
+    },
+    "tools": {
+      "/usr/sbin/modprobe": {
+        "stdout": "Inode: 22863   Type: symlink    Mode:  0777   Flags: 0x0\nGeneration: 703744646    Version: 0x00000000:00000003\nUser:     0   Group:     0   Project:     0   Size: 11\nFile ACL: 0\nLinks: 1   Blockcount: 0\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ad370d5:86e6b1f0 -- Sat Oct 17 12:57:57 2026\n atime: 0x6ad37057:00000000 -- Sat Oct 17 12:55:51 2026\n mtime: 0x69f34bcb:00000000 -- Thu Apr 30 12:32:11 2026\ncrtime: 0x6ad370d5:86e6b1f0 -- Sat Oct 17 12:57:57 2026\nSize of extra inode fields: 32\nInode checksum: 0x8c07d65e\nFast link dest: \"../bin/kmod\"\n",
+        "stderr": "debugfs 1.47.0 (5-Feb-2023)\n"
+      },
+      "/usr/bin/kmod": {
+        "stdout": "Inode: 1846   Type: regular    Mode:  0755   Flags: 0x80000\nGeneration: 1403666968    Version: 0x00000000:00000003\nUser:     0   Group:     0   Project:     0   Size: 174328\nFile ACL: 0\nLinks: 1   Blockcount: 344\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ad370d3:5e97405c -- Sat Oct 17 12:57:55 2026\n atime: 0x6ad37057:00000000 -- Sat Oct 17 12:55:51 2026\n mtime: 0x69f34bcb:00000000 -- Thu Apr 30 12:32:11 2026\ncrtime: 0x6ad370d3:5e97405c -- Sat Oct 17 12:57:55 2026\nSize of extra inode fields: 32\nInode checksum: 0x3edb2d16\nEXTENTS:\n(0-42):51812-51854\n",
+        "stderr": "debugfs 1.47.0 (5-Feb-2023)\n"
+      },
+      "/usr/sbin/blkid": {
+        "stdout": "Inode: 22821   Type: regular    Mode:  0755   Flags: 0x80000\nGeneration: 2301069921    Version: 0x00000000:00000003\nUser:     0   Group:     0   Project:     0   Size: 55720\nFile ACL: 0\nLinks: 1   Blockcount: 112\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ad370d5:85b58248 -- Sat Oct 17 12:57:57 2026\n atime: 0x6ad37059:00000000 -- Sat Oct 17 12:55:53 2026\n mtime: 0x6a85de37:00000000 -- Wed Aug 19 16:47:51 2026\ncrtime: 0x6ad370d5:85b58248 -- Sat Oct 17 12:57:57 2026\nSize of extra inode fields: 32\nInode checksum: 0x1173f0e1\nEXTENTS:\n(0-13):257802-257815\n",
+        "stderr": "debugfs 1.47.0 (5-Feb-2023)\n"
+      },
+      "/usr/bin/mount": {
+        "stdout": "Inode: 1808   Type: regular    Mode:  04755   Flags: 0x80000\nGeneration: 2481989145    Version: 0x00000000:00000003\nUser:     0   Group:     0   Project:     0   Size: 51584\nFile ACL: 0\nLinks: 1   Blockcount: 104\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ad370d3:5cebfda4 -- Sat Oct 17 12:57:55 2026\n atime: 0x6ad37058:00000000 -- Sat Oct 17 12:55:52 2026\n mtime: 0x6a85de37:00000000 -- Wed Aug 19 16:47:51 2026\ncrtime: 0x6ad370d3:5cebfda4 -- Sat Oct 17 12:57:55 2026\nSize of extra inode fields: 32\nInode checksum: 0xb2643743\nEXTENTS:\n(0-12):50589-50601\n",
+        "stderr": "debugfs 1.47.0 (5-Feb-2023)\n"
+      },
+      "/usr/bin/umount": {
+        "stdout": "Inode: 1811   Type: regular    Mode:  04755   Flags: 0x80000\nGeneration: 2640469132    Version: 0x00000000:00000003\nUser:     0   Group:     0   Project:     0   Size: 39296\nFile ACL: 0\nLinks: 1   Blockcount: 80\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ad370d3:5cebfda4 -- Sat Oct 17 12:57:55 2026\n atime: 0x6ad37058:00000000 -- Sat Oct 17 12:55:52 2026\n mtime: 0x6a85de37:00000000 -- Wed Aug 19 16:47:51 2026\ncrtime: 0x6ad370d3:5cebfda4 -- Sat Oct 17 12:57:55 2026\nSize of extra inode fields: 32\nInode checksum: 0x791fde89\nEXTENTS:\n(0-9):50608-50617\n",
+        "stderr": "debugfs 1.47.0 (5-Feb-2023)\n"
+      },
+      "/usr/sbin/groupadd": {
+        "stdout": "Inode: 22906   Type: regular    Mode:  0755   Flags: 0x80000\nGeneration: 2802507528    Version: 0x00000000:00000003\nUser:     0   Group:     0   Project:     0   Size: 72840\nFile ACL: 0\nLinks: 1   Blockcount: 144\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ad370d5:8854eb20 -- Sat Oct 17 12:57:57 2026\n atime: 0x6ad3705d:00000000 -- Sat Oct 17 12:55:57 2026\n mtime: 0x665892b3:00000000 -- Thu May 30 14:52:35 2024\ncrtime: 0x6ad370d5:8854eb20 -- Sat Oct 17 12:57:57 2026\nSize of extra inode fields: 32\nInode checksum: 0xdae09c3a\nEXTENTS:\n(0-17):253914-253931\n",
+        "stderr": "debugfs 1.47.0 (5-Feb-2023)\n"
+      },
+      "/usr/sbin/useradd": {
+        "stdout": "Inode: 22918   Type: regular    Mode:  0755   Flags: 0x80000\nGeneration: 1927847085    Version: 0x00000000:00000003\nUser:     0   Group:     0   Project:     0   Size: 143232\nFile ACL: 0\nLinks: 1   Blockcount: 280\nFragment:  Address: 0    Number: 0    Size: 0\n ctime: 0x6ad370d5:88cefe30 -- Sat Oct 17 12:57:57 2026\n atime: 0x6ad3705d:00000000 -- Sat Oct 17 12:55:57 2026\n mtime: 0x665892b3:00000000 -- Thu May 30 14:52:35 2024\ncrtime: 0x6ad370d5:88cefe30 -- Sat Oct 17 12:57:57 2026\nSize of extra inode fields: 32\nInode checksum: 0x9cc4e281\nEXTENTS:\n(0-34):291785-291819\n",
+        "stderr": "debugfs 1.47.0 (5-Feb-2023)\n"
+      }
+    },
+    "readOnly": true,
+    "kernelExecuted": false,
+    "invocation": "3a409e43a8204205864cc8f63d805c12"
+  }
+}

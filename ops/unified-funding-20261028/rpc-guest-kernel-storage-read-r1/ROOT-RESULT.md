@@ -1,0 +1,1 @@
+Read-only actual prepared Ubuntu root image contains kernel6.8.0-147-generic NBD module kernel/drivers/block/nbd.ko.zst28952B/root0644 plusmodules.dep. Also modprobe/kmod/blkid/mount/umount/groupadd/useradd exist as regular files or expected symlink. Local1040913439734e178b97ab77a5600dbd terminal0. This is offline image metadata, no kernel boot/module execution/attach proof.

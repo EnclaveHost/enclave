@@ -1,0 +1,72 @@
+[
+  {
+    "path": "COMMAND.json",
+    "originalSha256": "970f6d8dd564a4ae9eee326f01a2d92c17418808a12ada87fe677f3ecb4412d0",
+    "publicSha256": "970f6d8dd564a4ae9eee326f01a2d92c17418808a12ada87fe677f3ecb4412d0"
+  },
+  {
+    "path": "PINS.json",
+    "originalSha256": "3e11d038b952fcf06785feab8c52351e20756e86fabe5a5d6446628ff8de1e76",
+    "publicSha256": "3e11d038b952fcf06785feab8c52351e20756e86fabe5a5d6446628ff8de1e76"
+  },
+  {
+    "path": "RESULT.json",
+    "originalSha256": "6be5e47ebb5cc6166f790d3abb92a3193117bd486b29839d47633a976cf82979",
+    "publicSha256": "6be5e47ebb5cc6166f790d3abb92a3193117bd486b29839d47633a976cf82979"
+  },
+  {
+    "path": "TERMINAL.txt",
+    "originalSha256": "845ff4391aa71173edfacc5d10166f108a7a6d104b8867a8cf5f709061de6ea4",
+    "publicSha256": "845ff4391aa71173edfacc5d10166f108a7a6d104b8867a8cf5f709061de6ea4"
+  },
+  {
+    "path": "TEST.txt",
+    "originalSha256": "faa0c4ffbff0b65305699331c2feca3c0aa99fb00f6e0cf818bc5007617f906e",
+    "publicSha256": "faa0c4ffbff0b65305699331c2feca3c0aa99fb00f6e0cf818bc5007617f906e"
+  },
+  {
+    "path": "frozen/rpc/guest/attach_storage.py",
+    "originalSha256": "710b67fbe64a47d2c84e2a7ea1a02d4ef0bf71726d3e49bea281f584c6fa272d",
+    "publicSha256": "710b67fbe64a47d2c84e2a7ea1a02d4ef0bf71726d3e49bea281f584c6fa272d"
+  },
+  {
+    "path": "frozen/rpc/guest/units/enclave-rpc-attach-base.service",
+    "originalSha256": "e1e9aa037fc61c0a26346b072f9580ef52d12131af437eda1d0e57eb986bdff7",
+    "publicSha256": "e1e9aa037fc61c0a26346b072f9580ef52d12131af437eda1d0e57eb986bdff7"
+  },
+  {
+    "path": "frozen/rpc/guest/units/enclave-rpc-attach-l1.service",
+    "originalSha256": "55ecd963d4d31cd99606114a01bc0629905f3640d712695d1c9f0374d87f7308",
+    "publicSha256": "55ecd963d4d31cd99606114a01bc0629905f3640d712695d1c9f0374d87f7308"
+  },
+  {
+    "path": "frozen/rpc/guest/units/srv-enclave\\x2dbase\\x2dholder.mount",
+    "originalSha256": "bf48c55a5cb408d2751bc2908e2e6add8ae031e01583cfa7373ee8c2c32a01c0",
+    "publicSha256": "bf48c55a5cb408d2751bc2908e2e6add8ae031e01583cfa7373ee8c2c32a01c0"
+  },
+  {
+    "path": "frozen/rpc/guest/units/srv-enclave\\x2dl1\\x2dpair.mount",
+    "originalSha256": "1c0d9117a85d1b371d1c93b34687da36e051605ae30cefab9ad130ad0d0ccf0c",
+    "publicSha256": "1c0d9117a85d1b371d1c93b34687da36e051605ae30cefab9ad130ad0d0ccf0c"
+  },
+  {
+    "path": "frozen/test/rpc-guest/test_attach_storage.py",
+    "originalSha256": "b52b94a09dc9ebd5ee952dc357b025666eae8cf625222b1feeb5070f35ccfe7a",
+    "publicSha256": "b52b94a09dc9ebd5ee952dc357b025666eae8cf625222b1feeb5070f35ccfe7a"
+  },
+  {
+    "path": "inner.txt",
+    "originalSha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+    "publicSha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1"
+  },
+  {
+    "path": "outer.txt",
+    "originalSha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+    "publicSha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1"
+  },
+  {
+    "path": "run.py",
+    "originalSha256": "0e7ca79bc000d944bbaa920aea57975a4ed097c814ef6bccbf33bc41d92b7b3b",
+    "publicSha256": "0e7ca79bc000d944bbaa920aea57975a4ed097c814ef6bccbf33bc41d92b7b3b"
+  }
+]

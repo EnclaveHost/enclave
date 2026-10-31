@@ -1,0 +1,57 @@
+[
+  {
+    "path": "ATTEMPT.json",
+    "originalSha256": "d11d388b612d154adf701980a9e76cf2c380ce4da16352ba50a60be2415326e6",
+    "publicSha256": "d7d0eb821ddaa0e4219c31ada213b50407ea6669b6308f9344468f5f460ecce6"
+  },
+  {
+    "path": "COMMAND.json",
+    "originalSha256": "1e1ce5531420e8acf5fb4f9d283e6ade68287a7c272f770d22d1d680c45c476b",
+    "publicSha256": "1e1ce5531420e8acf5fb4f9d283e6ade68287a7c272f770d22d1d680c45c476b"
+  },
+  {
+    "path": "REMOTE.json",
+    "originalSha256": "27845310b528ef61ba1039fb584f1de8950b0d4cbd5b5f730ffdc7826faaa464",
+    "publicSha256": "754adc872423127e168206dbc90dce73d7cebce7ce9cea7cd4e73942e31a343e"
+  },
+  {
+    "path": "RESULT.json",
+    "originalSha256": "036cfdfd638005029614261c9a99f6d68d425fa6232b90d87f7cccb36d704a52",
+    "publicSha256": "036cfdfd638005029614261c9a99f6d68d425fa6232b90d87f7cccb36d704a52"
+  },
+  {
+    "path": "ROOT-RESULT.md",
+    "originalSha256": "f053c7eaa74c9db6d7c15db1c05a204d4be7fe0cb05ee116f8f76d72e3556a45",
+    "publicSha256": "f053c7eaa74c9db6d7c15db1c05a204d4be7fe0cb05ee116f8f76d72e3556a45"
+  },
+  {
+    "path": "SSH.json",
+    "originalSha256": "0574c7d96d7cd5f60d64c86c4a0de321785319bf9aad8eadf9221729ce6db20e",
+    "publicSha256": "0574c7d96d7cd5f60d64c86c4a0de321785319bf9aad8eadf9221729ce6db20e"
+  },
+  {
+    "path": "TERMINAL.txt",
+    "originalSha256": "845ff4391aa71173edfacc5d10166f108a7a6d104b8867a8cf5f709061de6ea4",
+    "publicSha256": "845ff4391aa71173edfacc5d10166f108a7a6d104b8867a8cf5f709061de6ea4"
+  },
+  {
+    "path": "inner.txt",
+    "originalSha256": "f4343acdf9a64e9d6f55a97425dd8fdb0a9b9f8368db0bf3b61e681a34092bf2",
+    "publicSha256": "f4343acdf9a64e9d6f55a97425dd8fdb0a9b9f8368db0bf3b61e681a34092bf2"
+  },
+  {
+    "path": "outer.txt",
+    "originalSha256": "c346244232816353962ceee0946c1f96f614049919788a06b9da72439d352d54",
+    "publicSha256": "c346244232816353962ceee0946c1f96f614049919788a06b9da72439d352d54"
+  },
+  {
+    "path": "read.py",
+    "originalSha256": "7b4a1d97553da4b3b634136b4c4459430834d05e24ad6f939682198a976c06bf",
+    "publicSha256": "7b4a1d97553da4b3b634136b4c4459430834d05e24ad6f939682198a976c06bf"
+  },
+  {
+    "path": "run.py",
+    "originalSha256": "e70ee5481cc6fa1913b0cd959d3e8e6b180f6923035a8717675b31881bed10e9",
+    "publicSha256": "e70ee5481cc6fa1913b0cd959d3e8e6b180f6923035a8717675b31881bed10e9"
+  }
+]

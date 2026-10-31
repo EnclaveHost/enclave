@@ -1,0 +1,12 @@
+[Unit]
+Description=Owned RPC l1 exclusive state volume
+Requires=enclave-rpc-attach-l1.service
+After=enclave-rpc-attach-l1.service
+BindsTo=enclave-rpc-attach-l1.service
+
+[Mount]
+What=/dev/nbd6
+Where=/srv/enclave-l1-pair
+Type=ext4
+Options=rw,nosuid,nodev,noexec
+TimeoutSec=15

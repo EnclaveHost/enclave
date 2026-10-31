@@ -1,0 +1,47 @@
+[
+  {
+    "path": "COMMAND.json",
+    "originalSha256": "0be68f5ea6a1ee1c91ae6593e0965f237d47026087e3f65c53530644acaeb568",
+    "publicSha256": "0be68f5ea6a1ee1c91ae6593e0965f237d47026087e3f65c53530644acaeb568"
+  },
+  {
+    "path": "REMOTE.json",
+    "originalSha256": "ffbd359bb879f8bcb5731f8c5706db37d1a8ca2713bb81b59c081afa9fcd999d",
+    "publicSha256": "cd0b342af2e3ed791764dc81d2614f23ae714cd4a467f2ddd6d0bd8cc0b96f1d"
+  },
+  {
+    "path": "RESULT.json",
+    "originalSha256": "4748ac3d4f06295cd3b7e57bdc62f6d7c0ea3cf2836a1a60f92c1c5cc5a51703",
+    "publicSha256": "4748ac3d4f06295cd3b7e57bdc62f6d7c0ea3cf2836a1a60f92c1c5cc5a51703"
+  },
+  {
+    "path": "SSH.json",
+    "originalSha256": "0574c7d96d7cd5f60d64c86c4a0de321785319bf9aad8eadf9221729ce6db20e",
+    "publicSha256": "0574c7d96d7cd5f60d64c86c4a0de321785319bf9aad8eadf9221729ce6db20e"
+  },
+  {
+    "path": "TERMINAL.txt",
+    "originalSha256": "845ff4391aa71173edfacc5d10166f108a7a6d104b8867a8cf5f709061de6ea4",
+    "publicSha256": "845ff4391aa71173edfacc5d10166f108a7a6d104b8867a8cf5f709061de6ea4"
+  },
+  {
+    "path": "inner.txt",
+    "originalSha256": "49201e8833c5049f180dcbe4b4a6d8ee6c2310f50af8c964e4d05117f670058d",
+    "publicSha256": "49201e8833c5049f180dcbe4b4a6d8ee6c2310f50af8c964e4d05117f670058d"
+  },
+  {
+    "path": "outer.txt",
+    "originalSha256": "572ee17f7e1745e67dc639f6b243fb7789c457a54e5c488c5d890b2e904a2048",
+    "publicSha256": "572ee17f7e1745e67dc639f6b243fb7789c457a54e5c488c5d890b2e904a2048"
+  },
+  {
+    "path": "run.py",
+    "originalSha256": "eb38eed951feb8c1ef3e138d6131d687928aa213dd71fb47f3a1bc81e3539f00",
+    "publicSha256": "eb38eed951feb8c1ef3e138d6131d687928aa213dd71fb47f3a1bc81e3539f00"
+  },
+  {
+    "path": "stderr.txt",
+    "originalSha256": "048e2ba89ae430962e02f5341cf60c694fb7e131cb417790075a56b32ca09992",
+    "publicSha256": "94dbeecfedf57900fced12d73898498aca6d71ec748d21eae0e0cf23f3c901ad"
+  }
+]

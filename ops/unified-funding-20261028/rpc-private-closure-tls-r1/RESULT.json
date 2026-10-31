@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.5509516398888081,
+  "stdout": "{\"cases\": [{\"case\": \"authorized\", \"rc\": 0, \"exportVisible\": true, \"expectedSuccess\": true, \"pass\": true, \"stdout\": \"Negotiation: ..\\nfixture\\n\", \"stderr\": \"\"}, {\"case\": \"wrong-name\", \"rc\": 1, \"exportVisible\": false, \"expectedSuccess\": false, \"pass\": true, \"stdout\": \"Negotiation: ..\\n\", \"stderr\": \"Error: Reading magic from server: Connection reset by peer\\nExiting.\\n\"}, {\"case\": \"missing-client-cert\", \"rc\": 1, \"exportVisible\": false, \"expectedSuccess\": false, \"pass\": true, \"stdout\": \"Negotiation: ..\\n\", \"stderr\": \"Error: Not enough magic from server\\nExiting.\\n\"}, {\"case\": \"unauthorized-client\", \"rc\": 1, \"exportVisible\": false, \"expectedSuccess\": false, \"pass\": true, \"stdout\": \"Negotiation: ..\\n\", \"stderr\": \"Error: Not enough magic from server\\nExiting.\\n\"}, {\"case\": \"plaintext\", \"rc\": 1, \"exportVisible\": false, \"expectedSuccess\": false, \"pass\": true, \"stdout\": \"Negotiation: ..\\n\", \"stderr\": \"\\nE: unexpected error from server.\\nServer said: Option 0x3 not permitted before TLS\\n\"}, {\"case\": \"authorized-after-rejections\", \"rc\": 0, \"exportVisible\": true, \"expectedSuccess\": true, \"pass\": true, \"stdout\": \"Negotiation: ..\\nfixture\\n\", \"stderr\": \"\"}], \"allPass\": true, \"privateNetworkNamespace\": true, \"dummyBytes\": 1048576, \"productionData\": false, \"keysExported\": false, \"privateLibraryClosure\": true, \"kernelAttachmentTested\": false}\n",
+  "stderr": "",
+  "bytesObserved": {
+    "stdout": 1347,
+    "stderr": 0
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

@@ -1,0 +1,67 @@
+[
+  {
+    "path": "ATTEMPT.json",
+    "originalSha256": "d61f8f94c50386b39d2b520d393f0d17a26525e230ec1b66e7854e5cc8e5490b",
+    "publicSha256": "6c3307a33d01a49012c9378fa59157a6e209b3e79b3b9a94cc4d1773a76ee00d"
+  },
+  {
+    "path": "COMMAND.json",
+    "originalSha256": "a0a665cd3f94274965cd4225eed048de29ce5f54f3df81a3ed786f2f4b83b5f7",
+    "publicSha256": "8c120726e840c18acc7bb0f5f25287b2cf7d0cdff16fc62e3531d9267e967565"
+  },
+  {
+    "path": "PINS.json",
+    "originalSha256": "cefdd43657650c620c7613ca5f1b04fa23ba300e5b23be19156c03f6a65356f4",
+    "publicSha256": "cefdd43657650c620c7613ca5f1b04fa23ba300e5b23be19156c03f6a65356f4"
+  },
+  {
+    "path": "RESULT.json",
+    "originalSha256": "d4c1cea2cfdeefc9427c935a2671e86467f8d0743a18fdcfbc645858e70ab338",
+    "publicSha256": "d4c1cea2cfdeefc9427c935a2671e86467f8d0743a18fdcfbc645858e70ab338"
+  },
+  {
+    "path": "ROOT-RESULT.md",
+    "originalSha256": "c6dc2d136b3fdc271b7c1866946c9a133a652099e56573f62d34c4d74d726225",
+    "publicSha256": "c6dc2d136b3fdc271b7c1866946c9a133a652099e56573f62d34c4d74d726225"
+  },
+  {
+    "path": "ROOT-REVIEW.md",
+    "originalSha256": "64e675b630f3c992b0af155f036c692569d89b14259b7f2a50412764313748d0",
+    "publicSha256": "64e675b630f3c992b0af155f036c692569d89b14259b7f2a50412764313748d0"
+  },
+  {
+    "path": "TERMINAL.txt",
+    "originalSha256": "845ff4391aa71173edfacc5d10166f108a7a6d104b8867a8cf5f709061de6ea4",
+    "publicSha256": "845ff4391aa71173edfacc5d10166f108a7a6d104b8867a8cf5f709061de6ea4"
+  },
+  {
+    "path": "capture_local.py",
+    "originalSha256": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c",
+    "publicSha256": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c"
+  },
+  {
+    "path": "closure-manifest.json",
+    "originalSha256": "de8ed00557530e2ced513612559eef2e77b80d8d328489238283b1a8ba59c88c",
+    "publicSha256": "de8ed00557530e2ced513612559eef2e77b80d8d328489238283b1a8ba59c88c"
+  },
+  {
+    "path": "inner.txt",
+    "originalSha256": "71bc1e5c00363c3de67e53736047ae7862f17baf0c5163f6938283aaebca4722",
+    "publicSha256": "71bc1e5c00363c3de67e53736047ae7862f17baf0c5163f6938283aaebca4722"
+  },
+  {
+    "path": "outer.txt",
+    "originalSha256": "0c7e11afe2beccd717f6ecd108f7a03f2413cacb3760ce18e169f2d8fa790a3c",
+    "publicSha256": "0c7e11afe2beccd717f6ecd108f7a03f2413cacb3760ce18e169f2d8fa790a3c"
+  },
+  {
+    "path": "qualify_storage_tls.py",
+    "originalSha256": "b32d018c90005408f1f509ccc4567b4832e090f346c4a03372418a85c6ac7e2e",
+    "publicSha256": "b32d018c90005408f1f509ccc4567b4832e090f346c4a03372418a85c6ac7e2e"
+  },
+  {
+    "path": "run.py",
+    "originalSha256": "239419fe3c702d48011b036130a79eb432a573504a484975d70da6a04f2cd997",
+    "publicSha256": "239419fe3c702d48011b036130a79eb432a573504a484975d70da6a04f2cd997"
+  }
+]
