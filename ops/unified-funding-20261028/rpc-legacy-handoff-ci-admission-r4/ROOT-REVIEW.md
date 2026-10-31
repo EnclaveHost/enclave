@@ -1,0 +1,1 @@
+Diagnostic-only source change and one regression: missing input emits bounded public phase/index/native-error receipt before any host work; no exception message or path publication. Original failed full-input native inspect retained. Same Windows hosted memory/time/death limits, 18 expected tests, no production execution. Peer narrowly reviewed two product changes.

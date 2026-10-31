@@ -1,0 +1,28 @@
+{
+  "started": true,
+  "exactControllerDeath": true,
+  "exitCode": 1,
+  "failure": "target read-only handoff not passed",
+  "result": {
+    "schema": "owned-rpc-target-legacy-handoff/1",
+    "passed": false,
+    "operation": "legacy-memory-inspect-v1",
+    "manifest": "d3167fbcc3b8168ee810ca9db2862382dc00554f8fcc46b2ea4653cc635d84af",
+    "inventory": null,
+    "origin": 680928011,
+    "deadline": 680958011,
+    "elapsedMs": 4059,
+    "root": "C:\\EnclaveRpcLegacyHandoff-51a0543fbfe44c5c9d91b18d9f2ce9f7\\51a0543fbfe44c5c9d91b18d9f2ce9f7",
+    "freeBytes": 83726176256,
+    "requiredFreeBytes": 62709039104,
+    "failures": [
+      "InvalidOperationException: Exact role completion failed",
+      "Public handoff diagnostic: {\"phase\":\"input-parent-authority\",\"inputIndex\":46,\"parentDepth\":1,\"hresult\":-2146233079,\"nativeError\":0}"
+    ],
+    "providerFenced": false,
+    "reservationMayRelease": false,
+    "vmsChanged": false
+  },
+  "reservationMayRelease": false,
+  "vmsChanged": false
+}

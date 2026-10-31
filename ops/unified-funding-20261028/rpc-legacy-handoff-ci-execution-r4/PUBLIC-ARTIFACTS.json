@@ -1,0 +1,86 @@
+[
+  {
+    "path": "compile-controller.out",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "normalized": true
+  },
+  {
+    "path": "compile.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "normalized": true
+  },
+  {
+    "path": "handoff-entry.exe",
+    "originalSha256": "1b40e39446fab5e49dc0ad5f856a872a144d1c60f95033fd1869d9c5e5f1e2b8",
+    "publicSha256": "1b40e39446fab5e49dc0ad5f856a872a144d1c60f95033fd1869d9c5e5f1e2b8",
+    "normalized": false
+  },
+  {
+    "path": "handoff-controller.exe",
+    "originalSha256": "7ed2cb2b93325a584c854a7adeb7ae1cd3e138f06e71a1165739df75eaf97c2f",
+    "publicSha256": "7ed2cb2b93325a584c854a7adeb7ae1cd3e138f06e71a1165739df75eaf97c2f",
+    "normalized": false
+  },
+  {
+    "path": "process-results.json",
+    "originalSha256": "f961edef8db8b0224838558a20dbd958d34c1222e77e76d65cdef2fab4747c90",
+    "publicSha256": "27411aac2ee92d362121ec91751c0b6b774340ee0705121861e0df63bc326def",
+    "normalized": true
+  },
+  {
+    "path": "compile.out",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "normalized": true
+  },
+  {
+    "path": "legacy-handoff.exe",
+    "originalSha256": "a643aaa451dd19628911cc7749a998a840f03296aed4121367bad9708743e50d",
+    "publicSha256": "a643aaa451dd19628911cc7749a998a840f03296aed4121367bad9708743e50d",
+    "normalized": false
+  },
+  {
+    "path": "pins.json",
+    "originalSha256": "fbb9cc39cc96f3da7840809a7d8077dfb3da7793565198281f49d75b3c3e1806",
+    "publicSha256": "b8b11fac26dfb91382bbd122f89079bc1a6ca84dca1f0b31861e1a67a2876ab2",
+    "normalized": true
+  },
+  {
+    "path": "handoff.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "normalized": true
+  },
+  {
+    "path": "compile-controller.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "normalized": true
+  },
+  {
+    "path": "controller-artifact.json",
+    "originalSha256": "2cb44da35e3b6e947f6ed321403f26c86f4b595f06784d09c860f7ba2c377c97",
+    "publicSha256": "ae1fdf31e516403f243f65cd2f9e6968c144fca40711e912f291f9ed93fcf43e",
+    "normalized": true
+  },
+  {
+    "path": "handoff.out",
+    "originalSha256": "7c224b71f3eb626e9febc84eabf9a802d6f31097164978b9cff0027ede4f9c15",
+    "publicSha256": "2f20b44bd2397a5038fdc15826ec7b6ba8501e25ff14fa7d93f9fe701d5ebc60",
+    "normalized": true
+  },
+  {
+    "path": "compile-entry.out",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "normalized": true
+  },
+  {
+    "path": "compile-entry.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "normalized": true
+  }
+]
