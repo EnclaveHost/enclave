@@ -72,14 +72,18 @@ try{
     if(Test-Path -LiteralPath $controller){Get-FileHash -Algorithm SHA256 -LiteralPath $controller|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'controller-artifact.json')}
     $publish=Join-Path $env:RUNNER_TEMP ('rpc-handoff-results-'+[guid]::NewGuid().ToString('N'))
     $null=New-Item -ItemType Directory -Path $publish
+    # Publish the bounded diagnostic prefix even if a later executable is refused.
+    ('RPC_WORKER_RESULT='+$publish)|Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
     $total=0L
     foreach($name in @('compile.out','compile.err','compile-entry.out','compile-entry.err','compile-controller.out','compile-controller.err','handoff.out','handoff.err','process-results.json','pins.json','controller-artifact.json','legacy-handoff.exe','handoff-entry.exe','handoff-controller.exe')){
         $file=Join-Path $work $name
         if(Test-Path -LiteralPath $file){
-            $limit=65536L;if($name.EndsWith('.exe')){$limit=262144L}
+            # Three executables share the unchanged 1MiB aggregate envelope.
+            # This is an artifact limit, not a process-memory admission limit.
+            $limit=65536L;if($name.EndsWith('.exe')){$limit=327680L}
             $stream=[IO.File]::Open($file,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
             try{
-                if($stream.Length -gt $limit -or $total+$stream.Length -gt 1048576){throw 'Artifact bound'}
+                if($stream.Length -gt $limit -or $total+$stream.Length -gt 1048576){throw ('Artifact bound: '+$name+' bytes='+$stream.Length+' priorBytes='+$total+' fileLimit='+$limit+' totalLimit=1048576')}
                 $bytes=New-Object byte[] ([int]$stream.Length);$offset=0
                 while($offset -lt $bytes.Length){$n=$stream.Read($bytes,$offset,$bytes.Length-$offset);if($n -le 0){throw 'Short artifact'};$offset+=$n}
                 if($stream.ReadByte() -ne -1){throw 'Artifact grew'}
@@ -87,5 +91,4 @@ try{
             }finally{$stream.Dispose()}
         }
     }
-    ('RPC_WORKER_RESULT='+$publish)|Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 }
