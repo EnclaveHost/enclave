@@ -100,7 +100,10 @@ namespace Enclave.OwnedRpc {
     Image(args[2]);
     using(var vm=ProtectedAttempt.PinVmGuardianController(args[0],args[1])){
      if(origin<vm.Origin||deadline>vm.Deadline)throw new InvalidOperationException("Original startup deadline differs");
-     string receipt=Observe(vm);Current();Console.WriteLine(receipt);return 0;
+     string receipt=Observe(vm);Current();
+     var json=new JavaScriptSerializer();var result=(Dictionary<string,object>)json.DeserializeObject(receipt);
+     result.Add("envelope",envelope);result.Add("requiredFreeBytes",required);result.Add("freeBytes",memory.Available);
+     Console.WriteLine(json.Serialize(result));return 0;
     }
    }catch(Exception e){Console.Error.WriteLine(e.GetType().Name+": "+e.Message);return 1;}
   }

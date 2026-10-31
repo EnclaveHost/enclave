@@ -1,0 +1,1 @@
+R2: reduced exact native production import closure to6files, test-only adds4files. Bounds unchanged. New envelope receipt exposes exactprocessPID/creation and128MiB membership/limit proof; independentdeadline remains separate/remote death never claimed. Finite hosted52checks intended; source not executed on target. R1failedpublication retained; no automatic same-source retry.

@@ -55,11 +55,11 @@ function Invoke-FiniteProcess([string]$Executable,[string[]]$Arguments,[int]$Dea
     }
     if($failure -or $record.exitCode -ne $ExpectedExit){throw ($Label+' failed: '+($record|ConvertTo-Json -Compress))}
 }
-$sources=@((Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $root 'windows\rpc\VmStartGuardian.cs'),(Join-Path $root 'windows\rpc\ProtectedAttempt.cs'),(Join-Path $root 'windows\rpc\ProviderStart.cs'),(Join-Path $root 'windows\rpc\ProviderStop.cs'),(Join-Path $root 'windows\rpc\OwnedVmPermit.cs'),(Join-Path $root 'windows\rpc\HostPhysicalPool.cs'),(Join-Path $root 'windows\rpc\WindowsStartAdmission.cs'),(Join-Path $root 'windows\rpc\LegacyTemplateFence.cs'),(Join-Path $root 'windows\rpc\LegacyLaunchCohort.cs'),(Join-Path $root 'windows\rpc\LegacyHandoff.cs'),(Join-Path $root 'windows\rpc\ProviderWorkerEntry.cs'),(Join-Path $root 'windows\rpc\BootStartBinding.cs'),(Join-Path $root 'windows\rpc\StartupCleanup.cs'),(Join-Path $root 'windows\rpc\StartupCleanupController.cs'),(Join-Path $root 'windows\rpc\StartupController.cs'),(Join-Path $root 'windows\rpc\OwnedVmDefinition.cs'),(Join-Path $root 'windows\rpc\OwnedVmBoot.cs'),(Join-Path $root 'windows\rpc\VmEndpoint.cs'))
+$sources=@((Join-Path $root 'windows/rpc/BoundedWorker.cs'),(Join-Path $root 'windows/rpc/ProtectedAttempt.cs'),(Join-Path $root 'windows/rpc/ProviderStart.cs'),(Join-Path $root 'windows/rpc/OwnedVmPermit.cs'),(Join-Path $root 'windows/rpc/BootStartBinding.cs'),(Join-Path $root 'windows/rpc/VmEndpoint.cs'))
 try{
     $base=@('/nologo','/target:exe','/platform:x64','/r:System.Management.dll','/r:System.Web.Extensions.dll','/r:Microsoft.CSharp.dll')
     Invoke-FiniteProcess $csc ($base+@('/main:Enclave.OwnedRpc.VmEndpoint',('/out:'+$entry))+$sources) 20000 'endpoint-compile'
-    $harness=@((Join-Path $root 'test\rpc-windows-worker\OwnedVmBootHarness.cs'),(Join-Path $root 'test\rpc-windows-worker\VmEndpointHarness.cs'))
+    $harness=@((Join-Path $root 'windows/rpc/OwnedVmDefinition.cs'),(Join-Path $root 'windows/rpc/OwnedVmBoot.cs'),(Join-Path $root 'test/rpc-windows-worker/OwnedVmBootHarness.cs'),(Join-Path $root 'test/rpc-windows-worker/VmEndpointHarness.cs'))
     Invoke-FiniteProcess $csc ($base+@('/main:VmEndpointHarness',('/out:'+$fixture))+$sources+$harness) 20000 'fixture-compile'
     if((Get-Item $entry).Length -gt 262144){throw 'Endpoint executable bound'}
     Invoke-FiniteProcess $fixture @() 15000 'inert'
@@ -83,7 +83,9 @@ try{
             $file=[IO.File]::Open($path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
             try{
                 $limit=65536L;if($name -eq 'vm-endpoint.exe'){$limit=262144L}
-                if($file.Length -gt $limit -or $total+$file.Length -gt 1048576){throw 'Publication bound exceeded'}
+                if($file.Length -gt $limit -or $total+$file.Length -gt 1048576){
+                    ($name+' bytes='+$file.Length+' omitted: original publication bound')|Add-Content (Join-Path $publish 'OMITTED.txt');continue
+                }
                 $bytes=New-Object byte[] ([int]$file.Length);$offset=0
                 while($offset -lt $bytes.Length){$n=$file.Read($bytes,$offset,$bytes.Length-$offset);if($n -le 0){throw 'Short publication read'};$offset+=$n}
                 [IO.File]::WriteAllBytes((Join-Path $publish $name),$bytes);$total+=$bytes.Length

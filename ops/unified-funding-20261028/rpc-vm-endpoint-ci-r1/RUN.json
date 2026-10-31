@@ -1,0 +1,125 @@
+{
+  "conclusion": "failure",
+  "headSha": "6310ab35e56be195d1a3d18e489a88dfbfb4c0cb",
+  "jobs": [
+    {
+      "completedAt": "2026-10-31T22:00:03Z",
+      "conclusion": "success",
+      "databaseId": 124669844551,
+      "name": "source",
+      "startedAt": "2026-10-31T21:59:55Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-31T21:59:56Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-31T21:59:55Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-31T22:00:00Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8",
+          "number": 2,
+          "startedAt": "2026-10-31T21:59:56Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-31T22:00:00Z",
+          "conclusion": "success",
+          "name": "Assemble exact reviewed source closure",
+          "number": 3,
+          "startedAt": "2026-10-31T22:00:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-31T22:00:01Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+          "number": 4,
+          "startedAt": "2026-10-31T22:00:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-31T22:00:02Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8",
+          "number": 8,
+          "startedAt": "2026-10-31T22:00:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-31T22:00:02Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-10-31T22:00:02Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/EnclaveHost/enclave/actions/runs/41246127154/job/124669844551"
+    },
+    {
+      "completedAt": "2026-10-31T22:00:17Z",
+      "conclusion": "failure",
+      "databaseId": 124669883838,
+      "name": "inert",
+      "startedAt": "2026-10-31T22:00:06Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-31T22:00:08Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-31T22:00:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-31T22:00:09Z",
+          "conclusion": "success",
+          "name": "Run actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+          "number": 2,
+          "startedAt": "2026-10-31T22:00:08Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-31T22:00:12Z",
+          "conclusion": "success",
+          "name": "Verify exact finite source closure",
+          "number": 3,
+          "startedAt": "2026-10-31T22:00:09Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-31T22:00:16Z",
+          "conclusion": "failure",
+          "name": "Compile and exercise inert finite processes",
+          "number": 4,
+          "startedAt": "2026-10-31T22:00:12Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-31T22:00:16Z",
+          "conclusion": "skipped",
+          "name": "Preserve bounded results",
+          "number": 5,
+          "startedAt": "2026-10-31T22:00:16Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-31T22:00:16Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 6,
+          "startedAt": "2026-10-31T22:00:16Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/EnclaveHost/enclave/actions/runs/41246127154/job/124669883838"
+    }
+  ],
+  "status": "completed"
+}

@@ -1,0 +1,1 @@
+Preservation c487aa3d03074f4baf4523dc9dc18057 terminal1/MainPID0 beforecommit. git diff --cached --check rejected raw hosted log trailing whitespace. Exact original now retained in RAW-FAILED-LOG.json base64/SHA, display text strips trailing whitespace only. No hook bypass/source change. New preservation invocation continues staged explicit paths.

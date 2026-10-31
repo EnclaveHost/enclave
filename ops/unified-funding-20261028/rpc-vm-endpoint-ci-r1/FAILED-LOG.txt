@@ -1,0 +1,12 @@
+inert	Compile and exercise inert finite processes	﻿2026-10-31T22:00:12.9358355Z ##[group]Run & ./source-closure/test/rpc-windows-worker/run-endpoint-ci.ps1
+inert	Compile and exercise inert finite processes	2026-10-31T22:00:12.9359265Z ^[[36;1m& ./source-closure/test/rpc-windows-worker/run-endpoint-ci.ps1^[[0m
+inert	Compile and exercise inert finite processes	2026-10-31T22:00:12.9426934Z shell: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.EXE -command ". '{0}'"
+inert	Compile and exercise inert finite processes	2026-10-31T22:00:12.9427608Z ##[endgroup]
+inert	Compile and exercise inert finite processes	2026-10-31T22:00:16.3058538Z Publication bound exceeded
+inert	Compile and exercise inert finite processes	2026-10-31T22:00:16.3059570Z At D:\a\enclave\enclave\source-closure\test\rpc-windows-worker\run-endpoint-ci.ps1:86 char:81
+inert	Compile and exercise inert finite processes	2026-10-31T22:00:16.3061051Z + ...  $total+$file.Length -gt 1048576){throw 'Publication bound exceeded'}
+inert	Compile and exercise inert finite processes	2026-10-31T22:00:16.3061906Z +                                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+inert	Compile and exercise inert finite processes	2026-10-31T22:00:16.3062758Z     + CategoryInfo          : OperationStopped: (Publication bound exceeded:String) [], RuntimeException
+inert	Compile and exercise inert finite processes	2026-10-31T22:00:16.3063668Z     + FullyQualifiedErrorId : Publication bound exceeded
+inert	Compile and exercise inert finite processes	2026-10-31T22:00:16.3064182Z
+inert	Compile and exercise inert finite processes	2026-10-31T22:00:16.3347229Z ##[error]Process completed with exit code 1.
