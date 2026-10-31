@@ -23,6 +23,7 @@
   "windows/vbslike/manager/physical-memory.test.mjs",
   "windows/vbslike/manager/restart.test.mjs",
   "windows/vbslike/manager/server.mjs",
+  "windows/vbslike/manager/shared-physical-reservations.test.mjs",
   "windows/vbslike/manager/shield-profile.mjs",
   "windows/vbslike/manager/wmi-launcher.mjs",
   "windows/vbslike/manager/wmiserve-run.mjs",

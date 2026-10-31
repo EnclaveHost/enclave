@@ -32,7 +32,7 @@ namespace Enclave.OwnedRpc {
         const string SystemSid="S-1-5-18",AdminSid="S-1-5-32-544";
         static readonly UTF8Encoding Utf8=new UTF8Encoding(false,true);
         [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)]
-        static extern SafeFileHandle CreateFile(string path,uint access,uint share,IntPtr attributes,
+        internal static extern SafeFileHandle CreateFile(string path,uint access,uint share,IntPtr attributes,
             uint disposition,uint flags,IntPtr template);
         [DllImport("kernel32.dll",SetLastError=true)]
         static extern bool GetFileInformationByHandle(SafeFileHandle handle,out FileInfo value);
@@ -73,7 +73,7 @@ namespace Enclave.OwnedRpc {
             if(value==null || value.Length!=length) throw new ArgumentException("Hex length");
             foreach(char c in value) if(!((c>='0'&&c<='9') || (c>='a'&&c<='f'))) throw new ArgumentException("Hex encoding");
         }
-        static string LocalPath(string path) {
+        internal static string LocalPath(string path) {
             if(path==null || path.Length>240 || path.Length<4 || path[1]!=':' || path[2]!='\\' ||
                 !Char.IsLetter(path[0]) || path.IndexOf(':',2)>=0 || path.IndexOf('/')>=0 || path.IndexOf('\0')>=0 ||
                 path.IndexOf('"')>=0 || path.IndexOf('\r')>=0 || path.IndexOf('\n')>=0 ||
@@ -82,7 +82,7 @@ namespace Enclave.OwnedRpc {
                 if(segment.Length==0 || segment.EndsWith(".") || segment.EndsWith(" ")) throw new ArgumentException("Ambiguous path segment");
             return path;
         }
-        static void Authority(SafeFileHandle handle,bool strict,bool directory,string label) {
+        internal static void Authority(SafeFileHandle handle,bool strict,bool directory,string label) {
             FileInfo info;
             if(!GetFileInformationByHandle(handle,out info)) throw new Win32Exception(Marshal.GetLastWin32Error());
             if((info.Attributes&0x400)!=0 || ((info.Attributes&0x10)!=0)!=directory)
@@ -147,7 +147,7 @@ namespace Enclave.OwnedRpc {
         public static ProtectedAttempt PinController(string contractPath,string expectedHash) {
             RequireAdministrator();return new ProtectedAttempt(contractPath,expectedHash,true);
         }
-        static void RequireAdministrator() {
+        internal static void RequireAdministrator() {
             using(var identity=WindowsIdentity.GetCurrent()) {
                 var principal=new WindowsPrincipal(identity);
                 if(identity.ImpersonationLevel!=TokenImpersonationLevel.None ||

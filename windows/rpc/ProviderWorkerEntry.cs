@@ -132,13 +132,15 @@ namespace Enclave.OwnedRpc {
             }
         }
 
-        sealed class Runtime : IStopRuntime,IDisposable {
+        sealed class Runtime : IStopRuntime,IPhysicalStartRuntime,IDisposable {
             readonly ProtectedAttempt lease,vm;
             readonly StartIdentity original;
             readonly SafeWaitHandle observer,owner;
             readonly uint observerPid,ownerPid,selfPid;
             readonly long observerCreation,ownerCreation,selfCreation;
             SafeWaitHandle guardian;
+            HostPhysicalPool physicalPool;
+            PhysicalClaim physicalClaim;
             public long Now {get{return BoundedWorker.MonotonicMilliseconds();}}
             internal Runtime(ProtectedAttempt lease,ProtectedAttempt vm,StartIdentity original) {
                 this.lease=lease;this.vm=vm;this.original=original;
@@ -211,6 +213,14 @@ namespace Enclave.OwnedRpc {
                 if(accepted==null)lease.WriteOnce("guardian.accepted",expected+","+lease.Token);
                 else if(accepted!=expected+","+lease.Token)throw new StartGuardRefused("guardian-binding-mismatch");
                 WindowsStartAdmission.Verify(vm);
+                if(physicalPool==null)physicalPool=WindowsStartAdmission.AcquireShared(vm,id,lease.Deadline,out physicalClaim);
+                Common(id);vm.VmPermit.ValidateAccess(Now,false);
+                BoundedWorker.VerifyObserverBeforeResume(guardian.DangerousGetHandle(),lease.GuardianPid,lease.GuardianCreation,vm.Deadline);
+            }
+            public void ConsumePhysicalStart(StartIdentity id) {
+                VerifyBeforeSubmit(id);
+                if(physicalPool==null||physicalClaim==null)throw new InvalidOperationException("Shared physical reservation absent");
+                physicalPool.ConsumeStart(physicalClaim);
                 Common(id);vm.VmPermit.ValidateAccess(Now,false);
                 BoundedWorker.VerifyObserverBeforeResume(guardian.DangerousGetHandle(),lease.GuardianPid,lease.GuardianCreation,vm.Deadline);
             }
@@ -228,7 +238,7 @@ namespace Enclave.OwnedRpc {
                     return h;
                 }catch{h.Dispose();throw;}
             }
-            public void Dispose(){if(guardian!=null)guardian.Dispose();if(owner!=null)owner.Dispose();if(observer!=null)observer.Dispose();}
+            public void Dispose(){if(physicalPool!=null)physicalPool.Dispose();if(guardian!=null)guardian.Dispose();if(owner!=null)owner.Dispose();if(observer!=null)observer.Dispose();}
         }
 
         static int Guardian(string path,string hash,long origin,long deadline) {

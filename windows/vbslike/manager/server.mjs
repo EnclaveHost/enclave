@@ -82,6 +82,7 @@ export class Manager {
   #allocationRevision = 0n;
   #spawnRequests = new Map();
   #recovering = 0;
+  #physicalReservations = null;
   /**
    * @param judgeReady  ({host, port, appId, launcherKey, expectRuntime, deadlineMs}) -> verdict.
    *                    Injected so a test drives it; defaults to ready.mjs's judgeRunning.
@@ -90,7 +91,7 @@ export class Manager {
   constructor({ backend = new HyperVPartitionBackend(), fetchComponent = null, runtimeId = "",
                 runtime = null, shield = null, configEnabled = false, secretsEnabled = false, configSocketServer = false, protectedPorts = false, encVolumes = false, wasmSet = false, memory64 = false, fetchConfig = null, judgeReady = null, readyDeadlineMs = 120_000, answerCheck = null,
                 modelVolumes = null,
-                egress = null, ramPoolMiB = null, physicalRamPoolMiB = null, directBootstrap = false, custodyV2 = null, images = null, desktopWorker = null } = {}) {
+                egress = null, ramPoolMiB = null, physicalRamPoolMiB = null, physicalReservations = null, directBootstrap = false, custodyV2 = null, images = null, desktopWorker = null } = {}) {
     if (ramPoolMiB !== null && (!Number.isSafeInteger(ramPoolMiB) || ramPoolMiB <= 0))
       throw new Error("ramPoolMiB must be a positive integer");
     this.ramPoolMiB = ramPoolMiB;
@@ -100,6 +101,16 @@ export class Manager {
     // for Windows and other workloads. Distinct from the advertised app pool:
     // this includes partition overhead and is held until confirmed removal.
     this.physicalRamPoolMiB = physicalRamPoolMiB;
+    if (physicalReservations !== null) {
+      const p = physicalReservations;
+      if (physicalRamPoolMiB === null || !/^[0-9a-f]{64}$/.test(p.poolHash || "") || !/^[0-9a-f]{32}$/.test(p.boot || "")
+          || typeof p.acquire !== "function" || typeof p.consumeStart !== "function")
+        throw new Error("shared physical reservations require a pinned pool, boot and qualified acquire/consume transport");
+      // This is a trusted local transport interface, not proof supplied by a
+      // spawn caller. Production must qualify its bounded Windows worker client.
+      this.#physicalReservations = Object.freeze({ poolHash: p.poolHash, boot: p.boot,
+        acquire: p.acquire.bind(p), consumeStart: p.consumeStart.bind(p) });
+    }
     // OWNER-COMMITTED STARTUP (package-transport.mjs; isolation/m2/front/shield_direct.go): ON only when the operator states
     // that the pinned partition image is a Shield-direct build (main.mjs ENCLAVE_SHIELD_DIRECT=1). The image, not this
     // flag, decides what runs: a legacy image ignores the package and certifies no owner name.
@@ -705,6 +716,26 @@ export class Manager {
     this.#spawnRequests.set(requestId, rec);
     this.#allocationRevision++;
     try {
+      if (this.#physicalReservations) {
+        const pool = this.#physicalReservations;
+        const claim = Object.freeze({ poolHash: pool.poolHash, boot: pool.boot, actor: native ? "app-native" : "app-legacy",
+          id: crypto.createHash("sha256").update(JSON.stringify([this.epoch,id,instanceId,mapping.appId])).digest("hex"),
+          bytes: physicalMemoryMiB * 1048576 });
+        if (!Number.isSafeInteger(claim.bytes) || claim.bytes <= 0) throw new Error("invalid shared physical claim size");
+        rec.sharedPhysicalClaim = claim;
+        const recheck = () => {
+          const held = this.physicalRamAllocated();
+          if (this.domains.get(id) !== rec || !rec.launching || !this.inventoryReady || this.#recovering
+              || held === null || held > this.physicalRamPoolMiB
+              || (memory && (!this.memoryView().known || this.memoryView().reservedMiB > this.ramPoolMiB))
+              || this.gpuAllocated() > 1000 || (native && !this.desktopReady))
+            throw new Error("local physical admission changed while acquiring shared capacity");
+        };
+        // Local reservation is already held before this await. Any lost acquire
+        // or dispatch response remains held in both ledgers; never auto-release.
+        await pool.acquire(claim); recheck();
+        await pool.consumeStart(claim); recheck();
+      }
       const h = await this.backend.start(mapping, { instanceId, ...(memory ? { appMemoryMiB: memory.appMiB } : {}), identity: { id, name, instanceId, appId: mapping.appId },
                                                     ...(startup ? { bootstrap: startup.bytes } : {}),
                                                     ...(volumes.length ? { volumes } : {}),

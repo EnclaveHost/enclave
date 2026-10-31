@@ -307,3 +307,43 @@ The explicit guardian entry now pins the original 900-second VM permit and owns 
 The v2 VM permit explicitly includes fixed owned-VM disable and reconciliation; v1 start-only permits are rejected rather than silently gaining stop authority. The guarded worker now has separate `stop` and `stop-reconcile` operations. They require the original startup deadline to have elapsed, exact original start child/observer death on the same boot, and settlement of the exact persisted start operation. Unknown start responses remain held. Stop has independent immutable intent, exclusive submit/native markers, returned-reference persistence and exact job reconciliation. Preparation alone may resume only for an exact complete intent while every submission/outcome record is definitely absent. Cleanup journal scope cannot write start authority; stop-reconcile cannot submit stop.
 
 The fixed native adapter uses `RequestStateChange(3)` only for the exact original owned VM, then independently observes Off and zero assigned memory under a current read guard. It never saves or deletes a VM. These implementation paths remain unqualified against real Hyper-V; automatic cleanup scheduling, export/write fencing and reservation release are still missing. All release/fence flags remain false. Microsoft documents Disabled(3), v1-only ShutDown(4), returned asynchronous job references and warns that repeated requests can overwrite earlier requests: https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/requeststatechange-msvm-computersystem . Cancellable is not a cancellation guarantee: https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-concretejob .
+# Shared physical reservations (source integration; not activated)
+
+`HostPhysicalPool.cs` serializes all enrolled allocators through one pre-created
+protected Windows `pool.lock` opened with `FileShare.None`. The immutable
+`pool.txt` binds a pool nonce, actual host boot and total capacity in bytes. It
+must be provisioned and enrolled by the host owner after a fresh capacity review;
+the library never creates an empty ledger to recover from a missing one.
+Capacity is a configured shared ceiling, **not measured free RAM or proof of fit**.
+
+Claims bind the configuration hash, boot, allocator role, operation identity and
+integral MiB amount. Claims are durable before acknowledgment. A separate durable
+dispatch record is consumed before a native start. An identical acquire can be
+read again after a lost response; it cannot grant another dispatch. Partial or
+unknown records, conflicting claims, a different boot, and over-budget ledgers
+refuse admission. Kernel lock-owner death permits another transaction but never
+releases a durable reservation. There is deliberately no timeout-based release,
+automatic reset, cancellation assumption or provider-fence claim.
+
+The RPC runtime reads `sharedPhysicalPool` from the immutable reviewed
+`admission.json`: exactly `schema: "host-physical-pool-binding/1"`, `configPath`,
+`configHash`, and `capacityBytes`. It acquires its entire permit budget, including
+support, and the fixed native provider adapter consumes that reservation
+immediately before `RequestStateChange`. Existing host/pending/guardian checks
+remain required. Pool configuration does not bypass them.
+
+The maintained Windows app manager has an optional trusted local
+`physicalReservations` adapter (`poolHash`, `boot`, `acquire`, `consumeStart`).
+It holds its local physical reservation before awaiting the shared acquire,
+rechecks local identity/capacity after each await, and consumes a dispatch before
+`backend.start`. Spawn bodies cannot choose or shrink this claim. Uncertain
+acquire, dispatch, or native outcomes retain reservations.
+
+**Remaining activation work:** the manager's bounded Windows transport is not
+implemented/enrolled, the installed managers do not use this ledger, existing VM
+and pending commitments have not been seeded, and no production pool exists.
+Qualified reclaim requires conclusive provider settlement, original-owned Off,
+and relevant write fencing; there is no reclaim API yet. An optional adapter or
+passing isolated ledger tests does not establish that every real allocator uses
+the same pool. No target VM, service restart or capacity admission is authorized
+by this source alone.

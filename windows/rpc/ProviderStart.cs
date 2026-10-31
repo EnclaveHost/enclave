@@ -76,6 +76,11 @@ namespace Enclave.OwnedRpc {
         // Verify its original read-worker deadline/boot/identity before AND after IO.
         void VerifyObservation(StartIdentity identity);
     }
+    public interface IPhysicalStartRuntime {
+        // Durable one-shot shared reservation dispatch, immediately before the
+        // actual provider invocation. A capacity observation cannot implement it.
+        void ConsumePhysicalStart(StartIdentity identity);
+    }
     public sealed class StartResponse {
         public readonly uint ReturnCode;public readonly string JobReference;
         public StartResponse(uint code,string reference){ReturnCode=code;JobReference=reference;}
@@ -201,6 +206,8 @@ namespace Enclave.OwnedRpc {
         }
         public StartResponse Start(StartIdentity id){
             ProtectedAttempt.RequireSystem();runtime.VerifyBeforeSubmit(id);
+            var physical=runtime as IPhysicalStartRuntime;
+            if(physical==null)throw new InvalidOperationException("Shared physical reservation runtime required");
             string intent=id.Encode(),digest=ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(intent));
             if(journal.Read("start.intent")!=intent||journal.Read("start.submit")!=digest)throw new InvalidOperationException("Native invocation lacks consumed intent");
             journal.WriteOnce("start.native",digest); // native adapter itself is one-shot too
@@ -220,6 +227,7 @@ namespace Enclave.OwnedRpc {
                 using(var input=vm.GetMethodParameters("RequestStateChange")){
                     input["RequestedState"]=(ushort)2;
                     runtime.VerifyBeforeSubmit(id);long now=runtime.Now;if(now<id.Origin||now>=id.Deadline)throw new InvalidOperationException("Original deadline expired");
+                    physical.ConsumePhysicalStart(id);
                     using(var output=vm.InvokeMethod("RequestStateChange",input,new InvokeMethodOptions{Timeout=TimeSpan.FromSeconds(2)})){
                         if(output==null||output["ReturnValue"]==null)throw new InvalidOperationException("No native response");
                         return new StartResponse(Convert.ToUInt32(output["ReturnValue"]),output["Job"] as string);

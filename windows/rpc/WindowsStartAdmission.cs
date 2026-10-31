@@ -127,5 +127,19 @@ internal sealed class WindowsStartAdmission {
         CheckTime();
     }
     public static void Verify(ProtectedAttempt vm){if(vm==null||vm.VmPermit==null)throw new ArgumentException("Held VM permit required");new WindowsStartAdmission(vm).Read();}
+    internal static HostPhysicalPool AcquireShared(ProtectedAttempt vm,StartIdentity id,long workerDeadline,out PhysicalClaim claim) {
+        vm.CheckDeadline();vm.VmPermit.Bind(id,vm.ContractHash);
+        var json=new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32};
+        var reviewed=Obj(json.DeserializeObject(new UTF8Encoding(false,true).GetString(vm.ReadAdmission(vm.VmPermit.AdmissionHash))));
+        var binding=Obj(reviewed["sharedPhysicalPool"]);
+        if(binding.Count!=4||Str(binding["schema"])!="host-physical-pool-binding/1")throw new InvalidOperationException("Reviewed shared pool binding required");
+        string path=Str(binding["configPath"]),hash=Str(binding["configHash"]);long capacity=Num(binding["capacityBytes"]);
+        claim=new PhysicalClaim(hash,id.Boot,"rpc",ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(id.ContractHash+"\n"+id.VmGuid)),vm.VmPermit.TotalBytes);
+        var pool=new HostPhysicalPool(path,hash,Math.Min(workerDeadline,vm.Deadline));
+        try {
+            if(pool.CapacityBytes!=capacity||pool.Boot!=id.Boot)throw new InvalidOperationException("Reviewed shared pool differs");
+            pool.Acquire(claim);vm.CheckDeadline();return pool;
+        }catch{pool.Dispose();throw;}
+    }
 }
 }
