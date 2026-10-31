@@ -31,6 +31,9 @@ public static class LegacyHandoffController {
     static BoundedWorker.OwnerObserver Watchdog;
     const long MiB=1048576,GiB=1073741824;
     const long Required=18*GiB+39388*MiB+GiB+512*MiB+192*MiB+256*MiB;
+    internal static void RequireSeedCompletion(byte[] activation,string completion){
+        if(activation==null||completion==null||completion!=ProtectedAttempt.Hash(activation))throw new InvalidOperationException("Seed completion missing or differs");
+    }
     static void CheckTime(){if(BoundedWorker.MonotonicMilliseconds()>=Deadline)throw new TimeoutException("Original controller deadline");}
     static string Quote(string value){if(value.IndexOfAny(new[]{'"','\r','\n'})>=0)throw new ArgumentException("Invalid path");return "\""+value+"\"";}
     static void Hex(string value,int length){if(value==null||value.Length!=length)throw new ArgumentException("Digest/nonce length");foreach(char c in value)if(!((c>='0'&&c<='9')||(c>='a'&&c<='f')))throw new ArgumentException("Digest/nonce encoding");}
@@ -136,7 +139,7 @@ public static class LegacyHandoffController {
         try{
             if(args.Length!=11||args[0]!="--target")throw new ArgumentException("Explicit target handoff arguments required");
             Operation=args[4];
-            if(Operation!="legacy-memory-inspect-v1"&&Operation!="legacy-memory-cut-v1")throw new ArgumentException("Explicit operation required");
+            if(Operation!="legacy-memory-inspect-v1"&&Operation!="legacy-memory-cut-v1"&&Operation!="legacy-memory-cut-seed-v1")throw new ArgumentException("Explicit operation required");
             // Parent supplies the original same-boot launch clock. A delayed
             // CreateProcess/SSH delivery must not earn a fresh startup window.
             Origin=Int64.Parse(args[args.Length-2],NumberStyles.None,CultureInfo.InvariantCulture);
@@ -182,13 +185,28 @@ public static class LegacyHandoffController {
             }
             if(sum!=Num(receipt["maximumBytes"])||Encoding.UTF8.GetString(Read(Path.Combine(Root,"handoff.inventory"),4096))!="legacy-vm-inventory/1\n"+String.Join("\n",index))
                 throw new InvalidOperationException("VM inventory sum/index differs");
-            InventoryResult=new{receipt=receipt,vms=rows};passed=true;
+            object seed=null;
+            if(Operation=="legacy-memory-cut-seed-v1"){
+                byte[] activation=Read(Path.Combine(Root,"pool.activation"),4096);
+                RequireSeedCompletion(activation,Encoding.UTF8.GetString(Read(Path.Combine(Root,"pool.complete"),4096)));
+                var seeded=Obj(Json.DeserializeObject(Encoding.UTF8.GetString(activation)));
+                var expectedSeed=new LegacyPoolSeed(Obj(Obj(Json.DeserializeObject(Encoding.UTF8.GetString(manifest)))["pool"]),boot);
+                if(seeded.Count!=18||Str(seeded["configPath"])!=Path.Combine(expectedSeed.Root,"pool.txt")||Str(seeded["poolHash"])!=expectedSeed.Hash||
+                   Num(seeded["capacityBytes"])!=expectedSeed.Capacity||Num(seeded["physicalBytes"])!=expectedSeed.Physical||Num(seeded["nonPoolReserveBytes"])!=expectedSeed.NonPoolReserve||
+                   Num(seeded["floorBytes"])!=expectedSeed.Floor||Num(seeded["variationBytes"])!=expectedSeed.Variation||Num(seeded["prospectiveBytes"])!=expectedSeed.Prospective||
+                   Str(seeded["schema"])!="legacy-pool-seed/1"||Str(seeded["manifest"])!=ManifestHash||Str(seeded["boot"])!=boot||
+                   Num(seeded["initialBytes"])!=sum||Num(seeded["initialCount"])!=count||!False(seeded["providerSettled"])||!False(seeded["capacityAdmitted"])||!False(seeded["reservationMayRelease"])||
+                   Str(seeded["cutHash"])!=ProtectedAttempt.Hash(Read(Path.Combine(Root,"handoff.cut"),4096))||
+                   Str(seeded["inventoryHash"])!=ProtectedAttempt.Hash(Read(Path.Combine(Root,"handoff.inventory"),4096)))throw new InvalidOperationException("Seed association differs");
+                seed=seeded;
+            }
+            InventoryResult=new{receipt=receipt,vms=rows,seed=seed};passed=true;
         }catch(Exception error){
             Failures.Add(error.GetType().Name+": "+error.Message);
             try{
                 if(NamespacePin!=null&&File.Exists(Path.Combine(Root,"handoff.failure"))){
                     var d=Obj(Json.DeserializeObject(Encoding.UTF8.GetString(Read(Path.Combine(Root,"handoff.failure"),4096))));
-                    var phases=new HashSet<string>{"initial","input-schema","input-parent-open","input-parent-authority","input-file-open","input-file-authority","input-file-identity","input-file-read","issuer-binding","inspect-inventory","definition-cut","cut-inventory"};
+                    var phases=new HashSet<string>{"initial","input-schema","input-parent-open","input-parent-authority","input-file-open","input-file-authority","input-file-identity","input-file-read","issuer-binding","inspect-inventory","seed-preflight","pool-seed","definition-cut","cut-inventory"};
                     if(d.Count!=9||Str(d["schema"])!="legacy-handoff-failure/1"||Str(d["manifest"])!=ManifestHash||!phases.Contains(Str(d["phase"]))||!False(d["capacityAdmitted"])||!False(d["reservationMayRelease"])||Num(d["inputIndex"]) < -1||Num(d["inputIndex"])>=128||Num(d["parentDepth"]) < -1||Num(d["parentDepth"])>128)throw new InvalidOperationException("Invalid public failure receipt");
                     Failures.Add("Public handoff diagnostic: "+Json.Serialize(new{phase=Str(d["phase"]),inputIndex=Num(d["inputIndex"]),parentDepth=Num(d["parentDepth"]),hresult=Num(d["hresult"]),nativeError=Num(d["nativeError"])}));
                 }

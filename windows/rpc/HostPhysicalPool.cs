@@ -147,6 +147,14 @@ namespace Enclave.OwnedRpc {
                 Publish(claim.Id+".dispatch",claim.Encode());
             }
         }
+        internal void VerifyInitial(IList<PhysicalClaim> expected) {
+            using(var gate=Lock()) {
+                HashSet<string> consumed;var actual=Snapshot(out consumed);
+                if(actual.Count!=expected.Count||consumed.Count!=expected.Count)throw new InvalidOperationException("Incomplete seed accounting");
+                foreach(var c in expected){PhysicalClaim found;if(!actual.TryGetValue(c.Id,out found)||found.Encode()!=c.Encode()||!consumed.Contains(c.Id))throw new InvalidOperationException("Seed readback differs");}
+                Check();
+            }
+        }
         // Deliberately no timeout/worker-death release. Native operation settlement,
         // original owned Off and write fencing are separate required evidence.
         public void Dispose(){if(disposed)return;disposed=true;for(int i=held.Count-1;i>=0;i--)held[i].Dispose();held.Clear();}

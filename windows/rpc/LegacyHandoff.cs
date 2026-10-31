@@ -11,6 +11,8 @@ using System.Management;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text;
 using System.Web.Script.Serialization;
 using Microsoft.Win32.SafeHandles;
@@ -24,15 +26,17 @@ namespace Enclave.OwnedRpc {
   readonly Dictionary<string,object> manifest,master;
   readonly IList issuers,inputs;
   readonly Dictionary<uint,Process> processes=new Dictionary<uint,Process>();
-  readonly bool inspect;
+  readonly bool inspect;readonly LegacyPoolSeed seed;readonly Dictionary<string,object> newMaster;
   string phase="initial";int inputIndex=-1,parentDepth=-1;
   [StructLayout(LayoutKind.Sequential,Pack=4)] struct Info {public uint Attributes;public long Created,Accessed,Written;public uint Volume,SizeHigh,SizeLow,Links,IndexHigh,IndexLow;}
   [DllImport("kernel32.dll",SetLastError=true)] static extern bool GetFileInformationByHandle(SafeFileHandle h,out Info i);
   LegacyHandoff(ProtectedAttempt lease,Action live){
    if(lease==null||live==null||lease.LeaseProfile!="legacy-handoff")throw new ArgumentException("Protected handoff authority required");
    this.lease=lease;this.live=live;inspect=lease.Operation=="legacy-memory-inspect-v1";manifest=Obj(json.DeserializeObject(new UTF8Encoding(false,true).GetString(lease.ReadLegacyHandoff())));
-   Keys(manifest,"schema","boot","topology","master","issuers","inputs");
-   if(Str(manifest["schema"])!="legacy-memory-handoff/1"||Str(manifest["topology"])!="mandatory-copy-direct-powershell/1"||Str(manifest["boot"])!=lease.Boot)
+   bool seeding=lease.Operation=="legacy-memory-cut-seed-v1";
+   if(seeding){Keys(manifest,"schema","boot","topology","master","issuers","inputs","pool");seed=new LegacyPoolSeed(Obj(manifest["pool"]),lease.Boot);newMaster=Obj(Obj(manifest["pool"])["newMaster"]);}
+   else Keys(manifest,"schema","boot","topology","master","issuers","inputs");
+   if(Str(manifest["schema"])!=(seeding?"legacy-memory-handoff/2":"legacy-memory-handoff/1")||Str(manifest["topology"])!="mandatory-copy-direct-powershell/1"||Str(manifest["boot"])!=lease.Boot)
     throw new InvalidOperationException("Reviewed handoff topology/boot differs");
    master=Obj(manifest["master"]);Keys(master,"path","sha256","bytes");
    ProtectedAttempt.LocalPath(Str(master["path"]));StartIdentity.Hex(Str(master["sha256"]),64);
@@ -174,9 +178,38 @@ namespace Enclave.OwnedRpc {
     }
    if(result.Count!=expected.Count)throw new InvalidOperationException("Incomplete all-VM inventory");Check();return result;
   }
+  SortedDictionary<string,long> Assigned(SortedDictionary<string,MemoryRecord> inventory){
+   var rows=Query(@"root\virtualization\v2","SELECT SystemName,BlockSize,NumberOfBlocks FROM Msvm_Memory",new[]{"SystemName","BlockSize","NumberOfBlocks"},32);
+   var seen=new HashSet<string>();var assigned=new SortedDictionary<string,long>(StringComparer.Ordinal);
+   foreach(var row in rows){
+    string id=Str(row["SystemName"]);MemoryRecord record;
+    if(!inventory.TryGetValue(id,out record)||!seen.Add(id)||!(row["BlockSize"] is ulong)||!(row["NumberOfBlocks"] is ulong)||
+       (ulong)row["BlockSize"]!=1048576)throw new InvalidOperationException("Current assigned memory identity incomplete");
+    long value=checked((long)(ulong)row["NumberOfBlocks"]*1048576);
+    if(value<0||value>record.Bytes)throw new InvalidOperationException("Assigned memory exceeds static commitment");assigned.Add(id,value);
+   }
+   if(seen.Count!=inventory.Count)throw new InvalidOperationException("Missing assigned memory is not zero");return assigned;
+  }
+  void SeedFit(SortedDictionary<string,MemoryRecord> inventory){
+   if(seed==null)return;long total=0;foreach(var row in inventory)total=checked(total+row.Value.Bytes);
+   var residents=Assigned(inventory);long assigned=0;foreach(long value in residents.Values)assigned=checked(assigned+value);
+   var rows=Query(@"root\cimv2","SELECT TotalVisibleMemorySize,FreePhysicalMemory FROM Win32_OperatingSystem",new[]{"TotalVisibleMemorySize","FreePhysicalMemory"},2);
+   if(rows.Count!=1||json.Serialize(Assigned(inventory))!=json.Serialize(residents))throw new InvalidOperationException("Physical/assigned memory changed");
+   seed.Fit(checked(Convert.ToInt64(rows[0]["TotalVisibleMemorySize"])*1024),checked(Convert.ToInt64(rows[0]["FreePhysicalMemory"])*1024),total,assigned);Check();
+  }
   void Execute(){
    Check();long total=0;var paths=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
    foreach(object o in inputs){inputIndex++;phase="input-schema";var d=Obj(o);if(!paths.Add(Str(d["path"])))throw new InvalidOperationException("Duplicate source input");total=checked(total+Num(d["bytes"]));if(total>256*1048576)throw new InvalidOperationException("Reviewed input byte bound");PinInput(d);}
+   if(seed!=null){
+    phase="seed-preflight";
+    Keys(newMaster,"path","sha256","bytes");
+    if(Num(newMaster["bytes"])!=Num(master["bytes"])||Str(newMaster["sha256"])!=Str(master["sha256"])||
+       paths.Contains(Str(newMaster["path"])))throw new InvalidOperationException("Distinct replacement master required");
+    // PinInput rejects the old path and hard-linked aliases, checks exact bytes
+    // and keeps the protected replacement immutable through the transition.
+    PinInput(newMaster);SeedFit(Inventory());
+    if(Directory.Exists(Path.GetDirectoryName(seed.Root))||File.Exists(Path.GetDirectoryName(seed.Root)))throw new InvalidOperationException("Pool namespace already exists");
+   }
    phase="issuer-binding";
    var exact=BindIssuers();Check();
    if(inspect){
@@ -192,6 +225,14 @@ namespace Enclave.OwnedRpc {
    lease.WriteOnce("handoff.cut",json.Serialize(new{schema="legacy-cut/1",manifest=lease.PermitHash,cutAt=cut.CutAt,master=cut.Fence.ObjectIdentity,intent=cut.Fence.IntentHash,cohortCount=cut.Exited.Length,cohortSha256=ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(cohort)),providerSettled=false,capacityAdmitted=false}));
    phase="cut-inventory";var first=Inventory();var second=Inventory();if(json.Serialize(first)!=json.Serialize(second))throw new InvalidOperationException("Configured VM inventory changed; keep claims held");
    BindIssuers();Check();PublishInventory(first,cut.CutAt,exact);
+   if(seed!=null){
+    phase="pool-seed";SeedFit(first);
+    using(var denial=new LegacyTemplateFence.HeldDenial(Str(master["path"]),cut.Fence.ObjectIdentity,Num(master["bytes"]),lease.Boot,lease.Deadline)){
+     seed.Publish(lease,first,()=>{Check();denial.Verify();});
+     SeedFit(first);BindIssuers();denial.Verify();Check();
+     lease.WriteOnce("pool.complete",ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(lease.ReadOnce("pool.activation"))));
+    }
+   }
   }
   void PublishInventory(SortedDictionary<string,MemoryRecord> inventory,long cutAt,LegacyLaunchCohort.Issuer[] exact){
    long maximumBytes=0;int n=0;var index=new List<string>();
@@ -211,5 +252,95 @@ namespace Enclave.OwnedRpc {
    }
   }}
   public void Dispose(){for(int n=held.Count-1;n>=0;n--)held[n].Dispose();held.Clear();}
+ }
+}
+
+namespace Enclave.OwnedRpc {
+ // Internal to the protected cut worker. Not an operator-supplied receipt parser:
+ // only LegacyHandoff calls Publish after its real fence/drain/stable inventory.
+ internal sealed class LegacyPoolSeed {
+  const long MiB=1048576,GiB=1073741824;
+  internal readonly string Nonce,Root,Config,Hash;
+  internal readonly long Physical,NonPoolReserve,Floor,Variation,Prospective,Capacity;
+  [StructLayout(LayoutKind.Sequential)] struct SecurityAttributes {public int Length;public IntPtr Descriptor;public int Inherit;}
+  [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern bool CreateDirectoryW(string path,ref SecurityAttributes security);
+  internal LegacyPoolSeed(Dictionary<string,object> plan,string boot){
+   string[] keys={"nonce","physicalBytes","nonPoolReserveBytes","floorBytes","variationBytes","prospectiveBytes","capacityBytes","newMaster"};
+   if(plan.Count!=keys.Length)throw new InvalidOperationException("Exact seed plan required");foreach(string k in keys)if(!plan.ContainsKey(k))throw new InvalidOperationException("Seed field missing");
+   Nonce=LegacyHandoff.Str(plan["nonce"]);StartIdentity.Hex(Nonce,32);StartIdentity.Hex(boot,32);
+   Physical=LegacyHandoff.Num(plan["physicalBytes"]);NonPoolReserve=LegacyHandoff.Num(plan["nonPoolReserveBytes"]);
+   Floor=LegacyHandoff.Num(plan["floorBytes"]);Variation=LegacyHandoff.Num(plan["variationBytes"]);Prospective=LegacyHandoff.Num(plan["prospectiveBytes"]);Capacity=LegacyHandoff.Num(plan["capacityBytes"]);
+   foreach(long n in new[]{Physical,NonPoolReserve,Floor,Variation,Prospective,Capacity})if(n<0||n>9007199254740991L)throw new InvalidOperationException("Seed quantity bound");
+   if(Physical==0||NonPoolReserve==0||Floor<18*GiB||Variation<GiB||Prospective<39388*MiB||Capacity<=0||Capacity%MiB!=0||
+      Capacity>checked(Physical-NonPoolReserve-Floor-Variation))throw new InvalidOperationException("Whole host pool budget differs");
+   Root=Path.Combine(Path.GetPathRoot(Environment.SystemDirectory),"EnclavePhysicalPool-"+Nonce,Nonce);
+   Config="host-physical-pool/1\n"+Nonce+"\n"+boot+"\n"+Capacity.ToString(CultureInfo.InvariantCulture)+"\n";
+   Hash=ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(Config));
+  }
+  internal void Fit(long physical,long free,long existing,long assigned){
+   if(physical!=Physical||free<0||free>physical||existing<0||existing>physical||assigned<0||assigned>existing||assigned>physical-free||
+      Math.Max(0,checked(physical-free-assigned))>NonPoolReserve||
+      free<checked(existing-assigned+20*GiB+Prospective+Floor+Variation+512*MiB)||
+      checked(existing+20*GiB+Prospective)>Capacity)throw new InvalidOperationException("Fresh physical cut-seed budget does not fit");
+  }
+  static string Owner(){using(var identity=WindowsIdentity.GetCurrent())return identity.User.Value=="S-1-5-18"?"S-1-5-18":"S-1-5-32-544";}
+  static DirectorySecurity DirectoryAcl(){
+   var a=new DirectorySecurity();a.SetOwner(new SecurityIdentifier(Owner()));a.SetAccessRuleProtection(true,false);
+   foreach(string sid in new[]{"S-1-5-18","S-1-5-32-544"})a.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid),FileSystemRights.FullControl,InheritanceFlags.ContainerInherit|InheritanceFlags.ObjectInherit,PropagationFlags.None,AccessControlType.Allow));return a;
+  }
+  static void ExclusiveDirectory(string path){
+   byte[] bytes=DirectoryAcl().GetSecurityDescriptorBinaryForm();IntPtr descriptor=Marshal.AllocHGlobal(bytes.Length);
+   try{Marshal.Copy(bytes,0,descriptor,bytes.Length);var sa=new SecurityAttributes{Length=Marshal.SizeOf(typeof(SecurityAttributes)),Descriptor=descriptor,Inherit=0};
+    if(!CreateDirectoryW(path,ref sa))throw new Win32Exception(Marshal.GetLastWin32Error());
+   }finally{Marshal.FreeHGlobal(descriptor);}
+  }
+  static SafeFileHandle PinDirectory(string path,bool strict){
+   var h=ProtectedAttempt.CreateFile(path,0x20000|0x80,3,IntPtr.Zero,3,0x02200000,IntPtr.Zero);
+   if(h.IsInvalid){int e=Marshal.GetLastWin32Error();h.Dispose();throw new Win32Exception(e);}
+   try{ProtectedAttempt.Authority(h,strict,true,path);return h;}catch{h.Dispose();throw;}
+  }
+  static void PublishFile(string path,string value){
+   var acl=new FileSecurity();acl.SetOwner(new SecurityIdentifier(Owner()));acl.SetAccessRuleProtection(true,false);
+   foreach(string sid in new[]{"S-1-5-18","S-1-5-32-544"})acl.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid),FileSystemRights.FullControl,AccessControlType.Allow));
+   byte[] bytes=Encoding.UTF8.GetBytes(value);
+   using(var f=new FileStream(path,FileMode.CreateNew,FileSystemRights.WriteData|FileSystemRights.ReadPermissions,FileShare.None,4096,FileOptions.WriteThrough,acl)){
+    ProtectedAttempt.Authority(f.SafeFileHandle,true,false,path);f.Write(bytes,0,bytes.Length);f.Flush(true);
+   }
+  }
+  internal static string ClaimId(string manifest,string boot,string guid){
+   StartIdentity.Hex(manifest,64);StartIdentity.Hex(boot,32);Guid parsed;
+   if(!Guid.TryParseExact(guid,"D",out parsed)||parsed.ToString("D")!=guid)throw new InvalidOperationException("Canonical seeded GUID");
+   return ProtectedAttempt.Hash(Encoding.UTF8.GetBytes("legacy-vm-claim/1\n"+manifest+"\n"+boot+"\n"+guid+"\n"));
+  }
+  internal string Publish(ProtectedAttempt lease,SortedDictionary<string,LegacyHandoff.MemoryRecord> inventory,Action guard){
+   if(lease.Operation!="legacy-memory-cut-seed-v1"||guard==null)throw new InvalidOperationException("Explicit cut-seed authority required");
+   // No caller can enable an empty ledger after a partial/ambiguous attempt.
+   // The marker is outside the pool because Snapshot rejects unknown entries.
+   guard();lease.WriteOnce("pool.seed.consumed",Hash+";"+lease.PermitHash+";"+lease.Token);
+   var held=new List<IDisposable>();
+   try{
+    string parent=Path.GetDirectoryName(Root);held.Add(PinDirectory(Path.GetPathRoot(Root),false));
+    guard();ExclusiveDirectory(parent);held.Add(PinDirectory(parent,true));guard();ExclusiveDirectory(Root);held.Add(PinDirectory(Root,true));
+    PublishFile(Path.Combine(Root,"pool.lock"),"");
+    var claims=new List<PhysicalClaim>();long total=0;
+    foreach(var pair in inventory){
+     guard();var c=new PhysicalClaim(Hash,lease.Boot,"app-legacy",ClaimId(lease.PermitHash,lease.Boot,pair.Key),pair.Value.Bytes);
+     total=checked(total+c.Bytes);if(claims.Count>=32||total>Capacity)throw new InvalidOperationException("Seed inventory exceeds budget");
+     claims.Add(c);PublishFile(Path.Combine(Root,c.Id+".claim"),c.Encode());
+     // Existing GUIDs cannot receive another start authorization through this
+     // record. Their native operations are not presumed settled or released.
+     PublishFile(Path.Combine(Root,c.Id+".dispatch"),c.Encode());
+    }
+    guard();PublishFile(Path.Combine(Root,"pool.txt"),Config);
+    guard();using(var pool=new HostPhysicalPool(Path.Combine(Root,"pool.txt"),Hash,lease.Deadline))pool.VerifyInitial(claims);
+    guard();var json=new System.Web.Script.Serialization.JavaScriptSerializer();
+    string result=json.Serialize(new{schema="legacy-pool-seed/1",manifest=lease.PermitHash,boot=lease.Boot,configPath=Path.Combine(Root,"pool.txt"),poolHash=Hash,
+      capacityBytes=Capacity,initialBytes=total,initialCount=claims.Count,physicalBytes=Physical,nonPoolReserveBytes=NonPoolReserve,floorBytes=Floor,variationBytes=Variation,prospectiveBytes=Prospective,
+      cutHash=ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(lease.ReadOnce("handoff.cut"))),inventoryHash=ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(lease.ReadOnce("handoff.inventory"))),
+      providerSettled=false,capacityAdmitted=false,reservationMayRelease=false});
+    // Publication is last; no record grants production start permission alone.
+    lease.WriteOnce("pool.activation",result);guard();return result;
+   }finally{for(int i=held.Count-1;i>=0;i--)held[i].Dispose();}
+  }
  }
 }

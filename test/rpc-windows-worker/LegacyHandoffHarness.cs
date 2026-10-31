@@ -31,9 +31,56 @@ public static class LegacyHandoffHarness {
   }
  }
  static Dictionary<string,object> Row(){return new Dictionary<string,object>{{"ResourceType",(ushort)4},{"ResourceSubType","Microsoft:Hyper-V:Memory"},{"AllocationUnits","byte * 2^20"},{"VirtualQuantityUnits","byte * 2^20"},{"VirtualQuantity",(ulong)2048},{"Reservation",(ulong)2048},{"Limit",(ulong)2048},{"DynamicMemoryEnabled",false}};}
+ static Dictionary<string,object> SeedPlan(){
+  const long g=1073741824;return new Dictionary<string,object>{{"nonce",Guid.NewGuid().ToString("N")},{"physicalBytes",512*g},{"nonPoolReserveBytes",100*g},{"floorBytes",18*g},{"variationBytes",g},{"prospectiveBytes",39388L*1048576},{"capacityBytes",393*g},{"newMaster",new Dictionary<string,object>()}};
+ }
+ static void SeedTests(){
+  Test("cut-seed-separate-explicit-operation",()=>{var c=new Contract("legacy-memory-cut-seed-v1",false);using(var a=ProtectedAttempt.PinLegacyHandoffController(c.PathName,c.Hash))Check(a.Operation=="legacy-memory-cut-seed-v1");});
+  Test("seed-plan-whole-host-fit",()=>{var p=new LegacyPoolSeed(SeedPlan(),ProtectedAttempt.CurrentBoot());p.Fit(512L*1073741824,400L*1073741824,20L*1073741824,20L*1073741824);});
+  Test("seed-plan-floor-not-weakened",()=>{var p=SeedPlan();p["floorBytes"]=17L*1073741824;Refuse(()=>new LegacyPoolSeed(p,ProtectedAttempt.CurrentBoot()));});
+  Test("seed-plan-capacity-equation",()=>{var p=SeedPlan();p["capacityBytes"]=394L*1073741824;Refuse(()=>new LegacyPoolSeed(p,ProtectedAttempt.CurrentBoot()));});
+  Test("seed-plan-unknown-pending-not-zero",()=>{var p=SeedPlan();p["prospectiveBytes"]=0L;Refuse(()=>new LegacyPoolSeed(p,ProtectedAttempt.CurrentBoot()));});
+  Test("seed-current-nonpool-growth-refused",()=>{var p=new LegacyPoolSeed(SeedPlan(),ProtectedAttempt.CurrentBoot());Refuse(()=>p.Fit(512L*1073741824,300L*1073741824,20L*1073741824,20L*1073741824));});
+  Test("seed-off-vm-not-counted-as-used-ram",()=>{var p=new LegacyPoolSeed(SeedPlan(),ProtectedAttempt.CurrentBoot());Refuse(()=>p.Fit(512L*1073741824,400L*1073741824,20L*1073741824,0));});
+  Test("seed-current-physical-change-refused",()=>{var p=new LegacyPoolSeed(SeedPlan(),ProtectedAttempt.CurrentBoot());Refuse(()=>p.Fit(513L*1073741824,400L*1073741824,20L*1073741824,20L*1073741824));});
+  Test("seed-claim-identity-binds-boot-manifest-guid",()=>{string id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",b=ProtectedAttempt.CurrentBoot();Check(LegacyPoolSeed.ClaimId(new string('a',64),b,id)!=LegacyPoolSeed.ClaimId(new string('b',64),b,id));Refuse(()=>LegacyPoolSeed.ClaimId(new string('a',64),b,id.ToUpperInvariant()));});
+  Test("seed-inspect-cannot-publish",()=>{var c=new Contract("legacy-memory-inspect-v1",false);var p=new LegacyPoolSeed(SeedPlan(),ProtectedAttempt.CurrentBoot());using(var a=ProtectedAttempt.PinLegacyHandoffController(c.PathName,c.Hash))Refuse(()=>p.Publish(a,new SortedDictionary<string,LegacyHandoff.MemoryRecord>(),()=>{}));Check(!Directory.Exists(p.Root));});
+  Test("seed-native-files-complete-consumed-readback-no-repeat",()=>{
+   var c=new Contract("legacy-memory-cut-seed-v1",false);var p=new LegacyPoolSeed(SeedPlan(),ProtectedAttempt.CurrentBoot());string guid=Guid.NewGuid().ToString("D");
+   var rows=new SortedDictionary<string,LegacyHandoff.MemoryRecord>{{guid,new LegacyHandoff.MemoryRecord{Bytes=2147483648,VirtualQuantityMiB=2048,ReservationMiB=512,LimitMiB=1048576,DynamicMemoryEnabled=false}}};
+   using(var a=ProtectedAttempt.PinLegacyHandoffController(c.PathName,c.Hash)){
+    // Protected disposable records exercise initialization only, not real cut authority.
+    a.WriteOnce("handoff.cut","fixture-cut");a.WriteOnce("handoff.inventory","fixture-inventory");
+    string result=p.Publish(a,rows,()=>a.CheckDeadline());Check(result==a.ReadOnce("pool.activation")&&!File.Exists(Path.Combine(p.Root,"pool.activation")));
+    var claim=new PhysicalClaim(p.Hash,a.Boot,"app-legacy",LegacyPoolSeed.ClaimId(a.PermitHash,a.Boot,guid),2147483648);
+    using(var pool=new HostPhysicalPool(Path.Combine(p.Root,"pool.txt"),p.Hash,a.Deadline)){pool.VerifyInitial(new[]{claim});Refuse(()=>pool.ConsumeStart(claim));}
+    Refuse(()=>p.Publish(a,rows,()=>{}));
+   }
+  });
+  Test("seed-activation-without-completion-refused",()=>{
+   var c=new Contract("legacy-memory-cut-seed-v1",false);var p=new LegacyPoolSeed(SeedPlan(),ProtectedAttempt.CurrentBoot());
+   using(var a=ProtectedAttempt.PinLegacyHandoffController(c.PathName,c.Hash)){
+    a.WriteOnce("handoff.cut","fixture-cut");a.WriteOnce("handoff.inventory","fixture-inventory");
+    Refuse(()=>p.Publish(a,new SortedDictionary<string,LegacyHandoff.MemoryRecord>(),()=>{if(File.Exists(Path.Combine(a.Root,"pool.activation")))throw new IOException("fixture crash after activation");}));
+    byte[] activation=Encoding.UTF8.GetBytes(a.ReadOnce("pool.activation"));Check(a.ReadOptionalOnce("pool.complete")==null);
+    Refuse(()=>LegacyHandoffController.RequireSeedCompletion(activation,a.ReadOptionalOnce("pool.complete")));
+    Refuse(()=>LegacyHandoffController.RequireSeedCompletion(activation,new string('0',64)));
+    Refuse(()=>p.Publish(a,new SortedDictionary<string,LegacyHandoff.MemoryRecord>(),()=>{}));
+   }
+  });
+  Test("seed-interrupted-publication-remains-held",()=>{
+   var c=new Contract("legacy-memory-cut-seed-v1",false);var p=new LegacyPoolSeed(SeedPlan(),ProtectedAttempt.CurrentBoot());int calls=0;
+   using(var a=ProtectedAttempt.PinLegacyHandoffController(c.PathName,c.Hash)){
+    Refuse(()=>p.Publish(a,new SortedDictionary<string,LegacyHandoff.MemoryRecord>(),()=>{if(++calls==4)throw new IOException("fixture interrupt");}));
+    Check(File.Exists(Path.Combine(a.Root,"pool.seed.consumed"))&&!File.Exists(Path.Combine(a.Root,"pool.activation")));
+    Refuse(()=>p.Publish(a,new SortedDictionary<string,LegacyHandoff.MemoryRecord>(),()=>{}));
+   }
+  });
+ }
  public static int Main(){try{
   BoundedWorker.EnterSupervisorEnvelope(256UL*1024*1024);long deadline=BoundedWorker.MonotonicMilliseconds()+9000;
   new Thread(()=>{while(BoundedWorker.MonotonicMilliseconds()<deadline)Thread.Sleep(5);TerminateProcess(GetCurrentProcess(),124);}){IsBackground=true}.Start();
+  SeedTests();
   Test("static-memory-bytes",()=>Check(LegacyHandoff.MaximumMemory(Row())==2147483648));
   Test("contradictory-static-reservation-refused",()=>{var r=Row();r["Reservation"]=(ulong)8192;Refuse(()=>LegacyHandoff.MaximumMemory(r));});
   Test("dormant-dynamic-limit-not-static-growth",()=>{var r=Row();r["Limit"]=(ulong)1048576;Check(LegacyHandoff.MaximumMemory(r)==2147483648);});
@@ -143,6 +190,8 @@ static class NamespaceCustodyQualification {
     foreach(string id in new[]{"S-1-5-18","S-1-5-32-544"})acl.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(id),FileSystemRights.FullControl,AccessControlType.Allow));
     using(var file=new FileStream(master,FileMode.CreateNew,FileSystemRights.WriteData,FileShare.None,4096,FileOptions.WriteThrough,acl)){file.Write(bytes,0,bytes.Length);file.Flush(true);}
     var receipt=LegacyTemplateFence.Apply(master,ProtectedAttempt.Hash(bytes),bytes.Length,ProtectedAttempt.CurrentBoot(),Path.Combine(intent,"definition-fence.intent"),BoundedWorker.MonotonicMilliseconds()+3000);
+    using(var denial=new LegacyTemplateFence.HeldDenial(master,receipt.ObjectIdentity,bytes.Length,ProtectedAttempt.CurrentBoot(),BoundedWorker.MonotonicMilliseconds()+3000))denial.Verify();
+    bool wrongRefused=false;try{using(var denial=new LegacyTemplateFence.HeldDenial(master,"wrong-object",bytes.Length,ProtectedAttempt.CurrentBoot(),BoundedWorker.MonotonicMilliseconds()+3000)){};}catch(InvalidOperationException){wrongRefused=true;}Check(wrongRefused);
     Check(receipt.PersistentReadDenial&&!receipt.ExistingOperationsSettled&&!receipt.ReservationMayRelease);
     bool denied=false;try{File.ReadAllBytes(master);}catch(UnauthorizedAccessException){denied=true;}Check(denied);
    });

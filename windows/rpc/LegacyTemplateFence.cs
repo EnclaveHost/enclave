@@ -48,6 +48,34 @@ namespace Enclave.OwnedRpc {
    public bool ExistingOperationsSettled {get{return false;}}
    public bool ReservationMayRelease {get{return false;}}
   }
+  // Keeps the exact persistent denial and its absolute pathname bound while
+  // the cut is converted to a pool. No content read or ACL mutation.
+  internal sealed class HeldDenial : IDisposable {
+   readonly string path,key;readonly long size,deadline;
+   readonly List<IDisposable> held=new List<IDisposable>();
+   readonly List<AncestorCustody> custody=new List<AncestorCustody>();
+   SafeFileHandle file;
+   internal HeldDenial(string path,string key,long size,string boot,long deadline){
+    this.path=ProtectedAttempt.LocalPath(path);this.key=key;this.size=size;this.deadline=deadline;
+    try{
+     if(ProtectedAttempt.CurrentBoot()!=boot)throw new InvalidOperationException("Fence boot changed");
+     PinParents(path,held,custody);
+     file=ProtectedAttempt.CreateFile(path,0x20000|0x80,1,IntPtr.Zero,3,0x00200000,IntPtr.Zero);
+     if(file.IsInvalid)throw new Win32Exception(Marshal.GetLastWin32Error());held.Add(file);Verify();
+    }catch{Dispose();throw;}
+   }
+   internal void Verify(){
+    CheckCustody(custody,deadline);ProtectedAttempt.PinnedTemplateAuthority(file,path);Info value=Identity(file);
+    if(Key(value)!=key||value.Links!=1||(((long)value.SizeHigh<<32)|value.SizeLow)!=size)throw new InvalidOperationException("Fenced object changed");
+    var security=File.GetAccessControl(path,AccessControlSections.Access|AccessControlSections.Owner);
+    if(!security.AreAccessRulesProtected)throw new InvalidOperationException("Fence DACL no longer protected");
+    bool denied=false;foreach(FileSystemAccessRule rule in security.GetAccessRules(true,true,typeof(SecurityIdentifier)))
+     if(rule.IdentityReference.Value=="S-1-1-0"&&rule.AccessControlType==AccessControlType.Deny&&
+        (rule.PropagationFlags&PropagationFlags.InheritOnly)==0&&(rule.FileSystemRights&FileSystemRights.ReadData)!=0)denied=true;
+    if(!denied)throw new InvalidOperationException("Persistent read denial missing");CheckCustody(custody,deadline);
+   }
+   public void Dispose(){for(int n=held.Count-1;n>=0;n--)held[n].Dispose();held.Clear();}
+  }
   public static Receipt Apply(string master,string expectedHash,long expectedLength,string expectedBoot,string intentPath,long deadline){
    ProtectedAttempt.RequireAdministrator();ProtectedAttempt.LocalPath(master);ProtectedAttempt.LocalPath(intentPath);
    StartIdentity.Hex(expectedHash,64);StartIdentity.Hex(expectedBoot,32);

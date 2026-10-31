@@ -502,3 +502,31 @@ The legacy handoff candidate now has a separate `AncestorCustody` check for ordi
 The Windows fixture uses a genuinely restricted token, verifies actual metadata/EA access, supplies successful empty junction and privileged symlink controls, checks protected nonempty refusal and delete/rename refusal, and verifies that child deletion remains denied after handles close. It also exercises the template fence on disposable bytes. A successful source fixture is not production filesystem admission, and the proof does not claim availability against a trusted administrator or kernel/filter compromise. The protected child must keep the absolute legacy master pathname bound; relative file opens alone would be insufficient.
 
 Primary API references: [NtCreateFile relative RootDirectory](https://learn.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntcreatefile), [restricted token access checks](https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-createrestrictedtoken), and [NTFS reparse restrictions and directory/name-surrogate bits](https://learn.microsoft.com/en-us/windows/win32/fileio/reparse-points).
+
+
+### Cut-to-pool initialization (unactivated candidate)
+
+The separate `legacy-memory-cut-seed-v1` operation requires a schema2 handoff
+manifest with an exact pool plan. Legacy inspect and cut retain their previous
+authority. The new operation pins a distinct replacement master before denying
+reads on the old master, performs the existing real cut/drain and repeated VM
+inventory, and initializes a fresh protected root-level pool in the same worker.
+It does not consume an inspect result or accept arbitrary JSON as proof of a cut.
+
+The plan binds physical bytes, a non-pool reserve, at least18GiB host floor,1GiB
+variation,39388MiB prospective app growth, exact capacity and a fresh namespace.
+Actual WMI physical/free-memory observations must fit both before the cut and
+after inventory. Per-GUID Msvm_Memory resident allocations must agree on both
+sides of each host observation; absent allocations are unknown, not zero.
+Configured-but-not-resident RAM is charged against free memory, and only actual
+resident guest bytes are credited when checking the non-pool reserve. Every configured VM gets a deterministic claim and consumed
+dispatch. The pool config is published after all initial records; complete
+readback precedes activation. A separate completion digest follows the final
+fence, issuer and resource checks. Consumers must require both activation and
+completion, not the pool config alone. Partial initialization remains held with
+no reset, retry, deletion or capacity-release API.
+
+A held metadata handle rechecks the original fenced object and protected read
+denial during initialization. This still does not prove provider settlement.
+The RPC admission consumer and production routing integration remain missing;
+no production cut, pool or new VM is authorized solely by source qualification.
