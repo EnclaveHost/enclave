@@ -59,3 +59,15 @@ test('HTTP adapter keeps encoded callback path, query, trailing slash and raw re
  const r=await fetch(`http://127.0.0.1:${port}${p}`,{method:'POST',body});
  assert.equal(received.path,p);assert.deepEqual(received.body,body);assert.deepEqual(Buffer.from(await r.arrayBuffer()),rawResponse);
 });
+
+
+test('three data routes preserve exact preamble and payload, with no fallback on refusal',async t=>{
+ const old=await tcpFixture(t),native=await tcpFixture(t),enrolled=await tcpFixture(t,'NO original backend refusal\n');
+ const router=dataServer({legacyPort:old.port,nativePort:native.port,enrolledPort:enrolled.port});
+ const port=await listen(router.server);t.after(router.close);
+ for(const [id,target,response] of [['hv-old',old,'OK\n'],['nd'+'a'.repeat(32),native,'OK\n'],['nx'+'b'.repeat(32),enrolled,'NO original backend refusal\n']]){
+  const raw=Buffer.from(preamble(id));assert.equal((await exchange(port,raw)).toString(),response);assert.deepEqual(target.seen,[raw]);
+ }
+ assert.equal((await exchange(port,Buffer.from(preamble('nx-bad')))).length,0);
+ assert.equal(old.seen.length+native.seen.length+enrolled.seen.length,3);
+});

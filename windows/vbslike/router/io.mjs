@@ -5,15 +5,16 @@ import {routeFor,routePath} from './control.mjs';
 
 // Fixed numeric loopback endpoints only. No URL or destination from a request
 // can select an upstream; the original managers remain authorization owners.
-export function makeRequest({legacyPort,nativePort,timeoutMs=null,maxBytes=2*1024*1024}) {
-  for(const port of [legacyPort,nativePort])if(!Number.isInteger(port)||port<1||port>65535)throw Error('invalid manager port');
+export function makeRequest({legacyPort,nativePort,enrolledPort=null,timeoutMs=null,maxBytes=2*1024*1024}) {
+  for(const port of [legacyPort,nativePort,...(enrolledPort===null?[]:[enrolledPort])])if(!Number.isInteger(port)||port<1||port>65535)throw Error('invalid manager port');
+  if(enrolledPort!==null && new Set([legacyPort,nativePort,enrolledPort]).size!==3)throw Error('manager ports must be distinct');
   return (role,method,path,body,headers={})=>new Promise((resolve,reject)=>{
-    if(!['legacy','native'].includes(role))return reject(Error('invalid manager role'));
+    if(!['legacy','native',...(enrolledPort===null?[]:['enrolled'])].includes(role))return reject(Error('invalid manager role'));
     const raw=body===undefined?null:Buffer.isBuffer(body)?body:Buffer.from(JSON.stringify(body));
     if(raw && raw.length>maxBytes)return reject(Error('manager request too large'));
     const pass={};for(const key of ['content-type','x-enclave-custody-callback'])if(headers[key]!==undefined)pass[key]=headers[key];
     if(raw){pass['content-length']=raw.length;pass['content-type']??='application/json';}
-    const req=http.request({hostname:'127.0.0.1',port:role==='native'?nativePort:legacyPort,method,path,headers:pass},res=>{
+    const req=http.request({hostname:'127.0.0.1',port:role==='native'?nativePort:role==='enrolled'?enrolledPort:legacyPort,method,path,headers:pass},res=>{
       const chunks=[];let count=0;
       res.on('data',chunk=>{count+=chunk.length;if(count>maxBytes)req.destroy(Error('manager response too large'));else chunks.push(chunk);});
       res.on('error',reject);
@@ -32,7 +33,7 @@ export function controlServer(manager,{maxBytes=2*1024*1024,timeoutMs=150000,max
     if(active>=maxRequests){send(503,{error:'router busy'});req.resume();return;}
     active++;
     try{
-      const route=routePath(req.url);
+      const route=manager.routePath?manager.routePath(req.url):routePath(req.url);
       if(route.custody && (req.headers['transfer-encoding'] || !Number.isSafeInteger(Number(req.headers['content-length'])) || Number(req.headers['content-length'])<0))return send(413,{error:'custody callback requires explicit length'});
       const chunks=[];let n=0;
       for await(const c of req){n+=c.length;if(n>maxBytes){send(413,{error:'manager request too large'});req.destroy();return;}chunks.push(c);}
@@ -47,8 +48,9 @@ export function controlServer(manager,{maxBytes=2*1024*1024,timeoutMs=150000,max
   return server;
 }
 
-export function dataServer({legacyPort,nativePort,preambleMs=5000,dialMs=5000,idleMs=180000,maxConnections=1024}) {
-  for(const port of [legacyPort,nativePort])if(!Number.isInteger(port)||port<1||port>65535)throw Error('invalid data port');
+export function dataServer({legacyPort,nativePort,enrolledPort=null,preambleMs=5000,dialMs=5000,idleMs=180000,maxConnections=1024}) {
+  for(const port of [legacyPort,nativePort,...(enrolledPort===null?[]:[enrolledPort])])if(!Number.isInteger(port)||port<1||port>65535)throw Error('invalid data port');
+  if(enrolledPort!==null && new Set([legacyPort,nativePort,enrolledPort]).size!==3)throw Error('data ports must be distinct');
   const connections=new Set();
   const server=net.createServer(client=>{
     if(connections.size>=maxConnections){client.destroy();return;}
@@ -63,8 +65,8 @@ export function dataServer({legacyPort,nativePort,preambleMs=5000,dialMs=5000,id
       if(nl<0){if(head.length>MAX_PREAMBLE)close();return;}
       settled=true;clearTimeout(timer);client.off('data',onData);client.pause();
       if(nl>MAX_PREAMBLE){close();return;}
-      let role;try{role=routeFor(parsePreamble(head.subarray(0,nl).toString('latin1')).id);}catch{close();return;}
-      upstream=net.connect({host:'127.0.0.1',port:role==='native'?nativePort:legacyPort});
+      let role;try{role=routeFor(parsePreamble(head.subarray(0,nl).toString('latin1')).id,enrolledPort!==null);}catch{close();return;}
+      upstream=net.connect({host:'127.0.0.1',port:role==='native'?nativePort:role==='enrolled'?enrolledPort:legacyPort});
       const dial=setTimeout(close,dialMs);
       upstream.on('error',close);upstream.once('close',()=>{clearTimeout(dial);close();});
       upstream.once('connect',()=>{

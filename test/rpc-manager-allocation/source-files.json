@@ -51,5 +51,7 @@
   "windows/vbslike/router/main.mjs",
   "windows/vbslike/router/platform.mjs",
   "windows/vbslike/router/platform.test.mjs",
+  "windows/vbslike/router/testdata/retained-health-provenance.json",
+  "windows/vbslike/router/testdata/retained-health.mjs",
   "windows/vbslike/verify/boot-statements.mjs"
 ]

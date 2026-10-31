@@ -18,7 +18,7 @@ root.mkdir()
 out.mkdir()
 (out / "tmp").mkdir()
 files = json.loads(Path(__file__).with_name('source-files.json').read_text())
-assert len(files) == 53 and len(set(files)) == len(files)
+assert len(files) == 55 and len(set(files)) == len(files)
 pins = {}
 for name in files:
     assert re.fullmatch(r'[A-Za-z0-9_./-]+\.(mjs|json)', name) and '..' not in Path(name).parts

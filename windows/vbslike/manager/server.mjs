@@ -92,7 +92,7 @@ export class Manager {
   constructor({ backend = new HyperVPartitionBackend(), fetchComponent = null, runtimeId = "",
                 runtime = null, shield = null, configEnabled = false, secretsEnabled = false, configSocketServer = false, protectedPorts = false, encVolumes = false, wasmSet = false, memory64 = false, fetchConfig = null, judgeReady = null, readyDeadlineMs = 120_000, answerCheck = null,
                 modelVolumes = null,
-                egress = null, ramPoolMiB = null, cpuPoolVcpus = null, cpuPoolSource = "NODE_VCPUS", physicalRamPoolMiB = null, physicalReservations = null, desktopMemoryProfile = null, directBootstrap = false, custodyV2 = null, images = null, desktopWorker = null } = {}) {
+                egress = null, ramPoolMiB = null, cpuPoolVcpus = null, cpuPoolSource = "NODE_VCPUS", physicalRamPoolMiB = null, physicalReservations = null, desktopMemoryProfile = null, directBootstrap = false, custodyV2 = null, images = null, desktopWorker = null, instanceNamespace = null } = {}) {
     if (ramPoolMiB !== null && (!Number.isSafeInteger(ramPoolMiB) || ramPoolMiB <= 0))
       throw new Error("ramPoolMiB must be a positive integer");
     this.ramPoolMiB = ramPoolMiB;
@@ -118,6 +118,10 @@ export class Manager {
       this.#physicalReservations = Object.freeze({ poolHash: p.poolHash, boot: p.boot,
         acquire: p.acquire.bind(p), consumeStart: p.consumeStart.bind(p) });
     }
+    if(instanceNamespace!==null && (instanceNamespace!=='nx' || !this.#physicalReservations || !validCpuPool(cpuPoolVcpus) ||
+       backend?.prefix!=='enclave-enrolled-' || backend?.marker!=='enclave-enrolled-vbslike-domain' || images?.desktop))
+      throw new Error('enrolled namespace requires distinct owned VM scope, CPU pool and shared physical authority');
+    this.instanceNamespace=instanceNamespace;
     // OWNER-COMMITTED STARTUP (package-transport.mjs; isolation/m2/front/shield_direct.go): ON only when the operator states
     // that the pinned partition image is a Shield-direct build (main.mjs ENCLAVE_SHIELD_DIRECT=1). The image, not this
     // flag, decides what runs: a legacy image ignores the package and certifies no owner name.
@@ -463,6 +467,8 @@ export class Manager {
     return {
       managerEpoch: this.epoch,
       allocation: this.allocationView(),
+      instanceNamespace: this.instanceNamespace,
+      sharedPhysicalPool: this.#physicalReservations ? {poolHash:this.#physicalReservations.poolHash,boot:this.#physicalReservations.boot} : null,
       ...(this.ramPoolMiB !== null ? { memory: this.memoryView() } : {}),
       ...(this.cpuPoolVcpus !== null ? { cpu: { rule: "cpu-share", poolVcpus: this.cpuPoolVcpus, source: this.cpuPoolSource,
         hostLogicalProcessors: this.hostLogicalProcessors, unitsPerVcpu: CPU_UNITS_PER_VCPU, allocatedUnits: this.cpuAllocated(),
@@ -548,6 +554,11 @@ export class Manager {
   }
 
   async spawn(body = {}) {
+    if(this.instanceNamespace){
+      if(!body || typeof body!=='object' || Array.isArray(body) || !/^nx[0-9a-f]{32}$/.test(body.id ?? '') || body.derive?.derivation===DESKTOP_DERIVATION)
+        throw badRequest('enrolled manager requires a router-minted nx identity and a non-native mapping');
+      body=structuredClone(body); // exact namespace cannot change during component fetch
+    }
     const requestId = (++this.#spawnSequence).toString();
     this.#spawnRequests.set(requestId, null);
     this.#allocationRevision++;
@@ -812,6 +823,8 @@ export class Manager {
         rec.physicalMemoryMiB = Number.isSafeInteger(actual) && actual > 0 ? Math.max(actual, physicalMemoryMiB) : null;
         throw new Error("the launcher did not confirm the reserved physical RAM allocation");
       }
+      if(this.instanceNamespace && cpu?.rule==='cpu-share' && h?.cpu?.appCpuPercent!==cpu.appCpuPercent)
+        throw new Error('enrolled allocation lacks exact guest CPU quota confirmation');
       if (native) {
         const p = this.#desktop.platform, statement = BOOT_STATEMENTS["linux-direct"];
         if (h?.imageRole !== "desktop" || rec.igvmSha256 !== p.igvmSha256 || h?.desktop?.profileSha256 !== p.profileSha256

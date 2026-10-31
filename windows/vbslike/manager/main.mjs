@@ -35,6 +35,11 @@ import { loadNativeInstance, bindNativeInstance } from "./native-instance.mjs";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const env = (k, d = "") => (process.env[k] || d).trim();
 
+const enrolledInstance = env("ENCLAVE_ENROLLED_INSTANCE");
+if(enrolledInstance && enrolledInstance!=="1")throw new Error("invalid enrolled instance selector");
+if(enrolledInstance && (Number(env("VMMGR_PORT"))!==8101 || Number(env("ENCLAVE_DATAPLANE_PORT"))!==8102 ||
+   env("ENCLAVE_VM_PREFIX")!=="enclave-enrolled-" || env("ENCLAVE_GUEST_CPU_ALLOWANCE")!=="1" || env("ENCLAVE_NATIVE_ROUTER_CONFIG") || env("ENCLAVE_NATIVE_ROUTER_CONFIG_SHA256")))
+  throw new Error("enrolled instance requires dedicated8101/8102 and enclave-enrolled scope");
 const port        = Number(env("VMMGR_PORT", "8091"));
 // THE VM NAME SCOPE of this instance. Unset: the production prefix, exactly as before. Set (e.g. a hardware canary beside
 // production): its own name prefix and Notes marker (wmi-launcher.mjs markerFor), so neither instance surveys, recovers,
@@ -327,6 +332,7 @@ const manager = new Manager({ judgeReady: judgeRunning, answerCheck: checkAnswer
   // Separate VM budget INCLUDING overhead, after Windows/other workload RAM.
   physicalRamPoolMiB: env("NODE_VM_RAM_GB") ? Number(env("NODE_VM_RAM_GB")) * 1024 : null,
   cpuPoolVcpus, cpuPoolSource,
+  instanceNamespace: enrolledInstance ? "nx" : null,
   physicalReservations: physicalReservationsFromEnv(process.env),
   desktopMemoryProfile: nativeInstance?.memoryProfile ?? null,
   runtime,

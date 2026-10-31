@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
-import {CompositeManager,LaunchJournal} from './control.mjs';
+import {CompositeManager,LaunchJournal,assertRetainedCompatibility} from './control.mjs';
+import {RetainedHealthFixture} from './testdata/retained-health.mjs';
 import {Manager} from '../manager/server.mjs';
 import {derive,COMPONENT_PREAMBLE} from '../manager/derive.mjs';
 const pins={deployment:'0x'+'1'.repeat(64),catalogApp:'0x'+'2'.repeat(64),catalogVersion:0,cid:'b'+'a'.repeat(58),runtimeId:'3'.repeat(64),profileSha256:'4'.repeat(64),igvmSha256:'5'.repeat(64),controllerSha256:'6'.repeat(64)};
@@ -231,4 +232,125 @@ test('real manager independently rejects a package for another AppID before back
  assert.match(rejection.message,/startup appId mismatch/);assert.equal(starts.length,0);
  // Router cannot release an intent solely on an HTTP failure.
  assert.equal(f.journal.pending(),true);assert.equal(manager.domains.size,0);
+});
+
+
+const POOL={poolHash:'a'.repeat(64),boot:'b'.repeat(32)};
+function retainedFixture(t,{admit=async()=>({check:()=>true})}={}){
+ const f=fixture(t);
+ f.health.enrolled=structuredClone(f.health.legacy);
+ Object.assign(f.health.enrolled,{managerEpoch:'enrolled-epoch',instanceNamespace:'nx',sharedPhysicalPool:POOL,
+  vmScope:{prefix:'enclave-enrolled-',marker:'enclave-enrolled-vbslike-domain'},images:{legacy:{igvmSha256:'c'.repeat(64)}}});
+ f.rows.enrolled=[];
+ f.manager=new CompositeManager({request:f.request,journal:f.journal,nativePins:pins,availableMemoryMiB:async()=>100000,
+  retainedLegacy:{scope:'enclave-enrolled-',legacyImageSha256:'c'.repeat(64),...POOL,...(admit?{admit}:{})}});
+ f.health.legacy.catalog.derivations.push('enclave-catalog-bundle/1');
+ f.health.enrolled.catalog=structuredClone(f.health.legacy.catalog);
+ f.health.legacy.catalog.runtimeId=pins.runtimeId;f.health.enrolled.catalog.runtimeId=pins.runtimeId;
+ f.setAction(async(role,method,p,b)=>{
+  if(method==='GET'||method==='DELETE'||p.endsWith('/custody-auth'))return {status:404,body:{original:role}};
+  assert.equal(role,'enrolled');
+  const row={id:b.id,name:b.name,status:'starting',runtimeId:b.derive.runtimeId,cid:b.derive.cid,catalog:b.derive.catalog,
+   imageRole:'legacy',cpu:{grantedUnits:400000},memory:{appMiB:24576},physicalMemoryMiB:25216,gpuMilli:0};
+  f.rows.enrolled.push(row);return {status:201,body:row};
+ });return f;
+}
+test('retained manager remains owner of exact GET DELETE and custody paths without fallback',async t=>{
+ const f=retainedFixture(t),bytes=Buffer.from('{ "signed": true }'),headers={'x-enclave-custody-callback':'fixture'};
+ for(const [method,path] of [['GET','/vms/hv1234'],['DELETE','/vms/hv1234'],['POST','/vms/hv1234/custody-auth']]){
+  const n=f.calls.length,r=await f.manager.handle(method,path,bytes,headers);
+  assert.equal(r.status,404);assert.equal(f.calls.length,n+1);const c=f.calls.at(-1);
+  assert.equal(c.role,'legacy');assert.equal(c.body,bytes);assert.equal(c.headers,headers);assert.equal(c.path,path);
+ }
+ const id='nx'+'a'.repeat(32);await f.manager.handle('GET','/vms/'+id);assert.equal(f.calls.at(-1).role,'enrolled');
+});
+test('new allocations target enrolled scope and aggregate all three inventories once',async t=>{
+ const f=retainedFixture(t),result=await f.manager.spawn(legacyBody());
+ assert.match(result.body.id,/^nx[0-9a-f]{32}$/);assert.equal(f.calls.filter(c=>c.method==='POST').length,1);
+ assert.equal(f.rows.legacy.length,1);assert.equal(f.rows.enrolled.length,1);
+ const h=await f.manager.health();assert.equal(h.body.physicalMemory.allocatedMiB,50432);assert.equal(h.body.cpu.allocatedUnits,800000);
+ assert.equal(h.body.vmScopes.length,3);assert.equal(f.journal.pending(),false);
+});
+test('existing deployment returns original ID without a new allocation or authority call',async t=>{
+ let admissions=0;const f=retainedFixture(t,{admit:async()=>{admissions++;return {check:()=>true};}}),b=legacyBody();
+ b.name=f.rows.legacy[0].name;const r=await f.manager.spawn(b);
+ assert.equal(r.status,409);assert.equal(r.body.id,'hv1234');assert.equal(admissions,0);
+ assert.equal(f.calls.some(c=>c.method==='POST'),false);
+});
+for(const [name,change] of [
+ ['old namespace collision',f=>f.rows.legacy[0].id='nx'+'a'.repeat(32)],
+ ['malformed new namespace',f=>f.rows.enrolled.push({...f.rows.legacy[0],id:'nx-bad',name:'other'})],
+ ['duplicate deployment',f=>f.rows.enrolled.push({...f.rows.legacy[0],id:'nx'+'a'.repeat(32)})],
+ ['new prefix mismatch',f=>f.health.enrolled.vmScope.prefix='enclave-app-'],
+ ['new namespace unenforced',f=>delete f.health.enrolled.instanceNamespace],
+ ['unshared new pool',f=>delete f.health.enrolled.sharedPhysicalPool],
+ ['new boot mismatch',f=>f.health.enrolled.sharedPhysicalPool={...POOL,boot:'c'.repeat(32)}],
+ ['capability removal',f=>{f.health.legacy.supports.secrets=true;f.health.enrolled.supports.secrets=false;}],
+ ['pool changed',f=>f.health.enrolled.memory.poolMiB=1],
+])test('retained handoff '+name+' blocks creation',async t=>{
+ const f=retainedFixture(t);change(f);await assert.rejects(f.manager.spawn(legacyBody()));
+ assert.equal(f.calls.some(c=>c.method==='POST'),false);assert.equal(f.journal.pending(),false);
+});
+test('missing handoff authority keeps creation shut but old per-domain routes live',async t=>{
+ const f=retainedFixture(t,{admit:null});assert.equal((await f.manager.health()).status,503);
+ await assert.rejects(f.manager.spawn(legacyBody()),/handoff is closed/);
+ await f.manager.handle('GET','/vms/hv1234');assert.equal(f.calls.at(-1).role,'legacy');
+ assert.equal(f.calls.some(c=>c.method==='POST'),false);
+});
+test('caller cannot select old or new IDs for a new enrolled allocation',async t=>{
+ const f=retainedFixture(t);for(const id of ['hv-caller','nx'+'a'.repeat(32),'nx-bad'])
+  await assert.rejects(f.manager.spawn({...legacyBody(),id}),e=>e.status===400);
+ assert.equal(f.calls.some(c=>c.method==='POST'),false);
+});
+test('authority is bound to exact immutable allocation and rechecked after inventory await and journal write',async t=>{
+ let guardCalls=0,permit;const f=retainedFixture(t,{admit:async p=>{permit=p;return {check:q=>{assert.equal(q,permit);return ++guardCalls<2;}};}});
+ await assert.rejects(f.manager.spawn(legacyBody()),/outcome unknown/);
+ assert.equal(Object.isFrozen(permit),true);assert.equal(Object.isFrozen(permit.epochs[0]),true);
+ assert.equal(permit.role,'enrolled');assert.equal(permit.physicalBytes,25216*1048576);
+ assert.equal(f.calls.some(c=>c.method==='POST'),false);assert.equal(f.journal.pending(),true);
+});
+test('changed manager epoch during admission refuses without new intent',async t=>{
+ let f;f=retainedFixture(t,{admit:async()=>{f.health.enrolled.managerEpoch='changed';return {check:()=>true};}});
+ await assert.rejects(f.manager.spawn(legacyBody()),/inventory changed/);assert.equal(f.journal.pending(),false);
+});
+test('a Promise returned by final authority check is not admission',async t=>{
+ const f=retainedFixture(t,{admit:async()=>({check:async()=>true})});
+ await assert.rejects(f.manager.spawn(legacyBody()),/expired or revoked/);assert.equal(f.journal.pending(),false);
+});
+test('unenrolled native creation cannot bypass handoff through third-manager mode',async t=>{
+ const f=retainedFixture(t);await assert.rejects(f.manager.spawn(f.body),/native creator is not enrolled/);
+ assert.equal(f.calls.some(c=>c.method==='POST'),false);
+});
+test('old two-manager pending epoch cannot be cleared under new topology',async t=>{
+ const f=retainedFixture(t);f.journal.begin({role:'legacy',id:'hv1234',name:f.rows.legacy[0].name,epoch:'old-two-manager-hash',expected:{}});
+ await assert.rejects(f.manager.reconcile(),/correlated same-epoch/);assert.equal(f.journal.pending(),true);
+});
+
+test('enrolled success cannot substitute another namespace-valid ID',async t=>{
+ const f=retainedFixture(t);
+ f.setAction(async(role,method,p,b)=>{
+  const row={id:b.id,name:b.name,status:'starting',runtimeId:b.derive.runtimeId,cid:b.derive.cid,catalog:b.derive.catalog,imageRole:'legacy',
+   cpu:{grantedUnits:400000},memory:{appMiB:24576},physicalMemoryMiB:25216,gpuMilli:0};f.rows.enrolled.push(row);
+  return {status:201,body:{...row,id:'nx'+'f'.repeat(32)}};
+ });await assert.rejects(f.manager.spawn(legacyBody()),/outcome unknown/);assert.equal(f.journal.pending(),true);
+});
+test('same-epoch target admission revocation during authority await prevents submission',async t=>{
+ let f;f=retainedFixture(t,{admit:async()=>{f.health.enrolled.canStart=false;return {check:()=>true};}});
+ await assert.rejects(f.manager.spawn(legacyBody()),/inventory changed/);assert.equal(f.journal.pending(),false);
+ assert.equal(f.calls.some(c=>c.method==='POST'),false);
+});
+
+test('actual retained health method composes with maintained Manager health without inventing old capabilities',async()=>{
+ const backend={supports:{gpu:false,secrets:false,ports:false},backend:'hyperv-partition-per-app',boundary:{tier:'t0-hv',hostExcluded:false},
+  prefix:'enclave-enrolled-',marker:'enclave-enrolled-vbslike-domain'};
+ const old=new RetainedHealthFixture(backend).health();
+ const next=new Manager({backend,configEnabled:true,secretsEnabled:true,configSocketServer:true,protectedPorts:true,
+  fetchConfig:async()=>Buffer.from('{}'),egress:{enabled:true,mode:'public-web'},runtimeId:'d'.repeat(64),
+  ramPoolMiB:98304,physicalRamPoolMiB:84992,cpuPoolVcpus:16,instanceNamespace:'nx',
+  physicalReservations:{...POOL,acquire:async()=>{},consumeStart:async()=>{}},images:{legacy:{igvmSha256:'c'.repeat(64)}}}).health();
+ assert.equal(old.supports.directBootstrap,undefined);assert.equal(old.images,undefined);assert.equal(old.volumes,undefined);
+ assert.equal(next.supports.directBootstrap,false);assert.ok(next.images);assert.deepEqual(next.volumes,[]);
+ assertRetainedCompatibility(old,next,'c'.repeat(64));
+ for(const bad of [{...next,images:{legacy:{igvmSha256:'f'.repeat(64)}}},{...next,supports:{...next.supports,secrets:false}},
+  {...next,catalog:{...next.catalog,runtimeId:'e'.repeat(64)}}])assert.throws(()=>assertRetainedCompatibility(old,bad,'c'.repeat(64)));
 });

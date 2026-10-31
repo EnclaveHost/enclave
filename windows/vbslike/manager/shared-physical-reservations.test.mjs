@@ -82,3 +82,51 @@ test('CPU reservation includes a launch blocked on shared physical admission',as
  await assert.rejects(m.spawn(body('b')),/CPU|RAM|memory|capacity/);
  assert.equal(calls.length,0);gate.resolve();await starting;assert.equal(calls.length,1);
 });
+
+
+async function enrolledManager(over={}){
+ const pool=fixturePool(),calls=[];
+ const backend={prefix:'enclave-enrolled-',marker:'enclave-enrolled-vbslike-domain',canSurvey:true,supports:{},
+  preflight:async()=>({ok:true,checks:[],hostLogicalProcessors:16}),survey:async()=>({vms:[]}),
+  start:async(mapping,options)=>{calls.push(options);return {appReady:true,memory:{vmMiB:2048},cpu:{appCpuPercent:options.appCpu.appCpuPercent}};}};
+ const config={backend,ramPoolMiB:4096,physicalRamPoolMiB:4096,cpuPoolVcpus:16,physicalReservations:pool,instanceNamespace:'nx',
+  fetchComponent:async()=>COMPONENT_PREAMBLE,...over};
+ const m=new Manager(config);await m.recover();await m.probe();return {m,pool,calls,config};
+}
+test('enrolled manager enforces new namespace even on direct API requests',async()=>{
+ let fetches=0;const {m,pool,calls}=await enrolledManager({fetchComponent:async()=>{fetches++;return COMPONENT_PREAMBLE;}});
+ for(const id of [undefined,'hv-old','nx-bad','nd'+'a'.repeat(32)])await assert.rejects(m.spawn({...body('a'),id}),/router-minted nx/);
+ assert.equal(fetches,0);assert.equal(pool.claims.size,0);
+ const id='nx'+'a'.repeat(32),result=await m.spawn({...body('a'),id});assert.equal(result.id,id);assert.equal(calls.length,1);
+ assert.deepEqual(m.health().sharedPhysicalPool,{poolHash:pool.poolHash,boot:pool.boot});assert.equal(m.health().instanceNamespace,'nx');
+});
+test('enrolled identity stays fixed across component fetch and cannot turn into retained ID',async()=>{
+ const gate=deferred(),entered=deferred();
+ const {m,calls}=await enrolledManager({fetchComponent:async()=>{entered.resolve();await gate.promise;return COMPONENT_PREAMBLE;}});
+ const request={...body('a'),id:'nx'+'a'.repeat(32)},pending=m.spawn(request);await entered.promise;
+ request.id='hv-retained';request.name='0x'+'b'.repeat(64);gate.resolve();const result=await pending;
+ assert.equal(result.id,'nx'+'a'.repeat(32));assert.equal(calls[0].identity.name,'0x'+'a'.repeat(64));
+});
+test('enrolled namespace refuses unshared authority and overlapping VM ownership',async()=>{
+ const {config}=await enrolledManager();
+ for(const patch of [{physicalReservations:null},{instanceNamespace:'hv'},{cpuPoolVcpus:null},
+  {backend:{...config.backend,prefix:'enclave-app-'}},{backend:{...config.backend,marker:'enclave-vbslike-domain'}}])
+  assert.throws(()=>new Manager({...config,...patch}),/enrolled namespace/);
+});
+
+test('enrolled manager holds allocation on missing guest CPU confirmation',async()=>{
+ const {m,pool}=await enrolledManager();m.backend.start=async()=>({appReady:true,memory:{vmMiB:2048}});
+ const result=await m.spawn({...body('a'),id:'nx'+'a'.repeat(32)});
+ assert.equal(result.status,'failed');assert.match(result.reason,/exact guest CPU/);
+ assert.equal(pool.claims.size,1);assert.equal(pool.consumed.size,1);assert.equal(m.physicalRamAllocated(),2048);
+});
+
+for(const actual of [3072,undefined])test('enrolled contradictory CPU and RAM preserves pessimistic memory: '+actual,async()=>{
+ const {m,pool}=await enrolledManager();
+ m.backend.start=async()=>({appReady:true,memory:{vmMiB:actual},cpu:{appCpuPercent:0}});
+ const result=await m.spawn({...body('a'),id:'nx'+'a'.repeat(32)});
+ assert.equal(result.status,'failed');assert.match(result.reason,/physical RAM/);
+ assert.equal(m.physicalRamAllocated(),actual===undefined?null:actual);
+ assert.equal(pool.claims.size,1);assert.equal(pool.consumed.size,1);
+ assert.equal([...pool.claims.values()][0].bytes,2048*MiB);
+});

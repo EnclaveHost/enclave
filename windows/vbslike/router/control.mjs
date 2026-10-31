@@ -16,24 +16,26 @@ import {desktopSpawnRefusal} from '../manager/desktop-admission.mjs';
 import {type1VmMemMiB} from '../manager/wmi-launcher.mjs';
 
 export const NATIVE_ID = /^nd[0-9a-f]{32}$/;
+export const ENROLLED_ID = /^nx[0-9a-f]{32}$/;
 const ID = /^[A-Za-z0-9-]{1,64}$/;
 const V8 = 'enclave-catalog-bundle/8';
 const LIVE = new Set(['starting', 'running']);
 const hash = x => createHash('sha256').update(JSON.stringify(x)).digest('hex');
 const error = (message, status=503) => Object.assign(new Error(message), {status});
 const natural = (x, label) => {if (!Number.isSafeInteger(x) || x < 0) throw error(`unknown ${label}`); return x;};
-export function routePath(raw) {
+export function routePath(raw, enrolled=false) {
   if(typeof raw!=='string'||!raw.startsWith('/')||raw.startsWith('//')||raw.length>2048)throw error('unknown manager route',404);
   const p=new URL(raw,'http://127.0.0.1').pathname.replace(/\/+$/,'')||'/';
   if(p==='/health'||p==='/vms'||p==='/router/reconcile')return {path:p};
   const m=/^\/vms\/([^/]+)(\/custody-auth)?$/.exec(p);
   if(!m)throw error('unknown manager route',404);
   let id;try{id=decodeURIComponent(m[1]);}catch{throw error('invalid instance encoding',400);}
-  return {path:p,id,role:routeFor(id),custody:!!m[2]};
+  return {path:p,id,role:routeFor(id,enrolled),custody:!!m[2]};
 }
-export const routeFor = id => {
+export const routeFor = (id,enrolled=false) => {
   if (typeof id !== 'string' || !ID.test(id)) throw error('invalid instance id',400);
   if (id.startsWith('nd') && !NATIVE_ID.test(id)) throw error('invalid native namespace',400);
+  if(enrolled && id.startsWith('nx')){if(!ENROLLED_ID.test(id))throw error('invalid enrolled namespace',400);return 'enrolled';}
   return NATIVE_ID.test(id) ? 'native' : 'legacy';
 };
 
@@ -81,17 +83,46 @@ export class LaunchJournal {
   clear(observation) {if(!this.pending())throw error('no pending launch to observe');this.append('observed',observation);}
 }
 
+// Compatibility is directional: every retained SERVED capability and pinned
+// identity survives; an old absent optional boolean means unsupported, not
+// unknown resource capacity. Capacity/pending observations never use defaults.
+export function assertRetainedCompatibility(old,next,legacyImageSha256){
+  if(!old.catalog?.runtimeId || old.catalog.runtimeId!==next.catalog?.runtimeId ||
+     next.images?.legacy?.igvmSha256!==legacyImageSha256)throw error('retained runtime or pinned legacy image differs');
+  for(const [key,value] of Object.entries(old.supports ?? {}))
+    if(value===true && key!=='desktop' && next.supports?.[key]!==true)throw error('retained capability removed: '+key);
+  for(const d of old.catalog?.derivations ?? [])if(d!==V8 && !next.catalog?.derivations?.includes(d))throw error('retained derivation removed');
+  for(const key of ['v2SocketServer','configSocketServer'])
+    if(old.runtime?.[key]===true && next.runtime?.[key]!==true)throw error('retained runtime capability removed');
+  for(const key of ['custody','egress'])if(old[key]!=null && hash(old[key])!==hash(next[key]))throw error('retained protocol differs: '+key);
+  for(const [role,pin] of Object.entries(old.images ?? {}))if(pin!=null && hash(pin)!==hash(next.images?.[role]))throw error('retained image differs: '+role);
+  for(const volume of old.volumes ?? [])if(!(next.volumes ?? []).some(x=>hash(x)===hash(volume)))throw error('retained volume removed');
+  if(old.inference){
+    const stable=x=>{const {allocatedGpuMilli,freeGpuMilli,...rest}=x ?? {};return rest;};
+    if(hash(stable(old.inference))!==hash(stable(next.inference)))throw error('retained inference profile differs');
+  }
+}
+
 export class CompositeManager {
-  constructor({request, journal, nativePins, nativeScope='enclave-native-', availableMemoryMiB, mint=()=> 'nd'+randomBytes(16).toString('hex')}) {
+  constructor({request, journal, nativePins, nativeScope='enclave-native-', availableMemoryMiB, mint=()=> 'nd'+randomBytes(16).toString('hex'), retainedLegacy=null}) {
     if (typeof request!=='function' || !journal || !nativePins || typeof availableMemoryMiB!=='function') throw error('router configuration absent');
     for (const name of ['deployment','catalogApp']) if (!/^0x[0-9a-f]{64}$/.test(nativePins[name]||'')) throw error('invalid native deployment/catalog pin');
     for (const name of ['runtimeId','profileSha256','igvmSha256','controllerSha256']) if (!/^[0-9a-f]{64}$/.test(nativePins[name]||'')) throw error('invalid native image pin');
     if (!Number.isSafeInteger(nativePins.catalogVersion) || nativePins.catalogVersion<0 || typeof nativePins.cid!=='string' || !nativePins.cid) throw error('invalid native version pin');
+    // Trusted installation interface. A supplied function is not a drain
+    // receipt: production must bind it to the real fenced issuer handoff.
+    // With no function the three-manager view is read-only/adopt-only.
+    if(retainedLegacy!==null && (!retainedLegacy || retainedLegacy.scope!=='enclave-enrolled-' ||
+       !/^[0-9a-f]{64}$/.test(retainedLegacy.legacyImageSha256 ?? '') || !/^[0-9a-f]{64}$/.test(retainedLegacy.poolHash ?? '') || !/^[0-9a-f]{32}$/.test(retainedLegacy.boot ?? '') ||
+       (retainedLegacy.admit!==undefined && typeof retainedLegacy.admit!=='function')))throw error('invalid retained-manager configuration');
+    this.retainedLegacy=retainedLegacy===null?null:Object.freeze({...retainedLegacy});
     this.availableMemoryMiB=availableMemoryMiB;this.request=request;this.journal=journal;this.pins=Object.freeze({...nativePins});this.nativeScope=nativeScope;this.mint=mint;this.tail=Promise.resolve();
   }
+  routePath(path){return routePath(path,this.retainedLegacy!==null);}
+  routeFor(id){return routeFor(id,this.retainedLegacy!==null);}
   async serial(fn) {const previous=this.tail;let done;this.tail=new Promise(r=>{done=r;});await previous;try{return await fn();}finally{done();}}
   async snapshot() {
-    const all=await Promise.all(['legacy','native'].map(async role=> {
+    const all=await Promise.all((this.retainedLegacy?['legacy','native','enrolled']:['legacy','native']).map(async role=> {
       const [health,list]=await Promise.all([this.request(role,'GET','/health'),this.request(role,'GET','/vms')]);
       if (health.status!==200 || list.status!==200 || !health.body?.managerEpoch || health.body.managerEpoch!==list.body?.managerEpoch || !Array.isArray(list.body.vms)) throw error(`${role} inventory unavailable or epoch changed`);
       if (health.body.inventory?.state!=='ready') throw error(`${role} inventory unknown`);
@@ -104,24 +135,36 @@ export class CompositeManager {
     if (!appPool || !physicalPool || nh.memory?.poolMiB!==appPool || nh.physicalMemory?.poolMiB!==physicalPool) throw error('manager shared pool definitions differ');
     const cpuPool=lh.cpu?.poolVcpus;
     if(!validCpuPool(cpuPool)||nh.cpu?.poolVcpus!==cpuPool||lh.cpu?.unitsPerVcpu!==CPU_UNITS_PER_VCPU||nh.cpu?.unitsPerVcpu!==CPU_UNITS_PER_VCPU||!Number.isSafeInteger(lh.cpu?.hostLogicalProcessors)||!Number.isSafeInteger(nh.cpu?.hostLogicalProcessors)||lh.cpu.hostLogicalProcessors<cpuPool||nh.cpu.hostLogicalProcessors<cpuPool)throw error('CPU pools unknown or inconsistent');
+    if(this.retainedLegacy){
+      const eh=all[2].health,c=this.retainedLegacy;
+      if(eh.backend!==lh.backend || JSON.stringify(eh.boundary)!==JSON.stringify(lh.boundary) ||
+         eh.vmScope?.prefix!==c.scope || eh.vmScope?.marker!=='enclave-enrolled-vbslike-domain' ||
+         lh.vmScope?.prefix===c.scope || eh.instanceNamespace!=='nx' ||
+         eh.sharedPhysicalPool?.poolHash!==c.poolHash || eh.sharedPhysicalPool?.boot!==c.boot)
+        throw error('enrolled manager identity or pool differs');
+      if(eh.memory?.poolMiB!==appPool || eh.physicalMemory?.poolMiB!==physicalPool || eh.cpu?.poolVcpus!==cpuPool ||
+         eh.cpu?.unitsPerVcpu!==CPU_UNITS_PER_VCPU || !Number.isSafeInteger(eh.cpu?.hostLogicalProcessors) || eh.cpu.hostLogicalProcessors<cpuPool)
+        throw error('enrolled manager capacity differs');
+      assertRetainedCompatibility(lh,eh,c.legacyImageSha256);
+    }
     const desktop=nh.desktop,p=this.pins;
     for (const key of ['runtimeId','igvmSha256','profileSha256','controllerSha256']) if (desktop?.[key]!==p[key]) throw error('native manager image differs from configured pin');
     const ids=new Set(),names=new Set();let app=0,physical=0,gpu=0,cpu=0;
     for (const {role,rows} of all) for (const r of rows) {
-      let actualRole;try{actualRole=routeFor(r?.id);}catch{throw error('invalid backend instance identity');}
+      let actualRole;try{actualRole=this.routeFor(r?.id);}catch{throw error('invalid backend instance identity');}
       if (!r || actualRole!==role || ids.has(r.id) || r.recovered || r.unattributed || typeof r.name!=='string' || !r.name) throw error('ambiguous manager inventory');
       ids.add(r.id);
       if (!['starting','running','failed','stopped'].includes(r.status)) throw error('unknown domain state');
       if (LIVE.has(r.status)) {if(names.has(r.name))throw error('duplicate active deployment');names.add(r.name);}
       if (role==='native' && (r.imageRole!=='desktop' || r.name!==p.deployment || r.runtimeId!==p.runtimeId || r.desktop?.profileSha256!==p.profileSha256)) throw error('unexpected native domain');
-      if (role==='legacy' && (r.imageRole==='desktop' || r.name===p.deployment)) throw error('native domain remains in legacy manager');
+      if (role!=='native' && (r.imageRole==='desktop' || r.name===p.deployment)) throw error('native domain remains in legacy manager');
       app+=natural(r.memory?.appMiB ?? r.policy?.memMiB,'domain app memory');
       physical+=natural(r.physicalMemoryMiB,'domain physical memory');
       gpu+=natural(r.gpuMilli,'domain GPU allocation');
       cpu+=natural(r.cpu?.grantedUnits,'domain CPU allocation');
     }
     if (![app,physical,gpu,cpu].every(Number.isSafeInteger) || app>appPool || physical>physicalPool || gpu>1000 || cpu>cpuPool*CPU_UNITS_PER_VCPU) throw error('shared capacity exceeded');
-    return {legacy:lh,native:nh,rows:all.flatMap(x=>x.rows),appPool,physicalPool,app,physical,gpu,cpuPool,cpu,epoch:hash(all.map(x=>[x.role,x.health.managerEpoch]))};
+    return {legacy:lh,native:nh,...(this.retainedLegacy?{enrolled:all[2].health}:{}),rows:all.flatMap(x=>x.rows),appPool,physicalPool,app,physical,gpu,cpuPool,cpu,epochs:all.map(x=>[x.role,x.health.managerEpoch]),epoch:hash(all.map(x=>[x.role,x.health.managerEpoch]))};
   }
   async health() {
     let s;
@@ -142,8 +185,8 @@ export class CompositeManager {
       h.admission={ready:false,reason:'composite inventory unavailable'};
       return {status:503,body:h};
     }
-    const h=structuredClone(s.legacy), d=structuredClone(s.native.desktop);
-    h.managerEpoch=s.epoch;h.vmScopes=[s.legacy.vmScope,s.native.vmScope];
+    const h=structuredClone(s.enrolled ?? s.legacy), d=structuredClone(s.native.desktop);
+    h.managerEpoch=s.epoch;h.vmScopes=[s.legacy.vmScope,s.native.vmScope,...(s.enrolled?[s.enrolled.vmScope]:[])];
     h.physicalMemory={poolMiB:s.physicalPool,allocatedMiB:s.physical,freeMiB:s.physicalPool-s.physical};
     h.memory={...h.memory,allocatedMiB:s.app,freeMiB:s.appPool-s.app};
     h.cpu={...h.cpu,allocatedUnits:s.cpu,freeUnits:s.cpuPool*CPU_UNITS_PER_VCPU-s.cpu};
@@ -154,6 +197,7 @@ export class CompositeManager {
     if(d.ready && s.native.catalog?.derivations?.includes(V8))h.catalog.derivations.push(V8);
     h.catalog.derives=[...new Set([...h.catalog.derives,V8])];
     if(h.preflight?.roles)h.preflight.roles.desktop=s.native.preflight?.roles?.desktop ?? {ok:false};
+    if(this.retainedLegacy && (!this.retainedLegacy.admit || !s.enrolled.canStart)){h.canStart=false;h.cannotStart=['creation handoff is closed'];}
     try{if(this.journal.pending()||!this.journal.hasCapacity()){h.canStart=false;h.cannotStart=['router journal requires reconciliation or maintenance'];}}catch{h.canStart=false;h.cannotStart=['router journal unavailable'];}
     if(h.canStart===false){h.admission={ready:false,reason:h.cannotStart?.join('; ')||'manager unavailable'};return {status:503,body:h};}
     return {status:200,body:h};
@@ -213,9 +257,9 @@ export class CompositeManager {
     body=structuredClone(body);
     if(['secrets','env','secretValues'].some(k=>k in body))throw error('unsupported startup inputs',400);
     if(Object.keys(body.derive?.catalog??{}).sort().join(',')!=='app,version')throw error('invalid catalog fields',400);
-    const native=body.derive?.derivation===V8,role=native?'native':'legacy';
+    const native=body.derive?.derivation===V8,role=native?'native':this.retainedLegacy?'enrolled':'legacy';
     if(native){if('bootstrap' in body)throw error('native desktop does not accept startup packages',400);this.checkNative(body);}
-    else if(body.name===this.pins.deployment || body.derive?.desktop || (body.id && routeFor(body.id)!=='legacy'))throw error('legacy request crosses native namespace',400);
+    else if(body.name===this.pins.deployment || body.derive?.desktop || (body.id && (this.retainedLegacy || this.routeFor(body.id)!=='legacy')))throw error('legacy request crosses native namespace',400);
     if(!native){
       const declared=body.derive?.inference?.gpuMilli;
       if(typeof body.gpuShare!=='number' || !Number.isFinite(body.gpuShare) || body.gpuShare<0 || body.gpuShare>1 ||
@@ -229,6 +273,8 @@ export class CompositeManager {
     this.precheck(body,s[role],native);
     const existing=s.rows.find(r=>r.name===body.name && LIVE.has(r.status));
     if(existing)return {status:409,body:{error:'deployment already exists',id:existing.id}};
+    if(this.retainedLegacy && role==='native' && (s.native.sharedPhysicalPool?.poolHash!==this.retainedLegacy.poolHash ||
+       s.native.sharedPhysicalPool?.boot!==this.retainedLegacy.boot))throw error('native creator is not enrolled in shared authority');
     if(!s[role].canStart || (native && !s.native.desktop.ready))throw error('target manager unavailable');
     const memory=body.name==='shield-readiness-v1' && body.derive?.policy?.memMiB===256
       ? {appMiB:256} : appMemoryForShare(s.appPool,body.cpuShare,body.derive?.policy?.memMiB);
@@ -239,16 +285,35 @@ export class CompositeManager {
     const hostFree=natural(await this.availableMemoryMiB(),'host physical headroom');
     if(hostFree<physical+17*1024)throw error('host physical headroom cannot preserve 17 GiB startup reserve',507);
     const forwarded=structuredClone(body);if(native){forwarded.id=this.mint();if(!NATIVE_ID.test(forwarded.id))throw error('native id generator invalid');}
-    else forwarded.id=body.id||'hv'+randomBytes(16).toString('hex');
+    else forwarded.id=body.id||(this.retainedLegacy?'nx':'hv')+randomBytes(16).toString('hex');
     if(s.rows.some(r=>r.id===forwarded.id))throw error('instance id already reserved',409);
+    let dispatchGuard=null;
+    if(this.retainedLegacy){
+      if(!this.retainedLegacy.admit)throw error('creation handoff is closed');
+      // Called after every asynchronous precheck and BEFORE the durable intent.
+      // Exact issuer epochs and next allocation are immutable to the authority.
+      const permit=Object.freeze({poolHash:this.retainedLegacy.poolHash,boot:this.retainedLegacy.boot,
+        epochs:Object.freeze(s.epochs.map(x=>Object.freeze([...x]))),role,id:forwarded.id,
+        requestSha256:hash(forwarded),physicalBytes:physical*1048576});
+      const admitted=await this.retainedLegacy.admit(permit);
+      if(!admitted || typeof admitted.check!=='function')throw error('creation handoff not admitted');
+      // A full changed epoch or inventory invalidates that admission; do not
+      // silently renew its scope by calling the authority again.
+      const current=await this.snapshot();
+      if(hash(current)!==hash(s))throw error('inventory changed during handoff admission');
+      // Synchronous final trusted-authority check; a Promise is never truth.
+      if(admitted.check(permit)!==true)throw error('creation handoff expired or revoked');
+      dispatchGuard=()=>admitted.check(permit)===true;
+    }
     this.journal.begin({schema:'enclave-router-pending/1',role,name:body.name,id:forwarded.id??null,requestSha256:hash(forwarded),epoch:s.epoch,expected:{cpuUnits:cpu,appMiB:memory.appMiB,physicalMiB:body.name==='shield-readiness-v1'?512:physical,gpuMilli:gpu,runtimeId:body.derive.runtimeId,cid:body.derive.cid,catalog:body.derive.catalog},startedAt:new Date().toISOString()});
     // The intent remains on any thrown error, 5xx, malformed success or transport
     // failure. No automatic retry can create an overlapping reservation.
     let result;try{
+    if(dispatchGuard && !dispatchGuard())throw error('creation handoff expired before submission');
     result=await this.request(role,'POST','/vms',forwarded);
     if([200,201].includes(result.status)) {
       const r=result.body;
-      if(!r || r.name!==body.name || routeFor(r.id)!==role || (native && r.id!==forwarded.id))throw error('unverifiable launch response');
+      if(!r || r.name!==body.name || this.routeFor(r.id)!==role || ((native || this.retainedLegacy) && r.id!==forwarded.id))throw error('unverifiable launch response');
       await this.observePending();
     }
     // Even a 4xx retains the latch: no HTTP status alone proves that a backend
@@ -260,7 +325,7 @@ export class CompositeManager {
   async observePending() {
     const pending=this.journal.read();if(pending.state!=='pending')throw error('no pending launch');
     const r=pending.record,s=await this.snapshot(),v=s.rows.find(x=>x.id===r.id),e=r.expected;
-    if(!e||s.epoch!==r.epoch||!v||v.name!==r.name||routeFor(v.id)!==r.role||
+    if(!e||s.epoch!==r.epoch||!v||v.name!==r.name||this.routeFor(v.id)!==r.role||
        (v.memory?.appMiB??v.policy?.memMiB)!==e.appMiB||v.physicalMemoryMiB<e.physicalMiB||
        v.gpuMilli!==e.gpuMilli||v.cpu?.grantedUnits!==e.cpuUnits||v.runtimeId!==e.runtimeId||v.cid!==e.cid||
        v.catalog?.app!==e.catalog?.app||v.catalog?.version!==e.catalog?.version)throw error('pending launch has no correlated same-epoch reservation');
@@ -271,7 +336,7 @@ export class CompositeManager {
   // elapsed time NEVER clears a pending launch: it may still be in flight.
   async reconcile() {return this.serial(()=>this.observePending());}
   async handle(method,path,body,headers={}) {
-    const r=routePath(path);
+    const r=this.routePath(path);
     if(method==='POST'&&r.path==='/router/reconcile')return this.reconcile();
     if(method==='GET' && r.path==='/health')return this.health();
     if(method==='GET' && r.path==='/vms'){const s=await this.snapshot();return {status:200,body:{vms:s.rows,managerEpoch:s.epoch}};}
