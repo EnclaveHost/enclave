@@ -583,6 +583,8 @@ is not charged a second time as a legacy allocation. Native residency and curren
 physical fit are rechecked; no historical RAM sample becomes a standing permit.
 
 This path authorizes no new app creator, manager restart, claim release or reset.
-Enabling an app creator requires a separate enrolled transition. The consumer is
-a source candidate pending qualification; the full production cut, new VM boot,
-storage, client readiness and consumer cutover remain unperformed.
+Enabling an app creator requires a separate enrolled transition. CI41178310807 compiled the full composition and passed71 tests, including
+producer/consumer schema, historical read-only lifetime and repeated pool claim
+checks. It did not execute a full production completion or native start. The
+production cut, new VM boot, storage, client readiness and consumer cutover remain
+unperformed.

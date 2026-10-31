@@ -126,3 +126,20 @@ The explicit guardian entry now pins the original 900-second VM permit and owns 
 The v2 VM permit explicitly includes fixed owned-VM disable and reconciliation; v1 start-only permits are rejected rather than silently gaining stop authority. The guarded worker now has separate `stop` and `stop-reconcile` operations. They require the original startup deadline to have elapsed, exact original start child/observer death on the same boot, and settlement of the exact persisted start operation. Unknown start responses remain held. Stop has independent immutable intent, exclusive submit/native markers, returned-reference persistence and exact job reconciliation. Preparation alone may resume only for an exact complete intent while every submission/outcome record is definitely absent. Cleanup journal scope cannot write start authority; stop-reconcile cannot submit stop.
 
 The fixed native adapter uses `RequestStateChange(3)` only for the exact original owned VM, then independently observes Off and zero assigned memory under a current read guard. It never saves or deletes a VM. These implementation paths remain unqualified against real Hyper-V; automatic cleanup scheduling, export/write fencing and reservation release are still missing. All release/fence flags remain false. Microsoft documents Disabled(3), v1-only ShutDown(4), returned asynchronous job references and warns that repeated requests can overwrite earlier requests: https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/requeststatechange-msvm-computersystem . Cancellable is not a cancellation guarantee: https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-concretejob .
+
+
+## Completed legacy handoff admission
+
+The current provider runtime also accepts an explicitly bound completed
+`legacyCutSeed` admission. This supersedes the reservation-fields-only limitation
+above for the exact retained-fenced-rpc-only mode. It holds protected historical
+cut/seed records under the current short worker lease, original issuer/source
+identity and persistent old-master denial through the final native pre-submit
+check. Initial consumed claims and the exact RPC claim are the only admitted
+allocators; missing fields do not become zero. Old strict health mode is unchanged.
+
+Actual Windows CI41178310807 compiled the composition and passed71 cases; protected
+reader lifetime, producer/consumer schemas and pool transitions were exercised.
+No full production handoff completion or native VM start was executed. Production
+activation, independently scheduled failure cleanup, VM definition, boot/storage,
+client synchronization and consumer cutover remain required.
