@@ -14,6 +14,18 @@ p=load('storage_protocol');owner=load('prepare_attachment')
 FILES={'/opt/enclave-rpc/'+n:(0o644 if n=='storage_protocol.py' else 0o755) for n in ['activate_storage.py','attach_storage.py','storage_protocol.py','identity.py']}
 FILES.update({'/etc/systemd/system/'+n:0o644 for n in ['enclave-rpc-storage-activation.service','enclave-rpc-attach-l1.service','enclave-rpc-attach-base.service']})
 
+def seed_host_key(seed,instance,attempt):
+ if seed['instance']!=instance or seed['readbackVerified'] is not True or seed['seedContainsPrivateCredentials'] is not True:raise ValueError('Exact private seed receipt required')
+ credentials=seed['credentialPublic']
+ if credentials['attempt']!=attempt:raise ValueError('Seed credentials belong to another attempt')
+ hostkey=credentials['sshHostPublicKey'].strip();parts=hostkey.split()
+ if len(parts)!=2 or parts[0]!='ssh-ed25519':raise ValueError('Exact seeded Ed25519 host key required')
+ key=base64.b64decode(parts[1],validate=True)
+ if len(key)!=51 or key[:19]!=b'\0\0\0\x0bssh-ed25519\0\0\0\x20':raise ValueError('Malformed seeded host key')
+ fingerprint='SHA256:'+base64.b64encode(hashlib.sha256(key).digest()).decode().rstrip('=')
+ if fingerprint!=credentials['sshHostFingerprint']:raise ValueError('Seed host key fingerprint differs')
+ return hostkey
+
 def package(bundle_receipt,seed_receipt,guest_boot,now):
  result_raw=owner.read_pinned(bundle_receipt);result=p.decode(result_raw);seed=p.decode(owner.read_pinned(seed_receipt))
  if result.get('schema')!='owned-rpc-attachment-bundle/1' or set(result['files'])!={'attachment.json','server-ready.json'}:raise ValueError('Exact prepared bundle required')
@@ -24,15 +36,7 @@ def package(bundle_receipt,seed_receipt,guest_boot,now):
  for left,right in [('attempt','attempt'),('instance','instance'),('guestBootId','bootId'),('createdUtcNs','createdUtcNs'),('deadlineUtcNs','deadlineUtcNs')]:
   if result[left]!=c[right]:raise ValueError('Bundle metadata differs')
  if any(result[k] is not False for k in ['storageAttached','rpcReady','writersFenced']):raise ValueError('Bundle makes readiness claim')
- if seed['instance']!=c['instance'] or seed['readbackVerified'] is not True or seed['seedContainsPrivateCredentials'] is not True:raise ValueError('Exact private seed receipt required')
- credentials=seed['credentialPublic']
- if credentials['attempt']!=c['attempt']:raise ValueError('Seed credentials belong to another attempt')
- hostkey=credentials['sshHostPublicKey'].strip();parts=hostkey.split()
- if len(parts)!=2 or parts[0]!='ssh-ed25519':raise ValueError('Exact seeded Ed25519 host key required')
- key=base64.b64decode(parts[1],validate=True)
- if len(key)!=51 or key[:19]!=b'\0\0\0\x0bssh-ed25519\0\0\0\x20':raise ValueError('Malformed seeded host key')
- fingerprint='SHA256:'+base64.b64encode(hashlib.sha256(key).digest()).decode().rstrip('=')
- if fingerprint!=credentials['sshHostFingerprint']:raise ValueError('Seed host key fingerprint differs')
+ hostkey=seed_host_key(seed,c['instance'],c['attempt'])
  pins={}
  for path,mode in FILES.items():
   row=seed['records'][path];p.digest(row['sha256'])

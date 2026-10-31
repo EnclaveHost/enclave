@@ -142,3 +142,32 @@ shell metacharacters remain refused. The original attempt stays consumed; the
 corrected qualification used a separate nonproduction attempt after confirming
 no sampler/helper remained. No deadline or capacity limit was relaxed. See
 `ops/unified-funding-20261028/rpc-files-target-qualification-r2/ROOT-RESULT.md`.
+
+`observe_guest.py` obtains the initial guest boot ID needed by
+`prepare_attachment.py`. Run it on the owner host that already holds the guest
+SSH identity; the current deployment keeps that key on Control. Supply pinned
+`serverContract` and `seedReceipt`, explicit `target`, optional pinned `jump`,
+`sshSha256`, and a protected `journalRoot`. Transfer the public inputs through
+the authenticated owner channel. Their hashes do not establish provenance.
+The prepared server contract carries the original startup window and clock
+binding; this observer never begins or extends a startup clock.
+
+The sender validates the seeded instance, attempt, Ed25519 host key and
+fingerprint, then consumes an exclusive fsynced intent before one SSH call.
+A separately supervised root unit has64MiB, one CPU, no swap, a10-second runtime
+and one-second stop limit. It verifies its actual loaded limits and cgroup,
+reads the guest boot and cloud instance IDs, and validates four public seeded
+files before calling the existing read-only identity validator. It neither
+initializes accounts/JWTs nor starts activation or clients. The return value's
+`guestBootId` feeds attachment preparation; the pinned public receipt records
+the observation. It explicitly does not prove hardware attestation, exclusive
+VM association, storage readiness, writer fencing or remote process death.
+The complete driver must still bind the network endpoint to its actual owned
+VM and use the unchanged guest-side boot checks during activation.
+
+The source integration passed14 new checks plus43 delivery/launch/observation
+regressions. The tests execute the exact transported bootstrap with actual
+protected files and the seeded identity validator, then feed its boot ID into
+the actual attachment preparer. SSH and systemd are mocked: a live guest boot
+and the remote unit remain unqualified. No guest file or private seed changed.
+See `ops/unified-funding-20261028/rpc-guest-observation-tests-r1/ROOT-RESULT.md`.
