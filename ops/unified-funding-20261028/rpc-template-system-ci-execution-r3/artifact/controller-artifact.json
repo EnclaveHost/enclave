@@ -1,0 +1,17 @@
+[
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "59A40ED25A030D2ECF866D7ED9E21F543FDD5F2EEF6379794C956C53318D8E02",
+        "Path":  "D:\\a\\_temp\\rpc-worker-2ba5e9394a4549ee805b18c085b260d2\\qualification-controller.exe"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "4CB3637FDE9F82EAA4DB9899DC65E6637C1FA335A04F9750C9586834B566EEB4",
+        "Path":  "D:\\a\\_temp\\rpc-worker-2ba5e9394a4549ee805b18c085b260d2\\owned-entry.exe"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "69C7DD5A0869EC4CEB402B0DF0918E193DC5D28E106B3ACAF06D6FAF6C709476",
+        "Path":  "D:\\a\\_temp\\rpc-worker-2ba5e9394a4549ee805b18c085b260d2\\template-regressions.exe"
+    }
+]

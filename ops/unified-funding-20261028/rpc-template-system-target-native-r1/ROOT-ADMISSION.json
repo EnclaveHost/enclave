@@ -1,0 +1,13 @@
+{
+  "at": 1793421316.4521105,
+  "freshAgeSeconds": 35.26248478889465,
+  "source": "ddecf50365c3500efc1b6c5654bd5a6a8b55044b",
+  "knownConditionalMiB": 39388,
+  "hostFloorMiB": 18432,
+  "requiredFreeBytes": 62709039104,
+  "minFreeBytes": 83907424256,
+  "managerPendingUnknown": true,
+  "missingPendingAssumedZero": false,
+  "scope": "fixed dummy SYSTEM qualification only; original30s cutoff; no VM/provider/productionmaster",
+  "latestLaunchMonotonic": 677306931
+}

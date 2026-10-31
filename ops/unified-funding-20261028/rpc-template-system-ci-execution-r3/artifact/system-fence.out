@@ -1,0 +1,1 @@
+{"schema":"owned-rpc-target-inert/2","passed":true,"hostedCi":true,"origin":134243,"deadline":164243,"elapsedMs":1190,"root":"C:\\EnclaveRpcQualification-af0e274a765b4217ad8138e1cd4b173c\\af0e274a765b4217ad8138e1cd4b173c","freeBytes":14391476224,"requiredFreeBytes":62709039104,"failures":[],"providerFenced":false,"reservationMayRelease":false,"vmsChanged":false}

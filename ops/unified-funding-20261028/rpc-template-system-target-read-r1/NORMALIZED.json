@@ -1,0 +1,46 @@
+{
+  "PINS.json": {
+    "originalSha256": "1a89064b9bdada3049a9a62208c5d9fecaa07898dab735ea9c153e266bbe4f66",
+    "publicSha256": "1a89064b9bdada3049a9a62208c5d9fecaa07898dab735ea9c153e266bbe4f66"
+  },
+  "manager-ATTEMPT.json": {
+    "originalSha256": "df06b8c8bc3608a934c59df8c82e4624320a8142fead59d90047497dbaf803eb",
+    "publicSha256": "d03afe644d61c8ab13b1eda9567754005b90efbe36fd27e0e28df79d0ebfe036"
+  },
+  "ROOT-REVIEW.md": {
+    "originalSha256": "7657ffea293f24566c4eba6eb25ba386e5f3dd17b9ac7150dd36bba98a917fa5",
+    "publicSha256": "7657ffea293f24566c4eba6eb25ba386e5f3dd17b9ac7150dd36bba98a917fa5"
+  },
+  "ROOT-RESULT.md": {
+    "originalSha256": "55a88b7df17110f25528885a1cfacc0bcc2b85755716287c2a3b57e29f660e8f",
+    "publicSha256": "55a88b7df17110f25528885a1cfacc0bcc2b85755716287c2a3b57e29f660e8f"
+  },
+  "manager-inner.log": {
+    "originalSha256": "9bc0f727b39bc9ed1fcbd227cf3692a9b3a31cd7c3ecb9ede6319e1d39bc3fb4",
+    "publicSha256": "9bc0f727b39bc9ed1fcbd227cf3692a9b3a31cd7c3ecb9ede6319e1d39bc3fb4"
+  },
+  "manager-outer.log": {
+    "originalSha256": "7f820fc95d4cc54b8bf831ba557213f94975dd232dd5a65b94041548042f7409",
+    "publicSha256": "7f820fc95d4cc54b8bf831ba557213f94975dd232dd5a65b94041548042f7409"
+  },
+  "COMMAND.json": {
+    "originalSha256": "a29c2361120f09ca09621aeb68db6716593b359612e08612b71b9f0b54cd5507",
+    "publicSha256": "a29c2361120f09ca09621aeb68db6716593b359612e08612b71b9f0b54cd5507"
+  },
+  "manager-RESULT.json": {
+    "originalSha256": "60750a5efad7d692319977eb1424d103ab70300952e8a47c90950cfb84beb0a4",
+    "publicSha256": "60750a5efad7d692319977eb1424d103ab70300952e8a47c90950cfb84beb0a4"
+  },
+  "run.py": {
+    "originalSha256": "46854fc4189bcc62250333a501069d96ed9b7cb75c521863006899fd6ced5b59",
+    "publicSha256": "46854fc4189bcc62250333a501069d96ed9b7cb75c521863006899fd6ced5b59"
+  },
+  "ROOT-TERMINAL.txt": {
+    "originalSha256": "6f18458cc2432a8b8b722c8eed8df49e1ca4622b54f8c9218476d2f9e38a2b24",
+    "publicSha256": "6f18458cc2432a8b8b722c8eed8df49e1ca4622b54f8c9218476d2f9e38a2b24"
+  },
+  "manager-read.ps1": {
+    "originalSha256": "9edf0163198698a95ac13b833ed97ab48f7468c2e9a7a57c958aec2af19e209c",
+    "publicSha256": "9edf0163198698a95ac13b833ed97ab48f7468c2e9a7a57c958aec2af19e209c"
+  }
+}

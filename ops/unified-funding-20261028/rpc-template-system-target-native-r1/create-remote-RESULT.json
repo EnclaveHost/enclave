@@ -1,0 +1,15 @@
+{
+  "at": 1793421247.556422,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 222,
+  "remoteDeathProven": false,
+  "automaticRetry": false,
+  "result": {
+    "created": true,
+    "root": "C:\\EnclaveRpcQualificationInputs-320d46ebf58446ef9ced7d8de7e57ec1\\320d46ebf58446ef9ced7d8de7e57ec1",
+    "freeBytes": 83973844992,
+    "diskFreeBytes": 21558808576,
+    "nativeAttempted": false
+  }
+}

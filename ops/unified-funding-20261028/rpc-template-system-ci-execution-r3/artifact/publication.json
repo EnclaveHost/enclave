@@ -1,0 +1,87 @@
+[
+    {
+        "name":  "regression-compile.out",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "regression-compile.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "regression.out",
+        "bytes":  696,
+        "included":  true
+    },
+    {
+        "name":  "regression.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "template-regressions.exe",
+        "bytes":  155648,
+        "included":  true
+    },
+    {
+        "name":  "entry-compile.out",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "entry-compile.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "controller-compile.out",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "controller-compile.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "system-fence.out",
+        "bytes":  366,
+        "included":  true
+    },
+    {
+        "name":  "system-fence.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "template-result.txt",
+        "bytes":  370,
+        "included":  true
+    },
+    {
+        "name":  "process-results.json",
+        "bytes":  1334,
+        "included":  true
+    },
+    {
+        "name":  "pins.json",
+        "bytes":  3921,
+        "included":  true
+    },
+    {
+        "name":  "controller-artifact.json",
+        "bytes":  714,
+        "included":  true
+    },
+    {
+        "name":  "qualification-controller.exe",
+        "bytes":  155648,
+        "included":  true
+    },
+    {
+        "name":  "owned-entry.exe",
+        "bytes":  155648,
+        "included":  true
+    }
+]

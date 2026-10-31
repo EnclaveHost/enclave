@@ -1,0 +1,15 @@
+PASS durable-read-denial-only
+PASS hash-read-and-copy-refused-after-all-handles-close
+PASS separate-process-denial
+PS_PROBE timedOut=False exitKnown=True exit=0 dead=True jobEmpty=True stage=entered metadata hashed
+PASS powershell-preflight-preserved-content-reads-denied
+PASS preflight-metadata-preserved
+PASS existing-run-and-new-master-unaffected
+PASS consumed-intent-no-retry
+PASS wrong-hash-before-intent
+PASS existing-content-reader-prevents-fence
+PASS hardlink-alias-refused
+PASS preexisting-intent-refused-before-DACL-mutation
+PASS expired-before-mutation
+PASS unchanged-content-after-fixture-only-restore
+RESULT tests=13 nativeAcl=true providerCalls=false vmChanged=false

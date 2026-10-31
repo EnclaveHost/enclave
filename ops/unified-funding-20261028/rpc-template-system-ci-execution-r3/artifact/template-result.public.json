@@ -1,0 +1,22 @@
+{
+  "schema": "system-template-fixture/1",
+  "checks": [
+    "inherited=true",
+    "untrusted-refused=true",
+    "normal-authority-unchanged=true",
+    "read-denied=true",
+    "copy-denied=true",
+    "metadata=true",
+    "distinct-copies=true",
+    "intent-consumed=true",
+    "provider-fenced=false",
+    "reservation-release=false"
+  ],
+  "attemptNonce": "af0e274a765b4217ad8138e1cd4b173c",
+  "bootId": "3167a65ec6d011f1b83900224846f572",
+  "contractSha256": "735856cd38ea06365cdf6b70721c4d3befdfa18ded27f0687813cfbced05f6d0",
+  "entrySha256": "4cb3637fde9f82eaa4db9899dc65e6637c1fa335a04f9750c9586834b566eeb4",
+  "contractRecomputed": true,
+  "originalArtifactSha256": "5156806ac41c9b6f785311b5ebae075a0e31e7c2a8e4447f826b11557a3ccbaa",
+  "note": "Public fixture binding, not credential. Original artifact unchanged locally; split fields verified by reconstructing exact contract."
+}
