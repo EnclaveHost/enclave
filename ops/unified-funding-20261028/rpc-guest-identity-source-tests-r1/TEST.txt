@@ -1,0 +1,14 @@
+test_duplicate_names (test_identity.IdentityTests.test_duplicate_names) ... ok
+test_exact_distinct_accounts (test_identity.IdentityTests.test_exact_distinct_accounts) ... ok
+test_foreign_primary_access (test_identity.IdentityTests.test_foreign_primary_access) ... ok
+test_gid_collision (test_identity.IdentityTests.test_gid_collision) ... ok
+test_jwt_create_reuse_and_refusals (test_identity.IdentityTests.test_jwt_create_reuse_and_refusals) ... ok
+test_missing_account (test_identity.IdentityTests.test_missing_account) ... ok
+test_no_supplementary_privilege_or_jwt_login (test_identity.IdentityTests.test_no_supplementary_privilege_or_jwt_login) ... ok
+test_privileged_service_shell (test_identity.IdentityTests.test_privileged_service_shell) ... ok
+test_uid_collision (test_identity.IdentityTests.test_uid_collision) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.001s
+
+OK

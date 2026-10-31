@@ -1,0 +1,52 @@
+[
+  {
+    "path": "ATTEMPT.json",
+    "originalSha256": "51e763b36a637bf5ab1b6c59dd96b08555443701eb808459cd95ed662e2209cf",
+    "publicSha256": "7732e7444ddf6f4e9abbc36be3083001edb439bbe41d0b9d974d7dcd880aa70b"
+  },
+  {
+    "path": "COMMAND.json",
+    "originalSha256": "914357182a1a61d658ec59f3d18f0225c1406a7789b4f9f91e7ac18c5dfa7ac6",
+    "publicSha256": "914357182a1a61d658ec59f3d18f0225c1406a7789b4f9f91e7ac18c5dfa7ac6"
+  },
+  {
+    "path": "REMOTE.json",
+    "originalSha256": "33a2098bb08c94bf4c68003b2ef91dcc9767e4a790a0aac00e050dea707b7a2f",
+    "publicSha256": "df1269bd5eb26552cfe0ce69873f73dfbdc981bb38fde469801e8e71dd60c249"
+  },
+  {
+    "path": "RESULT.json",
+    "originalSha256": "93fb37f6d7bca360f876dc7b745ab4a192ac30c6538bfb02a7ee102766ea2524",
+    "publicSha256": "93fb37f6d7bca360f876dc7b745ab4a192ac30c6538bfb02a7ee102766ea2524"
+  },
+  {
+    "path": "SSH.json",
+    "originalSha256": "0574c7d96d7cd5f60d64c86c4a0de321785319bf9aad8eadf9221729ce6db20e",
+    "publicSha256": "0574c7d96d7cd5f60d64c86c4a0de321785319bf9aad8eadf9221729ce6db20e"
+  },
+  {
+    "path": "TERMINAL.txt",
+    "originalSha256": "8bea5db14f598b506c88be27601abc2a04c1c53a264b068a61d7e29ef773f3f0",
+    "publicSha256": "8bea5db14f598b506c88be27601abc2a04c1c53a264b068a61d7e29ef773f3f0"
+  },
+  {
+    "path": "inner.txt",
+    "originalSha256": "4a7eb918da424b9f9cf16408e2f7c5d37fb351cd2ce453b427febea381c1aa4b",
+    "publicSha256": "4a7eb918da424b9f9cf16408e2f7c5d37fb351cd2ce453b427febea381c1aa4b"
+  },
+  {
+    "path": "outer.txt",
+    "originalSha256": "fef35cae7aa7dcf15a8a2b6b2f21e9fd2f58a19f14e76a1627a0cafe380b2c86",
+    "publicSha256": "fef35cae7aa7dcf15a8a2b6b2f21e9fd2f58a19f14e76a1627a0cafe380b2c86"
+  },
+  {
+    "path": "run.py",
+    "originalSha256": "e70ee5481cc6fa1913b0cd959d3e8e6b180f6923035a8717675b31881bed10e9",
+    "publicSha256": "e70ee5481cc6fa1913b0cd959d3e8e6b180f6923035a8717675b31881bed10e9"
+  },
+  {
+    "path": "verify.py",
+    "originalSha256": "0c6e3ff8afcd5505b8c2684d3b25a8f134950f6f867d59197f70def97b409e20",
+    "publicSha256": "0c6e3ff8afcd5505b8c2684d3b25a8f134950f6f867d59197f70def97b409e20"
+  }
+]

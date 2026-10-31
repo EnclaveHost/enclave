@@ -1,0 +1,107 @@
+[
+  {
+    "path": "ATTEMPT.json",
+    "originalSha256": "a341f546e4d7b339882574a2bee7ada4af9c4521f400c31359700018e0820086",
+    "publicSha256": "0a41075af9cbf83acc4a96cb06d1539230c473f23c8c34f0361728b2fd9a6487"
+  },
+  {
+    "path": "COMMAND.json",
+    "originalSha256": "083afc46cc7786c2ef8765b72837f4af5b525a262fbe4b165cb81acb683dc638",
+    "publicSha256": "083afc46cc7786c2ef8765b72837f4af5b525a262fbe4b165cb81acb683dc638"
+  },
+  {
+    "path": "CONFIG.json",
+    "originalSha256": "ee6cdddc32b84b7f6b46e42c49647e20c59e55f8b0d2c8af6ce475178e210210",
+    "publicSha256": "ee6cdddc32b84b7f6b46e42c49647e20c59e55f8b0d2c8af6ce475178e210210"
+  },
+  {
+    "path": "REMOTE.json",
+    "originalSha256": "365c54cf452ee53ffc59ff62fec334437f9b41e2426475c6b02c8c73ca455e87",
+    "publicSha256": "376520346af9b25e44a8a0630c82f2e5e184c8ed56dc63d5778cb1d0d14e45a8"
+  },
+  {
+    "path": "RESULT.json",
+    "originalSha256": "d6e5b0d6e66f4e5a5380179cbea251bb8e7780409c5a893362ae6ef57917c951",
+    "publicSha256": "d6e5b0d6e66f4e5a5380179cbea251bb8e7780409c5a893362ae6ef57917c951"
+  },
+  {
+    "path": "ROOT-RESULT.md",
+    "originalSha256": "8f195d55a6e942e68989f28e7ca509ab026af90ea773f1cff5a8685032c7cf7e",
+    "publicSha256": "8f195d55a6e942e68989f28e7ca509ab026af90ea773f1cff5a8685032c7cf7e"
+  },
+  {
+    "path": "ROOT-REVIEW.md",
+    "originalSha256": "aa6c7236832e737d96ad5cd3514defefabfc9005f2bbfa6bffe28d56bc009aee",
+    "publicSha256": "aa6c7236832e737d96ad5cd3514defefabfc9005f2bbfa6bffe28d56bc009aee"
+  },
+  {
+    "path": "SSH.json",
+    "originalSha256": "0574c7d96d7cd5f60d64c86c4a0de321785319bf9aad8eadf9221729ce6db20e",
+    "publicSha256": "0574c7d96d7cd5f60d64c86c4a0de321785319bf9aad8eadf9221729ce6db20e"
+  },
+  {
+    "path": "TERMINAL.txt",
+    "originalSha256": "8bea5db14f598b506c88be27601abc2a04c1c53a264b068a61d7e29ef773f3f0",
+    "publicSha256": "8bea5db14f598b506c88be27601abc2a04c1c53a264b068a61d7e29ef773f3f0"
+  },
+  {
+    "path": "identity.py",
+    "originalSha256": "dc7c62571190fc3de5e9f1345f3f1f7d7f3706f3561266d3372d714d0b709687",
+    "publicSha256": "dc7c62571190fc3de5e9f1345f3f1f7d7f3706f3561266d3372d714d0b709687"
+  },
+  {
+    "path": "inner.txt",
+    "originalSha256": "806d9f9d22e7470202565f464101c38ea7ec4b44aac39183d6b4fd30447daee7",
+    "publicSha256": "806d9f9d22e7470202565f464101c38ea7ec4b44aac39183d6b4fd30447daee7"
+  },
+  {
+    "path": "install_storage_client.py",
+    "originalSha256": "36ca702a610ce4cc318112128e6779a99495b84912cefc18430d60478e9448a8",
+    "publicSha256": "36ca702a610ce4cc318112128e6779a99495b84912cefc18430d60478e9448a8"
+  },
+  {
+    "path": "outer.txt",
+    "originalSha256": "8a46ac2905f25a61c1c380bec74411dcf6c44db92ae00f7c8292837e1464259e",
+    "publicSha256": "8a46ac2905f25a61c1c380bec74411dcf6c44db92ae00f7c8292837e1464259e"
+  },
+  {
+    "path": "prepare_seed.py",
+    "originalSha256": "8217337d5966b3c906562f1db9d47f7ddfa280886b0f25f4b7a11b4207e085f9",
+    "publicSha256": "8217337d5966b3c906562f1db9d47f7ddfa280886b0f25f4b7a11b4207e085f9"
+  },
+  {
+    "path": "prepare_storage_client.py",
+    "originalSha256": "129ed77dc8e36c36b9e39c0400063e74e0444b7042b6b038c9238886c28c8dcf",
+    "publicSha256": "129ed77dc8e36c36b9e39c0400063e74e0444b7042b6b038c9238886c28c8dcf"
+  },
+  {
+    "path": "run.py",
+    "originalSha256": "2a31fb04223c9ad943c4d95f00bbffafd9ea3914fd20ba098eace9ed7d186fe4",
+    "publicSha256": "2a31fb04223c9ad943c4d95f00bbffafd9ea3914fd20ba098eace9ed7d186fe4"
+  },
+  {
+    "path": "units/enclave-rpc-base.service.d/identity.conf",
+    "originalSha256": "77f5e49ad5940f1b44bf3972ae469792993438f5e1d7ea781a236d89a9e647c0",
+    "publicSha256": "77f5e49ad5940f1b44bf3972ae469792993438f5e1d7ea781a236d89a9e647c0"
+  },
+  {
+    "path": "units/enclave-rpc-cl.service.d/identity.conf",
+    "originalSha256": "7aba21c1278cea2f9ed60244c5067f59f67ad4f29af23aa3a2fa0e57e450217f",
+    "publicSha256": "7aba21c1278cea2f9ed60244c5067f59f67ad4f29af23aa3a2fa0e57e450217f"
+  },
+  {
+    "path": "units/enclave-rpc-el.service.d/identity.conf",
+    "originalSha256": "7aba21c1278cea2f9ed60244c5067f59f67ad4f29af23aa3a2fa0e57e450217f",
+    "publicSha256": "7aba21c1278cea2f9ed60244c5067f59f67ad4f29af23aa3a2fa0e57e450217f"
+  },
+  {
+    "path": "units/enclave-rpc-identity.service",
+    "originalSha256": "5252b795055e449b038a974727034e0361e631ccff0cdb5f7eb6a877c07d7ac7",
+    "publicSha256": "5252b795055e449b038a974727034e0361e631ccff0cdb5f7eb6a877c07d7ac7"
+  },
+  {
+    "path": "units/enclave-rpc-storage-client.service",
+    "originalSha256": "3771ac80fd4eecda92483920397a6383c3ec9219d94110d0e69d12666cc4b729",
+    "publicSha256": "3771ac80fd4eecda92483920397a6383c3ec9219d94110d0e69d12666cc4b729"
+  }
+]

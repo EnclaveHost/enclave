@@ -1,0 +1,23 @@
+[Unit]
+Description=Verify this RPC guest's identities and local engine authentication
+Requires=enclave-rpc-storage-client.service
+After=cloud-config.service enclave-rpc-storage-client.service
+Before=enclave-rpc-el.service enclave-rpc-cl.service enclave-rpc-base.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -I /opt/enclave-rpc/identity.py /etc/enclave-rpc/identity.json
+RemainAfterExit=yes
+Restart=no
+TimeoutStartSec=40
+MemoryMax=128M
+MemorySwapMax=0
+CPUQuota=100%
+TasksMax=8
+UMask=0077
+PrivateNetwork=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/etc
