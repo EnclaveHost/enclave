@@ -17,7 +17,9 @@ function Invoke-FiniteProcess([string]$Executable,[string[]]$Arguments,[int]$Dea
     foreach($a in $Arguments){if($a -match '["\r\n]'){throw 'Unexpected fixture argument'}}
     $out=Join-Path $work ($Label+'.out');$err=Join-Path $work ($Label+'.err')
     $clock=[Diagnostics.Stopwatch]::StartNew()
-    $p=Start-Process -FilePath $Executable -ArgumentList (($Arguments|ForEach-Object{'"'+$_+'"'}) -join ' ') -PassThru -NoNewWindow -RedirectStandardOutput $out -RedirectStandardError $err
+    $launch=@{FilePath=$Executable;PassThru=$true;NoNewWindow=$true;RedirectStandardOutput=$out;RedirectStandardError=$err}
+    if($Arguments.Count -gt 0){$launch.ArgumentList=(($Arguments|ForEach-Object{'"'+$_+'"'}) -join ' ')}
+    $p=Start-Process @launch
     $handle=$p.Handle # Retain the process we created, never terminate by a later PID lookup.
     $failure=$null;$maximumObservedWorkingSet=0L
     try{

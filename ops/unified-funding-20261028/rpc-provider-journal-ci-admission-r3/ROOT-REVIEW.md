@@ -1,0 +1,11 @@
+Provider transaction source admission
+
+One new hosted finite compiler/fault-injection run on exact source is authorized. Five C# files plus one script transferred by exact Git blobs; no checkout protections weakened. Native Hyper-V adapter compiles but the harness uses only fake providers/runtime/journal and ManagementPath parsing. No actual VM/provider call or remote target task. Harness self128MiB/CPU1, independent15s deadline; outercompiler20s/test20s and3minCI job, bounded output/artifact publication. 22 cases include lost response, failed persistence, restart/no resend, exact reference/namespace, job reincarnation/GC and concurrency.
+
+Submission requires an already-durable intent; exclusive submission and native-call markers stay consumed after failure.4096 response reference is persisted before any query; unknown and abnormal/killed/suspended/service/recurring observations remain held. State7/nonrecurring only can yield settlement, separate from Running/Off/startgate/storage fences. The store adapter reuses protected WriteOnce; inert namespace is only storage. IStartRuntime is a trusted caller integration boundary, not evidence. Future VM authority/journal reopen/deadline/guardian and exact native qualification remain absent; no activation.
+
+Official interface references: https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/requeststatechange-msvm-computersystem and https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-concretejob . Historical actual CIM code confirms exact-GUID targeting and returned jobs but does not qualify this adapter.
+
+Peer found real journal absence mismatch: backing native CreateFile reports Win32Exception, not FileNotFoundException. Source-only r1 f3f0c5e preserved without execution. R2 maps error2 at CreateFile only, before disposing handle, to explicit missing; other failures remain held. Two actual protected namespace/held-file adapter tests cover missing and zero-byte pending, still no provider operation. No prior CI rerun; first provider-journal CI will use this correction.
+
+CI41152539742 compiled but launcher rejected empty ArgumentList BEFORE harness. Corrected runner now omits that parameter when no arguments. Same22cases/source/deadlines/caps. One distinct CI execution authorized. Peer missing-file correction confirmed.

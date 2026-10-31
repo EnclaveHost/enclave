@@ -1,0 +1,37 @@
+[
+  {
+    "path": "DISPATCH-INTENT.json",
+    "originalSha256": "2caa0daa0842ef8bfadfbc5918736138f13d151164b716dff90ee45eb9c493dc",
+    "publicSha256": "30cc79522cbfe4b5efc67f566ca7296c0a77742b2379984bbf791696b007b7da"
+  },
+  {
+    "path": "artifacts/publication.json",
+    "originalSha256": "6dd217203742686d0a9260c26a3f900bef534dcc8a1ba6eed1797fca148951ce",
+    "publicSha256": "6d92ecea6eb383b200051afc043e7670c813e6fcf138f62c7edfe19359644a61"
+  },
+  {
+    "path": "artifacts/process-results.json",
+    "originalSha256": "80998a79deca7968a9658fd0ab7818f8a9993cc98e0450b1a8d83778baa21991",
+    "publicSha256": "5539099ec26647a72723c3100a6fde01ba8b9f4d8dd3f1d00b334d77d8bf4b88"
+  },
+  {
+    "path": "artifacts/controller-compile.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "path": "artifacts/pins.json",
+    "originalSha256": "c8a8a898d207de4b4fed8def519eeea0d79cc83ab8b6097a96a29f3bff7a251e",
+    "publicSha256": "6a09ba9de8ac5c685abe16968c94928804c65f694a29e77fcbbafbec9fffa497"
+  },
+  {
+    "path": "artifacts/controller-artifact.json",
+    "originalSha256": "7c6caec8336c40954e027200c5a5ba0cf65638571e574f2e7687bbea8984c96f",
+    "publicSha256": "c5e91c803dd0d4381baab55247474118069e2a70300a1defa26aae46d781c7f1"
+  },
+  {
+    "path": "artifacts/controller-compile.out",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  }
+]

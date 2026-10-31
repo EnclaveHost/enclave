@@ -1,7 +1,8 @@
 # Owned RPC lifecycle primitives
 
 These sources are unfinished and are not loaded by the host manager or installed
-as services. They do not admit or start a VM. The production activation gate stays
+as services. The finite inert SYSTEM path passed on the actual minipc host at
+2026-10-31 00:42 UTC; VM authority and RPC startup remain unimplemented. They do not admit or start a VM. The production activation gate stays
 closed until the native worker, independent guardian, durable provider-operation
 journal, protected namespace, storage attachment and resource admission pass.
 
@@ -233,4 +234,23 @@ failure remain in the evidence. The managed replacement passed hosted integratio
 CI41149985211 at2d0970a3aa02761f45c1980d2d79db942157c9dd in1.166s
 (controller1.022s), without cap or timeout changes. Hosted mode is explicitly
 disposable-CI-only and uses3GiB headroom; it is never a target admission substitute.
-Actual target-context bootstrap, WMI comparison and namespace remain pending.
+Actual target invocation b9d2f1cb6c744aff8e7e5608a6a3aed6 passed in3.130s,
+with hostedCi=false, separate SYSTEM roles, exact process exits, explicit owner
+success/observer empty-job receipts and associated task cleanup. It used the
+parent-clock-bound source c2f513dd0d05d4d64eced238ac0d6525fd951360 and
+independently hashed artifacts from CI41151421474. No VM/provider call occurred.
+This supersedes earlier historical statements that the inert target path was
+unqualified; it does not admit VM memory, provider operations or the RPC stack.
+
+## Provider start transaction
+
+`ProviderStart.cs` is a separate unactivated library. A prepared intent, exclusive
+submission marker and native-call marker prevent automatic resubmission after a
+lost return. Returned local job references are persisted before queries or ACK;
+job incarnation changes, failed writes and uncertain provider states stay held.
+The actual Hyper-V adapter has only a fixed local RequestStateChange(2) operation.
+No production entrypoint calls it. `IStartRuntime` still requires a real guarded
+VM authority/admission implementation, and persistent reopening beyond an inert
+worker lease remains unfinished. See [provider integration](PROVIDER-LIFECYCLE.md).
+The new fault-injection harness is awaiting execution; compiled source alone is
+not native VM-operation qualification.
