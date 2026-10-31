@@ -45,11 +45,11 @@ public static class OwnedVmDefinitionHarness {
  static void Put(string path,byte[] bytes){var a=new FileSecurity();a.SetOwner(new SecurityIdentifier("S-1-5-32-544"));a.SetAccessRuleProtection(true,false);foreach(string sid in new[]{"S-1-5-18","S-1-5-32-544"})a.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid),FileSystemRights.FullControl,AccessControlType.Allow));using(var f=new FileStream(path,FileMode.CreateNew,FileSystemRights.WriteData,FileShare.None,4096,FileOptions.WriteThrough,a)){f.Write(bytes,0,bytes.Length);f.Flush(true);}}
  sealed class ProtectedCase {
   internal readonly string Contract,Hash,PlanPath,PlanHash;internal readonly OwnedVmDefinitionPlan P;
-  internal ProtectedCase(string op="define",bool wrongHash=false,bool expired=false,bool wrongBoot=false){
+  internal ProtectedCase(string op="define",bool wrongHash=false,bool wrongBoot=false){
    string n=Guid.NewGuid().ToString("N"),b=ProtectedAttempt.CurrentBoot(),basePath=Path.GetPathRoot(Environment.SystemDirectory),parent=Path.Combine(basePath,"rpc-definition-ci-"+n),root=Path.Combine(parent,n);
    DirectoryNew(parent);DirectoryNew(root);Put(Path.Combine(root,"entry.exe"),fixtureImage);
    string id=Guid.NewGuid().ToString("N"),vp=Path.Combine(basePath,"EnclaveRpcVm-"+id),vr=Path.Combine(vp,id);DirectoryNew(vp);DirectoryNew(vr);
-   long now=BoundedWorker.MonotonicMilliseconds(),origin=expired?now-899999:now;
+   long now=BoundedWorker.MonotonicMilliseconds(),origin=now;
    P=new OwnedVmDefinitionPlan(id,wrongBoot?new string('b',32):b,new string('c',64),ProtectedAttempt.Hash(fixtureImage),vr,origin,origin+900000,new string('e',64),new string('f',64));
    PlanPath=Path.Combine(vr,"definition-plan.txt");byte[] plan=Encoding.UTF8.GetBytes(P.Encode());PlanHash=wrongHash?new string('0',64):ProtectedAttempt.Hash(plan);Put(PlanPath,plan);
    byte[] c=Encoding.UTF8.GetBytes("owned-rpc-definition-worker-v1\n"+n+"\n"+b+"\n"+now+"\n"+(now+20000)+"\n"+ProtectedAttempt.Hash(fixtureImage)+"\n"+op+"\n"+PlanPath+"\n"+PlanHash+"\n");
@@ -66,8 +66,8 @@ public static class OwnedVmDefinitionHarness {
   Test("definition-contract-not-start-authority",()=>{var c=new ProtectedCase();Refuse(()=>{using(var a=ProtectedAttempt.PinProviderController(c.Contract,c.Hash)){};});});
   Test("definition-unknown-operation-refused",()=>{var c=new ProtectedCase("start");Refuse(()=>{using(var a=c.Lease()){};});});
   Test("protected-definition-wrong-plan-hash",()=>{var c=new ProtectedCase("define",true);using(var a=c.Lease())Refuse(()=>{using(var p=ProtectedAttempt.PinDefinitionJournalController(c.PlanPath,c.PlanHash,a)){};});});
-  Test("definition-worker-cannot-extend-original900s",()=>{var c=new ProtectedCase("define",false,true);using(var a=c.Lease())Refuse(()=>{using(var p=ProtectedAttempt.PinDefinitionJournalController(c.PlanPath,c.PlanHash,a)){};});});
-  Test("definition-plan-other-boot-refused",()=>{var c=new ProtectedCase("define",false,false,true);using(var a=c.Lease())Refuse(()=>{using(var p=ProtectedAttempt.PinDefinitionJournalController(c.PlanPath,c.PlanHash,a)){};});});
+  Test("definition-worker-cannot-extend-original900s",()=>Refuse(()=>Plan().ValidateWorkerWindow(900000,920000,900001,false)));});
+  Test("definition-plan-other-boot-refused",()=>{var c=new ProtectedCase("define",false,true);using(var a=c.Lease())Refuse(()=>{using(var p=ProtectedAttempt.PinDefinitionJournalController(c.PlanPath,c.PlanHash,a)){};});});
   Test("reconcile-can-record-observation-but-never-submit",()=>{var c=new ProtectedCase("definition-reconcile");using(var a=c.Lease())using(var p=ProtectedAttempt.PinDefinitionJournalController(c.PlanPath,c.PlanHash,a)){var j=new OwnedDefinitionJournal(p);Refuse(()=>OwnedVmDefinition.Prepare(c.P,j));Refuse(()=>j.WriteOnce("definition.native","x"));Refuse(()=>j.WriteOnce("definition.receipt","x"));j.WriteOnce("definition.job","fixture-observation");Check(j.Read("definition.job")=="fixture-observation");}});
   Test("definition-journal-cannot-publish-start",()=>{var c=new ProtectedCase();using(var a=c.Lease())using(var p=ProtectedAttempt.PinDefinitionJournalController(c.PlanPath,c.PlanHash,a)){var j=new OwnedDefinitionJournal(p);Refuse(()=>j.WriteOnce("start.intent","x"));Refuse(()=>j.WriteOnce("definition.intent","x"));}});
   Test("controller-requires-exclusive-fixed-vm-root",()=>{var c=new ProtectedCase();Check(DefinitionWorkerController.DefinitionRoot(c.P)==Path.GetDirectoryName(c.P.Root));Refuse(()=>DefinitionWorkerController.DefinitionRoot(Plan()));});

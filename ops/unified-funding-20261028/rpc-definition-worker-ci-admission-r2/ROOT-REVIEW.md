@@ -1,0 +1,1 @@
+Changed qualification after actual r1 fixture negative-origin failure. Same45 cases/bounds; extracted actual protected-plan ValidateWorkerWindow check retains original900s, tested with explicit synthetic boundary times instead of assuming hosted machine uptime. No production admission or native mutation. Original failure preserved.

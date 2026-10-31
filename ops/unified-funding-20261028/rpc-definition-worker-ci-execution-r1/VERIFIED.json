@@ -1,0 +1,63 @@
+{
+  "head": "db62e219fa4e91a8d2d66b2e1a01a905ae1e1569",
+  "run": 41179904646,
+  "compiledPins": 14,
+  "testsPassedBeforeFailure": 40,
+  "processes": [
+    {
+      "label": "controller-compile",
+      "pid": 8600,
+      "exitCode": 0,
+      "elapsedMs": 2060,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 37859328,
+      "outputBytes": 0
+    },
+    {
+      "label": "entry-compile",
+      "pid": 7148,
+      "exitCode": 0,
+      "elapsedMs": 265,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 36073472,
+      "outputBytes": 0
+    },
+    {
+      "label": "target-compile",
+      "pid": 8992,
+      "exitCode": 0,
+      "elapsedMs": 268,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 36945920,
+      "outputBytes": 0
+    },
+    {
+      "label": "inert",
+      "pid": 5308,
+      "exitCode": 1,
+      "elapsedMs": 598,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 31137792,
+      "outputBytes": 2318
+    }
+  ],
+  "binaries": {
+    "definition-controller.exe": {
+      "bytes": 211968,
+      "sha256": "54960ec0da803b564c8d8ad46c9f8cfc3cc19b4f86f56521b626533e5c835df6"
+    },
+    "qualification-controller.exe": {
+      "bytes": 237056,
+      "sha256": "7f0d7e7dda9031db14c972a48f6555f39a4ff1cf067dcc84e30a6971ddfb424b"
+    },
+    "owned-entry.exe": {
+      "bytes": 211968,
+      "sha256": "794745cab66f73e30676e42a9bdd7da5d8288f38dd0792333ff97d97de31dd93"
+    }
+  },
+  "productionActivated": false
+}

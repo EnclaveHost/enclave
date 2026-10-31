@@ -1,0 +1,3 @@
+# Original fixture failure retained
+
+Run41179904646 compiled all three executables successfully (2060/265/268ms);14 compiled pins independently match exact commit db62e219. Harness exited1 after598ms and40PASS. The next fixture subtracted899999ms from a newly booted runner monotonic clock, producing a negative plan origin before the intended refusal assertion. No native provider call, target role or production mutation occurred. Corrected fixture exercises the actual ValidateWorkerWindow helper with explicit nonnegative synthetic times, while real protected fixtures continue using actual current monotonic time. Original failure retained, no cap/deadline change or unchanged retry.

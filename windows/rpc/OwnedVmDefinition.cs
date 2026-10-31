@@ -24,6 +24,9 @@ namespace Enclave.OwnedRpc {
    if(Path.GetFileName(root)!=attempt||origin<0||origin>Int64.MaxValue-900000||deadline!=origin+900000)throw new ArgumentException("Original owned definition namespace/time");
    Attempt=attempt;Boot=boot;AdmissionHash=admission;ProviderImageHash=providerImage;Root=root;Origin=origin;Deadline=deadline;BootDiskHash=bootDisk;SeedHash=seed;
   }
+  internal void ValidateWorkerWindow(long workerOrigin,long workerDeadline,long now,bool reconcile){
+   if(workerOrigin<Origin||now<Origin||(!reconcile&&(workerDeadline>Deadline||now>=Deadline)))throw new InvalidOperationException("Definition worker exceeds original startup window");
+  }
   public static OwnedVmDefinitionPlan Parse(string raw){
    if(raw==null||Encoding.UTF8.GetByteCount(raw)>4096)throw new ArgumentException("Definition plan bound");
    string[] f=raw.Split('\n');if(f.Length!=12||f[0]!="owned-rpc-definition/1"||f[10]!="generation-2-ubuntu;guest=20401094656;support=1073741824;vcpus=4;start=false"||f[11]!="")throw new ArgumentException("Exact definition plan schema");
@@ -224,7 +227,7 @@ namespace Enclave.OwnedRpc {
     DefinitionPlan=OwnedVmDefinitionPlan.Parse(Utf8.GetString(raw));var p=DefinitionPlan;
     Nonce=p.Attempt;Boot=p.Boot;Origin=p.Origin;Deadline=p.Deadline;ExecutableHash=p.ProviderImageHash;
     if(p.Root!=Root||Path.GetFileName(Root)!=Nonce||Boot!=reader.Boot||Boot!=CurrentBoot()||Origin>reader.Origin)throw new InvalidOperationException("Definition namespace/boot/origin differs");
-    if(reader.Operation=="define"&&(BoundedWorker.MonotonicMilliseconds()<Origin||reader.Deadline>Deadline))throw new InvalidOperationException("Definition worker exceeds original startup window");
+    p.ValidateWorkerWindow(reader.Origin,reader.Deadline,BoundedWorker.MonotonicMilliseconds(),reader.Operation=="definition-reconcile");
     CheckDeadline();
    }catch{Dispose();throw;}
   }

@@ -1,0 +1,7 @@
+System.ArgumentException: Original owned definition namespace/time
+   at Enclave.OwnedRpc.OwnedVmDefinitionPlan..ctor(String attempt, String boot, String admission, String providerImage, String root, Int64 origin, Int64 deadline, String bootDisk, String seed)
+   at OwnedVmDefinitionHarness.ProtectedCase..ctor(String op, Boolean wrongHash, Boolean expired, Boolean wrongBoot)
+   at OwnedVmDefinitionHarness.<ProtectedTests>b__f()
+   at OwnedVmDefinitionHarness.Test(String name, Action f)
+   at OwnedVmDefinitionHarness.ProtectedTests()
+   at OwnedVmDefinitionHarness.Main(String[] args)
