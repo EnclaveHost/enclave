@@ -1,0 +1,34 @@
+{
+  "at": 1793436026.2901225,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 222,
+  "remoteDeathProven": false,
+  "automaticRetry": false,
+  "result": {
+    "verified": true,
+    "root": "C:\\EnclaveRpcBootMedia-af667437b1764a459adf62912a5ce2bf\\af667437b1764a459adf62912a5ce2bf",
+    "files": [
+      {
+        "sha256": "5d01973660220c8069d707e8d54a38d3a68e32956ac8ff9a0075b714974fd175",
+        "name": "boot.vhdx",
+        "bytes": 1933574144
+      },
+      {
+        "sha256": "c92f5bc01f1c615df4a5f5df697c0cb9e32456ddfb8f88e746e561e1f981b78a",
+        "name": "seed.iso",
+        "bytes": 378880
+      }
+    ],
+    "vhd": {
+      "attached": false,
+      "format": "VHDX",
+      "virtualBytes": 3758096384,
+      "fileBytes": 1933574144,
+      "type": "Dynamic"
+    },
+    "diskFreeBytes": 19158118400,
+    "nativeVmAttempted": false,
+    "startAdmitted": false
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "at": 1793436483.85532,
+  "readOnly": true,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 1286,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "success": true,
+    "atUtc": "2026-10-31T08:48:03.7656310Z",
+    "boot": "2026-10-23T08:29:16.5000000Z",
+    "physicalBytes": 120070115328,
+    "freeMemoryBytes": 85173555200,
+    "diskFreeBytes": 19173773312,
+    "bootFileBytes": 1933574144,
+    "bootVirtualBytes": 3758096384,
+    "bootAttached": false,
+    "bootMaximumEnvelopeBytes": 4294967296,
+    "diskFloorBytes": 17179869184,
+    "artifactAllowanceBytes": 268435456,
+    "requiredDiskFreeAfterStagingBytes": 19809697792,
+    "diskBudgetFits": false,
+    "capacityAdmitted": false,
+    "nativeVmAttempted": false
+  }
+}

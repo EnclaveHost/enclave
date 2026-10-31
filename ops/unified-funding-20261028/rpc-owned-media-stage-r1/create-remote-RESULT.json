@@ -1,0 +1,16 @@
+{
+  "at": 1793435639.3894932,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 222,
+  "remoteDeathProven": false,
+  "automaticRetry": false,
+  "result": {
+    "created": true,
+    "root": "C:\\EnclaveRpcBootMedia-4c8df27e975b4f8b8f099fa5c53797af\\4c8df27e975b4f8b8f099fa5c53797af",
+    "freeBytes": 85630726144,
+    "diskFreeBytes": 21768372224,
+    "nativeAttempted": false,
+    "startAdmitted": false
+  }
+}

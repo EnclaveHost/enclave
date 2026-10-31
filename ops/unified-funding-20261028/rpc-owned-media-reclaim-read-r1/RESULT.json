@@ -1,0 +1,22 @@
+{
+  "rc": 0,
+  "readOnly": true,
+  "observation": {
+    "invocation": "0df322c5fcd34046ac741cfdc430a110",
+    "readOnly": true,
+    "results": {
+      "mount": {
+        "rc": 0,
+        "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/\",\n         \"source\": \"/dev/sda1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime,discard,errors=remount-ro,commit=30\"\n      }\n   ]\n}\n"
+      },
+      "discard": {
+        "rc": 0,
+        "stdout": "{\n   \"blockdevices\": [\n      {\n         \"name\": \"sda\",\n         \"type\": \"disk\",\n         \"fstype\": null,\n         \"mountpoints\": [\n             null\n         ],\n         \"disc-gran\": \"16M\",\n         \"disc-max\": \"4G\",\n         \"disc-zero\": false,\n         \"children\": [\n            {\n               \"name\": \"sda1\",\n               \"type\": \"part\",\n               \"fstype\": \"ext4\",\n               \"mountpoints\": [\n                   \"/\"\n               ],\n               \"disc-gran\": \"16M\",\n               \"disc-max\": \"4G\",\n               \"disc-zero\": false\n            },{\n               \"name\": \"sda14\",\n               \"type\": \"part\",\n               \"fstype\": null,\n               \"mountpoints\": [\n                   null\n               ],\n               \"disc-gran\": \"16M\",\n               \"disc-max\": \"4G\",\n               \"disc-zero\": false\n            },{\n               \"name\": \"sda15\",\n               \"type\": \"part\",\n               \"fstype\": \"vfat\",\n               \"mountpoints\": [\n                   \"/boot/efi\"\n               ],\n               \"disc-gran\": \"16M\",\n               \"disc-max\": \"4G\",\n               \"disc-zero\": false\n            },{\n               \"name\": \"sda16\",\n               \"type\": \"part\",\n               \"fstype\": \"ext4\",\n               \"mountpoints\": [\n                   \"/boot\"\n               ],\n               \"disc-gran\": \"16M\",\n               \"disc-max\": \"4G\",\n               \"disc-zero\": false\n            }\n         ]\n      },{\n         \"name\": \"sr0\",\n         \"type\": \"rom\",\n         \"fstype\": \"iso9660\",\n         \"mountpoints\": [\n             null\n         ],\n         \"disc-gran\": \"2K\",\n         \"disc-max\": \"0B\",\n         \"disc-zero\": false\n      }\n   ]\n}\n"
+      },
+      "trimVersion": {
+        "rc": 0,
+        "stdout": "fstrim from util-linux 2.39.3\n"
+      }
+    }
+  }
+}

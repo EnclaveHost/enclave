@@ -726,6 +726,17 @@ bytes. Tools were downloaded at exact reviewed Ubuntu package versions and
 extracted privately, with no installation, upgrade or service restart. The local
 host's proposed preparation allocation had failed its pending-aware floor check;
 the Control guest had separate measured capacity and continuous guards. These
-are verified media artifacts, not target boot or RPC readiness evidence. Actual
-target staging, current physical/disk/pending admission and integrated startup
-remain required. Public evidence is in `ops/unified-funding-20261028/rpc-boot-media-build-r1`.
+are verified media artifacts, not target boot or RPC readiness evidence. Protected
+Windows staging now passed full-file hashes and native Get-VHD readback: standalone,
+dynamic, unattached, with the same virtual and file sizes. The duplicate Control
+preparation images were reclaimed after exact checks; the original Warden cloud
+image and verified Windows copy remain. No blockchain database was copied to C:.
+Current physical/disk/pending admission, integrated startup and the storage path
+remain required. Public evidence is in `ops/unified-funding-20261028/rpc-boot-media-build-r1`
+and `ops/unified-funding-20261028/rpc-owned-media-stage-r3`.
+
+The operator-authorized removal of one large Steam game subsequently cleared the
+Windows boot-volume constraint:147,354,484,736 bytes free at the recorded read.
+This is disk-capacity evidence only; fresh complete memory/pending admission and
+actual integrated boot remain required. See
+`ops/unified-funding-20261028/nucbox-game-space-recovery-r1`.

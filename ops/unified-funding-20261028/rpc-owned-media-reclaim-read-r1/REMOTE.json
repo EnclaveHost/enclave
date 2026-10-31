@@ -1,0 +1,22 @@
+[
+  "sudo",
+  "-n",
+  "systemd-run",
+  "--quiet",
+  "--wait",
+  "--pipe",
+  "--unit=enclave-rpc-boot-media-reclaim-read-r1-20261031",
+  "--property=MemoryMax=128M",
+  "--property=MemorySwapMax=0",
+  "--property=CPUQuota=100%",
+  "--property=TasksMax=16",
+  "--property=RuntimeMaxSec=30",
+  "--property=TimeoutStopSec=5",
+  "--property=KillMode=control-group",
+  "--property=UMask=0077",
+  "/usr/bin/python3",
+  "-I",
+  "-B",
+  "-c",
+  "import pathlib,json,subprocess,os\nresults={}\nfor name,argv in [('mount',['findmnt','-J','-o','TARGET,SOURCE,FSTYPE,OPTIONS','/']),('discard',['lsblk','-D','-J','-o','NAME,TYPE,FSTYPE,MOUNTPOINTS,DISC-GRAN,DISC-MAX,DISC-ZERO']),('trimVersion',['fstrim','--version'])]:\n r=subprocess.run(argv,capture_output=True,text=True,timeout=5)\n if len(r.stdout)>65536 or len(r.stderr)>4096:raise RuntimeError('Output bound')\n results[name]={'rc':r.returncode,'stdout':r.stdout,'stderr':r.stderr}\nprint(json.dumps({'invocation':os.environ.get('INVOCATION_ID'),'readOnly':True,'results':results}))\n"
+]

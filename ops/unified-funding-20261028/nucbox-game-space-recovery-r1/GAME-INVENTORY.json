@@ -1,0 +1,17 @@
+{
+  "observedAt": "2026-10-31T08:48:53.6754258Z",
+  "diskFreeBytes": 19166019584,
+  "game": [
+    {
+      "key": "Microsoft.PowerShell.Core\\Registry::HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Steam App 1174180",
+      "id": "Steam App 1174180",
+      "name": "Red Dead Redemption 2",
+      "publisher": "Rockstar Games",
+      "estimatedKiB": null,
+      "location": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Red Dead Redemption 2",
+      "uninstall": "\"C:\\Program Files (x86)\\Steam\\steam.exe\" steam://uninstall/1174180",
+      "quietUninstall": null
+    }
+  ],
+  "otherInstalledApplicationsOmitted": true
+}

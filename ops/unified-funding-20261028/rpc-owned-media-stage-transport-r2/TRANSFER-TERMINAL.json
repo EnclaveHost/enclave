@@ -1,0 +1,22 @@
+{
+  "rc": 0,
+  "observation": {
+    "readOnly": true,
+    "files": [
+      {
+        "name": "boot.vhdx",
+        "bytes": 454852608,
+        "modified": "2026-10-31T08:39:14.0238958Z"
+      },
+      {
+        "name": "media.intent",
+        "bytes": 60,
+        "modified": "2026-10-31T08:33:59.2919416Z"
+      }
+    ],
+    "writers": [],
+    "diskFreeBytes": 21321113600
+  },
+  "knownLocalPidsGone": true,
+  "providerOperationAttempted": false
+}

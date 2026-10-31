@@ -1,0 +1,26 @@
+{
+  "at": 1793436700.0583143,
+  "readOnly": false,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 614,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "success": true,
+    "task": "CodexGameDialog-d1813407cc0d4d79a13c28bfedd77613",
+    "root": "C:\\ProgramData\\CodexGameCleanup-d1813407cc0d4d79a13c28bfedd77613",
+    "result": {
+      "success": true,
+      "title": "Uninstall",
+      "pid": 24392,
+      "handle": 196888,
+      "x": 0,
+      "y": 208,
+      "width": 640,
+      "height": 224
+    },
+    "taskState": 3,
+    "lastTaskResult": 0
+  }
+}

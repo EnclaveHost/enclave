@@ -1,0 +1,25 @@
+{
+  "at": 1793436579.540225,
+  "readOnly": true,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 1062,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "success": true,
+    "steam": {
+      "pid": 45672,
+      "created": "2026-10-27T22:20:46.3038980Z",
+      "sessionId": 1,
+      "owner": "srbat",
+      "domain": "NUCBOX_K11",
+      "ownerResult": 0,
+      "title": "",
+      "handle": 0
+    },
+    "gameProcesses": [],
+    "currentIdentity": "NUCBOX_K11\\claude",
+    "currentSession": 0
+  }
+}

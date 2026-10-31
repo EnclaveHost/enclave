@@ -1,0 +1,87 @@
+{
+  "at": 1793436640.3622038,
+  "readOnly": false,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 614,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "success": true,
+    "task": "CodexGameUninstall-4dddf5cd0e0a476ea983f34f33e70508",
+    "root": "C:\\ProgramData\\CodexGameCleanup-4dddf5cd0e0a476ea983f34f33e70508",
+    "result": {
+      "success": true,
+      "phase": "requested-once",
+      "windows": [
+        {
+          "title": "Uninstall",
+          "pid": 24392,
+          "handle": 196888,
+          "children": [
+            {
+              "name": "",
+              "id": "",
+              "type": "ControlType.Pane",
+              "enabled": true,
+              "offscreen": false
+            },
+            {
+              "name": "",
+              "id": "",
+              "type": "ControlType.Pane",
+              "enabled": true,
+              "offscreen": false
+            },
+            {
+              "name": "Chrome Legacy Window",
+              "id": "77355520",
+              "type": "ControlType.Pane",
+              "enabled": true,
+              "offscreen": false
+            },
+            {
+              "name": "",
+              "id": "",
+              "type": "ControlType.Pane",
+              "enabled": false,
+              "offscreen": false
+            }
+          ]
+        },
+        {
+          "title": "Steam Settings",
+          "pid": 24392,
+          "handle": 788582,
+          "children": [
+            {
+              "name": "",
+              "id": "",
+              "type": "ControlType.Pane",
+              "enabled": true,
+              "offscreen": false
+            },
+            {
+              "name": "",
+              "id": "",
+              "type": "ControlType.Pane",
+              "enabled": true,
+              "offscreen": false
+            },
+            {
+              "name": "",
+              "id": "",
+              "type": "ControlType.Pane",
+              "enabled": false,
+              "offscreen": false
+            }
+          ]
+        }
+      ],
+      "identity": "NUCBOX_K11\\srbat",
+      "session": 1
+    },
+    "taskState": 3,
+    "lastTaskResult": 0
+  }
+}

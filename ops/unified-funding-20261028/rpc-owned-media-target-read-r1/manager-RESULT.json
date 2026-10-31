@@ -1,0 +1,834 @@
+{
+  "at": 1793435392.7892306,
+  "readOnly": true,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 614,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "switches": [
+      {
+        "Id": "c08cb7b8-9b3c-408e-8e30-5e16a3aeb444",
+        "Name": "Default Switch",
+        "SwitchType": 1
+      },
+      {
+        "Id": "790e58b4-7939-4434-9358-89ae7ddbe87e",
+        "Name": "WSL (Hyper-V firewall)",
+        "SwitchType": 1
+      }
+    ],
+    "bootNative": "1a04e76600e411f1a395e342df676a80",
+    "physicalBefore": {
+      "vms": [
+        {
+          "Id": "ce939091-faf8-4862-8296-ee18f3027373",
+          "Name": "enclave-app-hv043866ce616fff-10c44a8a",
+          "State": 2,
+          "MemoryAssigned": 2732589056,
+          "MemoryStartup": 2732589056,
+          "DynamicMemoryEnabled": false
+        },
+        {
+          "Id": "1ca457d6-17bf-47fa-ad26-72770d74e08b",
+          "Name": "enclave-app-hv4c2e5185d0e5b8-a79db30f",
+          "State": 2,
+          "MemoryAssigned": 536870912,
+          "MemoryStartup": 536870912,
+          "DynamicMemoryEnabled": false
+        },
+        {
+          "Id": "dd8df95d-b771-4545-a861-0092e74a40f3",
+          "Name": "enclave-control",
+          "State": 2,
+          "MemoryAssigned": 8589934592,
+          "MemoryStartup": 8589934592,
+          "DynamicMemoryEnabled": false
+        },
+        {
+          "Id": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
+          "Name": "enclave-storage",
+          "State": 2,
+          "MemoryAssigned": 4294967296,
+          "MemoryStartup": 4294967296,
+          "DynamicMemoryEnabled": false
+        }
+      ],
+      "filesystem": "NTFS",
+      "physicalBytes": 120070115328,
+      "monotonicMilliseconds": 691225154,
+      "boot": "2026-10-23T08:29:16.5000000Z",
+      "atUtc": "2026-10-31T08:29:46.7442342Z",
+      "freeBytes": 85852733440,
+      "diskFreeBytes": 20889837568
+    },
+    "physicalAfter": {
+      "vms": [
+        {
+          "Id": "ce939091-faf8-4862-8296-ee18f3027373",
+          "Name": "enclave-app-hv043866ce616fff-10c44a8a",
+          "State": 2,
+          "MemoryAssigned": 2732589056,
+          "MemoryStartup": 2732589056,
+          "DynamicMemoryEnabled": false
+        },
+        {
+          "Id": "1ca457d6-17bf-47fa-ad26-72770d74e08b",
+          "Name": "enclave-app-hv4c2e5185d0e5b8-a79db30f",
+          "State": 2,
+          "MemoryAssigned": 536870912,
+          "MemoryStartup": 536870912,
+          "DynamicMemoryEnabled": false
+        },
+        {
+          "Id": "dd8df95d-b771-4545-a861-0092e74a40f3",
+          "Name": "enclave-control",
+          "State": 2,
+          "MemoryAssigned": 8589934592,
+          "MemoryStartup": 8589934592,
+          "DynamicMemoryEnabled": false
+        },
+        {
+          "Id": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
+          "Name": "enclave-storage",
+          "State": 2,
+          "MemoryAssigned": 4294967296,
+          "MemoryStartup": 4294967296,
+          "DynamicMemoryEnabled": false
+        }
+      ],
+      "filesystem": "NTFS",
+      "physicalBytes": 120070115328,
+      "monotonicMilliseconds": 691231102,
+      "boot": "2026-10-23T08:29:16.5000000Z",
+      "atUtc": "2026-10-31T08:29:52.6864478Z",
+      "freeBytes": 85836271616,
+      "diskFreeBytes": 20889755648
+    },
+    "before": {
+      "value": [
+        {
+          "port": 9600,
+          "created": "2026-10-27T08:24:45.0989590Z",
+          "pid": 41272,
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        },
+        {
+          "port": 8097,
+          "created": "2026-10-27T08:24:42.8500370Z",
+          "pid": 40360,
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        },
+        {
+          "port": 8095,
+          "created": "2026-10-27T08:02:19.4407050Z",
+          "pid": 41308,
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        },
+        {
+          "port": 8091,
+          "created": "2026-10-26T17:17:18.5617520Z",
+          "pid": 38076,
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        }
+      ],
+      "Count": 4
+    },
+    "nodeExit": 0,
+    "manager": {
+      "schema": "minipc-manager-reservations-read/1",
+      "startedAt": "2026-10-31T08:29:49.597Z",
+      "readOnly": true,
+      "nodePortBasis": "9600 installer default; must bind to current node listener before accepting",
+      "observations": [
+        {
+          "label": "node-before",
+          "port": 9600,
+          "path": "/v1/host/state",
+          "at": "2026-10-31T08:29:49.598Z",
+          "data": {
+            "deployments": [
+              {
+                "id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3",
+                "status": "queued",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+                "status": "running",
+                "memMb": 1024,
+                "cpuShare": 0.02,
+                "needCpuShare": 0.02,
+                "isolationRequired": true,
+                "hasIsolation": true,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+                "status": "failed",
+                "memMb": 128,
+                "cpuShare": 0.01,
+                "needCpuShare": 0.01,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+                "status": "failed",
+                "memMb": 512,
+                "cpuShare": 0.02,
+                "needCpuShare": 0.02,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+                "status": "failed",
+                "memMb": 256,
+                "cpuShare": 0.04,
+                "needCpuShare": 0.02,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+                "status": "failed",
+                "memMb": 128,
+                "cpuShare": 0.01,
+                "needCpuShare": 0.01,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+                "status": "failed",
+                "memMb": 128,
+                "cpuShare": 0.01,
+                "needCpuShare": 0.01,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+                "status": "failed",
+                "memMb": 128,
+                "cpuShare": 0.01,
+                "needCpuShare": 0.01,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+                "status": "refused",
+                "memMb": 2048,
+                "cpuShare": 0.08,
+                "needCpuShare": 0.08,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x9a28642bed115105c07bea1131c56c83ae2843ce4daf07958ab36437c0528a6b",
+                "status": "failed",
+                "memMb": 8192,
+                "cpuShare": 0.25,
+                "needCpuShare": 0.25,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x2215bad49ad8348f57d62d6e2c45b5b0af9d4afe2d2c44c0b2d9a63619c2a1f7",
+                "status": "stopped",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x0f19412d70d19e50c054f72d8cc2d4c9a8d9da41d45a056e6b436040450e0bc1",
+                "status": "stopped",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x2b84a09895ca94ef8bc8c61c7376154e3c1cc661f12693fb7583d9c19ce59889",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xda9e43f801a8440493e30a78fb7e697f06007b6e5b5b3dcbdaab7be3f5877ce8",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xaf9fbf3ecb9adc6736aac19c4a1690db1f9dafe427d1b06985737943cde065ef",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              }
+            ],
+            "availability": {
+              "isolation": "hyperv-partition-per-app",
+              "ramMbFree": 71761
+            }
+          }
+        },
+        {
+          "label": "manager-before",
+          "port": 8091,
+          "path": "/health",
+          "at": "2026-10-31T08:29:49.604Z",
+          "data": {
+            "managerEpoch": "6ba9af9a243b9f4754d8091d3de2f415",
+            "backend": "hyperv-partition-per-app",
+            "canStart": true,
+            "vmScope": {},
+            "memory": {
+              "rule": "cpu-share",
+              "poolMiB": 98304,
+              "unknownCount": null,
+              "reservationsPresent": false,
+              "reservations": null
+            },
+            "physicalMemory": {
+              "poolMiB": 84992,
+              "allocatedMiB": 3118,
+              "freeMiB": 81874
+            }
+          }
+        },
+        {
+          "label": "manager-vms",
+          "port": 8091,
+          "path": "/vms",
+          "at": "2026-10-31T08:29:49.607Z",
+          "data": {
+            "managerEpoch": "6ba9af9a243b9f4754d8091d3de2f415",
+            "vms": [
+              {
+                "id": "hv4c2e5185d0e5b8a548a08d1370b530cf",
+                "name": "shield-readiness-v1",
+                "status": "running",
+                "memory": {}
+              },
+              {
+                "id": "hv043866ce616fff19b84d751faa467b00",
+                "name": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+                "status": "running",
+                "memory": {
+                  "appMiB": 1966,
+                  "vmMiB": 2606
+                }
+              }
+            ]
+          }
+        },
+        {
+          "label": "manager-after",
+          "port": 8091,
+          "path": "/health",
+          "at": "2026-10-31T08:29:49.608Z",
+          "data": {
+            "managerEpoch": "6ba9af9a243b9f4754d8091d3de2f415",
+            "backend": "hyperv-partition-per-app",
+            "canStart": true,
+            "vmScope": {},
+            "memory": {
+              "rule": "cpu-share",
+              "poolMiB": 98304,
+              "unknownCount": null,
+              "reservationsPresent": false,
+              "reservations": null
+            },
+            "physicalMemory": {
+              "poolMiB": 84992,
+              "allocatedMiB": 3118,
+              "freeMiB": 81874
+            }
+          }
+        },
+        {
+          "label": "manager-before",
+          "port": 8095,
+          "path": "/health",
+          "at": "2026-10-31T08:29:49.610Z",
+          "data": {
+            "managerEpoch": "eb81408d8b99f58cd715d5c56017258c",
+            "backend": "hyperv-partition-per-app",
+            "canStart": true,
+            "vmScope": {
+              "prefix": "enclave-native-",
+              "marker": "enclave-native-vbslike-domain"
+            },
+            "memory": {
+              "rule": "cpu-share",
+              "poolMiB": 98304,
+              "unknownCount": null,
+              "reservationsPresent": false,
+              "reservations": null
+            },
+            "physicalMemory": {
+              "poolMiB": 84992,
+              "allocatedMiB": 0,
+              "freeMiB": 84992
+            }
+          }
+        },
+        {
+          "label": "manager-vms",
+          "port": 8095,
+          "path": "/vms",
+          "at": "2026-10-31T08:29:49.611Z",
+          "data": {
+            "managerEpoch": "eb81408d8b99f58cd715d5c56017258c",
+            "vms": []
+          }
+        },
+        {
+          "label": "manager-after",
+          "port": 8095,
+          "path": "/health",
+          "at": "2026-10-31T08:29:49.613Z",
+          "data": {
+            "managerEpoch": "eb81408d8b99f58cd715d5c56017258c",
+            "backend": "hyperv-partition-per-app",
+            "canStart": true,
+            "vmScope": {
+              "prefix": "enclave-native-",
+              "marker": "enclave-native-vbslike-domain"
+            },
+            "memory": {
+              "rule": "cpu-share",
+              "poolMiB": 98304,
+              "unknownCount": null,
+              "reservationsPresent": false,
+              "reservations": null
+            },
+            "physicalMemory": {
+              "poolMiB": 84992,
+              "allocatedMiB": 0,
+              "freeMiB": 84992
+            }
+          }
+        },
+        {
+          "label": "manager-before",
+          "port": 8097,
+          "path": "/health",
+          "at": "2026-10-31T08:29:49.614Z",
+          "data": {
+            "managerEpoch": "007aeb77d057cbacb97e1219aa91bd1dcaa630b84411769f4d0642222e3a0d2e",
+            "backend": "hyperv-partition-per-app",
+            "canStart": true,
+            "vmScope": {},
+            "memory": {
+              "rule": "cpu-share",
+              "poolMiB": 98304,
+              "freeMiB": 96082,
+              "unknownCount": null,
+              "reservationsPresent": false,
+              "reservations": null
+            },
+            "physicalMemory": {
+              "poolMiB": 84992,
+              "allocatedMiB": 3118,
+              "freeMiB": 81874
+            }
+          }
+        },
+        {
+          "label": "manager-vms",
+          "port": 8097,
+          "path": "/vms",
+          "at": "2026-10-31T08:29:49.620Z",
+          "data": {
+            "managerEpoch": "007aeb77d057cbacb97e1219aa91bd1dcaa630b84411769f4d0642222e3a0d2e",
+            "vms": [
+              {
+                "id": "hv4c2e5185d0e5b8a548a08d1370b530cf",
+                "name": "shield-readiness-v1",
+                "status": "running",
+                "memory": {}
+              },
+              {
+                "id": "hv043866ce616fff19b84d751faa467b00",
+                "name": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+                "status": "running",
+                "memory": {
+                  "appMiB": 1966,
+                  "vmMiB": 2606
+                }
+              }
+            ]
+          }
+        },
+        {
+          "label": "manager-after",
+          "port": 8097,
+          "path": "/health",
+          "at": "2026-10-31T08:29:49.623Z",
+          "data": {
+            "managerEpoch": "007aeb77d057cbacb97e1219aa91bd1dcaa630b84411769f4d0642222e3a0d2e",
+            "backend": "hyperv-partition-per-app",
+            "canStart": true,
+            "vmScope": {},
+            "memory": {
+              "rule": "cpu-share",
+              "poolMiB": 98304,
+              "freeMiB": 96082,
+              "unknownCount": null,
+              "reservationsPresent": false,
+              "reservations": null
+            },
+            "physicalMemory": {
+              "poolMiB": 84992,
+              "allocatedMiB": 3118,
+              "freeMiB": 81874
+            }
+          }
+        },
+        {
+          "label": "node-after",
+          "port": 9600,
+          "path": "/v1/host/state",
+          "at": "2026-10-31T08:29:49.629Z",
+          "data": {
+            "deployments": [
+              {
+                "id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3",
+                "status": "queued",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+                "status": "running",
+                "memMb": 1024,
+                "cpuShare": 0.02,
+                "needCpuShare": 0.02,
+                "isolationRequired": true,
+                "hasIsolation": true,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+                "status": "failed",
+                "memMb": 128,
+                "cpuShare": 0.01,
+                "needCpuShare": 0.01,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+                "status": "failed",
+                "memMb": 512,
+                "cpuShare": 0.02,
+                "needCpuShare": 0.02,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+                "status": "failed",
+                "memMb": 256,
+                "cpuShare": 0.04,
+                "needCpuShare": 0.02,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+                "status": "failed",
+                "memMb": 128,
+                "cpuShare": 0.01,
+                "needCpuShare": 0.01,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+                "status": "failed",
+                "memMb": 128,
+                "cpuShare": 0.01,
+                "needCpuShare": 0.01,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+                "status": "failed",
+                "memMb": 128,
+                "cpuShare": 0.01,
+                "needCpuShare": 0.01,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+                "status": "refused",
+                "memMb": 2048,
+                "cpuShare": 0.08,
+                "needCpuShare": 0.08,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x9a28642bed115105c07bea1131c56c83ae2843ce4daf07958ab36437c0528a6b",
+                "status": "failed",
+                "memMb": 8192,
+                "cpuShare": 0.25,
+                "needCpuShare": 0.25,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x2215bad49ad8348f57d62d6e2c45b5b0af9d4afe2d2c44c0b2d9a63619c2a1f7",
+                "status": "stopped",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x0f19412d70d19e50c054f72d8cc2d4c9a8d9da41d45a056e6b436040450e0bc1",
+                "status": "stopped",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x2b84a09895ca94ef8bc8c61c7376154e3c1cc661f12693fb7583d9c19ce59889",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xda9e43f801a8440493e30a78fb7e697f06007b6e5b5b3dcbdaab7be3f5877ce8",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xaf9fbf3ecb9adc6736aac19c4a1690db1f9dafe427d1b06985737943cde065ef",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              }
+            ],
+            "availability": {
+              "isolation": "hyperv-partition-per-app",
+              "ramMbFree": 71761
+            }
+          }
+        }
+      ],
+      "errors": [],
+      "capacityAdmitted": false,
+      "finishedAt": "2026-10-31T08:29:49.632Z",
+      "completeTransport": true
+    },
+    "after": {
+      "value": [
+        {
+          "port": 9600,
+          "created": "2026-10-27T08:24:45.0989590Z",
+          "pid": 41272,
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        },
+        {
+          "port": 8097,
+          "created": "2026-10-27T08:24:42.8500370Z",
+          "pid": 40360,
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        },
+        {
+          "port": 8095,
+          "created": "2026-10-27T08:02:19.4407050Z",
+          "pid": 41308,
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        },
+        {
+          "port": 8091,
+          "created": "2026-10-26T17:17:18.5617520Z",
+          "pid": 38076,
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        }
+      ],
+      "Count": 4
+    },
+    "readOnly": true,
+    "heldNamespaceProof": false,
+    "admitted": false
+  }
+}

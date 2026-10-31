@@ -1,0 +1,14 @@
+{
+  "at": 1793436823.456708,
+  "readOnly": false,
+  "rc": 0,
+  "failure": "remote-read-failed",
+  "stderrBytes": 614,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "success": false,
+    "error": "Exact completed game task association differs",
+    "line": 7
+  }
+}

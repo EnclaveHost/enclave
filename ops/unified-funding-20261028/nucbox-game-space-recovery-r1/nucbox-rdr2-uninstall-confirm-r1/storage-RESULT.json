@@ -1,0 +1,27 @@
+{
+  "at": 1793436777.7958124,
+  "readOnly": false,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 614,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "success": true,
+    "task": "CodexGameConfirm-28a500e254fc488a8c0909b1d9d01ead",
+    "root": "C:\\ProgramData\\CodexGameCleanup-28a500e254fc488a8c0909b1d9d01ead",
+    "result": {
+      "success": true,
+      "confirmedOnce": true,
+      "appId": 1174180,
+      "dialogSha256": "53430ce9ef231157a0acbf94dccfdf6af2733f4eaa82603b430e3682e7665b11",
+      "atUtc": "2026-10-31T08:52:57.4087530Z",
+      "diskFreeBytes": 147556171776,
+      "manifestExists": false,
+      "gameDirectoryExists": false,
+      "uninstallEntryExists": true
+    },
+    "taskState": 3,
+    "lastTaskResult": 0
+  }
+}

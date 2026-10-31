@@ -1,0 +1,9 @@
+{
+  "nonce": "af667437b1764a459adf62912a5ce2bf",
+  "parent": "C:\\EnclaveRpcBootMedia-af667437b1764a459adf62912a5ce2bf",
+  "root": "C:\\EnclaveRpcBootMedia-af667437b1764a459adf62912a5ce2bf\\af667437b1764a459adf62912a5ce2bf",
+  "source": "/home/controladmin/rpc-boot-media-20261031-r1/output",
+  "bootSha256": "5d01973660220c8069d707e8d54a38d3a68e32956ac8ff9a0075b714974fd175",
+  "seedSha256": "c92f5bc01f1c615df4a5f5df697c0cb9e32456ddfb8f88e746e561e1f981b78a",
+  "nativeVmAttempted": false
+}

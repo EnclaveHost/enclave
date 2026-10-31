@@ -1,0 +1,22 @@
+{
+  "rc": 0,
+  "readOnly": false,
+  "observation": {
+    "invocation": "9ff4f190db8646669d699aec43673111",
+    "removedDuplicateCopies": [
+      {
+        "name": "source.qcow2",
+        "sha256": "04e8f2461a16a44e78a370284471f29616cdd9baf1893df25807b71f985b6c94",
+        "bytes": 621284352
+      },
+      {
+        "name": "output/boot.vhdx",
+        "sha256": "5d01973660220c8069d707e8d54a38d3a68e32956ac8ff9a0075b714974fd175",
+        "bytes": 1933574144
+      }
+    ],
+    "allOtherFilesPreserved": true,
+    "explicitTrimInvoked": false,
+    "targetCopiesRetained": true
+  }
+}

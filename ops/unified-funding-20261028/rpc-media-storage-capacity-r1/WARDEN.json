@@ -1,0 +1,31 @@
+{
+  "observedAt": "2026-10-31T08:47:19.218389+00:00",
+  "readOnly": true,
+  "filesystems": [
+    {
+      "path": "/mnt/usb",
+      "totalBytes": 54000520986624,
+      "availableBytes": 52399020703744
+    },
+    {
+      "path": "/vm",
+      "totalBytes": 3672580055040,
+      "availableBytes": 616052559872
+    },
+    {
+      "path": "/",
+      "totalBytes": 3931518390272,
+      "availableBytes": 463357734912
+    }
+  ],
+  "mounts": {
+    "filesystems": [
+      {
+        "target": "/mnt/usb",
+        "source": "/dev/sda1",
+        "fstype": "ntfs3",
+        "options": "rw,noatime,uid=1000,gid=1000,dmask=0022,fmask=0022,acl,iocharset=utf8,prealloc"
+      }
+    ]
+  }
+}
