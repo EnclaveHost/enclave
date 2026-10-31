@@ -13,8 +13,8 @@ namespace Enclave.OwnedRpc {
 internal sealed class WindowsStartAdmission {
     const long MiB=1048576,GiB=1073741824;
     // Whole stack + prospective apps + real host floor + variation + extra
-    // transient startup overhead. Existing VM allocations are already in free.
-    internal const long Required=20*GiB+39388*MiB+18*GiB+GiB+512*MiB;
+    // transient startup overhead including 192 MiB for independent cleanup. Existing VM allocations are already in free.
+    internal const long Required=20*GiB+39388*MiB+18*GiB+GiB+512*MiB+192*MiB;
     readonly ProtectedAttempt vm;readonly string admissionHash;readonly long began;readonly LegacyHandoff.Completion completed;
     readonly JavaScriptSerializer Json=new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32};
     WindowsStartAdmission(ProtectedAttempt vm,string admissionHash,LegacyHandoff.Completion completed){this.vm=vm;this.admissionHash=admissionHash;this.completed=completed;began=BoundedWorker.MonotonicMilliseconds();}

@@ -139,6 +139,7 @@ namespace Enclave.OwnedRpc {
             readonly uint observerPid,ownerPid,selfPid;
             readonly long observerCreation,ownerCreation,selfCreation;
             SafeWaitHandle guardian;
+            StartupCleanupWitness cleanup;
             HostPhysicalPool physicalPool;
             PhysicalClaim physicalClaim;
             LegacyHandoff.Completion completedHandoff;
@@ -192,6 +193,10 @@ namespace Enclave.OwnedRpc {
                 OriginalProcessExited(id.WorkerPid,id.WorkerCreation);OriginalProcessExited(id.ObserverPid,id.ObserverCreation);
                 Common(id);
             }
+            public void AwaitClosedStart(StartIdentity id){
+                long until=Math.Min(lease.Deadline,id.Deadline+5000);
+                while(true){try{VerifyClosedStart(id);return;}catch(StartGuardRefused e){if(e.Code!="original-start-worker-still-live"||Now>=until)throw;Thread.Sleep(10);}}
+            }
             public void VerifyBeforeStop(StartIdentity id) {
                 VerifyClosedStart(id);
                 if(lease.Operation!="stop")throw new InvalidOperationException("Read-only cleanup cannot disable a VM");
@@ -215,6 +220,7 @@ namespace Enclave.OwnedRpc {
                 if(accepted==null)lease.WriteOnce("guardian.accepted",expected+","+lease.Token);
                 else if(accepted!=expected+","+lease.Token)throw new StartGuardRefused("guardian-binding-mismatch");
                 WindowsStartAdmission.Verify(vm,lease,ref completedHandoff);
+                if(cleanup==null)cleanup=new StartupCleanupWitness(vm);cleanup.Check();
                 if(physicalPool==null)physicalPool=WindowsStartAdmission.AcquireShared(vm,id,lease.Deadline,out physicalClaim);
                 Common(id);vm.VmPermit.ValidateAccess(Now,false);
                 BoundedWorker.VerifyObserverBeforeResume(guardian.DangerousGetHandle(),lease.GuardianPid,lease.GuardianCreation,vm.Deadline);
@@ -222,7 +228,7 @@ namespace Enclave.OwnedRpc {
             public void ConsumePhysicalStart(StartIdentity id) {
                 VerifyBeforeSubmit(id);
                 if(physicalPool==null||physicalClaim==null)throw new InvalidOperationException("Shared physical reservation absent");
-                physicalPool.ConsumeStart(physicalClaim);
+                cleanup.Check();physicalPool.ConsumeStart(physicalClaim);cleanup.Check();
                 Common(id);vm.VmPermit.ValidateAccess(Now,false);
                 BoundedWorker.VerifyObserverBeforeResume(guardian.DangerousGetHandle(),lease.GuardianPid,lease.GuardianCreation,vm.Deadline);
             }
@@ -240,7 +246,7 @@ namespace Enclave.OwnedRpc {
                     return h;
                 }catch{h.Dispose();throw;}
             }
-            public void Dispose(){if(physicalPool!=null)physicalPool.Dispose();if(completedHandoff!=null)completedHandoff.Dispose();if(guardian!=null)guardian.Dispose();if(owner!=null)owner.Dispose();if(observer!=null)observer.Dispose();}
+            public void Dispose(){if(cleanup!=null)cleanup.Dispose();if(physicalPool!=null)physicalPool.Dispose();if(completedHandoff!=null)completedHandoff.Dispose();if(guardian!=null)guardian.Dispose();if(owner!=null)owner.Dispose();if(observer!=null)observer.Dispose();}
         }
 
         static int Guardian(string path,string hash,long origin,long deadline) {
@@ -304,8 +310,12 @@ namespace Enclave.OwnedRpc {
                             var provider=new HyperVStartProvider(runtime,journal);
                             try {
                                 if(a.Operation=="stop"||a.Operation=="stop-reconcile") {
+                                    runtime.AwaitClosedStart(id);
                                     var stops=new HyperVStopProvider(runtime,journal);
                                     var stopped=a.Operation=="stop"?ProviderStop.Submit(id,journal,provider,stops,runtime):ProviderStop.Reconcile(id,journal,provider,stops,runtime);
+                                    while(!stopped.OwnedOffZeroConfirmed&&runtime.Now+1000<a.Deadline&&stopped.State!="start-unsettled-held"&&stopped.State!="stop-submission-not-proven"&&stopped.State!="stop-response-lost-held") {
+                                        Thread.Sleep(100);stopped=ProviderStop.Reconcile(id,journal,provider,stops,runtime);
+                                    }
                                     a.WriteOnce("child.result",stopped.State+";start-settled="+stopped.StartSettled+";stop-settled="+stopped.StopSettled+";owned-off-zero="+stopped.OwnedOffZeroConfirmed+";provider-fenced=false;reservation-release=false");return 0;
                                 }
                                 var result=a.Operation=="start"?ProviderStart.Submit(id,journal,provider,runtime):ProviderStart.Reconcile(id,journal,provider,runtime);

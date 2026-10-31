@@ -29,6 +29,7 @@ namespace Enclave.OwnedRpc {
         readonly bool cleanupAccess;
         readonly bool evidenceOnly;
         readonly bool definitionJournal;
+        readonly bool startupCleanup;
         readonly string recordOwner;
         bool disposed;
         const string SystemSid="S-1-5-18",AdminSid="S-1-5-32-544";
@@ -278,7 +279,9 @@ namespace Enclave.OwnedRpc {
         public void WriteOnce(string name,string value) {
             if(evidenceOnly)throw new InvalidOperationException("Completed handoff is read-only");
             Name(name);CheckDeadline();byte[] bytes=Utf8.GetBytes(value);
-            if(guardianOnly) {
+            if(startupCleanup) {
+                if(name!="cleanup.consumed"&&name!="cleanup.armed"&&name!="cleanup.dispatch"&&name!="cleanup.result"&&name!="cleanup.adoption-refused")throw new InvalidOperationException("Cleanup controller cannot write provider records");
+            } else if(guardianOnly) {
                 if(name!="guardian.consumed"&&name!="guardian.request"&&name!="guardian.armed"&&name!="guardian.bound"&&name!="guardian.result")
                     throw new InvalidOperationException("Guardian cannot write provider records");
             } else if(definitionJournal) {

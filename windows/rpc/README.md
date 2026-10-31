@@ -626,3 +626,27 @@ passed71 tests. Fixtures exercised protected files under hosted Administrator,
 not actual SYSTEM worker scheduling or DefineSystem. Production activation, native
 settings and startup remain unqualified. Original failed fixture/compile attempts
 are retained in the corresponding evidence packages.
+
+
+Startup cleanup integration (not activated): `StartupCleanupController.cs` is a
+separate SYSTEM process armed before the native start. The start worker holds its
+exact PID/creation/image/SYSTEM identity and refuses submission without it. The
+controller retains the original 900-second deadline and dispatches only the
+existing stop/reconcile worker after expiry; its own watchdog ends at D+30s.
+That cleanup allowance never extends start authority. A stop requires exact
+original submitter death, settled native start, and fresh owned Off/zero evidence.
+Lost native responses stay held; this is not a guarantee of shutdown under an
+unknown start operation, cleanup-process failure, or stalled provider. Claims
+are never released by this controller. No new start, refund or deletion exists.
+
+The controller adds an explicit 192 MiB (128 MiB process plus 64 MiB startup)
+reservation beyond existing admission overhead. An optional immutable operator
+adoption binds the exact original permit, start intent/receipt and report digest
+within the original startup window. This is an explicit owner decision, not
+automatic proof of RPC readiness. Invalid/unreadable adoption is refused once;
+diagnostic failure cannot disable cleanup. No automatic adoption producer exists.
+
+Hosted qualification compiles the actual controller/entry and exercises original
+deadline boundaries, adoption refusal and independent watchdog process death.
+This does not qualify target SYSTEM scheduling, actual Hyper-V stop behavior,
+boot/media configuration, RPC sync/finality or production consumer cutover.

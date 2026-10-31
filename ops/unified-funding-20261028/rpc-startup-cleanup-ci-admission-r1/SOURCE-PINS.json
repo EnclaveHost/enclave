@@ -1,0 +1,20 @@
+{
+  "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+  "windows/rpc/OwnerObserver.cs": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80",
+  "windows/rpc/VmStartGuardian.cs": "4e23387225ee2a710f60d7a17db68e73a39cd15409981cb2e0eb9fa1d64cf336",
+  "windows/rpc/ProtectedAttempt.cs": "f5a49422709fa3528a2727ff97c5a1ba2a6f74594c163ff11e0cbc81f8a92846",
+  "windows/rpc/ProviderStart.cs": "d2eb7bbebc74b02be707fcd705c9165af9b6fdf2f6440a94fde76dcc0ceaeea2",
+  "windows/rpc/ProviderStop.cs": "0dd8605139b7d20910dc5c738fb1f8fac8e44f94f4f95dcc07d40f6905be223f",
+  "windows/rpc/OwnedVmPermit.cs": "a4d1f9640a4087714b9907cddcdc64340cb57f07de04dd1b6baf97197ac60373",
+  "windows/rpc/HostPhysicalPool.cs": "218483e78967e94f77c2c88fdee9ca04970eb9c4a3f10adbf543b8ccd0c904af",
+  "windows/rpc/WindowsStartAdmission.cs": "951ae9cf8a98088696bb06d89e48f12d88ad705203dc24a1f0b515d69aedd9df",
+  "windows/rpc/LegacyTemplateFence.cs": "d2bfc04762cf64b2555575e4c8aa95842dd35be108f9c9780dd3ecf0ecd0cd0f",
+  "windows/rpc/LegacyLaunchCohort.cs": "ce22aa16e0d353fa8354bca26f8dc4057d520c001540d0659778e2769135f5a2",
+  "windows/rpc/LegacyHandoff.cs": "4ced7f0d753217d263f21342e390ff6120a55f8b4135b0fa28cc5d95875358ce",
+  "windows/rpc/ProviderWorkerEntry.cs": "0fbfe3b4eb6c4d242d6f05e1b23c8b4948cff2b35f3848019f41ebc7a9648f88",
+  "windows/rpc/StartupCleanup.cs": "cbbf2ed17a2dab5756c0aee5423136d3b238de0a1719220603ad37ff0700a7c3",
+  "windows/rpc/StartupCleanupController.cs": "8542ec49014f322801e326037dba82e65e0e2a03565ec9dedf58c42a3a3994ef",
+  "test/rpc-windows-worker/StartupCleanupHarness.cs": "bcca6eaa662d162f0d7a6384be3fdb90b3dcbdb75ccb67bb50007b19375403af",
+  "test/rpc-windows-worker/run-startup-cleanup-ci.ps1": "58cfcb5b9f0d129b2da3181405532864df1caa839508ec3c2c88f12d3b5ea11a",
+  ".github/workflows/rpc-startup-cleanup.yml": "5e53dfe10217cee36a47f23c090af483d64799459cb78b6cba0893c6d9e33264"
+}
