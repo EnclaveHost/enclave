@@ -1,0 +1,15 @@
+PASS durable exact claim
+PASS all actors share one ceiling
+PASS idempotent acquire does not resize or change actor
+PASS pool hash and boot binding
+PASS dispatch consumes once without poisoning later claims
+PASS lost response reopening still holds claim and consumed dispatch
+PASS partial publication refuses all new admission
+PASS unknown records cannot be omitted
+PASS expired worker cannot acquire
+PASS two real processes cannot oversell
+PASS two real processes cannot consume one start twice
+PASS lock-owner death releases kernel lock but not its durable commitments
+PASS unreserved and orphan dispatch refuse
+PASS preexisting over-budget ledger refuses instead of truncating
+RESULT tests=14 nativeFileSharing=true providerCalls=false vmChanged=false

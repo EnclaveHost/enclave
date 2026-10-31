@@ -1,0 +1,13 @@
+{
+  "run": 41161373590,
+  "source": "4de7faccdd151b6d2135c22f2cdb2692e01aab0f",
+  "pins": 29,
+  "result": {
+    "rc": 0,
+    "elapsedMs": 868,
+    "sourceDrift": [],
+    "scope": "hosted-inert-manager-only",
+    "productionAdmission": false
+  },
+  "scope": "hosted-inert-fake-pool-transport"
+}

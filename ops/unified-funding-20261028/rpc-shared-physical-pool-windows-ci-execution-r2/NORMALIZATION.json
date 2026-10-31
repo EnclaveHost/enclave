@@ -1,0 +1,217 @@
+[
+  {
+    "path": "dispatch.py",
+    "originalSha256": "5421421dfdf8ed65184ea18f1f69cd4e2aba473413e2fcf383c3097dce920777",
+    "publicSha256": "5421421dfdf8ed65184ea18f1f69cd4e2aba473413e2fcf383c3097dce920777"
+  },
+  {
+    "path": "VERIFIED.json",
+    "originalSha256": "de2e630b613edabedb33bd3640ea74f0c013ed54c348d38e6f0414711aa2ada5",
+    "publicSha256": "de2e630b613edabedb33bd3640ea74f0c013ed54c348d38e6f0414711aa2ada5"
+  },
+  {
+    "path": "DISPATCH-RESULT.json",
+    "originalSha256": "abc379a9022ddcd57c992545e3f7bc3ef44459d4b81f98f47d0c18cdbada7802",
+    "publicSha256": "abc379a9022ddcd57c992545e3f7bc3ef44459d4b81f98f47d0c18cdbada7802"
+  },
+  {
+    "path": "ROOT-RESULT.md",
+    "originalSha256": "c1230deedae1cedd3ce9a68915176fc8bb7b5e2e8c59fa28186cfe535138cab9",
+    "publicSha256": "c1230deedae1cedd3ce9a68915176fc8bb7b5e2e8c59fa28186cfe535138cab9"
+  },
+  {
+    "path": "push-outer.log",
+    "originalSha256": "2753b43c16566497b2b8c101ecc8017148784d895a7036253173258539f32b0a",
+    "publicSha256": "2753b43c16566497b2b8c101ecc8017148784d895a7036253173258539f32b0a"
+  },
+  {
+    "path": "push-inner.log",
+    "originalSha256": "e400d15f8f93120bda1f31efa83479e5828a0acf9e622c9ec48c9e4fb5eae8a8",
+    "publicSha256": "e400d15f8f93120bda1f31efa83479e5828a0acf9e622c9ec48c9e4fb5eae8a8"
+  },
+  {
+    "path": "DISPATCH-INTENT.json",
+    "originalSha256": "1fc11fcae39285997d5944a5c2f1c6c02fbea53eb817377aee3aeaca70bedc42",
+    "publicSha256": "1b39df102e02ae8680baed10f68d6fa6bf55c1f72dd5e280822f78466c6adb03"
+  },
+  {
+    "path": "COMMAND.json",
+    "originalSha256": "8f8af7940b434540ac391cdbdeed5c71d7bfbdc8d6a25e3f54a81393840f771a",
+    "publicSha256": "8f8af7940b434540ac391cdbdeed5c71d7bfbdc8d6a25e3f54a81393840f771a"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/pool-compile.out",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/guardian-publication-failure.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/physical-pool.out",
+    "originalSha256": "d4ed376326a5605e6bfbb7fdc38250623291146d96cd66fc866bc8dc47584715",
+    "publicSha256": "58335d740ed8c661bf6d616d8d7dc3aba51f11f13960d5ad8f9f8aadb7e52235"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/stop-compile.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/stops.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/transactions.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/guardian-publication-failure.out",
+    "originalSha256": "54dc62f6b587c3908c61ed406a4103360b04c8429b42f93f0521ca4125b1eaf0",
+    "publicSha256": "776a5ffab32fd8c97f6f382f55e655e72b0fd5dadad0cfc90766db8e005ce611"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/pool-compile.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/admission-fixtures.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/transaction-compile.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/guardian-bind.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/publication.json",
+    "originalSha256": "9cab9bf88f40b62a47e88cf744cdc6c77b4987f4e25002635c61e48415ebfdc0",
+    "publicSha256": "2fc54bda498ec1d4b0c08c6f2d9e98b2fca108a579d3e64234466f85e8a444f7"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/process-results.json",
+    "originalSha256": "1a5f297a45eea62a76f952cab557f890188c528b998f175b492b3f4d814e8d7c",
+    "publicSha256": "e38a5363b302858b2f1bc0ca3493154c69956f14b2ea154152bf40af5e8b282e"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/reconcile.out",
+    "originalSha256": "89238e69aae3b58cba67ba5c42b851f5525404bc1d4301573bf7096696a59ec6",
+    "publicSha256": "07afdb8bb324d5edb37e7af7b7b1cdfb1e3823a4c34e11ad756fe60a004cbd20"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/stops.out",
+    "originalSha256": "7f0b599422e8bd79468f01caceab8315874b7ffc588a83de0f31fa8040443b4a",
+    "publicSha256": "63ca19f36dfe18bec25e91a134699accc53075f2bce535707872e288b4751ab9"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/denied-start.out",
+    "originalSha256": "b5e30d9d0c5e49ed2971bceb8f854389673c6f89ecfd0820eaffa5653e9bb38a",
+    "publicSha256": "886cca3483a644e332e3e570b666e50cc03690497e4e51608bdcad674ad234be"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/stop-compile.out",
+    "originalSha256": "a3d45280034f3fb55da5b4b288c675091d820fa40e83a7d2149d30aadc34db97",
+    "publicSha256": "ae544ea0ed1e96b9f6893aad783ee3381d30a426f5130176a9776f162ba4ad54"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/controller-compile.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/reconcile.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/stop-too-early.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/transaction-compile.out",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/pins.json",
+    "originalSha256": "b1cd2f308a7706a1bc7c2617af121cb5370caaa10df7bee00ee08422bd4d4c41",
+    "publicSha256": "a4a755ce50dd0162571cfae6b7b5e771408f731cf51e5ab13cd56cbcc2bd46dd"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/denied-start.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/physical-pool.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/entry-compile.out",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/entry-artifact.json",
+    "originalSha256": "27b900b3f7e22a1f8386cee3482d72dc2caa978cacc568dec43b661c945020d9",
+    "publicSha256": "78933ea4377a8f42d77aad933accf53e341844d223b415455e9baf2ef9c11899"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/qualification-controller.exe",
+    "originalSha256": "55be745d6ec1a3ee92a5799e6cd08f946bd76bb21d12c3a1cbb808f807036975",
+    "publicSha256": "55be745d6ec1a3ee92a5799e6cd08f946bd76bb21d12c3a1cbb808f807036975"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/controller-artifact.json",
+    "originalSha256": "9cd3b3f9f2886eb26c528c2db1b9f1bf5c9999d09b8b8dc0b269c774895b82da",
+    "publicSha256": "eaed2583c8dfba6e09b9a55012c10fc64ab67a0ebcea7f715538f1a7d7d130f0"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/guardian-bind.out",
+    "originalSha256": "887d8d9ee7d153998332c1d48b6aa01519cb4ca73a0cb7a7a55e7ff00a0959f2",
+    "publicSha256": "666dd145cdeafa83c34da94f65fc699d2c4feb24cc15f5e452c1438bc34afd53"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/entry-compile.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/transactions.out",
+    "originalSha256": "742dcd47e8ad2750aac39485a86bd0ec5a82d0d94cbcac004d0f229b673f4948",
+    "publicSha256": "4a8090d16718fd67955fe885fcb10a88679bd3209cc68c72197bc1dae3f34f38"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/controller-compile.out",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/admission-fixtures.out",
+    "originalSha256": "4e4cbaf727e9e807038938c0fd876d02263f7dea322e2932192b8c13bce1eae5",
+    "publicSha256": "86ed0fdddc3eff75fb3f4a27e7bf716725824d3b9b79d7b40ea643476dc796b7"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/stop-too-early.out",
+    "originalSha256": "a141a75facd1bbee4cbd22ff67be8c2bf0b1dd6c446014add79e2788910c006d",
+    "publicSha256": "b960b61494089acaefca19738902036bd349ae9d362d88b8e152a5549d32e19d"
+  },
+  {
+    "path": "artifacts/rpc-provider-worker-results/owned-entry.exe",
+    "originalSha256": "26969b0239f75df1e0104ba4e5d31679b8222ec6edb97cbf7523e3b876e0dea8",
+    "publicSha256": "26969b0239f75df1e0104ba4e5d31679b8222ec6edb97cbf7523e3b876e0dea8"
+  }
+]

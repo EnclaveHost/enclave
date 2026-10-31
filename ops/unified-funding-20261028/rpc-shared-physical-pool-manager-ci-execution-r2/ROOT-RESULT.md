@@ -1,0 +1,1 @@
+Actual hosted manager CI41161373590 SUCCESS: 36PASS/0FAIL, 29 source pins verified, no drift, 868ms. Includes separate manager shared-budget contention and ambiguous dispatch retention with fake transport. Does not qualify a real Windows manager transport, installed enrollment or native allocation. Prior r1 local exit98 never dispatched remains preserved.
