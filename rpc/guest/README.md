@@ -391,6 +391,43 @@ Files and pidfd observations are real; SSH and systemd are mocked. The existing6
 runtime/delivery/activation/attachment cases also pass. No live guest service,
 kernel storage attachment or RPC readiness is claimed.
 
+## Collect activation readiness
+
+`../observe_activation.py` closes the connection between an armed activation
+owner and runtime preparation. Use the launch configuration plus hash-pinned
+`launchReceipt`, pointing to the launch sender's persisted `receipt.json`.
+It verifies the exact delivery/launch/seed lineage and makes one pinned SSH call
+under an exclusive local observation journal. A failed or lost reply leaves that
+journal consumed. It never submits another service start.
+
+The fixed read-only bootstrap verifies the same four seeded imports and its own
+root64MiB/CPU1/no-swap95-second unit before reading input. It holds a pidfd for the
+original activation process and checks its recorded start time, invocation,
+cgroup, loaded limits and recent watchdog acknowledgment while waiting up to
+90seconds for `ready.json`. The original900-second deadline remains authoritative;
+the sender refuses less than103seconds remaining. The bootstrap revalidates the
+installed request, contract and readiness bindings, then calls the maintained
+kernel attachment validator for both L1 and Base. It makes only systemd `show`
+calls. Guest-local credential validation stays inside the guest.
+
+Only `activation-request.json` and `activation-ready.json` cross the transport.
+The reply is capped at8192bytes, with each allowed file capped at4096bytes on the
+receiving side. The owner verifies hashes, writes both files exclusively with
+fsync, and returns pinned `activationRequest` and `activationReady` objects that
+feed `../prepare_runtime.py` directly. This is a live observation, not continued
+ownership, RPC readiness, adoption, remote death or writer fencing. The runtime
+helper must independently revalidate the owner and kernel attachments at use.
+
+Fourteen new fixtures cover the exact bootstrap and actual seeded validators,
+including deferred readiness without another start, delivery/launch/collection
+composition, runtime-preparer compatibility, owner replacement, kernel identity
+changes, source drift, envelope refusal, lost replies and public output bounds.
+Together with83 existing cases,97 tests pass. The isolated fixture uses real
+protected files and pidfds; SSH, systemd and sysfs are mocked. No live guest or
+production storage qualification follows from these results. Factoring the common
+bootstrap prefix leaves the previously qualified launch bootstrap bytes unchanged;
+the existing guest seed remains unchanged as well.
+
 ## Owner runtime submission
 
 After authenticated storage activation, `../prepare_runtime.py` produces a

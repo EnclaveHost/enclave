@@ -12,7 +12,7 @@ d=importlib.util.module_from_spec(s);s.loader.exec_module(d)
 p=d.p;owner=d.owner
 IMPORTS={n:(0o644 if n=='storage_protocol.py' else 0o755)for n in ('activate_storage.py','attach_storage.py','identity.py','storage_protocol.py')}
 
-BOOTSTRAP=r'''
+BOOTSTRAP_PREFIX=r'''
 import base64,hashlib,json,os,re,select,stat,sys,time,types
 from pathlib import Path
 os.umask(0o077)
@@ -43,7 +43,8 @@ for name,mode in names.items():
  if name=='activate_storage.py':source=raw
 current();a=types.ModuleType('pinned_activation');a.__file__=str(root/'activate_storage.py')
 exec(compile(source,a.__file__,'exec'),a.__dict__)
-unit='enclave-rpc-activation-launch-'+attempt+'.service';row=a.show(unit)
+'''
+BOOTSTRAP=BOOTSTRAP_PREFIX+r'''unit='enclave-rpc-activation-launch-'+attempt+'.service';row=a.show(unit)
 expected={'Id':unit,'MainPID':str(os.getpid()),'InvocationID':os.environ['INVOCATION_ID'],'Type':'exec','RuntimeMaxUSec':'10s','TimeoutStopUSec':'1s','MemoryMax':str(64<<20),'MemorySwapMax':'0','CPUQuotaPerSecUSec':'1s','KillMode':'control-group','Restart':'no','SendSIGKILL':'yes','FinalKillSignal':'9'}
 if not re.fullmatch('[0-9a-f]{32}',expected['InvocationID']) or any(row.get(k)!=v for k,v in expected.items()) or Path('/proc/self/cgroup').read_text().strip()!='0::'+row['ControlGroup']:raise ValueError('Independent launch envelope differs')
 raw=sys.stdin.buffer.read(65537)

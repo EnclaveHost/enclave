@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.8332462690304965,
+  "stdout": "",
+  "stderr": "test_altered_remote_launch_receipt_refused (__main__.Tests.test_altered_remote_launch_receipt_refused) ... ok\ntest_collected_files_feed_actual_runtime_preparer (__main__.Tests.test_collected_files_feed_actual_runtime_preparer) ... ok\ntest_exact_remote_bound (__main__.Tests.test_exact_remote_bound) ... ok\ntest_expired_original_window_before_transport (__main__.Tests.test_expired_original_window_before_transport) ... ok\ntest_full_delivery_launch_collect_exact_public_files (__main__.Tests.test_full_delivery_launch_collect_exact_public_files) ... ok\ntest_kernel_identity_change_refused (__main__.Tests.test_kernel_identity_change_refused) ... ok\ntest_loaded_watchdog_and_limits_refused (__main__.Tests.test_loaded_watchdog_and_limits_refused) ... ok\ntest_lost_response_keeps_observation_consumed (__main__.Tests.test_lost_response_keeps_observation_consumed) ... ok\ntest_observer_envelope_before_stdin (__main__.Tests.test_observer_envelope_before_stdin) ... ok\ntest_original_owner_replacement_refused (__main__.Tests.test_original_owner_replacement_refused) ... ok\ntest_pin_drift_and_input_bound (__main__.Tests.test_pin_drift_and_input_bound) ... ok\ntest_ready_contract_and_role_binding_refused (__main__.Tests.test_ready_contract_and_role_binding_refused) ... ok\ntest_unsafe_public_filename_and_claim_refused (__main__.Tests.test_unsafe_public_filename_and_claim_refused) ... ok\ntest_waits_for_ready_without_resubmitting_start (__main__.Tests.test_waits_for_ready_without_resubmitting_start) ... ok\n\n----------------------------------------------------------------------\nRan 14 tests in 0.588s\n\nOK\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 1603
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}
