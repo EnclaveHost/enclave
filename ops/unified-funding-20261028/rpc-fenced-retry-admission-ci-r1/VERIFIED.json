@@ -1,0 +1,104 @@
+{
+  "startup": {
+    "head": "8be5f18f8da07538e6fc42e40cd7115aca33bc96",
+    "compiledPins": 19,
+    "artifacts": {
+      "qualification-controller.exe": {
+        "independentlyRecomputed": false,
+        "publication": {
+          "name": "qualification-controller.exe",
+          "bytes": 289280,
+          "included": false
+        }
+      }
+    },
+    "records": [
+      {
+        "label": "controller-compile",
+        "pid": 6676,
+        "exitCode": 0,
+        "elapsedMs": 1794,
+        "failure": null,
+        "processExited": true,
+        "maximumObservedWorkingSet": 37593088,
+        "outputBytes": 0
+      },
+      {
+        "label": "entry-compile",
+        "pid": 2616,
+        "exitCode": 1,
+        "elapsedMs": 310,
+        "failure": null,
+        "processExited": true,
+        "maximumObservedWorkingSet": 36642816,
+        "outputBytes": 352
+      }
+    ]
+  },
+  "definition": {
+    "head": "8be5f18f8da07538e6fc42e40cd7115aca33bc96",
+    "compiledPins": 17,
+    "artifacts": {
+      "definition-controller.exe": {
+        "sha256": "6a1139a57d73fb3937003097caba26d7f3a5c92fd2507bbbf45df89f850b3d7a",
+        "bytes": 246272,
+        "independentlyRecomputed": true
+      },
+      "owned-entry.exe": {
+        "sha256": "301a6e7d29a2c172b64ee6b52a6db1829034363a9a3317fe7d06e46cd526113a",
+        "bytes": 246272,
+        "independentlyRecomputed": true
+      },
+      "qualification-controller.exe": {
+        "independentlyRecomputed": false,
+        "publication": {
+          "name": "qualification-controller.exe",
+          "bytes": 296960,
+          "included": false
+        }
+      }
+    },
+    "records": [
+      {
+        "label": "controller-compile",
+        "pid": 3616,
+        "exitCode": 0,
+        "elapsedMs": 1614,
+        "failure": null,
+        "processExited": true,
+        "maximumObservedWorkingSet": 38703104,
+        "outputBytes": 196
+      },
+      {
+        "label": "entry-compile",
+        "pid": 6356,
+        "exitCode": 0,
+        "elapsedMs": 281,
+        "failure": null,
+        "processExited": true,
+        "maximumObservedWorkingSet": 37560320,
+        "outputBytes": 196
+      },
+      {
+        "label": "target-compile",
+        "pid": 884,
+        "exitCode": 0,
+        "elapsedMs": 299,
+        "failure": null,
+        "processExited": true,
+        "maximumObservedWorkingSet": 36352000,
+        "outputBytes": 196
+      },
+      {
+        "label": "inert",
+        "pid": 8584,
+        "exitCode": 0,
+        "elapsedMs": 1261,
+        "failure": null,
+        "processExited": true,
+        "maximumObservedWorkingSet": 35119104,
+        "outputBytes": 4362
+      }
+    ]
+  }
+}

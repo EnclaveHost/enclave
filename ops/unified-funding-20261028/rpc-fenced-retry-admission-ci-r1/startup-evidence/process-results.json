@@ -1,0 +1,22 @@
+[
+    {
+        "label":  "controller-compile",
+        "pid":  6676,
+        "exitCode":  0,
+        "elapsedMs":  1794,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  37593088,
+        "outputBytes":  0
+    },
+    {
+        "label":  "entry-compile",
+        "pid":  2616,
+        "exitCode":  1,
+        "elapsedMs":  310,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  36642816,
+        "outputBytes":  352
+    }
+]

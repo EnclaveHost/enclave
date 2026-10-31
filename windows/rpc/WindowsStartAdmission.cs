@@ -10,7 +10,7 @@ using System.Net;
 using System.Text;
 using System.Web.Script.Serialization;
 namespace Enclave.OwnedRpc {
-internal sealed class WindowsStartAdmission {
+internal sealed partial class WindowsStartAdmission {
     const long MiB=1048576,GiB=1073741824;
     // Whole stack + prospective apps + real host floor + variation + extra
     // transient startup overhead including 192 MiB for independent cleanup. Existing VM allocations are already in free.
@@ -168,18 +168,6 @@ internal sealed class WindowsStartAdmission {
         if(completed==null)completed=new LegacyHandoff.Completion(Obj(binding),Obj(reviewed["sharedPhysicalPool"]),reader);
         else completed.Verify();
         new WindowsStartAdmission(plan,hash,completed).Read();
-    }
-    // Fresh read-only evidence belongs to the short diagnostic lease, never
-    // replaces the consumed plan's observation or renews its startup authority.
-    internal static void InspectDefinitionAdmission(ProtectedAttempt plan,ProtectedAttempt reader){
-        if(plan==null||plan.DefinitionPlan==null||reader==null||reader.LeaseProfile!="definition"||reader.Operation!="admission-check"||
-           reader.PermitHash!=plan.ContractHash||reader.PermitPath!=Path.Combine(plan.Root,"definition-plan.txt")||reader.AdmissionObservationHash==null)
-            throw new ArgumentException("Bound read-only definition admission required");
-        plan.CheckDeadline();reader.CheckDeadline();
-        var reviewed=Obj(new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32}.DeserializeObject(new UTF8Encoding(false,true).GetString(reader.ReadAdmission(reader.AdmissionObservationHash))));
-        using(var completed=new LegacyHandoff.Completion(Obj(reviewed["legacyCutSeed"]),Obj(reviewed["sharedPhysicalPool"]),reader))
-            new WindowsStartAdmission(reader,reader.AdmissionObservationHash,completed).Read();
-        plan.CheckDeadline();reader.CheckDeadline();
     }
     internal static HostPhysicalPool AcquireShared(ProtectedAttempt vm,StartIdentity id,long workerDeadline,out PhysicalClaim claim) {
         vm.CheckDeadline();vm.VmPermit.Bind(id,vm.ContractHash);

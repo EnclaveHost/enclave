@@ -1,0 +1,1 @@
+source-closure\windows\rpc\WindowsStartAdmission.cs(175,29): error CS1061: 'Enclave.OwnedRpc.ProtectedAttempt' does not contain a definition for 'DefinitionPlan' and no extension method 'DefinitionPlan' accepting a first argument of type 'Enclave.OwnedRpc.ProtectedAttempt' could be found (are you missing a using directive or an assembly reference?)
