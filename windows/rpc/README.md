@@ -1023,3 +1023,15 @@ handoff pair is unchanged and does not call this reader. Target execution and
 RPC readiness remain unproven; no production startup clock has begun.
 
 Definition worker roles now attempt a private `owner.failure`, `observer.failure` or `child.failure` receipt when an exception escapes after the protected contract opens. The receipt binds the contract, exact process identity and original deadline; type/message are base64 and bounded to128/512characters. Existing protected WriteOnce custody,4096byte bound and deadline apply. Failure to publish (including expiry) preserves the original exception and never retries. No provider settlement or reservation release follows. This addresses missing SYSTEM task stderr; pre-contract errors or hard deadline termination may still have no receipt. These private diagnostic records must not be published.
+
+`DefinitionWorkerController --target ... admission-check ...` is an explicit
+read-only diagnostic for an existing immutable definition plan. Its separate
+`owned-rpc-definition-admission-v1` contract additionally pins a fresh admission
+observation in the worker namespace. It uses the same independently supervised
+SYSTEM roles and unchanged capacity/freshness/completed-cut checks. The child
+branches before provider construction; its held definition journal rejects
+all writes. It may inspect an expired plan under a current short reader lease,
+but cannot renew that plan, define/start a VM, acquire a new claim, replay the
+allocator cut, or release any reservation. Only private diagnostic journals and
+owned temporary task/process control are written. Successful output says
+`admission-observed`; it is not a reusable production admission or RPC readiness.

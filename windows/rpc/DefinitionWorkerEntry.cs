@@ -198,7 +198,13 @@ namespace Enclave.OwnedRpc {
                     a.WriteOnce("child.consumed",Identity(a,"child"));
                     using(var guard=HoldChildAuthority(a)) {
                         using(var plan=ProtectedAttempt.OpenDefinitionJournal(a.PermitPath,a.PermitHash,a))
-                        using(var runtime=new Runtime(a,plan,guard)) {
+                        {
+                          if(a.Operation=="admission-check") {
+                            guard.Check();WindowsStartAdmission.InspectDefinitionAdmission(plan,a);guard.Check();
+                            a.WriteOnce("child.result","admission-observed;definition-authorized=false;start-authorized=false;reservation-release=false");
+                            return 0;
+                          }
+                          using(var runtime=new Runtime(a,plan,guard)) {
                             var p=plan.DefinitionPlan;var journal=new OwnedDefinitionJournal(plan);
                             runtime.VerifyObservation(p);var provider=new HyperVOwnedDefinition(runtime,journal);
                             DefinitionOutcome result;
@@ -210,6 +216,7 @@ namespace Enclave.OwnedRpc {
                                 var outcome=OwnedVmBoot.Configure(boot,new OwnedBootJournal(plan),new HyperVOwnedBoot(runtime,provider),runtime,a.Operation=="boot-reconcile");
                                 a.WriteOnce("child.result",outcome.State+";guid="+result.Guid+";boot-configured="+outcome.Configured+";start-authorized=false;reservation-release=false");
                             }else a.WriteOnce("child.result",result.State+";guid="+(result.Guid??"")+";definition-settled="+result.DefinitionSettled+";start-authorized=false;reservation-release=false");
+                          }
                         }
                     }
 

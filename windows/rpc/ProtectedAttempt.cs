@@ -17,6 +17,7 @@ namespace Enclave.OwnedRpc {
         public readonly string Root,Nonce,Boot,ContractHash,ExecutableHash;
         public readonly long Origin,Deadline;
         public readonly string LeaseProfile,Operation,PermitPath,PermitHash;
+        public readonly string AdmissionObservationHash;
         public readonly uint GuardianPid;
         public readonly long GuardianCreation;
         readonly List<IDisposable> held=new List<IDisposable>();
@@ -227,7 +228,9 @@ namespace Enclave.OwnedRpc {
                 if(profile=="inert") {
                     if(fields.Length!=8 || fields[0]!="owned-rpc-inert-v1" || fields[6]!="inert-v1" || fields[7]!="")throw new InvalidOperationException("Exact inert contract schema required");
                 } else if(profile=="definition") {
-                    if(fields.Length!=10||fields[0]!="owned-rpc-definition-worker-v1"||(fields[6]!="define"&&fields[6]!="definition-reconcile"&&fields[6]!="boot"&&fields[6]!="boot-reconcile")||fields[9]!="")throw new InvalidOperationException("Exact definition worker contract required");
+                    bool probe=fields.Length==11&&fields[0]=="owned-rpc-definition-admission-v1"&&fields[6]=="admission-check"&&fields[10]=="";
+                    if(!probe&&(fields.Length!=10||fields[0]!="owned-rpc-definition-worker-v1"||(fields[6]!="define"&&fields[6]!="definition-reconcile"&&fields[6]!="boot"&&fields[6]!="boot-reconcile")||fields[9]!=""))throw new InvalidOperationException("Exact definition worker contract required");
+                    if(probe){AdmissionObservationHash=fields[9];Hex(AdmissionObservationHash,64);}
                     Operation=fields[6];PermitPath=LocalPath(fields[7]);PermitHash=fields[8];Hex(PermitHash,64);
                     if(Path.GetFileName(PermitPath)!="definition-plan.txt")throw new InvalidOperationException("Fixed definition plan path required");
                 } else if(profile=="legacy-handoff") {
@@ -293,6 +296,7 @@ namespace Enclave.OwnedRpc {
                 if(name!="guardian.consumed"&&name!="guardian.request"&&name!="guardian.armed"&&name!="guardian.bound"&&name!="guardian.result")
                     throw new InvalidOperationException("Guardian cannot write provider records");
             } else if(definitionJournal) {
+                if(accessLease.Operation=="admission-check")throw new InvalidOperationException("Admission inspection cannot write definition or boot journals");
                 bool boot=accessLease.Operation=="boot"||accessLease.Operation=="boot-reconcile";
                 if(boot?!BootRecordAllowed(name,accessLease.Operation=="boot-reconcile"):!DefinitionRecordAllowed(name,accessLease.Operation=="definition-reconcile"))throw new InvalidOperationException("Fixed definition/boot journal record required");
                 if((accessLease.Operation=="define"||accessLease.Operation=="boot")&&(BoundedWorker.MonotonicMilliseconds()<Origin||BoundedWorker.MonotonicMilliseconds()>=Deadline))throw new InvalidOperationException("Original definition time expired");

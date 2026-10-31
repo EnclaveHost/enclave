@@ -44,7 +44,7 @@ public static class OwnedVmDefinitionHarness {
  static void DirectoryNew(string path){var a=new DirectorySecurity();a.SetOwner(new SecurityIdentifier("S-1-5-32-544"));a.SetAccessRuleProtection(true,false);foreach(string sid in new[]{"S-1-5-18","S-1-5-32-544"})a.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid),FileSystemRights.FullControl,InheritanceFlags.ContainerInherit|InheritanceFlags.ObjectInherit,PropagationFlags.None,AccessControlType.Allow));Directory.CreateDirectory(path,a);}
  static void Put(string path,byte[] bytes){var a=new FileSecurity();a.SetOwner(new SecurityIdentifier("S-1-5-32-544"));a.SetAccessRuleProtection(true,false);foreach(string sid in new[]{"S-1-5-18","S-1-5-32-544"})a.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid),FileSystemRights.FullControl,AccessControlType.Allow));using(var f=new FileStream(path,FileMode.CreateNew,FileSystemRights.WriteData,FileShare.None,4096,FileOptions.WriteThrough,a)){f.Write(bytes,0,bytes.Length);f.Flush(true);}}
  sealed class ProtectedCase {
-  internal readonly string Contract,Hash,PlanPath,PlanHash;internal readonly OwnedVmDefinitionPlan P;
+  internal readonly string Contract,Hash,PlanPath,PlanHash,ObservationHash;internal readonly OwnedVmDefinitionPlan P;
   internal ProtectedCase(string op="define",bool wrongHash=false,bool wrongBoot=false){
    string n=Guid.NewGuid().ToString("N"),b=ProtectedAttempt.CurrentBoot(),basePath=Path.GetPathRoot(Environment.SystemDirectory),parent=Path.Combine(basePath,"rpc-definition-ci-"+n),root=Path.Combine(parent,n);
    DirectoryNew(parent);DirectoryNew(root);Put(Path.Combine(root,"entry.exe"),fixtureImage);
@@ -52,12 +52,30 @@ public static class OwnedVmDefinitionHarness {
    long now=BoundedWorker.MonotonicMilliseconds(),origin=now;
    P=new OwnedVmDefinitionPlan(id,wrongBoot?new string('b',32):b,new string('c',64),ProtectedAttempt.Hash(fixtureImage),vr,origin,origin+900000,new string('e',64),new string('f',64));
    PlanPath=Path.Combine(vr,"definition-plan.txt");byte[] plan=Encoding.UTF8.GetBytes(P.Encode());PlanHash=wrongHash?new string('0',64):ProtectedAttempt.Hash(plan);Put(PlanPath,plan);
-   byte[] c=Encoding.UTF8.GetBytes("owned-rpc-definition-worker-v1\n"+n+"\n"+b+"\n"+now+"\n"+(now+20000)+"\n"+ProtectedAttempt.Hash(fixtureImage)+"\n"+op+"\n"+PlanPath+"\n"+PlanHash+"\n");
+   bool probe=op=="admission-check";byte[] observation=Encoding.UTF8.GetBytes("{}");ObservationHash=ProtectedAttempt.Hash(observation);
+   if(probe)Put(Path.Combine(root,"admission.json"),observation);
+   byte[] c=Encoding.UTF8.GetBytes((probe?"owned-rpc-definition-admission-v1":"owned-rpc-definition-worker-v1")+"\n"+n+"\n"+b+"\n"+now+"\n"+(now+20000)+"\n"+ProtectedAttempt.Hash(fixtureImage)+"\n"+op+"\n"+PlanPath+"\n"+PlanHash+"\n"+(probe?ObservationHash+"\n":""));
    Contract=Path.Combine(root,"contract.txt");Hash=ProtectedAttempt.Hash(c);Put(Contract,c);
   }
   internal ProtectedAttempt Lease(){return ProtectedAttempt.PinDefinitionController(Contract,Hash);}
  }
  static void ProtectedTests(){
+  Test("admission-only-contract-binds-fresh-private-observation",()=>{var c=new ProtectedCase("admission-check");using(var a=c.Lease()){
+   Check(a.Operation=="admission-check"&&a.AdmissionObservationHash==c.ObservationHash&&Encoding.UTF8.GetString(a.ReadAdmission(a.AdmissionObservationHash))=="{}");
+   Refuse(()=>a.ReadAdmission(new string('0',64)));
+  }});
+  Test("admission-only-cannot-write-any-definition-or-boot-record",()=>{var c=new ProtectedCase("admission-check");using(var a=c.Lease())using(var p=ProtectedAttempt.PinDefinitionJournalController(c.PlanPath,c.PlanHash,a)){
+   var j=new OwnedDefinitionJournal(p);foreach(string n in new[]{"definition.intent","definition.submit","definition.native","definition.receipt","definition.job","definition.terminal","definition.system","definition.off","boot.media","boot.ready","boot.nic.intent","start.native"})Refuse(()=>p.WriteOnce(n,"x"));
+   Refuse(()=>OwnedVmDefinition.Prepare(c.P,j));Check(p.ReadOptionalOnce("definition.intent")==null&&p.ReadOptionalOnce("definition.native")==null);
+  }});
+  Test("admission-only-cannot-grant-native-definition-admission",()=>{var c=new ProtectedCase("admission-check");using(var a=c.Lease())using(var p=ProtectedAttempt.PinDefinitionJournalController(c.PlanPath,c.PlanHash,a)){
+   LegacyHandoff.Completion completed=null;Refuse(()=>WindowsStartAdmission.VerifyDefinition(p,c.P.AdmissionHash,a,ref completed));Check(completed==null);
+  }});
+  Test("ordinary-define-cannot-use-read-only-inspector",()=>{var c=new ProtectedCase();using(var a=c.Lease())using(var p=ProtectedAttempt.PinDefinitionJournalController(c.PlanPath,c.PlanHash,a))Refuse(()=>WindowsStartAdmission.InspectDefinitionAdmission(p,a));});
+  Test("read-only-worker-window-does-not-change-consumed-plan",()=>{var p=Plan();string before=p.Encode();p.ValidateWorkerWindow(902000,922000,903000,true);Refuse(()=>p.ValidateWorkerWindow(902000,922000,903000,false));Check(p.Encode()==before&&p.Deadline==901000);});
+  Test("admission-only-rejects-missing-completed-cut-without-journal-write",()=>{var c=new ProtectedCase("admission-check");using(var a=c.Lease())using(var p=ProtectedAttempt.PinDefinitionJournalController(c.PlanPath,c.PlanHash,a)){
+   Refuse(()=>WindowsStartAdmission.InspectDefinitionAdmission(p,a));Check(p.ReadOptionalOnce("definition.native")==null&&p.ReadOptionalOnce("definition.intent")==null);
+  }});
   Test("private-role-failure-preserves-original-error-and-authority",()=>{var c=new ProtectedCase();using(var a=c.Lease()){
    var original=new InvalidOperationException("fixture admission refused\nprivate detail");bool same=false;
    try{DefinitionWorkerEntry.RunRole(a,"child",()=>{throw original;});}catch(Exception e){same=Object.ReferenceEquals(e,original);}Check(same);
