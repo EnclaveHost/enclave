@@ -1,0 +1,52 @@
+[
+  {
+    "path": "dispatch.py",
+    "originalSha256": "d79878999595d7bf5e27dc76a69a33ba17875b3ecba1f7d6843b7f354634ac7a",
+    "publicSha256": "d79878999595d7bf5e27dc76a69a33ba17875b3ecba1f7d6843b7f354634ac7a"
+  },
+  {
+    "path": "DISPATCH-RESULT.json",
+    "originalSha256": "3204c300a7b9d89497d6f613a88e070b1080849df447826d4c80ab3274e7a1f3",
+    "publicSha256": "3204c300a7b9d89497d6f613a88e070b1080849df447826d4c80ab3274e7a1f3"
+  },
+  {
+    "path": "ROOT-RESULT.md",
+    "originalSha256": "05c67c7f28f97ffbf642be22098c82720fa3baa4936ab4732fcf2b66458c910a",
+    "publicSha256": "05c67c7f28f97ffbf642be22098c82720fa3baa4936ab4732fcf2b66458c910a"
+  },
+  {
+    "path": "push-outer.log",
+    "originalSha256": "bededc360b0a4e39482a40faffa270325f9e11491d3dd1ed2281e83f64c2ba36",
+    "publicSha256": "bededc360b0a4e39482a40faffa270325f9e11491d3dd1ed2281e83f64c2ba36"
+  },
+  {
+    "path": "push-inner.log",
+    "originalSha256": "742b8e701dcc9efc5d86591fe684887b616ae3ef39bf0b4ce4b84bcb09984952",
+    "publicSha256": "742b8e701dcc9efc5d86591fe684887b616ae3ef39bf0b4ce4b84bcb09984952"
+  },
+  {
+    "path": "DISPATCH-INTENT.json",
+    "originalSha256": "d0dddc8bee7e34a8ffecdabd164d098aaa316d328574a1d48d5c49595311ca08",
+    "publicSha256": "0e83053487c47268e10018f2afeae4887eab30f35e6f2c3af10465565a251869"
+  },
+  {
+    "path": "COMMAND.json",
+    "originalSha256": "06bfff10e63ba3c31fffa26f037b9b229d7f9180f2ca9c1293e3a3489dc4e8f7",
+    "publicSha256": "06bfff10e63ba3c31fffa26f037b9b229d7f9180f2ca9c1293e3a3489dc4e8f7"
+  },
+  {
+    "path": "artifacts/process-results.json",
+    "originalSha256": "f28a66b73da020d4cd4fd412d7f057092416a91e58775e0a14d56c92087db5dc",
+    "publicSha256": "646c4357f2f4c4cccc519ecc49209471940a9ac3fa3f717cf31443df256eb095"
+  },
+  {
+    "path": "artifacts/compile.out",
+    "originalSha256": "fcc9cb1bf1255e214aa2b9a1df9ce9bf16bbe914cdfb0b7a3024cf6d121eb332",
+    "publicSha256": "723b5e58c985ff9f0d8f7545c4aa60e567e01ac3ea8cb35182b02ca5615b1768"
+  },
+  {
+    "path": "artifacts/pins.json",
+    "originalSha256": "3ff340d17049f758de183195d8f2e4566b5ed5646c55e4500bdc00d8676856f0",
+    "publicSha256": "9001d2589ab053d3bdf2fe19267c1ecdfb5a439fcf7543f750499961d5d6873e"
+  }
+]

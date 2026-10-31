@@ -1,0 +1,10 @@
+{
+    "label":  "compile",
+    "pid":  6804,
+    "exitCode":  1,
+    "elapsedMs":  1728,
+    "failure":  null,
+    "processExited":  true,
+    "maximumObservedWorkingSet":  37023744,
+    "outputBytes":  274
+}

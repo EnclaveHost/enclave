@@ -1,0 +1,12 @@
+[
+  {
+    "path": "ROOT-REVIEW.md",
+    "originalSha256": "bcd7c920b8e4e123b2725a95d149884c3e95ffa67834e57bb82e48ff7291598c",
+    "publicSha256": "bcd7c920b8e4e123b2725a95d149884c3e95ffa67834e57bb82e48ff7291598c"
+  },
+  {
+    "path": "SOURCE-PINS.json",
+    "originalSha256": "cf56d0fcb7b4fdf89cf4ad1c92ae9d8eead2d7745bd838fdfd0183d50cf54016",
+    "publicSha256": "cf56d0fcb7b4fdf89cf4ad1c92ae9d8eead2d7745bd838fdfd0183d50cf54016"
+  }
+]

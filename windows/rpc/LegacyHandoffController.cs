@@ -207,7 +207,7 @@ public static class LegacyHandoffController {
                    Num(r["observedAt"])<Origin||Num(r["observedAt"])>=Deadline||Num(r["configuredBytes"])!=sum)throw new InvalidOperationException("Resident sample binding differs");
                 var map=Obj(r["residents"]);long assigned=0;
                 if(map.Count!=rows.Count)throw new InvalidOperationException("Resident sample missing GUIDs");
-                foreach(object item in rows){var row=Obj(item);string guid=Str(row["guid"]);long bytes=Num(map[guid]);if(bytes<0||bytes>Num(row["maximumBytes"]))throw new InvalidOperationException("Resident quantity exceeds commitment");assigned=checked(assigned+bytes);}
+                foreach(object item in rows){var row=Obj(item);string guid=Str(row["guid"]);long residentBytes=Num(map[guid]);if(residentBytes<0||residentBytes>Num(row["maximumBytes"]))throw new InvalidOperationException("Resident quantity exceeds commitment");assigned=checked(assigned+residentBytes);}
                 long physical=Num(r["physicalBytes"]),available=Num(r["freeBytes"]);
                 if(physical<=0||available<0||available>physical||assigned>physical-available||Num(r["assignedBytes"])!=assigned||Num(r["latentBytes"])!=sum-assigned||Num(r["nonPoolBytes"])!=physical-available-assigned)throw new InvalidOperationException("Resident accounting differs");
                 resident=r;

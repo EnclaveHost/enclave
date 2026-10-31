@@ -1,0 +1,1 @@
+Explicit read-only resident qualification shares actual seedFit native projection. Schema1/inspect branch cannot reach cut/seed; peer closed.52expectedcases, existing bounds unchanged. No target admission.

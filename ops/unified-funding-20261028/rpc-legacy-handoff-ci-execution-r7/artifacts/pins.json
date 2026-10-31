@@ -1,0 +1,102 @@
+[
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "309A68AB3A4326C3819997C3ABAE4E4FE38307E98BB54B31B246CE61A9A63A99",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\BoundedWorker.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "59D15DC8BA06CD739D7BF920FDA4CCA86D235B962CCCEF1BAE27C0173FBEDC80",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\OwnerObserver.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "4E23387225EE2A710F60D7A17DB68E73A39CD15409981CB2E0EB9FA1D64CF336",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\VmStartGuardian.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "DF9AA0F0EFB5344105380CF8372C0215732CE3063BB458D2DEF70A98F1E7ADEB",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\ProtectedAttempt.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "D2EB7BBEBC74B02BE707FCD705C9165AF9B6FDF2F6440A94FDE76DCC0CEAEEA2",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\ProviderStart.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "0DD8605139B7D20910DC5C738FB1F8FAC8E44F94F4F95DCC07D40F6905BE223F",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\ProviderStop.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "BA28F6EBBBE326A7690DBB93E5B24F1982E1096F9A79414A5824DE93AE389545",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\HostPhysicalPool.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "B06119B07562DDAB4BAAFE5E6381A8415A61FDF3D520CDFC829F5DEA955BBFFE",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\PhysicalPoolCommand.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "A4D1F9640A4087714B9907CDDCDC64340CB57F07DE04DD1B6BAF97197AC60373",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\OwnedVmPermit.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "5FA0EDC22472884CBB814C33C4E8C4616777E202DCE21F9A8F6D4DBF948246C6",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\WindowsStartAdmission.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "DE59E9AD7E48D65F7132539637455C27C70B27588FD5D7518A38EA203A37808F",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\ProviderWorkerEntry.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "D2BFC04762CF64B2555575E4C8AA95842DD35BE108F9C9780DD3ECF0ECD0CD0F",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\LegacyTemplateFence.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "3FD8B572228AD03E86422E0DBB14F35E462B57092CDC7127F2A0D5D25C00D909",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\InertEntry.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "FC9D8461190C20F22686CA85BCC903D0355826B49844BF9DD6F788386DEAEABA",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\InertQualification.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "CE22AA16E0D353FA8354BCA26F8DC4057D520C001540D0659778E2769135F5A2",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\LegacyLaunchCohort.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "8A61AD9FB7E8AE62AAAD217EC323F55C1697C0E7FF6FFD2EAB28E4166C3A8AD8",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\LegacyHandoff.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "486C0365655E7FBAF4F61FAC2833F41FEF6FF0DEDA7EB1222CC1B46CC896F16C",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\LegacyHandoffEntry.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "1D8F36FDF260748BD0F738792FF98BF4EE62B658A7DA7DBEBF1BA04437A8BBD3",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\LegacyHandoffController.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "14960E07FB47345FF330FCA29702DF498AE698B7A3514777D994CA19560E6701",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\test\\rpc-windows-worker\\LegacyHandoffHarness.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "46809206887326D2D24DB1EFF1F3064DE972C3451ABE766B49111450A5E08E00",
+        "Path":  "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe"
+    }
+]

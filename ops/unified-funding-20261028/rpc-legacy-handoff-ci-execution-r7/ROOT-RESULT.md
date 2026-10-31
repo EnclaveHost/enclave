@@ -1,0 +1,1 @@
+CI41175785824 FAILED compile at4fd061d1377d277aeb017379858e96b1cb62a1b7. Exact csc CS0136 LegacyHandoffController.cs210 local bytes shadows outer contract bytes. Compile1728ms/exit1/exactprocessdeath; no harness/native outcome. Original artifacts unchanged. Next changes only conflicting local identifier to residentBytes, new source/attempt required; no unchanged rerun.
