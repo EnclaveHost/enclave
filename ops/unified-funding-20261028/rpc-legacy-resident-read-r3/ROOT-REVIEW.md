@@ -1,0 +1,1 @@
+Fresh finite read for changed explicit resident inspection. Same reviewed observation source including independent GetVM MemoryAssigned projection, exact current fourlistener bindings, physical/pending. No VM/provider/funds mutation. Review current evidence before one resident inspection; no stale admission.

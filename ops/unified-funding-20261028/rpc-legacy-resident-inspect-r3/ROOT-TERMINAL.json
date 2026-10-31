@@ -1,0 +1,8 @@
+{
+  "invocation": "97e35eeb7b59405bbea2cf9becf27bc1",
+  "systemd": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+  "pinsUnchanged": true,
+  "exactControllerDeath": true,
+  "failures": [],
+  "independentGetVMAgreement": true
+}

@@ -1,0 +1,10 @@
+{
+  "freshAgeSeconds": 8.43139100074768,
+  "requiredFreeBytes": 62709039104,
+  "observedMinFreeBytes": 83795546112,
+  "sameBoot": true,
+  "sameListenerIdentities": true,
+  "operation": "legacy-memory-resident-inspect-v1",
+  "rpcAllocationAdmitted": false,
+  "productionFenceAdmitted": false
+}

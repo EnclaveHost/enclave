@@ -544,4 +544,18 @@ existing schema1 handoff manifest and never constructs a seed plan or applies a
 fence. Complete per-GUID native Msvm_Memory rows bracket an OS memory sample;
 changed rows, missing rows, wrong native types and samples over2s fail closed.
 The controller rechecks the bound sample's GUID coverage, static maxima and all
-byte arithmetic. This source path still needs actual target qualification.
+byte arithmetic. The query selects only canonical GUIDs from the complete VM
+inventory: an unfiltered `Msvm_Memory` query also returns physical-host memory.
+The response still must contain every requested VM exactly once.
+
+Actual target SYSTEM invocation97e35eeb7b59405bbea2cf9becf27bc1 passed in11.687s
+at source2eafe081bea36e07de1f9f5297602f71c7976ff7, following57 hosted checks.
+All five native resident rows matched the separate `Get-VM MemoryAssigned`
+observation:18,301,845,504 bytes assigned/configured, zero latent bytes in this
+sample. The protected sample reported83,787,870,208 bytes free and
+17,980,399,616 bytes used outside the VM allocations. These are observations,
+not a persistent allocation or permission to start RPC. Both earlier native
+refusals and the diagnostic packaging/fixture failures remain preserved.
+Target images now exclude the test harness and remain under the original256KiB
+protected-input limit. No production fence, pool seed, VM start or RPC cutover
+occurred. See `ops/unified-funding-20261028/rpc-legacy-resident-inspect-r3/ROOT-RESULT.md`.

@@ -1,0 +1,1 @@
+Native observed all-host Msvm_Memory row wasphysicalhost notVM. Exact canonical allVMGUID filter, no arbitrarystrings, emptyinventory meansnoquery, strict complete/unique/known/nativeuint64 quantities retained.57cases includesquery/injection/empty tests and54prior. No runtime resource/time/productionimagebound change.

@@ -1,0 +1,64 @@
+{
+  "head": "2eafe081bea36e07de1f9f5297602f71c7976ff7",
+  "run": 41176921441,
+  "tests": 57,
+  "compiledSourcePins": 19,
+  "targetSourceCount": 18,
+  "exes": {
+    "handoff-entry.exe": {
+      "bytes": 229888,
+      "sha256": "0e7c20501254c93fdbe36d101b20e9265019ab89089290052eb1edc46aa588e0"
+    },
+    "handoff-controller.exe": {
+      "bytes": 229888,
+      "sha256": "b38c917ff6fd0ad26c8aece7887d2600b20eec71088418786384f3aaa90a9db8"
+    },
+    "legacy-handoff.exe": {
+      "bytes": 265216,
+      "sha256": "eea5e3598d877dd202035eac905e486950b78f6157ef9cdcddc51043d30ccc01"
+    }
+  },
+  "processes": [
+    {
+      "label": "compile",
+      "pid": 824,
+      "exitCode": 0,
+      "elapsedMs": 2104,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 38629376,
+      "outputBytes": 0
+    },
+    {
+      "label": "compile-entry",
+      "pid": 7364,
+      "exitCode": 0,
+      "elapsedMs": 270,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 37064704,
+      "outputBytes": 0
+    },
+    {
+      "label": "compile-controller",
+      "pid": 7172,
+      "exitCode": 0,
+      "elapsedMs": 266,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 37883904,
+      "outputBytes": 0
+    },
+    {
+      "label": "handoff",
+      "pid": 3216,
+      "exitCode": 0,
+      "elapsedMs": 1742,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 35037184,
+      "outputBytes": 2522
+    }
+  ],
+  "nativeQualified": false
+}

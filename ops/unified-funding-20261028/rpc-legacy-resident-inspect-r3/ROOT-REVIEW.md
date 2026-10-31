@@ -1,0 +1,1 @@
+Exact changed57PASS source2eafe081/19compiledpins/18targetsourceclosure. Query filters fullcanonicalVMGUIDinventory to excludehostphysicalrow; response complete/unique/known/types/quantities unchanged. Newnamespace/original30s/5s limits. Freshhostseal beforeone readonlyinspection; no production fence/pool/VM/provider/funds. Prior r2terminal exactcleanup; no unchangedretry.

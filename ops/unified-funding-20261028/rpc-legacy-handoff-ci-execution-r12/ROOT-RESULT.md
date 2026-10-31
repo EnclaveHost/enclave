@@ -1,0 +1,1 @@
+CI41176921441 SUCCESS57PASS1742ms/compilers2104+270+266ms.19compiledpins independently match exactGit/current;18productionfiles excludeharness. Entry/controller229888B under262144targetbound. Executablehashes independentlyrecomputed inVERIFIED.json. Query canonicalGUID/empty/injection cases andprior54 retained. Native qualification separate r3 nowpassed; noactivation.
