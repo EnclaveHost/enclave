@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-31T00:44:05.196275+00:00",
+  "units": {
+    "enclave-rpc-system-clock-source-preserve-r1-20261031": "ActiveState=inactive\nInvocationID=\nMainPID=0\nResult=success\n",
+    "enclave-rpc-system-target-controller-ci-execution-r3-20261031": "ActiveState=inactive\nInvocationID=\nMainPID=0\nResult=success\n",
+    "enclave-rpc-system-target-native-create-r1-20261031": "ActiveState=failed\nInvocationID=bacb298e38124b0292b973ca76918242\nMainPID=0\nResult=exit-code\n",
+    "enclave-rpc-system-target-native-create-r2-20261031": "ActiveState=inactive\nInvocationID=\nMainPID=0\nResult=success\n",
+    "enclave-rpc-system-target-native-stage-r2-20261031": "ActiveState=inactive\nInvocationID=\nMainPID=0\nResult=success\n",
+    "enclave-rpc-system-target-resource-read-r2-20261031": "ActiveState=inactive\nInvocationID=\nMainPID=0\nResult=success\n",
+    "enclave-rpc-system-target-native-execute-r2-20261031": "ActiveState=inactive\nInvocationID=\nMainPID=0\nResult=success\n",
+    "enclave-rpc-system-native-result-preserve-r1-20261031": "ActiveState=inactive\nInvocationID=\nMainPID=0\nResult=success\n"
+  },
+  "allPinsUnchanged": true
+}
