@@ -1,0 +1,22 @@
+[
+  "sudo",
+  "-n",
+  "systemd-run",
+  "--quiet",
+  "--wait",
+  "--pipe",
+  "--unit=enclave-rpc-boot-media-media-verify-r1-20261031",
+  "--property=MemoryMax=128M",
+  "--property=MemorySwapMax=0",
+  "--property=CPUQuota=100%",
+  "--property=TasksMax=16",
+  "--property=RuntimeMaxSec=30",
+  "--property=TimeoutStopSec=5",
+  "--property=KillMode=control-group",
+  "--property=UMask=0077",
+  "/usr/bin/python3",
+  "-I",
+  "-B",
+  "-c",
+  "import pathlib,json,hashlib,os\np=pathlib.Path('/home/controladmin/rpc-boot-media-20261031-r1/output')\nfiles={}\nfor name in ['source-info.json','output-info.json','convert.log','compare.log','seed.log','seed-readback.log','RESULT.json']:\n f=p/name\n if f.stat().st_size>65536:raise RuntimeError('Read bound')\n files[name]=f.read_text()\nartifacts={}\nfor name in ['boot.vhdx','seed.iso']:\n f=p/name;before=f.stat()\n with f.open('rb') as stream:h=hashlib.file_digest(stream,'sha256').hexdigest()\n after=f.stat()\n if (before.st_ino,before.st_size,before.st_mtime_ns)!=(after.st_ino,after.st_size,after.st_mtime_ns):raise RuntimeError('Changed artifact')\n artifacts[name]={'sha256':h,'bytes':after.st_size}\nexpected=json.loads(files['RESULT.json'])['files']\nif artifacts!=expected:raise RuntimeError('Artifact mismatch')\nprint(json.dumps({'invocation':os.environ.get('INVOCATION_ID'),'files':files,'artifacts':artifacts,'independentRehashPassed':True,'readOnly':True}))\n"
+]

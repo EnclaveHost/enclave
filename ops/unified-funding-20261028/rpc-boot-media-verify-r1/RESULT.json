@@ -1,0 +1,29 @@
+{
+  "rc": 0,
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\n** The server may need to be upgraded. See https://openssh.com/pq.html\n",
+  "readOnly": true,
+  "observation": {
+    "invocation": "5c228d3bc8834f1292514770a76fc82e",
+    "files": {
+      "source-info.json": "{\n    \"children\": [\n        {\n            \"name\": \"file\",\n            \"info\": {\n                \"children\": [\n                ],\n                \"virtual-size\": 621284352,\n                \"filename\": \"/home/controladmin/rpc-boot-media-20261031-r1/source.qcow2\",\n                \"format\": \"file\",\n                \"actual-size\": 621289472,\n                \"format-specific\": {\n                    \"type\": \"file\",\n                    \"data\": {\n                    }\n                },\n                \"dirty-flag\": false\n            }\n        }\n    ],\n    \"virtual-size\": 3758096384,\n    \"filename\": \"/home/controladmin/rpc-boot-media-20261031-r1/source.qcow2\",\n    \"cluster-size\": 65536,\n    \"format\": \"qcow2\",\n    \"actual-size\": 621289472,\n    \"format-specific\": {\n        \"type\": \"qcow2\",\n        \"data\": {\n            \"compat\": \"1.1\",\n            \"compression-type\": \"zlib\",\n            \"lazy-refcounts\": false,\n            \"refcount-bits\": 16,\n            \"corrupt\": false,\n            \"extended-l2\": false\n        }\n    },\n    \"dirty-flag\": false\n}\n",
+      "output-info.json": "{\n    \"children\": [\n        {\n            \"name\": \"file\",\n            \"info\": {\n                \"children\": [\n                ],\n                \"virtual-size\": 1933574144,\n                \"filename\": \"/home/controladmin/rpc-boot-media-20261031-r1/output/boot.vhdx\",\n                \"format\": \"file\",\n                \"actual-size\": 1873133568,\n                \"format-specific\": {\n                    \"type\": \"file\",\n                    \"data\": {\n                    }\n                },\n                \"dirty-flag\": false\n            }\n        }\n    ],\n    \"virtual-size\": 3758096384,\n    \"filename\": \"/home/controladmin/rpc-boot-media-20261031-r1/output/boot.vhdx\",\n    \"cluster-size\": 1048576,\n    \"format\": \"vhdx\",\n    \"actual-size\": 1873133568,\n    \"dirty-flag\": false\n}\n",
+      "convert.log": "",
+      "compare.log": "Images are identical.\n",
+      "seed.log": "xorriso 1.5.6 : RockRidge filesystem manipulator, libburnia project.\n\nDrive current: -outdev 'stdio:/home/controladmin/rpc-boot-media-20261031-r1/output/seed.iso'\nMedia current: stdio file, overwriteable\nMedia status : is blank\nMedia summary: 0 sessions, 0 data blocks, 0 data, 99.1g free\nxorriso : WARNING : -volid text does not comply to ISO 9660 / ECMA 119 rules\nAdded to ISO image: file '/user-data'='/home/controladmin/rpc-boot-media-20261031-r1/output/seed/user-data'\nxorriso : UPDATE :       1 files added in 1 seconds\nAdded to ISO image: file '/meta-data'='/home/controladmin/rpc-boot-media-20261031-r1/output/seed/meta-data'\nxorriso : UPDATE :       2 files added in 1 seconds\nISO image produced: 185 sectors\nWritten to medium : 185 sectors at LBA 0\nWriting to 'stdio:/home/controladmin/rpc-boot-media-20261031-r1/output/seed.iso' completed successfully.\n\n",
+      "seed-readback.log": "xorriso 1.5.6 : RockRidge filesystem manipulator, libburnia project.\n\nCopying of file objects from ISO image to disk filesystem is: Enabled\nxorriso : NOTE : Loading ISO image tree from LBA 0\nxorriso : UPDATE :       2 nodes read in 1 seconds\nDrive current: -indev '/home/controladmin/rpc-boot-media-20261031-r1/output/seed.iso'\nMedia current: stdio file, overwriteable\nMedia status : is written , is appendable\nMedia summary: 1 session, 185 data blocks,  370k data, 99.1g free\nVolume id    : 'cidata'\nxorriso : UPDATE :       2 files restored (   755b) in 1 seconds = 0.0xD\nExtracted from ISO image: file '/'='/home/controladmin/rpc-boot-media-20261031-r1/output/seed-readback'\n",
+      "RESULT.json": "{\n  \"schema\": \"rpc-boot-media/1\",\n  \"instance\": \"rpc-owned-20261031-r1\",\n  \"sourceSha256\": \"04e8f2461a16a44e78a370284471f29616cdd9baf1893df25807b71f985b6c94\",\n  \"logicalComparePassed\": true,\n  \"sourceUnchanged\": true,\n  \"seedReadbackPassed\": true,\n  \"virtualBytes\": 3758096384,\n  \"elapsedSeconds\": 24.348171757999808,\n  \"minimumAvailableBytes\": 7271043072,\n  \"minimumDiskFreeBytes\": 106417086464,\n  \"files\": {\n    \"boot.vhdx\": {\n      \"sha256\": \"5d01973660220c8069d707e8d54a38d3a68e32956ac8ff9a0075b714974fd175\",\n      \"bytes\": 1933574144\n    },\n    \"seed.iso\": {\n      \"sha256\": \"c92f5bc01f1c615df4a5f5df697c0cb9e32456ddfb8f88e746e561e1f981b78a\",\n      \"bytes\": 378880\n    }\n  },\n  \"bootQualified\": false,\n  \"rpcReady\": false,\n  \"invocation\": \"ae01b105f33d4915a8a28eb725db7bad\"\n}"
+    },
+    "artifacts": {
+      "boot.vhdx": {
+        "sha256": "5d01973660220c8069d707e8d54a38d3a68e32956ac8ff9a0075b714974fd175",
+        "bytes": 1933574144
+      },
+      "seed.iso": {
+        "sha256": "c92f5bc01f1c615df4a5f5df697c0cb9e32456ddfb8f88e746e561e1f981b78a",
+        "bytes": 378880
+      }
+    },
+    "independentRehashPassed": true,
+    "readOnly": true
+  }
+}
