@@ -20,6 +20,13 @@ public static class HostPhysicalPoolHarness {
     static FileSecurity Security(){var s=new FileSecurity();s.SetOwner(new SecurityIdentifier("S-1-5-32-544"));s.SetAccessRuleProtection(true,false);
         foreach(string sid in new[]{"S-1-5-18","S-1-5-32-544"})s.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid),FileSystemRights.FullControl,AccessControlType.Allow));return s;}
     static void Write(string path,string value){using(var f=new FileStream(path,FileMode.CreateNew,FileSystemRights.ReadData|FileSystemRights.WriteData|FileSystemRights.ReadPermissions,FileShare.None,4096,FileOptions.WriteThrough,Security())){byte[] b=Encoding.UTF8.GetBytes(value);f.Write(b,0,b.Length);f.Flush(true);}}
+    static void Capture(Stream stream,Action<byte[]> completed,Action failed,ManualResetEvent done) {
+        new Thread(()=>{try{using(var bytes=new MemoryStream(2048)){
+            var buffer=new byte[256];int n;
+            while((n=stream.Read(buffer,0,buffer.Length))!=0){if(bytes.Length+n>2048){failed();return;}bytes.Write(buffer,0,n);}
+            completed(bytes.ToArray());
+        }}catch{failed();}finally{done.Set();}}){IsBackground=true}.Start();
+    }
     static int Transport(string[] args) {
         var f=new Fixture(2048*MiB);string parent=System.IO.Path.GetDirectoryName(f.Root),exe=System.IO.Path.Combine(parent,"physical-pool-command.exe");
         byte[] bytes=File.ReadAllBytes(args[0]);Check(bytes.Length<262144,"Command bound");
@@ -29,15 +36,16 @@ public static class HostPhysicalPoolHarness {
         Write(System.IO.Path.Combine(parent,"physical-reservations.mjs"),File.ReadAllText(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(args[2]),"..","..","windows","vbslike","manager","physical-reservations.mjs")));
         string argv="\""+script+"\" \""+exe+"\" "+ProtectedAttempt.Hash(bytes)+" \""+f.Path+"\" "+f.Hash+" "+f.Boot;
         using(var child=new Process{StartInfo=new ProcessStartInfo(args[1],argv){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true}}) {
-            var output=new StringBuilder();int errors=0;bool oversized=false;var outDone=new ManualResetEvent(false);var errDone=new ManualResetEvent(false);
-            child.OutputDataReceived+=(sender,e)=>{if(e.Data==null){outDone.Set();return;}lock(output){if(output.Length+e.Data.Length+1>2048){oversized=true;try{child.Kill();}catch{}}else output.Append(e.Data).Append('\n');}};
-            child.ErrorDataReceived+=(sender,e)=>{if(e.Data==null){errDone.Set();return;}if(Interlocked.Add(ref errors,e.Data.Length+1)>2048){oversized=true;try{child.Kill();}catch{}}};
+            byte[] output=null,error=null;int captureFailed=0;var outDone=new ManualResetEvent(false);var errDone=new ManualResetEvent(false);
             Check(child.Start(),"Node launch");var held=child.Handle;
-            child.BeginOutputReadLine();child.BeginErrorReadLine();
+            Action failed=()=>{Interlocked.Exchange(ref captureFailed,1);try{child.Kill();}catch{}};
+            Capture(child.StandardOutput.BaseStream,b=>{output=b;},failed,outDone);
+            Capture(child.StandardError.BaseStream,b=>{error=b;},failed,errDone);
             try{
                 Check(Finish(child)==0,"Actual Node transport result");
                 Check(outDone.WaitOne((int)Math.Max(1,deadline-BoundedWorker.MonotonicMilliseconds()))&&errDone.WaitOne((int)Math.Max(1,deadline-BoundedWorker.MonotonicMilliseconds())),"Node bounded output completion");
-                lock(output){Check(!oversized&&errors==0&&output.ToString()=="RESULT actualNodeTransport=7 vmChanged=false\n","Exact Node protocol test result");Console.Write(output.ToString());}
+                string line=output==null?null:new UTF8Encoding(false,true).GetString(output);
+                Check(captureFailed==0&&error!=null&&error.Length==0&&line=="RESULT actualNodeTransport=7 vmChanged=false\n","Exact Node protocol test result");Console.Write(line);
             }finally{if(!child.HasExited){child.Kill();Check(child.WaitForExit(1000),"Exact Node death");}}
         }
         Check(Directory.GetFiles(f.Root,"*.claim").Length==2&&Directory.GetFiles(f.Root,"*.dispatch").Length==2,"Exactly two durable claims and dispatches");
