@@ -22,6 +22,14 @@ public static class ProviderStartHarness {
         public void VerifyBeforeSubmit(StartIdentity id){if(Denied)throw new InvalidOperationException("Guardian/ownership refused");}
         public void VerifyObservation(StartIdentity id){if(ObservationDenied)throw new InvalidOperationException("Read guardian expired");VerifyBeforeSubmit(id);}
     }
+    sealed class PhysicalRuntime : IStartRuntime,IPhysicalStartRuntime {
+        internal bool Denied;internal int Checks,Consumes;
+        public long Now {get{return 2000;}}
+        public long GuestBytes {get{return 19L*1024*1024*1024;}}
+        public void VerifyBeforeSubmit(StartIdentity id){Checks++;if(Denied)throw new InvalidOperationException("Short lease expired during memory read");}
+        public void VerifyObservation(StartIdentity id){VerifyBeforeSubmit(id);}
+        public void ConsumePhysicalStart(StartIdentity id){Consumes++;}
+    }
     sealed class Provider : IStartProvider {
         internal int Calls,Reads;internal bool Lost,Missing;internal uint Code=4096;internal string Ref=HyperVStartProvider.ReferenceForId("Microsoft:01234567-89ab-cdef-0123-456789abcdef");
         internal ushort State=4,Error;internal uint Runs=1;internal string Time="20261031000000.000000+000";internal Store Journal;internal Action AfterRead;
@@ -168,7 +176,15 @@ public static class ProviderStartHarness {
                 foreach(string key in new[]{"DynamicMemoryEnabled","SwapFilesInUse"}){var wrong=new Dictionary<string,object>(values);wrong[key]=true;Refuse(()=>HyperVStartProvider.RequireGuestMemory(wrong,bytes));}
                 var units=new Dictionary<string,object>(values);units["AllocationUnits"]="byte";Refuse(()=>HyperVStartProvider.RequireGuestMemory(units,bytes));
             });
-            Check(count==40);Console.WriteLine("RESULT tests="+count+" providerCallsAreFakes=true vmChanged=false");return 0;
+            Test("final memory read cannot outlive short authority or consume twice",delegate {
+                var live=new PhysicalRuntime();int reads=0;
+                HyperVStartProvider.GuardPhysicalStart(Id(),live,live,()=>{reads++;});
+                Check(reads==2&&live.Checks==3&&live.Consumes==1);
+                var expired=new PhysicalRuntime();reads=0;bool invoked=false;
+                Refuse(()=>{HyperVStartProvider.GuardPhysicalStart(Id(),expired,expired,()=>{if(++reads==2)expired.Denied=true;});invoked=true;});
+                Check(reads==2&&expired.Checks==3&&expired.Consumes==1&&!invoked&&expired.Now<Id().Deadline);
+            });
+            Check(count==41);Console.WriteLine("RESULT tests="+count+" providerCallsAreFakes=true vmChanged=false");return 0;
         }catch(Exception e){Console.WriteLine("FAIL "+e);return 1;}
     }
 }

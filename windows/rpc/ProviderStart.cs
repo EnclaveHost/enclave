@@ -208,6 +208,14 @@ namespace Enclave.OwnedRpc {
             }
             if(count!=1)throw new InvalidOperationException("Configured guest memory absent");
         }
+        internal static void GuardPhysicalStart(StartIdentity id,IStartRuntime runtime,IPhysicalStartRuntime physical,Action readMemory) {
+            runtime.VerifyBeforeSubmit(id);readMemory();runtime.VerifyBeforeSubmit(id);
+            physical.ConsumePhysicalStart(id);readMemory();
+            // Provider IO can outlive the short worker lease or a required peer.
+            // Revalidate live authority afterward; never consume dispatch twice.
+            runtime.VerifyBeforeSubmit(id);
+            if(runtime.Now<id.Origin||runtime.Now>=id.Deadline)throw new InvalidOperationException("Original deadline expired");
+        }
         const string Namespace=@"root\virtualization\v2";
         readonly IStartRuntime runtime;readonly IStartJournal journal;
         public HyperVStartProvider(IStartRuntime runtime,IStartJournal journal){if(runtime==null||journal==null)throw new ArgumentNullException("dependencies");this.runtime=runtime;this.journal=journal;}
@@ -252,11 +260,7 @@ namespace Enclave.OwnedRpc {
                     throw new InvalidOperationException("Original VM zero assigned memory unconfirmed");
                 using(var input=vm.GetMethodParameters("RequestStateChange")){
                     input["RequestedState"]=(ushort)2;
-                    VerifyGuestMemory(settings,physical.GuestBytes);
-                    runtime.VerifyBeforeSubmit(id);long now=runtime.Now;if(now<id.Origin||now>=id.Deadline)throw new InvalidOperationException("Original deadline expired");
-                    physical.ConsumePhysicalStart(id);
-                    VerifyGuestMemory(settings,physical.GuestBytes);
-                    if(runtime.Now<id.Origin||runtime.Now>=id.Deadline)throw new InvalidOperationException("Original deadline expired");
+                    GuardPhysicalStart(id,runtime,physical,()=>VerifyGuestMemory(settings,physical.GuestBytes));
                     using(var output=vm.InvokeMethod("RequestStateChange",input,new InvokeMethodOptions{Timeout=TimeSpan.FromSeconds(2)})){
                         if(output==null||output["ReturnValue"]==null)throw new InvalidOperationException("No native response");
                         return new StartResponse(Convert.ToUInt32(output["ReturnValue"]),output["Job"] as string);
