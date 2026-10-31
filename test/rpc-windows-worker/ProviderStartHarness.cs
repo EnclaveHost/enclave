@@ -51,6 +51,65 @@ public static class ProviderStartHarness {
             }
         } finally {Directory.Delete(parent,true);}
     }
+
+    sealed class PermitFixture : IDisposable {
+        internal readonly string Parent,Root,Hash,ImageHash;
+        internal readonly OwnedVmPermit Permit;
+        internal readonly StartIdentity Identity;
+        readonly byte[] image;
+        readonly DirectorySecurity directoryAcl;
+        readonly FileSecurity fileAcl;
+        internal PermitFixture() {
+            string nonce=Guid.NewGuid().ToString("N");
+            Parent=Path.Combine(Path.GetPathRoot(Environment.SystemDirectory),"RpcPermitFixture-"+nonce);Root=Path.Combine(Parent,nonce);
+            var admin=new SecurityIdentifier("S-1-5-32-544");var system=new SecurityIdentifier("S-1-5-18");
+            directoryAcl=new DirectorySecurity();directoryAcl.SetOwner(admin);directoryAcl.SetAccessRuleProtection(true,false);
+            fileAcl=new FileSecurity();fileAcl.SetOwner(admin);fileAcl.SetAccessRuleProtection(true,false);
+            foreach(var sid in new[]{admin,system}) {
+                directoryAcl.AddAccessRule(new FileSystemAccessRule(sid,FileSystemRights.FullControl,InheritanceFlags.ContainerInherit|InheritanceFlags.ObjectInherit,PropagationFlags.None,AccessControlType.Allow));
+                fileAcl.AddAccessRule(new FileSystemAccessRule(sid,FileSystemRights.FullControl,AccessControlType.Allow));
+            }
+            Directory.CreateDirectory(Parent,directoryAcl);Directory.CreateDirectory(Root,directoryAcl);
+            image=File.ReadAllBytes(Process.GetCurrentProcess().MainModule.FileName);ImageHash=ProtectedAttempt.Hash(image);
+            long now=BoundedWorker.MonotonicMilliseconds();
+            Permit=new OwnedVmPermit(nonce,ProtectedAttempt.CurrentBoot(),new string('a',64),ImageHash,Guid.NewGuid().ToString("D"),Path.Combine(Root,"vm"),now,now+900000,19L*1024*1024*1024,1024L*1024*1024);
+            byte[] bytes=Encoding.UTF8.GetBytes(Permit.Encode());Hash=ProtectedAttempt.Hash(bytes);
+            Write(Root,"vm-permit.txt",bytes);Write(Root,"entry.exe",image);
+            Identity=new StartIdentity(Permit.Attempt,Permit.Boot,Permit.AdmissionHash,Hash,Permit.VmGuid,Permit.VmName,Permit.OwnerNote,Permit.ConfigurationRoot,Permit.Origin,Permit.Deadline,123,100,456,200,Permit.ImageHash);
+        }
+        internal void Write(string root,string name,byte[] data) {
+            using(var f=new FileStream(Path.Combine(root,name),FileMode.CreateNew,FileSystemRights.WriteData,FileShare.None,4096,FileOptions.WriteThrough,fileAcl)){f.Write(data,0,data.Length);f.Flush(true);}
+        }
+        internal ProtectedAttempt Lease(int duration,string boot,string imageHash) {
+            string nonce=Guid.NewGuid().ToString("N"),root=Path.Combine(Parent,nonce);Directory.CreateDirectory(root,directoryAcl);
+            Write(root,"entry.exe",image);long origin=BoundedWorker.MonotonicMilliseconds();
+            string contract="owned-rpc-inert-v1\n"+nonce+"\n"+boot+"\n"+origin+"\n"+(origin+duration)+"\n"+imageHash+"\ninert-v1\n";
+            byte[] bytes=Encoding.UTF8.GetBytes(contract);Write(root,"contract.txt",bytes);
+            return ProtectedAttempt.PinController(Path.Combine(root,"contract.txt"),ProtectedAttempt.Hash(bytes));
+        }
+        internal ProtectedAttempt Lease(){return Lease(15000,Permit.Boot,ImageHash);}
+        internal ProtectedAttempt Open(ProtectedAttempt lease,bool read){return ProtectedAttempt.PinVmJournalController(Path.Combine(Root,"vm-permit.txt"),Hash,lease,read);}
+        public void Dispose(){Directory.Delete(Parent,true);}
+    }
+    static void PermitTests() {
+        Test("canonical intent decoding preserves original worker",delegate{string raw=Id().Encode();Check(StartIdentity.Decode(raw).Encode()==raw);Refuse(()=>StartIdentity.Decode(raw+" "));Refuse(()=>StartIdentity.Decode(raw.Replace("RequestStateChange","Other")));});
+        Test("permit binds VM identity and original intent",delegate{using(var f=new PermitFixture()){Check(OwnedVmPermit.Parse(f.Permit.Encode()).Encode()==f.Permit.Encode());f.Permit.Bind(f.Identity,f.Hash);Refuse(()=>f.Permit.Bind(Id(),f.Hash));Refuse(()=>OwnedVmPermit.Parse(f.Permit.Encode().Replace("fixed-local-start-and-reconcile-v1","inert-v1")));}});
+        Test("permit refuses unreviewed aggregate allocation",delegate{using(var f=new PermitFixture()){var p=f.Permit;Refuse(()=>new OwnedVmPermit(p.Attempt,p.Boot,p.AdmissionHash,p.ImageHash,p.VmGuid,p.ConfigurationRoot,p.Origin,p.Deadline,28L*1024*1024*1024,p.SupportBytes));Check(p.TotalBytes==21474836480L&&p.TotalBytes<32000000000L);}});
+        Test("permit startup expiry leaves only reconciliation access",delegate{using(var f=new PermitFixture()){var p=f.Permit;p.ValidateAccess(p.Deadline-1,false);Refuse(()=>p.ValidateAccess(p.Deadline,false));p.ValidateAccess(p.Deadline,true);p.ValidateAccess(Int64.MaxValue,true);Refuse(()=>p.ValidateAccess(p.Origin-1,true));}});
+        Test("actual journal reopen retains consumed start gate",delegate{using(var f=new PermitFixture()){
+            using(var l=f.Lease())using(var pin=f.Open(l,false)){var j=new OwnedVmStartJournal(pin,f.Identity);ProviderStart.Prepare(f.Identity,j);j.WriteOnce("start.submit",new string('a',64));}
+            using(var l=f.Lease())using(var pin=f.Open(l,true)){var id=StartIdentity.Decode(pin.ReadOnce("start.intent"));var j=new OwnedVmStartJournal(pin,id);Check(id.WorkerPid==123&&pin.Deadline==f.Permit.Deadline&&j.Read("start.submit")==new string('a',64));Refuse(()=>j.WriteOnce("start.submit",new string('a',64)));j.WriteOnce("start.job","historical observation fixture");}
+            using(var l=f.Lease())using(var pin=f.Open(l,false)){Refuse(()=>new OwnedVmStartJournal(pin,f.Identity).WriteOnce("start.submit",new string('a',64)));}
+        }});
+        Test("reconciliation cannot create intent native call or response",delegate{using(var f=new PermitFixture())using(var l=f.Lease())using(var pin=f.Open(l,true)){var j=new OwnedVmStartJournal(pin,f.Identity);foreach(string n in new[]{"start.intent","start.submit","start.native","start.receipt"})Refuse(()=>j.WriteOnce(n,f.Identity.Encode()));Check(j.Read("start.intent")==null&&j.Read("start.submit")==null&&j.Read("start.native")==null&&j.Read("start.receipt")==null);}});
+        Test("actual reopened partial journal stays held",delegate{using(var f=new PermitFixture()){f.Write(f.Root,"start.receipt.pending",new byte[0]);using(var l=f.Lease())using(var pin=f.Open(l,true)){Refuse(()=>new OwnedVmStartJournal(pin,f.Identity).Read("start.receipt"));}}});
+        Test("worker lease disposal closes journal access",delegate{using(var f=new PermitFixture()){var l=f.Lease();using(var pin=f.Open(l,true)){l.Dispose();Refuse(()=>pin.ReadOnce("start.intent"));Refuse(()=>pin.WriteOnce("start.job","late"));Refuse(()=>f.Open(l,true));}}});
+        Test("independent lease expiry cannot extend journal access",delegate{using(var f=new PermitFixture())using(var l=f.Lease(1000,f.Permit.Boot,f.ImageHash))using(var pin=f.Open(l,true)){while(BoundedWorker.MonotonicMilliseconds()<l.Deadline)Thread.Sleep(10);Refuse(()=>pin.ReadOptionalOnce("start.receipt"));Refuse(()=>pin.WriteOnce("start.terminal","late"));Check(pin.Deadline==f.Permit.Deadline);}});
+        Test("actual permit hash mismatch refuses journal opening",delegate{using(var f=new PermitFixture())using(var l=f.Lease()){Refuse(()=>ProtectedAttempt.PinVmJournalController(Path.Combine(f.Root,"vm-permit.txt"),new string('f',64),l,false));}});
+        Test("inert lease cannot masquerade as VM journal",delegate{using(var f=new PermitFixture())using(var l=f.Lease()){Refuse(()=>new OwnedVmStartJournal(l,f.Identity));Refuse(()=>ProtectedAttempt.PinVmJournalController(Path.Combine(l.Root,"contract.txt"),l.ContractHash,l,true));}});
+        Test("actual journal rejects altered consumed identity",delegate{using(var f=new PermitFixture()){f.Write(f.Root,"start.intent",Encoding.UTF8.GetBytes(Id().Encode()));using(var l=f.Lease())using(var pin=f.Open(l,true)){var j=new OwnedVmStartJournal(pin,f.Identity);Refuse(()=>j.Read("start.intent"));Refuse(()=>new OwnedVmStartJournal(pin,Id()));}}});
+    }
+
     static int count;
     static void Test(string n,Action f){f();count++;Console.WriteLine("PASS "+n);}
     public static int Main(){
@@ -82,7 +141,8 @@ public static class ProviderStartHarness {
             Test("post-startup guarded read settles without restarting",delegate{var j=new Store();var p=new Provider{Journal=j};var r=new Runtime();ProviderStart.Prepare(Id(),j);ProviderStart.Submit(Id(),j,p,r);r.Clock=901001;p.State=7;Check(ProviderStart.Reconcile(Id(),j,p,r).OperationSettled);Refuse(()=>ProviderStart.Submit(Id(),j,p,r));Check(p.Calls==1);});
             Test("expired read guard prevents provider observation",delegate{var j=new Store();var p=new Provider{Journal=j};var r=new Runtime();ProviderStart.Prepare(Id(),j);ProviderStart.Submit(Id(),j,p,r);int reads=p.Reads;r.ObservationDenied=true;Refuse(()=>ProviderStart.Reconcile(Id(),j,p,r));Check(p.Reads==reads&&j.Read("start.terminal")==null);});
             Test("read guard expiry during query cannot publish terminal",delegate{var j=new Store();var p=new Provider{Journal=j};var r=new Runtime();ProviderStart.Prepare(Id(),j);ProviderStart.Submit(Id(),j,p,r);p.State=7;p.AfterRead=()=>{r.ObservationDenied=true;};Refuse(()=>ProviderStart.Reconcile(Id(),j,p,r));Check(j.Read("start.terminal")==null);});
-            Check(count==25);Console.WriteLine("RESULT tests="+count+" providerCallsAreFakes=true vmChanged=false");return 0;
+            PermitTests();
+            Check(count==37);Console.WriteLine("RESULT tests="+count+" providerCallsAreFakes=true vmChanged=false");return 0;
         }catch(Exception e){Console.WriteLine("FAIL "+e);return 1;}
     }
 }

@@ -30,6 +30,18 @@ namespace Enclave.OwnedRpc {
             Origin=origin;Deadline=deadline;WorkerPid=workerPid;WorkerCreation=workerCreation;ObserverPid=observerPid;ObserverCreation=observerCreation;WorkerImageHash=workerImageHash;
         }
         internal static void Hex(string text,int length){if(text==null||text.Length!=length||!Regex.IsMatch(text,"\\A[0-9a-f]+\\z"))throw new ArgumentException("Digest encoding");}
+        public static StartIdentity Decode(string raw) {
+            var d=StartRecords.Parse(raw,new[]{"schema","attempt","boot","admission","contract","vmGuid","vmName","ownerNote","configurationRoot",
+                "namespace","class","method","requestedState","origin","deadline","workerPid","workerCreation","observerPid","observerCreation","workerImage"});
+            if(StartRecords.Text(d["schema"])!="owned-rpc-start-intent/1"||StartRecords.Text(d["namespace"])!=@"root\virtualization\v2"||
+                StartRecords.Text(d["class"])!="Msvm_ComputerSystem"||StartRecords.Text(d["method"])!="RequestStateChange"||StartRecords.Number(d["requestedState"])!=2)
+                throw new InvalidOperationException("Fixed start operation required");
+            var id=new StartIdentity(StartRecords.Text(d["attempt"]),StartRecords.Text(d["boot"]),StartRecords.Text(d["admission"]),StartRecords.Text(d["contract"]),
+                StartRecords.Text(d["vmGuid"]),StartRecords.Text(d["vmName"]),StartRecords.Text(d["ownerNote"]),StartRecords.Text(d["configurationRoot"]),
+                StartRecords.Number(d["origin"]),StartRecords.Number(d["deadline"]),checked((uint)StartRecords.Number(d["workerPid"])),StartRecords.Number(d["workerCreation"]),
+                checked((uint)StartRecords.Number(d["observerPid"])),StartRecords.Number(d["observerCreation"]),StartRecords.Text(d["workerImage"]));
+            if(id.Encode()!=raw)throw new InvalidOperationException("Canonical consumed intent required");return id;
+        }
         public string Encode(){return StartRecords.Encode(new Dictionary<string,object>{
             {"schema","owned-rpc-start-intent/1"},{"attempt",Attempt},{"boot",Boot},{"admission",AdmissionHash},{"contract",ContractHash},
             {"vmGuid",VmGuid},{"vmName",VmName},{"ownerNote",OwnerNote},{"configurationRoot",ConfigurationRoot},

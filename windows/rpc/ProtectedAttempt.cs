@@ -12,11 +12,16 @@ using System.Text;
 using Microsoft.Win32.SafeHandles;
 
 namespace Enclave.OwnedRpc {
-    public sealed class ProtectedAttempt : IDisposable {
+    public sealed partial class ProtectedAttempt : IDisposable {
         public readonly string Root,Nonce,Boot,ContractHash,ExecutableHash;
         public readonly long Origin,Deadline;
         readonly List<IDisposable> held=new List<IDisposable>();
         readonly List<SafeFileHandle> directories=new List<SafeFileHandle>();
+        // VM journals reuse these held namespace checks, but have a separate
+        // short read/submit lease. The immutable VM deadline is never renewed.
+        readonly ProtectedAttempt accessLease;
+        readonly bool reconciliationOnly;
+        bool disposed;
         const string SystemSid="S-1-5-18",AdminSid="S-1-5-32-544";
         static readonly UTF8Encoding Utf8=new UTF8Encoding(false,true);
         [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)]
@@ -170,7 +175,12 @@ namespace Enclave.OwnedRpc {
         }
         public string Token {get{return Nonce+Boot+ContractHash;}}
         public string Executable {get{return Path.Combine(Root,"entry.exe");}}
-        public void CheckDeadline() {if(BoundedWorker.MonotonicMilliseconds()>=Deadline)throw new InvalidOperationException("Original deadline expired");}
+        public void CheckDeadline() {
+            if(disposed)throw new ObjectDisposedException("ProtectedAttempt");
+            if(accessLease!=null){accessLease.CheckDeadline();return;}
+            long now=BoundedWorker.MonotonicMilliseconds();
+            if(now<Origin || now>=Deadline)throw new InvalidOperationException("Original deadline expired or clock rolled back");
+        }
         static void Name(string name) {
             if(name==null || name.Length>40)throw new ArgumentException("Message name");
             foreach(char c in name) if(!((c>='a'&&c<='z') || c=='.' || c=='-'))throw new ArgumentException("Message name encoding");
@@ -179,6 +189,16 @@ namespace Enclave.OwnedRpc {
         // remains consumed and ambiguous. No delete, overwrite, rename or retry API.
         public void WriteOnce(string name,string value) {
             Name(name);CheckDeadline();byte[] bytes=Utf8.GetBytes(value);
+            if(accessLease!=null) {
+                if(reconciliationOnly) {
+                    if(name!="start.job" && name!="start.terminal")throw new InvalidOperationException("Reconciliation cannot grant or acknowledge a start");
+                } else {
+                    if(BoundedWorker.MonotonicMilliseconds()<Origin || BoundedWorker.MonotonicMilliseconds()>=Deadline)
+                        throw new InvalidOperationException("VM start authority expired");
+                    if(name!="start.intent" && name!="start.submit" && name!="start.native" && name!="start.receipt" && name!="start.job" && name!="start.terminal")
+                        throw new InvalidOperationException("Fixed VM journal record required");
+                }
+            }
             if(bytes.Length>4096)throw new ArgumentException("Message bound");
             var security=new FileSecurity();security.SetOwner(new SecurityIdentifier(SystemSid));security.SetAccessRuleProtection(true,false);
             security.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(SystemSid),FileSystemRights.FullControl,AccessControlType.Allow));
@@ -208,6 +228,6 @@ namespace Enclave.OwnedRpc {
         public string ReadOnce(string name) {
             Name(name);CheckDeadline();return Utf8.GetString(Bytes(HoldRead(Path.Combine(Root,name),4096),4096));
         }
-        public void Dispose() {for(int i=held.Count-1;i>=0;i--)held[i].Dispose();held.Clear();}
+        public void Dispose() {disposed=true;for(int i=held.Count-1;i>=0;i--)held[i].Dispose();held.Clear();}
     }
 }

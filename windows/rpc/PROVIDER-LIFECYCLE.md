@@ -67,3 +67,28 @@ authority checked before and after the native query. It never renews start
 authority or permits a second submission; Submit still enforces the immutable
 900-second startup deadline. A fresh read guard is necessary to settle a job
 after the startup guardian has stopped its caller.
+
+
+## Immutable VM permit and journal reopening
+
+`OwnedVmPermit.cs` separates the long-lived VM identity from each short worker
+lease. The permit binds the exact VM GUID, derived owner markers, boot, image,
+admission digest, original 900-second startup window and proposed 19 GiB guest
+plus 1 GiB support allocation (21,474,836,480 bytes total). These fields describe
+the authorized proposal; they do not prove available resources or native VM
+configuration. The configuration path must be the owned attempt's `vm` child.
+
+Opening holds the original permit, executable and protected ancestor/file
+identities using the existing namespace validator. A separate original inert
+worker lease bounds access and must match the boot and executable. Disposing or
+expiring that lease makes journal access fail. The later lease cannot change the
+permit's startup deadline. Reconciliation mode can read fixed start records and
+publish only job identity and terminal observations. It cannot publish a new
+intent, submission, native call or returned start response. Pending records remain
+consumed across reopening. `StartIdentity.Decode` preserves the original worker
+identities; the new observation worker does not replace them in the intent.
+
+These APIs are not an independent supervisor. They still need composition with
+the live worker/observer handle checks, actual admission, a guarded fixed native
+entrypoint and the 900-second VM guardian. No existing inert entrypoint gains a
+VM operation, and no provider fence or reservation release is asserted.

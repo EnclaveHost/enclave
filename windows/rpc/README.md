@@ -250,8 +250,11 @@ lost return. Returned local job references are persisted before queries or ACK;
 job incarnation changes, failed writes and uncertain provider states stay held.
 The actual Hyper-V adapter has only a fixed local RequestStateChange(2) operation.
 No production entrypoint calls it. `IStartRuntime` still requires a real guarded
-VM authority/admission implementation, and persistent reopening beyond an inert
-worker lease remains unfinished. See [provider integration](PROVIDER-LIFECYCLE.md).
+VM authority/admission implementation. `OwnedVmPermit.cs` now binds the original
+VM, boot, image, admission digest, 900-second deadline and proposed whole-stack
+budget to a held protected namespace. Journal reopening uses a separate short
+worker lease; reconciliation cannot create intent/submission/native/response
+records. This is source integration, not a live guardian or native VM admission. See [provider integration](PROVIDER-LIFECYCLE.md).
 CI41152666323 passed22 fault/adapter cases; provider calls were fake, so this
 is not native VM-operation qualification. CI41152911185 then passed25 cases, including bounded post-startup reads
 without extending the original start deadline.
