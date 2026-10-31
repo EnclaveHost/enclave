@@ -155,6 +155,10 @@ public static class InertQualification {
             Process owner=Identity("owner",token),observer=Identity("observer",token);Publish(Path.Combine(Root,"admit"),Encoding.UTF8.GetBytes(token));
             foreach(var p in new[]{owner,observer})if(!p.WaitForExit((int)Math.Max(0,Deadline-BoundedWorker.MonotonicMilliseconds()))||p.ExitCode!=0)throw new InvalidOperationException("Exact role completion failed");
             if(Encoding.UTF8.GetString(Read(Path.Combine(Root,"owner.result"),4096))!="inert-complete;provider-fenced=false;reservation-release=false"||Encoding.UTF8.GetString(Read(Path.Combine(Root,"observer.result"),4096))!="exact-owner-death;job-empty;provider-fenced=false;reservation-release=false")throw new InvalidOperationException("Role receipts incomplete");
+#if TEMPLATE_FENCE_QUALIFICATION
+            if(Encoding.UTF8.GetString(Read(Path.Combine(Root,"template.result"),4096))!=SystemTemplateFenceFixture.Result+token)
+                throw new InvalidOperationException("SYSTEM template fixture receipt missing or unbound");
+#endif
             passed=true;
         }catch(Exception error){Failures.Add(error.GetType().Name+": "+error.Message);}finally{Cleanup();}
         Console.WriteLine(Json.Serialize(new{schema="owned-rpc-target-inert/2",passed=passed&&Failures.Count==0,hostedCi=hosted,origin=Origin,deadline=Deadline,elapsedMs=BoundedWorker.MonotonicMilliseconds()-Origin,root=Root,freeBytes=free,requiredFreeBytes=Required,failures=Failures,providerFenced=false,reservationMayRelease=false,vmsChanged=false}));

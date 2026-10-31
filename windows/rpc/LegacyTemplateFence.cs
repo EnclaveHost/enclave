@@ -54,7 +54,7 @@ namespace Enclave.OwnedRpc {
     var h=ProtectedAttempt.CreateFile(master,0x80000000|0x20000|0x40000,0,IntPtr.Zero,3,0x00200000,IntPtr.Zero);
     if(h.IsInvalid){int e=Marshal.GetLastWin32Error();h.Dispose();throw new Win32Exception(e);}
     using(var stream=new FileStream(h,FileAccess.Read)){
-     ProtectedAttempt.Authority(h,true,false,master);Info before=Identity(h);
+     ProtectedAttempt.PinnedTemplateAuthority(h,master);Info before=Identity(h);
      if(before.Links!=1||stream.Length!=expectedLength)throw new InvalidOperationException("Aliased or resized template refused");
      byte[] bytes=new byte[(int)expectedLength];int at=0;
      while(at<bytes.Length){Check(deadline);int n=stream.Read(bytes,at,bytes.Length-at);if(n==0)throw new IOException("Short template");at+=n;}

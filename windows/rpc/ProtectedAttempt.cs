@@ -83,6 +83,15 @@ namespace Enclave.OwnedRpc {
             return path;
         }
         internal static void Authority(SafeFileHandle handle,bool strict,bool directory,string label) {
+            AuthorityCore(handle,strict,directory,label,true);
+        }
+        // Only the template-fence operation uses this entry after holding and
+        // qualifying every ancestor. Keep strict file ownership/mutation checks;
+        // its consumed intent precedes converting the inherited ACL to protected.
+        internal static void PinnedTemplateAuthority(SafeFileHandle handle,string label) {
+            AuthorityCore(handle,true,false,label,false);
+        }
+        static void AuthorityCore(SafeFileHandle handle,bool strict,bool directory,string label,bool requireProtected) {
             FileInfo info;
             if(!GetFileInformationByHandle(handle,out info)) throw new Win32Exception(Marshal.GetLastWin32Error());
             if((info.Attributes&0x400)!=0 || ((info.Attributes&0x10)!=0)!=directory)
@@ -101,7 +110,7 @@ namespace Enclave.OwnedRpc {
                 string installer=strict?"":((SecurityIdentifier)new NTAccount("NT SERVICE","TrustedInstaller").Translate(typeof(SecurityIdentifier))).Value;
                 if(ownerSid!=SystemSid && ownerSid!=AdminSid && ownerSid!=installer)
                     throw new InvalidOperationException("Untrusted namespace owner");
-                if(sd.DiscretionaryAcl==null || (strict && (sd.ControlFlags&ControlFlags.DiscretionaryAclProtected)==0))
+                if(sd.DiscretionaryAcl==null || (strict && requireProtected && (sd.ControlFlags&ControlFlags.DiscretionaryAclProtected)==0))
                     throw new InvalidOperationException("Protected non-null DACL required");
                 // For ancestors, creation of unrelated children is harmless while
                 // these exact existing ancestors are held without DELETE sharing.

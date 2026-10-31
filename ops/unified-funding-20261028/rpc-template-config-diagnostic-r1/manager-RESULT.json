@@ -1,0 +1,182 @@
+{
+  "at": 1793420717.49557,
+  "readOnly": true,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 614,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "physicalAfter": {
+      "physicalBytes": 120070115328,
+      "filesystem": "NTFS",
+      "freeBytes": 83935997952,
+      "atUtc": "2026-10-31T04:25:17.4168004Z",
+      "diskFreeBytes": 21787189248,
+      "bootUtc": "2026-10-23T08:29:16.5000000Z"
+    },
+    "priorOperationsSettled": false,
+    "listeners": {
+      "value": [
+        {
+          "port": 8095,
+          "parent": 11268,
+          "pid": 41308,
+          "created": "2026-10-27T08:02:19.4407050Z",
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        },
+        {
+          "port": 8091,
+          "parent": 37940,
+          "pid": 38076,
+          "created": "2026-10-26T17:17:18.5617520Z",
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        },
+        {
+          "port": 9600,
+          "parent": 38368,
+          "pid": 41272,
+          "created": "2026-10-27T08:24:45.0989590Z",
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        },
+        {
+          "port": 8097,
+          "parent": 33732,
+          "pid": 40360,
+          "created": "2026-10-27T08:24:42.8500370Z",
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        }
+      ],
+      "Count": 4
+    },
+    "heldNamespaceProof": false,
+    "capacityAdmitted": false,
+    "allOldIssuerInputsProven": false,
+    "namespace": [
+      {
+        "attributes": 22,
+        "owner": "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464",
+        "directory": true,
+        "path": "C:\\",
+        "sddl": "O:S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464G:S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464D:PAI(A;;LC;;;AU)(A;OICIIO;SDGXGWGR;;;AU)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1200a9;;;BU)(A;;0x1000a1;;;S-1-15-3-65536-1888954469-739942743-1668119174-2468466756-4239452838-1296943325-355587736-700089176)",
+        "accessProtected": true
+      },
+      {
+        "attributes": 8210,
+        "owner": "S-1-5-18",
+        "directory": true,
+        "path": "C:\\ProgramData",
+        "sddl": "O:SYG:SYD:PAI(A;OICIIO;GA;;;CO)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1200a9;;;BU)(A;CI;DCLCRPCR;;;BU)",
+        "accessProtected": true
+      },
+      {
+        "attributes": 8208,
+        "owner": "S-1-5-32-544",
+        "directory": true,
+        "path": "C:\\ProgramData\\Enclave",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-1001D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;;0x1200a9;;;BU)",
+        "accessProtected": true
+      },
+      {
+        "attributes": 8208,
+        "owner": "S-1-5-32-544",
+        "directory": true,
+        "path": "C:\\ProgramData\\Enclave\\native-manager",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:AI(A;OICIID;FA;;;BA)(A;OICIID;FA;;;SY)",
+        "accessProtected": false
+      },
+      {
+        "attributes": 8208,
+        "owner": "S-1-5-32-544",
+        "directory": true,
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:AI(A;OICIID;FA;;;BA)(A;OICIID;FA;;;SY)",
+        "accessProtected": false
+      },
+      {
+        "attributes": 8208,
+        "owner": "S-1-5-18",
+        "directory": true,
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929",
+        "sddl": "O:SYG:S-1-5-21-2537925762-761743183-266136738-513D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)",
+        "accessProtected": true
+      },
+      {
+        "attributes": 8224,
+        "owner": "S-1-5-32-544",
+        "directory": false,
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\run-manager.cmd",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:AI(A;ID;FA;;;SY)(A;ID;FA;;;BA)",
+        "accessProtected": false
+      },
+      {
+        "attributes": 8208,
+        "owner": "S-1-5-32-544",
+        "directory": true,
+        "path": "C:\\ProgramData\\Enclave\\shield",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-1001D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)",
+        "accessProtected": true
+      },
+      {
+        "attributes": 8224,
+        "owner": "S-1-5-32-544",
+        "directory": false,
+        "path": "C:\\ProgramData\\Enclave\\shield\\type1.vmgs",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-1001D:AI(A;ID;FA;;;BA)(A;ID;FA;;;SY)",
+        "accessProtected": false
+      }
+    ],
+    "physicalBefore": {
+      "physicalBytes": 120070115328,
+      "filesystem": "NTFS",
+      "freeBytes": 84018839552,
+      "atUtc": "2026-10-31T04:25:13.4943377Z",
+      "diskFreeBytes": 21787234304,
+      "bootUtc": "2026-10-23T08:29:16.5000000Z"
+    },
+    "schema": "template-config-diagnostic/1",
+    "public": {
+      "schema": "template-config-diagnostic/1",
+      "readOnly": true,
+      "config": {
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\run-manager.cmd",
+        "identity": {
+          "device": "2422138246",
+          "fileIndex": "281474978981569",
+          "links": "1",
+          "bytes": "1820",
+          "mtimeNs": "1793087968000000000",
+          "ctimeNs": "1793088036769019600"
+        },
+        "expectedSha": "97d27cf986e13069e9bb257b9b7f3dd133025ad3e0957bbdb6094844d80b3c1c",
+        "observedSha": "a7d6217b1aa64c609f16e5437db82ddac699f1f9a8f81942dea2fd40e0ec62a0",
+        "pinMatches": false
+      },
+      "master": {
+        "path": "C:\\ProgramData\\Enclave\\shield\\type1.vmgs",
+        "identity": {
+          "device": "2422138246",
+          "fileIndex": "1407374885196149",
+          "links": "1",
+          "bytes": "4194816",
+          "mtimeNs": "1791777253279079400",
+          "ctimeNs": "1792318234765804400"
+        },
+        "sha256": "e93237a717a7e0e9fa201db2b331d2ed480274bfa47145854ea3ba85852abb96",
+        "expectedSha": "e93237a717a7e0e9fa201db2b331d2ed480274bfa47145854ea3ba85852abb96",
+        "pinMatches": true
+      },
+      "errors": [
+        {
+          "stage": "config",
+          "phase": "hash",
+          "reason": "config-pin-differs"
+        }
+      ],
+      "allOldIssuerInputsProven": false,
+      "priorOperationsSettled": false,
+      "capacityAdmitted": false
+    },
+    "readOnly": true
+  }
+}

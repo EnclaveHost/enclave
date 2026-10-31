@@ -410,3 +410,12 @@ master/issuer and new-master distinct object must be qualified on target; no
 production wiring or activation is provided. Existing-operation settlement,
 shared pool seeding and durable front-end transition are still required. Do not
 use its receipt as the router admission callback or as permission to release RAM.
+
+The `rpc-template-system.yml` qualification compiles an explicitly selected
+`TEMPLATE_FENCE_QUALIFICATION` entry/controller pair. It exercises the maintained
+read barrier as a separately scheduled SYSTEM owner/observer child against fixed
+four-byte files inside its protected attempt only. Default inert binaries retain
+their prior behavior. The fixture accepts no target paths or operations and leaves
+its consumed intent and denied dummy file intact. This establishes neither complete
+old-issuer coverage nor settlement of preexisting native starts. Production master
+files remain untouched; target-context qualification still needs fresh admission.

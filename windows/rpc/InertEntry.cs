@@ -120,7 +120,13 @@ namespace Enclave.OwnedRpc {
                         if(!String.Equals(self.MainModule.FileName,a.Executable,StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("Entry image path differs");
                     if(args[0]=="owner")return Owner(a,args[1]);
                     if(args[0]=="observer")return Observer(a);
-                    a.WriteOnce("child.consumed",Identity(a,"child"));return 0;
+                    a.WriteOnce("child.consumed",Identity(a,"child"));
+#if TEMPLATE_FENCE_QUALIFICATION
+                    // Compile-time fixed dummy fixture only; no target path or
+                    // operation can be supplied through the inert contract.
+                    SystemTemplateFenceFixture.Run(a);
+#endif
+                    return 0;
                 }
             } catch(Exception error) {Console.Error.WriteLine(error.GetType().Name+": "+error.Message);return 1;}
         }
