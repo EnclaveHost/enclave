@@ -1,0 +1,9 @@
+One new hosted-only exact-source provider-worker qualification. Three finitecompilations20s each,37transaction regression cases20s, six pending-authority fixtures and two independentSYSTEM worker scenarios each original30s/5sbootstrap. DisposableCI3min outer, controller128/observer128/owner256includeschild128, CPU1; same finite process/output/artifact guards, not target admission. No VM created or valid native-start guardian supplied.
+
+Synthetic VM permit and protected records let realSYSTEM worker reconcile response-lost-held without any provider query. Negative start must publish exact typed guardian-image-mismatch refusal, not merely fail; start.submit remainsconsumed andstart.native/receipt absent. Exactowner/observer exits/jobempty/associatedtaskcleanup required. Controllercleanup runs even ifVMpinclose fails.
+
+Root source changes include explicit provider lease (defaultinertrejects), real heldprocess Runtime, intent-before-child-release, immutablepermit checks, protectedguardian binding, native livehost/node/pending checks and fixed exact-VM zero-memory read. No guardian producer exists yet. Source review closed current-pending/negative-reason/cleanup findings; unknownlegacy reservationfields now refuse. Current reads are not an atomiccapacitylock; native lifecycle/admission stillunqualified andnotactivated. Six pure pending fixtures covercomplete/unknown/missing/overbudget/duplicate/epochchange.
+
+Future actualVM requires reviewedcurrenthost/pending/safe lifecycle/storage/guardian, full20GiB remainsunproven. No targetexecution, finance or production routing change.
+
+CI41155564998 runtime entry compiled; fixture CS1513 beforeexecution. Only nested test dictionary construction corrected. No runtime/code/resource/deadline relaxation. New changed-source CI admitted; original failure retained.

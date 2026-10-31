@@ -106,9 +106,13 @@ public static class ProviderWorkerQualification {
         if(NamespacePin!=null)try{NamespacePin.Dispose();}catch{Failures.Add("Namespace close failed");}
         foreach(var f in Held)try{f.Dispose();}catch{Failures.Add("Input close failed");}
     }
+    static Dictionary<string,object> FixtureHealth(long mib) {
+        object[] reservations=mib==0?new object[0]:new object[]{new Dictionary<string,object>{{"id","vm-1"},{"vmMiB",mib}}};
+        var memory=new Dictionary<string,object>{{"known",true},{"unknown",new object[0]},{"reservations",reservations}};
+        return new Dictionary<string,object>{{"managerEpoch","epoch-1"},{"memory",memory}};
+    }
     static void AdmissionFixtures() {
-        Func<long,Dictionary<string,object>> health=mib=>new Dictionary<string,object>{{"managerEpoch","epoch-1"},{"memory",new Dictionary<string,object>{{"known",true},{"unknown",new object[0]},
-            {"reservations",mib==0?new object[0]:new object[]{new Dictionary<string,object>{{"id","vm-1"},{"vmMiB",mib}}}}}};
+        Func<long,Dictionary<string,object>> health=FixtureHealth;
         Action<Action> refuses=f=>{bool denied=false;try{f();}catch{denied=true;}if(!denied)throw new Exception("Pending authority unexpectedly admitted");};
         var a=health(39388);var b=health(0);var c=health(0);
         string valid=WindowsStartAdmission.PendingReceipt(new object[]{a,b,c});
