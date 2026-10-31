@@ -1,0 +1,13 @@
+# Serving-preserving allocator transition: current source evidence
+
+Local readonly peer trace confirms installed node adopts by deployment name and follows exact instance IDs, without a managerEpoch retirement rule. Original manager8091 can in principle retain all old VM/relay/readiness keys while a separately scoped manager serves future creates. Do not recover/import old instances into new manager: recovered=true triggers installed host retirement. Preserve GET, DELETE, custody and datapath to exact original owner; a404 is interpreted as absence, never use fallback routing on timeout/404.
+
+Current router has exactly two roles: nd32 native, every other ID legacy. A third role needs a collision-free reserved namespace enforced by new manager and router, disjoint HyperV prefix/marker, three complete epoch-paired inventories, one aggregate budget and duplicate deployment refusal. New capability/runtime/image metadata must preserve old serving eligibility. New pool enrollment is not implied by routing.
+
+Current installed router has no creation drain/fence endpoint, only memory serial tail before journal.begin. Installed manager can fetch before domain insertion. Empty VM rows or observed journal alone do not establish all pre-fence requests settled. New creation authority must remain closed until all direct/queued/in-flight old create authority is affirmatively fenced and outcomes reconciled, or its full remaining potential is reserved. Killing a socket/router does not cancel backend allocation. This is a real activation boundary; do not erase old pending state or fabricate a drain receipt.
+
+Old pending journal binds original [legacy,native] epoch vector. Finish its correlated outcome under old topology or implement an explicit versioned handoff carrying original target/epochs; do not replace it with a new empty journal or clear stale ownership locks. Seed retained allocations and unresolved work once. Enrolling only new allocator does not constrain old managers' future starts.
+
+Current router stop destroys active TCP streams; same-port replacement is not zero-interruption. Node reads configured manager/data endpoints on use but no live endpoint-switch interface was demonstrated. Controlled frontend handoff needs explicit stream/reconnection and control/data consistency review; never assume env edits change a running process. No target actions performed.
+
+Next implementation must address these concrete boundaries, not repeat CPU/primitive tests or restart old managers. Native startup/cleanup and actual RPC workload qualification still follow fresh resource admission. No production completion claim.
