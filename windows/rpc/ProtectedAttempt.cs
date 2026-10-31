@@ -129,8 +129,20 @@ namespace Enclave.OwnedRpc {
             while(offset<b.Length) {int n=stream.Read(b,offset,b.Length-offset);if(n==0)throw new IOException("Short protected read");offset+=n;}
             if(stream.ReadByte()!=-1)throw new IOException("Protected file grew");return b;
         }
-        public ProtectedAttempt(string contractPath,string expectedHash) {
-            RequireSystem();Hex(expectedHash,64);LocalPath(contractPath);
+        // Controller pinning is a separate trusted-operator API. Child construction
+        // still unconditionally requires a SYSTEM primary token.
+        public static ProtectedAttempt PinController(string contractPath,string expectedHash) {
+            using(var identity=WindowsIdentity.GetCurrent()) {
+                var principal=new WindowsPrincipal(identity);
+                if(identity.ImpersonationLevel!=TokenImpersonationLevel.None ||
+                    !principal.IsInRole(WindowsBuiltInRole.Administrator))
+                    throw new InvalidOperationException("Primary administrator controller required");
+            }
+            return new ProtectedAttempt(contractPath,expectedHash,true);
+        }
+        public ProtectedAttempt(string contractPath,string expectedHash) : this(contractPath,expectedHash,false) {}
+        private ProtectedAttempt(string contractPath,string expectedHash,bool controller) {
+            if(!controller)RequireSystem();Hex(expectedHash,64);LocalPath(contractPath);
             if(Path.GetFileName(contractPath)!="contract.txt")throw new ArgumentException("Fixed contract filename required");
             Root=Path.GetDirectoryName(contractPath);ContractHash=expectedHash;
             try {

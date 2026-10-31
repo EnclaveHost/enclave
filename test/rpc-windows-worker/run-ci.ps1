@@ -55,12 +55,11 @@ function Invoke-FiniteProcess([string]$Executable,[string[]]$Arguments,[int]$Dea
     if($failure -or $record.exitCode -ne 0){throw ($Label+' failed: '+($record|ConvertTo-Json -Compress))}
 }
 try{
-    Invoke-FiniteProcess $csc @('/nologo','/target:exe','/platform:x64','/main:Harness','/r:System.Web.Extensions.dll','/r:Microsoft.CSharp.dll',('/out:'+$exe),(Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $root 'windows\rpc\ProtectedAttempt.cs'),(Join-Path $root 'windows\rpc\InertEntry.cs'),(Join-Path $PSScriptRoot 'SystemHarness.cs'),(Join-Path $PSScriptRoot 'ObserverHarness.cs'),(Join-Path $PSScriptRoot 'Harness.cs')) 20000 'compile'
     Invoke-FiniteProcess $csc @('/nologo','/target:exe','/platform:x64','/main:Enclave.OwnedRpc.InertEntry',('/out:'+$entry),(Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $root 'windows\rpc\ProtectedAttempt.cs'),(Join-Path $root 'windows\rpc\InertEntry.cs')) 20000 'entry-compile'
-    Invoke-FiniteProcess $exe @('--system-only',$entry) 30000 'inert'
+    Invoke-FiniteProcess (Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe') @('-NoProfile','-NonInteractive','-File',(Join-Path $root 'windows\rpc\Invoke-InertQualification.ps1'),'-EntryPath',$entry,'-EntrySha256',(Get-FileHash -Algorithm SHA256 -LiteralPath $entry).Hash.ToLowerInvariant(),'-AttemptNonce',[guid]::NewGuid().ToString('N'),'-HostedCi') 30000 'inert'
     $lines=@(Get-Content -LiteralPath (Join-Path $work 'inert.out'))
     $results=@($lines|ForEach-Object{$_|ConvertFrom-Json})
-    if($results.Count -ne 9 -or @($results|Where-Object{-not $_.passed}).Count){throw 'Incomplete inert qualification'}
+    if($results.Count -ne 1 -or -not $results[0].passed -or -not $results[0].hostedCi -or $results[0].providerFenced -or $results[0].reservationMayRelease -or $results[0].vmsChanged){throw 'Incomplete controller integration qualification'}
     $results|ConvertTo-Json -Depth 8
 }finally{
     # Helpers have no unbounded loop: sleeps <=5s, allocation <=192MiB. These
@@ -68,7 +67,7 @@ try{
     # and independent process supervisor remain the outer containment boundary.
     # Preserve records on failure; do not use a broad process kill or any VM cleanup.
     $records|ConvertTo-Json -Depth 5|Set-Content -LiteralPath (Join-Path $work 'process-results.json')
-    Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $root 'windows\rpc\ProtectedAttempt.cs'),(Join-Path $root 'windows\rpc\InertEntry.cs'),(Join-Path $PSScriptRoot 'SystemHarness.cs'),(Join-Path $PSScriptRoot 'ObserverHarness.cs'),(Join-Path $PSScriptRoot 'Harness.cs'),$csc|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'pins.json')
+    Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $root 'windows\rpc\ProtectedAttempt.cs'),(Join-Path $root 'windows\rpc\InertEntry.cs'),(Join-Path $root 'windows\rpc\Invoke-InertQualification.ps1'),$csc|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'pins.json')
     if(Test-Path -LiteralPath $exe){Get-FileHash -Algorithm SHA256 -LiteralPath $exe|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'artifact.json')}
     if(Test-Path -LiteralPath $entry){Get-FileHash -Algorithm SHA256 -LiteralPath $entry|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'entry-artifact.json')}
     # Never export the raw work directory. Failed truncation or unexpected compiler
