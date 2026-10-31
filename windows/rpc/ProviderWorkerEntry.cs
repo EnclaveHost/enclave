@@ -141,6 +141,7 @@ namespace Enclave.OwnedRpc {
             SafeWaitHandle guardian;
             HostPhysicalPool physicalPool;
             PhysicalClaim physicalClaim;
+            LegacyHandoff.Completion completedHandoff;
             public long Now {get{return BoundedWorker.MonotonicMilliseconds();}}
             public long GuestBytes {get{return vm.VmPermit.GuestBytes;}}
             internal Runtime(ProtectedAttempt lease,ProtectedAttempt vm,StartIdentity original) {
@@ -213,7 +214,7 @@ namespace Enclave.OwnedRpc {
                 string accepted=lease.ReadOptionalOnce("guardian.accepted");
                 if(accepted==null)lease.WriteOnce("guardian.accepted",expected+","+lease.Token);
                 else if(accepted!=expected+","+lease.Token)throw new StartGuardRefused("guardian-binding-mismatch");
-                WindowsStartAdmission.Verify(vm);
+                WindowsStartAdmission.Verify(vm,lease,ref completedHandoff);
                 if(physicalPool==null)physicalPool=WindowsStartAdmission.AcquireShared(vm,id,lease.Deadline,out physicalClaim);
                 Common(id);vm.VmPermit.ValidateAccess(Now,false);
                 BoundedWorker.VerifyObserverBeforeResume(guardian.DangerousGetHandle(),lease.GuardianPid,lease.GuardianCreation,vm.Deadline);
@@ -239,7 +240,7 @@ namespace Enclave.OwnedRpc {
                     return h;
                 }catch{h.Dispose();throw;}
             }
-            public void Dispose(){if(physicalPool!=null)physicalPool.Dispose();if(guardian!=null)guardian.Dispose();if(owner!=null)owner.Dispose();if(observer!=null)observer.Dispose();}
+            public void Dispose(){if(physicalPool!=null)physicalPool.Dispose();if(completedHandoff!=null)completedHandoff.Dispose();if(guardian!=null)guardian.Dispose();if(owner!=null)owner.Dispose();if(observer!=null)observer.Dispose();}
         }
 
         static int Guardian(string path,string hash,long origin,long deadline) {

@@ -191,10 +191,10 @@ public static class LegacyHandoffController {
                 RequireSeedCompletion(activation,Encoding.UTF8.GetString(Read(Path.Combine(Root,"pool.complete"),4096)));
                 var seeded=Obj(Json.DeserializeObject(Encoding.UTF8.GetString(activation)));
                 var expectedSeed=new LegacyPoolSeed(Obj(Obj(Json.DeserializeObject(Encoding.UTF8.GetString(manifest)))["pool"]),boot);
-                if(seeded.Count!=18||Str(seeded["configPath"])!=Path.Combine(expectedSeed.Root,"pool.txt")||Str(seeded["poolHash"])!=expectedSeed.Hash||
+                if(seeded.Count!=19||Str(seeded["creationMode"])!="retained-fenced-rpc-only/1"||Str(seeded["configPath"])!=Path.Combine(expectedSeed.Root,"pool.txt")||Str(seeded["poolHash"])!=expectedSeed.Hash||
                    Num(seeded["capacityBytes"])!=expectedSeed.Capacity||Num(seeded["physicalBytes"])!=expectedSeed.Physical||Num(seeded["nonPoolReserveBytes"])!=expectedSeed.NonPoolReserve||
                    Num(seeded["floorBytes"])!=expectedSeed.Floor||Num(seeded["variationBytes"])!=expectedSeed.Variation||Num(seeded["prospectiveBytes"])!=expectedSeed.Prospective||
-                   Str(seeded["schema"])!="legacy-pool-seed/1"||Str(seeded["manifest"])!=ManifestHash||Str(seeded["boot"])!=boot||
+                   Str(seeded["schema"])!="legacy-pool-seed/2"||Str(seeded["manifest"])!=ManifestHash||Str(seeded["boot"])!=boot||
                    Num(seeded["initialBytes"])!=sum||Num(seeded["initialCount"])!=count||!False(seeded["providerSettled"])||!False(seeded["capacityAdmitted"])||!False(seeded["reservationMayRelease"])||
                    Str(seeded["cutHash"])!=ProtectedAttempt.Hash(Read(Path.Combine(Root,"handoff.cut"),4096))||
                    Str(seeded["inventoryHash"])!=ProtectedAttempt.Hash(Read(Path.Combine(Root,"handoff.inventory"),4096)))throw new InvalidOperationException("Seed association differs");

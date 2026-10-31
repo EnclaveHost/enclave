@@ -27,6 +27,7 @@ namespace Enclave.OwnedRpc {
         readonly bool reconciliationOnly;
         readonly bool guardianOnly;
         readonly bool cleanupAccess;
+        readonly bool evidenceOnly;
         readonly string recordOwner;
         bool disposed;
         const string SystemSid="S-1-5-18",AdminSid="S-1-5-32-544";
@@ -175,6 +176,36 @@ namespace Enclave.OwnedRpc {
         public static ProtectedAttempt PinProviderController(string path,string hash) {RequireAdministrator();return new ProtectedAttempt(path,hash,true,"provider");}
         public static ProtectedAttempt OpenLegacyHandoffWorker(string path,string hash) {return new ProtectedAttempt(path,hash,false,"legacy-handoff");}
         public static ProtectedAttempt PinLegacyHandoffController(string path,string hash) {RequireAdministrator();return new ProtectedAttempt(path,hash,true,"legacy-handoff");}
+        // Reopen completed records under a CURRENT bounded reader. This never
+        // extends the original handoff deadline or restores its write authority.
+        internal static ProtectedAttempt OpenCompletedHandoff(string path,string hash,ProtectedAttempt reader) {
+            RequireAdministrator();return new ProtectedAttempt(path,hash,reader);
+        }
+        private ProtectedAttempt(string path,string hash,ProtectedAttempt reader) {
+            if(reader==null||reader.evidenceOnly)throw new ArgumentException("Current operation lease required");
+            reader.CheckDeadline();Hex(hash,64);LocalPath(path);
+            if(reader.Deadline-reader.Origin>30000)throw new ArgumentException("Short reader lease required");
+            if(Path.GetFileName(path)!="contract.txt")throw new ArgumentException("Fixed completed contract path");
+            accessLease=reader;evidenceOnly=true;recordOwner=SystemSid;LeaseProfile="legacy-handoff";
+            Root=Path.GetDirectoryName(path);ContractHash=hash;
+            try {
+                string current=Path.GetPathRoot(Root);HoldDirectory(current,false);
+                string[] segments=Root.Substring(3).Split('\\');
+                for(int i=0;i<segments.Length;i++){current=Path.Combine(current,segments[i]);HoldDirectory(current,i==segments.Length-1);}
+                byte[] raw=Bytes(HoldRead(path,2048),2048);
+                if(Hash(raw)!=hash)throw new InvalidOperationException("Completed contract digest differs");
+                string[] f=Utf8.GetString(raw).Split('\n');
+                if(f.Length!=9||f[0]!="owned-rpc-legacy-handoff-v1"||f[6]!="legacy-memory-cut-seed-v1"||f[8]!="")throw new InvalidOperationException("Completed cut-seed contract required");
+                Nonce=f[1];Boot=f[2];ExecutableHash=f[5];Operation=f[6];PermitHash=f[7];PermitPath=Path.Combine(Root,"handoff.json");
+                Hex(Nonce,32);Hex(Boot,32);Hex(ExecutableHash,64);Hex(PermitHash,64);
+                Origin=Int64.Parse(f[3],NumberStyles.None,CultureInfo.InvariantCulture);Deadline=Int64.Parse(f[4],NumberStyles.None,CultureInfo.InvariantCulture);
+                if(Path.GetFileName(Root)!=Nonce||Boot!=reader.Boot||Boot!=CurrentBoot()||Origin<0||Origin>Int64.MaxValue-30000||
+                    Deadline<=Origin||Deadline-Origin>30000||Origin>BoundedWorker.MonotonicMilliseconds())throw new InvalidOperationException("Completed handoff identity/time differs");
+                if(Hash(Bytes(HoldRead(Path.Combine(Root,"entry.exe"),262144),262144))!=ExecutableHash)throw new InvalidOperationException("Completed producer image differs");
+                if(ReadOnce("pool.complete")!=Hash(Utf8.GetBytes(ReadOnce("pool.activation"))))throw new InvalidOperationException("Completed seed digest differs");
+                CheckDeadline();
+            }catch{Dispose();throw;}
+        }
         public ProtectedAttempt(string contractPath,string expectedHash) : this(contractPath,expectedHash,false) {}
         private ProtectedAttempt(string contractPath,string expectedHash,bool controller) : this(contractPath,expectedHash,controller,"inert") {}
         private ProtectedAttempt(string contractPath,string expectedHash,bool controller,string profile) {
@@ -216,6 +247,11 @@ namespace Enclave.OwnedRpc {
         }
         public string Token {get{return Nonce+Boot+ContractHash;}}
         public string Executable {get{return Path.Combine(Root,"entry.exe");}}
+        internal long AccessDeadline {get{return accessLease==null?Deadline:accessLease.AccessDeadline;}}
+        internal byte[] ReadFenceEvidence() {
+            if(!evidenceOnly)throw new InvalidOperationException("Read-only completed evidence required");
+            CheckDeadline();return Bytes(HoldRead(Path.Combine(Root,"definition-fence.intent"),65536),65536);
+        }
         public void CheckDeadline() {
             if(disposed)throw new ObjectDisposedException("ProtectedAttempt");
             if(accessLease!=null){accessLease.CheckDeadline();return;}
@@ -229,6 +265,7 @@ namespace Enclave.OwnedRpc {
         // CreateNew consumes the role before any work. A crash/partial durable write
         // remains consumed and ambiguous. No delete, overwrite, rename or retry API.
         public void WriteOnce(string name,string value) {
+            if(evidenceOnly)throw new InvalidOperationException("Completed handoff is read-only");
             Name(name);CheckDeadline();byte[] bytes=Utf8.GetBytes(value);
             if(guardianOnly) {
                 if(name!="guardian.consumed"&&name!="guardian.request"&&name!="guardian.armed"&&name!="guardian.bound"&&name!="guardian.result")

@@ -22,12 +22,12 @@ public static class LegacyHandoffHarness {
  static void Put(string path,byte[] bytes){var acl=new FileSecurity();acl.SetOwner(new SecurityIdentifier("S-1-5-32-544"));acl.SetAccessRuleProtection(true,false);foreach(string id in new[]{"S-1-5-18","S-1-5-32-544"})acl.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(id),FileSystemRights.FullControl,AccessControlType.Allow));using(var f=new FileStream(path,FileMode.CreateNew,FileSystemRights.WriteData,FileShare.None,4096,FileOptions.WriteThrough,acl)){f.Write(bytes,0,bytes.Length);f.Flush(true);}}
  sealed class Contract {
   public string PathName,Hash;public readonly byte[] Manifest;
-  public Contract(string op,bool wrongDigest,byte[] manifest=null){
+  public Contract(string op,bool wrongDigest,byte[] manifest=null,long age=0,long duration=20000){
    Manifest=manifest??Encoding.UTF8.GetBytes("{\"schema\":\"refusal-fixture\"}");
    string nonce=Guid.NewGuid().ToString("N"),parent=Path.Combine(Path.GetPathRoot(Environment.SystemDirectory),"rpc-handoff-ci-"+nonce),root=Path.Combine(parent,nonce);DirectoryNew(parent);DirectoryNew(root);
    byte[] image=fixtureImage;Put(Path.Combine(root,"entry.exe"),image);Put(Path.Combine(root,"handoff.json"),Manifest);
-   long now=BoundedWorker.MonotonicMilliseconds();string digest=wrongDigest?new string('0',64):ProtectedAttempt.Hash(Manifest);
-   byte[] contract=Encoding.UTF8.GetBytes("owned-rpc-legacy-handoff-v1\n"+nonce+"\n"+ProtectedAttempt.CurrentBoot()+"\n"+now+"\n"+(now+20000)+"\n"+ProtectedAttempt.Hash(image)+"\n"+op+"\n"+digest+"\n");
+   long now=BoundedWorker.MonotonicMilliseconds()-age;string digest=wrongDigest?new string('0',64):ProtectedAttempt.Hash(Manifest);
+   byte[] contract=Encoding.UTF8.GetBytes("owned-rpc-legacy-handoff-v1\n"+nonce+"\n"+ProtectedAttempt.CurrentBoot()+"\n"+now+"\n"+(now+duration)+"\n"+ProtectedAttempt.Hash(image)+"\n"+op+"\n"+digest+"\n");
    PathName=Path.Combine(root,"contract.txt");Hash=ProtectedAttempt.Hash(contract);Put(PathName,contract);
   }
  }
@@ -70,8 +70,22 @@ public static class LegacyHandoffHarness {
     // Protected disposable records exercise initialization only, not real cut authority.
     a.WriteOnce("handoff.cut","fixture-cut");a.WriteOnce("handoff.inventory","fixture-inventory");
     string result=p.Publish(a,rows,()=>a.CheckDeadline());Check(result==a.ReadOnce("pool.activation")&&!File.Exists(Path.Combine(p.Root,"pool.activation")));
+    var data=LegacyHandoff.Obj(new System.Web.Script.Serialization.JavaScriptSerializer().DeserializeObject(result));
+    Test("consumer-validates-produced-seed-mode-and-association",()=>LegacyHandoff.Completion.ValidateSeed(data,p,a.PermitHash,a.Boot,2147483648,1,"fixture-cut","fixture-inventory"));
+    Test("consumer-rejects-mode-substitution",()=>{var changed=new Dictionary<string,object>(data);changed["creationMode"]="all-creators-enrolled";Refuse(()=>LegacyHandoff.Completion.ValidateSeed(changed,p,a.PermitHash,a.Boot,2147483648,1,"fixture-cut","fixture-inventory"));});
+    Test("consumer-rejects-cut-substitution",()=>Refuse(()=>LegacyHandoff.Completion.ValidateSeed(data,p,a.PermitHash,a.Boot,2147483648,1,"different-cut","fixture-inventory")));
     var claim=new PhysicalClaim(p.Hash,a.Boot,"app-legacy",LegacyPoolSeed.ClaimId(a.PermitHash,a.Boot,guid),2147483648);
-    using(var pool=new HostPhysicalPool(Path.Combine(p.Root,"pool.txt"),p.Hash,a.Deadline)){pool.VerifyInitial(new[]{claim});Refuse(()=>pool.ConsumeStart(claim));}
+    using(var pool=new HostPhysicalPool(Path.Combine(p.Root,"pool.txt"),p.Hash,a.Deadline)){
+     pool.VerifyInitial(new[]{claim});Refuse(()=>pool.ConsumeStart(claim));
+     var rpc=new PhysicalClaim(p.Hash,a.Boot,"rpc",new string('d',64),20L*1073741824);
+     Test("consumer-retains-seed-before-rpc-acquire",()=>pool.VerifyRetainedRpcOnly(new[]{claim},rpc));
+     pool.Acquire(rpc);
+     Test("consumer-repeated-check-after-own-rpc-acquire",()=>pool.VerifyRetainedRpcOnly(new[]{claim},rpc));
+     pool.ConsumeStart(rpc);
+     Test("consumer-repeated-check-after-own-rpc-dispatch",()=>pool.VerifyRetainedRpcOnly(new[]{claim},rpc));
+     pool.Acquire(new PhysicalClaim(p.Hash,a.Boot,"app-native",new string('e',64),1048576));
+     Test("consumer-rejects-additional-allocator",()=>Refuse(()=>pool.VerifyRetainedRpcOnly(new[]{claim},rpc)));
+    }
     Refuse(()=>p.Publish(a,rows,()=>{}));
    }
   });
@@ -95,6 +109,17 @@ public static class LegacyHandoffHarness {
    }
   });
  }
+ static void CompletedReaderTests(){
+  Func<Dictionary<string,object>> cut=()=>LegacyHandoff.Obj(new System.Web.Script.Serialization.JavaScriptSerializer().DeserializeObject(LegacyHandoff.EncodeCut(new string('a',64),100,"fixture-object",new string('b',64),0,new string('c',64))));
+  Test("completion-parses-actual-producer-cut-schema",()=>Check(LegacyHandoff.Completion.ValidateCut(cut(),new string('a',64),99,101)==100));
+  Test("completion-refuses-missing-cut-capacity-flag",()=>{var c=cut();c.Remove("capacityAdmitted");Refuse(()=>LegacyHandoff.Completion.ValidateCut(c,new string('a',64),99,101));});
+  Test("completion-refuses-promoted-cut-authority",()=>{var c=cut();c["capacityAdmitted"]=true;Refuse(()=>LegacyHandoff.Completion.ValidateCut(c,new string('a',64),99,101));});
+  Func<string,Contract> past=op=>{var c=new Contract(op,false,null,2000,1000);string root=Path.GetDirectoryName(c.PathName);byte[] activation=Encoding.UTF8.GetBytes("fixture-completion-only");Put(Path.Combine(root,"pool.activation"),activation);Put(Path.Combine(root,"pool.complete"),Encoding.UTF8.GetBytes(ProtectedAttempt.Hash(activation)));return c;};
+  Test("historical-reader-retains-original-expired-deadline",()=>{var old=past("legacy-memory-cut-seed-v1");var fresh=new Contract("legacy-memory-inspect-v1",false);using(var reader=ProtectedAttempt.PinLegacyHandoffController(fresh.PathName,fresh.Hash))using(var evidence=ProtectedAttempt.OpenCompletedHandoff(old.PathName,old.Hash,reader)){Check(evidence.Deadline<BoundedWorker.MonotonicMilliseconds()&&evidence.AccessDeadline==reader.Deadline);Check(evidence.ReadLegacyHandoff().Length==old.Manifest.Length);Refuse(()=>evidence.WriteOnce("handoff.consumed","forbidden"));}});
+  Test("historical-reader-rejects-inspect-as-completed-cut",()=>{var old=past("legacy-memory-inspect-v1");var fresh=new Contract("legacy-memory-inspect-v1",false);using(var reader=ProtectedAttempt.PinLegacyHandoffController(fresh.PathName,fresh.Hash))Refuse(()=>{using(var evidence=ProtectedAttempt.OpenCompletedHandoff(old.PathName,old.Hash,reader)){};});});
+  Test("historical-reader-rejects-missing-completion",()=>{var old=new Contract("legacy-memory-cut-seed-v1",false);var fresh=new Contract("legacy-memory-inspect-v1",false);using(var reader=ProtectedAttempt.PinLegacyHandoffController(fresh.PathName,fresh.Hash))Refuse(()=>{using(var evidence=ProtectedAttempt.OpenCompletedHandoff(old.PathName,old.Hash,reader)){};});});
+  Test("historical-reader-loses-access-with-current-lease",()=>{var old=past("legacy-memory-cut-seed-v1");var fresh=new Contract("legacy-memory-inspect-v1",false);var reader=ProtectedAttempt.PinLegacyHandoffController(fresh.PathName,fresh.Hash);using(var evidence=ProtectedAttempt.OpenCompletedHandoff(old.PathName,old.Hash,reader)){reader.Dispose();Refuse(()=>evidence.ReadOnce("pool.complete"));}});
+ }
  public static int Main(string[] args){try{
   BoundedWorker.EnterSupervisorEnvelope(256UL*1024*1024);long deadline=BoundedWorker.MonotonicMilliseconds()+9000;
   new Thread(()=>{while(BoundedWorker.MonotonicMilliseconds()<deadline)Thread.Sleep(5);TerminateProcess(GetCurrentProcess(),124);}){IsBackground=true}.Start();
@@ -105,7 +130,7 @@ public static class LegacyHandoffHarness {
    while(offset<fixtureImage.Length){int n=input.Read(fixtureImage,offset,fixtureImage.Length-offset);if(n==0)throw new IOException("Short fixture image");offset+=n;}
    if(input.ReadByte()!=-1||ProtectedAttempt.Hash(fixtureImage)!=args[1])throw new InvalidOperationException("Fixture image digest differs");
   }
-  ResidentTests();SeedTests();
+  ResidentTests();SeedTests();CompletedReaderTests();
   Test("static-memory-bytes",()=>Check(LegacyHandoff.MaximumMemory(Row())==2147483648));
   Test("contradictory-static-reservation-refused",()=>{var r=Row();r["Reservation"]=(ulong)8192;Refuse(()=>LegacyHandoff.MaximumMemory(r));});
   Test("dormant-dynamic-limit-not-static-growth",()=>{var r=Row();r["Limit"]=(ulong)1048576;Check(LegacyHandoff.MaximumMemory(r)==2147483648);});

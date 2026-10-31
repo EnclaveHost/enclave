@@ -15,9 +15,9 @@ internal sealed class WindowsStartAdmission {
     // Whole stack + prospective apps + real host floor + variation + extra
     // transient startup overhead. Existing VM allocations are already in free.
     internal const long Required=20*GiB+39388*MiB+18*GiB+GiB+512*MiB;
-    readonly ProtectedAttempt vm;readonly long began;
+    readonly ProtectedAttempt vm;readonly long began;readonly LegacyHandoff.Completion completed;
     readonly JavaScriptSerializer Json=new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32};
-    WindowsStartAdmission(ProtectedAttempt vm){this.vm=vm;began=BoundedWorker.MonotonicMilliseconds();}
+    WindowsStartAdmission(ProtectedAttempt vm,LegacyHandoff.Completion completed){this.vm=vm;this.completed=completed;began=BoundedWorker.MonotonicMilliseconds();}
     void CheckTime(){vm.CheckDeadline();long now=BoundedWorker.MonotonicMilliseconds();if(now<began||now-began>2000)throw new TimeoutException("Aggregate start observation exceeds two seconds");}
     static Dictionary<string,object> Obj(object value){var d=value as Dictionary<string,object>;if(d==null)throw new InvalidOperationException("Object required");return d;}
     static IList Rows(object value){var a=value as IList;if(a==null||a.Count>128)throw new InvalidOperationException("Row bound");return a;}
@@ -100,7 +100,7 @@ internal sealed class WindowsStartAdmission {
         if(node==null)throw new InvalidOperationException("Reviewed node commitments missing");
         string nodeExpected=Deployments(node,false);
         if(Deployments(GetLocal(9600,"/v1/host/state"),true)!=nodeExpected)throw new InvalidOperationException("Node commitments changed since review");
-        string pending=LivePending();
+        string pending=completed==null?LivePending():completed.Receipt;
         var before=Obj(obs["physicalBefore"]);var after=Obj(obs["physicalAfter"]);
         double age=(DateTime.UtcNow-DateTime.Parse(Str(before["atUtc"]),CultureInfo.InvariantCulture,DateTimeStyles.RoundtripKind).ToUniversalTime()).TotalSeconds;
         if(age<0||age>300||Str(before["boot"])!=Str(after["boot"])||Str(after["boot"])!=TimeText(os["LastBootUpTime"]))throw new InvalidOperationException("Stale/different boot");
@@ -123,10 +123,21 @@ internal sealed class WindowsStartAdmission {
         var end=One("SELECT LastBootUpTime,TotalVisibleMemorySize,FreePhysicalMemory FROM Win32_OperatingSystem",new[]{"LastBootUpTime","TotalVisibleMemorySize","FreePhysicalMemory"});
         if(TimeText(end["LastBootUpTime"])!=TimeText(os["LastBootUpTime"])||Convert.ToInt64(end["TotalVisibleMemorySize"])!=Convert.ToInt64(os["TotalVisibleMemorySize"])||
             checked(Convert.ToInt64(end["FreePhysicalMemory"])*1024)<Required)throw new InvalidOperationException("End-of-admission host state differs");
-        if(LivePending()!=pending||Deployments(GetLocal(9600,"/v1/host/state"),true)!=nodeExpected)throw new InvalidOperationException("Pending commitments changed during admission");
+        if((completed==null&&LivePending()!=pending)||Deployments(GetLocal(9600,"/v1/host/state"),true)!=nodeExpected)throw new InvalidOperationException("Pending commitments changed during admission");
+        if(completed!=null)completed.VerifyResources();
         CheckTime();
     }
-    public static void Verify(ProtectedAttempt vm){if(vm==null||vm.VmPermit==null)throw new ArgumentException("Held VM permit required");new WindowsStartAdmission(vm).Read();}
+    internal static void Verify(ProtectedAttempt vm,ProtectedAttempt reader,ref LegacyHandoff.Completion completed){
+        if(vm==null||vm.VmPermit==null||reader==null)throw new ArgumentException("Held VM permit and short provider reader required");
+        reader.CheckDeadline();
+        var reviewed=Obj(new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32}.DeserializeObject(new UTF8Encoding(false,true).GetString(vm.ReadAdmission(vm.VmPermit.AdmissionHash))));
+        object binding;
+        if(reviewed.TryGetValue("legacyCutSeed",out binding)){
+            if(completed==null)completed=new LegacyHandoff.Completion(Obj(binding),Obj(reviewed["sharedPhysicalPool"]),reader,vm);
+            else completed.Verify();
+        }else if(completed!=null)throw new InvalidOperationException("Completed handoff mode cannot disappear");
+        new WindowsStartAdmission(vm,completed).Read();
+    }
     internal static HostPhysicalPool AcquireShared(ProtectedAttempt vm,StartIdentity id,long workerDeadline,out PhysicalClaim claim) {
         vm.CheckDeadline();vm.VmPermit.Bind(id,vm.ContractHash);
         var json=new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32};

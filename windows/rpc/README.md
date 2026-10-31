@@ -559,3 +559,30 @@ refusals and the diagnostic packaging/fixture failures remain preserved.
 Target images now exclude the test harness and remain under the original256KiB
 protected-input limit. No production fence, pool seed, VM start or RPC cutover
 occurred. See `ops/unified-funding-20261028/rpc-legacy-resident-inspect-r3/ROOT-RESULT.md`.
+
+### Completed handoff admission (not activated)
+
+RPC admission can explicitly bind a `legacyCutSeed` object with schema
+`legacy-cut-seed-admission/1`, the exact historical contract path/hash, producer
+image hash, manifest hash, activation hash, and creation mode
+`retained-fenced-rpc-only/1`. It also binds the existing `sharedPhysicalPool`
+configuration. A completed seed now labels this mode in schema`legacy-pool-seed/2`.
+This mode rests on the reviewed installed creator closure and actual persistent
+cut; it does not infer authority from empty listeners or missing health fields.
+The old admission mode still requires complete current manager reservations.
+
+The runtime reopens historical evidence read-only under the current short worker
+lease, without renewing the old deadline or enabling writes. It retains protected
+completion/manifest/cut/cohort/inventory records, exact original issuer handles,
+pinned source/replacement files, the old master denial and seeded claim records
+through the final pre-submit guard and native invocation. Pool checks allow only
+the initial consumed claims and this exact RPC claim, including repeat checks
+after its acquisition and dispatch. Additional app or RPC claims refuse admission.
+The RPC claim covers the full20GiB proposal; a defined but nonresident RPC guest
+is not charged a second time as a legacy allocation. Native residency and current
+physical fit are rechecked; no historical RAM sample becomes a standing permit.
+
+This path authorizes no new app creator, manager restart, claim release or reset.
+Enabling an app creator requires a separate enrolled transition. The consumer is
+a source candidate pending qualification; the full production cut, new VM boot,
+storage, client readiness and consumer cutover remain unperformed.

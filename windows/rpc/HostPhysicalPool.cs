@@ -155,6 +155,19 @@ namespace Enclave.OwnedRpc {
                 Check();
             }
         }
+        internal void VerifyRetainedRpcOnly(IList<PhysicalClaim> expected,PhysicalClaim rpc) {
+            Bind(rpc);if(rpc.Actor!="rpc")throw new InvalidOperationException("Exact RPC allocator role required");using(var gate=Lock()) {
+                HashSet<string> consumed;var actual=Snapshot(out consumed);
+                foreach(var c in expected){PhysicalClaim found;
+                    if(!actual.TryGetValue(c.Id,out found)||found.Encode()!=c.Encode()||!consumed.Contains(c.Id))throw new InvalidOperationException("Retained seeded claim differs");
+                    actual.Remove(c.Id);
+                }
+                PhysicalClaim owned;
+                if(actual.Count>1||(actual.Count==1&&(!actual.TryGetValue(rpc.Id,out owned)||owned.Encode()!=rpc.Encode())))
+                    throw new InvalidOperationException("RPC-only handoff has another allocator");
+                Check();
+            }
+        }
         // Deliberately no timeout/worker-death release. Native operation settlement,
         // original owned Off and write fencing are separate required evidence.
         public void Dispose(){if(disposed)return;disposed=true;for(int i=held.Count-1;i>=0;i--)held[i].Dispose();held.Clear();}

@@ -245,16 +245,10 @@ namespace Enclave.OwnedRpc {
     nonPoolBytes=sample.Physical-sample.Free-sample.Assigned,residents=sample.Residents}));
   }
   void Execute(){
-   Check();long total=0;var paths=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-   foreach(object o in inputs){inputIndex++;phase="input-schema";var d=Obj(o);if(!paths.Add(Str(d["path"])))throw new InvalidOperationException("Duplicate source input");total=checked(total+Num(d["bytes"]));if(total>256*1048576)throw new InvalidOperationException("Reviewed input byte bound");PinInput(d);}
+   PinReviewedInputs();
    if(seed!=null){
     phase="seed-preflight";
-    Keys(newMaster,"path","sha256","bytes");
-    if(Num(newMaster["bytes"])!=Num(master["bytes"])||Str(newMaster["sha256"])!=Str(master["sha256"])||
-       paths.Contains(Str(newMaster["path"])))throw new InvalidOperationException("Distinct replacement master required");
-    // PinInput rejects the old path and hard-linked aliases, checks exact bytes
-    // and keeps the protected replacement immutable through the transition.
-    PinInput(newMaster);SeedFit(Inventory());
+    PinReplacement();SeedFit(Inventory());
     if(Directory.Exists(Path.GetDirectoryName(seed.Root))||File.Exists(Path.GetDirectoryName(seed.Root)))throw new InvalidOperationException("Pool namespace already exists");
    }
    phase="issuer-binding";
@@ -269,7 +263,7 @@ namespace Enclave.OwnedRpc {
    var cut=LegacyLaunchCohort.ApplyAndDrain(exact,Path.Combine(Environment.SystemDirectory,@"WindowsPowerShell\v1.0\powershell.exe"),Str(master["path"]),Str(master["sha256"]),Num(master["bytes"]),lease.Boot,Path.Combine(lease.Root,"definition-fence.intent"),cutDeadline);
    Check();string cohort=json.Serialize(cut.Exited);int childIndex=0;
    foreach(var p in cut.Exited){lease.WriteOnce("cohort-"+(char)('a'+childIndex/26)+(char)('a'+childIndex%26),json.Serialize(p));childIndex++;}
-   lease.WriteOnce("handoff.cut",json.Serialize(new{schema="legacy-cut/1",manifest=lease.PermitHash,cutAt=cut.CutAt,master=cut.Fence.ObjectIdentity,intent=cut.Fence.IntentHash,cohortCount=cut.Exited.Length,cohortSha256=ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(cohort)),providerSettled=false,capacityAdmitted=false}));
+   lease.WriteOnce("handoff.cut",EncodeCut(lease.PermitHash,cut.CutAt,cut.Fence.ObjectIdentity,cut.Fence.IntentHash,cut.Exited.Length,ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(cohort))));
    phase="cut-inventory";var first=Inventory();var second=Inventory();if(json.Serialize(first)!=json.Serialize(second))throw new InvalidOperationException("Configured VM inventory changed; keep claims held");
    BindIssuers();Check();PublishInventory(first,cut.CutAt,exact);
    if(seed!=null){
@@ -280,6 +274,107 @@ namespace Enclave.OwnedRpc {
      lease.WriteOnce("pool.complete",ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(lease.ReadOnce("pool.activation"))));
     }
    }
+  }
+  void PinReviewedInputs(){
+   Check();long total=0;var paths=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+   foreach(object o in inputs){inputIndex++;phase="input-schema";var d=Obj(o);if(!paths.Add(Str(d["path"])))throw new InvalidOperationException("Duplicate source input");total=checked(total+Num(d["bytes"]));if(total>256*1048576)throw new InvalidOperationException("Reviewed input byte bound");PinInput(d);}
+  }
+  internal static string EncodeCut(string manifest,long cutAt,string master,string intent,int cohortCount,string cohortSha256){
+   return new JavaScriptSerializer().Serialize(new{schema="legacy-cut/1",manifest=manifest,cutAt=cutAt,master=master,intent=intent,cohortCount=cohortCount,cohortSha256=cohortSha256,providerSettled=false,capacityAdmitted=false});
+  }
+  void PinReplacement(){
+   Keys(newMaster,"path","sha256","bytes");
+   if(Num(newMaster["bytes"])!=Num(master["bytes"])||Str(newMaster["sha256"])!=Str(master["sha256"]))throw new InvalidOperationException("Replacement bytes differ");
+   foreach(object o in inputs)if(String.Equals(Str(Obj(o)["path"]),Str(newMaster["path"]),StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("Replacement overlaps old inputs");
+   PinInput(newMaster);
+  }
+  // Only this explicit mode replaces legacy health-based pending accounting.
+  // It admits the original RPC permit, not a new application creator.
+  internal sealed class Completion : IDisposable {
+   readonly ProtectedAttempt evidence;readonly LegacyHandoff work;readonly OwnedVmPermit permit;
+   readonly PhysicalClaim rpc;readonly List<PhysicalClaim> claims=new List<PhysicalClaim>();
+   readonly SortedDictionary<string,MemoryRecord> initial=new SortedDictionary<string,MemoryRecord>(StringComparer.Ordinal);
+   HostPhysicalPool pool;LegacyTemplateFence.HeldDenial denial;SortedDictionary<string,MemoryRecord> current;
+   internal readonly string Receipt;
+   bool disposed;
+   internal Completion(Dictionary<string,object> binding,Dictionary<string,object> shared,ProtectedAttempt reader,ProtectedAttempt vm){
+    Keys(binding,"schema","contractPath","contractHash","activationHash","manifestHash","producerHash","creationMode");
+    if(Str(binding["schema"])!="legacy-cut-seed-admission/1"||Str(binding["creationMode"])!="retained-fenced-rpc-only/1")throw new InvalidOperationException("Exact first-RPC handoff mode required");
+    Keys(shared,"schema","configPath","configHash","capacityBytes");
+    if(Str(shared["schema"])!="host-physical-pool-binding/1"||vm==null||vm.VmPermit==null)throw new InvalidOperationException("RPC permit/shared pool required");
+    permit=vm.VmPermit;Receipt=Str(binding["activationHash"]);StartIdentity.Hex(Receipt,64);
+    try{
+     evidence=ProtectedAttempt.OpenCompletedHandoff(Str(binding["contractPath"]),Str(binding["contractHash"]),reader);
+     if(evidence.PermitHash!=Str(binding["manifestHash"])||evidence.ExecutableHash!=Str(binding["producerHash"])||evidence.Boot!=permit.Boot)throw new InvalidOperationException("Reviewed completed producer differs");
+     work=new LegacyHandoff(evidence,()=>reader.CheckDeadline());
+     string activation=evidence.ReadOnce("pool.activation"),cutRaw=evidence.ReadOnce("handoff.cut"),inventory=evidence.ReadOnce("handoff.inventory");
+     if(ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(activation))!=Receipt||evidence.ReadOnce("pool.complete")!=Receipt)throw new InvalidOperationException("Reviewed seed completion differs");
+     var seed=Obj(work.json.DeserializeObject(activation));var cut=Obj(work.json.DeserializeObject(cutRaw));var receipt=Obj(work.json.DeserializeObject(evidence.ReadOnce("handoff.result")));
+     Keys(receipt,"schema","manifest","inspectOnly","cutAt","observedAt","issuers","vmCount","maximumBytes","providerSettled","capacityAdmitted","reservationMayRelease","poolSeeded");
+     long cutAt=ValidateCut(cut,evidence.PermitHash,evidence.Origin,evidence.Deadline);int count=checked((int)Num(receipt["vmCount"]));
+     if(count<0||count>32||
+        Str(receipt["schema"])!="legacy-memory-handoff-result/2"||Str(receipt["manifest"])!=evidence.PermitHash||Num(receipt["cutAt"])!=cutAt||!False(receipt["inspectOnly"])||
+        Num(receipt["observedAt"])<cutAt||Num(receipt["observedAt"])>=evidence.Deadline||!False(receipt["providerSettled"])||!False(receipt["capacityAdmitted"])||!False(receipt["reservationMayRelease"])||!False(receipt["poolSeeded"]))throw new InvalidOperationException("Actual completed cut required");
+     var cohort=new List<string>();for(int n=0;n<Num(cut["cohortCount"]);n++)cohort.Add(evidence.ReadOnce("cohort-"+(char)('a'+n/26)+(char)('a'+n%26)));
+     if(ProtectedAttempt.Hash(Encoding.UTF8.GetBytes("["+String.Join(",",cohort)+"]"))!=Str(cut["cohortSha256"]))throw new InvalidOperationException("Completed cohort evidence differs");
+     IList priorIssuers=Rows(receipt["issuers"],2);if(priorIssuers.Count!=work.issuers.Count)throw new InvalidOperationException("Original issuer coverage differs");
+     for(int n=0;n<priorIssuers.Count;n++){var actual=Obj(priorIssuers[n]);var expected=Obj(work.issuers[n]);Keys(actual,"Pid","Created","Image");
+      if(Num(actual["Pid"])!=Num(expected["pid"])||Num(actual["Created"])!=Num(expected["created"])||Str(actual["Image"])!=Str(expected["image"]))throw new InvalidOperationException("Completed issuer incarnation differs");}
+     var index=new List<string>();long sum=0;
+     for(int n=0;n<count;n++){
+      string raw=evidence.ReadOnce("vm-"+(char)('a'+n/26)+(char)('a'+n%26));var row=Obj(work.json.DeserializeObject(raw));Keys(row,"guid","maximumBytes","memory","cutAt","manifest");
+      string id=Str(row["guid"]);Guid guid;if(!Guid.TryParseExact(id,"D",out guid)||guid.ToString("D")!=id||initial.ContainsKey(id)||id==permit.VmGuid||Num(row["cutAt"])!=cutAt||Str(row["manifest"])!=evidence.PermitHash)throw new InvalidOperationException("Initial VM binding differs");
+      var m=Obj(row["memory"]);Keys(m,"Rule","Bytes","VirtualQuantityMiB","ReservationMiB","LimitMiB","DynamicMemoryEnabled");
+      long bytes=Num(m["Bytes"]),quantity=Num(m["VirtualQuantityMiB"]),reservation=Num(m["ReservationMiB"]),limit=Num(m["LimitMiB"]);
+      if(Str(m["Rule"])!="fixed-memory-virtual-quantity/1"||!False(m["DynamicMemoryEnabled"])||quantity<=0||quantity>1048576||bytes!=checked(quantity*1048576)||bytes!=Num(row["maximumBytes"])||reservation<0||reservation>quantity||limit<quantity)throw new InvalidOperationException("Initial static memory differs");
+      initial.Add(id,new MemoryRecord{Bytes=bytes,VirtualQuantityMiB=(ulong)quantity,ReservationMiB=(ulong)reservation,LimitMiB=(ulong)limit,DynamicMemoryEnabled=false});sum=checked(sum+bytes);index.Add(id+":"+ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(raw)));
+     }
+     if(sum!=Num(receipt["maximumBytes"])||inventory!="legacy-vm-inventory/1\n"+String.Join("\n",index))throw new InvalidOperationException("Completed inventory index differs");
+     ValidateSeed(seed,work.seed,evidence.PermitHash,evidence.Boot,sum,count,cutRaw,inventory);
+     if(Str(shared["configPath"])!=Str(seed["configPath"])||Str(shared["configHash"])!=work.seed.Hash||Num(shared["capacityBytes"])!=work.seed.Capacity)throw new InvalidOperationException("Reviewed RPC pool differs from completed seed");
+     if(evidence.ReadOnce("handoff.consumed")!=evidence.PermitHash+";"+evidence.Token||evidence.ReadOnce("pool.seed.consumed")!=work.seed.Hash+";"+evidence.PermitHash+";"+evidence.Token||
+        evidence.ReadOnce("owner.result")!="handoff-complete;provider-fenced=false;reservation-release=false"||evidence.ReadOnce("observer.result")!="exact-owner-death;job-empty;provider-fenced=false;reservation-release=false")throw new InvalidOperationException("Incomplete original handoff execution");
+     byte[] intent=evidence.ReadFenceEvidence();if(ProtectedAttempt.Hash(intent)!=Str(cut["intent"]))throw new InvalidOperationException("Fence intent hash differs");
+     string[] f=new UTF8Encoding(false,true).GetString(intent).Split('\n');
+     if(f.Length!=8||f[0]!="legacy-template-fence/1"||f[1]!=evidence.Boot||f[2]!=Str(work.master["path"])||f[3]!=Str(cut["master"])||f[4]!=Str(work.master["sha256"])||f[5]!=Num(work.master["bytes"]).ToString(CultureInfo.InvariantCulture)||f[7]!="")throw new InvalidOperationException("Original fence object binding differs");
+     denial=new LegacyTemplateFence.HeldDenial(f[2],f[3],Num(work.master["bytes"]),evidence.Boot,reader.AccessDeadline);
+     work.PinReviewedInputs();work.PinReplacement();
+     foreach(var pair in initial)claims.Add(new PhysicalClaim(work.seed.Hash,evidence.Boot,"app-legacy",LegacyPoolSeed.ClaimId(evidence.PermitHash,evidence.Boot,pair.Key),pair.Value.Bytes));
+     rpc=new PhysicalClaim(work.seed.Hash,evidence.Boot,"rpc",ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(vm.ContractHash+"\n"+permit.VmGuid)),permit.TotalBytes);
+     pool=new HostPhysicalPool(Str(shared["configPath"]),work.seed.Hash,reader.AccessDeadline);Verify();
+    }catch{Dispose();throw;}
+   }
+   static bool False(object value){return value is bool&&!(bool)value;}
+   internal static long ValidateCut(Dictionary<string,object> cut,string manifest,long origin,long deadline){
+    Keys(cut,"schema","manifest","cutAt","master","intent","cohortCount","cohortSha256","providerSettled","capacityAdmitted");
+    long at=Num(cut["cutAt"]),count=Num(cut["cohortCount"]);StartIdentity.Hex(Str(cut["intent"]),64);StartIdentity.Hex(Str(cut["cohortSha256"]),64);
+    if(Str(cut["schema"])!="legacy-cut/1"||Str(cut["manifest"])!=manifest||at<origin||at>=deadline||count<0||count>64||Str(cut["master"]).Length==0||!False(cut["providerSettled"])||!False(cut["capacityAdmitted"]))throw new InvalidOperationException("Completed cut binding differs");
+    return at;
+   }
+   internal static void ValidateSeed(Dictionary<string,object> s,LegacyPoolSeed plan,string manifest,string boot,long total,int count,string cut,string inventory){
+    Keys(s,"schema","creationMode","manifest","boot","configPath","poolHash","capacityBytes","initialBytes","initialCount","physicalBytes","nonPoolReserveBytes","floorBytes","variationBytes","prospectiveBytes","cutHash","inventoryHash","providerSettled","capacityAdmitted","reservationMayRelease");
+    if(Str(s["schema"])!="legacy-pool-seed/2"||Str(s["creationMode"])!="retained-fenced-rpc-only/1"||Str(s["manifest"])!=manifest||Str(s["boot"])!=boot||Str(s["configPath"])!=Path.Combine(plan.Root,"pool.txt")||Str(s["poolHash"])!=plan.Hash||
+       Num(s["capacityBytes"])!=plan.Capacity||Num(s["initialBytes"])!=total||Num(s["initialCount"])!=count||Num(s["physicalBytes"])!=plan.Physical||Num(s["nonPoolReserveBytes"])!=plan.NonPoolReserve||Num(s["floorBytes"])!=plan.Floor||Num(s["variationBytes"])!=plan.Variation||Num(s["prospectiveBytes"])!=plan.Prospective||
+       Str(s["cutHash"])!=ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(cut))||Str(s["inventoryHash"])!=ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(inventory))||!False(s["providerSettled"])||!False(s["capacityAdmitted"])||!False(s["reservationMayRelease"]))throw new InvalidOperationException("Completed seed association differs");
+   }
+   internal void Verify(){
+    CheckHeld();work.BindIssuers();current=work.Inventory();
+    if(current.Count<initial.Count||current.Count>initial.Count+1)throw new InvalidOperationException("Uncovered current VM allocation");
+    foreach(var pair in current){MemoryRecord prior;
+     if(initial.TryGetValue(pair.Key,out prior)){if(work.json.Serialize(prior)!=work.json.Serialize(pair.Value))throw new InvalidOperationException("Retained VM configuration changed");}
+     else if(pair.Key!=permit.VmGuid||pair.Value.Bytes!=permit.GuestBytes)throw new InvalidOperationException("Only exact owned RPC may join seed");
+    }
+    foreach(string id in initial.Keys)if(!current.ContainsKey(id))throw new InvalidOperationException("Retained VM inventory changed");
+    VerifyResources();CheckHeld();
+   }
+   internal void CheckHeld(){if(disposed)throw new ObjectDisposedException("Completed handoff");work.Check();denial.Verify();pool.VerifyRetainedRpcOnly(claims,rpc);}
+   internal void VerifyResources(){
+    CheckHeld();var sample=work.ObserveResident(current);long rpcAssigned;
+    if(sample.Residents.TryGetValue(permit.VmGuid,out rpcAssigned)&&rpcAssigned!=0)throw new InvalidOperationException("RPC already has resident memory before original start");
+    long total=0;foreach(var m in initial.Values)total=checked(total+m.Bytes);
+    work.seed.Fit(sample.Physical,sample.Free,total,sample.Assigned);CheckHeld();
+   }
+   public void Dispose(){if(disposed)return;disposed=true;if(pool!=null)pool.Dispose();if(denial!=null)denial.Dispose();if(work!=null)work.Dispose();if(evidence!=null)evidence.Dispose();}
   }
   void PublishInventory(SortedDictionary<string,MemoryRecord> inventory,long cutAt,LegacyLaunchCohort.Issuer[] exact){
    long maximumBytes=0;int n=0;var index=new List<string>();
@@ -381,7 +476,7 @@ namespace Enclave.OwnedRpc {
     guard();PublishFile(Path.Combine(Root,"pool.txt"),Config);
     guard();using(var pool=new HostPhysicalPool(Path.Combine(Root,"pool.txt"),Hash,lease.Deadline))pool.VerifyInitial(claims);
     guard();var json=new System.Web.Script.Serialization.JavaScriptSerializer();
-    string result=json.Serialize(new{schema="legacy-pool-seed/1",manifest=lease.PermitHash,boot=lease.Boot,configPath=Path.Combine(Root,"pool.txt"),poolHash=Hash,
+    string result=json.Serialize(new{schema="legacy-pool-seed/2",creationMode="retained-fenced-rpc-only/1",manifest=lease.PermitHash,boot=lease.Boot,configPath=Path.Combine(Root,"pool.txt"),poolHash=Hash,
       capacityBytes=Capacity,initialBytes=total,initialCount=claims.Count,physicalBytes=Physical,nonPoolReserveBytes=NonPoolReserve,floorBytes=Floor,variationBytes=Variation,prospectiveBytes=Prospective,
       cutHash=ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(lease.ReadOnce("handoff.cut"))),inventoryHash=ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(lease.ReadOnce("handoff.inventory"))),
       providerSettled=false,capacityAdmitted=false,reservationMayRelease=false});
