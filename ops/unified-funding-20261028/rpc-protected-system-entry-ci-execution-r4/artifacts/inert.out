@@ -1,0 +1,9 @@
+{"name":"supervisor-envelope-readback","passed":true,"details":{"ProcessId":1664,"CreationFileTime":134378785467672258,"JobCommitLimitBytes":268435456,"BootstrapPrivateBytes":12517376,"MembershipVerified":true,"LimitsVerified":true,"CoversPreAssignmentMemory":false,"BoundsWallTime":false,"ReservationMayRelease":false}}
+{"name":"supervisor-envelope-one-shot","passed":true,"details":null}
+{"name":"system-separate-task-protected-entry","passed":true,"details":{"ownerPid":2484,"observerPid":2024,"ownerDead":true,"observerDead":true,"elapsed":925,"providerFenced":false,"reservationRelease":false}}
+{"name":"system-contract-wrong-hash","passed":true,"details":{"exactProbeDeath":true,"pid":4136}}
+{"name":"system-contract-writable-namespace","passed":true,"details":{"exactProbeDeath":true,"pid":4136}}
+{"name":"system-contract-wrong-boot","passed":true,"details":{"exactProbeDeath":true,"pid":4136}}
+{"name":"system-held-contract-refuses-write","passed":true,"details":{"exactProbeDeath":true,"pid":4136}}
+{"name":"system-held-directory-refuses-rename","passed":true,"details":{"exactProbeDeath":true,"pid":4136}}
+{"name":"system-consumed-record-no-replay","passed":true,"details":{"exactProbeDeath":true,"pid":4136}}

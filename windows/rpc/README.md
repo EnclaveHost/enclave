@@ -140,7 +140,7 @@ before returning from RunGuarded's callback. Duplicate acknowledgment loss is
 ambiguous: never transfer again or guess which remote handle to close.
 [IsProcessInJob accepts limited-query process handles](https://learn.microsoft.com/en-us/windows/win32/api/jobapi/nf-jobapi-isprocessinjob).
 
-This candidate has no production IPC or SYSTEM task entry point. The CI fixture
+The original observer fixture has no production IPC or SYSTEM task entry point. That CI fixture
 uses bounded atomic files in its disposable directory and synthetic boot/digest
 context; token shape is not authentication or target boot proof. The trusted
 owner must have no children before assignment: job assignment does not capture
@@ -199,3 +199,13 @@ negative hash/boot/ACL/write/rename/replay fixtures. Task state and LastTaskResu
 are diagnostics only; PASS requires held process handles and explicit results.
 No target task, namespace, current physical/pending admission or VM is qualified
 by source or hosted results alone.
+
+Hosted CI41147895076 at cd7df8876873f5f30fc259b5891e9b7e48f3fc33 passed
+all nine selected SYSTEM-entry checks (compilers1.826s/0.154s, harness1.578s).
+Separate SYSTEM owner/observer processes completed in925ms with exact held
+process death and explicit success/empty-job receipts. Wrong digest, writable
+namespace, wrong boot, held-file write, directory rename and consumed-record
+replay were rejected. Direct system-drive owned namespace passed ancestry checks;
+the CI gate now publishes a closed pending file atomically. Prior ACL and gate
+publication failures are preserved. This is hosted qualification only; target
+resource/namespace admission and durable provider/VM integration remain absent.
