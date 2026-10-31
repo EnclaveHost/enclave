@@ -1,0 +1,13 @@
+{
+  "rpc/guest/README.md": "4db8a71045cc66920edb1f12f0674909c48841fe9f07f3c657ab7802f5274548",
+  "rpc/guest/chain_service.py": "75c879ec9c5728688beac8cc98ecf1410c38f29c144b27fabd8b42ea60cfbc92",
+  "rpc/guest/prepare_bundle.py": "acd7493a8261eb2b6f0a93a845893411b0199b4c5c945c0b9f22e1dfad2eafe8",
+  "rpc/guest/units/enclave-rpc-base.service": "d0a63c1aa3eafe226fca38d6bb8e9d0a8b08d32f7297e6e69e66eeb0ad8dd551",
+  "rpc/guest/units/enclave-rpc-clients.slice": "ae1456b42df7ead3332e3aec151fb2d1030220922d08ad1e96dc29b35a59b335",
+  "rpc/guest/units/enclave-rpc-el.service": "415f303d09f0e976a1f025873d1b6b6dedda727dd0892467a31a69870eaf5d27",
+  "rpc/guest/units/enclave-rpc-cl.service": "9e35d78d14222e1566c263ed0cb622a9dfa4fb9ae70efa6974367bc0915ca078",
+  "test/rpc-guest/test_coverage_activation.py": "98992903ea88789d723a039d49f04033cc5154747179eb9c6a5b23c16771eca2",
+  "test/rpc-guest/test_chain_service.py": "9cb7464f4966e3dfb6b4764012f788192036ac8f5980dc9b2f09e9bcadf38b29",
+  "test/rpc-guest/test_bundle.py": "4f2a7764cab7b202ca7a2dbcca16d6f6a533fbb953633cc61cc71d75c73c635c",
+  "ops/rpc-backend-bootstrap/2026-10-25/readiness/readiness_sampler.py": "9aa80ab8a2cbe156f513349f44366c4ad2c8588539666ac802ed9015c771d055"
+}

@@ -1,0 +1,14 @@
+{
+  "disks": [
+    {
+      "role": "l1",
+      "mount": "/srv/enclave-l1-pair",
+      "uuid": "a2f2a8b5-06ac-4612-95a0-f48a00a7f6e0"
+    },
+    {
+      "role": "base",
+      "mount": "/srv/enclave-base-holder",
+      "uuid": "11c6bbac-f823-4052-a87a-066eed6ad590"
+    }
+  ]
+}

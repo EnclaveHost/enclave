@@ -1,0 +1,12 @@
+{
+  "manifest.json": "c35ec24b39b4cff06a72c00a5fcc032a035658d314771f9072b881f9258a0fb7",
+  "disks.json": "3688983311330a8149bebc6a9d1c86775157be4cbf9be0034964e315042bf980",
+  "chain.json": "81988aeef841cc073b359ab29993641b06e71d72190ddc5df606057ddd7b5eb7",
+  "source/README.md": "4db8a71045cc66920edb1f12f0674909c48841fe9f07f3c657ab7802f5274548",
+  "source/chain_service.py": "75c879ec9c5728688beac8cc98ecf1410c38f29c144b27fabd8b42ea60cfbc92",
+  "source/prepare_bundle.py": "acd7493a8261eb2b6f0a93a845893411b0199b4c5c945c0b9f22e1dfad2eafe8",
+  "source/units/enclave-rpc-base.service": "d0a63c1aa3eafe226fca38d6bb8e9d0a8b08d32f7297e6e69e66eeb0ad8dd551",
+  "source/units/enclave-rpc-clients.slice": "ae1456b42df7ead3332e3aec151fb2d1030220922d08ad1e96dc29b35a59b335",
+  "source/units/enclave-rpc-el.service": "415f303d09f0e976a1f025873d1b6b6dedda727dd0892467a31a69870eaf5d27",
+  "source/units/enclave-rpc-cl.service": "9e35d78d14222e1566c263ed0cb622a9dfa4fb9ae70efa6974367bc0915ca078"
+}
