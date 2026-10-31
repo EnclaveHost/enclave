@@ -1,0 +1,14 @@
+{
+  "ROOT-REVIEW.md": "9fac3032a555c49dfb306fd0b61bc03d58ec36169e843f4838f8a0f119ed12b7",
+  "KNOWN-HOST.txt": "c4027bd2354b7539def0bc714f54fab77cf8bb984306294d6bfa8cb5b6239d33",
+  "SPEC.json": "307ede5fcf9c63c3f5f1ea2b4e0f16e3217fbf070d748cb0f16d01ef3bd6b9e6",
+  "COMMAND.json": "fa249b859385a66d29a790e509ade574391eb750978ac24631ae91f40f51d502",
+  "run.py": "9af68bdaa9ecdf656fb18b587c41d507acce909e628b62cb784fa82c74952392",
+  "frozen/rpc/windows_transition.py": "0b3a043ef27e2777acab64e59802e0fc17ff1951d357b20f535e715074077d4c",
+  "frozen/rpc/prepare_attachment.py": "c0685fbf106fe2fc49e1ce076b0dca096716d37ecd832a227480b6832e5f625a",
+  "frozen/rpc/windows_files.py": "6c88bba44c2665503c73419555db5372bdc9f3c9c875f61997c3e8435139ea7a",
+  "frozen/rpc/storage_protocol.py": "80a3f865a76914a5d986528d50dfb77bd90ec5604f9884f3391ae99c4f02bc31",
+  "frozen/rpc/deliver_activation.py": "931153da9dc9b2fe359086aa907fa7a33fbf24adb627597c7d66ea40ba915cdf",
+  "frozen/rpc/sample_windows_clock.py": "7c4c9778eb134a75ee13bd1e11fa4c4683822391ef95ab080b9d44bb7511eb37",
+  "frozen/rpc/startup_clock.py": "ac975905dd71268d5ac345071ec6001a0a408e0aa314074ec354442abb634375"
+}

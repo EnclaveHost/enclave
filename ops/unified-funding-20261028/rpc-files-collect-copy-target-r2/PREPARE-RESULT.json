@@ -1,0 +1,62 @@
+{
+  "success": true,
+  "fixtureOnly": true,
+  "pid": 2764,
+  "creation": "134379566069172273",
+  "origin": 738844470,
+  "deadline": 738874470,
+  "envelope": {
+    "ProcessId": 2764,
+    "CreationFileTime": 134379566069172273,
+    "JobCommitLimitBytes": 134217728,
+    "BootstrapPrivateBytes": 13443072,
+    "MembershipVerified": true,
+    "LimitsVerified": true,
+    "CoversPreAssignmentMemory": false,
+    "BoundsWallTime": false,
+    "ReservationMayRelease": false
+  },
+  "collect": {
+    "root": "C:\\EnclaveRpcLegacyHandoff-10ac933fb4354ad0888cec1bec34bc58\\10ac933fb4354ad0888cec1bec34bc58",
+    "contractHash": "1b706a0c9ed8bf0a9472125444aa7f9a430f6bfd7ffe0cf37da24c0b7ab030e4",
+    "activation": {
+      "schema": "legacy-pool-seed/2",
+      "creationMode": "retained-fenced-rpc-only/1",
+      "manifest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "boot": "1a04e76600e411f1a395e342df676a80",
+      "configPath": "C:\\Fixture\\pool.txt",
+      "poolHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "capacityBytes": 79267102720,
+      "initialBytes": 16154361856,
+      "initialCount": 4,
+      "physicalBytes": 120070115328,
+      "nonPoolReserveBytes": 20401094656,
+      "floorBytes": 19327352832,
+      "variationBytes": 1073741824,
+      "prospectiveBytes": 41301311488,
+      "cutHash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "inventoryHash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "providerSettled": false,
+      "capacityAdmitted": false,
+      "reservationMayRelease": false
+    }
+  },
+  "copy": {
+    "sourceRoot": "C:\\EnclaveRpcPrivateMedia-86002edd0f214688b015e033da1fa0f2\\86002edd0f214688b015e033da1fa0f2",
+    "planHash": "afc721e5aab76614ba09f5459a9a3e1577f720c3134cd35f18becd6bf273665f"
+  },
+  "vmRoot": "C:\\EnclaveRpcVm-2a1402ff8fc944149cd78a17e655aaff\\2a1402ff8fc944149cd78a17e655aaff",
+  "dummyFiles": [
+    {
+      "name": "boot.vhdx",
+      "bytes": 32768,
+      "sha256": "c35020473aed1b4642cd726cad727b63fff2824ad68cedd7ffb73c7cbd890479"
+    },
+    {
+      "name": "seed.iso",
+      "bytes": 32,
+      "sha256": "d64f04222148a742dac8d2e0e5432b9e7345e1e3ed10bb7e9b25de11e69a6e7a"
+    }
+  ],
+  "vmChanged": false
+}

@@ -1,0 +1,1 @@
+Fresh bounded read for concrete new native-fixture staging/execution. Same frozen readonly storage/VM/manager/physical/nativeboot source; no mutation. Authenticated local384MiB and floor27648 plus pending; target preparation requires62709039104B (18GiB+39388MiB+1984MiB), managertransportcomplete/errors0, sameexactmanagers/VMs. Not production admission.

@@ -1,0 +1,24 @@
+{
+  "passed": true,
+  "seconds": 10.283329488011077,
+  "fixtureOnly": true,
+  "actualProductionHelper": true,
+  "collectCopyQualifiedWithDummyFiles": true,
+  "dummyBytes": 32800,
+  "exactProcessesAbsent": [
+    {
+      "pid": 55656,
+      "creation": "134379566093378212"
+    },
+    {
+      "pid": 57776,
+      "creation": "134379566103018603"
+    }
+  ],
+  "originalManagersAndVmsUnchanged": true,
+  "fullSizeCopyProven": false,
+  "nativeVmDefinitionProven": false,
+  "productionClockAssigned": false,
+  "rpcReady": false,
+  "reservationMayRelease": false
+}

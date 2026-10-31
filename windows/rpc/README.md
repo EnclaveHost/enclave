@@ -959,3 +959,14 @@ allowance, and creates only fresh marked synthetic journals and tiny dummy media
 The hosted variant has an explicit CI-only resource floor. No VM/provider work
 or production readiness is established. See
 `ops/unified-funding-20261028/rpc-file-fixture-ci-r1/ROOT-RESULT.md`.
+
+Actual NucBox admin-context qualification now covers `collect-cut` and
+`copy-media` using the production helper with fresh synthetic journals and
+32800bytes of dummy media (32768-byte boot plus32-byte seed). The native fixture
+preparer and both workers entered128MiB jobs, completed within the original
+clock, and were separately confirmed absent by exact PID/native creation. All
+four original managers and VM identities/states/assigned memory were unchanged.
+This does not prove a full-size private copy, live definition or attachment,
+SYSTEM lifecycle, guest boot, or RPC readiness. The original failed PowerShell
+fixture and its consumed attempt remain preserved. See
+`ops/unified-funding-20261028/rpc-files-collect-copy-target-r2/ROOT-RESULT.md`.

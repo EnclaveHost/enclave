@@ -1,0 +1,20 @@
+{
+  "attempt": "59b4c134fac04466ab0c34e57cc1850f",
+  "vmAttempt": "2a1402ff8fc944149cd78a17e655aaff",
+  "helper": {
+    "path": "C:\\EnclaveRpcFiles-495a41c7dda146ab9b27b54b7fce61a8\\495a41c7dda146ab9b27b54b7fce61a8\\transition-files.exe",
+    "sha256": "2114ef029e5f5f8ec3b448edb8124b753dc641eb24b8825ee1124be95e8903d9"
+  },
+  "boot": "1a04e76600e411f1a395e342df676a80",
+  "samplerPath": "C:\\EnclaveRpcClock-856c8213f2a149c3a24e27904e2093c6\\856c8213f2a149c3a24e27904e2093c6\\clock-sample.exe",
+  "samplerSha256": "57c35df39b752694a9cd420b84eed6c1f800c0331c2442dbe8fb743eacaf03f6",
+  "handoff": "10ac933fb4354ad0888cec1bec34bc58",
+  "media": "86002edd0f214688b015e033da1fa0f2",
+  "collectNonce": "8dedf4c108a242378c5bbe3b7a603713",
+  "copyNonce": "8869cf7752c84070809d2adff3e4c7e1",
+  "preparer": {
+    "path": "C:\\EnclaveRpcFixture-cc2c81ba18bc410cb87a89fa86182fb7\\cc2c81ba18bc410cb87a89fa86182fb7\\fixture-preparer.exe",
+    "sha256": "f28d7deb9c9685aed2031e0133d94bfa97e506cadcf935b0a001452c190feff3"
+  },
+  "prepareNonce": "c7af591ccd6b48b78169d09984bde205"
+}

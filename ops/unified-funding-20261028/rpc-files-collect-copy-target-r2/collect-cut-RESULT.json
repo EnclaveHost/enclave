@@ -1,0 +1,49 @@
+{
+  "schema": "owned-rpc-transition-files-result/1",
+  "operation": "collect-cut",
+  "nonce": "8dedf4c108a242378c5bbe3b7a603713",
+  "requestHash": "add13c4992fb5524d326caa548dd88a7c3858227b8eaa575fd6baac8c119829c",
+  "windowsBoot": "1a04e76600e411f1a395e342df676a80",
+  "vmAttempt": "2a1402ff8fc944149cd78a17e655aaff",
+  "origin": 738847127,
+  "deadline": 738877127,
+  "result": {
+    "root": "C:\\EnclaveRpcLegacyHandoff-10ac933fb4354ad0888cec1bec34bc58\\10ac933fb4354ad0888cec1bec34bc58",
+    "files": [
+      {
+        "name": "contract.txt",
+        "bytes": 270,
+        "sha256": "1b706a0c9ed8bf0a9472125444aa7f9a430f6bfd7ffe0cf37da24c0b7ab030e4",
+        "base64": "b3duZWQtcnBjLWxlZ2FjeS1oYW5kb2ZmLXYxCjEwYWM5MzNmYjQzNTRhZDA4ODhjZWMxYmVjMzRiYzU4CjFhMDRlNzY2MDBlNDExZjFhMzk1ZTM0MmRmNjc2YTgwCjczODg0NDQ3MAo3Mzg4NzQ0NzAKYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYQpsZWdhY3ktbWVtb3J5LWN1dC1zZWVkLXYxCmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmIK"
+      },
+      {
+        "name": "pool.activation",
+        "bytes": 768,
+        "sha256": "ad640f8c395ce53a7fe46f5d883b8f52ec8eaca9b65aabcce52e68f070880b78",
+        "base64": "eyJzY2hlbWEiOiJsZWdhY3ktcG9vbC1zZWVkLzIiLCJjcmVhdGlvbk1vZGUiOiJyZXRhaW5lZC1mZW5jZWQtcnBjLW9ubHkvMSIsIm1hbmlmZXN0IjoiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYiIsImJvb3QiOiIxYTA0ZTc2NjAwZTQxMWYxYTM5NWUzNDJkZjY3NmE4MCIsImNvbmZpZ1BhdGgiOiJDOlxcRml4dHVyZVxccG9vbC50eHQiLCJwb29sSGFzaCI6ImNjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2MiLCJjYXBhY2l0eUJ5dGVzIjo3OTI2NzEwMjcyMCwiaW5pdGlhbEJ5dGVzIjoxNjE1NDM2MTg1NiwiaW5pdGlhbENvdW50Ijo0LCJwaHlzaWNhbEJ5dGVzIjoxMjAwNzAxMTUzMjgsIm5vblBvb2xSZXNlcnZlQnl0ZXMiOjIwNDAxMDk0NjU2LCJmbG9vckJ5dGVzIjoxOTMyNzM1MjgzMiwidmFyaWF0aW9uQnl0ZXMiOjEwNzM3NDE4MjQsInByb3NwZWN0aXZlQnl0ZXMiOjQxMzAxMzExNDg4LCJjdXRIYXNoIjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsImludmVudG9yeUhhc2giOiJlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlIiwicHJvdmlkZXJTZXR0bGVkIjpmYWxzZSwiY2FwYWNpdHlBZG1pdHRlZCI6ZmFsc2UsInJlc2VydmF0aW9uTWF5UmVsZWFzZSI6ZmFsc2V9"
+      },
+      {
+        "name": "pool.complete",
+        "bytes": 64,
+        "sha256": "db433a59e9084981ef6501856e19bf66067f1fee5fc7c4c15afb3ed8282c2b03",
+        "base64": "YWQ2NDBmOGMzOTVjZTUzYTdmZTQ2ZjVkODgzYjhmNTJlYzhlYWNhOWI2NWFhYmNjZTUyZTY4ZjA3MDg4MGI3OA=="
+      }
+    ]
+  },
+  "pid": 55656,
+  "creation": 134379566093378212,
+  "envelope": {
+    "ProcessId": 55656,
+    "CreationFileTime": 134379566093378212,
+    "JobCommitLimitBytes": 134217728,
+    "BootstrapPrivateBytes": 13365248,
+    "MembershipVerified": true,
+    "LimitsVerified": true,
+    "CoversPreAssignmentMemory": false,
+    "BoundsWallTime": false,
+    "ReservationMayRelease": false
+  },
+  "vmChanged": false,
+  "rpcReady": false,
+  "reservationMayRelease": false
+}

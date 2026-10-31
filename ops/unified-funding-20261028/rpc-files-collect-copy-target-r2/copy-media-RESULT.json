@@ -1,0 +1,47 @@
+{
+  "schema": "owned-rpc-transition-files-result/1",
+  "operation": "copy-media",
+  "nonce": "8869cf7752c84070809d2adff3e4c7e1",
+  "requestHash": "a26b55750fa35477b73fb6f69c3fd01a2fe88d7dca88773418fedb86241e7efb",
+  "windowsBoot": "1a04e76600e411f1a395e342df676a80",
+  "vmAttempt": "2a1402ff8fc944149cd78a17e655aaff",
+  "origin": 738848115,
+  "deadline": 738878115,
+  "result": {
+    "root": "C:\\EnclaveRpcVm-2a1402ff8fc944149cd78a17e655aaff\\2a1402ff8fc944149cd78a17e655aaff",
+    "sourceRoot": "C:\\EnclaveRpcPrivateMedia-86002edd0f214688b015e033da1fa0f2\\86002edd0f214688b015e033da1fa0f2",
+    "planHash": "afc721e5aab76614ba09f5459a9a3e1577f720c3134cd35f18becd6bf273665f",
+    "files": [
+      {
+        "name": "boot.vhdx",
+        "bytes": 32768,
+        "sha256": "c35020473aed1b4642cd726cad727b63fff2824ad68cedd7ffb73c7cbd890479"
+      },
+      {
+        "name": "seed.iso",
+        "bytes": 32,
+        "sha256": "d64f04222148a742dac8d2e0e5432b9e7345e1e3ed10bb7e9b25de11e69a6e7a"
+      }
+    ],
+    "definitionJournalBound": true,
+    "currentVmOffObserved": false,
+    "mediaAttached": false,
+    "privateContentsPrinted": false
+  },
+  "pid": 57776,
+  "creation": 134379566103018603,
+  "envelope": {
+    "ProcessId": 57776,
+    "CreationFileTime": 134379566103018603,
+    "JobCommitLimitBytes": 134217728,
+    "BootstrapPrivateBytes": 13422592,
+    "MembershipVerified": true,
+    "LimitsVerified": true,
+    "CoversPreAssignmentMemory": false,
+    "BoundsWallTime": false,
+    "ReservationMayRelease": false
+  },
+  "vmChanged": false,
+  "rpcReady": false,
+  "reservationMayRelease": false
+}

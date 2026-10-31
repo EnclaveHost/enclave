@@ -1,0 +1,38 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.8589074229821563,
+  "bytesObserved": {
+    "stdout": 348,
+    "stderr": 222
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false,
+  "at": 1793482994.6245372,
+  "phase": "verify",
+  "success": true,
+  "noRetry": true,
+  "vmChanged": false,
+  "observation": {
+    "processId": 54736,
+    "creationFileTime": "134379565942222825",
+    "verified": true,
+    "root": "C:\\EnclaveRpcFixture-cc2c81ba18bc410cb87a89fa86182fb7\\cc2c81ba18bc410cb87a89fa86182fb7",
+    "files": [
+      {
+        "sha256": "f28d7deb9c9685aed2031e0133d94bfa97e506cadcf935b0a001452c190feff3",
+        "name": "fixture-preparer.exe",
+        "bytes": 58368
+      }
+    ],
+    "executed": false,
+    "nativeAttempted": false
+  }
+}

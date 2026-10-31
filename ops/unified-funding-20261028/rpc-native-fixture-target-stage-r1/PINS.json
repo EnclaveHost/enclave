@@ -1,0 +1,14 @@
+{
+  "verify-COMMAND.json": "35cbe3071aaba747c63922cd826839a63ec49a179d674ba873946a791f053700",
+  "verify.ps1": "7e0fb799c06f37406c8f0cd47153e7d4df706ed6191caee2b05be05ec338b839",
+  "create.ps1": "279784d0676230c372b8a26c6d373944e9467e9c8b9dae149c108241ce2d230e",
+  "create-COMMAND.json": "f6f0f32ad7b00faf6aca67d70b6b3f9a6214cb2eb97023b7c964cd008e879c76",
+  "ARTIFACTS.json": "8aefbfd91a98df0e4b7482ae6dd4b3258b9cb9582c0dc2c09514e7f666ca391b",
+  "ROOT-REVIEW.md": "33704af81f15ea940bcc05a1948ffaa5f60367ff761f75b07478c0ac1de8ae51",
+  "stage-COMMAND.json": "4cb4a4de0901629e3d1a73ab6794a4b8b8cfaa7877832132aecc664d09ddef27",
+  "SPEC.json": "44a61833e7f8f4ac08b98345f9d2d1b22284c6aa74f3d0b5a90759ad6cc19436",
+  "run.py": "2ae1316aeb4fcc66626534a2141e7db88dc2296c68f0557f99a823e99cfbb353",
+  "capture_local.py": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c",
+  "FILES.json": "bcdd282f1ad84d682a299f608e0ea76f663a7aa726f612375c8b799df6cf206f",
+  "bundle/fixture-preparer.exe": "f28d7deb9c9685aed2031e0133d94bfa97e506cadcf935b0a001452c190feff3"
+}
