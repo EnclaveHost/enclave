@@ -392,3 +392,21 @@ propagation when repackaging the router. Installed CPU share/guest quota and WMI
 processor readback behavior also require reconciliation. A legacy manager restart
 loses relay/readiness state and the node retires recovered VMs, so stopping a
 listener is not a guest-preserving upgrade or a release of its reservations.
+
+### Retained legacy template fence candidate
+
+`LegacyTemplateFence.Apply` durably denies content reads on one exact protected
+VMGS master after writing a consumed intent. It changes no template bytes and
+has no unfence API. Parent handles, object identity, single-link count, hash,
+boot, finite deadline and protected DACL are checked. Denial persists after
+worker exit; an ephemeral exclusive lock alone would reopen old creation when
+its holder dies. A lost response remains held, never retried or rolled back.
+
+The captured old launcher hashes and copies this master before DefineSystem;
+preflight reads metadata only, and existing VMs use independent run copies.
+This candidate ONLY blocks future reads on that exact object. Prior copies,
+definitions, starts and native provider jobs are NOT settled by it. Every old
+master/issuer and new-master distinct object must be qualified on target; no
+production wiring or activation is provided. Existing-operation settlement,
+shared pool seeding and durable front-end transition are still required. Do not
+use its receipt as the router admission callback or as permission to release RAM.
