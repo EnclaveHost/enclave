@@ -60,6 +60,8 @@ namespace Enclave.OwnedRpc {
         // Must check live exact observer/worker binding, boot, original admission,
         // closed one-shot gate and original owned VM before the fixed invocation.
         void VerifyBeforeSubmit(StartIdentity identity);
+        // Separate bounded read authority may outlive startup, but cannot submit.
+        // Verify its original read-worker deadline/boot/identity before AND after IO.
         void VerifyObservation(StartIdentity identity);
     }
     public sealed class StartResponse {
@@ -136,8 +138,8 @@ namespace Enclave.OwnedRpc {
             }
             // Only live observation needs the current worker/boot/admission check.
             // A protected complete receipt survives provider garbage collection.
-            runtime.VerifyObservation(id);Current(id,runtime);
-            StartJob job=provider.ReadJob(reference);Current(id,runtime);
+            runtime.VerifyObservation(id);
+            StartJob job=provider.ReadJob(reference);runtime.VerifyObservation(id);
             if(job==null||job.Reference!=reference||HyperVStartProvider.ReferenceForId(job.InstanceId)!=reference||String.IsNullOrEmpty(job.TimeSubmitted)||job.TimeSubmitted.Length>32)
                 throw new InvalidOperationException("Returned job identity unavailable");
             string expected=StartRecords.Encode(new Dictionary<string,object>{{"receipt",Hash(raw)},{"job",reference},{"submitted",job.TimeSubmitted}});

@@ -17,16 +17,16 @@ public static class ProviderStartHarness {
         public string Read(string n){lock(this){if(Pending.Contains(n))throw new IOException("Partial journal");string s;return Values.TryGetValue(n,out s)?s:null;}}
     }
     sealed class Runtime : IStartRuntime {
-        internal long Clock=2000;internal bool Denied;
+        internal long Clock=2000;internal bool Denied,ObservationDenied;
         public long Now {get{return Clock;}}
         public void VerifyBeforeSubmit(StartIdentity id){if(Denied)throw new InvalidOperationException("Guardian/ownership refused");}
-        public void VerifyObservation(StartIdentity id){VerifyBeforeSubmit(id);}
+        public void VerifyObservation(StartIdentity id){if(ObservationDenied)throw new InvalidOperationException("Read guardian expired");VerifyBeforeSubmit(id);}
     }
     sealed class Provider : IStartProvider {
         internal int Calls,Reads;internal bool Lost,Missing;internal uint Code=4096;internal string Ref=HyperVStartProvider.ReferenceForId("Microsoft:01234567-89ab-cdef-0123-456789abcdef");
-        internal ushort State=4,Error;internal uint Runs=1;internal string Time="20261031000000.000000+000";internal Store Journal;
+        internal ushort State=4,Error;internal uint Runs=1;internal string Time="20261031000000.000000+000";internal Store Journal;internal Action AfterRead;
         public StartResponse Start(StartIdentity id){Interlocked.Increment(ref Calls);if(Lost)throw new IOException("Lost response after submit");return new StartResponse(Code,Code==4096?Ref:null);}
-        public StartJob ReadJob(string r){Reads++;if(Journal.Read("start.receipt")==null)throw new Exception("ACK/read before durable response");if(Missing)throw new IOException("Provider GC/unqueryable");return new StartJob(Ref,"Microsoft:01234567-89ab-cdef-0123-456789abcdef",Time,State,Error,Runs);}
+        public StartJob ReadJob(string r){Reads++;if(Journal.Read("start.receipt")==null)throw new Exception("ACK/read before durable response");if(Missing)throw new IOException("Provider GC/unqueryable");if(AfterRead!=null)AfterRead();return new StartJob(Ref,"Microsoft:01234567-89ab-cdef-0123-456789abcdef",Time,State,Error,Runs);}
     }
     static StartIdentity Id(){return new StartIdentity(new string('a',32),new string('b',32),new string('c',64),new string('d',64),"01234567-89ab-cdef-0123-456789abcdef","enclave-owned-rpc-"+new string('a',32),"owned-rpc/"+new string('a',32)+"/"+new string('c',64),@"C:\owned\vm",1000,901000,123,100,456,200,new string('e',64));}
     static void Check(bool v){if(!v)throw new Exception("assertion failed");}
@@ -79,7 +79,10 @@ public static class ProviderStartHarness {
             Test("malformed response remains consumed",delegate{var j=new Store();var p=new Provider{Journal=j,Ref="Wrong.InstanceID=\"abc\""};ProviderStart.Prepare(Id(),j);Refuse(()=>ProviderStart.Submit(Id(),j,p,new Runtime()));Refuse(()=>ProviderStart.Submit(Id(),j,p,new Runtime()));Check(p.Calls==1&&j.Read("start.receipt")==null);});
             Test("actual protected adapter definitive absence",delegate{ProtectedReadCase(false);});
             Test("actual protected adapter empty pending is held",delegate{ProtectedReadCase(true);});
-            Check(count==22);Console.WriteLine("RESULT tests="+count+" providerCallsAreFakes=true vmChanged=false");return 0;
+            Test("post-startup guarded read settles without restarting",delegate{var j=new Store();var p=new Provider{Journal=j};var r=new Runtime();ProviderStart.Prepare(Id(),j);ProviderStart.Submit(Id(),j,p,r);r.Clock=901001;p.State=7;Check(ProviderStart.Reconcile(Id(),j,p,r).OperationSettled);Refuse(()=>ProviderStart.Submit(Id(),j,p,r));Check(p.Calls==1);});
+            Test("expired read guard prevents provider observation",delegate{var j=new Store();var p=new Provider{Journal=j};var r=new Runtime();ProviderStart.Prepare(Id(),j);ProviderStart.Submit(Id(),j,p,r);int reads=p.Reads;r.ObservationDenied=true;Refuse(()=>ProviderStart.Reconcile(Id(),j,p,r));Check(p.Reads==reads&&j.Read("start.terminal")==null);});
+            Test("read guard expiry during query cannot publish terminal",delegate{var j=new Store();var p=new Provider{Journal=j};var r=new Runtime();ProviderStart.Prepare(Id(),j);ProviderStart.Submit(Id(),j,p,r);p.State=7;p.AfterRead=()=>{r.ObservationDenied=true;};Refuse(()=>ProviderStart.Reconcile(Id(),j,p,r));Check(j.Read("start.terminal")==null);});
+            Check(count==25);Console.WriteLine("RESULT tests="+count+" providerCallsAreFakes=true vmChanged=false");return 0;
         }catch(Exception e){Console.WriteLine("FAIL "+e);return 1;}
     }
 }

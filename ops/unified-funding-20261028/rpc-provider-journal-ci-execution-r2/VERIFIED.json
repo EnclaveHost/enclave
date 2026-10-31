@@ -1,0 +1,8 @@
+{
+  "source": "8dd3e8d96549afbe1ae95389ae8097b89b1d502d",
+  "run": 41152666323,
+  "compiledSourcePinsMatch": true,
+  "executableSha256": "2273711c447e41975edd2729fadd2e1baeb6e71a71844f00b3dd86406b9e34ec",
+  "passed": 22,
+  "providerCallsAreFakes": true
+}

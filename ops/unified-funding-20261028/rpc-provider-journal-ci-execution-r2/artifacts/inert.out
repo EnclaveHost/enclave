@@ -1,0 +1,23 @@
+PASS missing intent cannot submit
+PASS prepare one-shot
+PASS partial prepare stays consumed
+PASS lost return survives restart without resend
+PASS receipt persistence failure never acknowledged
+PASS response precedes exact job read and GC recovery
+PASS job reincarnation stays held
+PASS absent job does not settle
+PASS synchronous return persists before success
+PASS unknown native return held
+PASS abnormal suspended killed service not settlement
+PASS recurring completed job not settlement
+PASS completed error is settled not success
+PASS terminal persistence failure stays held
+PASS original deadline and rollback refuse submit
+PASS guardian refusal consumes gate without invoking
+PASS concurrent submit exactly one native call
+PASS exact local reference canonicalizes
+PASS remote wrongnamespace extra keys refused
+PASS malformed response remains consumed
+PASS actual protected adapter definitive absence
+PASS actual protected adapter empty pending is held
+RESULT tests=22 providerCallsAreFakes=true vmChanged=false

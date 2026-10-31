@@ -4,7 +4,7 @@
 as an unactivated library. It consumes separate intent, submission and native-call
 records, persists the returned reference before follow-up reads, binds job identity,
 and retains uncertain outcomes without resubmission. `ProviderStartHarness.cs`
-contains fault-injection coverage; compilation and execution are pending.
+passed22 hosted cases in CI41152666323 (compiler1.972s/harness0.287s), including two real protected filesystem adapter checks. Provider calls were fake; actual VM behavior remains unqualified. Three additional bounded post-startup observation cases are pending.
 
 This is not installed VM authority. The guarded VM entrypoint, persistent journal
 reopening beyond a short worker lease, actual owned VM permit, independent startup
@@ -61,3 +61,9 @@ and no durable intent/reference record. It is not reusable wholesale. The
 synchronous return-0 path, full reference persistence/rehydration, terminal-state
 classification, provider garbage collection and crash/reconnect behavior still
 need actual qualification. No cancellation guarantee has been established.
+
+Reconciliation after the startup deadline uses a separate bounded read-worker
+authority checked before and after the native query. It never renews start
+authority or permits a second submission; Submit still enforces the immutable
+900-second startup deadline. A fresh read guard is necessary to settle a job
+after the startup guardian has stopped its caller.

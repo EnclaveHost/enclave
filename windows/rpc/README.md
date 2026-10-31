@@ -252,5 +252,6 @@ The actual Hyper-V adapter has only a fixed local RequestStateChange(2) operatio
 No production entrypoint calls it. `IStartRuntime` still requires a real guarded
 VM authority/admission implementation, and persistent reopening beyond an inert
 worker lease remains unfinished. See [provider integration](PROVIDER-LIFECYCLE.md).
-The new fault-injection harness is awaiting execution; compiled source alone is
-not native VM-operation qualification.
+CI41152666323 passed22 fault/adapter cases; provider calls were fake, so this
+is not native VM-operation qualification. Separate bounded post-startup reads
+are being qualified without extending the original start deadline.
