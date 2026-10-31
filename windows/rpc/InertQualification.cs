@@ -136,8 +136,12 @@ public static class InertQualification {
     public static int Main(string[] args){
         Origin=BoundedWorker.MonotonicMilliseconds();Deadline=Origin+30000;bool passed=false,hosted=false;long free=0;
         try{
-            if(args.Length!=4&&args.Length!=6)throw new ArgumentException("Explicit qualification arguments required");hosted=args[0]=="--hosted-ci";
-            if((hosted&&args.Length!=4)||(!hosted&&(args[0]!="--target"||args.Length!=6)))throw new ArgumentException("Qualification mode refused");
+            if(args.Length!=6&&args.Length!=8)throw new ArgumentException("Explicit qualification arguments required");hosted=args[0]=="--hosted-ci";
+            if((hosted&&args.Length!=6)||(!hosted&&(args[0]!="--target"||args.Length!=8)))throw new ArgumentException("Qualification mode refused");
+            // Parent supplies the original same-boot launch clock. A delayed
+            // CreateProcess/SSH delivery must not earn a fresh startup window.
+            Origin=Int64.Parse(args[args.Length-2],NumberStyles.None,CultureInfo.InvariantCulture);
+            Deadline=Int64.Parse(args[args.Length-1],NumberStyles.None,CultureInfo.InvariantCulture);
             Hex(args[2],64);Hex(args[3],32);
             BoundedWorker.EnterSupervisorEnvelope(128UL*1024*1024);Watchdog=BoundedWorker.ArmOwnerObserver(Origin,Deadline,args[3]+args[3]+args[3]+args[3]);
             using(var identity=WindowsIdentity.GetCurrent())if(identity.ImpersonationLevel!=TokenImpersonationLevel.None||!new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator))throw new InvalidOperationException("Primary administrator required");

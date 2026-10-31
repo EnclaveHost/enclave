@@ -1,0 +1,9 @@
+{
+  "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+  "windows/rpc/OwnerObserver.cs": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80",
+  "windows/rpc/ProtectedAttempt.cs": "5d6f056deb8b90c892c48d6b8332a95f8220f6a26820c70badc65927985ac403",
+  "windows/rpc/InertEntry.cs": "cc239183aabd644fc2200fa62b992e275527d583a4a662b4d5ba760359780bdf",
+  "windows/rpc/InertQualification.cs": "bce16d906f4a79cabf8202fda598b3ce4a4b917a7ebbb578dd7790bbcafec7f4",
+  "test/rpc-windows-worker/run-ci.ps1": "44a6f4293d14fba0d390712612e9bf092f6828fe362934763f7f1c135f1df556",
+  ".github/workflows/rpc-worker-inert.yml": "52da95e1a1f1ac47e1b0adb96a529f307c7de191ae999216fb6334ff0884f0b3"
+}

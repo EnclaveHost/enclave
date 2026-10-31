@@ -57,10 +57,12 @@ function Invoke-FiniteProcess([string]$Executable,[string[]]$Arguments,[int]$Dea
 try{
     Invoke-FiniteProcess $csc @('/nologo','/target:exe','/platform:x64','/main:Enclave.OwnedRpc.InertEntry',('/out:'+$entry),(Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $root 'windows\rpc\ProtectedAttempt.cs'),(Join-Path $root 'windows\rpc\InertEntry.cs')) 20000 'entry-compile'
     Invoke-FiniteProcess $csc @('/nologo','/target:exe','/platform:x64','/main:InertQualification','/r:System.Management.dll','/r:System.Web.Extensions.dll','/r:Microsoft.CSharp.dll',('/out:'+$controller),(Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $root 'windows\rpc\ProtectedAttempt.cs'),(Join-Path $root 'windows\rpc\InertEntry.cs'),(Join-Path $root 'windows\rpc\InertQualification.cs')) 20000 'controller-compile'
-    Invoke-FiniteProcess $controller @('--hosted-ci',$entry,(Get-FileHash -Algorithm SHA256 -LiteralPath $entry).Hash.ToLowerInvariant(),[guid]::NewGuid().ToString('N')) 30000 'inert'
+    $launchOrigin=[long][decimal]::Floor(([decimal][Diagnostics.Stopwatch]::GetTimestamp()*1000)/[Diagnostics.Stopwatch]::Frequency)
+    $launchDeadline=$launchOrigin+30000
+    Invoke-FiniteProcess $controller @('--hosted-ci',$entry,(Get-FileHash -Algorithm SHA256 -LiteralPath $entry).Hash.ToLowerInvariant(),[guid]::NewGuid().ToString('N'),[string]$launchOrigin,[string]$launchDeadline) 30000 'inert'
     $lines=@(Get-Content -LiteralPath (Join-Path $work 'inert.out'))
     $results=@($lines|ForEach-Object{$_|ConvertFrom-Json})
-    if($results.Count -ne 1 -or -not $results[0].passed -or -not $results[0].hostedCi -or $results[0].providerFenced -or $results[0].reservationMayRelease -or $results[0].vmsChanged){throw 'Incomplete controller integration qualification'}
+    if($results.Count -ne 1 -or $results[0].origin -ne $launchOrigin -or $results[0].deadline -ne $launchDeadline -or -not $results[0].passed -or -not $results[0].hostedCi -or $results[0].providerFenced -or $results[0].reservationMayRelease -or $results[0].vmsChanged){throw 'Incomplete controller integration qualification'}
     $results|ConvertTo-Json -Depth 8
 }finally{
     # Helpers have no unbounded loop: sleeps <=5s, allocation <=192MiB. These
