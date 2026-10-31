@@ -1,0 +1,42 @@
+[
+    {
+        "name":  "entry-compile.out",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "entry-compile.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "inert.out",
+        "bytes":  459,
+        "included":  true
+    },
+    {
+        "name":  "inert.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "process-results.json",
+        "bytes":  527,
+        "included":  true
+    },
+    {
+        "name":  "pins.json",
+        "bytes":  1363,
+        "included":  true
+    },
+    {
+        "name":  "entry-artifact.json",
+        "bytes":  208,
+        "included":  true
+    },
+    {
+        "name":  "owned-entry.exe",
+        "bytes":  40448,
+        "included":  true
+    }
+]

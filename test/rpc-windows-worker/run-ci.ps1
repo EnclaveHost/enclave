@@ -10,7 +10,7 @@ $os=Get-CimInstance Win32_OperatingSystem
 if([long]$os.FreePhysicalMemory*1024 -lt 3GB){throw 'Insufficient disposable-runner headroom'}
 $csc=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 if(-not (Test-Path -LiteralPath $csc)){throw 'Exact 64-bit Framework compiler missing; no fallback'}
-$exe=Join-Path $work 'worker-harness.exe'
+$controller=Join-Path $work 'qualification-controller.exe'
 $entry=Join-Path $work 'owned-entry.exe'
 $records=New-Object Collections.Generic.List[object]
 function Invoke-FiniteProcess([string]$Executable,[string[]]$Arguments,[int]$DeadlineMs,[string]$Label){
@@ -56,7 +56,8 @@ function Invoke-FiniteProcess([string]$Executable,[string[]]$Arguments,[int]$Dea
 }
 try{
     Invoke-FiniteProcess $csc @('/nologo','/target:exe','/platform:x64','/main:Enclave.OwnedRpc.InertEntry',('/out:'+$entry),(Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $root 'windows\rpc\ProtectedAttempt.cs'),(Join-Path $root 'windows\rpc\InertEntry.cs')) 20000 'entry-compile'
-    Invoke-FiniteProcess (Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe') @('-NoProfile','-NonInteractive','-File',(Join-Path $root 'windows\rpc\Invoke-InertQualification.ps1'),'-EntryPath',$entry,'-EntrySha256',(Get-FileHash -Algorithm SHA256 -LiteralPath $entry).Hash.ToLowerInvariant(),'-AttemptNonce',[guid]::NewGuid().ToString('N'),'-HostedCi') 30000 'inert'
+    Invoke-FiniteProcess $csc @('/nologo','/target:exe','/platform:x64','/main:InertQualification','/r:System.Management.dll','/r:System.Web.Extensions.dll','/r:Microsoft.CSharp.dll',('/out:'+$controller),(Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $root 'windows\rpc\ProtectedAttempt.cs'),(Join-Path $root 'windows\rpc\InertEntry.cs'),(Join-Path $root 'windows\rpc\InertQualification.cs')) 20000 'controller-compile'
+    Invoke-FiniteProcess $controller @('--hosted-ci',$entry,(Get-FileHash -Algorithm SHA256 -LiteralPath $entry).Hash.ToLowerInvariant(),[guid]::NewGuid().ToString('N')) 30000 'inert'
     $lines=@(Get-Content -LiteralPath (Join-Path $work 'inert.out'))
     $results=@($lines|ForEach-Object{$_|ConvertFrom-Json})
     if($results.Count -ne 1 -or -not $results[0].passed -or -not $results[0].hostedCi -or $results[0].providerFenced -or $results[0].reservationMayRelease -or $results[0].vmsChanged){throw 'Incomplete controller integration qualification'}
@@ -67,19 +68,19 @@ try{
     # and independent process supervisor remain the outer containment boundary.
     # Preserve records on failure; do not use a broad process kill or any VM cleanup.
     $records|ConvertTo-Json -Depth 5|Set-Content -LiteralPath (Join-Path $work 'process-results.json')
-    Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $root 'windows\rpc\ProtectedAttempt.cs'),(Join-Path $root 'windows\rpc\InertEntry.cs'),(Join-Path $root 'windows\rpc\Invoke-InertQualification.ps1'),$csc|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'pins.json')
-    if(Test-Path -LiteralPath $exe){Get-FileHash -Algorithm SHA256 -LiteralPath $exe|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'artifact.json')}
+    Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $root 'windows\rpc\ProtectedAttempt.cs'),(Join-Path $root 'windows\rpc\InertEntry.cs'),(Join-Path $root 'windows\rpc\InertQualification.cs'),$csc|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'pins.json')
+    if(Test-Path -LiteralPath $controller){Get-FileHash -Algorithm SHA256 -LiteralPath $controller|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'controller-artifact.json')}
     if(Test-Path -LiteralPath $entry){Get-FileHash -Algorithm SHA256 -LiteralPath $entry|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'entry-artifact.json')}
     # Never export the raw work directory. Failed truncation or unexpected compiler
     # output must not turn an always-upload step into unbounded publication.
     $publish=Join-Path $env:RUNNER_TEMP ('rpc-worker-results-'+[guid]::NewGuid().ToString('N'))
     $null=New-Item -ItemType Directory -Path $publish
     $published=New-Object Collections.Generic.List[object];$total=0L
-    foreach($name in @('compile.out','compile.err','entry-compile.out','entry-compile.err','inert.out','inert.err','process-results.json','pins.json','artifact.json','entry-artifact.json','worker-harness.exe','owned-entry.exe')){
+    foreach($name in @('controller-compile.out','controller-compile.err','entry-compile.out','entry-compile.err','inert.out','inert.err','process-results.json','pins.json','controller-artifact.json','entry-artifact.json','qualification-controller.exe','owned-entry.exe')){
         $file=Join-Path $work $name
         if(Test-Path -LiteralPath $file){
             $item=Get-Item -LiteralPath $file;$limit=65536L
-            if($name -eq 'worker-harness.exe' -or $name -eq 'owned-entry.exe'){$limit=262144L}
+            if($name -eq 'qualification-controller.exe' -or $name -eq 'owned-entry.exe'){$limit=262144L}
             if($item.Length -le $limit -and $total+$item.Length -le 1048576){
                 # Exact finite compiler/harness processes have exited before here;
                 # use a bounded held read anyway, not a copy of a mutable path.

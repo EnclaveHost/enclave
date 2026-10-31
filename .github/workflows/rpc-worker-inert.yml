@@ -38,7 +38,7 @@ jobs:
           assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==expected
           root=pathlib.Path('source-closure');root.mkdir()
           pins={}
-          for name in ['windows/rpc/BoundedWorker.cs','windows/rpc/OwnerObserver.cs','windows/rpc/ProtectedAttempt.cs','windows/rpc/InertEntry.cs','windows/rpc/Invoke-InertQualification.ps1','test/rpc-windows-worker/run-ci.ps1']:
+          for name in ['windows/rpc/BoundedWorker.cs','windows/rpc/OwnerObserver.cs','windows/rpc/ProtectedAttempt.cs','windows/rpc/InertEntry.cs','windows/rpc/InertQualification.cs','test/rpc-windows-worker/run-ci.ps1']:
               data=subprocess.check_output(['git','show',expected+':'+name])
               assert 0<len(data)<=65536
               path=root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(data)
@@ -69,7 +69,7 @@ jobs:
           $root=Join-Path $env:GITHUB_WORKSPACE 'source-closure'
           $manifest=Get-Content -Raw -LiteralPath (Join-Path $root 'SOURCE.json')|ConvertFrom-Json
           if($manifest.head -cne $env:EXPECTED_SHA){throw 'Source manifest commit mismatch'}
-          $names=@('windows/rpc/BoundedWorker.cs','windows/rpc/OwnerObserver.cs','windows/rpc/ProtectedAttempt.cs','windows/rpc/InertEntry.cs','windows/rpc/Invoke-InertQualification.ps1','test/rpc-windows-worker/run-ci.ps1')
+          $names=@('windows/rpc/BoundedWorker.cs','windows/rpc/OwnerObserver.cs','windows/rpc/ProtectedAttempt.cs','windows/rpc/InertEntry.cs','windows/rpc/InertQualification.cs','test/rpc-windows-worker/run-ci.ps1')
           if(@($manifest.files.PSObject.Properties).Count -ne 6 -or @(Get-ChildItem -LiteralPath $root -File -Recurse).Count -ne 7){throw 'Unexpected source closure'}
           foreach($name in $names){
             $path=Join-Path $root $name

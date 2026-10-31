@@ -1,0 +1,12 @@
+{
+  "source": "77d36cf0e6e00e523f8d4ddd5d123538c2528c6a",
+  "run": 41149421939,
+  "sourcePins": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/InertEntry.cs",
+    "windows/rpc/Invoke-InertQualification.ps1"
+  ],
+  "entrySha256": "3c06597e9d3bd20ff8f24938d89c957fdc51fa1afff4585bb10d184e84aed8e7"
+}
