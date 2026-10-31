@@ -1,0 +1,41 @@
+{
+  "passed": true,
+  "elapsedSeconds": 1.8339204469230026,
+  "actualPinnedSsh": true,
+  "actualBeginSampleFinish": true,
+  "nonproductionAttempt": "a7abc277d75c47eab00418ad2b80e19b",
+  "nonproductionVmAttempt": "b87ee64ecd814d86aebb80c6933be4c2",
+  "helper": {
+    "pid": 33548,
+    "creation": 134379547304582514,
+    "origin": 736968000,
+    "deadline": 736998000,
+    "envelope": {
+      "ProcessId": 33548,
+      "CreationFileTime": 134379547304582514,
+      "JobCommitLimitBytes": 134217728,
+      "BootstrapPrivateBytes": 13414400,
+      "MembershipVerified": true,
+      "LimitsVerified": true,
+      "CoversPreAssignmentMemory": false,
+      "BoundsWallTime": false,
+      "ReservationMayRelease": false
+    }
+  },
+  "responseSha256": "545004d18df87cf7dc3a9d7db4e0dacaa5b4de40e92fa72a5c52b2f4943e270f",
+  "helperImage": {
+    "path": "C:\\EnclaveRpcFiles-495a41c7dda146ab9b27b54b7fce61a8\\495a41c7dda146ab9b27b54b7fce61a8\\transition-files.exe",
+    "sha256": "2114ef029e5f5f8ec3b448edb8124b753dc641eb24b8825ee1124be95e8903d9"
+  },
+  "vmChanged": false,
+  "productionClockAssigned": false,
+  "rpcReady": false,
+  "remoteDeathProven": false,
+  "reservationMayRelease": false,
+  "stagedObservation": {
+    "path": "C:\\EnclaveRpcInputs-003a39cead10462ab567812da54b8455\\003a39cead10462ab567812da54b8455\\observation.json",
+    "sha256": "2caf195f409318db6da9769ce98e99607ee13b44d5aafd4821ce0e12e1321ab7",
+    "bytes": 17702
+  },
+  "originalWindowMilliseconds": 900000
+}

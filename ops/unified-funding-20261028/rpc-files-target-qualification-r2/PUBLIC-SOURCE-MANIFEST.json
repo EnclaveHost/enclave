@@ -1,0 +1,52 @@
+[
+  {
+    "path": "PINS.json",
+    "sha256": "31c92d2bef9a122f841fe75d5e828e71ff51599a14d9ffea88ad092130582f71",
+    "bytes": 986
+  },
+  {
+    "path": "ROOT-REVIEW.md",
+    "sha256": "74f263b8c0e42e1e2e742cdbbb413d8a10c92e037839dda2f4ffa427f1110ab5",
+    "bytes": 671
+  },
+  {
+    "path": "ROOT-RESULT.md",
+    "sha256": "ffd2a2dd80fdb2f3170ccda1d1bd356976d1a9e74e59c670ed6ddfa13f0cdfed",
+    "bytes": 869
+  },
+  {
+    "path": "INTENT.json",
+    "sha256": "7c8a1875c637e7a4c866e1f55a6d40cd00b7e3b2f76c4731d8ad48d6268c50f5",
+    "bytes": 118
+  },
+  {
+    "path": "LOCAL-ADMISSION.json",
+    "sha256": "eb27622f0888a8b34d92601f2411f35dfbaf2aa25e86905139ff29dc7df1e27e",
+    "bytes": 103
+  },
+  {
+    "path": "LAUNCH.json",
+    "sha256": "23d9b39079694fdcf7166d177498f8d53f07d9cb6dd270ff78f20a012a28c7dd",
+    "bytes": 164
+  },
+  {
+    "path": "SPEC.json",
+    "sha256": "7c66c856d8f97cbfad74920c797ea478fc007309517eb9e838ed4344a2c59e70",
+    "bytes": 632
+  },
+  {
+    "path": "COMMAND.json",
+    "sha256": "4ed21e4f2fd5f42f1221dae3f4fdd64a47cf17af4e7bf7e20381b2612648387a",
+    "bytes": 1235
+  },
+  {
+    "path": "run.py",
+    "sha256": "400984808122178af81c0a5a60a8b675530587c4f6c790b5478942d15d41167f",
+    "bytes": 4410
+  },
+  {
+    "path": "TERMINAL-READBACK.json",
+    "sha256": "9874e7279f81cdf7907e93840e530ab980b15cdd17ba4fcd078e9b3b8e7b147b",
+    "bytes": 219
+  }
+]

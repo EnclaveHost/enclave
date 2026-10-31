@@ -1,0 +1,1 @@
+Actualtargetparserdiagnosis+43changedsourcePASS. Validatedcanonicalbarepath fixesPowerShellUnexpectedToken; no relaxedpathvalidation/limit/replay. Explicit6pathsnormalhooks. No nativeproductrebuild.

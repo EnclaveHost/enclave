@@ -1,0 +1,1 @@
+Invocationcf7f7a3e93314d5eb19654103010b06d terminal0. ActualinstalledPowerShell parser: exactpreviousquotedexecutable+hexargs failsUnexpectedToken; validatedbarepath+sameargs0errors. Neithercommandexecuted. Materialcauseverifiedbeforecallerfix.

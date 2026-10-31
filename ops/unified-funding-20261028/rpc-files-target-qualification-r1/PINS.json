@@ -1,0 +1,12 @@
+{
+  "frozen/rpc/windows_transition.py": "8a26200581cf40229f71dc043ac9ac9e0fd6fe0612f57c00cdd51743630d76da",
+  "frozen/rpc/prepare_attachment.py": "c0685fbf106fe2fc49e1ce076b0dca096716d37ecd832a227480b6832e5f625a",
+  "frozen/rpc/windows_files.py": "46dc04864bc5a0326f96027cbbfd76c29bfbc58bbbd663946a22be4d6542ab13",
+  "frozen/rpc/storage_protocol.py": "80a3f865a76914a5d986528d50dfb77bd90ec5604f9884f3391ae99c4f02bc31",
+  "frozen/rpc/deliver_activation.py": "931153da9dc9b2fe359086aa907fa7a33fbf24adb627597c7d66ea40ba915cdf",
+  "frozen/rpc/sample_windows_clock.py": "bf3c84b4fb639936c2477f32f3ba434f2178085190baf711ab15229aa6e588eb",
+  "frozen/rpc/startup_clock.py": "ac975905dd71268d5ac345071ec6001a0a408e0aa314074ec354442abb634375",
+  "run.py": "ce934cad8098769bdfb67f632b45d6a42514f99959dea0db5c7313f8908e929d",
+  "SPEC.json": "7db554d73e2b0857a29f87a99f82e11aac7a2ef0bfafdaff5ce48d2a00810d8b",
+  "KNOWN-HOST.txt": "c4027bd2354b7539def0bc714f54fab77cf8bb984306294d6bfa8cb5b6239d33"
+}

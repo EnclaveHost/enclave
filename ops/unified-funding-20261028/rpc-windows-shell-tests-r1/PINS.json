@@ -1,0 +1,42 @@
+[
+  {
+    "path": "rpc/sample_windows_clock.py",
+    "sha256": "7c4c9778eb134a75ee13bd1e11fa4c4683822391ef95ab080b9d44bb7511eb37"
+  },
+  {
+    "path": "rpc/startup_clock.py",
+    "sha256": "ac975905dd71268d5ac345071ec6001a0a408e0aa314074ec354442abb634375"
+  },
+  {
+    "path": "rpc/deliver_activation.py",
+    "sha256": "931153da9dc9b2fe359086aa907fa7a33fbf24adb627597c7d66ea40ba915cdf"
+  },
+  {
+    "path": "rpc/prepare_attachment.py",
+    "sha256": "c0685fbf106fe2fc49e1ce076b0dca096716d37ecd832a227480b6832e5f625a"
+  },
+  {
+    "path": "rpc/storage_protocol.py",
+    "sha256": "80a3f865a76914a5d986528d50dfb77bd90ec5604f9884f3391ae99c4f02bc31"
+  },
+  {
+    "path": "test/rpc-server/test_windows_clock_transport.py",
+    "sha256": "6167e1f9d56fea7daa335d71c380d9b476a782d3b0ec3ec76a31e4742074000c"
+  },
+  {
+    "path": "rpc/windows_transition.py",
+    "sha256": "0b3a043ef27e2777acab64e59802e0fc17ff1951d357b20f535e715074077d4c"
+  },
+  {
+    "path": "test/rpc-server/test_windows_transition.py",
+    "sha256": "a2ce92cdeef1b9c4c45aa10f516dc80d0552972304f5fded7d87692134d49790"
+  },
+  {
+    "path": "rpc/windows_files.py",
+    "sha256": "6c88bba44c2665503c73419555db5372bdc9f3c9c875f61997c3e8435139ea7a"
+  },
+  {
+    "path": "test/rpc-server/test_windows_files.py",
+    "sha256": "42a2f621c87d9bc75e46a7196fc640085114b5ca70ccdd12af54f444973a0094"
+  }
+]

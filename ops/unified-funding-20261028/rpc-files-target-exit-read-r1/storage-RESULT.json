@@ -1,0 +1,71 @@
+{
+  "at": 1793481156.7625837,
+  "readOnly": true,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 1286,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "stagedFile": {
+      "bytes": 17702,
+      "sha256": "2caf195f409318db6da9769ce98e99607ee13b44d5aafd4821ce0e12e1321ab7"
+    },
+    "vms": [
+      {
+        "Id": "ce939091-faf8-4862-8296-ee18f3027373",
+        "State": 2,
+        "MemoryAssigned": 2732589056
+      },
+      {
+        "Id": "1ca457d6-17bf-47fa-ad26-72770d74e08b",
+        "State": 2,
+        "MemoryAssigned": 536870912
+      },
+      {
+        "Id": "dd8df95d-b771-4545-a861-0092e74a40f3",
+        "State": 2,
+        "MemoryAssigned": 8589934592
+      },
+      {
+        "Id": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
+        "State": 2,
+        "MemoryAssigned": 4294967296
+      }
+    ],
+    "success": true,
+    "atUtc": "2026-10-31T21:12:36.6803104Z",
+    "processes": [
+      {
+        "pidPresent": false,
+        "expectedCreation": "134379547304582514",
+        "pid": 33548,
+        "exactAbsent": true
+      }
+    ],
+    "exactPathsRunning": [],
+    "managers": [
+      {
+        "pid": 41272,
+        "alive": true,
+        "creation": "134375630850989593"
+      },
+      {
+        "pid": 40360,
+        "alive": true,
+        "creation": "134375630828500376"
+      },
+      {
+        "pid": 41308,
+        "alive": true,
+        "creation": "134375617394407059"
+      },
+      {
+        "pid": 38076,
+        "alive": true,
+        "creation": "134375086385617521"
+      }
+    ],
+    "readOnly": true
+  }
+}

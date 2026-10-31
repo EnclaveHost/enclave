@@ -1,0 +1,9 @@
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-files-target-qualification-r1/run.py", line 27, in <module>
+    clock=sampler.sample(dict(begin=begin,windowsBoot=spec['boot'],**transport))
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-files-target-qualification-r1/frozen/rpc/sample_windows_clock.py", line 73, in sample
+    raw = delivery.exchange(argv, b'', min(8, remaining))
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-files-target-qualification-r1/frozen/rpc/deliver_activation.py", line 113, in exchange
+    if reason or rc!=0:raise RuntimeError('Delivery outcome unresolved: '+str(reason or rc))
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Delivery outcome unresolved: 1

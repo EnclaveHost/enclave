@@ -1,0 +1,1 @@
+Invocation884131126aeb49258b5541660662078f terminal0/Main0. Threechangedclockcallers andtests43PASS/10pins0drift;0.717+0.972+0.215seconds. Exactbarecanonicalcommandtokens enforcedatallthreecallers; pathinjectionrefusals/originalclock/replaytestsretained. Native/SSHmocked, actualparserdiagnosisseparate.

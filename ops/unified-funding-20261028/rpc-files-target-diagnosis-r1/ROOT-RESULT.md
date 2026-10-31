@@ -1,0 +1,1 @@
+Invocationd6f09c8ac73541e7806ed16f45194baa terminal0. InstalledOpenSSHDefaultShell C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe. Exactsampler/helperpathsnoactiveprocess; twoexactstagingPIDsabsent; originalfourmanagerFILETIMEsunchanged. Read-onlydiagnosis, notnativequalificationretry.

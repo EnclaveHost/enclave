@@ -1,0 +1,62 @@
+[
+  {
+    "path": "admit.py",
+    "sha256": "7fcada90860fd1441c8e566c4e4fc90c0afda84ef4b64807149f807228e17ec0",
+    "bytes": 828
+  },
+  {
+    "path": "PINS.json",
+    "sha256": "bb080f9f114689500bd1ba66fb768173e4e4a764c954277f644fdc62179c8062",
+    "bytes": 173
+  },
+  {
+    "path": "storage-RESULT.json",
+    "sha256": "1b06a7b4dbc27c4f5ddb31d1bb28626cf3de5ed6d397fb7c92dc221223a7359f",
+    "bytes": 30173
+  },
+  {
+    "path": "storage-read.ps1",
+    "sha256": "32adbe3b768936a90f60c2adfefb3c10115263383b2496e69028069a5df3b738",
+    "bytes": 10085
+  },
+  {
+    "path": "storage-ATTEMPT.json",
+    "sha256": "57ca19da1755b3b5e4b2068aeca399afa168c734639fc41c5faa2546b2474433",
+    "bytes": 61
+  },
+  {
+    "path": "ROOT-REVIEW.md",
+    "sha256": "5908655698753b6c8f7ac09ad81af229df347dc6373c946080224ca230c8b7a1",
+    "bytes": 496
+  },
+  {
+    "path": "ROOT-RESULT.md",
+    "sha256": "49df8b0667173972fd284821bfa802b4bb81f2a5dcd7f295c0fe512262754233",
+    "bytes": 437
+  },
+  {
+    "path": "LOCAL-ADMISSION.json",
+    "sha256": "f8adde1d2c2d4f907e12738697994ae0a722c514107a79bd9f2d3d4382cf6067",
+    "bytes": 103
+  },
+  {
+    "path": "LAUNCH.json",
+    "sha256": "f9c6980b77abb164bedaa81fb8c9b1f041ae22059536abefef1d29e51b703120",
+    "bytes": 160
+  },
+  {
+    "path": "COMMAND.json",
+    "sha256": "527b3e7bfe0e83a45517c3669c7aac67fc1a97c566448c1fd6e67a090e5c3a71",
+    "bytes": 1221
+  },
+  {
+    "path": "run.py",
+    "sha256": "77482c724056f11583008cca6d60c9c2a4b054d1d966e4aae4bff15c08bec506",
+    "bytes": 2437
+  },
+  {
+    "path": "TERMINAL-READBACK.json",
+    "sha256": "7237b293a6b41e2016dfd9d526091293a21bd8d0255e36d6e36e52730c130814",
+    "bytes": 211
+  }
+]

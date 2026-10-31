@@ -1,0 +1,30 @@
+{
+  "at": 1793481077.5838068,
+  "readOnly": true,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 614,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "success": true,
+    "results": [
+      {
+        "executed": false,
+        "form": "quoted",
+        "errorIds": [
+          "UnexpectedToken"
+        ],
+        "errorCount": 1
+      },
+      {
+        "executed": false,
+        "form": "plain",
+        "errorIds": [],
+        "errorCount": 0
+      }
+    ],
+    "readOnly": true,
+    "atUtc": "2026-10-31T21:11:17.5104948Z"
+  }
+}

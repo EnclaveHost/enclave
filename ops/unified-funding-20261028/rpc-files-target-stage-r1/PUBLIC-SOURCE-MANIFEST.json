@@ -1,0 +1,147 @@
+[
+  {
+    "path": "stage-INTENT.json",
+    "sha256": "92e16698992eeec7b180b692ab83a2d37efd242fa33100c32f49f3b5977521ac",
+    "bytes": 81
+  },
+  {
+    "path": "create-RESULT.json",
+    "sha256": "cbf3b6c4fa305110a7aac4b50fd759a61c8bac03b95fb5ba0c9d51d36efd2cc1",
+    "bytes": 817
+  },
+  {
+    "path": "verify-COMMAND.json",
+    "sha256": "c28ba41b044ef3898be64addb16c611de884498850c7b565669b5aae44e912e8",
+    "bytes": 1214
+  },
+  {
+    "path": "verify-LAUNCH.txt",
+    "sha256": "b5c6f4c51c25c05f6ef9bf3b3c05f3458c34a918878f5bd552afe669c2c08ce1",
+    "bytes": 118
+  },
+  {
+    "path": "verify.ps1",
+    "sha256": "a9f6d0191b04be40eb2c6a4ff6d1f1bfd87a05fe8d2c8f1494a25426476d6260",
+    "bytes": 4795
+  },
+  {
+    "path": "PINS.json",
+    "sha256": "70d7582b323c247a79722b95c29b07ec106a6b040c75d1a38d62f2a0077edc0e",
+    "bytes": 697
+  },
+  {
+    "path": "create.ps1",
+    "sha256": "1fbe619376cdc75bc2a3d35a8c22325ee53f56f2df381c1c879c1ab04b008f8b",
+    "bytes": 4386
+  },
+  {
+    "path": "create-COMMAND.json",
+    "sha256": "bc88224c4b7de2435696e1a72a0b7e44d0b5095628cc9e4be0acd1d44c1e25af",
+    "bytes": 1214
+  },
+  {
+    "path": "stage.stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "path": "create-LAUNCH.txt",
+    "sha256": "14dc92a53df0001b606bb9bb0caa536def941f15370c5a7a9804cd37fac84e55",
+    "bytes": 118
+  },
+  {
+    "path": "verify-RESULT.json",
+    "sha256": "e48e4461044207792b61725699314d8c67837a0ff06511cb34dee71a6bd05e72",
+    "bytes": 963
+  },
+  {
+    "path": "ARTIFACTS.json",
+    "sha256": "095504559e14a31f6ea14067315857669e398c02d3ab810b70f28499e83a3de4",
+    "bytes": 129
+  },
+  {
+    "path": "ROOT-REVIEW.md",
+    "sha256": "8798464ad5a23e740fc7bd83c611aa3c38e4bf71a774c1962fca0561ff5be5cd",
+    "bytes": 640
+  },
+  {
+    "path": "create-INTENT.json",
+    "sha256": "97da3ddbc88cdc97be800f703d2f07031864e9bb13a50dc0927e919860045b50",
+    "bytes": 82
+  },
+  {
+    "path": "ROOT-RESULT.md",
+    "sha256": "94b26ce5b66bcffe70af100f21075720de57129c3e11d31a7b91345e5ac79f79",
+    "bytes": 592
+  },
+  {
+    "path": "verify-INTENT.json",
+    "sha256": "31b3aabb02111937e582c4f82125de0a568c056f7ced5e46dcda39ad6d9051d3",
+    "bytes": 82
+  },
+  {
+    "path": "create.stdout",
+    "sha256": "84015e4db2c8cdeee5f8d734466bfedf77c66ee71d3053133fbc66be2011e720",
+    "bytes": 249
+  },
+  {
+    "path": "verify-LOCAL-ADMISSION.json",
+    "sha256": "6f6fdf26fd0e351aa0522ae29f25e8694eaa0852f1b7fd1f1d3e0178906cad4c",
+    "bytes": 103
+  },
+  {
+    "path": "stage-COMMAND.json",
+    "sha256": "9fc9003ac55133c3f15fc76d59b5679c83962fef43282cb23d3b47fa4b7fc8c5",
+    "bytes": 1210
+  },
+  {
+    "path": "stage-LOCAL-ADMISSION.json",
+    "sha256": "bda04edb45282a2ac4ef071c2127ad173fc7adda054b392ee73defec21af10e3",
+    "bytes": 103
+  },
+  {
+    "path": "verify.stdout",
+    "sha256": "6353274ab0c6165f83ff7686bf91be7090d214781b8d58bb67e2f4b7d477eff8",
+    "bytes": 346
+  },
+  {
+    "path": "create-LOCAL-ADMISSION.json",
+    "sha256": "aaa62aaff939a2ae04b31859ec1d65ef35d4cfb2b7e6b2568f9b8d6d61cdff9c",
+    "bytes": 103
+  },
+  {
+    "path": "stage-LAUNCH.txt",
+    "sha256": "a190d6962cf3812159dcd3cc0a2a74a14e83e20f4e57377c52032774ee13a922",
+    "bytes": 117
+  },
+  {
+    "path": "SPEC.json",
+    "sha256": "7a6532e04e6dd333aa6502c7481c8f26b00886a79ba377ccadcf10e231677624",
+    "bytes": 272
+  },
+  {
+    "path": "run.py",
+    "sha256": "97ec8c5a2c739fba7aa22b3809501381028e90cf7a80a126daadbe1d2e66a984",
+    "bytes": 3244
+  },
+  {
+    "path": "stage-RESULT.json",
+    "sha256": "f16ae89d5aa48e4fac1560858125fdf924798e14119aeb7b4dc5cb9fb0549820",
+    "bytes": 503
+  },
+  {
+    "path": "TERMINAL-READBACK.json",
+    "sha256": "01604d88a6bff7b1e03d40a5f18e0b0fdc419ad053b284135fc44576213b0df2",
+    "bytes": 607
+  },
+  {
+    "path": "capture_local.py",
+    "sha256": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c",
+    "bytes": 6709
+  },
+  {
+    "path": "FILES.json",
+    "sha256": "6f5fe163abae88a17705d6ce3b5145574c4661f3f154f37cb2666504586d56df",
+    "bytes": 25
+  }
+]

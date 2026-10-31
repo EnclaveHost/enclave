@@ -1,0 +1,53 @@
+{
+  "at": 1793481054.5647347,
+  "readOnly": true,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 1062,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "success": true,
+    "atUtc": "2026-10-31T21:10:54.4776068Z",
+    "processes": [
+      {
+        "pidPresent": false,
+        "expectedCreation": "134379545666452009",
+        "pid": 57076,
+        "exactAbsent": true
+      },
+      {
+        "pidPresent": false,
+        "expectedCreation": "134379546032271546",
+        "pid": 18216,
+        "exactAbsent": true
+      }
+    ],
+    "exactPathsRunning": [],
+    "defaultShell": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+    "defaultShellCommandOption": null,
+    "managers": [
+      {
+        "pid": 41272,
+        "alive": true,
+        "creation": "134375630850989593"
+      },
+      {
+        "pid": 40360,
+        "alive": true,
+        "creation": "134375630828500376"
+      },
+      {
+        "pid": 41308,
+        "alive": true,
+        "creation": "134375617394407059"
+      },
+      {
+        "pid": 38076,
+        "alive": true,
+        "creation": "134375086385617521"
+      }
+    ],
+    "readOnly": true
+  }
+}

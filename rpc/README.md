@@ -124,3 +124,21 @@ separate from target custody and full original-clock composition. Complete
 operational integration still requires target qualification and the coordinated
 exporter/guest activation/runtime path. Do not cut the allocator or consume the
 production clock until that complete workflow is ready.
+
+Actual NucBox qualification now exercised `begin` -> authenticated `sample` ->
+`finish` -> `stage_inputs` with the maintained sender over pinned SSH. The
+independent nonproduction attempt completed in1.834seconds and retained the
+original900000ms window. The native helper staged and read back17702bytes of
+public observation; a separate read verified its exact process was absent and
+the four existing manager incarnations and VM states were unchanged. This is
+admin-context clock/staging evidence, not a production cut, definition, copy,
+SYSTEM lifecycle, guest startup or RPC serving result.
+
+The first transport attempt failed before staging because Windows OpenSSH uses
+PowerShell here. Quoting a whitespace-free executable path made it a string
+expression; the installed parser reported `UnexpectedToken`. All three clock
+callers now use their already validated bare canonical paths. Whitespace and
+shell metacharacters remain refused. The original attempt stays consumed; the
+corrected qualification used a separate nonproduction attempt after confirming
+no sampler/helper remained. No deadline or capacity limit was relaxed. See
+`ops/unified-funding-20261028/rpc-files-target-qualification-r2/ROOT-RESULT.md`.

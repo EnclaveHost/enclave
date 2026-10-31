@@ -931,3 +931,19 @@ its hash and all three compiled source pins were independently recomputed.
 This qualifies the hosted fixture operations, not target execution, a full-size
 private copy, live VM state or RPC readiness. See
 `ops/unified-funding-20261028/rpc-transition-files-ci-r2/ROOT-RESULT.md`.
+
+The production file helper is now staged and hash/ACL verified at
+`C:\EnclaveRpcFiles-495a41c7dda146ab9b27b54b7fce61a8\495a41c7dda146ab9b27b54b7fce61a8\transition-files.exe`.
+An actual admin-context, nonproduction clock-and-stage qualification passed with
+its128MiB self job and13414400-byte bootstrap private snapshot. Its worker lease
+was736968000..736998000ms within the original900-second clock. A separate exact
+PID/native-creation read confirmed the helper absent, with no sampler/helper at
+the qualified paths and all four original managers and VMs unchanged.
+
+Only `stage-inputs` has this target execution evidence. `collect-cut` and
+`copy-media` retain hosted dummy-fixture evidence; full-size private copy and
+actual provider/guest composition remain unqualified. The qualification input
+namespace and owner attempt are consumed. Do not replay them or infer current
+admission from the historical resource observation. See
+`ops/unified-funding-20261028/rpc-files-target-qualification-r2/ROOT-RESULT.md`
+and `rpc-files-target-exit-read-r1` beside it.
