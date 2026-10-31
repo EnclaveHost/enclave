@@ -1,0 +1,31 @@
+{
+  "schema": "legacy-memory-handoff/1",
+  "boot": "1a04e76600e411f1a395e342df676a80",
+  "topology": "mandatory-copy-direct-powershell/1",
+  "master": {
+    "path": "C:\\ProgramData\\Enclave\\shield\\type1.vmgs",
+    "sha256": "e93237a717a7e0e9fa201db2b331d2ed480274bfa47145854ea3ba85852abb96",
+    "bytes": 4194816
+  },
+  "issuers": [
+    {
+      "port": 8091,
+      "pid": 38076,
+      "created": 134375086385617521,
+      "createdUtc": "2026-10-26T17:17:18.5617520Z",
+      "image": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
+      "epoch": "6ba9af9a243b9f4754d8091d3de2f415",
+      "desktop": true
+    },
+    {
+      "port": 8095,
+      "pid": 41308,
+      "created": 134375617394407059,
+      "createdUtc": "2026-10-27T08:02:19.4407050Z",
+      "image": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
+      "epoch": "eb81408d8b99f58cd715d5c56017258c",
+      "desktop": true
+    }
+  ],
+  "inputs": []
+}

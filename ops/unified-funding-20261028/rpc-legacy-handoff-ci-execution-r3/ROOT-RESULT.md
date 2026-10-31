@@ -1,0 +1,1 @@
+Actual hostedCI41172175490 SUCCESS/17PASS,19compiledpinsmatchGit/current, four finiteprocessesexit0. Fixed-memory schema2/rawquantities and staticdefaultlimit regression. Nativeactualschema2target stillpending. No cap/deadline changes or retries.

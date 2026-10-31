@@ -1,0 +1,2 @@
+Fresh read required for NEW explicit read-only handoff SYSTEM operation; same reviewed readonly public11GET/physical/listener projection. No task or VM mutations, no repeated failed native trial. Localtimeout is not remote death. Root observes terminal result before seal.
+Adds native boot GUID via exact SHA-verified staged public controller assembly CurrentBoot only; no Main, tasks, provider calls. Assembly byte hash checked before load.

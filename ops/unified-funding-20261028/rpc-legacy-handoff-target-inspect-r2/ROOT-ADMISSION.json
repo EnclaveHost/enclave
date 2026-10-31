@@ -1,0 +1,14 @@
+{
+  "at": 1793424112.4658008,
+  "freshAgeSeconds": 23.196245670318604,
+  "source": "8bc6a12595ceb17cc2b8425acd9d76743879ec36",
+  "operation": "legacy-memory-inspect-v1",
+  "requiredFreeBytes": 62709039104,
+  "minFreeBytes": 83843383296,
+  "hostFloorMiB": 18432,
+  "knownConditionalMiB": 39388,
+  "missingPendingAssumedZero": false,
+  "newVmAdmitted": false,
+  "productionFenceAdmitted": false,
+  "latestLaunchMonotonic": 680047712
+}

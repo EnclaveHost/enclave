@@ -1,0 +1,38 @@
+{
+  "PINS.json": {
+    "originalSha256": "73035ca78a39e1ff78168d00d92954913c5ff93a5b7e184c6b1d092136fa4d48",
+    "publicSha256": "73035ca78a39e1ff78168d00d92954913c5ff93a5b7e184c6b1d092136fa4d48"
+  },
+  "manager-ATTEMPT.json": {
+    "originalSha256": "e1b608fdd2f095245ef14609c3d861ba876e21862d19e73c3869b0d746351174",
+    "publicSha256": "30a1657ece86fe7b121262796d8fa90f20c39ffb03dfe0bfe39a0c9a96aac0bf"
+  },
+  "ROOT-REVIEW.md": {
+    "originalSha256": "215a47b0de9e845fc78cadc1f98d064bb8b9c30c9cb113ea5e44c27089271458",
+    "publicSha256": "215a47b0de9e845fc78cadc1f98d064bb8b9c30c9cb113ea5e44c27089271458"
+  },
+  "manager-inner.log": {
+    "originalSha256": "3d697e10cb5008330a42ad199a16773520e5cd4f0dc2f99452375f4b55d8c800",
+    "publicSha256": "3d697e10cb5008330a42ad199a16773520e5cd4f0dc2f99452375f4b55d8c800"
+  },
+  "manager-outer.log": {
+    "originalSha256": "dc748b02a2c6bac94345258943f59caa5d776ed537f9f4e828b5fd1da1d2b066",
+    "publicSha256": "dc748b02a2c6bac94345258943f59caa5d776ed537f9f4e828b5fd1da1d2b066"
+  },
+  "COMMAND.json": {
+    "originalSha256": "810be392390c841bf71a58925b8b00c34c8013a4d64c8c3e987feefe3eb322f6",
+    "publicSha256": "810be392390c841bf71a58925b8b00c34c8013a4d64c8c3e987feefe3eb322f6"
+  },
+  "manager-RESULT.json": {
+    "originalSha256": "3bba434efc86f9443a1be7da688b5eb1fc6d40dd74a72fe872aa99acf035e2b4",
+    "publicSha256": "3bba434efc86f9443a1be7da688b5eb1fc6d40dd74a72fe872aa99acf035e2b4"
+  },
+  "run.py": {
+    "originalSha256": "46854fc4189bcc62250333a501069d96ed9b7cb75c521863006899fd6ced5b59",
+    "publicSha256": "46854fc4189bcc62250333a501069d96ed9b7cb75c521863006899fd6ced5b59"
+  },
+  "manager-read.ps1": {
+    "originalSha256": "aa9f0b77040e0703c0d754fff514ce717420ee01bac24fe4def7032393f29b86",
+    "publicSha256": "aa9f0b77040e0703c0d754fff514ce717420ee01bac24fe4def7032393f29b86"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "inputNonce": "fd2196083e5a4b0d92b1065f7a14957e",
+  "attemptNonce": "cb1e1dba92114f118298c87f21521146",
+  "root": "C:/EnclaveRpcHandoffInputs-fd2196083e5a4b0d92b1065f7a14957e/fd2196083e5a4b0d92b1065f7a14957e",
+  "controllerSha": "CONTROLLER_SHA_PLACEHOLDER",
+  "entrySha": "ENTRY_SHA_PLACEHOLDER",
+  "source": "8bc6a12595ceb17cc2b8425acd9d76743879ec36",
+  "requiredFreeBytes": 62709039104,
+  "diskFloorBytes": 17196646400,
+  "localAuthority": "root-only explicit SYSTEM legacy-memory-inspect-v1; no production fence, VM/provider, pool or funds mutation",
+  "nativeAttempted": false
+}

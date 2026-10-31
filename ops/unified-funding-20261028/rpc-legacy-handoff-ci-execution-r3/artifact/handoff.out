@@ -1,0 +1,18 @@
+PASS static-memory-bytes
+PASS contradictory-static-reservation-refused
+PASS dormant-dynamic-limit-not-static-growth
+PASS static-quantity-over-limit-refused
+PASS zero-static-quantity-refused
+PASS dynamic-memory-refused
+PASS missing-memory-refused
+PASS wrong-units-refused
+PASS serialized-not-native-quantity-refused
+PASS unbounded-maximum-refused
+PASS inspect-contract-binds-manifest
+PASS cut-is-separate-explicit-operation
+PASS inert-cannot-open-handoff
+PASS provider-cannot-open-handoff
+PASS unknown-operation-refused
+PASS manifest-substitution-refused
+PASS wrong-manifest-schema-before-host-work
+RESULT tests=17 providerCalls=false vmChanged=false targetInventoryQualified=false

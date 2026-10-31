@@ -480,10 +480,11 @@ is `legacy-memory-handoff/1` with exact boot/topology/master/issuers/inputs fiel
 The operator must independently establish complete old-issuer and source coverage;
 a digest-shaped manifest alone is not that evidence.
 
-This integration is initially unqualified on the target. Hosted contract/memory-row
-fixtures and compilation cannot prove actual Hyper-V schema, protected installation,
-resource admission, or a production cut. Inspect must succeed against fresh actual
-identities before constructing the live cut and shared-pool seed.
+The read-only entrypoint passed actual target SYSTEM inspection in 9.260 seconds,
+with five complete static VM records totaling 18,301,845,504 bytes (17.044921875 GiB),
+following 17 hosted contract/memory checks. This proves that specific inspected
+context and schema, not a production cut, shared-pool seed or RPC allocation. The
+cut still requires complete pinned legacy source coverage and fresh admission.
 
 Actual target inspection exposed a dormant 1TiB `Limit` on each static VM. The
 updated result schema `/2` accounts fixed `VirtualQuantity` only after explicitly
