@@ -1,0 +1,1 @@
+Changed shared ProtectedAttempt/LegacyHandoff/WindowsStartAdmission regression qualification. Same71 legacy tests and bounds; definition-only overload must preserve ordinary start admission and strict unknown-pending behavior. No target/VM actions. Exact source db62e219fa4e91a8d2d66b2e1a01a905ae1e1569.

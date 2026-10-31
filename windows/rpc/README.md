@@ -609,7 +609,7 @@ Provider calls were fakes: native property support/readback, actual VM creation
 and production integration remain unqualified. No native VM has been created.
 
 
-### Protected definition worker (qualification pending)
+### Protected definition worker (hosted qualification passed)
 
 `DefinitionWorkerEntry.cs` and `DefinitionWorkerController.cs` connect the Off-only
 definition transaction to independently bounded SYSTEM owner/observer/child roles.
@@ -620,5 +620,9 @@ Definition allocates no resident RAM; the existing start path must acquire and
 consume the full20GiB claim after the real GUID is returned.
 
 The controller does not attach media, start a VM or publish a start permit.
-Reconciliation cannot resubmit creation. Protected fixtures and compilation are
-pending; production activation, native settings and startup remain unqualified.
+Reconciliation cannot resubmit creation. Hosted CI41180149841 passed45 tests and compiled the13-file production worker
+and controller separately; both are211968B. Existing handoff regression CI41179944577
+passed71 tests. Fixtures exercised protected files under hosted Administrator,
+not actual SYSTEM worker scheduling or DefineSystem. Production activation, native
+settings and startup remain unqualified. Original failed fixture/compile attempts
+are retained in the corresponding evidence packages.
