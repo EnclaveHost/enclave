@@ -91,7 +91,14 @@ namespace Enclave.OwnedRpc {
         internal static void PinnedTemplateAuthority(SafeFileHandle handle,string label) {
             AuthorityCore(handle,true,false,label,false);
         }
-        static void AuthorityCore(SafeFileHandle handle,bool strict,bool directory,string label,bool requireProtected) {
+        // Only a constructed custody object can request the NTFS metadata case.
+        // It owns and rechecks a relative-opened, protected immediate child.
+        internal static void CustodiedAncestorAuthority(AncestorCustody custody) {
+            if(custody==null)throw new ArgumentNullException("custody");
+            AuthorityCore(custody.ParentHandle,false,true,custody.ParentPath,true,0x110);
+        }
+        static void AuthorityCore(SafeFileHandle handle,bool strict,bool directory,string label,bool requireProtected,int heldChildMetadata=0) {
+            if(heldChildMetadata!=0&&(heldChildMetadata!=0x110||strict||!directory))throw new InvalidOperationException("Invalid custody policy");
             FileInfo info;
             if(!GetFileInformationByHandle(handle,out info)) throw new Win32Exception(Marshal.GetLastWin32Error());
             if((info.Attributes&0x400)!=0 || ((info.Attributes&0x10)!=0)!=directory)
@@ -123,7 +130,7 @@ namespace Enclave.OwnedRpc {
                     if((common.AceFlags&AceFlags.InheritOnly)!=0 || common.AceQualifier==AceQualifier.AccessDenied) continue;
                     if(common.AceQualifier!=AceQualifier.AccessAllowed) throw new InvalidOperationException("Unsupported namespace qualifier");
                     string sid=common.SecurityIdentifier.Value;
-                    int danger=strict?leafDanger:ancestorDanger;
+                    int danger=strict?leafDanger:(ancestorDanger&~heldChildMetadata);
                     if(sid==SystemSid || sid==AdminSid || (!strict && sid==installer)) continue;
                     if(sid!=SystemSid && sid!=AdminSid && ((common.AccessMask&danger)!=0 || (common.AccessMask&unchecked((int)0x50000000))!=0))
                         throw new InvalidOperationException("Untrusted namespace mutation right: "+label+" sid="+sid+" mask="+common.AccessMask.ToString("x8")+" strict="+strict);
@@ -283,4 +290,68 @@ namespace Enclave.OwnedRpc {
         }
         public void Dispose() {disposed=true;for(int i=held.Count-1;i>=0;i--)held[i].Dispose();held.Clear();}
     }
+}
+
+// Conditional ancestor custody; ordinary Authority remains unchanged.
+namespace Enclave.OwnedRpc {
+ internal sealed class AncestorCustody : IDisposable {
+  [StructLayout(LayoutKind.Sequential,Pack=4)] internal struct Info {
+   public uint Attributes;public long Created,Accessed,Written;
+   public uint Volume,SizeHigh,SizeLow,Links,IndexHigh,IndexLow;
+  }
+  [StructLayout(LayoutKind.Sequential)] struct UnicodeString {public ushort Length,MaximumLength;public IntPtr Buffer;}
+  [StructLayout(LayoutKind.Sequential)] struct ObjectAttributes {public int Length;public IntPtr RootDirectory,ObjectName;public uint Attributes;public IntPtr SecurityDescriptor,SecurityQualityOfService;}
+  [StructLayout(LayoutKind.Sequential)] struct IoStatus {public IntPtr Status,Information;}
+  [DllImport("ntdll.dll")] static extern int NtCreateFile(out IntPtr handle,uint access,ref ObjectAttributes attributes,out IoStatus status,IntPtr allocation,uint fileAttributes,uint share,uint disposition,uint options,IntPtr ea,uint eaLength);
+  [DllImport("ntdll.dll")] static extern uint RtlNtStatusToDosError(int status);
+  [DllImport("kernel32.dll",SetLastError=true)] static extern bool GetFileInformationByHandle(SafeFileHandle handle,out Info info);
+  [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern bool GetVolumeInformationByHandleW(SafeFileHandle handle,StringBuilder name,uint nameLength,out uint serial,out uint componentLength,out uint flags,StringBuilder filesystem,uint filesystemLength);
+  SafeFileHandle parent,child;Info parentInfo,childInfo;bool disposed;
+  internal string ParentPath {get;private set;}
+  internal SafeFileHandle ParentHandle {get{Recheck();return parent;}}
+  internal static Info Identity(SafeFileHandle handle){Info info;if(!GetFileInformationByHandle(handle,out info))throw new Win32Exception(Marshal.GetLastWin32Error());return info;}
+  static bool Same(Info a,Info b){return a.Volume==b.Volume&&a.IndexHigh==b.IndexHigh&&a.IndexLow==b.IndexLow;}
+  static void DirectoryKind(Info info){if((info.Attributes&0x410)!=0x10)throw new InvalidOperationException("Custody requires a non-reparse directory");}
+  internal static SafeFileHandle OpenChild(SafeFileHandle parent,string component){
+   if(String.IsNullOrEmpty(component)||component.Length>255||component=="."||component==".."||component.IndexOfAny(new[]{'\\','/',':','\0'})>=0||component.EndsWith(" ")||component.EndsWith("."))throw new ArgumentException("Single exact child component required");
+   IntPtr text=IntPtr.Zero,name=IntPtr.Zero;bool retained=false;
+   try{
+    parent.DangerousAddRef(ref retained);text=Marshal.StringToHGlobalUni(component);
+    var value=new UnicodeString{Length=checked((ushort)(component.Length*2)),MaximumLength=checked((ushort)((component.Length+1)*2)),Buffer=text};
+    name=Marshal.AllocHGlobal(Marshal.SizeOf(typeof(UnicodeString)));Marshal.StructureToPtr(value,name,false);
+    var attributes=new ObjectAttributes{Length=Marshal.SizeOf(typeof(ObjectAttributes)),RootDirectory=parent.DangerousGetHandle(),ObjectName=name,Attributes=0x40};
+    IntPtr raw;IoStatus result;
+    // FILE_OPEN, DIRECTORY_FILE, SYNCHRONOUS_IO_NONALERT, OPEN_REPARSE_POINT.
+    // RootDirectory + one component binds the actual immediate child, without
+    // traversing an absolute prefix that metadata operations could affect.
+    int status=NtCreateFile(out raw,0x1200a0,ref attributes,out result,IntPtr.Zero,0,3,1,0x200021,IntPtr.Zero,0);
+    if(status<0){if(raw!=IntPtr.Zero&&raw!=new IntPtr(-1))new SafeFileHandle(raw,true).Dispose();throw new Win32Exception((int)RtlNtStatusToDosError(status));}
+    var handle=new SafeFileHandle(raw,true);try{DirectoryKind(Identity(handle));return handle;}catch{handle.Dispose();throw;}
+   }finally{if(name!=IntPtr.Zero)Marshal.FreeHGlobal(name);if(text!=IntPtr.Zero)Marshal.FreeHGlobal(text);if(retained)parent.DangerousRelease();}
+  }
+  internal AncestorCustody(SafeFileHandle expectedParent,string parentPath,string immediateChild){
+   ParentPath=ProtectedAttempt.LocalPath(parentPath);
+   try{
+    var expected=Identity(expectedParent);DirectoryKind(expected);
+    parent=ProtectedAttempt.CreateFile(parentPath,0x200a0,3,IntPtr.Zero,3,0x02200000,IntPtr.Zero);
+    if(parent.IsInvalid)throw new Win32Exception(Marshal.GetLastWin32Error());
+    parentInfo=Identity(parent);DirectoryKind(parentInfo);if(!Same(expected,parentInfo))throw new InvalidOperationException("Custody parent changed");
+    uint serial,length,flags;var filesystem=new StringBuilder(32);
+    if(new DriveInfo(Path.GetPathRoot(parentPath)).DriveType!=DriveType.Fixed||!GetVolumeInformationByHandleW(parent,null,0,out serial,out length,out flags,filesystem,32)||filesystem.ToString()!="NTFS")throw new InvalidOperationException("Custody requires observed local fixed NTFS");
+    child=OpenChild(parent,immediateChild);childInfo=Identity(child);
+    if(childInfo.Volume!=parentInfo.Volume)throw new InvalidOperationException("Custody child volume differs");
+    // The child cannot be unlinked/replaced by an untrusted user even after
+    // handles close. No-delete handles additionally prevent operator races
+    // during the relying operation. Deny-delete on the parent alone is not enough.
+    ProtectedAttempt.Authority(child,true,true,Path.Combine(parentPath,immediateChild));
+    Recheck();ProtectedAttempt.CustodiedAncestorAuthority(this);
+   }catch{Dispose();throw;}
+  }
+  internal void Recheck(){
+   if(disposed||parent==null||child==null||parent.IsInvalid||child.IsInvalid)throw new InvalidOperationException("Custody unavailable");
+   var p=Identity(parent);var c=Identity(child);DirectoryKind(p);DirectoryKind(c);
+   if(!Same(p,parentInfo)||!Same(c,childInfo)||p.Volume!=c.Volume)throw new InvalidOperationException("Custody identity changed");
+  }
+  public void Dispose(){if(disposed)return;disposed=true;if(child!=null)child.Dispose();if(parent!=null)parent.Dispose();}
+ }
 }

@@ -25,16 +25,21 @@ namespace Enclave.OwnedRpc {
    byte[] bytes=new byte[raw.DiscretionaryAcl.BinaryLength];raw.DiscretionaryAcl.GetBinaryForm(bytes,0);
    return Convert.ToBase64String(bytes);
   }
-  static void PinParents(string file,List<SafeFileHandle> held){
+  static void PinParents(string file,List<IDisposable> held,List<AncestorCustody> custody){
    string dir=Path.GetDirectoryName(file),current=Path.GetPathRoot(dir);
    var paths=new List<string>();paths.Add(current);
    foreach(string part in dir.Substring(3).Split('\\')){current=Path.Combine(current,part);paths.Add(current);}
    for(int n=0;n<paths.Count;n++){
     var h=ProtectedAttempt.CreateFile(paths[n],0x20000|0x80,3,IntPtr.Zero,3,0x02200000,IntPtr.Zero);
     if(h.IsInvalid){int e=Marshal.GetLastWin32Error();h.Dispose();throw new Win32Exception(e);}
-    held.Add(h);ProtectedAttempt.Authority(h,n==paths.Count-1,true,paths[n]);
+    held.Add(h);
+    try{ProtectedAttempt.Authority(h,n==paths.Count-1,true,paths[n]);}catch(InvalidOperationException){
+     if(n==paths.Count-1)throw;
+     var edge=new AncestorCustody(h,paths[n],Path.GetFileName(paths[n+1]));held.Add(edge);custody.Add(edge);
+    }
    }
   }
+  static void CheckCustody(List<AncestorCustody> custody,long deadline){Check(deadline);foreach(var edge in custody)edge.Recheck();}
   // Caller is a separately bounded protected owner worker; this class creates
   // no process, task, VM or provider operation. Receipt deliberately cannot admit.
   public sealed class Receipt {
@@ -52,9 +57,9 @@ namespace Enclave.OwnedRpc {
    long now=BoundedWorker.MonotonicMilliseconds();
    if(deadline<=now||deadline-now>10000||expectedLength<1||expectedLength>16*1024*1024)throw new ArgumentException("Finite small-template operation required");
    if(ProtectedAttempt.CurrentBoot()!=expectedBoot)throw new InvalidOperationException("Template fence boot differs");
-   var parents=new List<SafeFileHandle>();
+   var parents=new List<IDisposable>();var custody=new List<AncestorCustody>();
    try{
-    PinParents(master,parents);PinParents(intentPath,parents);Check(deadline);
+    PinParents(master,parents,custody);PinParents(intentPath,parents,custody);CheckCustody(custody,deadline);
     // Exclusive content open excludes preexisting content readers/writers and
     // replacement while applying. Already copied templates remain OUTSIDE this barrier.
     var h=ProtectedAttempt.CreateFile(master,0x80000000|0x20000|0x40000,0,IntPtr.Zero,3,0x00200000,IntPtr.Zero);
@@ -82,13 +87,13 @@ namespace Enclave.OwnedRpc {
      string journalOwner;using(var who=WindowsIdentity.GetCurrent())journalOwner=who.User.Value=="S-1-5-18"?"S-1-5-18":"S-1-5-32-544";
      sec.SetOwner(new SecurityIdentifier(journalOwner));
      foreach(string sid in new[]{"S-1-5-18","S-1-5-32-544"})sec.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid),FileSystemRights.FullControl,AccessControlType.Allow));
-     Check(deadline);
+     CheckCustody(custody,deadline);
      // Consumed intent precedes mutation and survives any lost response. CreateNew
      // refuses reuse. No catch restores the DACL, even when readback fails.
      using(var journal=new FileStream(intentPath,FileMode.CreateNew,FileSystemRights.WriteData|FileSystemRights.ReadPermissions,FileShare.Read,4096,FileOptions.WriteThrough,sec)){
       ProtectedAttempt.Authority(journal.SafeFileHandle,true,false,intentPath);
-      journal.Write(intent,0,intent.Length);journal.Flush(true);Check(deadline);
-      stream.SetAccessControl(denied);Check(deadline);
+      journal.Write(intent,0,intent.Length);journal.Flush(true);CheckCustody(custody,deadline);
+      stream.SetAccessControl(denied);CheckCustody(custody,deadline);
       var actual=stream.GetAccessControl();
       if(Key(Identity(h))!=Key(before)||!actual.AreAccessRulesProtected||AclBytes(actual)!=wanted||
          actual.GetOwner(typeof(SecurityIdentifier)).Value!=owner||actual.GetGroup(typeof(SecurityIdentifier)).Value!=group)
@@ -96,7 +101,7 @@ namespace Enclave.OwnedRpc {
      }
      return new Receipt{ObjectIdentity=Key(before),MasterHash=expectedHash,IntentHash=ProtectedAttempt.Hash(intent),PersistentReadDenial=true};
     }
-   }finally{foreach(var h in parents)h.Dispose();}
+   }finally{for(int n=parents.Count-1;n>=0;n--)parents[n].Dispose();}
   }
  }
 }

@@ -65,7 +65,7 @@ try{
     Invoke-FiniteProcess $csc ($base+@('/main:Enclave.OwnedRpc.LegacyHandoffEntry',('/out:'+$entry))+$sources) 20000 'compile-entry'
     Invoke-FiniteProcess $csc ($base+@('/main:LegacyHandoffController',('/out:'+$target))+$sources) 20000 'compile-controller'
     $lines=@(Get-Content -LiteralPath (Join-Path $work 'handoff.out'))
-    if(@($lines|Where-Object{$_ -like 'PASS *'}).Count -ne 18 -or $lines[-1] -cne 'RESULT tests=18 providerCalls=false vmChanged=false targetInventoryQualified=false'){throw 'Handoff qualification incomplete'}
+    if(@($lines|Where-Object{$_ -like 'PASS *'}).Count -ne 31 -or $lines[-1] -cne 'RESULT tests=31 providerCalls=false vmChanged=false targetInventoryQualified=false'){throw 'Handoff qualification incomplete'}
 }finally{
     $records|ConvertTo-Json -Depth 5|Set-Content -LiteralPath (Join-Path $work 'process-results.json')
     Get-FileHash -Algorithm SHA256 -LiteralPath ($sources+@($csc))|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'pins.json')

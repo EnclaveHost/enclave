@@ -20,6 +20,7 @@ namespace Enclave.OwnedRpc {
   readonly JavaScriptSerializer json=new JavaScriptSerializer{MaxJsonLength=65536,RecursionLimit=16};
   readonly List<IDisposable> held=new List<IDisposable>();
   readonly HashSet<string> parents=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+  readonly List<AncestorCustody> custody=new List<AncestorCustody>();
   readonly Dictionary<string,object> manifest,master;
   readonly IList issuers,inputs;
   readonly Dictionary<uint,Process> processes=new Dictionary<uint,Process>();
@@ -44,20 +45,25 @@ namespace Enclave.OwnedRpc {
   internal static long Num(object v){if(!(v is int)&&!(v is long))throw new InvalidOperationException("Integral field required");return Convert.ToInt64(v,CultureInfo.InvariantCulture);}
   static IList Rows(object v,int max){var a=v as IList;if(a==null||a.Count>max)throw new InvalidOperationException("Row bound");return a;}
   static void Keys(Dictionary<string,object> d,params string[] keys){if(d.Count!=keys.Length)throw new InvalidOperationException("Exact schema required");foreach(string k in keys)if(!d.ContainsKey(k))throw new InvalidOperationException("Missing field");}
-  void Check(){lease.CheckDeadline();live();foreach(var p in processes.Values)if(p.HasExited)throw new InvalidOperationException("Retained issuer exited during handoff");}
-  void Parent(string path){
+  void Check(){lease.CheckDeadline();live();foreach(var edge in custody)edge.Recheck();foreach(var p in processes.Values)if(p.HasExited)throw new InvalidOperationException("Retained issuer exited during handoff");}
+  void Parent(string path,string immediateChild){
    if(!parents.Add(path))return;
    phase="input-parent-open";
    var h=ProtectedAttempt.CreateFile(path,0x20000|0x80,3,IntPtr.Zero,3,0x02200000,IntPtr.Zero);
    if(h.IsInvalid){int e=Marshal.GetLastWin32Error();h.Dispose();throw new Win32Exception(e);}
-   held.Add(h);phase="input-parent-authority";ProtectedAttempt.Authority(h,false,true,path);Check();
+   held.Add(h);phase="input-parent-authority";
+   try{ProtectedAttempt.Authority(h,false,true,path);}catch(InvalidOperationException){
+    if(immediateChild==null)throw;
+    var edge=new AncestorCustody(h,path,immediateChild);held.Add(edge);custody.Add(edge);
+   }
+   Check();
   }
   void PinInput(Dictionary<string,object> input){
    Keys(input,"path","sha256","bytes");string path=ProtectedAttempt.LocalPath(Str(input["path"])),hash=Str(input["sha256"]);long size=Num(input["bytes"]);
    StartIdentity.Hex(hash,64);if(size<1||size>128*1048576)throw new InvalidOperationException("Public source input bound");
    if(String.Equals(path,Str(master["path"]),StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("Master must remain exclusively available for fence");
-   string dir=Path.GetDirectoryName(path),current=Path.GetPathRoot(path);parentDepth=0;Parent(current);
-   foreach(string part in dir.Substring(3).Split('\\')){parentDepth++;current=Path.Combine(current,part);Parent(current);}
+   string dir=Path.GetDirectoryName(path),current=Path.GetPathRoot(path);string[] parts=dir.Substring(3).Split('\\');parentDepth=0;Parent(current,parts[0]);
+   for(int n=0;n<parts.Length;n++){parentDepth++;current=Path.Combine(current,parts[n]);Parent(current,n+1<parts.Length?parts[n+1]:null);}
    phase="input-file-open";
    var h=ProtectedAttempt.CreateFile(path,0x80000000|0x20000,1,IntPtr.Zero,3,0x00200000,IntPtr.Zero);
    if(h.IsInvalid){int e=Marshal.GetLastWin32Error();h.Dispose();throw new Win32Exception(e);}

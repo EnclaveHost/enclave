@@ -494,3 +494,11 @@ reservation and limit fields with the accounting rule. This follows Microsoft's
 Future explicit memory modification needs a new admission; this receipt does not
 reserve every possible privileged operator reconfiguration. Neither inspected nor
 post-cut rows grant admission themselves.
+
+### Conditional NTFS ancestor custody
+
+The legacy handoff candidate now has a separate `AncestorCustody` check for ordinary metadata/create permissions on a non-leaf ancestor such as `ProgramData`. Ordinary `ProtectedAttempt.Authority` is unchanged. The exception requires a local fixed NTFS volume, a native handle-relative open of one immediate child, matching volume/object identities, no reparse points, a protected SYSTEM/Administrators-owned child DACL, and retained no-delete handles. Only the ancestor WRITE_EA/WRITE_ATTRIBUTES bits receive conditional treatment; deletion, delete-child, owner/DACL mutation and generic-write/all remain refused. Both input pinning and template fencing use the same proof and recheck it. This candidate is not target-qualified or activated.
+
+The Windows fixture uses a genuinely restricted token, verifies actual metadata/EA access, supplies successful empty junction and privileged symlink controls, checks protected nonempty refusal and delete/rename refusal, and verifies that child deletion remains denied after handles close. It also exercises the template fence on disposable bytes. A successful source fixture is not production filesystem admission, and the proof does not claim availability against a trusted administrator or kernel/filter compromise. The protected child must keep the absolute legacy master pathname bound; relative file opens alone would be insufficient.
+
+Primary API references: [NtCreateFile relative RootDirectory](https://learn.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntcreatefile), [restricted token access checks](https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-createrestrictedtoken), and [NTFS reparse restrictions and directory/name-surrogate bits](https://learn.microsoft.com/en-us/windows/win32/fileio/reparse-points).
