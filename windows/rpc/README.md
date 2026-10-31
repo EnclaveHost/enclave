@@ -775,3 +775,32 @@ client/runtime and storage configuration before consuming the original
 900-second startup window. Starting the shell VM is not a successful RPC trial.
 The allocator transition must not be treated as completion of app recovery or
 independent hosting: its initial mode admits only the reserved RPC claim.
+
+### Private guest-media staging
+
+The client image comes from `rpc/guest/inject_image.py`; its separate seed comes
+from `rpc/guest/prepare_seed.py`. A credential-bearing seed is private, including
+its extracted user-data and readback. Never put those artifacts in Git or public
+artifact hosting. Staging them does not install a live activation request or
+start a VM, storage attachment, mount, or client.
+
+`stage-private-media.ps1` creates a new exclusive namespace and precreates empty
+media files under protected administrator/SYSTEM access rules. The operator
+first copies a harmless mode0600 probe through the same authenticated `scp -3
+-p` pipeline, then runs `probe`. This checks actual resulting file permissions,
+the unchanged empty media slots, the persisted specification, and the original
+manager incarnation. Only after success may the operator copy the boot image
+and private seed. `verify` checks exclusive-handle hashes, lengths, private
+access rules and standalone VHDX metadata. Verification never repairs an ACL
+after transfer. Four in-memory refusal cases cover foreign read, write, full
+control and inherit-only grants; they do not widen any real file permissions.
+
+The base64 specification is public metadata: nonce, host boot time, original
+manager identity, and exact source paths/lengths/whole-artifact digests for
+`boot.vhdx`, `seed.iso` and `custody-probe.bin`. The new namespace is derived
+from the nonce. The source files must already be verified, owner-only regular
+files. Each phase is one-shot in the operator journal; failed or ambiguous
+transfers retain their directory for inspection rather than retrying. Local
+SSH/SCP timeout or exit does not prove remote process death. Preparation has
+its own resource checks and is not RPC startup admission; the complete guest
+and storage workflow still requires independent lifecycle and capacity checks.

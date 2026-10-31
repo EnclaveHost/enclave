@@ -1,0 +1,17 @@
+
+scan-crypto-keys: REFUSED - 1 cryptocurrency private key(s) in the staged changes
+  [eth-key] ops/unified-funding-20261028/rpc-private-media-stage-r1/PINS.json:3: 96816d…490c  hex private key assigned to a key/secret field
+
+A committed key is public the moment it is pushed and cannot be un-published,
+only rotated. Remove it from the commit (git reset / rebase) and move the
+secret to metal/config.json, a .env file or the deployment secrets store.
+Confirmed false positive? Re-run with --no-verify.
+pre-commit: COMMIT REFUSED (confirmed false positive: git commit --no-verify)
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-private-media-preserve-r1/preserve.py", line 7, in <module>
+    subprocess.run(['git','commit','-m','Stage complete RPC guest media with verified private Windows custody'],cwd=s,check=True)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 578, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['git', 'commit', '-m', 'Stage complete RPC guest media with verified private Windows custody']' returned non-zero exit status 1.

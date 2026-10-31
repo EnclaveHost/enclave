@@ -1,0 +1,1 @@
+The outer readOnly:true flag in RESULT/ATTEMPT is inaccurate. This job verified two source artifacts without modifying them AND created one harmless public35-byte custody probe under a new0700 directory. See prepare.py and the unchanged result. No private key/seed mutation, VM or RPC action. Raw local originals retained.

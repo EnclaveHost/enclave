@@ -1,0 +1,43 @@
+{
+  "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-private-media-target-read-r1",
+  "files": [
+    {
+      "path": "PINS.json",
+      "sha256": "b989e4ce966b59b4b35af93b2f82838bf907e402976f95db97a3c9068f4e7023"
+    },
+    {
+      "path": "manager-ATTEMPT.json",
+      "sha256": "939b0d12de8331a74a90c022dc978833b5e5f6d0d83e377d5f48a9b5d9948e7f"
+    },
+    {
+      "path": "LAUNCH.json",
+      "sha256": "11174e08c5d645b4aa3640bc0c9600883a4e0fe303500ce20ac6a6582e95e9b9"
+    },
+    {
+      "path": "manager-inner.log",
+      "sha256": "38ca2da8530fb1257e2f78d4dc535ed67283d0eaf163b5214c5d6471e226cca0"
+    },
+    {
+      "path": "manager-outer.log",
+      "sha256": "a706f9da13f1a3a6be0872c9725e8ab9b1141a273512f7b74dd45d9c15bf491b"
+    },
+    {
+      "path": "COMMAND.json",
+      "sha256": "44e5a81b3be32f652cb63e2f57e404ebe6873d0e2bb9b0cfab8d8394d2de6f30"
+    },
+    {
+      "path": "manager-RESULT.json",
+      "sha256": "28616d666546e5efe7ee4c2c2928fae3cdce6550010455377578209f9d4f521f"
+    },
+    {
+      "path": "run.py",
+      "sha256": "46854fc4189bcc62250333a501069d96ed9b7cb75c521863006899fd6ced5b59"
+    },
+    {
+      "path": "manager-read.ps1",
+      "sha256": "1fea92b8d100e3cb8c10cfb1c8d967e8f904645a3f9338a7af81ce4836c205b6"
+    }
+  ],
+  "rawTransportDiagnosticsOmitted": true,
+  "privateMediaNeverCopied": true
+}

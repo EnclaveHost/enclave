@@ -1,0 +1,42 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 5.594773269025609,
+  "bytesObserved": {
+    "stdout": 374,
+    "stderr": 1281
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false,
+  "at": 1793449361.7444437,
+  "phase": "create",
+  "success": true,
+  "noRetry": true,
+  "vmChanged": false,
+  "observation": {
+    "success": true,
+    "phase": "create",
+    "root": "C:\\EnclaveRpcPrivateMedia-dc496fd51b2d4eefbb665cd177bccc93\\dc496fd51b2d4eefbb665cd177bccc93",
+    "files": [],
+    "vhd": null,
+    "before": {
+      "diskFreeBytes": 160162848768,
+      "freeBytes": 84927873024
+    },
+    "after": {
+      "diskFreeBytes": 160162828288,
+      "freeBytes": 84914016256
+    },
+    "aclRefusals": 4,
+    "privateContentsPrinted": false,
+    "vmChanged": false,
+    "startAdmitted": false
+  }
+}

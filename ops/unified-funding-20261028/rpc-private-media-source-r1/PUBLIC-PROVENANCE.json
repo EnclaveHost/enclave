@@ -1,0 +1,51 @@
+{
+  "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-private-media-source-r1",
+  "files": [
+    {
+      "path": "prepare.py",
+      "sha256": "4c9fa89f12ee651cf6b1ce1499d94da2ea66778172a630e4f1a2ed07b2c10f78"
+    },
+    {
+      "path": "PINS.json",
+      "sha256": "8349652e32b39c4118ddb8e8683fc02525f80ac290f1b0cb1786aa3d042bb96e"
+    },
+    {
+      "path": "SSH.json",
+      "sha256": "0574c7d96d7cd5f60d64c86c4a0de321785319bf9aad8eadf9221729ce6db20e"
+    },
+    {
+      "path": "ATTEMPT.json",
+      "sha256": "4a2e7d302fa99b92df7c71d2c93cd3105dd6638cafcedba914e50ff87295cc82"
+    },
+    {
+      "path": "REMOTE.json",
+      "sha256": "a03e314077470829ec2747dac83d8eef2e5100e4c2489ef8f4a8b2df82acf95e"
+    },
+    {
+      "path": "outer.log",
+      "sha256": "557adc31e9c30fc123025e220c85db88e8ff3fceabefb6a3b1638d4728cbe979"
+    },
+    {
+      "path": "RESULT.json",
+      "sha256": "d68ce5b5dfff6d29773cf42deab24ac6955220ed71ea705a8b6b39b5d2b50a44"
+    },
+    {
+      "path": "LAUNCH.json",
+      "sha256": "ac27ce9032ab4a08f00a5eb5a4be2f4fd69e9647ea6b173d8afac33f906b9cef"
+    },
+    {
+      "path": "inner.log",
+      "sha256": "f3767a0e404a2f1b0df8bfef7257cb0cbe30b662a81752cf3cd9eee927b6040a"
+    },
+    {
+      "path": "COMMAND.json",
+      "sha256": "282ac71885a34983ed26676dc5cb673f3796a4860316a1a66dcd705b6e7613c2"
+    },
+    {
+      "path": "run.py",
+      "sha256": "e70ee5481cc6fa1913b0cd959d3e8e6b180f6923035a8717675b31881bed10e9"
+    }
+  ],
+  "rawTransportDiagnosticsOmitted": true,
+  "privateMediaNeverCopied": true
+}
