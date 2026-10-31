@@ -1,0 +1,49 @@
+{
+  "runtime": "ac702ab95b0e6062fcd27d234fdae96ef1ef6b1a",
+  "run": 41187434773,
+  "compiledPins": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/VmStartGuardian.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/ProviderStart.cs",
+    "windows/rpc/ProviderStop.cs",
+    "windows/rpc/HostPhysicalPool.cs",
+    "windows/rpc/PhysicalPoolCommand.cs",
+    "windows/rpc/OwnedVmPermit.cs",
+    "windows/rpc/WindowsStartAdmission.cs",
+    "windows/rpc/ProviderWorkerEntry.cs",
+    "windows/rpc/BootStartBinding.cs",
+    "windows/rpc/StartupCleanup.cs",
+    "test/rpc-windows-worker/ProviderWorkerQualification.cs",
+    "test/rpc-windows-worker/ProviderStartHarness.cs",
+    "test/rpc-windows-worker/ProviderStopHarness.cs",
+    "test/rpc-windows-worker/HostPhysicalPoolHarness.cs"
+  ],
+  "externalCompilerReceiptOnly": [
+    {
+      "Algorithm": "SHA256",
+      "Hash": "46809206887326D2D24DB1EFF1F3064DE972C3451ABE766B49111450A5E08E00",
+      "Path": "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe"
+    }
+  ],
+  "binaries": [
+    {
+      "file": "physical-pool-command.exe",
+      "bytes": 209920,
+      "sha256": "2cbc36f179cb37d8a63301cd5578da3aa946f08afc49fe4625ee41ee00c67300"
+    },
+    {
+      "file": "qualification-controller.exe",
+      "bytes": 242176,
+      "sha256": "9d44fdb559b94aa428e4a4e4fe7655cd41c4b9f7c5fcb9687d1479da75105d07"
+    },
+    {
+      "file": "owned-entry.exe",
+      "bytes": 209920,
+      "sha256": "c0aee733dd113c3a40eb8df37a19e8df38a7d2c3bb6d3e59b9e4c6ba9b382fab"
+    }
+  ],
+  "allProcessesExitedZero": true,
+  "targetNativeQualified": false
+}

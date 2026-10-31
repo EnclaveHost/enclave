@@ -1,0 +1,1 @@
+Hosted qualification succeeded. Compiled repository source pins independently matched ac702ab95b0e6062fcd27d234fdae96ef1ef6b1a; published binaries rehashed; all recorded processes exited zero. Target SYSTEM/native startup remains unqualified. Earlier failed regression retained.

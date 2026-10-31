@@ -1,0 +1,102 @@
+[
+  {
+    "file": "VERIFIED.json",
+    "originalSha256": "38c3acb4f4dcd29ab7af87727823055fbe571fe326c7c2e74169def46e2e6a6d",
+    "publicSha256": "38c3acb4f4dcd29ab7af87727823055fbe571fe326c7c2e74169def46e2e6a6d"
+  },
+  {
+    "file": "ROOT-RESULT.md",
+    "originalSha256": "d8014f5b5c8bb5463451f519226dd607bc821a22927f1cc364e947e6b3cd44c0",
+    "publicSha256": "d8014f5b5c8bb5463451f519226dd607bc821a22927f1cc364e947e6b3cd44c0"
+  },
+  {
+    "file": "pins.json",
+    "originalSha256": "47537912d25d847d380d7a77bc9d11e785fd838cd22eb4bd22b4cd334dd6cd72",
+    "publicSha256": "8666781f44cf51c130a2c06d9d026517ea921fe48f96fd35b36aee8c1610faa6"
+  },
+  {
+    "file": "process-results.json",
+    "originalSha256": "cd572688665ad529d99bda92e65e61a20e488585ea61f6905e4c2911233bbd4c",
+    "publicSha256": "cc16d447be9bdcb022739fbb08b2c7f3d350fc3384d1cee4b0400995b4502d91"
+  },
+  {
+    "file": "pool-compile.out",
+    "originalSha256": "8270f7c75c21e3c3297d4f4078163793e60febb673f8568ca6b3ef223075619a",
+    "publicSha256": "d8c9f52904c5c6fe1924544815048da7b74abc60ae848c2b1542b4093fce0127"
+  },
+  {
+    "file": "physical-pool.out",
+    "originalSha256": "d4ed376326a5605e6bfbb7fdc38250623291146d96cd66fc866bc8dc47584715",
+    "publicSha256": "58335d740ed8c661bf6d616d8d7dc3aba51f11f13960d5ad8f9f8aadb7e52235"
+  },
+  {
+    "file": "pool-transport.out",
+    "originalSha256": "ac38e9ae71d64ad43864b5cba91a21797c30e61e2574b0e6eb092ae3ebe1d43f",
+    "publicSha256": "2b3e9cc85e4427a1c3ae985efa35669f2daeaaa21fa793f3a449ab5ec9b2a42e"
+  },
+  {
+    "file": "guardian-publication-failure.out",
+    "originalSha256": "84c534a026a431a021e9b27a00ed1ba0c5343bc6c8b91a86d14fa6f6cf21bd12",
+    "publicSha256": "4d7b5dca532a5260c52ed3613f7cb4468c6ebb0f69ea90892c9a9239384eefc2"
+  },
+  {
+    "file": "reconcile.out",
+    "originalSha256": "1f45e300a0d962355660338ed1ccc659320b7fa9a033fbc6a6f5f8d6ffa7072d",
+    "publicSha256": "058b2637dbb540bff4aed70ad5de73e231b867d2cf0107048535c16bd5c60cfa"
+  },
+  {
+    "file": "stops.out",
+    "originalSha256": "9bb84654485b83fa6f0c8f89b20dc817327574ce079765cf2566ec4f2c5b469f",
+    "publicSha256": "8dc8054ebf051103ed18731dddb9a492ecba41a331e802edc619a3b1347aa8c9"
+  },
+  {
+    "file": "denied-start.out",
+    "originalSha256": "3855b48d5a7f0832c78a2cd9a43af83730c019c1eaf0ef81d7db2f6c9bcc0509",
+    "publicSha256": "b7138b8c66585036441aab4006b6c173cc61c427f39dd46ef981f6c6985fcd4e"
+  },
+  {
+    "file": "stop-compile.out",
+    "originalSha256": "c47b5a435a816b9c1e534bd82cab33954f21166e5c0cf9846a3cc785c23c4924",
+    "publicSha256": "31be75e15d18ac8afd59f1d5c2dadbc1137d0d71a855928fba623aa3658f2eb7"
+  },
+  {
+    "file": "transaction-compile.out",
+    "originalSha256": "8270f7c75c21e3c3297d4f4078163793e60febb673f8568ca6b3ef223075619a",
+    "publicSha256": "d8c9f52904c5c6fe1924544815048da7b74abc60ae848c2b1542b4093fce0127"
+  },
+  {
+    "file": "entry-compile.out",
+    "originalSha256": "8270f7c75c21e3c3297d4f4078163793e60febb673f8568ca6b3ef223075619a",
+    "publicSha256": "d8c9f52904c5c6fe1924544815048da7b74abc60ae848c2b1542b4093fce0127"
+  },
+  {
+    "file": "guardian-bind.out",
+    "originalSha256": "5b8fa73fe98077b737ca3159c73f918f8da29d591a20e6891c3e8889c49af647",
+    "publicSha256": "4e368bec4c8de5d47d39ee00d5827b5eefc37bff348a3d7d16a477cb77dab904"
+  },
+  {
+    "file": "pool-command-compile.out",
+    "originalSha256": "8270f7c75c21e3c3297d4f4078163793e60febb673f8568ca6b3ef223075619a",
+    "publicSha256": "d8c9f52904c5c6fe1924544815048da7b74abc60ae848c2b1542b4093fce0127"
+  },
+  {
+    "file": "transactions.out",
+    "originalSha256": "742dcd47e8ad2750aac39485a86bd0ec5a82d0d94cbcac004d0f229b673f4948",
+    "publicSha256": "4a8090d16718fd67955fe885fcb10a88679bd3209cc68c72197bc1dae3f34f38"
+  },
+  {
+    "file": "controller-compile.out",
+    "originalSha256": "8270f7c75c21e3c3297d4f4078163793e60febb673f8568ca6b3ef223075619a",
+    "publicSha256": "d8c9f52904c5c6fe1924544815048da7b74abc60ae848c2b1542b4093fce0127"
+  },
+  {
+    "file": "admission-fixtures.out",
+    "originalSha256": "4e4cbaf727e9e807038938c0fd876d02263f7dea322e2932192b8c13bce1eae5",
+    "publicSha256": "86ed0fdddc3eff75fb3f4a27e7bf716725824d3b9b79d7b40ea643476dc796b7"
+  },
+  {
+    "file": "stop-too-early.out",
+    "originalSha256": "6f6500f8186fa2f984df2fb3bdbbe5e3498242800b281c3ccd27e976f5687e83",
+    "publicSha256": "1477203854fbaa37affc60585c3e68912f0a5ae1d1415f19af33c92b47a8d9e1"
+  }
+]

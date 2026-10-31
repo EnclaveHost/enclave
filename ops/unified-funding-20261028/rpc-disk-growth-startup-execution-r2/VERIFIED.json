@@ -1,0 +1,51 @@
+{
+  "runtime": "ac702ab95b0e6062fcd27d234fdae96ef1ef6b1a",
+  "run": 41187482574,
+  "compiledPins": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/VmStartGuardian.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/ProviderStart.cs",
+    "windows/rpc/ProviderStop.cs",
+    "windows/rpc/OwnedVmPermit.cs",
+    "windows/rpc/HostPhysicalPool.cs",
+    "windows/rpc/WindowsStartAdmission.cs",
+    "windows/rpc/LegacyTemplateFence.cs",
+    "windows/rpc/LegacyLaunchCohort.cs",
+    "windows/rpc/LegacyHandoff.cs",
+    "windows/rpc/ProviderWorkerEntry.cs",
+    "windows/rpc/BootStartBinding.cs",
+    "windows/rpc/StartupCleanup.cs",
+    "windows/rpc/StartupCleanupController.cs",
+    "windows/rpc/StartupController.cs",
+    "windows/rpc/OwnedVmDefinition.cs",
+    "test/rpc-windows-worker/StartupControllerHarness.cs"
+  ],
+  "externalCompilerReceiptOnly": [
+    {
+      "Algorithm": "SHA256",
+      "Hash": "46809206887326D2D24DB1EFF1F3064DE972C3451ABE766B49111450A5E08E00",
+      "Path": "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe"
+    }
+  ],
+  "binaries": [
+    {
+      "file": "cleanup-controller.exe",
+      "bytes": 250880,
+      "sha256": "b5f9fe59febaf0c5af2aefd4d46286ae87a3be73dd4f0a75e22abbc51f0dfc36"
+    },
+    {
+      "file": "startup-controller.exe",
+      "bytes": 250880,
+      "sha256": "cb84bfda1dd6083bb431cbb394b47728d4f194fabd4fe9ae7e029d7442f61516"
+    },
+    {
+      "file": "owned-entry.exe",
+      "bytes": 250880,
+      "sha256": "3a439f8ca0d8a677734df0008b4aa729136bce19a3facb6878caa7bb9e775cf3"
+    }
+  ],
+  "allProcessesExitedZero": true,
+  "targetNativeQualified": false
+}

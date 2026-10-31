@@ -1,0 +1,7 @@
+{
+  "root": "C:\\EnclaveRpcMaster-ea4f1ce8a12f4a86b034ccc4ccd9e920",
+  "target": "C:\\EnclaveRpcMaster-ea4f1ce8a12f4a86b034ccc4ccd9e920\\type1.vmgs",
+  "source": "C:\\ProgramData\\Enclave\\shield\\type1.vmgs",
+  "purpose": "Distinct template required before legacy allocator fence; not the ordinary Ubuntu RPC boot disk",
+  "nativeVmAttempted": false
+}

@@ -1,0 +1,26 @@
+{
+  "at": 1793437774.5406759,
+  "readOnly": false,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 614,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "success": true,
+    "preparedAt": "2026-10-31T09:09:34.4585993Z",
+    "boot": "2026-10-23T08:29:16.5000000Z",
+    "source": "C:\\ProgramData\\Enclave\\shield\\type1.vmgs",
+    "target": "C:\\EnclaveRpcMaster-ea4f1ce8a12f4a86b034ccc4ccd9e920\\type1.vmgs",
+    "bytes": 4194816,
+    "sha256": "e93237a717a7e0e9fa201db2b331d2ed480274bfa47145854ea3ba85852abb96",
+    "sourceUnchanged": true,
+    "sourceAclChanged": false,
+    "oldMasterBarrierActivated": false,
+    "newCreatorActivated": false,
+    "poolSeeded": false,
+    "nativeVmAttempted": false,
+    "freeMemoryBytes": 84653658112,
+    "diskFreeBytes": 147482349568
+  }
+}

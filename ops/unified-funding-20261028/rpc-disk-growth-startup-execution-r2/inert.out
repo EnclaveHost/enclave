@@ -1,0 +1,21 @@
+PASS original-definition-to-permit
+PASS definition-schema-refused
+PASS definition-other-root-refused
+PASS definition-noncanonical-clock-refused
+PASS definition-budget-change-refused
+PASS definition-app-identity-refused
+PASS recorded-returned-guid
+PASS noncanonical-name-only-record-refused
+PASS remote-returned-guid-refused
+PASS returned-guid-extra-key-refused
+PASS later-short-worker-keeps-original-deadline
+PASS short-worker-cannot-extend-original
+PASS late-workgate-refused
+PASS before-original-refused
+PASS overlong-short-worker-refused
+PASS initial-host-budget-charges-roles-and-cleanup
+PASS actual-protected-staging-custody
+PASS actual-staging-cannot-write-start
+PASS actual-staging-held-file-cannot-replace
+PASS actual-staging-wrong-hash-refused
+RESULT tests=20 providerCalls=false vmChanged=false targetStartupQualified=false
