@@ -453,3 +453,34 @@ mandatory fresh-copy path, not a general Hyper-V cancellation guarantee.
 `rpc-legacy-cohort.yml` qualifies the changed process-cut implementation with
 bounded disposable Windows children and dummy files. It does not enumerate target
 VMs, establish loaded issuer coverage, seed the shared pool or activate production.
+
+### Protected legacy handoff entrypoint (candidate)
+
+`LegacyHandoffController` publishes a separately typed immutable contract and starts
+`LegacyHandoffEntry` as independently scheduled SYSTEM owner/observer processes.
+The exact held child, owner and observer identities, original deadline and one-shot
+release must agree before `LegacyHandoff` runs. This does not reuse the inert or
+provider contract profiles.
+
+The explicit `legacy-memory-inspect-v1` operation reads loaded manager bindings and
+all realized VM maximum memory twice without changing the template, VMs or pool.
+The distinct `legacy-memory-cut-v1` operation additionally requires held source
+inputs and exact native issuer creation times, consumes the handoff, applies the
+persistent template barrier and waits for the captured direct PowerShell cohort.
+Failures retain intent and any applied barrier; there is no automatic retry or
+rollback. All receipts continue to deny provider settlement, capacity admission,
+reservation release and pool seeding. Existing managers stay alive.
+
+The controller accepts exactly:
+`--target entry.exe entrySha nonce operation observation.json observationSha handoff.json handoffSha origin deadline`.
+It checks fresh physical/listener evidence before scheduling. The finite operation
+retains the original 30-second controller deadline and five-second bootstrap gate;
+this is not the RPC's separate 900-second startup admission. The handoff manifest
+is `legacy-memory-handoff/1` with exact boot/topology/master/issuers/inputs fields.
+The operator must independently establish complete old-issuer and source coverage;
+a digest-shaped manifest alone is not that evidence.
+
+This integration is initially unqualified on the target. Hosted contract/memory-row
+fixtures and compilation cannot prove actual Hyper-V schema, protected installation,
+resource admission, or a production cut. Inspect must succeed against fresh actual
+identities before constructing the live cut and shared-pool seed.

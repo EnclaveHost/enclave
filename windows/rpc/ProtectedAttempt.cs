@@ -166,6 +166,8 @@ namespace Enclave.OwnedRpc {
         }
         public static ProtectedAttempt OpenProviderWorker(string path,string hash) {return new ProtectedAttempt(path,hash,false,"provider");}
         public static ProtectedAttempt PinProviderController(string path,string hash) {RequireAdministrator();return new ProtectedAttempt(path,hash,true,"provider");}
+        public static ProtectedAttempt OpenLegacyHandoffWorker(string path,string hash) {return new ProtectedAttempt(path,hash,false,"legacy-handoff");}
+        public static ProtectedAttempt PinLegacyHandoffController(string path,string hash) {RequireAdministrator();return new ProtectedAttempt(path,hash,true,"legacy-handoff");}
         public ProtectedAttempt(string contractPath,string expectedHash) : this(contractPath,expectedHash,false) {}
         private ProtectedAttempt(string contractPath,string expectedHash,bool controller) : this(contractPath,expectedHash,controller,"inert") {}
         private ProtectedAttempt(string contractPath,string expectedHash,bool controller,string profile) {
@@ -182,6 +184,9 @@ namespace Enclave.OwnedRpc {
                 string[] fields=Utf8.GetString(bytes).Split('\n');
                 if(profile=="inert") {
                     if(fields.Length!=8 || fields[0]!="owned-rpc-inert-v1" || fields[6]!="inert-v1" || fields[7]!="")throw new InvalidOperationException("Exact inert contract schema required");
+                } else if(profile=="legacy-handoff") {
+                    if(fields.Length!=9||fields[0]!="owned-rpc-legacy-handoff-v1"||(fields[6]!="legacy-memory-cut-v1"&&fields[6]!="legacy-memory-inspect-v1")||fields[8]!="")throw new InvalidOperationException("Exact legacy handoff contract required");
+                    Operation=fields[6];PermitPath=Path.Combine(Root,"handoff.json");PermitHash=fields[7];Hex(PermitHash,64);
                 } else {
                     if(profile!="provider"||fields.Length!=12||fields[0]!="owned-rpc-provider-worker-v1"||fields[11]!=""||(fields[6]!="start"&&fields[6]!="reconcile"&&fields[6]!="stop"&&fields[6]!="stop-reconcile"))throw new InvalidOperationException("Exact provider worker contract required");
                     Operation=fields[6];PermitPath=LocalPath(fields[7]);PermitHash=fields[8];Hex(PermitHash,64);
@@ -270,6 +275,11 @@ namespace Enclave.OwnedRpc {
         public byte[] ReadAdmission(string expectedHash) {
             Hex(expectedHash,64);CheckDeadline();byte[] bytes=Bytes(HoldRead(Path.Combine(Root,"admission.json"),262144),262144);
             if(Hash(bytes)!=expectedHash)throw new InvalidOperationException("Reviewed admission digest differs");CheckDeadline();return bytes;
+        }
+        public byte[] ReadLegacyHandoff() {
+            if(LeaseProfile!="legacy-handoff"||(Operation!="legacy-memory-cut-v1"&&Operation!="legacy-memory-inspect-v1"))throw new InvalidOperationException("Explicit handoff profile required");
+            CheckDeadline();byte[] bytes=Bytes(HoldRead(PermitPath,65536),65536);
+            if(Hash(bytes)!=PermitHash)throw new InvalidOperationException("Reviewed handoff digest differs");CheckDeadline();return bytes;
         }
         public void Dispose() {disposed=true;for(int i=held.Count-1;i>=0;i--)held[i].Dispose();held.Clear();}
     }
