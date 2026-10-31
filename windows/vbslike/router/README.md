@@ -14,11 +14,16 @@ reservation authority. The installed router's 17 GiB startup headroom check is
 preserved here, but does not satisfy the separate RPC admission's actual 18 GiB
 floor, prospective commitments and startup overhead. No deployment is implied.
 
-The installed route rejects owner-committed `bootstrap` packages. The newer
-manager supports those public/custody-v2 packages directly, so routing its advertised
-bootstrap capability through this router still requires explicit integration and
-qualification. Existing custody callbacks are preserved; startup package support
-must not be inferred from that. Do not activate this as a complete newer-manager
-bundle until that mismatch, protected installation and serving transition are
-resolved. Restarting a manager can destroy serving continuity even when its VM
+Owner-committed public and custody-v2 startup packages are forwarded unchanged
+only to a direct-capable legacy manager with the matching Shield-direct runtime.
+The router checks bounded canonical bytes, package schema, deployment, runtime,
+secret mode and custody/config scope before writing a launch intent. This routing
+check does not authenticate an owner or derive the actual artifact's AppID. The
+manager still fetches the component and verifies the exact AppID/package binding;
+the guest independently verifies the live owner commitment. Native desktop
+continues to reject these packages. Ambiguous backend errors retain the journal.
+
+Protected installation, shared-pool enrollment and a serving-preserving transition
+remain unqualified. Do not activate this as a production bundle based on fixture
+results. Restarting a manager can destroy serving continuity even when its VM
 remains running.

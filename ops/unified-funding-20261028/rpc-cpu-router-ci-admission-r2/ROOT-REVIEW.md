@@ -1,0 +1,9 @@
+# CPU/router corrected fixture and owner-package integration
+
+Original41164973230 retained185PASS1FAIL with53inputpins0drift. Sole obsolete fixture expected200/empty capabilities for missing inventory; latest installed router intentionally uses503/preserves capabilities to avoid destructive node retirement. Corrected assertion retains refusal and original per-domain GET access. No product rollback or cap/deadline change.
+
+Root additionally closed the inherited bootstrap forwarding gap with actual implementation: direct-capable legacy manager plus exact Shield-direct runtime, bounded canonical package, validated deployment/runtime/schema/public or custody-v2 mode/config/vault. The router intentionally cannot derive the actual AppID from placeholder component bytes; the unchanged real Manager derives fetched component bytes and verifies exact AppID before allocation, then the guest verifies live owner chain commitment. Router never authorizes an owner or changes the package. Native desktop still rejects all packages. Added public/custody positives, malformed/mismatched/refused inputs before intent, and real Manager wrong-AppID refusal with no allocation plus router ambiguous journal retention. No capability suppression as a substitute for supported path.
+
+Same53inputclosure; hosted512hard450RSS/CPU1/noSwap/private-network/30s/2GiB hostedreserve; local256queue220RSSfloor27648. Network limited to inert loopback fixture. No production imports, remote/native/VM/provider/funding actions. New source attempt, never repeat completed CI. Protected installation/enrollment/serving transition/native lifecycle/900s cleanup and actualRPCboot/storage/sync/cutover remain unqualified.20GiBwholeRPC is proposal only.
+
+Peer narrow readonly review closed the bootstrap incompatibility with no admission bypass or lost manager guard; source review only, actual tests pending.

@@ -10,6 +10,7 @@ import {desktopVmMemMiB,NATIVE_24G_MEMORY_PROFILE} from '../manager/desktop-memo
 import {derive,COMPONENT_PREAMBLE} from '../manager/derive.mjs';
 import {refuseUnsupported} from '../manager/server.mjs';
 import {inferenceRefusal} from '../manager/shield-profile.mjs';
+import {verifyPackage,MAX_PACKAGE_BYTES} from '../../../sdk/bootstrap/package.mjs';
 import {validateDesktopRecord} from '../manager/desktop-derive.mjs';
 import {desktopSpawnRefusal} from '../manager/desktop-admission.mjs';
 import {type1VmMemMiB} from '../manager/wmi-launcher.mjs';
@@ -162,6 +163,26 @@ export class CompositeManager {
     if (body.name!==p.deployment || body.id || d?.catalog?.app!==p.catalogApp || d?.catalog?.version!==p.catalogVersion || d?.cid!==p.cid || d?.runtimeId!==p.runtimeId || d?.desktop?.profileSha256!==p.profileSha256 || d?.secretDeployment!==p.deployment) throw error('native request differs from configured deployment',400);
     if (body.cpuShare!==0.25 || body.gpuShare!==0.5 || d.desktop.gpuMilli!==500) throw error('native resource allocation differs from configured deployment',400);
   }
+  checkBootstrap(body,h) {
+    const d=body.derive;
+    if(h.supports?.directBootstrap!==true || !/^[0-9a-f]{64}$/.test(h.images?.shieldDirect?.runtimeId ?? '') ||
+       d.runtimeId!==h.images.shieldDirect.runtimeId)throw Error('owner package runtime is not the configured Shield-direct image');
+    const custody=h.supports?.custodyV2===true && ['enclave-catalog-bundle/6','enclave-catalog-bundle/7'].includes(d.derivation)
+      && !d.inference && body.hasSecrets===true && body.isPublic===true && body.name===d.secretDeployment;
+    if(!custody && (!['enclave-catalog-bundle/1','enclave-catalog-bundle/5'].includes(d.derivation) || d.inference ||
+       body.hasSecrets!==false || body.isPublic!==true))throw Error('unsupported owner package deployment');
+    if(typeof body.bootstrap!=='string' || body.bootstrap.length>4*Math.ceil(MAX_PACKAGE_BYTES/3))throw Error('startup package must be bounded base64');
+    const bytes=Buffer.from(body.bootstrap,'base64');
+    if(!bytes.length || bytes.toString('base64')!==body.bootstrap)throw Error('startup package must be canonical base64');
+    // This routing precheck authenticates no owner. The manager fetches the real
+    // component, derives its AppID and verifies this unchanged package again;
+    // the guest independently verifies its live owner commitment on chain.
+    const m=verifyPackage(bytes,{version:1,sha256:createHash('sha256').update(bytes).digest('hex')},
+      {deployment:body.name,runtimeId:d.runtimeId}).manifest;
+    if(!custody && m.secretsMode!=='public')throw Error('public spawn requires public startup package');
+    if(custody && (m.secretsMode!=='custody-v2' || m.custody?.v!==2 || m.custody?.chainId!==m.chainId ||
+       !/^0x[0-9a-f]{40}$/.test(m.custody?.vault ?? '') || m.configText!==d.config))throw Error('custody startup scope or measured config differs');
+  }
   precheck(body,h,native) {
     const d=body.derive;
     try {
@@ -173,7 +194,8 @@ export class CompositeManager {
         derive({record:d,component:COMPONENT_PREAMBLE});
         if(!h.catalog?.derivations?.includes(d.derivation))throw Error('derivation is not served');
         if(d.inference){const why=inferenceRefusal(d,body,h.inference);if(why)throw Error(why);}
-        else if(d.runtimeId!==h.catalog?.runtimeId)throw Error('runtime differs from installed backend');
+        else if(body.bootstrap===undefined && d.runtimeId!==h.catalog?.runtimeId)throw Error('runtime differs from installed backend');
+        if(body.bootstrap!==undefined)this.checkBootstrap(body,h);
         const secret=['enclave-catalog-bundle/6','enclave-catalog-bundle/7'].includes(d.derivation);
         if(secret&&(body.hasSecrets!==true||body.name!==d.secretDeployment))throw Error('secret deployment differs');
         if([5,6,7].some(n=>d.derivation==='enclave-catalog-bundle/'+n)&&(body.config||body.configCid||body.appConfigCid))throw Error('configuration must be in measured record');
@@ -189,10 +211,10 @@ export class CompositeManager {
     if(this.journal.pending())throw error('unreconciled router launch');
     if(!body || typeof body!=='object' || Array.isArray(body))throw error('invalid spawn body',400);
     body=structuredClone(body);
-    if(['secrets','env','secretValues','bootstrap'].some(k=>k in body))throw error('unsupported startup inputs',400);
+    if(['secrets','env','secretValues'].some(k=>k in body))throw error('unsupported startup inputs',400);
     if(Object.keys(body.derive?.catalog??{}).sort().join(',')!=='app,version')throw error('invalid catalog fields',400);
     const native=body.derive?.derivation===V8,role=native?'native':'legacy';
-    if(native)this.checkNative(body);
+    if(native){if('bootstrap' in body)throw error('native desktop does not accept startup packages',400);this.checkNative(body);}
     else if(body.name===this.pins.deployment || body.derive?.desktop || (body.id && routeFor(body.id)!=='legacy'))throw error('legacy request crosses native namespace',400);
     if(!native){
       const declared=body.derive?.inference?.gpuMilli;

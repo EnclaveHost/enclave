@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
 import {CompositeManager,LaunchJournal} from './control.mjs';
+import {Manager} from '../manager/server.mjs';
+import {derive,COMPONENT_PREAMBLE} from '../manager/derive.mjs';
 const pins={deployment:'0x'+'1'.repeat(64),catalogApp:'0x'+'2'.repeat(64),catalogVersion:0,cid:'b'+'a'.repeat(58),runtimeId:'3'.repeat(64),profileSha256:'4'.repeat(64),igvmSha256:'5'.repeat(64),controllerSha256:'6'.repeat(64)};
 const nd='nd'+'7'.repeat(32);
 function fixture(t){
@@ -99,7 +101,7 @@ test('invalid inventory id is unavailable, never caller refusal',async t=>{
 });
 test('unavailable native inventory disables all admission while keeping legacy reads available',async t=>{
  const f=fixture(t);f.health.native.inventory.state='pending';const h=await f.manager.health();
- assert.equal(h.status,200);assert.equal(h.body.canStart,false);assert.equal(h.body.inventory.state,'pending');assert.deepEqual(h.body.catalog.derivations,[]);assert.equal(h.body.physicalMemory.freeMiB,0);
+ assert.equal(h.status,503);assert.equal(h.body.canStart,false);assert.equal(h.body.inventory.state,'pending');assert.deepEqual(h.body.catalog.derivations,f.health.legacy.catalog.derivations);assert.equal(h.body.physicalMemory.freeMiB,0);
  await assert.rejects(f.manager.handle('GET','/vms'),e=>e.status===503);
  await f.manager.handle('GET','/vms/hv1234/');assert.equal(f.calls.at(-1).path,'/vms/hv1234/');
 });
@@ -168,4 +170,65 @@ test('native router journals the same 32-GiB physical policy as the manager',asy
  const result=await f.manager.spawn(f.body);
  assert.equal(result.status,201);assert.equal(recorded.expected.physicalMiB,32768);
  assert.equal(f.rows.native[0].physicalMemoryMiB,32768);assert.equal(f.journal.pending(),false);
+});
+
+
+function startupFixture(t,custody=false){
+ const f=fixture(t),body=legacyBody(),rid='d'.repeat(64);
+ body.derive.runtimeId=rid;
+ if(custody){body.hasSecrets=true;body.derive.derivation='enclave-catalog-bundle/6';body.derive.secretDeployment=body.name;body.derive.config='{}';}
+ const manifest={version:1,chainId:8453,ledger:'0x'+'1'.repeat(40),deployment:body.name,owner:'0x'+'2'.repeat(40),
+  appRef:'fixture',appId:derive({record:body.derive,component:COMPONENT_PREAMBLE}).appId,runtimeId:rid,configText:custody?'{}':'',
+  secretsMode:custody?'custody-v2':'public',...(custody?{custody:{v:2,chainId:8453,vault:'0x'+'3'.repeat(40)}}:{})};
+ const pack=()=>body.bootstrap=Buffer.from(JSON.stringify(manifest)).toString('base64');pack();
+ Object.assign(f.health.legacy.supports,{directBootstrap:true,custodyV2:custody,secrets:custody,config:true});
+ f.health.legacy.images={shieldDirect:{runtimeId:rid,igvmSha256:'e'.repeat(64)}};
+ f.health.legacy.catalog.derivations.push('enclave-catalog-bundle/1','enclave-catalog-bundle/6');
+ f.setAction(async(role,method,p,forwarded)=>{
+  assert.equal(role,'legacy');assert.equal(method,'POST');assert.equal(p,'/vms');
+  const row={id:forwarded.id,name:forwarded.name,status:'starting',runtimeId:forwarded.derive.runtimeId,cid:forwarded.derive.cid,
+   catalog:forwarded.derive.catalog,imageRole:'shield-direct',cpu:{grantedUnits:400000},memory:{appMiB:24576},physicalMemoryMiB:25216,gpuMilli:0};
+  f.rows.legacy.push(row);return {status:201,body:row};
+ });
+ return {...f,body,manifest,pack};
+}
+for(const custody of [false,true])test('owner package is forwarded unchanged to direct manager, custody='+custody,async t=>{
+ const f=startupFixture(t,custody),original=f.body.bootstrap;
+ const health=await f.manager.health();assert.equal(health.body.supports.directBootstrap,true);
+ const result=await f.manager.spawn(f.body);assert.equal(result.status,201);
+ assert.equal(f.calls.find(c=>c.method==='POST').body.bootstrap,original);assert.equal(f.journal.pending(),false);
+});
+for(const [name,change] of [
+ ['no direct capability',f=>f.health.legacy.supports.directBootstrap=false],
+ ['wrong direct runtime',f=>f.health.legacy.images.shieldDirect.runtimeId='f'.repeat(64)],
+ ['missing image',f=>delete f.health.legacy.images.shieldDirect],
+ ['noncanonical bytes',f=>f.body.bootstrap+='\n'],
+ ['oversized bytes',f=>f.body.bootstrap='a'.repeat(180000)],
+ ['null bytes',f=>f.body.bootstrap=null],
+ ['wrong deployment',f=>{f.manifest.deployment='0x'+'a'.repeat(64);f.pack();}],
+ ['wrong package runtime',f=>{f.manifest.runtimeId='e'.repeat(64);f.pack();}],
+ ['custody without permission',f=>f.health.legacy.supports.custodyV2=false],
+ ['wrong custody config',f=>{f.manifest.configText='{"changed":true}';f.pack();}],
+ ['invalid custody vault',f=>{f.manifest.custody.vault='invalid';f.pack();}],
+ ['unexpected secret input',f=>f.body.env={secret:'fixture'}],
+])test('owner package '+name+' refuses before router intent or POST',async t=>{
+ const f=startupFixture(t,true);change(f);
+ await assert.rejects(f.manager.spawn(f.body),e=>e.status===400);
+ assert.equal(f.calls.some(c=>c.method==='POST'),false);assert.equal(f.journal.pending(),false);
+});
+test('native desktop still rejects owner packages before backend mutation',async t=>{
+ const f=fixture(t);f.body.bootstrap='e30=';await assert.rejects(f.manager.spawn(f.body),e=>e.status===400);
+ assert.equal(f.calls.some(c=>c.method==='POST'),false);assert.equal(f.journal.pending(),false);
+});
+test('real manager independently rejects a package for another AppID before backend allocation',async t=>{
+ const f=startupFixture(t),starts=[];
+ const backend={canSurvey:true,supports:{},survey:async()=>({vms:[]}),start:async()=>{starts.push(true);throw Error('must not allocate');}};
+ const manager=new Manager({backend,directBootstrap:true,images:{shieldDirect:f.health.legacy.images.shieldDirect},fetchComponent:async()=>COMPONENT_PREAMBLE});
+ await manager.recover();f.manifest.appId='f'.repeat(64);f.pack();
+ let rejection;
+ f.setAction(async(role,method,p,b)=>{try{return {status:201,body:await manager.spawn(b)};}catch(e){rejection=e;return {status:e.status||400,body:{error:e.message}};}});
+ await assert.rejects(f.manager.spawn(f.body),/outcome unknown/);
+ assert.match(rejection.message,/startup appId mismatch/);assert.equal(starts.length,0);
+ // Router cannot release an intent solely on an HTTP failure.
+ assert.equal(f.journal.pending(),true);assert.equal(manager.domains.size,0);
 });

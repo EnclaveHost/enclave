@@ -1,0 +1,3 @@
+# Original CPU/router qualification retained
+
+Actual hosted run41164973230 at440d321d8231a746460513ab08b4f9df014c308b terminal failure. 185PASS1FAIL, no skipped/cancelled;7348ms tests/7484ms service,185MiB sampled treeRSS.53inputpins match exact Git source;0drift. Sole failure is inherited older router fixture expecting200 and cleared capabilities when native inventory unavailable. Latest installed router returns503 and preserves capability metadata to avoid inducing destructive node retirement. Product behavior is correct; fixture must assert503, no admission, original capability preserved and per-domain reads/custody still routed. Do not rerun this completed run.
