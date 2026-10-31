@@ -1,0 +1,10 @@
+{
+  "head": "59f2d5ffbb09686e667b76bef2d3f1ddc57a739d",
+  "runId": 41163893854,
+  "sourcePinsVerified": 40,
+  "tests": 80,
+  "pass": 61,
+  "fail": 19,
+  "failure": "all19 desktop launcher fixtures refused mkdtemp with EROFS before exercising launch",
+  "productionAdmission": false
+}

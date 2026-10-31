@@ -16,6 +16,7 @@ root = Path('allocation-source').resolve()
 out = Path('allocation-results').resolve()
 root.mkdir()
 out.mkdir()
+(out / "tmp").mkdir()
 files = json.loads(Path(__file__).with_name('source-files.json').read_text())
 assert len(files) == 40 and len(set(files)) == len(files)
 pins = {}
@@ -43,7 +44,7 @@ command = ['sudo', 'systemd-run', '--wait', '--pipe', '--unit=' + unit,
     '--property=ProtectSystem=strict', '--property=ProtectHome=read-only',
     '--property=ReadWritePaths=' + str(out), '--property=WorkingDirectory=' + str(root),
     '--uid=' + str(os.getuid()), '--gid=' + str(os.getgid()),
-    '/usr/bin/env', '-i', 'PATH=/usr/bin:/bin', node,
+    '/usr/bin/env', '-i', 'PATH=/usr/bin:/bin', 'TMPDIR=' + str(out / 'tmp'), node,
     str(root / 'test/helpers/memory-guard.mjs'), '--max-rss-mib', '450',
     '--floor-available-mib', '2048', '--log', str(out / 'memory.log'), '--',
     node, '--test', '--test-concurrency=1', '--test-timeout=5000',
