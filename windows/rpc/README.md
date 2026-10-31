@@ -290,3 +290,12 @@ zero current allocation before starting the owned Off VM. These native provider
 schema/semantics still require target qualification. Hosted qualification uses
 only a synthetic VM permit: one real SYSTEM read-held path and one exact guardian
 image-mismatch refusal, with no valid native start guardian or VM creation.
+
+Hosted CI41155763134 qualified the actual new SYSTEM worker composition: one
+response-lost-held read and one exact guardian-image-mismatch start refusal, with
+known owner/observer exits, empty owner job and associated task cleanup. It also
+retained37 transaction tests and passed6 pending-authority parser cases. No valid
+native guardian or actual VM was supplied. The earlier fixture compilation error
+in41155564998 is retained; the worker entry had compiled successfully. These
+results do not qualify current target capacity, native provider operations or the
+900-second VM guardian.

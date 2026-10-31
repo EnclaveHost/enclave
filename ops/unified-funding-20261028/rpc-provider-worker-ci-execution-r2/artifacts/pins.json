@@ -1,0 +1,52 @@
+[
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "309A68AB3A4326C3819997C3ABAE4E4FE38307E98BB54B31B246CE61A9A63A99",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\BoundedWorker.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "59D15DC8BA06CD739D7BF920FDA4CCA86D235B962CCCEF1BAE27C0173FBEDC80",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\OwnerObserver.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "7649BA89E3EFCB8F5F110DBFE526BA47C9217F22E554266A0D73FD5F5CCB184F",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\ProtectedAttempt.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "03542712CD6617F2003E5EFE1FEDFA8DB3A70FA6BCE131033FAD2BCD6658F424",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\ProviderStart.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "29099833D271AB539A615091876BC01C9C67B5E71C413AC2C0B7BC7190DA3AD8",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\OwnedVmPermit.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "90E4484367D052D7A15B05A5FA2CB89793DF8A17B21F221F29BF7EAE07AEDF78",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\WindowsStartAdmission.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "9A8393CF955CD7792D51F0A4BD103EDCA1BAE60526E10E17A1813216169B7FA9",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\ProviderWorkerEntry.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "1D17ECCBF86F62E046AFC1E9537A0DE30CC12754B7A8E5343FBF84B5B52292EB",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\test\\rpc-windows-worker\\ProviderWorkerQualification.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "52698E65A2E5B7901E4F2C4577DFF041F48E27CD4151093C518AD13B5C99365C",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\test\\rpc-windows-worker\\ProviderStartHarness.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "46809206887326D2D24DB1EFF1F3064DE972C3451ABE766B49111450A5E08E00",
+        "Path":  "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe"
+    }
+]

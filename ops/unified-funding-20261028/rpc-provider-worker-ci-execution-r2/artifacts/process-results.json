@@ -1,0 +1,72 @@
+[
+    {
+        "label":  "entry-compile",
+        "pid":  5624,
+        "exitCode":  0,
+        "elapsedMs":  2467,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  33484800,
+        "outputBytes":  0
+    },
+    {
+        "label":  "controller-compile",
+        "pid":  5576,
+        "exitCode":  0,
+        "elapsedMs":  161,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  34377728,
+        "outputBytes":  0
+    },
+    {
+        "label":  "transaction-compile",
+        "pid":  1596,
+        "exitCode":  0,
+        "elapsedMs":  156,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  34152448,
+        "outputBytes":  0
+    },
+    {
+        "label":  "transactions",
+        "pid":  3560,
+        "exitCode":  0,
+        "elapsedMs":  2782,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  35762176,
+        "outputBytes":  1884
+    },
+    {
+        "label":  "admission-fixtures",
+        "pid":  7024,
+        "exitCode":  0,
+        "elapsedMs":  975,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  36077568,
+        "outputBytes":  166
+    },
+    {
+        "label":  "reconcile",
+        "pid":  3912,
+        "exitCode":  0,
+        "elapsedMs":  1563,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  45019136,
+        "outputBytes":  598
+    },
+    {
+        "label":  "denied-start",
+        "pid":  9020,
+        "exitCode":  0,
+        "elapsedMs":  1472,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  42442752,
+        "outputBytes":  519
+    }
+]
