@@ -1,0 +1,8 @@
+{
+  "capture-local.py": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c",
+  "observe.py": "dd83c0834165443496ca68822357dfd54f3a154933027ef603638f4f2a260a64",
+  "control-client.mjs": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6",
+  "CONFIG.json": "5502597c71cf4334b15ce96a99b0a4f4ece67a696373e4bcd6e3d047e8acc4ad",
+  "HOST-TOOL-PINS.json": "017e33de3ba8aca68f20de5284bb0a154d0f6ebd94d0db2109ae8506fad7983c",
+  "guestd-read.mjs": "7b2645c19b4c1fa0ecab3dd067e3502348d58e985d5f7d6a16f7a2fbcd5d4e93"
+}

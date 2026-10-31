@@ -1,0 +1,9 @@
+# Authenticated COW export data path
+
+Actual invocation d8c66866534849d5a8706709bde7ff24: exit0/MainPID0, 13 native checks passed in0.534s. Outer256MiB/noSwap/CPU1, inner220MiB/floor27648; peak measured tree RSS57MiB, host available minimum32069MiB. Frozen4 input pins match. Tests ran in private network/PID/mount/user namespaces against disposable1MiB data and newly generated temporary TLS credentials; no production images or keys were exposed to the namespace.
+
+Maintained volume_export.py created an exclusive COW from a two-level qcow2 chain, held read-only QEMU-compatible locks and started the exact pinned qemu-nbd with explicit readonly backing graph, cache=none, mandatory TLS and per-attempt client DN. Actual checks: original read, write+FUA+FLUSH+readback, explicit disconnect/reconnect, wrong client DN/server name/export/plaintext rejection, second overlay writer rejection, original writer rejection, authorized access after refusals, exact child exit+original SHA preservation+qemu-img check, consumed-attempt rejection, and persisted overlay bytes after server exit.
+
+This is data-path evidence, not production admission. The library has no native launcher or independent guardian and issues no READY/adoption receipt. Kernel attachment, cross-host behavior, original900s lifecycle composition, protected credential delivery, sustained workload/whole20GiB fit, filesystem recovery, chain sync/finality and production consumers remain unproven. close() never asserts global writer fencing or clean guest filesystem. Fresh host observation failed the proposed export fit; no production export was started.
+
+Next: integrate this maintained component into the independently bounded server lifecycle and resolve storage-host resource admission without ignoring pending or lowering floors. Original guest seed still lacks this completed end-to-end attachment workflow; do not cut allocator/start incomplete guest.

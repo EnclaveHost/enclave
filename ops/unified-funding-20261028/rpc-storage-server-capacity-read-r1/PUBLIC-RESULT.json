@@ -1,0 +1,511 @@
+{
+  "at": 1793442907.4825058,
+  "bootId": "b5382987-896d-4f01-938b-12d1bb149fd5",
+  "beforeMemory": {
+    "MemTotal": 134015586304,
+    "MemAvailable": 33661689856,
+    "SwapTotal": 4294963200,
+    "SwapFree": 110592
+  },
+  "afterMemory": {
+    "MemTotal": 134015586304,
+    "MemAvailable": 33720647680,
+    "SwapTotal": 4294963200,
+    "SwapFree": 110592
+  },
+  "guestd": {
+    "ok": true,
+    "authenticated": true,
+    "readOnly": true,
+    "at": 1793442907.688,
+    "before": {
+      "budget": {
+        "memMiB": 98304,
+        "cpuPct": 2400
+      },
+      "allocated": {
+        "memMiB": 68249,
+        "cpuPct": 1700
+      },
+      "free": {
+        "memMiB": 30055,
+        "cpuPct": 700
+      },
+      "guests": 2,
+      "overcommitted": false,
+      "host": {
+        "floorMiB": 18432,
+        "memAvailableMiB": 32145,
+        "pendingMiB": 5948,
+        "unreadUnits": 0
+      }
+    },
+    "after": {
+      "budget": {
+        "memMiB": 98304,
+        "cpuPct": 2400
+      },
+      "allocated": {
+        "memMiB": 68249,
+        "cpuPct": 1700
+      },
+      "free": {
+        "memMiB": 30055,
+        "cpuPct": 700
+      },
+      "guests": 2,
+      "overcommitted": false,
+      "host": {
+        "floorMiB": 18432,
+        "memAvailableMiB": 32135,
+        "pendingMiB": 5948,
+        "unreadUnits": 0
+      }
+    },
+    "guests": [
+      {
+        "id": "gd1609283d",
+        "status": "running",
+        "reserved": {
+          "memMiB": 3200,
+          "cpuPct": 100
+        }
+      },
+      {
+        "id": "gd61126785",
+        "status": "running",
+        "reserved": {
+          "memMiB": 65049,
+          "cpuPct": 1600
+        }
+      },
+      {
+        "id": "gd77d87e32",
+        "status": "failed",
+        "reserved": null
+      }
+    ],
+    "reservationsStable": true,
+    "pendingUpperMiB": 5948,
+    "memAvailableLowerMiB": 32135,
+    "rawHealthRetained": false,
+    "nativeAdmitted": false,
+    "installedProcessIdentity": {
+      "pid": 194657,
+      "startTicks": 148657014,
+      "ppid": 1899,
+      "uid": 1000,
+      "executable": "/home/steven/enclave-prod/bin/guestd.sdshield-9d1562738cde",
+      "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-guestd.service",
+      "rssBytes": 30248960
+    }
+  },
+  "unitBefore": "Id=enclave-guestd.service\nActiveState=active\nSubState=running\nFragmentPath=/home/steven/.config/systemd/user/enclave-guestd.service\nDropInPaths=/home/steven/.config/systemd/user/enclave-guestd.service.d/70-protected-ports.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/80-shield-inference.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/90-tuna-egress.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/95-public-web.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/97-codegen.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/98-artifact-gateway.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/99-app-egress.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zz-memory-budget64.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzz-eyesoff-vision.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzz-pad-spill.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzz-custody.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzz-zimage.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzz-recovery-pad-location.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzzz-loader-cache-20261028.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzzzz-retire-budget-20261028.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzzzzz-retire-rollback-20261028.conf\nInvocationID=6eff6e20ad984adba33c6603b3198ac5\nMainPID=194657\nControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-guestd.service\nMemoryCurrent=179331072\nTasksCurrent=56\nCPUQuotaPerSecUSec=infinity\nMemoryMax=infinity\nMemorySwapMax=infinity\n\nId=enclave-rpc-production-vm.service\nActiveState=inactive\nSubState=dead\nFragmentPath=/home/steven/.config/systemd/user/enclave-rpc-production-vm.service\nDropInPaths=\nInvocationID=\nMainPID=0\nControlGroup=\nMemoryCurrent=[not set]\nTasksCurrent=[not set]\nCPUQuotaPerSecUSec=infinity\nMemoryMax=70866960384\nMemorySwapMax=0\n\nId=enclave-rpc-production-guard.service\nActiveState=inactive\nSubState=dead\nFragmentPath=/home/steven/.config/systemd/user/enclave-rpc-production-guard.service\nDropInPaths=\nInvocationID=\nMainPID=0\nControlGroup=\nMemoryCurrent=[not set]\nTasksCurrent=[not set]\nCPUQuotaPerSecUSec=infinity\nMemoryMax=268435456\nMemorySwapMax=infinity\n",
+  "unitAfter": "Id=enclave-guestd.service\nActiveState=active\nSubState=running\nFragmentPath=/home/steven/.config/systemd/user/enclave-guestd.service\nDropInPaths=/home/steven/.config/systemd/user/enclave-guestd.service.d/70-protected-ports.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/80-shield-inference.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/90-tuna-egress.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/95-public-web.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/97-codegen.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/98-artifact-gateway.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/99-app-egress.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zz-memory-budget64.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzz-eyesoff-vision.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzz-pad-spill.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzz-custody.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzz-zimage.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzz-recovery-pad-location.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzzz-loader-cache-20261028.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzzzz-retire-budget-20261028.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzzzzz-retire-rollback-20261028.conf\nInvocationID=6eff6e20ad984adba33c6603b3198ac5\nMainPID=194657\nControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-guestd.service\nMemoryCurrent=180817920\nTasksCurrent=56\nCPUQuotaPerSecUSec=infinity\nMemoryMax=infinity\nMemorySwapMax=infinity\n\nId=enclave-rpc-production-vm.service\nActiveState=inactive\nSubState=dead\nFragmentPath=/home/steven/.config/systemd/user/enclave-rpc-production-vm.service\nDropInPaths=\nInvocationID=\nMainPID=0\nControlGroup=\nMemoryCurrent=[not set]\nTasksCurrent=[not set]\nCPUQuotaPerSecUSec=infinity\nMemoryMax=70866960384\nMemorySwapMax=0\n\nId=enclave-rpc-production-guard.service\nActiveState=inactive\nSubState=dead\nFragmentPath=/home/steven/.config/systemd/user/enclave-rpc-production-guard.service\nDropInPaths=\nInvocationID=\nMainPID=0\nControlGroup=\nMemoryCurrent=[not set]\nTasksCurrent=[not set]\nCPUQuotaPerSecUSec=infinity\nMemoryMax=268435456\nMemorySwapMax=infinity\n",
+  "jobs": "",
+  "systemJobs": "",
+  "timers": "Sat 2026-10-31 03:35:26 MST      18s Sat 2026-10-31 03:34:56 MST      11s ago enclave-risc-viewer-refresh.timer    enclave-risc-viewer-refresh.service\nSat 2026-10-31 03:35:27 MST      19s Sat 2026-10-31 03:34:56 MST      11s ago enclave-pad-bank-reaper.timer        enclave-pad-bank-reaper.service\nSat 2026-10-31 03:35:27 MST      19s Sat 2026-10-31 03:33:27 MST 1min 40s ago enclave-network-reconcile.timer      enclave-network-reconcile.service\nSat 2026-10-31 03:37:02 MST 1min 54s Sat 2026-10-31 03:35:02 MST       5s ago enclave-risc-moonlight-refresh.timer enclave-risc-moonlight-refresh.service\n",
+  "storage": {
+    "images": [
+      {
+        "role": "original",
+        "file": {
+          "path": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2",
+          "resolved": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2",
+          "device": 64769,
+          "inode": 147981798,
+          "bytes": 528387407872,
+          "allocatedBytes": 461808537600,
+          "mode": 33152,
+          "uid": 1000,
+          "gid": 1000,
+          "mtimeNs": 1793030445134925227,
+          "ctimeNs": 1793030445134925227,
+          "links": 1,
+          "regular": true,
+          "symlink": false,
+          "readable": true,
+          "writable": true
+        },
+        "mount": {
+          "target": "/vm",
+          "majorMinor": "253:1",
+          "options": "rw,relatime",
+          "fstype": "ext4",
+          "source": "/dev/mapper/cryptvm"
+        },
+        "availableBytes": 616052559872,
+        "floorBytes": 300000000000,
+        "aboveFloor": true,
+        "devices": [
+          {
+            "sysfs": "/sys/devices/virtual/block/dm-1",
+            "dev": "253:1",
+            "size": "7289712640",
+            "queue/rotational": "0",
+            "queue/logical_block_size": "512"
+          },
+          {
+            "sysfs": "/sys/devices/pci0000:e0/0000:e0:01.2/0000:e1:00.0/nvme/nvme0/nvme0n1/nvme0n1p1",
+            "dev": "259:1",
+            "size": "7289745408"
+          },
+          {
+            "sysfs": "/sys/devices/pci0000:e0/0000:e0:01.2/0000:e1:00.0/nvme/nvme0/nvme0n1",
+            "dev": "259:0",
+            "size": "7814037168",
+            "queue/rotational": "0",
+            "queue/logical_block_size": "512",
+            "device/model": "CT4000T710SSD8"
+          }
+        ]
+      },
+      {
+        "role": "frozen-r6",
+        "file": {
+          "path": "/vm/enclave-volumes/rpc-control-l1-client-r6/overlay.qcow2",
+          "resolved": "/vm/enclave-volumes/rpc-control-l1-client-r6/overlay.qcow2",
+          "device": 64769,
+          "inode": 148393098,
+          "bytes": 277741568,
+          "allocatedBytes": 277741568,
+          "mode": 33152,
+          "uid": 1000,
+          "gid": 1000,
+          "mtimeNs": 1793377151538885655,
+          "ctimeNs": 1793377151538885655,
+          "links": 1,
+          "regular": true,
+          "symlink": false,
+          "readable": true,
+          "writable": true
+        },
+        "mount": {
+          "target": "/vm",
+          "majorMinor": "253:1",
+          "options": "rw,relatime",
+          "fstype": "ext4",
+          "source": "/dev/mapper/cryptvm"
+        },
+        "availableBytes": 616052559872,
+        "floorBytes": 300000000000,
+        "aboveFloor": true,
+        "devices": [
+          {
+            "sysfs": "/sys/devices/virtual/block/dm-1",
+            "dev": "253:1",
+            "size": "7289712640",
+            "queue/rotational": "0",
+            "queue/logical_block_size": "512"
+          },
+          {
+            "sysfs": "/sys/devices/pci0000:e0/0000:e0:01.2/0000:e1:00.0/nvme/nvme0/nvme0n1/nvme0n1p1",
+            "dev": "259:1",
+            "size": "7289745408"
+          },
+          {
+            "sysfs": "/sys/devices/pci0000:e0/0000:e0:01.2/0000:e1:00.0/nvme/nvme0/nvme0n1",
+            "dev": "259:0",
+            "size": "7814037168",
+            "queue/rotational": "0",
+            "queue/logical_block_size": "512",
+            "device/model": "CT4000T710SSD8"
+          }
+        ]
+      },
+      {
+        "role": "completed-r9-child",
+        "file": {
+          "path": "/vm/enclave-volumes/rpc-control-l1-client-r9/overlay.qcow2",
+          "resolved": "/vm/enclave-volumes/rpc-control-l1-client-r9/overlay.qcow2",
+          "device": 64769,
+          "inode": 148393144,
+          "bytes": 880869376,
+          "allocatedBytes": 880869376,
+          "mode": 33152,
+          "uid": 1000,
+          "gid": 1000,
+          "mtimeNs": 1793390151873479404,
+          "ctimeNs": 1793390151873479404,
+          "links": 1,
+          "regular": true,
+          "symlink": false,
+          "readable": true,
+          "writable": true
+        },
+        "mount": {
+          "target": "/vm",
+          "majorMinor": "253:1",
+          "options": "rw,relatime",
+          "fstype": "ext4",
+          "source": "/dev/mapper/cryptvm"
+        },
+        "availableBytes": 616052559872,
+        "floorBytes": 300000000000,
+        "aboveFloor": true,
+        "devices": [
+          {
+            "sysfs": "/sys/devices/virtual/block/dm-1",
+            "dev": "253:1",
+            "size": "7289712640",
+            "queue/rotational": "0",
+            "queue/logical_block_size": "512"
+          },
+          {
+            "sysfs": "/sys/devices/pci0000:e0/0000:e0:01.2/0000:e1:00.0/nvme/nvme0/nvme0n1/nvme0n1p1",
+            "dev": "259:1",
+            "size": "7289745408"
+          },
+          {
+            "sysfs": "/sys/devices/pci0000:e0/0000:e0:01.2/0000:e1:00.0/nvme/nvme0/nvme0n1",
+            "dev": "259:0",
+            "size": "7814037168",
+            "queue/rotational": "0",
+            "queue/logical_block_size": "512",
+            "device/model": "CT4000T710SSD8"
+          }
+        ]
+      },
+      {
+        "role": "base-original",
+        "file": {
+          "path": "/mnt/usb/enclave-rpc-production/base-origin.qcow2",
+          "resolved": "/mnt/usb/enclave-rpc-production/base-origin.qcow2",
+          "device": 2049,
+          "inode": 929,
+          "bytes": 1255588233216,
+          "allocatedBytes": 1255588233216,
+          "mode": 33188,
+          "uid": 1000,
+          "gid": 1000,
+          "mtimeNs": 1793152612815840500,
+          "ctimeNs": 1793152612815840500,
+          "links": 1,
+          "regular": true,
+          "symlink": false,
+          "readable": true,
+          "writable": true
+        },
+        "mount": {
+          "target": "/mnt/usb",
+          "majorMinor": "8:1",
+          "options": "rw,noatime",
+          "fstype": "ntfs3",
+          "source": "/dev/sda1"
+        },
+        "availableBytes": 52399020703744,
+        "floorBytes": 300000000000,
+        "aboveFloor": true,
+        "devices": [
+          {
+            "sysfs": "/sys/devices/pci0000:a0/0000:a0:03.2/0000:a2:00.0/usb8/8-2/8-2:1.0/host0/target0:0:0/0:0:0:0/block/sda/sda1",
+            "dev": "8:1",
+            "size": "105469767680"
+          },
+          {
+            "sysfs": "/sys/devices/pci0000:a0/0000:a0:03.2/0000:a2:00.0/usb8/8-2/8-2:1.0/host0/target0:0:0/0:0:0:0/block/sda",
+            "dev": "8:0",
+            "size": "105469771776",
+            "queue/rotational": "1",
+            "queue/logical_block_size": "512",
+            "device/model": "TR-004 DISK00"
+          }
+        ]
+      }
+    ],
+    "devicePermissions": {
+      "/dev/kvm": {
+        "exists": true,
+        "readWriteAccess": true
+      },
+      "/dev/loop-control": {
+        "exists": true,
+        "readWriteAccess": false
+      },
+      "/dev/nbd0": {
+        "exists": true,
+        "readWriteAccess": false
+      },
+      "/dev/nbd7": {
+        "exists": true,
+        "readWriteAccess": false
+      }
+    },
+    "nbdMetadata": [
+      {
+        "device": "nbd0",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd1",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd2",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd3",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd4",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd5",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd6",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd7",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd8",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd9",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd10",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd11",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd12",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd13",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd14",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd15",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      }
+    ],
+    "installedManifestSummary": [
+      {
+        "path": "/home/steven/.local/state/enclave-rpc-production/manifest.json",
+        "disks": {
+          "base": {
+            "backing": "hdd",
+            "bytes": 4000000000000,
+            "path": "/mnt/usb/enclave-rpc-production/base-origin.qcow2",
+            "serial": "ERPC-BASE-740457FE"
+          },
+          "l1": {
+            "backing": "nvme",
+            "bytes": 4000000000000,
+            "path": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2",
+            "serial": "ERPC-L1-6DA15A8D"
+          },
+          "os": {
+            "backing": "nvme",
+            "bytes": 34359738368,
+            "path": "/vm/enclave-volumes/rpc-production/os.qcow2",
+            "serial": "ERPC-OS-C0D16DA3"
+          }
+        },
+        "backings": {
+          "hdd": {
+            "fstype": "ntfs3",
+            "guestRotationRate": 7200,
+            "kind": "hdd",
+            "mount": "/mnt/usb",
+            "source": "/dev/sda2"
+          },
+          "nvme": {
+            "fstype": "ext4",
+            "guestRotationRate": 1,
+            "kind": "nvme",
+            "mount": "/vm",
+            "source": "/dev/mapper/cryptvm"
+          }
+        },
+        "sourceHash": "a28432151c9a24bd207d9adaab401ca4e24a9cdc39807489f12c3000b0936441"
+      }
+    ],
+    "tools": {
+      "/usr/bin/qemu-system-x86_64": {
+        "exists": true,
+        "executable": true
+      },
+      "/usr/sbin/qemu-nbd": {
+        "exists": true,
+        "executable": true
+      },
+      "/usr/bin/qemu-img": {
+        "exists": true,
+        "executable": true
+      },
+      "/usr/sbin/qemu-img": {
+        "exists": true,
+        "executable": true
+      },
+      "/usr/bin/mount": {
+        "exists": true,
+        "executable": true
+      }
+    },
+    "attachmentExecuted": false,
+    "exclusiveUseProven": false,
+    "originalContentsRead": false
+  },
+  "nativeAdmitted": false,
+  "currentCalculation": {
+    "availableLowerMiB": 32102,
+    "pendingMiB": 5948,
+    "proposedNewReserveMiB": 512,
+    "oldTerminalCoordinatorReserveMiB": 0,
+    "residualMiB": 25642,
+    "requiredFloorMiB": 27648,
+    "deficitMiB": 2006,
+    "fit": false
+  }
+}
