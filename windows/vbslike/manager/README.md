@@ -27,6 +27,37 @@ refuses a GPU share, app config, secrets, declared ports, volumes, a private dep
 protection rules **again** on this side of the wire - the supervisor's gate already refuses them,
 and two gates in two processes is the point.
 
+## Physical allocation observations
+
+`GET /health` includes `allocation` (`enclave-manager-allocation/1`). This is
+manager-local information, not a shared host allocator or a reservation for the
+caller. `managerEpoch` identifies the manager incarnation; `revision` is a decimal
+string that changes as requests enter, acquire a domain reservation, finish, or
+release a domain, and around inventory recovery. Compare the full observation as
+well as the epoch and revision; the revision is not an authorization token.
+
+Every `spawn()` is registered before its first await, including configuration and
+component fetches. `requests` contains opaque request identifiers and either
+`preparing` with no domain, or `reserved` with the already-held domain identifier.
+No request bodies, config URLs or secret values are published. A reserved request
+and its matching domain are the same allocation, not two reservations.
+
+`reservations[].physicalMiB` comes from the physical amount reserved before the
+native start, not the launcher's later `memory.vmMiB` response. Ambiguous starts
+and failed removal keep that reservation. Confirmed removal releases it.
+`heldMiB` includes held domains already running; it is **not additional future
+growth** to subtract from a fresh free-memory measurement.
+
+`known` is false during preparation or recovery, for unknown/recovered domain
+sizes, or without a configured physical pool. Even `known: true` only describes
+this manager at this instant. Router queues, other managers, direct RPC VM starts
+and future submissions remain outside its authority. A composite router must not
+be summed as another independent manager. Existing equal per-manager physical
+limits do not establish one shared limit. RPC coexistence still requires a real
+shared reservation at every allocator, or enforced disjoint budgets; this field
+alone cannot authorize a production RPC start. This source change is not a live
+manager upgrade and does not authorize a service restart.
+
 ## What is derived but NOT served: `enclave-catalog-bundle/2`
 
 `/2` is a COMMAND that serves HTTP on its own socket (`wasi:cli` plus the version's one declared

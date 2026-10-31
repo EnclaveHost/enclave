@@ -78,6 +78,10 @@ export function refuseUnsupported(req = {}, s = SUPPORTS) {
 
 export class Manager {
   #desktop = null;
+  #spawnSequence = 0n;
+  #allocationRevision = 0n;
+  #spawnRequests = new Map();
+  #recovering = 0;
   /**
    * @param judgeReady  ({host, port, appId, launcherKey, expectRuntime, deadlineMs}) -> verdict.
    *                    Injected so a test drives it; defaults to ready.mjs's judgeRunning.
@@ -310,6 +314,11 @@ export class Manager {
    * spawning is refused while one exists. A survey that fails leaves the gate shut: unknown is not absent.
    */
   async recover() {
+    this.#recovering++; this.#allocationRevision++;
+    try { return await this.#recover(); }
+    finally { this.#recovering--; this.#allocationRevision++; }
+  }
+  async #recover() {
     if (!this.backend || !this.backend.canSurvey) { this.inventory = { state: "not-applicable" }; return this.inventory; }
     let s;
     try { s = await this.backend.survey(); }
@@ -384,6 +393,31 @@ export class Manager {
     }
     return held;
   }
+  /** Manager-local observation, never a shared-host reservation or a grant to allocate.
+   * Register requests before any await: config/component fetches can later become
+   * allocations even though /vms has no record yet. No request body is published.
+   * Reserved requests point at the domain that already holds their physical RAM;
+   * they must not be added to that domain a second time. Failed starts stay held.
+   */
+  allocationView() {
+    const requests = [...this.#spawnRequests].map(([requestId, domainId]) => ({
+      requestId, phase: domainId === null ? "preparing" : "reserved", domainId,
+    }));
+    const reservations = [...this.domains.values()].map(r => ({
+      id: r.id, physicalMiB: Number.isSafeInteger(r.physicalMemoryMiB) && r.physicalMemoryMiB > 0
+        && !r.recovered && !r.unattributed ? r.physicalMemoryMiB : null,
+    }));
+    const unknown = reservations.filter(r => r.physicalMiB === null).map(r => r.id);
+    const preparing = requests.filter(r => r.phase === "preparing").length;
+    const heldMiB = this.physicalRamAllocated();
+    return { schema: "enclave-manager-allocation/1", scope: "manager-local", managerEpoch: this.epoch,
+      revision: this.#allocationRevision.toString(), inventoryReady: this.inventoryReady && this.#recovering === 0,
+      poolMiB: this.physicalRamPoolMiB, heldMiB, requests, reservations, unknown, preparing,
+      known: this.inventoryReady && this.#recovering === 0 && this.physicalRamPoolMiB !== null && heldMiB !== null
+        && unknown.length === 0 && preparing === 0,
+      // A read does not reserve capacity against the next request or other managers.
+      atomicHostReservation: false };
+  }
   get desktopReady() {
     return !!this.#desktop && this.desktopWorker?.ready === true && this._preflight?.ok === true
       && this._preflight?.roles?.desktop?.ok === true && this.inventoryReady;
@@ -391,6 +425,7 @@ export class Manager {
   health() {
     return {
       managerEpoch: this.epoch,
+      allocation: this.allocationView(),
       ...(this.ramPoolMiB !== null ? { memory: this.memoryView() } : {}),
       ...(this.physicalRamPoolMiB !== null ? { physicalMemory: {
         poolMiB: this.physicalRamPoolMiB, allocatedMiB: this.physicalRamAllocated(),
@@ -465,6 +500,13 @@ export class Manager {
   }
 
   async spawn(body = {}) {
+    const requestId = (++this.#spawnSequence).toString();
+    this.#spawnRequests.set(requestId, null);
+    this.#allocationRevision++;
+    try { return await this.#spawn(body, requestId); }
+    finally { this.#spawnRequests.delete(requestId); this.#allocationRevision++; }
+  }
+  async #spawn(body, requestId) {
     if (!this.inventoryReady) throw unavailable(this.inventory);
     const orphans = [...this.domains.values()].filter((r) => r.unattributed);
     if (orphans.length) {
@@ -652,6 +694,10 @@ export class Manager {
                   // its custody channel's public facts (the vault is in the public package); never a share or a value
                   ...(startup?.custody ? { custody: { protocol: "custody-auth-v2", vault: startup.vault, imageSha256: this.custodyV2.imageSha256 } } : {}) };
     this.domains.set(id, rec);
+    // Synchronous transfer from preparing to the existing held domain, before
+    // backend.start can submit or await a native allocation.
+    this.#spawnRequests.set(requestId, id);
+    this.#allocationRevision++;
     try {
       const h = await this.backend.start(mapping, { instanceId, ...(memory ? { appMemoryMiB: memory.appMiB } : {}), identity: { id, name, instanceId, appId: mapping.appId },
                                                     ...(startup ? { bootstrap: startup.bytes } : {}),
@@ -997,6 +1043,7 @@ export class Manager {
     }
     r.status = "stopped";
     this.domains.delete(id);
+    this.#allocationRevision++;
     this.removedIds.add(id);
     // AFTER the stop is confirmed, never before: closing sessions for a domain that is still
     // running would cut live traffic to something that is still there.

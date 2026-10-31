@@ -1,0 +1,35 @@
+name: RPC manager allocation observations
+run-name: RPC manager allocation ${{ inputs.expected_sha }}
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact reviewed source commit
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: rpc-manager-allocation
+  cancel-in-progress: false
+jobs:
+  finite:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            test/rpc-manager-allocation
+      - name: Assemble and run finite inert manager cases
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: python3 test/rpc-manager-allocation/run-ci.py
+      - name: Preserve source identities and results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rpc-manager-allocation-results
+          path: allocation-results/
+          retention-days: 7
