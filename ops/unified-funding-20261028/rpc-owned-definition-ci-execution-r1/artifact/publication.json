@@ -1,0 +1,42 @@
+[
+    {
+        "name":  "controller-compile.out",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "controller-compile.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "inert.out",
+        "bytes":  1451,
+        "included":  true
+    },
+    {
+        "name":  "inert.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "process-results.json",
+        "bytes":  531,
+        "included":  true
+    },
+    {
+        "name":  "pins.json",
+        "bytes":  1832,
+        "included":  true
+    },
+    {
+        "name":  "controller-artifact.json",
+        "bytes":  221,
+        "included":  true
+    },
+    {
+        "name":  "qualification-controller.exe",
+        "bytes":  102912,
+        "included":  true
+    }
+]

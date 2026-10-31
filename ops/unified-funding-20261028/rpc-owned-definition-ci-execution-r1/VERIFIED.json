@@ -1,0 +1,34 @@
+{
+  "run": 41179297393,
+  "head": "f58bec134686e20ce552e76dff7ff27de5b24e23",
+  "compiledPins": 7,
+  "tests": 32,
+  "processes": [
+    {
+      "label": "controller-compile",
+      "pid": 884,
+      "exitCode": 0,
+      "elapsedMs": 1540,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 33652736,
+      "outputBytes": 0
+    },
+    {
+      "label": "inert",
+      "pid": 8152,
+      "exitCode": 0,
+      "elapsedMs": 230,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 28241920,
+      "outputBytes": 1451
+    }
+  ],
+  "executable": {
+    "bytes": 102912,
+    "sha256": "905014f05140bafe64f101eafae235f916e1583e00d5b57aac97db30f1d50056"
+  },
+  "providerCallsAreFakes": true,
+  "productionActivated": false
+}

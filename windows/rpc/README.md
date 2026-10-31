@@ -603,5 +603,7 @@ then requires exact owned Off/zero and configuration readback.
 This is a VM-shell stage. Boot/seed hashes are bound in the plan but attachment,
 network/boot order, protected production entry/controller and independent failure
 cleanup integration remain unfinished. No caller may treat defined-owned-off as
-boot preparation, start authorization or RPC readiness. Hosted fault qualification
-is pending; no native VM has been created.
+boot preparation, start authorization or RPC readiness. Hosted Windows CI41179297393 passed32 fault tests at source f58bec134.
+Compilation took1540ms and the harness230ms; all7 compiled-source pins matched.
+Provider calls were fakes: native property support/readback, actual VM creation
+and production integration remain unqualified. No native VM has been created.
