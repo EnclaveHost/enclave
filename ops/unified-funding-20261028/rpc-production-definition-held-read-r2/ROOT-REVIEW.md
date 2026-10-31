@@ -1,0 +1,1 @@
+Read only: add exact definition.submit and pending records omitted by r1; hold exact PID/creation for three completed SYSTEM roles and prior reader. No task/VM/provider mutation, retry or deadline change. Same bounded capture/admission as r1. Private journal contents retained locally, excluded from public evidence.

@@ -1,0 +1,1 @@
+Cleanup only exact export invocation a7546105a12443b2a7da520d7da1a65f/PID120163. Startup held at define; no copy, boot, endpoint or guest submission. Prehold all four cgroup pidfds and recheck invocation/membership before one stop. Verify exact death and empty cgroup. Preserve overlays, cut/pool, journals and original8091. No reservation release or provider settlement claim.

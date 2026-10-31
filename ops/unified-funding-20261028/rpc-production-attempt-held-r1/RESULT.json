@@ -1,0 +1,49 @@
+{
+  "attempt": "8ee4452b174746c2b606b9b68f0fa623",
+  "vmAttempt": "7647ee54e3c24997bb8ab5da70427109",
+  "startupClockConsumed": true,
+  "createdUtcNs": 1793488258642536834,
+  "deadlineUtcNs": 1793489158642536834,
+  "startupInvocation": "6fd65f933ab94e13956ed371c78d7b5d",
+  "startupExit": 1,
+  "phase": "define",
+  "exportReadyBothRoles": true,
+  "legacyCutAndPoolSeedCompleted": true,
+  "definitionSubmitPresent": true,
+  "definitionNativeAbsent": true,
+  "definitionReceiptAbsent": true,
+  "workerReadAt": "2026-10-31T23:16:05.0697619Z",
+  "exactWorkerDeaths": [
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379618832680790",
+      "pid": 45832,
+      "absent": true
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379618832680770",
+      "pid": 37372,
+      "absent": true
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379618834228246",
+      "pid": 53600,
+      "absent": true
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379619777781272",
+      "pid": 56944,
+      "absent": true
+    }
+  ],
+  "original8091Alive": true,
+  "observedVmCount": 4,
+  "copyBootStartGuestNotSubmitted": true,
+  "rpcReady": false,
+  "reservationMayRelease": false,
+  "automaticRetry": false,
+  "errorCause": "Unresolved; native stderr/controller output was not retained by transport failure path"
+}
