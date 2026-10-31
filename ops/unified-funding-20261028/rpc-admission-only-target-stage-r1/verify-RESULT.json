@@ -1,0 +1,48 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.9854345039930195,
+  "bytesObserved": {
+    "stdout": 597,
+    "stderr": 222
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false,
+  "at": 1793489282.2645276,
+  "phase": "verify",
+  "success": true,
+  "noRetry": true,
+  "vmChanged": false,
+  "observation": {
+    "processId": 8640,
+    "creationFileTime": "134379628817583375",
+    "verified": true,
+    "root": "C:\\EnclaveRpcTransition-49ff5d7fc6214d208a5d95eafc9c8eec\\49ff5d7fc6214d208a5d95eafc9c8eec",
+    "files": [
+      {
+        "sha256": "8a4ec480bb94d5e73d85e5671075f038059d7b6aec1bdf7232dc1989d51067ef",
+        "name": "definition-controller.exe",
+        "bytes": 245760
+      },
+      {
+        "sha256": "bf2c6adf7a5d7248cd56c18f759e0586d01359a0596a6cda270ef0256d25e4e3",
+        "name": "definition-entry.exe",
+        "bytes": 245760
+      },
+      {
+        "sha256": "2fe45689b21cb1d5d621dc03b689f28f2fd4df9f07488501ad33467ca887ab9b",
+        "name": "observation.json",
+        "bytes": 18615
+      }
+    ],
+    "executed": false,
+    "nativeAttempted": false
+  }
+}

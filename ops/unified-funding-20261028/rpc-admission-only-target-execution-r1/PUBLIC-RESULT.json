@@ -1,0 +1,66 @@
+{
+  "operation": "admission-check",
+  "source": "029f269871a58aca1e0829f6f3748c23a2b409e0",
+  "hostedRun": 41252469960,
+  "hostedTests": 93,
+  "invocation": "5984e890848c4bc59bd5ab90fb4b3403",
+  "exitCode": 1,
+  "error": {
+    "type": "System.InvalidOperationException",
+    "message": "Node commitments changed since review"
+  },
+  "nativeElapsedMs": 6823,
+  "nonce": "50db898b9cea4b3a81c5d714a2f6ea26",
+  "exactRoleDeaths": [
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379629224039617",
+      "pid": "51152",
+      "absent": true,
+      "role": "owner"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379629224039214",
+      "pid": "36496",
+      "absent": true,
+      "role": "observer"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379629225695825",
+      "pid": "34652",
+      "absent": true,
+      "role": "child"
+    }
+  ],
+  "original8091Alive": true,
+  "matchingControllerOrEntryProcesses": [],
+  "matchingTasks": [],
+  "observedVms": [
+    {
+      "id": "28ca7b93-350b-4385-844e-89c8100fbdf9",
+      "state": 2,
+      "memoryAssigned": 2732589056
+    },
+    {
+      "id": "1ca457d6-17bf-47fa-ad26-72770d74e08b",
+      "state": 2,
+      "memoryAssigned": 536870912
+    },
+    {
+      "id": "dd8df95d-b771-4545-a861-0092e74a40f3",
+      "state": 2,
+      "memoryAssigned": 8589934592
+    },
+    {
+      "id": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
+      "state": 2,
+      "memoryAssigned": 4294967296
+    }
+  ],
+  "readOnlyDiagnostic": true,
+  "productionRetry": false,
+  "rpcReady": false,
+  "reservationMayRelease": false
+}

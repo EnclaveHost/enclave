@@ -1035,3 +1035,5 @@ but cannot renew that plan, define/start a VM, acquire a new claim, replay the
 allocator cut, or release any reservation. Only private diagnostic journals and
 owned temporary task/process control are written. Successful output says
 `admission-observed`; it is not a reusable production admission or RPC readiness.
+
+Actual target admission-only qualification reached the node comparison and refused with `Node commitments changed since review`. All three exact SYSTEM workers subsequently exited; the four original VMs and original8091 remained. No definition/start was submitted. This exposes a current admission blocker; the original production failure had no detailed receipt and is not retrospectively proven to have the same cause. See `ops/unified-funding-20261028/rpc-admission-only-target-execution-r1`.

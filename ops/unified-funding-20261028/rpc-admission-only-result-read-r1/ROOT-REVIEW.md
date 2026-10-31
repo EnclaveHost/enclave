@@ -1,0 +1,1 @@
+Read exact admission-only diagnostic private receipts and original immutable plan journal; no task/provider mutation/replay. Exact role PID/creation derived from fixed owned consumed records and held process handles; verify original8091 alive/VMinventory. Private raw error records excludedGit.

@@ -1,0 +1,76 @@
+{
+  "head": "029f269871a58aca1e0829f6f3748c23a2b409e0",
+  "run": 41252469960,
+  "tests": 93,
+  "pins": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/ProviderStart.cs",
+    "windows/rpc/OwnedVmPermit.cs",
+    "windows/rpc/OwnedVmDefinition.cs",
+    "windows/rpc/OwnedVmBoot.cs",
+    "windows/rpc/BootStartBinding.cs",
+    "windows/rpc/HostPhysicalPool.cs",
+    "windows/rpc/WindowsStartAdmission.cs",
+    "windows/rpc/LegacyTemplateFence.cs",
+    "windows/rpc/LegacyLaunchCohort.cs",
+    "windows/rpc/LegacyHandoff.cs",
+    "windows/rpc/DefinitionWorkerEntry.cs",
+    "windows/rpc/DefinitionWorkerController.cs",
+    "test/rpc-windows-worker/OwnedVmDefinitionHarness.cs",
+    "test/rpc-windows-worker/OwnedVmBootHarness.cs"
+  ],
+  "artifacts": {
+    "owned-entry.exe": {
+      "bytes": 245760,
+      "sha256": "bf2c6adf7a5d7248cd56c18f759e0586d01359a0596a6cda270ef0256d25e4e3"
+    },
+    "definition-controller.exe": {
+      "bytes": 245760,
+      "sha256": "8a4ec480bb94d5e73d85e5671075f038059d7b6aec1bdf7232dc1989d51067ef"
+    }
+  },
+  "processes": [
+    {
+      "label": "controller-compile",
+      "pid": 5564,
+      "exitCode": 0,
+      "elapsedMs": 1957,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 39084032,
+      "outputBytes": 196
+    },
+    {
+      "label": "entry-compile",
+      "pid": 6092,
+      "exitCode": 0,
+      "elapsedMs": 146,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 38035456,
+      "outputBytes": 196
+    },
+    {
+      "label": "target-compile",
+      "pid": 4564,
+      "exitCode": 0,
+      "elapsedMs": 143,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 36835328,
+      "outputBytes": 196
+    },
+    {
+      "label": "inert",
+      "pid": 656,
+      "exitCode": 0,
+      "elapsedMs": 1145,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 35098624,
+      "outputBytes": 4362
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+{"invocation": "6cca6338787f44958c9db6d21f30eed7", "exitCode": 1, "error": "Original production VM namespace already exists", "reason": "prelaunch namespace assertion inappropriate for retained-state diagnostic; r2 requires exact existing528Bplan hash", "nativeAttempted": false}

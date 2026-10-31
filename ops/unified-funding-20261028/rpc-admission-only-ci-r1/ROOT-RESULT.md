@@ -1,0 +1,1 @@
+Actual hosted41252469960 COMPLETE93PASS runtime029f269871a58aca1e0829f6f3748c23a2b409e0:6new read-only authority cases+prior87. All17compiledsourcepins and bothartifacthashes independently matched. Native provider operations remain fixtures; subsequent targetadmission-only failure recorded separately. No productionRPCproof.
