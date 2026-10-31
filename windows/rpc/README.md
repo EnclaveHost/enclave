@@ -1021,3 +1021,5 @@ The corresponding `rpc-node-inventory-target-stage-r1/BINARY-BINDINGS.json` repl
 the old definition/provider/startup/cleanup paths in the launch inputs. The old
 handoff pair is unchanged and does not call this reader. Target execution and
 RPC readiness remain unproven; no production startup clock has begun.
+
+Definition worker roles now attempt a private `owner.failure`, `observer.failure` or `child.failure` receipt when an exception escapes after the protected contract opens. The receipt binds the contract, exact process identity and original deadline; type/message are base64 and bounded to128/512characters. Existing protected WriteOnce custody,4096byte bound and deadline apply. Failure to publish (including expiry) preserves the original exception and never retries. No provider settlement or reservation release follows. This addresses missing SYSTEM task stderr; pre-contract errors or hard deadline termination may still have no receipt. These private diagnostic records must not be published.

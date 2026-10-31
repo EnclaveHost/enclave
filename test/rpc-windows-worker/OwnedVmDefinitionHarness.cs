@@ -58,6 +58,25 @@ public static class OwnedVmDefinitionHarness {
   internal ProtectedAttempt Lease(){return ProtectedAttempt.PinDefinitionController(Contract,Hash);}
  }
  static void ProtectedTests(){
+  Test("private-role-failure-preserves-original-error-and-authority",()=>{var c=new ProtectedCase();using(var a=c.Lease()){
+   var original=new InvalidOperationException("fixture admission refused\nprivate detail");bool same=false;
+   try{DefinitionWorkerEntry.RunRole(a,"child",()=>{throw original;});}catch(Exception e){same=Object.ReferenceEquals(e,original);}Check(same);
+   string[] row=a.ReadOnce("child.failure").Split('\n');Check(row.Length==10&&row[0]=="owned-rpc-definition-failure/1"&&row[1]==a.ContractHash&&row[2]=="child"&&row[4]==a.Origin.ToString()&&row[5]==a.Deadline.ToString());
+   Check(Encoding.UTF8.GetString(Convert.FromBase64String(row[7]))==original.Message&&row[8]=="provider-fenced=false;reservation-release=false;retry=false");
+   Check(a.ReadOptionalOnce("child.result")==null&&a.ReadOptionalOnce("definition.native")==null);
+  }});
+  Test("private-role-failure-bounded-unicode-and-no-overwrite",()=>{var c=new ProtectedCase();using(var a=c.Lease()){
+   Refuse(()=>DefinitionWorkerEntry.RunRole(a,"child",()=>{throw new InvalidOperationException(new string('\u754c',10000));}));
+   string first=a.ReadOnce("child.failure");Check(Encoding.UTF8.GetByteCount(first)<4096&&Encoding.UTF8.GetString(Convert.FromBase64String(first.Split('\n')[7])).Length==512);
+   var second=new IOException("second");bool same=false;try{DefinitionWorkerEntry.RunRole(a,"child",()=>{throw second;});}catch(Exception e){same=Object.ReferenceEquals(e,second);}Check(same&&a.ReadOnce("child.failure")==first);
+  }});
+  Test("private-role-failure-cannot-reopen-disposed-authority",()=>{var c=new ProtectedCase();var a=c.Lease();a.Dispose();var original=new IOException("original");bool same=false;
+   try{DefinitionWorkerEntry.RunRole(a,"child",()=>{throw original;});}catch(Exception e){same=Object.ReferenceEquals(e,original);}Check(same&&!File.Exists(Path.Combine(Path.GetDirectoryName(c.Contract),"child.failure")));
+  });
+  Test("role-success-and-invalid-role-do-not-publish-failure",()=>{var c=new ProtectedCase();using(var a=c.Lease()){
+   Check(DefinitionWorkerEntry.RunRole(a,"child",()=>0)==0&&a.ReadOptionalOnce("child.failure")==null);bool called=false;
+   Refuse(()=>DefinitionWorkerEntry.RunRole(a,"definition.native",()=>{called=true;return 0;}));Check(!called&&a.ReadOptionalOnce("definition.native")==null);
+  }});
   Test("plan-canonical-roundtrip",()=>Check(OwnedVmDefinitionPlan.Parse(Plan().Encode()).Encode()==Plan().Encode()));
   Test("plan-extra-field-refused",()=>Refuse(()=>OwnedVmDefinitionPlan.Parse(Plan().Encode()+"x")));
   Test("plan-total-substitution-refused",()=>Refuse(()=>OwnedVmDefinitionPlan.Parse(Plan().Encode().Replace("support=1073741824","support=0"))));

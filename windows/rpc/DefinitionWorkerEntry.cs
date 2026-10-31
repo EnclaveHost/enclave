@@ -70,6 +70,27 @@ namespace Enclave.OwnedRpc {
             } catch {handle.Dispose();throw;}
         }
         static string Quote(string text) {if(text.IndexOf('"')>=0)throw new ArgumentException("Quote in path");return "\""+text+"\"";}
+        static string BoundedText(string value,int maximum) {
+            value=value??"";return Convert.ToBase64String(Encoding.UTF8.GetBytes(value.Substring(0,Math.Min(value.Length,maximum))));
+        }
+        // Private evidence only. Use the existing held namespace and deadline;
+        // failure to publish must never replace the original failure or retry.
+        internal static int RunRole(ProtectedAttempt a,string role,Func<int> run) {
+            if(a==null||a.LeaseProfile!="definition"||run==null||(role!="owner"&&role!="observer"&&role!="child"))
+                throw new ArgumentException("Exact definition role required");
+            try{return run();}
+            catch(Exception error) {
+                try {
+                    string identity=Identity(a,role);
+                    string record="owned-rpc-definition-failure/1\n"+a.ContractHash+"\n"+role+"\n"+
+                        identity+"\n"+a.Origin+"\n"+a.Deadline+"\n"+
+                        BoundedText(error.GetType().FullName,128)+"\n"+BoundedText(error.Message,512)+"\n"+
+                        "provider-fenced=false;reservation-release=false;retry=false\n";
+                    a.WriteOnce(role+".failure",record);
+                }catch(Exception){/* Expired/invalid custody or consumed evidence remains held. */}
+                throw;
+            }
+        }
         static int Owner(ProtectedAttempt a,string contract) {
             a.WriteOnce("owner.consumed",Identity(a,"owner"));
             if(WaitMessage(a,"admit")!=a.Token)throw new InvalidOperationException("Closed owner gate differs");
@@ -168,6 +189,7 @@ namespace Enclave.OwnedRpc {
                 if(args.Length!=5 || (args[0]!="owner" && args[0]!="observer" && args[0]!="child"))return 64;
                 long origin=Number(args[3]),deadline=Number(args[4]);ArmOriginalDeadline(origin,deadline);
                 using(var a=ProtectedAttempt.OpenDefinitionWorker(args[1],args[2])) {
+                  return RunRole(a,args[0],delegate() {
                     if(a.Origin!=origin || a.Deadline!=deadline)throw new InvalidOperationException("CLI deadline differs from immutable contract");
                     using(var self=Process.GetCurrentProcess())
                         if(!String.Equals(self.MainModule.FileName,a.Executable,StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("Entry image path differs");
@@ -192,6 +214,7 @@ namespace Enclave.OwnedRpc {
                     }
 
                     return 0;
+                  });
                 }
             } catch(Exception error) {Console.Error.WriteLine(error.GetType().Name+": "+error.Message);return 1;}
         }
