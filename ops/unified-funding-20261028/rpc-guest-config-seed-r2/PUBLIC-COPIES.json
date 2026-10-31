@@ -1,0 +1,72 @@
+[
+  {
+    "path": "ATTEMPT.json",
+    "originalSha256": "25941f0f22c13495ee1bf7bcce393e88d8685daf2d2247c43826815ae498a5fe",
+    "publicSha256": "11bc69584cc051cfe36403e642e1af8b567d48e9575c99a963d5dcf3c349c4cd"
+  },
+  {
+    "path": "COMMAND.json",
+    "originalSha256": "6bd42a27401774bfe904ed8ab19c0df999e85fadaee657fd1a771818412205a4",
+    "publicSha256": "6bd42a27401774bfe904ed8ab19c0df999e85fadaee657fd1a771818412205a4"
+  },
+  {
+    "path": "CONFIG.json",
+    "originalSha256": "534624d13b96a9c5475fab60918cc63a3186658246ebf644ea46bec7b829695b",
+    "publicSha256": "534624d13b96a9c5475fab60918cc63a3186658246ebf644ea46bec7b829695b"
+  },
+  {
+    "path": "REMOTE.json",
+    "originalSha256": "612cb04dca5008400fba2a7326eaa9c7546495de29206886af998fd383acf2cb",
+    "publicSha256": "5f3e43702ae20ef123f92b3547f83cd20095c0b37fc9bcd40aa271d8f5654ea5"
+  },
+  {
+    "path": "RESULT.json",
+    "originalSha256": "8bbff38fd92bbc7caa09b518393f73413a37fd854a6753bd0b637123073a8393",
+    "publicSha256": "8bbff38fd92bbc7caa09b518393f73413a37fd854a6753bd0b637123073a8393"
+  },
+  {
+    "path": "ROOT-RESULT.md",
+    "originalSha256": "08a30d30f3053a8b05a10fee92af54964ac7e72490f92960f5561550cf54feb0",
+    "publicSha256": "08a30d30f3053a8b05a10fee92af54964ac7e72490f92960f5561550cf54feb0"
+  },
+  {
+    "path": "ROOT-REVIEW.md",
+    "originalSha256": "fe26392d59411216b190180721663a6b497ada098db66f06a99394867b988e7e",
+    "publicSha256": "fe26392d59411216b190180721663a6b497ada098db66f06a99394867b988e7e"
+  },
+  {
+    "path": "SSH.json",
+    "originalSha256": "0574c7d96d7cd5f60d64c86c4a0de321785319bf9aad8eadf9221729ce6db20e",
+    "publicSha256": "0574c7d96d7cd5f60d64c86c4a0de321785319bf9aad8eadf9221729ce6db20e"
+  },
+  {
+    "path": "TERMINAL.txt",
+    "originalSha256": "8bea5db14f598b506c88be27601abc2a04c1c53a264b068a61d7e29ef773f3f0",
+    "publicSha256": "8bea5db14f598b506c88be27601abc2a04c1c53a264b068a61d7e29ef773f3f0"
+  },
+  {
+    "path": "identity.py",
+    "originalSha256": "1fac9d4de16a903233ca1613881d2157ec99710b99aee0c1cfd0cba4f75be103",
+    "publicSha256": "1fac9d4de16a903233ca1613881d2157ec99710b99aee0c1cfd0cba4f75be103"
+  },
+  {
+    "path": "inner.txt",
+    "originalSha256": "66b1e09ed0a7266d671ddfd4e5e19561c6784c87460d3d622a7df1d2d98ab700",
+    "publicSha256": "66b1e09ed0a7266d671ddfd4e5e19561c6784c87460d3d622a7df1d2d98ab700"
+  },
+  {
+    "path": "outer.txt",
+    "originalSha256": "7cf5874b3b8968b7934a9820a5cf3fb5cee527665b97073b3a1c8117090c8d83",
+    "publicSha256": "7cf5874b3b8968b7934a9820a5cf3fb5cee527665b97073b3a1c8117090c8d83"
+  },
+  {
+    "path": "prepare_seed.py",
+    "originalSha256": "8217337d5966b3c906562f1db9d47f7ddfa280886b0f25f4b7a11b4207e085f9",
+    "publicSha256": "8217337d5966b3c906562f1db9d47f7ddfa280886b0f25f4b7a11b4207e085f9"
+  },
+  {
+    "path": "run.py",
+    "originalSha256": "2a31fb04223c9ad943c4d95f00bbffafd9ea3914fd20ba098eace9ed7d186fe4",
+    "publicSha256": "2a31fb04223c9ad943c4d95f00bbffafd9ea3914fd20ba098eace9ed7d186fe4"
+  }
+]

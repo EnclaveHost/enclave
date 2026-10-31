@@ -56,7 +56,7 @@ def validate_accounts(passwd, groups, complete=False):
                 raise ValueError('Unexpected supplementary service membership')
     # Primary-group membership grants access even if absent from /etc/group.
     for row in users.values():
-        if int(row[3]) in GROUPS.values() and GROUPS.get(row[0]) != int(row[3]):
+        if int(row[3]) in GROUPS.values() and (row[0] not in ACCOUNTS or ACCOUNTS[row[0]][1] != int(row[3])):
             raise ValueError('Reserved primary group assigned to another account')
     return users, groups
 

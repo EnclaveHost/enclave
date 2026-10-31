@@ -29,6 +29,8 @@ class IdentityTests(unittest.TestCase):
     def test_no_supplementary_privilege_or_jwt_login(self):
         for group in [GROUP.replace('root:x:0:','root:x:0:rpcbase'),GROUP.replace('rpcjwt:x:50002:','rpcjwt:x:50002:rpcbase'),GROUP.replace('rpcjwt:x:50002:','rpcjwt:x:50002:rpcl1el')]:
             with self.assertRaises(ValueError):m.validate_accounts(PASSWD,group)
+    def test_group_named_user_cannot_inherit_jwt_access(self):
+        with self.assertRaises(ValueError):m.validate_accounts(PASSWD+'rpcjwt:x:2001:50002::/nonexistent:/usr/sbin/nologin\n',GROUP)
     def test_duplicate_names(self):
         with self.assertRaises(ValueError):m.validate_accounts(PASSWD+PASSWD,GROUP)
     def test_jwt_create_reuse_and_refusals(self):

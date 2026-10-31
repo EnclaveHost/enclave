@@ -1,0 +1,17 @@
+{
+  "rc": 0,
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\n** The server may need to be upgraded. See https://openssh.com/pq.html\n",
+  "readOnly": true,
+  "observation": {
+    "hashAgrees": true,
+    "bytes": 13148160,
+    "seedSha256": "b325b803a06a0214db4b7c98cfa309bbcf4fd3dba36d7687fef2b9eb1a835ff0",
+    "verifiedFiles": 25,
+    "schemaExit": 0,
+    "schemaStdout": "Valid schema /home/controladmin/rpc-guest-config-seed-20261031-r2/readback/user-data\n",
+    "schemaStderr": "2026-10-31 10:14:20,705 - sources[WARNING]: failed loading pickle in /var/lib/cloud/instance/obj.pkl: [Errno 13] Permission denied: '/var/lib/cloud/instance/obj.pkl'\n2026-10-31 10:14:20,707 - log_util.py[WARNING]: Failed pickling datasource to /var/lib/cloud/instance/obj.pkl\n2026-10-31 10:14:20,707 - log_util.py[WARNING]: Getting data from <class 'cloudinit.sources.DataSourceNone.DataSourceNone'> failed\n2026-10-31 10:14:20,712 - schema.py[WARNING]: datasource not detected, using default instance-data/user-data paths.\n",
+    "cloudInitExecuted": false,
+    "noEngineSecret": true,
+    "invocation": "d1267289314442d18b79abc84287d937"
+  }
+}

@@ -77,9 +77,9 @@ than replaced. No secret is embedded in a seed or reported in output.
 
 `prepare_seed.py` creates a new <=64MiB NoCloud ISO containing the verified public
 NBD closure and guest initialization sources. `install_storage_client.py` checks
-the private closure before the identity unit runs. The 13,146,112-byte candidate
+the private closure before the identity unit runs. The 13,148,160-byte corrected candidate
 passed ISO readback, independent25-file decoding and installed cloud-init schema
-validation. The nine identity tests use an isolated user namespace and GID0 for
+validation. The ten identity tests use an isolated user namespace and GID0 for
 real temporary file operations; targetGID50002 access and actual first boot remain
 unqualified. Cloud-init's documented [base64 write_files support](https://docs.cloud-init.io/en/25.3/reference/yaml_examples/write_files.html)
 is used, with root ownership and explicit modes.
