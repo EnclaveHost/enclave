@@ -1,0 +1,28 @@
+{
+  "at": 1793479516.9115798,
+  "readOnly": true,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 614,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "success": true,
+    "atUtc": "2026-10-31T20:45:16.8330852Z",
+    "processes": [
+      {
+        "pidPresent": false,
+        "expectedCreation": "134379531029626448",
+        "pid": 34528,
+        "exactAbsent": true
+      },
+      {
+        "pidPresent": false,
+        "expectedCreation": "134379531032747090",
+        "pid": 54120,
+        "exactAbsent": true
+      }
+    ],
+    "readOnly": true
+  }
+}

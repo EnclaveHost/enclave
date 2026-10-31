@@ -1,0 +1,1 @@
+FAILED locally before SSH Popen: encoded read command exceeded30000-character transport bound. Invocation558f33bd422745988f57d7a88ac2a5cf terminal1/MainPID0. No remote operation. R3 materially changed exact-wrapper detection to encoded-token SHA256, reducing command length; failure retained.

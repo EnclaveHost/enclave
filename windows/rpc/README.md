@@ -865,3 +865,19 @@ free-memory threshold; it performs no VM, provider, task or allocator mutation.
 A separate compile-time hosted-CI build uses the disposable runner's 3 GiB floor
 and omits production manager identities. Those omissions never enter the target
 build. Target qualification still requires fresh complete external admission.
+
+Actual NucBox admin-context clock qualification now passed using the production
+controller (CI run41239666927, runtime69effc9). The parent self128MiB job reported
+13,266,944 bytes of bootstrap private memory; its child returned a native boot
+and monotonic sample inside the held303ms observation interval and exited0.
+All four original manager handles stayed live. A separate exact-PID/creation
+read subsequently found both parent and child absent. The immutable qualification
+contract and intent are consumed and must not be replayed. This does not qualify
+SYSTEM lifecycle execution or start a production900s clock, VM, exporter or RPC.
+
+Manager incarnation inputs must use the exact decimal FILETIME read from a held
+process handle. CIM CreationDate loses the final100ns digit; converting that
+display value back into FILETIME caused the retained native refusal. Correcting
+the input required no comparison tolerance, cap/floor change, or controller
+rebuild. See `ops/unified-funding-20261028/rpc-clock-target-qualification-r3/ROOT-RESULT.md`
+and the retained r1/r2 failures and independent exit-read-r1 evidence.

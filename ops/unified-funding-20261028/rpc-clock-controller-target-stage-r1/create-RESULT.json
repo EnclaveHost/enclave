@@ -1,0 +1,29 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 1.010232341941446,
+  "bytesObserved": {
+    "stdout": 163,
+    "stderr": 222
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false,
+  "at": 1793479198.9950283,
+  "phase": "create",
+  "success": true,
+  "noRetry": true,
+  "vmChanged": false,
+  "observation": {
+    "prepared": true,
+    "root": "C:\\EnclaveRpcClock-856c8213f2a149c3a24e27904e2093c6\\856c8213f2a149c3a24e27904e2093c6",
+    "freeBytes": 84761894912,
+    "nativeAttempted": false
+  }
+}

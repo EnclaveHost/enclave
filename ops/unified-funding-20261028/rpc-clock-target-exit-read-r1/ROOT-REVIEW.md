@@ -1,0 +1,1 @@
+Independent read-only check of two exact PID/FILETIME identities from successful target receipt. Holds query handles when present; treats PID reuse separately, no kill/task/provider/job scan. Existing authenticated local384MiB admission/floor. No capacity polling or sampler replay.

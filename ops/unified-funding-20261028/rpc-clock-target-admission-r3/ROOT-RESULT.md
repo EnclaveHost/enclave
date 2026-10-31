@@ -1,0 +1,1 @@
+Actual corrected compact read passed. No exact prior PowerShell wrapper match, no contract or work intent. Same boot/four managers/VM inventory; free84,680,298,496B. CIM creation display is lineage only; its microsecond precision must not feed native incarnation checks.

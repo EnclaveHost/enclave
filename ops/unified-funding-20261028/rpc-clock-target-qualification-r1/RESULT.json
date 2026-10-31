@@ -1,0 +1,19 @@
+{
+  "rc": 1,
+  "reason": null,
+  "elapsedSeconds": 3.1765728739555925,
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 992
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false,
+  "success": false
+}

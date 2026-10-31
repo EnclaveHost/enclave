@@ -1,0 +1,82 @@
+[
+  {
+    "path": "COMMAND.json",
+    "bytes": 1235,
+    "sha256": "5dff8a5c68768daa7d33aef02414a2aa09606f472320664699c1ef5027e25fa3"
+  },
+  {
+    "path": "INTENT.json",
+    "bytes": 583,
+    "sha256": "14a0e23d039a543efd3ea6fd834ba0c210ebedde71a12862bb0be74382ecc8f4"
+  },
+  {
+    "path": "LAUNCH.json",
+    "bytes": 164,
+    "sha256": "621d3fcc52842452f6669c3c1d7f85176833d7be32a608e54b988cbc29039fc4"
+  },
+  {
+    "path": "LOCAL-ADMISSION.json",
+    "bytes": 103,
+    "sha256": "9fbaa4d46e2fa39d5768560fc189c01e89364c24f1ede2ee5c4d5802da82de96"
+  },
+  {
+    "path": "PINS.json",
+    "bytes": 256,
+    "sha256": "0c040c33a74ee13b37c79b578b9ef65c78ae1573b05215f67bf3471de670a293"
+  },
+  {
+    "path": "RESULT.json",
+    "bytes": 415,
+    "sha256": "521d26189a07655b4790b3472c867b2407d0a17ca88053ad1d45e826b5e631f5"
+  },
+  {
+    "path": "ROOT-RESULT.md",
+    "bytes": 364,
+    "sha256": "e80f74f42e046dc4e410c52ce40033f27e9cd18fac91ce8e1e96dcaa67e6aa0a"
+  },
+  {
+    "path": "ROOT-REVIEW.md",
+    "bytes": 959,
+    "sha256": "4cb1adaff2e9833513e35a1f7e1744cafd7eb5892fd9e60943442d7dbcb36f58"
+  },
+  {
+    "path": "SPEC.json",
+    "bytes": 367,
+    "sha256": "ddb7313caaaff98661fdf43591edba11e54d4299ac839aded30559cf53a13978"
+  },
+  {
+    "path": "TERMINAL-READBACK.json",
+    "bytes": 165,
+    "sha256": "6f7a03771bdd068ed8d84c1a0a160adeb75bdfead3c896756d07c98e3cb834cf"
+  },
+  {
+    "path": "capture_local.py",
+    "bytes": 6709,
+    "sha256": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c"
+  },
+  {
+    "path": "manager-inner.log",
+    "bytes": 66,
+    "sha256": "f183424e27650351ccbefa07a3e1412151e6d1afbf4b857deeb373f0e311efb0"
+  },
+  {
+    "path": "manager-outer.log",
+    "bytes": 66,
+    "sha256": "1f86ba1ded3bc5c52366456a65d0e74922ce937e7608b542f99cdb9c7dc32b0a"
+  },
+  {
+    "path": "run.py",
+    "bytes": 3888,
+    "sha256": "6454c65ad66c1f181cc00415f99252ba564e55b585f1182e63978d353593e1e1"
+  },
+  {
+    "path": "stderr",
+    "bytes": 275,
+    "sha256": "f5468bb3185f8fc7ce79f3a31d644a442e683924b87b4ad6c49c4d7bd78ae9fc"
+  },
+  {
+    "path": "stdout",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+]

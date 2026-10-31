@@ -1,0 +1,61 @@
+{
+  "head": "69effc9dcfe6923a88a913a9273497ff2076fec4",
+  "sha256": "d30e365555a0b680a5dfc24cd1317e2b71ad78701c3814ab31653de9b4c76629",
+  "bytes": 60928,
+  "compiledSourcePinsChecked": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/ClockQualification.cs",
+    "windows/rpc/ClockSample.cs",
+    "windows/rpc/ProtectedAttempt.cs"
+  ],
+  "ci": {
+    "passed": true,
+    "tests": 2,
+    "result": {
+      "schema": "owned-rpc-target-clock-qualification/1",
+      "passed": true,
+      "hostedCi": true,
+      "root": "C:\\EnclaveRpcClock-91641aa947c942b48b03474eb553a4b9\\91641aa947c942b48b03474eb553a4b9",
+      "sourceSha256": "687733ca93ec20297cde27d7b63e26e6f78f05b7df79c52f43b55c4ca0d660bd",
+      "boot": "3167a65ec6d011f1b83900224846f572",
+      "origin": 303066,
+      "deadline": 308066,
+      "before": 303122,
+      "after": 303200,
+      "sample": {
+        "schema": "owned-rpc-windows-clock/1",
+        "attempt": "91641aa947c942b48b03474eb553a4b9",
+        "vmAttempt": "91641aa947c942b48b03474eb553a4b9",
+        "windowsBoot": "3167a65ec6d011f1b83900224846f572",
+        "monotonicMilliseconds": 303194
+      },
+      "samplerPid": 5708,
+      "samplerCreation": 134379525895198847,
+      "samplerExit": 0,
+      "samplerExactDeath": true,
+      "supervisorPid": 5420,
+      "supervisorCreation": 134379525893651772,
+      "supervisorEnvelope": {
+        "ProcessId": 5420,
+        "CreationFileTime": 134379525893651772,
+        "JobCommitLimitBytes": 134217728,
+        "BootstrapPrivateBytes": 20189184,
+        "MembershipVerified": true,
+        "LimitsVerified": true,
+        "CoversPreAssignmentMemory": false,
+        "BoundsWallTime": false,
+        "ReservationMayRelease": false
+      },
+      "freeBytes": 14441775104,
+      "prospectiveMiB": 39388,
+      "floorMiB": 18432,
+      "managersUnchanged": true,
+      "productionClockAssigned": false,
+      "vmChanged": false,
+      "systemContextQualified": false
+    },
+    "productionBinarySha256": "d30e365555a0b680a5dfc24cd1317e2b71ad78701c3814ab31653de9b4c76629",
+    "productionBinaryExecuted": false,
+    "targetQualified": false
+  }
+}

@@ -1,0 +1,72 @@
+[
+  {
+    "path": "COMMAND.json",
+    "bytes": 1221,
+    "sha256": "671773be9f433875ad195db3051b7d14a6d014ab9a022e8d0afff6e2d291bc75"
+  },
+  {
+    "path": "FAILURE-JOURNAL.log",
+    "bytes": 1323,
+    "sha256": "4535b5ca45ed5183a27cb07aa51c3acc6f1bd30be88ce69912331580bb22d26e"
+  },
+  {
+    "path": "LAUNCH.json",
+    "bytes": 160,
+    "sha256": "84c3dea76bf08c8d04c03b2cc68dee639cff68cf4e884e8a6e6737d16d7ebe06"
+  },
+  {
+    "path": "LOCAL-ADMISSION.json",
+    "bytes": 103,
+    "sha256": "99837fc7d3d33ffc4d86e405ad49eaab2179edea72ee91900a0dfbcb5ac7c62a"
+  },
+  {
+    "path": "PINS.json",
+    "bytes": 173,
+    "sha256": "86a4c27bbdba8587f3a745be8fc7e6e5658166e2a259e93db8819abf9a89f40b"
+  },
+  {
+    "path": "ROOT-RESULT.md",
+    "bytes": 293,
+    "sha256": "f426fdf2af497fb317b6664e33ef75fe6438c542cc8e6bc57187250115d59569"
+  },
+  {
+    "path": "ROOT-REVIEW.md",
+    "bytes": 637,
+    "sha256": "3e803c8963e309f5fdaf4af83355df6c84658d84073fe5745d03aab75af0217b"
+  },
+  {
+    "path": "TERMINAL-READBACK.json",
+    "bytes": 161,
+    "sha256": "98b97387a284f67074b5e61881929212d8e480743db43c55791ea7644ada7d8b"
+  },
+  {
+    "path": "admit.py",
+    "bytes": 828,
+    "sha256": "7fcada90860fd1441c8e566c4e4fc90c0afda84ef4b64807149f807228e17ec0"
+  },
+  {
+    "path": "manager-inner.log",
+    "bytes": 63,
+    "sha256": "3007577fa0c3291ae5bf028d21d5fa8fa47297e415b3f2c26646c2c326272b2d"
+  },
+  {
+    "path": "manager-outer.log",
+    "bytes": 63,
+    "sha256": "3007577fa0c3291ae5bf028d21d5fa8fa47297e415b3f2c26646c2c326272b2d"
+  },
+  {
+    "path": "run.py",
+    "bytes": 2437,
+    "sha256": "77482c724056f11583008cca6d60c9c2a4b054d1d966e4aae4bff15c08bec506"
+  },
+  {
+    "path": "storage-ATTEMPT.json",
+    "bytes": 61,
+    "sha256": "7eb93ce67587fd9cd4bf9539305afd8e247eb23b48f20f8a1766e5202e4e162f"
+  },
+  {
+    "path": "storage-read.ps1",
+    "bytes": 35732,
+    "sha256": "c6046ac3b3bff81075e592dcf9ad8dbc9b1425d8e51f575325e43b65beab4bd3"
+  }
+]

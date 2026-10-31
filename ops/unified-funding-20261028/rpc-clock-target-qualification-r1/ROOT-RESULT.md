@@ -1,0 +1,1 @@
+FAILED before child launch: PowerShell bootstrap exceeded existing64MiB private-memory snapshot allowance. Invocation445c37eef54a406595ba5909a2a4598a terminal1/MainPID0. No contract/intent/sampler. Later admission-r3 observed no exact encoded-command wrapper match and no contract/intent. Local SSH exit alone did not prove remote death. Wrapper never rerun; cap/floor unchanged.

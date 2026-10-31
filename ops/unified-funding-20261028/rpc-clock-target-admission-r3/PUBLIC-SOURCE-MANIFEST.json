@@ -1,0 +1,77 @@
+[
+  {
+    "path": "COMMAND.json",
+    "bytes": 1221,
+    "sha256": "1b15cf0230c0ed3a5f2ccbea7b3cc9d042df8c6078b59aed91d94ac148149188"
+  },
+  {
+    "path": "LAUNCH.json",
+    "bytes": 160,
+    "sha256": "f89e603a18f761523fc2ab196e1964e67bd2fac7056dd93a218c5fb7ab4079c9"
+  },
+  {
+    "path": "LOCAL-ADMISSION.json",
+    "bytes": 103,
+    "sha256": "3ebbfa8ce8b14053d90a89eeb5dc55af640c28d708a574abcf11383ac9f1f153"
+  },
+  {
+    "path": "PINS.json",
+    "bytes": 173,
+    "sha256": "3d041b959aad10d727cdba8f5e13a2da8a95ca87abbd23e007e993e17e503a70"
+  },
+  {
+    "path": "ROOT-RESULT.md",
+    "bytes": 271,
+    "sha256": "8aa25167432828b670b6e5c310c91f67a4f9e9e1539ed126a55b780e590b8f0f"
+  },
+  {
+    "path": "ROOT-REVIEW.md",
+    "bytes": 412,
+    "sha256": "9abc92e68328fa002a4fae1bc0c9dc3091071452fca8f7cf276d0e41fad04e77"
+  },
+  {
+    "path": "TERMINAL-READBACK.json",
+    "bytes": 131,
+    "sha256": "89b44bcd15380890638d78f5bb87dec2e4da81d6d32004a31793ec11577d5d1a"
+  },
+  {
+    "path": "admit.py",
+    "bytes": 828,
+    "sha256": "7fcada90860fd1441c8e566c4e4fc90c0afda84ef4b64807149f807228e17ec0"
+  },
+  {
+    "path": "manager-inner.log",
+    "bytes": 66,
+    "sha256": "d4ae93ca6504780212cf158ff6f049d790ec5bc571cc31afdad0a0303cfa1cf8"
+  },
+  {
+    "path": "manager-outer.log",
+    "bytes": 67,
+    "sha256": "2256f326ec91693687238a2020d361d5d05ce169bf3f1dd461facf36db9887a3"
+  },
+  {
+    "path": "run.py",
+    "bytes": 2437,
+    "sha256": "77482c724056f11583008cca6d60c9c2a4b054d1d966e4aae4bff15c08bec506"
+  },
+  {
+    "path": "storage-ATTEMPT.json",
+    "bytes": 61,
+    "sha256": "5db1f0542ce399e0cf9a373d110d4f13461c121eed0a2c30897ba6e57778fd26"
+  },
+  {
+    "path": "storage-RESULT.json",
+    "bytes": 29545,
+    "sha256": "a235d113ef2a5366077f338f382d0ad8cc23d842089633fb2043bf02d627e342"
+  },
+  {
+    "path": "storage-read.ps1",
+    "bytes": 10632,
+    "sha256": "ec70626aa21419c6e86055f0f62f5c6f0a256eea364bc682815fa5fb08893739"
+  },
+  {
+    "path": "storage-stderr.local",
+    "bytes": 614,
+    "sha256": "e3af8a5f2bf0055b98a7ea6636da886a63c078b6fde5de824010c7be049189a1"
+  }
+]

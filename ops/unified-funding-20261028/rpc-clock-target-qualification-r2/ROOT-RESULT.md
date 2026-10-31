@@ -1,0 +1,1 @@
+FAILED before contract or sampler: Original manager changed. Invocation0568d7ab4605436a88c69f247acdb68e terminal1/MainPID0/0.796s. Caller converted CIM timestamp to FILETIME, losing final100ns digit already truncated upstream. R4 exact native observation diagnoses mismatch. Native check was correct and remains strict; no rounding tolerance or controller change.

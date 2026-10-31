@@ -1,0 +1,23 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.513973579974845,
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 222
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false,
+  "at": 1793478600.8168397,
+  "phase": "stage",
+  "success": true,
+  "noRetry": true,
+  "vmChanged": false
+}

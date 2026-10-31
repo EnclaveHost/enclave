@@ -1,0 +1,25 @@
+from pathlib import Path
+import json,hashlib,subprocess,os,time,base64
+from capture_local import capture
+p=Path(__file__).resolve().parent
+s=Path('/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source')
+assert os.sched_getaffinity(0)=={1}
+for n,h in json.loads((p/'PINS.json').read_text()).items():assert hashlib.sha256((p/n).read_bytes()).hexdigest()==h
+stage=json.loads((p.parent/'rpc-clock-target-stage-r1/verify-RESULT.json').read_text());assert stage['success']
+ad=json.loads((p.parent/'rpc-clock-target-admission-r1/storage-RESULT.json').read_text());assert ad['rc']==0 and ad['failure'] is None and time.time()-ad['at']<300
+o=ad['observation'];assert o['before']==o['after'] and o['nodeExit']==0 and o['manager']['completeTransport'] and not o['manager']['errors'] and len(o['physicalAfter']['vms'])==4
+r=subprocess.run(['/usr/bin/node',str(s/'rpc/server/observe_resources.mjs'),str(s.parent/'unified-funding-20261028/rpc-export-current-admission-read-r2/CONFIG.json')],capture_output=True,text=True,timeout=3,check=True)
+a=json.loads(r.stdout);assert a['authenticated'] and not a['unreadUnits'] and a['availableMiB']-a['pendingMiB']-384>=max(27648,a['floorMiB'])
+(p/'LOCAL-ADMISSION.json').write_text(json.dumps(a)+'\n')
+with(p/'INTENT.json').open('x')as f:json.dump({'at':time.time(),'readOnly':True,'noRetry':True},f);f.flush();os.fsync(f.fileno())
+command='powershell.exe -NoProfile -NonInteractive -EncodedCommand '+base64.b64encode((p/'qualify.ps1').read_text().encode('utf-16le')).decode();assert len(command)<30000
+r=capture(['/usr/bin/ssh','-T','-oBatchMode=yes','-oStrictHostKeyChecking=yes','-oConnectTimeout=5','-oControlMaster=no','-oControlPath=none','minipc',command],40,limit=16384)
+(p/'stdout').write_text(r.pop('stdout'));(p/'stderr').write_text(r.pop('stderr'))
+r['success']=False
+if r['rc']==0 and r['reason'] is None:
+ try:
+  v=json.loads((p/'stdout').read_text().lstrip('\ufeff'));r['observation']=v
+  assert v['passed'] and v['samplerExactDeath'] and v['samplerExit']==0 and v['managersUnchanged'] and not v['productionClockAssigned'] and not v['vmChanged']
+  r['success']=True
+ except Exception:r['reason']='invalid-receipt'
+(p/'RESULT.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps({'rc':r['rc'],'reason':r['reason'],'success':r['success']}));raise SystemExit(0 if r['success'] else 1)

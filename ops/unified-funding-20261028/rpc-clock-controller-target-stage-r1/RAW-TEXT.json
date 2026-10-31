@@ -1,0 +1,27 @@
+{
+  "create.stderr": {
+    "base64": "KiogV0FSTklORzogY29ubmVjdGlvbiBpcyBub3QgdXNpbmcgYSBwb3N0LXF1YW50dW0ga2V5IGV4Y2hhbmdlIGFsZ29yaXRobS4NCioqIFRoaXMgc2Vzc2lvbiBtYXkgYmUgdnVsbmVyYWJsZSB0byAic3RvcmUgbm93LCBkZWNyeXB0IGxhdGVyIiBhdHRhY2tzLg0KKiogVGhlIHNlcnZlciBtYXkgbmVlZCB0byBiZSB1cGdyYWRlZC4gU2VlIGh0dHBzOi8vb3BlbnNzaC5jb20vcHEuaHRtbA0K",
+    "bytes": 222,
+    "sha256": "048e2ba89ae430962e02f5341cf60c694fb7e131cb417790075a56b32ca09992"
+  },
+  "create.stdout": {
+    "base64": "eyJwcmVwYXJlZCI6dHJ1ZSwicm9vdCI6IkM6XFxFbmNsYXZlUnBjQ2xvY2stODU2YzgyMTNmMmExNDljM2EyNGUyNzkwNGUyMDkzYzZcXDg1NmM4MjEzZjJhMTQ5YzNhMjRlMjc5MDRlMjA5M2M2IiwiZnJlZUJ5dGVzIjo4NDc2MTg5NDkxMiwibmF0aXZlQXR0ZW1wdGVkIjpmYWxzZX0NCg==",
+    "bytes": 163,
+    "sha256": "ab60d766b9b9a57098ffbb7759fcdb282f35ea496141257f73e56531870ba324"
+  },
+  "stage.stderr": {
+    "base64": "KiogV0FSTklORzogY29ubmVjdGlvbiBpcyBub3QgdXNpbmcgYSBwb3N0LXF1YW50dW0ga2V5IGV4Y2hhbmdlIGFsZ29yaXRobS4NCioqIFRoaXMgc2Vzc2lvbiBtYXkgYmUgdnVsbmVyYWJsZSB0byAic3RvcmUgbm93LCBkZWNyeXB0IGxhdGVyIiBhdHRhY2tzLg0KKiogVGhlIHNlcnZlciBtYXkgbmVlZCB0byBiZSB1cGdyYWRlZC4gU2VlIGh0dHBzOi8vb3BlbnNzaC5jb20vcHEuaHRtbA0K",
+    "bytes": 222,
+    "sha256": "048e2ba89ae430962e02f5341cf60c694fb7e131cb417790075a56b32ca09992"
+  },
+  "verify.stderr": {
+    "base64": "KiogV0FSTklORzogY29ubmVjdGlvbiBpcyBub3QgdXNpbmcgYSBwb3N0LXF1YW50dW0ga2V5IGV4Y2hhbmdlIGFsZ29yaXRobS4NCioqIFRoaXMgc2Vzc2lvbiBtYXkgYmUgdnVsbmVyYWJsZSB0byAic3RvcmUgbm93LCBkZWNyeXB0IGxhdGVyIiBhdHRhY2tzLg0KKiogVGhlIHNlcnZlciBtYXkgbmVlZCB0byBiZSB1cGdyYWRlZC4gU2VlIGh0dHBzOi8vb3BlbnNzaC5jb20vcHEuaHRtbA0K",
+    "bytes": 222,
+    "sha256": "048e2ba89ae430962e02f5341cf60c694fb7e131cb417790075a56b32ca09992"
+  },
+  "verify.stdout": {
+    "base64": "eyJ2ZXJpZmllZCI6dHJ1ZSwicm9vdCI6IkM6XFxFbmNsYXZlUnBjQ2xvY2stODU2YzgyMTNmMmExNDljM2EyNGUyNzkwNGUyMDkzYzZcXDg1NmM4MjEzZjJhMTQ5YzNhMjRlMjc5MDRlMjA5M2M2IiwiZmlsZXMiOlt7InNoYTI1NiI6ImQzMGUzNjU1NTVhMGI2ODBhNWRmYzI0Y2QxMzE3ZTJiNzFhZDc4NzAxYzM4MTRhYjMxNjUzZGU5YjRjNzY2MjkiLCJuYW1lIjoiY2xvY2stY29udHJvbGxlci5leGUiLCJieXRlcyI6NjA5Mjh9XSwiZXhlY3V0ZWQiOmZhbHNlLCJuYXRpdmVBdHRlbXB0ZWQiOmZhbHNlfQ0K",
+    "bytes": 288,
+    "sha256": "fbade0861ff4f42a6be943427a065af0c7b9f3c0b6cce7cbf06ac496deef6161"
+  }
+}

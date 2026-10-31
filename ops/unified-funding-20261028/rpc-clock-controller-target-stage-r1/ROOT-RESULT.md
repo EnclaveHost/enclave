@@ -1,0 +1,1 @@
+Actual protected controller create/transfer/readback passed. Added only controller60928B SHAd30e365555a0b680a5dfc24cd1317e2b71ad78701c3814ab31653de9b4c76629 to existing sampler namespace. Separate controller staging intent/receipt; sampler/twin unchanged. No execution here.

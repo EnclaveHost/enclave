@@ -1,0 +1,5 @@
+source-closure\windows\rpc\ProtectedAttempt.cs(27,23): warning CS0649: Field 'Enclave.OwnedRpc.ProtectedAttempt.reconciliationOnly' is never assigned to, and will always have its default value false
+source-closure\windows\rpc\ProtectedAttempt.cs(28,23): warning CS0649: Field 'Enclave.OwnedRpc.ProtectedAttempt.guardianOnly' is never assigned to, and will always have its default value false
+source-closure\windows\rpc\ProtectedAttempt.cs(29,23): warning CS0649: Field 'Enclave.OwnedRpc.ProtectedAttempt.cleanupAccess' is never assigned to, and will always have its default value false
+source-closure\windows\rpc\ProtectedAttempt.cs(31,23): warning CS0649: Field 'Enclave.OwnedRpc.ProtectedAttempt.definitionJournal' is never assigned to, and will always have its default value false
+source-closure\windows\rpc\ProtectedAttempt.cs(32,23): warning CS0649: Field 'Enclave.OwnedRpc.ProtectedAttempt.startupCleanup' is never assigned to, and will always have its default value false

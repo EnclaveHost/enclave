@@ -1,0 +1,10 @@
+{
+  "run.py": "4e63bc80d69af3d4c4abf281667bfe64c7149413084d14a2e39b5f9bfc972252",
+  "capture_local.py": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c",
+  "create.ps1": "f69ece6d0faaa5451fd541fd40aa70afebdf087ffd806508aaac04dc0de4ac97",
+  "verify.ps1": "d080c833577fc517b5fc2b730cf9476c77470549b70c5abdf28d78de89f6152d",
+  "SPEC.json": "309c2a549b5dd16aea3c37257644ebaaa42e56ee5309582947792f6ffb0a43ae",
+  "FILES.json": "b8bb71839b1b2fc38caa349e76ed8cda74d990fb49e508703eb50c2ec14a7cf0",
+  "ARTIFACTS.json": "ba972b24f43c3ab22130110696721f1fc5cba9b14d0a0909cccc6b2dbc4dc10a",
+  "bundle/clock-controller.exe": "d30e365555a0b680a5dfc24cd1317e2b71ad78701c3814ab31653de9b4c76629"
+}
