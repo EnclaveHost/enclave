@@ -1,0 +1,22 @@
+[
+    {
+        "label":  "endpoint-compile",
+        "pid":  6276,
+        "exitCode":  0,
+        "elapsedMs":  1324,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  33251328,
+        "outputBytes":  395
+    },
+    {
+        "label":  "fixture-compile",
+        "pid":  9756,
+        "exitCode":  0,
+        "elapsedMs":  142,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  35270656,
+        "outputBytes":  196
+    }
+]

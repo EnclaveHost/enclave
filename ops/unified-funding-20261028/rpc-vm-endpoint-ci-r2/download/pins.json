@@ -1,0 +1,37 @@
+[
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "309A68AB3A4326C3819997C3ABAE4E4FE38307E98BB54B31B246CE61A9A63A99",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\BoundedWorker.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "27329B618545772CC1C419D244AC6F25CB2F7987DB337EEE975230E8FB54E8EA",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\ProtectedAttempt.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "D2EB7BBEBC74B02BE707FCD705C9165AF9B6FDF2F6440A94FDE76DCC0CEAEEA2",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\ProviderStart.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "A4D1F9640A4087714B9907CDDCDC64340CB57F07DE04DD1B6BAF97197AC60373",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\OwnedVmPermit.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "37F98A872A67AAA03020CC634A6C26CC27BCCA839EEE4966967F894AD971167C",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\BootStartBinding.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "69D6FF477CE80732EAE88DB818B35C54ECEBCDE380B2EE25C08E8F107C72A33E",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\VmEndpoint.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "46809206887326D2D24DB1EFF1F3064DE972C3451ABE766B49111450A5E08E00",
+        "Path":  "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe"
+    }
+]

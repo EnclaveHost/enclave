@@ -1,0 +1,13 @@
+inert	Compile and exercise inert finite processes	﻿2026-10-31T22:02:20.6954924Z ##[group]Run & ./source-closure/test/rpc-windows-worker/run-endpoint-ci.ps1
+inert	Compile and exercise inert finite processes	2026-10-31T22:02:20.6955448Z ^[[36;1m& ./source-closure/test/rpc-windows-worker/run-endpoint-ci.ps1^[[0m
+inert	Compile and exercise inert finite processes	2026-10-31T22:02:20.7006565Z shell: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.EXE -command ". '{0}'"
+inert	Compile and exercise inert finite processes	2026-10-31T22:02:20.7006899Z ##[endgroup]
+inert	Compile and exercise inert finite processes	2026-10-31T22:02:23.1736197Z Start-Process : Cannot validate argument on parameter 'ArgumentList'. The argument is null or empty. Provide an
+inert	Compile and exercise inert finite processes	2026-10-31T22:02:23.1736839Z argument that is not null or empty, and then try the command again.
+inert	Compile and exercise inert finite processes	2026-10-31T22:02:23.1737260Z At D:\a\enclave\enclave\source-closure\test\rpc-windows-worker\run-endpoint-ci.ps1:21 char:58
+inert	Compile and exercise inert finite processes	2026-10-31T22:02:23.1737863Z + ... rgumentList (($Arguments|ForEach-Object{'"'+$_+'"'}) -join ' ') -Pass ...
+inert	Compile and exercise inert finite processes	2026-10-31T22:02:23.1738295Z +                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+inert	Compile and exercise inert finite processes	2026-10-31T22:02:23.1738661Z     + CategoryInfo          : InvalidData: (:) [Start-Process], ParentContainsErrorRecordException
+inert	Compile and exercise inert finite processes	2026-10-31T22:02:23.1739178Z     + FullyQualifiedErrorId : ParameterArgumentValidationError,Microsoft.PowerShell.Commands.StartProcessCommand
+inert	Compile and exercise inert finite processes	2026-10-31T22:02:23.1739517Z
+inert	Compile and exercise inert finite processes	2026-10-31T22:02:23.1944915Z ##[error]Process completed with exit code 1.
