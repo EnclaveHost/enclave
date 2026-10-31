@@ -691,3 +691,23 @@ SYSTEM-role regressions. Boot tests use fake Hyper-V providers. Target WMI/ACL
 behavior, actual boot and the aggregate two-second native graph read remain
 unqualified. Production startup orchestration and actual artifacts are still
 required; these results do not establish RPC availability or20GiB workload fit.
+
+
+`StartupController` now composes the real startup path. Its explicit `--target`
+entry binds the existing definition's canonical returned VM GUID, original permit
+clock and exact provider/cleanup image hashes. It holds the protected definition
+namespace before one-shot publication, arms independent SYSTEM cleanup and checks
+its actual held process identity before scheduling the guardian and gated worker
+pair. Only the guardian publishes the work gate. Independent cleanup/guardian
+jobs are retained if the short controller exits or fails. No automatic retry,
+claim release, readiness claim or original deadline extension is provided.
+
+Hosted qualification compiled the actual provider, cleanup and startup images
+and passed20 fixtures, including the real definition producer's encoded output
+and actual protected-file custody/refusal. This has not run the complete startup
+on the target host. The exact binaries belong to one compilation bundle; they
+must be bound in the original definition/admission before any target operation.
+Initial admission charges84,385,202,176 bytes free, including the20GiB proposal,
+prospective apps,18GiB reserve, variation and transient role/controller overhead.
+Older host measurements cannot admit this run. Media preparation, actual target
+WMI/ACL behavior, boot, RPC workload fit/sync/finality and consumer cutover remain.
