@@ -261,3 +261,92 @@ namespace Enclave.OwnedRpc {
     }
  }
 }
+
+
+namespace Enclave.OwnedRpc {
+ // Read-only predecessor evidence. Never renews the old operation or grants a
+ // retry. A successor needs distinct media/identity and its own original clock.
+ public sealed partial class ProtectedAttempt {
+  enum PriorDefinitionKind { Worker, Plan }
+  internal static ProtectedAttempt OpenPriorDefinitionWorker(string path,string hash,ProtectedAttempt reader){
+   RequireAdministrator();return new ProtectedAttempt(path,hash,reader,PriorDefinitionKind.Worker,null);
+  }
+  internal static ProtectedAttempt OpenPriorDefinitionPlan(ProtectedAttempt worker,ProtectedAttempt reader){
+   RequireAdministrator();return new ProtectedAttempt(worker.PermitPath,worker.PermitHash,reader,PriorDefinitionKind.Plan,worker);
+  }
+  private ProtectedAttempt(string path,string hash,ProtectedAttempt reader,PriorDefinitionKind kind,ProtectedAttempt worker){
+   if(reader==null||reader.evidenceOnly||reader.LeaseProfile!="definition"||reader.Deadline-reader.Origin>30000)throw new ArgumentException("Current short definition reader required");
+   reader.CheckDeadline();LocalPath(path);Hex(hash,64);accessLease=reader;evidenceOnly=true;recordOwner=SystemSid;
+   Root=Path.GetDirectoryName(path);ContractHash=hash;LeaseProfile="prior-definition-evidence";
+   try{
+    string current=Path.GetPathRoot(Root);HoldDirectory(current,false);string[] parts=Root.Substring(3).Split('\\');
+    for(int i=0;i<parts.Length;i++){current=Path.Combine(current,parts[i]);HoldDirectory(current,i==parts.Length-1);}
+    byte[] raw=Bytes(HoldRead(path,4096),4096);if(Hash(raw)!=hash)throw new InvalidOperationException("Prior definition digest differs");
+    if(kind==PriorDefinitionKind.Worker){
+     if(Path.GetFileName(path)!="contract.txt")throw new ArgumentException("Prior worker contract filename");
+     string[] f=Utf8.GetString(raw).Split('\n');
+     if(f.Length!=10||f[0]!="owned-rpc-definition-worker-v1"||f[6]!="define"||f[9]!="")throw new InvalidOperationException("Prior define worker required");
+     Nonce=f[1];Boot=f[2];ExecutableHash=f[5];Operation=f[6];PermitPath=LocalPath(f[7]);PermitHash=f[8];
+     Hex(Nonce,32);Hex(Boot,32);Hex(ExecutableHash,64);Hex(PermitHash,64);
+     Origin=Int64.Parse(f[3],NumberStyles.None,CultureInfo.InvariantCulture);Deadline=Int64.Parse(f[4],NumberStyles.None,CultureInfo.InvariantCulture);
+     if(Root!=Path.Combine(Path.GetPathRoot(Root),"EnclaveRpcDefinition-"+Nonce,Nonce)||Path.GetFileName(PermitPath)!="definition-plan.txt"||
+        Origin<0||Origin>Int64.MaxValue-30000||Deadline<=Origin||Deadline-Origin>30000||Deadline>reader.Origin)throw new InvalidOperationException("Prior worker namespace/window differs");
+     if(Hash(Bytes(HoldRead(Path.Combine(Root,"entry.exe"),262144),262144))!=ExecutableHash)throw new InvalidOperationException("Prior worker image differs");
+    }else{
+     if(worker==null||worker.LeaseProfile!="prior-definition-evidence"||worker.Operation!="define"||path!=worker.PermitPath||hash!=worker.PermitHash)throw new ArgumentException("Exact prior plan binding required");
+     DefinitionPlan=OwnedVmDefinitionPlan.Parse(Utf8.GetString(raw));var p=DefinitionPlan;Nonce=p.Attempt;Boot=p.Boot;Origin=p.Origin;Deadline=p.Deadline;ExecutableHash=p.ProviderImageHash;
+     if(p.Root!=Root||Path.GetFileName(path)!="definition-plan.txt")throw new InvalidOperationException("Prior plan namespace differs");
+     UnsubmittedDefinition.RequirePriorWindow(Origin,Deadline,worker.Origin,worker.Deadline,reader.Origin);
+    }
+    if(Boot!=reader.Boot||Boot!=CurrentBoot()||Nonce==reader.Nonce)throw new InvalidOperationException("Prior boot/identity differs");
+    CheckDeadline();
+   }catch{Dispose();throw;}
+  }
+ }
+ internal static class UnsubmittedDefinition {
+  [System.Runtime.InteropServices.DllImport("kernel32.dll",SetLastError=true)]static extern IntPtr OpenProcess(uint access,bool inherit,uint pid);
+  [System.Runtime.InteropServices.DllImport("kernel32.dll",SetLastError=true)]static extern bool GetProcessTimes(IntPtr p,out long created,out long exited,out long kernel,out long user);
+  [System.Runtime.InteropServices.DllImport("kernel32.dll",SetLastError=true)]static extern uint WaitForSingleObject(IntPtr p,uint ms);
+  [System.Runtime.InteropServices.DllImport("kernel32.dll")]static extern bool CloseHandle(IntPtr p);
+  internal static void RequirePriorWindow(long origin,long deadline,long workerOrigin,long workerDeadline,long readerOrigin){
+   if(origin<0||origin>Int64.MaxValue-900000||deadline-origin!=900000||workerOrigin<origin||workerDeadline<=workerOrigin||workerDeadline-workerOrigin>30000||workerDeadline>deadline||deadline>readerOrigin)
+    throw new InvalidOperationException("Prior startup must be expired and enclose worker");
+  }
+  internal static void RequireExactDeath(string record,string token,string role){
+   string[] f=record.Split(',');uint pid;long created;
+   if(f.Length!=4||f[2]!=token||f[3]!=role||!UInt32.TryParse(f[0],NumberStyles.None,CultureInfo.InvariantCulture,out pid)||pid==0||
+      !Int64.TryParse(f[1],NumberStyles.None,CultureInfo.InvariantCulture,out created)||created<=0||pid.ToString(CultureInfo.InvariantCulture)!=f[0]||created.ToString(CultureInfo.InvariantCulture)!=f[1])throw new InvalidOperationException("Exact prior role identity required");
+   IntPtr h=OpenProcess(0x00101000,false,pid); // QUERY_LIMITED_INFORMATION | SYNCHRONIZE; never terminate.
+   if(h==IntPtr.Zero){int error=System.Runtime.InteropServices.Marshal.GetLastWin32Error();if(error==87)return;throw new System.ComponentModel.Win32Exception(error,"Prior process identity unavailable");}
+   try{long actual,exit,kernel,user;if(!GetProcessTimes(h,out actual,out exit,out kernel,out user))throw new System.ComponentModel.Win32Exception(System.Runtime.InteropServices.Marshal.GetLastWin32Error());
+    if(actual!=created)return; // Exact old incarnation cannot reappear after PID reuse.
+    uint state=WaitForSingleObject(h,0);if(state!=0)throw new InvalidOperationException("Prior exact role is live or death unproven");
+   }finally{CloseHandle(h);}
+  }
+  internal static void RequireUnsubmitted(Func<string,string> read,string plan,string hash){
+   if(read("definition.intent")!=plan||read("definition.submit")!=hash)throw new InvalidOperationException("Exact prior consumed pre-native submission required");
+   foreach(string name in new[]{"definition.intent","definition.submit"})if(read(name+".pending")!=null)throw new InvalidOperationException("Prior pending publication remains ambiguous");
+   foreach(string name in new[]{"definition.native","definition.invoke","definition.receipt","definition.job","definition.terminal","definition.system","definition.off","boot.media","boot.ready"})
+    if(read(name)!=null||read(name+".pending")!=null)throw new InvalidOperationException("Prior provider invocation or outcome remains held");
+  }
+  internal static void VerifyAdmission(ProtectedAttempt plan,ProtectedAttempt reader){
+   var json=new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32};
+   var reviewed=json.DeserializeObject(new UTF8Encoding(false,true).GetString(plan.ReadAdmission(plan.DefinitionPlan.AdmissionHash))) as Dictionary<string,object>;
+   if(reviewed==null)throw new InvalidOperationException("Definition observation object required");
+   object binding;if(reviewed.TryGetValue("unsubmittedPredecessor",out binding))Verify(binding as Dictionary<string,object>,plan,reader);
+  }
+  internal static void Verify(Dictionary<string,object> binding,ProtectedAttempt successor,ProtectedAttempt reader){
+   if(binding==null||binding.Count!=4||!binding.ContainsKey("schema")||!binding.ContainsKey("contractPath")||!binding.ContainsKey("contractHash")||!binding.ContainsKey("producerHash")||
+      (string)binding["schema"]!="owned-rpc-unsubmitted-predecessor/1"||successor==null||successor.DefinitionPlan==null||reader==null||reader.Operation!="define")throw new ArgumentException("Explicit predecessor and successor definition required");
+   reader.CheckDeadline();successor.CheckDeadline();
+   using(var worker=ProtectedAttempt.OpenPriorDefinitionWorker((string)binding["contractPath"],(string)binding["contractHash"],reader))
+   using(var prior=ProtectedAttempt.OpenPriorDefinitionPlan(worker,reader)){
+    if(worker.ExecutableHash!=(string)binding["producerHash"]||prior.Nonce==successor.Nonce||prior.Root==successor.Root||prior.Deadline>successor.Origin||prior.Boot!=successor.Boot)throw new InvalidOperationException("Distinct reviewed successor after expired predecessor required");
+    var identities=new HashSet<string>(StringComparer.Ordinal);
+    foreach(string role in new[]{"owner","observer","child"}){reader.CheckDeadline();string record=worker.ReadOnce(role+".consumed");RequireExactDeath(record,worker.Token,role);string[] parts=record.Split(',');if(!identities.Add(parts[0]+","+parts[1]))throw new InvalidOperationException("Prior roles share an incarnation");}
+    RequireUnsubmitted(prior.ReadOptionalOnce,prior.DefinitionPlan.Encode(),prior.ContractHash);
+    reader.CheckDeadline();successor.CheckDeadline();
+   }
+  }
+ }
+}

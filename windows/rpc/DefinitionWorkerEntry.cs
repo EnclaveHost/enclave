@@ -168,6 +168,7 @@ namespace Enclave.OwnedRpc {
             }
             public void VerifyBeforeDefinition(OwnedVmDefinitionPlan p){
                 VerifyObservation(p);if(lease.Operation!="define"||Now<p.Origin||Now>=p.Deadline)throw new InvalidOperationException("Definition submit authority absent");
+                UnsubmittedDefinition.VerifyAdmission(plan,lease);
                 WindowsStartAdmission.VerifyDefinition(plan,p.AdmissionHash,lease,ref completed);
                 VerifyObservation(p);if(Now>=p.Deadline)throw new InvalidOperationException("Original startup deadline");
             }

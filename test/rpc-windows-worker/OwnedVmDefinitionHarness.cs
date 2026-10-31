@@ -59,6 +59,45 @@ public static class OwnedVmDefinitionHarness {
   }
   internal ProtectedAttempt Lease(){return ProtectedAttempt.PinDefinitionController(Contract,Hash);}
  }
+
+ sealed class PriorCase : IDisposable {
+  internal readonly string Root,Contract,Hash,PlanPath,PlanHash;internal readonly OwnedVmDefinitionPlan P;
+  readonly List<System.Diagnostics.Process> dead=new List<System.Diagnostics.Process>();
+  internal PriorCase(bool alive=false){
+   string drive=Path.GetPathRoot(Environment.SystemDirectory),n=Guid.NewGuid().ToString("N"),id=Guid.NewGuid().ToString("N"),boot=ProtectedAttempt.CurrentBoot();
+   Root=Path.Combine(drive,"EnclaveRpcDefinition-"+n,n);DirectoryNew(Path.GetDirectoryName(Root));DirectoryNew(Root);Put(Path.Combine(Root,"entry.exe"),fixtureImage);
+   string vr=Path.Combine(drive,"EnclaveRpcVm-"+id,id);DirectoryNew(Path.GetDirectoryName(vr));DirectoryNew(vr);
+   long end=BoundedWorker.MonotonicMilliseconds()-1000,planEnd=Math.Max(end,900001);P=new OwnedVmDefinitionPlan(id,boot,new string('c',64),ProtectedAttempt.Hash(fixtureImage),vr,planEnd-900000,planEnd,new string('e',64),new string('f',64));
+   PlanPath=Path.Combine(vr,"definition-plan.txt");PlanHash=ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(P.Encode()));Put(PlanPath,Encoding.UTF8.GetBytes(P.Encode()));
+   byte[] bytes=Encoding.UTF8.GetBytes("owned-rpc-definition-worker-v1\n"+n+"\n"+boot+"\n"+(end-20000)+"\n"+end+"\n"+ProtectedAttempt.Hash(fixtureImage)+"\ndefine\n"+PlanPath+"\n"+PlanHash+"\n");
+   Contract=Path.Combine(Root,"contract.txt");Hash=ProtectedAttempt.Hash(bytes);Put(Contract,bytes);Put(Path.Combine(vr,"definition.intent"),Encoding.UTF8.GetBytes(P.Encode()));Put(Path.Combine(vr,"definition.submit"),Encoding.UTF8.GetBytes(PlanHash));
+   foreach(string role in new[]{"owner","observer","child"}){
+    System.Diagnostics.Process q;
+    if(alive&&role=="child")q=System.Diagnostics.Process.GetCurrentProcess();
+    else {q=System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Path.Combine(Environment.SystemDirectory,"cmd.exe"),"/c exit 0"){UseShellExecute=false,CreateNoWindow=true});}
+    dead.Add(q);IntPtr held=q.Handle;long creation=q.StartTime.ToUniversalTime().ToFileTimeUtc();
+    if(!(alive&&role=="child")&&!q.WaitForExit(1000))throw new Exception("Finite exact fixture death unconfirmed");
+    Put(Path.Combine(Root,role+".consumed"),Encoding.UTF8.GetBytes(q.Id+","+creation+","+n+boot+Hash+","+role));
+   }
+  }
+  internal Dictionary<string,object> Binding(){return new Dictionary<string,object>{{"schema","owned-rpc-unsubmitted-predecessor/1"},{"contractPath",Contract},{"contractHash",Hash},{"producerHash",ProtectedAttempt.Hash(fixtureImage)}};}
+  public void Dispose(){foreach(var q in dead)q.Dispose();}
+ }
+ static void PredecessorTests(){
+  Test("predecessor-exact-consumed-records-accepted",()=>{var d=new Dictionary<string,string>{{"definition.intent","plan"},{"definition.submit","hash"}};UnsubmittedDefinition.RequireUnsubmitted(n=>d.ContainsKey(n)?d[n]:null,"plan","hash");});
+  Test("predecessor-all-native-or-pending-markers-refused",()=>{foreach(string name in new[]{"definition.native","definition.invoke","definition.receipt","definition.job","definition.terminal","definition.system","definition.off","boot.media","boot.ready"})foreach(string suffix in new[]{"",".pending"}){string target=name+suffix;Refuse(()=>UnsubmittedDefinition.RequireUnsubmitted(n=>n=="definition.intent"?"plan":n=="definition.submit"?"hash":n==target?"held":null,"plan","hash"));}});
+  Test("predecessor-partial-pre-native-publication-refused",()=>{foreach(string name in new[]{"definition.intent.pending","definition.submit.pending"})Refuse(()=>UnsubmittedDefinition.RequireUnsubmitted(n=>n=="definition.intent"?"plan":n=="definition.submit"?"hash":n==name?"partial":null,"plan","hash"));});
+  Test("predecessor-missing-or-wrong-submission-refused",()=>{Refuse(()=>UnsubmittedDefinition.RequireUnsubmitted(n=>null,"plan","hash"));Refuse(()=>UnsubmittedDefinition.RequireUnsubmitted(n=>n=="definition.intent"?"plan":"other","plan","hash"));});
+  Test("predecessor-live-exact-process-refused",()=>{using(var q=System.Diagnostics.Process.GetCurrentProcess()){string record=q.Id+","+q.StartTime.ToUniversalTime().ToFileTimeUtc()+",token,child";Refuse(()=>UnsubmittedDefinition.RequireExactDeath(record,"token","child"));}});
+  Test("predecessor-malformed-role-binding-refused",()=>{foreach(string record in new[]{"0,1,t,child","01,1,t,child","1,0,t,child","1,1,wrong,child","1,1,t,owner"})Refuse(()=>UnsubmittedDefinition.RequireExactDeath(record,"t","child"));});
+  Test("predecessor-window-exact-expiry-and-enclosure",()=>{UnsubmittedDefinition.RequirePriorWindow(1,900001,880001,900001,900001);Refuse(()=>UnsubmittedDefinition.RequirePriorWindow(1,900001,880001,900001,900000));Refuse(()=>UnsubmittedDefinition.RequirePriorWindow(1,900001,880001,900002,900003));});
+  Test("predecessor-window-overflow-and-renewal-refused",()=>{Refuse(()=>UnsubmittedDefinition.RequirePriorWindow(Int64.MaxValue-100,Int64.MaxValue,1,2,Int64.MaxValue));Refuse(()=>UnsubmittedDefinition.RequirePriorWindow(1,900002,880001,900001,900003));});
+  Test("actual-expired-worker-custody-readonly",()=>{using(var old=new PriorCase()){var c=new ProtectedCase();using(var a=c.Lease())using(var w=ProtectedAttempt.OpenPriorDefinitionWorker(old.Contract,old.Hash,a)){Check(w.PermitHash==old.PlanHash);Refuse(()=>w.WriteOnce("child.result","forbidden"));}}});
+  Test("actual-held-prior-worker-cannot-replace",()=>{using(var old=new PriorCase()){var c=new ProtectedCase();using(var a=c.Lease())using(var w=ProtectedAttempt.OpenPriorDefinitionWorker(old.Contract,old.Hash,a))Refuse(()=>File.Move(old.Contract,old.Contract+".moved"));}});
+  Test("actual-prior-worker-digest-refused",()=>{using(var old=new PriorCase()){var c=new ProtectedCase();using(var a=c.Lease())Refuse(()=>{using(var w=ProtectedAttempt.OpenPriorDefinitionWorker(old.Contract,new string('0',64),a)){} });}});
+  Test("actual-prior-dead-roles-bound-to-held-contract",()=>{using(var old=new PriorCase()){var c=new ProtectedCase();using(var a=c.Lease())using(var w=ProtectedAttempt.OpenPriorDefinitionWorker(old.Contract,old.Hash,a))foreach(string role in new[]{"owner","observer","child"})UnsubmittedDefinition.RequireExactDeath(w.ReadOnce(role+".consumed"),w.Token,role);}});
+
+ }
  static void ProtectedTests(){
   Test("admission-only-contract-binds-fresh-private-observation",()=>{var c=new ProtectedCase("admission-check");using(var a=c.Lease()){
    Check(a.Operation=="admission-check"&&a.AdmissionObservationHash==c.ObservationHash&&Encoding.UTF8.GetString(a.ReadAdmission(a.AdmissionObservationHash))=="{}");
@@ -144,7 +183,7 @@ public static class OwnedVmDefinitionHarness {
   Test("missing-vcpu-readback-refused",()=>Refuse(()=>HyperVOwnedDefinition.RequireProcessors(new object[]{})));
   Test("duplicate-vcpu-readback-refused",()=>Refuse(()=>HyperVOwnedDefinition.RequireProcessors(new object[]{(ulong)4,(ulong)4})));
   Test("plan-overflow-refused",()=>Refuse(()=>new OwnedVmDefinitionPlan(new string('a',32),new string('b',32),new string('c',64),new string('d',64),@"C:\OwnedRpcFixture\"+new string('a',32),Int64.MaxValue,Int64.MaxValue,new string('e',64),new string('f',64))));
-  ProtectedTests();count+=OwnedVmBootHarness.Run();
+  PredecessorTests();ProtectedTests();count+=OwnedVmBootHarness.Run();
   Console.WriteLine("RESULT tests="+count+" providerCallsAreFakes=true vmChanged=false");return 0;
  }catch(Exception e){Console.Error.WriteLine(e);return 1;}}
 }
