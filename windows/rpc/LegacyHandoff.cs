@@ -32,7 +32,7 @@ namespace Enclave.OwnedRpc {
   [DllImport("kernel32.dll",SetLastError=true)] static extern bool GetFileInformationByHandle(SafeFileHandle h,out Info i);
   LegacyHandoff(ProtectedAttempt lease,Action live){
    if(lease==null||live==null||lease.LeaseProfile!="legacy-handoff")throw new ArgumentException("Protected handoff authority required");
-   this.lease=lease;this.live=live;inspect=lease.Operation=="legacy-memory-inspect-v1";manifest=Obj(json.DeserializeObject(new UTF8Encoding(false,true).GetString(lease.ReadLegacyHandoff())));
+   this.lease=lease;this.live=live;inspect=lease.Operation=="legacy-memory-inspect-v1"||lease.Operation=="legacy-memory-resident-inspect-v1";manifest=Obj(json.DeserializeObject(new UTF8Encoding(false,true).GetString(lease.ReadLegacyHandoff())));
    bool seeding=lease.Operation=="legacy-memory-cut-seed-v1";
    if(seeding){Keys(manifest,"schema","boot","topology","master","issuers","inputs","pool");seed=new LegacyPoolSeed(Obj(manifest["pool"]),lease.Boot);newMaster=Obj(Obj(manifest["pool"])["newMaster"]);}
    else Keys(manifest,"schema","boot","topology","master","issuers","inputs");
@@ -178,24 +178,41 @@ namespace Enclave.OwnedRpc {
     }
    if(result.Count!=expected.Count)throw new InvalidOperationException("Incomplete all-VM inventory");Check();return result;
   }
-  SortedDictionary<string,long> Assigned(SortedDictionary<string,MemoryRecord> inventory){
-   var rows=Query(@"root\virtualization\v2","SELECT SystemName,BlockSize,NumberOfBlocks FROM Msvm_Memory",new[]{"SystemName","BlockSize","NumberOfBlocks"},32);
-   var seen=new HashSet<string>();var assigned=new SortedDictionary<string,long>(StringComparer.Ordinal);
+  internal static SortedDictionary<string,long> AssignedRows(SortedDictionary<string,MemoryRecord> inventory,IEnumerable<Dictionary<string,object>> rows){
+   var assigned=new SortedDictionary<string,long>(StringComparer.Ordinal);
    foreach(var row in rows){
-    string id=Str(row["SystemName"]);MemoryRecord record;
-    if(!inventory.TryGetValue(id,out record)||!seen.Add(id)||!(row["BlockSize"] is ulong)||!(row["NumberOfBlocks"] is ulong)||
+    Guid parsed;if(!Guid.TryParseExact(Str(row["SystemName"]),"D",out parsed))throw new InvalidOperationException("Invalid resident GUID");string id=parsed.ToString("D");MemoryRecord record;
+    if(!inventory.TryGetValue(id,out record)||assigned.ContainsKey(id)||!(row["BlockSize"] is ulong)||!(row["NumberOfBlocks"] is ulong)||
        (ulong)row["BlockSize"]!=1048576)throw new InvalidOperationException("Current assigned memory identity incomplete");
     long value=checked((long)(ulong)row["NumberOfBlocks"]*1048576);
     if(value<0||value>record.Bytes)throw new InvalidOperationException("Assigned memory exceeds static commitment");assigned.Add(id,value);
    }
-   if(seen.Count!=inventory.Count)throw new InvalidOperationException("Missing assigned memory is not zero");return assigned;
+   if(assigned.Count!=inventory.Count)throw new InvalidOperationException("Missing assigned memory is not zero");return assigned;
   }
-  void SeedFit(SortedDictionary<string,MemoryRecord> inventory){
-   if(seed==null)return;long total=0;foreach(var row in inventory)total=checked(total+row.Value.Bytes);
+  SortedDictionary<string,long> Assigned(SortedDictionary<string,MemoryRecord> inventory){
+   return AssignedRows(inventory,Query(@"root\virtualization\v2","SELECT SystemName,BlockSize,NumberOfBlocks FROM Msvm_Memory",new[]{"SystemName","BlockSize","NumberOfBlocks"},32));
+  }
+  internal sealed class ResidentSample {
+   public long Physical,Free,Configured,Assigned,ObservedAt;
+   public SortedDictionary<string,long> Residents;
+  }
+  ResidentSample ObserveResident(SortedDictionary<string,MemoryRecord> inventory){
+   long began=BoundedWorker.MonotonicMilliseconds(),total=0;foreach(var row in inventory)total=checked(total+row.Value.Bytes);
    var residents=Assigned(inventory);long assigned=0;foreach(long value in residents.Values)assigned=checked(assigned+value);
    var rows=Query(@"root\cimv2","SELECT TotalVisibleMemorySize,FreePhysicalMemory FROM Win32_OperatingSystem",new[]{"TotalVisibleMemorySize","FreePhysicalMemory"},2);
    if(rows.Count!=1||json.Serialize(Assigned(inventory))!=json.Serialize(residents))throw new InvalidOperationException("Physical/assigned memory changed");
-   seed.Fit(checked(Convert.ToInt64(rows[0]["TotalVisibleMemorySize"])*1024),checked(Convert.ToInt64(rows[0]["FreePhysicalMemory"])*1024),total,assigned);Check();
+   long physical=checked(Convert.ToInt64(rows[0]["TotalVisibleMemorySize"])*1024),free=checked(Convert.ToInt64(rows[0]["FreePhysicalMemory"])*1024),now=BoundedWorker.MonotonicMilliseconds();
+   if(now<began||now-began>2000||physical<=0||free<0||free>physical||assigned>physical-free||assigned>total)throw new InvalidOperationException("Resident observation inconsistent or stale");
+   Check();return new ResidentSample{Physical=physical,Free=free,Configured=total,Assigned=assigned,ObservedAt=now,Residents=residents};
+  }
+  void SeedFit(SortedDictionary<string,MemoryRecord> inventory){
+   if(seed==null)return;var sample=ObserveResident(inventory);seed.Fit(sample.Physical,sample.Free,sample.Configured,sample.Assigned);Check();
+  }
+  void PublishResident(SortedDictionary<string,MemoryRecord> inventory){
+   phase="resident-inspection";var sample=ObserveResident(inventory);BindIssuers();Check();
+   lease.WriteOnce("handoff.resident",json.Serialize(new{schema="legacy-resident-memory/1",manifest=lease.PermitHash,boot=lease.Boot,observedAt=sample.ObservedAt,
+    physicalBytes=sample.Physical,freeBytes=sample.Free,configuredBytes=sample.Configured,assignedBytes=sample.Assigned,latentBytes=sample.Configured-sample.Assigned,
+    nonPoolBytes=sample.Physical-sample.Free-sample.Assigned,residents=sample.Residents}));
   }
   void Execute(){
    Check();long total=0;var paths=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -215,7 +232,7 @@ namespace Enclave.OwnedRpc {
    if(inspect){
     phase="inspect-inventory";
     var inventory=Inventory();var again=Inventory();if(json.Serialize(inventory)!=json.Serialize(again))throw new InvalidOperationException("Inspect inventory changed");
-    BindIssuers();Check();PublishInventory(inventory,0,exact);return;
+    BindIssuers();Check();PublishInventory(inventory,0,exact);if(lease.Operation=="legacy-memory-resident-inspect-v1")PublishResident(inventory);return;
    }
    phase="definition-cut";lease.WriteOnce("handoff.consumed",lease.PermitHash+";"+lease.Token);
    long cutDeadline=Math.Min(lease.Deadline-5000,BoundedWorker.MonotonicMilliseconds()+10000);

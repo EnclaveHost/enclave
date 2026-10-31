@@ -537,3 +537,11 @@ independently checked. The fixtures include actual disposable pool files,
 consumed start records, interrupted initialization and missing final completion.
 They do not query native Hyper-V guest residency or authorize target activation.
 See `ops/unified-funding-20261028/rpc-legacy-handoff-ci-execution-r6/ROOT-RESULT.md`.
+
+The separate read-only `legacy-memory-resident-inspect-v1` operation now exposes
+the exact native residency projection used by cut-seed fit. It accepts only the
+existing schema1 handoff manifest and never constructs a seed plan or applies a
+fence. Complete per-GUID native Msvm_Memory rows bracket an OS memory sample;
+changed rows, missing rows, wrong native types and samples over2s fail closed.
+The controller rechecks the bound sample's GUID coverage, static maxima and all
+byte arithmetic. This source path still needs actual target qualification.

@@ -34,6 +34,18 @@ public static class LegacyHandoffHarness {
  static Dictionary<string,object> SeedPlan(){
   const long g=1073741824;return new Dictionary<string,object>{{"nonce",Guid.NewGuid().ToString("N")},{"physicalBytes",512*g},{"nonPoolReserveBytes",100*g},{"floorBytes",18*g},{"variationBytes",g},{"prospectiveBytes",39388L*1048576},{"capacityBytes",393*g},{"newMaster",new Dictionary<string,object>()}};
  }
+ static void ResidentTests(){
+  string id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";var inventory=new SortedDictionary<string,LegacyHandoff.MemoryRecord>{{id,new LegacyHandoff.MemoryRecord{Bytes=2048L*1048576}}};
+  Func<Dictionary<string,object>> row=()=>new Dictionary<string,object>{{"SystemName",id},{"BlockSize",(ulong)1048576},{"NumberOfBlocks",(ulong)1024}};
+  Test("resident-inspection-explicit-readonly-contract",()=>{var c=new Contract("legacy-memory-resident-inspect-v1",false);using(var a=ProtectedAttempt.PinLegacyHandoffController(c.PathName,c.Hash))Check(a.Operation=="legacy-memory-resident-inspect-v1");});
+  Test("resident-native-row-byte-projection",()=>Check(LegacyHandoff.AssignedRows(inventory,new[]{row()})[id]==1073741824));
+  Test("resident-guid-case-normalization",()=>{var r=row();r["SystemName"]=id.ToUpperInvariant();Check(LegacyHandoff.AssignedRows(inventory,new[]{r})[id]==1073741824);});
+  Test("resident-missing-not-zero",()=>Refuse(()=>LegacyHandoff.AssignedRows(inventory,new Dictionary<string,object>[0])));
+  Test("resident-duplicate-refused",()=>Refuse(()=>LegacyHandoff.AssignedRows(inventory,new[]{row(),row()})));
+  Test("resident-unknown-guid-refused",()=>{var r=row();r["SystemName"]=Guid.NewGuid().ToString("D");Refuse(()=>LegacyHandoff.AssignedRows(inventory,new[]{r}));});
+  Test("resident-nonnative-quantity-refused",()=>{var r=row();r["NumberOfBlocks"]=1024;Refuse(()=>LegacyHandoff.AssignedRows(inventory,new[]{r}));});
+  Test("resident-over-configured-refused",()=>{var r=row();r["NumberOfBlocks"]=(ulong)2049;Refuse(()=>LegacyHandoff.AssignedRows(inventory,new[]{r}));});
+ }
  static void SeedTests(){
   Test("cut-seed-separate-explicit-operation",()=>{var c=new Contract("legacy-memory-cut-seed-v1",false);using(var a=ProtectedAttempt.PinLegacyHandoffController(c.PathName,c.Hash))Check(a.Operation=="legacy-memory-cut-seed-v1");});
   Test("seed-plan-whole-host-fit",()=>{var p=new LegacyPoolSeed(SeedPlan(),ProtectedAttempt.CurrentBoot());p.Fit(512L*1073741824,400L*1073741824,20L*1073741824,20L*1073741824);});
@@ -80,7 +92,7 @@ public static class LegacyHandoffHarness {
  public static int Main(){try{
   BoundedWorker.EnterSupervisorEnvelope(256UL*1024*1024);long deadline=BoundedWorker.MonotonicMilliseconds()+9000;
   new Thread(()=>{while(BoundedWorker.MonotonicMilliseconds()<deadline)Thread.Sleep(5);TerminateProcess(GetCurrentProcess(),124);}){IsBackground=true}.Start();
-  SeedTests();
+  ResidentTests();SeedTests();
   Test("static-memory-bytes",()=>Check(LegacyHandoff.MaximumMemory(Row())==2147483648));
   Test("contradictory-static-reservation-refused",()=>{var r=Row();r["Reservation"]=(ulong)8192;Refuse(()=>LegacyHandoff.MaximumMemory(r));});
   Test("dormant-dynamic-limit-not-static-growth",()=>{var r=Row();r["Limit"]=(ulong)1048576;Check(LegacyHandoff.MaximumMemory(r)==2147483648);});

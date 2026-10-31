@@ -139,7 +139,7 @@ public static class LegacyHandoffController {
         try{
             if(args.Length!=11||args[0]!="--target")throw new ArgumentException("Explicit target handoff arguments required");
             Operation=args[4];
-            if(Operation!="legacy-memory-inspect-v1"&&Operation!="legacy-memory-cut-v1"&&Operation!="legacy-memory-cut-seed-v1")throw new ArgumentException("Explicit operation required");
+            if(Operation!="legacy-memory-inspect-v1"&&Operation!="legacy-memory-cut-v1"&&Operation!="legacy-memory-cut-seed-v1"&&Operation!="legacy-memory-resident-inspect-v1")throw new ArgumentException("Explicit operation required");
             // Parent supplies the original same-boot launch clock. A delayed
             // CreateProcess/SSH delivery must not earn a fresh startup window.
             Origin=Int64.Parse(args[args.Length-2],NumberStyles.None,CultureInfo.InvariantCulture);
@@ -164,11 +164,11 @@ public static class LegacyHandoffController {
             if(Encoding.UTF8.GetString(Read(Path.Combine(Root,"owner.result"),4096))!="handoff-complete;provider-fenced=false;reservation-release=false"||Encoding.UTF8.GetString(Read(Path.Combine(Root,"observer.result"),4096))!="exact-owner-death;job-empty;provider-fenced=false;reservation-release=false")throw new InvalidOperationException("Role receipts incomplete");
             var receipt=Obj(Json.DeserializeObject(Encoding.UTF8.GetString(Read(Path.Combine(Root,"handoff.result"),4096))));
             if(Str(receipt["schema"])!="legacy-memory-handoff-result/2"||Str(receipt["manifest"])!=ManifestHash||
-               !(receipt["inspectOnly"] is bool)||(bool)receipt["inspectOnly"]!=(Operation=="legacy-memory-inspect-v1")||
+               !(receipt["inspectOnly"] is bool)||(bool)receipt["inspectOnly"]!=((Operation=="legacy-memory-inspect-v1"||Operation=="legacy-memory-resident-inspect-v1"))||
                !False(receipt["providerSettled"])||!False(receipt["capacityAdmitted"])||!False(receipt["reservationMayRelease"])||!False(receipt["poolSeeded"]))
                 throw new InvalidOperationException("Handoff result authority differs");
             long count=Num(receipt["vmCount"]),cutAt=Num(receipt["cutAt"]),sum=0;
-            if(count<0||count>32||((Operation=="legacy-memory-inspect-v1")?cutAt!=0:(cutAt<Origin||cutAt>=Deadline)))throw new InvalidOperationException("Handoff cut binding differs");
+            if(count<0||count>32||(((Operation=="legacy-memory-inspect-v1"||Operation=="legacy-memory-resident-inspect-v1"))?cutAt!=0:(cutAt<Origin||cutAt>=Deadline)))throw new InvalidOperationException("Handoff cut binding differs");
             var rows=new List<object>();var index=new List<string>();var ids=new HashSet<string>();
             for(int n=0;n<count;n++){
                 string name="vm-"+(char)('a'+n/26)+(char)('a'+n%26);byte[] raw=Read(Path.Combine(Root,name),4096);
@@ -200,13 +200,25 @@ public static class LegacyHandoffController {
                    Str(seeded["inventoryHash"])!=ProtectedAttempt.Hash(Read(Path.Combine(Root,"handoff.inventory"),4096)))throw new InvalidOperationException("Seed association differs");
                 seed=seeded;
             }
-            InventoryResult=new{receipt=receipt,vms=rows,seed=seed};passed=true;
+            object resident=null;
+            if(Operation=="legacy-memory-resident-inspect-v1"){
+                var r=Obj(Json.DeserializeObject(Encoding.UTF8.GetString(Read(Path.Combine(Root,"handoff.resident"),4096))));
+                if(r.Count!=11||Str(r["schema"])!="legacy-resident-memory/1"||Str(r["manifest"])!=ManifestHash||Str(r["boot"])!=boot||
+                   Num(r["observedAt"])<Origin||Num(r["observedAt"])>=Deadline||Num(r["configuredBytes"])!=sum)throw new InvalidOperationException("Resident sample binding differs");
+                var map=Obj(r["residents"]);long assigned=0;
+                if(map.Count!=rows.Count)throw new InvalidOperationException("Resident sample missing GUIDs");
+                foreach(object item in rows){var row=Obj(item);string guid=Str(row["guid"]);long bytes=Num(map[guid]);if(bytes<0||bytes>Num(row["maximumBytes"]))throw new InvalidOperationException("Resident quantity exceeds commitment");assigned=checked(assigned+bytes);}
+                long physical=Num(r["physicalBytes"]),available=Num(r["freeBytes"]);
+                if(physical<=0||available<0||available>physical||assigned>physical-available||Num(r["assignedBytes"])!=assigned||Num(r["latentBytes"])!=sum-assigned||Num(r["nonPoolBytes"])!=physical-available-assigned)throw new InvalidOperationException("Resident accounting differs");
+                resident=r;
+            }
+            InventoryResult=new{receipt=receipt,vms=rows,seed=seed,resident=resident};passed=true;
         }catch(Exception error){
             Failures.Add(error.GetType().Name+": "+error.Message);
             try{
                 if(NamespacePin!=null&&File.Exists(Path.Combine(Root,"handoff.failure"))){
                     var d=Obj(Json.DeserializeObject(Encoding.UTF8.GetString(Read(Path.Combine(Root,"handoff.failure"),4096))));
-                    var phases=new HashSet<string>{"initial","input-schema","input-parent-open","input-parent-authority","input-file-open","input-file-authority","input-file-identity","input-file-read","issuer-binding","inspect-inventory","seed-preflight","pool-seed","definition-cut","cut-inventory"};
+                    var phases=new HashSet<string>{"initial","input-schema","input-parent-open","input-parent-authority","input-file-open","input-file-authority","input-file-identity","input-file-read","issuer-binding","inspect-inventory","seed-preflight","pool-seed","resident-inspection","definition-cut","cut-inventory"};
                     if(d.Count!=9||Str(d["schema"])!="legacy-handoff-failure/1"||Str(d["manifest"])!=ManifestHash||!phases.Contains(Str(d["phase"]))||!False(d["capacityAdmitted"])||!False(d["reservationMayRelease"])||Num(d["inputIndex"]) < -1||Num(d["inputIndex"])>=128||Num(d["parentDepth"]) < -1||Num(d["parentDepth"])>128)throw new InvalidOperationException("Invalid public failure receipt");
                     Failures.Add("Public handoff diagnostic: "+Json.Serialize(new{phase=Str(d["phase"]),inputIndex=Num(d["inputIndex"]),parentDepth=Num(d["parentDepth"]),hresult=Num(d["hresult"]),nativeError=Num(d["nativeError"])}));
                 }
