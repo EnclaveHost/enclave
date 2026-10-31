@@ -62,8 +62,8 @@ try{
     Invoke-FiniteProcess $controller @() 15000 'handoff'
     $entry=Join-Path $work 'handoff-entry.exe';$target=Join-Path $work 'handoff-controller.exe'
     $base=@($references|Where-Object{$_ -notlike '/main:*'})
-    Invoke-FiniteProcess $csc ($base+@('/main:Enclave.OwnedRpc.LegacyHandoffEntry','/out:'+$entry)+$sources) 20000 'compile-entry'
-    Invoke-FiniteProcess $csc ($base+@('/main:LegacyHandoffController','/out:'+$target)+$sources) 20000 'compile-controller'
+    Invoke-FiniteProcess $csc ($base+@('/main:Enclave.OwnedRpc.LegacyHandoffEntry',('/out:'+$entry))+$sources) 20000 'compile-entry'
+    Invoke-FiniteProcess $csc ($base+@('/main:LegacyHandoffController',('/out:'+$target))+$sources) 20000 'compile-controller'
     $lines=@(Get-Content -LiteralPath (Join-Path $work 'handoff.out'))
     if(@($lines|Where-Object{$_ -like 'PASS *'}).Count -ne 14 -or $lines[-1] -cne 'RESULT tests=14 providerCalls=false vmChanged=false targetInventoryQualified=false'){throw 'Handoff qualification incomplete'}
 }finally{
