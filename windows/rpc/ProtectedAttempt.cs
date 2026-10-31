@@ -285,7 +285,7 @@ namespace Enclave.OwnedRpc {
         // CreateNew consumes the role before any work. A crash/partial durable write
         // remains consumed and ambiguous. No delete, overwrite, rename or retry API.
         public void WriteOnce(string name,string value) {
-            if(evidenceOnly)throw new InvalidOperationException("Completed handoff is read-only");
+            if(evidenceOnly||LeaseProfile=="startup-staging")throw new InvalidOperationException("Evidence/staging custody is read-only");
             Name(name);CheckDeadline();byte[] bytes=Utf8.GetBytes(value);
             if(startupCleanup) {
                 if(name!="cleanup.consumed"&&name!="cleanup.armed"&&name!="cleanup.dispatch"&&name!="cleanup.result"&&name!="cleanup.adoption-refused")throw new InvalidOperationException("Cleanup controller cannot write provider records");

@@ -1,0 +1,23 @@
+{
+  ".github/workflows/rpc-startup-controller.yml": "b51e3f7c3c6189474f0e6d9cb1e15078bc3d5cbfe580d69e485b249f5ea52433",
+  "test/rpc-windows-worker/StartupControllerHarness.cs": "c1afaa54ea3739fdf415b856003180909db7480625a078f03cb07db7f1fe49ee",
+  "test/rpc-windows-worker/run-startup-controller-ci.ps1": "8da299483e85e6c132057ba334cf40e82e214f1466508a840c966c1c78184f09",
+  "windows/rpc/BootStartBinding.cs": "b7a10a7f90e53380edbd47523bf4b45735126ab13dea08ec7f7f585187af8868",
+  "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+  "windows/rpc/HostPhysicalPool.cs": "218483e78967e94f77c2c88fdee9ca04970eb9c4a3f10adbf543b8ccd0c904af",
+  "windows/rpc/LegacyHandoff.cs": "4ced7f0d753217d263f21342e390ff6120a55f8b4135b0fa28cc5d95875358ce",
+  "windows/rpc/LegacyLaunchCohort.cs": "ce22aa16e0d353fa8354bca26f8dc4057d520c001540d0659778e2769135f5a2",
+  "windows/rpc/LegacyTemplateFence.cs": "d2bfc04762cf64b2555575e4c8aa95842dd35be108f9c9780dd3ecf0ecd0cd0f",
+  "windows/rpc/OwnedVmDefinition.cs": "5deb6b5add901eabecc9431b28ee3108ec9181866833ab60dba0912b071a10ff",
+  "windows/rpc/OwnedVmPermit.cs": "a4d1f9640a4087714b9907cddcdc64340cb57f07de04dd1b6baf97197ac60373",
+  "windows/rpc/OwnerObserver.cs": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80",
+  "windows/rpc/ProtectedAttempt.cs": "803d4a7a3001e9938bea0c6e95b7908505a5373be5bb4725aa9cac5a83a241f1",
+  "windows/rpc/ProviderStart.cs": "d2eb7bbebc74b02be707fcd705c9165af9b6fdf2f6440a94fde76dcc0ceaeea2",
+  "windows/rpc/ProviderStop.cs": "b2f5ecb6557a8af5df419c0a1e49f8e90138c13fbb76ec0d4cdab1d300b18361",
+  "windows/rpc/ProviderWorkerEntry.cs": "ffcea11c6b9139baeb0589e875f733d04129ddc68eb89a08afb303f7c644b898",
+  "windows/rpc/StartupCleanup.cs": "44b18b1c2d3ffb6500d9034d204003373de3e851e43962b65aac3d8d9519becc",
+  "windows/rpc/StartupCleanupController.cs": "8542ec49014f322801e326037dba82e65e0e2a03565ec9dedf58c42a3a3994ef",
+  "windows/rpc/StartupController.cs": "36e541e71766a8ce062d1e24e94e3a6200adf244bda42b131ec08cd15b308eb8",
+  "windows/rpc/VmStartGuardian.cs": "4e23387225ee2a710f60d7a17db68e73a39cd15409981cb2e0eb9fa1d64cf336",
+  "windows/rpc/WindowsStartAdmission.cs": "951ae9cf8a98088696bb06d89e48f12d88ad705203dc24a1f0b515d69aedd9df"
+}
