@@ -140,6 +140,7 @@ namespace Enclave.OwnedRpc {
             readonly long observerCreation,ownerCreation,selfCreation;
             SafeWaitHandle guardian;
             StartupCleanupWitness cleanup;
+            BootStartBinding boot;
             HostPhysicalPool physicalPool;
             PhysicalClaim physicalClaim;
             LegacyHandoff.Completion completedHandoff;
@@ -221,6 +222,7 @@ namespace Enclave.OwnedRpc {
                 else if(accepted!=expected+","+lease.Token)throw new StartGuardRefused("guardian-binding-mismatch");
                 WindowsStartAdmission.Verify(vm,lease,ref completedHandoff);
                 if(cleanup==null)cleanup=new StartupCleanupWitness(vm);cleanup.Check();
+                if(boot==null)boot=new BootStartBinding(vm,delegate{Common(id);vm.VmPermit.ValidateAccess(Now,false);});boot.Verify();
                 if(physicalPool==null)physicalPool=WindowsStartAdmission.AcquireShared(vm,id,lease.Deadline,out physicalClaim);
                 Common(id);vm.VmPermit.ValidateAccess(Now,false);
                 BoundedWorker.VerifyObserverBeforeResume(guardian.DangerousGetHandle(),lease.GuardianPid,lease.GuardianCreation,vm.Deadline);

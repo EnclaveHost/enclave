@@ -1,5 +1,6 @@
 // Explicit bounded SYSTEM definition worker. Creates only an owned Off shell.
-// Never starts, deletes or attaches disks. Real completed-cut admission required.
+// Boot mode attaches only the exact reviewed media/network to the owned Off VM.
+// Never starts or deletes. Real completed-cut admission required for definition.
 // Local role cleanup does not settle a lost native response.
 using System;
 using System.Collections.Generic;
@@ -135,7 +136,7 @@ namespace Enclave.OwnedRpc {
                 guard.Check();return guard;
             }catch{guard.Dispose();throw;}
         }
-        sealed class Runtime:IDefinitionRuntime,IDisposable {
+        sealed class Runtime:IDefinitionRuntime,IBootRuntime,IDisposable {
             readonly ProtectedAttempt lease,plan;readonly ChildAuthority guard;
             LegacyHandoff.Completion completed;
             public long Now{get{return BoundedWorker.MonotonicMilliseconds();}}
@@ -148,6 +149,17 @@ namespace Enclave.OwnedRpc {
                 VerifyObservation(p);if(lease.Operation!="define"||Now<p.Origin||Now>=p.Deadline)throw new InvalidOperationException("Definition submit authority absent");
                 WindowsStartAdmission.VerifyDefinition(plan,p.AdmissionHash,lease,ref completed);
                 VerifyObservation(p);if(Now>=p.Deadline)throw new InvalidOperationException("Original startup deadline");
+            }
+            OwnedVmBootPlan heldBoot;
+            internal void BindBoot(OwnedVmBootPlan p){
+                VerifyObservation(p.Definition);
+                if(lease.Operation!="boot"&&lease.Operation!="boot-reconcile")throw new InvalidOperationException("Boot worker operation required");
+                plan.PinBootMedia(p.Definition,lease.Operation=="boot-reconcile");heldBoot=p;Verify(p,false);
+            }
+            public void Verify(OwnedVmBootPlan p,bool mutation){
+                VerifyObservation(p.Definition);
+                if(heldBoot==null||heldBoot.Encode()!=p.Encode())throw new InvalidOperationException("Boot media/network authority differs");
+                if(mutation&&(lease.Operation!="boot"||Now>=p.Definition.Deadline))throw new InvalidOperationException("Original boot mutation authority expired");
             }
             public void Dispose(){if(completed!=null)completed.Dispose();}
         }
@@ -170,7 +182,12 @@ namespace Enclave.OwnedRpc {
                             DefinitionOutcome result;
                             if(a.Operation=="define") {OwnedVmDefinition.Prepare(p,journal);result=OwnedVmDefinition.Submit(p,journal,provider,runtime);}
                             else result=OwnedVmDefinition.Reconcile(p,journal,provider,runtime);
-                            a.WriteOnce("child.result",result.State+";guid="+(result.Guid??"")+";definition-settled="+result.DefinitionSettled+";start-authorized=false;reservation-release=false");
+                            if(a.Operation=="boot"||a.Operation=="boot-reconcile"){
+                                if(result.State!="defined-owned-off"||!result.DefinitionSettled||String.IsNullOrEmpty(result.Guid))throw new InvalidOperationException("Settled original owned Off definition required");
+                                var boot=OwnedVmBootPlan.FromAdmission(plan,result.Guid);runtime.BindBoot(boot);
+                                var outcome=OwnedVmBoot.Configure(boot,new OwnedBootJournal(plan),new HyperVOwnedBoot(runtime,provider),runtime,a.Operation=="boot-reconcile");
+                                a.WriteOnce("child.result",outcome.State+";guid="+result.Guid+";boot-configured="+outcome.Configured+";start-authorized=false;reservation-release=false");
+                            }else a.WriteOnce("child.result",result.State+";guid="+(result.Guid??"")+";definition-settled="+result.DefinitionSettled+";start-authorized=false;reservation-release=false");
                         }
                     }
 

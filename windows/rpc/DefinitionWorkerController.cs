@@ -1,5 +1,5 @@
 // Trusted operator definition controller. Schedules exact SYSTEM roles only.
-// Does not start a VM, attach media or publish a start permit.
+// Boot operation attaches only reviewed owned media/network. Never starts a VM.
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -113,7 +113,7 @@ public static class DefinitionWorkerController {
         CheckTime();if(!Admitted||BoundedWorker.MonotonicMilliseconds()>=Origin+5000)throw new InvalidOperationException("Original bootstrap cutoff");
         string name="EnclaveRpcDefinition-"+Path.GetFileName(Root)+"-"+role;Tasks.Add(name,arguments);
         dynamic service=Activator.CreateInstance(Type.GetTypeFromProgID("Schedule.Service"));service.Connect();Folder=service.GetFolder("\\");dynamic task=service.NewTask(0);
-        task.RegistrationInfo.Description="One-shot owned Off definition: "+Operation+"; no VM start or media attachment";task.Principal.UserId="SYSTEM";task.Principal.LogonType=5;task.Principal.RunLevel=1;
+        task.RegistrationInfo.Description="One-shot owned Off definition: "+Operation+"; no VM start";task.Principal.UserId="SYSTEM";task.Principal.LogonType=5;task.Principal.RunLevel=1;
         task.Settings.Enabled=true;task.Settings.AllowDemandStart=true;task.Settings.StartWhenAvailable=false;task.Settings.ExecutionTimeLimit="PT30S";task.Settings.MultipleInstances=2;
         task.Settings.DisallowStartIfOnBatteries=false;task.Settings.StopIfGoingOnBatteries=false;
         dynamic action=task.Actions.Create(0);action.Path=Entry;action.WorkingDirectory=Root;action.Arguments=arguments;
@@ -139,7 +139,7 @@ public static class DefinitionWorkerController {
         Origin=BoundedWorker.MonotonicMilliseconds();Deadline=Origin+30000;bool passed=false;long free=0;
         try{
             if(args.Length!=11||args[0]!="--target")throw new ArgumentException("Explicit target definition arguments required");
-            Operation=args[4];if(Operation!="define"&&Operation!="definition-reconcile")throw new ArgumentException("Explicit definition operation required");
+            Operation=args[4];if(Operation!="define"&&Operation!="definition-reconcile"&&Operation!="boot"&&Operation!="boot-reconcile")throw new ArgumentException("Explicit definition operation required");
             Origin=Int64.Parse(args[9],NumberStyles.None,CultureInfo.InvariantCulture);Deadline=Int64.Parse(args[10],NumberStyles.None,CultureInfo.InvariantCulture);
             Hex(args[2],64);Hex(args[3],32);Hex(args[8],64);ManifestHash=args[8];
             BoundedWorker.EnterSupervisorEnvelope(128UL*1024*1024);Watchdog=BoundedWorker.ArmOwnerObserver(Origin,Deadline,args[3]+args[3]+args[3]+args[3]);
@@ -174,6 +174,18 @@ public static class DefinitionWorkerController {
         return passed&&Failures.Count==0?0:1;
     }
     static object VerifyResult(ProtectedAttempt pin,string raw){
+        if(Operation=="boot"||Operation=="boot-reconcile"){
+            string[] fields=raw.Split(';');
+            if(fields.Length!=5||!fields[1].StartsWith("guid=",StringComparison.Ordinal)||(fields[2]!="boot-configured=True"&&fields[2]!="boot-configured=False")||fields[3]!="start-authorized=false"||fields[4]!="reservation-release=false")throw new InvalidOperationException("Boot result schema");
+            string actual=fields[1].Substring(5);var saved=StartRecords.Parse(pin.ReadOnce("definition.system"),new[]{"receipt","system"});
+            if(OwnedVmDefinition.GuidForReference(StartRecords.Text(saved["system"]))!=actual)throw new InvalidOperationException("Boot result VM differs");
+            bool ready=fields[2]=="boot-configured=True";
+            if(ready){var proof=StartRecords.Parse(pin.ReadOnce("boot.ready"),new[]{"plan","resources","state"});
+                var boot=OwnedVmBootPlan.FromAdmission(pin,actual);
+                if(fields[0]!="configured-owned-off"||StartRecords.Text(proof["state"])!=fields[0]||StartRecords.Text(proof["plan"])!=OwnedVmBoot.Hash(boot.Encode()))throw new InvalidOperationException("Boot completion differs");
+            }
+            return new{state=fields[0],guid=actual,bootConfigured=ready,startAuthorized=false};
+        }
         string[] f=raw.Split(';');var states=new HashSet<string>{"defined-owned-off","submission-unproven-held","response-lost-held","provider-refused-held","definition-pending-held","definition-failed-held"};
         if(f.Length!=5||!states.Contains(f[0])||!f[1].StartsWith("guid=",StringComparison.Ordinal)||(f[2]!="definition-settled=True"&&f[2]!="definition-settled=False")||f[3]!="start-authorized=false"||f[4]!="reservation-release=false")throw new InvalidOperationException("Definition receipt schema");
         string guid=f[1].Substring(5);

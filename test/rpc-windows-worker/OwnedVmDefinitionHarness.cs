@@ -107,7 +107,7 @@ public static class OwnedVmDefinitionHarness {
   Test("missing-vcpu-readback-refused",()=>Refuse(()=>HyperVOwnedDefinition.RequireProcessors(new object[]{})));
   Test("duplicate-vcpu-readback-refused",()=>Refuse(()=>HyperVOwnedDefinition.RequireProcessors(new object[]{(ulong)4,(ulong)4})));
   Test("plan-overflow-refused",()=>Refuse(()=>new OwnedVmDefinitionPlan(new string('a',32),new string('b',32),new string('c',64),new string('d',64),@"C:\OwnedRpcFixture\"+new string('a',32),Int64.MaxValue,Int64.MaxValue,new string('e',64),new string('f',64))));
-  ProtectedTests();
+  ProtectedTests();count+=OwnedVmBootHarness.Run();
   Console.WriteLine("RESULT tests="+count+" providerCallsAreFakes=true vmChanged=false");return 0;
  }catch(Exception e){Console.Error.WriteLine(e);return 1;}}
 }

@@ -227,7 +227,7 @@ namespace Enclave.OwnedRpc {
     DefinitionPlan=OwnedVmDefinitionPlan.Parse(Utf8.GetString(raw));var p=DefinitionPlan;
     Nonce=p.Attempt;Boot=p.Boot;Origin=p.Origin;Deadline=p.Deadline;ExecutableHash=p.ProviderImageHash;
     if(p.Root!=Root||Path.GetFileName(Root)!=Nonce||Boot!=reader.Boot||Boot!=CurrentBoot()||Origin>reader.Origin)throw new InvalidOperationException("Definition namespace/boot/origin differs");
-    p.ValidateWorkerWindow(reader.Origin,reader.Deadline,BoundedWorker.MonotonicMilliseconds(),reader.Operation=="definition-reconcile");
+    p.ValidateWorkerWindow(reader.Origin,reader.Deadline,BoundedWorker.MonotonicMilliseconds(),reader.Operation=="definition-reconcile"||reader.Operation=="boot-reconcile");
     CheckDeadline();
    }catch{Dispose();throw;}
   }

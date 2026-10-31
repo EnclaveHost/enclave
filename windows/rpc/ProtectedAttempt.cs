@@ -227,7 +227,7 @@ namespace Enclave.OwnedRpc {
                 if(profile=="inert") {
                     if(fields.Length!=8 || fields[0]!="owned-rpc-inert-v1" || fields[6]!="inert-v1" || fields[7]!="")throw new InvalidOperationException("Exact inert contract schema required");
                 } else if(profile=="definition") {
-                    if(fields.Length!=10||fields[0]!="owned-rpc-definition-worker-v1"||(fields[6]!="define"&&fields[6]!="definition-reconcile")||fields[9]!="")throw new InvalidOperationException("Exact definition worker contract required");
+                    if(fields.Length!=10||fields[0]!="owned-rpc-definition-worker-v1"||(fields[6]!="define"&&fields[6]!="definition-reconcile"&&fields[6]!="boot"&&fields[6]!="boot-reconcile")||fields[9]!="")throw new InvalidOperationException("Exact definition worker contract required");
                     Operation=fields[6];PermitPath=LocalPath(fields[7]);PermitHash=fields[8];Hex(PermitHash,64);
                     if(Path.GetFileName(PermitPath)!="definition-plan.txt")throw new InvalidOperationException("Fixed definition plan path required");
                 } else if(profile=="legacy-handoff") {
@@ -274,6 +274,14 @@ namespace Enclave.OwnedRpc {
             if(name=="definition.job"||name=="definition.terminal"||name=="definition.system"||name=="definition.off")return true;
             return !reconcile&&(name=="definition.intent"||name=="definition.submit"||name=="definition.native"||name=="definition.invoke"||name=="definition.receipt");
         }
+        internal static bool BootRecordAllowed(string name,bool readOnly){
+            if(name=="boot.media"||name=="boot.ready")return true;
+            foreach(string step in new[]{"scsi","diskdrive","diskmedia","bootorder","seeddrive","seedmedia","nic","port"}){
+                string prefix="boot."+step+".";
+                if(name==prefix+"job"||name==prefix+"terminal")return true;
+                if(!readOnly&&(name==prefix+"intent"||name==prefix+"submit"||name==prefix+"receipt"))return true;
+            }return false;
+        }
         // CreateNew consumes the role before any work. A crash/partial durable write
         // remains consumed and ambiguous. No delete, overwrite, rename or retry API.
         public void WriteOnce(string name,string value) {
@@ -285,8 +293,9 @@ namespace Enclave.OwnedRpc {
                 if(name!="guardian.consumed"&&name!="guardian.request"&&name!="guardian.armed"&&name!="guardian.bound"&&name!="guardian.result")
                     throw new InvalidOperationException("Guardian cannot write provider records");
             } else if(definitionJournal) {
-                if(!DefinitionRecordAllowed(name,accessLease.Operation=="definition-reconcile"))throw new InvalidOperationException("Fixed definition journal record required");
-                if(accessLease.Operation=="define"&&(BoundedWorker.MonotonicMilliseconds()<Origin||BoundedWorker.MonotonicMilliseconds()>=Deadline))throw new InvalidOperationException("Original definition time expired");
+                bool boot=accessLease.Operation=="boot"||accessLease.Operation=="boot-reconcile";
+                if(boot?!BootRecordAllowed(name,accessLease.Operation=="boot-reconcile"):!DefinitionRecordAllowed(name,accessLease.Operation=="definition-reconcile"))throw new InvalidOperationException("Fixed definition/boot journal record required");
+                if((accessLease.Operation=="define"||accessLease.Operation=="boot")&&(BoundedWorker.MonotonicMilliseconds()<Origin||BoundedWorker.MonotonicMilliseconds()>=Deadline))throw new InvalidOperationException("Original definition time expired");
             } else if(accessLease!=null) {
                 if(cleanupAccess) {
                     bool observations=name=="start.job"||name=="start.terminal"||name=="stop.job"||name=="stop.terminal";

@@ -650,3 +650,31 @@ Hosted qualification compiles the actual controller/entry and exercises original
 deadline boundaries, adoption refusal and independent watchdog process death.
 This does not qualify target SYSTEM scheduling, actual Hyper-V stop behavior,
 boot/media configuration, RPC sync/finality or production consumer cutover.
+
+
+The definition worker now accepts explicit `boot` and read-only `boot-reconcile`
+operations against the same original definition plan. It requires an already
+settled, exactly owned Off/zero definition and a `bootNetwork` object in the
+hashed admission: schema `owned-rpc-boot-network/1`, canonical `switchGuid`, and
+an explicit local-unicast MAC (`02` followed by ten uppercase hex digits). It
+attaches the fixed owned `boot.vhdx` and `seed.iso`; paths cannot be supplied as
+arbitrary per-operation arguments. Initial content hashes come from the original
+definition plan. The worker streams verification within its existing deadline,
+then retains exact file identities without DELETE sharing; the no-WRITE-share
+hash handle closes to allow legitimate provider metadata writes while Off.
+The strict existing file authority check remains unchanged. A changed file
+identity, unqualified ACL, lost response or missing returned resource stays held.
+
+The fixed order is SCSI controller, disk drive/media, disk-first firmware order,
+seed drive/media, synthetic NIC, then its exact switch connection. A provider
+created default SCSI controller is accepted only after unique owned readback.
+No name-based resource recovery, automatic resubmission, VM Start, Save or Delete
+is implemented here. Every stage must settle before its returned reference may
+become the next stage's parent. Boot configuration is not guest boot/readiness,
+and does not authorize a start or release a memory claim.
+
+Native recipe references: [Microsoft AddResourceSettings](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/addresourcesettings-msvm-virtualsystemmanagementservice)
+and [Microsoft Generation2 SetBootOrder sample](https://github.com/microsoft/Windows-classic-samples/blob/main/Samples/Hyper-V/Generation2VM/cs/SetBootOrder.cs).
+Target WMI defaults/property support, VM disk access, converted boot image/seed
+provenance, actual boot, current network reachability and integrated cleanup/start
+registration still require qualification. No target VM has been changed.
