@@ -332,6 +332,14 @@ support, and the fixed native provider adapter consumes that reservation
 immediately before `RequestStateChange`. Existing host/pending/guardian checks
 remain required. Pool configuration does not bypass them.
 
+The native RPC adapter also reads the exact realized VM setting's associated
+`Msvm_MemorySettingData` before and after consuming the dispatch. It requires
+static guest RAM equal to the permit, matching reservation/limit and MiB units,
+automatic allocation enabled and no swap file in use. Missing settings or a
+different configured size refuse before the native call. This check follows the
+[Microsoft memory-setting schema](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-memorysettingdata);
+the real target's WMI behavior remains unqualified.
+
 The maintained Windows app manager has an optional trusted local
 `physicalReservations` adapter (`poolHash`, `boot`, `acquire`, `consumeStart`).
 It holds its local physical reservation before awaiting the shared acquire,

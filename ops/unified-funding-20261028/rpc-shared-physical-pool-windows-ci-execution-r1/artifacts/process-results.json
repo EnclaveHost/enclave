@@ -1,0 +1,142 @@
+[
+    {
+        "label":  "entry-compile",
+        "pid":  5516,
+        "exitCode":  0,
+        "elapsedMs":  2321,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  34029568,
+        "outputBytes":  0
+    },
+    {
+        "label":  "controller-compile",
+        "pid":  3516,
+        "exitCode":  0,
+        "elapsedMs":  245,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  34938880,
+        "outputBytes":  0
+    },
+    {
+        "label":  "transaction-compile",
+        "pid":  3512,
+        "exitCode":  0,
+        "elapsedMs":  229,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  34836480,
+        "outputBytes":  0
+    },
+    {
+        "label":  "transactions",
+        "pid":  3484,
+        "exitCode":  0,
+        "elapsedMs":  2689,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  35790848,
+        "outputBytes":  1989
+    },
+    {
+        "label":  "stop-compile",
+        "pid":  8232,
+        "exitCode":  0,
+        "elapsedMs":  244,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  34406400,
+        "outputBytes":  190
+    },
+    {
+        "label":  "stops",
+        "pid":  3460,
+        "exitCode":  0,
+        "elapsedMs":  151,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  29409280,
+        "outputBytes":  946
+    },
+    {
+        "label":  "pool-compile",
+        "pid":  4184,
+        "exitCode":  0,
+        "elapsedMs":  229,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  33546240,
+        "outputBytes":  0
+    },
+    {
+        "label":  "physical-pool",
+        "pid":  6260,
+        "exitCode":  0,
+        "elapsedMs":  1601,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  29212672,
+        "outputBytes":  769
+    },
+    {
+        "label":  "admission-fixtures",
+        "pid":  7028,
+        "exitCode":  0,
+        "elapsedMs":  408,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  32579584,
+        "outputBytes":  166
+    },
+    {
+        "label":  "reconcile",
+        "pid":  5152,
+        "exitCode":  0,
+        "elapsedMs":  1353,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  45350912,
+        "outputBytes":  702
+    },
+    {
+        "label":  "denied-start",
+        "pid":  4692,
+        "exitCode":  0,
+        "elapsedMs":  1262,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  44478464,
+        "outputBytes":  623
+    },
+    {
+        "label":  "guardian-bind",
+        "pid":  6340,
+        "exitCode":  0,
+        "elapsedMs":  1505,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  43102208,
+        "outputBytes":  623
+    },
+    {
+        "label":  "guardian-publication-failure",
+        "pid":  8040,
+        "exitCode":  0,
+        "elapsedMs":  971,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  44871680,
+        "outputBytes":  622
+    },
+    {
+        "label":  "stop-too-early",
+        "pid":  7148,
+        "exitCode":  0,
+        "elapsedMs":  1203,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  45838336,
+        "outputBytes":  623
+    }
+]

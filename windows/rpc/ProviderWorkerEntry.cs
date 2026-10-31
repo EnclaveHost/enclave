@@ -142,6 +142,7 @@ namespace Enclave.OwnedRpc {
             HostPhysicalPool physicalPool;
             PhysicalClaim physicalClaim;
             public long Now {get{return BoundedWorker.MonotonicMilliseconds();}}
+            public long GuestBytes {get{return vm.VmPermit.GuestBytes;}}
             internal Runtime(ProtectedAttempt lease,ProtectedAttempt vm,StartIdentity original) {
                 this.lease=lease;this.vm=vm;this.original=original;
                 try {

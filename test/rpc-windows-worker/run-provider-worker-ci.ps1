@@ -65,7 +65,7 @@ try{
     Invoke-FiniteProcess $csc ($shared+@('/main:ProviderStartHarness',('/out:'+$transaction),(Join-Path $root 'test\rpc-windows-worker\ProviderStartHarness.cs'))+$sources) 20000 'transaction-compile'
     Invoke-FiniteProcess $transaction @() 20000 'transactions'
     $lines=@(Get-Content -LiteralPath (Join-Path $work 'transactions.out'))
-    if(@($lines|Where-Object{$_ -like 'PASS *'}).Count -ne 39 -or $lines[-1] -cne 'RESULT tests=39 providerCallsAreFakes=true vmChanged=false'){throw 'Incomplete transaction regressions'}
+    if(@($lines|Where-Object{$_ -like 'PASS *'}).Count -ne 40 -or $lines[-1] -cne 'RESULT tests=40 providerCallsAreFakes=true vmChanged=false'){throw 'Incomplete transaction regressions'}
     $stops=Join-Path $work 'stop-tests.exe'
     Invoke-FiniteProcess $csc ($shared+@('/main:ProviderStopHarness',('/out:'+$stops),(Join-Path $root 'test\rpc-windows-worker\ProviderStopHarness.cs'))+$sources) 20000 'stop-compile'
     Invoke-FiniteProcess $stops @() 20000 'stops'

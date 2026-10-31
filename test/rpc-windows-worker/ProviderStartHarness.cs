@@ -157,7 +157,18 @@ public static class ProviderStartHarness {
             Test("expired read guard prevents provider observation",delegate{var j=new Store();var p=new Provider{Journal=j};var r=new Runtime();ProviderStart.Prepare(Id(),j);ProviderStart.Submit(Id(),j,p,r);int reads=p.Reads;r.ObservationDenied=true;Refuse(()=>ProviderStart.Reconcile(Id(),j,p,r));Check(p.Reads==reads&&j.Read("start.terminal")==null);});
             Test("read guard expiry during query cannot publish terminal",delegate{var j=new Store();var p=new Provider{Journal=j};var r=new Runtime();ProviderStart.Prepare(Id(),j);ProviderStart.Submit(Id(),j,p,r);p.State=7;p.AfterRead=()=>{r.ObservationDenied=true;};Refuse(()=>ProviderStart.Reconcile(Id(),j,p,r));Check(j.Read("start.terminal")==null);});
             PermitTests();
-            Check(count==39);Console.WriteLine("RESULT tests="+count+" providerCallsAreFakes=true vmChanged=false");return 0;
+            Test("native configured memory must match reserved static guest bytes",delegate {
+                long bytes=19L*1024*1024*1024;ulong mib=19456;
+                var values=new Dictionary<string,object>{{"ResourceType",(ushort)4},{"ResourceSubType","Microsoft:Hyper-V:Memory"},
+                    {"AllocationUnits","byte * 2^20"},{"VirtualQuantityUnits","byte * 2^20"},{"VirtualQuantity",mib},{"Reservation",mib},{"Limit",mib},
+                    {"DynamicMemoryEnabled",false},{"AutomaticAllocation",true},{"SwapFilesInUse",false}};
+                HyperVStartProvider.RequireGuestMemory(values,bytes);
+                foreach(string key in new List<string>(values.Keys)){var missing=new Dictionary<string,object>(values);missing[key]=null;Refuse(()=>HyperVStartProvider.RequireGuestMemory(missing,bytes));}
+                foreach(string key in new[]{"VirtualQuantity","Reservation","Limit"}){var wrong=new Dictionary<string,object>(values);wrong[key]=mib+1;Refuse(()=>HyperVStartProvider.RequireGuestMemory(wrong,bytes));}
+                foreach(string key in new[]{"DynamicMemoryEnabled","SwapFilesInUse"}){var wrong=new Dictionary<string,object>(values);wrong[key]=true;Refuse(()=>HyperVStartProvider.RequireGuestMemory(wrong,bytes));}
+                var units=new Dictionary<string,object>(values);units["AllocationUnits"]="byte";Refuse(()=>HyperVStartProvider.RequireGuestMemory(units,bytes));
+            });
+            Check(count==40);Console.WriteLine("RESULT tests="+count+" providerCallsAreFakes=true vmChanged=false");return 0;
         }catch(Exception e){Console.WriteLine("FAIL "+e);return 1;}
     }
 }

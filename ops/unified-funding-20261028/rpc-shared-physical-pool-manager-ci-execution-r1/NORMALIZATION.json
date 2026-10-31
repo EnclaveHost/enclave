@@ -1,0 +1,17 @@
+[
+  {
+    "path": "COMMAND.json",
+    "originalSha256": "89443ca4012f333370c8b2c7e26356ce90ec72d23f4c806cd11895029ab24323",
+    "publicSha256": "89443ca4012f333370c8b2c7e26356ce90ec72d23f4c806cd11895029ab24323"
+  },
+  {
+    "path": "ROOT-RESULT.md",
+    "originalSha256": "457d700bf7351f432cdaceee5b02b89c0e54bffcbd4997f1f4984c01073f4654",
+    "publicSha256": "457d700bf7351f432cdaceee5b02b89c0e54bffcbd4997f1f4984c01073f4654"
+  },
+  {
+    "path": "QUEUE-RESULT.txt",
+    "originalSha256": "62151fc7c77b180f5f8521d5107ed7486b67e1d770c223456fcfb0abc765b330",
+    "publicSha256": "62151fc7c77b180f5f8521d5107ed7486b67e1d770c223456fcfb0abc765b330"
+  }
+]

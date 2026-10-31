@@ -1,0 +1,1 @@
+Manager dispatcher cc0028bf0dfb48958b87849766c5c9ed terminal98 before script/intent/GitHub dispatch: shared small allocation already held by Windows dispatcher. No manager test was run. No automatic retry; root reviewed fresh sequential changed-source r2 after both actual units terminal. Preserve this consumed local attempt.

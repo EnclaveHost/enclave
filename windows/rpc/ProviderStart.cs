@@ -77,6 +77,7 @@ namespace Enclave.OwnedRpc {
         void VerifyObservation(StartIdentity identity);
     }
     public interface IPhysicalStartRuntime {
+        long GuestBytes {get;}
         // Durable one-shot shared reservation dispatch, immediately before the
         // actual provider invocation. A capacity observation cannot implement it.
         void ConsumePhysicalStart(StartIdentity identity);
@@ -182,6 +183,31 @@ namespace Enclave.OwnedRpc {
     // Fixed local provider implementation, with no arbitrary method/path dispatch.
     // This library has no entry point and is not reachable from InertEntry.
     public sealed class HyperVStartProvider : IStartProvider {
+        internal static void RequireGuestMemory(IDictionary<string,object> row,long bytes) {
+            if(bytes<=0||bytes%1048576!=0)throw new InvalidOperationException("Guest memory byte budget");
+            foreach(string key in MemoryFields)if(!row.ContainsKey(key)||row[key]==null)throw new InvalidOperationException("Incomplete configured memory");
+            ulong amount=checked((ulong)(bytes/1048576));
+            if(!(row["ResourceType"] is ushort)||(ushort)row["ResourceType"]!=4||
+                (string)row["ResourceSubType"]!="Microsoft:Hyper-V:Memory"||(string)row["AllocationUnits"]!="byte * 2^20"||
+                (string)row["VirtualQuantityUnits"]!="byte * 2^20"||!(row["VirtualQuantity"] is ulong)||(ulong)row["VirtualQuantity"]!=amount||
+                !(row["Reservation"] is ulong)||(ulong)row["Reservation"]!=amount||!(row["Limit"] is ulong)||(ulong)row["Limit"]!=amount||
+                !(row["DynamicMemoryEnabled"] is bool)||(bool)row["DynamicMemoryEnabled"]||
+                !(row["AutomaticAllocation"] is bool)||!(bool)row["AutomaticAllocation"]||
+                !(row["SwapFilesInUse"] is bool)||(bool)row["SwapFilesInUse"])
+                throw new InvalidOperationException("Configured VM memory differs from reserved static guest budget");
+        }
+        static readonly string[] MemoryFields={"ResourceType","ResourceSubType","AllocationUnits","VirtualQuantityUnits","VirtualQuantity","Reservation","Limit","DynamicMemoryEnabled","AutomaticAllocation","SwapFilesInUse"};
+        static void VerifyGuestMemory(ManagementObject settings,long bytes) {
+            int count=0;
+            using(var rows=settings.GetRelated("Msvm_MemorySettingData")) {
+                foreach(ManagementObject memory in rows)using(memory) {
+                    if(++count>1)throw new InvalidOperationException("Ambiguous configured guest memory");
+                    var values=new Dictionary<string,object>();foreach(string key in MemoryFields)values[key]=memory[key];
+                    RequireGuestMemory(values,bytes);
+                }
+            }
+            if(count!=1)throw new InvalidOperationException("Configured guest memory absent");
+        }
         const string Namespace=@"root\virtualization\v2";
         readonly IStartRuntime runtime;readonly IStartJournal journal;
         public HyperVStartProvider(IStartRuntime runtime,IStartJournal journal){if(runtime==null||journal==null)throw new ArgumentNullException("dependencies");this.runtime=runtime;this.journal=journal;}
@@ -226,8 +252,11 @@ namespace Enclave.OwnedRpc {
                     throw new InvalidOperationException("Original VM zero assigned memory unconfirmed");
                 using(var input=vm.GetMethodParameters("RequestStateChange")){
                     input["RequestedState"]=(ushort)2;
+                    VerifyGuestMemory(settings,physical.GuestBytes);
                     runtime.VerifyBeforeSubmit(id);long now=runtime.Now;if(now<id.Origin||now>=id.Deadline)throw new InvalidOperationException("Original deadline expired");
                     physical.ConsumePhysicalStart(id);
+                    VerifyGuestMemory(settings,physical.GuestBytes);
+                    if(runtime.Now<id.Origin||runtime.Now>=id.Deadline)throw new InvalidOperationException("Original deadline expired");
                     using(var output=vm.InvokeMethod("RequestStateChange",input,new InvokeMethodOptions{Timeout=TimeSpan.FromSeconds(2)})){
                         if(output==null||output["ReturnValue"]==null)throw new InvalidOperationException("No native response");
                         return new StartResponse(Convert.ToUInt32(output["ReturnValue"]),output["Job"] as string);
