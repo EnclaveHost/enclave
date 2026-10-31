@@ -1,0 +1,12 @@
+{
+  "inputNonce": "381dfcc6f8b047d0914157fed7948e84",
+  "attemptNonce": "1500f0d90bf949149980d6122b395029",
+  "root": "C:/EnclaveRpcHandoffInputs-381dfcc6f8b047d0914157fed7948e84/381dfcc6f8b047d0914157fed7948e84",
+  "controllerSha": "6c341262b9c7d5f82db9b15cafcb5f0e63c9f832b0221d0299b3d43e2e1312a1",
+  "entrySha": "f195803b970a7340151bcf0b8b9510dde91b6518572e11173e27f57a8172ffe2",
+  "source": "8368f09b8a57378d8c6a158172cb719d9e06fb0c",
+  "requiredFreeBytes": 62709039104,
+  "diskFloorBytes": 17196646400,
+  "localAuthority": "root-only explicit SYSTEM legacy-memory-resident-inspect-v1; no fence/seed/VM/provider/funds mutation",
+  "nativeAttempted": false
+}

@@ -1,0 +1,1 @@
+Changed source fixes only CS0136 local name in resident controller. Original failed CI41175785824 preserved; no native/test outcome there.52expected fixtures unchanged, all caps/deadlines unchanged. Explicit readonlyresident scope reviewed.

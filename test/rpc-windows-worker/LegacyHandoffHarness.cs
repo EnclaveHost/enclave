@@ -38,6 +38,8 @@ public static class LegacyHandoffHarness {
   string id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";var inventory=new SortedDictionary<string,LegacyHandoff.MemoryRecord>{{id,new LegacyHandoff.MemoryRecord{Bytes=2048L*1048576}}};
   Func<Dictionary<string,object>> row=()=>new Dictionary<string,object>{{"SystemName",id},{"BlockSize",(ulong)1048576},{"NumberOfBlocks",(ulong)1024}};
   Test("resident-inspection-explicit-readonly-contract",()=>{var c=new Contract("legacy-memory-resident-inspect-v1",false);using(var a=ProtectedAttempt.PinLegacyHandoffController(c.PathName,c.Hash))Check(a.Operation=="legacy-memory-resident-inspect-v1");});
+  Test("resident-diagnostic-shape-native-types",()=>{var fields=(object[])LegacyHandoff.ResidentShape(inventory,new[]{row()})[0];Check((int)fields[0]==0&&(bool)fields[1]&&(string)fields[2]=="u64"&&(string)fields[3]=="1048576");});
+  Test("resident-diagnostic-never-prints-unknown-text",()=>{var r=row();r["SystemName"]="private-name-must-not-escape";r["BlockSize"]="private-value-must-not-escape";string text=new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(LegacyHandoff.ResidentShape(inventory,new[]{r}));Check(!text.Contains("private")&&text.Contains("other"));});
   Test("resident-native-row-byte-projection",()=>Check(LegacyHandoff.AssignedRows(inventory,new[]{row()})[id]==1073741824));
   Test("resident-guid-case-normalization",()=>{var r=row();r["SystemName"]=id.ToUpperInvariant();Check(LegacyHandoff.AssignedRows(inventory,new[]{r})[id]==1073741824);});
   Test("resident-missing-not-zero",()=>Refuse(()=>LegacyHandoff.AssignedRows(inventory,new Dictionary<string,object>[0])));

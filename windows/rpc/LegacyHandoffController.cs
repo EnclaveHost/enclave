@@ -223,6 +223,19 @@ public static class LegacyHandoffController {
                     Failures.Add("Public handoff diagnostic: "+Json.Serialize(new{phase=Str(d["phase"]),inputIndex=Num(d["inputIndex"]),parentDepth=Num(d["parentDepth"]),hresult=Num(d["hresult"]),nativeError=Num(d["nativeError"])}));
                 }
             }catch{Failures.Add("Public handoff diagnostic unavailable");}
+            try{
+                if(Operation=="legacy-memory-resident-inspect-v1"&&NamespacePin!=null&&File.Exists(Path.Combine(Root,"resident.native"))){
+                    var native=Obj(Json.DeserializeObject(Encoding.UTF8.GetString(Read(Path.Combine(Root,"resident.native"),4096))));
+                    if(native.Count!=2||Str(native["schema"])!="resident-native-shape/1")throw new InvalidOperationException("Native shape schema");
+                    var projected=new List<object>();var types=new HashSet<string>{"null","u64","i64","u32","i32","other"};
+                    foreach(object item in Rows(native["rows"])){
+                        var fields=Rows(item);if(projected.Count>=32||fields.Count!=6||Num(fields[0]) < -1||Num(fields[0])>31||!(fields[1] is bool))throw new InvalidOperationException("Native shape row");
+                        for(int n=2;n<6;n+=2){string kind=Str(fields[n]),value=Str(fields[n+1]);if(!types.Contains(kind)||value.Length>21)throw new InvalidOperationException("Native shape field");foreach(char c in value)if(c!='-'&&(c<'0'||c>'9'))throw new InvalidOperationException("Native shape numeric encoding");if((kind=="null"||kind=="other")&&value!="")throw new InvalidOperationException("Native shape unknown value");}
+                        projected.Add(new object[]{Num(fields[0]),(bool)fields[1],Str(fields[2]),Str(fields[3]),Str(fields[4]),Str(fields[5])});
+                    }
+                    Failures.Add("Public resident shape: "+Json.Serialize(projected));
+                }
+            }catch{Failures.Add("Public resident shape unavailable");}
         }finally{Cleanup();}
         Console.WriteLine(Json.Serialize(new{schema="owned-rpc-target-legacy-handoff/1",passed=passed&&Failures.Count==0,operation=Operation,manifest=ManifestHash,inventory=InventoryResult,origin=Origin,deadline=Deadline,elapsedMs=BoundedWorker.MonotonicMilliseconds()-Origin,root=Root,freeBytes=free,requiredFreeBytes=Required,failures=Failures,providerFenced=false,reservationMayRelease=false,vmsChanged=false}));
         return passed&&Failures.Count==0?0:1;

@@ -189,8 +189,27 @@ namespace Enclave.OwnedRpc {
    }
    if(assigned.Count!=inventory.Count)throw new InvalidOperationException("Missing assigned memory is not zero");return assigned;
   }
+  internal static object[] ResidentShape(SortedDictionary<string,MemoryRecord> inventory,IEnumerable<Dictionary<string,object>> rows){
+   var ids=new List<string>(inventory.Keys);var result=new List<object>();
+   foreach(var row in rows){
+    if(result.Count>=32)throw new InvalidOperationException("Native shape row bound");
+    Guid id;object name;row.TryGetValue("SystemName",out name);bool valid=name is string&&Guid.TryParseExact((string)name,"D",out id);
+    int index=-1;if(valid){Guid.TryParseExact((string)name,"D",out id);index=ids.IndexOf(id.ToString("D"));}
+    var fields=new List<object>{index,valid};
+    foreach(string key in new[]{"BlockSize","NumberOfBlocks"}){
+     object value;row.TryGetValue(key,out value);
+     string type=value==null?"null":value is ulong?"u64":value is long?"i64":value is uint?"u32":value is int?"i32":"other";
+     fields.Add(type);fields.Add(type=="other"||type=="null"?"":Convert.ToString(value,CultureInfo.InvariantCulture));
+    }
+    result.Add(fields.ToArray());
+   }
+   return result.ToArray();
+  }
   SortedDictionary<string,long> Assigned(SortedDictionary<string,MemoryRecord> inventory){
-   return AssignedRows(inventory,Query(@"root\virtualization\v2","SELECT SystemName,BlockSize,NumberOfBlocks FROM Msvm_Memory",new[]{"SystemName","BlockSize","NumberOfBlocks"},32));
+   var rows=Query(@"root\virtualization\v2","SELECT SystemName,BlockSize,NumberOfBlocks FROM Msvm_Memory",new[]{"SystemName","BlockSize","NumberOfBlocks"},32);
+   if(lease.Operation=="legacy-memory-resident-inspect-v1"&&lease.ReadOptionalOnce("resident.native")==null)
+    lease.WriteOnce("resident.native",json.Serialize(new{schema="resident-native-shape/1",rows=ResidentShape(inventory,rows)}));
+   return AssignedRows(inventory,rows);
   }
   internal sealed class ResidentSample {
    public long Physical,Free,Configured,Assigned,ObservedAt;
