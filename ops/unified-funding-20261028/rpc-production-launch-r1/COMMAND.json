@@ -1,0 +1,22 @@
+[
+  "/usr/bin/systemd-run",
+  "--user",
+  "--unit=enclave-rpc-launch-8ee4452b174746c2b606b9b68f0fa623",
+  "--property=Type=exec",
+  "--property=MemoryMax=128M",
+  "--property=MemorySwapMax=0",
+  "--property=CPUQuota=100%",
+  "--property=TasksMax=16",
+  "--property=RuntimeMaxSec=120",
+  "--property=TimeoutStopSec=1",
+  "--property=KillMode=control-group",
+  "--property=Restart=no",
+  "--property=SendSIGKILL=yes",
+  "--property=FinalKillSignal=SIGKILL",
+  "--property=NoNewPrivileges=yes",
+  "--property=LimitCORE=0",
+  "--property=UMask=0077",
+  "/usr/bin/python3",
+  "-B",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-production-launch-r1/launch.py"
+]

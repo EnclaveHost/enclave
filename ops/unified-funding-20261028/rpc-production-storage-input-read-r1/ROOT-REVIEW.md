@@ -1,0 +1,1 @@
+Read exact three production image metadata/namespace and two finite qemu-img info backing chains only. No write/COW/export/boot/clock. Maintained volume validators/pinned QEMU; authenticatedWarden pending-aware floor27648 plus384MiB wrapper/read allowance. Per-qemu5s, outer60s; no bulkhash/chainscan beyond supplied3files.

@@ -1,0 +1,48 @@
+{
+  "at": 1793487874.6520581,
+  "roles": {
+    "l1": {
+      "originals": [
+        [
+          "/vm/enclave-volumes/rpc-control-l1-client-r6/overlay.qcow2",
+          [
+            64769,
+            148393098,
+            277741568,
+            1793377151538885655,
+            1793377151538885655
+          ]
+        ],
+        [
+          "/vm/enclave-volumes/rpc-production/l1-origin.qcow2",
+          [
+            64769,
+            147981798,
+            528387407872,
+            1793030445134925227,
+            1793030445134925227
+          ]
+        ]
+      ],
+      "chainValidated": true,
+      "freeBytes": 616052559872
+    },
+    "base": {
+      "originals": [
+        [
+          "/mnt/usb/enclave-rpc-production/base-origin.qcow2",
+          [
+            2049,
+            929,
+            1255588233216,
+            1793152612815840500,
+            1793152612815840500
+          ]
+        ]
+      ],
+      "chainValidated": true,
+      "freeBytes": 52399020703744
+    }
+  },
+  "readOnly": true
+}
