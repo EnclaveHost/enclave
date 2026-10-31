@@ -1,0 +1,15 @@
+{
+  "run": 41153903059,
+  "source": "7ff6ae5d4e01da2787f157b0ea67e4f016e46f06",
+  "binary": "7464c9950302b721507dbb5c82ca2d89b7aa024363031de5dcd5cb8e5fa76ee1",
+  "sources": {
+    "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+    "windows/rpc/OwnerObserver.cs": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80",
+    "windows/rpc/ProtectedAttempt.cs": "9ad0824b68c6e1eac887766b4ed466e81b68ce04b150b7deb7895c8edbb91513",
+    "windows/rpc/ProviderStart.cs": "6cd6ee420d348a16c44e8f7c02b327e04c54ea6a9242efa7b86432747896daab",
+    "windows/rpc/OwnedVmPermit.cs": "b8beda6117daf1ac1d9013cfefdd2da7d3a051ad5b1d40b843c0693b0100fffd",
+    "test/rpc-windows-worker/ProviderStartHarness.cs": "51c347d619236be8deeb9fae87dde61d210380ff58c2f764b7baa0fa920018dc"
+  },
+  "conclusion": "failure",
+  "passedBeforeFailure": 29
+}

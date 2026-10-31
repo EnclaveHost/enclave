@@ -1,0 +1,3 @@
+Actual hosted CI41153903059 compiled successfully1723ms then failed447ms after29PASS. ProtectedStartJournal controller write attempted to assign SYSTEM owner while running as primary Administrator; Windows rejected object owner SID. No provider call or VM change. Allsix compiledsourcepins and executable independently verified. Original artifact bytes remain unchanged here.
+
+Separate correction selects Administrators owner for explicit administrator-controller pins only, SYSTEM owner retained for ordinary SYSTEM worker pins. Both were already accepted by namespace authority; protected DACL remains SYSTEM/Admin only. No privilege enabling/mask relaxation/cap or timeout change. New changed CI required; no rerun.

@@ -1,0 +1,42 @@
+{
+  "VERIFIED.json": {
+    "originalSha256": "ea445b1399aa1f64b05f2b73bf034d5efb0a87398e91a582a18c253f7fe03f64",
+    "publicSha256": "ea445b1399aa1f64b05f2b73bf034d5efb0a87398e91a582a18c253f7fe03f64"
+  },
+  "ROOT-RESULT.md": {
+    "originalSha256": "17cb176a4f81eaf521ba383bf8db030f6a75bbc9fdf92aec51db390bf96f32cc",
+    "publicSha256": "17cb176a4f81eaf521ba383bf8db030f6a75bbc9fdf92aec51db390bf96f32cc"
+  },
+  "artifacts/inert.err": {
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  "artifacts/publication.json": {
+    "originalSha256": "cb3e5c8f4c043c666bc1d0b9d201feeda509f54696e141a72967ebf792c69c0c",
+    "publicSha256": "3ef53c5dd6cd65f3f2affcb605c668be2f78bec94ba6904768064f10c3fc9ec2"
+  },
+  "artifacts/process-results.json": {
+    "originalSha256": "b6516faeb4103cb4d94fea8c08c074983a609eccc09b3cdd2cdb98b1e781522d",
+    "publicSha256": "cb893df6fd1c9918f7075d72d89e764acf93b6c6b5f721fd093ee1157d5835a9"
+  },
+  "artifacts/controller-compile.err": {
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  "artifacts/pins.json": {
+    "originalSha256": "6c688339fb8ae3add6837dc6fa7c85f683413f482dd8d437a4c2281b31b38d47",
+    "publicSha256": "188813ab825e93eee73ee353614aec528d90e01747b0fc05aee8a1da70042978"
+  },
+  "artifacts/inert.out": {
+    "originalSha256": "1ae6cb677826c6f4c96ff8102afd27eafe803d4f12410fd0e642d42b721849e8",
+    "publicSha256": "f87f6d6895949ce12d91c5175d079b7317455b4a8afaf3b646bda7f4a6043aa9"
+  },
+  "artifacts/controller-artifact.json": {
+    "originalSha256": "fcce83b75ca5be2afe93df68c015a5e2c11b54086c4e2f0ba73535a1a5c7d24f",
+    "publicSha256": "12705e94da0ec1a49b7881e65e750fb285aec88eaeb380d2322e96fb5145b147"
+  },
+  "artifacts/controller-compile.out": {
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  }
+}

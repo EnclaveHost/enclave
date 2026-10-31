@@ -21,6 +21,7 @@ namespace Enclave.OwnedRpc {
         // short read/submit lease. The immutable VM deadline is never renewed.
         readonly ProtectedAttempt accessLease;
         readonly bool reconciliationOnly;
+        readonly string recordOwner;
         bool disposed;
         const string SystemSid="S-1-5-18",AdminSid="S-1-5-32-544";
         static readonly UTF8Encoding Utf8=new UTF8Encoding(false,true);
@@ -149,6 +150,7 @@ namespace Enclave.OwnedRpc {
         public ProtectedAttempt(string contractPath,string expectedHash) : this(contractPath,expectedHash,false) {}
         private ProtectedAttempt(string contractPath,string expectedHash,bool controller) {
             if(!controller)RequireSystem();Hex(expectedHash,64);LocalPath(contractPath);
+            recordOwner=controller?AdminSid:SystemSid;
             if(Path.GetFileName(contractPath)!="contract.txt")throw new ArgumentException("Fixed contract filename required");
             Root=Path.GetDirectoryName(contractPath);ContractHash=expectedHash;
             try {
@@ -200,7 +202,10 @@ namespace Enclave.OwnedRpc {
                 }
             }
             if(bytes.Length>4096)throw new ArgumentException("Message bound");
-            var security=new FileSecurity();security.SetOwner(new SecurityIdentifier(SystemSid));security.SetAccessRuleProtection(true,false);
+            // A primary administrator pin is a distinct trusted-operator path.
+            // It cannot assign SYSTEM ownership without SeRestorePrivilege. Both
+            // existing authority checks already admit only SYSTEM/Administrators.
+            var security=new FileSecurity();security.SetOwner(new SecurityIdentifier(recordOwner));security.SetAccessRuleProtection(true,false);
             security.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(SystemSid),FileSystemRights.FullControl,AccessControlType.Allow));
             security.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(AdminSid),FileSystemRights.FullControl,AccessControlType.Allow));
             var stream=new FileStream(Path.Combine(Root,name+".pending"),FileMode.CreateNew,FileSystemRights.ReadData|FileSystemRights.WriteData|FileSystemRights.ReadPermissions,

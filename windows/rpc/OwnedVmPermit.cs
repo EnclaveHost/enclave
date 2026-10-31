@@ -81,7 +81,7 @@ namespace Enclave.OwnedRpc {
         // SYSTEM callers must already be in the independently supervised worker.
         // A lease proves namespace/time binding, not live observer membership.
         public static ProtectedAttempt OpenVmJournal(string permitPath,string expectedHash,ProtectedAttempt lease,bool reconcile) {
-            RequireSystem();return new ProtectedAttempt(permitPath,expectedHash,lease,reconcile);
+            RequireSystem();return new ProtectedAttempt(permitPath,expectedHash,lease,reconcile,false);
         }
         // Trusted operator API for preparing the same protected namespace. This
         // does not bypass HyperVStartProvider's SYSTEM/runtime checks.
@@ -90,9 +90,10 @@ namespace Enclave.OwnedRpc {
                 if(identity.ImpersonationLevel!=TokenImpersonationLevel.None ||
                     !new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator))throw new InvalidOperationException("Primary administrator required");
             }
-            return new ProtectedAttempt(permitPath,expectedHash,lease,reconcile);
+            return new ProtectedAttempt(permitPath,expectedHash,lease,reconcile,true);
         }
-        private ProtectedAttempt(string path,string expectedHash,ProtectedAttempt lease,bool reconcile) {
+        private ProtectedAttempt(string path,string expectedHash,ProtectedAttempt lease,bool reconcile,bool controller) {
+            recordOwner=controller?AdminSid:SystemSid;
             if(lease==null||lease.accessLease!=null)throw new ArgumentException("Separate original worker lease required");
             lease.CheckDeadline();Hex(expectedHash,64);LocalPath(path);
             if(Path.GetFileName(path)!="vm-permit.txt")throw new ArgumentException("Fixed VM permit filename");
