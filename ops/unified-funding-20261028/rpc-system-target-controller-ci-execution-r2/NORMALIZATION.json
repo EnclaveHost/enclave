@@ -1,0 +1,78 @@
+{
+  "dispatch.py": {
+    "original": "a6fe58f52af1cbd9b40dbc78e6b8c74942c3579a50a6921cc8e3ca37c39bfc6a",
+    "public": "a6fe58f52af1cbd9b40dbc78e6b8c74942c3579a50a6921cc8e3ca37c39bfc6a"
+  },
+  "VERIFIED.json": {
+    "original": "f4d5502f74611f0bb74615b3b7f68668f7c5f8c75baa68d8c84758390bad6aaa",
+    "public": "f4d5502f74611f0bb74615b3b7f68668f7c5f8c75baa68d8c84758390bad6aaa"
+  },
+  "DISPATCH-RESULT.json": {
+    "original": "ef3f7f0ebf4220f8debd1b2b91bccaf8832f3961310d24487f396dd4e3a7e0db",
+    "public": "ef3f7f0ebf4220f8debd1b2b91bccaf8832f3961310d24487f396dd4e3a7e0db"
+  },
+  "ROOT-RESULT.md": {
+    "original": "0103bee9e6f6ab24cd4ad0cb4ff1880a1294b8b4c845e22dc2ab2f656e4a492a",
+    "public": "0103bee9e6f6ab24cd4ad0cb4ff1880a1294b8b4c845e22dc2ab2f656e4a492a"
+  },
+  "DISPATCH-INTENT.json": {
+    "original": "81bf228273f04aa0602224849c5b712512a62b33983a49459142dfdeabdd0d91",
+    "public": "a05039264d3f068c5506bd6afc6ceff99142d91935d8ca036690dae7bf64e904"
+  },
+  "COMMAND.json": {
+    "original": "1e1c9a805db06e9578e2771dd654028cae0b914edd9b593147ebc7a695c4a6ec",
+    "public": "1e1c9a805db06e9578e2771dd654028cae0b914edd9b593147ebc7a695c4a6ec"
+  },
+  "artifacts/inert.err": {
+    "original": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "public": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  "artifacts/publication.json": {
+    "original": "da661e5415fb9019e3220c8aef406675fbcec2a63c4ce0edb2d22a434c7c7203",
+    "public": "db75829e8b67aa79b5d531d1f5fd905329ec45cc0b6d16b80656382d8ec7f113"
+  },
+  "artifacts/process-results.json": {
+    "original": "6be51b0873d1081c882abb858b5201152669bdc79b6922b16f33d9966d23949d",
+    "public": "bb496a77dcb629013bf2ea3224c062ae52b25e07457203aff04893d4d49d44cb"
+  },
+  "artifacts/controller-compile.err": {
+    "original": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "public": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  "artifacts/pins.json": {
+    "original": "b84e093477519dd6fa7a90a6bf583c21ac45b7bf72f3c8aee0e1e2b88733f840",
+    "public": "6c257817baa09123f79439283e4bcd6e4d9787099b398548ca65b431854a2b33"
+  },
+  "artifacts/entry-compile.out": {
+    "original": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "public": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  "artifacts/entry-artifact.json": {
+    "original": "af5908328adb7bfe4ac99eefa31729ac765801673b70289f531f513d919a5437",
+    "public": "3219174570b27a53c0852efb8ddb6180a6cc9e4d4f2189724e744f852f9bd1a1"
+  },
+  "artifacts/qualification-controller.exe": {
+    "original": "1ffc9ee34b11772582fd20511d369f2123fd6e1f9c18e96676ef0b8027cd1b87",
+    "public": "1ffc9ee34b11772582fd20511d369f2123fd6e1f9c18e96676ef0b8027cd1b87"
+  },
+  "artifacts/inert.out": {
+    "original": "742148b2e51b866c1c9fc8c9a7f495bf104115710717ac3b27f8210ddc747964",
+    "public": "f2b014fb2e8746eb1663c139edc00e358de654b98c679323310d3333b6bc1df1"
+  },
+  "artifacts/controller-artifact.json": {
+    "original": "0a96133d612e344ac64c7f521427f213b6d06ce7b93ce08a302e012b5f877d33",
+    "public": "7467ca2fc8a64d3db14032fd9d2e9000beee488ef0987945b83751f3157b8fd6"
+  },
+  "artifacts/entry-compile.err": {
+    "original": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "public": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  "artifacts/controller-compile.out": {
+    "original": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "public": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  "artifacts/owned-entry.exe": {
+    "original": "72cb70554d7cc982665e4943c6b8d87faca6c4d1dbc87e38d96dc74c39d44975",
+    "public": "72cb70554d7cc982665e4943c6b8d87faca6c4d1dbc87e38d96dc74c39d44975"
+  }
+}

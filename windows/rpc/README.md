@@ -209,3 +209,28 @@ replay were rejected. Direct system-drive owned namespace passed ancestry checks
 the CI gate now publishes a closed pending file atomically. Prior ACL and gate
 publication failures are preserved. This is hosted qualification only; target
 resource/namespace admission and durable provider/VM integration remain absent.
+
+## Managed target qualification controller
+
+`InertQualification.cs` is the explicit operator-only controller for a finite
+SYSTEM owner/observer qualification. It has no VM/provider mutation path. The
+controller enters its128MiB envelope and arms its original30s deadline before
+WMI/COM reads. Task creation retains the original5s bootstrap cutoff.
+`ProtectedAttempt.PinController` separately requires a nonimpersonating primary
+administrator and holds the entire validated namespace and exact image/contract
+BEFORE scheduling. The normal child constructor still always requires SYSTEM.
+
+Target mode requires a root-pinned resource observation no older than300s, same
+boot/physical host, and matching LIVE listener PID/creation/executable identities.
+Its fixed62,709,039,104-byte threshold includes39388MiB possible app growth,18GiB
+host floor,1GiB variation and960MiB for qualification roles/controller/bootstrap/
+transport. These bootstrap/transport allowances are not hard memory caps. This
+qualifies only the inert task, never the proposed20GiB RPC stack.
+
+A PowerShell wrapper was rejected before task creation in actual CI41149421939
+because interpreter bootstrap exceeded the64MiB allowance. Its exact source and
+failure remain in the evidence. The managed replacement passed hosted integration
+CI41149985211 at2d0970a3aa02761f45c1980d2d79db942157c9dd in1.166s
+(controller1.022s), without cap or timeout changes. Hosted mode is explicitly
+disposable-CI-only and uses3GiB headroom; it is never a target admission substitute.
+Actual target-context bootstrap, WMI comparison and namespace remain pending.

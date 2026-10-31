@@ -1,0 +1,15 @@
+{
+  "run": 41149985211,
+  "source": "2d0970a3aa02761f45c1980d2d79db942157c9dd",
+  "sourcePins": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/InertEntry.cs",
+    "windows/rpc/InertQualification.cs"
+  ],
+  "binaries": {
+    "qualification-controller.exe": "1ffc9ee34b11772582fd20511d369f2123fd6e1f9c18e96676ef0b8027cd1b87",
+    "owned-entry.exe": "72cb70554d7cc982665e4943c6b8d87faca6c4d1dbc87e38d96dc74c39d44975"
+  }
+}
