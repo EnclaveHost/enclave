@@ -1,0 +1,89 @@
+name: RPC clock controller qualification
+run-name: RPC clock controller ${{ inputs.expected_sha }}
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact reviewed commit; mismatch refuses execution
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: rpc-clock-controller
+  cancel-in-progress: false
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+        with:
+          persist-credentials: false
+          # Git for Windows validates reserved names even outside sparse checkout.
+          # Assemble the exact finite closure on Linux; never weaken NTFS safeguards.
+          sparse-checkout: |
+            windows/rpc
+            test/rpc-windows-worker
+      - name: Assemble exact reviewed source closure
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, re, subprocess
+          expected=os.environ['EXPECTED_SHA']
+          assert re.fullmatch('[0-9a-f]{40}',expected)
+          assert os.environ['GITHUB_SHA']==expected
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==expected
+          root=pathlib.Path('source-closure');root.mkdir()
+          pins={}
+          for name in ['windows/rpc/BoundedWorker.cs','windows/rpc/ProtectedAttempt.cs','windows/rpc/ClockSample.cs','windows/rpc/ClockQualification.cs','test/rpc-windows-worker/run-clock-controller-ci.ps1']:
+              data=subprocess.check_output(['git','show',expected+':'+name])
+              assert 0<len(data)<=65536
+              path=root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(data)
+              pins[name]=hashlib.sha256(data).hexdigest()
+          (root/'SOURCE.json').write_text(json.dumps({'head':expected,'files':pins},indent=2)+'\n')
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rpc-clock-controller-exact-source
+          path: source-closure/
+          retention-days: 7
+  inert:
+    needs: source
+    runs-on: windows-2025
+    timeout-minutes: 3
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: rpc-clock-controller-exact-source
+          path: source-closure
+      - name: Verify exact finite source closure
+        shell: powershell
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          $ErrorActionPreference='Stop'
+          if ($env:EXPECTED_SHA -cnotmatch '^[0-9a-f]{40}$' -or $env:GITHUB_SHA -cne $env:EXPECTED_SHA) { throw 'Source changed; no execution' }
+          $root=Join-Path $env:GITHUB_WORKSPACE 'source-closure'
+          $manifest=Get-Content -Raw -LiteralPath (Join-Path $root 'SOURCE.json')|ConvertFrom-Json
+          if($manifest.head -cne $env:EXPECTED_SHA){throw 'Source manifest commit mismatch'}
+          $names=@('windows/rpc/BoundedWorker.cs','windows/rpc/ProtectedAttempt.cs','windows/rpc/ClockSample.cs','windows/rpc/ClockQualification.cs','test/rpc-windows-worker/run-clock-controller-ci.ps1')
+          if(@($manifest.files.PSObject.Properties).Count -ne 5 -or @(Get-ChildItem -LiteralPath $root -File -Recurse).Count -ne 6){throw 'Unexpected source closure'}
+          foreach($name in $names){
+            $path=Join-Path $root $name
+            $item=Get-Item -LiteralPath $path
+            if($item.Length -gt 65536 -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'Invalid source file'}
+            if((Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLowerInvariant() -cne $manifest.files.$name){throw 'Source hash mismatch'}
+          }
+      - name: Compile and exercise inert finite processes
+        shell: powershell
+        run: '& ./source-closure/test/rpc-windows-worker/run-clock-controller-ci.ps1'
+      - name: Preserve bounded results
+        if: always() && env.RPC_WORKER_RESULT != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rpc-clock-controller-results
+          path: ${{ env.RPC_WORKER_RESULT }}
+          retention-days: 7

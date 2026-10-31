@@ -852,3 +852,16 @@ SHA-256 `57c35df39b752694a9cd420b84eed6c1f800c0331c2442dbe8fb743eacaf03f6`;
 all three compiled source pins were independently checked. This is CI evidence,
 not target namespace, SYSTEM execution or actual cross-host handshake evidence.
 See `ops/unified-funding-20261028/rpc-clock-sampler-ci-r1/ROOT-RESULT.md`.
+
+The first NucBox qualification wrapper refused before starting the sampler:
+PowerShell exceeded the existing bootstrap private-memory allowance. Its failure
+is retained; no cap or floor was relaxed. `ClockQualification.cs` replaces that
+wrapper with a compiled controller using the same fixed five-second entry
+watchdog and 128 MiB self job. It holds and validates namespace ancestors before
+exclusive lease creation, pins both images, observes four original manager
+incarnations through query/synchronize handles, and preholds the sampler process
+handle through its exit. The production build retains the 62,709,039,104-byte
+free-memory threshold; it performs no VM, provider, task or allocator mutation.
+A separate compile-time hosted-CI build uses the disposable runner's 3 GiB floor
+and omits production manager identities. Those omissions never enter the target
+build. Target qualification still requires fresh complete external admission.
