@@ -1,0 +1,10 @@
+{
+  "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+  "windows/rpc/OwnerObserver.cs": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80",
+  "windows/rpc/ProtectedAttempt.cs": "5d6f056deb8b90c892c48d6b8332a95f8220f6a26820c70badc65927985ac403",
+  "windows/rpc/ProviderStart.cs": "fc93e6ca1b05f764df7075bfb408d780837b7351ce567b1fc3456ec1c4cfa121",
+  "windows/rpc/PROVIDER-LIFECYCLE.md": "67f5930a706ad8a57a932e6e2790666c9f8f7d79904dd232e2554585131b8aa7",
+  "test/rpc-windows-worker/ProviderStartHarness.cs": "a22d67c5869bd409a209719c34989aa960e97c17a0ee8efbaab6f7e59d92f709",
+  "test/rpc-windows-worker/run-provider-ci.ps1": "746c169190594a9613076dca7cfa0712ba11ed64cc9ce32389bd0e30150dc235",
+  ".github/workflows/rpc-provider-journal.yml": "f3a53a70596f069ad8591d847c4ba439b45a79397b6721fcc4a788b70661f714"
+}

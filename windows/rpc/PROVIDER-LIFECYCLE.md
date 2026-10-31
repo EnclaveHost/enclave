@@ -1,6 +1,25 @@
 # Durable Hyper-V operation boundary
 
-This is the remaining implementation contract, not a claim of installed behavior.
+`ProviderStart.cs` now implements the fixed transaction and local Hyper-V adapter
+as an unactivated library. It consumes separate intent, submission and native-call
+records, persists the returned reference before follow-up reads, binds job identity,
+and retains uncertain outcomes without resubmission. `ProviderStartHarness.cs`
+contains fault-injection coverage; compilation and execution are pending.
+
+This is not installed VM authority. The guarded VM entrypoint, persistent journal
+reopening beyond a short worker lease, actual owned VM permit, independent startup
+watcher and native operation qualification remain required. `IStartRuntime` is a
+trusted caller boundary that must validate those facts; it is not proof by itself.
+The inert entrypoint cannot call the native adapter. `ProtectedStartJournal` uses
+held protected files for storage only; the inert contract does not authorize VMs.
+
+Only nonrecurring JobState=7 is currently treated as job settlement; state8/9/10
+remains held. Operation settlement is separate from VM Running/Off, closed start
+authority and storage fencing. Both public fence/release flags remain false.
+
+The implementation follows the fixed [RequestStateChange interface](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/requeststatechange-msvm-computersystem)
+and [job properties](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-concretejob).
+The remaining integration contract is:
 The bounded process worker alone cannot establish any of these provider fences.
 
 1. Before a submission worker can run, create an exclusive, durable start intent
