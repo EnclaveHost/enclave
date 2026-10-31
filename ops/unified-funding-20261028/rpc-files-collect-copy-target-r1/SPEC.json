@@ -1,0 +1,15 @@
+{
+  "attempt": "b76037e2f92a44cda703456c59e3f159",
+  "vmAttempt": "b62486e2f1be4c96b2de5f2fd0b47dfc",
+  "helper": {
+    "path": "C:\\EnclaveRpcFiles-495a41c7dda146ab9b27b54b7fce61a8\\495a41c7dda146ab9b27b54b7fce61a8\\transition-files.exe",
+    "sha256": "2114ef029e5f5f8ec3b448edb8124b753dc641eb24b8825ee1124be95e8903d9"
+  },
+  "boot": "1a04e76600e411f1a395e342df676a80",
+  "samplerPath": "C:\\EnclaveRpcClock-856c8213f2a149c3a24e27904e2093c6\\856c8213f2a149c3a24e27904e2093c6\\clock-sample.exe",
+  "samplerSha256": "57c35df39b752694a9cd420b84eed6c1f800c0331c2442dbe8fb743eacaf03f6",
+  "handoff": "64017006e8424a5ca8a7f5f6ad2631a6",
+  "media": "5afd0cf8c073410da403944e5e985036",
+  "collectNonce": "666cfc34bef24b11b2dd242c33363704",
+  "copyNonce": "8d14460be1cf47e6a4ac78f5d8971809"
+}

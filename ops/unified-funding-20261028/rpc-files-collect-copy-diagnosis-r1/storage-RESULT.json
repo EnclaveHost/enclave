@@ -1,0 +1,59 @@
+{
+  "at": 1793482422.5049262,
+  "readOnly": true,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 1062,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "success": true,
+    "readOnly": true,
+    "exactPreparationProcesses": [],
+    "availableMethods": [
+      "EnterSupervisorEnvelope",
+      "ArmOwnerObserver"
+    ],
+    "namespaces": [
+      {
+        "path": "C:\\EnclaveRpcLegacyHandoff-64017006e8424a5ca8a7f5f6ad2631a6\\64017006e8424a5ca8a7f5f6ad2631a6",
+        "files": {},
+        "exists": false
+      },
+      {
+        "path": "C:\\EnclaveRpcVm-b62486e2f1be4c96b2de5f2fd0b47dfc\\b62486e2f1be4c96b2de5f2fd0b47dfc",
+        "files": {},
+        "exists": false
+      },
+      {
+        "path": "C:\\EnclaveRpcPrivateMedia-5afd0cf8c073410da403944e5e985036\\5afd0cf8c073410da403944e5e985036",
+        "files": {},
+        "exists": false
+      }
+    ],
+    "nativeHelpers": [],
+    "managers": [
+      {
+        "pid": 41272,
+        "alive": true,
+        "creation": "134375630850989593"
+      },
+      {
+        "pid": 40360,
+        "alive": true,
+        "creation": "134375630828500376"
+      },
+      {
+        "pid": 41308,
+        "alive": true,
+        "creation": "134375617394407059"
+      },
+      {
+        "pid": 38076,
+        "alive": true,
+        "creation": "134375086385617521"
+      }
+    ],
+    "diagnosticPrivateBytes": 83243008
+  }
+}
