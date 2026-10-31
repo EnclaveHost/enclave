@@ -1,0 +1,1 @@
+Actual CI41176658988 SUCCESS54PASS1499ms/compiler2143+286+282ms;19sourcepins matched exactGit/current at verification. Production18sources excludes harness; bothtargetimages229376B, unchanged262144bound. Hostedonly, nativequalification separate.

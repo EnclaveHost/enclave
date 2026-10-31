@@ -38,6 +38,9 @@ public static class LegacyHandoffHarness {
  static void ResidentTests(){
   string id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";var inventory=new SortedDictionary<string,LegacyHandoff.MemoryRecord>{{id,new LegacyHandoff.MemoryRecord{Bytes=2048L*1048576}}};
   Func<Dictionary<string,object>> row=()=>new Dictionary<string,object>{{"SystemName",id},{"BlockSize",(ulong)1048576},{"NumberOfBlocks",(ulong)1024}};
+  Test("resident-query-bound-to-complete-vm-inventory",()=>Check(LegacyHandoff.AssignedQuery(inventory)=="SELECT SystemName,BlockSize,NumberOfBlocks FROM Msvm_Memory WHERE SystemName='"+id+"'"));
+  Test("resident-empty-inventory-does-not-query-host-memory",()=>Check(LegacyHandoff.AssignedQuery(new SortedDictionary<string,LegacyHandoff.MemoryRecord>())==null));
+  Test("resident-query-refuses-injected-or-noncanonical-id",()=>{var bad=new SortedDictionary<string,LegacyHandoff.MemoryRecord>{{"x' OR 1=1",inventory[id]}};Refuse(()=>LegacyHandoff.AssignedQuery(bad));});
   Test("resident-inspection-explicit-readonly-contract",()=>{var c=new Contract("legacy-memory-resident-inspect-v1",false);using(var a=ProtectedAttempt.PinLegacyHandoffController(c.PathName,c.Hash))Check(a.Operation=="legacy-memory-resident-inspect-v1");});
   Test("resident-diagnostic-shape-native-types",()=>{var fields=(object[])LegacyHandoff.ResidentShape(inventory,new[]{row()})[0];Check((int)fields[0]==0&&(bool)fields[1]&&(string)fields[2]=="u64"&&(string)fields[3]=="1048576");});
   Test("resident-diagnostic-never-prints-unknown-text",()=>{var r=row();r["SystemName"]="private-name-must-not-escape";r["BlockSize"]="private-value-must-not-escape";string text=new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(LegacyHandoff.ResidentShape(inventory,new[]{r}));Check(!text.Contains("private")&&text.Contains("other"));});

@@ -1,0 +1,1 @@
+Changed target compilation closure18sourcefiles excludes harness. Harness19sourcefiles uses exact digest-bound compiled target image for protected contracts. Same54cases; sameproduction262144byteimagebound, runtime/deadline/floor unchanged. Previousfixtureoversizefailure preserved.

@@ -71,7 +71,7 @@ try{
     $targetDigest=(Get-FileHash -Algorithm SHA256 -LiteralPath $target).Hash.ToLowerInvariant()
     Invoke-FiniteProcess $controller @($target,$targetDigest) 15000 'handoff'
     $lines=@(Get-Content -LiteralPath (Join-Path $work 'handoff.out'))
-    if(@($lines|Where-Object{$_ -like 'PASS *'}).Count -ne 54 -or $lines[-1] -cne 'RESULT tests=54 providerCalls=false vmChanged=false targetInventoryQualified=false'){throw 'Handoff qualification incomplete'}
+    if(@($lines|Where-Object{$_ -like 'PASS *'}).Count -ne 57 -or $lines[-1] -cne 'RESULT tests=57 providerCalls=false vmChanged=false targetInventoryQualified=false'){throw 'Handoff qualification incomplete'}
 }finally{
     $records|ConvertTo-Json -Depth 5|Set-Content -LiteralPath (Join-Path $work 'process-results.json')
     Get-FileHash -Algorithm SHA256 -LiteralPath ($sources+@($csc))|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'pins.json')

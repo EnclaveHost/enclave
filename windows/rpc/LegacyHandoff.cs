@@ -205,8 +205,19 @@ namespace Enclave.OwnedRpc {
    }
    return result.ToArray();
   }
+  internal static string AssignedQuery(SortedDictionary<string,MemoryRecord> inventory){
+   if(inventory==null||inventory.Count>32)throw new InvalidOperationException("Resident inventory bound");
+   var terms=new List<string>();foreach(string name in inventory.Keys){
+    Guid id;if(!Guid.TryParseExact(name,"D",out id)||id.ToString("D")!=name)throw new InvalidOperationException("Canonical resident GUID required");
+    terms.Add("SystemName='"+name+"'");
+   }
+   // Msvm_Memory also describes physical-host memory. Select only the complete
+   // realized VM inventory; AssignedRows still rejects missing/extra/duplicate rows.
+   return terms.Count==0?null:"SELECT SystemName,BlockSize,NumberOfBlocks FROM Msvm_Memory WHERE "+String.Join(" OR ",terms);
+  }
   SortedDictionary<string,long> Assigned(SortedDictionary<string,MemoryRecord> inventory){
-   var rows=Query(@"root\virtualization\v2","SELECT SystemName,BlockSize,NumberOfBlocks FROM Msvm_Memory",new[]{"SystemName","BlockSize","NumberOfBlocks"},32);
+   string query=AssignedQuery(inventory);
+   var rows=query==null?new List<Dictionary<string,object>>():Query(@"root\virtualization\v2",query,new[]{"SystemName","BlockSize","NumberOfBlocks"},32);
    if(lease.Operation=="legacy-memory-resident-inspect-v1"&&lease.ReadOptionalOnce("resident.native")==null)
     lease.WriteOnce("resident.native",json.Serialize(new{schema="resident-native-shape/1",rows=ResidentShape(inventory,rows)}));
    return AssignedRows(inventory,rows);

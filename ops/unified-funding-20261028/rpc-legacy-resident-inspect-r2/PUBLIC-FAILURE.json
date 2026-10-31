@@ -1,0 +1,29 @@
+{
+  "started": true,
+  "exactControllerDeath": true,
+  "exitCode": 1,
+  "failure": "target read-only handoff not passed",
+  "result": {
+    "schema": "owned-rpc-target-legacy-handoff/1",
+    "passed": false,
+    "operation": "legacy-memory-resident-inspect-v1",
+    "manifest": "d3167fbcc3b8168ee810ca9db2862382dc00554f8fcc46b2ea4653cc635d84af",
+    "inventory": null,
+    "origin": 683989198,
+    "deadline": 684019198,
+    "elapsedMs": 9474,
+    "root": "C:\\EnclaveRpcLegacyHandoff-618c15a87b2f477ea6e379c47c87f475\\618c15a87b2f477ea6e379c47c87f475",
+    "freeBytes": 83840212992,
+    "requiredFreeBytes": 62709039104,
+    "failures": [
+      "InvalidOperationException: Exact role completion failed",
+      "Public handoff diagnostic: {\"phase\":\"resident-inspection\",\"inputIndex\":91,\"parentDepth\":5,\"hresult\":-2146233079,\"nativeError\":0}",
+      "Public resident shape: [[-1,false,\"u64\",\"1048576\",\"u64\",\"114507\"],[0,true,\"u64\",\"1048576\",\"u64\",\"2048\"],[1,true,\"u64\",\"1048576\",\"u64\",\"512\"],[2,true,\"u64\",\"1048576\",\"u64\",\"4096\"],[3,true,\"u64\",\"1048576\",\"u64\",\"2606\"],[4,true,\"u64\",\"1048576\",\"u64\",\"8192\"]]"
+    ],
+    "providerFenced": false,
+    "reservationMayRelease": false,
+    "vmsChanged": false
+  },
+  "reservationMayRelease": false,
+  "vmsChanged": false
+}
