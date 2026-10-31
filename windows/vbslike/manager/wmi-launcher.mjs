@@ -46,6 +46,7 @@ import { GCS_KEY, EGRESS_VSOCK_PORT } from "./egress.mjs";
 import { validateDesktopPlatform, validateDesktopMapping } from "./desktop-platform.mjs";
 import { desktopMediaScript, checkDesktopMedia } from "./desktop-media.mjs";
 import { desktopVmMemMiB, DESKTOP_MEMORY_RULE } from "./desktop-memory.mjs";
+import { cpuFixedPolicy, CPU_UNITS_PER_VCPU, CPU_MIN_LIMIT, CPU_WMI_UNITS } from "./cpu-share.mjs";
 import { DESKTOP_WORKER_SERVICE_GUID } from "./desktop-worker-transport.mjs";
 
 /** The preflight check egress adds (egress.mjs): its hv_sock service is registered, read and never written. */
@@ -343,6 +344,7 @@ export const CMD = {
     $r.module = [bool](Get-Command Get-VM -ErrorAction SilentlyContinue);
     $r.firmwareField = [bool]((Get-CimClass -Namespace 'root\\virtualization\\v2' -ClassName Msvm_VirtualSystemSettingData -ErrorAction SilentlyContinue).CimClassProperties.Name -contains 'FirmwareFile');
     $r.hypervisor = (Get-CimInstance Win32_ComputerSystem).HypervisorPresent;
+    $r.logicalProcessors = $null; try { $r.logicalProcessors = [int](Get-VMHost -ErrorAction Stop).LogicalProcessorCount } catch {};
     $fo = @{present=$false; value=$null; kind=$null; error=$null};
     try {
       $k = Get-Item -LiteralPath ${q(FIRMWARE_OPT_IN.psPath)} -ErrorAction Stop;
@@ -737,6 +739,44 @@ export const CMD = {
       else { @{found=$true; removed=$true} | ConvertTo-Json -Compress }
     } catch { @{found=$true; removed=$false; error=[string]$_.Exception.Message} | ConvertTo-Json -Compress }`),
 
+  // Configure and verify the exact owned, stopped partition before its first start.
+  processor: ({ vmId, vcpus, limit, reservation, marker = OWNER_MARKER }) => {
+    if (!GUID.test(String(vmId))) throw new Error(`processor: not a VM Id: ${vmId}`);
+    if (!Number.isSafeInteger(vcpus) || vcpus < 1 || !Number.isSafeInteger(limit) || limit < CPU_MIN_LIMIT || limit > CPU_UNITS_PER_VCPU
+        || !Number.isSafeInteger(reservation) || reservation < 0 || reservation > limit)
+      throw new Error("processor: vcpus, limit and reservation must be exact percent/1000 integers, reservation <= limit");
+    return ps(`
+    $ErrorActionPreference = 'Stop';
+    $vm = Get-VM -Id ${q(vmId)};
+    if (-not ${OWNED("$vm", marker)}) { throw 'not ours: the ownership marker is absent, so its processors are not changed' };
+    if ([string]$vm.State -ne 'Off') { throw ('the VM is ' + [string]$vm.State + ': its processor allocation is set only before its first start') };
+    $ns = 'root\\virtualization\\v2';
+    $vssd = Get-CimInstance -Namespace $ns -Query ("select * from Msvm_ComputerSystem where Name = '" + $vm.Id.Guid + "'") | Get-CimAssociatedInstance -ResultClass Msvm_VirtualSystemSettingData -Association Msvm_SettingsDefineState;
+    if (-not $vssd) { throw ('no Msvm_VirtualSystemSettingData for ' + $vm.Id.Guid) };
+    $cpuWant = @{q=${vcpus}; l=${limit}; r=${reservation}};
+    $psd = @($vssd | Get-CimAssociatedInstance -ResultClassName Msvm_ProcessorSettingData);
+    if ($psd.Count -ne 1) { throw ([string]$psd.Count + ' Msvm_ProcessorSettingData, not exactly one') };
+    $psd = $psd[0];
+    if ([int64]$psd.Limit -ne $cpuWant.l -or [int64]$psd.Reservation -ne $cpuWant.r) {
+      $psd.Limit = [uint64]$cpuWant.l; $psd.Reservation = [uint64]$cpuWant.r;
+      $ser = [Microsoft.Management.Infrastructure.Serialization.CimSerializer]::Create();
+      $xml = [System.Text.Encoding]::Unicode.GetString($ser.Serialize($psd, [Microsoft.Management.Infrastructure.Serialization.InstanceSerializationOptions]::None));
+      $svc = Get-CimInstance -Namespace $ns -ClassName Msvm_VirtualSystemManagementService;
+      $mr = Invoke-CimMethod -InputObject $svc -MethodName ModifyResourceSettings -Arguments @{ResourceSettings=@($xml)};
+      if ($mr.ReturnValue -eq 4096 -and $mr.Job) { $job = $mr.Job; $dl = (Get-Date).AddSeconds(60);
+        while ($job.JobState -in 2, 3, 4 -and (Get-Date) -lt $dl) { Start-Sleep -Milliseconds 250; $job = Get-CimInstance -InputObject $job };
+        if ($job.JobState -ne 7) { throw ('ModifyResourceSettings (processor) job ended in state ' + [string]$job.JobState + ': ' + [string]$job.ErrorDescription) }
+      } elseif ($mr.ReturnValue -ne 0) { throw ('ModifyResourceSettings (processor) returned ' + [string]$mr.ReturnValue) }
+    };
+    $psd = @($vssd | Get-CimAssociatedInstance -ResultClassName Msvm_ProcessorSettingData)[0];
+    $gp = Get-VMProcessor -VM $vm;
+    $cpuBack = @{vcpus=[int64]$psd.VirtualQuantity; limit=[int64]$psd.Limit; reservation=[int64]$psd.Reservation; weight=[int64]$psd.Weight;
+                 units=[string]$psd.AllocationUnits; count=[int64]$gp.Count; maximum=[int64]$gp.Maximum; reserve=[int64]$gp.Reserve};
+    if ($cpuBack.units -ne ${q(CPU_WMI_UNITS)} -or $cpuBack.vcpus -ne $cpuWant.q -or $cpuBack.count -ne $cpuWant.q -or $cpuBack.limit -ne $cpuWant.l -or $cpuBack.reservation -ne $cpuWant.r) { throw ('the processor allocation reads back as ' + ($cpuBack | ConvertTo-Json -Compress) + ', not ' + ($cpuWant | ConvertTo-Json -Compress)) };
+    $cpuBack | ConvertTo-Json -Compress`);
+  },
+
+
   /**
    * ARCHIVE AND REMOVE a per-run guest-state copy, once the VM that used it is GONE.
    *
@@ -913,6 +953,21 @@ export function checkDefinition(d, want) {
   return true;
 }
 
+/** The monitor's first line ("MON snp=0 vcpus=N ...", dominit.c) states the processors the guest brought online. */
+export function guestOnlineVcpus(head) {
+  const m = /MON snp=\d+ vcpus=(\d+) /.exec(String(head ?? ""));
+  return m ? Number(m[1]) : null;
+}
+
+/** The processor allocation's read-back, asserted again here: Hyper-V's own fields, in its own units, exactly. */
+export function checkProcessor(c, want) {
+  if (!c || c.units !== CPU_WMI_UNITS || Number(c.vcpus) !== want.vcpus || Number(c.count) !== want.vcpus
+      || Number(c.limit) !== want.limit || Number(c.reservation) !== want.reservation)
+    throw new Error(`the processor allocation reads back as ${JSON.stringify(c ?? null)}, not ${want.vcpus} VP(s) at limit `
+      + `${want.limit}, reservation ${want.reservation} (${CPU_WMI_UNITS})`);
+  return true;
+}
+
 const VTPM_NOTE = "Windows makes a vTPM for a VBS VM and the guest-state key protector lives there. NOTHING ON THIS "
   + "PATH READS ITS PCRs: its presence is not attestation and must never be reported as any.";
 
@@ -937,7 +992,7 @@ export class WmiHyperVLauncher {
                 hypervModule = null, hypervModuleSha256 = HYPERV_MODULE_SHA256, hypervUtilitiesSha256 = null,
                 prefix = DEFAULT_VM_PREFIX, pipeFor = null, serve = null, startTransport = null,
                 startEgress = null, egressService = null, startPackage = null, packageService = null,
-                startCustody = null, custodyService = null, custodyImageSha256 = null, imageRole = "legacy", desktopPlatform = null, desktopMemoryProfile = null }) {
+                startCustody = null, custodyService = null, custodyImageSha256 = null, guestCpuAllowance = false, imageRole = "legacy", desktopPlatform = null, desktopMemoryProfile = null }) {
     if (typeof run !== "function") throw new Error("a PowerShell runner must be injected");
     // THE BOOT FORM IS STATED. Inferring it from whether a medium happens to be set would let a
     // missing variable silently turn a medium boot into a linux-direct one, and the identity with it.
@@ -953,6 +1008,7 @@ export class WmiHyperVLauncher {
       if (val != null && !SHA256.test(String(val).toLowerCase())) throw new Error(`${k} must be a sha256`);
     desktopVmMemMiB(8192, desktopMemoryProfile);
     this.desktopMemoryProfile = desktopMemoryProfile;
+    this.guestCpuAllowance = guestCpuAllowance === true;
     this.run = run; this.imagePath = imagePath; this.imageSha256 = (imageSha256 || "").toLowerCase();
     this.boot = boot;
     // The boot medium, beside the firmware and never confused with it. The firmware is the
@@ -1020,7 +1076,7 @@ export class WmiHyperVLauncher {
         throw new Error("native desktop requires its pinned linux-direct IGVM");
       if (!startTransport || !startEgress || !egressService || !serve?.exe || !serve?.bundleDir)
         throw new Error("native desktop requires worker transport, egress and app delivery");
-      if (!guestStateMasterSha256 || !hypervUtilitiesSha256)
+      if (!guestStateMasterSha256 || !hypervUtilitiesSha256 || !this.guestCpuAllowance)
         throw new Error("native desktop requires pinned guest-state master and Hyper-V utilities");
       this.serve = Object.freeze({ ...serve });
     } else if (desktopPlatform !== null) {
@@ -1118,7 +1174,8 @@ export class WmiHyperVLauncher {
       checks.push({ name: "native desktop worker service (vsock 19595) registered", ok: registered,
         detail: "read-only registration check; this launcher never writes the registry" });
     }
-    return { ok: checks.every((c) => c.ok), checks };
+    const lp = got.logicalProcessors;
+    return { ok: checks.every((c) => c.ok), checks, hostLogicalProcessors: Number.isSafeInteger(lp) && lp > 0 ? lp : null };
   }
 
   /** The image must be the bytes we expect, on the host, at the moment we pin it. */
@@ -1150,9 +1207,10 @@ export class WmiHyperVLauncher {
    * the define script removes it itself if it fails before returning - both, because a leak here is a
    * VM nobody owns.
    */
-  async start(mapping, { instanceId, identity = null, guestReadySec = 25, appMemoryMiB = null, bootstrap = null, custody = null, volumes = [] } = {}) {
+  async start(mapping, { instanceId, identity = null, guestReadySec = 25, appMemoryMiB = null, appCpu = null, bootstrap = null, custody = null, volumes = [] } = {}) {
     // Snapshot and rederive before the first await. A caller cannot change the
     // bundle, measured record or allocation while preflight is in progress.
+    if (appCpu !== null) appCpu = Object.freeze({ ...appCpu });
     const native = this.imageRole === "desktop";
     let nativeMemory = null;
     if (native) {
@@ -1169,6 +1227,14 @@ export class WmiHyperVLauncher {
       const appMiB = appMemoryMiB ?? mapping.record.policy.memMiB;
       if (appMiB < mapping.record.policy.memMiB) throw new Error("allocated app RAM is below its catalog minimum");
       nativeMemory = { appMiB, vmMiB: desktopVmMemMiB(appMiB, this.desktopMemoryProfile) };
+      const quota = appCpu?.appCpuPercent ?? mapping.record.policy.cpuPercent;
+      const processors = appCpu?.vcpus ?? mapping.record.policy.vcpus;
+      if (!Number.isSafeInteger(quota) || quota < 400 || quota > 1600 ||
+          !Number.isSafeInteger(processors) || processors < Math.max(mapping.record.policy.vcpus, Math.ceil(quota / 100)) || processors > 16)
+        throw new Error("native desktop CPU allocation is outside its qualified bounds");
+      if (appCpu !== null && (!Number.isSafeInteger(appCpu.limit) || appCpu.limit < CPU_MIN_LIMIT || appCpu.limit > CPU_UNITS_PER_VCPU ||
+          !Number.isSafeInteger(appCpu.reservation) || appCpu.reservation < 0 || appCpu.reservation > appCpu.limit || appCpu.appCpuPercent !== quota))
+        throw new Error("native desktop CPU allocation lacks an exact purchased quota");
     } else if (mapping?.record?.desktop != null) {
       throw new Error("native desktop requires its dedicated qualified image; this WMI launcher does not support desktop admission");
     }
@@ -1220,7 +1286,13 @@ export class WmiHyperVLauncher {
     // MODEL VOLUMES (the manager admitted them from the measured config): each store VHD under a per-run child
     const disks = (volumes || []).map((v) => ({ parent: String(v.vhd || ""), child: path.win32.join(this.guestStateRunDir, `${name}.mv-${v.name}.vhd`) }));
     checkDisks(disks, { uefi: this.boot === BOOT_UEFI, runDir: this.guestStateRunDir });
-    const vcpus = Math.max(1, Math.floor(mapping.record.policy.vcpus));
+    const cpu = appCpu ?? cpuFixedPolicy(mapping.record.policy, "catalog-policy-fixed");
+    if (!Number.isSafeInteger(cpu.vcpus) || cpu.vcpus < mapping.record.policy.vcpus || cpu.vcpus > 1024)
+      throw new Error("allocated virtual processors are below the catalog minimum or outside host bounds");
+    if (!Number.isSafeInteger(cpu.limit) || cpu.limit < CPU_MIN_LIMIT || cpu.limit > CPU_UNITS_PER_VCPU
+        || !Number.isSafeInteger(cpu.reservation) || cpu.reservation < 0 || cpu.reservation > cpu.limit)
+      throw new Error("allocated CPU limit/reservation are not exact percent/1000 integers with reservation <= limit");
+    const vcpus = cpu.vcpus;
     const appMiB = appMemoryMiB ?? mapping.record.policy.memMiB;
     if (!Number.isSafeInteger(appMiB) || appMiB < mapping.record.policy.memMiB)
       throw new Error("allocated app RAM is below its catalog minimum");
@@ -1251,6 +1323,8 @@ export class WmiHyperVLauncher {
         desktopMedia = checkDesktopMedia(await this.#ps(desktopMediaScript(args)), args);
       }
 
+      const cpuBack = appCpu ? await this.#ps(CMD.processor({vmId:created.id,...cpu,marker:this.marker})) : null;
+      if (appCpu) checkProcessor(cpuBack,cpu);
       // ONE process starts the VM and reads its console, the reader attaching before the guest can speak (startAndRead)
       const started = await this.#ps(CMD.startAndRead({ vmId: created.id, pipe, seconds: guestReadySec, until: GUEST_READY_LINE, marker: this.marker }));
       if (started.state !== "Running")
@@ -1301,8 +1375,11 @@ export class WmiHyperVLauncher {
         if (custody) cust = await this.startCustody(created.id, identity.name, { vault: custody.vault });
         pkg = await this.startPackage(created.id, identity?.name ?? null, bootstrap);
       }
-      if (this.serve) served = await this.#serveApp({ mapping, instanceId, vmId: created.id, uefi, created, vcpus, memMiB, appMemoryMiB, certName: certNameFor(identity && identity.name) });
-      if (native && (nativeTransportEnded || !served)) throw new Error("native desktop transport or app delivery failed");
+      const appCpuPercent = native ? (appCpu?.appCpuPercent ?? mapping.record.policy.cpuPercent) : this.guestCpuAllowance && appCpu ? appCpu.appCpuPercent : null;
+      if (appCpuPercent !== null && !(Number.isSafeInteger(appCpuPercent) && appCpuPercent >= 1 && appCpuPercent <= vcpus * 100))
+        throw new Error(`the app CPU quota ${JSON.stringify(appCpuPercent ?? null)}% is not a whole percent within 1..${vcpus * 100}`);
+      if (this.serve) served = await this.#serveApp({ mapping, instanceId, vmId: created.id, uefi, created, vcpus, memMiB, appMemoryMiB, appCpuPercent, certName: certNameFor(identity && identity.name) });
+      if (native && (nativeTransportEnded || !served || served.cpuPercent !== appCpuPercent)) throw new Error("native desktop transport or app delivery failed");
       const guestIdentity = uefi
         ? uefiImageIdentity({ mediumSha256: created.mediumSha256, mediumPath: created.mediumPath ?? this.medium })
         : linuxDirectIdentity({ igvmSha256: created.firmwareSha256, igvmPath: this.imagePath });
@@ -1312,6 +1389,11 @@ export class WmiHyperVLauncher {
                image: uefi ? guestIdentity.guestImageSha256 : guestIdentity.igvmSha256,
                guestIdentity, firmware, boundary: boundaryFor(this.boot), appId: mapping.appId,
                vtpm: { enabled: created.tpmEnabled === true, pcrsRead: false, note: VTPM_NOTE },
+               ...(native ? { desktop: { profileSha256: this.#desktopPlatform.profileSha256, runtimeId: this.#desktopPlatform.runtimeId,
+                 gpuMilli: mapping.record.desktop.gpuMilli }, media: desktopMedia } : {}),
+               cpu: { rule: appCpu ? "allocated" : "catalog-policy-fixed", vcpus, limit: cpu.limit, reservation: cpu.reservation,
+                      grantedUnits: vcpus * cpu.limit, readback: cpuBack, guestOnlineVcpus: guestOnlineVcpus(con.head),
+                      appCpuRequested: appCpuPercent, appCpuPercent: served?.cpuPercent ?? null },
                ...(native ? { desktop: { profileSha256: this.#desktopPlatform.profileSha256, runtimeId: this.#desktopPlatform.runtimeId,
                  gpuMilli: mapping.record.desktop.gpuMilli }, media: desktopMedia } : {}),
                memory: { policyMiB: mapping.record.policy.memMiB, appMiB, vmMiB: memMiB,
@@ -1388,14 +1470,14 @@ export class WmiHyperVLauncher {
   }
 
   /** The app into the guest and a relay to it (wmiserve-run.mjs). Its bundle file is removed if this fails. */
-  async #serveApp({ mapping, instanceId, vmId, uefi, created, vcpus, memMiB, appMemoryMiB, certName = null }) {
+  async #serveApp({ mapping, instanceId, vmId, uefi, created, vcpus, memMiB, appMemoryMiB, appCpuPercent = null, certName = null }) {
     const s = this.serve;
     const bundleFile = writeBundle({ dir: s.bundleDir, instanceId, bundle: mapping.bundle, appId: mapping.appId });
     try {
       const tcpPort = await (s.portFor ? s.portFor(instanceId) : freePort());
       const run = await (s.run || runWmiserve)({ exe: s.exe, vmId, bundleFile, appId: mapping.appId, tcpPort,
         ...(uefi ? { mediumSha256: created.mediumSha256 } : { igvmSha256: created.firmwareSha256 }),
-        isolationType: 1, label: instanceId, vcpus, memMiB, appMemoryMiB, ...(certName ? { certName } : {}),
+        isolationType: 1, label: instanceId, vcpus, memMiB, appMemoryMiB, ...(appCpuPercent ? {appCpuPercent} : {}), ...(certName ? { certName } : {}),
         ...(s.readyTimeoutMs ? { readyTimeoutMs: s.readyTimeoutMs } : {}), ...(s.spawn ? { spawn: s.spawn } : {}) });
       run.bundleFile = bundleFile;
       return run;

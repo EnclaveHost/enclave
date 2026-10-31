@@ -18,6 +18,7 @@ const vm = arg("--vm"), tcp = Number(arg("--tcp"));
 // M4: the real binary refuses a malformed --cert-name (exit 2) and reports the name the MONITOR recorded on the load
 // step; "name-dropped" plays a wmiserve/monitor that lost it, "name-changed" one that recorded another
 const certName = arg("--cert-name");
+const requestedCpu = arg("--app-cpu");
 if (certName !== null && !/^[0-9a-f]{8}\.app\.enclave\.host$/.test(certName)) { process.stderr.write("wmiserve: --cert-name must be <8 lowercase hex>.app.enclave.host\n"); process.exit(2); }
 const loadedName = mode === "name-dropped" ? null : mode === "name-changed" ? "00000000.app.enclave.host" : certName;
 const app = crypto.createHash("sha256").update(fs.readFileSync(arg("--bundle"))).digest("hex");
@@ -32,7 +33,8 @@ if (mode === "load-fail") { out({ step: "load", ok: false, error: "hash disagree
 out({ step: "load", ok: true, id: 1, guestPort: 40001,
       appSha256: mode === "wrong-app" ? "ee".repeat(32) : app, agreed: mode !== "not-agreed",
       ...(mode === "no-boot" ? {} : { boot: mode === "bad-boot" ? "xyz" : "39725c19e15c91afe488ce62251055f5" }),
-      certName: loadedName });
+      certName: loadedName,
+      ...(requestedCpu === null || mode === "cpu-missing" ? {} : {cpuPercent: Number(requestedCpu) + (mode === "cpu-wrong" ? 1 : 0)}) });
 out({ step: "relay", ok: true, tcp: mode === "relay-wrong-port" ? tcp + 1 : tcp, guestPort: 40001 });
 if (mode === "hang") { setInterval(() => {}, 1 << 30); }
 else {

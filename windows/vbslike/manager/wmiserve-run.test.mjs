@@ -186,3 +186,24 @@ test("a stop after the child closed its stdin (a closed pipe) crashes nothing an
     const ex = await r.exited; assert.ok(ex.code !== null || ex.signal !== null, "the child is gone");
   } finally { process.off("uncaughtException", onErr); }
 });
+
+
+test("purchased CPU quota reaches wmiserve and requires exact monitor confirmation", async () => {
+  const argsFile = path.join(dir, "cpu-args.json");
+  const r = await run("ok", {vcpus: 4, appCpuPercent: 336, argsFile});
+  try {
+    const argv = JSON.parse(fs.readFileSync(argsFile, "utf8"));
+    assert.equal(argv[argv.indexOf("--app-cpu") + 1], "336");
+    assert.equal(r.cpuPercent, 336);
+  } finally { await r.stop(); }
+  for (const mode of ["cpu-missing", "cpu-wrong"])
+    assert.match((await refusedBy(run(mode, {vcpus: 4, appCpuPercent: 336}))).message, /cpuPercent.*not the 336 allocated/);
+});
+test("invalid CPU allowance refuses before spawning a monitor", async () => {
+  let spawned = 0;
+  const spawn = () => { spawned++; throw Error("must not spawn"); };
+  for (const appCpuPercent of [0, -1, 401, 3.5, "336", NaN])
+    await assert.rejects(run("ok", {vcpus: 4, appCpuPercent, spawn}), /CPU|cpu/);
+  await assert.rejects(run("ok", {appCpuPercent: 336, spawn}), /CPU|cpu/);
+  assert.equal(spawned, 0);
+});

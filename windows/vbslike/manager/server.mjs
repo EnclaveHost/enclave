@@ -19,6 +19,7 @@
    ============================================================ */
 import http from "node:http";
 import { appMemoryForShare } from "./memory-share.mjs";
+import { cpuForShare, cpuFixedPolicy, validCpuPool, CPU_UNITS_PER_VCPU } from "./cpu-share.mjs";
 import { validateDesktopAdmission, desktopSpawnRefusal } from "./desktop-admission.mjs";
 import { deriveDesktop, DESKTOP_DERIVATION } from "./desktop-derive.mjs";
 import { validateDesktopMapping } from "./desktop-platform.mjs";
@@ -91,10 +92,14 @@ export class Manager {
   constructor({ backend = new HyperVPartitionBackend(), fetchComponent = null, runtimeId = "",
                 runtime = null, shield = null, configEnabled = false, secretsEnabled = false, configSocketServer = false, protectedPorts = false, encVolumes = false, wasmSet = false, memory64 = false, fetchConfig = null, judgeReady = null, readyDeadlineMs = 120_000, answerCheck = null,
                 modelVolumes = null,
-                egress = null, ramPoolMiB = null, physicalRamPoolMiB = null, physicalReservations = null, desktopMemoryProfile = null, directBootstrap = false, custodyV2 = null, images = null, desktopWorker = null } = {}) {
+                egress = null, ramPoolMiB = null, cpuPoolVcpus = null, cpuPoolSource = "NODE_VCPUS", physicalRamPoolMiB = null, physicalReservations = null, desktopMemoryProfile = null, directBootstrap = false, custodyV2 = null, images = null, desktopWorker = null } = {}) {
     if (ramPoolMiB !== null && (!Number.isSafeInteger(ramPoolMiB) || ramPoolMiB <= 0))
       throw new Error("ramPoolMiB must be a positive integer");
     this.ramPoolMiB = ramPoolMiB;
+    if (cpuPoolVcpus !== null && (!validCpuPool(cpuPoolVcpus) || ramPoolMiB === null))
+      throw new Error("CPU allocation requires a valid CPU pool and RAM pool");
+    this.cpuPoolVcpus = cpuPoolVcpus; this.cpuPoolSource = cpuPoolSource;
+    this.hostLogicalProcessors = null;
     if (physicalRamPoolMiB !== null && (!Number.isSafeInteger(physicalRamPoolMiB) || physicalRamPoolMiB <= 0))
       throw new Error("physicalRamPoolMiB must be a positive integer");
     // An operator budget for this manager's VM namespace, after reserving RAM
@@ -158,7 +163,7 @@ export class Manager {
       const admission = validateDesktopAdmission(images.desktop);
       const p = admission.platform, selected = backend.desktopPlatform;
       if (!this.images.legacy) throw new Error("native desktop admission requires the legacy image pin for distinct image selection");
-      if (!this.protectedPorts || !this.egress || ramPoolMiB === null || physicalRamPoolMiB === null || typeof judgeReady !== "function")
+      if (!this.protectedPorts || !this.egress || ramPoolMiB === null || cpuPoolVcpus === null || physicalRamPoolMiB === null || typeof judgeReady !== "function")
         throw new Error("native desktop admission needs protected ports, sealed-secret delivery, egress, both RAM pools and a readiness judge");
       if (!backend.canSurvey) throw new Error("native desktop admission requires authoritative VM inventory");
       if (!desktopWorker || typeof desktopWorker !== "object") throw new Error("native desktop admission needs worker availability state");
@@ -401,6 +406,20 @@ export class Manager {
              vmOverheadMiB: held.reduce((n, r) => n + (Number.isSafeInteger(r.memory?.vmMiB) ? r.memory.vmMiB - Manager.appReservedMiB(r) : 0), 0),
              vmMiB, physical: "not measured by this manager" };
   }
+  cpuAllocated() {
+    let held = 0;
+    for (const r of this.domains.values()) {
+      if (r.recovered || r.unattributed) return null;
+      const units = r.cpu?.grantedUnits ?? (r.policy?.vcpus ?? 0) * CPU_UNITS_PER_VCPU;
+      if (!Number.isSafeInteger(units) || units < 0 || !Number.isSafeInteger(held + units)) return null;
+      held += units;
+    }
+    return held;
+  }
+  cpuPoolFits() {
+    return this._preflight?.ok === true && this.hostLogicalProcessors !== null
+      && this.cpuPoolVcpus <= this.hostLogicalProcessors;
+  }
   physicalRamAllocated() {
     let held = 0;
     for (const r of this.domains.values()) {
@@ -445,6 +464,9 @@ export class Manager {
       managerEpoch: this.epoch,
       allocation: this.allocationView(),
       ...(this.ramPoolMiB !== null ? { memory: this.memoryView() } : {}),
+      ...(this.cpuPoolVcpus !== null ? { cpu: { rule: "cpu-share", poolVcpus: this.cpuPoolVcpus, source: this.cpuPoolSource,
+        hostLogicalProcessors: this.hostLogicalProcessors, unitsPerVcpu: CPU_UNITS_PER_VCPU, allocatedUnits: this.cpuAllocated(),
+        freeUnits: this.cpuPoolFits() && this.cpuAllocated() !== null ? Math.max(0, this.cpuPoolVcpus * CPU_UNITS_PER_VCPU - this.cpuAllocated()) : null } } : {}),
       ...(this.physicalRamPoolMiB !== null ? { physicalMemory: {
         poolMiB: this.physicalRamPoolMiB, allocatedMiB: this.physicalRamAllocated(),
         freeMiB: this.physicalRamAllocated() === null ? 0 : Math.max(0, this.physicalRamPoolMiB - this.physicalRamAllocated()),
@@ -514,6 +536,14 @@ export class Manager {
   async probe() {
     try { this._preflight = (await this.backend.preflight()) || { ok: false, checks: [{ name: "no launcher configured", ok: false }] }; }
     catch (e) { this._preflight = { ok: false, checks: [{ name: "preflight", ok: false, detail: e.message }] }; }
+    // A failed/new incomplete observation revokes the previous CPU admission.
+    const lp = this._preflight.hostLogicalProcessors;
+    this.hostLogicalProcessors = Number.isSafeInteger(lp) && lp > 0 ? lp : null;
+    if (this.cpuPoolVcpus !== null) {
+      const ok = this.cpuPoolFits();
+      this._preflight = { ...this._preflight, ok: this._preflight.ok === true && ok,
+        checks: [...(this._preflight.checks || []), {name:"CPU pool fits observed logical processors",ok}] };
+    }
     return this._preflight;
   }
 
@@ -642,6 +672,18 @@ export class Manager {
       catch (e) { throw badRequest(e.message); }
     }
 
+    // The SAME share sizes the VM's processors: VP count and a per-VP Limit/Reservation (cpu-share.mjs).
+    let cpu = null;
+    if (this.cpuPoolVcpus !== null) {
+      try { cpu = witness ? cpuFixedPolicy(mapping.record.policy, "readiness-witness-fixed")
+                          : cpuForShare(this.cpuPoolVcpus, body.cpuShare, mapping.record.policy); }
+      catch (e) { throw badRequest(e.message); }
+    }
+
+    if (native && (!cpu || !Number.isSafeInteger(cpu.appCpuPercent) || cpu.appCpuPercent < 400 || cpu.appCpuPercent > 1600 ||
+        cpu.vcpus < Math.max(mapping.record.policy.vcpus,Math.ceil(cpu.appCpuPercent/100)) || cpu.vcpus > 16))
+      throw badRequest("purchased native CPU allocation is outside the 400..1600-percent desktop bounds");
+
     // DEFECT 6: a second spawn for a live deployment is an ADOPTION, not a silent overwrite. The
     // first version replaced the record and forgot the first handle, orphaning a running partition
     // that the manager no longer listed. guestd answers 409 {error, id}; so do we.
@@ -680,6 +722,20 @@ export class Manager {
     }
     // Native desktop partitions use their measured profile allocation policy;
     // existing roles retain the ordinary type-1 overhead rule.
+    if (cpu && cpu.rule === "cpu-share") {
+      if ([...this.domains.values()].some(r => r.recovered || r.unattributed)) {
+        const e = new Error("CPU allocation is unknown until recovered partitions are reconciled"); e.status = 503; throw e;
+      }
+      if (!this.cpuPoolFits()) {
+        const e = new Error(`the CPU pool (${this.cpuPoolSource} ${this.cpuPoolVcpus}) is not known to fit this host's logical processors (${this.hostLogicalProcessors ?? "unread"})`);
+        e.status = 503; throw e;
+      }
+      if (this.cpuAllocated() === null || this.cpuAllocated() + cpu.grantedUnits > this.cpuPoolVcpus * CPU_UNITS_PER_VCPU) {
+        const e = new Error("the CPU pool cannot fit the full purchased allowance"); e.status = 507; throw e;
+      }
+    }
+    // Native desktop partitions use their measured profile allocation policy;
+    // existing roles retain the ordinary type-1 overhead rule.
     let physicalMemoryMiB;
     if (this.physicalRamPoolMiB !== null) {
       const held = this.physicalRamAllocated();
@@ -694,7 +750,7 @@ export class Manager {
       }
     }
     const rec = { derivation: mapping.record.derivation, secretDeployment: mapping.record.secretDeployment || null, launching: true, inference: mapping.record.inference || null, gpuMilli, id, name, instanceId, appId: mapping.appId, recordSha256: mapping.recordSha256,
-                  componentSha256: mapping.componentSha256, policy: mapping.record.policy, memory,
+                  componentSha256: mapping.componentSha256, policy: mapping.record.policy, memory, cpu,
                   ...(native ? { desktop: mapping.record.desktop } : {}),
                   ...(physicalMemoryMiB !== undefined ? { physicalMemoryMiB } : {}),
                   catalog: mapping.record.catalog, cid: mapping.record.cid,
@@ -730,7 +786,9 @@ export class Manager {
           if (this.domains.get(id) !== rec || !rec.launching || !this.inventoryReady || this.#recovering
               || held === null || held > this.physicalRamPoolMiB
               || (memory && (!this.memoryView().known || this.memoryView().reservedMiB > this.ramPoolMiB))
-              || this.gpuAllocated() > 1000 || (native && !this.desktopReady))
+              || this.gpuAllocated() > 1000 || (native && !this.desktopReady)
+              || (cpu?.rule === "cpu-share" && (!this.cpuPoolFits() || this.cpuAllocated() === null
+                || this.cpuAllocated() > this.cpuPoolVcpus * CPU_UNITS_PER_VCPU)))
             throw new Error("local physical admission changed while acquiring shared capacity");
         };
         // Local reservation is already held before this await. Any lost acquire
@@ -738,7 +796,8 @@ export class Manager {
         await pool.acquire(claim); recheck();
         await pool.consumeStart(claim); recheck();
       }
-      const h = await this.backend.start(mapping, { instanceId, ...(memory ? { appMemoryMiB: memory.appMiB } : {}), identity: { id, name, instanceId, appId: mapping.appId },
+      const h = await this.backend.start(mapping, { instanceId, ...(memory ? { appMemoryMiB: memory.appMiB } : {}),
+                                                    ...(cpu?.rule === "cpu-share" ? { appCpu: {vcpus:cpu.vcpus,limit:cpu.limit,reservation:cpu.reservation,appCpuPercent:cpu.appCpuPercent} } : {}), identity: { id, name, instanceId, appId: mapping.appId },
                                                     ...(startup ? { bootstrap: startup.bytes } : {}),
                                                     ...(volumes.length ? { volumes } : {}),
                                                     ...(startup?.custody ? { custody: { deployment: name, vault: startup.vault } } : {}) });
@@ -759,7 +818,7 @@ export class Manager {
             || h?.desktop?.runtimeId !== p.runtimeId || h?.desktop?.gpuMilli !== gpuMilli
             || h?.image !== p.igvmSha256 || h?.guestIdentity?.partition !== statement.partition
             || h?.guestIdentity?.guestImageKind !== statement.guestImageKind || h?.appId !== mapping.appId
-            || h?.memory?.appMiB !== memory.appMiB
+            || h?.memory?.appMiB !== memory.appMiB || h?.cpu?.appCpuPercent !== cpu.appCpuPercent
             || typeof h?.transport?.stop !== "function" || typeof h?.transport?.exited?.then !== "function"
             || typeof h?.egress?.stop !== "function" || typeof h?.egress?.exited?.then !== "function")
           throw new Error("the launcher did not confirm the pinned native desktop and its transports");
@@ -814,6 +873,28 @@ export class Manager {
       rec.appReady = !!(!native && h && h.appReady === true);
       rec.startedAt = Date.now(); rec.handle = h;
       if (memory && h?.memory) rec.memory = { ...memory, vmMiB: h.memory.vmMiB };
+      if (cpu && h?.cpu) {
+        // WHAT CONFINES THE APP. The VM's processor Limit/Reservation is set and read back (readback), but Hyper-V's root
+        // scheduler does not enforce it, so a read-back is never stated as a cap. The cap is the guest app cgroup quota the
+        // monitor applied, and only when it is exactly the purchased one (cpu-share.mjs appCpuPercent; wmiserve-run has
+        // already refused any other answer). The guest kernel, monitor, front and relay in the VM are outside that quota.
+        const online = Number.isSafeInteger(h.cpu.guestOnlineVcpus) ? h.cpu.guestOnlineVcpus : null;
+        const applied = Number.isSafeInteger(h.cpu.appCpuPercent) ? h.cpu.appCpuPercent : null;
+        rec.cpu = { ...cpu, readback: h.cpu.readback ?? null, guestOnlineVcpus: online, appCpuPercent: applied };
+        if (cpu.rule === "cpu-share") {
+          const enforced = applied !== null && applied === cpu.appCpuPercent;
+          rec.cpu.enforcement = enforced ? "guest-app-cgroup" : "none";
+          rec.cpu.enforcedUnits = enforced ? applied * 1000 : null;
+          const why = [];
+          if (!enforced) why.push(`the app is not confined to the ${cpu.appCpuPercent}% of one processor purchased: `
+            + (applied === null ? "no guest app CPU quota was confirmed" : `the guest applied ${applied}%`)
+            + ", and the VM's processor Limit is not enforced by Hyper-V's root scheduler");
+          if (online !== null && online < cpu.vcpus) why.push(`the guest brought ${online} of ${cpu.vcpus} virtual processors online`);
+          // unobserved is not "all of them": only the one VP any booted guest has is counted
+          if (online === null && cpu.vcpus > 1) why.push("the guest's online processor count was not seen on its console");
+          rec.cpu.blocker = why.length ? why.join("; ") : null;
+        }
+      }
       // THE RELAY IS A CHILD PROCESS (wmiserve-run.mjs). If it exits while this record stands and no stop is under way,
       // the domain can no longer be reached and must not read as running (d1's review of 299ce3e9). The record fails,
       // its sessions are reclaimed, and the VM is LEFT for the node to retire: only a stop removes a VM.

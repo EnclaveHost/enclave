@@ -7,6 +7,8 @@
    /health, so "canStart" is the host's answer rather than a configuration detail. */
 import { profile, probeWorker, startBridge, ImageLauncher } from "./shield-profile.mjs";
 import fs from "node:fs";
+import os from "node:os";
+import {validCpuPool} from "./cpu-share.mjs";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -174,6 +176,7 @@ if (imagePath && imageSha256) {
   try {
     launcherOptions = {
       run: powershellRunner(), imagePath, imageSha256, prefix: vmPrefix,
+      guestCpuAllowance: env("ENCLAVE_GUEST_CPU_ALLOWANCE") === "1",
       boot: env("ENCLAVE_BOOT_FORM") || null,
       medium: env("ENCLAVE_GUEST_MEDIUM") || null,
       mediumSha256: env("ENCLAVE_GUEST_MEDIUM_SHA256") || null,
@@ -247,7 +250,7 @@ if (shieldConfig) {
   if (!launcherOptions) throw new Error("Shield requires an existing CPU launcher");
   const cfg = JSON.parse(fs.readFileSync(shieldConfig,"utf8"));
   shield = { ...profile(cfg.runtime), ready:false, imageSha256:cfg.imageSha256 };
-  const gpuLauncher = new WmiHyperVLauncher({ ...launcherOptions, startEgress:null, egressService:null, startPackage:null, packageService:null, startCustody:null, custodyService:null, custodyImageSha256:null,   // no secret or owner-committed domain runs on the GPU image
+  const gpuLauncher = new WmiHyperVLauncher({ ...launcherOptions, guestCpuAllowance:false, startEgress:null, egressService:null, startPackage:null, packageService:null, startCustody:null, custodyService:null, custodyImageSha256:null,   // no secret or owner-committed domain runs on the GPU image
     imageRole:"gpu", imagePath:cfg.imagePath, imageSha256:cfg.imageSha256,
     startTransport:vmId => startBridge({ exe:cfg.bridgeExe, sha256:cfg.bridgeSha256, vmId, port:cfg.workerPort || 19595 }) });
   await gpuLauncher.verifyImage();
@@ -276,7 +279,7 @@ if (desktopFile || desktopFileSha) {
     desktopConfig = { platform: cfg.platform, runtime: cfg.runtime };
     desktopLauncher = new WmiHyperVLauncher({ ...launcherOptions,
       imageRole: "desktop", imagePath: cfg.imagePath, imageSha256: admission.platform.igvmSha256,
-      desktopMemoryProfile: nativeInstance?.memoryProfile ?? null,
+      desktopMemoryProfile: nativeInstance?.memoryProfile ?? null, guestCpuAllowance:true,
       desktopPlatform: cfg.platform, boot: "linux-direct", medium: null, mediumSha256: null,
       startPackage: null, packageService: null, startCustody: null, custodyService: null, custodyImageSha256: null,
       startTransport: (vmId, mapping) => startDesktopWorkerTransport({ bridge: cfg.bridge, vmId, mapping,
@@ -297,6 +300,22 @@ if (desktopFile || desktopFileSha) {
 // PER-SPAWN IMAGE SELECTION (F3, shield-profile.mjs ImageLauncher): a package -> the Shield-direct image, inference -> the
 // GPU image, everything else -> the legacy image. With neither extra image, the legacy launcher alone, exactly as before.
 const routed = launcher && (directLauncher || gpu || desktopLauncher) ? new ImageLauncher({ legacy: launcher, shieldDirect: directLauncher, gpu, desktop: desktopLauncher }) : launcher;
+const cpuPoolText = env("NODE_VCPUS");
+if (cpuPoolText && !(/^[1-9][0-9]*$/.test(cpuPoolText) && validCpuPool(Number(cpuPoolText)))) {
+  console.error(`[winmgr] REFUSING TO START: NODE_VCPUS must be a positive integer up to 1024, not ${JSON.stringify(cpuPoolText)}`);
+  process.exit(2);
+}
+if (cpuPoolText && !env("NODE_APP_RAM_GB")) {
+  console.error("[winmgr] REFUSING TO START: NODE_VCPUS is set without NODE_APP_RAM_GB: one purchased share sizes both pools");
+  process.exit(2);
+}
+const cpuPoolVcpus = env("NODE_APP_RAM_GB") ? (cpuPoolText ? Number(cpuPoolText) : os.cpus().length) : null;
+const cpuPoolSource = cpuPoolText ? "NODE_VCPUS" : "os.cpus";
+if (cpuPoolVcpus !== null && !validCpuPool(cpuPoolVcpus)) {
+  console.error(`[winmgr] REFUSING TO START: this host reports ${cpuPoolVcpus} processors, which is no CPU pool; set NODE_VCPUS`);
+  process.exit(2);
+}
+if (cpuPoolVcpus !== null) console.log(`[winmgr] CPU pool ${cpuPoolVcpus} VPs (${cpuPoolSource}), RAM pool ${env("NODE_APP_RAM_GB")} GB: one share sizes both`);
 const manager = new Manager({ judgeReady: judgeRunning, answerCheck: checkAnswer, directBootstrap: !!directLauncher,
   images: { legacy: { igvmSha256: imageSha256.toLowerCase() || null },
             ...(desktopConfig ? { desktop: desktopConfig } : {}),
@@ -307,6 +326,7 @@ const manager = new Manager({ judgeReady: judgeRunning, answerCheck: checkAnswer
   ramPoolMiB: env("NODE_APP_RAM_GB") ? Number(env("NODE_APP_RAM_GB")) * 1024 : null,
   // Separate VM budget INCLUDING overhead, after Windows/other workload RAM.
   physicalRamPoolMiB: env("NODE_VM_RAM_GB") ? Number(env("NODE_VM_RAM_GB")) * 1024 : null,
+  cpuPoolVcpus, cpuPoolSource,
   physicalReservations: physicalReservationsFromEnv(process.env),
   desktopMemoryProfile: nativeInstance?.memoryProfile ?? null,
   runtime,

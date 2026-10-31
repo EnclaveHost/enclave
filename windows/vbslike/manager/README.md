@@ -27,6 +27,24 @@ refuses a GPU share, app config, secrets, declared ports, volumes, a private dep
 protection rules **again** on this side of the wire - the supervisor's gate already refuses them,
 and two gates in two processes is the point.
 
+## Installed CPU policy reconciliation
+
+When `NODE_APP_RAM_GB` is configured, `main.mjs` pairs it with `NODE_VCPUS`
+(or the local processor count) and requires a successful Hyper-V logical-processor
+observation before a purchased CPU share can start. A failed or incomplete probe
+revokes the prior observation. The same share sizes application RAM and CPU;
+reservations exist before shared-ledger awaits, and CPU admission is checked again
+after both acquire and consume. Recovered CPU allocations remain unknown.
+
+`cpu-share.mjs` preserves the installed allocation rule. Hyper-V VP count and
+Limit/Reservation are configured and read back before start; those settings alone
+are not evidence of CPU enforcement under the Windows root scheduler. With
+`ENCLAVE_GUEST_CPU_ALLOWANCE=1`, the purchased quota is sent as `--app-cpu` and
+must match the monitor's reported `cpuPercent`. The native desktop path requires
+this option and exact guest confirmation. The composed image preflight retains
+the host CPU observation. These maintained changes have not been activated on the
+production managers.
+
 ## Physical allocation observations
 
 `GET /health` includes `allocation` (`enclave-manager-allocation/1`). This is

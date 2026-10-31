@@ -18,7 +18,7 @@ root.mkdir()
 out.mkdir()
 (out / "tmp").mkdir()
 files = json.loads(Path(__file__).with_name('source-files.json').read_text())
-assert len(files) == 40 and len(set(files)) == len(files)
+assert len(files) == 53 and len(set(files)) == len(files)
 pins = {}
 for name in files:
     assert re.fullmatch(r'[A-Za-z0-9_./-]+\.(mjs|json)', name) and '..' not in Path(name).parts
@@ -57,7 +57,12 @@ command = ['sudo', 'systemd-run', '--wait', '--pipe', '--unit=' + unit,
     'windows/vbslike/manager/native-instance.test.mjs',
     'windows/vbslike/manager/desktop-memory.test.mjs',
     'windows/vbslike/manager/desktop-manager.test.mjs',
-    'windows/vbslike/manager/desktop-launcher.test.mjs']
+    'windows/vbslike/manager/desktop-launcher.test.mjs',
+    'windows/vbslike/manager/cpu-share.test.mjs',
+    'windows/vbslike/manager/wmiserve-run.test.mjs',
+    'windows/vbslike/router/control.test.mjs',
+    'windows/vbslike/router/io.test.mjs',
+    'windows/vbslike/router/platform.test.mjs']
 (out / 'COMMAND.json').write_text(json.dumps(command, indent=2) + '\n')
 began = time.monotonic()
 with (out / 'tests.log').open('x') as log:

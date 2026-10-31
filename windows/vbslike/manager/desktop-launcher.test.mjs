@@ -36,7 +36,7 @@ function setup(t,over={}){
  const egress={exited:new Promise(r=>egressExit=r),stop:async()=>{events.push('egress-stop');}};
  const run=async s=>{
   scripts.push(s);
-  const key=s.startsWith('@{registered=')?'workerService':s.includes('desktop-media before')||s.includes("$phase = 'before-mutation'")?'media':keyOf(s);
+  const key=s.startsWith('@{registered=')?'workerService':s.includes('$cpuWant =')?'processor':s.includes('desktop-media before')||s.includes("$phase = 'before-mutation'")?'media':keyOf(s);
   events.push(key);
   if(over.pause && key==='preflight')await over.pause;
   if(over.fail===key)return {code:1,stdout:'',stderr:'injected '+key+' failure'};
@@ -45,6 +45,7 @@ function setup(t,over={}){
   else if(key==='workerService')value={registered:over.registered??true};
   else if(key==='imageHash')value={present:true,sha256:f.platform.igvmSha256,bytes:123};
   else if(key==='define'){definition=defineAnswer(s,{hypervUtilitiesSha256:HASH('3'),...(over.definition??{})});value=definition;}
+  else if(key==='processor'){const m=/\$cpuWant = @\{q=(\d+); l=(\d+); r=(\d+)\}/.exec(s);assert.ok(m);value={vcpus:+m[1],count:+m[1],limit:+m[2],reservation:+m[3],units:'percent / 1000',...(over.cpuBack??{})};}
   else if(key==='media')value={vmId:VM_ID,name:definition.name,notes:definition.notes,state:'Off',controllers:1,hardDisks:0,nics:0,bootEntries:0,
    media:f.platform.media.map((m,i)=>({role:m.role,path:m.path,sha256:m.sha256,bytes:m.bytes,controller:0,location:i,controllerType:'SCSI'})),...(over.media??{})};
   else if(key==='startAndRead')value={state:'Running',console:{connected:true,bytes:200,sawUntil:over.ready??true,head:'MON ready'}};
@@ -53,13 +54,13 @@ function setup(t,over={}){
   else throw Error('unexpected host command '+key);
   return {code:0,stdout:JSON.stringify(value),stderr:''};
  };
- const config={...TYPE1,run,imagePath:'C:\\native\\igvm.bin',imageSha256:f.platform.igvmSha256,imageRole:'desktop',desktopPlatform:f.platform,
+ const config={...TYPE1,run,imagePath:'C:\\native\\igvm.bin',imageSha256:f.platform.igvmSha256,imageRole:'desktop',desktopPlatform:f.platform,guestCpuAllowance:true,
   guestStateMasterSha256:HASH('4'),hypervUtilitiesSha256:HASH('3'),egressService:EGRESS_SERVICE_GUID,
   startTransport:async(id,m)=>{events.push('worker');assert.equal(id,VM_ID);workerMapping=m;return over.worker===undefined?worker:over.worker;},
   startEgress:async()=>{events.push('egress');return over.egress===undefined?egress:over.egress;},
   serve:{exe:'host.exe',bundleDir,portFor:async()=>12345,run:async args=>{events.push('serve');servedArgs=args;
    if(over.exitDuringServe)workerExit({code:1});
-   return {vm:VM_ID,domainId:1,tcpPort:12345,guestPort:40001,launcherKey:'test',stop:over.relayStop??(async()=>{events.push('relay-stop');return{closed:true};})};}}};
+   return {vm:VM_ID,domainId:1,tcpPort:12345,guestPort:40001,launcherKey:'test',cpuPercent:over.reportedCpu===undefined?args.appCpuPercent:over.reportedCpu,stop:over.relayStop??(async()=>{events.push('relay-stop');return{closed:true};})};}}};
  const launcher=new WmiHyperVLauncher(config);
  return {...f,config,launcher,events,scripts,workerExit,egressExit,get definition(){return definition;},get workerMapping(){return workerMapping;},get servedArgs(){return servedArgs;}};
 }
@@ -169,3 +170,22 @@ test('installed native policy defines exactly the reserved 32 GiB with the nativ
  assert.equal(parseNotes(h.definition.notes).identity,null);
  await r.stop();
 });
+
+
+test('native purchased CPU is frozen, configured before start and confirmed by guest',async t=>{
+ let release;const pause=new Promise(r=>release=r),h=setup(t,{pause});
+ const appCpu={vcpus:8,limit:50000,reservation:50000,appCpuPercent:400};
+ const pending=h.launcher.start(h.mapping,{...h.opts,appCpu});
+ appCpu.appCpuPercent=800;appCpu.limit=100000;release();
+ const r=await pending;
+ assert.equal(h.servedArgs.appCpuPercent,400);assert.equal(r.cpu.appCpuPercent,400);
+ assert.ok(h.events.indexOf('processor')<h.events.indexOf('startAndRead'));
+ assert.equal(r.cpu.limit,50000);await r.stop();
+});
+for(const [name,over] of [['processor mismatch',{cpuBack:{limit:99999}}],['guest quota missing',{reportedCpu:null}],['guest quota mismatch',{reportedCpu:401}]])
+ test('native '+name+' refuses and cleans up exact partition',async t=>{
+ const h=setup(t,over);
+ await assert.rejects(h.launcher.start(h.mapping,{...h.opts,appCpu:{vcpus:8,limit:50000,reservation:50000,appCpuPercent:400}}));
+ assert.ok(h.events.includes('removeById'));
+ if(over.cpuBack)assert.equal(h.events.includes('startAndRead'),false);
+ });

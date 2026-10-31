@@ -139,9 +139,9 @@ export class ImageLauncher {
       let desktop;
       try { desktop = await this.desktop.preflight(); }
       catch (e) { desktop = { ok: false, checks: [{ name: "desktop preflight", ok: false, detail: e.message }] }; }
-      return { ok, checks, roles: { desktop } };
+      return { ok, checks, hostLogicalProcessors: a?.hostLogicalProcessors ?? null, roles: { desktop } };
     }
-    return { ok, checks };
+    return { ok, checks, hostLogicalProcessors: a?.hostLogicalProcessors ?? null };
   }
   survey() { return this.legacy.survey(); }
   teardown() { return this.legacy.teardown(); }

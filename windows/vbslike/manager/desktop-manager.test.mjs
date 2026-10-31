@@ -27,17 +27,17 @@ async function setup(over={}){
  const worker={ready:true},transport={stop:async()=>{},exited:new Promise(r=>state.workerExit=r)},egress={stop:async()=>{},exited:new Promise(r=>state.egressExit=r)};
  let manager;
  const backend={canSurvey:true,desktopPlatform:f.platform,backend:'hyperv-partition-per-app',supports:{},survey:async()=>({vms:[]}),
-  preflight:async()=>({ok:true,checks:[],roles:{desktop:{ok:true,checks:[]}}}),
+  preflight:async()=>({ok:true,hostLogicalProcessors:16,checks:[],roles:{desktop:{ok:true,checks:[]}}}),
   start:async(mapping,opts)=>{
    state.starts.push({mapping,opts,gpu:manager.gpuAllocated(),ram:manager.physicalRamAllocated()});
    if(state.startGate)await state.startGate;
    const vmMiB=desktopVmMemMiB(opts.appMemoryMiB,over.desktopMemoryProfile??null);
    return {imageRole:'desktop',firmware:{sha256:f.platform.igvmSha256},image:f.platform.igvmSha256,guestIdentity:BOOT_STATEMENTS['linux-direct'],appId:mapping.appId,
     desktop:{profileSha256:f.platform.profileSha256,runtimeId:f.platform.runtimeId,gpuMilli:mapping.record.desktop.gpuMilli},
-    memory:{appMiB:opts.appMemoryMiB,vmMiB},transport,egress,vmId:'00000000-0000-4000-8000-000000000001',launcherVmId:'00000000-0000-4000-8000-000000000001',launcherKey:'test-key',tcpPort:1234,appReady:true,...state.patch};
+    cpu:{appCpuPercent:opts.appCpu.appCpuPercent,guestOnlineVcpus:opts.appCpu.vcpus},memory:{appMiB:opts.appMemoryMiB,vmMiB},transport,egress,vmId:'00000000-0000-4000-8000-000000000001',launcherVmId:'00000000-0000-4000-8000-000000000001',launcherKey:'test-key',tcpPort:1234,appReady:true,...state.patch};
   },stop:async h=>{state.stops.push(h);if(state.stopFails)throw Error('worker close uncertain');}};
  const options={backend,images:{legacy:{igvmSha256:H('a')},desktop:{platform:f.platform,runtime:{...runtime}}},desktopWorker:worker,
-  ramPoolMiB:32768,physicalRamPoolMiB:32768,configEnabled:true,secretsEnabled:true,configSocketServer:true,protectedPorts:true,
+  ramPoolMiB:32768,cpuPoolVcpus:16,physicalRamPoolMiB:32768,configEnabled:true,secretsEnabled:true,configSocketServer:true,protectedPorts:true,
   egress:{enabled:true,mode:'test'},fetchConfig:async()=>Buffer.from('{}'),fetchComponent:async()=>component,
   judgeReady:async args=>{state.judges.push(args);if(state.judgeGate)await state.judgeGate;return{status:'running',transportKeySha256:H('d')};},...over};
  manager=new Manager(options);await manager.probe();await manager.recover();
@@ -59,7 +59,7 @@ test('native admission reserves full VM RAM and GPU before launch, then judges i
 });
 test('native configuration requires its own runtime, launcher, identity and full admission prerequisites',async()=>{
  const h=await setup();
- for(const patch of [{ramPoolMiB:null},{physicalRamPoolMiB:null},{secretsEnabled:false},{protectedPorts:false},{egress:null},{judgeReady:null},{desktopWorker:null},
+ for(const patch of [{cpuPoolVcpus:null},{ramPoolMiB:null},{physicalRamPoolMiB:null},{secretsEnabled:false},{protectedPorts:false},{egress:null},{judgeReady:null},{desktopWorker:null},
   {backend:{...h.backend,canSurvey:false}},{backend:{...h.backend,desktopPlatform:null}},
   {images:{desktop:h.options.images.desktop}},
   {images:{...h.options.images,legacy:{igvmSha256:h.platform.igvmSha256}}},

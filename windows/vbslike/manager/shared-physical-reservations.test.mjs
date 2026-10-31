@@ -14,12 +14,12 @@ function fixturePool(capacity=2048*MiB) {
     async acquire(c){if([...claims.values()].reduce((n,c)=>n+c.bytes,0)+c.bytes>capacity)throw Error('shared capacity exhausted');claims.set(c.id,c);},
     async consumeStart(c){assert.equal(claims.get(c.id),c);if(consumed.has(c.id))throw Error('dispatch consumed');consumed.add(c.id);}};
 }
-async function manager(pool) {
-  const calls=[];const m=new Manager({ramPoolMiB:4096,physicalRamPoolMiB:4096,physicalReservations:pool,
+async function manager(pool,cpuPoolVcpus=null) {
+  const calls=[];const m=new Manager({ramPoolMiB:4096,physicalRamPoolMiB:4096,physicalReservations:pool,cpuPoolVcpus,
     fetchComponent:async()=>COMPONENT_PREAMBLE,
-    backend:{canSurvey:true,supports:{},backend:'hyperv-partition-per-app',survey:async()=>({vms:[]}),stop:async()=>{},
+    backend:{preflight:async()=>({ok:true,hostLogicalProcessors:16,checks:[]}),canSurvey:true,supports:{},backend:'hyperv-partition-per-app',survey:async()=>({vms:[]}),stop:async()=>{},
       start:async(_mapping,options)=>{calls.push(options);return {appReady:true,memory:{vmMiB:2048}};}}});
-  await m.recover();return {m,calls};
+  await m.recover();await m.probe();return {m,calls};
 }
 test('direct requests to separate managers compete before either native submission',async()=>{
   const pool=fixturePool(),a=await manager(pool),b=await manager(pool);
@@ -60,4 +60,25 @@ test('shared claim is exact, immutable, and cannot be supplied or resized by req
   assert.equal(Object.isFrozen(claim),true);assert.equal(claim.bytes,2048*MiB);assert.equal(claim.actor,'app-legacy');
   assert.match(claim.id,/^[0-9a-f]{64}$/);assert.equal(claim.poolHash,pool.poolHash);assert.equal(claim.boot,pool.boot);
   assert.throws(()=>new Manager({physicalReservations:pool}),/pinned pool/);
+});
+
+for(const phase of ['acquire','consumeStart'])test('CPU observation revoked during '+phase+' prevents native start',async()=>{
+ const pool=fixturePool(),gate=deferred(),entered=deferred(),original=pool[phase];
+ pool[phase]=async function(c){await original.call(this,c);entered.resolve();await gate.promise;};
+ const {m,calls}=await manager(pool,16),starting=m.spawn(body('a'));await entered.promise;
+ assert.equal(m.cpuAllocated(),400000);
+ m.backend.preflight=async()=>({ok:true,checks:[]});await m.probe();
+ assert.equal(m.health().cpu.freeUnits,null);assert.equal(m.hostLogicalProcessors,null);
+ gate.resolve();assert.equal((await starting).status,'failed');assert.equal(calls.length,0);
+ assert.equal(pool.claims.size,1);assert.equal(pool.consumed.size,phase==='consumeStart'?1:0);
+});
+test('CPU reservation includes a launch blocked on shared physical admission',async()=>{
+ const pool=fixturePool(8192*MiB),gate=deferred(),entered=deferred(),acquire=pool.acquire;
+ pool.acquire=async function(c){await acquire.call(this,c);entered.resolve();await gate.promise;};
+ const {m,calls}=await manager(pool,16),first={...body('a'),cpuShare:1};
+ // One full RAM/CPU pool remains held while external admission is pending.
+ m.physicalRamPoolMiB=8192;
+ const starting=m.spawn(first);await entered.promise;assert.equal(m.cpuAllocated(),1600000);
+ await assert.rejects(m.spawn(body('b')),/CPU|RAM|memory|capacity/);
+ assert.equal(calls.length,0);gate.resolve();await starting;assert.equal(calls.length,1);
 });

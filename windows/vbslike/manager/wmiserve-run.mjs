@@ -67,7 +67,7 @@ export function writeBundle({ dir, instanceId, bundle, appId }) {
  *       partition.vmId repeats): the manager judges each report against it (READINESS.md M1)
  */
 export function runWmiserve({ exe, vmId, bundleFile, appId, tcpPort, igvmSha256 = null, mediumSha256 = null,
-                              isolationType = 1, label = null, vcpus = null, memMiB = null, appMemoryMiB = null, certName = null,
+                              isolationType = 1, label = null, vcpus = null, memMiB = null, appMemoryMiB = null, appCpuPercent = null, certName = null,
                               readyTimeoutMs = 180_000, closeTimeoutMs = 15_000, spawn = nodeSpawn, log = () => {} } = {}) {
   if (!exe) return Promise.reject(new Error("the wmiserve executable is required"));
   if (!/^[0-9a-f-]{36}$/i.test(String(vmId || ""))) return Promise.reject(new Error("wmiserve joins a VM by its GUID"));
@@ -75,12 +75,15 @@ export function runWmiserve({ exe, vmId, bundleFile, appId, tcpPort, igvmSha256 
   const identity = igvmSha256 ? ["--igvm-sha256", String(igvmSha256)] : ["--medium-sha256", String(mediumSha256)];
   if (!HEX64.test(identity[1])) return Promise.reject(new Error(`${identity[0]} needs 64 lowercase hex`));
   if (!Number.isInteger(tcpPort) || tcpPort < 1 || tcpPort > 65535) return Promise.reject(new Error("a host TCP port for the relay is required"));
+  if (appCpuPercent != null && !(Number.isSafeInteger(appCpuPercent) && appCpuPercent > 0 && Number.isSafeInteger(vcpus) && appCpuPercent <= vcpus * 100))
+    return Promise.reject(new Error("--app-cpu must be a positive integer percent, at most 100 per vCPU"));
   if (certName != null && !CERT_NAME.test(String(certName)))
     return Promise.reject(new Error(`--cert-name must be <8 hex>.app.enclave.host, not ${JSON.stringify(String(certName)).slice(0, 80)}`));
   const args = ["wmiserve", "--vm", String(vmId), "--bundle", String(bundleFile), ...identity,
                 "--isolation-type", String(isolationType), "--tcp", String(tcpPort), "--hold", "stdin",
                 ...(label ? ["--label", String(label)] : []), ...(vcpus ? ["--vcpus", String(vcpus)] : []),
-                ...(memMiB ? ["--mem", String(memMiB)] : []), ...(appMemoryMiB ? ["--app-mem", String(appMemoryMiB)] : []), ...(certName ? ["--cert-name", String(certName)] : [])];
+                ...(memMiB ? ["--mem", String(memMiB)] : []), ...(appMemoryMiB ? ["--app-mem", String(appMemoryMiB)] : []),
+                ...(appCpuPercent ? ["--app-cpu", String(appCpuPercent)] : []), ...(certName ? ["--cert-name", String(certName)] : [])];
 
   return new Promise((resolve, reject) => {
     const child = spawn(exe, args, { stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
@@ -124,6 +127,9 @@ export function runWmiserve({ exe, vmId, bundleFile, appId, tcpPort, igvmSha256 
           // G1: a per-boot nonce from a monitor that has it; null only from an older monitor. Anything else is refused.
           if (o.boot != null && !HEX32.test(String(o.boot))) return fail(`the load's boot ${JSON.stringify(o.boot)} is not 32 hex`);
           // M4: the name the monitor recorded (wmiserve reports its answer): exactly the one asked for, none when none was
+          // the CPU allocation as the MONITOR applied it: a wmiserve or monitor that predates it states none, or the catalog's
+          if (appCpuPercent != null && o.cpuPercent !== appCpuPercent)
+            return fail(`the domain was loaded with cpuPercent ${JSON.stringify(o.cpuPercent ?? null)}, not the ${appCpuPercent} allocated`);
           if ((o.certName ?? null) !== (certName ?? null))
             return fail(`the domain was loaded with the name ${JSON.stringify(o.certName ?? null)}, not ${JSON.stringify(certName ?? null)}`);
           return;
@@ -137,7 +143,7 @@ export function runWmiserve({ exe, vmId, bundleFile, appId, tcpPort, igvmSha256 
           log(`wmiserve ${vmId}: ready (domain ${got.load.id}, relay ${tcpPort})`);
           resolve({ pid: child.pid, launcherKey: got.launcher.key, vm: String(got.launcher.vm), domainId: got.load.id, boot: got.load.boot ?? null,
                     appSha256: got.load.appSha256, guestPort: got.load.guestPort, tcpPort, note: o.note ?? null, exited,
-                    certName: got.load.certName ?? null,
+                    certName: got.load.certName ?? null, cpuPercent: Number.isSafeInteger(got.load.cpuPercent) ? got.load.cpuPercent : null,
                     stop: () => stopRun() });
           return;
       }
