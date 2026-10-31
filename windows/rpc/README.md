@@ -376,3 +376,19 @@ and relevant write fencing; there is no reclaim API yet. An optional adapter or
 passing isolated ledger tests does not establish that every real allocator uses
 the same pool. No target VM, service restart or capacity admission is authorized
 by this source alone.
+
+
+Native manager enrollment compatibility (2026-10-31): the maintained manager
+now has optional pinned native-instance admission, fixed native VM scope, and an
+explicit native-24g-in-32g-v1 sizing profile supplied to both reservation and WMI
+allocation. This preserves the installed 24-GiB app / 32-GiB partition exception;
+the generic default is unchanged. Hosted 80-case qualification includes fake
+Hyper-V definitions, not target capacity or activation.
+
+Do not replace the installed manager/router from this tree yet. The installed
+router uses the same exception in its pending journal, while the maintained
+generic default remains 36 GiB for a 24-GiB app. Its explicit profile still needs
+propagation when repackaging the router. Installed CPU share/guest quota and WMI
+processor readback behavior also require reconciliation. A legacy manager restart
+loses relay/readiness state and the node retires recovered VMs, so stopping a
+listener is not a guest-preserving upgrade or a release of its reservations.
