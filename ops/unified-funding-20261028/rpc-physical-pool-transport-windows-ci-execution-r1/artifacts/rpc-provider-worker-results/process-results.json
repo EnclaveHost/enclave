@@ -1,0 +1,102 @@
+[
+    {
+        "label":  "entry-compile",
+        "pid":  9060,
+        "exitCode":  0,
+        "elapsedMs":  4491,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  34373632,
+        "outputBytes":  0
+    },
+    {
+        "label":  "controller-compile",
+        "pid":  8264,
+        "exitCode":  0,
+        "elapsedMs":  138,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  34828288,
+        "outputBytes":  0
+    },
+    {
+        "label":  "transaction-compile",
+        "pid":  8400,
+        "exitCode":  0,
+        "elapsedMs":  145,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  35004416,
+        "outputBytes":  0
+    },
+    {
+        "label":  "transactions",
+        "pid":  8440,
+        "exitCode":  0,
+        "elapsedMs":  2115,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  35610624,
+        "outputBytes":  2131
+    },
+    {
+        "label":  "stop-compile",
+        "pid":  1856,
+        "exitCode":  0,
+        "elapsedMs":  194,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  34811904,
+        "outputBytes":  190
+    },
+    {
+        "label":  "stops",
+        "pid":  7132,
+        "exitCode":  0,
+        "elapsedMs":  112,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  29323264,
+        "outputBytes":  946
+    },
+    {
+        "label":  "pool-compile",
+        "pid":  6008,
+        "exitCode":  0,
+        "elapsedMs":  131,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  32149504,
+        "outputBytes":  0
+    },
+    {
+        "label":  "physical-pool",
+        "pid":  7896,
+        "exitCode":  0,
+        "elapsedMs":  949,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  29216768,
+        "outputBytes":  769
+    },
+    {
+        "label":  "pool-command-compile",
+        "pid":  7532,
+        "exitCode":  0,
+        "elapsedMs":  143,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  34349056,
+        "outputBytes":  0
+    },
+    {
+        "label":  "pool-transport",
+        "pid":  8428,
+        "exitCode":  0,
+        "elapsedMs":  3399,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  21856256,
+        "outputBytes":  53
+    }
+]

@@ -1,0 +1,142 @@
+[
+    {
+        "name":  "pool-command-compile.out",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "pool-command-compile.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "pool-transport.out",
+        "bytes":  53,
+        "included":  true
+    },
+    {
+        "name":  "pool-transport.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "pool-command-artifact.json",
+        "bytes":  218,
+        "included":  true
+    },
+    {
+        "name":  "physical-pool-command.exe",
+        "bytes":  110080,
+        "included":  true
+    },
+    {
+        "name":  "pool-compile.out",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "pool-compile.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "physical-pool.out",
+        "bytes":  769,
+        "included":  true
+    },
+    {
+        "name":  "physical-pool.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "stop-compile.out",
+        "bytes":  190,
+        "included":  true
+    },
+    {
+        "name":  "stop-compile.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "stops.out",
+        "bytes":  946,
+        "included":  true
+    },
+    {
+        "name":  "stops.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "transaction-compile.out",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "transaction-compile.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "transactions.out",
+        "bytes":  2131,
+        "included":  true
+    },
+    {
+        "name":  "transactions.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "controller-compile.out",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "controller-compile.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "entry-compile.out",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "entry-compile.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "process-results.json",
+        "bytes":  2656,
+        "included":  true
+    },
+    {
+        "name":  "pins.json",
+        "bytes":  3722,
+        "included":  true
+    },
+    {
+        "name":  "controller-artifact.json",
+        "bytes":  221,
+        "included":  true
+    },
+    {
+        "name":  "entry-artifact.json",
+        "bytes":  208,
+        "included":  true
+    },
+    {
+        "name":  "qualification-controller.exe",
+        "bytes":  143872,
+        "included":  true
+    },
+    {
+        "name":  "owned-entry.exe",
+        "bytes":  110080,
+        "included":  true
+    }
+]

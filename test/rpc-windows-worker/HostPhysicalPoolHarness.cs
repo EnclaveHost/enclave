@@ -28,9 +28,17 @@ public static class HostPhysicalPoolHarness {
         Write(script,File.ReadAllText(args[2]));
         Write(System.IO.Path.Combine(parent,"physical-reservations.mjs"),File.ReadAllText(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(args[2]),"..","..","windows","vbslike","manager","physical-reservations.mjs")));
         string argv="\""+script+"\" \""+exe+"\" "+ProtectedAttempt.Hash(bytes)+" \""+f.Path+"\" "+f.Hash+" "+f.Boot;
-        using(var child=new Process{StartInfo=new ProcessStartInfo(args[1],argv){UseShellExecute=false,CreateNoWindow=true}}) {
+        using(var child=new Process{StartInfo=new ProcessStartInfo(args[1],argv){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true}}) {
+            var output=new StringBuilder();int errors=0;bool oversized=false;var outDone=new ManualResetEvent(false);var errDone=new ManualResetEvent(false);
+            child.OutputDataReceived+=(sender,e)=>{if(e.Data==null){outDone.Set();return;}lock(output){if(output.Length+e.Data.Length+1>2048){oversized=true;try{child.Kill();}catch{}}else output.Append(e.Data).Append('\n');}};
+            child.ErrorDataReceived+=(sender,e)=>{if(e.Data==null){errDone.Set();return;}if(Interlocked.Add(ref errors,e.Data.Length+1)>2048){oversized=true;try{child.Kill();}catch{}}};
             Check(child.Start(),"Node launch");var held=child.Handle;
-            try{Check(Finish(child)==0,"Actual Node transport result");}finally{if(!child.HasExited){child.Kill();Check(child.WaitForExit(1000),"Exact Node death");}}
+            child.BeginOutputReadLine();child.BeginErrorReadLine();
+            try{
+                Check(Finish(child)==0,"Actual Node transport result");
+                Check(outDone.WaitOne((int)Math.Max(1,deadline-BoundedWorker.MonotonicMilliseconds()))&&errDone.WaitOne((int)Math.Max(1,deadline-BoundedWorker.MonotonicMilliseconds())),"Node bounded output completion");
+                lock(output){Check(!oversized&&errors==0&&output.ToString()=="RESULT actualNodeTransport=7 vmChanged=false\n","Exact Node protocol test result");Console.Write(output.ToString());}
+            }finally{if(!child.HasExited){child.Kill();Check(child.WaitForExit(1000),"Exact Node death");}}
         }
         Check(Directory.GetFiles(f.Root,"*.claim").Length==2&&Directory.GetFiles(f.Root,"*.dispatch").Length==2,"Exactly two durable claims and dispatches");
         Check(Directory.GetFiles(f.Root,"*.pending").Length==0,"No unaccounted publication");
