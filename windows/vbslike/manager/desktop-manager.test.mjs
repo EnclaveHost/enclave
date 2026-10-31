@@ -2,6 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {Manager} from './server.mjs';
+import {desktopVmMemMiB,NATIVE_24G_MEMORY_PROFILE} from './desktop-memory.mjs';
 import {canonical,sha256Hex,COMPONENT_PREAMBLE} from './derive.mjs';
 import {DESKTOP_DERIVATION,DESKTOP_PORTS} from './desktop-derive.mjs';
 import {runtimeId} from '../../../isolation/contract/runtime.mjs';
@@ -30,7 +31,7 @@ async function setup(over={}){
   start:async(mapping,opts)=>{
    state.starts.push({mapping,opts,gpu:manager.gpuAllocated(),ram:manager.physicalRamAllocated()});
    if(state.startGate)await state.startGate;
-   const vmMiB=Math.ceil(opts.appMemoryMiB*3/4)*2;
+   const vmMiB=desktopVmMemMiB(opts.appMemoryMiB,over.desktopMemoryProfile??null);
    return {imageRole:'desktop',firmware:{sha256:f.platform.igvmSha256},image:f.platform.igvmSha256,guestIdentity:BOOT_STATEMENTS['linux-direct'],appId:mapping.appId,
     desktop:{profileSha256:f.platform.profileSha256,runtimeId:f.platform.runtimeId,gpuMilli:mapping.record.desktop.gpuMilli},
     memory:{appMiB:opts.appMemoryMiB,vmMiB},transport,egress,vmId:'00000000-0000-4000-8000-000000000001',launcherVmId:'00000000-0000-4000-8000-000000000001',launcherKey:'test-key',tcpPort:1234,appReady:true,...state.patch};
@@ -133,4 +134,14 @@ test('the node client carries native measured configuration without adding legac
  assert.equal(h.manager.get(started.id).status,'running');
  assert.throws(()=>IsolationManagerClient.spawnBody({...input,config:'{}'}),/measured record/);
  await assert.rejects(h.manager.spawn({...input,ports:['tcp:1234']}),/measured record/);
+});
+
+
+test('explicit installed native policy reserves all 32 GiB before the 24 GiB app starts',async()=>{
+ const h=await setup({ramPoolMiB:98304,physicalRamPoolMiB:65536,desktopMemoryProfile:NATIVE_24G_MEMORY_PROFILE});
+ const a=await h.manager.spawn(h.body);await judged(h.manager);
+ assert.equal(h.state.starts.length,1);assert.equal(h.state.starts[0].ram,32768);
+ assert.equal(a.physicalMemoryMiB,32768);assert.equal(a.memory.appMiB,24576);
+ assert.equal(h.manager.physicalRamAllocated(),32768);
+ await h.manager.remove(a.id);
 });

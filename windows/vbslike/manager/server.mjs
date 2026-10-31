@@ -91,7 +91,7 @@ export class Manager {
   constructor({ backend = new HyperVPartitionBackend(), fetchComponent = null, runtimeId = "",
                 runtime = null, shield = null, configEnabled = false, secretsEnabled = false, configSocketServer = false, protectedPorts = false, encVolumes = false, wasmSet = false, memory64 = false, fetchConfig = null, judgeReady = null, readyDeadlineMs = 120_000, answerCheck = null,
                 modelVolumes = null,
-                egress = null, ramPoolMiB = null, physicalRamPoolMiB = null, physicalReservations = null, directBootstrap = false, custodyV2 = null, images = null, desktopWorker = null } = {}) {
+                egress = null, ramPoolMiB = null, physicalRamPoolMiB = null, physicalReservations = null, desktopMemoryProfile = null, directBootstrap = false, custodyV2 = null, images = null, desktopWorker = null } = {}) {
     if (ramPoolMiB !== null && (!Number.isSafeInteger(ramPoolMiB) || ramPoolMiB <= 0))
       throw new Error("ramPoolMiB must be a positive integer");
     this.ramPoolMiB = ramPoolMiB;
@@ -101,6 +101,8 @@ export class Manager {
     // for Windows and other workloads. Distinct from the advertised app pool:
     // this includes partition overhead and is held until confirmed removal.
     this.physicalRamPoolMiB = physicalRamPoolMiB;
+    desktopVmMemMiB(8192, desktopMemoryProfile); // validate before host work
+    this.desktopMemoryProfile = desktopMemoryProfile;
     if (physicalReservations !== null) {
       const p = physicalReservations;
       if (physicalRamPoolMiB === null || !/^[0-9a-f]{64}$/.test(p.poolHash || "") || !/^[0-9a-f]{32}$/.test(p.boot || "")
@@ -684,7 +686,7 @@ export class Manager {
       if (held === null) {
         const e = new Error("physical RAM allocation is unknown until existing partitions are reconciled"); e.status = 503; throw e;
       }
-      try { physicalMemoryMiB = native ? desktopVmMemMiB(memory.appMiB)
+      try { physicalMemoryMiB = native ? desktopVmMemMiB(memory.appMiB, this.desktopMemoryProfile)
         : type1VmMemMiB(memory?.appMiB ?? mapping.record.policy.memMiB, { name, appId: mapping.appId }); }
       catch (e) { throw badRequest(e.message); }
       if (physicalMemoryMiB > this.physicalRamPoolMiB - held) {

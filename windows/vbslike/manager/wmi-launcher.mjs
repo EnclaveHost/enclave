@@ -937,7 +937,7 @@ export class WmiHyperVLauncher {
                 hypervModule = null, hypervModuleSha256 = HYPERV_MODULE_SHA256, hypervUtilitiesSha256 = null,
                 prefix = DEFAULT_VM_PREFIX, pipeFor = null, serve = null, startTransport = null,
                 startEgress = null, egressService = null, startPackage = null, packageService = null,
-                startCustody = null, custodyService = null, custodyImageSha256 = null, imageRole = "legacy", desktopPlatform = null }) {
+                startCustody = null, custodyService = null, custodyImageSha256 = null, imageRole = "legacy", desktopPlatform = null, desktopMemoryProfile = null }) {
     if (typeof run !== "function") throw new Error("a PowerShell runner must be injected");
     // THE BOOT FORM IS STATED. Inferring it from whether a medium happens to be set would let a
     // missing variable silently turn a medium boot into a linux-direct one, and the identity with it.
@@ -951,6 +951,8 @@ export class WmiHyperVLauncher {
       throw new Error("a uefi-medium boot needs the medium's path and its sha256: a path is not an identity");
     for (const [k, val] of Object.entries({ hypervModuleSha256, hypervUtilitiesSha256, guestStateMasterSha256 }))
       if (val != null && !SHA256.test(String(val).toLowerCase())) throw new Error(`${k} must be a sha256`);
+    desktopVmMemMiB(8192, desktopMemoryProfile);
+    this.desktopMemoryProfile = desktopMemoryProfile;
     this.run = run; this.imagePath = imagePath; this.imageSha256 = (imageSha256 || "").toLowerCase();
     this.boot = boot;
     // The boot medium, beside the firmware and never confused with it. The firmware is the
@@ -1166,7 +1168,7 @@ export class WmiHyperVLauncher {
       identity = Object.freeze({ id: identity.id, name: identity.name, instanceId, appId: mapping.appId });
       const appMiB = appMemoryMiB ?? mapping.record.policy.memMiB;
       if (appMiB < mapping.record.policy.memMiB) throw new Error("allocated app RAM is below its catalog minimum");
-      nativeMemory = { appMiB, vmMiB: desktopVmMemMiB(appMiB) };
+      nativeMemory = { appMiB, vmMiB: desktopVmMemMiB(appMiB, this.desktopMemoryProfile) };
     } else if (mapping?.record?.desktop != null) {
       throw new Error("native desktop requires its dedicated qualified image; this WMI launcher does not support desktop admission");
     }
@@ -1313,7 +1315,7 @@ export class WmiHyperVLauncher {
                ...(native ? { desktop: { profileSha256: this.#desktopPlatform.profileSha256, runtimeId: this.#desktopPlatform.runtimeId,
                  gpuMilli: mapping.record.desktop.gpuMilli }, media: desktopMedia } : {}),
                memory: { policyMiB: mapping.record.policy.memMiB, appMiB, vmMiB: memMiB,
-                         rule: native ? DESKTOP_MEMORY_RULE : memMiB === 512 ? "qualified pinned readiness witness: 512 MiB" : `align2(max(${TYPE1_VM_MEM_FLOOR_MIB}, app + ${TYPE1_VM_MEM_OVERHEAD_MIB}))` },
+                         rule: native ? (this.desktopMemoryProfile ?? DESKTOP_MEMORY_RULE) : memMiB === 512 ? "qualified pinned readiness witness: 512 MiB" : `align2(max(${TYPE1_VM_MEM_FLOOR_MIB}, app + ${TYPE1_VM_MEM_OVERHEAD_MIB}))` },
                definition: { recipe: "petri New-CustomVM, GuestStateIsolationType 1 (uefi-dev-boot.ps1 e0de58cf)",
                              hypervModuleSha256: created.hypervModuleSha256, hypervUtilitiesSha256: created.hypervUtilitiesSha256 ?? null,
                              featureSet: created.featureSet, vtl2Mode: created.vtl2Mode, vbsOptOut: created.vbsOptOut,

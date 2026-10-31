@@ -28,6 +28,7 @@ import { startDesktopWorkerTransport } from "./desktop-worker-transport.mjs";
 import { PartitionConsoleLogs, consoleTargets, partitionLogDir } from "./console-log.mjs";
 import { loadModelVolumes } from "./model-volumes.mjs";
 import { physicalReservationsFromEnv } from "./physical-reservations.mjs";
+import { loadNativeInstance, bindNativeInstance } from "./native-instance.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const env = (k, d = "") => (process.env[k] || d).trim();
@@ -36,7 +37,9 @@ const port        = Number(env("VMMGR_PORT", "8091"));
 // THE VM NAME SCOPE of this instance. Unset: the production prefix, exactly as before. Set (e.g. a hardware canary beside
 // production): its own name prefix and Notes marker (wmi-launcher.mjs markerFor), so neither instance surveys, recovers,
 // sweeps or removes the other's VMs. Validated first: a malformed scope never starts.
-const vmPrefix = env("ENCLAVE_VM_PREFIX") || DEFAULT_VM_PREFIX;
+const hasNativePins = process.env.ENCLAVE_NATIVE_ROUTER_CONFIG !== undefined || process.env.ENCLAVE_NATIVE_ROUTER_CONFIG_SHA256 !== undefined;
+const vmPrefix = env("ENCLAVE_VM_PREFIX") || (hasNativePins ? "enclave-native-" : DEFAULT_VM_PREFIX);
+const nativeInstance = loadNativeInstance(process.env, { port, dataPort: Number(env("ENCLAVE_DATAPLANE_PORT", "0")), prefix: vmPrefix });
 if (vmPrefix !== DEFAULT_VM_PREFIX && !VM_PREFIX_RE.test(vmPrefix)) {
   console.error(`[winmgr] REFUSING TO START: ENCLAVE_VM_PREFIX must be "enclave-" + 1-16 lowercase letters or digits + "-" (got ${JSON.stringify(vmPrefix).slice(0, 60)})`);
   process.exit(2);
@@ -273,6 +276,7 @@ if (desktopFile || desktopFileSha) {
     desktopConfig = { platform: cfg.platform, runtime: cfg.runtime };
     desktopLauncher = new WmiHyperVLauncher({ ...launcherOptions,
       imageRole: "desktop", imagePath: cfg.imagePath, imageSha256: admission.platform.igvmSha256,
+      desktopMemoryProfile: nativeInstance?.memoryProfile ?? null,
       desktopPlatform: cfg.platform, boot: "linux-direct", medium: null, mediumSha256: null,
       startPackage: null, packageService: null, startCustody: null, custodyService: null, custodyImageSha256: null,
       startTransport: (vmId, mapping) => startDesktopWorkerTransport({ bridge: cfg.bridge, vmId, mapping,
@@ -304,6 +308,7 @@ const manager = new Manager({ judgeReady: judgeRunning, answerCheck: checkAnswer
   // Separate VM budget INCLUDING overhead, after Windows/other workload RAM.
   physicalRamPoolMiB: env("NODE_VM_RAM_GB") ? Number(env("NODE_VM_RAM_GB")) * 1024 : null,
   physicalReservations: physicalReservationsFromEnv(process.env),
+  desktopMemoryProfile: nativeInstance?.memoryProfile ?? null,
   runtime,
   shield,
   desktopWorker,
@@ -326,6 +331,8 @@ const manager = new Manager({ judgeReady: judgeRunning, answerCheck: checkAnswer
     timeoutMs: Number(env("ENCLAVE_FETCH_TIMEOUT_MS", "240000")) }),
   backend: new HyperVPartitionBackend({ launcher: routed }),
 });
+
+bindNativeInstance(manager, nativeInstance);
 
 // THE DATA PLANE. Without it a domain can be started and judged running and still have nothing to
 // carry its traffic: the record names a relay port and nobody listens on the other side. It admits

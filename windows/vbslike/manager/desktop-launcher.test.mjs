@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {WmiHyperVLauncher, parseNotes} from './wmi-launcher.mjs';
+import {NATIVE_24G_MEMORY_PROFILE} from './desktop-memory.mjs';
 import {TYPE1,PREFLIGHT_OK,VM_ID,defineAnswer,keyOf} from './fake-hyperv.mjs';
 import {canonical,sha256Hex,COMPONENT_PREAMBLE} from './derive.mjs';
 import {deriveDesktop,DESKTOP_DERIVATION,DESKTOP_PORTS} from './desktop-derive.mjs';
@@ -155,4 +156,16 @@ test('a synchronous relay stop failure cannot skip failed-launch VM removal',asy
   assert.equal(e.launchHandle.vmId,VM_ID);return true;
  });
  assert.ok(h.events.includes('removeById'));assert.ok(h.events.includes('retire'));
+});
+
+
+test('installed native policy defines exactly the reserved 32 GiB with the native ownership marker',async t=>{
+ const h=setup(t);const launcher=new WmiHyperVLauncher({...h.config,prefix:'enclave-native-',desktopMemoryProfile:NATIVE_24G_MEMORY_PROFILE});
+ const r=await launcher.start(h.mapping,{...h.opts,appMemoryMiB:24576});
+ assert.equal(h.definition.memBytes,32768*1048576);assert.equal(r.memory.vmMiB,32768);
+ assert.equal(r.memory.rule,NATIVE_24G_MEMORY_PROFILE);
+ assert.ok(h.definition.name.startsWith('enclave-native-'));
+ assert.equal(parseNotes(h.definition.notes,{marker:'enclave-native-vbslike-domain'}).identity.imageRole,'desktop');
+ assert.equal(parseNotes(h.definition.notes).identity,null);
+ await r.stop();
 });

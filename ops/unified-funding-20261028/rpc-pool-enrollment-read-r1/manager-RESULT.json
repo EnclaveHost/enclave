@@ -1,0 +1,1509 @@
+{
+  "at": 1793416274.498385,
+  "readOnly": true,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 1228,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "physicalBefore": {
+      "vms": [
+        {
+          "Id": "a90c40fe-53af-4ef7-a491-65ab4d05b859",
+          "Name": "enclave-app-hv453076e875aad1-10c44a8a",
+          "State": 2,
+          "MemoryAssigned": 2732589056,
+          "MemoryStartup": 2732589056,
+          "DynamicMemoryEnabled": false
+        },
+        {
+          "Id": "1ca457d6-17bf-47fa-ad26-72770d74e08b",
+          "Name": "enclave-app-hv4c2e5185d0e5b8-a79db30f",
+          "State": 2,
+          "MemoryAssigned": 536870912,
+          "MemoryStartup": 536870912,
+          "DynamicMemoryEnabled": false
+        },
+        {
+          "Id": "1087652f-4192-42e2-8138-74ac5c4a696d",
+          "Name": "enclave-app-hvcfca9eb54077e1-3dfcbff8",
+          "State": 2,
+          "MemoryAssigned": 2147483648,
+          "MemoryStartup": 2147483648,
+          "DynamicMemoryEnabled": false
+        },
+        {
+          "Id": "dd8df95d-b771-4545-a861-0092e74a40f3",
+          "Name": "enclave-control",
+          "State": 2,
+          "MemoryAssigned": 8589934592,
+          "MemoryStartup": 8589934592,
+          "DynamicMemoryEnabled": false
+        },
+        {
+          "Id": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
+          "Name": "enclave-storage",
+          "State": 2,
+          "MemoryAssigned": 4294967296,
+          "MemoryStartup": 4294967296,
+          "DynamicMemoryEnabled": false
+        }
+      ],
+      "filesystem": "NTFS",
+      "physicalBytes": 120070115328,
+      "monotonicMilliseconds": 672095851,
+      "boot": "2026-10-23T08:29:16.5000000Z",
+      "atUtc": "2026-10-31T03:10:57.3591253Z",
+      "freeBytes": 84024844288,
+      "diskFreeBytes": 21969776640
+    },
+    "physicalAfter": {
+      "vms": [
+        {
+          "Id": "a90c40fe-53af-4ef7-a491-65ab4d05b859",
+          "Name": "enclave-app-hv453076e875aad1-10c44a8a",
+          "State": 2,
+          "MemoryAssigned": 2732589056,
+          "MemoryStartup": 2732589056,
+          "DynamicMemoryEnabled": false
+        },
+        {
+          "Id": "1ca457d6-17bf-47fa-ad26-72770d74e08b",
+          "Name": "enclave-app-hv4c2e5185d0e5b8-a79db30f",
+          "State": 2,
+          "MemoryAssigned": 536870912,
+          "MemoryStartup": 536870912,
+          "DynamicMemoryEnabled": false
+        },
+        {
+          "Id": "1087652f-4192-42e2-8138-74ac5c4a696d",
+          "Name": "enclave-app-hvcfca9eb54077e1-3dfcbff8",
+          "State": 2,
+          "MemoryAssigned": 2147483648,
+          "MemoryStartup": 2147483648,
+          "DynamicMemoryEnabled": false
+        },
+        {
+          "Id": "dd8df95d-b771-4545-a861-0092e74a40f3",
+          "Name": "enclave-control",
+          "State": 2,
+          "MemoryAssigned": 8589934592,
+          "MemoryStartup": 8589934592,
+          "DynamicMemoryEnabled": false
+        },
+        {
+          "Id": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
+          "Name": "enclave-storage",
+          "State": 2,
+          "MemoryAssigned": 4294967296,
+          "MemoryStartup": 4294967296,
+          "DynamicMemoryEnabled": false
+        }
+      ],
+      "filesystem": "NTFS",
+      "physicalBytes": 120070115328,
+      "monotonicMilliseconds": 672104448,
+      "boot": "2026-10-23T08:29:16.5000000Z",
+      "atUtc": "2026-10-31T03:11:05.9467611Z",
+      "freeBytes": 83911385088,
+      "diskFreeBytes": 21969698816
+    },
+    "physicalFinal": {
+      "vms": [
+        {
+          "Id": "a90c40fe-53af-4ef7-a491-65ab4d05b859",
+          "Name": "enclave-app-hv453076e875aad1-10c44a8a",
+          "State": 2,
+          "MemoryAssigned": 2732589056,
+          "MemoryStartup": 2732589056,
+          "DynamicMemoryEnabled": false
+        },
+        {
+          "Id": "1ca457d6-17bf-47fa-ad26-72770d74e08b",
+          "Name": "enclave-app-hv4c2e5185d0e5b8-a79db30f",
+          "State": 2,
+          "MemoryAssigned": 536870912,
+          "MemoryStartup": 536870912,
+          "DynamicMemoryEnabled": false
+        },
+        {
+          "Id": "1087652f-4192-42e2-8138-74ac5c4a696d",
+          "Name": "enclave-app-hvcfca9eb54077e1-3dfcbff8",
+          "State": 2,
+          "MemoryAssigned": 2147483648,
+          "MemoryStartup": 2147483648,
+          "DynamicMemoryEnabled": false
+        },
+        {
+          "Id": "dd8df95d-b771-4545-a861-0092e74a40f3",
+          "Name": "enclave-control",
+          "State": 2,
+          "MemoryAssigned": 8589934592,
+          "MemoryStartup": 8589934592,
+          "DynamicMemoryEnabled": false
+        },
+        {
+          "Id": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
+          "Name": "enclave-storage",
+          "State": 2,
+          "MemoryAssigned": 4294967296,
+          "MemoryStartup": 4294967296,
+          "DynamicMemoryEnabled": false
+        }
+      ],
+      "filesystem": "NTFS",
+      "physicalBytes": 120070115328,
+      "monotonicMilliseconds": 672112911,
+      "boot": "2026-10-23T08:29:16.5000000Z",
+      "atUtc": "2026-10-31T03:11:14.4095679Z",
+      "freeBytes": 83885256704,
+      "diskFreeBytes": 21969698816
+    },
+    "before": {
+      "value": [
+        {
+          "port": 9600,
+          "created": "2026-10-27T08:24:45.0989590Z",
+          "pid": 41272,
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        },
+        {
+          "port": 8097,
+          "created": "2026-10-27T08:24:42.8500370Z",
+          "pid": 40360,
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        },
+        {
+          "port": 8095,
+          "created": "2026-10-27T08:02:19.4407050Z",
+          "pid": 41308,
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        },
+        {
+          "port": 8091,
+          "created": "2026-10-26T17:17:18.5617520Z",
+          "pid": 38076,
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        }
+      ],
+      "Count": 4
+    },
+    "nodeExit": 0,
+    "manager": {
+      "schema": "minipc-manager-reservations-read/1",
+      "startedAt": "2026-10-31T03:11:01.582Z",
+      "readOnly": true,
+      "nodePortBasis": "9600 installer default; must bind to current node listener before accepting",
+      "observations": [
+        {
+          "label": "node-before",
+          "port": 9600,
+          "path": "/v1/host/state",
+          "at": "2026-10-31T03:11:01.583Z",
+          "data": {
+            "deployments": [
+              {
+                "id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3",
+                "status": "queued",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+                "status": "running",
+                "memMb": 1024,
+                "cpuShare": 0.02,
+                "needCpuShare": 0.02,
+                "isolationRequired": true,
+                "hasIsolation": true,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+                "status": "stopped",
+                "memMb": 128,
+                "cpuShare": 0.01,
+                "needCpuShare": 0.01,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+                "status": "claiming",
+                "memMb": 512,
+                "cpuShare": 0.02,
+                "needCpuShare": 0.02,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+                "status": "failed",
+                "memMb": 256,
+                "cpuShare": 0.04,
+                "needCpuShare": 0.02,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+                "status": "stopped",
+                "memMb": 128,
+                "cpuShare": 0.01,
+                "needCpuShare": 0.01,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+                "status": "failed",
+                "memMb": 128,
+                "cpuShare": 0.01,
+                "needCpuShare": 0.01,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+                "status": "running",
+                "memMb": 128,
+                "cpuShare": 0.01,
+                "needCpuShare": 0.01,
+                "isolationRequired": true,
+                "hasIsolation": true,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+                "status": "refused",
+                "memMb": 2048,
+                "cpuShare": 0.08,
+                "needCpuShare": 0.08,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x9a28642bed115105c07bea1131c56c83ae2843ce4daf07958ab36437c0528a6b",
+                "status": "claiming",
+                "memMb": 8192,
+                "cpuShare": 0.25,
+                "needCpuShare": 0.25,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x2215bad49ad8348f57d62d6e2c45b5b0af9d4afe2d2c44c0b2d9a63619c2a1f7",
+                "status": "stopped",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x0f19412d70d19e50c054f72d8cc2d4c9a8d9da41d45a056e6b436040450e0bc1",
+                "status": "stopped",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x2b84a09895ca94ef8bc8c61c7376154e3c1cc661f12693fb7583d9c19ce59889",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xda9e43f801a8440493e30a78fb7e697f06007b6e5b5b3dcbdaab7be3f5877ce8",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xaf9fbf3ecb9adc6736aac19c4a1690db1f9dafe427d1b06985737943cde065ef",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              }
+            ],
+            "availability": {
+              "isolation": "hyperv-partition-per-app",
+              "ramMbFree": 70778
+            }
+          }
+        },
+        {
+          "label": "manager-before",
+          "port": 8091,
+          "path": "/health",
+          "at": "2026-10-31T03:11:01.590Z",
+          "data": {
+            "managerEpoch": "6ba9af9a243b9f4754d8091d3de2f415",
+            "backend": "hyperv-partition-per-app",
+            "canStart": true,
+            "vmScope": {},
+            "memory": {
+              "rule": "cpu-share",
+              "poolMiB": 98304,
+              "unknownCount": null,
+              "reservationsPresent": false,
+              "reservations": null
+            },
+            "physicalMemory": {
+              "poolMiB": 84992,
+              "allocatedMiB": 5166,
+              "freeMiB": 79826
+            }
+          }
+        },
+        {
+          "label": "manager-vms",
+          "port": 8091,
+          "path": "/vms",
+          "at": "2026-10-31T03:11:01.592Z",
+          "data": {
+            "managerEpoch": "6ba9af9a243b9f4754d8091d3de2f415",
+            "vms": [
+              {
+                "id": "hv4c2e5185d0e5b8a548a08d1370b530cf",
+                "name": "shield-readiness-v1",
+                "status": "running",
+                "memory": {}
+              },
+              {
+                "id": "hv453076e875aad14abadd5c876a7138fe",
+                "name": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+                "status": "running",
+                "memory": {
+                  "appMiB": 1966,
+                  "vmMiB": 2606
+                }
+              },
+              {
+                "id": "hvcfca9eb54077e1d353da53f9e099c6ea",
+                "name": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+                "status": "running",
+                "memory": {
+                  "appMiB": 983,
+                  "vmMiB": 2048
+                }
+              }
+            ]
+          }
+        },
+        {
+          "label": "manager-after",
+          "port": 8091,
+          "path": "/health",
+          "at": "2026-10-31T03:11:01.594Z",
+          "data": {
+            "managerEpoch": "6ba9af9a243b9f4754d8091d3de2f415",
+            "backend": "hyperv-partition-per-app",
+            "canStart": true,
+            "vmScope": {},
+            "memory": {
+              "rule": "cpu-share",
+              "poolMiB": 98304,
+              "unknownCount": null,
+              "reservationsPresent": false,
+              "reservations": null
+            },
+            "physicalMemory": {
+              "poolMiB": 84992,
+              "allocatedMiB": 5166,
+              "freeMiB": 79826
+            }
+          }
+        },
+        {
+          "label": "manager-before",
+          "port": 8095,
+          "path": "/health",
+          "at": "2026-10-31T03:11:01.596Z",
+          "data": {
+            "managerEpoch": "eb81408d8b99f58cd715d5c56017258c",
+            "backend": "hyperv-partition-per-app",
+            "canStart": true,
+            "vmScope": {
+              "prefix": "enclave-native-",
+              "marker": "enclave-native-vbslike-domain"
+            },
+            "memory": {
+              "rule": "cpu-share",
+              "poolMiB": 98304,
+              "unknownCount": null,
+              "reservationsPresent": false,
+              "reservations": null
+            },
+            "physicalMemory": {
+              "poolMiB": 84992,
+              "allocatedMiB": 0,
+              "freeMiB": 84992
+            }
+          }
+        },
+        {
+          "label": "manager-vms",
+          "port": 8095,
+          "path": "/vms",
+          "at": "2026-10-31T03:11:01.598Z",
+          "data": {
+            "managerEpoch": "eb81408d8b99f58cd715d5c56017258c",
+            "vms": []
+          }
+        },
+        {
+          "label": "manager-after",
+          "port": 8095,
+          "path": "/health",
+          "at": "2026-10-31T03:11:01.599Z",
+          "data": {
+            "managerEpoch": "eb81408d8b99f58cd715d5c56017258c",
+            "backend": "hyperv-partition-per-app",
+            "canStart": true,
+            "vmScope": {
+              "prefix": "enclave-native-",
+              "marker": "enclave-native-vbslike-domain"
+            },
+            "memory": {
+              "rule": "cpu-share",
+              "poolMiB": 98304,
+              "unknownCount": null,
+              "reservationsPresent": false,
+              "reservations": null
+            },
+            "physicalMemory": {
+              "poolMiB": 84992,
+              "allocatedMiB": 0,
+              "freeMiB": 84992
+            }
+          }
+        },
+        {
+          "label": "manager-before",
+          "port": 8097,
+          "path": "/health",
+          "at": "2026-10-31T03:11:01.600Z",
+          "data": {
+            "managerEpoch": "007aeb77d057cbacb97e1219aa91bd1dcaa630b84411769f4d0642222e3a0d2e",
+            "backend": "hyperv-partition-per-app",
+            "canStart": true,
+            "vmScope": {},
+            "memory": {
+              "rule": "cpu-share",
+              "poolMiB": 98304,
+              "freeMiB": 95099,
+              "unknownCount": null,
+              "reservationsPresent": false,
+              "reservations": null
+            },
+            "physicalMemory": {
+              "poolMiB": 84992,
+              "allocatedMiB": 5166,
+              "freeMiB": 79826
+            }
+          }
+        },
+        {
+          "label": "manager-vms",
+          "port": 8097,
+          "path": "/vms",
+          "at": "2026-10-31T03:11:01.605Z",
+          "data": {
+            "managerEpoch": "007aeb77d057cbacb97e1219aa91bd1dcaa630b84411769f4d0642222e3a0d2e",
+            "vms": [
+              {
+                "id": "hv4c2e5185d0e5b8a548a08d1370b530cf",
+                "name": "shield-readiness-v1",
+                "status": "running",
+                "memory": {}
+              },
+              {
+                "id": "hv453076e875aad14abadd5c876a7138fe",
+                "name": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+                "status": "running",
+                "memory": {
+                  "appMiB": 1966,
+                  "vmMiB": 2606
+                }
+              },
+              {
+                "id": "hvcfca9eb54077e1d353da53f9e099c6ea",
+                "name": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+                "status": "running",
+                "memory": {
+                  "appMiB": 983,
+                  "vmMiB": 2048
+                }
+              }
+            ]
+          }
+        },
+        {
+          "label": "manager-after",
+          "port": 8097,
+          "path": "/health",
+          "at": "2026-10-31T03:11:01.608Z",
+          "data": {
+            "managerEpoch": "007aeb77d057cbacb97e1219aa91bd1dcaa630b84411769f4d0642222e3a0d2e",
+            "backend": "hyperv-partition-per-app",
+            "canStart": true,
+            "vmScope": {},
+            "memory": {
+              "rule": "cpu-share",
+              "poolMiB": 98304,
+              "freeMiB": 95099,
+              "unknownCount": null,
+              "reservationsPresent": false,
+              "reservations": null
+            },
+            "physicalMemory": {
+              "poolMiB": 84992,
+              "allocatedMiB": 5166,
+              "freeMiB": 79826
+            }
+          }
+        },
+        {
+          "label": "node-after",
+          "port": 9600,
+          "path": "/v1/host/state",
+          "at": "2026-10-31T03:11:01.615Z",
+          "data": {
+            "deployments": [
+              {
+                "id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3",
+                "status": "queued",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+                "status": "running",
+                "memMb": 1024,
+                "cpuShare": 0.02,
+                "needCpuShare": 0.02,
+                "isolationRequired": true,
+                "hasIsolation": true,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+                "status": "stopped",
+                "memMb": 128,
+                "cpuShare": 0.01,
+                "needCpuShare": 0.01,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+                "status": "claiming",
+                "memMb": 512,
+                "cpuShare": 0.02,
+                "needCpuShare": 0.02,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+                "status": "failed",
+                "memMb": 256,
+                "cpuShare": 0.04,
+                "needCpuShare": 0.02,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+                "status": "stopped",
+                "memMb": 128,
+                "cpuShare": 0.01,
+                "needCpuShare": 0.01,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+                "status": "failed",
+                "memMb": 128,
+                "cpuShare": 0.01,
+                "needCpuShare": 0.01,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+                "status": "running",
+                "memMb": 128,
+                "cpuShare": 0.01,
+                "needCpuShare": 0.01,
+                "isolationRequired": true,
+                "hasIsolation": true,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+                "status": "refused",
+                "memMb": 2048,
+                "cpuShare": 0.08,
+                "needCpuShare": 0.08,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x9a28642bed115105c07bea1131c56c83ae2843ce4daf07958ab36437c0528a6b",
+                "status": "claiming",
+                "memMb": 8192,
+                "cpuShare": 0.25,
+                "needCpuShare": 0.25,
+                "isolationRequired": true,
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x2215bad49ad8348f57d62d6e2c45b5b0af9d4afe2d2c44c0b2d9a63619c2a1f7",
+                "status": "stopped",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x0f19412d70d19e50c054f72d8cc2d4c9a8d9da41d45a056e6b436040450e0bc1",
+                "status": "stopped",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x2b84a09895ca94ef8bc8c61c7376154e3c1cc661f12693fb7583d9c19ce59889",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xda9e43f801a8440493e30a78fb7e697f06007b6e5b5b3dcbdaab7be3f5877ce8",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xaf9fbf3ecb9adc6736aac19c4a1690db1f9dafe427d1b06985737943cde065ef",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              },
+              {
+                "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+                "status": "refused",
+                "hasIsolation": false,
+                "isolationHeld": false,
+                "isolationRetireFailed": false,
+                "isolation": {}
+              }
+            ],
+            "availability": {
+              "isolation": "hyperv-partition-per-app",
+              "ramMbFree": 70778
+            }
+          }
+        }
+      ],
+      "errors": [],
+      "capacityAdmitted": false,
+      "finishedAt": "2026-10-31T03:11:01.617Z",
+      "completeTransport": true
+    },
+    "after": {
+      "value": [
+        {
+          "port": 9600,
+          "created": "2026-10-27T08:24:45.0989590Z",
+          "pid": 41272,
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        },
+        {
+          "port": 8097,
+          "created": "2026-10-27T08:24:42.8500370Z",
+          "pid": 40360,
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        },
+        {
+          "port": 8095,
+          "created": "2026-10-27T08:02:19.4407050Z",
+          "pid": 41308,
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        },
+        {
+          "port": 8091,
+          "created": "2026-10-26T17:17:18.5617520Z",
+          "pid": 38076,
+          "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+        }
+      ],
+      "Count": 4
+    },
+    "namespace": [
+      {
+        "attributes": 22,
+        "owner": "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464",
+        "directory": true,
+        "path": "C:\\",
+        "sddl": "O:S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464G:S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464D:PAI(A;;LC;;;AU)(A;OICIIO;SDGXGWGR;;;AU)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1200a9;;;BU)(A;;0x1000a1;;;S-1-15-3-65536-1888954469-739942743-1668119174-2468466756-4239452838-1296943325-355587736-700089176)",
+        "accessProtected": true
+      },
+      {
+        "attributes": 17,
+        "owner": "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464",
+        "directory": true,
+        "path": "C:\\Program Files",
+        "sddl": "O:S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464G:S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464D:PAI(A;OICIIO;GA;;;CO)(A;OICIIO;GA;;;SY)(A;;0x1301bf;;;SY)(A;OICIIO;GA;;;BA)(A;;0x1301bf;;;BA)(A;OICIIO;GXGR;;;BU)(A;;0x1200a9;;;BU)(A;CIIO;GA;;;S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464)(A;;FA;;;S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464)(A;;0x1200a9;;;AC)(A;OICIIO;GXGR;;;AC)(A;;0x1200a9;;;S-1-15-2-2)(A;OICIIO;GXGR;;;S-1-15-2-2)",
+        "accessProtected": true
+      },
+      {
+        "attributes": 16,
+        "owner": "S-1-5-18",
+        "directory": true,
+        "path": "C:\\Program Files\\Enclave",
+        "sddl": "O:SYG:SYD:AI(A;ID;FA;;;S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464)(A;CIIOID;GA;;;S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464)(A;ID;FA;;;SY)(A;OICIIOID;GA;;;SY)(A;ID;FA;;;BA)(A;OICIIOID;GA;;;BA)(A;ID;0x1200a9;;;BU)(A;OICIIOID;GXGR;;;BU)(A;OICIIOID;GA;;;CO)(A;ID;0x1200a9;;;AC)(A;OICIIOID;GXGR;;;AC)(A;ID;0x1200a9;;;S-1-15-2-2)(A;OICIIOID;GXGR;;;S-1-15-2-2)",
+        "accessProtected": false
+      },
+      {
+        "attributes": 16,
+        "owner": "S-1-5-18",
+        "directory": true,
+        "path": "C:\\Program Files\\Enclave\\control",
+        "sddl": "O:SYG:SYD:AI(A;ID;FA;;;S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464)(A;CIIOID;GA;;;S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464)(A;ID;FA;;;SY)(A;OICIIOID;GA;;;SY)(A;ID;FA;;;BA)(A;OICIIOID;GA;;;BA)(A;ID;0x1200a9;;;BU)(A;OICIIOID;GXGR;;;BU)(A;OICIIOID;GA;;;CO)(A;ID;0x1200a9;;;AC)(A;OICIIOID;GXGR;;;AC)(A;ID;0x1200a9;;;S-1-15-2-2)(A;OICIIOID;GXGR;;;S-1-15-2-2)",
+        "accessProtected": false
+      },
+      {
+        "attributes": 16,
+        "owner": "S-1-5-18",
+        "directory": true,
+        "path": "C:\\Program Files\\Enclave\\control\\windows",
+        "sddl": "O:SYG:SYD:AI(A;ID;FA;;;S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464)(A;CIIOID;GA;;;S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464)(A;ID;FA;;;SY)(A;OICIIOID;GA;;;SY)(A;ID;FA;;;BA)(A;OICIIOID;GA;;;BA)(A;ID;0x1200a9;;;BU)(A;OICIIOID;GXGR;;;BU)(A;OICIIOID;GA;;;CO)(A;ID;0x1200a9;;;AC)(A;OICIIOID;GXGR;;;AC)(A;ID;0x1200a9;;;S-1-15-2-2)(A;OICIIOID;GXGR;;;S-1-15-2-2)",
+        "accessProtected": false
+      },
+      {
+        "attributes": 16,
+        "owner": "S-1-5-18",
+        "directory": true,
+        "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike",
+        "sddl": "O:SYG:SYD:AI(A;ID;FA;;;S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464)(A;CIIOID;GA;;;S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464)(A;ID;FA;;;SY)(A;OICIIOID;GA;;;SY)(A;ID;FA;;;BA)(A;OICIIOID;GA;;;BA)(A;ID;0x1200a9;;;BU)(A;OICIIOID;GXGR;;;BU)(A;OICIIOID;GA;;;CO)(A;ID;0x1200a9;;;AC)(A;OICIIOID;GXGR;;;AC)(A;ID;0x1200a9;;;S-1-15-2-2)(A;OICIIOID;GXGR;;;S-1-15-2-2)",
+        "accessProtected": false
+      },
+      {
+        "attributes": 16,
+        "owner": "S-1-5-18",
+        "directory": true,
+        "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager",
+        "sddl": "O:SYG:SYD:AI(A;ID;FA;;;S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464)(A;CIIOID;GA;;;S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464)(A;ID;FA;;;SY)(A;OICIIOID;GA;;;SY)(A;ID;FA;;;BA)(A;OICIIOID;GA;;;BA)(A;ID;0x1200a9;;;BU)(A;OICIIOID;GXGR;;;BU)(A;OICIIOID;GA;;;CO)(A;ID;0x1200a9;;;AC)(A;OICIIOID;GXGR;;;AC)(A;ID;0x1200a9;;;S-1-15-2-2)(A;OICIIOID;GXGR;;;S-1-15-2-2)",
+        "accessProtected": false
+      },
+      {
+        "owner": "S-1-5-32-544",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:AI(A;ID;FA;;;SY)(A;ID;FA;;;BA)(A;ID;0x1200a9;;;BU)(A;ID;0x1200a9;;;AC)(A;ID;0x1200a9;;;S-1-15-2-2)",
+        "directory": false,
+        "accessProtected": false,
+        "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\desktop-memory.mjs",
+        "attributes": 32,
+        "bytes": 641,
+        "sha256": "f791e7de897ec69c4e138ef9efb7f36193d1f793b38afe002b50a1859d5275e6"
+      },
+      {
+        "owner": "S-1-5-32-544",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:AI(A;ID;FA;;;SY)(A;ID;FA;;;BA)(A;ID;0x1200a9;;;BU)(A;ID;0x1200a9;;;AC)(A;ID;0x1200a9;;;S-1-15-2-2)",
+        "directory": false,
+        "accessProtected": false,
+        "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\main.mjs",
+        "attributes": 32,
+        "bytes": 22655,
+        "sha256": "53a854973c9b2c61e556b317a1dd349135595dee1f07edc8299a43a888eb310b"
+      },
+      {
+        "owner": "S-1-5-32-544",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:AI(A;ID;FA;;;SY)(A;ID;FA;;;BA)(A;ID;0x1200a9;;;BU)(A;ID;0x1200a9;;;AC)(A;ID;0x1200a9;;;S-1-15-2-2)",
+        "directory": false,
+        "accessProtected": false,
+        "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\server.mjs",
+        "attributes": 32,
+        "bytes": 64364,
+        "sha256": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc"
+      },
+      {
+        "owner": "S-1-5-32-544",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:AI(A;ID;FA;;;SY)(A;ID;FA;;;BA)(A;ID;0x1200a9;;;BU)(A;ID;0x1200a9;;;AC)(A;ID;0x1200a9;;;S-1-15-2-2)",
+        "directory": false,
+        "accessProtected": false,
+        "path": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\wmi-launcher.mjs",
+        "attributes": 32,
+        "bytes": 99848,
+        "sha256": "a22d90ee3c2711cdbe9ded0c5f9760c1afda9cd6dd4ebb182d7d4c1499c62de3"
+      },
+      {
+        "attributes": 32,
+        "owner": "S-1-5-18",
+        "directory": false,
+        "path": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
+        "sddl": "O:SYG:SYD:AI(A;ID;FA;;;SY)(A;ID;FA;;;BA)(A;ID;0x1200a9;;;BU)(A;ID;0x1200a9;;;AC)(A;ID;0x1200a9;;;S-1-15-2-2)",
+        "bytes": 92279112,
+        "accessProtected": false
+      },
+      {
+        "attributes": 8210,
+        "owner": "S-1-5-18",
+        "directory": true,
+        "path": "C:\\ProgramData",
+        "sddl": "O:SYG:SYD:PAI(A;OICIIO;GA;;;CO)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1200a9;;;BU)(A;CI;DCLCRPCR;;;BU)",
+        "accessProtected": true
+      },
+      {
+        "attributes": 8208,
+        "owner": "S-1-5-32-544",
+        "directory": true,
+        "path": "C:\\ProgramData\\Enclave",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-1001D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;;0x1200a9;;;BU)",
+        "accessProtected": true
+      },
+      {
+        "attributes": 8208,
+        "owner": "S-1-5-32-544",
+        "directory": true,
+        "path": "C:\\ProgramData\\Enclave\\native-manager",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:AI(A;OICIID;FA;;;BA)(A;OICIID;FA;;;SY)",
+        "accessProtected": false
+      },
+      {
+        "attributes": 8208,
+        "owner": "S-1-5-32-544",
+        "directory": true,
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:AI(A;OICIID;FA;;;BA)(A;OICIID;FA;;;SY)",
+        "accessProtected": false
+      },
+      {
+        "attributes": 8208,
+        "owner": "S-1-5-18",
+        "directory": true,
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929",
+        "sddl": "O:SYG:S-1-5-21-2537925762-761743183-266136738-513D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)",
+        "accessProtected": true
+      },
+      {
+        "owner": "S-1-5-32-544",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:AI(A;ID;FA;;;SY)(A;ID;FA;;;BA)",
+        "directory": false,
+        "accessProtected": false,
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\bootstrap.mjs",
+        "attributes": 8224,
+        "bytes": 1619,
+        "sha256": "8b749fa787ce991577ae9007b0c4cf2a884e5d3d362e8444b9fbc15736de3b25"
+      },
+      {
+        "attributes": 8208,
+        "owner": "S-1-5-32-544",
+        "directory": true,
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:AI(A;OICIID;FA;;;SY)(A;OICIID;FA;;;BA)",
+        "accessProtected": false
+      },
+      {
+        "attributes": 8208,
+        "owner": "S-1-5-32-544",
+        "directory": true,
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:AI(A;OICIID;FA;;;SY)(A;OICIID;FA;;;BA)",
+        "accessProtected": false
+      },
+      {
+        "attributes": 8208,
+        "owner": "S-1-5-32-544",
+        "directory": true,
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:AI(A;OICIID;FA;;;SY)(A;OICIID;FA;;;BA)",
+        "accessProtected": false
+      },
+      {
+        "attributes": 8208,
+        "owner": "S-1-5-32-544",
+        "directory": true,
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:AI(A;OICIID;FA;;;SY)(A;OICIID;FA;;;BA)",
+        "accessProtected": false
+      },
+      {
+        "owner": "S-1-5-32-544",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:AI(A;ID;FA;;;SY)(A;ID;FA;;;BA)",
+        "directory": false,
+        "accessProtected": false,
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\desktop-memory.mjs",
+        "attributes": 8224,
+        "bytes": 831,
+        "sha256": "57787b8591a3f6545b94185d927c8c7c08088663985ec43c108aea1c69af67bb"
+      },
+      {
+        "owner": "S-1-5-32-544",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:AI(A;ID;FA;;;SY)(A;ID;FA;;;BA)",
+        "directory": false,
+        "accessProtected": false,
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\main.mjs",
+        "attributes": 8224,
+        "bytes": 24175,
+        "sha256": "e7d05dc1d552c97e556591901d40913ab3521628f9111a012f7b77467f74b10b"
+      },
+      {
+        "owner": "S-1-5-32-544",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:AI(A;ID;FA;;;SY)(A;ID;FA;;;BA)",
+        "directory": false,
+        "accessProtected": false,
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\server.mjs",
+        "attributes": 8224,
+        "bytes": 64364,
+        "sha256": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc"
+      },
+      {
+        "owner": "S-1-5-32-544",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:AI(A;ID;FA;;;SY)(A;ID;FA;;;BA)",
+        "directory": false,
+        "accessProtected": false,
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\control\\windows\\vbslike\\manager\\wmi-launcher.mjs",
+        "attributes": 8224,
+        "bytes": 99854,
+        "sha256": "bba4c309f5a837e17bf44be54cd8e4c4432ad74174a7d09eda559f11f5ef250e"
+      },
+      {
+        "owner": "S-1-5-32-544",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:AI(A;ID;FA;;;SY)(A;ID;FA;;;BA)",
+        "directory": false,
+        "accessProtected": false,
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\source-manifest.json",
+        "attributes": 8224,
+        "bytes": 17929,
+        "sha256": "58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929"
+      },
+      {
+        "attributes": 8208,
+        "owner": "S-1-5-32-544",
+        "directory": true,
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)",
+        "accessProtected": true
+      },
+      {
+        "owner": "S-1-5-32-544",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:PAI(A;;FA;;;SY)(A;;FA;;;BA)",
+        "directory": false,
+        "accessProtected": true,
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292\\bootstrap.mjs",
+        "attributes": 8224,
+        "bytes": 1619,
+        "sha256": "8b749fa787ce991577ae9007b0c4cf2a884e5d3d362e8444b9fbc15736de3b25"
+      },
+      {
+        "attributes": 8208,
+        "owner": "S-1-5-32-544",
+        "directory": true,
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292\\control",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)",
+        "accessProtected": true
+      },
+      {
+        "attributes": 8208,
+        "owner": "S-1-5-32-544",
+        "directory": true,
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292\\control\\windows",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)",
+        "accessProtected": true
+      },
+      {
+        "attributes": 8208,
+        "owner": "S-1-5-32-544",
+        "directory": true,
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292\\control\\windows\\vbslike",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)",
+        "accessProtected": true
+      },
+      {
+        "attributes": 8208,
+        "owner": "S-1-5-32-544",
+        "directory": true,
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292\\control\\windows\\vbslike\\manager",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)",
+        "accessProtected": true
+      },
+      {
+        "owner": "S-1-5-32-544",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:PAI(A;;FA;;;SY)(A;;FA;;;BA)",
+        "directory": false,
+        "accessProtected": true,
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292\\control\\windows\\vbslike\\manager\\desktop-memory.mjs",
+        "attributes": 8224,
+        "bytes": 831,
+        "sha256": "57787b8591a3f6545b94185d927c8c7c08088663985ec43c108aea1c69af67bb"
+      },
+      {
+        "owner": "S-1-5-32-544",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:PAI(A;;FA;;;SY)(A;;FA;;;BA)",
+        "directory": false,
+        "accessProtected": true,
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292\\control\\windows\\vbslike\\manager\\main.mjs",
+        "attributes": 8224,
+        "bytes": 24175,
+        "sha256": "e7d05dc1d552c97e556591901d40913ab3521628f9111a012f7b77467f74b10b"
+      },
+      {
+        "owner": "S-1-5-32-544",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:PAI(A;;FA;;;SY)(A;;FA;;;BA)",
+        "directory": false,
+        "accessProtected": true,
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292\\control\\windows\\vbslike\\manager\\server.mjs",
+        "attributes": 8224,
+        "bytes": 64364,
+        "sha256": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc"
+      },
+      {
+        "owner": "S-1-5-32-544",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:PAI(A;;FA;;;SY)(A;;FA;;;BA)",
+        "directory": false,
+        "accessProtected": true,
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292\\control\\windows\\vbslike\\manager\\wmi-launcher.mjs",
+        "attributes": 8224,
+        "bytes": 99854,
+        "sha256": "bba4c309f5a837e17bf44be54cd8e4c4432ad74174a7d09eda559f11f5ef250e"
+      },
+      {
+        "owner": "S-1-5-32-544",
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:PAI(A;;FA;;;SY)(A;;FA;;;BA)",
+        "directory": false,
+        "accessProtected": true,
+        "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292\\source-manifest.json",
+        "attributes": 8224,
+        "bytes": 18164,
+        "sha256": "93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292"
+      }
+    ],
+    "processTopology": [
+      {
+        "listenerPid": 41272,
+        "rows": [
+          {
+            "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
+            "parent": 38368,
+            "pid": 41272,
+            "created": "2026-10-27T08:24:45.0989590Z"
+          },
+          {
+            "exe": "C:\\WINDOWS\\system32\\cmd.exe",
+            "parent": 2752,
+            "pid": 38368,
+            "created": "2026-10-27T08:24:45.0528350Z"
+          },
+          {
+            "exe": "C:\\Program Files\\Enclave\\bin\\tpmattest.exe",
+            "parent": 41272,
+            "pid": 27516,
+            "created": "2026-10-27T08:24:49.0935920Z"
+          }
+        ]
+      },
+      {
+        "listenerPid": 40360,
+        "rows": [
+          {
+            "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
+            "parent": 33732,
+            "pid": 40360,
+            "created": "2026-10-27T08:24:42.8500370Z"
+          },
+          {
+            "exe": "C:\\Windows\\System32\\cmd.exe",
+            "parent": 2752,
+            "pid": 33732,
+            "created": "2026-10-27T08:24:42.8097460Z"
+          }
+        ]
+      },
+      {
+        "listenerPid": 41308,
+        "rows": [
+          {
+            "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
+            "parent": 11268,
+            "pid": 41308,
+            "created": "2026-10-27T08:02:19.4407050Z"
+          },
+          {
+            "exe": "C:\\Windows\\System32\\cmd.exe",
+            "parent": 2752,
+            "pid": 11268,
+            "created": "2026-10-27T08:02:19.2440340Z"
+          }
+        ]
+      },
+      {
+        "listenerPid": 38076,
+        "rows": [
+          {
+            "exe": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
+            "parent": 37940,
+            "pid": 38076,
+            "created": "2026-10-26T17:17:18.5617520Z"
+          },
+          {
+            "exe": "C:\\WINDOWS\\system32\\cmd.exe",
+            "parent": 2752,
+            "pid": 37940,
+            "created": "2026-10-26T17:17:18.5129810Z"
+          },
+          {
+            "exe": "C:\\Program Files\\Enclave\\bin\\shield-host-e4eeb994.exe",
+            "parent": 38076,
+            "pid": 31464,
+            "created": "2026-10-26T17:18:54.1715930Z"
+          },
+          {
+            "exe": "C:\\Program Files\\Enclave\\bin\\shield-egress.exe",
+            "parent": 38076,
+            "pid": 53916,
+            "created": "2026-10-31T01:52:04.6866310Z"
+          },
+          {
+            "exe": "C:\\Program Files\\Enclave\\bin\\shielded-bridge.exe",
+            "parent": 38076,
+            "pid": 51140,
+            "created": "2026-10-31T01:52:04.7076670Z"
+          },
+          {
+            "exe": "C:\\Program Files\\Enclave\\bin\\shield-host-e4eeb994.exe",
+            "parent": 38076,
+            "pid": 57024,
+            "created": "2026-10-31T01:52:04.7332560Z"
+          },
+          {
+            "exe": "C:\\Program Files\\Enclave\\bin\\shield-egress.exe",
+            "parent": 38076,
+            "pid": 45368,
+            "created": "2026-10-31T02:52:14.4971210Z"
+          },
+          {
+            "exe": "C:\\Program Files\\Enclave\\bin\\shielded-bridge.exe",
+            "parent": 38076,
+            "pid": 49148,
+            "created": "2026-10-31T02:52:14.5219050Z"
+          },
+          {
+            "exe": "C:\\Program Files\\Enclave\\bin\\shield-host-e4eeb994.exe",
+            "parent": 38076,
+            "pid": 57032,
+            "created": "2026-10-31T02:52:14.5503670Z"
+          }
+        ]
+      }
+    ],
+    "tasks": [
+      {
+        "actions": [
+          {
+            "execute": "cmd.exe",
+            "argumentSha256": "05611c09e7160576e5185498460c507a8a52b20ba7ebc82d9e78d28d53446454"
+          }
+        ],
+        "user": "SYSTEM",
+        "enabled": true,
+        "name": "Card",
+        "state": "Running"
+      },
+      {
+        "actions": [
+          {
+            "execute": "C:\\Program Files\\Enclave\\host-services\\hs2\\bin\\hostsvc-supervisor.exe",
+            "argumentSha256": "1ec8e2656ec1cd5f319e1b056f91a7014674708d43cfa1408c93abb4d9bff500"
+          }
+        ],
+        "user": "LOCAL SERVICE",
+        "enabled": true,
+        "name": "enclave-host-services-hs2",
+        "state": "Ready"
+      },
+      {
+        "actions": [
+          {
+            "execute": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
+            "argumentSha256": "3902c50f6288b2e5638083e1fa4a5bbd849579f45fbf8f4027413410d2d0a184"
+          }
+        ],
+        "user": "LOCAL SERVICE",
+        "enabled": true,
+        "name": "NativeArtifacts",
+        "state": "Running"
+      },
+      {
+        "actions": [
+          {
+            "execute": "C:\\Windows\\System32\\cmd.exe",
+            "argumentSha256": "9b977f08323aba2c207450b8acc312a721b513f0679584f38c742b464ea75ba9"
+          }
+        ],
+        "user": "SYSTEM",
+        "enabled": true,
+        "name": "NativeManagerV12",
+        "state": "Running"
+      },
+      {
+        "actions": [
+          {
+            "execute": "C:\\Program Files\\Enclave\\runtime\\python\\python.exe",
+            "argumentSha256": "eb0862d1d429147f8ad1fb12a3dcca384f6c96e4c5e185d33cdf55e344307973"
+          }
+        ],
+        "user": "SYSTEM",
+        "enabled": true,
+        "name": "NativeRestoreAffectedV13",
+        "state": "Ready"
+      },
+      {
+        "actions": [
+          {
+            "execute": "C:\\Windows\\System32\\cmd.exe",
+            "argumentSha256": "1de86faa34ab0b650a4d02aea6640dce4e61abe1d212b47384ea4bca20f3d522"
+          }
+        ],
+        "user": "SYSTEM",
+        "enabled": true,
+        "name": "NativeRouterV12",
+        "state": "Running"
+      },
+      {
+        "actions": [
+          {
+            "execute": "cmd.exe",
+            "argumentSha256": "43ac1c8cb272374b66e26cd5ba9cb3434ffb426d87a27f4e7f2dfb5a84a286c1"
+          }
+        ],
+        "user": "SYSTEM",
+        "enabled": true,
+        "name": "Network",
+        "state": "Running"
+      },
+      {
+        "actions": [
+          {
+            "execute": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
+            "argumentSha256": "93ffdd5aadcd1c598be3afc8fbc70f694cac5c9ad3a12fcee87aa0ed07dad4ef"
+          }
+        ],
+        "user": "SYSTEM",
+        "enabled": true,
+        "name": "NetworkChecker",
+        "state": "Running"
+      },
+      {
+        "actions": [
+          {
+            "execute": "cmd.exe",
+            "argumentSha256": "4d1e04bed1ea738ff25304c5200c2949d1937fc796ed68daa2d2bbc600e66aef"
+          }
+        ],
+        "user": "SYSTEM",
+        "enabled": true,
+        "name": "Node",
+        "state": "Running"
+      },
+      {
+        "actions": [
+          {
+            "execute": "cmd.exe",
+            "argumentSha256": "d79366ffd9a2e7b7f601a1cabb36a429c89acf2d5aafee4bbd41c13c56c0ff2e"
+          }
+        ],
+        "user": "SYSTEM",
+        "enabled": true,
+        "name": "Relay",
+        "state": "Running"
+      },
+      {
+        "actions": [
+          {
+            "execute": "cmd.exe",
+            "argumentSha256": "b883fa78ccb5413ce5e62e8b3b2ac9da4675c66900ba4459467421a5ef62de7c"
+          }
+        ],
+        "user": "SYSTEM",
+        "enabled": true,
+        "name": "Shield",
+        "state": "Running"
+      },
+      {
+        "actions": [
+          {
+            "execute": "powershell.exe",
+            "argumentSha256": "371354f94d2bf4d4200535705f6149a5bc3a95cb0637c99b5a15637bf97877ce"
+          }
+        ],
+        "user": "SYSTEM",
+        "enabled": true,
+        "name": "Update",
+        "state": "Ready"
+      }
+    ],
+    "readOnly": true,
+    "heldNamespaceProof": false,
+    "admitted": false
+  }
+}
