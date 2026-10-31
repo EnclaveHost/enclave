@@ -1,0 +1,8 @@
+PASS exact-pre-fence-child-exit-and-memory-only-receipt
+PASS persistent-fence-retained-after-cut
+PASS empty-cohort-still-applies-real-fence
+PASS wrong-creation-refused-before-fence
+PASS duplicate-issuer-refused
+PASS unsupported-shell-refused
+PASS deadline-keeps-fence-and-does-not-kill-live-issuer-child
+RESULT tests=7 nativeProcessHandles=true providerCalls=false vmChanged=false
