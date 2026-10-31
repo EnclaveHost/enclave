@@ -1,0 +1,15 @@
+{
+  "run": 41165258858,
+  "head": "9f752bd40ea3fbcea064f2198967099b32e0d2dd",
+  "sourceFiles": 53,
+  "sourceDrift": [],
+  "pass": 202,
+  "fail": 0,
+  "cancelled": 0,
+  "skipped": 0,
+  "testMs": 7145.026789,
+  "elapsedMs": 7283,
+  "sampledPeakTreeMiB": 177,
+  "minimumHostedAvailableMiB": 14941,
+  "productionAdmission": false
+}
