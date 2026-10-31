@@ -38,12 +38,14 @@ public static class LegacyTemplateFenceHarness {
    new Dictionary<string,string>{{"SystemRoot",Environment.GetEnvironmentVariable("SystemRoot")}},deadline,1000,128UL*1024*1024);
   Check(child.LocalSuccess,"Fresh child confirms persistent access denial with exact death/job cleanup");Pass("separate-process-denial");
   string ps=Path.Combine(Environment.SystemDirectory,"WindowsPowerShell",@"v1.0\powershell.exe");
-  string script="$ErrorActionPreference='Stop';$m='"+f.Master+"';$dest='"+Path.Combine(f.Root,"ps-copy.vmgs")+"';"+
+  string progress=Path.Combine(f.Root,"ps-progress.txt");
+  string script="[IO.File]::WriteAllText('"+progress+"','entered');$ErrorActionPreference='Stop';$m='"+f.Master+"';$dest='"+Path.Combine(f.Root,"ps-copy.vmgs")+"';"+
    "if(-not (Test-Path -LiteralPath $m) -or (Get-Item -LiteralPath $m).Length -ne 4){exit 4};"+
-   "$denied=0;try{Get-FileHash -LiteralPath $m -Algorithm SHA256 -ErrorAction Stop|Out-Null}catch{$denied++};"+
-   "try{Copy-Item -LiteralPath $m -Destination $dest -ErrorAction Stop}catch{$denied++};if($denied -ne 2 -or (Test-Path -LiteralPath $dest)){exit 5};exit 0";
+   "[IO.File]::AppendAllText('"+progress+"',' metadata');$denied=0;try{Get-FileHash -LiteralPath $m -Algorithm SHA256 -ErrorAction Stop|Out-Null}catch{$denied++};"+
+   "[IO.File]::AppendAllText('"+progress+"',' hashed');try{Copy-Item -LiteralPath $m -Destination $dest -ErrorAction Stop}catch{$denied++};if($denied -ne 2 -or (Test-Path -LiteralPath $dest)){exit 5};exit 0";
   var psResult=BoundedWorker.Run(ps,"\""+ps+"\" -NoProfile -NonInteractive -EncodedCommand "+Convert.ToBase64String(Encoding.Unicode.GetBytes(script)),f.Root,
-   new Dictionary<string,string>{{"SystemRoot",Environment.GetEnvironmentVariable("SystemRoot")}},deadline,1000,128UL*1024*1024);
+   new Dictionary<string,string>{{"SystemRoot",Environment.GetEnvironmentVariable("SystemRoot")}},deadline-2000,500,128UL*1024*1024);
+  Console.WriteLine("PS_PROBE timedOut="+psResult.TimedOut+" exitKnown="+psResult.ExitCodeKnown+" exit="+psResult.ExitCode+" dead="+psResult.ProcessExited+" jobEmpty="+psResult.JobEmpty+" stage="+(File.Exists(progress)?File.ReadAllText(progress):"not-entered"));
   Check(psResult.LocalSuccess,"Actual PowerShell metadata/hash/copy semantics");Pass("powershell-preflight-preserved-content-reads-denied");
   Check(File.Exists(f.Master)&&new FileInfo(f.Master).Length==4,"Metadata remains available");Pass("preflight-metadata-preserved");
   Check(ProtectedAttempt.Hash(File.ReadAllBytes(f.Run))==f.Hash&&ProtectedAttempt.Hash(File.ReadAllBytes(f.Next))==f.Hash,"Distinct copies remain readable");Pass("existing-run-and-new-master-unaffected");

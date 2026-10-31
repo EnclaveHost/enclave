@@ -1,0 +1,23 @@
+{
+  "run": 41167423437,
+  "head": "c4b51473bb1fcb3b852fe31b7743cd884f88967e",
+  "compiledSources": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/VmStartGuardian.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/ProviderStart.cs",
+    "windows/rpc/ProviderStop.cs",
+    "windows/rpc/HostPhysicalPool.cs",
+    "windows/rpc/PhysicalPoolCommand.cs",
+    "windows/rpc/OwnedVmPermit.cs",
+    "windows/rpc/WindowsStartAdmission.cs",
+    "windows/rpc/ProviderWorkerEntry.cs",
+    "windows/rpc/LegacyTemplateFence.cs",
+    "test/rpc-windows-worker/LegacyTemplateFenceHarness.cs"
+  ],
+  "executableSha256": "27c6ef9a4dcedf249b8594290c636316b45dc5af30c6e715f7b9aaec83fed162",
+  "failed": true,
+  "watchdogExit": 124,
+  "passedBeforeTimeout": 3
+}

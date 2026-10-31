@@ -1,0 +1,3 @@
+PASS durable-read-denial-only
+PASS hash-read-and-copy-refused-after-all-handles-close
+PASS separate-process-denial
