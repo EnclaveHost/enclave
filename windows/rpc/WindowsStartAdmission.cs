@@ -101,6 +101,34 @@ internal sealed partial class WindowsStartAdmission {
         }
         return new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32}.Serialize(values);
     }
+    // Diagnostics describe only the two already-compared receipts. No extra
+    // observation, new authority, changed equality, or raw host payload logging.
+    // Field bits: status=1, memory-present=2, memory=4, isolation=8,
+    // held=16, retire=32; missing identity=64. First ID is ordinal-sorted.
+    internal static string DeploymentDifference(string expected,string actual) {
+        try {
+            var json=new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32};
+            var a=Obj(json.DeserializeObject(expected));var b=Obj(json.DeserializeObject(actual));
+            var ids=new SortedSet<string>(a.Keys,StringComparer.Ordinal);ids.UnionWith(b.Keys);
+            if(ids.Count>256)throw new InvalidOperationException("Diagnostic identity bound");
+            int changed=0,mask=0;string first=null;object firstA=null,firstB=null;
+            foreach(string id in ids){
+                object av,bv;bool ap=a.TryGetValue(id,out av),bp=b.TryGetValue(id,out bv);
+                if(ap==bp&&json.Serialize(av)==json.Serialize(bv))continue;
+                changed++;
+                if(first!=null)continue;
+                first=id;firstA=av;firstB=bv;
+                if(!ap||!bp){mask=64;continue;}
+                var ar=Rows(av);var br=Rows(bv);if(ar.Count!=6||br.Count!=6)throw new InvalidOperationException("Diagnostic shape");
+                for(int i=0;i<6;i++)if(json.Serialize(ar[i])!=json.Serialize(br[i]))mask|=1<<i;
+            }
+            Func<object,int,string> bounded=(value,limit)=>{string text=json.Serialize(value);return text.Length<=limit?text:"sha256:"+ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(text));};
+            string result="rows="+a.Count+"/"+b.Count+" changed="+changed+" first="+bounded(first,80)+" mask="+mask+
+                " expected="+bounded(firstA,120)+" actual="+bounded(firstB,120);
+            if(result.Length>450)throw new InvalidOperationException("Diagnostic message bound");
+            return result;
+        }catch{return "comparison-detail-unavailable";}
+    }
     void Read() {
         var os=One("SELECT LastBootUpTime,TotalVisibleMemorySize,FreePhysicalMemory FROM Win32_OperatingSystem",new[]{"LastBootUpTime","TotalVisibleMemorySize","FreePhysicalMemory"});
         long free=checked(Convert.ToInt64(os["FreePhysicalMemory"])*1024);
@@ -118,7 +146,8 @@ internal sealed partial class WindowsStartAdmission {
         // read; VerifyResources checks them again below. Legacy unfenced mode
         // keeps strict historical equality. Both modes keep strict live equality.
         string nodeExpected=DeploymentReceipt(node,false,completed!=null);
-        if(DeploymentReceipt(liveNode,true,completed!=null)!=nodeExpected)throw new InvalidOperationException("Node commitments changed since review");
+        string nodeActual=DeploymentReceipt(liveNode,true,completed!=null);
+        if(nodeActual!=nodeExpected)throw new InvalidOperationException("Node commitments changed since review: "+DeploymentDifference(nodeExpected,nodeActual));
         string pending=completed==null?LivePending():completed.Receipt;
         var before=Obj(obs["physicalBefore"]);var after=Obj(obs["physicalAfter"]);
         double age=(DateTime.UtcNow-DateTime.Parse(Str(before["atUtc"]),CultureInfo.InvariantCulture,DateTimeStyles.RoundtripKind).ToUniversalTime()).TotalSeconds;

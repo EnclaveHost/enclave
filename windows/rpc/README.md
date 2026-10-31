@@ -1051,3 +1051,5 @@ memory on a claiming record is refused. This does not admit a new allocation
 or treat a historical snapshot as current capacity.
 
 The fenced historical retry comparison passed hosted startup 50 and definition 93 cases at `69d6d76af0d2e8515fdc63252e2770da05231e5e`, but the subsequent actual SYSTEM admission-only check still refused `Node commitments changed since review`. This comparison change is not target admission qualification. Exact compared field differences still need private bounded diagnostics; production remains unstarted and the consumed original attempt/cut must not be replayed.
+
+Admission comparison failures now include bounded detail from the exact two compared receipts: total changed rows, first ordinal identity, field bitmask (status1, memory-presence2, memory4, isolation8, held16, retire32, missing identity64), and both projected rows. Long values are represented by SHA-256; unrelated host payload is excluded. This detail follows the existing private failure receipt path and does not change equality or perform a second observation.
