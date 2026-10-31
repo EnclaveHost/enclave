@@ -1,0 +1,31 @@
+{
+  "at": 1793407365.1284351,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 222,
+  "remoteDeathProven": false,
+  "automaticRetry": false,
+  "result": {
+    "started": true,
+    "exactControllerDeath": true,
+    "exitCode": 0,
+    "failure": null,
+    "result": {
+      "schema": "owned-rpc-target-inert/2",
+      "passed": true,
+      "hostedCi": false,
+      "origin": 663200396,
+      "deadline": 663230396,
+      "elapsedMs": 3130,
+      "root": "C:\\EnclaveRpcQualification-d2a9b31de1e9411c8f572bfbed90be3a\\d2a9b31de1e9411c8f572bfbed90be3a",
+      "freeBytes": 84030627840,
+      "requiredFreeBytes": 62709039104,
+      "failures": [],
+      "providerFenced": false,
+      "reservationMayRelease": false,
+      "vmsChanged": false
+    },
+    "reservationMayRelease": false,
+    "vmsChanged": false
+  }
+}

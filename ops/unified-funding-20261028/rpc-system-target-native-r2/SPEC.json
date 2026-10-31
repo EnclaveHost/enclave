@@ -1,0 +1,12 @@
+{
+  "inputNonce": "c2a16f37d45646f8b56b5a8ed0d9bda8",
+  "attemptNonce": "d2a9b31de1e9411c8f572bfbed90be3a",
+  "root": "C:/EnclaveRpcQualificationInputs-c2a16f37d45646f8b56b5a8ed0d9bda8/c2a16f37d45646f8b56b5a8ed0d9bda8",
+  "controllerSha": "9a80dc8136f15931dcde670608dd68d11ff734662990844bc6cf21b92d5ac30c",
+  "entrySha": "5b0d7f82539e5bb11edaf9ecfac32f3d1095a657131931fa27edcf513f0d127d",
+  "source": "c2f513dd0d05d4d64eced238ac0d6525fd951360",
+  "requiredFreeBytes": 62709039104,
+  "diskFloorBytes": 17196646400,
+  "localAuthority": "root-only one-shot inert qualification; no VM/provider/finance",
+  "nativeAttempted": false
+}

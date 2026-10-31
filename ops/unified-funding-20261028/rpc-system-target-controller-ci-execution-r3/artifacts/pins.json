@@ -1,0 +1,32 @@
+[
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "309A68AB3A4326C3819997C3ABAE4E4FE38307E98BB54B31B246CE61A9A63A99",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\BoundedWorker.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "59D15DC8BA06CD739D7BF920FDA4CCA86D235B962CCCEF1BAE27C0173FBEDC80",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\OwnerObserver.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "5D6F056DEB8B90C892C48D6B8332A95F8220F6A26820C70BADC65927985AC403",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\ProtectedAttempt.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "CC239183AABD644FC2200FA62B992E275527D583A4A662B4D5BA760359780BDF",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\InertEntry.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "BCE16D906F4A79CABF8202FDA598B3CE4A4B917A7EBBB578DD7790BBCAFEC7F4",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\InertQualification.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "46809206887326D2D24DB1EFF1F3064DE972C3451ABE766B49111450A5E08E00",
+        "Path":  "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe"
+    }
+]

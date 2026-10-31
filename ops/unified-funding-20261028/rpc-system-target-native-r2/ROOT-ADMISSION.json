@@ -1,0 +1,12 @@
+{
+  "at": 1793407360.18469,
+  "observationSha": "b5498af63a9b9ae807fbee5b9a7c05554544ea0a427364591d85c579a6ee3cf2",
+  "minFreeBytes": 84010635264,
+  "requiredInertFreeBytes": 62709039104,
+  "pendingMiB": 39388,
+  "hostFloorMiB": 18432,
+  "managerBindingsUnchanged": true,
+  "rootReviewed11Gets": true,
+  "latestLaunchMonotonic": 663232597,
+  "vmOrRpcAdmitted": false
+}

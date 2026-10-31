@@ -1,0 +1,7 @@
+Actual target SYSTEM qualification passed
+
+Create91cbdf01a9a94ad6b47677bcac081f2d, upload87c2593ffd1c4e1a9955ea365b913c51 and native b9d2f1cb6c744aff8e7e5608a6a3aed6 completed success/MainPID0. Corrected explicit integer ACE flags preserve namespace checks. Exact same verified CI41151421474 controller/entry bytes were pinned and loaded on minipc. Target mode (hostedCi=false) passed in3130ms at origin663200396/deadline663230396, free84030627840B against inert threshold62709039104B. Closed work gate, separate SYSTEM tasks, owner exact exit0, observer exact exit0 and explicit owner-job-empty receipt plus associated task removal were required by this exact pinned controller. Transport held exact controller handle and observed exit0/death; no SSH-exit substitution.
+
+Fresh read10d96cdc85ff49889f6b68d4099b75c3 yielded11GETs/noerrors, unchanged manager listener incarnations,5VMs. Minfree84010635264B, C:22176567296B.39388MiB pending+18GiBfloor+inert allowances retained. Launch origin22.799s after first physical stamp, within55s seal. No RPC/VM/provider/data export/funds changes. ProviderOperationFenced and ReservationMayRelease remain false. This admits the tested inert target path only, not future VM creation or larger memory allocation.
+
+Next: maintained durable one-shot VM-start intent/reference/settlement integration using this qualified worker/observer. Lost native provider return must remain held; never repeat submission. Boot/storage/ELCLBase/sync/finality/cutover still required, candidate20GiB unproven,900sstartup unchanged. No completed helper rerun.

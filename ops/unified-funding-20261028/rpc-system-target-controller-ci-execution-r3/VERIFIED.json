@@ -1,0 +1,24 @@
+{
+  "source": "c2f513dd0d05d4d64eced238ac0d6525fd951360",
+  "ci": 41151421474,
+  "sourcePinsMatch": true,
+  "binaries": {
+    "entry.exe": "9a80dc8136f15931dcde670608dd68d11ff734662990844bc6cf21b92d5ac30c",
+    "owned-entry.exe": "5b0d7f82539e5bb11edaf9ecfac32f3d1095a657131931fa27edcf513f0d127d"
+  },
+  "result": {
+    "schema": "owned-rpc-target-inert/2",
+    "passed": true,
+    "hostedCi": true,
+    "origin": 1005086,
+    "deadline": 1035086,
+    "elapsedMs": 1672,
+    "root": "C:\\EnclaveRpcQualification-9b28653f57d048e0857b7b35044d883f\\9b28653f57d048e0857b7b35044d883f",
+    "freeBytes": 14308233216,
+    "requiredFreeBytes": 62709039104,
+    "failures": [],
+    "providerFenced": false,
+    "reservationMayRelease": false,
+    "vmsChanged": false
+  }
+}

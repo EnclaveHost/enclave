@@ -1,0 +1,17 @@
+[
+  {
+    "path": "stage-INTENT.json",
+    "originalSha256": "6e4af21c06522196489f3c1a2e06bd2babc05b98e06e03159a10ec4ad0039c73",
+    "publicSha256": "dff406a0a59a7ac4e16f78b70252e9a249d3a43e57f92533c3434e047f242faa"
+  },
+  {
+    "path": "create-INTENT.json",
+    "originalSha256": "a7b43ded82e379d0d1fc9d5d426b211fdcd4e9e019277f5e010eea7ec6545422",
+    "publicSha256": "ea962da4bd4d4481297c3abcb46d695d714c50b96ae989906875819bc03328d8"
+  },
+  {
+    "path": "execute-INTENT.json",
+    "originalSha256": "4bca8d813f86413d6653ff2b18e4967d8d6f273b69a7666733fadfcacd1e6f4a",
+    "publicSha256": "2c8e670cd264753c1a4b46f0f51a0b1a32d4c75b3588400ea6e6315498157d3c"
+  }
+]

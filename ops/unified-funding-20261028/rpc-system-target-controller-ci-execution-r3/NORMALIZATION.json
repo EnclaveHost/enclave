@@ -1,0 +1,62 @@
+[
+  {
+    "path": "DISPATCH-INTENT.json",
+    "originalSha256": "bd735b3037b24710f6c6edede9522699393915ff5307a820259aebba21dd044b",
+    "publicSha256": "a597287f845c2d6d261c03b032f1a646d4672cbabd2566659451bb93f4fbacae"
+  },
+  {
+    "path": "artifacts/inert.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "path": "artifacts/publication.json",
+    "originalSha256": "cfbc541cf4c72e9562de67b7426d8a924d7030909a1c185d0686643b08d59d74",
+    "publicSha256": "47ef2c76bc76efb7c0aafb90fed1d90f171c299edf425caa7b4d237f746d13b8"
+  },
+  {
+    "path": "artifacts/process-results.json",
+    "originalSha256": "e1eb572e8220c2ad5a46174c12eb07fcdd2e1df08f013aaeb16ee0328c5571eb",
+    "publicSha256": "7f3af592bffc0fbc9757a228a0c54c4fa792cc81deb0fe0ae27d000827e0a4a0"
+  },
+  {
+    "path": "artifacts/controller-compile.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "path": "artifacts/pins.json",
+    "originalSha256": "29ced9a2daf268e69aef19d20fac959b4ff8aeea84872d51252ce693318a9e2a",
+    "publicSha256": "cb420e2280e62f3517d6179fb528f25bc85b36dcf664fa76bca1fb9ab654b11d"
+  },
+  {
+    "path": "artifacts/entry-compile.out",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "path": "artifacts/entry-artifact.json",
+    "originalSha256": "eca0278549d65a3c1476856398a2760c7597bb03e0d76e65abd87c6076911103",
+    "publicSha256": "8b8cb9500b7ab91adf68e5317673d9d72ac59b0ac16071518b3484481795b77f"
+  },
+  {
+    "path": "artifacts/inert.out",
+    "originalSha256": "ebb25957325635f5620fc71a927619d704cad8e38a45170905e2aa028a3368cc",
+    "publicSha256": "bda43f05f39e385f4670c5502a5734bc5abe988c4e2d75e6337e6f266d340a7a"
+  },
+  {
+    "path": "artifacts/controller-artifact.json",
+    "originalSha256": "cba29c62c68013c2445c4c309cbc4661b99d5875c82631cdfe349816cccf3630",
+    "publicSha256": "63265be831c51c5b7d57189fa0a8c4c734c826ead4f432396ddf66c7421fba1b"
+  },
+  {
+    "path": "artifacts/entry-compile.err",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "path": "artifacts/controller-compile.out",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  }
+]
