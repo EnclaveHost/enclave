@@ -588,3 +588,20 @@ producer/consumer schema, historical read-only lifetime and repeated pool claim
 checks. It did not execute a full production completion or native start. The
 production cut, new VM boot, storage, client readiness and consumer cutover remain
 unperformed.
+
+
+### Ordinary Gen2 definition transaction (not activated)
+
+`OwnedVmDefinition.cs` implements the fixed local definition transaction for the
+planned ordinary Generation2 Ubuntu RPC guest, separate from app type1 firmware.
+It records the returned system/job before observations, preserves uncertain
+submissions without retry, and derives the actual GUID only from returned evidence.
+The original startup clock survives definition and permit publication. It requests
+static19GiB and4vCPU, no autostart/checkpoints, host shutdown and Linux Secure Boot,
+then requires exact owned Off/zero and configuration readback.
+
+This is a VM-shell stage. Boot/seed hashes are bound in the plan but attachment,
+network/boot order, protected production entry/controller and independent failure
+cleanup integration remain unfinished. No caller may treat defined-owned-off as
+boot preparation, start authorization or RPC readiness. Hosted fault qualification
+is pending; no native VM has been created.

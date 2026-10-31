@@ -1,0 +1,11 @@
+# Ordinary Generation 2 owned RPC definition
+
+Maintained source candidate, no production import or native VM operation. This implements the one-shot definition transaction and fixed local Hyper-V adapter needed by the production controller, not the complete controller or boot attachment.
+
+The original RPC plan is a normal Generation2 Ubuntu guest, static19GiB plus1GiB support. App type1 firmware/VMGS must not be imported into this definition. Existing app isolation is unchanged; the old-master fence/new-master path remains a separate retained-allocator transition.
+
+The immutable plan retains original900s origin/deadline, actual provider-entry digest, admission digest and boot/seed hashes. Only a returned or exact settled-job-associated system yields the VM GUID. Intent/submission/native/invoke records consume the attempt; returned references are persisted before subsequent queries; response loss, failed writes and changed jobs stay held. The adapter requests disabled autostart, host shutdown, disabled manual/automatic checkpoints, Linux Secure Boot, static19GiB min/current/max and4vCPU. Realized Off/zero and exact settings/CPU/memory are read back. Source review found and corrected missing CPU readback; all three negative cases and valid CPU readback are covered.
+
+Thirty-two planned hosted tests use fake provider calls to exercise lost responses, durable record failures, duplicate submission, pending/failed/recycled jobs, exact GUID/reference rejection, immutable deadline and mismatching configuration. There are no VM calls in the fixture. Native WMI property support/readback semantics remain unqualified. Disk/DVD/NIC attachment, boot order, production entry/controller integration, independent cleanup scheduling and readiness are still missing. defined-owned-off cannot authorize start or claim boot readiness.
+
+Primary references: https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/definesystem-msvm-virtualsystemmanagementservice ; https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-virtualsystemsettingdata ; Linux Secure Boot template is corroborated by https://github.com/microsoft/MSLab/blob/master/Scripts/3_Deploy.ps1 (Linux branch). Native provider properties still need target proof. No artifact publication, runtime restart, old VM change, funding or production RPC outcome.

@@ -1,0 +1,11 @@
+{
+  "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+  "windows/rpc/OwnerObserver.cs": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80",
+  "windows/rpc/ProtectedAttempt.cs": "4fde57859de5daa8a914cdb31d41d5dcf57da9088e8018e9c65af3be95371a85",
+  "windows/rpc/ProviderStart.cs": "d2eb7bbebc74b02be707fcd705c9165af9b6fdf2f6440a94fde76dcc0ceaeea2",
+  "windows/rpc/OwnedVmPermit.cs": "a4d1f9640a4087714b9907cddcdc64340cb57f07de04dd1b6baf97197ac60373",
+  "windows/rpc/OwnedVmDefinition.cs": "3f6f99516f238d35f4e84c54e85677ed347cd60ce83f0d68be936c3ff9a4b03f",
+  "test/rpc-windows-worker/OwnedVmDefinitionHarness.cs": "9c6935fdfad559b18ac3a74757ec0d6b43b3c3b41fa2804411521e6074ad5645",
+  "test/rpc-windows-worker/run-definition-ci.ps1": "712c5a25b8b40ce070aae514b0bdf0907b9dc6c303ce909802438f31af33f318",
+  ".github/workflows/rpc-owned-definition.yml": "70f629422c408bd19a2cdd0ec3d26a5572d67051fbd714b666f9590db188476b"
+}
