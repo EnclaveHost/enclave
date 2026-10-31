@@ -1,0 +1,173 @@
+{
+  "run": 41162674829,
+  "source": "a575902b7db7b18f0a6c485e495b9536a5c7169f",
+  "compiledPins": 15,
+  "binaries": {
+    "owned-entry.exe": "c66fe05719821bf211988c886f4f18d5b398c6679ce0e258181e7a2795219f24",
+    "qualification-controller.exe": "64bed5710b996db866e5869834e21f095538fa8bc91bbd7a257f554ace076f59",
+    "physical-pool-command.exe": "8715100814a9c6e2adb0f0d212cb97ddf3219dcd4bde5efb6166dd2ecc08ba5a"
+  },
+  "processes": [
+    {
+      "label": "entry-compile",
+      "pid": 1564,
+      "exitCode": 0,
+      "elapsedMs": 1933,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 34353152,
+      "outputBytes": 0
+    },
+    {
+      "label": "controller-compile",
+      "pid": 2768,
+      "exitCode": 0,
+      "elapsedMs": 235,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 33955840,
+      "outputBytes": 0
+    },
+    {
+      "label": "transaction-compile",
+      "pid": 1408,
+      "exitCode": 0,
+      "elapsedMs": 237,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 34553856,
+      "outputBytes": 0
+    },
+    {
+      "label": "transactions",
+      "pid": 5928,
+      "exitCode": 0,
+      "elapsedMs": 2091,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 36069376,
+      "outputBytes": 2131
+    },
+    {
+      "label": "stop-compile",
+      "pid": 4856,
+      "exitCode": 0,
+      "elapsedMs": 223,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 33746944,
+      "outputBytes": 190
+    },
+    {
+      "label": "stops",
+      "pid": 1268,
+      "exitCode": 0,
+      "elapsedMs": 139,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 29163520,
+      "outputBytes": 946
+    },
+    {
+      "label": "pool-compile",
+      "pid": 3484,
+      "exitCode": 0,
+      "elapsedMs": 247,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 34377728,
+      "outputBytes": 0
+    },
+    {
+      "label": "physical-pool",
+      "pid": 2380,
+      "exitCode": 0,
+      "elapsedMs": 1245,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 29175808,
+      "outputBytes": 769
+    },
+    {
+      "label": "pool-command-compile",
+      "pid": 4036,
+      "exitCode": 0,
+      "elapsedMs": 220,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 34058240,
+      "outputBytes": 0
+    },
+    {
+      "label": "pool-transport",
+      "pid": 8624,
+      "exitCode": 0,
+      "elapsedMs": 3123,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 21004288,
+      "outputBytes": 98
+    },
+    {
+      "label": "admission-fixtures",
+      "pid": 1948,
+      "exitCode": 0,
+      "elapsedMs": 306,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 32014336,
+      "outputBytes": 166
+    },
+    {
+      "label": "reconcile",
+      "pid": 3380,
+      "exitCode": 0,
+      "elapsedMs": 1108,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 45379584,
+      "outputBytes": 702
+    },
+    {
+      "label": "denied-start",
+      "pid": 7540,
+      "exitCode": 0,
+      "elapsedMs": 1017,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 46075904,
+      "outputBytes": 622
+    },
+    {
+      "label": "guardian-bind",
+      "pid": 8328,
+      "exitCode": 0,
+      "elapsedMs": 1194,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 44826624,
+      "outputBytes": 623
+    },
+    {
+      "label": "guardian-publication-failure",
+      "pid": 956,
+      "exitCode": 0,
+      "elapsedMs": 820,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 43102208,
+      "outputBytes": 622
+    },
+    {
+      "label": "stop-too-early",
+      "pid": 2196,
+      "exitCode": 0,
+      "elapsedMs": 945,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 48181248,
+      "outputBytes": 622
+    }
+  ],
+  "scope": "hosted actual Node->compiled native ledger; no VM/provider/target enrollment"
+}

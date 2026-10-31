@@ -1,0 +1,62 @@
+[
+  {
+    "path": "dispatch.py",
+    "originalSha256": "c2c53518a08e037e013c978d2b57467e3c4d33897a147ae9beee90c8e3b166df",
+    "publicSha256": "c2c53518a08e037e013c978d2b57467e3c4d33897a147ae9beee90c8e3b166df"
+  },
+  {
+    "path": "DISPATCH-RESULT.json",
+    "originalSha256": "1004b1e9c40842665f5357bb231a7c1e1c37b77439b4e8f5e782599669a6eda2",
+    "publicSha256": "1004b1e9c40842665f5357bb231a7c1e1c37b77439b4e8f5e782599669a6eda2"
+  },
+  {
+    "path": "ROOT-RESULT.md",
+    "originalSha256": "0132f599a03bed71ac65452a657667ac2f25578b728dc53af922f8c6677b2873",
+    "publicSha256": "0132f599a03bed71ac65452a657667ac2f25578b728dc53af922f8c6677b2873"
+  },
+  {
+    "path": "push-outer.log",
+    "originalSha256": "ec03920da0377bf675b9965d94e2148a53dd9e78a48b8ef5059bb362dc25e51b",
+    "publicSha256": "ec03920da0377bf675b9965d94e2148a53dd9e78a48b8ef5059bb362dc25e51b"
+  },
+  {
+    "path": "push-inner.log",
+    "originalSha256": "1088b4642ca5f04f7a97870ed37d10f1b8b570ced56fc9b6ef17aefc40d666e3",
+    "publicSha256": "1088b4642ca5f04f7a97870ed37d10f1b8b570ced56fc9b6ef17aefc40d666e3"
+  },
+  {
+    "path": "DISPATCH-INTENT.json",
+    "originalSha256": "22aa9993f71352d24a043938c85767c6bbeb32d8ab912519b70058ba07a4fe38",
+    "publicSha256": "8ffa79fde3d2604fb137735567bd240928d5b726e9f04163a23d1c348c9e323d"
+  },
+  {
+    "path": "COMMAND.json",
+    "originalSha256": "5bf0cf37c04f59a984ba985a99b98d1fce53497c447b625283a8b27a7f7ff647",
+    "publicSha256": "5bf0cf37c04f59a984ba985a99b98d1fce53497c447b625283a8b27a7f7ff647"
+  },
+  {
+    "path": "artifacts/rpc-manager-allocation-results/tests.log",
+    "originalSha256": "424e499f74f1347b92e661cf58678ad801dbf72c1e550203ae9afe4ae2cf2e46",
+    "publicSha256": "424e499f74f1347b92e661cf58678ad801dbf72c1e550203ae9afe4ae2cf2e46"
+  },
+  {
+    "path": "artifacts/rpc-manager-allocation-results/SOURCE.json",
+    "originalSha256": "53901293d73f88b2790368be4290dfee6e0e1ceeedd62392bb772ebf02a0c848",
+    "publicSha256": "53901293d73f88b2790368be4290dfee6e0e1ceeedd62392bb772ebf02a0c848"
+  },
+  {
+    "path": "artifacts/rpc-manager-allocation-results/RESULT.json",
+    "originalSha256": "e885157b27503dc2d442e2fef37642a91e9b9c3b842a48bbd7d232b569e3612a",
+    "publicSha256": "e885157b27503dc2d442e2fef37642a91e9b9c3b842a48bbd7d232b569e3612a"
+  },
+  {
+    "path": "artifacts/rpc-manager-allocation-results/COMMAND.json",
+    "originalSha256": "265be8817e551b7e3b6fc8c8c0cfc3cd1beb2c3666df579d619a2e7138d09ade",
+    "publicSha256": "265be8817e551b7e3b6fc8c8c0cfc3cd1beb2c3666df579d619a2e7138d09ade"
+  },
+  {
+    "path": "artifacts/rpc-manager-allocation-results/memory.log",
+    "originalSha256": "d81b415331b66c266f8cc65199f129c789d396c8420f1d471d2bef09464fe099",
+    "publicSha256": "d81b415331b66c266f8cc65199f129c789d396c8420f1d471d2bef09464fe099"
+  }
+]
