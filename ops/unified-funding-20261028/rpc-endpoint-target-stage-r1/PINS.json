@@ -1,0 +1,37 @@
+{
+  "representation": "Public evidence rows; runtime map retained unchanged locally",
+  "records": [
+    {
+      "path": "run.py",
+      "sha256": "6072bdcf9f62f06a2972e0dd111690906d97c4e3d8f9ed8ef40cb4806fbf8ddc"
+    },
+    {
+      "path": "capture_local.py",
+      "sha256": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c"
+    },
+    {
+      "path": "create.ps1",
+      "sha256": "21393e2244b12a163d31e8a541342dfdd39bc5e90702e0d4528fcbc3fa586199"
+    },
+    {
+      "path": "verify.ps1",
+      "sha256": "da051000167acd6286f9e70f6497ece6d76c22760f9303ac3318575f8cbc1710"
+    },
+    {
+      "path": "FILES.json",
+      "sha256": "428fa219904105e4822d72e4949dea9c55840e6ab340aacbabdc5fec1fb33693"
+    },
+    {
+      "path": "ARTIFACTS.json",
+      "sha256": "ac6e7ed5a8b9032a105efe08f3587b697403f25c2e6590ca7aabe29f1434143d"
+    },
+    {
+      "path": "SPEC.json",
+      "sha256": "60f6970ebd8645925abc4ce8ea3d0c6f366ff5ce685a8b8c9acf23a3a1731eb8"
+    },
+    {
+      "path": "bundle/vm-endpoint.exe",
+      "sha256": "8633b27be0db92b1512370e6ee533a6828678c85c6669ecb52fe8316ec4806bf"
+    }
+  ]
+}

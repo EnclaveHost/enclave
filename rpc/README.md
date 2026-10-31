@@ -225,8 +225,8 @@ provider settlement, RPC readiness, remote death or reservation release.
 15 new tests plus43 relevant regressions passed with real protected journals
 and mocked SSH/native responses. Evidence is in
 `ops/unified-funding-20261028/rpc-windows-endpoint-tests-r1/ROOT-RESULT.md`.
-The native reader still needs protected staging and qualification against the
-actual owned VM during the admitted startup. The driver is implemented below;
+The native reader is staged with target hash/custody verification below. Its
+query against the actual owned VM still needs qualification during admitted startup. The driver is implemented below;
 its live production integration remains unqualified. No guest seed or staged lifecycle image changed.
 
 
@@ -358,7 +358,7 @@ explicit adoption are not implemented by this driver.
 Windows/native/SSH and export/Control boundaries are simulated as described
 there. No production startup has been performed. Actual local staging and
 unit/route qualification are recorded below; fresh full capacity admission,
-Windows endpoint staging and the actual owned-VM query remain required.
+the actual owned-VM query remains required.
 
 
 ### Local Warden guest-key owner
@@ -402,3 +402,46 @@ nor VM startup, storage attachment, client fit, sync/finality or RPC readiness.
 See the public `rpc-local-workflow-tests-r1`, `rpc-local-owner-stage-r1` and
 `rpc-local-owner-unit-route-r1` evidence packages under
 `ops/unified-funding-20261028`.
+
+
+### Actual guarded-export composition qualification
+
+The unchanged export preparer, startup launch/lease/readiness functions and
+`guarded_export.main` have now run together on Warden with the actual
+authenticated resource observer and real user systemd/QEMU processes. Both
+roles used temporary private credentials and sparse dummy QCOW2 originals.
+Each had the required4 TB virtual geometry while only4096 application bytes
+were written; no production chain volume was opened.
+
+Both authenticated TLS exports passed reads, FUA writes, FLUSH, readback and
+explicit reconnect readback. The controller preheld exact pidfds for the
+384MiB guardian, its owner and both QEMU children, then froze the guardian.
+The independent2-second watchdog killed all four in2.199seconds, with
+`Result=watchdog`, status9, MainPID0 and an empty/removed cgroup. No fallback
+kill was used. Original dummy image hashes and44 reviewed pins were unchanged.
+The resource authority reported90669MiB available,718MiB pending; subtracting
+1280MiB retained88671MiB, above27648MiB. This was fixture admission only.
+
+The qualification's owner clock retained900seconds; its Windows sample was
+explicitly synthetic. It did not test actual startup-deadline expiry or adopt
+exports. The actual unit has no systemd runtime cutoff; the guardian owns the
+original deadline and the independent watchdog handles a blocked guardian.
+An abrupt watchdog stop does not prove clean guest filesystems or release
+reservations. Production volumes, kernel attachment, full-size copy, VM
+startup, client memory fit, sync/finality and RPC serving remain unqualified.
+See `ops/unified-funding-20261028/rpc-guarded-export-composition-r1/ROOT-RESULT.md`.
+
+
+The compiled Windows endpoint reader is now staged at
+`C:\EnclaveRpcEndpoint-a276e5f51ff24e52bbd703015b1a98f9\a276e5f51ff24e52bbd703015b1a98f9\vm-endpoint.exe`,
+84992bytes, SHA256
+`8633b27be0db92b1512370e6ee533a6828678c85c6669ecb52fe8316ec4806bf`.
+Fresh narrow staging admission retained the18GiB host floor,39388MiB
+prospective app growth and1984MiB preparation allowance. A subsequent read
+verified the exact file hash, protected administrator/SYSTEM permissions,
+absence of the identified staging processes, and unchanged four existing VM
+states and manager incarnations. The endpoint binary was not executed. Its
+actual owned-VM query remains part of the admitted startup; staging is not VM
+association, RPC readiness or production memory admission. Evidence is in
+`ops/unified-funding-20261028/rpc-endpoint-target-stage-r1` and
+`rpc-endpoint-target-exit-read-r1`.

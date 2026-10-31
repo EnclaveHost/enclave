@@ -1,0 +1,38 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.9948391849175096,
+  "bytesObserved": {
+    "stdout": 344,
+    "stderr": 222
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false,
+  "at": 1793486972.8697305,
+  "phase": "verify",
+  "success": true,
+  "noRetry": true,
+  "vmChanged": false,
+  "observation": {
+    "processId": 45492,
+    "creationFileTime": "134379605723310174",
+    "verified": true,
+    "root": "C:\\EnclaveRpcEndpoint-a276e5f51ff24e52bbd703015b1a98f9\\a276e5f51ff24e52bbd703015b1a98f9",
+    "files": [
+      {
+        "sha256": "8633b27be0db92b1512370e6ee533a6828678c85c6669ecb52fe8316ec4806bf",
+        "name": "vm-endpoint.exe",
+        "bytes": 84992
+      }
+    ],
+    "executed": false,
+    "nativeAttempted": false
+  }
+}

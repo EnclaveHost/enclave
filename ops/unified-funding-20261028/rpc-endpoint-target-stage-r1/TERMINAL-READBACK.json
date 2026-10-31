@@ -1,0 +1,32 @@
+{
+  "enclave-rpc-guarded-export-composition-r1-20261031": {
+    "ActiveState": "inactive",
+    "MainPID": "0",
+    "ExecMainStatus": "0"
+  },
+  "enclave-rpc-endpoint-target-admission-r1-20261031": {
+    "ActiveState": "inactive",
+    "MainPID": "0",
+    "ExecMainStatus": "0"
+  },
+  "enclave-rpc-endpoint-target-create-r1-20261031": {
+    "ActiveState": "inactive",
+    "MainPID": "0",
+    "ExecMainStatus": "0"
+  },
+  "enclave-rpc-endpoint-target-stage-r1-20261031": {
+    "ActiveState": "inactive",
+    "MainPID": "0",
+    "ExecMainStatus": "0"
+  },
+  "enclave-rpc-endpoint-target-verify-r1-20261031": {
+    "ActiveState": "inactive",
+    "MainPID": "0",
+    "ExecMainStatus": "0"
+  },
+  "enclave-rpc-endpoint-target-exit-read-r1-20261031": {
+    "ActiveState": "inactive",
+    "MainPID": "0",
+    "ExecMainStatus": "0"
+  }
+}
