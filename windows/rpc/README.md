@@ -530,3 +530,10 @@ A held metadata handle rechecks the original fenced object and protected read
 denial during initialization. This still does not prove provider settlement.
 The RPC admission consumer and production routing integration remain missing;
 no production cut, pool or new VM is authorized solely by source qualification.
+
+Changed Windows CI41175423495 at379e067d928a passed44 cases in1.110s,
+with compiler1.485s. All19 compiled source pins and three executable hashes were
+independently checked. The fixtures include actual disposable pool files,
+consumed start records, interrupted initialization and missing final completion.
+They do not query native Hyper-V guest residency or authorize target activation.
+See `ops/unified-funding-20261028/rpc-legacy-handoff-ci-execution-r6/ROOT-RESULT.md`.

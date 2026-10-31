@@ -1,0 +1,97 @@
+[
+  {
+    "path": "dispatch.py",
+    "originalSha256": "cd78c44307f7029f85800a40b7ddbf908ba663f4b6f6edbd5d46af0b241e3634",
+    "publicSha256": "cd78c44307f7029f85800a40b7ddbf908ba663f4b6f6edbd5d46af0b241e3634"
+  },
+  {
+    "path": "VERIFIED.json",
+    "originalSha256": "d76fd5589c03f9863e2ca0a0ccc8ffc54de385c37e5bb06c9911282e8fdb5bba",
+    "publicSha256": "d76fd5589c03f9863e2ca0a0ccc8ffc54de385c37e5bb06c9911282e8fdb5bba"
+  },
+  {
+    "path": "DISPATCH-RESULT.json",
+    "originalSha256": "39fffafc4df0e6cd06caaba6650c163a320bced4a30b0fa64f17bd216f85dac0",
+    "publicSha256": "39fffafc4df0e6cd06caaba6650c163a320bced4a30b0fa64f17bd216f85dac0"
+  },
+  {
+    "path": "RUN.json",
+    "originalSha256": "f6c1d2aa4f356fb8c41089731ac72891479bea0071ecb1f23be746d14d011b2b",
+    "publicSha256": "f6c1d2aa4f356fb8c41089731ac72891479bea0071ecb1f23be746d14d011b2b"
+  },
+  {
+    "path": "ROOT-RESULT.md",
+    "originalSha256": "e4ef46486a8e38dc1e9ac67c6ce683183897cd3f2ec40c5dbfdaa8e63bfe2183",
+    "publicSha256": "e4ef46486a8e38dc1e9ac67c6ce683183897cd3f2ec40c5dbfdaa8e63bfe2183"
+  },
+  {
+    "path": "push-outer.log",
+    "originalSha256": "695ad72078bffdcdd57f1e5d2a879500e9d2910c22b581e9eb782ecee4817b00",
+    "publicSha256": "695ad72078bffdcdd57f1e5d2a879500e9d2910c22b581e9eb782ecee4817b00"
+  },
+  {
+    "path": "push-inner.log",
+    "originalSha256": "bc32595bbb2cae297a3d8b0fe607163c3a1444be1563ba4ea5f9d4092ba112dc",
+    "publicSha256": "bc32595bbb2cae297a3d8b0fe607163c3a1444be1563ba4ea5f9d4092ba112dc"
+  },
+  {
+    "path": "DISPATCH-INTENT.json",
+    "originalSha256": "2aa4374fd076d6fb9fb056403ff9a1523999581466a6a9724e0049c43b548cf6",
+    "publicSha256": "8ffff8be813f6bb1d2f9ee684ea1972eff4501604b7408e570ea2018eef4f0a0"
+  },
+  {
+    "path": "COMMAND.json",
+    "originalSha256": "a7fd838c1cf6ff3580fbd6a86823e376f4c0c6ee964f03500d2efdaaf8065bba",
+    "publicSha256": "a7fd838c1cf6ff3580fbd6a86823e376f4c0c6ee964f03500d2efdaaf8065bba"
+  },
+  {
+    "path": "artifacts/compile-controller.out",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "path": "artifacts/handoff-entry.exe",
+    "originalSha256": "894543556a8157e27b61d18450aa238dcbf53157a4c1dfd6c084d170eeba00e7",
+    "publicSha256": "894543556a8157e27b61d18450aa238dcbf53157a4c1dfd6c084d170eeba00e7"
+  },
+  {
+    "path": "artifacts/handoff-controller.exe",
+    "originalSha256": "409f20d47a73f6d8f4a682096f85263ff0e293ee7acb3cefb906a09b62a4945e",
+    "publicSha256": "409f20d47a73f6d8f4a682096f85263ff0e293ee7acb3cefb906a09b62a4945e"
+  },
+  {
+    "path": "artifacts/process-results.json",
+    "originalSha256": "8457226c5a15f1687799d891de38a2c970e24ad9f3dc15e1f79202c5f4fe972f",
+    "publicSha256": "826017ec5d23d8546bcc7329ca82c91dc4532f83e27ab392c0f59989eb91abff"
+  },
+  {
+    "path": "artifacts/compile.out",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "path": "artifacts/legacy-handoff.exe",
+    "originalSha256": "a8006e27e7940797b6c2870a3d0bd76697be65989352256ca809f9e41e23a508",
+    "publicSha256": "a8006e27e7940797b6c2870a3d0bd76697be65989352256ca809f9e41e23a508"
+  },
+  {
+    "path": "artifacts/pins.json",
+    "originalSha256": "b65c190fbf2d90ca3d2faff347f4362ec37cd2e4e89ad95f8f57cd83f06d9e6a",
+    "publicSha256": "b53e84ac46868340a7446593613a3f7eef3decde3b39e8dba0ba7f89fcbca92e"
+  },
+  {
+    "path": "artifacts/controller-artifact.json",
+    "originalSha256": "edb3fe4cf8373a4d810b058f20d0709e81bc7a70fb62710f5a3acc07092c6c77",
+    "publicSha256": "0d2cb911d7b6086068e66bcd8155311521b3c17c7f77177d78c3473efc1c66ff"
+  },
+  {
+    "path": "artifacts/handoff.out",
+    "originalSha256": "3cc6241f4806e6fc60e82dcac9fa000e7307acbab568e7a66c9fda68f34457f7",
+    "publicSha256": "d3fea22f43b0d286220b8ac9c5b7725a5ffb56d9a60b846aa7edfb6cdaf334ea"
+  },
+  {
+    "path": "artifacts/compile-entry.out",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  }
+]
