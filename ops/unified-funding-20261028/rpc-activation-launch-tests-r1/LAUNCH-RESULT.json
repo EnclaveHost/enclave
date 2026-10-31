@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.5751527831889689,
+  "stdout": "",
+  "stderr": "test_bad_envelope_refused_before_stdin (__main__.Tests.test_bad_envelope_refused_before_stdin) ... ok\ntest_bound_input_and_wrong_boot (__main__.Tests.test_bound_input_and_wrong_boot) ... ok\ntest_changed_guest_delivery_receipt_before_submission (__main__.Tests.test_changed_guest_delivery_receipt_before_submission) ... ok\ntest_changed_installed_request_before_submission (__main__.Tests.test_changed_installed_request_before_submission) ... ok\ntest_delivery_through_launch_actual_seeded_imports (__main__.Tests.test_delivery_through_launch_actual_seeded_imports) ... ok\ntest_exact_remote_envelope_and_pinned_jump (__main__.Tests.test_exact_remote_envelope_and_pinned_jump) ... ok\ntest_existing_owner_refused_before_submission (__main__.Tests.test_existing_owner_refused_before_submission) ... ok\ntest_expired_original_window_no_transport (__main__.Tests.test_expired_original_window_no_transport) ... ok\ntest_failed_systemd_submission_remains_consumed (__main__.Tests.test_failed_systemd_submission_remains_consumed) ... ok\ntest_false_readiness_claim_refused (__main__.Tests.test_false_readiness_claim_refused) ... ok\ntest_local_delivery_receipt_foreign_attempt (__main__.Tests.test_local_delivery_receipt_foreign_attempt) ... ok\ntest_lost_response_no_second_local_or_remote_start (__main__.Tests.test_lost_response_no_second_local_or_remote_start) ... ok\ntest_seeded_source_drift_before_import (__main__.Tests.test_seeded_source_drift_before_import) ... ok\ntest_unit_definition_refusal (__main__.Tests.test_unit_definition_refusal) ... ok\ntest_watchdog_and_cgroup_identity_refusals (__main__.Tests.test_watchdog_and_cgroup_identity_refusals) ... ok\n\n----------------------------------------------------------------------\nRan 15 tests in 0.328s\n\nOK\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 1749
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

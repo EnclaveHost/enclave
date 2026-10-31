@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.22843965189531446,
+  "stdout": "",
+  "stderr": "test_actual_process_incarnation (__main__.Tests.test_actual_process_incarnation) ... ok\ntest_base_without_l1_refused_before_submission (__main__.Tests.test_base_without_l1_refused_before_submission) ... ok\ntest_busy_mount_control_process_refused (__main__.Tests.test_busy_mount_control_process_refused) ... ok\ntest_changed_pin_refused_before_intent (__main__.Tests.test_changed_pin_refused_before_intent) ... ok\ntest_changed_ready_refused (__main__.Tests.test_changed_ready_refused) ... ok\ntest_envelope_rejected_before_input (__main__.Tests.test_envelope_rejected_before_input) ... ok\ntest_lifetime_dependency_refused (__main__.Tests.test_lifetime_dependency_refused) ... ok\ntest_loaded_budget_override_refused (__main__.Tests.test_loaded_budget_override_refused) ... ok\ntest_lost_reply_consumes_once (__main__.Tests.test_lost_reply_consumes_once) ... ok\ntest_mount_before_clients_and_base_separate (__main__.Tests.test_mount_before_clients_and_base_separate) ... ok\ntest_mount_kernel_device_and_flags (__main__.Tests.test_mount_kernel_device_and_flags) ... ok\ntest_old_seed_without_helper_refused (__main__.Tests.test_old_seed_without_helper_refused) ... ok\ntest_original_deadline_expires_during_observation (__main__.Tests.test_original_deadline_expires_during_observation) ... ok\ntest_owner_loss_after_mount_blocks_client (__main__.Tests.test_owner_loss_after_mount_blocks_client) ... ok\ntest_producer_to_actual_runtime_consumer (__main__.Tests.test_producer_to_actual_runtime_consumer) ... ok\ntest_replaced_l1_process_blocks_base (__main__.Tests.test_replaced_l1_process_blocks_base) ... ok\ntest_wrong_boot_receipt_refused (__main__.Tests.test_wrong_boot_receipt_refused) ... ok\n\n----------------------------------------------------------------------\nRan 17 tests in 0.091s\n\nOK\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 1783
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

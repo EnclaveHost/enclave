@@ -353,6 +353,44 @@ prepared guest's cloud-init schema pass. It reuses the same identity and is stag
 with the client boot disk in a new protected NucBox directory; exact source and
 target evidence is in `ops/unified-funding-20261028/rpc-private-media-stage-r2`.
 No automatic service start or live runtime request is added to cloud-init.
+## Owner activation submission
+
+Delivery installs the request but does not start the activation owner. After a
+successful `../deliver_activation.py` receipt, `../launch_activation.py` submits
+that start once. Its configuration supplies hash-pinned `deliveryReceipt` (the
+sender's persisted `receipt.json`), `attachmentReceipt` and `seedReceipt`, the
+observed `guestBootId`, explicit `target` and optional `jump` SSH endpoints,
+`sshSha256`, and a private `journalRoot`. All receipts must bind the same original
+attempt, guest boot and deadline. This uses the existing four seeded activation
+imports; it requires no guest image change.
+
+The sender fsyncs an exclusive attempt journal before one pinned SSH call. The
+fixed transported bootstrap verifies the seeded import closure and its actual
+root transient unit before reading stdin:64MiB, CPU1, no swap,10seconds,
+one-second stop escalation, control-group kill and no restart. It compares the
+actual protected guest delivery receipt and installed request, validates the
+original bundle and loaded activation unit, and refuses a running, queued or
+previously consumed owner. A separate exclusive remote intent is fsynced before
+one `systemctl --no-block --job-mode=fail start` submission. Failed or ambiguous
+submissions remain consumed; neither side retries. At least18seconds must remain
+in the original900-second startup window.
+
+The reply observes a fresh active owner invocation, recent watchdog acknowledgment,
+PID/start time/cgroup and a held live pidfd. It acknowledges an armed owner only;
+the owner may still be attaching storage. `storageReady`, `rpcReady`, `adopted`
+and `writersFenced` remain false. The separate activation-ready receipt and actual
+kernel attachment checks are still required before preparing runtime requests.
+Local SSH exit is not remote death, and this10-second bootstrap does not replace
+the activation owner's2-second watchdog or original VM deadline.
+
+Qualification covers15 new cases using the exact bootstrap and actual seeded
+imports in a disposable root namespace, including delivery-to-launch composition,
+local/remote replay refusal, lost response, failed submission, source/receipt
+drift, loaded limits, original expiry, watchdog freshness and process cgroup.
+Files and pidfd observations are real; SSH and systemd are mocked. The existing68
+runtime/delivery/activation/attachment cases also pass. No live guest service,
+kernel storage attachment or RPC readiness is claimed.
+
 ## Owner runtime submission
 
 After authenticated storage activation, `../prepare_runtime.py` produces a
