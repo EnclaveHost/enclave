@@ -253,5 +253,5 @@ No production entrypoint calls it. `IStartRuntime` still requires a real guarded
 VM authority/admission implementation, and persistent reopening beyond an inert
 worker lease remains unfinished. See [provider integration](PROVIDER-LIFECYCLE.md).
 CI41152666323 passed22 fault/adapter cases; provider calls were fake, so this
-is not native VM-operation qualification. Separate bounded post-startup reads
-are being qualified without extending the original start deadline.
+is not native VM-operation qualification. CI41152911185 then passed25 cases, including bounded post-startup reads
+without extending the original start deadline.

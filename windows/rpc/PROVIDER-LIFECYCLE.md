@@ -4,7 +4,7 @@
 as an unactivated library. It consumes separate intent, submission and native-call
 records, persists the returned reference before follow-up reads, binds job identity,
 and retains uncertain outcomes without resubmission. `ProviderStartHarness.cs`
-passed22 hosted cases in CI41152666323 (compiler1.972s/harness0.287s), including two real protected filesystem adapter checks. Provider calls were fake; actual VM behavior remains unqualified. Three additional bounded post-startup observation cases are pending.
+passed22 hosted cases in CI41152666323 (compiler1.972s/harness0.287s), including two real protected filesystem adapter checks. Provider calls were fake; actual VM behavior remains unqualified. CI41152911185 at7f1bc9f385f4d81a44613334e0d20de643ec18a1 passed all25 cases (compiler1.608s/harness0.292s), including the three bounded post-startup observation cases.
 
 This is not installed VM authority. The guarded VM entrypoint, persistent journal
 reopening beyond a short worker lease, actual owned VM permit, independent startup

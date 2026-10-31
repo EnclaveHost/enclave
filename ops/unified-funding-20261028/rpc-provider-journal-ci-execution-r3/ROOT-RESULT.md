@@ -1,0 +1,7 @@
+Provider transaction CI passed25
+
+CI41152911185 source7f1bc9f385f4d81a44613334e0d20de643ec18a1 terminal success; compiler1608ms/test292ms. Five compiled-source pins and executable SHA independently match.23transaction/reference/fault/clock cases use fake provider/runtime/store;2actual protected namespace adapter cases verify absence and empty pending. The latter use real C-drive ACLs/held PinController files in disposable hosted Windows. No actual Hyper-V state change, target import, VM, export, finance or RPC readiness.
+
+The maintained native adapter compiles and is not wired to an entrypoint. Native start intent, submission and adapter markers are exclusive; receipt persists returned reference before follow-up query; only nonrecurringCompleted qualifies settlement. Missing/lost/recycled/abnormal outcomes held. Separate bounded read authority checked before+after native query allows settlement after original900s start deadline without renewing Submit. Both fence/resource-release flags false.
+
+Peer narrowed reviews closed actual missing-file exception mismatch and post-startup read distinction. Earlier22PASS41152666323, compiler-only failed launch41152539742 and original unqualified source are retained. No unchanged rerun. Next actual integration: VM authority/permit, protected long-lived journal reopening, guarded bounded start/read worker, independent900sVMguardian, native returned-reference qualification then boot/storage/RPC readiness.
