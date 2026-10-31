@@ -136,10 +136,12 @@ write(folder/'receipt.json',encode(receipt));current();print(json.dumps(receipt)
 '''.replace('__SOURCE_NAMES__', repr(SOURCE_NAMES)).replace('__PROFILE_FIELDS__', repr(PROFILE_FIELDS))
 
 
-def package(config):
+def package(config, local=False):
     fields = {'clock', 'serverContract', 'serverReady', 'exportReceipt', 'endpointReceipt', 'target',
               'knownHosts', 'hostAlias', 'sshSha256', 'recipientRoot', 'recipientUid', 'recipientBootId',
               'sourceRoot', 'sourcePins', 'profile'}
+    if local:
+        fields -= {'target','knownHosts','hostAlias','sshSha256'}
     if set(config) != fields:
         raise ValueError('Exact workflow sender configuration required')
     original, files, export_wire = t.package(config)
@@ -204,30 +206,41 @@ def remote_command(original, config, raw):
 
 
 def send(config):
+    return _send(config, False)
+
+
+def send_local(config):
+    return _send(t.local_config(config), True)
+
+
+def _send(config, local):
     config = p.decode(c.encode(config))
-    original, raw = package(config)
-    p.digest(config['sshSha256'])
-    if p.sha(Path('/usr/bin/ssh').read_bytes()) != config['sshSha256']:
-        raise ValueError('Owner SSH client changed')
-    target = d.endpoint(config['target']);known = c.read_pinned(config['knownHosts'])
-    alias = config['hostAlias'];d.ssh_options(Path('/unused'), alias)
-    parts = known.decode('ascii').strip().split()
-    if len(parts) != 3 or parts[:2] != [alias,'ssh-ed25519'] or known.count(b'\n') > 1:
-        raise ValueError('One trusted recipient host key required')
-    key = base64.b64decode(parts[2],validate=True)
-    if len(key) != 51 or key[:19] != b'\0\0\0\x0bssh-ed25519\0\0\0\x20':
-        raise ValueError('Recipient host key encoding differs')
+    original, raw = package(config, local)
+    known = None
+    if not local:
+        p.digest(config['sshSha256'])
+        if p.sha(Path('/usr/bin/ssh').read_bytes()) != config['sshSha256']:
+            raise ValueError('Owner SSH client changed')
+        target = d.endpoint(config['target']);known = c.read_pinned(config['knownHosts'])
+        alias = config['hostAlias'];d.ssh_options(Path('/unused'), alias)
+        parts = known.decode('ascii').strip().split()
+        if len(parts) != 3 or parts[:2] != [alias,'ssh-ed25519'] or known.count(b'\n') > 1:
+            raise ValueError('One trusted recipient host key required')
+        key = base64.b64decode(parts[2],validate=True)
+        if len(key) != 51 or key[:19] != b'\0\0\0\x0bssh-ed25519\0\0\0\x20':
+            raise ValueError('Recipient host key encoding differs')
     parent = c.directory(Path(config['clock']['path']).parent);root = parent/'guest-workflow-submit'
     if c.remaining(config['clock']) < 255:
         raise TimeoutError('Insufficient original window for independent guest workflow')
     root.mkdir(mode=0o700);c.sync_directory(parent)
-    c.write_new(root/'known-hosts', known)
+    if not local:c.write_new(root/'known-hosts', known)
     c.write_new(root/'intent.json', c.encode({'wireSha256':p.sha(raw),'configurationSha256':p.sha(c.encode(config)),
-        'bootstrapSha256':p.sha(BOOTSTRAP.encode()),'deadlineUtcNs':original['deadlineUtcNs'],'outcome':'consumed-no-automatic-retry'}))
-    if package(config) != (original,raw) or c.read_pinned(config['knownHosts']) != known:
+        'bootstrapSha256':p.sha(BOOTSTRAP.encode()),'deadlineUtcNs':original['deadlineUtcNs'],'outcome':'consumed-no-automatic-retry','transport':'local-user-unit' if local else 'pinned-ssh'}))
+    if package(config, local) != (original,raw) or (not local and c.read_pinned(config['knownHosts']) != known):
         raise ValueError('Workflow submission inputs changed')
     started = time.time_ns()
-    argv = d.ssh_options(root/'known-hosts',alias)+target+[shlex.join(remote_command(original,config,raw))]
+    command = remote_command(original,config,raw)
+    argv = command if local else d.ssh_options(root/'known-hosts',alias)+target+[shlex.join(command)]
     reply = d.exchange(argv,raw,min(250,c.remaining(config['clock'])))
     c.write_new(root/'response.json',reply);c.validate(config['clock']);r = p.decode(reply)
     expected = {'schema':'owned-rpc-guest-workflow-delivery/1','attempt':original['attempt'],'instance':original['instance'],
@@ -254,7 +267,7 @@ def send(config):
     for binding in [r['result'],*workflow['receipts'].values()]:
         if set(binding) != {'path','sha256'}:raise ValueError('Exact public result binding required')
         t.path_text(binding['path']);p.digest(binding['sha256'])
-    if r['result']['sha256'] != p.sha(c.encode(workflow)) or package(config) != (original,raw):
+    if r['result']['sha256'] != p.sha(c.encode(workflow)) or package(config, local) != (original,raw):
         raise ValueError('Workflow result or original inputs changed')
     return c.write_new(root/'RESULT.json',c.encode(r))
 

@@ -1,0 +1,8 @@
+{
+  "rpc/transfer_export.py": {
+    "receiverUnchanged": true
+  },
+  "rpc/deliver_guest_workflow.py": {
+    "receiverUnchanged": true
+  }
+}

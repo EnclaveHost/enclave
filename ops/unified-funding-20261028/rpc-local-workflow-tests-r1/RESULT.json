@@ -1,0 +1,25 @@
+{
+  "tests": [
+    {
+      "name": "test_run_startup.py",
+      "rc": 0,
+      "seconds": 2.1702876570634544
+    },
+    {
+      "name": "test_local_guest_workflow.py",
+      "rc": 0,
+      "seconds": 2.180029499111697
+    },
+    {
+      "name": "test_deliver_guest_workflow.py",
+      "rc": 0,
+      "seconds": 2.7444800490047783
+    },
+    {
+      "name": "test_transfer_export.py",
+      "rc": 0,
+      "seconds": 0.2830561879090965
+    }
+  ],
+  "drift": []
+}

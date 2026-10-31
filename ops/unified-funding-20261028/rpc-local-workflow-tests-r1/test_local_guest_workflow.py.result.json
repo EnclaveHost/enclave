@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 2.180029499111697,
+  "stdout": "",
+  "stderr": "test_actual_two_local_units_to_complete_guest_workflow (__main__.Local.test_actual_two_local_units_to_complete_guest_workflow) ... ok\ntest_caller_cannot_supply_local_uid_or_boot (__main__.Local.test_caller_cannot_supply_local_uid_or_boot) ... ok\ntest_changed_import_cannot_be_promoted_to_workflow (__main__.Local.test_changed_import_cannot_be_promoted_to_workflow) ... ok\ntest_changed_profile_stops_before_any_guest_call (__main__.Local.test_changed_profile_stops_before_any_guest_call) ... ok\ntest_import_ack_loss_consumed_and_no_workflow (__main__.Local.test_import_ack_loss_consumed_and_no_workflow) ... ok\ntest_local_mode_rejects_ssh_recipient_fields (__main__.Local.test_local_mode_rejects_ssh_recipient_fields) ... ok\ntest_remote_mode_cannot_replay_consumed_local_workflow (__main__.Local.test_remote_mode_cannot_replay_consumed_local_workflow) ... ok\ntest_short_original_window_refuses_local_workflow (__main__.Local.test_short_original_window_refuses_local_workflow) ... ok\ntest_workflow_ack_loss_consumed_with_no_second_guest_start (__main__.Local.test_workflow_ack_loss_consumed_with_no_second_guest_start) ... ok\n\n----------------------------------------------------------------------\nRan 9 tests in 1.881s\n\nOK\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 1222
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

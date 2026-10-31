@@ -1,0 +1,89 @@
+{
+  "representation": "Public evidence rows; original runtime PINS remains unchanged locally",
+  "records": [
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-local-owner-unit-route-r1/run.py",
+      "sha256": "2e76491c819c2119d4ab567912e64b4ab9b0c7c18201d9cbf0a8a08c8454ce38"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-local-owner-unit-route-r1/probe.py",
+      "sha256": "61dcfa7e9fb8ff7d735982c50007d58562cabc6bab2e2293362e277d5ec2341d"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-local-owner-unit-route-r1/capture_local.py",
+      "sha256": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-local-owner-unit-route-r1/COMMAND.json",
+      "sha256": "1941f24ef95d47f4e1a65c8271f9a36d5c4bb24ce09926a947832dbba5a1f136"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-local-owner-unit-route-r1/private/CONFIG.json",
+      "sha256": "735eb3acd5c28c51dba50f9c918dace747c27e94b0c263663dfc3316c8dcef00"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-local-owner-unit-route-r1/private/control-known-hosts",
+      "sha256": "8972669be1548c3820c8429f87978966ebb25b99beece7773855cabfc2e30a20"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-local-owner-stage-r1/private/ca02128638aa47bdbc0c8382228f796e/source/deliver_activation.py",
+      "sha256": "b07f05dc20adc9bdb9636b20727eb7e99024b6c3b8c70dcb2bc6df6226c1e0d0"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-local-owner-stage-r1/private/ca02128638aa47bdbc0c8382228f796e/source/deliver_runtime.py",
+      "sha256": "6e5da03961302f6e6337c5c21b331cbe29df63f2db6e891b745410ab0e1722a8"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-local-owner-stage-r1/private/ca02128638aa47bdbc0c8382228f796e/source/guest/activate_storage.py",
+      "sha256": "1b1c92b0922cea8810c668eaa783447a3c0fcc146201aa556298678ec757f97d"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-local-owner-stage-r1/private/ca02128638aa47bdbc0c8382228f796e/source/guest/attach_storage.py",
+      "sha256": "93859170fba8f078a2df14db52acc95d90a4405add8be63574c0a84049905da9"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-local-owner-stage-r1/private/ca02128638aa47bdbc0c8382228f796e/source/guest/identity.py",
+      "sha256": "1fac9d4de16a903233ca1613881d2157ec99710b99aee0c1cfd0cba4f75be103"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-local-owner-stage-r1/private/ca02128638aa47bdbc0c8382228f796e/source/guest/start_runtime.py",
+      "sha256": "e17affef1c3ced9505250fe6fddfc3d8560dc76d908eb3cfb2fdab33c540b912"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-local-owner-stage-r1/private/ca02128638aa47bdbc0c8382228f796e/source/launch_activation.py",
+      "sha256": "271505f2edeb40b982f17dd293f2e39846288b33eecc4435e3b0db8b7206e2d7"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-local-owner-stage-r1/private/ca02128638aa47bdbc0c8382228f796e/source/observe_activation.py",
+      "sha256": "c59ee978a4f6f0ff51ce5beeef33e438555e072014095973f71fda76985c0236"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-local-owner-stage-r1/private/ca02128638aa47bdbc0c8382228f796e/source/observe_guest.py",
+      "sha256": "d742ab58663874aed4ae655cb3d9664b88c72f399bc2550ad5ff100939fdc743"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-local-owner-stage-r1/private/ca02128638aa47bdbc0c8382228f796e/source/prepare_attachment.py",
+      "sha256": "c0685fbf106fe2fc49e1ce076b0dca096716d37ecd832a227480b6832e5f625a"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-local-owner-stage-r1/private/ca02128638aa47bdbc0c8382228f796e/source/prepare_runtime.py",
+      "sha256": "6c8f872f15554bc2cd1dd1ccda094e70783dedcfa1e9c457543b04927851681d"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-local-owner-stage-r1/private/ca02128638aa47bdbc0c8382228f796e/source/run_guest_workflow.py",
+      "sha256": "13e9395dbdf921def87d246a9a76562bdbc610d05c32e918492c6d8ad3772b3e"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-local-owner-stage-r1/private/ca02128638aa47bdbc0c8382228f796e/source/startup_clock.py",
+      "sha256": "ac975905dd71268d5ac345071ec6001a0a408e0aa314074ec354442abb634375"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-local-owner-stage-r1/private/ca02128638aa47bdbc0c8382228f796e/source/storage_protocol.py",
+      "sha256": "80a3f865a76914a5d986528d50dfb77bd90ec5604f9884f3391ae99c4f02bc31"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-local-owner-stage-r1/private/ca02128638aa47bdbc0c8382228f796e/inputs/profile.json",
+      "sha256": "e63853e8229f6e167f91b6a32378ae9d71d9d3f78d13c83ecb1487030c7930c8"
+    }
+  ]
+}

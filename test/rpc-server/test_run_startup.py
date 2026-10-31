@@ -222,6 +222,31 @@ class Startup(unittest.TestCase):
             self.assertIn('--property=Restart=no',argv);self.assertEqual(argv[-1],self.contract['path'])
             self.assertNotIn('--collect',argv);self.assertEqual(run.call_args.kwargs['timeout'],5)
 
+    def local_owner(self):
+        old=self.cfg.pop('control')
+        recipient=self.x.root/'recipient';recipient.mkdir(mode=0o700)
+        journal=self.x.root/'guest-journal';journal.mkdir(mode=0o700)
+        profile={k:{} for k in r.g.PROFILE_FIELDS}
+        profile.update(ownerBootId=self.x.boot,vmAttempt='b'*32,journalRoot=str(journal),
+                       guestIdentityFile=self.x.transport['target']['identityFile'])
+        self.cfg['localGuestOwner']={k:old[k] for k in ('sourceRoot','sourcePins')}
+        self.cfg['localGuestOwner'].update(recipientRoot=str(recipient),profile=self.x.bound('profile',c.encode(profile)))
+        self.cfg['ownerReserveMiB']=1280
+
+    def test_local_key_owner_composition_uses_no_control_submission(self):
+        self.local_owner()
+        with mock.patch.object(r.t,'transfer_local',side_effect=self.import_public) as imp,mock.patch.object(r.g,'send_local',side_effect=self.guest_workflow) as guest:
+            result=c.protocol.decode(c.read_pinned(r.run(self.cfg)))
+        self.transfer.assert_not_called();self.guest.assert_not_called();imp.assert_called_once();guest.assert_called_once()
+        self.assertTrue(result['clientProcessesObserved']);self.assertFalse(result['rpcReady'])
+
+    def test_local_profile_wrong_boot_refused_before_export(self):
+        self.local_owner();owner=self.cfg['localGuestOwner']
+        profile=c.protocol.decode(c.read_pinned(owner['profile']));profile['ownerBootId']='00000000-0000-0000-0000-000000000001'
+        owner['profile']=self.x.bound('foreign-profile',c.encode(profile))
+        with self.assertRaisesRegex(ValueError,'local guest-key owner'):r.run(self.cfg)
+        self.start.assert_not_called();self.x.call.assert_not_called()
+
 
 class ProcessEnvelope(unittest.TestCase):
     def setUp(self):

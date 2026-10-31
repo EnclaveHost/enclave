@@ -77,7 +77,7 @@ def resource_admission(config):
         if type(cfg[name]) is not int or cfg[name] < (27648 if name=='floorMiB' else 512):
             raise ValueError('Retained exporter resources required')
     reserve = config['ownerReserveMiB']
-    if type(reserve) is not int or not 1024 <= reserve <= 1048576:
+    if type(reserve) is not int or not (1280 if 'localGuestOwner' in config else 1024) <= reserve <= 1048576:
         raise ValueError('Explicit full owner/export/bootstrap allowance required')
     reader = str(HERE/'server/observe_resources.mjs')
     for name in ('/usr/bin/node', reader):
@@ -180,7 +180,8 @@ def await_ready(clock, contract, lease):
 
 
 def preflight(config):
-    w.exact(config, ('clock','windows','observation','handoff','media','network','nonces','export','control','ownerReserveMiB'))
+    owner_field = 'localGuestOwner' if 'localGuestOwner' in config else 'control'
+    w.exact(config, ('clock','windows','observation','handoff','media','network','nonces','export',owner_field,'ownerReserveMiB'))
     original = c.validate(config['clock'])
     win = config['windows']
     w.exact(win, ('transport','binaries','filesHelper','endpointHelper','requiredFreeBytes'))
@@ -223,27 +224,38 @@ def preflight(config):
         raise ValueError('Reviewed boot network required')
     w.guid(network['switchGuid'])
     w.exact(config['export'],('credentialReceipt','resourceConfig','runtimePins','roles','stateParent','output','floorMiB','reserveMiB'))
-    w.exact(config['control'],('target','knownHosts','hostAlias','sshSha256','recipientRoot','recipientUid','recipientBootId','sourceRoot','sourcePins','profile'))
-    control = config['control']
+    control = config[owner_field]
+    fields = ('recipientRoot','sourceRoot','sourcePins','profile')
+    if owner_field=='control':fields += ('target','knownHosts','hostAlias','sshSha256','recipientUid','recipientBootId')
+    w.exact(control,fields)
     if set(control['sourcePins'])!=set(g.SOURCE_NAMES):raise ValueError('Complete Control source required')
     for name,sha in control['sourcePins'].items():
         p.digest(sha)
         if p.sha((HERE/name).read_bytes())!=sha:raise ValueError('Control source pin differs')
-    d = g.d
-    d.endpoint(control['target']);d.ssh_options(journal/'unused',control['hostAlias'])
-    known = c.read_pinned(control['knownHosts']);parts = known.decode('ascii').strip().split()
-    if len(parts)!=3 or parts[:2]!=[control['hostAlias'],'ssh-ed25519'] or known.count(b'\n')>1:
-        raise ValueError('One pinned Control host key required')
-    key = base64.b64decode(parts[2],validate=True)
-    if len(key)!=51 or key[:19]!=b'\0\0\0\x0bssh-ed25519\0\0\0\x20':
-        raise ValueError('Control host key differs')
-    p.boot(control['recipientBootId']);p.digest(control['sshSha256'])
-    if p.sha(Path('/usr/bin/ssh').read_bytes())!=control['sshSha256']:
-        raise ValueError('Control SSH client changed')
-    if type(control['recipientUid']) is not int or not 0 <= control['recipientUid'] <= 2147483647:
-        raise ValueError('Admitted Control UID required')
+    if owner_field=='control':
+        d = g.d
+        d.endpoint(control['target']);d.ssh_options(journal/'unused',control['hostAlias'])
+        known = c.read_pinned(control['knownHosts']);parts = known.decode('ascii').strip().split()
+        if len(parts)!=3 or parts[:2]!=[control['hostAlias'],'ssh-ed25519'] or known.count(b'\n')>1:
+            raise ValueError('One pinned Control host key required')
+        key = base64.b64decode(parts[2],validate=True)
+        if len(key)!=51 or key[:19]!=b'\0\0\0\x0bssh-ed25519\0\0\0\x20':
+            raise ValueError('Control host key differs')
+        p.boot(control['recipientBootId']);p.digest(control['sshSha256'])
+        if p.sha(Path('/usr/bin/ssh').read_bytes())!=control['sshSha256']:
+            raise ValueError('Control SSH client changed')
+        if type(control['recipientUid']) is not int or not 0 <= control['recipientUid'] <= 2147483647:
+            raise ValueError('Admitted Control UID required')
     for key in ('recipientRoot','sourceRoot'):t.path_text(control[key])
     w.exact(control['profile'],('path','sha256'));t.path_text(control['profile']['path']);p.digest(control['profile']['sha256'])
+    if owner_field=='localGuestOwner':
+        profile = p.decode(c.read_pinned(control['profile']))
+        w.exact(profile,g.PROFILE_FIELDS)
+        if profile['ownerBootId']!=original['bootId'] or profile['vmAttempt']!=original['vmAttempt']:
+            raise ValueError('Original local guest-key owner required')
+        g.d.endpoint({'host':'127.0.0.1','port':22,'user':'rpcadmin','identityFile':profile['guestIdentityFile']})
+        c.directory(control['recipientRoot']);c.directory(profile['journalRoot'])
+    # The actual receiver checks the complete protected source tree before import.
     # Preparation must happen inside this same original clock; no begin/finish
     # call exists in this driver and no static candidate can reset the window.
     return original
@@ -259,12 +271,14 @@ def run(config):
         'clock':config['clock'],'outcome':'consumed-no-automatic-retry'}))
     static = {k:c.read_pinned(config[k]) for k in ('observation','media')}
     handoff_raw = w.staged(config['handoff'],'handoff.json')
+    local_profile = c.read_pinned(config['localGuestOwner']['profile']) if 'localGuestOwner' in config else None
     lease = None;phase = 'admission';receipts = {}
 
     def current():
         c.validate(config['clock'])
         if any(c.read_pinned(config[k])!=raw for k,raw in static.items()):raise ValueError('Original startup inputs changed')
         if w.staged(config['handoff'],'handoff.json')!=handoff_raw:raise ValueError('Original handoff changed')
+        if local_profile is not None and c.read_pinned(config['localGuestOwner']['profile'])!=local_profile:raise ValueError('Local owner profile changed')
         if lease is not None:lease.check()
 
     def step(name, function, arguments):
@@ -310,10 +324,15 @@ def run(config):
                        startResult=previous,requiredFreeBytes=win['requiredFreeBytes']))
         if decoded(endpoint)['pending'] is not False:raise ValueError('Original endpoint remains pending')
         public = {'clock':config['clock'],'serverContract':prepared_export['contract'],'serverReady':ready}
-        control = config['control']
-        imported = step('transfer-export',t.transfer,dict(public,**{k:control[k]for k in
-                   ('target','knownHosts','hostAlias','sshSha256','recipientRoot','recipientUid','recipientBootId')}))
-        result = step('guest-workflow',g.send,dict(public,**control,exportReceipt=imported['receipt'],endpointReceipt=endpoint))
+        if 'localGuestOwner' in config:
+            control = config['localGuestOwner']
+            imported = step('transfer-export',t.transfer_local,dict(public,recipientRoot=control['recipientRoot']))
+            result = step('guest-workflow',g.send_local,dict(public,**control,exportReceipt=imported['receipt'],endpointReceipt=endpoint))
+        else:
+            control = config['control']
+            imported = step('transfer-export',t.transfer,dict(public,**{k:control[k]for k in
+                       ('target','knownHosts','hostAlias','sshSha256','recipientRoot','recipientUid','recipientBootId')}))
+            result = step('guest-workflow',g.send,dict(public,**control,exportReceipt=imported['receipt'],endpointReceipt=endpoint))
         current()
         return c.write_new(root/'RESULT.json',c.encode({'schema':'owned-rpc-startup-workflow/1','clock':config['clock'],
             'attempt':original['attempt'],'vmAttempt':original['vmAttempt'],'receipts':receipts,'guestWorkflow':result,

@@ -143,22 +143,48 @@ def remote_command(original,config,raw):
  return ['/usr/bin/systemd-run','--user','--quiet','--wait','--pipe','--unit=enclave-rpc-export-import-'+original['attempt']+'.service',*['--property='+v for v in props],'/usr/bin/python3','-I','-c',BOOTSTRAP,original['attempt'],original['instance'],str(original['createdUtcNs']),str(original['deadlineUtcNs']),p.sha(raw),config['recipientRoot'],str(config['recipientUid']),config['recipientBootId']]
 
 
+def local_config(config):
+ # Local mode derives authority from this process and the actual original boot.
+ # Caller-supplied recipient identity cannot impersonate a different owner.
+ if 'recipientUid' in config or 'recipientBootId' in config:raise ValueError('Local recipient identity is derived, not supplied')
+ original=c.validate(config['clock'])
+ boot=Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+ if original['bootId']!=boot:raise ValueError('Original local owner boot changed')
+ return dict(config,recipientUid=os.geteuid(),recipientBootId=boot)
+
+
 def transfer(config):
- if set(config)!={'clock','serverContract','serverReady','target','knownHosts','hostAlias','sshSha256','recipientRoot','recipientUid','recipientBootId'}:raise ValueError('Exact owner transfer configuration required')
+ return _transfer(config,False)
+
+
+def transfer_local(config):
+ return _transfer(local_config(config),True)
+
+
+def _transfer(config,local):
+ fields={'clock','serverContract','serverReady','recipientRoot','recipientUid','recipientBootId'}
+ if not local:fields|={'target','knownHosts','hostAlias','sshSha256'}
+ if set(config)!=fields:raise ValueError('Exact owner transfer configuration required')
  original,files,raw=package(config);path_text(config['recipientRoot']);p.boot(config['recipientBootId'])
  if type(config['recipientUid'])is not int or not 0<=config['recipientUid']<=2147483647:raise ValueError('Exact admitted recipient UID required')
- p.digest(config['sshSha256'])
- if p.sha(Path('/usr/bin/ssh').read_bytes())!=config['sshSha256']:raise ValueError('SSH client changed')
- target=d.endpoint(config['target']);known=c.read_pinned(config['knownHosts']);parts=known.decode('ascii').strip().split()
- if len(parts)!=3 or parts[:2]!=[config['hostAlias'],'ssh-ed25519'] or known.count(b'\n')>1:raise ValueError('One pinned recipient host key required')
- key=base64.b64decode(parts[2],validate=True)
- if len(key)!=51 or key[:19]!=b'\0\0\0\x0bssh-ed25519\0\0\0\x20':raise ValueError('Recipient host key differs')
+ known=None
+ if not local:
+  p.digest(config['sshSha256'])
+  if p.sha(Path('/usr/bin/ssh').read_bytes())!=config['sshSha256']:raise ValueError('SSH client changed')
+  target=d.endpoint(config['target']);known=c.read_pinned(config['knownHosts']);parts=known.decode('ascii').strip().split()
+  if len(parts)!=3 or parts[:2]!=[config['hostAlias'],'ssh-ed25519'] or known.count(b'\n')>1:raise ValueError('One pinned recipient host key required')
+  key=base64.b64decode(parts[2],validate=True)
+  if len(key)!=51 or key[:19]!=b'\0\0\0\x0bssh-ed25519\0\0\0\x20':raise ValueError('Recipient host key differs')
  parent=c.directory(Path(config['clock']['path']).parent);root=parent/'guest-export-transfer';root.mkdir(mode=0o700);c.sync_directory(parent)
- c.write_new(root/'known-hosts',known)
- argv=d.ssh_options(root/'known-hosts',config['hostAlias'])+target+[shlex.join(remote_command(original,config,raw))]
+ command=remote_command(original,config,raw)
+ if local:
+  argv=command
+ else:
+  c.write_new(root/'known-hosts',known)
+  argv=d.ssh_options(root/'known-hosts',config['hostAlias'])+target+[shlex.join(command)]
  if c.remaining(config['clock'])<18:raise TimeoutError('Insufficient original import window')
- c.write_new(root/'intent.json',c.encode({'attempt':original['attempt'],'wireSha256':p.sha(raw),'configurationSha256':p.sha(c.encode(config)),'bootstrapSha256':p.sha(BOOTSTRAP.encode()),'deadlineUtcNs':original['deadlineUtcNs'],'outcome':'unresolved-until-exact-import'}))
- if package(config)!=(original,files,raw) or c.read_pinned(config['knownHosts'])!=known:raise ValueError('Transfer inputs changed')
+ c.write_new(root/'intent.json',c.encode({'attempt':original['attempt'],'wireSha256':p.sha(raw),'configurationSha256':p.sha(c.encode(config)),'bootstrapSha256':p.sha(BOOTSTRAP.encode()),'deadlineUtcNs':original['deadlineUtcNs'],'outcome':'unresolved-until-exact-import','transport':'local-user-unit' if local else 'pinned-ssh'}))
+ if package(config)!=(original,files,raw) or (not local and c.read_pinned(config['knownHosts'])!=known):raise ValueError('Transfer inputs changed')
  started=time.time_ns();reply=d.exchange(argv,raw,min(15,c.remaining(config['clock'])));c.validate(config['clock']);r=p.decode(reply)
  expected={'schema':'owned-rpc-export-import/1','attempt':original['attempt'],'instance':original['instance'],'wireSha256':p.sha(raw),'createdUtcNs':original['createdUtcNs'],'deadlineUtcNs':original['deadlineUtcNs'],'recipientBootId':config['recipientBootId'],'recipientUid':config['recipientUid'],'imported':True,'guestSubmitted':False,'rpcReady':False,'writersFenced':False}
  if set(r)!=set(expected)|{'unitInvocation','atUtcNs','files'} or any(r[k]!=v or type(r[k])is not type(v)for k,v in expected.items()):raise ValueError('Import observation differs')

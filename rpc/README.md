@@ -145,7 +145,7 @@ no sampler/helper remained. No deadline or capacity limit was relaxed. See
 
 `observe_guest.py` obtains the initial guest boot ID needed by
 `prepare_attachment.py`. Run it on the owner host that already holds the guest
-SSH identity; the current deployment keeps that key on Control. Supply pinned
+SSH identity; the verified current key owner is Warden. Supply pinned
 `serverContract` and `seedReceipt`, explicit `target`, optional pinned `jump`,
 `sshSha256`, and a protected `journalRoot`. Transfer the public inputs through
 the authenticated owner channel. Their hashes do not establish provenance.
@@ -199,8 +199,8 @@ receiver bootstrap and protected filesystem writes and feed the imported
 metadata into actual downstream producers; SSH and systemd remain mocked.
 The initial frozen-closure omission and corrected42PASS results are preserved
 in `ops/unified-funding-20261028/rpc-export-transfer-tests-r1` and `-r2`.
-Control user-unit support, live admission, cross-host clock agreement and
-transport still need qualification before the complete startup transaction.
+The local Warden path is now selected; its actual unit and normal pinned jump
+are qualified below. Full startup admission and guest execution remain required.
 No guest files or private seed changed.
 
 
@@ -226,8 +226,8 @@ provider settlement, RPC readiness, remote death or reservation release.
 and mocked SSH/native responses. Evidence is in
 `ops/unified-funding-20261028/rpc-windows-endpoint-tests-r1/ROOT-RESULT.md`.
 The native reader still needs protected staging and qualification against the
-actual owned VM during the admitted startup. The full driver and cross-host
-integration remain unfinished. No guest seed or staged lifecycle image changed.
+actual owned VM during the admitted startup. The driver is implemented below;
+its live production integration remains unqualified. No guest seed or staged lifecycle image changed.
 
 
 ### Guest-key-owner workflow (source integration qualified)
@@ -268,12 +268,11 @@ provider settlement, writer fencing or remote death.
 new tests execute actual preparers and all six senders with protected files;
 SSH, systemd and guest responses are mocked. See
 `ops/unified-funding-20261028/rpc-guest-workflow-tests-r1/ROOT-RESULT.md`.
-The live Control unit, route/jump, protected source staging and authenticated
-endpoint/config transfer remain unqualified. `transfer_export.py` currently
-transfers only server contract/ready; it does not yet deliver the workflow's
-endpoint/config or execute this runner. The Warden/Windows side still needs
-complete operational composition before consuming a production clock or cut.
-No private guest seed or staged lifecycle executable changed.
+The authenticated handoff and original Warden/Windows composition are now
+implemented below. Warden is the verified guest-key owner; the earlier Control
+key-owner assumption was incorrect. The real local unit and source staging
+are qualified below, while the owned RPC guest and production startup remain
+unqualified. No private guest seed or staged lifecycle executable changed.
 
 
 ### Authenticated guest workflow handoff (source integration qualified)
@@ -291,7 +290,7 @@ additional files, including a shadow guest storage protocol, are refused.
 The recipient profile contains public `seedReceipt`, `imageReceipt`,
 `credentialReceipt`, local `guestIdentityFile`, optional pinned `jump`,
 `sshSha256`, private `journalRoot`, `ownerBootId` and original `vmAttempt`.
-The profile stays on Control. The sender transfers public endpoint bytes and
+The profile stays on the actual key-owner host. The sender transfers public endpoint bytes and
 the prior two-file import's path/hash bindings; it does not transfer keys, code,
 seed media or blockchain data. Endpoint provenance is rechecked against the
 original four-phase journals. This transports the previously accepted endpoint
@@ -312,8 +311,8 @@ actual owner journals, the exact transported bootstrap, protected source
 imports, actual runner, preparers and all six senders. Windows, SSH, PID1 and
 guest replies are mocked. Evidence is in
 `ops/unified-funding-20261028/rpc-guest-workflow-delivery-tests-r1/ROOT-RESULT.md`.
-Actual Control source/profile staging, route/jump, clock agreement, unit and
-namespace/capacity admission remain unqualified. The sender now provides the
+The selected local Warden staging and unit have actual evidence below. The
+optional remote-owner path requires its own admission. The sender provides the
 workflow execution handoff missing from the two-file export transfer, while
 the Warden/Windows composition below still requires live qualification before a
 production attempt. No private seed or staged lifecycle executable changed.
@@ -323,7 +322,7 @@ production attempt. No private seed or staged lifecycle executable changed.
 
 `run_startup.py` connects the original clock to guarded storage export,
 Windows cut/collection/definition inputs/staging/definition/private copy/boot/
-one-shot start, endpoint observation, two-file Control import and authenticated
+one-shot start, endpoint observation, two-file owner import and authenticated
 guest workflow submission. It accepts an existing authenticated clock; it cannot
 begin a replacement clock. Preparation remains inside the original900-second
 window. An exclusive whole-attempt journal and fsynced phase intents precede
@@ -333,14 +332,15 @@ The owner must run in the exact `enclave-rpc-startup-ATTEMPT.service` user unit:
 Typeexec,256MiB,CPU1,noSwap,16tasks,NoNewPrivileges,600-second runtime and
 one-second stop. Its monotonic cutoff plus3-second allowance must precede the
 original deadline. Admission subtracts authenticated pending commitments and
-an explicit Warden allowance of at least1024MiB while retaining the27648MiB
+an explicit Warden allowance of at least1280MiB for the selected local guest
+owner, or1024MiB for an independently admitted remote owner, retaining27648MiB
 floor. This is a per-host minimum, not whole-stack fit or a bootstrap peak bound.
 The proposed19GiB guest plus1GiB support remains unmeasured; independent owners
 on Warden, Windows, Control and inside the guest must all be accounted for.
 
 Before changing Windows state, the driver validates fixed staged image names,
-media pair/bounds/custody/namespace, bare observation, network and Control
-source/connection pins. The unchanged export preparer validates original files,
+media pair/bounds/custody/namespace, bare observation, network and guest-owner
+source/profile/connection pins. The unchanged export preparer validates original files,
 credentials and runtime hashes. The driver submits one independent384MiB
 export guardian with a two-second watchdog, holds its exact pidfd, and checks
 PID/start/cgroup/invocation/limits and fresh watchdog acknowledgments between
@@ -348,7 +348,7 @@ phases. The guardian retains its own original deadline during blocking owner
 transports. Closing the observation handle neither stops nor adopts exports.
 
 The original definition and collected native cut evidence feed subsequent
-phases directly. A pending endpoint stops before Control submission. Returned
+phases directly. A pending endpoint stops before guest workflow submission. Returned
 client process observations keep RPC readiness, adoption, provider settlement,
 writer fencing, remote death and reservation release false. Serving checks and
 explicit adoption are not implemented by this driver.
@@ -356,6 +356,49 @@ explicit adoption are not implemented by this driver.
 17 new cases and28 relevant regressions passed; see
 `ops/unified-funding-20261028/rpc-startup-composition-tests-r1/ROOT-RESULT.md`.
 Windows/native/SSH and export/Control boundaries are simulated as described
-there. No production startup has been performed. Control source/profile staging,
-route/jump, real unit/namespace/clock agreement and capacity remain prerequisites;
-Windows endpoint staging and the actual owned-VM query are still unqualified.
+there. No production startup has been performed. Actual local staging and
+unit/route qualification are recorded below; fresh full capacity admission,
+Windows endpoint staging and the actual owned-VM query remain required.
+
+
+### Local Warden guest-key owner
+
+The live Control read found only `authorized_keys` in its normal `.ssh`
+directory. That is not a search of every possible key location. Independent
+comparison found Warden's existing public login key matches the guest seed;
+the private key was checked by file metadata and used normally by SSH, never
+exported. The selected workflow runs beside that existing key on Warden.
+No guest seed, boot image or credential rotation is needed.
+
+`transfer_export.transfer_local(config)` accepts `clock`, `serverContract`,
+`serverReady`, and `recipientRoot`. `deliver_guest_workflow.send_local(config)`
+adds `exportReceipt`, `endpointReceipt`, `sourceRoot`, `sourcePins` and `profile`.
+Both derive recipient UID/boot from the actual local process and original
+clock; supplied recipient identities or SSH transport fields are refused.
+They invoke the identical receiver bootstraps in independent local user units,
+retaining all source, namespace, original-deadline and consumed-journal checks.
+Local and remote modes share the same phase journal, so switching modes cannot
+retry an ambiguous import or submission. Import remains64MiB/10s/1sstop;
+workflow remains256MiB/240s/1sstop. Guest connections retain normal pinned SSH.
+
+`run_startup.py` requires exactly one of `localGuestOwner` or legacy `control`.
+The selected local object has `recipientRoot`, `sourceRoot`, `sourcePins`,
+`profile`; the profile must match the original Warden boot and VM attempt.
+It is rechecked between phases. Local admission includes an additional256MiB
+workflow allowance, raising the minimum owner reserve to1280MiB. This does not
+establish the proposed whole-stack memory fit.
+
+Actual57 tests passed:19 startup,9 local handoff,15 remote handoff and14 export
+transfer cases, with57 frozen pins unchanged. Real protected journals and exact
+receiver code are exercised; PID1, guest and SSH responses are mocked there.
+The private14-file source/profile staging was separately verified on Warden.
+A real256MiB user unit then validated the staged workflow's exact envelope,
+all22 runtime pins and a normal pinned SSH jump through NucBox to the existing
+Control VM. Round trip was617ms, conservative clock relation bound570ms.
+The exact prior Control reader was absent and its unit terminal0. The local
+qualification unit also ended0/MainPID0. The workflow itself was not called;
+no production clock was created. This proves neither the new RPC guest route
+nor VM startup, storage attachment, client fit, sync/finality or RPC readiness.
+See the public `rpc-local-workflow-tests-r1`, `rpc-local-owner-stage-r1` and
+`rpc-local-owner-unit-route-r1` evidence packages under
+`ops/unified-funding-20261028`.
