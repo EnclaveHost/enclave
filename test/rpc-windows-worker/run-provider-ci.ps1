@@ -58,7 +58,7 @@ try{
     Invoke-FiniteProcess $csc @('/nologo','/target:exe','/platform:x64','/main:ProviderStartHarness','/r:System.Management.dll','/r:System.Web.Extensions.dll',('/out:'+$controller),(Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $root 'windows\rpc\ProtectedAttempt.cs'),(Join-Path $root 'windows\rpc\ProviderStart.cs'),(Join-Path $root 'test\rpc-windows-worker\ProviderStartHarness.cs')) 20000 'controller-compile'
     Invoke-FiniteProcess $controller @() 20000 'inert'
     $lines=@(Get-Content -LiteralPath (Join-Path $work 'inert.out'))
-    if(@($lines|Where-Object{$_ -like 'PASS *'}).Count -ne 20 -or $lines[-1] -cne 'RESULT tests=20 providerCallsAreFakes=true vmChanged=false'){throw 'Incomplete provider transaction tests'}
+    if(@($lines|Where-Object{$_ -like 'PASS *'}).Count -ne 22 -or $lines[-1] -cne 'RESULT tests=22 providerCallsAreFakes=true vmChanged=false'){throw 'Incomplete provider transaction tests'}
     $lines
 }finally{
     # Helpers have no unbounded loop: sleeps <=5s, allocation <=192MiB. These

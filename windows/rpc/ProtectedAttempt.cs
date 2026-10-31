@@ -115,9 +115,10 @@ namespace Enclave.OwnedRpc {
             if(handle.IsInvalid) {handle.Dispose();throw new Win32Exception(Marshal.GetLastWin32Error());}
             held.Add(handle);directories.Add(handle);Authority(handle,strict,true,path);
         }
-        FileStream HoldRead(string path,int maximum) {
+        FileStream HoldRead(string path,int maximum) {return HoldRead(path,maximum,false);}
+        FileStream HoldRead(string path,int maximum,bool allowMissing) {
             var handle=CreateFile(path,0x80000000|0x20000,1,IntPtr.Zero,3,0x00200000,IntPtr.Zero);
-            if(handle.IsInvalid) {handle.Dispose();throw new Win32Exception(Marshal.GetLastWin32Error());}
+            if(handle.IsInvalid) {int error=Marshal.GetLastWin32Error();handle.Dispose();if(allowMissing&&error==2)return null;throw new Win32Exception(error);}
             held.Add(handle);Authority(handle,true,false,path);
             var stream=new FileStream(handle,FileAccess.Read);held.Add(stream);
             if(stream.Length<1 || stream.Length>maximum) throw new InvalidOperationException("Protected file size");
@@ -197,6 +198,12 @@ namespace Enclave.OwnedRpc {
             if(!GetFileInformationByHandle(pinned.SafeFileHandle,out after) || before.Volume!=after.Volume ||
                 before.IndexHigh!=after.IndexHigh || before.IndexLow!=after.IndexLow || Hash(Bytes(pinned,4096))!=Hash(bytes))
                 throw new InvalidOperationException("Published message incarnation changed");
+        }
+        // Only CreateFile ERROR_FILE_NOT_FOUND maps to absence. Namespace/ACL,
+        // sharing, invalid handles and malformed/empty data remain failures.
+        public string ReadOptionalOnce(string name) {
+            Name(name);CheckDeadline();var stream=HoldRead(Path.Combine(Root,name),4096,true);
+            return stream==null?null:Utf8.GetString(Bytes(stream,4096));
         }
         public string ReadOnce(string name) {
             Name(name);CheckDeadline();return Utf8.GetString(Bytes(HoldRead(Path.Combine(Root,name),4096),4096));

@@ -3,6 +3,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Diagnostics;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Threading;
 using Enclave.OwnedRpc;
 public static class ProviderStartHarness {
@@ -28,6 +31,26 @@ public static class ProviderStartHarness {
     static StartIdentity Id(){return new StartIdentity(new string('a',32),new string('b',32),new string('c',64),new string('d',64),"01234567-89ab-cdef-0123-456789abcdef","enclave-owned-rpc-"+new string('a',32),"owned-rpc/"+new string('a',32)+"/"+new string('c',64),@"C:\owned\vm",1000,901000,123,100,456,200,new string('e',64));}
     static void Check(bool v){if(!v)throw new Exception("assertion failed");}
     static void Refuse(Action f){bool refused=false;try{f();}catch{refused=true;}Check(refused);}
+    static void ProtectedReadCase(bool pending) {
+        string nonce=Guid.NewGuid().ToString("N"),parent=Path.Combine(Path.GetPathRoot(Environment.SystemDirectory),"RpcJournalFixture-"+nonce),root=Path.Combine(parent,nonce);
+        var admin=new SecurityIdentifier("S-1-5-32-544");var system=new SecurityIdentifier("S-1-5-18");
+        var acl=new DirectorySecurity();acl.SetOwner(admin);acl.SetAccessRuleProtection(true,false);
+        foreach(var sid in new[]{admin,system})acl.AddAccessRule(new FileSystemAccessRule(sid,FileSystemRights.FullControl,InheritanceFlags.ContainerInherit|InheritanceFlags.ObjectInherit,PropagationFlags.None,AccessControlType.Allow));
+        Directory.CreateDirectory(parent,acl);Directory.CreateDirectory(root,acl);
+        var fileAcl=new FileSecurity();fileAcl.SetOwner(admin);fileAcl.SetAccessRuleProtection(true,false);
+        foreach(var sid in new[]{admin,system})fileAcl.AddAccessRule(new FileSystemAccessRule(sid,FileSystemRights.FullControl,AccessControlType.Allow));
+        Action<string,byte[]> write=delegate(string n,byte[] data){using(var f=new FileStream(Path.Combine(root,n),FileMode.CreateNew,FileSystemRights.WriteData,FileShare.None,4096,FileOptions.WriteThrough,fileAcl)){f.Write(data,0,data.Length);f.Flush(true);}};
+        try {
+            byte[] image=File.ReadAllBytes(Process.GetCurrentProcess().MainModule.FileName);write("entry.exe",image);
+            long origin=BoundedWorker.MonotonicMilliseconds();string contract="owned-rpc-inert-v1\n"+nonce+"\n"+ProtectedAttempt.CurrentBoot()+"\n"+origin+"\n"+(origin+15000)+"\n"+ProtectedAttempt.Hash(image)+"\ninert-v1\n";
+            byte[] bytes=Encoding.UTF8.GetBytes(contract);write("contract.txt",bytes);
+            if(pending)write("start.receipt.pending",new byte[0]);
+            using(var pin=ProtectedAttempt.PinController(Path.Combine(root,"contract.txt"),ProtectedAttempt.Hash(bytes))){
+                var j=new ProtectedStartJournal(pin);
+                if(pending)Refuse(()=>j.Read("start.receipt"));else Check(j.Read("start.receipt")==null);
+            }
+        } finally {Directory.Delete(parent,true);}
+    }
     static int count;
     static void Test(string n,Action f){f();count++;Console.WriteLine("PASS "+n);}
     public static int Main(){
@@ -54,7 +77,9 @@ public static class ProviderStartHarness {
             Test("exact local reference canonicalizes",delegate{string expected=HyperVStartProvider.ReferenceForId("Microsoft:abc");Check(HyperVStartProvider.CanonicalJobReference(@"\\.\root\virtualization\v2:Msvm_ConcreteJob.InstanceID="+"\"Microsoft:abc\"")==expected);});
             Test("remote wrongnamespace extra keys refused",delegate{foreach(string path in new[]{@"\\untrusted\root\virtualization\v2:Msvm_ConcreteJob.InstanceID="+"\"abc\"",@"root\cimv2:Msvm_ConcreteJob.InstanceID="+"\"abc\"","Other.InstanceID=\"abc\"","Msvm_ConcreteJob.InstanceID=\"abc\",Other=\"x\"","Msvm_ConcreteJob.InstanceID=\"a/b\""})Refuse(()=>HyperVStartProvider.CanonicalJobReference(path));});
             Test("malformed response remains consumed",delegate{var j=new Store();var p=new Provider{Journal=j,Ref="Wrong.InstanceID=\"abc\""};ProviderStart.Prepare(Id(),j);Refuse(()=>ProviderStart.Submit(Id(),j,p,new Runtime()));Refuse(()=>ProviderStart.Submit(Id(),j,p,new Runtime()));Check(p.Calls==1&&j.Read("start.receipt")==null);});
-            Check(count==20);Console.WriteLine("RESULT tests="+count+" providerCallsAreFakes=true vmChanged=false");return 0;
+            Test("actual protected adapter definitive absence",delegate{ProtectedReadCase(false);});
+            Test("actual protected adapter empty pending is held",delegate{ProtectedReadCase(true);});
+            Check(count==22);Console.WriteLine("RESULT tests="+count+" providerCallsAreFakes=true vmChanged=false");return 0;
         }catch(Exception e){Console.WriteLine("FAIL "+e);return 1;}
     }
 }

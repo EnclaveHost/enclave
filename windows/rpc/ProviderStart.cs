@@ -49,11 +49,10 @@ namespace Enclave.OwnedRpc {
         public void WriteOnce(string name,string value){StartRecords.Name(name);pin.WriteOnce(name,value);}
         public string Read(string name){
             StartRecords.Name(name);
-            try{return pin.ReadOnce(name);}catch(FileNotFoundException){
-                // A failed publication remains ambiguous, including an empty file.
-                try{pin.ReadOnce(name+".pending");throw new IOException("Unpublished journal record");}
-                catch(FileNotFoundException){return null;}
-            }
+            string value=pin.ReadOptionalOnce(name);if(value!=null)return value;
+            // A failed publication remains ambiguous, including an empty file.
+            if(pin.ReadOptionalOnce(name+".pending")!=null)throw new IOException("Unpublished journal record");
+            return null;
         }
     }
     public interface IStartRuntime {
