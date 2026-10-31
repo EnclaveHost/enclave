@@ -202,3 +202,29 @@ in `ops/unified-funding-20261028/rpc-export-transfer-tests-r1` and `-r2`.
 Control user-unit support, live admission, cross-host clock agreement and
 transport still need qualification before the complete startup transaction.
 No guest files or private seed changed.
+
+
+### Owned Windows endpoint adapter (source integration only)
+
+`windows_endpoint.observe(config)` accepts the original `clock`, pinned
+`transport`, staged `helper`, separate `nonce`, exact `startResult`, and
+`requiredFreeBytes`. It reopens all four consumed transition phases and derives
+the original permit bytes from the definition and returned VM GUID. The exact
+switch, MAC, provider image and original deadline remain bound throughout.
+The native reader independently checks the actual protected permit and boot graph.
+
+An exclusive observation journal and fsynced intents precede each of the single
+clock and endpoint calls. The worker lease is at most30 seconds within the
+original900-second window. Accepted observations must be fresh within two
+seconds, match the native128 MiB envelope and retain the host floor plus all
+prospective commitments. Caller and transport overhead need separate admission.
+A missing address is pending; lost replies and consumed observations cannot be
+retried by changing the nonce. The returned endpoint is not guest authentication,
+provider settlement, RPC readiness, remote death or reservation release.
+
+15 new tests plus43 relevant regressions passed with real protected journals
+and mocked SSH/native responses. Evidence is in
+`ops/unified-funding-20261028/rpc-windows-endpoint-tests-r1/ROOT-RESULT.md`.
+The native reader still needs protected staging and qualification against the
+actual owned VM during the admitted startup. The full driver and cross-host
+integration remain unfinished. No guest seed or staged lifecycle image changed.

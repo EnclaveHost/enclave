@@ -1,0 +1,25 @@
+{
+  "tests": [
+    {
+      "name": "test_windows_endpoint.py",
+      "rc": 0,
+      "seconds": 1.6386305880732834
+    },
+    {
+      "name": "test_windows_files.py",
+      "rc": 0,
+      "seconds": 0.7445650831796229
+    },
+    {
+      "name": "test_windows_transition.py",
+      "rc": 0,
+      "seconds": 0.8734571598470211
+    },
+    {
+      "name": "test_windows_clock_transport.py",
+      "rc": 0,
+      "seconds": 0.2903463828843087
+    }
+  ],
+  "drift": []
+}

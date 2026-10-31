@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.2903463828843087,
+  "stdout": "",
+  "stderr": "test_authenticated_command_and_original_clock (__main__.Transport.test_authenticated_command_and_original_clock) ... ok\ntest_host_key_alias_mismatch_never_submits (__main__.Transport.test_host_key_alias_mismatch_never_submits) ... ok\ntest_identity_bytes_are_not_read (__main__.Transport.test_identity_bytes_are_not_read) ... ok\ntest_invalid_commands_never_submit (__main__.Transport.test_invalid_commands_never_submit) ... ok\ntest_late_reply_not_a_new_clock (__main__.Transport.test_late_reply_not_a_new_clock) ... ok\ntest_malformed_reply_stays_consumed (__main__.Transport.test_malformed_reply_stays_consumed) ... ok\ntest_transport_loss_stays_consumed (__main__.Transport.test_transport_loss_stays_consumed) ... ok\ntest_wrong_attempt_stays_consumed (__main__.Transport.test_wrong_attempt_stays_consumed) ... ok\ntest_wrong_boot_stays_consumed (__main__.Transport.test_wrong_boot_stays_consumed) ... ok\ntest_wrong_ssh_pin_never_submits (__main__.Transport.test_wrong_ssh_pin_never_submits) ... ok\n\n----------------------------------------------------------------------\nRan 10 tests in 0.107s\n\nOK\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 1095
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}
