@@ -1,0 +1,1 @@
+Local queue refused98 before Python dispatch: small allocation held by definition dispatch. No dispatch intent or GitHub operation occurred. Original unit terminal/Main0. Root corrects orchestration by executing sequentially after exact first dispatch terminal; separate r2 package, no remote retry.

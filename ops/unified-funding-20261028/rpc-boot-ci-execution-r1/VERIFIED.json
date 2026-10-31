@@ -1,0 +1,91 @@
+{
+  "head": "ecd324613b589170d4752e9fec70ea3233085ee3",
+  "run": 41182675950,
+  "matchedSourceFiles": {
+    "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+    "windows/rpc/OwnerObserver.cs": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80",
+    "windows/rpc/ProtectedAttempt.cs": "7905614d792f9ae09bd9d5dde5298c3977c86bf09d861f8f7487564d93a38503",
+    "windows/rpc/ProviderStart.cs": "d2eb7bbebc74b02be707fcd705c9165af9b6fdf2f6440a94fde76dcc0ceaeea2",
+    "windows/rpc/OwnedVmPermit.cs": "a4d1f9640a4087714b9907cddcdc64340cb57f07de04dd1b6baf97197ac60373",
+    "windows/rpc/OwnedVmDefinition.cs": "5deb6b5add901eabecc9431b28ee3108ec9181866833ab60dba0912b071a10ff",
+    "windows/rpc/OwnedVmBoot.cs": "0f21e5f72e94bfe60a6c2431f8abf6343ca0a512c376ba2847fab08878def388",
+    "windows/rpc/BootStartBinding.cs": "b7a10a7f90e53380edbd47523bf4b45735126ab13dea08ec7f7f585187af8868",
+    "windows/rpc/HostPhysicalPool.cs": "218483e78967e94f77c2c88fdee9ca04970eb9c4a3f10adbf543b8ccd0c904af",
+    "windows/rpc/WindowsStartAdmission.cs": "951ae9cf8a98088696bb06d89e48f12d88ad705203dc24a1f0b515d69aedd9df",
+    "windows/rpc/LegacyTemplateFence.cs": "d2bfc04762cf64b2555575e4c8aa95842dd35be108f9c9780dd3ecf0ecd0cd0f",
+    "windows/rpc/LegacyLaunchCohort.cs": "ce22aa16e0d353fa8354bca26f8dc4057d520c001540d0659778e2769135f5a2",
+    "windows/rpc/LegacyHandoff.cs": "4ced7f0d753217d263f21342e390ff6120a55f8b4135b0fa28cc5d95875358ce",
+    "windows/rpc/DefinitionWorkerEntry.cs": "cb385e08e3e4ddf1e438a0992b411c592cf701658adc5e75910baeae16c7c2da",
+    "windows/rpc/DefinitionWorkerController.cs": "503796d87bdec4f6641bc69146779503d4a8d418d7ebeeec3c9cc6a6715f32da",
+    "test/rpc-windows-worker/OwnedVmDefinitionHarness.cs": "59fca9f087e74455d7f8894b474dd2dc0a0b89608a937a18c693ae8cc20ed76d",
+    "test/rpc-windows-worker/OwnedVmBootHarness.cs": "38f6c47f7765b34542fd0610281406addda0b89a336064ed5e3e35dfd457f334"
+  },
+  "images": {
+    "definition-controller.exe": {
+      "sha256": "fabab504d983d7793b02bda6895e3dfe06e7e277d52c352a8cc1b7f48bef4341",
+      "bytes": 241152
+    },
+    "owned-entry.exe": {
+      "sha256": "6c99aac66f040a46a7326266f669c068158debf43f37e615f7159ef2cb8cb95c",
+      "bytes": 241152
+    }
+  },
+  "processes": [
+    {
+      "label": "controller-compile",
+      "pid": 5700,
+      "exitCode": 0,
+      "elapsedMs": 1528,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 38789120,
+      "outputBytes": 196
+    },
+    {
+      "label": "entry-compile",
+      "pid": 5280,
+      "exitCode": 0,
+      "elapsedMs": 274,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 37208064,
+      "outputBytes": 196
+    },
+    {
+      "label": "target-compile",
+      "pid": 6556,
+      "exitCode": 0,
+      "elapsedMs": 278,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 37871616,
+      "outputBytes": 196
+    },
+    {
+      "label": "inert",
+      "pid": 5652,
+      "exitCode": 0,
+      "elapsedMs": 705,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 37040128,
+      "outputBytes": 3743
+    }
+  ],
+  "outputs": {
+    "entry-compile.out": [
+      "source-closure\\windows\\rpc\\ProtectedAttempt.cs(32,23): warning CS0649: Field 'Enclave.OwnedRpc.ProtectedAttempt.startupCleanup' is never assigned to, and will always have its default value false"
+    ],
+    "inert.out": [
+      "RESULT tests=83 providerCallsAreFakes=true vmChanged=false"
+    ],
+    "controller-compile.out": [
+      "source-closure\\windows\\rpc\\ProtectedAttempt.cs(32,23): warning CS0649: Field 'Enclave.OwnedRpc.ProtectedAttempt.startupCleanup' is never assigned to, and will always have its default value false"
+    ],
+    "target-compile.out": [
+      "source-closure\\windows\\rpc\\ProtectedAttempt.cs(32,23): warning CS0649: Field 'Enclave.OwnedRpc.ProtectedAttempt.startupCleanup' is never assigned to, and will always have its default value false"
+    ]
+  },
+  "targetQualified": false,
+  "harnessArtifactOmitted": "283136B exceeds existing262144B publication bound; CI hash receipt retained but executable not independently recomputed."
+}

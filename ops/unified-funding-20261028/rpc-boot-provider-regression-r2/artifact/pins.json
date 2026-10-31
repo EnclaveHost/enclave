@@ -1,0 +1,92 @@
+[
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "309A68AB3A4326C3819997C3ABAE4E4FE38307E98BB54B31B246CE61A9A63A99",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\BoundedWorker.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "59D15DC8BA06CD739D7BF920FDA4CCA86D235B962CCCEF1BAE27C0173FBEDC80",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\OwnerObserver.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "4E23387225EE2A710F60D7A17DB68E73A39CD15409981CB2E0EB9FA1D64CF336",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\VmStartGuardian.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "7905614D792F9AE09BD9D5DDE5298C3977C86BF09D861F8F7487564D93A38503",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\ProtectedAttempt.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "D2EB7BBEBC74B02BE707FCD705C9165AF9B6FDF2F6440A94FDE76DCC0CEAEEA2",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\ProviderStart.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "B2F5ECB6557A8AF5DF419C0A1E49F8E90138C13FBB76EC0D4CDAB1D300B18361",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\ProviderStop.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "218483E78967E94F77C2C88FDEE9CA04970EB9C4A3F10ADBF543B8CCD0C904AF",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\HostPhysicalPool.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "B06119B07562DDAB4BAAFE5E6381A8415A61FDF3D520CDFC829F5DEA955BBFFE",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\PhysicalPoolCommand.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "A4D1F9640A4087714B9907CDDCDC64340CB57F07DE04DD1B6BAF97197AC60373",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\OwnedVmPermit.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "951AE9CF8A98088696BB06D89E48F12D88AD705203DC24A1F0B515D69AEDD9DF",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\WindowsStartAdmission.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "FFCEA11C6B9139BAEB0589E875F733D04129DDC68EB89A08AFB303F7C644B898",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\ProviderWorkerEntry.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "B7A10A7F90E53380EDBD47523BF4B45735126AB13DEA08EC7F7F585187AF8868",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\BootStartBinding.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "44B18B1C2D3FFB6500D9034D204003373DE3E851E43962B65AAC3D8D9519BECC",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\StartupCleanup.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "BBCB5F911266B9C2CC9CED89DBE11E70D8B830D130CE86DE9D995886FF3118DC",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\test\\rpc-windows-worker\\ProviderWorkerQualification.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "70DF4864ADE0D4C19CCE0705FE3DC18B38D715F977EFA60CFB6C20142F2C16E4",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\test\\rpc-windows-worker\\ProviderStartHarness.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "BCBBFBE7B99FE705CC5A617EF94314CCFC6652499B9776AA4066D039753F85F1",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\test\\rpc-windows-worker\\ProviderStopHarness.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "D2F9F0189995A90EB395C4516F5E5CD00E714B9BAE5920E6F4818B6E81174CC4",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\test\\rpc-windows-worker\\HostPhysicalPoolHarness.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "46809206887326D2D24DB1EFF1F3064DE972C3451ABE766B49111450A5E08E00",
+        "Path":  "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe"
+    }
+]

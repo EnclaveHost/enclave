@@ -1,0 +1,162 @@
+[
+    {
+        "label":  "entry-compile",
+        "pid":  1944,
+        "exitCode":  0,
+        "elapsedMs":  1685,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  36323328,
+        "outputBytes":  199
+    },
+    {
+        "label":  "controller-compile",
+        "pid":  6620,
+        "exitCode":  0,
+        "elapsedMs":  205,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  37548032,
+        "outputBytes":  199
+    },
+    {
+        "label":  "transaction-compile",
+        "pid":  6632,
+        "exitCode":  0,
+        "elapsedMs":  211,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  36548608,
+        "outputBytes":  199
+    },
+    {
+        "label":  "transactions",
+        "pid":  6660,
+        "exitCode":  0,
+        "elapsedMs":  3887,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  35553280,
+        "outputBytes":  2131
+    },
+    {
+        "label":  "stop-compile",
+        "pid":  4140,
+        "exitCode":  0,
+        "elapsedMs":  212,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  36171776,
+        "outputBytes":  389
+    },
+    {
+        "label":  "stops",
+        "pid":  6920,
+        "exitCode":  0,
+        "elapsedMs":  166,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  28434432,
+        "outputBytes":  1200
+    },
+    {
+        "label":  "pool-compile",
+        "pid":  4928,
+        "exitCode":  0,
+        "elapsedMs":  228,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  37105664,
+        "outputBytes":  199
+    },
+    {
+        "label":  "physical-pool",
+        "pid":  7816,
+        "exitCode":  0,
+        "elapsedMs":  1890,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  29229056,
+        "outputBytes":  769
+    },
+    {
+        "label":  "pool-command-compile",
+        "pid":  9124,
+        "exitCode":  0,
+        "elapsedMs":  210,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  36360192,
+        "outputBytes":  199
+    },
+    {
+        "label":  "pool-transport",
+        "pid":  9004,
+        "exitCode":  0,
+        "elapsedMs":  12433,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  21225472,
+        "outputBytes":  98
+    },
+    {
+        "label":  "admission-fixtures",
+        "pid":  9764,
+        "exitCode":  0,
+        "elapsedMs":  353,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  32198656,
+        "outputBytes":  166
+    },
+    {
+        "label":  "reconcile",
+        "pid":  10084,
+        "exitCode":  0,
+        "elapsedMs":  1171,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  45715456,
+        "outputBytes":  702
+    },
+    {
+        "label":  "denied-start",
+        "pid":  1588,
+        "exitCode":  0,
+        "elapsedMs":  1013,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  43126784,
+        "outputBytes":  623
+    },
+    {
+        "label":  "guardian-bind",
+        "pid":  9908,
+        "exitCode":  0,
+        "elapsedMs":  1240,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  43491328,
+        "outputBytes":  623
+    },
+    {
+        "label":  "guardian-publication-failure",
+        "pid":  6528,
+        "exitCode":  0,
+        "elapsedMs":  769,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  43491328,
+        "outputBytes":  622
+    },
+    {
+        "label":  "stop-too-early",
+        "pid":  5296,
+        "exitCode":  0,
+        "elapsedMs":  958,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  46694400,
+        "outputBytes":  622
+    }
+]

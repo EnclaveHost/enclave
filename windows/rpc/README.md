@@ -678,3 +678,16 @@ and [Microsoft Generation2 SetBootOrder sample](https://github.com/microsoft/Win
 Target WMI defaults/property support, VM disk access, converted boot image/seed
 provenance, actual boot, current network reachability and integrated cleanup/start
 registration still require qualification. No target VM has been changed.
+
+
+The actual start worker independently requires `BootStartBinding` before physical
+claim acquisition and again immediately before native Start. It binds the original
+protected definition, complete boot graph, initial media file identities and
+hashed network admission, then rereads the exact owned Off VM and attached graph.
+A controller ready flag alone cannot authorize the start. The complete boot
+transaction and this binding compiled in hosted qualification with83PASS; the
+changed provider worker also passed its start/stop/pool/transport and negative
+SYSTEM-role regressions. Boot tests use fake Hyper-V providers. Target WMI/ACL
+behavior, actual boot and the aggregate two-second native graph read remain
+unqualified. Production startup orchestration and actual artifacts are still
+required; these results do not establish RPC availability or20GiB workload fit.

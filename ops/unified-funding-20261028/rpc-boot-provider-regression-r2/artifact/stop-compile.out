@@ -1,0 +1,2 @@
+source-closure\test\rpc-windows-worker\ProviderStopHarness.cs(22,23): warning CS0649: Field 'ProviderStopHarness.Starts.Code' is never assigned to, and will always have its default value 0
+source-closure\windows\rpc\ProtectedAttempt.cs(31,23): warning CS0649: Field 'Enclave.OwnedRpc.ProtectedAttempt.definitionJournal' is never assigned to, and will always have its default value false

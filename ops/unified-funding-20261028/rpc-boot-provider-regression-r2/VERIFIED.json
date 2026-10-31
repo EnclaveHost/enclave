@@ -1,0 +1,256 @@
+{
+  "head": "ecd324613b589170d4752e9fec70ea3233085ee3",
+  "run": 41182708312,
+  "matchedSourceFiles": {
+    "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+    "windows/rpc/OwnerObserver.cs": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80",
+    "windows/rpc/VmStartGuardian.cs": "4e23387225ee2a710f60d7a17db68e73a39cd15409981cb2e0eb9fa1d64cf336",
+    "windows/rpc/ProtectedAttempt.cs": "7905614d792f9ae09bd9d5dde5298c3977c86bf09d861f8f7487564d93a38503",
+    "windows/rpc/ProviderStart.cs": "d2eb7bbebc74b02be707fcd705c9165af9b6fdf2f6440a94fde76dcc0ceaeea2",
+    "windows/rpc/ProviderStop.cs": "b2f5ecb6557a8af5df419c0a1e49f8e90138c13fbb76ec0d4cdab1d300b18361",
+    "windows/rpc/HostPhysicalPool.cs": "218483e78967e94f77c2c88fdee9ca04970eb9c4a3f10adbf543b8ccd0c904af",
+    "windows/rpc/PhysicalPoolCommand.cs": "b06119b07562ddab4baafe5e6381a8415a61fdf3d520cdfc829f5dea955bbffe",
+    "windows/rpc/OwnedVmPermit.cs": "a4d1f9640a4087714b9907cddcdc64340cb57f07de04dd1b6baf97197ac60373",
+    "windows/rpc/WindowsStartAdmission.cs": "951ae9cf8a98088696bb06d89e48f12d88ad705203dc24a1f0b515d69aedd9df",
+    "windows/rpc/ProviderWorkerEntry.cs": "ffcea11c6b9139baeb0589e875f733d04129ddc68eb89a08afb303f7c644b898",
+    "windows/rpc/BootStartBinding.cs": "b7a10a7f90e53380edbd47523bf4b45735126ab13dea08ec7f7f585187af8868",
+    "windows/rpc/StartupCleanup.cs": "44b18b1c2d3ffb6500d9034d204003373de3e851e43962b65aac3d8d9519becc",
+    "test/rpc-windows-worker/ProviderWorkerQualification.cs": "bbcb5f911266b9c2cc9ced89dbe11e70d8b830d130ce86de9d995886ff3118dc",
+    "test/rpc-windows-worker/ProviderStartHarness.cs": "70df4864ade0d4c19cce0705fe3dc18b38d715f977efa60cfb6c20142f2c16e4",
+    "test/rpc-windows-worker/ProviderStopHarness.cs": "bcbbfbe7b99fe705cc5a617ef94314ccfc6652499b9776aa4066d039753f85f1",
+    "test/rpc-windows-worker/HostPhysicalPoolHarness.cs": "d2f9f0189995a90eb395c4516f5e5cd00e714b9bae5920e6f4818b6e81174cc4"
+  },
+  "images": {
+    "physical-pool-command.exe": {
+      "sha256": "9370614772796cf68812fe2bc7bffe98b51b1cd42f96bf1fe659dfa158ee176b",
+      "bytes": 205312
+    },
+    "qualification-controller.exe": {
+      "sha256": "86aebb111c75496217c424cd5af28f09debf162afb760d79e6a827ff5716fc78",
+      "bytes": 237568
+    },
+    "owned-entry.exe": {
+      "sha256": "982dcc31e9e009e1db35823737f92298d6e99e3c052817b03dfcec1a0332c5bd",
+      "bytes": 205312
+    }
+  },
+  "processes": [
+    {
+      "label": "entry-compile",
+      "pid": 1944,
+      "exitCode": 0,
+      "elapsedMs": 1685,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 36323328,
+      "outputBytes": 199
+    },
+    {
+      "label": "controller-compile",
+      "pid": 6620,
+      "exitCode": 0,
+      "elapsedMs": 205,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 37548032,
+      "outputBytes": 199
+    },
+    {
+      "label": "transaction-compile",
+      "pid": 6632,
+      "exitCode": 0,
+      "elapsedMs": 211,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 36548608,
+      "outputBytes": 199
+    },
+    {
+      "label": "transactions",
+      "pid": 6660,
+      "exitCode": 0,
+      "elapsedMs": 3887,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 35553280,
+      "outputBytes": 2131
+    },
+    {
+      "label": "stop-compile",
+      "pid": 4140,
+      "exitCode": 0,
+      "elapsedMs": 212,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 36171776,
+      "outputBytes": 389
+    },
+    {
+      "label": "stops",
+      "pid": 6920,
+      "exitCode": 0,
+      "elapsedMs": 166,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 28434432,
+      "outputBytes": 1200
+    },
+    {
+      "label": "pool-compile",
+      "pid": 4928,
+      "exitCode": 0,
+      "elapsedMs": 228,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 37105664,
+      "outputBytes": 199
+    },
+    {
+      "label": "physical-pool",
+      "pid": 7816,
+      "exitCode": 0,
+      "elapsedMs": 1890,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 29229056,
+      "outputBytes": 769
+    },
+    {
+      "label": "pool-command-compile",
+      "pid": 9124,
+      "exitCode": 0,
+      "elapsedMs": 210,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 36360192,
+      "outputBytes": 199
+    },
+    {
+      "label": "pool-transport",
+      "pid": 9004,
+      "exitCode": 0,
+      "elapsedMs": 12433,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 21225472,
+      "outputBytes": 98
+    },
+    {
+      "label": "admission-fixtures",
+      "pid": 9764,
+      "exitCode": 0,
+      "elapsedMs": 353,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 32198656,
+      "outputBytes": 166
+    },
+    {
+      "label": "reconcile",
+      "pid": 10084,
+      "exitCode": 0,
+      "elapsedMs": 1171,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 45715456,
+      "outputBytes": 702
+    },
+    {
+      "label": "denied-start",
+      "pid": 1588,
+      "exitCode": 0,
+      "elapsedMs": 1013,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 43126784,
+      "outputBytes": 623
+    },
+    {
+      "label": "guardian-bind",
+      "pid": 9908,
+      "exitCode": 0,
+      "elapsedMs": 1240,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 43491328,
+      "outputBytes": 623
+    },
+    {
+      "label": "guardian-publication-failure",
+      "pid": 6528,
+      "exitCode": 0,
+      "elapsedMs": 769,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 43491328,
+      "outputBytes": 622
+    },
+    {
+      "label": "stop-too-early",
+      "pid": 5296,
+      "exitCode": 0,
+      "elapsedMs": 958,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 46694400,
+      "outputBytes": 622
+    }
+  ],
+  "outputs": {
+    "pool-compile.out": [
+      "source-closure\\windows\\rpc\\ProtectedAttempt.cs(31,23): warning CS0649: Field 'Enclave.OwnedRpc.ProtectedAttempt.definitionJournal' is never assigned to, and will always have its default value false"
+    ],
+    "physical-pool.out": [
+      "RESULT tests=14 nativeFileSharing=true providerCalls=false vmChanged=false"
+    ],
+    "pool-transport.out": [
+      "RESULT transportLedgerVerified=true vmChanged=false"
+    ],
+    "guardian-publication-failure.out": [
+      "{\"schema\":\"owned-rpc-provider-worker-qualification/1\",\"passed\":true,\"deniedStart\":false,\"guardianBind\":true,\"guardianPublicationFailure\":true,\"earlyStop\":false,\"guardianFailureElapsedMs\":656,\"origin\":306045,\"deadline\":336045,\"elapsedMs\":757,\"root\":\"C:\\\\EnclaveRpcProviderQualification-f83c18d731404012a3dcaba6f1ce7e39\\\\f83c18d731404012a3dcaba6f1ce7e39\",\"vmRoot\":\"C:\\\\EnclaveRpcProviderQualification-f83c18d731404012a3dcaba6f1ce7e39\\\\f7865935cf9544eeaafde3d7f3cb4162\",\"freeBytes\":14299381760,\"childResult\":null,\"failures\":[],\"nativeSubmitted\":false,\"providerFenced\":false,\"reservationMayRelease\":false,\"vmsChanged\":false}"
+    ],
+    "reconcile.out": [
+      "{\"schema\":\"owned-rpc-provider-worker-qualification/1\",\"passed\":true,\"deniedStart\":false,\"guardianBind\":false,\"guardianPublicationFailure\":false,\"earlyStop\":false,\"guardianFailureElapsedMs\":-1,\"origin\":302610,\"deadline\":332610,\"elapsedMs\":1166,\"root\":\"C:\\\\EnclaveRpcProviderQualification-edc7d3cf164246b7a40ac803e25e1064\\\\edc7d3cf164246b7a40ac803e25e1064\",\"vmRoot\":\"C:\\\\EnclaveRpcProviderQualification-edc7d3cf164246b7a40ac803e25e1064\\\\16e7200cf324491ba6ee9354dc848d5d\",\"freeBytes\":14309769216,\"childResult\":\"response-lost-held;settled=False;provider-fenced=false;reservation-release=false\",\"failures\":[],\"nativeSubmitted\":false,\"providerFenced\":false,\"reservationMayRelease\":false,\"vmsChanged\":false}"
+    ],
+    "stops.out": [
+      "RESULT tests=30 providerCallsAreFakes=true vmChanged=false"
+    ],
+    "denied-start.out": [
+      "{\"schema\":\"owned-rpc-provider-worker-qualification/1\",\"passed\":true,\"deniedStart\":true,\"guardianBind\":false,\"guardianPublicationFailure\":false,\"earlyStop\":false,\"guardianFailureElapsedMs\":-1,\"origin\":303786,\"deadline\":333786,\"elapsedMs\":1000,\"root\":\"C:\\\\EnclaveRpcProviderQualification-638e4d0d341246808461cb5bf47556c6\\\\638e4d0d341246808461cb5bf47556c6\",\"vmRoot\":\"C:\\\\EnclaveRpcProviderQualification-638e4d0d341246808461cb5bf47556c6\\\\2c6a924bbe0d4021bb84009f2cc08797\",\"freeBytes\":14302408704,\"childResult\":null,\"failures\":[],\"nativeSubmitted\":false,\"providerFenced\":false,\"reservationMayRelease\":false,\"vmsChanged\":false}"
+    ],
+    "stop-compile.out": [
+      "source-closure\\windows\\rpc\\ProtectedAttempt.cs(31,23): warning CS0649: Field 'Enclave.OwnedRpc.ProtectedAttempt.definitionJournal' is never assigned to, and will always have its default value false"
+    ],
+    "transaction-compile.out": [
+      "source-closure\\windows\\rpc\\ProtectedAttempt.cs(31,23): warning CS0649: Field 'Enclave.OwnedRpc.ProtectedAttempt.definitionJournal' is never assigned to, and will always have its default value false"
+    ],
+    "entry-compile.out": [
+      "source-closure\\windows\\rpc\\ProtectedAttempt.cs(31,23): warning CS0649: Field 'Enclave.OwnedRpc.ProtectedAttempt.definitionJournal' is never assigned to, and will always have its default value false"
+    ],
+    "guardian-bind.out": [
+      "{\"schema\":\"owned-rpc-provider-worker-qualification/1\",\"passed\":true,\"deniedStart\":false,\"guardianBind\":true,\"guardianPublicationFailure\":false,\"earlyStop\":false,\"guardianFailureElapsedMs\":-1,\"origin\":304803,\"deadline\":334803,\"elapsedMs\":1226,\"root\":\"C:\\\\EnclaveRpcProviderQualification-a81873ba6cec4f0db9a55d801825ec51\\\\a81873ba6cec4f0db9a55d801825ec51\",\"vmRoot\":\"C:\\\\EnclaveRpcProviderQualification-a81873ba6cec4f0db9a55d801825ec51\\\\4f96e8935d1448bd8839ba6f0d6c27f9\",\"freeBytes\":14299643904,\"childResult\":null,\"failures\":[],\"nativeSubmitted\":false,\"providerFenced\":false,\"reservationMayRelease\":false,\"vmsChanged\":false}"
+    ],
+    "pool-command-compile.out": [
+      "source-closure\\windows\\rpc\\ProtectedAttempt.cs(31,23): warning CS0649: Field 'Enclave.OwnedRpc.ProtectedAttempt.definitionJournal' is never assigned to, and will always have its default value false"
+    ],
+    "transactions.out": [
+      "RESULT tests=41 providerCallsAreFakes=true vmChanged=false"
+    ],
+    "controller-compile.out": [
+      "source-closure\\windows\\rpc\\ProtectedAttempt.cs(31,23): warning CS0649: Field 'Enclave.OwnedRpc.ProtectedAttempt.definitionJournal' is never assigned to, and will always have its default value false"
+    ],
+    "admission-fixtures.out": [
+      "{\"schema\":\"owned-rpc-pending-fixtures/1\",\"passed\":true,\"fixtures\":6,\"nativeSubmitted\":false,\"vmsChanged\":false,\"providerFenced\":false,\"reservationMayRelease\":false}"
+    ],
+    "stop-too-early.out": [
+      "{\"schema\":\"owned-rpc-provider-worker-qualification/1\",\"passed\":true,\"deniedStart\":false,\"guardianBind\":false,\"guardianPublicationFailure\":false,\"earlyStop\":true,\"guardianFailureElapsedMs\":-1,\"origin\":306818,\"deadline\":336818,\"elapsedMs\":951,\"root\":\"C:\\\\EnclaveRpcProviderQualification-f6e1807b4cf34881b82a5554e21bf465\\\\f6e1807b4cf34881b82a5554e21bf465\",\"vmRoot\":\"C:\\\\EnclaveRpcProviderQualification-f6e1807b4cf34881b82a5554e21bf465\\\\f405fb7566b245dd9143b13e2b67c257\",\"freeBytes\":14298271744,\"childResult\":null,\"failures\":[],\"nativeSubmitted\":false,\"providerFenced\":false,\"reservationMayRelease\":false,\"vmsChanged\":false}"
+    ]
+  },
+  "targetQualified": false,
+  "manifestFilesVerified": 23,
+  "compiledSourcePinOmissions": [
+    "windows/rpc/LegacyHandoff.cs",
+    "windows/rpc/LegacyLaunchCohort.cs",
+    "windows/rpc/LegacyTemplateFence.cs"
+  ]
+}
