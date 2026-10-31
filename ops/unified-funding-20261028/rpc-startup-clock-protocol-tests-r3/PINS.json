@@ -1,0 +1,18 @@
+[
+  {
+    "path": "rpc/storage_protocol.py",
+    "sha256": "80a3f865a76914a5d986528d50dfb77bd90ec5604f9884f3391ae99c4f02bc31"
+  },
+  {
+    "path": "rpc/prepare_attachment.py",
+    "sha256": "c0685fbf106fe2fc49e1ce076b0dca096716d37ecd832a227480b6832e5f625a"
+  },
+  {
+    "path": "rpc/guest/attach_storage.py",
+    "sha256": "93859170fba8f078a2df14db52acc95d90a4405add8be63574c0a84049905da9"
+  },
+  {
+    "path": "test/rpc-server/test_storage_protocol.py",
+    "sha256": "d0c6128a56231a626b014f7fe127f8e49b362c61dd7362ccb55a40a366464f06"
+  }
+]

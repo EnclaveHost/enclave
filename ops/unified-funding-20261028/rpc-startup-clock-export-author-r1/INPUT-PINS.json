@@ -1,0 +1,30 @@
+[
+  {
+    "path": "rpc/storage_protocol.py",
+    "sha256": "80a3f865a76914a5d986528d50dfb77bd90ec5604f9884f3391ae99c4f02bc31"
+  },
+  {
+    "path": "rpc/prepare_attachment.py",
+    "sha256": "c0685fbf106fe2fc49e1ce076b0dca096716d37ecd832a227480b6832e5f625a"
+  },
+  {
+    "path": "rpc/server/guarded_export.py",
+    "sha256": "2202e059be97fcf40a860601a345b2530f8b3f770d9cbc4724e43ce4a5d7a937"
+  },
+  {
+    "path": "rpc/server/volume_export.py",
+    "sha256": "ff94868d582438b964c67cc4651ae6f80bedd56a5cc99c2f0a3cff481b4bbbb2"
+  },
+  {
+    "path": "rpc/guest/credentials.py",
+    "sha256": "b02baf0cbf2b71fed1caded598381c59763dd885c1867b6ea2e69bc009508158"
+  },
+  {
+    "path": "windows/rpc/OwnedVmDefinition.cs",
+    "sha256": "5deb6b5add901eabecc9431b28ee3108ec9181866833ab60dba0912b071a10ff"
+  },
+  {
+    "path": "windows/rpc/OwnedVmPermit.cs",
+    "sha256": "a4d1f9640a4087714b9907cddcdc64340cb57f07de04dd1b6baf97197ac60373"
+  }
+]

@@ -1,0 +1,1 @@
+Invocation1efd0226bb9f4ea4b10ad683f90754a9 terminal0/Main0. All8 previously unrun protocol/actualguestparser/protectedbundle tests PASS in0.004s under private user/PID/network/mount namespaces and private/work tmpfs. Four frozen source pins unchanged. No native guest/kernel/production data. Earlier26+10PASS not rerun.

@@ -252,6 +252,23 @@ def export_owner(c,channel,deadline):
         for instance in reversed(exports):instance.close()
 
 
+def startup_deadline(c):
+    """Require the owner clock and clip to its original monotonic deadline."""
+    deadline=time.monotonic()+(c['deadlineUtcNs']-time.time_ns())/1e9
+    if 'startupClock' not in c:raise ValueError('Original owner startup clock required')
+    path=Path(__file__).resolve().parents[1]/'startup_clock.py'
+    if c['sourcePins'].get(str(path))!=digest(path):
+        raise ValueError('Original clock validator pin required')
+    spec=importlib.util.spec_from_file_location('startup_clock',path)
+    clock=importlib.util.module_from_spec(spec);spec.loader.exec_module(clock)
+    original=clock.validate(c['startupClock'])
+    for field in ('attempt','instance','bootId','createdUtcNs','deadlineUtcNs'):
+        if c[field]!=original[field]:raise ValueError('Exporter original startup clock differs')
+    deadline=min(deadline,original['deadlineMonotonicNs']/1e9)
+    if not 0<deadline-time.monotonic()<=900:raise ValueError('Expired original export deadline')
+    return deadline
+
+
 def main(path):
     os.umask(0o077)
     c=protected_json(path);c['contractSha256']=digest(path)
@@ -273,7 +290,7 @@ def main(path):
     for name,h in c['sourcePins'].items():
         if digest(name)!=h:raise ValueError('Source pin drift')
     unit_admission(c)
-    deadline=time.monotonic()+(c['deadlineUtcNs']-time.time_ns())/1e9
+    deadline=startup_deadline(c)
     state=directory(c['stateParent'])/c['attempt'];state.mkdir(mode=0o700)
     # Independent unit envelope is valid before any owner/observer process exists.
     notify('READY=1\nSTATUS=Guardian armed; exports are not RPC readiness\nWATCHDOG=1')

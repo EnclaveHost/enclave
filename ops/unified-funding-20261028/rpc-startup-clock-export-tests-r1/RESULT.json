@@ -1,0 +1,20 @@
+{
+  "tests": [
+    {
+      "name": "test_startup_export.py",
+      "rc": 0,
+      "seconds": 1.927015938097611
+    },
+    {
+      "name": "test_guarded_export.py",
+      "rc": 0,
+      "seconds": 3.073162969900295
+    },
+    {
+      "name": "test_storage_protocol.py",
+      "rc": 1,
+      "seconds": 0.06519754393957555
+    }
+  ],
+  "drift": []
+}

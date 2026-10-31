@@ -1,0 +1,1 @@
+Invocationc116f614b1a94bc78cd8677a7a0a1dd0 terminal1 before any protocol test: bwrap could not create absent /work on read-only host root. Source unchanged. Failure retained; corrected r3 supplies private tmpfs root and exact readonly mounts. No product/service/production mutation.

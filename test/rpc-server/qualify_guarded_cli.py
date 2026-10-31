@@ -6,6 +6,7 @@ No production image, guest, adoption, or financial operation is used.
 """
 from pathlib import Path
 import hashlib
+import importlib.util
 import json
 import os
 import select
@@ -20,6 +21,8 @@ SOURCE=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(SOURCE/'rpc/server'))
 import volume_export as v
 import guarded_export as g
+_spec=importlib.util.spec_from_file_location('startup_clock',SOURCE/'rpc/startup_clock.py')
+clock=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(clock)
 
 def command(args,seconds=5):
     r=subprocess.run(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=seconds)
@@ -41,7 +44,7 @@ def main(private,public,observer_config):
     private.mkdir(mode=0o700);public.mkdir(mode=0o700)
     v.directory(private);v.tool_pins()
     sourcepaths=[SOURCE/'rpc/server'/n for n in ('guarded_export.py','volume_export.py','observe_resources.mjs')]
-    sourcepaths += [SOURCE/'rpc/storage_protocol.py',Path('/usr/bin/node'),observer_config,Path(__file__).resolve()]
+    sourcepaths += [SOURCE/'rpc/storage_protocol.py',SOURCE/'rpc/startup_clock.py',Path('/usr/bin/node'),observer_config,Path(__file__).resolve()]
     pins={str(p):g.digest(p) for p in sourcepaths}
     write(public/'PINS.json',pins)
     argv=['/usr/bin/node',str(SOURCE/'rpc/server/observe_resources.mjs'),str(observer_config)]
@@ -75,16 +78,25 @@ def main(private,public,observer_config):
         roles[role]={'parent':str(exports),'originals':[[str(original),v.metadata(original)]],'bytes':4000000000000,
                      'tls':str(tls),'clientTls':str(tls),'tlsName':'rpc-fixture.local','host':'127.0.0.1','port':sock.getsockname()[1]}
     state=private/'state';state.mkdir(mode=0o700)
-    now=time.time_ns()
+    clock_parent=private/'clock';clock_parent.mkdir(mode=0o700)
+    original=clock.begin(clock_parent,attempt,instance,uuid.uuid4().hex)
+    begin=json.loads(clock.read_pinned(original))
+    # Explicitly synthetic Windows data for this Linux-only dummy fixture.
+    # This does not qualify an authenticated Windows sample or any VM operation.
+    sample=clock.write_new(private/'windows-clock-fixture.json',clock.encode({
+        'schema':'owned-rpc-windows-clock/1','attempt':attempt,'vmAttempt':begin['vmAttempt'],
+        'windowsBoot':uuid.uuid4().hex,'monotonicMilliseconds':1000000000}))
+    binding=clock.finish(original,sample);actual_clock=clock.validate(binding)
+    now=actual_clock['createdUtcNs']
     c={'attempt':attempt,'instance':instance,'bootId':Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
        'createdUtcNs':now,'deadlineUtcNs':now+900_000_000_000,'floorMiB':27648,'reserveMiB':512,
-       'resourceArgv':argv,'sourcePins':pins,'stateParent':str(state),'roles':roles}
+       'resourceArgv':argv,'sourcePins':pins,'stateParent':str(state),'roles':roles,'startupClock':binding}
     contract=private/'contract.json';write(contract,c)
     props=['Type=notify','NotifyAccess=main','WatchdogSec=2','WatchdogSignal=SIGKILL','KillMode=control-group','Restart=no',
            'MemoryMax=384M','MemorySwapMax=0','CPUQuota=100%','TasksMax=32','LimitCORE=0','RuntimeMaxSec=40',
            'TimeoutStartSec=3','TimeoutStopSec=1','SendSIGKILL=yes','FinalKillSignal=SIGKILL','UMask=0077']
     args=['/usr/bin/systemd-run','--user','--no-block','--unit='+unit]+['--property='+x for x in props]+['/usr/bin/taskset','-c','1','/usr/bin/python3','-B',str(SOURCE/'rpc/server/guarded_export.py'),str(contract)]
-    write(public/'ATTEMPT.json',{'unit':unit,'argv':args,'atUtcNs':now,'dummyOnly':True,'contractSha256':g.digest(contract)})
+    write(public/'ATTEMPT.json',{'unit':unit,'argv':args,'atUtcNs':now,'dummyOnly':True,'windowsClockSynthetic':True,'originalClockSha256':binding['sha256'],'contractSha256':g.digest(contract)})
     fds=[];killfd=None;before=None;launched=False
     try:
         for sock in sockets:sock.close()

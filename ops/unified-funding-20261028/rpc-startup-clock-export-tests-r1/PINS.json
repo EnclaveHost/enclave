@@ -1,0 +1,38 @@
+[
+  {
+    "path": "rpc/startup_clock.py",
+    "sha256": "ac975905dd71268d5ac345071ec6001a0a408e0aa314074ec354442abb634375"
+  },
+  {
+    "path": "rpc/storage_protocol.py",
+    "sha256": "80a3f865a76914a5d986528d50dfb77bd90ec5604f9884f3391ae99c4f02bc31"
+  },
+  {
+    "path": "rpc/server/prepare_export.py",
+    "sha256": "66d42945d33165873a907aaa072e79ef7834b0bfd34626cf48c5d5d28769cc74"
+  },
+  {
+    "path": "rpc/server/guarded_export.py",
+    "sha256": "c3eefa565ce8062e8436e6caa61d05c2b04ac2222708864e488fe479ed40a928"
+  },
+  {
+    "path": "rpc/server/volume_export.py",
+    "sha256": "ff94868d582438b964c67cc4651ae6f80bedd56a5cc99c2f0a3cff481b4bbbb2"
+  },
+  {
+    "path": "rpc/server/observe_resources.mjs",
+    "sha256": "d2d8e9a69548e689d093434787b43ab3278c4fea032d329c16c2b82c0866bdee"
+  },
+  {
+    "path": "test/rpc-server/test_startup_export.py",
+    "sha256": "8373b0ec7d4f91828d584633a9a9460ce85aa05e52fbad801338e884fb351e4f"
+  },
+  {
+    "path": "test/rpc-server/test_guarded_export.py",
+    "sha256": "ced1dd8c8d89bfd9ede43ab004e9ee46133b5dc303b8e7f39db268734d2ce456"
+  },
+  {
+    "path": "test/rpc-server/test_storage_protocol.py",
+    "sha256": "d0c6128a56231a626b014f7fe127f8e49b362c61dd7362ccb55a40a366464f06"
+  }
+]

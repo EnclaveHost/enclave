@@ -1,0 +1,10 @@
+{
+  "tests": [
+    {
+      "name": "test_storage_protocol.py",
+      "rc": 0,
+      "seconds": 0.11654210393317044
+    }
+  ],
+  "drift": []
+}

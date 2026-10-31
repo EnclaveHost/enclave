@@ -121,6 +121,76 @@ production export contract, Windows definition/boot/start and authenticated gues
 activation remain to be executed together; no production export is listening.
 
 
+## Original startup clock and contract preparation
+
+The current CLI requires `startupClock: {path, sha256}` and a reviewed source pin
+for `rpc/startup_clock.py`. Unbound historical contracts are refused. The original
+fixture and its qualified source remain preserved; their success does not qualify
+this changed path.
+
+The operator calls `startup_clock.begin(parent, attempt, instance, vm_attempt)`
+once, before acquiring the Windows clock sample or making startup mutations.
+This creates an exclusive private attempt directory and fsyncs the original host
+boot, UTC and monotonic origins. Preparation and transport time then consume the
+same900seconds. An incomplete attempt cannot be replaced with a new clock.
+
+The authenticated Windows sample has the exact fields `schema` (equal to
+`owned-rpc-windows-clock/1`), `attempt`, `vmAttempt`, `windowsBoot` (native boot GUID
+as32 lowercase hex characters), and `monotonicMilliseconds` from
+`BoundedWorker.MonotonicMilliseconds()`. Acquire it between begin and finish,
+through the owner's pinned channel. A hash alone cannot establish its origin or
+sampling time. `finish(begin_binding, sample_binding)` takes two `{path, sha256}`
+records and consumes completion before publishing the bound clock. The handshake
+must finish within10seconds on the same storage-host boot, with at most2seconds
+of wall/monotonic discrepancy. Failure preserves the consumed attempt.
+
+The Windows origin subtracts the entire measured handshake interval, rounded up
+to milliseconds, plus1millisecond of sample quantization. With the authenticated
+sample bracketed by begin/finish and the OS monotonic clocks advancing at their
+specified rates, this chooses an origin no later than begin. Native Windows
+controllers must still verify the actual boot and use those exact original
+origin/deadline values; this Python module does not authorize a Windows operation.
+The exporter also clips its deadline to the recorded storage-host monotonic
+deadline. Even a permitted wall-clock offset cannot add startup time.
+
+`prepare_export.prepare(config)` creates only an exclusive `contract.json` and
+preparation receipt. Required configuration fields are:
+
+- `clock`, `credentialReceipt`, and `resourceConfig`: protected pinned inputs.
+- `runtimePins`: exact expected hashes for guarded_export, volume_export,
+  observe_resources, storage_protocol, startup_clock, the resource configuration,
+  `/usr/bin/node`, and the two maintained QEMU tools. Paths identify the actual
+  installed source closure; the preparer checks expected pins rather than granting
+  authority to whatever code happens to be present.
+- `roles`: exactly `l1` and `base`, each with `parent`, `originals`, `tls`,
+  `clientTls`, `host`, and `port`. Original entries are `[canonical_path,
+  [device, inode, size, mtime_ns, ctime_ns]]`. Both roles retain the fixed4TB virtual
+  geometry and original credential identities. Ports must differ.
+- `stateParent`, `output`, `floorMiB`, `reserveMiB`: existing private parents,
+  a new attempt-named output directory, and floors no lower than27648/512MiB.
+
+The preparer checks source pins, public certificates, credential file permissions,
+and original image metadata before and after publication. It never reads private
+key bytes, creates COWs, starts processes, claims current capacity, or adopts an
+RPC. Certificate/key matching is a separate credential-staging check, and the
+exporter still negotiates real TLS before publishing metadata. Its runtime source
+and the new clock module must be deployed together. Guest seed contents are
+unchanged. The complete Windows/export/guest transaction and real workload
+qualification remain outstanding.
+
+The changed implementation passed26 clock/export cases,10 existing actual-process
+guardian cases and8 protocol/guest-parser regressions. The first regression
+wrapper omitted a frozen dependency; its replacement then encountered a private
+mount setup error before test execution. Both failures remain preserved, and the
+corrected isolated protocol run passed all8 cases without repeating the26+10.
+The changed full CLI also ran with real authenticated host admission and dummy
+TLS/COW exports. Freezing the384MiB supervisor caused exact observed process death
+and an empty cgroup in2.200seconds; both dummy originals were unchanged. That
+fixture uses a deliberately synthetic Windows sample and does not qualify the
+actual Windows clock channel, a production export or RPC startup. See
+[clock/export tests](../../ops/unified-funding-20261028/rpc-startup-clock-export-tests-r1/ROOT-RESULT.md)
+and [the composed CLI result](../../ops/unified-funding-20261028/rpc-clock-bound-export-cli-r2/ROOT-RESULT.md).
+
 ## Guest receipt binding
 
 `storage_protocol.py` is shared by the server emitter, owner-side
