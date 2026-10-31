@@ -80,6 +80,12 @@ internal sealed class WindowsStartAdmission {
     // Legacy queued/refused/stopped records can omit memMb. Preserve absence and
     // null distinctly from zero; active/held allocations must still name memory.
     internal static string DeploymentReceipt(Dictionary<string,object> data,bool raw) {
+        return DeploymentReceipt(data,raw,false);
+    }
+    // Only the caller holding a verified completed allocation cut may compare
+    // these historical retry states as equivalent. This never authorizes an
+    // allocation: all IDs, memory and isolation flags remain in the receipt.
+    internal static string DeploymentReceipt(Dictionary<string,object> data,bool raw,bool fencedRetries) {
         var values=new SortedDictionary<string,object>(StringComparer.Ordinal);
         foreach(object row in Rows(data["deployments"])) {
             var r=Obj(row);string id=Str(r["id"]),status=Str(r["status"]);
@@ -88,8 +94,10 @@ internal sealed class WindowsStartAdmission {
             if(id.Length==0||status.Length==0||memory<0||values.ContainsKey(id))throw new InvalidOperationException("Node commitment identity incomplete");
             object isolation;bool has=raw?r.TryGetValue("isolation",out isolation)&&isolation!=null:Yes(r["hasIsolation"]);
             object held,retire;r.TryGetValue("isolationHeld",out held);r.TryGetValue("isolationRetireFailed",out retire);
-            if(!known&&(status=="running"||has||Yes(held)||Yes(retire)))throw new InvalidOperationException("Allocated node memory unknown");
-            values.Add(id,new object[]{status,present,known? (object)memory:null,has,Yes(held),Yes(retire)});
+            if(!known&&(status=="running"||status=="claiming"||has||Yes(held)||Yes(retire)))throw new InvalidOperationException("Allocated or claiming node memory unknown");
+            bool retry=fencedRetries&&known&&memory>0&&!has&&!Yes(held)&&!Yes(retire)&&(status=="failed"||status=="claiming");
+            object state=retry?(object)new object[]{"fenced-unallocated-retry"}:status;
+            values.Add(id,new object[]{state,present,known? (object)memory:null,has,Yes(held),Yes(retire)});
         }
         return new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32}.Serialize(values);
     }
@@ -104,8 +112,13 @@ internal sealed class WindowsStartAdmission {
         Dictionary<string,object> node=null;
         foreach(object row in Rows(manager["observations"])) {var r=Obj(row);if(Str(r["label"])=="node-after"){if(node!=null||Num(r["port"])!=9600||Str(r["path"])!="/v1/host/state")throw new InvalidOperationException("Node observation binding");node=Obj(r["data"]);}}
         if(node==null)throw new InvalidOperationException("Reviewed node commitments missing");
-        string nodeExpected=DeploymentReceipt(node,false);
-        if(DeploymentReceipt(GetLocal(9600,"/v1/host/state"),true)!=nodeExpected)throw new InvalidOperationException("Node commitments changed since review");
+        var liveNode=GetLocal(9600,"/v1/host/state");
+        string liveNodeExact=DeploymentReceipt(liveNode,true);
+        // The completed cut and pool have already been validated before this
+        // read; VerifyResources checks them again below. Legacy unfenced mode
+        // keeps strict historical equality. Both modes keep strict live equality.
+        string nodeExpected=DeploymentReceipt(node,false,completed!=null);
+        if(DeploymentReceipt(liveNode,true,completed!=null)!=nodeExpected)throw new InvalidOperationException("Node commitments changed since review");
         string pending=completed==null?LivePending():completed.Receipt;
         var before=Obj(obs["physicalBefore"]);var after=Obj(obs["physicalAfter"]);
         double age=(DateTime.UtcNow-DateTime.Parse(Str(before["atUtc"]),CultureInfo.InvariantCulture,DateTimeStyles.RoundtripKind).ToUniversalTime()).TotalSeconds;
@@ -129,7 +142,7 @@ internal sealed class WindowsStartAdmission {
         var end=One("SELECT LastBootUpTime,TotalVisibleMemorySize,FreePhysicalMemory FROM Win32_OperatingSystem",new[]{"LastBootUpTime","TotalVisibleMemorySize","FreePhysicalMemory"});
         if(TimeText(end["LastBootUpTime"])!=TimeText(os["LastBootUpTime"])||Convert.ToInt64(end["TotalVisibleMemorySize"])!=Convert.ToInt64(os["TotalVisibleMemorySize"])||
             checked(Convert.ToInt64(end["FreePhysicalMemory"])*1024)<Required)throw new InvalidOperationException("End-of-admission host state differs");
-        if((completed==null&&LivePending()!=pending)||DeploymentReceipt(GetLocal(9600,"/v1/host/state"),true)!=nodeExpected)throw new InvalidOperationException("Pending commitments changed during admission");
+        if((completed==null&&LivePending()!=pending)||DeploymentReceipt(GetLocal(9600,"/v1/host/state"),true)!=liveNodeExact)throw new InvalidOperationException("Pending commitments changed during admission");
         if(completed!=null)completed.VerifyResources();
         CheckTime();
     }

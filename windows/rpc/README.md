@@ -1037,3 +1037,15 @@ owned temporary task/process control are written. Successful output says
 `admission-observed`; it is not a reusable production admission or RPC readiness.
 
 Actual target admission-only qualification reached the node comparison and refused with `Node commitments changed since review`. All three exact SYSTEM workers subsequently exited; the four original VMs and original8091 remained. No definition/start was submitted. This exposes a current admission blocker; the original production failure had no detailed receipt and is not retrospectively proven to have the same cause. See `ops/unified-funding-20261028/rpc-admission-only-target-execution-r1`.
+
+With a verified completed allocation cut, historical node comparison treats
+`failed` and `claiming` as the same retry state only for unchanged IDs with known
+positive memory and no isolation, held allocation or failed retirement. Those
+states can churn while the persistent allocation fence prevents new legacy VMs.
+All other statuses and all memory/identity/isolation fields remain distinct.
+Unfenced admission retains exact historical equality. Both modes compare the
+initial and final *live* node receipts exactly, including status, within the
+unchanged two-second observation bound. Pending growth, physical floors, cut
+custody and shared-pool verification remain mandatory and unchanged. Unknown
+memory on a claiming record is refused. This does not admit a new allocation
+or treat a historical snapshot as current capacity.
