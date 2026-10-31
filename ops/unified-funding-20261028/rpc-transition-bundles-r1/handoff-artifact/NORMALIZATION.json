@@ -1,0 +1,47 @@
+[
+  {
+    "file": "compile-controller.out",
+    "original": "8270f7c75c21e3c3297d4f4078163793e60febb673f8568ca6b3ef223075619a",
+    "public": "d8c9f52904c5c6fe1924544815048da7b74abc60ae848c2b1542b4093fce0127"
+  },
+  {
+    "file": "compile.err",
+    "original": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "public": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "file": "process-results.json",
+    "original": "070e829aa33910623fd1131cd5940f7b7a64feae46c122e947c972b008e0c8ab",
+    "public": "c755625045519e7189e7604cafa2c731e92dc8c5fdb60274ea79b28d1c1f678d"
+  },
+  {
+    "file": "compile.out",
+    "original": "8270f7c75c21e3c3297d4f4078163793e60febb673f8568ca6b3ef223075619a",
+    "public": "d8c9f52904c5c6fe1924544815048da7b74abc60ae848c2b1542b4093fce0127"
+  },
+  {
+    "file": "pins.json",
+    "original": "6f87f8619b5287f6aba671acaffd7aeb22976c124ab99db3e209a9377376847f",
+    "public": "fa57e38a07ef1bb55265b234c23ef414eaf719418b5aec2111f067817a0e669a"
+  },
+  {
+    "file": "compile-controller.err",
+    "original": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "public": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "file": "controller-artifact.json",
+    "original": "5527fbc60dc67a0f647f8b53361339b0fc6aa41a7a6f3bce9c43562835cdae51",
+    "public": "512e349501d128d30f1268ee5e7a916c880914e50334f3c6f61d75777361c4a3"
+  },
+  {
+    "file": "compile-entry.out",
+    "original": "8270f7c75c21e3c3297d4f4078163793e60febb673f8568ca6b3ef223075619a",
+    "public": "d8c9f52904c5c6fe1924544815048da7b74abc60ae848c2b1542b4093fce0127"
+  },
+  {
+    "file": "compile-entry.err",
+    "original": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "public": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  }
+]

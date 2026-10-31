@@ -1,0 +1,82 @@
+[
+    {
+        "name":  "controller-compile.out",
+        "bytes":  196,
+        "included":  true
+    },
+    {
+        "name":  "controller-compile.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "entry-compile.out",
+        "bytes":  196,
+        "included":  true
+    },
+    {
+        "name":  "entry-compile.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "target-compile.out",
+        "bytes":  196,
+        "included":  true
+    },
+    {
+        "name":  "target-compile.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "target-artifact.json",
+        "bytes":  218,
+        "included":  true
+    },
+    {
+        "name":  "definition-controller.exe",
+        "bytes":  241152,
+        "included":  true
+    },
+    {
+        "name":  "inert.out",
+        "bytes":  3743,
+        "included":  true
+    },
+    {
+        "name":  "inert.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "process-results.json",
+        "bytes":  1065,
+        "included":  true
+    },
+    {
+        "name":  "pins.json",
+        "bytes":  4153,
+        "included":  true
+    },
+    {
+        "name":  "controller-artifact.json",
+        "bytes":  221,
+        "included":  true
+    },
+    {
+        "name":  "entry-artifact.json",
+        "bytes":  208,
+        "included":  true
+    },
+    {
+        "name":  "qualification-controller.exe",
+        "bytes":  283648,
+        "included":  false
+    },
+    {
+        "name":  "owned-entry.exe",
+        "bytes":  241152,
+        "included":  true
+    }
+]

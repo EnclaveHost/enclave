@@ -61,10 +61,11 @@ try{
     Invoke-FiniteProcess $csc ($references+@('/out:'+$controller)+$sources) 20000 'compile'
     $entry=Join-Path $work 'handoff-entry.exe';$target=Join-Path $work 'handoff-controller.exe'
     $base=@($references|Where-Object{$_ -notlike '/main:*'})
-    # Keep fixture code out of the two target images. Their existing 256KiB
+    # Keep the handoff harness and unrelated inert fixture entrypoints out of
+    # the two target images. Their existing 256KiB
     # protected-input limit remains enforced independently of artifact storage.
-    $productionSources=@($sources|Where-Object{$_ -notlike '*\LegacyHandoffHarness.cs'})
-    if($productionSources.Count -ne 20){throw 'Unexpected target compilation closure'}
+    $productionSources=@($sources|Where-Object{$_ -notlike '*\LegacyHandoffHarness.cs' -and $_ -notlike '*\InertEntry.cs' -and $_ -notlike '*\InertQualification.cs'})
+    if($productionSources.Count -ne 18){throw 'Unexpected target compilation closure'}
     Invoke-FiniteProcess $csc ($base+@('/main:Enclave.OwnedRpc.LegacyHandoffEntry',('/out:'+$entry))+$productionSources) 20000 'compile-entry'
     Invoke-FiniteProcess $csc ($base+@('/main:LegacyHandoffController',('/out:'+$target))+$productionSources) 20000 'compile-controller'
     foreach($image in @($entry,$target)){if((Get-Item -LiteralPath $image).Length -gt 262144){throw 'Target image exceeds protected-input bound'}}

@@ -1,0 +1,72 @@
+[
+  {
+    "file": "target-compile.err",
+    "original": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "public": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "file": "inert.err",
+    "original": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "public": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "file": "publication.json",
+    "original": "3ec754d999381e52360592933c98905c4f69c5302950a7e44f219f8b59d25961",
+    "public": "50a5b23145ee1d62ebc4b4fdedb8a4500d3843e650f63528aebf4dc563c63596"
+  },
+  {
+    "file": "process-results.json",
+    "original": "39ea6280763632b1837d3a22413cec491bf6f61184bc8f814aba65665a571404",
+    "public": "184dd01f9d1418befe2f6a6122b666c2e80ab59d2384a5d786c7af45d7e1e9ec"
+  },
+  {
+    "file": "controller-compile.err",
+    "original": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "public": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "file": "target-artifact.json",
+    "original": "1d8743c3d64e69e172b27357087d122c23d22bf7979370c26505c90af028484d",
+    "public": "9755dcbf8ab45244c5bd933c29b572129cd368ebdeeb49374d03ebcf3520f5df"
+  },
+  {
+    "file": "pins.json",
+    "original": "f2f2361f8f7bccc408eeb8350816909b0ac4d3df471ce559a3988f6c1b150062",
+    "public": "3849797ef7692952988aa61c7c403aa7abac1094b04a6f25246f62f1aff416df"
+  },
+  {
+    "file": "entry-compile.out",
+    "original": "a8392aa0a69aed73281f70f1253110dd12515621b5b4bee3f8d522bdfe5325ee",
+    "public": "222367495005599f3bad34a8648ffeff519fd77aea97303522b75f383bf8d1f9"
+  },
+  {
+    "file": "entry-artifact.json",
+    "original": "870562f8dca7686e1bb2d7cf2c2cbe6feb01e6ca5528707c87659ef0aab5ec16",
+    "public": "894b3ad851c130603e01a0f964963a81ba4b98c24c047ed9b4f25c8554895189"
+  },
+  {
+    "file": "inert.out",
+    "original": "c54dace058732acc61ba62167ca0460529a5cd88d6761fa2b6fca38a7c97905f",
+    "public": "3af34122d670a89a3dba8f944e3aee15d5c2d8e0da8f3f0133f96519d5088110"
+  },
+  {
+    "file": "controller-artifact.json",
+    "original": "9617aa65a1fb67eff341933f1544d60d2e7b68190c839d8c362f55b0f2ac9588",
+    "public": "e9ab0e08914dd0da9299c8bed5f1d61e54a8227971cd6a35d1220ea6e9669e8c"
+  },
+  {
+    "file": "entry-compile.err",
+    "original": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "public": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "file": "controller-compile.out",
+    "original": "a8392aa0a69aed73281f70f1253110dd12515621b5b4bee3f8d522bdfe5325ee",
+    "public": "222367495005599f3bad34a8648ffeff519fd77aea97303522b75f383bf8d1f9"
+  },
+  {
+    "file": "target-compile.out",
+    "original": "a8392aa0a69aed73281f70f1253110dd12515621b5b4bee3f8d522bdfe5325ee",
+    "public": "222367495005599f3bad34a8648ffeff519fd77aea97303522b75f383bf8d1f9"
+  }
+]
