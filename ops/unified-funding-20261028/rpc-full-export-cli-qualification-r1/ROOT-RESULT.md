@@ -1,0 +1,9 @@
+# Full export CLI composition result
+
+PASS: actual maintained guarded_export.main, both real QEMU TLS probes on sparse dummy volumes, actual authenticated local8095 resource observer, exact384MiB/CPU1/noSwap supervisor with acknowledged2s systemd watchdog. No production-data access.
+
+Controller invocation55f969db37854bb2bfb3d6f6e5ef3bc2 exited0. Actor invocation3c0cc858d1aa40b2a55f4c8f4c635a4e emitted exact bound READY with rpcReady=false. Freezing its held main caused watchdog SIGKILL; all four preheld process pidfds exited within2.045237603s and cgroup became empty/removed. Actor peak49,975,296B. All six input pins and original dummy image hashes unchanged. Consumed dummy COWs and private fixture PKI retained, not published.
+
+Resource accounting correction: controller wrapper was128MiB, but shared queue placed the actual controller in a separate512MiB scope. With separate384MiB actor the conservative fixture ceiling was1024MiB, not the initial512MiB statement. Authenticated admission observed94,515MiB available-716MiB pending-1024MiB =92,775MiB, safely above27,648MiB. No actual shortage or cap increase occurred. The preserved QUALIFIED-SOURCE.py and original input pins describe exact executed bytes. Maintained fixture arithmetic/documentation now explicitly reserves1024MiB for this harness; that narrow correction was not rerun. Production supervisor remains384MiB plus separate128MiB allowance, unchanged. This result qualifies the real supervisor composition, not a512MiB aggregate harness claim.
+
+Scope: dummy sparse geometry4,000,000,000,000B per role but under16MiB allocated per original; no blockchain copy. No kernel NBD attachment, guest boot, production images, live export, adoption, chain sync/finality, consumer cutover or app-running proof. No completed helper or unchanged client trial repeated.

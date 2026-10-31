@@ -1,0 +1,6 @@
+{
+  "rc": 0,
+  "stdout": "{\"authenticated\":true,\"availableMiB\":94274,\"pendingMiB\":716,\"floorMiB\":18432,\"unreadUnits\":0}\n",
+  "stderr": "Running as unit: enclave-rpc-warden-post-close-read-r1-20261031.service\n          Finished with result: success\nMain processes terminated with: code=exited, status=0/SUCCESS\n               Service runtime: 108ms\n             CPU time consumed: 101ms\n                   Memory peak: 30.9M (swap: 0B)\n",
+  "at": 1793474914.8411882
+}

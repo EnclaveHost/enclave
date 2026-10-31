@@ -1,0 +1,12 @@
+{
+  "Id": "enclave-rpc-export-1858ed22764645be9e3eda0ed89322f6.service",
+  "LoadState": "loaded",
+  "ActiveState": "failed",
+  "SubState": "failed",
+  "InvocationID": "3c0cc858d1aa40b2a55f4c8f4c635a4e",
+  "MainPID": "0",
+  "Result": "watchdog",
+  "ExecMainStatus": "9",
+  "ControlGroup": "",
+  "MemoryPeak": "49975296"
+}

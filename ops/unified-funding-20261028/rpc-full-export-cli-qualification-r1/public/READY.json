@@ -1,0 +1,28 @@
+{
+  "schema": "owned-rpc-server-ready/1",
+  "attempt": "1858ed22764645be9e3eda0ed89322f6",
+  "instance": "rpc-owned-fixture-1858ed22764645be9e3eda0ed89322f6",
+  "bootId": "b5382987-896d-4f01-938b-12d1bb149fd5",
+  "contractSha256": "e8265d5dd9b8f890f07a3c214eb8a13eee58593220b268981cf3710a1954d9db",
+  "createdUtcNs": 1793475093169028404,
+  "deadlineUtcNs": 1793475993169028404,
+  "atUtcNs": 1793475093838640276,
+  "invocation": "3c0cc858d1aa40b2a55f4c8f4c635a4e",
+  "roles": {
+    "l1": {
+      "export": "rpc-1858ed22764645be9e3eda0ed89322f6-l1",
+      "bytes": 4000000000000,
+      "authenticated": true,
+      "flush": true,
+      "fua": true
+    },
+    "base": {
+      "export": "rpc-1858ed22764645be9e3eda0ed89322f6-base",
+      "bytes": 4000000000000,
+      "authenticated": true,
+      "flush": true,
+      "fua": true
+    }
+  },
+  "rpcReady": false
+}

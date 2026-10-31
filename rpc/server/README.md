@@ -31,7 +31,9 @@ and [NBD specification](https://github.com/NetworkBlockDevice/nbd/blob/master/do
 
 Actual isolated qualification passed all13 native checks in0.534s; see
 [the result](../../ops/unified-funding-20261028/rpc-volume-export-native-fixture-r1/ROOT-RESULT.md).
-Production export remains unadmitted after the current storage-host resource read.
+The earlier storage-host headroom failure was cleared after an authorized Warden
+application close and a new authenticated observation. Production export still
+requires current admission and the actual guest startup transaction.
 
 ## Guarded lifecycle candidate
 
@@ -90,6 +92,19 @@ cgroups in about2.2seconds, including a child configured to ignore SIGTERM. Thos
 used128MiB actor units; they do not qualify the production384MiB supervisor or
 whole-stack admission. Guest credential delivery, full composed lifecycle,
 kernel attachment, sustained workload and actual production cutover remain open.
+
+The full maintained CLI subsequently passed its first composed native fixture:
+both loopback TLS exports reached the bound READY receipt using real authenticated
+local-manager resource observations, then freezing the actual384MiB supervisor
+caused watchdog termination of all four preheld process identities in2.045seconds.
+The cgroup emptied and original dummy image hashes remained unchanged. See
+[the composed result](../../ops/unified-funding-20261028/rpc-full-export-cli-qualification-r1/ROOT-RESULT.md).
+The fixture used sparse dummy disks with protocol geometry, no blockchain data.
+Its total harness commitment was1024MiB (queue wrapper128, controller scope512,
+supervisor384); the result explicitly corrects an initial512MiB harness accounting
+statement. This does not change the production supervisor384MiB plus128MiB
+bootstrap allowance. Guest attachment, workload fit and production readiness are
+still unproven.
 
 
 ## Guest receipt binding
