@@ -1,0 +1,22 @@
+[
+    {
+        "label":  "fence-compile",
+        "pid":  5408,
+        "exitCode":  0,
+        "elapsedMs":  1886,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  34848768,
+        "outputBytes":  0
+    },
+    {
+        "label":  "fence",
+        "pid":  6044,
+        "exitCode":  0,
+        "elapsedMs":  6323,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  24322048,
+        "outputBytes":  696
+    }
+]

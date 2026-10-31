@@ -1,0 +1,42 @@
+[
+    {
+        "name":  "fence-compile.out",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "fence-compile.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "fence.out",
+        "bytes":  696,
+        "included":  true
+    },
+    {
+        "name":  "fence.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "process-results.json",
+        "bytes":  527,
+        "included":  true
+    },
+    {
+        "name":  "pins.json",
+        "bytes":  3216,
+        "included":  true
+    },
+    {
+        "name":  "controller-artifact.json",
+        "bytes":  221,
+        "included":  true
+    },
+    {
+        "name":  "qualification-controller.exe",
+        "bytes":  121856,
+        "included":  true
+    }
+]

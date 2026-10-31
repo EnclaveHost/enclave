@@ -1,0 +1,43 @@
+{
+  "run": 41167684074,
+  "head": "c56bc8c090b0f2889690b04507595877d5b7d231",
+  "compiledSources": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/VmStartGuardian.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/ProviderStart.cs",
+    "windows/rpc/ProviderStop.cs",
+    "windows/rpc/HostPhysicalPool.cs",
+    "windows/rpc/PhysicalPoolCommand.cs",
+    "windows/rpc/OwnedVmPermit.cs",
+    "windows/rpc/WindowsStartAdmission.cs",
+    "windows/rpc/ProviderWorkerEntry.cs",
+    "windows/rpc/LegacyTemplateFence.cs",
+    "test/rpc-windows-worker/LegacyTemplateFenceHarness.cs"
+  ],
+  "executableSha256": "86b642d68066fe0b0ba151bff8bf976cad945188a3b5bc6c0699aab6c22d8bc9",
+  "allCurrentAndGitMatch": true,
+  "processes": [
+    {
+      "label": "fence-compile",
+      "pid": 5408,
+      "exitCode": 0,
+      "elapsedMs": 1886,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 34848768,
+      "outputBytes": 0
+    },
+    {
+      "label": "fence",
+      "pid": 6044,
+      "exitCode": 0,
+      "elapsedMs": 6323,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 24322048,
+      "outputBytes": 696
+    }
+  ]
+}
