@@ -1,0 +1,123 @@
+{
+  "started": true,
+  "exactControllerDeath": true,
+  "exitCode": 0,
+  "failure": null,
+  "result": {
+    "schema": "owned-rpc-target-legacy-handoff/1",
+    "passed": true,
+    "operation": "legacy-memory-inspect-v1",
+    "manifest": "d3167fbcc3b8168ee810ca9db2862382dc00554f8fcc46b2ea4653cc635d84af",
+    "inventory": {
+      "receipt": {
+        "schema": "legacy-memory-handoff-result/2",
+        "manifest": "d3167fbcc3b8168ee810ca9db2862382dc00554f8fcc46b2ea4653cc635d84af",
+        "inspectOnly": true,
+        "cutAt": 0,
+        "observedAt": 682107797,
+        "issuers": [
+          {
+            "Pid": 38076,
+            "Created": 134375086385617521,
+            "Image": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+          },
+          {
+            "Pid": 41308,
+            "Created": 134375617394407059,
+            "Image": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+          }
+        ],
+        "vmCount": 5,
+        "maximumBytes": 18301845504,
+        "providerSettled": false,
+        "capacityAdmitted": false,
+        "reservationMayRelease": false,
+        "poolSeeded": false
+      },
+      "vms": [
+        {
+          "guid": "1087652f-4192-42e2-8138-74ac5c4a696d",
+          "maximumBytes": 2147483648,
+          "memory": {
+            "Rule": "fixed-memory-virtual-quantity/1",
+            "Bytes": 2147483648,
+            "VirtualQuantityMiB": 2048,
+            "ReservationMiB": 512,
+            "LimitMiB": 1048576,
+            "DynamicMemoryEnabled": false
+          },
+          "cutAt": 0,
+          "manifest": "d3167fbcc3b8168ee810ca9db2862382dc00554f8fcc46b2ea4653cc635d84af"
+        },
+        {
+          "guid": "1ca457d6-17bf-47fa-ad26-72770d74e08b",
+          "maximumBytes": 536870912,
+          "memory": {
+            "Rule": "fixed-memory-virtual-quantity/1",
+            "Bytes": 536870912,
+            "VirtualQuantityMiB": 512,
+            "ReservationMiB": 512,
+            "LimitMiB": 1048576,
+            "DynamicMemoryEnabled": false
+          },
+          "cutAt": 0,
+          "manifest": "d3167fbcc3b8168ee810ca9db2862382dc00554f8fcc46b2ea4653cc635d84af"
+        },
+        {
+          "guid": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
+          "maximumBytes": 4294967296,
+          "memory": {
+            "Rule": "fixed-memory-virtual-quantity/1",
+            "Bytes": 4294967296,
+            "VirtualQuantityMiB": 4096,
+            "ReservationMiB": 512,
+            "LimitMiB": 1048576,
+            "DynamicMemoryEnabled": false
+          },
+          "cutAt": 0,
+          "manifest": "d3167fbcc3b8168ee810ca9db2862382dc00554f8fcc46b2ea4653cc635d84af"
+        },
+        {
+          "guid": "a90c40fe-53af-4ef7-a491-65ab4d05b859",
+          "maximumBytes": 2732589056,
+          "memory": {
+            "Rule": "fixed-memory-virtual-quantity/1",
+            "Bytes": 2732589056,
+            "VirtualQuantityMiB": 2606,
+            "ReservationMiB": 512,
+            "LimitMiB": 1048576,
+            "DynamicMemoryEnabled": false
+          },
+          "cutAt": 0,
+          "manifest": "d3167fbcc3b8168ee810ca9db2862382dc00554f8fcc46b2ea4653cc635d84af"
+        },
+        {
+          "guid": "dd8df95d-b771-4545-a861-0092e74a40f3",
+          "maximumBytes": 8589934592,
+          "memory": {
+            "Rule": "fixed-memory-virtual-quantity/1",
+            "Bytes": 8589934592,
+            "VirtualQuantityMiB": 8192,
+            "ReservationMiB": 512,
+            "LimitMiB": 1048576,
+            "DynamicMemoryEnabled": false
+          },
+          "cutAt": 0,
+          "manifest": "d3167fbcc3b8168ee810ca9db2862382dc00554f8fcc46b2ea4653cc635d84af"
+        }
+      ]
+    },
+    "origin": 682097677,
+    "deadline": 682127677,
+    "elapsedMs": 10300,
+    "root": "C:\\EnclaveRpcLegacyHandoff-d1dc4ab1ad4440978b45b77680ce3a1e\\d1dc4ab1ad4440978b45b77680ce3a1e",
+    "freeBytes": 83879043072,
+    "requiredFreeBytes": 62709039104,
+    "failures": [],
+    "providerFenced": false,
+    "reservationMayRelease": false,
+    "vmsChanged": false
+  },
+  "reservationMayRelease": false,
+  "vmsChanged": false
+}

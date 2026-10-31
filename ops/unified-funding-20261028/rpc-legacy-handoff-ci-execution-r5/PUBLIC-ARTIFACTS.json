@@ -1,0 +1,92 @@
+[
+  {
+    "path": "ROOT-RESULT.md",
+    "originalSha256": "34eb7b2f8a8f221c2ce85c0bbecb7f90fdf12e216fbab1254199df7bba7176af",
+    "publicSha256": "34eb7b2f8a8f221c2ce85c0bbecb7f90fdf12e216fbab1254199df7bba7176af"
+  },
+  {
+    "path": "VERIFIED.json",
+    "originalSha256": "1ae1aac73e751cca3ee08e2d5f10b7ed089bbe3752b5ee02cf6d30f2e7e7b594",
+    "publicSha256": "1ae1aac73e751cca3ee08e2d5f10b7ed089bbe3752b5ee02cf6d30f2e7e7b594"
+  },
+  {
+    "path": "COMMAND.json",
+    "originalSha256": "6cc4260e651c133171b02ee37a384c7998988830700ee53ef7e7045d270ae00c",
+    "publicSha256": "6cc4260e651c133171b02ee37a384c7998988830700ee53ef7e7045d270ae00c"
+  },
+  {
+    "path": "DISPATCH-INTENT.json",
+    "originalSha256": "40159b1b32f28b57fc10e3507d97620339043d0ee6c9d41ae7e5267a4f50652d",
+    "publicSha256": "bf8f511706eef66245a78b48c9fa264a909d1c527f0107bdaf4199bacd01279d"
+  },
+  {
+    "path": "DISPATCH-RESULT.json",
+    "originalSha256": "1030cf6e67c859f56bf983521610423fee29e323a10d23c5bdaad4618460725f",
+    "publicSha256": "1030cf6e67c859f56bf983521610423fee29e323a10d23c5bdaad4618460725f"
+  },
+  {
+    "path": "dispatch.py",
+    "originalSha256": "1eaa64e139e2d88886eb8477a4c1ce4eb5ae91656a5775032011e821ee180faf",
+    "publicSha256": "1eaa64e139e2d88886eb8477a4c1ce4eb5ae91656a5775032011e821ee180faf"
+  },
+  {
+    "path": "push-inner.log",
+    "originalSha256": "86833ddbcaf9c572bb3baa9e3a81e4fd552b01f2c8931165af9a9ebf206fe405",
+    "publicSha256": "86833ddbcaf9c572bb3baa9e3a81e4fd552b01f2c8931165af9a9ebf206fe405"
+  },
+  {
+    "path": "push-outer.log",
+    "originalSha256": "74265eb7dd5ffb229c2004a4d91d69889909df0ef72041057245fbe7fb9b12c1",
+    "publicSha256": "74265eb7dd5ffb229c2004a4d91d69889909df0ef72041057245fbe7fb9b12c1"
+  },
+  {
+    "path": "artifacts/compile-controller.out",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "path": "artifacts/handoff-entry.exe",
+    "originalSha256": "e92998d3c2ed9aa0274580076fc229c2f7562ee5c31d43554f6b77f5aa75b204",
+    "publicSha256": "e92998d3c2ed9aa0274580076fc229c2f7562ee5c31d43554f6b77f5aa75b204"
+  },
+  {
+    "path": "artifacts/handoff-controller.exe",
+    "originalSha256": "c16ca126606f7f96098a8b7faf1b48a2048e48ac45339a49d4d14211a054d096",
+    "publicSha256": "c16ca126606f7f96098a8b7faf1b48a2048e48ac45339a49d4d14211a054d096"
+  },
+  {
+    "path": "artifacts/process-results.json",
+    "originalSha256": "437f701e957b61e24f4d783642f082ed9dceb8d0df2cfe38d7db7a9138356f39",
+    "publicSha256": "c65a18acc4f8055802ea94cc4f10074171f73b7202890c637faafa6b1af6c7bc"
+  },
+  {
+    "path": "artifacts/compile.out",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "path": "artifacts/legacy-handoff.exe",
+    "originalSha256": "4b8a9c1d0e2c4bfd411cdbd772482523bf360497a88ee05550fffffb621b1e55",
+    "publicSha256": "4b8a9c1d0e2c4bfd411cdbd772482523bf360497a88ee05550fffffb621b1e55"
+  },
+  {
+    "path": "artifacts/pins.json",
+    "originalSha256": "52f4f0a2e977e616e18c053e6ee14ab4d1a1bdccdba6067f50c8012b8cd6fe24",
+    "publicSha256": "c4dd5150a440c17c2a4ab981b92da839841539f7317e2358427dfa2a06d3d537"
+  },
+  {
+    "path": "artifacts/controller-artifact.json",
+    "originalSha256": "5fed239a96e91ee48422905ec62de351c2c1359ec0735b005dcf03da3801cc0f",
+    "publicSha256": "0a9cbb12f64b70807aac9951351ea20d99e45edfad9fb49346224d0a107366d1"
+  },
+  {
+    "path": "artifacts/handoff.out",
+    "originalSha256": "1e0a58a55713c41fcb5f3168554db1263e814e8b4b391dc97ff6ab0e929544cc",
+    "publicSha256": "508260366a815f3976abfa52feb6530e0e6aee9d72025ff1a6fe7a8a0da4537d"
+  },
+  {
+    "path": "artifacts/compile-entry.out",
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  }
+]

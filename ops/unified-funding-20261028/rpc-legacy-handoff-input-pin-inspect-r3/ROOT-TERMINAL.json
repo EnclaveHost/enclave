@@ -1,0 +1,12 @@
+{
+  "units": {
+    "create": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "stage": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "execute": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n"
+  },
+  "sourcePinsUnchanged": true,
+  "executePinsUnchanged": true,
+  "exactControllerDeath": true,
+  "nativeRoleCleanupPassed": true,
+  "invocation": "94d3fe70c1f04440a14f4952c6849e72"
+}
