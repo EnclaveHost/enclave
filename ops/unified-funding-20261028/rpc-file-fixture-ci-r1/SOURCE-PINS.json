@@ -1,0 +1,8 @@
+{
+  "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+  "windows/rpc/ProtectedAttempt.cs": "27329b618545772cc1c419d244ac6f25cb2f7987db337eee975230e8fb54e8ea",
+  "windows/rpc/TransitionFiles.cs": "23853c5eecf5d1db71571cad471ace9580dc3553b4f361c67416ab739cd8a6fb",
+  "test/rpc-windows-worker/PrepareFileFixture.cs": "672a2a053f918d98c0da6374cd2adf74d5dbc1e77e67444c5b441550205383df",
+  "test/rpc-windows-worker/run-file-fixture-ci.ps1": "050024a81995c356c7baad4022f6658063e59da58a8ebe45de232f34af069011",
+  ".github/workflows/rpc-file-fixture.yml": "a63564c501a9c7bd8bbc298bcf138361ab6acc93d12e012e090651aa1da38970"
+}

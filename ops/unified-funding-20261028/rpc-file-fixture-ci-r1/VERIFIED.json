@@ -1,0 +1,17 @@
+{
+  "run": 41244651758,
+  "runtime": "1a35d90681211bc591bbd1b8705099b0d5dfb00e",
+  "passed": 5,
+  "executableBytes": 58368,
+  "executableSha256": "f28d7deb9c9685aed2031e0133d94bfa97e506cadcf935b0a001452c190feff3",
+  "compiledSourcePins": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/TransitionFiles.cs",
+    "test/rpc-windows-worker/PrepareFileFixture.cs"
+  ],
+  "allClosurePinsUnchanged": true,
+  "targetQualified": false,
+  "productionBinaryExecuted": false,
+  "bootstrapPrivateBytes": 20369408
+}

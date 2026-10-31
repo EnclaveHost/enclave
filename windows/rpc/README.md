@@ -947,3 +947,15 @@ namespace and owner attempt are consumed. Do not replay them or infer current
 admission from the historical resource observation. See
 `ops/unified-funding-20261028/rpc-files-target-qualification-r2/ROOT-RESULT.md`
 and `rpc-files-target-exit-read-r1` beside it.
+
+The native inert fixture preparer `test/rpc-windows-worker/PrepareFileFixture.cs`
+replaces the failed PowerShell fixture setup. Hosted run41244651758 passed five
+new cases: preparation, replay refusal, wrong-boot refusal, and its dummy journals
+and media through unchanged collect/copy operations. The production executable
+is 58368bytes, SHA-256 `f28d7deb9c9685aed2031e0133d94bfa97e506cadcf935b0a001452c190feff3`.
+It is compiled but not target-qualified. It arms an independent native watchdog
+before envelope/file work, retains the128MiB self job and64MiB bootstrap snapshot
+allowance, and creates only fresh marked synthetic journals and tiny dummy media.
+The hosted variant has an explicit CI-only resource floor. No VM/provider work
+or production readiness is established. See
+`ops/unified-funding-20261028/rpc-file-fixture-ci-r1/ROOT-RESULT.md`.

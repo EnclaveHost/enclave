@@ -1,0 +1,1 @@
+One hosted inert CI dispatch of exact reviewed source 1a35d90681211bc591bbd1b8705099b0d5dfb00e. Five source closure plus workflow pins. Authenticated pending-aware local384MiB/floor27648 admission before intent. Fixed finite compiler/worker limits as source review; no target execution. Unknown dispatch is held without retry.

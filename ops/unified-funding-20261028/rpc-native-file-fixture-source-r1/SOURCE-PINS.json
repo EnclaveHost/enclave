@@ -1,0 +1,5 @@
+{
+  "test/rpc-windows-worker/PrepareFileFixture.cs": "672a2a053f918d98c0da6374cd2adf74d5dbc1e77e67444c5b441550205383df",
+  "test/rpc-windows-worker/run-file-fixture-ci.ps1": "050024a81995c356c7baad4022f6658063e59da58a8ebe45de232f34af069011",
+  ".github/workflows/rpc-file-fixture.yml": "a63564c501a9c7bd8bbc298bcf138361ab6acc93d12e012e090651aa1da38970"
+}

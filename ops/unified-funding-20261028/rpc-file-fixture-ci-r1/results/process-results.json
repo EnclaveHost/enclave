@@ -1,0 +1,82 @@
+[
+    {
+        "label":  "production-compile",
+        "pid":  1368,
+        "exitCode":  0,
+        "elapsedMs":  2060,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  31940608,
+        "outputBytes":  984
+    },
+    {
+        "label":  "ci-compile",
+        "pid":  4252,
+        "exitCode":  0,
+        "elapsedMs":  192,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  31961088,
+        "outputBytes":  984
+    },
+    {
+        "label":  "helper-compile",
+        "pid":  9212,
+        "exitCode":  0,
+        "elapsedMs":  198,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  30687232,
+        "outputBytes":  984
+    },
+    {
+        "label":  "prepare",
+        "pid":  5392,
+        "exitCode":  0,
+        "elapsedMs":  366,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  26226688,
+        "outputBytes":  1904
+    },
+    {
+        "label":  "prepare-consumed",
+        "pid":  1832,
+        "exitCode":  1,
+        "elapsedMs":  95,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  19836928,
+        "outputBytes":  68
+    },
+    {
+        "label":  "wrong-boot",
+        "pid":  2004,
+        "exitCode":  1,
+        "elapsedMs":  75,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  18354176,
+        "outputBytes":  48
+    },
+    {
+        "label":  "collect",
+        "pid":  2040,
+        "exitCode":  0,
+        "elapsedMs":  124,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  25403392,
+        "outputBytes":  2668
+    },
+    {
+        "label":  "copy",
+        "pid":  8012,
+        "exitCode":  0,
+        "elapsedMs":  172,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  26234880,
+        "outputBytes":  1334
+    }
+]
