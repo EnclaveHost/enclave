@@ -299,3 +299,6 @@ native guardian or actual VM was supplied. The earlier fixture compilation error
 in41155564998 is retained; the worker entry had compiled successfully. These
 results do not qualify current target capacity, native provider operations or the
 900-second VM guardian.
+
+
+The explicit guardian entry now pins the original 900-second VM permit and owns a private kill-on-close job containing both gated start-worker roles. It publishes the one-shot binding before opening their gate. Guardian death or the original deadline kills that local worker group. The guardian storage profile cannot write provider records or act as a short journal lease. This is local start containment only: Hyper-V may outlive its submitting worker. Native operation settlement, VM stop, storage fencing and reservation release remain unimplemented; all release/fence flags remain false. No production activation is supplied.

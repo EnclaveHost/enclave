@@ -107,10 +107,13 @@ namespace Enclave.OwnedRpc {
         }
         }
         static int Observer(ProtectedAttempt a) {
-            BoundedWorker.EnterSupervisorEnvelope(128UL*1024*1024);
-            var guard=BoundedWorker.ArmOwnerObserver(a.Origin,a.Deadline,a.Token);
+            // The entry deadline already runs independently. A start observer
+            // creates no child/job before the VM guardian assigns the pair;
+            // nesting an already unrelated self job would invalidate containment.
             a.WriteOnce("observer.consumed",Identity(a,"observer"));
             if(WaitMessage(a,"admit")!=a.Token)throw new InvalidOperationException("Closed observer gate differs");
+            BoundedWorker.EnterSupervisorEnvelope(128UL*1024*1024);
+            var guard=BoundedWorker.ArmOwnerObserver(a.Origin,a.Deadline,a.Token);
             uint pid;long creation;
             using(var owner=Peer(a,"owner",0x100|1,out pid,out creation)) {
                 guard.AttachGatedOwner(owner.DangerousGetHandle(),pid,creation);a.WriteOnce("attached",a.Token);
@@ -170,6 +173,9 @@ namespace Enclave.OwnedRpc {
                 if(vm.ReadOnce("guardian.armed")!=expected ||
                     vm.ReadOnce("guardian.bound")!=expected+","+lease.Token+","+observerPid+","+observerCreation)
                     throw new StartGuardRefused("guardian-binding-mismatch");
+                string accepted=lease.ReadOptionalOnce("guardian.accepted");
+                if(accepted==null)lease.WriteOnce("guardian.accepted",expected+","+lease.Token);
+                else if(accepted!=expected+","+lease.Token)throw new StartGuardRefused("guardian-binding-mismatch");
                 WindowsStartAdmission.Verify(vm);
                 Common(id);vm.VmPermit.ValidateAccess(Now,false);
                 BoundedWorker.VerifyObserverBeforeResume(guardian.DangerousGetHandle(),lease.GuardianPid,lease.GuardianCreation,vm.Deadline);
@@ -191,10 +197,52 @@ namespace Enclave.OwnedRpc {
             public void Dispose(){if(guardian!=null)guardian.Dispose();if(owner!=null)owner.Dispose();if(observer!=null)observer.Dispose();}
         }
 
+        static int Guardian(string path,string hash,long origin,long deadline) {
+            // Independent native deadline is armed BEFORE any protected-file/WMI
+            // calls. Envelope bootstrap is bounded by the external launcher too.
+            BoundedWorker.EnterSupervisorEnvelope(128UL*1024*1024);
+            var guard=BoundedWorker.ArmVmStartGuardian(origin,deadline);
+            using(var vm=ProtectedAttempt.OpenVmGuardian(path,hash)) {
+                if(vm.Origin!=origin||vm.Deadline!=deadline)throw new InvalidOperationException("Guardian CLI changed original permit timing");
+                uint selfPid;long selfCreation;
+                using(var self=Process.GetCurrentProcess()) {
+                    selfPid=(uint)self.Id;selfCreation=self.StartTime.ToUniversalTime().ToFileTimeUtc();
+                    if(!String.Equals(self.MainModule.FileName,vm.Executable,StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("Guardian entry path differs");
+                }
+                vm.WriteOnce("guardian.consumed",Identity(vm,"guardian"));
+                string[] request=WaitMessage(vm,"guardian.request").Split('\n');
+                if(request.Length!=2)throw new InvalidOperationException("Exact guardian request required");
+                using(var a=ProtectedAttempt.OpenProviderWorker(request[0],request[1])) {
+                    if(a.Operation!="start"||a.PermitHash!=vm.ContractHash||!String.Equals(a.PermitPath,path,StringComparison.OrdinalIgnoreCase)||
+                        a.GuardianPid!=selfPid||a.GuardianCreation!=selfCreation||a.Boot!=vm.Boot||a.ExecutableHash!=vm.ExecutableHash||a.Deadline>vm.Deadline)
+                        throw new InvalidOperationException("Guardian worker permit binding differs");
+                    uint op,sp;long oc,sc;
+                    using(var owner=Peer(a,"owner",0x100|1,out op,out oc))using(var observer=Peer(a,"observer",0x100|1,out sp,out sc)) {
+                        if(a.ReadOptionalOnce("admit")!=null)throw new InvalidOperationException("Worker gate already open");
+                        guard.AttachGatedPair(owner.DangerousGetHandle(),op,oc,observer.DangerousGetHandle(),sp,sc);
+                        string identity=vm.Token+","+selfPid+","+selfCreation+","+vm.Origin+","+vm.Deadline;
+                        vm.WriteOnce("guardian.armed",identity);
+                        vm.WriteOnce("guardian.bound",identity+","+a.Token+","+sp+","+sc);
+                        a.WriteOnce("admit",a.Token);
+                        while(!guard.ObservePairExited()){vm.CheckDeadline();Thread.Sleep(5);}
+                        // Exact local death is recorded separately from provider
+                        // settlement. No reservation is released by this receipt.
+                        vm.WriteOnce("guardian.result","exact-pair-death;job-empty;provider-fenced=false;reservation-release=false");
+                        // If a native call might have happened, remain attached to
+                        // the original deadline. Settlement/VM stop is a separate
+                        // unfinished integration; do not pretend local death did it.
+                        if(vm.ReadOptionalOnce("start.native")!=null)while(true){vm.CheckDeadline();Thread.Sleep(10);}
+                        return 0;
+                    }
+                }
+            }
+        }
         public static int Main(string[] args) {
             try {
-                if(args.Length!=5 || (args[0]!="owner" && args[0]!="observer" && args[0]!="child"))return 64;
-                long origin=Number(args[3]),deadline=Number(args[4]);ArmOriginalDeadline(origin,deadline);
+                if(args.Length!=5 || (args[0]!="owner" && args[0]!="observer" && args[0]!="child" && args[0]!="guardian"))return 64;
+                long origin=Number(args[3]),deadline=Number(args[4]);
+                if(args[0]=="guardian")return Guardian(args[1],args[2],origin,deadline);
+                ArmOriginalDeadline(origin,deadline);
                 using(var a=ProtectedAttempt.OpenProviderWorker(args[1],args[2])) {
                     if(a.Origin!=origin || a.Deadline!=deadline)throw new InvalidOperationException("CLI deadline differs from immutable contract");
                     using(var self=Process.GetCurrentProcess())

@@ -25,6 +25,7 @@ namespace Enclave.OwnedRpc {
         // short read/submit lease. The immutable VM deadline is never renewed.
         readonly ProtectedAttempt accessLease;
         readonly bool reconciliationOnly;
+        readonly bool guardianOnly;
         readonly string recordOwner;
         bool disposed;
         const string SystemSid="S-1-5-18",AdminSid="S-1-5-32-544";
@@ -207,7 +208,10 @@ namespace Enclave.OwnedRpc {
         // remains consumed and ambiguous. No delete, overwrite, rename or retry API.
         public void WriteOnce(string name,string value) {
             Name(name);CheckDeadline();byte[] bytes=Utf8.GetBytes(value);
-            if(accessLease!=null) {
+            if(guardianOnly) {
+                if(name!="guardian.consumed"&&name!="guardian.request"&&name!="guardian.armed"&&name!="guardian.bound"&&name!="guardian.result")
+                    throw new InvalidOperationException("Guardian cannot write provider records");
+            } else if(accessLease!=null) {
                 if(reconciliationOnly) {
                     if(name!="start.job" && name!="start.terminal")throw new InvalidOperationException("Reconciliation cannot grant or acknowledge a start");
                 } else {

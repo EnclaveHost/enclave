@@ -57,7 +57,7 @@ function Invoke-FiniteProcess([string]$Executable,[string[]]$Arguments,[int]$Dea
     if($failure -or $record.exitCode -ne 0){throw ($Label+' failed: '+($record|ConvertTo-Json -Compress))}
 }
 try{
-    $sources=@((Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $root 'windows\rpc\ProtectedAttempt.cs'),(Join-Path $root 'windows\rpc\ProviderStart.cs'),(Join-Path $root 'windows\rpc\OwnedVmPermit.cs'),(Join-Path $root 'windows\rpc\WindowsStartAdmission.cs'),(Join-Path $root 'windows\rpc\ProviderWorkerEntry.cs'))
+    $sources=@((Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $root 'windows\rpc\VmStartGuardian.cs'),(Join-Path $root 'windows\rpc\ProtectedAttempt.cs'),(Join-Path $root 'windows\rpc\ProviderStart.cs'),(Join-Path $root 'windows\rpc\OwnedVmPermit.cs'),(Join-Path $root 'windows\rpc\WindowsStartAdmission.cs'),(Join-Path $root 'windows\rpc\ProviderWorkerEntry.cs'))
     $shared=@('/nologo','/target:exe','/platform:x64','/r:System.Management.dll','/r:System.Web.Extensions.dll','/r:Microsoft.CSharp.dll')
     Invoke-FiniteProcess $csc ($shared+@('/main:Enclave.OwnedRpc.ProviderWorkerEntry',('/out:'+$entry))+$sources) 20000 'entry-compile'
     Invoke-FiniteProcess $csc ($shared+@('/main:ProviderWorkerQualification',('/out:'+$controller),(Join-Path $root 'test\rpc-windows-worker\ProviderWorkerQualification.cs'))+$sources) 20000 'controller-compile'
@@ -66,7 +66,7 @@ try{
     Invoke-FiniteProcess $transaction @() 20000 'transactions'
     $lines=@(Get-Content -LiteralPath (Join-Path $work 'transactions.out'))
     if(@($lines|Where-Object{$_ -like 'PASS *'}).Count -ne 37 -or $lines[-1] -cne 'RESULT tests=37 providerCallsAreFakes=true vmChanged=false'){throw 'Incomplete transaction regressions'}
-    foreach($case in @('admission-fixtures','reconcile','denied-start')){
+    foreach($case in @('admission-fixtures','reconcile','denied-start','guardian-bind')){
         $launchOrigin=[long][decimal]::Floor(([decimal][Diagnostics.Stopwatch]::GetTimestamp()*1000)/[Diagnostics.Stopwatch]::Frequency)
         $launchDeadline=$launchOrigin+30000
         Invoke-FiniteProcess $controller @(('--hosted-'+$case),$entry,(Get-FileHash -Algorithm SHA256 -LiteralPath $entry).Hash.ToLowerInvariant(),[guid]::NewGuid().ToString('N'),[string]$launchOrigin,[string]$launchDeadline) 30000 $case
@@ -81,7 +81,7 @@ try{
     # and independent process supervisor remain the outer containment boundary.
     # Preserve records on failure; do not use a broad process kill or any VM cleanup.
     $records|ConvertTo-Json -Depth 5|Set-Content -LiteralPath (Join-Path $work 'process-results.json')
-    Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $root 'windows\rpc\ProtectedAttempt.cs'),(Join-Path $root 'windows\rpc\ProviderStart.cs'),(Join-Path $root 'windows\rpc\OwnedVmPermit.cs'),(Join-Path $root 'windows\rpc\WindowsStartAdmission.cs'),(Join-Path $root 'windows\rpc\ProviderWorkerEntry.cs'),(Join-Path $root 'test\rpc-windows-worker\ProviderWorkerQualification.cs'),(Join-Path $root 'test\rpc-windows-worker\ProviderStartHarness.cs'),$csc|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'pins.json')
+    Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $root 'windows\rpc\VmStartGuardian.cs'),(Join-Path $root 'windows\rpc\ProtectedAttempt.cs'),(Join-Path $root 'windows\rpc\ProviderStart.cs'),(Join-Path $root 'windows\rpc\OwnedVmPermit.cs'),(Join-Path $root 'windows\rpc\WindowsStartAdmission.cs'),(Join-Path $root 'windows\rpc\ProviderWorkerEntry.cs'),(Join-Path $root 'test\rpc-windows-worker\ProviderWorkerQualification.cs'),(Join-Path $root 'test\rpc-windows-worker\ProviderStartHarness.cs'),$csc|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'pins.json')
     if(Test-Path -LiteralPath $controller){Get-FileHash -Algorithm SHA256 -LiteralPath $controller|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'controller-artifact.json')}
     if(Test-Path -LiteralPath $entry){Get-FileHash -Algorithm SHA256 -LiteralPath $entry|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'entry-artifact.json')}
     # Never export the raw work directory. Failed truncation or unexpected compiler
@@ -89,7 +89,7 @@ try{
     $publish=Join-Path $env:RUNNER_TEMP ('rpc-worker-results-'+[guid]::NewGuid().ToString('N'))
     $null=New-Item -ItemType Directory -Path $publish
     $published=New-Object Collections.Generic.List[object];$total=0L
-    foreach($name in @('admission-fixtures.out','admission-fixtures.err','transaction-compile.out','transaction-compile.err','transactions.out','transactions.err','reconcile.out','reconcile.err','denied-start.out','denied-start.err','controller-compile.out','controller-compile.err','entry-compile.out','entry-compile.err','inert.out','inert.err','process-results.json','pins.json','controller-artifact.json','entry-artifact.json','qualification-controller.exe','owned-entry.exe')){
+    foreach($name in @('guardian-bind.out','guardian-bind.err','admission-fixtures.out','admission-fixtures.err','transaction-compile.out','transaction-compile.err','transactions.out','transactions.err','reconcile.out','reconcile.err','denied-start.out','denied-start.err','controller-compile.out','controller-compile.err','entry-compile.out','entry-compile.err','inert.out','inert.err','process-results.json','pins.json','controller-artifact.json','entry-artifact.json','qualification-controller.exe','owned-entry.exe')){
         $file=Join-Path $work $name
         if(Test-Path -LiteralPath $file){
             $item=Get-Item -LiteralPath $file;$limit=65536L

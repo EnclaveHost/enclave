@@ -118,3 +118,6 @@ Microsoft documents Msvm_Memory as the currently allocated memory, with fixed
 NumberOfBlocks; absence or null fields do not prove zero. This is a native API
 requirement, not yet observed on the new RPC VM:
 https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-memory
+
+
+The explicit guardian entry now pins the original 900-second VM permit and owns a private kill-on-close job containing both gated start-worker roles. It publishes the one-shot binding before opening their gate. Guardian death or the original deadline kills that local worker group. The guardian storage profile cannot write provider records or act as a short journal lease. This is local start containment only: Hyper-V may outlive its submitting worker. Native operation settlement, VM stop, storage fencing and reservation release remain unimplemented; all release/fence flags remain false. No production activation is supplied.

@@ -78,6 +78,31 @@ namespace Enclave.OwnedRpc {
     }
     public sealed partial class ProtectedAttempt {
         public readonly OwnedVmPermit VmPermit;
+        public static ProtectedAttempt OpenVmGuardian(string path,string hash) {
+            RequireSystem();return new ProtectedAttempt(path,hash,false,900000);
+        }
+        public static ProtectedAttempt PinVmGuardianController(string path,string hash) {
+            RequireAdministrator();return new ProtectedAttempt(path,hash,true,900000);
+        }
+        private ProtectedAttempt(string path,string expectedHash,bool controller,int guardianWindow) {
+            recordOwner=controller?AdminSid:SystemSid;guardianOnly=true;LeaseProfile="vm-guardian";
+            Hex(expectedHash,64);LocalPath(path);
+            if(guardianWindow!=900000||Path.GetFileName(path)!="vm-permit.txt")throw new ArgumentException("Fixed guardian permit required");
+            Root=Path.GetDirectoryName(path);ContractHash=expectedHash;
+            try {
+                string current=Path.GetPathRoot(Root);HoldDirectory(current,false);
+                string[] parts=Root.Substring(3).Split('\\');
+                for(int i=0;i<parts.Length;i++){current=Path.Combine(current,parts[i]);HoldDirectory(current,i==parts.Length-1);}
+                byte[] bytes=Bytes(HoldRead(path,2048),2048);
+                if(Hash(bytes)!=expectedHash)throw new InvalidOperationException("Guardian permit digest differs");
+                VmPermit=OwnedVmPermit.Parse(Utf8.GetString(bytes));Nonce=VmPermit.Attempt;Boot=VmPermit.Boot;
+                Origin=VmPermit.Origin;Deadline=VmPermit.Deadline;ExecutableHash=VmPermit.ImageHash;
+                if(Path.GetFileName(Root)!=Nonce||!String.Equals(VmPermit.ConfigurationRoot,Path.Combine(Root,"vm"),StringComparison.OrdinalIgnoreCase)||Boot!=CurrentBoot())
+                    throw new InvalidOperationException("Guardian namespace or boot differs");
+                if(Hash(Bytes(HoldRead(Path.Combine(Root,"entry.exe"),262144),262144))!=ExecutableHash)throw new InvalidOperationException("Guardian image differs");
+                VmPermit.ValidateAccess(BoundedWorker.MonotonicMilliseconds(),false);CheckDeadline();
+            }catch{Dispose();throw;}
+        }
         // SYSTEM callers must already be in the independently supervised worker.
         // A lease proves namespace/time binding, not live observer membership.
         public static ProtectedAttempt OpenVmJournal(string permitPath,string expectedHash,ProtectedAttempt lease,bool reconcile) {
@@ -94,7 +119,8 @@ namespace Enclave.OwnedRpc {
         }
         private ProtectedAttempt(string path,string expectedHash,ProtectedAttempt lease,bool reconcile,bool controller) {
             recordOwner=controller?AdminSid:SystemSid;
-            if(lease==null||lease.accessLease!=null)throw new ArgumentException("Separate original worker lease required");
+            if(lease==null||lease.accessLease!=null||lease.guardianOnly||lease.VmPermit!=null||
+                (lease.LeaseProfile!="inert"&&lease.LeaseProfile!="provider"))throw new ArgumentException("Separate original short worker lease required");
             lease.CheckDeadline();Hex(expectedHash,64);LocalPath(path);
             if(Path.GetFileName(path)!="vm-permit.txt")throw new ArgumentException("Fixed VM permit filename");
             Root=Path.GetDirectoryName(path);ContractHash=expectedHash;accessLease=lease;reconciliationOnly=reconcile;
