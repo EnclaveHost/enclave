@@ -1,0 +1,23 @@
+{
+  "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+  "windows/rpc/OwnerObserver.cs": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80",
+  "windows/rpc/ProtectedAttempt.cs": "a5cdb5b9d20cf133146311bba6ca3890b9ae53c5fd02d852f9811bba588869ba",
+  "windows/rpc/ProviderStart.cs": "6a168914a1c5ab49c2eb2f7dd818af49a08f2a7f0ad9d0d11e67a52972d3c433",
+  "windows/rpc/OwnedVmPermit.cs": "4b6ac10773e93dc67a6acf0ff90ba7d78a5627bfe1e39a51f83e20ec3dc6f583",
+  "windows/rpc/HostPhysicalPool.cs": "8a9506c50a3ad65a614ed62eb91f07cd78d8db81098a84fe10215ac44e9ad3b1",
+  "windows/rpc/WindowsStartAdmission.cs": "9cca9bf1192de16c87d730416cb9d148818ced1c62032afdeb765693e2cd4c6c",
+  "windows/rpc/LegacyTemplateFence.cs": "d2bfc04762cf64b2555575e4c8aa95842dd35be108f9c9780dd3ecf0ecd0cd0f",
+  "windows/rpc/LegacyLaunchCohort.cs": "ce22aa16e0d353fa8354bca26f8dc4057d520c001540d0659778e2769135f5a2",
+  "windows/rpc/LegacyHandoff.cs": "f99033ca2b4f8ed9d78d15f3cc4976c40c1336492bdde6b22de10e99e6126262",
+  "windows/rpc/NativeRpcDefinition.cs": "651a2979d1d8c3043c75fb37311b9e87510b7ba4c0c7af9e600941ad48282ca5",
+  "windows/rpc/NativeRpcStart.cs": "961bdc8db582e0188665dd2c2b8310d4ae6afc9af8c034646b100c4e3bf770be",
+  "windows/rpc/NativeRpcCleanup.cs": "d6623afad67e2c5ddaaed3bb7cf028c41227c363b4d44280d8697ac11f0fddba",
+  "windows/rpc/NativeRpcAuthority.cs": "15819808708ff7d01daa23b8af8f1ba09b7b96d931613f4baac94da8049bbcb7",
+  "windows/rpc/NativeRpcLifecycle.cs": "fc730bc6456515b34c60c46a1ffbbe8fadb708053e11f8e23d5af532ec40329a",
+  "windows/rpc/NativeRpcBootstrapBinding.cs": "5f8eab0745423373cf23467f46a16db85409e43b4af0c049300301dfb3b399e9",
+  "windows/rpc/HostBootstrapFiles.cs": "cd2e2844a28b35650ca15fc18e6397c6457a0f9cc6ea32bd119a314899f85eb0",
+  "windows/rpc/HostBootstrapEntry.cs": "f5126895e1fcb6051b2224f6984a3aa057e5a6819506a27fb1beb03121f1a6c6",
+  "windows/rpc/HostBootstrapChannels.cs": "e96ca16517055f7a8318cb5d5e0378886d16ea6d46443688c9ce5297a5ccfdde",
+  "test/rpc-windows-worker/NativeRpcBootstrapBindingHarness.cs": "297f90a9d8ab793f2100bb75da801b52d86686ebeaad3efff9bba1b77417c833",
+  "test/rpc-windows-worker/run-native-bootstrap-binding-ci.ps1": "27697b1001286efb81ae1f64c273b80b87dec118f82b5c778eae295ecb923720"
+}

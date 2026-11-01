@@ -1,0 +1,6 @@
+System.InvalidOperationException: Protected file size
+   at Enclave.OwnedRpc.ProtectedAttempt.HoldRead(String path, Int32 maximum, Boolean allowMissing)
+   at Enclave.OwnedRpc.ProtectedAttempt.ReadOptionalRecordFile(String name)
+   at NativeRpcBootstrapBindingHarness.<>c.<Main>b__43_9()
+   at NativeRpcBootstrapBindingHarness.Test(String name, Action f)
+   at NativeRpcBootstrapBindingHarness.Main(String[] args)

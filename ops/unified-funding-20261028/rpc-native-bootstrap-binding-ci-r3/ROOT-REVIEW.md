@@ -1,0 +1,1 @@
+R3 only previously incomplete pending-file suffix real-file regression; empty pending file must refuse. Original nine bootstrap cases passed across R1/R2 and are not replayed. Production source unchanged fromR2. Fixed process/image/resource/deadline caps unchanged; production compile only.
