@@ -1,0 +1,10 @@
+[
+  "rpc/guest/extract_base_origin.py",
+  "rpc/README.md",
+  "ops/unified-funding-20261028/rpc-linux-direct-observation-r2",
+  "ops/unified-funding-20261028/rpc-linux-direct-observation-r3",
+  "ops/unified-funding-20261028/rpc-linux-direct-observation-r4",
+  "ops/unified-funding-20261028/rpc-linux-base-origin-r1",
+  "ops/unified-funding-20261028/rpc-linux-direct-clean-stop-r1",
+  "ops/unified-funding-20261028/rpc-linux-direct-start-r2/HOST-METRICS-1.json"
+]

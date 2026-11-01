@@ -1,0 +1,24 @@
+{
+  "at": 1793511990.9785955,
+  "unit": "ActiveState=failed\nSubState=failed\nInvocationID=04a013eee4d7497f9b2191d75bcd4c03\nMainPID=0\nResult=exit-code\nExecMainStatus=1\nControlGroup=\n",
+  "pidsAbsent": {
+    "465399": true,
+    "465476": true
+  },
+  "cgroupExists": false,
+  "cgroupProcs": null,
+  "cowSizes": {
+    "boot.qcow2": {
+      "size": 58589184,
+      "allocated": 58531840
+    },
+    "l1.qcow2": {
+      "size": 43253301248,
+      "allocated": 43253669888
+    },
+    "base.qcow2": {
+      "size": 256216,
+      "allocated": 258048
+    }
+  }
+}

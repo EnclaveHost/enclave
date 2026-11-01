@@ -1,3 +1,12 @@
+# Production deployment requirement
+
+The RPC must be deployed as an Enclave app through its verified runtime and app
+lifecycle. The direct Linux VM below is diagnostic only; it has no Enclave app
+identity or attestation. It must not become the production path by exposing its
+port or removing its deadline. The latest diagnostic recovered Reth and obtained
+a local response while still syncing. Base did not start, and Lighthouse timed
+out during shutdown. These results do not establish production readiness.
+
 # Direct local Linux startup status
 
 `linux_direct.py` is an independently bounded Linux KVM startup candidate. It
