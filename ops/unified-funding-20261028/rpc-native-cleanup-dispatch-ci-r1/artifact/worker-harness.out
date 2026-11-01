@@ -1,0 +1,14 @@
+PASS actual keeper roles can dispatch locally but cannot consume shared cleanup authority
+PASS actual cleanup stop child can claim once while reconcile cannot
+PASS claim binds original plan group lease and exact child identity
+producer=5240 creation=134380359791089893 exact-dead=True winner=8412 creation=134380359792236613 exact-dead=True after-producer-death-ms=123
+PASS producer death before worker launch leaves survivor submission available
+producer=8808 creation=134380359796548342 exact-dead=True winner=2840 creation=134380359797745378 exact-dead=True after-producer-death-ms=46
+PASS producer death after consumed claim cannot kill independently running worker
+producer=5940 creation=134380359801182736 exact-dead=True winner=2416 creation=134380359802327089 exact-dead=True after-producer-death-ms=60
+PASS two independently running workers race to one inert call despite producer death
+producer=1204 creation=134380359806703761 exact-dead=True winner=1148 creation=134380359807863557 exact-dead=True after-producer-death-ms=4
+PASS worker death after claim remains ambiguous without takeover or duplicate call
+PASS actual torn shared claim refuses every contender without native call
+PASS native admission covers two overlapping cleanup groups without reducing reserves
+TOTAL 9 PASS; independent administrator fixture processes and protected claims actual; SYSTEM scheduling transfer provider calls and VM unqualified

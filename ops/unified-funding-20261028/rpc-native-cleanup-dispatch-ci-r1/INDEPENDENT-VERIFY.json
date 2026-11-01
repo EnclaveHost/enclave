@@ -1,0 +1,81 @@
+{
+  "runtime": "a6076fe2eab4c2597b12360375ea200c404c2d59",
+  "run": 41343358089,
+  "sourcePins": 28,
+  "compiledSourcePinsMatched": 27,
+  "binaries": {
+    "owned-entry.exe": {
+      "bytes": 235520,
+      "sha256": "3c9134c89bf3a0db74a36849bd3f83ac7219a83176a2d1e0c29a6e516ace4acd"
+    },
+    "native-worker.exe": {
+      "bytes": 251392,
+      "sha256": "93794a37b65cfd17e8453bff4903f6abfb0e0952b229b20df1eeac2c7f5967d5"
+    },
+    "system-worker.exe": {
+      "bytes": 261120,
+      "sha256": "4478aa1d4c7d5f292f8fcbb47b4b3a5bc44843099ccd5bdd63e3cbbc723816d1"
+    },
+    "manager-worker.exe": {
+      "bytes": 261120,
+      "sha256": "401729c7b54bbd24f174a63c1f450098a15d16baea0a225f23e26038ea9f73dd"
+    }
+  },
+  "processes": [
+    {
+      "label": "harness-compile",
+      "pid": 6484,
+      "exitCode": 0,
+      "elapsedMs": 6871,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 121872384,
+      "cpuMs": 1453.125,
+      "outputBytes": 899
+    },
+    {
+      "label": "worker-harness",
+      "pid": 8036,
+      "exitCode": 0,
+      "elapsedMs": 2716,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 30978048,
+      "cpuMs": 203.125,
+      "outputBytes": 1441
+    },
+    {
+      "label": "worker-compile",
+      "pid": 6380,
+      "exitCode": 0,
+      "elapsedMs": 647,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 122531840,
+      "cpuMs": 640.625,
+      "outputBytes": 899
+    },
+    {
+      "label": "system-worker-compile",
+      "pid": 4284,
+      "exitCode": 0,
+      "elapsedMs": 666,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 119230464,
+      "cpuMs": 640.625,
+      "outputBytes": 899
+    },
+    {
+      "label": "manager-compile",
+      "pid": 8536,
+      "exitCode": 0,
+      "elapsedMs": 654,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 121438208,
+      "cpuMs": 625,
+      "outputBytes": 1443
+    }
+  ]
+}

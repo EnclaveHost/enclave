@@ -1,0 +1,57 @@
+[
+    {
+        "label":  "harness-compile",
+        "pid":  6484,
+        "exitCode":  0,
+        "elapsedMs":  6871,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  121872384,
+        "cpuMs":  1453.125,
+        "outputBytes":  899
+    },
+    {
+        "label":  "worker-harness",
+        "pid":  8036,
+        "exitCode":  0,
+        "elapsedMs":  2716,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  30978048,
+        "cpuMs":  203.125,
+        "outputBytes":  1441
+    },
+    {
+        "label":  "worker-compile",
+        "pid":  6380,
+        "exitCode":  0,
+        "elapsedMs":  647,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  122531840,
+        "cpuMs":  640.625,
+        "outputBytes":  899
+    },
+    {
+        "label":  "system-worker-compile",
+        "pid":  4284,
+        "exitCode":  0,
+        "elapsedMs":  666,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  119230464,
+        "cpuMs":  640.625,
+        "outputBytes":  899
+    },
+    {
+        "label":  "manager-compile",
+        "pid":  8536,
+        "exitCode":  0,
+        "elapsedMs":  654,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  121438208,
+        "cpuMs":  625,
+        "outputBytes":  1443
+    }
+]
