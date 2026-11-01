@@ -62,7 +62,17 @@ reduction. Actual qualification results are recorded separately.
 `Run(ctx) (State, error)`, `Stop()`, `State()`. The request carries no
 commands, paths or budgets.
 
-`New` validates through the **same held FDs**:
+`New` validates through the **same held FDs**.
+
+The monitor-side `PrepareGroups(heldParent, claimNonce)` constructs these
+groups exclusively with the same limit definitions and exact readback. It
+also constructs the supervisor control sibling. The caller must already own
+the consumed app claim; the nonce's shape alone is not authority. Its one-shot
+`Take()` transfers the handles; `Abandon()` can close them only before transfer.
+Failed/abandoned group directories remain consumed. No process is launched,
+existing group adopted, or reservation released by this constructor.
+
+Validation covers:
 - cgroup2 `fstatfs` and directory type.
 - Distinct dev/inode for parent and each role.
 - Each role's `..` is the parent.

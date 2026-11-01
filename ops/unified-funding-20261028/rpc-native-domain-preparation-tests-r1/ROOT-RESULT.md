@@ -1,0 +1,1 @@
+R1 invocation91e3d6f9183244898e5ad3ef5b5f3133 terminal1/MainPID0.57PASS/one test failure plus package failure/21.192045720s/30pins unchanged. TempDir used disk GOTMPDIR; required tmpfs guard refused. Exact local Go source confirms test fixture cause. Failed source/results retained; no production side effects. R2 corrects only fixture location to existing isolated /tmp tmpfs.

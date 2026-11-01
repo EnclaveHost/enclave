@@ -12,6 +12,19 @@ trailing content, zero digests, different geometry and desktop profiles.
 `CheckEntry` checks actual entry bytes against the declared ELF digest.
 Neither method grants launch, secret, volume or payment authority.
 
+`OpenInstalled()` uses only `/plat/native-rpc`: canonical read-only profile,
+root-owned immutable `rpc-native-init`, and the executable ext4 `rootfs` mount.
+It verifies the actual active read-only dm-verity table and filesystem mount
+root, including device identity, geometry, salt and hash. Corruption-bypassing
+options, inactive/suspended/writable mappings and bind-mounted subdirectories
+are refused. The RPC root must permit execution; the desktop model volume's
+`noexec` policy is not applicable. Returned root and entry descriptors must
+stay held through namespace bind/clone; later pathname lookup is not equivalent.
+
+The fixed installed namespace is supplied by the measured bootstrap. Root file
+ownership and a matching kernel release alone do not authenticate that boot.
+The caller must separately establish the accepted platform and app authority.
+
 There is no accepted platform descriptor yet: the real portable controller
 and monitor/boot/storage integration remain unfinished. Tests use explicit
 synthetic wire fixtures. A hash-consistent attacker-selected descriptor is

@@ -1,0 +1,24 @@
+{"Time":"2026-11-01T00:27:34.892964316-07:00","Action":"start","Package":"enclave.host/isolation/m3/rpcdomain"}
+{"Time":"2026-11-01T00:27:34.894803482-07:00","Action":"run","Package":"enclave.host/isolation/m3/rpcdomain","Test":"TestActualConsumedClaimIsExclusiveAndBound"}
+{"Time":"2026-11-01T00:27:34.894850721-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcdomain","Test":"TestActualConsumedClaimIsExclusiveAndBound","Output":"=== RUN   TestActualConsumedClaimIsExclusiveAndBound\n","OutputType":"frame"}
+{"Time":"2026-11-01T00:27:34.894869391-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcdomain","Test":"TestActualConsumedClaimIsExclusiveAndBound","Output":"--- PASS: TestActualConsumedClaimIsExclusiveAndBound (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T00:27:34.894874291-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcdomain","Test":"TestActualConsumedClaimIsExclusiveAndBound","Elapsed":0}
+{"Time":"2026-11-01T00:27:34.894880031-07:00","Action":"run","Package":"enclave.host/isolation/m3/rpcdomain","Test":"TestClaimRejectsPreexistingLinkAndInvalidBinding"}
+{"Time":"2026-11-01T00:27:34.894883131-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcdomain","Test":"TestClaimRejectsPreexistingLinkAndInvalidBinding","Output":"=== RUN   TestClaimRejectsPreexistingLinkAndInvalidBinding\n","OutputType":"frame"}
+{"Time":"2026-11-01T00:27:34.894886331-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcdomain","Test":"TestClaimRejectsPreexistingLinkAndInvalidBinding","Output":"--- PASS: TestClaimRejectsPreexistingLinkAndInvalidBinding (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T00:27:34.894888481-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcdomain","Test":"TestClaimRejectsPreexistingLinkAndInvalidBinding","Elapsed":0}
+{"Time":"2026-11-01T00:27:34.894890401-07:00","Action":"run","Package":"enclave.host/isolation/m3/rpcdomain","Test":"TestOriginalWindowCannotResetOrOverflow"}
+{"Time":"2026-11-01T00:27:34.894892651-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcdomain","Test":"TestOriginalWindowCannotResetOrOverflow","Output":"=== RUN   TestOriginalWindowCannotResetOrOverflow\n","OutputType":"frame"}
+{"Time":"2026-11-01T00:27:34.894900841-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcdomain","Test":"TestOriginalWindowCannotResetOrOverflow","Output":"--- PASS: TestOriginalWindowCannotResetOrOverflow (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T00:27:34.894902351-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcdomain","Test":"TestOriginalWindowCannotResetOrOverflow","Elapsed":0}
+{"Time":"2026-11-01T00:27:34.894905001-07:00","Action":"run","Package":"enclave.host/isolation/m3/rpcdomain","Test":"TestPrepareRefusesNonRPCBeforeClaim"}
+{"Time":"2026-11-01T00:27:34.894906981-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcdomain","Test":"TestPrepareRefusesNonRPCBeforeClaim","Output":"=== RUN   TestPrepareRefusesNonRPCBeforeClaim\n","OutputType":"frame"}
+{"Time":"2026-11-01T00:27:34.894912031-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcdomain","Test":"TestPrepareRefusesNonRPCBeforeClaim","Output":"--- PASS: TestPrepareRefusesNonRPCBeforeClaim (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T00:27:34.894913501-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcdomain","Test":"TestPrepareRefusesNonRPCBeforeClaim","Elapsed":0}
+{"Time":"2026-11-01T00:27:34.894915011-07:00","Action":"run","Package":"enclave.host/isolation/m3/rpcdomain","Test":"TestProtectedDirectoryRefusesWritableAncestorAndSymlink"}
+{"Time":"2026-11-01T00:27:34.894916311-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcdomain","Test":"TestProtectedDirectoryRefusesWritableAncestorAndSymlink","Output":"=== RUN   TestProtectedDirectoryRefusesWritableAncestorAndSymlink\n","OutputType":"frame"}
+{"Time":"2026-11-01T00:27:34.894918361-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcdomain","Test":"TestProtectedDirectoryRefusesWritableAncestorAndSymlink","Output":"--- PASS: TestProtectedDirectoryRefusesWritableAncestorAndSymlink (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T00:27:34.894933021-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcdomain","Test":"TestProtectedDirectoryRefusesWritableAncestorAndSymlink","Elapsed":0}
+{"Time":"2026-11-01T00:27:34.894934571-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcdomain","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-11-01T00:27:34.894959221-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcdomain","Output":"ok  \tenclave.host/isolation/m3/rpcdomain\t0.002s\n"}
+{"Time":"2026-11-01T00:27:34.894966081-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcdomain","Elapsed":0.002}

@@ -1,0 +1,11 @@
+# Root review before one bounded execution
+
+The previous turn completed entry source/build/tests. This delta prepares real fixed installed RPC code capabilities and cgroups for a monitor. No monitor default/load hook is enabled until writable storage, controller/front and namespace launch are composed.
+
+Reviewed no-symlink root-owned readonly profile and held executable pin, live active readonly dm-verity table plus mount-root identity, executable ext4 mount (unlike desktop noexec data models), exclusive boot-local claim bound to bundle/profile/deployment/two volumes/original origin, read-only retained claim FD, cgroup-at-clone-ready descriptors and terminal transfer ownership. Claim persists after failure. cgroup.type is read/verified rather than written. No GPU/model substitution, filesystem path override, device mount or native process launch.
+
+Tests execute only in bounded private user namespace uid0 mapped to the current unprivileged user; not host root. Real tmpfs claim exclusivity/readback/link refusal and fd transfer; synthetic DM table corruption tests; missing installed platform and ordinary-directory rejection. They cannot positively qualify host cgroups, dm targets, writer fencing, app authorization, boot or production deployment. Prior tests retained. 512hard/450RSS/CPU1/noSwap; authenticated27648floor plus pending+640. Original120s total compile/suite150souter. No downloads. No unchanged native trial.
+
+R1 terminal1/MainPID0;57 PASS, one actual test failed (plus package failure): Go1.27 testing.TempDir uses GOTMPDIR on disk. Actual /usr/lib/go/src/testing/testing.go:1615 confirms this. Root-only tmpfs guard correctly refused. Tests now explicitly create only their isolated temporary claim fixtures in bwrap's /tmp tmpfs, with exact cleanup. No production code/guard/cap/floor/time change. R2 is a corrected harness, not unchanged retry.
+
+R2 terminal1/MainPID0: actual consumed claim tests now passed. Remaining failure was the test assuming bwrap /tmp is world-writable; it is private0755. New fixture first verifies the protected path, then changes only its own ancestor to0777 and separately creates a symlink. Guard/source unchanged. R3 tests only the affected rpcdomain package; rpcservice/rpcplatform/entry compile from R2 remain unchanged. No cap/floor/time changes.

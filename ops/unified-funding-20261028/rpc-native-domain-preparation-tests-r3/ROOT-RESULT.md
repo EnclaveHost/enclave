@@ -1,0 +1,9 @@
+# RPC monitor preparation qualification
+
+R3 invocation55c62fc4b00e419384c238c1a8492bae terminal0/MainPID0:5 rpcdomain tests PASS,0FAIL,18.624448537 s compile/suite,30 source pins unchanged. R2 completed36 rpcservice and17 rpcplatform checks successfully; those source pins are identical to R3. Only rpcdomain/prepare_test.go changed after R2. Thus current source has58 successful test/subtest checks across the affected package runs, not a claim that the failed R2 whole suite passed.
+
+R1 invocation91e3d6f9183244898e5ad3ef5b5f3133 failed the claim test because Go1.27 TempDir honors disk GOTMPDIR. R2 a38e3fd294f34572b946e0b12648c198 passed real tmpfs claim checks but exposed another fixture assumption: private bwrap /tmp is0755, so a protected ancestor correctly passed. R3 explicitly changes only a test-owned ancestor to0777 and creates an actual symlink. No production source/guard/cap/floor change between these runs; failed snapshots retained.
+
+Real tmpfs exclusive claim creation, fsync/readback, read-only retained FD, no repeat after close, no symlink adoption/external file change. Actual protected path then writable-ancestor/symlink refusal. Ordinary directory cannot masquerade as cgroup2 or immutable installed platform; one-shot capability-transfer ownership checked. DM table cases are synthetic ABI fixtures, not live dm-verity mount qualification. Previous real memfd/pidfd and supervisor regressions passed in R2.
+
+Each run bounded512MiB hard/450RSS/CPU1/noSwap, original120s total/150s outer, private user namespace uid0 mapping the unprivileged host user, isolated network and readonly source, pending-aware27648MiB floor+640 allowance. No host-root native activation. Source compiled; no positive cgroup construction/clone/mount, accepted boot, wallet authority, storage writer fence, controller, monitor load hook, node start, VM, funds, deployment or RPC readiness proven.
