@@ -1,0 +1,8 @@
+[
+  ".github/workflows/rpc-native-manager-process.yml",
+  "test/rpc-windows-worker/NativeRpcProcessHarness.cs",
+  "test/rpc-windows-worker/native-manager-process.mjs",
+  "test/rpc-windows-worker/run-native-manager-process-ci.ps1",
+  "ops/unified-funding-20261028/rpc-native-manager-process-ci-r1",
+  "ops/unified-funding-20261028/rpc-native-manager-process-preserve-r1"
+]

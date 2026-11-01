@@ -1,0 +1,118 @@
+name: RPC native manager process qualification
+run-name: RPC native manager process ${{ inputs.expected_sha }}
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact reviewed commit; mismatch refuses execution
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: rpc-native-manager-process
+  cancel-in-progress: false
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+        with:
+          persist-credentials: false
+          # Git for Windows validates reserved names even outside sparse checkout.
+          # Assemble the exact finite closure on Linux; never weaken NTFS safeguards.
+          sparse-checkout: |
+            windows/rpc
+            test/rpc-windows-worker
+            windows/vbslike
+            windows/node
+            isolation/contract
+            sdk/bootstrap
+            sdk/storage
+      - name: Assemble exact reviewed source closure
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, re, subprocess
+          expected=os.environ['EXPECTED_SHA']
+          assert re.fullmatch('[0-9a-f]{40}',expected)
+          assert os.environ['GITHUB_SHA']==expected
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==expected
+          root=pathlib.Path('source-closure');root.mkdir()
+          pins={}
+          for name in ['isolation/contract/runtime.mjs', 'sdk/bootstrap/package.mjs', 'sdk/storage/model-volumes.mjs', 'test/rpc-windows-worker/NativeRpcProcessHarness.cs', 'test/rpc-windows-worker/native-manager-process.mjs', 'test/rpc-windows-worker/run-native-manager-process-ci.ps1', 'windows/node/shieldedcard.mjs', 'windows/rpc/BoundedWorker.cs', 'windows/rpc/HostPhysicalPool.cs', 'windows/rpc/LegacyHandoff.cs', 'windows/rpc/LegacyLaunchCohort.cs', 'windows/rpc/LegacyTemplateFence.cs', 'windows/rpc/NativeRpcAuthority.cs', 'windows/rpc/NativeRpcController.cs', 'windows/rpc/NativeRpcDefinition.cs', 'windows/rpc/NativeRpcManagerTransport.cs', 'windows/rpc/NativeRpcWorkerEntry.cs', 'windows/rpc/OwnedVmPermit.cs', 'windows/rpc/OwnerObserver.cs', 'windows/rpc/ProtectedAttempt.cs', 'windows/rpc/ProviderStart.cs', 'windows/rpc/WindowsStartAdmission.cs', 'windows/vbslike/manager/backend.mjs', 'windows/vbslike/manager/bridge-auth.mjs', 'windows/vbslike/manager/cpu-share.mjs', 'windows/vbslike/manager/custody-transport.mjs', 'windows/vbslike/manager/derive.mjs', 'windows/vbslike/manager/desktop-admission.mjs', 'windows/vbslike/manager/desktop-derive.mjs', 'windows/vbslike/manager/desktop-media.mjs', 'windows/vbslike/manager/desktop-memory.mjs', 'windows/vbslike/manager/desktop-platform.mjs', 'windows/vbslike/manager/desktop-worker-transport.mjs', 'windows/vbslike/manager/egress.mjs', 'windows/vbslike/manager/memory-share.mjs', 'windows/vbslike/manager/model-volumes.mjs', 'windows/vbslike/manager/rpc-admission.mjs', 'windows/vbslike/manager/rpc-derive.mjs', 'windows/vbslike/manager/rpc-native-controller.mjs', 'windows/vbslike/manager/server.mjs', 'windows/vbslike/manager/shield-profile.mjs', 'windows/vbslike/manager/wmi-launcher.mjs', 'windows/vbslike/manager/wmiserve-run.mjs', 'windows/vbslike/verify/boot-statements.mjs']:
+              data=subprocess.check_output(['git','show',expected+':'+name])
+              assert 0<len(data)<=131072
+              path=root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(data)
+              pins[name]=hashlib.sha256(data).hexdigest()
+          (root/'SOURCE.json').write_text(json.dumps({'head':expected,'files':pins},indent=2)+'\n')
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rpc-native-manager-process-exact-source
+          path: source-closure/
+          retention-days: 7
+  inert:
+    needs: source
+    runs-on: windows-2025
+    timeout-minutes: 3
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: rpc-native-manager-process-exact-source
+          path: source-closure
+      - name: Verify exact finite source closure
+        shell: powershell
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          $ErrorActionPreference='Stop'
+          if ($env:EXPECTED_SHA -cnotmatch '^[0-9a-f]{40}$' -or $env:GITHUB_SHA -cne $env:EXPECTED_SHA) { throw 'Source changed; no execution' }
+          $root=Join-Path $env:GITHUB_WORKSPACE 'source-closure'
+          $manifest=Get-Content -Raw -LiteralPath (Join-Path $root 'SOURCE.json')|ConvertFrom-Json
+          if($manifest.head -cne $env:EXPECTED_SHA){throw 'Source manifest commit mismatch'}
+          $names=@('isolation/contract/runtime.mjs','sdk/bootstrap/package.mjs','sdk/storage/model-volumes.mjs','test/rpc-windows-worker/NativeRpcProcessHarness.cs','test/rpc-windows-worker/native-manager-process.mjs','test/rpc-windows-worker/run-native-manager-process-ci.ps1','windows/node/shieldedcard.mjs','windows/rpc/BoundedWorker.cs','windows/rpc/HostPhysicalPool.cs','windows/rpc/LegacyHandoff.cs','windows/rpc/LegacyLaunchCohort.cs','windows/rpc/LegacyTemplateFence.cs','windows/rpc/NativeRpcAuthority.cs','windows/rpc/NativeRpcController.cs','windows/rpc/NativeRpcDefinition.cs','windows/rpc/NativeRpcManagerTransport.cs','windows/rpc/NativeRpcWorkerEntry.cs','windows/rpc/OwnedVmPermit.cs','windows/rpc/OwnerObserver.cs','windows/rpc/ProtectedAttempt.cs','windows/rpc/ProviderStart.cs','windows/rpc/WindowsStartAdmission.cs','windows/vbslike/manager/backend.mjs','windows/vbslike/manager/bridge-auth.mjs','windows/vbslike/manager/cpu-share.mjs','windows/vbslike/manager/custody-transport.mjs','windows/vbslike/manager/derive.mjs','windows/vbslike/manager/desktop-admission.mjs','windows/vbslike/manager/desktop-derive.mjs','windows/vbslike/manager/desktop-media.mjs','windows/vbslike/manager/desktop-memory.mjs','windows/vbslike/manager/desktop-platform.mjs','windows/vbslike/manager/desktop-worker-transport.mjs','windows/vbslike/manager/egress.mjs','windows/vbslike/manager/memory-share.mjs','windows/vbslike/manager/model-volumes.mjs','windows/vbslike/manager/rpc-admission.mjs','windows/vbslike/manager/rpc-derive.mjs','windows/vbslike/manager/rpc-native-controller.mjs','windows/vbslike/manager/server.mjs','windows/vbslike/manager/shield-profile.mjs','windows/vbslike/manager/wmi-launcher.mjs','windows/vbslike/manager/wmiserve-run.mjs','windows/vbslike/verify/boot-statements.mjs')
+          if(@($manifest.files.PSObject.Properties).Count -ne 44 -or @(Get-ChildItem -LiteralPath $root -File -Recurse).Count -ne 45){throw 'Unexpected source closure'}
+          foreach($name in $names){
+            $path=Join-Path $root $name
+            $item=Get-Item -LiteralPath $path
+            if($item.Length -gt 131072 -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'Invalid source file'}
+            if((Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLowerInvariant() -cne $manifest.files.$name){throw 'Source hash mismatch'}
+          }
+      - name: Download exact previously qualified controller (no rebuild)
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: rpc-native-manager-transport-results
+          run-id: 41327394900
+          github-token: ${{ github.token }}
+          path: candidate
+      - name: Verify candidate and compiled source lineage
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:GITHUB_WORKSPACE 'source-closure'
+          $prior=Get-Content -Raw -LiteralPath 'candidate/pins.json'|ConvertFrom-Json
+          $count=0
+          foreach($row in $prior){
+            $path=$row.Path.Replace('\','/')
+            if($path -match '/(windows/rpc/[^/]+[.]cs)$'){
+              if((Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $root $Matches[1])).Hash.ToLowerInvariant() -cne $row.Hash.ToLowerInvariant()){throw 'Compiled production source changed'}
+              $count++
+            }
+          }
+          if($count -ne 15){throw 'Compiled source lineage missing'}
+          if((Get-FileHash -Algorithm SHA256 -LiteralPath 'candidate/native-worker.exe').Hash.ToLowerInvariant() -cne '22e033958a4bbd695342b74248079ddf90b2788f1efe8f83def023710c4deb6f'){throw 'Candidate image differs'}
+      - name: Compile and exercise inert finite processes
+        shell: powershell
+        run: '& ./source-closure/test/rpc-windows-worker/run-native-manager-process-ci.ps1'
+      - name: Preserve bounded results
+        if: always() && env.RPC_WORKER_RESULT != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rpc-native-manager-process-results
+          path: ${{ env.RPC_WORKER_RESULT }}
+          retention-days: 7
