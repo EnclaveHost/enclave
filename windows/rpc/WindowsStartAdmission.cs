@@ -28,6 +28,23 @@ internal sealed partial class WindowsStartAdmission {
     }
     void CheckTime(){vm.CheckDeadline();RequireFresh(began,BoundedWorker.MonotonicMilliseconds(),stage);}
     void Stage(string value){CheckTime();stage=value;CheckTime();}
+    // Minted by the trusted reader only after all four live listener bindings
+    // match held process identities. Never serialized or shared across leases.
+    internal sealed class IssuerListeners {
+        readonly ProtectedAttempt lease;readonly long began;readonly uint first,second;int consumed;
+        internal IssuerListeners(ProtectedAttempt lease,long began,uint first,uint second){
+            if(lease==null||began<lease.Origin||first==0||second==0||first==second)throw new ArgumentException("Listener observation binding");
+            lease.CheckDeadline();RequireFresh(began,BoundedWorker.MonotonicMilliseconds(),"listeners");
+            this.lease=lease;this.began=began;this.first=first;this.second=second;
+        }
+        internal List<Dictionary<string,object>> Take(ProtectedAttempt reader){
+            if(System.Threading.Interlocked.Exchange(ref consumed,1)!=0||!Object.ReferenceEquals(lease,reader))throw new InvalidOperationException("Listener observation consumed or foreign");
+            lease.CheckDeadline();RequireFresh(began,BoundedWorker.MonotonicMilliseconds(),"issuer-listeners");
+            return new List<Dictionary<string,object>>{
+                new Dictionary<string,object>{{"LocalPort",8091},{"OwningProcess",first}},
+                new Dictionary<string,object>{{"LocalPort",8095},{"OwningProcess",second}}};
+        }
+    }
     [StructLayout(LayoutKind.Sequential)] internal struct Memory {
         internal uint Size,Load;internal ulong Total,Available,PageTotal,PageAvailable,VirtualTotal,VirtualAvailable,ExtendedAvailable;
     }
@@ -223,10 +240,13 @@ internal sealed partial class WindowsStartAdmission {
         foreach(object item in recorded){var r=Obj(item);long port=Num(r["port"]),pid=Num(r["pid"]);if((port!=8091&&port!=8095&&port!=8097&&port!=9600)||!ports.Add(port)||pid<=0||pid>UInt32.MaxValue)throw new InvalidOperationException("Listener binding invalid");held.Add(new HeldManager((uint)pid,ManagerCreation(nativeManagers[pid],r),Str(r["exe"])));CheckTime();}
         Stage("listeners");var listeners=Query("root\\StandardCimv2","SELECT LocalPort,OwningProcess FROM MSFT_NetTCPConnection WHERE (LocalPort=8091 OR LocalPort=8095 OR LocalPort=8097 OR LocalPort=9600) AND State=2",new[]{"LocalPort","OwningProcess"},16);
         if(listeners.Count!=4)throw new InvalidOperationException("Current listener count differs");
+        uint firstIssuer=0,secondIssuer=0;
         foreach(object item in recorded){var r=Obj(item);long pid=Num(r["pid"]),port=Num(r["port"]);int listenerMatches=0;
             foreach(var l in listeners)if(Convert.ToInt64(l["LocalPort"])==port&&Convert.ToInt64(l["OwningProcess"])==pid)listenerMatches++;
             if(listenerMatches!=1)throw new InvalidOperationException("Current manager incarnation differs");
+            if(port==8091)firstIssuer=(uint)pid;else if(port==8095)secondIssuer=(uint)pid;
         }
+        var issuerListeners=freshInventory&&completed!=null?new IssuerListeners(vm,began,firstIssuer,secondIssuer):null;
         Stage("disk");long disk=DiskAvailable();CheckTime();
         if(free<Required||Math.Min(Num(before["freeBytes"]),Num(after["freeBytes"]))<Required||disk<16*GiB+4*GiB+256*MiB)
             throw new InvalidOperationException("Target qualification headroom refused");
@@ -234,7 +254,7 @@ internal sealed partial class WindowsStartAdmission {
         if(ProtectedAttempt.CurrentBoot()!=vm.Boot||end.Total!=os.Total||end.Available<(ulong)Required)throw new InvalidOperationException("End-of-admission host state differs");
         if(!freshInventory){Stage("pending-and-node-after");
             if((completed==null&&LivePending()!=pending)||DeploymentReceipt(GetLocal(9600,"/v1/host/state"),true)!=liveNodeExact)throw new InvalidOperationException("Pending commitments changed during admission");}
-        Stage("pool-resources");if(completed!=null){if(freshInventory)completed.Verify();else completed.VerifyResources();}
+        Stage("pool-resources");if(completed!=null){if(freshInventory)completed.Verify(issuerListeners);else completed.VerifyResources();}
         if(freshInventory){Stage("node-after-current-inventory");
             if(DeploymentReceipt(GetLocal(9600,"/v1/host/state"),true)!=liveNodeExact)throw new InvalidOperationException("Node commitments changed during current inventory verification");}
         Stage("manager-handles-after");foreach(var process in held){process.Check();CheckTime();}

@@ -315,6 +315,17 @@ public static class OwnedVmDefinitionHarness {
   Test("definition-journal-cannot-publish-start",()=>{var c=new ProtectedCase();using(var a=c.Lease())using(var p=ProtectedAttempt.PinDefinitionJournalController(c.PlanPath,c.PlanHash,a)){var j=new OwnedDefinitionJournal(p);Refuse(()=>j.WriteOnce("start.intent","x"));Refuse(()=>j.WriteOnce("definition.intent","x"));}});
   Test("controller-requires-exclusive-fixed-vm-root",()=>{var c=new ProtectedCase();Check(DefinitionWorkerController.DefinitionRoot(c.P)==Path.GetDirectoryName(c.P.Root));Refuse(()=>DefinitionWorkerController.DefinitionRoot(Plan()));});
  }
+ static void ListenerTests(){
+  var c=new ProtectedCase("preparation-gated");using(var lease=c.Lease())using(var other=c.Lease()){
+   Func<WindowsStartAdmission.IssuerListeners> capture=()=>new WindowsStartAdmission.IssuerListeners(lease,BoundedWorker.MonotonicMilliseconds(),11,22);
+   Test("issuer-listeners-exact-mapping-and-one-shot",()=>{var v=capture();var rows=v.Take(lease);Check(rows.Count==2&&(int)rows[0]["LocalPort"]==8091&&(uint)rows[0]["OwningProcess"]==11&&(int)rows[1]["LocalPort"]==8095&&(uint)rows[1]["OwningProcess"]==22);rows[0]["OwningProcess"]=99;Refuse(()=>v.Take(lease));});
+   Test("issuer-listeners-other-held-lease-poisons-consumption",()=>{var v=capture();Refuse(()=>v.Take(other));Refuse(()=>v.Take(lease));});
+   Test("issuer-listeners-invalid-clock-refused",()=>{long now=BoundedWorker.MonotonicMilliseconds();foreach(long start in new[]{-1L,lease.Origin-1,now-4001,now+4001})Refuse(()=>new WindowsStartAdmission.IssuerListeners(lease,start,11,22));});
+   Test("issuer-listeners-invalid-identities-refused",()=>{long now=BoundedWorker.MonotonicMilliseconds();Refuse(()=>new WindowsStartAdmission.IssuerListeners(lease,now,0,22));Refuse(()=>new WindowsStartAdmission.IssuerListeners(lease,now,11,0));Refuse(()=>new WindowsStartAdmission.IssuerListeners(lease,now,11,11));});
+   Test("issuer-listeners-concurrent-consumer-only-one-wins",()=>{var v=capture();int won=0,lost=0;ThreadStart take=()=>{try{v.Take(lease);Interlocked.Increment(ref won);}catch{Interlocked.Increment(ref lost);}};var a=new Thread(take);var b=new Thread(take);a.Start();b.Start();Check(a.Join(1000)&&b.Join(1000)&&won==1&&lost==1);});
+   Test("issuer-listeners-disposed-lease-refused",()=>{var v=capture();lease.Dispose();Refuse(()=>v.Take(lease));});
+  }
+ }
  public static int Main(string[] args){try{
   if(args.Length!=1)throw new ArgumentException("Exact compiled entry fixture required");fixtureImage=File.ReadAllBytes(args[0]);if(fixtureImage.Length>262144)throw new ArgumentException("Fixture image bound");
   BoundedWorker.EnterSupervisorEnvelope(256UL*1024*1024);long end=BoundedWorker.MonotonicMilliseconds()+9000;new Thread(()=>{while(BoundedWorker.MonotonicMilliseconds()<end)Thread.Sleep(5);TerminateProcess(GetCurrentProcess(),124);}){IsBackground=true}.Start();
@@ -361,7 +372,7 @@ public static class OwnedVmDefinitionHarness {
   Test("missing-vcpu-readback-refused",()=>Refuse(()=>HyperVOwnedDefinition.RequireProcessors(new object[]{})));
   Test("duplicate-vcpu-readback-refused",()=>Refuse(()=>HyperVOwnedDefinition.RequireProcessors(new object[]{(ulong)4,(ulong)4})));
   Test("plan-overflow-refused",()=>Refuse(()=>new OwnedVmDefinitionPlan(new string('a',32),new string('b',32),new string('c',64),new string('d',64),@"C:\OwnedRpcFixture\"+new string('a',32),Int64.MaxValue,Int64.MaxValue,new string('e',64),new string('f',64))));
-  InventoryTests();PreparedContextTests();CollectorTests();
+  InventoryTests();PreparedContextTests();CollectorTests();ListenerTests();
   PredecessorTests();ProtectedTests();count+=OwnedVmBootHarness.Run();
   Console.WriteLine("RESULT tests="+count+" providerCallsAreFakes=true vmChanged=false");return 0;
  }catch(Exception e){Console.Error.WriteLine(e);return 1;}}

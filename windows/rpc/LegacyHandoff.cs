@@ -108,9 +108,9 @@ namespace Enclave.OwnedRpc {
    }
    if(found!=1)throw new InvalidOperationException("Loaded master absent");
   }
-  LegacyLaunchCohort.Issuer[] BindIssuers(){
+  LegacyLaunchCohort.Issuer[] BindIssuers(List<Dictionary<string,object>> listeners=null){
    var result=new List<LegacyLaunchCohort.Issuer>();var ports=new HashSet<int>();var ids=new HashSet<uint>();
-   var listeners=Query(@"root\StandardCimv2","SELECT LocalPort,OwningProcess FROM MSFT_NetTCPConnection WHERE (LocalPort=8091 OR LocalPort=8095) AND State=2",new[]{"LocalPort","OwningProcess"},8);
+   if(listeners==null)listeners=Query(@"root\StandardCimv2","SELECT LocalPort,OwningProcess FROM MSFT_NetTCPConnection WHERE (LocalPort=8091 OR LocalPort=8095) AND State=2",new[]{"LocalPort","OwningProcess"},8);
    if(listeners.Count!=issuers.Count)throw new InvalidOperationException("Uncovered or missing old manager listener");
    foreach(object o in issuers){
     var d=Obj(o);Keys(d,"port","pid","created","createdUtc","image","epoch","desktop");int port=checked((int)Num(d["port"]));uint pid=checked((uint)Num(d["pid"]));
@@ -318,7 +318,7 @@ namespace Enclave.OwnedRpc {
   // Only this explicit mode replaces legacy health-based pending accounting.
   // It admits the original RPC permit, not a new application creator.
   internal sealed class Completion : IDisposable {
-   readonly ProtectedAttempt evidence;readonly LegacyHandoff work;readonly OwnedVmPermit permit;
+   readonly ProtectedAttempt evidence,reader;readonly LegacyHandoff work;readonly OwnedVmPermit permit;
    readonly PhysicalClaim rpc;readonly List<PhysicalClaim> claims=new List<PhysicalClaim>();
    readonly SortedDictionary<string,MemoryRecord> initial=new SortedDictionary<string,MemoryRecord>(StringComparer.Ordinal);
    HostPhysicalPool pool;LegacyTemplateFence.HeldDenial denial;SortedDictionary<string,MemoryRecord> current;
@@ -333,7 +333,7 @@ namespace Enclave.OwnedRpc {
     if(Str(binding["schema"])!="legacy-cut-seed-admission/1"||Str(binding["creationMode"])!="retained-fenced-rpc-only/1")throw new InvalidOperationException("Exact first-RPC handoff mode required");
     Keys(shared,"schema","configPath","configHash","capacityBytes");
     if(Str(shared["schema"])!="host-physical-pool-binding/1"||reader==null||(!beforeDefinition&&owned==null)||(beforeDefinition&&(owned!=null||reader.LeaseProfile!="definition")))throw new InvalidOperationException("RPC permit/shared pool required");
-    permit=owned;Receipt=Str(binding["activationHash"]);StartIdentity.Hex(Receipt,64);
+    this.reader=reader;permit=owned;Receipt=Str(binding["activationHash"]);StartIdentity.Hex(Receipt,64);
     try{
      evidence=ProtectedAttempt.OpenCompletedHandoff(Str(binding["contractPath"]),Str(binding["contractHash"]),reader);
      if(evidence.PermitHash!=Str(binding["manifestHash"])||evidence.ExecutableHash!=Str(binding["producerHash"])||evidence.Boot!=(permit==null?reader.Boot:permit.Boot))throw new InvalidOperationException("Reviewed completed producer differs");
@@ -388,8 +388,8 @@ namespace Enclave.OwnedRpc {
        Num(s["capacityBytes"])!=plan.Capacity||Num(s["initialBytes"])!=total||Num(s["initialCount"])!=count||Num(s["physicalBytes"])!=plan.Physical||Num(s["nonPoolReserveBytes"])!=plan.NonPoolReserve||Num(s["floorBytes"])!=plan.Floor||Num(s["variationBytes"])!=plan.Variation||Num(s["prospectiveBytes"])!=plan.Prospective||
        Str(s["cutHash"])!=ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(cut))||Str(s["inventoryHash"])!=ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(inventory))||!False(s["providerSettled"])||!False(s["capacityAdmitted"])||!False(s["reservationMayRelease"]))throw new InvalidOperationException("Completed seed association differs");
    }
-   internal void Verify(){
-    CheckHeld();work.BindIssuers();current=work.Inventory();
+   internal void Verify(WindowsStartAdmission.IssuerListeners listeners=null){
+    CheckHeld();work.BindIssuers(listeners==null?null:listeners.Take(reader));current=work.Inventory();
     if(current.Count<initial.Count||current.Count>initial.Count+1)throw new InvalidOperationException("Uncovered current VM allocation");
     foreach(var pair in current){MemoryRecord prior;
      if(initial.TryGetValue(pair.Key,out prior)){if(work.json.Serialize(prior)!=work.json.Serialize(pair.Value))throw new InvalidOperationException("Retained VM configuration changed");}
