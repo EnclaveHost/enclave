@@ -151,6 +151,35 @@ namespace Enclave.OwnedRpc {
    {"UserSnapshotType",(ushort)2},{"AutomaticSnapshotsEnabled",false},{"EnableHibernation",false},{"VirtualNumaEnabled",false},
    {"SecureBootEnabled",true},{"SecureBootTemplateId","272e7447-90a4-4563-a4b9-8e4ab00526ce"}};}
   internal static Dictionary<string,object> MemorySettings(){return new Dictionary<string,object>{{"VirtualQuantity",(ulong)19456},{"Reservation",(ulong)19456},{"Limit",(ulong)19456},{"DynamicMemoryEnabled",false},{"AutomaticAllocation",true}};}
+  // Deliberately read-only twin of Define's preparation sequence. No journal,
+  // runtime mutation capability, InvokeMethod or Put is accepted by this path.
+  // Each completed step is observed before the next begins; the observer must
+  // retain the original watchdog and refuse any changed primary SYSTEM context.
+  internal static void InspectPreparation(OwnedVmDefinitionPlan p,Action<string> trace){
+   if(p==null||trace==null)throw new ArgumentNullException("preparation dependencies");
+   trace("before-scope");var scope=HyperVStartProvider.Scope();trace("after-scope");
+   using(var service=HyperVStartProvider.One(scope,"SELECT * FROM Msvm_VirtualSystemManagementService")){
+    trace("after-service");
+    using(var system=Instance(scope,"Msvm_VirtualSystemSettingData",SystemSettings(p))){
+     trace("after-system");
+     using(var memory=Instance(scope,"Msvm_MemorySettingData",MemorySettings())){
+      trace("after-memory");
+      using(var cpu=Instance(scope,"Msvm_ProcessorSettingData",new Dictionary<string,object>{{"VirtualQuantity",(ulong)4}})){
+       trace("after-cpu");
+       using(var input=service.GetMethodParameters("DefineSystem")){
+        trace("after-parameters");
+        input["SystemSettings"]=system.GetText(TextFormat.WmiDtd20);trace("after-system-text");
+        string memoryText=memory.GetText(TextFormat.WmiDtd20);trace("after-memory-text");
+        string cpuText=cpu.GetText(TextFormat.WmiDtd20);trace("after-cpu-text");
+        input["ResourceSettings"]=new[]{memoryText,cpuText};input["ReferenceConfiguration"]=null;
+        trace("after-input");
+       }
+      }
+     }
+    }
+   }
+   trace("after-dispose");
+  }
   public DefinitionResponse Define(OwnedVmDefinitionPlan p){
    ProtectedAttempt.RequireSystem();runtime.VerifyBeforeDefinition(p);string raw=p.Encode(),digest=ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(raw));
    if(journal.Read("definition.intent")!=raw||journal.Read("definition.submit")!=digest||journal.Read("definition.native")!=digest)throw new InvalidOperationException("Consumed native definition intent required");
@@ -227,7 +256,7 @@ namespace Enclave.OwnedRpc {
     DefinitionPlan=OwnedVmDefinitionPlan.Parse(Utf8.GetString(raw));var p=DefinitionPlan;
     Nonce=p.Attempt;Boot=p.Boot;Origin=p.Origin;Deadline=p.Deadline;ExecutableHash=p.ProviderImageHash;
     if(p.Root!=Root||Path.GetFileName(Root)!=Nonce||Boot!=reader.Boot||Boot!=CurrentBoot()||Origin>reader.Origin)throw new InvalidOperationException("Definition namespace/boot/origin differs");
-    p.ValidateWorkerWindow(reader.Origin,reader.Deadline,BoundedWorker.MonotonicMilliseconds(),reader.Operation=="definition-reconcile"||reader.Operation=="boot-reconcile"||reader.Operation=="admission-check");
+    p.ValidateWorkerWindow(reader.Origin,reader.Deadline,BoundedWorker.MonotonicMilliseconds(),reader.Operation=="definition-reconcile"||reader.Operation=="boot-reconcile"||reader.Operation=="admission-check"||reader.Operation=="preparation-check");
     CheckDeadline();
    }catch{Dispose();throw;}
   }
@@ -250,7 +279,7 @@ namespace Enclave.OwnedRpc {
     // Fresh read-only evidence belongs to the short diagnostic lease, never
     // replaces the consumed plan's observation or renews its startup authority.
     internal static void InspectDefinitionAdmission(ProtectedAttempt plan,ProtectedAttempt reader){
-        if(plan==null||plan.DefinitionPlan==null||reader==null||reader.LeaseProfile!="definition"||reader.Operation!="admission-check"||
+        if(plan==null||plan.DefinitionPlan==null||reader==null||reader.LeaseProfile!="definition"||(reader.Operation!="admission-check"&&reader.Operation!="preparation-check")||
            reader.PermitHash!=plan.ContractHash||reader.PermitPath!=Path.Combine(plan.Root,"definition-plan.txt")||reader.AdmissionObservationHash==null)
             throw new ArgumentException("Bound read-only definition admission required");
         plan.CheckDeadline();reader.CheckDeadline();

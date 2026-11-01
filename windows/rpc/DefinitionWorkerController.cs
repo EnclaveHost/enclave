@@ -139,7 +139,7 @@ public static class DefinitionWorkerController {
         Origin=BoundedWorker.MonotonicMilliseconds();Deadline=Origin+30000;bool passed=false;long free=0;
         try{
             if(args.Length!=11||args[0]!="--target")throw new ArgumentException("Explicit target definition arguments required");
-            Operation=args[4];if(Operation!="define"&&Operation!="definition-reconcile"&&Operation!="boot"&&Operation!="boot-reconcile"&&Operation!="admission-check")throw new ArgumentException("Explicit definition operation required");
+            Operation=args[4];if(Operation!="define"&&Operation!="definition-reconcile"&&Operation!="boot"&&Operation!="boot-reconcile"&&Operation!="admission-check"&&Operation!="preparation-check")throw new ArgumentException("Explicit definition operation required");
             Origin=Int64.Parse(args[9],NumberStyles.None,CultureInfo.InvariantCulture);Deadline=Int64.Parse(args[10],NumberStyles.None,CultureInfo.InvariantCulture);
             Hex(args[2],64);Hex(args[3],32);Hex(args[8],64);ManifestHash=args[8];
             BoundedWorker.EnterSupervisorEnvelope(128UL*1024*1024);Watchdog=BoundedWorker.ArmOwnerObserver(Origin,Deadline,args[3]+args[3]+args[3]+args[3]);
@@ -157,7 +157,7 @@ public static class DefinitionWorkerController {
                 Publish(planPath,planBytes);Publish(Path.Combine(plan.Root,"admission.json"),Read(args[5],262144));
             }else {DefinitionRoot(plan);if(args[7]!=planPath)throw new InvalidOperationException("Reconcile only exact existing plan");}
             string contract=Path.Combine(Root,"contract.txt");
-            bool admissionOnly=Operation=="admission-check";
+            bool admissionOnly=Operation=="admission-check"||Operation=="preparation-check";
             if(admissionOnly)Publish(Path.Combine(Root,"admission.json"),Read(args[5],262144));
             byte[] bytes=Encoding.UTF8.GetBytes((admissionOnly?"owned-rpc-definition-admission-v1":"owned-rpc-definition-worker-v1")+"\n"+args[3]+"\n"+boot+"\n"+Origin+"\n"+Deadline+"\n"+args[2]+"\n"+Operation+"\n"+planPath+"\n"+ManifestHash+"\n"+(admissionOnly?args[6]+"\n":""));
             string hash=ProtectedAttempt.Hash(bytes);Publish(contract,bytes);NamespacePin=ProtectedAttempt.PinDefinitionController(contract,hash);
@@ -176,6 +176,10 @@ public static class DefinitionWorkerController {
         return passed&&Failures.Count==0?0:1;
     }
     static object VerifyResult(ProtectedAttempt pin,string raw){
+        if(Operation=="preparation-check") {
+            if(raw!="preparation-observed;definition-authorized=false;start-authorized=false;reservation-release=false")throw new InvalidOperationException("Read-only preparation result required");
+            return new{state="preparation-observed",definitionAuthorized=false,startAuthorized=false,reservationMayRelease=false};
+        }
         if(Operation=="admission-check") {
             if(raw!="admission-observed;definition-authorized=false;start-authorized=false;reservation-release=false")throw new InvalidOperationException("Read-only admission result required");
             return new{state="admission-observed",definitionAuthorized=false,startAuthorized=false,reservationMayRelease=false};

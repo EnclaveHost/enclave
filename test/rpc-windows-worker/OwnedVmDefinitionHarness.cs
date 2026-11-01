@@ -52,7 +52,7 @@ public static class OwnedVmDefinitionHarness {
    long now=BoundedWorker.MonotonicMilliseconds(),origin=now;
    P=new OwnedVmDefinitionPlan(id,wrongBoot?new string('b',32):b,new string('c',64),ProtectedAttempt.Hash(fixtureImage),vr,origin,origin+900000,new string('e',64),new string('f',64));
    PlanPath=Path.Combine(vr,"definition-plan.txt");byte[] plan=Encoding.UTF8.GetBytes(P.Encode());PlanHash=wrongHash?new string('0',64):ProtectedAttempt.Hash(plan);Put(PlanPath,plan);
-   bool probe=op=="admission-check";byte[] observation=Encoding.UTF8.GetBytes("{}");ObservationHash=ProtectedAttempt.Hash(observation);
+   bool probe=op=="admission-check"||op=="preparation-check";byte[] observation=Encoding.UTF8.GetBytes("{}");ObservationHash=ProtectedAttempt.Hash(observation);
    if(probe)Put(Path.Combine(root,"admission.json"),observation);
    byte[] c=Encoding.UTF8.GetBytes((probe?"owned-rpc-definition-admission-v1":"owned-rpc-definition-worker-v1")+"\n"+n+"\n"+b+"\n"+now+"\n"+(now+20000)+"\n"+ProtectedAttempt.Hash(fixtureImage)+"\n"+op+"\n"+PlanPath+"\n"+PlanHash+"\n"+(probe?ObservationHash+"\n":""));
    Contract=Path.Combine(root,"contract.txt");Hash=ProtectedAttempt.Hash(c);Put(Contract,c);
@@ -105,6 +105,21 @@ public static class OwnedVmDefinitionHarness {
 
  }
  static void ProtectedTests(){
+  Test("preparation-contract-binds-private-observation",()=>{var c=new ProtectedCase("preparation-check");using(var a=c.Lease()){
+   Check(a.Operation=="preparation-check"&&a.AdmissionObservationHash==c.ObservationHash);
+   Refuse(()=>a.ReadAdmission(new string('0',64)));
+  }});
+  Test("preparation-cannot-write-old-definition-or-boot-records",()=>{var c=new ProtectedCase("preparation-check");using(var a=c.Lease())using(var p=ProtectedAttempt.PinDefinitionJournalController(c.PlanPath,c.PlanHash,a)){
+   foreach(string n in new[]{"definition.intent","definition.submit","definition.native","definition.invoke","definition.receipt","definition.job","definition.terminal","definition.system","definition.off","boot.media","boot.ready","start.native"})Refuse(()=>p.WriteOnce(n,"x"));
+   LegacyHandoff.Completion completed=null;Refuse(()=>WindowsStartAdmission.VerifyDefinition(p,c.P.AdmissionHash,a,ref completed));Check(completed==null);
+  }});
+  Test("preparation-stage-record-exclusive-and-old-plan-unchanged",()=>{var c=new ProtectedCase("preparation-check");using(var a=c.Lease())using(var p=ProtectedAttempt.PinDefinitionJournalController(c.PlanPath,c.PlanHash,a)){
+   string plan=p.DefinitionPlan.Encode();a.WriteOnce("preparation.00","fixture");Refuse(()=>a.WriteOnce("preparation.00","replay"));Check(a.ReadOnce("preparation.00")=="fixture"&&p.DefinitionPlan.Encode()==plan&&p.ReadOptionalOnce("definition.invoke")==null);
+  }});
+  Test("preparation-refusal-before-first-WMI-call",()=>{int stages=0;var marker=new IOException("closed guard");bool same=false;try{HyperVOwnedDefinition.InspectPreparation(Plan(),stage=>{Check(stage=="before-scope");stages++;throw marker;});}catch(Exception e){same=Object.ReferenceEquals(e,marker);}Check(same&&stages==1);});
+  Test("preparation-null-trace-refused-before-WMI",()=>Refuse(()=>HyperVOwnedDefinition.InspectPreparation(Plan(),null)));
+  Test("preparation-process-and-effective-identity-query",()=>{string before=DefinitionWorkerEntry.PreparationIdentity();string after=DefinitionWorkerEntry.PreparationIdentity();Check(before==after&&before.StartsWith("process=S-1-")&&before.Contains(";effective=S-1-")&&before.Length<512);});
+
   Test("admission-only-contract-binds-fresh-private-observation",()=>{var c=new ProtectedCase("admission-check");using(var a=c.Lease()){
    Check(a.Operation=="admission-check"&&a.AdmissionObservationHash==c.ObservationHash&&Encoding.UTF8.GetString(a.ReadAdmission(a.AdmissionObservationHash))=="{}");
    Refuse(()=>a.ReadAdmission(new string('0',64)));

@@ -91,6 +91,15 @@ namespace Enclave.OwnedRpc {
                 throw;
             }
         }
+        // Query only: never change thread/process tokens or COM security settings.
+        internal static string PreparationIdentity() {
+            SafeWaitHandle token;
+            if(!OpenProcessToken(GetCurrentProcess(),8,out token))throw new Win32Exception(Marshal.GetLastWin32Error());
+            using(token)using(var process=new WindowsIdentity(token.DangerousGetHandle()))
+            using(var effective=WindowsIdentity.GetCurrent())
+                return "process="+(process.User==null?"absent":process.User.Value)+";process-level="+process.ImpersonationLevel+
+                    ";effective="+(effective.User==null?"absent":effective.User.Value)+";effective-level="+effective.ImpersonationLevel;
+        }
         static int Owner(ProtectedAttempt a,string contract) {
             a.WriteOnce("owner.consumed",Identity(a,"owner"));
             if(WaitMessage(a,"admit")!=a.Token)throw new InvalidOperationException("Closed owner gate differs");
@@ -200,6 +209,22 @@ namespace Enclave.OwnedRpc {
                     using(var guard=HoldChildAuthority(a)) {
                         using(var plan=ProtectedAttempt.OpenDefinitionJournal(a.PermitPath,a.PermitHash,a))
                         {
+                          if(a.Operation=="preparation-check") {
+                            guard.Check();WindowsStartAdmission.InspectDefinitionAdmission(plan,a);guard.Check();
+                            int sequence=0;
+                            Action<string> trace=delegate(string stage) {
+                                guard.Check();
+                                string snapshot=PreparationIdentity();
+                                a.WriteOnce("preparation."+(sequence++).ToString("D2",CultureInfo.InvariantCulture),
+                                    "owned-rpc-preparation/1\n"+a.ContractHash+"\n"+plan.ContractHash+"\n"+stage+"\n"+
+                                    BoundedWorker.MonotonicMilliseconds()+"\n"+snapshot+"\nprovider-fenced=false;reservation-release=false\n");
+                                ProtectedAttempt.RequireSystem();guard.Check();
+                            };
+                            HyperVOwnedDefinition.InspectPreparation(plan.DefinitionPlan,trace);
+                            guard.Check();
+                            a.WriteOnce("child.result","preparation-observed;definition-authorized=false;start-authorized=false;reservation-release=false");
+                            return 0;
+                          }
                           if(a.Operation=="admission-check") {
                             guard.Check();WindowsStartAdmission.InspectDefinitionAdmission(plan,a);guard.Check();
                             a.WriteOnce("child.result","admission-observed;definition-authorized=false;start-authorized=false;reservation-release=false");
