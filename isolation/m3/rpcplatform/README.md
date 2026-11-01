@@ -41,3 +41,44 @@ immutable measured bootstrap at `/plat/native-rpc/chain_service.py`. The older
 VM-only wrapper inside the unchanged client image is not a fallback. Root
 composition and the supervisor both check this pin. Profile 1 is refused. This
 source-level format change has not produced or admitted a new actual platform.
+
+## Guest boot stages
+
+`../build-rpc-boot.py --profile PROFILE --out NEW_DIRECTORY` now compiles the
+distinct `NATIVE_RPC` init and fixed `/plat/rpc-boot` helper. It accepts only the
+canonical profile/2, creates output exclusively, retains partial output and
+records source/profile/binary pins. These are boot **stages**, not a complete
+initramfs, accepted platform or deployment. The build runs inside the caller's
+independently bounded and capacity-admitted build unit.
+
+The RPC branch of `native-boot.c` uses exactly two optical containers: the fixed
+1 GiB client image and its separate 8,458,240-byte verity tree, each after the
+existing 64 KiB container header. It rejects additional block devices, duplicate
+roles and existing mapper names. It retains exact media descriptors, verifies
+read-only linear and verity tables, mounts executable ext4 with `noload` at
+`/plat/native-rpc/rootfs`, and seals `/plat` read-only. No desktop model media,
+desktop namespace entry, input devices or desktop module are installed. The
+RPC entry, profile and wrapper must already be part of the measured initramfs;
+the monitor's existing `OpenInstalled` and composition checks verify them.
+
+RPC init uses the strict native mounts, cgroup delegation and required guest
+TPM checks, and rejects a simultaneous desktop build. It creates the sealed
+ERPCONE4 clock after proc mounting with **origin zero in this kernel boot's
+unshifted monotonic clock**. Thus kernel and guest preparation consume the
+same 900 seconds. The clock remains close-on-exec during helper execution and
+is inherited only as monitor FD3. Helper waits are capped by that same guest
+deadline; re-entering a helper does not start another window.
+
+The guest clock does not represent elapsed preparation on Warden or Windows.
+Their independently owned original deadlines must remain armed, and the
+earliest deadline wins. No clock frame, elapsed check, `sync`, blocking mount,
+or wait/reap loop proves independent termination of a hung kernel operation.
+These stages add no guest guardian, persistent serving adoption, storage
+credential delivery, broker daemon, writer grant or remote attestation proof.
+
+Qualification compiles the RPC stages and ordinary/desktop compatibility paths
+and checks actual C memfd sealing, FD3 inheritance across exec and receipt by
+the Go clock consumer. Profile inputs in those builds are explicitly synthetic.
+No actual optical/mapper mounts, target guest boot or RPC serving is qualified.
+Full measured-image assembly, authenticated broker/client-key bootstrap,
+target lifecycle admission and end-to-end client readiness remain required.

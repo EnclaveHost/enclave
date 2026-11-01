@@ -1,0 +1,4 @@
+{
+  "sha256": "6fa33de096d9d210413309aaf29888514b0c2c0376203cdd42bf89c0e4a343b6",
+  "utf8": "=== RUN   TestBootClockCInterop\n=== RUN   TestBootClockCInterop/future\n=== RUN   TestBootClockCInterop/overflow\n=== RUN   TestBootClockCInterop/expired\n--- PASS: TestBootClockCInterop (0.00s)\n    --- PASS: TestBootClockCInterop/future (0.00s)\n    --- PASS: TestBootClockCInterop/overflow (0.00s)\n    --- PASS: TestBootClockCInterop/expired (0.00s)\nPASS\nok  \tenclave.host/isolation/m3/rpcservice\t0.002s\n"
+}

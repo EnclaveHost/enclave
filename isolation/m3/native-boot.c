@@ -39,7 +39,12 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#ifdef NATIVE_RPC
+#include "rpc-boot-profile.h"
+#include "rpc-boot-clock.h"
+#else
 #include "native-boot-profile.h"
+#endif
 
 #define KERNEL_RELEASE "6.6.87.2-enclave-kvm-box"
 #define VERITY_BLOCK ((uint64_t)4096)
@@ -59,6 +64,7 @@
 #define STATX_ATTR_MOUNT_ROOT 0x00002000
 #endif
 
+#ifndef NATIVE_RPC
 _Static_assert(IMAGE_BYTES && HASH_BYTES && MODEL_IMAGE_BYTES && MODEL_BYTES, "profile sizes must be nonzero");
 _Static_assert(IMAGE_BYTES != HASH_BYTES && IMAGE_BYTES != MODEL_IMAGE_BYTES && HASH_BYTES != MODEL_IMAGE_BYTES,
                "media are told apart by size, so the three sizes must differ");
@@ -70,6 +76,11 @@ _Static_assert((uint64_t)IMAGE_BYTES % 512 == 0 && (uint64_t)HASH_BYTES % 512 ==
                (uint64_t)MODEL_IMAGE_BYTES % 512 == 0, "linear maps cover whole sectors");
 
 enum { ROLE_ROOT, ROLE_HASH, ROLE_MODEL, ROLES };
+#else
+_Static_assert(IMAGE_BYTES == 1073741824ULL && HASH_BYTES == 8458240ULL, "fixed RPC geometry");
+enum { ROLE_ROOT, ROLE_HASH, ROLES };
+#endif
+#define MEDIA_MASK ((1u << ROLES) - 1u)
 /* one set for the optical media, a separate one for the linear maps over them */
 struct media { int fd[ROLES]; dev_t dev[ROLES]; };
 struct profile {
@@ -77,7 +88,23 @@ struct profile {
     uint64_t payload[ROLES], container[ROLES];
 };
 
+#ifdef NATIVE_RPC
+#define ROOT_NAME "rpc-root"
+#define ROOT_PARENT "/plat/native-rpc"
+#define ROOT_REL "native-rpc/rootfs"
+#define ROOT_TYPE "ext4"
+#define ROOT_MAGIC EXT4_SUPER_MAGIC
+#define ROOT_OPTIONS "noload"
+static char *const linear_name[ROLES] = {"rpc-root-data", "rpc-root-hashes"};
+#else
+#define ROOT_NAME "native-root"
+#define ROOT_PARENT "/plat/native-desktop"
+#define ROOT_REL "native-desktop/rootfs"
+#define ROOT_TYPE "squashfs"
+#define ROOT_MAGIC SQUASHFS_MAGIC
+#define ROOT_OPTIONS NULL
 static char *const linear_name[ROLES] = {"native-root-data", "native-root-hashes", "native-model-data"};
+#endif
 
 static int fail(const char *stage, int err) {
     dprintf(2, "NATIVE_BOOT_FAIL stage=%s errno=%d\n", stage, err);
@@ -94,6 +121,11 @@ static char *fdpath(char *buf, size_t n, int fd) {
 static int64_t mono_ms(void) {
     struct timespec t;
     if (clock_gettime(CLOCK_MONOTONIC, &t)) return -1;
+#ifdef NATIVE_RPC
+    /* Kernel-boot origin, never a new interval per tool/helper. The independent
+     * host and storage-owner deadlines include host preparation separately. */
+    if (t.tv_sec < 0 || t.tv_sec >= 900) { errno = ETIMEDOUT; return -1; }
+#endif
     return (int64_t)t.tv_sec * 1000 + t.tv_nsec / 1000000;
 }
 
@@ -135,6 +167,7 @@ static int check_profile(struct profile *p) {
     if (parse_u64(DATA_BLOCKS, &p->root_blocks) || !p->root_blocks ||
         __builtin_mul_overflow(p->root_blocks, VERITY_BLOCK, &bytes) || bytes != IMAGE_BYTES)
         return fail("profile-root", EINVAL);
+#ifndef NATIVE_RPC
     if (parse_u64(MODEL_BLOCKS, &p->model_blocks) || !p->model_blocks ||
         __builtin_mul_overflow(p->model_blocks, VERITY_BLOCK, &bytes) || bytes != MODEL_BYTES)
         return fail("profile-model", EINVAL);
@@ -146,9 +179,15 @@ static int check_profile(struct profile *p) {
     if (!is_hex(VERITY_ROOT, 64, 64) || !is_hex(MODEL_ROOT, 64, 64) ||
         !is_hex(VERITY_SALT, 2, 512) || !is_hex(MODEL_SALT, 2, 512))
         return fail("profile-hex", EINVAL);
+#else
+    if (p->root_blocks != 262144 || !is_hex(VERITY_ROOT, 64, 64) || !is_hex(VERITY_SALT, 64, 64))
+        return fail("profile-rpc", EINVAL);
+#endif
     p->payload[ROLE_ROOT] = IMAGE_BYTES;
     p->payload[ROLE_HASH] = HASH_BYTES;
+#ifndef NATIVE_RPC
     p->payload[ROLE_MODEL] = MODEL_IMAGE_BYTES;
+#endif
     for (int i = 0; i < ROLES; i++)
         if (p->payload[i] > MAX_PAYLOAD_BYTES || p->payload[i] % 512 ||
             __builtin_add_overflow(p->payload[i], CONTAINER_HEADER_BYTES, &p->container[i]))
@@ -217,6 +256,7 @@ bad: {
 
 /* Opens the regular file rel below dir without following symlinks and without
  * leaving dir's filesystem (the verified root). */
+#ifndef NATIVE_RPC
 static int open_below(int dir, const char *rel, int flags) {
     char buf[256], *save = NULL;
     struct stat top, st;
@@ -248,6 +288,7 @@ bad: {
     }
 }
 
+#endif
 static int is_mount_root(int fd) {
     struct statx sx;
     if (statx(fd, "", AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW, STATX_BASIC_STATS, &sx)) return -1;
@@ -288,7 +329,9 @@ static int scan_block(unsigned *present) {
         }
         if (!strcmp(n, "sr0")) *present |= 1u;
         else if (!strcmp(n, "sr1")) *present |= 2u;
+#ifndef NATIVE_RPC
         else if (!strcmp(n, "sr2")) *present |= 4u;
+#endif
         else { r = fail("block-unexpected", ENODEV); break; }
     }
     closedir(d);
@@ -316,8 +359,9 @@ static int open_medium(int i, const struct profile *p, struct media *m) {
     if (ioctl(fd, BLKROGET, &ro)) { r = errno == ENOMEDIUM ? 1 : fail("media-readonly", errno); goto out; }
     if (ro != 1) { r = fail("media-readonly", EPERM); goto out; }
     if (ioctl(fd, BLKGETSIZE64, &size)) { r = errno == ENOMEDIUM ? 1 : fail("media-size", errno); goto out; }
-    role = size == p->container[ROLE_ROOT] ? ROLE_ROOT : size == p->container[ROLE_HASH] ? ROLE_HASH :
-           size == p->container[ROLE_MODEL] ? ROLE_MODEL : -1;
+    role = -1;
+    for (int j = 0; j < ROLES; j++)
+        if (size == p->container[j]) role = j;
     if (role < 0) { r = fail("media-size-unknown", EINVAL); goto out; }
     if (m->fd[role] >= 0) { r = fail("media-size-duplicate", EEXIST); goto out; }
     m->fd[role] = fd;
@@ -335,21 +379,22 @@ static int acquire_media(const struct profile *p, struct media *m) {
     if (start < 0) return fail("clock", errno);
     for (;;) {
         if (scan_block(&present)) return -1;
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < ROLES; i++) {
             if ((opened & (1u << i)) || !(present & (1u << i))) continue;
             int r = open_medium(i, p, m);
             if (r < 0) return -1;
             if (r == 0) opened |= 1u << i;
         }
-        if (opened == 7u) break;
+        if (opened == MEDIA_MASK) break;
         int64_t now = mono_ms();
         if (now < 0) return fail("clock", errno);
         if (now - start >= MEDIA_READY_MS) return fail("media-timeout", ETIMEDOUT);
         pause_ms(100);
     }
     if (scan_block(&present)) return -1;
-    if (present != 7u || m->fd[ROLE_ROOT] < 0 || m->fd[ROLE_HASH] < 0 || m->fd[ROLE_MODEL] < 0)
-        return fail("media-count", ENODEV);
+    if (present != MEDIA_MASK) return fail("media-count", ENODEV);
+    for (int i = 0; i < ROLES; i++)
+        if (m->fd[i] < 0) return fail("media-count", ENODEV);
     return 0;
 }
 
@@ -532,10 +577,16 @@ static int mount_verity(const char *src, dev_t dev, const char *parent, const ch
 
 static int run(void) {
     struct profile p;
-    struct media m = {{-1, -1, -1}, {0, 0, 0}}, lin = {{-1, -1, -1}, {0, 0, 0}};
-    struct stat st, sst;
-    char a[32], b[32], offset[48];
-    dev_t rootdev, modeldev;
+    struct media m = {0}, lin = {0};
+    for (int i = 0; i < ROLES; i++) m.fd[i] = lin.fd[i] = -1;
+    struct stat st;
+    char a[32], b[32];
+    dev_t rootdev;
+#ifndef NATIVE_RPC
+    struct stat sst;
+    char offset[48];
+    dev_t modeldev;
+#endif
     int fd;
 
     stage("profile");
@@ -550,7 +601,10 @@ static int run(void) {
     if (!S_ISCHR(st.st_mode)) return fail("dm-control", ENODEV);
     for (int i = 0; i < ROLES; i++)
         if (dm_absent(ctl, linear_name[i])) return -1;
-    if (dm_absent(ctl, "native-root") || dm_absent(ctl, "native-models")) return -1;
+    if (dm_absent(ctl, ROOT_NAME)) return -1;
+#ifndef NATIVE_RPC
+    if (dm_absent(ctl, "native-models")) return -1;
+#endif
 
     stage("linear");
     for (int i = 0; i < ROLES; i++)
@@ -561,21 +615,22 @@ static int run(void) {
         char *const argv[] = {VERITYSETUP, "open", "--no-superblock", "--format=1", "--hash=sha256",
                               "--hash-offset=0", "--data-block-size=4096", "--hash-block-size=4096",
                               "--data-blocks=" DATA_BLOCKS, "--salt=" VERITY_SALT,
-                              fdpath(a, sizeof a, lin.fd[ROLE_ROOT]), "native-root",
+                              fdpath(a, sizeof a, lin.fd[ROLE_ROOT]), ROOT_NAME,
                               fdpath(b, sizeof b, lin.fd[ROLE_HASH]), VERITY_ROOT, NULL};
         const int keep[] = {lin.fd[ROLE_ROOT], lin.fd[ROLE_HASH]};
         if (run_tool(argv, keep, 2)) return -1;
     }
-    if (dm_verify(ctl, "native-root", lin.dev[ROLE_ROOT], lin.dev[ROLE_HASH], DATA_BLOCKS, "0", VERITY_ROOT,
+    if (dm_verify(ctl, ROOT_NAME, lin.dev[ROLE_ROOT], lin.dev[ROLE_HASH], DATA_BLOCKS, "0", VERITY_ROOT,
                   VERITY_SALT, IMAGE_BYTES, &rootdev))
         return -1;
 
     stage("root-mount");
-    int rootdir = mount_verity("/dev/mapper/native-root", rootdev, "/plat/native-desktop", "rootfs", "squashfs",
-                               SQUASHFS_MAGIC, MS_RDONLY | MS_NOSUID | MS_NODEV, NULL,
+    int rootdir = mount_verity("/dev/mapper/" ROOT_NAME, rootdev, ROOT_PARENT, "rootfs", ROOT_TYPE,
+                               ROOT_MAGIC, MS_RDONLY | MS_NOSUID | MS_NODEV, ROOT_OPTIONS,
                                ST_RDONLY | ST_NOSUID | ST_NODEV);
     if (rootdir < 0) return -1;
 
+#ifndef NATIVE_RPC
     stage("model-verity");
     {
         int n = snprintf(offset, sizeof offset, "--hash-offset=%" PRIu64, p.model_hash_offset);
@@ -631,6 +686,7 @@ static int run(void) {
     if (fd < 0) return fail("nft-ct-open", errno);
     if (syscall(SYS_finit_module, fd, "", 0)) return fail("nft-ct-load", errno);
     close(fd);
+#endif
     close(rootdir);
 
     stage("seal");
@@ -645,15 +701,17 @@ static int run(void) {
         return fail("seal-remount", errno);
     if (is_mount_root(plat) != 1 || mount_flags(plat, ST_RDONLY | ST_NOSUID | ST_NODEV, 0)) return fail("seal-check", EINVAL);
     /* the copies under the sealed /plat keep their own read-only flags */
-    fd = openat(plat, "native-desktop/rootfs", O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    fd = openat(plat, ROOT_REL, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     if (fd < 0 || fstat(fd, &st)) return fail("seal-rootfs", errno);
     if (st.st_dev != rootdev || mount_flags(fd, ST_RDONLY | ST_NOSUID | ST_NODEV, 0)) return fail("seal-rootfs", EINVAL);
     close(fd);
+#ifndef NATIVE_RPC
     fd = openat(plat, "native-desktop/nsinit", O_PATH | O_NOFOLLOW | O_CLOEXEC);
     if (fd < 0 || fstat(fd, &st)) return fail("seal-nsinit", errno);
     if (st.st_dev != sst.st_dev || st.st_ino != sst.st_ino || mount_flags(fd, ST_RDONLY | ST_NOSUID | ST_NODEV, ST_NOEXEC))
         return fail("seal-nsinit", EINVAL);
     close(fd);
+    #endif
     close(plat);
     close(slash);
 
@@ -677,5 +735,11 @@ int main(int argc, char **argv) {
         fail("contract", EPERM);
         return 64;
     }
+#ifdef NATIVE_RPC
+    /* Do not accept a different clock domain or an expired guest boot. */
+    int clockfd = rpc_clock_create(0);
+    if (clockfd < 0) return 65;
+    close(clockfd);
+#endif
     return run() == 0 ? 0 : 1;
 }

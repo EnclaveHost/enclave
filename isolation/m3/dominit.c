@@ -42,17 +42,25 @@
 #include <time.h>
 #include <unistd.h>
 #include "vtpm-boot.h"
+#if defined(NATIVE_DESKTOP) && defined(NATIVE_RPC)
+#error "native desktop and RPC are distinct images"
+#endif
 
-#ifdef NATIVE_DESKTOP
+#if defined(NATIVE_DESKTOP) || defined(NATIVE_RPC)
 /* The native desktop image is pinned to one measured kernel; a mismatch, or not being PID 1, means
  * this is not the image we think it is. The helper, its timeout and the kernel string are fixed here
  * so nothing the host supplies can select or relax them. */
 #define NATIVE_KERNEL_RELEASE "6.6.87.2-enclave-kvm-box"
-#define NATIVE_BOOT_HELPER    "/plat/native-boot"
+#ifdef NATIVE_RPC
+#include "rpc-boot-clock.h"
+#define NATIVE_BOOT_HELPER "/plat/rpc-boot"
+#else
+#define NATIVE_BOOT_HELPER "/plat/native-boot"
+#endif
 #define NATIVE_BOOT_TIMEOUT_MS 90000.0
 #endif
 
-#ifndef NATIVE_DESKTOP
+#if !defined(NATIVE_DESKTOP) && !defined(NATIVE_RPC)
 static void insmod(const char *p) {
     int fd = open(p, O_RDONLY | O_CLOEXEC);
     if (fd < 0) { printf("MON insmod %s: %s\n", p, strerror(errno)); return; }
@@ -81,7 +89,7 @@ static void lo_up(void) {
 
 static double now_ms(void) {
     struct timespec t;
-#ifdef NATIVE_DESKTOP
+#if defined(NATIVE_DESKTOP) || defined(NATIVE_RPC)
     if (clock_gettime(CLOCK_MONOTONIC, &t) != 0) return -1;
 #else
     clock_gettime(CLOCK_MONOTONIC, &t);
@@ -104,7 +112,7 @@ static void list_tree(const char *dir, int depth) {
     closedir(d);
 }
 
-#ifdef NATIVE_DESKTOP
+#if defined(NATIVE_DESKTOP) || defined(NATIVE_RPC)
 /* Fail closed: say why, flush the console, and power the guest off. PID 1 must not return. */
 static _Noreturn void poweroff_now(const char *msg) {
     printf("MON ERROR %s\n", msg);
@@ -209,6 +217,9 @@ static int native_wait(pid_t pid, double timeout_ms) {
         if (r < 0 && errno != EINTR) break;
         double now = now_ms();
         if (start < 0 || now < 0 || now - start >= timeout_ms) break;
+#ifdef NATIVE_RPC
+        if (now >= 900000.0) break;
+#endif
         struct timespec ts = {0, 50 * 1000 * 1000}; /* 50 ms */
         nanosleep(&ts, NULL);
     }
@@ -230,14 +241,14 @@ static void native_boot(void) {
         _exit(127);
     }
     if (native_wait(pid, NATIVE_BOOT_TIMEOUT_MS) != 0)
-        poweroff_now("native-boot helper failed or timed out; RO root/models/platform not verified");
+        poweroff_now("native-boot helper failed or timed out; RO native resources not verified");
 }
 #endif /* NATIVE_DESKTOP */
 
 /* Returning from PID 1 panics the kernel and may leave the VM consuming its
  * allocation indefinitely. A failed native image must power off instead. */
 static int init_error(void) {
-#ifdef NATIVE_DESKTOP
+#if defined(NATIVE_DESKTOP) || defined(NATIVE_RPC)
     poweroff_now("native initialization failed");
 #else
     return 1;
@@ -245,7 +256,10 @@ static int init_error(void) {
 }
 
 int main(void) {
-#ifdef NATIVE_DESKTOP
+#ifdef NATIVE_RPC
+    int rpc_clock = -1;
+#endif
+#if defined(NATIVE_DESKTOP) || defined(NATIVE_RPC)
     /* Before anything privileged: confirm we are the guest's PID 1 and that this is exactly the
      * measured native kernel. Neither is a host-controlled selector; both only ever fail closed. */
     if (getpid() != 1 || getuid() != 0 || geteuid() != 0)
@@ -256,6 +270,12 @@ int main(void) {
             poweroff_now("refusing to start: not the measured native desktop kernel");
     }
     native_mounts();
+#ifdef NATIVE_RPC
+    /* Kernel boot is the origin, including mounts above. Never reset it when
+     * the helper, monitor, or an app starts. Kept CLOEXEC during helper exec. */
+    rpc_clock = rpc_clock_create(0);
+    if (rpc_clock < 0) poweroff_now("RPC original boot clock unavailable or expired");
+#endif
 #else
     mount("proc", "/proc", "proc", 0, 0);
     mount("sysfs", "/sys", "sysfs", 0, 0);
@@ -265,7 +285,7 @@ int main(void) {
     mount("cgroup2", "/sys/fs/cgroup", "cgroup2", 0, 0);
 #endif
     double boot_ms = now_ms();
-#ifdef NATIVE_DESKTOP
+#if defined(NATIVE_DESKTOP) || defined(NATIVE_RPC)
     if (boot_ms < 0) poweroff_now("monotonic clock unavailable");
 #endif
 
@@ -277,7 +297,7 @@ int main(void) {
     printf("\nMON snp=%d vcpus=%ld memMiB=%lu boot_ms=%.0f\n", snp, sysconf(_SC_NPROCESSORS_ONLN),
            (unsigned long)(si.totalram * si.mem_unit >> 20), boot_ms);
 
-#ifndef NATIVE_DESKTOP
+#if !defined(NATIVE_DESKTOP) && !defined(NATIVE_RPC)
     /* The native kernel has the vsock transport (and the report interface) built in: nothing to load
      * and no legacy .zst modules, so this whole step is skipped there. */
     insmod("/vsock.ko.zst");
@@ -351,7 +371,7 @@ int main(void) {
             }
         }
     }
-#ifndef NATIVE_DESKTOP
+#if !defined(NATIVE_DESKTOP) && !defined(NATIVE_RPC)
     /* A PROBE image - never a production medium - may carry /probe.ko (isolation/m3/probe/): loaded once, uncompressed,
      * after the guards above and before anything is served, and announced. The file is part of the initrd, so a probe
      * image never has a production image's hash; a production image has no such file and this does nothing. The native
@@ -397,10 +417,21 @@ int main(void) {
         }
         vtpmflag = "-vbs-tpm=/dev/tpm0";
     }
-#ifdef NATIVE_DESKTOP
+#if defined(NATIVE_DESKTOP) || defined(NATIVE_RPC)
     /* The guest TPM is validated; now stand up the read-only root/models/platform through the fixed
      * helper, under a bounded wait, before the monitor ever runs. */
     native_boot();
+#endif
+#ifdef NATIVE_RPC
+    /* This is the T0-hv path; a host report never proves host exclusion. */
+    double rpc_now = now_ms();
+    if (snp || !hostflag[0] || !vtpmflag || rpc_now < 0 || rpc_now >= 900000.0)
+        poweroff_now("RPC boot context or original deadline refused");
+    if (rpc_clock != 3 && dup2(rpc_clock, 3) != 3)
+        poweroff_now("RPC clock transfer failed");
+    if (rpc_clock != 3) close(rpc_clock);
+    if (fcntl(3, F_SETFD, 0) != 0)
+        poweroff_now("RPC clock inheritance failed");
 #endif
     char *argv[] = {"/monitor", snpflag, hostflag[0] ? hostflag : NULL, vtpmflag, NULL};
     char *envp[] = {"HOME=/tmp", "PATH=/plat", NULL};

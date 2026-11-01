@@ -1,0 +1,1 @@
+{"phases": [{"phase": "qualification", "exit": 0}], "elapsed": 0.7341487728990614, "sourcePins": 576, "pinsUnchanged": true, "artifacts": {"clock-fixture": {"bytes": 996520, "sha256": "950c76156fbc914b9cffd98a6a30756c2fa6ed326fd0e05c1b5719c3aaca391b"}}, "deployed": false}
