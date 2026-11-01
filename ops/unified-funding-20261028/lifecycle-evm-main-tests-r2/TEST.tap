@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: 5a prepare persists the exact versioned host authority IN the durable canonical payload
+ok 1 - 5a prepare persists the exact versioned host authority IN the durable canonical payload
+  ---
+  duration_ms: 1323.609391
+  type: 'test'
+  ...
+# Subtest: 5b Offline during the delayed actorSigner: refused before relay.send; durable intent unchanged
+ok 2 - 5b Offline during the delayed actorSigner: refused before relay.send; durable intent unchanged
+  ---
+  duration_ms: 1198.966024
+  type: 'test'
+  ...
+# Subtest: 5c owner policy/revision change during delayed approvals: refused before relay.send
+ok 3 - 5c owner policy/revision change during delayed approvals: refused before relay.send
+  ---
+  duration_ms: 1051.378506
+  type: 'test'
+  ...
+# Subtest: 5d unqualified authority after signatures refuses; stable authority sends exactly once
+ok 4 - 5d unqualified authority after signatures refuses; stable authority sends exactly once
+  ---
+  duration_ms: 1291.590572
+  type: 'test'
+  ...
+# Subtest: 6 mined lost reply, then missed Offline + recovery + restart: exact pending resolves once from the receipt, no resend
+ok 5 - 6 mined lost reply, then missed Offline + recovery + restart: exact pending resolves once from the receipt, no resend
+  ---
+  duration_ms: 1159.760545
+  type: 'test'
+  ...
+# Subtest: 6b current Offline with expired historical qualification: Running refused, owner stop still prepared/sent
+ok 6 - 6b current Offline with expired historical qualification: Running refused, owner stop still prepared/sent
+  ---
+  duration_ms: 929.441338
+  type: 'test'
+  ...
+# Subtest: 6c a Running payload without host authority (legacy/lost context) is resolvable but never sent
+ok 7 - 6c a Running payload without host authority (legacy/lost context) is resolvable but never sent
+  ---
+  duration_ms: 736.759992
+  type: 'test'
+  ...
+# Subtest: actual chain drives owned runtime and permits under foreign platform refusal; owner Offline withdraws locally
+ok 8 - actual chain drives owned runtime and permits under foreign platform refusal; owner Offline withdraws locally
+  ---
+  duration_ms: 2140.52369
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 11174.341261
