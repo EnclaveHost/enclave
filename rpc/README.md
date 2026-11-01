@@ -522,8 +522,9 @@ the first failed endpoint-integration run is also preserved. The later actual
 successor 25eecdee was consumed at admission freshness, with no native definition
 marker; its exact roles were observed dead and exporter cleaned. The changed
 native reader subsequently passed read-only SYSTEM admission. Multiple-predecessor
-composition has 116 local passing cases (native boundaries mocked), pending
-hosted native compilation/qualification. Before another production attempt,
+composition has 116 local passing cases (native boundaries mocked). Hosted
+Windows source83f6793f passed68startup and111definition checks; the full two
+expired900s native chain is not proved by those fixtures. Before another production attempt,
 prepare new instance-bound seed/media and owner profile/source closure, stage
 qualified current binaries, and obtain fresh full admission. The old seed and
 profile are tied to the consumed attempt and cannot be silently reused.
