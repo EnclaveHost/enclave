@@ -425,3 +425,58 @@ Wrong volume, wrong original chain and a replaced key were rejected by the actua
 state validator. That fixture's key was intentionally replaced after termination;
 its private state is poisoned and must never be reused. No production state was
 provisioned and no chain client or production RPC started.
+
+## Framed owner relay entrypoint (implemented, not installed)
+
+`relay_owner.py` supplies the owner end of the guest broker's one-request wire.
+It runs **inside the existing** independently bounded
+`enclave-rpc-owner-dispatch-ATTEMPT.service`: Type=exec,256MiB,noSwap,CPU1,Tasks32,
+RuntimeMaxSec=60,TimeoutStopSec=1,KillMode=control-group and no restart. It calls
+the maintained dispatcher in that same process; it does not introduce another
+signer, exporter, deadline or subprocess launcher. The actual envelope is checked
+before reading the wire and again by the dispatcher before native submissions.
+
+Its one protected0600 configuration has only `schema` (exact
+`enclave-rpc-owner-relay/1`) and `dispatcher` (path/SHA256 of the prepared owner
+configuration). The bundle, manifest and exact monitor request must already be
+bound to that original owner attempt. No wire field selects paths, executable,
+keys, endpoint or a replacement request. The owner policy/signatures remain the
+authority; a successful transport does not authenticate a guest or grant roots.
+
+Input/output are inherited pipes, suitable for an authenticated bootstrap
+transport, not a listening network service. Each message is a big-endian uint32
+length followed by JSON. Input is at most4MiB and must exactly match the canonical
+prepared request; response is at most64KiB. `decode_owner_request` now handles
+real bundle-bearing requests separately from the small64KiB public contract
+parser, checking exact outer fields, duplicate/canonical encodings, bundle2MiB,
+manifest64KiB and inner request2KiB limits. The unchanged Go actor performs the
+actual manifest/request validation and independent owner authorization.
+
+An exclusive `relay` directory in the original clock namespace consumes ingress
+before any bytes are read. Its fsynced intent binds the original unit identity
+and request digest. The ingress cutoff is three seconds from unit entry, clipped
+to the original deadline; setup does not reset it. A second durable intent
+precedes dispatch. The exact dispatcher response must already be persisted and
+is also fsynced in the relay before its framed acknowledgment. Partial input,
+changed request, timeout, failed dispatch or lost response stays consumed. There
+is no automatic retry, cancellation assumption or reservation release. Exiting
+this transport does not prove separately supervised signer/exporter death.
+
+This is the concrete owner-side transport endpoint. Guest bootstrap credentials,
+accepted peer identity and the actual cross-host pipe bridge remain unimplemented
+and unqualified; no listener, service or production authority was installed.
+Existing prepared dispatcher files can be used only for their exact original
+attempt. Do not reconstruct or replay a consumed request. Component tests use
+real private files and fragmented pipes with mocked systemd/dispatcher actions;
+they do not prove the full native command, real chain or app startup.
+
+A subsequent native qualification ran this full framed command inside the actual
+256MiB/60s dispatcher unit, using the prior pinned test-only Go issuer (only its
+chain HTTP transport is mocked). Actual one-time disposable owner provisioning,
+signed durable pair/proof records, both dummy TLS exports and framed response
+persistence passed. The1309-byte response matched both owner records exactly;
+all four preheld exporter processes exited89ms after control loss, originals
+unchanged and reservations retained. See
+[the exact result](../../ops/unified-funding-20261028/rpc-owner-relay-native-r1/ROOT-RESULT.md).
+This was a local pipe composition, not a cross-host accepted guest connection,
+real chain authority, kernel attachment or RPC readiness. No service was installed.

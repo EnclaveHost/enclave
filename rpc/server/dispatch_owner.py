@@ -4,6 +4,7 @@ Invoked only in an admitted independent dispatcher unit. Consumes durable local
 submission records before each systemd call. Any uncertainty stays held; no
 retry, unit replacement, refund, reservation release or implicit adoption.
 """
+import base64
 import hashlib
 import importlib.util
 import json
@@ -25,6 +26,35 @@ def load(name,path):
 
 entry=load('rpc_owner_entry',HERE/'owner_entry.py')
 c=entry.clock_module()
+
+
+def decode_owner_request(raw):
+    """Bound the real bundle-bearing wire separately from small public contracts.
+
+    This validates encoding/size, NOT app permission. The actual Go owner actor
+    still parses the contract and obtains independent chain authorization.
+    """
+    if not isinstance(raw,bytes) or not 0<len(raw)<=4<<20:
+        raise ValueError('Bounded complete owner request required')
+    def pairs(rows):
+        result={}
+        for key,value in rows:
+            if key in result:raise ValueError('Duplicate owner request field')
+            result[key]=value
+        return result
+    value=json.loads(raw,object_pairs_hook=pairs)
+    if not isinstance(value,dict) or set(value)!={'bundle','manifest','request'} or not isinstance(value['request'],dict):
+        raise ValueError('Complete owner request fields required')
+    for key,limit in (('bundle',2<<20),('manifest',65536)):
+        encoded=value[key]
+        if not isinstance(encoded,str):raise ValueError('Base64 owner input required')
+        decoded=base64.b64decode(encoded,validate=True)
+        if not 0<len(decoded)<=limit or base64.b64encode(decoded).decode()!=encoded:
+            raise ValueError('Bounded canonical base64 owner input required')
+    canonical=json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=True,allow_nan=False).encode()
+    if raw.strip()!=canonical or len(json.dumps(value['request'],sort_keys=True,separators=(',',':')).encode())>2048:
+        raise ValueError('Canonical bounded owner request required')
+    return value
 
 
 def run_signer(args,request,deadline):
@@ -109,7 +139,7 @@ def dispatch(config):
     lease=None
     try:
         request_raw=os.read(request_fd,(4<<20)+1);os.lseek(request_fd,0,os.SEEK_SET)
-        request=c.protocol.decode(request_raw)['request']
+        request=decode_owner_request(request_raw)['request']
         request_sha=hashlib.sha256(json.dumps(request,sort_keys=True,separators=(',',':')).encode()).hexdigest()
         if request_sha!=contract['appControl']['requestSha256']:raise ValueError('Contract request differs')
         c.validate(cfg['clock']);output.mkdir(mode=0o700);c.sync_directory(output.parent)

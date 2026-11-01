@@ -1,0 +1,5 @@
+{
+  "originalFile": "enclave-rpc-owner-provision-1b1442f69d604215849d3150c267024b.service.log",
+  "sha256": "3ed175a15bebc39fc9125bdb332d130f5318f957db247de2b1ff5d14a09065f2",
+  "utf8": "Starting [systemd-run] /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-owner-relay-native-r1/frozen/rpc/server/owner_state.py /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-owner-relay-native-r1/private/provision.json...\nStarted [systemd-run] /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-owner-relay-native-r1/frozen/rpc/server/owner_state.py /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-owner-relay-native-r1/private/provision.json.\n"
+}

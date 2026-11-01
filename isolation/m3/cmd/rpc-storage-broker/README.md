@@ -83,3 +83,9 @@ that becomes the broker (exec preserves identity); passing a connection owned
 by an unrelated long-lived process would monitor that process, not this command,
 and is not a qualified bootstrap topology. This change does not implement that
 bootstrap or supply an independently scheduled guardian.
+
+The owner-side framed endpoint is now maintained in
+[`rpc/server/relay_owner.py`](../../../../rpc/server/relay_owner.py). It matches
+this command's length framing and invokes the actual owner dispatcher inside its
+existing independently bounded unit. The guest/bootstrap cross-host bridge and
+credential delivery are still required; merely opening FD7 is not acceptance.

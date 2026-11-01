@@ -34,7 +34,7 @@ class DispatchTests(unittest.TestCase):
         policy={'export':{'contractSha256':cb['sha256']}};pb=c.write_new(self.root/'policy',c.encode(policy));self.policy=policy
         cfg={'attempt':self.attempt,'clock':self.clock,'contract':cb,'policy':pb,'journal':str(self.journal),'binary':{'path':'/not-executed','sha256':'c'*64},'receipt':str(self.out/'signer-started.json')};cfg['ownerProvision']={'path':str(self.root/'authority.json'),'sha256':'e'*64};self.cfg=cfg
         eb=c.write_new(self.root/'entry',c.encode(cfg))
-        rb=c.write_new(self.root/'request',c.encode({'request':request}))
+        rb=c.write_new(self.root/'request',c.encode({'bundle':'ZHVtbXk=','manifest':'e30=','request':request}))
         paths={str(p) for p in d.HERE.parent.rglob('*.py')}|{'/usr/bin/python3','/usr/bin/systemd-run','/usr/bin/systemctl','/usr/bin/bwrap','/usr/bin/node'}
         self.config={'schema':'enclave-rpc-owner-dispatch/1','entry':eb,'request':rb,'outputParent':str(self.outputs),'pins':{p:hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in paths}}
         self.proof={'schema':'enclave-rpc-storage-consent/2','export':policy['export']}

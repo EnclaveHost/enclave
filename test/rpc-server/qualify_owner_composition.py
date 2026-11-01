@@ -6,7 +6,7 @@ No real chain, storage authority provisioning, remote attestation or RPC clients
 Reserve1664MiB: controller512+wrapper128+dispatcher256+signer128+export384+provisioner128+128.
 """
 from pathlib import Path
-import hashlib,importlib.util,json,os,select,socket,ssl,subprocess,sys,time,uuid
+import hashlib,importlib.util,json,os,select,socket,ssl,struct,subprocess,sys,time,uuid
 SOURCE=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(SOURCE/'rpc/server'))
 import volume_export as v
@@ -28,7 +28,7 @@ def inspect(unit):
     keys='Id,LoadState,MainPID,ActiveState,SubState,InvocationID,ControlGroup,Result,ExecMainStatus,MemoryPeak'
     return dict(x.split('=',1) for x in command(['/usr/bin/systemctl','--user','show',unit,'--property='+keys]).splitlines() if '=' in x)
 
-def main(private,public,observer_config,binary):
+def main(private,public,observer_config,binary,relay=False):
     os.umask(0o077)
     if os.sched_getaffinity(0)!={1}:raise ValueError('CPU1 required')
     private.mkdir(mode=0o700);public.mkdir(mode=0o700);v.directory(private);v.tool_pins()
@@ -118,17 +118,40 @@ def main(private,public,observer_config,binary):
     dispatchpaths=list((SOURCE/'rpc').rglob('*.py'))+[Path('/usr/bin/'+n) for n in ('python3','systemd-run','systemctl','bwrap','node')]
     config={'schema':'enclave-rpc-owner-dispatch/1','entry':eb,'request':{'path':str(authority/'request.json'),'sha256':g.digest(authority/'request.json')},
         'outputParent':str(outputs),'pins':{str(p):g.digest(p) for p in dispatchpaths}}
-    write(private/'dispatch.json',config)
+    dispatchbinding=write(private/'dispatch.json',config)
     props=['Type=exec','RuntimeMaxSec=60','TimeoutStopSec=1','MemoryMax=256M','MemorySwapMax=0','CPUQuota=100%',
         'TasksMax=32','KillMode=control-group','Restart=no','SendSIGKILL=yes','FinalKillSignal=SIGKILL','NoNewPrivileges=yes','LimitCORE=0','UMask=0077',
         'StandardOutput=file:'+str(private/'dispatch.stdout'),'StandardError=file:'+str(private/'dispatch.stderr')]
     args=['/usr/bin/systemd-run','--user','--quiet','--unit='+dispatchunit,*['--property='+p for p in props],'/usr/bin/python3','-B',str(SOURCE/'rpc/server/dispatch_owner.py'),str(private/'dispatch.json')]
+    if relay:
+        write(private/'relay.json',{'schema':'enclave-rpc-owner-relay/1','dispatcher':dispatchbinding})
+        props=[p for p in props if not p.startswith(('StandardOutput=','StandardError='))]
+        args=['/usr/bin/systemd-run','--user','--quiet','--wait','--pipe','--unit='+dispatchunit,*['--property='+p for p in props],
+              '/usr/bin/python3','-B',str(SOURCE/'rpc/server/relay_owner.py'),str(private/'relay.json')]
     write(public/'ATTEMPT.json',{'attempt':attempt,'units':[provisionunit,dispatchunit,signunit,exportunit],'argv':args,'clockSha256':clock['sha256'],
-        'contractSha256':cb['sha256'],'requestSha256':requestsha,'testBinarySha256':g.digest(issuer),'chainMocked':True,'syntheticWindows':True})
+        'contractSha256':cb['sha256'],'requestSha256':requestsha,'testBinarySha256':g.digest(issuer),'chainMocked':True,'syntheticWindows':True,'framedOwnerRelay':relay})
     fds=[];killfd=None;peer=None;settled=False;launched=False
     try:
         for sock in sockets:sock.close()
-        command(args);launched=True
+        launched=True  # Submission uncertainty still requires exact cleanup inspection.
+        if relay:
+            requestwire=c.encode(json.loads((authority/'request.json').read_bytes())).strip()
+            frame=struct.pack('!I',len(requestwire))+requestwire
+            response=subprocess.run(args,input=frame,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=30)
+            (private/'dispatch.stderr').write_bytes(response.stderr)
+            if len(response.stdout)>65540 or len(response.stderr)>65536 or response.returncode!=0:
+                raise ValueError('Framed owner command refused; inspect retained private diagnostic')
+            if len(response.stdout)<4 or struct.unpack('!I',response.stdout[:4])[0]!=len(response.stdout)-4:
+                raise ValueError('Framed owner response differs')
+            relayreply=response.stdout[4:]
+            if relayreply!=(out/'response.json').read_bytes() or relayreply!=c.read(Path(clock['path']).parent/'relay/response.json'):
+                raise ValueError('Wire differs from both durable owner responses')
+            write(public/'RELAY.json',{'inputBytes':len(requestwire),'inputSha256':hashlib.sha256(requestwire).hexdigest(),
+                'responseBytes':len(relayreply),'responseSha256':hashlib.sha256(relayreply).hexdigest(),
+                'exactDurableResponse':True,'actualFramedCommand':True,'rpcReady':False})
+            for name in ('ingress.intent','dispatch.intent','response.json'):
+                write(public/('relay-'+name),json.loads(c.read(Path(clock['path']).parent/'relay'/name)))
+        else:command(args)
         until=time.monotonic()+30
         while not (out/'response.json').exists():
             if inspect(dispatchunit)['ActiveState'] in ('failed','inactive'):raise ValueError('Dispatcher exited before response')
@@ -189,25 +212,27 @@ def main(private,public,observer_config,binary):
         assert all(g.digest(Path(n))==h for n,h in hashes.items())
         assert all(g.digest(Path(n))==h for n,h in pins.items())
         assert json.loads((journal/('proof-'+requestsha)).read_bytes())==proof
-        # Actual provisioned state refuses spliced mappings and changed key
-        # inodes after the one complete execution, without a second signer call.
-        import owner_state as statecheck
         rejected=[]
-        wrong=dict(policy);wrong['l1Volume']='f'*64
-        wrongcontract=json.loads(json.dumps(contract));wrongcontract['roles']['l1']['originals']=contract['roles']['base']['originals']
-        for label,cc,pp in [('wrong-volume',contract,wrong),('wrong-original-chain',wrongcontract,policy)]:
-            try:statecheck.inspect(provision['authority'],cc,pp)
-            except ValueError:rejected.append(label)
-            else:raise AssertionError('Owner state accepted '+label)
-        assert statecheck.inspect(provision['authority'],contract,policy)['journal']==[journal.stat().st_dev,journal.stat().st_ino]
-        seedpath=authority/'l1-seed';seedpath.rename(authority/'retained-original-seed')
-        seedpath.write_bytes(os.urandom(32));seedpath.chmod(0o600)
-        try:statecheck.bind(provision['authority'],contract,policy)
-        except ValueError:rejected.append('replaced-key')
-        else:raise AssertionError('Owner state accepted replacement key')
-        # Original key and all journals remain private and retained. No reset,
-        # re-sign, re-provision or export restart follows this destructive fixture.
-        write(public/'RESULT.json',{'pass':True,'actualCommandCode':True,'chainHTTPMocked':True,'actualDispatcher':True,'actualExports':True,'actualOwnerProvisioning':True,'stateRejections':rejected,
+        if not relay:
+            # Actual provisioned state refuses spliced mappings and changed key
+            # inodes after the one complete execution, without a second signer call.
+            import owner_state as statecheck
+            rejected=[]
+            wrong=dict(policy);wrong['l1Volume']='f'*64
+            wrongcontract=json.loads(json.dumps(contract));wrongcontract['roles']['l1']['originals']=contract['roles']['base']['originals']
+            for label,cc,pp in [('wrong-volume',contract,wrong),('wrong-original-chain',wrongcontract,policy)]:
+                try:statecheck.inspect(provision['authority'],cc,pp)
+                except ValueError:rejected.append(label)
+                else:raise AssertionError('Owner state accepted '+label)
+            assert statecheck.inspect(provision['authority'],contract,policy)['journal']==[journal.stat().st_dev,journal.stat().st_ino]
+            seedpath=authority/'l1-seed';seedpath.rename(authority/'retained-original-seed')
+            seedpath.write_bytes(os.urandom(32));seedpath.chmod(0o600)
+            try:statecheck.bind(provision['authority'],contract,policy)
+            except ValueError:rejected.append('replaced-key')
+            else:raise AssertionError('Owner state accepted replacement key')
+            # Original key and all journals remain private and retained. No reset,
+            # re-sign, re-provision or export restart follows this destructive fixture.
+        write(public/'RESULT.json',{'pass':True,'actualCommandCode':True,'chainHTTPMocked':True,'actualDispatcher':True,'actualExports':True,'actualOwnerProvisioning':True,'actualFramedRelay':relay,'stateRejections':rejected,
             'exactHeldProcessesExited':True,'secondsAfterControlLoss':elapsed,'journalRecordsRetained':sorted(p.name for p in journal.iterdir()),
             'originalHashesUnchanged':True,'sourcePinsUnchanged':True,'rpcReady':False,'reservationMayRelease':False})
         settled=True
@@ -242,4 +267,7 @@ def main(private,public,observer_config,binary):
                 if (private/name).exists():(public/name).write_bytes((private/name).read_bytes()[:65536])
     print(json.dumps({'pass':True,'chainMocked':True,'productionRPC':False}),flush=True)
 
-if __name__=='__main__':main(*(Path(x).resolve() for x in sys.argv[1:]))
+if __name__=='__main__':
+    args=sys.argv[1:];relay=args[:1]==['--relay']
+    if relay:args=args[1:]
+    main(*(Path(x).resolve() for x in args),relay=relay)
