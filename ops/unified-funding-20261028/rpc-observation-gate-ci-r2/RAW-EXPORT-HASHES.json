@@ -1,0 +1,190 @@
+[
+  {
+    "path": "definition-ARTIFACT.json",
+    "sha256": "f27e22a66bbe8d1ce125f51ad08986e88e9dac1c97798ca88c2314430795c6f7"
+  },
+  {
+    "path": "startup-RUN.json",
+    "sha256": "e3f04c451fb1cef676097ef0e03b331ba54c53b580051c69067135185112a459"
+  },
+  {
+    "path": "ADMISSION.json",
+    "sha256": "45cbf84c901deb40e70f4c2572b0629b3bf4fd165184fbd005fe75e051d82f60"
+  },
+  {
+    "path": "VERIFIED.json",
+    "sha256": "ca374dcc804236b711f07bd4959f749ef5055c31388ae96fe29d8d50c0161adf"
+  },
+  {
+    "path": "rpc-owned-definition-DISPATCH.json",
+    "sha256": "56484ee27c797bc8bba29f11cfbc4631c44943a43c675af033d5cd884bb86e3a"
+  },
+  {
+    "path": "COLLECT-ADMISSION.json",
+    "sha256": "89c0bb317384c8fdfd28a03637dfb6fc109d500c933f394444bfe310e244422f"
+  },
+  {
+    "path": "startup-ARTIFACT.json",
+    "sha256": "35b0dc46e98cad12c4cac706eae6dcc9fae9e04465cc46a8ecff83cebf55009e"
+  },
+  {
+    "path": "rpc-startup-controller-PRIOR.json",
+    "sha256": "1fde9342b4d2a091cd91d56e4b4038b41ad3481a2071f72c70511ff136fd3d37"
+  },
+  {
+    "path": "COLLECT-COMMAND.json",
+    "sha256": "1f95b4b0608d8c8cb61ce6e788f2004861a47a9efac832d70a2ceff03fa7061c"
+  },
+  {
+    "path": "rpc-owned-definition-PRIOR.json",
+    "sha256": "f6dd4ff21d757ec7be0474ee712b8e94441455653b34196a55185859b837301f"
+  },
+  {
+    "path": "rpc-startup-controller-INTENT.json",
+    "sha256": "7e0f55486102c31df0e9413a6e110b2883663056d72e7278c08b538343e67fb2"
+  },
+  {
+    "path": "rpc-startup-controller-DISPATCH.json",
+    "sha256": "d5a1ea1dfd213eab101cb81f242bd0af1d1894a103743806c0146d2f20b6fd02"
+  },
+  {
+    "path": "rpc-owned-definition-INTENT.json",
+    "sha256": "f799fb1a8ab8e1d46ff2e56c02b638cff8ada27e1393b3ac014958c1854e9c26"
+  },
+  {
+    "path": "COMMAND.json",
+    "sha256": "8b0ae343c4bb08888ae211da851e903e59433ebc30ff04ad1a815dc8055d5ed0"
+  },
+  {
+    "path": "definition-RUN.json",
+    "sha256": "d3ebc25809e46deb0004a6222f18561a8df748ec0d9ef24019f721901a5e1b75"
+  },
+  {
+    "path": "ROOT-RESULT.md",
+    "sha256": "e8c8467b03d8cd4035d2b75e9a44e9302314bbf676f90bac0e29b7d723895f5d"
+  },
+  {
+    "path": "startup-download/target-compile.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "startup-download/startup-compile.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "startup-download/inert.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "startup-download/startup-compile.out",
+    "sha256": "b93f53b25e654b42795791c58cac9da9b95b82fd353b49859d16eee02f2fc063"
+  },
+  {
+    "path": "startup-download/publication.json",
+    "sha256": "bfb37330c1a2940b32c08faac8f8912d07b67f517baa17c199e97b7187df464f"
+  },
+  {
+    "path": "startup-download/process-results.json",
+    "sha256": "93810da98244a64689d7dd34624b4681c7489cab4d6ac8012fb264776cdaa584"
+  },
+  {
+    "path": "startup-download/controller-compile.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "startup-download/target-artifact.json",
+    "sha256": "ae4189743d0898a57930aa0a5fe3f824026e8f3f41ef17a7ef1b16ce60be8c5a"
+  },
+  {
+    "path": "startup-download/pins.json",
+    "sha256": "ca6d00964d50135b61ffdf3daa8c3a4ba20da91a52950858973fdca314d644c8"
+  },
+  {
+    "path": "startup-download/entry-compile.out",
+    "sha256": "b93f53b25e654b42795791c58cac9da9b95b82fd353b49859d16eee02f2fc063"
+  },
+  {
+    "path": "startup-download/entry-artifact.json",
+    "sha256": "d28485cbc69b39b649d9865fd9c94f4dcf927e39577b4513194bab8be08cf071"
+  },
+  {
+    "path": "startup-download/startup-artifact.json",
+    "sha256": "6878e8887b03bb06cb8cc3cc76abd065a6712c8bf611200dda59d09bf56b4b18"
+  },
+  {
+    "path": "startup-download/inert.out",
+    "sha256": "2b654138e77e0c75274bde1850f29a44ad1642aef66e1746a28384e76ed1339e"
+  },
+  {
+    "path": "startup-download/controller-artifact.json",
+    "sha256": "ea7cdef817c10cc8322d114514a0a712b88e60d70af562f87b4a22d328db42df"
+  },
+  {
+    "path": "startup-download/entry-compile.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "startup-download/controller-compile.out",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "startup-download/target-compile.out",
+    "sha256": "b93f53b25e654b42795791c58cac9da9b95b82fd353b49859d16eee02f2fc063"
+  },
+  {
+    "path": "definition-download/target-compile.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "definition-download/inert.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "definition-download/publication.json",
+    "sha256": "38fadfc3ea8cb87a85bb77b911f808c7b4f9ccdb112d5129343a7bebfacdd3be"
+  },
+  {
+    "path": "definition-download/process-results.json",
+    "sha256": "a80ca88c3acb97b40cbbd7ab1ad0b4d84aa85f1f8872ab11617658751de7c0a8"
+  },
+  {
+    "path": "definition-download/controller-compile.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "definition-download/target-artifact.json",
+    "sha256": "0c563af9ffe093c1dbda692019f8427479194d72e93b313f0b633f4f4cb7caa0"
+  },
+  {
+    "path": "definition-download/pins.json",
+    "sha256": "9a2f57e938c19f252e43651e84ece5f6d0196a6dfb0b8ad6e4b0580a24c6a523"
+  },
+  {
+    "path": "definition-download/entry-compile.out",
+    "sha256": "0c8385cb74dbfe14cb8cc1ebd5925b1646c242f4bdfcec233952e2beba8c926b"
+  },
+  {
+    "path": "definition-download/entry-artifact.json",
+    "sha256": "dd016233938a062510f7e1be9e8f92c7f9f309e8e8e8485a11db9512778c3d56"
+  },
+  {
+    "path": "definition-download/inert.out",
+    "sha256": "a165fd2454c988d383b6d9ffc23e782618bdb6e3bc65a01abaa5aa6769fe5130"
+  },
+  {
+    "path": "definition-download/controller-artifact.json",
+    "sha256": "2892856bfed8204494dea2fedab53f438d96f31a67c7c6b116185482c57e4ffb"
+  },
+  {
+    "path": "definition-download/entry-compile.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "definition-download/controller-compile.out",
+    "sha256": "0c8385cb74dbfe14cb8cc1ebd5925b1646c242f4bdfcec233952e2beba8c926b"
+  },
+  {
+    "path": "definition-download/target-compile.out",
+    "sha256": "0c8385cb74dbfe14cb8cc1ebd5925b1646c242f4bdfcec233952e2beba8c926b"
+  }
+]
