@@ -345,3 +345,39 @@ touching the protected broker namespace. `Acquire` remains a convenience wrapper
 that creates its own request; the dedicated monitor uses the pre-attested request.
 Bootstrap evidence and owner verification are described in
 `../rpcbootstrap/README.md`; neither bypasses owner authorization or grants roots.
+
+
+## Explicit off-chain continuation (source integration only)
+
+`bootstrap.RPCContinuationChain` verifies canonical, at-most-2048-byte permits
+signed by both existing owner-selected volume authorities. Each permit lasts at
+most 30 seconds, binds the exact original export proof and all its request,
+owner, runtime, chain, ledger, envelope, endpoint, certificate and writer-epoch
+bindings, and advances one sequence linked to the preceding signed proof.
+Serving requires a pinned observation digest and cannot return to startup or
+substitute another adoption digest. A digest alone does not prove readiness.
+
+Each accepted expiry uses one initial wall-to-monotonic mapping. Re-reading a
+frozen clock cannot extend the same expiry. Clock rollback, expired prior consent,
+replay, signature failure or authority loss permanently closes the chain. The
+original acquisition consent is immutable. The caller must serialize authority
+revalidation and retain the original journal; a new object is not restart or
+replay authority. Existing legacy authorization still limits these permits;
+this does not renew a lease or implement the replacement event-driven ledger.
+
+`BrokerSession.ApplyStartupContinuation` consumes and fsyncs a deterministic
+sequence intent in the same protected boot journal before verification, then
+persists the exact accepted proof before changing its authorization expiry.
+Failures retain intent and close the session. Its independent watcher continues
+through persistence and the original startup deadline remains unchanged. Even
+a correctly signed serving permit is refused at this broker API: complete
+persistent-serving handoff is not implemented. No writable grant, export dial,
+client start, reconnect or reservation release occurs here.
+
+This API is not yet connected to a production signing actor or transport. The
+original owner issuer clears its signing keys after its one-shot startup proof;
+a separate properly authorized, journaled continuation producer is still needed.
+Neither snapshot refresh nor a healthy HTTP response can manufacture a permit.
+No periodic on-chain transaction is introduced. Guest C/Go entry, service,
+storage and Windows keepers still require a coordinated serving transition
+before the immutable original 900-second deadline. The RPC remains offline.

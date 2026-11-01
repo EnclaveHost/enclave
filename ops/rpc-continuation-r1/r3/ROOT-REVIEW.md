@@ -1,0 +1,1 @@
+Remove unused bootstrap import caught by R2 compiler. Only previously unexecuted broker tests run; no bootstrap replay. Complete313-pin source/fixture snapshot. Same read-only source/modules/private output/cache/user namespace network isolation and512hard450RSSCPU1noSwap150outer120child5stop/fresh27648+pending+640. No production action or cap/floor/deadline relaxation.

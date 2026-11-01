@@ -1,0 +1,6 @@
+{"ImportPath":"enclave.host/isolation/m3/rpcstorage [enclave.host/isolation/m3/rpcstorage.test]","Action":"build-output","Output":"# enclave.host/isolation/m3/rpcstorage [enclave.host/isolation/m3/rpcstorage.test]\n"}
+{"ImportPath":"enclave.host/isolation/m3/rpcstorage [enclave.host/isolation/m3/rpcstorage.test]","Action":"build-output","Output":"rpcstorage/continuation_linux_amd64.go:14:2: \"enclave.host/isolation/m2/bootstrap\" imported and not used\n"}
+{"ImportPath":"enclave.host/isolation/m3/rpcstorage [enclave.host/isolation/m3/rpcstorage.test]","Action":"build-fail"}
+{"Time":"2026-11-01T14:50:19.336697502-07:00","Action":"start","Package":"enclave.host/isolation/m3/rpcstorage"}
+{"Time":"2026-11-01T14:50:19.336783301-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcstorage","Output":"FAIL\tenclave.host/isolation/m3/rpcstorage [build failed]\n","OutputType":"frame"}
+{"Time":"2026-11-01T14:50:19.336801861-07:00","Action":"fail","Package":"enclave.host/isolation/m3/rpcstorage","Elapsed":0,"FailedBuild":"enclave.host/isolation/m3/rpcstorage [enclave.host/isolation/m3/rpcstorage.test]"}

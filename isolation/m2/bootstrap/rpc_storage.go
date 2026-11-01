@@ -108,6 +108,7 @@ type RPCStorageConsent struct {
 	l1Epoch, baseEpoch string
 	export             *RPCExportBinding
 	notAfter           time.Time
+	proofSHA256        string // exact originally verified signed response, for explicit off-chain continuation
 }
 
 // NotAfter is the immutable original authorization limit. Revalidating a legacy
@@ -271,12 +272,8 @@ func (a *Authorization) VerifyRPCStorage(bundle []byte, r contract.RPCStorageReq
 	if !a.current() {
 		return nil, errors.New("storage authorization expired during verification")
 	}
-	expires := int64(a.snapshot.row.leaseUntil)
-	// current() accepts the entire final second of the snapshot freshness bound.
-	if fresh := int64(a.snapshot.timestamp) + int64(a.reader.maxAge.Seconds()) + 1; fresh < expires {
-		expires = fresh
-	}
-	return &RPCStorageConsent{authorization: a, request: r, l1Epoch: proof.L1.WriterEpoch, baseEpoch: proof.Base.WriterEpoch, export: proof.Export, notAfter: time.Unix(expires, 0)}, nil
+	proofHash := sha256.Sum256(raw)
+	return &RPCStorageConsent{authorization: a, request: r, l1Epoch: proof.L1.WriterEpoch, baseEpoch: proof.Base.WriterEpoch, export: proof.Export, notAfter: rpcAuthorizationExpiry(a), proofSHA256: hex.EncodeToString(proofHash[:])}, nil
 }
 
 // RPCExportSigningPayloads extends, rather than weakens, all original consent

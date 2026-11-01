@@ -1,0 +1,1 @@
+Actual ba8ff2a96a294f319b7c0a941b074eb4 terminal1/Main0/emptycgroup. Existing policy vector regression13PASS (one parent plus12 vector cases). Broker compiler refused an unused bootstrap import before any broker test ran. All313 frozen/current pins matched before correction. Remove only unused import; no bootstrap replay. Failure retained.

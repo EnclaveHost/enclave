@@ -53,6 +53,9 @@ type BrokerSession struct {
 	exportRaw            net.Conn
 	authorizationUntil   time.Time
 	once                 sync.Once
+	continuationMu       sync.Mutex // never held by the independent session watcher
+	continuation         *bootstrap.RPCContinuationChain
+	continuationSequence uint64
 }
 
 func (s *BrokerSession) Request() Request         { return s.request }
