@@ -437,7 +437,7 @@ namespace Enclave.OwnedRpc {
   internal static string Reference(NativeRpcDevice d){
    if(d==null||d.Reference==null||d.Reference.Length>2048||d.Class==null||!Regex.IsMatch(d.Class,"\\AMsvm_[A-Za-z]+SettingData\\z"))throw new InvalidOperationException("Device reference bound/class");
    var p=new ManagementPath(d.Reference);
-   if(!p.IsInstance||p.Server!=""||p.NamespacePath!=""||p.ClassName!=d.Class||p.RelativePath!=d.Reference||!Regex.IsMatch(d.Reference,"\\A"+d.Class+"\\.InstanceID=\"(?:[^\"\\\\\\r\\n]|\\\\[\\\\\"]){1,1024}\"\\z"))throw new InvalidOperationException("Exact relative device instance required");return d.Reference;
+   if(!p.IsInstance||!Regex.IsMatch(d.Reference,"\\A"+d.Class+"\\.InstanceID=\"(?:[^\"\\\\\\r\\n]|\\\\[\\\\\"]){1,1024}\"\\z"))throw new InvalidOperationException("Exact relative device instance required");return d.Reference;
   }
   internal static string Validate(NativeRpcDefinitionPlan p,IDictionary<string,string> optical,IList<NativeRpcDevice> rows){
    if(rows==null||rows.Count<7||rows.Count>10||optical==null||optical.Count!=5)throw new InvalidOperationException("Closed native device count");

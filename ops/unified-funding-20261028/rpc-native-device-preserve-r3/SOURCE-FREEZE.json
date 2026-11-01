@@ -1,0 +1,4 @@
+{
+  "windows/rpc/NativeRpcDefinition.cs": "4b0c489e90cdf26c00f34a384ee4a150b3e22673a7cfdeabe1b18f01f71461a3",
+  "test/rpc-windows-worker/NativeRpcDeviceHarness.cs": "ba3a16d56cbc503e7a70e88c1137ac28536025bb1970fad02170fd05cb0f1b42"
+}

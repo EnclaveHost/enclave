@@ -1,0 +1,45 @@
+{
+  "total_count": 2,
+  "artifacts": [
+    {
+      "id": 13095256990,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA5NTI1Njk5MA==",
+      "name": "rpc-native-device-exact-source",
+      "size_in_bytes": 116424,
+      "url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13095256990",
+      "archive_download_url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13095256990/zip",
+      "expired": false,
+      "digest": "sha256:053bee363608518cc459ce0874eff042d309ad2a9c177b63cb60b26f3d2fc978",
+      "created_at": "2026-11-01T18:11:59Z",
+      "updated_at": "2026-11-01T18:11:59Z",
+      "expires_at": "2026-11-08T18:11:58Z",
+      "workflow_run": {
+        "id": 41335349339,
+        "repository_id": 1428203917,
+        "head_repository_id": 1428203917,
+        "head_branch": "main",
+        "head_sha": "5490daf1e531e62baf1e68a6d08fbf28d2140b92"
+      }
+    },
+    {
+      "id": 13094813420,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA5NDgxMzQyMA==",
+      "name": "rpc-native-device-results",
+      "size_in_bytes": 97108,
+      "url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13094813420",
+      "archive_download_url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13094813420/zip",
+      "expired": false,
+      "digest": "sha256:d614df0a5e0c83250ce317a5440c6795dac54b0af770d3b2e3c87f67eb4e1ef9",
+      "created_at": "2026-11-01T18:12:16Z",
+      "updated_at": "2026-11-01T18:12:16Z",
+      "expires_at": "2026-11-08T18:12:16Z",
+      "workflow_run": {
+        "id": 41335349339,
+        "repository_id": 1428203917,
+        "head_repository_id": 1428203917,
+        "head_branch": "main",
+        "head_sha": "5490daf1e531e62baf1e68a6d08fbf28d2140b92"
+      }
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+{
+  "sha256": "b61d947caaedd4f6d6593a03a8fefb737391fd90407dff03dc0d89ea863fb568",
+  "text": "System.InvalidOperationException: Exact relative device instance required\r\n   at Enclave.OwnedRpc.NativeRpcDevicePolicy.Reference(NativeRpcDevice d)\r\n   at Enclave.OwnedRpc.NativeRpcDevicePolicy.Validate(NativeRpcDefinitionPlan p, IDictionary`2 optical, IList`1 rows)\r\n   at Enclave.OwnedRpc.NativeRpcDevicePolicy.Observe(NativeRpcDefinitionPlan p, IStartJournal j, INativeRpcDeviceProvider provider, INativeRpcDefinitionRuntime runtime)\r\n   at NativeRpcDeviceHarness.<>c.<Main>b__34_1()\r\n   at NativeRpcDeviceHarness.Test(String name, Action f)\r\n   at NativeRpcDeviceHarness.Main(String[] args)\r\n"
+}

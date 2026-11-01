@@ -1,0 +1,8 @@
+[
+  "windows/rpc/NativeRpcDefinition.cs",
+  "test/rpc-windows-worker/NativeRpcDeviceHarness.cs",
+  "ops/unified-funding-20261028/rpc-native-device-ci-r2",
+  "ops/unified-funding-20261028/rpc-native-device-preserve-r2",
+  "ops/unified-funding-20261028/rpc-native-device-preserve-r3",
+  "ops/unified-funding-20261028/rpc-native-device-ci-r3"
+]
