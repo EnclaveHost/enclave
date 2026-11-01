@@ -1,0 +1,74 @@
+{
+  "capturedAt": "2026-11-01T03:46:25.459Z",
+  "readOnly": true,
+  "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+  "ledger": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B",
+  "reserve": "0x12A3f873041Dec436DaA0085B766a399A6fA3639",
+  "rpcs": [
+    "https://base-rpc.publicnode.com",
+    "https://mainnet.base.org",
+    "https://base.drpc.org"
+  ],
+  "signatures": false,
+  "submissions": false,
+  "finalityProven": false,
+  "chain": {
+    "value": {
+      "timestamp": "1793504781",
+      "deployment": {
+        "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+        "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+        "active": true,
+        "runner": "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a",
+        "runnerOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0",
+        "leaseUntil": "1793503943",
+        "leaseLive": false,
+        "rate": "0",
+        "computeBalance6": "250010",
+        "spent6": "1499990"
+      },
+      "reserve": {
+        "balanceWei": "188494022482007",
+        "maxPerOpWei": "31092172031561",
+        "epochCapWei": "310921720315610",
+        "enabled": true,
+        "claimPolicy": 1,
+        "sponsorRelease": true,
+        "renewWindow": 300,
+        "minExtension": 600,
+        "claimCooldown": 1800,
+        "epochSec": 3600,
+        "maxGasPrice": "50000000",
+        "maxClaimsPerEpoch": 4,
+        "epochIndex": 498195,
+        "epochSpentWei": "1448902652812",
+        "epochClaims": 0,
+        "lastClaimAt": "1793486695",
+        "lastClaimOperator": "0x1A01194c34Fe3577C6d0a54feB78af6253e494e0"
+      },
+      "ledgerCodeBytes": 24368,
+      "reserveCodeBytes": 13204
+    },
+    "blockNumber": "53357717",
+    "blockHash": "0x4101d773a7f03323a83ba59550fc2b53d03934a039b3465c14baddebe24e9e2c",
+    "timestamp": 1793504781000,
+    "agreeing": 2,
+    "peers": 3,
+    "failures": [
+      "base-rpc.publicnode.com: HTTP request failed."
+    ]
+  },
+  "api": {
+    "status": 200,
+    "deployment": {
+      "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "status": "queued",
+      "onchain": {
+        "contract": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B",
+        "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+        "leaseUntil": "2026-11-01T03:32:23.000Z"
+      },
+      "ledger": true
+    }
+  }
+}

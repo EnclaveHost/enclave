@@ -1204,7 +1204,9 @@ unavailable channels and source-order inference cannot settle a lost response;
 even a returned event requires exact operation/ownership correlation. Its output
 always retains providerSettled=false and reservationMayRelease=false.
 The corrected two-channel reader passed18 hosted checks on source6e4dde3f.
-Its target staging was refused when fresh inventory had three original VMs
-instead of four; it has not run on target. The earlier WMI empty result supplies
-no settlement evidence. See `rpc-provider-events-target-result-r2` for exact
-process, source, artifact and inventory receipts.
+Initial target staging refused a changed application inventory. After a
+quorum-backed lease-expiry diagnosis and a read-only admission review, the
+corrected reader ran on NucBox: both enabled channels returned zero events for
+the original worker's30-second window. Its exact process death was independently
+verified. This supplies no original provider settlement or permission to retry.
+See `rpc-provider-events-target-result-r3` for the evidence and limits.

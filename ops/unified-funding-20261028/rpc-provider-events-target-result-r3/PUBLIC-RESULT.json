@@ -1,0 +1,79 @@
+{
+  "runtimeSource": "6e4dde3faea18cc6b1c39ba208ff13db41a3f2c9",
+  "executionInvocation": "97309846f19c4edb87096c7fedda3168",
+  "reader": {
+    "schema": "owned-rpc-event-reader-entered/1",
+    "nonce": "6ea65094367840ae951dc6c05d04fbed",
+    "origin": 760823269,
+    "deadline": 760828269,
+    "pid": 57124,
+    "creationFileTime": 134379785851125660,
+    "jobCommitLimitBytes": 134217728,
+    "bootstrapPrivateBytes": 13197312,
+    "coversPreAssignmentMemory": false
+  },
+  "historicalSelection": {
+    "clientPid": 52036,
+    "clientCreationFileTime": 134379673676501979,
+    "endFileTime": 134379673976501979,
+    "vmAttempt": "7a8586db00c64f6f8ab024ae134fe641",
+    "boot": "1a04e76600e411f1a395e342df676a80"
+  },
+  "channels": [
+    {
+      "Channel": "Microsoft-Windows-WMI-Activity/Operational",
+      "State": "query-ended",
+      "ErrorType": null,
+      "ErrorHResult": 0,
+      "Enabled": true,
+      "RecordCount": 1645,
+      "OldestRecord": 87793,
+      "Records": []
+    },
+    {
+      "Channel": "Microsoft-Windows-Hyper-V-VMMS-Admin",
+      "State": "query-ended",
+      "ErrorType": null,
+      "ErrorHResult": 0,
+      "Enabled": true,
+      "RecordCount": 1763,
+      "OldestRecord": 7439,
+      "Records": []
+    }
+  ],
+  "exactDeathReadInvocation": "ffa92218862e45049dabf753e00909ad",
+  "exactReaderDeaths": [
+    {
+      "label": "event-reader",
+      "expectedCreation": "134379785851125660",
+      "pid": 57124,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "admission",
+      "expectedCreation": "134379785223518520",
+      "pid": 48564,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "create",
+      "expectedCreation": "134379785457282857",
+      "pid": 31032,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "verify",
+      "expectedCreation": "134379785702393029",
+      "pid": 42196,
+      "sameIncarnationAlive": false,
+      "absent": true
+    }
+  ],
+  "remainingVmsUnchanged": true,
+  "originalJournalsUnchanged": true,
+  "providerSettled": false,
+  "reservationMayRelease": false
+}
