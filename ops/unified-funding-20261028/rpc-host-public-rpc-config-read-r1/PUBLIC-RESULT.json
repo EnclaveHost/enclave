@@ -1,0 +1,109 @@
+{
+  "at": 1793505158.6595638,
+  "readOnly": true,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 614,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "success": true,
+    "processId": 53040,
+    "creationFileTime": "134379787581452161",
+    "before": [
+      {
+        "pid": 38076,
+        "alive": true,
+        "creation": "134375086385617521"
+      },
+      {
+        "pid": 41272,
+        "alive": true,
+        "creation": "134375630850989593"
+      },
+      {
+        "pid": 40360,
+        "alive": true,
+        "creation": "134375630828500376"
+      },
+      {
+        "pid": 41308,
+        "alive": true,
+        "creation": "134375617394407059"
+      }
+    ],
+    "after": [
+      {
+        "pid": 38076,
+        "alive": true,
+        "creation": "134375086385617521"
+      },
+      {
+        "pid": 41272,
+        "alive": true,
+        "creation": "134375630850989593"
+      },
+      {
+        "pid": 40360,
+        "alive": true,
+        "creation": "134375630828500376"
+      },
+      {
+        "pid": 41308,
+        "alive": true,
+        "creation": "134375617394407059"
+      }
+    ],
+    "freeBytes": 88342528000,
+    "data": {
+      "at": "2026-11-01T03:52:38.550Z",
+      "readOnly": true,
+      "processEnvironmentRead": false,
+      "configuration": [
+        {
+          "file": "C:/ProgramData/Enclave/node-config.cmd",
+          "bytes": 2141,
+          "modified": "2026-10-26T20:17:42.129Z",
+          "selected": []
+        },
+        {
+          "file": "C:/ProgramData/Enclave/node-config.local.cmd",
+          "bytes": 1028,
+          "modified": "2026-10-23T10:09:28.112Z",
+          "selected": []
+        },
+        {
+          "file": "C:/ProgramData/Enclave/run-node.cmd",
+          "bytes": 1300,
+          "modified": "2026-10-27T07:59:28.000Z",
+          "selected": []
+        }
+      ],
+      "sources": [
+        {
+          "name": "agent.mjs",
+          "bytes": 93212,
+          "sha256": "a41ca4cd59252d6a00648fda88232e97fe92049c8142dc1bf7910ae38ecae1a4"
+        },
+        {
+          "name": "host.mjs",
+          "bytes": 319366,
+          "sha256": "dde60f6ed2f53121692f94201c98e7819f3a293e5ca606e6a9ec4b39b76fab24"
+        },
+        {
+          "name": "chain.mjs",
+          "bytes": 60398,
+          "sha256": "b257fcf64e7e0f44738b84a35f32237a03e62034b74b0dc0c9ff276a49ab9225"
+        },
+        {
+          "name": "lease-gas-runtime.bundle.mjs",
+          "bytes": 342304,
+          "sha256": "159108d171e49cadf8a75dc8081df9e7213257e6f7930ac8b0f4f6e6e43b829d"
+        }
+      ],
+      "endpoints": []
+    },
+    "readOnly": true,
+    "noRetry": true
+  }
+}

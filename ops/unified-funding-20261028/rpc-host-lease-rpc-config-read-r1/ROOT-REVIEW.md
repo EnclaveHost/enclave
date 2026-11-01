@@ -1,0 +1,1 @@
+Exact lease-gas-config.cmd discovered in selected public include statement from node-config.local.cmd. Read only knownpublicRPC/quorum/authority assignments; nokeys/privateenv or otherconfiguration values. PublicrootHTTPS only readchainId/blockNumber, fixedbounds unchanged; no repeatedgeneralendpointtest or installedsourcehash. No payment/restart/edit.

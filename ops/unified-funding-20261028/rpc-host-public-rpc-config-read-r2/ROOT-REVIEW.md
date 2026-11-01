@@ -1,0 +1,1 @@
+r1 observed no selectedsettings, didnotqueryRPC. r2 recognizesUTF16LE and reports only knownpublicsetting presence/quotedCMD include paths/max8 perfile; no privateenv/values. Adds documented BASE_RPCS to public selection. Samefixed3files/sourcehashes/finiteHEADreadmethods/bounds. Doesnotexecuteinclude files or treatconfig as liveenvironment.

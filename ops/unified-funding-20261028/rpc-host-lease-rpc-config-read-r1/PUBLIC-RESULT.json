@@ -1,0 +1,187 @@
+{
+  "at": 1793505275.7106996,
+  "readOnly": true,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 614,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "success": true,
+    "processId": 28664,
+    "creationFileTime": "134379788749167013",
+    "before": [
+      {
+        "pid": 38076,
+        "alive": true,
+        "creation": "134375086385617521"
+      },
+      {
+        "pid": 41272,
+        "alive": true,
+        "creation": "134375630850989593"
+      },
+      {
+        "pid": 40360,
+        "alive": true,
+        "creation": "134375630828500376"
+      },
+      {
+        "pid": 41308,
+        "alive": true,
+        "creation": "134375617394407059"
+      }
+    ],
+    "after": [
+      {
+        "pid": 38076,
+        "alive": true,
+        "creation": "134375086385617521"
+      },
+      {
+        "pid": 41272,
+        "alive": true,
+        "creation": "134375630850989593"
+      },
+      {
+        "pid": 40360,
+        "alive": true,
+        "creation": "134375630828500376"
+      },
+      {
+        "pid": 41308,
+        "alive": true,
+        "creation": "134375617394407059"
+      }
+    ],
+    "freeBytes": 88094388224,
+    "data": {
+      "at": "2026-11-01T03:54:35.369Z",
+      "readOnly": true,
+      "processEnvironmentRead": false,
+      "configuration": [
+        {
+          "file": "C:/ProgramData/Enclave/lease-gas/lease-gas-config.cmd",
+          "bytes": 1102,
+          "modified": "2026-10-21T07:00:00.000Z",
+          "selected": [
+            {
+              "key": "ENCLAVE_LEASE_GAS_RPCS",
+              "endpoints": [
+                {
+                  "origin": "https://base-rpc.publicnode.com",
+                  "publicRoot": true,
+                  "pathHash": "8a5edab282632443219e051e4ade2d1d5bbc671c781051bf1437897cbdfea0f1"
+                },
+                {
+                  "origin": "https://mainnet.base.org",
+                  "publicRoot": true,
+                  "pathHash": "8a5edab282632443219e051e4ade2d1d5bbc671c781051bf1437897cbdfea0f1"
+                },
+                {
+                  "origin": "https://base-mainnet.public.blastapi.io",
+                  "publicRoot": true,
+                  "pathHash": "8a5edab282632443219e051e4ade2d1d5bbc671c781051bf1437897cbdfea0f1"
+                }
+              ]
+            },
+            {
+              "key": "ENCLAVE_LEASE_GAS_QUORUM",
+              "value": "2"
+            },
+            {
+              "key": "LEASE_GAS_RPCS",
+              "endpoints": [
+                {
+                  "origin": "https://base-rpc.publicnode.com",
+                  "publicRoot": true,
+                  "pathHash": "8a5edab282632443219e051e4ade2d1d5bbc671c781051bf1437897cbdfea0f1"
+                },
+                {
+                  "origin": "https://mainnet.base.org",
+                  "publicRoot": true,
+                  "pathHash": "8a5edab282632443219e051e4ade2d1d5bbc671c781051bf1437897cbdfea0f1"
+                },
+                {
+                  "origin": "https://base-mainnet.public.blastapi.io",
+                  "publicRoot": true,
+                  "pathHash": "8a5edab282632443219e051e4ade2d1d5bbc671c781051bf1437897cbdfea0f1"
+                }
+              ]
+            },
+            {
+              "key": "LEASE_GAS_QUORUM",
+              "value": "2"
+            }
+          ],
+          "calls": [],
+          "present": [
+            "ENCLAVE_LEASE_GAS_RPCS",
+            "LEASE_GAS_RPCS",
+            "ENCLAVE_LEASE_GAS_QUORUM",
+            "LEASE_GAS_QUORUM"
+          ],
+          "encoding": "utf8"
+        }
+      ],
+      "sources": [],
+      "endpoints": [
+        {
+          "origin": "https://base-rpc.publicnode.com",
+          "results": [
+            {
+              "method": "eth_chainId",
+              "status": 429,
+              "elapsedMs": 128
+            },
+            {
+              "method": "eth_blockNumber",
+              "status": 429,
+              "elapsedMs": 105
+            }
+          ]
+        },
+        {
+          "origin": "https://mainnet.base.org",
+          "results": [
+            {
+              "method": "eth_chainId",
+              "status": 200,
+              "result": "0x2105",
+              "errorCode": null,
+              "elapsedMs": 157
+            },
+            {
+              "method": "eth_blockNumber",
+              "status": 200,
+              "result": "0x32e2d8c",
+              "errorCode": null,
+              "elapsedMs": 162
+            }
+          ]
+        },
+        {
+          "origin": "https://base-mainnet.public.blastapi.io",
+          "results": [
+            {
+              "method": "eth_chainId",
+              "status": 200,
+              "result": "0x2105",
+              "errorCode": null,
+              "elapsedMs": 183
+            },
+            {
+              "method": "eth_blockNumber",
+              "status": 200,
+              "result": "0x32e2d8c",
+              "errorCode": null,
+              "elapsedMs": 178
+            }
+          ]
+        }
+      ]
+    },
+    "readOnly": true,
+    "noRetry": true
+  }
+}

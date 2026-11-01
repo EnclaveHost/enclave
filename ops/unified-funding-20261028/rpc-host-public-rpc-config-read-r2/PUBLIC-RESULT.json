@@ -1,0 +1,285 @@
+{
+  "at": 1793505216.1644406,
+  "readOnly": true,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 614,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "success": true,
+    "processId": 8140,
+    "creationFileTime": "134379788150808991",
+    "before": [
+      {
+        "pid": 38076,
+        "alive": true,
+        "creation": "134375086385617521"
+      },
+      {
+        "pid": 41272,
+        "alive": true,
+        "creation": "134375630850989593"
+      },
+      {
+        "pid": 40360,
+        "alive": true,
+        "creation": "134375630828500376"
+      },
+      {
+        "pid": 41308,
+        "alive": true,
+        "creation": "134375617394407059"
+      }
+    ],
+    "after": [
+      {
+        "pid": 38076,
+        "alive": true,
+        "creation": "134375086385617521"
+      },
+      {
+        "pid": 41272,
+        "alive": true,
+        "creation": "134375630850989593"
+      },
+      {
+        "pid": 40360,
+        "alive": true,
+        "creation": "134375630828500376"
+      },
+      {
+        "pid": 41308,
+        "alive": true,
+        "creation": "134375617394407059"
+      }
+    ],
+    "freeBytes": 88152723456,
+    "data": {
+      "at": "2026-11-01T03:53:35.864Z",
+      "readOnly": true,
+      "processEnvironmentRead": false,
+      "configuration": [
+        {
+          "file": "C:/ProgramData/Enclave/node-config.cmd",
+          "bytes": 2141,
+          "modified": "2026-10-26T20:17:42.129Z",
+          "selected": [],
+          "calls": [
+            "C:\\ProgramData\\Enclave\\node-config.local.cmd"
+          ],
+          "present": [],
+          "encoding": "utf8"
+        },
+        {
+          "file": "C:/ProgramData/Enclave/node-config.local.cmd",
+          "bytes": 1028,
+          "modified": "2026-10-23T10:09:28.112Z",
+          "selected": [
+            {
+              "key": "BASE_RPCS",
+              "endpoints": [
+                {
+                  "origin": "https://base-rpc.publicnode.com",
+                  "publicRoot": true,
+                  "pathHash": "8a5edab282632443219e051e4ade2d1d5bbc671c781051bf1437897cbdfea0f1"
+                },
+                {
+                  "origin": "https://base.gateway.tenderly.co",
+                  "publicRoot": true,
+                  "pathHash": "8a5edab282632443219e051e4ade2d1d5bbc671c781051bf1437897cbdfea0f1"
+                },
+                {
+                  "origin": "https://base-public.nodies.app",
+                  "publicRoot": true,
+                  "pathHash": "8a5edab282632443219e051e4ade2d1d5bbc671c781051bf1437897cbdfea0f1"
+                },
+                {
+                  "origin": "https://base.drpc.org",
+                  "publicRoot": true,
+                  "pathHash": "8a5edab282632443219e051e4ade2d1d5bbc671c781051bf1437897cbdfea0f1"
+                },
+                {
+                  "origin": "https://mainnet.base.org",
+                  "publicRoot": true,
+                  "pathHash": "8a5edab282632443219e051e4ade2d1d5bbc671c781051bf1437897cbdfea0f1"
+                }
+              ]
+            }
+          ],
+          "calls": [
+            "C:\\ProgramData\\Enclave\\lease-gas\\lease-gas-config.cmd"
+          ],
+          "present": [
+            "BASE_RPCS",
+            "BASE_RPC"
+          ],
+          "encoding": "utf8"
+        },
+        {
+          "file": "C:/ProgramData/Enclave/run-node.cmd",
+          "bytes": 1300,
+          "modified": "2026-10-27T07:59:28.000Z",
+          "selected": [
+            {
+              "key": "BASE_RPCS",
+              "endpoints": [
+                {
+                  "origin": "https://base-rpc.publicnode.com",
+                  "publicRoot": true,
+                  "pathHash": "8a5edab282632443219e051e4ade2d1d5bbc671c781051bf1437897cbdfea0f1"
+                },
+                {
+                  "origin": "https://base.gateway.tenderly.co",
+                  "publicRoot": true,
+                  "pathHash": "8a5edab282632443219e051e4ade2d1d5bbc671c781051bf1437897cbdfea0f1"
+                },
+                {
+                  "origin": "https://base-public.nodies.app",
+                  "publicRoot": true,
+                  "pathHash": "8a5edab282632443219e051e4ade2d1d5bbc671c781051bf1437897cbdfea0f1"
+                },
+                {
+                  "origin": "https://base.drpc.org",
+                  "publicRoot": true,
+                  "pathHash": "8a5edab282632443219e051e4ade2d1d5bbc671c781051bf1437897cbdfea0f1"
+                },
+                {
+                  "origin": "https://mainnet.base.org",
+                  "publicRoot": true,
+                  "pathHash": "8a5edab282632443219e051e4ade2d1d5bbc671c781051bf1437897cbdfea0f1"
+                }
+              ]
+            }
+          ],
+          "calls": [
+            "C:\\ProgramData\\Enclave\\node-config.cmd",
+            "C:\\ProgramData\\Enclave\\native-desktop\\releases\\a2272bcd8f7d5db883ae212ee1cb499a8bf100f9cc6f23073e61b68343f185f9\\native-desktop-env.cmd"
+          ],
+          "present": [
+            "BASE_RPCS",
+            "BASE_RPC"
+          ],
+          "encoding": "utf8"
+        }
+      ],
+      "sources": [
+        {
+          "name": "agent.mjs",
+          "bytes": 93212,
+          "sha256": "a41ca4cd59252d6a00648fda88232e97fe92049c8142dc1bf7910ae38ecae1a4"
+        },
+        {
+          "name": "host.mjs",
+          "bytes": 319366,
+          "sha256": "dde60f6ed2f53121692f94201c98e7819f3a293e5ca606e6a9ec4b39b76fab24"
+        },
+        {
+          "name": "chain.mjs",
+          "bytes": 60398,
+          "sha256": "b257fcf64e7e0f44738b84a35f32237a03e62034b74b0dc0c9ff276a49ab9225"
+        },
+        {
+          "name": "lease-gas-runtime.bundle.mjs",
+          "bytes": 342304,
+          "sha256": "159108d171e49cadf8a75dc8081df9e7213257e6f7930ac8b0f4f6e6e43b829d"
+        }
+      ],
+      "endpoints": [
+        {
+          "origin": "https://base-rpc.publicnode.com",
+          "results": [
+            {
+              "method": "eth_chainId",
+              "status": 200,
+              "result": "0x2105",
+              "errorCode": null,
+              "elapsedMs": 180
+            },
+            {
+              "method": "eth_blockNumber",
+              "status": 200,
+              "result": "0x32e2d6e",
+              "errorCode": null,
+              "elapsedMs": 157
+            }
+          ]
+        },
+        {
+          "origin": "https://base.gateway.tenderly.co",
+          "results": [
+            {
+              "method": "eth_chainId",
+              "status": 200,
+              "result": "0x2105",
+              "errorCode": null,
+              "elapsedMs": 126
+            },
+            {
+              "method": "eth_blockNumber",
+              "status": 200,
+              "result": "0x32e2d6e",
+              "errorCode": null,
+              "elapsedMs": 140
+            }
+          ]
+        },
+        {
+          "origin": "https://base-public.nodies.app",
+          "results": [
+            {
+              "method": "eth_chainId",
+              "status": 429,
+              "elapsedMs": 97
+            },
+            {
+              "method": "eth_blockNumber",
+              "status": 429,
+              "elapsedMs": 97
+            }
+          ]
+        },
+        {
+          "origin": "https://base.drpc.org",
+          "results": [
+            {
+              "method": "eth_chainId",
+              "status": 200,
+              "result": "0x2105",
+              "errorCode": null,
+              "elapsedMs": 131
+            },
+            {
+              "method": "eth_blockNumber",
+              "status": 200,
+              "result": "0x32e2d6e",
+              "errorCode": null,
+              "elapsedMs": 132
+            }
+          ]
+        },
+        {
+          "origin": "https://mainnet.base.org",
+          "results": [
+            {
+              "method": "eth_chainId",
+              "status": 200,
+              "result": "0x2105",
+              "errorCode": null,
+              "elapsedMs": 159
+            },
+            {
+              "method": "eth_blockNumber",
+              "status": 200,
+              "result": "0x32e2d6e",
+              "errorCode": null,
+              "elapsedMs": 153
+            }
+          ]
+        }
+      ]
+    },
+    "readOnly": true,
+    "noRetry": true
+  }
+}
