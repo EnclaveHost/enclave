@@ -73,8 +73,9 @@ try{
     $production=@('BoundedWorker.cs','OwnerObserver.cs','ProtectedAttempt.cs','ProviderStart.cs','OwnedVmPermit.cs','HostPhysicalPool.cs','WindowsStartAdmission.cs','LegacyTemplateFence.cs','LegacyLaunchCohort.cs','LegacyHandoff.cs','NativeRpcDefinition.cs','NativeRpcStart.cs','NativeRpcCleanup.cs','NativeRpcAuthority.cs','NativeRpcFiles.cs','NativeRpcLifecycle.cs','NativeRpcController.cs','NativeRpcManagerTransport.cs','NativeRpcStartLauncher.cs')|ForEach-Object{Join-Path $root ('windows\rpc\'+$_)}
     $startOptions=$compilerOptions+@('/define:NATIVE_RPC_ONLY,NATIVE_RPC_START_CONTROLLER')
     $sources=$production+@(Join-Path $root 'test\rpc-windows-worker\NativeRpcStartLauncherHarness.cs')
-    Invoke-FiniteProcess $csc ($startOptions+@('/main:NativeRpcStartLauncherHarness',('/out:'+$entry))+$sources) 20000 'harness-compile'
-    Invoke-FiniteProcess $entry @() 20000 'worker-harness'
+    Invoke-FiniteProcess $csc ($startOptions+@('/define:NATIVE_RPC_ONLY,NATIVE_RPC_START_CONTROLLER,NATIVE_RPC_START_FIXTURE','/main:NativeRpcStartLauncherHarness',('/out:'+$entry))+$sources) 20000 'harness-compile'
+    if((Get-Item -LiteralPath $entry).Length -gt 262144){throw 'Fixture image bound before execution'}
+    Invoke-FiniteProcess $entry @('--prepared-composition') 20000 'worker-harness'
     $worker=Join-Path $work 'native-worker.exe'
     Invoke-FiniteProcess $csc ($startOptions+@('/main:Enclave.OwnedRpc.NativeRpcControllerEntry',('/out:'+$worker))+$production) 20000 'worker-compile'
     if((Get-Item -LiteralPath $worker).Length -gt 262144){throw 'Native image bound'}

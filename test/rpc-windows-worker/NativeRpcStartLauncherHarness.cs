@@ -14,7 +14,20 @@ public static class NativeRpcStartLauncherHarness {
   internal NativeStartContract Contract(string role,long now){return new NativeStartContract(Ledger.Files,Plan,Workers,role=="start"?Worker:Keeper,Worker,role,now,now+25000);}
   public void Dispose(){Ledger.Dispose();}
  }
- public static int Main(){try{BoundedWorker.EnterSupervisorEnvelope(256UL*1024*1024);
+ public static int Main(string[] args){try{BoundedWorker.EnterSupervisorEnvelope(256UL*1024*1024);
+  if(args.Length==1&&args[0]=="--prepared-composition"){
+   Test("consumed original request composes all three protected contracts with closed work gate",()=>{using(var c=new Case()){
+    NativeStartLaunchRecords.Consume(c.Ledger,c.Original,c.Plan,B("original definition receipt"));
+    var primary=c.Contract("watch",BoundedWorker.MonotonicMilliseconds());var backup=c.Contract("watch-backup",BoundedWorker.MonotonicMilliseconds());var start=c.Contract("start",BoundedWorker.MonotonicMilliseconds());
+    using(var a=ProtectedAttempt.PinNativeLifecycleController(primary.Path,primary.Hash))using(var b=ProtectedAttempt.PinNativeLifecycleController(backup.Path,backup.Hash))using(var w=ProtectedAttempt.PinNativeStartController(start.Path,start.Hash))using(var pin=ProtectedAttempt.PinNativeStartJournalController(w.PermitPath,w.PermitHash,w)){
+     Check(a.PermitHash==pin.ContractHash&&b.PermitHash==pin.ContractHash&&a.Deadline==b.Deadline&&a.Deadline==c.Plan.Deadline+30000&&w.Deadline<=c.Plan.Deadline);
+     Check(File.Exists(Path.Combine(c.Root,"start-request.json"))&&!File.Exists(Path.Combine(start.Root,"admit"))&&!File.Exists(Path.Combine(c.Root,"start-dispatch.json")));
+     Refuse(()=>File.Move(primary.Path,primary.Path+".old"));Refuse(()=>File.WriteAllText(backup.Image,"replacement"));
+     Refuse(()=>NativeStartLaunchRecords.Consume(c.Ledger,c.Original,c.Plan,B("replacement definition")));
+    }
+   }});Console.WriteLine("TOTAL "+count+" PASS; new composed preparation only; original ten completed methods not repeated");return 0;
+  }
+  if(args.Length!=0)throw new ArgumentException("Fixture mode");
   Test("prepared keeper pair binds distinct immutable contracts to original end plus thirty",()=>{using(var c=new Case()){long n=BoundedWorker.MonotonicMilliseconds();var a=c.Contract("watch",n);var b=c.Contract("watch-backup",n);Check(a.Root!=b.Root&&a.Hash!=b.Hash&&a.End==c.Plan.Deadline+30000&&b.End==a.End);using(var first=ProtectedAttempt.PinNativeLifecycleController(a.Path,a.Hash))using(var second=ProtectedAttempt.PinNativeLifecycleController(b.Path,b.Hash)){Check(first.Operation=="watch"&&second.Operation=="watch-backup");Check(first.PermitHash==c.Plan.Digest&&second.PermitHash==c.Plan.Digest);Check(File.ReadAllBytes(Path.Combine(a.Root,"worker.exe")).Length==c.Worker.Length);}}});
   Test("prepared start lease and original journal keep original plan and short worker endpoint",()=>{using(var c=new Case()){long n=BoundedWorker.MonotonicMilliseconds();var a=c.Contract("start",n);using(var lease=ProtectedAttempt.PinNativeStartController(a.Path,a.Hash))using(var pin=ProtectedAttempt.PinNativeStartJournalController(lease.PermitPath,lease.PermitHash,lease)){Check(a.End==n+20000&&pin.NativeDefinitionPlan.Encode()==c.Plan.Encode());Check(!File.Exists(Path.Combine(a.Root,"admit")));Check(!File.Exists(Path.Combine(a.Root,"worker.exe")));}}});
   Test("expiry rollback and unsupported role cannot create a new worker namespace",()=>{using(var c=new Case()){int before=Directory.GetDirectories(c.Workers).Length;Refuse(()=>c.Contract("watch",c.Plan.Origin-1));Refuse(()=>c.Contract("start",c.Plan.Deadline));Refuse(()=>c.Contract("adopt",c.Now));Check(Directory.GetDirectories(c.Workers).Length==before);}});

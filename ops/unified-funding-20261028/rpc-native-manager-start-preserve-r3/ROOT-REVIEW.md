@@ -1,0 +1,1 @@
+Source preservation28b302587f6c41c1ab2ca081a669bdac failed at git diff --cached --check due to Windows CRLF evidence trailing whitespace; no commit/push/native execution. Public evidence normalized UTF-8/LF with raw byte counts/SHA256 preserved. Original private ZIP/raw artifact retained unchanged. New helper invocation only; no failed helper replay or secret-scan bypass.

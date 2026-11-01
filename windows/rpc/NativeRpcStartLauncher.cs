@@ -34,6 +34,7 @@ namespace Enclave.OwnedRpc {
  }
  // Shared partial retains original ledger/configuration/plan validators. The
  // start image excludes definition/copy-media dispatch and framed stage input.
+#if !NATIVE_RPC_START_FIXTURE
  public static partial class NativeRpcControllerEntry {
   static void StartSchedule(NativeStartContract c,string role){
    Check();long now=BoundedWorker.MonotonicMilliseconds();if(now<c.Origin||now-c.Origin>=5000||now>=c.End)throw new InvalidOperationException("Original task bootstrap cutoff");
@@ -101,5 +102,6 @@ namespace Enclave.OwnedRpc {
    // Unknown dispatch stays held; no repeat, task-state death claim or release.
   }
  }
+#endif
 }
 #endif

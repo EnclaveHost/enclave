@@ -1,0 +1,11 @@
+PASS prepared keeper pair binds distinct immutable contracts to original end plus thirty
+PASS prepared start lease and original journal keep original plan and short worker endpoint
+PASS expiry rollback and unsupported role cannot create a new worker namespace
+PASS worker image mismatch refuses before any task or directory
+PASS start request consumed before preparation survives reconstruction and refuses replay
+PASS foreign original request cannot consume start authority
+PASS torn start request stays held across inspect and original read
+PASS historical running result never grants serving fencing or release
+PASS short remaining original time refuses without deadline extension
+PASS both v1 definition-only and explicit v2 pins validate without default upgrade
+TOTAL 10 PASS; actual administrator files/contracts; no SYSTEM scheduling, admission or provider execution

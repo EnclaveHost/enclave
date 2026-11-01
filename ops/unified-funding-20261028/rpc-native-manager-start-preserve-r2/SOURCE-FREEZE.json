@@ -1,0 +1,5 @@
+{
+  "test/rpc-windows-worker/NativeRpcStartLauncherHarness.cs": "c34016d3f48286addfa2c93c7d74171d8eef143b5b18af10b86a1bf2fd04e53a",
+  "test/rpc-windows-worker/run-native-manager-start-ci.ps1": "d1507835c2403879b21dd2ce71c14bd33bc6c7b1756e3459482df6d2aeead2fc",
+  "windows/rpc/NativeRpcStartLauncher.cs": "a6d8b8de51fea11737a973a4d01809c35e8c216b38d641a38d4bce6dbea32702"
+}
