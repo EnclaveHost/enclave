@@ -1,0 +1,140 @@
+{
+  "source": "d645116092cf8fb590eb973e0e1b4b70ab5938d0",
+  "run": 41268902218,
+  "tests": 71,
+  "sourcePins": [
+    {
+      "path": "windows/rpc/BoundedWorker.cs",
+      "sha256": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99"
+    },
+    {
+      "path": "windows/rpc/OwnerObserver.cs",
+      "sha256": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80"
+    },
+    {
+      "path": "windows/rpc/VmStartGuardian.cs",
+      "sha256": "4e23387225ee2a710f60d7a17db68e73a39cd15409981cb2e0eb9fa1d64cf336"
+    },
+    {
+      "path": "windows/rpc/ProtectedAttempt.cs",
+      "sha256": "1a45403c3162c22f06dfa0ed778c3c71f26b185eec199ce3b241b92a3144cb75"
+    },
+    {
+      "path": "windows/rpc/ProviderStart.cs",
+      "sha256": "600b86bcdfcb4a0425213fee9ed241a51c9a23d3fbcc51560d5c929b628a7d46"
+    },
+    {
+      "path": "windows/rpc/ProviderStop.cs",
+      "sha256": "b2f5ecb6557a8af5df419c0a1e49f8e90138c13fbb76ec0d4cdab1d300b18361"
+    },
+    {
+      "path": "windows/rpc/HostPhysicalPool.cs",
+      "sha256": "218483e78967e94f77c2c88fdee9ca04970eb9c4a3f10adbf543b8ccd0c904af"
+    },
+    {
+      "path": "windows/rpc/PhysicalPoolCommand.cs",
+      "sha256": "b06119b07562ddab4baafe5e6381a8415a61fdf3d520cdfc829f5dea955bbffe"
+    },
+    {
+      "path": "windows/rpc/OwnedVmPermit.cs",
+      "sha256": "a4d1f9640a4087714b9907cddcdc64340cb57f07de04dd1b6baf97197ac60373"
+    },
+    {
+      "path": "windows/rpc/WindowsStartAdmission.cs",
+      "sha256": "e148ac1f6e27a33ddfe04762dd9a39b09fbb56f714d86b72c86c0f292d46b9a9"
+    },
+    {
+      "path": "windows/rpc/ProviderWorkerEntry.cs",
+      "sha256": "af9f02fd89e8efad4df67c67733917b3e0ac42d6c25023657f3c8d59d2e3fb38"
+    },
+    {
+      "path": "windows/rpc/BootStartBinding.cs",
+      "sha256": "37f98a872a67aaa03020cc634a6c26cc27bcca839eee4966967f894ad971167c"
+    },
+    {
+      "path": "windows/rpc/StartupCleanup.cs",
+      "sha256": "87a2c3f193e0b915cb450591288205b27ca2c94591e2b567cc4292d9744ef26b"
+    },
+    {
+      "path": "windows/rpc/LegacyTemplateFence.cs",
+      "sha256": "d2bfc04762cf64b2555575e4c8aa95842dd35be108f9c9780dd3ecf0ecd0cd0f"
+    },
+    {
+      "path": "windows/rpc/InertEntry.cs",
+      "sha256": "3fd8b572228ad03e86422e0dbb14f35e462b57092cdc7127f2a0d5d25c00d909"
+    },
+    {
+      "path": "windows/rpc/InertQualification.cs",
+      "sha256": "fc9d8461190c20f22686ca85bcc903d0355826b49844bf9dd6f788386deaeaba"
+    },
+    {
+      "path": "windows/rpc/LegacyLaunchCohort.cs",
+      "sha256": "ce22aa16e0d353fa8354bca26f8dc4057d520c001540d0659778e2769135f5a2"
+    },
+    {
+      "path": "windows/rpc/LegacyHandoff.cs",
+      "sha256": "083eeeb1c777dbc7f6354ed1560adf8c097518e485067271afd269d8d0c34280"
+    },
+    {
+      "path": "windows/rpc/LegacyHandoffEntry.cs",
+      "sha256": "486c0365655e7fbaf4f61fac2833f41fef6ff0deda7eb1222cc1b46cc896f16c"
+    },
+    {
+      "path": "windows/rpc/LegacyHandoffController.cs",
+      "sha256": "2599a4e9f11582ff9986ef324bcabc97eea13c44a48b7552ac0d75a70c21747a"
+    },
+    {
+      "path": "test/rpc-windows-worker/LegacyHandoffHarness.cs",
+      "sha256": "8a52f8998e1dd2a9343771e111a92ac71db97cad21884fc1b6ceed7fa4d99fb7"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "legacy-handoff.exe",
+      "sha256": "4d82d58f6077b5b207c40bbf2688b5b978ad70f72eca8c9a82e7e7a7f1963f8b",
+      "bytes": 320512
+    }
+  ],
+  "processes": [
+    {
+      "label": "compile",
+      "pid": 6980,
+      "exitCode": 0,
+      "elapsedMs": 4145,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 39653376,
+      "outputBytes": 199
+    },
+    {
+      "label": "compile-entry",
+      "pid": 5564,
+      "exitCode": 0,
+      "elapsedMs": 236,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 38719488,
+      "outputBytes": 199
+    },
+    {
+      "label": "compile-controller",
+      "pid": 7772,
+      "exitCode": 0,
+      "elapsedMs": 213,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 38088704,
+      "outputBytes": 199
+    },
+    {
+      "label": "handoff",
+      "pid": 5340,
+      "exitCode": 0,
+      "elapsedMs": 3474,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 37273600,
+      "outputBytes": 3231
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+# Root result
+
+Automatic Secret scan 41268880835 failed its public-content adjacency self-test at line15. That fixture generated random checksum-valid mnemonics but the unchanged high-precision scanner deliberately excludes >=3 glue words and excessive repeated words. Random generation did not constrain that domain; the actual failed entropy was not logged. The fixed public entropy fixture has 12 distinct words, zero glue words, a verified checksum, and is detected both before and after the exact dictionary. Added explicit domain/checksum assertions. No scanner rule, allowlist, exception or adjacent-secret assertion is weakened or removed.
+
+Bounded d699f82e65b64555b2716b4a65fcda90 terminal0: adjacency self-test PASS; unchanged scanner self-test57/57 PASS; all3sourcepins unchanged. Original CI failure preserved; no unchanged rerun. Hosted pipeline on the new commit must confirm the fix. Qualified RPC source d6451160 and its315 hosted checks remain byte-identical; no native proof implied.

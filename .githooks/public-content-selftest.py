@@ -6,9 +6,15 @@ spec = importlib.util.spec_from_file_location('scanner', p)
 m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
 words = list(m.BIP39)
 # A complete dictionary is public. A real mnemonic before/after it still fails.
-entropy = secrets.token_bytes(16)
+# Fixed public entropy keeps this adjacency test inside the scanner
+# high-precision mnemonic domain. Random phrases can contain >=3 prose
+# glue words or too many repeats and are deliberately outside that domain.
+# Scanner rules/allowlists and both adjacent-secret assertions stay unchanged.
+entropy = m.hashlib.sha256(b'public-content-adjacent-detection-fixture-v1').digest()[:16]
 bits = (int.from_bytes(entropy, 'big') << 4) | (m.hashlib.sha256(entropy).digest()[0] >> 4)
 phrase = ' '.join(words[(bits >> (11 * (11-i))) & 2047] for i in range(12))
+assert m.bip39_valid(phrase.split())
+assert len(set(phrase.split())) >= 11 and sum(w in m.GLUE for w in phrase.split()) < 3
 dictionary = '\n'.join(words)
 assert not m.scan_text(dictionary, 'bundle.mjs')
 for data in (phrase+';\n'+dictionary, dictionary+';\n'+phrase):
