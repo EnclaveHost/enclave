@@ -678,3 +678,33 @@ attempt, then consumes persistent volume records before export submission.
 See `isolation/m3/rpcstorage/README.md`. This is not an installed broker: actual
 export fencing, independent guard and bootstrap integration remain required.
 Production RPC remains offline.
+
+The owner bootstrap endpoint is implemented in `server/owner_bootstrap_entry.py`
+with a fixed Node TLS actor and `owner_bootstrap_submit.py` forwarding to the
+maintained relay. It is **not installed or target-qualified**. It requires one
+protected `enclave-rpc-owner-bootstrap-entry/1` configuration with the original
+clock, complete source pins, exact prepared relay, guest public enrollment keys,
+owner-selected image/TPM policy and pinned private TLS files. The same original
+clock directory consumes `bootstrap-entry.intent` and `bootstrap/` exclusively.
+
+The owner, not the guest, mints the TPM credential and both challenges. Acceptance
+compares the guest report with the certificate from an actual fresh TLS1.3 client
+connection; accepted evidence is persisted before acknowledgment. First TCP
+connection consumes the listener. Authentication is bounded by 30 seconds, request
+receipt by 3 seconds and the entire transport by 100 seconds, all clipped by the
+original 900-second deadline. These timers do not interrupt synchronous crypto:
+the required independent `enclave-rpc-owner-bootstrap-ATTEMPT.service` is
+Type=exec, 256MiB, CPU1, no swap, TasksMax32, RuntimeMaxSec120/stop1, no restart,
+control-group kill, NoNewPrivileges and core0. Its cutoff must fit the original
+window before keys/network access. Admission includes 1408MiB for the overlapping
+owner composition and overhead, retaining pending commitments and the 27648MiB
+or higher installed/contract floor. A standalone Node invocation is unsupported.
+
+Authentication is not volume authority. Only the exact prepared request can
+consume dispatch intent. The fixed Python pipe adapter records submission before
+one existing 256MiB/60-second dispatcher call, and acknowledges only its already
+persisted response. Lost responses remain held; no retry, replacement journal,
+root grant or reservation release is added. The existing signer still verifies
+actual deployment and both owner commitments. Guest bridge/public-input delivery,
+real target hardware attestation, original writer settlement, full image/boot,
+NBD attachment and production RPC readiness remain unqualified.

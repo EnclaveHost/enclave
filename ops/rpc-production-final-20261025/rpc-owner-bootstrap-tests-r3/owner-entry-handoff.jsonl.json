@@ -1,0 +1,4 @@
+{
+  "sha256": "b3c181081e189b9521cdc4ded6bb7b5eccc5de102033ac122afbaa71d3fda923",
+  "utf8": "test_entry_preserves_clock_and_private_readonly_fd_handoff (__main__.BootstrapTests.test_entry_preserves_clock_and_private_readonly_fd_handoff) ... ok\ntest_entry_pending_capacity_refusal_before_tls_key_or_exec (__main__.BootstrapTests.test_entry_pending_capacity_refusal_before_tls_key_or_exec) ... ok\n\n----------------------------------------------------------------------\nRan 2 tests in 0.422s\n\nOK\n"
+}

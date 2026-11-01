@@ -1,0 +1,4 @@
+{
+  "sha256": "bfb2c058d6c31302c06492d77311f85c10cc378cb576b7c81f96f37b7c0fec8e",
+  "utf8": "test_actual_pipes_durable_ack_and_no_repeat (__main__.BootstrapTests.test_actual_pipes_durable_ack_and_no_repeat) ... ok\ntest_clock_substitution_refused_before_submission (__main__.BootstrapTests.test_clock_substitution_refused_before_submission) ... ok\ntest_envelope_requires_exact_actor_and_original_cutoff (__main__.BootstrapTests.test_envelope_requires_exact_actor_and_original_cutoff) ... ok\ntest_lost_submission_retains_intent_without_response_or_retry (__main__.BootstrapTests.test_lost_submission_retains_intent_without_response_or_retry) ... ok\ntest_sealed_config_cannot_change (__main__.BootstrapTests.test_sealed_config_cannot_change) ... ok\ntest_undurable_response_is_not_acknowledged (__main__.BootstrapTests.test_undurable_response_is_not_acknowledged) ... ok\n\n----------------------------------------------------------------------\nRan 6 tests in 0.073s\n\nOK\n"
+}

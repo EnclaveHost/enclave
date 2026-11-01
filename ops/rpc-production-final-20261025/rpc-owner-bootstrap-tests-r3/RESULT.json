@@ -1,0 +1,1 @@
+{"phases": [{"phase": "owner-entry-handoff", "exit": 0}, {"phase": "owner-main-syntax", "exit": 0}], "elapsed": 0.6424043048173189, "sourcePins": 191, "pinsUnchanged": true, "artifacts": {"bootstrap-vector.json": {"bytes": 1739, "sha256": "b8d62be6a445c9ab4598af27eaf63b000c6a85642f1a8a065d90cf9c2dfcb715"}}, "deployed": false}
