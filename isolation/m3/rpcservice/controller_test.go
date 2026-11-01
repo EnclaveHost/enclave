@@ -22,7 +22,7 @@ func controllerFixture(t *testing.T) (bundle, wasm, statement, profile []byte) {
 	digest := func(b []byte) string { h := sha256.Sum256(b); return hex.EncodeToString(h[:]) }
 	wasm = []byte{0, 97, 115, 109, 13, 0, 1, 0} // synthetic component; not executable RPC proof
 	pin := strings.Repeat("1", 64)
-	p := rpcplatform.Profile{ControllerSha256: digest(wasm), EntrySha256: pin, Kernel: rpcplatform.Kernel{BootSha256: pin, ElfSha256: pin, Release: rpcplatform.KernelRelease}, Profile: contract.RPCProfile, Root: rpcplatform.RootVolume{DataBlocks: 262144, HashBytes: 8458240, HashSha256: pin, ImageBytes: 1073741824, ImageSha256: pin, RootHash: pin, Salt: pin}, Schema: rpcplatform.Schema}
+	p := rpcplatform.Profile{ControllerSha256: digest(wasm), EntrySha256: pin, Kernel: rpcplatform.Kernel{BootSha256: pin, ElfSha256: pin, Release: rpcplatform.KernelRelease}, Profile: contract.RPCProfile, Root: rpcplatform.RootVolume{DataBlocks: 262144, HashBytes: 8458240, HashSha256: pin, ImageBytes: 1073741824, ImageSha256: pin, RootHash: pin, Salt: pin}, Schema: rpcplatform.Schema, WrapperSha256: pin}
 	var err error
 	profile, err = p.Canonical()
 	if err != nil {

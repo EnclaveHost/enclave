@@ -34,7 +34,18 @@ func verifyInstalledController() error {
 	if err != nil {
 		return err
 	}
-	return controllerIdentity(bundle, wasm, stated, profile)
+	if err = controllerIdentity(bundle, wasm, stated, profile); err != nil {
+		return err
+	}
+	p, _, err := rpcplatform.ParseProfile(profile)
+	if err != nil {
+		return err
+	}
+	code, err := immutableFile(wrapper, 1<<20)
+	if err != nil {
+		return err
+	}
+	return p.CheckWrapper(code)
 }
 func controllerIdentity(bundle, wasm, stated, profile []byte) error {
 	man, loaded, err := contract.ParseRPC(bundle)

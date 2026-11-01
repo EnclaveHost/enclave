@@ -12,7 +12,7 @@ import (
 	"enclave.host/isolation/contract"
 )
 
-const Schema = "enclave-native-rpc-profile/1"
+const Schema = "enclave-native-rpc-profile/2"
 const KernelRelease = "6.6.87.2-enclave-kvm-box" // existing kernel build; no GPU/model profile
 const MaxEntryBytes = 32 << 20
 
@@ -25,6 +25,7 @@ type Profile struct {
 	Profile          string     `json:"profile"`
 	Root             RootVolume `json:"root"`
 	Schema           string     `json:"schema"`
+	WrapperSha256    string     `json:"wrapperSha256"`
 }
 type Kernel struct {
 	BootSha256 string `json:"bootSha256"`
@@ -48,13 +49,30 @@ func (p Profile) Validate() error {
 	if p.Schema != Schema || p.Profile != contract.RPCProfile || p.Kernel.Release != KernelRelease {
 		return errors.New("unsupported RPC platform profile")
 	}
-	for _, pin := range []string{p.ControllerSha256, p.EntrySha256, p.Kernel.BootSha256, p.Kernel.ElfSha256, p.Root.HashSha256, p.Root.ImageSha256, p.Root.RootHash, p.Root.Salt} {
+	for _, pin := range []string{p.ControllerSha256, p.EntrySha256, p.Kernel.BootSha256, p.Kernel.ElfSha256, p.Root.HashSha256, p.Root.ImageSha256, p.Root.RootHash, p.Root.Salt, p.WrapperSha256} {
 		if !contract.NonzeroHash(pin) {
 			return errors.New("invalid RPC component digest")
 		}
 	}
 	if p.Root.DataBlocks != 262144 || p.Root.ImageBytes != 1073741824 || p.Root.HashBytes != 8458240 {
 		return errors.New("RPC root geometry differs from fixed 1 GiB build")
+	}
+	return nil
+}
+
+// The namespace bootstrap overlays this independently pinned maintained
+// wrapper onto the unchanged client image. The accepted bootstrap must carry
+// these exact bytes; the older VM-only wrapper is not a compatible fallback.
+func (p Profile) CheckWrapper(raw []byte) error {
+	if err := p.Validate(); err != nil {
+		return err
+	}
+	if len(raw) == 0 || len(raw) > 1<<20 {
+		return errors.New("RPC wrapper size")
+	}
+	h := sha256.Sum256(raw)
+	if hex.EncodeToString(h[:]) != p.WrapperSha256 {
+		return errors.New("RPC wrapper differs from profile")
 	}
 	return nil
 }

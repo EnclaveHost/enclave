@@ -4,9 +4,10 @@
 platform verification, original deadline transport and fixed cgroup creation.
 It is a monitor library, not a host launcher. No monitor load path or build
 default invokes it yet. `Command(composedRoot)` now supplies the fixed namespace
-launch handoff after preparation, without starting it. The next integration must supply the distinct RPC
-bootstrap, controller/front, authenticated persistent storage and namespace
-launch together; there is no partially authorized launch fallback.
+launch handoff after preparation, without starting it. `ComposeCommand` now
+constructs the filesystem described below from held code/state capabilities.
+The next monitor integration must supply accepted bootstrap identity,
+authenticated persistent storage and the launch together; there is no partially authorized launch fallback.
 
 The original timestamp comes from `rpcservice.MonotonicNow()` before download,
 authentication and preparation. `Prepare` never creates a new startup interval.
@@ -35,7 +36,7 @@ admission and does not account for external host pending commitments.
 
 `Take()` transfers the resource, owner/deadline, claim and cgroup capabilities
 exactly once while the original startup window remains open. `Abandon()` is
-allowed only before transfer; it closes unused handles but never clears the
+allowed only before transfer or any composition attempt; it closes unused handles but never clears the
 claim or deletes groups. After transfer, the monitor retains the handles
 through any in-flight clone, control, cleanup or uncertain writer operation.
 
@@ -48,7 +49,7 @@ Before invocation of `rpc-native-init`, the monitor still must establish:
 - Authenticated root assembly before the implemented namespace/cgroup handoff.
 - Controller/front identity, readiness and the persistent-serving transition.
 
-Nothing here starts clients, mounts devices, changes original chain data,
+Nothing here starts clients, opens block devices, changes original chain data,
 releases reservations or claims that RPC is serving. The deadline remains
 900 seconds. No GPU worker or desktop model-volume assumptions are reused.
 
@@ -70,4 +71,59 @@ Go thread. The trusted assembled root must already have an empty nonsymlink
 ERPCONE1/2/3 frames are incompatible with this new handoff. The
 entry supervises the front and waits for its bound one-shot owner approval
 before controller or chain execution. This closes the local process start gate;
-it does not supply the missing monitor load, storage authority or namespace setup.
+it does not supply the missing monitor load or storage authority.
+
+## Filesystem composition
+
+`ComposeCommand(actualBundle, l1, base)` consumes the composition attempt before
+work and constructs `/domains/rpc-<claim>` exclusively. It compares the actual
+bundle/deployment/logical-volume IDs with the consumed preparation, copies the
+bounded bundle bytes, and retains all source handles and partial mounts on
+failure. `Take`, `Abandon` and another composition refuse incomplete construction.
+No cleanup/retry or capacity-release assertion is made.
+
+The source capabilities must come from the monitor's authenticated exclusive
+writer workflow. A `StateVolume` has a held filesystem descriptor and logical ID;
+these are **not** authentication or an exclusive writer lease. The caller must
+retain the real lease and terminate the domain when authority is lost. This
+integration still has no implementation that acquires that authority.
+
+The existing verified client root supplies `/usr`, `/lib64`, `/opt`, CA files and
+public chain configuration. Immutable `/plat` supplies the front, WASI runtime
+and updated maintained wrapper. Profile schema 2 separately pins this wrapper;
+the immutable version-1 client image is unchanged. Both construction and the
+in-namespace supervisor verify the overlay pin before clients. A schema-1
+profile is incompatible; no production profile has been activated.
+
+Each state capability must be a writable ext4 filesystem root (inode 2), owned
+by root without group/other write access. L1 and Base must have different device
+identities. Existing subdirectories must already have the fixed owners and
+private permissions: EL data/tmp 2101, CL cl/tmp-cl 2102, Base data/tmp 2103.
+The composer never chowns chain state. Reusing older data requires a separately
+authorized exclusive-COW ownership migration; originals stay untouched.
+
+Nonrecursive bindings expose volume roots read-only, nosuid/nodev/noexec, with
+only those held subdirectories rebound writable. Generated immutable metadata
+binds the actual AppID/claim/logical volumes to device/inode/owner tuples. The
+wrapper checks those tuples and actual `findmnt --mountpoint` flags before a
+client uses state. This proves consistency of local bindings, not remote
+storage identity, coverage, freshness, owner consent or writer fencing.
+
+Fixed accounts include controller 2105 and front 1053577. A fresh private JWT
+is generated into read-only metadata with owner 2101/group 2102/mode 0440;
+its bytes are never emitted. Root metadata uses at most 32 MiB tmpfs; the front
+gets 16 MiB private runtime space, shared temporary space 64 MiB and minimal
+character devices 1 MiB. These 113 MiB mount limits fit within the proposed
+platform allowance on paper, **not** a measured whole-stack capacity result.
+Explicit directory modes keep configuration traversable under umask 0077.
+The exact held monitor socket is rebound into the front's private directory.
+Source handles and mounts remain retained in `Launch.Composition`.
+
+Qualification covers actual private-namespace binding of dummy directories,
+read-only parent/writable child flags, inode identity and unchanged source mount
+flags; Python state observations are mocked. No full positive ComposeCommand,
+production ext4/role-UID/JWT/device policy, accepted platform, network policy,
+monitor registration, chain start or persistent-serving transition is proven.
+The monitor load path still does not call this API. DNS and Base coverage
+artifacts are not synthesized: accepted network/coverage provisioning remains
+necessary before live use. The original 900-second window is unchanged.

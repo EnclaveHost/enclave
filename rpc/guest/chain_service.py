@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Run one pinned chain client on the RPC VM's dedicated ext4 volumes.
+"""Run one pinned chain client on validated dedicated ext4 state.
 
-This is the direct virtual-disk deployment adapter. It does not use the older
-loop-image/NBD storage launchers. No public execution RPC is configured here.
+The native app uses exact monitor-bound mounts; the historical VM path uses
+disk UUIDs. Neither path exposes a public execution RPC directly.
 """
 import hashlib
 import json
@@ -18,12 +18,110 @@ import urllib.parse
 import urllib.request
 import urllib.error
 
+def _native_json(raw):
+    def pairs(rows):
+        result = {}
+        for key, value in rows:
+            if key in result:
+                raise ValueError('duplicate native mount field')
+            result[key] = value
+        return result
+    return json.loads(raw, object_pairs_hook=pairs)
+
+
+def _native_read(path, limit):
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
+    with os.fdopen(fd, 'rb') as f:
+        st = os.fstat(f.fileno())
+        if not stat.S_ISREG(st.st_mode) or st.st_uid != 0 or st.st_mode & 0o222 or not 0 < st.st_size <= limit \
+                or not os.fstatvfs(f.fileno()).f_flag & os.ST_RDONLY:
+            raise ValueError('immutable bounded native mount input required')
+        raw = f.read(limit + 1)
+        if len(raw) != st.st_size:
+            raise ValueError('native mount input changed')
+        return raw
+
+
+def validate_native_mounts(doc, bundle):
+    """Bind monitor-produced kernel identities to actual loaded V9 bytes.
+
+    This is not independent owner authentication or a storage writer lease.
+    The monitor must have acquired those before constructing these mounts.
+    """
+    magic = b'ENCLAVE-BUNDLE/1\n'
+    if len(bundle) > (9 << 20) or not bundle.startswith(magic):
+        raise ValueError('native bundle required')
+    pos = len(magic)
+    size = int.from_bytes(bundle[pos:pos+4], 'little')
+    if not 0 < size <= 65536 or pos + 8 + size > len(bundle):
+        raise ValueError('native bundle framing')
+    man = _native_json(bundle[pos+4:pos+4+size])
+    artifact = int.from_bytes(bundle[pos+4+size:pos+8+size], 'little')
+    if pos + 8 + size + artifact != len(bundle):
+        raise ValueError('native bundle trailing/truncated bytes')
+    rpc_profile = man.get('rpc') or {}
+    if set(doc) != {'schema', 'appId', 'claim', 'roles'} or doc['schema'] != 'enclave-rpc-native-mounts/1' \
+            or doc['appId'] != hashlib.sha256(bundle).hexdigest() \
+            or not re.fullmatch('[0-9a-f]{64}', doc['claim']) or doc['claim'] == '0' * 64 \
+            or set(doc['roles']) != {'l1', 'base'}:
+        raise ValueError('native mount/app binding')
+    for role, field, writes in [('l1', 'l1VolumeId', {'data':2101, 'tmp':2101, 'cl':2102, 'tmp-cl':2102}),
+                                 ('base', 'baseVolumeId', {'data':2103, 'tmp':2103})]:
+        row = doc['roles'][role]
+        if set(row) != {'volumeId', 'dev', 'ino', 'writes'} or row['volumeId'] != rpc_profile.get(field) \
+                or not re.fullmatch('[0-9a-f]{64}', row['volumeId']) or row['volumeId'] == '0' * 64 \
+                or any(type(row[k]) is not int or row[k] <= 0 for k in ('dev', 'ino')) or set(row['writes']) != set(writes):
+            raise ValueError('native logical volume binding')
+        for name, uid in writes.items():
+            child = row['writes'][name]
+            if set(child) != {'dev', 'ino', 'uid', 'gid'} or child['dev'] != row['dev'] \
+                    or any(type(child[k]) is not int or child[k] <= 0 for k in child) \
+                    or (child['uid'], child['gid']) != (uid, uid):
+                raise ValueError('native write scope binding')
+    if doc['roles']['l1']['dev'] == doc['roles']['base']['dev'] \
+            or doc['roles']['l1']['volumeId'] == doc['roles']['base']['volumeId']:
+        raise ValueError('native volumes must be distinct')
+    return doc
+
+
+def native_mount(role, side):
+    row = NATIVE_BINDING['roles'][role]
+    base = MANIFEST['mounts'][role]
+    root = os.stat(base, follow_symlinks=False)
+    if not stat.S_ISDIR(root.st_mode) or (root.st_dev, root.st_ino) != (row['dev'], row['ino']) \
+            or root.st_uid != 0 or root.st_mode & 0o022 or not os.path.ismount(base):
+        raise ValueError('native state mount identity changed')
+    options = subprocess.check_output(['findmnt', '-n', '-o', 'FSTYPE,OPTIONS', '--mountpoint', base], text=True).split()
+    if len(options) != 2 or options[0] != 'ext4' or not {'ro','nosuid','nodev','noexec'} <= set(options[1].split(',')):
+        raise ValueError('native mount root must be locked read-only ext4')
+    names = ('cl', 'tmp-cl') if side == 'cl' else ('data', 'tmp')
+    for name in names:
+        path = base + '/' + name
+        child = os.stat(path, follow_symlinks=False)
+        want = row['writes'][name]
+        if not stat.S_ISDIR(child.st_mode) or (child.st_dev, child.st_ino, child.st_uid, child.st_gid) \
+                != (want['dev'], want['ino'], want['uid'], want['gid']) or child.st_mode & 0o077:
+            raise ValueError('native writable subtree identity/owner changed')
+        options = subprocess.check_output(['findmnt', '-n', '-o', 'FSTYPE,OPTIONS', '--mountpoint', path], text=True).split()
+        if len(options) != 2 or options[0] != 'ext4' or not {'rw','nosuid','nodev','noexec'} <= set(options[1].split(',')):
+            raise ValueError('native writable subtree mount absent or unlocked')
+    return base
+
+
 ROOT = pathlib.Path('/opt/enclave-rpc')
 MANIFEST = json.loads((ROOT / 'manifest.json').read_text())
-DISKS = json.loads(pathlib.Path('/etc/enclave-rpc-vm/disks.json').read_text())['disks']
+NATIVE_BINDING = None
+if pathlib.Path('/etc/enclave-rpc/native-root').exists():
+    NATIVE_BINDING = validate_native_mounts(_native_json(_native_read('/etc/enclave-rpc/native-mounts.json', 16384)),
+                                           _native_read('/app.bundle', 9 << 20))
+    DISKS = None
+else:
+    DISKS = json.loads(pathlib.Path('/etc/enclave-rpc-vm/disks.json').read_text())['disks']
 CONFIG = json.loads(pathlib.Path('/etc/enclave-rpc/chain.json').read_text())
 
 def mount(role, side):
+    if NATIVE_BINDING is not None:
+        return native_mount(role, side)
     d = next(d for d in DISKS if d['role'] == role)
     expected = MANIFEST['mounts'][role]
     assert d['mount'] == expected and os.path.ismount(expected), 'dedicated mount absent'

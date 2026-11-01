@@ -17,6 +17,7 @@ type Launch struct {
 	Cmd           *exec.Cmd
 	Capabilities  Capabilities
 	NamespaceRoot *os.File
+	Composition   *Composition
 }
 
 // Command is the monitor's one-shot handoff after it has composed a verified

@@ -40,6 +40,8 @@ type binding struct {
 type Prepared struct {
 	mu                     sync.Mutex
 	taken                  bool
+	composition            *Composition
+	compositionReady       bool
 	installed              *rpcplatform.Installed
 	groups                 *rpcservice.PreparedGroups
 	owner, deadline, claim *os.File
@@ -264,7 +266,7 @@ func (p *Prepared) abandonUnused() error {
 func (p *Prepared) Abandon() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.taken {
+	if p.taken || p.composition != nil {
 		return errors.New("RPC preparation already transferred")
 	}
 	p.taken = true
@@ -279,6 +281,9 @@ func (p *Prepared) Take() (Capabilities, error) {
 	defer p.mu.Unlock()
 	if p.taken {
 		return Capabilities{}, errors.New("RPC preparation already consumed")
+	}
+	if p.composition != nil && !p.compositionReady {
+		return Capabilities{}, errors.New("RPC root construction is incomplete; retain capabilities")
 	}
 	if err := withinOriginal(p.binding.Origin); err != nil {
 		return Capabilities{}, err

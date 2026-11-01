@@ -656,3 +656,12 @@ The root switch runs under the original owner/deadline watcher. This is not yet
 the monitor load integration: accepted root assembly, authenticated persistent
 L1/Base writer attachments, role permissions and networking still must be composed
 before an actual app can be launched. Production RPC remains offline.
+
+Native app root composition is now implemented in `isolation/m3/rpcdomain`:
+held immutable code and exact ext4 state subdirectories, private role metadata,
+JWT and front runtime files. Profile schema2 pins the maintained native-mount
+wrapper independently of the unchanged client image. Actual inert kernel bind
+checks and wrapper/profile regressions pass; full authenticated storage and the
+monitor load callsite remain unimplemented. This is source integration, not
+production RPC, an accepted platform or a persistent writer lease. See
+`rpcdomain/README.md` and the root-composition qualification receipt for limits.
