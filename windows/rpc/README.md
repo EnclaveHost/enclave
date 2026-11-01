@@ -1210,3 +1210,57 @@ corrected reader ran on NucBox: both enabled channels returned zero events for
 the original worker's30-second window. Its exact process death was independently
 verified. This supplies no original provider settlement or permission to retry.
 See `rpc-provider-events-target-result-r3` for the evidence and limits.
+
+### Host bootstrap entry (candidate, not installed)
+
+`HostBootstrapEntry` is a separate SYSTEM executable and explicit
+`owned-rpc-host-bootstrap-v1` contract profile. It preserves the existing owner /
+observer / suspended-child handshake and <=30-second phase lease. Its child pins
+all source and tool files before starting a fixed Node entry and TPM tool, inside
+the existing 128 MiB child / 256 MiB owner tree. The four-process owner job contains
+owner, native bridge, Node and TPM. The observer remains separate. Process-start
+inheritance and the actual target topology still require native qualification.
+
+`HostBootstrapChannels` connects AF_HYPERV directly to the plan's exact VM GUID,
+port 9000 service GUID; it checks the returned peer and has no TCP/network scan
+fallback. The socket is noninheritable and process-lifetime owned, avoiding a
+close-versus-blocked-recv handle reuse race. Parent/observer loss and original
+phase expiry remain independently enforced outside blocking pipe/socket calls.
+The code uses [Windows job inheritance](https://learn.microsoft.com/en-us/windows/win32/procthread/nested-jobs)
+and the documented [Hyper-V socket address](https://learn.microsoft.com/virtualization/hyper-v-on-windows/user-guide/make-integration-service).
+Those API contracts do not constitute target execution evidence.
+
+The fixed plan `bootstrap-plan.txt` has these newline-separated fields, followed
+by a final newline: schema `owned-rpc-host-plan-v1`, canonical VM GUID, original
+startup QPC origin ms, original startup deadline ms (exactly origin+900000), pinned
+Node path/hash, pinned TPM path/hash, existing host key path/hash, protected source
+root, `bootstrap-source.txt` hash, base64 expected-deployment JSON, base64 EK-chain
+JSON, original accepted VM ownership receipt hash. The attempt contract binds the
+plan hash. The ownership hash is a binding input, **not verification of ownership**;
+the admitting controller must verify the original receipt/VM association and all
+previous ambiguity before producing this plan. That controller integration is
+outstanding; the entry must not be used to adopt a historical ambiguous VM.
+
+The manifest lists the exact `SourceNames` closure as `relative/path|sha256` in
+that order, with final newline. Source/tool/key files and every ancestor are held
+under the protected namespace rules. Executables are hashed incrementally. The
+native bridge only passes the existing key to its contained Node process through
+anonymous stdin, never argv/environment/enrollment/output logs. Node uses an
+exclusive host journal; no key creation fallback. Do not publish private plans,
+keys, raw pipes or generated journals.
+
+Node and Windows clocks do not share an assumed epoch. Node samples before its
+clock request; native samples after receiving it. Node charges the entire elapsed
+roundtrip to the native sample, conservatively shortening the remaining phase.
+Both the original 900-second clock and the earlier phase deadline remain bound.
+The JS timer is additional transport control, not proof of native death.
+
+The native worker persists `enrollment.json`, then awaits exactly one protected
+`owner-offer.json` (the existing host sequencer's finish argument) under the same
+phase deadline. An authenticated original-owner configuration producer must
+consume that enrollment and publish the signed offer. That producer/caller and
+full native composition are not yet integrated. Replies remain independently
+checked against both pinned owner keys. Success means acquisition was requested;
+RPC readiness, provider fencing and reservation release remain false. No native
+VM start, provider mutation, task registration, production installation or guest
+image rebuild is performed by loading or compiling this source.

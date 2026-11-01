@@ -741,3 +741,11 @@ JS timers close streams, not native processes. This is a reusable host sequencin
 implementation with actual stream/filesystem and synthetic hardware qualification;
 the protected Windows entrypoint and full accepted target composition are not yet
 wired or qualified. Acquisition acknowledgment is not a storage grant or RPC ready.
+
+The Windows host bootstrap now has a candidate explicit SYSTEM entry in
+`windows/rpc/HostBootstrapEntry.cs`, native AF_HYPERV/TPM pipe transport, and
+`rpc/host/windows-entry.mjs`. This supplies the host sequencer's streams without
+using the live agent's unbounded `tpmCmd` queue. It remains uninstalled; protected
+controller admission, original VM ownership binding, real owner offer production,
+and actual Windows execution/whole composition must be qualified before use.
+See the Windows RPC README for the exact one-shot plan and limitations.

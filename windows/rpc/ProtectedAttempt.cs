@@ -175,6 +175,8 @@ namespace Enclave.OwnedRpc {
                     throw new InvalidOperationException("Primary administrator controller required");
             }
         }
+        public static ProtectedAttempt OpenHostBootstrap(string path,string hash) {return new ProtectedAttempt(path,hash,false,"host-bootstrap");}
+        public static ProtectedAttempt PinHostBootstrapController(string path,string hash) {RequireAdministrator();return new ProtectedAttempt(path,hash,true,"host-bootstrap");}
         public static ProtectedAttempt OpenProviderWorker(string path,string hash) {return new ProtectedAttempt(path,hash,false,"provider");}
         public static ProtectedAttempt PinProviderController(string path,string hash) {RequireAdministrator();return new ProtectedAttempt(path,hash,true,"provider");}
         public static ProtectedAttempt OpenDefinitionWorker(string path,string hash) {return new ProtectedAttempt(path,hash,false,"definition");}
@@ -227,6 +229,9 @@ namespace Enclave.OwnedRpc {
                 string[] fields=Utf8.GetString(bytes).Split('\n');
                 if(profile=="inert") {
                     if(fields.Length!=8 || fields[0]!="owned-rpc-inert-v1" || fields[6]!="inert-v1" || fields[7]!="")throw new InvalidOperationException("Exact inert contract schema required");
+                } else if(profile=="host-bootstrap") {
+                    if(fields.Length!=9||fields[0]!="owned-rpc-host-bootstrap-v1"||fields[6]!="host-bootstrap-v1"||fields[8]!="")throw new InvalidOperationException("Exact host bootstrap profile required");
+                    Operation=fields[6];PermitPath=Path.Combine(Root,"bootstrap-plan.txt");PermitHash=fields[7];Hex(PermitHash,64);
                 } else if(profile=="definition") {
                     bool probe=fields.Length==11&&fields[0]=="owned-rpc-definition-admission-v1"&&(fields[6]=="admission-check"||fields[6]=="preparation-check"||fields[6]=="preparation-gated")&&fields[10]=="";
                     if(!probe&&(fields.Length!=10||fields[0]!="owned-rpc-definition-worker-v1"||(fields[6]!="define"&&fields[6]!="definition-reconcile"&&fields[6]!="boot"&&fields[6]!="boot-reconcile")||fields[9]!=""))throw new InvalidOperationException("Exact definition worker contract required");
