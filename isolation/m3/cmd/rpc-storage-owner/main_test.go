@@ -3,10 +3,13 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"enclave.host/isolation/m3/rpcservice"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"os"
 	"strings"
 	"syscall"
@@ -145,5 +148,33 @@ func TestOwnerOriginalClockAndActorBudget(t *testing.T) {
 				t.Fatal("owner window reset at request")
 			}
 		})
+	}
+}
+
+func TestOwnerContinuousInitialFrameBounds(t *testing.T) {
+	raw := []byte(`{"request":"fixture"}`)
+	var buf bytes.Buffer
+	if e := writeInitialFrame(&buf, raw); e != nil {
+		t.Fatal(e)
+	}
+	got, e := readInitialFrame(&buf)
+	if e != nil || !bytes.Equal(got, raw) {
+		t.Fatal(e)
+	}
+	for _, n := range []uint32{0, (4 << 20) + 1} {
+		var hdr [4]byte
+		binary.BigEndian.PutUint32(hdr[:], n)
+		if _, e = readInitialFrame(bytes.NewReader(hdr[:])); e == nil {
+			t.Fatal("unbounded input")
+		}
+	}
+	if _, e = readInitialFrame(bytes.NewReader([]byte{0, 0, 0, 2, 1})); e != io.ErrUnexpectedEOF {
+		t.Fatal("truncation", e)
+	}
+	if e = writeInitialFrame(&buf, make([]byte, 65537)); e == nil {
+		t.Fatal("oversized proof")
+	}
+	if e = writeInitialFrame(&buf, nil); e == nil {
+		t.Fatal("empty proof")
 	}
 }

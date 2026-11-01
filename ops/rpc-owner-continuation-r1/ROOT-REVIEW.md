@@ -1,0 +1,7 @@
+# Root reviewed owner continuation qualification
+
+Read/fetch/main/worktree ownership checked; root-only source. New continuous owner capability is published only after original durable issuance, attaches once in same live process, never reconstructs from disk. Independent watcher cancels before waiting for operation lock/key erasure. Root review fixed constructor cleanup to avoid racing the watcher. Original deadline never extended. New /2 policy selects distinct framed command protocol and explicitly longer-lived startup session bounded by originalD; default /1 unchanged. Initial preparation still20s. No deployed policy, unit, relay or capacity changes.
+
+Selected actual ext4 journal/Ed25519/private Unix peer fixture plus net.Pipe stream producer-to-broker and blocked-read deadline. Quorum is mocked, native process envelope/target death is NOT qualified. Meaningful existing owner issuance/refusal regressions because successful issuance now publishes private capability. Command clock/framing checks and actual compiler. No unrelated original bootstrap regression replay. Read-only full current dependency closure and all bootstrap testdata; private loopback/user namespace/cache/output/ext4 records. Tests use only disposable generated keys, no production keys or volumes. No native Windows/provider/export/chain/wallet actions.
+
+Same512MiBhard450RSSCPU1noSwap120child150outer5stop. Fresh authenticated admission unread0/available-pending-640 >= max27648/installed. Old1.5GiB exception not used. Preserve every failure; no unchanged retry or cap/floor change.

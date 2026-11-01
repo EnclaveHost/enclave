@@ -25,14 +25,16 @@ import (
 // The independent process envelope must cover construction, chain reads, disk
 // stalls and output. Context cancellation alone cannot interrupt a stuck fsync.
 type OwnerIssuer struct {
-	used     atomic.Bool
-	journal  *os.File
-	keys     [2]ed25519.PrivateKey
-	volumes  [2]string
-	binding  bootstrap.RPCExportBinding
-	deadline time.Time
-	intent   *BrokerIntent
-	proof    *os.File
+	used             atomic.Bool
+	continuationUsed atomic.Bool
+	issued           atomic.Pointer[ownerIssued]
+	journal          *os.File
+	keys             [2]ed25519.PrivateKey
+	volumes          [2]string
+	binding          bootstrap.RPCExportBinding
+	deadline         time.Time
+	intent           *BrokerIntent
+	proof            *os.File
 }
 
 // NewOwnerIssuer copies the keys and immutable binding. This constructor does
@@ -165,5 +167,6 @@ func (o *OwnerIssuer) Issue(ctx context.Context, a *bootstrap.Authorization, bun
 	if !consent.Matches(r) {
 		return nil, errors.New("authorization lost before owner response; records held")
 	}
+	o.issued.Store(&ownerIssued{authorization: a, bundle: append([]byte(nil), bundle...), request: r, consent: consent, proof: append([]byte(nil), raw...)})
 	return append([]byte(nil), raw...), nil
 }

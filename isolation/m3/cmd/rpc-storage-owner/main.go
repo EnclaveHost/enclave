@@ -1,6 +1,8 @@
 //go:build linux && amd64
 
-// rpc-storage-owner is a one-request storage-owner signing actor. It never
+// rpc-storage-owner defaults to a one-request storage-owner signing actor. An
+// explicit owner/2 policy selects a continuous, framed startup-only session.
+// It never
 // opens a listener, starts an export, grants a volume or releases a reservation.
 // Run only within the owner's independently bounded service. Fixed inherited
 // FDs, not request pathnames, carry owner policy/journal/keys/contract/clock.
@@ -10,6 +12,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -195,7 +198,9 @@ func run() error {
 		return errors.New("no path/endpoint/deadline arguments accepted")
 	}
 	actorDeadline := time.Now().Add(20 * time.Second)
-	// Independent service manager must also enforce the 20-second actor cap.
+	// Independent service manager enforces the default 20-second actor cap.
+	// Explicit owner/2 requires a separately admitted session service ending at
+	// originalD; its initial authorization/proof still has this 20-second cap.
 	// This timer is supplementary; it is not proof of death under a kernel stall.
 	timer := time.AfterFunc(time.Until(actorDeadline), func() { os.Exit(124) })
 	defer timer.Stop()
@@ -210,7 +215,8 @@ func run() error {
 	if err = decode(config, &p, true); err != nil {
 		return err
 	}
-	if p.Schema != "enclave-rpc-storage-owner/1" || !contract.NonzeroHash(p.Runtime) || p.MaxAgeSeconds == 0 || p.MaxAgeSeconds > 120 {
+	continuous := p.Schema == "enclave-rpc-storage-owner/2"
+	if (!continuous && p.Schema != "enclave-rpc-storage-owner/1") || !contract.NonzeroHash(p.Runtime) || p.MaxAgeSeconds == 0 || p.MaxAgeSeconds > 120 {
 		return errors.New("explicit owner service policy required")
 	}
 	contractBytes, err := owned(7, 65536)
@@ -241,14 +247,27 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	deadline, err := ownerDeadline(clock, c.Clock.SHA256, c.Created, c.Deadline, actorDeadline)
+	clockCap := actorDeadline
+	if continuous {
+		clockCap = actorDeadline.Add(880 * time.Second)
+	} // same entry origin, not a new startup clock
+	deadline, err := ownerDeadline(clock, c.Clock.SHA256, c.Created, c.Deadline, clockCap)
 	if err != nil {
 		return err
 	}
-	timer.Reset(time.Until(deadline))
-	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	preparationDeadline := deadline
+	if actorDeadline.Before(preparationDeadline) {
+		preparationDeadline = actorDeadline
+	}
+	timer.Reset(time.Until(preparationDeadline))
+	ctx, cancel := context.WithDeadline(context.Background(), preparationDeadline)
 	defer cancel()
-	raw, err := io.ReadAll(io.LimitReader(os.Stdin, 4<<20+1))
+	var raw []byte
+	if continuous {
+		raw, err = readInitialFrame(os.Stdin)
+	} else {
+		raw, err = io.ReadAll(io.LimitReader(os.Stdin, 4<<20+1))
+	}
 	if err != nil || len(raw) > 4<<20 {
 		return errors.New("bounded one-shot request required")
 	}
@@ -299,6 +318,29 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	if continuous {
+		session, e := issuer.BeginStartupContinuations(context.Background(), seeds)
+		if e != nil {
+			return e
+		}
+		defer session.Close()
+		for _, seed := range seeds {
+			clear(seed)
+		}
+		// This independent process termination is armed BEFORE publishing the
+		// initial proof or waiting on a peer. It never waits for signing/fsync locks.
+		armed := make(chan struct{})
+		go func() { close(armed); <-session.Context().Done(); os.Exit(124) }()
+		<-armed
+		if ctx.Err() != nil || !time.Now().Before(preparationDeadline) {
+			return errors.New("owner session preparation deadline expired")
+		}
+		timer.Stop() // ownership is now session.Context; originalD remains immutable
+		if e = writeInitialFrame(os.Stdout, proof); e != nil {
+			return e
+		}
+		return session.ServeStartupContinuations(os.Stdin, os.Stdout)
+	}
 	// A short write or lost response is ambiguous. Never resubmit this actor.
 	n, err := os.Stdout.Write(proof)
 	if err != nil {
@@ -315,4 +357,36 @@ func main() {
 		fmt.Fprintln(os.Stderr, "RPC storage-owner request refused:", err)
 		os.Exit(1)
 	}
+}
+
+// owner/2 framing is deliberately distinct from the historical one-shot JSON
+// protocol. Only held owner policy can select it, never a remote request field.
+func readInitialFrame(r io.Reader) ([]byte, error) {
+	var size [4]byte
+	if _, e := io.ReadFull(r, size[:]); e != nil {
+		return nil, e
+	}
+	n := binary.BigEndian.Uint32(size[:])
+	if n == 0 || n > 4<<20 {
+		return nil, errors.New("bounded initial owner frame required")
+	}
+	raw := make([]byte, n)
+	_, e := io.ReadFull(r, raw)
+	return raw, e
+}
+func writeInitialFrame(w io.Writer, raw []byte) error {
+	if len(raw) == 0 || len(raw) > 65536 {
+		return errors.New("bounded initial owner proof required")
+	}
+	b := make([]byte, 4, len(raw)+4)
+	binary.BigEndian.PutUint32(b, uint32(len(raw)))
+	b = append(b, raw...)
+	n, e := w.Write(b)
+	if e != nil {
+		return e
+	}
+	if n != len(b) {
+		return io.ErrShortWrite
+	}
+	return nil
 }

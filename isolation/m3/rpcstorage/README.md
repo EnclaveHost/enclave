@@ -374,10 +374,57 @@ a correctly signed serving permit is refused at this broker API: complete
 persistent-serving handoff is not implemented. No writable grant, export dial,
 client start, reconnect or reservation release occurs here.
 
-This API is not yet connected to a production signing actor or transport. The
-original owner issuer clears its signing keys after its one-shot startup proof;
-a separate properly authorized, journaled continuation producer is still needed.
+The explicitly selected continuous owner actor below can now produce these
+permits. The deployed bootstrap relay still uses the historical one-shot path;
+continuations are not wired into its guest TLS loop or activated in production.
+The original one-shot owner issuer still clears its own signing-key copies.
 Neither snapshot refresh nor a healthy HTTP response can manufacture a permit.
 No periodic on-chain transaction is introduced. Guest C/Go entry, service,
 storage and Windows keepers still require a coordinated serving transition
 before the immutable original 900-second deadline. The RPC remains offline.
+
+
+## Same-process owner continuation producer
+
+`OwnerIssuer.BeginStartupContinuations` attaches once to the **same successful,
+still-live** issuer before its original local deadline and acquisition consent
+expire. A private process capability published only after original proof
+persistence is required. Disk records alone cannot recreate it. Local provisioning
+explicitly supplies the two seeds again; the producer checks both against current
+owner-selected volume keys. It never acquires new writers, starts an export or
+releases a claim. No constructor accepts an old proof as restart authority.
+
+The independent session watcher observes the original deadline, prior permit
+expiry and context loss without acquiring the signing/persistence lock. Loss
+cancels immediately; key erasure follows completion of any in-flight operation.
+The actual command arms process termination on that cancellation before sending
+its initial proof, so blocked input, output or fsync cannot keep that process
+serving. Kernel-stall death and resource enforcement still require the independently
+admitted native service envelope; context cancellation alone is insufficient.
+
+Each request revalidates the same committed deployment under the prior permit's
+deadline. Exact sequential intent is fsynced before signing; the signed response
+is fsynced before return. Any failure, replay, lost/short response, malformed
+frame or disconnect terminates the session. A healthy chain snapshot alone never
+extends consent. Only startup permits are issued. Serving-phase requests refuse;
+full persistent adoption and storage-export continuity remain unimplemented.
+
+The actual `rpc-storage-owner` entry point supports an explicit **held owner
+policy** schema `enclave-rpc-storage-owner/2` with the same fields as `/1`.
+`/1` retains its one-request raw JSON/20-second behavior. `/2` selects a continuous
+framed stdin/stdout stream: uint32 big-endian length plus initial canonical JSON
+request (maximum4MiB), initial proof (maximum64KiB), then canonical
+`bootstrap.RPCContinuation` requests (maximum1024B) and signed replies. The caller
+must retain the original authenticated owner connection and cannot reconnect.
+Initial preparation/proof still must complete within20seconds; the continuous
+session is bounded by the already-started original owner clock and each permit.
+It needs a separately admitted service lifetime, never automatic reuse or widening
+of the old20-second unit. Memory remains128MiB, no swap, CPU1, at most32tasks.
+No operator policy, unit, relay or production namespace is changed by this source.
+
+Qualification covers actual private Unix peer handles, framed pipes, Ed25519,
+ext4 journal writes, producer-to-broker application, deadline during blocked input,
+restart refusal and key erasure. Chain responses are fixtures. Command framing
+and clock checks plus compilation do not prove a live owner/2 service or target
+process-death behavior. Deployment, TLS relay integration and coordinated serving
+handoff are still required before production RPC.
