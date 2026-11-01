@@ -1,0 +1,1 @@
+New exclusive namespace; two qualified259072B binaries and bounded private observation. Same immutable cut/pool bindings. Source, binary and stage pins reviewed. Original4manager identities and unchanged capacity thresholds checked; no VM mutation or production startup clock. Read-only30s diagnostic only after verified staging.

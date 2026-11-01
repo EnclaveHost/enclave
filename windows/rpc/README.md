@@ -1140,3 +1140,5 @@ two-second aggregate limit. It does not substitute cached inventory for current
 verification. The original 30-second watchdog and five-second entry bootstrap
 remain unchanged. New phase receipts distinguish preparation from live admission;
 this revision is not target-qualified until a new reviewed diagnostic succeeds.
+
+Prepared diagnostic context qualification (2026-11-01): hosted definition41261683085 passed144 tests at57505b6bcecd5a55a15f68bf5d01c32aeecbe7d5; startup41261542876 passed68 with all19compiledsources unchanged. Actual target fc5570ceb1724294b3753363ed21e2ad completed context preparation before readiness and fresh observation handoff, then refused aggregate live admission at3653ms in pool-resources against the unchanged2000ms limit. No WMI preparation trace or VM/provider mutation occurred. All exact diagnostic workers were observed absent; original service and VM inventory unchanged. Further native execution requires a materially improved live query path, not a clock extension or cached inventory. The consumed third production attempt remains unsettled.

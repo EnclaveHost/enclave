@@ -1,0 +1,17 @@
+[
+  {
+    "name": "definition-controller.exe",
+    "sha256": "45d6ed5ca4ea4d315c95a0e77ce58b482ab481696fb273bf793bd0b6b0a6afe3",
+    "bytes": 259072
+  },
+  {
+    "name": "definition-entry.exe",
+    "sha256": "32eb453cb8ca4dfd6b568b9e53199354ec31e730536936c80577be10851e523f",
+    "bytes": 259072
+  },
+  {
+    "name": "observation.json",
+    "sha256": "4efb2b2a01fa8e53b7546b4ca65759a6a7b472f3ffffc1e1d321478d456e1826",
+    "bytes": 18614
+  }
+]

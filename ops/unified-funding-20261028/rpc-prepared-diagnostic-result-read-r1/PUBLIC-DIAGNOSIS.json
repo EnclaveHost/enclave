@@ -1,0 +1,67 @@
+{
+  "readSha256": "fe051f18005e060cd98d5f460cd652bbb00df7a8fd185ad8a3d8b2971a36738c",
+  "worker": "fc5570ceb1724294b3753363ed21e2ad",
+  "failure": {
+    "type": "System.TimeoutException",
+    "message": "Aggregate start observation exceeds two seconds; phase=pool-resources elapsedMs=3653"
+  },
+  "exactDeaths": [
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379706289263566",
+      "pid": "56044",
+      "absent": true,
+      "role": "owner"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379706289263460",
+      "pid": "53884",
+      "absent": true,
+      "role": "observer"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379706290827503",
+      "pid": "30492",
+      "absent": true,
+      "role": "child"
+    }
+  ],
+  "priorStageDeaths": [
+    {
+      "label": "admission",
+      "expectedCreation": "134379705729403184",
+      "pid": 38852,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "create",
+      "expectedCreation": "134379705950888055",
+      "pid": 30964,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "verify",
+      "expectedCreation": "134379706135957881",
+      "pid": 53240,
+      "sameIncarnationAlive": false,
+      "absent": true
+    }
+  ],
+  "original8091Alive": true,
+  "originalVmsUnchanged": true,
+  "thirdPlanJournalsByteEqual": true,
+  "preparationStarted": 752867361,
+  "preparationComplete": 752870020,
+  "ready": 752870041,
+  "liveStarted": 752873083,
+  "liveComplete": false,
+  "freshHash": "e9e736d0279e3acc68a206d03cf1c98997f47315b087ef0d133485f25b291868",
+  "wmiPreparationTraces": 0,
+  "providerSettled": false,
+  "rpcReady": false,
+  "reservationMayRelease": false
+}
