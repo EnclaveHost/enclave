@@ -17,7 +17,7 @@
   "windows/rpc/DiagnosticObservationCollector.cs": "4d34c6a33921b37f365e8721dccd2701dea704a0f515c41818be57756f04f6a2",
   "windows/rpc/NativeRpcDefinition.cs": "02dc09dd302c51c2ea64d2bfe5bea87d4c8aee52044d671c31e2b8a1a81aba82",
   "test/rpc-windows-worker/NativeRpcDefinitionHarness.cs": "46db76b7883162fce79f9ab75abb0782b446d418de7acfd4516feed801bf457a",
-  "test/rpc-windows-worker/run-native-definition-ci.ps1": "eb1ae151b44fefbf279efb2b614272db0106fa22f834c37beed897fdc122f616",
+  "test/rpc-windows-worker/run-native-definition-ci.ps1": "ff34e72b49e7d972573abe5c003a30c9e82306bfbbdc71a2567642509b5b2636",
   ".github/workflows/rpc-native-definition.yml": "e0344731afa4b3b3946a7cc11b24bdd47e8f5ce9502d332524703926e548e0f7",
   "windows/rpc/README.md": "afa658495886beb6bb8c00a9183c51237c54f1a9b4342c2c7151539638f5567b",
   "windows/rpc/PROVIDER-LIFECYCLE.md": "480282c5fe940571902882243a2ede749b0247055df5e29c432c7134d9d37a68"

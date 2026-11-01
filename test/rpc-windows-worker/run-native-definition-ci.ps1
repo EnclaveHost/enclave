@@ -60,7 +60,7 @@ function Invoke-FiniteProcess([string]$Executable,[string[]]$Arguments,[int]$Dea
 try{
     $sources=@('BoundedWorker.cs','OwnerObserver.cs','ProtectedAttempt.cs','ProviderStart.cs','OwnedVmPermit.cs','OwnedVmDefinition.cs','OwnedVmBoot.cs','BootStartBinding.cs','HostPhysicalPool.cs','WindowsStartAdmission.cs','LegacyTemplateFence.cs','LegacyLaunchCohort.cs','LegacyHandoff.cs','DefinitionWorkerEntry.cs','DefinitionWorkerController.cs','DiagnosticObservationCollector.cs','NativeRpcDefinition.cs')|ForEach-Object{Join-Path $root ('windows\rpc\'+$_)}
     $sources+=Join-Path $root 'test\rpc-windows-worker\NativeRpcDefinitionHarness.cs'
-    Invoke-FiniteProcess $csc (@('/nologo','/target:exe','/platform:x64','/r:System.Management.dll','/r:System.Web.Extensions.dll','/main:NativeRpcDefinitionHarness',('/out:'+$entry))+$sources) 20000 'native-compile'
+    Invoke-FiniteProcess $csc (@('/nologo','/target:exe','/platform:x64','/r:System.Management.dll','/r:System.Web.Extensions.dll','/r:Microsoft.CSharp.dll','/main:NativeRpcDefinitionHarness',('/out:'+$entry))+$sources) 20000 'native-compile'
     Invoke-FiniteProcess $entry @() 20000 'native-harness'
     [pscustomobject]@{compiled=$true;fixtureExecuted=$true;nativeProviderExecuted=$false;rpcReady=$false;sha256=(Get-FileHash -Algorithm SHA256 -LiteralPath $entry).Hash.ToLowerInvariant();bytes=(Get-Item -LiteralPath $entry).Length}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'artifact.json')
 }finally{
