@@ -316,24 +316,28 @@ namespace Enclave.OwnedRpc {
    PinInput(newMaster);
   }
   // Only this explicit mode replaces legacy health-based pending accounting.
-  // It admits the original RPC permit, not a new application creator.
+  // It admits an original RPC permit, or the explicit consumed native RPC
+  // app claim before definition. Neither mode admits arbitrary new allocators.
   internal sealed class Completion : IDisposable {
    readonly ProtectedAttempt evidence,reader;readonly LegacyHandoff work;readonly OwnedVmPermit permit;
-   readonly PhysicalClaim rpc;readonly List<PhysicalClaim> claims=new List<PhysicalClaim>();
+   readonly PhysicalClaim rpc,native;readonly List<PhysicalClaim> claims=new List<PhysicalClaim>();
    readonly SortedDictionary<string,MemoryRecord> initial=new SortedDictionary<string,MemoryRecord>(StringComparer.Ordinal);
    HostPhysicalPool pool;LegacyTemplateFence.HeldDenial denial;SortedDictionary<string,MemoryRecord> current;
    internal readonly string Receipt;
    bool disposed;
    internal Completion(Dictionary<string,object> binding,Dictionary<string,object> shared,ProtectedAttempt reader,ProtectedAttempt vm)
-    : this(binding,shared,reader,vm==null?null:vm.VmPermit,vm==null?null:vm.ContractHash,false) {}
+    : this(binding,shared,reader,vm==null?null:vm.VmPermit,vm==null?null:vm.ContractHash,false,null) {}
    internal Completion(Dictionary<string,object> binding,Dictionary<string,object> shared,ProtectedAttempt reader)
-    : this(binding,shared,reader,null,null,true) {}
-   Completion(Dictionary<string,object> binding,Dictionary<string,object> shared,ProtectedAttempt reader,OwnedVmPermit owned,string permitHash,bool beforeDefinition){
+    : this(binding,shared,reader,null,null,true,null) {}
+   internal Completion(Dictionary<string,object> binding,Dictionary<string,object> shared,ProtectedAttempt reader,PhysicalClaim nativeClaim)
+    : this(binding,shared,reader,null,null,true,nativeClaim) {}
+   Completion(Dictionary<string,object> binding,Dictionary<string,object> shared,ProtectedAttempt reader,OwnedVmPermit owned,string permitHash,bool beforeDefinition,PhysicalClaim nativeClaim){
     Keys(binding,"schema","contractPath","contractHash","activationHash","manifestHash","producerHash","creationMode");
     if(Str(binding["schema"])!="legacy-cut-seed-admission/1"||Str(binding["creationMode"])!="retained-fenced-rpc-only/1")throw new InvalidOperationException("Exact first-RPC handoff mode required");
     Keys(shared,"schema","configPath","configHash","capacityBytes");
-    if(Str(shared["schema"])!="host-physical-pool-binding/1"||reader==null||(!beforeDefinition&&owned==null)||(beforeDefinition&&(owned!=null||reader.LeaseProfile!="definition")))throw new InvalidOperationException("RPC permit/shared pool required");
-    this.reader=reader;permit=owned;Receipt=Str(binding["activationHash"]);StartIdentity.Hex(Receipt,64);
+    if(Str(shared["schema"])!="host-physical-pool-binding/1"||reader==null||(!beforeDefinition&&owned==null)||(beforeDefinition&&(owned!=null||(nativeClaim==null?reader.LeaseProfile!="definition":reader.LeaseProfile!="native-definition"))))throw new InvalidOperationException("RPC permit/shared pool required");
+    if(nativeClaim!=null&&(nativeClaim.Actor!="app-native"||nativeClaim.Boot!=reader.Boot||nativeClaim.Bytes!=20L*1073741824))throw new InvalidOperationException("Native app claim shape");
+    this.reader=reader;permit=owned;native=nativeClaim;Receipt=Str(binding["activationHash"]);StartIdentity.Hex(Receipt,64);
     try{
      evidence=ProtectedAttempt.OpenCompletedHandoff(Str(binding["contractPath"]),Str(binding["contractHash"]),reader);
      if(evidence.PermitHash!=Str(binding["manifestHash"])||evidence.ExecutableHash!=Str(binding["producerHash"])||evidence.Boot!=(permit==null?reader.Boot:permit.Boot))throw new InvalidOperationException("Reviewed completed producer differs");
@@ -398,7 +402,7 @@ namespace Enclave.OwnedRpc {
     foreach(string id in initial.Keys)if(!current.ContainsKey(id))throw new InvalidOperationException("Retained VM inventory changed");
     VerifyResources();CheckHeld();
    }
-   internal void CheckHeld(){if(disposed)throw new ObjectDisposedException("Completed handoff");work.Check();denial.Verify();if(permit==null)pool.VerifyInitial(claims);else pool.VerifyRetainedRpcOnly(claims,rpc);}
+   internal void CheckHeld(){if(disposed)throw new ObjectDisposedException("Completed handoff");work.Check();denial.Verify();if(native!=null)pool.VerifyRetainedNativeOnly(claims,native);else if(permit==null)pool.VerifyInitial(claims);else pool.VerifyRetainedRpcOnly(claims,rpc);}
    internal void VerifyResources(){
     CheckHeld();var sample=work.ObserveResident(current);long rpcAssigned;
     if(permit!=null&&sample.Residents.TryGetValue(permit.VmGuid,out rpcAssigned)&&rpcAssigned!=0)throw new InvalidOperationException("RPC already has resident memory before original start");

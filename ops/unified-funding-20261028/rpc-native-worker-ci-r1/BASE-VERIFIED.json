@@ -1,0 +1,12 @@
+{
+  "base": "f1aa6bac02b2b60a5d81bc90d4f90118c012e83f",
+  "unchanged": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/ProviderStart.cs",
+    "windows/rpc/OwnedVmPermit.cs",
+    "windows/rpc/LegacyTemplateFence.cs",
+    "windows/rpc/LegacyLaunchCohort.cs"
+  ]
+}

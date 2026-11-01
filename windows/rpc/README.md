@@ -1313,3 +1313,27 @@ Native definition qualification result: hosted run41322573241 passed16 new cases
 files and a mocked provider; it did not execute native WMI or establish SYSTEM
 startup/production readiness. The first run's artifact-collection failure is
 preserved separately; its test outcomes are unknown.
+
+`NativeRpcWorkerEntry.cs` now supplies the native definition owner/observer/child
+entrypoint. `NativeRpcAuthority.cs` binds its work to the exact live manager
+record, original clock, current shared pool claim and fixed asset files before
+calling the native transaction. The existing completed legacy cut remains
+required; the only additional pool record admitted is the exact already-consumed
+20 GiB `app-native` RPC claim. The four-second aggregate observation, prospective
+commitments, floors and overheads remain unchanged. All four listener process
+identities are held through admission; the original native manager record is
+checked at both ends.
+
+Firmware, bundle, record and profile are held without write/delete sharing.
+The initial private single-link VMGS copy is hashed and held without delete
+sharing; provider writes are permitted because guest state must change. Its
+initial digest is not represented as an immutable post-definition state digest.
+Local runtime pins are operator configuration, not attestation of accepted code.
+
+This entrypoint is not installed or supplied by the manager's default main.
+The original manager/controller request producer, task submission/collection,
+durable inventory recovery, full target SYSTEM execution and accepted complete
+image are still outstanding. Readiness, start, device configuration and storage
+writer authority remain separate unfinished stages. The new hosted workflow
+compiles the actual entrypoint and tests native admission/assets/pool behavior;
+it never calls the WMI provider or starts the native worker against a host.

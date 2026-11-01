@@ -18,9 +18,9 @@ internal sealed partial class WindowsStartAdmission {
     // Whole stack + prospective apps + real host floor + variation + extra
     // transient startup overhead including 192 MiB for independent cleanup. Existing VM allocations are already in free.
     internal const long Required=20*GiB+39388*MiB+18*GiB+GiB+512*MiB+192*MiB;
-    readonly ProtectedAttempt vm;readonly string admissionHash;readonly long began;readonly LegacyHandoff.Completion completed;readonly bool freshInventory;
+    readonly ProtectedAttempt vm;readonly string admissionHash;readonly long began;readonly LegacyHandoff.Completion completed;readonly bool freshInventory;readonly Func<object[],string> nativeAuthority;
     readonly JavaScriptSerializer Json=new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32};
-    WindowsStartAdmission(ProtectedAttempt vm,string admissionHash,LegacyHandoff.Completion completed,bool freshInventory=false){this.vm=vm;this.admissionHash=admissionHash;this.completed=completed;this.freshInventory=freshInventory;began=BoundedWorker.MonotonicMilliseconds();}
+    WindowsStartAdmission(ProtectedAttempt vm,string admissionHash,LegacyHandoff.Completion completed,bool freshInventory=false,Func<object[],string> nativeAuthority=null){this.nativeAuthority=nativeAuthority;this.vm=vm;this.admissionHash=admissionHash;this.completed=completed;this.freshInventory=freshInventory;began=BoundedWorker.MonotonicMilliseconds();}
     string stage="begin";
     internal const long FreshnessMilliseconds=4000;
     internal static void RequireFresh(long began,long now,string stage) {
@@ -125,6 +125,10 @@ internal sealed partial class WindowsStartAdmission {
                 }
             }
         }finally{request.Abort();}
+    }
+    string NativeAppReceipt(){
+        var rows=new List<object>();foreach(int port in new[]{8091,8095,8097})rows.Add(new Dictionary<string,object>{{"port",port},{"health",GetLocal(port,"/health")},{"vms",GetLocal(port,"/vms")}});
+        return nativeAuthority(rows.ToArray());
     }
     // Missing legacy reservation fields remain UNKNOWN, not an empty queue.
     // All three managers must expose complete current reservations; duplicate
@@ -249,6 +253,7 @@ internal sealed partial class WindowsStartAdmission {
             if(port==8091)firstIssuer=(uint)pid;else if(port==8095)secondIssuer=(uint)pid;
         }
         var issuerListeners=freshInventory&&completed!=null?new IssuerListeners(vm,began,firstIssuer,secondIssuer):null;
+        string nativeBefore=null;if(nativeAuthority!=null){Stage("native-app-before");nativeBefore=NativeAppReceipt();}
         Stage("disk");long disk=DiskAvailable();CheckTime();
         if(free<Required||Math.Min(Num(before["freeBytes"]),Num(after["freeBytes"]))<Required||disk<16*GiB+4*GiB+256*MiB)
             throw new InvalidOperationException("Target qualification headroom refused");
@@ -261,6 +266,7 @@ internal sealed partial class WindowsStartAdmission {
             string finalNode=DeploymentReceipt(GetLocal(9600,"/v1/host/state"),true,completed!=null);
             if(finalNode!=liveNodeExact)throw new InvalidOperationException("Node commitments changed during current inventory verification: "+DeploymentDifference(liveNodeExact,finalNode));}
         if(completed!=null)completed.CheckHeld();
+        if(nativeAuthority!=null){Stage("native-app-after");if(NativeAppReceipt()!=nativeBefore)throw new InvalidOperationException("Native original manager record changed during admission");}
         Stage("manager-handles-after");foreach(var process in held){process.Check();CheckTime();}
         CheckTime();
     }

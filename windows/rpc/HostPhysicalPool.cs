@@ -168,6 +168,16 @@ namespace Enclave.OwnedRpc {
                 Check();
             }
         }
+        internal void VerifyRetainedNativeOnly(IList<PhysicalClaim> expected,PhysicalClaim native) {
+            Bind(native);if(native.Actor!="app-native"||native.Bytes!=20L*1073741824)throw new InvalidOperationException("Exact native RPC app claim required");
+            using(var gate=Lock()) {
+                HashSet<string> consumed;var actual=Snapshot(out consumed);
+                foreach(var c in expected){PhysicalClaim old;if(!actual.TryGetValue(c.Id,out old)||old.Encode()!=c.Encode()||!consumed.Contains(c.Id))throw new InvalidOperationException("Native retained seed differs");actual.Remove(c.Id);}
+                PhysicalClaim owned;
+                if(actual.Count!=1||!actual.TryGetValue(native.Id,out owned)||owned.Encode()!=native.Encode()||!consumed.Contains(native.Id))throw new InvalidOperationException("Native claim missing, unconsumed or another allocator present");
+                Check();
+            }
+        }
         // Deliberately no timeout/worker-death release. Native operation settlement,
         // original owned Off and write fencing are separate required evidence.
         public void Dispose(){if(disposed)return;disposed=true;for(int i=held.Count-1;i>=0;i--)held[i].Dispose();held.Clear();}

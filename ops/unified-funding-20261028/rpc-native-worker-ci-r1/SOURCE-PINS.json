@@ -1,0 +1,21 @@
+{
+  "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+  "windows/rpc/OwnerObserver.cs": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80",
+  "windows/rpc/ProtectedAttempt.cs": "7b5be0a1b42bd37cd9f3d44b5af1c8357bc13cce1df2686157d4a2b45120ae3e",
+  "windows/rpc/ProviderStart.cs": "600b86bcdfcb4a0425213fee9ed241a51c9a23d3fbcc51560d5c929b628a7d46",
+  "windows/rpc/OwnedVmPermit.cs": "a4d1f9640a4087714b9907cddcdc64340cb57f07de04dd1b6baf97197ac60373",
+  "windows/rpc/HostPhysicalPool.cs": "8a9506c50a3ad65a614ed62eb91f07cd78d8db81098a84fe10215ac44e9ad3b1",
+  "windows/rpc/WindowsStartAdmission.cs": "8f88b3c432e0d30926ca65ab6f0e2fef06d2cce2f4861f4dcf0a3dbe3952cca6",
+  "windows/rpc/LegacyTemplateFence.cs": "d2bfc04762cf64b2555575e4c8aa95842dd35be108f9c9780dd3ecf0ecd0cd0f",
+  "windows/rpc/LegacyLaunchCohort.cs": "ce22aa16e0d353fa8354bca26f8dc4057d520c001540d0659778e2769135f5a2",
+  "windows/rpc/LegacyHandoff.cs": "f99033ca2b4f8ed9d78d15f3cc4976c40c1336492bdde6b22de10e99e6126262",
+  "windows/rpc/NativeRpcDefinition.cs": "1aa9525e0796150332454f6c2224b0b0d609d58f6c818058f5e3b32060f154d5",
+  "windows/rpc/NativeRpcAuthority.cs": "11238f586e716e9a348d614ff473a07db031f059ab834abe71e66332f22e2aa1",
+  "windows/rpc/NativeRpcWorkerEntry.cs": "6365cde95b397b65190971f004ce78d1b82ea67a0642b2a0e92ab8871306740e",
+  "test/rpc-windows-worker/NativeRpcWorkerHarness.cs": "51f7f65d1c21c579fe8beae879a71ee685c73f716928b2c9eb2b32c3dae11dbd",
+  "test/rpc-windows-worker/run-native-worker-ci.ps1": "c3064b2a6595e7d053b6541ba85f1891d1f2a4fd5608b908ee5d824a2a08167b",
+  ".github/workflows/rpc-native-worker.yml": "9ba4a407dbe021c63247cb33fc675880146cafb8ad4f2a22a88094ce5136b266",
+  "windows/rpc/README.md": "e7eaeef596607a0116cf42feaa23de86eb12a76b1b61cff9583884e00168ce53",
+  "windows/vbslike/manager/RPC-CONTROLLER.md": "b97e8267310aa57ed046143b464b89061cf2c0195d9dd9641908928f7e59dcfb",
+  "test/rpc-windows-worker/NativeRpcDefinitionHarness.cs": "08222ea00d0f87511d8b090545e13c6beddf2e9a89bcdc8329e0fedd18819dae"
+}

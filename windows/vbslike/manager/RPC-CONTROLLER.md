@@ -52,3 +52,12 @@ native driver, accepted full image, authenticated enrollment/offer delivery,
 real Node/TPM/AF_HYPERV and broker/root attachment, measured whole-stack fit,
 sync/finality/readiness and consumer cutover. Catalog preview is already published
 and is not this production runtime; no publication/signature/payment is repeated.
+
+The native worker implementation now exists at `windows/rpc/NativeRpcWorkerEntry.cs`.
+It runs only an explicit native-definition lease, verifies the original manager's
+live RPC record and consumed shared `app-native` claim, pins private assets, then
+invokes the durable native DefineSystem transaction. It creates only an Off shell.
+The manager-side original controller/ledger and bounded task request producer are
+still missing; do not supply a controller that fabricates a plan from an existing
+VM or treats an output receipt as a new ownership capability. Default main stays
+unactivated until that connection and target qualification exist.
