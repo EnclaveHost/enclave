@@ -1,0 +1,7 @@
+[
+  "test/rpc-windows-worker/NativeRpcStartHarness.cs",
+  "ops/unified-funding-20261028/rpc-native-start-ci-r1",
+  "ops/unified-funding-20261028/rpc-native-start-preserve-r1",
+  "ops/unified-funding-20261028/rpc-native-start-preserve-r2",
+  "ops/unified-funding-20261028/rpc-native-start-ci-r2"
+]

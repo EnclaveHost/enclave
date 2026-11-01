@@ -1,0 +1,4 @@
+{
+  "sha256": "e23641be284f4c4b2d8387368b2b91630504df778914573c0d32cce34faff63c",
+  "text": "source-closure\\test\\rpc-windows-worker\\NativeRpcStartHarness.cs(161,653): error CS1513: } expected\r\n"
+}

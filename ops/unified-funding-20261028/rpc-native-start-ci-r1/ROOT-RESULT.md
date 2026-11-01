@@ -1,0 +1,1 @@
+Hosted41336538236/runtime6c2d6f8b6ae5b1f9f83720bedab4083e2081f9a7 compiler5473ms/exit1/exactdeath: CS1513 missing closing brace in new protected-journal fixture atline161.0tests, no productioncompiles. R2fixture-only correction closes test lambda after foreach/using. Production source identical. Allcaps/floors/deadlines unchanged; no unchangednative retry. No target activity.
