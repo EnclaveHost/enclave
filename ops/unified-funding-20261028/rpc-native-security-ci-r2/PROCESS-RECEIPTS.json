@@ -28,5 +28,10 @@
     "invocation": "813e780fe68e4f95b9476f22218b4ded",
     "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
     "journal": "2026-11-01T10:03:27-07:00 warden-host taskset[1044997]: [queue] START available=94595MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T10:03:29-07:00 warden-host taskset[1044997]: [queue] EXIT 0\n"
+  },
+  "rpc-native-security-results-preserve-r1": {
+    "invocation": "803522f0ace2424da6bc34395e0ec23d",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "journal": "2026-11-01T10:04:34-07:00 warden-host taskset[1045821]: [queue] START available=94596MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T10:04:37-07:00 warden-host taskset[1045821]: [queue] EXIT 0\n"
   }
 }
