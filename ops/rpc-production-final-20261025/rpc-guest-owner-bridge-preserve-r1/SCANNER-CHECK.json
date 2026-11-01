@@ -1,0 +1,22 @@
+[
+  {
+    "case": "public",
+    "exit": 0,
+    "expected": 0
+  },
+  {
+    "case": "changed-ciphertext",
+    "exit": 1,
+    "expected": 1
+  },
+  {
+    "case": "other-path",
+    "exit": 1,
+    "expected": 1
+  },
+  {
+    "case": "private-key",
+    "exit": 1,
+    "expected": 1
+  }
+]

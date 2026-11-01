@@ -1,0 +1,16 @@
+{
+  "invocation": "1882c92cc0034fcab5d2c8b11fd89e5c",
+  "terminalExit": 1,
+  "mainPid": 0,
+  "commit": "8c63af66dbfd74d0e5314689773198bd65305d12",
+  "push": "refused",
+  "rule": "generic-api-key",
+  "findings": 2,
+  "path": "ops/rpc-production-final-20261025/rpc-guest-owner-bridge-tests-r2/owner-offer-vector.json",
+  "fields": [
+    "credentialBlob",
+    "secret"
+  ],
+  "classification": "public TPM ciphertext from synthetic fixture, not private key or plaintext credential",
+  "pushLogSha256": "6a6504e16d59c8f14bf5617ae1fe7832a9dbb6316079b7d33ecb738ff2569860"
+}

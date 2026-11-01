@@ -717,3 +717,13 @@ paths = ['''^shielded/anchor/avf/results/pvm-cpu-[a-z0-9-]+/vm/[a-z0-9-]+\.log$'
 regexTarget = "line"
 regexes = ['''VSOCK PROOFKEY answered nonce=[0-9a-f]{16}\.\.\. proofKey=0x[0-9a-f]{40} \(answer \d+\)''']   # gitleaks' line target is not the whole line: unanchored, exact shape
 
+
+[[allowlists]]
+description = "Exact public TPM MakeCredential ciphertexts in one guest-owner interoperability fixture; RSA-OAEP encrypted seed and AES-CFB encrypted credential plus integrity MAC, from relay/vbs-credential.mjs. No private key or plaintext credential. Verified source and synthetic activation; other values/paths still scanned."
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^ops/rpc\-production\-final\-20261025/rpc\-guest\-owner\-bridge\-tests\-r2/owner\-offer\-vector\.json$''']
+regexes = [
+  '''^ACB3zKTYaB2XYoCpM6hV6APKSoduZfo4JJlA9pk27xMyIiJlwtv/NMwfax9/WyIvn0SkOjoZjiFgSZO6yKeGdzI5v2M=$''',
+  '''^Azzj/YGt2HPVWETJfSt4S1muKwljwhbBQXbcMuhoxpNeCrT4Wxg7S\+JeogQFJw8MzeUJNBltSoLk\+1ikYGkVr0BMrCGInhB5fQz2HdSi0h4IvR2J0A\+p770myTK/bcPRguRo/G0XVGkYLXTvGpA\+MFsOH91PJtgwBa4ICqB2v6UQKXPIOUfYhugNzwxlSwnP3yTauU\+VU/7snymU4EUCVAt\+I/zHvEkahNnkEGArk1pfCWYDZ4gQj/sGobWdG2j1KXCHCrqHhD4NmQQSc89mHDsaZDGNfSRqPh\+sjOOPD60YD384SxU13mGD8Zj0sqQy739tWlyOwaVhXErRY1c2jg==$''',
+]
