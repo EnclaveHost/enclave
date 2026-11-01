@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 	"unsafe"
@@ -35,6 +36,8 @@ type Broker struct {
 	pid                int
 	done               chan struct{}
 	stop               sync.Once
+	readyWriter        *os.File
+	readyUsed          atomic.Bool
 }
 
 func (b *Broker) Stop() {
@@ -45,6 +48,20 @@ func (b *Broker) Stop() {
 			}
 		})
 	}
+}
+
+// TakeReadyWriter transfers once to the exact monitor-created service entry.
+// The caller closes its copy only after Start settles. No other child inherits
+// it; the broker's reader cannot receive host-selected path or network input.
+func (b *Broker) TakeReadyWriter() (*os.File, error) {
+	if b == nil || !b.readyUsed.CompareAndSwap(false, true) || b.readyWriter == nil {
+		return nil, errors.New("broker readiness transfer missing or consumed")
+	}
+	dead, err := pidSignaled(b.pidfd)
+	if err != nil || dead {
+		return nil, errors.New("live exact broker required for readiness transfer")
+	}
+	return b.readyWriter, nil
 }
 func (b *Broker) Done() <-chan struct{} { return b.done }
 func (b *Broker) LocalDead() bool {
@@ -377,11 +394,19 @@ func (i *Identity) launch(ctx context.Context, clock *os.File, bundle, policy, s
 	}
 	defer r.Close()
 	defer w.Close()
+	readyReader, readyWriter, err := os.Pipe()
+	if err != nil {
+		return b, err
+	}
+	defer readyReader.Close()
+	b.readyWriter = readyWriter
+	// On failure no service is started. Retain the writer with the exact broker
+	// capabilities; startup deadline/Stop remains authoritative, never a retry.
 	// fd11 is the held immutable executable; it is not a listener capability.
 	cmd := exec.Command("/proc/self/fd/11")
 	cmd.Args = []string{"rpc-storage-broker"}
 	cmd.Env = []string{"GOMAXPROCS=1", "GOMEMLIMIT=96MiB"}
-	cmd.ExtraFiles = []*os.File{clock, w, files[0], files[1], relay, files[2], files[3], files[4], exe}
+	cmd.ExtraFiles = []*os.File{clock, w, files[0], files[1], relay, files[2], files[3], files[4], exe, readyReader}
 	pidfd := -1
 	cmd.SysProcAttr = &syscall.SysProcAttr{UseCgroupFD: true, CgroupFD: int(b.group.Fd()), PidFD: &pidfd, Pdeathsig: syscall.SIGKILL}
 	if err = ctx.Err(); err != nil {

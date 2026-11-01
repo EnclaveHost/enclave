@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 	"unsafe"
@@ -60,6 +61,8 @@ type BrokerSession struct {
 	continuationMu       sync.Mutex // never held by the independent session watcher
 	continuation         *bootstrap.RPCContinuationChain
 	continuationSequence uint64
+	localReadyUsed       atomic.Bool
+	localReady           *brokerLocalReady
 }
 
 func (s *BrokerSession) Request() Request         { return s.request }

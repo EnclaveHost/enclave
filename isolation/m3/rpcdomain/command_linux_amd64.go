@@ -3,6 +3,7 @@
 package rpcdomain
 
 import (
+	"enclave.host/isolation/m3/rpcservice"
 	"errors"
 	"os"
 	"os/exec"
@@ -60,4 +61,18 @@ func command(c Capabilities, root *os.File) *Launch {
 	// Exact owner pidfd + original deadline are watched by PID1 after exec;
 	// never substitute transport exit or a parent-thread death signal for it.
 	return &Launch{Cmd: cmd, Capabilities: c, NamespaceRoot: root}
+}
+
+// BindReadiness consumes the one fixed FD15 slot before Start. The caller owns
+// the original broker's sole writer and retains it until Start settles. This
+// method accepts no path, message or host-selected descriptor number.
+func (l *Launch) BindReadiness(w *os.File) error {
+	if l == nil || l.Cmd == nil || l.Cmd.Process != nil || len(l.Cmd.ExtraFiles) != 12 {
+		return errors.New("unused exact native entry readiness slot required")
+	}
+	if err := rpcservice.ValidateReadyOutput(w); err != nil {
+		return err
+	}
+	l.Cmd.ExtraFiles = append(l.Cmd.ExtraFiles, w)
+	return nil
 }

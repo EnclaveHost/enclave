@@ -100,3 +100,13 @@ owner endpoint remains within originalD. Existing media and Windows attempts hav
 not been changed or retried. This supports startup continuation only. No permanent
 serving adoption, hardware qualification, new writer reservation or running RPC is
 proved by these component tests.
+
+### Private readiness delivery (source only)
+
+The maintained monitor now transfers a one-shot supervisor-to-broker pipe
+(broker FD12, service entry FD15). The broker records the exact front observation
+only while its original attempt and storage authorization remain valid. This
+does not change any Windows or guest deadline and is not serving adoption.
+Images must be recomposed together after the complete serving handoff; the
+previously generated firmware contains none of these increments. See
+[readiness protocol status](../../isolation/m3/rpcstorage/READINESS.md).

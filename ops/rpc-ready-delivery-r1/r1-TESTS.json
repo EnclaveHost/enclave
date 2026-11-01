@@ -1,0 +1,20 @@
+[
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyForwardsExactPrivateFrameOnce/valid",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyForwardsExactPrivateFrameOnce/wrong-nonce",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyForwardsExactPrivateFrameOnce/canceled",
+    "Action": "pass",
+    "Elapsed": 0
+  }
+]

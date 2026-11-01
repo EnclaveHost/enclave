@@ -108,6 +108,7 @@ type RPCStorageConsent struct {
 	l1Epoch, baseEpoch string
 	export             *RPCExportBinding
 	notAfter           time.Time
+	runtimeID          string // immutable identity covered by both original storage signatures
 	proofSHA256        string // exact originally verified signed response, for explicit off-chain continuation
 }
 
@@ -119,6 +120,16 @@ func (c *RPCStorageConsent) NotAfter() time.Time {
 		return time.Time{}
 	}
 	return c.notAfter
+}
+
+// RuntimeID returns the immutable identity covered by the original consent.
+// It is a binding, not a current-authorization or serving decision, and may be
+// read independently of Authorization.Revalidate.
+func (c *RPCStorageConsent) RuntimeID() string {
+	if c == nil {
+		return ""
+	}
+	return c.runtimeID
 }
 
 func (c *RPCStorageConsent) Matches(r contract.RPCStorageRequest) bool {
@@ -273,7 +284,7 @@ func (a *Authorization) VerifyRPCStorage(bundle []byte, r contract.RPCStorageReq
 		return nil, errors.New("storage authorization expired during verification")
 	}
 	proofHash := sha256.Sum256(raw)
-	return &RPCStorageConsent{authorization: a, request: r, l1Epoch: proof.L1.WriterEpoch, baseEpoch: proof.Base.WriterEpoch, export: proof.Export, notAfter: rpcAuthorizationExpiry(a), proofSHA256: hex.EncodeToString(proofHash[:])}, nil
+	return &RPCStorageConsent{authorization: a, request: r, l1Epoch: proof.L1.WriterEpoch, baseEpoch: proof.Base.WriterEpoch, export: proof.Export, notAfter: rpcAuthorizationExpiry(a), runtimeID: a.manifest.RuntimeID, proofSHA256: hex.EncodeToString(proofHash[:])}, nil
 }
 
 // RPCExportSigningPayloads extends, rather than weakens, all original consent

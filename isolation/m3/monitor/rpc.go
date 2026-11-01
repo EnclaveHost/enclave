@@ -145,7 +145,24 @@ func (m *monitor) loadRPC(br *bufio.Reader, req request) (*domain, error) {
 	// register() inside launch precedes the first front instruction. Only its
 	// fixed UID can obtain app-bound reports; native clients have distinct UIDs.
 	go func() { <-d.rpc.storage.Loss(); m.retire(d, "RPC storage authority/deadline lost; retained") }()
-	if err = m.launch(d, l.Cmd, ln); err != nil {
+	d.rpc.brokerMu.Lock()
+	readyWriter, readyErr := d.rpc.broker.TakeReadyWriter()
+	d.rpc.brokerMu.Unlock()
+	if readyErr != nil {
+		ln.Close()
+		return fail(readyErr)
+	}
+	// FD15 is private supervisor->broker, created before the broker's launch.
+	// App/front/client children never inherit the writer. Keep the parent copy
+	// until Start has actually settled, including an ambiguous/blocked Start.
+	if err = l.BindReadiness(readyWriter); err != nil {
+		readyWriter.Close()
+		ln.Close()
+		return fail(err)
+	}
+	err = m.launch(d, l.Cmd, ln)
+	readyWriter.Close()
+	if err != nil {
 		return nil, err
 	}
 	return d, nil // process launched, NOT chain readiness, serving adoption or ledger Running

@@ -1,0 +1,320 @@
+[
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyForwardsExactPrivateFrameOnce/valid",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyForwardsExactPrivateFrameOnce/wrong-nonce",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyForwardsExactPrivateFrameOnce/canceled",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyForwardsExactPrivateFrameOnce/full-pipe",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyForwardsExactPrivateFrameOnce/reader-gone",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyForwardsExactPrivateFrameOnce",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyOutputRejectsWrongCapability",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyActualPipeIdentityFreshnessAndEOF/valid",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyActualPipeIdentityFreshnessAndEOF/wrong-nonce",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyActualPipeIdentityFreshnessAndEOF/stale",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyActualPipeIdentityFreshnessAndEOF/future",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyActualPipeIdentityFreshnessAndEOF/short",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyActualPipeIdentityFreshnessAndEOF/extra",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyActualPipeIdentityFreshnessAndEOF/empty",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyActualPipeIdentityFreshnessAndEOF/held-open",
+    "Action": "pass",
+    "Elapsed": 0.05
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyActualPipeIdentityFreshnessAndEOF/approval",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyActualPipeIdentityFreshnessAndEOF",
+    "Action": "pass",
+    "Elapsed": 0.05
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyDoesNotExtendDeadline",
+    "Action": "pass",
+    "Elapsed": 0.1
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyRefusalTerminatesClients/error",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyRefusalTerminatesClients/zero",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyRefusalTerminatesClients/wall",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyRefusalTerminatesClients/future",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyRefusalTerminatesClients/stale",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyRefusalTerminatesClients",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyBlockedCallbackCannotReviveDeadline",
+    "Action": "pass",
+    "Elapsed": 0.1
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcservice",
+    "Test": "TestLocalReadyCannotSuppressFrontLoss",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcstorage",
+    "Test": "TestStartupContinuationPersistsAndCannotResetOriginalDeadline",
+    "Action": "pass",
+    "Elapsed": 0.3
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcstorage",
+    "Test": "TestStartupContinuationFailureRetainsIntentAndClosesSession/bad-signature",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcstorage",
+    "Test": "TestStartupContinuationFailureRetainsIntentAndClosesSession/receipt-conflict",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcstorage",
+    "Test": "TestStartupContinuationFailureRetainsIntentAndClosesSession/replay",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcstorage",
+    "Test": "TestStartupContinuationFailureRetainsIntentAndClosesSession",
+    "Action": "pass",
+    "Elapsed": 0.01
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcstorage",
+    "Test": "TestStartupContinuationRefusesValidServingPermit",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcstorage",
+    "Test": "TestBrokerReceivesBoundReadinessWithoutAdopting/valid",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcstorage",
+    "Test": "TestBrokerReceivesBoundReadinessWithoutAdopting/app",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcstorage",
+    "Test": "TestBrokerReceivesBoundReadinessWithoutAdopting/runtime",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcstorage",
+    "Test": "TestBrokerReceivesBoundReadinessWithoutAdopting/deployment",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcstorage",
+    "Test": "TestBrokerReceivesBoundReadinessWithoutAdopting/stale",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcstorage",
+    "Test": "TestBrokerReceivesBoundReadinessWithoutAdopting/future",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcstorage",
+    "Test": "TestBrokerReceivesBoundReadinessWithoutAdopting/before-origin",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcstorage",
+    "Test": "TestBrokerReceivesBoundReadinessWithoutAdopting/extra",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcstorage",
+    "Test": "TestBrokerReceivesBoundReadinessWithoutAdopting/held-open",
+    "Action": "pass",
+    "Elapsed": 0.07
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcstorage",
+    "Test": "TestBrokerReceivesBoundReadinessWithoutAdopting/no-export",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcstorage",
+    "Test": "TestBrokerReceivesBoundReadinessWithoutAdopting/expired-authority",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcstorage",
+    "Test": "TestBrokerReceivesBoundReadinessWithoutAdopting/receipt-conflict",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcstorage",
+    "Test": "TestBrokerReceivesBoundReadinessWithoutAdopting/replay",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcstorage",
+    "Test": "TestBrokerReceivesBoundReadinessWithoutAdopting",
+    "Action": "pass",
+    "Elapsed": 0.12
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcstorage",
+    "Test": "TestBrokerLocalReadinessKeepsOriginalDeadline",
+    "Action": "pass",
+    "Elapsed": 0.23
+  },
+  {
+    "Package": "enclave.host/isolation/m2/bootstrap",
+    "Test": "TestRPCStorageConsentRequiresBothIndependentSignatures",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m2/bootstrap",
+    "Test": "TestRPCStorageConsentExpiresAndRevokes",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcdomain",
+    "Test": "TestRPCMonitorCommandTransfersExactCapabilities",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcdomain",
+    "Test": "TestRPCMonitorCommandRejectsUnpreparedRootBeforeTransfer",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcdomain",
+    "Test": "TestRPCMonitorBindsReadinessOnlyOnceBeforeStart",
+    "Action": "pass",
+    "Elapsed": 0
+  },
+  {
+    "Package": "enclave.host/isolation/m3/rpcbootstrap",
+    "Test": "TestBrokerReadinessWriterRequiresExactLiveProcessAndOneTransfer",
+    "Action": "pass",
+    "Elapsed": 0
+  }
+]

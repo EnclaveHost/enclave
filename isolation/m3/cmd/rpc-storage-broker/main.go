@@ -253,6 +253,11 @@ func run() error {
 	if e != nil {
 		return e
 	}
+	// FD12 is the sole read end made by the original monitor before launch;
+	// the matching writer is inherited only by its exact native service entry.
+	readyInput := os.NewFile(12, "rpc-service-readiness")
+	defer readyInput.Close()
+	go func() { _ = session.ReceiveLocalReady(readyInput, bundle, receipts) }()
 	if session.HasOwnerContinuations() {
 		go func() { _ = session.RunOwnerContinuations(auth, bundle, receipts) }()
 	}

@@ -54,3 +54,30 @@ func TestRPCMonitorCommandRejectsUnpreparedRootBeforeTransfer(t *testing.T) {
 		t.Fatal("writable root accepted or preparation consumed")
 	}
 }
+
+func TestRPCMonitorBindsReadinessOnlyOnceBeforeStart(t *testing.T) {
+	r, w, e := os.Pipe()
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer r.Close()
+	defer w.Close()
+	l := command(Capabilities{Control: w}, r)
+	if e = l.BindReadiness(r); e == nil || len(l.Cmd.ExtraFiles) != 12 {
+		t.Fatal("read end consumed slot", e)
+	}
+	if e = l.BindReadiness(w); e != nil {
+		t.Fatal(e)
+	}
+	if len(l.Cmd.ExtraFiles) != 13 || l.Cmd.ExtraFiles[12] != w {
+		t.Fatal("not FD15")
+	}
+	if e = l.BindReadiness(w); e == nil {
+		t.Fatal("slot replay")
+	}
+	l = command(Capabilities{Control: w}, r)
+	l.Cmd.Process = &os.Process{Pid: 1}
+	if e = l.BindReadiness(w); e == nil {
+		t.Fatal("already-started command changed")
+	}
+}

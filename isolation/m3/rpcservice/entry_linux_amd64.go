@@ -351,6 +351,11 @@ func EnterInherited() int {
 	if err := syscall.Close(14); err != nil {
 		return 126
 	}
+	readyOutput := os.NewFile(15, "rpc-broker-readiness")
+	defer runtime.KeepAlive(readyOutput)
+	if err := ValidateReadyOutput(readyOutput); err != nil {
+		return 126
+	}
 	g := Groups{Parent: files[2], EL: files[3], CL: files[4], Base: files[5], Probe: files[6], Controller: files[8], Front: files[9]}
 	if err := entryControl(files[7], g); err != nil {
 		return 126
@@ -362,6 +367,7 @@ func EnterInherited() int {
 	if err != nil {
 		return 126
 	}
+	s.be.(*osBackend).readyOutput = readyOutput
 	if err := validateOwner(3); err != nil {
 		return 126
 	}

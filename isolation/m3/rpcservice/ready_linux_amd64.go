@@ -5,6 +5,7 @@ package rpcservice
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"syscall"
 	"time"
@@ -34,7 +35,27 @@ func (b *osBackend) localReady(ctx context.Context) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, err
 	}
-	return readLocalReady(ctx, b.readyReader, expected)
+	record, raw, err := ReadLocalReadyEvidence(ctx, b.readyReader)
+	if err != nil {
+		return time.Time{}, err
+	}
+	before := time.Now()
+	now, err := MonotonicNow()
+	if err != nil {
+		return time.Time{}, err
+	}
+	if err = record.Validate(expected, now); err != nil {
+		return time.Time{}, err
+	}
+	if b.readyOutput != nil {
+		if err = forwardLocalReady(ctx, b.readyOutput, raw); err != nil {
+			return time.Time{}, err
+		}
+	}
+	if err = ctx.Err(); err != nil {
+		return time.Time{}, err
+	}
+	return before.Add(-time.Duration(now - record.ObservedMono)), nil
 }
 
 // The parent has already closed its writer. Exact frame AND EOF are required;
@@ -42,15 +63,38 @@ func (b *osBackend) localReady(ctx context.Context) (time.Time, error) {
 // The caller retains the reader until process exit and drains this routine before
 // claiming cleanup, just as for owner approval. This never changes a deadline.
 func readLocalReady(ctx context.Context, r *os.File, expected contract.RPCStartBinding) (time.Time, error) {
-	fail := func(err error) (time.Time, error) { return time.Time{}, err }
-	if _, err := expected.Frame(); err != nil {
-		return fail(err)
+	record, _, err := ReadLocalReadyEvidence(ctx, r)
+	if err != nil {
+		return time.Time{}, err
+	}
+	before := time.Now()
+	now, err := MonotonicNow()
+	if err != nil {
+		return time.Time{}, err
+	}
+	if err = record.Validate(expected, now); err != nil {
+		return time.Time{}, err
+	}
+	return before.Add(-time.Duration(now - record.ObservedMono)), ctx.Err()
+}
+
+// ReadLocalReadyEvidence reads a fixed private inherited pipe, never a path or
+// host message. It verifies framing, EOF and freshness, NOT provenance or scope:
+// callers must own the pipe topology and compare the actual expected identity.
+// Returned bytes retain the front's original request-start timestamp.
+func ReadLocalReadyEvidence(ctx context.Context, r *os.File) (contract.RPCLocalReady, []byte, error) {
+	fail := func(err error) (contract.RPCLocalReady, []byte, error) { return contract.RPCLocalReady{}, nil, err }
+	if ctx == nil {
+		return fail(errors.New("readiness context required"))
 	}
 	var st syscall.Stat_t
-	if r == nil || syscall.Fstat(int(r.Fd()), &st) != nil || st.Mode&syscall.S_IFMT != syscall.S_IFIFO {
+	if r == nil || syscall.Fstat(int(r.Fd()), &st) != nil || st.Mode&syscall.S_IFMT != syscall.S_IFIFO || st.Uid != 0 {
 		return fail(errors.New("private RPC readiness reader required"))
 	}
 	fd := int(r.Fd())
+	if _, err := fcntl(uintptr(fd), syscall.F_SETFD, syscall.FD_CLOEXEC); err != nil {
+		return fail(err)
+	}
 	flags, err := fcntl(uintptr(fd), syscall.F_GETFL, 0)
 	if err != nil || flags&syscall.O_ACCMODE != syscall.O_RDONLY {
 		return fail(errors.New("RPC readiness reader required"))
@@ -76,19 +120,17 @@ func readLocalReady(ctx context.Context, r *os.File, expected contract.RPCStartB
 			if err != nil {
 				return fail(err)
 			}
-			// Earlier Go sample makes conversion conservative, never fresher.
-			before := time.Now()
 			now, err := MonotonicNow()
 			if err != nil {
 				return fail(err)
 			}
-			if err = record.Validate(expected, now); err != nil {
+			if err = record.Validate(record.Binding, now); err != nil {
 				return fail(err)
 			}
 			if err = ctx.Err(); err != nil {
 				return fail(err)
 			}
-			return before.Add(-time.Duration(now - record.ObservedMono)), nil
+			return record, append([]byte(nil), buf[:used]...), nil
 		}
 		if re != nil && re != syscall.EAGAIN && re != syscall.EINTR {
 			return fail(re)
@@ -97,4 +139,64 @@ func readLocalReady(ctx context.Context, r *os.File, expected contract.RPCStartB
 			return fail(err)
 		}
 	}
+}
+
+// ValidateReadyOutput checks the inherited write-only capability before any
+// client launch. CLOEXEC prevents inheritance by clients or the front itself.
+func ValidateReadyOutput(w *os.File) error {
+	_, err := readyOutputFD(w)
+	return err
+}
+func readyOutputFD(w *os.File) (int, error) {
+	if w == nil {
+		return -1, errors.New("root private readiness output pipe required")
+	}
+	// os.File.Fd can restore blocking mode on a pollable Go file. Fetch ONCE,
+	// then set flags and use only this cached number through the atomic write.
+	fd := int(w.Fd())
+	var st syscall.Stat_t
+	if syscall.Fstat(fd, &st) != nil || st.Mode&syscall.S_IFMT != syscall.S_IFIFO || st.Uid != 0 {
+		return -1, errors.New("root private readiness output pipe required")
+	}
+	flags, err := fcntl(uintptr(fd), syscall.F_GETFL, 0)
+	if err != nil || flags&syscall.O_ACCMODE != syscall.O_WRONLY {
+		return -1, errors.New("write-only readiness pipe required")
+	}
+	if _, err = fcntl(uintptr(fd), syscall.F_SETFD, syscall.FD_CLOEXEC); err != nil {
+		return -1, err
+	}
+	if err = syscall.SetNonblock(fd, true); err != nil {
+		return -1, err
+	}
+	return fd, nil
+}
+func forwardLocalReady(ctx context.Context, w *os.File, raw []byte) error {
+	defer w.Close()
+	fd, err := readyOutputFD(w)
+	if err != nil {
+		return err
+	}
+	record, err := contract.ParseRPCLocalReady(raw)
+	if err != nil {
+		return err
+	}
+	now, err := MonotonicNow()
+	if err != nil {
+		return err
+	}
+	if err = record.Validate(record.Binding, now); err != nil {
+		return err
+	}
+	if err = ctx.Err(); err != nil {
+		return err
+	}
+	// One atomic-sized nonblocking write; no partial write, EAGAIN or EINTR retry.
+	n, err := syscall.Write(fd, raw)
+	if err != nil {
+		return err
+	}
+	if n != len(raw) {
+		return io.ErrShortWrite
+	}
+	return ctx.Err()
 }

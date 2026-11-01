@@ -27,7 +27,7 @@ type osBackend struct {
 	approvalReader, approvalWriter, approvalBinding *os.File
 	approvalFrame                                   []byte
 	approvalUsed                                    atomic.Bool
-	readyReader, readyWriter                        *os.File
+	readyReader, readyWriter, readyOutput           *os.File
 	readyUsed                                       atomic.Bool
 }
 
