@@ -1,0 +1,21 @@
+[package]
+name = "rpc-native-controller"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Internal wasm32-wasip2 wasi:cli JSON-RPC controller for colocated local Ethereum and Base clients"
+
+[[bin]]
+name = "rpc-native-controller"
+path = "src/main.rs"
+
+[dependencies]
+httparse = { version = "=1.9.5", default-features = false, features = ["std"] }
+serde_json = { version = "=1.0.132", default-features = false, features = ["std"] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+debug = false

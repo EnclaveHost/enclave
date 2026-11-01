@@ -1,0 +1,5 @@
+# V9 front identity review
+
+Distinct native_rpc build only uses ParseRPC and requires bundle/component/statement identity. Actual main identity branch now forces component derivation for RPC even if app.wasm is absent; no stated-hash fallback. Ordinary and desktop builds preserve their parsers/fallback rules; mixed native_rpc/native_desktop build must fail. No release authority, public hostname, payment or secret-provisioning path was changed. Existing independent bootstrap selection remains separately required for release; this is not an installed platform or runtime rollout.
+
+Bounded source tests compile all front source in regular, desktop, RPC and RPC+bootstrapdirect modes, selecting identity tests and relevant loaded-code regressions. One actual child executes main and must fail at missing-code identity before runtime/key/network startup. Mixed mode compile expected to fail. Frozen source + public embedded CA roots, no private auth/journals. Original120s total/150souter,512hard450RSS/CPU1/noSwap/27648floor+pending640, readonly source, private user/network, cached modules with downloads disabled. No launch/nativeclient/VM/production action.

@@ -31,6 +31,22 @@ exercise the shared contract, legacy vectors, forbidden combinations, app ID
 binding and real exclusive output. Their empty Wasm component is a wire-format
 fixture, not a functional RPC controller.
 
+The TLS front has a distinct `native_rpc` build that requires the actual V9
+bundle, matching controller bytes and AppID statement before provisioning.
+Missing code cannot fall back to a standalone `app.sha256` statement. Profile,
+deployment and both state-volume identities participate in that AppID. Ordinary
+and desktop builds still reject V9; combining `native_rpc` and `native_desktop`
+fails compilation. This identity path does not install a platform, authenticate
+storage ownership or establish chain readiness. Independent bootstrap and the
+RPC provisioning/monitor path still require integration before deployment.
+
+`controller/` supplies the actual portable `wasi:cli` HTTP controller on local
+port 8000, with fixed local client endpoints, bounded public JSON-RPC forwarding
+and fresh execution/consensus consistency checks. Its compiled WASI executable
+has passed isolated HTTP checks against fake clients, including one transaction
+submission and refusal before forwarding when clients are unready. It is not
+installed in a measured runtime or connected to production chain state yet.
+
 `isolation/m3/rpcservice` now supplies a fixed native process-control adapter
 for the existing chain wrapper: EL/CL, bounded L1 observation, then one Base
 start, using creation-time cgroup placement and fixed unprivileged role IDs.
