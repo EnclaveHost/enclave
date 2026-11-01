@@ -47,10 +47,10 @@ namespace Enclave.OwnedRpc {
    Hex(expectedHash,64);int count=0;
    foreach(string path in Directory.EnumerateFileSystemEntries(Root)){
     current();if(++count>15)throw new InvalidOperationException("Native ledger inventory bound");string n=Path.GetFileName(path);
-    if(n=="transport"||n=="inputs")Files.PinDirectory(path,true);
+    if(n=="transport"||n=="inputs"||n=="bootstrap")Files.PinDirectory(path,true);
     if(n=="hold.json")throw new InvalidOperationException("Original native attempt is held; no mutation authority");
     if(n.EndsWith(".pending",StringComparison.Ordinal))throw new InvalidOperationException("Partial original native ledger remains held");
-    if(n!="manager.lock"&&n!="attempt.json"&&n!="launch.json"&&n!="dispatch.json"&&n!="result.json"&&n!="hold.json"&&n!="transport"&&n!="inputs"&&n!="stage.json"&&n!="stage-ready.json"&&n!="define-request.json"&&n!="start-request.json"&&n!="start-dispatch.json"&&n!="start-result.json")throw new InvalidOperationException("Unknown native ledger allocation");
+    if(n!="manager.lock"&&n!="attempt.json"&&n!="launch.json"&&n!="dispatch.json"&&n!="result.json"&&n!="hold.json"&&n!="transport"&&n!="inputs"&&n!="stage.json"&&n!="stage-ready.json"&&n!="define-request.json"&&n!="start-request.json"&&n!="start-dispatch.json"&&n!="start-result.json"&&n!="bootstrap")throw new InvalidOperationException("Unknown native ledger allocation");
    }
    var a=Decode(Files.Read(Path.Combine(Root,"attempt.json"),4096,expectedHash));
    if(a.Count!=13||Text(a["schema"])!="native-rpc-manager-attempt/1"||Text(a["config"])!=ConfigHash||Text(a["boot"])!=ProtectedAttempt.CurrentBoot()||!(a["reservationMayRelease"] is bool)||((bool)a["reservationMayRelease"]))throw new InvalidOperationException("Original ledger binding differs");

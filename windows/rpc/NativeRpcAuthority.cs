@@ -165,8 +165,16 @@ namespace Enclave.OwnedRpc {
   }
  }
  internal sealed partial class WindowsStartAdmission {
-  internal static void VerifyNativeDefinition(ProtectedAttempt plan,ProtectedAttempt reader,ref LegacyHandoff.Completion completed){
-   if(plan==null||plan.NativeDefinitionPlan==null||reader==null||!((reader.LeaseProfile=="native-definition"&&reader.Operation=="define")||(reader.LeaseProfile=="native-start"&&reader.Operation=="start")))throw new InvalidOperationException("Explicit native definition admission required");
+  internal static void VerifyNativeDefinition(ProtectedAttempt plan,ProtectedAttempt reader,ref LegacyHandoff.Completion completed){VerifyNativePhase(plan,reader,ref completed,null);}
+#if NATIVE_RPC_BOOTSTRAP_CONTROLLER
+  internal static void VerifyNativeBootstrap(ProtectedAttempt plan,ProtectedAttempt reader,ref LegacyHandoff.Completion completed){
+   if(plan==null||plan.LeaseProfile!="native-bootstrap-journal"||reader==null||reader.LeaseProfile!="host-bootstrap")throw new InvalidOperationException("Exact bootstrap admission required");
+   var p=plan.NativeDefinitionPlan;string guid;NativeRpcSecurity.Ownership(p,new NativeRpcCleanupJournal(plan),out guid);
+   VerifyNativePhase(plan,reader,ref completed,()=>NativeBootstrapAllocation.Read(p,guid,plan.CheckDeadline));
+  }
+#endif
+  static void VerifyNativePhase(ProtectedAttempt plan,ProtectedAttempt reader,ref LegacyHandoff.Completion completed,Func<long> residentCredit){
+   if(plan==null||plan.NativeDefinitionPlan==null||reader==null||!((reader.LeaseProfile=="native-definition"&&reader.Operation=="define")||(reader.LeaseProfile=="native-start"&&reader.Operation=="start")||(residentCredit!=null&&reader.LeaseProfile=="host-bootstrap"&&plan.LeaseProfile=="native-bootstrap-journal")))throw new InvalidOperationException("Explicit native phase admission required");
    plan.CheckDeadline();reader.CheckDeadline();var p=plan.NativeDefinitionPlan;
    var reviewed=Obj(new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32}.DeserializeObject(new UTF8Encoding(false,true).GetString(plan.ReadAdmission(p.Admission))));
    if(reviewed.ContainsKey("unsubmittedPredecessor"))throw new InvalidOperationException("Native app cannot adopt ordinary predecessor authority");
@@ -174,7 +182,7 @@ namespace Enclave.OwnedRpc {
    var pins=Obj(reviewed["nativeRuntime"]);
    if(pins.Count!=4||Str(pins["runtimeId"])!=p.Runtime||Str(pins["profileSha256"])!=p.Profile||Str(pins["firmwareSha256"])!=p.FirmwareHash||Str(pins["initialStateSha256"])!=p.StateHash)throw new InvalidOperationException("Reviewed native runtime pins differ");
    if(completed==null)completed=new LegacyHandoff.Completion(Obj(reviewed["legacyCutSeed"]),shared,reader,claim);else completed.Verify();
-   new WindowsStartAdmission(plan,p.Admission,completed,false,rows=>NativeManagerAuthority.Verify(p,claim,rows)).Read();
+   new WindowsStartAdmission(plan,p.Admission,completed,false,rows=>NativeManagerAuthority.Verify(p,claim,rows),residentCredit).Read();
    plan.CheckDeadline();reader.CheckDeadline();
   }
  }
@@ -316,3 +324,33 @@ namespace Enclave.OwnedRpc {
  }
 
 }
+
+#if NATIVE_RPC_BOOTSTRAP_CONTROLLER
+namespace Enclave.OwnedRpc {
+ // Credit only RAM already allocated to this exact, originally owned running
+ // guest. No caller-selected credit or lower floor; both ends reobserve it.
+ internal static class NativeBootstrapAllocation {
+  internal static long Fields(NativeRpcDefinitionPlan p,string guid,Dictionary<string,object> vm,Dictionary<string,object> memory,Dictionary<string,object> settings){
+   if(NativeDefinitionReferences.GuidForReference("Msvm_ComputerSystem.Name=\""+guid+"\"")!=guid||
+      !Object.Equals(vm["Name"],guid)||!Object.Equals(vm["ElementName"],p.Name)||!(vm["EnabledState"] is ushort)||(ushort)vm["EnabledState"]!=2||
+      !Object.Equals(memory["SystemName"],guid)||!(memory["BlockSize"] is ulong)||(ulong)memory["BlockSize"]!=1048576||!(memory["NumberOfBlocks"] is ulong)||(ulong)memory["NumberOfBlocks"]!=19456||
+      !Object.Equals(settings["VirtualSystemIdentifier"],guid)||!Object.Equals(settings["VirtualSystemType"],"Microsoft:Hyper-V:System:Realized"))throw new InvalidOperationException("Original running guest allocation differs");
+   var notes=settings["Notes"] as string[];if(notes==null||notes.Length!=1||notes[0]!=p.Note)throw new InvalidOperationException("Original guest owner marker differs");return 19456L*1048576;
+  }
+  internal static long Read(NativeRpcDefinitionPlan p,string guid,Action guard){
+   guard();var scope=HyperVStartProvider.Scope();
+   using(var vm=HyperVStartProvider.One(scope,"SELECT Name,ElementName,EnabledState FROM Msvm_ComputerSystem WHERE Name='"+guid+"'"))
+   using(var memory=HyperVStartProvider.One(scope,"SELECT SystemName,BlockSize,NumberOfBlocks FROM Msvm_Memory WHERE SystemName='"+guid+"'"))
+   using(var settings=HyperVStartProvider.One(scope,"SELECT * FROM Msvm_VirtualSystemSettingData WHERE VirtualSystemIdentifier='"+guid+"' AND VirtualSystemType='Microsoft:Hyper-V:System:Realized'")){
+    var v=new Dictionary<string,object>();foreach(string n in new[]{"Name","ElementName","EnabledState"})v[n]=vm[n];
+    var m=new Dictionary<string,object>();foreach(string n in new[]{"SystemName","BlockSize","NumberOfBlocks"})m[n]=memory[n];
+    var s=new Dictionary<string,object>();foreach(string n in new[]{"VirtualSystemIdentifier","VirtualSystemType","Notes"})s[n]=settings[n];
+    long credit=Fields(p,guid,v,m,s);int count=0;
+    using(var rows=settings.GetRelated("Msvm_MemorySettingData"))foreach(ManagementObject row in rows)using(row){if(++count>1)throw new InvalidOperationException("Original memory ambiguity");var d=new Dictionary<string,object>();foreach(string n in new[]{"ResourceType","ResourceSubType","AllocationUnits","VirtualQuantityUnits","VirtualQuantity","Reservation","Limit","DynamicMemoryEnabled","AutomaticAllocation","SwapFilesInUse"})d[n]=row[n];HyperVStartProvider.RequireGuestMemory(d,credit);}
+    if(count!=1)throw new InvalidOperationException("Original fixed memory absent");guard();return credit;
+   }
+  }
+ }
+}
+
+#endif

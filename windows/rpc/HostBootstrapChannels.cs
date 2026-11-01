@@ -16,11 +16,7 @@ using System.Web.Script.Serialization;
 namespace Enclave.OwnedRpc {
  public static class HostBootstrapChannels {
   static readonly UTF8Encoding Utf8=new UTF8Encoding(false,true);
-  internal static readonly string[] SourceNames={
-   "rpc/host/windows-entry.mjs","rpc/host/native-wire.mjs","rpc/host/bootstrap.mjs",
-   "rpc/server/owner_bootstrap_offer.mjs","isolation/contract/rpc-bootstrap.mjs","isolation/contract/runtime.mjs",
-   "windows/node/hvnode-evidence.mjs","relay/vbs-verify.mjs","relay/vbs-tcglog.mjs","relay/vbs-tpm.mjs","relay/avf-verify.mjs","relay/vbs-tcglog-core.mjs"
-  };
+  internal static readonly string[] SourceNames=ProtectedAttempt.BootstrapSourceNames;
   [DllImport("ws2_32.dll")] static extern int WSAStartup(ushort version,IntPtr data);
   [DllImport("ws2_32.dll")] static extern IntPtr socket(int family,int type,int protocol);
   [DllImport("ws2_32.dll")] static extern int setsockopt(IntPtr s,int level,int option,ref int value,int length);

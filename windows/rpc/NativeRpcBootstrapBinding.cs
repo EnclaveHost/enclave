@@ -55,6 +55,7 @@ namespace Enclave.OwnedRpc {
    foreach(string name in new[]{"native-lifecycle.dispatch","native-lifecycle.backup-dispatch","native-lifecycle.stop","native-stop.intent"})if(journal.Read(name)!=null)throw new InvalidOperationException("Original lifecycle already closing");
   }
  }
+#if !NATIVE_RPC_BOOTSTRAP_CONTROLLER
  internal sealed class NativeBootstrapContext:IDisposable {
   readonly ProtectedAttempt pin;readonly NativeLifecyclePeer primary,backup;readonly string[] fields;readonly Action outer;readonly object gate=new object();
   internal NativeBootstrapContext(ProtectedAttempt lease,string[] fields,Action outer){
@@ -67,4 +68,5 @@ namespace Enclave.OwnedRpc {
    var journal=new NativeRpcCleanupJournal(pin);foreach(string n in new[]{"native-lifecycle.dispatch","native-lifecycle.backup-dispatch","native-lifecycle.stop","native-stop.intent"})if(journal.Read(n)!=null)throw new InvalidOperationException("Original lifecycle closing");outer();}}
   public void Dispose(){if(backup!=null)backup.Dispose();if(primary!=null)primary.Dispose();if(pin!=null)pin.Dispose();}
  }
+#endif
 }

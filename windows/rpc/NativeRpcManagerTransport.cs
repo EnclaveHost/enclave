@@ -7,8 +7,8 @@ namespace Enclave.OwnedRpc {
   internal Dictionary<string,object> Inspect(){
    current();Files.PinDirectory(Path.Combine(Root,"transport"),true);var names=new HashSet<string>();
    foreach(string path in Directory.EnumerateFileSystemEntries(Root)){
-    current();string n=Path.GetFileName(path);if(n=="inputs")Files.PinDirectory(path,true);if(names.Count>=15||!names.Add(n)||n.EndsWith(".pending",StringComparison.Ordinal))throw new InvalidOperationException("Unknown or partial native ledger inventory");
-    if(n!="manager.lock"&&n!="transport"&&n!="inputs"&&n!="attempt.json"&&n!="launch.json"&&n!="dispatch.json"&&n!="result.json"&&n!="hold.json"&&n!="stage.json"&&n!="stage-ready.json"&&n!="define-request.json"&&n!="start-request.json"&&n!="start-dispatch.json"&&n!="start-result.json")throw new InvalidOperationException("Foreign native ledger inventory");
+    current();string n=Path.GetFileName(path);if(n=="inputs"||n=="bootstrap")Files.PinDirectory(path,true);if(names.Count>=15||!names.Add(n)||n.EndsWith(".pending",StringComparison.Ordinal))throw new InvalidOperationException("Unknown or partial native ledger inventory");
+    if(n!="manager.lock"&&n!="transport"&&n!="inputs"&&n!="attempt.json"&&n!="launch.json"&&n!="dispatch.json"&&n!="result.json"&&n!="hold.json"&&n!="stage.json"&&n!="stage-ready.json"&&n!="define-request.json"&&n!="start-request.json"&&n!="start-dispatch.json"&&n!="start-result.json"&&n!="bootstrap")throw new InvalidOperationException("Foreign native ledger inventory");
    }
    if(!names.Contains("attempt.json")){
     if(names.Count!=2||!names.Contains("manager.lock")||!names.Contains("transport"))throw new InvalidOperationException("Incomplete native ledger remains held");

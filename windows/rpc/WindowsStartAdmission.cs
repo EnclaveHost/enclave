@@ -19,9 +19,11 @@ internal sealed partial class WindowsStartAdmission {
     // transient startup overhead including 192 MiB for the original independent cleanup keeper. Existing VM allocations are already in free.
     internal const long Required=20*GiB+39388*MiB+18*GiB+GiB+512*MiB+192*MiB;
     internal const long NativeRequired=Required+192*MiB+512*MiB; // second keeper plus a second concurrently supervised cleanup group; original workers die before either group launches
+    internal const long NativeBootstrapRequired=NativeRequired+512*MiB; // bootstrap can overlap both cleanup groups
+    readonly Func<long> residentCredit;
     readonly ProtectedAttempt vm;readonly string admissionHash;readonly long began;readonly LegacyHandoff.Completion completed;readonly bool freshInventory;readonly Func<object[],string> nativeAuthority;
     readonly JavaScriptSerializer Json=new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32};
-    WindowsStartAdmission(ProtectedAttempt vm,string admissionHash,LegacyHandoff.Completion completed,bool freshInventory=false,Func<object[],string> nativeAuthority=null){this.nativeAuthority=nativeAuthority;this.vm=vm;this.admissionHash=admissionHash;this.completed=completed;this.freshInventory=freshInventory;began=BoundedWorker.MonotonicMilliseconds();}
+    WindowsStartAdmission(ProtectedAttempt vm,string admissionHash,LegacyHandoff.Completion completed,bool freshInventory=false,Func<object[],string> nativeAuthority=null,Func<long> residentCredit=null){this.residentCredit=residentCredit;this.nativeAuthority=nativeAuthority;this.vm=vm;this.admissionHash=admissionHash;this.completed=completed;this.freshInventory=freshInventory;began=BoundedWorker.MonotonicMilliseconds();}
     string stage="begin";
     internal const long FreshnessMilliseconds=4000;
     internal static void RequireFresh(long began,long now,string stage) {
@@ -214,6 +216,7 @@ internal sealed partial class WindowsStartAdmission {
     }
     void Read(List<HeldManager> held) {
         Stage("physical-before");var os=Physical();long free=(long)os.Available;CheckTime();
+        long credit=0;if(residentCredit!=null){Stage("original-resident-before");credit=residentCredit();if(credit!=19*GiB)throw new InvalidOperationException("Exact original resident allocation required");CheckTime();}
         Stage("reviewed-observation");
         byte[] raw=vm.ReadAdmission(admissionHash);
         var result=Obj(Json.DeserializeObject(new UTF8Encoding(false,true).GetString(raw)));
@@ -255,11 +258,11 @@ internal sealed partial class WindowsStartAdmission {
         }
         var issuerListeners=freshInventory&&completed!=null?new IssuerListeners(vm,began,firstIssuer,secondIssuer):null;
         string nativeBefore=null;if(nativeAuthority!=null){Stage("native-app-before");nativeBefore=NativeAppReceipt();}
-        Stage("disk");long disk=DiskAvailable(),required=nativeAuthority==null?Required:NativeRequired;CheckTime();
-        if(free<required||Math.Min(Num(before["freeBytes"]),Num(after["freeBytes"]))<required||disk<16*GiB+4*GiB+256*MiB)
+        Stage("disk");long disk=DiskAvailable(),required=residentCredit!=null?NativeBootstrapRequired:nativeAuthority==null?Required:NativeRequired;CheckTime();
+        if(checked(free+credit)<required||Math.Min(Num(before["freeBytes"]),Num(after["freeBytes"]))<required||disk<16*GiB+4*GiB+256*MiB)
             throw new InvalidOperationException("Target qualification headroom refused");
         Stage("physical-after");var end=Physical();CheckTime();
-        if(ProtectedAttempt.CurrentBoot()!=vm.Boot||end.Total!=os.Total||end.Available<(ulong)required)throw new InvalidOperationException("End-of-admission host state differs");
+        if(ProtectedAttempt.CurrentBoot()!=vm.Boot||end.Total!=os.Total||checked(end.Available+(ulong)credit)<(ulong)required)throw new InvalidOperationException("End-of-admission host state differs");
         if(!freshInventory){Stage("pending-and-node-after");
             if((completed==null&&LivePending()!=pending)||DeploymentReceipt(GetLocal(9600,"/v1/host/state"),true,completed!=null)!=liveNodeExact)throw new InvalidOperationException("Pending commitments changed during admission");}
         Stage("pool-resources");if(completed!=null){if(freshInventory)completed.Verify(issuerListeners);else completed.VerifyResources();}
@@ -267,6 +270,7 @@ internal sealed partial class WindowsStartAdmission {
             string finalNode=DeploymentReceipt(GetLocal(9600,"/v1/host/state"),true,completed!=null);
             if(finalNode!=liveNodeExact)throw new InvalidOperationException("Node commitments changed during current inventory verification: "+DeploymentDifference(liveNodeExact,finalNode));}
         if(completed!=null)completed.CheckHeld();
+        if(residentCredit!=null){Stage("original-resident-after");if(residentCredit()!=credit)throw new InvalidOperationException("Original resident allocation changed");CheckTime();}
         if(nativeAuthority!=null){Stage("native-app-after");if(NativeAppReceipt()!=nativeBefore)throw new InvalidOperationException("Native original manager record changed during admission");}
         Stage("manager-handles-after");foreach(var process in held){process.Check();CheckTime();}
         CheckTime();

@@ -15,6 +15,12 @@ using System.Web.Script.Serialization;
 
 namespace Enclave.OwnedRpc {
  public sealed partial class ProtectedAttempt {
+  internal static readonly string[] BootstrapSourceNames={
+   "rpc/host/windows-entry.mjs","rpc/host/native-wire.mjs","rpc/host/bootstrap.mjs",
+   "rpc/server/owner_bootstrap_offer.mjs","isolation/contract/rpc-bootstrap.mjs","isolation/contract/runtime.mjs",
+   "windows/node/hvnode-evidence.mjs","relay/vbs-verify.mjs","relay/vbs-tcglog.mjs","relay/vbs-tpm.mjs","relay/avf-verify.mjs","relay/vbs-tcglog-core.mjs"
+  };
+
   void BootstrapParents(string path) {
    LocalPath(path);string dir=Path.GetDirectoryName(path),current=Path.GetPathRoot(dir);
    HoldDirectory(current,false);string[] parts=dir.Substring(3).Split('\\');
