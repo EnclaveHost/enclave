@@ -1,0 +1,1 @@
+{"phases": [{"phase": "host-bootstrap", "exit": 0}, {"phase": "host-syntax", "exit": 0}], "elapsed": 0.9102781661786139, "sourcePins": 787, "pinsUnchanged": true, "artifacts": {"bootstrap-vector.json": {"bytes": 1739, "sha256": "b8d62be6a445c9ab4598af27eaf63b000c6a85642f1a8a065d90cf9c2dfcb715"}}, "deployed": false}

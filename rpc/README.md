@@ -720,3 +720,24 @@ against both keys from its current chain-verified deployment before transmitting
 its report. `rpc-bootstrap-owner` installs only public inputs plus the monitor's
 own retained evidence; guest control supplies no private key or writable root.
 The previous unauthenticated Unix relay is no longer the broker command's path.
+
+### Host bootstrap sequencing
+
+`host/bootstrap.mjs` now sequences the existing held monitor/TPM channels:
+public guest enrollment and TPM keys, verification of both original owner endpoint
+signatures, fresh TPM activation/quote/log, monitor-owned guest report, binary
+owner-input installation, then one acquisition signal. It uses the existing host
+key in memory, never creates or exports one, and does not contact an Enclave relay.
+The broker still independently checks current chain authority and storage consent.
+An exclusive caller-protected journal FD is fsynced before each consequential
+phase; an unknown response consumes the attempt. A late response cannot satisfy
+a later command. Exact original host clock and supervisor-loss signal are required;
+no guest/owner/host clock-domain substitution, new startup clock or retry exists.
+
+The caller must already hold streams tied to the exact original VM and independently
+bounded TPM worker, and a protected exclusive journal. The module does not prove
+that caller boundary, create jobs, launch workers or enable the old launcher. Its
+JS timers close streams, not native processes. This is a reusable host sequencing
+implementation with actual stream/filesystem and synthetic hardware qualification;
+the protected Windows entrypoint and full accepted target composition are not yet
+wired or qualified. Acquisition acknowledgment is not a storage grant or RPC ready.

@@ -13,14 +13,15 @@ original sealed deadline. It reads runtime identity from the fixed immutable
 `/plat/rt/runtime.json`. It waits under the existing PID1 supervisor and original
 900-second deadline. No clients, writable mounts or app children start here.
 
-The existing control transport exposes three operations:
+The existing control transport exposes four operations:
 
 - `rpc-bootstrap-info`: public request, request hash, runtime, SPKI and certificate.
 - `rpc-bootstrap-attest`: exact kernel `boot`, `requestSha256`, and lowercase
   32-byte hex `challenge` from the owner verifier. The monitor calls its actual
   guest TPM reporter directly, once. There is no launcher JSON or ordinary report
   fallback. A failed, oversized, late or lost hardware response stays consumed.
-- `rpc-bootstrap-acquire`: exact boot/hash after the report. The monitor consumes
+- `rpc-bootstrap-owner`: bounded binary public owner inputs, installed once after the report.
+- `rpc-bootstrap-acquire`: exact boot/hash after the report and owner-input installation. The monitor consumes
   the launch gate, launches the actual broker, verifies its exact listening
   receipt and only then signals acquisition. It is not owner permission, an
   export request, a writable grant or RPC readiness.
@@ -58,11 +59,11 @@ The historical candidate image does not contain this integration.
 ## Actual broker launch
 
 `StartBroker` requires the loaded request and sealed original clock. It opens only
-fixed protected `/run/native-rpc-owner/policy.json`, `server.der`, and `bridge.sock`.
-These carry public policy, export-server DER and a connected Unix stream. Policy
-must bind the same loaded bundle and immutable runtime. Root ownership is a local
-TCB boundary, not remote owner authentication; the accepted bootstrap producer of
-these inputs and authenticated cross-host bridge still need implementation. No
+fixed protected `/run/native-rpc-owner/policy.json`, `server.der`, and
+`owner-bootstrap.json`. These carry public policy, export-server DER and the
+monitor-produced bootstrap record. Policy binds the loaded bundle and runtime;
+the broker authenticates the signed endpoint against current owner commitments.
+Root ownership alone is not remote owner authentication. No
 host-controlled private-key field or executable selector is accepted. The broker
 retains its independent deployment/owner/signature verification before any export.
 
