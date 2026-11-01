@@ -11,6 +11,9 @@
 // running = the attestation verified on THIS handshake's key with a fresh nonce, AND enclave-ready 200 on a session
 // with the same key, within a deadline. It proves the app's port accepts connections inside this domain, not that
 // the app answers any particular request well.
+// The dedicated native RPC build instead requires a fresh bounded controller
+// /health response covering both chains. It still does not establish ledger
+// Running, storage authority, attestation or a persistent-serving transition.
 //
 // THE PROXY sets no X-Forwarded-For, and strips one the client sent. No client address reaches a domain: its only
 // channel is a vsock or hv_sock stream from the host, so the peer the front sees is the HOST (its CID, e.g. "2"),
@@ -19,6 +22,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
@@ -51,17 +55,33 @@ func (rd *readiness) serve(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	status := http.StatusOK
-	if c, err := net.DialTimeout("tcp", rd.upstream, rd.dial); err != nil {
+	if err := rd.check(r.Context()); err != nil {
 		status = http.StatusServiceUnavailable
 		out["ready"], out["why"] = false, "the app is not accepting connections on "+rd.upstream+" yet"
+		if nativeRPCFront {
+			out["why"] = "the local RPC stack is not ready"
+		}
 	} else {
-		c.Close()
 		out["ready"] = true
 	}
+
 	w.Header().Set("content-type", "application/json")
 	w.Header().Set("cache-control", "no-store")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(out)
+}
+
+// The RPC build never promotes a bare listening socket to whole-stack readiness.
+func (rd *readiness) check(ctx context.Context) error {
+	if nativeRPCFront {
+		return rpcHealth(ctx, rd.upstream)
+	}
+	c, err := net.DialTimeout("tcp", rd.upstream, rd.dial)
+	if err != nil {
+		return err
+	}
+	c.Close()
+	return nil
 }
 
 // appHeaderTimeout bounds how long the app may take to START answering (enclave-63's G3). Without it a wedged app

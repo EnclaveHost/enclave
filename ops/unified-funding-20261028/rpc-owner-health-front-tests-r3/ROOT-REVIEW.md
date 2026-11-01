@@ -1,0 +1,5 @@
+# Remaining compile refusal review
+
+Same239 maintained source pins as R2. R2 Shield58PASS/RPC79PASS/one ordinary-TCP skip and legacy/SNP-direct/Shield-without-direct build refusals all completed. R2 overall failed at lab negative assertion because ignored generated labpins files were absent, before compiler reached front guard. No source runtime failure. No repeats of completed suites/builds.
+
+This attempt supplies two deliberately INVALID literal compile-only placeholders in frozen release/labpins; neither is a CA or key. They satisfy only go:embed file existence, are separately pinned, never touch maintained source or installed runtime. Lab guard must then fail with nativeRPCRequiresOwnerDirectShieldBuild; mixed desktop must fail with nativeRPCAndDesktopBuildsCannotBeCombined. Neither build may execute. No credentials, live authority or chain data. Same private network/readonly offline compile sandbox and pending-aware640 admission/512hard450RSS/CPU1/noSwap/27648floor/original120s total150souter. No caps/limits changed.

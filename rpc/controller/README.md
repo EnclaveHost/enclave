@@ -39,3 +39,26 @@ The checks exercise actual WASI sockets, request forwarding, all three response
 framing forms, single transaction submission and readiness refusals. They do
 not prove actual client compatibility, chain sync/finality or production RPC.
 No default route, catalog transaction or deployment is changed by this package.
+
+The dedicated front requires build tags `native_rpc,bootstrapdirect,shielddirect`.
+Legacy, SNP-only, mixed desktop and release-lab RPC front builds fail compilation.
+Its loaded V9 bundle supplies the full deployment identity; a framed package for
+another deployment is refused even if the first four bytes match. The existing
+owner-direct Shield authority verifies the full AppID and RuntimeID, backend and
+exact public configuration before owner-committed names are enabled. It does not
+need a launcher app-zone name or the Enclave certificate relay. This still uses
+the existing bootstrap chain/lease reader; it is not the replacement event-driven
+protocol or proof of independent hosting under Enclave refusal.
+
+Both RPC front readiness and its startup serving message require a fresh local
+controller `/health` response, with exactly `localReady:true` and chains 1/8453.
+Requests use literal loopback, no proxy, redirects or cache, a 512-byte response
+bound and an 11-second deadline including body reads. Ordinary/desktop readiness
+retains its TCP behavior. The existing front's 120-second startup wait is not an
+extension of the enclosing original 900-second deadline. This front is not yet
+started by a complete RPC monitor path. Package transport connection setup and
+bootstrap preparation still require the independently owned outer lifetime;
+the frame-read deadline alone cannot interrupt a blocked transport dial. Native
+work gating, protected state attachment and persistent-serving adoption remain
+integration requirements. Do not use a successful local health check to waive
+those requirements.

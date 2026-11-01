@@ -1,0 +1,102 @@
+{
+  "contract": "enclave-custody-v1 (custody/protocol.mjs; isolation/m2/custody)",
+  "chainId": 8453,
+  "vault": "0x5ec2e75a0175eb5ec2e75a0175eb5ec2e75a0175",
+  "id": "0xd1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+  "policyRev": "7",
+  "secretRev": "3",
+  "epoch": 2,
+  "members": [
+    "10f3cfb3f97e5965b0085b121428b8f4c620915e5b69506d70b7b201b7786857",
+    "fd2c4dd1c8a6b88fe1fc59ce441398f5ea83a9296e210997ac63bed970b86028",
+    "ae3bf1cd87c2d2ed25af4a1a239eed04a990f00e7403e4c8065927de010fd17a",
+    "cf8e69a67350b35aafe9af08ffd27b43909fd0a7c58666f3cc2ecf19de6fcf16",
+    "86e76b8dd088dabf46d94d4820a251861376de69c3a36f2e53f8bffcdb519e00"
+  ],
+  "challenges": [
+    {
+      "encKey": "86e76b8dd088dabf46d94d4820a251861376de69c3a36f2e53f8bffcdb519e00",
+      "nonce": "9494949494949494949494949494949494949494949494949494949494949494"
+    },
+    {
+      "encKey": "10f3cfb3f97e5965b0085b121428b8f4c620915e5b69506d70b7b201b7786857",
+      "nonce": "9090909090909090909090909090909090909090909090909090909090909090"
+    },
+    {
+      "encKey": "ae3bf1cd87c2d2ed25af4a1a239eed04a990f00e7403e4c8065927de010fd17a",
+      "nonce": "9292929292929292929292929292929292929292929292929292929292929292"
+    }
+  ],
+  "challengeRoot": "d84dc12aef960746a0c0f4ce5f7a937c93b7663b89534251fad9b9629dd571ea",
+  "runtimeId": "2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a",
+  "transportSpki": "3059301306072a8648ce3d020106082a8648ce3d0301070342000411111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+  "recipient": {
+    "ikmFill": 119
+  },
+  "binding": "4875327eac0b37f52d468f8863e8e336154ca7522850870272cd7831f7d83f02",
+  "operator": {
+    "endpoint": "https://api.enclave.host/t/host-a",
+    "expiry": 1800000000,
+    "message": "enclave-custody-release-v1:8453:0x5ec2e75a0175eb5ec2e75a0175eb5ec2e75a0175:0xd1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1:https://api.enclave.host/t/host-a:4875327eac0b37f52d468f8863e8e336154ca7522850870272cd7831f7d83f02:1800000000"
+  },
+  "threshold": 3,
+  "secretFill": 27,
+  "shares": [
+    {
+      "x": 1,
+      "y": "1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b4e4e"
+    },
+    {
+      "x": 2,
+      "y": "1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1bc5c5"
+    },
+    {
+      "x": 3,
+      "y": "1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1c8180"
+    },
+    {
+      "x": 4,
+      "y": "1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1d817f"
+    },
+    {
+      "x": 5,
+      "y": "1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1ec5c2"
+    }
+  ],
+  "c0": "0374306da530af516569ccc486261db3dd67a4ee87f11c96c8ac14725dc07f293e",
+  "dek": "58d13bc68c9fbe201526299d5b0754930ef900def642717f9b4088121d215b48",
+  "bundleAad": "827b4d6693b141725020164cdaa87ceb1d2ea5d3f6cfc683518ee8cfbfcbc22f",
+  "env": {
+    "DATABASE_URL": "postgres://vector:vector@db.example/v",
+    "API_TOKEN": "vector-token"
+  },
+  "configText": "{\"api_key\":\"$API_TOKEN\",\"db\":\"${DATABASE_URL}\"}",
+  "configSha256": "829eda388510298a37362ab577ed752d1e9078928ec4c508933533e389129d8b",
+  "ciphertext": "0c0c0c0c0c0c0c0c0c0c0c0cf93e8a045ef49cce501f8a7ef8053787824ecb331f639134c6637517c69a3fa46c665d8b2f02c4c73858f4bf96e638b06292a44c38866e3c98dd5422a09d8816dcf6ddfcf3b244831ebd6afe4ad2f79b58486b67fe4c2284e8cfa31b8e4a2b8b91c46c1ca163c86df8f37f76fedcf3c868f9950a800f1b2f62312e411dac81b72d3282dba6859a143d5ea7ed205f567224a3a255c9107b24e407c4b5490038815f79c14c619eafeae5fa137ab413122e5df6941e8e9af6b0bfd761c526eba8f386c2a4",
+  "responses": [
+    {
+      "index": 0,
+      "encKey": "10f3cfb3f97e5965b0085b121428b8f4c620915e5b69506d70b7b201b7786857",
+      "ikmE": "e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0",
+      "sealed": "84d7684d28e9c01300915d8d1f7ac7131bf513ffb02a89aa1d1c9d246654623547a1b5a74d3cf13dd6cf85b0e2ee10a6a3b9d7d343ef0f1e7a368e19a5cb44f93a13bd12b859eb236f994ac79cc63653"
+    },
+    {
+      "index": 2,
+      "encKey": "ae3bf1cd87c2d2ed25af4a1a239eed04a990f00e7403e4c8065927de010fd17a",
+      "ikmE": "e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2",
+      "sealed": "4b2f0e849a4b9c56b769f09e538c6fc57705b8dc597f0ef1bcf9137bd1552a48579e7a8f6ed6a7d78d4052130f0e4a46df60d5b50b7f736c2635a4c34fff4e1315e6cd8c1634716cb349dce7e7d45a36"
+    },
+    {
+      "index": 4,
+      "encKey": "86e76b8dd088dabf46d94d4820a251861376de69c3a36f2e53f8bffcdb519e00",
+      "ikmE": "e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4",
+      "sealed": "c215cb94603745d25a14a4a7f4b3f3ebbf0885cbcd389ce38c5a8771bb0cec290470a6bed4ab91c20b065ebb7ac84f5340a5d68d1c99721aba715228490b19bf199bdb01f68cc1c20c2871a6c6577a1e"
+    }
+  ],
+  "badResponse": {
+    "index": 1,
+    "encKey": "fd2c4dd1c8a6b88fe1fc59ce441398f5ea83a9296e210997ac63bed970b86028",
+    "ikmE": "e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1",
+    "sealed": "f5a3baf1f88dc02425911e1ee85e67025ca1e2bb6ad617fa0190925146d45d4b458e5548a4a03a5a4fb0d255d5229cfb3653c8eb64927adce8990357acb81b97b9c2a2b9254d573647fd88fae18f4f57"
+  }
+}

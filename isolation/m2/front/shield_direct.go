@@ -91,7 +91,7 @@ func (f *front) shieldDirectOwner(ctx context.Context, pipe io.WriteCloser, egCo
 }
 
 func (f *front) shieldOwner(ctx context.Context, d shieldDeps) error {
-	if f.certs == nil || f.certs.name == "" {
+	if f.certs == nil || (f.certs.name == "" && f.rpcDeployment == [32]byte{}) {
 		return errors.New("the launcher named no deployment for this domain (no /cert.name): owner-committed startup needs one")
 	}
 	if f.rt == nil || len(f.appSha) != 32 {
@@ -101,7 +101,14 @@ func (f *front) shieldOwner(ctx context.Context, d shieldDeps) error {
 	if err != nil {
 		return err
 	}
-	id, raw, err := readShieldPackage(d.packages, f.certs.name)
+	var id [32]byte
+	var raw []byte
+	if f.rpcDeployment != [32]byte{} {
+		id = f.rpcDeployment
+		raw, err = readRPCPackage(ctx, d.packages, id)
+	} else {
+		id, raw, err = readShieldPackage(d.packages, f.certs.name)
+	}
 	if err != nil {
 		return err
 	}
@@ -117,6 +124,9 @@ func (f *front) shieldOwner(ctx context.Context, d shieldDeps) error {
 	mode, err := auth.SecretsMode()
 	if err != nil {
 		return err
+	}
+	if f.rpcDeployment != [32]byte{} && mode != "public" {
+		return errors.New("RPC owner package must use public configuration")
 	}
 	startup := &ownerStartup{auth: auth}
 	if d.prepare != nil {

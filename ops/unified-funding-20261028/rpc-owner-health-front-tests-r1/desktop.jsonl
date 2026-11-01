@@ -1,0 +1,57 @@
+{"Time":"2026-11-01T01:01:11.994877399-07:00","Action":"start","Package":"enclave.host/isolation/m2/front"}
+{"Time":"2026-11-01T01:01:12.001722985-07:00","Action":"run","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate"}
+{"Time":"2026-11-01T01:01:12.001777604-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate","Output":"=== RUN   TestDesktopFrontIdentityGate\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.001795994-07:00","Action":"run","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/missing_bundle"}
+{"Time":"2026-11-01T01:01:12.001799314-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/missing_bundle","Output":"=== RUN   TestDesktopFrontIdentityGate/missing_bundle\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.002285508-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/missing_bundle","Output":"--- PASS: TestDesktopFrontIdentityGate/missing_bundle (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.003599974-07:00","Action":"pass","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/missing_bundle","Elapsed":0}
+{"Time":"2026-11-01T01:01:12.003619894-07:00","Action":"run","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/missing_component"}
+{"Time":"2026-11-01T01:01:12.003623404-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/missing_component","Output":"=== RUN   TestDesktopFrontIdentityGate/missing_component\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.003631374-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/missing_component","Output":"--- PASS: TestDesktopFrontIdentityGate/missing_component (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.003633854-07:00","Action":"pass","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/missing_component","Elapsed":0}
+{"Time":"2026-11-01T01:01:12.003635684-07:00","Action":"run","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/missing_statement"}
+{"Time":"2026-11-01T01:01:12.003637064-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/missing_statement","Output":"=== RUN   TestDesktopFrontIdentityGate/missing_statement\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.003639584-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/missing_statement","Output":"--- PASS: TestDesktopFrontIdentityGate/missing_statement (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.003641214-07:00","Action":"pass","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/missing_statement","Elapsed":0}
+{"Time":"2026-11-01T01:01:12.003644734-07:00","Action":"run","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/wrong_statement"}
+{"Time":"2026-11-01T01:01:12.003646274-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/wrong_statement","Output":"=== RUN   TestDesktopFrontIdentityGate/wrong_statement\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.003648254-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/wrong_statement","Output":"--- PASS: TestDesktopFrontIdentityGate/wrong_statement (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.003649814-07:00","Action":"pass","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/wrong_statement","Elapsed":0}
+{"Time":"2026-11-01T01:01:12.003651264-07:00","Action":"run","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/different_component"}
+{"Time":"2026-11-01T01:01:12.003652454-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/different_component","Output":"=== RUN   TestDesktopFrontIdentityGate/different_component\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.003659143-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/different_component","Output":"--- PASS: TestDesktopFrontIdentityGate/different_component (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.003660823-07:00","Action":"pass","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/different_component","Elapsed":0}
+{"Time":"2026-11-01T01:01:12.003662723-07:00","Action":"run","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/tampered_bundle"}
+{"Time":"2026-11-01T01:01:12.003663903-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/tampered_bundle","Output":"=== RUN   TestDesktopFrontIdentityGate/tampered_bundle\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.003665713-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/tampered_bundle","Output":"--- PASS: TestDesktopFrontIdentityGate/tampered_bundle (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.003667193-07:00","Action":"pass","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/tampered_bundle","Elapsed":0}
+{"Time":"2026-11-01T01:01:12.003668543-07:00","Action":"run","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/ordinary_bundle"}
+{"Time":"2026-11-01T01:01:12.003669683-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/ordinary_bundle","Output":"=== RUN   TestDesktopFrontIdentityGate/ordinary_bundle\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.003671433-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/ordinary_bundle","Output":"--- PASS: TestDesktopFrontIdentityGate/ordinary_bundle (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.003672893-07:00","Action":"pass","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate/ordinary_bundle","Elapsed":0}
+{"Time":"2026-11-01T01:01:12.003674873-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate","Output":"--- PASS: TestDesktopFrontIdentityGate (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.003677603-07:00","Action":"pass","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate","Elapsed":0}
+{"Time":"2026-11-01T01:01:12.003679593-07:00","Action":"run","Package":"enclave.host/isolation/m2/front","Test":"TestRPCFrontIdentityGate"}
+{"Time":"2026-11-01T01:01:12.003680873-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestRPCFrontIdentityGate","Output":"=== RUN   TestRPCFrontIdentityGate\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.003682603-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestRPCFrontIdentityGate","Output":"--- PASS: TestRPCFrontIdentityGate (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.003685553-07:00","Action":"pass","Package":"enclave.host/isolation/m2/front","Test":"TestRPCFrontIdentityGate","Elapsed":0}
+{"Time":"2026-11-01T01:01:12.003686933-07:00","Action":"run","Package":"enclave.host/isolation/m2/front","Test":"TestRPCFrontMainHelper"}
+{"Time":"2026-11-01T01:01:12.003688273-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestRPCFrontMainHelper","Output":"=== RUN   TestRPCFrontMainHelper\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.003691363-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestRPCFrontMainHelper","Output":"--- PASS: TestRPCFrontMainHelper (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.003692763-07:00","Action":"pass","Package":"enclave.host/isolation/m2/front","Test":"TestRPCFrontMainHelper","Elapsed":0}
+{"Time":"2026-11-01T01:01:12.003695423-07:00","Action":"run","Package":"enclave.host/isolation/m2/front","Test":"TestRPCFrontMainRefusesStatementOnlyFallback"}
+{"Time":"2026-11-01T01:01:12.003696643-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestRPCFrontMainRefusesStatementOnlyFallback","Output":"=== RUN   TestRPCFrontMainRefusesStatementOnlyFallback\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.003698173-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestRPCFrontMainRefusesStatementOnlyFallback","Output":"    appidentity_rpc_test.go:121: dedicated RPC build only\n"}
+{"Time":"2026-11-01T01:01:12.003700043-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestRPCFrontMainRefusesStatementOnlyFallback","Output":"--- SKIP: TestRPCFrontMainRefusesStatementOnlyFallback (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.003701403-07:00","Action":"skip","Package":"enclave.host/isolation/m2/front","Test":"TestRPCFrontMainRefusesStatementOnlyFallback","Elapsed":0}
+{"Time":"2026-11-01T01:01:12.003702723-07:00","Action":"run","Package":"enclave.host/isolation/m2/front","Test":"TestLoadedAppIDIsTakenFromTheLoadedCode"}
+{"Time":"2026-11-01T01:01:12.003703893-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestLoadedAppIDIsTakenFromTheLoadedCode","Output":"=== RUN   TestLoadedAppIDIsTakenFromTheLoadedCode\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.003707993-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestLoadedAppIDIsTakenFromTheLoadedCode","Output":"--- PASS: TestLoadedAppIDIsTakenFromTheLoadedCode (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.003709383-07:00","Action":"pass","Package":"enclave.host/isolation/m2/front","Test":"TestLoadedAppIDIsTakenFromTheLoadedCode","Elapsed":0}
+{"Time":"2026-11-01T01:01:12.003710673-07:00","Action":"run","Package":"enclave.host/isolation/m2/front","Test":"TestReadyAnswersOnlyWhenTheAppAcceptsConnections"}
+{"Time":"2026-11-01T01:01:12.003711843-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestReadyAnswersOnlyWhenTheAppAcceptsConnections","Output":"=== RUN   TestReadyAnswersOnlyWhenTheAppAcceptsConnections\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.004054809-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestReadyAnswersOnlyWhenTheAppAcceptsConnections","Output":"--- PASS: TestReadyAnswersOnlyWhenTheAppAcceptsConnections (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.004078509-07:00","Action":"pass","Package":"enclave.host/isolation/m2/front","Test":"TestReadyAnswersOnlyWhenTheAppAcceptsConnections","Elapsed":0}
+{"Time":"2026-11-01T01:01:12.004111299-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:12.004467205-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Output":"ok  \tenclave.host/isolation/m2/front\t0.009s\n"}
+{"Time":"2026-11-01T01:01:12.004475975-07:00","Action":"pass","Package":"enclave.host/isolation/m2/front","Elapsed":0.01}

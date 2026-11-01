@@ -31,14 +31,19 @@ exercise the shared contract, legacy vectors, forbidden combinations, app ID
 binding and real exclusive output. Their empty Wasm component is a wire-format
 fixture, not a functional RPC controller.
 
-The TLS front has a distinct `native_rpc` build that requires the actual V9
+The TLS front has a distinct `native_rpc,bootstrapdirect,shielddirect` build that requires the actual V9
 bundle, matching controller bytes and AppID statement before provisioning.
 Missing code cannot fall back to a standalone `app.sha256` statement. Profile,
 deployment and both state-volume identities participate in that AppID. Ordinary
 and desktop builds still reject V9; combining `native_rpc` and `native_desktop`
-fails compilation. This identity path does not install a platform, authenticate
-storage ownership or establish chain readiness. Independent bootstrap and the
-RPC provisioning/monitor path still require integration before deployment.
+fails compilation. Legacy, SNP-only and release-lab RPC front combinations also
+fail compilation. Owner-direct startup reads the full bundle-bound deployment,
+not a launcher DNS prefix, and requires existing owner/AppID/runtime/backend and
+exact public configuration authorization. RPC readiness checks the controller's
+fresh bounded health response instead of a TCP connection. This does not install
+a platform, authenticate storage ownership or establish ledger Running. The
+existing bootstrap lease reader is not the replacement event-driven protocol;
+the complete monitor/work gate and persistent-serving path still need integration.
 
 `controller/` supplies the actual portable `wasi:cli` HTTP controller on local
 port 8000, with fixed local client endpoints, bounded public JSON-RPC forwarding

@@ -1,0 +1,50 @@
+{"Time":"2026-11-01T01:01:08.145079312-07:00","Action":"start","Package":"enclave.host/isolation/m2/front"}
+{"Time":"2026-11-01T01:01:08.149373625-07:00","Action":"run","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate"}
+{"Time":"2026-11-01T01:01:08.149435445-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate","Output":"=== RUN   TestDesktopFrontIdentityGate\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:08.149460054-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate","Output":"--- PASS: TestDesktopFrontIdentityGate (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:08.149465444-07:00","Action":"pass","Package":"enclave.host/isolation/m2/front","Test":"TestDesktopFrontIdentityGate","Elapsed":0}
+{"Time":"2026-11-01T01:01:08.149472094-07:00","Action":"run","Package":"enclave.host/isolation/m2/front","Test":"TestRPCFrontIdentityGate"}
+{"Time":"2026-11-01T01:01:08.149474194-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestRPCFrontIdentityGate","Output":"=== RUN   TestRPCFrontIdentityGate\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:08.15260249-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestRPCFrontIdentityGate","Output":"--- PASS: TestRPCFrontIdentityGate (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:08.15264143-07:00","Action":"pass","Package":"enclave.host/isolation/m2/front","Test":"TestRPCFrontIdentityGate","Elapsed":0}
+{"Time":"2026-11-01T01:01:08.152658489-07:00","Action":"run","Package":"enclave.host/isolation/m2/front","Test":"TestRPCFrontMainHelper"}
+{"Time":"2026-11-01T01:01:08.152660629-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestRPCFrontMainHelper","Output":"=== RUN   TestRPCFrontMainHelper\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:08.152687999-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestRPCFrontMainHelper","Output":"--- PASS: TestRPCFrontMainHelper (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:08.152694939-07:00","Action":"pass","Package":"enclave.host/isolation/m2/front","Test":"TestRPCFrontMainHelper","Elapsed":0}
+{"Time":"2026-11-01T01:01:08.152711909-07:00","Action":"run","Package":"enclave.host/isolation/m2/front","Test":"TestRPCFrontMainRefusesStatementOnlyFallback"}
+{"Time":"2026-11-01T01:01:08.152713419-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestRPCFrontMainRefusesStatementOnlyFallback","Output":"=== RUN   TestRPCFrontMainRefusesStatementOnlyFallback\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:08.152741589-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestRPCFrontMainRefusesStatementOnlyFallback","Output":"    appidentity_rpc_test.go:121: dedicated RPC build only\n"}
+{"Time":"2026-11-01T01:01:08.152756988-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestRPCFrontMainRefusesStatementOnlyFallback","Output":"--- SKIP: TestRPCFrontMainRefusesStatementOnlyFallback (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:08.152764018-07:00","Action":"skip","Package":"enclave.host/isolation/m2/front","Test":"TestRPCFrontMainRefusesStatementOnlyFallback","Elapsed":0}
+{"Time":"2026-11-01T01:01:08.153278403-07:00","Action":"run","Package":"enclave.host/isolation/m2/front","Test":"TestLoadedAppIDIsTakenFromTheLoadedCode"}
+{"Time":"2026-11-01T01:01:08.153289533-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestLoadedAppIDIsTakenFromTheLoadedCode","Output":"=== RUN   TestLoadedAppIDIsTakenFromTheLoadedCode\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:08.153295953-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestLoadedAppIDIsTakenFromTheLoadedCode","Output":"--- PASS: TestLoadedAppIDIsTakenFromTheLoadedCode (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:08.153298663-07:00","Action":"pass","Package":"enclave.host/isolation/m2/front","Test":"TestLoadedAppIDIsTakenFromTheLoadedCode","Elapsed":0}
+{"Time":"2026-11-01T01:01:08.153306812-07:00","Action":"run","Package":"enclave.host/isolation/m2/front","Test":"TestReadyAnswersOnlyWhenTheAppAcceptsConnections"}
+{"Time":"2026-11-01T01:01:08.153309692-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestReadyAnswersOnlyWhenTheAppAcceptsConnections","Output":"=== RUN   TestReadyAnswersOnlyWhenTheAppAcceptsConnections\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:08.153634069-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestReadyAnswersOnlyWhenTheAppAcceptsConnections","Output":"--- PASS: TestReadyAnswersOnlyWhenTheAppAcceptsConnections (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:08.153726778-07:00","Action":"pass","Package":"enclave.host/isolation/m2/front","Test":"TestReadyAnswersOnlyWhenTheAppAcceptsConnections","Elapsed":0}
+{"Time":"2026-11-01T01:01:08.153731578-07:00","Action":"run","Package":"enclave.host/isolation/m2/front","Test":"TestTheProxySetsNoForwardedForAndKeepsTheHost"}
+{"Time":"2026-11-01T01:01:08.153733858-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestTheProxySetsNoForwardedForAndKeepsTheHost","Output":"=== RUN   TestTheProxySetsNoForwardedForAndKeepsTheHost\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:08.154279782-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestTheProxySetsNoForwardedForAndKeepsTheHost","Output":"--- PASS: TestTheProxySetsNoForwardedForAndKeepsTheHost (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:08.154301462-07:00","Action":"pass","Package":"enclave.host/isolation/m2/front","Test":"TestTheProxySetsNoForwardedForAndKeepsTheHost","Elapsed":0}
+{"Time":"2026-11-01T01:01:08.154317882-07:00","Action":"run","Package":"enclave.host/isolation/m2/front","Test":"TestAWedgedAppIsAnsweredWith504AtTheHeaderDeadline"}
+{"Time":"2026-11-01T01:01:08.154319842-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestAWedgedAppIsAnsweredWith504AtTheHeaderDeadline","Output":"=== RUN   TestAWedgedAppIsAnsweredWith504AtTheHeaderDeadline\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:08.355086687-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestAWedgedAppIsAnsweredWith504AtTheHeaderDeadline","Output":"2026/11/01 01:01:08 DOM proxy: GET timeout (no response headers within 200ms)\n"}
+{"Time":"2026-11-01T01:01:08.355449313-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestAWedgedAppIsAnsweredWith504AtTheHeaderDeadline","Output":"--- PASS: TestAWedgedAppIsAnsweredWith504AtTheHeaderDeadline (0.20s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:08.355474313-07:00","Action":"pass","Package":"enclave.host/isolation/m2/front","Test":"TestAWedgedAppIsAnsweredWith504AtTheHeaderDeadline","Elapsed":0.2}
+{"Time":"2026-11-01T01:01:08.355506702-07:00","Action":"run","Package":"enclave.host/isolation/m2/front","Test":"TestAStreamThatSentItsHeadersOutlivesTheHeaderDeadline"}
+{"Time":"2026-11-01T01:01:08.355511552-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestAStreamThatSentItsHeadersOutlivesTheHeaderDeadline","Output":"=== RUN   TestAStreamThatSentItsHeadersOutlivesTheHeaderDeadline\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:08.957424942-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestAStreamThatSentItsHeadersOutlivesTheHeaderDeadline","Output":"--- PASS: TestAStreamThatSentItsHeadersOutlivesTheHeaderDeadline (0.60s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:08.957502811-07:00","Action":"pass","Package":"enclave.host/isolation/m2/front","Test":"TestAStreamThatSentItsHeadersOutlivesTheHeaderDeadline","Elapsed":0.6}
+{"Time":"2026-11-01T01:01:08.9575395-07:00","Action":"run","Package":"enclave.host/isolation/m2/front","Test":"TestTheProductionProxyHasAHeaderDeadline"}
+{"Time":"2026-11-01T01:01:08.95754263-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestTheProductionProxyHasAHeaderDeadline","Output":"=== RUN   TestTheProductionProxyHasAHeaderDeadline\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:08.95758807-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestTheProductionProxyHasAHeaderDeadline","Output":"--- PASS: TestTheProductionProxyHasAHeaderDeadline (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:08.95759486-07:00","Action":"pass","Package":"enclave.host/isolation/m2/front","Test":"TestTheProductionProxyHasAHeaderDeadline","Elapsed":0}
+{"Time":"2026-11-01T01:01:08.957604-07:00","Action":"run","Package":"enclave.host/isolation/m2/front","Test":"TestTheProxyLogsNoRequestData"}
+{"Time":"2026-11-01T01:01:08.95760559-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestTheProxyLogsNoRequestData","Output":"=== RUN   TestTheProxyLogsNoRequestData\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:09.159330015-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Test":"TestTheProxyLogsNoRequestData","Output":"--- PASS: TestTheProxyLogsNoRequestData (0.20s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:09.159404784-07:00","Action":"pass","Package":"enclave.host/isolation/m2/front","Test":"TestTheProxyLogsNoRequestData","Elapsed":0.2}
+{"Time":"2026-11-01T01:01:09.159442714-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:01:09.160129986-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Output":"ok  \tenclave.host/isolation/m2/front\t1.015s\n"}
+{"Time":"2026-11-01T01:01:09.160141386-07:00","Action":"pass","Package":"enclave.host/isolation/m2/front","Elapsed":1.015}

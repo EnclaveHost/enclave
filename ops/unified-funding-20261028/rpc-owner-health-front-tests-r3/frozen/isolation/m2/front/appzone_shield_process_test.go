@@ -1,0 +1,260 @@
+package main
+
+// End to end, across processes, for an Enclave Shield guest: the guest's real issuer (appzone.go) - as the Shield-direct
+// front runs it (shield_direct.go) - against SEPARATE app-zone replica processes that admit Shield evidence
+// (relay/dns-relay.js APP_CHALLENGE_SHIELD_POLICY, started by test/app-zone-shield-fleet.mjs), after the Windows host's
+// real session keeper (windows/node/shield-sessions.mjs) attested its TPM boot at each replica; the test CA validates
+// dns-01 by REAL DNS queries to those replicas. The TPM, the guest's VBS report and the chain are SYNTHETIC (stated by the
+// fleet); this is not Windows hardware and the CA is not a public CA. Runs when APPZONE_SHIELD_FLEET=1
+// (test/run-shield-certificates.sh sets it inside an unshared network namespace: no relay, Enclave API, CERTS_API or
+// public CA is reachable).
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"os"
+	"os/exec"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"enclave.host/isolation/m2/bootstrap"
+)
+
+type shieldFleetInfo struct {
+	Replicas []struct {
+		API, DNS, Host string
+		PID            int
+		SNP            bool
+	} `json:"replicas"`
+	Control, Deployment, Owner, Runner, Operator, AppRef, Envelope, Fixture string
+}
+
+func startShieldFleet(t *testing.T) (*shieldFleetInfo, func(string, any) ([]byte, error)) {
+	cmd := exec.Command("node", "../../../test/app-zone-shield-fleet.mjs")
+	cmd.Stderr = os.Stderr
+	stdin, _ := cmd.StdinPipe()
+	out, _ := cmd.StdoutPipe()
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { stdin.Close(); cmd.Wait() })
+	line, err := bufio.NewReader(out).ReadString('\n')
+	var info shieldFleetInfo
+	if err != nil || json.Unmarshal([]byte(line), &info) != nil || len(info.Replicas) != 3 {
+		t.Fatalf("fleet did not start: %v %q", err, line)
+	}
+	control := func(path string, body any) ([]byte, error) {
+		b, _ := json.Marshal(body)
+		r, err := http.Post(info.Control+path, "application/json", bytes.NewReader(b))
+		if err != nil {
+			return nil, err
+		}
+		defer r.Body.Close()
+		x, _ := io.ReadAll(r.Body)
+		if r.StatusCode != 200 {
+			return nil, fmt.Errorf("control %s: %d %s", path, r.StatusCode, x)
+		}
+		return x, nil
+	}
+	return &info, control
+}
+
+func TestAppZoneShieldAgainstSeparateReplicaProcesses(t *testing.T) {
+	if os.Getenv("APPZONE_SHIELD_FLEET") != "1" {
+		t.Skip("run by test/run-shield-certificates.sh (APPZONE_SHIELD_FLEET=1) inside an isolated network namespace")
+	}
+	info, control := startShieldFleet(t)
+	t.Logf("fleet: replica processes %d %d %d (%s)", info.Replicas[0].PID, info.Replicas[1].PID, info.Replicas[2].PID, info.Fixture)
+	defer func() {
+		if b, err := control("/logs", nil); err == nil {
+			if path := os.Getenv("APPZONE_EVIDENCE"); path != "" {
+				os.WriteFile(path, b, 0o644)
+			}
+		}
+	}()
+	// the Windows host attests its TPM boot at every replica its running Shield-direct record names
+	if b, err := control("/sessions", map[string]any{}); err != nil || !strings.Contains(string(b), `"failed":[]`) {
+		t.Fatalf("host sessions: %v %s", err, b)
+	} else {
+		t.Logf("0. host sessions: %s", b)
+	}
+	var hosts []string
+	for _, r := range info.Replicas {
+		hosts = append(hosts, r.Host)
+	}
+	live := []bool{true, true, true}
+	var mu sync.Mutex
+	answered := map[int]int{}
+	world := func() (*namesWorld, *front) {
+		w := newNamesWorld(t)
+		c := newCertState(t, info.Deployment[2:10]+".app.enclave.host")
+		w.spki = c.spki
+		f := &front{spki: c.spki, appSha: bytes.Repeat([]byte{0xcd}, 32), certs: c}
+		w.extraHosts = map[string]http.HandlerFunc{}
+		for i, h := range hosts {
+			u, _ := url.Parse(info.Replicas[i].API)
+			w.extraHosts[h] = httputil.NewSingleHostReverseProxy(u).ServeHTTP
+		}
+		w.validate = func(name, value string) bool {
+			ok := false
+			for i, r := range info.Replicas {
+				mu.Lock()
+				up := live[i]
+				mu.Unlock()
+				if !up {
+					continue
+				}
+				for try := 0; try < 20; try++ {
+					hit := false
+					for _, v := range dnsTXT(r.DNS, "_acme-challenge."+name) {
+						if v == value {
+							hit = true
+						}
+					}
+					if hit {
+						mu.Lock()
+						answered[i]++
+						mu.Unlock()
+						ok = true
+						break
+					}
+					time.Sleep(100 * time.Millisecond)
+				}
+			}
+			return ok
+		}
+		return w, f
+	}
+	grant := func(replicas ...string) *fakeAuthority {
+		var dep, runner [32]byte
+		d, _ := hex.DecodeString(info.Deployment[2:])
+		r, _ := hex.DecodeString(info.Runner[2:])
+		copy(dep[:], d)
+		copy(runner[:], r)
+		var urls []string
+		for _, h := range replicas {
+			urls = append(urls, "https://"+h)
+		}
+		return &fakeAuthority{grant: bootstrap.NameGrant{Deployment: dep, Owner: info.Owner, Until: time.Now().Add(time.Hour),
+			AppZone: &bootstrap.AppZoneACME{Directory: "https://" + caHost + "/dir", Challenges: urls},
+			Lease:   bootstrap.LeaseBinding{Runner: runner, Operator: info.Operator, AppRef: info.AppRef, Envelope: info.Envelope}}}
+	}
+	// attestDoc: the fleet's guest document for (this key, the push nonce) - on a partition, the front's attestDocJSON
+	issuer := func(w *namesWorld, f *front, auth *fakeAuthority, extra map[string]any) *appZoneIssuer {
+		iss, err := newAppZoneIssuer(auth, f.certs, "", nil, ownerHTTP(w.egress, w.pool), func(nonce []byte) ([]byte, error) {
+			body := map[string]any{"spki": base64.StdEncoding.EncodeToString(f.spki), "nonce": hex.EncodeToString(nonce)}
+			for k, v := range extra {
+				body[k] = v
+			}
+			return control("/attest", body)
+		}, f.certs.key, f.spki)
+		if err != nil || iss == nil {
+			t.Fatalf("issuer: %v", err)
+		}
+		return iss
+	}
+	noEnclave := func(w *namesWorld) {
+		w.mu.Lock()
+		defer w.mu.Unlock()
+		for _, o := range w.origins {
+			if strings.Contains(o, "enclave.host") {
+				t.Fatalf("the guest contacted %s", o)
+			}
+		}
+	}
+
+	// 1. all three replicas: issued; every replica answered the CA's lookup; the certificate is for the guest's own key
+	w, f := world()
+	iss := issuer(w, f, grant(hosts...), nil)
+	if !iss.pass(context.Background()) {
+		t.Fatalf("not issued: %+v", iss.status())
+	}
+	leaf, err := handshake(t, f, w.pool, f.certs.name)
+	if err != nil {
+		t.Fatalf("the app-zone name is not trusted under the test CA: %v", err)
+	}
+	if got, _ := x509.MarshalPKIXPublicKey(leaf.PublicKey); !bytes.Equal(got, f.spki) {
+		t.Fatal("the certificate is not for the guest's attested key")
+	}
+	mu.Lock()
+	if answered[0] == 0 || answered[1] == 0 || answered[2] == 0 {
+		t.Fatalf("not every replica answered the challenge: %v", answered)
+	}
+	t.Logf("1. issued %s (Shield evidence), issuer %q, serial %s; DNS answers per replica %v; outcomes %+v", leaf.DNSNames[0], leaf.Issuer.CommonName,
+		leaf.SerialNumber.Text(16), answered, iss.status()["lastPush"])
+	mu.Unlock()
+	noEnclave(w)
+
+	// 2. invalid evidence: a launcher-only document (the host's word) and another TPM's report never reach the CA
+	for _, bad := range []struct {
+		extra map[string]any
+		why   string
+	}{{map[string]any{"launcherOnly": true}, "VBS report missing"}, {map[string]any{"signer": "other"}, "Shield attestation refused"}} {
+		w, f = world()
+		iss = issuer(w, f, grant(hosts...), bad.extra)
+		if iss.pass(context.Background()) || f.certs.current() != nil {
+			t.Fatalf("%v: a certificate was issued", bad.extra)
+		}
+		w.mu.Lock()
+		hits := w.chalHits
+		w.mu.Unlock()
+		if e, _ := iss.status()["lastError"].(string); hits != 0 || !strings.Contains(e, bad.why) {
+			t.Fatalf("%v: chal hits %d, error %q", bad.extra, hits, e)
+		}
+		t.Logf("2. %v: refused before CA validation: %s", bad.extra, iss.status()["lastError"])
+	}
+
+	// 3. platform moderation and stale leases stop issuance at every replica, before the CA validates
+	for _, c := range []struct{ op, undo, why string }{
+		{"ban-host", "unban-host", "registry host"}, {"delist", "relist", "catalog policy"}, {"relet", "restore", "stale"}} {
+		if _, err := control("/chain", map[string]string{"op": c.op}); err != nil {
+			t.Fatal(err)
+		}
+		w, f = world()
+		iss = issuer(w, f, grant(hosts...), nil)
+		if iss.pass(context.Background()) || f.certs.current() != nil {
+			t.Fatalf("%s: a certificate was issued", c.op)
+		}
+		w.mu.Lock()
+		hits := w.chalHits
+		w.mu.Unlock()
+		if e, _ := iss.status()["lastError"].(string); hits != 0 || !strings.Contains(e, "refused") || !strings.Contains(e, c.why) {
+			t.Fatalf("%s: chal hits %d, error %q", c.op, hits, e)
+		}
+		t.Logf("3. %s: refused before CA validation: %s", c.op, iss.status()["lastError"])
+		if _, err := control("/chain", map[string]string{"op": c.undo}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// 4. failover: one replica process down; a new guest key issues through the remaining two
+	if _, err := control("/kill", map[string]int{"i": 1}); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	live[1] = false
+	mu.Unlock()
+	w, f = world()
+	iss = issuer(w, f, grant(hosts...), nil)
+	if !iss.pass(context.Background()) {
+		t.Fatalf("not issued with one replica down: %+v", iss.status())
+	}
+	if last, _ := iss.status()["lastPush"].([]replicaOutcome); len(last) != 3 || last[1].Status == 200 || last[0].Status != 200 || last[2].Status != 200 {
+		t.Fatalf("outcomes %+v", last)
+	} else {
+		t.Logf("4. replica 1 killed; issued %s through the others; outcomes %+v", f.certs.current().DNSNames[0], last)
+	}
+	noEnclave(w)
+}

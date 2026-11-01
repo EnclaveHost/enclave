@@ -34,6 +34,15 @@ func TestRPCFrontIdentityGate(t *testing.T) {
 	}
 	sum := contract.AppID(bundle)
 	bp, wp, sp := put("app.bundle", bundle), put("app.wasm", wasm), put("app.sha256", []byte(hex.EncodeToString(sum[:])))
+	deployment, err := loadedRPCDeployment(bp, sum[:])
+	if err != nil || hex.EncodeToString(deployment[:]) != strings.Repeat("d", 64) {
+		t.Fatal("full deployment binding", deployment, err)
+	}
+	wrongID := append([]byte(nil), sum[:]...)
+	wrongID[31] ^= 1
+	if _, err := loadedRPCDeployment(bp, wrongID); err == nil {
+		t.Fatal("changed bundle identity admitted")
+	}
 	id, _, err := loadedAppIDForBuild(bp, wp, sp)
 	if !nativeRPCFront {
 		if err == nil {

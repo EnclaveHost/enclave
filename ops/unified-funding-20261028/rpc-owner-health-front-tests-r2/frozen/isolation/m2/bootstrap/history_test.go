@@ -1,0 +1,262 @@
+package bootstrap
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestHistoryFieldIsOptionalAndStrict(t *testing.T) {
+	ok := []string{
+		`{"rpcs":["https://base-mainnet.public.blastapi.io"]}`,
+		`{"rpcs":["https://base-public.nodies.app","https://gateway.tenderly.co/public/base","https://x.example/v2/node-1"]}`,
+		`{"rpcs":["https://rpc.example/base"]}`,
+		`{"rpcs":["https://rpc.example/base"],"checkpoints":["https://a.mirror.example/cp","https://b.mirror.example/cp.json"]}`,
+		`{"checkpoints":["https://owner.example/cp"]}`,
+	}
+	for _, h := range ok {
+		raw := []byte(`{"history":` + h + `}`)
+		var m struct {
+			History *History `json:"history"`
+		}
+		if err := strictJSON(raw, &m); err != nil {
+			t.Fatalf("%s: %v", h, err)
+		}
+		if err := historyField(raw, m.History); err != nil {
+			t.Errorf("%s refused: %v", h, err)
+		}
+	}
+	bad := []string{
+		`{"rpcs":[]}`,
+		`{"rpcs":["http://insecure.example"]}`,
+		`{"rpcs":["https://user:pw@rpc.example"]}`,
+		`{"rpcs":["https://rpc.example#frag"]}`,
+		`{"rpcs":["https://rpc.example:8545"]}`,
+		`{"rpcs":["https://rpc.example/a b"]}`,
+		`{"rpcs":["https://"]}`,
+		`{"rpcs":["https://RPC.example","https://rpc.example./other"]}`, // one host twice
+		`{"rpcs":["https://a.example","https://b.example","https://c.example","https://d.example","https://e.example","https://f.example","https://g.example"]}`,
+		`{"rpcs":["https://rpc.example/` + strings.Repeat("a", 512) + `"]}`,
+		`{"rpcs":["https://x.example/v2/read-only-key?x=1"]}`,             // a query would be published
+		`{"rpcs":["https://rpc.example:443/base"]}`,                       // no port
+		`{"rpcs":["https://gateway.tenderly.co","https://base.example"]}`, // not ascending
+		`{"rpcs":["https://192.0.2.7/rpc"]}`,                              // no IP literal
+		`{"rpcs":null}`,
+		`{}`,
+		`{"rpcs":[],"checkpoints":["https://a.mirror.example/cp"]}`,
+		`{"rpcs":["https://rpc.example"],"checkpoints":[]}`,
+		`{"rpcs":["https://rpc.example"],"checkpoints":null}`,
+		`{"checkpoints":["https://a.mirror.example/cp?sig=1"]}`,
+		`{"checkpoints":["http://a.mirror.example/cp"]}`,
+		`{"checkpoints":["https://b.mirror.example/cp","https://a.mirror.example/cp"]}`,
+		`{"checkpoints":["https://a.mirror.example/x","https://a.mirror.example/y"]}`,
+		`{"checkpoints":["https://a.example/c","https://b.example/c","https://c.example/c","https://d.example/c","https://e.example/c"]}`,
+	}
+	for _, h := range bad {
+		raw := []byte(`{"history":` + h + `}`)
+		var m struct {
+			History *History `json:"history"`
+		}
+		if strictJSON(raw, &m) == nil && historyField(raw, m.History) == nil {
+			t.Errorf("%s accepted", h)
+		}
+	}
+	// absent: every package written before the field keeps its meaning
+	if historyField([]byte(`{"version":1}`), nil) != nil {
+		t.Fatal("an absent history field must be accepted")
+	}
+	if historyField([]byte(`{"history":null}`), nil) == nil {
+		t.Fatal("a null history must be refused")
+	}
+	// an unknown or case-aliased member inside it is refused by the package's strict decoding
+	for _, raw := range []string{`{"history":{"rpcs":["https://a.example"],"window":5}}`, `{"history":{"RPCs":["https://a.example"]}}`} {
+		var m Manifest
+		if strictJSON([]byte(raw), &m) == nil {
+			t.Errorf("%s decoded", raw)
+		}
+	}
+}
+
+func TestOperatorOfMergesOneOperatorsHosts(t *testing.T) {
+	for host, op := range map[string]string{
+		"gateway.tenderly.co": "tenderly.co", "base.gateway.tenderly.co": "tenderly.co", "base-public.nodies.app": "nodies.app",
+		"base-pokt.nodies.app": "nodies.app", "mainnet.base.org": "base.org", "base-rpc.publicnode.com": "publicnode.com",
+		"base.drpc.org": "drpc.org", "rpc0": "rpc0", "192.0.2.7": "192.0.2.7", "example.com": "example.com",
+	} {
+		if got := operatorOf(host); got != op {
+			t.Errorf("%s: %s, want %s", host, got, op)
+		}
+	}
+}
+
+// fakeSource answers eth_getLogs with fixed logs (or an error), and counts the ranges it was asked.
+func fakeSource(name string, logs []rpcLog, err error, maxRange uint64, asked *[]uint64) endpoint {
+	return endpoint{name: name, call: func(_ context.Context, method string, params any, out any) error {
+		if method != "eth_getLogs" {
+			return errors.New("unexpected")
+		}
+		q := params.([]any)[0].(map[string]any)
+		var lo, hi uint64
+		fmt.Sscanf(q["fromBlock"].(string), "0x%x", &lo)
+		fmt.Sscanf(q["toBlock"].(string), "0x%x", &hi)
+		if asked != nil {
+			*asked = append(*asked, hi-lo+1)
+		}
+		if err != nil {
+			return err
+		}
+		if maxRange > 0 && hi-lo+1 > maxRange {
+			return fmt.Errorf("bootstrap RPC error: -32001: Block range too large: maximum allowed is %d blocks", maxRange)
+		}
+		var in []rpcLog
+		for _, l := range logs {
+			var b uint64
+			fmt.Sscanf(l.BlockNumber, "0x%x", &b)
+			if b >= lo && b <= hi {
+				in = append(in, l)
+			}
+		}
+		raw, _ := json.Marshal(in)
+		return json.Unmarshal(raw, out)
+	}}
+}
+
+func TestAgreedLogsCountsOperatorsAndNeverReadsARefusalAsEmpty(t *testing.T) {
+	r := &Reader{ledger: "0x" + strings.Repeat("ab", 20)}
+	id := "0x" + strings.Repeat("11", 32)
+	claim := rpcLog{Address: r.ledger, Topics: []string{topicClaimed, id, "0x" + strings.Repeat("22", 32), "0x" + strings.Repeat("0", 24) + strings.Repeat("33", 20)},
+		Data: "0x" + strings.Repeat("0", 63) + "1" + strings.Repeat("0", 64), BlockNumber: "0x10", BlockHash: "0x" + strings.Repeat("44", 32), LogIndex: "0x0"}
+	budgets := func(names ...string) map[string]*budget {
+		b := map[string]*budget{}
+		for _, n := range names {
+			b[n] = &budget{max: 400}
+		}
+		return b
+	}
+	refused := errors.New("bootstrap RPC error: -32602: Archive requests require a personal token")
+	// two hosts of ONE operator agreeing are one answer
+	_, err := r.agreedLogs(context.Background(), []endpoint{fakeSource("gateway.tenderly.co", []rpcLog{claim}, nil, 0, nil),
+		fakeSource("base.gateway.tenderly.co", []rpcLog{claim}, nil, 0, nil), fakeSource("rpc.publicnode.com", nil, refused, 0, nil)}, id, 1, 100,
+		budgets("gateway.tenderly.co", "base.gateway.tenderly.co", "rpc.publicnode.com"), nil)
+	var ae *AuthorityError
+	if !errors.As(err, &ae) || ae.Code != "history_unavailable" || ae.Retry {
+		t.Fatalf("one operator: %v", err)
+	}
+	// two operators agreeing, a third contradicting (omitting the claim): disagreement
+	_, err = r.agreedLogs(context.Background(), []endpoint{fakeSource("gateway.tenderly.co", []rpcLog{claim}, nil, 0, nil),
+		fakeSource("base-public.nodies.app", []rpcLog{claim}, nil, 0, nil), fakeSource("public.blastapi.io", nil, nil, 0, nil)}, id, 1, 100,
+		budgets("gateway.tenderly.co", "base-public.nodies.app", "public.blastapi.io"), nil)
+	if !errors.As(err, &ae) || ae.Code != "disagree" {
+		t.Fatalf("an omitting source: %v", err)
+	}
+	// two operators agreeing, the third REFUSING the old range: the refusal is not an empty answer, the two decide
+	got, err := r.agreedLogs(context.Background(), []endpoint{fakeSource("gateway.tenderly.co", []rpcLog{claim}, nil, 0, nil),
+		fakeSource("base-public.nodies.app", []rpcLog{claim}, nil, 0, nil), fakeSource("rpc.publicnode.com", nil, refused, 0, nil)}, id, 1, 100,
+		budgets("gateway.tenderly.co", "base-public.nodies.app", "rpc.publicnode.com"), nil)
+	if err != nil || len(got) != 1 {
+		t.Fatalf("two operators: %v %v", got, err)
+	}
+	// a transport failure is a source that may answer later: retry, not history_unavailable
+	_, err = r.agreedLogs(context.Background(), []endpoint{fakeSource("gateway.tenderly.co", []rpcLog{claim}, nil, 0, nil),
+		fakeSource("base-public.nodies.app", nil, errors.New("bootstrap RPC transport failed"), 0, nil)}, id, 1, 100,
+		budgets("gateway.tenderly.co", "base-public.nodies.app"), nil)
+	if !errors.As(err, &ae) || ae.Code != "quorum_unavailable" || !ae.Retry {
+		t.Fatalf("an outage: %v", err)
+	}
+}
+
+func TestASourcesWindowIsLearnedOnlyFromItsOwnRefusal(t *testing.T) {
+	r := &Reader{ledger: "0x" + strings.Repeat("ab", 20)}
+	id := "0x" + strings.Repeat("11", 32)
+	var asked []uint64
+	src := fakeSource("base-public.nodies.app", nil, nil, 50, &asked)
+	b := &budget{max: 400}
+	if _, err := r.peerLogs(context.Background(), src, id, 1, 1000, b); err != nil {
+		t.Fatal(err)
+	}
+	// 1000 -> 500 -> 250 -> 125 -> 62 -> 31: refused down to 31, then 31-block windows
+	if asked[0] != 1000 || r.window(src.name) != 31 {
+		t.Fatalf("asked %v, learned %d", asked[:6], r.window(src.name))
+	}
+	asked = nil
+	if _, err := r.peerLogs(context.Background(), src, id, 1001, 2000, b); err != nil {
+		t.Fatal(err)
+	}
+	if asked[0] != 31 {
+		t.Fatalf("the next range must start at the learned window, asked %d", asked[0])
+	}
+	// a short range clips the window without teaching it
+	other := fakeSource("gateway.tenderly.co", nil, nil, 0, nil)
+	if _, err := r.peerLogs(context.Background(), other, id, 1, 8, b); err != nil || r.window(other.name) != leaseWindow {
+		t.Fatalf("a clipped window was learned: %d %v", r.window(other.name), err)
+	}
+}
+
+// An EXPLICIT rate refusal cools its source down: after one in-place retry it is not asked again until its cooldown
+// ends, the two other operators decide every step without waiting for it, and it is probed again after the cooldown.
+func TestARateRefusingSourceCoolsDownWithoutDelayingTheOthers(t *testing.T) {
+	retries, backoff, first := leaseRateRetries, leaseBackoff, leaseCooldown
+	leaseRateRetries, leaseBackoff, leaseCooldown = 1, 20*time.Millisecond, time.Hour
+	defer func() { leaseRateRetries, leaseBackoff, leaseCooldown = retries, backoff, first }()
+	clock := time.Unix(1_800_000_000, 0)
+	r := &Reader{ledger: "0x" + strings.Repeat("ab", 20), now: func() time.Time { return clock }}
+	id := "0x" + strings.Repeat("11", 32)
+	throttled := 0
+	limited := endpoint{name: "mainnet.base.org", call: func(context.Context, string, any, any) error {
+		throttled++
+		return errors.New("bootstrap RPC HTTP 429")
+	}}
+	b := map[string]*budget{"gateway.tenderly.co": {max: 400}, "base-rpc.polkachu.com": {max: 400}, "mainnet.base.org": {max: 400}}
+	t0 := time.Now()
+	for step := uint64(0); step < 20; step++ {
+		if _, err := r.agreedLogs(context.Background(), []endpoint{fakeSource("gateway.tenderly.co", nil, nil, 0, nil),
+			fakeSource("base-rpc.polkachu.com", nil, nil, 0, nil), limited}, id, 1+step*100, 100+step*100, b, nil); err != nil {
+			t.Fatalf("step %d: %v", step, err)
+		}
+	}
+	if throttled != 2 {
+		t.Fatalf("the throttled source was asked %d times over 20 steps; want 2 (one request, one retry, then its cooldown)", throttled)
+	}
+	if d := time.Since(t0); d > 2*time.Second {
+		t.Fatalf("20 steps took %v: the throttled source's backoff delayed the others", d)
+	}
+	// its cooldown over, it is asked again (and, refusing again, cools down for longer)
+	clock = clock.Add(2 * time.Hour)
+	r.agreedLogs(context.Background(), []endpoint{fakeSource("gateway.tenderly.co", nil, nil, 0, nil),
+		fakeSource("base-rpc.polkachu.com", nil, nil, 0, nil), limited}, id, 5000, 5099, b, nil)
+	if throttled != 4 {
+		t.Fatalf("after its cooldown the source was asked %d times in total; want 4", throttled)
+	}
+	// a cooling source is one that may answer later: with one other operator only, the step retries, never empty history
+	_, err := r.agreedLogs(context.Background(), []endpoint{fakeSource("gateway.tenderly.co", nil, nil, 0, nil), limited}, id, 6000, 6099, b, nil)
+	var ae *AuthorityError
+	if !errors.As(err, &ae) || ae.Code != "quorum_unavailable" || !ae.Retry {
+		t.Fatalf("a cooling source with one other operator: %v", err)
+	}
+}
+
+// A SLOW but honest source is not a refusing one: it is waited for, and its contradiction refuses the step even when two
+// other operators already agree.
+func TestASlowHonestContradictionIsStillSeen(t *testing.T) {
+	r := &Reader{ledger: "0x" + strings.Repeat("ab", 20), now: time.Now}
+	id := "0x" + strings.Repeat("11", 32)
+	claim := rpcLog{Address: r.ledger, Topics: []string{topicClaimed, id, "0x" + strings.Repeat("22", 32), "0x" + strings.Repeat("0", 24) + strings.Repeat("33", 20)},
+		Data: "0x" + strings.Repeat("0", 63) + "1" + strings.Repeat("0", 64), BlockNumber: "0x10", BlockHash: "0x" + strings.Repeat("44", 32), LogIndex: "0x0"}
+	slow := fakeSource("mainnet.base.org", nil, nil, 0, nil) // omits the claim, 400 ms later
+	inner := slow.call
+	slow.call = func(ctx context.Context, m string, p any, out any) error {
+		time.Sleep(400 * time.Millisecond)
+		return inner(ctx, m, p, out)
+	}
+	_, err := r.agreedLogs(context.Background(), []endpoint{fakeSource("gateway.tenderly.co", []rpcLog{claim}, nil, 0, nil),
+		fakeSource("base-rpc.polkachu.com", []rpcLog{claim}, nil, 0, nil), slow}, id, 1, 100,
+		map[string]*budget{"gateway.tenderly.co": {max: 400}, "base-rpc.polkachu.com": {max: 400}, "mainnet.base.org": {max: 400}}, nil)
+	var ae *AuthorityError
+	if !errors.As(err, &ae) || ae.Code != "disagree" {
+		t.Fatalf("a slow honest omission was not seen: %v", err)
+	}
+}

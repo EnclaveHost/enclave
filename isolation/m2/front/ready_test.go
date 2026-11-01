@@ -14,6 +14,9 @@ import (
 )
 
 func TestReadyAnswersOnlyWhenTheAppAcceptsConnections(t *testing.T) {
+	if nativeRPCFront {
+		t.Skip("RPC requires controller health; covered by TestRPCHealthFreshAndReadiness")
+	}
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)

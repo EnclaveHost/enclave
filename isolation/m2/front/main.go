@@ -96,13 +96,14 @@ type doc struct {
 }
 
 type front struct {
-	shieldFwd    *egress.Forwarder // direct Shield egress lives until the domain exits
-	secrets      *shieldSecrets    // legacy Shield release channel; independent builds never initialize relay pins
-	publicHTTPS  bool              // set only by successful attested provisioning
-	encInit      []byte            // init's encrypted-volume trailer (encvol.go); set only by successful provisioning
-	modelInit    []byte            // init's model-volume block (modelvol.go); set only by successful provisioning
-	spki, appSha []byte
-	rt           *runtimeState // ABI/2 when non-nil, ABI/1 when the image carries no runtime identity
+	shieldFwd     *egress.Forwarder // direct Shield egress lives until the domain exits
+	secrets       *shieldSecrets    // legacy Shield release channel; independent builds never initialize relay pins
+	rpcDeployment [32]byte          // full V9 binding, never a launcher DNS prefix
+	publicHTTPS   bool              // set only by successful attested provisioning
+	encInit       []byte            // init's encrypted-volume trailer (encvol.go); set only by successful provisioning
+	modelInit     []byte            // init's model-volume block (modelvol.go); set only by successful provisioning
+	spki, appSha  []byte
+	rt            *runtimeState // ABI/2 when non-nil, ABI/1 when the image carries no runtime identity
 	// seccompStatement: where init (dominit, root) records the app runtime's seccomp filter once it is installed; read
 	// into every self-test this front measures (localSelfTest). "" = none (M3: the monitor states it instead).
 	seccompStatement string
@@ -114,7 +115,7 @@ type front struct {
 	app              http.Handler
 	certs            *certState                    // a CA certificate for this domain's own key and deployment name (certs.go)
 	names            *ownerNames                   // direct startup: the owner-committed names (names.go); nil = none
-	appZone          *appZoneIssuer // direct startup: in-guest ACME for this deployment's app-zone name (appzone.go); nil = none
+	appZone          *appZoneIssuer                // direct startup: in-guest ACME for this deployment's app-zone name (appzone.go); nil = none
 	checkpoints      *bootstrap.CheckpointProducer // direct SEV-SNP startup: the attested history checkpoint; nil = none
 	ready            *readiness                    // GET /.well-known/enclave-ready: the app's port accepts (ready.go)
 	tsmMu            sync.Mutex
@@ -195,6 +196,14 @@ func main() {
 	} else {
 		fmt.Printf("DOM runtime none: no identity at %s, this domain attests %s\n", *rtID, contract.ABI)
 	}
+	var rpcDeployment [32]byte
+	if nativeRPCFront {
+		if !directBootstrap || *snp || *initFD != 0 || *shieldSecretsFD != 0 || *appid != "" || *reportUnix == "" || rt == nil || *appMode != "run" || *upstream != "127.0.0.1:8000" {
+			die("RPC front requires its owner-direct monitor runtime and fixed controller")
+		}
+		rpcDeployment, err = loadedRPCDeployment(*appBundlePath, appSha)
+		must(err)
+	}
 	cert, spki, err := domtls.Mint("enclave-domain")
 	must(err)
 	var l net.Listener
@@ -211,7 +220,7 @@ func main() {
 	if *appMode != "serve" && *appMode != "run" {
 		die("-app-mode must be serve or run, not %q", *appMode)
 	}
-	f := &front{spki: spki, appSha: appSha, rt: rt, snp: *snp, monitor: *reportUnix, app: appProxy(*upstream), seccompStatement: *seccompStatement,
+	f := &front{rpcDeployment: rpcDeployment, spki: spki, appSha: appSha, rt: rt, snp: *snp, monitor: *reportUnix, app: appProxy(*upstream), seccompStatement: *seccompStatement,
 		ready: &readiness{upstream: *upstream, mode: *appMode, appID: hex.EncodeToString(appSha), dial: 2 * time.Second}}
 	if *appid != "" {
 		// ABI/2 or nothing on this path. The SVSM computes Bind2, which folds in a RuntimeID; a domain with no
@@ -252,10 +261,10 @@ func main() {
 	// HOST_DATA, read once: it names the deployment this guest serves, for both its certificate and its release
 	var hd []byte
 	var hdErr error
-	if f.plane == nil {
+	if f.plane == nil && !nativeRPCFront {
 		hd, hdErr = f.hostData()
 	}
-	if f.plane == nil {
+	if f.plane == nil && !nativeRPCFront {
 		if err := hdErr; err != nil {
 			if n := launcherName(*certNameFile, *certZone); n != "" {
 				f.certs.name = n
@@ -338,9 +347,12 @@ func main() {
 			must(err)
 		}
 	}
+	if nativeRPCFront {
+		f.certs.name = ""
+	} // only owner-committed names, no launcher app-zone identity
 	// The direct Shield build obtains custody itself, through the owner-committed package.
 	// Other builds retain their existing startup path; no runtime request changes this choice.
-	if *initFD == 0 && f.monitor != "" && hdErr != nil {
+	if nativeRPCFront || (*initFD == 0 && f.monitor != "" && hdErr != nil) {
 		if err := f.shieldDirectOwner(context.Background(), shieldPipe, shieldEG); err != nil {
 			die("shield startup: %v", err)
 		}
@@ -357,9 +369,15 @@ func main() {
 		if f.secrets != nil {
 			wait = 300 * time.Second
 		}
-		for deadline := time.Now().Add(wait); ; time.Sleep(10 * time.Millisecond) {
-			if c, err := net.DialTimeout("tcp", *upstream, time.Second); err == nil {
-				c.Close()
+		poll := 10 * time.Millisecond
+		if nativeRPCFront {
+			poll = time.Second
+		}
+		for deadline := time.Now().Add(wait); ; time.Sleep(poll) {
+			ctx, cancel := context.WithDeadline(context.Background(), deadline)
+			err := f.ready.check(ctx)
+			cancel()
+			if err == nil {
 				break
 			}
 			if time.Now().After(deadline) {

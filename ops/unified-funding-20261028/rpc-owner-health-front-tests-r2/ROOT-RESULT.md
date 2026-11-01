@@ -1,0 +1,3 @@
+# R2 qualified suites; lab harness incomplete
+
+Invocation6d186207ff9b4ce790e64a2d69f87781 terminal1/MainPID0 overall. Shield58PASS/RPC79PASS/one dedicated ordinary-TCP skip, zero test failures. Actual private-loopback fresh health, stalled headers/body deadline, redirect/type/oversize refusals; full deployment package and owner checks. Fake controller/authority, no production. Three intended invalid-build compile markers verified. Lab negative check failed earlier at missing ignored generated go:embed labpins files. Mixed case not run. Peak297MiB. No green whole-run claim; R3 isolates remaining lab/mixed compile refusals with invalid public compile-only placeholders. No production source changes after R2 freeze.
