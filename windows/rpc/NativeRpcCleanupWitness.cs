@@ -38,7 +38,7 @@ namespace Enclave.OwnedRpc {
   [DllImport("advapi32.dll",SetLastError=true)]static extern bool OpenProcessToken(IntPtr h,uint access,out SafeWaitHandle token);
   readonly List<SafeWaitHandle> handles=new List<SafeWaitHandle>();readonly ProtectedAttempt pin;readonly string digest;bool disposed;
   internal NativeRpcStartGroup(ProtectedAttempt pin,IntPtr[] transferred){
-   if(pin==null||pin.(LeaseProfile!="native-cleanup-journal"&&LeaseProfile!="native-lifecycle-journal")||transferred==null||transferred.Length!=3)throw new ArgumentException("Original cleanup and three preheld peers required");
+   if(pin==null||pin.LeaseProfile!="native-cleanup-journal"||transferred==null||transferred.Length!=3)throw new ArgumentException("Original cleanup and three preheld peers required");
    this.pin=pin;var journal=new NativeRpcCleanupJournal(pin);string raw=journal.Read("native-start.workers");
    var d=StartRecords.Parse(raw,new[]{"schema","plan","intent","contractPath","contractHash","owner","observer","child"});
    string path=StartRecords.Text(d["contractPath"]),hash=StartRecords.Text(d["contractHash"]),guid,authority;
@@ -61,7 +61,7 @@ namespace Enclave.OwnedRpc {
  internal sealed class NativeRpcCleanupRuntime:INativeRpcCleanupRuntime {
   readonly ProtectedAttempt lease,pin;readonly NativeRpcStartGroup group;readonly Action guard;
   internal NativeRpcCleanupRuntime(ProtectedAttempt lease,ProtectedAttempt pin,NativeRpcStartGroup group,Action guard){
-   if(lease==null||pin==null||group==null||guard==null||lease.LeaseProfile!="native-cleanup"||pin.(LeaseProfile!="native-cleanup-journal"&&LeaseProfile!="native-lifecycle-journal")||lease.PermitHash!=pin.ContractHash)throw new ArgumentException("Supervised original cleanup runtime required");this.lease=lease;this.pin=pin;this.group=group;this.guard=guard;
+   if(lease==null||pin==null||group==null||guard==null||lease.LeaseProfile!="native-cleanup"||pin.LeaseProfile!="native-cleanup-journal"||lease.PermitHash!=pin.ContractHash)throw new ArgumentException("Supervised original cleanup runtime required");this.lease=lease;this.pin=pin;this.group=group;this.guard=guard;
   }
   public long Now{get{return BoundedWorker.MonotonicMilliseconds();}}
   public void Check(NativeRpcDefinitionPlan p,bool mutation){

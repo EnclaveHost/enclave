@@ -1,0 +1,11 @@
+{
+  "label": "harness-compile",
+  "pid": 9232,
+  "exitCode": 1,
+  "elapsedMs": 5225,
+  "failure": null,
+  "processExited": true,
+  "maximumObservedWorkingSet": 59670528,
+  "cpuMs": 859.375,
+  "outputBytes": 194
+}

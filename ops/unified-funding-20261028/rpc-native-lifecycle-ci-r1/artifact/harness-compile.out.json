@@ -1,0 +1,4 @@
+{
+  "sha256": "952a3643754f7cce8f61dfd51fee2897dff2777132105d64021ff1c47d445ebc",
+  "text": "source-closure\\windows\\rpc\\NativeRpcCleanupWitness.cs(41,22): error CS1001: Identifier expected\r\nsource-closure\\windows\\rpc\\NativeRpcCleanupWitness.cs(64,99): error CS1001: Identifier expected\r\n"
+}

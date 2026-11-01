@@ -1,0 +1,1 @@
+Correct two malformed member expressions found by actual Roslyn. Restore cleanup witness/runtime constructor profile to cleanup-only; lifecycle uses its distinct native group. Shared protected read helpers permit lifecycle exactly as intended.13new previouslyunrun cases and productionentrypoint compiles; allboundsunchanged. R1preserved.
