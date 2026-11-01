@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	entryMagic     = "ERPCONE1"
+	entryMagic     = "ERPCONE2"
 	entryFrameSize = 40
 	entrySeals     = 15 // SEAL_SEAL | SHRINK | GROW | WRITE
 	fAddSeals      = 1033
@@ -288,7 +288,7 @@ func entryControl(control *os.File, g Groups) error {
 	if up, err := dotdot(control); err != nil || up != parent {
 		return errors.New("control group must be a direct child")
 	}
-	for _, other := range []*os.File{g.Parent, g.EL, g.CL, g.Base, g.Probe} {
+	for _, other := range []*os.File{g.Parent, g.EL, g.CL, g.Base, g.Probe, g.Controller} {
 		x, err := cgroupDir(other)
 		if err != nil || id == x {
 			return errors.New("distinct control group required")
@@ -306,7 +306,7 @@ func entryControl(control *os.File, g Groups) error {
 // establish those before invoking it. There is deliberately no host CLI mode.
 //
 // FD3 owner pidfd, FD4 sealed original deadline, FD5 parent cgroup, FD6..9
-// EL/CL/Base/probe, FD10 supervisor control cgroup. All are process-lifetime
+// EL/CL/Base/probe, FD10 supervisor control cgroup, FD11 controller cgroup. All are process-lifetime
 // capabilities. The monitor must transfer its OWN pidfd, not a host-selected
 // unrelated process. The control group is a sibling of all role groups,
 // inside the aggregate 19 GiB budget; an internal domain node stays empty.
@@ -317,7 +317,7 @@ func EnterInherited() int {
 	if err := validateOwner(3); err != nil {
 		return 126
 	}
-	files := make([]*os.File, 8)
+	files := make([]*os.File, 9)
 	for i := range files {
 		fd := 3 + i
 		if _, err := fcntl(uintptr(fd), syscall.F_SETFD, syscall.FD_CLOEXEC); err != nil {
@@ -335,7 +335,7 @@ func EnterInherited() int {
 	armed := make(chan struct{})
 	go watchEntry(3, deadline, armed, os.Exit)
 	<-armed
-	g := Groups{Parent: files[2], EL: files[3], CL: files[4], Base: files[5], Probe: files[6]}
+	g := Groups{Parent: files[2], EL: files[3], CL: files[4], Base: files[5], Probe: files[6], Controller: files[8]}
 	if err := entryControl(files[7], g); err != nil {
 		return 126
 	}

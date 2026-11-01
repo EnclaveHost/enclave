@@ -24,11 +24,11 @@ claim is not a durable cross-host storage writer lease.
 
 Preparation opens a pidfd for the current monitor process itself. No supplied
 PID is accepted. It creates an exclusive parent cgroup plus EL, CL, Base, probe
-and control children, using the exact limits checked by `rpcservice`. Each
+controller and control children, using the exact limits checked by `rpcservice`. Each
 control is read back through its held directory FD. Creation cannot adopt an
 existing group. The parent stays empty with cpu/memory/pids enabled beneath it.
 All roles together remain under the fixed 19 GiB/four-CPU parent; control uses
-128 MiB within that parent. The guest must have at least four CPUs and 20 GiB
+128 MiB within that parent; the controller uses 256 MiB in its own child. The guest must have at least four CPUs and 20 GiB
 total physical memory. This check is not a measured capacity test or host
 admission and does not account for external host pending commitments.
 

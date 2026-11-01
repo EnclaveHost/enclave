@@ -1,7 +1,7 @@
 # RPC native service runner
 
 Package `enclave.host/isolation/m3/rpcservice`: a fixed supervisor for the RPC
-companion's native chain wrappers. It runs **inside** the attested dedicated
+companion's portable controller and native chain wrappers. It runs **inside** the attested dedicated
 CPU app domain. It is never a host launcher or an external provider proxy. It
 is a real, callable process-control adapter. It is **not** a complete attested
 deployment. The explicit `cmd/rpc-native-init` namespace entry calls it; no
@@ -13,7 +13,12 @@ reduction. Actual qualification results are recorded separately.
 
 ## What it does
 
-- Fixed role graph. Each role runs
+- Fixed role graph. The controller starts once first under UID/GID2105,
+  using the measured `/plat/rt` loader and Wasmtime to run `/app.wasm`. It
+  receives TCP access only to the app network namespace, no DNS/UDP/filesystem
+  preopens/environment forwarding or compiled cache, and a 64 MiB Wasm linear
+  memory limit. Its separate 256 MiB cgroup includes runtime compilation.
+  The native chain roles run
   `/usr/bin/python3 -I -B /opt/enclave-rpc/chain_service.py <el|cl|l1-ready|base>`.
   - EL starts once, then CL starts once.
   - The `l1-ready` probe repeats at a 10 s interval while the original window
@@ -32,7 +37,7 @@ reduction. Actual qualification results are recorded separately.
   processes were launched before the deadline. It does not mean Base passed
   its checks, and it is not serving readiness. Outcomes: `deadline`,
   `stopped`, `failed`.
-- If EL, CL or Base exits on its own, all groups are killed (`failed`).
+- If the controller, EL, CL or Base exits on its own, all groups are killed (`failed`).
   `Stop`, or cancelling the `Run` context, also kills all groups.
 - Launches use `SysProcAttr{UseCgroupFD, CgroupFD, Pdeathsig: SIGKILL}`
   (clone3 `CLONE_INTO_CGROUP`). There is no fallback when this is
@@ -44,7 +49,7 @@ reduction. Actual qualification results are recorded separately.
   stuck in the kernel cannot block termination.
 - Cleanup sequence:
   1. Revoke the start permit (it is held under the same mutex as cleanup).
-  2. Write `cgroup.kill` to all four role groups.
+  2. Write `cgroup.kill` to all five role groups.
   3. Wait, within the bound, for any in-flight `Start` and the entire
      launch/probe routine to return; no backend operation may remain in flight.
   4. Kill again.
@@ -58,7 +63,7 @@ reduction. Actual qualification results are recorded separately.
 
 ## API
 
-`New(Request{Origin, Groups{Parent, EL, CL, Base, Probe *os.File}})`, then
+`New(Request{Origin, Groups{Parent, EL, CL, Base, Probe, Controller *os.File}})`, then
 `Run(ctx) (State, error)`, `Stop()`, `State()`. The request carries no
 commands, paths or budgets.
 
@@ -81,9 +86,9 @@ Validation covers:
     `cpu.max=400000 100000`, `memory.oom.group=1`, `pids.max=4096`,
     `cgroup.type=domain`. All directories must be root-owned and not writable
     by group/others.
-  - Roles: `memory.max` EL 5 GiB, CL 7 GiB, Base 5 GiB, probe 128 MiB;
+  - Roles: `memory.max` EL 5 GiB, CL 7 GiB, Base 5 GiB, probe 128 MiB, controller 256 MiB;
     `memory.swap.max=0`; `memory.oom.group=1`; `cpu.max=max 100000`;
-    `pids.max` 1024 for clients and 64 for the probe.
+    `pids.max` 1024 for native clients, 64 for the probe and 128 for the controller.
   - Each role: `cgroup.type=domain`, `populated 0`, and `cgroup.kill`
     present.
 - The interpreter and wrapper paths are on a read-only mount. This is only a
@@ -104,7 +109,7 @@ permanently poison the domain, as `poisonNative` does.
   runtime descriptor.
 - An independent owner death guard that kills the parent cgroup if the
   monitor dies. `Pdeathsig` is per OS thread and is only defence in depth.
-- Creating and configuring the five cgroups with the exact values above
+- Creating and configuring the seven cgroups with the exact values above
   (controllers enabled in the parent's `subtree_control`). Kernel ≥ 5.14
   (`cgroup.kill`) with clone3 cgroup support.
 
@@ -114,7 +119,7 @@ permanently poison the domain, as `poisonNative` does.
    FDs, carry the original admission clock in the sealed entry contract, and
    invoke the measured namespace entry. Nothing is enabled by default.
 2. The image must create role UIDs/GIDs 2101 (EL), 2102 (CL), 2103 (Base),
-   2104 (probe), and bind only the matching writable data subtrees. The backend
+   2104 (probe), 2105 (controller), and bind only the matching writable data subtrees. The backend
    drops supplementary groups and selects these fixed unprivileged credentials.
    It requires inherited no_new_privs and zero ambient/inheritable capabilities.
    Per-role mount setup and the complete seccomp policy still need integration.
@@ -162,6 +167,11 @@ It requires UID/EUID 0 and namespace PID1, with exactly these inherited FDs:
 | 5 | Aggregate parent cgroup |
 | 6–9 | EL, CL, Base and probe cgroups |
 | 10 | Supervisor control cgroup, a sibling of the role groups |
+| 11 | WASI controller cgroup, another direct child of the aggregate |
+
+The entry frame magic is now `ERPCONE2`; old five-role-capability frames are
+refused rather than accepting a missing controller group. Existing entry
+binaries/profiles must be rebuilt and explicitly qualified before activation.
 
 The control cgroup must contain only PID1, with memory.max=128 MiB,
 memory.swap.max=0, memory.oom.group=1, pids.max=128, domain type and inherited
@@ -185,3 +195,20 @@ before the watchdog arms, kernel stalls and exact final domain death.
 This entry does not authenticate mounts, root measurement, app identity,
 JWT access, writer ownership or network policy. Those remain monitor release
 requirements. Process exit is not a clean database or storage-release receipt.
+
+## Controller composition status
+
+Before launching any process the namespace adapter reads immutable bounded
+`/app.bundle`, `/app.wasm`, `/app.sha256` and `/plat/native-rpc/profile.json`.
+It checks actual V9 loaded bytes, the complete AppID statement and canonical
+profile/controller binding. This consistency check does not independently
+authenticate the runtime, wallet or state-volume authority. Read-only loader
+and Wasmtime paths also remain part of the trusted measured composition.
+
+Controller death or failed startup now enters the same cleanup path as a chain
+client failure. In-flight controller starts and population prevent cleanup
+confirmation. It is never restarted and receives the same original deadline.
+Total role/control maxima are 17.5 GiB inside the 19 GiB aggregate, leaving
+1.5 GiB unallocated for further front/guest composition. This is not evidence
+that the full runtime fits. TLS front launch/provisioning and monitor namespace
+wiring are still absent; no new endpoint is exposed by this change.

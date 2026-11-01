@@ -26,7 +26,7 @@ type osBackend struct {
 }
 
 func openBackend(g Groups) (backend, error) {
-	groups := [roleCount]*os.File{roleEL: g.EL, roleCL: g.CL, roleBase: g.Base, roleProbe: g.Probe}
+	groups := [roleCount]*os.File{roleEL: g.EL, roleCL: g.CL, roleBase: g.Base, roleProbe: g.Probe, roleController: g.Controller}
 	if g.Parent == nil {
 		return nil, errors.New("rpcservice: parent cgroup descriptor required")
 	}
@@ -44,7 +44,7 @@ func openBackend(g Groups) (backend, error) {
 	}
 	// Read-only is a sanity check, not evidence that the measured root is
 	// mounted here; that remains the caller's precondition.
-	for _, p := range []string{interpreter, wrapper} {
+	for _, p := range []string{interpreter, wrapper, controllerLoader, controllerRuntime} {
 		var fs syscall.Statfs_t
 		if err := syscall.Statfs(p, &fs); err != nil {
 			return nil, fmt.Errorf("rpcservice: %s: %w", p, err)
@@ -52,6 +52,9 @@ func openBackend(g Groups) (backend, error) {
 		if fs.Flags&stRdonly == 0 {
 			return nil, fmt.Errorf("rpcservice: %s is not on a read-only mount", p)
 		}
+	}
+	if err := verifyInstalledController(); err != nil {
+		return nil, err
 	}
 	parentID, err := cgroupDir(g.Parent)
 	if err != nil {
@@ -260,7 +263,7 @@ func (b *osBackend) empty(r role) (bool, error) {
 
 // Role identities belong to the dedicated RPC image, never the desktop image.
 // Its mount setup must grant only the respective writable data subtree.
-var roleUIDs = [roleCount]uint32{2101, 2102, 2103, 2104}
+var roleUIDs = [roleCount]uint32{2101, 2102, 2103, 2104, 2105}
 
 func roleCommand(r role, cgroupFD int) *exec.Cmd {
 	args := argv(r)

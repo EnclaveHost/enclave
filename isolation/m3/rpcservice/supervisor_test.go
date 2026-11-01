@@ -240,7 +240,7 @@ func TestBaseOnlyAfterSuccessfulProbe(t *testing.T) {
 	if s.State().Phase != PhaseClientsStarted {
 		t.Fatalf("phase %s", s.State().Phase)
 	}
-	wantOrder(t, f, roleEL, roleCL, roleProbe, roleProbe, roleProbe, roleBase)
+	wantOrder(t, f, roleController, roleEL, roleCL, roleProbe, roleProbe, roleProbe, roleBase)
 	s.Stop()
 	wantFinal(t, await(t, ch), OutcomeStopped, CleanupConfirmed, true)
 	if !f.allEmpty() {
@@ -287,7 +287,7 @@ func TestLateProbeKilledAtOriginalDeadline(t *testing.T) {
 		t.Fatal("probe extended the original deadline")
 	}
 	wantFinal(t, st, OutcomeDeadline, CleanupConfirmed, false)
-	wantOrder(t, f, roleEL, roleCL, roleProbe)
+	wantOrder(t, f, roleController, roleEL, roleCL, roleProbe)
 	if !f.allEmpty() {
 		t.Fatal("late probe survived")
 	}
@@ -309,7 +309,7 @@ func TestProbeTimeoutKillsProbeBeforeRetry(t *testing.T) {
 	eventually(t, "clients started", func() bool { return s.State().ClientsStarted })
 	s.Stop()
 	wantFinal(t, await(t, ch), OutcomeStopped, CleanupConfirmed, true)
-	wantOrder(t, f, roleEL, roleCL, roleProbe, roleProbe, roleBase)
+	wantOrder(t, f, roleController, roleEL, roleCL, roleProbe, roleProbe, roleBase)
 	if overlap {
 		t.Fatal("probe retried while the previous probe group was populated")
 	}
@@ -334,9 +334,9 @@ func TestStopDuringBlockedStartUnresolved(t *testing.T) {
 		t.Fatalf("reason %q", st.Reason)
 	}
 	close(release)
-	eventually(t, "late cl start killed", func() bool { return len(f.order()) == 2 && f.allEmpty() })
+	eventually(t, "late cl start killed", func() bool { return len(f.order()) == 3 && f.allEmpty() })
 	time.Sleep(20 * time.Millisecond)
-	wantOrder(t, f, roleEL, roleCL)
+	wantOrder(t, f, roleController, roleEL, roleCL)
 	if s.State() != st {
 		t.Fatal("terminal state changed after Run returned")
 	}
@@ -357,7 +357,7 @@ func TestStopDuringBlockedStartResolvedInCleanup(t *testing.T) {
 	s.Stop()
 	time.AfterFunc(30*time.Millisecond, func() { close(release) })
 	wantFinal(t, await(t, ch), OutcomeStopped, CleanupConfirmed, false)
-	wantOrder(t, f, roleEL, roleCL)
+	wantOrder(t, f, roleController, roleEL, roleCL)
 	if !f.allEmpty() {
 		t.Fatal("process placed by the drained start survived")
 	}
@@ -370,7 +370,7 @@ func TestStopDuringProbe(t *testing.T) {
 	eventually(t, "probe running", func() bool { return f.running(roleProbe) })
 	s.Stop()
 	wantFinal(t, await(t, ch), OutcomeStopped, CleanupConfirmed, false)
-	wantOrder(t, f, roleEL, roleCL, roleProbe)
+	wantOrder(t, f, roleController, roleEL, roleCL, roleProbe)
 	if !f.allEmpty() {
 		t.Fatal("stop left work running")
 	}
@@ -410,7 +410,7 @@ func TestPartialStartupFailure(t *testing.T) {
 	if !strings.Contains(st.Reason, "start cl") || !f.allEmpty() {
 		t.Fatalf("state %+v", st)
 	}
-	wantOrder(t, f, roleEL, roleCL)
+	wantOrder(t, f, roleController, roleEL, roleCL)
 }
 
 func TestBaseStartFailure(t *testing.T) {
@@ -418,7 +418,7 @@ func TestBaseStartFailure(t *testing.T) {
 	f.startErr[roleBase] = errors.New("exec format error")
 	st := await(t, runAsync(supervisor(t, f, time.Minute, testTiming)))
 	wantFinal(t, st, OutcomeFailed, CleanupConfirmed, false)
-	wantOrder(t, f, roleEL, roleCL, roleProbe, roleBase)
+	wantOrder(t, f, roleController, roleEL, roleCL, roleProbe, roleBase)
 	if !f.allEmpty() {
 		t.Fatal("L1 clients survived a failed Base start")
 	}
@@ -445,7 +445,7 @@ func TestOneShot(t *testing.T) {
 	if _, err := s2.Run(context.Background()); !errors.Is(err, ErrUsed) {
 		t.Fatalf("Run after failure: %v", err)
 	}
-	wantOrder(t, f2, roleEL)
+	wantOrder(t, f2, roleController, roleEL)
 }
 
 func TestCleanupUncertainWhenGroupStaysPopulated(t *testing.T) {

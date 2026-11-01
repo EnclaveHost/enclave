@@ -48,7 +48,7 @@ submission and refusal before forwarding when clients are unready. It is not
 installed in a measured runtime or connected to production chain state yet.
 
 `isolation/m3/rpcservice` now supplies a fixed native process-control adapter
-for the existing chain wrapper: EL/CL, bounded L1 observation, then one Base
+for the controller and existing chain wrapper: controller, EL/CL, bounded L1 observation, then one Base
 start, using creation-time cgroup placement and fixed unprivileged role IDs.
 It retains the original 900-second deadline and reports only clients-started,
 never RPC readiness. It is not connected to the monitor or a measured image yet.

@@ -36,6 +36,13 @@ const (
 	workDir     = "/"
 )
 
+const (
+	controllerRuntimeDir = "/plat/rt"
+	controllerLoader     = controllerRuntimeDir + "/ld-linux-x86-64.so.2"
+	controllerRuntime    = controllerRuntimeDir + "/wasmtime"
+	controllerWasm       = "/app.wasm"
+)
+
 func cleanEnv() []string { return []string{"PATH=/usr/bin:/bin", "LANG=C.UTF-8"} }
 
 type role int
@@ -45,18 +52,28 @@ const (
 	roleCL
 	roleBase
 	roleProbe
+	roleController
 	roleCount
 )
 
-var allRoles = []role{roleEL, roleCL, roleBase, roleProbe}
-var roleNames = [roleCount]string{"el", "cl", "base", "probe"}
+var allRoles = []role{roleEL, roleCL, roleBase, roleProbe, roleController}
+var roleNames = [roleCount]string{"el", "cl", "base", "probe", "controller"}
 var roleArgs = [roleCount]string{"el", "cl", "base", "l1-ready"}
 
 func (r role) String() string { return roleNames[r] }
 
 // argv is fixed per role. -I ignores PYTHON* environment and user site; -B
 // writes no bytecode. No exported value can change it.
-func argv(r role) []string { return []string{interpreter, "-I", "-B", wrapper, roleArgs[r]} }
+func argv(r role) []string {
+	if r == roleController {
+		// Same measured loader/runtime layout as domexec, but no filesystem,
+		// environment, DNS or UDP capability is granted to this fixed controller.
+		return []string{controllerLoader, "--library-path", controllerRuntimeDir,
+			controllerRuntime, "run", "-S", "cli,tcp=y,udp=n,inherit-network=y,allow-ip-name-lookup=n",
+			"-C", "cache=n,parallel-compilation=n", "-W", "max-memory-size=67108864", controllerWasm}
+	}
+	return []string{interpreter, "-I", "-B", wrapper, roleArgs[r]}
+}
 
 // Fixed budgets. The trusted monitor creates and configures these cgroups;
 // New verifies exact readback only. They are proposals, not measured fit.
@@ -68,10 +85,11 @@ var roleLimits = [roleCount]struct {
 	memory uint64
 	pids   int
 }{
-	roleEL:    {5 << 30, 1024},
-	roleCL:    {7 << 30, 1024},
-	roleBase:  {5 << 30, 1024},
-	roleProbe: {128 << 20, 64},
+	roleEL:         {5 << 30, 1024},
+	roleCL:         {7 << 30, 1024},
+	roleBase:       {5 << 30, 1024},
+	roleProbe:      {128 << 20, 64},
+	roleController: {256 << 20, 128},
 }
 
 func roleControls(r role) [][2]string {
@@ -89,7 +107,7 @@ func parentControls() [][2]string {
 // release them only after Run returns CleanupConfirmed and must retain them
 // (and poison the domain) after CleanupUncertain.
 type Groups struct {
-	Parent, EL, CL, Base, Probe *os.File
+	Parent, EL, CL, Base, Probe, Controller *os.File
 }
 
 // Request carries no commands, paths or budgets. Origin is the trusted
@@ -102,12 +120,13 @@ type Request struct {
 type Phase string
 
 const (
-	PhaseNew            Phase = "new"
-	PhaseStartingL1     Phase = "starting-l1"
-	PhaseProbingL1      Phase = "probing-l1"
-	PhaseStartingBase   Phase = "starting-base"
-	PhaseClientsStarted Phase = "clients-started" // processes launched; not serving readiness
-	PhaseTerminated     Phase = "terminated"
+	PhaseNew                Phase = "new"
+	PhaseStartingController Phase = "starting-controller"
+	PhaseStartingL1         Phase = "starting-l1"
+	PhaseProbingL1          Phase = "probing-l1"
+	PhaseStartingBase       Phase = "starting-base"
+	PhaseClientsStarted     Phase = "clients-started" // processes launched; not serving readiness
+	PhaseTerminated         Phase = "terminated"
 )
 
 type Outcome string
@@ -316,9 +335,13 @@ func (s *Supervisor) setPhase(p Phase) {
 	s.mu.Unlock()
 }
 
-// drive is the fixed graph: EL and CL once, then l1-ready observation, then
+// drive is the fixed graph: controller once, EL and CL once, then l1-ready observation, then
 // exactly one Base launch. No start is ever retried.
 func (s *Supervisor) drive(ctx context.Context, exits chan<- role) error {
+	s.setPhase(PhaseStartingController)
+	if err := s.launchClient(ctx, roleController, exits); err != nil {
+		return err
+	}
 	s.setPhase(PhaseStartingL1)
 	for _, r := range []role{roleEL, roleCL} {
 		if err := s.launchClient(ctx, r, exits); err != nil {

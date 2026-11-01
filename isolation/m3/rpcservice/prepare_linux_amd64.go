@@ -11,7 +11,7 @@ import (
 	"syscall"
 )
 
-// PreparedGroups is the monitor-owned, unused six-cgroup topology. Creation
+// PreparedGroups is the monitor-owned, unused seven-cgroup topology. Creation
 // performs no launch, membership move, deletion or retry. Failed directories
 // remain consumed. A caller must already own the one-shot app claim.
 type PreparedGroups struct {
@@ -51,7 +51,7 @@ func PrepareGroups(parent *os.File, nonce string) (*PreparedGroups, error) {
 	if err != nil || !hasControllers(controllers) {
 		return fail(errors.New("RPC child controllers did not remain enabled"))
 	}
-	targets := []**os.File{&p.groups.EL, &p.groups.CL, &p.groups.Base, &p.groups.Probe}
+	targets := []**os.File{&p.groups.EL, &p.groups.CL, &p.groups.Base, &p.groups.Probe, &p.groups.Controller}
 	for _, r := range allRoles {
 		f, e := newGroupAt(top, r.String(), roleControls(r))
 		if e != nil {
@@ -114,7 +114,7 @@ func newGroupAt(parent *os.File, name string, limits [][2]string) (*os.File, err
 }
 func (p *PreparedGroups) closeUnused() error {
 	var errs []error
-	for _, f := range []*os.File{p.control, p.groups.Probe, p.groups.Base, p.groups.CL, p.groups.EL, p.groups.Parent} {
+	for _, f := range []*os.File{p.control, p.groups.Controller, p.groups.Probe, p.groups.Base, p.groups.CL, p.groups.EL, p.groups.Parent} {
 		if f != nil {
 			errs = append(errs, f.Close())
 		}
