@@ -1,0 +1,31 @@
+{
+  "run": 41323670407,
+  "head": "075886126485adee705f54e9baf44ee864dca067",
+  "compiledPins": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/ProviderStart.cs",
+    "windows/rpc/OwnedVmPermit.cs",
+    "windows/rpc/HostPhysicalPool.cs",
+    "windows/rpc/WindowsStartAdmission.cs",
+    "windows/rpc/LegacyTemplateFence.cs",
+    "windows/rpc/LegacyLaunchCohort.cs",
+    "windows/rpc/LegacyHandoff.cs",
+    "windows/rpc/NativeRpcDefinition.cs",
+    "windows/rpc/NativeRpcAuthority.cs",
+    "windows/rpc/NativeRpcWorkerEntry.cs",
+    "test/rpc-windows-worker/NativeRpcWorkerHarness.cs"
+  ],
+  "executable": {
+    "compiled": true,
+    "fixtureExecuted": true,
+    "nativeProviderExecuted": false,
+    "rpcReady": false,
+    "sha256": "b714d54ae5f5f78a6e504d3b3d0f6e8dc526de7d6e505481bc054635d035126a",
+    "bytes": 223232
+  },
+  "distinctPass": 9,
+  "providerMocked": true,
+  "targetAdmission": false
+}

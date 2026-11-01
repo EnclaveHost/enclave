@@ -1337,3 +1337,11 @@ image are still outstanding. Readiness, start, device configuration and storage
 writer authority remain separate unfinished stages. The new hosted workflow
 compiles the actual entrypoint and tests native admission/assets/pool behavior;
 it never calls the WMI provider or starts the native worker against a host.
+
+Native worker qualification: hosted run41323670407 compiled the production
+entrypoint (210944 bytes, SHA256
+fe2aaff8ab6c1551a880a91753e60c7b1ec6ca64b88a4a72fed797e001db5e40)
+and passed nine new admission/shared-pool/asset cases. The pool and asset tests
+used real protected administrator-owned Windows files; manager responses were
+fixtures. The production worker and WMI were not executed. This does not qualify
+target SYSTEM operation, the manager launch/recovery controller or production RPC.

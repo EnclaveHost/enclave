@@ -1,0 +1,4 @@
+{
+  "sha256": "6ca82e69a90530fb0ef51400c84c3487746de74d14f2dfb90874005f286710ab",
+  "text": "PASS native compiled reference parser exact local GUID\r\nPASS original native manager record binds claim and stable revision\r\nPASS lost manager identity or reset native clock refuses\r\nPASS foreign existing VM and duplicate deployment refuse\r\nPASS changed shared claim or readiness cannot authorize definition\r\nPASS real shared pool requires consumed native claim plus every seed\r\nPASS real shared pool rejects additional allocator during native definition\r\nPASS real complete asset pins deny firmware replacement and allow VMGS updates\r\nPASS real changed asset hash refuses before provider authority\r\nTOTAL 9 PASS; actual administrator pool/assets; manager snapshots mocked; native worker compiled only; no VM\r\n"
+}

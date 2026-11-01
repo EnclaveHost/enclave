@@ -1,0 +1,32 @@
+[
+  {
+    "label": "harness-compile",
+    "pid": 1340,
+    "exitCode": 0,
+    "elapsedMs": 1617,
+    "failure": null,
+    "processExited": true,
+    "maximumObservedWorkingSet": 37367808,
+    "outputBytes": 395
+  },
+  {
+    "label": "worker-harness",
+    "pid": 4128,
+    "exitCode": 0,
+    "elapsedMs": 1139,
+    "failure": null,
+    "processExited": true,
+    "maximumObservedWorkingSet": 36110336,
+    "outputBytes": 710
+  },
+  {
+    "label": "worker-compile",
+    "pid": 3404,
+    "exitCode": 0,
+    "elapsedMs": 283,
+    "failure": null,
+    "processExited": true,
+    "maximumObservedWorkingSet": 36810752,
+    "outputBytes": 395
+  }
+]

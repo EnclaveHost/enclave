@@ -1,0 +1,50 @@
+{
+  "worker-artifact.json": {
+    "bytes": 167,
+    "sha256": "79f55a9b1df204509ea0dbf57ec83c9a02a65e47e1aab6bfd123f7c9094e88a3"
+  },
+  "harness-compile.out": {
+    "bytes": 395,
+    "sha256": "33b43d1f215e5ad837bf2b26220cbaca419101fe05810e138b14886443590057"
+  },
+  "artifact.json": {
+    "bytes": 231,
+    "sha256": "678a46e7b714d6ec5564c58cecf77ac3372f2cc73f257a362489018a9d4b964b"
+  },
+  "worker-compile.out": {
+    "bytes": 395,
+    "sha256": "33b43d1f215e5ad837bf2b26220cbaca419101fe05810e138b14886443590057"
+  },
+  "process-results.json": {
+    "bytes": 806,
+    "sha256": "62e0fb5da463064bb2daa2305e78975d5e8bab7253a440fd0bab7fb88b4638d9"
+  },
+  "native-worker.exe": {
+    "bytes": 210944,
+    "sha256": "fe2aaff8ab6c1551a880a91753e60c7b1ec6ca64b88a4a72fed797e001db5e40"
+  },
+  "worker-compile.err": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "pins.json": {
+    "bytes": 3448,
+    "sha256": "df4e6f7233399b95b043d6d8fd5eb796141693380d5350254e1b93d9904af2ec"
+  },
+  "worker-harness.out": {
+    "bytes": 710,
+    "sha256": "6ca82e69a90530fb0ef51400c84c3487746de74d14f2dfb90874005f286710ab"
+  },
+  "worker-harness.err": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "harness-compile.err": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "owned-entry.exe": {
+    "bytes": 223232,
+    "sha256": "b714d54ae5f5f78a6e504d3b3d0f6e8dc526de7d6e505481bc054635d035126a"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "rpc-native-worker-preserve-r1": {
+    "invocation": "83ff889c19794a3abad839075f113e47",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "journal": "2026-11-01T08:55:21-07:00 warden-host taskset[991642]: [queue] START available=94704MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T08:55:24-07:00 warden-host taskset[991642]: [queue] EXIT 0\n"
+  },
+  "rpc-native-worker-ci-r1": {
+    "invocation": "63c9209090a040379a38ffe7bda238a2",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "journal": "2026-11-01T08:55:39-07:00 warden-host taskset[992079]: [queue] START available=94641MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T08:55:42-07:00 warden-host taskset[992079]: [queue] EXIT 0\n"
+  },
+  "rpc-native-worker-collect-r1": {
+    "invocation": "222677484269444ba08d2a0b474d2a60",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "journal": "2026-11-01T08:56:38-07:00 warden-host taskset[992809]: [queue] START available=94763MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T08:56:40-07:00 warden-host taskset[992809]: [queue] EXIT 0\n"
+  }
+}
