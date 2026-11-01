@@ -46,11 +46,11 @@ namespace Enclave.OwnedRpc {
   internal Dictionary<string,object> Original(string expectedHash){
    Hex(expectedHash,64);int count=0;
    foreach(string path in Directory.EnumerateFileSystemEntries(Root)){
-    current();if(++count>12)throw new InvalidOperationException("Native ledger inventory bound");string n=Path.GetFileName(path);
+    current();if(++count>15)throw new InvalidOperationException("Native ledger inventory bound");string n=Path.GetFileName(path);
     if(n=="transport"||n=="inputs")Files.PinDirectory(path,true);
     if(n=="hold.json")throw new InvalidOperationException("Original native attempt is held; no mutation authority");
     if(n.EndsWith(".pending",StringComparison.Ordinal))throw new InvalidOperationException("Partial original native ledger remains held");
-    if(n!="manager.lock"&&n!="attempt.json"&&n!="launch.json"&&n!="dispatch.json"&&n!="result.json"&&n!="hold.json"&&n!="transport"&&n!="inputs"&&n!="stage.json"&&n!="stage-ready.json"&&n!="define-request.json")throw new InvalidOperationException("Unknown native ledger allocation");
+    if(n!="manager.lock"&&n!="attempt.json"&&n!="launch.json"&&n!="dispatch.json"&&n!="result.json"&&n!="hold.json"&&n!="transport"&&n!="inputs"&&n!="stage.json"&&n!="stage-ready.json"&&n!="define-request.json"&&n!="start-request.json"&&n!="start-dispatch.json"&&n!="start-result.json")throw new InvalidOperationException("Unknown native ledger allocation");
    }
    var a=Decode(Files.Read(Path.Combine(Root,"attempt.json"),4096,expectedHash));
    if(a.Count!=13||Text(a["schema"])!="native-rpc-manager-attempt/1"||Text(a["config"])!=ConfigHash||Text(a["boot"])!=ProtectedAttempt.CurrentBoot()||!(a["reservationMayRelease"] is bool)||((bool)a["reservationMayRelease"]))throw new InvalidOperationException("Original ledger binding differs");
@@ -76,6 +76,7 @@ namespace Enclave.OwnedRpc {
   static void Arm(){
    var ack=new ManualResetEvent(false);var thread=new Thread(delegate(){ack.Set();while(BoundedWorker.MonotonicMilliseconds()<Deadline)Thread.Sleep(5);if(!TerminateProcess(GetCurrentProcess(),125))Environment.FailFast("Native controller backstop failed");});thread.IsBackground=true;thread.Start();if(!ack.WaitOne(1000))throw new InvalidOperationException("Native controller watchdog unarmed");
   }
+#if !NATIVE_RPC_START_CONTROLLER
   static Process Peer(ProtectedAttempt lease,string role){
    string path=Path.Combine(lease.Root,role+".consumed");while(!File.Exists(path)){Check();lease.CheckDeadline();Thread.Sleep(5);}
    string[] f=lease.ReadOnce(role+".consumed").Split(',');if(f.Length!=4||f[2]!=lease.Token||f[3]!=role)throw new InvalidOperationException("Exact role binding differs");
@@ -100,12 +101,14 @@ namespace Enclave.OwnedRpc {
    }
    foreach(var p in Peers)if(!p.HasExited)throw new InvalidOperationException("Exact native role death not observed");
   }
+#endif
   internal static NativeRpcDefinitionPlan MakePlan(Dictionary<string,object> a,Dictionary<string,object> c,Dictionary<string,object> launch){
    var record=D(launch["record"]);var claim=D(launch["physicalClaim"]);string app=S(launch["appId"]),epoch=S(a["managerEpoch"]),instance=S(a["instance"]);
    string id=ProtectedAttempt.Hash(E(new[]{epoch,instance,app}));
    if(S(record["runtimeId"])!=S(c["runtimeId"])||S(D(record["rpc"])["profileSha256"])!=S(c["profileSha256"])||S(record["secretDeployment"])!=S(a["deployment"])||S(record["derivation"])!="enclave-catalog-bundle/9"||claim.Count!=5||S(claim["actor"])!="app-native"||S(claim["boot"])!=S(a["boot"])||S(claim["id"])!=id||Convert.ToInt64(claim["bytes"])!=21474836480L)throw new InvalidOperationException("Native runtime/deployment/claim binding differs");
    return new NativeRpcDefinitionPlan(S(a["attempt"]),S(a["boot"]),epoch,instance,S(a["deployment"]),app,S(launch["recordSha256"]),S(c["runtimeId"]),S(c["profileSha256"]),S(c["admissionSha256"]),id,Path.Combine(S(c["attemptsRoot"]),S(a["attempt"])),Int64.Parse(S(a["originMs"])),Int64.Parse(S(a["deadlineMs"])),S(c["firmwareSha256"]),S(c["initialStateSha256"]),S(c["workerSha256"]));
   }
+#if !NATIVE_RPC_START_CONTROLLER
   static object Define(NativeRpcManagerLedger ledger,Dictionary<string,object> c,string originalHash,string launchPath,string launchHash,string bundlePath,string recordPath,bool staged){
    var a=ledger.Original(originalHash);var launch=NativeRpcManagerLedger.Decode(Files.Read(launchPath,65536,launchHash));
    if(!staged)ledger.ConsumeLaunch(originalHash,launch);else if(!BytesEqual(Files.Read(Path.Combine(ledger.Root,"launch.json"),65536,launchHash),E(launch)))throw new InvalidOperationException("Staged launch differs");var plan=MakePlan(a,c,launch);
@@ -159,6 +162,7 @@ namespace Enclave.OwnedRpc {
     ledger.Files.Publish(Path.Combine(ledger.Root,"result.json"),E(result));return result;
    }
   }
+#endif
   internal static void VerifyOwnedResult(NativeRpcDefinitionPlan plan,Dictionary<string,object> result,string system,string owned){
    var record=StartRecords.Parse(owned,new[]{"schema","plan","system","vmGuid","app","deployment","instance","managerEpoch","startAuthorized","reservationMayRelease"});
    var binding=StartRecords.Parse(system,new[]{"receipt","system"});string guid=NativeDefinitionReferences.GuidForReference(S(binding["system"]));
@@ -167,13 +171,16 @@ namespace Enclave.OwnedRpc {
   }
   internal static void ValidateConfiguration(Dictionary<string,object> c){
    string[] keys={"schema","ledgerRoot","attemptsRoot","workersRoot","runtimeId","profileSha256","admissionSha256","firmwareSha256","initialStateSha256","workerSha256","admissionPath","firmwarePath","initialStatePath","profilePath","workerPath"};
-   if(c.Count!=keys.Length||S(c["schema"])!="native-rpc-manager-controller/1")throw new ArgumentException("Explicit native controller configuration required");
+   bool start=S(c["schema"])=="native-rpc-manager-controller/2";
+   if(c.Count!=keys.Length+(start?4:0)||(!start&&S(c["schema"])!="native-rpc-manager-controller/1"))throw new ArgumentException("Explicit native controller configuration required");
    foreach(string key in keys)if(!c.ContainsKey(key))throw new ArgumentException("Missing native controller field");
    foreach(string key in new[]{"runtimeId","profileSha256","admissionSha256","firmwareSha256","initialStateSha256","workerSha256"})NativeRpcManagerLedger.Hex(S(c[key]),64);
    foreach(string key in new[]{"ledgerRoot","attemptsRoot","workersRoot","admissionPath","firmwarePath","initialStatePath","profilePath","workerPath"})ProtectedAttempt.LocalPath(S(c[key]));
+   if(start){foreach(string key in new[]{"keeperSha256","startControllerSha256"})NativeRpcManagerLedger.Hex(S(c[key]),64);foreach(string key in new[]{"keeperPath","startControllerPath"})ProtectedAttempt.LocalPath(S(c[key]));}
    var roots=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
    foreach(string key in new[]{"ledgerRoot","attemptsRoot","workersRoot"})if(!roots.Add(S(c[key])))throw new ArgumentException("Separate private controller roots required");
   }
+#if !NATIVE_RPC_START_CONTROLLER
   public static int Main(string[] args){
    Origin=BoundedWorker.MonotonicMilliseconds();Deadline=Origin+30000;
    try{
@@ -205,5 +212,6 @@ namespace Enclave.OwnedRpc {
     foreach(var p in Peers)p.Dispose();
    }
   }
+#endif
  }
 }

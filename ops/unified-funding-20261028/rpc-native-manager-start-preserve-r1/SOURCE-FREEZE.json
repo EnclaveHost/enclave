@@ -1,0 +1,12 @@
+{
+  "windows/rpc/NATIVE-MANAGER-CONTROLLER.md": "98b8b446358e0d8d87f7cd3e139d2854c6bd9eec8dfd2677799bb3bfdfdf8d56",
+  "windows/rpc/NativeRpcController.cs": "5c15c00f55c8592a36443896007660a9d25d3b6ccb9c528760fb9ab733a0bb24",
+  "windows/rpc/NativeRpcManagerTransport.cs": "bc236f5460cee4bd6cd4bbdb1fbc2b422f5245340d65c1dd59dc3a35e2aa4464",
+  "windows/rpc/README.md": "3b952857383394956686b00aea8c90ecfe9751f59d4cdb326d01d3da865a1734",
+  "windows/vbslike/manager/rpc-native-controller.mjs": "2022917f1b291cad78e58c8684e23ba6edb641f9bc8600cbe9c37c601624ec24",
+  "windows/vbslike/manager/rpc-native-controller.test.mjs": "67b3bed05b8a24b4a4e038f72f44145e19b209206781aa3b8091218824009767",
+  ".github/workflows/rpc-native-manager-start.yml": "64c3823f364fcfb38eff3b4e7d8afbc5a42bd519a21f7b247674a7fb1b95720a",
+  "test/rpc-windows-worker/NativeRpcStartLauncherHarness.cs": "41b7674a4937a1fc52e64bac4c80243baa1ff0a73de98fed780953a3622c39f7",
+  "test/rpc-windows-worker/run-native-manager-start-ci.ps1": "0b0ed278e2643e09b00ec8a7f1a8933f9b8dba22f0e1205a4248f9a90449bff6",
+  "windows/rpc/NativeRpcStartLauncher.cs": "759a9159d1d32145366a62e7ae92a1b32a6ca68eea2335190a22e11f1862d600"
+}

@@ -8,7 +8,7 @@ import {canonical,sha256Hex} from './derive.mjs';
 import {exactRPCKeys,validateRPCRecord} from './rpc-derive.mjs';
 import {captureRPCAttempt,freezeRPC} from './rpc-admission.mjs';
 const HASH=/^[0-9a-f]{64}$/;
-const NAMES=new Set(['begin.intent.json','begin.result.json','stage.intent.json','stage.result.json','define.intent.json','define.result.json','hold.intent.json','hold.result.json']);
+const NAMES=new Set(['begin.intent.json','begin.result.json','stage.intent.json','stage.result.json','define.intent.json','define.result.json','hold.intent.json','hold.result.json','start.intent.json','start.result.json']);
 const keys=['schema','ledgerRoot','attemptsRoot','workersRoot','runtimeId','profileSha256','admissionSha256','firmwareSha256','initialStateSha256','workerSha256','admissionPath','firmwarePath','initialStatePath','profilePath','workerPath'];
 function hash(x){if(typeof x!=='string'||x.length!==64||!HASH.test(x)||x==='0'.repeat(64))throw Error('RPC native digest');return x;}
 function readFile(file,maximum){
@@ -50,19 +50,22 @@ export async function createNativeRPCController({executable,executableSha256,con
  if(process.platform!=='win32'&&!dependencies.invoke)throw Error('RPC native controller requires Windows');
  hash(executableSha256);hash(configSha256);for(const p of [executable,configPath])if(!path.isAbsolute(p))throw Error('RPC native absolute operator path');
  const verifyPins=()=>{if(sha256Hex(readFile(executable,262144))!==executableSha256||sha256Hex(readFile(configPath,65536))!==configSha256)throw Error('RPC native operator pin changed');};verifyPins();
- const config=JSON.parse(readFile(configPath,65536));exactRPCKeys(config,keys,'native configuration');if(config.schema!=='native-rpc-manager-controller/1')throw Error('RPC native configuration schema');
+ const config=JSON.parse(readFile(configPath,65536)),startEnabled=config.schema==='native-rpc-manager-controller/2';
+ const configKeys=startEnabled?[...keys,'keeperPath','keeperSha256','startControllerPath','startControllerSha256']:keys;
+ exactRPCKeys(config,configKeys,'native configuration');if(!startEnabled&&config.schema!=='native-rpc-manager-controller/1')throw Error('RPC native configuration schema');
+ const verifyStart=()=>{if(!startEnabled)return;for(const name of ['keeper','startController']){hash(config[name+'Sha256']);if(!path.isAbsolute(config[name+'Path'])||sha256Hex(readFile(config[name+'Path'],262144))!==config[name+'Sha256'])throw Error('RPC native start pin changed');}};verifyStart();
  for(const k of keys.filter(k=>k.endsWith('Sha256')||k==='runtimeId'))hash(config[k]);
  const root=path.join(config.ledgerRoot,'transport');if(!path.isAbsolute(root)||fs.lstatSync(root).isSymbolicLink()||!fs.lstatSync(root).isDirectory()||fs.realpathSync(root)!==path.resolve(root))throw Error('RPC native transport namespace');
  const invoke=dependencies.invoke??invokeNativeProcess,now=dependencies.now??(()=>performance.now());
  const files=new Map();
- for(const name of fs.readdirSync(root)){if(!NAMES.has(name)||files.size>=8)throw Error('RPC native unknown transport history');const raw=readFile(path.join(root,name),131072);JSON.parse(raw);files.set(name,sha256Hex(raw));}
- const currentFiles=()=>{verifyPins();const names=fs.readdirSync(root);if(names.length!==files.size)throw Error('RPC native transport history changed');for(const n of names)if(files.get(n)!==sha256Hex(readFile(path.join(root,n),131072)))throw Error('RPC native transport record changed');return true;};
+ for(const name of fs.readdirSync(root)){if(!NAMES.has(name)||files.size>=10)throw Error('RPC native unknown transport history');const raw=readFile(path.join(root,name),131072);JSON.parse(raw);files.set(name,sha256Hex(raw));}
+ const currentFiles=()=>{verifyPins();verifyStart();const names=fs.readdirSync(root);if(names.length!==files.size)throw Error('RPC native transport history changed');for(const n of names)if(files.get(n)!==sha256Hex(readFile(path.join(root,n),131072)))throw Error('RPC native transport record changed');return true;};
  const put=(name,value)=>{currentFiles();if(!NAMES.has(name)||files.has(name))throw Error('RPC native command already consumed');const raw=Buffer.from(JSON.stringify(value));if(raw.length>131072)throw Error('RPC native transport record bound');let fd;
   try{fd=fs.openSync(path.join(root,name),'wx',0o600);fs.writeFileSync(fd,raw);fs.fsyncSync(fd);fs.closeSync(fd);fd=undefined;files.set(name,sha256Hex(raw));}
   catch(e){if(fd!==undefined)fs.closeSync(fd);throw e;} // partial final is consumed, never removed
  };
  const call=async(command,args=[],input=[],timeoutMs=35000)=>{
-  currentFiles();const reply=await invoke(executable,[command,configPath,configSha256,...args],input,{timeoutMs,outputLimit:131072});currentFiles();
+  currentFiles();const reply=await invoke(command==='start-staged'?config.startControllerPath:executable,[command,configPath,configSha256,...args],input,{timeoutMs,outputLimit:131072});currentFiles();
   exactRPCKeys(reply,['schema','command','value','elapsedMs','rpcReady','providerOperationFenced','reservationMayRelease'],'native response');
   if(reply.schema!=='native-rpc-manager-controller-result/2'||reply.command!==command||reply.rpcReady!==false||reply.providerOperationFenced!==false||reply.reservationMayRelease!==false||!Number.isSafeInteger(reply.elapsedMs)||reply.elapsedMs<0||reply.elapsedMs>=30000)throw Error('RPC native response binding');return reply.value;
  };
@@ -106,7 +109,15 @@ export async function createNativeRPCController({executable,executableSha256,con
       budget();put('define.intent.json',{original:digest,stageSha256:sha256Hex(Buffer.from(JSON.stringify(stage)))});
       const result=await call('define-staged',[digest],[],budget());
       if(result.state!=='defined-native-owned-off'||result.startAuthorized!==false||result.providerOperationFenced!==false||result.reservationMayRelease!==false)throw Error('RPC native definition not settled Off');
-      put('define.result.json',result);state='held';return Object.freeze({rpcReady:false,providerOperationFenced:false,reservationMayRelease:false});
+      put('define.result.json',result);
+      if(startEnabled){
+       hash(result.plan);budget();put('start.intent.json',{original:digest,definitionSha256:sha256Hex(Buffer.from(JSON.stringify(result)))});
+       const observed=await call('start-staged',[digest],[],budget());
+       exactRPCKeys(observed,['schema','plan','receipt','state','rpcReady','providerOperationFenced','reservationMayRelease'],'native start');
+       if(observed.schema!=='native-rpc-start-worker-result/1'||observed.state!=='native-running-observed'||observed.rpcReady!==false||observed.providerOperationFenced!==false||observed.reservationMayRelease!==false)throw Error('RPC native start observation held');hash(observed.plan);hash(observed.receipt);
+       if(observed.plan!==result.plan)throw Error('RPC native start plan changed');put('start.result.json',observed);
+      }
+      state='held';return Object.freeze({rpcReady:false,providerOperationFenced:false,reservationMayRelease:false});
      },
      stop:async()=>{if(stopped)throw Error('RPC native stop already held');stopped=true;state='held';put('hold.intent.json',{original:digest});const result=await call('hold',[digest]);if(result.held!==true||result.reservationMayRelease!==false||result.providerOperationFenced!==false)throw Error('RPC native hold result');put('hold.result.json',result);throw Error('RPC original local gate held; provider/writer settlement and release are unproven');}
     };

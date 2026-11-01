@@ -3,9 +3,10 @@ import {createNativeRPCController,invokeNativeProcess} from './rpc-native-contro
 import {deriveRPC,RPC_CONFIG,RPC_PORTS} from './rpc-derive.mjs';import {Manager} from './server.mjs';
 const H=x=>x.repeat(64),id={managerEpoch:'a'.repeat(32),id:'rpc'+'b'.repeat(32),name:'0x'+H('c'),instanceId:'rpc'+'b'.repeat(32)};
 function record(){return {derivation:'enclave-catalog-bundle/9',catalog:{app:'0x'+H('e'),version:1},cid:'b'+'a'.repeat(58),runtimeId:H('b'),policy:{cpuPercent:400,memMiB:19456,vcpus:4},http:8000,ports:[...RPC_PORTS],configBase64:canonical(RPC_CONFIG).toString('base64'),secretDeployment:id.name,rpc:{profile:'ethereum-base-rpc-v1',profileSha256:H('d'),l1VolumeId:H('e'),baseVolumeId:H('f')}};}
-function fixture(){
+function fixture(startEnabled=false){
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'rpc-native-client-')),transport=path.join(root,'transport');fs.mkdirSync(transport);const executable=path.join(root,'controller.exe');fs.writeFileSync(executable,'inert test actor marker');
  const config={schema:'native-rpc-manager-controller/1',ledgerRoot:root,attemptsRoot:root+'/attempts',workersRoot:root+'/workers',runtimeId:H('b'),profileSha256:H('d'),admissionSha256:H('a'),firmwareSha256:H('a'),initialStateSha256:H('a'),workerSha256:H('a'),admissionPath:root+'/admission',firmwarePath:root+'/firmware',initialStatePath:root+'/vmgs',profilePath:root+'/profile',workerPath:root+'/worker'};
+ if(startEnabled){config.schema='native-rpc-manager-controller/2';for(const n of ['keeper','startController']){config[n+'Path']=path.join(root,n+'.exe');fs.writeFileSync(config[n+'Path'],'inert '+n+' marker');config[n+'Sha256']=sha256Hex(fs.readFileSync(config[n+'Path']));}}
  const configPath=path.join(root,'config.json');fs.writeFileSync(configPath,JSON.stringify(config));const configSha256=sha256Hex(fs.readFileSync(configPath));
  const options={executable,executableSha256:sha256Hex(fs.readFileSync(executable)),configPath,configSha256};
  const state={calls:[],inventory:{state:'empty',reservationMayRelease:false},clock:0,fail:null,original:null,frame:null};
@@ -23,7 +24,8 @@ function fixture(){
    assert.equal(sha256Hex(bundle),launch.appId);assert.equal(sha256Hex(Buffer.from(header.record)),launch.recordSha256);state.frame=raw;
    value={original:args[3],launchSha256:sha256Hex(Buffer.from(header.launch)),recordSha256:launch.recordSha256,bundleSha256:launch.appId,bundleBytes:bundle.length,reservationMayRelease:false};
   }
-  if(command==='define-staged'){assert.ok(fs.existsSync(path.join(transport,'define.intent.json')));value={state:'defined-native-owned-off',startAuthorized:false,providerOperationFenced:false,reservationMayRelease:false};}
+  if(command==='define-staged'){assert.ok(fs.existsSync(path.join(transport,'define.intent.json')));value={plan:H('9'),state:'defined-native-owned-off',startAuthorized:false,providerOperationFenced:false,reservationMayRelease:false};}
+  if(command==='start-staged'){assert.equal(exe,config.startControllerPath);assert.ok(fs.existsSync(path.join(transport,'start.intent.json')));assert.ok(fs.existsSync(path.join(transport,'define.result.json')));value={schema:'native-rpc-start-worker-result/1',plan:state.foreignPlan?H('8'):H('9'),receipt:H('7'),state:'native-running-observed',rpcReady:false,providerOperationFenced:false,reservationMayRelease:false};}
   if(command==='hold')value={held:true,reservationMayRelease:false,providerOperationFenced:false};
   return {schema:'native-rpc-manager-controller-result/2',command,value,elapsedMs:2,rpcReady:false,providerOperationFenced:false,reservationMayRelease:false};
  };
@@ -54,3 +56,8 @@ test('actual child transport carries binary stdin and refuses excess output or t
 });
 
 test('native original digest is preserved without reserializing its response object',async()=>{const f=fixture();try{f.state.reorder=true;const c=await f.open(),a=await c.begin(id);await a.start(...launch(a));const saved=JSON.parse(fs.readFileSync(path.join(f.transport,'begin.result.json')));assert.equal(saved.sha256,f.state.inventory.originalSha256);assert.notEqual(sha256Hex(Buffer.from(JSON.stringify(saved.original))),saved.sha256);}finally{fs.rmSync(f.root,{recursive:true});}});
+
+test('v2 invokes separately pinned start only after original definition with consumed intent',async()=>{const f=fixture(true);try{const c=await f.open(),a=await c.begin(id);const result=await a.start(...launch(a));assert.deepEqual(f.state.calls,['inspect','begin','stage','define-staged','start-staged']);assert.equal(result.rpcReady,false);assert.equal(fs.readdirSync(f.transport).length,8);await assert.rejects(a.start(...launch(a)),/consumed/);}finally{fs.rmSync(f.root,{recursive:true});}});
+test('v2 lost start response survives restart without repeated native submission',async()=>{const f=fixture(true);try{const c=await f.open(),a=await c.begin(id);f.state.fail='start-staged';await assert.rejects(a.start(...launch(a)),/lost/);f.state.fail=null;const recovered=await f.open();await assert.rejects(recovered.begin(id),/held/);assert.equal(f.state.calls.filter(x=>x==='start-staged').length,1);assert.equal(recovered.recoverHeld()[0].reservationMayRelease,false);}finally{fs.rmSync(f.root,{recursive:true});}});
+test('v2 changed keeper image refuses before staging or start',async()=>{const f=fixture(true);try{const c=await f.open(),a=await c.begin(id);fs.appendFileSync(path.join(f.root,'keeper.exe'),'changed');await assert.rejects(a.start(...launch(a)),/pin changed/);assert.deepEqual(f.state.calls,['inspect','begin']);}finally{fs.rmSync(f.root,{recursive:true});}});
+test('v2 foreign start result cannot establish even historical running',async()=>{const f=fixture(true);try{f.state.foreignPlan=true;const c=await f.open(),a=await c.begin(id);await assert.rejects(a.start(...launch(a)),/plan changed/);assert.equal(fs.existsSync(path.join(f.transport,'start.result.json')),false);await assert.rejects(a.start(...launch(a)),/consumed/);}finally{fs.rmSync(f.root,{recursive:true});}});
