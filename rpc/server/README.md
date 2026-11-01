@@ -591,10 +591,46 @@ closes on idle EOF or the first unsolicited byte. No reconnect or repeated start
 request is permitted. Source-level TLS/crypto tests do not prove production
 attestation or a serving RPC.
 
-`owner_bootstrap.mjs`, its Python bootstrap/submit/dispatcher helpers and prepared
-units still compose the `/1` path. They have not been changed to select `/2`, keep
-the continuous signer alive, forward its frames, or widen their20/60/120-second
-service envelopes. That operator integration requires its own resource/deadline
-admission and must retain the same live original issuer, request and exporter.
-No prepared policy, protected namespace, media or production service was changed.
-The complete startup-to-serving handoff across all guardians remains incomplete.
+The maintained relay, dispatcher and signer entry now accept an explicit matching
+`/2` configuration. This lower operator path retains the same live issuer through
+initial export submission and later startup permits. The actual outer
+`owner_bootstrap.mjs`, Python bootstrap/submit helpers, enrollment preparation and
+exchange still select `/1`. They do not yet forward continuous frames or admit
+continuous bootstrap/dispatcher units. No prepared policy, protected namespace,
+media or production service was changed. The complete startup-to-serving handoff
+across all guardians remains incomplete.
+
+### Original live signer dispatch (source only)
+
+`enclave-rpc-owner-relay/2` requires `enclave-rpc-owner-dispatch/2`, a pinned
+`enclave-rpc-owner-entry/2`, and held `enclave-rpc-storage-owner/2` policy. The
+signer entry checks the policy matches its entry version. The `/1` units keep
+20/60-second limits. `/2` uses distinct `enclave-rpc-owner-sign-stream-ATTEMPT`
+and `enclave-rpc-owner-dispatch-stream-ATTEMPT` service names. Each new unit's
+runtime must be derived from the remaining original monotonic window; the actual
+entry rejects a unit whose start plus runtime and one-second stop exceed originalD.
+There is no update to a running unit, new startup clock, automatic restart, or
+serving adoption. The signer still has its own 20-second initial preparation cap.
+
+The dispatcher repeats the existing authenticated whole-composition admission
+(1024MiB, including signer128/dispatcher256/exporter384 and setup allowances),
+retained27GiB or higher floor, and actual pending commitments. It consumes the
+signer submission before one systemd call. Initial consent is accepted only if the
+exact bytes already exist in the original owner journal. The exporter is submitted
+once, and its control-listening marker is checked before durable dispatcher and
+relay responses are acknowledged. `/2` encodes the original proof as base64 to
+preserve its byte hash; it does not wait for the signer to exit.
+
+`owner_signer_stream.py` keeps bounded nonblocking pipes to that same process.
+Idle signer loss, unsolicited bytes, error-output overflow, peer EOF, partial
+frames and original deadline end the session. Each next startup request is
+persisted before forwarding. An exact corresponding proof must already exist in
+the owner's journal before it is persisted by the dispatcher and returned. At
+most90 continuations bound startup journal growth; no serving request, second
+initial request or retry is accepted. Real owner signature and chain checks stay
+inside the original Go issuer. The pipe adapter is not a signing authority.
+
+Closing the exact local systemd transport does **not** prove independently owned
+signer/exporter death. Their original deadline/permit controls remain armed;
+ambiguous submissions, writer reservations and journal records remain held.
+Neither a process response nor these source tests establish a running RPC.

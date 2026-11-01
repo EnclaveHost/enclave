@@ -68,6 +68,11 @@ class RelayTests(unittest.TestCase):
             os.close(source);os.close(sink);a.join(1);b.join(1)
             self.assertFalse(a.is_alive() or b.is_alive(),'pipe fixture did not terminate')
 
+    def test_stream_selection_requires_matching_protected_dispatcher(self):
+        self.config['schema']='enclave-rpc-owner-relay/2'
+        with self.assertRaisesRegex(ValueError,'protocol differs'):self.invoke()
+        self.assertEqual(self.calls,0);self.assertFalse(self.root.exists())
+
     def test_large_framed_request_exact_durable_response_no_repeat(self):
         result,out=self.invoke();self.assertFalse(result['rpcReady']);self.assertEqual(self.calls,1)
         size=struct.unpack('!I',out[:4])[0];self.assertEqual(size,len(out)-4)

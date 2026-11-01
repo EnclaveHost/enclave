@@ -57,15 +57,17 @@ def write_frame(fd,raw,deadline):
 
 
 def run(config,input_fd=0,output_fd=1):
-    if set(config)!={'schema','dispatcher'} or config['schema']!='enclave-rpc-owner-relay/1':
+    if set(config)!={'schema','dispatcher'} or config['schema'] not in ('enclave-rpc-owner-relay/1','enclave-rpc-owner-relay/2'):
         raise ValueError('Exact protected owner relay configuration required')
+    continuous=config['schema']=='enclave-rpc-owner-relay/2'
     dispatch_raw=c.read_pinned(config['dispatcher']);cfg=c.protocol.decode(dispatch_raw)
+    if cfg['schema']!='enclave-rpc-owner-dispatch/'+('2' if continuous else '1'):raise ValueError('Owner relay/dispatcher protocol differs')
     entry_raw=c.read_pinned(cfg['entry']);entry=c.protocol.decode(entry_raw)
     original=c.validate(entry['clock'])
     if entry['attempt']!=original['attempt']:raise ValueError('Original relay attempt differs')
-    unit=d.dispatcher_envelope(original)  # Same process, unit, limits and deadline.
+    unit=d.dispatcher_envelope(original,continuous)  # Same process, unit, limits and deadline.
     start=int(unit['ExecMainStartTimestampMonotonic'])/1e6
-    deadline=min(start+60,original['deadlineMonotonicNs']/1e9)
+    deadline=original['deadlineMonotonicNs']/1e9 if continuous else min(start+60,original['deadlineMonotonicNs']/1e9)
     ingress=min(start+3,deadline)
     # All maintained imports/tools are pinned before input and rechecked by the
     # dispatcher before keys or export work. No caller-selected executable.
@@ -96,7 +98,9 @@ def run(config,input_fd=0,output_fd=1):
     raw=read_exact(input_fd,size,ingress)
     if raw!=expected:raise ValueError('Wire request differs from prepared owner binding')
     ready,_,_=select.select([input_fd],[],[],0)
-    if ready and os.read(input_fd,1):raise ValueError('Extra request bytes; consumed')
+    if ready:
+        extra=os.read(input_fd,1)
+        if extra or continuous:raise ValueError('Extra request bytes or continuous peer EOF; consumed')
     c.validate(entry['clock'])
     if c.read_pinned(config['dispatcher'])!=dispatch_raw or c.read_pinned(cfg['entry'])!=entry_raw:
         raise ValueError('Prepared dispatcher changed')
@@ -105,6 +109,11 @@ def run(config,input_fd=0,output_fd=1):
     # Actual maintained implementation, not an injected production callback.
     # It checks the same unit again, persists signer intent BEFORE submission,
     # verifies durable proof, persists exporter identity BEFORE returning.
+    if continuous:
+        # The actual dispatcher keeps its original signer and export observation
+        # alive. It persists BOTH dispatcher/relay responses before first wire.
+        # No /1 callback, reconstructed session or second owner submission.
+        return d.dispatch(cfg,stream_io=(input_fd,output_fd))
     reply=d.dispatch(cfg)
     if (reply.get('schema')!='enclave-rpc-owner-dispatched/1' or reply.get('attempt')!=original['attempt']
             or any(reply.get(k) is not False for k in ('rpcReady','writersFenced','reservationMayRelease'))):

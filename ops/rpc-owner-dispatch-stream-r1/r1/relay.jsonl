@@ -1,0 +1,15 @@
+test_large_request_limits_and_canonical_refusals (test_owner_relay.EncodingTests.test_large_request_limits_and_canonical_refusals) ... ok
+test_transport_refuses_regular_input (test_owner_relay.EncodingTests.test_transport_refuses_regular_input) ... ok
+test_ambiguous_dispatch_retained_without_response (test_owner_relay.RelayTests.test_ambiguous_dispatch_retained_without_response) ... ok
+test_large_framed_request_exact_durable_response_no_repeat (test_owner_relay.RelayTests.test_large_framed_request_exact_durable_response_no_repeat) ... ok
+test_original_ingress_cutoff_not_reset (test_owner_relay.RelayTests.test_original_ingress_cutoff_not_reset) ... ok
+test_oversized_frame_no_dispatch (test_owner_relay.RelayTests.test_oversized_frame_no_dispatch) ... ok
+test_stream_selection_requires_matching_protected_dispatcher (test_owner_relay.RelayTests.test_stream_selection_requires_matching_protected_dispatcher) ... ok
+test_truncated_frame_no_dispatch (test_owner_relay.RelayTests.test_truncated_frame_no_dispatch) ... ok
+test_unpersisted_response_not_acknowledged (test_owner_relay.RelayTests.test_unpersisted_response_not_acknowledged) ... ok
+test_wrong_request_consumes_before_dispatch (test_owner_relay.RelayTests.test_wrong_request_consumes_before_dispatch) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 1.576s
+
+OK

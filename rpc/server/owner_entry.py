@@ -39,19 +39,45 @@ def show(unit):
     return row
 
 
+def stream_runtime(original):
+    """New stream units fit BEFORE originalD, including launch and stop slack.
+
+    This never edits a running unit or extends a finite /1 actor. The child
+    independently checks its actual start/runtime before opening owner keys.
+    """
+    seconds=(original['deadlineMonotonicNs']-time.monotonic_ns())//1_000_000_000-3
+    if not 24<=seconds<=897:raise ValueError('Original stream window exhausted')
+    return seconds
+
+
+def stream_envelope(row, original):
+    # systemd formats integer seconds as e.g. "14min 51s". Reject infinity,
+    # fractions and unrecognized units instead of rounding a later cutoff down.
+    match=re.fullmatch(r'(?:(\d+)min(?: (\d+)s)?|(\d+)s)',row['RuntimeMaxUSec'])
+    if not match:raise ValueError('Finite integer stream runtime required')
+    seconds=int(match[1] or 0)*60+int(match[2] or match[3] or 0)
+    start=int(row['ExecMainStartTimestampMonotonic'])*1000
+    if (not 1<=seconds<=897 or not 0<=time.monotonic_ns()-start<5_000_000_000 or
+            start+(seconds+1)*1_000_000_000>original['deadlineMonotonicNs']):
+        raise ValueError('Independent stream cutoff exceeds original deadline')
+
+
 def envelope(attempt, original, kind='sign'):
-    if kind not in ('sign','provision'):raise ValueError('Fixed owner service role required')
+    if kind not in ('sign','provision','sign-stream'):raise ValueError('Fixed owner service role required')
     unit = 'enclave-rpc-owner-'+kind+'-'+attempt+'.service'
     row = show(unit)
     expected = {'Id':unit,'MainPID':str(os.getpid()),'InvocationID':os.environ.get('INVOCATION_ID',''),
         'Type':'exec','RuntimeMaxUSec':'20s','TimeoutStopUSec':'1s','MemoryMax':str(128<<20),
         'MemorySwapMax':'0','CPUQuotaPerSecUSec':'1s','TasksMax':'32','KillMode':'control-group',
         'Restart':'no','SendSIGKILL':'yes','FinalKillSignal':'9','NoNewPrivileges':'yes','LimitCORE':'0'}
+    if kind=='sign-stream':
+        stream_envelope(row,original)
+        expected['RuntimeMaxUSec']=row['RuntimeMaxUSec']
     if (not re.fullmatch('[0-9a-f]{32}',expected['InvocationID']) or any(row[k]!=v for k,v in expected.items())
             or Path('/proc/self/cgroup').read_text().strip()!='0::'+row['ControlGroup']):
         raise ValueError('Independent signer service differs')
     start = int(row['ExecMainStartTimestampMonotonic'])*1000
-    if not 0<=time.monotonic_ns()-start<5_000_000_000 or start+21_000_000_000>=original['deadlineMonotonicNs']:
+    if kind!='sign-stream' and (not 0<=time.monotonic_ns()-start<5_000_000_000 or start+21_000_000_000>=original['deadlineMonotonicNs']):
         raise ValueError('Independent signer cutoff does not fit original deadline')
     return row
 
@@ -108,10 +134,12 @@ def main(path):
     os.umask(0o077)
     c=clock_module();raw=c.read(path);config=c.protocol.decode(raw)
     fields={'schema','attempt','clock','contract','policy','ownerProvision','binary','pins','receipt'}
-    if set(config)!=fields or config['schema']!='enclave-rpc-owner-entry/1':raise ValueError('Exact signer bootstrap configuration required')
+    if set(config)!=fields or config['schema'] not in ('enclave-rpc-owner-entry/1','enclave-rpc-owner-entry/2'):raise ValueError('Exact signer bootstrap configuration required')
+    continuous=config['schema']=='enclave-rpc-owner-entry/2'
+    kind='sign-stream' if continuous else 'sign'
     original=c.validate(config['clock'])
     if config['attempt']!=original['attempt']:raise ValueError('Original attempt differs')
-    envelope(config['attempt'],original)
+    envelope(config['attempt'],original,kind)
     required={str(HERE/n) for n in ('owner_entry.py','owner_state.py','volume_export.py')}
     required|={str(HERE.parent/'startup_clock.py'),str(HERE.parent/'storage_protocol.py'),'/usr/bin/bwrap','/usr/bin/python3'}
     if set(config['pins'])!=required:raise ValueError('Exact signer bootstrap closure required')
@@ -122,10 +150,11 @@ def main(path):
     contract=c.protocol.decode(c.read_pinned(config['contract']))
     if contract['startupClock']!=config['clock'] or contract['attempt']!=original['attempt']:raise ValueError('Exact original export contract required')
     policy=c.protocol.decode(c.read_pinned(config['policy']))
+    if policy.get('schema')!='enclave-rpc-storage-owner/'+('2' if continuous else '1'):raise ValueError('Explicit matching owner stream policy required')
     if policy['export']['contractSha256']!=config['contract']['sha256']:raise ValueError('Policy export contract differs')
     receipt=Path(config['receipt']);c.directory(receipt.parent)
     if receipt.name!='signer-started.json':raise ValueError('Fixed signer receipt required')
-    identity=envelope(config['attempt'],original)
+    identity=envelope(config['attempt'],original,kind)
     c.write_new(receipt,c.encode({'schema':'enclave-rpc-owner-sign-started/1','attempt':original['attempt'],
         'clock':config['clock'],'contract':config['contract'],'binary':config['binary'],
         'unit':identity,'rpcReady':False,'writersFenced':False}))
@@ -142,7 +171,7 @@ def main(path):
         # The source file is mounted by a held/pinned descriptor too. An outer
         # path replacement cannot substitute an unreviewed inner bootstrap.
         fds.append(('entry.py',held(str(HERE/'owner_entry.py'),65536,0o644,wanted=config['pins'][str(HERE/'owner_entry.py')]),False))
-        c.validate(config['clock']);envelope(config['attempt'],original)
+        c.validate(config['clock']);envelope(config['attempt'],original,kind)
         args=['/usr/bin/bwrap','--unshare-user','--uid','0','--gid','0','--die-with-parent',
               '--ro-bind','/usr','/usr','--ro-bind','/etc','/etc','--ro-bind','/lib','/lib',
               '--ro-bind','/lib64','/lib64','--ro-bind','/run','/run','--ro-bind','/proc','/proc',

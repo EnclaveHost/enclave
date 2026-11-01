@@ -1,0 +1,285 @@
+{
+  "manifestSha256": "103099d4598a22f288c9f4c2f5ad8404b0f0cd58a88795f775cac8cf45a7bd6f",
+  "sources": [
+    {
+      "path": "rpc/deliver_activation.py",
+      "sha256": "4b8cd7467e9555a2393ece38fc960ae55e7ae321da3e731ada5bead5fe92c889"
+    },
+    {
+      "path": "rpc/deliver_guest_workflow.py",
+      "sha256": "d397e7ab6a20a166100381d37f0396c508bfd231ae6e0409b285a68b13ca50ee"
+    },
+    {
+      "path": "rpc/deliver_runtime.py",
+      "sha256": "6e5da03961302f6e6337c5c21b331cbe29df63f2db6e891b745410ab0e1722a8"
+    },
+    {
+      "path": "rpc/gateway.mjs",
+      "sha256": "3b23200d8e77565da2fef2b5c440220108a9e66191f0ad38199c56873928435f"
+    },
+    {
+      "path": "rpc/guest/activate_storage.py",
+      "sha256": "1b1c92b0922cea8810c668eaa783447a3c0fcc146201aa556298678ec757f97d"
+    },
+    {
+      "path": "rpc/guest/attach_storage.py",
+      "sha256": "93859170fba8f078a2df14db52acc95d90a4405add8be63574c0a84049905da9"
+    },
+    {
+      "path": "rpc/guest/chain_service.py",
+      "sha256": "025bf47f0852b96a48269900cec7d3f9a9a34f57dd11f676ec34d826f9cb1605"
+    },
+    {
+      "path": "rpc/guest/credentials.py",
+      "sha256": "b02baf0cbf2b71fed1caded598381c59763dd885c1867b6ea2e69bc009508158"
+    },
+    {
+      "path": "rpc/guest/extract_base_origin.py",
+      "sha256": "6b63b901ea07375ea273fd828cb0d0e97baa0859c1b83490c1cb60e15cb3c86c"
+    },
+    {
+      "path": "rpc/guest/identity.py",
+      "sha256": "1fac9d4de16a903233ca1613881d2157ec99710b99aee0c1cfd0cba4f75be103"
+    },
+    {
+      "path": "rpc/guest/inject_image.py",
+      "sha256": "ef130ca34e4e6df3efd445a39f7e08c740d5dcb0fd1b15620078908bdf595378"
+    },
+    {
+      "path": "rpc/guest/install_storage_client.py",
+      "sha256": "36ca702a610ce4cc318112128e6779a99495b84912cefc18430d60478e9448a8"
+    },
+    {
+      "path": "rpc/guest/prepare_bundle.py",
+      "sha256": "acd7493a8261eb2b6f0a93a845893411b0199b4c5c945c0b9f22e1dfad2eafe8"
+    },
+    {
+      "path": "rpc/guest/prepare_direct_seed.py",
+      "sha256": "8e8881325c1f7bccdc965e4a88c98fc8766a30494beb15374b791672c492c0f6"
+    },
+    {
+      "path": "rpc/guest/prepare_seed.py",
+      "sha256": "a6ffc88230f6b8db4aa98eadf4f8352b0ac9a35ad077a299c831276255a5ce51"
+    },
+    {
+      "path": "rpc/guest/prepare_storage_client.py",
+      "sha256": "129ed77dc8e36c36b9e39c0400063e74e0444b7042b6b038c9238886c28c8dcf"
+    },
+    {
+      "path": "rpc/guest/read_owners.py",
+      "sha256": "db68fff651b1e5461a9d9ef4bd88396b7d7d7955779875399a486139d819222b"
+    },
+    {
+      "path": "rpc/guest/start_runtime.py",
+      "sha256": "e17affef1c3ced9505250fe6fddfc3d8560dc76d908eb3cfb2fdab33c540b912"
+    },
+    {
+      "path": "rpc/guest/test_native_mounts.py",
+      "sha256": "f1aa0e9deb507028676018e4eb2be6a0da07d3e641da15b64013de53a17b16c2"
+    },
+    {
+      "path": "rpc/host/bootstrap.mjs",
+      "sha256": "1bfbb26d503ec1e48bee8167fd39099c27dbce71120deac2f14f871c6a9a2cdb"
+    },
+    {
+      "path": "rpc/host/native-wire.mjs",
+      "sha256": "143950d972825ec54c395eef581b8bb5baf0ac96d6c34e325c9b5b5d48f0fe99"
+    },
+    {
+      "path": "rpc/host/windows-entry.mjs",
+      "sha256": "f7e2cbc3f8e56f370b97a5c4adb2193f847cfc60f7a2d687e5fde121e99e09cf"
+    },
+    {
+      "path": "rpc/launch_activation.py",
+      "sha256": "271505f2edeb40b982f17dd293f2e39846288b33eecc4435e3b0db8b7206e2d7"
+    },
+    {
+      "path": "rpc/linux_direct.py",
+      "sha256": "12d7212742efb1d5485a8589f66d939bac645097cc4e5bedcc0fe7e46b85aedb"
+    },
+    {
+      "path": "rpc/native/assemble_root.py",
+      "sha256": "13b85d59f3fb4775564bfcda8be64d09834f23915174c959bcf7a334bff7a886"
+    },
+    {
+      "path": "rpc/native/build_image.py",
+      "sha256": "19f346a13270e6f43cc9a3d7e98a502bab68f6f9a53ec6fc6e95385ce950fd6b"
+    },
+    {
+      "path": "rpc/native/prepare_vmgs.py",
+      "sha256": "6b062618ae37b54a88108240070fdd8472cc06251149df1a0c9a02db31f4fc17"
+    },
+    {
+      "path": "rpc/native/test_assemble_root.py",
+      "sha256": "5b5efe1568fad120c6b6ce82b14a6d39e2ac560713632c8ec3ed8eb24a0e2f25"
+    },
+    {
+      "path": "rpc/native/test_build_image.py",
+      "sha256": "9b57ce5cf9861eb360f4483a05b2b482bb1cbe2e60fc3fcd3c56bb5ec1c39c4b"
+    },
+    {
+      "path": "rpc/native/test_prepare_vmgs.py",
+      "sha256": "73373aa64bde94cd5108b77beb675d5c575d9bdc017570ff1faeaa71024d5045"
+    },
+    {
+      "path": "rpc/observe_activation.py",
+      "sha256": "c59ee978a4f6f0ff51ce5beeef33e438555e072014095973f71fda76985c0236"
+    },
+    {
+      "path": "rpc/observe_guest.py",
+      "sha256": "d742ab58663874aed4ae655cb3d9664b88c72f399bc2550ad5ff100939fdc743"
+    },
+    {
+      "path": "rpc/prepare_attachment.py",
+      "sha256": "c0685fbf106fe2fc49e1ce076b0dca096716d37ecd832a227480b6832e5f625a"
+    },
+    {
+      "path": "rpc/prepare_runtime.py",
+      "sha256": "6c8f872f15554bc2cd1dd1ccda094e70783dedcfa1e9c457543b04927851681d"
+    },
+    {
+      "path": "rpc/reconcile_definition.py",
+      "sha256": "0c4f8cb94c2c0fa5407a4d834b95cec07a363efe7e9193242c05bdad42ccf708"
+    },
+    {
+      "path": "rpc/run_guest_workflow.py",
+      "sha256": "13e9395dbdf921def87d246a9a76562bdbc610d05c32e918492c6d8ad3772b3e"
+    },
+    {
+      "path": "rpc/run_startup.py",
+      "sha256": "14eae53d05a4b9eb922992a2f71b1b64d887c16817509945054aea514fbdfa2d"
+    },
+    {
+      "path": "rpc/sample_windows_clock.py",
+      "sha256": "7c4c9778eb134a75ee13bd1e11fa4c4683822391ef95ab080b9d44bb7511eb37"
+    },
+    {
+      "path": "rpc/server/app_control.py",
+      "sha256": "dcfa147f30e3b3e7a85671de735795d37666c93854fe53078e45dd2a4edd8949"
+    },
+    {
+      "path": "rpc/server/dispatch_owner.py",
+      "sha256": "7efe058e0dd66acdea6a319d9635462cbc18e928d9a017a8fe8b67d8e946fbd1"
+    },
+    {
+      "path": "rpc/server/guarded_export.py",
+      "sha256": "74eb6cca3db6fd760548d860bac9426d1fd699098726fee876c738d3002ba543"
+    },
+    {
+      "path": "rpc/server/observe_resources.mjs",
+      "sha256": "d2d8e9a69548e689d093434787b43ab3278c4fea032d329c16c2b82c0866bdee"
+    },
+    {
+      "path": "rpc/server/operator_bootstrap_transport.py",
+      "sha256": "c6d2a361952f14d4327494db6c1609c22aaebb24acae8ed42169bdfc68328f9c"
+    },
+    {
+      "path": "rpc/server/owner_bootstrap.mjs",
+      "sha256": "3abde128db51996a981321e6ad3a2626b6aa0b34933771ec30c2859c6818ff4c"
+    },
+    {
+      "path": "rpc/server/owner_bootstrap_enrollment.mjs",
+      "sha256": "d9e559f1bff9d42b6d71a28dae0cdfb55f2b6367a9558abbd8de267a50ad8cdd"
+    },
+    {
+      "path": "rpc/server/owner_bootstrap_entry.py",
+      "sha256": "df500d2224c8972501f5b9e978fa65ac9c80da5c384464e81973f3412f64f4c5"
+    },
+    {
+      "path": "rpc/server/owner_bootstrap_exchange.py",
+      "sha256": "5296ef9e588403ceba5e4d832c54370637082d479fb1958942b9fa2c5d0e5575"
+    },
+    {
+      "path": "rpc/server/owner_bootstrap_inputs.py",
+      "sha256": "712576544972a1fc6011d5d2f6a353cef4a3a702ba41cc8a61eabf56a80923e2"
+    },
+    {
+      "path": "rpc/server/owner_bootstrap_offer.mjs",
+      "sha256": "9acb1101704939f31cfdabd36642a0a0c835a55c879189a452c30549ff1ff84a"
+    },
+    {
+      "path": "rpc/server/owner_bootstrap_session.mjs",
+      "sha256": "cf7af2c82b7f2426b7ffe844f8f136863595149de07238a23698b5f4b7d1505c"
+    },
+    {
+      "path": "rpc/server/owner_bootstrap_submit.py",
+      "sha256": "285c36d875a8092322e5d5c86337f5addebd9ba07bb0953cc62752e143d4fb33"
+    },
+    {
+      "path": "rpc/server/owner_bootstrap_transport.mjs",
+      "sha256": "4829a2106c619e5ec7337f654e18b6b7ace8d19409ed8695ad2ecf151ef5ed96"
+    },
+    {
+      "path": "rpc/server/owner_entry.py",
+      "sha256": "0c227ea20adabdfec0385e807686737ca11873885d63943259c868885120759a"
+    },
+    {
+      "path": "rpc/server/owner_signer_stream.py",
+      "sha256": "85f1ca5a56a33fd090da37126544237f5cdc4f6977e01dc809008f042b9edd5e"
+    },
+    {
+      "path": "rpc/server/owner_state.py",
+      "sha256": "051ff163b6458976a6d9cbf9149800e8a3756258bf78b9e0e532cbfe708c6ca8"
+    },
+    {
+      "path": "rpc/server/prepare_export.py",
+      "sha256": "ff865b88489c1e00b91e2bc577206fabd67c7f19abccbb4116a5393ab7654cba"
+    },
+    {
+      "path": "rpc/server/prepare_owner_enrollment.py",
+      "sha256": "649db46645fbb91364c86bcf2928424697350070c72dc5b2ea03426527310051"
+    },
+    {
+      "path": "rpc/server/relay_owner.py",
+      "sha256": "3e621774f29daa103708c203cc9c51eab773cbe4cd4238cb3979b43f4048e5ca"
+    },
+    {
+      "path": "rpc/server/verify_bootstrap.mjs",
+      "sha256": "b23607e7708238921cd462e036c461eca07ff199c0635a12d5bf67b8579a529f"
+    },
+    {
+      "path": "rpc/server/volume_export.py",
+      "sha256": "ff94868d582438b964c67cc4651ae6f80bedd56a5cc99c2f0a3cff481b4bbbb2"
+    },
+    {
+      "path": "rpc/startup_clock.py",
+      "sha256": "baff8279f12968acc788a79555ca273db97bfd2cd5be2ae4fd22001dce9e4cc9"
+    },
+    {
+      "path": "rpc/storage_protocol.py",
+      "sha256": "80a3f865a76914a5d986528d50dfb77bd90ec5604f9884f3391ae99c4f02bc31"
+    },
+    {
+      "path": "rpc/transfer_export.py",
+      "sha256": "e44e7860d31ba1ea67914887c231a66035a6b398a4095a2caa089d4a82457f9a"
+    },
+    {
+      "path": "rpc/windows_endpoint.py",
+      "sha256": "5b922b3e84c67fda228cb77ae4abb38b6c7fd8d32d0625648704991cb54f5d71"
+    },
+    {
+      "path": "rpc/windows_files.py",
+      "sha256": "6c88bba44c2665503c73419555db5372bdc9f3c9c875f61997c3e8435139ea7a"
+    },
+    {
+      "path": "rpc/windows_transition.py",
+      "sha256": "0f0f68313124f0bb3dcb59fdcdab221ab478dee30cf9735187ee4a6190792037"
+    },
+    {
+      "path": "test/rpc-server/owner_stream_fixture.py",
+      "sha256": "f6d8e0177755bfc69a84e302ae5b7822438881199241ba96139be93d6f3ba9d4"
+    },
+    {
+      "path": "test/rpc-server/test_owner_dispatch.py",
+      "sha256": "5d88a4da7db6a822bfb4bf9891f27c8e8f2aa0ff5dbd7048759282091482f42b"
+    },
+    {
+      "path": "test/rpc-server/test_owner_relay.py",
+      "sha256": "9ea18de6978c50a96345fc3389f1eb88e4ba8a5df658fd36a90db772d4e7fe0f"
+    },
+    {
+      "path": "test/rpc-server/test_owner_signer_stream.py",
+      "sha256": "0bc263c20eb694900520f4abdb8cb39a5bcd93b5ccff79594316b1adf36f7200"
+    }
+  ]
+}

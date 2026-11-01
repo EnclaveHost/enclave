@@ -1,0 +1,6 @@
+test_actual_relay_enters_stream_dispatch_without_waiting_for_exit (test_owner_signer_stream.DispatchStream.test_actual_relay_enters_stream_dispatch_without_waiting_for_exit) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.316s
+
+OK

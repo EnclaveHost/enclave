@@ -1,0 +1,16 @@
+test_live_signer_proof_and_two_permits_then_eof_held (test_owner_signer_stream.DispatchStream.test_live_signer_proof_and_two_permits_then_eof_held) ... ok
+test_serving_request_refused_before_signer_write (test_owner_signer_stream.DispatchStream.test_serving_request_refused_before_signer_write) ... ok
+test_stream_requires_real_pipes_before_submission (test_owner_signer_stream.DispatchStream.test_stream_requires_real_pipes_before_submission) ... ok
+test_unpersisted_continuation_never_acknowledged (test_owner_signer_stream.DispatchStream.test_unpersisted_continuation_never_acknowledged) ... ok
+test_derived_stream_runtime_and_exact_actual_cutoff (test_owner_signer_stream.Envelopes.test_derived_stream_runtime_and_exact_actual_cutoff) ... ok
+test_original_deadline_even_blocked_write (test_owner_signer_stream.Pipes.test_original_deadline_even_blocked_write) ... ok
+test_output_faults_close_without_respawn (test_owner_signer_stream.Pipes.test_output_faults_close_without_respawn) ... ok
+test_partial_peer_frame_obeys_original_deadline (test_owner_signer_stream.Pipes.test_partial_peer_frame_obeys_original_deadline) ... ok
+test_peer_eof_observes_signer_loss (test_owner_signer_stream.Pipes.test_peer_eof_observes_signer_loss) ... ok
+test_two_frames_same_live_process (test_owner_signer_stream.Pipes.test_two_frames_same_live_process) ... ok
+test_unsolicited_single_byte_and_idle_death (test_owner_signer_stream.Pipes.test_unsolicited_single_byte_and_idle_death) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 1.310s
+
+OK
