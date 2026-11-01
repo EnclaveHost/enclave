@@ -63,7 +63,9 @@ requires both a firmware image and separately qualified initial VMGS. Use the
 maintained `isolation/m3/build-rpc-igvm.py --spec SPEC --out NEW_DIRECTORY` for
 offline firmware packaging, under an independently bounded admitted build unit.
 This command does not create VMGS, register a VM, accept an image or change a
-verifier policy.
+verifier policy. The separate [fresh-state preparation](INITIAL-STATE.md) now
+creates and checks an unprovisioned VMGS candidate. Its offline format check
+does not establish Windows acceptance, sharing behavior or future growth.
 
 Its `enclave-rpc-igvm-build/1` object has exactly `schema` and `inputs`. Each
 input is an absolute `path` plus `sha256`. Required names are `igvmfilegen`,
@@ -130,3 +132,11 @@ neither fences the remote storage writer nor releases its reservation. Real targ
 boot/poweroff and accepted measured image remain required. The current
 `rpc-full-image-current-r1` initramfs includes this source integration, but has
 been packaged successfully as the firmware above, but has not booted on the target.
+
+Serving adoption must also coordinate the native entry's `watchEntry`, the
+`rpcservice.Supervisor` context and the storage broker/owner authorization
+window. Those still enforce the original startup deadline independently of
+the C PID1 guardian and Windows lifecycle keepers. A ready front or launched
+clients cannot disable these boundaries individually. The complete transition
+needs the same original owner, live storage authority and actual local RPC
+readiness; none is established by the offline firmware/VMGS artifacts.

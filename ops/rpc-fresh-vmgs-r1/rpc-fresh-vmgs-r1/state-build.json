@@ -1,0 +1,23 @@
+{
+  "deployed": false,
+  "elapsedSeconds": 0.034139366121962667,
+  "growthQualified": false,
+  "hardwareIdentity": false,
+  "providerSharingQualified": false,
+  "schema": "enclave-rpc-fresh-vmgs-receipt/1",
+  "state": {
+    "allocatedFileIds": [
+      0,
+      63
+    ],
+    "bytes": 4194816,
+    "capacityBytes": 4194304,
+    "encrypted": false,
+    "format": "vmgs-v3-fixed-vhd",
+    "pristine": true,
+    "provisioned": false,
+    "sha256": "7fae11f9bd0ace50bf3fb1acd75961f7b9674d4301aaeae3eef908fa3beebae5"
+  },
+  "toolSha256": "46e0eefcbcac4d32cbcf89c52bff75a57ff6871052346fd07a156d0038ce856a",
+  "windowsAccepted": false
+}

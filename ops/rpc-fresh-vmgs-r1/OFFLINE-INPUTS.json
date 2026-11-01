@@ -1,0 +1,16 @@
+{
+  "schema": "rpc-native-offline-inputs/1",
+  "firmware": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-igvm-package-r2/output/firmware/rpc.bin",
+    "bytes": 91301340,
+    "sha256": "1f5e0e7993783c52549278b4030c1e4b10755fc3ee5fc77be4c4b7412fff5386"
+  },
+  "initialState": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-fresh-vmgs-r1/output/state/guest-state.vmgs",
+    "bytes": 4194816,
+    "sha256": "7fae11f9bd0ace50bf3fb1acd75961f7b9674d4301aaeae3eef908fa3beebae5"
+  },
+  "originAssigned": false,
+  "windowsAccepted": false,
+  "deploymentAuthorizedByThisRecord": false
+}

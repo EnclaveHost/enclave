@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "/output/state/vmgstool",
+    "create",
+    "--file-path",
+    "/output/state/guest-state.vmgs",
+    "--file-size",
+    "4194304"
+  ],
+  "force": false,
+  "inheritedState": false,
+  "schema": "enclave-rpc-fresh-vmgs-intent/1",
+  "toolSha256": "46e0eefcbcac4d32cbcf89c52bff75a57ff6871052346fd07a156d0038ce856a"
+}

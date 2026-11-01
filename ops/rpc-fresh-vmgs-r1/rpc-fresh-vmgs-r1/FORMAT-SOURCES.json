@@ -1,0 +1,25 @@
+{
+  "revision": "a7b0bd4a653ba1c9192497a9d3669b14e7f3bc58",
+  "files": [
+    {
+      "path": "vm/vmgs/vmgstool/src/main.rs",
+      "sha256": "3da2d7b53ec746e8079db6525f8ef722dc42392cda34572bf15760f7a3dc7db1"
+    },
+    {
+      "path": "vm/vmgs/vmgs/src/vmgs_impl.rs",
+      "sha256": "35b80aaf833591dc827b0f82864dc360e30fca253a28f71c5a13c476c9897f10"
+    },
+    {
+      "path": "vm/vmgs/vmgs_format/src/lib.rs",
+      "sha256": "97c9a202721f724b668e74e3a0cdc533e2e726d8c143371d3266fcdf15a37531"
+    },
+    {
+      "path": "vm/vhd1_defs/src/lib.rs",
+      "sha256": "61342a7f14c61db8c9f3776c8b58e95e2fda6809d0b33267cd8c61917fa50141"
+    },
+    {
+      "path": "vm/devices/storage/disk_vhd1/src/lib.rs",
+      "sha256": "241442ae31555cab163d8b20e4a093b855eb5530ec84cfc9cd2dc0bff48903bd"
+    }
+  ]
+}
