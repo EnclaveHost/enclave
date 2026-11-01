@@ -1,0 +1,4 @@
+{
+  "windows/rpc/NativeRpcLifecycleEntry.cs": "c732058346e576efedf35dc40a26bd200146c18706c7107826eedf3895bf98e6",
+  "test/rpc-windows-worker/NativeRpcLifecycleHarness.cs": "59c4c26acb3a3fe074d87850973f2292a1f4b6df31de44b3d3c932537e2de51f"
+}

@@ -72,10 +72,11 @@ namespace Enclave.OwnedRpc {
  // The watch thread does not execute native start or depend on its caller's loop.
  // Exactly one dispatch occurs. A failed dispatch is held, never retried.
  internal sealed class NativeLifecycleWatch {
-  internal readonly ManualResetEvent Armed=new ManualResetEvent(false),Done=new ManualResetEvent(false);internal Exception Failure;internal string Reason;int invoked;
+  internal readonly ManualResetEvent Armed=new ManualResetEvent(false),Done=new ManualResetEvent(false);internal Exception Failure;internal string Reason;int invoked,abort;
+  internal void Abort(){Interlocked.Exchange(ref abort,1);}
   internal NativeLifecycleWatch(long origin,long deadline,Func<long> clock,Func<bool> failed,Action<string> cleanup){
    if(origin<0||deadline<=origin||deadline-origin>900000||clock==null||failed==null||cleanup==null)throw new ArgumentException("Original lifecycle watch");long now=clock();if(now<origin||now>=deadline)throw new InvalidOperationException("Original lifecycle already expired");
-   new Thread(delegate(){Armed.Set();try{long last=now;while(true){long t=clock();if(t<last){Reason="clock-rollback";break;}last=t;if(t>=deadline){Reason="original-deadline";break;}try{if(failed()){Reason="original-worker-failure";break;}}catch{Reason="peer-observation-failure";break;}Thread.Sleep(5);}if(Interlocked.CompareExchange(ref invoked,1,0)!=0)throw new InvalidOperationException("Cleanup consumed");cleanup(Reason);}catch(Exception e){Failure=e;}finally{Done.Set();}}){IsBackground=true}.Start();
+   new Thread(delegate(){Armed.Set();try{long last=now;while(true){if(Thread.VolatileRead(ref abort)!=0){Reason="original-binding-failure";break;}long t=clock();if(t<last){Reason="clock-rollback";break;}last=t;if(t>=deadline){Reason="original-deadline";break;}try{if(failed()){Reason="original-worker-failure";break;}}catch{Reason="peer-observation-failure";break;}Thread.Sleep(5);}if(Interlocked.CompareExchange(ref invoked,1,0)!=0)throw new InvalidOperationException("Cleanup consumed");cleanup(Reason);}catch(Exception e){Failure=e;}finally{Done.Set();}}){IsBackground=true}.Start();
    if(!Armed.WaitOne(1000))throw new InvalidOperationException("Independent lifecycle watch unarmed");
   }
  }
@@ -87,18 +88,20 @@ namespace Enclave.OwnedRpc {
    if(args.Length!=4)return 64;long origin=Int64.Parse(args[2],NumberStyles.None,CultureInfo.InvariantCulture),end=Int64.Parse(args[3],NumberStyles.None,CultureInfo.InvariantCulture),now=BoundedWorker.MonotonicMilliseconds();
    if(origin<0||origin>Int64.MaxValue-930000||origin>now||now-origin>=5000||end<=now||end-origin>930000)throw new InvalidOperationException("Original lifecycle CLI time invalid");
    var deadline=new Timer(delegate{TerminateProcess(GetCurrentProcess(),127);},null,(int)(end-now),Timeout.Infinite);BoundedWorker.EnterSupervisorEnvelope(128UL*1024*1024);ProtectedAttempt.RequireSystem();
-   using(var lease=ProtectedAttempt.OpenNativeLifecycle(args[0],args[1]))using(var pin=ProtectedAttempt.OpenNativeLifecycleJournal(lease.PermitPath,lease.PermitHash,lease)){
+   using(var lease=ProtectedAttempt.OpenNativeLifecycle(args[0],args[1]))using(var pin=ProtectedAttempt.OpenNativeLifecycleJournal(lease.PermitPath,lease.PermitHash,lease))using(var watchPin=ProtectedAttempt.OpenNativeLifecycleJournal(lease.PermitPath,lease.PermitHash,lease)){
     if(lease.Origin!=origin||lease.Deadline!=end)throw new InvalidOperationException("Original lifecycle CLI differs");var p=pin.NativeDefinitionPlan;
     using(var self=Process.GetCurrentProcess())if(!String.Equals(self.MainModule.FileName,lease.Executable,StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("Original lifecycle image path differs");
     byte[] worker;using(var files=new NativeControllerFiles(lease.CheckDeadline))worker=files.Read(Path.Combine(lease.Root,"worker.exe"),262144,p.WorkerImageHash);
-    var watch=new NativeLifecycleWatch(p.Origin,p.Deadline,BoundedWorker.MonotonicMilliseconds,delegate{lock(gate){return group!=null&&group.Failed();}},delegate(string reason){NativeLifecycleGroup held;lock(gate){held=group;}receipt=NativeLifecycleDispatch.Cleanup(lease,pin,held,worker,reason);});
+    var watch=new NativeLifecycleWatch(p.Origin,p.Deadline,BoundedWorker.MonotonicMilliseconds,delegate{lock(gate){return group!=null&&group.Failed();}},delegate(string reason){NativeLifecycleGroup held;lock(gate){held=group;}receipt=NativeLifecycleDispatch.Cleanup(lease,watchPin,held,worker,reason);});
+    Exception bindingFailure=null;try{
     string identity;using(var self=Process.GetCurrentProcess())identity=self.Id+","+self.StartTime.ToUniversalTime().ToFileTimeUtc()+","+lease.Token+",lifecycle";
     pin.WriteOnce("native-lifecycle.armed",StartRecords.Encode(new Dictionary<string,object>{{"schema","native-rpc-lifecycle-armed/1"},{"plan",p.Digest},{"contract",args[0]},{"hash",args[1]},{"identity",identity}}));
     var journal=new NativeRpcCleanupJournal(pin);string registration=null;while(!watch.Done.WaitOne(5)&&BoundedWorker.MonotonicMilliseconds()<p.Deadline){registration=journal.Read("native-start.registration");if(registration!=null)break;}
     if(registration!=null){var held=new NativeLifecycleGroup(pin,registration);pin.WriteOnce("native-start.workers",held.Record);lock(gate){if(watch.Done.WaitOne(0)||BoundedWorker.MonotonicMilliseconds()>=p.Deadline){held.Dispose();throw new InvalidOperationException("Original lifecycle binding late");}group=held;}
      pin.WriteOnce("native-lifecycle.bound",NativeRpcDefinitionPlan.Hash(held.Record));
     }
-    while(!watch.Done.WaitOne(10))lease.CheckDeadline();if(watch.Failure!=null)throw new InvalidOperationException("Independent cleanup held",watch.Failure);GC.KeepAlive(deadline);return receipt==null?2:0;
+    }catch(Exception e){bindingFailure=e;watch.Abort();}
+    while(!watch.Done.WaitOne(10))lease.CheckDeadline();if(bindingFailure!=null)throw new InvalidOperationException("Original lifecycle binding failed after cleanup dispatch",bindingFailure);if(watch.Failure!=null)throw new InvalidOperationException("Independent cleanup held",watch.Failure);GC.KeepAlive(deadline);return receipt==null?2:0;
    }
   }catch(Exception e){Console.Error.WriteLine(e.GetType().Name+": "+e.Message);return 1;}}
  }

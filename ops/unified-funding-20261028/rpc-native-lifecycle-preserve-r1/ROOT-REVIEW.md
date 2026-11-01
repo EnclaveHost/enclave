@@ -50,3 +50,5 @@ No target account/native/task/VM/export/funds/catalog changes. No author retry o
 delegation. Initial source-edit helper failed only at shared-helper class search
 (used wrong declaration string); prior profile edits retained, subsequent exact
 partial declaration extraction audited unchanged. No native attempt occurred.
+
+Superseded before first CI dispatch by preserve-r2 exclusive thread custody and abort-on-binding-failure.13new methods now; initialsource022175 neverexecuted.

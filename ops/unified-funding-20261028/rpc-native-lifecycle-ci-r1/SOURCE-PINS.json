@@ -18,9 +18,9 @@
   "windows/rpc/NativeRpcWorkerEntry.cs": "23f224596af4269c83dfee5bae6f7d49abf876d682e1c8bed4b7cedfb0d40577",
   "windows/rpc/NativeRpcFiles.cs": "0411b6aa8e707b794b3f51118a546da8961ae7247e8c45fafa617aecb52e9256",
   "windows/rpc/NativeRpcLifecycle.cs": "d4ec1f1957be3f07114213f5b3cba4f7d86816597890e3a5fe6e6519f0d2cf7c",
-  "windows/rpc/NativeRpcLifecycleEntry.cs": "2f95d1f3846b722c562fb66e47a1d865cf098c4b06f4149204a0868301aa8a5d",
+  "windows/rpc/NativeRpcLifecycleEntry.cs": "c732058346e576efedf35dc40a26bd200146c18706c7107826eedf3895bf98e6",
   "windows/rpc/NativeRpcController.cs": "65b9bc0f56b9ebc8a83877a72afc6ccd8bdbcd2475469bc120b626b94b5e10d7",
   "windows/rpc/NativeRpcManagerTransport.cs": "2069d740a09edda7580c25ff436054130457b132d5dfafe4fca1de3d07b8a2bb",
-  "test/rpc-windows-worker/NativeRpcLifecycleHarness.cs": "daba39222fada12ee6b1781274b4894312bffb34ee2f117255d9195d70722f65",
+  "test/rpc-windows-worker/NativeRpcLifecycleHarness.cs": "59c4c26acb3a3fe074d87850973f2292a1f4b6df31de44b3d3c932537e2de51f",
   "test/rpc-windows-worker/run-native-lifecycle-ci.ps1": "ee8d4c69ecb5a6ed30ce72db4f27f9b4b5132c7be0d4d0f6e9e05623a6fad93f"
 }
