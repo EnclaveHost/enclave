@@ -38,6 +38,10 @@ while True:
         if mode!='missing-prepare-journal':
             p=root/('serving-prepare-'+cfg['requestSha']+'-proof');p.write_bytes(reply);p.chmod(0o400)
         write(reply);continue
+    if permit.get('schema')=='enclave-rpc-serving-commit/1':
+        permit=permit['permit']
+        if mode!='missing-commit-intent':
+            p=root/('serving-commit-%s-%016x-submit'%(cfg['requestSha'],permit['sequence']));p.write_bytes(raw);p.chmod(0o400)
     reply=json.dumps({'permit':permit,'l1':'a'*128,'base':'b'*128}).encode()
     if mode!='missing-journal':
         p=root/('continuation-%s-%016x-proof'%(cfg['requestSha'],permit['sequence']));p.write_bytes(reply);p.chmod(0o400)

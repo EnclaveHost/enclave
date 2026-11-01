@@ -33,11 +33,12 @@ type ownerIssued struct {
 // OwnerContinuation is an explicitly selected continuous owner session. It
 // never starts another export or releases writers. The independently bounded
 // process must kill itself on Context loss: cancellation cannot interrupt fsync
-// or an arbitrary transport. No serving handoff is implemented here.
+// or an arbitrary transport. A serving commit changes this actor only; the
+// complete storage/guest/host handoff remains the coordinator's responsibility.
 type OwnerContinuation struct {
 	op                    sync.Mutex
 	closed                atomic.Bool
-	until                 atomic.Pointer[time.Time]
+	bound                 atomic.Pointer[ownerContinuationBound]
 	ctx                   context.Context
 	cancel                context.CancelFunc
 	owner                 *OwnerIssuer
@@ -49,6 +50,14 @@ type OwnerContinuation struct {
 	done                  chan struct{}
 	prepareUsed           bool
 	prepared              *servingPrepared
+}
+
+// One immutable publication gives the independent watcher a coherent phase and
+// cutoff. Startup permit refresh never changes the original startup deadline.
+type ownerContinuationBound struct {
+	until       time.Time
+	permitUntil time.Time
+	serving     bool
 }
 
 // BeginStartupContinuations can attach ONCE to this same successful live actor,
@@ -99,8 +108,12 @@ func (o *OwnerIssuer) BeginStartupContinuations(ctx context.Context, seeds [2][]
 	if !time.Now().Before(until) {
 		return c, errors.New("original owner consent expired before attachment")
 	}
-	c.until.Store(&until)
-	c.ctx, c.cancel = context.WithDeadline(ctx, o.deadline)
+	cutoff := until
+	if o.deadline.Before(cutoff) {
+		cutoff = o.deadline
+	}
+	c.bound.Store(&ownerContinuationBound{until: cutoff, permitUntil: until})
+	c.ctx, c.cancel = context.WithCancel(ctx)
 	raw, _ := json.Marshal(issued.request)
 	h := sha256.Sum256(raw)
 	c.requestHash = hex.EncodeToString(h[:])
@@ -128,7 +141,8 @@ func (c *OwnerContinuation) Close() {
 	}
 }
 func (c *OwnerContinuation) check() error {
-	if c.closed.Load() || c.ctx.Err() != nil || !time.Now().Before(c.owner.deadline) || !time.Now().Before(*c.until.Load()) {
+	b := c.bound.Load()
+	if c.closed.Load() || c.ctx.Err() != nil || b == nil || !time.Now().Before(b.until) {
 		return errors.New("original owner continuation authority lost")
 	}
 	return nil
@@ -160,7 +174,11 @@ func (c *OwnerContinuation) watch(armed chan<- struct{}) {
 // IssueStartup consumes one sequential intent before producing signatures, then
 // persists the exact signed reply before returning. Any refusal poisons the
 // WHOLE live session. A lost response never authorizes a retry or fresh actor.
-func (c *OwnerContinuation) IssueStartup(p bootstrap.RPCContinuation) (raw []byte, err error) {
+func (c *OwnerContinuation) IssueStartup(p bootstrap.RPCContinuation) ([]byte, error) {
+	return c.issueContinuation(p, nil, nil)
+}
+
+func (c *OwnerContinuation) issueContinuation(p bootstrap.RPCContinuation, commit *servingCommitRequest, request []byte) (raw []byte, err error) {
 	c.op.Lock()
 	defer c.op.Unlock()
 	defer func() {
@@ -171,13 +189,32 @@ func (c *OwnerContinuation) IssueStartup(p bootstrap.RPCContinuation) (raw []byt
 	if err = c.check(); err != nil {
 		return nil, err
 	}
-	if p.Schema != bootstrap.RPCContinuationSchema || p.Phase != "startup" || p.ReadinessSHA256 != "" || p.Sequence != c.sequence+1 || p.PreviousSHA256 != c.previous {
-		return nil, errors.New("exact next startup continuation required; serving unavailable")
+	prior := c.bound.Load()
+	if p.Schema != bootstrap.RPCContinuationSchema || p.Sequence != c.sequence+1 || p.PreviousSHA256 != c.previous {
+		return nil, errors.New("exact next original continuation required")
+	}
+	if commit == nil {
+		if prior.serving || p.Phase != "startup" || p.ReadinessSHA256 != "" {
+			return nil, errors.New("startup continuation cannot commit or regress serving")
+		}
+	} else if err = c.validateServingCommit(*commit, prior); err != nil {
+		return nil, err
 	}
 	// The SAME owner-authorized deployment is independently refreshed, under the
 	// prior permit deadline. Refresh alone does not extend the active permit.
-	ctx, cancel := context.WithDeadline(c.ctx, *c.until.Load())
+	operationUntil := prior.until
+	if commit != nil && !prior.serving && c.prepared.until.Before(operationUntil) {
+		operationUntil = c.prepared.until
+	}
+	ctx, cancel := context.WithDeadline(c.ctx, operationUntil)
 	defer cancel()
+	if commit != nil {
+		heldCommit, e := consumeRecord(c.owner.journal, fmt.Sprintf("serving-commit-%s-%016x-submit", c.requestHash, p.Sequence), request)
+		if e != nil {
+			return nil, e
+		}
+		defer heldCommit.Close()
+	}
 	if err = c.issued.authorization.Revalidate(ctx); err != nil {
 		return nil, err
 	}
@@ -223,8 +260,23 @@ func (c *OwnerContinuation) IssueStartup(p bootstrap.RPCContinuation) (raw []byt
 	if !time.Now().Before(until) {
 		return nil, errors.New("continuation expired during persistence")
 	}
-	c.until.Store(&until)
+	next := &ownerContinuationBound{until: until, permitUntil: until, serving: commit != nil}
+	if !next.serving && c.owner.deadline.Before(next.until) {
+		next.until = c.owner.deadline
+	}
+	if prior.serving && !until.After(prior.permitUntil) {
+		return nil, errors.New("serving renewal must advance the original absolute permit expiry")
+	}
+	// Publication never revives an expired prior bound, even if fsync/signing
+	// prevented the operation goroutine from running while the watcher cancelled.
+	if ctx.Err() != nil || !time.Now().Before(prior.until) || !time.Now().Before(operationUntil) {
+		return nil, errors.New("prior owner authority expired before commit")
+	}
+	c.bound.Store(next)
 	c.sequence, c.previous = p.Sequence, accepted.Digest()
+	if ctx.Err() != nil || !time.Now().Before(prior.until) || !time.Now().Before(operationUntil) {
+		return nil, errors.New("prior owner authority expired during commit")
+	}
 	// Watchdog may have observed the previous bound concurrently. Never undo it.
 	if err = c.check(); err != nil {
 		return nil, err
@@ -236,7 +288,8 @@ func (c *OwnerContinuation) IssueStartup(p bootstrap.RPCContinuation) (raw []byt
 // SAME owner-authenticated connection. The caller has already sent the initial
 // proof. It must close the connection/kill its process on c.Context loss even if
 // Read/Write/fsync blocks. EOF, bad frames, lost/short writes and all errors end
-// the whole session; there is no reconnect or request retry. No serving phase.
+// the whole session; there is no reconnect or request retry. Serving requires
+// the exact live preparation through the explicit commit schema.
 func (c *OwnerContinuation) ServeStartupContinuations(r io.Reader, w io.Writer) (err error) {
 	defer c.Close()
 	for {
@@ -252,6 +305,16 @@ func (c *OwnerContinuation) ServeStartupContinuations(r io.Reader, w io.Writer) 
 		}
 		if json.Unmarshal(raw, &kind) != nil {
 			return errors.New("invalid owner stream request")
+		}
+		if kind.Schema == servingCommitSchema {
+			proof, e := c.IssueServing(raw)
+			if e != nil {
+				return e
+			}
+			if e = writeOwnerFrame(w, proof); e != nil {
+				return e
+			}
+			continue
 		}
 		if kind.Schema == servingPrepareSchema {
 			proof, e := c.PrepareServing(raw)

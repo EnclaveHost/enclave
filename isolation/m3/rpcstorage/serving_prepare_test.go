@@ -46,14 +46,14 @@ func TestOwnerServingPreparationIsDistinctOneShotAndNotPermit(t *testing.T) {
 	if _, e = chain.Accept(c.issued.bundle, startup); e != nil {
 		t.Fatal(e)
 	}
-	before, seq, prev := *c.until.Load(), c.sequence, c.previous
+	before, seq, prev := c.bound.Load().permitUntil, c.sequence, c.previous
 	request := ownerPreparationRequest(t, c)
 	raw, _ := json.Marshal(request)
 	reply, e := c.PrepareServing(raw)
 	if e != nil {
 		t.Fatal(e)
 	}
-	if *c.until.Load() != before || c.sequence != seq || c.previous != prev || c.prepared == nil {
+	if c.bound.Load().permitUntil != before || c.sequence != seq || c.previous != prev || c.prepared == nil {
 		t.Fatal("preparation modified permit/deadline")
 	}
 	disk, e := os.ReadFile(filepath.Join(c.owner.journal.Name(), "serving-prepare-"+c.requestHash+"-proof"))

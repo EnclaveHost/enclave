@@ -228,14 +228,16 @@ def forward_continuations(live,stream_io,cfg,original,journal,request_sha,proof_
     growth. A lost response, exhausted count or EOF never reacquires writers.
     """
     previous=hashlib.sha256(proof_raw).hexdigest();sequence=0;prepared=False
+    prepared_sha=None;readiness_sha=None;committed=False
     for _ in range(90):
         c.validate(cfg['clock']);lease.check()
         raw=live.read_peer(stream_io[0],1024,min(time.monotonic()+30,live.deadline))
         until=min(time.monotonic()+3,live.deadline)
         p=c.protocol.decode(raw)
         preparing=p.get('schema')=='enclave-rpc-serving-prepare/1'
+        committing=p.get('schema')=='enclave-rpc-serving-commit/1'
         if preparing:
-            if (prepared or sequence==0 or set(p)!={'schema','sequence','previousSha256','observation'} or
+            if (committed or prepared or sequence==0 or set(p)!={'schema','sequence','previousSha256','observation'} or
                     type(p['sequence']) is not int or p['sequence']!=sequence or p['previousSha256']!=previous or
                     not isinstance(p['observation'],str)):
                 raise ValueError('Original one-shot serving preparation required')
@@ -244,10 +246,16 @@ def forward_continuations(live,stream_io,cfg,original,journal,request_sha,proof_
                 raise ValueError('Exact private readiness frame required')
             # Actual identity/clock/authorization/signatures remain in Go. This
             # relay cannot create a serving permit or alter the startup chain.
-            prepared=True;stem='serving-prepare';owner_stem='serving-prepare-'+request_sha
+            prepared=True;readiness_sha=hashlib.sha256(observation).hexdigest();stem='serving-prepare';owner_stem='serving-prepare-'+request_sha
         else:
+            if committing:
+                if (set(p)!={'schema','preparedSha256','permit'} or not prepared_sha or p['preparedSha256']!=prepared_sha or not isinstance(p['permit'],dict)):
+                    raise ValueError('Exact live original preparation required for commit')
+                p=p['permit']
+            elif committed:
+                raise ValueError('Serving cannot regress to startup')
             if (set(p)!={'schema','phase','sequence','previousSha256','readinessSha256','issuedAt','notAfter'} or
-                    p['schema']!='enclave-rpc-continuation/1' or p['phase']!='startup' or p['readinessSha256']!='' or
+                    p['schema']!='enclave-rpc-continuation/1' or p['phase']!=('serving' if committing else 'startup') or p['readinessSha256']!=(readiness_sha if committing else '') or
                     type(p['sequence']) is not int or p['sequence']!=sequence+1 or p['previousSha256']!=previous):
                 raise ValueError('Exact next startup continuation required')
             sequence+=1;stem='continuation-%016x'%sequence;owner_stem='continuation-%s-%016x'%(request_sha,sequence)
@@ -262,10 +270,15 @@ def forward_continuations(live,stream_io,cfg,original,journal,request_sha,proof_
         digest=hashlib.sha256(reply).hexdigest()
         fd=entry.held(str(journal/(owner_stem+'-proof')),2048,0o400,wanted=digest)
         os.close(fd)
+        if committing:
+            fd=entry.held(str(journal/('serving-commit-%s-%016x-submit'%(request_sha,sequence))),1024,0o400,wanted=hashlib.sha256(raw).hexdigest())
+            os.close(fd)
         c.write_new(output/(stem+'-proof'),reply)
         c.validate(cfg['clock']);lease.check()
         live.send_peer(stream_io[1],reply,until)
-        if not preparing:previous=digest
+        if preparing:prepared_sha=digest
+        else:previous=digest
+        if committing:committed=True
     raise ValueError('Original startup continuation count exhausted; held')
 
 

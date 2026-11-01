@@ -462,14 +462,41 @@ remaining independent earlier cutoffs. Every failure ends the session.
 The loop requests a signed startup permit immediately and then every ten seconds,
 with each permit lasting at most30seconds. These are off-chain requests; they do
 not renew a chain lease or change the legacy authorization ceiling. A signed
-permit never grants serving mode. Both consumer and producer continue to refuse
-serving adoption until the complete lifecycle handoff is implemented.
+startup permit never grants serving mode. The broker does not yet emit a
+serving commit. The original owner now implements the separately prepared commit
+described below; complete lifecycle coordination remains unfinished.
 
-**Operator integration remains incomplete.** The installed/prepared Python
-bootstrap, dispatcher and signer units still use the historical `/1` protocol and
-finite20/60/120-second envelopes. They do not retain the live `/2` signer or relay
-its frames. This source does not widen those units, select `/2` for them, publish
-new offers or activate a guest. A new admitted continuous dispatcher must retain
-the same live owner actor and byte-preserved initial proof, then forward frames
-without reconnect/restart. Real TLS/crypto fixtures qualify the guest exchange;
-they are not production attestation or live storage proof. The RPC is offline.
+**Production operator integration remains unqualified.** Maintained source now
+implements explicitly selected `/2` preparation, bootstrap, relay, dispatcher
+and signer streams in bounded units. Their start/runtime/stop remains within the
+original startup deadline; no running unit is extended or restarted. Older `/1`
+packages are historical and cannot be promoted by changing a schema. These
+source tests do not establish production attestation, live storage authority,
+or a completed serving transition. The RPC is offline.
+
+
+### Original owner serving commit (source integration)
+
+The original live `OwnerContinuation` accepts an explicit canonical
+`enclave-rpc-serving-commit/1` frame containing `preparedSha256` and `permit`.
+The first serving permit requires the exact live prepared response and the SHA256
+of its original private observation, the current continuation sequence/link,
+current original authorization, and both the original startup and preparation
+windows. It consumes the exact commit intent before refreshing/signing and
+persists the exact dual-signed continuation before replying. Disk receipts cannot
+reconstruct the private preparation or original owner session.
+
+The original independent watcher reads one immutable atomic phase/cutoff record.
+Startup refresh remains bounded by the original deadline. The first valid commit
+may replace this owner's cutoff with its accepted short monotonic permit;
+renewals require the same prepared/observation binding, exact next chain link,
+and a strictly later absolute permit expiry. Prior expiry, cancellation and lost
+or short replies poison the session; no retry or writer release follows.
+Cancellation never waits for the signing/persistence mutex, and the existing
+owner command's independent termination on session loss remains armed.
+
+This transfers only the owner actor. The guest broker does not yet emit serving
+commits, and exporter, broker, operator/systemd/TLS and Windows host cutoffs still
+need coordinated transfer. The dispatcher's outer original deadline and frame
+count remain unchanged. This source is not a deployed serving path or permission
+to boot a partially coordinated bundle.

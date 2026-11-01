@@ -1,0 +1,15 @@
+test_actual_relay_enters_stream_dispatch_without_waiting_for_exit (__main__.DispatchStream.test_actual_relay_enters_stream_dispatch_without_waiting_for_exit) ... ok
+test_commit_requires_exact_preparation_observation_and_durable_intent (__main__.DispatchStream.test_commit_requires_exact_preparation_observation_and_durable_intent) ... ok
+test_live_signer_proof_and_two_permits_then_eof_held (__main__.DispatchStream.test_live_signer_proof_and_two_permits_then_eof_held) ... ok
+test_prepared_commit_and_renewal_same_original_signer (__main__.DispatchStream.test_prepared_commit_and_renewal_same_original_signer) ... ok
+test_serving_preparation_replay_and_wrong_scope_refused (__main__.DispatchStream.test_serving_preparation_replay_and_wrong_scope_refused) ... ok
+test_serving_preparation_requires_original_durable_response (__main__.DispatchStream.test_serving_preparation_requires_original_durable_response) ... ok
+test_serving_preparation_same_original_actor_and_startup_chain (__main__.DispatchStream.test_serving_preparation_same_original_actor_and_startup_chain) ... ok
+test_serving_request_refused_before_signer_write (__main__.DispatchStream.test_serving_request_refused_before_signer_write) ... ok
+test_stream_requires_real_pipes_before_submission (__main__.DispatchStream.test_stream_requires_real_pipes_before_submission) ... ok
+test_unpersisted_continuation_never_acknowledged (__main__.DispatchStream.test_unpersisted_continuation_never_acknowledged) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 4.182s
+
+OK

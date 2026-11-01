@@ -103,8 +103,13 @@ class DispatchStream(unittest.TestCase):
                 first=frame();replies.append(first);value=json.loads(first)
                 raw=base64.b64decode(value['proof']);self.assertEqual(raw,(f.journal/('proof-'+f.request_sha)).read_bytes())
                 self.assertEqual(first,c.read(self.relay/'response.json'));previous=hashlib.sha256(raw).hexdigest()
-                for sequence in (1,2):
+                prepared_hash=None;observation_hash=None
+                for sequence in (1,2,3) if preparation=='commit-renew' else (1,2):
                     p={'schema':'enclave-rpc-continuation/1','phase':'serving' if bad else 'startup','sequence':sequence,'previousSha256':previous,'readinessSha256':'','issuedAt':int(time.time()),'notAfter':int(time.time())+30}
+                    if preparation in ('commit','commit-renew','wrong-commit','wrong-observation') and sequence>=2:
+                        p['phase']='serving';p['readinessSha256']=observation_hash
+                        if preparation=='wrong-observation':p['readinessSha256']='e'*64
+                        p={'schema':'enclave-rpc-serving-commit/1','preparedSha256':'e'*64 if preparation=='wrong-commit' else prepared_hash,'permit':p}
                     raw=json.dumps(p,separators=(',',':')).encode();os.write(writer,struct.pack('!I',len(raw))+raw)
                     reply=frame();replies.append(reply);previous=hashlib.sha256(reply).hexdigest()
                     self.assertEqual(reply,c.read(f.out/('continuation-%016x-proof'%sequence)))
@@ -115,6 +120,7 @@ class DispatchStream(unittest.TestCase):
                         if preparation=='short':prep['observation']=base64.b64encode(observation[:-1]).decode()
                         raw=json.dumps(prep,separators=(',',':')).encode();os.write(writer,struct.pack('!I',len(raw))+raw)
                         prepared=frame();replies.append(prepared)
+                        prepared_hash=hashlib.sha256(prepared).hexdigest();observation_hash=hashlib.sha256(observation).hexdigest()
                         self.assertEqual(prepared,c.read(f.out/'serving-prepare-proof'))
                         self.assertEqual(json.loads(prepared)['requestSha256'],hashlib.sha256(raw).hexdigest())
                         if preparation=='replay':
@@ -167,6 +173,19 @@ class DispatchStream(unittest.TestCase):
             with self.subTest(mode=mode):
                 obj=DispatchStream();obj.setUp()
                 try:self.assertEqual(len(obj.invoke(preparation=mode)),count)
+                finally:obj.doCleanups()
+
+    def test_prepared_commit_and_renewal_same_original_signer(self):
+        replies=self.invoke(through_relay=True,preparation='commit-renew')
+        self.assertEqual(len(replies),5);self.assertEqual(self.f.starts,1)
+        self.assertTrue((self.f.out/'continuation-0000000000000003-proof').exists())
+    def test_commit_requires_exact_preparation_observation_and_durable_intent(self):
+        for prep,mode in (('wrong-commit','normal'),('wrong-observation','normal'),('commit','missing-commit-intent')):
+            with self.subTest(preparation=prep,mode=mode):
+                obj=DispatchStream();obj.setUp()
+                try:
+                    self.assertEqual(len(obj.invoke(mode=mode,preparation=prep)),3)
+                    self.assertFalse((obj.f.out/'continuation-0000000000000002-proof').exists())
                 finally:obj.doCleanups()
 
     def test_stream_requires_real_pipes_before_submission(self):

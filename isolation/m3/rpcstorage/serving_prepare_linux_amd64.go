@@ -130,8 +130,8 @@ func (c *OwnerContinuation) PrepareServing(raw []byte) (reply []byte, err error)
 		return nil, err
 	}
 	deadline := time.Now().Add(3 * time.Second)
-	if c.until.Load().Before(deadline) {
-		deadline = *c.until.Load()
+	if c.bound.Load().until.Before(deadline) {
+		deadline = c.bound.Load().until
 	}
 	ctx, cancel := context.WithDeadline(c.ctx, deadline)
 	defer cancel()

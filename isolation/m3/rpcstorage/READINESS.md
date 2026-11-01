@@ -47,8 +47,7 @@ owner authorization. This is not a new remote health attestation.
 
 The original live actors retain short-lived prepared capabilities. A later
 coordinated guardian commit must use those actors while the actual observation
-is still fresh and before originalD. Receipts cannot rehydrate them. No serving
-commit or deadline transfer is implemented yet. See
+is still fresh and before originalD. Receipts cannot rehydrate them. Preparation itself performs no serving commit or deadline transfer. See
 [actual TLS/crypto and dispatcher qualification](../../../ops/rpc-serving-prepare-r1/ROOT-RESULT.md).
 
 The measured native path now retains two private Unix seqpacket lifecycle
@@ -70,9 +69,23 @@ Malformed/replayed/mismatched/late messages terminate; there is no reconnect.
 These private messages are trusted broker decisions, not independently signed
 storage permits or public health evidence.
 
-**No production callsite emits COMMIT/RENEW yet.** Owner, exporter, service
-supervisor, broker, operator/systemd and Windows guardian transfer still need one
-coordinated transaction. This receiver integration does not make the RPC live or
+The native entry now privately connects its independent watcher to the fixed-role
+service supervisor. It requires the exact raw private observation and fresh local
+readiness before accepting the first commit; a pending supervisor decision does
+not extend the watcher's previous cutoff. Client exit, channel/monitor loss and
+short permit expiry remain active.
+
+The original owner also accepts an explicit `enclave-rpc-serving-commit/1` through
+its existing framed stream and dispatcher. It requires its live prepared proof,
+original observation digest, CURRENT permit sequence/link and refreshed original
+authority. It consumes the commit intent before signing and persists the exact
+dual-signed permit before replying. This changes only the same owner's atomic
+phase/cutoff record, watched independently of signing/persistence. Renewals retain
+the same original binding and strictly advance the short absolute expiry.
+
+**The production broker does not yet emit serving requests or COMMIT/RENEW.**
+Exporter, broker, operator/systemd/TLS and Windows guardian transfer still need
+one coordinated transaction with these owner/service components. This receiver integration does not make the RPC live or
 remove any startup cutoff in the currently reachable path. Native entry requires
 FD16 as well as FD15; do not combine older monitor/broker/entry binaries. C header
 changes are included in boot-stage source pins. Existing firmware is obsolete for

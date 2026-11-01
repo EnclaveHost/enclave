@@ -665,8 +665,9 @@ Idle signer loss, unsolicited bytes, error-output overflow, peer EOF, partial
 frames and original deadline end the session. Each next startup request is
 persisted before forwarding. An exact corresponding proof must already exist in
 the owner's journal before it is persisted by the dispatcher and returned. At
-most90 continuations bound startup journal growth; no serving request, second
-initial request or retry is accepted. Real owner signature and chain checks stay
+most90 frames bound startup journal growth; a prepared serving commit uses the
+explicit schema described below. No second initial request or retry is accepted.
+Real owner signature and chain checks stay
 inside the original Go issuer. The pipe adapter is not a signing authority.
 
 Closing the exact local systemd transport does **not** prove independently owned
@@ -690,3 +691,19 @@ new writer reservation, new signer, ledger event or watchdog transfer.
 See [readiness handoff status](../../isolation/m3/rpcstorage/READINESS.md).
 Production remains unqualified; older pinned binaries do not implement this
 message. Do not mix old signer images with a new broker or reset an attempt.
+
+
+The original `/2` dispatcher now recognizes `enclave-rpc-serving-commit/1`
+within the same bounded startup stream. It requires its live prepared-response
+hash, the exact original observation digest and current sequence/link, then
+forwards once to the same original signer. Before forwarding the response it
+requires the exact original owner commit intent and continuation proof already
+persisted in the original journal. It refuses plain serving requests, preparation
+substitution and startup regression after commit. The Go owner independently
+checks authorization, signatures, preparation lifetime and phase/expiry.
+
+This is transport integration only. The original 900-second clock, independently
+bounded stream units, 90-frame count and 3-second exchange limit still apply.
+There is no automatic unit extension, reconnect, new signer/export, or producer
+of serving requests yet; the complete coordinated serving transition remains
+unfinished.
