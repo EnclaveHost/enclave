@@ -20,14 +20,13 @@ Fixed inherited descriptors:
 | FD | Capability |
 | --- | --- |
 | 3 | Existing ERPCONE4 original sealed guest clock |
-| 4 | Connected monitor Unix sequenced-packet socket; exact peer and transferred monitor pidfds verified |
+| 4 | Root-owned write-only pipe for one bounded bootstrap listening receipt |
 | 5 | Private read-only canonical broker policy |
 | 6 | Private read-only exact app bundle |
 | 7 | Connected Unix byte-stream relay to the bootstrap's owner dispatcher bridge |
 | 8 | Private read-only DER export server certificate |
 | 9 | Private read-only PEM client certificate chain |
 | 10 | Private read-only PEM client key |
-| 11 | Held root0700 writable guest tmpfs receipt directory |
 
 Regular inputs require root ownership, mode0600, one link, read-only FD and
 stable file metadata. The exact `enclave-rpc-broker-policy/1` fields are `schema`,
@@ -76,13 +75,28 @@ for precisely one final grant under the original guest deadline. This adds no
 renewal or new time budget. Acceptance conveys no storage permission. Repeated
 acknowledgments and grants sent before acceptance are refused.
 
-The monitor retains SO_PEERPIDFD and checks it during both acquisition and the
-granted lifetime, so a surviving socket duplicate cannot conceal that exact
-peer's death. Bootstrap must establish the listener/connection in the process
-that becomes the broker (exec preserves identity); passing a connection owned
-by an unrelated long-lived process would monitor that process, not this command,
-and is not a qualified bootstrap topology. This change does not implement that
-bootstrap or supply an independently scheduled guardian.
+The broker now creates `/run/native-rpc-storage` exclusively, validates its
+root0700 writable tmpfs ownership, persists `broker-started`, and binds its own
+root0600 Unix sequenced-packet listener at `broker.sock`. The monitor's
+SO_PEERPIDFD therefore names this broker, rather than a long-lived bootstrap
+parent that created a socket on its behalf. The broker accepts exactly once;
+malformed peers, failure and exit leave the namespace consumed. No unlink,
+adoption or automatic restart is supported within that guest boot.
+
+Only after policy/bundle/private credential validation and protected listener
+creation does FD4 receive one small canonical JSON line:
+`enclave-rpc-broker-listening/1`, actual boot/PID, original monotonic origin and
+deadline, `rootsGranted:false`, `rpcReady:false`. The write is nonblocking: a full
+pipe refuses with the namespace consumed. Bootstrap waits for this signal before
+monitor load. This signal means listening only; it is not owner authorization,
+a storage grant, RPC readiness or remote attestation. Accept is bounded by the
+original deadline, and the accepted peer is independently checked against the
+transferred monitor pidfd. Guest audit records share this owned tmpfs namespace;
+the storage owner's durable writer journal stays remote.
+
+The accepted bootstrap must still supply the inputs and independently enforce
+its original deadline before any setup. This listener integration supplies no
+independently scheduled guardian or authenticated credential provisioning.
 
 The owner-side framed endpoint is now maintained in
 [`rpc/server/relay_owner.py`](../../../../rpc/server/relay_owner.py). It matches

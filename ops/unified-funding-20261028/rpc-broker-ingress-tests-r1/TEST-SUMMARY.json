@@ -1,0 +1,20 @@
+{
+  "pass": [
+    "TestBrokerIngressOwnsExactPeer",
+    "TestBrokerIngressOriginalAcceptDeadline",
+    "TestBrokerIngressRejectsStalledReadiness",
+    "TestBrokerIngressRejectsInvalidInputs/regular-ready",
+    "TestBrokerIngressRejectsInvalidInputs/read-end",
+    "TestBrokerIngressRejectsInvalidInputs/unsealed-clock",
+    "TestBrokerIngressRejectsInvalidInputs/ancestor-write",
+    "TestBrokerIngressRejectsInvalidInputs/existing-namespace",
+    "TestBrokerIngressRejectsInvalidInputs/malformed-peer",
+    "TestBrokerIngressRejectsInvalidInputs",
+    "PACKAGE"
+  ],
+  "fail": [],
+  "observations": [
+    "    ingress_test.go:170: broker-created listener actual PID 41; broker loss refused in 272.097\u00b5s before original 5s deadline\n",
+    "    ingress_test.go:284: malformed first peer consumed namespace; marker SHA256 6b7eb0b9fade20f7f96b6985c8953eac25d1b006b12f4764a2269e2e57c84603\n"
+  ]
+}

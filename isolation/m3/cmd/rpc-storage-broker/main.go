@@ -2,7 +2,8 @@
 
 // rpc-storage-broker binds one monitor attempt to its storage-owner proof and
 // authenticated export control. It does not grant writable roots. The accepted
-// bootstrap must own the sockets, original deadline and independent guardian.
+// bootstrap supplies accepted inputs, original deadline and independent guardian.
+// The broker owns its listener so the monitor holds its exact process identity.
 package main
 
 import (
@@ -158,18 +159,6 @@ func run() error {
 	if e = envelope(); e != nil {
 		return e
 	}
-	monitor, e := unixFD(4, "unixpacket")
-	if e != nil {
-		return e
-	}
-	session, e := rpcstorage.ReceiveBrokerSession(monitor, clock)
-	if e != nil {
-		return e
-	}
-	defer session.Stop()
-	if e = session.Acknowledge(); e != nil {
-		return e
-	}
 	raw, e := privateInput(5, 2<<20)
 	if e != nil {
 		return e
@@ -188,6 +177,32 @@ func run() error {
 	sum := sha256.Sum256(bundle)
 	if hex.EncodeToString(sum[:]) != p.BundleSHA256 {
 		return errors.New("accepted bundle pin differs")
+	}
+	server, e := privateInput(8, 16384)
+	if e != nil {
+		return e
+	}
+	cert, e := privateInput(9, 65536)
+	if e != nil {
+		return e
+	}
+	key, e := privateInput(10, 16384)
+	if e != nil {
+		return e
+	}
+	client, e := tls.X509KeyPair(cert, key)
+	clear(key)
+	if e != nil {
+		return e
+	}
+	session, receipts, e := rpcstorage.AcceptBroker(clock, os.NewFile(4, "bootstrap-readiness"))
+	if e != nil {
+		return e
+	}
+	defer receipts.Close()
+	defer session.Stop()
+	if e = session.Acknowledge(); e != nil {
+		return e
 	}
 	req := session.Request()
 	if req.AppID != hex.EncodeToString(sum[:]) {
@@ -219,7 +234,6 @@ func run() error {
 	if e != nil {
 		return e
 	}
-	receipts := os.NewFile(11, "guest-one-shot-receipts")
 	response, e := session.ExchangeOwner(relay, bundle, p.Manifest, receipts)
 	if e != nil {
 		return e
@@ -242,23 +256,6 @@ func run() error {
 	// Exporter/attempt metadata is retained as untrusted transport evidence. Only
 	// the independently checked proof authorizes the subsequent control dial.
 	if e = session.AuthenticateRemoteReservation(auth, bundle, reply.Proof, receipts); e != nil {
-		return e
-	}
-	server, e := privateInput(8, 16384)
-	if e != nil {
-		return e
-	}
-	cert, e := privateInput(9, 65536)
-	if e != nil {
-		return e
-	}
-	key, e := privateInput(10, 16384)
-	if e != nil {
-		return e
-	}
-	client, e := tls.X509KeyPair(cert, key)
-	clear(key)
-	if e != nil {
 		return e
 	}
 	control, e := session.ConnectExportControl(server, client)

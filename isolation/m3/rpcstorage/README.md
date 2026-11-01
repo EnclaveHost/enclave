@@ -115,7 +115,7 @@ closing its process descriptors, avoiding a close/reuse race.
 This watcher supplies **cancellation and refusal**, not independent OS-enforced
 termination of a blocked operation, remote exporter fencing or a release
 certificate. There is still no writable-descriptor grant method or installed
-broker daemon. The protected listener, independently supervised provider,
+broker daemon. The independently supervised provider,
 storage-owner credentials/fence, and accepted boot composition are the next
 required integration. Do not activate a responder that just echoes a request
 hash and passes directories. Tests use inert subprocesses and socket messages;
@@ -313,7 +313,27 @@ The monitor retains the exact socket peer pidfd before submission and checks it
 while waiting and after a grant. Broker death closes the monitor gate even when
 a third process retains a socket duplicate. This is local liveness evidence,
 not remote exporter death or writer settlement. The accepted bootstrap must
-preserve that peer identity through exec and independently enforce the original
-deadline before work. Actual bootstrap provisioning, attachment/root issuance
+launch the broker that creates its own protected listener and independently
+enforce the original deadline before work. Actual bootstrap provisioning, attachment/root issuance
 and production qualification remain outstanding. Older direct-grant peers must
 be updated together with the monitor; no deployed peer was changed.
+
+
+## Broker-owned bootstrap ingress
+
+`AcceptBroker` creates the fixed private per-boot tmpfs namespace and listener in
+its own process, so SO_PEERPIDFD identifies the actor doing broker work. It writes
+an exclusive fsynced `broker-started` receipt before binding, verifies socket and
+namespace identity, then emits one nonblocking listening record on an inherited
+root write pipe. Only one connection can consume ingress; malformed peers, full
+readiness pipes, original-deadline expiry and broker death leave the namespace
+consumed. A later process cannot silently create a fresh attempt in the same boot.
+The caller must already be bounded by the accepted bootstrap's independent
+watchdog. Listening does not authenticate credentials or authorize storage.
+
+The concrete broker validates its fixed policy/bundle/key inputs before calling
+this entrypoint. It creates the guest receipt directory itself; FD4 is now the
+readiness pipe, and the former FD11 receipt-directory input is removed. This is
+an undeployed protocol change to be composed with the accepted bootstrap, not a
+compatible change for an existing running peer. See the command README for the
+exact signal and required bootstrap behavior.

@@ -19,8 +19,9 @@ attempt, including broker refusal or ambiguous response. Before any cgroup/root
 preparation, the fixed measured storage broker must acknowledge the exact
 request with owner-bound writable volume capabilities and its independently
 armed original-deadline/owner-death supervision. See `../rpcstorage/README.md`:
-that broker's real owner authorization, writer fencing and watchdog are still
-unimplemented. The local peer check and response do not prove these properties.
+the control broker now implements owner authorization and proof verification,
+but writable-root attachment, writer settlement and independent watchdog
+integration remain incomplete. The local peer check and response do not prove these properties.
 No substitute broker or forged response is an admissible production workaround.
 
 After composition, the actual parent cgroup kill control stays held. The front
@@ -48,7 +49,7 @@ or partial populations refuse. The current native process graph has not yet
 installed a qualified syscall filter; the scanner must refuse such a graph.
 Positive live role-tree/seccomp attestation remains unqualified.
 
-The actual measured storage-broker implementation, accepted bootstrap/profile2,
+The complete serving storage broker, accepted bootstrap/profile2,
 network and DNS provisioning, role filters, Base coverage input, full attestation,
 readiness-to-persistent-serving adoption and real Enclave app deployment remain
 necessary. This build is not a production default or a manual VM replacement.
