@@ -1,5 +1,5 @@
-// Explicit SYSTEM-only native app definition. Independent owner/observer and
-// suspended child gate. Creates an Off shell and configures guest TPM/security; no start/delete/adoption.
+// Explicit SYSTEM-only native definition or original-VM cleanup worker.
+// Independent owner/observer and suspended child gate; no start/delete/adoption.
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -68,7 +68,21 @@ namespace Enclave.OwnedRpc {
             } catch {handle.Dispose();throw;}
         }
         static string Quote(string text) {if(text.IndexOf('"')>=0)throw new ArgumentException("Quote in path");return "\""+text+"\"";}
-        static int Owner(ProtectedAttempt a,string contract) {
+        [DllImport("kernel32.dll",SetLastError=true)]static extern bool DuplicateHandle(IntPtr sourceProcess,IntPtr source,IntPtr targetProcess,out IntPtr target,uint access,bool inherit,uint options);
+        static IntPtr[] CleanupHandles(ProtectedAttempt a,string name){
+            string[] f=a.ReadOnce(name).Split(',');if(f.Length!=4||f[0]!=a.Token)throw new InvalidOperationException("Transferred original cleanup group differs");
+            var handles=new IntPtr[3];for(int i=0;i<3;i++){long h=Number(f[i+1]);if(h<=0||h.ToString(CultureInfo.InvariantCulture)!=f[i+1])throw new InvalidOperationException("Exact transferred process handle required");handles[i]=new IntPtr(h);}return handles;
+        }
+        static void TransferCleanupHandles(ProtectedAttempt a,SuspendedWorkerBinding child){
+            if(a.LeaseProfile!="native-cleanup")throw new InvalidOperationException("Cleanup worker lease required");
+            var incoming=CleanupHandles(a,"cleanup.handles");var fields=new List<string>{a.Token};
+            foreach(var source in incoming){IntPtr remote;if(!DuplicateHandle(GetCurrentProcess(),source,child.BorrowedProcessHandle,out remote,0x1000|0x100000,false,0))throw new Win32Exception(Marshal.GetLastWin32Error());fields.Add(remote.ToInt64().ToString(CultureInfo.InvariantCulture));}
+            // Receiver validates exact image/token/PID/creation against original
+            // protected group before any operation. Partial transfer stays held;
+            // the suspended child's private job terminates it on failure.
+            a.WriteOnce("cleanup.child-handles",String.Join(",",fields));
+        }
+        static int Owner(ProtectedAttempt a,string contract,bool cleanup) {
             a.WriteOnce("owner.consumed",Identity(a,"owner"));
             if(WaitMessage(a,"admit")!=a.Token)throw new InvalidOperationException("Closed owner gate differs");
             uint pid;long creation;
@@ -77,8 +91,9 @@ namespace Enclave.OwnedRpc {
                 BoundedWorker.EnterSupervisorEnvelope(256UL*1024*1024);
                 string root=Environment.GetEnvironmentVariable("SystemRoot");
                 var env=new Dictionary<string,string>{{"SystemRoot",root},{"WINDIR",root},{"TEMP",a.Root},{"TMP",a.Root}};
-                var result=BoundedWorker.RunGuarded(a.Executable,Quote(a.Executable)+" child "+Quote(contract)+" "+a.ContractHash+" "+a.Origin+" "+a.Deadline,
+                var result=BoundedWorker.RunGuarded(a.Executable,Quote(a.Executable)+(cleanup?" cleanup-child ":" child ")+Quote(contract)+" "+a.ContractHash+" "+a.Origin+" "+a.Deadline,
                     a.Root,env,a.Deadline,1000,128UL*1024*1024,delegate(SuspendedWorkerBinding child) {
+                        if(cleanup)TransferCleanupHandles(a,child);
                         long remote=BoundedWorker.DuplicateChildToObserver(child,observer.DangerousGetHandle(),pid,creation);
                         a.WriteOnce("child.binding",remote+","+child.ProcessId+","+child.CreationFileTime+","+a.Token+","+a.Deadline);
                         while(!File.Exists(Path.Combine(a.Root,"release"))) {
@@ -87,7 +102,7 @@ namespace Enclave.OwnedRpc {
                         if(a.ReadOnce("release")!=a.Token)throw new InvalidOperationException("Child release differs");
                         BoundedWorker.VerifyObserverBeforeResume(observer.DangerousGetHandle(),pid,creation,a.Deadline);return true;
                     });
-                a.WriteOnce("owner.result",result.LocalSuccess?"native-definition-observed;rpc-ready=false;provider-fenced=false;reservation-release=false":"native-definition-failed;reservation-release=false");
+                a.WriteOnce("owner.result",result.LocalSuccess?(cleanup?"native-cleanup-observed;provider-fenced=false;reservation-release=false":"native-definition-observed;rpc-ready=false;provider-fenced=false;reservation-release=false"):"native-operation-failed;reservation-release=false");
                 return result.LocalSuccess?0:1;
             }
         }
@@ -112,14 +127,16 @@ namespace Enclave.OwnedRpc {
         }
         public static int Main(string[] args) {
             try {
-                if(args.Length!=5 || (args[0]!="owner" && args[0]!="observer" && args[0]!="child"))return 64;
+                if(args.Length!=5)return 64;
+                bool cleanup=args[0]=="cleanup-owner"||args[0]=="cleanup-observer"||args[0]=="cleanup-child";
+                string role=cleanup?args[0].Substring(8):args[0];if(role!="owner"&&role!="observer"&&role!="child")return 64;
                 long origin=Number(args[3]),deadline=Number(args[4]);ArmOriginalDeadline(origin,deadline);
-                using(var a=ProtectedAttempt.OpenNativeDefinitionWorker(args[1],args[2])) {
+                using(var a=cleanup?ProtectedAttempt.OpenNativeCleanupWorker(args[1],args[2]):ProtectedAttempt.OpenNativeDefinitionWorker(args[1],args[2])) {
                     if(a.Origin!=origin || a.Deadline!=deadline)throw new InvalidOperationException("CLI deadline differs from immutable contract");
                     using(var self=Process.GetCurrentProcess())
                         if(!String.Equals(self.MainModule.FileName,a.Executable,StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("Entry image path differs");
-                    if(args[0]=="owner")return Owner(a,args[1]);
-                    if(args[0]=="observer")return Observer(a);
+                    if(role=="owner")return Owner(a,args[1],cleanup);
+                    if(role=="observer")return Observer(a);
                     a.WriteOnce("child.consumed",Identity(a,"child"));
                     uint observerPid,ownerPid;long observerCreation,ownerCreation;
                     using(var observer=Peer(a,"observer",0,out observerPid,out observerCreation))
@@ -137,6 +154,16 @@ namespace Enclave.OwnedRpc {
                             BoundedWorker.VerifyObserverBeforeResume(observer.DangerousGetHandle(),observerPid,observerCreation,a.Deadline);
                             BoundedWorker.VerifyObserverBeforeResume(owner.DangerousGetHandle(),ownerPid,ownerCreation,a.Deadline);
                         };
+                        if(cleanup){
+                            using(var plan=ProtectedAttempt.OpenNativeCleanupJournal(a.PermitPath,a.PermitHash,a))
+                            using(var group=new NativeRpcStartGroup(plan,CleanupHandles(a,"cleanup.child-handles"))){
+                                var journal=new NativeRpcCleanupJournal(plan);var runtime=new NativeRpcCleanupRuntime(a,plan,group,check);
+                                var provider=new HyperVNativeRpcDefinition(runtime,journal);var p=plan.NativeDefinitionPlan;
+                                string receipt=a.Operation=="stop"?NativeRpcCleanup.Submit(p,journal,provider,runtime):NativeRpcCleanup.Reconcile(p,journal,provider,runtime);
+                                check();a.WriteOnce("child.result",StartRecords.Encode(new Dictionary<string,object>{{"schema","native-rpc-cleanup-worker-result/1"},{"plan",p.Digest},{"state",receipt==null?"held":"original-off-zero-observed"},{"receipt",receipt??""},{"providerOperationFenced",false},{"reservationMayRelease",false}}));
+                                return receipt==null?2:0;
+                            }
+                        }
                         using(var plan=ProtectedAttempt.OpenNativeDefinitionJournal(a.PermitPath,a.PermitHash,a))
                         using(var runtime=new NativeRpcWorkerRuntime(a,plan,check)){
                             var p=plan.NativeDefinitionPlan;var journal=new NativeRpcDefinitionJournal(plan);var provider=new HyperVNativeRpcDefinition(runtime,journal);

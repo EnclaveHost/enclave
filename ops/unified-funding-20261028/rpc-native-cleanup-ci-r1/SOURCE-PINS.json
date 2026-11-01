@@ -1,0 +1,23 @@
+{
+  "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+  "windows/rpc/OwnerObserver.cs": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80",
+  "windows/rpc/ProtectedAttempt.cs": "919731b1b8511fe3f5f5c4d087c04c53c686f7d049d6f7508e0fcb61800f137c",
+  "windows/rpc/ProviderStart.cs": "600b86bcdfcb4a0425213fee9ed241a51c9a23d3fbcc51560d5c929b628a7d46",
+  "windows/rpc/OwnedVmPermit.cs": "a4d1f9640a4087714b9907cddcdc64340cb57f07de04dd1b6baf97197ac60373",
+  "windows/rpc/HostPhysicalPool.cs": "8a9506c50a3ad65a614ed62eb91f07cd78d8db81098a84fe10215ac44e9ad3b1",
+  "windows/rpc/WindowsStartAdmission.cs": "8f88b3c432e0d30926ca65ab6f0e2fef06d2cce2f4861f4dcf0a3dbe3952cca6",
+  "windows/rpc/LegacyTemplateFence.cs": "d2bfc04762cf64b2555575e4c8aa95842dd35be108f9c9780dd3ecf0ecd0cd0f",
+  "windows/rpc/LegacyLaunchCohort.cs": "ce22aa16e0d353fa8354bca26f8dc4057d520c001540d0659778e2769135f5a2",
+  "windows/rpc/LegacyHandoff.cs": "f99033ca2b4f8ed9d78d15f3cc4976c40c1336492bdde6b22de10e99e6126262",
+  "windows/rpc/NativeRpcDefinition.cs": "4b0c489e90cdf26c00f34a384ee4a150b3e22673a7cfdeabe1b18f01f71461a3",
+  "windows/rpc/NativeRpcWmi.cs": "30ed7f96135fe8fafda1b28f1997002434df934562c66d4fbe64a80aaadb2ffd",
+  "windows/rpc/NativeRpcStart.cs": "961bdc8db582e0188665dd2c2b8310d4ae6afc9af8c034646b100c4e3bf770be",
+  "windows/rpc/NativeRpcCleanup.cs": "db7d01c35cad6fd4a524ef66211d570dbc2d20cf29e745e4ee85f31c419f929f",
+  "windows/rpc/NativeRpcCleanupWitness.cs": "2ba0b691a37231a30b5e1b7197911fbbeb77d8b68c0bee5a16e5f06b80c18ccc",
+  "windows/rpc/NativeRpcAuthority.cs": "b80280fdb4a41149ff122daca0a8e06c78d247db27fec09b5292bc901173ffe9",
+  "windows/rpc/NativeRpcWorkerEntry.cs": "3152b15f6476f9e6bdb8538616c99da50e7fa868e446e9b8110c47ee5e8dc412",
+  "windows/rpc/NativeRpcController.cs": "a71bc93e2732994283776465d83bcccb9be3f9588cde04c3a84b6dbab49d053b",
+  "windows/rpc/NativeRpcManagerTransport.cs": "2069d740a09edda7580c25ff436054130457b132d5dfafe4fca1de3d07b8a2bb",
+  "test/rpc-windows-worker/NativeRpcCleanupHarness.cs": "3af4c030bfa3f4843d0def1880326225bf96564c0209effd9e6e4eac5d6b3bf0",
+  "test/rpc-windows-worker/run-native-cleanup-ci.ps1": "e2e2fa6393f70b4fc77884b12b65e3d94af3dd7a27bc253da549dfa4817e8c81"
+}

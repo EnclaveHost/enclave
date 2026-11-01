@@ -163,5 +163,47 @@ namespace Enclave.OwnedRpc {
    }
    OpticalGuard(p,guid,false);return result;
   }
+ } public sealed partial class HyperVNativeRpcDefinition:INativeRpcStartProvider {
+  public StartResponse StartNative(NativeRpcDefinitionPlan p,string guid,string intentHash){
+   ProtectedAttempt.RequireSystem();string original,authority;string consumed=NativeRpcStart.Consumed(p,journal,out original,out authority);
+   if(original!=guid||consumed!=intentHash||NativeRpcStart.Authority(p,runtime,guid)!=authority)throw new InvalidOperationException("Original native start authority differs");
+   var scope=HyperVStartProvider.Scope();using(var vm=HyperVStartProvider.One(scope,"SELECT * FROM Msvm_ComputerSystem WHERE Name='"+guid+"'"))
+   using(var input=vm.GetMethodParameters("RequestStateChange")){
+    input["RequestedState"]=(ushort)2;input["TimeoutPeriod"]=null;
+    // All potentially blocking preparation precedes the aggregate freshness check.
+    long before=runtime.Now;NativeRpcDevicePolicy.Observe(p,journal,this,runtime);
+    if(NativeRpcStart.Authority(p,runtime,guid)!=authority)throw new InvalidOperationException("Lifecycle authority changed before invoke");
+    vm.Get();if((string)vm["Name"]!=guid||(string)vm["ElementName"]!=p.Name||!(vm["EnabledState"] is ushort)||(ushort)vm["EnabledState"]!=3)throw new InvalidOperationException("Original VM no longer Off");
+    journal.WriteOnce("native-start.invoke",intentHash);if(NativeRpcStart.Authority(p,runtime,guid)!=authority)throw new InvalidOperationException("Lifecycle authority lost at invoke");NativeRpcStart.Fresh(runtime,before);
+    if(runtime.Now<p.Origin||runtime.Now>=p.Deadline)throw new InvalidOperationException("Original start deadline expired");
+    // WMI TimeoutPeriod is unused. InvokeMethodOptions is NOT remote-death or
+    // provider cancellation proof; the independent lifecycle owner is required.
+    using(var output=vm.InvokeMethod("RequestStateChange",input,new InvokeMethodOptions{Timeout=TimeSpan.FromSeconds(2)})){
+     if(output==null||output["ReturnValue"]==null)throw new InvalidOperationException("Native start response absent");return new StartResponse(Convert.ToUInt32(output["ReturnValue"]),output["Job"] as string);
+    }
+   }
+  }
+  public void RequireRunning(NativeRpcDefinitionPlan p,string guid){
+   RequireOwnedState(p,guid,2,19456);
+   using(var settings=OpticalSettings(guid))using(var security=RelatedOne(settings,"Msvm_SecuritySettingData"))
+    RequireSecurityFields(new Dictionary<string,object>{{"TpmEnabled",security["TpmEnabled"]},{"VirtualizationBasedSecurityOptOut",security["VirtualizationBasedSecurityOptOut"]}});
+   runtime.Check(p,false);
+  }
+ } public sealed partial class HyperVNativeRpcDefinition:INativeRpcCleanupProvider {
+  public StartResponse DisableNative(NativeRpcDefinitionPlan p,string guid,string intent){
+   ProtectedAttempt.RequireSystem();var cleanup=runtime as INativeRpcCleanupRuntime;if(cleanup==null)throw new InvalidOperationException("Independent cleanup runtime required");
+   string original;if(NativeRpcCleanup.ConsumedStop(p,journal,this,cleanup,out original)!=intent||original!=guid)throw new InvalidOperationException("Original native disable differs");
+   var scope=HyperVStartProvider.Scope();using(var vm=HyperVStartProvider.One(scope,"SELECT * FROM Msvm_ComputerSystem WHERE Name='"+guid+"'"))
+   using(var memory=HyperVStartProvider.One(scope,"SELECT SystemName,NumberOfBlocks FROM Msvm_Memory WHERE SystemName='"+guid+"'"))
+   using(var input=vm.GetMethodParameters("RequestStateChange")){
+    input["RequestedState"]=(ushort)3;input["TimeoutPeriod"]=null;long before=runtime.Now;
+    if(!(vm["EnabledState"] is ushort)||!(memory["NumberOfBlocks"] is ulong)||(ulong)memory["NumberOfBlocks"]>19456)throw new InvalidOperationException("Native disable state/allocation unknown");
+    RequireOwnedState(p,guid,(ushort)vm["EnabledState"],(ulong)memory["NumberOfBlocks"]);
+    journal.WriteOnce("native-stop.invoke",intent);NativeRpcCleanup.Dead(p,cleanup);runtime.Check(p,true);NativeRpcStart.Fresh(runtime,before);
+    using(var output=vm.InvokeMethod("RequestStateChange",input,new InvokeMethodOptions{Timeout=TimeSpan.FromSeconds(2)})){
+     if(output==null||output["ReturnValue"]==null)throw new InvalidOperationException("Native disable response absent");return new StartResponse(Convert.ToUInt32(output["ReturnValue"]),output["Job"] as string);
+    }
+   }
+  }
  }
 }

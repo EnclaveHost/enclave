@@ -179,6 +179,8 @@ namespace Enclave.OwnedRpc {
         public static ProtectedAttempt PinHostBootstrapController(string path,string hash) {RequireAdministrator();return new ProtectedAttempt(path,hash,true,"host-bootstrap");}
         public static ProtectedAttempt OpenProviderWorker(string path,string hash) {return new ProtectedAttempt(path,hash,false,"provider");}
         public static ProtectedAttempt PinProviderController(string path,string hash) {RequireAdministrator();return new ProtectedAttempt(path,hash,true,"provider");}
+        public static ProtectedAttempt OpenNativeCleanupWorker(string path,string hash) {return new ProtectedAttempt(path,hash,false,"native-cleanup");}
+        public static ProtectedAttempt PinNativeCleanupController(string path,string hash) {RequireAdministrator();return new ProtectedAttempt(path,hash,true,"native-cleanup");}
         public static ProtectedAttempt OpenNativeDefinitionWorker(string path,string hash) {return new ProtectedAttempt(path,hash,false,"native-definition");}
         public static ProtectedAttempt PinNativeDefinitionController(string path,string hash) {RequireAdministrator();return new ProtectedAttempt(path,hash,true,"native-definition");}
         public static ProtectedAttempt OpenDefinitionWorker(string path,string hash) {return new ProtectedAttempt(path,hash,false,"definition");}
@@ -234,6 +236,10 @@ namespace Enclave.OwnedRpc {
                 } else if(profile=="host-bootstrap") {
                     if(fields.Length!=9||fields[0]!="owned-rpc-host-bootstrap-v1"||fields[6]!="host-bootstrap-v1"||fields[8]!="")throw new InvalidOperationException("Exact host bootstrap profile required");
                     Operation=fields[6];PermitPath=Path.Combine(Root,"bootstrap-plan.txt");PermitHash=fields[7];Hex(PermitHash,64);
+                } else if(profile=="native-cleanup") {
+                    if(fields.Length!=10||fields[0]!="owned-native-rpc-cleanup-worker-v1"||(fields[6]!="stop"&&fields[6]!="stop-reconcile")||fields[9]!="")throw new InvalidOperationException("Exact native cleanup worker contract required");
+                    Operation=fields[6];PermitPath=LocalPath(fields[7]);PermitHash=fields[8];Hex(PermitHash,64);
+                    if(Path.GetFileName(PermitPath)!="native-definition-plan.txt")throw new InvalidOperationException("Original native cleanup plan required");
                 } else if(profile=="native-definition") {
                     if(fields.Length!=10||fields[0]!="owned-native-rpc-definition-worker-v1"||(fields[6]!="define"&&fields[6]!="reconcile")||fields[9]!="")throw new InvalidOperationException("Exact native definition worker contract required");
                     Operation=fields[6];PermitPath=LocalPath(fields[7]);PermitHash=fields[8];Hex(PermitHash,64);
@@ -319,6 +325,10 @@ namespace Enclave.OwnedRpc {
                 bool boot=accessLease.Operation=="boot"||accessLease.Operation=="boot-reconcile";
                 if(boot?!BootRecordAllowed(name,accessLease.Operation=="boot-reconcile"):!DefinitionRecordAllowed(name,accessLease.Operation=="definition-reconcile"))throw new InvalidOperationException("Fixed definition/boot journal record required");
                 if((accessLease.Operation=="define"||accessLease.Operation=="boot")&&(BoundedWorker.MonotonicMilliseconds()<Origin||BoundedWorker.MonotonicMilliseconds()>=Deadline))throw new InvalidOperationException("Original definition time expired");
+            } else if(LeaseProfile=="native-cleanup-journal") {
+                bool observed=name=="native-start.job"||name=="native-start.terminal"||name=="native-stop.job"||name=="native-stop.terminal"||name=="native-stop.observed";
+                bool submit=accessLease!=null&&accessLease.Operation=="stop"&&(name=="native-stop.intent"||name=="native-stop.submit"||name=="native-stop.invoke"||name=="native-stop.receipt");
+                if(accessLease==null||(!observed&&!submit))throw new InvalidOperationException("Cleanup cannot authorize start or alter original definition");
             } else if(LeaseProfile=="native-definition-journal") {
                 if(accessLease==null||!NativeDefinitionRecordAllowed(name,accessLease.Operation=="reconcile"))throw new InvalidOperationException("Native reader cannot submit or acknowledge definition");
                 if(accessLease.Operation=="define"&&(BoundedWorker.MonotonicMilliseconds()<Origin||BoundedWorker.MonotonicMilliseconds()>=Deadline))throw new InvalidOperationException("Native original definition time expired");
