@@ -158,7 +158,7 @@ internal sealed partial class WindowsStartAdmission {
         return DeploymentReceipt(data,raw,false);
     }
     // Only the caller holding a verified completed allocation cut may compare
-    // these historical retry states as equivalent. This never authorizes an
+    // these retry states as equivalent while that cut remains held. This never authorizes an
     // allocation: all IDs, memory and isolation flags remain in the receipt.
     internal static string DeploymentReceipt(Dictionary<string,object> data,bool raw,bool fencedRetries) {
         var values=new SortedDictionary<string,object>(StringComparer.Ordinal);
@@ -219,10 +219,12 @@ internal sealed partial class WindowsStartAdmission {
         foreach(object row in Rows(manager["observations"])) {var r=Obj(row);if(Str(r["label"])=="node-after"){if(node!=null||Num(r["port"])!=9600||Str(r["path"])!="/v1/host/state")throw new InvalidOperationException("Node observation binding");node=Obj(r["data"]);}}
         if(node==null)throw new InvalidOperationException("Reviewed node commitments missing");
         Stage("node-before");var liveNode=GetLocal(9600,"/v1/host/state");
-        string liveNodeExact=DeploymentReceipt(liveNode,true);
+        if(completed!=null)completed.CheckHeld();
+        string liveNodeExact=DeploymentReceipt(liveNode,true,completed!=null);
         // The completed cut and pool have already been validated before this
         // read; VerifyResources checks them again below. Legacy unfenced mode
-        // keeps strict historical equality. Both modes keep strict live equality.
+        // keeps strict equality. Completed mode compares only failed/claiming
+        // retry metadata equivalently, with held cut/pool checked at both ends.
         string nodeExpected=DeploymentReceipt(node,false,completed!=null);
         string nodeActual=DeploymentReceipt(liveNode,true,completed!=null);
         if(nodeActual!=nodeExpected)throw new InvalidOperationException("Node commitments changed since review: "+DeploymentDifference(nodeExpected,nodeActual));
@@ -253,11 +255,12 @@ internal sealed partial class WindowsStartAdmission {
         Stage("physical-after");var end=Physical();CheckTime();
         if(ProtectedAttempt.CurrentBoot()!=vm.Boot||end.Total!=os.Total||end.Available<(ulong)Required)throw new InvalidOperationException("End-of-admission host state differs");
         if(!freshInventory){Stage("pending-and-node-after");
-            if((completed==null&&LivePending()!=pending)||DeploymentReceipt(GetLocal(9600,"/v1/host/state"),true)!=liveNodeExact)throw new InvalidOperationException("Pending commitments changed during admission");}
+            if((completed==null&&LivePending()!=pending)||DeploymentReceipt(GetLocal(9600,"/v1/host/state"),true,completed!=null)!=liveNodeExact)throw new InvalidOperationException("Pending commitments changed during admission");}
         Stage("pool-resources");if(completed!=null){if(freshInventory)completed.Verify(issuerListeners);else completed.VerifyResources();}
         if(freshInventory){Stage("node-after-current-inventory");
-            string finalNode=DeploymentReceipt(GetLocal(9600,"/v1/host/state"),true);
+            string finalNode=DeploymentReceipt(GetLocal(9600,"/v1/host/state"),true,completed!=null);
             if(finalNode!=liveNodeExact)throw new InvalidOperationException("Node commitments changed during current inventory verification: "+DeploymentDifference(liveNodeExact,finalNode));}
+        if(completed!=null)completed.CheckHeld();
         Stage("manager-handles-after");foreach(var process in held){process.Check();CheckTime();}
         CheckTime();
     }

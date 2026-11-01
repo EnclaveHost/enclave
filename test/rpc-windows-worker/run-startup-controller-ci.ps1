@@ -70,7 +70,7 @@ try{
     if((Get-Item $entry).Length -gt 262144 -or (Get-Item $target).Length -gt 262144 -or (Get-Item $startup).Length -gt 262144){throw 'Native cleanup image bound'}
     Invoke-FiniteProcess $controller @() 20000 'inert'
     $lines=@(Get-Content -LiteralPath (Join-Path $work 'inert.out'))
-    if(@($lines|Where-Object{$_ -like 'PASS *'}).Count -ne 68 -or $lines[-1] -cne 'RESULT tests=68 providerCalls=false vmChanged=false targetStartupQualified=false'){throw 'Incomplete provider transaction tests'}
+    if(@($lines|Where-Object{$_ -like 'PASS *'}).Count -ne 71 -or $lines[-1] -cne 'RESULT tests=71 providerCalls=false vmChanged=false targetStartupQualified=false'){throw 'Incomplete provider transaction tests'}
     $lines
 }finally{
     # Helpers have no unbounded loop: sleeps <=5s, allocation <=192MiB. These

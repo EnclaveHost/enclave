@@ -1043,9 +1043,10 @@ With a verified completed allocation cut, historical node comparison treats
 positive memory and no isolation, held allocation or failed retirement. Those
 states can churn while the persistent allocation fence prevents new legacy VMs.
 All other statuses and all memory/identity/isolation fields remain distinct.
-Unfenced admission retains exact historical equality. Both modes compare the
-initial and final *live* node receipts exactly, including status, within the
-unchanged two-second observation bound. Pending growth, physical floors, cut
+Unfenced admission retains exact equality. Completed-cut admission now applies
+the same narrowly scoped retry equivalence to initial and final live receipts,
+with the retained cut and pool checked before the first comparison and after
+the last. The user-authorized aggregate observation bound is four seconds. Pending growth, physical floors, cut
 custody and shared-pool verification remain mandatory and unchanged. Unknown
 memory on a claiming record is refused. This does not admit a new allocation
 or treat a historical snapshot as current capacity.
@@ -1165,3 +1166,18 @@ Primary-context qualification update: source`26271cfe` passed306 hosted checks, 
 Live diagnostic admission now reuses its already-validated four-listener observation for the two legacy issuers. The internal witness contains fixed-port PID values, exact held read lease and original aggregate start; one-shot consumption rejects another lease, expiry, clock reversal or replay. Issuer health/master/native identity, all current VM/memory associations, resident bracketing, pool/cut and exact final node equality remain. This removes one WMI enumeration, not a current inventory or capacity check. It is trusted in-process plumbing, not cross-process authority. Target timing and primary-context preparation remain unqualified until a fresh native result.
 
 Listener reuse qualification: source`11da9924` passed312 hosted tests; native target`0b09d316` still refused final node equality before WMI preparation. Exact roles exited, original VMs/service/journals unchanged. The final equality failure now includes the existing bounded DeploymentDifference (only already-compared receipts); this identifies the changed field without another native read or relaxing equality. Privilege fix remains unqualified on target.
+
+
+The actual final comparison at source `bb48ac69` found exactly one status change,
+`claiming` to `failed`, with the same explicit 128 MiB and no isolation or retained
+allocation flags. Live retry comparison now requires the existing successfully
+constructed `LegacyHandoff.Completion`; no operator-provided flag enables it.
+The original fence object and ancestor custody, read denial, exact issuers, pool
+claims, current native inventory and physical/resident checks remain mandatory.
+The held completion is checked again after the final node observation. With no
+completed cut, both historical and live comparisons remain exact. Known positive
+memory and absence of isolation/held/retirement flags are required on both sides;
+other status, memory, identity and isolation changes still refuse. This does not
+settle a claim transaction, grant a provider retry, or release a reservation.
+This change awaits hosted and target qualification; the primary-context WMI
+candidate and the consumed production attempt remain unqualified/unsettled.
