@@ -18,9 +18,9 @@ internal sealed partial class WindowsStartAdmission {
     // Whole stack + prospective apps + real host floor + variation + extra
     // transient startup overhead including 192 MiB for independent cleanup. Existing VM allocations are already in free.
     internal const long Required=20*GiB+39388*MiB+18*GiB+GiB+512*MiB+192*MiB;
-    readonly ProtectedAttempt vm;readonly string admissionHash;readonly long began;readonly LegacyHandoff.Completion completed;
+    readonly ProtectedAttempt vm;readonly string admissionHash;readonly long began;readonly LegacyHandoff.Completion completed;readonly bool freshInventory;
     readonly JavaScriptSerializer Json=new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32};
-    WindowsStartAdmission(ProtectedAttempt vm,string admissionHash,LegacyHandoff.Completion completed){this.vm=vm;this.admissionHash=admissionHash;this.completed=completed;began=BoundedWorker.MonotonicMilliseconds();}
+    WindowsStartAdmission(ProtectedAttempt vm,string admissionHash,LegacyHandoff.Completion completed,bool freshInventory=false){this.vm=vm;this.admissionHash=admissionHash;this.completed=completed;this.freshInventory=freshInventory;began=BoundedWorker.MonotonicMilliseconds();}
     string stage="begin";
     internal static void RequireFresh(long began,long now,string stage) {
         if(began<0||now<began||now-began>2000)throw new TimeoutException("Aggregate start observation exceeds two seconds; phase="+stage+" elapsedMs="+(now>=began&&began>=0?(now-began).ToString(CultureInfo.InvariantCulture):"invalid"));
@@ -231,9 +231,11 @@ internal sealed partial class WindowsStartAdmission {
             throw new InvalidOperationException("Target qualification headroom refused");
         Stage("physical-after");var end=Physical();CheckTime();
         if(ProtectedAttempt.CurrentBoot()!=vm.Boot||end.Total!=os.Total||end.Available<(ulong)Required)throw new InvalidOperationException("End-of-admission host state differs");
-        Stage("pending-and-node-after");
-        if((completed==null&&LivePending()!=pending)||DeploymentReceipt(GetLocal(9600,"/v1/host/state"),true)!=liveNodeExact)throw new InvalidOperationException("Pending commitments changed during admission");
-        Stage("pool-resources");if(completed!=null)completed.VerifyResources();
+        if(!freshInventory){Stage("pending-and-node-after");
+            if((completed==null&&LivePending()!=pending)||DeploymentReceipt(GetLocal(9600,"/v1/host/state"),true)!=liveNodeExact)throw new InvalidOperationException("Pending commitments changed during admission");}
+        Stage("pool-resources");if(completed!=null){if(freshInventory)completed.Verify();else completed.VerifyResources();}
+        if(freshInventory){Stage("node-after-current-inventory");
+            if(DeploymentReceipt(GetLocal(9600,"/v1/host/state"),true)!=liveNodeExact)throw new InvalidOperationException("Node commitments changed during current inventory verification");}
         Stage("manager-handles-after");foreach(var process in held){process.Check();CheckTime();}
         CheckTime();
     }

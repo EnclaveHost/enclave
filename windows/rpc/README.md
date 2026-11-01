@@ -1124,3 +1124,19 @@ third-attempt journals were unchanged. Full admission and the original SYSTEM
 failure remain unqualified. Historical resource-context construction still
 occurs after snapshot release; moving that setup before readiness requires
 retaining all current inventory/resource rechecks, not caching admission.
+
+The next diagnostic revision prepares `LegacyHandoff.Completion` before
+`observation.ready`, with an exclusive `admission.preparation-start` marker.
+It retains the held resource context until the fresh observation is consumed.
+Failure cannot publish readiness or retry context preparation under the same
+lease. Initial bytes have a separate reader and never satisfy fresh admission.
+The previous unprepared inspection entry explicitly refuses `preparation-gated`.
+
+After release, the prepared context checks the fresh payload against its original
+cut/pool binding and starts live admission once. Live admission refreshes the
+full current VM inventory, issuer bindings and resource observations, then repeats
+the exact node comparison after those checks. These checks share the unchanged
+two-second aggregate limit. It does not substitute cached inventory for current
+verification. The original 30-second watchdog and five-second entry bootstrap
+remain unchanged. New phase receipts distinguish preparation from live admission;
+this revision is not target-qualified until a new reviewed diagnostic succeeds.

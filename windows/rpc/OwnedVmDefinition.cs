@@ -278,17 +278,53 @@ namespace Enclave.OwnedRpc {
  internal sealed partial class WindowsStartAdmission {
     // Fresh read-only evidence belongs to the short diagnostic lease, never
     // replaces the consumed plan's observation or renews its startup authority.
-    internal static void InspectDefinitionAdmission(ProtectedAttempt plan,ProtectedAttempt reader){
+    static void RequireDiagnosticContext(ProtectedAttempt plan,ProtectedAttempt reader){
         if(plan==null||plan.DefinitionPlan==null||reader==null||reader.LeaseProfile!="definition"||(reader.Operation!="admission-check"&&reader.Operation!="preparation-check"&&reader.Operation!="preparation-gated")||
            reader.PermitHash!=plan.ContractHash||reader.PermitPath!=Path.Combine(plan.Root,"definition-plan.txt")||reader.AdmissionObservationHash==null)
             throw new ArgumentException("Bound read-only definition admission required");
         plan.CheckDeadline();reader.CheckDeadline();
-        string observationHash=reader.Operation=="preparation-gated"?reader.GateObservationHash:reader.AdmissionObservationHash;
+    }
+    internal static void InspectDefinitionAdmission(ProtectedAttempt plan,ProtectedAttempt reader){
+        RequireDiagnosticContext(plan,reader);
+        if(reader.Operation=="preparation-gated")throw new InvalidOperationException("Prepared gate context required");
+        string observationHash=reader.AdmissionObservationHash;
         var reviewed=Obj(new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32}.DeserializeObject(new UTF8Encoding(false,true).GetString(reader.ReadAdmission(observationHash))));
         using(var completed=new LegacyHandoff.Completion(Obj(reviewed["legacyCutSeed"]),Obj(reviewed["sharedPhysicalPool"]),reader))
             new WindowsStartAdmission(reader,observationHash,completed).Read();
         plan.CheckDeadline();reader.CheckDeadline();
     }
+    // Keep expensive immutable journal/image/namespace qualification before the
+    // fresh snapshot. This object holds its authority across the work gate;
+    // Inspect refreshes the entire current inventory, not a cached admission.
+    internal sealed class PreparedDiagnosticAdmission:IDisposable {
+        readonly ProtectedAttempt plan,reader;readonly string bindingHash;
+        LegacyHandoff.Completion completed;bool consumed,disposed;
+        static Dictionary<string,object> Parse(byte[] raw){return Obj(new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32}.DeserializeObject(new UTF8Encoding(false,true).GetString(raw)));}
+        static string Binding(Dictionary<string,object> data){return ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(new JavaScriptSerializer().Serialize(new object[]{Obj(data["legacyCutSeed"]),Obj(data["sharedPhysicalPool"])})));}
+        internal PreparedDiagnosticAdmission(ProtectedAttempt plan,ProtectedAttempt reader){
+            RequireDiagnosticContext(plan,reader);if(reader.Operation!="preparation-gated")throw new ArgumentException("Gated diagnostic required");
+            this.plan=plan;this.reader=reader;
+            if(reader.ReadOptionalOnce("observation.ready")!=null)throw new InvalidOperationException("Preparation must precede readiness");
+            reader.WriteOnce("admission.preparation-start",reader.Token+"\n"+BoundedWorker.MonotonicMilliseconds());
+            try{
+                var initial=Parse(reader.ReadInitialGateObservation());bindingHash=Binding(initial);
+                completed=new LegacyHandoff.Completion(Obj(initial["legacyCutSeed"]),Obj(initial["sharedPhysicalPool"]),reader);
+                RequireDiagnosticContext(plan,reader);completed.CheckHeld();
+                reader.WriteOnce("admission.prepared",reader.Token+"\n"+bindingHash+"\n"+BoundedWorker.MonotonicMilliseconds());
+            }catch{Dispose();throw;}
+        }
+        internal void Inspect(){
+            if(disposed||consumed||completed==null)throw new InvalidOperationException("Prepared diagnostic already consumed or unavailable");consumed=true;
+            RequireDiagnosticContext(plan,reader);string hash=reader.GateObservationHash;
+            if(Binding(Parse(reader.ReadAdmission(hash)))!=bindingHash)throw new InvalidOperationException("Prepared resource authority changed");
+            reader.WriteOnce("admission.live-start",reader.Token+"\n"+BoundedWorker.MonotonicMilliseconds());
+            new WindowsStartAdmission(reader,hash,completed,true).Read();
+            RequireDiagnosticContext(plan,reader);completed.CheckHeld();
+            reader.WriteOnce("admission.live-complete",reader.Token+"\n"+BoundedWorker.MonotonicMilliseconds());
+        }
+        public void Dispose(){if(disposed)return;disposed=true;if(completed!=null)completed.Dispose();}
+    }
+
  }
 }
 
@@ -420,6 +456,11 @@ namespace Enclave.OwnedRpc {
   }
  }
  public sealed partial class ProtectedAttempt {
+  internal byte[] ReadInitialGateObservation(){
+   CheckDeadline();if(LeaseProfile!="definition"||Operation!="preparation-gated"||AdmissionObservationHash==null)throw new InvalidOperationException("Initial gated diagnostic input required");
+   byte[] initial=Bytes(HoldRead(Path.Combine(Root,"admission.json"),262144),262144);
+   if(Hash(initial)!=AdmissionObservationHash)throw new InvalidOperationException("Initial diagnostic digest differs");CheckDeadline();return initial;
+  }
   internal string GateObservationHash {get{
    CheckDeadline();string ready=ReadOnce("observation.ready"),commit=ReadOnce("observation.commit");
    if(ReadOnce("observation.request")!=ready||ReadOnce("observation.release")!=commit)throw new InvalidOperationException("Fresh observation gate closed");

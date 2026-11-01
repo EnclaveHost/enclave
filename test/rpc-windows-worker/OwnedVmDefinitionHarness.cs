@@ -155,6 +155,22 @@ public static class OwnedVmDefinitionHarness {
   byte[] bytes=Encoding.UTF8.GetBytes(text);Put(Path.Combine(a.Root,"admission.fresh.json"),bytes);
   string commit=ready+(wrongHash?new string('0',64):ProtectedAttempt.Hash(bytes))+"\n";a.WriteOnce("observation.commit",commit);return commit;
  }
+
+ static void PreparedContextTests(){
+  Test("initial-gate-read-does-not-open-work-gate",()=>{var c=new ProtectedCase("preparation-gated");using(var a=c.Lease()){
+   Check(ProtectedAttempt.Hash(a.ReadInitialGateObservation())==c.ObservationHash);Refuse(()=>a.ReadAdmission(c.ObservationHash));Check(!File.Exists(Path.Combine(a.Root,"observation.ready")));
+  }});
+  Test("initial-gate-bytes-remain-held-immutable",()=>{var c=new ProtectedCase("preparation-gated");using(var a=c.Lease()){
+   a.ReadInitialGateObservation();Refuse(()=>File.WriteAllText(Path.Combine(a.Root,"admission.json"),"{}"));Refuse(()=>File.Delete(Path.Combine(a.Root,"admission.json")));
+  }});
+  Test("initial-gate-read-refuses-other-operation",()=>{var c=new ProtectedCase("preparation-check");using(var a=c.Lease())Refuse(()=>a.ReadInitialGateObservation());});
+  Test("failed-resource-prepare-consumes-start-with-gate-closed",()=>{var c=new ProtectedCase("preparation-gated");using(var a=c.Lease())using(var plan=ProtectedAttempt.OpenDefinitionJournal(a.PermitPath,a.PermitHash,a)){
+   Refuse(()=>{using(var prepared=new WindowsStartAdmission.PreparedDiagnosticAdmission(plan,a)){} });
+   Check(a.ReadOptionalOnce("admission.preparation-start")!=null&&a.ReadOptionalOnce("admission.prepared")==null&&a.ReadOptionalOnce("observation.ready")==null);
+   Refuse(()=>{using(var prepared=new WindowsStartAdmission.PreparedDiagnosticAdmission(plan,a)){} });
+  }});
+  Test("gated-inspection-refuses-unprepared-legacy-entry",()=>{var c=new ProtectedCase("preparation-gated");using(var a=c.Lease())using(var plan=ProtectedAttempt.OpenDefinitionJournal(a.PermitPath,a.PermitHash,a))Refuse(()=>WindowsStartAdmission.InspectDefinitionAdmission(plan,a));});
+ }
  static void ProtectedTests(){
   Test("gated-contract-cannot-read-initial-observation-as-fresh",()=>{var c=new ProtectedCase("preparation-gated");using(var a=c.Lease())Refuse(()=>a.ReadAdmission(c.ObservationHash));});
   Test("gate-ready-binds-token-and-exact-role-records",()=>{var c=new ProtectedCase("preparation-gated");using(var a=c.Lease()){
@@ -283,7 +299,7 @@ public static class OwnedVmDefinitionHarness {
   Test("missing-vcpu-readback-refused",()=>Refuse(()=>HyperVOwnedDefinition.RequireProcessors(new object[]{})));
   Test("duplicate-vcpu-readback-refused",()=>Refuse(()=>HyperVOwnedDefinition.RequireProcessors(new object[]{(ulong)4,(ulong)4})));
   Test("plan-overflow-refused",()=>Refuse(()=>new OwnedVmDefinitionPlan(new string('a',32),new string('b',32),new string('c',64),new string('d',64),@"C:\OwnedRpcFixture\"+new string('a',32),Int64.MaxValue,Int64.MaxValue,new string('e',64),new string('f',64))));
-  CollectorTests();
+  PreparedContextTests();CollectorTests();
   PredecessorTests();ProtectedTests();count+=OwnedVmBootHarness.Run();
   Console.WriteLine("RESULT tests="+count+" providerCallsAreFakes=true vmChanged=false");return 0;
  }catch(Exception e){Console.Error.WriteLine(e);return 1;}}
