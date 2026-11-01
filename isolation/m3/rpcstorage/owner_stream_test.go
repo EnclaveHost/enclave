@@ -25,10 +25,10 @@ import (
 )
 
 func TestGuestOwnerContinuousTLSAndLoss(t *testing.T) {
-	for _, mode := range []string{"commit", "commit-renew", "commit-original-deadline", "commit-second-guard-loss", "commit-guard-receipt-conflict", "commit-owner-tamper", "commit-changed-response", "commit-lost-reply", "commit-stale", "prepare", "prepare-guard-loss", "prepare-tamper", "prepare-stale", "normal", "idle-partial", "downgrade-ack", "idle-loss", "bad-signature", "unsolicited", "monitor-loss", "original-deadline"} {
+	for _, mode := range []string{"commit", "commit-renew", "commit-past-startup", "commit-monitor-loss", "commit-blocked-expiry", "commit-second-guard-loss", "commit-guard-receipt-conflict", "commit-owner-tamper", "commit-changed-response", "commit-lost-reply", "commit-stale", "prepare", "prepare-guard-loss", "prepare-tamper", "prepare-stale", "normal", "idle-partial", "downgrade-ack", "idle-loss", "bad-signature", "unsolicited", "monitor-loss", "original-deadline"} {
 		t.Run(mode, func(t *testing.T) {
 			left := time.Duration(0)
-			if mode == "original-deadline" || mode == "commit-original-deadline" {
+			if mode == "original-deadline" || mode == "commit-past-startup" {
 				left = 500 * time.Millisecond
 			}
 			f, e := brokerFixtureStart(t, "valid", left)
@@ -469,7 +469,7 @@ func TestGuestOwnerContinuousTLSAndLoss(t *testing.T) {
 					committed := append([]byte(nil), s.servingProof...)
 					gseq := s.servingSequence
 					s.mu.Unlock()
-					expected := mode == "commit" || mode == "commit-renew" || mode == "commit-original-deadline"
+					expected := mode == "commit" || mode == "commit-renew" || mode == "commit-past-startup" || mode == "commit-monitor-loss" || mode == "commit-blocked-expiry"
 					if (len(committed) > 0) != expected || (expected && gseq != 1) {
 						t.Fatal("partial transaction published success", mode, s.ctx.Err())
 					}
@@ -519,13 +519,46 @@ func TestGuestOwnerContinuousTLSAndLoss(t *testing.T) {
 							}
 						}
 					}
-					if mode == "commit-original-deadline" {
+					if mode == "commit-past-startup" {
+						now, _ := rpcservice.MonotonicNow()
+						if now < original.Deadline {
+							time.Sleep(time.Duration(original.Deadline-now) + 30*time.Millisecond)
+						}
+						if e = s.alive(); e != nil {
+							t.Fatal("complete commit did not survive original startup", e)
+						}
+						time.Sleep(time.Until(time.Now().Truncate(time.Second).Add(time.Second)) + 5*time.Millisecond)
+						if e = s.continueServingOwnerOnce(s.ownerStream, a, rpcBundle(t), receipts); e != nil {
+							t.Fatal("renewal after original startup", e)
+						}
+						if s.servingCutoff.Load() <= original.Deadline {
+							t.Fatal("serving cutoff not installed")
+						}
+					}
+					if mode == "commit-monitor-loss" || mode == "commit-blocked-expiry" {
+						if mode == "commit-monitor-loss" {
+							f.process.Process.Kill()
+						} else {
+							// Inject a shorter allowed bound after the real transaction;
+							// test watcher independence, not full 30s permit timing.
+							now, _ := rpcservice.MonotonicNow()
+							s.servingCutoff.Store(now + uint64(150*time.Millisecond))
+							s.continuationMu.Lock()
+
+						}
 						select {
 						case <-s.ctx.Done():
 						case <-time.After(time.Second):
-							t.Fatal("component commit bypassed original broker deadline")
+							if mode == "commit-blocked-expiry" {
+								s.continuationMu.Unlock()
+							}
+							t.Fatal("serving watcher blocked or ignored monitor loss")
+						}
+						if mode == "commit-blocked-expiry" {
+							s.continuationMu.Unlock()
 						}
 					}
+
 					if s.request != original {
 						t.Fatal("startup clock reset")
 					}

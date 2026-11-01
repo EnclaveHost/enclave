@@ -69,9 +69,10 @@ type BrokerSession struct {
 	prepared             *servingPrepared
 	guards               [2]*rpcservice.GuardClient
 	guardsUsed           bool
-	servingSequence      uint64    // guardian sequence, distinct from owner continuation sequence
-	servingUntil         time.Time // component commit expiry; original broker cutoff remains
-	servingProof         []byte    // exact durable owner proof after both guardian ACKs
+	servingSequence      uint64        // guardian sequence, distinct from owner continuation sequence
+	servingUntil         time.Time     // conservative local guardian expiry
+	servingProof         []byte        // exact durable owner proof after exporter and both guardian ACKs
+	servingCutoff        atomic.Uint64 // zero until complete private component transaction; kernel monotonic expiry
 }
 
 func (s *BrokerSession) Request() Request         { return s.request }
@@ -139,12 +140,16 @@ func pollBroker(rows []brokerPoll, wait time.Duration) (bool, error) {
 	return false, nil
 }
 func (s *BrokerSession) alive() error {
+	cutoff := s.servingCutoff.Load()
+	if cutoff == 0 {
+		cutoff = s.request.Deadline
+	}
 	now, e := rpcservice.MonotonicNow()
 	if e != nil {
 		return e
 	}
-	if now < s.request.Origin || now >= s.request.Deadline {
-		return errors.New("original broker window ended")
+	if now < s.request.Origin || now >= cutoff {
+		return errors.New("original startup or committed serving window ended")
 	}
 	select {
 	case <-s.ctx.Done():

@@ -1,0 +1,22 @@
+[
+  {
+    "path": "isolation/m3/rpcstorage/broker_serving_linux_amd64.go",
+    "sha256": "1293060d5153ef19b73e0ae978b3a319726528d633a9c541e73841c776221ace"
+  },
+  {
+    "path": "isolation/m3/rpcstorage/broker_session_linux_amd64.go",
+    "sha256": "c7321321fffd8de5a7206e16b03ce80b0c3a8f186e45177873eb90d92593f63b"
+  },
+  {
+    "path": "isolation/m3/rpcstorage/owner_stream_test.go",
+    "sha256": "a7f9174959cbf36a112793157040ae2b4f03746b5762a8ff739384e9813008df"
+  },
+  {
+    "path": "ops/rpc-stopped-handoff-r1/HANDOFF-PROMPT.txt",
+    "sha256": "78c26ef89f76b42e2ebe6c4b0b7b89b1b9885d14a7600a2ac4a49042fcd58b29"
+  },
+  {
+    "path": "ops/rpc-stopped-handoff-r1/README.md",
+    "sha256": "bac26f5b497d26abaadb06a97f5f56de47cc316f1d65348e744a15cdb386e3fa"
+  }
+]

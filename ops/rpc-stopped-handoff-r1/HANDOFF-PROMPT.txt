@@ -1,0 +1,77 @@
+Take over the Enclave production RPC work. The previous agent failed to deliver a working RPC after days of work. Prioritize an actual usable production service, give candid status, and avoid another cycle of plans and isolated framework tests without integration. Challenge the existing design where appropriate; it is unfinished work, not a requirement to preserve every implementation choice.
+
+USER INTENT AND SCOPE
+The overall objective remains fully decentralized, censorship-resistant Enclave: remove mandatory Enclave-operated control, identity, artifact/indexer, DNS and custody authorities; restrict veto to wallet-owned hosts; demonstrate cold recovery, new-user deployment, storage endpoint failure and independent hosting under Enclave refusal. Relocation and Enclave-operated replicas are not completion.
+
+The immediate absolute priority is production RPC. The user authorized a manual one-native-enclave-first shortcut: automatic app-manager integration, multi-host recovery, UI polish and full refusal demonstrations may follow, but the full objective is not achieved until they are delivered. Preserve owner authorization, attestation, storage integrity and existing paid workloads. A dummy app or catalog entry is not a running RPC.
+
+STOP STATUS — OVERRIDES THE OLDER HANDOFF
+The user stopped the previous experiment. Its goal is PAUSED and automation finish-enclave-rpc-production-rollout was DELETED. This document was requested afterward to transfer the work. Do not resume the old agent or recreate its automation. Work in your own chat when the user gives you this prompt.
+
+AUTHORITATIVE WORKSPACE
+W=/home/steven/Documents/Codex/2026-10-18/wo
+P=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025
+S=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source
+U=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028
+O=/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025
+
+FIRST read the bottom of O/HANDOFF.md, far enough to include the latest complete entries, then inspect actual git status, source and relevant process identities. Read S/AGENTS.md. This document supersedes the bottom handoff's claim that the goal is active. The three unfinished source edits described below are included in this preservation commit; they have not been compiled or tested. Do not reread the entire historical log or repeat completed checks without a specific reason.
+
+Branch: fix/rpc-production-bootstrap-20261025.
+Last tested source baseline: f4705ec216d2569aaad7c3a105d955fc593368f6, “Bind RPC exporter serving permits to original owner and worker”. It was pushed to origin main and exact remote match was verified. Revalidate the remote before integrating new changes. Existing worktrees belong to other efforts; do not overwrite them. Changes normally go through normal hooks/gitleaks and git push origin HEAD:main, without force.
+
+CURRENT REALITY
+Production RPC is OFFLINE. No completed production enclave boot, real storage attachment, whole-stack memory fit, chain sync/finality or consumer cutover has been proved. There is substantial source and finite component-test evidence, not a deployed end-to-end service.
+
+The committed implementation includes bounded Windows owner/observer supervision; original-owner startup/serving permits; same-connection owner TLS; guest C/Go guardians and service-supervisor handoff; broker coordination; and an exporter /2 serving handoff. Explicit /2 exporter preparation pins the original owner journal device/inode. The signer checks inherited journal FD4; exporter holds the original directory and requires exact persisted issuer proof, consumed intent, preparation and chain linkage. The existing export worker must acknowledge the exact generation/expiry before exporter TLS ACK and before guest guardian commits. Python relies on the protected original issuer journal; it does not independently verify Ed25519 or prove public readiness.
+
+Latest evidence:
+- S/ops/rpc-export-serving-r1/ROOT-RESULT.md
+- U/rpc-export-serving-tests-r3/ROOT-RESULT.md
+- U/rpc-export-serving-tests-r1, r2 and r3 retain frozen source, results and the failed first attempt.
+42 distinct PASS records = 40 cases plus two parent records. Tests used real TLS, signatures, fixture journals and held process handles, but inert sleep processes instead of QEMU and mocked chain/resource/systemd/TPM authority. They do not qualify production storage or native target execution.
+
+Latest private compiled broker: 11509176 bytes, SHA256 c801431b4a66d521d279172850f1ab18fb38ba286df59fede8171c54db586f1d.
+Latest private compiled owner: 10924102 bytes, SHA256 e0ca29079b680dfd6a682349a21ad2d21523c10f85df70b88becfc4d3b316e46.
+These are component artifacts, not an accepted boot bundle. Older firmware/guest artifacts referenced in the handoff lack the current serving protocol and FD contracts. Do not mix or boot incompatible pieces.
+
+UNFINISHED PATCH — PRESERVED WITHOUT COMPILATION OR TESTING
+These three files were modified after the tested baseline and are included in this preservation commit. They remain UNCOMPILED and UNTESTED:
+- S/isolation/m3/rpcstorage/broker_serving_linux_amd64.go
+- S/isolation/m3/rpcstorage/broker_session_linux_amd64.go
+- S/isolation/m3/rpcstorage/owner_stream_test.go
+
+The patch adds a private atomic servingCutoff. BrokerSession.alive uses original startupD until the actual owner/exporter/two-guardian transaction and durable receipt finish, then uses the conservative signed monotonic serving expiry. It rechecks prior/new bounds around publication. Proposed tests cover survival and renewal past startup, monitor loss after commit, and expiry while continuationMu is blocked. The blocked-expiry test injects a shorter internal bound; it is not proof of a full natural 30-second expiry. No test, build or native action was launched for this unfinished patch before the stop. Review, complete or deliberately replace it; do not claim it passed.
+
+ADDITIONAL CONCRETE BLOCKERS FOUND JUST BEFORE STOP
+Fixing BrokerSession alone is insufficient:
+1. S/isolation/m3/cmd/rpc-storage-broker/main.go still arms time.AfterFunc at the original startup deadline with os.Exit(124). It also creates an original-deadline authorization context. Inspect their actual lifetimes and transfer shutdown ownership coherently; do not merely delete the timer.
+2. S/isolation/m3/rpcstorage/client_linux_amd64.go: after granting roots, acquire() still watches the monitor's Attempt with readAcquisitionPacket bounded to originalD and treats any packet as loss. The monitor retires the RPC on Attempt.Loss. This also needs an explicit original-owned serving transition, not an unbounded socket wait.
+3. Outer owner operator/TLS/Python transports and systemd units still end at originalD. Relevant maintained files include rpc/server/owner_signer_stream.py, owner_bootstrap_submit.py, owner_bootstrap.mjs, owner_entry.py and relay/dispatcher/entry modules. LiveSigner.deadline, clock validation, finite 90-frame streams and independently checked unit lifetimes must be reconciled coherently with serving permits. Do not extend an already-running unit or recreate a signer after ambiguity.
+4. Windows host keeper/lifecycle controls still require the corresponding serving transition. Target SYSTEM namespace/capacity/platform, VMGS sharing/growth and actual end-to-end bootstrap remain unqualified.
+
+Choose the shortest sound integrated path through these blockers. Preserve original startup time (900 seconds including preparation), first commit before its deadline, current owner/storage authority, and independently enforced short off-chain expiry and loss handling afterward. No periodic on-chain heartbeat/renewal in the replacement. Do not call preparation, an ACK, a signature, or a live process RPC readiness. Actual client queries, sync/finality, and consumer routing evidence are required.
+
+RESOURCE AND STORAGE CONSTRAINTS
+The old RAM blocker was resolved. Historical available/pending figures are NOT current admission. User-approved freshness change to four seconds was already implemented in the relevant guard; inspect scope rather than blindly changing every timeout. Steam was closed and RDR2 removed; do not repeat them. The one-off 1.5 GiB firmware build exception was already used successfully; it is NOT a standing cap increase.
+
+Retained local source/test envelope: 512 MiB hard, 450 MiB RSS, one CPU, no swap, 150-second outer/120-second composition limit, five-second stop. Fresh authenticated available-minus-pending-minus-640 MiB must leave at least max(27648 MiB, installed floor). Use existing frozen-test harness patterns and shared W/work/claude-test-queue.py; inspect current processes before dispatch. Preservation has its own bounded harness. Do not assume pending zero, lower floors or automatically retry failed native experiments. No author retry or delegation is currently authorized by the latest handoff.
+
+Windows admission separately retains 18 GiB floor plus 39388 MiB prospective commitments and all startup/observer overheads. Linux pending does not establish Windows pending. Prefer total RPC stack below 32,000,000,000 bytes including L1 EL/CL, Base, OS/cache/support. The 20 GiB whole-stack proposal is not measured fit.
+
+USB array remains on Warden; authoritative L1 is on Warden NVMe. The design does NOT copy the terabyte-scale chains onto NucBox. User offered to move USB but no completed move is established. Preserve originals, exclusive COW/single writer, verified copies and existing storage ownership. Existing VMGS/metadata size is not a maximum-growth guarantee.
+
+DO NOT DAMAGE OR REPEAT
+- Preserve original guest/service 8091 and existing paid workloads.
+- Windows attempt 5a1f71bc826e4c5abf0166938d448c68 / VM 7a8586db00c64f6f8ab024ae134fe641 is ambiguous and HELD. No replay, adoption or reservation release based on an SSH exit or kill request. Inspect exact provider/process evidence before any action.
+- rpc-owner-state-native-r1 is a poisoned fixture, never production authority. No new journal/provisioning to erase replay history.
+- RPC preview catalog publication already succeeded: app 0f628585d36c4272ae23c55b4f9ec6d5805f25e26d4744474710e46e4edbb537. Do not republish or ask for another signature. It does not prove a running RPC.
+- Preserve completed payments/recoveries/migrations in HANDOFF.md. One financial submitter. No duplicate funds, refunds, deposits, deployment transactions or forced hints. Refresh chain/journal/inventory before any new authorized spend.
+- Never export private keys or commit credentials, seed media, private journals, caches or binaries. Preserve browser origin/profile/nonextractable wallet keys.
+- Commit source/evidence incrementally, including failed attempts, while distinguishing source, fixture verification and actual production outcomes.
+
+BROADER REQUIREMENTS STILL APPLY
+Low ordinary gas should convert authorized USDC automatically within real session/contract scopes and one dollar budget. Host Online/listing requires measured capacity PASS and fresh valid attestation; authenticated Offline must remain possible with a protected reserve and independent crashed-host reporting. Bootstrap cannot require prior registration, paid lease or host ETH. Prefer eligible paid-work sponsorship; existing Stripe fallback requires live public authority/balance/liability/cap/nonce verification. Preserve actual owner/admin/security/privacy/content integrity while removing foreign/global veto. Do not switch off other owners' deployments during global retirement. These remain unfinished overall requirements, not reasons to delay a valid first RPC service with unrelated framework work.
+
+REPORTING
+Be direct: what is actually running, the next concrete blocker, and the result that would remove it. Do not offer another speculative percentage or promise imminent production from passing component tests. Keep the complete objective open until its real requirements are demonstrated. The previous agent and automation remain stopped.

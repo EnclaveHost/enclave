@@ -18,10 +18,10 @@ import (
 )
 
 // continueServingOwnerOnce is reached only by the original authenticated /2
-// loop after both guardian PREPARE acknowledgements. It commits the original
-// owner and two local guardians, NOT the independent exporter/host. The broker's
-// original deadline and export transport cutoff intentionally remain enforced
-// until their complete coordinated handoff is implemented and qualified.
+// loop after both guardian PREPARE acknowledgements. Only a durable owner proof,
+// exact original exporter ACK and both guardian ACKs allow the broker watcher to
+// transfer from original startupD to the conservative signed serving expiry.
+// This is a local composition, not independent Windows/outer-host adoption.
 func (s *BrokerSession) continueServingOwnerOnce(stream *ownerContinuationConnection, a *bootstrap.Authorization, bundle []byte, receipts *os.File) (err error) {
 	s.continuationMu.Lock()
 	defer s.continuationMu.Unlock()
@@ -45,6 +45,11 @@ func (s *BrokerSession) continueServingOwnerOnce(stream *ownerContinuationConnec
 		return errors.New("same live prepared owner, readiness, export and guardians required")
 	}
 	first := guardianSequence == 0
+	published := false
+	priorCutoff := s.servingCutoff.Load()
+	if priorCutoff == 0 {
+		priorCutoff = s.request.Deadline
+	}
 	deadline := time.Now().Add(3 * time.Second)
 	if prior.Before(deadline) {
 		deadline = prior
@@ -62,7 +67,7 @@ func (s *BrokerSession) continueServingOwnerOnce(stream *ownerContinuationConnec
 		if e := s.alive(); e != nil {
 			return e
 		}
-		if first {
+		if first && !published {
 			now, e := rpcservice.MonotonicNow()
 			if e != nil {
 				return e
@@ -206,7 +211,7 @@ func (s *BrokerSession) continueServingOwnerOnce(stream *ownerContinuationConnec
 	// The guard's slightly conservative expiry must bound the NEXT transaction.
 	sampled := time.Now()
 	actual, e := rpcservice.MonotonicNow()
-	if e != nil || actual >= expiry {
+	if e != nil || actual >= expiry || actual >= priorCutoff {
 		s.mu.Unlock()
 		return errors.New("guardian expiry passed before publication")
 	}
@@ -214,8 +219,17 @@ func (s *BrokerSession) continueServingOwnerOnce(stream *ownerContinuationConnec
 	s.servingProof = append([]byte(nil), reply...)
 	s.continuationSequence = permit.Sequence
 	stream.previous = accepted.Digest()
+	// The independent watcher never takes continuationMu or waits on I/O.
+	// Publish only after all exact participant ACKs and the durable receipt.
+	s.servingCutoff.Store(expiry)
+	actual, e = rpcservice.MonotonicNow()
+	if e != nil || actual >= priorCutoff || actual >= expiry || s.ctx.Err() != nil || ctx.Err() != nil {
+		s.mu.Unlock()
+		return errors.New("prior/new cutoff expired during broker publication")
+	}
+	published = true
 	s.mu.Unlock()
-	// No broker startup timer, exporter read deadline or host cutoff is changed.
+	// Outer operator/host adoption remains separate; original request is immutable.
 	if err = stream.raw.SetDeadline(accepted.NotAfter()); err != nil {
 		return err
 	}
