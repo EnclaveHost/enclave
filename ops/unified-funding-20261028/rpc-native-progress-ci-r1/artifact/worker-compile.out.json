@@ -1,0 +1,4 @@
+{
+  "sha256": "3114eec604501714534be1bb6b60109400d2b4c9225cc6b17674665f678e94c8",
+  "text": "source-closure\\windows\\rpc\\ProtectedAttempt.cs(32,23): warning CS0649: Field 'ProtectedAttempt.definitionJournal' is never assigned to, and will always have its default value false\r\nsource-closure\\windows\\rpc\\ProtectedAttempt.cs(33,23): warning CS0649: Field 'ProtectedAttempt.startupCleanup' is never assigned to, and will always have its default value false\r\n"
+}

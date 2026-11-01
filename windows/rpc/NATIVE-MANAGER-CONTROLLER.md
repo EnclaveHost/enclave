@@ -261,3 +261,9 @@ An opt-in runtime interface preserves single-observation behavior for other
 callers. Read-only reconciliation can wait on existing operations but cannot
 submit the next configuration step. Device policy/start/bootstrap remain pending.
 Reference: [Hyper-V job state and recurrence](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-concretejob).
+
+Pending-job progression qualification41334184727 passed12new composed cases;
+provider, clock and admission were mocked. Both production entrypoints compile,
+but actual SYSTEM/WMI timing and target boot remain unqualified. Exact receipts,
+source pins, process exits and executable hashes are preserved in
+`../../ops/unified-funding-20261028/rpc-native-progress-ci-r1/ROOT-RESULT.md`.

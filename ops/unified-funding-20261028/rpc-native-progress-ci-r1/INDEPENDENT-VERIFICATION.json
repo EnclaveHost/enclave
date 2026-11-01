@@ -1,0 +1,98 @@
+{
+  "runtime": "33d7e0890202f0d76e2bfffcadf9d16dadfebaa3",
+  "suppliedPins": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/ProviderStart.cs",
+    "windows/rpc/OwnedVmPermit.cs",
+    "windows/rpc/HostPhysicalPool.cs",
+    "windows/rpc/WindowsStartAdmission.cs",
+    "windows/rpc/LegacyTemplateFence.cs",
+    "windows/rpc/LegacyLaunchCohort.cs",
+    "windows/rpc/LegacyHandoff.cs",
+    "windows/rpc/NativeRpcDefinition.cs",
+    "windows/rpc/NativeRpcAuthority.cs",
+    "windows/rpc/NativeRpcWorkerEntry.cs",
+    "windows/rpc/NativeRpcController.cs",
+    "windows/rpc/NativeRpcManagerTransport.cs",
+    "test/rpc-windows-worker/NativeRpcProgressHarness.cs"
+  ],
+  "actualCompileClosures": {
+    "harness": [
+      "windows/rpc/BoundedWorker.cs",
+      "windows/rpc/OwnerObserver.cs",
+      "windows/rpc/ProtectedAttempt.cs",
+      "windows/rpc/ProviderStart.cs",
+      "windows/rpc/OwnedVmPermit.cs",
+      "windows/rpc/HostPhysicalPool.cs",
+      "windows/rpc/WindowsStartAdmission.cs",
+      "windows/rpc/LegacyTemplateFence.cs",
+      "windows/rpc/LegacyLaunchCohort.cs",
+      "windows/rpc/LegacyHandoff.cs",
+      "windows/rpc/NativeRpcDefinition.cs",
+      "windows/rpc/NativeRpcAuthority.cs",
+      "test/rpc-windows-worker/NativeRpcProgressHarness.cs"
+    ],
+    "controller": [
+      "windows/rpc/BoundedWorker.cs",
+      "windows/rpc/OwnerObserver.cs",
+      "windows/rpc/ProtectedAttempt.cs",
+      "windows/rpc/ProviderStart.cs",
+      "windows/rpc/OwnedVmPermit.cs",
+      "windows/rpc/HostPhysicalPool.cs",
+      "windows/rpc/WindowsStartAdmission.cs",
+      "windows/rpc/LegacyTemplateFence.cs",
+      "windows/rpc/LegacyLaunchCohort.cs",
+      "windows/rpc/LegacyHandoff.cs",
+      "windows/rpc/NativeRpcDefinition.cs",
+      "windows/rpc/NativeRpcAuthority.cs",
+      "windows/rpc/NativeRpcController.cs",
+      "windows/rpc/NativeRpcManagerTransport.cs"
+    ],
+    "worker": [
+      "windows/rpc/BoundedWorker.cs",
+      "windows/rpc/OwnerObserver.cs",
+      "windows/rpc/ProtectedAttempt.cs",
+      "windows/rpc/ProviderStart.cs",
+      "windows/rpc/OwnedVmPermit.cs",
+      "windows/rpc/HostPhysicalPool.cs",
+      "windows/rpc/WindowsStartAdmission.cs",
+      "windows/rpc/LegacyTemplateFence.cs",
+      "windows/rpc/LegacyLaunchCohort.cs",
+      "windows/rpc/LegacyHandoff.cs",
+      "windows/rpc/NativeRpcDefinition.cs",
+      "windows/rpc/NativeRpcAuthority.cs",
+      "windows/rpc/NativeRpcWorkerEntry.cs"
+    ]
+  },
+  "binaries": {
+    "owned-entry.exe": {
+      "bytes": 234496,
+      "sha256": "acf7ba2647e03841cd305522de6870b979341e9ed8d4f6d3f43e18d70017df11"
+    },
+    "native-worker.exe": {
+      "bytes": 260096,
+      "sha256": "251f7a3a84f9090dce2c2c8e85a1510b447c8ce731bbc4af02788bcba5994b01"
+    },
+    "system-worker.exe": {
+      "bytes": 226304,
+      "sha256": "6ed283d736d102eade87eb526d813803bb81f2c0d6629037539db3930ceba433"
+    }
+  },
+  "tests": [
+    "definition waits on saved job through starting running and completion without resubmit",
+    "security waits on original saved reference and records success once",
+    "five optical jobs progress in same lease with exact receipt before every wait",
+    "changed definition job incarnation after wait refuses ownership",
+    "changed security job incarnation after wait refuses next stage",
+    "changed optical job incarnation after wait never submits next resource",
+    "worker wait refusal leaves pending exact job and no success or repeat mutation",
+    "unsupported failed recurring and nonprogress states never enter wait",
+    "clock stalled rolled back or beyond original startup refuses another observation",
+    "nonwaiting caller retains single observation semantics",
+    "readonly optical settlement waits but cannot submit missing next step",
+    "lost response and completed error never trigger wait or next mutation"
+  ],
+  "providerClockAdmissionMocked": true
+}

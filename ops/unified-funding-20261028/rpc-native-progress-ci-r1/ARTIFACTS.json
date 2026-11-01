@@ -1,0 +1,45 @@
+{
+  "total_count": 2,
+  "artifacts": [
+    {
+      "id": 13094960340,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA5NDk2MDM0MA==",
+      "name": "rpc-native-progress-exact-source",
+      "size_in_bytes": 111729,
+      "url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13094960340",
+      "archive_download_url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13094960340/zip",
+      "expired": false,
+      "digest": "sha256:88b35974505649eb776d662cb2e18653c1e6d6552a8f274d041466d403427211",
+      "created_at": "2026-11-01T17:58:46Z",
+      "updated_at": "2026-11-01T17:58:46Z",
+      "expires_at": "2026-11-08T17:58:45Z",
+      "workflow_run": {
+        "id": 41334184727,
+        "repository_id": 1428203917,
+        "head_repository_id": 1428203917,
+        "head_branch": "main",
+        "head_sha": "33d7e0890202f0d76e2bfffcadf9d16dadfebaa3"
+      }
+    },
+    {
+      "id": 13094248115,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA5NDI0ODExNQ==",
+      "name": "rpc-native-progress-results",
+      "size_in_bytes": 277528,
+      "url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13094248115",
+      "archive_download_url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13094248115/zip",
+      "expired": false,
+      "digest": "sha256:b4f888dc4fefca5631a45db914db2da4faaf7819d380d11622ecadb4f03fd59b",
+      "created_at": "2026-11-01T17:59:15Z",
+      "updated_at": "2026-11-01T17:59:15Z",
+      "expires_at": "2026-11-08T17:59:14Z",
+      "workflow_run": {
+        "id": 41334184727,
+        "repository_id": 1428203917,
+        "head_repository_id": 1428203917,
+        "head_branch": "main",
+        "head_sha": "33d7e0890202f0d76e2bfffcadf9d16dadfebaa3"
+      }
+    }
+  ]
+}
