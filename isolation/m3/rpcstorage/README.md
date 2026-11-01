@@ -1,9 +1,9 @@
 # RPC storage authority handoff
 
-This package implements the monitor client of a **required measured storage
-broker**, over fixed root-controlled Unix sequenced packets. The broker service
-is not implemented or installed yet. No live storage authority or independent
-guardian is established by these tests. Absence refuses launch; there is no
+This package implements the monitor client and authenticated broker acquisition
+components, over fixed root-controlled Unix sequenced packets. The broker daemon
+and accepted bootstrap are not implemented or installed yet. No live storage
+authority is established by these tests. Absence refuses launch; there is no
 host-path, UUID-only, permission-boolean or direct-VM fallback.
 
 The accepted bootstrap must include a broker that independently authenticates
@@ -120,14 +120,64 @@ required integration. Do not activate a responder that just echoes a request
 hash and passes directories. Tests use inert subprocesses and socket messages;
 they do not launch a provider or prove production storage ownership.
 
-The maintained storage-owner Python export CLI now has a separately exercised
-one-shot mTLS app-control gate; see [its wire/lifetime contract](../../../rpc/server/README.md).
-It independently stops its COW worker and exports on control EOF, including
-blocked worker preparation, and keeps the original deadline after legacy
-adoption. It authenticates a specifically provisioned certificate and exact
-request/export-contract digests. **This package does not yet provision or connect
-that transport.** Its accepted bootstrap must bind the dedicated credential and
-storage endpoint to the actual authenticated request/consent/reservation, close
-the control connection on this session's loss, and obtain actual writer
-settlement before a grant or release. A test client opening that gate is not the
-missing broker service. No writable roots or production grants were added.
+## Signed transport and actual exporter connection
+
+`BrokerSession.ConnectExportControl` now connects the actual one-shot mTLS gate
+in the maintained Python exporter; see [its wire/lifetime contract](../../../rpc/server/README.md).
+The same broker session must first complete `AuthenticateAndReserve`. Its two
+fsynced, read-verified volume records include the exact authenticated transport
+binding before any possible network submission. Partial/failed reservation,
+expired authorization, historical consent, wrong certificate bytes, or a second
+call refuses without a new dial. All records stay consumed on error or loss.
+
+Both storage authorities selected in the owner-committed package must sign
+`enclave-rpc-storage-consent/2`. Its `export` object contains `host` (canonical
+literal unicast IP), `port`, `serverName`, `serverCertificateSha256`,
+`clientCertificateSha256`, and `contractSha256`. All digests are lowercase SHA-256;
+certificate pins hash DER, not PEM. `RPCExportSigningPayloads` retains every
+original request/runtime/owner/chain/ledger/envelope/role/epoch binding and adds
+the SHA-256 of the canonical export object under a new domain separator. No
+host-supplied endpoint or TLS configuration can replace that signed object.
+Schema 1 retains its old bytes and cannot open a transport or add even a null
+`export` field. The SDK owner package format and its selected public keys are
+unchanged; this is an explicit new storage-authority response.
+
+The caller supplies the private client key and public server certificate. The
+connector verifies both certificate pins against consent, then uses the exact
+server leaf as its explicit X.509 trust anchor, with standard name, validity,
+usage, and TLS 1.3 verification still enabled. It does not use system/Enclave CA
+roots, `InsecureSkipVerify`, DNS lookup, a proxy, rotation or retry. The socket
+is owned before TLS starts. The binding handshake is limited to three seconds
+or the earlier original deadline. BOUND acknowledges only the request and
+contract hashes, never export/RPC readiness or writable-root permission.
+
+The session's existing process/socket watcher closes the **underlying TCP
+connection**, without waiting for TLS shutdown, on monitor loss or expiry.
+EOF, error, or any extra server byte cancels the session. The original consent's
+lease/freshness cutoff is captured once and anchored to monotonic time; a legacy
+authorization refresh cannot silently extend this consumed connection. This
+does not add renewals, implement event-driven authorization, or observe fresh
+chain revocation by itself. The eventual service must close the session on its
+own authenticated revocation observation. A frozen broker or silent partition
+still needs the independently owned original deadline; Go cancellation is not
+OS-enforced fencing. Persistent adoption is not implemented.
+
+Actual interoperability used Reader.Authorize with **mocked chain quorum**, real
+generated Ed25519 authority signatures, real disposable ext4 journal records,
+actual monitor kernel pidfds, and real TLS to the maintained Python guardian.
+Killing that exact monitor closed the transport and killed both preheld blocked
+worker/descendant identities in 563 ms. Additional tests cover pre-dial refusal,
+standard certificate name validation, altered acknowledgements, extra bytes,
+and an unanswered acknowledgement bounded by the original 800 ms remaining
+window. No production keys, volumes or provider operations were involved.
+
+**The storage-owner service, credential provisioning and accepted bootstrap are
+still missing.** In particular, Warden must own its authoritative writer journal
+and back its signed epochs with actual COW/export state. A journal in the NucBox
+guest is not that authority, and this local-record API must not be deployed as a
+substitute for the remote owner's persistence and fencing. The cross-host service
+must integrate that ownership boundary before any writable descriptor grant.
+There is still no grant/release method or complete broker executable. The monitor
+compatibility build is not an installed broker. Signature and transport success
+do not establish volume ownership, settlement, persistent adoption, kernel
+attachment, sync/finality, or a working RPC app.

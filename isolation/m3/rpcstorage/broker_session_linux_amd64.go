@@ -35,16 +35,19 @@ type brokerPoll struct {
 // Context cancellation is advisory to callers, NOT a native-operation deadline
 // or an independent OS watchdog. Persistent intents remain consumed on loss.
 type BrokerSession struct {
-	done               chan struct{}
-	request            Request
-	conn               *net.UnixConn
-	peer, owner, clock *os.File
-	ctx                context.Context
-	cancel             context.CancelFunc
-	mu                 sync.Mutex
-	consumed           bool
-	intent             *BrokerIntent
-	once               sync.Once
+	done                 chan struct{}
+	request              Request
+	conn                 *net.UnixConn
+	peer, owner, clock   *os.File
+	ctx                  context.Context
+	cancel               context.CancelFunc
+	mu                   sync.Mutex
+	consumed             bool
+	reserved, exportUsed bool
+	intent               *BrokerIntent
+	exportRaw            net.Conn
+	authorizationUntil   time.Time
+	once                 sync.Once
 }
 
 func (s *BrokerSession) Request() Request         { return s.request }
@@ -124,6 +127,12 @@ func (s *BrokerSession) alive() error {
 		return errors.New("monitor session lost")
 	default:
 	}
+	s.mu.Lock()
+	until := s.authorizationUntil
+	s.mu.Unlock()
+	if !until.IsZero() && !time.Now().Before(until) {
+		return errors.New("original storage authorization expired")
+	}
 	raw, e := s.conn.SyscallConn()
 	if e != nil {
 		return e
@@ -145,7 +154,18 @@ func (s *BrokerSession) alive() error {
 	return nil
 }
 func (s *BrokerSession) lose() {
-	s.once.Do(func() { s.cancel(); s.conn.Close() })
+	s.once.Do(func() {
+		s.cancel()
+		s.conn.Close()
+		s.mu.Lock()
+		raw := s.exportRaw
+		s.mu.Unlock()
+		// Close the underlying TCP object, never TLS Close/close_notify: shutdown
+		// must not wait on a blocked TLS writer, signer, or remote handshake.
+		if raw != nil {
+			raw.Close()
+		}
+	})
 }
 func (s *BrokerSession) watch(armed chan<- struct{}) {
 	defer close(s.done)
@@ -335,5 +355,16 @@ func (s *BrokerSession) AuthenticateAndReserve(a *bootstrap.Authorization, bundl
 		s.lose()
 		return intent, err
 	}
+	s.mu.Lock()
+	if s.ctx.Err() != nil {
+		s.mu.Unlock()
+		return intent, errors.New("monitor lost before reservation publication")
+	}
+	s.reserved = true
+	// Anchor the immutable wall-time authorization bound to this process's
+	// monotonic clock once; a later wall-clock rollback cannot extend it.
+	now := time.Now()
+	s.authorizationUntil = now.Add(intent.consent.NotAfter().Sub(now))
+	s.mu.Unlock()
 	return intent, nil
 }

@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "path": "isolation/m3/rpcstorage/README.md",
+      "tested": "6de1bf572d79f90aa9afc99089f48cc1d4a3aa091487f8f3f2a8f57bbf24837e",
+      "documentedAfterTests": "06597a0af444d6dd5af0a532e6923f44c8b7084b1f3f5958d2bd57c0c67f5d14"
+    }
+  ],
+  "runtimeAndTestsUnchanged": true
+}

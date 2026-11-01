@@ -17,7 +17,10 @@ import (
 // acquired records stay on disk after every error. No release/delete/retry API
 // exists. The service must still arm its independent guardian and obtain exact
 // storage-owner fencing before sending writable roots to the monitor.
-type BrokerIntent struct{ records []*os.File }
+type BrokerIntent struct {
+	records []*os.File
+	consent *bootstrap.RPCStorageConsent
+}
 
 // ReserveBrokerIntent consumes BOTH logical volume identities in the storage
 // owner's private, persistent journal before any possibly submitted export.
@@ -32,17 +35,29 @@ func ReserveBrokerIntent(c *bootstrap.RPCStorageConsent, r Request, journal *os.
 	if err != nil {
 		return nil, err
 	}
+	binding, err := c.ExportBinding(r)
+	if err != nil {
+		return nil, err
+	}
 	record := struct {
-		Schema    string  `json:"schema"`
-		Request   Request `json:"request"`
-		L1Epoch   string  `json:"l1Epoch"`
-		BaseEpoch string  `json:"baseEpoch"`
-	}{"enclave-rpc-storage-consumed/1", r, l, b}
+		Schema    string                      `json:"schema"`
+		Request   Request                     `json:"request"`
+		L1Epoch   string                      `json:"l1Epoch"`
+		BaseEpoch string                      `json:"baseEpoch"`
+		Export    *bootstrap.RPCExportBinding `json:"export,omitempty"`
+	}{"enclave-rpc-storage-consumed/1", r, l, b, binding}
+	if binding != nil {
+		record.Schema = "enclave-rpc-storage-consumed/2"
+	}
 	raw, err := json.Marshal(record)
 	if err != nil {
 		return nil, err
 	}
-	return reserveRecords(journal, [2]string{r.L1Volume, r.BaseVolume}, raw)
+	intent, err := reserveRecords(journal, [2]string{r.L1Volume, r.BaseVolume}, raw)
+	if err == nil {
+		intent.consent = c
+	}
+	return intent, err
 }
 func reserveRecords(journal *os.File, volumes [2]string, raw []byte) (*BrokerIntent, error) {
 	intent := &BrokerIntent{}

@@ -18,8 +18,11 @@ The client certificate must both verify against that CA and match the exact DER
 digest. This distinguishes the selected client even from other certificates
 issued by the same CA. **Transport authentication is not app-owner consent or a
 writer lease.** The protected contract and dedicated credential must be supplied
-by the authenticated, durably reserved storage-owner broker; that live
-provisioning/connection path is still missing. Do not use arbitrary host JSON or
+by the authenticated, durably reserved storage-owner broker. Its Go connection
+component now verifies both authorities' signed endpoint/certificate/contract
+binding and connects this gate after durable pair consumption; see
+[broker transport](../../isolation/m3/rpcstorage/README.md). Live storage-owner
+service/credential provisioning and accepted bootstrap remain missing. Do not use arbitrary host JSON or
 reuse an old production credential as authority.
 
 The first TCP connection consumes the listener, including on failure. TLS and
