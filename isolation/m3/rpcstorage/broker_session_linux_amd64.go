@@ -5,6 +5,8 @@ package rpcstorage
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -43,6 +45,7 @@ type BrokerSession struct {
 	cancel               context.CancelFunc
 	mu                   sync.Mutex
 	consumed             bool
+	accepted             bool
 	reserved, exportUsed bool
 	intent               *BrokerIntent
 	consent              *bootstrap.RPCStorageConsent
@@ -370,4 +373,51 @@ func (s *BrokerSession) AuthenticateAndReserve(a *bootstrap.Authorization, bundl
 	s.authorizationUntil = now.Add(intent.consent.NotAfter().Sub(now))
 	s.mu.Unlock()
 	return intent, nil
+}
+
+// Acknowledge sends exactly one ingress acknowledgment after the exact peer and
+// transferred owner have been checked and the session watcher is armed. It does
+// not certify owner consent, attachment, fencing or an independent guardian.
+func (s *BrokerSession) Acknowledge() (err error) {
+	s.mu.Lock()
+	used := s.accepted
+	s.accepted = true
+	s.mu.Unlock()
+	defer func() {
+		if err != nil {
+			s.lose()
+		}
+	}()
+	if used {
+		return errors.New("storage acceptance already consumed")
+	}
+	if err = s.alive(); err != nil {
+		return err
+	}
+	raw, err := json.Marshal(s.request)
+	if err != nil {
+		return err
+	}
+	sum := sha256.Sum256(raw)
+	packet := []byte(acceptedPrefix + hex.EncodeToString(sum[:]) + "\n")
+	before := time.Now()
+	now, err := rpcservice.MonotonicNow()
+	if err != nil || now >= s.request.Deadline {
+		return errors.New("late storage acceptance")
+	}
+	remaining := time.Duration(s.request.Deadline - now)
+	if remaining > 3*time.Second {
+		remaining = 3 * time.Second
+	}
+	if err = s.conn.SetWriteDeadline(before.Add(remaining)); err != nil {
+		return err
+	}
+	n, on, err := s.conn.WriteMsgUnix(packet, nil, nil)
+	if err != nil || n != len(packet) || on != 0 {
+		return errors.New("ambiguous storage acceptance; held")
+	}
+	if err = s.conn.SetWriteDeadline(time.Time{}); err != nil {
+		return err
+	}
+	return s.alive()
 }

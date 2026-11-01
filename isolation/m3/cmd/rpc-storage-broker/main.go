@@ -167,6 +167,9 @@ func run() error {
 		return e
 	}
 	defer session.Stop()
+	if e = session.Acknowledge(); e != nil {
+		return e
+	}
 	raw, e := privateInput(5, 2<<20)
 	if e != nil {
 		return e
@@ -272,8 +275,8 @@ func run() error {
 	if e != nil || n != len(raw) {
 		return errors.New("broker receipt write failed")
 	}
-	// No monitor grant is sent. Until qualified attachment/guardian integration
-	// exists, the monitor's existing acquisition timeout closes this session.
+	// Acceptance keeps the original acquisition window, but is no root grant.
+	// Qualified attachment/guardian integration is still required before serving.
 	<-control.Context().Done()
 	return errors.New("broker control lifetime ended; owner reservations retained")
 }

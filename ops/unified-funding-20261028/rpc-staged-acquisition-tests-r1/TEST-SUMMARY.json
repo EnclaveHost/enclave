@@ -1,0 +1,42 @@
+{
+  "pass": [
+    "TestStagedAcquisitionPreservesOriginalWindow/slow-grant",
+    "TestStagedAcquisitionPreservesOriginalWindow/original-expiry",
+    "TestStagedAcquisitionPreservesOriginalWindow/missing-ack",
+    "TestStagedAcquisitionPreservesOriginalWindow/wrong-ack",
+    "TestStagedAcquisitionPreservesOriginalWindow/ack-rights",
+    "TestStagedAcquisitionPreservesOriginalWindow/truncated-ack",
+    "TestStagedAcquisitionPreservesOriginalWindow/repeated-ack",
+    "TestStagedAcquisitionPreservesOriginalWindow/grant-without-ack",
+    "TestStagedAcquisitionPreservesOriginalWindow",
+    "TestStagedAcquisitionDetectsExactBrokerDeathWithSocketRetained",
+    "TestBrokerBindsActualPeerAndTransferredOwner",
+    "TestBrokerRejectsIdentityAndPacketSubstitution/wrong-process",
+    "TestBrokerRejectsIdentityAndPacketSubstitution/regular-fd",
+    "TestBrokerRejectsIdentityAndPacketSubstitution/missing-fd",
+    "TestBrokerRejectsIdentityAndPacketSubstitution/extra-fd",
+    "TestBrokerRejectsIdentityAndPacketSubstitution/wrong-boot",
+    "TestBrokerRejectsIdentityAndPacketSubstitution/reset-origin",
+    "TestBrokerRejectsIdentityAndPacketSubstitution/duplicate",
+    "TestBrokerRejectsIdentityAndPacketSubstitution/alias",
+    "TestBrokerRejectsIdentityAndPacketSubstitution/oversized",
+    "TestBrokerRejectsIdentityAndPacketSubstitution",
+    "TestBrokerLossAndOriginalDeadlineCloseGate/owner-death",
+    "TestBrokerLossAndOriginalDeadlineCloseGate/close-live",
+    "TestBrokerLossAndOriginalDeadlineCloseGate/extra-message",
+    "TestBrokerLossAndOriginalDeadlineCloseGate/deadline",
+    "TestBrokerLossAndOriginalDeadlineCloseGate",
+    "TestActualGrantDescriptorsAndLoss/valid",
+    "TestActualGrantDescriptorsAndLoss/wrong-binding",
+    "TestActualGrantDescriptorsAndLoss/one-fd",
+    "TestActualGrantDescriptorsAndLoss/extra-fds",
+    "TestActualGrantDescriptorsAndLoss/truncated",
+    "TestActualGrantDescriptorsAndLoss/late",
+    "TestActualGrantDescriptorsAndLoss"
+  ],
+  "fail": [
+    "TestAcceptanceOnlyOnceAndNoRoots",
+    "PACKAGE"
+  ],
+  "skip": []
+}

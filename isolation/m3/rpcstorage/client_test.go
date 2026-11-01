@@ -121,6 +121,10 @@ func TestActualGrantDescriptorsAndLoss(t *testing.T) {
 					return
 				}
 				h := sha256.Sum256(b[:n])
+				if _, _, e = s.WriteMsgUnix([]byte(acceptedPrefix+hex.EncodeToString(h[:])+"\n"), nil, nil); e != nil {
+					server <- e
+					return
+				}
 				reply := replyPrefix + hex.EncodeToString(h[:]) + "\n"
 				rights := []int{int(roots[0].Fd()), int(roots[1].Fd())}
 				switch mode {

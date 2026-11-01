@@ -297,3 +297,23 @@ receipt and watches loss, but never sends the monitor writable descriptors.
 Accepted bootstrap/relay provisioning, the independent guardian, attachment and
 writer-settlement integration remain missing. No complete serving broker or
 production deployment is claimed by this source.
+
+## Two-stage acquisition
+
+The monitor now requires exactly one `ENCLAVE-RPC-STORAGE-ACCEPTED/1` packet
+containing the original request SHA256 and no descriptors, within the existing
+three-second ingress window. BrokerSession.Acknowledge emits it after checking
+the exact monitor identities and arming the local session watcher. The concrete
+broker invokes it before chain authorization or owner relay work. It neither
+reserves volumes nor sends roots. One final `ENCLAVE-RPC-STORAGE/1` grant with
+two root descriptors may follow, bounded by the original kernel boot deadline;
+no timer restarts, repeated progress packets or implicit grant are accepted.
+
+The monitor retains the exact socket peer pidfd before submission and checks it
+while waiting and after a grant. Broker death closes the monitor gate even when
+a third process retains a socket duplicate. This is local liveness evidence,
+not remote exporter death or writer settlement. The accepted bootstrap must
+preserve that peer identity through exec and independently enforce the original
+deadline before work. Actual bootstrap provisioning, attachment/root issuance
+and production qualification remain outstanding. Older direct-grant peers must
+be updated together with the monitor; no deployed peer was changed.

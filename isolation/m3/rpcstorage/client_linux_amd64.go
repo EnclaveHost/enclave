@@ -25,6 +25,7 @@ import (
 
 const socketPath = "/run/native-rpc-storage/broker.sock"
 const requestSchema = contract.RPCStorageRequestSchema
+const acceptedPrefix = "ENCLAVE-RPC-STORAGE-ACCEPTED/1 "
 const replyPrefix = "ENCLAVE-RPC-STORAGE/1 "
 
 // Request binds one attempt to actual loaded identity and the original clock.
@@ -40,6 +41,7 @@ type Attempt struct {
 	L1, Base *os.File
 	conn     *net.UnixConn
 	owner    *os.File
+	peer     *os.File
 	intent   *os.File
 	loss     chan struct{}
 }
@@ -122,19 +124,36 @@ func protectedSocket() error {
 }
 func acquire(c *net.UnixConn, req Request) (a *Attempt, err error) {
 	a = &Attempt{Request: req, conn: c, loss: make(chan struct{})}
+	defer func() {
+		if err != nil {
+			c.Close() // Notify the broker; never infer owner settlement from this.
+			close(a.loss)
+		}
+	}()
 	// A failed submission is intentionally retained by the monitor, never retried.
 	raw, e := c.SyscallConn()
 	if e != nil {
 		return a, e
 	}
 	var cred *syscall.Ucred
+	peerFD := -1
 	if e = raw.Control(func(fd uintptr) {
 		cred, err = syscall.GetsockoptUcred(int(fd), syscall.SOL_SOCKET, syscall.SO_PEERCRED)
+		if err == nil {
+			peerFD, err = syscall.GetsockoptInt(int(fd), syscall.SOL_SOCKET, soPeerPIDFD)
+		}
 	}); e != nil {
 		return a, e
 	}
+	if peerFD >= 0 {
+		a.peer = os.NewFile(uintptr(peerFD), "exact-storage-broker")
+	}
 	if err != nil || cred == nil || cred.Uid != 0 {
 		return a, errors.New("storage peer is not measured guest root")
+	}
+	pid, e := pidfdPID(a.peer)
+	if e != nil || pid != int(cred.Pid) {
+		return a, errors.New("exact live broker peer required")
 	}
 	before := time.Now()
 	now, e := rpcservice.MonotonicNow()
@@ -162,22 +181,22 @@ func acquire(c *net.UnixConn, req Request) (a *Attempt, err error) {
 	if e != nil || n != len(b) || on != syscall.CmsgSpace(4) {
 		return a, errors.New("ambiguous storage acquire submission; retained")
 	}
-	reply := make([]byte, 256)
-	oob := make([]byte, syscall.CmsgSpace(8))
-	var flags int
-	if e = raw.Read(func(fd uintptr) bool {
-		n, on, flags, _, err = syscall.Recvmsg(int(fd), reply, oob, syscall.MSG_CMSG_CLOEXEC)
-		return err != syscall.EAGAIN && err != syscall.EWOULDBLOCK
-	}); e != nil {
-		return a, e
+	sum := sha256.Sum256(b)
+	binding := hex.EncodeToString(sum[:]) + "\n"
+	ack, ackRights, e := readAcquisitionPacket(c, a.peer, before.Add(handshake))
+	for _, received := range ackRights {
+		syscall.Close(received)
 	}
-	if err != nil {
+	if e != nil || len(ackRights) != 0 || string(ack) != acceptedPrefix+binding {
+		return a, errors.New("exact one-shot acceptance required before storage grant")
+	}
+	// Acceptance is not consent, a root grant, readiness or an independent
+	// watchdog receipt. It permits only waiting, within the ORIGINAL deadline,
+	// for one final grant from this exact held broker process. No keepalives.
+	if err = c.SetDeadline(time.Time{}); err != nil {
 		return a, err
 	}
-	rights, e := receivedRights(oob[:on])
-	if e != nil {
-		return a, e
-	}
+	reply, rights, packetErr := readAcquisitionPacket(c, a.peer, before.Add(remaining))
 	// Retain even malformed grants. No capability is returned to a reuse pool.
 	for i, fd := range rights {
 		f := os.NewFile(uintptr(fd), "rpc-state-grant")
@@ -189,9 +208,8 @@ func acquire(c *net.UnixConn, req Request) (a *Attempt, err error) {
 			f.Close()
 		}
 	}
-	sum := sha256.Sum256(b)
-	expected := replyPrefix + hex.EncodeToString(sum[:]) + "\n"
-	if flags&(syscall.MSG_TRUNC|syscall.MSG_CTRUNC) != 0 || string(reply[:n]) != expected || len(rights) != 2 {
+	expected := replyPrefix + binding
+	if packetErr != nil || string(reply) != expected || len(rights) != 2 {
 		return a, errors.New("storage grant differs from exact attempt")
 	}
 	for _, f := range []*os.File{a.L1, a.Base} {
@@ -211,9 +229,86 @@ func acquire(c *net.UnixConn, req Request) (a *Attempt, err error) {
 	if err = c.SetReadDeadline(before.Add(time.Duration(req.Deadline - now))); err != nil {
 		return a, err
 	}
-	go func() { var b [1]byte; _, _ = c.Read(b[:]); close(a.loss) }()
+	go func() {
+		// Any packet, EOF, exact broker death or original deadline is loss.
+		_, rights, _ := readAcquisitionPacket(c, a.peer, before.Add(time.Duration(req.Deadline-now)))
+		for _, fd := range rights {
+			syscall.Close(fd)
+		}
+		c.Close()
+		close(a.loss)
+	}()
 	return a, nil
 }
+
+// readAcquisitionPacket watches the exact broker pidfd even if another process
+// retains the socket. A blocked broker cannot refresh or replace the deadline.
+// This bounds the monitor wait; it does not kill or settle the remote exporter.
+func readAcquisitionPacket(c *net.UnixConn, peer *os.File, deadline time.Time) ([]byte, []int, error) {
+	raw, err := c.SyscallConn()
+	if err != nil {
+		return nil, nil, err
+	}
+	for {
+		left := time.Until(deadline)
+		if left <= 0 {
+			return nil, nil, errors.New("original acquisition stage expired")
+		}
+		if left > 10*time.Millisecond {
+			left = 10 * time.Millisecond
+		}
+		rows := []brokerPoll{{int32(peer.Fd()), 1, 0}, {0, 1 | 0x2000, 0}}
+		var ready bool
+		var pe error
+		err = raw.Control(func(fd uintptr) {
+			rows[1].FD = int32(fd)
+			ready, pe = pollBroker(rows, left)
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+		if pe == syscall.EINTR {
+			continue
+		}
+		if pe != nil {
+			return nil, nil, pe
+		}
+		if rows[0].Returned != 0 {
+			return nil, nil, errors.New("exact broker process exited")
+		}
+		if !ready {
+			continue
+		}
+		packet, oob := make([]byte, 256), make([]byte, syscall.CmsgSpace(8))
+		var n, on, flags int
+		err = raw.Control(func(fd uintptr) {
+			n, on, flags, _, pe = syscall.Recvmsg(int(fd), packet, oob, syscall.MSG_CMSG_CLOEXEC|syscall.MSG_DONTWAIT)
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+		if pe == syscall.EAGAIN || pe == syscall.EWOULDBLOCK || pe == syscall.EINTR {
+			continue
+		}
+		if pe != nil {
+			return nil, nil, pe
+		}
+		rights, parseErr := receivedRights(oob[:on])
+		if parseErr != nil {
+			return nil, rights, parseErr
+		}
+		if n == 0 || flags&(syscall.MSG_TRUNC|syscall.MSG_CTRUNC) != 0 || !time.Now().Before(deadline) {
+			return nil, rights, errors.New("closed, truncated or late acquisition packet")
+		}
+		// The process must still be alive after receipt, before using any grant.
+		dead, pe := pollBroker([]brokerPoll{{int32(peer.Fd()), 1, 0}}, 0)
+		if pe != nil || dead {
+			return nil, rights, errors.New("broker died during acquisition")
+		}
+		return packet[:n], rights, nil
+	}
+}
+
 func receivedRights(raw []byte) ([]int, error) {
 	msgs, err := syscall.ParseSocketControlMessage(raw)
 	if err != nil {

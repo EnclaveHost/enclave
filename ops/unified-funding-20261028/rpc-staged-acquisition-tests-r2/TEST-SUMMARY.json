@@ -1,0 +1,8 @@
+{
+  "pass": [
+    "TestAcceptanceOnlyOnceAndNoRoots",
+    "PACKAGE"
+  ],
+  "fail": [],
+  "skip": []
+}

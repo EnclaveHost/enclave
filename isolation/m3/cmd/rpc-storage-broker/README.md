@@ -4,8 +4,9 @@ This command joins the existing monitor process binding, real owner authorizatio
 storage-owner signed reservation and authenticated export control. It does not
 attach NBD, mount a filesystem, send a root descriptor grant, announce readiness,
 release a reservation or adopt a persistent service. It is not installed or part
-of an accepted platform yet. The monitor's current acquisition timeout therefore
-still prevents client startup with this control-only command.
+of an accepted platform yet. Its one-shot ingress acknowledgment lets the monitor
+wait within the original startup window; absence of a final root grant still
+prevents client startup with this control-only command.
 
 Accepted bootstrap must launch it once, with no arguments, in a dedicated
 128 MiB/no-swap/CPU1/32-task cgroup and an independently enforced original guest
@@ -67,3 +68,18 @@ implementation and target qualification. Independent guardian integration,
 actual attachment and root grant, accepted guest identity, owner namespace and
 previous-writer settlement remain prerequisites to activation. This command
 must not be installed as a working RPC backend or used to bypass those gates.
+
+The command acknowledges the exact request after ReceiveBrokerSession has armed
+its local loss watcher, before slow authorization or owner work. The monitor
+requires this descriptor-free acknowledgment within three seconds, then waits
+for precisely one final grant under the original guest deadline. This adds no
+renewal or new time budget. Acceptance conveys no storage permission. Repeated
+acknowledgments and grants sent before acceptance are refused.
+
+The monitor retains SO_PEERPIDFD and checks it during both acquisition and the
+granted lifetime, so a surviving socket duplicate cannot conceal that exact
+peer's death. Bootstrap must establish the listener/connection in the process
+that becomes the broker (exec preserves identity); passing a connection owned
+by an unrelated long-lived process would monitor that process, not this command,
+and is not a qualified bootstrap topology. This change does not implement that
+bootstrap or supply an independently scheduled guardian.
