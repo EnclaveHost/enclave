@@ -42,10 +42,11 @@ namespace Enclave.OwnedRpc {
    var p=pin.NativeDefinitionPlan;long now=BoundedWorker.MonotonicMilliseconds(),end=Math.Min(p.Deadline+29000,now+20000);
    Action check=delegate{lifecycle.CheckDeadline();if(BoundedWorker.MonotonicMilliseconds()>=end)throw new InvalidOperationException("Original cleanup dispatch expired");};check();
    if(group==null){pin.WriteOnce("native-lifecycle.result","no-bound-start-group;held;reservation-release=false");return null;}
-   // Exact retained handles are closed to further work BEFORE native stop.
-   group.StopAndObserve(Math.Min(end,now+3000));check();
    string nonce=Guid.NewGuid().ToString("N"),root=Path.Combine(lifecycle.Root,nonce),image=Path.Combine(root,"entry.exe"),contract=Path.Combine(root,"contract.txt");
-   pin.WriteOnce("native-lifecycle.stop",StartRecords.Encode(new Dictionary<string,object>{{"plan",p.Digest},{"root",root},{"origin",now},{"deadline",end},{"reason",reason},{"workers",NativeRpcDefinitionPlan.Hash(group.Record)}}));
+   string claim=StartRecords.Encode(new Dictionary<string,object>{{"plan",p.Digest},{"root",root},{"origin",now},{"deadline",end},{"reason",reason},{"workers",NativeRpcDefinitionPlan.Hash(group.Record)}});
+   if(!NativeLifecycleClaim.Try(new NativeRpcCleanupJournal(pin),claim))return null;
+   // Only the durable winner may stop the exact original peers or schedule.
+   group.StopAndObserve(Math.Min(end,now+3000));check();
    using(var files=new NativeControllerFiles(check)){
     files.NewDirectory(root);files.Publish(image,worker);string raw=String.Join("\n",new[]{"owned-native-rpc-cleanup-worker-v1",nonce,p.Boot,now.ToString(CultureInfo.InvariantCulture),end.ToString(CultureInfo.InvariantCulture),p.WorkerImageHash,"stop",Path.Combine(p.Root,"native-definition-plan.txt"),p.Digest,""});string hash=NativeRpcDefinitionPlan.Hash(raw);files.Publish(contract,Encoding.UTF8.GetBytes(raw));
     using(var lease=ProtectedAttempt.OpenNativeCleanupWorker(contract,hash)){
@@ -72,7 +73,7 @@ namespace Enclave.OwnedRpc {
  public static class NativeRpcLifecycleEntry {
   [DllImport("kernel32.dll")]static extern IntPtr GetCurrentProcess();
   [DllImport("kernel32.dll")]static extern bool TerminateProcess(IntPtr p,uint code);
-  static NativeLifecycleGroup group;static readonly object gate=new object();static string receipt;
+  static NativeLifecycleGroup group;static NativeLifecyclePeer other;static readonly object gate=new object();static string receipt;
   public static int Main(string[] args){try{
    if(args.Length!=4)return 64;long origin=Int64.Parse(args[2],NumberStyles.None,CultureInfo.InvariantCulture),end=Int64.Parse(args[3],NumberStyles.None,CultureInfo.InvariantCulture),now=BoundedWorker.MonotonicMilliseconds();
    if(origin<0||origin>Int64.MaxValue-930000||origin>now||now-origin>=5000||end<=now||end-origin>930000)throw new InvalidOperationException("Original lifecycle CLI time invalid");
@@ -81,13 +82,21 @@ namespace Enclave.OwnedRpc {
     if(lease.Origin!=origin||lease.Deadline!=end)throw new InvalidOperationException("Original lifecycle CLI differs");var p=pin.NativeDefinitionPlan;
     using(var self=Process.GetCurrentProcess())if(!String.Equals(self.MainModule.FileName,lease.Executable,StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("Original lifecycle image path differs");
     byte[] worker;using(var files=new NativeControllerFiles(lease.CheckDeadline))worker=files.Read(Path.Combine(lease.Root,"worker.exe"),262144,p.WorkerImageHash);
-    var watch=new NativeLifecycleWatch(p.Origin,p.Deadline,BoundedWorker.MonotonicMilliseconds,delegate{lock(gate){return group!=null&&group.Failed();}},delegate(string reason){NativeLifecycleGroup held;lock(gate){held=group;}receipt=NativeLifecycleDispatch.Cleanup(lease,watchPin,held,worker,reason);});
+    bool backup=lease.Operation=="watch-backup";
+    var watch=new NativeLifecycleWatch(p.Origin,p.Deadline,BoundedWorker.MonotonicMilliseconds,delegate{lock(gate){return (other!=null&&!other.Alive)||(group!=null&&group.Failed());}},delegate(string reason){NativeLifecycleGroup held;lock(gate){held=group;}receipt=NativeLifecycleDispatch.Cleanup(lease,watchPin,held,worker,reason);});
     Exception bindingFailure=null;try{
-    string identity;using(var self=Process.GetCurrentProcess())identity=self.Id+","+self.StartTime.ToUniversalTime().ToFileTimeUtc()+","+lease.Token+",lifecycle";
-    pin.WriteOnce("native-lifecycle.armed",StartRecords.Encode(new Dictionary<string,object>{{"schema","native-rpc-lifecycle-armed/1"},{"plan",p.Digest},{"contract",args[0]},{"hash",args[1]},{"identity",identity}}));
-    var journal=new NativeRpcCleanupJournal(pin);string registration=null;while(!watch.Done.WaitOne(5)&&BoundedWorker.MonotonicMilliseconds()<p.Deadline){registration=journal.Read("native-start.registration");if(registration!=null)break;}
-    if(registration!=null){var held=new NativeLifecycleGroup(pin,registration);pin.WriteOnce("native-start.workers",held.Record);lock(gate){if(watch.Done.WaitOne(0)||BoundedWorker.MonotonicMilliseconds()>=p.Deadline){held.Dispose();throw new InvalidOperationException("Original lifecycle binding late");}group=held;}
-     pin.WriteOnce("native-lifecycle.bound",NativeRpcDefinitionPlan.Hash(held.Record));
+    string identity;using(var self=Process.GetCurrentProcess())identity=self.Id+","+self.StartTime.ToUniversalTime().ToFileTimeUtc()+","+lease.Token+(backup?",lifecycle-backup":",lifecycle");
+    pin.WriteOnce(NativeLifecycleBinding.Key(backup,false),StartRecords.Encode(new Dictionary<string,object>{{"schema","native-rpc-lifecycle-armed/1"},{"plan",p.Digest},{"contract",args[0]},{"hash",args[1]},{"identity",identity}}));
+    var journal=new NativeRpcCleanupJournal(pin);string registration=null;
+    while(journal.Read(NativeLifecycleBinding.Key(!backup,false))==null){if(watch.Done.WaitOne(5))throw new InvalidOperationException("Peer keeper not armed before original deadline");lease.CheckDeadline();}
+    string peerRecord;var peer=NativeLifecycleBinding.Peer(pin,!backup,out peerRecord);if(peer.Identity.Split(',')[0]==identity.Split(',')[0]){peer.Dispose();throw new InvalidOperationException("Distinct keeper process required");}lock(gate){other=peer;}
+    while(!watch.Done.WaitOne(5)&&BoundedWorker.MonotonicMilliseconds()<p.Deadline){registration=journal.Read("native-start.registration");if(registration!=null)break;}
+    if(registration!=null){var held=new NativeLifecycleGroup(pin,registration);
+     // Both keepers acquire their own exact handles while child is suspended.
+     lock(gate){if(watch.Done.WaitOne(0)||BoundedWorker.MonotonicMilliseconds()>=p.Deadline){held.Dispose();throw new InvalidOperationException("Original lifecycle binding late");}group=held;}
+     if(!backup)pin.WriteOnce("native-start.workers",held.Record);
+     else{string saved;while((saved=journal.Read("native-start.workers"))==null){if(watch.Done.WaitOne(5))throw new InvalidOperationException("Original group not published");lease.CheckDeadline();}if(saved!=held.Record)throw new InvalidOperationException("Keeper original group differs");}
+     pin.WriteOnce(NativeLifecycleBinding.Key(backup,true),NativeRpcDefinitionPlan.Hash(held.Record));
     }
     }catch(Exception e){bindingFailure=e;watch.Abort();}
     while(!watch.Done.WaitOne(10))lease.CheckDeadline();if(bindingFailure!=null)throw new InvalidOperationException("Original lifecycle binding failed after cleanup dispatch",bindingFailure);if(watch.Failure!=null)throw new InvalidOperationException("Independent cleanup held",watch.Failure);GC.KeepAlive(deadline);return receipt==null?2:0;

@@ -58,6 +58,7 @@ namespace Enclave.OwnedRpc {
     // Production journal composition requires both the held immutable permit and
     // the original intent. A later read worker retains the original submitter
     // identities; it does not rewrite them as its own or acquire another start.
+ #if !NATIVE_RPC_ONLY
     public sealed class OwnedVmStartJournal : IStartJournal {
         readonly ProtectedAttempt pin;readonly StartIdentity identity;readonly ProtectedStartJournal storage;
         public OwnedVmStartJournal(ProtectedAttempt pin,StartIdentity identity) {
@@ -76,8 +77,10 @@ namespace Enclave.OwnedRpc {
             return value;
         }
     }
+ #endif
     public sealed partial class ProtectedAttempt {
         public readonly OwnedVmPermit VmPermit;
+#if !NATIVE_RPC_ONLY
         public static ProtectedAttempt OpenVmGuardian(string path,string hash) {
             RequireSystem();return new ProtectedAttempt(path,hash,false,900000);
         }
@@ -142,5 +145,6 @@ namespace Enclave.OwnedRpc {
                 CheckDeadline();
             }catch{Dispose();throw;}
         }
+#endif
     }
 }

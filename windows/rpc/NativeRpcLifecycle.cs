@@ -12,6 +12,28 @@ using System.Text;
 using System.Threading;
 using Microsoft.Win32.SafeHandles;
 namespace Enclave.OwnedRpc {
+ public sealed partial class ProtectedAttempt {
+  internal string PinLifecycleEvidence(string path,string hash){return PinLifecycleEvidence(path,hash,false);}
+  internal string PinLifecycleEvidence(string path,string hash,bool backup){
+   if(LeaseProfile!="native-start-journal"&&LeaseProfile!="native-lifecycle-journal")throw new InvalidOperationException("Original start custody required");CheckDeadline();LocalPath(path);Hex(hash,64);
+   if(Path.GetFileName(path)!="contract.txt")throw new InvalidOperationException("Fixed lifecycle contract");string root=Path.GetDirectoryName(path),current=Path.GetPathRoot(root);HoldDirectory(current,false);
+   foreach(string part in root.Substring(3).Split('\\')){current=Path.Combine(current,part);HoldDirectory(current,current==root);}
+   byte[] raw=Bytes(HoldRead(path,2048),2048);if(Hash(raw)!=hash)throw new InvalidOperationException("Lifecycle contract changed");var f=Utf8.GetString(raw).Split('\n');var p=NativeDefinitionPlan;
+   if(f.Length!=10||f[0]!="owned-native-rpc-lifecycle-v1"||f[6]!=(backup?"watch-backup":"watch")||f[7]!=Path.Combine(Root,"native-definition-plan.txt")||f[8]!=ContractHash||f[9]!="")throw new InvalidOperationException("Original lifecycle binding differs");
+   Hex(f[1],32);Hex(f[2],32);Hex(f[5],64);long origin=Int64.Parse(f[3],NumberStyles.None,CultureInfo.InvariantCulture),end=Int64.Parse(f[4],NumberStyles.None,CultureInfo.InvariantCulture);
+   if(Path.GetFileName(root)!=f[1]||root==Root||f[2]!=p.Boot||origin<p.Origin||origin>=p.Deadline||p.Deadline>Int64.MaxValue-30000||end!=p.Deadline+30000||origin>BoundedWorker.MonotonicMilliseconds())throw new InvalidOperationException("Lifecycle original window differs");
+   if(Hash(Bytes(HoldRead(Path.Combine(root,"entry.exe"),262144),262144))!=f[5])throw new InvalidOperationException("Lifecycle image changed");CheckDeadline();return f[1]+f[2]+hash;
+  }
+ }
+ internal static class NativeLifecycleBinding {
+  internal static string Key(bool backup,bool bound){return backup?(bound?"native-lifecycle.backup-bound":"native-lifecycle.backup-armed"):(bound?"native-lifecycle.bound":"native-lifecycle.armed");}
+  internal static bool Bound(IStartJournal journal,string workers){if(workers==null)return false;string h=NativeRpcDefinitionPlan.Hash(workers);return journal.Read(Key(false,true))==h&&journal.Read(Key(true,true))==h;}
+  internal static NativeLifecyclePeer Peer(ProtectedAttempt pin,bool backup,out string raw){
+   raw=new NativeRpcCleanupJournal(pin).Read(Key(backup,false));var d=StartRecords.Parse(raw,new[]{"schema","plan","contract","hash","identity"});
+   if(StartRecords.Text(d["schema"])!="native-rpc-lifecycle-armed/1"||StartRecords.Text(d["plan"])!=pin.ContractHash)throw new InvalidOperationException("Original keeper arming absent");string path=StartRecords.Text(d["contract"]),hash=StartRecords.Text(d["hash"]),token=pin.PinLifecycleEvidence(path,hash,backup);
+   return new NativeLifecyclePeer(StartRecords.Text(d["identity"]),token,backup?"lifecycle-backup":"lifecycle",Path.Combine(Path.GetDirectoryName(path),"entry.exe"),0);
+  }
+ }
  internal sealed class NativeLifecyclePeer:IDisposable {
   [DllImport("kernel32.dll",SetLastError=true)]static extern SafeWaitHandle OpenProcess(uint access,bool inherit,uint pid);
   [DllImport("kernel32.dll",SetLastError=true)]static extern uint GetProcessId(IntPtr h);
@@ -34,7 +56,7 @@ namespace Enclave.OwnedRpc {
   }
   internal bool Alive{get{uint w=WaitForSingleObject(Handle.DangerousGetHandle(),0);if(w!=0&&w!=258)throw new InvalidOperationException("Original peer wait failed");return w==258;}}
   internal uint ExitCode{get{uint c;if(Alive||!GetExitCodeProcess(Handle.DangerousGetHandle(),out c))throw new InvalidOperationException("Exact peer exit absent");return c;}}
-  internal void Stop(){if(Alive&&!TerminateProcess(Handle.DangerousGetHandle(),125))throw new Win32Exception(Marshal.GetLastWin32Error());}
+  internal void Stop(){if(Alive&&!TerminateProcess(Handle.DangerousGetHandle(),125)&&Alive)throw new Win32Exception(Marshal.GetLastWin32Error());}
   public void Dispose(){Handle.Dispose();}
  }
 }

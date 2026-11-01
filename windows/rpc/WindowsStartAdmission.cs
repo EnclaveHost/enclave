@@ -16,8 +16,9 @@ namespace Enclave.OwnedRpc {
 internal sealed partial class WindowsStartAdmission {
     const long MiB=1048576,GiB=1073741824;
     // Whole stack + prospective apps + real host floor + variation + extra
-    // transient startup overhead including 192 MiB for independent cleanup. Existing VM allocations are already in free.
+    // transient startup overhead including 192 MiB for the original independent cleanup keeper. Existing VM allocations are already in free.
     internal const long Required=20*GiB+39388*MiB+18*GiB+GiB+512*MiB+192*MiB;
+    internal const long NativeRequired=Required+192*MiB; // second native keeper:128MiB job+64MiB startup allowance
     readonly ProtectedAttempt vm;readonly string admissionHash;readonly long began;readonly LegacyHandoff.Completion completed;readonly bool freshInventory;readonly Func<object[],string> nativeAuthority;
     readonly JavaScriptSerializer Json=new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32};
     WindowsStartAdmission(ProtectedAttempt vm,string admissionHash,LegacyHandoff.Completion completed,bool freshInventory=false,Func<object[],string> nativeAuthority=null){this.nativeAuthority=nativeAuthority;this.vm=vm;this.admissionHash=admissionHash;this.completed=completed;this.freshInventory=freshInventory;began=BoundedWorker.MonotonicMilliseconds();}
@@ -254,11 +255,11 @@ internal sealed partial class WindowsStartAdmission {
         }
         var issuerListeners=freshInventory&&completed!=null?new IssuerListeners(vm,began,firstIssuer,secondIssuer):null;
         string nativeBefore=null;if(nativeAuthority!=null){Stage("native-app-before");nativeBefore=NativeAppReceipt();}
-        Stage("disk");long disk=DiskAvailable();CheckTime();
-        if(free<Required||Math.Min(Num(before["freeBytes"]),Num(after["freeBytes"]))<Required||disk<16*GiB+4*GiB+256*MiB)
+        Stage("disk");long disk=DiskAvailable(),required=nativeAuthority==null?Required:NativeRequired;CheckTime();
+        if(free<required||Math.Min(Num(before["freeBytes"]),Num(after["freeBytes"]))<required||disk<16*GiB+4*GiB+256*MiB)
             throw new InvalidOperationException("Target qualification headroom refused");
         Stage("physical-after");var end=Physical();CheckTime();
-        if(ProtectedAttempt.CurrentBoot()!=vm.Boot||end.Total!=os.Total||end.Available<(ulong)Required)throw new InvalidOperationException("End-of-admission host state differs");
+        if(ProtectedAttempt.CurrentBoot()!=vm.Boot||end.Total!=os.Total||end.Available<(ulong)required)throw new InvalidOperationException("End-of-admission host state differs");
         if(!freshInventory){Stage("pending-and-node-after");
             if((completed==null&&LivePending()!=pending)||DeploymentReceipt(GetLocal(9600,"/v1/host/state"),true,completed!=null)!=liveNodeExact)throw new InvalidOperationException("Pending commitments changed during admission");}
         Stage("pool-resources");if(completed!=null){if(freshInventory)completed.Verify(issuerListeners);else completed.VerifyResources();}

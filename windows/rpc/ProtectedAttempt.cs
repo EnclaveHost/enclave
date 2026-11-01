@@ -243,7 +243,7 @@ namespace Enclave.OwnedRpc {
                 } else if(profile=="native-start"||profile=="native-lifecycle") {
                     string schema=profile=="native-start"?"owned-native-rpc-start-worker-v1":"owned-native-rpc-lifecycle-v1";
                     string operation=profile=="native-start"?"start":"watch";
-                    if(fields.Length!=10||fields[0]!=schema||fields[6]!=operation||fields[9]!="")throw new InvalidOperationException("Exact native lifecycle contract required");
+                    if(fields.Length!=10||fields[0]!=schema||(fields[6]!=operation&&!(profile=="native-lifecycle"&&fields[6]=="watch-backup"))||fields[9]!="")throw new InvalidOperationException("Exact native lifecycle contract required");
                     Operation=fields[6];PermitPath=LocalPath(fields[7]);PermitHash=fields[8];Hex(PermitHash,64);
                     if(Path.GetFileName(PermitPath)!="native-definition-plan.txt")throw new InvalidOperationException("Original native plan required");
                 } else if(profile=="native-cleanup") {
@@ -338,7 +338,8 @@ namespace Enclave.OwnedRpc {
                 if(boot?!BootRecordAllowed(name,accessLease.Operation=="boot-reconcile"):!DefinitionRecordAllowed(name,accessLease.Operation=="definition-reconcile"))throw new InvalidOperationException("Fixed definition/boot journal record required");
                 if((accessLease.Operation=="define"||accessLease.Operation=="boot")&&(BoundedWorker.MonotonicMilliseconds()<Origin||BoundedWorker.MonotonicMilliseconds()>=Deadline))throw new InvalidOperationException("Original definition time expired");
             } else if(LeaseProfile=="native-lifecycle-journal") {
-                if(name!="native-lifecycle.armed"&&name!="native-lifecycle.bound"&&name!="native-lifecycle.stop"&&name!="native-lifecycle.result"&&name!="native-start.workers")throw new InvalidOperationException("Lifecycle cannot submit provider operations");
+                bool backup=accessLease!=null&&accessLease.Operation=="watch-backup";
+                if(name!=(backup?"native-lifecycle.backup-armed":"native-lifecycle.armed")&&name!=(backup?"native-lifecycle.backup-bound":"native-lifecycle.bound")&&name!="native-lifecycle.stop"&&name!="native-lifecycle.result"&&(backup||name!="native-start.workers"))throw new InvalidOperationException("Lifecycle role cannot write peer authority or provider operations");
             } else if(LeaseProfile=="native-start-journal") {
                 if(BoundedWorker.MonotonicMilliseconds()>=Deadline||accessLease==null||accessLease.Operation!="start")throw new InvalidOperationException("Original native start window expired");
                 if(name!="native-device.observed"&&name!="native-start.intent"&&name!="native-start.submit"&&name!="native-start.invoke"&&name!="native-start.receipt"&&name!="native-start.job"&&name!="native-start.terminal"&&name!="native-start.observed"&&name!="native-start.registration")throw new InvalidOperationException("Start cannot alter prior configuration or lifecycle authority");

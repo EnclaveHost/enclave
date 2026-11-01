@@ -10,6 +10,15 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 namespace Enclave.OwnedRpc {
+ internal static class NativeLifecycleClaim {
+  internal static bool Try(IStartJournal journal,string claim){
+   if(journal==null||String.IsNullOrEmpty(claim))throw new ArgumentException("Original cleanup claim required");
+   if(journal.Read("native-lifecycle.stop")!=null)return false;
+   try{journal.WriteOnce("native-lifecycle.stop",claim);return true;}
+   catch(IOException){return false;} // competing CreateNew or uncertain durability: never retry
+  }
+ }
+
  // The watch thread does not execute native start or depend on its caller's loop.
  // Exactly one dispatch occurs. A failed dispatch is held, never retried.
  internal sealed class NativeLifecycleWatch {
