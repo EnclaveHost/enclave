@@ -116,10 +116,14 @@ public static class OwnedVmDefinitionHarness {
   Test("predecessor-malformed-role-binding-refused",()=>{foreach(string record in new[]{"0,1,t,child","01,1,t,child","1,0,t,child","1,1,wrong,child","1,1,t,owner"})Refuse(()=>UnsubmittedDefinition.RequireExactDeath(record,"t","child"));});
   Test("predecessor-window-exact-expiry-and-enclosure",()=>{UnsubmittedDefinition.RequirePriorWindow(1,900001,880001,900001,900001);Refuse(()=>UnsubmittedDefinition.RequirePriorWindow(1,900001,880001,900001,900000));Refuse(()=>UnsubmittedDefinition.RequirePriorWindow(1,900001,880001,900002,900003));});
   Test("predecessor-window-overflow-and-renewal-refused",()=>{Refuse(()=>UnsubmittedDefinition.RequirePriorWindow(Int64.MaxValue-100,Int64.MaxValue,1,2,Int64.MaxValue));Refuse(()=>UnsubmittedDefinition.RequirePriorWindow(1,900002,880001,900001,900003));});
-  Test("actual-expired-worker-custody-readonly",()=>{using(var old=new PriorCase()){var c=new ProtectedCase();using(var a=c.Lease())using(var w=ProtectedAttempt.OpenPriorDefinitionWorker(old.Contract,old.Hash,a)){Check(w.PermitHash==old.PlanHash);Refuse(()=>w.WriteOnce("child.result","forbidden"));}}});
-  Test("actual-held-prior-worker-cannot-replace",()=>{using(var old=new PriorCase()){var c=new ProtectedCase();using(var a=c.Lease())using(var w=ProtectedAttempt.OpenPriorDefinitionWorker(old.Contract,old.Hash,a))Refuse(()=>File.Move(old.Contract,old.Contract+".moved"));}});
-  Test("actual-prior-worker-digest-refused",()=>{using(var old=new PriorCase()){var c=new ProtectedCase();using(var a=c.Lease())Refuse(()=>{using(var w=ProtectedAttempt.OpenPriorDefinitionWorker(old.Contract,new string('0',64),a)){} });}});
-  Test("actual-prior-dead-roles-bound-to-held-contract",()=>{using(var old=new PriorCase()){var c=new ProtectedCase();using(var a=c.Lease())using(var w=ProtectedAttempt.OpenPriorDefinitionWorker(old.Contract,old.Hash,a))foreach(string role in new[]{"owner","observer","child"})UnsubmittedDefinition.RequireExactDeath(w.ReadOnce(role+".consumed"),w.Token,role);}});
+  // These four probes only read the same expired contract. Keep the three
+  // real exited process handles held once, then reopen independently per probe.
+  using(var old=new PriorCase()){
+  Test("actual-expired-worker-custody-readonly",()=>{var c=new ProtectedCase();using(var a=c.Lease())using(var w=ProtectedAttempt.OpenPriorDefinitionWorker(old.Contract,old.Hash,a)){Check(w.PermitHash==old.PlanHash);Refuse(()=>w.WriteOnce("child.result","forbidden"));}});
+  Test("actual-held-prior-worker-cannot-replace",()=>{var c=new ProtectedCase();using(var a=c.Lease())using(var w=ProtectedAttempt.OpenPriorDefinitionWorker(old.Contract,old.Hash,a))Refuse(()=>File.Move(old.Contract,old.Contract+".moved"));});
+  Test("actual-prior-worker-digest-refused",()=>{var c=new ProtectedCase();using(var a=c.Lease())Refuse(()=>{using(var w=ProtectedAttempt.OpenPriorDefinitionWorker(old.Contract,new string('0',64),a)){} });});
+  Test("actual-prior-dead-roles-bound-to-held-contract",()=>{var c=new ProtectedCase();using(var a=c.Lease())using(var w=ProtectedAttempt.OpenPriorDefinitionWorker(old.Contract,old.Hash,a))foreach(string role in new[]{"owner","observer","child"})UnsubmittedDefinition.RequireExactDeath(w.ReadOnce(role+".consumed"),w.Token,role);});
+  }
 
  }
 
