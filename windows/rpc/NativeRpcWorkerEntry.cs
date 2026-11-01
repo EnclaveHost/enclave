@@ -1,5 +1,5 @@
 // Explicit SYSTEM-only native app definition. Independent owner/observer and
-// suspended child gate. Creates an Off shell only; no start/delete/adoption.
+// suspended child gate. Creates an Off shell and configures guest TPM/security; no start/delete/adoption.
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -143,7 +143,15 @@ namespace Enclave.OwnedRpc {
                             runtime.Check(p,false);NativeRpcDefinitionOutcome result;
                             if(a.Operation=="define"){NativeRpcDefinition.Prepare(p,journal);result=NativeRpcDefinition.Submit(p,journal,provider,runtime);}
                             else result=NativeRpcDefinition.Reconcile(p,journal,provider,runtime);
-                            check();a.WriteOnce("child.result",StartRecords.Encode(new Dictionary<string,object>{{"plan",plan.ContractHash},{"state",result.State},{"vmGuid",result.VmGuid??""},{"ownedReceipt",result.OwnershipReceipt??""},{"settled",result.Settled},{"startAuthorized",false},{"providerOperationFenced",false},{"reservationMayRelease",false}}));
+                            string securityReceipt="";
+                            if(result.State=="defined-native-owned-off"){
+                                // Same original lease and asset pins; never reopen a consumed
+                                // security operation from a reconcile-only worker.
+                                securityReceipt=a.Operation=="define"?NativeRpcSecurity.Submit(p,journal,provider,runtime):
+                                    (journal.Read("native-security.intent")==null?null:NativeRpcSecurity.Reconcile(p,journal,provider,runtime));
+                                if(securityReceipt==null)throw new InvalidOperationException("Native security operation held; no start or retry");
+                            }
+                            check();a.WriteOnce("child.result",StartRecords.Encode(new Dictionary<string,object>{{"securityReceipt",securityReceipt},{"plan",plan.ContractHash},{"state",result.State},{"vmGuid",result.VmGuid??""},{"ownedReceipt",result.OwnershipReceipt??""},{"settled",result.Settled},{"startAuthorized",false},{"providerOperationFenced",false},{"reservationMayRelease",false}}));
                             return result.State=="defined-native-owned-off"?0:2;
                         }
                     }

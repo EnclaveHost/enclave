@@ -192,10 +192,91 @@ namespace Enclave.OwnedRpc {
    if(job.State!=7||job.RunTimes!=1||job.ErrorCode!=0||j.Read("native-definition.job")!=BindJob(raw,job))throw new InvalidOperationException("Exact settled native association required");
   }
  }
+ // The original definition is the sole source of VM identity. No GUID from a
+ // caller, VM inventory or matching name can authorize this subsequent mutation.
+ public interface INativeRpcSecurityProvider {
+  NativeDefinitionResponse ConfigureSecurity(NativeRpcDefinitionPlan p,string guid,string intent);
+  StartJob ReadJob(string reference);
+  void RequireOwnedOff(NativeRpcDefinitionPlan p,string guid);
+  void RequireSecurity(NativeRpcDefinitionPlan p,string guid);
+ }
+ public static class NativeRpcSecurity {
+  const string Recipe="tpm=true;guest-vbs-opt-out=true;partition-type=1;start=false";
+  static string H(string x){return NativeRpcDefinitionPlan.Hash(x);}
+  static void Current(NativeRpcDefinitionPlan p,INativeRpcDefinitionRuntime r,bool mutation){r.Check(p,mutation);if(r.Now<p.Origin||(mutation&&r.Now>=p.Deadline))throw new InvalidOperationException("Native original deadline");}
+  internal static string Ownership(NativeRpcDefinitionPlan p,IStartJournal j,out string guid){
+   if(j.Read("native-definition.intent")!=p.Encode()||j.Read("native-definition.submit")!=p.Digest||j.Read("native-definition.native")!=p.Digest)throw new InvalidOperationException("Original consumed definition required");
+   string response=j.Read("native-definition.receipt"),system=j.Read("native-definition.system"),owned=j.Read("native-definition.owned");
+   if(response==null||system==null||owned==null)throw new InvalidOperationException("Original owned definition missing");
+   var sr=StartRecords.Parse(system,new[]{"receipt","system"});string exact=StartRecords.Text(sr["system"]);
+   if(StartRecords.Text(sr["receipt"])!=H(response)||NativeDefinitionReferences.SystemReference(exact)!=exact)throw new InvalidOperationException("Original resulting system differs");
+   guid=NativeDefinitionReferences.GuidForReference(exact);
+   var o=StartRecords.Parse(owned,new[]{"schema","plan","system","vmGuid","app","deployment","instance","managerEpoch","startAuthorized","reservationMayRelease"});
+   if(StartRecords.Text(o["schema"])!="native-rpc-owned-off/1"||StartRecords.Text(o["plan"])!=p.Digest||StartRecords.Text(o["system"])!=H(system)||StartRecords.Text(o["vmGuid"])!=guid||StartRecords.Text(o["app"])!=p.App||StartRecords.Text(o["deployment"])!=p.Deployment||StartRecords.Text(o["instance"])!=p.Instance||StartRecords.Text(o["managerEpoch"])!=p.ManagerEpoch)throw new InvalidOperationException("Original native ownership differs");
+   foreach(string key in new[]{"startAuthorized","reservationMayRelease"})if(!(o[key] is bool)||(bool)o[key])throw new InvalidOperationException("Original ownership cannot authorize start/release");
+   return H(owned);
+  }
+  static string Intent(NativeRpcDefinitionPlan p,string guid,string owned){return StartRecords.Encode(new Dictionary<string,object>{{"schema","native-rpc-security-intent/1"},{"plan",p.Digest},{"vmGuid",guid},{"owned",owned},{"recipe",Recipe}});}
+  public static string Submit(NativeRpcDefinitionPlan p,IStartJournal j,INativeRpcSecurityProvider provider,INativeRpcDefinitionRuntime r){
+   Current(p,r,true);string guid;string owned=Ownership(p,j,out guid),intent=Intent(p,guid,owned);
+   provider.RequireOwnedOff(p,guid);Current(p,r,true);
+   j.WriteOnce("native-security.intent",intent);j.WriteOnce("native-security.native",H(intent));
+   Current(p,r,true);var response=provider.ConfigureSecurity(p,guid,H(intent));
+   if(response==null)throw new InvalidOperationException("Security response lost");
+   if(!String.IsNullOrEmpty(response.System))throw new InvalidOperationException("Security response cannot replace VM identity");
+   string job="";if(response.Code==4096)job=HyperVStartProvider.CanonicalJobReference(response.Job);else if(!String.IsNullOrEmpty(response.Job))throw new InvalidOperationException("Unexpected security job");
+   // Persist exact returned reference before job read, readback or acknowledgement.
+   j.WriteOnce("native-security.receipt",StartRecords.Encode(new Dictionary<string,object>{{"intent",H(intent)},{"code",response.Code},{"job",job}}));
+   return Reconcile(p,j,provider,r);
+  }
+  static string Receipt(NativeRpcDefinitionPlan p,IStartJournal j,out string guid,out string intent){
+   string owned=Ownership(p,j,out guid);intent=Intent(p,guid,owned);
+   if(j.Read("native-security.intent")!=intent||j.Read("native-security.native")!=H(intent))throw new InvalidOperationException("Original consumed security intent missing");
+   return j.Read("native-security.receipt");
+  }
+  static bool Settled(IStartJournal j,string raw,string intent,out string job){
+   var receipt=StartRecords.Parse(raw,new[]{"intent","code","job"});long code=StartRecords.Number(receipt["code"]);job=StartRecords.Text(receipt["job"]);
+   if(StartRecords.Text(receipt["intent"])!=H(intent)||code<0||code>UInt32.MaxValue||(code!=4096&&job!=""))throw new InvalidOperationException("Security provider receipt differs");
+   if(code==0)return true;if(code!=4096)return false;
+   if(HyperVStartProvider.CanonicalJobReference(job)!=job)throw new InvalidOperationException("Exact security job required");
+   string bound=j.Read("native-security.job"),terminal=j.Read("native-security.terminal");if(terminal==null)return false;
+   if(bound==null)throw new InvalidOperationException("Security job binding absent");
+   var b=StartRecords.Parse(bound,new[]{"receipt","job","submitted"});string submitted=StartRecords.Text(b["submitted"]);
+   if(StartRecords.Text(b["receipt"])!=H(raw)||StartRecords.Text(b["job"])!=job||String.IsNullOrEmpty(submitted)||submitted.Length>32)throw new InvalidOperationException("Security job binding differs");
+   var t=StartRecords.Parse(terminal,new[]{"receipt","identity","state","runs","error"});long error=StartRecords.Number(t["error"]);
+   if(StartRecords.Text(t["receipt"])!=H(raw)||StartRecords.Text(t["identity"])!=H(bound)||StartRecords.Number(t["state"])!=7||StartRecords.Number(t["runs"])!=1||error<0||error>65535)throw new InvalidOperationException("Security terminal differs");
+   return error==0;
+  }
+  static string Complete(NativeRpcDefinitionPlan p,IStartJournal j,string guid,string intent,string raw){return StartRecords.Encode(new Dictionary<string,object>{{"schema","native-rpc-security-observed/1"},{"plan",p.Digest},{"vmGuid",guid},{"intent",H(intent)},{"receipt",H(raw)},{"terminal",j.Read("native-security.terminal")==null?"":H(j.Read("native-security.terminal"))},{"recipe",Recipe},{"startAuthorized",false},{"providerOperationFenced",false},{"reservationMayRelease",false}});}
+  // Null means held, never permission to invoke the operation again.
+  public static string Reconcile(NativeRpcDefinitionPlan p,IStartJournal j,INativeRpcSecurityProvider provider,INativeRpcDefinitionRuntime r){
+   Current(p,r,false);string guid,intent;string raw=Receipt(p,j,out guid,out intent);if(raw==null)return null;
+   string reference;bool settled=Settled(j,raw,intent,out reference);
+   if(!settled&&reference!=""&&j.Read("native-security.terminal")==null){
+    Current(p,r,false);var job=provider.ReadJob(reference);Current(p,r,false);
+    if(job==null||job.Reference!=reference||HyperVStartProvider.ReferenceForId(job.InstanceId)!=reference||String.IsNullOrEmpty(job.TimeSubmitted)||job.TimeSubmitted.Length>32)throw new InvalidOperationException("Exact security job unavailable");
+    string bound=StartRecords.Encode(new Dictionary<string,object>{{"receipt",H(raw)},{"job",reference},{"submitted",job.TimeSubmitted}}),prior=j.Read("native-security.job");
+    if(prior==null)j.WriteOnce("native-security.job",bound);else if(prior!=bound)throw new InvalidOperationException("Security job incarnation changed");
+    if(job.State!=7||job.RunTimes!=1)return null;
+    j.WriteOnce("native-security.terminal",StartRecords.Encode(new Dictionary<string,object>{{"receipt",H(raw)},{"identity",H(bound)},{"state",7},{"runs",1},{"error",job.ErrorCode}}));
+    settled=Settled(j,raw,intent,out reference);
+   }
+   if(!settled)return null;
+   Current(p,r,false);provider.RequireOwnedOff(p,guid);provider.RequireSecurity(p,guid);Current(p,r,false);
+   string observed=Complete(p,j,guid,intent,raw),saved=j.Read("native-security.observed");
+   if(saved==null)j.WriteOnce("native-security.observed",observed);else if(saved!=observed)throw new InvalidOperationException("Security observed record differs");
+   return H(observed);
+  }
+  internal static string VerifyCompleted(NativeRpcDefinitionPlan p,IStartJournal j){
+   string guid,intent,job;string raw=Receipt(p,j,out guid,out intent);
+   if(raw==null||!Settled(j,raw,intent,out job))throw new InvalidOperationException("Security operation not settled");
+   string observed=Complete(p,j,guid,intent,raw);if(j.Read("native-security.observed")!=observed)throw new InvalidOperationException("Security readback not recorded");return H(observed);
+  }
+ }
  // Actual local WMI implementation, never invoked by the qualification harness.
- // Only DEFINE an Off shell. Security/optical/network/serial configuration and
- // accepted boot/start require subsequent separately journaled native stages.
- public sealed class HyperVNativeRpcDefinition : INativeRpcDefinitionProvider {
+ // Defines an Off shell and separately journals guest security configuration.
+ // Optical/network/serial configuration and accepted boot/start remain separate.
+ public sealed class HyperVNativeRpcDefinition : INativeRpcDefinitionProvider, INativeRpcSecurityProvider {
   readonly INativeRpcDefinitionRuntime runtime;readonly IStartJournal journal;
   public HyperVNativeRpcDefinition(INativeRpcDefinitionRuntime runtime,IStartJournal journal){
    if(runtime==null||journal==null)throw new ArgumentNullException("dependencies");this.runtime=runtime;this.journal=journal;
@@ -244,6 +325,43 @@ namespace Enclave.OwnedRpc {
     string found=null;using(var rows=job.GetRelated("Msvm_ComputerSystem","Msvm_AffectedJobElement",null,null,null,null,false,null))foreach(ManagementObject row in rows)using(row){if(found!=null)throw new InvalidOperationException("Ambiguous resulting system");found=NativeDefinitionReferences.SystemReference(row.Path.Path);}
     if(found==null)throw new InvalidOperationException("Resulting system unavailable; no name scan");return found;
    }
+  }
+  static ManagementObject RelatedOne(ManagementObject parent,string name){
+   ManagementObject found=null;
+   try{using(var rows=parent.GetRelated(name))foreach(ManagementObject row in rows){if(found!=null){row.Dispose();throw new InvalidOperationException("Ambiguous native association: "+name);}found=row;}
+    if(found==null)throw new InvalidOperationException("Missing native association: "+name);return found;
+   }catch{if(found!=null)found.Dispose();throw;}
+  }
+  internal static void RequireSecurityFields(IDictionary<string,object> fields){
+   foreach(string key in new[]{"TpmEnabled","VirtualizationBasedSecurityOptOut"})if(!fields.ContainsKey(key)||!(fields[key] is bool)||!(bool)fields[key])throw new InvalidOperationException("Native security readback differs: "+key);
+  }
+  public NativeDefinitionResponse ConfigureSecurity(NativeRpcDefinitionPlan p,string guid,string intent){
+   ProtectedAttempt.RequireSystem();runtime.Check(p,true);string original;NativeRpcSecurity.Ownership(p,journal,out original);
+   if(original!=guid||journal.Read("native-security.native")!=intent||NativeRpcDefinitionPlan.Hash(journal.Read("native-security.intent"))!=intent)throw new InvalidOperationException("Exact consumed security intent required");
+   RequireOwnedOff(p,guid);var scope=HyperVStartProvider.Scope();
+   using(var vm=HyperVStartProvider.One(scope,"SELECT * FROM Msvm_ComputerSystem WHERE Name='"+guid+"'"))
+   using(var settings=HyperVStartProvider.One(scope,"SELECT * FROM Msvm_VirtualSystemSettingData WHERE VirtualSystemIdentifier='"+guid+"' AND VirtualSystemType='Microsoft:Hyper-V:System:Realized'"))
+   using(var security=RelatedOne(settings,"Msvm_SecuritySettingData"))
+   using(var service=RelatedOne(vm,"Msvm_SecurityService"))
+   using(var input=service.GetMethodParameters("ModifySecuritySettings")){
+    // Modify only this guest's TPM/VTL1 offer. Preserve every other security
+    // property; never disable host VBS or alter Type1 partition isolation.
+    security["TpmEnabled"]=true;security["VirtualizationBasedSecurityOptOut"]=true;
+    input["SecuritySettingData"]=security.GetText(TextFormat.WmiDtd20);
+    journal.WriteOnce("native-security.invoke",intent);runtime.Check(p,true);
+    if(runtime.Now<p.Origin||runtime.Now>=p.Deadline)throw new InvalidOperationException("Native original deadline");
+    using(var output=service.InvokeMethod("ModifySecuritySettings",input,new InvokeMethodOptions{Timeout=TimeSpan.FromSeconds(2)})){
+     if(output==null||output["ReturnValue"]==null)throw new InvalidOperationException("Native security response absent");
+     return new NativeDefinitionResponse(Convert.ToUInt32(output["ReturnValue"]),output["Job"] as string,null);
+    }
+   }
+  }
+  public void RequireSecurity(NativeRpcDefinitionPlan p,string guid){
+   ProtectedAttempt.RequireSystem();RequireOwnedOff(p,guid);
+   using(var settings=HyperVStartProvider.One(HyperVStartProvider.Scope(),"SELECT * FROM Msvm_VirtualSystemSettingData WHERE VirtualSystemIdentifier='"+guid+"' AND VirtualSystemType='Microsoft:Hyper-V:System:Realized'"))
+   using(var security=RelatedOne(settings,"Msvm_SecuritySettingData")){
+    RequireSecurityFields(new Dictionary<string,object>{{"TpmEnabled",security["TpmEnabled"]},{"VirtualizationBasedSecurityOptOut",security["VirtualizationBasedSecurityOptOut"]}});
+   }runtime.Check(p,false);
   }
   internal static void RequireProcessors(IList<object> quantities){
    if(quantities==null||quantities.Count!=1||!(quantities[0] is ulong)||(ulong)quantities[0]!=4)throw new InvalidOperationException("Exact four-vCPU definition required");

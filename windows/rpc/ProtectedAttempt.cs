@@ -285,6 +285,8 @@ namespace Enclave.OwnedRpc {
             foreach(char c in name) if(!((c>='a'&&c<='z') || c=='.' || c=='-'))throw new ArgumentException("Message name encoding");
         }
         internal static bool NativeDefinitionRecordAllowed(string name,bool reconcile) {
+            if(name=="native-security.job"||name=="native-security.terminal"||name=="native-security.observed")return true;
+            if(!reconcile&&(name=="native-security.intent"||name=="native-security.native"||name=="native-security.invoke"||name=="native-security.receipt"))return true;
             if(name=="native-definition.job"||name=="native-definition.terminal"||name=="native-definition.system"||name=="native-definition.owned")return true;
             return !reconcile&&(name=="native-definition.intent"||name=="native-definition.submit"||name=="native-definition.native"||name=="native-definition.invoke"||name=="native-definition.receipt");
         }

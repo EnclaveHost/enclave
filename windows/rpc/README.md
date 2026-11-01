@@ -1386,3 +1386,9 @@ not targetNode24.16.0. Host inventory/shared pool were fixtures. Full target SYS
 scheduling/admission, device setup/start, accepted current image and actual RPC
 serving remain unqualified. See
 `../../ops/unified-funding-20261028/rpc-native-manager-process-ci-r1/ROOT-RESULT.md`.
+
+The maintained native worker now connects a separately journaled guest TPM/security
+configuration after its original owned-Off definition. The controller requires
+the protected security receipt before accepting its result. This candidate has
+not configured a target VM; media/device setup and start remain absent. See
+[NATIVE-MANAGER-CONTROLLER.md](NATIVE-MANAGER-CONTROLLER.md#original-guest-security-stage).

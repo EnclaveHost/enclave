@@ -1,0 +1,11 @@
+{
+  "windows/rpc/NATIVE-MANAGER-CONTROLLER.md": "6e75f0343d4c9082388af057bfefe481729a472d90c32f8d86c1cf4eb54f5372",
+  "windows/rpc/NativeRpcController.cs": "5096b1a0584340d219cbe21426a161f3c23b1f581a945e0f89c9a242979f06fa",
+  "windows/rpc/NativeRpcDefinition.cs": "6f4614981c25680feabec8ba18835c6986fa26c6031a411618a6d04e5402712a",
+  "windows/rpc/NativeRpcWorkerEntry.cs": "71d6c9ad8e2896399294cf6751a51ff5eb126afd7d26e76b30ebe3db6f0dc50c",
+  "windows/rpc/ProtectedAttempt.cs": "4ad9fede522681e4154ea44255f90d0a379b513a9519c3c8e4efcf5642a8dc62",
+  "windows/rpc/README.md": "8778570082dd05aa6b97598e825536b0cd81af8f688b37452341d954a97e4d8c",
+  ".github/workflows/rpc-native-security.yml": "8a5af75b48720578d577e50edfaf686683865f1eff70d9086585441af0822a6e",
+  "test/rpc-windows-worker/NativeRpcSecurityHarness.cs": "13cc3bf3f66f72400fd90177a6a55d1eed9892ffd9a865b1ea1fb07ec5e9032c",
+  "test/rpc-windows-worker/run-native-security-ci.ps1": "1a7f2c703ec63567c587fb5b997c3271b0a2df472a98348d7ead2008a4ffe260"
+}

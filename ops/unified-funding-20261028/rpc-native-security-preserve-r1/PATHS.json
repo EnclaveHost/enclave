@@ -1,0 +1,13 @@
+[
+  "windows/rpc/NATIVE-MANAGER-CONTROLLER.md",
+  "windows/rpc/NativeRpcController.cs",
+  "windows/rpc/NativeRpcDefinition.cs",
+  "windows/rpc/NativeRpcWorkerEntry.cs",
+  "windows/rpc/ProtectedAttempt.cs",
+  "windows/rpc/README.md",
+  ".github/workflows/rpc-native-security.yml",
+  "test/rpc-windows-worker/NativeRpcSecurityHarness.cs",
+  "test/rpc-windows-worker/run-native-security-ci.ps1",
+  "ops/unified-funding-20261028/rpc-native-security-preserve-r1",
+  "ops/unified-funding-20261028/rpc-native-security-ci-r1"
+]

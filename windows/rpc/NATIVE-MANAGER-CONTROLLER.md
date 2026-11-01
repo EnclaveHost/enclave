@@ -2,8 +2,9 @@
 
 NativeRpcControllerEntry is an explicit candidate executable connected to the
 optional app-manager transport. It is not installed or production-qualified.
-NativeRpcWorkerEntry can currently create only an owned Off shell. There is no
-VM start/device setup/adoption/deletion/reservation release/retry/payment API.
+NativeRpcWorkerEntry creates an owned Off shell and then configures guest TPM
+and security through a separately journaled operation. There is no VM start,
+media setup, adoption, deletion, reservation release, retry or payment API.
 
 The protected operator configuration retains schema native-rpc-manager-controller/1
 with exactly these other fields: ledgerRoot, attemptsRoot, workersRoot, runtimeId,
@@ -85,3 +86,37 @@ not targetNode24.16.0. Host inventory/shared pool were fixtures. Full target SYS
 scheduling/admission, device setup/start, accepted current image and actual RPC
 serving remain unqualified. See
 `../../ops/unified-funding-20261028/rpc-native-manager-process-ci-r1/ROOT-RESULT.md`.
+
+## Original guest security stage
+
+After the original DefineSystem operation has settled and produced its exact
+owned-Off receipt, the same supervised worker and original lease call
+`NativeRpcSecurity`. The immutable security intent binds the original plan,
+VM GUID, ownership receipt and fixed Type1 Linux-direct recipe. It is consumed
+before `Msvm_SecurityService.ModifySecuritySettings`; the returned code and exact
+job reference are persisted before any observation or acknowledgment. Only the
+security service associated with that original VM is selected. The operation
+sets guest `TpmEnabled` and `VirtualizationBasedSecurityOptOut` to true, preserving
+other properties and the Type1 partition. It does not change host VBS.
+
+A 4096 reply is observed only through its original persisted job and submission
+time. A successful state7/one-run/zero-error job, or a synchronous zero result,
+then requires fresh exact owned-Off, zero-memory, unchanged definition and
+security readbacks. The controller verifies the completed security receipt
+against the protected journal before accepting the worker result. Lost responses,
+partial writes, failed jobs and mismatched observations remain held; no resubmit,
+provider cancellation or reservation release is inferred. A read-only reconcile
+lease can record observations but cannot create intent/invocation/response records.
+The original900-second and worker20-second limits remain unchanged.
+
+The worker currently makes one observation after each provider response. A pending
+job is retained for explicit original-reference reconciliation; it is not a
+successful configuration, nor permission for the manager to repeat `start`.
+This stage is an implementation candidate, not proof of actual SYSTEM WMI/TPM
+behavior. Optical containers (exactly two for the native RPC root and verity
+tree), device restrictions, accepted image, bootstrap, start and RPC readiness
+remain required. The ordinary Linux-direct no-disk recipe cannot boot this RPC
+profile. The historical CLI composition result above predates this source change.
+
+Provider reference: [Microsoft security service](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-securityservice)
+and [security settings](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-securitysettingdata).
