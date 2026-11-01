@@ -214,9 +214,9 @@ It never compares a remote guest's monotonic origin to Warden's clock.
 The actor requires a dedicated kernel cgroup capped at 128 MiB, no swap, CPU1
 and at most 32 tasks. Its service manager must independently enforce a 20-second
 actor limit and the original owner deadline. The supplemental process timer is
-not a death certificate for a blocked kernel operation. This service envelope,
-FD/credential provisioning and the complete CLI have **not been qualified or
-installed on Warden**. Do not run it as an unbounded shell helper.
+not a death certificate for a blocked kernel operation. The service envelope and command composition have the bounded fixture evidence
+described below; real credential provisioning and installation remain unfinished.
+Do not run it as an unbounded shell helper.
 
 `OwnerIssuer` verifies local public keys against both actual owner-committed
 storage authorities before journal changes. It generates distinct random writer
@@ -228,9 +228,9 @@ release, or response-replay API. The retained records contain public consent,
 never signing seeds. Signing material is cleared after the one-shot operation.
 
 This implements reservation/consent production, not the complete cross-host
-storage service: authoritative journal provisioning, authenticated dispatcher,
-remote attestation/client-key provisioning, startup of the exact guarded export,
-independent service supervision and eventual writer settlement remain required.
+storage service: authoritative journal provisioning, remote attestation/client-key provisioning
+and eventual writer settlement remain required. The dispatcher and independently
+supervised export path are implemented and fixture-qualified below.
 A local guest journal cannot substitute for the owner journal. The new actor
 starts no export and returns no root FD or readiness claim. Existing legacy
 bootstrap authorization and its finite freshness cutoff remain; event-driven
@@ -242,5 +242,12 @@ now supplies a concrete signer bootstrap and export-submission path. The bootstr
 maps the actual storage owner's UID to0 in a private user namespace, preserving
 host file ownership while supplying the fixed descriptors. Actual Warden units
 qualified that bootstrap with a pinned inert stub, including the independent20s
-kill of a fully stopped three-process tree. The Go signer/real chain/export
-composition and installation are still unqualified; stub success is not consent.
+kill of a fully stopped three-process tree. A later complete fixture exercised the unchanged Go command main/run, real
+persistent consent, actual dispatcher and both disposable TLS exports together.
+The opt-in `rpc_owner_composition` test binary substitutes only the HTTP transport
+with controlled chain replies; it is not a production release artifact. Four
+preheld export processes exited84ms after control loss, original dummy hashes
+were unchanged, and reservation records remained held. Real HTTPS chain authority,
+remote identity and production provisioning/installation remain unqualified.
+No writable-root grant, client sync, RPC readiness or persistent adoption was
+proved by that fixture.

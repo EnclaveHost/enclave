@@ -1,0 +1,4 @@
+{
+  "sha256": "cd18e981a712162d27daeec79905e49fc95eb62b7166772717ff21889ee63bd3",
+  "text": "Traceback (most recent call last):\n  File \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-owner-composition-native-r1/frozen/test/rpc-server/qualify_owner_composition.py\", line 211, in <module>\n    if __name__=='__main__':main(*(Path(x).resolve() for x in sys.argv[1:]))\n                            ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-owner-composition-native-r1/frozen/test/rpc-server/qualify_owner_composition.py\", line 84, in main\n    'createdUtcNs':original['createdUtcNs'],'deadlineUtcNs':original['deadlineUtcNs'],'floorMiB':27648,'reserveMiB':512,\n                   ~~~~~~~~^^^^^^^^^^^^^^^^\nTypeError: 'PosixPath' object is not subscriptable\n"
+}

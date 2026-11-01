@@ -1,0 +1,4 @@
+{
+  "sha256": "f8ed221639475123563e8d173032fce9d7ad0bca51d2a350294d1e3608544126",
+  "text": "Started [systemd-run] /usr/bin/taskset -c 1 /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib 512 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-owner-composition-build-r1/outer.log -- /usr/bin/node /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs --max-rss-mib 450 --floor-available-mib 27648 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-owner-composition-build-r1/inner.log -- /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-owner-composition-build-r1/run.py.\n[queue] START available=94635MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB\n[queue] EXIT 0\n"
+}

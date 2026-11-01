@@ -1,0 +1,1 @@
+{"phases": [{"phase": "build", "exit": 0}], "elapsed": 0.7415853191632777, "sourcePins": 571, "pinsUnchanged": true, "artifacts": {"TEST-ONLY-owner": {"bytes": 11790458, "sha256": "053a73e127fb17a1ac6a6030d1ac3b479829b513ca24f68b21b51560cfe370dd"}}, "deployed": false}

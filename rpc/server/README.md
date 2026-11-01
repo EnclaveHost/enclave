@@ -340,10 +340,37 @@ journal writes, and rejected a changed executable. An external fixture held
 three exact pidfds, stopped all three processes, then observed the original20s
 service deadline terminate the entire tree in21.52s including startup/stop grace,
 with an empty cgroup. The first namespace-layout failure is preserved. These
-are bootstrap checks, **not a complete Go signer/chain/export dispatch run**.
+are bootstrap checks; the composed qualification below supplies separate evidence.
 
 No service is installed. Real volume/key/policy/journal provisioning, accepted
-remote identity/client credentials, complete positive owner-to-export composition,
-writer settlement and native RPC bootstrap remain required. Existing owner policy
+remote identity/client credentials, real HTTPS chain authority, writer settlement
+and native RPC bootstrap remain required. Existing owner policy
 is a permission to use a runtime, not remote attestation. Source merging does not
 activate any unit or authorize a fake grant. Production RPC remains offline.
+
+The maintained `qualify_owner_composition.py` now exercised one complete positive
+signer-command → dispatcher → guarded-export composition on Warden. The unchanged
+Go command `main/run` ran inside the actual128MiB signer unit, using the opt-in
+`rpc_owner_composition` **test binary** whose HTTP RoundTripper supplied controlled
+chain responses. This does not qualify real HTTPS quorum, the release binary as a
+whole, genuine authority provisioning or guest attestation. No test transport is
+compiled into a release build, and the host trust store was not changed.
+
+With private ephemeral Ed25519 authorities, the actual command persisted both
+volume records and the signed response. The real256MiB dispatcher verified that
+response, submitted the real384MiB guarded exporter and persisted its exact
+invocation/process identity before acknowledgment. The fixture connected once
+using the signed endpoint/certificate/request/contract binding. Both disposable
+TLS NBD exports reached metadata readiness; this was **not RPC readiness**.
+An external controller preheld four exact process handles; closing control
+terminated all four in84ms, left the cgroup empty and left the original dummy
+image hashes unchanged. Consent/reservation records remained held afterward.
+
+Build invocation `ae67fc37c0e9435e8de0fc113b591f5b` completed;
+composition invocation `d3aee620c9c34de8ae044037e8507cfb` passed in2.13s.
+The initial fixture variable-name failure occurred before any service submission
+and is preserved. The successful run consumed one fresh attempt, with the original
+900-second clock starting before preparation, synthetic Windows observations,
+and fresh authenticated1536MiB whole-fixture admission above the retained floor
+and pending commitments. No production volume, VM, client, chain transaction or
+route changed. Do not replay these completed attempts or install the test binary.
