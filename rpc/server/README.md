@@ -515,3 +515,31 @@ cross-host collection/delivery of the public records, actual hardware/full-image
 qualification and production activation remain unfinished. Version 1's manually
 assembled session remains available for the historical qualified composition;
 version 2 is explicit and is not installed or made a live default.
+
+Version 3 (`enclave-rpc-owner-bootstrap-entry/3`) replaces `relay` with a pinned
+`preparation` template, retaining all other version 2 fields. Within the same
+independent unit, `prepare_owner_enrollment.py` constructs the original request,
+export contract, issuer policy, signer, dispatcher and relay from the actual
+guest enrollment. The operator template fixes app/deployment/profile/volume
+scope, native VM/ownership-receipt correlation, bundle, manifest, export
+preparation, control endpoint and TLS files, original owner policy, original
+`authority.json`, and issuer executable. Enrollment cannot select those inputs.
+The original owner journal and keys are retained; no replacement authority is
+provisioned. The guest remains unauthenticated until the unchanged Node verifier
+and hardware/TLS exchange succeed, followed by issuer chain and writer checks.
+
+Preparation repeats pending-aware whole-owner admission before opening private
+TLS bytes or consuming the fixed `owner-enrollment/` directory under the original
+clock. It copies existing control TLS credentials only within that private owner
+namespace and binds the client CA to the actual guest certificate. Public results
+contain digests, never private keys. Partial preparation stays consumed, without
+alternate suffix or retry. The original 5-second entry cutoff, 122-second minimum
+remaining window, service envelope and 900-second clock are unchanged. Real
+target timing and cross-host collection/submission are still unqualified.
+
+Six focused preparation checks passed, including actual protected export/relay
+configuration, original owner-state binding, changed inputs and pending-capacity
+refusal, consumed partial output, and version 3's real sealed-FD handoff. The
+resource/service observations and final Node execution were mocked; no signer,
+hardware attestation, TLS listener or production export ran. See
+[the preparation result](../../ops/unified-funding-20261028/rpc-owner-enrollment-preparation-tests-r1/ROOT-RESULT.md).

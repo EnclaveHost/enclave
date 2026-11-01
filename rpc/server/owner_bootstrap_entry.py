@@ -13,6 +13,7 @@ from pathlib import Path
 import re
 import sys
 import time
+from types import SimpleNamespace
 
 HERE=Path(__file__).resolve().parent
 spec=importlib.util.spec_from_file_location('rpc_owner_entry',HERE/'owner_entry.py')
@@ -66,13 +67,19 @@ def sealed(value):
 def main(path):
     os.umask(0o077)
     config=c.protocol.decode(c.read(path))
-    enrolled=config.get('schema')=='enclave-rpc-owner-bootstrap-entry/2'
-    fields={'schema','clock','listen','relay','pins'}|({'enrollment','bootstrapPolicy'} if enrolled else {'session'})
-    if set(config)!=fields or config['schema'] not in ('enclave-rpc-owner-bootstrap-entry/1','enclave-rpc-owner-bootstrap-entry/2'):
+    preparing=config.get('schema')=='enclave-rpc-owner-bootstrap-entry/3'
+    enrolled=preparing or config.get('schema')=='enclave-rpc-owner-bootstrap-entry/2'
+    fields={'schema','clock','listen','pins'}|({'enrollment','bootstrapPolicy'} if enrolled else {'session'})|({'preparation'} if preparing else {'relay'})
+    if set(config)!=fields or config['schema'] not in ('enclave-rpc-owner-bootstrap-entry/1','enclave-rpc-owner-bootstrap-entry/2','enclave-rpc-owner-bootstrap-entry/3'):
         raise ValueError('Exact owner bootstrap configuration required')
     original=c.validate(config['clock']);unit=envelope(original);verify_pins(config['pins'])
     if Path('/proc/self/timens_offsets').exists() and any(line.split()[1:]!=['0','0'] for line in Path('/proc/self/timens_offsets').read_text().splitlines()):
         raise ValueError('Unshifted owner monotonic clock required')
+    if preparing:
+        spec=importlib.util.spec_from_file_location('rpc_prepare_enrollment',HERE/'prepare_owner_enrollment.py')
+        preparation=importlib.util.module_from_spec(spec);spec.loader.exec_module(preparation)
+        config=preparation.prepare(SimpleNamespace(c=c,e=e,HERE=HERE,envelope=envelope,
+            verify_pins=verify_pins,load_owner_state=load_owner_state),config,original)
     # Bind session preparation to the same request/attempt as the real issuer.
     relay_raw=c.read_pinned(config['relay']);relay=c.protocol.decode(relay_raw)
     if set(relay)!={'schema','dispatcher'} or relay['schema']!='enclave-rpc-owner-relay/1':raise ValueError('Prepared relay required')
