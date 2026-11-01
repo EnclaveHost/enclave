@@ -211,11 +211,10 @@ namespace Enclave.OwnedRpc {
                         {
                           if(a.Operation=="preparation-check") {
                             guard.Check();WindowsStartAdmission.InspectDefinitionAdmission(plan,a);guard.Check();
-                            int sequence=0;
                             Action<string> trace=delegate(string stage) {
                                 guard.Check();
                                 string snapshot=PreparationIdentity();
-                                a.WriteOnce("preparation."+(sequence++).ToString("D2",CultureInfo.InvariantCulture),
+                                a.WriteOnce("preparation."+stage,
                                     "owned-rpc-preparation/1\n"+a.ContractHash+"\n"+plan.ContractHash+"\n"+stage+"\n"+
                                     BoundedWorker.MonotonicMilliseconds()+"\n"+snapshot+"\nprovider-fenced=false;reservation-release=false\n");
                                 ProtectedAttempt.RequireSystem();guard.Check();

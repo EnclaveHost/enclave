@@ -1,0 +1,7 @@
+System.ArgumentException: Message name encoding
+   at Enclave.OwnedRpc.ProtectedAttempt.Name(String name)
+   at Enclave.OwnedRpc.ProtectedAttempt.WriteOnce(String name, String value)
+   at OwnedVmDefinitionHarness.<ProtectedTests>b__68()
+   at OwnedVmDefinitionHarness.Test(String name, Action f)
+   at OwnedVmDefinitionHarness.ProtectedTests()
+   at OwnedVmDefinitionHarness.Main(String[] args)

@@ -114,7 +114,7 @@ public static class OwnedVmDefinitionHarness {
    LegacyHandoff.Completion completed=null;Refuse(()=>WindowsStartAdmission.VerifyDefinition(p,c.P.AdmissionHash,a,ref completed));Check(completed==null);
   }});
   Test("preparation-stage-record-exclusive-and-old-plan-unchanged",()=>{var c=new ProtectedCase("preparation-check");using(var a=c.Lease())using(var p=ProtectedAttempt.PinDefinitionJournalController(c.PlanPath,c.PlanHash,a)){
-   string plan=p.DefinitionPlan.Encode();a.WriteOnce("preparation.00","fixture");Refuse(()=>a.WriteOnce("preparation.00","replay"));Check(a.ReadOnce("preparation.00")=="fixture"&&p.DefinitionPlan.Encode()==plan&&p.ReadOptionalOnce("definition.invoke")==null);
+   string plan=p.DefinitionPlan.Encode();a.WriteOnce("preparation.before-scope","fixture");Refuse(()=>a.WriteOnce("preparation.before-scope","replay"));Check(a.ReadOnce("preparation.before-scope")=="fixture"&&p.DefinitionPlan.Encode()==plan&&p.ReadOptionalOnce("definition.invoke")==null);
   }});
   Test("preparation-refusal-before-first-WMI-call",()=>{int stages=0;var marker=new IOException("closed guard");bool same=false;try{HyperVOwnedDefinition.InspectPreparation(Plan(),stage=>{Check(stage=="before-scope");stages++;throw marker;});}catch(Exception e){same=Object.ReferenceEquals(e,marker);}Check(same&&stages==1);});
   Test("preparation-null-trace-refused-before-WMI",()=>Refuse(()=>HyperVOwnedDefinition.InspectPreparation(Plan(),null)));
