@@ -1,0 +1,17 @@
+{
+  "guestMiB": 19456,
+  "guestClientAggregateMiB": 17408,
+  "guestOsCacheSupportMiB": 2048,
+  "windowsSteadySupportMiB": 1024,
+  "windowsStartupExtraMiB": 1152,
+  "wardenAllowanceMiB": 1536,
+  "identifiedReservationBytes": 24293408768,
+  "preferredWholeStackBytes": 32000000000,
+  "actualFitMeasured": false,
+  "windowsHostFloorMiB": 18432,
+  "windowsProspectiveMiB": 39388,
+  "windowsVariationMiB": 1024,
+  "windowsRequiredFreeBytes": 84385202176,
+  "wardenHostFloorMiB": 27648,
+  "pendingMustBeFresh": true
+}

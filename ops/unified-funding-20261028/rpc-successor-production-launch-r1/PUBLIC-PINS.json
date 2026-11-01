@@ -1,0 +1,99 @@
+{
+  "originalManifestSha256": "eae96cc8ed3e1baece4eac233b2155b441fc7afd6581ba31110067805e4d5008",
+  "sourceRecords": [
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/deliver_activation.py",
+      "sha256": "4b8cd7467e9555a2393ece38fc960ae55e7ae321da3e731ada5bead5fe92c889"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/deliver_guest_workflow.py",
+      "sha256": "d397e7ab6a20a166100381d37f0396c508bfd231ae6e0409b285a68b13ca50ee"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/deliver_runtime.py",
+      "sha256": "6e5da03961302f6e6337c5c21b331cbe29df63f2db6e891b745410ab0e1722a8"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/launch_activation.py",
+      "sha256": "271505f2edeb40b982f17dd293f2e39846288b33eecc4435e3b0db8b7206e2d7"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/observe_activation.py",
+      "sha256": "c59ee978a4f6f0ff51ce5beeef33e438555e072014095973f71fda76985c0236"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/observe_guest.py",
+      "sha256": "d742ab58663874aed4ae655cb3d9664b88c72f399bc2550ad5ff100939fdc743"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/prepare_attachment.py",
+      "sha256": "c0685fbf106fe2fc49e1ce076b0dca096716d37ecd832a227480b6832e5f625a"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/prepare_runtime.py",
+      "sha256": "6c8f872f15554bc2cd1dd1ccda094e70783dedcfa1e9c457543b04927851681d"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/run_guest_workflow.py",
+      "sha256": "13e9395dbdf921def87d246a9a76562bdbc610d05c32e918492c6d8ad3772b3e"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/run_startup.py",
+      "sha256": "04bf527277bae66ce5275332f189e6bfeaed80c7d163103f0b4fb95ece26835c"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/sample_windows_clock.py",
+      "sha256": "7c4c9778eb134a75ee13bd1e11fa4c4683822391ef95ab080b9d44bb7511eb37"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/server/guarded_export.py",
+      "sha256": "c3eefa565ce8062e8436e6caa61d05c2b04ac2222708864e488fe479ed40a928"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/server/observe_resources.mjs",
+      "sha256": "d2d8e9a69548e689d093434787b43ab3278c4fea032d329c16c2b82c0866bdee"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/server/prepare_export.py",
+      "sha256": "66d42945d33165873a907aaa072e79ef7834b0bfd34626cf48c5d5d28769cc74"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/server/volume_export.py",
+      "sha256": "ff94868d582438b964c67cc4651ae6f80bedd56a5cc99c2f0a3cff481b4bbbb2"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/startup_clock.py",
+      "sha256": "baff8279f12968acc788a79555ca273db97bfd2cd5be2ae4fd22001dce9e4cc9"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/storage_protocol.py",
+      "sha256": "80a3f865a76914a5d986528d50dfb77bd90ec5604f9884f3391ae99c4f02bc31"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/transfer_export.py",
+      "sha256": "e44e7860d31ba1ea67914887c231a66035a6b398a4095a2caa089d4a82457f9a"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/windows_endpoint.py",
+      "sha256": "5b922b3e84c67fda228cb77ae4abb38b6c7fd8d32d0625648704991cb54f5d71"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/windows_files.py",
+      "sha256": "6c88bba44c2665503c73419555db5372bdc9f3c9c875f61997c3e8435139ea7a"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/windows_transition.py",
+      "sha256": "bac2aff8fd8b7f748a4bc5ba130cf10cc94af07dbe08d4910aa7df11cd1702a4"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-successor-production-launch-r1/launch.py",
+      "sha256": "c417dab17c27eeec4eba9c1b9419c560ba134410b28ab8dde7b8630933b8712b"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-successor-production-launch-r1/validate.py",
+      "sha256": "df25d15a4d423396bbb65a620d446cf0c9d7d2f345dc331b0829055a9a1908b5"
+    }
+  ],
+  "privateJournalPinsCount": 78,
+  "privateJournalBytesPublished": false
+}
