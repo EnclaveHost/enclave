@@ -1,0 +1,3 @@
+# Root review: corrected fixture construction only
+
+R1 c83f05fcc60f42d88c4fe5c55008196d terminal1/MainPID0. Real private PID1/root/proc/all-thread no_new_privs positive test PASS; writable and symlink refusals PASS. Populated-proc negative fixture could not write its marker because fixture directory was already0555 and private runner correctly lacks DAC override. Correct test constructs marker while0755 then restores0555 before actual child execution; production source unchanged. New R2 runs only affected populated case plus previously unattempted entry build. No successful whole-suite replay. Same original120s/150outer/512hard450RSS/CPU1/noSwap/pendingaware27648+640, no extra host capability/floor change. R1 evidence retained, not labeled green.

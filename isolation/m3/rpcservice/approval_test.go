@@ -144,4 +144,8 @@ func TestEntryRejectsPriorFrontlessTopology(t *testing.T) {
 	if _, _, err = decodeEntry(b, [16]byte{1}, 101); err == nil {
 		t.Fatal("frontless entry accepted")
 	}
+	copy(b, "ERPCONE3")
+	if _, _, err = decodeEntry(b, [16]byte{1}, 101); err == nil {
+		t.Fatal("entry without composed root accepted")
+	}
 }

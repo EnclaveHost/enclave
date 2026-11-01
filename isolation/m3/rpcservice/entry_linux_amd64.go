@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	entryMagic     = "ERPCONE3"
+	entryMagic     = "ERPCONE4"
 	entryFrameSize = 40
 	entrySeals     = 15 // SEAL_SEAL | SHRINK | GROW | WRITE
 	fAddSeals      = 1033
@@ -306,7 +306,10 @@ func entryControl(control *os.File, g Groups) error {
 // establish those before invoking it. There is deliberately no host CLI mode.
 //
 // FD3 owner pidfd, FD4 sealed original deadline, FD5 parent cgroup, FD6..9
-// EL/CL/Base/probe, FD10 supervisor control, FD11 controller, FD12 front cgroup. All are process-lifetime
+// EL/CL/Base/probe, FD10 supervisor control, FD11 controller, FD12 front cgroup.
+// FD13 is the monitor-composed namespace root, consumed by the root switch;
+// FD14 is the pinned entry executable, closed immediately after exec.
+// Cgroup/owner/contract handles are process-lifetime
 // capabilities. The monitor must transfer its OWN pidfd, not a host-selected
 // unrelated process. The control group is a sibling of all role groups,
 // inside the aggregate 19 GiB budget; an internal domain node stays empty.
@@ -335,8 +338,16 @@ func EnterInherited() int {
 	armed := make(chan struct{})
 	go watchEntry(3, deadline, armed, os.Exit)
 	<-armed
+	// Close the executable capability before any service can run. The monitor
+	// invoked this exact held inode, not a mutable path after verification.
+	if err := syscall.Close(14); err != nil {
+		return 126
+	}
 	g := Groups{Parent: files[2], EL: files[3], CL: files[4], Base: files[5], Probe: files[6], Controller: files[8], Front: files[9]}
 	if err := entryControl(files[7], g); err != nil {
+		return 126
+	}
+	if err := enterNamespace(os.NewFile(13, "rpc-composed-root")); err != nil {
 		return 126
 	}
 	s, err := New(Request{Origin: origin, Groups: g})

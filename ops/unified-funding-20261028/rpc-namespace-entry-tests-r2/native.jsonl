@@ -1,0 +1,12 @@
+{"Time":"2026-11-01T01:31:26.3343612-07:00","Action":"start","Package":"enclave.host/isolation/m3/rpcservice"}
+{"Time":"2026-11-01T01:31:26.336190884-07:00","Action":"run","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch"}
+{"Time":"2026-11-01T01:31:26.336253244-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch","Output":"=== RUN   TestActualRPCNamespaceRootSwitch\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:31:26.336272904-07:00","Action":"run","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch/populated"}
+{"Time":"2026-11-01T01:31:26.336275694-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch/populated","Output":"=== RUN   TestActualRPCNamespaceRootSwitch/populated\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:31:26.338601697-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch/populated","Output":"--- PASS: TestActualRPCNamespaceRootSwitch/populated (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:31:26.338634156-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch/populated","Elapsed":0}
+{"Time":"2026-11-01T01:31:26.338649736-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch","Output":"--- PASS: TestActualRPCNamespaceRootSwitch (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:31:26.338654546-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch","Elapsed":0}
+{"Time":"2026-11-01T01:31:26.338656316-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcservice","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-11-01T01:31:26.338854906-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcservice","Output":"ok  \tenclave.host/isolation/m3/rpcservice\t0.004s\n"}
+{"Time":"2026-11-01T01:31:26.338864156-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcservice","Elapsed":0.005}

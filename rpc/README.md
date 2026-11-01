@@ -649,3 +649,10 @@ qualified current binaries, and obtain fresh full admission. The old seed and
 profile are tied to the consumed attempt and cannot be silently reused.
 
 The subsequent actual third attempt `5a1f71bc826e4c5abf0166938d448c68` reached definition provider preparation after the predecessor/admission gates, then failed `SYSTEM primary execution context required`. Both `definition.native` and `definition.invoke` are present, with no returned provider receipt. Exact worker death and exporter cleanup were observed, the four original VMs stayed unchanged, and no boot/start/guest phase was submitted. This attempt is consumed and cannot use the absent-native-marker predecessor recovery path. The token change needs bounded read-only preparation diagnostics, and provider settlement remains held; no security check is relaxed or submission repeated. See `ops/unified-funding-20261028/rpc-chain-production-launch-r1/ROOT-RESULT.md`.
+
+The native entry now implements the private namespace root handoff (ERPCONE4)
+and `rpcdomain.Prepared.Command` constructs the exact FD/namespace/cgroup launch.
+The root switch runs under the original owner/deadline watcher. This is not yet
+the monitor load integration: accepted root assembly, authenticated persistent
+L1/Base writer attachments, role permissions and networking still must be composed
+before an actual app can be launched. Production RPC remains offline.

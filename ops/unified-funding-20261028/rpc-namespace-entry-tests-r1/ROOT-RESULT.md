@@ -1,0 +1,1 @@
+R1 c83f05fcc60f42d88c4fe5c55008196d terminal1/MainPID0.92PASS/1helperSKIP/2FAILentries: populated-proc fixture creation denied in0555directory. Actual namespace positive/writable+symlink refusals passed. Production unchanged; see R2 ROOT-RESULT for corrected affected case and new entry build. Retain all failed source/logs; never rerun this helper.

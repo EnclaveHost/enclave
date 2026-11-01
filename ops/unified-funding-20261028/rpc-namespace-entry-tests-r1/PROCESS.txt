@@ -1,0 +1,4 @@
+ActiveState=failed
+SubState=failed
+MainPID=0
+ExecMainStatus=1

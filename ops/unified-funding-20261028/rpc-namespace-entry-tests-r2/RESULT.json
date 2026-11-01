@@ -1,0 +1,1 @@
+{"phases": [{"phase": "native", "exit": 0}, {"phase": "entry-build", "exit": 0}], "elapsed": 33.386740351095796, "sourcePins": 269, "pinsUnchanged": true, "artifacts": {"rpc-native-init": {"bytes": 5350153, "sha256": "e920f144cfcf24d492a7cba35ac0e9dd266e8cd5b8e56c20ccdc633d98bfb2fe"}}, "deployed": false}

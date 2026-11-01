@@ -3,7 +3,8 @@
 `Prepare(bundle, originalOrigin)` composes the real V9 parser, installed RPC
 platform verification, original deadline transport and fixed cgroup creation.
 It is a monitor library, not a host launcher. No monitor load path or build
-default invokes it yet. The next integration must supply the distinct RPC
+default invokes it yet. `Command(composedRoot)` now supplies the fixed namespace
+launch handoff after preparation, without starting it. The next integration must supply the distinct RPC
 bootstrap, controller/front, authenticated persistent storage and namespace
 launch together; there is no partially authorized launch fallback.
 
@@ -44,14 +45,29 @@ Before invocation of `rpc-native-init`, the monitor still must establish:
 - An independently armed outer guardian covering preparation and kernel stalls.
 - Authenticated app-owned L1/Base attachments with exclusive writer fencing.
 - Role-specific writable subtrees, UID/JWT access and network isolation.
-- Namespace entry at creation in the control cgroup and fixed FD transfer.
+- Authenticated root assembly before the implemented namespace/cgroup handoff.
 - Controller/front identity, readiness and the persistent-serving transition.
 
 Nothing here starts clients, mounts devices, changes original chain data,
 releases reservations or claims that RPC is serving. The deadline remains
 900 seconds. No GPU worker or desktop model-volume assumptions are reused.
 
-The current entry topology is ERPCONE3, adding the front group at FD12. The
+The current entry topology is ERPCONE4: front group FD12, composed root FD13,
+verified executable FD14. `Prepared.Command` consumes preparation once and
+executes `/proc/self/fd/14` with exactly these capabilities in new mount, PID,
+network, IPC and UTS namespaces, at creation in the control cgroup. No user
+namespace is added in production. It returns a command and retained capabilities;
+the monitor must register the front, arm its independent guardian and establish
+authenticated state/network policy before starting it. There is no automatic
+cleanup/retry API or claim that command construction equals launch authority.
+
+The PID1 entry arms its owner/deadline watcher before the root switch, closes
+the executable descriptor, requires a read-only/nosuid/nodev held root, makes
+mount propagation private, chroots and closes the outside-root descriptor. It
+mounts fresh private read-only proc with hidepid=2 and sets no_new_privs on every
+Go thread. The trusted assembled root must already have an empty nonsymlink
+`/proc`; this bootstrap does not infer writable-state authority from root ownership.
+ERPCONE1/2/3 frames are incompatible with this new handoff. The
 entry supervises the front and waits for its bound one-shot owner approval
 before controller or chain execution. This closes the local process start gate;
 it does not supply the missing monitor load, storage authority or namespace setup.

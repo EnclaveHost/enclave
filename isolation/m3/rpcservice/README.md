@@ -173,9 +173,11 @@ It requires UID/EUID 0 and namespace PID1, with exactly these inherited FDs:
 | 10 | Supervisor control cgroup, a sibling of the role groups |
 | 11 | WASI controller cgroup, another direct child of the aggregate |
 | 12 | TLS front cgroup, another direct child of the aggregate |
+| 13 | Held monitor-composed read-only namespace root |
+| 14 | Verified executable inode used by the child exec |
 
-The entry frame magic is now `ERPCONE3`; older topology frames are
-refused rather than accepting a missing front or controller group. Existing entry
+The entry frame magic is now `ERPCONE4`; older topology frames are
+refused rather than accepting a missing root, front or controller capability. Existing entry
 binaries/profiles must be rebuilt and explicitly qualified before activation.
 
 The control cgroup must contain only PID1, with memory.max=128 MiB,
@@ -197,7 +199,7 @@ SIGINT enter the existing cleanup path; the watchdog remains armed. Borrowed
 FDs remain alive for the entire process. An outer guardian must cover bootstrap
 before the watchdog arms, kernel stalls and exact final domain death.
 
-This entry does not authenticate mounts, root measurement, app identity,
+This entry does not independently authenticate mounts, accepted root measurement,
 JWT access, writer ownership or network policy. Those remain monitor release
 requirements. Process exit is not a clean database or storage-release receipt.
 
@@ -215,8 +217,9 @@ client failure. In-flight controller starts and population prevent cleanup
 confirmation. It is never restarted and receives the same original deadline.
 Total role/control maxima are 17.75 GiB inside the 19 GiB aggregate, leaving
 1.25 GiB unallocated for guest overhead. This is not evidence that the full
-runtime fits. Monitor namespace, report-socket registration, role write/network
-isolation and storage wiring are still absent; no endpoint is deployed.
+runtime fits. The namespace handoff is implemented, but monitor load/root assembly,
+report-socket registration, role write/network isolation and authenticated storage
+wiring remain incomplete; no endpoint is deployed.
 
 
 ## Private owner start gate
@@ -243,4 +246,14 @@ existing owner bootstrap still reads legacy lease state; it does not implement
 the replacement event-driven protocol. The complete measured monitor must
 register the fixed front UID, mount its private report/TLS directory, bind the
 correct eight groups and immutable platform, establish authenticated exclusive
-state attachments and arm the outer guard before invoking ERPCONE3.
+state attachments and arm the outer guard before invoking ERPCONE4.
+
+The ERPCONE4 entry additionally consumes monitor-composed root FD13 and pinned
+executable FD14. The original watcher is armed before root switching. It closes
+FD14, validates control membership, makes mounts private, switches to the held
+read-only/nosuid/nodev root, closes its outside-root FD and mounts new read-only
+proc with hidepid=2. All Go threads receive no_new_privs (CGO builds refuse this
+operation). Namespace creation and clone-time control placement are supplied by
+`rpcdomain.Prepared.Command`. The actual monitor load/root assembly/state
+authority path remains incomplete; neither command construction nor this root
+switch is an attestation or a writer-fence proof. No target activation is enabled.

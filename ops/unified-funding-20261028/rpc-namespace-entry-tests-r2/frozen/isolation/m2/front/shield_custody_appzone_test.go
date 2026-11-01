@@ -1,0 +1,222 @@
+//go:build shielddirect && bootstrapdirect && !releaselab
+
+package main
+
+// App-zone issuance on a custody-v2 Shield-direct guest whose owner-selected CA needs an external account binding (EAB):
+// the package names two custody secrets, the guest recovers them through the REAL custody-v2 release (real bootstrap
+// authorization, real encrypted threshold partials; RPC and monitor signatures are fixtures, as in
+// shield_direct_custody_test.go), and its own issuer registers with the binding at a test CA that requires it, then
+// pushes through a challenge replica and is issued. Refusals: a wrong HMAC in custody (the CA refuses the account) and a
+// missing secret (no issuer starts). This tests composition, not hardware trust or a public CA.
+// run: go test -tags 'bootstrapdirect shielddirect' -run ShieldCustodyAppZone ./front/
+import (
+	"bytes"
+	"context"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/netip"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"enclave.host/isolation/contract"
+	"enclave.host/isolation/m2/bootstrap"
+	"enclave.host/isolation/m2/release"
+)
+
+// shieldCustodyAppZoneStartup runs the real custody-v2 Shield-direct startup for a package selecting app-zone issuance
+// with EAB secret names, the custody bundle holding env. -> the startup, the monitor socket and the world.
+func shieldCustodyAppZoneStartup(t *testing.T, env map[string]string) (*ownerStartup, string, *custodyWorldV2) {
+	t.Helper()
+	w := newCustodyWorldV2(t, []bool{true, true, false, false, false}, env)
+	w.behave[0], w.behave[1] = v2Refuse, v2Refuse
+	var v struct{ Row, Ledger, Owner, Schema string }
+	b, err := os.ReadFile("../bootstrap/testdata/vectors.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = json.Unmarshal(b, &v); err != nil {
+		t.Fatal(err)
+	}
+	w.shieldOwner = v.Owner
+	config, _ := json.Marshal(w.config)
+	var ptr release.Custody
+	b, _ = json.Marshal(w.custody)
+	json.Unmarshal(b, &ptr)
+	names := &bootstrap.Names{AppZone: &bootstrap.AppZoneACME{Directory: "https://" + caHost + "/dir",
+		Challenges: []string{"https://" + repA}, EAB: &bootstrap.NameEAB{KID: "ACME_EAB_KID", HMAC: "ACME_EAB_HMAC"}}}
+	manifest := bootstrap.Manifest{Version: 1, ChainID: 8453, Ledger: v.Ledger, Deployment: "0x" + hex.EncodeToString(w.id[:]), Owner: v.Owner,
+		AppRef: "catalog://explicit/1", AppID: hex.EncodeToString(w.appSha), RuntimeID: hex.EncodeToString(w.rt.RID[:]), ConfigText: string(config),
+		SecretsMode: "custody-v2", Custody: &ptr, Names: names}
+	raw, _ := json.Marshal(manifest)
+	row := directCustodyRow(t, v.Row, w.id, raw)
+	now := time.Now().Unix()
+	hc := &http.Client{Transport: bootstrapTransport(func(req *http.Request) (*http.Response, error) {
+		var q struct {
+			Method string
+			Params []json.RawMessage
+		}
+		json.NewDecoder(req.Body).Decode(&q)
+		var result any
+		switch q.Method {
+		case "eth_chainId":
+			result = "0x2105"
+		case "eth_blockNumber":
+			result = "0x64"
+		case "eth_getBlockByNumber":
+			var n string
+			json.Unmarshal(q.Params[0], &n)
+			result = map[string]string{"number": n, "hash": "0x" + strings.Repeat("ab", 32), "timestamp": fmt.Sprintf("0x%x", now)}
+		case "eth_call":
+			var call struct{ Data string }
+			json.Unmarshal(q.Params[0], &call)
+			result = row
+			if call.Data == "0x5d1b72b6" {
+				result = v.Schema
+			}
+		default:
+			t.Errorf("unexpected RPC %s", q.Method)
+		}
+		out, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "result": result})
+		return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader(out))}, nil
+	})}
+	reader, err := bootstrap.NewReader(bootstrap.Config{ChainID: 8453, Ledger: v.Ledger, RPCs: []string{"https://one.example", "https://two.example", "https://three.example"},
+		Confirmations: 2, MaxAge: time.Minute, Client: hc})
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded := bootstrap.Identity{RuntimeID: w.rt.RID}
+	copy(loaded.AppID[:], w.appSha)
+	auth, err := reader.Authorize(context.Background(), w.id, raw, loaded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ew := newEgressWorld(t, string(config))
+	ew.eg.deployment = filepath.Join(filepath.Dir(ew.eg.config), "secret.id")
+	if err = os.WriteFile(ew.eg.deployment, []byte(manifest.Deployment), 0444); err != nil {
+		t.Fatal(err)
+	}
+	ew.eg.audit = func(want []netip.AddrPort) error { return nil }
+	sock := filepath.Join(t.TempDir(), "monitor.sock")
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	go func() {
+		for {
+			c, e := ln.Accept()
+			if e != nil {
+				return
+			}
+			var q map[string]string
+			json.NewDecoder(c).Decode(&q)
+			input, _ := hex.DecodeString(q["bind"])
+			rep := append(append([]byte{}, input...), w.appSha...)
+			json.NewEncoder(c).Encode(map[string]string{"report": base64.StdEncoding.EncodeToString(rep), "tier": contract.TierHyperV,
+				"format": contract.FormatHyperV, "wx": "wx=clean maps=3 runtime=1 front=1 init=1 scope=cgroup:/dom1"})
+			c.Close()
+		}
+	}()
+	f := &front{spki: w.spki, appSha: w.appSha, rt: w.rt, monitor: sock}
+	t.Cleanup(func() {
+		if f.shieldFwd != nil {
+			f.shieldFwd.Close()
+		}
+	})
+	sink := &secretSink{}
+	startup, err := f.prepareShieldDirect(context.Background(), auth, w.id, sink, ew.eg, w.p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return startup, sock, w
+}
+
+// the app-zone half: this domain's certificate state for its own label, a challenge replica checking the lease the
+// startup authorized, and the test CA (namesWorld) requiring EAB kid-1 with key.
+func shieldCustodyAppZoneIssue(t *testing.T, startup *ownerStartup, sock string, w *custodyWorldV2, key []byte) (*appZoneIssuer, *front, *namesWorld) {
+	t.Helper()
+	g, err := startup.auth.NameGrant()
+	if err != nil {
+		t.Fatal(err)
+	}
+	nw := newNamesWorld(t)
+	nw.eabKID, nw.eabKey = "kid-1", key
+	c := newCertState(t, hex.EncodeToString(w.id[:4])+".app.enclave.host")
+	f := &front{spki: c.spki, appSha: w.appSha, rt: w.rt, monitor: sock, certs: c}
+	rs := &replicaSet{mode: map[string]string{repA: "ok"}, txt: map[string]map[string]bool{}, spki: c.spki, name: c.name,
+		lease: appLease{Runner: "0x" + hex.EncodeToString(g.Lease.Runner[:]), Operator: g.Lease.Operator, AppRef: g.Lease.AppRef, Envelope: g.Lease.Envelope}}
+	nw.extraHosts = map[string]http.HandlerFunc{repA: rs.handler(repA)}
+	nw.validate = rs.answers
+	return f.startAppZone(startup, nw.egress, nw.pool), f, nw
+}
+
+func TestShieldCustodyAppZoneResolvesEABFromCustodyAndIssues(t *testing.T) {
+	key := bytes.Repeat([]byte{0x5a}, 32)
+	env := map[string]string{"ACME_EAB_KID": "kid-1", "ACME_EAB_HMAC": base64.RawURLEncoding.EncodeToString(key)}
+	for k, v := range v2Env {
+		env[k] = v
+	}
+	startup, sock, w := shieldCustodyAppZoneStartup(t, env)
+	if startup.appEabErr != "" || startup.appEabKID != "kid-1" || !bytes.Equal(startup.appEabKey, key) {
+		t.Fatalf("the app-zone EAB was not recovered from the custody bundle: kid %q err %q", startup.appEabKID, startup.appEabErr)
+	}
+	iss, f, nw := shieldCustodyAppZoneIssue(t, startup, sock, w, key)
+	if iss == nil || iss.eab == nil || iss.eab.KID != "kid-1" {
+		t.Fatal("the app-zone issuer did not start with the custody-held binding")
+	}
+	if startup.appEabKey != nil {
+		t.Fatal("the EAB key was kept in the startup after the issuer took it")
+	}
+	if !iss.pass(context.Background()) {
+		t.Fatalf("not issued through the EAB-requiring CA: %+v", iss.status())
+	}
+	leaf, err := handshake(t, f, nw.pool, f.certs.name)
+	if err != nil {
+		t.Fatalf("the app-zone name is not trusted under the test CA: %v", err)
+	}
+	if got, _ := x509.MarshalPKIXPublicKey(leaf.PublicKey); !bytes.Equal(got, f.spki) {
+		t.Fatal("the certificate is not for the guest's own key")
+	}
+	t.Logf("issued %s with EAB kid-1 recovered from custody-v2 (synthetic custody world, test CA)", leaf.DNSNames[0])
+}
+
+func TestShieldCustodyAppZoneRefusesAWrongOrMissingBinding(t *testing.T) {
+	key := bytes.Repeat([]byte{0x5a}, 32)
+	// a wrong HMAC in custody: the guest uses it, the CA refuses the account, nothing is issued
+	env := map[string]string{"ACME_EAB_KID": "kid-1", "ACME_EAB_HMAC": base64.RawURLEncoding.EncodeToString(bytes.Repeat([]byte{0x11}, 32))}
+	for k, v := range v2Env {
+		env[k] = v
+	}
+	startup, sock, w := shieldCustodyAppZoneStartup(t, env)
+	iss, f, _ := shieldCustodyAppZoneIssue(t, startup, sock, w, key)
+	if iss == nil {
+		t.Fatal("no issuer with a well-formed binding")
+	}
+	if iss.pass(context.Background()) || f.certs.current() != nil {
+		t.Fatal("issued with a binding the CA does not hold")
+	}
+	if e, _ := iss.status()["lastError"].(string); !strings.Contains(strings.ToLower(e), "externalaccount") && !strings.Contains(e, "401") {
+		t.Fatalf("not refused by the CA's binding check: %q", e)
+	}
+	// a missing secret: the startup states why, and no issuer starts
+	env = map[string]string{"ACME_EAB_KID": "kid-1"}
+	for k, v := range v2Env {
+		env[k] = v
+	}
+	startup, sock, w = shieldCustodyAppZoneStartup(t, env)
+	if startup.appEabErr == "" {
+		t.Fatal("a missing EAB secret was not stated")
+	}
+	if iss, _, _ = shieldCustodyAppZoneIssue(t, startup, sock, w, key); iss != nil {
+		t.Fatal("an issuer started without its CA's binding")
+	}
+}
