@@ -665,3 +665,9 @@ checks and wrapper/profile regressions pass; full authenticated storage and the
 monitor load callsite remain unimplemented. This is source integration, not
 production RPC, an accepted platform or a persistent writer lease. See
 `rpcdomain/README.md` and the root-composition qualification receipt for limits.
+
+The distinct `native_rpc` monitor now has a real load callsite through storage
+capability acquisition, domain preparation/root composition and process launch.
+It retains state on uncertain stop and scans all fixed role groups for reports.
+The required measured storage broker and target qualification are still absent;
+this source path is not enabled in production. See `isolation/m3/monitor/RPC.md`.

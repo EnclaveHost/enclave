@@ -213,6 +213,14 @@ func readEntry(f *os.File) (time.Time, uint64, uint64, error) {
 	return before.Add(-time.Duration(now - origin)), origin, deadline, nil
 }
 
+// OriginalEntryOrigin verifies the sealed, same-boot contract without renewing
+// its interval. A distinct monitor inherits this from its measured bootstrap
+// before preparation; no load request or current-time fallback can replace it.
+func OriginalEntryOrigin(f *os.File) (uint64, error) {
+	_, origin, _, err := readEntry(f)
+	return origin, err
+}
+
 type entryPollFD struct {
 	FD              int32
 	Events, Revents int16

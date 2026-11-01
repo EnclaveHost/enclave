@@ -85,6 +85,7 @@ const (
 // every backend ends a domain the same way; this file supplies what reclamation DOES here.
 
 type domain struct {
+	rpc              *rpcDomain
 	native           *nativeDomain
 	SecretDeployment string              `json:"-"`
 	AppConfig        []byte              `json:"-"` // copied only from the measured bundle
@@ -174,17 +175,19 @@ func (d *domain) state() contract.State { return d.lifecycle().State() }
 type reporter func(rd []byte) (report, certs []byte, err error)
 
 type monitor struct {
-	native  *nativeGuest
-	vtpm    *vtpmclient.Client // guest-owned hardware report channel; nil on unchanged legacy images
-	mu      sync.Mutex
-	doms    map[int]*domain
-	byUID   map[int]*domain // by the FRONT's uid: the only caller a report is ever made for
-	next    int
-	snp     bool
-	plat    string
-	root    string
-	basePrt uint32
-	baseUID int
+	rpcClock   *os.File // original sealed bootstrap interval, retained
+	rpcAttempt *domain  // retained single RPC attempt, even after deregistration
+	native     *nativeGuest
+	vtpm       *vtpmclient.Client // guest-owned hardware report channel; nil on unchanged legacy images
+	mu         sync.Mutex
+	doms       map[int]*domain
+	byUID      map[int]*domain // by the FRONT's uid: the only caller a report is ever made for
+	next       int
+	snp        bool
+	plat       string
+	root       string
+	basePrt    uint32
+	baseUID    int
 	// Verified Shield model volumes mounted by this boot.
 	volMu      sync.Mutex
 	volMounted map[string]bool
@@ -228,6 +231,10 @@ func main() {
 	flag.Parse()
 
 	m := newMonitor(*snp, *plat, *root, uint32(*basePort), *baseUID)
+	if nativeRPCBuild {
+		syscall.CloseOnExec(3)
+		m.rpcClock = os.NewFile(3, "rpc-original-bootstrap-clock")
+	}
 	if *reportHost != 0 {
 		m.hostPort = uint32(*reportHost)
 		m.report = m.hostReport
@@ -299,6 +306,9 @@ func main() {
 	// the boot nonce on its own line (the ready line's shape is parsed elsewhere): a reboot shows up in the log as a new one
 	if nativeDesktopBuild {
 		must(m.initNativeGuest())
+	}
+	if nativeRPCBuild {
+		must(m.initRPCGuest())
 	}
 	fmt.Printf("MON boot %s\n", m.boot)
 	fmt.Printf("MON ready control_port=%d snp=%v transport=%s\n", *control, m.snp, transport)
@@ -458,6 +468,9 @@ func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
 	m.mu.Unlock()
 	if refusal != "" {
 		return nil, fmt.Errorf("refused: %s", refusal)
+	}
+	if nativeRPCBuild {
+		return m.loadRPC(br, req)
 	}
 	if nativeDesktopBuild && m.native == nil {
 		return nil, fmt.Errorf("native guest has not established its resource boundary")
@@ -811,6 +824,14 @@ func (m *monitor) launch(d *domain, cmd *exec.Cmd, ln *vsock.Listener) error {
 	// and reclaimed. While it is `starting`, a destroy does not tear it down: it records the request and
 	// leaves it to this function, which is the only thing that knows how far the build got.
 	m.register(d)
+	if d.rpc != nil {
+		select {
+		case <-d.rpc.storage.Loss():
+			m.abandon(d, "RPC grant lost before clone")
+			return errors.New("RPC grant lost before clone")
+		default:
+		}
+	}
 	if err := cmd.Start(); err != nil {
 		m.abandon(d, "failed to start")
 		return fmt.Errorf("starting domain: %w", err)
@@ -926,6 +947,10 @@ func (m *monitor) retire(d *domain, why string) {
 // release frees everything the domain holds. It runs once however often it is called, and it does not
 // unmount until the processes are actually gone, because a live process holds those mounts busy.
 func (d *domain) release() {
+	if d.rpc != nil {
+		d.releaseRPC()
+		return // retain Ending: a kill request does not prove writer settlement
+	}
 	d.lifecycle().Reclaim(func() {
 		if d.native != nil {
 			d.releaseNative()
@@ -1023,6 +1048,10 @@ func (m *monitor) stop(id int) error {
 	if d == nil {
 		return fmt.Errorf("no domain %d", id)
 	}
+	if d.rpc != nil {
+		m.retire(d, "RPC owner stop requested; storage retained")
+		return errors.New("RPC stop requested; writer settlement unconfirmed and resources retained")
+	}
 	d.mu.Lock()
 	proc := d.proc
 	d.mu.Unlock()
@@ -1056,6 +1085,10 @@ func (m *monitor) destroy(id int) error {
 	m.mu.Unlock()
 	if d == nil {
 		return fmt.Errorf("no domain %d", id)
+	}
+	if d.rpc != nil {
+		m.retire(d, "RPC owner stop requested; storage retained")
+		return errors.New("RPC stop requested; writer settlement unconfirmed and resources retained")
 	}
 	m.retire(d, "destroyed at lease end")
 	return nil
@@ -1288,6 +1321,9 @@ func (m *monitor) readSeccompStatement(d *domain, r *os.File) {
 }
 
 func (m *monitor) scanDomainWX(d *domain) string {
+	if d.rpc != nil {
+		return m.scanRPC(d)
+	}
 	raw, err := os.ReadFile(filepath.Join(d.cgroup, "cgroup.procs"))
 	if err != nil {
 		return "wx=error: the domain's cgroup: " + err.Error()
@@ -1755,7 +1791,7 @@ func raisePtraceScopeWith(path string, want int, write func(string, []byte, os.F
 // Shield's broker is reachable by the runtime in /run/enclave-shield. Its
 // report and TLS sockets remain behind a distinct 0700, front-owned directory.
 func (d *domain) frontPath(name string) string {
-	if d.Inference != nil || d.native != nil {
+	if d.Inference != nil || d.native != nil || d.rpc != nil {
 		return filepath.Join(d.dir, "run", "front", name)
 	}
 	return filepath.Join(d.dir, "run", name)

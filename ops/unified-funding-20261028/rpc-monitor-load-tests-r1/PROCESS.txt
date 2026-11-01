@@ -1,0 +1,5 @@
+Invocation cd326066b5f64151b24c7325a9ad076b terminal1/MainPID0; no retry
+ActiveState=failed
+SubState=failed
+MainPID=0
+ExecMainStatus=1

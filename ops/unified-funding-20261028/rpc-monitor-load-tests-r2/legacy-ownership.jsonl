@@ -1,0 +1,8 @@
+{"Time":"2026-11-01T02:09:30.335787069-07:00","Action":"start","Package":"enclave.host/isolation/m3/monitor"}
+{"Time":"2026-11-01T02:09:30.339637634-07:00","Action":"run","Package":"enclave.host/isolation/m3/monitor","Test":"TestASecretDomainsEtcUnderRoot"}
+{"Time":"2026-11-01T02:09:30.339682134-07:00","Action":"output","Package":"enclave.host/isolation/m3/monitor","Test":"TestASecretDomainsEtcUnderRoot","Output":"=== RUN   TestASecretDomainsEtcUnderRoot\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:09:30.339701764-07:00","Action":"output","Package":"enclave.host/isolation/m3/monitor","Test":"TestASecretDomainsEtcUnderRoot","Output":"--- PASS: TestASecretDomainsEtcUnderRoot (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:09:30.339705474-07:00","Action":"pass","Package":"enclave.host/isolation/m3/monitor","Test":"TestASecretDomainsEtcUnderRoot","Elapsed":0}
+{"Time":"2026-11-01T02:09:30.339712424-07:00","Action":"output","Package":"enclave.host/isolation/m3/monitor","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:09:30.339738124-07:00","Action":"output","Package":"enclave.host/isolation/m3/monitor","Output":"ok  \tenclave.host/isolation/m3/monitor\t0.003s\n"}
+{"Time":"2026-11-01T02:09:30.339744764-07:00","Action":"pass","Package":"enclave.host/isolation/m3/monitor","Elapsed":0.004}

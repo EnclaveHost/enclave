@@ -1,0 +1,6 @@
+# enclave.host/isolation/m3/monitor
+monitor/rpc_invalid.go:5:9: undefined: nativeRPCAndDesktopMustNotShareAMeasuredMonitor
+monitor/main.go:234:5: undefined: nativeRPCBuild
+monitor/main.go:310:5: undefined: nativeRPCBuild
+monitor/main.go:472:5: undefined: nativeRPCBuild
+monitor/rpc.go:30:6: undefined: nativeRPCBuild

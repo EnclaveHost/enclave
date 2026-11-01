@@ -1,0 +1,18 @@
+{"Time":"2026-11-01T02:09:30.080171511-07:00","Action":"start","Package":"enclave.host/isolation/m3/monitor"}
+{"Time":"2026-11-01T02:09:30.083765058-07:00","Action":"run","Package":"enclave.host/isolation/m3/monitor","Test":"TestDomainConfigFile"}
+{"Time":"2026-11-01T02:09:30.083825677-07:00","Action":"output","Package":"enclave.host/isolation/m3/monitor","Test":"TestDomainConfigFile","Output":"=== RUN   TestDomainConfigFile\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:09:30.083847377-07:00","Action":"output","Package":"enclave.host/isolation/m3/monitor","Test":"TestDomainConfigFile","Output":"--- PASS: TestDomainConfigFile (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:09:30.083855677-07:00","Action":"pass","Package":"enclave.host/isolation/m3/monitor","Test":"TestDomainConfigFile","Elapsed":0}
+{"Time":"2026-11-01T02:09:30.083863107-07:00","Action":"run","Package":"enclave.host/isolation/m3/monitor","Test":"TestStageEncVolumes"}
+{"Time":"2026-11-01T02:09:30.083866027-07:00","Action":"output","Package":"enclave.host/isolation/m3/monitor","Test":"TestStageEncVolumes","Output":"=== RUN   TestStageEncVolumes\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:09:30.083869377-07:00","Action":"output","Package":"enclave.host/isolation/m3/monitor","Test":"TestStageEncVolumes","Output":"--- PASS: TestStageEncVolumes (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:09:30.083871617-07:00","Action":"pass","Package":"enclave.host/isolation/m3/monitor","Test":"TestStageEncVolumes","Elapsed":0}
+{"Time":"2026-11-01T02:09:30.083873287-07:00","Action":"run","Package":"enclave.host/isolation/m3/monitor","Test":"TestModelVolumesMountOnlyThePinnedDisk"}
+{"Time":"2026-11-01T02:09:30.083875097-07:00","Action":"output","Package":"enclave.host/isolation/m3/monitor","Test":"TestModelVolumesMountOnlyThePinnedDisk","Output":"=== RUN   TestModelVolumesMountOnlyThePinnedDisk\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:09:30.083877017-07:00","Action":"output","Package":"enclave.host/isolation/m3/monitor","Test":"TestModelVolumesMountOnlyThePinnedDisk","Output":"MON model volume data-b verified on sdc (root 7cd1139e167b2eb6) and mounted read-only\n"}
+{"Time":"2026-11-01T02:09:30.083881287-07:00","Action":"output","Package":"enclave.host/isolation/m3/monitor","Test":"TestModelVolumesMountOnlyThePinnedDisk","Output":"MON model volume qwen-a verified on sdb (root d67f95d904867c1d) and mounted read-only\n"}
+{"Time":"2026-11-01T02:09:30.083884537-07:00","Action":"output","Package":"enclave.host/isolation/m3/monitor","Test":"TestModelVolumesMountOnlyThePinnedDisk","Output":"--- PASS: TestModelVolumesMountOnlyThePinnedDisk (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:09:30.083886697-07:00","Action":"pass","Package":"enclave.host/isolation/m3/monitor","Test":"TestModelVolumesMountOnlyThePinnedDisk","Elapsed":0}
+{"Time":"2026-11-01T02:09:30.083888437-07:00","Action":"output","Package":"enclave.host/isolation/m3/monitor","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:09:30.083949867-07:00","Action":"output","Package":"enclave.host/isolation/m3/monitor","Output":"ok  \tenclave.host/isolation/m3/monitor\t0.004s\n"}
+{"Time":"2026-11-01T02:09:30.083958547-07:00","Action":"pass","Package":"enclave.host/isolation/m3/monitor","Elapsed":0.004}

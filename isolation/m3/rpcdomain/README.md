@@ -2,8 +2,8 @@
 
 `Prepare(bundle, originalOrigin)` composes the real V9 parser, installed RPC
 platform verification, original deadline transport and fixed cgroup creation.
-It is a monitor library, not a host launcher. No monitor load path or build
-default invokes it yet. `Command(composedRoot)` now supplies the fixed namespace
+It is a monitor library, not a host launcher. The distinct `native_rpc` monitor load path now invokes it; no production
+build default enables that path. `Command(composedRoot)` now supplies the fixed namespace
 launch handoff after preparation, without starting it. `ComposeCommand` now
 constructs the filesystem described below from held code/state capabilities.
 The next monitor integration must supply accepted bootstrap identity,
@@ -124,6 +124,7 @@ read-only parent/writable child flags, inode identity and unchanged source mount
 flags; Python state observations are mocked. No full positive ComposeCommand,
 production ext4/role-UID/JWT/device policy, accepted platform, network policy,
 monitor registration, chain start or persistent-serving transition is proven.
-The monitor load path still does not call this API. DNS and Base coverage
+The distinct monitor load path now calls this API, gated by its required
+measured storage broker; that broker is not implemented or installed. DNS and Base coverage
 artifacts are not synthesized: accepted network/coverage provisioning remains
 necessary before live use. The original 900-second window is unchanged.
