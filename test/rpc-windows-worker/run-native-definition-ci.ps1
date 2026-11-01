@@ -58,7 +58,7 @@ function Invoke-FiniteProcess([string]$Executable,[string[]]$Arguments,[int]$Dea
     if($failure -or $record.exitCode -ne 0){throw ($Label+' failed: '+($record|ConvertTo-Json -Compress))}
 }
 try{
-    $sources=@('BoundedWorker.cs','OwnerObserver.cs','ProtectedAttempt.cs','ProviderStart.cs','OwnedVmPermit.cs','OwnedVmDefinition.cs','OwnedVmBoot.cs','BootStartBinding.cs','HostPhysicalPool.cs','WindowsStartAdmission.cs','LegacyTemplateFence.cs','LegacyLaunchCohort.cs','LegacyHandoff.cs','DefinitionWorkerEntry.cs','DefinitionWorkerController.cs','DiagnosticObservationCollector.cs','NativeRpcDefinition.cs')|ForEach-Object{Join-Path $root ('windows\rpc\'+$_)}
+    $sources=@('BoundedWorker.cs','OwnerObserver.cs','ProtectedAttempt.cs','ProviderStart.cs','OwnedVmPermit.cs','OwnedVmDefinition.cs','OwnedVmBoot.cs','BootStartBinding.cs','HostPhysicalPool.cs','WindowsStartAdmission.cs','LegacyTemplateFence.cs','LegacyLaunchCohort.cs','LegacyHandoff.cs','NativeRpcDefinition.cs')|ForEach-Object{Join-Path $root ('windows\rpc\'+$_)}
     $sources+=Join-Path $root 'test\rpc-windows-worker\NativeRpcDefinitionHarness.cs'
     Invoke-FiniteProcess $csc (@('/nologo','/target:exe','/platform:x64','/r:System.Management.dll','/r:System.Web.Extensions.dll','/r:Microsoft.CSharp.dll','/main:NativeRpcDefinitionHarness',('/out:'+$entry))+$sources) 20000 'native-compile'
     Invoke-FiniteProcess $entry @() 20000 'native-harness'
@@ -68,6 +68,7 @@ try{
     Get-FileHash -Algorithm SHA256 -LiteralPath ($sources+@($csc))|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'pins.json')
     $publish=Join-Path $env:RUNNER_TEMP ('rpc-native-definition-results-'+[guid]::NewGuid().ToString('N'))
     $null=New-Item -ItemType Directory -Path $publish
+    ('RPC_WORKER_RESULT='+$publish)|Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
     $total=0L
     foreach($name in @('native-compile.out','native-compile.err','native-harness.out','native-harness.err','process-results.json','pins.json','artifact.json','owned-entry.exe')){
         $file=Join-Path $work $name
@@ -75,7 +76,7 @@ try{
             $limit=65536L;if($name -eq 'owned-entry.exe'){$limit=262144L}
             $stream=[IO.File]::Open($file,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
             try{
-                if($stream.Length -gt $limit -or $total+$stream.Length -gt 1048576){throw 'Published artifact bound'}
+                if($stream.Length -gt $limit -or $total+$stream.Length -gt 1048576){[pscustomobject]@{name=$name;bytes=$stream.Length;limit=$limit;total=$total}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $publish 'artifact-bound-failure.json');throw 'Published artifact bound'}
                 $bytes=New-Object byte[] ([int]$stream.Length);$offset=0
                 while($offset -lt $bytes.Length){$n=$stream.Read($bytes,$offset,$bytes.Length-$offset);if($n -le 0){throw 'Short artifact read'};$offset+=$n}
                 [IO.File]::WriteAllBytes((Join-Path $publish $name),$bytes);$total+=$bytes.Length

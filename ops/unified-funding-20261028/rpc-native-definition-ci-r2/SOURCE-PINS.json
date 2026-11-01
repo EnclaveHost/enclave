@@ -1,0 +1,19 @@
+{
+  "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+  "windows/rpc/OwnerObserver.cs": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80",
+  "windows/rpc/ProtectedAttempt.cs": "7b5be0a1b42bd37cd9f3d44b5af1c8357bc13cce1df2686157d4a2b45120ae3e",
+  "windows/rpc/ProviderStart.cs": "600b86bcdfcb4a0425213fee9ed241a51c9a23d3fbcc51560d5c929b628a7d46",
+  "windows/rpc/OwnedVmPermit.cs": "a4d1f9640a4087714b9907cddcdc64340cb57f07de04dd1b6baf97197ac60373",
+  "windows/rpc/OwnedVmDefinition.cs": "f9cac30399a8d6d10896b1f6d23bc6a71cd70fed12c78b7515a0fba6619be6a5",
+  "windows/rpc/OwnedVmBoot.cs": "0f21e5f72e94bfe60a6c2431f8abf6343ca0a512c376ba2847fab08878def388",
+  "windows/rpc/BootStartBinding.cs": "37f98a872a67aaa03020cc634a6c26cc27bcca839eee4966967f894ad971167c",
+  "windows/rpc/HostPhysicalPool.cs": "218483e78967e94f77c2c88fdee9ca04970eb9c4a3f10adbf543b8ccd0c904af",
+  "windows/rpc/WindowsStartAdmission.cs": "e148ac1f6e27a33ddfe04762dd9a39b09fbb56f714d86b72c86c0f292d46b9a9",
+  "windows/rpc/LegacyTemplateFence.cs": "d2bfc04762cf64b2555575e4c8aa95842dd35be108f9c9780dd3ecf0ecd0cd0f",
+  "windows/rpc/LegacyLaunchCohort.cs": "ce22aa16e0d353fa8354bca26f8dc4057d520c001540d0659778e2769135f5a2",
+  "windows/rpc/LegacyHandoff.cs": "083eeeb1c777dbc7f6354ed1560adf8c097518e485067271afd269d8d0c34280",
+  "windows/rpc/NativeRpcDefinition.cs": "02dc09dd302c51c2ea64d2bfe5bea87d4c8aee52044d671c31e2b8a1a81aba82",
+  "test/rpc-windows-worker/NativeRpcDefinitionHarness.cs": "46db76b7883162fce79f9ab75abb0782b446d418de7acfd4516feed801bf457a",
+  "test/rpc-windows-worker/run-native-definition-ci.ps1": "afea1b832c1d35c0ea065e74ee8cd705009b03ee00a730741d111e1f39bba4e6",
+  ".github/workflows/rpc-native-definition.yml": "c0d34d07ba6261cfadb92bbd0dbc3378649d229c2c20ef06a0e90d26435541ff"
+}
