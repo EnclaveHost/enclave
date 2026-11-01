@@ -45,6 +45,9 @@ const MaxConfigBytes = 32 << 10
 // Public app configuration is measured with the artifact. Base64 keeps the bundle
 // canonical across JSON encoders; it is not encryption or a secret channel.
 func (m Manifest) AppConfig() ([]byte, error) {
+	if err := m.ValidateRPC(); err != nil {
+		return nil, err
+	}
 	if err := m.ValidateDesktop(); err != nil {
 		return nil, err
 	}
@@ -84,6 +87,7 @@ func (m Manifest) AppConfig() ([]byte, error) {
 }
 
 type Manifest struct {
+	RPC              *RPC       `json:"rpc,omitempty"`
 	Desktop          *Desktop   `json:"desktop,omitempty"`
 	SecretDeployment string     `json:"secretDeployment,omitempty"`
 	ConfigBase64     string     `json:"configBase64,omitempty"`
@@ -157,12 +161,15 @@ func Build(m Manifest, artifact []byte) ([]byte, error) {
 	if m.Artifact.Kind != KindWasmComponent {
 		return nil, fmt.Errorf("artifact kind %q is not distributable: the contract carries %s only", m.Artifact.Kind, KindWasmComponent)
 	}
+	if m.RPC != nil && (len(artifact) > MaxRPCControllerBytes || !bytes.HasPrefix(artifact, []byte{0, 97, 115, 109, 13, 0, 1, 0})) {
+		return nil, errors.New("RPC requires a bounded portable controller")
+	}
 	sum := sha256.Sum256(artifact)
 	m.Artifact.Sha256 = hex.EncodeToString(sum[:])
 	if m.ABI == "" {
 		m.ABI = ABI
 	}
-	if m.Desktop != nil {
+	if m.Desktop != nil || m.RPC != nil {
 		if _, err := m.AppConfig(); err != nil {
 			return nil, err
 		}
@@ -198,10 +205,10 @@ var ErrNotBundle = errors.New("not a bundle")
 // and an artifact hash that does not match the bytes, so anything Parse accepts has exactly one
 // byte form and one ID.
 func Parse(b []byte) (Manifest, []byte, error) {
-	return parseBundle(b, false)
+	return parseBundle(b, false, false)
 }
 
-func parseBundle(b []byte, allowDesktop bool) (Manifest, []byte, error) {
+func parseBundle(b []byte, allowDesktop, allowRPC bool) (Manifest, []byte, error) {
 	var m Manifest
 	if !IsBundle(b) {
 		return m, nil, ErrNotBundle
@@ -237,6 +244,9 @@ func parseBundle(b []byte, allowDesktop bool) (Manifest, []byte, error) {
 	}
 	if m.ABI != ABI {
 		return m, nil, fmt.Errorf("bundle abi %q is not %q", m.ABI, ABI)
+	}
+	if m.RPC != nil && !allowRPC {
+		return m, nil, errors.New("RPC bundles require a qualified RPC runtime; this parser does not admit them")
 	}
 	if m.Desktop != nil && !allowDesktop {
 		return m, nil, errors.New("masked desktop bundles require a qualified desktop runtime; this parser does not admit them")

@@ -38,7 +38,7 @@ func (m Manifest) ValidateDesktop() error {
 	if d.Profile != DesktopProfile || !NonzeroHash(d.ProfileSha256) || d.GPUMilli < 500 || d.GPUMilli > 1000 {
 		return errors.New("invalid masked desktop profile")
 	}
-	if m.World != WorldCLI || m.HTTP != 8000 || m.Label != "" || m.Inference != nil || !slices.Equal(m.Ports, DesktopPorts()) {
+	if m.World != WorldCLI || m.HTTP != 8000 || m.Label != "" || m.Inference != nil || m.RPC != nil || !slices.Equal(m.Ports, DesktopPorts()) {
 		return errors.New("desktop requires its fixed command and protected Moonlight ports, without an inference profile or label")
 	}
 	if !strings.HasPrefix(m.SecretDeployment, "0x") || !NonzeroHash(strings.TrimPrefix(m.SecretDeployment, "0x")) || m.ConfigBase64 == "" {
@@ -55,7 +55,7 @@ func (m Manifest) ValidateDesktop() error {
 // Normal Parse deliberately refuses these bundles until the measured guest
 // lifecycle, release verification and secret/worker admission are implemented.
 func ParseDesktop(b []byte) (Manifest, []byte, error) {
-	m, artifact, err := parseBundle(b, true)
+	m, artifact, err := parseBundle(b, true, false)
 	if err == nil && m.Desktop == nil {
 		return m, nil, errors.New("not a desktop bundle")
 	}

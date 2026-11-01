@@ -7,6 +7,40 @@ port or removing its deadline. The latest diagnostic recovered Reth and obtained
 a local response while still syncing. Base did not start, and Lighthouse timed
 out during shutdown. These results do not establish production readiness.
 
+## RPC app identity implementation
+
+`isolation/contract/catalog/rpc.go` implements the separate V9 RPC derivation.
+`isolation/contract/cmd/rpc-bundle` prepares an exclusive offline bundle from an
+owner-supplied catalog/deployment record and portable controller. It does not
+publish a catalog version, create a deployment, authorize spending or start a VM.
+The fixed native profile is `ethereum-base-rpc-v1`; its descriptor hash must be
+independently paired with the qualified runtime and measured image. Native ELF
+clients belong inside that measured companion, never in a host-side proxy.
+
+The bundle binds the deployment, two distinct logical state-volume identities,
+profile hash, 19 GiB/four-vCPU CPU-only allocation, controller HTTP 8000 and the
+existing clients' peer ports. Engine, raw client and beacon APIs are not tunnel
+ports. Public configuration is exactly `enclave-rpc-app/1`, Ethereum chain 1,
+Base chain 8453 and the original 900-second startup policy. Commands, arbitrary
+provider URLs and host filesystem paths are refused. The 1 GiB host support
+reservation remains additional; the bundle does not prove resource admission.
+
+The ordinary and desktop parsers refuse RPC bundles. `ParseRPC` is an explicit
+offline/native-runtime boundary, not an attestation or launch capability. Tests
+exercise the shared contract, legacy vectors, forbidden combinations, app ID
+binding and real exclusive output. Their empty Wasm component is a wire-format
+fixture, not a functional RPC controller.
+
+Required next integration is specific: a measured native RPC companion running
+the existing Reth/Lighthouse/Base service graph, portable controller, verified
+image/release selection, app-owned writable state mounts, and manager lifecycle.
+The desktop profile cannot be reused by changing its name: it requires GPU and
+Moonlight ports and excludes state volumes. Existing encrypted app volumes are
+RAM-backed with S3 synchronization and cannot hold these TB-scale databases.
+The retained NVMe/COW state needs an authenticated, exclusive writer binding to
+the RPC app. None of those runtime capabilities is claimed by the V9 producer.
+No catalog or payment transaction has been submitted for this candidate.
+
 # Direct local Linux startup status
 
 `linux_direct.py` is an independently bounded Linux KVM startup candidate. It

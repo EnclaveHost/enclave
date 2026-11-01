@@ -148,3 +148,13 @@ identity, and a verifier would have to know the shape to know the app.
   treat it as a version switch. Not built yet.
 - **Rollback to an earlier version returns its earlier policy.** It is the same record, so the same AppID
   (guestd's store returns the identical mapping, `TestVersionsAndRollbackAreImmutable`).
+
+
+## V9 RPC app candidate (not runtime-admitted)
+
+`rpc.go` maps `enclave-catalog-bundle/9` records to the same canonical bundle
+format and SHA256 AppID. It retains separate RuntimeID/catalog pins and requires
+a portable controller, fixed CPU RPC profile, deployment-bound provisioning,
+and distinct persistent L1/Base volume identities. It changes no prior version.
+See [RPC status](../../../rpc/README.md) for the actual limits and missing runtime.
+`cmd/rpc-bundle` is an offline producer; ordinary backend allowlists remain closed.
