@@ -1,0 +1,8 @@
+[
+  "isolation/m3/build-rpc-igvm.py",
+  "isolation/m3/openhcl/README.md",
+  "isolation/m3/openhcl/0002-igvm-bounded-serialization.patch",
+  "test/rpc-server/test_rpc_igvm_build.py",
+  "ops/rpc-igvm-serializer-r1",
+  "rpc/native/BUILD-PLATFORM.md"
+]

@@ -1,0 +1,3 @@
+New tool9375a04e reproduced archived firmware c7084346 byte-for-byte and VBSdigest6a3135a9,4.265027s generator+readback. Independent headerCRC PASS. Peakouter305MiB. Original512MiBpackagingcap retained. No old successful primitive tests replayed; this qualifies the newly built tool against the archived full output.
+
+Actual terminal0/MainPID0/emptycgroup; never rerun helper. No target task/VM/provider/export/authority/funds/catalog/route changes. Production RPC remains offline. Persistent serving adoption and native acceptance/boot/VMGS/owner authority/writer settlement/clientfit/sync/finality/cutover still required.

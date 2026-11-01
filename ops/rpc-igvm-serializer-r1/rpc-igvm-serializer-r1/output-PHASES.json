@@ -1,0 +1,12 @@
+[
+  {
+    "phase": "toolchain",
+    "exit": 0,
+    "elapsed": 0.19555376190692186
+  },
+  {
+    "phase": "igvm-tests",
+    "exit": 101,
+    "elapsed": 0.36007642885670066
+  }
+]

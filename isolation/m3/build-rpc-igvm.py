@@ -15,9 +15,10 @@ import stat
 import struct
 import subprocess
 import time
+import zlib
 
 PINS = {
-    "igvmfilegen": "81647f66a88559d68c4d7565dfdcc355305c00cc842b49403a3c5188c36e1a1c",
+    "igvmfilegen": "9375a04e0d4e94c8f7734b4f15f3faeadbee7a891ce7ba8a85afaebe11343262",
     "manifest": "0ce9d8a87582bb5d60200d7f98c67ee357dbd042aec7338649c981753753df61",
     "openhcl_boot": "18dbeae950c1c143364638892ace4c2cf2128eb12d67f3de05bdbe37b2fd16bc",
     "underhill_kernel": "4d6c417654d5d26374c3bc44ed1c6473d5a0d9e7b9773d2bb1dab2abe5306762",
@@ -97,7 +98,18 @@ def check_igvm(path):
         require(24 <= size <= MAX_FILE, "IGVM size")
         magic, version, offset, length, total, checksum = struct.unpack("<6I", src.read(24))
         require(magic == 0x4D564749 and version == 1 and total == size, "IGVM header")
-        require(offset >= 24 and length > 0 and offset + length <= total, "IGVM header bounds")
+        require(offset == 24 and 0 < length <= 16 << 20 and offset + length <= total, "IGVM header bounds")
+        # IGVM v1 CRC covers the fixed header with its checksum zeroed plus
+        # the variable headers, not the data section. Stream without copying
+        # the complete firmware into the checking process.
+        crc = zlib.crc32(struct.pack("<6I", magic, version, offset, length, total, 0))
+        remaining = length
+        while remaining:
+            chunk = src.read(min(remaining, 65536))
+            require(bool(chunk), "truncated IGVM checksum input")
+            crc = zlib.crc32(chunk, crc)
+            remaining -= len(chunk)
+        require(crc == checksum, "IGVM header CRC mismatch")
         end, platforms, measurements = offset + length, [], 0
         while offset < end:
             require(offset + 8 <= end, "truncated IGVM entry")
@@ -113,7 +125,7 @@ def check_igvm(path):
             measurements += kind == 0x311
             offset = next_offset
         require(len(platforms) == 1, "exactly one VBS platform required")
-        return {"version": version, "platforms": platforms, "measurementHeaders": measurements}
+        return {"version": version, "platforms": platforms, "measurementHeaders": measurements, "headerCrcVerified": True}
 
 
 def build(spec, out):

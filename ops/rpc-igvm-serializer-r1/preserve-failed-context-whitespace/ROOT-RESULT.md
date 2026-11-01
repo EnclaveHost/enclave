@@ -1,0 +1,1 @@
+Preservation terminal1 before commit: git diff --cached --check treated mandatory single-space unified-diff context lines in the new .patch as trailing whitespace. Source/tested patch unchanged. Correct repository representation by adding one exact-path -whitespace attribute, following existing patch-preservation convention. Normal commit hooks/gitleaks remain enabled.

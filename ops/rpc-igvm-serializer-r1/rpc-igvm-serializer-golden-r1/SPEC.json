@@ -1,0 +1,30 @@
+{
+  "manifest": {
+    "path": "/inputs/manifest",
+    "sha256": "0ce9d8a87582bb5d60200d7f98c67ee357dbd042aec7338649c981753753df61"
+  },
+  "openhcl_boot": {
+    "path": "/inputs/openhcl_boot",
+    "sha256": "18dbeae950c1c143364638892ace4c2cf2128eb12d67f3de05bdbe37b2fd16bc"
+  },
+  "underhill_kernel": {
+    "path": "/inputs/underhill_kernel",
+    "sha256": "4d6c417654d5d26374c3bc44ed1c6473d5a0d9e7b9773d2bb1dab2abe5306762"
+  },
+  "underhill_initrd": {
+    "path": "/inputs/underhill_initrd",
+    "sha256": "71a91101f8f9b870199946076db2b220c68167e029539d4619a6b7600432124e"
+  },
+  "linux_kernel": {
+    "path": "/inputs/linux_kernel",
+    "sha256": "6bbd7340f7505cffb4d00cfa84604052b394f2d6467918e24d4c44935783e0c0"
+  },
+  "linux_initrd": {
+    "path": "/inputs/linux_initrd",
+    "sha256": "22c9666b5817ef651365892bf836c68a5c285b8ff94cdd3ad3e30f2bee1d7eaf"
+  },
+  "igvmfilegen": {
+    "path": "/inputs/igvmfilegen",
+    "sha256": "9375a04e0d4e94c8f7734b4f15f3faeadbee7a891ce7ba8a85afaebe11343262"
+  }
+}

@@ -82,13 +82,24 @@ platform structure, sidecar shape and input stability before publishing its
 receipt. The sidecar digest is compiler-generated, not independently recomputed
 or measured on hardware. No acceptance or boot claim follows from packaging.
 
-Qualification `rpc-igvm-package-r1` passed three new refusal/structural tests,
-then the actual packaging process exceeded its unchanged 512 MiB cgroup cap.
-The kernel killed the allocation before `rpc.bin` was written. Sidecar files
-from that failed invocation are incomplete build evidence and must not become
-an accepted platform identity. The source is preserved as an incomplete
-packager; a materially improved allocation strategy is required before a new
-bounded attempt. No successful firmware packaging or target boot is claimed.
+Historical `rpc-igvm-package-r1` passed three refusal/structural tests but
+failed at the 512 MiB cap before writing firmware. Its partial sidecars remain
+failed-attempt evidence. The maintained IGVM serializer patch subsequently
+removed two unnecessary payload copies; 82 affected library tests passed.
+The rebuilt tool reproduces archived firmware byte for byte. The packager now
+pins tool `9375a04e` and independently checks streamed IGVM header CRC.
+
+Actual `rpc-igvm-package-r2` successfully assembled the current guest firmware:
+91,301,340 bytes, SHA-256
+`1f5e0e7993783c52549278b4030c1e4b10755fc3ee5fc77be4c4b7412fff5386`,
+VBS sidecar digest
+`774c8e088104520aa51067e4eafb120c82f7b6b4c64d48cecd4f8c657cebcd86`.
+The complete packaging/readback took 5.08 seconds and peaked at 342 MiB aggregate
+RSS within the original 512 MiB cap. The separate tool compiler used the explicit
+1.5 GiB exception; production and packaging limits were unchanged. Evidence is
+in `ops/rpc-igvm-serializer-r1`. This is a complete offline firmware artifact,
+not an accepted platform or hardware measurement. VMGS and actual target boot
+remain unqualified; no production readiness follows from this successful build.
 
 
 ## RPC boot supervisor
@@ -118,4 +129,4 @@ whole-stack fit; admission must count supervisor/worker startup overheads. It
 neither fences the remote storage writer nor releases its reservation. Real target
 boot/poweroff and accepted measured image remain required. The current
 `rpc-full-image-current-r1` initramfs includes this source integration, but has
-not been packaged successfully into firmware or booted on the target.
+been packaged successfully as the firmware above, but has not booted on the target.

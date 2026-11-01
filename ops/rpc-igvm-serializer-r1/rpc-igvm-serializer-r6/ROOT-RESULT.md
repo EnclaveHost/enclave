@@ -1,0 +1,19 @@
+Actual terminal0/Main0; compiler result below. 3053frozen/currentpatch pins verified before and after. No firmware/native qualification. R6 developmentprofile tool preserved but not used: rootsource cfg!(debug_assertions) would enable unnecessary full-image debugvalidation.
+
+{
+  "sourcePins": 3053,
+  "pinsUnchanged": true,
+  "phases": [
+    {
+      "phase": "generator-build",
+      "exit": 0,
+      "elapsed": 232.00656055100262
+    }
+  ],
+  "tool": {
+    "bytes": 19030336,
+    "sha256": "18722d51b4f1381959c1a435a8b49cc4bd566a455fb30c44b97284eef8ac9c16"
+  },
+  "platformAccepted": false,
+  "deployed": false
+}

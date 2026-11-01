@@ -1,0 +1,179 @@
+--- a/igvm/src/lib.rs
++++ b/igvm/src/lib.rs
+@@ -159,7 +159,7 @@
+     /// The serialized file data.
+     file_data: Vec<u8>,
+     /// The map of file data to offset mapping data seen before.
+-    file_data_map: HashMap<Vec<u8>, u32>,
++    file_data_map: HashMap<u64, Vec<(usize, usize, u32)>>,
+ }
+ 
+ impl FileDataSerializer {
+@@ -181,16 +181,23 @@
+     /// Write the given file_data to the serializer. Returns the file_offset to
+     /// be encoded into the header.
+     pub fn write_file_data(&mut self, file_data: &[u8]) -> u32 {
+-        if let Some(offset) = self.file_data_map.get(file_data) {
+-            return *offset;
+-        }
+-
+-        let offset = self.file_offset;
++        use std::hash::{DefaultHasher, Hash, Hasher};
++        let mut hasher = DefaultHasher::new();
++        file_data.hash(&mut hasher);
++        let hash = hasher.finish();
++        let bucket = self.file_data_map.entry(hash).or_default();
++        // Hash collisions never identify data. Compare bytes in the single
++        // owned payload buffer, preserving first-occurrence offset semantics.
++        for &(start, length, offset) in bucket.iter() {
++            if &self.file_data[start..start + length] == file_data {
++                return offset;
++            }
++        }
++        let offset: u32 = self.file_offset.try_into().expect("file data offset must fit in u32");
++        let start = self.file_data.len();
+         self.file_offset += file_data.len();
+         self.file_data.extend_from_slice(file_data);
+-
+-        let offset: u32 = offset.try_into().expect("file data offset must fit in u32");
+-        self.file_data_map.insert(file_data.to_vec(), offset);
++        bucket.push((start, file_data.len(), offset));
+ 
+         offset
+     }
+@@ -3186,6 +3193,17 @@
+     /// Serialize this IGVM file into the binary format, into the supplied
+     /// output Vec.
+     pub fn serialize(&self, output: &mut Vec<u8>) -> Result<(), Error> {
++        self.serialize_headers(output, self.initialization_headers.iter(), self.directive_headers.iter())
++    }
++
++    // Borrow merged headers instead of cloning every image page to attach
++    // small CoRIM metadata. Both passes preserve the exact supplied order.
++    pub(crate) fn serialize_headers<'a>(
++        &self,
++        output: &mut Vec<u8>,
++        initializations: impl Iterator<Item = &'a IgvmInitializationHeader> + Clone,
++        directives: impl Iterator<Item = &'a IgvmDirectiveHeader> + Clone,
++    ) -> Result<(), Error> {
+         IgvmFile::validate_platform_headers(self.revision, self.platform_headers.iter())?;
+ 
+         // Build the variable header and file data section by looping through each header type.
+@@ -3194,10 +3212,10 @@
+         for header in self.platform_headers.iter() {
+             variable_header_section_size += header.header_size();
+         }
+-        for header in self.initialization_headers.iter() {
++        for header in initializations.clone() {
+             variable_header_section_size += header.header_size();
+         }
+-        for header in self.directive_headers.iter() {
++        for header in directives.clone() {
+             variable_header_section_size += header.header_size();
+         }
+ 
+@@ -3228,7 +3246,7 @@
+         let mut file_data = FileDataSerializer::new(file_data_section_start);
+ 
+         // Add initialization headers
+-        for header in &self.initialization_headers {
++        for header in initializations {
+             header
+                 .write_binary_header(&mut variable_header_binary, &mut file_data)
+                 .map_err(Error::InvalidBinaryInitializationHeader)?;
+@@ -3236,7 +3254,7 @@
+         }
+ 
+         // Add directive headers
+-        for header in &self.directive_headers {
++        for header in directives {
+             header
+                 .write_binary_header(&mut variable_header_binary, &mut file_data)
+                 .map_err(Error::InvalidBinaryDirectiveHeader)?;
+@@ -4839,6 +4857,25 @@
+     }
+ 
+     #[test]
++    fn test_indexed_dedup_collision_and_growth() {
++        use std::hash::{DefaultHasher, Hash, Hasher};
++        let mut data = FileDataSerializer::new(64);
++        assert_eq!(data.write_file_data(b"first"), 64);
++        let mut hasher = DefaultHasher::new();
++        b"other".as_slice().hash(&mut hasher);
++        // Force a hash collision with distinct bytes and the same length.
++        data.file_data_map.insert(hasher.finish(), vec![(0, 5, 64)]);
++        assert_eq!(data.write_file_data(b"other"), 69);
++        assert_eq!(data.write_file_data(b"other"), 69);
++        for byte in 0..100u8 {
++            data.write_file_data(&vec![byte; 4096]);
++        }
++        assert_eq!(data.write_file_data(b"first"), 64);
++        assert_eq!(data.write_file_data(b"other"), 69);
++        assert_eq!(&data.take()[..10], b"firstother");
++    }
++
++    #[test]
+     fn test_page_data_dedup() {
+         // test two page datas with same contents refer to the same file offset
+         let gpa = 0x12 * PAGE_SIZE_4K;
+--- a/igvm/src/serializer.rs
++++ b/igvm/src/serializer.rs
+@@ -480,26 +480,16 @@
+             // Fast path: nothing added, delegate directly.
+             self.file.serialize(output)
+         } else {
+-            // Clone the file and append the extra headers so that
+-            // the original IgvmFile::serialize handles all the work.
+-            let mut file = self.file.clone();
+-            file.initializations_mut().retain(|h| {
++            let initializations = self.file.initializations().iter().filter(|h| {
+                 let mask = match h {
+-                    IgvmInitializationHeader::CorimDocument {
+-                        compatibility_mask, ..
+-                    }
+-                    | IgvmInitializationHeader::CorimSignature {
+-                        compatibility_mask, ..
+-                    } => *compatibility_mask,
++                    IgvmInitializationHeader::CorimDocument { compatibility_mask, .. }
++                    | IgvmInitializationHeader::CorimSignature { compatibility_mask, .. } => *compatibility_mask,
+                     _ => return true,
+                 };
+                 !self.suppressed_corim_masks.contains(&mask)
+-            });
+-            file.initializations_mut()
+-                .extend(self.extra_init_headers.iter().cloned());
+-            file.directives_mut()
+-                .extend(self.extra_directive_headers.iter().cloned());
+-            file.serialize(output)
++            }).chain(self.extra_init_headers.iter());
++            let directives = self.file.directives().iter().chain(self.extra_directive_headers.iter());
++            self.file.serialize_headers(output, initializations, directives)
+         }
+     }
+ }
+@@ -663,6 +653,25 @@
+     // -- Basic serializer tests --------------------------------------
+ 
+     #[test]
++    fn borrowed_headers_match_owned_reference() {
++        let file = make_vbs_file();
++        let before = file.clone();
++        let mut serializer = IgvmSerializer::new(&file).unwrap();
++        serializer.add_corim(IgvmPlatformType::VSM_ISOLATION,
++            launch_measurement_template(IgvmPlatformType::VSM_ISOLATION, 13)).unwrap();
++        let mut reference = file.clone();
++        reference.initializations_mut().extend(serializer.extra_init_headers.iter().cloned());
++        reference.directives_mut().extend(serializer.extra_directive_headers.iter().cloned());
++        let mut expected = Vec::new();
++        reference.serialize(&mut expected).unwrap();
++        let mut actual = Vec::new();
++        serializer.serialize(&mut actual).unwrap();
++        assert_eq!(actual, expected);
++        assert_eq!(file.initializations(), before.initializations());
++        assert_eq!(file.directives(), before.directives());
++    }
++
++    #[test]
+     fn serialize_without_corim_matches_file_serialize() {
+         let file = make_vbs_file();
+ 

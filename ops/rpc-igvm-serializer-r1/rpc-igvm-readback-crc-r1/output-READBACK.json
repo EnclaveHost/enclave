@@ -1,0 +1,23 @@
+{
+  "tests": 2,
+  "golden": {
+    "bytes": 77056796,
+    "sha256": "c7084346a908465404fdf6de332a76b3c2ca844101eb9e8071aa8a1468f197ec"
+  },
+  "header": {
+    "version": 1,
+    "platforms": [
+      {
+        "mask": 1,
+        "highestVtl": 2,
+        "platform": 1,
+        "version": 1,
+        "sharedGpaBoundary": 0
+      }
+    ],
+    "measurementHeaders": 0,
+    "headerCrcVerified": true
+  },
+  "newGeneratorQualified": false,
+  "hardwareQualified": false
+}

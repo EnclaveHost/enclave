@@ -1,0 +1,1 @@
+Terminal1 before commit: source-hash map JSON field names containing private triggered cryptocurrency-key hook. Exact file hashes verified against public frozen .def/.rs source, not secrets. Public inventory converted to explicit path/sha256 records with original map digest retained; no hook bypass and no authority/configuration changes.

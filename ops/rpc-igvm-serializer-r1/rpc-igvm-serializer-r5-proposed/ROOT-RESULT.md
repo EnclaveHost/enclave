@@ -1,0 +1,3 @@
+Explicit user1.5GiB exception applied. Terminal1 after compilerexit101 at44.350274s: tdisp_proto build required absent protoc at Cargo default .packages path. Not a memory failure. Outer peak577MiB/inner499MiB/minhost93895. No generator or firmware. Success postpins verified separately after terminal exit.
+
+See actual PROCESS.txt/JOURNAL.txt and phase/guard logs. Frozen source pins independently rehashed after termination; POST-PINS has zero mismatches. No native Windows/task/VM/provider/export/chain/wallet/catalog/route change. RPC remains offline; guest and firmware acceptance unproven. Never rerun this completed helper.

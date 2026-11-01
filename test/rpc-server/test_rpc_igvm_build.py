@@ -4,6 +4,7 @@ from pathlib import Path
 import struct
 import tempfile
 import unittest
+import zlib
 
 spec = importlib.util.spec_from_file_location("rpc_igvm", Path(__file__).resolve().parents[2] / "isolation/m3/build-rpc-igvm.py")
 build = importlib.util.module_from_spec(spec)
@@ -34,7 +35,8 @@ class RpcIgvmBuild(unittest.TestCase):
     def test_platform_and_truncation_refuse(self):
         def image(platform=1, length=16):
             entry = struct.pack("<IIIBBHQ", 1, length, 1, 2, platform, 1, 0)
-            return struct.pack("<6I", 0x4D564749, 1, 24, len(entry), 24 + len(entry), 0) + entry
+            header = struct.pack("<6I", 0x4D564749, 1, 24, len(entry), 24 + len(entry), 0)
+            return header[:20] + struct.pack("<I", zlib.crc32(header + entry)) + entry
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "image"
             path.write_bytes(image())
@@ -43,6 +45,19 @@ class RpcIgvmBuild(unittest.TestCase):
                 path.write_bytes(bad)
                 with self.assertRaises(ValueError):
                     build.check_igvm(path)
+
+    def test_header_corruption_refused_by_crc(self):
+        entry = struct.pack("<IIIBBHQ", 1, 16, 1, 2, 1, 1, 0)
+        header = struct.pack("<6I", 0x4D564749, 1, 24, len(entry), 24 + len(entry), 0)
+        raw = bytearray(header[:20] + struct.pack("<I", zlib.crc32(header + entry)) + entry)
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "image"
+            path.write_bytes(raw)
+            self.assertTrue(build.check_igvm(path)["headerCrcVerified"])
+            raw[-1] ^= 1
+            path.write_bytes(raw)
+            with self.assertRaisesRegex(ValueError, "CRC"):
+                build.check_igvm(path)
 
 
 if __name__ == "__main__":

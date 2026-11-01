@@ -1,0 +1,7 @@
+{
+  "path": "/home/steven/enclave-bench/vbslike-phase2/openvmm/flowey-persist/flowey_lib_common__resolve_protoc/extracted/protoc-27.1-linux-x86_64.zip/bin/protoc",
+  "sha256": "507a3f321ae7df61982468712aa78531842ea88e3a3f6934bb9dcbd47881b921",
+  "bytes": 9402488,
+  "versionFromArchivedPath": "27.1",
+  "execution": "not yet executed; used only within bounded build"
+}

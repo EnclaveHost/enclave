@@ -1,0 +1,12 @@
+{
+  "status": "user-authorized-single-build",
+  "executed": false,
+  "hardMiB": 1536,
+  "rssMiB": 1408,
+  "retainedHostFloorMiB": 27648,
+  "additionalAdmissionMiB": 1664,
+  "productionLimitsChanged": false,
+  "commandSha256": "c1cdf8cc1baabed808e51d631fa422d05fa0c62d8692cb43803293312be1a4ae",
+  "authorization": "Allow this build 1.5 GiB",
+  "authorizedAt": "2026-11-01T21:10:41.375461+00:00"
+}

@@ -1,0 +1,23 @@
+{
+  "firmwareSha256": "c7084346a908465404fdf6de332a76b3c2ca844101eb9e8071aa8a1468f197ec",
+  "expectedSha256": "c7084346a908465404fdf6de332a76b3c2ca844101eb9e8071aa8a1468f197ec",
+  "exactBytes": true,
+  "elapsed": 4.265026781940833,
+  "deployed": false,
+  "header": {
+    "version": 1,
+    "platforms": [
+      {
+        "mask": 1,
+        "highestVtl": 2,
+        "platform": 1,
+        "version": 1,
+        "sharedGpaBoundary": 0
+      }
+    ],
+    "measurementHeaders": 0,
+    "headerCrcVerified": true
+  },
+  "vbsBootDigest": "6a3135a9378688805a36905c5e0f1443bb65031014618f390a6e3d6e2d90b86a",
+  "expectedVbsBootDigest": "6a3135a9378688805a36905c5e0f1443bb65031014618f390a6e3d6e2d90b86a"
+}
