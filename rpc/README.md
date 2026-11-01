@@ -1,3 +1,24 @@
+# Direct local Linux startup status
+
+`linux_direct.py` is an independently bounded Linux KVM startup candidate. It
+uses a new 19 GiB guest inside a 20 GiB systemd cgroup, read-only original chain
+images, and exclusive new COW disks. The authenticated host admission retains
+the 27 GiB floor plus pending commitments and startup allowances. The containing
+unit enforces the original 900-second window and kills the complete group on
+owner failure; there is no automatic retry, restart or deadline extension.
+
+`guest/prepare_direct_seed.py` prepares private NoCloud credentials and the
+existing client identities for local virtual disks. Seed ISO, user-data and keys
+must never enter Git or public hosting. It does not start clients. The runtime
+consumes a durable intent before its single authenticated EL/CL start request.
+Base remains blocked on the existing independent blob-coverage acceptance.
+
+This candidate does **not** implement persistent production admission or consumer
+cutover: its deadline always terminates the attempt. KVM process death, namespace
+write refusal and boot-device property checks are native fixture evidence, not
+chain sync, finality, blob availability, a working RPC, or decentralization.
+It does not reconcile or release the unresolved Windows definition attempt.
+
 # Alchemy RPC gateway
 
 `gateway.mjs` is a dependency-free loopback HTTP service. Publish only

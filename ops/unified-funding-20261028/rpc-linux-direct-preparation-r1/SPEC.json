@@ -1,0 +1,7 @@
+{
+  "nonce": "a4d415b564444775b51e7cfdb4f24e54",
+  "root": "/vm/enclave-volumes/rpc-linux-direct-a4d415b564444775b51e7cfdb4f24e54",
+  "source": "/home/controladmin/rpc-guest-image-20261031-r1/output/boot.vhdx",
+  "sha256": "a76940c926985b91590ab5916c7996c23d7812ccc2277fe8188bb21f11a0ae2c",
+  "bytes": 2301624320
+}

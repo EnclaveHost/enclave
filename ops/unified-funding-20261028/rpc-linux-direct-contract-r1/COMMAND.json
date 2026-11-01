@@ -1,0 +1,23 @@
+[
+  "/usr/bin/systemd-run",
+  "--user",
+  "--unit=enclave-rpc-linux-direct-contract-r1",
+  "-p",
+  "RuntimeMaxSec=60",
+  "-p",
+  "TimeoutStopSec=5",
+  "-p",
+  "MemoryMax=128M",
+  "-p",
+  "MemorySwapMax=0",
+  "-p",
+  "CPUQuota=100%",
+  "-p",
+  "UMask=0077",
+  "/usr/bin/taskset",
+  "-c",
+  "1",
+  "/usr/bin/python3",
+  "-B",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-linux-direct-contract-r1/prepare.py"
+]

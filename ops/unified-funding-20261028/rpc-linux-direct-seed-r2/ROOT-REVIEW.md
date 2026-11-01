@@ -1,0 +1,1 @@
+Only complete offline seed preparation after native feature delta PASS; originalnewroot empty with no STARTintent/seed. Normal local publicboot copy fallback on ext4; no VM/test rerun, retained512hard450RSS/90s/CPU1/noSwap/pending-aware floor.

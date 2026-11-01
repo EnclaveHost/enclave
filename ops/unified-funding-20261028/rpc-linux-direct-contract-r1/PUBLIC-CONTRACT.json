@@ -1,0 +1,67 @@
+{
+  "root": "/vm/enclave-volumes/rpc-linux-direct-a4d415b564444775b51e7cfdb4f24e54",
+  "unit": "enclave-rpc-linux-direct-a4d415b564444775b51e7cfdb4f24e54.service",
+  "instance": "rpc-owned-a4d415b564444775b51e7cfdb4f24e54",
+  "bootId": "b5382987-896d-4f01-938b-12d1bb149fd5",
+  "resourceConfig": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-export-current-admission-read-r2/CONFIG.json",
+  "sshPort": 22496,
+  "chains": {
+    "l1": {
+      "virtualBytes": 4000000000000,
+      "originals": [
+        {
+          "path": "/vm/enclave-volumes/rpc-control-l1-client-r6/overlay.qcow2",
+          "metadata": [
+            64769,
+            148393098,
+            277741568,
+            1793377151538885655,
+            1793377151538885655
+          ],
+          "headerSha256": "7372f55744d9baef76652f9e48e36c024b08f622e680cd6a38b8fd6af18ca90b",
+          "sha256": "97d3ab346ee76531b60d230906034c46f55021c80bf49f968c10268849d496eb"
+        },
+        {
+          "path": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2",
+          "metadata": [
+            64769,
+            147981798,
+            528387407872,
+            1793030445134925227,
+            1793030445134925227
+          ],
+          "headerSha256": "b06a08884bafb1540f1115ce307ef52c715b66a791665f59f90b52b3b400cb8c"
+        }
+      ]
+    },
+    "base": {
+      "virtualBytes": 4000000000000,
+      "originals": [
+        {
+          "path": "/mnt/usb/enclave-rpc-production/base-origin.qcow2",
+          "metadata": [
+            2049,
+            929,
+            1255588233216,
+            1793152612815840500,
+            1793152612815840500
+          ],
+          "headerSha256": "c7353633056d51de5d29ff6226e3f57ffa026924356c381d30070ecab576e3f8"
+        }
+      ]
+    }
+  },
+  "pins": {
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/linux_direct.py": "6334687a3fcaf9465c1d3aee43953ba346847e969a0ac350b712324640ef677b",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/server/volume_export.py": "ff94868d582438b964c67cc4651ae6f80bedd56a5cc99c2f0a3cff481b4bbbb2",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/server/observe_resources.mjs": "d2d8e9a69548e689d093434787b43ab3278c4fea032d329c16c2b82c0866bdee",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-export-current-admission-read-r2/CONFIG.json": "4eda4bcb7b8de14f64ebf14645f459e76f332b5a84dde1a2bc1fec1cbf39e09d",
+    "/usr/bin/node": "7af789e55afc0975d66bb19ccbc5a3b60c4b838f61d1ec10a117832ba70baaf9",
+    "/usr/bin/qemu-img": "3a57bce6765bfb73a75591dba2ac40d985cccde97d371e95537ecbf16d949d30",
+    "/usr/sbin/qemu-system-x86_64": "a2250f5e2b3b07c754473c0817df1cccf6c3c2443fc616dc474c4c311fa6ef1c",
+    "/usr/bin/bwrap": "33516b9cd1fa6432307ad71f23765fa30604b0a8d769dac0d2ba054e85aeec83",
+    "/usr/bin/ssh": "0d82109d60d32e5ca4007bd39b4abf213ff037fca99491bc2669a6b52051b74c",
+    "/vm/enclave-volumes/rpc-linux-direct-a4d415b564444775b51e7cfdb4f24e54/boot.vhdx": "a76940c926985b91590ab5916c7996c23d7812ccc2277fe8188bb21f11a0ae2c",
+    "/vm/enclave-volumes/rpc-linux-direct-a4d415b564444775b51e7cfdb4f24e54/direct-seed/seed.iso": "e93e79fb5815b41718d3eee86db0112d3d6090adac6fd0c9deafca61e60f89e5"
+  }
+}

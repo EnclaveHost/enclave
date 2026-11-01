@@ -1,0 +1,2 @@
+Bounded offline contract preparation: exact historical image metadata, frozen r6 full digest binding, verified seed and boot/source/tool hashes. No overlays, VMs, mounts, export, provider calls or readiness claim. Independent60s128MiB/CPU1/noSwap; authenticated384MiB allowance retained27648 floor plus pending.
+New independent attempt after prior exact Linux death; explicitbootindex0, QMP/private-dev repaired, native delta PASS.

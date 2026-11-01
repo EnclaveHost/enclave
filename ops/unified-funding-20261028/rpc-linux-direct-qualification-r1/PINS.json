@@ -1,0 +1,12 @@
+{
+  "rpc/linux_direct.py": "6334687a3fcaf9465c1d3aee43953ba346847e969a0ac350b712324640ef677b",
+  "rpc/server/volume_export.py": "ff94868d582438b964c67cc4651ae6f80bedd56a5cc99c2f0a3cff481b4bbbb2",
+  "rpc/server/observe_resources.mjs": "d2d8e9a69548e689d093434787b43ab3278c4fea032d329c16c2b82c0866bdee",
+  "rpc/guest/prepare_direct_seed.py": "8e8881325c1f7bccdc965e4a88c98fc8766a30494beb15374b791672c492c0f6",
+  "rpc/guest/identity.py": "1fac9d4de16a903233ca1613881d2157ec99710b99aee0c1cfd0cba4f75be103",
+  "rpc/guest/units/enclave-rpc-identity.service": "5252b795055e449b038a974727034e0361e631ccff0cdb5f7eb6a877c07d7ac7",
+  "test/rpc-guest/test_linux_direct.py": "d7318b828809158bc7298c2d1e515f3a2abae94110569011c1405cff51d10498",
+  "rpc/guest/units/enclave-rpc-el.service.d/identity.conf": "7aba21c1278cea2f9ed60244c5067f59f67ad4f29af23aa3a2fa0e57e450217f",
+  "rpc/guest/units/enclave-rpc-cl.service.d/identity.conf": "7aba21c1278cea2f9ed60244c5067f59f67ad4f29af23aa3a2fa0e57e450217f",
+  "rpc/guest/units/enclave-rpc-base.service.d/identity.conf": "77f5e49ad5940f1b44bf3972ae469792993438f5e1d7ea781a236d89a9e647c0"
+}

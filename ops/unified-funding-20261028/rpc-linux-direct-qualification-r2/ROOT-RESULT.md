@@ -1,0 +1,1 @@
+Invocation5e1b35c4f8434957b4c14e1e98fa9077 terminal0/Main0. Actual3PASS0.103s: KVM/QMP with held descendant pidfds across owner death, kernel readonly namespace refusal, pending/retained-floor refusals. Seed393216B/readbackPASS. Source frozen exact. Native fixture does not prove chain readiness.

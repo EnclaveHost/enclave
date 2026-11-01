@@ -1,0 +1,1 @@
+Terminal invocation1b0ee66ffa124792b1e4ad415c7f6565 exit2/Main0. Queue CLI refused unsupported640MiB reservation before any source/test/seed/native action. Correct next queue request512 while keeping actual640MiB admission allowance and same512hard450RSS cap. No cap/floor relaxation. Failed command retained.
