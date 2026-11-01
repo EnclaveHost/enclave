@@ -51,6 +51,11 @@ def verify_pins(pins):
             if hashlib.file_digest(f,'sha256').hexdigest()!=wanted:raise ValueError('Bootstrap source changed')
 
 
+def load_owner_state():
+    spec=importlib.util.spec_from_file_location('rpc_bootstrap_owner_state',HERE/'owner_state.py')
+    owner=importlib.util.module_from_spec(spec);spec.loader.exec_module(owner);return owner
+
+
 def sealed(value):
     fd=os.memfd_create('rpc-owner-bootstrap',os.MFD_CLOEXEC|os.MFD_ALLOW_SEALING)
     raw=c.encode(value);os.write(fd,raw);os.lseek(fd,0,os.SEEK_SET)
@@ -100,20 +105,27 @@ def main(path):
         resource['availableMiB']-resource['pendingMiB']-1408<max(27648,contract['floorMiB'],resource['floorMiB'])):
         raise ValueError('Whole bootstrap composition admission refused')
     listen=config['listen']
-    if set(listen)!={'host','port','key','cert'}:raise ValueError('Explicit pinned TLS listener required')
+    if set(listen)!={'host','port','serverName','key','cert'}:raise ValueError('Explicit pinned TLS listener required')
+    owner=load_owner_state()
+    policy=c.protocol.decode(c.read_pinned(signer['policy']))
+    descriptor=owner.inspect(signer['ownerProvision'],contract,policy)
+    if policy['runtime']!=session['runtime']:raise ValueError('Owner runtime differs')
+    owner_fds=owner.bind(signer['ownerProvision'],contract,policy)
+    seeds={name:fd for name,fd,_ in owner_fds}
+    os.close(seeds.pop('journal'))
     key=e.held(listen['key']['path'],16384,wanted=listen['key']['sha256'])
     cert=e.held(listen['cert']['path'],16384,wanted=listen['cert']['sha256'])
     # Key bytes remain a local readonly FD; never JSON, command args or stdout.
     normalized={**session,'parent':str(parent),'original':{**{k:original[k] for k in ('attempt','originMonotonicNs','deadlineMonotonicNs')},'boot':original['bootId']},
-        'listen':{'host':listen['host'],'port':listen['port']},'relay':config['relay'],'clock':config['clock'],
+        'listen':{'host':listen['host'],'port':listen['port'],'serverName':listen['serverName']},'ownerPublicKeys':[descriptor['keys'][role]['publicKey'] for role in ('l1','base')],'relay':config['relay'],'clock':config['clock'],
         'prepared':prepared.decode(),'pins':config['pins']}
     if any(abs(normalized['original'][k])>2**53-1 for k in ('originMonotonicNs','deadlineMonotonicNs')):raise ValueError('Exact JS clock representation required')
     c.validate(config['clock']);envelope(original);verify_pins(config['pins'])
     c.write_new(parent/'bootstrap-entry.intent',c.encode({'unit':unit,'clock':config['clock'],'relay':config['relay'],'resource':resource,'rpcReady':False}))
     cfg=sealed(normalized)
     # Move all sources above target FDs before remapping to avoid collisions.
-    fds=[fcntl.fcntl(fd,fcntl.F_DUPFD_CLOEXEC,20) for fd in (cfg,key,cert)]
-    for fd in (cfg,key,cert):os.close(fd)
+    fds=[fcntl.fcntl(fd,fcntl.F_DUPFD_CLOEXEC,20) for fd in (cfg,key,cert,seeds['l1-seed'],seeds['base-seed'])]
+    for fd in (cfg,key,cert,seeds['l1-seed'],seeds['base-seed']):os.close(fd)
     for target,fd in enumerate(fds,3):os.dup2(fd,target,inheritable=True)
     for fd in fds:os.close(fd)
     env={'PATH':'/usr/bin:/bin','NODE_OPTIONS':'','HOME':str(parent)}

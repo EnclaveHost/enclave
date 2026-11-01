@@ -357,6 +357,7 @@ func newMonitor(snp bool, plat, root string, basePort uint32, baseUID int) *moni
 // load; it cannot choose what the monitor then says the app is.
 
 type request struct {
+	ownerInput    []byte // binary body of rpc-bootstrap-owner, never inline JSON
 	Challenge     string `json:"challenge"`
 	RequestSHA256 string `json:"requestSha256"`
 	Cmd           string `json:"cmd"`
@@ -399,7 +400,17 @@ func (m *monitor) serveControl(c net.Conn) {
 				return // the stream position is no longer known: this connection is finished
 			}
 			enc.Encode(d)
-		case "rpc-bootstrap-info", "rpc-bootstrap-attest", "rpc-bootstrap-acquire":
+		case "rpc-bootstrap-info", "rpc-bootstrap-attest", "rpc-bootstrap-acquire", "rpc-bootstrap-owner":
+			if req.Cmd == "rpc-bootstrap-owner" {
+				if req.Size <= 0 || req.Size > 12<<20 {
+					enc.Encode(map[string]string{"error": "bounded owner input required"})
+					return
+				}
+				req.ownerInput = make([]byte, req.Size)
+				if _, err := io.ReadFull(br, req.ownerInput); err != nil {
+					return
+				}
+			}
 			out, err := m.rpcBootstrap(req)
 			if err != nil {
 				enc.Encode(map[string]string{"error": err.Error()})

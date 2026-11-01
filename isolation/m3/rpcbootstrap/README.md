@@ -100,3 +100,22 @@ The fixture supplies the held real delegated parent; production uses the fixed
 guest cgroup root. Hardware reporting and owner policy are synthetic. This is not
 target boot, production owner configuration, cross-host bridge, independent PID1
 composition, NBD attachment, running attestation or RPC readiness evidence.
+
+`rpc-bootstrap-owner` now accepts a bounded binary public-input body after its
+control header. It consumes a separate one-shot gate and writes four root0600
+files into an exclusive guest tmpfs namespace. The host supplies policy, two-owner
+signed endpoint offer, owner/export public certificates and host TPM evidence;
+the producer inserts the monitor's retained report itself. No host-provided guest
+report, key, executable, path or replacement clock is accepted. A malformed
+consumed setup closes the identity. Completed setup is required before StartBroker.
+FD7 now carries a readonly bootstrap record instead of a Unix relay socket.
+
+The broker independently obtains current deployment authorization, verifies both
+committed storage keys' purpose-separated endpoint signatures, and dials the
+signed literal IP once using normal TLS1.3 name/validity/usage checks and exact
+server DER. Evidence and the unchanged prepared storage request use that same
+connection. Its intent survives loss; it never retries or grants roots. Neither
+file ownership nor endpoint signatures replace owner writer settlement or the
+subsequent storage-consent proof. This path is source integration, not installed
+production RPC; actual hardware and the complete owner/guest composition remain
+to be qualified.

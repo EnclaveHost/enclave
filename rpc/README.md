@@ -708,3 +708,15 @@ root grant or reservation release is added. The existing signer still verifies
 actual deployment and both owner commitments. Guest bridge/public-input delivery,
 real target hardware attestation, original writer settlement, full image/boot,
 NBD attachment and production RPC readiness remain unqualified.
+
+Owner bootstrap offers are now signed by both provisioned storage keys with the
+separate `ENCLAVE-RPC-OWNER-ENDPOINT/1` purpose. They bind the exact request,
+committed startup-package digest, runtime, guest certificate, endpoint/server
+certificate, and owner TPM/guest challenges. The protected entry obtains the
+original seeds through `owner_state.bind` as readonly FD6/7; keys are not included
+in public configuration or sent to the guest. Signing an endpoint offer does not
+create writer records or authorize export. The broker checks these signatures
+against both keys from its current chain-verified deployment before transmitting
+its report. `rpc-bootstrap-owner` installs only public inputs plus the monitor's
+own retained evidence; guest control supplies no private key or writable root.
+The previous unauthenticated Unix relay is no longer the broker command's path.

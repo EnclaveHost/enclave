@@ -230,11 +230,15 @@ func run() error {
 	if _, e = auth.RPCStorageAuthorities(bundle, req); e != nil {
 		return e
 	}
-	relay, e := unixFD(7, "unix")
+	bootstrapRaw, e := privateInput(7, 12<<20)
 	if e != nil {
 		return e
 	}
-	response, e := session.ExchangeOwner(relay, bundle, p.Manifest, receipts)
+	ownerInput, e := rpcstorage.DecodeOwnerBootstrap(bootstrapRaw)
+	if e != nil {
+		return e
+	}
+	response, e := session.ExchangeAuthenticatedOwner(auth, bundle, p.Manifest, ownerInput, client, receipts)
 	if e != nil {
 		return e
 	}

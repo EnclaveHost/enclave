@@ -36,11 +36,12 @@ type Evidence struct {
 	Report    []byte `json:"vbsVmReport"`
 }
 type Identity struct {
-	mu                                                             sync.Mutex
-	public                                                         Public
-	key                                                            ed25519.PrivateKey
-	reportUsed, reported, acquireUsed, keyUsed, launchUsed, closed bool
-	acquire                                                        chan struct{}
+	mu                                                                                       sync.Mutex
+	public                                                                                   Public
+	key                                                                                      ed25519.PrivateKey
+	reportUsed, reported, acquireUsed, keyUsed, launchUsed, ownerUsed, ownerPrepared, closed bool
+	evidence                                                                                 []byte
+	acquire                                                                                  chan struct{}
 }
 
 func New(req contract.RPCStorageRequest, runtime contract.RuntimeIdentity) (*Identity, error) {
@@ -147,7 +148,12 @@ func (i *Identity) Attest(boot, digest string, challenge []byte, report func([]b
 	i.reported = true
 	p.TransportKey = append([]byte(nil), p.TransportKey...)
 	p.Certificate = append([]byte(nil), p.Certificate...)
-	return Evidence{Public: p, Challenge: hex.EncodeToString(challenge), Report: append([]byte(nil), raw...)}, nil
+	out := Evidence{Public: p, Challenge: hex.EncodeToString(challenge), Report: append([]byte(nil), raw...)}
+	i.evidence, err = json.Marshal(out)
+	if err != nil {
+		return Evidence{}, err
+	}
+	return out, nil
 }
 
 // Acquire only permits the monitor to contact its protected local broker.

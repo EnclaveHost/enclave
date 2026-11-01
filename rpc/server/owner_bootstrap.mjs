@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
+import {sha256} from '../../isolation/contract/rpc-bootstrap.mjs';
 import {createOwnerBootstrap} from './owner_bootstrap_session.mjs';
 import {listenOwnerBootstrap,receivePreparedRequest,writeFrame} from './owner_bootstrap_transport.mjs';
 
@@ -11,12 +12,13 @@ async function run(){
  const size=fs.fstatSync(3).size;
  if(size<=0||size>8<<20)throw Error('Bootstrap configuration bound');
  const config=JSON.parse(fs.readFileSync(3,'utf8'));
- const key=fs.readFileSync(4),cert=fs.readFileSync(5);
+ const key=fs.readFileSync(4),cert=fs.readFileSync(5),seeds=[fs.readFileSync(6),fs.readFileSync(7)];
+ fs.closeSync(6);fs.closeSync(7);
  fs.closeSync(4);fs.closeSync(5);
  const session=createOwnerBootstrap(config);
  let transport;
  try{
-  transport=await listenOwnerBootstrap(session,{...config.listen,key,cert});key.fill(0);
+  transport=await listenOwnerBootstrap(session,{...config.listen,key,cert,ownerOffer:{seeds,publicKeys:config.ownerPublicKeys,runtime:config.runtime,manifestSha256:sha256(Buffer.from(JSON.parse(config.prepared).manifest,'base64')).toString('hex'),serverName:config.listen.serverName}});key.fill(0);
   const connection=await transport.accepted;
   await receivePreparedRequest(session,connection,Buffer.from(config.prepared));
   const helper=fileURLToPath(new URL('./owner_bootstrap_submit.py',import.meta.url));
@@ -33,6 +35,6 @@ async function run(){
   });
   if(raw.length<5||raw.readUInt32BE()!==raw.length-4)throw Error('Exact owner response frame required');
   await writeFrame(connection.socket,raw.subarray(4));
- }finally{key.fill(0);transport?.close();session.close();}
+ }finally{key.fill(0);for(const seed of seeds)seed.fill(0);transport?.close();session.close();}
 }
 run().catch(()=>{console.error('Owner bootstrap refused or ambiguous; records retained');process.exitCode=1;});

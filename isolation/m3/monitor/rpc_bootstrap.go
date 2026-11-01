@@ -34,6 +34,11 @@ func (m *monitor) rpcBootstrap(req request) (any, error) {
 			return nil, errors.New("actual guest TPM required; no launcher fallback")
 		}
 		return identity.Attest(req.Boot, req.RequestSHA256, nonce, m.vtpm.Report)
+	case "rpc-bootstrap-owner":
+		if err := identity.InstallOwnerInputs(req.Boot, req.RequestSHA256, req.ownerInput, d.rpc.bootstrapBundle); err != nil {
+			return nil, err
+		}
+		return map[string]any{"ownerInputsPrepared": true, "rootsGranted": false, "rpcReady": false}, nil
 	case "rpc-bootstrap-acquire":
 		d.rpc.brokerMu.Lock()
 		defer d.rpc.brokerMu.Unlock()

@@ -6,7 +6,7 @@ import tls from 'node:tls';
 import net from 'node:net';
 import {once} from 'node:events';
 import {execFileSync} from 'node:child_process';
-import {randomBytes,sign,constants,X509Certificate} from 'node:crypto';
+import {randomBytes,sign,constants,X509Certificate,generateKeyPairSync,verify} from 'node:crypto';
 import {makeVbsWorld,tmpdir,buildLog,buildQuote} from '../fixtures/vbs-synthetic.mjs';
 import {activateCredential} from '../../relay/vbs-credential.mjs';
 import {hvNodeBinding} from '../../relay/hvnode-verify.mjs';
@@ -27,6 +27,9 @@ function tlsIdentity(name,usage){
  const key=fs.readFileSync(p+'/key'),cert=fs.readFileSync(p+'/cert'),x=new X509Certificate(cert);return {key,cert,der:x.raw,spki:x.publicKey.export({type:'spki',format:'der'})};
 }
 const client=tlsIdentity('client','clientAuth'),server=tlsIdentity('server','serverAuth'),foreign=tlsIdentity('foreign','clientAuth');
+const ownerKeys=[generateKeyPairSync('ed25519'),generateKeyPairSync('ed25519')];
+const seeds=()=>ownerKeys.map(k=>Buffer.from(k.privateKey.export({format:'der',type:'pkcs8'}).subarray(-32)));
+const publicKeys=ownerKeys.map(k=>k.publicKey.export({format:'der',type:'spki'}).subarray(-32).toString('hex'));
 const rid=runtimeId(vector.evidence.runtime).toString('hex');
 const policy={schema:'enclave-rpc-bootstrap-policy/1',ekRoots:world.ca.bundlePem,platforms:'attested',minimumGuestSvn:5,images:[{rpcBootstrap:true,measurement:image,runtimeId:rid,profileSha256:vector.evidence.request.profile,identity}]};
 function session(remaining=900000){
@@ -51,7 +54,7 @@ function evidence(s){
 const wire=x=>Buffer.from(JSON.stringify(x));
 function send(socket,raw){const head=Buffer.alloc(4);head.writeUInt32BE(raw.length);socket.write(Buffer.concat([head,raw]));}
 async function port(){const srv=net.createServer();srv.listen(0,'127.0.0.1');await once(srv,'listening');const p=srv.address().port;await new Promise(r=>srv.close(r));return p;}
-async function listen(s){return listenOwnerBootstrap(s,{host:'127.0.0.1',port:await port(),...server});}
+async function listen(s){return listenOwnerBootstrap(s,{host:'127.0.0.1',port:await port(),...server,ownerOffer:{seeds:seeds(),publicKeys,runtime:rid,manifestSha256:sha256(Buffer.from("{}")).toString("hex"),serverName:"localhost"}});}
 async function connect(t,who=client){
  const socket=tls.connect({host:'127.0.0.1',port:t.server.address()?.port??t.port,servername:'localhost',ca:server.cert,key:who.key,cert:who.cert,minVersion:'TLSv1.3',maxVersion:'TLSv1.3'});socket.on('error',()=>{});
  const read=reader(socket);await once(socket,'secureConnect');return {socket,read};
@@ -61,6 +64,9 @@ test('owner-minted credential and actual pinned TLS admit exactly the prepared r
  const {cfg,s}=session(),t=await listen(s);t.port=t.server.address().port;
  const {socket,read}=await connect(t);
  try{
+  const proof=JSON.parse(fs.readFileSync(cfg.parent+'/bootstrap/public-challenge.json'));
+  for(const [role,sig] of [proof.l1,proof.base].entries()){const payload=Buffer.concat([Buffer.from('ENCLAVE-RPC-OWNER-ENDPOINT/1\0'),Buffer.from([role]),sha256(wire(proof.offer))]);assert.equal(verify(null,payload,ownerKeys[role].publicKey,Buffer.from(sig,'hex')),true);}
+  fs.writeFileSync(process.env.RPC_BOOTSTRAP_VECTOR_DIR+'/owner-offer-vector.json',JSON.stringify({proof,publicKeys}));
   assert.equal(socket.authorized,true);send(socket,wire(evidence(s)));
   const reply=JSON.parse(await read(65536)),connection=await t.accepted;
   assert.equal(reply.certificateSha256,sha256(client.der).toString('hex'));assert.equal(reply.rpcReady,false);

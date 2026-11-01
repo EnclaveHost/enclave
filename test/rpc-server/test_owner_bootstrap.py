@@ -93,12 +93,12 @@ else: sys.exit(7)
         observer=c.write_new(self.root/'observer',b'{}')
         argv=['/usr/bin/node',str(S/'rpc/server/observe_resources.mjs'),observer['path']]
         contract=c.write_new(self.root/'contract',c.encode({'startupClock':self.clock,'attempt':self.attempt,'floorMiB':27648,'resourceArgv':argv,'sourcePins':{x:hashlib.sha256(Path(x).read_bytes()).hexdigest() for x in argv}}))
-        signer=c.write_new(self.root/'signer',c.encode({'clock':self.clock,'attempt':self.attempt,'contract':contract}))
+        signer=c.write_new(self.root/'signer',c.encode({'clock':self.clock,'attempt':self.attempt,'contract':contract,'policy':c.write_new(self.root/'signer-policy',c.encode({'runtime':'a'*64})),'ownerProvision':{'path':'mocked-owner-descriptor','sha256':'e'*64}}))
         dispatch=c.write_new(self.root/'dispatcher',c.encode({'entry':signer,'request':request}))
         relay=c.write_new(self.root/'entry-relay',c.encode({'schema':'enclave-rpc-owner-relay/1','dispatcher':dispatch}))
         key=c.write_new(self.root/'tls-key',b'private-test-only-not-a-real-key')
         cert=c.write_new(self.root/'tls-cert',b'public-test-only-not-a-real-cert')
-        config={'schema':'enclave-rpc-owner-bootstrap-entry/1','clock':self.clock,'session':{'request':{'fixture':'public'},'runtime':'a'*64,'clientCertificate':'unused','keys':{},'policy':{}},'listen':{'host':'127.0.0.1','port':443,'key':key,'cert':cert},'relay':relay,'pins':{x:hashlib.sha256(Path(x).read_bytes()).hexdigest() for x in b.closure()}}
+        config={'schema':'enclave-rpc-owner-bootstrap-entry/1','clock':self.clock,'session':{'request':{'fixture':'public'},'runtime':'a'*64,'clientCertificate':'unused','keys':{},'policy':{}},'listen':{'host':'127.0.0.1','port':1443,'serverName':'localhost','key':key,'cert':cert},'relay':relay,'pins':{x:hashlib.sha256(Path(x).read_bytes()).hexdigest() for x in b.closure()}}
         return c.write_new(self.root/'entry-config',c.encode(config))['path']
     def test_entry_preserves_clock_and_private_readonly_fd_handoff(self):
         path=self.entry_config();result=self.root/'exec-result'
@@ -106,16 +106,25 @@ else: sys.exit(7)
         if pid==0:
             try:
                 class Resource:stdout=c.encode({'authenticated':True,'unreadUnits':0,'availableMiB':50000,'pendingMiB':1234,'floorMiB':18432})
+                class Owner:
+                    def inspect(self,*args):return {'keys':{'l1':{'publicKey':'b'*64},'base':{'publicKey':'c'*64}}}
+                    def bind(self,*args):
+                        paths=[]
+                        for name in ('l1-seed','base-seed'):
+                            path=selfRoot/name;path.write_bytes(bytes(32));path.chmod(0o600)
+                            paths.append((name,os.open(path,os.O_RDONLY),False))
+                        return [('journal',os.open(selfRoot,os.O_RDONLY|os.O_DIRECTORY),True),*paths]
+                selfRoot=self.root
                 def execute(executable,args,env):
                     self.assertEqual(executable,'/usr/bin/node');self.assertEqual(args[1],str(S/'rpc/server/owner_bootstrap.mjs'))
                     value=json.loads(os.pread(3,os.fstat(3).st_size,0))
                     self.assertEqual(value['original']['boot'],self.original['bootId']);self.assertEqual(value['original']['deadlineMonotonicNs'],self.original['deadlineMonotonicNs'])
-                    self.assertEqual(os.read(4,100),b'private-test-only-not-a-real-key');self.assertEqual(os.read(5,100),b'public-test-only-not-a-real-cert')
+                    self.assertEqual(os.read(4,100),b'private-test-only-not-a-real-key');self.assertEqual(os.read(5,100),b'public-test-only-not-a-real-cert');self.assertEqual(os.read(6,100),bytes(32));self.assertEqual(os.read(7,100),bytes(32))
                     with self.assertRaises(OSError):os.write(4,b'bad')
                     with self.assertRaises(PermissionError):os.write(3,b'bad')
                     self.assertNotIn('private-test-only',json.dumps(value));self.assertNotIn('private-test-only',json.dumps(env))
                     self.assertTrue((self.parent/'bootstrap-entry.intent').exists());result.write_text('exact-original-readonly-key-fds');os._exit(0)
-                with patch.object(b,'envelope',return_value={'mocked':'envelope only'}),patch.object(subprocess,'run',return_value=Resource()),patch.object(b.os,'execve',side_effect=execute):b.main(path)
+                with patch.object(b,'envelope',return_value={'mocked':'envelope only'}),patch.object(subprocess,'run',return_value=Resource()),patch.object(b.os,'execve',side_effect=execute),patch.object(b,'load_owner_state',return_value=Owner()):b.main(path)
             except BaseException:os._exit(71)
             os._exit(72)
         _,status=os.waitpid(pid,0);self.assertEqual(os.waitstatus_to_exitcode(status),0);self.assertEqual(result.read_text(),'exact-original-readonly-key-fds')

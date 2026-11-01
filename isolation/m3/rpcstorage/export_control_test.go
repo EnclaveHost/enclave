@@ -41,7 +41,7 @@ func exportAuthorization(t *testing.T, request Request, binding *bootstrap.RPCEx
 	auth, proof, _ := exportAuthorizationKeys(t, request, binding)
 	return auth, proof
 }
-func exportAuthorizationKeys(t *testing.T, request Request, binding *bootstrap.RPCExportBinding) (*bootstrap.Authorization, []byte, [2]ed25519.PrivateKey) {
+func exportAuthorizationKeys(t *testing.T, request Request, binding *bootstrap.RPCExportBinding, runtime ...string) (*bootstrap.Authorization, []byte, [2]ed25519.PrivateKey) {
 	t.Helper()
 	raw, e := os.ReadFile("../../m2/bootstrap/testdata/vectors.json")
 	if e != nil {
@@ -53,6 +53,9 @@ func exportAuthorizationKeys(t *testing.T, request Request, binding *bootstrap.R
 	}
 	var manifest bootstrap.Manifest
 	json.Unmarshal([]byte(v.Manifest), &manifest)
+	if len(runtime) > 0 {
+		manifest.RuntimeID = runtime[0]
+	}
 	manifest.AppID = request.AppID
 	manifest.Deployment = request.Deployment
 	policy := bootstrap.RPCStorage{Schema: "enclave-rpc-storage-authorities/1"}

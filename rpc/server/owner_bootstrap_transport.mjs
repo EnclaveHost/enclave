@@ -5,6 +5,7 @@ import net from 'node:net';
 import {X509Certificate} from 'node:crypto';
 import {once} from 'node:events';
 import {persist,canonicalWire} from './owner_bootstrap_session.mjs';
+import {signOwnerOffer} from './owner_bootstrap_offer.mjs';
 import {sha256} from '../../isolation/contract/rpc-bootstrap.mjs';
 
 export function reader(socket,maximum=12<<20){
@@ -26,7 +27,7 @@ export async function writeFrame(socket,raw){
  await new Promise((resolve,reject)=>socket.write(frame,e=>e?reject(e):resolve()));
 }
 
-export async function listenOwnerBootstrap(session,{host,port,key,cert}){
+export async function listenOwnerBootstrap(session,{host,port,key,cert,ownerOffer}){
  if(net.isIP(host)===0)throw Error('explicit literal owner listener required');
  if(!Number.isInteger(port)||port<1||port>65535)throw Error('explicit owner port required');
  const server=tls.createServer({key,cert,ca:new X509Certificate(session.clientCertificate).toString(),requestCert:true,rejectUnauthorized:true,minVersion:'TLSv1.3',maxVersion:'TLSv1.3',handshakeTimeout:3000,sessionTimeout:1});
@@ -63,7 +64,13 @@ export async function listenOwnerBootstrap(session,{host,port,key,cert}){
  server.listen({host,port,backlog:1});
  try{
   await once(server,'listening');
-  persist(session.directory,'public-challenge.json',Buffer.from(JSON.stringify({...session.challenge(),host,port,serverCertificateSha256:sha256(new X509Certificate(cert).raw).toString('hex')})+'\n'));
+  const challenge=session.challenge(),certificateSha256=sha256(new X509Certificate(cert).raw).toString('hex');
+  if(!ownerOffer)throw Error('provisioned owner endpoint signer required');
+  const {seeds,publicKeys,runtime,manifestSha256,serverName}=ownerOffer;
+  const offer={attempt:challenge.attempt,challenge:challenge.challenge,clientCertificateSha256:sha256(session.clientCertificate).toString('hex'),credentialBlob:challenge.credentialBlob,host,hostNonce:challenge.hostNonce,manifestSha256,port,requestSha256:challenge.requestSha256,runtime,schema:'enclave-rpc-owner-offer/1',secret:challenge.secret,serverCertificateSha256:certificateSha256,serverName};
+  const proof=signOwnerOffer(offer,seeds,publicKeys);
+  persist(session.directory,'public-challenge.json',Buffer.from(JSON.stringify(proof)+'\n'));
+  for(const seed of seeds)seed.fill(0);
  }catch(e){close(e);throw e;}
  return {server,accepted:finished,close};
 }

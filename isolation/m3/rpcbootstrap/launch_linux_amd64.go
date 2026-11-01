@@ -11,9 +11,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
-	"fmt"
 	"io"
-	"net"
 	"os"
 	"os/exec"
 	"runtime"
@@ -94,6 +92,12 @@ func (i *Identity) StartBroker(boot, digest string, clock *os.File, bundle []byt
 			b.Stop()
 		}
 	}()
+	i.mu.Lock()
+	prepared := i.ownerPrepared
+	i.mu.Unlock()
+	if !prepared {
+		return nil, errors.New("owner public inputs not prepared")
+	}
 	pub, err := i.Public()
 	if err != nil {
 		return nil, err
@@ -135,27 +139,27 @@ func (i *Identity) StartBroker(boot, digest string, clock *os.File, bundle []byt
 	if err = boundPolicy(policy, pub, bundle); err != nil {
 		return nil, err
 	}
-	// Dial uses the held protected directory, never a caller-selected pathname.
-	// Actual storage authority remains the independently verified owner proof.
-	var st syscall.Stat_t
-	path := fmt.Sprintf("/proc/self/fd/%d/bridge.sock", dir.Fd())
-	if syscall.Lstat(path, &st) != nil || st.Uid != 0 || st.Mode&syscall.S_IFMT != syscall.S_IFSOCK || st.Mode&07777 != 0600 {
-		return nil, errors.New("protected owner bridge required")
-	}
-	conn, err := (&net.Dialer{}).DialContext(ctx, "unix", path)
+	// The owner-input producer has already consumed the fixed namespace. FD7
+	// is now a readonly public bootstrap record, never a host Unix relay socket.
+	rawBootstrap, err := readPublicAt(dir, "owner-bootstrap.json", 12<<20)
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
-	u, ok := conn.(*net.UnixConn)
-	if !ok {
-		return nil, errors.New("owner Unix bridge required")
-	}
-	relay, err := u.File()
+	fd, err := syscall.Openat(int(dir.Fd()), "owner-bootstrap.json", syscall.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_CLOEXEC, 0)
 	if err != nil {
 		return nil, err
 	}
+	relay := os.NewFile(uintptr(fd), "owner-bootstrap")
 	defer relay.Close()
+	var st syscall.Stat_t
+	if syscall.Fstat(fd, &st) != nil || st.Size != int64(len(rawBootstrap)) {
+		return nil, errors.New("owner bootstrap changed")
+	}
+	held := make([]byte, len(rawBootstrap)+1)
+	n, e := syscall.Pread(fd, held, 0)
+	if e != nil || n != len(rawBootstrap) || !bytes.Equal(held[:n], rawBootstrap) {
+		return nil, errors.New("owner bootstrap replaced")
+	}
 	parent, err := protectedDir("/sys/fs/cgroup")
 	if err != nil {
 		return nil, err
