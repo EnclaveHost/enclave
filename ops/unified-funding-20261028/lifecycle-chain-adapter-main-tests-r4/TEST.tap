@@ -1,0 +1,796 @@
+TAP version 13
+# Subtest: maintained artifact paths and same-block millisecond bridge contract: read, prepare and send
+ok 1 - maintained artifact paths and same-block millisecond bridge contract: read, prepare and send
+  ---
+  duration_ms: 213.731493
+  type: 'test'
+  ...
+# Subtest: millisecond header identity must equal snapshot metadata; seconds, missing callback and mixed block refuse
+ok 2 - millisecond header identity must equal snapshot metadata; seconds, missing callback and mixed block refuse
+  ---
+  duration_ms: 108.707051
+  type: 'test'
+  ...
+# Subtest: unqualified RPC labels never acquire proof status or authorize preparation
+ok 3 - unqualified RPC labels never acquire proof status or authorize preparation
+  ---
+  duration_ms: 59.630992
+  type: 'test'
+  ...
+# Subtest: reviewed pin configuration cannot be changed through retained caller objects
+ok 4 - reviewed pin configuration cannot be changed through retained caller objects
+  ---
+  duration_ms: 145.313787
+  type: 'test'
+  ...
+# Subtest: final Running boundary rejects changed wallet policy and original observation expiry after approval
+ok 5 - final Running boundary rejects changed wallet policy and original observation expiry after approval
+  ---
+  duration_ms: 420.041504
+  type: 'test'
+  ...
+# Subtest: canonical Offline does not prevent owner queued/stopped requests
+ok 6 - canonical Offline does not prevent owner queued/stopped requests
+  ---
+  duration_ms: 138.336364
+  type: 'test'
+  ...
+# Subtest: charge and fee caps survive canonical payload rewriting and signing delay
+ok 7 - charge and fee caps survive canonical payload rewriting and signing delay
+  ---
+  duration_ms: 145.643914
+  type: 'test'
+  ...
+# Subtest: ambiguous send is propagated and state without the exact receipt remains unresolved
+ok 8 - ambiguous send is propagated and state without the exact receipt remains unresolved
+  ---
+  duration_ms: 105.244979
+  type: 'test'
+  ...
+# Subtest: exact signed transaction and reconstructed receipt trie confirm/finalize at authenticated ancestor
+ok 9 - exact signed transaction and reconstructed receipt trie confirm/finalize at authenticated ancestor
+  ---
+  duration_ms: 183.84891
+  type: 'test'
+  ...
+# Subtest: receipt/root/calldata location tampering never confirms the assignment alone
+ok 10 - receipt/root/calldata location tampering never confirms the assignment alone
+  ---
+  duration_ms: 183.089854
+  type: 'test'
+  ...
+# Subtest: artifact identity and schema3 bundle pins remain exact
+ok 11 - artifact identity and schema3 bundle pins remain exact
+  ---
+  duration_ms: 2.588906
+  type: 'test'
+  ...
+# Subtest: large on-chain generation, revision and emergency counters refuse rather than round
+ok 12 - large on-chain generation, revision and emergency counters refuse rather than round
+  ---
+  duration_ms: 55.748513
+  type: 'test'
+  ...
+# Subtest: old finalized policy plus fresh denial checks supports fenced failover without waiting for a new finalized block
+ok 13 - old finalized policy plus fresh denial checks supports fenced failover without waiting for a new finalized block
+  ---
+  duration_ms: 279.890298
+  type: 'test'
+  ...
+# Subtest: a partitioned old host cannot obtain a quorum after three witnesses fenced it
+ok 14 - a partitioned old host cannot obtain a quorum after three witnesses fenced it
+  ---
+  duration_ms: 57.605423
+  type: 'test'
+  ...
+# Subtest: a restarted witness refuses another successor for the same parent generation
+ok 15 - a restarted witness refuses another successor for the same parent generation
+  ---
+  duration_ms: 23.382625
+  type: 'test'
+  ...
+# Subtest: quorum certificates cannot mint budget, extend runtime or bypass a revocation
+ok 16 - quorum certificates cannot mint budget, extend runtime or bypass a revocation
+  ---
+  duration_ms: 62.001779
+  type: 'test'
+  ...
+# Subtest: freshly observing an over-age anchor, missing current proof, or changing witnesses cannot authorize service
+ok 17 - freshly observing an over-age anchor, missing current proof, or changing witnesses cannot authorize service
+  ---
+  duration_ms: 22.755748
+  type: 'test'
+  ...
+# Subtest: an authenticated unsafe denial persists through restart and a later unsafe allow cannot restore service
+ok 18 - an authenticated unsafe denial persists through restart and a later unsafe allow cannot restore service
+  ---
+  duration_ms: 3.035024
+  type: 'test'
+  ...
+# Subtest: runner serves a quorum-certified mined transition while retaining its intent until real finality
+ok 19 - runner serves a quorum-certified mined transition while retaining its intent until real finality
+  ---
+  duration_ms: 148.706747
+  type: 'test'
+  ...
+# Subtest: operational host refusal queues its running assignment without globally stopping the app
+ok 20 - operational host refusal queues its running assignment without globally stopping the app
+  ---
+  duration_ms: 1.171784
+  type: 'test'
+  ...
+# Subtest: current local owner refusal overrides a valid signed running generation on this host
+ok 21 - current local owner refusal overrides a valid signed running generation on this host
+  ---
+  duration_ms: 136.652271
+  type: 'test'
+  ...
+# Subtest: current local owner refusal leaves a certified queued generation available to other hosts
+ok 22 - current local owner refusal leaves a certified queued generation available to other hosts
+  ---
+  duration_ms: 30.570616
+  type: 'test'
+  ...
+# Subtest: current local owner refusal cannot revoke a certified assignment on another host
+ok 23 - current local owner refusal cannot revoke a certified assignment on another host
+  ---
+  duration_ms: 90.786646
+  type: 'test'
+  ...
+# Subtest: operational host refusal leaves queued work available without starting or charging it
+ok 24 - operational host refusal leaves queued work available without starting or charging it
+  ---
+  duration_ms: 0.853345
+  type: 'test'
+  ...
+# Subtest: missing or differently scoped host admission cannot be repaired by outer snapshot booleans
+ok 25 - missing or differently scoped host admission cannot be repaired by outer snapshot booleans
+  ---
+  duration_ms: 1.342533
+  type: 'test'
+  ...
+# Subtest: global disable and current denial retain precedence over host admission
+ok 26 - global disable and current denial retain precedence over host admission
+  ---
+  duration_ms: 1.629831
+  type: 'test'
+  ...
+# Subtest: witnesses refuse serving on a globally enabled but ineligible or differently scoped host
+ok 27 - witnesses refuse serving on a globally enabled but ineligible or differently scoped host
+  ---
+  duration_ms: 4.400326
+  type: 'test'
+  ...
+# Subtest: generation witnesses refuse a successor lacking matching anchored host admission
+ok 28 - generation witnesses refuse a successor lacking matching anchored host admission
+  ---
+  duration_ms: 117.731572
+  type: 'test'
+  ...
+# Subtest: HTTP generation collection verifies both signatures and returns contract-ordered approvals
+ok 29 - HTTP generation collection verifies both signatures and returns contract-ordered approvals
+  ---
+  duration_ms: 247.605109
+  type: 'test'
+  ...
+# Subtest: generation signing persists denials and requires finalized restoration before a new successor
+ok 30 - generation signing persists denials and requires finalized restoration before a new successor
+  ---
+  duration_ms: 14.350283
+  type: 'test'
+  ...
+# Subtest: host authority and owner holds survive cold reopen alongside an unresolved transaction
+ok 31 - host authority and owner holds survive cold reopen alongside an unresolved transaction
+  ---
+  duration_ms: 68.500224
+  type: 'test'
+  ...
+# Subtest: released parent and sidecar references cannot overwrite a replacement owner
+ok 32 - released parent and sidecar references cannot overwrite a replacement owner
+  ---
+  duration_ms: 15.07784
+  type: 'test'
+  ...
+# Subtest: same-generation Offline survives reopen in both authority sidecars
+ok 33 - same-generation Offline survives reopen in both authority sidecars
+  ---
+  duration_ms: 16.597851
+  type: 'test'
+  ...
+# Subtest: parent provenance rejects lost sidecars even before an authority floor was accepted
+ok 34 - parent provenance rejects lost sidecars even before an authority floor was accepted
+  ---
+  duration_ms: 10.997961
+  type: 'test'
+  ...
+# Subtest: one reentrant withdrawal retains parent and both sidecar locks until actual completion
+ok 35 - one reentrant withdrawal retains parent and both sidecar locks until actual completion
+  ---
+  duration_ms: 11.3476
+  type: 'test'
+  ...
+# Subtest: sidecar lock loss withdraws the composite owner and retains pending evidence
+ok 36 - sidecar lock loss withdraws the composite owner and retains pending evidence
+  ---
+  duration_ms: 10.201285
+  type: 'test'
+  ...
+# Subtest: exact child death releases all three owners; cold process retains the hold and transaction
+ok 37 - exact child death releases all three owners; cold process retains the hold and transaction
+  ---
+  duration_ms: 176.655077
+  type: 'test'
+  ...
+# Subtest: sidecar sync failure withdraws all authority; explicit recovery preserves the parent intent
+ok 38 - sidecar sync failure withdraws all authority; explicit recovery preserves the parent intent
+  ---
+  duration_ms: 22.41615
+  type: 'test'
+  ...
+# Subtest: real manager HTTP client and four witness endpoints stage, admit and retire a runtime on permit expiry
+ok 39 - real manager HTTP client and four witness endpoints stage, admit and retire a runtime on permit expiry
+  ---
+  duration_ms: 210.025719
+  type: 'test'
+  ...
+# Subtest: permit expiry removes the concrete VM while boundary allow and hold both hang
+ok 40 - permit expiry removes the concrete VM while boundary allow and hold both hang
+  ---
+  duration_ms: 286.162881
+  type: 'test'
+  ...
+# Subtest: a delayed allow acknowledgment after revocation cannot restore serving
+ok 41 - a delayed allow acknowledgment after revocation cannot restore serving
+  ---
+  duration_ms: 84.402239
+  type: 'test'
+  ...
+# Subtest: stop removes staged compute even if boundary withdrawal times out
+ok 42 - stop removes staged compute even if boundary withdrawal times out
+  ---
+  duration_ms: 50.809128
+  type: 'test'
+  ...
+# Subtest: expiry removes only the verified instance, never a replacement with the same deployment name
+ok 43 - expiry removes only the verified instance, never a replacement with the same deployment name
+  ---
+  duration_ms: 135.382157
+  type: 'test'
+  ...
+# Subtest: refused startups get durable distinct attempt identities while unknown inventory never spawns
+ok 44 - refused startups get durable distinct attempt identities while unknown inventory never spawns
+  ---
+  duration_ms: 28.307589
+  type: 'test'
+  ...
+# Subtest: a retired failed boot can be replaced within the queued generation without clearing crash accounting
+ok 45 - a retired failed boot can be replaced within the queued generation without clearing crash accounting
+  ---
+  duration_ms: 30.838125
+  type: 'test'
+  ...
+# Subtest: expiry revokes streams and writes even without another reconciliation
+ok 46 - expiry revokes streams and writes even without another reconciliation
+  ---
+  duration_ms: 22.50517
+  type: 'test'
+  ...
+# Subtest: monotonic deadline and clock rollback prevent extending a permit
+ok 47 - monotonic deadline and clock rollback prevent extending a permit
+  ---
+  duration_ms: 19.589056
+  type: 'test'
+  ...
+# Subtest: permanent fence survives gate recreation and rejects the same generation
+ok 48 - permanent fence survives gate recreation and rejects the same generation
+  ---
+  duration_ms: 39.482259
+  type: 'test'
+  ...
+# Subtest: a concurrent revocation wins over asynchronous signature verification
+ok 49 - a concurrent revocation wins over asynchronous signature verification
+  ---
+  duration_ms: 10.292275
+  type: 'test'
+  ...
+# Subtest: kernel journal ownership excludes another writer and releases cleanly
+ok 50 - kernel journal ownership excludes another writer and releases cleanly
+  ---
+  duration_ms: 15.178298
+  type: 'test'
+  ...
+# Subtest: real HTTP witness refuses foreign operators and produces a verifiable permit signature
+ok 51 - real HTTP witness refuses foreign operators and produces a verifiable permit signature
+  ---
+  duration_ms: 94.709484
+  type: 'test'
+  ...
+# Subtest: a witness persists before signing and refuses an equivocal or fenced request after restart
+ok 52 - a witness persists before signing and refuses an equivocal or fenced request after restart
+  ---
+  duration_ms: 20.467931
+  type: 'test'
+  ...
+# Subtest: a real open HTTP stream is destroyed by permit expiry
+ok 53 - a real open HTTP stream is destroyed by permit expiry
+  ---
+  duration_ms: 1823.391246
+  type: 'test'
+  ...
+# Subtest: an unresponsive authority adapter times out without signing or writing a permit
+ok 54 - an unresponsive authority adapter times out without signing or writing a permit
+  ---
+  duration_ms: 21.529905
+  type: 'test'
+  ...
+# Subtest: a witness fence and crash budget survive process restart and same-generation policy edits
+ok 55 - a witness fence and crash budget survive process restart and same-generation policy edits
+  ---
+  duration_ms: 3.83004
+  type: 'test'
+  ...
+# Subtest: ambiguous transaction submission holds exact intent through restart
+ok 56 - ambiguous transaction submission holds exact intent through restart
+  ---
+  duration_ms: 1.431452
+  type: 'test'
+  ...
+# Subtest: corrupt journal is held without overwriting, and a failed durable write never grants permission
+ok 57 - corrupt journal is held without overwriting, and a failed durable write never grants permission
+  ---
+  duration_ms: 0.930005
+  type: 'test'
+  ...
+# Subtest: operationally mined intents remain durable until their exact finalized receipts settle
+ok 58 - operationally mined intents remain durable until their exact finalized receipts settle
+  ---
+  duration_ms: 6.310636
+  type: 'test'
+  ...
+# Subtest: same-generation host bindings and successor votes cannot conflict through restart
+ok 59 - same-generation host bindings and successor votes cannot conflict through restart
+  ---
+  duration_ms: 1.80406
+  type: 'test'
+  ...
+# Subtest: healthy self-hosting produces no recurring state transaction
+ok 60 - healthy self-hosting produces no recurring state transaction
+  ---
+  duration_ms: 10.621814
+  type: 'test'
+  ...
+# Subtest: a crash records queued once and an ambiguous submission never resubmits another intent
+ok 61 - a crash records queued once and an ambiguous submission never resubmits another intent
+  ---
+  duration_ms: 1.740181
+  type: 'test'
+  ...
+# Subtest: readiness failure, stale authority and unconfirmed retirement never start a replacement
+ok 62 - readiness failure, stale authority and unconfirmed retirement never start a replacement
+  ---
+  duration_ms: 1.384253
+  type: 'test'
+  ...
+# Subtest: queued startup failures back off without writing queued again
+ok 63 - queued startup failures back off without writing queued again
+  ---
+  duration_ms: 0.825296
+  type: 'test'
+  ...
+# Subtest: running is submitted only after readiness and is not served until confirmed
+ok 64 - running is submitted only after readiness and is not served until confirmed
+  ---
+  duration_ms: 1.332813
+  type: 'test'
+  ...
+# Subtest: reserve exhaustion fences before a single stopped transition
+ok 65 - reserve exhaustion fences before a single stopped transition
+  ---
+  duration_ms: 1.373883
+  type: 'test'
+  ...
+# Subtest: host-specific rejection queues its own running assignment but never disables it globally
+ok 66 - host-specific rejection queues its own running assignment but never disables it globally
+  ---
+  duration_ms: 2.327757
+  type: 'test'
+  ...
+# Subtest: a host cannot stop a running assignment belonging to another host
+ok 67 - a host cannot stop a running assignment belonging to another host
+  ---
+  duration_ms: 0.531307
+  type: 'test'
+  ...
+# Subtest: a queued deployment remains available for other eligible hosts
+ok 68 - a queued deployment remains available for other eligible hosts
+  ---
+  duration_ms: 0.709736
+  type: 'test'
+  ...
+# Subtest: a fresh proof of an older assignment cannot roll back the durable generation floor
+ok 69 - a fresh proof of an older assignment cannot roll back the durable generation floor
+  ---
+  duration_ms: 0.804445
+  type: 'test'
+  ...
+# Subtest: a merely mined or unproved receipt cannot clear the durable transition outbox
+ok 70 - a merely mined or unproved receipt cannot clear the durable transition outbox
+  ---
+  duration_ms: 1.058794
+  type: 'test'
+  ...
+# Subtest: zero-balance candidate preserves economic identity but is never executable
+ok 71 - zero-balance candidate preserves economic identity but is never executable
+  ---
+  duration_ms: 1.286933
+  type: 'test'
+  ...
+# Subtest: expired but attached legacy assignment cannot be imported
+ok 72 - expired but attached legacy assignment cannot be imported
+  ---
+  duration_ms: 0.282339
+  type: 'test'
+  ...
+# Subtest: each nonzero financial component refuses blind accounting import
+ok 73 - each nonzero financial component refuses blind accounting import
+  ---
+  duration_ms: 0.415767
+  type: 'test'
+  ...
+# Subtest: serialized zero amounts work without allowing negative, unsafe numeric or missing amounts
+ok 74 - serialized zero amounts work without allowing negative, unsafe numeric or missing amounts
+  ---
+  duration_ms: 0.522928
+  type: 'test'
+  ...
+# Subtest: disabled source and inactive host cannot be activated as a migration side effect
+ok 75 - disabled source and inactive host cannot be activated as a migration side effect
+  ---
+  duration_ms: 0.591027
+  type: 'test'
+  ...
+# Subtest: missing or malformed intended host operator holds admission
+ok 76 - missing or malformed intended host operator holds admission
+  ---
+  duration_ms: 0.204719
+  type: 'test'
+  ...
+# Subtest: missing, already imported, sealed or wrongly paired destination holds
+ok 77 - missing, already imported, sealed or wrongly paired destination holds
+  ---
+  duration_ms: 0.264679
+  type: 'test'
+  ...
+# Subtest: accepted host owner must resolve to the deployment owner principal
+ok 78 - accepted host owner must resolve to the deployment owner principal
+  ---
+  duration_ms: 0.128259
+  type: 'test'
+  ...
+# Subtest: collector pins every code and contract read to supplied block and returns no transaction data
+ok 79 - collector pins every code and contract read to supplied block and returns no transaction data
+  ---
+  duration_ms: 17.836074
+  type: 'test'
+  ...
+# Subtest: ordinary RPC labels cannot substitute for authenticated lifecycle snapshot
+ok 80 - ordinary RPC labels cannot substitute for authenticated lifecycle snapshot
+  ---
+  duration_ms: 1.030934
+  type: 'test'
+  ...
+# Subtest: actual deployed code and authority bindings are checked, not template hashes alone
+ok 81 - actual deployed code and authority bindings are checked, not template hashes alone
+  ---
+  duration_ms: 6.021908
+  type: 'test'
+  ...
+# Subtest: read failure propagates with no fallback, output or send
+ok 82 - read failure propagates with no fallback, output or send
+  ---
+  duration_ms: 3.475612
+  type: 'test'
+  ...
+# Subtest: incomplete pins and source equal destination refuse before chain work
+ok 83 - incomplete pins and source equal destination refuse before chain work
+  ---
+  duration_ms: 0.470957
+  type: 'test'
+  ...
+# Subtest: payout matching the app owner cannot substitute for accepted host ownership
+ok 84 - payout matching the app owner cannot substitute for accepted host ownership
+  ---
+  duration_ms: 0.671507
+  type: 'test'
+  ...
+# Subtest: pending nomination and zero revision cannot supply accepted ownership
+ok 85 - pending nomination and zero revision cannot supply accepted ownership
+  ---
+  duration_ms: 1.037165
+  type: 'test'
+  ...
+# Subtest: missing ownership pin holds without falling back to payout or operator
+ok 86 - missing ownership pin holds without falling back to payout or operator
+  ---
+  duration_ms: 3.497561
+  type: 'test'
+  ...
+# Subtest: accepted ownership does not silently change legacy payout-based billing
+ok 87 - accepted ownership does not silently change legacy payout-based billing
+  ---
+  duration_ms: 0.549737
+  type: 'test'
+  ...
+# Subtest: ownership contract must have exact deployed code and registry binding
+ok 88 - ownership contract must have exact deployed code and registry binding
+  ---
+  duration_ms: 1.122464
+  type: 'test'
+  ...
+# Subtest: ownership revision remains uint64 and read at the same authenticated block
+ok 89 - ownership revision remains uint64 and read at the same authenticated block
+  ---
+  duration_ms: 2.379868
+  type: 'test'
+  ...
+# Subtest: owned runtime and three real signers serve v2, withdraw and cold reopen without settling an intent
+ok 90 - owned runtime and three real signers serve v2, withdraw and cold reopen without settling an intent
+  ---
+  duration_ms: 184.72133
+  type: 'test'
+  ...
+# Subtest: a host owner revision withdraws the existing grant and rejects its old signatures
+ok 91 - a host owner revision withdraws the existing grant and rejects its old signatures
+  ---
+  duration_ms: 154.642721
+  type: 'test'
+  ...
+# Subtest: a host authority advance retires staged compute before its first serving grant
+ok 92 - a host authority advance retires staged compute before its first serving grant
+  ---
+  duration_ms: 26.041811
+  type: 'test'
+  ...
+# Subtest: authenticated Offline persists across cold reopen and cannot be undone by same-generation Online
+ok 93 - authenticated Offline persists across cold reopen and cannot be undone by same-generation Online
+  ---
+  duration_ms: 114.091479
+  type: 'test'
+  ...
+# Subtest: close during a raw spawn retains the parent lock until the late exact instance is removed
+ok 94 - close during a raw spawn retains the parent lock until the late exact instance is removed
+  ---
+  duration_ms: 23.499224
+  type: 'test'
+  ...
+# Subtest: host advance invalidates an in-flight spawn before staged compute exists
+ok 95 - host advance invalidates an in-flight spawn before staged compute exists
+  ---
+  duration_ms: 23.237576
+  type: 'test'
+  ...
+# Subtest: host Offline invalidates an in-flight spawn before staged compute exists
+ok 96 - host Offline invalidates an in-flight spawn before staged compute exists
+  ---
+  duration_ms: 34.245106
+  type: 'test'
+  ...
+# Subtest: a permit collector response after app revocation cannot reopen the boundary
+ok 97 - a permit collector response after app revocation cannot reopen the boundary
+  ---
+  duration_ms: 66.023266
+  type: 'test'
+  ...
+# Subtest: close waits for raw allow and fences a late remote effect before releasing ownership
+ok 98 - close waits for raw allow and fences a late remote effect before releasing ownership
+  ---
+  duration_ms: 75.390526
+  type: 'test'
+  ...
+# Subtest: a witness refuses a host authority change during its final asynchronous read
+ok 99 - a witness refuses a host authority change during its final asynchronous read
+  ---
+  duration_ms: 29.099744
+  type: 'test'
+  ...
+# Subtest: witness close keeps its owner through a late authority read and releases no signature
+ok 100 - witness close keeps its owner through a late authority read and releases no signature
+  ---
+  duration_ms: 25.839771
+  type: 'test'
+  ...
+# Subtest: v2 binds a separate signature domain and requires explicit profile selection
+ok 101 - v2 binds a separate signature domain and requires explicit profile selection
+  ---
+  duration_ms: 25.437974
+  type: 'test'
+  ...
+# Subtest: unacknowledged-hold retains ownership until exact process death
+ok 102 - unacknowledged-hold retains ownership until exact process death
+  ---
+  duration_ms: 323.733805
+  type: 'test'
+  ...
+# Subtest: replacement retains ownership until exact process death
+ok 103 - replacement retains ownership until exact process death
+  ---
+  duration_ms: 303.490502
+  type: 'test'
+  ...
+# Subtest: owned enrollment, graceful close and reopen preserve pending and mined transitions
+ok 104 - owned enrollment, graceful close and reopen preserve pending and mined transitions
+  ---
+  duration_ms: 16.327172
+  type: 'test'
+  ...
+# Subtest: exact child death releases the flock and preserves its fence, crash count and pending intent
+ok 105 - exact child death releases the flock and preserves its fence, crash count and pending intent
+  ---
+  duration_ms: 46.383061
+  type: 'test'
+  ...
+# Subtest: after-state is held on restart and explicit recovery classifies exact retained bytes as landed
+ok 106 - after-state is held on restart and explicit recovery classifies exact retained bytes as landed
+  ---
+  duration_ms: 48.48145
+  type: 'test'
+  ...
+# Subtest: before-state is held on restart and explicit recovery classifies exact retained bytes as not-landed
+ok 107 - before-state is held on restart and explicit recovery classifies exact retained bytes as not-landed
+  ---
+  duration_ms: 46.148622
+  type: 'test'
+  ...
+# Subtest: visible acknowledgement with failed sync and failed retraction is held in a new process
+ok 108 - visible acknowledgement with failed sync and failed retraction is held in a new process
+  ---
+  duration_ms: 71.103738
+  type: 'test'
+  ...
+# Subtest: legacy import requires reviewed exact bytes and retains unresolved submissions
+ok 109 - legacy import requires reviewed exact bytes and retains unresolved submissions
+  ---
+  duration_ms: 7.43284
+  type: 'test'
+  ...
+# Subtest: missing established state cannot be recreated by enrollment or recovery
+ok 110 - missing established state cannot be recreated by enrollment or recovery
+  ---
+  duration_ms: 4.423786
+  type: 'test'
+  ...
+# Subtest: unclassifiable state and missing intent refuse recovery without overwriting evidence
+ok 111 - unclassifiable state and missing intent refuse recovery without overwriting evidence
+  ---
+  duration_ms: 4.486946
+  type: 'test'
+  ...
+# Subtest: same-size external rewrite closes the owner and triggers withdrawal
+ok 112 - same-size external rewrite closes the owner and triggers withdrawal
+  ---
+  duration_ms: 2.865305
+  type: 'test'
+  ...
+# Subtest: one reentrant close waits for serving withdrawal before releasing exclusion
+ok 113 - one reentrant close waits for serving withdrawal before releasing exclusion
+  ---
+  duration_ms: 4.318087
+  type: 'test'
+  ...
+# Subtest: withdrawal rejection fences the owner and keeps its flock held
+ok 114 - withdrawal rejection fences the owner and keeps its flock held
+  ---
+  duration_ms: 3.325182
+  type: 'test'
+  ...
+# Subtest: withdrawal deadline fences the owner and keeps its flock held
+ok 115 - withdrawal deadline fences the owner and keeps its flock held
+  ---
+  duration_ms: 21.042217
+  type: 'test'
+  ...
+# Subtest: bridge pins every state read to the independently authenticated derived hash and closes retained clients
+ok 116 - bridge pins every state read to the independently authenticated derived hash and closes retained clients
+  ---
+  duration_ms: 3.998558
+  type: 'test'
+  ...
+# Subtest: ASR labels, mismatched local roots, and genuinely old anchors cannot be relabeled as current
+ok 117 - ASR labels, mismatched local roots, and genuinely old anchors cannot be relabeled as current
+  ---
+  duration_ms: 5.801258
+  type: 'test'
+  ...
+# Subtest: failed durable anchoring or a hung derivation callback refuses without granting a snapshot
+ok 118 - failed durable anchoring or a hung derivation callback refuses without granting a snapshot
+  ---
+  duration_ms: 22.053902
+  type: 'test'
+  ...
+# Subtest: a restarted bridge rejects a prior derived anchor using the durable journal floor
+ok 119 - a restarted bridge rejects a prior derived anchor using the durable journal floor
+  ---
+  duration_ms: 3.033313
+  type: 'test'
+  ...
+# Subtest: independent moderation is wallet elected while pinned content and wallet deny lists remain mandatory
+ok 120 - independent moderation is wallet elected while pinned content and wallet deny lists remain mandatory
+  ---
+  duration_ms: 1.740091
+  type: 'test'
+  ...
+# Subtest: scoped authority hash-checks wallet policy and rejects rollback, equivocation and unavailable policy
+ok 121 - scoped authority hash-checks wallet policy and rejects rollback, equivocation and unavailable policy
+  ---
+  duration_ms: 13.496368
+  type: 'test'
+  ...
+# Subtest: owned dispatch stages and serves through wallet authority during platform refusal without recurring transactions
+ok 122 - owned dispatch stages and serves through wallet authority during platform refusal without recurring transactions
+  ---
+  duration_ms: 339.330518
+  type: 'test'
+  ...
+# Subtest: platform policy applies when the authenticated wallet actually owns this host
+ok 123 - platform policy applies when the authenticated wallet actually owns this host
+  ---
+  duration_ms: 28.948475
+  type: 'test'
+  ...
+# Subtest: authenticated owner refusal remains a local queue transition despite Online and new-work restrictions
+ok 124 - authenticated owner refusal remains a local queue transition despite Online and new-work restrictions
+  ---
+  duration_ms: 97.355948
+  type: 'test'
+  ...
+# Subtest: local owner hold survives close and cold reopen; claim hints cannot clear it
+ok 125 - local owner hold survives close and cold reopen; claim hints cannot clear it
+  ---
+  duration_ms: 41.983695
+  type: 'test'
+  ...
+# Subtest: capacity uncertainty and neighboring allocation refuse start without losing the reservation
+ok 126 - capacity uncertainty and neighboring allocation refuse start without losing the reservation
+  ---
+  duration_ms: 34.204936
+  type: 'test'
+  ...
+# Subtest: owner revision changes during unsigned preparation hold the exact intent and prevent broadcast
+ok 127 - owner revision changes during unsigned preparation hold the exact intent and prevent broadcast
+  ---
+  duration_ms: 34.953322
+  type: 'test'
+  ...
+# Subtest: a cached or future snapshot cannot acquire a fresh direct start admission window
+ok 128 - a cached or future snapshot cannot acquire a fresh direct start admission window
+  ---
+  duration_ms: 28.362618
+  type: 'test'
+  ...
+# Subtest: owner close during unsigned preparation holds locks until completion and never submits
+ok 129 - owner close during unsigned preparation holds locks until completion and never submits
+  ---
+  duration_ms: 43.443316
+  type: 'test'
+  ...
+# Subtest: owner close retains an actual pending sender and cold recovery does not repeat its ambiguous submission
+ok 130 - owner close retains an actual pending sender and cold recovery does not repeat its ambiguous submission
+  ---
+  duration_ms: 37.573578
+  type: 'test'
+  ...
+# Subtest: closing while quiescence proof is pending cannot activate a route after owner loss
+ok 131 - closing while quiescence proof is pending cannot activate a route after owner loss
+  ---
+  duration_ms: 35.483059
+  type: 'test'
+  ...
+1..131
+# tests 131
+# suites 0
+# pass 131
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10919.72036

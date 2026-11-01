@@ -1,0 +1,910 @@
+TAP version 13
+# Subtest: maintained artifact paths and same-block millisecond bridge contract: read, prepare and send
+not ok 1 - maintained artifact paths and same-block millisecond bridge contract: read, prepare and send
+  ---
+  duration_ms: 144.312355
+  type: 'test'
+  location: '/src/test/deployment-chain-adapter.test.mjs:11:1'
+  failureType: 'testCodeFailure'
+  error: 'invalid transition generation'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    transitionTypedData (file:///src/network/deployment-transition-intent.mjs:11:62)
+    Object.readContract (file:///src/test/helpers/chain-adapter-fixture.mjs:72:41)
+    call (file:///src/network/deployment-chain-adapter.mjs:284:70)
+    file:///src/network/deployment-chain-adapter.mjs:622:38
+    file:///src/network/deployment-chain-adapter.mjs:350:29
+    async Object.snapshot (file:///src/test/helpers/chain-adapter-fixture.mjs:83:15)
+    async pinned (file:///src/network/deployment-chain-adapter.mjs:270:15)
+    async Object.prepare (file:///src/network/deployment-chain-adapter.mjs:622:17)
+    async TestContext.<anonymous> (file:///src/test/deployment-chain-adapter.test.mjs:16:15)
+    async Test.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: millisecond header identity must equal snapshot metadata; seconds, missing callback and mixed block refuse
+ok 2 - millisecond header identity must equal snapshot metadata; seconds, missing callback and mixed block refuse
+  ---
+  duration_ms: 122.787647
+  type: 'test'
+  ...
+# Subtest: unqualified RPC labels never acquire proof status or authorize preparation
+ok 3 - unqualified RPC labels never acquire proof status or authorize preparation
+  ---
+  duration_ms: 47.786867
+  type: 'test'
+  ...
+# Subtest: reviewed pin configuration cannot be changed through retained caller objects
+not ok 4 - reviewed pin configuration cannot be changed through retained caller objects
+  ---
+  duration_ms: 39.691494
+  type: 'test'
+  location: '/src/test/deployment-chain-adapter.test.mjs:39:1'
+  failureType: 'testCodeFailure'
+  error: 'invalid transition generation'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    transitionTypedData (file:///src/network/deployment-transition-intent.mjs:11:62)
+    Object.readContract (file:///src/test/helpers/chain-adapter-fixture.mjs:72:41)
+    call (file:///src/network/deployment-chain-adapter.mjs:284:70)
+    file:///src/network/deployment-chain-adapter.mjs:622:38
+    file:///src/network/deployment-chain-adapter.mjs:350:29
+    async Object.snapshot (file:///src/test/helpers/chain-adapter-fixture.mjs:83:15)
+    async pinned (file:///src/network/deployment-chain-adapter.mjs:270:15)
+    async Object.prepare (file:///src/network/deployment-chain-adapter.mjs:622:17)
+    async TestContext.<anonymous> (file:///src/test/deployment-chain-adapter.test.mjs:40:32)
+    async Test.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: final Running boundary rejects changed wallet policy and original observation expiry after approval
+not ok 5 - final Running boundary rejects changed wallet policy and original observation expiry after approval
+  ---
+  duration_ms: 71.233287
+  type: 'test'
+  location: '/src/test/deployment-chain-adapter.test.mjs:45:1'
+  failureType: 'testCodeFailure'
+  error: 'invalid transition generation'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    transitionTypedData (file:///src/network/deployment-transition-intent.mjs:11:62)
+    Object.readContract (file:///src/test/helpers/chain-adapter-fixture.mjs:72:41)
+    call (file:///src/network/deployment-chain-adapter.mjs:284:70)
+    file:///src/network/deployment-chain-adapter.mjs:622:38
+    file:///src/network/deployment-chain-adapter.mjs:350:29
+    async Object.snapshot (file:///src/test/helpers/chain-adapter-fixture.mjs:83:15)
+    async pinned (file:///src/network/deployment-chain-adapter.mjs:270:15)
+    async Object.prepare (file:///src/network/deployment-chain-adapter.mjs:622:17)
+    async TestContext.<anonymous> (file:///src/test/deployment-chain-adapter.test.mjs:47:33)
+    async Test.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: canonical Offline does not prevent owner queued/stopped requests
+not ok 6 - canonical Offline does not prevent owner queued/stopped requests
+  ---
+  duration_ms: 45.870246
+  type: 'test'
+  location: '/src/test/deployment-chain-adapter.test.mjs:52:1'
+  failureType: 'testCodeFailure'
+  error: 'invalid transition generation'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    transitionTypedData (file:///src/network/deployment-transition-intent.mjs:11:62)
+    Object.readContract (file:///src/test/helpers/chain-adapter-fixture.mjs:72:41)
+    call (file:///src/network/deployment-chain-adapter.mjs:284:70)
+    file:///src/network/deployment-chain-adapter.mjs:622:38
+    file:///src/network/deployment-chain-adapter.mjs:350:29
+    async Object.snapshot (file:///src/test/helpers/chain-adapter-fixture.mjs:83:15)
+    async pinned (file:///src/network/deployment-chain-adapter.mjs:270:15)
+    async Object.prepare (file:///src/network/deployment-chain-adapter.mjs:622:17)
+    async TestContext.<anonymous> (file:///src/test/deployment-chain-adapter.test.mjs:55:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: charge and fee caps survive canonical payload rewriting and signing delay
+not ok 7 - charge and fee caps survive canonical payload rewriting and signing delay
+  ---
+  duration_ms: 40.801939
+  type: 'test'
+  location: '/src/test/deployment-chain-adapter.test.mjs:59:1'
+  failureType: 'testCodeFailure'
+  error: 'invalid transition generation'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    transitionTypedData (file:///src/network/deployment-transition-intent.mjs:11:62)
+    Object.readContract (file:///src/test/helpers/chain-adapter-fixture.mjs:72:41)
+    call (file:///src/network/deployment-chain-adapter.mjs:284:70)
+    file:///src/network/deployment-chain-adapter.mjs:622:38
+    file:///src/network/deployment-chain-adapter.mjs:350:29
+    async Object.snapshot (file:///src/test/helpers/chain-adapter-fixture.mjs:83:15)
+    async pinned (file:///src/network/deployment-chain-adapter.mjs:270:15)
+    async Object.prepare (file:///src/network/deployment-chain-adapter.mjs:622:17)
+    async TestContext.<anonymous> (file:///src/test/deployment-chain-adapter.test.mjs:60:32)
+    async Test.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: ambiguous send is propagated and state without the exact receipt remains unresolved
+not ok 8 - ambiguous send is propagated and state without the exact receipt remains unresolved
+  ---
+  duration_ms: 40.393261
+  type: 'test'
+  location: '/src/test/deployment-chain-adapter.test.mjs:68:1'
+  failureType: 'testCodeFailure'
+  error: 'invalid transition generation'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    transitionTypedData (file:///src/network/deployment-transition-intent.mjs:11:62)
+    Object.readContract (file:///src/test/helpers/chain-adapter-fixture.mjs:72:41)
+    call (file:///src/network/deployment-chain-adapter.mjs:284:70)
+    file:///src/network/deployment-chain-adapter.mjs:622:38
+    file:///src/network/deployment-chain-adapter.mjs:350:29
+    async Object.snapshot (file:///src/test/helpers/chain-adapter-fixture.mjs:83:15)
+    async pinned (file:///src/network/deployment-chain-adapter.mjs:270:15)
+    async Object.prepare (file:///src/network/deployment-chain-adapter.mjs:622:17)
+    async TestContext.<anonymous> (file:///src/test/deployment-chain-adapter.test.mjs:69:32)
+    async Test.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: exact signed transaction and reconstructed receipt trie confirm/finalize at authenticated ancestor
+not ok 9 - exact signed transaction and reconstructed receipt trie confirm/finalize at authenticated ancestor
+  ---
+  duration_ms: 40.794119
+  type: 'test'
+  location: '/src/test/deployment-chain-adapter.test.mjs:76:1'
+  failureType: 'testCodeFailure'
+  error: 'invalid transition generation'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    transitionTypedData (file:///src/network/deployment-transition-intent.mjs:11:62)
+    Object.readContract (file:///src/test/helpers/chain-adapter-fixture.mjs:72:41)
+    call (file:///src/network/deployment-chain-adapter.mjs:284:70)
+    file:///src/network/deployment-chain-adapter.mjs:622:38
+    file:///src/network/deployment-chain-adapter.mjs:350:29
+    async Object.snapshot (file:///src/test/helpers/chain-adapter-fixture.mjs:83:15)
+    async pinned (file:///src/network/deployment-chain-adapter.mjs:270:15)
+    async Object.prepare (file:///src/network/deployment-chain-adapter.mjs:622:17)
+    async TestContext.<anonymous> (file:///src/test/deployment-chain-adapter.test.mjs:77:32)
+    async Test.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: receipt/root/calldata location tampering never confirms the assignment alone
+not ok 10 - receipt/root/calldata location tampering never confirms the assignment alone
+  ---
+  duration_ms: 43.570666
+  type: 'test'
+  location: '/src/test/deployment-chain-adapter.test.mjs:84:1'
+  failureType: 'testCodeFailure'
+  error: 'invalid transition generation'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    transitionTypedData (file:///src/network/deployment-transition-intent.mjs:11:62)
+    Object.readContract (file:///src/test/helpers/chain-adapter-fixture.mjs:72:41)
+    call (file:///src/network/deployment-chain-adapter.mjs:284:70)
+    file:///src/network/deployment-chain-adapter.mjs:622:38
+    file:///src/network/deployment-chain-adapter.mjs:350:29
+    async Object.snapshot (file:///src/test/helpers/chain-adapter-fixture.mjs:83:15)
+    async pinned (file:///src/network/deployment-chain-adapter.mjs:270:15)
+    async Object.prepare (file:///src/network/deployment-chain-adapter.mjs:622:17)
+    async TestContext.<anonymous> (file:///src/test/deployment-chain-adapter.test.mjs:85:32)
+    async Test.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: artifact identity and schema3 bundle pins remain exact
+ok 11 - artifact identity and schema3 bundle pins remain exact
+  ---
+  duration_ms: 9.802684
+  type: 'test'
+  ...
+# Subtest: old finalized policy plus fresh denial checks supports fenced failover without waiting for a new finalized block
+ok 12 - old finalized policy plus fresh denial checks supports fenced failover without waiting for a new finalized block
+  ---
+  duration_ms: 286.088862
+  type: 'test'
+  ...
+# Subtest: a partitioned old host cannot obtain a quorum after three witnesses fenced it
+ok 13 - a partitioned old host cannot obtain a quorum after three witnesses fenced it
+  ---
+  duration_ms: 59.83889
+  type: 'test'
+  ...
+# Subtest: a restarted witness refuses another successor for the same parent generation
+ok 14 - a restarted witness refuses another successor for the same parent generation
+  ---
+  duration_ms: 22.394965
+  type: 'test'
+  ...
+# Subtest: quorum certificates cannot mint budget, extend runtime or bypass a revocation
+ok 15 - quorum certificates cannot mint budget, extend runtime or bypass a revocation
+  ---
+  duration_ms: 43.901745
+  type: 'test'
+  ...
+# Subtest: freshly observing an over-age anchor, missing current proof, or changing witnesses cannot authorize service
+ok 16 - freshly observing an over-age anchor, missing current proof, or changing witnesses cannot authorize service
+  ---
+  duration_ms: 22.714793
+  type: 'test'
+  ...
+# Subtest: an authenticated unsafe denial persists through restart and a later unsafe allow cannot restore service
+ok 17 - an authenticated unsafe denial persists through restart and a later unsafe allow cannot restore service
+  ---
+  duration_ms: 2.924687
+  type: 'test'
+  ...
+# Subtest: runner serves a quorum-certified mined transition while retaining its intent until real finality
+ok 18 - runner serves a quorum-certified mined transition while retaining its intent until real finality
+  ---
+  duration_ms: 172.313113
+  type: 'test'
+  ...
+# Subtest: operational host refusal queues its running assignment without globally stopping the app
+ok 19 - operational host refusal queues its running assignment without globally stopping the app
+  ---
+  duration_ms: 1.227694
+  type: 'test'
+  ...
+# Subtest: current local owner refusal overrides a valid signed running generation on this host
+ok 20 - current local owner refusal overrides a valid signed running generation on this host
+  ---
+  duration_ms: 133.074027
+  type: 'test'
+  ...
+# Subtest: current local owner refusal leaves a certified queued generation available to other hosts
+ok 21 - current local owner refusal leaves a certified queued generation available to other hosts
+  ---
+  duration_ms: 42.82846
+  type: 'test'
+  ...
+# Subtest: current local owner refusal cannot revoke a certified assignment on another host
+ok 22 - current local owner refusal cannot revoke a certified assignment on another host
+  ---
+  duration_ms: 95.687942
+  type: 'test'
+  ...
+# Subtest: operational host refusal leaves queued work available without starting or charging it
+ok 23 - operational host refusal leaves queued work available without starting or charging it
+  ---
+  duration_ms: 0.841536
+  type: 'test'
+  ...
+# Subtest: missing or differently scoped host admission cannot be repaired by outer snapshot booleans
+ok 24 - missing or differently scoped host admission cannot be repaired by outer snapshot booleans
+  ---
+  duration_ms: 1.348483
+  type: 'test'
+  ...
+# Subtest: global disable and current denial retain precedence over host admission
+ok 25 - global disable and current denial retain precedence over host admission
+  ---
+  duration_ms: 1.586413
+  type: 'test'
+  ...
+# Subtest: witnesses refuse serving on a globally enabled but ineligible or differently scoped host
+ok 26 - witnesses refuse serving on a globally enabled but ineligible or differently scoped host
+  ---
+  duration_ms: 7.906033
+  type: 'test'
+  ...
+# Subtest: generation witnesses refuse a successor lacking matching anchored host admission
+ok 27 - generation witnesses refuse a successor lacking matching anchored host admission
+  ---
+  duration_ms: 101.438075
+  type: 'test'
+  ...
+# Subtest: HTTP generation collection verifies both signatures and returns contract-ordered approvals
+ok 28 - HTTP generation collection verifies both signatures and returns contract-ordered approvals
+  ---
+  duration_ms: 276.924803
+  type: 'test'
+  ...
+# Subtest: generation signing persists denials and requires finalized restoration before a new successor
+ok 29 - generation signing persists denials and requires finalized restoration before a new successor
+  ---
+  duration_ms: 15.372898
+  type: 'test'
+  ...
+# Subtest: host authority and owner holds survive cold reopen alongside an unresolved transaction
+ok 30 - host authority and owner holds survive cold reopen alongside an unresolved transaction
+  ---
+  duration_ms: 63.445153
+  type: 'test'
+  ...
+# Subtest: released parent and sidecar references cannot overwrite a replacement owner
+ok 31 - released parent and sidecar references cannot overwrite a replacement owner
+  ---
+  duration_ms: 15.653697
+  type: 'test'
+  ...
+# Subtest: same-generation Offline survives reopen in both authority sidecars
+ok 32 - same-generation Offline survives reopen in both authority sidecars
+  ---
+  duration_ms: 25.39044
+  type: 'test'
+  ...
+# Subtest: parent provenance rejects lost sidecars even before an authority floor was accepted
+ok 33 - parent provenance rejects lost sidecars even before an authority floor was accepted
+  ---
+  duration_ms: 11.115538
+  type: 'test'
+  ...
+# Subtest: one reentrant withdrawal retains parent and both sidecar locks until actual completion
+ok 34 - one reentrant withdrawal retains parent and both sidecar locks until actual completion
+  ---
+  duration_ms: 13.877415
+  type: 'test'
+  ...
+# Subtest: sidecar lock loss withdraws the composite owner and retains pending evidence
+ok 35 - sidecar lock loss withdraws the composite owner and retains pending evidence
+  ---
+  duration_ms: 10.831939
+  type: 'test'
+  ...
+# Subtest: exact child death releases all three owners; cold process retains the hold and transaction
+ok 36 - exact child death releases all three owners; cold process retains the hold and transaction
+  ---
+  duration_ms: 175.643616
+  type: 'test'
+  ...
+# Subtest: sidecar sync failure withdraws all authority; explicit recovery preserves the parent intent
+ok 37 - sidecar sync failure withdraws all authority; explicit recovery preserves the parent intent
+  ---
+  duration_ms: 25.680169
+  type: 'test'
+  ...
+# Subtest: real manager HTTP client and four witness endpoints stage, admit and retire a runtime on permit expiry
+ok 38 - real manager HTTP client and four witness endpoints stage, admit and retire a runtime on permit expiry
+  ---
+  duration_ms: 217.081632
+  type: 'test'
+  ...
+# Subtest: permit expiry removes the concrete VM while boundary allow and hold both hang
+ok 39 - permit expiry removes the concrete VM while boundary allow and hold both hang
+  ---
+  duration_ms: 305.600906
+  type: 'test'
+  ...
+# Subtest: a delayed allow acknowledgment after revocation cannot restore serving
+ok 40 - a delayed allow acknowledgment after revocation cannot restore serving
+  ---
+  duration_ms: 88.860473
+  type: 'test'
+  ...
+# Subtest: stop removes staged compute even if boundary withdrawal times out
+ok 41 - stop removes staged compute even if boundary withdrawal times out
+  ---
+  duration_ms: 51.431388
+  type: 'test'
+  ...
+# Subtest: expiry removes only the verified instance, never a replacement with the same deployment name
+ok 42 - expiry removes only the verified instance, never a replacement with the same deployment name
+  ---
+  duration_ms: 128.558546
+  type: 'test'
+  ...
+# Subtest: refused startups get durable distinct attempt identities while unknown inventory never spawns
+ok 43 - refused startups get durable distinct attempt identities while unknown inventory never spawns
+  ---
+  duration_ms: 30.989414
+  type: 'test'
+  ...
+# Subtest: a retired failed boot can be replaced within the queued generation without clearing crash accounting
+ok 44 - a retired failed boot can be replaced within the queued generation without clearing crash accounting
+  ---
+  duration_ms: 31.420652
+  type: 'test'
+  ...
+# Subtest: expiry revokes streams and writes even without another reconciliation
+ok 45 - expiry revokes streams and writes even without another reconciliation
+  ---
+  duration_ms: 23.32536
+  type: 'test'
+  ...
+# Subtest: monotonic deadline and clock rollback prevent extending a permit
+ok 46 - monotonic deadline and clock rollback prevent extending a permit
+  ---
+  duration_ms: 19.821617
+  type: 'test'
+  ...
+# Subtest: permanent fence survives gate recreation and rejects the same generation
+ok 47 - permanent fence survives gate recreation and rejects the same generation
+  ---
+  duration_ms: 37.466274
+  type: 'test'
+  ...
+# Subtest: a concurrent revocation wins over asynchronous signature verification
+ok 48 - a concurrent revocation wins over asynchronous signature verification
+  ---
+  duration_ms: 10.4879
+  type: 'test'
+  ...
+# Subtest: kernel journal ownership excludes another writer and releases cleanly
+ok 49 - kernel journal ownership excludes another writer and releases cleanly
+  ---
+  duration_ms: 16.734852
+  type: 'test'
+  ...
+# Subtest: real HTTP witness refuses foreign operators and produces a verifiable permit signature
+ok 50 - real HTTP witness refuses foreign operators and produces a verifiable permit signature
+  ---
+  duration_ms: 87.000522
+  type: 'test'
+  ...
+# Subtest: a witness persists before signing and refuses an equivocal or fenced request after restart
+ok 51 - a witness persists before signing and refuses an equivocal or fenced request after restart
+  ---
+  duration_ms: 28.270328
+  type: 'test'
+  ...
+# Subtest: a real open HTTP stream is destroyed by permit expiry
+ok 52 - a real open HTTP stream is destroyed by permit expiry
+  ---
+  duration_ms: 1094.206836
+  type: 'test'
+  ...
+# Subtest: an unresponsive authority adapter times out without signing or writing a permit
+ok 53 - an unresponsive authority adapter times out without signing or writing a permit
+  ---
+  duration_ms: 20.413913
+  type: 'test'
+  ...
+# Subtest: a witness fence and crash budget survive process restart and same-generation policy edits
+ok 54 - a witness fence and crash budget survive process restart and same-generation policy edits
+  ---
+  duration_ms: 3.876652
+  type: 'test'
+  ...
+# Subtest: ambiguous transaction submission holds exact intent through restart
+ok 55 - ambiguous transaction submission holds exact intent through restart
+  ---
+  duration_ms: 1.457023
+  type: 'test'
+  ...
+# Subtest: corrupt journal is held without overwriting, and a failed durable write never grants permission
+ok 56 - corrupt journal is held without overwriting, and a failed durable write never grants permission
+  ---
+  duration_ms: 0.983065
+  type: 'test'
+  ...
+# Subtest: operationally mined intents remain durable until their exact finalized receipts settle
+ok 57 - operationally mined intents remain durable until their exact finalized receipts settle
+  ---
+  duration_ms: 6.32512
+  type: 'test'
+  ...
+# Subtest: same-generation host bindings and successor votes cannot conflict through restart
+ok 58 - same-generation host bindings and successor votes cannot conflict through restart
+  ---
+  duration_ms: 1.699572
+  type: 'test'
+  ...
+# Subtest: healthy self-hosting produces no recurring state transaction
+ok 59 - healthy self-hosting produces no recurring state transaction
+  ---
+  duration_ms: 14.087974
+  type: 'test'
+  ...
+# Subtest: a crash records queued once and an ambiguous submission never resubmits another intent
+ok 60 - a crash records queued once and an ambiguous submission never resubmits another intent
+  ---
+  duration_ms: 1.753401
+  type: 'test'
+  ...
+# Subtest: readiness failure, stale authority and unconfirmed retirement never start a replacement
+ok 61 - readiness failure, stale authority and unconfirmed retirement never start a replacement
+  ---
+  duration_ms: 2.472319
+  type: 'test'
+  ...
+# Subtest: queued startup failures back off without writing queued again
+ok 62 - queued startup failures back off without writing queued again
+  ---
+  duration_ms: 0.832556
+  type: 'test'
+  ...
+# Subtest: running is submitted only after readiness and is not served until confirmed
+ok 63 - running is submitted only after readiness and is not served until confirmed
+  ---
+  duration_ms: 4.426139
+  type: 'test'
+  ...
+# Subtest: reserve exhaustion fences before a single stopped transition
+ok 64 - reserve exhaustion fences before a single stopped transition
+  ---
+  duration_ms: 1.431423
+  type: 'test'
+  ...
+# Subtest: host-specific rejection queues its own running assignment but never disables it globally
+ok 65 - host-specific rejection queues its own running assignment but never disables it globally
+  ---
+  duration_ms: 0.911746
+  type: 'test'
+  ...
+# Subtest: a host cannot stop a running assignment belonging to another host
+ok 66 - a host cannot stop a running assignment belonging to another host
+  ---
+  duration_ms: 2.811067
+  type: 'test'
+  ...
+# Subtest: a queued deployment remains available for other eligible hosts
+ok 67 - a queued deployment remains available for other eligible hosts
+  ---
+  duration_ms: 0.724557
+  type: 'test'
+  ...
+# Subtest: a fresh proof of an older assignment cannot roll back the durable generation floor
+ok 68 - a fresh proof of an older assignment cannot roll back the durable generation floor
+  ---
+  duration_ms: 0.815606
+  type: 'test'
+  ...
+# Subtest: a merely mined or unproved receipt cannot clear the durable transition outbox
+ok 69 - a merely mined or unproved receipt cannot clear the durable transition outbox
+  ---
+  duration_ms: 1.088875
+  type: 'test'
+  ...
+# Subtest: zero-balance candidate preserves economic identity but is never executable
+ok 70 - zero-balance candidate preserves economic identity but is never executable
+  ---
+  duration_ms: 1.288074
+  type: 'test'
+  ...
+# Subtest: expired but attached legacy assignment cannot be imported
+ok 71 - expired but attached legacy assignment cannot be imported
+  ---
+  duration_ms: 0.305129
+  type: 'test'
+  ...
+# Subtest: each nonzero financial component refuses blind accounting import
+ok 72 - each nonzero financial component refuses blind accounting import
+  ---
+  duration_ms: 0.415088
+  type: 'test'
+  ...
+# Subtest: serialized zero amounts work without allowing negative, unsafe numeric or missing amounts
+ok 73 - serialized zero amounts work without allowing negative, unsafe numeric or missing amounts
+  ---
+  duration_ms: 0.538037
+  type: 'test'
+  ...
+# Subtest: disabled source and inactive host cannot be activated as a migration side effect
+ok 74 - disabled source and inactive host cannot be activated as a migration side effect
+  ---
+  duration_ms: 0.594967
+  type: 'test'
+  ...
+# Subtest: missing or malformed intended host operator holds admission
+ok 75 - missing or malformed intended host operator holds admission
+  ---
+  duration_ms: 0.209979
+  type: 'test'
+  ...
+# Subtest: missing, already imported, sealed or wrongly paired destination holds
+ok 76 - missing, already imported, sealed or wrongly paired destination holds
+  ---
+  duration_ms: 0.259718
+  type: 'test'
+  ...
+# Subtest: accepted host owner must resolve to the deployment owner principal
+ok 77 - accepted host owner must resolve to the deployment owner principal
+  ---
+  duration_ms: 0.13051
+  type: 'test'
+  ...
+# Subtest: collector pins every code and contract read to supplied block and returns no transaction data
+ok 78 - collector pins every code and contract read to supplied block and returns no transaction data
+  ---
+  duration_ms: 13.983344
+  type: 'test'
+  ...
+# Subtest: ordinary RPC labels cannot substitute for authenticated lifecycle snapshot
+ok 79 - ordinary RPC labels cannot substitute for authenticated lifecycle snapshot
+  ---
+  duration_ms: 0.977946
+  type: 'test'
+  ...
+# Subtest: actual deployed code and authority bindings are checked, not template hashes alone
+ok 80 - actual deployed code and authority bindings are checked, not template hashes alone
+  ---
+  duration_ms: 3.634883
+  type: 'test'
+  ...
+# Subtest: read failure propagates with no fallback, output or send
+ok 81 - read failure propagates with no fallback, output or send
+  ---
+  duration_ms: 0.594657
+  type: 'test'
+  ...
+# Subtest: incomplete pins and source equal destination refuse before chain work
+ok 82 - incomplete pins and source equal destination refuse before chain work
+  ---
+  duration_ms: 0.454238
+  type: 'test'
+  ...
+# Subtest: payout matching the app owner cannot substitute for accepted host ownership
+ok 83 - payout matching the app owner cannot substitute for accepted host ownership
+  ---
+  duration_ms: 3.534243
+  type: 'test'
+  ...
+# Subtest: pending nomination and zero revision cannot supply accepted ownership
+ok 84 - pending nomination and zero revision cannot supply accepted ownership
+  ---
+  duration_ms: 3.611313
+  type: 'test'
+  ...
+# Subtest: missing ownership pin holds without falling back to payout or operator
+ok 85 - missing ownership pin holds without falling back to payout or operator
+  ---
+  duration_ms: 0.473108
+  type: 'test'
+  ...
+# Subtest: accepted ownership does not silently change legacy payout-based billing
+ok 86 - accepted ownership does not silently change legacy payout-based billing
+  ---
+  duration_ms: 0.514117
+  type: 'test'
+  ...
+# Subtest: ownership contract must have exact deployed code and registry binding
+ok 87 - ownership contract must have exact deployed code and registry binding
+  ---
+  duration_ms: 1.351574
+  type: 'test'
+  ...
+# Subtest: ownership revision remains uint64 and read at the same authenticated block
+ok 88 - ownership revision remains uint64 and read at the same authenticated block
+  ---
+  duration_ms: 1.102775
+  type: 'test'
+  ...
+# Subtest: owned runtime and three real signers serve v2, withdraw and cold reopen without settling an intent
+ok 89 - owned runtime and three real signers serve v2, withdraw and cold reopen without settling an intent
+  ---
+  duration_ms: 173.654992
+  type: 'test'
+  ...
+# Subtest: a host owner revision withdraws the existing grant and rejects its old signatures
+ok 90 - a host owner revision withdraws the existing grant and rejects its old signatures
+  ---
+  duration_ms: 151.788014
+  type: 'test'
+  ...
+# Subtest: a host authority advance retires staged compute before its first serving grant
+ok 91 - a host authority advance retires staged compute before its first serving grant
+  ---
+  duration_ms: 33.609561
+  type: 'test'
+  ...
+# Subtest: authenticated Offline persists across cold reopen and cannot be undone by same-generation Online
+ok 92 - authenticated Offline persists across cold reopen and cannot be undone by same-generation Online
+  ---
+  duration_ms: 117.276967
+  type: 'test'
+  ...
+# Subtest: close during a raw spawn retains the parent lock until the late exact instance is removed
+ok 93 - close during a raw spawn retains the parent lock until the late exact instance is removed
+  ---
+  duration_ms: 24.456614
+  type: 'test'
+  ...
+# Subtest: host advance invalidates an in-flight spawn before staged compute exists
+ok 94 - host advance invalidates an in-flight spawn before staged compute exists
+  ---
+  duration_ms: 24.394895
+  type: 'test'
+  ...
+# Subtest: host Offline invalidates an in-flight spawn before staged compute exists
+ok 95 - host Offline invalidates an in-flight spawn before staged compute exists
+  ---
+  duration_ms: 34.757626
+  type: 'test'
+  ...
+# Subtest: a permit collector response after app revocation cannot reopen the boundary
+ok 96 - a permit collector response after app revocation cannot reopen the boundary
+  ---
+  duration_ms: 71.364574
+  type: 'test'
+  ...
+# Subtest: close waits for raw allow and fences a late remote effect before releasing ownership
+ok 97 - close waits for raw allow and fences a late remote effect before releasing ownership
+  ---
+  duration_ms: 71.603193
+  type: 'test'
+  ...
+# Subtest: a witness refuses a host authority change during its final asynchronous read
+ok 98 - a witness refuses a host authority change during its final asynchronous read
+  ---
+  duration_ms: 26.291146
+  type: 'test'
+  ...
+# Subtest: witness close keeps its owner through a late authority read and releases no signature
+ok 99 - witness close keeps its owner through a late authority read and releases no signature
+  ---
+  duration_ms: 35.703041
+  type: 'test'
+  ...
+# Subtest: v2 binds a separate signature domain and requires explicit profile selection
+ok 100 - v2 binds a separate signature domain and requires explicit profile selection
+  ---
+  duration_ms: 31.431532
+  type: 'test'
+  ...
+# Subtest: unacknowledged-hold retains ownership until exact process death
+ok 101 - unacknowledged-hold retains ownership until exact process death
+  ---
+  duration_ms: 316.421139
+  type: 'test'
+  ...
+# Subtest: replacement retains ownership until exact process death
+ok 102 - replacement retains ownership until exact process death
+  ---
+  duration_ms: 306.919012
+  type: 'test'
+  ...
+# Subtest: owned enrollment, graceful close and reopen preserve pending and mined transitions
+ok 103 - owned enrollment, graceful close and reopen preserve pending and mined transitions
+  ---
+  duration_ms: 17.351928
+  type: 'test'
+  ...
+# Subtest: exact child death releases the flock and preserves its fence, crash count and pending intent
+ok 104 - exact child death releases the flock and preserves its fence, crash count and pending intent
+  ---
+  duration_ms: 52.027295
+  type: 'test'
+  ...
+# Subtest: after-state is held on restart and explicit recovery classifies exact retained bytes as landed
+ok 105 - after-state is held on restart and explicit recovery classifies exact retained bytes as landed
+  ---
+  duration_ms: 60.832393
+  type: 'test'
+  ...
+# Subtest: before-state is held on restart and explicit recovery classifies exact retained bytes as not-landed
+ok 106 - before-state is held on restart and explicit recovery classifies exact retained bytes as not-landed
+  ---
+  duration_ms: 41.497554
+  type: 'test'
+  ...
+# Subtest: visible acknowledgement with failed sync and failed retraction is held in a new process
+ok 107 - visible acknowledgement with failed sync and failed retraction is held in a new process
+  ---
+  duration_ms: 76.579088
+  type: 'test'
+  ...
+# Subtest: legacy import requires reviewed exact bytes and retains unresolved submissions
+ok 108 - legacy import requires reviewed exact bytes and retains unresolved submissions
+  ---
+  duration_ms: 8.003312
+  type: 'test'
+  ...
+# Subtest: missing established state cannot be recreated by enrollment or recovery
+ok 109 - missing established state cannot be recreated by enrollment or recovery
+  ---
+  duration_ms: 4.473349
+  type: 'test'
+  ...
+# Subtest: unclassifiable state and missing intent refuse recovery without overwriting evidence
+ok 110 - unclassifiable state and missing intent refuse recovery without overwriting evidence
+  ---
+  duration_ms: 4.646158
+  type: 'test'
+  ...
+# Subtest: same-size external rewrite closes the owner and triggers withdrawal
+ok 111 - same-size external rewrite closes the owner and triggers withdrawal
+  ---
+  duration_ms: 2.837896
+  type: 'test'
+  ...
+# Subtest: one reentrant close waits for serving withdrawal before releasing exclusion
+ok 112 - one reentrant close waits for serving withdrawal before releasing exclusion
+  ---
+  duration_ms: 4.625939
+  type: 'test'
+  ...
+# Subtest: withdrawal rejection fences the owner and keeps its flock held
+ok 113 - withdrawal rejection fences the owner and keeps its flock held
+  ---
+  duration_ms: 3.302925
+  type: 'test'
+  ...
+# Subtest: withdrawal deadline fences the owner and keeps its flock held
+ok 114 - withdrawal deadline fences the owner and keeps its flock held
+  ---
+  duration_ms: 21.641198
+  type: 'test'
+  ...
+# Subtest: bridge pins every state read to the independently authenticated derived hash and closes retained clients
+ok 115 - bridge pins every state read to the independently authenticated derived hash and closes retained clients
+  ---
+  duration_ms: 4.041181
+  type: 'test'
+  ...
+# Subtest: ASR labels, mismatched local roots, and genuinely old anchors cannot be relabeled as current
+ok 116 - ASR labels, mismatched local roots, and genuinely old anchors cannot be relabeled as current
+  ---
+  duration_ms: 5.809632
+  type: 'test'
+  ...
+# Subtest: failed durable anchoring or a hung derivation callback refuses without granting a snapshot
+ok 117 - failed durable anchoring or a hung derivation callback refuses without granting a snapshot
+  ---
+  duration_ms: 22.621313
+  type: 'test'
+  ...
+# Subtest: a restarted bridge rejects a prior derived anchor using the durable journal floor
+ok 118 - a restarted bridge rejects a prior derived anchor using the durable journal floor
+  ---
+  duration_ms: 3.087525
+  type: 'test'
+  ...
+# Subtest: independent moderation is wallet elected while pinned content and wallet deny lists remain mandatory
+ok 119 - independent moderation is wallet elected while pinned content and wallet deny lists remain mandatory
+  ---
+  duration_ms: 1.807591
+  type: 'test'
+  ...
+# Subtest: scoped authority hash-checks wallet policy and rejects rollback, equivocation and unavailable policy
+ok 120 - scoped authority hash-checks wallet policy and rejects rollback, equivocation and unavailable policy
+  ---
+  duration_ms: 12.138863
+  type: 'test'
+  ...
+# Subtest: owned dispatch stages and serves through wallet authority during platform refusal without recurring transactions
+ok 121 - owned dispatch stages and serves through wallet authority during platform refusal without recurring transactions
+  ---
+  duration_ms: 353.259421
+  type: 'test'
+  ...
+# Subtest: platform policy applies when the authenticated wallet actually owns this host
+ok 122 - platform policy applies when the authenticated wallet actually owns this host
+  ---
+  duration_ms: 28.925783
+  type: 'test'
+  ...
+# Subtest: authenticated owner refusal remains a local queue transition despite Online and new-work restrictions
+ok 123 - authenticated owner refusal remains a local queue transition despite Online and new-work restrictions
+  ---
+  duration_ms: 105.513752
+  type: 'test'
+  ...
+# Subtest: local owner hold survives close and cold reopen; claim hints cannot clear it
+ok 124 - local owner hold survives close and cold reopen; claim hints cannot clear it
+  ---
+  duration_ms: 34.313858
+  type: 'test'
+  ...
+# Subtest: capacity uncertainty and neighboring allocation refuse start without losing the reservation
+ok 125 - capacity uncertainty and neighboring allocation refuse start without losing the reservation
+  ---
+  duration_ms: 34.042009
+  type: 'test'
+  ...
+# Subtest: owner revision changes during unsigned preparation hold the exact intent and prevent broadcast
+ok 126 - owner revision changes during unsigned preparation hold the exact intent and prevent broadcast
+  ---
+  duration_ms: 34.052509
+  type: 'test'
+  ...
+# Subtest: a cached or future snapshot cannot acquire a fresh direct start admission window
+ok 127 - a cached or future snapshot cannot acquire a fresh direct start admission window
+  ---
+  duration_ms: 31.926249
+  type: 'test'
+  ...
+# Subtest: owner close during unsigned preparation holds locks until completion and never submits
+ok 128 - owner close during unsigned preparation holds locks until completion and never submits
+  ---
+  duration_ms: 50.311932
+  type: 'test'
+  ...
+# Subtest: owner close retains an actual pending sender and cold recovery does not repeat its ambiguous submission
+ok 129 - owner close retains an actual pending sender and cold recovery does not repeat its ambiguous submission
+  ---
+  duration_ms: 53.234129
+  type: 'test'
+  ...
+# Subtest: closing while quiescence proof is pending cannot activate a route after owner loss
+ok 130 - closing while quiescence proof is pending cannot activate a route after owner loss
+  ---
+  duration_ms: 26.453845
+  type: 'test'
+  ...
+1..130
+# tests 130
+# suites 0
+# pass 122
+# fail 8
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 9236.96402

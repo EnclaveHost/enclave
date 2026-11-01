@@ -1,0 +1,1 @@
+{"passed":true,"platform":"linux","node":"v22.23.3","checks":["missing journal refuses restart","exclusive ownership","durable state after close","kernel releases crashed owner","fence and crash budget survive process death"]}
