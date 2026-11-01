@@ -1307,3 +1307,9 @@ and capacity authority are fixtures. It never creates or starts a VM. Target
 SYSTEM admission, a concrete independently supervised caller, native runtime
 asset pins, original manager inventory/claim authority and durable cold recovery
 remain required before activation.
+
+Native definition qualification result: hosted run41322573241 passed16 new cases
+(compiled runtime8a2f9dd9). It exercised real protected administrator journal
+files and a mocked provider; it did not execute native WMI or establish SYSTEM
+startup/production readiness. The first run's artifact-collection failure is
+preserved separately; its test outcomes are unknown.

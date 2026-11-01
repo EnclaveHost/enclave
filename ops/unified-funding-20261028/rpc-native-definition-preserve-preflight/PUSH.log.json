@@ -1,0 +1,4 @@
+{
+  "sha256": "e11cfd14441e1fb095982c92c30a28623eb4b1b7ec293e6ddacb736fb9bdf6a1",
+  "text": "[fix/rpc-production-bootstrap-20261025 ae8880bf7] Include native controller dynamic binding compiler reference\n 3 files changed, 3 insertions(+), 3 deletions(-)\npre-push: gitleaks config: the pushed commit's .gitleaks.toml (ae8880bf7046)\nTo https://github.com/EnclaveHost/enclave.git\n   d583c4938..ae8880bf7  HEAD -> main\n"
+}

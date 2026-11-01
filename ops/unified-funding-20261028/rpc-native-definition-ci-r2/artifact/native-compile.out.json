@@ -1,0 +1,4 @@
+{
+  "sha256": "caf1d975b91f772916b7f2d7f40dfdcae7f83b09eeca10ed3d1e2455d1910557",
+  "text": "source-closure\\windows\\rpc\\ProtectedAttempt.cs(33,23): warning CS0649: Field 'Enclave.OwnedRpc.ProtectedAttempt.startupCleanup' is never assigned to, and will always have its default value false\nsource-closure\\test\\rpc-windows-worker\\NativeRpcDefinitionHarness.cs(30,38): warning CS0649: Field 'NativeRpcDefinitionHarness.Runtime.Deny' is never assigned to, and will always have its default value false\nsource-closure\\test\\rpc-windows-worker\\NativeRpcDefinitionHarness.cs(30,43): warning CS0649: Field 'NativeRpcDefinitionHarness.Runtime.ObservationDenied' is never assigned to, and will always have its default value false\n"
+}

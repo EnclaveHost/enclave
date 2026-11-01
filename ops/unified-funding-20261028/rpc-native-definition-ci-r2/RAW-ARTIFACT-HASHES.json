@@ -1,0 +1,14 @@
+{
+  "artifact.json": {
+    "bytes": 231,
+    "sha256": "9e3876a01a0e70c56d2f37dc0903ce8cd3f56a987158cb95ade3669d8ba37ca7"
+  },
+  "process-results.json": {
+    "bytes": 540,
+    "sha256": "a2974193a0241cf07efd41f79c0ba8a3520e8d22019676b42e5597e4358b137c"
+  },
+  "pins.json": {
+    "bytes": 3671,
+    "sha256": "903721584a824999fc74521d0add8b60e9470b32ed9d4b10ae9be4c5f2f5686f"
+  }
+}

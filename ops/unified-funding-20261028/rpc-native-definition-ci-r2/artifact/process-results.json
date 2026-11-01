@@ -1,0 +1,22 @@
+[
+  {
+    "label": "native-compile",
+    "pid": 8420,
+    "exitCode": 0,
+    "elapsedMs": 1397,
+    "failure": null,
+    "processExited": true,
+    "maximumObservedWorkingSet": 38211584,
+    "outputBytes": 627
+  },
+  {
+    "label": "native-harness",
+    "pid": 10160,
+    "exitCode": 0,
+    "elapsedMs": 410,
+    "failure": null,
+    "processExited": true,
+    "maximumObservedWorkingSet": 31694848,
+    "outputBytes": 1047
+  }
+]
