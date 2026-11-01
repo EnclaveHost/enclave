@@ -1,0 +1,1 @@
+Reviewed frozen source before execution. Root implemented assembler after terminal author timeout with no delivery. Offline pinning/ELF parsing only; build_image uses bounded regular-file descriptors with mke2fs/veritysetup, no devices/mounts/VM. Unit tests exercise malformed ELF/tar/path/pins and output exclusivity, not native client operation. Default monitor paths unchanged.

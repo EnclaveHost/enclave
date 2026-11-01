@@ -1,0 +1,36 @@
+{
+  "archiveSha256": "473b9c706627d22617420ae37c8de19dc02f94145797b444d9347c05f2d80121",
+  "attestationQualified": false,
+  "monitorIntegrated": false,
+  "mounted": false,
+  "root": {
+    "dataBlocks": 262144,
+    "hashBytes": 8458240,
+    "hashSha256": "e7e1181935aca6d20c83fa3f9ff5fef74157ffa4471631186a8a3ace38d0403e",
+    "imageBytes": 1073741824,
+    "imageSha256": "de46070f1b1e2bb7a8bf18abb3b4f7be88143c8aa76b5fd4064afb888efa5aed",
+    "rootHash": "8b7817b924b3c6abec2984fb402329d8bd10f61f1224ed8a3406074b7ac95c29",
+    "salt": "a576e44ee3f1a90b79b41404bafccec3fbffec148cf560ae7bc468248c8b8d92"
+  },
+  "rpcReady": false,
+  "schema": "enclave-rpc-native-root-image/1",
+  "storageBound": false,
+  "tools": {
+    "/usr/sbin/mke2fs": "0ad4756fd858ee0a3a7fcaa34875af0c1050b9bccaf0d363c242d87d70575657",
+    "/usr/sbin/veritysetup": "fbc00120a61154391afdcddb90ab23b00401fc3f63ab8ad59cbf57fba62b7e32"
+  },
+  "verifyCommand": [
+    "/usr/sbin/veritysetup",
+    "verify",
+    "--no-superblock",
+    "--format=1",
+    "--hash=sha256",
+    "--data-block-size=4096",
+    "--hash-block-size=4096",
+    "--salt=a576e44ee3f1a90b79b41404bafccec3fbffec148cf560ae7bc468248c8b8d92",
+    "/proc/self/fd/4",
+    "/proc/self/fd/5",
+    "8b7817b924b3c6abec2984fb402329d8bd10f61f1224ed8a3406074b7ac95c29"
+  ],
+  "verityVerified": true
+}

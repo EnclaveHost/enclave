@@ -1,0 +1,1 @@
+21 source tests passed. Material change from failed R1: unused SQLite package/extension and test-only xx modules omitted; same strict ELF path/filter rejection and fixed three client pins. Full offline build/readback/smoke, unchanged total180s and512hard450RSS/floor27648+pending640. No chain disks, VM or production action.

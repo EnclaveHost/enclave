@@ -1,0 +1,6 @@
+{
+  "inputs/rpc/guest/chain_service.py": "75c879ec9c5728688beac8cc98ecf1410c38f29c144b27fabd8b42ea60cfbc92",
+  "inputs/rpc/guest/prepare_bundle.py": "acd7493a8261eb2b6f0a93a845893411b0199b4c5c945c0b9f22e1dfad2eafe8",
+  "inputs/isolation/m3/rpcservice/README.md": "c1d314b7c250782a97ec3611acef429bee0cc403f177c2d11266ae936825f7b1",
+  "TASK.txt": "989ef7459622d2c6f06c6231755487215f829e586950d7e26e9b6e42152ede88"
+}

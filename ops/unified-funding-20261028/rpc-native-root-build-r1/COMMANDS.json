@@ -1,0 +1,41 @@
+[
+  {
+    "name": "PLAN",
+    "args": [
+      "/usr/bin/bwrap",
+      "--die-with-parent",
+      "--unshare-all",
+      "--ro-bind",
+      "/",
+      "/",
+      "--dev",
+      "/dev",
+      "--proc",
+      "/proc",
+      "--tmpfs",
+      "/tmp",
+      "--bind",
+      "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-root-build-r1/work",
+      "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-root-build-r1/work",
+      "--clearenv",
+      "--setenv",
+      "PATH",
+      "/usr/sbin:/usr/bin:/sbin:/bin",
+      "--setenv",
+      "HOME",
+      "/tmp",
+      "/usr/bin/python3",
+      "-I",
+      "-B",
+      "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-root-build-r1/frozen/rpc/native/assemble_root.py",
+      "plan",
+      "--sysroot",
+      "/",
+      "--runtime-tar",
+      "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-guest-runtime-bundle-r1/output-parent/bundle/runtime.tar",
+      "--output",
+      "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-root-build-r1/work/PLAN.json"
+    ],
+    "cwd": null
+  }
+]

@@ -1,0 +1,9 @@
+{
+  "dataBlocks": 262144,
+  "hashBytes": 8458240,
+  "hashSha256": "e7e1181935aca6d20c83fa3f9ff5fef74157ffa4471631186a8a3ace38d0403e",
+  "imageBytes": 1073741824,
+  "imageSha256": "de46070f1b1e2bb7a8bf18abb3b4f7be88143c8aa76b5fd4064afb888efa5aed",
+  "rootHash": "8b7817b924b3c6abec2984fb402329d8bd10f61f1224ed8a3406074b7ac95c29",
+  "salt": "a576e44ee3f1a90b79b41404bafccec3fbffec148cf560ae7bc468248c8b8d92"
+}

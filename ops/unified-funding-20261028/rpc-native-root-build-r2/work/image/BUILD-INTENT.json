@@ -1,0 +1,50 @@
+{
+  "archiveSha256": "473b9c706627d22617420ae37c8de19dc02f94145797b444d9347c05f2d80121",
+  "commands": [
+    [
+      "/usr/sbin/mke2fs",
+      "-q",
+      "-F",
+      "-t",
+      "ext4",
+      "-b",
+      "4096",
+      "-I",
+      "256",
+      "-m",
+      "0",
+      "-L",
+      "enclave-rpc-root",
+      "-U",
+      "c0d687e2-4128-4eae-b245-93bef22df171",
+      "-O",
+      "none,extent,64bit,flex_bg,sparse_super,large_file,huge_file,dir_nlink,extra_isize,metadata_csum,filetype",
+      "-E",
+      "root_owner=0:0,lazy_itable_init=0,lazy_journal_init=0",
+      "-d",
+      "/proc/self/fd/3",
+      "/proc/self/fd/4",
+      "262144"
+    ],
+    [
+      "/usr/sbin/veritysetup",
+      "format",
+      "--no-superblock",
+      "--format=1",
+      "--hash=sha256",
+      "--data-block-size=4096",
+      "--hash-block-size=4096",
+      "--salt=a576e44ee3f1a90b79b41404bafccec3fbffec148cf560ae7bc468248c8b8d92",
+      "/proc/self/fd/4",
+      "/proc/self/fd/5"
+    ]
+  ],
+  "imageBytes": 1073741824,
+  "members": 746,
+  "oneShot": true,
+  "payloadBytes": 440175990,
+  "tools": {
+    "/usr/sbin/mke2fs": "0ad4756fd858ee0a3a7fcaa34875af0c1050b9bccaf0d363c242d87d70575657",
+    "/usr/sbin/veritysetup": "fbc00120a61154391afdcddb90ab23b00401fc3f63ab8ad59cbf57fba62b7e32"
+  }
+}

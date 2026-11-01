@@ -1,0 +1,1 @@
+R1 real dependency planning refused libsqlite3 DT_RUNPATH=/usr/lib, before output or client execution. Inspected actual readelf. Wrapper has no SQLite imports; remove unused SQLite module/package and test-only xx modules, retain full RPATH/RUNPATH/filter refusal. Add exact exclusion regression and per-input error context. No resource/time/identity guard relaxed.

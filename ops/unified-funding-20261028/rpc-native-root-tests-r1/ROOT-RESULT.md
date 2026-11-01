@@ -1,0 +1,1 @@
+Actual bounded unit suite terminal0/MainPID0: 20PASS, elapsed 0.116329s,4sourcepins unchanged.512MiBhard450RSS/CPU1/noSwap/floor27648+pending640,private user/network namespace,readonly frozen source. Fixtures cover ELF/tar/path/pin/publication boundaries, not native startup, attestation or production. See RESULT/TEST.log and frozen source.
