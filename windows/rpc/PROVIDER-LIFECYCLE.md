@@ -143,3 +143,14 @@ reader lifetime, producer/consumer schemas and pool transitions were exercised.
 No full production handoff completion or native VM start was executed. Production
 activation, independently scheduled failure cleanup, VM definition, boot/storage,
 client synchronization and consumer cutover remain required.
+
+The native RPC app candidate uses a distinct `native-rpc-definition/1` plan and
+`owned-native-rpc-definition-worker-v1` lease. It cannot reuse the Ubuntu plan or
+an inert/ordinary provider contract as native launch permission. The protected
+journal checks the original plan, boot, image and namespace; a reconcile lease
+can persist exact job/system settlement but cannot write intent, invoke or
+provider-response records. Missing response, partial durable records and changed
+job incarnation stay held. The WMI recipe defines only an Off native shell and
+never calls RequestStateChange. Its caller still must prove current physical
+admission, original app-controller custody and independent process termination;
+this library and a receipt digest alone do not supply those authorities.

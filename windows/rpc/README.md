@@ -1285,3 +1285,25 @@ with compile-time fake monitor I/O and finite C# Node/TPM stand-ins. They do **n
 execute the maintained Node JS entry, real TPM or AF_HYPERV peer channel, or prove
 Node memory fit and original VM ownership. The release binary remains uninstalled.
 Details: `ops/rpc-production-final-20261025/rpc-native-bootstrap-composition-r2/ROOT-RESULT.md`.
+
+Native RPC app definition (candidate, not installed): `NativeRpcDefinition.cs`
+adds the local WMI `DefineSystem` transaction for a Type 1 Linux-direct RPC VM.
+The initial definition includes pinned firmware/state paths, fixed 19 GiB guest
+memory/four CPUs, isolation fields and disabled automatic start/save/checkpoints.
+It creates only an Off shell: TPM/security, optical/network/serial setup and start
+are separate stages that are not yet connected to the manager's native driver.
+The schema binds manager epoch, app/record/deployment/instance, shared claim,
+admission, original 900-second clock and exact worker image. `native-definition`
+is an explicit protected worker profile; an ordinary definition contract cannot
+open it. Its durable journal consumes submission before the provider call,
+persists returned references before follow-up queries, refuses partial pending
+records and allows a new bounded reconciliation lease without renewing startup.
+An ownership receipt is evidence of this transaction, not an adoption capability,
+attestation, writer fence, reservation release or production readiness.
+
+`rpc-native-definition.yml` is a separate, dispatch-only hosted qualification of
+this new transaction and real administrator-owned protected journal. WMI provider
+and capacity authority are fixtures. It never creates or starts a VM. Target
+SYSTEM admission, a concrete independently supervised caller, native runtime
+asset pins, original manager inventory/claim authority and durable cold recovery
+remain required before activation.

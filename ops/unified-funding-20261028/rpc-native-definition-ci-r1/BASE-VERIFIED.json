@@ -1,0 +1,20 @@
+{
+  "base": "0b5dc47e0557ab8938df25d886dac18667a14bf5",
+  "unchanged": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/ProviderStart.cs",
+    "windows/rpc/OwnedVmPermit.cs",
+    "windows/rpc/OwnedVmDefinition.cs",
+    "windows/rpc/OwnedVmBoot.cs",
+    "windows/rpc/BootStartBinding.cs",
+    "windows/rpc/HostPhysicalPool.cs",
+    "windows/rpc/WindowsStartAdmission.cs",
+    "windows/rpc/LegacyTemplateFence.cs",
+    "windows/rpc/LegacyLaunchCohort.cs",
+    "windows/rpc/LegacyHandoff.cs",
+    "windows/rpc/DefinitionWorkerEntry.cs",
+    "windows/rpc/DefinitionWorkerController.cs",
+    "windows/rpc/DiagnosticObservationCollector.cs"
+  ]
+}

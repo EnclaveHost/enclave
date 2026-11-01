@@ -179,6 +179,8 @@ namespace Enclave.OwnedRpc {
         public static ProtectedAttempt PinHostBootstrapController(string path,string hash) {RequireAdministrator();return new ProtectedAttempt(path,hash,true,"host-bootstrap");}
         public static ProtectedAttempt OpenProviderWorker(string path,string hash) {return new ProtectedAttempt(path,hash,false,"provider");}
         public static ProtectedAttempt PinProviderController(string path,string hash) {RequireAdministrator();return new ProtectedAttempt(path,hash,true,"provider");}
+        public static ProtectedAttempt OpenNativeDefinitionWorker(string path,string hash) {return new ProtectedAttempt(path,hash,false,"native-definition");}
+        public static ProtectedAttempt PinNativeDefinitionController(string path,string hash) {RequireAdministrator();return new ProtectedAttempt(path,hash,true,"native-definition");}
         public static ProtectedAttempt OpenDefinitionWorker(string path,string hash) {return new ProtectedAttempt(path,hash,false,"definition");}
         public static ProtectedAttempt PinDefinitionController(string path,string hash) {RequireAdministrator();return new ProtectedAttempt(path,hash,true,"definition");}
         public static ProtectedAttempt OpenLegacyHandoffWorker(string path,string hash) {return new ProtectedAttempt(path,hash,false,"legacy-handoff");}
@@ -232,6 +234,10 @@ namespace Enclave.OwnedRpc {
                 } else if(profile=="host-bootstrap") {
                     if(fields.Length!=9||fields[0]!="owned-rpc-host-bootstrap-v1"||fields[6]!="host-bootstrap-v1"||fields[8]!="")throw new InvalidOperationException("Exact host bootstrap profile required");
                     Operation=fields[6];PermitPath=Path.Combine(Root,"bootstrap-plan.txt");PermitHash=fields[7];Hex(PermitHash,64);
+                } else if(profile=="native-definition") {
+                    if(fields.Length!=10||fields[0]!="owned-native-rpc-definition-worker-v1"||(fields[6]!="define"&&fields[6]!="reconcile")||fields[9]!="")throw new InvalidOperationException("Exact native definition worker contract required");
+                    Operation=fields[6];PermitPath=LocalPath(fields[7]);PermitHash=fields[8];Hex(PermitHash,64);
+                    if(Path.GetFileName(PermitPath)!="native-definition-plan.txt")throw new InvalidOperationException("Fixed native definition plan required");
                 } else if(profile=="definition") {
                     bool probe=fields.Length==11&&fields[0]=="owned-rpc-definition-admission-v1"&&(fields[6]=="admission-check"||fields[6]=="preparation-check"||fields[6]=="preparation-gated")&&fields[10]=="";
                     if(!probe&&(fields.Length!=10||fields[0]!="owned-rpc-definition-worker-v1"||(fields[6]!="define"&&fields[6]!="definition-reconcile"&&fields[6]!="boot"&&fields[6]!="boot-reconcile")||fields[9]!=""))throw new InvalidOperationException("Exact definition worker contract required");
@@ -278,6 +284,10 @@ namespace Enclave.OwnedRpc {
             if(name==null || name.Length>40)throw new ArgumentException("Message name");
             foreach(char c in name) if(!((c>='a'&&c<='z') || c=='.' || c=='-'))throw new ArgumentException("Message name encoding");
         }
+        internal static bool NativeDefinitionRecordAllowed(string name,bool reconcile) {
+            if(name=="native-definition.job"||name=="native-definition.terminal"||name=="native-definition.system"||name=="native-definition.owned")return true;
+            return !reconcile&&(name=="native-definition.intent"||name=="native-definition.submit"||name=="native-definition.native"||name=="native-definition.invoke"||name=="native-definition.receipt");
+        }
         internal static bool DefinitionRecordAllowed(string name,bool reconcile) {
             if(name=="definition.job"||name=="definition.terminal"||name=="definition.system"||name=="definition.off")return true;
             return !reconcile&&(name=="definition.intent"||name=="definition.submit"||name=="definition.native"||name=="definition.invoke"||name=="definition.receipt");
@@ -305,6 +315,9 @@ namespace Enclave.OwnedRpc {
                 bool boot=accessLease.Operation=="boot"||accessLease.Operation=="boot-reconcile";
                 if(boot?!BootRecordAllowed(name,accessLease.Operation=="boot-reconcile"):!DefinitionRecordAllowed(name,accessLease.Operation=="definition-reconcile"))throw new InvalidOperationException("Fixed definition/boot journal record required");
                 if((accessLease.Operation=="define"||accessLease.Operation=="boot")&&(BoundedWorker.MonotonicMilliseconds()<Origin||BoundedWorker.MonotonicMilliseconds()>=Deadline))throw new InvalidOperationException("Original definition time expired");
+            } else if(LeaseProfile=="native-definition-journal") {
+                if(accessLease==null||!NativeDefinitionRecordAllowed(name,accessLease.Operation=="reconcile"))throw new InvalidOperationException("Native reader cannot submit or acknowledge definition");
+                if(accessLease.Operation=="define"&&(BoundedWorker.MonotonicMilliseconds()<Origin||BoundedWorker.MonotonicMilliseconds()>=Deadline))throw new InvalidOperationException("Native original definition time expired");
             } else if(accessLease!=null) {
                 if(cleanupAccess) {
                     bool observations=name=="start.job"||name=="start.terminal"||name=="stop.job"||name=="stop.terminal";
