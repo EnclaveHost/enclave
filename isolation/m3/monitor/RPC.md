@@ -70,8 +70,11 @@ its existing control channel; see `../rpcbootstrap/README.md`. The original PID1
 cutoff covers waiting and blocked TPM work. No host-provided key or launcher report
 is accepted. A report or acquisition signal is not a storage authorization.
 
-The coordinator must launch the actual bounded broker with that held credential,
-wait for its listening record, authenticate to the storage owner and wire the
-owner relay. That launch/credential handoff and cross-host service are still
-unimplemented; the current broker continues to require its fixed input FDs and
-grants no roots. Target boot and full serving attestation remain unqualified.
+The monitor now launches the actual bounded broker using this credential when
+`rpc-bootstrap-acquire` arrives. It retains the actual broker group/pidfd even on
+failure and only signals acquisition after exact listening identity and kernel
+limit readback. The broker is included in `build-rpc.py`; historical images are
+unchanged. See `../rpcbootstrap/README.md` for fixed public input paths, one-shot
+intent, original deadline and qualification scope. Accepted owner-public input
+production and authenticated cross-host bridge remain unimplemented. No writable
+roots are granted by the current broker and production RPC remains offline.

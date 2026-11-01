@@ -36,11 +36,11 @@ type Evidence struct {
 	Report    []byte `json:"vbsVmReport"`
 }
 type Identity struct {
-	mu                                                 sync.Mutex
-	public                                             Public
-	key                                                ed25519.PrivateKey
-	reportUsed, reported, acquireUsed, keyUsed, closed bool
-	acquire                                            chan struct{}
+	mu                                                             sync.Mutex
+	public                                                         Public
+	key                                                            ed25519.PrivateKey
+	reportUsed, reported, acquireUsed, keyUsed, launchUsed, closed bool
+	acquire                                                        chan struct{}
 }
 
 func New(req contract.RPCStorageRequest, runtime contract.RuntimeIdentity) (*Identity, error) {

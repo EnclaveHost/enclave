@@ -35,7 +35,18 @@ func (m *monitor) rpcBootstrap(req request) (any, error) {
 		}
 		return identity.Attest(req.Boot, req.RequestSHA256, nonce, m.vtpm.Report)
 	case "rpc-bootstrap-acquire":
+		d.rpc.brokerMu.Lock()
+		defer d.rpc.brokerMu.Unlock()
+		if d.rpc.brokerStopped || d.rpc.broker != nil {
+			return nil, errors.New("RPC broker launch consumed")
+		}
+		broker, err := identity.StartBroker(req.Boot, req.RequestSHA256, m.rpcClock, d.rpc.bootstrapBundle)
+		d.rpc.broker = broker // retain exact handles even on ambiguous failure
+		if err != nil {
+			return nil, err
+		}
 		if err := identity.Acquire(req.Boot, req.RequestSHA256); err != nil {
+			broker.Stop()
 			return nil, err
 		}
 		return map[string]any{"acquisitionRequested": true, "rootsGranted": false, "rpcReady": false}, nil

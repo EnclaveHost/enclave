@@ -1,0 +1,5 @@
+{
+  "originalFile": "ACTOR-DISPATCH.log",
+  "sha256": "124a7af0907089ff9a0823109886d206b52b769057b56818f0150f241b519749",
+  "utf8": "Running as unit: enclave-rpc-broker-launch-native-actor-r2.service\n          Finished with result: success\nMain processes terminated with: code=exited, status=0/SUCCESS\n               Service runtime: 835ms\n             CPU time consumed: 313ms\n                   Memory peak: 47.6M (swap: 0B)\n"
+}

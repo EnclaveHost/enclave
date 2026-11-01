@@ -1,0 +1,5 @@
+{
+  "originalFile": "normal.log",
+  "sha256": "80eddabafd812b95f79f43e5a97ecb9fb10207aa35b0e3a58e4fd1ffffadc59d",
+  "utf8": "=== RUN   TestLaunchActualBroker\n    launch_test.go:241: actual broker pid=7 mode=normal localDead=true elapsedAfterReadiness=270.498\u00b5s originalDeadlineNs=1844831730251448 rootsGranted=false\n--- PASS: TestLaunchActualBroker (0.01s)\nPASS\n"
+}

@@ -3,9 +3,9 @@
 The dedicated monitor now creates one Ed25519 client credential inside the guest
 for its actual loaded V9 RPC bundle. Its private key is never accepted from or
 returned to host control. The public self-signed certificate is a transport
-container, not a CA or storage authority. Local measured code may take the same
-credential once for a future bounded broker launch; that handoff is not yet wired
-to the broker command. No private key is written by this package.
+container, not a CA or storage authority. The monitor takes the same credential once for the actual bounded broker launch.
+It writes private root0600 credential inputs only in a new guest tmpfs directory,
+never through host control or onto the storage owner's durable journal.
 
 Before storage acquisition, the monitor creates the exact request once, including
 its random nonce, actual kernel boot, loaded app/deployment/profile/volume IDs and
@@ -20,9 +20,10 @@ The existing control transport exposes three operations:
   32-byte hex `challenge` from the owner verifier. The monitor calls its actual
   guest TPM reporter directly, once. There is no launcher JSON or ordinary report
   fallback. A failed, oversized, late or lost hardware response stays consumed.
-- `rpc-bootstrap-acquire`: exact boot/hash, after the report and actual broker
-  listening receipt. One signal permits contacting the protected local broker;
-  it is not owner permission, an export request, a writable grant or RPC readiness.
+- `rpc-bootstrap-acquire`: exact boot/hash after the report. The monitor consumes
+  the launch gate, launches the actual broker, verifies its exact listening
+  receipt and only then signals acquisition. It is not owner permission, an
+  export request, a writable grant or RPC readiness.
 
 The host can forward a challenge or deny service. It cannot choose the guest key,
 loaded app or request fields. The owner must use a fresh challenge that it consumes
@@ -53,3 +54,49 @@ signed synthetic TPM/VBS fixtures. Hardware reporting is stubbed in Go tests;
 Windows hardware, a full provisioned broker, accepted measured image, authenticated
 cross-host service, NBD attachment and production RPC remain unqualified/offline.
 The historical candidate image does not contain this integration.
+
+## Actual broker launch
+
+`StartBroker` requires the loaded request and sealed original clock. It opens only
+fixed protected `/run/native-rpc-owner/policy.json`, `server.der`, and `bridge.sock`.
+These carry public policy, export-server DER and a connected Unix stream. Policy
+must bind the same loaded bundle and immutable runtime. Root ownership is a local
+TCB boundary, not remote owner authentication; the accepted bootstrap producer of
+these inputs and authenticated cross-host bridge still need implementation. No
+host-controlled private-key field or executable selector is accepted. The broker
+retains its independent deployment/owner/signature verification before any export.
+
+Launch exclusively creates `/run/native-rpc-broker-inputs` on writable tmpfs and
+fsyncs a permanent intent before credential files or the first child. Failed or
+ambiguous setup closes the identity and wakes the waiting load with refusal. It
+never removes an intent, adopts an existing directory or retries within the boot.
+The current broker still grants no writable roots.
+
+The fixed executable `/plat/native-rpc/rpc-storage-broker` is held on its immutable
+mount and executed through fd11. FDs3–10 preserve the command's existing contract;
+fd10 comes only from the guest key. The image builder now embeds this executable.
+The historical image predates this change; no complete new image was built or
+installed by this qualification.
+
+A new real cgroup2 group has 128MiB memory.max, swap0, CPU1, memory.oom.group1 and
+32 tasks before `CLONE_INTO_CGROUP`. No post-start membership move or fallback.
+Atomic pidfd and held group/kill handles remain retained. The creating OS thread
+stays alive through Wait for Pdeathsig; that is only defense in depth. Existing
+independent guest PID1 original deadline still covers setup and blocking calls;
+external original host supervision remains necessary for kernel stalls.
+
+One canonical listening line must match exact child PID, actual boot and original
+origin/deadline, with rootsGranted/rpcReady false. Launch verifies the live pidfd,
+actual group membership and limits before acquisition. The three-second readiness
+cutoff is clipped to the original window, not a renewal. Stop requests group kill;
+only pidfd plus populated0 confirms local death. Neither releases storage or proves
+previous-writer settlement. All ambiguous capabilities and namespaces remain held.
+
+Qualification executes the actual compiled broker under a real disposable systemd
+delegation with private user/PID/mount/network namespaces. It verifies generated
+credential continuity, creation-time limits/readback, exact listening identity,
+one-shot reuse refusal, explicit kill/exact death, and original500ms self-expiry.
+The fixture supplies the held real delegated parent; production uses the fixed
+guest cgroup root. Hardware reporting and owner policy are synthetic. This is not
+target boot, production owner configuration, cross-host bridge, independent PID1
+composition, NBD attachment, running attestation or RPC readiness evidence.

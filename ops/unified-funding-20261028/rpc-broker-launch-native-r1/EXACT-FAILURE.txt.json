@@ -1,0 +1,5 @@
+{
+  "originalFile": "EXACT-FAILURE.txt",
+  "sha256": "1947cc9a4b40c5035eb17977cc061c627e27eed44d067c60c8b1507b582d35dd",
+  "utf8": "  File \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-broker-launch-native-r1/frozen/test/rpc-server/qualify_broker_launch.py\", line 66, in <module>\n  File \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-broker-launch-native-r1/frozen/test/rpc-server/qualify_broker_launch.py\", line 28, in main\n    raise RuntimeError('independent unit DelegateSubgroup=controller required')\nRuntimeError: independent unit DelegateSubgroup=controller required\n"
+}

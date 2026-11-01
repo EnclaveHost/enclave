@@ -1,0 +1,5 @@
+{
+  "originalFile": "PROCESS.txt",
+  "sha256": "c2067e9dd61d44bed2bfa111345c90d343bba1c133b240b3babd0f56c299dacc",
+  "utf8": "ActiveState=active\nInvocationID=3c14a1448bea4e71b4588aee3142de11\nMainPID=875103\nControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-broker-launch-native-r1.service\nDelegate=yes\nCPUQuotaPerSecUSec=1s\nMemoryMax=536870912\nMemorySwapMax=0\n"
+}

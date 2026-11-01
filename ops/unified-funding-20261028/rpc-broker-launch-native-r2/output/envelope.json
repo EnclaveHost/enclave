@@ -1,0 +1,1 @@
+{"parent": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-broker-launch-native-actor-r2.service", "actual": {"memory.max": "536870912", "memory.swap.max": "0", "cpu.max": "100000 100000", "pids.max": "64", "cgroup.procs": ""}, "controllers": ["cpu", "memory", "pids"]}

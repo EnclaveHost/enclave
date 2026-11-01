@@ -1,0 +1,12 @@
+{
+  "schema": "enclave-rpc-broker-launch-test/1",
+  "output": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-broker-launch-native-r2/output",
+  "fixture": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-broker-launch-native-r2/launch-test",
+    "sha256": "e5d6c165ff4ee9ca656bc8fa01f297caa6d1db01d178277e57b6603137cc4028"
+  },
+  "broker": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-broker-launch-native-r2/rpc-storage-broker",
+    "sha256": "6417ead9c7a4dd69da6f3be478bb5c8acc702c3cb4547899725cd83dc2c0554f"
+  }
+}

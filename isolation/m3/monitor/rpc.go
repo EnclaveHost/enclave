@@ -20,12 +20,16 @@ import (
 // A dedicated RPC monitor retains its single attempt for its entire lifetime.
 // No legacy unmount, RemoveAll, retry or reservation-release code may see it.
 type rpcDomain struct {
-	bootstrap *rpcbootstrap.Identity
-	storage   *rpcstorage.Attempt
-	prepared  *rpcdomain.Prepared
-	launch    *rpcdomain.Launch
-	kill      *os.File
-	stop      sync.Once
+	bootstrap       *rpcbootstrap.Identity
+	bootstrapBundle []byte
+	brokerMu        sync.Mutex
+	broker          *rpcbootstrap.Broker
+	brokerStopped   bool
+	storage         *rpcstorage.Attempt
+	prepared        *rpcdomain.Prepared
+	launch          *rpcdomain.Launch
+	kill            *os.File
+	stop            sync.Once
 }
 
 func (m *monitor) initRPCGuest() error {
@@ -101,6 +105,7 @@ func (m *monitor) loadRPC(br *bufio.Reader, req request) (*domain, error) {
 	}
 	m.mu.Lock()
 	d.rpc.bootstrap = identity
+	d.rpc.bootstrapBundle = append([]byte(nil), app...)
 	m.mu.Unlock()
 	// The loaded app is now available for a bootstrap-purpose challenge. Its
 	// credential is generated here, not accepted from the host. Wait is covered
@@ -146,6 +151,10 @@ func (m *monitor) loadRPC(br *bufio.Reader, req request) (*domain, error) {
 	return d, nil // process launched, NOT chain readiness, serving adoption or ledger Running
 }
 func (d *domain) releaseRPC() {
+	d.rpc.brokerMu.Lock()
+	d.rpc.brokerStopped = true
+	d.rpc.broker.Stop()
+	d.rpc.brokerMu.Unlock()
 	if d.rpc.bootstrap != nil {
 		d.rpc.bootstrap.Close()
 	}

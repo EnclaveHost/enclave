@@ -1,0 +1,5 @@
+{
+  "originalFile": "deadline.log",
+  "sha256": "eefb7c206811521d11d086f4b7915ba24d5b33bd95d963cad0bf61a0249a2497",
+  "utf8": "=== RUN   TestLaunchActualBroker\n    launch_test.go:241: actual broker pid=7 mode=deadline localDead=true elapsedAfterReadiness=492.702674ms originalDeadlineNs=1844827246550547 rootsGranted=false\n--- PASS: TestLaunchActualBroker (0.50s)\nPASS\n"
+}

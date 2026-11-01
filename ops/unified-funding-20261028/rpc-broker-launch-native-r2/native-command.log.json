@@ -1,0 +1,5 @@
+{
+  "originalFile": "native-command.log",
+  "sha256": "c090766564699a722c28d299f9d1fe0746263dad97c24eb79a92a75b94df867f",
+  "utf8": "{\"rows\": [{\"case\": \"normal\", \"exit\": 0, \"elapsed\": 0.017145761055871844}, {\"case\": \"deadline\", \"exit\": 0, \"elapsed\": 0.5223177538719028}], \"rootGrant\": false, \"production\": false}\n"
+}

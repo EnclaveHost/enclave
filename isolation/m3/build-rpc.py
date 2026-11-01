@@ -245,10 +245,11 @@ def main():
     go = [runner.go, "build", "-p", "1", "-mod=readonly", "-trimpath", "-buildvcs=false", base.GO_LDFLAGS]
     for name, package, directory, tags in (
             ("rpc-native-init", "./cmd/rpc-native-init", HERE, None),
+            ("rpc-storage-broker", "./cmd/rpc-storage-broker", HERE, None),
             ("monitor", "./monitor", HERE, "native_rpc"),
             ("front", "./front", HERE.parent / "m2", "native_rpc,bootstrapdirect,shielddirect")):
         run(go + (["-tags", tags] if tags else []) + ["-o", str(out / "build" / name), package], directory, base.GO_ENV)
-    for name, dest in (("rpc-native-init", "plat/native-rpc/rpc-native-init"), ("monitor", "monitor"), ("front", "plat/front")):
+    for name, dest in (("rpc-storage-broker", "plat/native-rpc/rpc-storage-broker"), ("rpc-native-init", "plat/native-rpc/rpc-native-init"), ("monitor", "monitor"), ("front", "plat/front")):
         data = base.read_bounded(str(out / "build" / name), 32 << 20); base.require_elf(data, name)
         base.add(files, dest, data, 0o555)
     wrapper = base.read_bounded(str(REPO / "rpc/guest/chain_service.py"), 1 << 20)

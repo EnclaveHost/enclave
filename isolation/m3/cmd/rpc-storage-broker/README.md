@@ -62,8 +62,9 @@ control connection. The output reports control binding with `rootsGranted`,
 `rpcReady`, `writersFenced` and `reservationMayRelease` all false. On control loss
 it exits with failure and leaves every owner and guest receipt consumed.
 
-The accepted bootstrap/FD provisioning and owner relay bridge still require
-implementation and target qualification. Independent guardian integration,
+The monitor now provisions these FDs with its guest-generated credential and
+launches the broker inside its cgroup at creation. Accepted public configuration,
+owner relay bridge and target qualification remain outstanding. Full guardian composition,
 actual attachment and root grant, accepted guest identity, owner namespace and
 previous-writer settlement remain prerequisites to activation. This command
 must not be installed as a working RPC backend or used to bypass those gates.
@@ -88,18 +89,21 @@ creation does FD4 receive one small canonical JSON line:
 `enclave-rpc-broker-listening/1`, actual boot/PID, original monotonic origin and
 deadline, `rootsGranted:false`, `rpcReady:false`. The write is nonblocking: a full
 pipe refuses with the namespace consumed. Bootstrap waits for this signal before
-monitor load. This signal means listening only; it is not owner authorization,
+monitor storage acquisition. The bundle must already be loaded to create its
+bound identity. This signal means listening only; it is not owner authorization,
 a storage grant, RPC readiness or remote attestation. Accept is bounded by the
 original deadline, and the accepted peer is independently checked against the
 transferred monitor pidfd. Guest audit records share this owned tmpfs namespace;
 the storage owner's durable writer journal stays remote.
 
-The accepted bootstrap must still supply the inputs and independently enforce
-its original deadline before any setup. This listener integration supplies no
-independently scheduled guardian or authenticated credential provisioning.
+`rpcbootstrap.StartBroker` now supplies the generated key and exact bundle through
+private tmpfs files under the existing guest PID1 original deadline. It verifies
+this listening line against the atomic child pidfd and actual held cgroup. The
+image builder embeds the broker; full target image/bootstrap acceptance remains
+unqualified. See `../../rpcbootstrap/README.md` for the concrete launch contract.
 
 The owner-side framed endpoint is now maintained in
 [`rpc/server/relay_owner.py`](../../../../rpc/server/relay_owner.py). It matches
 this command's length framing and invokes the actual owner dispatcher inside its
 existing independently bounded unit. The guest/bootstrap cross-host bridge and
-credential delivery are still required; merely opening FD7 is not acceptance.
+accepted owner-public inputs are still required; merely opening FD7 is not acceptance.

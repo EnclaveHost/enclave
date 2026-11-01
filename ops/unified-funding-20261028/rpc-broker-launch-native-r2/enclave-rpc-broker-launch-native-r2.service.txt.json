@@ -1,0 +1,5 @@
+{
+  "originalFile": "enclave-rpc-broker-launch-native-r2.service.txt",
+  "sha256": "38ee096136cc2e1d42397bc6d8cdb9895042a6fda7f1fdec93810c6b05a73342",
+  "utf8": "ActiveState=active\nInvocationID=7527149f55de4abb80d1c5ef2a081845\nMainPID=875926\nControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-broker-launch-native-r2.service\nMemoryMax=134217728\n"
+}
