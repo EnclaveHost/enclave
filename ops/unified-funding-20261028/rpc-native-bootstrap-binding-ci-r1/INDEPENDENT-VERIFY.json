@@ -1,0 +1,35 @@
+{
+  "runtime": "32be114c24a6489c69168b91db559ce6d3d3076f",
+  "exactGitPins": 21,
+  "compiledCSharpPins": 20,
+  "binaries": {
+    "owned-entry.exe": {
+      "bytes": 258048,
+      "sha256": "bb291e0c72635dc200bc702afdf532bdb91fe29ca11cdf217437539b5ef8fd8b"
+    }
+  },
+  "processes": [
+    {
+      "label": "harness-compile",
+      "pid": 8964,
+      "exitCode": 0,
+      "elapsedMs": 6673,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 125751296,
+      "cpuMs": 2015.625,
+      "outputBytes": 8811
+    },
+    {
+      "label": "worker-harness",
+      "pid": 6920,
+      "exitCode": 1,
+      "elapsedMs": 1718,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 37195776,
+      "cpuMs": 343.75,
+      "outputBytes": 1183
+    }
+  ]
+}
