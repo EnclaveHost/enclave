@@ -1,0 +1,86 @@
+[
+  {
+    "path": "rpc/deliver_guest_workflow.py",
+    "sha256": "d397e7ab6a20a166100381d37f0396c508bfd231ae6e0409b285a68b13ca50ee"
+  },
+  {
+    "path": "rpc/deliver_runtime.py",
+    "sha256": "6e5da03961302f6e6337c5c21b331cbe29df63f2db6e891b745410ab0e1722a8"
+  },
+  {
+    "path": "rpc/launch_activation.py",
+    "sha256": "271505f2edeb40b982f17dd293f2e39846288b33eecc4435e3b0db8b7206e2d7"
+  },
+  {
+    "path": "rpc/windows_transition.py",
+    "sha256": "0f0f68313124f0bb3dcb59fdcdab221ab478dee30cf9735187ee4a6190792037"
+  },
+  {
+    "path": "rpc/reconcile_definition.py",
+    "sha256": "0c4f8cb94c2c0fa5407a4d834b95cec07a363efe7e9193242c05bdad42ccf708"
+  },
+  {
+    "path": "rpc/prepare_attachment.py",
+    "sha256": "c0685fbf106fe2fc49e1ce076b0dca096716d37ecd832a227480b6832e5f625a"
+  },
+  {
+    "path": "rpc/windows_files.py",
+    "sha256": "6c88bba44c2665503c73419555db5372bdc9f3c9c875f61997c3e8435139ea7a"
+  },
+  {
+    "path": "rpc/transfer_export.py",
+    "sha256": "e44e7860d31ba1ea67914887c231a66035a6b398a4095a2caa089d4a82457f9a"
+  },
+  {
+    "path": "rpc/observe_guest.py",
+    "sha256": "d742ab58663874aed4ae655cb3d9664b88c72f399bc2550ad5ff100939fdc743"
+  },
+  {
+    "path": "rpc/storage_protocol.py",
+    "sha256": "80a3f865a76914a5d986528d50dfb77bd90ec5604f9884f3391ae99c4f02bc31"
+  },
+  {
+    "path": "rpc/observe_activation.py",
+    "sha256": "c59ee978a4f6f0ff51ce5beeef33e438555e072014095973f71fda76985c0236"
+  },
+  {
+    "path": "rpc/deliver_activation.py",
+    "sha256": "4b8cd7467e9555a2393ece38fc960ae55e7ae321da3e731ada5bead5fe92c889"
+  },
+  {
+    "path": "rpc/run_guest_workflow.py",
+    "sha256": "13e9395dbdf921def87d246a9a76562bdbc610d05c32e918492c6d8ad3772b3e"
+  },
+  {
+    "path": "rpc/run_startup.py",
+    "sha256": "14eae53d05a4b9eb922992a2f71b1b64d887c16817509945054aea514fbdfa2d"
+  },
+  {
+    "path": "rpc/prepare_runtime.py",
+    "sha256": "6c8f872f15554bc2cd1dd1ccda094e70783dedcfa1e9c457543b04927851681d"
+  },
+  {
+    "path": "rpc/sample_windows_clock.py",
+    "sha256": "7c4c9778eb134a75ee13bd1e11fa4c4683822391ef95ab080b9d44bb7511eb37"
+  },
+  {
+    "path": "rpc/startup_clock.py",
+    "sha256": "baff8279f12968acc788a79555ca273db97bfd2cd5be2ae4fd22001dce9e4cc9"
+  },
+  {
+    "path": "rpc/windows_endpoint.py",
+    "sha256": "5b922b3e84c67fda228cb77ae4abb38b6c7fd8d32d0625648704991cb54f5d71"
+  },
+  {
+    "path": "test/rpc-server/test_reconcile_definition.py",
+    "sha256": "002da7e4afaadee078e9c240b86e4c56be1efeec653e8a2d93b98b5031bceb50"
+  },
+  {
+    "path": "test/rpc-server/test_windows_transition.py",
+    "sha256": "e273b675b582ad837be97ccc244d03a752f3ec6415f59326c075585877e51cef"
+  },
+  {
+    "path": "test/rpc-server/test_windows_clock_transport.py",
+    "sha256": "6167e1f9d56fea7daa335d71c380d9b476a782d3b0ec3ec76a31e4742074000c"
+  }
+]

@@ -1,0 +1,20 @@
+{
+  "tests": [
+    {
+      "name": "test_reconcile_definition.py",
+      "rc": 0,
+      "seconds": 0.866749650798738
+    },
+    {
+      "name": "test_windows_transition.py",
+      "rc": 0,
+      "seconds": 0.8721032589673996
+    },
+    {
+      "name": "test_windows_clock_transport.py",
+      "rc": 0,
+      "seconds": 0.2154063549824059
+    }
+  ],
+  "drift": []
+}

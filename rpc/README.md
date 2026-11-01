@@ -80,6 +80,31 @@ memory and staged media hashes. The native definition worker independently
 reopens and verifies the real protected cut namespace; local copies alone are
 not proof of native custody. The producer creates only exclusive local files.
 
+`reconcile_definition.execute(config)` explicitly observes an expired definition
+through the existing `definition-reconcile` controller operation. Its fields are
+`clock`, `definitionRequest`, `transport`, `nonce`, `binaries`, `observation` and
+`input`. `definitionRequest` pins the original private
+`windows-define/request.json`; its consumed submission command and plan must still
+match. Transport must be the original pinned channel. Input must identify the
+unchanged plan at its existing owned VM root. Binaries and fresh observation use
+the same staged binding formats as startup. Both original clocks must have
+expired on the same boots; a distinct reader nonce receives its own 30-second
+observation lease. This never changes the original plan or authorizes another
+startup. A fixed `windows-definition-reconcile` directory consumes this reader
+request before sampling, and a durable submission intent precedes its single
+controller call. There is no automatic retry, including after a lost reply.
+
+The sender records held outcomes as observations, not successful recovery.
+`response-lost-held` remains unsettled; it does not scan for or guess provider
+references. Even `defined-owned-off` grants no startup, fencing, remote-death or
+reservation-release authority. Invalid replies and transport failures retain
+their private evidence. The caller still needs current resource admission,
+qualified protected staging and exact original worker-death evidence before a
+live invocation. Twelve sender tests use real local journals with mocked SSH and
+native replies; target reconciliation and settlement of the consumed production
+attempt remain unqualified. This sender cannot recover a provider reference that
+was never durably recorded.
+
 Its configuration fields are `clock`, `cutResult`, `cutEvidence`, `observation`,
 `media`, `providerSha256`, `cleanupSha256` and `network`. `cutEvidence` contains
 pinned local `contract`, `activation` and `complete` files. `observation` and
