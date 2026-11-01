@@ -1,0 +1,13 @@
+[
+  "windows/rpc/NATIVE-MANAGER-CONTROLLER.md",
+  "windows/rpc/NativeRpcAuthority.cs",
+  "windows/rpc/NativeRpcStartAuthority.cs",
+  "windows/rpc/ProtectedAttempt.cs",
+  "windows/rpc/ProviderStart.cs",
+  "windows/rpc/README.md",
+  ".github/workflows/rpc-native-state.yml",
+  "test/rpc-windows-worker/NativeRpcStateHarness.cs",
+  "test/rpc-windows-worker/run-native-state-ci.ps1",
+  "ops/unified-funding-20261028/rpc-native-state-preserve-r1",
+  "ops/unified-funding-20261028/rpc-native-state-ci-r1"
+]
