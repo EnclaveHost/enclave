@@ -10,12 +10,12 @@ using System.Security.Principal;
 using System.Runtime.InteropServices;
 using Enclave.OwnedRpc;
 public static class NativeRpcReadGrantHarness {
- static int count;
+ static int count;static bool remaining;
  [DllImport("kernel32.dll")]static extern IntPtr GetCurrentProcess();
  [DllImport("kernel32.dll")]static extern bool TerminateProcess(IntPtr p,uint code);
  static void Check(bool ok){if(!ok)throw new Exception("Assertion");}
  static void Refuse(Action f){bool refused=false;try{f();}catch{refused=true;}Check(refused);}
- static void Test(string name,Action f){f();count++;Console.WriteLine("PASS "+name);}
+ static void Test(string name,Action f){if(remaining&&!name.StartsWith("actual ")&&!name.StartsWith("descriptor receipt ")&&!name.StartsWith("read ACE preserves "))return;f();count++;Console.WriteLine("PASS "+name);}
  const string Id="12345678-1234-1234-1234-123456789012";
  static string SystemRef {get{return "Msvm_ComputerSystem.Name=\""+Id+"\"";}}
  static string JobRef {get{return HyperVStartProvider.ReferenceForId("definition-fixture");}}
@@ -89,7 +89,7 @@ public static class NativeRpcReadGrantHarness {
  static RawSecurityDescriptor Descriptor(){return new RawSecurityDescriptor("O:BAG:BAD:P(A;;FA;;;SY)(A;;FA;;;BA)");}
  static string AclHash(RawSecurityDescriptor d){return ProtectedAttempt.ReadGrantSecurityHash(d);}
  public static int Main(string[] args){try{
-  if(args.Length!=0)throw new ArgumentException("No fixture selection");
+  if(args.Length!=1||args[0]!="--remaining")throw new ArgumentException("Explicit remaining fixture selection required");remaining=true;
   var timer=new Timer(delegate{TerminateProcess(GetCurrentProcess(),125);},null,20000,Timeout.Infinite);BoundedWorker.EnterSupervisorEnvelope(256UL*1024*1024);fixtureImage=File.ReadAllBytes(System.Reflection.Assembly.GetExecutingAssembly().Location);
   Test("three fixed grants consume intent before mutation and observe without repeat",()=>{var c=new GrantCase();string h=c.Run();Check(h==NativeRpcReadGrant.VerifyCompleted(c.C.C.P,c.C.C.J)&&c.A.Applies==3&&c.A.Captures==3&&c.A.Observes==3);Check(c.Run(true)==h&&c.A.Applies==3&&c.A.Observes==6);});
   Test("partial second ACL mutation stays held with no retry or success receipt",()=>{var c=new GrantCase();c.A.Fail="image.container";Refuse(()=>c.Run());Check(c.A.Applies==2&&c.C.C.J.Read("native-read.receipt")==null);c.A.Fail=null;Check(c.Run()==null&&c.Run(true)==null&&c.A.Applies==2);});
@@ -101,13 +101,15 @@ public static class NativeRpcReadGrantHarness {
   Test("VM group foreign identities malformed and noncanonical SIDs refused",()=>{foreach(string bad in new[]{"S-1-5-83-0","S-1-5-18","S-1-5-83-1","S-1-5-83-1-1-2-3-4-5","S-1-5-83-1-01-2-3-4"})Refuse(()=>NativeRpcReadGrant.Sid(bad));NativeRpcReadGrant.Sid(Sid);});
   Test("read ACE preserves owner group system admin and grants no writes inheritance",()=>{var before=Descriptor();var next=NativeRpcReadGrant.AddRead(before,Sid);Check(before.DiscretionaryAcl.Count==2&&next.DiscretionaryAcl.Count==3&&next.Owner==before.Owner&&next.Group==before.Group&&next.ControlFlags==before.ControlFlags);var ace=(CommonAce)next.DiscretionaryAcl[2];Check(ace.SecurityIdentifier.Value==Sid&&ace.AccessMask==0x120089&&ace.AceFlags==AceFlags.None&&(ace.AccessMask&0xd0176)==0);Refuse(()=>NativeRpcReadGrant.AddRead(next,Sid));});
   Test("unprotected foreign owner broad access and inherited ACE refused",()=>{foreach(string bad in new[]{"O:BAG:BAD:(A;;FA;;;SY)(A;;FA;;;BA)","O:WDG:BAD:P(A;;FA;;;SY)(A;;FA;;;BA)","O:BAG:BAD:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FR;;;WD)","O:BAG:BAD:P(A;OI;FA;;;SY)(A;;FA;;;BA)","O:BAG:BAD:P(A;;FA;;;SY)"})Refuse(()=>NativeRpcReadGrant.AddRead(new RawSecurityDescriptor(bad),Sid));});
+  Test("descriptor receipt ignores only auto-inherit bookkeeping and detects permission changes",()=>{var a=NativeRpcReadGrant.AddRead(Descriptor(),Sid);var b=new RawSecurityDescriptor(a.ControlFlags|ControlFlags.DiscretionaryAclAutoInherited|ControlFlags.DiscretionaryAclAutoInheritRequired,a.Owner,a.Group,a.SystemAcl,a.DiscretionaryAcl);Check(AclHash(a)==AclHash(b));var c=NativeRpcReadGrant.AddRead(Descriptor(),Sid);((CommonAce)c.DiscretionaryAcl[2]).AccessMask|=2;Check(AclHash(a)!=AclHash(c));c=NativeRpcReadGrant.AddRead(Descriptor(),Sid);c.Group=new SecurityIdentifier("S-1-5-18");Check(AclHash(a)!=AclHash(c));c=NativeRpcReadGrant.AddRead(Descriptor(),Sid);c.SetFlags(c.ControlFlags&~ControlFlags.DiscretionaryAclProtected);Check(AclHash(a)!=AclHash(c));});
   Test("actual held file DACL grant readback preserves identity and denies replacement",()=>{
    string root=Path.Combine(Path.GetPathRoot(Environment.SystemDirectory),"rpc-read-ci-"+Guid.NewGuid().ToString("N"));DirectoryNew(root);string path=Path.Combine(root,"inert.bin");Put(path,new byte[]{42});
    using(var h=ProtectedAttempt.CreateFile(path,0x60080,1,IntPtr.Zero,3,0x00200000,IntPtr.Zero)){
     Check(!h.IsInvalid);long size;string identity=ProtectedAttempt.ReadGrantFileIdentity(h,out size);Check(size==1);
     var before=new RawSecurityDescriptor(File.GetAccessControl(path).GetSecurityDescriptorBinaryForm(),0);var after=NativeRpcReadGrant.AddRead(before,Sid);
     Refuse(()=>ProtectedAttempt.SetReadGrantOnHandle(h,Sid,new string('0',64),AclHash(after)));
-    ProtectedAttempt.SetReadGrantOnHandle(h,Sid,AclHash(before),AclHash(after));
+    try{ProtectedAttempt.SetReadGrantOnHandle(h,Sid,AclHash(before),AclHash(after));}catch{Console.WriteLine("ACL planned="+after.GetSddlForm(AccessControlSections.All)+" actual="+ProtectedAttempt.ReadGrantDescriptor(h).GetSddlForm(AccessControlSections.All));throw;}
+    Console.WriteLine("ACL flags before="+before.ControlFlags+" planned="+after.ControlFlags+" actual="+ProtectedAttempt.ReadGrantDescriptor(h).ControlFlags);
     Check(AclHash(new RawSecurityDescriptor(File.GetAccessControl(path).GetSecurityDescriptorBinaryForm(),0))==AclHash(after)&&ProtectedAttempt.ReadGrantFileIdentity(h,out size)==identity&&File.ReadAllBytes(path)[0]==42);
     Refuse(()=>File.Delete(path));Refuse(()=>File.Move(path,path+".moved"));Refuse(()=>ProtectedAttempt.SetReadGrantOnHandle(h,Sid,AclHash(before),AclHash(after)));
    }

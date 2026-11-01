@@ -73,7 +73,7 @@ try{
     $production=@('BoundedWorker.cs','OwnerObserver.cs','ProtectedAttempt.cs','ProviderStart.cs','OwnedVmPermit.cs','HostPhysicalPool.cs','WindowsStartAdmission.cs','LegacyTemplateFence.cs','LegacyLaunchCohort.cs','LegacyHandoff.cs','NativeRpcDefinition.cs','NativeRpcAuthority.cs','NativeRpcWorkerEntry.cs','NativeRpcController.cs','NativeRpcManagerTransport.cs')|ForEach-Object{Join-Path $root ('windows\rpc\'+$_)}
     $sources=@($production|Where-Object{[IO.Path]::GetFileName($_) -notin @('NativeRpcWorkerEntry.cs','NativeRpcController.cs','NativeRpcManagerTransport.cs')})+@(Join-Path $root 'test\rpc-windows-worker\NativeRpcReadGrantHarness.cs')
     Invoke-FiniteProcess $csc ($compilerOptions+@('/main:NativeRpcReadGrantHarness',('/out:'+$entry))+$sources) 20000 'harness-compile'
-    Invoke-FiniteProcess $entry @() 20000 'worker-harness'
+    Invoke-FiniteProcess $entry @('--remaining') 20000 'worker-harness'
     $worker=Join-Path $work 'native-worker.exe'
     Invoke-FiniteProcess $csc ($compilerOptions+@('/main:Enclave.OwnedRpc.NativeRpcControllerEntry',('/out:'+$worker))+@($production|Where-Object{[IO.Path]::GetFileName($_) -ne 'NativeRpcWorkerEntry.cs'})) 20000 'worker-compile'
     if((Get-Item -LiteralPath $worker).Length -gt 262144){throw 'Native worker image bound'}

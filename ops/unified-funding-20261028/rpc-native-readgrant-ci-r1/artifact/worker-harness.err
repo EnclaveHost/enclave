@@ -1,0 +1,5 @@
+System.InvalidOperationException: Read grant ACL readback differs
+   at Enclave.OwnedRpc.ProtectedAttempt.SetReadGrantOnHandle(SafeFileHandle h, String sid, String expectedBefore, String expectedAfter)
+   at NativeRpcReadGrantHarness.<>c.<Main>b__28_11()
+   at NativeRpcReadGrantHarness.Test(String name, Action f)
+   at NativeRpcReadGrantHarness.Main(String[] args)

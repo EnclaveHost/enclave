@@ -1,0 +1,8 @@
+{
+  "invocation": "bce06337d8ab4cc3993ad7fa4ae8660d",
+  "terminal": true,
+  "mainPid": 0,
+  "exit": 1,
+  "stage": "git diff --cached --check",
+  "reason": "Raw Windows CRLF artifact text reports trailing whitespace; no commit/push occurred; normalize public copy only; originals unchanged"
+}

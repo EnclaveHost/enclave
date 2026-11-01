@@ -1,0 +1,27 @@
+{
+  "sourcePins": {
+    "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+    "windows/rpc/OwnerObserver.cs": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80",
+    "windows/rpc/ProtectedAttempt.cs": "8b640b9c502cf4ffec3f91b90f1184dffc7d11abf1fe0476b1f6901b80c4ba50",
+    "windows/rpc/ProviderStart.cs": "600b86bcdfcb4a0425213fee9ed241a51c9a23d3fbcc51560d5c929b628a7d46",
+    "windows/rpc/OwnedVmPermit.cs": "a4d1f9640a4087714b9907cddcdc64340cb57f07de04dd1b6baf97197ac60373",
+    "windows/rpc/HostPhysicalPool.cs": "8a9506c50a3ad65a614ed62eb91f07cd78d8db81098a84fe10215ac44e9ad3b1",
+    "windows/rpc/WindowsStartAdmission.cs": "8f88b3c432e0d30926ca65ab6f0e2fef06d2cce2f4861f4dcf0a3dbe3952cca6",
+    "windows/rpc/LegacyTemplateFence.cs": "d2bfc04762cf64b2555575e4c8aa95842dd35be108f9c9780dd3ecf0ecd0cd0f",
+    "windows/rpc/LegacyLaunchCohort.cs": "ce22aa16e0d353fa8354bca26f8dc4057d520c001540d0659778e2769135f5a2",
+    "windows/rpc/LegacyHandoff.cs": "f99033ca2b4f8ed9d78d15f3cc4976c40c1336492bdde6b22de10e99e6126262",
+    "windows/rpc/NativeRpcDefinition.cs": "b76ff3c9ac0242516277d88d2bb2745f77e1d0ba32b540b4b22eccee9626e56a",
+    "windows/rpc/NativeRpcAuthority.cs": "6d48b804fc1b572090b69e82714f9bcb3438f76d748c83a14cfed6d3e77dea1a",
+    "windows/rpc/NativeRpcWorkerEntry.cs": "9988c2e7c238ef6c411d892213632ad43da75e7b5b1c4fa7143e565668426704",
+    "windows/rpc/NativeRpcController.cs": "52423e07c805c84db78fa1a23510163065a0797265937b4205cf08a77f5c828d",
+    "windows/rpc/NativeRpcManagerTransport.cs": "2069d740a09edda7580c25ff436054130457b132d5dfafe4fca1de3d07b8a2bb",
+    "test/rpc-windows-worker/NativeRpcReadGrantHarness.cs": "b7154ff47585f86b9549cbb8e1d943192aa05383f61b93ca047fbe2693e2d472",
+    "test/rpc-windows-worker/run-native-readgrant-ci.ps1": "7a8a7c31518c22fc5941669f9ec8e02347fcb5f8799c50f3b53b3f8ec6b57416"
+  },
+  "executables": {
+    "owned-entry.exe": {
+      "bytes": 233984,
+      "sha256": "198209da60aa0ffaea61f9d491242e7978dd8cc0f852264f6f677dab5f081449"
+    }
+  }
+}

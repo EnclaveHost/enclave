@@ -1,0 +1,16 @@
+[
+  "windows/rpc/NativeRpcAuthority.cs",
+  "windows/rpc/ProtectedAttempt.cs",
+  "windows/rpc/NativeRpcController.cs",
+  "windows/rpc/NativeRpcWorkerEntry.cs",
+  "windows/rpc/README.md",
+  "windows/rpc/NATIVE-MANAGER-CONTROLLER.md",
+  "test/rpc-windows-worker/NativeRpcReadGrantHarness.cs",
+  "test/rpc-windows-worker/run-native-readgrant-ci.ps1",
+  ".github/workflows/rpc-native-readgrant.yml",
+  "ops/unified-funding-20261028/rpc-native-readgrant-preserve-r2",
+  "ops/unified-funding-20261028/rpc-native-readgrant-ci-r2",
+  "ops/unified-funding-20261028/rpc-native-readgrant-ci-r1",
+  "ops/unified-funding-20261028/rpc-native-readgrant-preserve-r1",
+  "ops/unified-funding-20261028/rpc-native-readgrant-preserve-r3"
+]

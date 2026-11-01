@@ -229,13 +229,18 @@ namespace Enclave.OwnedRpc {
  }
  public sealed partial class ProtectedAttempt {
   [DllImport("advapi32.dll")]static extern uint SetSecurityInfo(SafeFileHandle h,int type,uint info,IntPtr owner,IntPtr group,IntPtr dacl,IntPtr sacl);
-  static RawSecurityDescriptor ReadGrantDescriptor(SafeFileHandle h){
+  internal static RawSecurityDescriptor ReadGrantDescriptor(SafeFileHandle h){
    IntPtr owner,group,dacl,sacl,descriptor;uint error=GetSecurityInfo(h,1,1|2|4,out owner,out group,out dacl,out sacl,out descriptor);if(error!=0)throw new Win32Exception((int)error);
    try{uint n=GetSecurityDescriptorLength(descriptor);if(n==0||n>65536)throw new InvalidOperationException("Read grant descriptor bound");var b=new byte[n];Marshal.Copy(descriptor,b,0,(int)n);return new RawSecurityDescriptor(b,0);}finally{if(descriptor!=IntPtr.Zero)LocalFree(descriptor);}
   }
   internal static string ReadGrantSecurityHash(RawSecurityDescriptor sd){
    // Hash precisely the owner/group/protected DACL fields we preserve/read back.
-   return Hash(Encoding.UTF8.GetBytes(sd.GetSddlForm(AccessControlSections.Owner|AccessControlSections.Group|AccessControlSections.Access)));
+   // AutoInherited/AutoInheritRequired are Windows bookkeeping, not ACEs.
+   // Compare protected status plus exact ACL binary; never mask an ACE bit.
+   if(sd.DiscretionaryAcl==null)throw new InvalidOperationException("Null grant ACL");
+   byte[] acl=new byte[sd.DiscretionaryAcl.BinaryLength];sd.DiscretionaryAcl.GetBinaryForm(acl,0);
+   string value=(sd.Owner==null?"":sd.Owner.Value)+"\n"+(sd.Group==null?"":sd.Group.Value)+"\n"+((sd.ControlFlags&ControlFlags.DiscretionaryAclProtected)!=0?"protected":"inherited")+"\n"+Convert.ToBase64String(acl);
+   return Hash(Encoding.UTF8.GetBytes(value));
   }
   internal static string ReadGrantFileIdentity(SafeFileHandle h,out long size){
    Authority(h,true,false,"original VM read grant");FileInfo f;if(!GetFileInformationByHandle(h,out f)||f.Links!=1)throw new InvalidOperationException("Single-link read grant target required");

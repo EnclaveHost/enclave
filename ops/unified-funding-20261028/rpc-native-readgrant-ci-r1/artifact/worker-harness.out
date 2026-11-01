@@ -1,0 +1,10 @@
+PASS three fixed grants consume intent before mutation and observe without repeat
+PASS partial second ACL mutation stays held with no retry or success receipt
+PASS lost receipt stays held even if all three ACL operations returned
+PASS read-only lease never creates intent and failed submit never invokes ACL
+PASS changed original VM security and account refuse completed grant
+PASS changed observed ACL identity and original deadline prevent success
+PASS tampered fixed file list and receipt context cannot verify
+PASS VM group foreign identities malformed and noncanonical SIDs refused
+PASS read ACE preserves owner group system admin and grants no writes inheritance
+PASS unprotected foreign owner broad access and inherited ACE refused
