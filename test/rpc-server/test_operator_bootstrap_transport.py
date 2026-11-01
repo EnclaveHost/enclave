@@ -1,0 +1,79 @@
+"""Real dual subprocess/pipes, original clock and durable bridge; inert peers."""
+import hashlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import tempfile
+import time
+import unittest
+from unittest.mock import patch
+S=Path(__file__).resolve().parents[2]
+def load(name,path):
+    spec=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
+m=load('operator',S/'rpc/server/operator_bootstrap_transport.py');c=m.c
+f=load('clock_fixture',S/'test/rpc-server/test_startup_export.py')
+PEER='''import sys,json,struct,time
+mode=sys.argv[1];bad=sys.argv[2]=='bad'
+def emit(value):
+ raw=json.dumps(value,separators=(',',':')).encode();wire=struct.pack('!I',len(raw))+raw
+ for i in range(0,len(wire),29):sys.stdout.buffer.write(wire[i:i+29]);sys.stdout.buffer.flush();time.sleep(.001)
+def receive():
+ h=sys.stdin.buffer.read(4);assert len(h)==4;n=struct.unpack('!I',h)[0];raw=sys.stdin.buffer.read(n);assert len(raw)==n;assert sys.stdin.buffer.read(1)==b'';return json.loads(raw)
+common={'original':'8'*64,'plan':'9'*64,'enrollmentSha256':'7'*64}
+if mode=='native':
+ emit(dict(schema='native-rpc-bootstrap-enrollment/1',enrollment={},**common))
+ value=receive();assert value['enrollmentSha256']=='7'*64
+ emit(dict(schema='native-rpc-bootstrap-result/1',acquisitionRequested=True,rpcReady=False,providerOperationFenced=False,reservationMayRelease=False,**common))
+else:
+ value=receive();assert value['schema']=='native-rpc-bootstrap-enrollment/1'
+ emit(dict(schema='native-rpc-bootstrap-offer/1',enrollmentSha256=('6' if bad else '7')*64,offer={'inert':'NOT-SIGNED'}))
+'''
+class Transport(unittest.TestCase):
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory(dir='/run');self.addCleanup(self.tmp.cleanup);self.base=Path(self.tmp.name);self.base.chmod(0o700)
+        env=patch.dict(os.environ,{'RPC_TEST_ROOT':str(self.base)});env.start();self.addCleanup(env.stop)
+        self.fixture=f.Composition();self.fixture.setUp();self.addCleanup(self.fixture.tearDown);self.clock=self.fixture.completed()
+        for p in self.fixture.patches:p.stop()
+        self.parent=Path(self.clock['path']).parent;self.root=self.parent/'bootstrap-transport';self.root.mkdir(mode=0o700)
+        self.expected={'original':'8'*64,'plan':'9'*64};self.children=[]
+    def bridge(self,bad=False):
+        actual=m.subprocess.Popen
+        def spawn(*args,**kw):
+            self.assertTrue((self.root/('native-submit.intent' if not self.children else 'exchange-submit.intent')).exists())
+            p=actual(*args,**kw);self.children.append(p);return p
+        with patch.object(m.subprocess,'Popen',side_effect=spawn):
+            return m.bridge(['/usr/bin/python3','-B','-c',PEER,'native','ok'],['/usr/bin/python3','-B','-c',PEER,'owner','bad' if bad else 'ok'],(),self.expected,self.root,self.clock,time.monotonic()+3)
+    def test_real_fragmented_peers_receive_eof_and_persist_original_result(self):
+        result=self.bridge();self.assertTrue(result['acquisitionRequested']);self.assertFalse(result['rpcReady']);self.assertFalse(result['reservationMayRelease'])
+        self.assertEqual(json.loads(c.read(self.root/'response.json')),result);self.assertEqual(len(self.children),2);self.assertTrue(all(p.poll()==0 for p in self.children))
+        with self.assertRaises(FileExistsError):self.bridge()
+        self.assertEqual(len(self.children),2)
+    def test_wrong_owner_correlation_reaps_only_local_peers_and_holds(self):
+        with self.assertRaisesRegex(ValueError,'another enrollment'):self.bridge(True)
+        self.assertEqual(len(self.children),2);self.assertTrue(all(p.poll() is not None for p in self.children));self.assertFalse((self.root/'response.json').exists());self.assertFalse((self.root/'offer.json').exists())
+        self.assertTrue((self.root/'native-submit.intent').exists());self.assertTrue((self.root/'exchange-submit.intent').exists())
+    def test_pinned_ssh_command_and_fixed_exchange_unit(self):
+        cfg={'host':'192.0.2.4','user':'operator','port':22,'key':{},'knownHosts':{},'controller':r'C:\Private\controller.exe','manager':r'C:\Private\manager.json','managerSha256':'a'*64,'original':'8'*64,'bootstrap':r'C:\Private\bootstrap.json','bootstrapSha256':'b'*64,'sshSha256':hashlib.sha256(Path('/usr/bin/ssh').read_bytes()).hexdigest()}
+        args=m.native_command(cfg,'8'*64,20,21)
+        self.assertIn('StrictHostKeyChecking=yes',args);self.assertIn('UserKnownHostsFile=/proc/'+str(os.getpid())+'/fd/21',args);self.assertEqual(args[-2],'operator@192.0.2.4');self.assertIn('bootstrap-staged',args[-1])
+        for path in (r'C:\Private\x&whoami',r'C:\..\x',r'C:\Private\x%PATH%'):
+            with self.assertRaises(ValueError):m.native_command({**cfg,'controller':path},'8'*64,20,21)
+        cmd=m.exchange_command({'path':'/protected/exchange.json','sha256':'a'*64},'a'*32)
+        self.assertIn('--property=RuntimeMaxSec=20',cmd);self.assertIn('--property=MemoryMax=128M',cmd);self.assertIn('--pipe',cmd);self.assertIn('--wait',cmd)
+
+    def test_installed_ssh_can_open_parent_held_identity_after_closing_inherited_fds(self):
+        # -G never connects. An inert identity checks descriptor accessibility,
+        # not authentication or whether a real key is accepted by the target.
+        identity=c.write_new(self.parent/'identity.fixture',b'inert identity, not a key')
+        fd=m.x.b.e.held(identity['path'],16384,wanted=identity['sha256'])
+        try:
+            path='/proc/'+str(os.getpid())+'/fd/'+str(fd)
+            result=m.subprocess.run(['/usr/bin/ssh','-G','-F','/dev/null','-T','-i',path,'-o','BatchMode=yes','-o','StrictHostKeyChecking=yes','192.0.2.4'],capture_output=True,timeout=2,check=True)
+            self.assertLess(len(result.stdout)+len(result.stderr),65536)
+            self.assertNotIn(b'not accessible',result.stderr)
+            self.assertIn(('identityfile '+path).encode(),result.stdout)
+            self.assertIn(b'stricthostkeychecking true',result.stdout)
+        finally:os.close(fd)
+
+if __name__=='__main__':unittest.main(verbosity=2)

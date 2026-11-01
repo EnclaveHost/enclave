@@ -543,3 +543,34 @@ refusal, consumed partial output, and version 3's real sealed-FD handoff. The
 resource/service observations and final Node execution were mocked; no signer,
 hardware attestation, TLS listener or production export ran. See
 [the preparation result](../../ops/unified-funding-20261028/rpc-owner-enrollment-preparation-tests-r1/ROOT-RESULT.md).
+
+`owner_bootstrap_exchange.py` now supplies the one-time service submission and
+atomic offer collection. Its protected `enclave-rpc-owner-exchange/1` input has
+exactly `schema`, `native` (`original` manager attempt digest and `plan` digest),
+and `owner` (the version 3 entry fields except `enrollment`, which comes from the
+actual framed native input). It runs only inside the fixed
+`enclave-rpc-owner-exchange-ATTEMPT.service`, Type=exec, 128MiB, CPU1, no swap,
+TasksMax32, RuntimeMaxSec20/stop1, no restart, control-group kill, NoNewPrivileges
+and core0. Entry must be within5s and the unit start plus143s must precede the
+original deadline. Its separate whole-owner admission allowance is1600MiB,
+including the128MiB exchange and64MiB startup allowance; pending and higher
+floors remain. The outer operator reserves1792MiB for its additional overlap.
+
+The exchange consumes `bootstrap-exchange/` before bounded FIFO input, requires
+one complete native frame and EOF, matches the operator-pinned original attempt,
+plan, VM and original clock, and installs the actual enrollment and v3 config.
+`submit.intent` is fsynced before one fixed `systemd-run` invocation for the
+existing256MiB/120s owner service. It then collects only the fully published
+single-link `bootstrap/host-offer.json`, matching the enrollment receipt, actual
+request/certificate, prepared owner result and original owner service identity.
+Response bytes are persisted before acknowledgment. It forwards the native
+correlation digest unchanged; it does not treat that digest as a signature.
+Neither exchange timeout nor local systemd-run termination proves owner death
+or grants retry, writer release or serving authority.
+
+`operator_bootstrap_transport.py` performs the actual bidirectional pipe sequence
+around the fixed SSH native command and this independently scheduled exchange.
+Configuration and exact service requirements are documented in
+[the operator guide](../../windows/rpc/BOOTSTRAP-OPERATOR.md). Source integration
+is complete for this transport; real SSH/SYSTEM/owner timing, hardware evidence,
+storage access, persistent serving and production activation are unqualified.
