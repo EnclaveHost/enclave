@@ -41,7 +41,8 @@ export class DeploymentLifecycleRunner {
         if (localDenial) this.journal.restoreDenial(id, g.anchor.number);
         const a = operational.assignment;
         snapshot = { ...snapshot, verified: true, authorityTier: g.anchor.tier,
-          enabled: g.anchor.enabled === true, admitted: hostAdmitted,
+          // Proof may establish eligibility, but must not erase a current host-local refusal.
+          enabled: g.anchor.enabled === true, admitted: hostAdmitted && snapshot.admitted !== false,
           funded: a.remainingWei > BigInt(g.policy.stopReserveWei) && a.fundedUntil * 1000 > now,
           policy: g.policy, servingContext: { generationAuthority: g },
           assignment: { ...a, revision: g.policy.revision, startAfter: a.startAfter * 1000 } };

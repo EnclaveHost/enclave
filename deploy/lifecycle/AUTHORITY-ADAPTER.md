@@ -123,6 +123,17 @@ bans. Unknown state refuses service. Unsafe state can deny but cannot grant a
 new budget, owner, witness set or restoration. A denial persists until positive
 finalized authority at or above its height establishes restoration.
 
+The runner also preserves an explicit current `snapshot.admitted: false` from
+its trusted host adapter when processing generation certificates. An older
+positive anchor cannot erase this local owner restriction. It queues this
+host's own running assignment after confirmed local retirement, or leaves
+queued work available to other hosts. It does not stop an assignment on another
+host. A pending transition retains its exact durable intent and must reconcile
+before any replacement is prepared. The adapter must supply its current local
+restriction again after restart; this runner check is not a durable host-policy
+store. A positive outer value cannot repair missing or false authenticated host
+admission.
+
 `maxAnchorAgeSec = 0` does not enable this operational mode. Owner opt-in is
 required on chain; candidate defaults must never silently change that policy.
 The strict path still demands a policy block within 20 seconds and will refuse

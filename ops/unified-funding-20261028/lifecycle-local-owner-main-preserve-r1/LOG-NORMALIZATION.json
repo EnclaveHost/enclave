@@ -1,0 +1,26 @@
+[
+  {
+    "path": "lifecycle-local-owner-main-tests-r1/TEST.tap",
+    "rawSha256": "0d96bf3b34f12cdd016de95209b8c5b16cb7f3432c031364ce22ed022c6ae823",
+    "publishedSha256": "0d96bf3b34f12cdd016de95209b8c5b16cb7f3432c031364ce22ed022c6ae823",
+    "normalization": "line-ending and trailing-whitespace only; raw retained locally"
+  },
+  {
+    "path": "lifecycle-local-owner-main-tests-r2/TEST.tap",
+    "rawSha256": "f40c6e569d17db3134a989d52353560f96e4230bb7fbbb173a6b5216e2760315",
+    "publishedSha256": "f40c6e569d17db3134a989d52353560f96e4230bb7fbbb173a6b5216e2760315",
+    "normalization": "line-ending and trailing-whitespace only; raw retained locally"
+  },
+  {
+    "path": "lifecycle-local-owner-main-tests-r3/TEST.tap",
+    "rawSha256": "7b922d57b3a9be4ade0bb602cc03e97c7de7c965c020f69049080679ff15910d",
+    "publishedSha256": "f728e40462649626946c67a7a4139690950ca81a09c084f8d1dd988b8541ad9e",
+    "normalization": "line-ending and trailing-whitespace only; raw retained locally"
+  },
+  {
+    "path": "lifecycle-local-owner-main-tests-r4/TEST.tap",
+    "rawSha256": "c42c8bd591f4b51c471bb095aac60480d2d7f54f54a0fe21d7dba5edfdf17f38",
+    "publishedSha256": "c42c8bd591f4b51c471bb095aac60480d2d7f54f54a0fe21d7dba5edfdf17f38",
+    "normalization": "line-ending and trailing-whitespace only; raw retained locally"
+  }
+]

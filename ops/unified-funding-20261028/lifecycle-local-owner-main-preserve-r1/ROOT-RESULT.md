@@ -1,0 +1,1 @@
+e202bf518e31412b8302612b9772566d terminal1/Main0 before commit: git diff --cached --check refused trailing spaces in raw baseline TAP assertion output. No source/test change. Local originals preserved; published logs normalized explicitly with raw/published hashes. New preservation r2 uses same source and normal secret/push hooks.

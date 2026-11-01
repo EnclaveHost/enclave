@@ -177,6 +177,41 @@ test('operational host refusal queues its running assignment without globally st
   assert.equal((await runner.reconcile(id)).status, 'pending');
   assert.deepEqual(calls, ['fence', 'stop', 'prepare:queued', 'submit']);
 });
+test('current local owner refusal overrides a valid signed running generation on this host', async t => {
+  const f = fixture(t); await certify(f, 1); f.advance(22); await certify(f, 2);
+  const { runner, calls, snapshot, journal } = scopedRunner(f);
+  snapshot.thisHost = nextHost;
+  assert.equal((await runner.reconcile(id)).status, 'running');
+  assert.deepEqual(calls, ['serve']); // positive control: the real certificate verifier accepted it
+  calls.length = 0; snapshot.admitted = false;
+  assert.equal((await runner.reconcile(id)).status, 'pending');
+  assert.deepEqual(calls, ['fence', 'stop', 'prepare:queued', 'submit']);
+  const pending = journal.read(id).pending;
+  // A lost response/restart must keep the same outbox, not invent another charge.
+  runner.journal = openLifecycleJournal(path.join(f.dir, 'scoped-host.json'));
+  runner.chain.resolve = async (_id, intent) => {
+    assert.deepEqual(intent, pending); return { outcome: 'unknown' };
+  };
+  calls.length = 0;
+  assert.equal((await runner.reconcile(id)).status, 'pending');
+  assert.deepEqual(calls, []);
+  assert.deepEqual(runner.journal.read(id).pending, pending);
+});
+test('current local owner refusal leaves a certified queued generation available to other hosts', async t => {
+  const f = fixture(t); await certify(f, 1); f.advance(22);
+  const { runner, calls, snapshot } = scopedRunner(f);
+  snapshot.thisHost = nextHost; snapshot.admitted = false;
+  assert.equal((await runner.reconcile(id)).status, 'queued');
+  assert.deepEqual(calls, ['fence', 'stop']);
+});
+test('current local owner refusal cannot revoke a certified assignment on another host', async t => {
+  const f = fixture(t); await certify(f, 1); f.advance(22); await certify(f, 2);
+  f.anchor.hostAdmission = { host: oldHost, admitted: true };
+  const { runner, calls, snapshot } = scopedRunner(f);
+  snapshot.admitted = false;
+  assert.equal((await runner.reconcile(id)).status, 'elsewhere');
+  assert.deepEqual(calls, ['fence', 'stop']);
+});
 test('operational host refusal leaves queued work available without starting or charging it', async t => {
   const f = fixture(t); f.anchor.hostAdmission = { host: oldHost, admitted: false };
   Object.assign(f.anchor.assignment, { state: 'queued', host: zero, operator: noAddress });
