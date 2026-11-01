@@ -37,7 +37,7 @@ namespace Enclave.OwnedRpc {
  }
  internal interface IProviderEventSource { ProviderEventChannel Read(string channel,EventEvidenceSelection selection,Action check); }
  internal static class ProviderEventEvidence {
-  internal static readonly string[] Channels={"Microsoft-Windows-WMI-Activity/Operational","Microsoft-Windows-Hyper-V-VMMS/Admin","Microsoft-Windows-Hyper-V-VMMS/Operational"};
+  internal static readonly string[] Channels={"Microsoft-Windows-WMI-Activity/Operational","Microsoft-Windows-Hyper-V-VMMS-Admin"};
   internal static string Collect(EventEvidenceSelection selection,IProviderEventSource source,Action check){
    if(selection==null||source==null||check==null)throw new ArgumentNullException("Evidence dependencies");
    var rows=new List<ProviderEventChannel>();long xmlBytes=0;

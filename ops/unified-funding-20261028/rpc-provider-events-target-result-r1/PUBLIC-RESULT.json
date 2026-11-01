@@ -1,0 +1,48 @@
+{
+  "entered": {
+    "schema": "owned-rpc-event-reader-entered/1",
+    "nonce": "203cc2c3c39242719e89e0d355517609",
+    "origin": 760234824,
+    "deadline": 760239824,
+    "pid": 44716,
+    "creationFileTime": 134379779966663491,
+    "jobCommitLimitBytes": 134217728,
+    "bootstrapPrivateBytes": 13254656,
+    "coversPreAssignmentMemory": false
+  },
+  "channels": [
+    {
+      "Channel": "Microsoft-Windows-WMI-Activity/Operational",
+      "State": "query-ended",
+      "ErrorType": null,
+      "ErrorHResult": 0,
+      "Enabled": true,
+      "RecordCount": 1626,
+      "OldestRecord": 87793,
+      "Records": []
+    },
+    {
+      "Channel": "Microsoft-Windows-Hyper-V-VMMS/Admin",
+      "State": "unavailable",
+      "ErrorType": "EventLogNotFoundException",
+      "ErrorHResult": -2146233088,
+      "Enabled": null,
+      "RecordCount": null,
+      "OldestRecord": null,
+      "Records": []
+    },
+    {
+      "Channel": "Microsoft-Windows-Hyper-V-VMMS/Operational",
+      "State": "unavailable",
+      "ErrorType": "EventLogNotFoundException",
+      "ErrorHResult": -2146233088,
+      "Enabled": null,
+      "RecordCount": null,
+      "OldestRecord": null,
+      "Records": []
+    }
+  ],
+  "noProviderSettlement": true,
+  "exactReaderDeath": true,
+  "originalsUnchanged": true
+}

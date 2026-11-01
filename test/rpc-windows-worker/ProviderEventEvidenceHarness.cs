@@ -22,7 +22,7 @@ public static class ProviderEventEvidenceHarness {
   ClockSample.Arm(BoundedWorker.MonotonicMilliseconds());BoundedWorker.EnterSupervisorEnvelope(128UL*1024*1024);
   if(args.Length==1&&args[0]=="blocked-main"){Console.WriteLine("watchdog-armed");Thread.Sleep(Timeout.Infinite);return 99;}
   try{
-   Test("fixed-three-channel-query-and-nonsettling-output",()=>{string text=Read(new Fake());Check(ProviderEventEvidence.Channels.Length==3&&text.Contains("\"providerSettled\":false")&&text.Contains("\"absenceProvesNothing\":true")&&text.Contains("\"clientPid\":17"));});
+   Test("fixed-two-channel-query-and-nonsettling-output",()=>{string text=Read(new Fake());Check(ProviderEventEvidence.Channels.Length==2&&text.Contains("\"providerSettled\":false")&&text.Contains("\"absenceProvesNothing\":true")&&text.Contains("\"clientPid\":17"));});
    Test("historical-range-only-no-caller-query",()=>{string query=Select().Query;Check(query.StartsWith("*[System[TimeCreated[")&&query.Contains("1601-")&&!query.Contains("17"));});
    Test("bad-identity-and-pid-refused",()=>{var s=Select();Refuse(()=>new EventEvidenceSelection("X",s.VmAttempt,s.Boot,17,s.Created,s.End,s.End));Refuse(()=>new EventEvidenceSelection(s.Nonce,s.VmAttempt,s.Boot,0,s.Created,s.End,s.End));});
    Test("future-reversed-overlong-window-refused",()=>{var s=Select();foreach(long end in new[]{s.Created,s.Created-1,s.Created+600000001})Refuse(()=>new EventEvidenceSelection(s.Nonce,s.VmAttempt,s.Boot,17,s.Created,end,Int64.MaxValue));Refuse(()=>new EventEvidenceSelection(s.Nonce,s.VmAttempt,s.Boot,17,s.Created,s.End,s.End-1));});
@@ -32,7 +32,7 @@ public static class ProviderEventEvidenceHarness {
    Test("unavailable-not-reported-as-empty-success",()=>{string text=Read(new Fake{Change=x=>{x.State="unavailable";x.ErrorType="EventLogNotFoundException";x.Records.Clear();}});Check(text.Contains("unavailable")&&text.Contains("\"providerSettled\":false"));Refuse(()=>Read(new Fake{Change=x=>x.State="unavailable"}));});
    Test("unknown-status-refused",()=>Refuse(()=>Read(new Fake{Change=x=>x.State="settled"})));
    Test("row-cap-refused",()=>Refuse(()=>Read(new Fake{Change=x=>{for(int i=2;i<=25;i++)x.Records.Add(new ProviderEventRow{RecordId=i,TimeFileTime=1005000000,Xml="x"});}})));
-   Test("utf8-and-aggregate-output-bounds",()=>{Refuse(()=>Read(new Fake{Change=x=>x.Records[0].Xml=new string('\u754c',6000)}));Refuse(()=>Read(new Fake{Change=x=>x.Records[0].Xml=new string('x',12000)}));});
+   Test("utf8-and-aggregate-output-bounds",()=>{Refuse(()=>Read(new Fake{Change=x=>x.Records[0].Xml=new string('\u754c',6000)}));Refuse(()=>Read(new Fake{Change=x=>{x.Records[0].Xml=new string('x',12000);x.Records.Add(new ProviderEventRow{RecordId=2,TimeFileTime=1005000000,Xml=new string('x',6000)});}}));});
    Test("deadline-callback-propagates",()=>{int calls=0;Refuse(()=>ProviderEventEvidence.Collect(Select(),new Fake(),()=>{if(++calls==3)throw new TimeoutException();}));Check(calls==3);});
    Console.WriteLine("RESULT tests="+tests+" fixtureEvents=true providerCalls=false");return 0;
   }catch(Exception e){Console.Error.WriteLine(e.GetType().Name+": "+e.Message);return 1;}

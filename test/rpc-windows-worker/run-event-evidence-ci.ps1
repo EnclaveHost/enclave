@@ -73,7 +73,7 @@ try{
     if($lines.Count -ne 2){throw 'Exact entered/result pair required'}
     $entered=$lines[0]|ConvertFrom-Json;$sample=$lines[1]|ConvertFrom-Json
     if($entered.schema -cne 'owned-rpc-event-reader-entered/1' -or $entered.nonce -cne $attempt -or $entered.pid -le 0 -or $entered.creationFileTime -le 0 -or $entered.jobCommitLimitBytes -ne 134217728 -or $entered.deadline-$entered.origin -ne 5000){throw 'Reader envelope/identity binding differs'}
-    if($sample.schema -cne 'owned-rpc-provider-event-evidence/1' -or $sample.nonce -cne $attempt -or $sample.vmAttempt -cne $vm -or $sample.boot -cne $boot -or $sample.clientPid -ne $PID -or $sample.clientCreationFileTime -ne $start -or $sample.endFileTime -ne $end -or $sample.providerSettled -or $sample.reservationMayRelease -or -not $sample.absenceProvesNothing -or @($sample.channels).Count -ne 3){throw 'Evidence selection/authority differs'}
+    if($sample.schema -cne 'owned-rpc-provider-event-evidence/1' -or $sample.nonce -cne $attempt -or $sample.vmAttempt -cne $vm -or $sample.boot -cne $boot -or $sample.clientPid -ne $PID -or $sample.clientCreationFileTime -ne $start -or $sample.endFileTime -ne $end -or $sample.providerSettled -or $sample.reservationMayRelease -or -not $sample.absenceProvesNothing -or @($sample.channels).Count -ne 2){throw 'Evidence selection/authority differs'}
     foreach($channel in $sample.channels){if($channel.State -cne 'query-ended' -and $channel.State -cne 'unavailable'){throw 'Unqualified channel result'}}
     Invoke-FiniteProcess $entry @($attempt,$vm,$boot,[string]$PID,[string]$start,[string]$end,('0'*64)) 8000 'wrong-image' 1
     Invoke-FiniteProcess $entry @($attempt,$vm,$boot,[string]$PID,[string]$end,[string]$start,$sha) 8000 'bad-window' 1

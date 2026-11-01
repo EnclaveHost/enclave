@@ -1,0 +1,9 @@
+{
+  "windows/rpc/ProviderEventEvidence.cs": "ce4b45f81ad0e8c87414c0a9e965e488e3c327de841e4c090fac93ab7507227b",
+  "test/rpc-windows-worker/ProviderEventEvidenceHarness.cs": "27e5f2d8968380ddcee88ad1abb68dae0c084bd4dc4391834a1c3e1411f2b40b",
+  "test/rpc-windows-worker/run-event-evidence-ci.ps1": "4206e88802b1682b3b9df18a53c8421f6ed73aebd6896669849c53009e68b45a",
+  ".github/workflows/rpc-provider-events.yml": "f84fb9652014294fff2d69a484a15092018e93eb5d0a0202cfc5ff60e1fbc9cc",
+  "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+  "windows/rpc/ProtectedAttempt.cs": "1a45403c3162c22f06dfa0ed778c3c71f26b185eec199ce3b241b92a3144cb75",
+  "windows/rpc/ClockSample.cs": "0b5f03119f7f7fb1fd364577485b6a74ca71c7fba77c93dd28d5c0fd0bfca4f3"
+}
