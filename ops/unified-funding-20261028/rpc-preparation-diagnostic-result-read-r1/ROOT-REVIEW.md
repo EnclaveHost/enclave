@@ -1,0 +1,1 @@
+Narrow exact diagnostic worker journal/stages, exact held role PID+creation-time death check and retained third VM journal. No provider lookup/cancellation/settlement; task state alone is not death. Exact admission/create/verify process identities included. Four originalVM and8091 continuity checked; allrawjournal content private.

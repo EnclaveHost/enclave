@@ -16,10 +16,6 @@
     "rawSha256": "2450383ffb5c05c93e1fd870cd7c6932b40c3d684028830e6b5fcd2bf9013707"
   },
   {
-    "path": "queue.log",
-    "rawSha256": "b85bb3c6bdb08f586fae1e57425275bb5ca40973952bfe0d2273f678bee68ba2"
-  },
-  {
     "path": "rpc-owned-definition-DISPATCH.json",
     "rawSha256": "5e97f5c76a9a8c8886199ea61672f7c3475aede305ad9ac697bb4f638c730c10"
   },
@@ -28,8 +24,8 @@
     "rawSha256": "f0801657652c5eafd38ca903a4a91499cf8b6caf96d4e8de0d2bee95fdf8f34d"
   },
   {
-    "path": "collect-queue.log",
-    "rawSha256": "056aaf7b697a8364c01bb632aa5b1dee4bc902cb97849c6a7e341cbc5adfcc58"
+    "path": "STARTUP-VERIFIED.json",
+    "rawSha256": "3783e0b491d57f76caa0c460981169bacc152c515409ddb9847ff82d4cb970d7"
   },
   {
     "path": "startup-ARTIFACT.json",
@@ -52,10 +48,6 @@
     "rawSha256": "0f59cfc7974992f4241733893eeb193748d6cc2a2ca553a1d4eba7754489e37a"
   },
   {
-    "path": "inner.log",
-    "rawSha256": "8d1b70e996e2d9948a5fd8eab6c13f9285186c4736f958a4594c5dd6506a5f40"
-  },
-  {
     "path": "rpc-startup-controller-DISPATCH.json",
     "rawSha256": "93352d2a742bc90c33fc33c483e7a6cd46274ead85b931f31e3d5a445faae816"
   },
@@ -70,10 +62,6 @@
   {
     "path": "COMMAND.json",
     "rawSha256": "69c463441912cee759c93b39ec683d046b5bc7804210a7e80e19a19b6f701857"
-  },
-  {
-    "path": "collect-inner.log",
-    "rawSha256": "064c0fc322ec0c731d012b5b3dd2499675896c113aec37521b227856cfdaf031"
   },
   {
     "path": "definition-RUN.json",

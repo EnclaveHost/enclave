@@ -1,0 +1,30 @@
+[
+  {
+    "path": "COMMAND.json",
+    "rawSha256": "198ae801c9b3c57007f719c60783c9c2c6ddb2166b88ed8f84b14f43760f7e30"
+  },
+  {
+    "path": "ROOT-REVIEW.md",
+    "rawSha256": "8162db87a78b6b6f578b3e25e990052233c6824ea8a704a770175090bae9bfd0"
+  },
+  {
+    "path": "PINS.json",
+    "rawSha256": "35c4bc7d33cbaf0e980ae04be23ee8c8c28eef1fee7d2e70ab6463b6a16c20f9"
+  },
+  {
+    "path": "SPEC.json",
+    "rawSha256": "b25b727309a2ba6453609004d5b554aea62f0ef392365c11d24299d31de3de75"
+  },
+  {
+    "path": "SOURCE.json",
+    "rawSha256": "636b032d28f032292a7f1c84774bc0c5c8d41f3c36d1a05e17d3519ede20dd22"
+  },
+  {
+    "path": "run.py",
+    "rawSha256": "f488ddb321248ea036e5d23ff834729d5eb789e57b0d32a1a421b8607b779640"
+  },
+  {
+    "path": "RESULT.json",
+    "rawSha256": "2099c590ca58699c4836bf1a9624f66d6151eec611e5e8abdc4539c29683b9c3"
+  }
+]

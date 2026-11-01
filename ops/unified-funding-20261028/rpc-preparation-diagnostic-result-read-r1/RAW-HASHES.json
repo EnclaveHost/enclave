@@ -1,0 +1,30 @@
+[
+  {
+    "path": "COMMAND.json",
+    "rawSha256": "c77b94a6aa6d05167e05772283bac338bf0581b10e67187509deec87fa4cf2eb"
+  },
+  {
+    "path": "ROOT-REVIEW.md",
+    "rawSha256": "034d1246c33e56feb0ff62d12515ce2b68bedf05da8f7bd759af01fffc74954b"
+  },
+  {
+    "path": "PINS.json",
+    "rawSha256": "136e9104436a722b62efc489d9653a6477a979e4bb9cac83c731d51ece1ebe26"
+  },
+  {
+    "path": "run.py",
+    "rawSha256": "77482c724056f11583008cca6d60c9c2a4b054d1d966e4aae4bff15c08bec506"
+  },
+  {
+    "path": "admit.py",
+    "rawSha256": "7fcada90860fd1441c8e566c4e4fc90c0afda84ef4b64807149f807228e17ec0"
+  },
+  {
+    "path": "storage-read.ps1",
+    "rawSha256": "ffd2fbb094599066a494fa35b0e1697642366f70a0a841df84b4eec4ec7dcc02"
+  },
+  {
+    "path": "PUBLIC-DIAGNOSIS.json",
+    "rawSha256": "2e0afae4f656dbacc8cb7d74ebd40b04f3b8bcaaf529b0dfcc6413e873bff069"
+  }
+]

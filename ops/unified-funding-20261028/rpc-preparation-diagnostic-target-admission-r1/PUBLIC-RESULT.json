@@ -1,0 +1,11 @@
+{
+  "at": 1793494413.6946225,
+  "rc": 0,
+  "failure": null,
+  "freeBefore": 84801376256,
+  "freeAfter": 84636831744,
+  "vmCount": 4,
+  "nodeExit": 0,
+  "sourceHash": "d7113704021fe1bdf3d0a317881c901d286747987c9eb2d41dd453e790f5e536",
+  "rawHash": "bdb0802af5b38aeed21cfb926ab4225fdb100f920596ed4b383580993efd7874"
+}

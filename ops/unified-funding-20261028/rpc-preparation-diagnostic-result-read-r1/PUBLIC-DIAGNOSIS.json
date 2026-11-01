@@ -1,0 +1,82 @@
+{
+  "exactDeaths": [
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379680761339472",
+      "pid": "52576",
+      "absent": true,
+      "role": "owner"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379680761339392",
+      "pid": "57876",
+      "absent": true,
+      "role": "observer"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379680763163048",
+      "pid": "35304",
+      "absent": true,
+      "role": "child"
+    }
+  ],
+  "priorStageDeaths": [
+    {
+      "label": "admission",
+      "expectedCreation": "134379680047616114",
+      "pid": 55168,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "create",
+      "expectedCreation": "134379680319304695",
+      "pid": 51592,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "verify",
+      "expectedCreation": "134379680643384919",
+      "pid": 43376,
+      "sameIncarnationAlive": false,
+      "absent": true
+    }
+  ],
+  "original8091Alive": true,
+  "vmCount": 4,
+  "traces": [],
+  "failure": {
+    "type": "System.InvalidOperationException",
+    "message": "Node commitments changed since review: rows=21/21 changed=1 first=\"0x9a28642bed115105c07bea1131c56c83ae2843ce4daf07958ab36437c0528a6b\" mask=1 expected=[\"stopped\",true,8192,false,false,false] actual=[[\"fenced-unallocated-retry\"],true,8192,false,false,false]"
+  },
+  "originalVmsUnchanged": true,
+  "oldDefinitionRecordsUnchanged": true,
+  "controller": {
+    "schema": "owned-rpc-target-definition/1",
+    "passed": false,
+    "operation": "preparation-check",
+    "plan": "4657a2442176cac1e2461056c14c77053c288042840a553304ad76d2d87f667c",
+    "result": null,
+    "origin": 750310117,
+    "deadline": 750340117,
+    "elapsedMs": 7750,
+    "root": "C:\\EnclaveRpcDefinition-f0155374b4744102a51890a69de4b5c6\\f0155374b4744102a51890a69de4b5c6",
+    "freeBytes": 84752982016,
+    "requiredFreeBytes": 62709039104,
+    "failures": [
+      "InvalidOperationException: Exact role completion failed"
+    ],
+    "startAuthorized": false,
+    "reservationMayRelease": false
+  },
+  "nativePreparationReached": false,
+  "definitionMutationSubmitted": false,
+  "providerOperationFenced": false,
+  "reservationMayRelease": false,
+  "rpcReady": false,
+  "rawSha256": "1fab66f80c33f32d99c36a55b7ec4a31bdba46112384cbe04fa6ca8d8c114db6",
+  "statusExplanation": "fenced-unallocated-retry is a normalized equality-receipt category for unallocated failed/claiming states, not a raw runtime status; expected status stopped differs."
+}
