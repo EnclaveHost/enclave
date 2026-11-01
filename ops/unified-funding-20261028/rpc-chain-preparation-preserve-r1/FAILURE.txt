@@ -1,0 +1,9 @@
+
+scan-crypto-keys: REFUSED - 1 cryptocurrency private key(s) in the staged changes
+  [eth-key] ops/unified-funding-20261028/rpc-chain-private-media-stage-r1/PARSER-PROVENANCE.json:2: 96816d…490c  hex private key assigned to a key/secret field
+
+A committed key is public the moment it is pushed and cannot be un-published,
+only rotated. Remove it from the commit (git reset / rebase) and move the
+secret to metal/config.json, a .env file or the deployment secrets store.
+Confirmed false positive? Re-run with --no-verify.
+pre-commit: COMMIT REFUSED (confirmed false positive: git commit --no-verify)

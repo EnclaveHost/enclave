@@ -1,0 +1,1 @@
+Normal secret-scanner refused a public parser-source digest whose JSON key was a pathname containing private-media. Independently recomputed every parser-provenance path digest. Public manifest exported as explicit path/sha256 records with rawmanifest hash. Actual execution inputs/receipts unchanged, no bypass, no rerun native/tests/staging.

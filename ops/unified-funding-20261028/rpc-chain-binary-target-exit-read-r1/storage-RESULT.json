@@ -1,0 +1,114 @@
+{
+  "at": 1793493481.5353432,
+  "readOnly": true,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 614,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "success": true,
+    "atUtc": "2026-11-01T00:38:01.4525739Z",
+    "priorExactProcesses": [
+      {
+        "expectedCreation": "134379669504007904",
+        "pid": 41544,
+        "exactPresent": false,
+        "actualCreation": null
+      },
+      {
+        "expectedCreation": "134379669703184426",
+        "pid": 36920,
+        "exactPresent": false,
+        "actualCreation": null
+      },
+      {
+        "expectedCreation": "134379669927805216",
+        "pid": 54816,
+        "exactPresent": false,
+        "actualCreation": null
+      }
+    ],
+    "root": "C:\\EnclaveRpcTransition-c21fb012a73e4730aeef0360e7f4be19\\c21fb012a73e4730aeef0360e7f4be19",
+    "files": [
+      {
+        "sha256": "e8f5624e9109bf7ae22a7c3f4bd0bf6089747c25095fb450865e75807e633394",
+        "name": "cleanup-controller.exe",
+        "bytes": 257024,
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:PAI(A;;FA;;;SY)(A;;FA;;;BA)"
+      },
+      {
+        "sha256": "b2a54e2f10a2c84c3c359fda4657676fdbab4933fb0f5ce525d6437c971cb2da",
+        "name": "definition-controller.exe",
+        "bytes": 257024,
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:PAI(A;;FA;;;SY)(A;;FA;;;BA)"
+      },
+      {
+        "sha256": "46511864f38953d8a57287892f2eaef601940ce144a9f656ca60aa42bd988c07",
+        "name": "definition-entry.exe",
+        "bytes": 257024,
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:PAI(A;;FA;;;SY)(A;;FA;;;BA)"
+      },
+      {
+        "sha256": "76701f93d0c67f36f4074979e84a020fea8e506c7060ee1758b7411d2b5412a8",
+        "name": "provider-entry.exe",
+        "bytes": 257024,
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:PAI(A;;FA;;;SY)(A;;FA;;;BA)"
+      },
+      {
+        "sha256": "a73090235be3a6b2e7bd91828365ae68f4cef91f0e730511944257f53b5eb3df",
+        "name": "startup-controller.exe",
+        "bytes": 257024,
+        "sddl": "O:BAG:S-1-5-21-2537925762-761743183-266136738-513D:PAI(A;;FA;;;SY)(A;;FA;;;BA)"
+      }
+    ],
+    "stagedProcesses": [],
+    "managers": [
+      {
+        "pid": 41272,
+        "alive": true,
+        "creation": "134375630850989593"
+      },
+      {
+        "pid": 40360,
+        "alive": true,
+        "creation": "134375630828500376"
+      },
+      {
+        "pid": 41308,
+        "alive": true,
+        "creation": "134375617394407059"
+      },
+      {
+        "pid": 38076,
+        "alive": true,
+        "creation": "134375086385617521"
+      }
+    ],
+    "vms": [
+      {
+        "Id": "28ca7b93-350b-4385-844e-89c8100fbdf9",
+        "State": 2,
+        "MemoryAssigned": 2732589056
+      },
+      {
+        "Id": "1ca457d6-17bf-47fa-ad26-72770d74e08b",
+        "State": 2,
+        "MemoryAssigned": 536870912
+      },
+      {
+        "Id": "dd8df95d-b771-4545-a861-0092e74a40f3",
+        "State": 2,
+        "MemoryAssigned": 8589934592
+      },
+      {
+        "Id": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
+        "State": 2,
+        "MemoryAssigned": 4294967296
+      }
+    ],
+    "readOnly": true,
+    "executed": false,
+    "rpcReady": false
+  }
+}

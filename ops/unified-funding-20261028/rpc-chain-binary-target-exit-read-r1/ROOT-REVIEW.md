@@ -1,0 +1,1 @@
+Read-only exact prior admission/create/verify incarnations from actual receipts; no signal/kill, no native executable execution. Five new83f6793 artifacts held/hash/ACL checked, exact original managers and VM inventory. Fresh Wardenpending-aware384allowance+27648floor. Local transport exit not remote reader death proof.

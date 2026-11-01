@@ -1,0 +1,1 @@
+Create invocation80a9fe9c1f4c43b98a5d0f940e76b60f used new chain run.py and exclusive c21fb namespace, but retained historical unit label. It did not rerun the old command/source/namespace. It exited0/Main0. Subsequent commands now have distinct chain unit labels; CREATE-PINS preserves initial manifest. Runtime code/spec/artifact pins unchanged. No repeated create.

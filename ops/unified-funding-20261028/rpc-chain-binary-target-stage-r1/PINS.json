@@ -1,0 +1,73 @@
+{
+  "rawManifestSha256": "c0afd2335837daef8db248481643dc6c157da2bc6ef49f9c01d2930d6fdcecce",
+  "records": [
+    {
+      "path": "ARTIFACTS.json",
+      "sha256": "a9bfaa7b2bc5734e4fba667c442911dd3a07ad94267c29c17bf790310950ac59"
+    },
+    {
+      "path": "BINARY-BINDINGS.json",
+      "sha256": "9e40164bc50573e8a99c255d6e16e1acd77548bad31a13a56af1f1af29d5ad4e"
+    },
+    {
+      "path": "FILES.json",
+      "sha256": "4fca3752ae57b9617609b621f34838c2b21fa074b754a6237e7ed2951050b6a6"
+    },
+    {
+      "path": "ROOT-REVIEW.md",
+      "sha256": "82b0ecddbd1c197a820b029aedaf5019a4a18685363e7360e91d20e51840cd65"
+    },
+    {
+      "path": "SPEC.json",
+      "sha256": "2942687f72ac5074344c500f17be0f90a48721c6e999b40d98d01b394529f23a"
+    },
+    {
+      "path": "bundle/cleanup-controller.exe",
+      "sha256": "e8f5624e9109bf7ae22a7c3f4bd0bf6089747c25095fb450865e75807e633394"
+    },
+    {
+      "path": "bundle/definition-controller.exe",
+      "sha256": "b2a54e2f10a2c84c3c359fda4657676fdbab4933fb0f5ce525d6437c971cb2da"
+    },
+    {
+      "path": "bundle/definition-entry.exe",
+      "sha256": "46511864f38953d8a57287892f2eaef601940ce144a9f656ca60aa42bd988c07"
+    },
+    {
+      "path": "bundle/provider-entry.exe",
+      "sha256": "76701f93d0c67f36f4074979e84a020fea8e506c7060ee1758b7411d2b5412a8"
+    },
+    {
+      "path": "bundle/startup-controller.exe",
+      "sha256": "a73090235be3a6b2e7bd91828365ae68f4cef91f0e730511944257f53b5eb3df"
+    },
+    {
+      "path": "capture_local.py",
+      "sha256": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c"
+    },
+    {
+      "path": "create-COMMAND.json",
+      "sha256": "ad129b4b34fc11739876528b1f4fee6c43b30b27da059c69aa7cc9439866b1fa"
+    },
+    {
+      "path": "create.ps1",
+      "sha256": "36e2590e2020ff1104946f56b4b28478254a2a913c6ce812f1e2f41d72624314"
+    },
+    {
+      "path": "run.py",
+      "sha256": "3384d785bd37462153f1a25b4481a00c25de97561687ab02c0c67913c658f0cb"
+    },
+    {
+      "path": "stage-COMMAND.json",
+      "sha256": "d51d761c6535a6050efe296785feac246a44b3c1ac8b136794dec4b9df33c126"
+    },
+    {
+      "path": "verify-COMMAND.json",
+      "sha256": "41fd95015e00d13d9a99f55d4ea54d051d1fdede71432e1705958b10cf920734"
+    },
+    {
+      "path": "verify.ps1",
+      "sha256": "9bb0572f128302ca44267111ff4478f02c47dae62574cc5c48dec1704c41fce5"
+    }
+  ]
+}

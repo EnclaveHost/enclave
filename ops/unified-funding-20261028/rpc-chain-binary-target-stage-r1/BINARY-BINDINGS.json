@@ -1,0 +1,46 @@
+{
+  "cut-seed": {
+    "controller": {
+      "path": "C:\\EnclaveRpcTransition-2716589b77df4ba7b3a2a3b34d9ceb21\\2716589b77df4ba7b3a2a3b34d9ceb21\\handoff-controller.exe",
+      "sha256": "0fc47781f75b22e6677d319a52950f05989d6f173dc2c5362e00491eb4527b1c"
+    },
+    "entry": {
+      "path": "C:\\EnclaveRpcTransition-2716589b77df4ba7b3a2a3b34d9ceb21\\2716589b77df4ba7b3a2a3b34d9ceb21\\handoff-entry.exe",
+      "sha256": "5d52a5e22f48d17465274048a805b1d412c1a24e68f1062351b21406afa47fa2"
+    }
+  },
+  "define": {
+    "controller": {
+      "path": "C:\\EnclaveRpcTransition-c21fb012a73e4730aeef0360e7f4be19\\c21fb012a73e4730aeef0360e7f4be19\\definition-controller.exe",
+      "sha256": "b2a54e2f10a2c84c3c359fda4657676fdbab4933fb0f5ce525d6437c971cb2da"
+    },
+    "entry": {
+      "path": "C:\\EnclaveRpcTransition-c21fb012a73e4730aeef0360e7f4be19\\c21fb012a73e4730aeef0360e7f4be19\\definition-entry.exe",
+      "sha256": "46511864f38953d8a57287892f2eaef601940ce144a9f656ca60aa42bd988c07"
+    }
+  },
+  "boot": {
+    "controller": {
+      "path": "C:\\EnclaveRpcTransition-c21fb012a73e4730aeef0360e7f4be19\\c21fb012a73e4730aeef0360e7f4be19\\definition-controller.exe",
+      "sha256": "b2a54e2f10a2c84c3c359fda4657676fdbab4933fb0f5ce525d6437c971cb2da"
+    },
+    "entry": {
+      "path": "C:\\EnclaveRpcTransition-c21fb012a73e4730aeef0360e7f4be19\\c21fb012a73e4730aeef0360e7f4be19\\definition-entry.exe",
+      "sha256": "46511864f38953d8a57287892f2eaef601940ce144a9f656ca60aa42bd988c07"
+    }
+  },
+  "start-once": {
+    "controller": {
+      "path": "C:\\EnclaveRpcTransition-c21fb012a73e4730aeef0360e7f4be19\\c21fb012a73e4730aeef0360e7f4be19\\startup-controller.exe",
+      "sha256": "a73090235be3a6b2e7bd91828365ae68f4cef91f0e730511944257f53b5eb3df"
+    },
+    "entry": {
+      "path": "C:\\EnclaveRpcTransition-c21fb012a73e4730aeef0360e7f4be19\\c21fb012a73e4730aeef0360e7f4be19\\provider-entry.exe",
+      "sha256": "76701f93d0c67f36f4074979e84a020fea8e506c7060ee1758b7411d2b5412a8"
+    },
+    "cleanup": {
+      "path": "C:\\EnclaveRpcTransition-c21fb012a73e4730aeef0360e7f4be19\\c21fb012a73e4730aeef0360e7f4be19\\cleanup-controller.exe",
+      "sha256": "e8f5624e9109bf7ae22a7c3f4bd0bf6089747c25095fb450865e75807e633394"
+    }
+  }
+}

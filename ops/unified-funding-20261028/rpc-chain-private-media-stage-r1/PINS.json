@@ -1,0 +1,53 @@
+{
+  "rawManifestSha256": "2b14b61c7e8819148813d8d761dec7df6625dc0a23b7544a1582e5e8f47a9fca",
+  "records": [
+    {
+      "path": "PARSER-PROVENANCE.json",
+      "sha256": "237f8297852a1ccab732be8acc5794a4b669329b143377bdc142552e2734a841"
+    },
+    {
+      "path": "ROOT-REVIEW.md",
+      "sha256": "c455aa3f60256d66cf88d47a84eca0fb6a38884dece5f42bf8c351152fddd5c9"
+    },
+    {
+      "path": "SPEC.json",
+      "sha256": "b4d3b6c253e0953731f7cc8ef5d7be342657e4bf7be81724bc1680ffd5be2494"
+    },
+    {
+      "path": "capture_local.py",
+      "sha256": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c"
+    },
+    {
+      "path": "copy-media-COMMAND.json",
+      "sha256": "7d768a22595fc10b924d6ac0c66ec54cf637372704ea9ec27a890d1f319f3a02"
+    },
+    {
+      "path": "copy-probe-COMMAND.json",
+      "sha256": "e8ee83f7ccf4250ac58daf9058e2f65ba1fda2c69810d320fa328670a97d4aea"
+    },
+    {
+      "path": "create-COMMAND.json",
+      "sha256": "9d75f8a454059cc9585cd4e9b25f59711cbcce7878f2468e535668c81b6308f8"
+    },
+    {
+      "path": "probe-COMMAND.json",
+      "sha256": "a4bcf5678d43041be9420b27e526544b7340fabf8d83a4a4280d3b67e6d0f0e2"
+    },
+    {
+      "path": "run.py",
+      "sha256": "c32a2b713a7a230b3b4e38d213c39703f098988e9f4ea759804f2c9a85fb50aa"
+    },
+    {
+      "path": "ssh-config",
+      "sha256": "10e5e26b8e9539c76b8b43e88348eeb07033f1b2476dad1aba528e3710654888"
+    },
+    {
+      "path": "stage-private-media.ps1",
+      "sha256": "96816dffdfe151bbaf4ced73d5ea4f66b1ea9ef19530b9c97c02a841b751490c"
+    },
+    {
+      "path": "verify-COMMAND.json",
+      "sha256": "fc03c2a39285f060ed01693678e15dfaa2cafb10fd9981e55752e20b2aacfe33"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "sourcePins": 154,
+  "localAdmission": {
+    "authenticated": true,
+    "availableMiB": 92934,
+    "pendingMiB": 718,
+    "floorMiB": 18432,
+    "unreadUnits": 0
+  },
+  "templateSha256": "186c4af5c1ef9045d45dfc01da695e8993915a5fb9a6bc79945e5489b31a59e1",
+  "originalsUnchanged": true,
+  "privateCredentialsMetadataOnly": true,
+  "productionClockBegun": false,
+  "nativeExecuted": false
+}

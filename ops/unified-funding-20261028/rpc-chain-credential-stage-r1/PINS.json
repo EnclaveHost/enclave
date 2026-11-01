@@ -1,0 +1,21 @@
+{
+  "rawManifestSha256": "5709e975367c5589d02dd8c7a2fee30374f440730489798716e617abd07c9709",
+  "records": [
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-chain-credential-stage-r1/run.py",
+      "sha256": "754cea4c291408a78d5564abafd2eac4dc39bfed994d5e4bed6a6eaa64faeeaa"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-chain-credential-stage-r1/read_remote.py",
+      "sha256": "30b2e8fdc23558e3562f3f40dc9a48a34a2141e451df4d038e2221fc45783212"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-chain-credential-stage-r1/SPEC.json",
+      "sha256": "cd55b8fbd1890b86098ba3fcc7097b9c9caa276ac1e2aade6feb0650dae17cd7"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-chain-credential-stage-r1/SSH.json",
+      "sha256": "0574c7d96d7cd5f60d64c86c4a0de321785319bf9aad8eadf9221729ce6db20e"
+    }
+  ]
+}

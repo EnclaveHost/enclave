@@ -1,0 +1,58 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 1.0326596880331635,
+  "bytesObserved": {
+    "stdout": 851,
+    "stderr": 222
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false,
+  "at": 1793493393.3136013,
+  "phase": "verify",
+  "success": true,
+  "noRetry": true,
+  "vmChanged": false,
+  "observation": {
+    "processId": 54816,
+    "creationFileTime": "134379669927805216",
+    "verified": true,
+    "root": "C:\\EnclaveRpcTransition-c21fb012a73e4730aeef0360e7f4be19\\c21fb012a73e4730aeef0360e7f4be19",
+    "files": [
+      {
+        "sha256": "e8f5624e9109bf7ae22a7c3f4bd0bf6089747c25095fb450865e75807e633394",
+        "name": "cleanup-controller.exe",
+        "bytes": 257024
+      },
+      {
+        "sha256": "b2a54e2f10a2c84c3c359fda4657676fdbab4933fb0f5ce525d6437c971cb2da",
+        "name": "definition-controller.exe",
+        "bytes": 257024
+      },
+      {
+        "sha256": "46511864f38953d8a57287892f2eaef601940ce144a9f656ca60aa42bd988c07",
+        "name": "definition-entry.exe",
+        "bytes": 257024
+      },
+      {
+        "sha256": "76701f93d0c67f36f4074979e84a020fea8e506c7060ee1758b7411d2b5412a8",
+        "name": "provider-entry.exe",
+        "bytes": 257024
+      },
+      {
+        "sha256": "a73090235be3a6b2e7bd91828365ae68f4cef91f0e730511944257f53b5eb3df",
+        "name": "startup-controller.exe",
+        "bytes": 257024
+      }
+    ],
+    "executed": false,
+    "nativeAttempted": false
+  }
+}

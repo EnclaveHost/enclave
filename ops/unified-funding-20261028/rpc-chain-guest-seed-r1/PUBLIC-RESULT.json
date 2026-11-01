@@ -1,0 +1,17 @@
+{
+  "publicCredentialReceiptSha256": "bee24e1483e3edd86b0d5a41eb2b0e33402b5faf42736e81726d32981e680b25",
+  "schemaExit": 0,
+  "seconds": 4.215753511060029,
+  "invocation": "1464d91f81f4417cab80c90582f369c3",
+  "pid": 331715,
+  "processStart": "74886713",
+  "sourcePins": {
+    "prepare_seed.py": "a6ffc88230f6b8db4aa98eadf4f8352b0ac9a35ad077a299c831276255a5ce51",
+    "credentials.py": "b02baf0cbf2b71fed1caded598381c59763dd885c1867b6ea2e69bc009508158"
+  },
+  "rc": 0,
+  "seedBytes": 13236224,
+  "seedSha256": "6e2121dbcdb28e6cb3a5caac387b4cbd87d993040fb30ca69535b36d0d164560",
+  "recordCount": 40,
+  "privateArtifactsExcluded": true
+}

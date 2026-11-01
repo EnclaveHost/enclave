@@ -1,0 +1,126 @@
+{
+  "at": 1793493359.068226,
+  "rc": 0,
+  "failure": null,
+  "bootNative": "1a04e76600e411f1a395e342df676a80",
+  "physicalBefore": {
+    "vms": [
+      {
+        "Id": "28ca7b93-350b-4385-844e-89c8100fbdf9",
+        "Name": "enclave-app-hv46283c5cd4960a-10c44a8a",
+        "State": 2,
+        "MemoryAssigned": 2732589056,
+        "MemoryStartup": 2732589056,
+        "DynamicMemoryEnabled": false
+      },
+      {
+        "Id": "1ca457d6-17bf-47fa-ad26-72770d74e08b",
+        "Name": "enclave-app-hv4c2e5185d0e5b8-a79db30f",
+        "State": 2,
+        "MemoryAssigned": 536870912,
+        "MemoryStartup": 536870912,
+        "DynamicMemoryEnabled": false
+      },
+      {
+        "Id": "dd8df95d-b771-4545-a861-0092e74a40f3",
+        "Name": "enclave-control",
+        "State": 2,
+        "MemoryAssigned": 8589934592,
+        "MemoryStartup": 8589934592,
+        "DynamicMemoryEnabled": false
+      },
+      {
+        "Id": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
+        "Name": "enclave-storage",
+        "State": 2,
+        "MemoryAssigned": 4294967296,
+        "MemoryStartup": 4294967296,
+        "DynamicMemoryEnabled": false
+      }
+    ],
+    "filesystem": "NTFS",
+    "physicalBytes": 120070115328,
+    "monotonicMilliseconds": 749190231,
+    "boot": "2026-10-23T08:29:16.5000000Z",
+    "atUtc": "2026-11-01T00:35:52.0622546Z",
+    "freeBytes": 84778577920,
+    "diskFreeBytes": 151759065088
+  },
+  "physicalAfter": {
+    "vms": [
+      {
+        "Id": "28ca7b93-350b-4385-844e-89c8100fbdf9",
+        "Name": "enclave-app-hv46283c5cd4960a-10c44a8a",
+        "State": 2,
+        "MemoryAssigned": 2732589056,
+        "MemoryStartup": 2732589056,
+        "DynamicMemoryEnabled": false
+      },
+      {
+        "Id": "1ca457d6-17bf-47fa-ad26-72770d74e08b",
+        "Name": "enclave-app-hv4c2e5185d0e5b8-a79db30f",
+        "State": 2,
+        "MemoryAssigned": 536870912,
+        "MemoryStartup": 536870912,
+        "DynamicMemoryEnabled": false
+      },
+      {
+        "Id": "dd8df95d-b771-4545-a861-0092e74a40f3",
+        "Name": "enclave-control",
+        "State": 2,
+        "MemoryAssigned": 8589934592,
+        "MemoryStartup": 8589934592,
+        "DynamicMemoryEnabled": false
+      },
+      {
+        "Id": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
+        "Name": "enclave-storage",
+        "State": 2,
+        "MemoryAssigned": 4294967296,
+        "MemoryStartup": 4294967296,
+        "DynamicMemoryEnabled": false
+      }
+    ],
+    "filesystem": "NTFS",
+    "physicalBytes": 120070115328,
+    "monotonicMilliseconds": 749197014,
+    "boot": "2026-10-23T08:29:16.5000000Z",
+    "atUtc": "2026-11-01T00:35:58.8383643Z",
+    "freeBytes": 84778496000,
+    "diskFreeBytes": 151756832768
+  },
+  "nativeManagers": [
+    {
+      "pid": 41272,
+      "alive": true,
+      "image": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
+      "creationFileTime": "134375630850989593"
+    },
+    {
+      "pid": 40360,
+      "alive": true,
+      "image": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
+      "creationFileTime": "134375630828500376"
+    },
+    {
+      "pid": 41308,
+      "alive": true,
+      "image": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
+      "creationFileTime": "134375617394407059"
+    },
+    {
+      "pid": 38076,
+      "alive": true,
+      "image": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe",
+      "creationFileTime": "134375086385617521"
+    }
+  ],
+  "processId": 41544,
+  "creationFileTime": "134379669504007904",
+  "completeTransport": true,
+  "managerErrors": [],
+  "listenersUnchanged": true,
+  "nodeExit": 0,
+  "capacityAdmitted": false,
+  "rawSha256": "c0e70fa486fb1df721681eeb72640e914056a6d7b1d2ca360a3597c56284078a"
+}

@@ -1,0 +1,27 @@
+[
+  {
+    "name": "cleanup-controller.exe",
+    "bytes": 257024,
+    "sha256": "e8f5624e9109bf7ae22a7c3f4bd0bf6089747c25095fb450865e75807e633394"
+  },
+  {
+    "name": "definition-controller.exe",
+    "bytes": 257024,
+    "sha256": "b2a54e2f10a2c84c3c359fda4657676fdbab4933fb0f5ce525d6437c971cb2da"
+  },
+  {
+    "name": "definition-entry.exe",
+    "bytes": 257024,
+    "sha256": "46511864f38953d8a57287892f2eaef601940ce144a9f656ca60aa42bd988c07"
+  },
+  {
+    "name": "provider-entry.exe",
+    "bytes": 257024,
+    "sha256": "76701f93d0c67f36f4074979e84a020fea8e506c7060ee1758b7411d2b5412a8"
+  },
+  {
+    "name": "startup-controller.exe",
+    "bytes": 257024,
+    "sha256": "a73090235be3a6b2e7bd91828365ae68f4cef91f0e730511944257f53b5eb3df"
+  }
+]

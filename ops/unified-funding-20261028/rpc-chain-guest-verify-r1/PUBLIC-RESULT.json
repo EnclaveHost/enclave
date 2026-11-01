@@ -1,0 +1,47 @@
+{
+  "rc": 0,
+  "readOnly": true,
+  "observation": {
+    "seedSha256": "6e2121dbcdb28e6cb3a5caac387b4cbd87d993040fb30ca69535b36d0d164560",
+    "seedBytes": 13236224,
+    "verifiedFiles": 40,
+    "pythonSyntaxChecks": 7,
+    "keyPairsVerified": true,
+    "privateModesVerified": true,
+    "guestSchemaSha256": "e9bff937d90de84570eda8728f8a127b59a6d5f4ef84b6c358230dc137b33f49",
+    "guestSchemaErrors": [],
+    "rootImageMetadataUnchanged": true,
+    "rootImageMetadata": [
+      2049,
+      1844165,
+      2683289088,
+      1793439718452561646,
+      1793439718452561646
+    ],
+    "firstBootExecuted": false,
+    "storageAttached": false,
+    "clientsStarted": false,
+    "invocation": "070d22bc438a419690dcef8e358aa8f0",
+    "pid": 331818,
+    "processStart": "74888385",
+    "priorExactDeaths": [
+      {
+        "pid": 331715,
+        "expectedStart": "74886713",
+        "actualStart": null,
+        "unit": "enclave-rpc-chain-guest-seed-r1-20261101.service",
+        "completedInvocation": "1464d91f81f4417cab80c90582f369c3",
+        "state": "MainPID=0\nExecMainStatus=0\nActiveState=inactive\nInvocationID=\n"
+      },
+      {
+        "pid": 331657,
+        "expectedStart": "74885604",
+        "actualStart": null,
+        "unit": "enclave-rpc-chain-guest-admission-r1-20261101.service",
+        "completedInvocation": "5d447cf8c7ba4cab9aa3dbd79269f522",
+        "state": "MainPID=0\nExecMainStatus=0\nActiveState=inactive\nInvocationID=\n"
+      }
+    ]
+  },
+  "rawResultSha256": "c9dfa66c100ae88896780cd5985bde05ea3d09bc228b7d75dffd36fc55647341"
+}

@@ -1,0 +1,1 @@
+Fresh read-only Control capacity/tool/archive/boot and new exclusive root absence. Independent30s128MiB/CPU1/noSwap systemunit; local pending-aware27648floor+384 allowance. Exact small archive/tool pins only, no full blockchain scan. No identity/VM/provider/export/clock yet.

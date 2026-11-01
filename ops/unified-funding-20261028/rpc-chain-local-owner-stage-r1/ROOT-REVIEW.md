@@ -1,0 +1,1 @@
+Stage current14 maintained guest-owner source files, exact new seed/credential identity and new VM namespace, prior verified common boot image, ordinary local SSHkey stat-only/publickeymatch. Private0700/0600/exclusive/fsync, no guest call/newclock/VM/export. Existing pending-aware384MiB/floor27648/CPU1/noSwap. Independent source/receipt hashes checked.

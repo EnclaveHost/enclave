@@ -1,0 +1,38 @@
+{
+  "rc": 0,
+  "readOnly": true,
+  "observation": {
+    "atUtcNs": 1793493131393335769,
+    "boot": "b39ecfe2-82b2-4c2a-a596-a52630bb59fd",
+    "uid": 1000,
+    "pid": 331657,
+    "start": "74885604",
+    "invocation": "5d447cf8c7ba4cab9aa3dbd79269f522",
+    "memory": {
+      "MemTotal": 8326328320,
+      "MemAvailable": 7275098112
+    },
+    "diskFreeBytes": 99510452224,
+    "files": {
+      "/home/controladmin/rpc-storage-client-package-20261031-r3/storage-client.tar": {
+        "bytes": 9574400,
+        "sha256": "64222d5433f24a6d32adf0a84031c1d844aaaca534bf162227657475f494ae9c"
+      },
+      "/home/controladmin/rpc-media-tools-20261031-r1/tools/usr/bin/xorriso": {
+        "bytes": 14488,
+        "sha256": "c66a5be11a674e97ed8983af520eae8fad900b47d104c92bc63e5cf254391922"
+      },
+      "/usr/bin/openssl": {
+        "bytes": 1005368,
+        "sha256": "b4f547c0f16272d1cc7f870330a6f2c243710c335e7a99c734ff7a0c6fdb2503"
+      },
+      "/usr/bin/ssh-keygen": {
+        "bytes": 453056,
+        "sha256": "f0b9e19ffa077d62ef6795a44d50c721f03456067a874395e015ec69c276dca6"
+      }
+    },
+    "newRootAbsent": true,
+    "readOnly": true
+  },
+  "rawResultSha256": "5c62dd7fca3cd21ea691abe0f4d935fe2d39cfde399d34bf32c69f6f6f4872cd"
+}

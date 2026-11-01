@@ -1,0 +1,25 @@
+{
+  "rawManifestSha256": "49e5277ac65f32c78f8b5383e3bcd0fff65c03734168db9cad136186d965c5c2",
+  "records": [
+    {
+      "path": "COMMAND.json",
+      "sha256": "88ddec5758a625586b2c2606ae6348abedabf10bbd9ead622fb9a29c9340b178"
+    },
+    {
+      "path": "ROOT-REVIEW.md",
+      "sha256": "b4c49262cb442286f0b3b07dc1cb05a3796f0852c8a15f329eff150a5e13ffda"
+    },
+    {
+      "path": "admit.py",
+      "sha256": "7fcada90860fd1441c8e566c4e4fc90c0afda84ef4b64807149f807228e17ec0"
+    },
+    {
+      "path": "run.py",
+      "sha256": "77482c724056f11583008cca6d60c9c2a4b054d1d966e4aae4bff15c08bec506"
+    },
+    {
+      "path": "storage-read.ps1",
+      "sha256": "ab3a0df8ffd9018051fde61eb891896cefef4eb7bc4a206f3738f4bfd48c9a96"
+    }
+  ]
+}

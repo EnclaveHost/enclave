@@ -1,0 +1,1 @@
+New bounded read for third-attempt target staging. Original reviewed reader unchanged; no VM/provider mutation. Pending-aware Warden384MiB allowance and27648MiB floor. Windows current identities/native boot/manager/pending data read. Historical media check is corroboration only, not launch selection. No production clock or retry.
