@@ -1,0 +1,17 @@
+[package]
+name = "enclave-rpc-preview"
+version = "0.0.1"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wasi = "=0.13.3"
+
+[profile.release]
+opt-level = "s"
+lto = false
+strip = true
+codegen-units = 1

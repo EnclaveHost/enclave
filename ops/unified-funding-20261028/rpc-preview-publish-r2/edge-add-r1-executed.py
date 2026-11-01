@@ -1,0 +1,49 @@
+import sys,json,os,pathlib,hashlib,base64,http.client,socket,subprocess,stat
+v=json.load(sys.stdin);sha=lambda b:hashlib.sha256(b).hexdigest()
+assert len(v['verifiedObjects'])==3
+root=pathlib.Path('/opt/enclave-rpc-preview-0.0.1');op=pathlib.Path('/var/lib/enclave-rpc-preview-artifacts-r1')
+assert not root.exists() and not op.exists()
+assert next(int(x.split()[1]) for x in pathlib.Path('/proc/meminfo').read_text().splitlines() if x.startswith('MemAvailable:'))>262144
+assert os.statvfs('/opt').f_bavail*os.statvfs('/opt').f_frsize>1073741824
+cfg=pathlib.Path('/etc/enclave-bootstrap-tls/Caddyfile');before=cfg.read_bytes();assert not cfg.is_symlink()
+class U(http.client.HTTPConnection):
+ def connect(self):
+  self.sock=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM);self.sock.settimeout(15);self.sock.connect('/run/enclave-bootstrap-tls/admin.sock')
+def api(method='GET',body=None,etag=None):
+ c=U('localhost');h={'Content-Type':'application/json'}
+ if etag:h['If-Match']=etag
+ try:
+  c.request(method,'/config/',None if body is None else json.dumps(body),h);r=c.getresponse();data=r.read(2000001);assert r.status==200 and len(data)<=2000000
+  return (json.loads(data) if data else None),r.getheader('ETag')
+ finally:c.close()
+def save(p,b,mode=0o600):
+ with p.open('xb') as f:f.write(b);f.flush();os.fsync(f.fileno())
+ os.chmod(p,mode)
+exe='/usr/local/lib/enclave-caddy/caddy'
+def adapt(p):
+ r=subprocess.run([exe,'adapt','--config',str(p),'--adapter','caddyfile'],capture_output=True,timeout=12);assert r.returncode==0,r.stderr.decode();return json.loads(r.stdout)
+live,etag=api();assert adapt(cfg)==live and etag
+root.mkdir(mode=0o755);op.mkdir(mode=0o700)
+save(op/'before.Caddyfile',before);save(op/'before.json',json.dumps(live).encode())
+parts=['    # BEGIN RPC PREVIEW immutable public artifacts r1']
+for i,e in enumerate(v['verifiedObjects']):
+ cid=e['cid'];assert len(cid)==59 and cid.startswith('bafkrei') and all(c in 'abcdefghijklmnopqrstuvwxyz234567' for c in cid)
+ for ext,pin in [('bin','sha256'),('car','carSha256')]:
+  data=base64.b64decode(e[ext]);assert len(data)<200000 and sha(data)==e[pin];save(root/(cid+'.'+ext),data,0o644)
+ for kind,condition in [('car','query format=car'),('carAccept','header Accept *application/vnd.ipld.car*'),('raw','query format=raw'),('normal','')]:
+  ext='car' if kind in ['car','carAccept'] else 'bin';ct='application/vnd.ipld.car' if ext=='car' else ('application/vnd.ipld.raw' if kind=='raw' else e['contentType'])
+  parts.append('    @rpcPreview'+str(i)+kind+' {\n        path /ipfs/'+cid+'\n        method GET HEAD\n        '+condition+'\n    }\n    handle @rpcPreview'+str(i)+kind+' {\n        root * '+str(root)+'\n        rewrite * /'+cid+'.'+ext+'\n        header {\n            Content-Type '+ct+'\n            Access-Control-Allow-Origin *\n            Cache-Control "public, max-age=31536000, immutable"\n            Content-Security-Policy "default-src \'none\'; sandbox"\n        }\n        file_server\n    }')
+parts.append('    # END RPC PREVIEW immutable public artifacts r1')
+text=before.decode();anchor='    @siteBlockRaw {';assert text.count(anchor)==1 and 'BEGIN RPC PREVIEW' not in text
+candidate=text.replace(anchor,'\n'.join(parts)+'\n'+anchor).encode();save(op/'candidate.Caddyfile',candidate)
+after=adapt(op/'candidate.Caddyfile');save(op/'candidate.json',json.dumps(after).encode())
+r=subprocess.run([exe,'validate','--config',str(op/'candidate.json')],capture_output=True,timeout=15);assert r.returncode==0,r.stderr.decode()
+now,etag=api();assert now==live and cfg.read_bytes()==before and etag
+save(op/'intent.json',json.dumps({'beforeSha256':sha(before),'afterSha256':sha(candidate),'cids':[e['cid'] for e in v['verifiedObjects']],'etag':etag}).encode())
+api('PATCH',after,etag);assert api()[0]==after
+st=cfg.stat();tmp=cfg.with_name('Caddyfile.rpc-preview-r1.tmp');save(tmp,candidate,stat.S_IMODE(st.st_mode));os.chown(tmp,st.st_uid,st.st_gid)
+assert cfg.read_bytes()==before;os.replace(tmp,cfg)
+fd=os.open(cfg.parent,os.O_DIRECTORY|os.O_RDONLY);os.fsync(fd);os.close(fd)
+assert adapt(cfg)==api()[0]
+r={'ok':True,'files':6,'cids':[e['cid'] for e in v['verifiedObjects']],'beforeSha256':sha(before),'afterSha256':sha(candidate),'onlyChange':'three exact immutable artifact paths; all existing routes preserved'}
+save(op/'RESULT.json',json.dumps(r).encode());print(json.dumps(r))

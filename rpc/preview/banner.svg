@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="400" viewBox="0 0 1600 400" role="img" aria-label="Enclave RPC: Your chains. Your infrastructure. Preview, RPC not operational.">
+<defs><linearGradient id="bg"><stop stop-color="#08121f"/><stop offset="1" stop-color="#173c50"/></linearGradient><linearGradient id="mint"><stop stop-color="#6ce8bf"/><stop offset="1" stop-color="#7bbcff"/></linearGradient></defs>
+<rect width="1600" height="400" fill="url(#bg)"/>
+<g fill="none" stroke="#355165" opacity=".6"><circle cx="1320" cy="210" r="155"/><circle cx="1320" cy="210" r="225"/><circle cx="1320" cy="210" r="295"/><path d="M950 400L1600 80M1100 400L1600 160"/></g>
+<text x="80" y="76" fill="#b6cbdc" font-family="Arial,sans-serif" font-size="23" letter-spacing="6">ENCLAVE / RPC</text>
+<text x="76" y="171" fill="#f0f7ff" font-family="Arial,sans-serif" font-size="65" font-weight="700" letter-spacing="-2">Your chains.</text><text x="76" y="245" fill="#6ce8bf" font-family="Arial,sans-serif" font-size="65" font-weight="700" letter-spacing="-2">Your infrastructure.</text>
+<text x="80" y="332" fill="#afc3d5" font-family="Arial,sans-serif" font-size="22">ETHEREUM + BASE</text><text x="380" y="332" fill="#e9cb8e" font-family="Arial,sans-serif" font-size="20">PREVIEW · RPC NOT OPERATIONAL</text>
+<g transform="translate(1220 95)" stroke="url(#mint)" stroke-width="9" fill="#102a3b" stroke-linejoin="round"><path d="M100 0L200 58V174L100 232L0 174V58Z"/><path d="M0 58L100 116L200 58M100 116V232"/><circle cx="100" cy="116" r="18" fill="#70e2c5" stroke="#70e2c5"/></g></svg>

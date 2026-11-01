@@ -1,0 +1,1 @@
+Exact compiled preview hash; local HTTP GET/HEAD 200 and three non-page cases 503/rpcReady false; bwrap private loopback network, no external connectivity; 25s check and unchanged 512MiB/450RSS/floor pending limits. No production deployment.

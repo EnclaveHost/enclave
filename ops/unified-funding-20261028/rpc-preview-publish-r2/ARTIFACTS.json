@@ -1,0 +1,28 @@
+{
+  "verifiedObjects": [
+    {
+      "name": "logo.svg",
+      "cid": "bafkreibckyl555rgzuoxqfb54hmdubxeq6q3zrths7hhc2uu5f3ng43mze",
+      "bytes": 1627,
+      "sha256": "225617def626cd1d78143de1d83a06e487a1bcc66797ce716a94e976d3736cc9",
+      "carSha256": "3a7e7e06fafbdc0ab6c1355480a38b4c330fdc3e64d47d90ac3d4c8e167e060b",
+      "contentType": "image/svg+xml"
+    },
+    {
+      "name": "banner.svg",
+      "cid": "bafkreigk5wlaubssoere2f2v4gfjmyxvbob27wqzwcwc7gqq2xgpeex2ki",
+      "bytes": 1588,
+      "sha256": "caed960a065271224d1755e18a9662f50b83afda19b0ac2f9a10d5ccf212fa52",
+      "carSha256": "703b4057b51dbee6c7ced13e2d2431f7b4b18eb3b7b5aab94d31d595038b40d2",
+      "contentType": "image/svg+xml"
+    },
+    {
+      "name": "enclave_rpc_preview.wasm",
+      "cid": "bafkreihfuhawegupn5vzzs57ajwfjkqlpho5zskt67lgtdmk7v3rwj2vri",
+      "bytes": 100352,
+      "sha256": "e5a1c1621a8f6f6b9ccbbf026c54aa0b79dddcc953f7d6698d8afd771b27558a",
+      "carSha256": "f0e940333800e14c9d88eddb69daf1a8ac6744cee42017d919736ae6d511d937",
+      "contentType": "application/wasm"
+    }
+  ]
+}

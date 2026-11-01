@@ -1,0 +1,1 @@
+R3 failed WASI CLI linker before listen. R4 enables wasmtime CLI imports (-Scli), no inherited env/dir and no outbound requests in reviewed source. Same exact component/hash and bounded local HTTP checks, unchanged caps. Prior failures preserved.

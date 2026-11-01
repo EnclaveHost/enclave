@@ -1,0 +1,3 @@
+{
+  "text": "Error: component imports instance `wasi:cli/environment@0.2.12`, but a matching implementation was not found in the linker\n\nCaused by:\n    0: instance export `get-environment` has the wrong type\n    1: function implementation is missing\n\n"
+}

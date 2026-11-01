@@ -1,0 +1,1 @@
+R1/R2 private-loopback setup refused before server start. Preserve failures. R3 uses host loopback 127.0.0.1:22497 only, no guest/VM; inspected preview code has no outgoing requests or filesystem operations. Read-only root and same 512MiB/450RSS/CPU1/noSwap/pending-aware admission,25s check,5s stop. Exact artifact pinned.

@@ -1,0 +1,21 @@
+{
+  "published": true,
+  "rpcReady": false,
+  "appId": "0x0f628585d36c4272ae23c55b4f9ec6d5805f25e26d4744474710e46e4edbb537",
+  "url": "https://enclave.host/apps?app=0x0f628585d36c4272ae23c55b4f9ec6d5805f25e26d4744474710e46e4edbb537",
+  "tx": "0x27b491e437136e597046915f301684793b336a292f0b5a1cd8baf5429470f3c0",
+  "block": 53362069,
+  "wallet": "owner; explicitly authorized by user",
+  "sessionAppPublish": false,
+  "edgeReplicas": [
+    "us-west",
+    "ca-east"
+  ],
+  "edgeAdmissionRefusals": [
+    "ap-southeast",
+    "eu-central"
+  ],
+  "httpTests": 5,
+  "publisherFee": 0,
+  "fundedDeployment": false
+}

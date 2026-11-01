@@ -1,0 +1,2 @@
+Exact compiled preview hash; local HTTP GET/HEAD 200 and three non-page cases 503/rpcReady false; bwrap private loopback network, no external connectivity; 25s check and unchanged 512MiB/450RSS/floor pending limits. No production deployment.
+R1 refused setting private lo before server launch (no NET_ADMIN). R2 grants NET_ADMIN only inside the private user+network namespace. Same source and exact compiled artifact, same caps/deadline.
