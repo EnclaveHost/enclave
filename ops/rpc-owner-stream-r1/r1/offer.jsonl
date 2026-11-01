@@ -1,0 +1,20 @@
+{"Time":"2026-11-01T15:07:02.542345342-07:00","Action":"start","Package":"enclave.host/isolation/m2/bootstrap"}
+{"Time":"2026-11-01T15:07:02.547029572-07:00","Action":"run","Package":"enclave.host/isolation/m2/bootstrap","Test":"TestOwnerEndpointOfferUsesBothCommittedAuthoritiesAndExactScope"}
+{"Time":"2026-11-01T15:07:02.547078191-07:00","Action":"output","Package":"enclave.host/isolation/m2/bootstrap","Test":"TestOwnerEndpointOfferUsesBothCommittedAuthoritiesAndExactScope","Output":"=== RUN   TestOwnerEndpointOfferUsesBothCommittedAuthoritiesAndExactScope\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:07:02.547303669-07:00","Action":"output","Package":"enclave.host/isolation/m2/bootstrap","Test":"TestOwnerEndpointOfferUsesBothCommittedAuthoritiesAndExactScope","Output":"--- PASS: TestOwnerEndpointOfferUsesBothCommittedAuthoritiesAndExactScope (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:07:02.547323559-07:00","Action":"pass","Package":"enclave.host/isolation/m2/bootstrap","Test":"TestOwnerEndpointOfferUsesBothCommittedAuthoritiesAndExactScope","Elapsed":0}
+{"Time":"2026-11-01T15:07:02.547344018-07:00","Action":"run","Package":"enclave.host/isolation/m2/bootstrap","Test":"TestOwnerEndpointJSVectorMatchesGoPayload"}
+{"Time":"2026-11-01T15:07:02.547346688-07:00","Action":"output","Package":"enclave.host/isolation/m2/bootstrap","Test":"TestOwnerEndpointJSVectorMatchesGoPayload","Output":"=== RUN   TestOwnerEndpointJSVectorMatchesGoPayload\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:07:02.547571946-07:00","Action":"output","Package":"enclave.host/isolation/m2/bootstrap","Test":"TestOwnerEndpointJSVectorMatchesGoPayload","Output":"--- PASS: TestOwnerEndpointJSVectorMatchesGoPayload (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:07:02.548195879-07:00","Action":"pass","Package":"enclave.host/isolation/m2/bootstrap","Test":"TestOwnerEndpointJSVectorMatchesGoPayload","Elapsed":0}
+{"Time":"2026-11-01T15:07:02.548205859-07:00","Action":"run","Package":"enclave.host/isolation/m2/bootstrap","Test":"TestOwnerEndpointStreamJSVectorMatchesGoPayload"}
+{"Time":"2026-11-01T15:07:02.548208569-07:00","Action":"output","Package":"enclave.host/isolation/m2/bootstrap","Test":"TestOwnerEndpointStreamJSVectorMatchesGoPayload","Output":"=== RUN   TestOwnerEndpointStreamJSVectorMatchesGoPayload\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:07:02.548212499-07:00","Action":"output","Package":"enclave.host/isolation/m2/bootstrap","Test":"TestOwnerEndpointStreamJSVectorMatchesGoPayload","Output":"--- PASS: TestOwnerEndpointStreamJSVectorMatchesGoPayload (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:07:02.548214559-07:00","Action":"pass","Package":"enclave.host/isolation/m2/bootstrap","Test":"TestOwnerEndpointStreamJSVectorMatchesGoPayload","Elapsed":0}
+{"Time":"2026-11-01T15:07:02.548218119-07:00","Action":"run","Package":"enclave.host/isolation/m2/bootstrap","Test":"TestOwnerEndpointStreamProtocolCannotDowngrade"}
+{"Time":"2026-11-01T15:07:02.548219469-07:00","Action":"output","Package":"enclave.host/isolation/m2/bootstrap","Test":"TestOwnerEndpointStreamProtocolCannotDowngrade","Output":"=== RUN   TestOwnerEndpointStreamProtocolCannotDowngrade\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:07:02.548570335-07:00","Action":"output","Package":"enclave.host/isolation/m2/bootstrap","Test":"TestOwnerEndpointStreamProtocolCannotDowngrade","Output":"--- PASS: TestOwnerEndpointStreamProtocolCannotDowngrade (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:07:02.548582165-07:00","Action":"pass","Package":"enclave.host/isolation/m2/bootstrap","Test":"TestOwnerEndpointStreamProtocolCannotDowngrade","Elapsed":0}
+{"Time":"2026-11-01T15:07:02.548602575-07:00","Action":"output","Package":"enclave.host/isolation/m2/bootstrap","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:07:02.54909546-07:00","Action":"output","Package":"enclave.host/isolation/m2/bootstrap","Output":"ok  \tenclave.host/isolation/m2/bootstrap\t0.007s\n"}
+{"Time":"2026-11-01T15:07:02.54910453-07:00","Action":"pass","Package":"enclave.host/isolation/m2/bootstrap","Elapsed":0.007}

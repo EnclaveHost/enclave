@@ -160,9 +160,25 @@ func (s *BrokerSession) ExchangeAuthenticatedOwner(a *bootstrap.Authorization, b
 	if e != nil {
 		return nil, e
 	}
-	defer raw.Close()
+	retained := false
+	defer func() {
+		if !retained {
+			raw.Close()
+		}
+	}()
+	s.mu.Lock()
+	if s.ctx.Err() != nil {
+		s.mu.Unlock()
+		return nil, errors.New("owner connection lost before publication")
+	}
+	s.ownerRaw = raw
+	s.mu.Unlock()
 	stop := make(chan struct{})
-	defer close(stop)
+	defer func() {
+		if !retained {
+			close(stop)
+		}
+	}()
 	go func() {
 		select {
 		case <-s.ctx.Done():
@@ -193,7 +209,11 @@ func (s *BrokerSession) ExchangeAuthenticatedOwner(a *bootstrap.Authorization, b
 	}
 	dec := json.NewDecoder(bytes.NewReader(accepted))
 	dec.DisallowUnknownFields()
-	if dec.Decode(&ack) != nil || ack.Schema != "enclave-rpc-owner-bootstrap-accepted/1" || ack.RequestSHA256 != offer.RequestSHA256 || ack.CertificateSHA256 != offer.ClientCertificateSHA256 || ack.RootsGranted || ack.RPCReady {
+	ackSchema := "enclave-rpc-owner-bootstrap-accepted/1"
+	if offer.Schema == "enclave-rpc-owner-offer/2" {
+		ackSchema = "enclave-rpc-owner-bootstrap-accepted/2"
+	}
+	if dec.Decode(&ack) != nil || ack.Schema != ackSchema || ack.RequestSHA256 != offer.RequestSHA256 || ack.CertificateSHA256 != offer.ClientCertificateSHA256 || ack.RootsGranted || ack.RPCReady {
 		return nil, errors.New("owner acceptance binding differs")
 	}
 	canonicalAck, _ := json.Marshal(ack)
@@ -235,6 +255,21 @@ func (s *BrokerSession) ExchangeAuthenticatedOwner(a *bootstrap.Authorization, b
 		return nil, e
 	}
 	receipt.Close()
+	if offer.Schema == "enclave-rpc-owner-offer/2" {
+		if e = raw.SetDeadline(before.Add(time.Duration(s.request.Deadline - now))); e != nil {
+			return nil, e
+		}
+		s.mu.Lock()
+		if s.ctx.Err() != nil {
+			s.mu.Unlock()
+			return nil, errors.New("owner stream lost before attachment")
+		}
+		s.ownerStream = &ownerContinuationConnection{conn: conn, raw: raw, authorization: a, replies: make(chan []byte, 1)}
+		stream := s.ownerStream
+		retained = true
+		s.mu.Unlock()
+		go s.watchOwnerStream(stream)
+	}
 	return response, nil
 }
 func writeOwnerFrame(w io.Writer, raw []byte) error {

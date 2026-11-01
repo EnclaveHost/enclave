@@ -47,10 +47,14 @@ type BrokerSession struct {
 	consumed             bool
 	accepted             bool
 	reserved, exportUsed bool
+	exportBound          bool
 	intent               *BrokerIntent
 	consent              *bootstrap.RPCStorageConsent
 	remoteReceipt        *os.File
 	exportRaw            net.Conn
+	ownerRaw             net.Conn
+	ownerStream          *ownerContinuationConnection
+	ownerProofSHA        string
 	authorizationUntil   time.Time
 	once                 sync.Once
 	continuationMu       sync.Mutex // never held by the independent session watcher
@@ -167,7 +171,11 @@ func (s *BrokerSession) lose() {
 		s.conn.Close()
 		s.mu.Lock()
 		raw := s.exportRaw
+		ownerRaw := s.ownerRaw
 		s.mu.Unlock()
+		if ownerRaw != nil {
+			ownerRaw.Close()
+		}
 		// Close the underlying TCP object, never TLS Close/close_notify: shutdown
 		// must not wait on a blocked TLS writer, signer, or remote handshake.
 		if raw != nil {

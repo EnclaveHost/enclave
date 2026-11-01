@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: owner-minted credential and actual pinned TLS admit exactly the prepared request
+ok 1 - owner-minted credential and actual pinned TLS admit exactly the prepared request
+  ---
+  duration_ms: 39.747582
+  type: 'test'
+  ...
+# Subtest: forged minted credential and substituted TLS certificate consume without dispatch
+ok 2 - forged minted credential and substituted TLS certificate consume without dispatch
+  ---
+  duration_ms: 11.453456
+  type: 'test'
+  ...
+# Subtest: foreign TLS client cannot reach evidence acceptance and first connection consumes listener
+ok 3 - foreign TLS client cannot reach evidence acceptance and first connection consumes listener
+  ---
+  duration_ms: 12.05507
+  type: 'test'
+  ...
+# Subtest: no client reaches original absolute deadline and rejects pending acceptance
+ok 4 - no client reaches original absolute deadline and rejects pending acceptance
+  ---
+  duration_ms: 180.318137
+  type: 'test'
+  ...
+# Subtest: authenticated slow request remains bounded by the original deadline
+ok 5 - authenticated slow request remains bounded by the original deadline
+  ---
+  duration_ms: 701.135476
+  type: 'test'
+  ...
+# Subtest: wrong complete request and malformed first frame never consume dispatch
+ok 6 - wrong complete request and malformed first frame never consume dispatch
+  ---
+  duration_ms: 19.883436
+  type: 'test'
+  ...
+# Subtest: explicit owner/2 signature and acknowledgement preserve stream negotiation
+ok 7 - explicit owner/2 signature and acknowledgement preserve stream negotiation
+  ---
+  duration_ms: 14.139928
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1204.221484

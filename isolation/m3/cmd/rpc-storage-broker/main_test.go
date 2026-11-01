@@ -3,6 +3,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"os"
 	"testing"
 )
@@ -55,5 +57,40 @@ func TestBrokerProtectedCredentialInputs(t *testing.T) {
 	defer w.Close()
 	if _, e = privateInput(int(r.Fd()), 32); e == nil {
 		t.Fatal("pipe credential")
+	}
+}
+
+func TestBrokerOwnerStreamPreservesExactSignedBytesAndRefusesDowngrade(t *testing.T) {
+	proof := []byte(`{ "schema":"test", "base":"fixture", "l1":"fixture" }`)
+	m := map[string]any{"schema": "enclave-rpc-owner-dispatched/2", "attempt": "fixture", "proof": proof, "exporter": map[string]any{}, "rpcReady": false, "writersFenced": false, "reservationMayRelease": false}
+	raw, _ := json.Marshal(m)
+	got, e := decodeOwnerDispatch(raw, true)
+	if e != nil || !bytes.Equal(got, proof) {
+		t.Fatal("proof bytes changed", e)
+	}
+	for _, mode := range []string{"schema", "object-proof", "missing", "release", "oversize"} {
+		v := map[string]any{}
+		for k, x := range m {
+			v[k] = x
+		}
+		switch mode {
+		case "schema":
+			v["schema"] = "enclave-rpc-owner-dispatched/1"
+		case "object-proof":
+			v["proof"] = json.RawMessage(proof)
+		case "missing":
+			delete(v, "writersFenced")
+		case "release":
+			v["reservationMayRelease"] = true
+		case "oversize":
+			v["proof"] = make([]byte, 2049)
+		}
+		bad, _ := json.Marshal(v)
+		if _, e = decodeOwnerDispatch(bad, true); e == nil {
+			t.Fatal(mode)
+		}
+	}
+	if _, e = decodeOwnerDispatch(raw, false); e == nil {
+		t.Fatal("unsigned protocol upgrade")
 	}
 }

@@ -79,7 +79,7 @@ func (s *BrokerSession) ConnectExportControl(serverDER []byte, client tls.Certif
 		return nil, errors.New("server certificate differs from both signed authorities")
 	}
 	// Clone mutable certificate bytes. The private key is an accepted-bootstrap
-// capability; its implementation also remains inside the required OS bounds.
+	// capability; its implementation also remains inside the required OS bounds.
 	cert := tls.Certificate{PrivateKey: client.PrivateKey}
 	for _, raw := range client.Certificate {
 		if len(raw) == 0 || len(raw) > 16384 {
@@ -191,5 +191,8 @@ func (s *BrokerSession) ConnectExportControl(serverDER []byte, client tls.Certif
 	if err = s.alive(); err != nil {
 		return nil, err
 	}
+	s.mu.Lock()
+	s.exportBound = true
+	s.mu.Unlock()
 	return &ExportControl{ctx: s.ctx, requestSHA: hex.EncodeToString(hash[:]), contractSHA: binding.ContractSHA256}, nil
 }

@@ -23,6 +23,10 @@ import (
 )
 
 func ownerTransportFixture(t *testing.T, session *BrokerSession, host string, port int, server []byte, client tls.Certificate) (*bootstrap.Authorization, []byte, OwnerBootstrapInput) {
+	a, m, in, _ := ownerTransportFixtureKeys(t, session, host, port, server, client, "enclave-rpc-owner-offer/1")
+	return a, m, in
+}
+func ownerTransportFixtureKeys(t *testing.T, session *BrokerSession, host string, port int, server []byte, client tls.Certificate, schema string) (*bootstrap.Authorization, []byte, OwnerBootstrapInput, [2]ed25519.PrivateKey) {
 	t.Helper()
 	rt := contract.RuntimeIdentity{Name: "wasmtime", Version: "49.0.3", Execution: contract.ExecJIT, TargetISA: contract.ISAx86_64, HostISA: contract.ISAx86_64, CPUFeatures: "baseline", WX: contract.WXEnforced, Cache: contract.CacheNone}
 	rid, _ := contract.RuntimeID(rt)
@@ -41,7 +45,7 @@ func ownerTransportFixture(t *testing.T, session *BrokerSession, host string, po
 	m.RPCStorage = &bootstrap.RPCStorage{Schema: "enclave-rpc-storage-authorities/1", L1: bootstrap.RPCStorageAuthority{VolumeID: session.request.L1Volume, PublicKey: hex.EncodeToString(keys[0].Public().(ed25519.PublicKey))}, Base: bootstrap.RPCStorageAuthority{VolumeID: session.request.BaseVolume, PublicKey: hex.EncodeToString(keys[1].Public().(ed25519.PublicKey))}}
 	manifest, _ := json.Marshal(m)
 	request, _ := json.Marshal(session.request)
-	offer := bootstrap.RPCBootstrapOffer{Attempt: strings.Repeat("1", 32), Challenge: strings.Repeat("7", 64), ClientCertificateSHA256: sumHex(client.Certificate[0]), CredentialBlob: base64.StdEncoding.EncodeToString([]byte("synthetic")), Host: host, HostNonce: base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{1}, 32)), ManifestSHA256: sumHex(manifest), Port: uint16(port), RequestSHA256: sumHex(request), Runtime: hex.EncodeToString(rid[:]), Schema: "enclave-rpc-owner-offer/1", Secret: base64.StdEncoding.EncodeToString([]byte("synthetic")), ServerCertificateSHA256: sumHex(server), ServerName: "export.control.test"}
+	offer := bootstrap.RPCBootstrapOffer{Attempt: strings.Repeat("1", 32), Challenge: strings.Repeat("7", 64), ClientCertificateSHA256: sumHex(client.Certificate[0]), CredentialBlob: base64.StdEncoding.EncodeToString([]byte("synthetic")), Host: host, HostNonce: base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{1}, 32)), ManifestSHA256: sumHex(manifest), Port: uint16(port), RequestSHA256: sumHex(request), Runtime: hex.EncodeToString(rid[:]), Schema: schema, Secret: base64.StdEncoding.EncodeToString([]byte("synthetic")), ServerCertificateSHA256: sumHex(server), ServerName: "export.control.test"}
 	proof := bootstrap.RPCBootstrapOfferProof{Offer: offer}
 	for role, dst := range []*string{&proof.L1, &proof.Base} {
 		payload, e := bootstrap.RPCBootstrapOfferPayload(offer, byte(role))
@@ -57,7 +61,7 @@ func ownerTransportFixture(t *testing.T, session *BrokerSession, host string, po
 	}
 	spki, _ := x509.MarshalPKIXPublicKey(certificate.PublicKey)
 	evidence, _ := json.Marshal(map[string]any{"purpose": contract.RPCBootstrapPurpose, "request": session.request, "requestSha256": sumHex(request), "runtime": rt, "transportKey": spki, "certificate": client.Certificate[0], "rootsGranted": false, "rpcReady": false, "challenge": offer.Challenge, "vbsVmReport": []byte("explicit-synthetic-report")})
-	return auth, manifest, OwnerBootstrapInput{Evidence: evidence, HostEvidence: json.RawMessage(`{"synthetic":true}`), Offer: offerRaw, ServerDER: server}
+	return auth, manifest, OwnerBootstrapInput{Evidence: evidence, HostEvidence: json.RawMessage(`{"synthetic":true}`), Offer: offerRaw, ServerDER: server}, keys
 }
 func TestGuestOwnerTLSExchangeAndBindingFailures(t *testing.T) {
 	for _, mode := range []string{"normal", "bad-signature", "wrong-pin", "wrong-ack", "incomplete-ack", "monitor-loss", "deadline"} {

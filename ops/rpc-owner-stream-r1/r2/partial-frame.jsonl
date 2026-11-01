@@ -1,0 +1,16 @@
+{"Time":"2026-11-01T15:08:23.408555611-07:00","Action":"start","Package":"enclave.host/isolation/m3/rpcstorage"}
+{"Time":"2026-11-01T15:08:23.410671299-07:00","Action":"run","Package":"enclave.host/isolation/m3/rpcstorage","Test":"TestGuestOwnerContinuousTLSAndLoss"}
+{"Time":"2026-11-01T15:08:23.410722089-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcstorage","Test":"TestGuestOwnerContinuousTLSAndLoss","Output":"=== RUN   TestGuestOwnerContinuousTLSAndLoss\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:08:23.4144256-07:00","Action":"run","Package":"enclave.host/isolation/m3/rpcstorage","Test":"TestGuestOwnerContinuousTLSAndLoss/normal"}
+{"Time":"2026-11-01T15:08:23.41444114-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcstorage","Test":"TestGuestOwnerContinuousTLSAndLoss/normal","Output":"=== RUN   TestGuestOwnerContinuousTLSAndLoss/normal\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:08:23.444463696-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcstorage","Test":"TestGuestOwnerContinuousTLSAndLoss/normal","Output":"--- PASS: TestGuestOwnerContinuousTLSAndLoss/normal (0.03s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:08:23.444491375-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcstorage","Test":"TestGuestOwnerContinuousTLSAndLoss/normal","Elapsed":0.03}
+{"Time":"2026-11-01T15:08:23.444515325-07:00","Action":"run","Package":"enclave.host/isolation/m3/rpcstorage","Test":"TestGuestOwnerContinuousTLSAndLoss/idle-partial"}
+{"Time":"2026-11-01T15:08:23.444518025-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcstorage","Test":"TestGuestOwnerContinuousTLSAndLoss/idle-partial","Output":"=== RUN   TestGuestOwnerContinuousTLSAndLoss/idle-partial\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:08:23.456591759-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcstorage","Test":"TestGuestOwnerContinuousTLSAndLoss/idle-partial","Output":"--- PASS: TestGuestOwnerContinuousTLSAndLoss/idle-partial (0.01s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:08:23.456610869-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcstorage","Test":"TestGuestOwnerContinuousTLSAndLoss/idle-partial","Elapsed":0.01}
+{"Time":"2026-11-01T15:08:23.456616898-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcstorage","Test":"TestGuestOwnerContinuousTLSAndLoss","Output":"--- PASS: TestGuestOwnerContinuousTLSAndLoss (0.04s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:08:23.456620778-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcstorage","Test":"TestGuestOwnerContinuousTLSAndLoss","Elapsed":0.04}
+{"Time":"2026-11-01T15:08:23.456623148-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcstorage","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:08:23.457132743-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcstorage","Output":"ok  \tenclave.host/isolation/m3/rpcstorage\t0.048s\n"}
+{"Time":"2026-11-01T15:08:23.457143563-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcstorage","Elapsed":0.049}

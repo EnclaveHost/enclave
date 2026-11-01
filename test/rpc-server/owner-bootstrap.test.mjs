@@ -54,7 +54,7 @@ function evidence(s){
 const wire=x=>Buffer.from(JSON.stringify(x));
 function send(socket,raw){const head=Buffer.alloc(4);head.writeUInt32BE(raw.length);socket.write(Buffer.concat([head,raw]));}
 async function port(){const srv=net.createServer();srv.listen(0,'127.0.0.1');await once(srv,'listening');const p=srv.address().port;await new Promise(r=>srv.close(r));return p;}
-async function listen(s){return listenOwnerBootstrap(s,{host:'127.0.0.1',port:await port(),...server,ownerOffer:{seeds:seeds(),publicKeys,runtime:rid,manifestSha256:sha256(Buffer.from("{}")).toString("hex"),serverName:"localhost"}});}
+async function listen(s,schema="enclave-rpc-owner-offer/1"){return listenOwnerBootstrap(s,{host:'127.0.0.1',port:await port(),...server,ownerOffer:{schema,seeds:seeds(),publicKeys,runtime:rid,manifestSha256:sha256(Buffer.from("{}")).toString("hex"),serverName:"localhost"}});}
 async function connect(t,who=client){
  const socket=tls.connect({host:'127.0.0.1',port:t.server.address()?.port??t.port,servername:'localhost',ca:server.cert,key:who.key,cert:who.cert,minVersion:'TLSv1.3',maxVersion:'TLSv1.3'});socket.on('error',()=>{});
  const read=reader(socket);await once(socket,'secureConnect');return {socket,read};
@@ -122,4 +122,23 @@ test('wrong complete request and malformed first frame never consume dispatch',a
    assert.ok(!fs.existsSync(cfg.parent+'/bootstrap/dispatch.intent'));
   }finally{socket.destroy();t.close();}
  }
+});
+
+test('explicit owner/2 signature and acknowledgement preserve stream negotiation',async()=>{
+ const {cfg,s}=session(),t=await listen(s,'enclave-rpc-owner-offer/2');t.port=t.server.address().port;
+ const {socket,read}=await connect(t);
+ try{
+  assert.equal(t.proof.offer.schema,'enclave-rpc-owner-offer/2');
+  for(const [role,sig] of [t.proof.l1,t.proof.base].entries()){
+   const payload=Buffer.concat([Buffer.from('ENCLAVE-RPC-OWNER-ENDPOINT/1\0'),Buffer.from([role]),sha256(wire(t.proof.offer))]);
+   assert.equal(verify(null,payload,ownerKeys[role].publicKey,Buffer.from(sig,'hex')),true);
+   const downgraded={...t.proof.offer,schema:'enclave-rpc-owner-offer/1'};
+   const wrong=Buffer.concat([Buffer.from('ENCLAVE-RPC-OWNER-ENDPOINT/1\0'),Buffer.from([role]),sha256(wire(downgraded))]);
+   assert.equal(verify(null,wrong,ownerKeys[role].publicKey,Buffer.from(sig,'hex')),false);
+  }
+  fs.writeFileSync(process.env.RPC_BOOTSTRAP_VECTOR_DIR+'/owner-offer-v2-vector.json',JSON.stringify({proof:t.proof,publicKeys}));
+  send(socket,wire(evidence(s)));const reply=JSON.parse(await read(65536));await t.accepted;
+  assert.equal(reply.schema,'enclave-rpc-owner-bootstrap-accepted/2');
+  assert.deepEqual(JSON.parse(fs.readFileSync(cfg.parent+'/bootstrap/protocol-accepted.json')),reply);
+ }finally{socket.destroy();t.close();}
 });

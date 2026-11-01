@@ -209,6 +209,7 @@ func (s *BrokerSession) AuthenticateRemoteReservation(a *bootstrap.Authorization
 		return errors.New("monitor lost before proof publication")
 	}
 	s.consent, s.reserved = consent, true
+	s.ownerProofSHA = hex.EncodeToString(proofSHA[:])
 	now := time.Now()
 	s.authorizationUntil = now.Add(consent.NotAfter().Sub(now))
 	return nil

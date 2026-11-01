@@ -1,0 +1,19 @@
+{
+  "distinctGoPass": 30,
+  "goExecutions": 32,
+  "distinctGoTopLevel": 12,
+  "nodePass": 7,
+  "totalDistinctPass": 37,
+  "byPhase": {
+    "rpc-owner-stream-tests-r1/offer": 4,
+    "rpc-owner-stream-tests-r1/guest-tls": 22,
+    "rpc-owner-stream-tests-r1/broker-entry": 3,
+    "rpc-owner-stream-tests-r2/partial-frame": 3
+  },
+  "repeatedAfterChangedReader": [
+    "TestGuestOwnerContinuousTLSAndLoss",
+    "TestGuestOwnerContinuousTLSAndLoss/normal"
+  ],
+  "skipped": 0,
+  "deployed": false
+}

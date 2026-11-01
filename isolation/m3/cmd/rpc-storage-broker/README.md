@@ -107,3 +107,15 @@ The owner-side framed endpoint is now maintained in
 this command's length framing and invokes the actual owner dispatcher inside its
 existing independently bounded unit. The guest/bootstrap cross-host bridge and
 accepted owner-public inputs are still required; merely opening FD7 is not acceptance.
+
+Signed owner offer `/2` now selects a retained TLS connection and requires an
+exact `/2` acknowledgement. The `/2` dispatcher response carries `proof` as
+base64 bytes so canonical outer JSON cannot change the original signed proof
+hash. `/1` remains the historical one-shot exchange; no fallback is attempted.
+After original reservation and confirmed export-control acknowledgement, this
+command starts the serialized off-chain continuation loop on that same socket.
+Idle EOF, any unsolicited byte, invalid proof, replay, timeout or original
+startup expiry closes the session. These observations still do not grant roots,
+prove attestation/writer settlement, or adopt persistent serving. The owner-side
+Python dispatcher/unit composition still uses `/1`; no live `/2` deployment is
+claimed. See `rpcstorage/README.md` for the remaining operator integration.

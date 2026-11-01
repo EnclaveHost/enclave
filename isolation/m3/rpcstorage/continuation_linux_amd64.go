@@ -22,6 +22,9 @@ import (
 func (s *BrokerSession) ApplyStartupContinuation(bundle, raw []byte, receipts *os.File) (err error) {
 	s.continuationMu.Lock()
 	defer s.continuationMu.Unlock()
+	return s.applyStartupContinuation(bundle, raw, receipts)
+}
+func (s *BrokerSession) applyStartupContinuation(bundle, raw []byte, receipts *os.File) (err error) {
 	defer func() {
 		if err != nil {
 			s.lose()

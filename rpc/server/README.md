@@ -574,3 +574,27 @@ Configuration and exact service requirements are documented in
 [the operator guide](../../windows/rpc/BOOTSTRAP-OPERATOR.md). Source integration
 is complete for this transport; real SSH/SYSTEM/owner timing, hardware evidence,
 storage access, persistent serving and production activation are unqualified.
+
+### Continuous owner protocol preparation (not deployed)
+
+The endpoint signer and TLS listener can explicitly select signed offer
+`enclave-rpc-owner-offer/2`, requiring the matching bootstrap acknowledgement.
+The original deadline bounds this listener; `/1` keeps its historical finite
+transport lifetime. Both role signatures cover the schema, so a relay cannot
+change versions without invalidating authorization. Only an admitted owner
+configuration may select `/2`.
+
+The guest broker now retains a negotiated `/2` connection, preserves the original
+proof bytes via base64 in `enclave-rpc-owner-dispatched/2`, and requests/apply
+verifies bounded off-chain continuation permits. A continuously active reader
+closes on idle EOF or the first unsolicited byte. No reconnect or repeated start
+request is permitted. Source-level TLS/crypto tests do not prove production
+attestation or a serving RPC.
+
+`owner_bootstrap.mjs`, its Python bootstrap/submit/dispatcher helpers and prepared
+units still compose the `/1` path. They have not been changed to select `/2`, keep
+the continuous signer alive, forward its frames, or widen their20/60/120-second
+service envelopes. That operator integration requires its own resource/deadline
+admission and must retain the same live original issuer, request and exporter.
+No prepared policy, protected namespace, media or production service was changed.
+The complete startup-to-serving handoff across all guardians remains incomplete.

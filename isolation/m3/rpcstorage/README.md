@@ -376,7 +376,8 @@ client start, reconnect or reservation release occurs here.
 
 The explicitly selected continuous owner actor below can now produce these
 permits. The deployed bootstrap relay still uses the historical one-shot path;
-continuations are not wired into its guest TLS loop or activated in production.
+the guest now negotiates /2 and runs the continuation loop described below,
+while the owner operator dispatch remains /1 and no production loop is active.
 The original one-shot owner issuer still clears its own signing-key copies.
 Neither snapshot refresh nor a healthy HTTP response can manufacture a permit.
 No periodic on-chain transaction is introduced. Guest C/Go entry, service,
@@ -428,3 +429,47 @@ restart refusal and key erasure. Chain responses are fixtures. Command framing
 and clock checks plus compilation do not prove a live owner/2 service or target
 process-death behavior. Deployment, TLS relay integration and coordinated serving
 handoff are still required before production RPC.
+
+
+## Authenticated continuous guest connection
+
+Both authority signatures now bind the explicit offer schema `/2`; editing it
+to `/1` invalidates the signatures. An authenticated `/2` offer requires an
+exact `/2` bootstrap acknowledgement. No fallback/reconnect is attempted. The
+Node listener can explicitly mint `/2` when supplied that owner protocol; its
+historical caller still supplies `/1`. `/2` listener lifetime is the original
+owner deadline, requiring separate admission of its containing service.
+
+The guest retains the same authenticated TLS socket after the initial response.
+One bounded reader remains active between permits: EOF, extra responses or
+unsolicited bytes close the broker and its export control connection without
+waiting for the ten-second request interval. Exact monitor loss and original
+startup expiry independently close both raw sockets. No TLS shutdown wait is
+required. The historical `/1` exchange still closes after its single response.
+
+`rpc-storage-broker` accepts `/2` initial response proofs as base64 bytes, not
+nested JSON objects. This preserves the exact original signed proof hash even
+when the outer response is canonically re-encoded. `/1` and `/2` response schemas
+cannot be interchanged. Exporter metadata still does not prove readiness or
+writer settlement. After original reservation and successful export-control
+binding, the actual command invokes `RunOwnerContinuations` only for negotiated
+`/2`. That loop owns authorization refresh; no caller may concurrently reuse
+that Authorization. It serializes revalidation with proof application and
+consumes a distinct transport intent before each request. Three seconds bound
+chain/network/application work, with the prior permit and original deadline
+remaining independent earlier cutoffs. Every failure ends the session.
+
+The loop requests a signed startup permit immediately and then every ten seconds,
+with each permit lasting at most30seconds. These are off-chain requests; they do
+not renew a chain lease or change the legacy authorization ceiling. A signed
+permit never grants serving mode. Both consumer and producer continue to refuse
+serving adoption until the complete lifecycle handoff is implemented.
+
+**Operator integration remains incomplete.** The installed/prepared Python
+bootstrap, dispatcher and signer units still use the historical `/1` protocol and
+finite20/60/120-second envelopes. They do not retain the live `/2` signer or relay
+its frames. This source does not widen those units, select `/2` for them, publish
+new offers or activate a guest. A new admitted continuous dispatcher must retain
+the same live owner actor and byte-preserved initial proof, then forward frames
+without reconnect/restart. Real TLS/crypto fixtures qualify the guest exchange;
+they are not production attestation or live storage proof. The RPC is offline.

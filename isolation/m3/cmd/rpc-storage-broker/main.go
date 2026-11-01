@@ -242,29 +242,19 @@ func run() error {
 	if e != nil {
 		return e
 	}
-	var reply struct {
-		Schema                string          `json:"schema"`
-		Attempt               string          `json:"attempt"`
-		Proof                 json.RawMessage `json:"proof"`
-		Exporter              json.RawMessage `json:"exporter"`
-		RPCReady              bool            `json:"rpcReady"`
-		WritersFenced         bool            `json:"writersFenced"`
-		ReservationMayRelease bool            `json:"reservationMayRelease"`
-	}
-	if e = exactJSON(response, &reply); e != nil {
+	proof, e := decodeOwnerDispatch(response, session.HasOwnerContinuations())
+	if e != nil {
 		return e
 	}
-	if reply.Schema != "enclave-rpc-owner-dispatched/1" || reply.RPCReady || reply.WritersFenced || reply.ReservationMayRelease {
-		return errors.New("unqualified owner response cannot grant serving or release")
-	}
-	// Exporter/attempt metadata is retained as untrusted transport evidence. Only
-	// the independently checked proof authorizes the subsequent control dial.
-	if e = session.AuthenticateRemoteReservation(auth, bundle, reply.Proof, receipts); e != nil {
+	if e = session.AuthenticateRemoteReservation(auth, bundle, proof, receipts); e != nil {
 		return e
 	}
 	control, e := session.ConnectExportControl(server, client)
 	if e != nil {
 		return e
+	}
+	if session.HasOwnerContinuations() {
+		go func() { _ = session.RunOwnerContinuations(auth, bundle, receipts) }()
 	}
 	result := map[string]any{"schema": "enclave-rpc-broker-control-bound/1", "requestSha256": control.RequestSHA256(), "contractSha256": control.ContractSHA256(), "rpcReady": false, "rootsGranted": false, "writersFenced": false, "reservationMayRelease": false}
 	raw, e = json.Marshal(result)
@@ -286,4 +276,48 @@ func main() {
 		fmt.Fprintln(os.Stderr, "RPC storage broker refused:", e)
 		os.Exit(1)
 	}
+}
+
+func decodeOwnerDispatch(response []byte, continuous bool) ([]byte, error) {
+	var e error
+	// /2 preserves the exact owner's signed bytes as base64. Re-encoding a
+	// proof object would break continuation linkage to the original signed proof.
+	var proof []byte
+	if continuous {
+		var reply struct {
+			Schema                string          `json:"schema"`
+			Attempt               string          `json:"attempt"`
+			Proof                 []byte          `json:"proof"`
+			Exporter              json.RawMessage `json:"exporter"`
+			RPCReady              bool            `json:"rpcReady"`
+			WritersFenced         bool            `json:"writersFenced"`
+			ReservationMayRelease bool            `json:"reservationMayRelease"`
+		}
+		if e = exactJSON(response, &reply); e != nil {
+			return nil, e
+		}
+		if reply.Schema != "enclave-rpc-owner-dispatched/2" || reply.RPCReady || reply.WritersFenced || reply.ReservationMayRelease || len(reply.Proof) == 0 || len(reply.Proof) > 2048 {
+			return nil, errors.New("exact byte-preserved owner/2 response required")
+		}
+		proof = reply.Proof
+	} else {
+		var reply struct {
+			Schema                string          `json:"schema"`
+			Attempt               string          `json:"attempt"`
+			Proof                 json.RawMessage `json:"proof"`
+			Exporter              json.RawMessage `json:"exporter"`
+			RPCReady              bool            `json:"rpcReady"`
+			WritersFenced         bool            `json:"writersFenced"`
+			ReservationMayRelease bool            `json:"reservationMayRelease"`
+		}
+		if e = exactJSON(response, &reply); e != nil {
+			return nil, e
+		}
+		if reply.Schema != "enclave-rpc-owner-dispatched/1" || reply.RPCReady || reply.WritersFenced || reply.ReservationMayRelease {
+			return nil, errors.New("unqualified owner response cannot grant serving or release")
+		}
+		proof = reply.Proof
+	}
+
+	return proof, nil
 }

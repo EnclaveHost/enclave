@@ -39,7 +39,7 @@ type RPCBootstrapOfferProof struct {
 }
 
 func (o RPCBootstrapOffer) Bytes() ([]byte, error) {
-	if o.Schema != "enclave-rpc-owner-offer/1" || !regexp.MustCompile(`^[0-9a-f]{32}$`).MatchString(o.Attempt) {
+	if (o.Schema != "enclave-rpc-owner-offer/1" && o.Schema != "enclave-rpc-owner-offer/2") || !regexp.MustCompile(`^[0-9a-f]{32}$`).MatchString(o.Attempt) {
 		return nil, errors.New("exact owner offer required")
 	}
 	b := RPCExportBinding{Host: o.Host, Port: o.Port, ServerName: o.ServerName, ServerCertificateSHA256: o.ServerCertificateSHA256, ClientCertificateSHA256: o.ClientCertificateSHA256, ContractSHA256: o.RequestSHA256}

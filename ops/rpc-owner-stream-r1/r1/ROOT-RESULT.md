@@ -1,0 +1,1 @@
+R1 complete all five phases PASS, no skips/failures. 3c254c4152674e50bccbc3c5c850d122 terminal0/Main0/emptycgroup,8.681093s,725pins unchanged. R2 separately qualifies first-byte unsolicited-input refinement and rebuilds broker; see combined ROOT-RESULT. No production activation.

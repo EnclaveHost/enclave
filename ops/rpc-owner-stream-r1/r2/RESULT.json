@@ -1,0 +1,1 @@
+{"phases": [{"phase": "partial-frame", "exit": 0}, {"phase": "broker-build", "exit": 0}], "elapsed": 2.2726088180206716, "sourcePins": 725, "pinsUnchanged": true, "artifacts": {"rpc-storage-broker": {"bytes": 11399294, "sha256": "dca4ea70f1020a45678de3463aeb3aad34c219f83464eedde8a2aa3c5e809715"}}, "deployed": false}

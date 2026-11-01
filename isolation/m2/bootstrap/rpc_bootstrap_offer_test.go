@@ -89,11 +89,17 @@ func mustOfferBytes(t *testing.T, o RPCBootstrapOffer) []byte {
 	return b
 }
 func TestOwnerEndpointJSVectorMatchesGoPayload(t *testing.T) {
+	checkOwnerJSVector(t, "owner-offer-vector.json")
+}
+func TestOwnerEndpointStreamJSVectorMatchesGoPayload(t *testing.T) {
+	checkOwnerJSVector(t, "owner-offer-v2-vector.json")
+}
+func checkOwnerJSVector(t *testing.T, name string) {
 	dir := os.Getenv("RPC_BOOTSTRAP_VECTOR_DIR")
 	if dir == "" {
 		t.Fatal("actual owner JS vector required")
 	}
-	raw, e := os.ReadFile(filepath.Join(dir, "owner-offer-vector.json"))
+	raw, e := os.ReadFile(filepath.Join(dir, name))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -114,5 +120,26 @@ func TestOwnerEndpointJSVectorMatchesGoPayload(t *testing.T) {
 		if !ed25519.Verify(key, payload, sig) {
 			t.Fatal("JS/Go purpose payload differs", role)
 		}
+	}
+}
+
+func TestOwnerEndpointStreamProtocolCannotDowngrade(t *testing.T) {
+	x := newStorageRig(t)
+	o := fixtureOffer(t, x)
+	o.Schema = "enclave-rpc-owner-offer/2"
+	raw := signedOffer(t, o, x.keys)
+	if got, e := x.auth.VerifyRPCBootstrapOffer(x.bundle, x.request, raw); e != nil || got != o {
+		t.Fatal(got, e)
+	}
+	var proof RPCBootstrapOfferProof
+	json.Unmarshal(raw, &proof)
+	proof.Offer.Schema = "enclave-rpc-owner-offer/1"
+	bad, _ := json.Marshal(proof)
+	if _, e := x.auth.VerifyRPCBootstrapOffer(x.bundle, x.request, bad); e == nil {
+		t.Fatal("unsigned downgrade accepted")
+	}
+	o.Schema = "enclave-rpc-owner-offer/3"
+	if _, e := o.Bytes(); e == nil {
+		t.Fatal("unknown negotiation")
 	}
 }
