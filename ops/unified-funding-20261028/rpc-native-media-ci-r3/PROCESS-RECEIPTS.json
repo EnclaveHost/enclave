@@ -1,0 +1,83 @@
+{
+  "preserve-r1": {
+    "invocation": "d8bb6503caee4b14bc9f42ed61ecfd03",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "messages": [
+      "Started [systemd-run] /usr/bin/taskset -c 1 /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib 256 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-preserve-r1/queue.log -- /usr/bin/node /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs --max-rss-mib 220 --floor-available-mib 27648 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-preserve-r1/inner.log -- /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-preserve-r1/preserve.py.",
+      "[queue] START available=94645MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB",
+      "[queue] EXIT 0"
+    ]
+  },
+  "ci-r1": {
+    "invocation": "c510a38b6dbf4bfcbc945e7f2be7ea62",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "messages": [
+      "Started [systemd-run] /usr/bin/taskset -c 1 /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib 256 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-ci-r1/push-outer.log -- /usr/bin/taskset -c 1 /usr/bin/node /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs --max-rss-mib 220 --floor-available-mib 27648 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-ci-r1/push-inner.log -- /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-ci-r1/dispatch.py.",
+      "[queue] START available=94578MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB",
+      "[queue] EXIT 0"
+    ]
+  },
+  "collect-r1": {
+    "invocation": "606935fc14ab433cab9446dd9b69be42",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "messages": [
+      "Started [systemd-run] /usr/bin/taskset -c 1 /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib 256 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-ci-r1/collect-outer.log -- /usr/bin/taskset -c 1 /usr/bin/node /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs --max-rss-mib 220 --floor-available-mib 27648 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-ci-r1/collect-inner.log -- /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-ci-r1/collect.py.",
+      "[queue] START available=94560MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB",
+      "[queue] EXIT 0"
+    ]
+  },
+  "preserve-r2": {
+    "invocation": "348c06b3c5044a77ad008d0c13de5395",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "messages": [
+      "Started [systemd-run] /usr/bin/taskset -c 1 /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib 256 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-preserve-r2/queue.log -- /usr/bin/node /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs --max-rss-mib 220 --floor-available-mib 27648 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-preserve-r2/inner.log -- /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-preserve-r2/preserve.py.",
+      "[queue] START available=94690MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB",
+      "[queue] EXIT 0"
+    ]
+  },
+  "ci-r2": {
+    "invocation": "620d04d98a7c41358485e87cc7b72811",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "messages": [
+      "Started [systemd-run] /usr/bin/taskset -c 1 /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib 256 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-ci-r2/push-outer.log -- /usr/bin/taskset -c 1 /usr/bin/node /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs --max-rss-mib 220 --floor-available-mib 27648 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-ci-r2/push-inner.log -- /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-ci-r2/dispatch.py.",
+      "[queue] START available=94724MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB",
+      "[queue] EXIT 0"
+    ]
+  },
+  "collect-r2": {
+    "invocation": "2cdde6921b644ff680dc615e9b5afc8c",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "messages": [
+      "Started [systemd-run] /usr/bin/taskset -c 1 /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib 256 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-ci-r2/collect-outer.log -- /usr/bin/taskset -c 1 /usr/bin/node /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs --max-rss-mib 220 --floor-available-mib 27648 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-ci-r2/collect-inner.log -- /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-ci-r2/collect.py.",
+      "[queue] START available=94683MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB",
+      "[queue] EXIT 0"
+    ]
+  },
+  "preserve-r3": {
+    "invocation": "deb3f47e54014c9c94fdc09bf22f7941",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "messages": [
+      "Started [systemd-run] /usr/bin/taskset -c 1 /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib 256 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-preserve-r3/queue.log -- /usr/bin/node /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs --max-rss-mib 220 --floor-available-mib 27648 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-preserve-r3/inner.log -- /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-preserve-r3/preserve.py.",
+      "[queue] START available=94676MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB",
+      "[queue] EXIT 0"
+    ]
+  },
+  "ci-r3": {
+    "invocation": "d741d5354d0d4785a695812dd0c80c91",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "messages": [
+      "Started [systemd-run] /usr/bin/taskset -c 1 /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib 256 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-ci-r3/push-outer.log -- /usr/bin/taskset -c 1 /usr/bin/node /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs --max-rss-mib 220 --floor-available-mib 27648 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-ci-r3/push-inner.log -- /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-ci-r3/dispatch.py.",
+      "[queue] START available=94720MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB",
+      "[queue] EXIT 0"
+    ]
+  },
+  "collect-r3": {
+    "invocation": "478671616758435ca149571db1a8c9de",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "messages": [
+      "Started [systemd-run] /usr/bin/taskset -c 1 /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib 256 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-ci-r3/collect-outer.log -- /usr/bin/taskset -c 1 /usr/bin/node /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs --max-rss-mib 220 --floor-available-mib 27648 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-ci-r3/collect-inner.log -- /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-native-media-ci-r3/collect.py.",
+      "[queue] START available=94577MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB",
+      "[queue] EXIT 0"
+    ]
+  }
+}

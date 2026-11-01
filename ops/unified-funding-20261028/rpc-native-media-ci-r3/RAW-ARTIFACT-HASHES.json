@@ -1,0 +1,66 @@
+{
+  "system-worker.exe": {
+    "bytes": 251392,
+    "sha256": "b36583ed3f1bc4831865ea40ad9f19b10c0b30f5188313b5c1ac44aafe26b3ea"
+  },
+  "worker-artifact.json": {
+    "bytes": 167,
+    "sha256": "991d1421112b933f57adbaee651c8ced02bbebb70092393bf695295f6766e443"
+  },
+  "harness-compile.out": {
+    "bytes": 395,
+    "sha256": "33b43d1f215e5ad837bf2b26220cbaca419101fe05810e138b14886443590057"
+  },
+  "artifact.json": {
+    "bytes": 231,
+    "sha256": "60d8f3ba64fb7a377076b19064ecb1b1931e2568b296257c86fd701111e7308e"
+  },
+  "worker-compile.out": {
+    "bytes": 395,
+    "sha256": "33b43d1f215e5ad837bf2b26220cbaca419101fe05810e138b14886443590057"
+  },
+  "process-results.json": {
+    "bytes": 1079,
+    "sha256": "2c215b6c7944328be6654634aebdbfcb3ae2e43b89168bd62ba93a52f1e0ef9c"
+  },
+  "native-worker.exe": {
+    "bytes": 251392,
+    "sha256": "72b1a28ed49ad1ddb66bc7da98757b8d212224294e7e8c2fa8197d4acd98c2b1"
+  },
+  "worker-compile.err": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "system-worker-artifact.json": {
+    "bytes": 167,
+    "sha256": "eed4aa39536ac5ea4f848e0e49409ffc8befd165288c304c8d8faf0df19d0c85"
+  },
+  "pins.json": {
+    "bytes": 3917,
+    "sha256": "4ceb20d579294b04e47776fcd837872a83d0f78098d158670ac7f3280d01f954"
+  },
+  "worker-harness.out": {
+    "bytes": 629,
+    "sha256": "66e80e6418787ca3a4f5073682a7d7a862fa4620828bcf265106a5c52e696b57"
+  },
+  "system-worker-compile.out": {
+    "bytes": 395,
+    "sha256": "33b43d1f215e5ad837bf2b26220cbaca419101fe05810e138b14886443590057"
+  },
+  "system-worker-compile.err": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "worker-harness.err": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "harness-compile.err": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "owned-entry.exe": {
+    "bytes": 256512,
+    "sha256": "dd436c348d885a269c1196c722209d33d342548b4bda2fd75769dc5c97b4baa7"
+  }
+}

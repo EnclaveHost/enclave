@@ -1,0 +1,36 @@
+{
+  "runtime": "1c3c2c66f3152e9bdf65387d2b054923b886e63a",
+  "compiledPins": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/ProviderStart.cs",
+    "windows/rpc/OwnedVmPermit.cs",
+    "windows/rpc/HostPhysicalPool.cs",
+    "windows/rpc/WindowsStartAdmission.cs",
+    "windows/rpc/LegacyTemplateFence.cs",
+    "windows/rpc/LegacyLaunchCohort.cs",
+    "windows/rpc/LegacyHandoff.cs",
+    "windows/rpc/NativeRpcDefinition.cs",
+    "windows/rpc/NativeRpcAuthority.cs",
+    "windows/rpc/NativeRpcWorkerEntry.cs",
+    "windows/rpc/NativeRpcController.cs",
+    "windows/rpc/NativeRpcManagerTransport.cs",
+    "test/rpc-windows-worker/NativeRpcMediaHarness.cs"
+  ],
+  "passedMethods": 7,
+  "binaries": {
+    "owned-entry.exe": {
+      "sha256": "dd436c348d885a269c1196c722209d33d342548b4bda2fd75769dc5c97b4baa7",
+      "bytes": 256512
+    },
+    "native-worker.exe": {
+      "sha256": "72b1a28ed49ad1ddb66bc7da98757b8d212224294e7e8c2fa8197d4acd98c2b1",
+      "bytes": 251392
+    },
+    "system-worker.exe": {
+      "sha256": "b36583ed3f1bc4831865ea40ad9f19b10c0b30f5188313b5c1ac44aafe26b3ea",
+      "bytes": 251392
+    }
+  }
+}

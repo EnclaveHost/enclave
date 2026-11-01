@@ -1,0 +1,28 @@
+{
+  "runtime": "049a6ba15c96c7744eee375ad1f25587bc23d161",
+  "compiledPins": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/ProviderStart.cs",
+    "windows/rpc/OwnedVmPermit.cs",
+    "windows/rpc/HostPhysicalPool.cs",
+    "windows/rpc/WindowsStartAdmission.cs",
+    "windows/rpc/LegacyTemplateFence.cs",
+    "windows/rpc/LegacyLaunchCohort.cs",
+    "windows/rpc/LegacyHandoff.cs",
+    "windows/rpc/NativeRpcDefinition.cs",
+    "windows/rpc/NativeRpcAuthority.cs",
+    "windows/rpc/NativeRpcWorkerEntry.cs",
+    "windows/rpc/NativeRpcController.cs",
+    "windows/rpc/NativeRpcManagerTransport.cs",
+    "test/rpc-windows-worker/NativeRpcMediaHarness.cs"
+  ],
+  "passedMethods": 1,
+  "binaries": {
+    "owned-entry.exe": {
+      "sha256": "5d0c945e698d6b38a0c80fd2f8da5eb2e48a45273f6a8e08f7e02ffad3c42b80",
+      "bytes": 256512
+    }
+  }
+}

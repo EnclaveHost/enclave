@@ -1,0 +1,4 @@
+{
+  "sha256": "66e80e6418787ca3a4f5073682a7d7a862fa4620828bcf265106a5c52e696b57",
+  "text": "SOURCE_READY_MS 1086\r\nPINNED_MS 3922\r\nPASS actual worker holds both verified media against writes and replacement\r\nPASS wrong header leaves consumed pending without final or retry\r\nPASS wrong payload digest retains pending and rejects publication\r\nPASS truncated extra or swapped media refuse before copying\r\nPASS independent deadline callback interrupts streamed copy between chunks\r\nPASS actual reconcile-only lease cannot acquire mutation media custody\r\nPASS actual changed profile pin fails before media access\r\nTOTAL 7 PASS; actual full-size inert optical files/private custody; no VM/device attach/TPM/RPC; elapsedMs=4244\r\n"
+}

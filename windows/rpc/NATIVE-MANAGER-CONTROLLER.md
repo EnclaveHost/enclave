@@ -162,3 +162,12 @@ not a substitute for the worker configured in `workerPath`. Neither is activated
 by a successful hosted build. Previous hosted component results remain scoped to
 their original revisions. Device configuration/start, original owner bootstrap,
 accepted complete image and actual RPC readiness remain unproven.
+
+Media custody qualification:11distinct checks across hosted41330441530 (3profile
+passes beforedeadline),41330861005 (full-size copy passes, then fixturelease
+freshness refusal),41331044806 (7remainingcustody/refusal passes). The copy
+uses1MiBchunks withWriteThrough/finalfsync; deadlines/caps unchanged. Both
+production entrypoints compiled251392B, not executed. Filesystem tests used
+inert full-size zero payloads and administratorACLs; no VM attachment/boot or
+production RPC proof. Sourcepins/binaryhashes/failures are preserved in
+`../../ops/unified-funding-20261028/rpc-native-media-ci-r3/ROOT-RESULT.md`.

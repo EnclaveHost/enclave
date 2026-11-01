@@ -1408,3 +1408,12 @@ containers bound by its existing profile/2. The supervised worker revalidates
 both streams and holds handles denying write/replacement before provider work.
 This does not attach media or start a VM. See the optical preparation section in
 [NATIVE-MANAGER-CONTROLLER.md](NATIVE-MANAGER-CONTROLLER.md).
+
+Media custody qualification:11distinct checks across hosted41330441530 (3profile
+passes beforedeadline),41330861005 (full-size copy passes, then fixturelease
+freshness refusal),41331044806 (7remainingcustody/refusal passes). The copy
+uses1MiBchunks withWriteThrough/finalfsync; deadlines/caps unchanged. Both
+production entrypoints compiled251392B, not executed. Filesystem tests used
+inert full-size zero payloads and administratorACLs; no VM attachment/boot or
+production RPC proof. Sourcepins/binaryhashes/failures are preserved in
+`../../ops/unified-funding-20261028/rpc-native-media-ci-r3/ROOT-RESULT.md`.
