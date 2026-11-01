@@ -1,0 +1,1 @@
+R2 materially fixes failed real-file journal composition; skips R1 completed shape case. Eight remaining bootstrap cases and one new pending suffix real-file regression. Original19production/18fixture closures and fixed caps retained. No SYSTEM bypass, target or provider execution. Native bootstrap compiled only.

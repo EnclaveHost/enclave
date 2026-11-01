@@ -63,7 +63,7 @@ namespace Enclave.OwnedRpc {
             StartRecords.Name(name);
             string value=pin.ReadOptionalOnce(name);if(value!=null)return value;
             // A failed publication remains ambiguous, including an empty file.
-            if(pin.ReadOptionalOnce(name+".pending")!=null)throw new IOException("Unpublished journal record");
+            if(pin.ReadPendingOnce(name)!=null)throw new IOException("Unpublished journal record");
             return null;
         }
     }

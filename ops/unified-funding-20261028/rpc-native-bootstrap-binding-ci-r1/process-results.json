@@ -1,0 +1,24 @@
+[
+    {
+        "label":  "harness-compile",
+        "pid":  8964,
+        "exitCode":  0,
+        "elapsedMs":  6673,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  125751296,
+        "cpuMs":  2015.625,
+        "outputBytes":  8811
+    },
+    {
+        "label":  "worker-harness",
+        "pid":  6920,
+        "exitCode":  1,
+        "elapsedMs":  1718,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  37195776,
+        "cpuMs":  343.75,
+        "outputBytes":  1183
+    }
+]

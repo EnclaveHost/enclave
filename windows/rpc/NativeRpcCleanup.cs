@@ -62,7 +62,7 @@ namespace Enclave.OwnedRpc {
   static bool StartName(string n){return n=="native-start.intent"||n=="native-start.submit"||n=="native-start.invoke"||n=="native-start.receipt"||n=="native-start.job"||n=="native-start.terminal"||n=="native-start.observed"||n=="native-start.workers"||n=="native-start.registration"||n=="native-lifecycle.armed"||n=="native-lifecycle.bound"||n=="native-lifecycle.backup-armed"||n=="native-lifecycle.backup-bound"||n=="native-lifecycle.stop"||n=="native-lifecycle.result"||n=="native-lifecycle.dispatch"||n=="native-lifecycle.backup-dispatch";}
   static bool StopName(string n){return n=="native-stop.intent"||n=="native-stop.submit"||n=="native-stop.invoke"||n=="native-stop.receipt"||n=="native-stop.job"||n=="native-stop.terminal"||n=="native-stop.observed";}
   static void Name(string n){if(!StartName(n)&&!StopName(n)&&!ProtectedAttempt.NativeDefinitionRecordAllowed(n,false))throw new ArgumentException("Fixed cleanup record required");}
-  public string Read(string n){Name(n);pin.CheckDeadline();if(pin.ReadOptionalOnce(n+".pending")!=null)throw new InvalidOperationException("Torn original record held");return pin.ReadOptionalOnce(n);}
+  public string Read(string n){Name(n);pin.CheckDeadline();if(pin.ReadPendingOnce(n)!=null)throw new InvalidOperationException("Torn original record held");return pin.ReadOptionalOnce(n);}
   public void WriteOnce(string n,string value){Name(n);pin.WriteOnce(n,value);}
  }
  public interface INativeRpcCleanupRuntime:INativeRpcDefinitionRuntime {

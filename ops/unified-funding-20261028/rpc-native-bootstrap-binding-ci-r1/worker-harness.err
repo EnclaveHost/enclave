@@ -1,0 +1,13 @@
+System.ArgumentException: Message name
+   at Enclave.OwnedRpc.ProtectedAttempt.Name(String name)
+   at Enclave.OwnedRpc.ProtectedAttempt.ReadOptionalOnce(String name)
+   at Enclave.OwnedRpc.NativeRpcCleanupJournal.Read(String n)
+   at Enclave.OwnedRpc.NativeRpcOptical.VerifyCompleted(NativeRpcDefinitionPlan p, IStartJournal j)
+   at Enclave.OwnedRpc.NativeRpcStart.Intent(NativeRpcDefinitionPlan p, IStartJournal j, String authority, String& guid)
+   at Enclave.OwnedRpc.NativeRpcStart.Prepared(NativeRpcDefinitionPlan p, IStartJournal j, String& guid, String& authority)
+   at Enclave.OwnedRpc.NativeRpcStart.Consumed(NativeRpcDefinitionPlan p, IStartJournal j, String& guid, String& authority)
+   at Enclave.OwnedRpc.NativeRpcStart.VerifyCompleted(NativeRpcDefinitionPlan p, IStartJournal j)
+   at Enclave.OwnedRpc.NativeBootstrapBinding.Proof(NativeRpcDefinitionPlan p, IStartJournal journal, String[] f)
+   at NativeRpcBootstrapBindingHarness.<>c.<Main>b__43_2()
+   at NativeRpcBootstrapBindingHarness.Test(String name, Action f)
+   at NativeRpcBootstrapBindingHarness.Main(String[] args)

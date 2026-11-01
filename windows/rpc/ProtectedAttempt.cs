@@ -377,7 +377,7 @@ namespace Enclave.OwnedRpc {
             // A partial direct claim remains consumed/held; only its writer may
             // proceed after Flush(true), close and exact incarnation readback.
             bool directClaim=LeaseProfile=="native-cleanup-journal"&&name=="native-lifecycle.stop";
-            if(directClaim&&ReadOptionalOnce(name+".pending")!=null)throw new InvalidOperationException("Historical torn cleanup claim held");
+            if(directClaim&&ReadPendingOnce(name)!=null)throw new InvalidOperationException("Historical torn cleanup claim held");
             string consumed=Path.Combine(Root,name+(directClaim?"":".pending"));
             var stream=new FileStream(consumed,FileMode.CreateNew,FileSystemRights.ReadData|FileSystemRights.WriteData|FileSystemRights.ReadPermissions,
                 FileShare.Read,4096,FileOptions.WriteThrough,security);
@@ -398,7 +398,15 @@ namespace Enclave.OwnedRpc {
         // Only CreateFile ERROR_FILE_NOT_FOUND maps to absence. Namespace/ACL,
         // sharing, invalid handles and malformed/empty data remain failures.
         public string ReadOptionalOnce(string name) {
-            Name(name);CheckDeadline();var stream=HoldRead(Path.Combine(Root,name),4096,true);
+            Name(name);return ReadOptionalRecordFile(name);
+        }
+        // Validate the logical record independently of its fixed staging suffix.
+        // This preserves the 40-character record bound and rejects caller paths.
+        internal string ReadPendingOnce(string name) {
+            Name(name);return ReadOptionalRecordFile(name+".pending");
+        }
+        string ReadOptionalRecordFile(string name) {
+            CheckDeadline();var stream=HoldRead(Path.Combine(Root,name),4096,true);
             return stream==null?null:Utf8.GetString(Bytes(stream,4096));
         }
         public string ReadOnce(string name) {

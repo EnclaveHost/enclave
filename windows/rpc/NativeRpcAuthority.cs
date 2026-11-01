@@ -98,7 +98,7 @@ namespace Enclave.OwnedRpc {
       long size;string identity=ReadGrantFileIdentity(h,out size);
       nativeStateRecord=String.Join("\n",new[]{"native-rpc-state-custody/1",NativeDefinitionPlan.Digest,digest,identity,size.ToString(CultureInfo.InvariantCulture),ReadGrantSecurityHash(ReadGrantDescriptor(h)),""});
       journal.WriteOnce("native-state.initial",nativeStateRecord);
-     }else{if(ReadOptionalOnce("native-state.initial.pending")!=null)throw new InvalidOperationException("Torn original state receipt held");nativeStateRecord=ReadOptionalOnce("native-state.initial");}
+     }else{if(ReadPendingOnce("native-state.initial")!=null)throw new InvalidOperationException("Torn original state receipt held");nativeStateRecord=ReadOptionalOnce("native-state.initial");}
      ValidateNativeState(h,nativeStateRecord);nativeStatePin=h;
     }else{
      string actual;using(var sha=SHA256.Create())actual=BitConverter.ToString(sha.ComputeHash(stream)).Replace("-","").ToLowerInvariant();

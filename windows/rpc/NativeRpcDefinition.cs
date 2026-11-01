@@ -80,7 +80,7 @@ namespace Enclave.OwnedRpc {
    Name(name);
    // Even an empty pending file consumes the record. Never treat a torn write,
    // sharing error or ACL failure as absence or permission to submit again.
-   if(pin.ReadOptionalOnce(name+".pending")!=null)throw new InvalidOperationException("Partial native journal record remains held");
+   if(pin.ReadPendingOnce(name)!=null)throw new InvalidOperationException("Partial native journal record remains held");
    string value=pin.ReadOptionalOnce(name);
    if(name=="native-definition.intent"&&value!=null&&value!=pin.NativeDefinitionPlan.Encode())throw new InvalidOperationException("Consumed native intent differs");
    return value;
