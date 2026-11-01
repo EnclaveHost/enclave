@@ -1,0 +1,82 @@
+{
+  "source": "26271cfe5045012868f53640216139d58a892d7b",
+  "runtimeChange": "HyperVStartProvider.Scope EnablePrivileges=false; strict primary SYSTEM guard unchanged",
+  "native": {
+    "schema": "owned-rpc-target-definition/1",
+    "passed": false,
+    "operation": "preparation-gated",
+    "plan": "4657a2442176cac1e2461056c14c77053c288042840a553304ad76d2d87f667c",
+    "result": null,
+    "origin": 758075835,
+    "deadline": 758105835,
+    "elapsedMs": 13412,
+    "root": "C:\\EnclaveRpcDefinition-c2fbb48e3aa04adab8ff5fdf33dfa256\\c2fbb48e3aa04adab8ff5fdf33dfa256",
+    "freeBytes": 85407612928,
+    "requiredFreeBytes": 62709039104,
+    "failures": [
+      "InvalidOperationException: Exact role completion failed"
+    ],
+    "startAuthorized": false,
+    "reservationMayRelease": false
+  },
+  "exception": "System.InvalidOperationException",
+  "message": "Node commitments changed during current inventory verification",
+  "times": {
+    "admission.preparation-start": 758080170,
+    "admission.prepared": 758082290,
+    "admission.live-start": 758085463
+  },
+  "exactDeaths": [
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379758417408061",
+      "pid": "54184",
+      "absent": true,
+      "role": "owner"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379758417408478",
+      "pid": "53016",
+      "absent": true,
+      "role": "observer"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379758419107629",
+      "pid": "46168",
+      "absent": true,
+      "role": "child"
+    }
+  ],
+  "priorStageDeaths": [
+    {
+      "label": "admission",
+      "expectedCreation": "134379758020789185",
+      "pid": 41256,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "create",
+      "expectedCreation": "134379758153963426",
+      "pid": 43132,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "verify",
+      "expectedCreation": "134379758286671936",
+      "pid": 44324,
+      "sameIncarnationAlive": false,
+      "absent": true
+    }
+  ],
+  "original8091Alive": true,
+  "originalFourVmsUnchanged": true,
+  "originalThirdJournalsByteEqual": true,
+  "hyperVPreparationReached": false,
+  "providerOperationFenced": false,
+  "reservationMayRelease": false,
+  "rpcReady": false
+}

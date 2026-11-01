@@ -1,0 +1,11 @@
+# Root result: primary WMI candidate
+
+Maintained source26271cfe5045012868f53640216139d58a892d7b disables automatic WMI privilege enablement. Strict SYSTEM-primary guard and actual current admission retained. Hosted startup41267533144/68PASS, definition41267535778/167PASS, legacy41267538392/71PASS =306PASS. All58compiled source pins and13exact process exits verified. Two new cases include real local singleton WMI enumeration with original primary context retained; not SYSTEM Hyper-V proof.
+
+Target c2fbb48e3aa04adab8ff5fdf33dfa256 is CONSUMED. Fresh full admission min85388570624B above84385202176B passed. New protected namespace012e9e95862c49beb1f06ba73b0ed6dc and exact261120B binaries verified. Runtime fails with Node commitments changed during current inventory verification after context preparation completed2120ms. No admission.live-complete or preparation traces: privilege candidate was NOT reached on target. Do not claim it fixes the original SYSTEM context fault or rerun this unchanged trial.
+
+Independent exact readce16627842c2443bb08eb75e655fd744 terminal0 proves owner54184/134379758417408061 observer53016/134379758417408478 child46168/134379758419107629 absent, admission/create/verify exact readers absent, no matching tasks/processes. Four original VM IDs/state/assignedRAM equal freshadmission+priorread,8091alive, original third selected plan/intent/submit/native/invoke bytes unchanged. Reader's own SSH completion is not independent death.
+
+Next materially reduce redundant live admission queries using a one-shot observation bound to the exact held read lease/original aggregate window. WindowsStartAdmission already verifies four listener/PID bindings; Completion.Verify re-enumerates two of those listeners. Reuse only that observation with immutable typed binding/freshness checks; retain current issuer health/master/native process identity, all current VM/memory association coverage, resident/physical/resident brackets and final node equality. Do not weaken status equality, extend the authorized4s, omit pending, or treat the transient changed-workload refusal as a capacity deficit.
+
+No provider mutation, production clock/cut/retry, funds, boot, RPC readiness or third-attempt settlement. Full decentralization goal remains active/unachieved.
