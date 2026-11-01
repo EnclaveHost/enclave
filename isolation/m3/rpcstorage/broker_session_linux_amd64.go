@@ -66,6 +66,7 @@ type BrokerSession struct {
 	localReady           *brokerLocalReady
 	localReadySignal     chan struct{}
 	prepareUsed          bool
+	rootsGranted         bool // one final storage grant; consumed even on failure
 	prepared             *servingPrepared
 	guards               [2]*rpcservice.GuardClient
 	guardsUsed           bool
