@@ -207,3 +207,12 @@ preserved. Original bounds and standalone/no-server compilation stay unchanged.
 Native optical inventory now queries both sibling WMI classes through the exact
 original VM settings association; a base Msvm RASD query alone omits media.
 [Observed runner inventory](https://github.com/actions/runner-images/blob/win25-vs2026/20261021.278/images/windows/Windows2025-VS2026-Readme.md).
+
+Optical qualification41332339599 passed19newchecks (17provider/topology fixtures,
+2actualWindowsadministratorjournal cases); both separateproductionentrypoints
+compiled. ActualSYS/WMI/provider/VMattachment/start remains unqualified.
+Controller251904B/450b061c16ae68f38685e648aea70e736093cd134bd9e1f45881752e2b8eb7e7;
+worker218112B/fbc25004cc37edfd456087ef6881e859c01776c3038b4ce30d9fe08e915fe6d8.
+Allsourcepins/binaryhashes verified; unchangedbounds and two precedingfailed
+build preparations preserved in
+`../../ops/unified-funding-20261028/rpc-native-optical-ci-r3/ROOT-RESULT.md`.

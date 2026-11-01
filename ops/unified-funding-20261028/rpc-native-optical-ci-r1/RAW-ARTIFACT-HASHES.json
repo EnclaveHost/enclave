@@ -1,0 +1,18 @@
+{
+  "harness-compile.out": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "process-results.json": {
+    "bytes": 247,
+    "sha256": "c7df1674ed6cd8029d48c1d286925b1ee71788fca705b2afbc6042d85e622c1b"
+  },
+  "pins.json": {
+    "bytes": 3919,
+    "sha256": "c10c3370a1544200abc0be683babc0307e1d6a665f669def1a453341f74bddad"
+  },
+  "harness-compile.err": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}
