@@ -85,3 +85,37 @@ roots. The next implementation must provide that service and accepted bootstrap;
 there is no stub grant fallback. Qualification uses generated test keys, mocked
 chain peers and disposable filesystem records; no production key or volume is
 used and no power-loss/reboot durability qualification is claimed.
+
+## Broker request and process binding
+
+`ReceiveBrokerSession` now implements the actual Unix sequenced-packet ingress
+used by the monitor client. It requires an already protected listener/connection
+and the original sealed clock. It obtains a **kernel SO_PEERPIDFD** reference to
+the connecting process independently of the transferred SCM_RIGHTS pidfd, and
+requires both live references to identify the same root monitor. Numeric
+SO_PEERCRED PID matching alone is insufficient; kernels without SO_PEERPIDFD
+refuse with no PID-only fallback. This capability needs target-kernel admission.
+
+One canonical, bounded request and exactly one atomically CLOEXEC pidfd are
+accepted within three seconds or the earlier original deadline. Duplicate and
+case-alias fields, extra bytes/FDs, truncation, unrelated processes, regular FDs,
+wrong boot or shifted origin refuse. The bound request is returned by value.
+A separate watcher observes both exact process references, connection loss,
+additional packets and the original deadline. It is armed before the session
+returns. Authentication and journal work do not run in that watcher.
+
+`BrokerSession.AuthenticateAndReserve` consumes the session once, calls the real
+owner/signature/sealed-clock and persistent-reservation path, retains any partial
+intent, and checks connection/process/deadline again afterward. A failed
+operation cannot be retried on that session. Intent records are never released
+by losing the connection. Error cleanup waits for the watcher to stop before
+closing its process descriptors, avoiding a close/reuse race.
+
+This watcher supplies **cancellation and refusal**, not independent OS-enforced
+termination of a blocked operation, remote exporter fencing or a release
+certificate. There is still no writable-descriptor grant method or installed
+broker daemon. The protected listener, independently supervised provider,
+storage-owner credentials/fence, and accepted boot composition are the next
+required integration. Do not activate a responder that just echoes a request
+hash and passes directories. Tests use inert subprocesses and socket messages;
+they do not launch a provider or prove production storage ownership.

@@ -1,0 +1,9 @@
+{
+  "base": "92b89b096b022dc900faa53865c0521f9b3e983c",
+  "changedFrozenInputs": [
+    "isolation/m3/rpcstorage/README.md",
+    "isolation/m3/rpcstorage/broker_session_linux_amd64.go",
+    "isolation/m3/rpcstorage/broker_session_test.go"
+  ],
+  "remainingPinsIndependentlyMatchBase": true
+}
