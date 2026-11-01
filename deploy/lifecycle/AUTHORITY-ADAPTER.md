@@ -67,6 +67,49 @@ conservative safe-integer upper bound rather than converting them with lossy
 
 ## Operational authority and current denials
 
+`network/lifecycle-current-denial.mjs` provides the opt-in current-head reader
+for the canonical host-registry profile. Construct
+`createLifecycleCurrentDenialReader({pins, verifier, headers, hostPolicy,
+journalOwner, now})`, then supply it as `generation.head`. The adapter reads and
+copies the certificate chain first and calls `head.read({deployment, anchor,
+baseline, certificates})` with the full same-block finalized baseline. The
+reader checks that binding; a `{number, hash}` argument alone is insufficient.
+The baseline must originate in the caller's qualified finality capability.
+JSON fields are not proof of authority.
+
+The reader creates its own private `verified-head` adapter. That adapter reuses
+the code, closure, schema and owner-policy checks but always reports
+`verified: false`, `proofVerified: false`, and tier `unsafe`. It cannot authorize
+preparation or submission. Only the denial reader converts its own successful
+proof-executed observation into a denial check. The explicit verifier remains a
+trusted local or attested proof-executing capability, never a remote RPC label.
+
+Raw `headers.header(number, {signal, timeoutMs})` responses are authenticated
+backwards from the independently verified current head to the exact finalized
+anchor, including the head's state root. The complete operation defaults to
+15 seconds and at most 2048 headers; stricter caller limits are supported.
+The head is checked again before publication. Its original block time and the
+operation's original observation time remain subject to 20-second freshness
+and two-second future skew. No current state can supply a new owner, witness
+policy, content commitment, funding grant or restoration. A current assignment
+must match an exact prefix of the verified certificate chain. Current host
+authority/status is returned as `head.currentHostAuthority`, bound to that head's
+hash and number. Changes, reduced authority or Offline deny; missing or invalid
+proofs, ancestry, or policy documents return unknown and refuse publication.
+Schema3 retirement remains metadata and does not introduce a global veto.
+
+The reader registers `close` with its journal owner before publication. Close
+and timeout revoke reads immediately, but the operation slot and owner lock
+remain held until the actual transport/callback work drains. Neither cancellation
+nor a timeout is process-death proof. There is no send method or provider retry.
+
+**Integration limit:** the reader is implemented, but direct host admission and
+the final Running send guard still apply their original 20-second block-age
+rule. The canonical-host operational admission, final-send and permit/witness
+boundaries still need to consume and validate the current host evidence alongside
+the existing owner-opted certificate window. This module does not enable that
+path by itself, choose a production verifier, or admit activation.
+
 The `generationAuthority` input to witnesses/runner contains:
 
 ```js
@@ -227,3 +270,5 @@ No production host/default/authority/signer/relay/route/VM/export/payment change
 The maintained adapter and owned runtime now pass eight tests against the reviewed schema3 and host-registry contracts executing on isolated Anvil. They cover prebroadcast Offline/policy/proof refusal, receipt resolution after a lost reply and owned journal reopen, zero-ETH operator/owner enrollment with a test sponsor, owner stop after qualification expiry, and serving-permit withdrawal on registry Offline. The combined runtime bypasses foreign platform refusal while preserving accepted-owner authority. Production modules are unchanged; prior131 pure checks remain qualified.
 
 Finality, capacity/attestation, legacy quiescence and actual manager/ingress/storage/secrets enforcement remain test doubles. This is not production Base authentication or real independent hosting. No live route, funds, VM or provider operation changed. The original RPC start remains unsettled and RPC is offline. See [exact results and limitations](../../ops/unified-funding-20261028/lifecycle-evm-main-preserve-r1/ROOT-RESULT.md), including the preserved initial fixture-format failure.
+
+Current-reader qualification: final R3 `94d2f5ce93f146928bee5ceaa988814d` passed45 checks (7 new and38 regressions),22.883s,86 source pins unchanged. Earlier fixture assertion/memory-limit failure and its corrected bounded execution are preserved in [the exact result](../../ops/unified-funding-20261028/lifecycle-current-denial-preserve-r1/ROOT-RESULT.md). No production activation or freshness/resource-limit relaxation.

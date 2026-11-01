@@ -1,0 +1,6 @@
+ActiveState=failed
+SubState=failed
+MainPID=0
+Result=exit-code
+ExecMainStatus=99
+ControlGroup=

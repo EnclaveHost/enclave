@@ -1,0 +1,304 @@
+TAP version 13
+# Subtest: maintained artifact paths and same-block millisecond bridge contract: read, prepare and send
+ok 1 - maintained artifact paths and same-block millisecond bridge contract: read, prepare and send
+  ---
+  duration_ms: 210.459869
+  type: 'test'
+  ...
+# Subtest: millisecond header identity must equal snapshot metadata; seconds, missing callback and mixed block refuse
+ok 2 - millisecond header identity must equal snapshot metadata; seconds, missing callback and mixed block refuse
+  ---
+  duration_ms: 104.763894
+  type: 'test'
+  ...
+# Subtest: unqualified RPC labels never acquire proof status or authorize preparation
+ok 3 - unqualified RPC labels never acquire proof status or authorize preparation
+  ---
+  duration_ms: 57.87917
+  type: 'test'
+  ...
+# Subtest: reviewed pin configuration cannot be changed through retained caller objects
+ok 4 - reviewed pin configuration cannot be changed through retained caller objects
+  ---
+  duration_ms: 144.264779
+  type: 'test'
+  ...
+# Subtest: final Running boundary rejects changed wallet policy and original observation expiry after approval
+ok 5 - final Running boundary rejects changed wallet policy and original observation expiry after approval
+  ---
+  duration_ms: 404.809125
+  type: 'test'
+  ...
+# Subtest: canonical Offline does not prevent owner queued/stopped requests
+ok 6 - canonical Offline does not prevent owner queued/stopped requests
+  ---
+  duration_ms: 141.469253
+  type: 'test'
+  ...
+# Subtest: charge and fee caps survive canonical payload rewriting and signing delay
+ok 7 - charge and fee caps survive canonical payload rewriting and signing delay
+  ---
+  duration_ms: 143.671584
+  type: 'test'
+  ...
+# Subtest: ambiguous send is propagated and state without the exact receipt remains unresolved
+ok 8 - ambiguous send is propagated and state without the exact receipt remains unresolved
+  ---
+  duration_ms: 103.401365
+  type: 'test'
+  ...
+# Subtest: exact signed transaction and reconstructed receipt trie confirm/finalize at authenticated ancestor
+ok 9 - exact signed transaction and reconstructed receipt trie confirm/finalize at authenticated ancestor
+  ---
+  duration_ms: 178.236702
+  type: 'test'
+  ...
+# Subtest: receipt/root/calldata location tampering never confirms the assignment alone
+ok 10 - receipt/root/calldata location tampering never confirms the assignment alone
+  ---
+  duration_ms: 169.047541
+  type: 'test'
+  ...
+# Subtest: artifact identity and schema3 bundle pins remain exact
+ok 11 - artifact identity and schema3 bundle pins remain exact
+  ---
+  duration_ms: 3.658389
+  type: 'test'
+  ...
+# Subtest: large on-chain generation, revision and emergency counters refuse rather than round
+ok 12 - large on-chain generation, revision and emergency counters refuse rather than round
+  ---
+  duration_ms: 65.470726
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1735.51067
+TAP version 13
+# Subtest: old finalized policy plus fresh denial checks supports fenced failover without waiting for a new finalized block
+ok 1 - old finalized policy plus fresh denial checks supports fenced failover without waiting for a new finalized block
+  ---
+  duration_ms: 268.659478
+  type: 'test'
+  ...
+# Subtest: a partitioned old host cannot obtain a quorum after three witnesses fenced it
+ok 2 - a partitioned old host cannot obtain a quorum after three witnesses fenced it
+  ---
+  duration_ms: 55.938627
+  type: 'test'
+  ...
+# Subtest: a restarted witness refuses another successor for the same parent generation
+ok 3 - a restarted witness refuses another successor for the same parent generation
+  ---
+  duration_ms: 22.168963
+  type: 'test'
+  ...
+# Subtest: quorum certificates cannot mint budget, extend runtime or bypass a revocation
+ok 4 - quorum certificates cannot mint budget, extend runtime or bypass a revocation
+  ---
+  duration_ms: 42.632999
+  type: 'test'
+  ...
+# Subtest: freshly observing an over-age anchor, missing current proof, or changing witnesses cannot authorize service
+ok 5 - freshly observing an over-age anchor, missing current proof, or changing witnesses cannot authorize service
+  ---
+  duration_ms: 21.510858
+  type: 'test'
+  ...
+# Subtest: an authenticated unsafe denial persists through restart and a later unsafe allow cannot restore service
+ok 6 - an authenticated unsafe denial persists through restart and a later unsafe allow cannot restore service
+  ---
+  duration_ms: 2.828457
+  type: 'test'
+  ...
+# Subtest: runner serves a quorum-certified mined transition while retaining its intent until real finality
+ok 7 - runner serves a quorum-certified mined transition while retaining its intent until real finality
+  ---
+  duration_ms: 161.115268
+  type: 'test'
+  ...
+# Subtest: operational host refusal queues its running assignment without globally stopping the app
+ok 8 - operational host refusal queues its running assignment without globally stopping the app
+  ---
+  duration_ms: 1.15398
+  type: 'test'
+  ...
+# Subtest: current local owner refusal overrides a valid signed running generation on this host
+ok 9 - current local owner refusal overrides a valid signed running generation on this host
+  ---
+  duration_ms: 131.625157
+  type: 'test'
+  ...
+# Subtest: current local owner refusal leaves a certified queued generation available to other hosts
+ok 10 - current local owner refusal leaves a certified queued generation available to other hosts
+  ---
+  duration_ms: 31.96008
+  type: 'test'
+  ...
+# Subtest: current local owner refusal cannot revoke a certified assignment on another host
+ok 11 - current local owner refusal cannot revoke a certified assignment on another host
+  ---
+  duration_ms: 87.349742
+  type: 'test'
+  ...
+# Subtest: operational host refusal leaves queued work available without starting or charging it
+ok 12 - operational host refusal leaves queued work available without starting or charging it
+  ---
+  duration_ms: 0.726224
+  type: 'test'
+  ...
+# Subtest: missing or differently scoped host admission cannot be repaired by outer snapshot booleans
+ok 13 - missing or differently scoped host admission cannot be repaired by outer snapshot booleans
+  ---
+  duration_ms: 1.21894
+  type: 'test'
+  ...
+# Subtest: global disable and current denial retain precedence over host admission
+ok 14 - global disable and current denial retain precedence over host admission
+  ---
+  duration_ms: 1.490578
+  type: 'test'
+  ...
+# Subtest: witnesses refuse serving on a globally enabled but ineligible or differently scoped host
+ok 15 - witnesses refuse serving on a globally enabled but ineligible or differently scoped host
+  ---
+  duration_ms: 6.894942
+  type: 'test'
+  ...
+# Subtest: generation witnesses refuse a successor lacking matching anchored host admission
+ok 16 - generation witnesses refuse a successor lacking matching anchored host admission
+  ---
+  duration_ms: 103.457985
+  type: 'test'
+  ...
+# Subtest: HTTP generation collection verifies both signatures and returns contract-ordered approvals
+ok 17 - HTTP generation collection verifies both signatures and returns contract-ordered approvals
+  ---
+  duration_ms: 229.496729
+  type: 'test'
+  ...
+# Subtest: generation signing persists denials and requires finalized restoration before a new successor
+ok 18 - generation signing persists denials and requires finalized restoration before a new successor
+  ---
+  duration_ms: 16.933347
+  type: 'test'
+  ...
+1..18
+# tests 18
+# suites 0
+# pass 18
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1198.834112
+TAP version 13
+# Subtest: current reader authenticates ancestry to a fresh head while preserving an older owner-opted finalized baseline
+ok 1 - current reader authenticates ancestry to a fresh head while preserving an older owner-opted finalized baseline
+  ---
+  duration_ms: 1476.958974
+  type: 'test'
+  ...
+# Subtest: actual owner Offline at current head denies a previously Online finalized host
+ok 2 - actual owner Offline at current head denies a previously Online finalized host
+  ---
+  duration_ms: 885.966832
+  type: 'test'
+  ...
+# Subtest: actual current reporter-policy change and uncertified app generation cannot grant authority
+ok 3 - actual current reporter-policy change and uncertified app generation cannot grant authority
+  ---
+  duration_ms: 1465.278307
+  type: 'test'
+  ...
+# Subtest: malformed ancestry, over-bound range and substituted baseline all refuse before publication
+ok 4 - malformed ancestry, over-bound range and substituted baseline all refuse before publication
+  ---
+  duration_ms: 1058.539756
+  type: 'test'
+  ...
+# Subtest: current-head-only adapter never qualifies positive authority even with a forged finalized tier
+ok 5 - current-head-only adapter never qualifies positive authority even with a forged finalized tier
+  ---
+  duration_ms: 665.097831
+  type: 'test'
+  ...
+# Subtest: timeout retains the one-operation slot and real journal lock until cancellation-ignoring transport drains
+ok 6 - timeout retains the one-operation slot and real journal lock until cancellation-ignoring transport drains
+  ---
+  duration_ms: 595.754298
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 7253.283837
+TAP version 13
+# Subtest: 5a prepare persists the exact versioned host authority IN the durable canonical payload
+ok 1 - 5a prepare persists the exact versioned host authority IN the durable canonical payload
+  ---
+  duration_ms: 1264.972226
+  type: 'test'
+  ...
+# Subtest: 5b Offline during the delayed actorSigner: refused before relay.send; durable intent unchanged
+ok 2 - 5b Offline during the delayed actorSigner: refused before relay.send; durable intent unchanged
+  ---
+  duration_ms: 1168.707911
+  type: 'test'
+  ...
+# Subtest: 5c owner policy/revision change during delayed approvals: refused before relay.send
+ok 3 - 5c owner policy/revision change during delayed approvals: refused before relay.send
+  ---
+  duration_ms: 1008.521065
+  type: 'test'
+  ...
+# Subtest: 5d unqualified authority after signatures refuses; stable authority sends exactly once
+ok 4 - 5d unqualified authority after signatures refuses; stable authority sends exactly once
+  ---
+  duration_ms: 1279.620017
+  type: 'test'
+  ...
+# Subtest: 6 mined lost reply, then missed Offline + recovery + restart: exact pending resolves once from the receipt, no resend
+ok 5 - 6 mined lost reply, then missed Offline + recovery + restart: exact pending resolves once from the receipt, no resend
+  ---
+  duration_ms: 1153.675372
+  type: 'test'
+  ...
+# Subtest: 6b current Offline with expired historical qualification: Running refused, owner stop still prepared/sent
+ok 6 - 6b current Offline with expired historical qualification: Running refused, owner stop still prepared/sent
+  ---
+  duration_ms: 926.488931
+  type: 'test'
+  ...
+# Subtest: 6c a Running payload without host authority (legacy/lost context) is resolvable but never sent
+ok 7 - 6c a Running payload without host authority (legacy/lost context) is resolvable but never sent
+  ---
+  duration_ms: 680.734786
+  type: 'test'
+  ...
+# Subtest: actual chain drives owned runtime and permits under foreign platform refusal; owner Offline withdraws locally
+ok 8 - actual chain drives owned runtime and permits under foreign platform refusal; owner Offline withdraws locally
+  ---
+  duration_ms: 2135.96946
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10717.045122

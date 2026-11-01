@@ -156,7 +156,7 @@ export async function worldHR(opts = {}) {
     return { ...base, snapshot: async fn => ({ ...await base.snapshot(fn), observedAt: chainNow() }) }; };
   w.adapter = (over = {}) => createLifecycleChainAdapter({ pins: over.pins || w.pins, authority: virtualAuthority(over.kind || 'derived'),
     receipts: w.receipts, hostPolicy: { load: async () => { throw Error('TEST: no committed host policy document (policyHash is zero)'); } },
-    generation: null, now: chainNow,
+    generation: over.generation ?? null, now: chainNow,
     actorSigner: async ({ target, typedData }) => { const a = target === 'running' ? operator : human; return { address: a.address, signature: await a.signTypedData(typedData) }; },
     approvals: async ({ typedData }) => Promise.all(witnesses.map(x => x.signTypedData(typedData))),
     relay: { address: relay.address, send: async t => { w.sent.push(t);

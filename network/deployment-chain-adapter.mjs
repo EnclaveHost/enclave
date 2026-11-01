@@ -253,8 +253,9 @@ export function createLifecycleChainAdapter({ pins, authority, receipts, hostPol
     throw Error('generation authority needs head.read and certificates.read capabilities');
   if (!WEI.test(String(pins.maxChargeWei))) throw Error('pins.maxChargeWei required');
   if (!WEI.test(String(pins.maxGasPriceWei))) throw Error('pins.maxGasPriceWei (reviewed fee cap) required');
-  if (!['derived', 'rpc-quorum'].includes(authority?.kind) || typeof authority.snapshot !== 'function')
-    throw Error('authority {kind: derived|rpc-quorum, snapshot} capability required');
+  if (!['derived', 'rpc-quorum', 'verified-head'].includes(authority?.kind) || typeof authority.snapshot !== 'function')
+    throw Error('authority {kind: derived|rpc-quorum|verified-head, snapshot} capability required');
+  if (authority.kind === 'verified-head' && generation) throw Error('a current head cannot grant operational authority');
   if (['locate', 'header', 'block'].some(f => typeof receipts?.[f] !== 'function')) throw Error('receipts {locate, header, block} source required');
   if (typeof hostPolicy?.load !== 'function') throw Error('hostPolicy {load(policyHash)} document source required');
   if (!Number.isInteger(maxAncestry) || maxAncestry < 1 || maxAncestry > 8191) throw Error('maxAncestry must be 1..8191 headers');
@@ -265,7 +266,9 @@ export function createLifecycleChainAdapter({ pins, authority, receipts, hostPol
   const admins = Object.fromEntries(Object.entries(pins.admins).map(([k, s]) => [k, s.map(a => getAddress(a))]));
 
   const qualified = ev => authority.kind === 'derived' && ev?.tier === 'l1-finalized-derived' && ev?.proofVerified === true;
-  const tierOf = ev => authority.kind === 'derived' ? String(ev?.tier) : 'rpc-quorum';
+  // A proof-executed current head is usable only by the denial reader. It never
+  // satisfies qualified(), even when its transport claims finalized evidence.
+  const tierOf = ev => authority.kind === 'verified-head' ? 'unsafe' : authority.kind === 'derived' ? String(ev?.tier) : 'rpc-quorum';
   async function pinned(fn) {             // one authenticated block; the whole reviewed closure is checked inside the same pinned read
     let observedHeader;
     const r = await authority.snapshot(async (client, number, header) => {
@@ -598,8 +601,8 @@ export function createLifecycleChainAdapter({ pins, authority, receipts, hostPol
           funded, fundedUntil, balanceWei: v.budget.balanceWei.toString(), ownerAuthority: v.ownerAuthority, policyHash: certificateWitnessesHash(v.policy),
           assignment: { deployment: id, generation: v.a.generation, state: v.a.state, host: v.a.host, operator: v.a.operator,
             changedAt: v.a.changedAt, startAfter: v.a.startAfter, failures: v.a.failures, crashHeld: v.a.crashHeld } };
-        const head = await generation.head.read({ deployment: id, anchor: { number: anchor.number, hash: anchor.hash } });
-        const certificates = await generation.certificates.read(id);
+        const certificates = freeze(structuredClone(await generation.certificates.read(id)));
+        const head = await generation.head.read({ deployment: id, anchor, baseline: snapshot, certificates });
         if (!head || typeof head !== 'object' || !Array.isArray(certificates)) throw Error('generation sources returned malformed data');
         snapshot.generationAuthority = { anchor, head, policy: v.policy, certificates };
       }
