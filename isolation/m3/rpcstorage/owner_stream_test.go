@@ -25,10 +25,10 @@ import (
 )
 
 func TestGuestOwnerContinuousTLSAndLoss(t *testing.T) {
-	for _, mode := range []string{"prepare", "prepare-guard-loss", "prepare-tamper", "prepare-stale", "normal", "idle-partial", "downgrade-ack", "idle-loss", "bad-signature", "unsolicited", "monitor-loss", "original-deadline"} {
+	for _, mode := range []string{"commit", "commit-renew", "commit-original-deadline", "commit-second-guard-loss", "commit-guard-receipt-conflict", "commit-owner-tamper", "commit-changed-response", "commit-lost-reply", "commit-stale", "prepare", "prepare-guard-loss", "prepare-tamper", "prepare-stale", "normal", "idle-partial", "downgrade-ack", "idle-loss", "bad-signature", "unsolicited", "monitor-loss", "original-deadline"} {
 		t.Run(mode, func(t *testing.T) {
 			left := time.Duration(0)
-			if mode == "original-deadline" {
+			if mode == "original-deadline" || mode == "commit-original-deadline" {
 				left = 500 * time.Millisecond
 			}
 			f, e := brokerFixtureStart(t, "valid", left)
@@ -138,7 +138,7 @@ func TestGuestOwnerContinuousTLSAndLoss(t *testing.T) {
 					done <- nil
 					return
 				}
-				if strings.HasPrefix(mode, "prepare") {
+				if strings.HasPrefix(mode, "prepare") || strings.HasPrefix(mode, "commit") {
 					if mode == "prepare-tamper" {
 						// Real startup signature, then an intentionally invalid
 						// preparation reply from the authenticated owner socket.
@@ -175,6 +175,59 @@ func TestGuestOwnerContinuousTLSAndLoss(t *testing.T) {
 						writeOwnerFrame(conn, reply)
 						var b [1]byte
 						conn.Read(b[:])
+						done <- nil
+						return
+					}
+					if mode == "commit-owner-tamper" || mode == "commit-changed-response" || mode == "commit-lost-reply" || mode == "commit-stale" {
+						for phase := 0; phase < 3; phase++ {
+							raw, e := readOwnerFrame(conn, 1024)
+							if e != nil {
+								done <- e
+								return
+							}
+							var reply []byte
+							switch phase {
+							case 0:
+								var p bootstrap.RPCContinuation
+								json.Unmarshal(raw, &p)
+								reply, e = owner.IssueStartup(p)
+							case 1:
+								reply, e = owner.PrepareServing(raw)
+							case 2:
+								if mode == "commit-changed-response" {
+									var changed servingCommitRequest
+									json.Unmarshal(raw, &changed)
+									changed.Permit.NotAfter--
+									raw, _ = json.Marshal(changed)
+								}
+								reply, e = owner.IssueServing(raw)
+								if mode == "commit-owner-tamper" {
+									var bad bootstrap.RPCContinuationSignatures
+									json.Unmarshal(reply, &bad)
+									bad.Base = bad.L1
+									reply, _ = json.Marshal(bad)
+								}
+								if mode == "commit-stale" {
+									time.Sleep(3100 * time.Millisecond)
+								}
+							}
+							if e != nil {
+								done <- e
+								return
+							}
+							if phase == 2 && mode == "commit-lost-reply" {
+								var one [1]byte
+								conn.Read(one[:])
+								done <- nil
+								return
+							}
+							if e = writeOwnerFrame(conn, reply); e != nil {
+								done <- nil
+								return
+							}
+						}
+						var one [1]byte
+						conn.Read(one[:])
 						done <- nil
 						return
 					}
@@ -279,14 +332,14 @@ func TestGuestOwnerContinuousTLSAndLoss(t *testing.T) {
 				<-done
 				return
 			}
-			if strings.HasPrefix(mode, "prepare") {
+			if strings.HasPrefix(mode, "prepare") || strings.HasPrefix(mode, "commit") {
 				s.mu.Lock()
 				s.exportBound = true
 				s.mu.Unlock() // actual export is not this TLS fixture
 				// Two private channels, actual broker client, bounded test-only
 				// guardian responders. Native receiver is qualified separately.
 				var guardFiles [2]*os.File
-				guardAcks := make(chan []byte, 2)
+				guardAcks := make(chan []byte, 8)
 				for i := range guardFiles {
 					pair, e := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_SEQPACKET|syscall.SOCK_CLOEXEC, 0)
 					if e != nil {
@@ -299,21 +352,34 @@ func TestGuestOwnerContinuousTLSAndLoss(t *testing.T) {
 						syscall.Close(peer)
 						continue
 					}
+					guardIndex := i
 					go func() {
 						defer syscall.Close(peer)
-						b := make([]byte, 89)
-						n, _, e := syscall.Recvfrom(peer, b, 0)
-						if e == nil && n == 88 {
+						for op := 0; op < 3; op++ {
+							b := make([]byte, 89)
+							n, _, e := syscall.Recvfrom(peer, b, 0)
+							if e != nil || n != 88 {
+								return
+							}
+							if b[8] == 2 && mode == "commit-second-guard-loss" && guardIndex == 1 {
+								return
+							}
 							guardAcks <- append([]byte(nil), b[:n]...)
 							b[8] |= 0x80
-							_ = syscall.Sendmsg(peer, b[:n], nil, nil, syscall.MSG_NOSIGNAL)
+							if syscall.Sendmsg(peer, b[:n], nil, nil, syscall.MSG_NOSIGNAL) != nil {
+								return
+							}
 						}
-						// Retain peer until whole session ends; EOF is terminal.
 						<-s.Context().Done()
 					}()
 				}
 				if e := s.BindServingGuards(guardFiles[0], guardFiles[1]); e != nil {
 					t.Fatal(e)
+				}
+				if mode == "commit-guard-receipt-conflict" {
+					if e := os.WriteFile(filepath.Join(receipts.Name(), "owner-serving-0000000000000002-guardians"), []byte("held"), 0400); e != nil {
+						t.Fatal(e)
+					}
 				}
 				original := s.request
 				runDone := make(chan error, 1)
@@ -362,18 +428,89 @@ func TestGuestOwnerContinuousTLSAndLoss(t *testing.T) {
 				for {
 					s.mu.Lock()
 					prepared := s.prepared
+					committed := len(s.servingProof) > 0
 					s.mu.Unlock()
-					if prepared != nil || s.ctx.Err() != nil {
+					if (prepared != nil && !strings.HasPrefix(mode, "commit")) || (committed && strings.HasPrefix(mode, "commit")) || s.ctx.Err() != nil {
 						break
 					}
-					if time.Since(start) > time.Second {
-						t.Fatal("readiness waited for ten-second interval")
+					if time.Since(start) > 4*time.Second {
+						t.Fatal("readiness/commit waited for ten-second interval")
 					}
 					time.Sleep(time.Millisecond)
 				}
 				s.mu.Lock()
 				prepared := s.prepared
 				s.mu.Unlock()
+				if strings.HasPrefix(mode, "commit") {
+					s.mu.Lock()
+					committed := append([]byte(nil), s.servingProof...)
+					gseq := s.servingSequence
+					s.mu.Unlock()
+					expected := mode == "commit" || mode == "commit-renew" || mode == "commit-original-deadline"
+					if (len(committed) > 0) != expected || (expected && gseq != 1) {
+						t.Fatal("partial transaction published success", mode, s.ctx.Err())
+					}
+					if expected {
+						disk, e := os.ReadFile(filepath.Join(receipts.Name(), "owner-serving-0000000000000002-proof"))
+						if e != nil || !bytes.Equal(disk, committed) {
+							t.Fatal("owner proof not durable", e)
+						}
+						for i := 0; i < 4; i++ {
+							select {
+							case frame := <-guardAcks:
+								if (i < 2 && frame[8] != 1) || (i >= 2 && frame[8] != 2) {
+									t.Fatal("unexpected guard order")
+								}
+							case <-time.After(time.Second):
+								t.Fatal("missing guardian acknowledgement")
+							}
+						}
+						if mode == "commit-renew" {
+							time.Sleep(time.Until(time.Now().Truncate(time.Second).Add(time.Second)) + 5*time.Millisecond)
+							if e = s.continueServingOwnerOnce(s.ownerStream, a, rpcBundle(t), receipts); e != nil {
+								t.Fatal("same stream renewal", e)
+							}
+							s.mu.Lock()
+							gseq = s.servingSequence
+							s.mu.Unlock()
+							if gseq != 2 {
+								t.Fatal("renewal sequence lost")
+							}
+							for i := 0; i < 2; i++ {
+								frame := <-guardAcks
+								if frame[8] != 3 {
+									t.Fatal("renewal not sent to both original guardians")
+								}
+							}
+						}
+					} else {
+						if s.ctx.Err() == nil {
+							t.Fatal("failed commit did not lose whole session")
+						}
+						if _, e = os.Stat(filepath.Join(receipts.Name(), "owner-serving-0000000000000002-submit")); e != nil {
+							t.Fatal("ambiguous intent disappeared", e)
+						}
+						if mode == "commit-second-guard-loss" || mode == "commit-guard-receipt-conflict" {
+							if _, e = os.Stat(filepath.Join(receipts.Name(), "owner-serving-0000000000000002-proof")); e != nil {
+								t.Fatal("partial commit proof disappeared", e)
+							}
+						}
+					}
+					if mode == "commit-original-deadline" {
+						select {
+						case <-s.ctx.Done():
+						case <-time.After(time.Second):
+							t.Fatal("component commit bypassed original broker deadline")
+						}
+					}
+					if s.request != original {
+						t.Fatal("startup clock reset")
+					}
+					s.Stop()
+					<-runDone
+					<-done
+					return
+				}
 				if (prepared != nil) != (mode == "prepare") {
 					t.Fatal("unexpected preparation result", s.ctx.Err())
 				}

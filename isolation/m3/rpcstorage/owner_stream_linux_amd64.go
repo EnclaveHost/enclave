@@ -41,7 +41,8 @@ func (s *BrokerSession) HasOwnerContinuations() bool {
 // export-control binding. No other caller may use this Authorization concurrently.
 // It keeps the SAME authenticated /2 TLS connection. No new dial, start request,
 // fallback or retry. Every failure closes the broker, including its export TCP
-// connection. It returns only on loss; serving adoption remains unavailable.
+// connection. It returns only on loss. Owner/guardian commit is a component
+// transaction; exporter and host adoption remain separately required.
 func (s *BrokerSession) RunOwnerContinuations(a *bootstrap.Authorization, bundle []byte, receipts *os.File) (err error) {
 	defer func() { s.lose() }()
 	s.mu.Lock()
@@ -65,7 +66,15 @@ func (s *BrokerSession) RunOwnerContinuations(a *bootstrap.Authorization, bundle
 			default:
 			}
 		}
-		if err = s.continueOwnerOnce(stream, a, bundle, receipts); err != nil {
+		s.mu.Lock()
+		prepared := s.prepared != nil
+		s.mu.Unlock()
+		if prepared {
+			err = s.continueServingOwnerOnce(stream, a, bundle, receipts)
+		} else {
+			err = s.continueOwnerOnce(stream, a, bundle, receipts)
+		}
+		if err != nil {
 			return err
 		}
 		timer := time.NewTimer(10 * time.Second)

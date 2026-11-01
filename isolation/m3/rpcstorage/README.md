@@ -462,9 +462,8 @@ remaining independent earlier cutoffs. Every failure ends the session.
 The loop requests a signed startup permit immediately and then every ten seconds,
 with each permit lasting at most30seconds. These are off-chain requests; they do
 not renew a chain lease or change the legacy authorization ceiling. A signed
-startup permit never grants serving mode. The broker does not yet emit a
-serving commit. The original owner now implements the separately prepared commit
-described below; complete lifecycle coordination remains unfinished.
+startup permit never grants serving mode. The broker and original owner now implement the separately prepared component
+commit described below; complete lifecycle coordination remains unfinished.
 
 **Production operator integration remains unqualified.** Maintained source now
 implements explicitly selected `/2` preparation, bootstrap, relay, dispatcher
@@ -495,8 +494,33 @@ or short replies poison the session; no retry or writer release follows.
 Cancellation never waits for the signing/persistence mutex, and the existing
 owner command's independent termination on session loss remains armed.
 
-This transfers only the owner actor. The guest broker does not yet emit serving
-commits, and exporter, broker, operator/systemd/TLS and Windows host cutoffs still
+The guest broker now coordinates this owner commit with both original local
+guardians, as described below. Exporter, broker, operator/systemd/TLS and Windows host cutoffs still
 need coordinated transfer. The dispatcher's outer original deadline and frame
 count remain unchanged. This source is not a deployed serving path or permission
 to boot a partially coordinated bundle.
+
+
+### Broker owner/guardian commit (not complete serving)
+
+The original `/2` loop immediately consumes its live preparation in a bounded
+serving transaction. A private coordinator checks the original readiness frame,
+current owner authorization and current sequential chain, persists a transport
+intent before one request, verifies the exact dual-signed response, and persists
+it before sending both guardian COMMIT requests. Only both exact acknowledgements
+plus a durable receipt publish the private `servingProof` result. Guardian sequence
+and owner permit sequence remain distinct. Every subsequent renewal retains the
+same original preparation/observation and uses the same live stream and guardians.
+
+The signed permit's original monotonic expiry is conservatively converted to the
+same-kernel guardian clock; persistence or scheduling cannot buy fresh lifetime.
+The prior authority, four-second initial observation window, three-second exchange,
+monitor identity and original broker deadline remain enforced during the operation.
+Any malformed/different/late response, missing guardian or failed persistence
+closes the whole broker session and both guardian channels; exact intent/proof
+records remain held and are never retransmitted.
+
+This component result is not exported as RPC Ready, ledger Running, writer fencing
+or reservation release. No broker startup timer, exporter control read deadline,
+exporter guardian or outer host cutoff is extended here. Those actual participants
+must still commit before a coherent bundle can serve beyond startup.

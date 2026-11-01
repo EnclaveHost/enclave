@@ -83,9 +83,19 @@ dual-signed permit before replying. This changes only the same owner's atomic
 phase/cutoff record, watched independently of signing/persistence. Renewals retain
 the same original binding and strictly advance the short absolute expiry.
 
-**The production broker does not yet emit serving requests or COMMIT/RENEW.**
-Exporter, broker, operator/systemd/TLS and Windows guardian transfer still need
-one coordinated transaction with these owner/service components. This receiver integration does not make the RPC live or
+The maintained broker now sends the explicit serving request immediately after
+preparation. It consumes a transport intent before writing, verifies both owner
+signatures and the exact requested permit, persists the exact proof, then obtains
+both original guardian COMMIT acknowledgements and records their receipt before
+publishing its private component result. Later permits use that same connection,
+preparation and sequential chain, followed by both guardian RENEW acknowledgements.
+Partial failure shuts down both guardian channels and the original owner/export
+connections, retaining ambiguous intents and proofs without retry.
+
+**This is still not persistent serving.** The broker's original deadline and
+export-control read cutoff remain enforced, as do the exporter and outer
+operator/systemd/TLS/Windows bounds. Those participants still require their
+coordinated transfer before this composition can be activated. This receiver integration does not make the RPC live or
 remove any startup cutoff in the currently reachable path. Native entry requires
 FD16 as well as FD15; do not combine older monitor/broker/entry binaries. C header
 changes are included in boot-stage source pins. Existing firmware is obsolete for

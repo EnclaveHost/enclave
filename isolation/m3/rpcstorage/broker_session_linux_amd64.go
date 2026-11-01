@@ -68,6 +68,9 @@ type BrokerSession struct {
 	prepared             *servingPrepared
 	guards               [2]*rpcservice.GuardClient
 	guardsUsed           bool
+	servingSequence      uint64    // guardian sequence, distinct from owner continuation sequence
+	servingUntil         time.Time // component commit expiry; original broker cutoff remains
+	servingProof         []byte    // exact durable owner proof after both guardian ACKs
 }
 
 func (s *BrokerSession) Request() Request         { return s.request }
