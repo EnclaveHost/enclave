@@ -1,0 +1,126 @@
+{
+  "source": "6e4dde3faea18cc6b1c39ba208ff13db41a3f2c9",
+  "run": 41270145631,
+  "tests": 18,
+  "sourcePins": [
+    {
+      "path": "windows/rpc/BoundedWorker.cs",
+      "sha256": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99"
+    },
+    {
+      "path": "windows/rpc/ProtectedAttempt.cs",
+      "sha256": "1a45403c3162c22f06dfa0ed778c3c71f26b185eec199ce3b241b92a3144cb75"
+    },
+    {
+      "path": "windows/rpc/ClockSample.cs",
+      "sha256": "0b5f03119f7f7fb1fd364577485b6a74ca71c7fba77c93dd28d5c0fd0bfca4f3"
+    },
+    {
+      "path": "windows/rpc/ProviderEventEvidence.cs",
+      "sha256": "ce4b45f81ad0e8c87414c0a9e965e488e3c327de841e4c090fac93ab7507227b"
+    },
+    {
+      "path": "test/rpc-windows-worker/ProviderEventEvidenceHarness.cs",
+      "sha256": "27e5f2d8968380ddcee88ad1abb68dae0c084bd4dc4391834a1c3e1411f2b40b"
+    }
+  ],
+  "artifact": {
+    "path": "provider-events.exe",
+    "bytes": 59904,
+    "sha256": "1fb78aaf558d02df28a5492756b103c04f11625a4eae362c77edbfdc1785ef9c"
+  },
+  "processes": [
+    {
+      "label": "sample-compile",
+      "pid": 6248,
+      "exitCode": 0,
+      "elapsedMs": 1577,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 31137792,
+      "outputBytes": 984
+    },
+    {
+      "label": "fixture-compile",
+      "pid": 4304,
+      "exitCode": 0,
+      "elapsedMs": 138,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 31981568,
+      "outputBytes": 984
+    },
+    {
+      "label": "fixtures",
+      "pid": 9444,
+      "exitCode": 0,
+      "elapsedMs": 194,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 24297472,
+      "outputBytes": 520
+    },
+    {
+      "label": "normal",
+      "pid": 9648,
+      "exitCode": 0,
+      "elapsedMs": 113,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 26476544,
+      "outputBytes": 1007
+    },
+    {
+      "label": "wrong-image",
+      "pid": 8392,
+      "exitCode": 1,
+      "elapsedMs": 60,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 21000192,
+      "outputBytes": 27
+    },
+    {
+      "label": "bad-window",
+      "pid": 680,
+      "exitCode": 1,
+      "elapsedMs": 60,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 21790720,
+      "outputBytes": 19
+    },
+    {
+      "label": "wrong-boot",
+      "pid": 8040,
+      "exitCode": 1,
+      "elapsedMs": 61,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 20496384,
+      "outputBytes": 27
+    },
+    {
+      "label": "arity",
+      "pid": 1256,
+      "exitCode": 64,
+      "elapsedMs": 52,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 15122432,
+      "outputBytes": 0
+    },
+    {
+      "label": "watchdog",
+      "pid": 2872,
+      "exitCode": 124,
+      "elapsedMs": 5038,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 15552512,
+      "outputBytes": 16
+    }
+  ],
+  "targetQualified": false,
+  "providerSettled": false
+}

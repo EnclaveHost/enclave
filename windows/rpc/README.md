@@ -1195,12 +1195,16 @@ ready. See `ops/unified-funding-20261028/rpc-fenced-live-retry-target-result-r1`
 
 
 `ProviderEventEvidenceEntry` is a separate read-only historical-event collector.
-It searches only three fixed WMI/VMMS channels within a reviewed original worker
+It searches only two fixed WMI/VMMS channels within a reviewed original worker
 window of at most60 seconds. A five-second independent watchdog and128MiB
 self-job bound the reader; bootstrap allowance and protected image staging remain
 external admission requirements. It creates no child, changes no log, and invokes
 no VM/provider mutation. Output is bounded and private by default. Empty logs,
 unavailable channels and source-order inference cannot settle a lost response;
 even a returned event requires exact operation/ownership correlation. Its output
-always retains providerSettled=false and reservationMayRelease=false. Initial
-source is unqualified pending hosted and target evidence.
+always retains providerSettled=false and reservationMayRelease=false.
+The corrected two-channel reader passed18 hosted checks on source6e4dde3f.
+Its target staging was refused when fresh inventory had three original VMs
+instead of four; it has not run on target. The earlier WMI empty result supplies
+no settlement evidence. See `rpc-provider-events-target-result-r2` for exact
+process, source, artifact and inventory receipts.
