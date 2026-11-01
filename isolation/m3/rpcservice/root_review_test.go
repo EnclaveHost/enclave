@@ -86,7 +86,11 @@ func TestRoleCommandDropsPrivilegesAndHasNoFDTransport(t *testing.T) {
 		if a == nil || !a.UseCgroupFD || a.CgroupFD != 23 || a.Pdeathsig != syscall.SIGKILL || a.Credential == nil {
 			t.Fatal("missing creation-time confinement")
 		}
-		if a.Credential.Uid != uint32(2101+r) || a.Credential.Gid != a.Credential.Uid || len(a.Credential.Groups) != 0 || a.Credential.NoSetGroups || len(a.AmbientCaps) != 0 {
+		wantUID := uint32(2101 + r)
+		if r == roleFront {
+			wantUID = 1053577
+		}
+		if a.Credential.Uid != wantUID || a.Credential.Gid != a.Credential.Uid || len(a.Credential.Groups) != 0 || a.Credential.NoSetGroups || len(a.AmbientCaps) != 0 {
 			t.Fatal("role privilege reduction changed")
 		}
 		if len(c.ExtraFiles) != 0 || c.Stdin != nil || c.Stdout != nil || c.Stderr != nil {

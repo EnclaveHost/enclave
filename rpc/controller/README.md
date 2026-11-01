@@ -55,10 +55,10 @@ controller `/health` response, with exactly `localReady:true` and chains 1/8453.
 Requests use literal loopback, no proxy, redirects or cache, a 512-byte response
 bound and an 11-second deadline including body reads. Ordinary/desktop readiness
 retains its TCP behavior. The existing front's 120-second startup wait is not an
-extension of the enclosing original 900-second deadline. This front is not yet
-started by a complete RPC monitor path. Package transport connection setup and
+extension of the enclosing original 900-second deadline. The native entry now starts this front and requires its one-shot private
+approval before launching the controller/clients. A complete RPC monitor path
+still does not invoke that entry. Package transport connection setup and
 bootstrap preparation still require the independently owned outer lifetime;
-the frame-read deadline alone cannot interrupt a blocked transport dial. Native
-work gating, protected state attachment and persistent-serving adoption remain
+the frame-read deadline alone cannot interrupt a blocked transport dial. Protected state attachment, monitor/namespace composition and persistent-serving adoption remain
 integration requirements. Do not use a successful local health check to waive
 those requirements.

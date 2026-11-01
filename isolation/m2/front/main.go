@@ -197,11 +197,14 @@ func main() {
 		fmt.Printf("DOM runtime none: no identity at %s, this domain attests %s\n", *rtID, contract.ABI)
 	}
 	var rpcDeployment [32]byte
+	var rpcApproval *rpcStartApproval
 	if nativeRPCFront {
 		if !directBootstrap || *snp || *initFD != 0 || *shieldSecretsFD != 0 || *appid != "" || *reportUnix == "" || rt == nil || *appMode != "run" || *upstream != "127.0.0.1:8000" {
 			die("RPC front requires its owner-direct monitor runtime and fixed controller")
 		}
 		rpcDeployment, err = loadedRPCDeployment(*appBundlePath, appSha)
+		must(err)
+		rpcApproval, err = readRPCStartApproval(appSha, rt.RID, rpcDeployment)
 		must(err)
 	}
 	cert, spki, err := domtls.Mint("enclave-domain")
@@ -355,6 +358,9 @@ func main() {
 	if nativeRPCFront || (*initFD == 0 && f.monitor != "" && hdErr != nil) {
 		if err := f.shieldDirectOwner(context.Background(), shieldPipe, shieldEG); err != nil {
 			die("shield startup: %v", err)
+		}
+		if nativeRPCFront {
+			must(rpcApproval.approve())
 		}
 	}
 	if !directBootstrap && *initFD > 0 && f.certs.name != "" && len(hd) == 32 && !isZero(hd) {

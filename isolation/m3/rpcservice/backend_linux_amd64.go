@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"syscall"
 )
 
@@ -21,12 +22,15 @@ type fileID struct{ dev, ino uint64 }
 // osBackend uses only the borrowed descriptors for every control read, write
 // and CLONE_INTO_CGROUP. No cgroup path is opened or reopened.
 type osBackend struct {
-	parent *os.File
-	groups [roleCount]*os.File
+	parent                                          *os.File
+	groups                                          [roleCount]*os.File
+	approvalReader, approvalWriter, approvalBinding *os.File
+	approvalFrame                                   []byte
+	approvalUsed                                    atomic.Bool
 }
 
 func openBackend(g Groups) (backend, error) {
-	groups := [roleCount]*os.File{roleEL: g.EL, roleCL: g.CL, roleBase: g.Base, roleProbe: g.Probe, roleController: g.Controller}
+	groups := [roleCount]*os.File{roleEL: g.EL, roleCL: g.CL, roleBase: g.Base, roleProbe: g.Probe, roleController: g.Controller, roleFront: g.Front}
 	if g.Parent == nil {
 		return nil, errors.New("rpcservice: parent cgroup descriptor required")
 	}
@@ -44,7 +48,7 @@ func openBackend(g Groups) (backend, error) {
 	}
 	// Read-only is a sanity check, not evidence that the measured root is
 	// mounted here; that remains the caller's precondition.
-	for _, p := range []string{interpreter, wrapper, controllerLoader, controllerRuntime} {
+	for _, p := range []string{interpreter, wrapper, controllerLoader, controllerRuntime, "/plat/front"} {
 		var fs syscall.Statfs_t
 		if err := syscall.Statfs(p, &fs); err != nil {
 			return nil, fmt.Errorf("rpcservice: %s: %w", p, err)
@@ -93,7 +97,11 @@ func openBackend(g Groups) (backend, error) {
 		}
 		syscall.Close(fd)
 	}
-	return &osBackend{parent: g.Parent, groups: groups}, nil
+	b := &osBackend{parent: g.Parent, groups: groups}
+	if err := b.prepareApproval(); err != nil {
+		return nil, err
+	}
+	return b, nil
 }
 
 func cgroupDir(f *os.File) (fileID, error) {
@@ -224,7 +232,15 @@ func (b *osBackend) start(r role) (process, error) {
 		runtime.LockOSThread()
 		defer runtime.UnlockOSThread()
 		cmd := roleCommand(r, int(f.Fd()))
+		if r == roleFront {
+			cmd.ExtraFiles = []*os.File{b.approvalWriter, b.approvalBinding}
+		}
 		err := cmd.Start()
+		if r == roleFront {
+			// Only the exact front child retains the writer after Start settles.
+			b.approvalWriter.Close()
+			b.approvalBinding.Close()
+		}
 		runtime.KeepAlive(f)
 		if err != nil {
 			started <- struct {
@@ -263,7 +279,7 @@ func (b *osBackend) empty(r role) (bool, error) {
 
 // Role identities belong to the dedicated RPC image, never the desktop image.
 // Its mount setup must grant only the respective writable data subtree.
-var roleUIDs = [roleCount]uint32{2101, 2102, 2103, 2104, 2105}
+var roleUIDs = [roleCount]uint32{2101, 2102, 2103, 2104, 2105, 1053577}
 
 func roleCommand(r role, cgroupFD int) *exec.Cmd {
 	args := argv(r)

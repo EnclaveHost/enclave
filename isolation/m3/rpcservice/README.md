@@ -13,7 +13,10 @@ reduction. Actual qualification results are recorded separately.
 
 ## What it does
 
-- Fixed role graph. The controller starts once first under UID/GID2105,
+- Fixed role graph. The dedicated TLS front starts once first under UID/GID1053577,
+  in its own 256 MiB cgroup. A successful owner-direct bootstrap must approve the
+  exact private inherited start binding before any controller or chain launch.
+  The controller then starts once under UID/GID2105,
   using the measured `/plat/rt` loader and Wasmtime to run `/app.wasm`. It
   receives TCP access only to the app network namespace, no DNS/UDP/filesystem
   preopens/environment forwarding or compiled cache, and a 64 MiB Wasm linear
@@ -32,24 +35,25 @@ reduction. Actual qualification results are recorded separately.
   `time.Time`. It must carry this process's monotonic reading and lie inside
   the window. Nothing resets the deadline. At the deadline everything is
   killed, because no handoff is implemented.
-- Reported states: `new`, `starting-l1`, `probing-l1`, `starting-base`,
+- Reported states: `new`, `authorizing-owner`, `starting-controller`, `starting-l1`, `probing-l1`, `starting-base`,
   `clients-started`, `terminated`. `ClientsStarted` means the three wrapper
   processes were launched before the deadline. It does not mean Base passed
   its checks, and it is not serving readiness. Outcomes: `deadline`,
   `stopped`, `failed`.
-- If the controller, EL, CL or Base exits on its own, all groups are killed (`failed`).
+- If the front, controller, EL, CL or Base exits on its own, all groups are killed (`failed`).
   `Stop`, or cancelling the `Run` context, also kills all groups.
 - Launches use `SysProcAttr{UseCgroupFD, CgroupFD, Pdeathsig: SIGKILL}`
   (clone3 `CLONE_INTO_CGROUP`). There is no fallback when this is
   unsupported. The environment is fixed (`PATH=/usr/bin:/bin`,
   `LANG=C.UTF-8`), the working directory is `/`, and stdio is `/dev/null`, so
-  there are no pipes.
+  there are no stdio pipes. Only the front receives a private approval writer
+  and sealed identity binding, never the chain roles or controller.
 - Watchdog: `Run`'s select loop and the deadline context are armed before
   the first launch. Launching happens on a separate goroutine, so a `Start`
   stuck in the kernel cannot block termination.
 - Cleanup sequence:
   1. Revoke the start permit (it is held under the same mutex as cleanup).
-  2. Write `cgroup.kill` to all five role groups.
+  2. Write `cgroup.kill` to all six role groups.
   3. Wait, within the bound, for any in-flight `Start` and the entire
      launch/probe routine to return; no backend operation may remain in flight.
   4. Kill again.
@@ -63,7 +67,7 @@ reduction. Actual qualification results are recorded separately.
 
 ## API
 
-`New(Request{Origin, Groups{Parent, EL, CL, Base, Probe, Controller *os.File}})`, then
+`New(Request{Origin, Groups{Parent, EL, CL, Base, Probe, Controller, Front *os.File}})`, then
 `Run(ctx) (State, error)`, `Stop()`, `State()`. The request carries no
 commands, paths or budgets.
 
@@ -86,9 +90,9 @@ Validation covers:
     `cpu.max=400000 100000`, `memory.oom.group=1`, `pids.max=4096`,
     `cgroup.type=domain`. All directories must be root-owned and not writable
     by group/others.
-  - Roles: `memory.max` EL 5 GiB, CL 7 GiB, Base 5 GiB, probe 128 MiB, controller 256 MiB;
+  - Roles: `memory.max` EL 5 GiB, CL 7 GiB, Base 5 GiB, probe 128 MiB, controller and front 256 MiB each;
     `memory.swap.max=0`; `memory.oom.group=1`; `cpu.max=max 100000`;
-    `pids.max` 1024 for native clients, 64 for the probe and 128 for the controller.
+    `pids.max` 1024 for native clients, 64 for the probe and 128 each for controller/front.
   - Each role: `cgroup.type=domain`, `populated 0`, and `cgroup.kill`
     present.
 - The interpreter and wrapper paths are on a read-only mount. This is only a
@@ -109,7 +113,7 @@ permanently poison the domain, as `poisonNative` does.
   runtime descriptor.
 - An independent owner death guard that kills the parent cgroup if the
   monitor dies. `Pdeathsig` is per OS thread and is only defence in depth.
-- Creating and configuring the seven cgroups with the exact values above
+- Creating and configuring the eight cgroups with the exact values above
   (controllers enabled in the parent's `subtree_control`). Kernel ≥ 5.14
   (`cgroup.kill`) with clone3 cgroup support.
 
@@ -119,7 +123,7 @@ permanently poison the domain, as `poisonNative` does.
    FDs, carry the original admission clock in the sealed entry contract, and
    invoke the measured namespace entry. Nothing is enabled by default.
 2. The image must create role UIDs/GIDs 2101 (EL), 2102 (CL), 2103 (Base),
-   2104 (probe), 2105 (controller), and bind only the matching writable data subtrees. The backend
+   2104 (probe), 2105 (controller), 1053577 (front), and bind only the matching writable data subtrees. The backend
    drops supplementary groups and selects these fixed unprivileged credentials.
    It requires inherited no_new_privs and zero ambient/inheritable capabilities.
    Per-role mount setup and the complete seccomp policy still need integration.
@@ -168,9 +172,10 @@ It requires UID/EUID 0 and namespace PID1, with exactly these inherited FDs:
 | 6–9 | EL, CL, Base and probe cgroups |
 | 10 | Supervisor control cgroup, a sibling of the role groups |
 | 11 | WASI controller cgroup, another direct child of the aggregate |
+| 12 | TLS front cgroup, another direct child of the aggregate |
 
-The entry frame magic is now `ERPCONE2`; old five-role-capability frames are
-refused rather than accepting a missing controller group. Existing entry
+The entry frame magic is now `ERPCONE3`; older topology frames are
+refused rather than accepting a missing front or controller group. Existing entry
 binaries/profiles must be rebuilt and explicitly qualified before activation.
 
 The control cgroup must contain only PID1, with memory.max=128 MiB,
@@ -208,7 +213,34 @@ and Wasmtime paths also remain part of the trusted measured composition.
 Controller death or failed startup now enters the same cleanup path as a chain
 client failure. In-flight controller starts and population prevent cleanup
 confirmation. It is never restarted and receives the same original deadline.
-Total role/control maxima are 17.5 GiB inside the 19 GiB aggregate, leaving
-1.5 GiB unallocated for further front/guest composition. This is not evidence
-that the full runtime fits. TLS front launch/provisioning and monitor namespace
-wiring are still absent; no new endpoint is exposed by this change.
+Total role/control maxima are 17.75 GiB inside the 19 GiB aggregate, leaving
+1.25 GiB unallocated for guest overhead. This is not evidence that the full
+runtime fits. Monitor namespace, report-socket registration, role write/network
+isolation and storage wiring are still absent; no endpoint is deployed.
+
+
+## Private owner start gate
+
+The supervisor checks the actual immutable bundle and runtime identity, generates
+a fresh 256-bit nonce, and creates a fully sealed 136-byte binding containing
+AppID, RuntimeID, full deployment ID and nonce. Only the exact front child inherits
+its read descriptor (front FD4) and the private pipe writer (front FD3). These
+are different from the entry executable's FD3/4 owner/deadline contract. Parent
+copies of the writer/binding close only when front Start settles. No other role
+receives either descriptor. The front checks them against its loaded identities
+before key creation and writes once only after owner-direct startup succeeds.
+
+Approval is consumed before a single nonblocking atomic-sized write. The parent
+requires the entire exact frame and EOF before starting the controller. Refusal,
+wrong identity/nonce, incomplete/trailing bytes, a writer that never closes or
+front loss cannot reset the original deadline. Cleanup drains the approval driver
+as well as in-flight starts. If they remain blocked, the domain stays uncertain
+and the independent entry watchdog remains responsible for ending PID1.
+
+This is trusted local component communication, not a transferable authorization
+certificate, storage writer lease, attestation or permanent service grant. The
+existing owner bootstrap still reads legacy lease state; it does not implement
+the replacement event-driven protocol. The complete measured monitor must
+register the fixed front UID, mount its private report/TLS directory, bind the
+correct eight groups and immutable platform, establish authenticated exclusive
+state attachments and arm the outer guard before invoking ERPCONE3.

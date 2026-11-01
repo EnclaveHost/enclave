@@ -24,11 +24,11 @@ claim is not a durable cross-host storage writer lease.
 
 Preparation opens a pidfd for the current monitor process itself. No supplied
 PID is accepted. It creates an exclusive parent cgroup plus EL, CL, Base, probe
-controller and control children, using the exact limits checked by `rpcservice`. Each
+controller, front and control children, using the exact limits checked by `rpcservice`. Each
 control is read back through its held directory FD. Creation cannot adopt an
 existing group. The parent stays empty with cpu/memory/pids enabled beneath it.
 All roles together remain under the fixed 19 GiB/four-CPU parent; control uses
-128 MiB within that parent; the controller uses 256 MiB in its own child. The guest must have at least four CPUs and 20 GiB
+128 MiB within that parent; the controller and front use 256 MiB each in their own children. The guest must have at least four CPUs and 20 GiB
 total physical memory. This check is not a measured capacity test or host
 admission and does not account for external host pending commitments.
 
@@ -50,3 +50,8 @@ Before invocation of `rpc-native-init`, the monitor still must establish:
 Nothing here starts clients, mounts devices, changes original chain data,
 releases reservations or claims that RPC is serving. The deadline remains
 900 seconds. No GPU worker or desktop model-volume assumptions are reused.
+
+The current entry topology is ERPCONE3, adding the front group at FD12. The
+entry supervises the front and waits for its bound one-shot owner approval
+before controller or chain execution. This closes the local process start gate;
+it does not supply the missing monitor load, storage authority or namespace setup.

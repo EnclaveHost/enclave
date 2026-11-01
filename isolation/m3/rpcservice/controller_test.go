@@ -95,7 +95,7 @@ func TestControllerStartFailureNeverStartsChains(t *testing.T) {
 	f.startErr[roleController] = errors.New("runtime unavailable")
 	st := await(t, runAsync(supervisor(t, f, time.Second, testTiming)))
 	wantFinal(t, st, OutcomeFailed, CleanupConfirmed, false)
-	wantOrder(t, f, roleController)
+	wantOrder(t, f, roleFront, roleController)
 }
 func TestControllerExitKillsChainGroup(t *testing.T) {
 	f := &fakeBackend{probe: probeReadyAfter(0)}
@@ -125,8 +125,8 @@ func TestBlockedControllerLaunchCannotResetDeadline(t *testing.T) {
 	st := await(t, done)
 	wantFinal(t, st, OutcomeDeadline, CleanupUncertain, false)
 	close(release)
-	eventually(t, "late controller settled", func() bool { return len(f.order()) == 1 && f.allEmpty() })
-	wantOrder(t, f, roleController)
+	eventually(t, "late controller settled", func() bool { return len(f.order()) == 2 && f.allEmpty() })
+	wantOrder(t, f, roleFront, roleController)
 	if s.State() != st {
 		t.Fatal("late controller changed terminal state")
 	}

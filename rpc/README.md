@@ -43,7 +43,7 @@ exact public configuration authorization. RPC readiness checks the controller's
 fresh bounded health response instead of a TCP connection. This does not install
 a platform, authenticate storage ownership or establish ledger Running. The
 existing bootstrap lease reader is not the replacement event-driven protocol;
-the complete monitor/work gate and persistent-serving path still need integration.
+the complete monitor and persistent-serving path still need integration.
 
 `controller/` supplies the actual portable `wasi:cli` HTTP controller on local
 port 8000, with fixed local client endpoints, bounded public JSON-RPC forwarding
@@ -53,7 +53,8 @@ submission and refusal before forwarding when clients are unready. It is not
 installed in a measured runtime or connected to production chain state yet.
 
 `isolation/m3/rpcservice` now supplies a fixed native process-control adapter
-for the controller and existing chain wrapper: controller, EL/CL, bounded L1 observation, then one Base
+for the front, controller and existing chain wrapper: front/owner approval,
+controller, EL/CL, bounded L1 observation, then one Base
 start, using creation-time cgroup placement and fixed unprivileged role IDs.
 It retains the original 900-second deadline and reports only clients-started,
 never RPC readiness. It is not connected to the monitor or a measured image yet.

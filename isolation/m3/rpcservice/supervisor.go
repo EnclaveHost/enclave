@@ -53,11 +53,12 @@ const (
 	roleBase
 	roleProbe
 	roleController
+	roleFront
 	roleCount
 )
 
-var allRoles = []role{roleEL, roleCL, roleBase, roleProbe, roleController}
-var roleNames = [roleCount]string{"el", "cl", "base", "probe", "controller"}
+var allRoles = []role{roleEL, roleCL, roleBase, roleProbe, roleController, roleFront}
+var roleNames = [roleCount]string{"el", "cl", "base", "probe", "controller", "front"}
 var roleArgs = [roleCount]string{"el", "cl", "base", "l1-ready"}
 
 func (r role) String() string { return roleNames[r] }
@@ -65,6 +66,9 @@ func (r role) String() string { return roleNames[r] }
 // argv is fixed per role. -I ignores PYTHON* environment and user site; -B
 // writes no bytecode. No exported value can change it.
 func argv(r role) []string {
+	if r == roleFront {
+		return []string{"/plat/front", "-listen-unix", "/run/front/front.sock", "-report-unix", "/run/front/monitor.sock", "-runtime-identity", "/plat/rt/runtime.json", "-app-mode", "run", "-upstream", "127.0.0.1:8000"}
+	}
 	if r == roleController {
 		// Same measured loader/runtime layout as domexec, but no filesystem,
 		// environment, DNS or UDP capability is granted to this fixed controller.
@@ -90,6 +94,7 @@ var roleLimits = [roleCount]struct {
 	roleBase:       {5 << 30, 1024},
 	roleProbe:      {128 << 20, 64},
 	roleController: {256 << 20, 128},
+	roleFront:      {256 << 20, 128},
 }
 
 func roleControls(r role) [][2]string {
@@ -107,7 +112,7 @@ func parentControls() [][2]string {
 // release them only after Run returns CleanupConfirmed and must retain them
 // (and poison the domain) after CleanupUncertain.
 type Groups struct {
-	Parent, EL, CL, Base, Probe, Controller *os.File
+	Parent, EL, CL, Base, Probe, Controller, Front *os.File
 }
 
 // Request carries no commands, paths or budgets. Origin is the trusted
@@ -121,6 +126,7 @@ type Phase string
 
 const (
 	PhaseNew                Phase = "new"
+	PhaseAuthorizingOwner   Phase = "authorizing-owner"
 	PhaseStartingController Phase = "starting-controller"
 	PhaseStartingL1         Phase = "starting-l1"
 	PhaseProbingL1          Phase = "probing-l1"
@@ -162,6 +168,7 @@ var errPopulated = errors.New("cgroup still populated")
 // cgroup.kill, and kernel population readback. Tests inject a fake.
 type backend interface {
 	start(r role) (process, error)
+	ownerApproval(context.Context) error
 	kill(r role) error
 	empty(r role) (bool, error)
 }
@@ -335,9 +342,16 @@ func (s *Supervisor) setPhase(p Phase) {
 	s.mu.Unlock()
 }
 
-// drive is the fixed graph: controller once, EL and CL once, then l1-ready observation, then
+// drive is the fixed graph: front and owner approval, controller once, EL and CL once, then l1-ready observation, then
 // exactly one Base launch. No start is ever retried.
 func (s *Supervisor) drive(ctx context.Context, exits chan<- role) error {
+	s.setPhase(PhaseAuthorizingOwner)
+	if err := s.launchClient(ctx, roleFront, exits); err != nil {
+		return err
+	}
+	if err := s.be.ownerApproval(ctx); err != nil {
+		return fmt.Errorf("owner startup approval: %w", err)
+	}
 	s.setPhase(PhaseStartingController)
 	if err := s.launchClient(ctx, roleController, exits); err != nil {
 		return err
