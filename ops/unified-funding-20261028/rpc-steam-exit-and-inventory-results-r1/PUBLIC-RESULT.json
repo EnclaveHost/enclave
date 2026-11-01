@@ -1,0 +1,262 @@
+{
+  "steam": {
+    "success": true,
+    "atUtc": "2026-11-01T02:28:19.9735408Z",
+    "processId": 49520,
+    "creationFileTime": "134379736961541196",
+    "shutdownIssued": true,
+    "taskName": "EnclaveSteamExit-8ab9b1ced36f4b8291691872f9a7aa0c",
+    "taskState": 3,
+    "taskRemoved": true,
+    "elapsedMs": 2494,
+    "exactDeaths": [
+      {
+        "pid": 45672,
+        "name": "steam.exe",
+        "exactHeldHandleExited": true,
+        "creationFileTime": "134376132463038987"
+      },
+      {
+        "pid": 24392,
+        "name": "steamwebhelper.exe",
+        "exactHeldHandleExited": true,
+        "creationFileTime": "134376132466015933"
+      },
+      {
+        "pid": 48084,
+        "name": "steamwebhelper.exe",
+        "exactHeldHandleExited": true,
+        "creationFileTime": "134376132467194768"
+      },
+      {
+        "pid": 44988,
+        "name": "steamwebhelper.exe",
+        "exactHeldHandleExited": true,
+        "creationFileTime": "134376132470258692"
+      },
+      {
+        "pid": 44416,
+        "name": "steamwebhelper.exe",
+        "exactHeldHandleExited": true,
+        "creationFileTime": "134376132472354142"
+      },
+      {
+        "pid": 40308,
+        "name": "steamwebhelper.exe",
+        "exactHeldHandleExited": true,
+        "creationFileTime": "134376132473058114"
+      },
+      {
+        "pid": 6660,
+        "name": "steamwebhelper.exe",
+        "exactHeldHandleExited": true,
+        "creationFileTime": "134376132475507681"
+      },
+      {
+        "pid": 34568,
+        "name": "steamwebhelper.exe",
+        "exactHeldHandleExited": true,
+        "creationFileTime": "134376229393585024"
+      },
+      {
+        "pid": 48236,
+        "name": "steamwebhelper.exe",
+        "exactHeldHandleExited": true,
+        "creationFileTime": "134376231588803146"
+      }
+    ],
+    "remainingSteamCount": 0,
+    "allHeldExited": true,
+    "noForceKill": true,
+    "capacityAdmitted": false,
+    "readOnly": false
+  },
+  "diagnostics": [
+    {
+      "atUtc": "2026-11-01T02:30:47.7917474Z",
+      "failure": "owned-rpc-definition-failure/1\n6cee2f01b790b6ab6071d053fa7a6aba737b137c8869a9ed074ed559ef30318d\nchild\n29468,134379738300100207,ed88795de7894adf8d5e3310d1bde8671a04e76600e411f1a395e342df676a806cee2f01b790b6ab6071d053fa7a6aba737b137c8869a9ed074ed559ef30318d,child\n756064092\n756094092\nU3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWMuS2V5Tm90Rm91bmRFeGNlcHRpb24=\nVGhlIGdpdmVuIGtleSB3YXMgbm90IHByZXNlbnQgaW4gdGhlIGRpY3Rpb25hcnku\nprovider-fenced=false;reservation-release=false;retry=false\n",
+      "exactDeaths": [
+        {
+          "sameIncarnationAlive": false,
+          "expectedCreation": "134379738298493235",
+          "pid": "58324",
+          "absent": true,
+          "role": "owner"
+        },
+        {
+          "sameIncarnationAlive": false,
+          "expectedCreation": "134379738298493241",
+          "pid": "57136",
+          "absent": true,
+          "role": "observer"
+        },
+        {
+          "sameIncarnationAlive": false,
+          "expectedCreation": "134379738300100207",
+          "pid": "29468",
+          "absent": true,
+          "role": "child"
+        }
+      ],
+      "priorStageDeaths": [
+        {
+          "label": "admission",
+          "expectedCreation": "134379737185833883",
+          "pid": 36532,
+          "sameIncarnationAlive": false,
+          "absent": true
+        },
+        {
+          "label": "create",
+          "expectedCreation": "134379737981716642",
+          "pid": 50752,
+          "sameIncarnationAlive": false,
+          "absent": true
+        },
+        {
+          "label": "verify",
+          "expectedCreation": "134379738188029768",
+          "pid": 6192,
+          "sameIncarnationAlive": false,
+          "absent": true
+        },
+        {
+          "label": "steam-preexit",
+          "expectedCreation": "134379736260161156",
+          "pid": 25148,
+          "sameIncarnationAlive": false,
+          "absent": true
+        },
+        {
+          "label": "steam-exit",
+          "expectedCreation": "134379736961541196",
+          "pid": 49520,
+          "sameIncarnationAlive": false,
+          "absent": true
+        }
+      ],
+      "noExactTasksOrProcesses": true,
+      "journalNames": [
+        "controller.consumed",
+        "contract.txt",
+        "owner.consumed",
+        "observer.consumed",
+        "child.consumed",
+        "owner.result",
+        "observer.result",
+        "child.failure",
+        "child.binding",
+        "admit",
+        "attached",
+        "release",
+        "admission.preparation-start"
+      ],
+      "preparationCompleted": false
+    },
+    {
+      "atUtc": "2026-11-01T02:33:11.0974421Z",
+      "failure": "owned-rpc-definition-failure/1\nc9e7a31bc93ac7da7920355f8f6a678582df87d9a035fa5249390695be11c31f\nchild\n45208,134379739628689709,7082f934befd44d8be282039f2a954ab1a04e76600e411f1a395e342df676a80c9e7a31bc93ac7da7920355f8f6a678582df87d9a035fa5249390695be11c31f,child\n756196915\n756226915\nU3lzdGVtLkludmFsaWRPcGVyYXRpb25FeGNlcHRpb24=\nRm9yZWlnbiBpbnZlbnRvcnkgcmVmZXJlbmNl\nprovider-fenced=false;reservation-release=false;retry=false\n",
+      "exactDeaths": [
+        {
+          "sameIncarnationAlive": false,
+          "expectedCreation": "134379739626900193",
+          "pid": "32976",
+          "absent": true,
+          "role": "owner"
+        },
+        {
+          "sameIncarnationAlive": false,
+          "expectedCreation": "134379739626900213",
+          "pid": "48552",
+          "absent": true,
+          "role": "observer"
+        },
+        {
+          "sameIncarnationAlive": false,
+          "expectedCreation": "134379739628689709",
+          "pid": "45208",
+          "absent": true,
+          "role": "child"
+        }
+      ],
+      "priorStageDeaths": [
+        {
+          "label": "admission",
+          "expectedCreation": "134379737185833883",
+          "pid": 36532,
+          "sameIncarnationAlive": false,
+          "absent": true
+        },
+        {
+          "label": "create",
+          "expectedCreation": "134379739430096697",
+          "pid": 55740,
+          "sameIncarnationAlive": false,
+          "absent": true
+        },
+        {
+          "label": "verify",
+          "expectedCreation": "134379739574115773",
+          "pid": 54228,
+          "sameIncarnationAlive": false,
+          "absent": true
+        }
+      ],
+      "noExactTasksOrProcesses": true,
+      "journalNames": [
+        "controller.consumed",
+        "contract.txt",
+        "owner.consumed",
+        "observer.consumed",
+        "child.consumed",
+        "owner.result",
+        "observer.result",
+        "child.failure",
+        "child.binding",
+        "admit",
+        "attached",
+        "release",
+        "admission.preparation-start"
+      ],
+      "preparationCompleted": false
+    }
+  ],
+  "originalVmStateAndMemoryUnchanged": true,
+  "thirdRetainedJournalBytesUnchangedBetweenDiagnostics": true,
+  "original8091Alive": true,
+  "reservationMayRelease": false,
+  "rpcReady": false,
+  "localReceipts": {
+    "rpc-steam-authorized-preexit-read-r1": {
+      "INVOCATION.txt": "12e05dfde993490cb99a132df7721aa3"
+    },
+    "rpc-steam-authorized-exit-r1": {
+      "INVOCATION.txt": "64efed4db57547978350cbc556ea25c2"
+    },
+    "rpc-batch-inventory-target-admission-r4": {
+      "INVOCATION.txt": "2052642dfa114ec194a456ee0363b0af"
+    },
+    "rpc-batch-inventory-target-stage-r3": {
+      "verify-INVOCATION.txt": "1c3ca4085ebd46ff9355122dae6410bc",
+      "stage-INVOCATION.txt": "3ea46ccbbda44c2c99b0e9bcf4049cad",
+      "create-INVOCATION.txt": "20ccf0fc1d1444c791e327b664573070"
+    },
+    "rpc-batch-inventory-target-execution-r3": {
+      "INVOCATION.txt": "a3259c01c2e34633b6bb6b8ed11be7ea"
+    },
+    "rpc-batch-inventory-result-read-r3": {
+      "INVOCATION.txt": "a2b79dc49c3642fb8dfc8976390067fa"
+    },
+    "rpc-batch-inventory-target-stage-r4": {
+      "verify-INVOCATION.txt": "4e31a323ee10457eb07331577b26709b",
+      "stage-INVOCATION.txt": "66f12bdd396e4a55ab2365c68d967dbc",
+      "create-INVOCATION.txt": "4fb7cff0f4a84145aa2a0196715c54e2"
+    },
+    "rpc-batch-inventory-target-execution-r4": {
+      "INVOCATION.txt": "ec4d6e1252254d88a0c9418230478607"
+    },
+    "rpc-batch-inventory-result-read-r4": {
+      "INVOCATION.txt": "57ab7c23a32c48c89560a53c4fe456f7"
+    }
+  }
+}

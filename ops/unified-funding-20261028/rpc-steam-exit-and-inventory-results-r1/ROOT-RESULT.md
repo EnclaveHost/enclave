@@ -1,0 +1,13 @@
+# Steam exit and bounded inventory diagnostics
+
+The user explicitly authorized exiting Steam on NucBox. The exact existing client and eight helpers were held by process identity before one graceful shutdown request. All nine handles signalled exit in 2494 ms; no force kill was used. The temporary least-privilege interactive task was removed. No repeat shutdown is needed.
+
+Fresh complete capacity read then observed 85,378,326,528 bytes before and 85,381,726,208 bytes after inventory, above the unchanged 84,385,202,176-byte full admission threshold. This is historical admission, not future capacity authority.
+
+Diagnostic ed88795de7894adf8d5e3310d1bde867 was consumed and failed with KeyNotFoundException before preparation completed: root assembled the input without retained legacyCutSeed/sharedPhysicalPool bindings. This is an input assembly error, not a native inventory performance result. Immutable failed input is preserved locally.
+
+A distinct diagnostic 7082f934befd44d8be282039f2a954ab used the fresh inventory plus those two exact original request-bound authority records. The original observation binding hash was independently verified. It failed with Foreign inventory reference during context preparation, before observation readiness or native WMI preparation. The source does not currently identify which reference failed; actual path shape remains unknown. Do not weaken local-host/namespace/class checks or repeat unchanged diagnostics. Next work must collect bounded path-field evidence or qualify a diagnostic source change before another target attempt. Neither attempt invokes a VM provider operation.
+
+Independent reads prove both exact owner/observer/child sets absent and no matching tasks/processes remaining. The four original VMs retain the same IDs, state and assigned RAM as admission; original 8091 is alive. The retained third production definition plan/intent/submit/native/invoke bytes match between result reads. These observations do not settle the original possibly submitted provider operation. Third production 5a1f remains held; no new production clock, definition replay, cut replay, reservation release or RPC readiness.
+
+All local action units are terminal with MainPID 0. Execution r3/r4 returned 1; stage/read/Steam units returned 0. Raw observations, private paths and immutable inputs remain local; public selected results and file hashes retain provenance. The local result-reader process itself has only transport completion evidence. Existing b4fb16c binaries and compiled-source pins were reused without rebuilding; hosted qualification is not proof this target inventory works.
