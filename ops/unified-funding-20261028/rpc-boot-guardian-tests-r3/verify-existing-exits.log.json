@@ -1,0 +1,5 @@
+{
+  "originalFile": "verify-existing-exits.log",
+  "sha256": "b2317eb89e961b787655f68a6e28e2284a31b3bf71a4df510594b5e59d70873f",
+  "utf8": "{\"checks\": [{\"mode\": \"blocked-preparation\", \"actualExitVerified\": 130}, {\"mode\": \"blocked-preparation\", \"failedRebootFallbackRefused\": true}, {\"mode\": \"exec-deadline\", \"actualExitVerified\": 130}, {\"mode\": \"exec-deadline\", \"failedRebootFallbackRefused\": true}, {\"mode\": \"early-exit\", \"actualExitVerified\": 130}, {\"mode\": \"early-exit\", \"failedRebootFallbackRefused\": true}, {\"mode\": \"guardian-loss\", \"actualExitVerified\": 137}, {\"mode\": \"guardian-loss\", \"failedRebootFallbackRefused\": true}, {\"mode\": \"future\", \"actualExitVerified\": 72}, {\"mode\": \"overflow\", \"actualExitVerified\": 72}, {\"mode\": \"expired\", \"actualExitVerified\": 72}], \"actualR2ReceiptSha256\": \"54337908b5606edfdfcce4acb93be09f37722ad8334ef8fd00e45cb495831a21\", \"nativeReplay\": false}\n"
+}

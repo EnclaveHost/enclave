@@ -1,0 +1,5 @@
+{
+  "originalFile": "guardian.log",
+  "sha256": "cb80c2ca1a1dbef331becf4902d129838fa041457f03d1e7a938d747c11a1943",
+  "utf8": "{\"mode\": \"blocked-preparation\", \"pass\": true, \"elapsedNs\": 505474004, \"actors\": 2}\n{\"mode\": \"exec-deadline\", \"pass\": true, \"elapsedNs\": 806009240, \"actors\": 4}\n{\"mode\": \"early-exit\", \"pass\": true, \"elapsedNs\": 156202094, \"actors\": 2}\n{\"mode\": \"guardian-loss\", \"pass\": true, \"elapsedNs\": 12433757, \"actors\": 4}\n{\"mode\": \"future\", \"pass\": true, \"elapsedNs\": 5499939, \"actors\": 1}\n{\"mode\": \"overflow\", \"pass\": true, \"elapsedNs\": 8826470, \"actors\": 1}\n{\"mode\": \"expired\", \"pass\": true, \"elapsedNs\": 4677997, \"actors\": 1}\n"
+}

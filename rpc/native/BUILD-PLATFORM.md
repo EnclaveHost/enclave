@@ -55,3 +55,32 @@ and writer settlement, target lifecycle/resource qualification, actual volume
 attachment, client startup, sync/finality and serving adoption. A successful
 archive build or inert version command proves none of those outcomes. The
 original startup deadline is not extended by image assembly or guest boot.
+
+
+## RPC boot supervisor
+
+The RPC-specific `dominit` now retains the original guest PID1 as a small C
+supervisor. After the fixed kernel/UID check, it creates an absolute monotonic
+900-second kernel-boot timer and forks a gated preparation worker **before mounts,
+TPM setup, native tools or monitor initialization**. The worker installs its
+parent-death signal and acknowledges that gate; PID1 captures its exact pidfd,
+caps its own address space at32MiB and core dumps at0, checks timer/process
+liveness, then releases the worker once. The worker performs existing boot steps
+and execs the monitor without changing that process identity or clock.
+
+PID1 never performs storage work, network calls, credential parsing or Go
+callbacks. It polls only its kernel timer and child pidfd. Deadline, child exit
+or handshake failure requests guest poweroff immediately, without a potentially
+blocking console write, sync or child wait. No restart or serving adoption is
+implemented. Killing namespace PID1 also kills descendants; the monitor worker's
+parent-death signal is installed before release. Ordinary and desktop images
+retain their original topology.
+
+This is an independent **guest process**, not an independent kernel or hardware
+watchdog. Kernel stalls, failed poweroff, pre-guardian initialization and host
+preparation still require the independently owned host deadline. The32MiB limit
+is a post-fork address-space limit, not evidence of earlier allocation peaks or
+whole-stack fit; admission must count supervisor/worker startup overheads. It
+neither fences the remote storage writer nor releases its reservation. Real target
+boot/poweroff and accepted measured image remain required. The previous built
+candidate predates this source integration.

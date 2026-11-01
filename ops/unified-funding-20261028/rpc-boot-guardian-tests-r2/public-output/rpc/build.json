@@ -1,0 +1,56 @@
+{
+  "binaries": {
+    "init": {
+      "bytes": 1034840,
+      "sha256": "103a37becc4769c97f83316fc76b6432592cd09810c92ec9f828b1bb9e637bbe"
+    },
+    "rpc-boot": {
+      "bytes": 1038240,
+      "sha256": "4458fc17a7a1f38af46bbf2a503ee8aa3e02a200d330c319f04bfce5750b5ee4"
+    }
+  },
+  "commands": [
+    [
+      "/usr/bin/gcc",
+      "-static",
+      "-O2",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-DNATIVE_RPC",
+      "-I",
+      "/output/rpc",
+      "-o",
+      "/output/rpc/init",
+      "/src/isolation/m3/dominit.c"
+    ],
+    [
+      "/usr/bin/gcc",
+      "-static",
+      "-O2",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-DNATIVE_RPC",
+      "-I",
+      "/output/rpc",
+      "-o",
+      "/output/rpc/rpc-boot",
+      "/src/isolation/m3/native-boot.c"
+    ]
+  ],
+  "completeGuestImage": false,
+  "deployed": false,
+  "platformAccepted": false,
+  "profileSha256": "cc3263100ba24a3d65a6e1fa11525b2bb18f6728325ac92613dafc7a354c4808",
+  "schema": "enclave-rpc-boot-stages/1",
+  "sources": {
+    "build-native.py": "c7800781fc21f3e4156b9dc244b0ba639342715bd95e998897ad700e977f6e09",
+    "build-rpc-boot.py": "f63eba229d822d51c3a9d629a8b258ddfc7d8dd1d861c85f7e43e71ff5e76d33",
+    "dominit.c": "c604169fe9e9e10e292af26fe12669d183a1a160cff2a7facc8f1e17af9249d0",
+    "native-boot.c": "9a8f0390b8f62abd505f600f417394291882030b4fc84200b58b0d802418f947",
+    "rpc-boot-clock.h": "1c1123c02fff8e4a09e8fa6fc30dbd19956818856cbafba449c79666e63a216d",
+    "rpc-boot-guardian.h": "73c75d644131847da31e5770ae128efa02799fc4e8b001a7f6bf2722335b7e86",
+    "vtpm-boot.h": "24263a959c1cf0dec04e8234b505fee63ab179a21263bbd961c63ed959892264"
+  }
+}

@@ -19,7 +19,9 @@
  * path: every mount is checked and any failure powers off, the cgroup delegation is read back and
  * verified, and after the guest TPM is validated a fixed /plat/native-boot helper is run under a
  * bounded wait to stand up the read-only root/models/platform before /monitor is executed. The
- * ordinary (non-NATIVE_DESKTOP) build below is unchanged. */
+ * ordinary (non-NATIVE_DESKTOP) build below is unchanged.
+ * NATIVE_RPC retains PID1 as the independent absolute-deadline supervisor;
+ * its gated child performs preparation and becomes the monitor. */
 #define _GNU_SOURCE
 #include <cpuid.h>
 #include <dirent.h>
@@ -53,6 +55,7 @@
 #define NATIVE_KERNEL_RELEASE "6.6.87.2-enclave-kvm-box"
 #ifdef NATIVE_RPC
 #include "rpc-boot-clock.h"
+#include "rpc-boot-guardian.h"
 #define NATIVE_BOOT_HELPER "/plat/rpc-boot"
 #else
 #define NATIVE_BOOT_HELPER "/plat/native-boot"
@@ -269,6 +272,12 @@ int main(void) {
         if (uname(&k) != 0 || strcmp(k.release, NATIVE_KERNEL_RELEASE) != 0)
             poweroff_now("refusing to start: not the measured native desktop kernel");
     }
+#ifdef NATIVE_RPC
+    /* Keep the original PID1 as an independent supervisor before mounts, TPM,
+     * native tools, credential setup or Go initialization. Only its gated child
+     * continues here and eventually becomes /monitor. Kernel boot remains origin. */
+    if (rpc_guard_enter(0)) rpc_guard_poweroff();
+#endif
     native_mounts();
 #ifdef NATIVE_RPC
     /* Kernel boot is the origin, including mounts above. Never reset it when

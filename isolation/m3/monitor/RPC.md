@@ -6,6 +6,13 @@ existing register-before-Start/Wait/TLS relay path. It is mutually exclusive
 with `native_desktop`. Ordinary and desktop parsing remain distinct. This is
 source integration; no new monitor or platform has been installed or admitted.
 
+The RPC dominit retains PID1 as an independent C supervisor and launches the
+monitor as its gated child. The supervisor's absolute kernel timer covers the
+child's mount/TPM/native preparation and monitor execution; its exact pidfd stays
+valid through exec. Child exit or original deadline requests guest poweroff.
+There is no restart, renewal or persistent-serving adoption. This source still
+requires actual target boot qualification and the external host watchdog.
+
 The dedicated T0-hv bootstrap supplies a sealed ERPCONE4 original interval on
 FD3 before monitor initialization. Missing, unsealed, wrong-boot, shifted-time,
 expired or incompatible clocks refuse. The monitor never replaces the origin
