@@ -172,7 +172,12 @@ public static class DefinitionWorkerController {
                     string ready=NamespacePin.ReadOnce("observation.ready");
                     DefinitionObservationGate.ValidateReady(NamespacePin,ready,BoundedWorker.MonotonicMilliseconds());
                     NamespacePin.WriteOnce("observation.request",ready);
-                    while(!File.Exists(Path.Combine(Root,"observation.commit"))){CheckTime();if(owner.HasExited||observer.HasExited||child.HasExited)throw new InvalidOperationException("Gate role lost");Thread.Sleep(5);}
+                    Action peers=delegate{CheckTime();NamespacePin.CheckDeadline();if(owner.HasExited||observer.HasExited||child.HasExited)throw new InvalidOperationException("Gate role lost");};
+                    using(var collector=new NativeDiagnosticSource(peers)){
+                        byte[] fresh=DiagnosticObservationCollector.Collect(Read(args[5],262144),args[6],boot,collector,peers);
+                        peers();Publish(Path.Combine(Root,"admission.fresh.json"),fresh);peers();
+                        NamespacePin.WriteOnce("observation.commit",ready+ProtectedAttempt.Hash(fresh)+"\n");
+                    }
                     string commit=NamespacePin.ReadOnce("observation.commit");
                     NamespacePin.ValidateGatePayload(ready,commit);
                     if(owner.HasExited||observer.HasExited||child.HasExited)throw new InvalidOperationException("Gate role lost");

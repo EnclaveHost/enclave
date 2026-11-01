@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Collections;
+using System.Web.Script.Serialization;
 using System.IO;
 using System.Threading;
 using System.Text;
@@ -43,16 +45,32 @@ public static class OwnedVmDefinitionHarness {
  static byte[] fixtureImage;
  static void DirectoryNew(string path){var a=new DirectorySecurity();a.SetOwner(new SecurityIdentifier("S-1-5-32-544"));a.SetAccessRuleProtection(true,false);foreach(string sid in new[]{"S-1-5-18","S-1-5-32-544"})a.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid),FileSystemRights.FullControl,InheritanceFlags.ContainerInherit|InheritanceFlags.ObjectInherit,PropagationFlags.None,AccessControlType.Allow));Directory.CreateDirectory(path,a);}
  static void Put(string path,byte[] bytes){var a=new FileSecurity();a.SetOwner(new SecurityIdentifier("S-1-5-32-544"));a.SetAccessRuleProtection(true,false);foreach(string sid in new[]{"S-1-5-18","S-1-5-32-544"})a.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid),FileSystemRights.FullControl,AccessControlType.Allow));using(var f=new FileStream(path,FileMode.CreateNew,FileSystemRights.WriteData,FileShare.None,4096,FileOptions.WriteThrough,a)){f.Write(bytes,0,bytes.Length);f.Flush(true);}}
+
+ static Dictionary<string,object> D(params object[] pairs){var d=new Dictionary<string,object>();for(int i=0;i<pairs.Length;i+=2)d.Add((string)pairs[i],pairs[i+1]);return d;}
+ static IList CollectorBindings(){var r=new List<object>();foreach(int port in new[]{8091,8095,8097,9600})r.Add(D("port",port,"pid",port,"created","fixture-time","exe","fixture-image"));return r;}
+ static IList CollectorNative(){var r=new List<object>();foreach(int port in new[]{8091,8095,8097,9600})r.Add(D("pid",port,"creationFileTime","1234567890","image","fixture-image","alive",true));return r;}
+ static byte[] CollectorInitial(){return Encoding.UTF8.GetBytes(new JavaScriptSerializer().Serialize(D("legacyCutSeed",D("fixture",1),"sharedPhysicalPool",D("fixture",2),"observation",D("after",D("value",CollectorBindings()),"nativeManagers",CollectorNative()))));}
+ sealed class CollectorSource:IDiagnosticObservationSource {
+  public string Boot {get;set;}public int Gets,BindingCalls;public bool ChangedManager,ChangedCreation,TooMany,Fail;public Action OnGet;
+  public Dictionary<string,object> Physical(){long now=BoundedWorker.MonotonicMilliseconds();return D("monotonicMilliseconds",now,"atUtc",DateTime.UtcNow.ToString("o"),"boot","fixture-boot","physicalBytes",120000000000L,"freeBytes",90000000000L);}
+  public IList Bindings(){BindingCalls++;var r=CollectorBindings();if(ChangedManager)((Dictionary<string,object>)r[0])["pid"]=999;return r;}
+  public IList NativeManagers(IList bindings){var r=CollectorNative();if(ChangedCreation)((Dictionary<string,object>)r[0])["creationFileTime"]="different";return r;}
+  public Dictionary<string,object> Get(int port,string path){Gets++;if(OnGet!=null)OnGet();if(Fail)throw new IOException("Injected observation failure");
+   if(port==9600&&path=="/v1/host/state"){var rows=new List<object>();for(int i=0;i<(TooMany?129:1);i++)rows.Add(D("id","fixture","status","stopped","isolation",null,"privateValue","must-not-export"));return D("deployments",rows,"privateValue","must-not-export");}
+   Check((port==8091||port==8095||port==8097)&&(path=="/health"||path=="/vms"));
+   return path=="/health"?D("managerEpoch","fixture","memory",D("known",false),"privateValue","must-not-export"):D("vms",new object[0]);
+  }
+ }
  sealed class ProtectedCase {
-  internal readonly string Contract,Hash,PlanPath,PlanHash,ObservationHash;internal readonly OwnedVmDefinitionPlan P;
-  internal ProtectedCase(string op="define",bool wrongHash=false,bool wrongBoot=false){
+  internal readonly string Contract,Hash,PlanPath,PlanHash,ObservationHash;internal readonly byte[] InitialBytes;internal readonly OwnedVmDefinitionPlan P;
+  internal ProtectedCase(string op="define",bool wrongHash=false,bool wrongBoot=false,bool collector=false){
    string n=Guid.NewGuid().ToString("N"),b=ProtectedAttempt.CurrentBoot(),basePath=Path.GetPathRoot(Environment.SystemDirectory),parent=Path.Combine(basePath,"rpc-definition-ci-"+n),root=Path.Combine(parent,n);
    DirectoryNew(parent);DirectoryNew(root);Put(Path.Combine(root,"entry.exe"),fixtureImage);
    string id=Guid.NewGuid().ToString("N"),vp=Path.Combine(basePath,"EnclaveRpcVm-"+id),vr=Path.Combine(vp,id);DirectoryNew(vp);DirectoryNew(vr);
    long now=BoundedWorker.MonotonicMilliseconds(),origin=now;
    P=new OwnedVmDefinitionPlan(id,wrongBoot?new string('b',32):b,new string('c',64),ProtectedAttempt.Hash(fixtureImage),vr,origin,origin+900000,new string('e',64),new string('f',64));
    PlanPath=Path.Combine(vr,"definition-plan.txt");byte[] plan=Encoding.UTF8.GetBytes(P.Encode());PlanHash=wrongHash?new string('0',64):ProtectedAttempt.Hash(plan);Put(PlanPath,plan);
-   bool probe=op=="admission-check"||op=="preparation-check"||op=="preparation-gated";byte[] observation=Encoding.UTF8.GetBytes(op=="preparation-gated"?"{\"legacyCutSeed\":{\"fixture\":1},\"sharedPhysicalPool\":{\"fixture\":2}}":"{}");ObservationHash=ProtectedAttempt.Hash(observation);
+   bool probe=op=="admission-check"||op=="preparation-check"||op=="preparation-gated";byte[] observation=Encoding.UTF8.GetBytes(op=="preparation-gated"?"{\"legacyCutSeed\":{\"fixture\":1},\"sharedPhysicalPool\":{\"fixture\":2}}":"{}");if(collector)observation=CollectorInitial();InitialBytes=observation;ObservationHash=ProtectedAttempt.Hash(observation);
    if(probe)Put(Path.Combine(root,"admission.json"),observation);
    byte[] c=Encoding.UTF8.GetBytes((probe?"owned-rpc-definition-admission-v1":"owned-rpc-definition-worker-v1")+"\n"+n+"\n"+b+"\n"+now+"\n"+(now+20000)+"\n"+ProtectedAttempt.Hash(fixtureImage)+"\n"+op+"\n"+PlanPath+"\n"+PlanHash+"\n"+(probe?ObservationHash+"\n":""));
    Contract=Path.Combine(root,"contract.txt");Hash=ProtectedAttempt.Hash(c);Put(Contract,c);
@@ -103,6 +121,28 @@ public static class OwnedVmDefinitionHarness {
   Test("actual-prior-worker-digest-refused",()=>{using(var old=new PriorCase()){var c=new ProtectedCase();using(var a=c.Lease())Refuse(()=>{using(var w=ProtectedAttempt.OpenPriorDefinitionWorker(old.Contract,new string('0',64),a)){} });}});
   Test("actual-prior-dead-roles-bound-to-held-contract",()=>{using(var old=new PriorCase()){var c=new ProtectedCase();using(var a=c.Lease())using(var w=ProtectedAttempt.OpenPriorDefinitionWorker(old.Contract,old.Hash,a))foreach(string role in new[]{"owner","observer","child"})UnsubmittedDefinition.RequireExactDeath(w.ReadOnce(role+".consumed"),w.Token,role);}});
 
+ }
+
+ static void CollectorTests(){
+  Test("collector-composes-protected-gate-and-preserves-initial",()=>{var c=new ProtectedCase("preparation-gated",false,false,true);using(var a=c.Lease()){
+   string ready=GateReady(a);var source=new CollectorSource{Boot=a.Boot};byte[] bytes=DiagnosticObservationCollector.Collect(c.InitialBytes,c.ObservationHash,a.Boot,source,()=>a.CheckDeadline());
+   Check(source.Gets==11&&source.BindingCalls==2);Put(Path.Combine(a.Root,"admission.fresh.json"),bytes);string commit=ready+ProtectedAttempt.Hash(bytes)+"\n";a.WriteOnce("observation.commit",commit);
+   a.ValidateGatePayload(ready,commit);Refuse(()=>{string hash=a.GateObservationHash;});a.WriteOnce("observation.release",commit);
+   Check(ProtectedAttempt.Hash(a.ReadAdmission(a.GateObservationHash))==ProtectedAttempt.Hash(bytes));Check(ProtectedAttempt.Hash(File.ReadAllBytes(Path.Combine(a.Root,"admission.json")))==c.ObservationHash);
+  }});
+  Test("collector-refuses-initial-hash-before-any-read",()=>{var src=new CollectorSource{Boot="boot"};Refuse(()=>DiagnosticObservationCollector.Collect(CollectorInitial(),new string('0',64),"boot",src,()=>{}));Check(src.Gets==0);});
+  Test("collector-refuses-boot-before-any-read",()=>{var b=CollectorInitial();var src=new CollectorSource{Boot="other"};Refuse(()=>DiagnosticObservationCollector.Collect(b,ProtectedAttempt.Hash(b),"boot",src,()=>{}));Check(src.Gets==0);});
+  Test("collector-endpoint-failure-is-not-retried",()=>{var b=CollectorInitial();var src=new CollectorSource{Boot="boot",Fail=true};Refuse(()=>DiagnosticObservationCollector.Collect(b,ProtectedAttempt.Hash(b),"boot",src,()=>{}));Check(src.Gets==1);});
+  Test("collector-observer-loss-refuses-after-read",()=>{var b=CollectorInitial();bool alive=true;var src=new CollectorSource{Boot="boot",OnGet=()=>{alive=false;}};Refuse(()=>DiagnosticObservationCollector.Collect(b,ProtectedAttempt.Hash(b),"boot",src,()=>{if(!alive)throw new IOException("Exact observer lost");}));Check(src.Gets==1);});
+  Test("collector-original-deadline-refuses-without-publication",()=>{var c=new ProtectedCase("preparation-gated",false,false,true);using(var a=c.Lease()){
+   string ready=GateReady(a);long now=Int64.Parse(ready.Split('\n')[3]);var src=new CollectorSource{Boot=a.Boot,OnGet=()=>{now=a.Deadline;}};
+   Refuse(()=>DiagnosticObservationCollector.Collect(c.InitialBytes,c.ObservationHash,a.Boot,src,()=>DefinitionObservationGate.ValidateReady(a,ready,now< a.Origin? a.Origin:now)));
+   Check(!File.Exists(Path.Combine(a.Root,"admission.fresh.json"))&&!File.Exists(Path.Combine(a.Root,"observation.release")));
+  }});
+  Test("collector-original-manager-change-refused",()=>{var b=CollectorInitial();var src=new CollectorSource{Boot="boot",ChangedManager=true};Refuse(()=>DiagnosticObservationCollector.Collect(b,ProtectedAttempt.Hash(b),"boot",src,()=>{}));Check(src.Gets==0);});
+  Test("collector-manager-pid-reuse-refused",()=>{var b=CollectorInitial();var src=new CollectorSource{Boot="boot",ChangedCreation=true};Refuse(()=>DiagnosticObservationCollector.Collect(b,ProtectedAttempt.Hash(b),"boot",src,()=>{}));Check(src.Gets==10);});
+  Test("collector-response-row-bound-preserved",()=>{var b=CollectorInitial();var src=new CollectorSource{Boot="boot",TooMany=true};Refuse(()=>DiagnosticObservationCollector.Collect(b,ProtectedAttempt.Hash(b),"boot",src,()=>{}));Check(src.Gets==1);});
+  Test("collector-projects-required-fields-without-fabricated-zeros",()=>{var b=CollectorInitial();var src=new CollectorSource{Boot="boot"};byte[] data=DiagnosticObservationCollector.Collect(b,ProtectedAttempt.Hash(b),"boot",src,()=>{});string text=Encoding.UTF8.GetString(data);Check(!text.Contains("must-not-export")&&!text.Contains("memMb")&&text.Contains("\"reservationsPresent\":false")&&text.Contains("\"reservations\":null"));});
  }
  static string GateReady(ProtectedAttempt a){
   foreach(string role in new[]{"owner","observer","child"})a.WriteOnce(role+".consumed","123,456,"+a.Token+","+role);
@@ -243,6 +283,7 @@ public static class OwnedVmDefinitionHarness {
   Test("missing-vcpu-readback-refused",()=>Refuse(()=>HyperVOwnedDefinition.RequireProcessors(new object[]{})));
   Test("duplicate-vcpu-readback-refused",()=>Refuse(()=>HyperVOwnedDefinition.RequireProcessors(new object[]{(ulong)4,(ulong)4})));
   Test("plan-overflow-refused",()=>Refuse(()=>new OwnedVmDefinitionPlan(new string('a',32),new string('b',32),new string('c',64),new string('d',64),@"C:\OwnedRpcFixture\"+new string('a',32),Int64.MaxValue,Int64.MaxValue,new string('e',64),new string('f',64))));
+  CollectorTests();
   PredecessorTests();ProtectedTests();count+=OwnedVmBootHarness.Run();
   Console.WriteLine("RESULT tests="+count+" providerCallsAreFakes=true vmChanged=false");return 0;
  }catch(Exception e){Console.Error.WriteLine(e);return 1;}}

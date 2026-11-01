@@ -1093,3 +1093,25 @@ must wait for the exact request, collect actual fresh host data, and atomically
 publish the bound payload/commit; it must never overwrite the initial observation.
 The definition and startup CI recipes now explicitly compile with `/optimize+`
 and retain the 262144-byte executable cap and all resource/test limits.
+
+The `preparation-gated` controller now collects its fresh admission observation
+inside its existing 128 MiB self job and original independent 30-second watchdog.
+It does so only after validating the exact child-ready record and publishing
+`observation.request`. It starts no collector subprocess. Fixed loopback reads
+cover the node and all three managers; native memory/disk, boot, listener and
+held manager incarnations are captured again. The snapshot contains the fields
+used by native admission, not fresh media hashes or VM inventory; those remain
+separate preflight and completed-cut/pool checks. Node status is read last to
+avoid the former SSH/staging delay. Original manager identities and immutable
+cut/pool authorities must match the initial observation. Missing memory fields
+remain missing, and unknown reservations remain unknown.
+
+The controller exclusively publishes `admission.fresh.json` and its commit,
+then applies the existing held-payload validation before one-shot release. The
+child still performs unchanged exact live comparison, two-second aggregate
+admission and resource verification before WMI preparation. Endpoint failure,
+changed manager incarnation, peer death or original deadline closes the gate;
+there is no retry. Its watchdog, rather than elapsed checks alone, bounds a
+blocked native read. The native collector is not target-qualified yet. Synthetic
+collector fixtures prove neither real endpoint latency nor successful SYSTEM
+preparation, provider settlement, VM boot or RPC readiness.
