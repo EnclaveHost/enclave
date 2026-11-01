@@ -1,0 +1,124 @@
+TAP version 13
+# Subtest: zero-balance candidate preserves economic identity but is never executable
+ok 1 - zero-balance candidate preserves economic identity but is never executable
+  ---
+  duration_ms: 1.323191
+  type: 'test'
+  ...
+# Subtest: expired but attached legacy assignment cannot be imported
+ok 2 - expired but attached legacy assignment cannot be imported
+  ---
+  duration_ms: 0.274826
+  type: 'test'
+  ...
+# Subtest: each nonzero financial component refuses blind accounting import
+ok 3 - each nonzero financial component refuses blind accounting import
+  ---
+  duration_ms: 0.431083
+  type: 'test'
+  ...
+# Subtest: serialized zero amounts work without allowing negative, unsafe numeric or missing amounts
+ok 4 - serialized zero amounts work without allowing negative, unsafe numeric or missing amounts
+  ---
+  duration_ms: 0.534062
+  type: 'test'
+  ...
+# Subtest: disabled source and inactive host cannot be activated as a migration side effect
+ok 5 - disabled source and inactive host cannot be activated as a migration side effect
+  ---
+  duration_ms: 0.611991
+  type: 'test'
+  ...
+# Subtest: missing or malformed intended host operator holds admission
+ok 6 - missing or malformed intended host operator holds admission
+  ---
+  duration_ms: 0.200447
+  type: 'test'
+  ...
+# Subtest: missing, already imported, sealed or wrongly paired destination holds
+ok 7 - missing, already imported, sealed or wrongly paired destination holds
+  ---
+  duration_ms: 0.277816
+  type: 'test'
+  ...
+# Subtest: accepted host owner must resolve to the deployment owner principal
+ok 8 - accepted host owner must resolve to the deployment owner principal
+  ---
+  duration_ms: 0.140098
+  type: 'test'
+  ...
+# Subtest: collector pins every code and contract read to supplied block and returns no transaction data
+ok 9 - collector pins every code and contract read to supplied block and returns no transaction data
+  ---
+  duration_ms: 10.474204
+  type: 'test'
+  ...
+# Subtest: ordinary RPC labels cannot substitute for authenticated lifecycle snapshot
+ok 10 - ordinary RPC labels cannot substitute for authenticated lifecycle snapshot
+  ---
+  duration_ms: 0.955275
+  type: 'test'
+  ...
+# Subtest: actual deployed code and authority bindings are checked, not template hashes alone
+ok 11 - actual deployed code and authority bindings are checked, not template hashes alone
+  ---
+  duration_ms: 0.708669
+  type: 'test'
+  ...
+# Subtest: read failure propagates with no fallback, output or send
+ok 12 - read failure propagates with no fallback, output or send
+  ---
+  duration_ms: 0.457133
+  type: 'test'
+  ...
+# Subtest: incomplete pins and source equal destination refuse before chain work
+ok 13 - incomplete pins and source equal destination refuse before chain work
+  ---
+  duration_ms: 0.439703
+  type: 'test'
+  ...
+# Subtest: payout matching the app owner cannot substitute for accepted host ownership
+ok 14 - payout matching the app owner cannot substitute for accepted host ownership
+  ---
+  duration_ms: 0.67668
+  type: 'test'
+  ...
+# Subtest: pending nomination and zero revision cannot supply accepted ownership
+ok 15 - pending nomination and zero revision cannot supply accepted ownership
+  ---
+  duration_ms: 3.162663
+  type: 'test'
+  ...
+# Subtest: missing ownership pin holds without falling back to payout or operator
+ok 16 - missing ownership pin holds without falling back to payout or operator
+  ---
+  duration_ms: 0.522072
+  type: 'test'
+  ...
+# Subtest: accepted ownership does not silently change legacy payout-based billing
+ok 17 - accepted ownership does not silently change legacy payout-based billing
+  ---
+  duration_ms: 0.546871
+  type: 'test'
+  ...
+# Subtest: ownership contract must have exact deployed code and registry binding
+ok 18 - ownership contract must have exact deployed code and registry binding
+  ---
+  duration_ms: 1.199632
+  type: 'test'
+  ...
+# Subtest: ownership revision remains uint64 and read at the same authenticated block
+ok 19 - ownership revision remains uint64 and read at the same authenticated block
+  ---
+  duration_ms: 0.885927
+  type: 'test'
+  ...
+1..19
+# tests 19
+# suites 0
+# pass 19
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 288.377009

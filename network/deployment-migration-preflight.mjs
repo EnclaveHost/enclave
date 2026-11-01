@@ -21,6 +21,7 @@ const EXTRA = parseAbi([
   'function ledger() view returns(address)',
   'function reserve() view returns(address)',
   'function principal(address) view returns(address)',
+  'function authority(bytes32) view returns(address owner,address pendingOwner,uint64 revision,bytes32 policyHash)',
 ]);
 const positiveHash = x => /^0x[0-9a-f]{64}$/i.test(x || '') && !same(x,ZERO32);
 const uint = (v,label) => {
@@ -46,6 +47,11 @@ export function assessMigrationInventory(v) {
   for(const k of amounts) s[k]=uint(s[k],k);
   if(!v.intendedHost || v.intendedHost.active!==true || !/^0x[0-9a-f]{40}$/i.test(v.intendedHost.operator || '') || same(v.intendedHost.operator,ZERO))
     block('host-unavailable','Intended host must be active with a nonzero registered operator.');
+  const ownership=v.intendedHost?.ownership;
+  if(!ownership || !/^0x[0-9a-f]{40}$/i.test(ownership.contract || '') || same(ownership.contract,ZERO) ||
+      !/^0x[0-9a-f]{40}$/i.test(ownership.owner || '') || same(ownership.owner,ZERO) ||
+      uint(ownership.revision,'ownership revision')===0n || uint(ownership.revision,'ownership revision')>=(1n<<64n))
+    block('host-ownership','Require a code-pinned, registry-bound host ownership contract and an accepted owner revision; payout routing and pending nominations are not ownership.');
   if(s.schema!==16) block('unsupported-source','First migration path is limited to the reviewed schema-16 ledger.');
   if(!same(s.rowId,v.id) || !s.exists) block('unknown-source','Source deployment does not exist.');
   if(s.active!==true) block('source-disabled','Preserve disabled/stopped intent; do not activate it through migration.');
@@ -61,7 +67,9 @@ export function assessMigrationInventory(v) {
     if(d.importsSealed!==false) block('imports-closed','Destination import window is closed or unknown.');
     if(d.exists!==false) block('already-imported','Reconcile the existing destination record instead of importing again.');
     if(!d.ownerPrincipal || !d.hostPrincipal || same(d.ownerPrincipal,ZERO) || !same(d.ownerPrincipal,d.hostPrincipal))
-      block('selfhost-identity','Pinned identity contract must establish the same owner and intended-host principal.');
+      block('selfhost-identity','Pinned identity contract must establish the same deployment-owner and accepted host-owner principal.');
+    if(!d.payoutPrincipal || !same(d.payoutPrincipal,d.ownerPrincipal))
+      block('legacy-selfhost-billing','Schema-2 billing still uses payout identity; require its zero-rate eligibility separately from accepted host ownership.');
   }
   if(s.gasReserveWei>0n) obligations.push({code:'old-gas-reserve',detail:'Legacy gas reserve is separately keyed to source owner. It is not destination transition credit; preserve or explicitly withdraw it through that owner.'});
   if(v.gasAdapter) {
@@ -91,8 +99,9 @@ export async function readMigrationPreflight({snapshot,pins,id,intendedHost}) {
   const destination=pins.destination?{ledger:pin(pins.destination.ledger,'destination ledger'),controller:pin(pins.destination.controller,'destination controller'),identity:pin(pins.destination.identity,'destination identity')}:null;
   if(destination && same(source.ledger.address,destination.ledger.address)) throw Error('source and destination ledger must differ');
   const gasAdapter=pins.gasAdapter?pin(pins.gasAdapter,'gas adapter'):null;
+  const hostOwnership=pins.hostOwnership?pin(pins.hostOwnership,'host ownership'):null;
   const result=await snapshot(async(c,blockNumber)=>{
-    for(const [label,p] of Object.entries({...Object.fromEntries(Object.entries(source).map(([k,v])=>['source '+k,v])),...Object.fromEntries(Object.entries(destination||{}).map(([k,v])=>['destination '+k,v])),...(gasAdapter?{'gas adapter':gasAdapter}:{})})) {
+    for(const [label,p] of Object.entries({...Object.fromEntries(Object.entries(source).map(([k,v])=>['source '+k,v])),...Object.fromEntries(Object.entries(destination||{}).map(([k,v])=>['destination '+k,v])),...(gasAdapter?{'gas adapter':gasAdapter}:{}),...(hostOwnership?{'host ownership':hostOwnership}:{})})) {
       const code=await c.getCode({address:p.address,blockNumber});
       if(!code || code==='0x' || !same(keccak256(code),p.codeHash)) throw Error(`deployed code differs: ${label}`);
     }
@@ -103,15 +112,26 @@ export async function readMigrationPreflight({snapshot,pins,id,intendedHost}) {
       read(source.ledger,EXTRA,'ownerEscrow6',[id]),read(source.ledger,EXTRA,'refundableOf',[id]),read(source.ledger,EXTRA,'capOf',[id]),
       read(source.reserve,OWNER_ABI,'reserveOf',[id,d.owner]),read(source.registry,REGISTRY_ABI,'get',[intendedHost]),read(source.reserve,EXTRA,'ledger')]);
     if(!same(registry,source.registry.address)||!same(reserveLedger,source.ledger.address))throw Error('source authority binding differs');
+    let ownership=null;
+    if(hostOwnership){
+      const [boundRegistry,authority]=await Promise.all([read(hostOwnership,EXTRA,'registry'),read(hostOwnership,EXTRA,'authority',[intendedHost])]);
+      if(!same(boundRegistry,source.registry.address))throw Error('host ownership registry binding differs');
+      if(!Array.isArray(authority)||authority.length!==4)throw Error('host ownership record differs');
+      const [owner,pendingOwner,revision,policyHash]=authority;
+      if(uint(revision,'ownership revision')>=(1n<<64n)||!/^0x[0-9a-f]{64}$/i.test(policyHash||''))throw Error('host ownership record differs');
+      ownership={contract:hostOwnership.address,owner:getAddress(owner),pendingOwner:getAddress(pendingOwner),revision,policyHash};
+    }
     const value={id,source:{schema:Number(schema),rowId:d.id,exists:d.createdAt>0n,active:d.active,owner:d.owner,appRef:d.appRef,runner:d.runner,runnerOperator:d.runnerOperator,leaseUntil:d.leaseUntil,
       rate6:d.rate,balance6:d.balance6,spent6:d.spent6,publisherRecipient:fee[0],publisherFee6:fee[1],runnerRate6:earn[0],escrow6:earn[1],ownerEscrow6:ownerEscrow,refundable6:refundable,capRate6:cap,gasReserveWei:res.balanceWei},
-      intendedHost:{id:intendedHost,operator:host.operator,payoutWallet:host.payoutWallet,active:host.active},destination:null,gasAdapter:null};
+      intendedHost:{id:intendedHost,operator:host.operator,payoutWallet:host.payoutWallet,active:host.active,ownership},destination:null,gasAdapter:null};
     if(destination){
       const dl=destination.ledger;
-      const [rev,life,controller,identity,reg,boundLedger,sealed,existing,ownerPrincipal,hostPrincipal]=await Promise.all([
+      const [rev,life,controller,identity,reg,boundLedger,sealed,existing,ownerPrincipal,hostPrincipal,payoutPrincipal]=await Promise.all([
         read(dl,EXTRA,'deploymentsSchema'),read(dl,EXTRA,'lifecycleSchema'),read(dl,EXTRA,'lifecycleController'),read(dl,EXTRA,'selfHostingIdentity'),read(dl,EXTRA,'registry'),
-        read(destination.controller,EXTRA,'ledger'),read(dl,EXTRA,'importsSealed'),read(dl,LEDGER_ABI,'get',[id]),read(destination.identity,EXTRA,'principal',[d.owner]),read(destination.identity,EXTRA,'principal',[host.payoutWallet])]);
-      value.destination={ledger:dl.address,controller:destination.controller.address,schema:Number(rev),lifecycleSchema:Number(life),importsSealed:sealed,exists:existing.createdAt>0n,ownerPrincipal,hostPrincipal,
+        read(destination.controller,EXTRA,'ledger'),read(dl,EXTRA,'importsSealed'),read(dl,LEDGER_ABI,'get',[id]),read(destination.identity,EXTRA,'principal',[d.owner]),
+        ownership&&!same(ownership.owner,ZERO)?read(destination.identity,EXTRA,'principal',[ownership.owner]):ZERO,
+        read(destination.identity,EXTRA,'principal',[host.payoutWallet])]);
+      value.destination={ledger:dl.address,controller:destination.controller.address,schema:Number(rev),lifecycleSchema:Number(life),importsSealed:sealed,exists:existing.createdAt>0n,ownerPrincipal,hostPrincipal,payoutPrincipal,
         pairMatches:same(controller,destination.controller.address)&&same(identity,destination.identity.address)&&same(reg,source.registry.address)&&same(boundLedger,dl.address)};
     }
     if(gasAdapter){const [l,r]=await Promise.all([read(gasAdapter,EXTRA,'ledger'),read(gasAdapter,EXTRA,'reserve')]);value.gasAdapter={address:gasAdapter.address,ledger:l,reserve:r};}

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {keccak256} from 'viem';
 import {assessMigrationInventory,readMigrationPreflight} from '../network/deployment-migration-preflight.mjs';
 const A=n=>'0x'+n.toString(16).padStart(40,'0'),H=n=>'0x'+n.toString(16).padStart(64,'0');
-const base=()=>({id:H(9),source:{schema:16,rowId:H(9),exists:true,active:true,owner:A(8),appRef:'catalog://test/1',runner:H(0),runnerOperator:A(0),leaseUntil:0n,rate6:0n,balance6:0n,spent6:12n,publisherRecipient:A(0),publisherFee6:0n,runnerRate6:0n,escrow6:0n,ownerEscrow6:0n,refundable6:0n,capRate6:14n,gasReserveWei:200n},intendedHost:{active:true,operator:A(7)},destination:{ledger:A(4),controller:A(5),schema:17,lifecycleSchema:2,pairMatches:true,importsSealed:false,exists:false,ownerPrincipal:A(8),hostPrincipal:A(8)},gasAdapter:{ledger:A(1),reserve:A(2)}});
+const base=()=>({id:H(9),source:{schema:16,rowId:H(9),exists:true,active:true,owner:A(8),appRef:'catalog://test/1',runner:H(0),runnerOperator:A(0),leaseUntil:0n,rate6:0n,balance6:0n,spent6:12n,publisherRecipient:A(0),publisherFee6:0n,runnerRate6:0n,escrow6:0n,ownerEscrow6:0n,refundable6:0n,capRate6:14n,gasReserveWei:200n},intendedHost:{active:true,operator:A(7),ownership:{contract:A(11),owner:A(8),pendingOwner:A(0),revision:1n,policyHash:H(0)}},destination:{ledger:A(4),controller:A(5),schema:17,lifecycleSchema:2,pairMatches:true,importsSealed:false,exists:false,ownerPrincipal:A(8),hostPrincipal:A(8),payoutPrincipal:A(8)},gasAdapter:{ledger:A(1),reserve:A(2)}});
 test('zero-balance candidate preserves economic identity but is never executable',()=>{
  const r=assessMigrationInventory(base());assert.equal(r.status,'zero-balance-canary-review');assert.equal(r.executable,false);assert.equal(r.preserved.capRate6,14n);assert.equal(r.preserved.spent6,12n);
  assert.ok(r.obligations.some(x=>x.code==='old-gas-reserve'));assert.ok(r.obligations.some(x=>x.code==='funding-incompatible'));assert.ok(r.obligations.some(x=>x.code==='activation-evidence'));
@@ -35,29 +35,30 @@ test('missing, already imported, sealed or wrongly paired destination holds',()=
   const v=base();change(v);assert.equal(assessMigrationInventory(v).status,'hold');
  }
 });
-test('host payout must resolve to same nonzero principal, not an arbitrary owner getter',()=>{
+test('accepted host owner must resolve to the deployment owner principal',()=>{
  const v=base();v.destination.hostPrincipal=A(12);assert.ok(assessMigrationInventory(v).blockers.some(x=>x.code==='selfhost-identity'));
  v.destination.ownerPrincipal=A(0);v.destination.hostPrincipal=A(0);assert.equal(assessMigrationInventory(v).status,'hold');
 });
-function world({proof=true,badCode=false,badBinding=false,failRead=false}={}){
+function world({proof=true,badCode=false,badBinding=false,failRead=false,acceptedOwner=A(8),payout=A(8),ownershipRegistry=A(3),ownershipRevision=1n}={}){
  const calls=[],code='0x60006000',p=n=>({address:A(n),codeHash:keccak256(code)});
- const pins={chainId:8453,source:{ledger:p(1),reserve:p(2),registry:p(3)},destination:{ledger:p(4),controller:p(5),identity:p(6)},gasAdapter:p(10)};
+ const pins={chainId:8453,source:{ledger:p(1),reserve:p(2),registry:p(3)},destination:{ledger:p(4),controller:p(5),identity:p(6)},gasAdapter:p(10),hostOwnership:p(11)};
  const source=base().source;
  const d={id:H(9),createdAt:1n,owner:source.owner,active:true,appRef:source.appRef,runner:H(0),runnerOperator:A(0),leaseUntil:0n,rate:0n,balance6:0n,spent6:12n};
  const c={getCode:async x=>{calls.push(x);return badCode?'0x6001':code;},readContract:async x=>{
   calls.push(x);if(failRead)throw Error('reader unavailable');const {address:a,functionName:f}=x;
   if(f==='get'&&a===A(1))return d;
   if(f==='get'&&a===A(4))return {...d,createdAt:0n};
-  if(f==='get'&&a===A(3))return {operator:A(7),payoutWallet:A(8),active:true};
+  if(f==='get'&&a===A(3))return {operator:A(7),payoutWallet:payout,active:true};
   if(f==='deploymentsSchema')return a===A(1)?16n:17n;
-  if(f==='registry')return A(3);
+  if(f==='registry')return a===A(11)?ownershipRegistry:A(3);
+  if(f==='authority'){assert.deepEqual(x.args,[H(3)]);return [acceptedOwner,A(12),ownershipRevision,H(0)];}
   if(f==='feeOf')return [A(0),0n];if(f==='earnOf')return [0n,0n,0n];
   if(['ownerEscrow6','refundableOf'].includes(f))return 0n;
   if(f==='capOf')return 14n;if(f==='reserveOf')return {balanceWei:200n};
   if(f==='ledger')return a===A(5)?A(4):badBinding?A(99):A(1);
   if(f==='reserve')return A(2);if(f==='lifecycleSchema')return 2n;
   if(f==='lifecycleController')return A(5);if(f==='selfHostingIdentity')return A(6);
-  if(f==='importsSealed')return false;if(f==='principal')return A(8);
+  if(f==='importsSealed')return false;if(f==='principal')return x.args[0];
   throw Error('unexpected call '+f);
  }};
  const snapshot=async fn=>({value:await fn(c,100n),blockNumber:100n,blockHash:H(100),timestamp:100000,evidence:{proofVerified:proof,tier:proof?'l1-finalized-derived':'safe'}});
@@ -80,4 +81,43 @@ test('read failure propagates with no fallback, output or send',async()=>{
 test('incomplete pins and source equal destination refuse before chain work',async()=>{
  const w=world();w.pins.source.ledger.codeHash=H(0);await assert.rejects(readMigrationPreflight(w),/code pin required/);assert.equal(w.calls.length,0);
  const z=world();z.pins.destination.ledger=z.pins.source.ledger;await assert.rejects(readMigrationPreflight(z),/must differ/);assert.equal(z.calls.length,0);
+});
+test('payout matching the app owner cannot substitute for accepted host ownership',async()=>{
+ const r=await readMigrationPreflight(world({acceptedOwner:A(12)}));
+ assert.equal(r.inventory.destination.payoutPrincipal,A(8));
+ assert.equal(r.inventory.destination.hostPrincipal.toLowerCase(),A(12));
+ assert.ok(r.assessment.blockers.some(x=>x.code==='selfhost-identity'));
+});
+test('pending nomination and zero revision cannot supply accepted ownership',async()=>{
+ for(const options of [{acceptedOwner:A(0)},{ownershipRevision:0n}]){
+  const r=await readMigrationPreflight(world(options));
+  assert.equal(r.assessment.status,'hold');assert.ok(r.assessment.blockers.some(x=>x.code==='host-ownership'));
+ }
+});
+test('missing ownership pin holds without falling back to payout or operator',async()=>{
+ const w=world();delete w.pins.hostOwnership;
+ const r=await readMigrationPreflight(w);
+ assert.equal(r.inventory.intendedHost.ownership,null);assert.equal(r.inventory.destination.hostPrincipal,A(0));
+ assert.ok(r.assessment.blockers.some(x=>x.code==='host-ownership'));
+ assert.equal(w.calls.some(x=>x.functionName==='authority'),false);
+});
+test('accepted ownership does not silently change legacy payout-based billing',async()=>{
+ const r=await readMigrationPreflight(world({payout:A(12)}));
+ assert.equal(r.inventory.destination.hostPrincipal,A(8));
+ assert.ok(r.assessment.blockers.some(x=>x.code==='legacy-selfhost-billing'));
+ assert.equal(r.assessment.blockers.some(x=>x.code==='selfhost-identity'),false);
+});
+test('ownership contract must have exact deployed code and registry binding',async()=>{
+ await assert.rejects(readMigrationPreflight(world({ownershipRegistry:A(99)})),/host ownership registry binding/);
+ const w=world();w.pins.hostOwnership.codeHash=H(11);
+ await assert.rejects(readMigrationPreflight(w),/deployed code differs: host ownership/);
+});
+test('ownership revision remains uint64 and read at the same authenticated block',async()=>{
+ await assert.rejects(readMigrationPreflight(world({ownershipRevision:1n<<64n})),/ownership record differs/);
+ const w=world();const r=await readMigrationPreflight(w);
+ assert.equal(r.inventory.intendedHost.ownership.owner,A(8));
+ assert.equal(r.inventory.intendedHost.ownership.pendingOwner.toLowerCase(),A(12));
+ assert.equal(r.assessment.status,'zero-balance-canary-review');
+ assert.ok(w.calls.filter(x=>x.address===A(11)).length>=3);
+ assert.ok(w.calls.every(x=>x.blockNumber===100n));
 });

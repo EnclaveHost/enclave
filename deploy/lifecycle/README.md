@@ -177,6 +177,18 @@ nonzero runtime or escrow requires a separate conservation plan. Legacy reserve
 balances and immutable gas-adapter grants are not treated as destination funding.
 The output is diagnostic and never constructs or authorizes transactions.
 
+Preflight ownership requires `pins.hostOwnership: {address, codeHash}` for the
+reviewed `EnclaveHostOwnership` deployment. Its code, immutable registry binding
+and `authority(intendedHost)` record are read in the same authenticated snapshot
+as the ledger. A nonzero accepted owner and revision are required; a pending
+nomination, operator address or payout wallet cannot substitute. Missing ownership
+pins produce a hold instead of a payout-based fallback. The accepted host owner's
+principal must match the deployment owner's principal. The schema-2 ledger's
+payout-based zero-rate billing is checked separately: a different payout principal
+still holds this legacy canary assessment even when host ownership is accepted.
+This does not widen schema support, activate a migration or replace the remaining
+independent-profile and financial qualification requirements.
+
 ## Migration sequence, not an executable rollout
 
 1. Qualify the authority/fencing protocol and implement the adapters above.

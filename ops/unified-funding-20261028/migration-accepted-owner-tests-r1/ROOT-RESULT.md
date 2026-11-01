@@ -1,0 +1,1 @@
+Invocation72e0da4a88dc414398148d538cadb0a2 terminal1/Main0. No tests executed: bwrap could not create dependency mountpoint under read-only frozen root. Eight source pins unchanged. Failure preserved; no native chain or production operations.
