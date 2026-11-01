@@ -1,0 +1,1 @@
+6 actual unittest methodsPASS/0FAIL, invocation31a9f7317c1844dfb7f0add83ae2ffc4 completed0;1.525661924s/47pins unchanged. Systemd/signatures/resource/provider mocked, filesystem/intent ordering real. See ../rpc-owner-entry-native-r2/ROOT-RESULT.md for full evidence and bootstrap limitations.

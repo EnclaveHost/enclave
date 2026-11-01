@@ -235,3 +235,12 @@ A local guest journal cannot substitute for the owner journal. The new actor
 starts no export and returns no root FD or readiness claim. Existing legacy
 bootstrap authorization and its finite freshness cutoff remain; event-driven
 serving authorization/persistent adoption are still unfinished.
+
+
+The maintained [owner dispatcher](../../../rpc/server/README.md#one-shot-storage-owner-dispatcher-implemented-not-installed)
+now supplies a concrete signer bootstrap and export-submission path. The bootstrap
+maps the actual storage owner's UID to0 in a private user namespace, preserving
+host file ownership while supplying the fixed descriptors. Actual Warden units
+qualified that bootstrap with a pinned inert stub, including the independent20s
+kill of a fully stopped three-process tree. The Go signer/real chain/export
+composition and installation are still unqualified; stub success is not consent.

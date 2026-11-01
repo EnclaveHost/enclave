@@ -1,0 +1,1 @@
+{"cases": 3, "pass": true, "stubOnly": true}

@@ -1,0 +1,5 @@
+{
+  "encoding": "utf8",
+  "sha256": "da6ab8f99c0096fad8f266c58f432a5d0af1850fe33f40e99b42c6d66cd2a098",
+  "text": "Traceback (most recent call last):\n  File \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-owner-entry-native-r1/frozen/test/rpc-server/qualify_owner_entry.py\", line 156, in <module>\n    if __name__=='__main__':main(*(Path(p) for p in sys.argv[1:]))\n                            ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-owner-entry-native-r1/frozen/test/rpc-server/qualify_owner_entry.py\", line 102, in main\n    if row['ActiveState']=='failed' or time.monotonic()>=until:raise ValueError('Stub did not reach required bootstrap stage: '+(root/'stderr').read_text()[:1000])\n                                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nValueError: Stub did not reach required bootstrap stage: bwrap: Can't create file /owner: Read-only file system\n\n"
+}

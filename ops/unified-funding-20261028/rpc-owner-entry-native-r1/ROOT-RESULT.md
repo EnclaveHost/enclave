@@ -1,0 +1,1 @@
+FAILED native first case: bwrap read-only root could not create /owner. Exact actor terminal1/MainPID0/emptygroup; no stub executed; latercases unattempted. Source layout corrected and independently qualified in r2; see ../rpc-owner-entry-native-r2/ROOT-RESULT.md. Never replay this failed frozen invocation.

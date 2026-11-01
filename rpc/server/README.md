@@ -286,3 +286,64 @@ and qualified separately. This API creates no new original clock and performs no
 VM or exporter launch. Ten sender tests use actual protected journals and mocked
 transport; they are not proof of a live Windows handshake. Both host admission
 and a complete startup workflow are required before consuming the live begin.
+
+
+## One-shot storage-owner dispatcher (implemented, not installed)
+
+`dispatch_owner.py` now connects the actual owner signing command to the existing
+`run_startup.start_export` launcher. It requires an independently capped user unit
+`enclave-rpc-owner-dispatch-ATTEMPT.service`: Type=exec, RuntimeMaxSec=60,
+TimeoutStopSec=1, MemoryMax=256M, MemorySwapMax=0, CPUQuota=100%, TasksMax=32,
+KillMode=control-group, Restart=no, SendSIGKILL=yes, FinalKillSignal=SIGKILL,
+NoNewPrivileges=yes, LimitCORE=0 and UMask=0077. The unit's original cutoff must
+fit inside the original startup deadline before any submission. Fresh local
+resource admission reserves1024MiB for dispatcher, signer, exporter and setup;
+it retains the27648MiB floor, pending commitments and any higher installed floor.
+
+A protected `enclave-rpc-owner-dispatch/1` configuration contains `entry`,
+`request` (path/SHA256 bindings), `outputParent` and the complete maintained RPC
+Python/runtime `pins`. Its output directory is exclusively named by the original
+attempt. The request is the bounded canonical input to `rpc-storage-owner`.
+`signer-submit.intent` is fsynced before the one systemd signer call; the complete
+response must equal the signer's already-persisted owner journal response.
+`export-submit.intent` is then fsynced before the one real export submission.
+The exact returned invocation/PID/creation-time/cgroup identity is persisted
+before acknowledgment. A transport timeout or partial response holds the attempt;
+there is no cancellation assumption, resubmission, unit replacement or cleanup
+that would release a writer.
+
+The dispatcher waits for the exact guarded export's control-listening receipt
+before returning consent, avoiding a one-shot connect before TLS bind. That
+receipt acknowledges only the listener; export data and RPC readiness are still
+false. Response persistence precedes stdout. The existing exporter independently
+requires authenticated app control before opening its work gate. No readiness,
+persistent adoption, settlement or writable-root descriptor is granted here.
+
+`owner_entry.py` is the fixed signer bootstrap. Its protected
+`enclave-rpc-owner-entry/1` configuration contains `attempt`, `clock`, `contract`,
+`policy`, `binary` bindings, the authoritative `journal`, two local `seeds` paths,
+`receipt` (the dispatcher's signer-started.json) and exact bootstrap `pins`.
+The binary must be a private700 file, inputs private600, journal private700.
+The signer unit has128MiB/noSwap/CPU1/Tasks32, Type=exec, RuntimeMaxSec=20,
+TimeoutStopSec=1 and the same kill/no-restart/no-new-privileges settings.
+It verifies the actual unit PID/invocation/cgroup before opening keys. A private
+user namespace maps the existing storage owner's UID to0 without chown or host
+root. Read-only system mounts supply the runtime; held policy/keys/contract/clock
+inodes become fixed private paths and then exactly FDs3..8. Only the held journal
+mount is writable. This namespace is not a claim of complete hostile-code
+sandboxing; the issuer and source are pinned trusted components.
+
+Actual qualification: six dispatcher file/order/error tests with explicitly
+mocked systemd/signing/resource calls; actual Warden entry units with an inert
+stub checked namespace identity, all six read-only FDs,128MiB/noSwap/Tasks32 and
+journal writes, and rejected a changed executable. An external fixture held
+three exact pidfds, stopped all three processes, then observed the original20s
+service deadline terminate the entire tree in21.52s including startup/stop grace,
+with an empty cgroup. The first namespace-layout failure is preserved. These
+are bootstrap checks, **not a complete Go signer/chain/export dispatch run**.
+
+No service is installed. Real volume/key/policy/journal provisioning, accepted
+remote identity/client credentials, complete positive owner-to-export composition,
+writer settlement and native RPC bootstrap remain required. Existing owner policy
+is a permission to use a runtime, not remote attestation. Source merging does not
+activate any unit or authorize a fake grant. Production RPC remains offline.

@@ -1,0 +1,11 @@
+test_ambiguous_export_stays_held_without_ack (test_owner_dispatch.DispatchTests.test_ambiguous_export_stays_held_without_ack) ... ok
+test_ambiguous_signer_stays_held_without_export (test_owner_dispatch.DispatchTests.test_ambiguous_signer_stays_held_without_export) ... ok
+test_changed_runtime_pin_before_submission (test_owner_dispatch.DispatchTests.test_changed_runtime_pin_before_submission) ... ok
+test_full_pending_aware_reserve_before_submission (test_owner_dispatch.DispatchTests.test_full_pending_aware_reserve_before_submission) ... ok
+test_ordered_persistence_before_ack_and_no_repeat (test_owner_dispatch.DispatchTests.test_ordered_persistence_before_ack_and_no_repeat) ... ok
+test_wrong_proof_cannot_submit_export (test_owner_dispatch.DispatchTests.test_wrong_proof_cannot_submit_export) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 1.391s
+
+OK
