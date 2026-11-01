@@ -1,0 +1,144 @@
+{
+  "controller": {
+    "path": "/inputs/controller.wasm",
+    "sha256": "a39077b3ade3ebc5576f6ed6f9bfb5c45acf0aaf7ba4e563357d2c44eb1b4bf1"
+  },
+  "kernel": {
+    "boot": {
+      "path": "/inputs/bzImage",
+      "sha256": "8b369719a13ad00256a2d8cd1e10c3f50d4a751e5089efb1fe3917360bb1b58e"
+    },
+    "elf": {
+      "path": "/inputs/kernel.elf",
+      "sha256": "f401ccc30759c48c29a63bdb36e9cd7b09b840e863016080716b644939870da8"
+    },
+    "release": "6.6.87.2-enclave-kvm-box"
+  },
+  "nbd": {
+    "path": "/inputs/nbd.ko",
+    "sha256": "661464740b08e623c6e5face724a4e55708934342f9b739db849e44e3dc64f3a"
+  },
+  "root": {
+    "descriptor": {
+      "path": "/inputs/root-volume.json",
+      "sha256": "80541fd8dd46029eecb3d5e3bd6052d93ba447677bed1a8b7b44799aaf407e93"
+    },
+    "hash": {
+      "path": "/inputs/hash.img",
+      "sha256": "e7e1181935aca6d20c83fa3f9ff5fef74157ffa4471631186a8a3ace38d0403e"
+    },
+    "image": {
+      "path": "/inputs/root.img",
+      "sha256": "de46070f1b1e2bb7a8bf18abb3b4f7be88143c8aa76b5fd4064afb888efa5aed"
+    }
+  },
+  "runtime": {
+    "ld-linux-x86-64.so.2": {
+      "path": "/inputs/ld-linux-x86-64.so.2",
+      "sha256": "f5e11cc62f8f2c24dff532982559f4303dba3b17e7450551372a88c8e7ea8757"
+    },
+    "libc.so.6": {
+      "path": "/inputs/libc.so.6",
+      "sha256": "02c8c3d06180beee9c7d0392aa85736c7d19f274a81e7f8f0b3d9e28e0641524"
+    },
+    "libgcc_s.so.1": {
+      "path": "/inputs/libgcc_s.so.1",
+      "sha256": "e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a"
+    },
+    "libm.so.6": {
+      "path": "/inputs/libm.so.6",
+      "sha256": "965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d"
+    },
+    "runtime.json": {
+      "path": "/inputs/runtime.json",
+      "sha256": "11f539bbc12ee4de84e12384e0a4f95983c2aba3c833e6cb963d0a5bff41e270"
+    },
+    "wasmtime": {
+      "path": "/inputs/wasmtime",
+      "sha256": "488ffc5261224a12b1731b126dff8cc4391bddd41e0cbe2d0fcc21cf4342dd41"
+    }
+  },
+  "schema": "enclave-native-rpc-build/1",
+  "storage": {
+    "dmsetup": {
+      "path": "/usr/bin/dmsetup",
+      "sha256": "f281c67e0b0abc05b57f09bdf091847442339d36fc3db3850e638389760c7718"
+    },
+    "lib64/ld-linux-x86-64.so.2": {
+      "path": "/usr/lib/ld-linux-x86-64.so.2",
+      "sha256": "f5e11cc62f8f2c24dff532982559f4303dba3b17e7450551372a88c8e7ea8757"
+    },
+    "usr/lib/libblkid.so.1": {
+      "path": "/usr/lib/libblkid.so.1.1.0",
+      "sha256": "aeaf48e3e206ee795262b7d83be9ba37803f1ee1391bb1ac48359ace60a9d2dd"
+    },
+    "usr/lib/libbrotlicommon.so.1": {
+      "path": "/usr/lib/libbrotlicommon.so.1.2.0",
+      "sha256": "4f895094b7b6ff9c82909e6516bc9cf212e2ec5af451d39bf1bcbc5e5fa225b2"
+    },
+    "usr/lib/libbrotlidec.so.1": {
+      "path": "/usr/lib/libbrotlidec.so.1.2.0",
+      "sha256": "0883fb05fa42aa6a883722098530ab08551ed317e38a2311f5c96e94dd460979"
+    },
+    "usr/lib/libbrotlienc.so.1": {
+      "path": "/usr/lib/libbrotlienc.so.1.2.0",
+      "sha256": "8dbc539197d276310ce2750dcb73de5465a1259d46a5d1894e6138fd354bf5c7"
+    },
+    "usr/lib/libc.so.6": {
+      "path": "/usr/lib/libc.so.6",
+      "sha256": "02c8c3d06180beee9c7d0392aa85736c7d19f274a81e7f8f0b3d9e28e0641524"
+    },
+    "usr/lib/libcrypto.so.3": {
+      "path": "/usr/lib/libcrypto.so.3",
+      "sha256": "a75a864dcda6ef9e4dc29fad4b7988ca832b904c3915a63c920062c40763dae1"
+    },
+    "usr/lib/libcryptsetup.so.12": {
+      "path": "/usr/lib/libcryptsetup.so.12.11.0",
+      "sha256": "ed96f90286fec2995204ff2d2dfb3d50f2a3a7edeeb6f546c71fe94f241d7ae3"
+    },
+    "usr/lib/libdevmapper.so.1.02": {
+      "path": "/usr/lib/libdevmapper.so.1.02",
+      "sha256": "d43b3027160a7c599244f764623c02e09c621a416303ddc1981736dcb883bad4"
+    },
+    "usr/lib/libgcc_s.so.1": {
+      "path": "/usr/lib/libgcc_s.so.1",
+      "sha256": "e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a"
+    },
+    "usr/lib/libjson-c.so.5": {
+      "path": "/usr/lib/libjson-c.so.5.5.0",
+      "sha256": "24467730b77639c8463442aa44e00347af2628c1090e59b136ca7db6abb6d699"
+    },
+    "usr/lib/libm.so.6": {
+      "path": "/usr/lib/libm.so.6",
+      "sha256": "965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d"
+    },
+    "usr/lib/libpopt.so.0": {
+      "path": "/usr/lib/libpopt.so.0.0.2",
+      "sha256": "ea5a5dd536c635759713a73d633f2fe67985f673365afcc457e0b139c2aa3f21"
+    },
+    "usr/lib/libudev.so.1": {
+      "path": "/usr/lib/libudev.so.1.7.15",
+      "sha256": "dd636932094404444ce8319c89d6074936322f96a8f80e08e22f71c295a84d9d"
+    },
+    "usr/lib/libuuid.so.1": {
+      "path": "/usr/lib/libuuid.so.1.3.0",
+      "sha256": "7881e0279d5ce79b0d8ace923e94df9b543bc8dd8152df0894358b862e1725be"
+    },
+    "usr/lib/libz.so.1": {
+      "path": "/usr/lib/libz.so.1.3.2",
+      "sha256": "6c78c5e58c3bb49a1cd151a95cdf1a17fe07a91a57a59e0279b984c533075ca9"
+    },
+    "usr/lib/libzstd.so.1": {
+      "path": "/usr/lib/libzstd.so.1.5.7",
+      "sha256": "f023d49e85fb22057bfdd21857263d2638b73356c06f3b342f678a75212379f8"
+    },
+    "usr/lib64/ld-linux-x86-64.so.2": {
+      "path": "/usr/lib/ld-linux-x86-64.so.2",
+      "sha256": "f5e11cc62f8f2c24dff532982559f4303dba3b17e7450551372a88c8e7ea8757"
+    },
+    "veritysetup": {
+      "path": "/usr/bin/veritysetup",
+      "sha256": "fbc00120a61154391afdcddb90ab23b00401fc3f63ab8ad59cbf57fba62b7e32"
+    }
+  }
+}

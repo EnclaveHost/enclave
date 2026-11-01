@@ -1,0 +1,35 @@
+{
+  "phases": [
+    {
+      "phase": "build",
+      "exit": 0
+    }
+  ],
+  "strictArchiveReadback": true,
+  "entries": 52,
+  "containersVerified": true,
+  "nbdLoaded": false,
+  "guestBooted": false,
+  "deployed": false,
+  "elapsed": 21.04617449082434,
+  "profileSha256": "e83a2160ae1a9df9659156917f2629b72c989f1192b55b07e588324a9bf29982",
+  "initrd": {
+    "bytes": 37369397,
+    "path": "rpc.cpio.gz",
+    "sha256": "6b7ce646308a7c7f059eb89f2afa92c024a6ce2decf929010f940632e778a187"
+  },
+  "containers": {
+    "hash": {
+      "bytes": 8523776,
+      "headerBytes": 65536,
+      "path": "hash.container",
+      "sha256": "d0674305e4a42b62313ca4807ba76a2dd87fedaf7590e1cce03d1ffc1dac1574"
+    },
+    "image": {
+      "bytes": 1073807360,
+      "headerBytes": 65536,
+      "path": "image.container",
+      "sha256": "863e77dfa63ae76639b2572523266e4302b67faa56ea2acbfa82783342b4b9f4"
+    }
+  }
+}

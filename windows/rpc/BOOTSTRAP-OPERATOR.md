@@ -69,4 +69,15 @@ Bootstrap admission retains native floors, prospective commitments and both poss
 
 Acquisition is not RPC readiness. The real SYSTEM launch, TPM/AF_HYPERV exchange, storage-owner settlement, NBD/verity mounts, client resource fit, sync/finality, serving adoption and consumer cutover remain unproven. Independent keepers still enforce the original deadline; this command does not make serving persistent.
 
+The current complete candidate image includes the updated storage broker and
+bootstrap sources: initrd37,369,397 bytes,
+SHA256 `6b7ce646308a7c7f059eb89f2afa92c024a6ce2decf929010f940632e778a187`,
+profile `e83a2160ae1a9df9659156917f2629b72c989f1192b55b07e588324a9bf29982`.
+Its52-entry archive and both optical root containers passed independent readback;
+this is not platform acceptance or a guest boot. It supersedes the older7e48
+candidate for future qualification. See
+`ops/unified-funding-20261028/rpc-full-image-current-r1/ROOT-RESULT.md`.
+The previous native owner-state qualification deliberately poisoned its disposable
+fixture seed; that authority must never be reused or restored for production.
+
 Qualification: seven actual protected administrator preparation cases passed in hosted launch run41346414827. Compile-only run41346667644 built all five affected production entries; controller260096 bytes, host bootstrap251904 bytes and SYSTEM worker261632 bytes were independently hashed. Neither qualification ran the target SYSTEM/provider/TPM/storage path. See `ops/unified-funding-20261028/rpc-native-bootstrap-runtime-ci-r1/ROOT-RESULT.md` for complete failures, provenance and remaining integration.
