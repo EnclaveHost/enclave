@@ -256,7 +256,8 @@ internal sealed partial class WindowsStartAdmission {
             if((completed==null&&LivePending()!=pending)||DeploymentReceipt(GetLocal(9600,"/v1/host/state"),true)!=liveNodeExact)throw new InvalidOperationException("Pending commitments changed during admission");}
         Stage("pool-resources");if(completed!=null){if(freshInventory)completed.Verify(issuerListeners);else completed.VerifyResources();}
         if(freshInventory){Stage("node-after-current-inventory");
-            if(DeploymentReceipt(GetLocal(9600,"/v1/host/state"),true)!=liveNodeExact)throw new InvalidOperationException("Node commitments changed during current inventory verification");}
+            string finalNode=DeploymentReceipt(GetLocal(9600,"/v1/host/state"),true);
+            if(finalNode!=liveNodeExact)throw new InvalidOperationException("Node commitments changed during current inventory verification: "+DeploymentDifference(liveNodeExact,finalNode));}
         Stage("manager-handles-after");foreach(var process in held){process.Check();CheckTime();}
         CheckTime();
     }

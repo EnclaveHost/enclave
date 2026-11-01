@@ -1,0 +1,80 @@
+{
+  "source": "11da992453c4d4846b349b33b5137b0a33e8a1c0",
+  "native": {
+    "schema": "owned-rpc-target-definition/1",
+    "passed": false,
+    "operation": "preparation-gated",
+    "plan": "4657a2442176cac1e2461056c14c77053c288042840a553304ad76d2d87f667c",
+    "result": null,
+    "origin": 758571317,
+    "deadline": 758601317,
+    "elapsedMs": 11696,
+    "root": "C:\\EnclaveRpcDefinition-0b09d31612b64f2e93de4da81af5a324\\0b09d31612b64f2e93de4da81af5a324",
+    "freeBytes": 85371863040,
+    "requiredFreeBytes": 62709039104,
+    "failures": [
+      "InvalidOperationException: Exact role completion failed"
+    ],
+    "startAuthorized": false,
+    "reservationMayRelease": false
+  },
+  "message": "Node commitments changed during current inventory verification",
+  "times": {
+    "admission.preparation-start": 758575638,
+    "admission.prepared": 758577711,
+    "admission.live-start": 758580899
+  },
+  "exactDeaths": [
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379763372344367",
+      "pid": "9860",
+      "absent": true,
+      "role": "owner"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379763372344225",
+      "pid": "38372",
+      "absent": true,
+      "role": "observer"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379763373913453",
+      "pid": "33876",
+      "absent": true,
+      "role": "child"
+    }
+  ],
+  "priorStageDeaths": [
+    {
+      "label": "admission",
+      "expectedCreation": "134379762764921953",
+      "pid": 35736,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "create",
+      "expectedCreation": "134379763013517853",
+      "pid": 36532,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "verify",
+      "expectedCreation": "134379763261296220",
+      "pid": 54108,
+      "sameIncarnationAlive": false,
+      "absent": true
+    }
+  ],
+  "original8091Alive": true,
+  "originalFourVmsUnchanged": true,
+  "originalThirdJournalsByteEqual": true,
+  "hyperVPreparationReached": false,
+  "providerOperationFenced": false,
+  "reservationMayRelease": false,
+  "rpcReady": false
+}
