@@ -1,0 +1,214 @@
+TAP version 13
+# Subtest: maintained artifact paths and same-block millisecond bridge contract: read, prepare and send
+ok 1 - maintained artifact paths and same-block millisecond bridge contract: read, prepare and send
+  ---
+  duration_ms: 210.49141
+  type: 'test'
+  ...
+# Subtest: millisecond header identity must equal snapshot metadata; seconds, missing callback and mixed block refuse
+ok 2 - millisecond header identity must equal snapshot metadata; seconds, missing callback and mixed block refuse
+  ---
+  duration_ms: 107.722287
+  type: 'test'
+  ...
+# Subtest: unqualified RPC labels never acquire proof status or authorize preparation
+ok 3 - unqualified RPC labels never acquire proof status or authorize preparation
+  ---
+  duration_ms: 58.718233
+  type: 'test'
+  ...
+# Subtest: reviewed pin configuration cannot be changed through retained caller objects
+ok 4 - reviewed pin configuration cannot be changed through retained caller objects
+  ---
+  duration_ms: 146.332369
+  type: 'test'
+  ...
+# Subtest: final Running boundary rejects changed wallet policy and original observation expiry after approval
+ok 5 - final Running boundary rejects changed wallet policy and original observation expiry after approval
+  ---
+  duration_ms: 412.589264
+  type: 'test'
+  ...
+# Subtest: canonical Offline does not prevent owner queued/stopped requests
+ok 6 - canonical Offline does not prevent owner queued/stopped requests
+  ---
+  duration_ms: 136.777521
+  type: 'test'
+  ...
+# Subtest: charge and fee caps survive canonical payload rewriting and signing delay
+ok 7 - charge and fee caps survive canonical payload rewriting and signing delay
+  ---
+  duration_ms: 144.391514
+  type: 'test'
+  ...
+# Subtest: ambiguous send is propagated and state without the exact receipt remains unresolved
+ok 8 - ambiguous send is propagated and state without the exact receipt remains unresolved
+  ---
+  duration_ms: 105.164366
+  type: 'test'
+  ...
+# Subtest: exact signed transaction and reconstructed receipt trie confirm/finalize at authenticated ancestor
+ok 9 - exact signed transaction and reconstructed receipt trie confirm/finalize at authenticated ancestor
+  ---
+  duration_ms: 181.153359
+  type: 'test'
+  ...
+# Subtest: receipt/root/calldata location tampering never confirms the assignment alone
+ok 10 - receipt/root/calldata location tampering never confirms the assignment alone
+  ---
+  duration_ms: 168.756391
+  type: 'test'
+  ...
+# Subtest: artifact identity and schema3 bundle pins remain exact
+ok 11 - artifact identity and schema3 bundle pins remain exact
+  ---
+  duration_ms: 2.530561
+  type: 'test'
+  ...
+# Subtest: large on-chain generation, revision and emergency counters refuse rather than round
+ok 12 - large on-chain generation, revision and emergency counters refuse rather than round
+  ---
+  duration_ms: 63.148119
+  type: 'test'
+  ...
+# Subtest: owned enrollment, graceful close and reopen preserve pending and mined transitions
+ok 13 - owned enrollment, graceful close and reopen preserve pending and mined transitions
+  ---
+  duration_ms: 17.260312
+  type: 'test'
+  ...
+# Subtest: exact child death releases the flock and preserves its fence, crash count and pending intent
+ok 14 - exact child death releases the flock and preserves its fence, crash count and pending intent
+  ---
+  duration_ms: 46.89801
+  type: 'test'
+  ...
+# Subtest: after-state is held on restart and explicit recovery classifies exact retained bytes as landed
+ok 15 - after-state is held on restart and explicit recovery classifies exact retained bytes as landed
+  ---
+  duration_ms: 59.259899
+  type: 'test'
+  ...
+# Subtest: before-state is held on restart and explicit recovery classifies exact retained bytes as not-landed
+ok 16 - before-state is held on restart and explicit recovery classifies exact retained bytes as not-landed
+  ---
+  duration_ms: 75.466797
+  type: 'test'
+  ...
+# Subtest: visible acknowledgement with failed sync and failed retraction is held in a new process
+ok 17 - visible acknowledgement with failed sync and failed retraction is held in a new process
+  ---
+  duration_ms: 90.631104
+  type: 'test'
+  ...
+# Subtest: legacy import requires reviewed exact bytes and retains unresolved submissions
+ok 18 - legacy import requires reviewed exact bytes and retains unresolved submissions
+  ---
+  duration_ms: 7.881861
+  type: 'test'
+  ...
+# Subtest: missing established state cannot be recreated by enrollment or recovery
+ok 19 - missing established state cannot be recreated by enrollment or recovery
+  ---
+  duration_ms: 4.641515
+  type: 'test'
+  ...
+# Subtest: unclassifiable state and missing intent refuse recovery without overwriting evidence
+ok 20 - unclassifiable state and missing intent refuse recovery without overwriting evidence
+  ---
+  duration_ms: 5.253101
+  type: 'test'
+  ...
+# Subtest: same-size external rewrite closes the owner and triggers withdrawal
+ok 21 - same-size external rewrite closes the owner and triggers withdrawal
+  ---
+  duration_ms: 3.203096
+  type: 'test'
+  ...
+# Subtest: one reentrant close waits for serving withdrawal before releasing exclusion
+ok 22 - one reentrant close waits for serving withdrawal before releasing exclusion
+  ---
+  duration_ms: 6.868559
+  type: 'test'
+  ...
+# Subtest: withdrawal rejection fences the owner and keeps its flock held
+ok 23 - withdrawal rejection fences the owner and keeps its flock held
+  ---
+  duration_ms: 3.856881
+  type: 'test'
+  ...
+# Subtest: withdrawal deadline fences the owner and keeps its flock held
+ok 24 - withdrawal deadline fences the owner and keeps its flock held
+  ---
+  duration_ms: 23.762973
+  type: 'test'
+  ...
+# Subtest: bridge pins every state read to the independently authenticated derived hash and closes retained clients
+ok 25 - bridge pins every state read to the independently authenticated derived hash and closes retained clients
+  ---
+  duration_ms: 3.862592
+  type: 'test'
+  ...
+# Subtest: ASR labels, mismatched local roots, and genuinely old anchors cannot be relabeled as current
+ok 26 - ASR labels, mismatched local roots, and genuinely old anchors cannot be relabeled as current
+  ---
+  duration_ms: 5.802467
+  type: 'test'
+  ...
+# Subtest: failed durable anchoring or a hung derivation callback refuses without granting a snapshot
+ok 27 - failed durable anchoring or a hung derivation callback refuses without granting a snapshot
+  ---
+  duration_ms: 22.919979
+  type: 'test'
+  ...
+# Subtest: a restarted bridge rejects a prior derived anchor using the durable journal floor
+ok 28 - a restarted bridge rejects a prior derived anchor using the durable journal floor
+  ---
+  duration_ms: 3.075977
+  type: 'test'
+  ...
+# Subtest: a timed-out callback retains the one-operation slot until its actual completion
+ok 29 - a timed-out callback retains the one-operation slot until its actual completion
+  ---
+  duration_ms: 20.614726
+  type: 'test'
+  ...
+# Subtest: close revokes retained clients but waits for a cancellation-ignoring callback
+ok 30 - close revokes retained clients but waits for a cancellation-ignoring callback
+  ---
+  duration_ms: 2.065374
+  type: 'test'
+  ...
+# Subtest: a journal owner retains its kernel lock through the bridge raw callback drain
+ok 31 - a journal owner retains its kernel lock through the bridge raw callback drain
+  ---
+  duration_ms: 12.735675
+  type: 'test'
+  ...
+# Subtest: raw journal is refused before reader startup
+ok 32 - raw journal is refused before reader startup
+  ---
+  duration_ms: 1.028372
+  type: 'test'
+  ...
+# Subtest: owner close during startup waits for the exact late reader and never publishes it
+ok 33 - owner close during startup waits for the exact late reader and never publishes it
+  ---
+  duration_ms: 27.261606
+  type: 'test'
+  ...
+# Subtest: service close and owner release share reader cleanup and wait for a raw bridge read
+ok 34 - service close and owner release share reader cleanup and wait for a raw bridge read
+  ---
+  duration_ms: 5.831517
+  type: 'test'
+  ...
+1..34
+# tests 34
+# suites 0
+# pass 34
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2750.757663

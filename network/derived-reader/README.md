@@ -36,12 +36,14 @@ Programmatic lifecycle composition:
 import { startDerivedLifecycleReader } from './network/derived-reader/lifecycle.mjs';
 const service = await startDerivedLifecycleReader(config, {
   verifier: localProofExecutingBaseVerifier,
-  journal: exclusivelyOwnedLifecycleJournal,
+  journalOwner: exclusivelyOwnedLifecycleJournalOwner,
 });
 // An untrusted witness producer drives service.reader.prepare/submit first.
 const result = await service.snapshot(client => client.getBalance({ address }));
 await service.close();
 ```
+
+`journalOwner` must expose the maintained owned journal and `onRelease` withdrawal registration. The service registers its shutdown before reader startup. A close during startup suppresses publication and waits for the actual reader result to be closed. Closing the service revokes the snapshot immediately and waits for both native-reader shutdown and the bridge's actual callback completion. A callback that ignores cancellation retains the owner's lock; a timeout is not evidence that it stopped. A raw journal alone is refused before starting the reader.
 
 The state verifier must prove/execute at the exact derived Base hash. Pass the
 local reader capability directly within the accepted domain. Loopback HTTP JSON

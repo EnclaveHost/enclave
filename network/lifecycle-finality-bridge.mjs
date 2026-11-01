@@ -14,13 +14,15 @@ export function createLifecycleFinalitySnapshot({ readAnchor, verifier, chainId 
   if (chainId !== 8453 || !Number.isInteger(maxAnchorAgeSec) || maxAnchorAgeSec < 20 || maxAnchorAgeSec > 3600 ||
       !Number.isInteger(deadlineMs) || deadlineMs < 1 || deadlineMs > 200000) throw Error('invalid finality bridge bounds');
   const endpoint = verifierEndpoint(verifier);
-  let busy = false;
-  return async function snapshot(read) {
+  let busy = false, stopped = false, active = null, closing = null;
+  async function snapshot(read) {
+    if (stopped) throw Error('finality bridge closed');
     if (typeof read !== 'function') throw Error('snapshot callback required');
     if (busy) throw Error('finality snapshot busy');
     busy = true;
     const ac = new AbortController(), deadline = performance.now() + deadlineMs;
-    let closed = false, timer;
+    let closed = false, timer, cancel;
+    const cancellation = new Promise((_, reject) => { cancel = reject; });
     const alive = () => { if (closed || performance.now() >= deadline) throw Error('finality snapshot closed or expired'); return Math.max(1, Math.floor(deadline - performance.now())); };
     const request = async (method, params) => {
       const result = await endpoint.request(method, params, Math.min(60000, alive()), ac.signal); alive(); return result;
@@ -62,7 +64,26 @@ export function createLifecycleFinalitySnapshot({ readAnchor, verifier, chainId 
           base: { ...b }, l1: { ...l1 }, verifier: endpoint.label } };
     })();
     const timeout = new Promise((_, reject) => { timer = setTimeout(() => { ac.abort(); reject(Error('finality snapshot deadline')); }, deadlineMs); });
-    try { return await Promise.race([work, timeout]); }
-    finally { closed = true; busy = false; clearTimeout(timer); ac.abort(); work.catch(() => {}); }
+    // Timeout/cancellation closes the public capability immediately. The raw
+    // callback may ignore cancellation; it still owns this slot until it ends.
+    const operation = { stop() { closed = true; ac.abort(); cancel(Error('finality bridge closed')); } };
+    active = operation;
+    operation.drained = work.then(() => {}, () => {}).then(() => {
+      if (active === operation) { active = null; busy = false; }
+    });
+    try { return await Promise.race([work, timeout, cancellation]); }
+    finally { closed = true; clearTimeout(timer); ac.abort(); }
+  }
+  // Register this drain with the owning journal's onRelease before exposing
+  // snapshot. A deadline is not proof that an injected callback has ended.
+  snapshot.close = () => {
+    if (!closing) {
+      stopped = true;
+      const operation = active;
+      operation?.stop();
+      closing = operation?.drained ?? Promise.resolve();
+    }
+    return closing;
   };
+  return Object.freeze(snapshot);
 }

@@ -33,7 +33,7 @@ and an exclusively owned lifecycle journal. It checks chain 8453 and the exact
 Base header before and after the callback, pins all state requests to that block
 hash, and durably accepts the Base/L1 floor before publishing the snapshot.
 Retained clients close when the callback returns or the deadline expires.
-Concurrent snapshots through one bridge are refused. The journal rejects older
+Concurrent snapshots through one bridge are refused, including while a timed-out callback is still running. `snapshot.close()` revokes new and retained reads immediately and returns a promise for actual callback completion. The owned derived-reader factory registers this drain before startup; direct callers must register it with their journal owner before publishing the snapshot. The journal rejects older
 or contradictory floors across restart; an erased/rolled-back disk requires
 separate authenticated recovery before signing or serving.
 
