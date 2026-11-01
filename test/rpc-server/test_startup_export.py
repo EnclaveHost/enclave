@@ -255,6 +255,36 @@ class Composition(unittest.TestCase):
         with self.assertRaises(ValueError):
             prepare.prepare(config)
 
+    def control_config(self):
+        config = self.export_config()
+        config['appControl'] = {'schema':'enclave-rpc-export-control/1','host':'192.0.2.1','port':10902,
+            'tls':config['roles']['l1']['tls'],'clientCertificateSha256':'12'*32,'requestSha256':'34'*32}
+        path = str(ROOT/'rpc/server/app_control.py')
+        config['runtimePins'][path] = prepare.digest(path)
+        return config
+
+    def test_app_control_is_bound_into_exact_prepared_contract(self):
+        config = self.control_config()
+        result = prepare.prepare(config)
+        contract = p.decode(clock.read_pinned(result['contract']))
+        self.assertEqual(contract['appControl'], config['appControl'])
+        self.assertEqual(contract['startupClock'], config['clock'])
+        self.assertEqual(contract['deadlineUtcNs'], self.initial['createdUtcNs'] + clock.WINDOW)
+
+    def test_app_control_requires_complete_pinned_runtime(self):
+        config = self.control_config()
+        del config['runtimePins'][str(ROOT/'rpc/server/app_control.py')]
+        with self.assertRaisesRegex(ValueError, 'runtime closure'):prepare.prepare(config)
+        self.assertFalse(Path(config['output']).exists())
+
+    def test_app_control_refuses_loopback_shared_port_and_weak_identity(self):
+        config = self.control_config()
+        for field, value in [('host','127.0.0.1'),('port',10900),('clientCertificateSha256','0'*64),('requestSha256','AB'*32),('extra',True)]:
+            with self.subTest(field=field):
+                altered = copy.deepcopy(config);altered['appControl'][field] = value
+                with self.assertRaises(ValueError):prepare.prepare(altered)
+                self.assertFalse(Path(config['output']).exists())
+
     def test_export_credential_mismatch(self):
         config = self.export_config()
         raw = p.decode(clock.read_pinned(config['credentialReceipt']))

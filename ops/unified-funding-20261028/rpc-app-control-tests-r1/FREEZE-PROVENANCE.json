@@ -1,0 +1,12 @@
+{
+  "base": "a2b0c9dd768f0307484b312835d5da499532da49",
+  "omittedByteVerifiedAgainstBase": [
+    "rpc/server/volume_export.py",
+    "rpc/server/observe_resources.mjs",
+    "rpc/storage_protocol.py",
+    "rpc/startup_clock.py",
+    "test/rpc-server/test_guarded_export.py"
+  ],
+  "fullFreezeLocal": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-app-control-tests-r1/frozen",
+  "privateFilesExcluded": true
+}

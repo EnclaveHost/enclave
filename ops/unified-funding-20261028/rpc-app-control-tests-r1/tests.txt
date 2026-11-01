@@ -1,0 +1,59 @@
+test_additional_data_stops_exact_tree (test_app_control.Tests.test_additional_data_stops_exact_tree) ... ok
+test_adoption_cannot_extend_original_control_deadline (test_app_control.Tests.test_adoption_cannot_extend_original_control_deadline) ... ok
+test_close_interrupts_blocked_owner_and_descendant (test_app_control.Tests.test_close_interrupts_blocked_owner_and_descendant) ... ok
+test_handshake_timeout_keeps_work_gate_closed (test_app_control.Tests.test_handshake_timeout_keeps_work_gate_closed) ... ok
+test_identity_and_request_refusals_never_release (test_app_control.Tests.test_identity_and_request_refusals_never_release) ... ok
+test_original_deadline_before_bind_never_releases (test_app_control.Tests.test_original_deadline_before_bind_never_releases) ... ok
+test_actual_probe_format_and_refusals (test_guarded_export.Tests.test_actual_probe_format_and_refusals) ... ok
+test_adoption_must_remain (test_guarded_export.Tests.test_adoption_must_remain) ... ok
+test_blocked_owner_original_deadline (test_guarded_export.Tests.test_blocked_owner_original_deadline) ... ok
+test_expired_before_fork (test_guarded_export.Tests.test_expired_before_fork) ... ok
+test_hung_resource_never_opens_gate (test_guarded_export.Tests.test_hung_resource_never_opens_gate) ... ok
+test_late_adoption_cannot_extend_deadline (test_guarded_export.Tests.test_late_adoption_cannot_extend_deadline) ... ok
+test_low_reserve_never_opens_gate (test_guarded_export.Tests.test_low_reserve_never_opens_gate) ... ok
+test_owner_exit_is_terminal (test_guarded_export.Tests.test_owner_exit_is_terminal) ... ok
+test_readiness_does_not_adopt (test_guarded_export.Tests.test_readiness_does_not_adopt) ... ok
+test_wrong_authority_cleans_gated_owner (test_guarded_export.Tests.test_wrong_authority_cleans_gated_owner) ... ok
+test_app_control_is_bound_into_exact_prepared_contract (test_startup_export.Composition.test_app_control_is_bound_into_exact_prepared_contract) ... ERROR
+test_app_control_refuses_loopback_shared_port_and_weak_identity (test_startup_export.Composition.test_app_control_refuses_loopback_shared_port_and_weak_identity) ... ok
+test_app_control_requires_complete_pinned_runtime (test_startup_export.Composition.test_app_control_requires_complete_pinned_runtime) ... ok
+test_begin_cannot_replace_original (test_startup_export.Composition.test_begin_cannot_replace_original) ... ok
+test_clock_jump_refused (test_startup_export.Composition.test_clock_jump_refused) ... ok
+test_consumed_export_path_refused (test_startup_export.Composition.test_consumed_export_path_refused) ... ok
+test_consumer_does_not_gain_allowed_wall_clock_offset (test_startup_export.Composition.test_consumer_does_not_gain_allowed_wall_clock_offset) ... ok
+test_consumer_refuses_changed_window_or_clock_pin (test_startup_export.Composition.test_consumer_refuses_changed_window_or_clock_pin) ... ok
+test_consumer_refuses_unbound_legacy_contract (test_startup_export.Composition.test_consumer_refuses_unbound_legacy_contract) ... ok
+test_delay_is_consumed_and_windows_origin_is_conservative (test_startup_export.Composition.test_delay_is_consumed_and_windows_origin_is_conservative) ... ok
+test_duplicate_json_field_refused (test_startup_export.Composition.test_duplicate_json_field_refused) ... ok
+test_duplicate_port_refused (test_startup_export.Composition.test_duplicate_port_refused) ... ok
+test_export_credential_mismatch (test_startup_export.Composition.test_export_credential_mismatch) ... ok
+test_export_preparation_refuses_replay (test_startup_export.Composition.test_export_preparation_refuses_replay) ... ok
+test_export_source_pin_refusal (test_startup_export.Composition.test_export_source_pin_refusal) ... ok
+test_finish_is_one_shot (test_startup_export.Composition.test_finish_is_one_shot) ... ok
+test_floor_and_reserve_cannot_weaken (test_startup_export.Composition.test_floor_and_reserve_cannot_weaken) ... ok
+test_invalid_integer_types_and_bounds (test_startup_export.Composition.test_invalid_integer_types_and_bounds) ... ok
+test_invalid_sample_consumes_finish_without_clock (test_startup_export.Composition.test_invalid_sample_consumes_finish_without_clock) ... ok
+test_late_handshake_refused (test_startup_export.Composition.test_late_handshake_refused) ... ok
+test_monotonic_expiry_cannot_be_extended_by_wall_offset (test_startup_export.Composition.test_monotonic_expiry_cannot_be_extended_by_wall_offset) ... ok
+test_no_private_keys_opened_or_services_spawned (test_startup_export.Composition.test_no_private_keys_opened_or_services_spawned) ... ok
+test_original_changed (test_startup_export.Composition.test_original_changed) ... ok
+test_private_key_symlink_refused_without_read (test_startup_export.Composition.test_private_key_symlink_refused_without_read) ... ok
+test_publicly_readable_input_refused (test_startup_export.Composition.test_publicly_readable_input_refused) ... ok
+test_real_preparer_protocol_and_consumer_bind_same_original_clock (test_startup_export.Composition.test_real_preparer_protocol_and_consumer_bind_same_original_clock) ... ok
+test_symlink_and_hardlink_refused (test_startup_export.Composition.test_symlink_and_hardlink_refused) ... ok
+test_tampered_completed_clock_refused_even_with_new_outer_digest (test_startup_export.Composition.test_tampered_completed_clock_refused_even_with_new_outer_digest) ... ok
+test_wrong_local_boot_refused (test_startup_export.Composition.test_wrong_local_boot_refused) ... ok
+
+======================================================================
+ERROR: test_app_control_is_bound_into_exact_prepared_contract (test_startup_export.Composition.test_app_control_is_bound_into_exact_prepared_contract)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/src/test/rpc-server/test_startup_export.py", line 272, in test_app_control_is_bound_into_exact_prepared_contract
+    self.assertEqual(contract['deadlineUtcNs'], self.initial['deadlineUtcNs'])
+                                                ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+KeyError: 'deadlineUtcNs'
+
+----------------------------------------------------------------------
+Ran 45 tests in 12.722s
+
+FAILED (errors=1)

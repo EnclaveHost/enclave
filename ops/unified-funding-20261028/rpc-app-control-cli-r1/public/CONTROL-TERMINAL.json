@@ -1,0 +1,9 @@
+{
+  "reason": "app-control-lost",
+  "ownerExit": 0,
+  "released": true,
+  "ready": true,
+  "adopted": false,
+  "writersFenced": false,
+  "reservationMayRelease": false
+}

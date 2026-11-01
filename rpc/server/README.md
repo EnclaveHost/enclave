@@ -1,5 +1,62 @@
 # Owned RPC state exports
 
+## App control connection (implemented, not activated)
+
+The maintained export preparer and CLI now accept an explicit `appControl`
+contract. It is a one-shot TLS 1.3 control connection, checked by the actual
+supervisor independently of the COW worker. It uses no Enclave-operated endpoint
+or global signing key. The storage owner supplies a protected TLS directory,
+explicit unicast address/port, exact client certificate DER SHA-256, and the
+canonical authenticated broker request SHA-256. The control port must differ
+from both NBD ports; `app_control.py` must be included in the reviewed runtime
+pins. No listener or credential is provisioned just by preparing a contract.
+
+The contract shape is `schema: enclave-rpc-export-control/1`, `host`, `port`,
+`tls`, `clientCertificateSha256`, and `requestSha256`. The private `tls` directory
+contains bounded owner-only `ca-cert.pem`, `server-cert.pem`, `server-key.pem`.
+The client certificate must both verify against that CA and match the exact DER
+digest. This distinguishes the selected client even from other certificates
+issued by the same CA. **Transport authentication is not app-owner consent or a
+writer lease.** The protected contract and dedicated credential must be supplied
+by the authenticated, durably reserved storage-owner broker; that live
+provisioning/connection path is still missing. Do not use arbitrary host JSON or
+reuse an old production credential as authority.
+
+The first TCP connection consumes the listener, including on failure. TLS and
+the binding handshake are nonblocking, with a three-second limit clipped to the
+unchanged original startup deadline. The client sends exactly ASCII
+`ENCLAVE-RPC-EXPORT-CONTROL/1` plus newline, then the binary 32-byte request digest
+and binary 32-byte export-contract digest. The reply is ASCII
+`ENCLAVE-RPC-EXPORT-BOUND/1` plus newline, then SHA-256 of that complete request
+frame. It acknowledges only the control binding, **not export or RPC readiness**.
+Wrong identity, malformed/extra bytes, EOF, TLS error, or deadline expiry closes
+the control attempt without reconnect or replacement. There are no on-chain
+heartbeats or renewals. A silent network partition is bounded by the original
+deadline; it is not claimed to produce immediate EOF.
+
+The forked worker drops its inherited control sockets and cannot begin work
+until both the authenticated control binding and fresh host admission pass.
+Control loss stops the exact held worker group even when export preparation is
+blocked. The existing independently enforced systemd watchdog covers a stalled
+supervisor/TLS library/callback. `control-listening.json` is only a bound contract
+marker, with `bound=false` and `rpcReady=false`; it is not permission to write.
+Legacy adoption cannot extend an app-control attempt past the original deadline.
+Persistent authenticated handover remains unimplemented. Legacy contracts remain
+available for their existing workflow; they do not qualify native-app exports.
+`writersFenced` and `reservationMayRelease` remain false on every path.
+
+Actual qualification covers generated TLS certificates, incorrect peer/request/
+contract refusal, fragmented input, extra data, stalled handshake, and original
+deadline despite adoption. Preheld pidfds proved a blocked SIGTERM-ignoring
+worker and descendant died after control loss. The full maintained 384MiB CLI
+also negotiated both dummy NBD TLS exports, then control EOF stopped all four
+preheld supervisor/worker/exporter identities in 0.119 seconds, with an empty
+cgroup and unchanged dummy originals. See
+[the composed result](../../ops/unified-funding-20261028/rpc-app-control-cli-r1/ROOT-RESULT.md).
+This does not prove remote broker credentials, real storage ownership/fencing,
+kernel NBD attachment, client sync/finality, persistent adoption, or production
+RPC readiness. The RPC remains offline.
+
 `volume_export.py` is the maintained data-path component for a host selected by the
 wallet owner. It has no Enclave discovery or control endpoint. It creates a new
 exclusive COW for an explicit original chain, holds QEMU-compatible read-only

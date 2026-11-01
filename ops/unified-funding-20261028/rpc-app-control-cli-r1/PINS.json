@@ -1,0 +1,9 @@
+{
+  "rpc/server/guarded_export.py": "74eb6cca3db6fd760548d860bac9426d1fd699098726fee876c738d3002ba543",
+  "rpc/server/volume_export.py": "ff94868d582438b964c67cc4651ae6f80bedd56a5cc99c2f0a3cff481b4bbbb2",
+  "rpc/server/app_control.py": "dcfa147f30e3b3e7a85671de735795d37666c93854fe53078e45dd2a4edd8949",
+  "rpc/server/observe_resources.mjs": "d2d8e9a69548e689d093434787b43ab3278c4fea032d329c16c2b82c0866bdee",
+  "rpc/storage_protocol.py": "80a3f865a76914a5d986528d50dfb77bd90ec5604f9884f3391ae99c4f02bc31",
+  "rpc/startup_clock.py": "baff8279f12968acc788a79555ca273db97bfd2cd5be2ae4fd22001dce9e4cc9",
+  "test/rpc-server/qualify_guarded_cli.py": "51c92637dd701ac62a114c9397e0623290874b69f65e35e2977ac4b1d32d734a"
+}

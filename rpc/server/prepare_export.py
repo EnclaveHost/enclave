@@ -58,7 +58,7 @@ def tls_directory(path, role, kind, public):
 def prepare(config):
     fields = {'clock', 'credentialReceipt', 'resourceConfig', 'runtimePins', 'roles',
               'stateParent', 'output', 'floorMiB', 'reserveMiB'}
-    if not isinstance(config, dict) or set(config) != fields:
+    if not isinstance(config, dict) or set(config) not in (fields, fields | {'appControl'}):
         raise ValueError('Exact export preparation configuration required')
     original = clock.validate(config['clock'])
     credential_raw = clock.read_pinned(config['credentialReceipt'])
@@ -83,6 +83,8 @@ def prepare(config):
     required = {str(HERE / n) for n in ('guarded_export.py', 'volume_export.py', 'observe_resources.mjs')}
     required |= {str(HERE.parent / n) for n in ('startup_clock.py', 'storage_protocol.py')}
     required |= {'/usr/bin/node', str(safe_path(config['resourceConfig']['path']))} | set(volume.TOOLS)
+    if 'appControl' in config:
+        required.add(str(HERE / 'app_control.py'))
     if not isinstance(pins, dict) or set(pins) != required:
         raise ValueError('Exact reviewed runtime closure required')
     def verify_pins():
@@ -98,6 +100,11 @@ def prepare(config):
             if pins[name] != expected:
                 raise ValueError('Maintained QEMU tool pin differs')
     verify_pins()
+    if 'appControl' in config:
+        control = load('app_control', HERE / 'app_control.py')
+        control.validate(config['appControl'])
+        if ipaddress.ip_address(config['appControl']['host']).is_loopback:
+            raise ValueError('Production app control requires explicit unicast interface')
     if set(config['roles']) != {'l1', 'base'}:
         raise ValueError('Both fixed storage roles required')
     ports = set()
@@ -113,6 +120,8 @@ def prepare(config):
         if type(row['port']) is not int or not 1024 <= row['port'] <= 65535 or row['port'] in ports:
             raise ValueError('Distinct explicit storage ports required')
         ports.add(row['port'])
+        if 'appControl' in config and row['port'] == config['appControl']['port']:
+            raise ValueError('Control and data ports must be distinct')
         public = credentials['roles'][role]
         if (public['tlsName'] != 'rpc-storage-' + original['attempt'] + '-' + role
                 or public['clientDN'] != 'CN=rpc-client-' + original['attempt'] + '-' + role):
@@ -152,6 +161,7 @@ def prepare(config):
                 'roles': roles, 'stateParent': str(state), 'sourcePins': dict(pins),
                 'resourceArgv': ['/usr/bin/node', str(HERE / 'observe_resources.mjs'), config['resourceConfig']['path']],
                 'startupClock': dict(config['clock'])}
+    if 'appControl' in config:contract['appControl'] = dict(config['appControl'])
     # All validation precedes consuming output; partial output is never replaced.
     clock.validate(config['clock'])
     output.mkdir(mode=0o700)

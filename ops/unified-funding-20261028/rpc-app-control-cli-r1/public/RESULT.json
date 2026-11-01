@@ -1,0 +1,41 @@
+{
+  "pass": true,
+  "fullMaintainedCLI": true,
+  "actualAuthenticatedAdmission": true,
+  "bothTLSExportsReady": true,
+  "originalHashesUnchanged": true,
+  "sourcePinsUnchanged": true,
+  "exactHeldProcessesExited": true,
+  "cgroupEmptyOrRemoved": true,
+  "terminationSeconds": 0.1192678869701922,
+  "appControlLoss": true,
+  "before": {
+    "Id": "enclave-rpc-export-b4d88ace841b4aa389c40c3500bee65d.service",
+    "LoadState": "loaded",
+    "ActiveState": "active",
+    "SubState": "running",
+    "InvocationID": "bf4b39b40fbe419d8db9e52ad44ba023",
+    "MainPID": "708153",
+    "Result": "success",
+    "ExecMainStatus": "0",
+    "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-export-b4d88ace841b4aa389c40c3500bee65d.service",
+    "MemoryPeak": "53628928"
+  },
+  "after": {
+    "Id": "enclave-rpc-export-b4d88ace841b4aa389c40c3500bee65d.service",
+    "LoadState": "loaded",
+    "ActiveState": "failed",
+    "SubState": "failed",
+    "InvocationID": "bf4b39b40fbe419d8db9e52ad44ba023",
+    "MainPID": "0",
+    "Result": "exit-code",
+    "ExecMainStatus": "2",
+    "ControlGroup": "",
+    "MemoryPeak": "53628928"
+  },
+  "dummyOnly": true,
+  "productionData": false,
+  "kernelAttachmentTested": false,
+  "rpcReady": false,
+  "reservationMayRelease": false
+}

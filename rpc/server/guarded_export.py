@@ -93,11 +93,14 @@ def reap_group(pid, grace=.5):
     return os.waitstatus_to_exitcode(status)
 
 
-def guard(owner, resource_argv, deadline, floor_mib, reserve_mib, watchdog, on_ready, adopted):
+def guard(owner, resource_argv, deadline, floor_mib, reserve_mib, watchdog, on_ready, adopted, app_control=None):
     """Guardian never runs disk/provider work. Owner waits for current resources.
 
     The caller must provide the independent cgroup/watchdog envelope. Child/group
     death on guardian failure is backed by systemd; PDEATHSIG also kills the owner.
+    Native app exports additionally require their authenticated control binding
+    before GO and throughout preparation/serving. Legacy adoption cannot extend
+    this original app-control lifetime. No persistent handover is implemented.
     """
     if not 0<deadline-time.monotonic()<=900:raise ValueError('Expired original deadline')
     parent,child=socket.socketpair(socket.AF_UNIX,socket.SOCK_SEQPACKET)
@@ -106,6 +109,7 @@ def guard(owner, resource_argv, deadline, floor_mib, reserve_mib, watchdog, on_r
     if pid==0:
         parent.close()
         try:
+            if app_control is not None:app_control.close()
             os.setsid()
             if ctypes.CDLL(None,use_errno=True).prctl(1,signal.SIGKILL,0,0,0)!=0:raise OSError('PDEATHSIG')
             if os.getppid()!=original_parent:os._exit(125)
@@ -123,7 +127,11 @@ def guard(owner, resource_argv, deadline, floor_mib, reserve_mib, watchdog, on_r
         watchdog()
         while True:
             now=time.monotonic()
-            if now>=deadline and not adopted_once:why='startup-deadline';break
+            if now>=deadline and (not adopted_once or app_control is not None):why='startup-deadline';break
+            if app_control is not None:
+                try:control_bound=app_control.step()
+                except (OSError,ValueError):why='app-control-lost';break
+            else:control_bound=True
             if last_good is not None and now-last_good>=2:why='resource-observation-expired';break
             if resource is not None and now-resource_started>=1.5:why='resource-observer-timeout';break
             if ready and not adopted_once:
@@ -169,8 +177,12 @@ def guard(owner, resource_argv, deadline, floor_mib, reserve_mib, watchdog, on_r
                     if time.monotonic()-resource_started>=1.5:raise ValueError('Resource observation too old')
                     last_good=resource_started
             if why in ('owner-exited','owner-channel-closed','host-reserve'):break
-            if held and not released and last_good is not None:
+            if held and not released and last_good is not None and control_bound:
                 if time.monotonic()>=deadline:why='startup-deadline';break
+                if app_control is not None:
+                    try:
+                        if not app_control.step():raise ValueError('App control binding lost')
+                    except (OSError,ValueError):why='app-control-lost';break
                 parent.send(b'GO');released=True
             watchdog()
     finally:
@@ -181,6 +193,7 @@ def guard(owner, resource_argv, deadline, floor_mib, reserve_mib, watchdog, on_r
             resource.returncode=reap_group(resource.pid,0)
             resource.stdout.close()
         sel.close();parent.close();os.close(pidfd)
+        if app_control is not None:app_control.close()
     return {'reason':why,'ownerExit':owner_exit,'released':released,'ready':ready,'adopted':adopted_once,
             'writersFenced':False,'reservationMayRelease':False}
 
@@ -281,6 +294,7 @@ def main(path):
         raise ValueError('Maintained authenticated resource observer required')
     protected_json(argv[2])
     required={str(here/'guarded_export.py'),str(here/'volume_export.py'),str(here/'observe_resources.mjs'),str(_protocol_path),argv[2],'/usr/bin/node'}
+    if 'appControl' in c:required.add(str(here/'app_control.py'))
     if not required.issubset(c['sourcePins']):raise ValueError('Complete runtime pins required')
     if c['bootId']!=Path('/proc/sys/kernel/random/boot_id').read_text().strip():raise ValueError('Wrong boot')
     if c['deadlineUtcNs']-c['createdUtcNs']!=900_000_000_000 or not c['createdUtcNs']<=time.time_ns()<c['deadlineUtcNs']:
@@ -318,8 +332,20 @@ def main(path):
         # Successful adoption persists, but operator removal/modification stops the export.
         protected_json(path)
         return digest(path)==adoption_hash
-    result=guard(lambda channel,d:export_owner(c,channel,d),c['resourceArgv'],deadline,c['floorMiB'],c['reserveMiB'],
-                 watchdog,record_ready,is_adopted)
+    control=None
+    try:
+        if 'appControl' in c:
+            # Loading TLS state and accepting a connection happen only after
+            # the exact independent unit watchdog has acknowledged arming.
+            from app_control import AppControl
+            control=AppControl(c['appControl'],c['contractSha256'],deadline)
+            with (state/'control-listening.json').open('x') as f:
+                json.dump({'contractSha256':c['contractSha256'],'requestSha256':c['appControl']['requestSha256'],
+                           'bound':False,'rpcReady':False},f);f.flush();os.fsync(f.fileno())
+        result=guard(lambda channel,d:export_owner(c,channel,d),c['resourceArgv'],deadline,c['floorMiB'],c['reserveMiB'],
+                     watchdog,record_ready,is_adopted,app_control=control)
+    finally:
+        if control is not None:control.close()
     with (state/'terminal.json').open('x') as f:json.dump(result,f);f.flush();os.fsync(f.fileno())
     return 2
 

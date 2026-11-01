@@ -1,0 +1,6 @@
+test_app_control_is_bound_into_exact_prepared_contract (test_startup_export.Composition.test_app_control_is_bound_into_exact_prepared_contract) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.157s
+
+OK

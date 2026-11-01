@@ -119,3 +119,15 @@ storage-owner credentials/fence, and accepted boot composition are the next
 required integration. Do not activate a responder that just echoes a request
 hash and passes directories. Tests use inert subprocesses and socket messages;
 they do not launch a provider or prove production storage ownership.
+
+The maintained storage-owner Python export CLI now has a separately exercised
+one-shot mTLS app-control gate; see [its wire/lifetime contract](../../../rpc/server/README.md).
+It independently stops its COW worker and exports on control EOF, including
+blocked worker preparation, and keeps the original deadline after legacy
+adoption. It authenticates a specifically provisioned certificate and exact
+request/export-contract digests. **This package does not yet provision or connect
+that transport.** Its accepted bootstrap must bind the dedicated credential and
+storage endpoint to the actual authenticated request/consent/reservation, close
+the control connection on this session's loss, and obtain actual writer
+settlement before a grant or release. A test client opening that gate is not the
+missing broker service. No writable roots or production grants were added.
