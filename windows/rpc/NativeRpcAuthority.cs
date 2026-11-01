@@ -186,6 +186,7 @@ namespace Enclave.OwnedRpc {
    plan.CheckDeadline();reader.CheckDeadline();
   }
  }
+#if !NATIVE_RPC_BOOTSTRAP_CONTROLLER
  internal sealed class NativeRpcWorkerRuntime:INativeRpcDefinitionRuntime,INativeRpcObservationWait,IDisposable {
   readonly ProtectedAttempt lease,plan;readonly Action guard;LegacyHandoff.Completion completed;bool pinned;
   public long Now{get{return BoundedWorker.MonotonicMilliseconds();}}
@@ -210,6 +211,7 @@ namespace Enclave.OwnedRpc {
   }
   public void Dispose(){if(completed!=null)completed.Dispose();}
  }
+#endif
  // Only fixed immutable firmware/media files receive this grant. No directory,
  // VMGS, journal, bundle, credentials or all-VM group permission is added.
  internal interface INativeRpcReadAccess {

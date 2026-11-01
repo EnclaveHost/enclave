@@ -1,0 +1,45 @@
+{
+  "total_count": 2,
+  "artifacts": [
+    {
+      "id": 13099572027,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA5OTU3MjAyNw==",
+      "name": "rpc-native-bootstrap-launch-exact-source",
+      "size_in_bytes": 129793,
+      "url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13099572027",
+      "archive_download_url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13099572027/zip",
+      "expired": false,
+      "digest": "sha256:27fa11ca853a1d2d3e11b7a58ca2f0abc58c2fd7184803aecb2ee76f08791392",
+      "created_at": "2026-11-01T20:19:27Z",
+      "updated_at": "2026-11-01T20:19:27Z",
+      "expires_at": "2026-11-08T20:19:25Z",
+      "workflow_run": {
+        "id": 41346243003,
+        "repository_id": 1428203917,
+        "head_repository_id": 1428203917,
+        "head_branch": "main",
+        "head_sha": "c223db39d00a938a572577df09d3f004150212ca"
+      }
+    },
+    {
+      "id": 13098913890,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA5ODkxMzg5MA==",
+      "name": "rpc-native-bootstrap-launch-results",
+      "size_in_bytes": 3631,
+      "url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13098913890",
+      "archive_download_url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13098913890/zip",
+      "expired": false,
+      "digest": "sha256:fc2ef0462cad4703f38672be851fe1b741945d69e200815f78bff7da346e4682",
+      "created_at": "2026-11-01T20:19:51Z",
+      "updated_at": "2026-11-01T20:19:51Z",
+      "expires_at": "2026-11-08T20:19:50Z",
+      "workflow_run": {
+        "id": 41346243003,
+        "repository_id": 1428203917,
+        "head_repository_id": 1428203917,
+        "head_branch": "main",
+        "head_sha": "c223db39d00a938a572577df09d3f004150212ca"
+      }
+    }
+  ]
+}

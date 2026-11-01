@@ -29,6 +29,9 @@ namespace Enclave.OwnedRpc {
   }
  }
 #endif
+ // Bootstrap controllers only read the original journal. Cleanup mutation and
+ // cleanup-lease construction belong to the separately compiled cleanup worker.
+#if !NATIVE_RPC_BOOTSTRAP_CONTROLLER
  public sealed partial class ProtectedAttempt {
   public static ProtectedAttempt OpenNativeCleanupJournal(string path,string hash,ProtectedAttempt reader){RequireSystem();return new ProtectedAttempt(path,hash,reader,false,1);}
   public static ProtectedAttempt PinNativeCleanupJournalController(string path,string hash,ProtectedAttempt reader){RequireAdministrator();return new ProtectedAttempt(path,hash,reader,true,1);}
@@ -56,6 +59,7 @@ namespace Enclave.OwnedRpc {
    if((reader.LeaseProfile=="native-start"&&reader.Deadline>p.Deadline)||(reader.LeaseProfile=="native-lifecycle"&&reader.Deadline!=p.Deadline+30000))throw new InvalidOperationException("Original lifecycle endpoint differs");
   }
  }
+#endif
  public sealed class NativeRpcCleanupJournal:IStartJournal {
   readonly ProtectedAttempt pin;
   public NativeRpcCleanupJournal(ProtectedAttempt pin){if(pin==null||pin.NativeDefinitionPlan==null||(pin.LeaseProfile!="native-cleanup-journal"&&pin.LeaseProfile!="native-start-journal"&&pin.LeaseProfile!="native-lifecycle-journal"&&pin.LeaseProfile!="native-bootstrap-journal"))throw new ArgumentException("Protected native cleanup journal required");this.pin=pin;pin.CheckDeadline();}
@@ -65,6 +69,7 @@ namespace Enclave.OwnedRpc {
   public string Read(string n){Name(n);pin.CheckDeadline();if(pin.ReadPendingOnce(n)!=null)throw new InvalidOperationException("Torn original record held");return pin.ReadOptionalOnce(n);}
   public void WriteOnce(string n,string value){Name(n);pin.WriteOnce(n,value);}
  }
+#if !NATIVE_RPC_BOOTSTRAP_CONTROLLER
  public interface INativeRpcCleanupRuntime:INativeRpcDefinitionRuntime {
   // Must close the original one-shot work gate and verify exact held owner,
   // observer and provider child death, not task state/kill request/PID absence.
@@ -135,4 +140,5 @@ namespace Enclave.OwnedRpc {
    string saved=j.Read("native-stop.observed");if(saved==null)j.WriteOnce("native-stop.observed",proof);else if(saved!=proof)throw new InvalidOperationException("Native stop observation changed");Current(p,r,false);NativeRpcStart.Fresh(r,before);return H(proof);
   }
  }
+#endif
 }
