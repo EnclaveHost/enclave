@@ -153,7 +153,7 @@ namespace Enclave.OwnedRpc {
    plan.CheckDeadline();reader.CheckDeadline();
   }
  }
- internal sealed class NativeRpcWorkerRuntime:INativeRpcDefinitionRuntime,IDisposable {
+ internal sealed class NativeRpcWorkerRuntime:INativeRpcDefinitionRuntime,INativeRpcObservationWait,IDisposable {
   readonly ProtectedAttempt lease,plan;readonly Action guard;LegacyHandoff.Completion completed;bool pinned;
   public long Now{get{return BoundedWorker.MonotonicMilliseconds();}}
   internal NativeRpcWorkerRuntime(ProtectedAttempt lease,ProtectedAttempt plan,Action guard){this.lease=lease;this.plan=plan;this.guard=guard;if(guard==null)throw new ArgumentNullException("guard");}
@@ -166,6 +166,13 @@ namespace Enclave.OwnedRpc {
     WindowsStartAdmission.VerifyNativeDefinition(plan,lease,ref completed);
    }
    guard();plan.CheckDeadline();if(mutation&&Now>=p.Deadline)throw new InvalidOperationException("Native startup deadline expired");
+  }
+  public bool WaitForNextObservation(NativeRpcDefinitionPlan p){
+   Check(p,false);long remaining=Math.Min(p.Deadline,lease.Deadline)-Now;
+   if(remaining<=25)return false;
+   // Independent owner/observer watchdogs are already armed. This only paces
+   // queries; a blocked provider call still dies at the original worker deadline.
+   System.Threading.Thread.Sleep(25);Check(p,false);return true;
   }
   public void Dispose(){if(completed!=null)completed.Dispose();}
  }

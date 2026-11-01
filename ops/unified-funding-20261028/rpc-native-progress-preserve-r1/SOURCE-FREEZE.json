@@ -1,0 +1,9 @@
+{
+  "windows/rpc/NativeRpcDefinition.cs": "c71a9caa91df940b8bbfd4e262d000956fde81b5724748256f6bb65e86e93fc0",
+  "windows/rpc/NativeRpcAuthority.cs": "b80280fdb4a41149ff122daca0a8e06c78d247db27fec09b5292bc901173ffe9",
+  "windows/rpc/README.md": "71ccfd69c0aa97bc0fa9b68a3b253c2279c6e0d1bf4eb789425261da25a21364",
+  "windows/rpc/NATIVE-MANAGER-CONTROLLER.md": "c189f8a0be3e4fb1b8200740f96607e18303f2e59a2d6287fb0fb21c781eb5fd",
+  "test/rpc-windows-worker/NativeRpcProgressHarness.cs": "729ab1fc261dc121bf5257dd5c4798bb0c59f6dea55811e50f9c6200f8820c6a",
+  "test/rpc-windows-worker/run-native-progress-ci.ps1": "29421d5a5b01723d05605c40f74a9cf5cf7a6e9877dca267cd627b1198fdefe7",
+  ".github/workflows/rpc-native-progress.yml": "4ade6b3e02c6f47aa822e9563859217b9ce7e94c03a961fa32d923c9a7b2fc80"
+}

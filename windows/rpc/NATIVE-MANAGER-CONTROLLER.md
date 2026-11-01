@@ -246,3 +246,18 @@ The fixture uses a synthetic SID; effective original VM token access, account
 lookup under SYSTEM, VMGS/traversal and Hyper-V boot still require qualification.
 Both production entrypoints compiled; no target execution or RPC proof.
 Full results: `../../ops/unified-funding-20261028/rpc-native-readgrant-ci-r3/ROOT-RESULT.md`.
+
+The native worker now observes pending definition, security and optical jobs
+within its original lease rather than returning after the first pending result.
+The first exact returned-reference/TimeSubmitted binding is persisted before
+waiting; every further observation must match it. Only new/starting/running/
+shutting-down jobs with JobRunTimes=1 and no error are eligible. This property is
+the configured recurrence limit, not an observed execution counter; zero means
+unlimited recurrence and is refused. Other states stay held. Actual worker waits
+25ms only when both the original startup deadline and original worker deadline
+have room; independent armed watchdogs still bound hung provider calls. No new
+origin/lease, retry, resubmission, cancellation or capacity-release inference.
+An opt-in runtime interface preserves single-observation behavior for other
+callers. Read-only reconciliation can wait on existing operations but cannot
+submit the next configuration step. Device policy/start/bootstrap remain pending.
+Reference: [Hyper-V job state and recurrence](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-concretejob).

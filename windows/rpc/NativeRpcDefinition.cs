@@ -94,6 +94,22 @@ namespace Enclave.OwnedRpc {
   // copy, admission/pending/headroom and namespace; never hand over a master.
   void Check(NativeRpcDefinitionPlan p,bool mutation);
  }
+ // Optional bounded observation only. It never grants mutation or renews the
+ // original lease. Existing single-observation callers remain single-shot.
+ public interface INativeRpcObservationWait {
+  bool WaitForNextObservation(NativeRpcDefinitionPlan plan);
+ }
+ internal static class NativeRpcJobProgress {
+  internal static bool Wait(NativeRpcDefinitionPlan p,INativeRpcDefinitionRuntime r,StartJob job){
+   // Suspended/terminated/killed/exception/service or recurring jobs remain held.
+   // New/starting/running/shutting-down may progress within the SAME lease.
+   if(job.RunTimes!=1||job.ErrorCode!=0||(job.State!=2&&job.State!=3&&job.State!=4&&job.State!=6))return false;
+   var waiter=r as INativeRpcObservationWait;if(waiter==null)return false;
+   r.Check(p,false);long before=r.Now;if(before<p.Origin||before>=p.Deadline)return false;
+   if(!waiter.WaitForNextObservation(p))return false;
+   r.Check(p,false);long after=r.Now;if(after<=before||after>=p.Deadline)throw new InvalidOperationException("Observation did not advance inside original deadline");return true;
+  }
+ }
  public sealed class NativeDefinitionResponse {
   public readonly uint Code;public readonly string Job,System;
   public NativeDefinitionResponse(uint code,string job,string system){Code=code;Job=job;System=system;}
@@ -154,11 +170,11 @@ namespace Enclave.OwnedRpc {
    if(code==4096){
     if(HyperVStartProvider.CanonicalJobReference(job)!=job)throw new InvalidOperationException("Exact persisted native job required");
     string identity=j.Read("native-definition.job"),terminal=j.Read("native-definition.terminal");
-    if(terminal==null){
+    while(terminal==null){
      var observed=ReadBoundJob(p,r,provider,job);string bound=BindJob(raw,observed);
      if(identity==null){j.WriteOnce("native-definition.job",bound);identity=bound;}
      if(identity!=bound)throw new InvalidOperationException("Native job incarnation changed");
-     if(observed.State!=7||observed.RunTimes!=1)return Held("job-pending");
+     if(observed.State!=7||observed.RunTimes!=1){if(NativeRpcJobProgress.Wait(p,r,observed))continue;return Held("job-pending");}
      terminal=StartRecords.Encode(new Dictionary<string,object>{{"receipt",H(raw)},{"identity",H(identity)},{"state",7},{"runs",1},{"error",observed.ErrorCode}});
      j.WriteOnce("native-definition.terminal",terminal);
     }
@@ -252,12 +268,12 @@ namespace Enclave.OwnedRpc {
   public static string Reconcile(NativeRpcDefinitionPlan p,IStartJournal j,INativeRpcSecurityProvider provider,INativeRpcDefinitionRuntime r){
    Current(p,r,false);string guid,intent;string raw=Receipt(p,j,out guid,out intent);if(raw==null)return null;
    string reference;bool settled=Settled(j,raw,intent,out reference);
-   if(!settled&&reference!=""&&j.Read("native-security.terminal")==null){
+   while(!settled&&reference!=""&&j.Read("native-security.terminal")==null){
     Current(p,r,false);var job=provider.ReadJob(reference);Current(p,r,false);
     if(job==null||job.Reference!=reference||HyperVStartProvider.ReferenceForId(job.InstanceId)!=reference||String.IsNullOrEmpty(job.TimeSubmitted)||job.TimeSubmitted.Length>32)throw new InvalidOperationException("Exact security job unavailable");
     string bound=StartRecords.Encode(new Dictionary<string,object>{{"receipt",H(raw)},{"job",reference},{"submitted",job.TimeSubmitted}}),prior=j.Read("native-security.job");
     if(prior==null)j.WriteOnce("native-security.job",bound);else if(prior!=bound)throw new InvalidOperationException("Security job incarnation changed");
-    if(job.State!=7||job.RunTimes!=1)return null;
+    if(job.State!=7||job.RunTimes!=1){if(NativeRpcJobProgress.Wait(p,r,job))continue;return null;}
     j.WriteOnce("native-security.terminal",StartRecords.Encode(new Dictionary<string,object>{{"receipt",H(raw)},{"identity",H(bound)},{"state",7},{"runs",1},{"error",job.ErrorCode}}));
     settled=Settled(j,raw,intent,out reference);
    }
@@ -442,12 +458,12 @@ namespace Enclave.OwnedRpc {
     }
     if(submitted!=H(intent))throw new InvalidOperationException("Optical consumed submission differs");if(raw==null)return null;
     string result,reference;bool settled=Settled(j,pre,raw,intent,step,out result,out reference);
-    if(!settled&&reference!=""&&j.Read(pre+".terminal")==null){
+    while(!settled&&reference!=""&&j.Read(pre+".terminal")==null){
      Current(p,runtime,false);var job=provider.ReadJob(reference);Current(p,runtime,false);
      if(job==null||job.Reference!=reference||HyperVStartProvider.ReferenceForId(job.InstanceId)!=reference||String.IsNullOrEmpty(job.TimeSubmitted)||job.TimeSubmitted.Length>32)throw new InvalidOperationException("Exact optical job unavailable");
      string binding=StartRecords.Encode(new Dictionary<string,object>{{"receipt",H(raw)},{"job",reference},{"submitted",job.TimeSubmitted}}),prior=j.Read(pre+".job");
      if(prior==null)j.WriteOnce(pre+".job",binding);else if(prior!=binding)throw new InvalidOperationException("Optical job incarnation changed");
-     if(job.State!=7||job.RunTimes!=1)return null;
+     if(job.State!=7||job.RunTimes!=1){if(NativeRpcJobProgress.Wait(p,runtime,job))continue;return null;}
      j.WriteOnce(pre+".terminal",StartRecords.Encode(new Dictionary<string,object>{{"receipt",H(raw)},{"identity",H(binding)},{"state",7},{"runs",1},{"error",job.ErrorCode}}));
      settled=Settled(j,pre,raw,intent,step,out result,out reference);
     }
