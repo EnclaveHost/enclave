@@ -1,0 +1,4 @@
+ACL flags before=DiscretionaryAclPresent, DiscretionaryAclProtected, SelfRelative planned=DiscretionaryAclPresent, DiscretionaryAclProtected, SelfRelative actual=DiscretionaryAclPresent, DiscretionaryAclAutoInherited, DiscretionaryAclProtected, SelfRelative
+PASS actual held file DACL grant readback preserves identity and denies replacement
+PASS actual protected grant journal partial receipt and reconcile write gate
+TOTAL 2 PASS; mocked original provider/account; actual administrator file DACL/journal; no VM/SYSTEM/start/RPC

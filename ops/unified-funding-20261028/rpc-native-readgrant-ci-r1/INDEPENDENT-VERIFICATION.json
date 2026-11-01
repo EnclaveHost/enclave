@@ -1,0 +1,57 @@
+{
+  "runtime": "e22ad3f0adba0c825e92648d1b15840e535a4c3b",
+  "suppliedSourcePins": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/ProviderStart.cs",
+    "windows/rpc/OwnedVmPermit.cs",
+    "windows/rpc/HostPhysicalPool.cs",
+    "windows/rpc/WindowsStartAdmission.cs",
+    "windows/rpc/LegacyTemplateFence.cs",
+    "windows/rpc/LegacyLaunchCohort.cs",
+    "windows/rpc/LegacyHandoff.cs",
+    "windows/rpc/NativeRpcDefinition.cs",
+    "windows/rpc/NativeRpcAuthority.cs",
+    "windows/rpc/NativeRpcWorkerEntry.cs",
+    "windows/rpc/NativeRpcController.cs",
+    "windows/rpc/NativeRpcManagerTransport.cs",
+    "test/rpc-windows-worker/NativeRpcReadGrantHarness.cs"
+  ],
+  "actualCompileClosures": {
+    "harness": [
+      "windows/rpc/BoundedWorker.cs",
+      "windows/rpc/OwnerObserver.cs",
+      "windows/rpc/ProtectedAttempt.cs",
+      "windows/rpc/ProviderStart.cs",
+      "windows/rpc/OwnedVmPermit.cs",
+      "windows/rpc/HostPhysicalPool.cs",
+      "windows/rpc/WindowsStartAdmission.cs",
+      "windows/rpc/LegacyTemplateFence.cs",
+      "windows/rpc/LegacyLaunchCohort.cs",
+      "windows/rpc/LegacyHandoff.cs",
+      "windows/rpc/NativeRpcDefinition.cs",
+      "windows/rpc/NativeRpcAuthority.cs",
+      "test/rpc-windows-worker/NativeRpcReadGrantHarness.cs"
+    ]
+  },
+  "binaries": {
+    "owned-entry.exe": {
+      "sha256": "198209da60aa0ffaea61f9d491242e7978dd8cc0f852264f6f677dab5f081449",
+      "bytes": 233984
+    }
+  },
+  "passMethods": [
+    "three fixed grants consume intent before mutation and observe without repeat",
+    "partial second ACL mutation stays held with no retry or success receipt",
+    "lost receipt stays held even if all three ACL operations returned",
+    "read-only lease never creates intent and failed submit never invokes ACL",
+    "changed original VM security and account refuse completed grant",
+    "changed observed ACL identity and original deadline prevent success",
+    "tampered fixed file list and receipt context cannot verify",
+    "VM group foreign identities malformed and noncanonical SIDs refused",
+    "read ACE preserves owner group system admin and grants no writes inheritance",
+    "unprotected foreign owner broad access and inherited ACE refused"
+  ],
+  "nativeProviderExecuted": false
+}

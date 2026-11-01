@@ -1,0 +1,52 @@
+{
+  "readgrant-preserve-r1": {
+    "invocation": "1edbd8dcdf72470f879caf6ee005164e",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "journal": "2026-11-01T10:46:34-07:00 warden-host taskset[1080137]: [queue] START available=94561MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T10:46:36-07:00 warden-host taskset[1080137]: [queue] EXIT 0\n"
+  },
+  "readgrant-ci-r1": {
+    "invocation": "8ef32eb96ed347348d757c35b555a711",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "journal": "2026-11-01T10:46:46-07:00 warden-host taskset[1080451]: [queue] START available=94631MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T10:46:48-07:00 warden-host taskset[1080451]: [queue] EXIT 0\n"
+  },
+  "optical-collect-r3": {
+    "invocation": "1bdf85633ac04a0889dda27f4f3f34f0",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "journal": "2026-11-01T10:47:46-07:00 warden-host taskset[1081315]: [queue] START available=94616MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T10:47:48-07:00 warden-host taskset[1081315]: [queue] EXIT 0\n"
+  },
+  "readgrant-preserve-r2": {
+    "invocation": "bce06337d8ab4cc3993ad7fa4ae8660d",
+    "properties": "ActiveState=failed\nMainPID=0\nExecMainStatus=1\n",
+    "journal": "2026-11-01T10:48:58-07:00 warden-host taskset[1082236]: [queue] START available=94610MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T10:48:58-07:00 warden-host taskset[1082236]: [queue] EXIT 1\n"
+  },
+  "readgrant-preserve-r3": {
+    "invocation": "6cd8a371bd9e4ff8bd3258c235810791",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "journal": "2026-11-01T10:49:25-07:00 warden-host taskset[1082616]: [queue] START available=94622MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T10:49:28-07:00 warden-host taskset[1082616]: [queue] EXIT 0\n"
+  },
+  "readgrant-ci-r2": {
+    "invocation": "51ae0b3c080a4b0ea30120f5e137ed73",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "journal": "2026-11-01T10:49:34-07:00 warden-host taskset[1082881]: [queue] START available=94589MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T10:49:36-07:00 warden-host taskset[1082881]: [queue] EXIT 0\n"
+  },
+  "readgrant-collect-r2": {
+    "invocation": "0f4db61113574abaa7a23511c7f47636",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "journal": "2026-11-01T10:50:39-07:00 warden-host taskset[1083818]: [queue] START available=94637MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T10:50:42-07:00 warden-host taskset[1083818]: [queue] EXIT 0\n"
+  },
+  "readgrant-preserve-r4": {
+    "invocation": "fc77e73a3acc4511b81ac0d47a4e2e91",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "journal": "2026-11-01T10:51:30-07:00 warden-host taskset[1084458]: [queue] START available=94649MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T10:51:33-07:00 warden-host taskset[1084458]: [queue] EXIT 0\n"
+  },
+  "readgrant-ci-r3": {
+    "invocation": "4445ead7d9e44900ad7b190885b58707",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "journal": "2026-11-01T10:51:40-07:00 warden-host taskset[1084749]: [queue] START available=94761MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T10:51:42-07:00 warden-host taskset[1084749]: [queue] EXIT 0\n"
+  },
+  "readgrant-collect-r3": {
+    "invocation": "613bfd19b8ff4d9aa056410e49d0f99e",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "journal": "2026-11-01T10:52:45-07:00 warden-host taskset[1085606]: [queue] START available=94592MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T10:52:47-07:00 warden-host taskset[1085606]: [queue] EXIT 0\n"
+  }
+}

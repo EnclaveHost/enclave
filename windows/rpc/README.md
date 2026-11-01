@@ -1429,8 +1429,8 @@ original VM association, all parent/slot/path/type fields and exact storage
 topology. A sole empty original default SCSI can be retained and explicitly
 recorded as preexisting; no other resource adoption/scan recovery is allowed.
 Controller checks the protected optical receipt. This is not boot permission:
-VM SID read grants, other device/network policy, start and original bootstrap
-integration are still outstanding, as is actual SYSTEM/WMI qualification.
+VM SID read grants are implemented below; other device/network policy, start
+and original bootstrap integration remain outstanding, as does SYSTEM/WMI qualification.
 The native entrypoint build closures now exclude unrelated entrypoints while
 retaining all admission/namespace/observer/provider code needed by that role.
 API references: [AddResourceSettings](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/addresourcesettings-msvm-virtualsystemmanagementservice),
@@ -1480,3 +1480,15 @@ readGrantReceipt. VMGS provider access, directory traversal/effective VM token
 access, SYSTEM account lookup and actual Hyper-V boot remain target qualification
 requirements; this source is not activation or RPC readiness.
 API: [held-handle SetSecurityInfo](https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-setsecurityinfo).
+
+Read-access qualification now has 13 distinct passing cases across three runs.
+The two failed runs are preserved: Windows added AUTO_INHERITED bookkeeping to
+an otherwise exact ACL, then a metadata-only handle failed deletion exclusion.
+Receipts now compare exact owner/group/protection/ACL bytes; grant and reconcile
+handles include FILE_READ_DATA to enforce no-write/no-delete sharing. Actual
+administrator fixture proves SetSecurityInfo/readback, unchanged file identity
+and bytes, deletion/rename refusal, and consumed/partial/reconcile journal gates.
+The fixture uses a synthetic SID; effective original VM token access, account
+lookup under SYSTEM, VMGS/traversal and Hyper-V boot still require qualification.
+Both production entrypoints compiled; no target execution or RPC proof.
+Full results: `../../ops/unified-funding-20261028/rpc-native-readgrant-ci-r3/ROOT-RESULT.md`.
