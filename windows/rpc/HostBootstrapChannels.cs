@@ -80,6 +80,20 @@ namespace Enclave.OwnedRpc {
     throw new InvalidOperationException("Exact Hyper-V peer differs");
    current();return s;
   }
+  static int MonitorRead(IntPtr handle,byte[] bytes) {
+#if RPC_BOOTSTRAP_CI
+   return HostBootstrapFixture.Read(bytes);
+#else
+   return recv(handle,bytes,bytes.Length,0);
+#endif
+  }
+  static int MonitorWrite(IntPtr handle,byte[] bytes) {
+#if RPC_BOOTSTRAP_CI
+   return HostBootstrapFixture.Write(bytes);
+#else
+   return send(handle,bytes,bytes.Length,0);
+#endif
+  }
   static long Number(string s){return Int64.Parse(s,NumberStyles.None,CultureInfo.InvariantCulture);}
   static string Q(string value){ProtectedAttempt.LocalPath(value);return "\""+value+"\"";}
   static byte[] Json(object value){return Utf8.GetBytes(new JavaScriptSerializer{MaxJsonLength=1048576}.Serialize(value));}
@@ -128,8 +142,16 @@ namespace Enclave.OwnedRpc {
    // This entry does not manufacture that authority or permit a replay of 5a.
    if(f[14].Length!=64||!System.Text.RegularExpressions.Regex.IsMatch(f[14],"\\A[0-9a-f]{64}\\z"))throw new InvalidOperationException("Original VM ownership receipt required");
    a.WriteOnce("bootstrap.native-intent",a.Token+","+f[1]+","+f[14]+","+origin+","+deadline);
+#if RPC_BOOTSTRAP_CI
+   // Separate hosted-fixture binary only. Production has no selectable fake
+   // channel, alternate endpoint or injected command implementation.
+   HostBootstrapFixture.Open(a.Root);IntPtr hv=IntPtr.Zero;
+#else
    IntPtr hv=Dial(vm,current);
+#endif
    Process tpm=Start(f[6],"",a.Root,current),node=Start(f[4],"--no-addons --max-old-space-size=48 "+Q(Path.Combine(root,"rpc\\host\\windows-entry.mjs")),a.Root,current);
+   a.WriteOnce("bootstrap.children",tpm.Id+","+tpm.StartTime.ToUniversalTime().ToFileTimeUtc()+","+
+    node.Id+","+node.StartTime.ToUniversalTime().ToFileTimeUtc()+","+a.Token);
    Drain(tpm);Drain(node);object outputLock=new object();Stream output=node.StandardInput.BaseStream;
    Action<int,byte[]> emit=delegate(int lane,byte[] raw){
     current();if(raw.Length==0||raw.Length>(lane==0?131072:32768))throw new InvalidOperationException("Native output frame bound");
@@ -145,12 +167,12 @@ namespace Enclave.OwnedRpc {
     {"journal",Path.Combine(a.Root,"host-journal.jsonl")},{"privateKeyPem",Utf8.GetString(key)},
     {"expected",serializer.DeserializeObject(Utf8.GetString(expected))},{"ekChain",serializer.DeserializeObject(Utf8.GetString(chain))}}));
    Array.Clear(key,0,key.Length);long receivedMonitor=0,receivedTpm=0;
-   Pump(delegate{for(;;){byte[] b=new byte[32768];int n=recv(hv,b,b.Length,0);if(n<=0)throw new EndOfStreamException("Hyper-V channel lost");receivedMonitor+=n;if(receivedMonitor>262144)throw new InvalidOperationException("Monitor aggregate bound");Array.Resize(ref b,n);emit(1,b);}});
+   Pump(delegate{for(;;){byte[] b=new byte[32768];int n=MonitorRead(hv,b);if(n<=0)throw new EndOfStreamException("Hyper-V channel lost");receivedMonitor+=n;if(receivedMonitor>262144)throw new InvalidOperationException("Monitor aggregate bound");Array.Resize(ref b,n);emit(1,b);}});
    Pump(delegate{for(;;){byte[] b=new byte[32768];int n=tpm.StandardOutput.BaseStream.Read(b,0,b.Length);if(n<=0)throw new EndOfStreamException("TPM process lost");receivedTpm+=n;if(receivedTpm>524288)throw new InvalidOperationException("TPM aggregate bound");Array.Resize(ref b,n);emit(2,b);}});
    bool enrolled=false,offered=false;long sentMonitor=0,sentTpm=0;
    for(;;){
     current();byte[] raw=ReadFrame(node.StandardOutput.BaseStream,out channel);
-    if(channel==1){sentMonitor+=raw.Length;if(sentMonitor>13L*1048576)throw new InvalidOperationException("Monitor input aggregate bound");int at=0;while(at<raw.Length){byte[] part=new byte[raw.Length-at];Buffer.BlockCopy(raw,at,part,0,part.Length);int n=send(hv,part,part.Length,0);if(n<=0)throw new Win32Exception(WSAGetLastError());at+=n;}continue;}
+    if(channel==1){sentMonitor+=raw.Length;if(sentMonitor>13L*1048576)throw new InvalidOperationException("Monitor input aggregate bound");int at=0;while(at<raw.Length){byte[] part=new byte[raw.Length-at];Buffer.BlockCopy(raw,at,part,0,part.Length);int n=MonitorWrite(hv,part);if(n<=0)throw new Win32Exception(WSAGetLastError());at+=n;}continue;}
     if(channel==2){sentTpm+=raw.Length;if(sentTpm>65536)throw new InvalidOperationException("TPM input aggregate bound");tpm.StandardInput.BaseStream.Write(raw,0,raw.Length);tpm.StandardInput.BaseStream.Flush();continue;}
     string text=Utf8.GetString(raw);
     if(text.StartsWith("enroll\n",StringComparison.Ordinal)&&!enrolled){
