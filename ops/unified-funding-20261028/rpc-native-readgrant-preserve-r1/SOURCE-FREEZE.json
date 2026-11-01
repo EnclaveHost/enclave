@@ -1,0 +1,11 @@
+{
+  "windows/rpc/NativeRpcAuthority.cs": "6d48b804fc1b572090b69e82714f9bcb3438f76d748c83a14cfed6d3e77dea1a",
+  "windows/rpc/ProtectedAttempt.cs": "8b640b9c502cf4ffec3f91b90f1184dffc7d11abf1fe0476b1f6901b80c4ba50",
+  "windows/rpc/NativeRpcController.cs": "52423e07c805c84db78fa1a23510163065a0797265937b4205cf08a77f5c828d",
+  "windows/rpc/NativeRpcWorkerEntry.cs": "9988c2e7c238ef6c411d892213632ad43da75e7b5b1c4fa7143e565668426704",
+  "windows/rpc/README.md": "c0b60730153e0e6d4fdddb42747ded4590b49abb79bf5d83a9e6bb6b307d31e3",
+  "windows/rpc/NATIVE-MANAGER-CONTROLLER.md": "3d069ba62a625e2368160c88950ddbe5e171fca595f7604f5add56dc357954e8",
+  "test/rpc-windows-worker/NativeRpcReadGrantHarness.cs": "b7154ff47585f86b9549cbb8e1d943192aa05383f61b93ca047fbe2693e2d472",
+  "test/rpc-windows-worker/run-native-readgrant-ci.ps1": "7a8a7c31518c22fc5941669f9ec8e02347fcb5f8799c50f3b53b3f8ec6b57416",
+  ".github/workflows/rpc-native-readgrant.yml": "d5dcc0c90597d58ce1a538978be463cdb4592df9cf3b73519477f0771659f26d"
+}

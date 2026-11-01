@@ -1462,3 +1462,21 @@ worker218112B/fbc25004cc37edfd456087ef6881e859c01776c3038b4ce30d9fe08e915fe6d8.
 Allsourcepins/binaryhashes verified; unchangedbounds and two precedingfailed
 build preparations preserved in
 `../../ops/unified-funding-20261028/rpc-native-optical-ci-r3/ROOT-RESULT.md`.
+
+The native worker now grants FILE_GENERIC_READ only to the exact original VM
+account on runtime.igvm, image.container and hash.container before attachment.
+Forward/reverse NT VIRTUAL MACHINE account resolution must agree with the GUID
+from the original protected ownership receipt; the all-VM group is refused.
+Held original data pins deny writes/deletion, and ACL handles must match their
+volume/file/creation identity. One durable intent binds original plan, ownership,
+security, SID, exact identities/sizes and before/after security hashes before any
+SetSecurityInfo operation. All three results must read back before success is
+persisted. Interrupted/partial grant or lost receipt stays held without retry.
+Only protected DACL bytes change; owner/group and administrator/SYSTEM ACEs stay.
+No directory, VMGS, journal, credential or broader group grant is introduced.
+Read-only reconciliation checks completed original receipts and actual held file
+identity/ACL; it cannot replay an incomplete grant. Controller requires the exact
+readGrantReceipt. VMGS provider access, directory traversal/effective VM token
+access, SYSTEM account lookup and actual Hyper-V boot remain target qualification
+requirements; this source is not activation or RPC readiness.
+API: [held-handle SetSecurityInfo](https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-setsecurityinfo).

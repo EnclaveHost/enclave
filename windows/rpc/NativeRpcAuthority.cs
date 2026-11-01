@@ -9,6 +9,9 @@ using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Security.AccessControl;
+using System.Security.Principal;
+using Microsoft.Win32.SafeHandles;
 using System.Text;
 using System.Web.Script.Serialization;
 namespace Enclave.OwnedRpc {
@@ -56,6 +59,7 @@ namespace Enclave.OwnedRpc {
   }
  }
  public sealed partial class ProtectedAttempt {
+  readonly Dictionary<string,SafeFileHandle> nativeReadPins=new Dictionary<string,SafeFileHandle>();
   internal void PinNativeMedia(){
    if(LeaseProfile!="native-definition-journal"||NativeDefinitionPlan==null||accessLease.Operation!="define")throw new InvalidOperationException("Original native media custody requires submit lease");
    var p=NativeDefinitionPlan;var profile=new NativeRpcMediaProfile(Bytes(HoldRead(Path.Combine(Root,"profile.json"),16384),16384),p.Profile);
@@ -65,7 +69,7 @@ namespace Enclave.OwnedRpc {
     if(h.IsInvalid){int error=Marshal.GetLastWin32Error();h.Dispose();throw new Win32Exception(error);}
     FileStream f=null;
     try{Authority(h,true,false,path);FileInfo info;if(!GetFileInformationByHandle(h,out info)||info.Links!=1)throw new InvalidOperationException("Single-link optical media required");
-     f=new FileStream(h,FileAccess.Read);profile.Verify(f,tree,CheckDeadline,null);held.Add(f);f=null;
+     f=new FileStream(h,FileAccess.Read);profile.Verify(f,tree,CheckDeadline,null);held.Add(f);nativeReadPins.Add(NativeRpcMediaProfile.Name(tree),h);f=null;
     }catch{if(f!=null)f.Dispose();else if(!h.IsClosed)h.Dispose();throw;}
    }CheckDeadline();
   }
@@ -86,7 +90,7 @@ namespace Enclave.OwnedRpc {
     // updates but not replacement: hash is the INITIAL state copy, not a claim
     // that VMGS stays immutable after DefineSystem. The full guest verifier
     // must authenticate actual hardware/runtime before accepting any service.
-    held.Add(stream);stream=null;CheckDeadline();
+    held.Add(stream);if(name=="runtime.igvm")nativeReadPins.Add(name,h);stream=null;CheckDeadline();
    }catch{if(stream!=null)stream.Dispose();else if(!h.IsClosed)h.Dispose();throw;}
   }
  }
@@ -165,4 +169,110 @@ namespace Enclave.OwnedRpc {
   }
   public void Dispose(){if(completed!=null)completed.Dispose();}
  }
+ // Only fixed immutable firmware/media files receive this grant. No directory,
+ // VMGS, journal, bundle, credentials or all-VM group permission is added.
+ internal interface INativeRpcReadAccess {
+  string Resolve(string originalGuid);
+  string Capture(string name,string sid);
+  void Apply(string name,string sid,string snapshot);
+  void Observe(string name,string sid,string snapshot);
+ }
+ internal static class NativeRpcReadGrant {
+  internal static readonly string[] Names={"runtime.igvm","image.container","hash.container"};
+  internal const int ReadMask=0x120089; // FILE_GENERIC_READ; no execute/write/delete/ACL rights.
+  internal static void Sid(string sid){
+   if(sid==null||!System.Text.RegularExpressions.Regex.IsMatch(sid,@"\AS-1-5-83-1-(?:[0-9]+-){3}[0-9]+\z")||new SecurityIdentifier(sid).Value!=sid)
+    throw new InvalidOperationException("Exact per-VM SID required; group and caller SIDs refused");
+  }
+  static void Current(NativeRpcDefinitionPlan p,INativeRpcDefinitionRuntime r,bool mutation){r.Check(p,mutation);if(r.Now<p.Origin||r.Now>=p.Deadline)throw new InvalidOperationException("Original read grant deadline expired");}
+  static string Context(NativeRpcDefinitionPlan p,IStartJournal j,out string guid){string owned=NativeRpcSecurity.Ownership(p,j,out guid);return p.Digest+","+guid+","+owned+","+NativeRpcSecurity.VerifyCompleted(p,j);}
+  internal static string VerifyCompleted(NativeRpcDefinitionPlan p,IStartJournal j){
+   string guid,context=Context(p,j,out guid),intent=j.Read("native-read.intent");if(intent==null)throw new InvalidOperationException("Original media read grant missing");
+   var fields=intent.Split('\n');if(fields.Length!=7||fields[0]!="native-rpc-read-grant/1"||fields[1]!=context||fields[6]!="")throw new InvalidOperationException("Original read grant context differs");Sid(fields[2]);
+   for(int n=0;n<3;n++)ValidateSnapshot(fields[3+n],Names[n]);
+   string h=NativeRpcDefinitionPlan.Hash(intent);if(j.Read("native-read.submit")!=h||j.Read("native-read.receipt")!=h)throw new InvalidOperationException("Original read grant unsettled");return h;
+  }
+  internal static void ValidateSnapshot(string value,string name){
+   var f=value.Split(',');if(f.Length!=5||f[0]!=name||!System.Text.RegularExpressions.Regex.IsMatch(f[1],@"\A[0-9a-f]{8}:[0-9a-f]{16}:[0-9a-f]{16}\z"))throw new InvalidOperationException("Read grant file identity differs");
+   long size;if(!Int64.TryParse(f[2],NumberStyles.None,CultureInfo.InvariantCulture,out size)||size<=0||size>Int32.MaxValue)throw new InvalidOperationException("Read grant size");
+   StartIdentity.Hex(f[3],64);StartIdentity.Hex(f[4],64);
+  }
+  internal static string Run(NativeRpcDefinitionPlan p,IStartJournal j,INativeRpcDefinitionRuntime r,INativeRpcReadAccess access,bool readOnly){
+   Current(p,r,!readOnly);string guid,context=Context(p,j,out guid),sid=access.Resolve(guid);Sid(sid);
+   string intent=j.Read("native-read.intent");
+   if(intent==null){
+    if(readOnly)return null;
+    var f=new List<string>{"native-rpc-read-grant/1",context,sid};foreach(string name in Names){Current(p,r,true);string snapshot=access.Capture(name,sid);ValidateSnapshot(snapshot,name);f.Add(snapshot);}f.Add("");intent=String.Join("\n",f.ToArray());
+    j.WriteOnce("native-read.intent",intent);string h=NativeRpcDefinitionPlan.Hash(intent);j.WriteOnce("native-read.submit",h);
+    foreach(string snapshot in f.GetRange(3,3)){Current(p,r,true);access.Apply(snapshot.Split(',')[0],sid,snapshot);}
+    // Persist success only after all actual handle ACL and identity readbacks.
+    Current(p,r,true);j.WriteOnce("native-read.receipt",h);
+   }
+   if(j.Read("native-read.receipt")==null)return null; // consumed partial grant never retried
+   string proof=VerifyCompleted(p,j);var parts=intent.Split('\n');if(parts[2]!=sid)throw new InvalidOperationException("Original VM account resolution changed");
+   foreach(string snapshot in new[]{parts[3],parts[4],parts[5]}){Current(p,r,false);access.Observe(snapshot.Split(',')[0],sid,snapshot);}Current(p,r,false);return proof;
+  }
+  internal static RawSecurityDescriptor AddRead(RawSecurityDescriptor sd,string sid){
+   Sid(sid);if(sd.Owner==null||(sd.Owner.Value!="S-1-5-18"&&sd.Owner.Value!="S-1-5-32-544")||sd.DiscretionaryAcl==null||sd.DiscretionaryAcl.Count>64||(sd.ControlFlags&ControlFlags.DiscretionaryAclProtected)==0)throw new InvalidOperationException("Protected owner/ACL required");
+   bool allow=false,system=false,admin=false;
+   foreach(GenericAce entry in sd.DiscretionaryAcl){var ace=entry as CommonAce;
+    if(ace==null||ace.IsCallback||ace.AceFlags!=AceFlags.None)throw new InvalidOperationException("Explicit non-inheriting file ACL required");
+    if(ace.AceQualifier==AceQualifier.AccessDenied){if(allow)throw new InvalidOperationException("Noncanonical file ACL");continue;}
+    if(ace.AceQualifier!=AceQualifier.AccessAllowed)throw new InvalidOperationException("Unsupported grant ACE");allow=true;
+    string principal=ace.SecurityIdentifier.Value;if(principal!="S-1-5-18"&&principal!="S-1-5-32-544")throw new InvalidOperationException("Unexpected preexisting file access");
+    system|=principal=="S-1-5-18";admin|=principal=="S-1-5-32-544";
+   }
+   if(!system||!admin)throw new InvalidOperationException("Original administrator and SYSTEM access required");
+   var bytes=new byte[sd.BinaryLength];sd.GetBinaryForm(bytes,0);var next=new RawSecurityDescriptor(bytes,0);
+   next.DiscretionaryAcl.InsertAce(next.DiscretionaryAcl.Count,new CommonAce(AceFlags.None,AceQualifier.AccessAllowed,ReadMask,new SecurityIdentifier(sid),false,null));return next;
+  }
+ }
+ public sealed partial class ProtectedAttempt {
+  [DllImport("advapi32.dll")]static extern uint SetSecurityInfo(SafeFileHandle h,int type,uint info,IntPtr owner,IntPtr group,IntPtr dacl,IntPtr sacl);
+  static RawSecurityDescriptor ReadGrantDescriptor(SafeFileHandle h){
+   IntPtr owner,group,dacl,sacl,descriptor;uint error=GetSecurityInfo(h,1,1|2|4,out owner,out group,out dacl,out sacl,out descriptor);if(error!=0)throw new Win32Exception((int)error);
+   try{uint n=GetSecurityDescriptorLength(descriptor);if(n==0||n>65536)throw new InvalidOperationException("Read grant descriptor bound");var b=new byte[n];Marshal.Copy(descriptor,b,0,(int)n);return new RawSecurityDescriptor(b,0);}finally{if(descriptor!=IntPtr.Zero)LocalFree(descriptor);}
+  }
+  internal static string ReadGrantSecurityHash(RawSecurityDescriptor sd){
+   // Hash precisely the owner/group/protected DACL fields we preserve/read back.
+   return Hash(Encoding.UTF8.GetBytes(sd.GetSddlForm(AccessControlSections.Owner|AccessControlSections.Group|AccessControlSections.Access)));
+  }
+  internal static string ReadGrantFileIdentity(SafeFileHandle h,out long size){
+   Authority(h,true,false,"original VM read grant");FileInfo f;if(!GetFileInformationByHandle(h,out f)||f.Links!=1)throw new InvalidOperationException("Single-link read grant target required");
+   size=((long)f.SizeHigh<<32)|f.SizeLow;if(size<=0||size>Int32.MaxValue)throw new InvalidOperationException("Read grant target size");
+   return f.Volume.ToString("x8")+":"+(((ulong)f.IndexHigh<<32)|f.IndexLow).ToString("x16")+":"+f.Created.ToString("x16");
+  }
+  // Reusable held-handle primitive. The caller must consume the original intent
+  // before this call; no path lookup, replacement, owner change or inheritance.
+  internal static void SetReadGrantOnHandle(SafeFileHandle h,string sid,string expectedBefore,string expectedAfter){
+   var before=ReadGrantDescriptor(h);if(ReadGrantSecurityHash(before)!=expectedBefore)throw new InvalidOperationException("Original ACL changed before grant");var after=NativeRpcReadGrant.AddRead(before,sid);if(ReadGrantSecurityHash(after)!=expectedAfter)throw new InvalidOperationException("Planned ACL differs");
+   byte[] acl=new byte[after.DiscretionaryAcl.BinaryLength];after.DiscretionaryAcl.GetBinaryForm(acl,0);var memory=Marshal.AllocHGlobal(acl.Length);
+   try{Marshal.Copy(acl,0,memory,acl.Length);uint e=SetSecurityInfo(h,1,0x80000004,IntPtr.Zero,IntPtr.Zero,memory,IntPtr.Zero);if(e!=0)throw new Win32Exception((int)e);}finally{Marshal.FreeHGlobal(memory);}
+   if(ReadGrantSecurityHash(ReadGrantDescriptor(h))!=expectedAfter)throw new InvalidOperationException("Read grant ACL readback differs");Authority(h,true,false,"original VM read grant");
+  }
+  internal INativeRpcReadAccess NativeReadAccess(){return new NativeReadAccessHandles(this);}
+  sealed class NativeReadAccessHandles:INativeRpcReadAccess {
+   readonly ProtectedAttempt p;readonly Dictionary<string,SafeFileHandle> handles=new Dictionary<string,SafeFileHandle>();readonly HashSet<string> applied=new HashSet<string>();
+   internal NativeReadAccessHandles(ProtectedAttempt p){this.p=p;if(p.NativeDefinitionPlan==null||p.accessLease==null)throw new InvalidOperationException("Original native read lease required");}
+   public string Resolve(string guid){
+    p.CheckDeadline();string original;NativeRpcSecurity.Ownership(p.NativeDefinitionPlan,new NativeRpcDefinitionJournal(p),out original);if(guid!=original)throw new InvalidOperationException("Original VM account required");
+    string account=@"NT VIRTUAL MACHINE\"+guid;var sid=(SecurityIdentifier)new NTAccount(account).Translate(typeof(SecurityIdentifier));NativeRpcReadGrant.Sid(sid.Value);
+    if(!String.Equals(((NTAccount)sid.Translate(typeof(NTAccount))).Value,account,StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("VM SID reverse binding differs");p.CheckDeadline();return sid.Value;
+   }
+   SafeFileHandle Handle(string name,bool mutation){
+    if(Array.IndexOf(NativeRpcReadGrant.Names,name)<0)throw new InvalidOperationException("Fixed read grant file required");p.CheckDeadline();SafeFileHandle h;
+    if(handles.TryGetValue(name,out h))return h;
+    if(mutation&&(p.accessLease.Operation!="define"||!p.nativeReadPins.ContainsKey(name)))throw new InvalidOperationException("Original pinned asset required before read grant");
+    string path=Path.Combine(p.Root,name);h=CreateFile(path,0x20080U|(mutation?0x40000U:0U),1,IntPtr.Zero,3,0x00200000,IntPtr.Zero);
+    if(h.IsInvalid){int error=Marshal.GetLastWin32Error();h.Dispose();throw new Win32Exception(error);}p.held.Add(h);handles.Add(name,h);
+    long size;string identity=ReadGrantFileIdentity(h,out size);if(mutation){long other;if(ReadGrantFileIdentity(p.nativeReadPins[name],out other)!=identity||other!=size)throw new InvalidOperationException("Pinned asset identity differs");}return h;
+   }
+   public string Capture(string name,string sid){var h=Handle(name,true);long size;string id=ReadGrantFileIdentity(h,out size);var before=ReadGrantDescriptor(h);var after=NativeRpcReadGrant.AddRead(before,sid);return name+","+id+","+size.ToString(CultureInfo.InvariantCulture)+","+ReadGrantSecurityHash(before)+","+ReadGrantSecurityHash(after);}
+   public void Apply(string name,string sid,string snapshot){p.CheckDeadline();if(!applied.Add(name))throw new InvalidOperationException("Handle grant already consumed");if(Capture(name,sid)!=snapshot)throw new InvalidOperationException("Pinned grant snapshot changed");var f=snapshot.Split(',');SetReadGrantOnHandle(Handle(name,true),sid,f[3],f[4]);Observe(name,sid,snapshot);}
+   public void Observe(string name,string sid,string snapshot){NativeRpcReadGrant.ValidateSnapshot(snapshot,name);NativeRpcReadGrant.Sid(sid);var f=snapshot.Split(',');var h=Handle(name,false);long size;string id=ReadGrantFileIdentity(h,out size);var sd=ReadGrantDescriptor(h);
+    if(id!=f[1]||size.ToString(CultureInfo.InvariantCulture)!=f[2]||ReadGrantSecurityHash(sd)!=f[4])throw new InvalidOperationException("Original grant identity/ACL changed");int matches=0;foreach(GenericAce entry in sd.DiscretionaryAcl){var ace=entry as CommonAce;if(ace!=null&&ace.SecurityIdentifier.Value==sid){if(ace.AceFlags!=AceFlags.None||ace.AceQualifier!=AceQualifier.AccessAllowed||ace.AccessMask!=NativeRpcReadGrant.ReadMask)throw new InvalidOperationException("VM read ACE differs");matches++;}}if(matches!=1)throw new InvalidOperationException("Exact VM read ACE missing");p.CheckDeadline();
+   }
+  }
+ }
+
 }
