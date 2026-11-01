@@ -1,0 +1,70 @@
+{
+  "system-worker.exe": {
+    "bytes": 233472,
+    "sha256": "96c9c52021bcd42bd6fc1b6c31502d769687914af1bef87f3474d79322c8cedd"
+  },
+  "worker-artifact.json": {
+    "bytes": 167,
+    "sha256": "82aa0da86f9c30d501f3e04cd96981ed9bea646cbec5e3e55731d5a5078c225f"
+  },
+  "harness-compile.out": {
+    "bytes": 4654,
+    "sha256": "ca2d697b29337301785dc58aa6426913761f04e58fc36b236a5cd2f4a970220e"
+  },
+  "toolchain.json": {
+    "bytes": 3741,
+    "sha256": "403af97441caf0e3ba19ab50bca90d7fe42206736f4c088cb9ce20707fad88fa"
+  },
+  "artifact.json": {
+    "bytes": 231,
+    "sha256": "f4bcecb11eb1e52d1e89df403b57aaa4fa40635744e52b993e83f71ce2caf9ab"
+  },
+  "worker-compile.out": {
+    "bytes": 361,
+    "sha256": "1d318a27dc48226b4084094238a6d1061d302571e15ed507fd8fd91f739e444e"
+  },
+  "process-results.json": {
+    "bytes": 1194,
+    "sha256": "1630b77a7c8c5714bf77ed188eb8abf0126bc74fa92a02a7a8fdafc8f8923d27"
+  },
+  "native-worker.exe": {
+    "bytes": 256512,
+    "sha256": "f6b7ae75cac35e7d06822d445096d8152da78cff5f2656e28e3e4e754cd256d5"
+  },
+  "worker-compile.err": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "system-worker-artifact.json": {
+    "bytes": 167,
+    "sha256": "216dedc3be808f3e2839a48d5ad8003ea1319e4dcf1df30ed9d03814df9a996b"
+  },
+  "pins.json": {
+    "bytes": 4181,
+    "sha256": "44f5889546f12926eaae681cbe3ea9d69b095e5af77a2f9b9ddeaa64be9da403"
+  },
+  "worker-harness.out": {
+    "bytes": 1534,
+    "sha256": "6e76273cb710af29bea57669aad74d3ab6c455c769653b6e4cbfefc9005ca24b"
+  },
+  "system-worker-compile.out": {
+    "bytes": 361,
+    "sha256": "1d318a27dc48226b4084094238a6d1061d302571e15ed507fd8fd91f739e444e"
+  },
+  "system-worker-compile.err": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "worker-harness.err": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "harness-compile.err": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "owned-entry.exe": {
+    "bytes": 247808,
+    "sha256": "7a78ea0becc8b01166e49e2b5b11fe6d55e855e6779ae574f176da7a168cfad7"
+  }
+}

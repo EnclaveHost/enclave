@@ -1,0 +1,105 @@
+{
+  "runtime": "abfc2aa76a7077f823a940153d3417b2667c0920",
+  "suppliedPins": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/ProviderStart.cs",
+    "windows/rpc/OwnedVmPermit.cs",
+    "windows/rpc/HostPhysicalPool.cs",
+    "windows/rpc/WindowsStartAdmission.cs",
+    "windows/rpc/LegacyTemplateFence.cs",
+    "windows/rpc/LegacyLaunchCohort.cs",
+    "windows/rpc/LegacyHandoff.cs",
+    "windows/rpc/NativeRpcDefinition.cs",
+    "windows/rpc/NativeRpcWmi.cs",
+    "windows/rpc/NativeRpcAuthority.cs",
+    "windows/rpc/NativeRpcWorkerEntry.cs",
+    "windows/rpc/NativeRpcController.cs",
+    "windows/rpc/NativeRpcManagerTransport.cs",
+    "test/rpc-windows-worker/NativeRpcDeviceHarness.cs"
+  ],
+  "compileClosuresForSuccessOnly": {
+    "harness": [
+      "windows/rpc/BoundedWorker.cs",
+      "windows/rpc/OwnerObserver.cs",
+      "windows/rpc/ProtectedAttempt.cs",
+      "windows/rpc/ProviderStart.cs",
+      "windows/rpc/OwnedVmPermit.cs",
+      "windows/rpc/HostPhysicalPool.cs",
+      "windows/rpc/WindowsStartAdmission.cs",
+      "windows/rpc/LegacyTemplateFence.cs",
+      "windows/rpc/LegacyLaunchCohort.cs",
+      "windows/rpc/LegacyHandoff.cs",
+      "windows/rpc/NativeRpcDefinition.cs",
+      "windows/rpc/NativeRpcWmi.cs",
+      "windows/rpc/NativeRpcAuthority.cs",
+      "test/rpc-windows-worker/NativeRpcDeviceHarness.cs"
+    ],
+    "controller": [
+      "windows/rpc/BoundedWorker.cs",
+      "windows/rpc/OwnerObserver.cs",
+      "windows/rpc/ProtectedAttempt.cs",
+      "windows/rpc/ProviderStart.cs",
+      "windows/rpc/OwnedVmPermit.cs",
+      "windows/rpc/HostPhysicalPool.cs",
+      "windows/rpc/WindowsStartAdmission.cs",
+      "windows/rpc/LegacyTemplateFence.cs",
+      "windows/rpc/LegacyLaunchCohort.cs",
+      "windows/rpc/LegacyHandoff.cs",
+      "windows/rpc/NativeRpcDefinition.cs",
+      "windows/rpc/NativeRpcAuthority.cs",
+      "windows/rpc/NativeRpcController.cs",
+      "windows/rpc/NativeRpcManagerTransport.cs"
+    ],
+    "worker": [
+      "windows/rpc/BoundedWorker.cs",
+      "windows/rpc/OwnerObserver.cs",
+      "windows/rpc/ProtectedAttempt.cs",
+      "windows/rpc/ProviderStart.cs",
+      "windows/rpc/OwnedVmPermit.cs",
+      "windows/rpc/HostPhysicalPool.cs",
+      "windows/rpc/WindowsStartAdmission.cs",
+      "windows/rpc/LegacyTemplateFence.cs",
+      "windows/rpc/LegacyLaunchCohort.cs",
+      "windows/rpc/LegacyHandoff.cs",
+      "windows/rpc/NativeRpcDefinition.cs",
+      "windows/rpc/NativeRpcWmi.cs",
+      "windows/rpc/NativeRpcAuthority.cs",
+      "windows/rpc/NativeRpcWorkerEntry.cs"
+    ]
+  },
+  "binaries": {
+    "system-worker.exe": {
+      "bytes": 233472,
+      "sha256": "96c9c52021bcd42bd6fc1b6c31502d769687914af1bef87f3474d79322c8cedd"
+    },
+    "native-worker.exe": {
+      "bytes": 256512,
+      "sha256": "f6b7ae75cac35e7d06822d445096d8152da78cff5f2656e28e3e4e754cd256d5"
+    },
+    "owned-entry.exe": {
+      "bytes": 247808,
+      "sha256": "7a78ea0becc8b01166e49e2b5b11fe6d55e855e6779ae574f176da7a168cfad7"
+    }
+  },
+  "tests": [
+    "original device observation binds all prior receipts and never permits start or release",
+    "fresh reordered observation is stable and performs no repeated mutations",
+    "default disconnected serial and non3D synthetic display are bounded",
+    "NIC network attachment passthrough GPU disk and unknown resources refuse",
+    "connected serial named pipe and debugger mode refuse",
+    "missing duplicate aliased or additional CPU memory optical fail",
+    "foreign media path type class and reference cannot pass matching resource count",
+    "local relative reference closure rejects namespace server alternate keys and overlong identity",
+    "host assignment on CPU and extra backing or connection on boot device refuse",
+    "four second freshness accepts boundary but rejects late rollback and original expiry",
+    "missing original security read grant optical or ownership refuses before inventory",
+    "changed otherwise allowed inventory refuses immutable original observation",
+    "lost observation write and altered proof cannot claim completion",
+    "provider loss and denied runtime cannot write device proof",
+    "actual protected original journal permits only one device observation in readonly reconciliation"
+  ],
+  "productionEntrypointsCompiledOnly": true,
+  "providerInventoryClockAdmissionMocked": true
+}

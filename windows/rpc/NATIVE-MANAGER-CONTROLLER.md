@@ -295,3 +295,13 @@ Schema references: [resource association](https://learn.microsoft.com/en-us/wind
 [resource settings and serial connection](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-resourceallocationsettingdata),
 [serial debugger](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-serialportsettingdata),
 [synthetic display](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-syntheticdisplaycontrollersettingdata).
+
+Device-policy qualification41335505712 passed15new cases:14mocked-provider/
+inventory/clock/admission cases and one actual administrator protected-journal
+case. Both production entrypoints compile; target SYSTEM/WMI/VM defaults remain
+unqualified. The controller is256512B under the unchanged262144B bound. R1test API
+compile failure and R2relative-path refusal are preserved; R3diagnostics confirm
+WMI supplies server `.` for a relative path. The policy validates the bounded
+literal grammar, not equality with parsed optional namespace/server fields.
+See `../../ops/unified-funding-20261028/rpc-native-device-ci-r3/ROOT-RESULT.md`.
+VM start and bootstrap/enrollment integration remain pending; production RPC OFFLINE.

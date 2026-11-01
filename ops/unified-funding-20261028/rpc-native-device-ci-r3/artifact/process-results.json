@@ -1,0 +1,46 @@
+[
+  {
+    "label": "harness-compile",
+    "pid": 936,
+    "exitCode": 0,
+    "elapsedMs": 5140,
+    "failure": null,
+    "processExited": true,
+    "maximumObservedWorkingSet": 124014592,
+    "cpuMs": 921.875,
+    "outputBytes": 4654
+  },
+  {
+    "label": "worker-harness",
+    "pid": 2168,
+    "exitCode": 0,
+    "elapsedMs": 332,
+    "failure": null,
+    "processExited": true,
+    "maximumObservedWorkingSet": 36900864,
+    "cpuMs": 203.125,
+    "outputBytes": 1534
+  },
+  {
+    "label": "worker-compile",
+    "pid": 6728,
+    "exitCode": 0,
+    "elapsedMs": 485,
+    "failure": null,
+    "processExited": true,
+    "maximumObservedWorkingSet": 120578048,
+    "cpuMs": 484.375,
+    "outputBytes": 361
+  },
+  {
+    "label": "system-worker-compile",
+    "pid": 2892,
+    "exitCode": 0,
+    "elapsedMs": 506,
+    "failure": null,
+    "processExited": true,
+    "maximumObservedWorkingSet": 115077120,
+    "cpuMs": 421.875,
+    "outputBytes": 361
+  }
+]

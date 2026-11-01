@@ -1,0 +1,47 @@
+{
+  "preserve-r1": {
+    "invocation": "56fcd0b0d7654681ba264615449086ca",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "journal": "2026-11-01T11:10:05-07:00 warden-host taskset[1100037]: [queue] START available=94617MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T11:10:09-07:00 warden-host taskset[1100037]: [queue] EXIT 0\n"
+  },
+  "ci-r1": {
+    "invocation": "e7674809d9d64b2aa2daa888772ce460",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "journal": "2026-11-01T11:10:20-07:00 warden-host taskset[1100387]: [queue] START available=94664MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T11:10:22-07:00 warden-host taskset[1100387]: [queue] EXIT 0\n"
+  },
+  "collect-r1": {
+    "invocation": "8546c6bea8494fa1bb1b07a8a08b20f3",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "journal": "2026-11-01T11:11:16-07:00 warden-host taskset[1101226]: [queue] START available=94645MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T11:11:18-07:00 warden-host taskset[1101226]: [queue] EXIT 0\n"
+  },
+  "preserve-r2": {
+    "invocation": "d6166c76663a425abf7872bc01b02fcb",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "journal": "2026-11-01T11:11:39-07:00 warden-host taskset[1101518]: [queue] START available=94644MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T11:11:42-07:00 warden-host taskset[1101518]: [queue] EXIT 0\n"
+  },
+  "ci-r2": {
+    "invocation": "89c0a71da7a6443e86cd41fa3afdcb0a",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "journal": "2026-11-01T11:11:49-07:00 warden-host taskset[1101831]: [queue] START available=94647MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T11:11:51-07:00 warden-host taskset[1101831]: [queue] EXIT 0\n"
+  },
+  "collect-r2": {
+    "invocation": "8ec0d9a85956475db4cdb7b33ad95f09",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "journal": "2026-11-01T11:12:31-07:00 warden-host taskset[1102380]: [queue] START available=94611MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T11:12:33-07:00 warden-host taskset[1102380]: [queue] EXIT 0\n"
+  },
+  "preserve-r3": {
+    "invocation": "d5a3ca3f4b834a8aa51977221c3fad4d",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "journal": "2026-11-01T11:13:22-07:00 warden-host taskset[1103061]: [queue] START available=94603MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T11:13:28-07:00 warden-host taskset[1103061]: [queue] EXIT 0\n"
+  },
+  "ci-r3": {
+    "invocation": "a0a6bddf8bc84ddf848084dd3f007161",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "journal": "2026-11-01T11:13:37-07:00 warden-host taskset[1103387]: [queue] START available=94604MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T11:13:39-07:00 warden-host taskset[1103387]: [queue] EXIT 0\n"
+  },
+  "collect-r3": {
+    "invocation": "605be466d23947abb1f0f4bfdff1aaa2",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+    "journal": "2026-11-01T11:14:14-07:00 warden-host taskset[1103934]: [queue] START available=94578MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T11:14:17-07:00 warden-host taskset[1103934]: [queue] EXIT 0\n"
+  }
+}

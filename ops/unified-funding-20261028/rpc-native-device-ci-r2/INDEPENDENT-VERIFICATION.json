@@ -1,0 +1,81 @@
+{
+  "runtime": "5490daf1e531e62baf1e68a6d08fbf28d2140b92",
+  "suppliedPins": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/ProviderStart.cs",
+    "windows/rpc/OwnedVmPermit.cs",
+    "windows/rpc/HostPhysicalPool.cs",
+    "windows/rpc/WindowsStartAdmission.cs",
+    "windows/rpc/LegacyTemplateFence.cs",
+    "windows/rpc/LegacyLaunchCohort.cs",
+    "windows/rpc/LegacyHandoff.cs",
+    "windows/rpc/NativeRpcDefinition.cs",
+    "windows/rpc/NativeRpcWmi.cs",
+    "windows/rpc/NativeRpcAuthority.cs",
+    "windows/rpc/NativeRpcWorkerEntry.cs",
+    "windows/rpc/NativeRpcController.cs",
+    "windows/rpc/NativeRpcManagerTransport.cs",
+    "test/rpc-windows-worker/NativeRpcDeviceHarness.cs"
+  ],
+  "compileClosuresForSuccessOnly": {
+    "harness": [
+      "windows/rpc/BoundedWorker.cs",
+      "windows/rpc/OwnerObserver.cs",
+      "windows/rpc/ProtectedAttempt.cs",
+      "windows/rpc/ProviderStart.cs",
+      "windows/rpc/OwnedVmPermit.cs",
+      "windows/rpc/HostPhysicalPool.cs",
+      "windows/rpc/WindowsStartAdmission.cs",
+      "windows/rpc/LegacyTemplateFence.cs",
+      "windows/rpc/LegacyLaunchCohort.cs",
+      "windows/rpc/LegacyHandoff.cs",
+      "windows/rpc/NativeRpcDefinition.cs",
+      "windows/rpc/NativeRpcWmi.cs",
+      "windows/rpc/NativeRpcAuthority.cs",
+      "test/rpc-windows-worker/NativeRpcDeviceHarness.cs"
+    ],
+    "controller": [
+      "windows/rpc/BoundedWorker.cs",
+      "windows/rpc/OwnerObserver.cs",
+      "windows/rpc/ProtectedAttempt.cs",
+      "windows/rpc/ProviderStart.cs",
+      "windows/rpc/OwnedVmPermit.cs",
+      "windows/rpc/HostPhysicalPool.cs",
+      "windows/rpc/WindowsStartAdmission.cs",
+      "windows/rpc/LegacyTemplateFence.cs",
+      "windows/rpc/LegacyLaunchCohort.cs",
+      "windows/rpc/LegacyHandoff.cs",
+      "windows/rpc/NativeRpcDefinition.cs",
+      "windows/rpc/NativeRpcAuthority.cs",
+      "windows/rpc/NativeRpcController.cs",
+      "windows/rpc/NativeRpcManagerTransport.cs"
+    ],
+    "worker": [
+      "windows/rpc/BoundedWorker.cs",
+      "windows/rpc/OwnerObserver.cs",
+      "windows/rpc/ProtectedAttempt.cs",
+      "windows/rpc/ProviderStart.cs",
+      "windows/rpc/OwnedVmPermit.cs",
+      "windows/rpc/HostPhysicalPool.cs",
+      "windows/rpc/WindowsStartAdmission.cs",
+      "windows/rpc/LegacyTemplateFence.cs",
+      "windows/rpc/LegacyLaunchCohort.cs",
+      "windows/rpc/LegacyHandoff.cs",
+      "windows/rpc/NativeRpcDefinition.cs",
+      "windows/rpc/NativeRpcWmi.cs",
+      "windows/rpc/NativeRpcAuthority.cs",
+      "windows/rpc/NativeRpcWorkerEntry.cs"
+    ]
+  },
+  "binaries": {
+    "owned-entry.exe": {
+      "bytes": 247296,
+      "sha256": "72710d90ac48e8fbb12ebf6b621fe0b3a52d3246027d7b602024a7cf52a4f7bb"
+    }
+  },
+  "tests": [],
+  "productionEntrypointsCompiledOnly": false,
+  "providerInventoryClockAdmissionMocked": true
+}
