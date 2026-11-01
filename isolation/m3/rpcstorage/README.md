@@ -181,3 +181,57 @@ There is still no grant/release method or complete broker executable. The monito
 compatibility build is not an installed broker. Signature and transport success
 do not establish volume ownership, settlement, persistent adoption, kernel
 attachment, sync/finality, or a working RPC app.
+
+
+### Storage-owner signing actor
+
+`cmd/rpc-storage-owner` is now the finite owner-side consent producer. It reads
+exactly one bounded canonical JSON request (`bundle` and `manifest` base64 bytes,
+plus the existing `request`), independently calls `bootstrap.Reader.Authorize`,
+and invokes `OwnerIssuer`. The owner selects chain/quorum/runtime policy and
+both volume keys; neither guest pathnames nor an Enclave signing key are used.
+The runtime policy identifies the runtime the owner is willing to authorize;
+it is **not remote attestation of the requester**.
+
+The dedicated root service must supply fixed inherited descriptors:
+
+| FD | Owner-provisioned capability |
+| --- | --- |
+| 3 | Private canonical `enclave-rpc-storage-owner/1` policy |
+| 4 | The authoritative persistent ext4 writer journal, shared by all writers |
+| 5, 6 | Private 32-byte Ed25519 seeds for L1 and Base |
+| 7 | Exact protected prepared export contract |
+| 8 | Original protected startup clock pinned by that contract |
+
+Policy fields are `schema`, `runtime`, `l1Volume`, `baseVolume`, `chainId`,
+`ledger`, `rpcs`, `confirmations`, `maxAgeSeconds`, and `export` (the existing
+signed transport binding). JSON keys are sorted, complete and canonical. Input
+files must be held root-owned single-link 0600 regular files opened read-only.
+The actor compares the request hash, client certificate pin and endpoint to the
+actual contract, and verifies its original same-owner-boot wall/monotonic clock.
+It never compares a remote guest's monotonic origin to Warden's clock.
+
+The actor requires a dedicated kernel cgroup capped at 128 MiB, no swap, CPU1
+and at most 32 tasks. Its service manager must independently enforce a 20-second
+actor limit and the original owner deadline. The supplemental process timer is
+not a death certificate for a blocked kernel operation. This service envelope,
+FD/credential provisioning and the complete CLI have **not been qualified or
+installed on Warden**. Do not run it as an unbounded shell helper.
+
+`OwnerIssuer` verifies local public keys against both actual owner-committed
+storage authorities before journal changes. It generates distinct random writer
+epochs, records both volume identities with the exact signed payload hashes via
+O_EXCL/fsync/readback, then signs and verifies schema2 consent. It separately
+persists the full response before stdout. All failure/partial/lost-response
+records remain held, even after process restart. There is no repeat, restore,
+release, or response-replay API. The retained records contain public consent,
+never signing seeds. Signing material is cleared after the one-shot operation.
+
+This implements reservation/consent production, not the complete cross-host
+storage service: authoritative journal provisioning, authenticated dispatcher,
+remote attestation/client-key provisioning, startup of the exact guarded export,
+independent service supervision and eventual writer settlement remain required.
+A local guest journal cannot substitute for the owner journal. The new actor
+starts no export and returns no root FD or readiness claim. Existing legacy
+bootstrap authorization and its finite freshness cutoff remain; event-driven
+serving authorization/persistent adoption are still unfinished.

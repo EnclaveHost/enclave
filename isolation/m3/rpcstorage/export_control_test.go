@@ -38,6 +38,10 @@ func (f fixtureRoundTrip) RoundTrip(r *http.Request) (*http.Response, error) { r
 // Real Reader.Authorize and signatures, with explicitly mocked quorum replies.
 // No private authorization fields are constructed by these transport tests.
 func exportAuthorization(t *testing.T, request Request, binding *bootstrap.RPCExportBinding) (*bootstrap.Authorization, []byte) {
+	auth, proof, _ := exportAuthorizationKeys(t, request, binding)
+	return auth, proof
+}
+func exportAuthorizationKeys(t *testing.T, request Request, binding *bootstrap.RPCExportBinding) (*bootstrap.Authorization, []byte, [2]ed25519.PrivateKey) {
 	t.Helper()
 	raw, e := os.ReadFile("../../m2/bootstrap/testdata/vectors.json")
 	if e != nil {
@@ -133,7 +137,7 @@ func exportAuthorization(t *testing.T, request Request, binding *bootstrap.RPCEx
 	proof.L1 = bootstrap.RPCStorageSignature{WriterEpoch: l, Signature: hex.EncodeToString(ed25519.Sign(keys[0], payloads[0]))}
 	proof.Base = bootstrap.RPCStorageSignature{WriterEpoch: b, Signature: hex.EncodeToString(ed25519.Sign(keys[1], payloads[1]))}
 	encoded, _ := json.Marshal(proof)
-	return auth, encoded
+	return auth, encoded, keys
 }
 
 func persistentFixture(t *testing.T) *os.File {

@@ -1,0 +1,1 @@
+{"phases": [{"phase": "owner", "exit": 0}, {"phase": "build", "exit": 0}], "elapsed": 1.0091795569751412, "sourcePins": 570, "pinsUnchanged": true, "artifacts": {"rpc-storage-owner": {"bytes": 10832745, "sha256": "54c27ed758faadf319833b490976e873bb2595f63651919d8bfa05db86cfa4b0"}}, "deployed": false}

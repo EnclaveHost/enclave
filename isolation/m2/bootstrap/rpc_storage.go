@@ -161,6 +161,16 @@ func (a *Authorization) rpcStorageScope(bundle []byte, r contract.RPCStorageRequ
 	return nil
 }
 
+// RPCStorageAuthorities returns only the authorities selected by the current
+// owner commitment, after checking the exact bundle and request scope. Storage
+// services use it to reject an unrelated local key BEFORE consuming a writer.
+func (a *Authorization) RPCStorageAuthorities(bundle []byte, r contract.RPCStorageRequest) ([2]RPCStorageAuthority, error) {
+	if err := a.rpcStorageScope(bundle, r); err != nil {
+		return [2]RPCStorageAuthority{}, err
+	}
+	return [2]RPCStorageAuthority{a.manifest.RPCStorage.L1, a.manifest.RPCStorage.Base}, nil
+}
+
 // RPCStorageSigningPayloads supplies exact, domain-separated bytes to an
 // independent storage owner. It does not sign, consume or grant. The caller must
 // transport the challenge over an authenticated channel and check actual kernel

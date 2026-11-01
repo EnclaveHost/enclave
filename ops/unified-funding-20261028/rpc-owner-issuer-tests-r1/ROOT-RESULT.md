@@ -1,0 +1,1 @@
+R1 completed0/14PASS/buildPASS, but later source review found CLI actor cap reset during preparation. Historical R1 binary must not be used. See ../rpc-owner-issuer-tests-r2/ROOT-RESULT.md for final fixed source, new qualification and exact limitations.
