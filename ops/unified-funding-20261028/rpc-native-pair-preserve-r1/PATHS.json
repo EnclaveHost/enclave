@@ -1,0 +1,19 @@
+[
+  "windows/rpc/NATIVE-MANAGER-CONTROLLER.md",
+  "windows/rpc/NativeRpcAuthority.cs",
+  "windows/rpc/NativeRpcCleanup.cs",
+  "windows/rpc/NativeRpcLifecycle.cs",
+  "windows/rpc/NativeRpcLifecycleEntry.cs",
+  "windows/rpc/NativeRpcLifecycleWatch.cs",
+  "windows/rpc/NativeRpcStartAuthority.cs",
+  "windows/rpc/NativeRpcWorkerEntry.cs",
+  "windows/rpc/OwnedVmPermit.cs",
+  "windows/rpc/ProtectedAttempt.cs",
+  "windows/rpc/README.md",
+  "windows/rpc/WindowsStartAdmission.cs",
+  ".github/workflows/rpc-native-pair.yml",
+  "test/rpc-windows-worker/NativeRpcPairHarness.cs",
+  "test/rpc-windows-worker/run-native-pair-ci.ps1",
+  "ops/unified-funding-20261028/rpc-native-pair-preserve-r1",
+  "ops/unified-funding-20261028/rpc-native-pair-ci-r1"
+]

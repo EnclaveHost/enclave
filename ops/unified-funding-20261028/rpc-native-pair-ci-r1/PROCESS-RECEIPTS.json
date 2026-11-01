@@ -1,0 +1,14 @@
+{
+  "preserve-r1": {
+    "invocation": "f53e7d8efd38448083b9d0aff2cf2469",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n"
+  },
+  "ci-r1": {
+    "invocation": "bf6180b65344445387bc72056b32b8ac",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n"
+  },
+  "collect-r1": {
+    "invocation": "f62973b4c1e44e9c93d4d3e6ca171478",
+    "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n"
+  }
+}
