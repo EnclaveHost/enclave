@@ -1,0 +1,13 @@
+{
+  "requiredFreeBytes": 84385202176,
+  "observedFreeBytes": 84368392192,
+  "deficitBytes": 16809984,
+  "readInvocation": "12d4765e7dd246f1954aa1d7c45c344a",
+  "readSucceeded": true,
+  "readerPid": 51948,
+  "readerCreation": "134379714624948487",
+  "targetStageCreated": false,
+  "targetExecuted": false,
+  "remoteReaderDeathProven": false,
+  "noUnchangedPoll": true
+}

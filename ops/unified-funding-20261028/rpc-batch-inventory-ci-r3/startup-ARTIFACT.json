@@ -1,0 +1,20 @@
+{
+  "id": 13065224072,
+  "node_id": "MDg6QXJ0aWZhY3QxMzA2NTIyNDA3Mg==",
+  "name": "rpc-startup-controller-results",
+  "size_in_bytes": 284117,
+  "url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13065224072",
+  "archive_download_url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13065224072/zip",
+  "expired": false,
+  "digest": "sha256:8b27a6bfddee0cf5290e76bd8bef09623c07ac5c1f6dc2a0c090e4cae64bb4c1",
+  "created_at": "2026-11-01T01:50:09Z",
+  "updated_at": "2026-11-01T01:50:09Z",
+  "expires_at": "2026-11-08T01:50:08Z",
+  "workflow_run": {
+    "id": 41262679457,
+    "repository_id": 1428203917,
+    "head_repository_id": 1428203917,
+    "head_branch": "main",
+    "head_sha": "b4fb16cce21311f5d0bdc25d008515ef469cbd24"
+  }
+}
