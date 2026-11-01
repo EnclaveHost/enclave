@@ -339,13 +339,13 @@ namespace Enclave.OwnedRpc {
                 if((accessLease.Operation=="define"||accessLease.Operation=="boot")&&(BoundedWorker.MonotonicMilliseconds()<Origin||BoundedWorker.MonotonicMilliseconds()>=Deadline))throw new InvalidOperationException("Original definition time expired");
             } else if(LeaseProfile=="native-lifecycle-journal") {
                 bool backup=accessLease!=null&&accessLease.Operation=="watch-backup";
-                if(name!=(backup?"native-lifecycle.backup-armed":"native-lifecycle.armed")&&name!=(backup?"native-lifecycle.backup-bound":"native-lifecycle.bound")&&name!="native-lifecycle.stop"&&name!="native-lifecycle.result"&&(backup||name!="native-start.workers"))throw new InvalidOperationException("Lifecycle role cannot write peer authority or provider operations");
+                if(name!=(backup?"native-lifecycle.backup-armed":"native-lifecycle.armed")&&name!=(backup?"native-lifecycle.backup-bound":"native-lifecycle.bound")&&name!=(backup?"native-lifecycle.backup-dispatch":"native-lifecycle.dispatch")&&name!="native-lifecycle.result"&&(backup||name!="native-start.workers"))throw new InvalidOperationException("Lifecycle role cannot write peer authority or provider operations");
             } else if(LeaseProfile=="native-start-journal") {
                 if(BoundedWorker.MonotonicMilliseconds()>=Deadline||accessLease==null||accessLease.Operation!="start")throw new InvalidOperationException("Original native start window expired");
                 if(name!="native-device.observed"&&name!="native-start.intent"&&name!="native-start.submit"&&name!="native-start.invoke"&&name!="native-start.receipt"&&name!="native-start.job"&&name!="native-start.terminal"&&name!="native-start.observed"&&name!="native-start.registration")throw new InvalidOperationException("Start cannot alter prior configuration or lifecycle authority");
             } else if(LeaseProfile=="native-cleanup-journal") {
                 bool observed=name=="native-start.job"||name=="native-start.terminal"||name=="native-stop.job"||name=="native-stop.terminal"||name=="native-stop.observed";
-                bool submit=accessLease!=null&&accessLease.Operation=="stop"&&(name=="native-stop.intent"||name=="native-stop.submit"||name=="native-stop.invoke"||name=="native-stop.receipt");
+                bool submit=accessLease!=null&&accessLease.Operation=="stop"&&(name=="native-lifecycle.stop"||name=="native-stop.intent"||name=="native-stop.submit"||name=="native-stop.invoke"||name=="native-stop.receipt");
                 if(accessLease==null||(!observed&&!submit))throw new InvalidOperationException("Cleanup cannot authorize start or alter original definition");
             } else if(LeaseProfile=="native-definition-journal") {
                 if(accessLease==null||!NativeDefinitionRecordAllowed(name,accessLease.Operation=="reconcile"))throw new InvalidOperationException("Native reader cannot submit or acknowledge definition");
@@ -371,17 +371,25 @@ namespace Enclave.OwnedRpc {
             var security=new FileSecurity();security.SetOwner(new SecurityIdentifier(recordOwner));security.SetAccessRuleProtection(true,false);
             security.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(SystemSid),FileSystemRights.FullControl,AccessControlType.Allow));
             security.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(AdminSid),FileSystemRights.FullControl,AccessControlType.Allow));
-            var stream=new FileStream(Path.Combine(Root,name+".pending"),FileMode.CreateNew,FileSystemRights.ReadData|FileSystemRights.WriteData|FileSystemRights.ReadPermissions,
+            // The cross-process cleanup claim uses one consumed file. A losing
+            // contender must not create a second .pending after a winner has
+            // renamed its claim, nor pin the winner's pending before rename.
+            // A partial direct claim remains consumed/held; only its writer may
+            // proceed after Flush(true), close and exact incarnation readback.
+            bool directClaim=LeaseProfile=="native-cleanup-journal"&&name=="native-lifecycle.stop";
+            if(directClaim&&ReadOptionalOnce(name+".pending")!=null)throw new InvalidOperationException("Historical torn cleanup claim held");
+            string consumed=Path.Combine(Root,name+(directClaim?"":".pending"));
+            var stream=new FileStream(consumed,FileMode.CreateNew,FileSystemRights.ReadData|FileSystemRights.WriteData|FileSystemRights.ReadPermissions,
                 FileShare.Read,4096,FileOptions.WriteThrough,security);
             FileInfo before;
             using(stream) {
-                Authority(stream.SafeFileHandle,true,false,Path.Combine(Root,name+".pending"));
+                Authority(stream.SafeFileHandle,true,false,consumed);
                 if(!GetFileInformationByHandle(stream.SafeFileHandle,out before))throw new Win32Exception(Marshal.GetLastWin32Error());
                 stream.Write(bytes,0,bytes.Length);stream.Flush(true);
             }
             // Publish only after durable close, without replacing an existing message.
             // A leftover pending file consumes this attempt and forbids a retry.
-            File.Move(Path.Combine(Root,name+".pending"),Path.Combine(Root,name));
+            if(!directClaim)File.Move(consumed,Path.Combine(Root,name));
             var pinned=HoldRead(Path.Combine(Root,name),4096);FileInfo after;
             if(!GetFileInformationByHandle(pinned.SafeFileHandle,out after) || before.Volume!=after.Volume ||
                 before.IndexHigh!=after.IndexHigh || before.IndexLow!=after.IndexLow || Hash(Bytes(pinned,4096))!=Hash(bytes))

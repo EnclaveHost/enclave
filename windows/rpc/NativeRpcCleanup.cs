@@ -7,6 +7,28 @@ using System.IO;
 using System.Management;
 using System.Text;
 namespace Enclave.OwnedRpc {
+ // Only an already running, separately supervised cleanup child can consume
+ // the common claim. Keeper-local dispatch records never reserve provider work.
+#if !NATIVE_RPC_START_CONTROLLER
+ internal static class NativeCleanupClaim {
+  internal static string Record(NativeRpcDefinitionPlan p,ProtectedAttempt lease,string workers,string identity){
+   if(p==null||lease==null||lease.LeaseProfile!="native-cleanup"||lease.Operation!="stop"||lease.PermitHash!=p.Digest||lease.PermitPath!=Path.Combine(p.Root,"native-definition-plan.txt"))throw new ArgumentException("Original cleanup child lease required");
+   lease.CheckDeadline();StartIdentity.Hex(workers,64);if(workers==new string('0',64))throw new ArgumentException("Original dead worker group required");
+   string[] f=identity.Split(',');uint pid;long creation;
+   if(f.Length!=4||!UInt32.TryParse(f[0],NumberStyles.None,CultureInfo.InvariantCulture,out pid)||pid==0||!Int64.TryParse(f[1],NumberStyles.None,CultureInfo.InvariantCulture,out creation)||creation<=0||f[2]!=lease.Token||f[3]!="child")throw new ArgumentException("Exact cleanup child identity required");
+   return StartRecords.Encode(new Dictionary<string,object>{{"schema","native-rpc-cleanup-claim/1"},{"plan",p.Digest},{"workers",workers},{"contract",Path.Combine(lease.Root,"contract.txt")},{"hash",lease.ContractHash},{"child",identity}});
+  }
+  internal static bool Try(IStartJournal journal,string claim){
+   if(journal==null||String.IsNullOrEmpty(claim))throw new ArgumentException("Original cleanup claim required");
+   if(journal.Read("native-lifecycle.stop")!=null)return false;
+   try{journal.WriteOnce("native-lifecycle.stop",claim);return true;}
+   catch(IOException){return false;} // competing or uncertain CreateNew: no retry
+  }
+  internal static void Require(IStartJournal journal,string claim){
+   if(String.IsNullOrEmpty(claim)||journal.Read("native-lifecycle.stop")!=claim)throw new InvalidOperationException("Exact independently owned cleanup claim required");
+  }
+ }
+#endif
  public sealed partial class ProtectedAttempt {
   public static ProtectedAttempt OpenNativeCleanupJournal(string path,string hash,ProtectedAttempt reader){RequireSystem();return new ProtectedAttempt(path,hash,reader,false,1);}
   public static ProtectedAttempt PinNativeCleanupJournalController(string path,string hash,ProtectedAttempt reader){RequireAdministrator();return new ProtectedAttempt(path,hash,reader,true,1);}
@@ -37,7 +59,7 @@ namespace Enclave.OwnedRpc {
  public sealed class NativeRpcCleanupJournal:IStartJournal {
   readonly ProtectedAttempt pin;
   public NativeRpcCleanupJournal(ProtectedAttempt pin){if(pin==null||pin.NativeDefinitionPlan==null||(pin.LeaseProfile!="native-cleanup-journal"&&pin.LeaseProfile!="native-start-journal"&&pin.LeaseProfile!="native-lifecycle-journal"))throw new ArgumentException("Protected native cleanup journal required");this.pin=pin;pin.CheckDeadline();}
-  static bool StartName(string n){return n=="native-start.intent"||n=="native-start.submit"||n=="native-start.invoke"||n=="native-start.receipt"||n=="native-start.job"||n=="native-start.terminal"||n=="native-start.observed"||n=="native-start.workers"||n=="native-start.registration"||n=="native-lifecycle.armed"||n=="native-lifecycle.bound"||n=="native-lifecycle.backup-armed"||n=="native-lifecycle.backup-bound"||n=="native-lifecycle.stop"||n=="native-lifecycle.result";}
+  static bool StartName(string n){return n=="native-start.intent"||n=="native-start.submit"||n=="native-start.invoke"||n=="native-start.receipt"||n=="native-start.job"||n=="native-start.terminal"||n=="native-start.observed"||n=="native-start.workers"||n=="native-start.registration"||n=="native-lifecycle.armed"||n=="native-lifecycle.bound"||n=="native-lifecycle.backup-armed"||n=="native-lifecycle.backup-bound"||n=="native-lifecycle.stop"||n=="native-lifecycle.result"||n=="native-lifecycle.dispatch"||n=="native-lifecycle.backup-dispatch";}
   static bool StopName(string n){return n=="native-stop.intent"||n=="native-stop.submit"||n=="native-stop.invoke"||n=="native-stop.receipt"||n=="native-stop.job"||n=="native-stop.terminal"||n=="native-stop.observed";}
   static void Name(string n){if(!StartName(n)&&!StopName(n)&&!ProtectedAttempt.NativeDefinitionRecordAllowed(n,false))throw new ArgumentException("Fixed cleanup record required");}
   public string Read(string n){Name(n);pin.CheckDeadline();if(pin.ReadOptionalOnce(n+".pending")!=null)throw new InvalidOperationException("Torn original record held");return pin.ReadOptionalOnce(n);}

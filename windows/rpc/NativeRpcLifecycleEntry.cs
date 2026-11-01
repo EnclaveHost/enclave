@@ -44,8 +44,12 @@ namespace Enclave.OwnedRpc {
    if(group==null){pin.WriteOnce("native-lifecycle.result","no-bound-start-group;held;reservation-release=false");return null;}
    string nonce=Guid.NewGuid().ToString("N"),root=Path.Combine(lifecycle.Root,nonce),image=Path.Combine(root,"entry.exe"),contract=Path.Combine(root,"contract.txt");
    string claim=StartRecords.Encode(new Dictionary<string,object>{{"plan",p.Digest},{"root",root},{"origin",now},{"deadline",end},{"reason",reason},{"workers",NativeRpcDefinitionPlan.Hash(group.Record)}});
-   if(!NativeLifecycleClaim.Try(new NativeRpcCleanupJournal(pin),claim))return null;
-   // Only the durable winner may stop the exact original peers or schedule.
+   // Each keeper has one local dispatch intent. Neither can consume the
+   // common provider claim before independent cleanup children are running.
+   pin.WriteOnce(lifecycle.Operation=="watch-backup"?"native-lifecycle.backup-dispatch":"native-lifecycle.dispatch",claim);
+   // Both may stop the same preheld exact group. No new cleanup processes are
+   // created until those originals are observed dead; admission budgets two
+   // concurrent cleanup groups. Child-side exclusive claim chooses one submitter.
    group.StopAndObserve(Math.Min(end,now+3000));check();
    using(var files=new NativeControllerFiles(check)){
     files.NewDirectory(root);files.Publish(image,worker);string raw=String.Join("\n",new[]{"owned-native-rpc-cleanup-worker-v1",nonce,p.Boot,now.ToString(CultureInfo.InvariantCulture),end.ToString(CultureInfo.InvariantCulture),p.WorkerImageHash,"stop",Path.Combine(p.Root,"native-definition-plan.txt"),p.Digest,""});string hash=NativeRpcDefinitionPlan.Hash(raw);files.Publish(contract,Encoding.UTF8.GetBytes(raw));

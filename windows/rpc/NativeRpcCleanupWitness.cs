@@ -41,14 +41,20 @@ namespace Enclave.OwnedRpc {
   public void Dispose(){if(disposed)return;disposed=true;foreach(var h in handles)h.Dispose();}
  }
  internal sealed class NativeRpcCleanupRuntime:INativeRpcCleanupRuntime {
-  readonly ProtectedAttempt lease,pin;readonly NativeRpcStartGroup group;readonly Action guard;
+  readonly ProtectedAttempt lease,pin;readonly NativeRpcStartGroup group;readonly Action guard;string claim;
   internal NativeRpcCleanupRuntime(ProtectedAttempt lease,ProtectedAttempt pin,NativeRpcStartGroup group,Action guard){
    if(lease==null||pin==null||group==null||guard==null||lease.LeaseProfile!="native-cleanup"||pin.LeaseProfile!="native-cleanup-journal"||lease.PermitHash!=pin.ContractHash)throw new ArgumentException("Supervised original cleanup runtime required");this.lease=lease;this.pin=pin;this.group=group;this.guard=guard;
+  }
+  internal bool ClaimStop(){
+   Check(pin.NativeDefinitionPlan,false);
+   using(var self=System.Diagnostics.Process.GetCurrentProcess())claim=NativeCleanupClaim.Record(pin.NativeDefinitionPlan,lease,group.RequireDead(),self.Id+","+self.StartTime.ToUniversalTime().ToFileTimeUtc()+","+lease.Token+",child");
+   return NativeCleanupClaim.Try(new NativeRpcCleanupJournal(pin),claim);
   }
   public long Now{get{return BoundedWorker.MonotonicMilliseconds();}}
   public void Check(NativeRpcDefinitionPlan p,bool mutation){
    ProtectedAttempt.RequireSystem();guard();lease.CheckDeadline();pin.CheckDeadline();
    if(p==null||p.Encode()!=pin.NativeDefinitionPlan.Encode()||p.Boot!=ProtectedAttempt.CurrentBoot()||p.Origin>Now||p.Deadline>Int64.MaxValue-30000||Now>=p.Deadline+30000||(mutation&&lease.Operation!="stop"))throw new InvalidOperationException("Original cleanup authority/window differs");
+   if(mutation)NativeCleanupClaim.Require(new NativeRpcCleanupJournal(pin),claim);
    group.RequireDead();guard();lease.CheckDeadline();
   }
   public string RequireStartWorkersDead(NativeRpcDefinitionPlan p){Check(p,false);return group.RequireDead();}

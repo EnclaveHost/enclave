@@ -18,7 +18,7 @@ internal sealed partial class WindowsStartAdmission {
     // Whole stack + prospective apps + real host floor + variation + extra
     // transient startup overhead including 192 MiB for the original independent cleanup keeper. Existing VM allocations are already in free.
     internal const long Required=20*GiB+39388*MiB+18*GiB+GiB+512*MiB+192*MiB;
-    internal const long NativeRequired=Required+192*MiB; // second native keeper:128MiB job+64MiB startup allowance
+    internal const long NativeRequired=Required+192*MiB+512*MiB; // second keeper plus a second concurrently supervised cleanup group; original workers die before either group launches
     readonly ProtectedAttempt vm;readonly string admissionHash;readonly long began;readonly LegacyHandoff.Completion completed;readonly bool freshInventory;readonly Func<object[],string> nativeAuthority;
     readonly JavaScriptSerializer Json=new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32};
     WindowsStartAdmission(ProtectedAttempt vm,string admissionHash,LegacyHandoff.Completion completed,bool freshInventory=false,Func<object[],string> nativeAuthority=null){this.nativeAuthority=nativeAuthority;this.vm=vm;this.admissionHash=admissionHash;this.completed=completed;this.freshInventory=freshInventory;began=BoundedWorker.MonotonicMilliseconds();}

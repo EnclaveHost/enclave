@@ -173,7 +173,9 @@ namespace Enclave.OwnedRpc {
                             using(var group=new NativeRpcStartGroup(plan,CleanupHandles(a,"cleanup.child-handles"))){
                                 var journal=new NativeRpcCleanupJournal(plan);var runtime=new NativeRpcCleanupRuntime(a,plan,group,check);
                                 var provider=new HyperVNativeRpcDefinition(runtime,journal);var p=plan.NativeDefinitionPlan;
-                                string receipt=a.Operation=="stop"?NativeRpcCleanup.Submit(p,journal,provider,runtime):NativeRpcCleanup.Reconcile(p,journal,provider,runtime);
+                                // Claim inside the already-running cleanup child, after both
+                                // independent owner/observer and original-death custody exist.
+                                string receipt=a.Operation=="stop"?(runtime.ClaimStop()?NativeRpcCleanup.Submit(p,journal,provider,runtime):null):NativeRpcCleanup.Reconcile(p,journal,provider,runtime);
                                 check();a.WriteOnce("child.result",StartRecords.Encode(new Dictionary<string,object>{{"schema","native-rpc-cleanup-worker-result/1"},{"plan",p.Digest},{"state",receipt==null?"held":"original-off-zero-observed"},{"receipt",receipt??""},{"providerOperationFenced",false},{"reservationMayRelease",false}}));
                                 return receipt==null?2:0;
                             }
