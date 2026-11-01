@@ -35,8 +35,10 @@ func (c *ExportControl) RequestSHA256() string    { return c.requestSHA }
 func (c *ExportControl) ContractSHA256() string   { return c.contractSHA }
 
 // ConnectExportControl consumes one possible connection before dialing. BOTH
-// storage authorities must have signed its endpoint/certificate/contract binding
-// and both persistent records must already exist. Caller-supplied certificate
+// storage authorities must have signed its endpoint/certificate/contract binding.
+// The local-owner path persists both records directly; the remote-owner path
+// verifies OwnerIssuer's proof, produced after its authoritative persistence.
+// Caller-supplied certificate
 // bytes are checked against that authorization; they cannot select a target.
 // The accepted bootstrap supplies the private client key. The same storage-owner
 // authoritative journal remains required; a guest-local directory is not a
@@ -48,17 +50,17 @@ func (s *BrokerSession) ConnectExportControl(serverDER []byte, client tls.Certif
 		return nil, errors.New("export control already consumed")
 	}
 	s.exportUsed = true
-	intent, reserved := s.intent, s.reserved
+	consent, reserved := s.consent, s.reserved
 	s.mu.Unlock()
 	defer func() {
 		if err != nil {
 			s.lose()
 		}
 	}()
-	if !reserved || intent == nil || intent.consent == nil || len(intent.records) != 2 {
-		return nil, errors.New("authenticated complete persistent reservation required")
+	if !reserved || consent == nil {
+		return nil, errors.New("authenticated storage-owner reservation proof required")
 	}
-	binding, err := intent.consent.ExportBinding(s.request)
+	binding, err := consent.ExportBinding(s.request)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +79,7 @@ func (s *BrokerSession) ConnectExportControl(serverDER []byte, client tls.Certif
 		return nil, errors.New("server certificate differs from both signed authorities")
 	}
 	// Clone mutable certificate bytes. The private key is an accepted-bootstrap
-	// capability; its implementation also remains inside the required OS bounds.
+// capability; its implementation also remains inside the required OS bounds.
 	cert := tls.Certificate{PrivateKey: client.PrivateKey}
 	for _, raw := range client.Certificate {
 		if len(raw) == 0 || len(raw) > 16384 {

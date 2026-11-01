@@ -1,8 +1,9 @@
 # RPC storage authority handoff
 
 This package implements the monitor client and authenticated broker acquisition
-components, over fixed root-controlled Unix sequenced packets. The broker daemon
-and accepted bootstrap are not implemented or installed yet. No live storage
+components, over fixed root-controlled Unix sequenced packets, plus a one-shot
+control broker command. Complete attachment/grant and accepted bootstrap are
+not implemented or installed yet. No live storage
 authority is established by these tests. Absence refuses launch; there is no
 host-path, UUID-only, permission-boolean or direct-VM fallback.
 
@@ -18,7 +19,7 @@ The peer must not be an arbitrary host-injected root service.
 Before connecting, the monitor exclusively writes/fsyncs and read-verifies a
 0400 intent in the protected tmpfs authority directory, retains a read-only
 handle and never unlinks it. A monitor restart cannot repeat that boot attempt;
-the broker still needs a durable cross-boot writer journal.
+the storage owner still needs its authoritative durable cross-boot writer journal.
 
 The monitor sends one canonical JSON request, no retry, with a newly random
 attempt nonce, actual AppID/deployment/profile/two logical-volume IDs, kernel
@@ -171,14 +172,15 @@ standard certificate name validation, altered acknowledgements, extra bytes,
 and an unanswered acknowledgement bounded by the original 800 ms remaining
 window. No production keys, volumes or provider operations were involved.
 
-**The storage-owner service, credential provisioning and accepted bootstrap are
-still missing.** In particular, Warden must own its authoritative writer journal
+**Production storage-owner provisioning, credential delivery and accepted
+bootstrap are still missing.** Maintained owner actors now exist below; their
+disposable qualification is not production provisioning. In particular, Warden must own its authoritative writer journal
 and back its signed epochs with actual COW/export state. A journal in the NucBox
 guest is not that authority, and this local-record API must not be deployed as a
 substitute for the remote owner's persistence and fencing. The cross-host service
 must integrate that ownership boundary before any writable descriptor grant.
-There is still no grant/release method or complete broker executable. The monitor
-compatibility build is not an installed broker. Signature and transport success
+There is still no grant/release method or complete serving broker. The control
+broker command described below is not installed or accepted bootstrap. Signature and transport success
 do not establish volume ownership, settlement, persistent adoption, kernel
 attachment, sync/finality, or a working RPC app.
 
@@ -267,3 +269,31 @@ corresponding keys before consent; tests use controlled chain replies. Writable
 root grants, existing writer settlement, accepted guest bootstrap and persistent
 serving remain required. See the owner dispatcher documentation for exact state
 format, service bounds, partial-failure behavior and qualification limits.
+
+## Remote-owner proof and one-shot broker command
+
+`AuthenticateRemoteReservation` keeps the authoritative volume journal on the
+storage owner's machine. It independently verifies the OwnerIssuer's signed
+schema2 proof against the guest's real bootstrap authorization and original
+clock, then retains a root-owned tmpfs audit receipt before allowing export
+control. This receipt is explicitly not global writer exclusivity or settlement.
+The older `AuthenticateAndReserve` remains the same-host owner-journal path;
+a guest must not use it with a fresh local persistent directory as a substitute
+for the remote owner. Both paths now publish the same verified consent object
+for `ConnectExportControl`.
+
+`ExchangeOwner` consumes and fsyncs one guest `owner-submit` intent before sending
+a bounded public request over the accepted bootstrap's Unix stream relay. The
+relay is untrusted transport: signatures and actual Reader authorization supply
+authority. A four-byte big-endian length frame supports real app bundles larger
+than Unix sequenced-packet limits. Unexpected rights, ambiguous output, EOF,
+monitor loss and the unchanged original deadline close the gate without retry.
+No keys cross this relay. The owner dispatcher independently bounds its own work.
+
+The concrete [rpc-storage-broker command](../cmd/rpc-storage-broker/README.md)
+composes ingress, owner authorization, one-shot relay, remote proof verification
+and export control under fixed inherited capabilities. It emits a control-bound
+receipt and watches loss, but never sends the monitor writable descriptors.
+Accepted bootstrap/relay provisioning, the independent guardian, attachment and
+writer-settlement integration remain missing. No complete serving broker or
+production deployment is claimed by this source.

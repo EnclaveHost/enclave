@@ -392,7 +392,7 @@ func TestExportControlRejectsBeforeDialAndConsumesFailure(t *testing.T) {
 			if e == nil {
 				t.Fatal("unapproved transport accepted")
 			}
-			want := map[string]string{"unauthenticated": "reservation required", "legacy": "historical consent", "server-bytes": "server certificate differs", "client-bytes": "client certificate differs"}[mode]
+			want := map[string]string{"unauthenticated": "storage-owner reservation proof required", "legacy": "historical consent", "server-bytes": "server certificate differs", "client-bytes": "client certificate differs"}[mode]
 			if !strings.Contains(e.Error(), want) {
 				t.Fatal("wrong refusal", e)
 			}
@@ -529,4 +529,119 @@ func TestExportControlTLSNameAcknowledgementAndOriginalDeadline(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRemoteProofControlClosesActualGuardianOnMonitorDeath(t *testing.T) {
+	f, e := brokerFixtureStart(t, "valid", 0)
+	if e != nil {
+		t.Fatal(e)
+	}
+	root, server, client := testCredentials(t)
+	listener, e := net.Listen("tcp", "127.0.0.1:0")
+	if e != nil {
+		t.Fatal(e)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	listener.Close()
+	binding := bindFixture(port, server, client)
+	auth, proof, owner := remoteIssuer(t, f.session, binding)
+	guest := guestReceipts(t)
+	if e = f.session.AuthenticateRemoteReservation(auth, rpcBundle(t), proof, guest); e != nil {
+		t.Fatal(e)
+	}
+	if f.session.intent != nil {
+		t.Fatal("local writer journal substituted")
+	}
+	defer func() {
+		for _, v := range []string{f.session.request.L1Volume, f.session.request.BaseVolume} {
+			if _, e := os.Stat(filepath.Join(owner.Name(), v)); e != nil {
+				t.Error("owner reservation lost", e)
+			}
+		}
+	}()
+	request, _ := json.Marshal(f.session.Request())
+	config := map[string]any{"control": map[string]any{"schema": "enclave-rpc-export-control/1", "host": binding.Host, "port": binding.Port, "tls": root, "clientCertificateSha256": binding.ClientCertificateSHA256, "requestSha256": sumHex(request)}, "contract": binding.ContractSHA256, "deadline": float64(f.session.request.Origin)/1e9 + 5}
+	raw, _ := json.Marshal(config)
+	os.WriteFile(filepath.Join(root, "actor.json"), raw, 0600)
+	actorPath := os.Getenv("RPC_CONTROL_ACTOR")
+	if actorPath == "" {
+		t.Fatal("pinned maintained actor path required")
+	}
+	actor := exec.Command("/usr/bin/python3", "-B", actorPath, root)
+	var output bytes.Buffer
+	actor.Stdout = &output
+	actor.Stderr = &output
+	if e = actor.Start(); e != nil {
+		t.Fatal(e)
+	}
+	t.Cleanup(func() { actor.Process.Kill(); actor.Wait() })
+	awaitFile(t, filepath.Join(root, "listening"))
+	control, e := f.session.ConnectExportControl(server, client)
+	if e != nil {
+		t.Fatal(e, output.String())
+	}
+	if control.RequestSHA256() != sumHex(request) || control.ContractSHA256() != binding.ContractSHA256 {
+		t.Fatal("wrong acknowledgement")
+	}
+	var rows []struct {
+		PID   int
+		Start string
+	}
+	if e = json.Unmarshal(awaitFile(t, filepath.Join(root, "workers.json")), &rows); e != nil || len(rows) != 2 {
+		t.Fatal(e)
+	}
+	var held []brokerPoll
+	for _, row := range rows {
+		fd, _, eno := syscall.Syscall(434, uintptr(row.PID), 0, 0)
+		if eno != 0 {
+			t.Fatal(eno)
+		}
+		defer syscall.Close(int(fd))
+		stat, e := os.ReadFile(fmt.Sprintf("/proc/%d/stat", row.PID))
+		if e != nil {
+			t.Fatal(e)
+		}
+		fields := strings.Fields(string(stat)[strings.LastIndex(string(stat), ")")+2:])
+		if fields[19] != row.Start {
+			t.Fatal("worker reused")
+		}
+		held = append(held, brokerPoll{int32(fd), 1, 0})
+	}
+	if event, e := pollBroker(held, 0); e != nil || event {
+		t.Fatal("worker dead before loss", e)
+	}
+	start := time.Now()
+	if e = f.process.Process.Kill(); e != nil {
+		t.Fatal(e)
+	}
+	select {
+	case <-control.Context().Done():
+	case <-time.After(time.Second):
+		t.Fatal("monitor loss not propagated")
+	}
+	if e = actor.Wait(); e != nil {
+		t.Fatal(e, output.String())
+	}
+	for _, row := range held {
+		if event, e := pollBroker([]brokerPoll{row}, 0); e != nil || !event {
+			t.Fatal("held worker survives", e)
+		}
+	}
+	if time.Since(start) > 1500*time.Millisecond {
+		t.Fatal("control loss failed bounded death")
+	}
+	var result map[string]any
+	json.Unmarshal(awaitFile(t, filepath.Join(root, "result.json")), &result)
+	if result["reason"] != "app-control-lost" || result["released"] != true || result["ready"] != false || result["writersFenced"] != false {
+		t.Fatal(result)
+	}
+	if _, e = f.session.ConnectExportControl(server, client); e == nil || !strings.Contains(e.Error(), "consumed") {
+		t.Fatal("reconnect permitted", e)
+	}
+	for _, volume := range []string{f.session.request.L1Volume, f.session.request.BaseVolume} {
+		if _, e = os.Stat(filepath.Join(owner.Name(), volume)); e != nil {
+			t.Fatal("intent released")
+		}
+	}
+	t.Logf("actual remote-owner proof/guest receipt/TLS -> Python guard: exact two worker pidfds dead in %s", time.Since(start))
 }

@@ -1,0 +1,10 @@
+{
+  "testPassEvents": 63,
+  "testFailEvents": [
+    "TestExportControlRejectsBeforeDialAndConsumesFailure/unauthenticated",
+    "TestExportControlRejectsBeforeDialAndConsumesFailure"
+  ],
+  "skips": [
+    "TestBrokerOwnerHelper"
+  ]
+}

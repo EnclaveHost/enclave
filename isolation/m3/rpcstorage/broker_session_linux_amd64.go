@@ -45,6 +45,8 @@ type BrokerSession struct {
 	consumed             bool
 	reserved, exportUsed bool
 	intent               *BrokerIntent
+	consent              *bootstrap.RPCStorageConsent
+	remoteReceipt        *os.File
 	exportRaw            net.Conn
 	authorizationUntil   time.Time
 	once                 sync.Once
@@ -361,6 +363,7 @@ func (s *BrokerSession) AuthenticateAndReserve(a *bootstrap.Authorization, bundl
 		return intent, errors.New("monitor lost before reservation publication")
 	}
 	s.reserved = true
+	s.consent = intent.consent
 	// Anchor the immutable wall-time authorization bound to this process's
 	// monotonic clock once; a later wall-clock rollback cannot extend it.
 	now := time.Now()
