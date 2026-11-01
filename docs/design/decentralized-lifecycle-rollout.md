@@ -343,7 +343,7 @@ journal provenance instead of importing the older cleanup-write exception. Pendi
 transactions are neither settled nor retried by service close or cold reopening.
 
 Final qualification: 66 actual tests plus the five-check native journal fixture,
-with 35 frozen source pins unchanged. Thirteen new cases use real Linux files/flock,
+with 35 frozen source pins unchanged. Fourteen new cases use real Linux files/flock,
 EIP-712 signatures and two externally observed child deaths; manager, chain, health
 and remote boundary behavior are inert test adapters. R1 63 and R2 65 checks passed
 before additional review found staged/pending-start authority gaps, fixed in R3.
