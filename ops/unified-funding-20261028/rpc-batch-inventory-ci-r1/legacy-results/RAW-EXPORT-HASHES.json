@@ -1,0 +1,46 @@
+[
+  {
+    "path": "compile-controller.out",
+    "sha256": "b93f53b25e654b42795791c58cac9da9b95b82fd353b49859d16eee02f2fc063"
+  },
+  {
+    "path": "compile.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "process-results.json",
+    "sha256": "d50e9de2f4492910e64b4aa371676324d9fb389d329e3dc0b80d291299bde1ed"
+  },
+  {
+    "path": "compile.out",
+    "sha256": "b93f53b25e654b42795791c58cac9da9b95b82fd353b49859d16eee02f2fc063"
+  },
+  {
+    "path": "pins.json",
+    "sha256": "3a73dab54d8b5cc0ad3026e712e21dd88540506ad0f817fc7f30eb8b881a4f2b"
+  },
+  {
+    "path": "handoff.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "compile-controller.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "controller-artifact.json",
+    "sha256": "524894ae701dfd8c0c7bdd48315b5383cb7cd5af4a14cc0da13ab9a1df0d966f"
+  },
+  {
+    "path": "handoff.out",
+    "sha256": "285c32bd574aa09907861c4483c11f83bde639fedcd1ab9a5f587b674b4de8de"
+  },
+  {
+    "path": "compile-entry.out",
+    "sha256": "b93f53b25e654b42795791c58cac9da9b95b82fd353b49859d16eee02f2fc063"
+  },
+  {
+    "path": "compile-entry.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+]

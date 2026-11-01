@@ -1,0 +1,1 @@
+Initial local verification stopped before writing VERIFIED/admission or any target request: legacy suite output is handoff.out, not inert.out. Inspected actual artifact inventory and process receipts; corrected local verifier filename. No compilation rerun.

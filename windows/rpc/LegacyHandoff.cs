@@ -173,7 +173,7 @@ namespace Enclave.OwnedRpc {
    var groups=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);var covered=new HashSet<string>();
    foreach(var row in settings){Guid id;if(!Guid.TryParseExact(Str(row["VirtualSystemIdentifier"]),"D",out id)||!expected.Contains(id.ToString("D"))||!covered.Add(id.ToString("D")))throw new InvalidOperationException("Realized VM inventory differs");
     groups.Add(InventoryPath(row["__PATH"],"Msvm_VirtualSystemSettingData"),id.ToString("D"));}
-   if(covered.Count!=expected.Count)throw new InvalidOperationException("Incomplete all-VM inventory");
+   if(covered.Count!=expected.Count)throw new InvalidOperationException("Incomplete all-VM inventory: systems="+expected.Count+" settings="+covered.Count);
    var records=new Dictionary<string,Dictionary<string,object>>(StringComparer.OrdinalIgnoreCase);
    foreach(var row in memory)records.Add(InventoryPath(row["__PATH"],"Msvm_MemorySettingData"),row);
    var used=new HashSet<string>(StringComparer.OrdinalIgnoreCase);var result=new SortedDictionary<string,MemoryRecord>(StringComparer.Ordinal);
@@ -187,7 +187,7 @@ namespace Enclave.OwnedRpc {
   SortedDictionary<string,MemoryRecord> Inventory(){
    const string ns=@"root\virtualization\v2";
    var systems=Query(ns,"SELECT Name FROM Msvm_ComputerSystem WHERE Caption='Virtual Machine'",new[]{"Name"},32);
-   var settings=Query(ns,"SELECT __PATH,VirtualSystemIdentifier FROM Msvm_VirtualSystemSettingData WHERE VirtualSystemType='Microsoft:Hyper-V:System:Realized'",new[]{"__PATH","VirtualSystemIdentifier"},32);
+   var settings=Query(ns,"SELECT * FROM Msvm_VirtualSystemSettingData WHERE VirtualSystemType='Microsoft:Hyper-V:System:Realized'",new[]{"__PATH","VirtualSystemIdentifier"},32);
    var links=Query(ns,"SELECT GroupComponent,PartComponent FROM Msvm_VirtualSystemSettingDataComponent",new[]{"GroupComponent","PartComponent"},2048);
    var fields=new List<string>(MemoryFields);fields.Add("__PATH");
    var memory=Query(ns,"SELECT "+String.Join(",",fields)+" FROM Msvm_MemorySettingData",fields.ToArray(),256);

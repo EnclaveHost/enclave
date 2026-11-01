@@ -1,0 +1,20 @@
+{
+  "id": 13065308812,
+  "node_id": "MDg6QXJ0aWZhY3QxMzA2NTMwODgxMg==",
+  "name": "rpc-legacy-handoff-results",
+  "size_in_bytes": 314170,
+  "url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13065308812",
+  "archive_download_url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13065308812/zip",
+  "expired": false,
+  "digest": "sha256:f83a074ab1cef16ffef60cb315fdcc88323214c71552e511fdb15eb8908eb666",
+  "created_at": "2026-11-01T01:42:52Z",
+  "updated_at": "2026-11-01T01:42:52Z",
+  "expires_at": "2026-11-08T01:42:51Z",
+  "workflow_run": {
+    "id": 41262197018,
+    "repository_id": 1428203917,
+    "head_repository_id": 1428203917,
+    "head_branch": "main",
+    "head_sha": "71ddd0909f46c366eef63673d374d4c9e62b753a"
+  }
+}

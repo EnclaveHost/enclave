@@ -1,0 +1,1 @@
+Fresh complete admission, original4manager identities, exact compiled260608B pair159PASS, unchanged physical/pending/floors and private observation/source lineage. New exclusive protected namespace. Fixed read-only30s operation, no provider mutation/clock reset.

@@ -1,0 +1,61 @@
+{
+  "worker": "e52b4cf7253342d9b0fdb5a5988a3216",
+  "readSha256": "1108f967e70b8ced761ec73c31f76eb16783383e81c4156a1fec985e8c9c2549",
+  "failure": {
+    "type": "System.InvalidOperationException",
+    "message": "Incomplete all-VM inventory"
+  },
+  "exactDeaths": [
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379710847382152",
+      "pid": "36408",
+      "absent": true,
+      "role": "owner"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379710847382178",
+      "pid": "43336",
+      "absent": true,
+      "role": "observer"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379710849011491",
+      "pid": "31636",
+      "absent": true,
+      "role": "child"
+    }
+  ],
+  "priorStageDeaths": [
+    {
+      "label": "admission",
+      "expectedCreation": "134379710406737617",
+      "pid": 46152,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "create",
+      "expectedCreation": "134379710647777545",
+      "pid": 47232,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "verify",
+      "expectedCreation": "134379710733040348",
+      "pid": 55612,
+      "sameIncarnationAlive": false,
+      "absent": true
+    }
+  ],
+  "original8091Alive": true,
+  "originalVmsUnchanged": true,
+  "thirdPlanJournalsByteEqual": true,
+  "ready": false,
+  "wmiPreparationTraces": 0,
+  "providerSettled": false,
+  "rpcReady": false
+}
