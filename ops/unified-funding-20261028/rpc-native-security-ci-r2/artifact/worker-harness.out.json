@@ -1,0 +1,4 @@
+{
+  "sha256": "8037ecc33d4cfe269acf23e26b128f322421d95492228a3bd03112c7e112652d",
+  "text": "PASS actual protected security namespace permits only exact one-shot records\r\nPASS actual reconcile lease refuses all security submissions and acknowledgments\r\nPASS actual torn security response is held even when empty\r\nTOTAL 3 PASS; provider mocked; protected administrator journal; no SYSTEM/VM/start/RPC\r\n"
+}

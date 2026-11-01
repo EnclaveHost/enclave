@@ -120,3 +120,13 @@ profile. The historical CLI composition result above predates this source change
 
 Provider reference: [Microsoft security service](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-securityservice)
 and [security settings](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-securitysettingdata).
+
+Security qualification now has18distinct new checks:15mocked-provider transaction
+cases passed in run41329154635 before an oversized fixture blocked the protected
+file cases. Run41329387293 compiled a smaller required fixture closure and ran
+only those3remaining administrator namespace cases, allPASS. Production
+controller245248B SHA901f9df5ba12db1614b15895b3430a6ce1ca97d39cb6a8d90bc6c3734c96047c
+was compiled, not executed; sourcepins and both R2executable hashes verified.
+No SYSTEM/WMI/VM/TPM execution or production boot was established. Failure details
+and unchanged bounds are in
+`../../ops/unified-funding-20261028/rpc-native-security-ci-r2/ROOT-RESULT.md`.

@@ -1,0 +1,23 @@
+{
+  "runtime": "6538e900b915a33a47931330984039bd13c17cdc",
+  "compiledSourcePins": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/ProviderStart.cs",
+    "windows/rpc/OwnedVmPermit.cs",
+    "windows/rpc/HostPhysicalPool.cs",
+    "windows/rpc/WindowsStartAdmission.cs",
+    "windows/rpc/LegacyTemplateFence.cs",
+    "windows/rpc/LegacyLaunchCohort.cs",
+    "windows/rpc/LegacyHandoff.cs",
+    "windows/rpc/NativeRpcDefinition.cs",
+    "windows/rpc/NativeRpcAuthority.cs",
+    "windows/rpc/NativeRpcWorkerEntry.cs",
+    "windows/rpc/NativeRpcController.cs",
+    "windows/rpc/NativeRpcManagerTransport.cs",
+    "test/rpc-windows-worker/NativeRpcSecurityHarness.cs"
+  ],
+  "passedBeforeFailure": 15,
+  "executableNotCollected": true
+}

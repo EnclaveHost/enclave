@@ -1392,3 +1392,13 @@ configuration after its original owned-Off definition. The controller requires
 the protected security receipt before accepting its result. This candidate has
 not configured a target VM; media/device setup and start remain absent. See
 [NATIVE-MANAGER-CONTROLLER.md](NATIVE-MANAGER-CONTROLLER.md#original-guest-security-stage).
+
+Security qualification now has18distinct new checks:15mocked-provider transaction
+cases passed in run41329154635 before an oversized fixture blocked the protected
+file cases. Run41329387293 compiled a smaller required fixture closure and ran
+only those3remaining administrator namespace cases, allPASS. Production
+controller245248B SHA901f9df5ba12db1614b15895b3430a6ce1ca97d39cb6a8d90bc6c3734c96047c
+was compiled, not executed; sourcepins and both R2executable hashes verified.
+No SYSTEM/WMI/VM/TPM execution or production boot was established. Failure details
+and unchanged bounds are in
+`../../ops/unified-funding-20261028/rpc-native-security-ci-r2/ROOT-RESULT.md`.
