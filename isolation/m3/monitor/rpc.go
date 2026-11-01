@@ -11,6 +11,7 @@ import (
 
 	"enclave.host/isolation/contract"
 	"enclave.host/isolation/m2/vsock"
+	"enclave.host/isolation/m3/rpcbootstrap"
 	"enclave.host/isolation/m3/rpcdomain"
 	"enclave.host/isolation/m3/rpcservice"
 	"enclave.host/isolation/m3/rpcstorage"
@@ -19,11 +20,12 @@ import (
 // A dedicated RPC monitor retains its single attempt for its entire lifetime.
 // No legacy unmount, RemoveAll, retry or reservation-release code may see it.
 type rpcDomain struct {
-	storage  *rpcstorage.Attempt
-	prepared *rpcdomain.Prepared
-	launch   *rpcdomain.Launch
-	kill     *os.File
-	stop     sync.Once
+	bootstrap *rpcbootstrap.Identity
+	storage   *rpcstorage.Attempt
+	prepared  *rpcdomain.Prepared
+	launch    *rpcdomain.Launch
+	kill      *os.File
+	stop      sync.Once
 }
 
 func (m *monitor) initRPCGuest() error {
@@ -78,8 +80,35 @@ func (m *monitor) loadRPC(br *bufio.Reader, req request) (*domain, error) {
 	}
 	m.rpcAttempt = d // permanent, including any failed/ambiguous broker response
 	m.mu.Unlock()
-	fail := func(err error) (*domain, error) { m.abandon(d, "RPC load failed; storage retained"); return nil, err }
-	d.rpc.storage, err = rpcstorage.Acquire(app, origin)
+	fail := func(err error) (*domain, error) {
+		if d.rpc.bootstrap != nil {
+			d.rpc.bootstrap.Close()
+		}
+		m.abandon(d, "RPC load failed; storage retained")
+		return nil, err
+	}
+	request, err := rpcstorage.NewRequest(app, origin)
+	if err != nil {
+		return fail(err)
+	}
+	runtime, err := rpcservice.InstalledRuntime()
+	if err != nil {
+		return fail(err)
+	}
+	identity, err := rpcbootstrap.New(request, runtime)
+	if err != nil {
+		return fail(err)
+	}
+	m.mu.Lock()
+	d.rpc.bootstrap = identity
+	m.mu.Unlock()
+	// The loaded app is now available for a bootstrap-purpose challenge. Its
+	// credential is generated here, not accepted from the host. Wait is covered
+	// by PID1's original deadline; no mount or app child exists yet.
+	if err = identity.Wait(); err != nil {
+		return fail(err)
+	}
+	d.rpc.storage, err = rpcstorage.AcquireRequest(app, request)
 	if err != nil {
 		return fail(err)
 	}
@@ -117,6 +146,9 @@ func (m *monitor) loadRPC(br *bufio.Reader, req request) (*domain, error) {
 	return d, nil // process launched, NOT chain readiness, serving adoption or ledger Running
 }
 func (d *domain) releaseRPC() {
+	if d.rpc.bootstrap != nil {
+		d.rpc.bootstrap.Close()
+	}
 	if d.ln != nil {
 		_ = d.ln.Close()
 	}

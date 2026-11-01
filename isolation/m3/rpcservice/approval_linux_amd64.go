@@ -154,3 +154,23 @@ func readApproval(ctx context.Context, r *os.File, expected []byte) error {
 		}
 	}
 }
+
+// InstalledRuntime reads the fixed immutable measured runtime identity, never a
+// value selected by the host control channel or a bootstrap report document.
+func InstalledRuntime() (contract.RuntimeIdentity, error) {
+	var rt contract.RuntimeIdentity
+	raw, err := immutableFile("/plat/rt/runtime.json", 16384)
+	if err != nil {
+		return rt, err
+	}
+	d := json.NewDecoder(bytes.NewReader(raw))
+	d.DisallowUnknownFields()
+	if err = d.Decode(&rt); err != nil {
+		return rt, err
+	}
+	var trailing any
+	if d.Decode(&trailing) != io.EOF {
+		return rt, errors.New("trailing installed runtime")
+	}
+	return rt, rt.Validate()
+}

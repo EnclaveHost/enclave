@@ -1,0 +1,5 @@
+{
+  "originalFile": "owner-verify.jsonl",
+  "sha256": "806c2b0e54b061a470f4dd6c2c78a95b7c425df53c2dce7a97828e43f1e0474f",
+  "utf8": "TAP version 13\n# Subtest: complete synthetic TPM chain verifies the guest bootstrap purpose only\nok 1 - complete synthetic TPM chain verifies the guest bootstrap purpose only\n  ---\n  duration_ms: 19.288706\n  type: 'test'\n  ...\n# Subtest: request, TLS key, certificate and challenge substitution are refused\nok 2 - request, TLS key, certificate and challenge substitution are refused\n  ---\n  duration_ms: 16.719864\n  type: 'test'\n  ...\n# Subtest: requires exact owner-selected image, profile, runtime and signer pair\nok 3 - requires exact owner-selected image, profile, runtime and signer pair\n  ---\n  duration_ms: 17.264871\n  type: 'test'\n  ...\n# Subtest: ordinary app reports, foreign boot signatures and debug boot do not bootstrap storage\nok 4 - ordinary app reports, foreign boot signatures and debug boot do not bootstrap storage\n  ---\n  duration_ms: 31.506082\n  type: 'test'\n  ...\n1..4\n# tests 4\n# suites 0\n# pass 4\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 421.581185\n"
+}

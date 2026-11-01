@@ -1,0 +1,6 @@
+{
+  "relay/vbs-runtime.mjs": {
+    "link": "../isolation/contract/runtime.mjs",
+    "targetContentSha256": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69"
+  }
+}

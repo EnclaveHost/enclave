@@ -357,13 +357,15 @@ func newMonitor(snp bool, plat, root string, basePort uint32, baseUID int) *moni
 // load; it cannot choose what the monitor then says the app is.
 
 type request struct {
-	Cmd    string `json:"cmd"`
-	Label  string `json:"label"`
-	Name   string `json:"name"` // optional: the deployment name a certificate may be issued for (see domain.Name)
-	Size   int    `json:"size"`
-	CPU    int    `json:"cpu"`
-	MemMiB int    `json:"mem"`
-	ID     int    `json:"id"`
+	Challenge     string `json:"challenge"`
+	RequestSHA256 string `json:"requestSha256"`
+	Cmd           string `json:"cmd"`
+	Label         string `json:"label"`
+	Name          string `json:"name"` // optional: the deployment name a certificate may be issued for (see domain.Name)
+	Size          int    `json:"size"`
+	CPU           int    `json:"cpu"`
+	MemMiB        int    `json:"mem"`
+	ID            int    `json:"id"`
 	// Boot: stop and destroy must carry the "boot" of the domain's load answer; see monitor.boot.
 	Boot string `json:"boot"`
 	// Probe runs the measured adversary probe (/plat/domprobe) as this domain's workload instead of the
@@ -397,6 +399,13 @@ func (m *monitor) serveControl(c net.Conn) {
 				return // the stream position is no longer known: this connection is finished
 			}
 			enc.Encode(d)
+		case "rpc-bootstrap-info", "rpc-bootstrap-attest", "rpc-bootstrap-acquire":
+			out, err := m.rpcBootstrap(req)
+			if err != nil {
+				enc.Encode(map[string]string{"error": err.Error()})
+			} else {
+				enc.Encode(out)
+			}
 		case "list":
 			enc.Encode(map[string]any{"domains": m.snapshot(), "boot": m.boot})
 		case "state":

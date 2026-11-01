@@ -1,0 +1,5 @@
+{
+  "originalFile": "PROCESS.txt",
+  "sha256": "8d0364553b9fdc84dbf60fe6f1754a623cece479e04f7b28fee119c1a909c2c7",
+  "utf8": "ActiveState=active\nInvocationID=4d6e90f79ada41949aff154a9006e678\nRuntimeMaxUSec=2min 30s\nMainPID=858865\nCPUQuotaPerSecUSec=1s\nMemoryMax=536870912\nMemorySwapMax=0\n"
+}

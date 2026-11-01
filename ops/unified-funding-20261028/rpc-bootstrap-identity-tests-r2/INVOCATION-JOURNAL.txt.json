@@ -1,0 +1,5 @@
+{
+  "originalFile": "INVOCATION-JOURNAL.txt",
+  "sha256": "b3d8693576304d94755702b0c65462c8064b2251af3e7e462e76c7927cdc8670",
+  "utf8": "[queue] START available=94599MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB\n[queue] EXIT 1\n"
+}

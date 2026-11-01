@@ -337,3 +337,11 @@ readiness pipe, and the former FD11 receipt-directory input is removed. This is
 an undeployed protocol change to be composed with the accepted bootstrap, not a
 compatible change for an existing running peer. See the command README for the
 exact signal and required bootstrap behavior.
+
+The monitor's bootstrap path now creates its request before acquisition and
+attests that exact nonce/request with a guest-generated credential. `AcquireRequest`
+rechecks every loaded bundle identity, actual boot and original window before
+touching the protected broker namespace. `Acquire` remains a convenience wrapper
+that creates its own request; the dedicated monitor uses the pre-attested request.
+Bootstrap evidence and owner verification are described in
+`../rpcbootstrap/README.md`; neither bypasses owner authorization or grants roots.

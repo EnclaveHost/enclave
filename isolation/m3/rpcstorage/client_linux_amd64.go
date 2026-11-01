@@ -86,6 +86,28 @@ func Acquire(bundle []byte, origin uint64) (*Attempt, error) {
 	if err != nil {
 		return nil, err
 	}
+	return AcquireRequest(bundle, req)
+}
+
+// AcquireRequest preserves the monitor's already-attested request and nonce.
+// It rechecks bundle identity and the actual boot; no caller-supplied pathname.
+func AcquireRequest(bundle []byte, req Request) (*Attempt, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
+	man, _, err := contract.ParseRPC(bundle)
+	if err != nil {
+		return nil, err
+	}
+	sum := contract.AppID(bundle)
+	boot, err := os.ReadFile("/proc/sys/kernel/random/boot_id")
+	if err != nil {
+		return nil, err
+	}
+	now, err := rpcservice.MonotonicNow()
+	if err != nil || now < req.Origin || now >= req.Deadline || req.Boot != strings.TrimSpace(string(boot)) || req.AppID != hex.EncodeToString(sum[:]) || req.Deployment != man.SecretDeployment || req.Profile != man.RPC.ProfileSha256 || req.L1Volume != man.RPC.L1VolumeID || req.BaseVolume != man.RPC.BaseVolumeID {
+		return nil, errors.New("prepared storage request differs from loaded bundle, boot or original window")
+	}
 	if err = protectedSocket(); err != nil {
 		return nil, err
 	}

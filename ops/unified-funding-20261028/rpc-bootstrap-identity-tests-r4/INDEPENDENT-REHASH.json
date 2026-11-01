@@ -1,0 +1,14 @@
+{
+  "monitor-ordinary": {
+    "sha256": "7862e5a34deaae0f315a624892cc0f63a1c294c2bdc9f3426c01e0f4bf3f559c",
+    "bytes": 8465759
+  },
+  "monitor-rpc": {
+    "sha256": "73ae387d67d96588d5e88c1aa8b12cad51d7b6ecba525e70dd2d2af3ed99c99b",
+    "bytes": 8955928
+  },
+  "bootstrap-vector.json": {
+    "sha256": "b8d62be6a445c9ab4598af27eaf63b000c6a85642f1a8a065d90cf9c2dfcb715",
+    "bytes": 1739
+  }
+}

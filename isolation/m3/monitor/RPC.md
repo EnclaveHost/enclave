@@ -60,3 +60,18 @@ The complete serving storage broker, accepted bootstrap/profile2,
 network and DNS provisioning, role filters, Base coverage input, full attestation,
 readiness-to-persistent-serving adoption and real Enclave app deployment remain
 necessary. This build is not a production default or a manual VM replacement.
+
+## Bootstrap identity before storage
+
+`rpcbootstrap` now creates a guest-held client key for the loaded bundle and the
+exact request that `AcquireRequest` later sends. The monitor exposes public info,
+one purpose-separated guest TPM challenge, and a one-shot acquisition signal on
+its existing control channel; see `../rpcbootstrap/README.md`. The original PID1
+cutoff covers waiting and blocked TPM work. No host-provided key or launcher report
+is accepted. A report or acquisition signal is not a storage authorization.
+
+The coordinator must launch the actual bounded broker with that held credential,
+wait for its listening record, authenticate to the storage owner and wire the
+owner relay. That launch/credential handoff and cross-host service are still
+unimplemented; the current broker continues to require its fixed input FDs and
+grants no roots. Target boot and full serving attestation remain unqualified.

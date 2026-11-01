@@ -1,0 +1,1 @@
+Retained failed qualification. Exact process and RESULT.json are authoritative. See rpc-bootstrap-identity-tests-r4/ROOT-RESULT.md for complete findings and corrected follow-up. Never rerun this invocation.
