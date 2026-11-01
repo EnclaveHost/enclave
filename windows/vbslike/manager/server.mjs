@@ -18,6 +18,8 @@
      absent rather than null-shaped or "pending". Nothing here produces a report.
    ============================================================ */
 import http from "node:http";
+import { RPC_DERIVATION, deriveRPC } from "./rpc-derive.mjs";
+import { captureRPCController, rpcSpawnSnapshot, captureRPCAttempt, freezeRPC } from "./rpc-admission.mjs";
 import { appMemoryForShare } from "./memory-share.mjs";
 import { cpuForShare, cpuFixedPolicy, validCpuPool, CPU_UNITS_PER_VCPU } from "./cpu-share.mjs";
 import { validateDesktopAdmission, desktopSpawnRefusal } from "./desktop-admission.mjs";
@@ -79,6 +81,9 @@ export function refuseUnsupported(req = {}, s = SUPPORTS) {
 
 export class Manager {
   #desktop = null;
+  #rpc = null;
+  #rpcAttempts = new WeakMap();
+  #rpcStopConsumed = new WeakSet();
   #spawnSequence = 0n;
   #allocationRevision = 0n;
   #spawnRequests = new Map();
@@ -92,7 +97,7 @@ export class Manager {
   constructor({ backend = new HyperVPartitionBackend(), fetchComponent = null, runtimeId = "",
                 runtime = null, shield = null, configEnabled = false, secretsEnabled = false, configSocketServer = false, protectedPorts = false, encVolumes = false, wasmSet = false, memory64 = false, fetchConfig = null, judgeReady = null, readyDeadlineMs = 120_000, answerCheck = null,
                 modelVolumes = null,
-                egress = null, ramPoolMiB = null, cpuPoolVcpus = null, cpuPoolSource = "NODE_VCPUS", physicalRamPoolMiB = null, physicalReservations = null, desktopMemoryProfile = null, directBootstrap = false, custodyV2 = null, images = null, desktopWorker = null, instanceNamespace = null } = {}) {
+                egress = null, ramPoolMiB = null, cpuPoolVcpus = null, cpuPoolSource = "NODE_VCPUS", physicalRamPoolMiB = null, physicalReservations = null, desktopMemoryProfile = null, directBootstrap = false, custodyV2 = null, images = null, desktopWorker = null, instanceNamespace = null, rpcController = null } = {}) {
     if (ramPoolMiB !== null && (!Number.isSafeInteger(ramPoolMiB) || ramPoolMiB <= 0))
       throw new Error("ramPoolMiB must be a positive integer");
     this.ramPoolMiB = ramPoolMiB;
@@ -122,6 +127,15 @@ export class Manager {
        backend?.prefix!=='enclave-enrolled-' || backend?.marker!=='enclave-enrolled-vbslike-domain' || images?.desktop))
       throw new Error('enrolled namespace requires distinct owned VM scope, CPU pool and shared physical authority');
     this.instanceNamespace=instanceNamespace;
+    if (rpcController !== null) {
+      if (instanceNamespace !== null || !this.#physicalReservations || !validCpuPool(cpuPoolVcpus) || ramPoolMiB === null)
+        throw new Error("RPC requires its own controller, both resource pools and shared physical authority");
+      this.#rpc = captureRPCController(rpcController);
+      // The real controller must refuse unresolved durable starts/recovery. A
+      // broad legacy VM survey cannot replace this original ownership ledger.
+      if (this.#rpc.assertInventory() !== true) throw new Error("RPC original controller inventory unavailable");
+    }
+
     // OWNER-COMMITTED STARTUP (package-transport.mjs; isolation/m2/front/shield_direct.go): ON only when the operator states
     // that the pinned partition image is a Shield-direct build (main.mjs ENCLAVE_SHIELD_DIRECT=1). The image, not this
     // flag, decides what runs: a legacy image ignores the package and certifies no owner name.
@@ -338,7 +352,7 @@ export class Manager {
   async recover() {
     // Replacing a launching record loses its native-operation association and
     // can let remove() free a reservation while that start is still in flight.
-    if (this.#spawnRequests.size || this.#recovering)
+    if (this.#spawnRequests.size || this.#recovering || [...this.domains.values()].some(r => r.imageRole === "rpc"))
       throw unavailable({ state: "busy", error: "inventory recovery cannot overlap pending starts or recovery" });
     this.#recovering++; this.#allocationRevision++;
     try { return await this.#recover(); }
@@ -575,6 +589,7 @@ export class Manager {
       e.status = 503; throw e;
     }
     if (["secrets", "env", "secretValues"].some(k => k in body)) throw badRequest("plaintext secrets are not manager inputs");
+    if (body.derive?.derivation === RPC_DERIVATION) return this.#spawnRPC(body, requestId);
     const native = body.derive?.derivation === DESKTOP_DERIVATION;
     // Own native inputs before any asynchronous fetch. Later policy checks and
     // reservation must describe the same request that was validated here.
@@ -701,7 +716,7 @@ export class Manager {
     const name = String(body.name || "");
     if (!name) throw badRequest("a deployment id (name) is required");
     // A RECOVERED record blocks too, whatever its status: its VM is still on this host.
-    const live = [...this.domains.values()].find((r) => r.name === name && (r.recovered || (r.status !== "failed" && r.status !== "stopped")));
+    const live = [...this.domains.values()].find((r) => r.name === name && (r.imageRole === "rpc" || r.recovered || (r.status !== "failed" && r.status !== "stopped")));
     if (live) { const e = new Error(`an instance for ${name} is already live`); e.status = 409; e.id = live.id; throw e; }
     if (body.id !== undefined && body.id !== null && body.id !== "" && !ID_RE.test(String(body.id)))
       throw badRequest(`an instance id must match ${ID_RE}`);
@@ -966,6 +981,64 @@ export class Manager {
     return this.publicOf(rec);
   }
 
+  async #spawnRPC(body, requestId) {
+    if (!this.#rpc) throw badRequest("RPC original owning controller is unavailable");
+    const b = rpcSpawnSnapshot(body, this.#rpc);
+    if (this.#rpc.assertInventory() !== true) throw new Error("RPC original inventory unavailable");
+    // begin captures the original native clock only; it MUST NOT allocate/start
+    // a VM or child. No caller can nominate an existing partition for adoption.
+    const identity = freezeRPC({managerEpoch:this.epoch,id:b.id,name:b.name,instanceId:b.id});
+    const attempt = captureRPCAttempt(this.#rpc.begin(identity));
+    const current = () => { if (attempt.assertCurrent() !== true) throw new Error("RPC original deadline/controller lost"); };
+    current();
+    const mapping = deriveRPC({record:b.derive,component:await this.fetchComponent(b.derive.cid)});
+    current();
+    const memory=appMemoryForShare(this.ramPoolMiB,b.cpuShare,mapping.record.policy.memMiB);
+    const cpu=cpuForShare(this.cpuPoolVcpus,b.cpuShare,mapping.record.policy);
+    if(memory.appMiB!==19456 || cpu.vcpus!==4 || cpu.appCpuPercent!==400 || cpu.grantedUnits!==400000)
+      throw badRequest("RPC purchase must match the fixed 19 GiB/four-CPU domain");
+    const check = (reserved=false) => {
+      const held=this.physicalRamAllocated(), mv=this.memoryView(), cu=this.cpuAllocated();
+      if(!this.inventoryReady||this.#recovering||!mv.known||held===null||cu===null||!this.cpuPoolFits()) throw new Error("RPC capacity/inventory unknown");
+      if(held+(reserved?0:20480)>this.physicalRamPoolMiB || mv.reservedMiB+(reserved?0:19456)>this.ramPoolMiB ||
+          cu+(reserved?0:400000)>this.cpuPoolVcpus*CPU_UNITS_PER_VCPU) throw new Error("RPC complete capacity does not fit");
+      if(this.#rpc.assertInventory()!==true) throw new Error("RPC original inventory changed");
+      current();
+    };
+    check();
+    if(this.domains.has(b.id)||[...this.domains.values()].some(r=>r.name===b.name)) throw new Error("RPC deployment already held, including failed attempts");
+    const rec={...identity,derivation:RPC_DERIVATION,appId:mapping.appId,recordSha256:mapping.recordSha256,
+      componentSha256:mapping.componentSha256,catalog:mapping.record.catalog,cid:mapping.record.cid,
+      runtimeId:mapping.record.runtimeId,policy:freezeRPC(mapping.record.policy),rpc:freezeRPC(mapping.record.rpc),memory:freezeRPC(memory),cpu:freezeRPC(cpu),
+      physicalMemoryMiB:20480,gpuMilli:0,imageRole:"rpc",originalClock:attempt.originalClock,
+      status:"starting",launching:true,appReady:false,hostExcluded:false,providerOperationFenced:false,
+      reservationMayRelease:false,reason:"RPC original controller launch pending",handle:null};
+    // No await between capacity check and reservation. Both success and lost
+    // start response keep the same record and private original attempt closure.
+    this.domains.set(b.id,rec);this.#rpcAttempts.set(rec,attempt);
+    this.#spawnRequests.set(requestId,rec);this.#allocationRevision++;
+    const pool=this.#physicalReservations;
+    const claim=Object.freeze({poolHash:pool.poolHash,boot:pool.boot,actor:"app-native",
+      id:crypto.createHash("sha256").update(JSON.stringify([this.epoch,b.id,mapping.appId])).digest("hex"),bytes:20480*1048576});
+    rec.sharedPhysicalClaim=claim;
+    try {
+      await pool.acquire(claim);check(true);
+      await pool.consumeStart(claim);check(true);
+      // The trusted controller must durably consume intent before native work,
+      // own the newly created VM and provider references, independently enforce
+      // originalClock, and bind HostBootstrapEntry to that exact owned instance.
+      // Ordinary backend.start and generic readiness never see an RPC request.
+      const launch=freezeRPC({...identity,appId:mapping.appId,record:structuredClone(mapping.record),
+        recordSha256:mapping.recordSha256,componentSha256:mapping.componentSha256,
+        originalClock:{...attempt.originalClock},physicalClaim:{...claim},physicalMemoryMiB:20480,
+        memory:{...memory},cpu:structuredClone(cpu)});
+      await attempt.start(launch,Buffer.from(mapping.bundle));current();
+      rec.reason="RPC controller returned; accepted guest, storage grants, sync and finality still require verification";
+    } catch(e) {rec.status="failed";rec.reason=String(e.message||e);}
+    rec.launching=false;
+    return this.publicOf(rec);
+  }
+
   publicOf(r) {
     const { handle, ...rest } = r;
     // a custody domain's requests waiting for the node's authorization: public (a vault, the deployment, a hash), and
@@ -1147,6 +1220,17 @@ export class Manager {
       return { removed: false, absent: true };
     }
     if (r.launching) { const e=new Error("instance is still launching; retry removal after launch settles");e.status=409;throw e; }
+    if (r.imageRole === "rpc") {
+      const attempt=this.#rpcAttempts.get(r);
+      if (!attempt) throw new Error("RPC original attempt association missing; reservation held");
+      if (!this.#rpcStopConsumed.has(r)) {
+        this.#rpcStopConsumed.add(r); // stop dispatch/lost answer also one-shot
+        r.status="failed";r.appReady=false;
+        try { await attempt.stop(); }
+        catch(e) { r.reason=`RPC stop ambiguous; reservation held: ${e.message}`;throw e; }
+      }
+      const e=new Error("RPC local stop is not provider/writer settlement; reservation remains held");e.status=409;throw e;
+    }
     if (!r.handle?.vmId && this.backend.canSurvey) {
       const inventory=await this.backend.survey();
       if (!Array.isArray(inventory?.vms)) throw new Error("cannot confirm failed resource launch cleanup");

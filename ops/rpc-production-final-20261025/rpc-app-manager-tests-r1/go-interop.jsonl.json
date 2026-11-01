@@ -1,0 +1,4 @@
+{
+  "sha256": "35528cbd6d4f0a22103fa79996ae856af1cc8bcf5d98cc8ed394a94237ca63fd",
+  "utf8": "=== RUN   TestRPCManagerInteropVector\n--- PASS: TestRPCManagerInteropVector (0.01s)\nPASS\nok  \tenclave.host/isolation/contract/catalog\t0.008s\n"
+}
