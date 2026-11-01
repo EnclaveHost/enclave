@@ -1,0 +1,47 @@
+{
+  "rc": 0,
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\n** The server may need to be upgraded. See https://openssh.com/pq.html\n",
+  "readOnly": true,
+  "observation": {
+    "seedSha256": "45ce37943c51446d88f0d5073b84859e2a533293df82ea88c8e9f0db3e6fc633",
+    "seedBytes": 13236224,
+    "verifiedFiles": 40,
+    "pythonSyntaxChecks": 7,
+    "keyPairsVerified": true,
+    "privateModesVerified": true,
+    "guestSchemaSha256": "e9bff937d90de84570eda8728f8a127b59a6d5f4ef84b6c358230dc137b33f49",
+    "guestSchemaErrors": [],
+    "rootImageMetadataUnchanged": true,
+    "rootImageMetadata": [
+      2049,
+      1844165,
+      2683289088,
+      1793439718452561646,
+      1793439718452561646
+    ],
+    "firstBootExecuted": false,
+    "storageAttached": false,
+    "clientsStarted": false,
+    "invocation": "3ac283850c8846a18f2412064319fedf",
+    "pid": 331254,
+    "processStart": "74710897",
+    "priorExactDeaths": [
+      {
+        "pid": 331147,
+        "expectedStart": "74707301",
+        "actualStart": null,
+        "unit": "enclave-rpc-successor-guest-seed-r1-20261101.service",
+        "completedInvocation": "0825a4a35a344fd39200d7c4336e0074",
+        "state": "MainPID=0\nExecMainStatus=0\nActiveState=inactive\nInvocationID=\n"
+      },
+      {
+        "pid": 331080,
+        "expectedStart": "74701218",
+        "actualStart": null,
+        "unit": "enclave-rpc-successor-seed-admission-r1-20261101.service",
+        "completedInvocation": "2ec242db84944402be92ec6c2a19787d",
+        "state": "MainPID=0\nExecMainStatus=0\nActiveState=inactive\nInvocationID=\n"
+      }
+    ]
+  }
+}

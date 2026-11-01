@@ -1,0 +1,1 @@
+Read-only exact Control boot/memory/disk/tool/archive pins and new namespace absence. Bounded independent native unit128MiB/CPU1/noSwap/30s/1sstop, local authenticated pending-aware27648floor+384allowance. No credentials read, services/VM mutation, guest startup or new production clock. Fresh preparation admission only. Original seed/root retained.

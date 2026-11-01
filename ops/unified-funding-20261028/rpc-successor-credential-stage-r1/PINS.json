@@ -1,0 +1,22 @@
+[
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-successor-credential-stage-r1/run.py",
+    "sha256": "754cea4c291408a78d5564abafd2eac4dc39bfed994d5e4bed6a6eaa64faeeaa"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-successor-credential-stage-r1/read_remote.py",
+    "sha256": "cae356a44b72d5fd42ab16f6bf140815ea2dae5fa15b160f7828da1d507cd0e9"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-successor-credential-stage-r1/SPEC.json",
+    "sha256": "87a716ca26b70b54f9df35b5957bc5218d2be8fb13f95f3a22410d005140a692"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-successor-credential-stage-r1/SSH.json",
+    "sha256": "0574c7d96d7cd5f60d64c86c4a0de321785319bf9aad8eadf9221729ce6db20e"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/server/observe_resources.mjs",
+    "sha256": "d2d8e9a69548e689d093434787b43ab3278c4fea032d329c16c2b82c0866bdee"
+  }
+]

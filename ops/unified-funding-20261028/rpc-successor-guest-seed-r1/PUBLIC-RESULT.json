@@ -1,0 +1,17 @@
+{
+  "rc": 0,
+  "seedBytes": 13236224,
+  "seedSha256": "45ce37943c51446d88f0d5073b84859e2a533293df82ea88c8e9f0db3e6fc633",
+  "recordCount": 40,
+  "publicCredentialReceiptSha256": "fc70d931a0d5c36142ca9955a32798aa1cf2e43fc565207efb04aa7a9ec5afb7",
+  "schemaExit": 0,
+  "seconds": 4.704451255034655,
+  "invocation": "0825a4a35a344fd39200d7c4336e0074",
+  "pid": 331147,
+  "processStart": "74707301",
+  "sourcePins": {
+    "prepare_seed.py": "a6ffc88230f6b8db4aa98eadf4f8352b0ac9a35ad077a299c831276255a5ce51",
+    "credentials.py": "b02baf0cbf2b71fed1caded598381c59763dd885c1867b6ea2e69bc009508158"
+  },
+  "privateArtifactsExcluded": true
+}
