@@ -1,0 +1,20 @@
+[
+  "windows/rpc/NATIVE-MANAGER-CONTROLLER.md",
+  "windows/rpc/NativeRpcController.cs",
+  "windows/vbslike/manager/RPC-CONTROLLER.md",
+  "windows/vbslike/manager/main.mjs",
+  "windows/vbslike/manager/rpc-admission.mjs",
+  "windows/vbslike/manager/rpc-manager.test.mjs",
+  "windows/vbslike/manager/server.mjs",
+  ".github/workflows/rpc-native-manager-transport.yml",
+  "test/rpc-windows-worker/NativeRpcManagerTransportHarness.cs",
+  "test/rpc-windows-worker/run-native-manager-transport-ci.ps1",
+  "windows/rpc/NativeRpcManagerTransport.cs",
+  "windows/vbslike/manager/rpc-native-controller.mjs",
+  "windows/vbslike/manager/rpc-native-controller.test.mjs",
+  "ops/unified-funding-20261028/rpc-native-client-tests-r1",
+  "ops/unified-funding-20261028/rpc-native-client-tests-r2",
+  "ops/unified-funding-20261028/rpc-native-client-tests-r3",
+  "ops/unified-funding-20261028/rpc-native-manager-transport-ci-r1",
+  "ops/unified-funding-20261028/rpc-native-manager-transport-preserve-r1"
+]

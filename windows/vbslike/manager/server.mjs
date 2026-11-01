@@ -82,6 +82,7 @@ export function refuseUnsupported(req = {}, s = SUPPORTS) {
 export class Manager {
   #desktop = null;
   #rpc = null;
+  #rpcInventoryImported = false;
   #rpcAttempts = new WeakMap();
   #rpcStopConsumed = new WeakSet();
   #spawnSequence = 0n;
@@ -355,7 +356,22 @@ export class Manager {
     if (this.#spawnRequests.size || this.#recovering || [...this.domains.values()].some(r => r.imageRole === "rpc"))
       throw unavailable({ state: "busy", error: "inventory recovery cannot overlap pending starts or recovery" });
     this.#recovering++; this.#allocationRevision++;
-    try { return await this.#recover(); }
+    try {
+      const result=await this.#recover();
+      if(this.#rpc&&!this.#rpcInventoryImported){
+        const held=this.#rpc.recoverHeld();
+        if(!Array.isArray(held)||held.length>1)throw new Error("RPC durable held inventory bound");
+        for(const source of held){
+          const rec=structuredClone(source);
+          if(rec.imageRole!=="rpc"||rec.rpcHeld!==true||rec.recovered!==true||rec.status!=="starting"||rec.launching!==false||rec.appReady!==false||rec.hostExcluded!==false||rec.providerOperationFenced!==false||rec.reservationMayRelease!==false||rec.physicalMemoryMiB!==20480||rec.memory?.appMiB!==19456||rec.cpu?.grantedUnits!==400000||rec.cpu?.vcpus!==4||rec.id!==rec.instanceId||typeof rec.id!=="string"||!/^rpc[0-9a-f]{32}$/.test(rec.id)||rec.id.length!==35||typeof rec.name!=="string"||!/^0x[0-9a-f]{64}$/.test(rec.name)||rec.name.length!==66||this.domains.has(rec.id))throw new Error("RPC original held inventory differs or overlaps survey");
+          // This is held accounting, never a new executable attempt or a VM
+          // adopted from Notes. Unknown allocation closes new-work admission.
+          this.domains.set(rec.id,{...rec,handle:null});
+        }
+        this.#rpcInventoryImported=true;
+      }
+      return result;
+    }
     finally { this.#recovering--; this.#allocationRevision++; }
   }
   async #recover() {
@@ -985,43 +1001,42 @@ export class Manager {
     if (!this.#rpc) throw badRequest("RPC original owning controller is unavailable");
     const b = rpcSpawnSnapshot(body, this.#rpc);
     if (this.#rpc.assertInventory() !== true) throw new Error("RPC original inventory unavailable");
-    // begin captures the original native clock only; it MUST NOT allocate/start
-    // a VM or child. No caller can nominate an existing partition for adoption.
+    // Reserve synchronously before awaiting native begin or component fetch.
+    // A lost begin reply may already have consumed a durable native attempt.
     const identity = freezeRPC({managerEpoch:this.epoch,id:b.id,name:b.name,instanceId:b.id});
-    const attempt = captureRPCAttempt(this.#rpc.begin(identity));
-    const current = () => { if (attempt.assertCurrent() !== true) throw new Error("RPC original deadline/controller lost"); };
-    current();
-    const mapping = deriveRPC({record:b.derive,component:await this.fetchComponent(b.derive.cid)});
-    current();
-    const memory=appMemoryForShare(this.ramPoolMiB,b.cpuShare,mapping.record.policy.memMiB);
-    const cpu=cpuForShare(this.cpuPoolVcpus,b.cpuShare,mapping.record.policy);
+    const memory=appMemoryForShare(this.ramPoolMiB,b.cpuShare,b.derive.policy.memMiB);
+    const cpu=cpuForShare(this.cpuPoolVcpus,b.cpuShare,b.derive.policy);
     if(memory.appMiB!==19456 || cpu.vcpus!==4 || cpu.appCpuPercent!==400 || cpu.grantedUnits!==400000)
       throw badRequest("RPC purchase must match the fixed 19 GiB/four-CPU domain");
+    let attempt=null;
+    const current=()=>{if(!attempt||attempt.assertCurrent()!==true)throw new Error("RPC original deadline/controller lost");};
     const check = (reserved=false) => {
       const held=this.physicalRamAllocated(), mv=this.memoryView(), cu=this.cpuAllocated();
       if(!this.inventoryReady||this.#recovering||!mv.known||held===null||cu===null||!this.cpuPoolFits()) throw new Error("RPC capacity/inventory unknown");
       if(held+(reserved?0:20480)>this.physicalRamPoolMiB || mv.reservedMiB+(reserved?0:19456)>this.ramPoolMiB ||
           cu+(reserved?0:400000)>this.cpuPoolVcpus*CPU_UNITS_PER_VCPU) throw new Error("RPC complete capacity does not fit");
       if(this.#rpc.assertInventory()!==true) throw new Error("RPC original inventory changed");
-      current();
+      if(attempt)current();
     };
     check();
     if(this.domains.has(b.id)||[...this.domains.values()].some(r=>r.name===b.name)) throw new Error("RPC deployment already held, including failed attempts");
-    const rec={...identity,derivation:RPC_DERIVATION,appId:mapping.appId,recordSha256:mapping.recordSha256,
-      componentSha256:mapping.componentSha256,catalog:mapping.record.catalog,cid:mapping.record.cid,
-      runtimeId:mapping.record.runtimeId,policy:freezeRPC(mapping.record.policy),rpc:freezeRPC(mapping.record.rpc),memory:freezeRPC(memory),cpu:freezeRPC(cpu),
-      physicalMemoryMiB:20480,gpuMilli:0,imageRole:"rpc",originalClock:attempt.originalClock,
+    const rec={...identity,derivation:RPC_DERIVATION,appId:null,recordSha256:null,
+      componentSha256:null,catalog:b.derive.catalog,cid:b.derive.cid,
+      runtimeId:b.derive.runtimeId,policy:freezeRPC(b.derive.policy),rpc:freezeRPC(b.derive.rpc),memory:freezeRPC(memory),cpu:freezeRPC(cpu),
+      physicalMemoryMiB:20480,gpuMilli:0,imageRole:"rpc",originalClock:null,
       status:"starting",launching:true,appReady:false,hostExcluded:false,providerOperationFenced:false,
       reservationMayRelease:false,reason:"RPC original controller launch pending",handle:null};
-    // No await between capacity check and reservation. Both success and lost
-    // start response keep the same record and private original attempt closure.
-    this.domains.set(b.id,rec);this.#rpcAttempts.set(rec,attempt);
-    this.#spawnRequests.set(requestId,rec);this.#allocationRevision++;
-    const pool=this.#physicalReservations;
-    const claim=Object.freeze({poolHash:pool.poolHash,boot:pool.boot,actor:"app-native",
-      id:crypto.createHash("sha256").update(JSON.stringify([this.epoch,b.id,mapping.appId])).digest("hex"),bytes:20480*1048576});
-    rec.sharedPhysicalClaim=claim;
+    this.domains.set(b.id,rec);this.#spawnRequests.set(requestId,rec);this.#allocationRevision++;
     try {
+      attempt=captureRPCAttempt(await this.#rpc.begin(identity));
+      this.#rpcAttempts.set(rec,attempt);rec.originalClock=attempt.originalClock;current();
+      const mapping=deriveRPC({record:b.derive,component:await this.fetchComponent(b.derive.cid)});
+      current();check(true);
+      rec.appId=mapping.appId;rec.recordSha256=mapping.recordSha256;rec.componentSha256=mapping.componentSha256;
+      const pool=this.#physicalReservations;
+      const claim=Object.freeze({poolHash:pool.poolHash,boot:pool.boot,actor:"app-native",
+        id:crypto.createHash("sha256").update(JSON.stringify([this.epoch,b.id,mapping.appId])).digest("hex"),bytes:20480*1048576});
+      rec.sharedPhysicalClaim=claim;
       await pool.acquire(claim);check(true);
       await pool.consumeStart(claim);check(true);
       // The trusted controller must durably consume intent before native work,

@@ -1,0 +1,4 @@
+{
+  "sha256": "c8f8f147f98943b2dd75cc05420c7bed29205bdce3238acfb32aee93f0216cf9",
+  "text": "node:internal/modules/cjs/loader:1433\n  throw err;\n  ^\n\nError: Cannot find module '/src/windows/vbslike/manager/main.mjs'\n    at node:internal/modules/cjs/loader:1430:15\n    at node:internal/main/check_syntax:33:20 {\n  code: 'MODULE_NOT_FOUND',\n  requireStack: []\n}\n\nNode.js v22.23.3\n"
+}

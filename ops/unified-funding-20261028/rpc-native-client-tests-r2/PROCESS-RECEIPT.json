@@ -1,0 +1,5 @@
+{
+  "invocation": "089963a953fc457db25e4e4c421bf71b",
+  "properties": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+  "journal": "2026-11-01T09:30:11-07:00 warden-host taskset[1018257]: [queue] START available=94690MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T09:30:11-07:00 warden-host taskset[1018257]: [queue] EXIT 0\n"
+}

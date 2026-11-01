@@ -1,0 +1,15 @@
+{
+  "windows/rpc/NATIVE-MANAGER-CONTROLLER.md": "40beefb5ffc86354f5c55cec56fc44eba7b1ac6411ec5f865c091a2a48da87e4",
+  "windows/rpc/NativeRpcController.cs": "74082840e171e95ae72012fb0ed7167adcea98530017106352e5cac3fd5c4500",
+  "windows/vbslike/manager/RPC-CONTROLLER.md": "90ce6467c60fed069e80fa3774cde3a940364f0eead53e2a26114a3bd63ef792",
+  "windows/vbslike/manager/main.mjs": "011d65cb03875a24a55fd2671b33e8d7a2dcbda3f55c0a92635f24edb48e8c1a",
+  "windows/vbslike/manager/rpc-admission.mjs": "bcb4b8182717863d50a992f9e76cd9255b2f990f8e9bd2c51fad5eaa2f2f6c21",
+  "windows/vbslike/manager/rpc-manager.test.mjs": "6e988d5c9ba85b0b7dfcbb9e26d3d8bc0b092cdc4a40ee147e59d907e8ed27af",
+  "windows/vbslike/manager/server.mjs": "ed75ec498d5f212eb0fc9207ec6b89a9604e7316730e402db5fa528735bb66ab",
+  ".github/workflows/rpc-native-manager-transport.yml": "2448a7191fec2f72d125f74f1b6f0ac00cb8dfd9e731a9b5ba54a02c2b6b30ee",
+  "test/rpc-windows-worker/NativeRpcManagerTransportHarness.cs": "7e242c47054877f39e41c386a813aad015160eb000c7f6b562a5ad8de9ec03a9",
+  "test/rpc-windows-worker/run-native-manager-transport-ci.ps1": "c15a44bc9940741143e1a170d405f35c1e42c396b509868b60321fab91c9d1c5",
+  "windows/rpc/NativeRpcManagerTransport.cs": "2069d740a09edda7580c25ff436054130457b132d5dfafe4fca1de3d07b8a2bb",
+  "windows/vbslike/manager/rpc-native-controller.mjs": "10656764813d88465c0d5b3e8e34efaed706b8a801cb7cd47a14c5cf4c4a8c37",
+  "windows/vbslike/manager/rpc-native-controller.test.mjs": "eaca2b5f127b212d454fedf8eb635160c4ecd2bd20bb58c8eb6bf4779bc7ac90"
+}

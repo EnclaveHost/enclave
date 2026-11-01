@@ -69,7 +69,7 @@ test('lost start and stop answers keep exact deployment and reservation with no 
 });
 test('deadline loss during preparation and after shared consume prevents dispatch',async()=>{
  const a=await setup();let release;a.state.fetchGate=new Promise(r=>release=r);const p=a.m.spawn(body());a.state.current=false;release();
- await assert.rejects(p,/deadline/);assert.equal(a.state.starts.length,0);assert.equal(a.m.list().length,0);
+ const failed=await p;assert.equal(failed.status,'failed');assert.match(failed.reason,/deadline/);assert.equal(a.state.starts.length,0);assert.equal(a.m.list().length,1);assert.equal(a.m.physicalRamAllocated(),20480);
  const b=await setup();b.state.consume=()=>{b.state.current=false;};const r=await b.m.spawn(body());assert.equal(r.status,'failed');
  assert.equal(b.state.starts.length,0);assert.equal(b.m.physicalRamAllocated(),20480);
 });
@@ -108,4 +108,16 @@ test('native original clock rejects whitespace, overflow, reset and method repla
   assert.throws(()=>captureRPCAttempt({...base,originalClock:clock}));
  const captured=captureRPCAttempt(base);base.originalClock.deadlineMs='999999';base.start=()=>{throw Error('replacement');};
  assert.equal(captured.originalClock.deadlineMs,'901000');captured.start();assert.ok(Object.isFrozen(captured.originalClock));
+});
+
+test('asynchronous native begin cannot oversell and lost reply retains prefetch reservation',async()=>{
+ let release;const gate=new Promise(r=>release=r);const a=await setup();
+ const base=a.controller.begin;a.controller.begin=async id=>{await gate;return base(id);};
+ // Manager captures methods at construction; construct with the async method.
+ const m=new Manager({...a.options,rpcController:a.controller,physicalReservations:{...a.options.physicalReservations,acquire:async()=>{assert.equal(m.physicalRamAllocated(),20480);}}});await m.probe();await m.recover();
+ const first=m.spawn(body());assert.equal(m.physicalRamAllocated(),20480);
+ const b=body();b.id='rpc'+'3'.repeat(32);b.name=b.derive.secretDeployment='0x'+H('3');await assert.rejects(m.spawn(b),/capacity/);release();
+ const r=await first;assert.equal(r.status,'starting');assert.equal(a.state.starts.length,1);assert.equal(m.list().length,1);assert.equal(r.reservationMayRelease,false);
+ const lost=await setup({rpcController:{runtimeId:H('b'),profileSha256:H('d'),assertInventory:()=>true,begin:async()=>{throw Error('native begin reply lost');}}});
+ const held=await lost.m.spawn(body());assert.equal(held.status,'failed');assert.equal(lost.m.physicalRamAllocated(),20480);assert.equal(lost.state.starts.length,0);assert.equal(lost.m.get(held.id).reservationMayRelease,false);
 });

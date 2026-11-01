@@ -1,74 +1,74 @@
 # Original native RPC manager controller
 
-`NativeRpcControllerEntry` is an explicit candidate executable, not an installed
-manager or a production RPC. It connects a durable original manager ledger to
-`NativeRpcWorkerEntry`, which creates only an owned Off shell. There is no VM
-start, device setup, adoption, deletion, reservation release, retry or payment.
+NativeRpcControllerEntry is an explicit candidate executable connected to the
+optional app-manager transport. It is not installed or production-qualified.
+NativeRpcWorkerEntry can currently create only an owned Off shell. There is no
+VM start/device setup/adoption/deletion/reservation release/retry/payment API.
 
-The protected operator configuration has schema `native-rpc-manager-controller/1`
-and exactly these other fields: ledgerRoot, attemptsRoot, workersRoot, runtimeId,
+The protected operator configuration retains schema native-rpc-manager-controller/1
+with exactly these other fields: ledgerRoot, attemptsRoot, workersRoot, runtimeId,
 profileSha256, admissionSha256, firmwareSha256, initialStateSha256, workerSha256,
-admissionPath, firmwarePath, initialStatePath, profilePath, workerPath. Roots must
-already exist with qualified private local Windows ACLs. The ledger starts with
-one protected empty `manager.lock`. Creation/installation is a separate admitted
-operator action; the executable does not manufacture an empty replacement ledger.
-The caller must pin this configuration and executable to the original manager.
-All these local pins are operator inputs, not hardware attestation.
+admissionPath, firmwarePath, initialStatePath, profilePath, workerPath. Configured
+roots must already exist with qualified private local Windows ACLs. Ledger setup
+requires a protected empty manager.lock plus private transport directory. Setup is
+a separate admitted operator action; the controller never creates a replacement
+empty ledger. The JS caller pins this exact configuration and executable. Local
+pins are not hardware attestation or target admission.
 
-Commands, after the executable name:
+Commands after the executable name:
 
-- `begin CONFIG CONFIG_SHA MANAGER_EPOCH INSTANCE DEPLOYMENT` records the actual
-  entry QPC origin and original origin+900000 deadline before returning. No child,
-  provider or VM is created. It holds an exclusive ledger lock and fsyncs a unique
-  attempt.json via pending then no-overwrite rename. It records the complete
-  20480 MiB / 400000 CPU unit reservation and never authorizes release. Any prior
-  attempt, unknown file, or partial pending record refuses another begin, including
-  after manager restart. This intentionally holds unknown original work; it is
-  not a cold-recovery adoption or capacity-release implementation.
-- `define CONFIG CONFIG_SHA ORIGINAL_ATTEMPT_SHA LAUNCH LAUNCH_SHA BUNDLE RECORD`
-  requires exact original epoch/instance/deployment/clock/reservation. LAUNCH is
-  the manager-derived launch JSON, BUNDLE is its derived binary, RECORD is its
-  exact canonical record JSON. All are protected private local files. It consumes
-  launch.json before preparing assets or scheduling anything; lost replies cannot
-  resubmit. Private firmware/initial VMGS/profile/bundle/record copies are streamed,
-  hashed and flushed; the master VMGS is never handed to Hyper-V. Preparation is
-  inside the original startup clock. A new short worker lease is clipped to that
-  original deadline and the controller's original 30-second command deadline.
-- `inventory CONFIG CONFIG_SHA` proves only an empty original ledger. Nonempty
-  history is refused and held. It does not scan Hyper-V, reconstruct ownership
-  from Notes, adopt old GUIDs, or return readiness.
+- begin CONFIG CONFIG_SHA EPOCH INSTANCE DEPLOYMENT: records actual entry QPC
+  origin and origin+900000 before acknowledgment. No VM/child/provider. A protected
+  exclusive lock serializes writers. Durable attempt.json stores original identity,
+  config, boot and 20480 MiB/400000 CPU reservation intent; it does not acquire the
+  shared pool. Existing history or partial pending records refuse another begin.
+- stage CONFIG CONFIG_SHA ORIGINAL_SHA: consumes stage.json before reading stdin.
+  Input is uint32 little-endian header length (2..196608), strict UTF-8 JSON with
+  exactly launch/record strings (each <=65536 encoded bytes) and integer bundleBytes
+  (1..9MiB), then exactly that many binary bytes and EOF. After original binding it
+  consumes launch.json, writes private inputs, validates hashes and fsyncs before
+  stage-ready. Truncated/changed/trailing/blocked input cannot produce stage-ready
+  or authorize a retry. No deployment-controlled filesystem paths are accepted.
+- define-staged CONFIG CONFIG_SHA ORIGINAL_SHA: consumes define-request.json and
+  uses only the original complete staged inputs. It copies/hash-pins private
+  runtime/initial VMGS/profile/bundle/record under the original plan, performs full
+  current native admission, consumes dispatch.json before task registration/Run,
+  and schedules exact SYSTEM roles. Old arbitrary input-path define CLI is removed.
+- inspect CONFIG CONFIG_SHA: validates protected ledger/transport and returns empty
+  or original held history, including across deadline expiry/reboot. Unknown/partial
+  inventory refuses. It does not scan Hyper-V or grant mutation/adoption/release.
+- current CONFIG CONFIG_SHA ORIGINAL_SHA: reads only the original current boot/window.
+- hold CONFIG CONFIG_SHA ORIGINAL_SHA: closes the original local gate even after
+  expiry, without provider stop/cancellation/fencing/release. Subsequent mutation
+  checks refuse. It is itself one-shot.
+- inventory CONFIG CONFIG_SHA: retains the explicit empty-ledger-only check.
 
-Every command first arms an independent native 30-second termination watchdog
-and enters a 128 MiB self job. This is a post-entry envelope, not a prior-allocation
-bound. Target admission must include controller/registration/collector overhead
-in addition to the existing owner/observer/startup reservations. Before scheduling
-SYSTEM owner/observer tasks, define performs the existing complete current native
-app admission (including retained seeds, exact consumed shared claim, all managers,
-physical headroom and four-second freshness). The child repeats it before provider
-mutation. Both tasks have exact one-shot definitions, no automatic trigger/restart,
-closed gate and original bootstrap cutoff. dispatch.json is durable before the
-first task registration or Run call. Unknown registration/Run remains consumed.
+Replies use native-rpc-manager-controller-result/2. Begin returns both original
+and originalSha256 computed from exact durable native bytes; callers must not
+recompute it from reordered JSON response fields. All replies retain false
+rpcReady/providerOperationFenced/reservationMayRelease.
 
-The controller holds exact owner/observer handles and creation times before opening
-the gate. Successful collection requires their known exits plus the original
-observer's empty-job and exact-owner-death receipt. It verifies the child result
-against the original native system and ownership journals before saving result.json.
-Task deletion/Stop is not process death. Failure cleanup never releases capacity;
-the worker's independent original deadline still applies if the controller dies.
+Each command arms a native 30-second independent termination watchdog and enters
+its 128 MiB self envelope before blocking files/COM/WMI/stdin. This is not a
+prior-allocation bound. Actual startup/controller/registration/collector overhead
+must be admitted separately. Definition's worker phase is <=20 seconds, clipped
+to the original 900-second deadline and controller deadline-1 second. Preparation
+never resets the original clock. Existing owner256/observer128/child128 job limits
+and five-second bootstrap cutoff remain. Node transport collection limits are
+additional controls, not native process-tree death evidence.
 
-The manager's JavaScript producer/transport is still missing. In particular its
-current synchronous begin contract must become asynchronous for this bounded
-native command without creating a concurrent reservation race. It must consume
-its own send intent before transport, persist full held inventory across restart,
-prepare protected launch/bundle/record inputs, retain this exact configuration,
-and never infer inventory from an absent in-memory record. Default main still has
-no rpcController, and V9 remains unadvertised. Do not attach this executable to the
-old launcher or treat returned Off ownership as permission to boot.
+Complete current admission precedes task scheduling and repeats in the child
+before provider mutation. Exact held owner/observer process handles/creation/image
+are required before opening the work gate. Success requires known exits plus
+original observer empty-job/exact-owner-death receipts and verification against
+the original system/ownership journals. Task stop/delete is never proof of death.
+Unknown response/cleanup remains held; no original VM capability is reconstructed
+from a supplied GUID or a Notes scan.
 
-Qualification for this revision is a new disposable hosted harness exercising
-actual administrator namespace/ledger/locking/pending/copy/refusal behavior. The
-controller task producer is compiled only; SYSTEM tasks, current live app
-admission, actual provider operations and full composition are not tested by that
-harness. Production requires those proofs, accepted current image and hardware,
-journaled device/start stages, original owner enrollment/offer delivery, real
-TPM/AF_HYPERV/NBD/verity, whole-stack fit, sync/finality and consumer cutover.
+Qualification covers new administrator-owned actual ledger/input files and a
+separate JS client/manager fixture suite. The production task producer, actual
+Windows Node-to-controller-to-SYSTEM composition, provider and target hardware are
+not qualified by those component tests. Conditional main integration remains off
+without explicit pins, and V9 health remains unadvertised. Complete target
+qualification, accepted current image, device/start stages, original owner offer,
+TPM/AF_HYPERV/NBD/verity/whole-fit/sync/finality/consumer cutover before production.

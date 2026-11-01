@@ -1,0 +1,1 @@
+R1 actual7newclient+1newasyncmanager+9affectedregressions PASS. R1 failed afterward: syntax source main.mjs absent from frozen closure (MODULE_NOT_FOUND), not a candidate syntax failure. R2 adds exactmain source to833pins and runs ONLYpreviousunrun3syntaxchecks; no behavioral or native replays. Bounds unchanged.

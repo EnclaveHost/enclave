@@ -1,0 +1,1 @@
+{"phases": [{"phase": "native-client", "exit": 0}, {"phase": "manager-async", "exit": 0}, {"phase": "main-syntax", "exit": 1}], "elapsed": 0.7273022960871458, "sourcePins": 832, "pinsUnchanged": true, "artifacts": {}, "deployed": false}

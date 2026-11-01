@@ -1,12 +1,13 @@
-// A trusted local controller contract, not a spawn-supplied approval or an
-// implemented native driver. main.mjs deliberately supplies none until qualified.
+// A trusted local controller contract, never a spawn-supplied approval.
+// main.mjs supplies a native implementation only with explicit operator pins.
 import {exactRPCKeys,validateRPCRecord,RPC_PORTS} from "./rpc-derive.mjs";
 const hash=x=>typeof x==="string"&&x.length===64&&/^[0-9a-f]{64}$/.test(x)&&x!=="0".repeat(64);
 export function captureRPCController(c) {
-  exactRPCKeys(c,["runtimeId","profileSha256","assertInventory","begin"],"controller");
+  exactRPCKeys(c,["runtimeId","profileSha256","assertInventory","begin",...(Object.hasOwn(c,"recoverHeld")?["recoverHeld"]:[])],"controller");
+  if(Object.hasOwn(c,"recoverHeld")&&typeof c.recoverHeld!=="function")throw new Error("RPC held inventory method");
   if(!hash(c.runtimeId)||!hash(c.profileSha256)||typeof c.assertInventory!=="function"||typeof c.begin!=="function") throw new Error("RPC controller pins/methods");
   return Object.freeze({runtimeId:c.runtimeId,profileSha256:c.profileSha256,
-    assertInventory:c.assertInventory.bind(c),begin:c.begin.bind(c)});
+    assertInventory:c.assertInventory.bind(c),begin:c.begin.bind(c),recoverHeld:c.recoverHeld?.bind(c)??(()=>[])});
 }
 export function rpcSpawnSnapshot(body,c) {
   // The wire cannot supply a VM GUID, owner receipt, path, command or credential.

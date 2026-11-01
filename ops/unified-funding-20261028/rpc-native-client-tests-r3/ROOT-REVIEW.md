@@ -1,0 +1,1 @@
+Review fixed native begin protocol to return originalSha256 from exact native journal bytes; client doesnot derive a native receipt hash from reserialized JSON property order. Explicit response schema/2 rejectsoldprototype. R3 runs5affected nativebegin clients plus1NEW reorderedobject/nativehashcase; priorpartial/realprocess/manager/syntax checks not replayed. Bounds unchanged.

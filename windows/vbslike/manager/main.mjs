@@ -29,6 +29,7 @@ import { loadDesktopConfig, probeDesktopWorker } from "./desktop-config.mjs";
 import { startDesktopWorkerTransport } from "./desktop-worker-transport.mjs";
 import { PartitionConsoleLogs, consoleTargets, partitionLogDir } from "./console-log.mjs";
 import { loadModelVolumes } from "./model-volumes.mjs";
+import { createNativeRPCController } from "./rpc-native-controller.mjs";
 import { physicalReservationsFromEnv } from "./physical-reservations.mjs";
 import { loadNativeInstance, bindNativeInstance } from "./native-instance.mjs";
 
@@ -321,7 +322,16 @@ if (cpuPoolVcpus !== null && !validCpuPool(cpuPoolVcpus)) {
   process.exit(2);
 }
 if (cpuPoolVcpus !== null) console.log(`[winmgr] CPU pool ${cpuPoolVcpus} VPs (${cpuPoolSource}), RAM pool ${env("NODE_APP_RAM_GB")} GB: one share sizes both`);
-const manager = new Manager({ judgeReady: judgeRunning, answerCheck: checkAnswer, directBootstrap: !!directLauncher,
+// Explicit operator-only candidate integration. No setting is enabled by a
+// deployment body, and qualification/accepted runtime still precedes activation.
+const rpcNativePins={executable:env("ENCLAVE_RPC_CONTROLLER_EXE"),executableSha256:env("ENCLAVE_RPC_CONTROLLER_SHA256"),
+ configPath:env("ENCLAVE_RPC_CONTROLLER_CONFIG"),configSha256:env("ENCLAVE_RPC_CONTROLLER_CONFIG_SHA256")};
+let rpcController=null;
+if(Object.values(rpcNativePins).some(Boolean)){
+ if(Object.values(rpcNativePins).some(v=>!v)||nativeInstance||enrolledInstance)throw new Error("RPC native controller requires complete pins and its original manager scope");
+ rpcController=await createNativeRPCController(rpcNativePins);
+}
+const manager = new Manager({ rpcController, judgeReady: judgeRunning, answerCheck: checkAnswer, directBootstrap: !!directLauncher,
   images: { legacy: { igvmSha256: imageSha256.toLowerCase() || null },
             ...(desktopConfig ? { desktop: desktopConfig } : {}),
             ...(direct ? { shieldDirect: { runtime: direct.runtime, igvmSha256: direct.imageSha256 } } : {}) },

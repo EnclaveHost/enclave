@@ -69,7 +69,7 @@ namespace Enclave.OwnedRpc {
   }
   public void Dispose(){for(int i=held.Count-1;i>=0;i--)held[i].Dispose();held.Clear();}
  }
- internal sealed class NativeRpcManagerLedger:IDisposable {
+ internal sealed partial class NativeRpcManagerLedger:IDisposable {
   internal static readonly JavaScriptSerializer Json=new JavaScriptSerializer{MaxJsonLength=65536,RecursionLimit=32};
   internal readonly NativeControllerFiles Files;internal readonly string Root,ConfigHash;
   readonly Action current;
@@ -84,7 +84,7 @@ namespace Enclave.OwnedRpc {
   internal static byte[] Encode(object x){return Encoding.UTF8.GetBytes(Json.Serialize(x));}
   internal static Dictionary<string,object> Decode(byte[] b){return Obj(Json.DeserializeObject(new UTF8Encoding(false,true).GetString(b)));}
   internal void RequireEmpty(){
-   current();int count=0;foreach(string path in Directory.EnumerateFileSystemEntries(Root)){if(++count>2||Path.GetFileName(path)!="manager.lock")throw new InvalidOperationException("Prior native attempt remains held; no retry or foreign adoption");}if(count!=1)throw new InvalidOperationException("Native ledger lock absent");
+   current();int count=0;foreach(string path in Directory.EnumerateFileSystemEntries(Root)){string name=Path.GetFileName(path);if(++count>2||(name!="manager.lock"&&name!="transport"))throw new InvalidOperationException("Prior native attempt remains held; no retry or foreign adoption");if(name=="transport")Files.PinDirectory(path,true);}if(count<1)throw new InvalidOperationException("Native ledger lock absent");
   }
   internal Dictionary<string,object> Begin(string epoch,string instance,string deployment,long originalOrigin){
    Hex(epoch,32);if(instance==null||instance.Length!=35||!instance.StartsWith("rpc",StringComparison.Ordinal))throw new ArgumentException("Native instance");Hex(instance.Substring(3),32);
@@ -99,9 +99,11 @@ namespace Enclave.OwnedRpc {
   internal Dictionary<string,object> Original(string expectedHash){
    Hex(expectedHash,64);int count=0;
    foreach(string path in Directory.EnumerateFileSystemEntries(Root)){
-    current();if(++count>8)throw new InvalidOperationException("Native ledger inventory bound");string n=Path.GetFileName(path);
+    current();if(++count>12)throw new InvalidOperationException("Native ledger inventory bound");string n=Path.GetFileName(path);
+    if(n=="transport"||n=="inputs")Files.PinDirectory(path,true);
+    if(n=="hold.json")throw new InvalidOperationException("Original native attempt is held; no mutation authority");
     if(n.EndsWith(".pending",StringComparison.Ordinal))throw new InvalidOperationException("Partial original native ledger remains held");
-    if(n!="manager.lock"&&n!="attempt.json"&&n!="launch.json"&&n!="dispatch.json"&&n!="result.json"&&n!="hold.json")throw new InvalidOperationException("Unknown native ledger allocation");
+    if(n!="manager.lock"&&n!="attempt.json"&&n!="launch.json"&&n!="dispatch.json"&&n!="result.json"&&n!="hold.json"&&n!="transport"&&n!="inputs"&&n!="stage.json"&&n!="stage-ready.json"&&n!="define-request.json")throw new InvalidOperationException("Unknown native ledger allocation");
    }
    var a=Decode(Files.Read(Path.Combine(Root,"attempt.json"),4096,expectedHash));
    if(a.Count!=13||Text(a["schema"])!="native-rpc-manager-attempt/1"||Text(a["config"])!=ConfigHash||Text(a["boot"])!=ProtectedAttempt.CurrentBoot()||!(a["reservationMayRelease"] is bool)||((bool)a["reservationMayRelease"]))throw new InvalidOperationException("Original ledger binding differs");
@@ -116,7 +118,7 @@ namespace Enclave.OwnedRpc {
   }
   public void Dispose(){Files.Dispose();}
  }
- public static class NativeRpcControllerEntry {
+ public static partial class NativeRpcControllerEntry {
   [DllImport("kernel32.dll")] static extern IntPtr GetCurrentProcess();
   [DllImport("kernel32.dll",SetLastError=true)] static extern bool TerminateProcess(IntPtr handle,uint code);
   static long Origin,Deadline;static readonly List<Process> Peers=new List<Process>();static readonly Dictionary<string,string> Tasks=new Dictionary<string,string>();
@@ -157,9 +159,9 @@ namespace Enclave.OwnedRpc {
    if(S(record["runtimeId"])!=S(c["runtimeId"])||S(D(record["rpc"])["profileSha256"])!=S(c["profileSha256"])||S(record["secretDeployment"])!=S(a["deployment"])||S(record["derivation"])!="enclave-catalog-bundle/9"||claim.Count!=5||S(claim["actor"])!="app-native"||S(claim["boot"])!=S(a["boot"])||S(claim["id"])!=id||Convert.ToInt64(claim["bytes"])!=21474836480L)throw new InvalidOperationException("Native runtime/deployment/claim binding differs");
    return new NativeRpcDefinitionPlan(S(a["attempt"]),S(a["boot"]),epoch,instance,S(a["deployment"]),app,S(launch["recordSha256"]),S(c["runtimeId"]),S(c["profileSha256"]),S(c["admissionSha256"]),id,Path.Combine(S(c["attemptsRoot"]),S(a["attempt"])),Int64.Parse(S(a["originMs"])),Int64.Parse(S(a["deadlineMs"])),S(c["firmwareSha256"]),S(c["initialStateSha256"]),S(c["workerSha256"]));
   }
-  static object Define(NativeRpcManagerLedger ledger,Dictionary<string,object> c,string originalHash,string launchPath,string launchHash,string bundlePath,string recordPath){
+  static object Define(NativeRpcManagerLedger ledger,Dictionary<string,object> c,string originalHash,string launchPath,string launchHash,string bundlePath,string recordPath,bool staged){
    var a=ledger.Original(originalHash);var launch=NativeRpcManagerLedger.Decode(Files.Read(launchPath,65536,launchHash));
-   ledger.ConsumeLaunch(originalHash,launch);var plan=MakePlan(a,c,launch);
+   if(!staged)ledger.ConsumeLaunch(originalHash,launch);else if(!BytesEqual(Files.Read(Path.Combine(ledger.Root,"launch.json"),65536,launchHash),E(launch)))throw new InvalidOperationException("Staged launch differs");var plan=MakePlan(a,c,launch);
    // All asset bytes are privately copied, hashed, flushed and pinned under the
    // original attempt. No master VMGS is passed to Hyper-V and no path from the
    // deployment wire is used. Preparation failures never reopen launch.json.
@@ -225,11 +227,15 @@ namespace Enclave.OwnedRpc {
      // Caller cannot switch ledgers or reset history inside the same config.
      using(var ledger=new NativeRpcManagerLedger(S(c["ledgerRoot"]),args[2],Check)){
       object result;
-      if(args[0]=="begin"&&args.Length==6)result=ledger.Begin(args[3],args[4],args[5],Origin);
-      else if(args[0]=="define"&&args.Length==8)result=Define(ledger,c,args[3],args[4],args[5],args[6],args[7]);
+      if(args[0]=="begin"&&args.Length==6){var begun=ledger.Begin(args[3],args[4],args[5],Origin);result=new{original=begun,originalSha256=ProtectedAttempt.Hash(E(begun))};}
+      else if(args[0]=="stage"&&args.Length==4)result=Stage(ledger,c,args[3],Console.OpenStandardInput());
+      else if(args[0]=="define-staged"&&args.Length==4)result=DefineStaged(ledger,c,args[3]);
+      else if(args[0]=="inspect"&&args.Length==3)result=ledger.Inspect();
+      else if(args[0]=="current"&&args.Length==4)result=new{original=ledger.Original(args[3]),nowMs=BoundedWorker.MonotonicMilliseconds().ToString(CultureInfo.InvariantCulture)};
+      else if(args[0]=="hold"&&args.Length==4)result=ledger.Hold(args[3]);
       else if(args[0]=="inventory"&&args.Length==3){ledger.RequireEmpty();result=new{empty=true,reservationMayRelease=false};}
       else throw new ArgumentException("Explicit one-shot native command required");
-      Cleanup();Console.WriteLine(NativeRpcManagerLedger.Json.Serialize(new{schema="native-rpc-manager-controller-result/1",command=args[0],value=result,elapsedMs=BoundedWorker.MonotonicMilliseconds()-Origin,rpcReady=false,providerOperationFenced=false,reservationMayRelease=false}));return 0;
+      Cleanup();Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=131072,RecursionLimit=32}.Serialize(new{schema="native-rpc-manager-controller-result/2",command=args[0],value=result,elapsedMs=BoundedWorker.MonotonicMilliseconds()-Origin,rpcReady=false,providerOperationFenced=false,reservationMayRelease=false}));return 0;
      }
     }
    }catch(Exception e){Console.Error.WriteLine(e.GetType().Name+": "+e.Message);return 1;}
