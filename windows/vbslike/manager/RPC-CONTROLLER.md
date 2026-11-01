@@ -65,3 +65,16 @@ storage-owner enrollment/signed-offer delivery, real TPM/AF_HYPERV/NBD/verity,
 whole-stack fit, sync/finality/readiness, persistent serving and consumer cutover.
 Catalog preview is already published and is not the production runtime. No
 publication, signature or payment is repeated by this integration.
+
+Hosted run41328193864 subsequently exercised the actual Windows Manager/client/
+native CLI process path with the same compiled controller (no rebuild). Five
+composed checks passed, including actual binary staging, original QPC receipts,
+held recovery and native hold. Deliberately absent inert firmware refused definition
+before provider admission/task dispatch. A separate native process blocked on
+stdin exited125 through its own30-second watchdog after30066.3821ms; an external
+fixture held its exact process handle before expiry and verified death. CI used
+Node22.23.4 (SHA256 dccc52de28d8df2ee22d2062424f8c563070d95d8ad70c54c4bf01d590dec14f),
+not targetNode24.16.0. Host inventory/shared pool were fixtures. Full target SYSTEM
+scheduling/admission, device setup/start, accepted current image and actual RPC
+serving remain unqualified. See
+`../../../ops/unified-funding-20261028/rpc-native-manager-process-ci-r1/ROOT-RESULT.md`.

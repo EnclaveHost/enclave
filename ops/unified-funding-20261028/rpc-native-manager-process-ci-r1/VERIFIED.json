@@ -1,0 +1,45 @@
+{
+  "run": 41328193864,
+  "head": "2907cb5e5493bec8d94fd7113f323828c61d934a",
+  "compiledPins": [
+    "windows/rpc/BoundedWorker.cs",
+    "test/rpc-windows-worker/NativeRpcProcessHarness.cs"
+  ],
+  "sourcePins": 44,
+  "fixture": {
+    "compiled": true,
+    "fixtureExecuted": true,
+    "nativeControllerExecuted": true,
+    "nativeProviderExecuted": false,
+    "rpcReady": false,
+    "sha256": "817be4b6452f6d87c8e203f5e5020acf887ed0581398e2b4cc541d5fb2d6ba11",
+    "bytes": 33792,
+    "nodePath": "C:\\Program Files\\nodejs\\node.exe",
+    "nodeSha256": "dccc52de28d8df2ee22d2062424f8c563070d95d8ad70c54c4bf01d590dec14f",
+    "nodeVersion": "22.23.4",
+    "candidateSha256": "22e033958a4bbd695342b74248079ddf90b2788f1efe8f83def023710c4deb6f",
+    "candidateBytes": 237568,
+    "candidateSource": "841e7b7e007fc19d1e7cd13a204faa00d3e37901",
+    "candidateRun": 41327394900
+  },
+  "distinctComposedPass": 5,
+  "held": {
+    "pid": 6792,
+    "creation": 134380253346406612,
+    "image": "22e033958a4bbd695342b74248079ddf90b2788f1efe8f83def023710c4deb6f"
+  },
+  "exact": {
+    "nodePid": 8088,
+    "nodeCreation": 134380253326626457,
+    "nodeExit": 0,
+    "blockedPid": 6792,
+    "blockedCreation": 134380253346406612,
+    "blockedExit": 125,
+    "elapsedMs": 32201,
+    "jobBytes": 268435456,
+    "member": true,
+    "limits": true,
+    "rpcReady": false
+  },
+  "targetAdmission": false
+}

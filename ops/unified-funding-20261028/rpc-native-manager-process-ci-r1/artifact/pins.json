@@ -1,0 +1,17 @@
+[
+  {
+    "Algorithm": "SHA256",
+    "Hash": "309A68AB3A4326C3819997C3ABAE4E4FE38307E98BB54B31B246CE61A9A63A99",
+    "Path": "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\BoundedWorker.cs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "8DF694204480CF1DB461C734B223901E3B2F13C72C0582ACFF82FA3D1B0CDD44",
+    "Path": "D:\\a\\enclave\\enclave\\source-closure\\test\\rpc-windows-worker\\NativeRpcProcessHarness.cs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "46809206887326D2D24DB1EFF1F3064DE972C3451ABE766B49111450A5E08E00",
+    "Path": "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe"
+  }
+]

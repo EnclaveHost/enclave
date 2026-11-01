@@ -1373,3 +1373,16 @@ qualify the actual Windows Node-to-nativeMain-to-SYSTEM task composition, hardwa
 or a running RPC. Full runtime qualification, devices/start, current accepted
 image and original storage-owner bootstrap remain required. See
 `NATIVE-MANAGER-CONTROLLER.md` and `../vbslike/manager/RPC-CONTROLLER.md`.
+
+Hosted run41328193864 subsequently exercised the actual Windows Manager/client/
+native CLI process path with the same compiled controller (no rebuild). Five
+composed checks passed, including actual binary staging, original QPC receipts,
+held recovery and native hold. Deliberately absent inert firmware refused definition
+before provider admission/task dispatch. A separate native process blocked on
+stdin exited125 through its own30-second watchdog after30066.3821ms; an external
+fixture held its exact process handle before expiry and verified death. CI used
+Node22.23.4 (SHA256 dccc52de28d8df2ee22d2062424f8c563070d95d8ad70c54c4bf01d590dec14f),
+not targetNode24.16.0. Host inventory/shared pool were fixtures. Full target SYSTEM
+scheduling/admission, device setup/start, accepted current image and actual RPC
+serving remain unqualified. See
+`../../ops/unified-funding-20261028/rpc-native-manager-process-ci-r1/ROOT-RESULT.md`.

@@ -1,0 +1,38 @@
+{
+  "harness-compile.out": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "source-pins.json": {
+    "bytes": 5066,
+    "sha256": "b5aa4a910f1394e4a68c5022bcc2fcef1cb51b49f57ff3846f48463d12d58ba4"
+  },
+  "artifact.json": {
+    "bytes": 676,
+    "sha256": "287689cf13228d0fb5ecf6f451c5cb8b3b5777f1059bf5fa602e0016b9d59a84"
+  },
+  "process-results.json": {
+    "bytes": 545,
+    "sha256": "595ad19d87c3811af872db779675783ce94aa0164a96bfc2ccaa4a8dca7c3852"
+  },
+  "pins.json": {
+    "bytes": 694,
+    "sha256": "30fb82bbf2b1137d332f876764fd37ebf757b4b6ceebd5950d00d2fbea1c1b57"
+  },
+  "process-composition.err": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "harness-compile.err": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "process-composition.out": {
+    "bytes": 1156,
+    "sha256": "0261e9ee966b9ed794074e765e991e39888d8cc83f3e54b1c121be7ce882e441"
+  },
+  "owned-entry.exe": {
+    "bytes": 33792,
+    "sha256": "817be4b6452f6d87c8e203f5e5020acf887ed0581398e2b4cc541d5fb2d6ba11"
+  }
+}
