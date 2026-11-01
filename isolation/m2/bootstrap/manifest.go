@@ -35,7 +35,8 @@ type Manifest struct {
 	// existed, so those exact bytes keep their meaning (names.go).
 	Names *Names `json:"names,omitempty"`
 	// History is optional too (history.go): owner-named log-capable RPCs for a cold start under a long-held lease.
-	History *History `json:"history,omitempty"`
+	History    *History    `json:"history,omitempty"`
+	RPCStorage *RPCStorage `json:"rpcStorage,omitempty"`
 }
 type Identity struct{ AppID, RuntimeID [32]byte }
 type commitment struct {
@@ -216,6 +217,9 @@ func (r *Reader) Authorize(ctx context.Context, id [32]byte, raw []byte, loaded 
 		return nil, e
 	}
 	if e := historyField(raw, m.History); e != nil {
+		return nil, e
+	}
+	if e := rpcStorageField(raw, m.RPCStorage); e != nil {
 		return nil, e
 	}
 	st, e := r.read(ctx, id)

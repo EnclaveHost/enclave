@@ -1,0 +1,77 @@
+{"Time":"2026-11-01T02:24:48.692482736-07:00","Action":"start","Package":"enclave.host/isolation/contract"}
+{"Time":"2026-11-01T02:24:48.697684249-07:00","Action":"run","Package":"enclave.host/isolation/contract","Test":"TestMeasuredAppConfig"}
+{"Time":"2026-11-01T02:24:48.697746768-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestMeasuredAppConfig","Output":"=== RUN   TestMeasuredAppConfig\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.697772788-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestMeasuredAppConfig","Output":"--- PASS: TestMeasuredAppConfig (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.697781208-07:00","Action":"pass","Package":"enclave.host/isolation/contract","Test":"TestMeasuredAppConfig","Elapsed":0}
+{"Time":"2026-11-01T02:24:48.697786798-07:00","Action":"run","Package":"enclave.host/isolation/contract","Test":"TestSecretDeploymentBoundManifest"}
+{"Time":"2026-11-01T02:24:48.697788968-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestSecretDeploymentBoundManifest","Output":"=== RUN   TestSecretDeploymentBoundManifest\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.697793738-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestSecretDeploymentBoundManifest","Output":"--- PASS: TestSecretDeploymentBoundManifest (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.697795478-07:00","Action":"pass","Package":"enclave.host/isolation/contract","Test":"TestSecretDeploymentBoundManifest","Elapsed":0}
+{"Time":"2026-11-01T02:24:48.697797458-07:00","Action":"run","Package":"enclave.host/isolation/contract","Test":"TestSecretCommandProtectedPorts"}
+{"Time":"2026-11-01T02:24:48.697798628-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestSecretCommandProtectedPorts","Output":"=== RUN   TestSecretCommandProtectedPorts\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.697800978-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestSecretCommandProtectedPorts","Output":"--- PASS: TestSecretCommandProtectedPorts (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.697802458-07:00","Action":"pass","Package":"enclave.host/isolation/contract","Test":"TestSecretCommandProtectedPorts","Elapsed":0}
+{"Time":"2026-11-01T02:24:48.697804118-07:00","Action":"run","Package":"enclave.host/isolation/contract","Test":"TestShieldModelConfig"}
+{"Time":"2026-11-01T02:24:48.697805178-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestShieldModelConfig","Output":"=== RUN   TestShieldModelConfig\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.697807388-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestShieldModelConfig","Output":"--- PASS: TestShieldModelConfig (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.697808808-07:00","Action":"pass","Package":"enclave.host/isolation/contract","Test":"TestShieldModelConfig","Elapsed":0}
+{"Time":"2026-11-01T02:24:48.697810268-07:00","Action":"run","Package":"enclave.host/isolation/contract","Test":"TestInferenceModelReservation"}
+{"Time":"2026-11-01T02:24:48.697811968-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestInferenceModelReservation","Output":"=== RUN   TestInferenceModelReservation\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.697813838-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestInferenceModelReservation","Output":"--- PASS: TestInferenceModelReservation (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.697815428-07:00","Action":"pass","Package":"enclave.host/isolation/contract","Test":"TestInferenceModelReservation","Elapsed":0}
+{"Time":"2026-11-01T02:24:48.697816798-07:00","Action":"run","Package":"enclave.host/isolation/contract","Test":"TestEndRequestedSeesADeleteDuringStartup"}
+{"Time":"2026-11-01T02:24:48.697818028-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestEndRequestedSeesADeleteDuringStartup","Output":"=== RUN   TestEndRequestedSeesADeleteDuringStartup\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.697828738-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestEndRequestedSeesADeleteDuringStartup","Output":"--- PASS: TestEndRequestedSeesADeleteDuringStartup (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.697830378-07:00","Action":"pass","Package":"enclave.host/isolation/contract","Test":"TestEndRequestedSeesADeleteDuringStartup","Elapsed":0}
+{"Time":"2026-11-01T02:24:48.697831898-07:00","Action":"run","Package":"enclave.host/isolation/contract","Test":"TestRPCStartBindingWire"}
+{"Time":"2026-11-01T02:24:48.697833088-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestRPCStartBindingWire","Output":"=== RUN   TestRPCStartBindingWire\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.697834688-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestRPCStartBindingWire","Output":"--- PASS: TestRPCStartBindingWire (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.697836028-07:00","Action":"pass","Package":"enclave.host/isolation/contract","Test":"TestRPCStartBindingWire","Elapsed":0}
+{"Time":"2026-11-01T02:24:48.697837848-07:00","Action":"run","Package":"enclave.host/isolation/contract","Test":"TestVectors"}
+{"Time":"2026-11-01T02:24:48.697839378-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestVectors","Output":"=== RUN   TestVectors\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.697841548-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestVectors","Output":"--- PASS: TestVectors (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.697843078-07:00","Action":"pass","Package":"enclave.host/isolation/contract","Test":"TestVectors","Elapsed":0}
+{"Time":"2026-11-01T02:24:48.697844508-07:00","Action":"run","Package":"enclave.host/isolation/contract","Test":"TestProperties"}
+{"Time":"2026-11-01T02:24:48.697845648-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestProperties","Output":"=== RUN   TestProperties\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.697847308-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestProperties","Output":"--- PASS: TestProperties (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.697848688-07:00","Action":"pass","Package":"enclave.host/isolation/contract","Test":"TestProperties","Elapsed":0}
+{"Time":"2026-11-01T02:24:48.697850038-07:00","Action":"run","Package":"enclave.host/isolation/contract","Test":"TestTheWorldAndPortAreStatedExactly"}
+{"Time":"2026-11-01T02:24:48.697851248-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestTheWorldAndPortAreStatedExactly","Output":"=== RUN   TestTheWorldAndPortAreStatedExactly\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.697853068-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestTheWorldAndPortAreStatedExactly","Output":"--- PASS: TestTheWorldAndPortAreStatedExactly (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.697854478-07:00","Action":"pass","Package":"enclave.host/isolation/contract","Test":"TestTheWorldAndPortAreStatedExactly","Elapsed":0}
+{"Time":"2026-11-01T02:24:48.697855708-07:00","Action":"run","Package":"enclave.host/isolation/contract","Test":"TestScanWXFindsAPlantedMapping"}
+{"Time":"2026-11-01T02:24:48.697856948-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestScanWXFindsAPlantedMapping","Output":"=== RUN   TestScanWXFindsAPlantedMapping\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.699765664-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestScanWXFindsAPlantedMapping","Output":"--- PASS: TestScanWXFindsAPlantedMapping (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.699791593-07:00","Action":"pass","Package":"enclave.host/isolation/contract","Test":"TestScanWXFindsAPlantedMapping","Elapsed":0}
+{"Time":"2026-11-01T02:24:48.699802253-07:00","Action":"run","Package":"enclave.host/isolation/contract","Test":"TestScanWXCountsTheRuntime"}
+{"Time":"2026-11-01T02:24:48.699804243-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestScanWXCountsTheRuntime","Output":"=== RUN   TestScanWXCountsTheRuntime\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.700758396-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestScanWXCountsTheRuntime","Output":"--- PASS: TestScanWXCountsTheRuntime (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.700777566-07:00","Action":"pass","Package":"enclave.host/isolation/contract","Test":"TestScanWXCountsTheRuntime","Elapsed":0}
+{"Time":"2026-11-01T02:24:48.700783546-07:00","Action":"run","Package":"enclave.host/isolation/contract","Test":"TestScanWXFailsOnAnUnreadableProcess"}
+{"Time":"2026-11-01T02:24:48.700785246-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestScanWXFailsOnAnUnreadableProcess","Output":"=== RUN   TestScanWXFailsOnAnUnreadableProcess\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.701108104-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestScanWXFailsOnAnUnreadableProcess","Output":"    wxscan_test.go:126: as root every process is readable; the unreadable case needs a non-root test\n"}
+{"Time":"2026-11-01T02:24:48.701283973-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestScanWXFailsOnAnUnreadableProcess","Output":"--- SKIP: TestScanWXFailsOnAnUnreadableProcess (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.701836549-07:00","Action":"skip","Package":"enclave.host/isolation/contract","Test":"TestScanWXFailsOnAnUnreadableProcess","Elapsed":0}
+{"Time":"2026-11-01T02:24:48.701846359-07:00","Action":"run","Package":"enclave.host/isolation/contract","Test":"TestScanWXOfNothingIsNotClean"}
+{"Time":"2026-11-01T02:24:48.701850089-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestScanWXOfNothingIsNotClean","Output":"=== RUN   TestScanWXOfNothingIsNotClean\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.701854748-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestScanWXOfNothingIsNotClean","Output":"--- PASS: TestScanWXOfNothingIsNotClean (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.701856848-07:00","Action":"pass","Package":"enclave.host/isolation/contract","Test":"TestScanWXOfNothingIsNotClean","Elapsed":0}
+{"Time":"2026-11-01T02:24:48.701858598-07:00","Action":"run","Package":"enclave.host/isolation/contract","Test":"TestAnUnparsableMapsLineFails"}
+{"Time":"2026-11-01T02:24:48.701859928-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestAnUnparsableMapsLineFails","Output":"=== RUN   TestAnUnparsableMapsLineFails\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.701861978-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestAnUnparsableMapsLineFails","Output":"--- PASS: TestAnUnparsableMapsLineFails (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.701863478-07:00","Action":"pass","Package":"enclave.host/isolation/contract","Test":"TestAnUnparsableMapsLineFails","Elapsed":0}
+{"Time":"2026-11-01T02:24:48.701865058-07:00","Action":"run","Package":"enclave.host/isolation/contract","Test":"TestUIDOf"}
+{"Time":"2026-11-01T02:24:48.701869128-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestUIDOf","Output":"=== RUN   TestUIDOf\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.701871168-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestUIDOf","Output":"--- PASS: TestUIDOf (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.701872628-07:00","Action":"pass","Package":"enclave.host/isolation/contract","Test":"TestUIDOf","Elapsed":0}
+{"Time":"2026-11-01T02:24:48.701874008-07:00","Action":"run","Package":"enclave.host/isolation/contract","Test":"TestTheRuntimeMustBeUnderAFilter"}
+{"Time":"2026-11-01T02:24:48.701879648-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestTheRuntimeMustBeUnderAFilter","Output":"=== RUN   TestTheRuntimeMustBeUnderAFilter\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.703300938-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestTheRuntimeMustBeUnderAFilter","Output":"--- PASS: TestTheRuntimeMustBeUnderAFilter (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.703326218-07:00","Action":"pass","Package":"enclave.host/isolation/contract","Test":"TestTheRuntimeMustBeUnderAFilter","Elapsed":0}
+{"Time":"2026-11-01T02:24:48.703342108-07:00","Action":"run","Package":"enclave.host/isolation/contract","Test":"TestTheSeccompStatementIsExact"}
+{"Time":"2026-11-01T02:24:48.703344718-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestTheSeccompStatementIsExact","Output":"=== RUN   TestTheSeccompStatementIsExact\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.703409407-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestTheSeccompStatementIsExact","Output":"--- PASS: TestTheSeccompStatementIsExact (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.703416897-07:00","Action":"pass","Package":"enclave.host/isolation/contract","Test":"TestTheSeccompStatementIsExact","Elapsed":0}
+{"Time":"2026-11-01T02:24:48.703427637-07:00","Action":"output","Package":"enclave.host/isolation/contract","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-11-01T02:24:48.703658556-07:00","Action":"output","Package":"enclave.host/isolation/contract","Output":"ok  \tenclave.host/isolation/contract\t0.011s\n"}
+{"Time":"2026-11-01T02:24:48.703666125-07:00","Action":"pass","Package":"enclave.host/isolation/contract","Elapsed":0.011}

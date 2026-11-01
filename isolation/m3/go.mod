@@ -10,3 +10,8 @@ require (
 replace enclave.host/isolation/contract => ../contract
 
 replace enclave.host/isolation/m2 => ../m2
+
+require (
+ github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1 // indirect
+ golang.org/x/crypto v0.37.0 // indirect
+)

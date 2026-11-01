@@ -174,12 +174,23 @@ export function challengeAlias(deployment,owner,zone){
   if(!dnsName(zone))throw Error('challenge alias needs a DNS zone');
   return `_acme-challenge.${challengeLabel(deployment,owner)}.${zone}`;
 }
+// Explicit owner selection; this is not a signed grant or writer-fence proof.
+export function validateRPCStorage(s){
+  keys(s,['schema','l1','base']);
+  if(s.schema!=='enclave-rpc-storage-authorities/1')throw Error('RPC storage authority schema');
+  for(const a of [s.l1,s.base]){
+    keys(a,['volumeId','publicKey']);
+    if(typeof a.volumeId!=='string'||typeof a.publicKey!=='string'||!hex32.test(a.volumeId)||!nonzero(a.volumeId)||!hex32.test(a.publicKey)||!nonzero(a.publicKey))throw Error('RPC storage authority identity');
+  }
+  if(s.l1.volumeId===s.base.volumeId)throw Error('distinct RPC storage volumes required');
+  return s;
+}
 export function verifyPackage(bytes,intent,scope={}){
   bytes=Buffer.from(bytes);if(!bytes.length||bytes.length>MAX_PACKAGE_BYTES)throw Error('startup package size limit');
   const hash=createHash('sha256').update(bytes).digest('hex');
   if(intent?.version!==1||intent.sha256!==hash)throw Error('startup package hash mismatch');
   const text=new TextDecoder('utf-8',{fatal:true}).decode(bytes),m=parseUniqueJSON(text);
-  keys(m,['version','chainId','ledger','deployment','owner','appRef','appId','runtimeId','configText','secretsMode','custody','names','history']);
+  keys(m,['version','chainId','ledger','deployment','owner','appRef','appId','runtimeId','configText','secretsMode','custody','names','history','rpcStorage']);
   if(m.version!==1||!Number.isSafeInteger(m.chainId)||m.chainId<=0||!addr.test(m.ledger)||!nonzero(m.ledger)||!addr.test(m.owner)||!nonzero(m.owner)||!id32.test(m.deployment)||!nonzero(m.deployment)||!hex32.test(m.appId)||!nonzero(m.appId)||!hex32.test(m.runtimeId)||!nonzero(m.runtimeId)||typeof m.appRef!=='string'||!m.appRef||typeof m.configText!=='string'||Buffer.byteLength(m.configText)>32768)throw Error('invalid startup package');
   if(m.configText){const c=parseUniqueJSON(m.configText);if(!c||typeof c!=='object')throw Error('startup config must be an object or array');}
   if(m.secretsMode==='public'){if(m.custody!=null)throw Error('public package cannot carry custody');}
@@ -187,6 +198,7 @@ export function verifyPackage(bytes,intent,scope={}){
   else throw Error('explicit startup secrets mode required');
   if(Object.hasOwn(m,'names'))validateNames(m.names,m.secretsMode);
   if(Object.hasOwn(m,'history'))validateHistory(m.history);
+  if(Object.hasOwn(m,'rpcStorage'))validateRPCStorage(m.rpcStorage);
   for(const [k,v]of Object.entries(scope)){if(v==null)continue;const fold=['ledger','owner'].includes(k);if((fold?m[k]?.toLowerCase():m[k])!==(fold?String(v).toLowerCase():v))throw Error(`startup ${k} mismatch`);}
   return {manifest:m,bytes,sha256:hash,cid:packageCID(hash)};
 }

@@ -1,0 +1,21 @@
+{
+  "base": "bc01d89c7ff24d216107d9a7b2f5c997465a44bc",
+  "changedFrozenInputs": [
+    "isolation/contract/rpc_storage.go",
+    "isolation/m2/bootstrap/manifest.go",
+    "isolation/m2/bootstrap/rpc_storage.go",
+    "isolation/m2/bootstrap/rpc_storage_test.go",
+    "isolation/m2/bootstrap/testdata/rpc-storage-vectors.json",
+    "isolation/m3/go.mod",
+    "isolation/m3/go.sum",
+    "isolation/m3/rpcstorage/README.md",
+    "isolation/m3/rpcstorage/authorize_linux_amd64.go",
+    "isolation/m3/rpcstorage/broker_intent_linux_amd64.go",
+    "isolation/m3/rpcstorage/broker_intent_test.go",
+    "isolation/m3/rpcstorage/client_linux_amd64.go",
+    "isolation/m3/rpcstorage/intent_linux_amd64.go",
+    "sdk/bootstrap/package.mjs",
+    "test/bootstrap-rpc-storage.test.mjs"
+  ],
+  "remainingPinsIndependentlyMatchBase": true
+}

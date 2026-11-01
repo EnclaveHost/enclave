@@ -671,3 +671,10 @@ capability acquisition, domain preparation/root composition and process launch.
 It retains state on uncertain stop and scans all fixed role groups for reports.
 The required measured storage broker and target qualification are still absent;
 this source path is not enabled in production. See `isolation/m3/monitor/RPC.md`.
+
+The storage broker's authorization/reservation preparation now verifies explicit
+owner-committed per-volume Ed25519 authorities and signatures for the exact
+attempt, then consumes persistent volume records before export submission.
+See `isolation/m3/rpcstorage/README.md`. This is not an installed broker: actual
+export fencing, independent guard and bootstrap integration remain required.
+Production RPC remains offline.

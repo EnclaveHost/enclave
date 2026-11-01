@@ -9,9 +9,6 @@ import (
 	"io"
 	"os"
 	"syscall"
-
-	"enclave.host/isolation/contract"
-	"enclave.host/isolation/m3/rpcservice"
 )
 
 // A per-boot consumed intent precedes even connect/submission. It survives a
@@ -23,13 +20,8 @@ func consumeIntent(d *os.File, r Request) (*os.File, error) {
 	if d == nil || syscall.Fstat(int(d.Fd()), &st) != nil || st.Uid != 0 || st.Mode&syscall.S_IFMT != syscall.S_IFDIR || st.Mode&07777 != 0700 || syscall.Fstatfs(int(d.Fd()), &fs) != nil || fs.Type != 0x01021994 {
 		return nil, errors.New("private root tmpfs storage authority directory required")
 	}
-	for _, h := range []string{r.AppID, r.BaseVolume, r.L1Volume, r.Profile, r.Nonce} {
-		if !contract.NonzeroHash(h) {
-			return nil, errors.New("invalid storage request identity")
-		}
-	}
-	if r.Schema != requestSchema || r.BaseVolume == r.L1Volume || r.Origin > ^uint64(0)-uint64(rpcservice.StartupWindow) || r.Deadline != r.Origin+uint64(rpcservice.StartupWindow) {
-		return nil, errors.New("invalid original storage request")
+	if err := r.Validate(); err != nil {
+		return nil, err
 	}
 	b, err := json.Marshal(r)
 	if err != nil {

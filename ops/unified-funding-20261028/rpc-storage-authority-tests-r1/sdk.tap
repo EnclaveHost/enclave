@@ -1,0 +1,118 @@
+TAP version 13
+# Subtest: JS accepts Go public and custody vectors and names the exact raw CID
+ok 1 - JS accepts Go public and custody vectors and names the exact raw CID
+  ---
+  duration_ms: 2.194604
+  type: 'test'
+  ...
+# Subtest: ambiguous JSON, oversized documents, changed bytes and changed owner scope fail
+ok 2 - ambiguous JSON, oversized documents, changed bytes and changed owner scope fail
+  ---
+  duration_ms: 7.695224
+  type: 'test'
+  ...
+# Subtest: startup intent cannot be confused with legacy config or duplicate fields
+ok 3 - startup intent cannot be confused with legacy config or duplicate fields
+  ---
+  duration_ms: 0.873643
+  type: 'test'
+  ...
+# Subtest: unavailable or malicious gateways cannot override the valid committed bytes
+ok 4 - unavailable or malicious gateways cannot override the valid committed bytes
+  ---
+  duration_ms: 25.706504
+  type: 'test'
+  ...
+# Subtest: upload response bounds apply with missing or dishonest length headers
+ok 5 - upload response bounds apply with missing or dishonest length headers
+  ---
+  duration_ms: 1.342831
+  type: 'test'
+  ...
+# Subtest: RPC authority policy: independent-keys
+ok 6 - RPC authority policy: independent-keys
+  ---
+  duration_ms: 2.399293
+  type: 'test'
+  ...
+# Subtest: RPC authority policy: null
+ok 7 - RPC authority policy: null
+  ---
+  duration_ms: 0.379607
+  type: 'test'
+  ...
+# Subtest: RPC authority policy: empty
+ok 8 - RPC authority policy: empty
+  ---
+  duration_ms: 0.152248
+  type: 'test'
+  ...
+# Subtest: RPC authority policy: unknown
+ok 9 - RPC authority policy: unknown
+  ---
+  duration_ms: 0.150639
+  type: 'test'
+  ...
+# Subtest: RPC authority policy: wrong-schema
+ok 10 - RPC authority policy: wrong-schema
+  ---
+  duration_ms: 1.221721
+  type: 'test'
+  ...
+# Subtest: RPC authority policy: same-volume
+ok 11 - RPC authority policy: same-volume
+  ---
+  duration_ms: 0.152419
+  type: 'test'
+  ...
+# Subtest: RPC authority policy: zero-key
+ok 12 - RPC authority policy: zero-key
+  ---
+  duration_ms: 0.360638
+  type: 'test'
+  ...
+# Subtest: RPC authority policy: array-key
+ok 13 - RPC authority policy: array-key
+  ---
+  duration_ms: 0.197648
+  type: 'test'
+  ...
+# Subtest: RPC authority policy: null-role
+ok 14 - RPC authority policy: null-role
+  ---
+  duration_ms: 0.312948
+  type: 'test'
+  ...
+# Subtest: RPC authority policy: missing-key
+ok 15 - RPC authority policy: missing-key
+  ---
+  duration_ms: 0.403727
+  type: 'test'
+  ...
+# Subtest: RPC authority policy: alias
+ok 16 - RPC authority policy: alias
+  ---
+  duration_ms: 0.201159
+  type: 'test'
+  ...
+# Subtest: RPC authority policy: duplicate-key
+ok 17 - RPC authority policy: duplicate-key
+  ---
+  duration_ms: 0.100829
+  type: 'test'
+  ...
+# Subtest: old package bytes unchanged and new policy requires a new owner commitment
+ok 18 - old package bytes unchanged and new policy requires a new owner commitment
+  ---
+  duration_ms: 2.66153
+  type: 'test'
+  ...
+1..18
+# tests 18
+# suites 0
+# pass 18
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 165.244422

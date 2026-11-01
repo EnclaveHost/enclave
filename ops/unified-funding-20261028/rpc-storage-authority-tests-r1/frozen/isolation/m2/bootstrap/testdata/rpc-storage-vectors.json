@@ -1,0 +1,62 @@
+[
+  {
+    "name": "independent-keys",
+    "raw": "{\"schema\":\"enclave-rpc-storage-authorities/1\",\"l1\":{\"volumeId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"publicKey\":\"1111111111111111111111111111111111111111111111111111111111111111\"},\"base\":{\"volumeId\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"publicKey\":\"2222222222222222222222222222222222222222222222222222222222222222\"}}",
+    "valid": true
+  },
+  {
+    "name": "null",
+    "raw": "null",
+    "valid": false
+  },
+  {
+    "name": "empty",
+    "raw": "{}",
+    "valid": false
+  },
+  {
+    "name": "unknown",
+    "raw": "{\"schema\":\"enclave-rpc-storage-authorities/1\",\"l1\":{\"volumeId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"publicKey\":\"1111111111111111111111111111111111111111111111111111111111111111\"},\"base\":{\"volumeId\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"publicKey\":\"2222222222222222222222222222222222222222222222222222222222222222\"},\"endpoint\":\"https://injected.example\"}",
+    "valid": false
+  },
+  {
+    "name": "wrong-schema",
+    "raw": "{\"schema\":\"other\",\"l1\":{\"volumeId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"publicKey\":\"1111111111111111111111111111111111111111111111111111111111111111\"},\"base\":{\"volumeId\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"publicKey\":\"2222222222222222222222222222222222222222222222222222222222222222\"}}",
+    "valid": false
+  },
+  {
+    "name": "same-volume",
+    "raw": "{\"schema\":\"enclave-rpc-storage-authorities/1\",\"l1\":{\"volumeId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"publicKey\":\"1111111111111111111111111111111111111111111111111111111111111111\"},\"base\":{\"volumeId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"publicKey\":\"2222222222222222222222222222222222222222222222222222222222222222\"}}",
+    "valid": false
+  },
+  {
+    "name": "zero-key",
+    "raw": "{\"schema\":\"enclave-rpc-storage-authorities/1\",\"l1\":{\"volumeId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"publicKey\":\"0000000000000000000000000000000000000000000000000000000000000000\"},\"base\":{\"volumeId\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"publicKey\":\"2222222222222222222222222222222222222222222222222222222222222222\"}}",
+    "valid": false
+  },
+  {
+    "name": "array-key",
+    "raw": "{\"schema\":\"enclave-rpc-storage-authorities/1\",\"l1\":{\"volumeId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"publicKey\":[\"1111111111111111111111111111111111111111111111111111111111111111\"]},\"base\":{\"volumeId\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"publicKey\":\"2222222222222222222222222222222222222222222222222222222222222222\"}}",
+    "valid": false
+  },
+  {
+    "name": "null-role",
+    "raw": "{\"schema\":\"enclave-rpc-storage-authorities/1\",\"l1\":null,\"base\":{\"volumeId\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"publicKey\":\"2222222222222222222222222222222222222222222222222222222222222222\"}}",
+    "valid": false
+  },
+  {
+    "name": "missing-key",
+    "raw": "{\"schema\":\"enclave-rpc-storage-authorities/1\",\"l1\":{\"volumeId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"base\":{\"volumeId\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"publicKey\":\"2222222222222222222222222222222222222222222222222222222222222222\"}}",
+    "valid": false
+  },
+  {
+    "name": "alias",
+    "raw": "{\"schema\":\"enclave-rpc-storage-authorities/1\",\"l1\":{\"volumeId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"publicKey\":\"1111111111111111111111111111111111111111111111111111111111111111\"},\"base\":{\"volumeId\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"publicKey\":\"2222222222222222222222222222222222222222222222222222222222222222\"},\"L1\":{\"volumeId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"publicKey\":\"1111111111111111111111111111111111111111111111111111111111111111\"}}",
+    "valid": false
+  },
+  {
+    "name": "duplicate-key",
+    "raw": "{\"schema\":\"x\",\"schema\":\"enclave-rpc-storage-authorities/1\",\"l1\":{\"volumeId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"publicKey\":\"1111111111111111111111111111111111111111111111111111111111111111\"},\"base\":{\"volumeId\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"publicKey\":\"2222222222222222222222222222222222222222222222222222222222222222\"}}",
+    "valid": false
+  }
+]

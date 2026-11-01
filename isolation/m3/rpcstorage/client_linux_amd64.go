@@ -24,23 +24,12 @@ import (
 )
 
 const socketPath = "/run/native-rpc-storage/broker.sock"
-const requestSchema = "enclave-rpc-storage-acquire/1"
+const requestSchema = contract.RPCStorageRequestSchema
 const replyPrefix = "ENCLAVE-RPC-STORAGE/1 "
 
 // Request binds one attempt to actual loaded identity and the original clock.
 // No host pathname, endpoint, executable, budget or asserted permission exists.
-type Request struct {
-	AppID      string `json:"appId"`
-	BaseVolume string `json:"baseVolume"`
-	Boot       string `json:"boot"`
-	Deadline   uint64 `json:"deadlineMonotonicNs"`
-	Deployment string `json:"deployment"`
-	L1Volume   string `json:"l1Volume"`
-	Nonce      string `json:"nonce"`
-	Origin     uint64 `json:"originMonotonicNs"`
-	Profile    string `json:"profile"`
-	Schema     string `json:"schema"`
-}
+type Request = contract.RPCStorageRequest
 
 // Attempt is retained on any post-submission ambiguity. Neither Close nor
 // release is exposed. Loss returns once on EOF, a byte, error or original D;

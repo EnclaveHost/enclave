@@ -41,3 +41,47 @@ all remote writer operations settled. Shutdown and recovery need the real
 broker's durable one-shot writer protocol and conclusive storage fencing.
 Inert tests use dummy directory capabilities and a socket-pair fixture; they
 prove descriptor/clock/message behavior, not those authority obligations.
+
+## Authenticated broker preparation (not an activated broker)
+
+`BeginBrokerAttempt` now composes real owner authorization, both storage-owner
+signatures, actual sealed original clock/boot checks, and persistent exclusive
+volume records. It does not send a grant or launch an export. The broker daemon,
+independent guardian, credential provisioning, actual owner-controlled journal
+namespace and writer settlement are still unimplemented/unqualified.
+
+The owner-committed startup package can explicitly select `rpcStorage`, with
+schema `enclave-rpc-storage-authorities/1` and `l1`/`base` objects containing
+`volumeId` and raw Ed25519 `publicKey` (lowercase 32-byte hex). Historical package
+bytes remain valid but confer no RPC volume authority. SDK package verification
+and the guest use the same strict policy fixtures. Selecting keys requires a new
+owner commitment; a host cannot append this field to an existing commitment.
+
+`bootstrap.Authorization.VerifyRPCStorage` checks actual V9 AppID, deployment,
+profile and both logical volume IDs against that authenticated package. Both
+storage authorities must sign the exact request, runtime, owner, chain, ledger,
+commitment envelope, role and distinct writer epoch. The fixed binary payload is
+returned by `RPCStorageSigningPayloads`; this API neither signs nor grants.
+Keys come exclusively from the current owner-committed package. Returned consent
+has private fields, expires with authorization and cannot be rebound to another
+request. Existing bootstrap chain-quorum/legacy-lease assumptions remain; this
+increment does not implement the event-driven replacement protocol.
+
+The persistent journal requires a held root-owned 0700 writable ext4 directory
+supplied by the actual storage authority. Each logical volume ID is an exclusive
+filename, created before any possible export submission; both records bind the
+same request and writer epochs. Writes, restrictive mode, file and directory
+fsync, inode/bytes readback precede success. Names and acquired handles remain
+held after a partial pair failure, restart, lost response or closed handle. No
+code here deletes, resets, releases or retries them. All writers must share the
+same authoritative journal; an arbitrary new directory is not a writer fence.
+The original temporary monitor intent is still required separately.
+
+A valid signature is storage consent, not evidence of clean databases, measured
+storage identity, unique live export, armed watchdog, completed flush, or final
+settlement. Signed epochs must be backed by the storage owner's real durable
+writer state and independent export guard before the service may pass writable
+roots. The next implementation must provide that service and accepted bootstrap;
+there is no stub grant fallback. Qualification uses generated test keys, mocked
+chain peers and disposable filesystem records; no production key or volume is
+used and no power-loss/reboot durability qualification is claimed.
