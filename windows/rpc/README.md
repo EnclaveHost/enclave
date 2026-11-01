@@ -1192,3 +1192,15 @@ live comparison and EnablePrivileges=false for that read-only path. Exact roles
 exited and original VMs/service/journals were unchanged. It does not settle the
 earlier consumed production attempt, prove a provider mutation or make RPC
 ready. See `ops/unified-funding-20261028/rpc-fenced-live-retry-target-result-r1`.
+
+
+`ProviderEventEvidenceEntry` is a separate read-only historical-event collector.
+It searches only three fixed WMI/VMMS channels within a reviewed original worker
+window of at most60 seconds. A five-second independent watchdog and128MiB
+self-job bound the reader; bootstrap allowance and protected image staging remain
+external admission requirements. It creates no child, changes no log, and invokes
+no VM/provider mutation. Output is bounded and private by default. Empty logs,
+unavailable channels and source-order inference cannot settle a lost response;
+even a returned event requires exact operation/ownership correlation. Its output
+always retains providerSettled=false and reservationMayRelease=false. Initial
+source is unqualified pending hosted and target evidence.
