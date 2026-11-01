@@ -1,0 +1,82 @@
+{
+  "worker": "e87ec7ec4a7c4200be985f964ed54eaa",
+  "native": {
+    "schema": "owned-rpc-target-definition/1",
+    "passed": false,
+    "operation": "preparation-gated",
+    "plan": "4657a2442176cac1e2461056c14c77053c288042840a553304ad76d2d87f667c",
+    "result": null,
+    "origin": 752087500,
+    "deadline": 752117500,
+    "elapsedMs": 11394,
+    "root": "C:\\EnclaveRpcDefinition-e87ec7ec4a7c4200be985f964ed54eaa\\e87ec7ec4a7c4200be985f964ed54eaa",
+    "freeBytes": 84581855232,
+    "requiredFreeBytes": 62709039104,
+    "failures": [
+      "InvalidOperationException: Exact role completion failed"
+    ],
+    "startAuthorized": false,
+    "reservationMayRelease": false
+  },
+  "childFailure": {
+    "type": "System.InvalidOperationException",
+    "message": "Node commitments changed since review: rows=21/21 changed=1 first=\"0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c\" mask=1 expected=[[\"fenced-unallocated-retry\"],true,128,false,false,false] actual=[\"stopped\",true,128,false,false,false]"
+  },
+  "freshGateReleased": true,
+  "gateReadyTick": 752091827,
+  "freshObservationHash": "93498d0f1c9741256f7904c3a326cae19524816dddb28efa3decd7b59d30fba2",
+  "preparationTraceCount": 0,
+  "exactDeaths": [
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379698533797016",
+      "pid": "9880",
+      "absent": true,
+      "role": "owner"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379698533796902",
+      "pid": "57660",
+      "absent": true,
+      "role": "observer"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379698535467424",
+      "pid": "42068",
+      "absent": true,
+      "role": "child"
+    }
+  ],
+  "priorReadDeaths": [
+    {
+      "label": "admission",
+      "expectedCreation": "134379697682026303",
+      "pid": 44900,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "create",
+      "expectedCreation": "134379697993922823",
+      "pid": 55204,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "verify",
+      "expectedCreation": "134379698329669158",
+      "pid": 32336,
+      "sameIncarnationAlive": false,
+      "absent": true
+    }
+  ],
+  "fourOriginalVmsUnchanged": true,
+  "original8091Alive": true,
+  "thirdPlanJournalsUnchanged": true,
+  "providerSettled": false,
+  "reservationMayRelease": false,
+  "rpcReady": false,
+  "rawReadSha256": "70e2c85e369586583fb3e18d321ba8139f0a12256951792db0b7568d993cacce"
+}

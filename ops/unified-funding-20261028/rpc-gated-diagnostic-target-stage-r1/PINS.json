@@ -1,0 +1,42 @@
+[
+  {
+    "path": "create.ps1",
+    "sha256": "eb2df24e145b1192a692a6e2ef00e4636b71eb475b1f7a1e6d9abd7fa5e9c6c3"
+  },
+  {
+    "path": "verify.ps1",
+    "sha256": "bc4f372b9eca9b35fecbff18f5dabff5f962b0c61f3609704871a854db98665d"
+  },
+  {
+    "path": "run.py",
+    "sha256": "366e95315573bff35350278786b7940643a68b41f7b3bba0591646721774a496"
+  },
+  {
+    "path": "capture_local.py",
+    "sha256": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c"
+  },
+  {
+    "path": "SPEC.json",
+    "sha256": "c6ab178a27058caec061ed347d9d63bc3169ad015c421945010884f2af8bf1d3"
+  },
+  {
+    "path": "FILES.json",
+    "sha256": "58340b4a3c65a5c6a183d2712d85a8cf640d4698b09266ba332bf80a2fd9218f"
+  },
+  {
+    "path": "ARTIFACTS.json",
+    "sha256": "d36d5ba9ec6d4ea6e83986689e9d39744a79eb409a24ad44289338efd870cb18"
+  },
+  {
+    "path": "bundle/definition-controller.exe",
+    "sha256": "966375619cc6e7776c0eb9f550b21b2dcf40bc90b974e318494058a64568f661"
+  },
+  {
+    "path": "bundle/definition-entry.exe",
+    "sha256": "90c04342ff73f017a8ee75f8c15e87274fda58ae08311bea38021b79093cbfa8"
+  },
+  {
+    "path": "bundle/observation.json",
+    "sha256": "43f945f9172553bba3cbaf005a7e06a95f6dff81b5b19cb6c58520d995120b6a"
+  }
+]

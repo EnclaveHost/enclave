@@ -1115,3 +1115,12 @@ there is no retry. Its watchdog, rather than elapsed checks alone, bounds a
 blocked native read. The native collector is not target-qualified yet. Synthetic
 collector fixtures prove neither real endpoint latency nor successful SYSTEM
 preparation, provider settlement, VM boot or RPC readiness.
+
+Actual target evidence (2026-11-01): collector revision60fd8fd6 completed the
+protected handoff in consumed diagnostic e87ec7ec. Native admission then refused
+a retry-to-stopped change in one node record before any WMI preparation trace.
+All exact diagnostic roles were independently absent; original VMs/8091 and
+third-attempt journals were unchanged. Full admission and the original SYSTEM
+failure remain unqualified. Historical resource-context construction still
+occurs after snapshot release; moving that setup before readiness requires
+retaining all current inventory/resource rechecks, not caching admission.

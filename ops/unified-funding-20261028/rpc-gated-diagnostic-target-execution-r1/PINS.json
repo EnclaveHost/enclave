@@ -1,0 +1,14 @@
+[
+  {
+    "path": "run.py",
+    "sha256": "ab09b680b1912ac2d79e00d280bd5088a0b1176bc11bcdb8842f7c2185994df9"
+  },
+  {
+    "path": "SOURCE.json",
+    "sha256": "636b032d28f032292a7f1c84774bc0c5c8d41f3c36d1a05e17d3519ede20dd22"
+  },
+  {
+    "path": "SPEC.json",
+    "sha256": "77eae705282486a6eb2890ef0f768425211e95c5efe5232e73137b078c632cc4"
+  }
+]
