@@ -1,0 +1,55 @@
+{
+  "attempt": "25eecdee9cff4836ae68445d206bec8f",
+  "vmAttempt": "5a343f975e2e483ab4d479c912bc5c0c",
+  "originUtcNs": 1793492086812448716,
+  "deadlineUtcNs": 1793492986812448716,
+  "windowsOrigin": 747924950,
+  "windowsDeadline": 748824950,
+  "worker": "f5a2cb5947354c409d1ab1e9e0204e09",
+  "failure": {
+    "type": "System.TimeoutException",
+    "message": "Aggregate start observation exceeds two seconds"
+  },
+  "phase": "define",
+  "exactDeaths": [
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379656955410173",
+      "pid": "57124",
+      "absent": true,
+      "role": "owner"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379656955410837",
+      "pid": "54808",
+      "absent": true,
+      "role": "observer"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379656957184243",
+      "pid": "44484",
+      "absent": true,
+      "role": "child"
+    }
+  ],
+  "priorReadDeaths": [
+    {
+      "label": "admission",
+      "expectedCreation": "134379656636177038",
+      "pid": 16800,
+      "sameIncarnationAlive": false,
+      "absent": true
+    }
+  ],
+  "vmCount": 4,
+  "originalVMsUnchanged": true,
+  "original8091Alive": true,
+  "nativeMarkerPresent": false,
+  "definitionReceiptPresent": false,
+  "copyBootStartGuestSubmitted": false,
+  "rawReadSha256": "731a9f958a42fa7e9851ea582270bd7942c7be62e98645079c9a27a7f23b2f91",
+  "reservationMayRelease": false,
+  "rpcReady": false
+}

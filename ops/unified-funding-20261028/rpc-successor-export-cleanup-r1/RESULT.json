@@ -1,0 +1,43 @@
+{
+  "unit": "enclave-rpc-export-25eecdee9cff4836ae68445d206bec8f.service",
+  "before": {
+    "ActiveState": "active",
+    "InvocationID": "b1a202e392054f0599df39cb0627d18f",
+    "MainPID": "179663",
+    "Result": "success",
+    "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-export-25eecdee9cff4836ae68445d206bec8f.service",
+    "KillMode": "control-group"
+  },
+  "after": {
+    "ActiveState": "inactive",
+    "InvocationID": "",
+    "MainPID": "0",
+    "Result": "success",
+    "ControlGroup": "",
+    "KillMode": "control-group"
+  },
+  "exactProcesses": [
+    {
+      "pid": 179663,
+      "startTicks": "179720140"
+    },
+    {
+      "pid": 179666,
+      "startTicks": "179720150"
+    },
+    {
+      "pid": 179709,
+      "startTicks": "179720246"
+    },
+    {
+      "pid": 179746,
+      "startTicks": "179720312"
+    }
+  ],
+  "allPreheldPidfdsSignalled": true,
+  "cgroupEmptyOrRemoved": true,
+  "elapsedSeconds": 0.012076176004484296,
+  "reservationMayRelease": false,
+  "rpcReady": false,
+  "overlaysRetained": true
+}
