@@ -1,0 +1,7 @@
+{
+  "windows/rpc/NativeRpcDefinition.cs": "b76ff3c9ac0242516277d88d2bb2745f77e1d0ba32b540b4b22eccee9626e56a",
+  "test/rpc-windows-worker/run-native-optical-ci.ps1": "8d52e7fbf20a69a564f486f069d876bf39896b30bbf20665224b821bec1400b9",
+  ".github/workflows/rpc-native-optical.yml": "94f058c84b0aec59b0d1cb43a29c3b96e801ba52002ab95be4b34f5e6c99315a",
+  "windows/rpc/README.md": "3e2bd1d5a24dcc5d6f162364e58a6cc4b26713cc18f9f323b6863e27d6a5e5cd",
+  "windows/rpc/NATIVE-MANAGER-CONTROLLER.md": "dad678916c78575a17bde07e852b7a8f71583a49e7dc1352bee81abeebf73188"
+}

@@ -482,7 +482,10 @@ namespace Enclave.OwnedRpc {
   static ManagementObject OpticalSettings(string guid){return HyperVStartProvider.One(HyperVStartProvider.Scope(),"SELECT * FROM Msvm_VirtualSystemSettingData WHERE VirtualSystemIdentifier='"+guid+"' AND VirtualSystemType='Microsoft:Hyper-V:System:Realized'");}
   static Dictionary<string,Dictionary<string,object>> OpticalInventory(ManagementObject settings){
    var found=new Dictionary<string,Dictionary<string,object>>(StringComparer.Ordinal);int count=0;
-   using(var rows=settings.GetRelated("Msvm_ResourceAllocationSettingData"))foreach(ManagementObject row in rows)using(row){
+   // These are sibling WMI classes, not an Msvm inheritance chain. Query both
+   // through this exact original VM setting's association; retain one bound.
+   foreach(string cls in new[]{"Msvm_ResourceAllocationSettingData","Msvm_StorageAllocationSettingData"})
+   using(var rows=settings.GetRelated(cls))foreach(ManagementObject row in rows)using(row){
     if(++count>64)throw new InvalidOperationException("Optical inventory bound");string sub=row["ResourceSubType"] as string;ushort type=Convert.ToUInt16(row["ResourceType"]);
     bool scsi=sub=="Microsoft:Hyper-V:Synthetic SCSI Controller",drive=sub=="Microsoft:Hyper-V:Synthetic DVD Drive",media=sub=="Microsoft:Hyper-V:Virtual CD/DVD Disk";
     if(!scsi&&!drive&&!media){if(type==5||type==6||type==15||type==16||type==17||type==19||type==31)throw new InvalidOperationException("Unexpected storage device on native VM");continue;}

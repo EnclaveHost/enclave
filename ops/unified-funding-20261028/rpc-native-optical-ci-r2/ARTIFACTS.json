@@ -1,0 +1,25 @@
+{
+  "total_count": 1,
+  "artifacts": [
+    {
+      "id": 13093103102,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA5MzEwMzEwMg==",
+      "name": "rpc-native-optical-exact-source",
+      "size_in_bytes": 107843,
+      "url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13093103102",
+      "archive_download_url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13093103102/zip",
+      "expired": false,
+      "digest": "sha256:af42ea341359604d1833a55f0d77040b16c697680c41e7c594e1972c4dad95dc",
+      "created_at": "2026-11-01T17:33:58Z",
+      "updated_at": "2026-11-01T17:33:58Z",
+      "expires_at": "2026-11-08T17:33:57Z",
+      "workflow_run": {
+        "id": 41332109021,
+        "repository_id": 1428203917,
+        "head_repository_id": 1428203917,
+        "head_branch": "main",
+        "head_sha": "df7e1a3a30b16e4250546a847060f71eee4b2206"
+      }
+    }
+  ]
+}

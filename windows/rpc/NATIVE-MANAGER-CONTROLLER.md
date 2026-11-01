@@ -198,3 +198,12 @@ no MSBuild, shared compiler server, package install, or deadline increase.
 Compiler/reference hashes and CPU/wall measurements are retained. This changes
 the build implementation; the first failure's root cause remains unknown.
 [Standalone/compiler server behavior](https://github.com/dotnet/roslyn/blob/main/docs/compilers/Compiler%20Server.md).
+
+The VS2022 preflight in41332109021 correctly refused before compiling: the
+actual hosted image was Windows2025-VS2026/20261021.278.1. The corrected workflow
+selects that named image and its published VS18 Enterprise path, plus the
+installed Framework4.8 reference pack. Early missing-file diagnostics are now
+preserved. Original bounds and standalone/no-server compilation stay unchanged.
+Native optical inventory now queries both sibling WMI classes through the exact
+original VM settings association; a base Msvm RASD query alone omits media.
+[Observed runner inventory](https://github.com/actions/runner-images/blob/win25-vs2026/20261021.278/images/windows/Windows2025-VS2026-Readme.md).

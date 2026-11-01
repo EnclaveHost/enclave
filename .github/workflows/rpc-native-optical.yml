@@ -52,7 +52,7 @@ jobs:
           retention-days: 7
   inert:
     needs: source
-    runs-on: windows-2025
+    runs-on: windows-2025-vs2026
     timeout-minutes: 3
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093

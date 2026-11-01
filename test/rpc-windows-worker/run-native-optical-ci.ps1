@@ -10,13 +10,17 @@ $os=Get-CimInstance Win32_OperatingSystem
 if([long]$os.FreePhysicalMemory*1024 -lt 3GB){throw 'Insufficient disposable-runner headroom'}
 if((Get-PSDrive -Name C).Free -lt 5GB){throw 'Insufficient disposable-runner disk headroom'}
 # Standalone Roslyn, never MSBuild or /shared/VBCSCompiler. No package install.
-$csc='C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe'
-$framework=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319'
+$csc='C:\Program Files\Microsoft Visual Studio\18\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe'
+$framework='C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8'
 $references=@('mscorlib.dll','System.dll','System.Core.dll','System.Management.dll','System.Web.Extensions.dll','Microsoft.CSharp.dll','System.Xml.dll','System.Security.dll','System.Configuration.dll','System.Data.dll')|ForEach-Object{Join-Path $framework $_}
 $toolFiles=@($csc)+@($references)
-foreach($file in $toolFiles){if(-not(Test-Path -LiteralPath $file) -or ((Get-Item -LiteralPath $file).Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'Fixed compiler/reference unavailable; no fallback'}}
+$preflight=Join-Path $work 'preflight';$null=New-Item -ItemType Directory -Path $preflight
+('RPC_WORKER_RESULT='+$preflight)|Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+$presence=@($toolFiles|ForEach-Object{[pscustomobject]@{path=$_;present=(Test-Path -LiteralPath $_)}})
+$presence|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $preflight 'toolchain-preflight.json')
+foreach($file in $toolFiles){if(-not(Test-Path -LiteralPath $file) -or ((Get-Item -LiteralPath $file).Attributes -band [IO.FileAttributes]::ReparsePoint)){throw ('Fixed compiler/reference unavailable: '+$file)}}
 $toolPins=@(Get-FileHash -Algorithm SHA256 -LiteralPath $toolFiles)
-[pscustomobject]@{implementation='VS2022 standalone Roslyn';version=(Get-Item -LiteralPath $csc).VersionInfo.FileVersion;server=$false;pins=$toolPins}|ConvertTo-Json -Depth 5|Set-Content -LiteralPath (Join-Path $work 'toolchain.json')
+[pscustomobject]@{implementation='VS2026 standalone Roslyn';version=(Get-Item -LiteralPath $csc).VersionInfo.FileVersion;server=$false;pins=$toolPins}|ConvertTo-Json -Depth 5|Set-Content -LiteralPath (Join-Path $work 'toolchain.json')
 $compilerOptions=@('/nologo','/noconfig','/nostdlib+','/langversion:5','/optimize+','/debug-','/deterministic+','/target:exe','/platform:x64')+@($references|ForEach-Object{'/r:'+$_})
 $controller=Join-Path $work 'qualification-controller.exe'
 $entry=Join-Path $work 'owned-entry.exe'
