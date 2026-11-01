@@ -305,3 +305,26 @@ WMI supplies server `.` for a relative path. The policy validates the bounded
 literal grammar, not equality with parsed optional namespace/server fields.
 See `../../ops/unified-funding-20261028/rpc-native-device-ci-r3/ROOT-RESULT.md`.
 VM start and bootstrap/enrollment integration remain pending; production RPC OFFLINE.
+
+
+Native start transaction (source candidate, not activated): `NativeRpcStart.cs`
+implements one-shot RequestStateChange(2) intent/submission, exact returned job
+persistence before observation, original job incarnation reconciliation, and a
+fresh original Running/19GiB allocation readback. Return0/job success is not VM
+running or RPC readiness. Lost response remains held; no resubmit/cancellation.
+The source requires a separate `INativeRpcStartRuntime` lifecycle authority
+bound to the original VM and independently owned deadline/armed VM cleanup.
+The current definition-only runtime does not implement it; current protected
+define/reconcile journals reject every start record. No worker/controller/manager
+entrypoint invokes it. Existing definition plans retain start=false. The provider
+and transaction compile in the worker closure, not the controller.
+
+Next integration must implement that authority with actual held cleanup-owner
+identity, immutable consumed intent before work-gate release, protected start
+journal access, and original900s VM cleanup; process-job death does not stop a
+Hyper-V VM or settle its provider job. Then wire explicit start and native
+HostBootstrapEntry/owner-entry-v2 enrollment, not reinterpret define-staged as
+boot permission. TargetSYSTEM admission/current accepted image/storage-owner
+settlement and actual TPM/AF_HYPERV/NBD/readiness qualification remain required.
+Reference: https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/requeststatechange-msvm-computersystem
+(TimeoutPeriod is unused; repeated requests can overwrite earlier requests.)

@@ -58,7 +58,7 @@ function Invoke-FiniteProcess([string]$Executable,[string[]]$Arguments,[int]$Dea
     if($failure -or $record.exitCode -ne 0){throw ($Label+' failed: '+($record|ConvertTo-Json -Compress))}
 }
 try{
-    $production=@('BoundedWorker.cs','OwnerObserver.cs','ProtectedAttempt.cs','ProviderStart.cs','OwnedVmPermit.cs','HostPhysicalPool.cs','WindowsStartAdmission.cs','LegacyTemplateFence.cs','LegacyLaunchCohort.cs','LegacyHandoff.cs','NativeRpcDefinition.cs','NativeRpcWmi.cs','NativeRpcAuthority.cs','NativeRpcWorkerEntry.cs')|ForEach-Object{Join-Path $root ('windows\rpc\'+$_)}
+    $production=@('BoundedWorker.cs','OwnerObserver.cs','ProtectedAttempt.cs','ProviderStart.cs','OwnedVmPermit.cs','HostPhysicalPool.cs','WindowsStartAdmission.cs','LegacyTemplateFence.cs','LegacyLaunchCohort.cs','LegacyHandoff.cs','NativeRpcDefinition.cs','NativeRpcWmi.cs','NativeRpcStart.cs','NativeRpcAuthority.cs','NativeRpcWorkerEntry.cs')|ForEach-Object{Join-Path $root ('windows\rpc\'+$_)}
     $sources=$production+@(Join-Path $root 'test\rpc-windows-worker\NativeRpcWorkerHarness.cs')
     Invoke-FiniteProcess $csc (@('/nologo','/target:exe','/platform:x64','/r:System.Management.dll','/r:System.Web.Extensions.dll','/r:Microsoft.CSharp.dll','/main:NativeRpcWorkerHarness',('/out:'+$entry))+$sources) 20000 'harness-compile'
     Invoke-FiniteProcess $entry @() 20000 'worker-harness'

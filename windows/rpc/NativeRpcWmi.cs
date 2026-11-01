@@ -80,19 +80,20 @@ namespace Enclave.OwnedRpc {
     RequireSecurityFields(new Dictionary<string,object>{{"TpmEnabled",security["TpmEnabled"]},{"VirtualizationBasedSecurityOptOut",security["VirtualizationBasedSecurityOptOut"]}});
    }runtime.Check(p,false);
   }
-  public void RequireOwnedOff(NativeRpcDefinitionPlan p,string guid){
+  public void RequireOwnedOff(NativeRpcDefinitionPlan p,string guid){RequireOwnedState(p,guid,3,0);}
+  void RequireOwnedState(NativeRpcDefinitionPlan p,string guid,ushort state,ulong blocks){
    ProtectedAttempt.RequireSystem();runtime.Check(p,false);
    if(NativeDefinitionReferences.GuidForReference("Msvm_ComputerSystem.Name=\""+guid+"\"")!=guid)throw new InvalidOperationException("Canonical returned VM GUID required");
    var scope=HyperVStartProvider.Scope();
    using(var vm=HyperVStartProvider.One(scope,"SELECT * FROM Msvm_ComputerSystem WHERE Name='"+guid+"'"))
    using(var settings=HyperVStartProvider.One(scope,"SELECT * FROM Msvm_VirtualSystemSettingData WHERE VirtualSystemIdentifier='"+guid+"' AND VirtualSystemType='Microsoft:Hyper-V:System:Realized'"))
    using(var memory=HyperVStartProvider.One(scope,"SELECT SystemName,BlockSize,NumberOfBlocks FROM Msvm_Memory WHERE SystemName='"+guid+"'")){
-    if((string)vm["Name"]!=guid||(string)vm["ElementName"]!=p.Name||!(vm["EnabledState"] is ushort)||(ushort)vm["EnabledState"]!=3)throw new InvalidOperationException("Native owned Off identity differs");
+    if((string)vm["Name"]!=guid||(string)vm["ElementName"]!=p.Name||!(vm["EnabledState"] is ushort)||(ushort)vm["EnabledState"]!=state)throw new InvalidOperationException("Native owned state identity differs");
     foreach(var pair in Settings(p)){
      object value=settings[pair.Key];if(pair.Value is string[]){var a=value as string[];if(a==null||a.Length!=1||a[0]!=p.Note)throw new InvalidOperationException("Native owner marker differs");}
      else if(!Object.Equals(value,pair.Value))throw new InvalidOperationException("Native setting differs: "+pair.Key);
     }
-    if((string)memory["SystemName"]!=guid||!(memory["BlockSize"] is ulong)||(ulong)memory["BlockSize"]!=1048576||!(memory["NumberOfBlocks"] is ulong)||(ulong)memory["NumberOfBlocks"]!=0)throw new InvalidOperationException("Native zero allocation unconfirmed");
+    if((string)memory["SystemName"]!=guid||!(memory["BlockSize"] is ulong)||(ulong)memory["BlockSize"]!=1048576||!(memory["NumberOfBlocks"] is ulong)||(ulong)memory["NumberOfBlocks"]!=blocks)throw new InvalidOperationException("Native exact allocation unconfirmed");
     int count=0;using(var rows=settings.GetRelated("Msvm_MemorySettingData"))foreach(ManagementObject row in rows)using(row){if(++count>1)throw new InvalidOperationException("Native memory ambiguity");var d=new Dictionary<string,object>();foreach(string k in new[]{"ResourceType","ResourceSubType","AllocationUnits","VirtualQuantityUnits","VirtualQuantity","Reservation","Limit","DynamicMemoryEnabled","AutomaticAllocation","SwapFilesInUse"})d[k]=row[k];HyperVStartProvider.RequireGuestMemory(d,19L*1073741824);}if(count!=1)throw new InvalidOperationException("Native memory absent");
     var cpus=new List<object>();using(var rows=settings.GetRelated("Msvm_ProcessorSettingData"))foreach(ManagementObject row in rows)using(row){if(cpus.Count>=2)throw new InvalidOperationException("Native CPU ambiguity");cpus.Add(row["VirtualQuantity"]);}RequireProcessors(cpus);
    }runtime.Check(p,false);
