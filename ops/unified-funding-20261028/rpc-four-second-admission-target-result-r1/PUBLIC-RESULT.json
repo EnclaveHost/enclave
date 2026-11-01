@@ -1,0 +1,89 @@
+{
+  "source": "e4a72caca14a83020febcc46bdd7ec45ade0f674",
+  "aggregateLimitMs": 4000,
+  "liveAdmissionMs": 3391,
+  "contextPreparationMs": 2023,
+  "times": {
+    "admission.preparation-start": 757745495,
+    "admission.prepared": 757747518,
+    "admission.live-start": 757750459,
+    "admission.live-complete": 757753850
+  },
+  "exception": "System.InvalidOperationException",
+  "message": "SYSTEM primary execution context required",
+  "preparationTraces": {
+    "preparation.before-scope": "owned-rpc-preparation/1\nd114f96f68a19486ea2b3f29f7d3f4d3ccc95c816f63ebe62b314cce813ce108\n4657a2442176cac1e2461056c14c77053c288042840a553304ad76d2d87f667c\nbefore-scope\n757753876\nprocess=S-1-5-18;process-level=None;effective=S-1-5-18;effective-level=None\nprovider-fenced=false;reservation-release=false\n",
+    "preparation.after-scope": "owned-rpc-preparation/1\nd114f96f68a19486ea2b3f29f7d3f4d3ccc95c816f63ebe62b314cce813ce108\n4657a2442176cac1e2461056c14c77053c288042840a553304ad76d2d87f667c\nafter-scope\n757753897\nprocess=S-1-5-18;process-level=None;effective=S-1-5-18;effective-level=None\nprovider-fenced=false;reservation-release=false\n",
+    "preparation.after-service": "owned-rpc-preparation/1\nd114f96f68a19486ea2b3f29f7d3f4d3ccc95c816f63ebe62b314cce813ce108\n4657a2442176cac1e2461056c14c77053c288042840a553304ad76d2d87f667c\nafter-service\n757753925\nprocess=S-1-5-18;process-level=None;effective=S-1-5-18;effective-level=Impersonation\nprovider-fenced=false;reservation-release=false\n"
+  },
+  "native": {
+    "schema": "owned-rpc-target-definition/1",
+    "passed": false,
+    "operation": "preparation-gated",
+    "plan": "4657a2442176cac1e2461056c14c77053c288042840a553304ad76d2d87f667c",
+    "result": null,
+    "origin": 757741576,
+    "deadline": 757771576,
+    "elapsedMs": 12514,
+    "root": "C:\\EnclaveRpcDefinition-ea292242540246aaa2a946e99b3f13c4\\ea292242540246aaa2a946e99b3f13c4",
+    "freeBytes": 85528645632,
+    "requiredFreeBytes": 62709039104,
+    "failures": [
+      "InvalidOperationException: Exact role completion failed"
+    ],
+    "startAuthorized": false,
+    "reservationMayRelease": false
+  },
+  "exactDeaths": [
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379755070850870",
+      "pid": "56804",
+      "absent": true,
+      "role": "owner"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379755070850519",
+      "pid": "34936",
+      "absent": true,
+      "role": "observer"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379755072328513",
+      "pid": "56576",
+      "absent": true,
+      "role": "child"
+    }
+  ],
+  "priorStageDeaths": [
+    {
+      "label": "admission",
+      "expectedCreation": "134379754575415202",
+      "pid": 33384,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "create",
+      "expectedCreation": "134379754780591220",
+      "pid": 52128,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "verify",
+      "expectedCreation": "134379754917171185",
+      "pid": 40380,
+      "sameIncarnationAlive": false,
+      "absent": true
+    }
+  ],
+  "original8091Alive": true,
+  "originalFourVmsUnchanged": true,
+  "originalThirdJournalsByteEqual": true,
+  "providerOperationFenced": false,
+  "reservationMayRelease": false,
+  "rpcReady": false
+}

@@ -1,0 +1,56 @@
+[
+  {
+    "unit": "enclave-rpc-four-second-admission-source-r1-20261101.service",
+    "ActiveState": "inactive",
+    "MainPID": "0",
+    "ExecMainStatus": "0"
+  },
+  {
+    "unit": "enclave-rpc-four-second-admission-ci-r1-20261101.service",
+    "ActiveState": "inactive",
+    "MainPID": "0",
+    "ExecMainStatus": "0"
+  },
+  {
+    "unit": "enclave-rpc-four-second-admission-ci-collect-r1-20261101.service",
+    "ActiveState": "inactive",
+    "MainPID": "0",
+    "ExecMainStatus": "0"
+  },
+  {
+    "unit": "enclave-rpc-four-second-admission-target-admission-r1-20261101.service",
+    "ActiveState": "inactive",
+    "MainPID": "0",
+    "ExecMainStatus": "0"
+  },
+  {
+    "unit": "enclave-rpc-four-second-admission-target-create-r1-20261101.service",
+    "ActiveState": "inactive",
+    "MainPID": "0",
+    "ExecMainStatus": "0"
+  },
+  {
+    "unit": "enclave-rpc-four-second-admission-target-stage-r1-20261101.service",
+    "ActiveState": "inactive",
+    "MainPID": "0",
+    "ExecMainStatus": "0"
+  },
+  {
+    "unit": "enclave-rpc-four-second-admission-target-verify-r1-20261101.service",
+    "ActiveState": "inactive",
+    "MainPID": "0",
+    "ExecMainStatus": "0"
+  },
+  {
+    "unit": "enclave-rpc-four-second-admission-target-execution-r1-20261101.service",
+    "ActiveState": "failed",
+    "MainPID": "0",
+    "ExecMainStatus": "1"
+  },
+  {
+    "unit": "enclave-rpc-four-second-admission-result-read-r1-20261101.service",
+    "ActiveState": "inactive",
+    "MainPID": "0",
+    "ExecMainStatus": "0"
+  }
+]

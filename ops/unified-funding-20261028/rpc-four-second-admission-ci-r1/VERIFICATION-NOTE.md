@@ -1,0 +1,1 @@
+Initial local verification used the production262144B limit for the hosted-only legacy-handoff harness319488B. Maintained CI explicitly permits327680B for that test artifact; target entry/controller remain <=262144. Corrected local verifier only; no compiler/test/native rerun or cap change.

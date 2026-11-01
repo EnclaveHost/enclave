@@ -1,0 +1,133 @@
+{
+  "source": "e4a72caca14a83020febcc46bdd7ec45ade0f674",
+  "run": 41267152813,
+  "tests": 165,
+  "sourcePins": [
+    {
+      "path": "windows/rpc/BoundedWorker.cs",
+      "sha256": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99"
+    },
+    {
+      "path": "windows/rpc/OwnerObserver.cs",
+      "sha256": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80"
+    },
+    {
+      "path": "windows/rpc/ProtectedAttempt.cs",
+      "sha256": "1a45403c3162c22f06dfa0ed778c3c71f26b185eec199ce3b241b92a3144cb75"
+    },
+    {
+      "path": "windows/rpc/ProviderStart.cs",
+      "sha256": "d2eb7bbebc74b02be707fcd705c9165af9b6fdf2f6440a94fde76dcc0ceaeea2"
+    },
+    {
+      "path": "windows/rpc/OwnedVmPermit.cs",
+      "sha256": "a4d1f9640a4087714b9907cddcdc64340cb57f07de04dd1b6baf97197ac60373"
+    },
+    {
+      "path": "windows/rpc/OwnedVmDefinition.cs",
+      "sha256": "f9cac30399a8d6d10896b1f6d23bc6a71cd70fed12c78b7515a0fba6619be6a5"
+    },
+    {
+      "path": "windows/rpc/OwnedVmBoot.cs",
+      "sha256": "0f21e5f72e94bfe60a6c2431f8abf6343ca0a512c376ba2847fab08878def388"
+    },
+    {
+      "path": "windows/rpc/BootStartBinding.cs",
+      "sha256": "37f98a872a67aaa03020cc634a6c26cc27bcca839eee4966967f894ad971167c"
+    },
+    {
+      "path": "windows/rpc/HostPhysicalPool.cs",
+      "sha256": "218483e78967e94f77c2c88fdee9ca04970eb9c4a3f10adbf543b8ccd0c904af"
+    },
+    {
+      "path": "windows/rpc/WindowsStartAdmission.cs",
+      "sha256": "d520d2baf2bf1d6d2769ac66bfcacbb05ab60c32fcac7aeb310db0c3abfbfece"
+    },
+    {
+      "path": "windows/rpc/LegacyTemplateFence.cs",
+      "sha256": "d2bfc04762cf64b2555575e4c8aa95842dd35be108f9c9780dd3ecf0ecd0cd0f"
+    },
+    {
+      "path": "windows/rpc/LegacyLaunchCohort.cs",
+      "sha256": "ce22aa16e0d353fa8354bca26f8dc4057d520c001540d0659778e2769135f5a2"
+    },
+    {
+      "path": "windows/rpc/LegacyHandoff.cs",
+      "sha256": "1aca7651663478caf22f7482d5393b6eb15d94d22542882abfca73d63f99392e"
+    },
+    {
+      "path": "windows/rpc/DefinitionWorkerEntry.cs",
+      "sha256": "8370d1eaa3036df1411a8fd9d276f3a62ce294d8285dc745ed369b1dabdcb8c1"
+    },
+    {
+      "path": "windows/rpc/DefinitionWorkerController.cs",
+      "sha256": "38f28370ba99e87cb5f469b6c45b1816e41616f30d00df010589f2d4efe2294c"
+    },
+    {
+      "path": "windows/rpc/DiagnosticObservationCollector.cs",
+      "sha256": "4d34c6a33921b37f365e8721dccd2701dea704a0f515c41818be57756f04f6a2"
+    },
+    {
+      "path": "test/rpc-windows-worker/OwnedVmDefinitionHarness.cs",
+      "sha256": "711ae8982f706e72c86f5cf3e2ffeb664577c8c960f2aefeda87c68904349913"
+    },
+    {
+      "path": "test/rpc-windows-worker/OwnedVmBootHarness.cs",
+      "sha256": "38f6c47f7765b34542fd0610281406addda0b89a336064ed5e3e35dfd457f334"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "owned-entry.exe",
+      "sha256": "0f8933bcd00e9fd75ce22cf7c3bc24ce70fe15b2af948d5701c66d03ebdf13b8",
+      "bytes": 261120
+    },
+    {
+      "path": "definition-controller.exe",
+      "sha256": "21a6a1931e401e38e97b078fe63fdac3b00d86dba4c2eb04f740c2e46e81dbe4",
+      "bytes": 261120
+    }
+  ],
+  "processes": [
+    {
+      "label": "controller-compile",
+      "pid": 876,
+      "exitCode": 0,
+      "elapsedMs": 1994,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 41689088,
+      "outputBytes": 196
+    },
+    {
+      "label": "entry-compile",
+      "pid": 4196,
+      "exitCode": 0,
+      "elapsedMs": 221,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 38481920,
+      "outputBytes": 196
+    },
+    {
+      "label": "target-compile",
+      "pid": 1260,
+      "exitCode": 0,
+      "elapsedMs": 229,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 38404096,
+      "outputBytes": 196
+    },
+    {
+      "label": "inert",
+      "pid": 6976,
+      "exitCode": 0,
+      "elapsedMs": 5233,
+      "failure": null,
+      "processExited": true,
+      "maximumObservedWorkingSet": 40067072,
+      "outputBytes": 7997
+    }
+  ]
+}
