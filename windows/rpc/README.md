@@ -1181,3 +1181,14 @@ other status, memory, identity and isolation changes still refuse. This does not
 settle a claim transaction, grant a provider retry, or release a reservation.
 This change awaits hosted and target qualification; the primary-context WMI
 candidate and the consumed production attempt remain unqualified/unsettled.
+
+
+Target qualification update: runtime `d6451160` passed315 hosted checks and the
+actual NucBox SYSTEM preparation-gated diagnostic `ffa015fc`. Live admission
+completed in1929ms under the authorized4000ms limit. All12 Hyper-V preparation
+stages retained primary/effective SYSTEM with impersonation levelNone, through
+service query, settings serialization and disposal. This qualifies the scoped
+live comparison and EnablePrivileges=false for that read-only path. Exact roles
+exited and original VMs/service/journals were unchanged. It does not settle the
+earlier consumed production attempt, prove a provider mutation or make RPC
+ready. See `ops/unified-funding-20261028/rpc-fenced-live-retry-target-result-r1`.

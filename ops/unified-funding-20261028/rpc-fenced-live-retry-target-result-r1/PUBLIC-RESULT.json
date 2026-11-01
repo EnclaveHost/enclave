@@ -1,0 +1,144 @@
+{
+  "source": "d645116092cf8fb590eb973e0e1b4b70ab5938d0",
+  "native": {
+    "schema": "owned-rpc-target-definition/1",
+    "passed": true,
+    "operation": "preparation-gated",
+    "plan": "4657a2442176cac1e2461056c14c77053c288042840a553304ad76d2d87f667c",
+    "result": {
+      "state": "preparation-observed",
+      "definitionAuthorized": false,
+      "startAuthorized": false,
+      "reservationMayRelease": false
+    },
+    "origin": 759396180,
+    "deadline": 759426180,
+    "elapsedMs": 11773,
+    "root": "C:\\EnclaveRpcDefinition-ffa015fc88c24444a1110a401d7ecec8\\ffa015fc88c24444a1110a401d7ecec8",
+    "freeBytes": 85510881280,
+    "requiredFreeBytes": 62709039104,
+    "failures": [],
+    "startAuthorized": false,
+    "reservationMayRelease": false
+  },
+  "times": {
+    "admission.preparation-start": 759400231,
+    "admission.prepared": 759402423,
+    "admission.live-start": 759405548,
+    "admission.live-complete": 759407477
+  },
+  "preparationSteps": [
+    {
+      "stage": "before-scope",
+      "at": 759407503,
+      "identity": "process=S-1-5-18;process-level=None;effective=S-1-5-18;effective-level=None"
+    },
+    {
+      "stage": "after-scope",
+      "at": 759407519,
+      "identity": "process=S-1-5-18;process-level=None;effective=S-1-5-18;effective-level=None"
+    },
+    {
+      "stage": "after-service",
+      "at": 759407545,
+      "identity": "process=S-1-5-18;process-level=None;effective=S-1-5-18;effective-level=None"
+    },
+    {
+      "stage": "after-system",
+      "at": 759407570,
+      "identity": "process=S-1-5-18;process-level=None;effective=S-1-5-18;effective-level=None"
+    },
+    {
+      "stage": "after-memory",
+      "at": 759407605,
+      "identity": "process=S-1-5-18;process-level=None;effective=S-1-5-18;effective-level=None"
+    },
+    {
+      "stage": "after-cpu",
+      "at": 759407626,
+      "identity": "process=S-1-5-18;process-level=None;effective=S-1-5-18;effective-level=None"
+    },
+    {
+      "stage": "after-parameters",
+      "at": 759407645,
+      "identity": "process=S-1-5-18;process-level=None;effective=S-1-5-18;effective-level=None"
+    },
+    {
+      "stage": "after-system-text",
+      "at": 759407663,
+      "identity": "process=S-1-5-18;process-level=None;effective=S-1-5-18;effective-level=None"
+    },
+    {
+      "stage": "after-memory-text",
+      "at": 759407680,
+      "identity": "process=S-1-5-18;process-level=None;effective=S-1-5-18;effective-level=None"
+    },
+    {
+      "stage": "after-cpu-text",
+      "at": 759407699,
+      "identity": "process=S-1-5-18;process-level=None;effective=S-1-5-18;effective-level=None"
+    },
+    {
+      "stage": "after-input",
+      "at": 759407715,
+      "identity": "process=S-1-5-18;process-level=None;effective=S-1-5-18;effective-level=None"
+    },
+    {
+      "stage": "after-dispose",
+      "at": 759407736,
+      "identity": "process=S-1-5-18;process-level=None;effective=S-1-5-18;effective-level=None"
+    }
+  ],
+  "exactDeaths": [
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379771618102107",
+      "pid": "33280",
+      "absent": true,
+      "role": "owner"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379771618102012",
+      "pid": "33404",
+      "absent": true,
+      "role": "observer"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379771619770823",
+      "pid": "30080",
+      "absent": true,
+      "role": "child"
+    }
+  ],
+  "priorStageDeaths": [
+    {
+      "label": "admission",
+      "expectedCreation": "134379771170208895",
+      "pid": 35012,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "create",
+      "expectedCreation": "134379771371944300",
+      "pid": 57680,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "verify",
+      "expectedCreation": "134379771517159460",
+      "pid": 544,
+      "sameIncarnationAlive": false,
+      "absent": true
+    }
+  ],
+  "original8091Alive": true,
+  "originalFourVmsUnchanged": true,
+  "originalThirdJournalsByteEqual": true,
+  "providerOperationFenced": false,
+  "reservationMayRelease": false,
+  "rpcReady": false
+}

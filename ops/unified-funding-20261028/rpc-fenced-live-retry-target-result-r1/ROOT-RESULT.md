@@ -1,0 +1,11 @@
+# Root result
+
+Maintained runtime source d645116092cf8fb590eb973e0e1b4b70ab5938d0 passed hosted startup41268893985/71, definition41268898219/173, legacy41268902218/71:315 checks,58 compiled pins,13 exact exited processes with status0. Definition pair remains262144 bytes each (entry7a20b2710dc88de0f7efc561dc5c4a83457784d63d9406d33c64879c6ac47f9c, controller7291923605e1247b115ec02e07151906b9c28d6c23b5c8b6a0fc2193211f684c).
+
+Native target read-only preparation-gated nonce ffa015fc88c24444a1110a401d7ecec8 PASS. Current full admission minimum85376876544B above84385202176B. Original diagnostic window759396180..759426180; controller11773ms; preparation2192ms; live admission1929ms within authorized4000ms. All12 Hyper-V preparation stages completed in233ms with primary and effective SYSTEM, impersonation levelNone throughout, including after service query and final disposal. EnablePrivileges=false is now qualified for this exact read-only target preparation path, not provider mutation or general Windows contexts. No extra privilege enablement, token reset or guard waiver.
+
+Live retry equivalence is scoped to retained completed cut/pool/issuer authority; all other fields/states and unfenced equality remain strict. This positive run does not separately log that a status transition occurred during its own comparison. Hosted negative cases cover unsafe fields. No unchanged retry, cap/floor/pending reduction or new production clock.
+
+Independent exact read ab835109ae8c4037a74e340483d171df terminal0 confirms owner33280/134379771618102107, observer33404/134379771618102012, child30080/134379771619770823 absent; prior admission/create/verify readers absent; no exact tasks/processes; original4VM IDs/state/RAM and8091 unchanged; selected original third-attempt journals byte-identical. Collector own process has transport-exit evidence only.
+
+Production attempt5a1f still has consumed native+invoke with no durable provider reference or settlement. Current success does not retrospectively settle it, permit absent-native adoption, authorize a new clock/definition/start, or release reservation. No VM/provider mutation, chain payment, exporter or RPC readiness. Next: explicit original-attempt provider reconciliation with positive evidence; source-order/failure-message/empty-inventory inference and broad job scans remain prohibited.
