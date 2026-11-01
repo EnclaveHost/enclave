@@ -1,0 +1,82 @@
+[
+  {
+    "path": "network/deployment-authority-window.mjs",
+    "sha256": "b852076f53e6ed357b9731f2c2eca6f15f6de32ae7c84e83081bbec1e0ab2c96"
+  },
+  {
+    "path": "network/deployment-generation-certificate.mjs",
+    "sha256": "f998ea7e208631fa2594fe2543627d236b3307f3d3d94cead25eb1f450830c7f"
+  },
+  {
+    "path": "network/deployment-journal-owner.mjs",
+    "sha256": "1947b59dc9cbcd8182a25feda56090fc1f79e0b1845ddd527b4fec53dd651bf6"
+  },
+  {
+    "path": "network/deployment-lifecycle-journal.mjs",
+    "sha256": "05312fff78682a677e9db2f7849924a3259fcb4a8c4cf2649b61a07913a2e725"
+  },
+  {
+    "path": "network/deployment-lifecycle-runner.mjs",
+    "sha256": "75590c8e4be2095b9011ea3b482ceef90a1d21f92ad676dba41578093e7db668"
+  },
+  {
+    "path": "network/deployment-lifecycle-witness.mjs",
+    "sha256": "9859a1307a83ff4f60ae6088c6533b0666ae12497c49794b9ef9ee32569551c0"
+  },
+  {
+    "path": "network/deployment-permit-gate.mjs",
+    "sha256": "e198fe2160cf9ab31f1c473856c44d58e51c995ce0fe0f0907c94c2d39c8661b"
+  },
+  {
+    "path": "network/deployment-restart-policy.mjs",
+    "sha256": "15f42274a6edc861b7afc1aeb9167d4028f855e8c8b99d8fbc3738eb1151204c"
+  },
+  {
+    "path": "network/deployment-serving-permit.mjs",
+    "sha256": "82494ed819f91f65565391dc3f61a16341fc3465df0bf47a3ec823a8b8de0e61"
+  },
+  {
+    "path": "network/deployment-transition-intent.mjs",
+    "sha256": "1932ad2ef522df9260c061a6ce18ca1f2e09ef850c2850b57d46186bbca3f210"
+  },
+  {
+    "path": "network/deployment-witness-http.mjs",
+    "sha256": "1e597f81b8d37c65917c3e081309294df2cf2013f9a2e3fe02d1215ef9eca10b"
+  },
+  {
+    "path": "network/lease-release-journal.mjs",
+    "sha256": "6411481a118b341e3efcd99bbaad6da644d490fd2815abd40033014f7edf2ff6"
+  },
+  {
+    "path": "network/owned-durable-state.mjs",
+    "sha256": "65b1df6bc576fe6e3738e10ac057ba0f67493fe434cdfcf6c29acda1aacf027c"
+  },
+  {
+    "path": "network/runtime-lock.mjs",
+    "sha256": "256aeca3000aae08dc2cfa5fb45a2a900728a312d2ec415a2620588d1152ac1a"
+  },
+  {
+    "path": "test/deployment-journal-native.mjs",
+    "sha256": "3b431fc32c5fb0677a9b43974d6fc97b5043f191eee4a389553490ccae395606"
+  },
+  {
+    "path": "test/deployment-lifecycle-boundary.test.mjs",
+    "sha256": "f8287f2f2edde8d8c8fa7621a8c11b239d6ce0e47edad001abfd6a3dfe6cd96f"
+  },
+  {
+    "path": "test/deployment-lifecycle-journal.test.mjs",
+    "sha256": "016238e9be2b9b740062d8df5be89b8fd89f5f9ed3c1729153797f5f43d780cc"
+  },
+  {
+    "path": "test/deployment-lifecycle-runner.test.mjs",
+    "sha256": "633c3efe1700b9040bfda837af5d2debb96159dec279828097fa991b609ac69b"
+  },
+  {
+    "path": "test/deployment-owned-recovery.test.mjs",
+    "sha256": "5f0dea6d12811d5412ea781d1f0ca06355bab087b92c01fc609bc8e929fce9b8"
+  },
+  {
+    "path": "test/helpers/owned-lifecycle-child.mjs",
+    "sha256": "e038e60c541aa82b255ee8799eca35b3f2dfe2546a02b85fe96099b18c4f7ae3"
+  }
+]

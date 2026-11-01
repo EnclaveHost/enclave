@@ -1,0 +1,26 @@
+{
+  "invocation": "6d415f603a074b6788f3920bb3d9c47d",
+  "terminal": true,
+  "exit": 0,
+  "mainPid": 0,
+  "tests": 37,
+  "pass": 37,
+  "failed": 0,
+  "skipped": 0,
+  "pinsUnchanged": 20,
+  "nativeFixture": {
+    "passed": true,
+    "platform": "linux",
+    "node": "v22.23.3",
+    "checks": [
+      "missing journal refuses restart",
+      "exclusive ownership",
+      "durable state after close",
+      "kernel releases crashed owner",
+      "fence and crash budget survive process death"
+    ]
+  },
+  "productionActivation": false,
+  "chainQualification": false,
+  "windowsQualification": false
+}

@@ -9,7 +9,7 @@ import { initialRestartState, validateRestartState, restartFailure, restartHealt
 
 const ID = /^0x[0-9a-f]{64}$/;
 const int = n => Number.isSafeInteger(n) && n >= 0;
-function validate(j) {
+export function validateLifecycleJournal(j) {
   if (!j || j.version !== 1 || !Array.isArray(j.deployments) || j.deployments.length > 65536)
     throw new Error('invalid lifecycle journal');
   j.authorityAnchors ??= {};
@@ -54,21 +54,28 @@ const fresh = id => ({ id, restart: initialRestartState(), generation: 0, revisi
   sequence: 0, digest: null, bindingDigest: null, successorVote: null, denial: null,
   attemptSequence: 0, runtime: null, minedTransitions: [], fenced: false, pending: null });
 
-export function openLifecycleJournal(file, { fsImpl = fs, platform = process.platform } = {}) {
+export function openLifecycleJournal(file, { fsImpl = fs, platform = process.platform, storage = null } = {}) {
   let state = { version: 1, deployments: [], authorityAnchors: {} }, failed = null;
-  if (fsImpl.existsSync(file)) {
-    try { state = validate(JSON.parse(fsImpl.readFileSync(file, 'utf8'))); }
+  if (storage) {
+    try { state = validateLifecycleJournal(structuredClone(storage.state)); }
+    catch (e) { failed = `lifecycle journal is unreadable: ${e.message}`; }
+  } else if (fsImpl.existsSync(file)) {
+    try { state = validateLifecycleJournal(JSON.parse(fsImpl.readFileSync(file, 'utf8'))); }
     catch (e) { failed = `lifecycle journal is unreadable: ${e.message}`; }
   }
-  const check = () => { if (failed) throw new Error(failed); };
+  const check = () => {
+    if (failed) throw new Error(failed);
+    if (storage) state = validateLifecycleJournal(structuredClone(storage.state));
+  };
+  const write = next => storage ? storage.store(next) : strictWriteFile(file, JSON.stringify(next), { fsImpl, platform });
   const idOf = id => { if (!ID.test(id)) throw new Error('invalid deployment id'); return id; };
   function read(id) { check(); return structuredClone(state.deployments.find(x => x.id === idOf(id)) || fresh(id)); }
   function update(id, change) {
     check(); const next = structuredClone(state), row = read(id), changed = change(row);
     const index = next.deployments.findIndex(x => x.id === id);
     if (index < 0) next.deployments.push(changed); else next.deployments[index] = changed;
-    validate(next);
-    try { strictWriteFile(file, JSON.stringify(next), { fsImpl, platform }); }
+    validateLifecycleJournal(next);
+    try { write(next); }
     catch (e) { failed = `lifecycle journal write failed: ${e.message}`; throw e; }
     state = next; return structuredClone(changed);
   }
@@ -84,8 +91,8 @@ export function openLifecycleJournal(file, { fsImpl = fs, platform = process.pla
       if (old && anchor.base.number === old.base.number &&
           (anchor.base.stateRoot !== old.base.stateRoot || anchor.base.outputRoot !== old.base.outputRoot || anchor.base.timestamp !== old.base.timestamp))
         throw Error('durable authority anchor contradiction');
-      const next = structuredClone(state); next.authorityAnchors[String(chainId)] = structuredClone(anchor); validate(next);
-      try { strictWriteFile(file, JSON.stringify(next), { fsImpl, platform }); }
+      const next = structuredClone(state); next.authorityAnchors[String(chainId)] = structuredClone(anchor); validateLifecycleJournal(next);
+      try { write(next); }
       catch (e) { failed = `lifecycle journal write failed: ${e.message}`; throw e; }
       state = next;
     },

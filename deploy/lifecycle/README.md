@@ -68,10 +68,37 @@ The journal durably records crash counts, generation fences, permit replay
 floors, exact pending/mined transaction intents, runtime identities and accepted
 Base/L1 anchor floors. Corruption or write failure fails closed. The exclusive
 owner adapter uses a kernel file lock on Linux and a named pipe on Windows.
-Both release ownership when the process dies. A missing journal refuses normal
-startup; explicit initialization is reserved for initial enrollment. These mechanisms do not protect
-against a malicious disk rollback or erased journal: a restored host/witness
-must recover an authenticated floor before it may sign or serve again.
+Both release ownership when the process dies. On Linux, the maintained
+`ownLifecycleJournal` API now records a retained before/after write intent and
+matching commit acknowledgement, and performs an owned fsync verification on
+reopen. An uncertain write refuses normal startup; `recoverLifecycleJournal`
+classifies the exact retained bytes as landed or not landed under the same lock.
+It preserves pending/mined transactions and returns no serving authorization.
+Missing intent, unclassifiable bytes or a missing established journal remain held.
+
+Initial enrollment uses `initialize: true`; it cannot recreate a missing journal
+whose establishment marker remains. An existing plain journal requires an
+explicit reviewed `importSha256` while exclusively owned. Import preserves its
+bytes and unresolved intents. Never remove the marker, intent, commit or history
+to force recovery. Keep the journal and all sidecars in the same private state
+directory; the lock path must never be unlinked or replaced.
+
+Linux owners expose `onRelease(withdraw)` and an idempotent asynchronous `close()`.
+Register and await the actual serving/compute withdrawal before releasing an
+owner: rejected or overdue withdrawal fences the handle and retains the flock.
+Persistence or detected file/lock continuity loss starts the same withdrawal.
+Callers must stop their scheduling loop and connect their real serving boundaries;
+this API does not itself implement those adapters. Default withdrawal deadline
+is five seconds; expiry never unlocks a failed boundary. A successful journal
+recovery still requires fresh authenticated authority before signing or serving.
+
+The Linux integration has 37 focused test passes plus a separate native child
+process-death check. Filesystem failures are injected into real disk operations;
+there is no production host activation or chain qualification in that evidence.
+Windows retains its earlier named-pipe path: it does not acquire these new Linux
+durability/withdrawal guarantees. These mechanisms do not protect against a
+malicious disk rollback or erased journal: a restored host/witness must recover
+an authenticated floor before it may sign or serve again.
 
 ## Authority and fencing
 

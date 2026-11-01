@@ -1,0 +1,52 @@
+[
+  {
+    "file": "ROOT-REVIEW.md",
+    "rawSha256": "f08c675b899aebf27fe458e3aaa7d55dc121e9731a5a3db3c6e60d3370d32c56",
+    "publishedSha256": "f08c675b899aebf27fe458e3aaa7d55dc121e9731a5a3db3c6e60d3370d32c56"
+  },
+  {
+    "file": "ROOT-RESULT.md",
+    "rawSha256": "e010b6e13e8832c293690bb4b5dd03661b3c4b1e88554e396db2ba463d01f893",
+    "publishedSha256": "e010b6e13e8832c293690bb4b5dd03661b3c4b1e88554e396db2ba463d01f893"
+  },
+  {
+    "file": "PUBLIC-RESULT.json",
+    "rawSha256": "01767374bfbc939cb187cc57d0d8e3fa9be6793e662c35740447106f8617f9dc",
+    "publishedSha256": "01767374bfbc939cb187cc57d0d8e3fa9be6793e662c35740447106f8617f9dc"
+  },
+  {
+    "file": "PINS.json",
+    "rawSha256": "0253fbc136136395ff3fcbff1fc261bfebd2006705fff848d4dcdfb8e780b76c",
+    "publishedSha256": "0253fbc136136395ff3fcbff1fc261bfebd2006705fff848d4dcdfb8e780b76c"
+  },
+  {
+    "file": "RESULT.json",
+    "rawSha256": "2a3eb89ac9ab77ed2a432c32c7400efc94375cb9a2dff4c8e963d4a63b598602",
+    "publishedSha256": "2a3eb89ac9ab77ed2a432c32c7400efc94375cb9a2dff4c8e963d4a63b598602"
+  },
+  {
+    "file": "INVOCATION.txt",
+    "rawSha256": "010742a55323254fa986422421c5d6241bf7be8573f0efacd90b03373484c319",
+    "publishedSha256": "010742a55323254fa986422421c5d6241bf7be8573f0efacd90b03373484c319"
+  },
+  {
+    "file": "NATIVE.json",
+    "rawSha256": "8a42522ac317227a88e2ff3c8e91bff880d3a5129215fed3c8e4eab9bd285a67",
+    "publishedSha256": "8a42522ac317227a88e2ff3c8e91bff880d3a5129215fed3c8e4eab9bd285a67"
+  },
+  {
+    "file": "run.py",
+    "rawSha256": "a2fc505bd811ae99019af2e8f562b1780c1b479cc7af6a446cef788c51d753d1",
+    "publishedSha256": "a2fc505bd811ae99019af2e8f562b1780c1b479cc7af6a446cef788c51d753d1"
+  },
+  {
+    "file": "COMMAND.json",
+    "rawSha256": "119b0baa2a694e1d6b2b8fc4b41e2755c142081fbe951d42c00655ee6a99934e",
+    "publishedSha256": "119b0baa2a694e1d6b2b8fc4b41e2755c142081fbe951d42c00655ee6a99934e"
+  },
+  {
+    "file": "TEST.tap",
+    "rawSha256": "afbe10ece9554e0ecc8bc8d117e9058af9384f1e8d4d676215e0388c325d0184",
+    "publishedSha256": "afbe10ece9554e0ecc8bc8d117e9058af9384f1e8d4d676215e0388c325d0184"
+  }
+]
