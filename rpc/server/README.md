@@ -707,3 +707,33 @@ bounded stream units, 90-frame count and 3-second exchange limit still apply.
 There is no automatic unit extension, reconnect, new signer/export, or producer
 of serving requests yet; the complete coordinated serving transition remains
 unfinished.
+
+### Original-owner serving export control (/2, not deployed)
+
+Explicit continuous owner enrollment now prepares `enclave-rpc-export-control/2`
+with the same fields plus `ownerJournal: {path, device, inode}`. The contract pins
+the inspected original owner journal; the signer compares that identity with its
+inherited journal FD. The exporter holds that directory and reads bounded,
+owner-only, single-link immutable records relative to it. It does not accept an
+arbitrary adoption file or reconstruct a signer. The original Go issuer verifies
+authority and signs; the Python exporter checks exact already-persisted issuer
+records, rather than independently verifying Ed25519 or public health. Protected
+namespace authority remains a production prerequisite.
+
+The same one-shot mTLS connection uses HELLO/BOUND `/2`, then four-byte big-endian
+length-prefixed owner proofs (at most 2048 bytes). First commit requires the exact
+original export contract, startup predecessor, consumed commit intent, prepared
+reply and original readiness observation. Renewals require the next sequence,
+previous proof hash and unchanged preparation/observation. One wall/monotonic
+anchor maps signed expiries; clock refresh cannot extend them. The prior cutoff
+remains while the original worker checks its existing children and originals and
+acknowledges the exact private generation/expiry. Only then does the supervisor
+reply with framed `ENCLAVE-RPC-EXPORT-PERMIT/2\n` plus proof SHA-256.
+
+Peer loss, blocked worker, missing records and expiry stop the same original
+process group under the existing independent watchdog/resource envelope. No new
+export, writer acquisition, reconnect, retry, fence or reservation release occurs.
+The legacy /1 protocol and its original startup cutoff remain unchanged. The
+broker commits this exporter before its local guardians. Broker original startup
+and outer operator/systemd/TLS/Windows cutoffs still need coordinated transfer;
+this partial source must not be booted as a completed serving protocol.

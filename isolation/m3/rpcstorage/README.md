@@ -507,7 +507,7 @@ The original `/2` loop immediately consumes its live preparation in a bounded
 serving transaction. A private coordinator checks the original readiness frame,
 current owner authorization and current sequential chain, persists a transport
 intent before one request, verifies the exact dual-signed response, and persists
-it before sending both guardian COMMIT requests. Only both exact acknowledgements
+it before the original exporter acknowledgement and both guardian COMMIT requests. Only all exact acknowledgements
 plus a durable receipt publish the private `servingProof` result. Guardian sequence
 and owner permit sequence remain distinct. Every subsequent renewal retains the
 same original preparation/observation and uses the same live stream and guardians.
@@ -521,6 +521,8 @@ closes the whole broker session and both guardian channels; exact intent/proof
 records remain held and are never retransmitted.
 
 This component result is not exported as RPC Ready, ledger Running, writer fencing
-or reservation release. No broker startup timer, exporter control read deadline,
-exporter guardian or outer host cutoff is extended here. Those actual participants
-must still commit before a coherent bundle can serve beyond startup.
+or reservation release. The explicit /2 exporter now receives the exact signed proof over its same mTLS
+connection, checks the original journal and acknowledges its existing worker before
+either local guardian commits. Its transport follows that signed expiry. The
+broker startup timer and outer host/operator cutoffs remain original; they still
+need coordinated transfer before a coherent bundle can serve beyond startup.

@@ -14,6 +14,7 @@ import selectors
 import signal
 import socket
 import stat
+import struct
 import subprocess
 import sys
 import time
@@ -99,8 +100,9 @@ def guard(owner, resource_argv, deadline, floor_mib, reserve_mib, watchdog, on_r
     The caller must provide the independent cgroup/watchdog envelope. Child/group
     death on guardian failure is backed by systemd; PDEATHSIG also kills the owner.
     Native app exports additionally require their authenticated control binding
-    before GO and throughout preparation/serving. Legacy adoption cannot extend
-    this original app-control lifetime. No persistent handover is implemented.
+    before GO and throughout preparation/serving. Legacy adoption cannot extend the /1 app-control lifetime. Explicit /2 owner
+    permits require the original worker acknowledgement before TLS acceptance;
+    the prior bound remains active throughout a pending handoff.
     """
     if not 0<deadline-time.monotonic()<=900:raise ValueError('Expired original deadline')
     parent,child=socket.socketpair(socket.AF_UNIX,socket.SOCK_SEQPACKET)
@@ -123,23 +125,33 @@ def guard(owner, resource_argv, deadline, floor_mib, reserve_mib, watchdog, on_r
     sel=selectors.DefaultSelector();sel.register(parent,selectors.EVENT_READ,'owner');sel.register(pidfd,selectors.EVENT_READ,'death')
     resource=None;buffer=bytearray();resource_eof=False;resource_started=0.;last_good=None
     held=False;released=False;ready=False;adopted_once=False;last_probe=0.;why='guardian-error';owner_exit=None
+    serving_control=app_control is not None and app_control.serving_enabled
+    pending_permit=None
     try:
         watchdog()
         while True:
             now=time.monotonic()
-            if now>=deadline and (not adopted_once or app_control is not None):why='startup-deadline';break
+            if serving_control:
+                if now>=app_control.deadline:why='serving-expired' if app_control.serving else 'startup-deadline';break
+            elif now>=deadline and (not adopted_once or app_control is not None):why='startup-deadline';break
             if app_control is not None:
                 try:control_bound=app_control.step()
                 except (OSError,ValueError):why='app-control-lost';break
             else:control_bound=True
             if last_good is not None and now-last_good>=2:why='resource-observation-expired';break
             if resource is not None and now-resource_started>=1.5:why='resource-observer-timeout';break
-            if ready and not adopted_once:
+            if serving_control:
+                if ready and pending_permit is None and app_control.offer is not None:
+                    if last_good is None or time.monotonic()-last_good>=2:raise ValueError('Fresh original resources required for serving')
+                    generation,expiry,*_=app_control.offer
+                    if time.monotonic()>=app_control.deadline or time.monotonic_ns()>=expiry:raise ValueError('Late original export handoff')
+                    parent.send(b'PERMIT'+struct.pack('!QQ',generation,expiry));pending_permit=(generation,expiry)
+            elif ready and not adopted_once:
                 accepted=adopted()
                 if accepted:
                     if time.monotonic()>=deadline:why='late-adoption';break
                     parent.send(b'ADOPT');adopted_once=True
-            elif adopted_once and not adopted():raise ValueError('Adoption withdrawn or changed')
+            elif not serving_control and adopted_once and not adopted():raise ValueError('Adoption withdrawn or changed')
             if resource is None and now-last_probe>=.5:
                 resource=subprocess.Popen(resource_argv,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,start_new_session=True,bufsize=0)
                 os.set_blocking(resource.stdout.fileno(),False);sel.register(resource.stdout,selectors.EVENT_READ,'resource')
@@ -154,6 +166,12 @@ def guard(owner, resource_argv, deadline, floor_mib, reserve_mib, watchdog, on_r
                         held=True
                     elif data.startswith(b'READY ') and released and not ready and len(data)<=65536:
                         on_ready(json.loads(data[6:]));ready=True
+                        if serving_control:app_control.ready=True
+                    elif serving_control and data.startswith(b'PERMITTED') and len(data)==25 and pending_permit is not None:
+                        actual=struct.unpack('!QQ',data[9:])
+                        if actual!=pending_permit:raise ValueError('Export worker acknowledged different permit')
+                        if last_good is None or time.monotonic()-last_good>=2:raise ValueError('Resources expired during worker handoff')
+                        app_control.accept_offer(*actual);pending_permit=None;adopted_once=True
                     else:raise ValueError('Unexpected owner message')
                 if key.data=='resource':
                     data=os.read(resource.stdout.fileno(),65537-len(buffer));buffer.extend(data)
@@ -237,6 +255,8 @@ def probe_export(instance, row):
 
 def export_owner(c,channel,deadline):
     exports=[];stopping=False;adopted=False
+    generation=0;active_until=deadline
+    serving_control=c.get("appControl",{}).get("schema")=="enclave-rpc-export-control/2"
     def stop(*_):
         nonlocal stopping
         stopping=True
@@ -251,9 +271,22 @@ def export_owner(c,channel,deadline):
         while not stopping:
             try:
                 message=channel.recv(32)
-                if message==b'ADOPT' and not adopted and time.monotonic()<deadline:adopted=True
+                if serving_control and message.startswith(b'PERMIT') and len(message)==22:
+                    next_generation,expiry=struct.unpack('!QQ',message[6:]);now=time.monotonic_ns()
+                    if next_generation!=generation+1 or time.monotonic()>=active_until or not now<expiry<=now+30_000_000_000 or (adopted and expiry<=int(active_until*1e9)):raise ValueError('Export worker prior/new permit invalid')
+                    prior_until=active_until
+                    generation=next_generation;active_until=expiry/1e9;adopted=True
+                    # All existing export children must remain live; no new start.
+                    for instance in exports:
+                        if instance.proc.poll() is not None:raise ValueError('Export child lost before handoff')
+                        from volume_export import metadata
+                        if any(metadata(p)!=expected for p,expected in instance.originals):raise ValueError('Original changed before handoff')
+                    if time.monotonic()>=prior_until or time.monotonic()>=active_until:raise ValueError('Export worker permit expired')
+                    channel.send(b'PERMITTED'+struct.pack('!QQ',generation,expiry))
+                elif not serving_control and message==b'ADOPT' and not adopted and time.monotonic()<deadline:adopted=True
                 else:raise ValueError('Closed or unexpected guardian channel')
             except BlockingIOError:pass
+            if serving_control and time.monotonic()>=active_until:raise ValueError("Export worker active permit expired")
             for instance in exports:
                 if instance.proc.poll() is not None:raise RuntimeError('Export child exited')
                 if not adopted:instance.check()

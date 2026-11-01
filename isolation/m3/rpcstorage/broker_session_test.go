@@ -30,7 +30,13 @@ func TestBrokerOwnerHelper(t *testing.T) {
 		t.Fatal(e)
 	}
 	defer c.Close()
-	c.SetDeadline(time.Now().Add(3 * time.Second))
+	// The serving-export fixture must outlive its <=4s signed permit so
+	// it can distinguish permit expiry from an unrelated mock-monitor exit.
+	lifetime := 3 * time.Second
+	if os.Getenv("RPC_BROKER_MODE") == "export-serving-fixture" {
+		lifetime = 5 * time.Second
+	}
+	c.SetDeadline(time.Now().Add(lifetime))
 	r, e := NewRequest(rpcBundle(t), origin)
 	if e != nil {
 		t.Fatal(e)

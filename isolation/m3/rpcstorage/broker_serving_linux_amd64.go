@@ -142,6 +142,14 @@ func (s *BrokerSession) continueServingOwnerOnce(stream *ownerContinuationConnec
 	if err = ctx.Err(); err != nil {
 		return err
 	}
+	// Same original authenticated exporter commits its worker first. A lost
+	// acknowledgement is ambiguous and closes the entire session; no replay.
+	if err = s.commitExportPermit(ctx, reply, accepted.NotAfter()); err != nil {
+		return err
+	}
+	if err = check(); err != nil {
+		return err
+	}
 	// Anchor to the EARLIER actual kernel sample and LATER Go remaining time:
 	// scheduling overhead can only shorten the guard permit, never reset expiry.
 	mono, err := rpcservice.MonotonicNow()

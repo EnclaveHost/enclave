@@ -1,0 +1,14 @@
+test_actual_export_signer_dispatcher_relay_and_enrollment_bind_same_request (__main__.Preparation.test_actual_export_signer_dispatcher_relay_and_enrollment_bind_same_request) ... ok
+test_actual_stream_entry_seals_selected_protocol_and_original_clock (__main__.Preparation.test_actual_stream_entry_seals_selected_protocol_and_original_clock) ... ok
+test_actual_v3_entry_composes_and_seals_original_inputs (__main__.Preparation.test_actual_v3_entry_composes_and_seals_original_inputs) ... ok
+test_changed_private_key_retains_consumed_preparation (__main__.Preparation.test_changed_private_key_retains_consumed_preparation) ... ok
+test_explicit_stream_preparation_preserves_original_authorities (__main__.Preparation.test_explicit_stream_preparation_preserves_original_authorities) ... ok
+test_original_volume_substitution_cannot_choose_another_journal (__main__.Preparation.test_original_volume_substitution_cannot_choose_another_journal) ... ok
+test_pending_commitments_refuse_before_private_key_or_output (__main__.Preparation.test_pending_commitments_refuse_before_private_key_or_output) ... ok
+test_scope_and_original_windows_refused_before_consumption (__main__.Preparation.test_scope_and_original_windows_refused_before_consumption) ... ok
+test_stream_preparation_cannot_promote_one_shot_owner_policy (__main__.Preparation.test_stream_preparation_cannot_promote_one_shot_owner_policy) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 2.120s
+
+OK

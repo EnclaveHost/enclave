@@ -1,0 +1,11 @@
+test_additional_data_stops_exact_tree (__main__.Tests.test_additional_data_stops_exact_tree) ... ok
+test_adoption_cannot_extend_original_control_deadline (__main__.Tests.test_adoption_cannot_extend_original_control_deadline) ... ok
+test_close_interrupts_blocked_owner_and_descendant (__main__.Tests.test_close_interrupts_blocked_owner_and_descendant) ... ok
+test_handshake_timeout_keeps_work_gate_closed (__main__.Tests.test_handshake_timeout_keeps_work_gate_closed) ... ok
+test_identity_and_request_refusals_never_release (__main__.Tests.test_identity_and_request_refusals_never_release) ... ok
+test_original_deadline_before_bind_never_releases (__main__.Tests.test_original_deadline_before_bind_never_releases) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 7.660s
+
+OK

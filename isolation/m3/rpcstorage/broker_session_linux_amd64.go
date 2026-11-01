@@ -53,6 +53,7 @@ type BrokerSession struct {
 	consent              *bootstrap.RPCStorageConsent
 	remoteReceipt        *os.File
 	exportRaw            net.Conn
+	exportStream         *exportPermitConnection
 	ownerRaw             net.Conn
 	ownerStream          *ownerContinuationConnection
 	ownerProofSHA        string

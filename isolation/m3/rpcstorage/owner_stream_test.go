@@ -336,6 +336,29 @@ func TestGuestOwnerContinuousTLSAndLoss(t *testing.T) {
 				s.mu.Lock()
 				s.exportBound = true
 				s.mu.Unlock() // actual export is not this TLS fixture
+				clientExport, serverExport := net.Pipe()
+				defer clientExport.Close()
+				defer serverExport.Close()
+				exportStream := &exportPermitConnection{conn: clientExport, raw: clientExport, replies: make(chan []byte, 1)}
+				s.mu.Lock()
+				s.exportRaw = clientExport
+				s.exportStream = exportStream
+				s.mu.Unlock()
+				go s.watchExportPermits(exportStream)
+				go func() {
+					defer serverExport.Close()
+					for {
+						raw, e := readOwnerFrame(serverExport, 2048)
+						if e != nil {
+							return
+						}
+						hash := sha256.Sum256(raw)
+						if e = writeOwnerFrame(serverExport, append([]byte(exportPermitAck), hash[:]...)); e != nil {
+							return
+						}
+					}
+				}()
+
 				// Two private channels, actual broker client, bounded test-only
 				// guardian responders. Native receiver is qualified separately.
 				var guardFiles [2]*os.File

@@ -1,7 +1,7 @@
 //go:build linux && amd64
 
 // rpc-storage-owner defaults to a one-request storage-owner signing actor. An
-// explicit owner/2 policy selects a continuous, framed startup-only session.
+// explicit owner/2 policy selects a continuous, framed startup/serving session.
 // It never
 // opens a listener, starts an export, grants a volume or releases a reservation.
 // Run only within the owner's independently bounded service. Fixed inherited
@@ -238,6 +238,11 @@ func run() error {
 			Port         uint16
 			Client       string `json:"clientCertificateSha256"`
 			Request      string `json:"requestSha256"`
+			Journal      *struct {
+				Path   string `json:"path"`
+				Device uint64 `json:"device"`
+				Inode  uint64 `json:"inode"`
+			} `json:"ownerJournal"`
 		} `json:"appControl"`
 	}
 	if err = decode(contractBytes, &c, false); err != nil {
@@ -280,8 +285,18 @@ func run() error {
 	}
 	requestBytes, _ := json.Marshal(in.Request)
 	sum = sha256.Sum256(requestBytes)
-	if c.Control.Schema != "enclave-rpc-export-control/1" || c.Control.Host != p.Export.Host || c.Control.Port != p.Export.Port || c.Control.Client != p.Export.ClientCertificateSHA256 || c.Control.Request != hex.EncodeToString(sum[:]) {
+	controlSchema := "enclave-rpc-export-control/1"
+	if continuous {
+		controlSchema = "enclave-rpc-export-control/2"
+	}
+	if c.Control.Schema != controlSchema || c.Control.Host != p.Export.Host || c.Control.Port != p.Export.Port || c.Control.Client != p.Export.ClientCertificateSHA256 || c.Control.Request != hex.EncodeToString(sum[:]) {
 		return errors.New("owner contract does not select this exact request/control binding")
+	}
+	if continuous {
+		var held syscall.Stat_t
+		if c.Control.Journal == nil || !strings.HasPrefix(c.Control.Journal.Path, "/") || syscall.Fstat(4, &held) != nil || held.Dev != c.Control.Journal.Device || held.Ino != c.Control.Journal.Inode {
+			return errors.New("exporter must select the exact inherited original owner journal")
+		}
 	}
 	reader, err := bootstrap.NewReader(bootstrap.Config{ChainID: p.ChainID, Ledger: p.Ledger, RPCs: p.RPCs, Confirmations: p.Confirmations, MaxAge: time.Duration(p.MaxAgeSeconds) * time.Second})
 	if err != nil {

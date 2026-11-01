@@ -21,6 +21,9 @@ import (
 
 const exportHello = "ENCLAVE-RPC-EXPORT-CONTROL/1\n"
 const exportBound = "ENCLAVE-RPC-EXPORT-BOUND/1\n"
+const exportHello2 = "ENCLAVE-RPC-EXPORT-CONTROL/2\n"
+const exportBound2 = "ENCLAVE-RPC-EXPORT-BOUND/2\n"
+const exportPermitAck = "ENCLAVE-RPC-EXPORT-PERMIT/2\n"
 
 // ExportControl records only that the exact authenticated transport acknowledged
 // the request. It is not export readiness, a writable-root grant, settlement,
@@ -51,6 +54,7 @@ func (s *BrokerSession) ConnectExportControl(serverDER []byte, client tls.Certif
 	}
 	s.exportUsed = true
 	consent, reserved := s.consent, s.reserved
+	continuous := s.ownerStream != nil
 	s.mu.Unlock()
 	defer func() {
 		if err != nil {
@@ -153,7 +157,11 @@ func (s *BrokerSession) ConnectExportControl(serverDER []byte, client tls.Certif
 	}
 	hash := sha256.Sum256(request)
 	contract, _ := hex.DecodeString(binding.ContractSHA256)
-	frame := append([]byte(exportHello), hash[:]...)
+	hello, bound := exportHello, exportBound
+	if continuous {
+		hello, bound = exportHello2, exportBound2
+	}
+	frame := append([]byte(hello), hash[:]...)
 	frame = append(frame, contract...)
 	n, err := conn.Write(frame)
 	if err != nil {
@@ -163,7 +171,7 @@ func (s *BrokerSession) ConnectExportControl(serverDER []byte, client tls.Certif
 		return nil, io.ErrShortWrite
 	}
 	frameHash := sha256.Sum256(frame)
-	expected := append([]byte(exportBound), frameHash[:]...)
+	expected := append([]byte(bound), frameHash[:]...)
 	received := make([]byte, len(expected))
 	if _, err = io.ReadFull(conn, received); err != nil {
 		return nil, err
@@ -178,15 +186,15 @@ func (s *BrokerSession) ConnectExportControl(serverDER []byte, client tls.Certif
 		return nil, err
 	}
 	armed := make(chan struct{})
-	go func() {
-		close(armed)
-		var one [1]byte
-		// EOF/error/any byte from the server is terminal. The session's own
-		// watcher closes raw on exact monitor death or authorization loss even
-		// while this read or another TLS operation is blocked.
-		conn.Read(one[:])
-		s.lose()
-	}()
+	if continuous {
+		stream := &exportPermitConnection{conn: conn, raw: raw, replies: make(chan []byte, 1)}
+		s.mu.Lock()
+		s.exportStream = stream
+		s.mu.Unlock()
+		go func() { close(armed); s.watchExportPermits(stream) }()
+	} else {
+		go func() { close(armed); var one [1]byte; conn.Read(one[:]); s.lose() }()
+	}
 	<-armed
 	if err = s.alive(); err != nil {
 		return nil, err

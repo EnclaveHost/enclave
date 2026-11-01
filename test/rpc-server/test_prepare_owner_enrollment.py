@@ -76,6 +76,9 @@ class Preparation(unittest.TestCase):
         policy=c.protocol.decode(c.read_pinned(signer['policy']));self.assertEqual(policy['schema'],'enclave-rpc-storage-owner/2')
         self.assertEqual(signer['ownerProvision'],self.template['ownerProvision']);self.assertEqual(signer['clock'],self.config['clock'])
         inputs=load('stream_inputs',S/'rpc/server/owner_bootstrap_inputs.py');prepared=c.protocol.decode(c.read_pinned(dispatch['request']));contract=c.protocol.decode(c.read_pinned(signer['contract']))
+        journal=Path(self.template['ownerProvision']['path']).parent/'journal';row=journal.stat()
+        self.assertEqual(contract['appControl']['schema'],'enclave-rpc-export-control/2')
+        self.assertEqual(contract['appControl']['ownerJournal'],{'path':str(journal),'device':row.st_dev,'inode':row.st_ino})
         inputs.prepare(c,value,self.original,prepared,contract,policy,signer['contract']['sha256'])
         with self.assertRaisesRegex(ValueError,'policy required'):inputs.prepare(c,dict(value,schema='enclave-rpc-owner-bootstrap-entry/2'),self.original,prepared,contract,policy,signer['contract']['sha256'])
 

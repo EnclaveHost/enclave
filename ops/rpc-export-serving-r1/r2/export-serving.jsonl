@@ -1,0 +1,12 @@
+{"Time":"2026-11-01T16:33:32.915142387-07:00","Action":"start","Package":"enclave.host/isolation/m3/rpcstorage"}
+{"Time":"2026-11-01T16:33:32.917572799-07:00","Action":"run","Package":"enclave.host/isolation/m3/rpcstorage","Test":"TestExportServingOriginalOwnerPythonGuardian"}
+{"Time":"2026-11-01T16:33:32.917636039-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcstorage","Test":"TestExportServingOriginalOwnerPythonGuardian","Output":"=== RUN   TestExportServingOriginalOwnerPythonGuardian\n","OutputType":"frame"}
+{"Time":"2026-11-01T16:33:32.917655889-07:00","Action":"run","Package":"enclave.host/isolation/m3/rpcstorage","Test":"TestExportServingOriginalOwnerPythonGuardian/normal-renew"}
+{"Time":"2026-11-01T16:33:32.917659299-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcstorage","Test":"TestExportServingOriginalOwnerPythonGuardian/normal-renew","Output":"=== RUN   TestExportServingOriginalOwnerPythonGuardian/normal-renew\n","OutputType":"frame"}
+{"Time":"2026-11-01T16:33:36.0677728-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcstorage","Test":"TestExportServingOriginalOwnerPythonGuardian/normal-renew","Output":"--- PASS: TestExportServingOriginalOwnerPythonGuardian/normal-renew (3.15s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T16:33:36.06781559-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcstorage","Test":"TestExportServingOriginalOwnerPythonGuardian/normal-renew","Elapsed":3.15}
+{"Time":"2026-11-01T16:33:36.06783201-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcstorage","Test":"TestExportServingOriginalOwnerPythonGuardian","Output":"--- PASS: TestExportServingOriginalOwnerPythonGuardian (3.15s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T16:33:36.06783626-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcstorage","Test":"TestExportServingOriginalOwnerPythonGuardian","Elapsed":3.15}
+{"Time":"2026-11-01T16:33:36.06783831-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcstorage","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-11-01T16:33:36.068482065-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcstorage","Output":"ok  \tenclave.host/isolation/m3/rpcstorage\t3.153s\n"}
+{"Time":"2026-11-01T16:33:36.068501165-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcstorage","Elapsed":3.153}

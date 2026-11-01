@@ -124,6 +124,11 @@ def prepare(entry, config, original):
     export['output']=str(out/'exports'/original['attempt'])
     export['appControl']={'schema':'enclave-rpc-export-control/1','host':control['host'],'port':control['port'],
         'tls':str(tls),'clientCertificateSha256':client_sha,'requestSha256':request_sha}
+    if continuous:
+        journal=Path(template['ownerProvision']['path']).parent/'journal'
+        row=journal.stat()
+        export['appControl']['schema']='enclave-rpc-export-control/2'
+        export['appControl']['ownerJournal']={'path':str(journal),'device':row.st_dev,'inode':row.st_ino}
     export_result=load('prepare_export').prepare(export)
     contract=export_result['contract'];actual=c.protocol.decode(c.read_pinned(contract))
     policy['export']={'host':control['host'],'port':control['port'],'contractSha256':contract['sha256'],
