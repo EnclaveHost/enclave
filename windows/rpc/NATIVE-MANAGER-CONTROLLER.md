@@ -366,3 +366,9 @@ automatically dispatched and is not target-qualified. Native VM cleanup is not
 provided by merely killing local helpers. Hosted tests mock provider, runtime,
 clock and worker-death witness; administrator namespace checks are real. Actual
 SYSTEM topology and handle transfer remain compile-only. No target VM has started.
+
+Cleanup qualification41338127976 passed23new methods:20mockedprovider/runtime/
+clock/deathwitness plus3actualadministratornamespace. ActualSYSTEMhandletransfer/
+cleanupentrypoints onlyCOMPILED. Independent lifecycleowner/startlease producer
+stillmissing; productionRPC OFFLINE. Sourcepins/binaryhashes/resultlimits:
+`../../ops/unified-funding-20261028/rpc-native-cleanup-ci-r1/ROOT-RESULT.md`.

@@ -1,0 +1,45 @@
+{
+  "total_count": 2,
+  "artifacts": [
+    {
+      "id": 13095863719,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA5NTg2MzcxOQ==",
+      "name": "rpc-native-cleanup-results",
+      "size_in_bytes": 292785,
+      "url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13095863719",
+      "archive_download_url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13095863719/zip",
+      "expired": false,
+      "digest": "sha256:89f26c196543f0d30b1df429ba317727d907e82d9095aa59244591f36adb1057",
+      "created_at": "2026-11-01T18:44:40Z",
+      "updated_at": "2026-11-01T18:44:40Z",
+      "expires_at": "2026-11-08T18:44:39Z",
+      "workflow_run": {
+        "id": 41338127976,
+        "repository_id": 1428203917,
+        "head_repository_id": 1428203917,
+        "head_branch": "main",
+        "head_sha": "d3235bfbe6cab484a6cf33c689430c24e3109f4f"
+      }
+    },
+    {
+      "id": 13095629477,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA5NTYyOTQ3Nw==",
+      "name": "rpc-native-cleanup-exact-source",
+      "size_in_bytes": 129001,
+      "url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13095629477",
+      "archive_download_url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13095629477/zip",
+      "expired": false,
+      "digest": "sha256:ad282cfecc27d6cd2df482fd604cc8efe30c437facc7f9a9324f30bbae84ad94",
+      "created_at": "2026-11-01T18:44:21Z",
+      "updated_at": "2026-11-01T18:44:21Z",
+      "expires_at": "2026-11-08T18:44:21Z",
+      "workflow_run": {
+        "id": 41338127976,
+        "repository_id": 1428203917,
+        "head_repository_id": 1428203917,
+        "head_branch": "main",
+        "head_sha": "d3235bfbe6cab484a6cf33c689430c24e3109f4f"
+      }
+    }
+  ]
+}

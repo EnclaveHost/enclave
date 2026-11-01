@@ -1,0 +1,123 @@
+{
+  "runtime": "d3235bfbe6cab484a6cf33c689430c24e3109f4f",
+  "suppliedPins": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/ProviderStart.cs",
+    "windows/rpc/OwnedVmPermit.cs",
+    "windows/rpc/HostPhysicalPool.cs",
+    "windows/rpc/WindowsStartAdmission.cs",
+    "windows/rpc/LegacyTemplateFence.cs",
+    "windows/rpc/LegacyLaunchCohort.cs",
+    "windows/rpc/LegacyHandoff.cs",
+    "windows/rpc/NativeRpcDefinition.cs",
+    "windows/rpc/NativeRpcWmi.cs",
+    "windows/rpc/NativeRpcStart.cs",
+    "windows/rpc/NativeRpcCleanup.cs",
+    "windows/rpc/NativeRpcCleanupWitness.cs",
+    "windows/rpc/NativeRpcAuthority.cs",
+    "windows/rpc/NativeRpcWorkerEntry.cs",
+    "windows/rpc/NativeRpcController.cs",
+    "windows/rpc/NativeRpcManagerTransport.cs",
+    "test/rpc-windows-worker/NativeRpcCleanupHarness.cs"
+  ],
+  "actualCompileClosures": {
+    "harness": [
+      "windows/rpc/BoundedWorker.cs",
+      "windows/rpc/OwnerObserver.cs",
+      "windows/rpc/ProtectedAttempt.cs",
+      "windows/rpc/ProviderStart.cs",
+      "windows/rpc/OwnedVmPermit.cs",
+      "windows/rpc/HostPhysicalPool.cs",
+      "windows/rpc/WindowsStartAdmission.cs",
+      "windows/rpc/LegacyTemplateFence.cs",
+      "windows/rpc/LegacyLaunchCohort.cs",
+      "windows/rpc/LegacyHandoff.cs",
+      "windows/rpc/NativeRpcDefinition.cs",
+      "windows/rpc/NativeRpcStart.cs",
+      "windows/rpc/NativeRpcCleanup.cs",
+      "windows/rpc/NativeRpcCleanupWitness.cs",
+      "windows/rpc/NativeRpcAuthority.cs",
+      "test/rpc-windows-worker/NativeRpcCleanupHarness.cs"
+    ],
+    "controller": [
+      "windows/rpc/BoundedWorker.cs",
+      "windows/rpc/OwnerObserver.cs",
+      "windows/rpc/ProtectedAttempt.cs",
+      "windows/rpc/ProviderStart.cs",
+      "windows/rpc/OwnedVmPermit.cs",
+      "windows/rpc/HostPhysicalPool.cs",
+      "windows/rpc/WindowsStartAdmission.cs",
+      "windows/rpc/LegacyTemplateFence.cs",
+      "windows/rpc/LegacyLaunchCohort.cs",
+      "windows/rpc/LegacyHandoff.cs",
+      "windows/rpc/NativeRpcDefinition.cs",
+      "windows/rpc/NativeRpcAuthority.cs",
+      "windows/rpc/NativeRpcController.cs",
+      "windows/rpc/NativeRpcManagerTransport.cs"
+    ],
+    "worker": [
+      "windows/rpc/BoundedWorker.cs",
+      "windows/rpc/OwnerObserver.cs",
+      "windows/rpc/ProtectedAttempt.cs",
+      "windows/rpc/ProviderStart.cs",
+      "windows/rpc/OwnedVmPermit.cs",
+      "windows/rpc/HostPhysicalPool.cs",
+      "windows/rpc/WindowsStartAdmission.cs",
+      "windows/rpc/LegacyTemplateFence.cs",
+      "windows/rpc/LegacyLaunchCohort.cs",
+      "windows/rpc/LegacyHandoff.cs",
+      "windows/rpc/NativeRpcDefinition.cs",
+      "windows/rpc/NativeRpcWmi.cs",
+      "windows/rpc/NativeRpcStart.cs",
+      "windows/rpc/NativeRpcCleanup.cs",
+      "windows/rpc/NativeRpcCleanupWitness.cs",
+      "windows/rpc/NativeRpcAuthority.cs",
+      "windows/rpc/NativeRpcWorkerEntry.cs"
+    ]
+  },
+  "binaries": {
+    "owned-entry.exe": {
+      "bytes": 261632,
+      "sha256": "938871178d39fc968ecd852f2534c886a57276dbb1cc32e1fd72f6548cb6f72f"
+    },
+    "native-worker.exe": {
+      "bytes": 257536,
+      "sha256": "663c43d9b166ef76a7ce2dbdd33aa8b3012804b42a36e60562a18d2f848a35cb"
+    },
+    "system-worker.exe": {
+      "bytes": 256512,
+      "sha256": "35c345f71fdf5342a42abca556a0cfa7b409e1bbc1f7a574e13eeb89b92372ea"
+    }
+  },
+  "tests": [
+    "start submission cannot create its own missing pre-gate intent",
+    "prepared start refuses changed authority and expired original window",
+    "cleanup exact death and settled start precede one stop and fresh Off",
+    "live original worker prevents every stop mutation and provider read",
+    "pending start must reach exact terminal before stop",
+    "completed failed start can be stopped but abnormal recurring start stays held",
+    "lost original start response cannot be inferred from local death or VM Off",
+    "recycled original start job refuses stop",
+    "asynchronous stop persists exact receipt before job and Off readback",
+    "read-only cleanup settles saved stop without renewed mutation",
+    "lost stop response is held and cannot resubmit",
+    "failed stop receipt persistence prevents followup and replay",
+    "changed or foreign stop job identity refuses completion",
+    "stop terminal errors abnormal states and recurring jobs remain held",
+    "stop success still requires original fresh Off zero memory observation",
+    "cleanup four second freshness boundary rollback and original end are enforced",
+    "cleanup after original deadline never renews start and ends at thirty seconds",
+    "cleanup wait cannot use stalled or rolled back clock",
+    "changing death binding and tampered consumed intent prevent provider mutation",
+    "unexpected stop response reference and refusal never produce Off proof",
+    "actual protected cleanup journal permits only stop writes and observations",
+    "actual protected reconcile lease cannot submit and torn original receipt remains held",
+    "actual cleanup journal refuses mismatched worker image and original plan digest"
+  ],
+  "productionEntrypointsCompiledOnly": true,
+  "providerDeathWitnessClockAdmissionMocked": true,
+  "administratorNamespaceActual": true,
+  "independentLifecycleOwnerImplemented": false
+}
