@@ -58,7 +58,7 @@ function Invoke-FiniteProcess([string]$Executable,[string[]]$Arguments,[int]$Dea
     if($failure -or $record.exitCode -ne 0){throw ($Label+' failed: '+($record|ConvertTo-Json -Compress))}
 }
 try{
-    $sources=@('BoundedWorker.cs','OwnerObserver.cs','ProtectedAttempt.cs','ProviderStart.cs','OwnedVmPermit.cs','OwnedVmDefinition.cs','OwnedVmBoot.cs','BootStartBinding.cs','HostPhysicalPool.cs','WindowsStartAdmission.cs','LegacyTemplateFence.cs','LegacyLaunchCohort.cs','LegacyHandoff.cs','NativeRpcDefinition.cs','NativeRpcWmi.cs','NativeRpcStart.cs','NativeRpcCleanup.cs','NativeRpcCleanupWitness.cs','NativeRpcAuthority.cs')|ForEach-Object{Join-Path $root ('windows\rpc\'+$_)}
+    $sources=@('BoundedWorker.cs','OwnerObserver.cs','ProtectedAttempt.cs','ProviderStart.cs','OwnedVmPermit.cs','OwnedVmDefinition.cs','OwnedVmBoot.cs','BootStartBinding.cs','HostPhysicalPool.cs','WindowsStartAdmission.cs','LegacyTemplateFence.cs','LegacyLaunchCohort.cs','LegacyHandoff.cs','NativeRpcDefinition.cs','NativeRpcWmi.cs','NativeRpcStart.cs','NativeRpcCleanup.cs','NativeRpcCleanupWitness.cs','NativeRpcPeerPins.cs','NativeRpcAuthority.cs')|ForEach-Object{Join-Path $root ('windows\rpc\'+$_)}
     $sources+=Join-Path $root 'test\rpc-windows-worker\NativeRpcDefinitionHarness.cs'
     Invoke-FiniteProcess $csc (@('/nologo','/target:exe','/platform:x64','/r:System.Management.dll','/r:System.Web.Extensions.dll','/r:Microsoft.CSharp.dll','/main:NativeRpcDefinitionHarness',('/out:'+$entry))+$sources) 20000 'native-compile'
     Invoke-FiniteProcess $entry @() 20000 'native-harness'

@@ -1,0 +1,62 @@
+{
+  "implementation": "VS2026 standalone Roslyn",
+  "version": "5.1100.26.42405",
+  "server": false,
+  "pins": [
+    {
+      "Algorithm": "SHA256",
+      "Hash": "A13D1EDF3EF5DD0D0E09886251F03FA18877D46BA2DACEE075B4C8A5ADD21457",
+      "Path": "C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise\\MSBuild\\Current\\Bin\\Roslyn\\csc.exe"
+    },
+    {
+      "Algorithm": "SHA256",
+      "Hash": "6B35530467B914B0B195146CA1D1485DDD219AFAAD6461103F16F54E952F75A9",
+      "Path": "C:\\Program Files (x86)\\Reference Assemblies\\Microsoft\\Framework\\.NETFramework\\v4.8\\mscorlib.dll"
+    },
+    {
+      "Algorithm": "SHA256",
+      "Hash": "2FE343569F794F2CA92EE14A41875571A9F21BF92637B8F8EE86306534209CCA",
+      "Path": "C:\\Program Files (x86)\\Reference Assemblies\\Microsoft\\Framework\\.NETFramework\\v4.8\\System.dll"
+    },
+    {
+      "Algorithm": "SHA256",
+      "Hash": "94A1FC97EB0D36F13ACD209BB7207DA504C8BE10CAF7E5096B2C46E671DC6FE2",
+      "Path": "C:\\Program Files (x86)\\Reference Assemblies\\Microsoft\\Framework\\.NETFramework\\v4.8\\System.Core.dll"
+    },
+    {
+      "Algorithm": "SHA256",
+      "Hash": "23B6D4E6FC3514B0B44FEB5ACF96E8BD6E1D76C79A39E17F5C3714E7AA3FB965",
+      "Path": "C:\\Program Files (x86)\\Reference Assemblies\\Microsoft\\Framework\\.NETFramework\\v4.8\\System.Management.dll"
+    },
+    {
+      "Algorithm": "SHA256",
+      "Hash": "7512218C4A6A83DE0CDBB8A25240B8B5EE542F93FF9B31ACFBF9F7399394450E",
+      "Path": "C:\\Program Files (x86)\\Reference Assemblies\\Microsoft\\Framework\\.NETFramework\\v4.8\\System.Web.Extensions.dll"
+    },
+    {
+      "Algorithm": "SHA256",
+      "Hash": "CD5767FEF2AB0069042BB0C09F9095AFCF29D2CEEE82213728448D64E14EDDD7",
+      "Path": "C:\\Program Files (x86)\\Reference Assemblies\\Microsoft\\Framework\\.NETFramework\\v4.8\\Microsoft.CSharp.dll"
+    },
+    {
+      "Algorithm": "SHA256",
+      "Hash": "00208E20E3D1D520C233E7FFC10E4E56F9E6B3920BF4A971FAEE864268C7E5A5",
+      "Path": "C:\\Program Files (x86)\\Reference Assemblies\\Microsoft\\Framework\\.NETFramework\\v4.8\\System.Xml.dll"
+    },
+    {
+      "Algorithm": "SHA256",
+      "Hash": "C867EE14FEF732C5803C67A5A00797EF62080B29CE71F6FB14E1AF325C8D2A3D",
+      "Path": "C:\\Program Files (x86)\\Reference Assemblies\\Microsoft\\Framework\\.NETFramework\\v4.8\\System.Security.dll"
+    },
+    {
+      "Algorithm": "SHA256",
+      "Hash": "39E64B50E018DD4A3B770DC4F8EB12FB8118061FA73FC77D5E95C33F5B37F0CD",
+      "Path": "C:\\Program Files (x86)\\Reference Assemblies\\Microsoft\\Framework\\.NETFramework\\v4.8\\System.Configuration.dll"
+    },
+    {
+      "Algorithm": "SHA256",
+      "Hash": "31812365198B0707AD98005E19E38A3D354B13FB5CDC272D5000BFE4B82A9B97",
+      "Path": "C:\\Program Files (x86)\\Reference Assemblies\\Microsoft\\Framework\\.NETFramework\\v4.8\\System.Data.dll"
+    }
+  ]
+}

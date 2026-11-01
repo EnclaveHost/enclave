@@ -1,0 +1,4 @@
+{
+  "sha256": "2472ef3684cb206efa80b1bd9d280fe4d51567ae8aa535bb98e5a7e1aa41744f",
+  "text": "System.InvalidOperationException: Protected file size\r\n   at Enclave.OwnedRpc.ProtectedAttempt.HoldRead(String path, Int32 maximum, Boolean allowMissing)\r\n   at Enclave.OwnedRpc.ProtectedAttempt..ctor(String contractPath, String expectedHash, Boolean controller, String profile)\r\n   at Enclave.OwnedRpc.ProtectedAttempt.PinNativeStartController(String path, String hash)\r\n   at NativeRpcLifecycleHarness.<>c.<Main>b__11_8()\r\n   at NativeRpcLifecycleHarness.Test(String name, Action f)\r\n   at NativeRpcLifecycleHarness.Main(String[] args)\r\n"
+}

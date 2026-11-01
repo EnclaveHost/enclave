@@ -1,0 +1,45 @@
+{
+  "total_count": 2,
+  "artifacts": [
+    {
+      "id": 13096227690,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA5NjIyNzY5MA==",
+      "name": "rpc-native-lifecycle-results",
+      "size_in_bytes": 4389,
+      "url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13096227690",
+      "archive_download_url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13096227690/zip",
+      "expired": false,
+      "digest": "sha256:c8adeb0016d28fbe1da9e26c74e5b8b63afc6f13dff4e72dc68c923cb101bc98",
+      "created_at": "2026-11-01T18:59:47Z",
+      "updated_at": "2026-11-01T18:59:47Z",
+      "expires_at": "2026-11-08T18:59:46Z",
+      "workflow_run": {
+        "id": 41339385931,
+        "repository_id": 1428203917,
+        "head_repository_id": 1428203917,
+        "head_branch": "main",
+        "head_sha": "e8797bb2190bbd60a7395c996f88344664140baa"
+      }
+    },
+    {
+      "id": 13096162866,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA5NjE2Mjg2Ng==",
+      "name": "rpc-native-lifecycle-exact-source",
+      "size_in_bytes": 135620,
+      "url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13096162866",
+      "archive_download_url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13096162866/zip",
+      "expired": false,
+      "digest": "sha256:b7b940446b5753928ebdd994d17c5088b1f78f404cd914eee54cacd7b34fa84f",
+      "created_at": "2026-11-01T18:59:21Z",
+      "updated_at": "2026-11-01T18:59:21Z",
+      "expires_at": "2026-11-08T18:59:20Z",
+      "workflow_run": {
+        "id": 41339385931,
+        "repository_id": 1428203917,
+        "head_repository_id": 1428203917,
+        "head_branch": "main",
+        "head_sha": "e8797bb2190bbd60a7395c996f88344664140baa"
+      }
+    }
+  ]
+}

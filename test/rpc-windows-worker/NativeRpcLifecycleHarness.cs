@@ -9,12 +9,12 @@ using System.Security.Principal;
 using System.Runtime.InteropServices;
 using Enclave.OwnedRpc;
 public static class NativeRpcLifecycleHarness {
- static int count;static byte[] image;
+ static int count,index;static bool namespaceOnly;static byte[] image;
  [DllImport("kernel32.dll")]static extern IntPtr GetCurrentProcess();
  [DllImport("kernel32.dll")]static extern bool TerminateProcess(IntPtr p,uint code);
  static void Check(bool b){if(!b)throw new Exception("Assertion");}
  static void Refuse(Action f){bool refused=false;try{f();}catch{refused=true;}Check(refused);}
- static void Test(string name,Action f){f();count++;Console.WriteLine("PASS "+name);}
+ static void Test(string name,Action f){index++;if(namespaceOnly&&index<=7)return;f();count++;Console.WriteLine("PASS "+name);}
  static void DirectoryNew(string path){var acl=new DirectorySecurity();acl.SetOwner(new SecurityIdentifier("S-1-5-32-544"));acl.SetAccessRuleProtection(true,false);foreach(string sid in new[]{"S-1-5-18","S-1-5-32-544"})acl.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid),FileSystemRights.FullControl,InheritanceFlags.ContainerInherit|InheritanceFlags.ObjectInherit,PropagationFlags.None,AccessControlType.Allow));Directory.CreateDirectory(path,acl);}
  static void Put(string path,byte[] b){var acl=new FileSecurity();acl.SetOwner(new SecurityIdentifier("S-1-5-32-544"));acl.SetAccessRuleProtection(true,false);foreach(string sid in new[]{"S-1-5-18","S-1-5-32-544"})acl.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid),FileSystemRights.FullControl,AccessControlType.Allow));using(var f=new FileStream(path,FileMode.CreateNew,FileSystemRights.WriteData,FileShare.None,4096,FileOptions.WriteThrough,acl)){f.Write(b,0,b.Length);f.Flush(true);}}
  sealed class Fixture {
@@ -33,7 +33,7 @@ public static class NativeRpcLifecycleHarness {
  static void Finished(NativeLifecycleWatch w){Check(w.Done.WaitOne(2000)&&w.Failure==null);}
  public static int Main(string[] args){try{
   var timer=new Timer(delegate{TerminateProcess(GetCurrentProcess(),125);},null,20000,Timeout.Infinite);
-  if(args.Length==1&&args[0]=="--inert-owner"){Thread.Sleep(5000);return 0;}if(args.Length!=0)return 64;
+  if(args.Length==1&&args[0]=="--inert-owner"){Thread.Sleep(5000);return 0;}namespaceOnly=args.Length==1&&args[0]=="--namespace-only";if(!namespaceOnly)return 64;
   BoundedWorker.EnterSupervisorEnvelope(256UL*1024*1024);image=File.ReadAllBytes(System.Reflection.Assembly.GetExecutingAssembly().Location);
   Test("independent deadline dispatch proceeds while caller is blocked",()=>{long n=BoundedWorker.MonotonicMilliseconds(),at=0;int calls=0;var w=new NativeLifecycleWatch(n,n+150,BoundedWorker.MonotonicMilliseconds,()=>false,r=>{Interlocked.Increment(ref calls);Interlocked.Exchange(ref at,BoundedWorker.MonotonicMilliseconds());});Thread.Sleep(300);Finished(w);Check(calls==1&&w.Reason=="original-deadline"&&at>=n+150&&at<n+1000);Console.WriteLine("deadline callback ms="+(at-n));});
   Test("actual held original process death triggers independent dispatch before deadline",()=>{string exe=System.Reflection.Assembly.GetExecutingAssembly().Location;using(var child=Process.Start(new ProcessStartInfo(exe,"--inert-owner"){UseShellExecute=false,CreateNoWindow=true})){IntPtr held=child.Handle;long creation=child.StartTime.ToUniversalTime().ToFileTimeUtc(),n=BoundedWorker.MonotonicMilliseconds(),at=0;int calls=0;var w=new NativeLifecycleWatch(n,n+1500,BoundedWorker.MonotonicMilliseconds,()=>child.HasExited,r=>{calls++;at=BoundedWorker.MonotonicMilliseconds();});child.Kill();Check(child.WaitForExit(1000));Finished(w);Check(calls==1&&w.Reason=="original-worker-failure"&&at<n+1500);Console.WriteLine("exact inert owner pid="+child.Id+" creation="+creation+" exited="+child.HasExited+" callback ms="+(at-n));GC.KeepAlive(held);}});

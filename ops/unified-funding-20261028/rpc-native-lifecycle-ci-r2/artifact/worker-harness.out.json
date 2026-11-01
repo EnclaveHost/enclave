@@ -1,0 +1,4 @@
+{
+  "sha256": "e0542cb6fb22357aed09ae18d04ad0eb68b3e5bb4e7de3376caf32fd0da5f7aa",
+  "text": "deadline callback ms=159\r\nPASS independent deadline dispatch proceeds while caller is blocked\r\nexact inert owner pid=9176 creation=134380331857641971 exited=True callback ms=30\r\nPASS actual held original process death triggers independent dispatch before deadline\r\nPASS observation failure dispatches cleanup rather than silently ending watch\r\nPASS failed cleanup callback remains one-shot with no retry\r\nPASS binding failure explicitly wakes independent cleanup once\r\nPASS rollback closes original watch without resetting time\r\nPASS invalid expired future overflow and extended watch windows refuse before dispatch\r\n"
+}
