@@ -6,25 +6,31 @@ import { validateServingPermitContext, signServingPermit, servingAssignmentBindi
 import { verifyGenerationChain, prepareGenerationProposal } from './deployment-generation-certificate.mjs';
 import { transitionTypedData } from './deployment-transition-intent.mjs';
 import { canRestoreLifecycleDenial, lifecycleHostAdmitted } from './deployment-authority-window.mjs';
+// host-authority permit r1: a v2 witness derives the host authority from its OWN authenticated reader and durable floor
+import { isHostAuthorityPermit, validateHostAuthorityContext } from './deployment-host-authority.mjs';
 
 export class DeploymentLifecycleWitness {
-  constructor({ pins, account, journal, authority, health, now = Date.now, requestTimeoutMs = 10000 }) {
+  constructor({ pins, account, journal, authority, health, now = Date.now, requestTimeoutMs = 10000, hostAuthorityJournal = null }) {
     if (typeof account?.signTypedData !== 'function' || typeof authority?.read !== 'function' || typeof health?.verify !== 'function')
       throw Error('witness needs a signer and local authority/readiness verifiers');
     if (!Number.isInteger(requestTimeoutMs) || requestTimeoutMs < 1 || requestTimeoutMs > 10000) throw Error('invalid witness deadline');
-    Object.assign(this, { pins, account, journal, authority, health, now, requestTimeoutMs });
+    Object.assign(this, { pins, account, journal, authority, health, now, requestTimeoutMs, hostAuthorityJournal });
+    if (isHostAuthorityPermit(pins) && (typeof hostAuthorityJournal?.accept !== 'function' || typeof hostAuthorityJournal?.observe !== 'function')) throw Error('v2 witness requires its durable host authority journal');   // host-authority permit r1
+    if (typeof hostAuthorityJournal?.onRelease === 'function') hostAuthorityJournal.onRelease(() => this.close());   // ownership r3 + r5: owner release cancels signing and awaits it
     this.busy = new Set(); this.closed = false;
   }
   permit(record, operatorSignature) { return this.#bounded(signal => this.#permit(record, operatorSignature, signal)); }
   async #bounded(run) {
     const controller = new AbortController();
+    (this.inflight ??= new Set()).add(controller);   // ownership r3: close() aborts every in-flight request
     let timer;
     const expired = new Promise((_, reject) => { timer = setTimeout(() => {
       const error = Error('witness verification deadline'); controller.abort(error); reject(error);
     }, this.requestTimeoutMs); });
     const work = run(controller.signal);
+    (this.works ??= new Set()).add(work); { const untrack = () => this.works.delete(work); work.then(untrack, untrack); }   // completion r5: close() awaits it
     try { return await Promise.race([work, expired]); }
-    finally { clearTimeout(timer); work.catch(() => {}); }
+    finally { clearTimeout(timer); work.catch(() => {}); this.inflight?.delete(controller); }
   }
   async #permit(record, operatorSignature, signal) {
     if (this.closed) throw Error('witness closed');
@@ -35,9 +41,12 @@ export class DeploymentLifecycleWitness {
       const row = this.journal.read(id);
       const context = await resolveServingContext({ ...await this.authority.read(id, record.host, { signal }), pins: this.pins,
         nowSec: Math.floor(this.now() / 1000), denyFloor: row.denial });
+      if (isHostAuthorityPermit(this.pins)) this.hostAuthorityJournal.observe(record.host, context.hostAuthority);   // completion r2: own authenticated Offline is durable here
       const floor = row.digest ? { generation: row.generation, sequence: row.sequence, digest: row.digest } : null;
+      const V2 = isHostAuthorityPermit(this.pins), haFloor = V2 ? { hostAuthorityFloor: this.hostAuthorityJournal.read(record.host)?.floor ?? null } : {};   // host-authority permit r1
+      if (V2 && !this.hostAuthorityJournal.read(record.host) && row.digest) throw Error('established witness permit state without its host authority journal: unknown');   // ownership r3
       const checked = validateServingPermitContext(record, { ...context, pins: this.pins,
-        floor, nowSec: Math.floor(this.now() / 1000) });
+        floor, nowSec: Math.floor(this.now() / 1000), ...haFloor });
       if (!checked.allowed.has(getAddress(this.account.address).toLowerCase())) throw Error('signer is not a configured witness');
       const operator = await recoverTypedDataAddress({ ...checked.data, signature: operatorSignature });
       if (getAddress(context.assignment.operator) !== operator) throw Error('permit request is not signed by the assigned operator');
@@ -49,9 +58,11 @@ export class DeploymentLifecycleWitness {
         throw Error('no authenticated readiness covering this permit');
       // Validation can take time; never sign after its authority or health aged
       // out. Revalidate the same evidence, never relabel it with the current time.
-      validateServingPermitContext(record, { ...context, pins: this.pins, floor, nowSec });
+      if (V2) await this.#sameHostAuthority(id, record, signal, row.denial);   // host-authority permit r1: readiness work took time
+      validateServingPermitContext(record, { ...context, pins: this.pins, floor, nowSec, ...haFloor });
       signal.throwIfAborted();
       if (this.closed) throw Error('witness closed');
+      if (V2) this.hostAuthorityJournal.accept(record.host, validateHostAuthorityContext(record.hostAuthority));   // host-authority permit r1: durable BEFORE signing
       if (context.restoredAt !== undefined && context.restoredAt !== null) this.journal.restoreDenial(id, context.restoredAt);
       this.journal.observeAssignment(id, record.generation, record.policyRevision,
         servingAssignmentBinding(this.pins, context.assignment, context.policy));
@@ -60,6 +71,19 @@ export class DeploymentLifecycleWitness {
       const signature = await signServingPermit(this.account, this.pins, record);
       signal.throwIfAborted();
       if (this.closed || this.journal.read(id).fenced) throw Error('witness fenced during signing');
+      if (V2) {   // completion r2: FINAL asynchronous authority read; every guard is re-checked AFTER it, before the signature leaves
+        const fresh = await this.#sameHostAuthority(id, record, signal, this.journal.read(id).denial);
+        const finalNow = Math.floor(this.now() / 1000);
+        const finalChecked = validateServingPermitContext(record, { ...fresh, pins: this.pins, nowSec: finalNow,
+          hostAuthorityFloor: this.hostAuthorityJournal.read(record.host)?.floor ?? null });
+        if (health.validUntil <= finalNow || health.validUntil < finalChecked.serveUntil)
+          throw Error('authenticated readiness does not cover the final authority window: no signature released');
+        signal.throwIfAborted();
+        this.hostAuthorityJournal.assertLive?.();   // async r4: release or lock loss right before the signature leaves refuses it
+        const after = this.journal.read(id);
+        if (this.closed || after.fenced || after.denial || after.digest !== checked.digest)
+          throw Error('witness closed, fenced, denied or superseded during the final authority read: no signature released');
+      }
       return { witness: this.account.address, signature };
     } catch (e) {
       if (e.code === 'LIFECYCLE_DENIED' && e.denial && !signal.aborted) this.journal.deny(id, e.denial);
@@ -140,5 +164,18 @@ export class DeploymentLifecycleWitness {
     return h?.verified === true && h.deployment === id && h.host === host && h.generation === generation &&
       Number.isSafeInteger(h.validUntil) && h.validUntil > nowSec;
   }
-  close() { this.closed = true; }
+  // host-authority permit r1 + completion r2: the CURRENT host authority from this witness's own authenticated reader must still be exactly
+  // the signed one and Online; an Offline observation is recorded durably; returns the freshly resolved app context for full revalidation
+  async #sameHostAuthority(id, record, signal, denyFloor) {
+    const now = await this.authority.read(id, record.host, { signal });
+    signal.throwIfAborted();
+    this.hostAuthorityJournal.observe(record.host, now?.hostAuthority);
+    const e = now?.hostAuthority;
+    if (!e || e.proofVerified !== true || e.status !== 'online' || validateHostAuthorityContext(e.context).digest !== record.hostAuthority.digest)
+      throw Error('canonical host authority changed, Offline or unknown during witness verification/signing: no signature released');
+    return resolveServingContext({ ...now, pins: this.pins, nowSec: Math.floor(this.now() / 1000), denyFloor });
+  }
+  close() { this.closed = true; for (const c of this.inflight ?? []) c.abort(Error('witness closed: authority owner released'));   // ownership r3
+    return Promise.allSettled([...(this.works ?? [])]).then(() => true);   // completion r5: settles only after every in-flight request settled
+ }
 }

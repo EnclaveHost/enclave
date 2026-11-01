@@ -1,0 +1,406 @@
+TAP version 13
+# Subtest: host authority and owner holds survive cold reopen alongside an unresolved transaction
+ok 1 - host authority and owner holds survive cold reopen alongside an unresolved transaction
+  ---
+  duration_ms: 52.901929
+  type: 'test'
+  ...
+# Subtest: released parent and sidecar references cannot overwrite a replacement owner
+ok 2 - released parent and sidecar references cannot overwrite a replacement owner
+  ---
+  duration_ms: 15.951074
+  type: 'test'
+  ...
+# Subtest: same-generation Offline survives reopen in both authority sidecars
+ok 3 - same-generation Offline survives reopen in both authority sidecars
+  ---
+  duration_ms: 16.42288
+  type: 'test'
+  ...
+# Subtest: parent provenance rejects lost sidecars even before an authority floor was accepted
+ok 4 - parent provenance rejects lost sidecars even before an authority floor was accepted
+  ---
+  duration_ms: 10.783862
+  type: 'test'
+  ...
+# Subtest: one reentrant withdrawal retains parent and both sidecar locks until actual completion
+ok 5 - one reentrant withdrawal retains parent and both sidecar locks until actual completion
+  ---
+  duration_ms: 13.667975
+  type: 'test'
+  ...
+# Subtest: sidecar lock loss withdraws the composite owner and retains pending evidence
+ok 6 - sidecar lock loss withdraws the composite owner and retains pending evidence
+  ---
+  duration_ms: 9.425934
+  type: 'test'
+  ...
+# Subtest: exact child death releases all three owners; cold process retains the hold and transaction
+ok 7 - exact child death releases all three owners; cold process retains the hold and transaction
+  ---
+  duration_ms: 178.163077
+  type: 'test'
+  ...
+# Subtest: sidecar sync failure withdraws all authority; explicit recovery preserves the parent intent
+ok 8 - sidecar sync failure withdraws all authority; explicit recovery preserves the parent intent
+  ---
+  duration_ms: 22.095769
+  type: 'test'
+  ...
+# Subtest: real manager HTTP client and four witness endpoints stage, admit and retire a runtime on permit expiry
+ok 9 - real manager HTTP client and four witness endpoints stage, admit and retire a runtime on permit expiry
+  ---
+  duration_ms: 227.019102
+  type: 'test'
+  ...
+# Subtest: permit expiry removes the concrete VM while boundary allow and hold both hang
+ok 10 - permit expiry removes the concrete VM while boundary allow and hold both hang
+  ---
+  duration_ms: 281.10032
+  type: 'test'
+  ...
+# Subtest: a delayed allow acknowledgment after revocation cannot restore serving
+ok 11 - a delayed allow acknowledgment after revocation cannot restore serving
+  ---
+  duration_ms: 82.492109
+  type: 'test'
+  ...
+# Subtest: stop removes staged compute even if boundary withdrawal times out
+ok 12 - stop removes staged compute even if boundary withdrawal times out
+  ---
+  duration_ms: 52.278364
+  type: 'test'
+  ...
+# Subtest: expiry removes only the verified instance, never a replacement with the same deployment name
+ok 13 - expiry removes only the verified instance, never a replacement with the same deployment name
+  ---
+  duration_ms: 141.66154
+  type: 'test'
+  ...
+# Subtest: refused startups get durable distinct attempt identities while unknown inventory never spawns
+ok 14 - refused startups get durable distinct attempt identities while unknown inventory never spawns
+  ---
+  duration_ms: 27.954885
+  type: 'test'
+  ...
+# Subtest: a retired failed boot can be replaced within the queued generation without clearing crash accounting
+ok 15 - a retired failed boot can be replaced within the queued generation without clearing crash accounting
+  ---
+  duration_ms: 30.829669
+  type: 'test'
+  ...
+# Subtest: expiry revokes streams and writes even without another reconciliation
+ok 16 - expiry revokes streams and writes even without another reconciliation
+  ---
+  duration_ms: 22.527624
+  type: 'test'
+  ...
+# Subtest: monotonic deadline and clock rollback prevent extending a permit
+ok 17 - monotonic deadline and clock rollback prevent extending a permit
+  ---
+  duration_ms: 19.419564
+  type: 'test'
+  ...
+# Subtest: permanent fence survives gate recreation and rejects the same generation
+ok 18 - permanent fence survives gate recreation and rejects the same generation
+  ---
+  duration_ms: 37.34756
+  type: 'test'
+  ...
+# Subtest: a concurrent revocation wins over asynchronous signature verification
+ok 19 - a concurrent revocation wins over asynchronous signature verification
+  ---
+  duration_ms: 19.908248
+  type: 'test'
+  ...
+# Subtest: kernel journal ownership excludes another writer and releases cleanly
+ok 20 - kernel journal ownership excludes another writer and releases cleanly
+  ---
+  duration_ms: 22.967271
+  type: 'test'
+  ...
+# Subtest: real HTTP witness refuses foreign operators and produces a verifiable permit signature
+ok 21 - real HTTP witness refuses foreign operators and produces a verifiable permit signature
+  ---
+  duration_ms: 74.507062
+  type: 'test'
+  ...
+# Subtest: a witness persists before signing and refuses an equivocal or fenced request after restart
+ok 22 - a witness persists before signing and refuses an equivocal or fenced request after restart
+  ---
+  duration_ms: 21.98288
+  type: 'test'
+  ...
+# Subtest: a real open HTTP stream is destroyed by permit expiry
+ok 23 - a real open HTTP stream is destroyed by permit expiry
+  ---
+  duration_ms: 1086.850404
+  type: 'test'
+  ...
+# Subtest: an unresponsive authority adapter times out without signing or writing a permit
+ok 24 - an unresponsive authority adapter times out without signing or writing a permit
+  ---
+  duration_ms: 21.491834
+  type: 'test'
+  ...
+# Subtest: a witness fence and crash budget survive process restart and same-generation policy edits
+ok 25 - a witness fence and crash budget survive process restart and same-generation policy edits
+  ---
+  duration_ms: 4.121913
+  type: 'test'
+  ...
+# Subtest: ambiguous transaction submission holds exact intent through restart
+ok 26 - ambiguous transaction submission holds exact intent through restart
+  ---
+  duration_ms: 1.445067
+  type: 'test'
+  ...
+# Subtest: corrupt journal is held without overwriting, and a failed durable write never grants permission
+ok 27 - corrupt journal is held without overwriting, and a failed durable write never grants permission
+  ---
+  duration_ms: 0.920242
+  type: 'test'
+  ...
+# Subtest: operationally mined intents remain durable until their exact finalized receipts settle
+ok 28 - operationally mined intents remain durable until their exact finalized receipts settle
+  ---
+  duration_ms: 6.313862
+  type: 'test'
+  ...
+# Subtest: same-generation host bindings and successor votes cannot conflict through restart
+ok 29 - same-generation host bindings and successor votes cannot conflict through restart
+  ---
+  duration_ms: 2.918813
+  type: 'test'
+  ...
+# Subtest: healthy self-hosting produces no recurring state transaction
+ok 30 - healthy self-hosting produces no recurring state transaction
+  ---
+  duration_ms: 10.792792
+  type: 'test'
+  ...
+# Subtest: a crash records queued once and an ambiguous submission never resubmits another intent
+ok 31 - a crash records queued once and an ambiguous submission never resubmits another intent
+  ---
+  duration_ms: 1.716425
+  type: 'test'
+  ...
+# Subtest: readiness failure, stale authority and unconfirmed retirement never start a replacement
+ok 32 - readiness failure, stale authority and unconfirmed retirement never start a replacement
+  ---
+  duration_ms: 1.397148
+  type: 'test'
+  ...
+# Subtest: queued startup failures back off without writing queued again
+ok 33 - queued startup failures back off without writing queued again
+  ---
+  duration_ms: 0.847393
+  type: 'test'
+  ...
+# Subtest: running is submitted only after readiness and is not served until confirmed
+ok 34 - running is submitted only after readiness and is not served until confirmed
+  ---
+  duration_ms: 1.211889
+  type: 'test'
+  ...
+# Subtest: reserve exhaustion fences before a single stopped transition
+ok 35 - reserve exhaustion fences before a single stopped transition
+  ---
+  duration_ms: 1.381067
+  type: 'test'
+  ...
+# Subtest: host-specific rejection queues its own running assignment but never disables it globally
+ok 36 - host-specific rejection queues its own running assignment but never disables it globally
+  ---
+  duration_ms: 2.21442
+  type: 'test'
+  ...
+# Subtest: a host cannot stop a running assignment belonging to another host
+ok 37 - a host cannot stop a running assignment belonging to another host
+  ---
+  duration_ms: 0.535595
+  type: 'test'
+  ...
+# Subtest: a queued deployment remains available for other eligible hosts
+ok 38 - a queued deployment remains available for other eligible hosts
+  ---
+  duration_ms: 0.714343
+  type: 'test'
+  ...
+# Subtest: a fresh proof of an older assignment cannot roll back the durable generation floor
+ok 39 - a fresh proof of an older assignment cannot roll back the durable generation floor
+  ---
+  duration_ms: 0.808412
+  type: 'test'
+  ...
+# Subtest: a merely mined or unproved receipt cannot clear the durable transition outbox
+ok 40 - a merely mined or unproved receipt cannot clear the durable transition outbox
+  ---
+  duration_ms: 1.11758
+  type: 'test'
+  ...
+# Subtest: owned runtime and three real signers serve v2, withdraw and cold reopen without settling an intent
+ok 41 - owned runtime and three real signers serve v2, withdraw and cold reopen without settling an intent
+  ---
+  duration_ms: 155.798462
+  type: 'test'
+  ...
+# Subtest: a host owner revision withdraws the existing grant and rejects its old signatures
+ok 42 - a host owner revision withdraws the existing grant and rejects its old signatures
+  ---
+  duration_ms: 154.174516
+  type: 'test'
+  ...
+# Subtest: a host authority advance retires staged compute before its first serving grant
+ok 43 - a host authority advance retires staged compute before its first serving grant
+  ---
+  duration_ms: 25.762945
+  type: 'test'
+  ...
+# Subtest: authenticated Offline persists across cold reopen and cannot be undone by same-generation Online
+ok 44 - authenticated Offline persists across cold reopen and cannot be undone by same-generation Online
+  ---
+  duration_ms: 116.297112
+  type: 'test'
+  ...
+# Subtest: close during a raw spawn retains the parent lock until the late exact instance is removed
+ok 45 - close during a raw spawn retains the parent lock until the late exact instance is removed
+  ---
+  duration_ms: 38.366131
+  type: 'test'
+  ...
+# Subtest: host advance invalidates an in-flight spawn before staged compute exists
+ok 46 - host advance invalidates an in-flight spawn before staged compute exists
+  ---
+  duration_ms: 24.006451
+  type: 'test'
+  ...
+# Subtest: host Offline invalidates an in-flight spawn before staged compute exists
+ok 47 - host Offline invalidates an in-flight spawn before staged compute exists
+  ---
+  duration_ms: 23.01362
+  type: 'test'
+  ...
+# Subtest: a permit collector response after app revocation cannot reopen the boundary
+ok 48 - a permit collector response after app revocation cannot reopen the boundary
+  ---
+  duration_ms: 60.455109
+  type: 'test'
+  ...
+# Subtest: close waits for raw allow and fences a late remote effect before releasing ownership
+ok 49 - close waits for raw allow and fences a late remote effect before releasing ownership
+  ---
+  duration_ms: 66.574724
+  type: 'test'
+  ...
+# Subtest: a witness refuses a host authority change during its final asynchronous read
+ok 50 - a witness refuses a host authority change during its final asynchronous read
+  ---
+  duration_ms: 24.696026
+  type: 'test'
+  ...
+# Subtest: witness close keeps its owner through a late authority read and releases no signature
+ok 51 - witness close keeps its owner through a late authority read and releases no signature
+  ---
+  duration_ms: 52.368203
+  type: 'test'
+  ...
+# Subtest: v2 binds a separate signature domain and requires explicit profile selection
+ok 52 - v2 binds a separate signature domain and requires explicit profile selection
+  ---
+  duration_ms: 22.426336
+  type: 'test'
+  ...
+# Subtest: unacknowledged-hold retains ownership until exact process death
+ok 53 - unacknowledged-hold retains ownership until exact process death
+  ---
+  duration_ms: 304.975293
+  type: 'test'
+  ...
+# Subtest: replacement retains ownership until exact process death
+ok 54 - replacement retains ownership until exact process death
+  ---
+  duration_ms: 297.925578
+  type: 'test'
+  ...
+# Subtest: owned enrollment, graceful close and reopen preserve pending and mined transitions
+ok 55 - owned enrollment, graceful close and reopen preserve pending and mined transitions
+  ---
+  duration_ms: 16.112933
+  type: 'test'
+  ...
+# Subtest: exact child death releases the flock and preserves its fence, crash count and pending intent
+ok 56 - exact child death releases the flock and preserves its fence, crash count and pending intent
+  ---
+  duration_ms: 64.667491
+  type: 'test'
+  ...
+# Subtest: after-state is held on restart and explicit recovery classifies exact retained bytes as landed
+ok 57 - after-state is held on restart and explicit recovery classifies exact retained bytes as landed
+  ---
+  duration_ms: 40.323893
+  type: 'test'
+  ...
+# Subtest: before-state is held on restart and explicit recovery classifies exact retained bytes as not-landed
+ok 58 - before-state is held on restart and explicit recovery classifies exact retained bytes as not-landed
+  ---
+  duration_ms: 47.337719
+  type: 'test'
+  ...
+# Subtest: visible acknowledgement with failed sync and failed retraction is held in a new process
+ok 59 - visible acknowledgement with failed sync and failed retraction is held in a new process
+  ---
+  duration_ms: 71.985245
+  type: 'test'
+  ...
+# Subtest: legacy import requires reviewed exact bytes and retains unresolved submissions
+ok 60 - legacy import requires reviewed exact bytes and retains unresolved submissions
+  ---
+  duration_ms: 8.077996
+  type: 'test'
+  ...
+# Subtest: missing established state cannot be recreated by enrollment or recovery
+ok 61 - missing established state cannot be recreated by enrollment or recovery
+  ---
+  duration_ms: 4.494609
+  type: 'test'
+  ...
+# Subtest: unclassifiable state and missing intent refuse recovery without overwriting evidence
+ok 62 - unclassifiable state and missing intent refuse recovery without overwriting evidence
+  ---
+  duration_ms: 4.647708
+  type: 'test'
+  ...
+# Subtest: same-size external rewrite closes the owner and triggers withdrawal
+ok 63 - same-size external rewrite closes the owner and triggers withdrawal
+  ---
+  duration_ms: 2.992883
+  type: 'test'
+  ...
+# Subtest: one reentrant close waits for serving withdrawal before releasing exclusion
+ok 64 - one reentrant close waits for serving withdrawal before releasing exclusion
+  ---
+  duration_ms: 4.282551
+  type: 'test'
+  ...
+# Subtest: withdrawal rejection fences the owner and keeps its flock held
+ok 65 - withdrawal rejection fences the owner and keeps its flock held
+  ---
+  duration_ms: 3.438018
+  type: 'test'
+  ...
+# Subtest: withdrawal deadline fences the owner and keeps its flock held
+ok 66 - withdrawal deadline fences the owner and keeps its flock held
+  ---
+  duration_ms: 21.98024
+  type: 'test'
+  ...
+1..66
+# tests 66
+# suites 0
+# pass 66
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5366.566016

@@ -313,3 +313,40 @@ enforcement and independent-host activation. Neither these stores nor their
 tests prove cold recovery of a production app or hosting under Enclave refusal.
 The full event-driven lifecycle, capacity/attestation, funding and decentralized
 authority requirements remain outstanding. Serving legacy has not been changed.
+
+
+### Maintained owned host services (2026-11-01, opt-in source integration)
+
+`network/deployment-owned-host-services.mjs` now composes `ownHostLifecycleRuntime`
+and `ownHostLifecycleWitness` with the maintained parent/incarnation/permit journal
+owners. The explicit `servingPermit: { version: 2, profile: 'independent-host-registry-r1' }`
+selection binds permits to the exact host qualification, owner revision, hardware,
+registry and reporter policy. Runtime and witnesses use separate journal paths.
+Authority/health readers and manager/ingress/storage/secrets adapters remain trusted
+mandatory inputs; the factory does not authenticate an arbitrary adapter itself.
+The existing production dispatcher is unchanged and this profile is not activated.
+
+Host authority advance or authenticated Offline invalidates old bound starts even
+before a VM identifier returns, retires staged compute and withdraws serving grants.
+A delayed permit collector cannot restore a revoked app epoch. Withdrawal removes
+only a captured instance identity and confirms absence; a replacement with the same
+name is left intact and keeps ownership fenced. Serving withdrawal also requires
+an affirmative ingress/storage/secrets hold. A timed-out raw allow or late spawn
+remains owned until its actual result and required cleanup settle.
+
+Close rejects new journal work immediately, closes the gate/witness and retains
+all three locks through actual withdrawal/signing completion. It does not rewrite
+runtime or transaction records through a closed parent. An explicit stop/revocation
+racing owner close may therefore refuse after remote cleanup; retained records need
+fresh owned reconciliation. This conservatism deliberately preserves the maintained
+journal provenance instead of importing the older cleanup-write exception. Pending
+transactions are neither settled nor retried by service close or cold reopening.
+
+Final qualification: 66 actual tests plus the five-check native journal fixture,
+with 35 frozen source pins unchanged. Thirteen new cases use real Linux files/flock,
+EIP-712 signatures and two externally observed child deaths; manager, chain, health
+and remote boundary behavior are inert test adapters. R1 63 and R2 65 checks passed
+before additional review found staged/pending-start authority gaps, fixed in R3.
+No live VM, RPC, provider settlement, funding, production resource enforcement or
+independent hosting is proven by these tests. Dispatcher/authority integration and
+qualified production boundaries remain required before activation.

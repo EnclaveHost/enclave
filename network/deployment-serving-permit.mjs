@@ -6,6 +6,8 @@
 import { recoverTypedDataAddress, hashTypedData, getAddress, keccak256, toBytes } from 'viem';
 import { verifyGenerationChain } from './deployment-generation-certificate.mjs';
 import { canRestoreLifecycleDenial, lifecycleHostAdmitted } from './deployment-authority-window.mjs';
+// host-authority permit r1: explicit v2 (pins.servingPermit) binds the exact canonical host authority; v1 unchanged
+import { isHostAuthorityPermit, servingPermitTypedDataV2, checkPermitHostAuthority } from './deployment-host-authority.mjs';
 const OPERATIONAL = Symbol('verified generation authority');
 
 export const MAX_PERMIT_SEC = 20;
@@ -19,6 +21,7 @@ const TYPES = { ServingPermit: [
 ] };
 
 export function servingPermitTypedData(pins, record) {
+  if (isHostAuthorityPermit(pins)) return servingPermitTypedDataV2(pins, record);   // host-authority permit r1: separate domain version
   if (!Number.isSafeInteger(pins.chainId) || pins.chainId < 1) throw new Error('invalid chain');
   for (const k of ['deployment', 'host']) if (!HASH.test(record[k] || '')) throw new Error(`invalid ${k}`);
   for (const k of ['generation', 'policyRevision', 'sequence', 'issuedAt', 'validUntil'])
@@ -59,7 +62,7 @@ export async function resolveServingContext(options) {
     [OPERATIONAL]: result.authority.validUntil } };
 }
 
-export function validateServingPermitContext(record, { pins, assignment, policy, nowSec, floor = null }) {
+export function validateServingPermitContext(record, { pins, assignment, policy, nowSec, floor = null, hostAuthority, hostAdmitted, hostAuthorityFloor = null, generationAuthority }) {
   if (!Number.isSafeInteger(nowSec) || nowSec < 0) throw new Error('invalid clock');
   const data = servingPermitTypedData(pins, record || {}), r = record;
   // assignment/policy are read by the caller's existing authenticated chain
@@ -86,6 +89,7 @@ export function validateServingPermitContext(record, { pins, assignment, policy,
   const allowed = new Set(policy.witnesses.map(a => getAddress(a).toLowerCase()));
   if (allowed.size !== policy.witnesses.length) throw new Error('duplicate configured witness');
   const digest = hashTypedData(data);
+  if (isHostAuthorityPermit(pins)) checkPermitHostAuthority(r, { hostAuthority, hostAdmitted, hostAuthorityFloor, assignment, generationAuthority });   // host-authority permit r1
   if (floor && (floor.generation > r.generation || floor.generation === r.generation &&
       (floor.sequence > r.sequence || floor.sequence === r.sequence && floor.digest !== digest)))
     throw new Error('permit replay or equivocation');
@@ -106,6 +110,7 @@ export async function verifyServingPermit(envelope, options) {
     signers.add(signer);
   }
   return { record: r, assignment: options.assignment, policy, restoredAt: options.restoredAt,
+    ...(isHostAuthorityPermit(options.pins) ? { hostAuthority: r.hostAuthority } : {}),   // host-authority permit r1
     signers: [...signers], floor: { generation: r.generation, sequence: r.sequence, digest },
     // Consumers must drop existing streams/writes as well as refuse new ones.
     serveUntil };
