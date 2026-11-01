@@ -185,7 +185,10 @@ namespace Enclave.OwnedRpc {
    var records=new Dictionary<string,Dictionary<string,object>>(StringComparer.OrdinalIgnoreCase);
    foreach(var row in memory)records.Add(InventoryPath(row["__PATH"],"Msvm_MemorySettingData","memory.path"),row);
    var used=new HashSet<string>(StringComparer.OrdinalIgnoreCase);var result=new SortedDictionary<string,MemoryRecord>(StringComparer.Ordinal);
-   foreach(var row in links){string group=InventoryPath(row["GroupComponent"],"Msvm_VirtualSystemSettingData","link.group"),part=InventoryPath(row["PartComponent"],null,"link.part"),id;
+   // The generic association also includes switch settings. Full relative keys
+   // (class plus instance) must match a realized VM; local unrelated rows cannot
+   // satisfy coverage. Validate both reference namespaces before skipping them.
+   foreach(var row in links){string group=InventoryPath(row["GroupComponent"],null,"link.group"),part=InventoryPath(row["PartComponent"],null,"link.part"),id;
     if(!groups.TryGetValue(group,out id)||!String.Equals(new ManagementPath(part).ClassName,"Msvm_MemorySettingData",StringComparison.OrdinalIgnoreCase))continue;
     Dictionary<string,object> d;if(!records.TryGetValue(part,out d))throw new InvalidOperationException("Associated memory row missing: rows="+records.Count);
     if(!used.Add(part)||result.ContainsKey(id))throw new InvalidOperationException("VM memory association ambiguity");

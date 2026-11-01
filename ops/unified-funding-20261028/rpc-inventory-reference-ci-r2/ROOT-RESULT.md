@@ -1,0 +1,1 @@
+Definition41266196121 sourceb9427020 COMPLETE162PASS as VERIFIED.json states. All18compiledsourcepins matched current source before the subsequent switch-group fix; all4processes exit0. Entry/controller261120B independentlyhashmatched. Startup68 andlegacy71 previous exact compiledclosure pins unchanged. No native production action.

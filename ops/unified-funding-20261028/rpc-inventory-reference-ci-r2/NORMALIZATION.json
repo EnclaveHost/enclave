@@ -1,0 +1,72 @@
+[
+  {
+    "path": "definition-download/target-compile.err",
+    "raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "published": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "path": "definition-download/inert.err",
+    "raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "published": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "path": "definition-download/publication.json",
+    "raw": "99fbc90d20419fb1f8f6b2ac5cbfc8a1866be66c357968011886f3fadffb9f02",
+    "published": "852e732a4b27f9c7314f2d790867492d194cbbae9d4b2c7072c8ac8bf605ab7e"
+  },
+  {
+    "path": "definition-download/process-results.json",
+    "raw": "bfaeebfe90b8572bcd2c30df48cfeafbc545fbc3c358886fba13ce5310e8b616",
+    "published": "f3f1234425b9d04c63b152e9203d955b8dc9ea1bc83490916cbef43ae50029f0"
+  },
+  {
+    "path": "definition-download/controller-compile.err",
+    "raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "published": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "path": "definition-download/target-artifact.json",
+    "raw": "6da5e33c8e47fbe35530722b78651b692a65ec0e9a79b84224bbf6c0e8255647",
+    "published": "6c176ea6503d2f2c1bae964e6218233df04a316765e335b64fe419ade9aa984e"
+  },
+  {
+    "path": "definition-download/pins.json",
+    "raw": "0a6c5e1d0edf44dc2365500c6bdb83d72f81cc99c3f943c7c7946ed1bb7cfcb2",
+    "published": "142eb28080064df12daecedd2d630496e87109d71953b3474da00257e7146625"
+  },
+  {
+    "path": "definition-download/entry-compile.out",
+    "raw": "0c8385cb74dbfe14cb8cc1ebd5925b1646c242f4bdfcec233952e2beba8c926b",
+    "published": "bff5146ea24db61f69a41df24964162d3c96d03deed6db175e0f01f8b5300d39"
+  },
+  {
+    "path": "definition-download/entry-artifact.json",
+    "raw": "c7fb11cbc6fa8152a3763c8f9158a2e39915f9d4e6003ebee019e258619a206f",
+    "published": "a1a411093b5ab5eb9681a6acd4c1567839f604aa9e8055600ecc7c3c479b5a71"
+  },
+  {
+    "path": "definition-download/inert.out",
+    "raw": "cbc6087f6f10046fae8acde337d2f93127adc7f640639a3b6cff885ab0b8f298",
+    "published": "fa89a1f4a48d7dbb41cc38b05e44d7455d1636ce940e7d6772356d0a0f53206a"
+  },
+  {
+    "path": "definition-download/controller-artifact.json",
+    "raw": "ef00ad6ced2c1fd4a6767a98323de3e98b962106f617b2056a96f377e9ea138c",
+    "published": "5bd90bd1db555701aa817580d6c987b4ea6ccb5fa15782db52ebe1828a674372"
+  },
+  {
+    "path": "definition-download/entry-compile.err",
+    "raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "published": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "path": "definition-download/controller-compile.out",
+    "raw": "0c8385cb74dbfe14cb8cc1ebd5925b1646c242f4bdfcec233952e2beba8c926b",
+    "published": "bff5146ea24db61f69a41df24964162d3c96d03deed6db175e0f01f8b5300d39"
+  },
+  {
+    "path": "definition-download/target-compile.out",
+    "raw": "0c8385cb74dbfe14cb8cc1ebd5925b1646c242f4bdfcec233952e2beba8c926b",
+    "published": "bff5146ea24db61f69a41df24964162d3c96d03deed6db175e0f01f8b5300d39"
+  }
+]

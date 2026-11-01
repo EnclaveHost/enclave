@@ -1,0 +1,58 @@
+{
+  "nonce": "bb714bbcd85c4dfaa7212e1a52426439",
+  "failure": "Foreign inventory reference | source=link.group | flags=8 | server=NUCBOX_K11 | namespace=root\\virtualization\\v2 | class=Msvm_VirtualEthernetSwitchSettingData",
+  "roleDeaths": [
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379746040360586",
+      "pid": "52624",
+      "absent": true,
+      "role": "owner"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379746040360719",
+      "pid": "45824",
+      "absent": true,
+      "role": "observer"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379746041929028",
+      "pid": "54516",
+      "absent": true,
+      "role": "child"
+    }
+  ],
+  "priorStageDeaths": [
+    {
+      "label": "admission",
+      "expectedCreation": "134379745320157662",
+      "pid": 48348,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "create",
+      "expectedCreation": "134379745833691379",
+      "pid": 52784,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "verify",
+      "expectedCreation": "134379745908151207",
+      "pid": 57852,
+      "sameIncarnationAlive": false,
+      "absent": true
+    }
+  ],
+  "original8091Alive": true,
+  "noExactTasks": true,
+  "noExactProcesses": true,
+  "originalVmStateAndMemoryUnchanged": true,
+  "thirdOriginalJournalBytesUnchanged": true,
+  "preparationCompleted": false,
+  "providerOperationFenced": false,
+  "reservationMayRelease": false
+}

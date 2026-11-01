@@ -1,0 +1,7 @@
+# Actual target reference failure
+
+Read-only diagnostic bb714bbcd85c4dfaa7212e1a52426439 consumed. Execution 6920a133078e4643823dc06d6a7b186f terminal1/Main0. Original clock756838421..756868421. Refusal reports local server NUCBOX_K11, root/virtualization/v2, link.group class Msvm_VirtualEthernetSwitchSettingData, flag8 (class only). Preparation did not complete. This is actual native path evidence, not a fixture.
+
+Independent read a69858d5ae2f4320a61bf0e4923b84cf proves exact owner52624/134379746040360586 observer45824/134379746040360719 child54516/134379746041929028 absent; prior admission/create/verify exact readers absent. No exact diagnostic tasks/processes. Original four VMs IDs/state/assigned RAM equal admission, original8091alive. Retained third production plan/intent/submit/native/invoke bytes equal prior r4. No provider reference, settlement or reservation release follows from this.
+
+Admission e6585b4be9e342b69c732a0a80e6c644, create73ecdb94e546411ca6ffbdb44a78c2da, stageb1f5228c2c244e7594284cec0564b6a8, verifyb7f83cc1f05747748274496def7e2ee6 completed. Local builder refused inherited old unit labels before any invocation; replaced with unique phase labels without changing source/input or native attempt. All failures retained. No production clock or VM changes. Next correct exact join for local unrelated association groups; keep local namespace checks and exact realized coverage, then finite CI before another target attempt.

@@ -1,0 +1,90 @@
+{
+  "rpc-inventory-reference-target-admission-r1/admit.py": {
+    "sha256": "7fcada90860fd1441c8e566c4e4fc90c0afda84ef4b64807149f807228e17ec0",
+    "bytes": 828
+  },
+  "rpc-inventory-reference-target-admission-r1/PINS.json": {
+    "sha256": "b8cb2f5709493c955f0390efb8a2bf4aaaaf3a3ed11da9a79bd408e1913e904a",
+    "bytes": 255
+  },
+  "rpc-inventory-reference-target-admission-r1/storage-RESULT.json": {
+    "sha256": "53251d4da349fd3db90cdddac7474eb5702c6bfefe658f49e91b7d6378a8c7f1",
+    "bytes": 30258
+  },
+  "rpc-inventory-reference-target-admission-r1/storage-read.ps1": {
+    "sha256": "d7113704021fe1bdf3d0a317881c901d286747987c9eb2d41dd453e790f5e536",
+    "bytes": 10819
+  },
+  "rpc-inventory-reference-target-admission-r1/run.py": {
+    "sha256": "77482c724056f11583008cca6d60c9c2a4b054d1d966e4aae4bff15c08bec506",
+    "bytes": 2437
+  },
+  "rpc-inventory-reference-target-stage-r1/create-RESULT.json": {
+    "sha256": "d41ab111f7c8950888e56bba14042351af7fa4375e26407386b2f3b48ba04fd2",
+    "bytes": 821
+  },
+  "rpc-inventory-reference-target-stage-r1/verify.ps1": {
+    "sha256": "c11790ae2097a8571c0f3395f1026555c8a7e19c808ac2bf36fbcf15210aa56c",
+    "bytes": 5011
+  },
+  "rpc-inventory-reference-target-stage-r1/PINS.json": {
+    "sha256": "970665e80fecda7f805255f097b7dfb3a7a9afbf47abd006bfe506c00134122c",
+    "bytes": 596
+  },
+  "rpc-inventory-reference-target-stage-r1/create.ps1": {
+    "sha256": "cc4577b82ba43e6aa0efe080bf6724c2ec5be0d5845296963b8fea839304582c",
+    "bytes": 4394
+  },
+  "rpc-inventory-reference-target-stage-r1/verify-RESULT.json": {
+    "sha256": "9ff823da5623d6eb3ddb6f39e9fbfba05eea811b49ae8cfd88ff192274914b3b",
+    "bytes": 1302
+  },
+  "rpc-inventory-reference-target-stage-r1/SPEC.json": {
+    "sha256": "b667de5e9bb493f5d5d9e6e06f28d70339ce26af28fc64b9c96d1b09f59e6bba",
+    "bytes": 153
+  },
+  "rpc-inventory-reference-target-stage-r1/run.py": {
+    "sha256": "c08f786ce5751016a3bcf529e2da7da297c274e94ce786969eb0a3199c3e218e",
+    "bytes": 3521
+  },
+  "rpc-inventory-reference-target-stage-r1/stage-RESULT.json": {
+    "sha256": "c3b6802bb0e70f14d1f862ba42593c9b54fa293f828da95a3c22112bdce4ae7f",
+    "bytes": 504
+  },
+  "rpc-inventory-reference-target-execution-r1/PINS.json": {
+    "sha256": "6e908467e65f0d79318ddfad4297fe7be6cfa3fe8489b5bda1828ce9c93229df",
+    "bytes": 251
+  },
+  "rpc-inventory-reference-target-execution-r1/RESULT.json": {
+    "sha256": "2099c590ca58699c4836bf1a9624f66d6151eec611e5e8abdc4539c29683b9c3",
+    "bytes": 139
+  },
+  "rpc-inventory-reference-target-execution-r1/SPEC.json": {
+    "sha256": "451dd7e2d2314a1daa15d445424e10d8f2443a21762fddf536f3a3927c3a90ed",
+    "bytes": 1180
+  },
+  "rpc-inventory-reference-target-execution-r1/run.py": {
+    "sha256": "e9a369023361febc3d25e9df61c5bdfae6a4e66e5f6ac3cf8810eb35916c11f4",
+    "bytes": 3729
+  },
+  "rpc-inventory-reference-result-read-r1/admit.py": {
+    "sha256": "7fcada90860fd1441c8e566c4e4fc90c0afda84ef4b64807149f807228e17ec0",
+    "bytes": 828
+  },
+  "rpc-inventory-reference-result-read-r1/PINS.json": {
+    "sha256": "852a984506631531ac2220eba0f17ffc246cdf4afbbf7f563623368e8d066fe8",
+    "bytes": 255
+  },
+  "rpc-inventory-reference-result-read-r1/storage-RESULT.json": {
+    "sha256": "697363847c6a6dc6a378fdb5b2621e5f60820e898ee4f2e5c54f8aa8d3129a56",
+    "bytes": 8664
+  },
+  "rpc-inventory-reference-result-read-r1/storage-read.ps1": {
+    "sha256": "f78478e38738f5d9db082a467a3b42dca36eb4daca9f3351d46826f218025283",
+    "bytes": 4911
+  },
+  "rpc-inventory-reference-result-read-r1/run.py": {
+    "sha256": "77482c724056f11583008cca6d60c9c2a4b054d1d966e4aae4bff15c08bec506",
+    "bytes": 2437
+  }
+}
