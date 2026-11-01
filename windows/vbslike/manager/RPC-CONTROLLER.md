@@ -61,3 +61,11 @@ The manager-side original controller/ledger and bounded task request producer ar
 still missing; do not supply a controller that fabricates a plan from an existing
 VM or treats an output receipt as a new ownership capability. Default main stays
 unactivated until that connection and target qualification exist.
+
+The native-side concrete ledger and task producer now exist in
+`windows/rpc/NativeRpcController.cs`; see `NATIVE-MANAGER-CONTROLLER.md`. The
+original native begin is an explicit bounded command, not an assumed JavaScript
+clock. Its returned original attempt digest must remain bound through private
+launch preparation and one dispatch. The JavaScript transport and cold inventory
+integration are still absent; neither default activation nor a sync-to-async
+contract change is implied by the native implementation alone.

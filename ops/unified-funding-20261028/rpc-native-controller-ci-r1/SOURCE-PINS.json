@@ -1,0 +1,18 @@
+{
+  "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+  "windows/rpc/OwnerObserver.cs": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80",
+  "windows/rpc/ProtectedAttempt.cs": "7b5be0a1b42bd37cd9f3d44b5af1c8357bc13cce1df2686157d4a2b45120ae3e",
+  "windows/rpc/ProviderStart.cs": "600b86bcdfcb4a0425213fee9ed241a51c9a23d3fbcc51560d5c929b628a7d46",
+  "windows/rpc/OwnedVmPermit.cs": "a4d1f9640a4087714b9907cddcdc64340cb57f07de04dd1b6baf97197ac60373",
+  "windows/rpc/HostPhysicalPool.cs": "8a9506c50a3ad65a614ed62eb91f07cd78d8db81098a84fe10215ac44e9ad3b1",
+  "windows/rpc/WindowsStartAdmission.cs": "8f88b3c432e0d30926ca65ab6f0e2fef06d2cce2f4861f4dcf0a3dbe3952cca6",
+  "windows/rpc/LegacyTemplateFence.cs": "d2bfc04762cf64b2555575e4c8aa95842dd35be108f9c9780dd3ecf0ecd0cd0f",
+  "windows/rpc/LegacyLaunchCohort.cs": "ce22aa16e0d353fa8354bca26f8dc4057d520c001540d0659778e2769135f5a2",
+  "windows/rpc/LegacyHandoff.cs": "f99033ca2b4f8ed9d78d15f3cc4976c40c1336492bdde6b22de10e99e6126262",
+  "windows/rpc/NativeRpcDefinition.cs": "1aa9525e0796150332454f6c2224b0b0d609d58f6c818058f5e3b32060f154d5",
+  "windows/rpc/NativeRpcAuthority.cs": "11238f586e716e9a348d614ff473a07db031f059ab834abe71e66332f22e2aa1",
+  "windows/rpc/NativeRpcWorkerEntry.cs": "6365cde95b397b65190971f004ce78d1b82ea67a0642b2a0e92ab8871306740e",
+  "windows/rpc/NativeRpcController.cs": "c1637f952a94557306cda19ecffe300a4de62698f57b3034d55f431f501e1cbe",
+  "test/rpc-windows-worker/NativeRpcControllerHarness.cs": "bf5a054f1d0644a40ee0e58fcfe29acf3813ec394af495a59c5d7d7868a81a3b",
+  "test/rpc-windows-worker/run-native-controller-ci.ps1": "5718b37109c6e8fc0704b0b582083430284ce564342ca480e6da050d45e94d39"
+}

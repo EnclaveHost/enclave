@@ -1,0 +1,20 @@
+{
+  "base": "4ec95c1d4ecaae0baf32eae1aa92b9ab76b36046",
+  "unchangedCompiledInputs": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/ProviderStart.cs",
+    "windows/rpc/OwnedVmPermit.cs",
+    "windows/rpc/HostPhysicalPool.cs",
+    "windows/rpc/WindowsStartAdmission.cs",
+    "windows/rpc/LegacyTemplateFence.cs",
+    "windows/rpc/LegacyLaunchCohort.cs",
+    "windows/rpc/LegacyHandoff.cs",
+    "windows/rpc/NativeRpcDefinition.cs",
+    "windows/rpc/NativeRpcAuthority.cs",
+    "windows/rpc/NativeRpcWorkerEntry.cs"
+  ],
+  "newController": true,
+  "targetExecuted": false
+}
