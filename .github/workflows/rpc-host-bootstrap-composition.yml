@@ -12,8 +12,13 @@ on:
         required: true
         default: normal,wrong-source,wrong-key,malformed,observer-loss,blocked-tpm,blocked-monitor
         type: string
+      reuse_run:
+        description: Reviewed prior binary artifact run; empty compiles all
+        required: false
+        type: string
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: rpc-host-bootstrap-composition
   cancel-in-progress: false
@@ -48,7 +53,7 @@ jobs:
           assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==expected
           root=pathlib.Path('source-closure');root.mkdir()
           pins={}
-          for name in ['windows/rpc/BoundedWorker.cs', 'windows/rpc/OwnerObserver.cs', 'windows/rpc/ProtectedAttempt.cs', 'windows/rpc/HostBootstrapEntry.cs', 'windows/rpc/HostBootstrapChannels.cs', 'test/rpc-windows-worker/HostBootstrapFixture.cs', 'test/rpc-windows-worker/HostBootstrapActor.cs', 'test/rpc-windows-worker/HostBootstrapQualification.cs', 'test/rpc-windows-worker/run-host-bootstrap-ci.ps1', 'rpc/host/windows-entry.mjs', 'rpc/host/native-wire.mjs', 'rpc/host/bootstrap.mjs', 'rpc/server/owner_bootstrap_offer.mjs', 'isolation/contract/rpc-bootstrap.mjs', 'isolation/contract/runtime.mjs', 'windows/node/hvnode-evidence.mjs', 'relay/vbs-verify.mjs', 'relay/vbs-tcglog.mjs', 'relay/vbs-tpm.mjs', 'relay/avf-verify.mjs', 'relay/vbs-tcglog-core.mjs']:
+          for name in ['windows/rpc/BoundedWorker.cs', 'windows/rpc/OwnerObserver.cs', 'windows/rpc/ProtectedAttempt.cs', 'windows/rpc/HostBootstrapEntry.cs', 'windows/rpc/HostBootstrapChannels.cs', 'test/rpc-windows-worker/HostBootstrapFixture.cs', 'test/rpc-windows-worker/HostBootstrapActor.cs', 'test/rpc-windows-worker/HostBootstrapQualification.cs', 'test/rpc-windows-worker/run-host-bootstrap-ci.ps1','test/rpc-windows-worker/host-bootstrap-reuse.json', 'rpc/host/windows-entry.mjs', 'rpc/host/native-wire.mjs', 'rpc/host/bootstrap.mjs', 'rpc/server/owner_bootstrap_offer.mjs', 'isolation/contract/rpc-bootstrap.mjs', 'isolation/contract/runtime.mjs', 'windows/node/hvnode-evidence.mjs', 'relay/vbs-verify.mjs', 'relay/vbs-tcglog.mjs', 'relay/vbs-tpm.mjs', 'relay/avf-verify.mjs', 'relay/vbs-tcglog-core.mjs']:
               data=subprocess.check_output(['git','show',expected+':'+name])
               assert 0<len(data)<=65536
               path=root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(data)
@@ -79,18 +84,26 @@ jobs:
           $root=Join-Path $env:GITHUB_WORKSPACE 'source-closure'
           $manifest=Get-Content -Raw -LiteralPath (Join-Path $root 'SOURCE.json')|ConvertFrom-Json
           if($manifest.head -cne $env:EXPECTED_SHA){throw 'Source manifest commit mismatch'}
-          $names=@('windows/rpc/BoundedWorker.cs','windows/rpc/OwnerObserver.cs','windows/rpc/ProtectedAttempt.cs','windows/rpc/HostBootstrapEntry.cs','windows/rpc/HostBootstrapChannels.cs','test/rpc-windows-worker/HostBootstrapFixture.cs','test/rpc-windows-worker/HostBootstrapActor.cs','test/rpc-windows-worker/HostBootstrapQualification.cs','test/rpc-windows-worker/run-host-bootstrap-ci.ps1','rpc/host/windows-entry.mjs','rpc/host/native-wire.mjs','rpc/host/bootstrap.mjs','rpc/server/owner_bootstrap_offer.mjs','isolation/contract/rpc-bootstrap.mjs','isolation/contract/runtime.mjs','windows/node/hvnode-evidence.mjs','relay/vbs-verify.mjs','relay/vbs-tcglog.mjs','relay/vbs-tpm.mjs','relay/avf-verify.mjs','relay/vbs-tcglog-core.mjs')
-          if(@($manifest.files.PSObject.Properties).Count -ne 21 -or @(Get-ChildItem -LiteralPath $root -File -Recurse).Count -ne 22){throw 'Unexpected source closure'}
+          $names=@('windows/rpc/BoundedWorker.cs','windows/rpc/OwnerObserver.cs','windows/rpc/ProtectedAttempt.cs','windows/rpc/HostBootstrapEntry.cs','windows/rpc/HostBootstrapChannels.cs','test/rpc-windows-worker/HostBootstrapFixture.cs','test/rpc-windows-worker/HostBootstrapActor.cs','test/rpc-windows-worker/HostBootstrapQualification.cs','test/rpc-windows-worker/run-host-bootstrap-ci.ps1','test/rpc-windows-worker/host-bootstrap-reuse.json','rpc/host/windows-entry.mjs','rpc/host/native-wire.mjs','rpc/host/bootstrap.mjs','rpc/server/owner_bootstrap_offer.mjs','isolation/contract/rpc-bootstrap.mjs','isolation/contract/runtime.mjs','windows/node/hvnode-evidence.mjs','relay/vbs-verify.mjs','relay/vbs-tcglog.mjs','relay/vbs-tpm.mjs','relay/avf-verify.mjs','relay/vbs-tcglog-core.mjs')
+          if(@($manifest.files.PSObject.Properties).Count -ne 22 -or @(Get-ChildItem -LiteralPath $root -File -Recurse).Count -ne 23){throw 'Unexpected source closure'}
           foreach($name in $names){
             $path=Join-Path $root $name
             $item=Get-Item -LiteralPath $path
             if($item.Length -gt 65536 -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'Invalid source file'}
             if((Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLowerInvariant() -cne $manifest.files.$name){throw 'Source hash mismatch'}
           }
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        if: inputs.reuse_run != ''
+        with:
+          name: rpc-host-bootstrap-composition-results
+          path: prior-bootstrap-artifact
+          run-id: ${{ inputs.reuse_run }}
+          github-token: ${{ github.token }}
       - name: Exercise finite native bridge composition with synthetic hardware
         shell: powershell
         env:
           RPC_BOOTSTRAP_CASES: ${{ inputs.cases }}
+          RPC_BOOTSTRAP_REUSE_RUN: ${{ inputs.reuse_run }}
         run: '& ./source-closure/test/rpc-windows-worker/run-host-bootstrap-ci.ps1'
       - name: Preserve bounded results
         if: always() && env.RPC_BOOTSTRAP_COMPOSITION_RESULT != ''

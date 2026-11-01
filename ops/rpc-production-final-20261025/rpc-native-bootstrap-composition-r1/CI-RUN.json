@@ -1,0 +1,125 @@
+{
+  "conclusion": "failure",
+  "headSha": "c48a3277a390530c0e3d28d2bc83d39aa7ec8e3f",
+  "jobs": [
+    {
+      "completedAt": "2026-11-01T14:52:53Z",
+      "conclusion": "success",
+      "databaseId": 124883099190,
+      "name": "source",
+      "startedAt": "2026-11-01T14:52:44Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-01T14:52:46Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-01T14:52:45Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-01T14:52:49Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8",
+          "number": 2,
+          "startedAt": "2026-11-01T14:52:46Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-01T14:52:49Z",
+          "conclusion": "success",
+          "name": "Assemble exact reviewed source closure",
+          "number": 3,
+          "startedAt": "2026-11-01T14:52:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-01T14:52:51Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+          "number": 4,
+          "startedAt": "2026-11-01T14:52:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-01T14:52:51Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8",
+          "number": 8,
+          "startedAt": "2026-11-01T14:52:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-01T14:52:51Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-11-01T14:52:51Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/EnclaveHost/enclave/actions/runs/41318351499/job/124883099190"
+    },
+    {
+      "completedAt": "2026-11-01T14:53:16Z",
+      "conclusion": "failure",
+      "databaseId": 124883144276,
+      "name": "inert",
+      "startedAt": "2026-11-01T14:52:56Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-01T14:52:57Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-01T14:52:56Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-01T14:52:58Z",
+          "conclusion": "success",
+          "name": "Run actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+          "number": 2,
+          "startedAt": "2026-11-01T14:52:57Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-01T14:53:02Z",
+          "conclusion": "success",
+          "name": "Verify exact finite source closure",
+          "number": 3,
+          "startedAt": "2026-11-01T14:52:58Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-01T14:53:14Z",
+          "conclusion": "failure",
+          "name": "Exercise finite native bridge composition with synthetic hardware",
+          "number": 4,
+          "startedAt": "2026-11-01T14:53:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-01T14:53:15Z",
+          "conclusion": "success",
+          "name": "Preserve bounded results",
+          "number": 5,
+          "startedAt": "2026-11-01T14:53:14Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-01T14:53:15Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 6,
+          "startedAt": "2026-11-01T14:53:15Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/EnclaveHost/enclave/actions/runs/41318351499/job/124883144276"
+    }
+  ],
+  "status": "completed"
+}

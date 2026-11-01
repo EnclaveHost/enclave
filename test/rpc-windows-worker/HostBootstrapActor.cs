@@ -23,7 +23,8 @@ public static class HostBootstrapActor {
     if(args.Length!=0)return 64;Console.WriteLine("ready tpmattest/1");Console.Out.Flush();
     string line;while((line=Console.ReadLine())!=null){
      if(line=="block"){
-      using(var f=new FileStream(Path.Combine(root,"fixture.blocked"),FileMode.CreateNew,FileAccess.Write,FileShare.Read)){f.WriteByte(1);f.Flush(true);}
+      using(var f=new FileStream(Path.Combine(root,"fixture.blocked.pending"),FileMode.CreateNew,FileAccess.Write,FileShare.None)){f.WriteByte(1);f.Flush(true);}
+      File.Move(Path.Combine(root,"fixture.blocked.pending"),Path.Combine(root,"fixture.blocked"));
       Thread.Sleep(8000);return 2;
      }
      if(line!="keys")return 3;Console.WriteLine("ek fixture\nok");Console.Out.Flush();

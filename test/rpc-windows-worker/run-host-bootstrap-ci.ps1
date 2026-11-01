@@ -64,21 +64,47 @@ $allowed=@('normal','wrong-source','wrong-key','malformed','observer-loss','bloc
 if($cases.Count -lt 1 -or $cases.Count -gt 7 -or @($cases|Select-Object -Unique).Count -ne $cases.Count){throw 'Finite unique cases required'}
 foreach($case in $cases){if($allowed -cnotcontains $case){throw 'Unreviewed fixture case'}}
 $caseResults=New-Object Collections.Generic.List[object]
+$reuseRecords=New-Object Collections.Generic.List[object]
+$reuseManifest=Get-Content -Raw -LiteralPath (Join-Path $root 'test\rpc-windows-worker\host-bootstrap-reuse.json')|ConvertFrom-Json
+function Invoke-CompileOrReuse([string]$Label,[string]$Destination,[string[]]$CompilerArguments,[string[]]$CompileSources){
+    $reuse=$env:RPC_BOOTSTRAP_REUSE_RUN -ne ''
+    if($reuse -and $env:RPC_BOOTSTRAP_REUSE_RUN -cne $reuseManifest.runId){throw 'Reviewed prior artifact run required'}
+    foreach($source in $CompileSources){
+        $relative=$source.Substring($root.Length+1).Replace('\','/')
+        if((Get-FileHash -Algorithm SHA256 -LiteralPath $source).Hash.ToLowerInvariant() -cne $reuseManifest.compiledSources.$relative){$reuse=$false}
+    }
+    if($reuse){
+        $name=[IO.Path]::GetFileName($Destination)
+        $prior=Join-Path (Join-Path $env:GITHUB_WORKSPACE 'prior-bootstrap-artifact') $name
+        $expected=$reuseManifest.binaries.$name
+        if(-not $expected -or (Get-Item -LiteralPath $prior).Length -gt 262144 -or (Get-FileHash -Algorithm SHA256 -LiteralPath $prior).Hash.ToLowerInvariant() -cne $expected){throw 'Exact prior compiled binary differs'}
+        [IO.File]::Copy($prior,$Destination,$false)
+        $reuseRecords.Add([pscustomobject]@{label=$Label;reused=$true;runId=$reuseManifest.runId;sourceCommit=$reuseManifest.runtimeCommit;sha256=$expected;sources=$CompileSources})
+    }else{Invoke-FiniteProcess $csc ($CompilerArguments+$CompileSources) 20000 $Label}
+}
 try{
     $compile=@('/nologo','/target:exe','/platform:x64','/r:System.Web.Extensions.dll')
-    Invoke-FiniteProcess $csc ($compile+@('/main:Enclave.OwnedRpc.HostBootstrapEntry',('/out:'+$production))+$sources) 20000 'production-compile'
-    Invoke-FiniteProcess $csc ($compile+@('/define:RPC_BOOTSTRAP_CI','/main:Enclave.OwnedRpc.HostBootstrapEntry',('/out:'+$entry))+$sources+@($fixture)) 20000 'fixture-compile'
-    Invoke-FiniteProcess $csc ($compile+@('/main:HostBootstrapActor',('/out:'+$actor),$actorSource)) 20000 'actor-compile'
-    Invoke-FiniteProcess $csc ($compile+@('/r:System.Management.dll','/r:Microsoft.CSharp.dll','/main:HostBootstrapQualification',('/out:'+$controller))+$sources+@($qualification)) 20000 'controller-compile'
+    Invoke-CompileOrReuse 'production-compile' $production ($compile+@('/main:Enclave.OwnedRpc.HostBootstrapEntry',('/out:'+$production))) $sources
+    Invoke-CompileOrReuse 'fixture-compile' $entry ($compile+@('/define:RPC_BOOTSTRAP_CI','/main:Enclave.OwnedRpc.HostBootstrapEntry',('/out:'+$entry))) ($sources+@($fixture))
+    Invoke-CompileOrReuse 'actor-compile' $actor ($compile+@('/main:HostBootstrapActor',('/out:'+$actor))) @($actorSource)
+    Invoke-CompileOrReuse 'controller-compile' $controller ($compile+@('/r:System.Management.dll','/r:Microsoft.CSharp.dll','/main:HostBootstrapQualification',('/out:'+$controller))) ($sources+@($qualification))
     foreach($case in $cases){
         $origin=[long][decimal]::Floor(([decimal][Diagnostics.Stopwatch]::GetTimestamp()*1000)/[Diagnostics.Stopwatch]::Frequency)
         $deadline=$origin+8000
+        try{
         Invoke-FiniteProcess $controller @($case,$entry,(Get-FileHash -Algorithm SHA256 -LiteralPath $entry).Hash.ToLowerInvariant(),$actor,(Get-FileHash -Algorithm SHA256 -LiteralPath $actor).Hash.ToLowerInvariant(),$root,[guid]::NewGuid().ToString('N'),[string]$origin,[string]$deadline) 9000 ('case-'+$case)
-        $result=Get-Content -Raw -LiteralPath (Join-Path $work ('case-'+$case+'.out'))|ConvertFrom-Json
+        }finally{
+            $resultFile=Join-Path $work ('case-'+$case+'.out')
+            if(Test-Path -LiteralPath $resultFile){
+                if((Get-Item -LiteralPath $resultFile).Length -gt 65536){throw 'Bounded case result required'}
+                $result=Get-Content -Raw -LiteralPath $resultFile|ConvertFrom-Json
+                $caseResults.Add($result)
+            }
+        }
         if(-not $result.passed -or $result.mode -cne $case -or $result.origin -ne $origin -or $result.deadline -ne $deadline -or -not $result.hardwareSynthetic -or -not $result.nodeActorSynthetic -or $result.rpcReady -or $result.providerOperationFenced -or $result.reservationMayRelease){throw 'Fixture result binding failed'}
-        $caseResults.Add($result)
     }
 }finally{
+    $reuseRecords|ConvertTo-Json -Depth 6|Set-Content -LiteralPath (Join-Path $work 'reuse-results.json')
     $records|ConvertTo-Json -Depth 5|Set-Content -LiteralPath (Join-Path $work 'process-results.json')
     $caseResults|ConvertTo-Json -Depth 6|Set-Content -LiteralPath (Join-Path $work 'case-results.json')
     Get-FileHash -Algorithm SHA256 -LiteralPath ($sources+@($fixture,$actorSource,$qualification,$csc))|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'pins.json')
@@ -86,8 +112,8 @@ try{
     if($binaries.Count){Get-FileHash -Algorithm SHA256 -LiteralPath $binaries|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'binaries.json')}
     $publish=Join-Path $env:RUNNER_TEMP ('rpc-bootstrap-composition-results-'+[guid]::NewGuid().ToString('N'))
     $null=New-Item -ItemType Directory -Path $publish
-    $names=@('process-results.json','case-results.json','pins.json','binaries.json','production-entry.exe','owned-entry.exe','fixture-actor.exe','qualification-controller.exe')
-    foreach($label in @('production-compile','fixture-compile','actor-compile','controller-compile')+@($cases|ForEach-Object{'case-'+$_})){$names+=@($label+'.out',$label+'.err')}
+    $names=@('reuse-results.json','process-results.json','case-results.json','pins.json','binaries.json','production-entry.exe','owned-entry.exe','fixture-actor.exe','qualification-controller.exe')
+    foreach($label in @('production-compile','fixture-compile','actor-compile','controller-compile')+@($cases|ForEach-Object{'case-'+$_})){$names+=@(($label+'.out'),($label+'.err'))}
     $total=0L
     foreach($name in $names){
         $file=Join-Path $work $name

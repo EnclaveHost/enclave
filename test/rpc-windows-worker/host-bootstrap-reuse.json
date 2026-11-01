@@ -1,0 +1,20 @@
+{
+  "runId": "41318351499",
+  "runtimeCommit": "c48a3277a390530c0e3d28d2bc83d39aa7ec8e3f",
+  "binaries": {
+    "production-entry.exe": "ddadd678d65dff7c7f779831d212f2b10d341f181bd1dc748956932b4782f4cb",
+    "owned-entry.exe": "b5978569ccda70c8f7389ac748d31566bf683a5e0a5553585424458579edfdd3",
+    "fixture-actor.exe": "c186220a322912c68d6edb0e1d967bee90cd958247e7be1ba363523c0aa8393b",
+    "qualification-controller.exe": "edb2493f82d4f31294189b720e8cbdd9a268cf31d87a4fec8b141b0ed1408241"
+  },
+  "compiledSources": {
+    "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+    "windows/rpc/OwnerObserver.cs": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80",
+    "windows/rpc/ProtectedAttempt.cs": "bf5a3b983593615cfeb9ab4eb16450985c0918ed236d74ec84fbe6c5d67691a5",
+    "windows/rpc/HostBootstrapEntry.cs": "f5126895e1fcb6051b2224f6984a3aa057e5a6819506a27fb1beb03121f1a6c6",
+    "windows/rpc/HostBootstrapChannels.cs": "cd1a43592ddb43f1962db49bc64d7feff23fb4d3146d8c1eee4fe7ccc82b9365",
+    "test/rpc-windows-worker/HostBootstrapFixture.cs": "434ed1fb7933e2592b3b14557d64d7234e9547a9b7eca1f906b20210ec7cbd33",
+    "test/rpc-windows-worker/HostBootstrapActor.cs": "ca99c5d42d02e240e7da4d49e9da0bb2e87e0c269cf611977a83f9740e4731cf",
+    "test/rpc-windows-worker/HostBootstrapQualification.cs": "6266bf6b5c0c95f6f39b63e9058785ffbbed787ec30aa34d1da376297874ef06"
+  }
+}

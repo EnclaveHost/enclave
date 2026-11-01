@@ -15,7 +15,8 @@ namespace Enclave.OwnedRpc {
   }
   internal static int Write(byte[] b){
    if(mode=="blocked-monitor"){
-    using(var f=new FileStream(Path.Combine(root,"fixture.blocked"),FileMode.CreateNew,FileAccess.Write,FileShare.Read)){f.WriteByte(1);f.Flush(true);}
+    using(var f=new FileStream(Path.Combine(root,"fixture.blocked.pending"),FileMode.CreateNew,FileAccess.Write,FileShare.None)){f.WriteByte(1);f.Flush(true);}
+      File.Move(Path.Combine(root,"fixture.blocked.pending"),Path.Combine(root,"fixture.blocked"));
     Thread.Sleep(8000);throw new IOException("Fixture natural bound");
    }
    foreach(byte c in b)if(c!=(byte)'m')throw new IOException("Fixture monitor payload differs");
