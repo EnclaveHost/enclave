@@ -1355,5 +1355,21 @@ journals. Hosted run41325035548 passed ten new administrator ledger/file cases
 and compiled the controller (242176 bytes, SHA256
 ae43decba8055944bbf784e9577aebf41ae239904b401a99b2882192b0b92f47).
 The task producer was not executed, and target SYSTEM/provider/manager composition
-remains unqualified. The JavaScript manager transport and durable restart inventory
-are still missing; default main is unchanged and production RPC remains offline.
+remains unqualified. That earlier result covered the controller alone. The optional manager transport
+and held restart inventory are now implemented as described below; production RPC
+remains offline.
+
+The concrete `rpc-native-controller.mjs` transport now connects the original app
+manager to `NativeRpcControllerEntry` with asynchronous bounded stdio, durable
+send intents, native original QPC/digest, protected binary staging and held restart
+inventory. Full capacity is reserved before awaiting native begin. Explicit
+operator pins are required; default activation and V9 advertising remain disabled.
+Hosted run41327394900 passed seven new administrator staging/ledger cases and
+compiled the controller237568B/SHA256
+22e033958a4bbd695342b74248079ddf90b2788f1efe8f83def023710c4deb6f.
+Eight distinct client methods and ten affected manager methods passed locally,
+plus three syntax checks; native replies/pool are fixtures. These results do not
+qualify the actual Windows Node-to-nativeMain-to-SYSTEM task composition, hardware
+or a running RPC. Full runtime qualification, devices/start, current accepted
+image and original storage-owner bootstrap remain required. See
+`NATIVE-MANAGER-CONTROLLER.md` and `../vbslike/manager/RPC-CONTROLLER.md`.

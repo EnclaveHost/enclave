@@ -1,0 +1,4 @@
+{
+  "sha256": "7497498891cf547038ce5bfee31bbeeb1ef391af695dcf5f71e9984402bfdfaf",
+  "text": "PASS actual private staging binds original launch and exact binary input\r\nPASS truncated header consumes staging before any replacement input\r\nPASS truncated or changed bundle cannot publish ready\r\nPASS trailing binary data keeps complete assets unadmitted\r\nPASS local hold closes original mutation gate after successful staging\r\nPASS read-only inventory preserves prior boot without granting current authority\r\nPASS inspection refuses partial record and non-directory inputs\r\nTOTAL 7 PASS; actual administrator staged files/ledger; no manager or SYSTEM task/provider execution\r\n"
+}
