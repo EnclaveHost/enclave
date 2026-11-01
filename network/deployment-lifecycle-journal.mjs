@@ -13,6 +13,7 @@ export function validateLifecycleJournal(j) {
   if (!j || j.version !== 1 || !Array.isArray(j.deployments) || j.deployments.length > 65536)
     throw new Error('invalid lifecycle journal');
   j.authorityAnchors ??= {};
+  validateHostAuthority(j);
   if (!j.authorityAnchors || typeof j.authorityAnchors !== 'object' || Array.isArray(j.authorityAnchors) ||
       Object.keys(j.authorityAnchors).length > 32) throw Error('invalid authority anchor journal');
   for (const [chain, anchor] of Object.entries(j.authorityAnchors)) {
@@ -45,6 +46,25 @@ export function validateLifecycleJournal(j) {
         typeof row.pending.payload !== 'string' || row.pending.payload.length > 32768)) throw new Error('invalid transition outbox');
   }
   return j;
+}
+// Durable host-owner floors and local holds, scoped to each host identity. Per host id: the highest authenticated
+// host-owner floor, the box owner's local holds and the owner-control epoch they were recorded under.
+const HOST_REVISION = /^(0|[1-9][0-9]{0,77})$/, HOST_ADDRESS = /^0x[0-9a-f]{40}$/;
+function validateHostAuthority(j) {
+  j.hostAuthority ??= {};
+  const h = j.hostAuthority;
+  if (!h || typeof h !== 'object' || Array.isArray(h) || Object.keys(h).length > 16) throw Error('invalid host authority journal');
+  for (const [host, e] of Object.entries(h)) {
+    if (!ID.test(host) || !e || typeof e !== 'object' || !int(e.ownerEpoch) || !e.holds || typeof e.holds !== 'object' ||
+        Array.isArray(e.holds) || Object.keys(e.holds).length > 4096) throw Error('invalid host authority entry');
+    e.sidecarsEstablished ??= false;
+    if (typeof e.sidecarsEstablished !== 'boolean') throw Error('invalid host sidecar provenance');
+    if (e.floor !== null && (!e.floor || typeof e.floor.revision !== 'string' || !HOST_REVISION.test(e.floor.revision) ||
+        !HOST_ADDRESS.test(e.floor.owner) || /^0x0{40}$/.test(e.floor.owner) || !ID.test(e.floor.policyHash))) throw Error('invalid host authority floor');
+    for (const [id, x] of Object.entries(e.holds))
+      if (!ID.test(id) || !x || typeof x.why !== 'string' || !x.why.length || x.why.length > 300 || !int(x.ownerEpoch) ||
+          x.ownerEpoch > e.ownerEpoch || !int(x.at)) throw Error('invalid local hold');
+  }
 }
 function validAnchor(a) {
   return a?.tier === 'l1-finalized-derived' && [a.base, a.l1].every(b => b && int(b.number) && int(b.timestamp) && ID.test(b.hash)) &&
@@ -79,6 +99,18 @@ export function openLifecycleJournal(file, { fsImpl = fs, platform = process.pla
     catch (e) { failed = `lifecycle journal write failed: ${e.message}`; throw e; }
     state = next; return structuredClone(changed);
   }
+  // Commit the host restriction through the same owned durability backend as app intents.
+  function updateHost(hostId, change) {
+    check(); idOf(hostId);
+    const next = structuredClone(state);
+    next.hostAuthority ??= {};
+    const changed = change(structuredClone(next.hostAuthority[hostId] || { floor: null, ownerEpoch: 0, holds: {} }));
+    next.hostAuthority[hostId] = changed;
+    validateLifecycleJournal(next);
+    try { write(next); }
+    catch (e) { failed = `lifecycle journal write failed: ${e.message}`; throw e; }
+    state = next; return structuredClone(changed);
+  }
   return {
     read,
     readAnchor(chainId) { check(); return structuredClone(state.authorityAnchors[String(chainId)] || null); },
@@ -96,6 +128,38 @@ export function openLifecycleJournal(file, { fsImpl = fs, platform = process.pla
       catch (e) { failed = `lifecycle journal write failed: ${e.message}`; throw e; }
       state = next;
     },
+    // Callers must authenticate current host-owner authority before advancing these floors.
+    readHostAuthority(hostId) { check(); idOf(hostId); return structuredClone(state.hostAuthority?.[hostId] || null); },
+    // Persist before first sidecar creation: loss of both file and marker on a
+    // later boot must not masquerade as an unused host.
+    establishHostSidecars(hostId) {
+      return updateHost(hostId, e => ({ ...e, sidecarsEstablished: true }));
+    },
+    acceptHostAuthority(hostId, { revision, owner, policyHash }) {
+      return updateHost(hostId, e => {
+        if (typeof revision !== 'string' || !HOST_REVISION.test(revision) || !HOST_ADDRESS.test(owner) || /^0x0{40}$/.test(owner) || !ID.test(policyHash))
+          throw Error('invalid host authority');
+        const f = e.floor;
+        if (f && (BigInt(revision) < BigInt(f.revision) || BigInt(revision) === BigInt(f.revision) && (owner !== f.owner || policyHash !== f.policyHash)))
+          throw Error('host authority rollback or equivocation');
+        return { ...e, floor: { revision, owner, policyHash } };
+      }).floor;
+    },
+    holdHostLocal(hostId, id, { why, at }) {
+      idOf(id);
+      return updateHost(hostId, e => ({ ...e, holds: { ...e.holds, [id]: { why: String(why), ownerEpoch: e.ownerEpoch, at } } })).holds[id];
+    },
+    releaseHostLocal(hostId, id) {
+      idOf(id);
+      return updateHost(hostId, e => {
+        const x = e.holds[id];
+        if (!x) throw Error('no such local hold');
+        if (!(x.ownerEpoch < e.ownerEpoch)) throw Error('a local hold is released only by a later owner control change');
+        const holds = { ...e.holds }; delete holds[id];
+        return { ...e, holds };
+      });
+    },
+    advanceOwnerControls(hostId) { return updateHost(hostId, e => ({ ...e, ownerEpoch: e.ownerEpoch + 1 })).ownerEpoch; },
     failure(id, args) { return update(id, row => ({ ...row, restart: restartFailure(row.restart, args) })); },
     healthy(id, args) { return update(id, row => ({ ...row, restart: restartHealthy(row.restart, args) })); },
     unhealthy(id, now) { return update(id, row => ({ ...row, restart: restartUnhealthy(row.restart, now) })); },

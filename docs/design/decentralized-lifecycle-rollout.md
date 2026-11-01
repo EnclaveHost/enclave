@@ -272,3 +272,44 @@ The [r3 review](../../ops/unified-funding-20261028/windows-manager-review-r3/ROO
 Four additional root checks fail: the client drops unknown-stage ownership on empty inventory or failed hold, marks a held/expired matching-digest view as serving, and actual authenticated DELETE can fail on a journal read before requesting ingress withdrawal. The first three use scripted transport; DELETE uses real MAC HTTP and an existing TCP splice with TEST compute. None establishes a production incident. The new client is still unwired into the supervisor; main/native composition and composite inventory routing remain incomplete. Independent authority, full workload enforcement and Windows qualification are still required. No production changes or new app recoveries are claimed.
 
 The subsequent real MAC/TCP replay-policy check passes without product changes: stale sequence rejection preserves the exact valid newer grant, then its real deadline closes the stream and removes compute. This avoids replay-based denial of service while preserving expiry. The earlier eight-second removal expectation for a twenty-second valid permit was a test-policy mismatch. Four new client/Stop regressions still need repair; this result does not qualify the unwired integration.
+
+## Maintained Linux host-journal ownership integration
+
+`network/deployment-host-journal-owner.mjs` now composes the maintained Linux
+`ownLifecycleJournal` with the host-incarnation and permit-authority sidecars.
+The parent lock is acquired first. Its durable `sidecarsEstablished` flag is
+written before first creation, so losing both a sidecar and its marker cannot
+silently initialize a fresh authority—even before an owner floor was accepted.
+Parent host-owner revision floors and local holds use the same retained-intent
+durability backend as pending/mined application transitions.
+
+`ownHostLifecycleJournals(journalFile, { hostId, initialize })` returns storage
+capabilities only. Consumers must register actual resource withdrawal with
+`onRelease` before publishing service. One memoized close withdraws both
+sidecars, and the parent lock remains held until withdrawal and both sidecar
+releases finish. Sidecar lock loss or persistence uncertainty closes the whole
+composition. Old references cannot mutate a replacement owner's state. This
+maintained parent refuses all journal mutations after logical close; the older
+staged permissive cleanup-write wrapper has not been imported.
+
+For a sidecar persistence failure, `recoverHostLifecycleJournals` acquires all
+three locks and classifies the retained before/after intent. It does not rewrite
+the parent transaction outbox or authorize serving. A failed parent must first
+use `recoverLifecycleJournal`; missing or unclassifiable evidence still refuses.
+Reopen normally and obtain fresh authenticated authority after recovery.
+
+Qualification: eight new real-file/flock tests plus37 existing journal,
+recovery, boundary and runner checks passed (45 total), along with the existing
+five-check native child fixture. Coverage includes exact child death and cold
+reopen, retained pending intent/local hold, Offline rollback refusal, stale
+references, missing sidecars, asynchronous withdrawal exclusion, lock loss,
+and injected directory-sync failure with explicit recovery. This is Linux
+storage qualification, not live chain, Windows, guest or production admission.
+Failed initial test-namespace setup is retained in the evidence.
+
+The next integration is the maintained v2 gate/witness/runtime/dispatcher using
+these owners, followed by real authenticated manager/ingress/storage/secrets
+enforcement and independent-host activation. Neither these stores nor their
+tests prove cold recovery of a production app or hosting under Enclave refusal.
+The full event-driven lifecycle, capacity/attestation, funding and decentralized
+authority requirements remain outstanding. Serving legacy has not been changed.

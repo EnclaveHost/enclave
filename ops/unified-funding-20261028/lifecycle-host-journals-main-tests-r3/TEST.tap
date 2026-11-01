@@ -1,0 +1,280 @@
+TAP version 13
+# Subtest: host authority and owner holds survive cold reopen alongside an unresolved transaction
+ok 1 - host authority and owner holds survive cold reopen alongside an unresolved transaction
+  ---
+  duration_ms: 55.903956
+  type: 'test'
+  ...
+# Subtest: released parent and sidecar references cannot overwrite a replacement owner
+ok 2 - released parent and sidecar references cannot overwrite a replacement owner
+  ---
+  duration_ms: 16.446679
+  type: 'test'
+  ...
+# Subtest: same-generation Offline survives reopen in both authority sidecars
+ok 3 - same-generation Offline survives reopen in both authority sidecars
+  ---
+  duration_ms: 17.301131
+  type: 'test'
+  ...
+# Subtest: parent provenance rejects lost sidecars even before an authority floor was accepted
+ok 4 - parent provenance rejects lost sidecars even before an authority floor was accepted
+  ---
+  duration_ms: 11.046793
+  type: 'test'
+  ...
+# Subtest: one reentrant withdrawal retains parent and both sidecar locks until actual completion
+ok 5 - one reentrant withdrawal retains parent and both sidecar locks until actual completion
+  ---
+  duration_ms: 13.079333
+  type: 'test'
+  ...
+# Subtest: sidecar lock loss withdraws the composite owner and retains pending evidence
+ok 6 - sidecar lock loss withdraws the composite owner and retains pending evidence
+  ---
+  duration_ms: 10.648327
+  type: 'test'
+  ...
+# Subtest: exact child death releases all three owners; cold process retains the hold and transaction
+ok 7 - exact child death releases all three owners; cold process retains the hold and transaction
+  ---
+  duration_ms: 186.94541
+  type: 'test'
+  ...
+# Subtest: sidecar sync failure withdraws all authority; explicit recovery preserves the parent intent
+ok 8 - sidecar sync failure withdraws all authority; explicit recovery preserves the parent intent
+  ---
+  duration_ms: 22.446242
+  type: 'test'
+  ...
+# Subtest: expiry revokes streams and writes even without another reconciliation
+ok 9 - expiry revokes streams and writes even without another reconciliation
+  ---
+  duration_ms: 22.953257
+  type: 'test'
+  ...
+# Subtest: monotonic deadline and clock rollback prevent extending a permit
+ok 10 - monotonic deadline and clock rollback prevent extending a permit
+  ---
+  duration_ms: 20.360772
+  type: 'test'
+  ...
+# Subtest: permanent fence survives gate recreation and rejects the same generation
+ok 11 - permanent fence survives gate recreation and rejects the same generation
+  ---
+  duration_ms: 39.145729
+  type: 'test'
+  ...
+# Subtest: a concurrent revocation wins over asynchronous signature verification
+ok 12 - a concurrent revocation wins over asynchronous signature verification
+  ---
+  duration_ms: 14.38164
+  type: 'test'
+  ...
+# Subtest: kernel journal ownership excludes another writer and releases cleanly
+ok 13 - kernel journal ownership excludes another writer and releases cleanly
+  ---
+  duration_ms: 41.465157
+  type: 'test'
+  ...
+# Subtest: real HTTP witness refuses foreign operators and produces a verifiable permit signature
+ok 14 - real HTTP witness refuses foreign operators and produces a verifiable permit signature
+  ---
+  duration_ms: 82.579936
+  type: 'test'
+  ...
+# Subtest: a witness persists before signing and refuses an equivocal or fenced request after restart
+ok 15 - a witness persists before signing and refuses an equivocal or fenced request after restart
+  ---
+  duration_ms: 19.584029
+  type: 'test'
+  ...
+# Subtest: a real open HTTP stream is destroyed by permit expiry
+ok 16 - a real open HTTP stream is destroyed by permit expiry
+  ---
+  duration_ms: 1268.297694
+  type: 'test'
+  ...
+# Subtest: an unresponsive authority adapter times out without signing or writing a permit
+ok 17 - an unresponsive authority adapter times out without signing or writing a permit
+  ---
+  duration_ms: 21.122994
+  type: 'test'
+  ...
+# Subtest: a witness fence and crash budget survive process restart and same-generation policy edits
+ok 18 - a witness fence and crash budget survive process restart and same-generation policy edits
+  ---
+  duration_ms: 3.892122
+  type: 'test'
+  ...
+# Subtest: ambiguous transaction submission holds exact intent through restart
+ok 19 - ambiguous transaction submission holds exact intent through restart
+  ---
+  duration_ms: 1.457656
+  type: 'test'
+  ...
+# Subtest: corrupt journal is held without overwriting, and a failed durable write never grants permission
+ok 20 - corrupt journal is held without overwriting, and a failed durable write never grants permission
+  ---
+  duration_ms: 0.936821
+  type: 'test'
+  ...
+# Subtest: operationally mined intents remain durable until their exact finalized receipts settle
+ok 21 - operationally mined intents remain durable until their exact finalized receipts settle
+  ---
+  duration_ms: 6.380147
+  type: 'test'
+  ...
+# Subtest: same-generation host bindings and successor votes cannot conflict through restart
+ok 22 - same-generation host bindings and successor votes cannot conflict through restart
+  ---
+  duration_ms: 2.583235
+  type: 'test'
+  ...
+# Subtest: healthy self-hosting produces no recurring state transaction
+ok 23 - healthy self-hosting produces no recurring state transaction
+  ---
+  duration_ms: 10.482748
+  type: 'test'
+  ...
+# Subtest: a crash records queued once and an ambiguous submission never resubmits another intent
+ok 24 - a crash records queued once and an ambiguous submission never resubmits another intent
+  ---
+  duration_ms: 1.753313
+  type: 'test'
+  ...
+# Subtest: readiness failure, stale authority and unconfirmed retirement never start a replacement
+ok 25 - readiness failure, stale authority and unconfirmed retirement never start a replacement
+  ---
+  duration_ms: 1.588124
+  type: 'test'
+  ...
+# Subtest: queued startup failures back off without writing queued again
+ok 26 - queued startup failures back off without writing queued again
+  ---
+  duration_ms: 0.861362
+  type: 'test'
+  ...
+# Subtest: running is submitted only after readiness and is not served until confirmed
+ok 27 - running is submitted only after readiness and is not served until confirmed
+  ---
+  duration_ms: 1.273968
+  type: 'test'
+  ...
+# Subtest: reserve exhaustion fences before a single stopped transition
+ok 28 - reserve exhaustion fences before a single stopped transition
+  ---
+  duration_ms: 1.429856
+  type: 'test'
+  ...
+# Subtest: host-specific rejection queues its own running assignment but never disables it globally
+ok 29 - host-specific rejection queues its own running assignment but never disables it globally
+  ---
+  duration_ms: 2.481806
+  type: 'test'
+  ...
+# Subtest: a host cannot stop a running assignment belonging to another host
+ok 30 - a host cannot stop a running assignment belonging to another host
+  ---
+  duration_ms: 0.533575
+  type: 'test'
+  ...
+# Subtest: a queued deployment remains available for other eligible hosts
+ok 31 - a queued deployment remains available for other eligible hosts
+  ---
+  duration_ms: 0.722393
+  type: 'test'
+  ...
+# Subtest: a fresh proof of an older assignment cannot roll back the durable generation floor
+ok 32 - a fresh proof of an older assignment cannot roll back the durable generation floor
+  ---
+  duration_ms: 0.809382
+  type: 'test'
+  ...
+# Subtest: a merely mined or unproved receipt cannot clear the durable transition outbox
+ok 33 - a merely mined or unproved receipt cannot clear the durable transition outbox
+  ---
+  duration_ms: 1.075119
+  type: 'test'
+  ...
+# Subtest: owned enrollment, graceful close and reopen preserve pending and mined transitions
+ok 34 - owned enrollment, graceful close and reopen preserve pending and mined transitions
+  ---
+  duration_ms: 17.172993
+  type: 'test'
+  ...
+# Subtest: exact child death releases the flock and preserves its fence, crash count and pending intent
+ok 35 - exact child death releases the flock and preserves its fence, crash count and pending intent
+  ---
+  duration_ms: 48.587508
+  type: 'test'
+  ...
+# Subtest: after-state is held on restart and explicit recovery classifies exact retained bytes as landed
+ok 36 - after-state is held on restart and explicit recovery classifies exact retained bytes as landed
+  ---
+  duration_ms: 41.299298
+  type: 'test'
+  ...
+# Subtest: before-state is held on restart and explicit recovery classifies exact retained bytes as not-landed
+ok 37 - before-state is held on restart and explicit recovery classifies exact retained bytes as not-landed
+  ---
+  duration_ms: 57.122554
+  type: 'test'
+  ...
+# Subtest: visible acknowledgement with failed sync and failed retraction is held in a new process
+ok 38 - visible acknowledgement with failed sync and failed retraction is held in a new process
+  ---
+  duration_ms: 75.596405
+  type: 'test'
+  ...
+# Subtest: legacy import requires reviewed exact bytes and retains unresolved submissions
+ok 39 - legacy import requires reviewed exact bytes and retains unresolved submissions
+  ---
+  duration_ms: 7.465467
+  type: 'test'
+  ...
+# Subtest: missing established state cannot be recreated by enrollment or recovery
+ok 40 - missing established state cannot be recreated by enrollment or recovery
+  ---
+  duration_ms: 4.539416
+  type: 'test'
+  ...
+# Subtest: unclassifiable state and missing intent refuse recovery without overwriting evidence
+ok 41 - unclassifiable state and missing intent refuse recovery without overwriting evidence
+  ---
+  duration_ms: 4.946272
+  type: 'test'
+  ...
+# Subtest: same-size external rewrite closes the owner and triggers withdrawal
+ok 42 - same-size external rewrite closes the owner and triggers withdrawal
+  ---
+  duration_ms: 2.839883
+  type: 'test'
+  ...
+# Subtest: one reentrant close waits for serving withdrawal before releasing exclusion
+ok 43 - one reentrant close waits for serving withdrawal before releasing exclusion
+  ---
+  duration_ms: 7.276049
+  type: 'test'
+  ...
+# Subtest: withdrawal rejection fences the owner and keeps its flock held
+ok 44 - withdrawal rejection fences the owner and keeps its flock held
+  ---
+  duration_ms: 4.061221
+  type: 'test'
+  ...
+# Subtest: withdrawal deadline fences the owner and keeps its flock held
+ok 45 - withdrawal deadline fences the owner and keeps its flock held
+  ---
+  duration_ms: 20.220043
+  type: 'test'
+  ...
+1..45
+# tests 45
+# suites 0
+# pass 45
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3012.994471
