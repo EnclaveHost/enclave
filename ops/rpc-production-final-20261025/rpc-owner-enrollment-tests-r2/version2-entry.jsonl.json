@@ -1,0 +1,4 @@
+{
+  "sha256": "b4a075bc6c07dc48bef2455cf342ab91d3ab65562a5551c743a823e40c20f07b",
+  "utf8": "test_version2_entry_hands_real_derived_inputs_to_sealed_node_config (__main__.EnrollmentTests.test_version2_entry_hands_real_derived_inputs_to_sealed_node_config) ... ok\n\n----------------------------------------------------------------------\nRan 1 test in 0.288s\n\nOK\n"
+}

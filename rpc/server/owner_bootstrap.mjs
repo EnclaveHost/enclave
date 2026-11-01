@@ -6,12 +6,14 @@ import {fileURLToPath} from 'node:url';
 import {sha256} from '../../isolation/contract/rpc-bootstrap.mjs';
 import {createOwnerBootstrap} from './owner_bootstrap_session.mjs';
 import {listenOwnerBootstrap,receivePreparedRequest,writeFrame} from './owner_bootstrap_transport.mjs';
+import {validateEnrollment,publishHostOffer} from './owner_bootstrap_enrollment.mjs';
 
 async function run(){
  if(process.argv.length!==2)throw Error('No bootstrap arguments accepted');
  const size=fs.fstatSync(3).size;
  if(size<=0||size>8<<20)throw Error('Bootstrap configuration bound');
  const config=JSON.parse(fs.readFileSync(3,'utf8'));
+ const enrollment=config.enrollment?validateEnrollment(config):null;
  const key=fs.readFileSync(4),cert=fs.readFileSync(5),seeds=[fs.readFileSync(6),fs.readFileSync(7)];
  fs.closeSync(6);fs.closeSync(7);
  fs.closeSync(4);fs.closeSync(5);
@@ -19,6 +21,7 @@ async function run(){
  let transport;
  try{
   transport=await listenOwnerBootstrap(session,{...config.listen,key,cert,ownerOffer:{seeds,publicKeys:config.ownerPublicKeys,runtime:config.runtime,manifestSha256:sha256(Buffer.from(JSON.parse(config.prepared).manifest,'base64')).toString('hex'),serverName:config.listen.serverName}});key.fill(0);
+  if(enrollment)publishHostOffer(session,{proof:transport.proof,certificate:cert,delivery:config.delivery,enrollment});
   const connection=await transport.accepted;
   await receivePreparedRequest(session,connection,Buffer.from(config.prepared));
   const helper=fileURLToPath(new URL('./owner_bootstrap_submit.py',import.meta.url));

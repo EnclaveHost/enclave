@@ -66,7 +66,9 @@ def sealed(value):
 def main(path):
     os.umask(0o077)
     config=c.protocol.decode(c.read(path))
-    if set(config)!={'schema','clock','session','listen','relay','pins'} or config['schema']!='enclave-rpc-owner-bootstrap-entry/1':
+    enrolled=config.get('schema')=='enclave-rpc-owner-bootstrap-entry/2'
+    fields={'schema','clock','listen','relay','pins'}|({'enrollment','bootstrapPolicy'} if enrolled else {'session'})
+    if set(config)!=fields or config['schema'] not in ('enclave-rpc-owner-bootstrap-entry/1','enclave-rpc-owner-bootstrap-entry/2'):
         raise ValueError('Exact owner bootstrap configuration required')
     original=c.validate(config['clock']);unit=envelope(original);verify_pins(config['pins'])
     if Path('/proc/self/timens_offsets').exists() and any(line.split()[1:]!=['0','0'] for line in Path('/proc/self/timens_offsets').read_text().splitlines()):
@@ -83,8 +85,8 @@ def main(path):
     spec=importlib.util.spec_from_file_location('rpc_dispatch',HERE/'dispatch_owner.py')
     d=importlib.util.module_from_spec(spec);spec.loader.exec_module(d)
     value=d.decode_owner_request(prepared);prepared=c.encode(value).strip()
-    session=config['session']
-    if set(session)!={'request','runtime','clientCertificate','keys','policy'} or session['request']!=value['request']:
+    session=config.get('session')
+    if not enrolled and (set(session)!={'request','runtime','clientCertificate','keys','policy'} or session['request']!=value['request']):
         raise ValueError('Attested request differs from issuer request')
     parent=c.directory(Path(config['clock']['path']).parent)
     # Full overlapping owner endpoint256 + existing owner composition1024 +128
@@ -108,6 +110,12 @@ def main(path):
     if set(listen)!={'host','port','serverName','key','cert'}:raise ValueError('Explicit pinned TLS listener required')
     owner=load_owner_state()
     policy=c.protocol.decode(c.read_pinned(signer['policy']))
+    enrollment_fields={}
+    if enrolled:
+        spec=importlib.util.spec_from_file_location('rpc_bootstrap_inputs',HERE/'owner_bootstrap_inputs.py')
+        inputs=importlib.util.module_from_spec(spec);spec.loader.exec_module(inputs)
+        session,enrollment,delivery=inputs.prepare(c,config,original,value,contract,policy,signer['contract']['sha256'])
+        enrollment_fields={'enrollment':enrollment,'delivery':delivery}
     descriptor=owner.inspect(signer['ownerProvision'],contract,policy)
     if policy['runtime']!=session['runtime']:raise ValueError('Owner runtime differs')
     owner_fds=owner.bind(signer['ownerProvision'],contract,policy)
@@ -116,7 +124,7 @@ def main(path):
     key=e.held(listen['key']['path'],16384,wanted=listen['key']['sha256'])
     cert=e.held(listen['cert']['path'],16384,wanted=listen['cert']['sha256'])
     # Key bytes remain a local readonly FD; never JSON, command args or stdout.
-    normalized={**session,'parent':str(parent),'original':{**{k:original[k] for k in ('attempt','originMonotonicNs','deadlineMonotonicNs')},'boot':original['bootId']},
+    normalized={**session,**enrollment_fields,'parent':str(parent),'original':{**{k:original[k] for k in ('attempt','originMonotonicNs','deadlineMonotonicNs')},'boot':original['bootId']},
         'listen':{'host':listen['host'],'port':listen['port'],'serverName':listen['serverName']},'ownerPublicKeys':[descriptor['keys'][role]['publicKey'] for role in ('l1','base')],'relay':config['relay'],'clock':config['clock'],
         'prepared':prepared.decode(),'pins':config['pins']}
     if any(abs(normalized['original'][k])>2**53-1 for k in ('originMonotonicNs','deadlineMonotonicNs')):raise ValueError('Exact JS clock representation required')

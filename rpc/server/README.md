@@ -480,3 +480,38 @@ unchanged and reservations retained. See
 [the exact result](../../ops/unified-funding-20261028/rpc-owner-relay-native-r1/ROOT-RESULT.md).
 This was a local pipe composition, not a cross-host accepted guest connection,
 real chain authority, kernel attachment or RPC readiness. No service was installed.
+
+## Enrollment-driven owner offer (implemented, not activated)
+
+`owner_bootstrap_entry.py` also accepts `enclave-rpc-owner-bootstrap-entry/2`.
+Its exact fields are `schema`, `clock`, `listen`, `relay`, `pins`, `enrollment`
+and `bootstrapPolicy`. The last two are protected path/SHA256 bindings. It runs
+in the same independently bounded owner bootstrap unit and uses the same full
+pending-aware admission, source closure, original clock, and original provisioned
+owner keys as version 1. It does not select a replacement journal or keys.
+
+`owner_bootstrap_inputs.py` consumes the native `enrollment.json` candidate and
+compares its original Windows clock, guest request and client certificate with
+the original prepared dispatcher/export inputs. It derives the guest broker's
+chain settings from the issuer policy and its bundle/manifest from the prepared
+request. The export certificate comes from that contract's actual protected TLS
+namespace and must match the issuer's DER pin. The candidate cannot supply those
+paths, chain authorities, keys, or a new deadline.
+
+The Node actor verifies runtime identity, exact request and self-signed guest
+certificate/SPKI before minting the owner challenge. After the existing listener
+signs its endpoint offer with both provisioned keys, it durably publishes
+`bootstrap/host-offer.json`: exactly `proof`, `ownerServerDer`, `exportServerDer`
+and `policy`, bounded to the native worker's control-frame limit. This is the
+input required by `host/bootstrap.mjs.finish`; no copying of private keys occurs.
+The adjacent enrollment receipt explicitly says `guestAuthenticated:false`.
+Only the subsequent TPM/guest evidence and real TLS client verification can
+produce `accepted.json`; the existing issuer must still verify current chain
+permission and settle previous writers before granting storage.
+
+The native token, VM GUID and ownership receipt hash remain correlation data,
+not proof of VM ownership. Original app-controller integration, authenticated
+cross-host collection/delivery of the public records, actual hardware/full-image
+qualification and production activation remain unfinished. Version 1's manually
+assembled session remains available for the historical qualified composition;
+version 2 is explicit and is not installed or made a live default.

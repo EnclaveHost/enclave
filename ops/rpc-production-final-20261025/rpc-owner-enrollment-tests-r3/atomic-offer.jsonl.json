@@ -1,0 +1,4 @@
+{
+  "sha256": "43c1afd60986c0f55965e53d0ab25829130b74205965d0beb627e9d648fb9874",
+  "utf8": "TAP version 13\n# Subtest: enrollment becomes a durable complete doubly signed host offer without authentication or root grant\nok 1 - enrollment becomes a durable complete doubly signed host offer without authentication or root grant\n  ---\n  duration_ms: 20.224402\n  type: 'test'\n  ...\n1..1\n# tests 1\n# suites 0\n# pass 1\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 242.207656\n"
+}

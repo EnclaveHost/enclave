@@ -62,17 +62,18 @@ export async function listenOwnerBootstrap(session,{host,port,key,cert,ownerOffe
  // Absolute, never reset by bytes, authentication, dispatch or reconnect.
  lifetimeTimer=setTimeout(()=>close(Error('original owner transport deadline')),Math.min(100000,ms));
  server.listen({host,port,backlog:1});
+ let proof;
  try{
   await once(server,'listening');
   const challenge=session.challenge(),certificateSha256=sha256(new X509Certificate(cert).raw).toString('hex');
   if(!ownerOffer)throw Error('provisioned owner endpoint signer required');
   const {seeds,publicKeys,runtime,manifestSha256,serverName}=ownerOffer;
   const offer={attempt:challenge.attempt,challenge:challenge.challenge,clientCertificateSha256:sha256(session.clientCertificate).toString('hex'),credentialBlob:challenge.credentialBlob,host,hostNonce:challenge.hostNonce,manifestSha256,port,requestSha256:challenge.requestSha256,runtime,schema:'enclave-rpc-owner-offer/1',secret:challenge.secret,serverCertificateSha256:certificateSha256,serverName};
-  const proof=signOwnerOffer(offer,seeds,publicKeys);
+  proof=signOwnerOffer(offer,seeds,publicKeys);
   persist(session.directory,'public-challenge.json',Buffer.from(JSON.stringify(proof)+'\n'));
   for(const seed of seeds)seed.fill(0);
  }catch(e){close(e);throw e;}
- return {server,accepted:finished,close};
+ return {server,accepted:finished,close,proof};
 }
 
 export async function receivePreparedRequest(session,connection,prepared){

@@ -1,0 +1,4 @@
+{
+  "sha256": "d927c5f22d70f0743d68ca4df2209619808a99d804b0f8723f11491436a998c6",
+  "utf8": "test_changed_or_extended_original_clock_refused (__main__.EnrollmentTests.test_changed_or_extended_original_clock_refused) ... ok\ntest_export_certificate_volume_and_bundle_substitution_refused (__main__.EnrollmentTests.test_export_certificate_volume_and_bundle_substitution_refused) ... ok\ntest_owner_derives_broker_authorities_and_exact_delivery (__main__.EnrollmentTests.test_owner_derives_broker_authorities_and_exact_delivery) ... ok\ntest_request_and_client_substitution_refused (__main__.EnrollmentTests.test_request_and_client_substitution_refused) ... ok\ntest_ungranted_candidate_and_pinned_namespace_required (__main__.EnrollmentTests.test_ungranted_candidate_and_pinned_namespace_required) ... ok\n\n----------------------------------------------------------------------\nRan 5 tests in 0.016s\n\nOK\n"
+}
