@@ -1,0 +1,1 @@
+Only wrapper expected test count changes 159 to162, matching actual terminal 162PASS. Runtime and compiled closures unchanged. Failure and all evidence preserved. Rerun only changed definition workflow; do not repeat startup/legacy. No native execution yet.

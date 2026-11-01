@@ -1,0 +1,5 @@
+# Refusal diagnosis CI, first run
+
+Exact source f0a326102edb548d0b806ef495db0717e4fb73e6 compiled in all three hosted closures. Startup 41266012245: 68 PASS; legacy 41266016279: 71 PASS. Definition 41266014468 actually compiled and ran 162 PASS with all four processes exited zero, but workflow failed because the wrapper still expected 159. This wrapper assertion failure is retained; do not describe the workflow as successful. Source pins independently match git and maintained files; binaries independently hashed. No target run. Correct only the expected suite count, then qualify that changed wrapper. Startup and legacy compiled closures are unchanged by that correction and need no repeat.
+
+Three local verification scripts failed during source path handling: repeated separators, then compiler receipt not a source path, then wrong startup log filename. Corrected normalization and separately retained compiler receipt (not independently hashed here), no tests or compilation rerun. Raw local evidence retained. Public text normalizes BOM/newlines/trailing whitespace; raw hashes recorded separately.
