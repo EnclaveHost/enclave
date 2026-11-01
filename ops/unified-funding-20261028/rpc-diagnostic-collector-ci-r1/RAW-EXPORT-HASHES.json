@@ -1,0 +1,94 @@
+[
+  {
+    "path": "definition-ARTIFACT.json",
+    "sha256": "30a5603578f5c9201ee02164ab12db58f892f01e148447b327ac7a894ffde6af"
+  },
+  {
+    "path": "ADMISSION.json",
+    "sha256": "4c31329690b533114d42ac41947b118cb73803dc7d9ff2f1956a03c454559e58"
+  },
+  {
+    "path": "rpc-owned-definition-DISPATCH.json",
+    "sha256": "be33b03754e445a31373c00996c51bca9f197c39edb982dadfca2fa134140060"
+  },
+  {
+    "path": "COLLECT-ADMISSION.json",
+    "sha256": "2814a8ed9ad02374ad0dc4efdbba5fd222143770dc677f9cc8294c16e3997f0f"
+  },
+  {
+    "path": "COLLECT-COMMAND.json",
+    "sha256": "8010cbac57a05bae87233bd26a4868bcf44d1247d5be5e4deb3758ab4e40fd67"
+  },
+  {
+    "path": "rpc-owned-definition-PRIOR.json",
+    "sha256": "56b7f3816f15055554b2489822605647c4069dc3267ce10a54cf261d188cff4f"
+  },
+  {
+    "path": "rpc-owned-definition-INTENT.json",
+    "sha256": "4e532657d0611d06fc289d1f34920ce96a722dd4f7d5ef8dffbbe9b31a7f6f98"
+  },
+  {
+    "path": "COMMAND.json",
+    "sha256": "38b5283482f213649c345a8acebf0404240af49c3ca4440022b68acb0736f997"
+  },
+  {
+    "path": "definition-RUN.json",
+    "sha256": "5445c8b55a66fc30cc09bb67a61fc164d6ea4ab308f8e600aeb27cdecd141420"
+  },
+  {
+    "path": "definition-download/target-compile.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "definition-download/inert.err",
+    "sha256": "6abfd5586f132185cac401c6850ade2d8138ae8dc7f974566c166fe831398240"
+  },
+  {
+    "path": "definition-download/publication.json",
+    "sha256": "dbe383050c2d154ed5c9180d24c356d33426e4b6aef2e3431d956a8cc75e44eb"
+  },
+  {
+    "path": "definition-download/process-results.json",
+    "sha256": "a962f231f6728f26c79f98162bc642fa5ee5bddde94984572103bcf84dde3f07"
+  },
+  {
+    "path": "definition-download/controller-compile.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "definition-download/target-artifact.json",
+    "sha256": "a357c3ab2aebaab37377f6fba05cde71afc09fb6e0a7b0638d567fe02487362e"
+  },
+  {
+    "path": "definition-download/pins.json",
+    "sha256": "9e0a332e53ad1e7cb7a994178285ed36567be5300a5f81adf4d6e87ae4c1eb9f"
+  },
+  {
+    "path": "definition-download/entry-compile.out",
+    "sha256": "0c8385cb74dbfe14cb8cc1ebd5925b1646c242f4bdfcec233952e2beba8c926b"
+  },
+  {
+    "path": "definition-download/entry-artifact.json",
+    "sha256": "7a77fbd546bb55e905172a5cd039ca979719b41c1e9262e3679140e6fb125c8f"
+  },
+  {
+    "path": "definition-download/inert.out",
+    "sha256": "fb971c99c814f733dc38268c1f45f851871c56e861c89c4e6a10047236731b59"
+  },
+  {
+    "path": "definition-download/controller-artifact.json",
+    "sha256": "9a0f113eb9796d2581c4f92b4e313d0b0fb08c0a8b204380966f95b366b9c32a"
+  },
+  {
+    "path": "definition-download/entry-compile.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "definition-download/controller-compile.out",
+    "sha256": "0c8385cb74dbfe14cb8cc1ebd5925b1646c242f4bdfcec233952e2beba8c926b"
+  },
+  {
+    "path": "definition-download/target-compile.out",
+    "sha256": "0c8385cb74dbfe14cb8cc1ebd5925b1646c242f4bdfcec233952e2beba8c926b"
+  }
+]

@@ -1,0 +1,12 @@
+System.ArgumentException: Type 'System.Collections.Generic.SortedDictionary`2[[System.Int64, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089],[System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089]]' is not supported for serialization/deserialization of a dictionary, keys must be strings or objects.
+   at System.Web.Script.Serialization.JavaScriptSerializer.SerializeDictionary(IDictionary o, StringBuilder sb, Int32 depth, Hashtable objectsInUse, SerializationFormat serializationFormat)
+   at System.Web.Script.Serialization.JavaScriptSerializer.SerializeValueInternal(Object o, StringBuilder sb, Int32 depth, Hashtable objectsInUse, SerializationFormat serializationFormat, MemberInfo currentMember)
+   at System.Web.Script.Serialization.JavaScriptSerializer.SerializeValue(Object o, StringBuilder sb, Int32 depth, Hashtable objectsInUse, SerializationFormat serializationFormat, MemberInfo currentMember)
+   at System.Web.Script.Serialization.JavaScriptSerializer.Serialize(Object obj, StringBuilder output, SerializationFormat serializationFormat)
+   at System.Web.Script.Serialization.JavaScriptSerializer.Serialize(Object obj, SerializationFormat serializationFormat)
+   at Enclave.OwnedRpc.DiagnosticObservationCollector.BindingReceipt(IList rows, Boolean native)
+   at Enclave.OwnedRpc.DiagnosticObservationCollector.Collect(Byte[] initial, String expectedHash, String boot, IDiagnosticObservationSource source, Action check)
+   at OwnedVmDefinitionHarness.<CollectorTests>b__6d()
+   at OwnedVmDefinitionHarness.Test(String name, Action f)
+   at OwnedVmDefinitionHarness.CollectorTests()
+   at OwnedVmDefinitionHarness.Main(String[] args)

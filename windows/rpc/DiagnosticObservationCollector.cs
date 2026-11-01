@@ -24,11 +24,11 @@ namespace Enclave.OwnedRpc {
   internal static IList Rows(object value){var r=value as IList;if(r==null||r.Count>128)throw new InvalidOperationException("Observation row bound");return r;}
   static Dictionary<string,object> Pick(Dictionary<string,object> value,params string[] keys){var d=new Dictionary<string,object>();foreach(string key in keys){object v;if(value.TryGetValue(key,out v))d.Add(key,v);}return d;}
   static string BindingReceipt(IList rows,bool native){
-   var sorted=new SortedDictionary<long,string>();var json=new JavaScriptSerializer();
+   var sorted=new SortedDictionary<string,string>(StringComparer.Ordinal);var json=new JavaScriptSerializer();
    foreach(object item in Rows(rows)){var r=Object(item);long key=Convert.ToInt64(r[native?"pid":"port"]);
     if(key<=0)throw new InvalidOperationException("Manager binding key");
     object[] fields=native?new object[]{r["creationFileTime"],r["image"],r["alive"]}:new object[]{r["pid"],r["created"],r["exe"]};
-    sorted.Add(key,json.Serialize(fields));
+    sorted.Add(key.ToString(CultureInfo.InvariantCulture),json.Serialize(fields));
    }if(sorted.Count!=4)throw new InvalidOperationException("Four distinct manager bindings required");return json.Serialize(sorted);
   }
   static object ProjectNode(Dictionary<string,object> node){
