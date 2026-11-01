@@ -1,0 +1,78 @@
+{
+  "schema": "rpc-game-process-observation/1",
+  "atUtc": "2026-11-01T02:04:42.1767571Z",
+  "readOnly": true,
+  "processesTerminated": false,
+  "count": 9,
+  "combinedWorkingSetBytes": 873177088,
+  "combinedPrivateBytes": 1842397184,
+  "workingSetsMaySharePages": true,
+  "reclaimablePhysicalBytesProven": false,
+  "capacityAdmitted": false,
+  "remoteReaderDeathProven": false,
+  "processes": [
+    {
+      "name": "steam.exe",
+      "pid": 45672,
+      "creationFileTime": "134376132463038987",
+      "workingSetBytes": 123465728,
+      "privateBytes": 155148288
+    },
+    {
+      "name": "steamwebhelper.exe",
+      "pid": 24392,
+      "creationFileTime": "134376132466015933",
+      "workingSetBytes": 105070592,
+      "privateBytes": 125157376
+    },
+    {
+      "name": "steamwebhelper.exe",
+      "pid": 48084,
+      "creationFileTime": "134376132467194768",
+      "workingSetBytes": 4014080,
+      "privateBytes": 35409920
+    },
+    {
+      "name": "steamwebhelper.exe",
+      "pid": 44988,
+      "creationFileTime": "134376132470258692",
+      "workingSetBytes": 88743936,
+      "privateBytes": 541728768
+    },
+    {
+      "name": "steamwebhelper.exe",
+      "pid": 44416,
+      "creationFileTime": "134376132472354142",
+      "workingSetBytes": 19542016,
+      "privateBytes": 63520768
+    },
+    {
+      "name": "steamwebhelper.exe",
+      "pid": 40308,
+      "creationFileTime": "134376132473058114",
+      "workingSetBytes": 8257536,
+      "privateBytes": 43323392
+    },
+    {
+      "name": "steamwebhelper.exe",
+      "pid": 6660,
+      "creationFileTime": "134376132475507681",
+      "workingSetBytes": 381550592,
+      "privateBytes": 646328320
+    },
+    {
+      "name": "steamwebhelper.exe",
+      "pid": 34568,
+      "creationFileTime": "134376229393585024",
+      "workingSetBytes": 5935104,
+      "privateBytes": 43175936
+    },
+    {
+      "name": "steamwebhelper.exe",
+      "pid": 48236,
+      "creationFileTime": "134376231588803146",
+      "workingSetBytes": 136597504,
+      "privateBytes": 188604416
+    }
+  ]
+}
