@@ -164,12 +164,12 @@ public static class OwnedVmDefinitionHarness {
    a.ReadInitialGateObservation();Refuse(()=>File.WriteAllText(Path.Combine(a.Root,"admission.json"),"{}"));Refuse(()=>File.Delete(Path.Combine(a.Root,"admission.json")));
   }});
   Test("initial-gate-read-refuses-other-operation",()=>{var c=new ProtectedCase("preparation-check");using(var a=c.Lease())Refuse(()=>a.ReadInitialGateObservation());});
-  Test("failed-resource-prepare-consumes-start-with-gate-closed",()=>{var c=new ProtectedCase("preparation-gated");using(var a=c.Lease())using(var plan=ProtectedAttempt.OpenDefinitionJournal(a.PermitPath,a.PermitHash,a)){
+  Test("failed-resource-prepare-consumes-start-with-gate-closed",()=>{var c=new ProtectedCase("preparation-gated");using(var a=c.Lease())using(var plan=ProtectedAttempt.PinDefinitionJournalController(a.PermitPath,a.PermitHash,a)){
    Refuse(()=>{using(var prepared=new WindowsStartAdmission.PreparedDiagnosticAdmission(plan,a)){} });
    Check(a.ReadOptionalOnce("admission.preparation-start")!=null&&a.ReadOptionalOnce("admission.prepared")==null&&a.ReadOptionalOnce("observation.ready")==null);
    Refuse(()=>{using(var prepared=new WindowsStartAdmission.PreparedDiagnosticAdmission(plan,a)){} });
   }});
-  Test("gated-inspection-refuses-unprepared-legacy-entry",()=>{var c=new ProtectedCase("preparation-gated");using(var a=c.Lease())using(var plan=ProtectedAttempt.OpenDefinitionJournal(a.PermitPath,a.PermitHash,a))Refuse(()=>WindowsStartAdmission.InspectDefinitionAdmission(plan,a));});
+  Test("gated-inspection-refuses-unprepared-legacy-entry",()=>{var c=new ProtectedCase("preparation-gated");using(var a=c.Lease())using(var plan=ProtectedAttempt.PinDefinitionJournalController(a.PermitPath,a.PermitHash,a))Refuse(()=>WindowsStartAdmission.InspectDefinitionAdmission(plan,a));});
  }
  static void ProtectedTests(){
   Test("gated-contract-cannot-read-initial-observation-as-fresh",()=>{var c=new ProtectedCase("preparation-gated");using(var a=c.Lease())Refuse(()=>a.ReadAdmission(c.ObservationHash));});

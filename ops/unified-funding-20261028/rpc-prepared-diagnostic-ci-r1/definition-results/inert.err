@@ -1,0 +1,6 @@
+System.InvalidOperationException: SYSTEM primary execution context required
+   at Enclave.OwnedRpc.ProtectedAttempt.RequireSystem()
+   at OwnedVmDefinitionHarness.<PreparedContextTests>b__bc()
+   at OwnedVmDefinitionHarness.Test(String name, Action f)
+   at OwnedVmDefinitionHarness.PreparedContextTests()
+   at OwnedVmDefinitionHarness.Main(String[] args)

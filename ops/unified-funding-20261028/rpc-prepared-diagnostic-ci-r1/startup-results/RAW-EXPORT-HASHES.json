@@ -1,0 +1,70 @@
+[
+  {
+    "path": "target-compile.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "startup-compile.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "inert.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "startup-compile.out",
+    "sha256": "b93f53b25e654b42795791c58cac9da9b95b82fd353b49859d16eee02f2fc063"
+  },
+  {
+    "path": "publication.json",
+    "sha256": "ca1f16b395fd636364a6169f2a4f42e689ddce36bb6610b7988e5d68ecddd110"
+  },
+  {
+    "path": "process-results.json",
+    "sha256": "4ea0a8d6cb646146aff78931eba5d76940f39d8cdfd0672af9f232dbe6819db8"
+  },
+  {
+    "path": "controller-compile.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "target-artifact.json",
+    "sha256": "a6d2f2475785d7cc7b712a56f250ab08def29776a43e9aa32f25f24e9370c8a2"
+  },
+  {
+    "path": "pins.json",
+    "sha256": "fde2087f94ad06858f942c4743511bc9941e1c6cda7afe0e7596217b7d55be73"
+  },
+  {
+    "path": "entry-compile.out",
+    "sha256": "b93f53b25e654b42795791c58cac9da9b95b82fd353b49859d16eee02f2fc063"
+  },
+  {
+    "path": "entry-artifact.json",
+    "sha256": "10b1a92f66b3d538098f18515adf6c3bc9fa53ba26905b21b83e2acb371a2d44"
+  },
+  {
+    "path": "startup-artifact.json",
+    "sha256": "3b8ca48ffa22f9e4cf848e4a8ee1de8b2b4e5b467308ff75e9827705c543d53a"
+  },
+  {
+    "path": "inert.out",
+    "sha256": "2b654138e77e0c75274bde1850f29a44ad1642aef66e1746a28384e76ed1339e"
+  },
+  {
+    "path": "controller-artifact.json",
+    "sha256": "3bae54b13ff40d6ccd3f07da14ad04b13cc3b274ac205f83cb19356dffbd115b"
+  },
+  {
+    "path": "entry-compile.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "controller-compile.out",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "target-compile.out",
+    "sha256": "b93f53b25e654b42795791c58cac9da9b95b82fd353b49859d16eee02f2fc063"
+  }
+]

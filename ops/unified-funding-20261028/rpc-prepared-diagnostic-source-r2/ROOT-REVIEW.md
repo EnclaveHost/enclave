@@ -1,0 +1,1 @@
+Only harness setup changes: existing administrator controller journal pin replaces SYSTEM-only journal opener in two new refusal fixtures. Production source/guards unchanged. Failed definition CI and successful startup CI preserved. New definition run required; all19 startupcompiled sources remain identical.
