@@ -1,0 +1,1 @@
+Local independent-verification script initially referenced the old run-native-state-ci.ps1 while expecting four new compile closures and stopped at its assertion before preservation. Corrected to exact run-native-pair-ci.ps1 and NativeRpcPairHarness.cs; all four closures, pins, hashes and process receipts verified. No CI/native/helper was rerun.
