@@ -231,7 +231,10 @@ namespace Enclave.OwnedRpc {
             var m=Regex.Match(path.RelativePath,"\\AMsvm_ConcreteJob\\.InstanceID=\"([A-Za-z0-9_:{}.\\-]{1,128})\"\\z",RegexOptions.IgnoreCase);
             if(!m.Success)throw new InvalidOperationException("Exact single job key required");return ReferenceForId(m.Groups[1].Value);
         }
-        internal static ManagementScope Scope(){return new ManagementScope(@"\\.\"+Namespace,new ConnectionOptions{EnablePrivileges=true,Timeout=TimeSpan.FromSeconds(2)});}
+        // Use the already-qualified primary identity. Automatic privilege
+        // enablement can install a thread token during WMI enumeration; do not
+        // request it or accept impersonation as a substitute for RequireSystem.
+        internal static ManagementScope Scope(){return new ManagementScope(@"\\.\"+Namespace,new ConnectionOptions{EnablePrivileges=false,Timeout=TimeSpan.FromSeconds(2)});}
         internal static ManagementObject One(ManagementScope scope,string query){
             var options=new EnumerationOptions{ReturnImmediately=false,Rewindable=false,Timeout=TimeSpan.FromSeconds(2)};ManagementObject found=null;
             try{using(var search=new ManagementObjectSearcher(scope,new ObjectQuery(query),options))using(var rows=search.Get())foreach(ManagementObject row in rows){if(found!=null){row.Dispose();throw new InvalidOperationException("Exact singleton required");}found=row;}

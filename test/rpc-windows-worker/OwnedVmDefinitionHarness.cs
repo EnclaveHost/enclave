@@ -318,6 +318,17 @@ public static class OwnedVmDefinitionHarness {
  public static int Main(string[] args){try{
   if(args.Length!=1)throw new ArgumentException("Exact compiled entry fixture required");fixtureImage=File.ReadAllBytes(args[0]);if(fixtureImage.Length>262144)throw new ArgumentException("Fixture image bound");
   BoundedWorker.EnterSupervisorEnvelope(256UL*1024*1024);long end=BoundedWorker.MonotonicMilliseconds()+9000;new Thread(()=>{while(BoundedWorker.MonotonicMilliseconds()<end)Thread.Sleep(5);TerminateProcess(GetCurrentProcess(),124);}){IsBackground=true}.Start();
+  Test("provider-scope-retains-local-identity-without-privilege-enablement",()=>{var scope=HyperVStartProvider.Scope();Check(scope.Path.Server=="."&&scope.Path.NamespacePath.EndsWith(@"root\virtualization\v2")&&!scope.Options.EnablePrivileges&&scope.Options.Timeout==TimeSpan.FromSeconds(2)&&String.IsNullOrEmpty(scope.Options.Username)&&String.IsNullOrEmpty(scope.Options.Authority));});
+  Test("actual-singleton-query-preserves-primary-context",()=>{
+   var options=HyperVStartProvider.Scope().Options;
+   // Real local read on hosted CI; no Hyper-V provider mutation or SYSTEM claim.
+   var scope=new System.Management.ManagementScope(@"\\.\root\cimv2",options);
+   using(var before=WindowsIdentity.GetCurrent()){
+    Check(before.User!=null&&before.ImpersonationLevel==TokenImpersonationLevel.None);
+    using(var row=HyperVStartProvider.One(scope,"SELECT * FROM Win32_OperatingSystem"))Check(row["TotalVisibleMemorySize"]!=null);
+    using(var after=WindowsIdentity.GetCurrent())Check(after.User==before.User&&after.ImpersonationLevel==TokenImpersonationLevel.None);
+   }
+  });
   Test("synchronous-return-persists-guid-before-off-query",()=>{var c=new Case();var r=c.Run();Check(r.Guid==Id&&r.DefinitionSettled&&!r.StartAuthorized&&!r.ReservationMayRelease&&c.V.Defines==1&&c.V.Reads==0&&c.V.Off==1);});
   Test("lost-response-remains-held",()=>{var c=new Case();c.V.Lose=true;Refuse(()=>c.Run());Check(c.Read().State=="response-lost-held"&&c.V.Defines==1);});
   Test("duplicate-submission-never-calls-native-twice",()=>{var c=new Case();c.Run();Refuse(()=>c.Run());Check(c.V.Defines==1);});
