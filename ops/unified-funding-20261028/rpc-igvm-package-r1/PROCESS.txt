@@ -1,0 +1,12 @@
+ActiveState=failed
+SubState=failed
+InvocationID=6b3702f0da054e25b0acc9011b62d583
+MainPID=0
+Result=exit-code
+ExecMainStatus=143
+ControlGroup=
+ActiveState=failed
+SubState=failed
+Result=oom-kill
+ControlGroup=
+MemoryPeak=536870912

@@ -1,0 +1,41 @@
+{
+  "schema": "enclave-rpc-igvm-build/1",
+  "inputs": {
+    "igvmfilegen": {
+      "path": "/inputs/igvmfilegen",
+      "sha256": "81647f66a88559d68c4d7565dfdcc355305c00cc842b49403a3c5188c36e1a1c"
+    },
+    "manifest": {
+      "path": "/inputs/manifest",
+      "sha256": "0ce9d8a87582bb5d60200d7f98c67ee357dbd042aec7338649c981753753df61"
+    },
+    "openhcl_boot": {
+      "path": "/inputs/openhcl_boot",
+      "sha256": "18dbeae950c1c143364638892ace4c2cf2128eb12d67f3de05bdbe37b2fd16bc"
+    },
+    "underhill_kernel": {
+      "path": "/inputs/underhill_kernel",
+      "sha256": "4d6c417654d5d26374c3bc44ed1c6473d5a0d9e7b9773d2bb1dab2abe5306762"
+    },
+    "underhill_initrd": {
+      "path": "/inputs/underhill_initrd",
+      "sha256": "71a91101f8f9b870199946076db2b220c68167e029539d4619a6b7600432124e"
+    },
+    "linux_kernel": {
+      "path": "/inputs/linux_kernel",
+      "sha256": "f401ccc30759c48c29a63bdb36e9cd7b09b840e863016080716b644939870da8"
+    },
+    "linux_initrd": {
+      "path": "/inputs/linux_initrd",
+      "sha256": "6b7ce646308a7c7f059eb89f2afa92c024a6ce2decf929010f940632e778a187"
+    },
+    "profile": {
+      "path": "/inputs/profile",
+      "sha256": "e83a2160ae1a9df9659156917f2629b72c989f1192b55b07e588324a9bf29982"
+    },
+    "guestReceipt": {
+      "path": "/inputs/guestReceipt",
+      "sha256": "6d1f54c1fe2dd1e5b3df84237d958dacceeb45d964b19ea437e803583aa0d161"
+    }
+  }
+}

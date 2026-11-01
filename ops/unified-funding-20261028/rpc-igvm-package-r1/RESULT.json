@@ -1,0 +1,14 @@
+{
+  "invocation": "6b3702f0da054e25b0acc9011b62d583",
+  "exit": 143,
+  "mainPid": 0,
+  "scope": "run-p1238046-i47407116.scope",
+  "scopeResult": "oom-kill",
+  "scopeMemoryPeakBytes": 536870912,
+  "testsPassed": 3,
+  "testSeconds": 0.001,
+  "pinsUnchanged": true,
+  "firmwareExists": false,
+  "buildReceiptExists": false,
+  "deployed": false
+}

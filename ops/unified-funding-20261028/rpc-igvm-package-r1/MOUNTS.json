@@ -1,0 +1,11 @@
+{
+  "/inputs/igvmfilegen": "/home/steven/Documents/Codex/2026-10-18/wo/work/shield-direct-build-0ed5a8ba/portable/inputs/objects/81647f66a88559d68c4d7565dfdcc355305c00cc842b49403a3c5188c36e1a1c",
+  "/inputs/manifest": "/home/steven/Documents/Codex/2026-10-18/wo/work/shield-direct-build-0ed5a8ba/portable/inputs/objects/0ce9d8a87582bb5d60200d7f98c67ee357dbd042aec7338649c981753753df61",
+  "/inputs/openhcl_boot": "/home/steven/Documents/Codex/2026-10-18/wo/work/shield-direct-build-0ed5a8ba/portable/inputs/objects/18dbeae950c1c143364638892ace4c2cf2128eb12d67f3de05bdbe37b2fd16bc",
+  "/inputs/underhill_kernel": "/home/steven/Documents/Codex/2026-10-18/wo/work/shield-direct-build-0ed5a8ba/portable/inputs/objects/4d6c417654d5d26374c3bc44ed1c6473d5a0d9e7b9773d2bb1dab2abe5306762",
+  "/inputs/underhill_initrd": "/home/steven/Documents/Codex/2026-10-18/wo/work/shield-direct-build-0ed5a8ba/portable/inputs/openhcl-shield.cpio.gz",
+  "/inputs/linux_kernel": "/home/steven/Documents/Codex/2026-10-23/it/work/nucbox-desktop-v2/kernel-desktop.elf",
+  "/inputs/linux_initrd": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-full-image-current-r1/output/image/rpc.cpio.gz",
+  "/inputs/profile": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-full-image-current-r1/output/image/profile.json",
+  "/inputs/guestReceipt": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-full-image-current-r1/output/image/build.json"
+}

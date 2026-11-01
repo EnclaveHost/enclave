@@ -56,6 +56,40 @@ attachment, client startup, sync/finality and serving adoption. A successful
 archive build or inert version command proves none of those outcomes. The
 original startup deadline is not extended by image assembly or guest boot.
 
+## OpenHCL firmware packaging
+
+The initramfs above is not an IGVM firmware image. The native Windows definition
+requires both a firmware image and separately qualified initial VMGS. Use the
+maintained `isolation/m3/build-rpc-igvm.py --spec SPEC --out NEW_DIRECTORY` for
+offline firmware packaging, under an independently bounded admitted build unit.
+This command does not create VMGS, register a VM, accept an image or change a
+verifier policy.
+
+Its `enclave-rpc-igvm-build/1` object has exactly `schema` and `inputs`. Each
+input is an absolute `path` plus `sha256`. Required names are `igvmfilegen`,
+`manifest`, `openhcl_boot`, `underhill_kernel`, `underhill_initrd`,
+`linux_kernel`, `linux_initrd`, `profile` and `guestReceipt`.
+The first five are fixed reviewed pins in the maintained builder. In particular,
+the paravisor must contain the guest-only volatile report-input patch; the old
+stock persistent-NV image is refused. The fixed manifest selects non-debug
+VBS/VTL2 with static Linux-direct command lines; callers cannot add flags.
+The current profile and guest receipt bind the supplied kernel and initramfs.
+
+The builder streams pinned inputs into an exclusive private directory, records
+an intent, invokes the pinned tool once with a 60-second limit and preserves
+partial outputs on failure. It checks the output's bounded IGVM header and VBS
+platform structure, sidecar shape and input stability before publishing its
+receipt. The sidecar digest is compiler-generated, not independently recomputed
+or measured on hardware. No acceptance or boot claim follows from packaging.
+
+Qualification `rpc-igvm-package-r1` passed three new refusal/structural tests,
+then the actual packaging process exceeded its unchanged 512 MiB cgroup cap.
+The kernel killed the allocation before `rpc.bin` was written. Sidecar files
+from that failed invocation are incomplete build evidence and must not become
+an accepted platform identity. The source is preserved as an incomplete
+packager; a materially improved allocation strategy is required before a new
+bounded attempt. No successful firmware packaging or target boot is claimed.
+
 
 ## RPC boot supervisor
 
@@ -82,5 +116,6 @@ preparation still require the independently owned host deadline. The32MiB limit
 is a post-fork address-space limit, not evidence of earlier allocation peaks or
 whole-stack fit; admission must count supervisor/worker startup overheads. It
 neither fences the remote storage writer nor releases its reservation. Real target
-boot/poweroff and accepted measured image remain required. The previous built
-candidate predates this source integration.
+boot/poweroff and accepted measured image remain required. The current
+`rpc-full-image-current-r1` initramfs includes this source integration, but has
+not been packaged successfully into firmware or booted on the target.
