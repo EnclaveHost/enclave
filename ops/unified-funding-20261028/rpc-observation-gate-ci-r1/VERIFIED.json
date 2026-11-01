@@ -1,0 +1,236 @@
+{
+  "source": "48018886e5b06552c9a5a31fdf66c5d94192ebe4",
+  "results": {
+    "startup": {
+      "compiledSources": [
+        {
+          "path": "windows/rpc/BoundedWorker.cs",
+          "sha256": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99"
+        },
+        {
+          "path": "windows/rpc/OwnerObserver.cs",
+          "sha256": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80"
+        },
+        {
+          "path": "windows/rpc/VmStartGuardian.cs",
+          "sha256": "4e23387225ee2a710f60d7a17db68e73a39cd15409981cb2e0eb9fa1d64cf336"
+        },
+        {
+          "path": "windows/rpc/ProtectedAttempt.cs",
+          "sha256": "2f7fa2dee4d9da5fc7e553b48ab280d7c896b0c65108951eb7340077abf19c9f"
+        },
+        {
+          "path": "windows/rpc/ProviderStart.cs",
+          "sha256": "d2eb7bbebc74b02be707fcd705c9165af9b6fdf2f6440a94fde76dcc0ceaeea2"
+        },
+        {
+          "path": "windows/rpc/ProviderStop.cs",
+          "sha256": "b2f5ecb6557a8af5df419c0a1e49f8e90138c13fbb76ec0d4cdab1d300b18361"
+        },
+        {
+          "path": "windows/rpc/OwnedVmPermit.cs",
+          "sha256": "a4d1f9640a4087714b9907cddcdc64340cb57f07de04dd1b6baf97197ac60373"
+        },
+        {
+          "path": "windows/rpc/HostPhysicalPool.cs",
+          "sha256": "218483e78967e94f77c2c88fdee9ca04970eb9c4a3f10adbf543b8ccd0c904af"
+        },
+        {
+          "path": "windows/rpc/WindowsStartAdmission.cs",
+          "sha256": "076a7ab3af8e88eb7bf06a47d97a7df38988b47e6ca69d92823d4050bea2e7e9"
+        },
+        {
+          "path": "windows/rpc/LegacyTemplateFence.cs",
+          "sha256": "d2bfc04762cf64b2555575e4c8aa95842dd35be108f9c9780dd3ecf0ecd0cd0f"
+        },
+        {
+          "path": "windows/rpc/LegacyLaunchCohort.cs",
+          "sha256": "ce22aa16e0d353fa8354bca26f8dc4057d520c001540d0659778e2769135f5a2"
+        },
+        {
+          "path": "windows/rpc/LegacyHandoff.cs",
+          "sha256": "4ced7f0d753217d263f21342e390ff6120a55f8b4135b0fa28cc5d95875358ce"
+        },
+        {
+          "path": "windows/rpc/ProviderWorkerEntry.cs",
+          "sha256": "af9f02fd89e8efad4df67c67733917b3e0ac42d6c25023657f3c8d59d2e3fb38"
+        },
+        {
+          "path": "windows/rpc/BootStartBinding.cs",
+          "sha256": "37f98a872a67aaa03020cc634a6c26cc27bcca839eee4966967f894ad971167c"
+        },
+        {
+          "path": "windows/rpc/StartupCleanup.cs",
+          "sha256": "87a2c3f193e0b915cb450591288205b27ca2c94591e2b567cc4292d9744ef26b"
+        },
+        {
+          "path": "windows/rpc/StartupCleanupController.cs",
+          "sha256": "d8c3b5cee707034b67f41313a91b9507cb2a6b276b5e98cb6a3cdac8a2bc2bea"
+        },
+        {
+          "path": "windows/rpc/StartupController.cs",
+          "sha256": "e618989951e8a377d00f8e62c7e028e16a450c32a19b6afb149a05729cf5154b"
+        },
+        {
+          "path": "windows/rpc/OwnedVmDefinition.cs",
+          "sha256": "e131712c036495f096b686d0adb6ef491e3c9ee3e6e3da990f114a43734f560c"
+        },
+        {
+          "path": "test/rpc-windows-worker/StartupControllerHarness.cs",
+          "sha256": "dda14e20fceef6cfafc47f8da496ea150f731e44357a39ad0c493f57dbc5f39b"
+        }
+      ],
+      "binaries": [],
+      "processes": [
+        {
+          "label": "controller-compile",
+          "pid": 3820,
+          "exitCode": 0,
+          "elapsedMs": 1984,
+          "failure": null,
+          "processExited": true,
+          "maximumObservedWorkingSet": 39632896,
+          "outputBytes": 0
+        },
+        {
+          "label": "entry-compile",
+          "pid": 6548,
+          "exitCode": 1,
+          "elapsedMs": 299,
+          "failure": null,
+          "processExited": true,
+          "maximumObservedWorkingSet": 35893248,
+          "outputBytes": 140
+        }
+      ],
+      "result": "failure"
+    },
+    "definition": {
+      "compiledSources": [
+        {
+          "path": "windows/rpc/BoundedWorker.cs",
+          "sha256": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99"
+        },
+        {
+          "path": "windows/rpc/OwnerObserver.cs",
+          "sha256": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80"
+        },
+        {
+          "path": "windows/rpc/ProtectedAttempt.cs",
+          "sha256": "2f7fa2dee4d9da5fc7e553b48ab280d7c896b0c65108951eb7340077abf19c9f"
+        },
+        {
+          "path": "windows/rpc/ProviderStart.cs",
+          "sha256": "d2eb7bbebc74b02be707fcd705c9165af9b6fdf2f6440a94fde76dcc0ceaeea2"
+        },
+        {
+          "path": "windows/rpc/OwnedVmPermit.cs",
+          "sha256": "a4d1f9640a4087714b9907cddcdc64340cb57f07de04dd1b6baf97197ac60373"
+        },
+        {
+          "path": "windows/rpc/OwnedVmDefinition.cs",
+          "sha256": "e131712c036495f096b686d0adb6ef491e3c9ee3e6e3da990f114a43734f560c"
+        },
+        {
+          "path": "windows/rpc/OwnedVmBoot.cs",
+          "sha256": "0f21e5f72e94bfe60a6c2431f8abf6343ca0a512c376ba2847fab08878def388"
+        },
+        {
+          "path": "windows/rpc/BootStartBinding.cs",
+          "sha256": "37f98a872a67aaa03020cc634a6c26cc27bcca839eee4966967f894ad971167c"
+        },
+        {
+          "path": "windows/rpc/HostPhysicalPool.cs",
+          "sha256": "218483e78967e94f77c2c88fdee9ca04970eb9c4a3f10adbf543b8ccd0c904af"
+        },
+        {
+          "path": "windows/rpc/WindowsStartAdmission.cs",
+          "sha256": "076a7ab3af8e88eb7bf06a47d97a7df38988b47e6ca69d92823d4050bea2e7e9"
+        },
+        {
+          "path": "windows/rpc/LegacyTemplateFence.cs",
+          "sha256": "d2bfc04762cf64b2555575e4c8aa95842dd35be108f9c9780dd3ecf0ecd0cd0f"
+        },
+        {
+          "path": "windows/rpc/LegacyLaunchCohort.cs",
+          "sha256": "ce22aa16e0d353fa8354bca26f8dc4057d520c001540d0659778e2769135f5a2"
+        },
+        {
+          "path": "windows/rpc/LegacyHandoff.cs",
+          "sha256": "4ced7f0d753217d263f21342e390ff6120a55f8b4135b0fa28cc5d95875358ce"
+        },
+        {
+          "path": "windows/rpc/DefinitionWorkerEntry.cs",
+          "sha256": "bfaf39197bbb894b06e907375be441b7dba0110cae6edc6bb6a4eecfd4d92144"
+        },
+        {
+          "path": "windows/rpc/DefinitionWorkerController.cs",
+          "sha256": "18efdd95409dca6e00de4c67f49b2e7475b90b3ba4619b15e83c6c0feb25fe1c"
+        },
+        {
+          "path": "test/rpc-windows-worker/OwnedVmDefinitionHarness.cs",
+          "sha256": "c2046173b85da3243595c877ad5945fa47ed7ef9e531a78c77958e13cee3775a"
+        },
+        {
+          "path": "test/rpc-windows-worker/OwnedVmBootHarness.cs",
+          "sha256": "38f6c47f7765b34542fd0610281406addda0b89a336064ed5e3e35dfd457f334"
+        }
+      ],
+      "binaries": [
+        {
+          "path": "definition-controller.exe",
+          "sha256": "7c502d632a718c7b1ca208d3991b7fde7d0cdaffdaa95ced014fd7a4c22b4ea9",
+          "bytes": 247808
+        },
+        {
+          "path": "owned-entry.exe",
+          "sha256": "cb97f68daf6491edff4c9517951b6b4509f5315de851734e028b3a3602f87f57",
+          "bytes": 247808
+        }
+      ],
+      "processes": [
+        {
+          "label": "controller-compile",
+          "pid": 9048,
+          "exitCode": 0,
+          "elapsedMs": 1549,
+          "failure": null,
+          "processExited": true,
+          "maximumObservedWorkingSet": 40214528,
+          "outputBytes": 196
+        },
+        {
+          "label": "entry-compile",
+          "pid": 9264,
+          "exitCode": 0,
+          "elapsedMs": 227,
+          "failure": null,
+          "processExited": true,
+          "maximumObservedWorkingSet": 38211584,
+          "outputBytes": 196
+        },
+        {
+          "label": "target-compile",
+          "pid": 7200,
+          "exitCode": 0,
+          "elapsedMs": 211,
+          "failure": null,
+          "processExited": true,
+          "maximumObservedWorkingSet": 38289408,
+          "outputBytes": 196
+        },
+        {
+          "label": "inert",
+          "pid": 9652,
+          "exitCode": 0,
+          "elapsedMs": 3942,
+          "failure": null,
+          "processExited": true,
+          "maximumObservedWorkingSet": 39084032,
+          "outputBytes": 6146
+        }
+      ],
+      "result": "success"
+    }
+  }
+}

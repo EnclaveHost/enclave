@@ -346,8 +346,13 @@ namespace Enclave.OwnedRpc {
         public string ReadOnce(string name) {
             Name(name);CheckDeadline();return Utf8.GetString(Bytes(HoldRead(Path.Combine(Root,name),4096),4096));
         }
+        // Definition-only partial implementation; provider/inert closures must
+        // compile independently and refuse this operation without its reader.
+        partial void ReadDiagnosticAdmission(string expectedHash,ref byte[] bytes);
         public byte[] ReadAdmission(string expectedHash) {
-            if(Operation=="preparation-gated")return ReadGateObservation(expectedHash);
+            byte[] diagnostic=null;ReadDiagnosticAdmission(expectedHash,ref diagnostic);
+            if(diagnostic!=null)return diagnostic;
+            if(Operation=="preparation-gated")throw new InvalidOperationException("Diagnostic reader absent from this executable");
             Hex(expectedHash,64);CheckDeadline();byte[] bytes=Bytes(HoldRead(Path.Combine(Root,"admission.json"),262144),262144);
             if(Hash(bytes)!=expectedHash)throw new InvalidOperationException("Reviewed admission digest differs");CheckDeadline();return bytes;
         }

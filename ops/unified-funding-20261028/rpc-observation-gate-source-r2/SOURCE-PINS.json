@@ -1,0 +1,10 @@
+{
+  "windows/rpc/ProtectedAttempt.cs": "1a45403c3162c22f06dfa0ed778c3c71f26b185eec199ce3b241b92a3144cb75",
+  "windows/rpc/OwnedVmDefinition.cs": "41b508ca52d221d1469bbaad62eda2d12f1886ae6c588faa6e3790988b7b8042",
+  "windows/rpc/DefinitionWorkerController.cs": "18efdd95409dca6e00de4c67f49b2e7475b90b3ba4619b15e83c6c0feb25fe1c",
+  "windows/rpc/DefinitionWorkerEntry.cs": "bfaf39197bbb894b06e907375be441b7dba0110cae6edc6bb6a4eecfd4d92144",
+  "windows/rpc/README.md": "4b3e72e44783c4e3e44fa2e4f33f9f48283b65b8ebd37221447f840a035ef36d",
+  "test/rpc-windows-worker/OwnedVmDefinitionHarness.cs": "c2046173b85da3243595c877ad5945fa47ed7ef9e531a78c77958e13cee3775a",
+  "test/rpc-windows-worker/run-definition-ci.ps1": "4b8cf99c1c33098b79517bd7bcf97385872be2d1560cd2d83b29ec8aac3819cb",
+  "test/rpc-windows-worker/run-startup-controller-ci.ps1": "a7985c37224e6d82c2d85863c2c12b6df1da961105421992b1a83151f8f413e0"
+}

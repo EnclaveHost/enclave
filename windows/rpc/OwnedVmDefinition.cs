@@ -443,6 +443,9 @@ namespace Enclave.OwnedRpc {
   }
   static Dictionary<string,object> GateObject(object value){var v=value as Dictionary<string,object>;if(v==null)throw new InvalidOperationException("Gate object required");return v;}
   static long GateNumber(object value){if(!(value is int)&&!(value is long))throw new InvalidOperationException("Gate integer required");return Convert.ToInt64(value,CultureInfo.InvariantCulture);}
+  partial void ReadDiagnosticAdmission(string expectedHash,ref byte[] bytes){
+   if(Operation=="preparation-gated")bytes=ReadGateObservation(expectedHash);
+  }
   byte[] ReadGateObservation(string expectedHash){
    if(expectedHash!=GateObservationHash)throw new InvalidOperationException("Gate digest mismatch");
    return ValidateGatePayload(ReadOnce("observation.ready"),ReadOnce("observation.release"));
