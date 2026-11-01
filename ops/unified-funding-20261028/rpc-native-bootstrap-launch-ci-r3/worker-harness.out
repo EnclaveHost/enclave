@@ -1,0 +1,8 @@
+PASS explicit bootstrap configuration binds original manager and fixed dependency pins
+PASS consumed bootstrap subtree survives reconstruction and refuses repeat preparation
+PASS prepared bootstrap pins original v2 plan under a closed bounded phase gate
+PASS changed dependency refuses before bootstrap worker creation
+PASS short command window refuses without renewing original deadline
+PASS only exact original running allocation receives the nineteen GiB resident credit
+PASS bootstrap reserves another group while retaining all native floors and commitments
+TOTAL 7 PASS; actual administrator preparation; allocation rows simulated; no SYSTEM task, WMI, TPM, socket or RPC execution

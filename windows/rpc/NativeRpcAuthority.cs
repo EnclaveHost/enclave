@@ -240,6 +240,7 @@ namespace Enclave.OwnedRpc {
    long size;if(!Int64.TryParse(f[2],NumberStyles.None,CultureInfo.InvariantCulture,out size)||size<=0||size>Int32.MaxValue)throw new InvalidOperationException("Read grant size");
    StartIdentity.Hex(f[3],64);StartIdentity.Hex(f[4],64);
   }
+#if !NATIVE_RPC_BOOTSTRAP_CONTROLLER
   internal static string Run(NativeRpcDefinitionPlan p,IStartJournal j,INativeRpcDefinitionRuntime r,INativeRpcReadAccess access,bool readOnly){
    Current(p,r,!readOnly);string guid,context=Context(p,j,out guid),sid=access.Resolve(guid);Sid(sid);
    string intent=j.Read("native-read.intent");
@@ -269,6 +270,7 @@ namespace Enclave.OwnedRpc {
    var bytes=new byte[sd.BinaryLength];sd.GetBinaryForm(bytes,0);var next=new RawSecurityDescriptor(bytes,0);
    next.DiscretionaryAcl.InsertAce(next.DiscretionaryAcl.Count,new CommonAce(AceFlags.None,AceQualifier.AccessAllowed,ReadMask,new SecurityIdentifier(sid),false,null));return next;
   }
+#endif
  }
  public sealed partial class ProtectedAttempt {
   [DllImport("advapi32.dll")]static extern uint SetSecurityInfo(SafeFileHandle h,int type,uint info,IntPtr owner,IntPtr group,IntPtr dacl,IntPtr sacl);
@@ -292,6 +294,7 @@ namespace Enclave.OwnedRpc {
   }
   // Reusable held-handle primitive. The caller must consume the original intent
   // before this call; no path lookup, replacement, owner change or inheritance.
+#if !NATIVE_RPC_BOOTSTRAP_CONTROLLER
   internal static void SetReadGrantOnHandle(SafeFileHandle h,string sid,string expectedBefore,string expectedAfter){
    var before=ReadGrantDescriptor(h);if(ReadGrantSecurityHash(before)!=expectedBefore)throw new InvalidOperationException("Original ACL changed before grant");var after=NativeRpcReadGrant.AddRead(before,sid);if(ReadGrantSecurityHash(after)!=expectedAfter)throw new InvalidOperationException("Planned ACL differs");
    byte[] acl=new byte[after.DiscretionaryAcl.BinaryLength];after.DiscretionaryAcl.GetBinaryForm(acl,0);var memory=Marshal.AllocHGlobal(acl.Length);
@@ -323,6 +326,7 @@ namespace Enclave.OwnedRpc {
     if(id!=f[1]||size.ToString(CultureInfo.InvariantCulture)!=f[2]||ReadGrantSecurityHash(sd)!=f[4])throw new InvalidOperationException("Original grant identity/ACL changed");int matches=0;foreach(GenericAce entry in sd.DiscretionaryAcl){var ace=entry as CommonAce;if(ace!=null&&ace.SecurityIdentifier.Value==sid){if(ace.AceFlags!=AceFlags.None||ace.AceQualifier!=AceQualifier.AccessAllowed||ace.AccessMask!=NativeRpcReadGrant.ReadMask)throw new InvalidOperationException("VM read ACE differs");matches++;}}if(matches!=1)throw new InvalidOperationException("Exact VM read ACE missing");p.CheckDeadline();
    }
   }
+#endif
  }
 
 }

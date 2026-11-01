@@ -1,0 +1,35 @@
+[
+    {
+        "label":  "harness-compile",
+        "pid":  6044,
+        "exitCode":  0,
+        "elapsedMs":  7045,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  125517824,
+        "cpuMs":  2046.875,
+        "outputBytes":  1934
+    },
+    {
+        "label":  "worker-harness",
+        "pid":  7724,
+        "exitCode":  0,
+        "elapsedMs":  1809,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  34385920,
+        "cpuMs":  515.625,
+        "outputBytes":  695
+    },
+    {
+        "label":  "worker-compile",
+        "pid":  504,
+        "exitCode":  0,
+        "elapsedMs":  955,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  123359232,
+        "cpuMs":  937.5,
+        "outputBytes":  1934
+    }
+]

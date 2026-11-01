@@ -30,6 +30,7 @@ namespace Enclave.OwnedRpc {
   internal static string Text(object x){var s=x as string;if(s==null)throw new ArgumentException("Controller string");return s;}
   internal static byte[] Encode(object x){return Encoding.UTF8.GetBytes(Json.Serialize(x));}
   internal static Dictionary<string,object> Decode(byte[] b){return Obj(Json.DeserializeObject(new UTF8Encoding(false,true).GetString(b)));}
+#if !NATIVE_RPC_BOOTSTRAP_CONTROLLER || NATIVE_RPC_BOOTSTRAP_FIXTURE
   internal void RequireEmpty(){
    current();int count=0;foreach(string path in Directory.EnumerateFileSystemEntries(Root)){string name=Path.GetFileName(path);if(++count>2||(name!="manager.lock"&&name!="transport"))throw new InvalidOperationException("Prior native attempt remains held; no retry or foreign adoption");if(name=="transport")Files.PinDirectory(path,true);}if(count<1)throw new InvalidOperationException("Native ledger lock absent");
   }
@@ -43,6 +44,7 @@ namespace Enclave.OwnedRpc {
    // component preparation. Restart sees this exact record or a torn pending.
    Files.Publish(Path.Combine(Root,"attempt.json"),Encode(value));return value;
   }
+#endif
   internal Dictionary<string,object> Original(string expectedHash){
    Hex(expectedHash,64);int count=0;
    foreach(string path in Directory.EnumerateFileSystemEntries(Root)){
@@ -57,12 +59,14 @@ namespace Enclave.OwnedRpc {
    long origin=Int64.Parse(Text(a["originMs"]),NumberStyles.None,CultureInfo.InvariantCulture),deadline=Int64.Parse(Text(a["deadlineMs"]),NumberStyles.None,CultureInfo.InvariantCulture),now=BoundedWorker.MonotonicMilliseconds();
    if(origin<0||origin>9007199254740991L-900000||deadline!=origin+900000||now<origin||now>=deadline)throw new InvalidOperationException("Original manager deadline expired; reservation remains held");return a;
   }
+#if !NATIVE_RPC_BOOTSTRAP_CONTROLLER
   internal void ConsumeLaunch(string originalHash,Dictionary<string,object> launch){
    var a=Original(originalHash);var clock=Obj(launch["originalClock"]);var memory=Obj(launch["memory"]);var cpu=Obj(launch["cpu"]);
    if(Text(launch["managerEpoch"])!=Text(a["managerEpoch"])||Text(launch["id"])!=Text(a["instance"])||Text(launch["instanceId"])!=Text(a["instance"])||Text(launch["name"])!=Text(a["deployment"])||Text(clock["originMs"])!=Text(a["originMs"])||Text(clock["deadlineMs"])!=Text(a["deadlineMs"])||Convert.ToInt64(launch["physicalMemoryMiB"])!=20480||Convert.ToInt64(memory["appMiB"])!=19456||Convert.ToInt64(cpu["grantedUnits"])!=400000||Convert.ToInt64(cpu["vcpus"])!=4||Convert.ToInt64(cpu["appCpuPercent"])!=400)throw new InvalidOperationException("Native launch changed original identity/reservation");
    if(File.Exists(Path.Combine(Root,"hold.json")))throw new InvalidOperationException("Original native attempt stopped/held");
    byte[] data=Encode(launch);if(data.Length>65536)throw new InvalidOperationException("Native launch record bound");Files.Publish(Path.Combine(Root,"launch.json"),data);
   }
+#endif
   public void Dispose(){Files.Dispose();}
  }
  public static partial class NativeRpcControllerEntry {
