@@ -1,0 +1,56 @@
+{
+  "atUtc": "2026-11-01T00:24:28.6464145Z",
+  "exactDeaths": [
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379662517575293",
+      "pid": "52988",
+      "absent": true,
+      "role": "owner"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379662517575270",
+      "pid": "52208",
+      "absent": true,
+      "role": "observer"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379662519514185",
+      "pid": "50408",
+      "absent": true,
+      "role": "child"
+    }
+  ],
+  "priorStageDeaths": [
+    {
+      "label": "admission",
+      "expectedCreation": "134379661988196156",
+      "pid": 42904,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "create",
+      "expectedCreation": "134379662213748401",
+      "pid": 40276,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "verify",
+      "expectedCreation": "134379662371169405",
+      "pid": 24080,
+      "sameIncarnationAlive": false,
+      "absent": true
+    }
+  ],
+  "original8091Alive": true,
+  "reservationMayRelease": false,
+  "rawReadSha256": "0dc4e39199823a344ddc19dac4866603bc5418b729e0c4fa5b6228877d275df2",
+  "originalVMsUnchanged": true,
+  "oldPlanUnchanged": true,
+  "noExactTasksOrProcesses": true,
+  "rpcReady": false
+}

@@ -1,0 +1,20 @@
+{
+  "id": 13063980064,
+  "node_id": "MDg6QXJ0aWZhY3QxMzA2Mzk4MDA2NA==",
+  "name": "rpc-owned-definition-results",
+  "size_in_bytes": 196355,
+  "url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13063980064",
+  "archive_download_url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13063980064/zip",
+  "expired": false,
+  "digest": "sha256:a32481d73255857b8cc990f33f5a0f63b0f5527bf2bcc5d483051702b7844f9e",
+  "created_at": "2026-11-01T00:21:14Z",
+  "updated_at": "2026-11-01T00:21:14Z",
+  "expires_at": "2026-11-08T00:21:13Z",
+  "workflow_run": {
+    "id": 41256336155,
+    "repository_id": 1428203917,
+    "head_repository_id": 1428203917,
+    "head_branch": "main",
+    "head_sha": "46298d7f8a83cbb039773b7eadb4cddaabac89ea"
+  }
+}

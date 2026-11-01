@@ -1,0 +1,1 @@
+Invocationcd5bd4f4953d4f76aea5773ffb326f67 terminal1/Main0 at git diff --cached --check BEFORE commit. Hosted Windows artifact CRLF reported trailing whitespace. Only public exported textual evidence normalized; exact raw receipt hashes recorded and original download bytes retained. No hook bypass or native/CI/helper replay.

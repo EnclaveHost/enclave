@@ -1,0 +1,188 @@
+[
+  {
+    "path": "startup-download/target-compile.err",
+    "rawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "exportSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "startup-download/startup-compile.err",
+    "rawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "exportSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "startup-download/inert.err",
+    "rawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "exportSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "startup-download/startup-compile.out",
+    "rawSha256": "b93f53b25e654b42795791c58cac9da9b95b82fd353b49859d16eee02f2fc063",
+    "exportSha256": "4f5fdd123861cabe644dda4b948557af7e383e61d16c98d8bfa89a4cd334b8dd",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "startup-download/publication.json",
+    "rawSha256": "08cfc43febc6243a412dddce43fb99a09d9bfc3897274d5b02edd6e2e7b4799c",
+    "exportSha256": "98540de6138a03e573cbe50be03c7c8edc28a2c6a8b276700701be840808a154",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "startup-download/process-results.json",
+    "rawSha256": "445b87da39a30404d577a4ee12f959d125c49536525946513ff4df459e9622d0",
+    "exportSha256": "c5f812620238e2824ab77afd59343a78cd64e8f27bdea5ff2b23f182b279a721",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "startup-download/controller-compile.err",
+    "rawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "exportSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "startup-download/target-artifact.json",
+    "rawSha256": "44554dd6753d2b688d123a3444fbcdc03a89307af177a4174a212345159787a8",
+    "exportSha256": "cc567facdfdf1e42675163f1a1ac6390ca95769cb86d1031d3555940654151ad",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "startup-download/pins.json",
+    "rawSha256": "8a14524c036ea2fbdcffbd0e6a2309ada26113003e908d2a2904f69aa1e87486",
+    "exportSha256": "976835a012c0ffd0ac068f3b0027e829ddd828157c3017a3d2226123e54ad422",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "startup-download/entry-compile.out",
+    "rawSha256": "b93f53b25e654b42795791c58cac9da9b95b82fd353b49859d16eee02f2fc063",
+    "exportSha256": "4f5fdd123861cabe644dda4b948557af7e383e61d16c98d8bfa89a4cd334b8dd",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "startup-download/entry-artifact.json",
+    "rawSha256": "e05df35bdea3bbc0215b96ed1fed81473831b29505cb9a81ed51819399faafe9",
+    "exportSha256": "de8df280518b17e5d8bb97b824927bc5c80dff0af146c065a3b13cae47dcaafb",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "startup-download/startup-artifact.json",
+    "rawSha256": "2c7fbd546ad89baf535527a7947539193451806aa74d4242c48bd2866de0e58c",
+    "exportSha256": "c4afab17ce7def9e252f89aa45b8abc60ac650ef98a35b6a810e370f15696e8d",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "startup-download/inert.out",
+    "rawSha256": "2b654138e77e0c75274bde1850f29a44ad1642aef66e1746a28384e76ed1339e",
+    "exportSha256": "7455376d9b3b963d38ca2c249e831452a4bc4f7b58a6ee4e02c53ed9f8c03494",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "startup-download/controller-artifact.json",
+    "rawSha256": "eefeb7976a9ea4cd0c41fed3c58ca6ecc1348585297deb7443d19c0a854eac4b",
+    "exportSha256": "56dc3ea6c85100f670810bbcb3c5902ade47d9661c065fa86e62a99adeaae1d2",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "startup-download/entry-compile.err",
+    "rawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "exportSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "startup-download/controller-compile.out",
+    "rawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "exportSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "startup-download/target-compile.out",
+    "rawSha256": "b93f53b25e654b42795791c58cac9da9b95b82fd353b49859d16eee02f2fc063",
+    "exportSha256": "4f5fdd123861cabe644dda4b948557af7e383e61d16c98d8bfa89a4cd334b8dd",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "definition-download/target-compile.err",
+    "rawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "exportSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "definition-download/inert.err",
+    "rawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "exportSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "definition-download/publication.json",
+    "rawSha256": "b3aeaa6f37f17602354599bae0a71a3d33cad56f79b018a4abf0854a86afc556",
+    "exportSha256": "6d97dee2415b9686730dbaf9549bf6559f07b333adb5d228f1300200534ece3e",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "definition-download/process-results.json",
+    "rawSha256": "1e94d379ea55a9881f0bebf7913f0cd6b5aa86435e955859779bd53701df40d8",
+    "exportSha256": "5ab355192c879129673d90fb5f1062b4bbe968c99b1a2977737e60cfb02c0d0b",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "definition-download/controller-compile.err",
+    "rawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "exportSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "definition-download/target-artifact.json",
+    "rawSha256": "ebc6dcad9af87162783e46306bc4fbde77b17bd86620477958e715dbe903a8bd",
+    "exportSha256": "33ae527b7b3d1fa7ef802b4cead7e51e0b6448c7ac19079db5a177e66e0b9c56",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "definition-download/pins.json",
+    "rawSha256": "fd85dab504e481306a30f4d86bf27bebcd72931fbee958ed269138f858527b8c",
+    "exportSha256": "94ee47b0acff12e64570986581f0b3455df13c039000a12dc8b9b1339e499c32",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "definition-download/entry-compile.out",
+    "rawSha256": "0c8385cb74dbfe14cb8cc1ebd5925b1646c242f4bdfcec233952e2beba8c926b",
+    "exportSha256": "bff5146ea24db61f69a41df24964162d3c96d03deed6db175e0f01f8b5300d39",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "definition-download/entry-artifact.json",
+    "rawSha256": "b7c48082935e0143972b422276a80746b5b6b84087f87c33350989a8ce9620ca",
+    "exportSha256": "2daa331dab368e5da977ff5b0f193163f891a208e2cc948ba84c5ad8992b245c",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "definition-download/inert.out",
+    "rawSha256": "f514a102b0b12a6038f3170627f0399d4886515c96dd6052634ad2e8e21688f2",
+    "exportSha256": "6b4754c8ecdcac7afc756b474f9cf6d3a347359646407690613e44ec24f97dfd",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "definition-download/controller-artifact.json",
+    "rawSha256": "a08efc307c2749ba112e28f41dbef4d3a99b875fec88dfaa18e40a3fa845fb93",
+    "exportSha256": "92f71a1b8c089707c2bd6d34e1a3440fb1bafc992d5df39d6c4d29daabaeb1b4",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "definition-download/entry-compile.err",
+    "rawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "exportSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "definition-download/controller-compile.out",
+    "rawSha256": "0c8385cb74dbfe14cb8cc1ebd5925b1646c242f4bdfcec233952e2beba8c926b",
+    "exportSha256": "bff5146ea24db61f69a41df24964162d3c96d03deed6db175e0f01f8b5300d39",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  },
+  {
+    "path": "definition-download/target-compile.out",
+    "rawSha256": "0c8385cb74dbfe14cb8cc1ebd5925b1646c242f4bdfcec233952e2beba8c926b",
+    "exportSha256": "bff5146ea24db61f69a41df24964162d3c96d03deed6db175e0f01f8b5300d39",
+    "normalization": "UTF8-no-BOM LF and trailing whitespace only; raw retained locally"
+  }
+]

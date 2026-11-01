@@ -1,0 +1,151 @@
+{
+  "startup": {
+    "head": "46298d7f8a83cbb039773b7eadb4cddaabac89ea",
+    "tests": 68,
+    "compiledPins": 19,
+    "artifacts": {
+      "startup-controller.exe": {
+        "sha256": "bae6f1e999cb1140d24b66e1ba3ef0b23b1ab93570559ede3889e753ad0472c9",
+        "bytes": 257024,
+        "independentlyRecomputed": true
+      },
+      "cleanup-controller.exe": {
+        "sha256": "0f9c1d49ee3e754a85c578652b60fbd6f51a49fae14db951fe5394ebdf0a5335",
+        "bytes": 257024,
+        "independentlyRecomputed": true
+      },
+      "qualification-controller.exe": {
+        "independentlyRecomputed": false,
+        "publication": {
+          "name": "qualification-controller.exe",
+          "bytes": 307200,
+          "included": false
+        }
+      },
+      "owned-entry.exe": {
+        "sha256": "1b3cd99391b2ab6ee23f1ecdceb3a04d968a537a84c6c29cca5ef48812f8ca2a",
+        "bytes": 257024,
+        "independentlyRecomputed": true
+      }
+    },
+    "records": [
+      {
+        "label": "controller-compile",
+        "pid": 8196,
+        "exitCode": 0,
+        "elapsedMs": 2530,
+        "failure": null,
+        "processExited": true,
+        "maximumObservedWorkingSet": 39743488,
+        "outputBytes": 0
+      },
+      {
+        "label": "entry-compile",
+        "pid": 7540,
+        "exitCode": 0,
+        "elapsedMs": 265,
+        "failure": null,
+        "processExited": true,
+        "maximumObservedWorkingSet": 36851712,
+        "outputBytes": 199
+      },
+      {
+        "label": "target-compile",
+        "pid": 8976,
+        "exitCode": 0,
+        "elapsedMs": 271,
+        "failure": null,
+        "processExited": true,
+        "maximumObservedWorkingSet": 37990400,
+        "outputBytes": 199
+      },
+      {
+        "label": "startup-compile",
+        "pid": 8952,
+        "exitCode": 0,
+        "elapsedMs": 252,
+        "failure": null,
+        "processExited": true,
+        "maximumObservedWorkingSet": 36364288,
+        "outputBytes": 199
+      },
+      {
+        "label": "inert",
+        "pid": 8368,
+        "exitCode": 0,
+        "elapsedMs": 474,
+        "failure": null,
+        "processExited": true,
+        "maximumObservedWorkingSet": 35540992,
+        "outputBytes": 3037
+      }
+    ]
+  },
+  "definition": {
+    "head": "46298d7f8a83cbb039773b7eadb4cddaabac89ea",
+    "tests": 105,
+    "compiledPins": 17,
+    "artifacts": {
+      "definition-controller.exe": {
+        "sha256": "6becd8b12eb60f9e186804df855bf5fe4440a460178641a7cb47a286e632dba3",
+        "bytes": 256512,
+        "independentlyRecomputed": true
+      },
+      "qualification-controller.exe": {
+        "independentlyRecomputed": false,
+        "publication": {
+          "name": "qualification-controller.exe",
+          "bytes": 317440,
+          "included": false
+        }
+      },
+      "owned-entry.exe": {
+        "sha256": "6edb279c6843eb64e24268bc7b33e9fea86d67895db5f8e88f57a273654a5724",
+        "bytes": 256512,
+        "independentlyRecomputed": true
+      }
+    },
+    "records": [
+      {
+        "label": "controller-compile",
+        "pid": 10128,
+        "exitCode": 0,
+        "elapsedMs": 2237,
+        "failure": null,
+        "processExited": true,
+        "maximumObservedWorkingSet": 39075840,
+        "outputBytes": 196
+      },
+      {
+        "label": "entry-compile",
+        "pid": 9976,
+        "exitCode": 0,
+        "elapsedMs": 275,
+        "failure": null,
+        "processExited": true,
+        "maximumObservedWorkingSet": 38199296,
+        "outputBytes": 196
+      },
+      {
+        "label": "target-compile",
+        "pid": 6352,
+        "exitCode": 0,
+        "elapsedMs": 272,
+        "failure": null,
+        "processExited": true,
+        "maximumObservedWorkingSet": 37416960,
+        "outputBytes": 196
+      },
+      {
+        "label": "inert",
+        "pid": 5080,
+        "exitCode": 0,
+        "elapsedMs": 2182,
+        "failure": null,
+        "processExited": true,
+        "maximumObservedWorkingSet": 39387136,
+        "outputBytes": 4965
+      }
+    ]
+  }
+}

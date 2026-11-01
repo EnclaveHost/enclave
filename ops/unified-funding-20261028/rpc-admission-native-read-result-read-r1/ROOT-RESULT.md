@@ -1,0 +1,1 @@
+Exact native role and prior reader/stager death observed through held identities. Original8091 and original four VMs unchanged. Public sanitized fields/hash in PUBLIC-RESULT.json; raw roots/journals remain private. No provider/reservation-release claim.
