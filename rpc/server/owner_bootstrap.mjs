@@ -7,12 +7,15 @@ import {sha256} from '../../isolation/contract/rpc-bootstrap.mjs';
 import {createOwnerBootstrap} from './owner_bootstrap_session.mjs';
 import {listenOwnerBootstrap,receivePreparedRequest,writeFrame} from './owner_bootstrap_transport.mjs';
 import {validateEnrollment,publishHostOffer} from './owner_bootstrap_enrollment.mjs';
+import {forwardOwnerStream} from './owner_bootstrap_forward.mjs';
 
 async function run(){
  if(process.argv.length!==2)throw Error('No bootstrap arguments accepted');
  const size=fs.fstatSync(3).size;
  if(size<=0||size>8<<20)throw Error('Bootstrap configuration bound');
  const config=JSON.parse(fs.readFileSync(3,'utf8'));
+ const version=config.ownerProtocol??1;
+ if(![1,2].includes(version))throw Error('Explicit sealed owner protocol required');
  const enrollment=config.enrollment?validateEnrollment(config):null;
  const key=fs.readFileSync(4),cert=fs.readFileSync(5),seeds=[fs.readFileSync(6),fs.readFileSync(7)];
  fs.closeSync(6);fs.closeSync(7);
@@ -20,13 +23,14 @@ async function run(){
  const session=createOwnerBootstrap(config);
  let transport;
  try{
-  transport=await listenOwnerBootstrap(session,{...config.listen,key,cert,ownerOffer:{seeds,publicKeys:config.ownerPublicKeys,runtime:config.runtime,manifestSha256:sha256(Buffer.from(JSON.parse(config.prepared).manifest,'base64')).toString('hex'),serverName:config.listen.serverName}});key.fill(0);
+  transport=await listenOwnerBootstrap(session,{...config.listen,key,cert,ownerOffer:{schema:`enclave-rpc-owner-offer/${version}`,seeds,publicKeys:config.ownerPublicKeys,runtime:config.runtime,manifestSha256:sha256(Buffer.from(JSON.parse(config.prepared).manifest,'base64')).toString('hex'),serverName:config.listen.serverName}});key.fill(0);
   if(enrollment)publishHostOffer(session,{proof:transport.proof,certificate:cert,delivery:config.delivery,enrollment});
   const connection=await transport.accepted;
   await receivePreparedRequest(session,connection,Buffer.from(config.prepared));
   const helper=fileURLToPath(new URL('./owner_bootstrap_submit.py',import.meta.url));
   // Child gets the same sealed public config, never the private TLS key FD.
-  const child=spawn('/usr/bin/python3',['-B',helper],{stdio:['ignore','pipe','pipe',3]});
+  const child=spawn('/usr/bin/python3',['-B',helper],{stdio:[version===2?'pipe':'ignore','pipe','pipe',3]});
+  if(version===2)return await forwardOwnerStream(session,connection,child);
   const output=[];let bytes=0,errors=0;
   const raw=await new Promise((resolve,reject)=>{
    let bad=false;

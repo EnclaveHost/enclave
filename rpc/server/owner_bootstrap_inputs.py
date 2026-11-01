@@ -52,7 +52,7 @@ def prepare(c, config, original, prepared, contract, policy, contract_sha):
     bootstrap_policy = c.protocol.decode(c.read_pinned(config['bootstrapPolicy']))
     if bootstrap_policy.get('schema') != 'enclave-rpc-bootstrap-policy/1':
         raise ValueError('Explicit original owner attestation policy required')
-    if policy.get('schema') != 'enclave-rpc-storage-owner/1':
+    if policy.get('schema') != 'enclave-rpc-storage-owner/'+('2' if config.get('schema')=='enclave-rpc-owner-bootstrap-entry/5' else '1'):
         raise ValueError('Original owner service policy required')
     for role in ('l1','base'):
         if policy[role+'Volume'] != prepared['request'][role+'Volume']:

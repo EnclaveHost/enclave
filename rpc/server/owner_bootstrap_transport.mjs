@@ -8,14 +8,23 @@ import {persist,canonicalWire} from './owner_bootstrap_session.mjs';
 import {signOwnerOffer} from './owner_bootstrap_offer.mjs';
 import {sha256} from '../../isolation/contract/rpc-bootstrap.mjs';
 
-export function reader(socket,maximum=12<<20){
- let data=Buffer.alloc(0),failure=null,ended=false,wake;
- socket.on('data',chunk=>{if(data.length+chunk.length>maximum+4){failure=Error('owner input bound');socket.destroy();}else data=Buffer.concat([data,chunk]);wake?.();});
+export function reader(socket,maximum=12<<20,strict=false){
+ let data=Buffer.alloc(0),failure=null,ended=false,wake,pending=false;
+ socket.on('data',chunk=>{
+  if((strict&&!pending)||data.length+chunk.length>maximum+4){failure=Error('owner unsolicited input or bound');socket.destroy();}
+  else{
+   data=Buffer.concat([data,chunk]);
+   if(strict&&data.length>=4&&data.length>4+data.readUInt32BE()){failure=Error('extra owner response');socket.destroy();}
+  }
+  wake?.();
+ });
  socket.on('error',e=>{failure=e;wake?.();});socket.on('end',()=>{ended=true;wake?.();});socket.on('close',()=>{ended=true;wake?.();});
  return async limit=>{
+  if(strict&&pending)throw Error('concurrent owner reader');
+  pending=true;
   for(;;){
    if(failure)throw failure;
-   if(data.length>=4){const n=data.readUInt32BE();if(n===0||n>limit)throw Error('owner frame bound');if(data.length>=n+4){const raw=Buffer.from(data.subarray(4,4+n));data=data.subarray(4+n);return raw;}}
+   if(data.length>=4){const n=data.readUInt32BE();if(n===0||n>limit)throw Error('owner frame bound');if(data.length>=n+4){const raw=Buffer.from(data.subarray(4,4+n));data=data.subarray(4+n);pending=false;return raw;}}
    if(ended)throw Error('owner frame incomplete');
    await new Promise(resolve=>{wake=resolve;});wake=null;
   }

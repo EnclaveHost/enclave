@@ -113,6 +113,14 @@ class Exchange(unittest.TestCase):
         with patch.object(m.subprocess,'run',return_value=SimpleNamespace(returncode=0)) as run:m.submit(binding,self.original)
         args=run.call_args.args[0]
         self.assertEqual(args[:3],['/usr/bin/systemd-run','--user','--quiet']);self.assertIn('--property=RuntimeMaxSec=120',args);self.assertIn('--property=MemoryMax=256M',args);self.assertIn('--property=Restart=no',args);self.assertNotIn('--wait',args);self.assertEqual(args[-1],binding['path']);self.assertEqual(run.call_count,1)
+    def test_stream_submission_has_distinct_unit_and_original_deadline(self):
+        binding={'path':str(self.parent/'original-entry'),'sha256':'f'*64}
+        with patch.object(m.subprocess,'run',return_value=SimpleNamespace(returncode=0)) as run:m.submit(binding,self.original,True)
+        args=run.call_args.args[0];self.assertIn('--unit=enclave-rpc-owner-bootstrap-stream-'+self.original['attempt']+'.service',args)
+        runtime=int(next(x.split('=')[-1] for x in args if x.startswith('--property=RuntimeMaxSec=')))
+        self.assertLessEqual(time.monotonic_ns()+(runtime+1)*1000000000,self.original['deadlineMonotonicNs'])
+        self.assertIn('--property=MemoryMax=256M',args);self.assertEqual(run.call_count,1)
+
     def test_duplicate_native_fields_are_refused(self):
         with self.assertRaisesRegex(ValueError,'Duplicate'):m.decode(b'{"a":1,"a":2}')
         with self.assertRaisesRegex(ValueError,'Finite'):m.decode(b'{"a":NaN}')

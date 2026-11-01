@@ -21,18 +21,20 @@ e=importlib.util.module_from_spec(spec);spec.loader.exec_module(e)
 c=e.clock_module()
 
 
-def envelope(original):
-    unit='enclave-rpc-owner-bootstrap-'+original['attempt']+'.service'
+def envelope(original,continuous=False):
+    unit='enclave-rpc-owner-bootstrap-'+('stream-' if continuous else '')+original['attempt']+'.service'
     row=e.show(unit)
     expected={'Id':unit,'MainPID':str(os.getpid()),'InvocationID':os.environ.get('INVOCATION_ID',''),
         'Type':'exec','RuntimeMaxUSec':'2min','TimeoutStopUSec':'1s','MemoryMax':str(256<<20),
         'MemorySwapMax':'0','CPUQuotaPerSecUSec':'1s','TasksMax':'32','KillMode':'control-group',
         'Restart':'no','SendSIGKILL':'yes','FinalKillSignal':'9','NoNewPrivileges':'yes','LimitCORE':'0'}
+    if continuous:
+        e.stream_envelope(row,original);expected['RuntimeMaxUSec']=row['RuntimeMaxUSec']
     if (not re.fullmatch('[0-9a-f]{32}',expected['InvocationID']) or any(row[k]!=v for k,v in expected.items())
             or Path('/proc/self/cgroup').read_text().strip()!='0::'+row['ControlGroup']):
         raise ValueError('Independent owner bootstrap envelope differs')
     start=int(row['ExecMainStartTimestampMonotonic'])*1000
-    if not 0<=time.monotonic_ns()-start<5_000_000_000 or start+122_000_000_000>=original['deadlineMonotonicNs']:
+    if not continuous and (not 0<=time.monotonic_ns()-start<5_000_000_000 or start+122_000_000_000>=original['deadlineMonotonicNs']):
         raise ValueError('Owner bootstrap cutoff must fit original window')
     return row
 
@@ -67,24 +69,26 @@ def sealed(value):
 def main(path):
     os.umask(0o077)
     config=c.protocol.decode(c.read(path))
-    preparing=config.get('schema')=='enclave-rpc-owner-bootstrap-entry/3'
-    enrolled=preparing or config.get('schema')=='enclave-rpc-owner-bootstrap-entry/2'
+    continuous=config.get('schema') in ('enclave-rpc-owner-bootstrap-entry/4','enclave-rpc-owner-bootstrap-entry/5')
+    preparing=config.get('schema') in ('enclave-rpc-owner-bootstrap-entry/3','enclave-rpc-owner-bootstrap-entry/4')
+    enrolled=preparing or config.get('schema') in ('enclave-rpc-owner-bootstrap-entry/2','enclave-rpc-owner-bootstrap-entry/5')
     fields={'schema','clock','listen','pins'}|({'enrollment','bootstrapPolicy'} if enrolled else {'session'})|({'preparation'} if preparing else {'relay'})
-    if set(config)!=fields or config['schema'] not in ('enclave-rpc-owner-bootstrap-entry/1','enclave-rpc-owner-bootstrap-entry/2','enclave-rpc-owner-bootstrap-entry/3'):
+    if set(config)!=fields or config['schema'] not in ('enclave-rpc-owner-bootstrap-entry/1','enclave-rpc-owner-bootstrap-entry/2','enclave-rpc-owner-bootstrap-entry/3','enclave-rpc-owner-bootstrap-entry/4','enclave-rpc-owner-bootstrap-entry/5'):
         raise ValueError('Exact owner bootstrap configuration required')
-    original=c.validate(config['clock']);unit=envelope(original);verify_pins(config['pins'])
+    original=c.validate(config['clock']);unit=envelope(original,continuous);verify_pins(config['pins'])
     if Path('/proc/self/timens_offsets').exists() and any(line.split()[1:]!=['0','0'] for line in Path('/proc/self/timens_offsets').read_text().splitlines()):
         raise ValueError('Unshifted owner monotonic clock required')
     if preparing:
         spec=importlib.util.spec_from_file_location('rpc_prepare_enrollment',HERE/'prepare_owner_enrollment.py')
         preparation=importlib.util.module_from_spec(spec);spec.loader.exec_module(preparation)
-        config=preparation.prepare(SimpleNamespace(c=c,e=e,HERE=HERE,envelope=envelope,
+        config=preparation.prepare(SimpleNamespace(c=c,e=e,HERE=HERE,envelope=lambda value:envelope(value,continuous),
             verify_pins=verify_pins,load_owner_state=load_owner_state),config,original)
     # Bind session preparation to the same request/attempt as the real issuer.
     relay_raw=c.read_pinned(config['relay']);relay=c.protocol.decode(relay_raw)
-    if set(relay)!={'schema','dispatcher'} or relay['schema']!='enclave-rpc-owner-relay/1':raise ValueError('Prepared relay required')
+    if set(relay)!={'schema','dispatcher'} or relay['schema']!='enclave-rpc-owner-relay/'+('2' if continuous else '1'):raise ValueError('Prepared relay required')
     dispatcher_raw=c.read_pinned(relay['dispatcher']);dispatcher=c.protocol.decode(dispatcher_raw)
     signer=c.protocol.decode(c.read_pinned(dispatcher['entry']))
+    if continuous and (dispatcher.get('schema')!='enclave-rpc-owner-dispatch/2' or signer.get('schema')!='enclave-rpc-owner-entry/2'):raise ValueError('Matching original stream dispatcher/signer required')
     if signer['clock']!=config['clock'] or signer['attempt']!=original['attempt']:raise ValueError('Original signer differs')
     request_fd=e.held(dispatcher['request']['path'],4<<20,wanted=dispatcher['request']['sha256'])
     try:prepared=os.read(request_fd,(4<<20)+1)
@@ -117,6 +121,7 @@ def main(path):
     if set(listen)!={'host','port','serverName','key','cert'}:raise ValueError('Explicit pinned TLS listener required')
     owner=load_owner_state()
     policy=c.protocol.decode(c.read_pinned(signer['policy']))
+    if continuous and policy.get('schema')!='enclave-rpc-storage-owner/2':raise ValueError('Explicit continuous owner policy required')
     enrollment_fields={}
     if enrolled:
         spec=importlib.util.spec_from_file_location('rpc_bootstrap_inputs',HERE/'owner_bootstrap_inputs.py')
@@ -133,9 +138,9 @@ def main(path):
     # Key bytes remain a local readonly FD; never JSON, command args or stdout.
     normalized={**session,**enrollment_fields,'parent':str(parent),'original':{**{k:original[k] for k in ('attempt','originMonotonicNs','deadlineMonotonicNs')},'boot':original['bootId']},
         'listen':{'host':listen['host'],'port':listen['port'],'serverName':listen['serverName']},'ownerPublicKeys':[descriptor['keys'][role]['publicKey'] for role in ('l1','base')],'relay':config['relay'],'clock':config['clock'],
-        'prepared':prepared.decode(),'pins':config['pins']}
+        'prepared':prepared.decode(),'pins':config['pins'],'ownerProtocol':2 if continuous else 1}
     if any(abs(normalized['original'][k])>2**53-1 for k in ('originMonotonicNs','deadlineMonotonicNs')):raise ValueError('Exact JS clock representation required')
-    c.validate(config['clock']);envelope(original);verify_pins(config['pins'])
+    c.validate(config['clock']);envelope(original,continuous);verify_pins(config['pins'])
     c.write_new(parent/'bootstrap-entry.intent',c.encode({'unit':unit,'clock':config['clock'],'relay':config['relay'],'resource':resource,'rpcReady':False}))
     cfg=sealed(normalized)
     # Move all sources above target FDs before remapping to avoid collisions.

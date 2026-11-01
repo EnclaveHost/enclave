@@ -76,9 +76,10 @@ def admission(owner):
     return resource,template
 
 
-def submit(owner_binding,original):
-    unit='enclave-rpc-owner-bootstrap-'+original['attempt']+'.service'
-    props=['Type=exec','RuntimeMaxSec=120','TimeoutStopSec=1','MemoryMax=256M','MemorySwapMax=0','CPUQuota=100%',
+def submit(owner_binding,original,continuous=False):
+    unit='enclave-rpc-owner-bootstrap-'+('stream-' if continuous else '')+original['attempt']+'.service'
+    runtime=b.e.stream_runtime(original) if continuous else 120
+    props=['Type=exec','RuntimeMaxSec='+str(runtime),'TimeoutStopSec=1','MemoryMax=256M','MemorySwapMax=0','CPUQuota=100%',
         'TasksMax=32','KillMode=control-group','Restart=no','SendSIGKILL=yes','FinalKillSignal=SIGKILL',
         'NoNewPrivileges=yes','LimitCORE=0','UMask=0077','StandardInput=null','StandardOutput=journal','StandardError=journal']
     args=['/usr/bin/systemd-run','--user','--quiet','--unit='+unit,*['--property='+p for p in props],
@@ -105,7 +106,7 @@ def read_offer(parent,enrollment,owner_config):
             intent['clock']!=owner_config['clock'] or intent['relay']!=prepared['relay']):
         raise ValueError('Original owner entry lineage differs')
     identity=intent['unit'];actual=b.e.show(identity['Id'])
-    if (identity['Id']!='enclave-rpc-owner-bootstrap-'+parent.name+'.service' or
+    if (identity['Id']!='enclave-rpc-owner-bootstrap-'+('stream-' if owner_config['schema']=='enclave-rpc-owner-bootstrap-entry/4' else '')+parent.name+'.service' or
             any(actual[k]!=identity[k] for k in ('Id','MainPID','InvocationID','ControlGroup')) or
             not identity['InvocationID'] or int(identity['MainPID'])<=0):
         raise ValueError('Original owner service identity differs')
@@ -138,11 +139,12 @@ def write_frame(fd,raw,until):
 
 
 def run(config,input_fd=0,output_fd=1):
-    if set(config)!={'schema','native','owner'} or config['schema']!='enclave-rpc-owner-exchange/1':raise ValueError('Exact operator exchange configuration required')
+    if set(config)!={'schema','native','owner'} or config['schema'] not in ('enclave-rpc-owner-exchange/1','enclave-rpc-owner-exchange/2'):raise ValueError('Exact operator exchange configuration required')
+    continuous=config['schema']=='enclave-rpc-owner-exchange/2'
     native=config['native'];owner=config['owner']
     if set(native)!={'original','plan'}:raise ValueError('Original native manager/plan required')
     for digest in native.values():c.protocol.digest(digest)
-    if set(owner)!={'schema','clock','listen','pins','bootstrapPolicy','preparation'} or owner['schema']!='enclave-rpc-owner-bootstrap-entry/3':raise ValueError('Original v3 owner template required')
+    if set(owner)!={'schema','clock','listen','pins','bootstrapPolicy','preparation'} or owner['schema']!='enclave-rpc-owner-bootstrap-entry/'+('4' if continuous else '3'):raise ValueError('Original v3 owner template required')
     original=c.validate(owner['clock']);unit=envelope(original);b.verify_pins(owner['pins'])
     start=int(unit['ExecMainStartTimestampMonotonic'])/1e6;until=min(start+19,original['deadlineMonotonicNs']/1e9)
     resource,template=admission(owner)
@@ -177,7 +179,8 @@ def run(config,input_fd=0,output_fd=1):
     c.validate(owner['clock']);b.verify_pins(owner['pins'])
     if time.monotonic()>=until-3 or c.remaining(owner['clock'])<125:raise ValueError('Original owner submission time exhausted')
     c.write_new(root/'submit.intent',c.encode({'clock':owner['clock'],'owner':binding,'native':native,'nativeEnrollmentSha256':frame['enrollmentSha256'],'enrollment':enrollment,'rpcReady':False}))
-    submit(binding,original)
+    if continuous:submit(binding,original,True)
+    else:submit(binding,original)
     while time.monotonic()<until:
         c.validate(owner['clock']);offer=read_offer(parent,enrollment,owner)
         if offer is not None:break

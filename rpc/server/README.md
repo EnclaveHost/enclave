@@ -591,14 +591,53 @@ closes on idle EOF or the first unsolicited byte. No reconnect or repeated start
 request is permitted. Source-level TLS/crypto tests do not prove production
 attestation or a serving RPC.
 
-The maintained relay, dispatcher and signer entry now accept an explicit matching
-`/2` configuration. This lower operator path retains the same live issuer through
-initial export submission and later startup permits. The actual outer
-`owner_bootstrap.mjs`, Python bootstrap/submit helpers, enrollment preparation and
-exchange still select `/1`. They do not yet forward continuous frames or admit
-continuous bootstrap/dispatcher units. No prepared policy, protected namespace,
-media or production service was changed. The complete startup-to-serving handoff
-across all guardians remains incomplete.
+The maintained operator can now explicitly select the complete `/2` startup
+transport. The original `/1` remains the finite path. Source tests have exercised
+its configuration, local pipes and TLS components; no production configuration,
+private namespace, service or media has been switched to `/2`. The complete
+startup-to-serving handoff across all guardians remains incomplete.
+
+### Continuous operator configuration (not activated)
+
+Use `enclave-rpc-operator-bootstrap/2` with a pinned
+`enclave-rpc-owner-exchange/2`. Its owner template must be
+`enclave-rpc-owner-bootstrap-entry/4` with the same fields as preparation entry3,
+and an explicitly owner-selected `enclave-rpc-storage-owner/2` policy. Preparation
+emits entry5 plus matching relay2/dispatcher2/signer-entry2; it preserves the exact
+original clock, owner provision, volume identities, request and export contract.
+An owner1 policy cannot silently become owner2. Entry5 uses the same fields as
+prepared entry2. The sealed Node configuration carries `ownerProtocol: 2`, which
+selects signed offer2 and acknowledgement2. Remote enrollment cannot select this
+mode or substitute the local authority.
+
+The finite40s operator and20s enrollment exchange keep their existing bounds and
+exit after offer delivery. The independently owned endpoint uses the distinct
+`enclave-rpc-owner-bootstrap-stream-ATTEMPT.service` (256MiB, CPU1, no swap,
+TasksMax32, stop1, no restart). The actual entry verifies its process/cgroup and
+start+runtime+stop before originalD; it never modifies an existing unit. Whole
+bootstrap/exchange/operator allowances remain1408/1600/1792MiB with actual pending
+commitments and retained27GiB or higher floor. The new endpoint is still bounded
+by the original startup deadline, not a permanent serving service.
+
+`owner_bootstrap.mjs` now calls `owner_bootstrap_forward.mjs` after real client
+TLS/evidence acceptance and exact prepared-request consumption. A single fixed
+Python child inherits only the sealed public configuration. It submits one
+independently bounded stream dispatcher, forwards the original initial request,
+checks its durable response, and keeps the same pipes open. The exact proof bytes
+remain base64 throughout. Node forwards bounded next requests from the same TLS
+socket, with consumed records at each hop; Python forwards them to the retained
+original dispatcher. No reconnect, fallback, fresh signer or second initial
+submission is available. At most90 startup frames bound records and transport.
+
+A single-pending child reader rejects idle unsolicited bytes and extra replies.
+TLS loss, child loss, stderr overflow, transaction timeouts or originalD tear down
+local transport. Independent services retain their own expiry controls; local
+child termination never proves remote death or permits reservation release.
+Actual TLS tests cover normal exchange, child death, one unsolicited byte and a
+blocked response terminated at originalD. Python tests cover sealed selection,
+protected enrollment preparation and real retained subprocess pipes. Native
+systemd, chain authority and signer/exporter behavior are fixture substitutions
+in these component tests, not production qualification.
 
 ### Original live signer dispatch (source only)
 

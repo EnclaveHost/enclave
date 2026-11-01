@@ -13,6 +13,10 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import uuid
+import struct
+import threading
+import select
+import time
 
 S=Path(__file__).resolve().parents[2]
 def load(name):
@@ -135,6 +139,60 @@ else: sys.exit(7)
             with self.assertRaisesRegex(ValueError,'admission refused'):b.main(path)
             execute.assert_not_called()
         self.assertFalse((self.parent/'bootstrap-entry.intent').exists())
+    def test_sealed_stream_selection_submits_distinct_dispatcher_once(self):
+        self.cfg['ownerProtocol']=2
+        self.cfg['relay']=c.write_new(self.root/'stream-relay',c.encode({'schema':'enclave-rpc-owner-relay/2','dispatcher':{'path':'unused','sha256':'f'*64}}))
+        cfg=b.sealed(self.cfg);self.addCleanup(os.close,cfg)
+        actual_fstat=os.fstat;actual_pread=os.pread;actual_fcntl=q.fcntl.fcntl
+        with patch.object(q.os,'fstat',side_effect=lambda fd:actual_fstat(cfg if fd==3 else fd)),patch.object(q.os,'pread',side_effect=lambda fd,n,o:actual_pread(cfg if fd==3 else fd,n,o)),patch.object(q.fcntl,'fcntl',side_effect=lambda fd,op,*a:actual_fcntl(cfg if fd==3 else fd,op,*a)),patch.object(q.b,'verify_pins'),patch.object(q,'forward_stream') as forward:
+            q.run();self.assertEqual(forward.call_count,1)
+            args=forward.call_args.args[3];self.assertIn('--unit=enclave-rpc-owner-dispatch-stream-'+self.attempt+'.service',args)
+            self.assertIn('--property=MemoryMax=256M',args);self.assertNotIn('--property=RuntimeMaxSec=60',args)
+            self.assertTrue((self.parent/'bootstrap/relay-submit.intent').exists())
+            with self.assertRaises(FileExistsError):q.run()
+            self.assertEqual(forward.call_count,1)
+
+    def test_actual_stream_forwarder_retains_dispatcher_and_exact_proof_bytes(self):
+        response=c.encode(dict(self.reply,schema='enclave-rpc-owner-dispatched/2',proof='aW5lcnQ='))
+        script="""import sys,struct,os
+n=struct.unpack('!I',sys.stdin.buffer.read(4))[0];sys.stdin.buffer.read(n)
+raw=bytes.fromhex(sys.argv[1]);p=sys.argv[2]
+with open(p,'xb') as f:f.write(raw);f.flush();os.fsync(f.fileno())
+os.chmod(p,0o600)
+def send(x):sys.stdout.buffer.write(struct.pack('!I',len(x))+x);sys.stdout.buffer.flush()
+send(raw)
+while True:
+ h=sys.stdin.buffer.read(4)
+ if not h:break
+ n=struct.unpack('!I',h)[0];send(sys.stdin.buffer.read(n))
+"""
+        args=['/usr/bin/python3','-B','-c',script,response.hex(),str(self.parent/'relay/response.json')]
+        src,writer=os.pipe();reader,sink=os.pipe();received=[];errors=[]
+        def peer():
+            def exact(n):
+                data=b'';until=time.monotonic()+3
+                while len(data)<n:
+                    if time.monotonic()>=until:raise TimeoutError('fixture response')
+                    if not select.select([reader],[],[],.05)[0]:continue
+                    x=os.read(reader,n-len(data))
+                    if not x:raise EOFError()
+                    data+=x
+                return data
+            def frame():return exact(struct.unpack('!I',exact(4))[0])
+            try:
+                received.append(frame())
+                for raw in (b'{"sequence":1}',b'{"sequence":2}'):
+                    os.write(writer,struct.pack('!I',len(raw))+raw);self.assertEqual(frame(),raw)
+            except BaseException as e:errors.append(e)
+            finally:os.close(writer);os.close(reader)
+        thread=threading.Thread(target=peer);thread.start()
+        try:
+            with self.assertRaisesRegex(ValueError,'EOF'):q.forward_stream(self.cfg,self.original,self.parent,args,self.raw,src,sink)
+        finally:os.close(src);os.close(sink);thread.join(4)
+        self.assertFalse(thread.is_alive());self.assertFalse(errors,errors);self.assertEqual(received,[response])
+        self.assertEqual(c.read(self.parent/'bootstrap/response.json'),response)
+        self.assertTrue((self.parent/'bootstrap/continuation-0000000000000002-response').exists())
+
     def test_sealed_config_cannot_change(self):
         fd=b.sealed(self.cfg);self.addCleanup(os.close,fd)
         with self.assertRaises(PermissionError):os.write(fd,b'x')

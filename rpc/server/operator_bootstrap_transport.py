@@ -143,9 +143,9 @@ def bridge(native_args,exchange_args,pass_fds,expected,root,clock,until):
 
 
 def run(config):
-    if set(config)!={'schema','exchange','native'} or config['schema']!='enclave-rpc-operator-bootstrap/1':raise ValueError('Exact original operator configuration required')
+    if set(config)!={'schema','exchange','native'} or config['schema'] not in ('enclave-rpc-operator-bootstrap/1','enclave-rpc-operator-bootstrap/2'):raise ValueError('Exact original operator configuration required')
     exchange=c.protocol.decode(c.read_pinned(config['exchange']))
-    if set(exchange)!={'schema','owner','native'} or exchange['schema']!='enclave-rpc-owner-exchange/1':raise ValueError('Pinned owner exchange required')
+    if set(exchange)!={'schema','owner','native'} or exchange['schema']!='enclave-rpc-owner-exchange/'+('2' if config['schema']=='enclave-rpc-operator-bootstrap/2' else '1'):raise ValueError('Pinned owner exchange required')
     owner=exchange['owner'];original=c.validate(owner['clock']);unit=envelope(original);x.b.verify_pins(owner['pins'])
     resource,template=x.admission(owner)
     export=c.protocol.decode(c.read_pinned(template['exportPreparation']))

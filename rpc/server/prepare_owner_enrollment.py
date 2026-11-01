@@ -17,6 +17,8 @@ import subprocess
 
 def prepare(entry, config, original):
     c=entry.c
+    continuous=config['schema']=='enclave-rpc-owner-bootstrap-entry/4'
+    version='2' if continuous else '1'
     template=c.protocol.decode(c.read_pinned(config['preparation']))
     fields={'schema','scope','native','bundle','manifest','exportPreparation',
             'control','policy','ownerProvision','binary'}
@@ -64,7 +66,7 @@ def prepare(entry, config, original):
         raise ValueError('Original unconsumed export preparation required')
     policy=c.protocol.decode(c.read_pinned(template['policy']))
     if (set(policy)!={'schema','runtime','l1Volume','baseVolume','chainId','ledger','rpcs','confirmations','maxAgeSeconds'} or
-            policy['schema']!='enclave-rpc-storage-owner/1' or any(policy[k]!=scope[k] for k in ('l1Volume','baseVolume'))):
+            policy['schema']!='enclave-rpc-storage-owner/'+version or any(policy[k]!=scope[k] for k in ('l1Volume','baseVolume'))):
         raise ValueError('Fixed independent owner policy required')
     control=template['control']
     if set(control)!={'host','port','serverKey','serverCert'}:raise ValueError('Fixed owner control endpoint required')
@@ -130,17 +132,17 @@ def prepare(entry, config, original):
     signer_sources={str(entry.HERE/n) for n in ('owner_entry.py','owner_state.py','volume_export.py')}
     signer_sources|={str(entry.HERE.parent/n) for n in ('startup_clock.py','storage_protocol.py')}|{'/usr/bin/bwrap','/usr/bin/python3'}
     dispatcher_sources={str(p) for p in entry.HERE.parent.rglob('*.py')}|{'/usr/bin/python3','/usr/bin/systemd-run','/usr/bin/systemctl','/usr/bin/bwrap','/usr/bin/node'}
-    issuer={'schema':'enclave-rpc-owner-entry/1','attempt':original['attempt'],'clock':config['clock'],
+    issuer={'schema':'enclave-rpc-owner-entry/'+version,'attempt':original['attempt'],'clock':config['clock'],
         'contract':contract,'policy':c.write_new(out/'policy.json',c.encode(policy)),
         'ownerProvision':template['ownerProvision'],'binary':template['binary'],
         'pins':{k:config['pins'][k] for k in signer_sources},'receipt':str(out/'dispatches'/original['attempt']/'signer-started.json')}
-    dispatch={'schema':'enclave-rpc-owner-dispatch/1','entry':c.write_new(out/'signer.json',c.encode(issuer)),
+    dispatch={'schema':'enclave-rpc-owner-dispatch/'+version,'entry':c.write_new(out/'signer.json',c.encode(issuer)),
         'request':c.write_new(out/'request.json',c.encode(prepared).strip()),'outputParent':str(out/'dispatches'),
         'pins':{k:config['pins'][k] for k in dispatcher_sources}}
-    relay=c.write_new(out/'relay.json',c.encode({'schema':'enclave-rpc-owner-relay/1',
+    relay=c.write_new(out/'relay.json',c.encode({'schema':'enclave-rpc-owner-relay/'+version,
         'dispatcher':c.write_new(out/'dispatcher.json',c.encode(dispatch))}))
     c.validate(config['clock']);entry.envelope(original);entry.verify_pins(config['pins'])
     c.write_new(out/'RESULT.json',c.encode({'schema':'enclave-rpc-owner-enrollment-prepared/1',
         'clock':config['clock'],'enrollment':config['enrollment'],'relay':relay,'contract':contract,
         'guestAuthenticated':False,'exportStarted':False,'rpcReady':False}))
-    return {**{k:v for k,v in config.items() if k!='preparation'},'schema':'enclave-rpc-owner-bootstrap-entry/2','relay':relay}
+    return {**{k:v for k,v in config.items() if k!='preparation'},'schema':'enclave-rpc-owner-bootstrap-entry/'+('5' if continuous else '2'),'relay':relay}

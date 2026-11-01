@@ -5,7 +5,8 @@ import fs from 'node:fs';
 import tls from 'node:tls';
 import net from 'node:net';
 import {once} from 'node:events';
-import {execFileSync} from 'node:child_process';
+import {execFileSync,spawn} from 'node:child_process';
+import {forwardOwnerStream} from '../../rpc/server/owner_bootstrap_forward.mjs';
 import {randomBytes,sign,constants,X509Certificate,generateKeyPairSync,verify} from 'node:crypto';
 import {makeVbsWorld,tmpdir,buildLog,buildQuote} from '../fixtures/vbs-synthetic.mjs';
 import {activateCredential} from '../../relay/vbs-credential.mjs';
@@ -141,4 +142,41 @@ test('explicit owner/2 signature and acknowledgement preserve stream negotiation
   assert.equal(reply.schema,'enclave-rpc-owner-bootstrap-accepted/2');
   assert.deepEqual(JSON.parse(fs.readFileSync(cfg.parent+'/bootstrap/protocol-accepted.json')),reply);
  }finally{socket.destroy();t.close();}
+});
+
+const streamStub=`import sys,struct,json,time
+initial=bytes.fromhex(sys.argv[1]);mode=sys.argv[2]
+def send(x):
+ sys.stdout.buffer.write(struct.pack('!I',len(x))+x);sys.stdout.buffer.flush()
+send(initial)
+if mode=='unsolicited':
+ time.sleep(.03);sys.stdout.buffer.write(b'x');sys.stdout.buffer.flush();time.sleep(2)
+if mode=='death':
+ time.sleep(.03);sys.exit(7)
+while True:
+ header=sys.stdin.buffer.read(4)
+ if not header:break
+ n=struct.unpack('!I',header)[0];raw=sys.stdin.buffer.read(n)
+ if mode=='stall':time.sleep(3)
+ send(raw)
+`;
+for(const mode of ['normal','death','unsolicited','stall'])test('continuous TLS wrapper '+mode,async()=>{
+ const {cfg,s}=session(mode==='stall'?900:3000),t=await listen(s,'enclave-rpc-owner-offer/2');t.port=t.server.address().port;
+ const {socket,read}=await connect(t);let child,done;
+ try{
+  send(socket,wire(evidence(s)));await read(65536);const connection=await t.accepted;
+  const prepared=wire({bundle:'ZHVtbXk=',manifest:'e30=',request:cfg.request});send(socket,prepared);await receivePreparedRequest(s,connection,prepared);
+  const initial=wire({schema:'enclave-rpc-owner-dispatched/2',attempt:cfg.original.attempt,proof:b64(Buffer.from('inert signed-proof placeholder')),rpcReady:false,writersFenced:false,reservationMayRelease:false});
+  child=spawn('/usr/bin/python3',['-B','-c',streamStub,initial.toString('hex'),mode],{stdio:['pipe','pipe','pipe']});
+  done=forwardOwnerStream(s,connection,child);done.catch(()=>{});
+  assert.deepEqual(await read(65536),initial);
+  if(mode==='normal'){
+   for(let i=1;i<=2;i++){const request=wire({sequence:i,synthetic:true});send(socket,request);assert.deepEqual(await read(2048),request);}
+   assert.ok(fs.existsSync(cfg.parent+'/bootstrap/continuation-0000000000000002-wire-response'));socket.destroy();
+  }else if(mode==='stall')send(socket,wire({synthetic:true}));
+  await assert.rejects(done,/lost|expired|incomplete/);
+ }finally{
+  socket.destroy();t.close();child?.kill('SIGKILL');
+  if(child&&child.exitCode===null&&child.signalCode===null)await once(child,'close');
+ }
 });

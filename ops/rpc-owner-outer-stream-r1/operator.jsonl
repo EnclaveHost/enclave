@@ -1,0 +1,9 @@
+test_installed_ssh_can_open_parent_held_identity_after_closing_inherited_fds (test_operator_bootstrap_transport.Transport.test_installed_ssh_can_open_parent_held_identity_after_closing_inherited_fds) ... ok
+test_pinned_ssh_command_and_fixed_exchange_unit (test_operator_bootstrap_transport.Transport.test_pinned_ssh_command_and_fixed_exchange_unit) ... ok
+test_real_fragmented_peers_receive_eof_and_persist_original_result (test_operator_bootstrap_transport.Transport.test_real_fragmented_peers_receive_eof_and_persist_original_result) ... ok
+test_wrong_owner_correlation_reaps_only_local_peers_and_holds (test_operator_bootstrap_transport.Transport.test_wrong_owner_correlation_reaps_only_local_peers_and_holds) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.187s
+
+OK

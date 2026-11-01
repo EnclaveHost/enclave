@@ -1,0 +1,14 @@
+test_changed_offer_enrollment_or_service_cannot_acknowledge (test_owner_bootstrap_exchange.Exchange.test_changed_offer_enrollment_or_service_cannot_acknowledge) ... ok
+test_duplicate_native_fields_are_refused (test_owner_bootstrap_exchange.Exchange.test_duplicate_native_fields_are_refused) ... ok
+test_extra_input_consumed_without_submission (test_owner_bootstrap_exchange.Exchange.test_extra_input_consumed_without_submission) ... ok
+test_fragmented_native_frame_actual_preparation_and_atomic_offer (test_owner_bootstrap_exchange.Exchange.test_fragmented_native_frame_actual_preparation_and_atomic_offer) ... ok
+test_lost_submission_response_is_held_without_retry (test_owner_bootstrap_exchange.Exchange.test_lost_submission_response_is_held_without_retry) ... ok
+test_real_submit_uses_fixed_independent_owner_service_once (test_owner_bootstrap_exchange.Exchange.test_real_submit_uses_fixed_independent_owner_service_once) ... ok
+test_stream_submission_has_distinct_unit_and_original_deadline (test_owner_bootstrap_exchange.Exchange.test_stream_submission_has_distinct_unit_and_original_deadline) ... ok
+test_wrong_independent_service_limit_refuses_before_ingress (test_owner_bootstrap_exchange.Exchange.test_wrong_independent_service_limit_refuses_before_ingress) ... ok
+test_wrong_original_and_trailing_input_do_not_submit (test_owner_bootstrap_exchange.Exchange.test_wrong_original_and_trailing_input_do_not_submit) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 1.826s
+
+OK

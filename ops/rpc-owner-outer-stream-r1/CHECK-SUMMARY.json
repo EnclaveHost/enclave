@@ -1,0 +1,14 @@
+{
+  "tests": {
+    "enrollment": 6,
+    "submit": 10,
+    "operator": 4,
+    "node-tls": 11,
+    "exchange": 9,
+    "preparation": 9
+  },
+  "total": 49,
+  "failed": 0,
+  "skipped": 0,
+  "deployed": false
+}

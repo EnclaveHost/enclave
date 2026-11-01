@@ -67,6 +67,23 @@ class Preparation(unittest.TestCase):
         inputs=load('inputs',S/'rpc/server/owner_bootstrap_inputs.py');session,_,delivery=inputs.prepare(c,value,self.original,prepared,contract,policy,signer['contract']['sha256'])
         self.assertEqual(session['request'],prepared['request']);self.assertNotIn('PRIVATE KEY',json.dumps(delivery));self.assertFalse((self.out/'dispatches'/self.original['attempt']).exists())
         with self.assertRaises(FileExistsError):self.invoke()
+    def test_explicit_stream_preparation_preserves_original_authorities(self):
+        self.config['schema']='enclave-rpc-owner-bootstrap-entry/4'
+        policy=c.protocol.decode(c.read_pinned(self.template['policy']));policy['schema']='enclave-rpc-storage-owner/2';self.template['policy']=self.write(policy)
+        value=self.invoke();self.assertEqual(value['schema'],'enclave-rpc-owner-bootstrap-entry/5')
+        relay=c.protocol.decode(c.read_pinned(value['relay']));dispatch=c.protocol.decode(c.read_pinned(relay['dispatcher']));signer=c.protocol.decode(c.read_pinned(dispatch['entry']))
+        self.assertEqual([relay['schema'],dispatch['schema'],signer['schema']],['enclave-rpc-owner-relay/2','enclave-rpc-owner-dispatch/2','enclave-rpc-owner-entry/2'])
+        policy=c.protocol.decode(c.read_pinned(signer['policy']));self.assertEqual(policy['schema'],'enclave-rpc-storage-owner/2')
+        self.assertEqual(signer['ownerProvision'],self.template['ownerProvision']);self.assertEqual(signer['clock'],self.config['clock'])
+        inputs=load('stream_inputs',S/'rpc/server/owner_bootstrap_inputs.py');prepared=c.protocol.decode(c.read_pinned(dispatch['request']));contract=c.protocol.decode(c.read_pinned(signer['contract']))
+        inputs.prepare(c,value,self.original,prepared,contract,policy,signer['contract']['sha256'])
+        with self.assertRaisesRegex(ValueError,'policy required'):inputs.prepare(c,dict(value,schema='enclave-rpc-owner-bootstrap-entry/2'),self.original,prepared,contract,policy,signer['contract']['sha256'])
+
+    def test_stream_preparation_cannot_promote_one_shot_owner_policy(self):
+        self.config['schema']='enclave-rpc-owner-bootstrap-entry/4'
+        with self.assertRaisesRegex(ValueError,'owner policy'):self.invoke()
+        self.assertFalse(self.out.exists())
+
     def test_scope_and_original_windows_refused_before_consumption(self):
         for change in ({'originalDeadlineMs':'1'},{'vmGuid':'99999999-2222-3333-4444-555555555555'}):
             self.config['enrollment']=self.write({**self.enrollment,**change})
@@ -89,13 +106,18 @@ class Preparation(unittest.TestCase):
         Path(self.export['roles']['l1']['originals'][0][0]).write_bytes(b'changed original')
         with self.assertRaisesRegex(ValueError,'volume identity'):self.invoke()
         self.assertFalse(self.out.exists())
+    def test_actual_stream_entry_seals_selected_protocol_and_original_clock(self):
+        self.config['schema']='enclave-rpc-owner-bootstrap-entry/4'
+        policy=c.protocol.decode(c.read_pinned(self.template['policy']));policy['schema']='enclave-rpc-storage-owner/2';self.template['policy']=self.write(policy)
+        self.test_actual_v3_entry_composes_and_seals_original_inputs()
+
     def test_actual_v3_entry_composes_and_seals_original_inputs(self):
         self.config['preparation']=self.write(self.template);path=self.write(self.config)['path'];result=self.root/'sealed-result'
         pid=os.fork()
         if pid==0:
             try:
                 def execute(exe,args,env):
-                    value=json.loads(os.pread(3,os.fstat(3).st_size,0));self.assertEqual(exe,'/usr/bin/node');self.assertEqual(value['request'],self.enrollment['enrollment']['info']['request']);self.assertEqual(value['original']['deadlineMonotonicNs'],self.original['deadlineMonotonicNs']);self.assertNotIn('PRIVATE KEY',json.dumps(value));self.assertEqual(os.read(6,32),b'x'*32);self.assertEqual(os.read(7,32),b'y'*32)
+                    value=json.loads(os.pread(3,os.fstat(3).st_size,0));self.assertEqual(exe,'/usr/bin/node');self.assertEqual(value['request'],self.enrollment['enrollment']['info']['request']);self.assertEqual(value['original']['deadlineMonotonicNs'],self.original['deadlineMonotonicNs']);self.assertEqual(value['ownerProtocol'],2 if self.config['schema']=='enclave-rpc-owner-bootstrap-entry/4' else 1);self.assertNotIn('PRIVATE KEY',json.dumps(value));self.assertEqual(os.read(6,32),b'x'*32);self.assertEqual(os.read(7,32),b'y'*32)
                     with self.assertRaises(PermissionError):os.write(3,b'bad')
                     result.write_text('PASS');os._exit(0)
                 with patch.object(b,'envelope',return_value={}),patch('subprocess.run',return_value=SimpleNamespace(stdout=c.encode(self.resource),stderr=b'')),patch.object(b.os,'execve',side_effect=execute):b.main(path)

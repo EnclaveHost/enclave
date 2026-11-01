@@ -81,3 +81,22 @@ The previous native owner-state qualification deliberately poisoned its disposab
 fixture seed; that authority must never be reused or restored for production.
 
 Qualification: seven actual protected administrator preparation cases passed in hosted launch run41346414827. Compile-only run41346667644 built all five affected production entries; controller260096 bytes, host bootstrap251904 bytes and SYSTEM worker261632 bytes were independently hashed. Neither qualification ran the target SYSTEM/provider/TPM/storage path. See `ops/unified-funding-20261028/rpc-native-bootstrap-runtime-ci-r1/ROOT-RESULT.md` for complete failures, provenance and remaining integration.
+
+
+### Explicit continuous startup transport (source only)
+
+The maintained Linux operator accepts `enclave-rpc-operator-bootstrap/2` only
+with exchange2 and owner preparation entry4 (prepared entry5). The owner policy
+must explicitly select storage-owner2. The actual preparation, sealed FD handoff,
+Node TLS wrapper, Python submitter and retained relay/dispatcher now carry that
+selection without reconstructing the signer. See
+[owner protocol configuration](../../rpc/server/README.md#continuous-operator-configuration-not-activated)
+for exact service names, original-clock limits and memory reservations.
+
+The native enrollment/offer correlation wire remains version1; the nested owner
+endpoint offer is signed version2 and the guest requires acknowledgement2. The
+finite enrollment exchange ends after delivery while the separately supervised
+owner endpoint remains within originalD. Existing media and Windows attempts have
+not been changed or retried. This supports startup continuation only. No permanent
+serving adoption, hardware qualification, new writer reservation or running RPC is
+proved by these component tests.

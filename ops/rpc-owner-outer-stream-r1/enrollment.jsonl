@@ -1,0 +1,11 @@
+test_changed_or_extended_original_clock_refused (test_owner_enrollment.EnrollmentTests.test_changed_or_extended_original_clock_refused) ... ok
+test_export_certificate_volume_and_bundle_substitution_refused (test_owner_enrollment.EnrollmentTests.test_export_certificate_volume_and_bundle_substitution_refused) ... ok
+test_owner_derives_broker_authorities_and_exact_delivery (test_owner_enrollment.EnrollmentTests.test_owner_derives_broker_authorities_and_exact_delivery) ... ok
+test_request_and_client_substitution_refused (test_owner_enrollment.EnrollmentTests.test_request_and_client_substitution_refused) ... ok
+test_ungranted_candidate_and_pinned_namespace_required (test_owner_enrollment.EnrollmentTests.test_ungranted_candidate_and_pinned_namespace_required) ... ok
+test_version2_entry_hands_real_derived_inputs_to_sealed_node_config (test_owner_enrollment.EnrollmentTests.test_version2_entry_hands_real_derived_inputs_to_sealed_node_config) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.280s
+
+OK

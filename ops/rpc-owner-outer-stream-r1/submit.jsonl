@@ -1,0 +1,15 @@
+test_actual_pipes_durable_ack_and_no_repeat (test_owner_bootstrap.BootstrapTests.test_actual_pipes_durable_ack_and_no_repeat) ... ok
+test_actual_stream_forwarder_retains_dispatcher_and_exact_proof_bytes (test_owner_bootstrap.BootstrapTests.test_actual_stream_forwarder_retains_dispatcher_and_exact_proof_bytes) ... ok
+test_clock_substitution_refused_before_submission (test_owner_bootstrap.BootstrapTests.test_clock_substitution_refused_before_submission) ... ok
+test_entry_pending_capacity_refusal_before_tls_key_or_exec (test_owner_bootstrap.BootstrapTests.test_entry_pending_capacity_refusal_before_tls_key_or_exec) ... ok
+test_entry_preserves_clock_and_private_readonly_fd_handoff (test_owner_bootstrap.BootstrapTests.test_entry_preserves_clock_and_private_readonly_fd_handoff) ... ok
+test_envelope_requires_exact_actor_and_original_cutoff (test_owner_bootstrap.BootstrapTests.test_envelope_requires_exact_actor_and_original_cutoff) ... ok
+test_lost_submission_retains_intent_without_response_or_retry (test_owner_bootstrap.BootstrapTests.test_lost_submission_retains_intent_without_response_or_retry) ... ok
+test_sealed_config_cannot_change (test_owner_bootstrap.BootstrapTests.test_sealed_config_cannot_change) ... ok
+test_sealed_stream_selection_submits_distinct_dispatcher_once (test_owner_bootstrap.BootstrapTests.test_sealed_stream_selection_submits_distinct_dispatcher_once) ... ok
+test_undurable_response_is_not_acknowledged (test_owner_bootstrap.BootstrapTests.test_undurable_response_is_not_acknowledged) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.486s
+
+OK
