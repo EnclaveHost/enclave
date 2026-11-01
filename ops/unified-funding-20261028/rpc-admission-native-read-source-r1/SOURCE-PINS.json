@@ -1,0 +1,6 @@
+{
+  "windows/rpc/WindowsStartAdmission.cs": "076a7ab3af8e88eb7bf06a47d97a7df38988b47e6ca69d92823d4050bea2e7e9",
+  "test/rpc-windows-worker/StartupControllerHarness.cs": "dda14e20fceef6cfafc47f8da496ea150f731e44357a39ad0c493f57dbc5f39b",
+  "test/rpc-windows-worker/run-startup-controller-ci.ps1": "900800429de55ffda0817da5ee2b5c4ec976bec9274a47a8cc5fc78f0da043c7",
+  "windows/rpc/README.md": "fcd3553b18f567d450c2b42e355fb02b0fcf4bb3973f087fea363c8ba793848b"
+}

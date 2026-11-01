@@ -4,6 +4,9 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 using System.Management;
 using System.IO;
 using System.Net;
@@ -18,7 +21,63 @@ internal sealed partial class WindowsStartAdmission {
     readonly ProtectedAttempt vm;readonly string admissionHash;readonly long began;readonly LegacyHandoff.Completion completed;
     readonly JavaScriptSerializer Json=new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32};
     WindowsStartAdmission(ProtectedAttempt vm,string admissionHash,LegacyHandoff.Completion completed){this.vm=vm;this.admissionHash=admissionHash;this.completed=completed;began=BoundedWorker.MonotonicMilliseconds();}
-    void CheckTime(){vm.CheckDeadline();long now=BoundedWorker.MonotonicMilliseconds();if(now<began||now-began>2000)throw new TimeoutException("Aggregate start observation exceeds two seconds");}
+    string stage="begin";
+    internal static void RequireFresh(long began,long now,string stage) {
+        if(began<0||now<began||now-began>2000)throw new TimeoutException("Aggregate start observation exceeds two seconds; phase="+stage+" elapsedMs="+(now>=began&&began>=0?(now-began).ToString(CultureInfo.InvariantCulture):"invalid"));
+    }
+    void CheckTime(){vm.CheckDeadline();RequireFresh(began,BoundedWorker.MonotonicMilliseconds(),stage);}
+    void Stage(string value){CheckTime();stage=value;CheckTime();}
+    [StructLayout(LayoutKind.Sequential)] internal struct Memory {
+        internal uint Size,Load;internal ulong Total,Available,PageTotal,PageAvailable,VirtualTotal,VirtualAvailable,ExtendedAvailable;
+    }
+    [DllImport("kernel32.dll",SetLastError=true)] static extern bool GlobalMemoryStatusEx(ref Memory memory);
+    [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern bool GetDiskFreeSpaceExW(string root,out ulong available,out ulong total,out ulong free);
+    [DllImport("kernel32.dll",SetLastError=true)] static extern SafeWaitHandle OpenProcess(uint access,bool inherit,uint pid);
+    [DllImport("kernel32.dll",SetLastError=true)] static extern uint GetProcessId(SafeWaitHandle process);
+    [DllImport("kernel32.dll",SetLastError=true)] static extern bool GetProcessTimes(SafeWaitHandle process,out long created,out long exited,out long kernel,out long user);
+    [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern bool QueryFullProcessImageNameW(SafeWaitHandle process,uint flags,StringBuilder image,ref uint length);
+    [DllImport("kernel32.dll",SetLastError=true)] static extern uint WaitForSingleObject(SafeWaitHandle process,uint milliseconds);
+    internal static Memory Physical() {
+        var memory=new Memory{Size=(uint)Marshal.SizeOf(typeof(Memory))};
+        if(memory.Size!=64||!GlobalMemoryStatusEx(ref memory))throw new Win32Exception(Marshal.GetLastWin32Error());
+        if(memory.Total==0||memory.Total>Int64.MaxValue||memory.Available>memory.Total)throw new InvalidOperationException("Physical memory shape differs");
+        return memory;
+    }
+    internal static long DiskAvailable() {
+        ulong available,total,free;if(!GetDiskFreeSpaceExW(@"C:\",out available,out total,out free))throw new Win32Exception(Marshal.GetLastWin32Error());
+        ulong value=Math.Min(available,free);if(total==0||value>total||value>Int64.MaxValue)throw new InvalidOperationException("Disk capacity shape differs");
+        return (long)value; // Respect caller quota as well as total volume free space.
+    }
+    internal static long ManagerCreation(Dictionary<string,object> native,Dictionary<string,object> recorded) {
+        long exact;string text=Str(native["creationFileTime"]);
+        if(!Int64.TryParse(text,NumberStyles.None,CultureInfo.InvariantCulture,out exact)||exact<=0||exact.ToString(CultureInfo.InvariantCulture)!=text||
+            Num(native["pid"])!=Num(recorded["pid"])||!Yes(native["alive"])||Str(native["image"])!=Str(recorded["exe"]))throw new InvalidOperationException("Native manager receipt differs");
+        // WMI datetime has microsecond precision. Cross-bind that historical
+        // value, then compare the full 100-ns native creation on the held handle.
+        long cim=DateTime.Parse(Str(recorded["created"]),CultureInfo.InvariantCulture,DateTimeStyles.RoundtripKind).ToUniversalTime().ToFileTimeUtc();
+        if(cim/10!=exact/10)throw new InvalidOperationException("Native and CIM manager receipt disagree");
+        return exact;
+    }
+    // Query/synchronize only. Hold the exact manager through both end checks;
+    // access failure, PID reuse, exit and image mismatch are admission failures.
+    internal sealed class HeldManager:IDisposable {
+        readonly SafeWaitHandle handle;readonly uint pid;readonly long created;
+        internal HeldManager(uint pid,long created,string image) {
+            if(pid==0||created<=0||String.IsNullOrEmpty(image))throw new ArgumentException("Exact manager identity required");
+            this.pid=pid;this.created=created;handle=OpenProcess(0x100000|0x1000,false,pid);
+            if(handle.IsInvalid){int error=Marshal.GetLastWin32Error();handle.Dispose();throw new Win32Exception(error);}
+            try{Check();var value=new StringBuilder(1024);uint length=(uint)value.Capacity;
+                if(!QueryFullProcessImageNameW(handle,0,value,ref length))throw new Win32Exception(Marshal.GetLastWin32Error());
+                if(!String.Equals(image,value.ToString(),StringComparison.Ordinal))throw new InvalidOperationException("Current manager image differs");
+            }catch{handle.Dispose();throw;}
+        }
+        internal void Check(){
+            long actual,exit,kernel,user;
+            if(handle.IsClosed||handle.IsInvalid||GetProcessId(handle)!=pid||!GetProcessTimes(handle,out actual,out exit,out kernel,out user)||actual!=created||WaitForSingleObject(handle,0)!=258)
+                throw new InvalidOperationException("Current manager incarnation differs");
+        }
+        public void Dispose(){handle.Dispose();}
+    }
     static Dictionary<string,object> Obj(object value){var d=value as Dictionary<string,object>;if(d==null)throw new InvalidOperationException("Object required");return d;}
     static IList Rows(object value){var a=value as IList;if(a==null||a.Count>128)throw new InvalidOperationException("Row bound");return a;}
     static string Str(object value){var s=value as string;if(s==null||s.Length>4096)throw new InvalidOperationException("String required");return s;}
@@ -34,8 +93,6 @@ internal sealed partial class WindowsStartAdmission {
             }
         return rows;
     }
-    Dictionary<string,object> One(string query,string[] properties){var rows=Query("root\\cimv2",query,properties,2);if(rows.Count!=1)throw new InvalidOperationException("Expected singleton");return rows[0];}
-    static string TimeText(object value){return ManagementDateTimeConverter.ToDateTime(Str(value)).ToUniversalTime().ToString("o");}
     Dictionary<string,object> GetLocal(int port,string path) {
         CheckTime();var request=(HttpWebRequest)WebRequest.Create("http://127.0.0.1:"+port+path);
         request.Proxy=null;request.AllowAutoRedirect=false;request.KeepAlive=false;request.Method="GET";
@@ -130,8 +187,11 @@ internal sealed partial class WindowsStartAdmission {
         }catch{return "comparison-detail-unavailable";}
     }
     void Read() {
-        var os=One("SELECT LastBootUpTime,TotalVisibleMemorySize,FreePhysicalMemory FROM Win32_OperatingSystem",new[]{"LastBootUpTime","TotalVisibleMemorySize","FreePhysicalMemory"});
-        long free=checked(Convert.ToInt64(os["FreePhysicalMemory"])*1024);
+        var held=new List<HeldManager>();try{Read(held);}finally{foreach(var process in held)process.Dispose();}
+    }
+    void Read(List<HeldManager> held) {
+        Stage("physical-before");var os=Physical();long free=(long)os.Available;CheckTime();
+        Stage("reviewed-observation");
         byte[] raw=vm.ReadAdmission(admissionHash);
         var result=Obj(Json.DeserializeObject(new UTF8Encoding(false,true).GetString(raw)));
         var obs=Obj(result["observation"]);var manager=Obj(obs["manager"]);
@@ -140,7 +200,7 @@ internal sealed partial class WindowsStartAdmission {
         Dictionary<string,object> node=null;
         foreach(object row in Rows(manager["observations"])) {var r=Obj(row);if(Str(r["label"])=="node-after"){if(node!=null||Num(r["port"])!=9600||Str(r["path"])!="/v1/host/state")throw new InvalidOperationException("Node observation binding");node=Obj(r["data"]);}}
         if(node==null)throw new InvalidOperationException("Reviewed node commitments missing");
-        var liveNode=GetLocal(9600,"/v1/host/state");
+        Stage("node-before");var liveNode=GetLocal(9600,"/v1/host/state");
         string liveNodeExact=DeploymentReceipt(liveNode,true);
         // The completed cut and pool have already been validated before this
         // read; VerifyResources checks them again below. Legacy unfenced mode
@@ -148,31 +208,33 @@ internal sealed partial class WindowsStartAdmission {
         string nodeExpected=DeploymentReceipt(node,false,completed!=null);
         string nodeActual=DeploymentReceipt(liveNode,true,completed!=null);
         if(nodeActual!=nodeExpected)throw new InvalidOperationException("Node commitments changed since review: "+DeploymentDifference(nodeExpected,nodeActual));
-        string pending=completed==null?LivePending():completed.Receipt;
+        Stage("pending-before");string pending=completed==null?LivePending():completed.Receipt;
         var before=Obj(obs["physicalBefore"]);var after=Obj(obs["physicalAfter"]);
         double age=(DateTime.UtcNow-DateTime.Parse(Str(before["atUtc"]),CultureInfo.InvariantCulture,DateTimeStyles.RoundtripKind).ToUniversalTime()).TotalSeconds;
-        if(age<0||age>300||Str(before["boot"])!=Str(after["boot"])||Str(after["boot"])!=TimeText(os["LastBootUpTime"]))throw new InvalidOperationException("Stale/different boot");
-        if(Num(before["physicalBytes"])!=checked(Convert.ToInt64(os["TotalVisibleMemorySize"])*1024)||Num(after["physicalBytes"])!=Num(before["physicalBytes"]))throw new InvalidOperationException("Physical host differs");
+        if(age<0||age>300||Str(before["boot"])!=Str(after["boot"])||Str(obs["bootNative"])!=vm.Boot||vm.Boot!=ProtectedAttempt.CurrentBoot())throw new InvalidOperationException("Stale/different boot");
+        if(Num(before["physicalBytes"])!=(long)os.Total||Num(after["physicalBytes"])!=Num(before["physicalBytes"]))throw new InvalidOperationException("Physical host differs");
         if(Json.Serialize(obs["before"])!=Json.Serialize(obs["after"]))throw new InvalidOperationException("Historical manager incarnation changed");
         IList recorded=Rows(Obj(obs["after"])["value"]);if(recorded.Count!=4)throw new InvalidOperationException("Four listeners required");
-        var ports=new HashSet<long>();var filters=new List<string>();
-        foreach(object item in recorded){var r=Obj(item);long port=Num(r["port"]),pid=Num(r["pid"]);if((port!=8091&&port!=8095&&port!=8097&&port!=9600)||!ports.Add(port)||pid<=0||pid>UInt32.MaxValue)throw new InvalidOperationException("Listener binding invalid");filters.Add("ProcessId="+pid);}
-        var listeners=Query("root\\StandardCimv2","SELECT LocalPort,OwningProcess FROM MSFT_NetTCPConnection WHERE (LocalPort=8091 OR LocalPort=8095 OR LocalPort=8097 OR LocalPort=9600) AND State=2",new[]{"LocalPort","OwningProcess"},16);
-        var processes=Query("root\\cimv2","SELECT ProcessId,CreationDate,ExecutablePath FROM Win32_Process WHERE "+String.Join(" OR ",filters),new[]{"ProcessId","CreationDate","ExecutablePath"},16);
+        Stage("manager-handles");var ports=new HashSet<long>();
+        var nativeManagers=new Dictionary<long,Dictionary<string,object>>();
+        foreach(object item in Rows(obs["nativeManagers"])){var row=Obj(item);long pid=Num(row["pid"]);if(nativeManagers.ContainsKey(pid))throw new InvalidOperationException("Duplicate native manager receipt");nativeManagers.Add(pid,row);}
+        if(nativeManagers.Count!=4)throw new InvalidOperationException("Four exact native manager receipts required");
+        foreach(object item in recorded){var r=Obj(item);long port=Num(r["port"]),pid=Num(r["pid"]);if((port!=8091&&port!=8095&&port!=8097&&port!=9600)||!ports.Add(port)||pid<=0||pid>UInt32.MaxValue)throw new InvalidOperationException("Listener binding invalid");held.Add(new HeldManager((uint)pid,ManagerCreation(nativeManagers[pid],r),Str(r["exe"])));CheckTime();}
+        Stage("listeners");var listeners=Query("root\\StandardCimv2","SELECT LocalPort,OwningProcess FROM MSFT_NetTCPConnection WHERE (LocalPort=8091 OR LocalPort=8095 OR LocalPort=8097 OR LocalPort=9600) AND State=2",new[]{"LocalPort","OwningProcess"},16);
         if(listeners.Count!=4)throw new InvalidOperationException("Current listener count differs");
-        foreach(object item in recorded){var r=Obj(item);long pid=Num(r["pid"]),port=Num(r["port"]);int listenerMatches=0,processMatches=0;
+        foreach(object item in recorded){var r=Obj(item);long pid=Num(r["pid"]),port=Num(r["port"]);int listenerMatches=0;
             foreach(var l in listeners)if(Convert.ToInt64(l["LocalPort"])==port&&Convert.ToInt64(l["OwningProcess"])==pid)listenerMatches++;
-            foreach(var p in processes)if(Convert.ToInt64(p["ProcessId"])==pid&&TimeText(p["CreationDate"])==Str(r["created"])&&Str(p["ExecutablePath"])==Str(r["exe"]))processMatches++;
-            if(listenerMatches!=1||processMatches!=1)throw new InvalidOperationException("Current manager incarnation differs");
+            if(listenerMatches!=1)throw new InvalidOperationException("Current manager incarnation differs");
         }
-        var disk=One("SELECT FreeSpace FROM Win32_LogicalDisk WHERE DeviceID='C:'",new[]{"FreeSpace"});
-        if(free<Required||Math.Min(Num(before["freeBytes"]),Num(after["freeBytes"]))<Required||Convert.ToInt64(disk["FreeSpace"])<16*GiB+4*GiB+256*MiB)
+        Stage("disk");long disk=DiskAvailable();CheckTime();
+        if(free<Required||Math.Min(Num(before["freeBytes"]),Num(after["freeBytes"]))<Required||disk<16*GiB+4*GiB+256*MiB)
             throw new InvalidOperationException("Target qualification headroom refused");
-        var end=One("SELECT LastBootUpTime,TotalVisibleMemorySize,FreePhysicalMemory FROM Win32_OperatingSystem",new[]{"LastBootUpTime","TotalVisibleMemorySize","FreePhysicalMemory"});
-        if(TimeText(end["LastBootUpTime"])!=TimeText(os["LastBootUpTime"])||Convert.ToInt64(end["TotalVisibleMemorySize"])!=Convert.ToInt64(os["TotalVisibleMemorySize"])||
-            checked(Convert.ToInt64(end["FreePhysicalMemory"])*1024)<Required)throw new InvalidOperationException("End-of-admission host state differs");
+        Stage("physical-after");var end=Physical();CheckTime();
+        if(ProtectedAttempt.CurrentBoot()!=vm.Boot||end.Total!=os.Total||end.Available<(ulong)Required)throw new InvalidOperationException("End-of-admission host state differs");
+        Stage("pending-and-node-after");
         if((completed==null&&LivePending()!=pending)||DeploymentReceipt(GetLocal(9600,"/v1/host/state"),true)!=liveNodeExact)throw new InvalidOperationException("Pending commitments changed during admission");
-        if(completed!=null)completed.VerifyResources();
+        Stage("pool-resources");if(completed!=null)completed.VerifyResources();
+        Stage("manager-handles-after");foreach(var process in held){process.Check();CheckTime();}
         CheckTime();
     }
     internal static void Verify(ProtectedAttempt vm,ProtectedAttempt reader,ref LegacyHandoff.Completion completed){

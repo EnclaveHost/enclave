@@ -35,6 +35,22 @@ public static class StartupControllerHarness {
  static Dictionary<string,object> Row(Dictionary<string,object> n,int i){return (Dictionary<string,object>)((object[])n["deployments"])[i];}
  static string Receipt(Dictionary<string,object> n,bool raw=false){return WindowsStartAdmission.DeploymentReceipt(n,raw);}
  static void AdmissionTests(){
+  Test("admission-two-second-window-not-relaxed",()=>{WindowsStartAdmission.RequireFresh(100,2100,"fixture");Refuse(()=>WindowsStartAdmission.RequireFresh(100,2101,"fixture"));});
+  Test("admission-clock-reversal-and-overflow-refused",()=>{Refuse(()=>WindowsStartAdmission.RequireFresh(100,99,"fixture"));Refuse(()=>WindowsStartAdmission.RequireFresh(Int64.MinValue,Int64.MaxValue,"fixture"));});
+  Test("admission-timeout-retains-stage-and-elapsed",()=>{try{WindowsStartAdmission.RequireFresh(100,2101,"listeners");throw new Exception("Accepted stale");}catch(TimeoutException e){Check(e.Message.Contains("phase=listeners elapsedMs=2001"));}});
+  Test("actual-native-physical-abi-and-wmi-total-agree",()=>{var m=WindowsStartAdmission.Physical();Check(m.Size==64&&m.Total>0&&m.Available<=m.Total);using(var q=new System.Management.ManagementObjectSearcher("root\\cimv2","SELECT TotalVisibleMemorySize FROM Win32_OperatingSystem"))using(var rows=q.Get()){int n=0;foreach(System.Management.ManagementObject row in rows)using(row){n++;Check(m.Total==Convert.ToUInt64(row["TotalVisibleMemorySize"])*1024);}Check(n==1);}});
+  Test("actual-native-disk-capacity-bounded",()=>{long free=WindowsStartAdmission.DiskAvailable();Check(free>0&&free<=new DriveInfo(@"C:\").TotalSize);});
+  using(var self=System.Diagnostics.Process.GetCurrentProcess()){
+   uint pid=(uint)self.Id;long created=self.StartTime.ToUniversalTime().ToFileTimeUtc();string image=self.MainModule.FileName;
+   Test("actual-held-manager-query-and-dispose",()=>{var h=new WindowsStartAdmission.HeldManager(pid,created,image);try{h.Check();}finally{h.Dispose();}Refuse(()=>h.Check());});
+   Test("actual-held-manager-wrong-creation-refused",()=>Refuse(()=>{using(var h=new WindowsStartAdmission.HeldManager(pid,created+1,image)){} }));
+   Test("actual-held-manager-wrong-image-refused",()=>Refuse(()=>{using(var h=new WindowsStartAdmission.HeldManager(pid,created,image+".wrong")){} }));
+  }
+  var native=new Dictionary<string,object>{{"pid",1},{"alive",true},{"creationFileTime","134375086385617521"},{"image",@"C:\runtime\node.exe"}};
+  var recorded=new Dictionary<string,object>{{"pid",1},{"created",DateTime.FromFileTimeUtc(134375086385617520).ToString("o")},{"exe",@"C:\runtime\node.exe"}};
+  Test("native-creation-keeps-full-tick-after-cim-cross-binding",()=>Check(WindowsStartAdmission.ManagerCreation(native,recorded)==134375086385617521));
+  Test("native-and-cim-different-microsecond-refused",()=>{var n=new Dictionary<string,object>(native);n["creationFileTime"]="134375086385617531";Refuse(()=>WindowsStartAdmission.ManagerCreation(n,recorded));});
+  Test("native-manager-receipt-identity-and-liveness-refused",()=>{foreach(string key in new[]{"pid","image","alive","creationFileTime"}){var n=new Dictionary<string,object>(native);n[key]=key=="pid"?(object)2:key=="alive"?(object)false:key=="image"?(object)@"C:\other.exe":"0134375086385617521";Refuse(()=>WindowsStartAdmission.ManagerCreation(n,recorded));}});
   Test("unfenced-failed-to-claiming-remains-different",()=>{var a=Node(false);var b=Node(false);Row(a,3)["status"]="failed";Row(b,3)["status"]="claiming";Check(Receipt(a)!=Receipt(b));});
   Test("fenced-known-unallocated-retry-matches-history",()=>{var a=Node(false);var b=Node(true);Row(a,3)["status"]="failed";Row(b,3)["status"]="claiming";Check(WindowsStartAdmission.DeploymentReceipt(a,false,true)==WindowsStartAdmission.DeploymentReceipt(b,true,true));});
   Test("fenced-retry-does-not-equate-running-or-other-statuses",()=>{var a=Node(false);Row(a,3)["status"]="failed";string expected=WindowsStartAdmission.DeploymentReceipt(a,false,true);foreach(string status in new[]{"running","queued","refused","stopped","fenced-unallocated-retry"}){var b=Node(false);Row(b,3)["status"]=status;Check(expected!=WindowsStartAdmission.DeploymentReceipt(b,false,true));}});
