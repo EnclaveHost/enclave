@@ -1,0 +1,19 @@
+{
+  "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+  "windows/rpc/OwnerObserver.cs": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80",
+  "windows/rpc/ProtectedAttempt.cs": "6415ad6198a20c4ee346b84841c009d6a67f751e692a2e82d0d93d64110206ad",
+  "windows/rpc/ProviderStart.cs": "600b86bcdfcb4a0425213fee9ed241a51c9a23d3fbcc51560d5c929b628a7d46",
+  "windows/rpc/OwnedVmPermit.cs": "a4d1f9640a4087714b9907cddcdc64340cb57f07de04dd1b6baf97197ac60373",
+  "windows/rpc/HostPhysicalPool.cs": "8a9506c50a3ad65a614ed62eb91f07cd78d8db81098a84fe10215ac44e9ad3b1",
+  "windows/rpc/WindowsStartAdmission.cs": "8f88b3c432e0d30926ca65ab6f0e2fef06d2cce2f4861f4dcf0a3dbe3952cca6",
+  "windows/rpc/LegacyTemplateFence.cs": "d2bfc04762cf64b2555575e4c8aa95842dd35be108f9c9780dd3ecf0ecd0cd0f",
+  "windows/rpc/LegacyLaunchCohort.cs": "ce22aa16e0d353fa8354bca26f8dc4057d520c001540d0659778e2769135f5a2",
+  "windows/rpc/LegacyHandoff.cs": "f99033ca2b4f8ed9d78d15f3cc4976c40c1336492bdde6b22de10e99e6126262",
+  "windows/rpc/NativeRpcDefinition.cs": "c0827ad42bbe2334d39e28386543b84dfe8b6fde23363ecfc6410db413a57a68",
+  "windows/rpc/NativeRpcAuthority.cs": "6aa7baf592653159203cb21bdff199ad6bb786f239f2da444c30e93ee60246e8",
+  "windows/rpc/NativeRpcWorkerEntry.cs": "21440ef0b48eba37c4b8841c3d8638087849a517d53209a7a8b4b814aa8f7a7e",
+  "windows/rpc/NativeRpcController.cs": "50ae76ab5c4b640d1cbb7769e023c364a8f6a804c6535938b6c99da1f6404040",
+  "windows/rpc/NativeRpcManagerTransport.cs": "2069d740a09edda7580c25ff436054130457b132d5dfafe4fca1de3d07b8a2bb",
+  "test/rpc-windows-worker/NativeRpcOpticalHarness.cs": "bfaa30a3946e922b393ea5b29f9a2f1a8873873340151465acafd3465b153b42",
+  "test/rpc-windows-worker/run-native-optical-ci.ps1": "10500a546c88c9ef1aacf43b501b14bd8126f704bd9d41ad33588aec08e6d437"
+}

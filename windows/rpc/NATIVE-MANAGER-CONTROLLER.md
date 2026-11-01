@@ -171,3 +171,21 @@ production entrypoints compiled251392B, not executed. Filesystem tests used
 inert full-size zero payloads and administratorACLs; no VM attachment/boot or
 production RPC proof. Sourcepins/binaryhashes/failures are preserved in
 `../../ops/unified-funding-20261028/rpc-native-media-ci-r3/ROOT-RESULT.md`.
+
+The native definition worker now sequences a fixed SCSI controller and two
+DVD drives/media objects after original owned-Off and security verification.
+Each immutable intent binds original ownership, security, profile and prior
+returned resources. Its consumed submission precedes AddResourceSettings; exact
+returned resources/job persist before readback or the next step. Lost response,
+missing returned resource, failed/changed job or partial journal stays held.
+Read-only reconciliation cannot invoke the next attachment. Readback checks the
+original VM association, all parent/slot/path/type fields and exact storage
+topology. A sole empty original default SCSI can be retained and explicitly
+recorded as preexisting; no other resource adoption/scan recovery is allowed.
+Controller checks the protected optical receipt. This is not boot permission:
+VM SID read grants, other device/network policy, start and original bootstrap
+integration are still outstanding, as is actual SYSTEM/WMI qualification.
+The native entrypoint build closures now exclude unrelated entrypoints while
+retaining all admission/namespace/observer/provider code needed by that role.
+API references: [AddResourceSettings](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/addresourcesettings-msvm-virtualsystemmanagementservice),
+[storage allocation](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-storageallocationsettingdata).

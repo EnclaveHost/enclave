@@ -1,0 +1,11 @@
+{
+  "windows/rpc/NativeRpcDefinition.cs": "c0827ad42bbe2334d39e28386543b84dfe8b6fde23363ecfc6410db413a57a68",
+  "windows/rpc/ProtectedAttempt.cs": "6415ad6198a20c4ee346b84841c009d6a67f751e692a2e82d0d93d64110206ad",
+  "windows/rpc/NativeRpcController.cs": "50ae76ab5c4b640d1cbb7769e023c364a8f6a804c6535938b6c99da1f6404040",
+  "windows/rpc/NativeRpcWorkerEntry.cs": "21440ef0b48eba37c4b8841c3d8638087849a517d53209a7a8b4b814aa8f7a7e",
+  "windows/rpc/README.md": "bca9725c9063a7c580aeff1c5701ece683872f1beaf2f115f6610c0cb0d2468d",
+  "windows/rpc/NATIVE-MANAGER-CONTROLLER.md": "d383a8333de45699a56066a327a81abe54511a8a7ff142dfabf0b54ab141ecd0",
+  "test/rpc-windows-worker/NativeRpcOpticalHarness.cs": "bfaa30a3946e922b393ea5b29f9a2f1a8873873340151465acafd3465b153b42",
+  "test/rpc-windows-worker/run-native-optical-ci.ps1": "10500a546c88c9ef1aacf43b501b14bd8126f704bd9d41ad33588aec08e6d437",
+  ".github/workflows/rpc-native-optical.yml": "63554bcceeb01c97f9dab614c958605d946aeab70e2ad51ce94858bb28aa8610"
+}

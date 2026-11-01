@@ -276,7 +276,7 @@ namespace Enclave.OwnedRpc {
  // Actual local WMI implementation, never invoked by the qualification harness.
  // Defines an Off shell and separately journals guest security configuration.
  // Optical/network/serial configuration and accepted boot/start remain separate.
- public sealed class HyperVNativeRpcDefinition : INativeRpcDefinitionProvider, INativeRpcSecurityProvider {
+ public sealed partial class HyperVNativeRpcDefinition : INativeRpcDefinitionProvider, INativeRpcSecurityProvider {
   readonly INativeRpcDefinitionRuntime runtime;readonly IStartJournal journal;
   public HyperVNativeRpcDefinition(INativeRpcDefinitionRuntime runtime,IStartJournal journal){
    if(runtime==null||journal==null)throw new ArgumentNullException("dependencies");this.runtime=runtime;this.journal=journal;
@@ -382,6 +382,161 @@ namespace Enclave.OwnedRpc {
     int count=0;using(var rows=settings.GetRelated("Msvm_MemorySettingData"))foreach(ManagementObject row in rows)using(row){if(++count>1)throw new InvalidOperationException("Native memory ambiguity");var d=new Dictionary<string,object>();foreach(string k in new[]{"ResourceType","ResourceSubType","AllocationUnits","VirtualQuantityUnits","VirtualQuantity","Reservation","Limit","DynamicMemoryEnabled","AutomaticAllocation","SwapFilesInUse"})d[k]=row[k];HyperVStartProvider.RequireGuestMemory(d,19L*1073741824);}if(count!=1)throw new InvalidOperationException("Native memory absent");
     var cpus=new List<object>();using(var rows=settings.GetRelated("Msvm_ProcessorSettingData"))foreach(ManagementObject row in rows)using(row){if(cpus.Count>=2)throw new InvalidOperationException("Native CPU ambiguity");cpus.Add(row["VirtualQuantity"]);}RequireProcessors(cpus);
    }runtime.Check(p,false);
+  }
+ }
+
+ // Fixed boot-media attachment transaction. The original owned-Off/security
+ // records authorize configuration only; no start/readiness/release assertion.
+ public sealed class NativeOpticalResponse {
+  public readonly uint Code;public readonly string Job,Resource;public readonly bool Existing;
+  public NativeOpticalResponse(uint code,string job,string resource,bool existing=false){Code=code;Job=job;Resource=resource;Existing=existing;}
+ }
+ public interface INativeRpcOpticalProvider {
+  NativeOpticalResponse Attach(NativeRpcDefinitionPlan p,string guid,string step,IDictionary<string,string> prior,string intent);
+  StartJob ReadJob(string reference);
+  void VerifyOptical(NativeRpcDefinitionPlan p,string guid,string step,string resource,IDictionary<string,string> prior);
+  void VerifyOpticalComplete(NativeRpcDefinitionPlan p,string guid,IDictionary<string,string> resources);
+ }
+ public static class NativeRpcOptical {
+  internal static readonly string[] Steps={"scsi","imagedrive","imagemedia","hashdrive","hashmedia"};
+  static string H(string x){return NativeRpcDefinitionPlan.Hash(x);}
+  static string S(object x){return StartRecords.Text(x);}
+  static void Current(NativeRpcDefinitionPlan p,INativeRpcDefinitionRuntime r,bool mutation){r.Check(p,mutation);if(r.Now<p.Origin||(mutation&&r.Now>=p.Deadline))throw new InvalidOperationException("Original optical deadline");}
+  internal static bool Allowed(string name,bool readOnly){
+   if(name=="native-optical.observed")return true;
+   foreach(string step in Steps){string pre="native-optical."+step+".";if(name==pre+"job"||name==pre+"terminal")return true;if(!readOnly&&(name==pre+"intent"||name==pre+"submit"||name==pre+"invoke"||name==pre+"receipt"))return true;}return false;
+  }
+  static string Intent(NativeRpcDefinitionPlan p,string guid,string owned,string security,string step,IDictionary<string,string> prior){
+   return StartRecords.Encode(new Dictionary<string,object>{{"schema","native-rpc-optical-intent/1"},{"plan",p.Digest},{"vmGuid",guid},{"owned",owned},{"security",security},{"profile",p.Profile},{"step",step},{"dependencies",new SortedDictionary<string,string>(prior,StringComparer.Ordinal)}});
+  }
+  static bool Settled(IStartJournal j,string pre,string raw,string intent,string step,out string resource,out string job){
+   var d=StartRecords.Parse(raw,new[]{"intent","code","job","resource","existing"});long code=StartRecords.Number(d["code"]);resource=S(d["resource"]);job=S(d["job"]);
+   if(S(d["intent"])!=H(intent)||code<0||code>UInt32.MaxValue||!(d["existing"] is bool)||(code!=4096&&job!="")||(resource!=""&&HyperVNativeRpcDefinition.OpticalReference(step,resource)!=resource))throw new InvalidOperationException("Optical provider receipt differs");
+   if((bool)d["existing"]&&(step!="scsi"||code!=0||resource==""))throw new InvalidOperationException("Only original default SCSI may preexist");
+   if(code!=0&&code!=4096){if(resource!="")throw new InvalidOperationException("Refused optical response has resource");return false;}
+   if(code==0)return true;
+   if(HyperVStartProvider.CanonicalJobReference(job)!=job)throw new InvalidOperationException("Exact optical job required");
+   string bound=j.Read(pre+".job"),terminal=j.Read(pre+".terminal");if(terminal==null)return false;
+   if(bound==null)throw new InvalidOperationException("Optical job identity missing");
+   var b=StartRecords.Parse(bound,new[]{"receipt","job","submitted"});string at=S(b["submitted"]);
+   if(S(b["receipt"])!=H(raw)||S(b["job"])!=job||at.Length==0||at.Length>32)throw new InvalidOperationException("Optical job identity differs");
+   var t=StartRecords.Parse(terminal,new[]{"receipt","identity","state","runs","error"});long error=StartRecords.Number(t["error"]);
+   if(S(t["receipt"])!=H(raw)||S(t["identity"])!=H(bound)||StartRecords.Number(t["state"])!=7||StartRecords.Number(t["runs"])!=1||error<0||error>65535)throw new InvalidOperationException("Optical terminal differs");return error==0;
+  }
+  static string Proof(NativeRpcDefinitionPlan p,string guid,string owned,string security,IDictionary<string,string> resources){return StartRecords.Encode(new Dictionary<string,object>{{"schema","native-rpc-optical-observed/1"},{"plan",p.Digest},{"vmGuid",guid},{"owned",owned},{"security",security},{"profile",p.Profile},{"resources",new SortedDictionary<string,string>(resources,StringComparer.Ordinal)},{"startAuthorized",false},{"providerOperationFenced",false},{"reservationMayRelease",false}});}
+  // A read-only worker can settle original returned references; it cannot
+  // create missing intents, invoke a mutation, or acknowledge a lost response.
+  public static string Configure(NativeRpcDefinitionPlan p,IStartJournal j,INativeRpcOpticalProvider provider,INativeRpcDefinitionRuntime runtime,bool readOnly){
+   Current(p,runtime,!readOnly);string guid,owned=NativeRpcSecurity.Ownership(p,j,out guid),security=NativeRpcSecurity.VerifyCompleted(p,j);var resources=new Dictionary<string,string>();
+   foreach(string step in Steps){
+    Current(p,runtime,!readOnly);string pre="native-optical."+step,intent=Intent(p,guid,owned,security,step,resources),saved=j.Read(pre+".intent");
+    if(saved==null){if(readOnly)return null;j.WriteOnce(pre+".intent",intent);saved=intent;}if(saved!=intent)throw new InvalidOperationException("Optical original dependency differs");
+    string submitted=j.Read(pre+".submit"),raw=j.Read(pre+".receipt");
+    if(submitted==null){
+     if(readOnly)return null;j.WriteOnce(pre+".submit",H(intent));Current(p,runtime,true);
+     var response=provider.Attach(p,guid,step,resources,H(intent));if(response==null)throw new InvalidOperationException("Optical response lost");
+     string job="",resource="";if(response.Code==4096)job=HyperVStartProvider.CanonicalJobReference(response.Job);else if(!String.IsNullOrEmpty(response.Job))throw new InvalidOperationException("Unexpected optical job");
+     if(!String.IsNullOrEmpty(response.Resource))resource=HyperVNativeRpcDefinition.OpticalReference(step,response.Resource);
+     raw=StartRecords.Encode(new Dictionary<string,object>{{"intent",H(intent)},{"code",response.Code},{"job",job},{"resource",resource},{"existing",response.Existing}});
+     j.WriteOnce(pre+".receipt",raw);submitted=H(intent);
+    }
+    if(submitted!=H(intent))throw new InvalidOperationException("Optical consumed submission differs");if(raw==null)return null;
+    string result,reference;bool settled=Settled(j,pre,raw,intent,step,out result,out reference);
+    if(!settled&&reference!=""&&j.Read(pre+".terminal")==null){
+     Current(p,runtime,false);var job=provider.ReadJob(reference);Current(p,runtime,false);
+     if(job==null||job.Reference!=reference||HyperVStartProvider.ReferenceForId(job.InstanceId)!=reference||String.IsNullOrEmpty(job.TimeSubmitted)||job.TimeSubmitted.Length>32)throw new InvalidOperationException("Exact optical job unavailable");
+     string binding=StartRecords.Encode(new Dictionary<string,object>{{"receipt",H(raw)},{"job",reference},{"submitted",job.TimeSubmitted}}),prior=j.Read(pre+".job");
+     if(prior==null)j.WriteOnce(pre+".job",binding);else if(prior!=binding)throw new InvalidOperationException("Optical job incarnation changed");
+     if(job.State!=7||job.RunTimes!=1)return null;
+     j.WriteOnce(pre+".terminal",StartRecords.Encode(new Dictionary<string,object>{{"receipt",H(raw)},{"identity",H(binding)},{"state",7},{"runs",1},{"error",job.ErrorCode}}));
+     settled=Settled(j,pre,raw,intent,step,out result,out reference);
+    }
+    if(!settled||result=="")return null; // No association scan to recover a lost resource.
+    Current(p,runtime,false);provider.VerifyOptical(p,guid,step,result,resources);Current(p,runtime,false);resources.Add(step,result);
+   }
+   provider.VerifyOpticalComplete(p,guid,resources);Current(p,runtime,false);
+   string proof=Proof(p,guid,owned,security,resources),old=j.Read("native-optical.observed");if(old==null)j.WriteOnce("native-optical.observed",proof);else if(old!=proof)throw new InvalidOperationException("Optical observation differs");return H(proof);
+  }
+  internal static string VerifyCompleted(NativeRpcDefinitionPlan p,IStartJournal j){
+   string guid,owned=NativeRpcSecurity.Ownership(p,j,out guid),security=NativeRpcSecurity.VerifyCompleted(p,j);var resources=new Dictionary<string,string>();
+   foreach(string step in Steps){string pre="native-optical."+step,intent=Intent(p,guid,owned,security,step,resources),raw=j.Read(pre+".receipt"),result,job;
+    if(j.Read(pre+".intent")!=intent||j.Read(pre+".submit")!=H(intent)||raw==null||!Settled(j,pre,raw,intent,step,out result,out job)||result=="")throw new InvalidOperationException("Original optical operation not settled");resources.Add(step,result);
+   }
+   string proof=Proof(p,guid,owned,security,resources);if(j.Read("native-optical.observed")!=proof)throw new InvalidOperationException("Original optical readback absent");return H(proof);
+  }
+ }
+ public sealed partial class HyperVNativeRpcDefinition : INativeRpcOpticalProvider {
+  internal static string OpticalClass(string step){if(step=="scsi"||step=="imagedrive"||step=="hashdrive")return "Msvm_ResourceAllocationSettingData";if(step=="imagemedia"||step=="hashmedia")return "Msvm_StorageAllocationSettingData";throw new ArgumentException("Fixed optical role required");}
+  internal static string OpticalReference(string step,string raw){
+   if(raw==null||raw.Length>2048)throw new InvalidOperationException("Optical reference bound");var path=new ManagementPath(raw);string cls=OpticalClass(step);
+   if(!path.IsInstance||!String.Equals(path.ClassName,cls,StringComparison.OrdinalIgnoreCase)||(path.Server!=""&&path.Server!="."&&!String.Equals(path.Server,Environment.MachineName,StringComparison.OrdinalIgnoreCase)))throw new InvalidOperationException("Local exact optical class required");
+   string ns=path.NamespacePath;if(ns.StartsWith(@"\\")){int slash=ns.IndexOf('\\',2);if(slash<0)throw new InvalidOperationException("Optical namespace");ns=ns.Substring(slash+1);}if(ns!=""&&!String.Equals(ns,@"root\virtualization\v2",StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("Optical namespace");
+   string relative=path.RelativePath;if(!Regex.IsMatch(relative,"\\A"+cls+"\\.InstanceID=\"(?:[^\"\\\\\\r\\n]|\\\\[\\\\\"]){1,1024}\"\\z",RegexOptions.IgnoreCase))throw new InvalidOperationException("Exact optical instance key required");return cls+relative.Substring(relative.IndexOf('.'));
+  }
+  internal static Dictionary<string,object> OpticalValues(NativeRpcDefinitionPlan p,string step,IDictionary<string,string> prior){
+   if(step=="scsi")return new Dictionary<string,object>{{"ResourceType",(ushort)6},{"ResourceSubType","Microsoft:Hyper-V:Synthetic SCSI Controller"},{"Address","0"}};
+   if(step=="imagedrive"||step=="hashdrive")return new Dictionary<string,object>{{"ResourceType",(ushort)16},{"ResourceSubType","Microsoft:Hyper-V:Synthetic DVD Drive"},{"Parent",prior["scsi"]},{"AddressOnParent",step=="imagedrive"?"0":"1"}};
+   if(step=="imagemedia"||step=="hashmedia")return new Dictionary<string,object>{{"ResourceType",(ushort)31},{"ResourceSubType","Microsoft:Hyper-V:Virtual CD/DVD Disk"},{"Parent",prior[step=="imagemedia"?"imagedrive":"hashdrive"]},{"HostResource",new[]{Path.Combine(p.Root,NativeRpcMediaProfile.Name(step=="hashmedia"))}}};
+   throw new ArgumentException("Fixed optical role required");
+  }
+  static ManagementObject OpticalSettings(string guid){return HyperVStartProvider.One(HyperVStartProvider.Scope(),"SELECT * FROM Msvm_VirtualSystemSettingData WHERE VirtualSystemIdentifier='"+guid+"' AND VirtualSystemType='Microsoft:Hyper-V:System:Realized'");}
+  static Dictionary<string,Dictionary<string,object>> OpticalInventory(ManagementObject settings){
+   var found=new Dictionary<string,Dictionary<string,object>>(StringComparer.Ordinal);int count=0;
+   using(var rows=settings.GetRelated("Msvm_ResourceAllocationSettingData"))foreach(ManagementObject row in rows)using(row){
+    if(++count>64)throw new InvalidOperationException("Optical inventory bound");string sub=row["ResourceSubType"] as string;ushort type=Convert.ToUInt16(row["ResourceType"]);
+    bool scsi=sub=="Microsoft:Hyper-V:Synthetic SCSI Controller",drive=sub=="Microsoft:Hyper-V:Synthetic DVD Drive",media=sub=="Microsoft:Hyper-V:Virtual CD/DVD Disk";
+    if(!scsi&&!drive&&!media){if(type==5||type==6||type==15||type==16||type==17||type==19||type==31)throw new InvalidOperationException("Unexpected storage device on native VM");continue;}
+    string step=scsi?"scsi":drive?"imagedrive":"imagemedia",reference=OpticalReference(step,row.Path.Path);var values=new Dictionary<string,object>();
+    foreach(string field in scsi?new[]{"ResourceType","ResourceSubType","Address"}:drive?new[]{"ResourceType","ResourceSubType","Parent","AddressOnParent"}:new[]{"ResourceType","ResourceSubType","Parent","HostResource"})values[field]=row[field];
+    found.Add(reference,values);
+   }return found;
+  }
+  // Exact original-VM association and every expected parent/address/media path,
+  // not just a matching filename or a resource belonging to another VM.
+  internal static void VerifyOpticalInventory(NativeRpcDefinitionPlan p,IDictionary<string,string> resources,IDictionary<string,Dictionary<string,object>> actual){
+   if(actual.Count!=resources.Count)throw new InvalidOperationException("Unexpected optical topology");var unique=new HashSet<string>(StringComparer.Ordinal);
+   foreach(string step in NativeRpcOptical.Steps){string reference;if(!resources.TryGetValue(step,out reference))continue;if(OpticalReference(step,reference)!=reference||!unique.Add(reference)||!actual.ContainsKey(reference))throw new InvalidOperationException("Returned optical resource absent or aliased");
+    var expected=OpticalValues(p,step,resources);var row=actual[reference];if(row.Count!=expected.Count)throw new InvalidOperationException("Optical field closure differs");
+    foreach(var pair in expected){object value;if(!row.TryGetValue(pair.Key,out value))throw new InvalidOperationException("Optical property missing");
+     if(pair.Key=="Parent"){value=OpticalReference(step=="imagedrive"||step=="hashdrive"?"scsi":"imagedrive",value as string);}
+     if(pair.Value is string[]){var a=value as string[];var e=(string[])pair.Value;if(a==null||a.Length!=1||a[0]!=e[0])throw new InvalidOperationException("Original optical media path differs");}
+     else if(!Object.Equals(value,pair.Value))throw new InvalidOperationException("Optical field differs: "+pair.Key);
+    }
+   }
+  }
+  internal static void VerifyOpticalSubset(NativeRpcDefinitionPlan p,IDictionary<string,string> expected,IDictionary<string,Dictionary<string,object>> actual){
+   var selected=new Dictionary<string,Dictionary<string,object>>();foreach(var x in expected){Dictionary<string,object> row;if(!actual.TryGetValue(x.Value,out row))throw new InvalidOperationException("Original returned optical association missing");selected.Add(x.Value,row);}VerifyOpticalInventory(p,expected,selected);
+  }
+  void OpticalGuard(NativeRpcDefinitionPlan p,string guid,bool mutation){runtime.Check(p,mutation);string original;NativeRpcSecurity.Ownership(p,journal,out original);if(original!=guid)throw new InvalidOperationException("Original optical VM differs");NativeRpcSecurity.VerifyCompleted(p,journal);RequireOwnedOff(p,guid);RequireSecurity(p,guid);runtime.Check(p,mutation);}
+  public NativeOpticalResponse Attach(NativeRpcDefinitionPlan p,string guid,string step,IDictionary<string,string> prior,string intent){
+   ProtectedAttempt.RequireSystem();OpticalGuard(p,guid,true);string pre="native-optical."+step;
+   if(journal.Read(pre+".submit")!=intent||NativeRpcDefinitionPlan.Hash(journal.Read(pre+".intent"))!=intent)throw new InvalidOperationException("Consumed optical intent required");
+   var scope=HyperVStartProvider.Scope();using(var settings=OpticalSettings(guid)){
+    var inventory=OpticalInventory(settings);
+    if(step=="scsi"&&prior.Count==0&&inventory.Count==1){foreach(string existing in inventory.Keys){var one=new Dictionary<string,string>{{"scsi",existing}};VerifyOpticalInventory(p,one,inventory);return new NativeOpticalResponse(0,null,existing,true);}}
+    VerifyOpticalInventory(p,prior,inventory);
+    var values=OpticalValues(p,step,prior);
+    using(var service=HyperVStartProvider.One(scope,"SELECT * FROM Msvm_VirtualSystemManagementService"))using(var row=New(scope,OpticalClass(step),values))using(var input=service.GetMethodParameters("AddResourceSettings")){
+     if(values.ContainsKey("Parent"))row["Parent"]=scope.Path.Path+":"+(string)values["Parent"];
+     input["AffectedConfiguration"]=settings.Path.Path;input["ResourceSettings"]=new[]{row.GetText(TextFormat.WmiDtd20)};
+     journal.WriteOnce(pre+".invoke",intent);OpticalGuard(p,guid,true);
+     using(var output=service.InvokeMethod("AddResourceSettings",input,new InvokeMethodOptions{Timeout=TimeSpan.FromSeconds(2)})){
+      if(output==null||output["ReturnValue"]==null)throw new InvalidOperationException("Optical response absent");var refs=output["ResultingResourceSettings"] as string[];if(refs!=null&&refs.Length>1)throw new InvalidOperationException("Ambiguous optical resources");
+      return new NativeOpticalResponse(Convert.ToUInt32(output["ReturnValue"]),output["Job"] as string,refs==null||refs.Length==0?null:refs[0]);
+     }
+    }
+   }
+  }
+  public void VerifyOptical(NativeRpcDefinitionPlan p,string guid,string step,string reference,IDictionary<string,string> prior){
+   ProtectedAttempt.RequireSystem();OpticalGuard(p,guid,false);var expected=new Dictionary<string,string>(prior);expected.Add(step,reference);
+   // Earlier steps may be re-observed after later returned resources exist.
+   // Verify their exact association/fields here; before every new mutation and
+   // at final completion the entire inventory must match the known closure.
+   using(var settings=OpticalSettings(guid))VerifyOpticalSubset(p,expected,OpticalInventory(settings));OpticalGuard(p,guid,false);
+  }
+  public void VerifyOpticalComplete(NativeRpcDefinitionPlan p,string guid,IDictionary<string,string> resources){
+   ProtectedAttempt.RequireSystem();if(resources.Count!=5)throw new InvalidOperationException("Both optical roles required");OpticalGuard(p,guid,false);
+   using(var settings=OpticalSettings(guid))VerifyOpticalInventory(p,resources,OpticalInventory(settings));OpticalGuard(p,guid,false);
   }
  }
 }

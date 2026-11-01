@@ -1,0 +1,13 @@
+[
+  "windows/rpc/NativeRpcDefinition.cs",
+  "windows/rpc/ProtectedAttempt.cs",
+  "windows/rpc/NativeRpcController.cs",
+  "windows/rpc/NativeRpcWorkerEntry.cs",
+  "windows/rpc/README.md",
+  "windows/rpc/NATIVE-MANAGER-CONTROLLER.md",
+  "test/rpc-windows-worker/NativeRpcOpticalHarness.cs",
+  "test/rpc-windows-worker/run-native-optical-ci.ps1",
+  ".github/workflows/rpc-native-optical.yml",
+  "ops/unified-funding-20261028/rpc-native-optical-preserve-r1",
+  "ops/unified-funding-20261028/rpc-native-optical-ci-r1"
+]
