@@ -1,0 +1,7 @@
+[
+  "test/rpc-windows-worker/NativeRpcMediaHarness.cs",
+  "test/rpc-windows-worker/run-native-media-ci.ps1",
+  "ops/unified-funding-20261028/rpc-native-media-ci-r2",
+  "ops/unified-funding-20261028/rpc-native-media-ci-r3",
+  "ops/unified-funding-20261028/rpc-native-media-preserve-r3"
+]

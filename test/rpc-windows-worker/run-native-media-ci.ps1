@@ -62,7 +62,7 @@ try{
     $production=@('BoundedWorker.cs','OwnerObserver.cs','ProtectedAttempt.cs','ProviderStart.cs','OwnedVmPermit.cs','HostPhysicalPool.cs','WindowsStartAdmission.cs','LegacyTemplateFence.cs','LegacyLaunchCohort.cs','LegacyHandoff.cs','NativeRpcDefinition.cs','NativeRpcAuthority.cs','NativeRpcWorkerEntry.cs','NativeRpcController.cs','NativeRpcManagerTransport.cs')|ForEach-Object{Join-Path $root ('windows\rpc\'+$_)}
     $sources=@($production|Where-Object{[IO.Path]::GetFileName($_) -notin @('NativeRpcWorkerEntry.cs')})+@(Join-Path $root 'test\rpc-windows-worker\NativeRpcMediaHarness.cs')
     Invoke-FiniteProcess $csc (@('/nologo','/optimize+','/target:exe','/platform:x64','/r:System.Management.dll','/r:System.Web.Extensions.dll','/r:Microsoft.CSharp.dll','/main:NativeRpcMediaHarness',('/out:'+$entry))+$sources) 20000 'harness-compile'
-    Invoke-FiniteProcess $entry @('--media-only') 20000 'worker-harness'
+    Invoke-FiniteProcess $entry @('--custody-only') 20000 'worker-harness'
     $worker=Join-Path $work 'native-worker.exe'
     Invoke-FiniteProcess $csc (@('/nologo','/optimize+','/target:exe','/platform:x64','/r:System.Management.dll','/r:System.Web.Extensions.dll','/r:Microsoft.CSharp.dll','/main:Enclave.OwnedRpc.NativeRpcControllerEntry',('/out:'+$worker))+$production) 20000 'worker-compile'
     if((Get-Item -LiteralPath $worker).Length -gt 262144){throw 'Native worker image bound'}

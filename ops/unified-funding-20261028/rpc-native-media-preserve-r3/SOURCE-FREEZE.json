@@ -1,0 +1,4 @@
+{
+  "test/rpc-windows-worker/NativeRpcMediaHarness.cs": "c239cfcc0d40978b0687bb43ffd74c3362cfdf8d401a75d5c9f27162665a1a9c",
+  "test/rpc-windows-worker/run-native-media-ci.ps1": "99f69269cd221b4f88d6c30254dc7380341be60dc771e86081de25ffe0eb2f03"
+}

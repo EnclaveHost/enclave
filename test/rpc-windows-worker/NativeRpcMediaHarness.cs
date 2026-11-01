@@ -3,7 +3,7 @@ public static class NativeRpcMediaHarness {
  static int count;static long original;static byte[] image;static string top,source,imageHash,treeHash;static byte[] profile;
  [DllImport("kernel32.dll")]static extern IntPtr GetCurrentProcess();[DllImport("kernel32.dll")]static extern bool TerminateProcess(IntPtr p,uint code);
  static void Current(){if(BoundedWorker.MonotonicMilliseconds()-original>=20000)throw new Exception("Original fixture deadline");}
- static void Check(bool x){if(!x)throw new Exception("Assertion");}static void Refuse(Action f){bool hit=false;try{f();}catch{hit=true;}Check(hit);}static void Test(string n,Action f){if(n.StartsWith("canonical ",StringComparison.Ordinal)||n.StartsWith("profile ",StringComparison.Ordinal))return;Current();f();Current();count++;Console.WriteLine("PASS "+n);}
+ static void Check(bool x){if(!x)throw new Exception("Assertion");}static void Refuse(Action f){bool hit=false;try{f();}catch{hit=true;}Check(hit);}static void Test(string n,Action f){if(n.StartsWith("canonical ",StringComparison.Ordinal)||n.StartsWith("profile ",StringComparison.Ordinal)||n=="actual full-size private optical copy and source pins")return;Current();f();Current();count++;Console.WriteLine("PASS "+n);}
  static string H(char c){return new string(c,64);}static byte[] B(string x){return Encoding.UTF8.GetBytes(x);}static string Hash(byte[] b){return ProtectedAttempt.Hash(b);}
  static FileSecurity Acl(){var a=new FileSecurity();a.SetOwner(new SecurityIdentifier("S-1-5-32-544"));a.SetAccessRuleProtection(true,false);foreach(string sid in new[]{"S-1-5-18","S-1-5-32-544"})a.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid),FileSystemRights.FullControl,AccessControlType.Allow));return a;}
  static void Dir(string p){var a=new DirectorySecurity();a.SetOwner(new SecurityIdentifier("S-1-5-32-544"));a.SetAccessRuleProtection(true,false);foreach(string sid in new[]{"S-1-5-18","S-1-5-32-544"})a.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid),FileSystemRights.FullControl,InheritanceFlags.ContainerInherit|InheritanceFlags.ObjectInherit,PropagationFlags.None,AccessControlType.Allow));Directory.CreateDirectory(p,a);}
@@ -13,17 +13,22 @@ public static class NativeRpcMediaHarness {
  }
  static byte[] Profile(string ih,string th){return B("{\"controllerSha256\":\""+H('a')+"\",\"entrySha256\":\""+H('b')+"\",\"kernel\":{\"bootSha256\":\""+H('c')+"\",\"elfSha256\":\""+H('d')+"\",\"release\":\"6.6.87.2-enclave-kvm-box\"},\"profile\":\"ethereum-base-rpc-v1\",\"root\":{\"dataBlocks\":262144,\"hashBytes\":8458240,\"hashSha256\":\""+th+"\",\"imageBytes\":1073741824,\"imageSha256\":\""+ih+"\",\"rootHash\":\""+H('e')+"\",\"salt\":\""+H('f')+"\"},\"schema\":\"enclave-native-rpc-profile/2\",\"wrapperSha256\":\""+H('a')+"\"}\n");}
  sealed class Case {
-  internal NativeRpcDefinitionPlan P;internal string Contract,ContractHash;
+  internal NativeRpcDefinitionPlan P;internal string Contract,ContractHash,WorkerNonce,WorkerRoot,Operation;
   internal Case(string operation="define"){
    string n=Guid.NewGuid().ToString("N"),root=Path.Combine(top,n);Dir(root);string w=Guid.NewGuid().ToString("N"),worker=Path.Combine(top,w);Dir(worker);Put(Path.Combine(worker,"entry.exe"),image);
    long now=BoundedWorker.MonotonicMilliseconds();P=new NativeRpcDefinitionPlan(n,ProtectedAttempt.CurrentBoot(),new string('b',32),"rpc"+new string('c',32),"0x"+H('d'),H('e'),H('f'),H('a'),Hash(profile),H('b'),H('c'),root,now,now+900000,H('d'),H('e'),Hash(image));
    Put(Path.Combine(root,"native-definition-plan.txt"),B(P.Encode()));Put(Path.Combine(root,"profile.json"),profile);
-   byte[] c=B("owned-native-rpc-definition-worker-v1\n"+w+"\n"+P.Boot+"\n"+now+"\n"+(now+20000)+"\n"+P.WorkerImageHash+"\n"+operation+"\n"+Path.Combine(root,"native-definition-plan.txt")+"\n"+P.Digest+"\n");Contract=Path.Combine(worker,"contract.txt");ContractHash=Hash(c);Put(Contract,c);
+   WorkerNonce=w;WorkerRoot=worker;Operation=operation;
   }
-  internal ProtectedAttempt Lease(){return ProtectedAttempt.PinNativeDefinitionController(Contract,ContractHash);}
+  internal ProtectedAttempt Lease(){
+   Current();long phase=BoundedWorker.MonotonicMilliseconds(),end=Math.Min(original+20000,P.Deadline);
+   byte[] c=B("owned-native-rpc-definition-worker-v1\n"+WorkerNonce+"\n"+P.Boot+"\n"+phase+"\n"+end+"\n"+P.WorkerImageHash+"\n"+Operation+"\n"+Path.Combine(P.Root,"native-definition-plan.txt")+"\n"+P.Digest+"\n");
+   Contract=Path.Combine(WorkerRoot,"contract.txt");ContractHash=Hash(c);Put(Contract,c);
+   return ProtectedAttempt.PinNativeDefinitionController(Contract,ContractHash);
+  }
  }
  public static int Main(string[] args){try{
-  if(args.Length!=1||args[0]!="--media-only")throw new ArgumentException("Explicit unrun media selection required");
+  if(args.Length!=1||args[0]!="--custody-only")throw new ArgumentException("Explicit unrun media selection required");
   original=BoundedWorker.MonotonicMilliseconds();var timer=new Timer(delegate{TerminateProcess(GetCurrentProcess(),125);},null,20000,Timeout.Infinite);BoundedWorker.EnterSupervisorEnvelope(256UL*1024*1024);
   image=File.ReadAllBytes(System.Reflection.Assembly.GetExecutingAssembly().Location);top=Path.Combine(Path.GetPathRoot(Environment.SystemDirectory),"rpc-media-ci-"+Guid.NewGuid().ToString("N"));Dir(top);source=Path.Combine(top,"source");Dir(source);
   // Actual fixed-size inert bytes, not a filesystem image or accepted platform.
@@ -33,6 +38,11 @@ public static class NativeRpcMediaHarness {
   Test("profile refuses duplicate escaped noncanonical or extra keys",()=>{string raw=Encoding.UTF8.GetString(profile);foreach(string wrong in new[]{raw.TrimEnd(),raw+" ",raw.Replace("\"profile\":","\"extra\":false,\"profile\":"),raw.Replace("\"salt\":","\"salt\":\""+H('a')+"\",\"salt\":"),raw.Replace("ethereum","\\u0065thereum")}){byte[] b=B(wrong);Refuse(()=>new NativeRpcMediaProfile(b,Hash(b)));}});
   Test("profile refuses altered geometry role kernel and digest",()=>{string raw=Encoding.UTF8.GetString(profile);foreach(string wrong in new[]{raw.Replace("1073741824","1073741823"),raw.Replace("262144","262145"),raw.Replace("8458240","8458241"),raw.Replace("ethereum-base-rpc-v1","native-desktop"),raw.Replace("6.6.87.2","6.6.87.3"),raw.Replace(imageHash,new string('0',64))}){byte[] b=B(wrong);Refuse(()=>new NativeRpcMediaProfile(b,Hash(b)));}Refuse(()=>new NativeRpcMediaProfile(profile,H('f')));});
   Case valid=new Case();
+  // The full CopyMedia path passed R2. Prepare fresh inert full-size bytes for
+  // worker custody without replaying that successful transaction. Arm its lease
+  // AFTER preparation; every phase still ends at original fixture+20000.
+  Check(Zero(Path.Combine(valid.P.Root,"image.container"),false,false)==imageHash);
+  Check(Zero(Path.Combine(valid.P.Root,"hash.container"),true,false)==treeHash);
   Test("actual full-size private optical copy and source pins",()=>{using(var files=new NativeControllerFiles(Current))foreach(bool tree in new[]{false,true}){string name=NativeRpcMediaProfile.Name(tree),src=Path.Combine(source,name);var input=files.Open(src,NativeRpcMediaProfile.Size(tree),false);string hash=files.CopyMedia(Path.Combine(valid.P.Root,name),input,parsed,tree);Console.WriteLine("COPY_MS "+name+" "+(BoundedWorker.MonotonicMilliseconds()-original));Check(hash.Length==64&&new FileInfo(Path.Combine(valid.P.Root,name)).Length==NativeRpcMediaProfile.Size(tree));Refuse(()=>{using(var f=File.Open(src,FileMode.Open,FileAccess.Write,FileShare.ReadWrite))f.WriteByte(1);});Refuse(()=>File.Move(src,src+".moved"));}});
   Test("actual worker holds both verified media against writes and replacement",()=>{using(var lease=valid.Lease())using(var pin=ProtectedAttempt.PinNativeDefinitionJournalController(Path.Combine(valid.P.Root,"native-definition-plan.txt"),valid.P.Digest,lease)){pin.PinNativeMedia();Console.WriteLine("PINNED_MS "+(BoundedWorker.MonotonicMilliseconds()-original));foreach(bool tree in new[]{false,true}){string path=Path.Combine(valid.P.Root,NativeRpcMediaProfile.Name(tree));Refuse(()=>{using(var f=File.Open(path,FileMode.Open,FileAccess.Write,FileShare.ReadWrite))f.WriteByte(1);});Refuse(()=>File.Move(path,path+".moved"));}}});
   Test("wrong header leaves consumed pending without final or retry",()=>{string root=Path.Combine(top,"badheader");Dir(root);string src=Path.Combine(root,"bad.container");Zero(src,true,true);using(var files=new NativeControllerFiles(Current)){string dest=Path.Combine(root,"hash.container");Refuse(()=>files.CopyMedia(dest,files.Open(src,NativeRpcMediaProfile.Size(true),false),parsed,true));Check(!File.Exists(dest)&&File.Exists(dest+".pending"));Refuse(()=>files.CopyMedia(dest,files.Open(Path.Combine(source,"hash.container"),NativeRpcMediaProfile.Size(true),false),parsed,true));}});

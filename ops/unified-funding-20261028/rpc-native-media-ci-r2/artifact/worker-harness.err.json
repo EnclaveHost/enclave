@@ -1,0 +1,4 @@
+{
+  "sha256": "73c30fe7de11a0f5640e453cfa79673e4a94f1550074974306ebbf641ecb478a",
+  "text": "System.InvalidOperationException: Original inert contract timing invalid\r\n   at Enclave.OwnedRpc.ProtectedAttempt..ctor(String contractPath, String expectedHash, Boolean controller, String profile)\r\n   at Enclave.OwnedRpc.ProtectedAttempt.PinNativeDefinitionController(String path, String hash)\r\n   at NativeRpcMediaHarness.<>c__DisplayClass23.<Main>b__a()\r\n   at NativeRpcMediaHarness.Test(String n, Action f)\r\n   at NativeRpcMediaHarness.Main(String[] args)\r\n"
+}

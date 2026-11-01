@@ -1,0 +1,4 @@
+{
+  "sha256": "c5cb333838419bb037321c715c79e8e459dda9c958d18dc4a212d9cf28f6bd5b",
+  "text": "SOURCE_READY_MS 1118\r\nCOPY_MS image.container 11527\r\nCOPY_MS hash.container 11637\r\nPASS actual full-size private optical copy and source pins\r\n"
+}
