@@ -1,0 +1,24 @@
+{
+  "records": [
+    {
+      "path": "admit.py",
+      "sha256": "7fcada90860fd1441c8e566c4e4fc90c0afda84ef4b64807149f807228e17ec0"
+    },
+    {
+      "path": "storage-read.ps1",
+      "sha256": "2229b5da7c159a9f72077d73c5e318d6ea9595fc6495f443a7d8385a8c1af09a"
+    },
+    {
+      "path": "ROOT-REVIEW.md",
+      "sha256": "72fee787c732a6a04926336bfbbce1eecbc8eae880795a80db05ba2754f0b958"
+    },
+    {
+      "path": "COMMAND.json",
+      "sha256": "be09bf0c0fe153c0fafc77d85f44f4f7803c02cb07054fe2f383558c96ca7928"
+    },
+    {
+      "path": "run.py",
+      "sha256": "77482c724056f11583008cca6d60c9c2a4b054d1d966e4aae4bff15c08bec506"
+    }
+  ]
+}

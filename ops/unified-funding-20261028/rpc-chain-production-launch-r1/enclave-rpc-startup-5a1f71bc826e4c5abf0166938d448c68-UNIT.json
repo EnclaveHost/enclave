@@ -1,0 +1,5 @@
+{
+  "unit": "enclave-rpc-startup-5a1f71bc826e4c5abf0166938d448c68.service",
+  "invocation": "5772ec07c1d440ffbfa02435199802f2",
+  "state": "ActiveState=failed\nMainPID=0\nResult=exit-code\nExecMainStatus=1\n"
+}

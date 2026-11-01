@@ -1,0 +1,64 @@
+{
+  "exactDeaths": [
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379673674980257",
+      "pid": "42004",
+      "absent": true,
+      "role": "owner"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379673674980232",
+      "pid": "33276",
+      "absent": true,
+      "role": "observer"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379673676501979",
+      "pid": "52036",
+      "absent": true,
+      "role": "child"
+    }
+  ],
+  "priorStageDeaths": [
+    {
+      "label": "admission",
+      "expectedCreation": "134379673335364688",
+      "pid": 54416,
+      "sameIncarnationAlive": false,
+      "absent": true
+    }
+  ],
+  "original8091Alive": true,
+  "exactDefinitionProcesses": [],
+  "exactTasks": [],
+  "vms": [
+    {
+      "Id": "28ca7b93-350b-4385-844e-89c8100fbdf9",
+      "State": 2,
+      "MemoryAssigned": 2732589056
+    },
+    {
+      "Id": "1ca457d6-17bf-47fa-ad26-72770d74e08b",
+      "State": 2,
+      "MemoryAssigned": 536870912
+    },
+    {
+      "Id": "dd8df95d-b771-4545-a861-0092e74a40f3",
+      "State": 2,
+      "MemoryAssigned": 8589934592
+    },
+    {
+      "Id": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
+      "State": 2,
+      "MemoryAssigned": 4294967296
+    }
+  ],
+  "failure": {
+    "type": "System.InvalidOperationException",
+    "message": "SYSTEM primary execution context required"
+  },
+  "rawSha256": "630ebe774722b870a550ed0f8760df5b476d7eac498353e5128b043a2939074c"
+}

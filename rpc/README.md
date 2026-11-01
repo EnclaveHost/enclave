@@ -528,3 +528,5 @@ expired900s native chain is not proved by those fixtures. Before another product
 prepare new instance-bound seed/media and owner profile/source closure, stage
 qualified current binaries, and obtain fresh full admission. The old seed and
 profile are tied to the consumed attempt and cannot be silently reused.
+
+The subsequent actual third attempt `5a1f71bc826e4c5abf0166938d448c68` reached definition provider preparation after the predecessor/admission gates, then failed `SYSTEM primary execution context required`. Both `definition.native` and `definition.invoke` are present, with no returned provider receipt. Exact worker death and exporter cleanup were observed, the four original VMs stayed unchanged, and no boot/start/guest phase was submitted. This attempt is consumed and cannot use the absent-native-marker predecessor recovery path. The token change needs bounded read-only preparation diagnostics, and provider settlement remains held; no security check is relaxed or submission repeated. See `ops/unified-funding-20261028/rpc-chain-production-launch-r1/ROOT-RESULT.md`.

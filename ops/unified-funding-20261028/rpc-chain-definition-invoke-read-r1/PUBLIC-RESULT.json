@@ -1,0 +1,79 @@
+{
+  "at": 1793493854.970024,
+  "readOnly": true,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 614,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "success": true,
+    "root": "C:\\EnclaveRpcVm-7a8586db00c64f6f8ab024ae134fe641\\7a8586db00c64f6f8ab024ae134fe641",
+    "records": [
+      {
+        "name": "definition.native",
+        "bytes": 64,
+        "text": "4657a2442176cac1e2461056c14c77053c288042840a553304ad76d2d87f667c",
+        "exists": true
+      },
+      {
+        "name": "definition.native.pending",
+        "bytes": null,
+        "text": null,
+        "exists": false
+      },
+      {
+        "name": "definition.invoke",
+        "bytes": 64,
+        "text": "4657a2442176cac1e2461056c14c77053c288042840a553304ad76d2d87f667c",
+        "exists": true
+      },
+      {
+        "name": "definition.invoke.pending",
+        "bytes": null,
+        "text": null,
+        "exists": false
+      },
+      {
+        "name": "definition.receipt",
+        "bytes": null,
+        "text": null,
+        "exists": false
+      },
+      {
+        "name": "definition.receipt.pending",
+        "bytes": null,
+        "text": null,
+        "exists": false
+      },
+      {
+        "name": "definition.job",
+        "bytes": null,
+        "text": null,
+        "exists": false
+      },
+      {
+        "name": "definition.terminal",
+        "bytes": null,
+        "text": null,
+        "exists": false
+      },
+      {
+        "name": "definition.system",
+        "bytes": null,
+        "text": null,
+        "exists": false
+      },
+      {
+        "name": "definition.off",
+        "bytes": null,
+        "text": null,
+        "exists": false
+      }
+    ],
+    "atUtc": "2026-11-01T00:44:14.8940222Z",
+    "readOnly": true,
+    "providerSettlementProven": false,
+    "reservationMayRelease": false
+  }
+}

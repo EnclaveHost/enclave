@@ -1,0 +1,1 @@
+Narrow missing-boundary record read after actualthirdattempt failure. Earlier reader omitted definition.invoke; presence cannot be inferred from earlier list. Read exactnewVM definition.native/invoke/receipt and pending plus exactsettlement markers only. No providerqueries/scans/cancellation/retry/mutation. No absence/settlement claim before results.

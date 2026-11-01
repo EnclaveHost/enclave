@@ -1,0 +1,154 @@
+{
+  "attempt": "5a1f71bc826e4c5abf0166938d448c68",
+  "vmAttempt": "7a8586db00c64f6f8ab024ae134fe641",
+  "clock": {
+    "createdUtcNs": 1793493759500386222,
+    "deadlineUtcNs": 1793494659500386222,
+    "windowsOriginMilliseconds": 749597631,
+    "windowsDeadlineMilliseconds": 750497631
+  },
+  "worker": "5e8c07c1dca74d97972a51ac0c5c4d44",
+  "controller": {
+    "schema": "owned-rpc-target-definition/1",
+    "passed": false,
+    "operation": "define",
+    "plan": "4657a2442176cac1e2461056c14c77053c288042840a553304ad76d2d87f667c",
+    "result": null,
+    "origin": 749602090,
+    "deadline": 749632090,
+    "elapsedMs": 16623,
+    "root": "C:\\EnclaveRpcDefinition-5e8c07c1dca74d97972a51ac0c5c4d44\\5e8c07c1dca74d97972a51ac0c5c4d44",
+    "freeBytes": 84907073536,
+    "requiredFreeBytes": 62709039104,
+    "failures": [
+      "InvalidOperationException: Exact role completion failed"
+    ],
+    "startAuthorized": false,
+    "reservationMayRelease": false
+  },
+  "failure": {
+    "type": "System.InvalidOperationException",
+    "message": "SYSTEM primary execution context required"
+  },
+  "held": {
+    "automaticRetry": false,
+    "errorType": "ExchangeFailure",
+    "phase": "define",
+    "reservationMayRelease": false,
+    "rpcReady": false
+  },
+  "exactRoleDeaths": [
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379673674980257",
+      "pid": "42004",
+      "absent": true,
+      "role": "owner"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379673674980232",
+      "pid": "33276",
+      "absent": true,
+      "role": "observer"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379673676501979",
+      "pid": "52036",
+      "absent": true,
+      "role": "child"
+    }
+  ],
+  "original8091Alive": true,
+  "vms": [
+    {
+      "Id": "28ca7b93-350b-4385-844e-89c8100fbdf9",
+      "State": 2,
+      "MemoryAssigned": 2732589056
+    },
+    {
+      "Id": "1ca457d6-17bf-47fa-ad26-72770d74e08b",
+      "State": 2,
+      "MemoryAssigned": 536870912
+    },
+    {
+      "Id": "dd8df95d-b771-4545-a861-0092e74a40f3",
+      "State": 2,
+      "MemoryAssigned": 8589934592
+    },
+    {
+      "Id": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
+      "State": 2,
+      "MemoryAssigned": 4294967296
+    }
+  ],
+  "nativeBoundaryRecords": [
+    {
+      "name": "definition.native",
+      "bytes": 64,
+      "text": "4657a2442176cac1e2461056c14c77053c288042840a553304ad76d2d87f667c",
+      "exists": true
+    },
+    {
+      "name": "definition.native.pending",
+      "bytes": null,
+      "text": null,
+      "exists": false
+    },
+    {
+      "name": "definition.invoke",
+      "bytes": 64,
+      "text": "4657a2442176cac1e2461056c14c77053c288042840a553304ad76d2d87f667c",
+      "exists": true
+    },
+    {
+      "name": "definition.invoke.pending",
+      "bytes": null,
+      "text": null,
+      "exists": false
+    },
+    {
+      "name": "definition.receipt",
+      "bytes": null,
+      "text": null,
+      "exists": false
+    },
+    {
+      "name": "definition.receipt.pending",
+      "bytes": null,
+      "text": null,
+      "exists": false
+    },
+    {
+      "name": "definition.job",
+      "bytes": null,
+      "text": null,
+      "exists": false
+    },
+    {
+      "name": "definition.terminal",
+      "bytes": null,
+      "text": null,
+      "exists": false
+    },
+    {
+      "name": "definition.system",
+      "bytes": null,
+      "text": null,
+      "exists": false
+    },
+    {
+      "name": "definition.off",
+      "bytes": null,
+      "text": null,
+      "exists": false
+    }
+  ],
+  "nativeInvokeActuallyCalledProven": false,
+  "providerSettlementProven": false,
+  "reservationMayRelease": false,
+  "rpcReady": false,
+  "copyBootStartGuestSubmitted": false,
+  "rawReadSha256": "630ebe774722b870a550ed0f8760df5b476d7eac498353e5128b043a2939074c"
+}
