@@ -9,8 +9,15 @@ $null=New-Item -ItemType Directory -Path $work
 $os=Get-CimInstance Win32_OperatingSystem
 if([long]$os.FreePhysicalMemory*1024 -lt 3GB){throw 'Insufficient disposable-runner headroom'}
 if((Get-PSDrive -Name C).Free -lt 5GB){throw 'Insufficient disposable-runner disk headroom'}
-$csc=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
-if(-not (Test-Path -LiteralPath $csc)){throw 'Exact 64-bit Framework compiler missing; no fallback'}
+# Standalone Roslyn, never MSBuild or /shared/VBCSCompiler. No package install.
+$csc='C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe'
+$framework=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319'
+$references=@('mscorlib.dll','System.dll','System.Core.dll','System.Management.dll','System.Web.Extensions.dll','Microsoft.CSharp.dll','System.Xml.dll','System.Security.dll','System.Configuration.dll','System.Data.dll')|ForEach-Object{Join-Path $framework $_}
+$toolFiles=@($csc)+@($references)
+foreach($file in $toolFiles){if(-not(Test-Path -LiteralPath $file) -or ((Get-Item -LiteralPath $file).Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'Fixed compiler/reference unavailable; no fallback'}}
+$toolPins=@(Get-FileHash -Algorithm SHA256 -LiteralPath $toolFiles)
+[pscustomobject]@{implementation='VS2022 standalone Roslyn';version=(Get-Item -LiteralPath $csc).VersionInfo.FileVersion;server=$false;pins=$toolPins}|ConvertTo-Json -Depth 5|Set-Content -LiteralPath (Join-Path $work 'toolchain.json')
+$compilerOptions=@('/nologo','/noconfig','/nostdlib+','/langversion:5','/optimize+','/debug-','/deterministic+','/target:exe','/platform:x64')+@($references|ForEach-Object{'/r:'+$_})
 $controller=Join-Path $work 'qualification-controller.exe'
 $entry=Join-Path $work 'owned-entry.exe'
 $target=Join-Path $work 'definition-controller.exe'
@@ -53,7 +60,7 @@ function Invoke-FiniteProcess([string]$Executable,[string[]]$Arguments,[int]$Dea
                 }
             }
         }
-        $record=[pscustomobject]@{label=$Label;pid=$p.Id;exitCode=$p.ExitCode;elapsedMs=$clock.ElapsedMilliseconds;failure=$failure;processExited=$p.HasExited;maximumObservedWorkingSet=$maximumObservedWorkingSet;outputBytes=$finalBytes}
+        $record=[pscustomobject]@{label=$Label;pid=$p.Id;exitCode=$p.ExitCode;elapsedMs=$clock.ElapsedMilliseconds;failure=$failure;processExited=$p.HasExited;maximumObservedWorkingSet=$maximumObservedWorkingSet;cpuMs=$p.TotalProcessorTime.TotalMilliseconds;outputBytes=$finalBytes}
         $records.Add($record);$p.Dispose()
     }
     if($failure -or $record.exitCode -ne 0){throw ($Label+' failed: '+($record|ConvertTo-Json -Compress))}
@@ -61,25 +68,26 @@ function Invoke-FiniteProcess([string]$Executable,[string[]]$Arguments,[int]$Dea
 try{
     $production=@('BoundedWorker.cs','OwnerObserver.cs','ProtectedAttempt.cs','ProviderStart.cs','OwnedVmPermit.cs','HostPhysicalPool.cs','WindowsStartAdmission.cs','LegacyTemplateFence.cs','LegacyLaunchCohort.cs','LegacyHandoff.cs','NativeRpcDefinition.cs','NativeRpcAuthority.cs','NativeRpcWorkerEntry.cs','NativeRpcController.cs','NativeRpcManagerTransport.cs')|ForEach-Object{Join-Path $root ('windows\rpc\'+$_)}
     $sources=@($production|Where-Object{[IO.Path]::GetFileName($_) -notin @('NativeRpcWorkerEntry.cs','NativeRpcController.cs','NativeRpcManagerTransport.cs')})+@(Join-Path $root 'test\rpc-windows-worker\NativeRpcOpticalHarness.cs')
-    Invoke-FiniteProcess $csc (@('/nologo','/optimize+','/target:exe','/platform:x64','/r:System.Management.dll','/r:System.Web.Extensions.dll','/r:Microsoft.CSharp.dll','/main:NativeRpcOpticalHarness',('/out:'+$entry))+$sources) 20000 'harness-compile'
+    Invoke-FiniteProcess $csc ($compilerOptions+@('/main:NativeRpcOpticalHarness',('/out:'+$entry))+$sources) 20000 'harness-compile'
     Invoke-FiniteProcess $entry @() 20000 'worker-harness'
     $worker=Join-Path $work 'native-worker.exe'
-    Invoke-FiniteProcess $csc (@('/nologo','/optimize+','/target:exe','/platform:x64','/r:System.Management.dll','/r:System.Web.Extensions.dll','/r:Microsoft.CSharp.dll','/main:Enclave.OwnedRpc.NativeRpcControllerEntry',('/out:'+$worker))+@($production|Where-Object{[IO.Path]::GetFileName($_) -ne 'NativeRpcWorkerEntry.cs'})) 20000 'worker-compile'
+    Invoke-FiniteProcess $csc ($compilerOptions+@('/main:Enclave.OwnedRpc.NativeRpcControllerEntry',('/out:'+$worker))+@($production|Where-Object{[IO.Path]::GetFileName($_) -ne 'NativeRpcWorkerEntry.cs'})) 20000 'worker-compile'
     if((Get-Item -LiteralPath $worker).Length -gt 262144){throw 'Native worker image bound'}
     [pscustomobject]@{compiled=$true;workerExecuted=$false;sha256=(Get-FileHash -Algorithm SHA256 -LiteralPath $worker).Hash.ToLowerInvariant();bytes=(Get-Item -LiteralPath $worker).Length}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'worker-artifact.json')
     $systemWorker=Join-Path $work 'system-worker.exe'
-    Invoke-FiniteProcess $csc (@('/nologo','/optimize+','/target:exe','/platform:x64','/r:System.Management.dll','/r:System.Web.Extensions.dll','/r:Microsoft.CSharp.dll','/main:Enclave.OwnedRpc.NativeRpcWorkerEntry',('/out:'+$systemWorker))+@($production|Where-Object{[IO.Path]::GetFileName($_) -notin @('NativeRpcController.cs','NativeRpcManagerTransport.cs')})) 20000 'system-worker-compile'
+    Invoke-FiniteProcess $csc ($compilerOptions+@('/main:Enclave.OwnedRpc.NativeRpcWorkerEntry',('/out:'+$systemWorker))+@($production|Where-Object{[IO.Path]::GetFileName($_) -notin @('NativeRpcController.cs','NativeRpcManagerTransport.cs')})) 20000 'system-worker-compile'
     if((Get-Item -LiteralPath $systemWorker).Length -gt 262144){throw 'Native SYSTEM worker image bound'}
     [pscustomobject]@{compiled=$true;workerExecuted=$false;sha256=(Get-FileHash -Algorithm SHA256 -LiteralPath $systemWorker).Hash.ToLowerInvariant();bytes=(Get-Item -LiteralPath $systemWorker).Length}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'system-worker-artifact.json')
     [pscustomobject]@{compiled=$true;fixtureExecuted=$true;nativeProviderExecuted=$false;rpcReady=$false;sha256=(Get-FileHash -Algorithm SHA256 -LiteralPath $entry).Hash.ToLowerInvariant();bytes=(Get-Item -LiteralPath $entry).Length}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'artifact.json')
 }finally{
+    foreach($pin in $toolPins){if((Get-FileHash -Algorithm SHA256 -LiteralPath $pin.Path).Hash -cne $pin.Hash){throw "Compiler/reference changed"}}
     $records|ConvertTo-Json -Depth 5|Set-Content -LiteralPath (Join-Path $work 'process-results.json')
     Get-FileHash -Algorithm SHA256 -LiteralPath ($production+@(Join-Path $root 'test\rpc-windows-worker\NativeRpcOpticalHarness.cs')+@($csc))|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'pins.json')
     $publish=Join-Path $env:RUNNER_TEMP ('rpc-native-optical-results-'+[guid]::NewGuid().ToString('N'))
     $null=New-Item -ItemType Directory -Path $publish
     ('RPC_WORKER_RESULT='+$publish)|Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
     $total=0L
-    foreach($name in @('harness-compile.out','harness-compile.err','worker-harness.out','worker-harness.err','worker-compile.out','worker-compile.err','process-results.json','pins.json','artifact.json','worker-artifact.json','owned-entry.exe','native-worker.exe','system-worker.exe','system-worker-compile.out','system-worker-compile.err','system-worker-artifact.json')){
+    foreach($name in @('toolchain.json','harness-compile.out','harness-compile.err','worker-harness.out','worker-harness.err','worker-compile.out','worker-compile.err','process-results.json','pins.json','artifact.json','worker-artifact.json','owned-entry.exe','native-worker.exe','system-worker.exe','system-worker-compile.out','system-worker-compile.err','system-worker-artifact.json')){
         $file=Join-Path $work $name
         if(Test-Path -LiteralPath $file){
             $limit=65536L;if($name -eq 'owned-entry.exe' -or $name -eq 'native-worker.exe' -or $name -eq 'system-worker.exe'){$limit=262144L}

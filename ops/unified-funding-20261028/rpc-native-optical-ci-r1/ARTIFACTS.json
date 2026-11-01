@@ -1,0 +1,45 @@
+{
+  "total_count": 2,
+  "artifacts": [
+    {
+      "id": 13093756236,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA5Mzc1NjIzNg==",
+      "name": "rpc-native-optical-exact-source",
+      "size_in_bytes": 107427,
+      "url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13093756236",
+      "archive_download_url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13093756236/zip",
+      "expired": false,
+      "digest": "sha256:58f2ede74fbc6e0c6fde5a5a5294f17df6b1da4f46c4a4e84bce65c06b1351f9",
+      "created_at": "2026-11-01T17:29:37Z",
+      "updated_at": "2026-11-01T17:29:37Z",
+      "expires_at": "2026-11-08T17:29:37Z",
+      "workflow_run": {
+        "id": 41331724151,
+        "repository_id": 1428203917,
+        "head_repository_id": 1428203917,
+        "head_branch": "main",
+        "head_sha": "38dba2e2ef39b0feed1104f739bbb13e72ca5b72"
+      }
+    },
+    {
+      "id": 13093243463,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA5MzI0MzQ2Mw==",
+      "name": "rpc-native-optical-results",
+      "size_in_bytes": 1761,
+      "url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13093243463",
+      "archive_download_url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13093243463/zip",
+      "expired": false,
+      "digest": "sha256:dc93c7b06e9c4b9ffc71f774aabbfba30e5434de4f7b9bd6a31574d2f4b314c2",
+      "created_at": "2026-11-01T17:30:38Z",
+      "updated_at": "2026-11-01T17:30:38Z",
+      "expires_at": "2026-11-08T17:30:37Z",
+      "workflow_run": {
+        "id": 41331724151,
+        "repository_id": 1428203917,
+        "head_repository_id": 1428203917,
+        "head_branch": "main",
+        "head_sha": "38dba2e2ef39b0feed1104f739bbb13e72ca5b72"
+      }
+    }
+  ]
+}

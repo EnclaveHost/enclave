@@ -1,0 +1,10 @@
+{
+  "label": "harness-compile",
+  "pid": 2712,
+  "exitCode": -1,
+  "elapsedMs": 21405,
+  "failure": "final deadline exceeded",
+  "processExited": true,
+  "maximumObservedWorkingSet": 9363456,
+  "outputBytes": 0
+}

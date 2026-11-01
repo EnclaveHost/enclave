@@ -189,3 +189,12 @@ The native entrypoint build closures now exclude unrelated entrypoints while
 retaining all admission/namespace/observer/provider code needed by that role.
 API references: [AddResourceSettings](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/addresourcesettings-msvm-virtualsystemmanagementservice),
 [storage allocation](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-storageallocationsettingdata).
+
+First optical qualification41331724151 stopped at the legacy Framework compiler
+deadline before producing a harness. No optical tests passed in that run.
+The next finite build uses fixed installed Visual Studio2022 Roslyn standalone
+csc, explicit Framework references and `/noconfig /nostdlib+ /langversion:5`;
+no MSBuild, shared compiler server, package install, or deadline increase.
+Compiler/reference hashes and CPU/wall measurements are retained. This changes
+the build implementation; the first failure's root cause remains unknown.
+[Standalone/compiler server behavior](https://github.com/dotnet/roslyn/blob/main/docs/compilers/Compiler%20Server.md).

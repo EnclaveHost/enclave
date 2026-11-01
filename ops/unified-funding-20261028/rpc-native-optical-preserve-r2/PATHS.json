@@ -1,0 +1,8 @@
+[
+  "test/rpc-windows-worker/run-native-optical-ci.ps1",
+  "windows/rpc/README.md",
+  "windows/rpc/NATIVE-MANAGER-CONTROLLER.md",
+  "ops/unified-funding-20261028/rpc-native-optical-ci-r1",
+  "ops/unified-funding-20261028/rpc-native-optical-preserve-r2",
+  "ops/unified-funding-20261028/rpc-native-optical-ci-r2"
+]
