@@ -1,0 +1,14 @@
+[
+  "windows/rpc/NATIVE-MANAGER-CONTROLLER.md",
+  "windows/rpc/NativeRpcController.cs",
+  "windows/rpc/NativeRpcManagerTransport.cs",
+  "windows/rpc/README.md",
+  "windows/vbslike/manager/rpc-native-controller.mjs",
+  "windows/vbslike/manager/rpc-native-controller.test.mjs",
+  ".github/workflows/rpc-native-manager-start.yml",
+  "test/rpc-windows-worker/NativeRpcStartLauncherHarness.cs",
+  "test/rpc-windows-worker/run-native-manager-start-ci.ps1",
+  "windows/rpc/NativeRpcStartLauncher.cs",
+  "ops/unified-funding-20261028/rpc-native-manager-start-preserve-r1",
+  "ops/unified-funding-20261028/rpc-native-manager-start-ci-r1"
+]

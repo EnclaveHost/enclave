@@ -1,0 +1,42 @@
+{
+  "runtime": "f2ce157c5abd9d9e31ebf083ec12b93f78c88444",
+  "suppliedPins": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/ProviderStart.cs",
+    "windows/rpc/OwnedVmPermit.cs",
+    "windows/rpc/HostPhysicalPool.cs",
+    "windows/rpc/WindowsStartAdmission.cs",
+    "windows/rpc/LegacyTemplateFence.cs",
+    "windows/rpc/LegacyLaunchCohort.cs",
+    "windows/rpc/LegacyHandoff.cs",
+    "windows/rpc/NativeRpcDefinition.cs",
+    "windows/rpc/NativeRpcStart.cs",
+    "windows/rpc/NativeRpcCleanup.cs",
+    "windows/rpc/NativeRpcAuthority.cs",
+    "windows/rpc/NativeRpcFiles.cs",
+    "windows/rpc/NativeRpcLifecycle.cs",
+    "windows/rpc/NativeRpcController.cs",
+    "windows/rpc/NativeRpcManagerTransport.cs",
+    "windows/rpc/NativeRpcStartLauncher.cs",
+    "test/rpc-windows-worker/NativeRpcStartLauncherHarness.cs"
+  ],
+  "runnerVerifiedAgainstGit": true,
+  "tests": [
+    "prepared keeper pair binds distinct immutable contracts to original end plus thirty",
+    "prepared start lease and original journal keep original plan and short worker endpoint",
+    "expiry rollback and unsupported role cannot create a new worker namespace",
+    "worker image mismatch refuses before any task or directory",
+    "start request consumed before preparation survives reconstruction and refuses replay",
+    "foreign original request cannot consume start authority",
+    "torn start request stays held across inspect and original read",
+    "historical running result never grants serving fencing or release",
+    "short remaining original time refuses without deadline extension",
+    "both v1 definition-only and explicit v2 pins validate without default upgrade"
+  ],
+  "binaries": {},
+  "oversizeFixtureNotExported": true,
+  "nativeProviderOrSystemTasksExecuted": false,
+  "productionEntrypointsCompiledOnly": true
+}

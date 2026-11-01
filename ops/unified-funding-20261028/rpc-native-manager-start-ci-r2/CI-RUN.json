@@ -1,0 +1,127 @@
+{
+  "conclusion": "success",
+  "databaseId": 41342287597,
+  "headSha": "fc7a42f2f5d2ebf10f8a84c1366d5bc4c599d958",
+  "jobs": [
+    {
+      "completedAt": "2026-11-01T19:33:08Z",
+      "conclusion": "success",
+      "databaseId": 124954673017,
+      "name": "source",
+      "startedAt": "2026-11-01T19:33:02Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-01T19:33:03Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-01T19:33:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-01T19:33:05Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8",
+          "number": 2,
+          "startedAt": "2026-11-01T19:33:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-01T19:33:05Z",
+          "conclusion": "success",
+          "name": "Assemble exact reviewed source closure",
+          "number": 3,
+          "startedAt": "2026-11-01T19:33:05Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-01T19:33:07Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+          "number": 4,
+          "startedAt": "2026-11-01T19:33:05Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-01T19:33:07Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8",
+          "number": 8,
+          "startedAt": "2026-11-01T19:33:07Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-01T19:33:07Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-11-01T19:33:07Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/EnclaveHost/enclave/actions/runs/41342287597/job/124954673017"
+    },
+    {
+      "completedAt": "2026-11-01T19:33:32Z",
+      "conclusion": "success",
+      "databaseId": 124954709389,
+      "name": "inert",
+      "startedAt": "2026-11-01T19:33:13Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-01T19:33:14Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-01T19:33:14Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-01T19:33:15Z",
+          "conclusion": "success",
+          "name": "Run actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+          "number": 2,
+          "startedAt": "2026-11-01T19:33:14Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-01T19:33:19Z",
+          "conclusion": "success",
+          "name": "Verify exact finite source closure",
+          "number": 3,
+          "startedAt": "2026-11-01T19:33:15Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-01T19:33:30Z",
+          "conclusion": "success",
+          "name": "Compile and exercise inert finite processes",
+          "number": 4,
+          "startedAt": "2026-11-01T19:33:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-01T19:33:31Z",
+          "conclusion": "success",
+          "name": "Preserve bounded results",
+          "number": 5,
+          "startedAt": "2026-11-01T19:33:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-01T19:33:31Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 6,
+          "startedAt": "2026-11-01T19:33:31Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/EnclaveHost/enclave/actions/runs/41342287597/job/124954709389"
+    }
+  ],
+  "status": "completed",
+  "url": "https://github.com/EnclaveHost/enclave/actions/runs/41342287597"
+}

@@ -1,0 +1,70 @@
+{
+  "manager-compile.out": {
+    "bytes": 899,
+    "sha256": "5e5c2a2029d445b5a6f130d98b563baf28a6c9ef58c41932d01d8d67cfa8ea1d"
+  },
+  "worker-artifact.json": {
+    "bytes": 167,
+    "sha256": "d6da237f889c67ff325e0d8993420780fad18319ed2f788af0e2268a66de93b6"
+  },
+  "manager-artifact.json": {
+    "bytes": 167,
+    "sha256": "0aa0fa426a736e0e41f372934c04a0aefe17b7b6c088b420e0189c4e19927d62"
+  },
+  "harness-compile.out": {
+    "bytes": 1934,
+    "sha256": "bd53766333e949822c08babaebf836ede1c0905e140e9c1c4c985021b2e868e8"
+  },
+  "manager-compile.err": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "toolchain.json": {
+    "bytes": 3741,
+    "sha256": "403af97441caf0e3ba19ab50bca90d7fe42206736f4c088cb9ce20707fad88fa"
+  },
+  "artifact.json": {
+    "bytes": 231,
+    "sha256": "0fbe904f48e0da602c75166338fa8e587b568651293a8a2d59e98c21686a816a"
+  },
+  "worker-compile.out": {
+    "bytes": 1443,
+    "sha256": "fe6435f4a635856244b8ac9b7d3be5b64eb55d0bfb5dc15a41190c652533e60d"
+  },
+  "process-results.json": {
+    "bytes": 1184,
+    "sha256": "b68e89586ecb6216ac682277ce27098a31d26ed002ee4f28b74acc9caab9c68c"
+  },
+  "native-worker.exe": {
+    "bytes": 260608,
+    "sha256": "c3c56bbbd6982fec46970b1290bee56eb7d063852075d9f55344e6d0d6135d78"
+  },
+  "worker-compile.err": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "manager-worker.exe": {
+    "bytes": 252416,
+    "sha256": "769fb32d52f4e96094d852c81dfaf92a3828479e75c5f302e83efc839b649a2b"
+  },
+  "pins.json": {
+    "bytes": 4879,
+    "sha256": "14a8ba6718b3546c9d1f65a9902368603e6af9a4c737af9a01424452d9b5136d"
+  },
+  "worker-harness.out": {
+    "bytes": 183,
+    "sha256": "5f04941fa5323fa5c49533a9458b0cf85c9d8c388503f44f7227ea547ad0c0d2"
+  },
+  "worker-harness.err": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "harness-compile.err": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "owned-entry.exe": {
+    "bytes": 258048,
+    "sha256": "d6f5e2120e42e87f4078d19339463b94dd07844761b0281b6bd99ab7bf9bec29"
+  }
+}

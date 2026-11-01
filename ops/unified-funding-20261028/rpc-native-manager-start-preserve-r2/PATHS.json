@@ -1,0 +1,8 @@
+[
+  "test/rpc-windows-worker/NativeRpcStartLauncherHarness.cs",
+  "test/rpc-windows-worker/run-native-manager-start-ci.ps1",
+  "windows/rpc/NativeRpcStartLauncher.cs",
+  "ops/unified-funding-20261028/rpc-native-manager-start-preserve-r2",
+  "ops/unified-funding-20261028/rpc-native-manager-start-ci-r2",
+  "ops/unified-funding-20261028/rpc-native-manager-start-ci-r1"
+]

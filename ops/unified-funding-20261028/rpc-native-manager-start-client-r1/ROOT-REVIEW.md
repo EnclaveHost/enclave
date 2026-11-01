@@ -1,0 +1,1 @@
+Twelve changed-manager transport tests: four new explicit v2 start cases plus eight affected v1/transport regressions. Frozen recursive static import closure. Network-isolated bubblewrap, no host credentials, actual inert Node children only. Native responses mocked.512MiB cgroup/450RSS/CPU1/noSwap/150s/retained27648+pending+640. No target native or provider execution.

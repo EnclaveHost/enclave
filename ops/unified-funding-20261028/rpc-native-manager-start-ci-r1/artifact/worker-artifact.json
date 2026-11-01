@@ -1,6 +1,6 @@
 {
-    "compiled":  true,
-    "workerExecuted":  false,
-    "sha256":  "c3c56bbbd6982fec46970b1290bee56eb7d063852075d9f55344e6d0d6135d78",
-    "bytes":  260608
+  "compiled": true,
+  "workerExecuted": false,
+  "sha256": "c3c56bbbd6982fec46970b1290bee56eb7d063852075d9f55344e6d0d6135d78",
+  "bytes": 260608
 }

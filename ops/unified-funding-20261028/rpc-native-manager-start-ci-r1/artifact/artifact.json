@@ -1,8 +1,8 @@
 {
-    "compiled":  true,
-    "fixtureExecuted":  true,
-    "nativeProviderExecuted":  false,
-    "rpcReady":  false,
-    "sha256":  "d42acc63d131f2174797a5adc48ca468b46afaae721fd17ea4c5c010656ba6f4",
-    "bytes":  270336
+  "compiled": true,
+  "fixtureExecuted": true,
+  "nativeProviderExecuted": false,
+  "rpcReady": false,
+  "sha256": "d42acc63d131f2174797a5adc48ca468b46afaae721fd17ea4c5c010656ba6f4",
+  "bytes": 270336
 }

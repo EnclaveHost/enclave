@@ -1,0 +1,42 @@
+{
+  "source-r1": {
+    "invocation": "b37996fc62954b18b54f7ba12f36d361",
+    "queueExit": 0,
+    "journal": "2026-11-01T12:30:07-07:00 warden-host taskset[1165787]: [queue] START available=94570MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T12:30:13-07:00 warden-host taskset[1165787]: [queue] EXIT 0\n"
+  },
+  "local-tests": {
+    "invocation": "5e6191d1979b46209471de7089bcb1cc",
+    "queueExit": 0,
+    "journal": "2026-11-01T12:30:31-07:00 warden-host taskset[1166231]: [queue] START available=94592MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T12:30:31-07:00 warden-host taskset[1166231]: [queue] EXIT 0\n"
+  },
+  "dispatch-r1": {
+    "invocation": "6946766d1e7249939b668fc894da1167",
+    "queueExit": 0,
+    "journal": "2026-11-01T12:30:37-07:00 warden-host taskset[1166414]: [queue] START available=94530MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T12:30:40-07:00 warden-host taskset[1166414]: [queue] EXIT 0\n"
+  },
+  "collect-r1": {
+    "invocation": "f05c6c32b9ac48cfb3f352c855729e90",
+    "queueExit": 0,
+    "journal": "2026-11-01T12:31:29-07:00 warden-host taskset[1167218]: [queue] START available=94574MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T12:31:31-07:00 warden-host taskset[1167218]: [queue] EXIT 0\n"
+  },
+  "source-r2-failed": {
+    "invocation": "28b302587f6c41c1ab2ca081a669bdac",
+    "queueExit": 1,
+    "journal": "2026-11-01T12:32:20-07:00 warden-host taskset[1167933]: [queue] START available=94563MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T12:32:20-07:00 warden-host taskset[1167933]: [queue] EXIT 1\n"
+  },
+  "source-r3": {
+    "invocation": "99f27f9439cc4ee88742f74ea7d479da",
+    "queueExit": 0,
+    "journal": "2026-11-01T12:32:39-07:00 warden-host taskset[1168209]: [queue] START available=94543MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T12:32:45-07:00 warden-host taskset[1168209]: [queue] EXIT 0\n"
+  },
+  "dispatch-r2": {
+    "invocation": "9d7ffd3d4aa444fba66c58d486686f7d",
+    "queueExit": 0,
+    "journal": "2026-11-01T12:32:55-07:00 warden-host taskset[1168531]: [queue] START available=94627MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T12:32:58-07:00 warden-host taskset[1168531]: [queue] EXIT 0\n"
+  },
+  "collect-r2": {
+    "invocation": "0a700e6eafe149e98f284afc5784bbb3",
+    "queueExit": 0,
+    "journal": "2026-11-01T12:34:00-07:00 warden-host taskset[1169421]: [queue] START available=94559MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T12:34:03-07:00 warden-host taskset[1169421]: [queue] EXIT 0\n"
+  }
+}
