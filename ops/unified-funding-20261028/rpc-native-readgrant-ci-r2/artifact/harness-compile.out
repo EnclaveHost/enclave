@@ -1,0 +1,12 @@
+source-closure\windows\rpc\ProtectedAttempt.cs(32,23): warning CS0649: Field 'ProtectedAttempt.definitionJournal' is never assigned to, and will always have its default value false
+source-closure\test\rpc-windows-worker\NativeRpcReadGrantHarness.cs(36,94): warning CS0649: Field 'NativeRpcReadGrantHarness.Provider.WrongOff' is never assigned to, and will always have its default value false
+source-closure\test\rpc-windows-worker\NativeRpcReadGrantHarness.cs(37,25): warning CS0649: Field 'NativeRpcReadGrantHarness.Provider.Error' is never assigned to, and will always have its default value 0
+source-closure\test\rpc-windows-worker\NativeRpcReadGrantHarness.cs(36,103): warning CS0649: Field 'NativeRpcReadGrantHarness.Provider.RecycledAfterAssociation' is never assigned to, and will always have its default value false
+source-closure\test\rpc-windows-worker\NativeRpcReadGrantHarness.cs(64,77): warning CS0649: Field 'NativeRpcReadGrantHarness.Security.WrongSecurity' is never assigned to, and will always have its default value false
+source-closure\test\rpc-windows-worker\NativeRpcReadGrantHarness.cs(64,124): warning CS0649: Field 'NativeRpcReadGrantHarness.Security.Error' is never assigned to, and will always have its default value 0
+source-closure\test\rpc-windows-worker\NativeRpcReadGrantHarness.cs(64,72): warning CS0649: Field 'NativeRpcReadGrantHarness.Security.Lose' is never assigned to, and will always have its default value false
+source-closure\test\rpc-windows-worker\NativeRpcReadGrantHarness.cs(36,89): warning CS0649: Field 'NativeRpcReadGrantHarness.Provider.Lose' is never assigned to, and will always have its default value false
+source-closure\test\rpc-windows-worker\NativeRpcReadGrantHarness.cs(30,38): warning CS0649: Field 'NativeRpcReadGrantHarness.Runtime.Deny' is never assigned to, and will always have its default value false
+source-closure\test\rpc-windows-worker\NativeRpcReadGrantHarness.cs(64,91): warning CS0649: Field 'NativeRpcReadGrantHarness.Security.WrongOff' is never assigned to, and will always have its default value false
+source-closure\windows\rpc\ProtectedAttempt.cs(33,23): warning CS0649: Field 'ProtectedAttempt.startupCleanup' is never assigned to, and will always have its default value false
+source-closure\test\rpc-windows-worker\NativeRpcReadGrantHarness.cs(30,43): warning CS0649: Field 'NativeRpcReadGrantHarness.Runtime.ObservationDenied' is never assigned to, and will always have its default value false

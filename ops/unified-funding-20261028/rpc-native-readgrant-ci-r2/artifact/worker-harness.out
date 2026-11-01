@@ -1,0 +1,3 @@
+PASS read ACE preserves owner group system admin and grants no writes inheritance
+PASS descriptor receipt ignores only auto-inherit bookkeeping and detects permission changes
+ACL flags before=DiscretionaryAclPresent, DiscretionaryAclProtected, SelfRelative planned=DiscretionaryAclPresent, DiscretionaryAclProtected, SelfRelative actual=DiscretionaryAclPresent, DiscretionaryAclAutoInherited, DiscretionaryAclProtected, SelfRelative

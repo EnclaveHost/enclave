@@ -1,0 +1,30 @@
+{
+  "harness-compile.out": {
+    "originalSha256": "55a0ba4853904810d9b7bac178a020eb8f1109dd8cb9c5123a30351dbca66539",
+    "publicTransform": "utf-8-sig decode; universal newline LF; original retained privately"
+  },
+  "toolchain.json": {
+    "originalSha256": "403af97441caf0e3ba19ab50bca90d7fe42206736f4c088cb9ce20707fad88fa",
+    "publicTransform": "utf-8-sig decode; universal newline LF; original retained privately"
+  },
+  "process-results.json": {
+    "originalSha256": "f7e7d871ec4fc19e18c1e72a9a1343aff9542142586c189b2e8eee20c78d7c22",
+    "publicTransform": "utf-8-sig decode; universal newline LF; original retained privately"
+  },
+  "pins.json": {
+    "originalSha256": "29303b6801c54acd69f049e44bd951a66939c0dc25710ebf9ff644a16df179dc",
+    "publicTransform": "utf-8-sig decode; universal newline LF; original retained privately"
+  },
+  "worker-harness.out": {
+    "originalSha256": "ef31237f68d2e73c8cb7729404258033b6b3832b0250c9c99812704d80008bb5",
+    "publicTransform": "utf-8-sig decode; universal newline LF; original retained privately"
+  },
+  "worker-harness.err": {
+    "originalSha256": "981e4ae900ac07a402a30b25ccd2685eb7730827d65f51dcaef336df72e898fb",
+    "publicTransform": "utf-8-sig decode; universal newline LF; original retained privately"
+  },
+  "harness-compile.err": {
+    "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "publicTransform": "utf-8-sig decode; universal newline LF; original retained privately"
+  }
+}

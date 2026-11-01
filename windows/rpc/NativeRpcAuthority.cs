@@ -268,7 +268,9 @@ namespace Enclave.OwnedRpc {
     if(Array.IndexOf(NativeRpcReadGrant.Names,name)<0)throw new InvalidOperationException("Fixed read grant file required");p.CheckDeadline();SafeFileHandle h;
     if(handles.TryGetValue(name,out h))return h;
     if(mutation&&(p.accessLease.Operation!="define"||!p.nativeReadPins.ContainsKey(name)))throw new InvalidOperationException("Original pinned asset required before read grant");
-    string path=Path.Combine(p.Root,name);h=CreateFile(path,0x20080U|(mutation?0x40000U:0U),1,IntPtr.Zero,3,0x00200000,IntPtr.Zero);
+    // FILE_READ_DATA makes no-write/no-delete sharing effective; metadata-only
+    // handles do not provide the same Windows replacement exclusion.
+    string path=Path.Combine(p.Root,name);h=CreateFile(path,0x20081U|(mutation?0x40000U:0U),1,IntPtr.Zero,3,0x00200000,IntPtr.Zero);
     if(h.IsInvalid){int error=Marshal.GetLastWin32Error();h.Dispose();throw new Win32Exception(error);}p.held.Add(h);handles.Add(name,h);
     long size;string identity=ReadGrantFileIdentity(h,out size);if(mutation){long other;if(ReadGrantFileIdentity(p.nativeReadPins[name],out other)!=identity||other!=size)throw new InvalidOperationException("Pinned asset identity differs");}return h;
    }

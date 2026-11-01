@@ -1,0 +1,5 @@
+System.Exception: Assertion
+   at NativeRpcReadGrantHarness.Refuse(Action f)
+   at NativeRpcReadGrantHarness.<>c.<Main>b__29_12()
+   at NativeRpcReadGrantHarness.Test(String name, Action f)
+   at NativeRpcReadGrantHarness.Main(String[] args)

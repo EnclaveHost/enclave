@@ -15,7 +15,7 @@ public static class NativeRpcReadGrantHarness {
  [DllImport("kernel32.dll")]static extern bool TerminateProcess(IntPtr p,uint code);
  static void Check(bool ok){if(!ok)throw new Exception("Assertion");}
  static void Refuse(Action f){bool refused=false;try{f();}catch{refused=true;}Check(refused);}
- static void Test(string name,Action f){if(remaining&&!name.StartsWith("actual ")&&!name.StartsWith("descriptor receipt ")&&!name.StartsWith("read ACE preserves "))return;f();count++;Console.WriteLine("PASS "+name);}
+ static void Test(string name,Action f){if(remaining&&!name.StartsWith("actual "))return;f();count++;Console.WriteLine("PASS "+name);}
  const string Id="12345678-1234-1234-1234-123456789012";
  static string SystemRef {get{return "Msvm_ComputerSystem.Name=\""+Id+"\"";}}
  static string JobRef {get{return HyperVStartProvider.ReferenceForId("definition-fixture");}}
@@ -104,8 +104,8 @@ public static class NativeRpcReadGrantHarness {
   Test("descriptor receipt ignores only auto-inherit bookkeeping and detects permission changes",()=>{var a=NativeRpcReadGrant.AddRead(Descriptor(),Sid);var b=new RawSecurityDescriptor(a.ControlFlags|ControlFlags.DiscretionaryAclAutoInherited|ControlFlags.DiscretionaryAclAutoInheritRequired,a.Owner,a.Group,a.SystemAcl,a.DiscretionaryAcl);Check(AclHash(a)==AclHash(b));var c=NativeRpcReadGrant.AddRead(Descriptor(),Sid);((CommonAce)c.DiscretionaryAcl[2]).AccessMask|=2;Check(AclHash(a)!=AclHash(c));c=NativeRpcReadGrant.AddRead(Descriptor(),Sid);c.Group=new SecurityIdentifier("S-1-5-18");Check(AclHash(a)!=AclHash(c));c=NativeRpcReadGrant.AddRead(Descriptor(),Sid);c.SetFlags(c.ControlFlags&~ControlFlags.DiscretionaryAclProtected);Check(AclHash(a)!=AclHash(c));});
   Test("actual held file DACL grant readback preserves identity and denies replacement",()=>{
    string root=Path.Combine(Path.GetPathRoot(Environment.SystemDirectory),"rpc-read-ci-"+Guid.NewGuid().ToString("N"));DirectoryNew(root);string path=Path.Combine(root,"inert.bin");Put(path,new byte[]{42});
-   using(var h=ProtectedAttempt.CreateFile(path,0x60080,1,IntPtr.Zero,3,0x00200000,IntPtr.Zero)){
-    Check(!h.IsInvalid);long size;string identity=ProtectedAttempt.ReadGrantFileIdentity(h,out size);Check(size==1);
+   using(var h=ProtectedAttempt.CreateFile(path,0x60081,1,IntPtr.Zero,3,0x00200000,IntPtr.Zero)){
+    Check(!h.IsInvalid);Refuse(()=>File.Delete(path));Refuse(()=>File.Move(path,path+".early"));long size;string identity=ProtectedAttempt.ReadGrantFileIdentity(h,out size);Check(size==1);
     var before=new RawSecurityDescriptor(File.GetAccessControl(path).GetSecurityDescriptorBinaryForm(),0);var after=NativeRpcReadGrant.AddRead(before,Sid);
     Refuse(()=>ProtectedAttempt.SetReadGrantOnHandle(h,Sid,new string('0',64),AclHash(after)));
     try{ProtectedAttempt.SetReadGrantOnHandle(h,Sid,AclHash(before),AclHash(after));}catch{Console.WriteLine("ACL planned="+after.GetSddlForm(AccessControlSections.All)+" actual="+ProtectedAttempt.ReadGrantDescriptor(h).GetSddlForm(AccessControlSections.All));throw;}
