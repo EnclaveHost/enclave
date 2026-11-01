@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -24,7 +25,7 @@ import (
 )
 
 func TestGuestOwnerContinuousTLSAndLoss(t *testing.T) {
-	for _, mode := range []string{"prepare", "prepare-tamper", "prepare-stale", "normal", "idle-partial", "downgrade-ack", "idle-loss", "bad-signature", "unsolicited", "monitor-loss", "original-deadline"} {
+	for _, mode := range []string{"prepare", "prepare-guard-loss", "prepare-tamper", "prepare-stale", "normal", "idle-partial", "downgrade-ack", "idle-loss", "bad-signature", "unsolicited", "monitor-loss", "original-deadline"} {
 		t.Run(mode, func(t *testing.T) {
 			left := time.Duration(0)
 			if mode == "original-deadline" {
@@ -282,6 +283,38 @@ func TestGuestOwnerContinuousTLSAndLoss(t *testing.T) {
 				s.mu.Lock()
 				s.exportBound = true
 				s.mu.Unlock() // actual export is not this TLS fixture
+				// Two private channels, actual broker client, bounded test-only
+				// guardian responders. Native receiver is qualified separately.
+				var guardFiles [2]*os.File
+				guardAcks := make(chan []byte, 2)
+				for i := range guardFiles {
+					pair, e := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_SEQPACKET|syscall.SOCK_CLOEXEC, 0)
+					if e != nil {
+						t.Fatal(e)
+					}
+					guardFiles[i] = os.NewFile(uintptr(pair[0]), "fixture-guard")
+					defer guardFiles[i].Close()
+					peer := pair[1]
+					if mode == "prepare-guard-loss" && i == 1 {
+						syscall.Close(peer)
+						continue
+					}
+					go func() {
+						defer syscall.Close(peer)
+						b := make([]byte, 89)
+						n, _, e := syscall.Recvfrom(peer, b, 0)
+						if e == nil && n == 88 {
+							guardAcks <- append([]byte(nil), b[:n]...)
+							b[8] |= 0x80
+							_ = syscall.Sendmsg(peer, b[:n], nil, nil, syscall.MSG_NOSIGNAL)
+						}
+						// Retain peer until whole session ends; EOF is terminal.
+						<-s.Context().Done()
+					}()
+				}
+				if e := s.BindServingGuards(guardFiles[0], guardFiles[1]); e != nil {
+					t.Fatal(e)
+				}
 				original := s.request
 				runDone := make(chan error, 1)
 				go func() { runDone <- s.RunOwnerContinuations(a, rpcBundle(t), receipts) }()
@@ -345,6 +378,11 @@ func TestGuestOwnerContinuousTLSAndLoss(t *testing.T) {
 					t.Fatal("unexpected preparation result", s.ctx.Err())
 				}
 				if prepared != nil {
+					ack0, ack1 := <-guardAcks, <-guardAcks
+					proofSum := sha256.Sum256(prepared.raw)
+					if !bytes.Equal(ack0, ack1) || ack0[8] != 1 || !bytes.Equal(ack0[56:], proofSum[:]) {
+						t.Fatal("guards did not prepare same exact owner proof")
+					}
 					if s.request != original || !bytes.Equal(prepared.request.Observation, observation) {
 						t.Fatal("attempt/frame changed")
 					}

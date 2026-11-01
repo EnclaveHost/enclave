@@ -294,6 +294,10 @@ func (s *BrokerSession) prepareOwnerServing(stream *ownerContinuationConnection,
 		return err
 	}
 	defer accepted.Close()
+	// Require both exact guard acknowledgements before publishing preparation.
+	if err = s.prepareServingGuards(ctx, ready.record.ObservedMono, reply); err != nil {
+		return err
+	}
 	if err = s.alive(); err != nil {
 		return err
 	}
@@ -314,4 +318,43 @@ func (s *BrokerSession) prepareOwnerServing(stream *ownerContinuationConnection,
 	s.mu.Unlock()
 	// Preparation does NOT alter sequence/link, permit expiry or originalD.
 	return stream.raw.SetDeadline(until)
+}
+
+// BindServingGuards is called once by the measured broker entry using FD13/14
+// before accepting owner work. Retained process-local sockets cannot be replaced
+// by files, host messages, a new journal, or reconnect after partial failure.
+func (s *BrokerSession) BindServingGuards(kernel, entry *os.File) (err error) {
+	defer func() {
+		if err != nil {
+			s.lose()
+		}
+	}()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.guardsUsed || s.ctx.Err() != nil {
+		return errors.New("guardian binding consumed or session lost")
+	}
+	s.guardsUsed = true
+	for i, f := range []*os.File{kernel, entry} {
+		s.guards[i], err = rpcservice.NewGuardClient(f, s.request.Origin, s.request.Deadline)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func (s *BrokerSession) prepareServingGuards(ctx context.Context, observed uint64, proof []byte) error {
+	s.mu.Lock()
+	guards := s.guards
+	s.mu.Unlock()
+	if guards[0] == nil || guards[1] == nil {
+		return errors.New("both original guardians required")
+	}
+	binding := rpcservice.GuardBinding{Origin: s.request.Origin, Deadline: s.request.Deadline, Observed: observed, PreparedSHA256: sha256.Sum256(proof)}
+	for _, g := range guards {
+		if e := g.Prepare(ctx, binding); e != nil {
+			return e
+		}
+	}
+	return ctx.Err()
 }

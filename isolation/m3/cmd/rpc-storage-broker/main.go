@@ -201,6 +201,9 @@ func run() error {
 	}
 	defer receipts.Close()
 	defer session.Stop()
+	if e = session.BindServingGuards(os.NewFile(13, "original-kernel-guardian"), os.NewFile(14, "original-entry-guardian")); e != nil {
+		return e
+	}
 	if e = session.Acknowledge(); e != nil {
 		return e
 	}

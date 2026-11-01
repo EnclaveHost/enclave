@@ -175,6 +175,7 @@ func (d *domain) state() contract.State { return d.lifecycle().State() }
 type reporter func(rd []byte) (report, certs []byte, err error)
 
 type monitor struct {
+	rpcGuard   *os.File // sole original PID1 lifecycle capability until broker Start settles
 	rpcClock   *os.File // original sealed bootstrap interval, retained
 	rpcAttempt *domain  // retained single RPC attempt, even after deregistration
 	native     *nativeGuest
@@ -234,6 +235,8 @@ func main() {
 	if nativeRPCBuild {
 		syscall.CloseOnExec(3)
 		m.rpcClock = os.NewFile(3, "rpc-original-bootstrap-clock")
+		syscall.CloseOnExec(4)
+		m.rpcGuard = os.NewFile(4, "rpc-original-pid1-guardian")
 	}
 	if *reportHost != 0 {
 		m.hostPort = uint32(*reportHost)

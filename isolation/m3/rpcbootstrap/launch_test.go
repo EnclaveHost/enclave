@@ -58,7 +58,7 @@ func launchFixture(t *testing.T, left time.Duration) (*Identity, *os.File, []byt
 func TestBrokerLaunchPolicyAndConsumedFailure(t *testing.T) {
 	i, clock, bundle, raw := launchFixture(t, time.Second)
 	p, _ := i.Public()
-	if _, e := i.StartBroker(p.Request.Boot, p.RequestSHA256, clock, bundle); e == nil {
+	if _, e := i.StartBroker(p.Request.Boot, p.RequestSHA256, clock, nil, bundle); e == nil {
 		t.Fatal("unreported launch")
 	}
 	if e := boundPolicy(raw, p, bundle); e != nil {
@@ -89,13 +89,13 @@ func TestBrokerLaunchPolicyAndConsumedFailure(t *testing.T) {
 	if _, e := os.Lstat("/run/native-rpc-owner"); !os.IsNotExist(e) {
 		t.Fatal("fixture namespace exists", e)
 	}
-	if _, e := i.StartBroker(p.Request.Boot, p.RequestSHA256, clock, bundle); e == nil {
+	if _, e := i.StartBroker(p.Request.Boot, p.RequestSHA256, clock, nil, bundle); e == nil {
 		t.Fatal("missing inputs")
 	}
 	if e := i.Wait(); e == nil {
 		t.Fatal("failed launch released acquisition")
 	}
-	if _, e := i.StartBroker(p.Request.Boot, p.RequestSHA256, clock, bundle); e == nil {
+	if _, e := i.StartBroker(p.Request.Boot, p.RequestSHA256, clock, nil, bundle); e == nil {
 		t.Fatal("retried failed launch")
 	}
 	if _, e := i.TakeCredential(); e == nil {
@@ -181,7 +181,14 @@ func TestLaunchActualBroker(t *testing.T) {
 	defer syscall.Close(fds[1])
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	b, e := i.launch(ctx, clock, bundle, policy, p.Certificate, relay, parent)
+	guardPair, e := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_SEQPACKET|syscall.SOCK_CLOEXEC, 0)
+	if e != nil {
+		t.Fatal(e)
+	}
+	guard := os.NewFile(uintptr(guardPair[0]), "fixture-guardian")
+	defer guard.Close()
+	defer syscall.Close(guardPair[1])
+	b, e := i.launch(ctx, clock, guard, bundle, policy, p.Certificate, relay, parent)
 	if b != nil {
 		defer b.Stop()
 	}

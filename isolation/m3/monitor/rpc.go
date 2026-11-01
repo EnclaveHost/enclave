@@ -160,7 +160,22 @@ func (m *monitor) loadRPC(br *bufio.Reader, req request) (*domain, error) {
 		ln.Close()
 		return fail(err)
 	}
+	d.rpc.brokerMu.Lock()
+	serving, servingErr := d.rpc.broker.TakeServingReader()
+	d.rpc.brokerMu.Unlock()
+	if servingErr != nil {
+		readyWriter.Close()
+		ln.Close()
+		return fail(servingErr)
+	}
+	if err = l.BindServing(serving); err != nil {
+		serving.Close()
+		readyWriter.Close()
+		ln.Close()
+		return fail(err)
+	}
 	err = m.launch(d, l.Cmd, ln)
+	serving.Close() // never before the exact native entry Start has settled
 	readyWriter.Close()
 	if err != nil {
 		return nil, err

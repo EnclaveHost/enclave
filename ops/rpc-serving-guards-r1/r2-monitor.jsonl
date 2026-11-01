@@ -1,0 +1,24 @@
+{"Time":"2026-11-01T15:55:37.542701041-07:00","Action":"start","Package":"enclave.host/isolation/m3/monitor"}
+{"Time":"2026-11-01T15:55:37.545053745-07:00","Action":"run","Package":"enclave.host/isolation/m3/monitor","Test":"TestRPCBootstrapControlRequiresActualGuestTPM"}
+{"Time":"2026-11-01T15:55:37.545099415-07:00","Action":"output","Package":"enclave.host/isolation/m3/monitor","Test":"TestRPCBootstrapControlRequiresActualGuestTPM","Output":"=== RUN   TestRPCBootstrapControlRequiresActualGuestTPM\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:55:37.546311856-07:00","Action":"output","Package":"enclave.host/isolation/m3/monitor","Test":"TestRPCBootstrapControlRequiresActualGuestTPM","Output":"--- PASS: TestRPCBootstrapControlRequiresActualGuestTPM (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:55:37.546339486-07:00","Action":"pass","Package":"enclave.host/isolation/m3/monitor","Test":"TestRPCBootstrapControlRequiresActualGuestTPM","Elapsed":0}
+{"Time":"2026-11-01T15:55:37.546358706-07:00","Action":"run","Package":"enclave.host/isolation/m3/monitor","Test":"TestRPCFixedLoadContract"}
+{"Time":"2026-11-01T15:55:37.546360636-07:00","Action":"output","Package":"enclave.host/isolation/m3/monitor","Test":"TestRPCFixedLoadContract","Output":"=== RUN   TestRPCFixedLoadContract\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:55:37.546694404-07:00","Action":"output","Package":"enclave.host/isolation/m3/monitor","Test":"TestRPCFixedLoadContract","Output":"--- PASS: TestRPCFixedLoadContract (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:55:37.54722247-07:00","Action":"pass","Package":"enclave.host/isolation/m3/monitor","Test":"TestRPCFixedLoadContract","Elapsed":0}
+{"Time":"2026-11-01T15:55:37.54723565-07:00","Action":"run","Package":"enclave.host/isolation/m3/monitor","Test":"TestRPCCleanupRetainsFilesAndCapabilities"}
+{"Time":"2026-11-01T15:55:37.54723898-07:00","Action":"output","Package":"enclave.host/isolation/m3/monitor","Test":"TestRPCCleanupRetainsFilesAndCapabilities","Output":"=== RUN   TestRPCCleanupRetainsFilesAndCapabilities\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:55:37.54724336-07:00","Action":"output","Package":"enclave.host/isolation/m3/monitor","Test":"TestRPCCleanupRetainsFilesAndCapabilities","Output":"--- PASS: TestRPCCleanupRetainsFilesAndCapabilities (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:55:37.54724542-07:00","Action":"pass","Package":"enclave.host/isolation/m3/monitor","Test":"TestRPCCleanupRetainsFilesAndCapabilities","Elapsed":0}
+{"Time":"2026-11-01T15:55:37.54724722-07:00","Action":"run","Package":"enclave.host/isolation/m3/monitor","Test":"TestRPCPIDParsingRefusesPartialScope"}
+{"Time":"2026-11-01T15:55:37.5472485-07:00","Action":"output","Package":"enclave.host/isolation/m3/monitor","Test":"TestRPCPIDParsingRefusesPartialScope","Output":"=== RUN   TestRPCPIDParsingRefusesPartialScope\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:55:37.54725283-07:00","Action":"output","Package":"enclave.host/isolation/m3/monitor","Test":"TestRPCPIDParsingRefusesPartialScope","Output":"--- PASS: TestRPCPIDParsingRefusesPartialScope (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:55:37.54725456-07:00","Action":"pass","Package":"enclave.host/isolation/m3/monitor","Test":"TestRPCPIDParsingRefusesPartialScope","Elapsed":0}
+{"Time":"2026-11-01T15:55:37.54725611-07:00","Action":"run","Package":"enclave.host/isolation/m3/monitor","Test":"TestRPCBuildDispatchAndSealedClock"}
+{"Time":"2026-11-01T15:55:37.54725733-07:00","Action":"output","Package":"enclave.host/isolation/m3/monitor","Test":"TestRPCBuildDispatchAndSealedClock","Output":"=== RUN   TestRPCBuildDispatchAndSealedClock\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:55:37.54726056-07:00","Action":"output","Package":"enclave.host/isolation/m3/monitor","Test":"TestRPCBuildDispatchAndSealedClock","Output":"--- PASS: TestRPCBuildDispatchAndSealedClock (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:55:37.54726329-07:00","Action":"pass","Package":"enclave.host/isolation/m3/monitor","Test":"TestRPCBuildDispatchAndSealedClock","Elapsed":0}
+{"Time":"2026-11-01T15:55:37.54727068-07:00","Action":"output","Package":"enclave.host/isolation/m3/monitor","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:55:37.547593687-07:00","Action":"output","Package":"enclave.host/isolation/m3/monitor","Output":"ok  \tenclave.host/isolation/m3/monitor\t0.005s\n"}
+{"Time":"2026-11-01T15:55:37.547600987-07:00","Action":"pass","Package":"enclave.host/isolation/m3/monitor","Elapsed":0.005}

@@ -1,0 +1,1 @@
+{"phases": [{"phase": "guard-go", "exit": 0}, {"phase": "capabilities", "exit": 1}], "elapsed": 2.9624517410993576, "sourcePins": 828, "pinsUnchanged": true, "artifacts": {}, "deployed": false}

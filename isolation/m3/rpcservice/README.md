@@ -302,3 +302,14 @@ storage broker and owner authorization, Windows lifecycle watchers and keeper
 process deadlines. The front also retains its existing bounded readiness loop.
 No timer is disabled by a health response. The already assembled firmware is
 preserved as its exact earlier source revision; it does not contain this change.
+
+The native entry now also requires the original broker's private lifecycle
+socket at FD16 (FD15 remains the sole readiness writer). Its independent watcher
+checks that channel and the exact monitor pidfd throughout startup and serving.
+The C PID1 guardian uses a separate retained private channel through monitor
+FD4 and broker FD13. The matching service channel is broker FD14. Both implement
+PREPARE/one-shot COMMIT/ordered RENEW with short absolute permits; PREPARE leaves
+the original startup deadline unchanged. Broker preparation now requires both
+exact guardian acknowledgements. COMMIT/RENEW have no production emitter until
+the remaining owner/exporter/supervisor/operator/Windows boundaries participate.
+See `../rpcstorage/READINESS.md` for the protocol and current qualification limits.

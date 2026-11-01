@@ -76,3 +76,16 @@ func (l *Launch) BindReadiness(w *os.File) error {
 	l.Cmd.ExtraFiles = append(l.Cmd.ExtraFiles, w)
 	return nil
 }
+
+// BindServing consumes fixed FD16 after readiness binding. No host selected
+// selector/path is accepted; monitor transfers its original broker's socket.
+func (l *Launch) BindServing(f *os.File) error {
+	if l == nil || l.Cmd == nil || l.Cmd.Process != nil || len(l.Cmd.ExtraFiles) != 13 {
+		return errors.New("unused exact native entry lifecycle slot required")
+	}
+	if _, e := rpcservice.GuardSocketFD(f); e != nil {
+		return e
+	}
+	l.Cmd.ExtraFiles = append(l.Cmd.ExtraFiles, f)
+	return nil
+}

@@ -45,7 +45,10 @@ func (m *monitor) rpcBootstrap(req request) (any, error) {
 		if d.rpc.brokerStopped || d.rpc.broker != nil {
 			return nil, errors.New("RPC broker launch consumed")
 		}
-		broker, err := identity.StartBroker(req.Boot, req.RequestSHA256, m.rpcClock, d.rpc.bootstrapBundle)
+		broker, err := identity.StartBroker(req.Boot, req.RequestSHA256, m.rpcClock, m.rpcGuard, d.rpc.bootstrapBundle)
+		if m.rpcGuard != nil {
+			m.rpcGuard.Close()
+		} // Start has settled; broker holds sole channel end
 		d.rpc.broker = broker // retain exact handles even on ambiguous failure
 		if err != nil {
 			return nil, err

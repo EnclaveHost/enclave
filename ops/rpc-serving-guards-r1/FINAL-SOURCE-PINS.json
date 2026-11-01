@@ -1,0 +1,102 @@
+[
+  {
+    "path": "isolation/m3/build-rpc-boot.py",
+    "sha256": "af2171a81b7b35743ab36dd9cb2f801a1842624a7e429ef6708e79f4004674a2"
+  },
+  {
+    "path": "isolation/m3/cmd/rpc-storage-broker/main.go",
+    "sha256": "9524d1bfe9971dcef49a279cf8d2ab4c6f68c62f70d997f281a6ebd462de217e"
+  },
+  {
+    "path": "isolation/m3/dominit.c",
+    "sha256": "8503ec7d09820bb2e09236c25f59ce940862bad9628d47920225151fad2dda9e"
+  },
+  {
+    "path": "isolation/m3/monitor/main.go",
+    "sha256": "53be8aa6f57b0660fcba2a9913c2459d8f4548f5af201946a5c8061a093980a0"
+  },
+  {
+    "path": "isolation/m3/monitor/rpc.go",
+    "sha256": "b46b9f16386b46c71c662d5659ff3b49c86757d74efc00dff8b96b37cd4ecfde"
+  },
+  {
+    "path": "isolation/m3/monitor/rpc_bootstrap.go",
+    "sha256": "52c4faf27cf80d681e53ac81b95e8322c2d7e8e9a3f8b0cc7238b1b1fdd0c1ee"
+  },
+  {
+    "path": "isolation/m3/rpc-boot-guardian.h",
+    "sha256": "ca8a7a5f373a7d2526fb173847be06a596135e3593f1cbd9b421391e683078b1"
+  },
+  {
+    "path": "isolation/m3/rpc-serving-guard.h",
+    "sha256": "a223412ee454150744299da708910877d6a49b9966a2f91d87bb9bc7fa3b7d77"
+  },
+  {
+    "path": "isolation/m3/rpcbootstrap/README.md",
+    "sha256": "dd7b7acdf77e28488b66b759d08631a9af911851db6a386928983dcf9798ccce"
+  },
+  {
+    "path": "isolation/m3/rpcbootstrap/launch_linux_amd64.go",
+    "sha256": "3397717ae9764fae87ca424825c250f834ff126ec66e623638bbb6c50de54692"
+  },
+  {
+    "path": "isolation/m3/rpcbootstrap/launch_test.go",
+    "sha256": "ce481e67697d4e70ed7b14ae4704b0ec695f61735d985f331ee761b84a25628d"
+  },
+  {
+    "path": "isolation/m3/rpcbootstrap/ready_transfer_test.go",
+    "sha256": "5d96b4ce0f5c70d5207294b51f057bfc37b796757ccce6fac28f9b7dea462089"
+  },
+  {
+    "path": "isolation/m3/rpcdomain/README.md",
+    "sha256": "6795669cc4ff56fd77bc0388cbfc40fa1fe47ed85f92d4fc27ef27a91416d3b8"
+  },
+  {
+    "path": "isolation/m3/rpcdomain/command_linux_amd64.go",
+    "sha256": "c9843fc573fc635b3f15925f6bb0d8cf2d7b52b8269073d0362ea0b8fe3f4a03"
+  },
+  {
+    "path": "isolation/m3/rpcdomain/command_test.go",
+    "sha256": "f6999f4dc7eb5bca4a8b6d22df133154aeca7520055d93ded85382c0986359d0"
+  },
+  {
+    "path": "isolation/m3/rpcservice/README.md",
+    "sha256": "851a671f5ebbe0f55b37846d5a52f4c6c7f56d8e5382ea1daedd6cee8c06d767"
+  },
+  {
+    "path": "isolation/m3/rpcservice/entry_linux_amd64.go",
+    "sha256": "f03af0041e760740a460af0c77c3c8a2c30b0d684bf88fa26ae2b08be810074e"
+  },
+  {
+    "path": "isolation/m3/rpcservice/serving_guard_linux_amd64.go",
+    "sha256": "423a49e724aec38b9cd8fb604932484cdaa65d17c8d1683f070cc7aefc2e4639"
+  },
+  {
+    "path": "isolation/m3/rpcservice/serving_guard_test.go",
+    "sha256": "fa277ddec2cd5787b983d6b55b1e32b64d9d34fe810d1472f68bec8458e9a94e"
+  },
+  {
+    "path": "isolation/m3/rpcstorage/READINESS.md",
+    "sha256": "664f9806d93d06e6e7d18467a0f7c333d23bcf70f72110fa2e27f432a85acdfa"
+  },
+  {
+    "path": "isolation/m3/rpcstorage/broker_session_linux_amd64.go",
+    "sha256": "fa9f4d24c466b33c312d2830595aff178c6c74203e4ee6a2114a28ac15a908e5"
+  },
+  {
+    "path": "isolation/m3/rpcstorage/owner_stream_test.go",
+    "sha256": "0e1cc8610d6be5506f7bfeb10250f7484b7d545353da2cac259fefe2db5983cb"
+  },
+  {
+    "path": "isolation/m3/rpcstorage/serving_prepare_linux_amd64.go",
+    "sha256": "8429c45e959d7aa14ee09da16ef9860c1ab68c1cd826c268f19317299ebe6684"
+  },
+  {
+    "path": "test/rpc-server/boot_guardian_fixture.c",
+    "sha256": "359866f4f7e804d203f806de8f1077270bd7b9b325c502f41f38699dcaf7ccee"
+  },
+  {
+    "path": "test/rpc-server/qualify_serving_guardian.py",
+    "sha256": "849053d2936fdb2b7207f8dc08b3c5b471b9a8d68255aa510676fac395be1afa"
+  }
+]

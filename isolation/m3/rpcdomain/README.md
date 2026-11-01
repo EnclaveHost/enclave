@@ -54,7 +54,9 @@ releases reservations or claims that RPC is serving. The deadline remains
 900 seconds. No GPU worker or desktop model-volume assumptions are reused.
 
 The current entry topology is ERPCONE4: front group FD12, composed root FD13,
-verified executable FD14. `Prepared.Command` consumes preparation once and
+verified executable FD14. Before Start, the monitor additionally transfers the
+original readiness pipe at FD15 and the distinct broker lifecycle socket at
+FD16 using one-shot `BindReadiness` / `BindServing`. `Prepared.Command` consumes preparation once and
 executes `/proc/self/fd/14` with exactly these capabilities in new mount, PID,
 network, IPC and UTS namespaces, at creation in the control cgroup. No user
 namespace is added in production. It returns a command and retained capabilities;

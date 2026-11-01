@@ -38,6 +38,8 @@ type Broker struct {
 	stop               sync.Once
 	readyWriter        *os.File
 	readyUsed          atomic.Bool
+	servingReader      *os.File
+	servingUsed        atomic.Bool
 }
 
 func (b *Broker) Stop() {
@@ -62,6 +64,18 @@ func (b *Broker) TakeReadyWriter() (*os.File, error) {
 		return nil, errors.New("live exact broker required for readiness transfer")
 	}
 	return b.readyWriter, nil
+}
+
+// TakeServingReader transfers the sole monitor copy only to the native entry.
+func (b *Broker) TakeServingReader() (*os.File, error) {
+	if b == nil || !b.servingUsed.CompareAndSwap(false, true) || b.servingReader == nil {
+		return nil, errors.New("broker lifecycle transfer missing or consumed")
+	}
+	dead, e := pidSignaled(b.pidfd)
+	if e != nil || dead {
+		return nil, errors.New("exact live broker required")
+	}
+	return b.servingReader, nil
 }
 func (b *Broker) Done() <-chan struct{} { return b.done }
 func (b *Broker) LocalDead() bool {
@@ -99,7 +113,7 @@ func pidSignaled(f *os.File) (bool, error) {
 // paths; these do NOT prove owner authority. Broker verifies chain authorization
 // and signed volume/export proof independently after monitor acquisition.
 // A consumed launch failure closes the identity and wakes the waiting load.
-func (i *Identity) StartBroker(boot, digest string, clock *os.File, bundle []byte) (b *Broker, err error) {
+func (i *Identity) StartBroker(boot, digest string, clock, guardian *os.File, bundle []byte) (b *Broker, err error) {
 	if err = i.beginLaunch(boot, digest); err != nil {
 		return nil, err
 	}
@@ -182,7 +196,7 @@ func (i *Identity) StartBroker(boot, digest string, clock *os.File, bundle []byt
 		return nil, err
 	}
 	defer parent.Close()
-	return i.launch(ctx, clock, bundle, policy, server, relay, parent)
+	return i.launch(ctx, clock, guardian, bundle, policy, server, relay, parent)
 }
 func (i *Identity) beginLaunch(boot, digest string) error {
 	i.mu.Lock()
@@ -297,12 +311,15 @@ func privateFile(dir *os.File, name string, raw []byte) (*os.File, error) {
 
 // parent is a held real delegation. Production always opens the fixed guest
 // root; the native fixture supplies only its actual disposable delegation.
-func (i *Identity) launch(ctx context.Context, clock *os.File, bundle, policy, server []byte, relay, parent *os.File) (b *Broker, err error) {
+func (i *Identity) launch(ctx context.Context, clock, guardian *os.File, bundle, policy, server []byte, relay, parent *os.File) (b *Broker, err error) {
 	pub, err := i.Public()
 	if err != nil {
 		return nil, err
 	}
 	if err = boundPolicy(policy, pub, bundle); err != nil {
+		return nil, err
+	}
+	if _, err = rpcservice.GuardSocketFD(guardian); err != nil {
 		return nil, err
 	}
 	credential, err := i.TakeCredential()
@@ -400,13 +417,20 @@ func (i *Identity) launch(ctx context.Context, clock *os.File, bundle, policy, s
 	}
 	defer readyReader.Close()
 	b.readyWriter = readyWriter
+	pair, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_SEQPACKET|syscall.SOCK_CLOEXEC, 0)
+	if err != nil {
+		return b, err
+	}
+	brokerGuard := os.NewFile(uintptr(pair[0]), "broker-entry-lifecycle")
+	defer brokerGuard.Close() // only after Start settles
+	b.servingReader = os.NewFile(uintptr(pair[1]), "entry-broker-lifecycle")
 	// On failure no service is started. Retain the writer with the exact broker
 	// capabilities; startup deadline/Stop remains authoritative, never a retry.
 	// fd11 is the held immutable executable; it is not a listener capability.
 	cmd := exec.Command("/proc/self/fd/11")
 	cmd.Args = []string{"rpc-storage-broker"}
 	cmd.Env = []string{"GOMAXPROCS=1", "GOMEMLIMIT=96MiB"}
-	cmd.ExtraFiles = []*os.File{clock, w, files[0], files[1], relay, files[2], files[3], files[4], exe, readyReader}
+	cmd.ExtraFiles = []*os.File{clock, w, files[0], files[1], relay, files[2], files[3], files[4], exe, readyReader, guardian, brokerGuard}
 	pidfd := -1
 	cmd.SysProcAttr = &syscall.SysProcAttr{UseCgroupFD: true, CgroupFD: int(b.group.Fd()), PidFD: &pidfd, Pdeathsig: syscall.SIGKILL}
 	if err = ctx.Err(); err != nil {

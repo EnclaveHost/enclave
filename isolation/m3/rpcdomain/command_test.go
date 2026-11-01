@@ -81,3 +81,42 @@ func TestRPCMonitorBindsReadinessOnlyOnceBeforeStart(t *testing.T) {
 		t.Fatal("already-started command changed")
 	}
 }
+
+func TestRPCMonitorBindsServingOnlyAfterReadinessOnce(t *testing.T) {
+	r, w, e := os.Pipe()
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer r.Close()
+	defer w.Close()
+	pair, e := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_SEQPACKET|syscall.SOCK_CLOEXEC, 0)
+	if e != nil {
+		t.Fatal(e)
+	}
+	f := os.NewFile(uintptr(pair[0]), "guard")
+	defer f.Close()
+	defer syscall.Close(pair[1])
+	l := command(Capabilities{Control: w}, r)
+	if l.BindServing(f) == nil {
+		t.Fatal("missing readiness slot")
+	}
+	if e = l.BindReadiness(w); e != nil {
+		t.Fatal(e)
+	}
+	if l.BindServing(r) == nil {
+		t.Fatal("pipe accepted")
+	}
+	if e = l.BindServing(f); e != nil {
+		t.Fatal(e)
+	}
+	if len(l.Cmd.ExtraFiles) != 14 || l.Cmd.ExtraFiles[13] != f {
+		t.Fatal("not FD16")
+	}
+	if l.BindServing(f) == nil {
+		t.Fatal("replayed transfer")
+	}
+	l.Cmd.Process = &os.Process{Pid: 1}
+	if l.BindServing(f) == nil {
+		t.Fatal("started command changed")
+	}
+}

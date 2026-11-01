@@ -120,3 +120,13 @@ file ownership nor endpoint signatures replace owner writer settlement or the
 subsequent storage-consent proof. This path is source integration, not installed
 production RPC; actual hardware and the complete owner/guest composition remain
 to be qualified.
+
+The measured RPC monitor inherits PID1's retained private lifecycle channel at
+FD4 and transfers it only to the original broker (FD13). `StartBroker` now
+requires that capability alongside the sealed original clock. A separate
+seqpacket pair created before broker Start becomes broker FD14 and native entry
+FD16. `TakeServingReader` consumes the exact live-broker transfer once; the
+monitor closes its copies only after Start settles. Helpers and service roles
+inherit neither channel. Socket identity checks do not establish provenance by
+themselves: only this measured inherited topology does. The currently wired
+broker emits PREPARE after live owner preparation, never COMMIT/RENEW yet.

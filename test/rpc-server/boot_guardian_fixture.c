@@ -8,17 +8,17 @@
 #include <sys/stat.h>
 #include "rpc-boot-guardian.h"
 
-static int announce(char role) {
-    int fd = (int)syscall(SYS_pidfd_open, getpid(), 0);
-    if (fd < 0) return -1;
+static int capability(char role,int fd) {
     union { struct cmsghdr align; char b[CMSG_SPACE(sizeof(int))]; } control = {0};
-    struct iovec iov = {&role, 1};
-    struct msghdr msg = {.msg_iov=&iov,.msg_iovlen=1,.msg_control=control.b,.msg_controllen=sizeof control.b};
-    struct cmsghdr *c=CMSG_FIRSTHDR(&msg);
-    c->cmsg_level=SOL_SOCKET;c->cmsg_type=SCM_RIGHTS;c->cmsg_len=CMSG_LEN(sizeof(int));
-    memcpy(CMSG_DATA(c), &fd, sizeof fd);
-    int result=sendmsg(0,&msg,MSG_DONTWAIT|MSG_NOSIGNAL)==1 ? 0:-1;
-    close(fd);return result;
+    struct iovec iov={&role,1};
+    struct msghdr msg={.msg_iov=&iov,.msg_iovlen=1,.msg_control=control.b,.msg_controllen=sizeof control.b};
+    struct cmsghdr *c=CMSG_FIRSTHDR(&msg);c->cmsg_level=SOL_SOCKET;c->cmsg_type=SCM_RIGHTS;c->cmsg_len=CMSG_LEN(sizeof(int));
+    memcpy(CMSG_DATA(c),&fd,sizeof fd);
+    return sendmsg(0,&msg,MSG_DONTWAIT|MSG_NOSIGNAL)==1 ? 0:-1;
+}
+static int announce(char role) {
+    int fd=(int)syscall(SYS_pidfd_open,getpid(),0);if(fd<0)return -1;
+    int result=capability(role,fd);close(fd);return result;
 }
 int main(int argc,char **argv) {
     if (argc!=3) return 64;
@@ -43,10 +43,19 @@ int main(int argc,char **argv) {
     if (!strcmp(argv[1],"expired"))origin=now-RPC_GUARD_WINDOW_NS-1;
     uint64_t timing[2]={origin,origin<=INT64_MAX-RPC_GUARD_WINDOW_NS ? origin+RPC_GUARD_WINDOW_NS:0};
     if(send(0,timing,sizeof timing,MSG_DONTWAIT|MSG_NOSIGNAL)!=sizeof timing)return 75;
-    if (rpc_guard_enter(origin)) return 72;
+    int guard=-1;
+    if (rpc_guard_enter(origin,&guard)) return 72;
     if (announce('W')) return 73;
+    if (!strncmp(argv[1],"serving-",8)) {
+        if(capability('H',guard))return 77;
+        close(guard); /* external fixture controller is sole capability holder */
+        pid_t p=fork();if(p<0)return 78;
+        if(p==0){if(announce('D'))return 79;for(;;)pause();}
+        for(;;)pause();
+    }
     if (!strcmp(argv[1],"early-exit")) {usleep(150000);return 7;}
     if (!strcmp(argv[1],"blocked-preparation")) {raise(SIGSTOP);for(;;)pause();}
+    if(fcntl(guard,F_SETFD,0))return 76;
     char *args[]={argv[0],"worker",argv[2],NULL};
     execv(argv[0],args);return 74;
 }

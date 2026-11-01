@@ -35,3 +35,32 @@ func TestBrokerReadinessWriterRequiresExactLiveProcessAndOneTransfer(t *testing.
 		}
 	}
 }
+
+func TestBrokerServingReaderExactProcessOneTransfer(t *testing.T) {
+	pair, e := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_SEQPACKET|syscall.SOCK_CLOEXEC, 0)
+	if e != nil {
+		t.Fatal(e)
+	}
+	f := os.NewFile(uintptr(pair[0]), "guard")
+	defer f.Close()
+	defer syscall.Close(pair[1])
+	fd, _, eno := syscall.Syscall(434, uintptr(os.Getpid()), 0, 0)
+	if eno != 0 {
+		t.Fatal(eno)
+	}
+	pid := os.NewFile(fd, "pidfd")
+	defer pid.Close()
+	b := &Broker{servingReader: f, pidfd: pid}
+	got, e := b.TakeServingReader()
+	if e != nil || got != f {
+		t.Fatal(e)
+	}
+	if _, e = b.TakeServingReader(); e == nil {
+		t.Fatal("duplicate transfer")
+	}
+	for _, bad := range []*Broker{nil, {}, {servingReader: f}, {pidfd: pid}} {
+		if _, e = bad.TakeServingReader(); e == nil {
+			t.Fatal("missing capability")
+		}
+	}
+}

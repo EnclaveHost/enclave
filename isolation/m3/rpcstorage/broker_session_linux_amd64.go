@@ -66,6 +66,8 @@ type BrokerSession struct {
 	localReadySignal     chan struct{}
 	prepareUsed          bool
 	prepared             *servingPrepared
+	guards               [2]*rpcservice.GuardClient
+	guardsUsed           bool
 }
 
 func (s *BrokerSession) Request() Request         { return s.request }
@@ -178,7 +180,11 @@ func (s *BrokerSession) lose() {
 		s.mu.Lock()
 		raw := s.exportRaw
 		ownerRaw := s.ownerRaw
+		guards := s.guards
 		s.mu.Unlock()
+		for _, g := range guards {
+			g.Shutdown()
+		}
 		if ownerRaw != nil {
 			ownerRaw.Close()
 		}

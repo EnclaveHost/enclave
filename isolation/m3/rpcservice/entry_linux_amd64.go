@@ -339,12 +339,18 @@ func EnterInherited() int {
 	// Keep every descriptor, including contract/control, alive until exit. An
 	// uncertain cleanup never closes capabilities out from under in-flight work.
 	defer runtime.KeepAlive(files)
-	origin, _, deadline, err := readEntry(files[1])
+	origin, rawOrigin, deadline, err := readEntry(files[1])
 	if err != nil {
 		return 126
 	}
 	armed := make(chan struct{})
-	go watchEntry(3, deadline, armed, os.Exit)
+	serving := os.NewFile(16, "rpc-original-broker-lifecycle")
+	defer runtime.KeepAlive(serving)
+	channel, err := GuardSocketFD(serving)
+	if err != nil {
+		return 126
+	}
+	go watchServingEntry(3, channel, rawOrigin, deadline, armed, os.Exit)
 	<-armed
 	// Close the executable capability before any service can run. The monitor
 	// invoked this exact held inode, not a mutable path after verification.

@@ -1,0 +1,12 @@
+{"Time":"2026-11-01T15:55:34.330582649-07:00","Action":"start","Package":"enclave.host/isolation/m3/rpcbootstrap"}
+{"Time":"2026-11-01T15:55:34.332437146-07:00","Action":"run","Package":"enclave.host/isolation/m3/rpcbootstrap","Test":"TestBrokerLaunchPolicyAndConsumedFailure"}
+{"Time":"2026-11-01T15:55:34.332493826-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcbootstrap","Test":"TestBrokerLaunchPolicyAndConsumedFailure","Output":"=== RUN   TestBrokerLaunchPolicyAndConsumedFailure\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:55:34.334500842-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcbootstrap","Test":"TestBrokerLaunchPolicyAndConsumedFailure","Output":"--- PASS: TestBrokerLaunchPolicyAndConsumedFailure (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:55:34.334515752-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcbootstrap","Test":"TestBrokerLaunchPolicyAndConsumedFailure","Elapsed":0}
+{"Time":"2026-11-01T15:55:34.334523852-07:00","Action":"run","Package":"enclave.host/isolation/m3/rpcbootstrap","Test":"TestBrokerServingReaderExactProcessOneTransfer"}
+{"Time":"2026-11-01T15:55:34.334526492-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcbootstrap","Test":"TestBrokerServingReaderExactProcessOneTransfer","Output":"=== RUN   TestBrokerServingReaderExactProcessOneTransfer\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:55:34.334529902-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcbootstrap","Test":"TestBrokerServingReaderExactProcessOneTransfer","Output":"--- PASS: TestBrokerServingReaderExactProcessOneTransfer (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:55:34.334532382-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcbootstrap","Test":"TestBrokerServingReaderExactProcessOneTransfer","Elapsed":0}
+{"Time":"2026-11-01T15:55:34.334534232-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcbootstrap","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-11-01T15:55:34.33478729-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcbootstrap","Output":"ok  \tenclave.host/isolation/m3/rpcbootstrap\t0.004s\n"}
+{"Time":"2026-11-01T15:55:34.33479463-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcbootstrap","Elapsed":0.004}

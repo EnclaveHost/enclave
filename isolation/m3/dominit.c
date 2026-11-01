@@ -260,7 +260,7 @@ static int init_error(void) {
 
 int main(void) {
 #ifdef NATIVE_RPC
-    int rpc_clock = -1;
+    int rpc_clock = -1, rpc_guard = -1;
 #endif
 #if defined(NATIVE_DESKTOP) || defined(NATIVE_RPC)
     /* Before anything privileged: confirm we are the guest's PID 1 and that this is exactly the
@@ -276,7 +276,7 @@ int main(void) {
     /* Keep the original PID1 as an independent supervisor before mounts, TPM,
      * native tools, credential setup or Go initialization. Only its gated child
      * continues here and eventually becomes /monitor. Kernel boot remains origin. */
-    if (rpc_guard_enter(0)) rpc_guard_poweroff();
+    if (rpc_guard_enter(0, &rpc_guard)) rpc_guard_poweroff();
 #endif
     native_mounts();
 #ifdef NATIVE_RPC
@@ -436,11 +436,15 @@ int main(void) {
     double rpc_now = now_ms();
     if (snp || !hostflag[0] || !vtpmflag || rpc_now < 0 || rpc_now >= 900000.0)
         poweroff_now("RPC boot context or original deadline refused");
-    if (rpc_clock != 3 && dup2(rpc_clock, 3) != 3)
-        poweroff_now("RPC clock transfer failed");
-    if (rpc_clock != 3) close(rpc_clock);
-    if (fcntl(3, F_SETFD, 0) != 0)
-        poweroff_now("RPC clock inheritance failed");
+    /* Stage both descriptors above fixed slots before dup2; the original
+     * socket may itself be FD3. Helpers inherited neither CLOEXEC capability. */
+    int clock_copy=fcntl(rpc_clock,F_DUPFD_CLOEXEC,5);
+    int guard_copy=fcntl(rpc_guard,F_DUPFD_CLOEXEC,5);
+    if(clock_copy<0 || guard_copy<0)poweroff_now("RPC capability staging failed");
+    close(rpc_clock);close(rpc_guard);
+    if(dup2(clock_copy,3)!=3 || dup2(guard_copy,4)!=4)poweroff_now("RPC capability transfer failed");
+    close(clock_copy);close(guard_copy);
+    if(fcntl(3,F_SETFD,0) || fcntl(4,F_SETFD,0))poweroff_now("RPC capability inheritance failed");
 #endif
     char *argv[] = {"/monitor", snpflag, hostflag[0] ? hostflag : NULL, vtpmflag, NULL};
     char *envp[] = {"HOME=/tmp", "PATH=/plat", NULL};

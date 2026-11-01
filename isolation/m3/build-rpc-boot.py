@@ -57,7 +57,7 @@ def main():
     raw = base.read_bounded(args.profile, 16384)
     p = profile(raw)
     out = Path(args.out).absolute()
-    sources = ("dominit.c", "native-boot.c", "rpc-boot-clock.h", "rpc-boot-guardian.h", "vtpm-boot.h", "build-rpc-boot.py", "build-native.py")
+    sources = ("dominit.c", "native-boot.c", "rpc-boot-clock.h", "rpc-boot-guardian.h", "rpc-serving-guard.h", "vtpm-boot.h", "build-rpc-boot.py", "build-native.py")
     if any((HERE / n).exists() for n in ("rpc-boot-profile.h", "native-boot-profile.h")):
         raise base.BuildError("source-local profile header would shadow generated input")
     pins = {n: base.sha256(base.read_bounded(str(HERE / n), base.MAX_SOURCE)) for n in sources}

@@ -50,3 +50,30 @@ coordinated guardian commit must use those actors while the actual observation
 is still fresh and before originalD. Receipts cannot rehydrate them. No serving
 commit or deadline transfer is implemented yet. See
 [actual TLS/crypto and dispatcher qualification](../../../ops/rpc-serving-prepare-r1/ROOT-RESULT.md).
+
+The measured native path now retains two private Unix seqpacket lifecycle
+capabilities: PID1's original worker gate becomes monitor FD4 and broker FD13;
+a distinct monitor-created pair becomes broker FD14 and native service entry
+FD16. Both are CLOEXEC through helpers/roles. The monitor closes each copy only
+after the corresponding Start has settled. Broker session loss shuts down both
+sockets without closing/recycling descriptors under in-flight operations.
+
+After the original live owner has signed and persisted serving preparation, the
+broker sends PREPARE to both guardians and requires exact acknowledgements before
+publishing its prepared record. PREPARE pins the exact owner's proof hash, original
+origin/deadline and actual readiness observation. It never extends originalD.
+The C PID1 and independent Go entry watcher implement one-shot COMMIT and ordered
+RENEW, with <=30s absolute monotonic permits, strict prior-expiry checks, and
+unchanged exact monitor-death/channel-loss termination. COMMIT must arrive before
+originalD while the initial observation is still less than four seconds old.
+Malformed/replayed/mismatched/late messages terminate; there is no reconnect.
+These private messages are trusted broker decisions, not independently signed
+storage permits or public health evidence.
+
+**No production callsite emits COMMIT/RENEW yet.** Owner, exporter, service
+supervisor, broker, operator/systemd and Windows guardian transfer still need one
+coordinated transaction. This receiver integration does not make the RPC live or
+remove any startup cutoff in the currently reachable path. Native entry requires
+FD16 as well as FD15; do not combine older monitor/broker/entry binaries. C header
+changes are included in boot-stage source pins. Existing firmware is obsolete for
+this composition and must not be booted as evidence of the new protocol.
