@@ -1,0 +1,5 @@
+{
+  "originalFile": "qualification.log",
+  "sha256": "a03c3c27376279de1ae676b47fd5a6b83d280256fc795286bd2fb8e48002c6f6",
+  "utf8": "Traceback (most recent call last):\n  File \"/entry.py\", line 43, in <module>\n    run(label,cmd,5)\n    ~~~^^^^^^^^^^^^^\n  File \"/entry.py\", line 6, in run\n    rows.append({'phase':label,'exit':r.returncode});assert r.returncode==0,label\n                                                            ^^^^^^^^^^^^^^^\nAssertionError: runtime-version\n"
+}

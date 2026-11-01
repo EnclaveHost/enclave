@@ -256,7 +256,6 @@ bad: {
 
 /* Opens the regular file rel below dir without following symlinks and without
  * leaving dir's filesystem (the verified root). */
-#ifndef NATIVE_RPC
 static int open_below(int dir, const char *rel, int flags) {
     char buf[256], *save = NULL;
     struct stat top, st;
@@ -288,7 +287,6 @@ bad: {
     }
 }
 
-#endif
 static int is_mount_root(int fd) {
     struct statx sx;
     if (statx(fd, "", AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW, STATX_BASIC_STATS, &sx)) return -1;
@@ -686,6 +684,28 @@ static int run(void) {
     if (fd < 0) return fail("nft-ct-open", errno);
     if (syscall(SYS_finit_module, fd, "", 0)) return fail("nft-ct-load", errno);
     close(fd);
+#else
+    /* The fixed kernel config builds NBD as a module. Load only the measured
+     * module, after optical discovery so pre-existing NBD devices are refused.
+     * No socket is connected and no state filesystem is opened here. */
+    stage("rpc-nbd");
+    int rpc = open_dir_path("/plat/native-rpc", 0);
+    if (rpc < 0) return fail("rpc-nbd-dir", errno);
+    fd = open_below(rpc, "nbd.ko", O_RDONLY);
+    if (fd < 0 || fstat(fd, &st) || st.st_uid != 0 || (st.st_mode & 07777) != 0444)
+        return fail("rpc-nbd-module", EPERM);
+    if (syscall(SYS_finit_module, fd, "nbds_max=2 max_part=0", 0))
+        return fail("rpc-nbd-load", errno);
+    close(fd);
+    close(rpc);
+    char value[32];
+    if (read_small("/sys/module/nbd/parameters/nbds_max", value, sizeof value) < 0 || strcmp(value, "2\n") ||
+        read_small("/sys/module/nbd/parameters/max_part", value, sizeof value) < 0 || strcmp(value, "0\n") ||
+        read_small("/sys/class/block/nbd0/dev", value, sizeof value) < 0 || strcmp(value, "43:0\n") ||
+        read_small("/sys/class/block/nbd1/dev", value, sizeof value) < 0 || strcmp(value, "43:1\n") ||
+        read_small("/sys/class/block/nbd0/size", value, sizeof value) < 0 || strcmp(value, "0\n") ||
+        read_small("/sys/class/block/nbd1/size", value, sizeof value) < 0 || strcmp(value, "0\n"))
+        return fail("rpc-nbd-readback", EINVAL);
 #endif
     close(rootdir);
 

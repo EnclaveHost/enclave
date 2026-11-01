@@ -1,0 +1,5 @@
+{
+  "originalFile": "outer.log",
+  "sha256": "f133939b77d96c1fdb5f8a61239f782a8657be42e135e5310416179102253a58",
+  "utf8": "[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=94620\n"
+}

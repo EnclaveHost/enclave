@@ -1,0 +1,5 @@
+{
+  "originalFile": "build.log",
+  "sha256": "53d3f7a72df976b7ae34e3d9eb241144576f55c5cdc70f6a8db7a7c019785899",
+  "utf8": "make: Entering directory '/kernel'\n  CC [M]  /output/module/nbd.o\n  MODPOST /output/module/Module.symvers\n  CC [M]  /output/module/nbd.mod.o\n  LD [M]  /output/module/nbd.ko\n  BTF [M] /output/module/nbd.ko\nmake: Leaving directory '/kernel'\n"
+}

@@ -1,0 +1,5 @@
+{
+  "originalFile": "output/runtime-version.log",
+  "sha256": "cd0ccbc42517924251d3c1c93678bd759abadea815f11a929853b6705cc02045",
+  "utf8": "bwrap: setting up uid map: Operation not permitted\n"
+}

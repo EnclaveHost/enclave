@@ -1,0 +1,5 @@
+{
+  "originalFile": "output/tests.log",
+  "sha256": "025e89682cb69bec3fb9b7304532906ff48321b339e428759b8fc4e7e50b1d1c",
+  "utf8": "test_archive_independent_readback_determinism (test_rpc_image_build.RpcImageBuild.test_archive_independent_readback_determinism) ... ok\ntest_archive_refuses_aliases_types_and_overwrite (test_rpc_image_build.RpcImageBuild.test_archive_refuses_aliases_types_and_overwrite) ... ok\ntest_copy_detects_mutation_during_write (test_rpc_image_build.RpcImageBuild.test_copy_detects_mutation_during_write) ... ok\ntest_dependency_closure_missing_and_ambiguous (test_rpc_image_build.RpcImageBuild.test_dependency_closure_missing_and_ambiguous) ... ok\ntest_large_copy_rechecks_digest_geometry_type (test_rpc_image_build.RpcImageBuild.test_large_copy_rechecks_digest_geometry_type) ... ok\ntest_nbd_identity_architecture_and_sections (test_rpc_image_build.RpcImageBuild.test_nbd_identity_architecture_and_sections) ... ok\n\n----------------------------------------------------------------------\nRan 6 tests in 0.003s\n\nOK\n"
+}

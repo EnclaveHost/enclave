@@ -1,0 +1,21 @@
+{
+  "phases": [
+    {
+      "phase": "runtime-version",
+      "exit": 0,
+      "output": "wasmtime 49.0.3 (f96eabaa1 2026-10-14)"
+    },
+    {
+      "phase": "verity-version",
+      "exit": 0,
+      "output": "veritysetup 2.8.8 flags: UDEV BLKID KEYRING KERNEL_CAPI HW_OPAL"
+    }
+  ],
+  "elapsed": 0.011088762897998095,
+  "imageReceiptSha256": "ede13c91a33ced0f74fa21e4f2e32578496afe43130d17e3c716b8348f709e6e",
+  "filesChecked": 36,
+  "sourcePins": 380,
+  "deployed": false,
+  "nbdLoaded": false,
+  "guestBooted": false
+}

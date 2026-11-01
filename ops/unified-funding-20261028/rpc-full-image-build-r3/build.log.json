@@ -1,0 +1,5 @@
+{
+  "originalFile": "output/build.log",
+  "sha256": "33e8b60b84d80540c7fdc2ad990235d58dfa41e1656cc0e5c260c8dc75fb81f8",
+  "utf8": "{\"initrd\": {\"path\": \"rpc.cpio.gz\", \"bytes\": 34022000, \"sha256\": \"da9270e26413cbc062f52099b7b4fb1a938d7cda5cfea1416af9c3742e7f4363\"}, \"profileSha256\": \"1c676e246d43fbc04c882778a537a4373b18a3174e98a830f27acbe791560250\", \"containers\": {\"image\": {\"path\": \"image.container\", \"bytes\": 1073807360, \"sha256\": \"863e77dfa63ae76639b2572523266e4302b67faa56ea2acbfa82783342b4b9f4\", \"headerBytes\": 65536}, \"hash\": {\"path\": \"hash.container\", \"bytes\": 8523776, \"sha256\": \"d0674305e4a42b62313ca4807ba76a2dd87fedaf7590e1cce03d1ffc1dac1574\", \"headerBytes\": 65536}}, \"deployed\": false}\n"
+}

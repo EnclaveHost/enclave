@@ -58,9 +58,10 @@ See [BUILD-IMAGE.md](BUILD-IMAGE.md) for the offline ext4/dm-verity step.
 
 ## Production integration still required
 
-The `isolation/m3/cmd/rpc-native-init` entry now invokes the Go runner, but is
-not installed in this client root or launched by a monitor. It belongs in the
-measured bootstrap, with a separate executable pin. The distinct
+The `isolation/m3/cmd/rpc-native-init` entry invokes the Go runner. The candidate
+[platform assembler](BUILD-PLATFORM.md) packages it in the measured bootstrap
+with a separate executable pin, outside this client root. It has not been
+launched by an accepted production monitor. The distinct
 `isolation/m3/rpcplatform` descriptor binds that entry, controller, kernel and
 this root descriptor; no complete accepted platform has been produced. The
 monitor must authenticate that profile and bind the owner's two logical volume

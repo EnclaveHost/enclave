@@ -1,0 +1,14 @@
+[
+  {
+    "path": "ops/unified-funding-20261028/rpc-image-nbd-build-r1/KERNEL-PINS.json",
+    "publicFileDigestsPass": true,
+    "plantedPrivateKeyRefused": true,
+    "scannerUnchanged": true
+  },
+  {
+    "path": "ops/unified-funding-20261028/rpc-image-nbd-build-r2/KERNEL-PINS.json",
+    "publicFileDigestsPass": true,
+    "plantedPrivateKeyRefused": true,
+    "scannerUnchanged": true
+  }
+]

@@ -1,0 +1,5 @@
+{
+  "originalFile": "verity-version.log",
+  "sha256": "5b4a259c229269051bdd37f5ec7ca084a165428ce8b45d13d105668eb8dc9e70",
+  "utf8": "veritysetup 2.8.8 flags: UDEV BLKID KEYRING KERNEL_CAPI HW_OPAL \n"
+}

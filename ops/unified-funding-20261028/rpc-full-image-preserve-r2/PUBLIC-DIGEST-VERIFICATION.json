@@ -1,0 +1,14 @@
+[
+  {
+    "path": "ops/unified-funding-20261028/rpc-image-nbd-build-r1/KERNEL-PINS.json",
+    "sourceFilesRehashed": 10160,
+    "allDigestsMatch": true,
+    "originalFileSha256": "ae929f9aa88e4f4de51aa612241a6c263161dc75b2fe54b4dca2c2ae90e4b294"
+  },
+  {
+    "path": "ops/unified-funding-20261028/rpc-image-nbd-build-r2/KERNEL-PINS.json",
+    "sourceFilesRehashed": 10160,
+    "allDigestsMatch": true,
+    "originalFileSha256": "ae929f9aa88e4f4de51aa612241a6c263161dc75b2fe54b4dca2c2ae90e4b294"
+  }
+]

@@ -40,7 +40,7 @@ Schema 2 adds `wrapperSha256`, the exact maintained chain wrapper overlaid from
 immutable measured bootstrap at `/plat/native-rpc/chain_service.py`. The older
 VM-only wrapper inside the unchanged client image is not a fallback. Root
 composition and the supervisor both check this pin. Profile 1 is refused. This
-source-level format change has not produced or admitted a new actual platform.
+source-level format change has not admitted a production platform.
 
 ## Guest boot stages
 
@@ -80,5 +80,8 @@ Qualification compiles the RPC stages and ordinary/desktop compatibility paths
 and checks actual C memfd sealing, FD3 inheritance across exec and receipt by
 the Go clock consumer. Profile inputs in those builds are explicitly synthetic.
 No actual optical/mapper mounts, target guest boot or RPC serving is qualified.
-Full measured-image assembly, authenticated broker/client-key bootstrap,
-target lifecycle admission and end-to-end client readiness remain required.
+The complete candidate assembler is now `../build-rpc.py`; see
+[BUILD-PLATFORM.md](../../../rpc/native/BUILD-PLATFORM.md) for its pinned inputs,
+NBD preparation and retained limitations. Authenticated broker/client-key
+bootstrap, platform acceptance, target lifecycle admission and end-to-end client
+readiness remain required.

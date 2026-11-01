@@ -1,0 +1,5 @@
+{
+  "originalFile": "PROCESS.txt",
+  "sha256": "da97196d3f5548ce3e911d58a4b43dcc635c09121227cbedba3a62b0ccf990c0",
+  "utf8": "Id=enclave-rpc-full-image-load-r1.service\nActiveState=inactive\nInvocationID=\nMainPID=0\nResult=success\nExecMainStatus=0\nMemoryPeak=[not set]\n"
+}

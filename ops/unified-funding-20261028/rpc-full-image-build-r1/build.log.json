@@ -1,0 +1,5 @@
+{
+  "originalFile": "output/build.log",
+  "sha256": "2ba7f4739570979eff40cd2b13ced19495dae6da4580c2d21fb35f32d424e2b2",
+  "utf8": "Traceback (most recent call last):\n  File \"/src/isolation/m3/build-rpc.py\", line 277, in <module>\n    main()\n    ~~~~^^\n  File \"/src/isolation/m3/build-rpc.py\", line 222, in main\n    spec, specsha, profile, files, vermagic = inputs(args.spec)\n                                              ~~~~~~^^^^^^^^^^^\n  File \"/src/isolation/m3/build-rpc.py\", line 161, in inputs\n    closure(storage)\n    ~~~~~~~^^^^^^^^^\n  File \"/src/isolation/m3/build-rpc.py\", line 117, in closure\n    if key not in (names if runtime else files): raise base.BuildError(\"missing ELF interpreter: \" + path)\n                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nnative_build.BuildError: missing ELF interpreter: usr/lib/libc.so.6\n"
+}

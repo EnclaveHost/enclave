@@ -1,0 +1,5 @@
+{
+  "originalFile": "PROCESS.txt",
+  "sha256": "8afef33920efccef01fcef7fa86351fda3696547eb9ae9a568966c9dcc1e3ded",
+  "utf8": "Id=enclave-rpc-image-nbd-build-r1.service\nActiveState=failed\nInvocationID=3c3d0df848964fc9bbf9cafa321b3272\nMainPID=0\nResult=exit-code\nExecMainStatus=1\nMemoryPeak=10661888\n"
+}

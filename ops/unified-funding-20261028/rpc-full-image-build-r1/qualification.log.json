@@ -1,0 +1,5 @@
+{
+  "originalFile": "qualification.log",
+  "sha256": "d664ed11514facb44e49cd0576c4d1d26c96a812a793795c62a9b8024403c804",
+  "utf8": "Traceback (most recent call last):\n  File \"/entry.py\", line 8, in <module>\n    run('build',['/usr/bin/python3','-B','/src/isolation/m3/build-rpc.py','--spec','/spec.json','--out','/output/image'],145)\n    ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/entry.py\", line 6, in run\n    rows.append({'phase':label,'exit':r.returncode});assert r.returncode==0,label\n                                                            ^^^^^^^^^^^^^^^\nAssertionError: build\n"
+}

@@ -1,0 +1,5 @@
+{
+  "originalFile": "runtime-version.log",
+  "sha256": "d1e05f4de03e60565d903e5749d23b69277393985a5294fe76029ad10e80bba6",
+  "utf8": "wasmtime 49.0.3 (f96eabaa1 2026-10-14)\n"
+}

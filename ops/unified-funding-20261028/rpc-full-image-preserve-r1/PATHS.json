@@ -1,0 +1,14 @@
+[
+  "isolation/m3/build-rpc.py",
+  "isolation/m3/native-boot.c",
+  "isolation/m3/rpcplatform/README.md",
+  "rpc/native/README.md",
+  "rpc/native/BUILD-PLATFORM.md",
+  "test/rpc-server/test_rpc_image_build.py",
+  "ops/unified-funding-20261028/rpc-image-nbd-build-r1",
+  "ops/unified-funding-20261028/rpc-image-nbd-build-r2",
+  "ops/unified-funding-20261028/rpc-full-image-build-r1",
+  "ops/unified-funding-20261028/rpc-full-image-build-r2",
+  "ops/unified-funding-20261028/rpc-full-image-build-r3",
+  "ops/unified-funding-20261028/rpc-full-image-load-r1"
+]

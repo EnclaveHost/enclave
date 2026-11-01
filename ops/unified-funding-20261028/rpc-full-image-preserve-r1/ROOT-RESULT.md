@@ -1,0 +1,1 @@
+Preservation2ae4478da5004769bc12de7f41bd7fd8 terminal1/Main0 BEFORE commit. git diff --cached --check rejected original upstream nbd.c line7 trailing whitespace in public evidence copies. Exact upstream/kernel/build sources are untouched; evidence is now lossless UTF8 JSON plus SHA256, matching raw input exactly. No scan bypass, runtime change or test/build replay.
