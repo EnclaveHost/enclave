@@ -1,0 +1,12 @@
+{
+  "preserve-r1": "ActiveState=inactive\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "preserve-r2": "ActiveState=inactive\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "preserve-r3": "ActiveState=inactive\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "preserve-r4": "ActiveState=inactive\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "ci-r1": "ActiveState=inactive\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "ci-r2": "ActiveState=inactive\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "ci-r3": "ActiveState=inactive\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "collect-r1": "ActiveState=inactive\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "collect-r2": "ActiveState=inactive\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "collect-r3": "ActiveState=inactive\nInvocationID=\nMainPID=0\nExecMainStatus=0\n"
+}

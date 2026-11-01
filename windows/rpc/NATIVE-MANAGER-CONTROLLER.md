@@ -409,3 +409,5 @@ file. Native-only compiler symbol excludes unused ordinary ProviderStart reducer
 and ordinary HyperVStartProvider.Start entrypoint; shared exact provider helpers
 and all native provider behavior remain. Legacy compilation without the symbol
 is unchanged. No cap increase.
+
+Lifecycle keeper and explicit start roles are now compiled. Hosted41339640102 passed the six remaining namespace methods; earlier41339385931 passed seven independent-watch methods before size refusal. Aggregate13 distinct checks; SYSTEM scheduling/provider/VM unqualified. Manager launch, keeper-death protection and mutable VMGS custody remain missing; production RPC OFFLINE. See `../../ops/unified-funding-20261028/rpc-native-lifecycle-ci-r3/ROOT-RESULT.md`.

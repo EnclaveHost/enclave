@@ -1,0 +1,129 @@
+{
+  "pins": [
+    {
+      "runtime": "f45335eec924287fd0f3282afbf0d0b70623244c",
+      "sourcePins": [
+        "windows/rpc/BoundedWorker.cs",
+        "windows/rpc/OwnerObserver.cs",
+        "windows/rpc/ProtectedAttempt.cs",
+        "windows/rpc/ProviderStart.cs",
+        "windows/rpc/OwnedVmPermit.cs",
+        "windows/rpc/HostPhysicalPool.cs",
+        "windows/rpc/WindowsStartAdmission.cs",
+        "windows/rpc/LegacyTemplateFence.cs",
+        "windows/rpc/LegacyLaunchCohort.cs",
+        "windows/rpc/LegacyHandoff.cs",
+        "windows/rpc/NativeRpcDefinition.cs",
+        "windows/rpc/NativeRpcWmi.cs",
+        "windows/rpc/NativeRpcStart.cs",
+        "windows/rpc/NativeRpcCleanup.cs",
+        "windows/rpc/NativeRpcCleanupWitness.cs",
+        "windows/rpc/NativeRpcAuthority.cs",
+        "windows/rpc/NativeRpcWorkerEntry.cs",
+        "windows/rpc/NativeRpcFiles.cs",
+        "windows/rpc/NativeRpcLifecycle.cs",
+        "windows/rpc/NativeRpcLifecycleEntry.cs",
+        "windows/rpc/NativeRpcController.cs",
+        "windows/rpc/NativeRpcManagerTransport.cs",
+        "test/rpc-windows-worker/NativeRpcLifecycleHarness.cs"
+      ],
+      "runnerAlsoVerifiedAgainstGit": true
+    },
+    {
+      "runtime": "e8797bb2190bbd60a7395c996f88344664140baa",
+      "sourcePins": [
+        "windows/rpc/BoundedWorker.cs",
+        "windows/rpc/OwnerObserver.cs",
+        "windows/rpc/ProtectedAttempt.cs",
+        "windows/rpc/ProviderStart.cs",
+        "windows/rpc/OwnedVmPermit.cs",
+        "windows/rpc/HostPhysicalPool.cs",
+        "windows/rpc/WindowsStartAdmission.cs",
+        "windows/rpc/LegacyTemplateFence.cs",
+        "windows/rpc/LegacyLaunchCohort.cs",
+        "windows/rpc/LegacyHandoff.cs",
+        "windows/rpc/NativeRpcDefinition.cs",
+        "windows/rpc/NativeRpcWmi.cs",
+        "windows/rpc/NativeRpcStart.cs",
+        "windows/rpc/NativeRpcCleanup.cs",
+        "windows/rpc/NativeRpcCleanupWitness.cs",
+        "windows/rpc/NativeRpcAuthority.cs",
+        "windows/rpc/NativeRpcWorkerEntry.cs",
+        "windows/rpc/NativeRpcFiles.cs",
+        "windows/rpc/NativeRpcLifecycle.cs",
+        "windows/rpc/NativeRpcLifecycleEntry.cs",
+        "windows/rpc/NativeRpcController.cs",
+        "windows/rpc/NativeRpcManagerTransport.cs",
+        "test/rpc-windows-worker/NativeRpcLifecycleHarness.cs"
+      ],
+      "runnerAlsoVerifiedAgainstGit": true
+    },
+    {
+      "runtime": "9edec7172f7544c55aa1c87cfd448bc9c2d62ede",
+      "sourcePins": [
+        "windows/rpc/BoundedWorker.cs",
+        "windows/rpc/OwnerObserver.cs",
+        "windows/rpc/ProtectedAttempt.cs",
+        "windows/rpc/ProviderStart.cs",
+        "windows/rpc/OwnedVmPermit.cs",
+        "windows/rpc/HostPhysicalPool.cs",
+        "windows/rpc/WindowsStartAdmission.cs",
+        "windows/rpc/LegacyTemplateFence.cs",
+        "windows/rpc/LegacyLaunchCohort.cs",
+        "windows/rpc/LegacyHandoff.cs",
+        "windows/rpc/NativeRpcDefinition.cs",
+        "windows/rpc/NativeRpcWmi.cs",
+        "windows/rpc/NativeRpcStart.cs",
+        "windows/rpc/NativeRpcCleanup.cs",
+        "windows/rpc/NativeRpcCleanupWitness.cs",
+        "windows/rpc/NativeRpcAuthority.cs",
+        "windows/rpc/NativeRpcWorkerEntry.cs",
+        "windows/rpc/NativeRpcFiles.cs",
+        "windows/rpc/NativeRpcLifecycle.cs",
+        "windows/rpc/NativeRpcStartAuthority.cs",
+        "windows/rpc/NativeRpcLifecycleWatch.cs",
+        "windows/rpc/NativeRpcPeerPins.cs",
+        "windows/rpc/NativeRpcLifecycleEntry.cs",
+        "windows/rpc/NativeRpcController.cs",
+        "windows/rpc/NativeRpcManagerTransport.cs",
+        "test/rpc-windows-worker/NativeRpcLifecycleHarness.cs"
+      ],
+      "runnerAlsoVerifiedAgainstGit": true
+    }
+  ],
+  "binaries": {
+    "owned-entry.exe": {
+      "bytes": 251392,
+      "sha256": "7ee289d58a33f267d058b60d6090228bb9b266ab923578f9c3b8f83262bdca74"
+    },
+    "native-worker.exe": {
+      "bytes": 250368,
+      "sha256": "be176126c25e895ef718e73b59c5974ae16133d0ed054c583cc820f010c5fcab"
+    },
+    "system-worker.exe": {
+      "bytes": 261120,
+      "sha256": "999b00785b1089ae2b27b44bd4714c0f934fd356ddcb4c39f0aacf4b3137ed1f"
+    }
+  },
+  "distinctPassesByRun": {
+    "r2": [
+      "independent deadline dispatch proceeds while caller is blocked",
+      "actual held original process death triggers independent dispatch before deadline",
+      "observation failure dispatches cleanup rather than silently ending watch",
+      "failed cleanup callback remains one-shot with no retry",
+      "binding failure explicitly wakes independent cleanup once",
+      "rollback closes original watch without resetting time",
+      "invalid expired future overflow and extended watch windows refuse before dispatch"
+    ],
+    "r3": [
+      "actual protected start journal cannot forge lifecycle or stop authority",
+      "actual lifecycle journal can bind peers but cannot invoke start or stop",
+      "actual start custody pins original lifecycle contract boot image and deadline",
+      "actual lifecycle journal rejects altered cleanup endpoint and cross-profile lease",
+      "actual keeper pins only original start worker contract and rejects foreign attempt",
+      "native peer identity refuses actual non-SYSTEM process without bypass"
+    ]
+  },
+  "entrypointsCompiledOnly": true,
+  "targetSystemSchedulingWmiVmUnqualified": true
+}

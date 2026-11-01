@@ -1,0 +1,4 @@
+{
+  "sha256": "845599dc58aea2b6d16b288ce54c6567ab492e52afe7a3ab032d70349c47ac46",
+  "text": "PASS actual protected start journal cannot forge lifecycle or stop authority\r\nPASS actual lifecycle journal can bind peers but cannot invoke start or stop\r\nPASS actual start custody pins original lifecycle contract boot image and deadline\r\nPASS actual lifecycle journal rejects altered cleanup endpoint and cross-profile lease\r\nPASS actual keeper pins only original start worker contract and rejects foreign attempt\r\nPASS native peer identity refuses actual non-SYSTEM process without bypass\r\nCOMPLETE 6 PASS; watch thread and inert owner process actual; protected administrator namespaces actual; SYSTEM scheduling provider cleanup and VM unqualified\r\n"
+}
