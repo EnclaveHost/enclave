@@ -1,0 +1,20 @@
+{
+  "id": 13069200417,
+  "node_id": "MDg6QXJ0aWZhY3QxMzA2OTIwMDQxNw==",
+  "name": "rpc-provider-events-results",
+  "size_in_bytes": 1409,
+  "url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13069200417",
+  "archive_download_url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13069200417/zip",
+  "expired": false,
+  "digest": "sha256:0df1f0eb9a83877695a300cbaf969c36ca1f5dbf02db651295278f3e1158c563",
+  "created_at": "2026-11-01T03:34:46Z",
+  "updated_at": "2026-11-01T03:34:46Z",
+  "expires_at": "2026-11-08T03:34:45Z",
+  "workflow_run": {
+    "id": 41269703308,
+    "repository_id": 1428203917,
+    "head_repository_id": 1428203917,
+    "head_branch": "main",
+    "head_sha": "904840c78a134704bfe69b6e87a024fdb455d504"
+  }
+}

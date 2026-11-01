@@ -1,0 +1,1 @@
+source-closure\windows\rpc\ProviderEventEvidence.cs(80,93): error CS1061: 'System.Diagnostics.Eventing.Reader.EventLogException' does not contain a definition for 'ErrorCode' and no extension method 'ErrorCode' accepting a first argument of type 'System.Diagnostics.Eventing.Reader.EventLogException' could be found (are you missing a using directive or an assembly reference?)

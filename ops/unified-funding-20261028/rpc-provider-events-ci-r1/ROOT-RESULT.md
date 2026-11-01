@@ -1,0 +1,1 @@
+Hosted CI 41269703308 failed at compiler CS1061 before any fixture/event reader. Raw compiler stdout SHA256 97ef4bdc668d7b6cdc0f5b4f341df7ccbcde06ec17644938df9a6d12099cc70f. Public copy normalizes CRLF/trailing whitespace. No target execution or provider settlement.

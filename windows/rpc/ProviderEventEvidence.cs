@@ -30,7 +30,7 @@ namespace Enclave.OwnedRpc {
  }
  internal sealed class ProviderEventChannel {
   public string Channel,State,ErrorType;
-  public int ErrorCode;
+  public int ErrorHResult;
   public bool? Enabled;
   public long? RecordCount,OldestRecord;
   public List<ProviderEventRow> Records=new List<ProviderEventRow>();
@@ -77,7 +77,7 @@ namespace Enclave.OwnedRpc {
    }catch(EventLogException error){
     // Partial/error reads cannot masquerade as an empty successfully read log.
     if(result.Records.Count!=0)throw;
-    result.State="unavailable";result.ErrorType=error.GetType().Name;result.ErrorCode=error.ErrorCode;
+    result.State="unavailable";result.ErrorType=error.GetType().Name;result.ErrorHResult=error.HResult;
    }
    check();return result;
   }
