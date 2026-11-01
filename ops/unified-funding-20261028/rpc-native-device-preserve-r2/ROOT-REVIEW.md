@@ -1,0 +1,1 @@
+R1compiler exposed wrong test-only API name. Replace with existing PinNativeDefinitionJournalController, matching existing real journal fixtures. Production source is byte-identical R1, all fifteen new cases unrun. Same finite closure/envelopes, no cap or deadline relaxation. R1failed evidence preserved before execution.
